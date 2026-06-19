@@ -1,7 +1,7 @@
 # 🌿 Bubli Git 협업 규칙
 
 > KOSTA Final Project Team · Hae Maeil  
-> 백엔드: `bubli-backend` (Java/Spring Boot) · 프론트: `bubli-frontend` (Tauri + React)
+> 백엔드: `bubli-backend` (Java/Spring Boot) · 프론트: `bubli-frontend` (Tauri + Next)
 
 ---
 
@@ -10,7 +10,7 @@
 | 레포 | 역할 |
 |------|------|
 | `bubli-backend` | Spring Boot API, AI 에이전트, DB 연동 |
-| `bubli-frontend` | Tauri 데스크탑 앱 (React 웹뷰) |
+| `bubli-frontend` | Tauri 데스크탑 앱 (Next 웹뷰) |
 
 ---
 
