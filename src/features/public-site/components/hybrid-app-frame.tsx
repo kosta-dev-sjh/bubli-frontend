@@ -1,0 +1,52 @@
+import { Globe2, MonitorDown, PanelTop } from "lucide-react";
+
+import { Chip } from "@/components/ui/chip";
+import { GlassPanel } from "@/components/ui/glass-panel";
+
+const frames = [
+  {
+    body: "서비스 소개, 기능 안내, 다운로드 진입을 맡습니다. 회원 자료는 보이지 않습니다.",
+    icon: Globe2,
+    title: "공개 사이트",
+  },
+  {
+    body: "로그인 후 프로젝트룸, 자료보드, 작업판, 소통을 처리하는 실제 업무 공간입니다.",
+    icon: PanelTop,
+    title: "회원 웹 앱",
+  },
+  {
+    body: "배포된 HTTPS 회원 웹 앱을 WebView로 열고, 버블과 로컬 기능을 더합니다.",
+    icon: MonitorDown,
+    title: "Tauri 앱",
+  },
+];
+
+export function HybridAppFrame() {
+  return (
+    <section className="hybrid-frame" aria-label="웹과 앱 역할 분리">
+      <div className="hybrid-frame__grid">
+        {frames.map((frame) => {
+          const Icon = frame.icon;
+          return (
+            <GlassPanel className="hybrid-frame__card" key={frame.title}>
+              <span className="bubli-icon-tile" aria-hidden="true">
+                <Icon size={18} strokeWidth={2.1} />
+              </span>
+              <h3>{frame.title}</h3>
+              <p>{frame.body}</p>
+              <div className="hybrid-frame__mock" aria-hidden="true">
+                <span className="hybrid-frame__mock-line" style={{ width: "72%" }} />
+                <span className="hybrid-frame__mock-line" style={{ width: "92%" }} />
+                <span className="hybrid-frame__mock-line" style={{ width: "58%" }} />
+              </div>
+            </GlassPanel>
+          );
+        })}
+      </div>
+      <div className="hybrid-frame__note">
+        <Chip>설계 포인트</Chip>
+        <span>데스크탑 앱을 새로 만들지 않고, 회원 웹 앱을 Tauri로 감싸 같은 화면과 같은 API를 공유합니다.</span>
+      </div>
+    </section>
+  );
+}
