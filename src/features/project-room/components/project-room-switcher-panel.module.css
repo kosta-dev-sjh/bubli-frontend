@@ -1,0 +1,236 @@
+.panel {
+  display: grid;
+  gap: 18px;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.titleBlock {
+  display: grid;
+  max-width: 720px;
+  gap: 12px;
+}
+
+.titleBlock h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(25px, 3vw, 36px);
+  font-weight: 870;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.titleBlock p {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 14.5px;
+  line-height: 1.7;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.summary article,
+.search,
+.roomCard,
+.notice {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-card);
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: var(--shadow-soft);
+}
+
+.summary article {
+  padding: 14px;
+}
+
+.summary span {
+  display: block;
+  color: var(--color-faint);
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.summary strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text);
+  font-size: 23px;
+  font-weight: 870;
+  line-height: 1.1;
+}
+
+.search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 14px;
+  color: var(--color-faint);
+}
+
+.search:focus-within,
+.roomCard:focus-visible {
+  outline: 3px solid rgba(111, 184, 242, 0.28);
+  outline-offset: 2px;
+}
+
+.search input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--color-text);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.search input::placeholder {
+  color: var(--color-faint);
+}
+
+.roomGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.roomCard {
+  display: grid;
+  gap: 13px;
+  padding: 15px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 180ms var(--ease-out),
+    border-color 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out),
+    background 180ms var(--ease-out);
+}
+
+.roomCard:hover,
+.roomCardActive {
+  transform: translateY(-1px);
+  border-color: rgba(111, 184, 242, 0.38);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.92), transparent 34%),
+    rgba(215, 234, 244, 0.52);
+  box-shadow: var(--shadow-glass);
+}
+
+.roomTop {
+  display: flex;
+  min-width: 0;
+  gap: 11px;
+  align-items: flex-start;
+}
+
+.roomTitle {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.roomTitle h3 {
+  overflow: hidden;
+  margin: 0;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 860;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roomTitle p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 4px 0 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  line-height: 1.52;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.inlineStatus,
+.roomMeta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.roomMeta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.roomMeta span {
+  min-height: 30px;
+  justify-content: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: var(--radius-pill);
+  padding: 0 8px;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.58);
+  font-size: 11.5px;
+  font-weight: 780;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 14px;
+  color: var(--color-blue-deep);
+  background: rgba(215, 234, 244, 0.42);
+}
+
+.notice p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.58;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .roomGrid,
+  .summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .roomMeta {
+    grid-template-columns: 1fr;
+  }
+}
