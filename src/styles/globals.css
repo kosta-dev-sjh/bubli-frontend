@@ -599,6 +599,168 @@ select {
   line-height: 1.55;
 }
 
+.project-room-create {
+  display: grid;
+  gap: 18px;
+}
+
+.project-room-create__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 0.3fr);
+  gap: 18px;
+  align-items: stretch;
+  padding: 20px;
+}
+
+.project-room-create__title {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+}
+
+.project-room-create__title h2 {
+  max-width: 860px;
+  margin: 10px 0 0;
+  color: var(--color-text);
+  font-size: clamp(26px, 3vw, 40px);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.project-room-create__title p,
+.project-room-create__panel-header p,
+.project-room-create-candidate p,
+.project-room-create__checks p {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 620;
+  line-height: 1.65;
+}
+
+.project-room-create__progress {
+  display: grid;
+  align-content: center;
+  gap: 9px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.project-room-create__progress strong {
+  color: var(--color-blue-deep);
+  font-size: 42px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.project-room-create__progress span {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 840;
+  line-height: 1.3;
+}
+
+.project-room-create__flow {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 16px;
+}
+
+.project-room-create__upload,
+.project-room-create__candidate-panel,
+.project-room-create__checks {
+  padding: 18px;
+}
+
+.project-room-create__panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.project-room-create__panel-header h3,
+.project-room-create-resource h3,
+.project-room-create-candidate h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 22px;
+}
+
+.project-room-create__resource-list,
+.project-room-create__candidate-list {
+  display: grid;
+  gap: 10px;
+}
+
+.project-room-create-resource {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 12px 28px rgba(80, 110, 130, 0.08);
+}
+
+.project-room-create-resource__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 6px;
+}
+
+.project-room-create-resource__meta span:not(.bubli-status) {
+  color: var(--color-faint);
+  font-size: 11.5px;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.project-room-create-candidate {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 12px 28px rgba(80, 110, 130, 0.08);
+}
+
+.project-room-create-candidate svg {
+  color: var(--color-blue-deep);
+}
+
+.project-room-create__checks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.project-room-create__checks div {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 16px;
+  padding: 12px;
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.48);
+}
+
 @media (max-width: 720px) {
   .shell {
     padding: 18px;
@@ -616,6 +778,25 @@ select {
   .bubli-bubble {
     min-width: min(100%, 260px);
     max-width: 100%;
+  }
+
+  .project-room-create__hero,
+  .project-room-create__flow,
+  .project-room-create__checks {
+    grid-template-columns: 1fr;
+  }
+
+  .project-room-create__title,
+  .project-room-create__panel-header {
+    flex-direction: column;
+  }
+
+  .project-room-create__title h2 {
+    font-size: 28px;
+  }
+
+  .project-room-create-candidate {
+    grid-template-columns: 1fr;
   }
 }
 
