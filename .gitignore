@@ -4,6 +4,7 @@ dist/
 build/
 .next/
 out/
+storybook-static/
 *.tsbuildinfo
 
 # 환경 변수

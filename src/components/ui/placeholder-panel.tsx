@@ -1,3 +1,5 @@
+import { GlassPanel } from "@/components/ui/glass-panel";
+
 type PlaceholderPanelProps = {
   title: string;
   description: string;
@@ -5,11 +7,9 @@ type PlaceholderPanelProps = {
 
 export function PlaceholderPanel({ title, description }: PlaceholderPanelProps) {
   return (
-    <section className="glass-panel" style={{ padding: 24 }}>
-      <h2 style={{ margin: 0 }}>{title}</h2>
-      <p className="muted" style={{ lineHeight: 1.7, marginBottom: 0 }}>
-        {description}
-      </p>
-    </section>
+    <GlassPanel className="bubli-domain-card">
+      <h2 className="bubli-domain-card__title">{title}</h2>
+      <p className="bubli-domain-card__body">{description}</p>
+    </GlassPanel>
   );
 }
