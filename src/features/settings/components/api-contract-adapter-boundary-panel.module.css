@@ -1,0 +1,260 @@
+.panel {
+  display: grid;
+  gap: 18px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.heroCopy {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+}
+
+.heroCopy h2,
+.sectionTitle h3,
+.boundaryCard h3 {
+  margin: 0;
+  color: var(--color-text);
+  letter-spacing: 0;
+}
+
+.heroCopy h2 {
+  max-width: 760px;
+  font-size: clamp(28px, 4vw, 46px);
+  font-weight: 880;
+  line-height: 1.08;
+}
+
+.heroCopy p,
+.sectionTitle p,
+.boundaryCard p,
+.changeRow p,
+.heroMetric span {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.65;
+}
+
+.heroCopy p {
+  max-width: 720px;
+  font-size: 15px;
+}
+
+.heroMetric {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-card);
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.heroMetric strong {
+  color: var(--color-blue-deep);
+  font-size: 42px;
+  font-weight: 880;
+  line-height: 1;
+}
+
+.flowPanel,
+.changePanel,
+.rulePanel {
+  display: grid;
+  gap: 16px;
+}
+
+.sectionTitle {
+  display: grid;
+  gap: 5px;
+}
+
+.sectionTitle h3 {
+  font-size: 20px;
+  font-weight: 840;
+}
+
+.sectionTitle p {
+  font-size: 13.5px;
+}
+
+.boundaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.boundarySlot {
+  position: relative;
+  min-width: 0;
+}
+
+.connector {
+  position: absolute;
+  top: 50%;
+  right: -14px;
+  z-index: 2;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-50%);
+}
+
+.boundaryCard {
+  display: grid;
+  min-height: 210px;
+  align-content: start;
+  gap: 14px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.9), transparent 28%),
+    rgba(255, 255, 255, 0.62);
+  box-shadow: var(--shadow-soft);
+}
+
+.cardHeader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.boundaryCard h3 {
+  font-size: 17px;
+  font-weight: 840;
+}
+
+.boundaryCard p {
+  margin-top: 6px;
+  font-size: 13.5px;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(300px, 0.92fr);
+  gap: 18px;
+}
+
+.changeList,
+.ruleList {
+  display: grid;
+  gap: 10px;
+}
+
+.changeRow {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.72fr) minmax(210px, 1fr) minmax(180px, 0.95fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.13);
+  border-radius: var(--radius-card);
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.changeLabel {
+  display: grid;
+  gap: 7px;
+}
+
+.changeLabel strong {
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.fieldSwap {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-blue-deep);
+}
+
+.fieldSwap code {
+  overflow: hidden;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: 10px;
+  padding: 5px 8px;
+  background: rgba(215, 234, 244, 0.58);
+  color: var(--color-blue-deep);
+  font-size: 12.5px;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changeRow p {
+  font-size: 13px;
+}
+
+.ruleList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ruleList li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  border: 1px solid rgba(107, 143, 168, 0.13);
+  border-radius: var(--radius-card);
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--color-muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.ruleList li svg {
+  margin-top: 2px;
+  color: var(--color-blue-deep);
+}
+
+@media (max-width: 980px) {
+  .hero,
+  .columns,
+  .boundaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .connector {
+    position: static;
+    margin: 10px auto -2px;
+    transform: rotate(90deg);
+  }
+
+  .boundaryCard {
+    min-height: auto;
+  }
+
+  .changeRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .heroCopy h2 {
+    font-size: 28px;
+  }
+
+  .heroMetric strong {
+    font-size: 34px;
+  }
+}
