@@ -1,0 +1,291 @@
+.panel {
+  display: grid;
+  gap: 20px;
+  padding: clamp(18px, 2.5vw, 28px);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.header h2 {
+  max-width: 760px;
+  margin: 12px 0 7px;
+  color: var(--color-text);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 1.14;
+}
+
+.header p,
+.decisionHeader p,
+.historyHeader p,
+.fileCard p,
+.decisionButton p,
+.versionList p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.compareArea {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 12px;
+}
+
+.fileCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-card);
+  padding: 15px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(215, 234, 244, 0.54), transparent 42%),
+    rgba(255, 255, 255, 0.6);
+  box-shadow: var(--shadow-soft);
+}
+
+.incomingCard {
+  border-color: rgba(111, 184, 242, 0.3);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(230, 221, 248, 0.5), transparent 42%),
+    rgba(255, 255, 255, 0.62);
+}
+
+.fileIcon,
+.policyIcon {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(111, 184, 242, 0.24);
+  border-radius: 16px;
+  color: var(--color-blue-deep);
+  background: rgba(215, 234, 244, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.fileCard div {
+  min-width: 0;
+}
+
+.fileCard span:not(:global(.bubli-status)) {
+  display: block;
+  color: var(--color-faint);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.fileCard strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--color-text);
+  font-size: 17px;
+  font-weight: 840;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileCard p {
+  margin-top: 4px;
+  font-size: 12.5px;
+}
+
+.compareArrow {
+  display: inline-flex;
+  width: 36px;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-blue-deep);
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(310px, 0.9fr);
+  gap: 16px;
+}
+
+.decisionPanel,
+.historyPanel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-panel);
+  padding: 17px;
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: var(--shadow-soft);
+}
+
+.decisionPanel {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(215, 234, 244, 0.56), transparent 44%),
+    rgba(255, 255, 255, 0.6);
+}
+
+.historyPanel {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(232, 196, 160, 0.34), transparent 42%),
+    rgba(255, 255, 255, 0.6);
+}
+
+.decisionHeader,
+.historyHeader {
+  display: flex;
+  gap: 12px;
+}
+
+.decisionHeader h3,
+.historyHeader h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 17px;
+  font-weight: 840;
+  letter-spacing: 0;
+  line-height: 1.32;
+}
+
+.decisionList {
+  display: grid;
+  gap: 10px;
+}
+
+.decisionButton {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 11px;
+  width: 100%;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 13px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  text-align: left;
+  transition:
+    transform 180ms var(--ease-out),
+    border-color 180ms var(--ease-out),
+    background 180ms var(--ease-out);
+}
+
+.decisionButton:hover {
+  transform: translateY(-1px);
+  border-color: rgba(111, 184, 242, 0.34);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.decisionButton:focus-visible {
+  outline: 3px solid rgba(111, 184, 242, 0.28);
+  outline-offset: 2px;
+}
+
+.decisionButton > span {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--color-blue-deep);
+  background: rgba(215, 234, 244, 0.76);
+}
+
+.decisionButtonPrimary {
+  border-color: rgba(111, 184, 242, 0.34);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(215, 234, 244, 0.7), transparent 48%),
+    rgba(255, 255, 255, 0.68);
+}
+
+.decisionButton strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 840;
+}
+
+.decisionButton p {
+  margin-top: 3px;
+  font-size: 12.5px;
+}
+
+.versionList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.versionList li {
+  display: grid;
+  gap: 7px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.versionTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.versionTop > span {
+  color: var(--color-blue-deep);
+  font-size: 13px;
+  font-weight: 860;
+}
+
+.versionList strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 840;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.versionList p {
+  font-size: 12.5px;
+}
+
+.versionList small {
+  color: var(--color-faint);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (max-width: 980px) {
+  .compareArea,
+  .contentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .compareArrow {
+    width: auto;
+    height: 28px;
+    transform: rotate(90deg);
+  }
+}
+
+@media (max-width: 720px) {
+  .header,
+  .fileCard,
+  .versionTop {
+    display: grid;
+  }
+}
