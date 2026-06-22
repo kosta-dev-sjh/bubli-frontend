@@ -1,0 +1,215 @@
+.panel {
+  display: grid;
+  gap: 22px;
+  max-width: 1080px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.title {
+  margin: 12px 0 6px;
+  color: var(--color-text);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 1.14;
+}
+
+.description {
+  max-width: 720px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summaryCard {
+  display: grid;
+  min-height: 116px;
+  align-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-card);
+  padding: 15px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.86), transparent 42%),
+    rgba(255, 255, 255, 0.56);
+  box-shadow: var(--shadow-soft);
+}
+
+.summaryCard > span {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(111, 184, 242, 0.22);
+  border-radius: var(--radius-input);
+  color: var(--color-blue-deep);
+  background: rgba(215, 234, 244, 0.62);
+}
+
+.summaryCard small {
+  color: var(--color-faint);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.summaryCard strong {
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+  font-size: 20px;
+  font-weight: 850;
+  line-height: 1.16;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.86fr);
+  gap: 16px;
+}
+
+.section {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sectionHeader h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 840;
+}
+
+.sectionHeader span {
+  color: var(--color-faint);
+  font-size: 12.5px;
+  font-weight: 680;
+}
+
+.roomList,
+.noticeList {
+  display: grid;
+  gap: 10px;
+}
+
+.roomRow,
+.noticeRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 76px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: var(--radius-card);
+  padding: 12px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.84), transparent 45%),
+    rgba(255, 255, 255, 0.66);
+}
+
+.roomIcon,
+.noticeIcon {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(111, 184, 242, 0.22);
+  border-radius: 50%;
+  color: var(--color-blue-deep);
+  background:
+    radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.92), transparent 42%),
+    rgba(215, 234, 244, 0.76);
+  box-shadow: var(--shadow-soft);
+}
+
+.noticeIcon {
+  border-radius: var(--radius-input);
+  color: var(--color-brand);
+  background: rgba(230, 221, 248, 0.44);
+}
+
+.roomMain,
+.noticeMain {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.roomMain strong,
+.noticeMain strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 830;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roomMain span,
+.noticeMain span {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.policyBar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 13px 15px;
+  color: var(--color-muted);
+  background: rgba(215, 234, 244, 0.34);
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.policyBar svg {
+  color: var(--color-blue-deep);
+}
+
+@media (max-width: 860px) {
+  .header,
+  .sectionHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .summaryGrid,
+  .contentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .roomRow,
+  .noticeRow {
+    align-items: flex-start;
+    grid-template-columns: 1fr;
+  }
+}
