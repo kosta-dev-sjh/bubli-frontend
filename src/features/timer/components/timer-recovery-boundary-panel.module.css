@@ -1,0 +1,264 @@
+.panel {
+  display: grid;
+  gap: 18px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.titleBlock {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.description {
+  max-width: 860px;
+  margin: 7px 0 0;
+  color: var(--color-muted);
+  font-size: 14.5px;
+  line-height: 1.7;
+}
+
+.summaryCard {
+  display: grid;
+  min-width: 210px;
+  gap: 7px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 13px 14px;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: var(--shadow-soft);
+}
+
+.summaryCard span {
+  overflow: hidden;
+  color: var(--color-faint);
+  font-size: 11.5px;
+  font-weight: 780;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summaryCard strong {
+  overflow: hidden;
+  color: var(--color-blue-deep);
+  font-size: 19px;
+  font-weight: 880;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recoveryGrid,
+.boundaryCard,
+.centerCard,
+.syncItem,
+.ruleGrid article {
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: var(--shadow-soft);
+}
+
+.recoveryGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 1.1fr) minmax(0, 1fr);
+  gap: 12px;
+  border-radius: var(--radius-panel);
+  padding: 14px;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(215, 234, 244, 0.46), transparent 38%),
+    rgba(255, 255, 255, 0.38);
+}
+
+.boundaryCard,
+.centerCard {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  border-radius: var(--radius-panel);
+  padding: 16px;
+}
+
+.boundaryCard {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.centerCard {
+  justify-items: center;
+  border-color: rgba(111, 184, 242, 0.24);
+  border-radius: calc(var(--radius-panel) + 8px);
+  text-align: center;
+  background:
+    radial-gradient(circle at 30% 8%, rgba(255, 255, 255, 0.95), transparent 32%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(215, 234, 244, 0.52));
+}
+
+.iconTile {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 16px;
+  color: var(--color-blue-deep);
+  background:
+    radial-gradient(circle at 30% 15%, rgba(255, 255, 255, 0.92), transparent 44%),
+    rgba(215, 234, 244, 0.52);
+}
+
+.boundaryCard h3,
+.centerCard h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: 880;
+  line-height: 1.2;
+}
+
+.centerCard h3 {
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 900;
+}
+
+.boundaryCard p,
+.centerCard p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.centerCard > div[role="progressbar"] {
+  width: min(230px, 100%);
+}
+
+.syncList {
+  display: grid;
+  gap: 10px;
+}
+
+.syncItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-radius: var(--radius-card);
+  padding: 12px;
+}
+
+.syncItem strong {
+  display: block;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 860;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.syncItem p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 12.8px;
+  line-height: 1.5;
+}
+
+.metaStrip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.metaStrip span {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-pill);
+  padding: 0 11px;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.56);
+  font-size: 12.5px;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.metaStrip svg {
+  color: var(--color-blue-deep);
+}
+
+.ruleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ruleGrid article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  border-radius: var(--radius-card);
+  padding: 13px;
+}
+
+.ruleGrid svg {
+  margin-top: 2px;
+  color: var(--color-blue-deep);
+}
+
+.ruleGrid p {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 12.7px;
+  line-height: 1.55;
+}
+
+@media (max-width: 980px) {
+  .header {
+    display: grid;
+  }
+
+  .summaryCard {
+    min-width: 0;
+  }
+
+  .recoveryGrid,
+  .ruleGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .boundaryCard,
+  .syncItem {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .centerCard {
+    justify-items: stretch;
+    text-align: left;
+  }
+
+  .centerCard .iconTile {
+    justify-self: start;
+  }
+}
