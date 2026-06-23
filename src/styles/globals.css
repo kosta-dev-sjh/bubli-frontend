@@ -6746,6 +6746,13 @@ select {
   gap: 16px;
 }
 
+.settings-local-panel__safety {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.78fr) minmax(0, 1.22fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
 .settings-group,
 .settings-permission,
 .settings-recovery {
@@ -6817,6 +6824,10 @@ select {
     linear-gradient(155deg, rgba(255, 255, 255, 0.9), rgba(232, 196, 160, 0.14));
 }
 
+.settings-local-panel__safety .settings-permission {
+  align-content: start;
+}
+
 .settings-permission p,
 .settings-recovery p {
   margin: 7px 0 0;
@@ -6840,6 +6851,10 @@ select {
   background:
     radial-gradient(circle at 80% 0%, rgba(142, 205, 246, 0.22), transparent 32%),
     linear-gradient(155deg, rgba(255, 255, 255, 0.92), rgba(215, 234, 244, 0.36));
+}
+
+.settings-local-panel__safety .settings-recovery {
+  min-height: 100%;
 }
 
 .settings-recovery__actions {
@@ -7453,6 +7468,7 @@ select {
   }
 
   .settings-local-panel__grid,
+  .settings-local-panel__safety,
   .settings-summary,
   .settings-recovery {
     grid-template-columns: 1fr;

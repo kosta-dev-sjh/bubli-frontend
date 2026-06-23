@@ -238,7 +238,9 @@ export function SettingsLocalPanel() {
         <SettingGroup icon={MonitorCog} rows={widgetRows} title="버블 설정" />
         <SettingGroup icon={FolderSearch} rows={localRows} title="개인 관리 폴더와 로컬 저장" />
         <SettingGroup icon={ShieldCheck} rows={privacyRows} title="개인정보 동의" />
+      </div>
 
+      <div className="settings-local-panel__safety">
         <GlassPanel className="settings-permission">
           <span className="bubli-icon-tile" aria-hidden="true">
             <EyeOff size={18} strokeWidth={2.1} />
@@ -253,9 +255,9 @@ export function SettingsLocalPanel() {
             </div>
           </div>
         </GlassPanel>
-      </div>
 
-      <LocalRecoveryPanel />
+        <LocalRecoveryPanel />
+      </div>
     </section>
   );
 }
