@@ -1286,7 +1286,24 @@ select {
 
 .resource-board {
   display: grid;
-  gap: 16px;
+  gap: 14px;
+  position: relative;
+}
+
+.resource-board::before {
+  content: "";
+  position: absolute;
+  right: 5%;
+  top: 118px;
+  z-index: -1;
+  width: 220px;
+  height: 220px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.95), transparent 24%),
+    radial-gradient(circle at 56% 58%, rgba(142, 205, 246, 0.2), transparent 58%);
+  filter: blur(1px);
+  opacity: 0.7;
 }
 
 .resource-board__toolbar {
@@ -1308,8 +1325,10 @@ select {
   border-radius: var(--radius-pill);
   padding: 11px 14px;
   color: var(--color-text);
-  background: rgba(255, 255, 255, 0.74);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 18px 34px rgba(107, 143, 168, 0.1);
 }
 
 .resource-board__search::placeholder {
@@ -1319,14 +1338,30 @@ select {
 .resource-board__grid {
   display: grid;
   grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
-  gap: 16px;
+  gap: 18px;
   align-items: start;
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 28px;
+  padding: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(247, 251, 253, 0.64)),
+    radial-gradient(circle at 88% 8%, rgba(142, 205, 246, 0.18), transparent 32%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 28px 70px rgba(107, 143, 168, 0.14);
+  backdrop-filter: blur(20px);
 }
 
 .resource-board__list,
 .resource-board__detail {
   display: grid;
   gap: 12px;
+  min-width: 0;
+}
+
+.resource-board__detail {
+  border-left: 1px solid rgba(107, 143, 168, 0.1);
+  padding-left: 18px;
 }
 
 .resource-board__list-head,
@@ -1366,7 +1401,7 @@ select {
   border-color: rgba(111, 184, 242, 0.46);
   box-shadow:
     0 0 0 3px rgba(111, 184, 242, 0.12),
-    var(--shadow-soft);
+    0 24px 46px rgba(111, 184, 242, 0.18);
 }
 
 .resource-board__detail-grid {
@@ -1419,7 +1454,8 @@ select {
   border-radius: 14px;
   padding: 12px 13px;
   color: #7A5A38;
-  background: rgba(232, 196, 160, 0.18);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(232, 196, 160, 0.18));
   font-size: 13px;
   line-height: 1.6;
 }
@@ -6560,6 +6596,18 @@ select {
   .resource-board__grid,
   .resource-board__detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .resource-board__grid {
+    border-radius: 22px;
+    padding: 14px;
+  }
+
+  .resource-board__detail {
+    border-left: 0;
+    border-top: 1px solid rgba(107, 143, 168, 0.1);
+    padding-left: 0;
+    padding-top: 14px;
   }
 
   .work-board__flow,
