@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { AppNav } from "@/components/layout/app-nav";
+import { WorkspaceTopbar } from "@/components/layout/workspace-topbar";
 import { siteConfig } from "@/config/site";
 
 type AppShellProps = {
@@ -14,15 +16,24 @@ export function AppShell({ children }: AppShellProps) {
         <Link className="bubli-brand" href="/app">
           {siteConfig.name}
         </Link>
-        <nav aria-label="회원 앱" className="bubli-nav">
-          {siteConfig.appNav.map((item) => (
-            <Link key={item.href} href={item.href}>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <AppNav />
       </aside>
-      <main className="shell">{children}</main>
+      <main className="shell bubli-main">
+        <WorkspaceTopbar
+          notificationCount={3}
+          project={{
+            description: "자료, 작업, 소통을 보는 현재 프로젝트룸",
+            name: "Bubli 제품 개발룸",
+            statusLabel: "진행 중",
+          }}
+          user={{
+            displayName: "정현 님",
+            email: "jihyun.kim@bubli.kr",
+            initials: "JH",
+          }}
+        />
+        {children}
+      </main>
     </div>
   );
 }

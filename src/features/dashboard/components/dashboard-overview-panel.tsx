@@ -41,7 +41,7 @@ export function DashboardOverviewPanel() {
           </span>
           <div>
             <Chip selected>대시보드</Chip>
-            <h2>여러 프로젝트룸의 내 일을 한 화면에 모아 봅니다</h2>
+            <h2>여러 프로젝트룸의 내 일을 한 화면에서 봅니다</h2>
             <p>
               맡은 TODO, 가까운 일정, 확인할 후보를 모으고 작업 중에는 필요한 것만 버블로 띄웁니다.
             </p>

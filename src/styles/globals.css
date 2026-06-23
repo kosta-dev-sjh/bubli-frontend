@@ -96,6 +96,12 @@ select {
   padding: clamp(20px, 3vw, 32px);
 }
 
+.bubli-main {
+  display: grid;
+  align-content: start;
+  gap: 26px;
+}
+
 .glass-panel {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-panel);
@@ -328,24 +334,74 @@ select {
 
 .bubli-nav {
   display: grid;
-  gap: 8px;
+  gap: 9px;
   margin-top: 32px;
+  min-width: 0;
 }
 
-.bubli-nav a {
+.bubli-nav__item {
+  position: relative;
   display: flex;
   align-items: center;
-  min-height: 38px;
-  border-radius: 12px;
+  gap: 10px;
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: 15px;
   padding: 0 12px;
   color: var(--color-muted);
   font-size: 14px;
   font-weight: 760;
+  transition:
+    color 180ms var(--ease-out),
+    border-color 180ms var(--ease-out),
+    background 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out),
+    transform 180ms var(--ease-out);
 }
 
-.bubli-nav a:hover {
+.bubli-nav__item:hover {
+  transform: translateX(2px);
   color: var(--color-blue-deep);
   background: rgba(215, 234, 244, 0.54);
+}
+
+.bubli-nav__item--active {
+  color: var(--color-text);
+  border-color: rgba(111, 184, 242, 0.26);
+  background:
+    radial-gradient(circle at 16% 12%, rgba(255, 255, 255, 0.86), transparent 32%),
+    rgba(215, 234, 244, 0.76);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 10px 22px rgba(80, 110, 130, 0.1);
+}
+
+.bubli-nav__item--active::before {
+  content: "";
+  position: absolute;
+  left: -25px;
+  width: 4px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--color-todo);
+  box-shadow: 0 0 0 5px rgba(142, 205, 246, 0.14);
+}
+
+.bubli-nav__icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--color-blue-deep);
+}
+
+.bubli-nav__item--active .bubli-nav__icon {
+  border-color: rgba(255, 255, 255, 0.74);
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .bubli-public-header {
@@ -1377,6 +1433,7 @@ select {
 .work-board {
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 .work-board__flow {
@@ -1410,6 +1467,7 @@ select {
   grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
   gap: 12px;
   align-items: stretch;
+  min-width: 0;
 }
 
 .work-board__todo {
@@ -1463,14 +1521,16 @@ select {
 
 .work-board__grid {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(176px, 0.64fr) minmax(0, 1.5fr) minmax(212px, 0.78fr);
   gap: 14px;
   align-items: start;
+  min-width: 0;
 }
 
 .work-board__pane {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .work-board__pane-head {
@@ -1521,15 +1581,15 @@ select {
 
 .work-board__kanban {
   display: grid;
-  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  grid-template-columns: repeat(4, minmax(118px, 1fr));
   gap: 10px;
-  overflow-x: auto;
+  min-width: 0;
   padding-bottom: 4px;
 }
 
 .work-board__column {
   display: grid;
-  min-width: 180px;
+  min-width: 0;
   align-content: start;
   gap: 10px;
   border: 1px solid rgba(107, 143, 168, 0.1);
@@ -1543,6 +1603,10 @@ select {
   color: var(--color-muted);
   font-size: 13px;
   font-weight: 820;
+}
+
+.work-board__column .bubli-domain-card {
+  min-width: 0;
 }
 
 .work-board__candidate-note {
@@ -6376,6 +6440,31 @@ select {
   .bubli-sidebar {
     border-right: 0;
     border-bottom: 1px solid var(--color-border);
+  }
+
+  .bubli-nav {
+    grid-auto-columns: max-content;
+    grid-auto-flow: column;
+    gap: 8px;
+    overflow-x: auto;
+    margin-top: 18px;
+    padding-bottom: 3px;
+  }
+
+  .bubli-nav__item {
+    min-width: 118px;
+  }
+
+  .bubli-nav__item:hover {
+    transform: none;
+  }
+
+  .bubli-nav__item--active::before {
+    top: -8px;
+    left: 50%;
+    width: 22px;
+    height: 4px;
+    transform: translateX(-50%);
   }
 
   .bubli-bubble {
