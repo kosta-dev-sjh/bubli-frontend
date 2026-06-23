@@ -560,6 +560,140 @@ select {
   gap: 8px;
 }
 
+.auth-page {
+  display: grid;
+  min-height: 100vh;
+  grid-template-columns: minmax(0, 0.98fr) minmax(360px, 0.72fr);
+  gap: clamp(22px, 5vw, 56px);
+  align-items: center;
+  padding: clamp(22px, 5vw, 64px);
+}
+
+.auth-page__intro {
+  display: grid;
+  gap: 18px;
+  max-width: 620px;
+}
+
+.auth-page__intro h1 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(38px, 5.4vw, 72px);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.02;
+}
+
+.auth-page__intro p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 17px;
+  font-weight: 620;
+  line-height: 1.75;
+}
+
+.auth-page__checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.auth-card {
+  display: grid;
+  gap: 22px;
+  padding: clamp(22px, 3vw, 30px);
+}
+
+.auth-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+}
+
+.auth-card__head h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 24px;
+  font-weight: 870;
+  letter-spacing: 0;
+  line-height: 1.22;
+}
+
+.auth-card__head p,
+.auth-card__helper {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 620;
+  line-height: 1.55;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-field {
+  display: grid;
+  gap: 7px;
+}
+
+.auth-field > span {
+  color: var(--color-text);
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.auth-input {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(107, 143, 168, 0.15);
+  border-radius: var(--radius-input);
+  padding: 0 14px;
+  color: var(--color-brand);
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+}
+
+.auth-input:focus-within {
+  border-color: rgba(111, 184, 242, 0.48);
+  box-shadow: 0 0 0 4px rgba(111, 184, 242, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.auth-input input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--color-text);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.auth-input input::placeholder {
+  color: var(--color-faint);
+}
+
+.auth-card__submit {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.auth-card__helper {
+  text-align: center;
+}
+
+.auth-card__helper a {
+  color: var(--color-blue-deep);
+  font-weight: 830;
+}
+
 .bubli-chat-message {
   display: flex;
   gap: 10px;
@@ -800,6 +934,20 @@ select {
 @media (max-width: 720px) {
   .shell {
     padding: 18px;
+  }
+
+  .auth-page {
+    min-height: auto;
+    grid-template-columns: 1fr;
+    padding: 22px;
+  }
+
+  .auth-page__intro h1 {
+    font-size: 40px;
+  }
+
+  .auth-card {
+    padding: 20px;
   }
 
   .bubli-app-layout {
