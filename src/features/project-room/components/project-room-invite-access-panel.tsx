@@ -2,8 +2,6 @@ import {
   CheckCircle2,
   Copy,
   Link2,
-  MessageCircle,
-  ShieldCheck,
   UserPlus,
   UsersRound,
 } from "lucide-react";
@@ -20,7 +18,6 @@ import styles from "./project-room-invite-access-panel.module.css";
 
 type FriendInviteStatus = "FRIEND" | "INVITED" | "JOINED";
 type InviteLinkStatus = "ACTIVE" | "PAUSED";
-type GuestAccess = "CHAT_VOICE_ONLY" | "EXPIRED";
 
 type FriendInvite = {
   displayName: string;
@@ -37,7 +34,6 @@ type InviteRule = {
 
 export type ProjectRoomInviteAccessPanelProps = HTMLAttributes<HTMLElement> & {
   friends: FriendInvite[];
-  guestAccess: GuestAccess;
   inviteLinkStatus: InviteLinkStatus;
   inviteLinkTitle: string;
   roomName: string;
@@ -54,11 +50,6 @@ const friendStatusMeta: Record<FriendInviteStatus, { actionLabel: string; label:
 const linkStatusMeta: Record<InviteLinkStatus, { label: string; tone: StatusTone }> = {
   ACTIVE: { label: "링크 사용 중", tone: "room" },
   PAUSED: { label: "링크 일시 중지", tone: "warning" },
-};
-
-const guestStatusMeta: Record<GuestAccess, { label: string; tone: StatusTone }> = {
-  CHAT_VOICE_ONLY: { label: "소통 전용", tone: "communication" },
-  EXPIRED: { label: "만료", tone: "warning" },
 };
 
 export const defaultInviteFriends: FriendInvite[] = [
@@ -94,16 +85,15 @@ export const defaultInviteRules: InviteRule[] = [
     tone: "room",
   },
   {
-    description: "게스트는 채팅과 보이스챗만 잠깐 사용할 수 있고 자료, WBS, 일정에는 접근하지 않습니다.",
-    label: "게스트 제한",
-    tone: "communication",
+    description: "초대 링크로 들어온 사용자는 로그인 후 수락해야 프로젝트룸 멤버가 됩니다.",
+    label: "로그인 후 수락",
+    tone: "approved",
   },
 ];
 
 export function ProjectRoomInviteAccessPanel({
   className,
   friends,
-  guestAccess,
   inviteLinkStatus,
   inviteLinkTitle,
   roomName,
@@ -114,7 +104,6 @@ export function ProjectRoomInviteAccessPanel({
   const invitedCount = friends.filter((friend) => friend.status === "INVITED").length;
   const joinedCount = friends.filter((friend) => friend.status === "JOINED").length;
   const linkStatus = linkStatusMeta[inviteLinkStatus];
-  const guestStatus = guestStatusMeta[guestAccess];
 
   return (
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
@@ -124,8 +113,8 @@ export function ProjectRoomInviteAccessPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              프로젝트룸에는 친구를 불러와 초대하고, 필요할 때 초대 링크를 함께 사용할 수 있습니다. 게스트 입장은
-              소통을 위한 임시 접근으로 분리합니다.
+              프로젝트룸에는 친구를 불러와 초대하고, 필요할 때 로그인 사용자용 초대 링크를 함께 사용할 수 있습니다.
+              수락 뒤에만 멤버 권한이 생깁니다.
             </p>
           </div>
         </div>
@@ -193,25 +182,6 @@ export function ProjectRoomInviteAccessPanel({
           </div>
         </article>
 
-        <article className={styles.inviteCard}>
-          <div className={styles.cardTop}>
-            <span className={styles.iconTile}>
-              <MessageCircle size={18} strokeWidth={2.1} aria-hidden="true" />
-            </span>
-            <div>
-              <strong>게스트 소통</strong>
-              <p>비회원도 잠깐 채팅과 보이스챗에 참여할 수 있습니다.</p>
-            </div>
-            <StatusBadge tone={guestStatus.tone}>{guestStatus.label}</StatusBadge>
-          </div>
-          <div className={styles.guestRule}>
-            <ShieldCheck size={18} strokeWidth={2.1} aria-hidden="true" />
-            <p>게스트는 자료, 일정, WBS, 참여자 관리 화면을 열 수 없습니다.</p>
-          </div>
-          <Button size="sm" variant="ghost">
-            게스트 세션 보기
-          </Button>
-        </article>
       </section>
 
       <section className={styles.ruleGrid} aria-label="초대와 접근 기준">

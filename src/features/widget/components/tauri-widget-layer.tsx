@@ -47,7 +47,7 @@ const widgetBubbles = [
   {
     title: "소통 버블",
     subtitle: "1:1 · 프로젝트룸",
-    rows: ["민지: 검수 기준 댓글", "게스트는 채팅과 보이스만"],
+    rows: ["민지: 검수 기준 댓글", "프로젝트룸 보이스 대기"],
     source: "chat_messages · notifications",
     tone: "communication",
     icon: MessageCircle,

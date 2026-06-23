@@ -8,15 +8,6 @@ export const voiceApi = {
     });
   },
 
-  getGuestToken(voiceRoomId: string, guestToken: string) {
-    return apiRequest<VoiceTokenResponse>(`/api/voice/rooms/${voiceRoomId}/guest-token`, {
-      body: {
-        guestToken,
-      },
-      method: "POST",
-    });
-  },
-
   leave(voiceRoomId: string) {
     return apiRequest<null>(`/api/voice/rooms/${voiceRoomId}/leave`, {
       method: "PATCH",

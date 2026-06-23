@@ -74,8 +74,8 @@ export function FriendInvitePanel() {
             <Chip selected>소통</Chip>
             <h2>친구를 추가하고, 프로젝트룸에는 친구나 제한된 링크로 초대합니다</h2>
             <p>
-              친구는 1:1 채팅과 프로젝트룸 초대의 기준이 됩니다. 초대 링크로 들어온 게스트는 채팅과 보이스챗만
-              잠깐 사용할 수 있습니다.
+              친구는 1:1 채팅과 프로젝트룸 초대의 기준이 됩니다. 초대 링크는 로그인 사용자가 입장 요청을 보낼 때
+              사용합니다.
             </p>
           </div>
         </div>
@@ -117,13 +117,13 @@ export function FriendInvitePanel() {
             <span className="bubli-icon-tile" aria-hidden="true">
               <Link2 size={16} strokeWidth={2.1} />
             </span>
-            <p>초대 링크는 임시 게스트 입장에 쓰며, 만료 시간과 접근 범위를 제한합니다.</p>
+            <p>초대 링크는 로그인 사용자에게만 열고, 만료 시간과 수락 상태를 확인합니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <ShieldCheck size={16} strokeWidth={2.1} />
             </span>
-            <p>게스트는 자료, WBS, 일정, 멤버 목록, 다운로드에 접근하지 못합니다.</p>
+            <p>수락된 멤버만 자료, WBS, 일정, 멤버 목록, 다운로드에 접근합니다.</p>
           </div>
         </GlassPanel>
       </div>

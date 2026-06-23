@@ -180,7 +180,7 @@ export function ResourceDownloadAccessPanel({
             </span>
             <div>
               <h3>자료 접근 기준</h3>
-              <p>권한이 없는 게스트나 나간 멤버는 자료를 내려받을 수 없습니다.</p>
+              <p>프로젝트룸 밖 사용자나 나간 멤버는 자료를 내려받을 수 없습니다.</p>
             </div>
           </div>
 
@@ -202,8 +202,8 @@ export function ResourceDownloadAccessPanel({
             <article>
               <UserX size={17} strokeWidth={2.1} />
               <div>
-                <strong>게스트 접근 제한</strong>
-                <p>게스트는 채팅과 보이스만 사용할 수 있고 자료 다운로드는 차단합니다.</p>
+                <strong>비멤버 접근 제한</strong>
+                <p>프로젝트룸 멤버가 아니면 자료 다운로드를 차단합니다.</p>
               </div>
             </article>
           </div>

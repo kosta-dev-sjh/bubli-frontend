@@ -3,7 +3,6 @@ import {
   CheckCircle2,
   FileUp,
   Link2,
-  MessageCircle,
   Plus,
   UserPlus,
   UsersRound,
@@ -18,7 +17,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 
 type ProjectRoomRole = "PROJECT_LEADER" | "MEMBER";
 type ProjectRoomStatus = "active" | "review" | "archived";
-type InviteMethod = "friend" | "link" | "guest";
+type InviteMethod = "friend" | "link";
 
 type ProjectRoomItem = {
   checkNeededCount: number;
@@ -101,11 +100,6 @@ const invitePolicies: InvitePolicy[] = [
     description: "아직 친구가 아닌 로그인 사용자에게 7일 만료 링크를 보낼 수 있습니다.",
     method: "link",
     title: "링크 초대",
-  },
-  {
-    description: "비회원은 임시 이름으로 채팅과 보이스챗에만 2시간 참여합니다.",
-    method: "guest",
-    title: "게스트 참여",
   },
 ];
 
@@ -203,7 +197,6 @@ function CreationFlow() {
 function InvitePanel() {
   const iconByMethod = {
     friend: UserPlus,
-    guest: MessageCircle,
     link: Link2,
   } satisfies Record<InviteMethod, typeof UserPlus>;
 
@@ -212,7 +205,7 @@ function InvitePanel() {
       <div className="project-room-panel-head">
         <div>
           <h3>초대와 참여 기준</h3>
-          <p>프로젝트 리더가 친구, 링크, 게스트 참여를 상황에 맞게 관리합니다.</p>
+          <p>프로젝트 리더가 친구 초대와 로그인 사용자용 링크 초대를 관리합니다.</p>
         </div>
         <Chip selected>프로젝트룸 단위</Chip>
       </div>
@@ -233,7 +226,7 @@ function InvitePanel() {
         })}
       </div>
       <div className="project-room-guardrail">
-        게스트는 자료, WBS/TODO, 일정, 멤버 목록, 위젯 표시 대상에 들어가지 않습니다.
+        수락된 멤버만 자료, WBS/TODO, 일정, 멤버 목록, 위젯 표시 대상에 들어갑니다.
       </div>
     </GlassPanel>
   );

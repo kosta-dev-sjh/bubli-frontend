@@ -67,7 +67,7 @@ const contracts: ContractArea[] = [
     status: "needsBackendSample",
   },
   {
-    checks: ["serverUrl과 token만 사용", "key와 secret은 서버 전용", "guest token 분리"],
+    checks: ["serverUrl과 token만 사용", "key와 secret은 서버 전용", "멤버 권한 확인 후 토큰 발급"],
     description: "보이스챗은 API 서버에서 받은 LiveKit 접속 정보로만 연결합니다.",
     endpoint: "/api/voice/rooms/{id}/token",
     label: "LiveKit",

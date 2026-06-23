@@ -116,14 +116,6 @@
   box-shadow: var(--shadow-soft);
 }
 
-.composerBoxGuest {
-  border-color: rgba(232, 196, 160, 0.34);
-  background:
-    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.86), transparent 44%),
-    rgba(232, 196, 160, 0.13),
-    rgba(255, 255, 255, 0.68);
-}
-
 .textareaWrap {
   border: 1px solid rgba(107, 143, 168, 0.14);
   border-radius: var(--radius-input);
@@ -175,28 +167,6 @@
 .toolButton:disabled {
   cursor: not-allowed;
   opacity: 0.45;
-}
-
-.guestNotice {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 10px;
-  border: 1px solid rgba(232, 196, 160, 0.34);
-  border-radius: var(--radius-input);
-  padding: 12px;
-  color: var(--color-muted);
-  background: rgba(232, 196, 160, 0.14);
-}
-
-.guestNotice svg {
-  color: var(--color-brand);
-}
-
-.guestNotice p {
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 1.55;
 }
 
 .stateList {

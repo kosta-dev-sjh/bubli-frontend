@@ -37,12 +37,12 @@ export const ReadyForProjectRoomResource: Story = {
   },
 };
 
-export const GuestBlocked: Story = {
+export const NonMemberBlocked: Story = {
   args: {
     accessScope: "ROOM_SHARED",
     checks: [
       {
-        description: "게스트 세션은 채팅과 보이스에만 제한됩니다.",
+        description: "로그인했지만 프로젝트룸 멤버가 아니므로 자료 접근을 막습니다.",
         id: "auth",
         label: "회원 인증",
         status: "BLOCKED",

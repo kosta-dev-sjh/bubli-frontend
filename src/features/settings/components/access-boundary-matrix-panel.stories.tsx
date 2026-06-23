@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "Bubli의 데이터 접근 경계를 화면 단위로 확인합니다. 개인 자료, 프로젝트룸 자료, 게스트, 위젯, Tauri 로컬 데이터가 같은 권한 기준으로 설명되는지 점검하는 컴포넌트입니다.",
+          "Bubli의 데이터 접근 경계를 화면 단위로 확인합니다. 개인 자료, 프로젝트룸 자료, 위젯, Tauri 로컬 데이터가 같은 권한 기준으로 설명되는지 점검하는 컴포넌트입니다.",
       },
     },
   },
@@ -34,23 +34,13 @@ export const ProductAccessBoundaries: Story = {
       },
       {
         allowed: "프로젝트룸 멤버는 권한이 있는 자료, 댓글, 버전 기록을 볼 수 있습니다.",
-        blocked: "게스트와 프로젝트룸 밖 사용자는 자료, 다운로드, WBS, 일정에 접근할 수 없습니다.",
+        blocked: "프로젝트룸 밖 사용자와 나간 멤버는 자료, 다운로드, WBS, 일정에 접근할 수 없습니다.",
         dataName: "프로젝트룸 자료",
         note: "프로젝트룸 자료는 roomId와 멤버 권한을 확인한 뒤 열람과 다운로드 주소 발급을 처리합니다.",
         ownerLabel: "프로젝트룸 기준",
         status: "allowed",
         storageLabel: "서버 DB와 S3",
         tone: "room",
-      },
-      {
-        allowed: "게스트 링크로 들어온 사람은 정해진 시간 동안 채팅과 보이스챗만 사용할 수 있습니다.",
-        blocked: "자료보드, WBS/작업판, 일정, 멤버 목록, 다운로드에는 접근할 수 없습니다.",
-        dataName: "게스트 참여",
-        note: "게스트는 프로젝트룸 멤버가 아니며, 만료되면 메시지 입력과 보이스 참가가 막힙니다.",
-        ownerLabel: "게스트 세션 기준",
-        status: "blocked",
-        storageLabel: "서버 DB",
-        tone: "guest",
       },
       {
         allowed: "TODO, 일정, 알림, 타이머처럼 다시 보여줘야 하는 값은 서버 원본을 읽어 버블에 표시합니다.",

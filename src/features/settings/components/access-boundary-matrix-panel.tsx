@@ -1,4 +1,4 @@
-import { Eye, EyeOff, FolderLock, KeyRound, MonitorUp, ShieldCheck, UsersRound } from "lucide-react";
+import { Eye, EyeOff, FolderLock, MonitorUp, ShieldCheck, UsersRound } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 
 import { Chip } from "@/components/ui/chip";
@@ -6,7 +6,7 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 
-type BoundaryTone = "personal" | "room" | "guest" | "local" | "widget";
+type BoundaryTone = "personal" | "room" | "local" | "widget";
 type BoundaryStatus = "allowed" | "limited" | "blocked";
 
 export type AccessBoundaryItem = {
@@ -29,7 +29,6 @@ export type AccessBoundaryMatrixPanelProps = HTMLAttributes<HTMLElement> & {
 const toneIcon: Record<BoundaryTone, ReactNode> = {
   personal: <FolderLock size={18} strokeWidth={2.1} />,
   room: <UsersRound size={18} strokeWidth={2.1} />,
-  guest: <KeyRound size={18} strokeWidth={2.1} />,
   local: <MonitorUp size={18} strokeWidth={2.1} />,
   widget: <ShieldCheck size={18} strokeWidth={2.1} />,
 };
@@ -52,7 +51,7 @@ const statusMeta: Record<BoundaryStatus, { label: string; tone: StatusTone }> = 
 export function AccessBoundaryMatrixPanel({
   className,
   items,
-  subtitle = "개인 자료, 프로젝트룸 자료, 게스트 참여, 로컬 데이터의 접근 기준을 한 화면에서 확인합니다.",
+  subtitle = "개인 자료, 프로젝트룸 자료, 위젯, Tauri 로컬 데이터의 접근 기준을 한 화면에서 확인합니다.",
   title = "접근 범위 기준",
   ...props
 }: AccessBoundaryMatrixPanelProps) {

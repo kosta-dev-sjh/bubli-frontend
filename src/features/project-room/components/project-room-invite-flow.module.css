@@ -24,7 +24,7 @@
 .hero p,
 .methodCard p,
 .acceptPanel p,
-.guestPanel p {
+.linkPanel p {
   margin: 8px 0 0;
   color: var(--color-muted);
   font-size: 13px;
@@ -96,7 +96,7 @@
 
 .methodCard h3,
 .acceptPanel h3,
-.guestPanel h3,
+.linkPanel h3,
 .timeline strong {
   margin: 0;
   color: var(--color-text);
@@ -123,7 +123,7 @@
 }
 
 .scopeList,
-.guestAccess {
+.linkAccess {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -136,7 +136,7 @@
 }
 
 .acceptPanel,
-.guestPanel {
+.linkPanel {
   display: grid;
   align-content: start;
   gap: 14px;

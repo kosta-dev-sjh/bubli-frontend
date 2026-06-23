@@ -5,20 +5,17 @@ import {
   Copy,
   KeyRound,
   Link2,
-  LockKeyhole,
-  MessageCircle,
   ShieldCheck,
   UserCheck,
   UserPlus,
   UsersRound,
-  Video,
 } from "lucide-react";
 
 import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
 
 import styles from "./project-room-invite-flow.module.css";
 
-type InviteStatus = "PENDING" | "ACCEPTED" | "EXPIRED" | "ACTIVE" | "LIMITED";
+type InviteStatus = "PENDING" | "ACCEPTED" | "EXPIRED";
 
 type InviteMethod = {
   api: string;
@@ -52,23 +49,11 @@ const methods: InviteMethod[] = [
     status: "ACCEPTED",
     title: "링크 초대",
   },
-  {
-    api: "POST /api/project-rooms/{roomId}/guest-sessions",
-    description: "가입하지 않은 외부 참여자가 임시 이름으로 소통에만 들어오는 링크입니다.",
-    expiry: "기본 2시간",
-    icon: <MessageCircle size={18} strokeWidth={2.1} />,
-    id: "guest-session",
-    scope: ["채팅", "보이스챗", "자료/WBS/TODO 제외"],
-    status: "LIMITED",
-    title: "게스트 참여",
-  },
 ];
 
-const statusMeta: Record<InviteStatus, { label: string; tone: "pending" | "success" | "warning" | "communication" }> = {
+const statusMeta: Record<InviteStatus, { label: string; tone: "pending" | "success" | "warning" }> = {
   ACCEPTED: { label: "수락됨", tone: "success" },
-  ACTIVE: { label: "활성", tone: "communication" },
   EXPIRED: { label: "만료", tone: "warning" },
-  LIMITED: { label: "제한 접근", tone: "warning" },
   PENDING: { label: "대기", tone: "pending" },
 };
 
@@ -108,15 +93,15 @@ export function ProjectRoomInviteFlow() {
           <Chip icon={<UserPlus size={14} />} selected>
             프로젝트룸 초대
           </Chip>
-          <h2>프로젝트룸 초대는 친구, 링크, 게스트 참여를 분리해서 관리합니다</h2>
+          <h2>프로젝트룸 초대는 친구와 링크를 기준으로 관리합니다</h2>
           <p>
-            프로젝트 리더는 친구를 바로 초대하거나 로그인 사용자용 초대 링크를 만들 수 있습니다. 비회원 게스트는
-            프로젝트룸 멤버가 아니며, 채팅과 보이스챗에만 잠깐 참여합니다.
+            프로젝트 리더는 친구를 바로 초대하거나 로그인 사용자용 초대 링크를 만들 수 있습니다. 수락 뒤에만
+            프로젝트룸 멤버 권한이 생깁니다.
           </p>
         </div>
         <div className={styles.summary}>
           <StatusBadge tone="room">프로젝트 리더 권한</StatusBadge>
-          <strong>3</strong>
+          <strong>2</strong>
           <span>초대 방식</span>
         </div>
       </GlassPanel>
@@ -161,21 +146,18 @@ export function ProjectRoomInviteFlow() {
           </div>
         </GlassPanel>
 
-        <GlassPanel className={styles.guestPanel}>
-          <h3>게스트 제한</h3>
-          <p>게스트 세션은 room_members에 들어가지 않고 소통용 접근 기록만 남깁니다.</p>
-          <div className={styles.guestAccess}>
-            <Chip icon={<MessageCircle size={14} />} selected>
-              채팅 가능
+        <GlassPanel className={styles.linkPanel}>
+          <h3>링크 관리 기준</h3>
+          <p>초대 링크는 로그인 사용자의 입장 요청에만 사용하고, 수락 뒤 서버가 멤버 권한을 다시 확인합니다.</p>
+          <div className={styles.linkAccess}>
+            <Chip icon={<Link2 size={14} />} selected>
+              로그인 필요
             </Chip>
-            <Chip icon={<Video size={14} />} selected>
-              보이스 가능
-            </Chip>
-            <Chip icon={<LockKeyhole size={14} />}>자료 제외</Chip>
-            <Chip icon={<Clock3 size={14} />}>2시간 만료</Chip>
+            <Chip icon={<Clock3 size={14} />}>만료 시간</Chip>
+            <Chip icon={<ShieldCheck size={14} />}>권한 재확인</Chip>
           </div>
           <Button icon={<Copy size={15} />} size="sm" variant="quiet">
-            게스트 링크 복사
+            초대 링크 복사
           </Button>
         </GlassPanel>
       </div>

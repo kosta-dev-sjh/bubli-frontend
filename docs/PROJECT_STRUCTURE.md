@@ -71,7 +71,7 @@ src/app
 | `features/agent` | agent_jobs, agent_suggestions, 문서 분석 후보, 문서 초안 후보, 후보 승인 전 표시 |
 | `features/wbs` | WBS 트리, 작업판, 후보 승인 후 작업 구조 표시. 백엔드 `work.wbs` API 사용 |
 | `features/todo` | 개인 TODO, 프로젝트룸 TODO, 담당자 기준 반영. 백엔드 `work.task` API 사용 |
-| `features/communication` | 친구, 1:1 채팅, 프로젝트룸 채팅, 게스트 채팅, 보이스챗 |
+| `features/communication` | 친구, 1:1 채팅, 프로젝트룸 채팅, 보이스챗 |
 | `features/widget` | 버블 설정, 표시 데이터, 항목 상태, 사용 집계 |
 | `features/timer` | time_logs, heartbeat, 타이머 버블, 비정상 종료 복구 |
 | `features/notification` | 알림 목록, 읽음 상태, 개인 알림 큐 |

@@ -68,7 +68,7 @@ export function VoiceTokenSafetyPanel({
           <div className="grid gap-1">
             <h2 className="m-0 text-[22px] font-[860] leading-tight text-[var(--color-text)]">{title}</h2>
             <p className="m-0 max-w-[700px] text-[14px] leading-6 text-[var(--color-muted)]">
-              클라이언트는 접속 토큰만 받고, LiveKit key와 secret은 서버에만 둡니다. 게스트는 만료 시간 안에서 채팅과 보이스만 사용할 수 있습니다.
+              클라이언트는 접속 토큰만 받고, LiveKit key와 secret은 서버에만 둡니다. 보이스 참여는 프로젝트룸 멤버 권한을 기준으로 확인합니다.
             </p>
           </div>
         </div>

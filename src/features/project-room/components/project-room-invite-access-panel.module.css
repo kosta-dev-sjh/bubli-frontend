@@ -189,28 +189,6 @@
   line-height: 1.35;
 }
 
-.guestRule {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  border: 1px solid rgba(232, 137, 152, 0.18);
-  border-radius: var(--radius-card);
-  padding: 11px;
-  background: rgba(232, 137, 152, 0.08);
-}
-
-.guestRule svg {
-  margin-top: 2px;
-  color: var(--color-blue-deep);
-}
-
-.guestRule p {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 12.8px;
-  line-height: 1.55;
-}
-
 .ruleGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

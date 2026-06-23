@@ -31,7 +31,7 @@ const localCards = [
   },
   {
     title: "권한 안전",
-    body: "게스트는 채팅과 보이스만 가능하며 자료, WBS/TODO, 일정, 다운로드에는 접근하지 않습니다.",
+    body: "프로젝트룸 데이터는 멤버 권한을 확인한 뒤 자료, WBS/TODO, 일정, 다운로드에 접근합니다.",
     icon: ShieldCheck,
   },
 ];

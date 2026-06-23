@@ -1,4 +1,4 @@
-import { Bot, Database, LockKeyhole, MessageCircle, Radio, RefreshCcw, ShieldCheck, UserRound, UsersRound } from "lucide-react";
+import { Bot, Database, MessageCircle, Radio, RefreshCcw, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 import styles from "./chat-room-list-panel.module.css";
 
-type ChatRoomType = "PROJECT_ROOM" | "DIRECT" | "GUEST";
+type ChatRoomType = "PROJECT_ROOM" | "DIRECT";
 type CacheStatus = "SERVER_ONLY" | "CACHE_VALID" | "CACHE_STALE";
 
 type ChatRoomItem = {
@@ -48,21 +48,20 @@ const chatRooms: ChatRoomItem[] = [
   },
   {
     cacheStatus: "CACHE_STALE",
-    id: "guest-chat-1",
-    lastMessage: "게스트는 채팅과 보이스만 참여할 수 있어요.",
+    id: "room-chat-2",
+    lastMessage: "보이스 전에 WBS 누락 항목을 먼저 확인할게요.",
     lastSequence: 42,
-    memberCount: 1,
-    permissionLabel: "guest_session ACTIVE",
-    title: "게스트 임시 참여",
-    type: "GUEST",
+    memberCount: 3,
+    permissionLabel: "room_members ACTIVE",
+    title: "Bubli 제품 고도화 채팅",
+    type: "PROJECT_ROOM",
     unreadCount: 1,
     updatedAt: "35분 전",
   },
 ];
 
-const roomTypeCopy: Record<ChatRoomType, { icon: ReactNode; label: string; tone: "communication" | "room" | "warning" }> = {
+const roomTypeCopy: Record<ChatRoomType, { icon: ReactNode; label: string; tone: "communication" | "room" }> = {
   DIRECT: { icon: <UserRound size={16} />, label: "1:1", tone: "communication" },
-  GUEST: { icon: <LockKeyhole size={16} />, label: "게스트", tone: "warning" },
   PROJECT_ROOM: { icon: <UsersRound size={16} />, label: "프로젝트룸", tone: "room" },
 };
 
@@ -80,7 +79,7 @@ export function ChatRoomListPanel() {
           <Chip selected>소통</Chip>
           <h2 className={styles.title}>채팅방 목록</h2>
           <p className={styles.description}>
-            1:1 채팅은 친구 관계를, 프로젝트룸 채팅은 멤버 권한을 기준으로 열립니다. 게스트는 채팅과 보이스만 잠깐 참여합니다.
+            1:1 채팅은 친구 관계를, 프로젝트룸 채팅은 멤버 권한을 기준으로 열립니다.
           </p>
         </div>
         <Button icon={<RefreshCcw size={16} />} size="sm" variant="quiet">
@@ -91,7 +90,7 @@ export function ChatRoomListPanel() {
       <div className={styles.policyGrid} aria-label="채팅 저장 정책">
         <PolicyCard icon={<Database size={17} />} label="원본" value="chat_messages" />
         <PolicyCard icon={<Radio size={17} />} label="전달" value="/topic/chat/{id}" />
-        <PolicyCard icon={<ShieldCheck size={17} />} label="권한" value="친구/멤버/게스트" />
+        <PolicyCard icon={<ShieldCheck size={17} />} label="권한" value="친구/멤버" />
         <PolicyCard icon={<Bot size={17} />} label="에이전트" value="AGENT_RESPONSE" />
       </div>
 
@@ -125,7 +124,7 @@ function ChatRoomRow({ room }: { room: ChatRoomItem }) {
   const cache = cacheCopy[room.cacheStatus];
 
   return (
-    <article className={cn(styles.roomRow, room.type === "GUEST" && styles.roomRowLimited)}>
+    <article className={cn(styles.roomRow)}>
       <span className={styles.roomIcon} aria-hidden="true">
         {roomType.icon}
       </span>

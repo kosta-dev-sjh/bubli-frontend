@@ -39,7 +39,7 @@ export type SequenceListResponse<T> = {
 };
 
 export type RealtimeActor = {
-  type: "USER" | "GUEST" | "SYSTEM" | "AGENT";
+  type: "USER" | "SYSTEM" | "AGENT";
   id: string | null;
   name: string;
 };

@@ -45,12 +45,6 @@ export const RoomChat: Story = {
         roleLabel="프리랜서 사용자"
         timeLabel="10:26"
       />
-      <ChatMessage
-        author="게스트"
-        message="잠깐 보이스만 들어와서 확인하겠습니다."
-        roleLabel="게스트"
-        timeLabel="10:27"
-      />
     </div>
   ),
 };

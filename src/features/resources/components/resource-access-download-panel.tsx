@@ -40,15 +40,15 @@ const accessCards = [
     ],
   },
   {
-    title: "게스트 접근",
-    caption: "비회원은 채팅과 보이스에만 임시 참여",
+    title: "비멤버 접근",
+    caption: "프로젝트룸 멤버가 아니면 자료 다운로드 차단",
     status: "DOWNLOAD_BLOCKED",
     tone: "warning" as const,
     icon: MessageCircle,
     rules: [
-      ["허용 범위", "초대 링크로 열린 채팅과 보이스 참여"],
+      ["허용 범위", "권한 없음"],
       ["차단 범위", "자료, WBS, 일정, 멤버 목록, 다운로드"],
-      ["근거", "guest_sessions와 chat_guest_access만 사용"],
+      ["근거", "room_members ACTIVE 확인 실패"],
     ],
   },
 ];
