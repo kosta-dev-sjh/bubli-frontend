@@ -16,7 +16,12 @@ export function AppShell({ children }: AppShellProps) {
         <Link className="bubli-brand" href="/app">
           {siteConfig.name}
         </Link>
-        <AppNav />
+        <div className="bubli-nav-wrap">
+          <AppNav />
+          <span className="bubli-nav-hint" aria-hidden="true">
+            옆으로 더 보기
+          </span>
+        </div>
       </aside>
       <main className="shell bubli-main">
         <WorkspaceTopbar
