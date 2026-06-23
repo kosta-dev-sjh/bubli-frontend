@@ -132,6 +132,7 @@ export function CommunicationPanel() {
 
         <aside className="communication-panel__pane" aria-label="소통 보조 정보">
           <BubbleCard
+            className="communication-panel__bubble"
             items={["새 메시지 2개", "프로젝트룸 보이스 참여 가능", "확인 질문 후보 2개"]}
             meta="소통"
             type="communication"
