@@ -1,0 +1,276 @@
+.panel {
+  display: grid;
+  gap: 22px;
+  max-width: 1120px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.title {
+  margin: 12px 0 6px;
+  color: var(--color-text);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 1.14;
+}
+
+.description {
+  max-width: 760px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.composerGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.78fr);
+  gap: 16px;
+}
+
+.composeCard,
+.stateSection {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.composeHeader,
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.composeHeader h3,
+.sectionHeader h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 840;
+}
+
+.composeHeader span,
+.sectionHeader span {
+  color: var(--color-faint);
+  font-size: 12.5px;
+  font-weight: 680;
+}
+
+.commandRail {
+  display: grid;
+  gap: 8px;
+}
+
+.commandRail button {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  border: 1px solid rgba(107, 143, 168, 0.13);
+  border-radius: var(--radius-input);
+  padding: 0 12px;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.62);
+  text-align: left;
+}
+
+.commandRail svg {
+  color: var(--color-blue-deep);
+}
+
+.commandRail strong {
+  color: var(--color-text);
+  font-size: 12.5px;
+  font-weight: 820;
+  white-space: nowrap;
+}
+
+.commandRail span {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composerBox {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(111, 184, 242, 0.18);
+  border-radius: var(--radius-card);
+  padding: 12px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.88), transparent 44%),
+    rgba(255, 255, 255, 0.7);
+  box-shadow: var(--shadow-soft);
+}
+
+.composerBoxGuest {
+  border-color: rgba(232, 196, 160, 0.34);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.86), transparent 44%),
+    rgba(232, 196, 160, 0.13),
+    rgba(255, 255, 255, 0.68);
+}
+
+.textareaWrap {
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-input);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.textareaWrap textarea {
+  width: 100%;
+  min-height: 86px;
+  resize: vertical;
+  border: 0;
+  outline: 0;
+  padding: 12px;
+  color: var(--color-text);
+  background: transparent;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.toolBar,
+.leftTools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolBar {
+  justify-content: space-between;
+}
+
+.leftTools {
+  flex-wrap: wrap;
+}
+
+.toolButton {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-pill);
+  padding: 0 10px;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.56);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.toolButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.guestNotice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  border: 1px solid rgba(232, 196, 160, 0.34);
+  border-radius: var(--radius-input);
+  padding: 12px;
+  color: var(--color-muted);
+  background: rgba(232, 196, 160, 0.14);
+}
+
+.guestNotice svg {
+  color: var(--color-brand);
+}
+
+.guestNotice p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.stateList {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stateCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: var(--radius-card);
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.stateIcon {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(111, 184, 242, 0.22);
+  border-radius: var(--radius-input);
+  color: var(--color-blue-deep);
+  background: rgba(215, 234, 244, 0.62);
+}
+
+.stateCard strong {
+  color: var(--color-text);
+  font-size: 13.5px;
+  font-weight: 840;
+}
+
+.stateCard p {
+  margin: 3px 0 10px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.stateCard :global(.bubli-status) {
+  grid-column: 1 / -1;
+  width: max-content;
+}
+
+@media (max-width: 920px) {
+  .header,
+  .composeHeader,
+  .sectionHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .composerGrid,
+  .stateList {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .commandRail button {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .commandRail span {
+    grid-column: 1 / -1;
+  }
+
+  .toolBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
