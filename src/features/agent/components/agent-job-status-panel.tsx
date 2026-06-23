@@ -1,176 +1,274 @@
-import { Bot, CheckCircle2, CircleAlert, Clock4, FileSearch, ListChecks, RotateCcw, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  Bell,
+  Braces,
+  CheckCircle2,
+  Clock3,
+  FileSearch,
+  ListChecks,
+  LoaderCircle,
+  RefreshCcw,
+  ShieldCheck,
+  Sparkles,
+  XCircle,
+} from "lucide-react";
+import type { HTMLAttributes } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
-import type { AgentJobStatus, AgentJobTargetType } from "@/types/api/agent";
+import { cn } from "@/lib/utils";
 
-type AgentJob = {
-  errorCode?: string;
-  events: string[];
-  idempotencyKey: string;
-  jobId: string;
-  progress: number;
-  resourceName: string;
-  retryable?: boolean;
-  roomName: string;
+import styles from "./agent-job-status-panel.module.css";
+
+export type AgentJobStatus = "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELED";
+export type AgentSuggestionStatus = "DRAFT" | "APPROVED" | "HELD" | "REJECTED";
+
+export type AgentJobStep = {
+  description: string;
+  id: string;
+  label: string;
   status: AgentJobStatus;
-  submittedAt: string;
-  targetId: string;
-  targetType: AgentJobTargetType;
-  type: string;
 };
 
-const jobs: AgentJob[] = [
+export type AgentSuggestionGroup = {
+  count: number;
+  id: string;
+  label: string;
+  status: AgentSuggestionStatus;
+};
+
+type AgentJobStatusPanelProps = HTMLAttributes<HTMLElement> & {
+  eventLabel?: string;
+  jobId?: string;
+  jobTypeLabel?: string;
+  modelLabel?: string;
+  onOpenSuggestions?: () => void;
+  onRetryJob?: () => void;
+  progress?: number;
+  schemaLabel?: string;
+  startedAtLabel?: string;
+  status?: AgentJobStatus;
+  steps?: AgentJobStep[];
+  suggestionGroups?: AgentSuggestionGroup[];
+};
+
+const statusCopy: Record<AgentJobStatus, string> = {
+  PENDING: "대기",
+  RUNNING: "진행 중",
+  SUCCEEDED: "완료",
+  FAILED: "실패",
+  CANCELED: "취소",
+};
+
+const statusTone: Record<AgentJobStatus, "neutral" | "pending" | "success" | "warning"> = {
+  PENDING: "neutral",
+  RUNNING: "pending",
+  SUCCEEDED: "success",
+  FAILED: "warning",
+  CANCELED: "neutral",
+};
+
+const suggestionCopy: Record<AgentSuggestionStatus, string> = {
+  DRAFT: "승인 전",
+  APPROVED: "승인됨",
+  HELD: "보류",
+  REJECTED: "삭제됨",
+};
+
+const suggestionTone: Record<AgentSuggestionStatus, "pending" | "approved" | "warning" | "neutral"> = {
+  DRAFT: "pending",
+  APPROVED: "approved",
+  HELD: "warning",
+  REJECTED: "neutral",
+};
+
+const defaultSteps: AgentJobStep[] = [
   {
-    events: ["문서 종류 분류", "납품물 후보 추출", "확인 질문 후보 생성"],
-    idempotencyKey: "agent-job-resource-20260622-001",
-    jobId: "job-20260622-001",
-    progress: 74,
-    resourceName: "번역계약서_v2.pdf",
-    roomName: "번역 계약서 정리",
-    status: "RUNNING",
-    submittedAt: "방금 전",
-    targetId: "resource-001",
-    targetType: "RESOURCE",
-    type: "문서 분석",
-  },
-  {
-    events: ["WBS 후보 저장", "TODO 후보 저장", "프로젝트룸 이벤트 발행"],
-    idempotencyKey: "agent-job-room-20260622-000",
-    jobId: "job-20260622-000",
-    progress: 100,
-    resourceName: "회의록_0618.md",
-    roomName: "웹사이트 리뉴얼",
+    description: "API 서버가 로그인, 권한, 분석 제한을 확인한 뒤 작업을 만들었습니다.",
+    id: "created",
+    label: "agent_jobs 생성",
     status: "SUCCEEDED",
-    submittedAt: "18분 전",
-    targetId: "room-014",
-    targetType: "PROJECT_ROOM",
-    type: "WBS/TODO 후보",
   },
   {
-    errorCode: "RESOURCE_PARSE_FAILED",
-    events: ["파일 읽기 실패", "재시도 대기"],
-    idempotencyKey: "agent-job-resource-20260621-014",
-    jobId: "job-20260621-014",
-    progress: 24,
-    resourceName: "요구사항_초안.docx",
-    retryable: true,
-    roomName: "브랜드 소개서",
-    status: "FAILED",
-    submittedAt: "어제",
-    targetId: "resource-118",
-    targetType: "RESOURCE",
-    type: "요구사항 정리",
+    description: "에이전트 모듈이 자료 요약과 확인 필요 항목을 구조화하고 있습니다.",
+    id: "analyzing",
+    label: "문서 분석",
+    status: "RUNNING",
+  },
+  {
+    description: "WBS, TODO, 확인 질문은 모두 후보로 저장됩니다.",
+    id: "suggestions",
+    label: "후보 JSON 생성",
+    status: "PENDING",
+  },
+  {
+    description: "완료 이벤트는 WebSocket과 알림으로 화면에 전달됩니다.",
+    id: "notify",
+    label: "완료 알림",
+    status: "PENDING",
   },
 ];
 
-const statusMeta: Record<AgentJobStatus, { icon: typeof Clock4; label: string; tone: "pending" | "agent" | "success" | "warning" | "neutral" }> = {
-  CANCELED: { icon: XCircle, label: "취소됨", tone: "neutral" },
-  FAILED: { icon: CircleAlert, label: "실패", tone: "warning" },
-  PENDING: { icon: Clock4, label: "대기", tone: "pending" },
-  RUNNING: { icon: Bot, label: "실행 중", tone: "agent" },
-  SUCCEEDED: { icon: CheckCircle2, label: "완료", tone: "success" },
-};
+const defaultSuggestionGroups: AgentSuggestionGroup[] = [
+  {
+    count: 3,
+    id: "wbs",
+    label: "WBS 후보",
+    status: "DRAFT",
+  },
+  {
+    count: 5,
+    id: "todo",
+    label: "TODO 후보",
+    status: "DRAFT",
+  },
+  {
+    count: 2,
+    id: "questions",
+    label: "확인 질문",
+    status: "HELD",
+  },
+];
 
-function AgentJobRow({ job }: { job: AgentJob }) {
-  const meta = statusMeta[job.status];
-  const Icon = meta.icon;
+function getStatusIcon(status: AgentJobStatus) {
+  if (status === "SUCCEEDED") {
+    return <CheckCircle2 size={18} />;
+  }
 
-  return (
-    <article className="agent-job-row">
-      <div className="agent-job-row__head">
-        <span className="bubli-icon-tile" aria-hidden="true">
-          <Icon size={17} strokeWidth={2.1} />
-        </span>
-        <div>
-          <div className="agent-job-row__meta">
-            <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
-            <span>{job.type}</span>
-            <span>{job.submittedAt}</span>
-          </div>
-          <h3>{job.resourceName}</h3>
-          <p>{job.roomName}</p>
-        </div>
-        <code>{job.jobId}</code>
-      </div>
-      <ProgressBar label="처리 진행률" value={job.progress} />
-      <div className="agent-job-row__contract">
-        <span>targetType: {job.targetType}</span>
-        <span>targetId: {job.targetId}</span>
-        <span>idempotencyKey: {job.idempotencyKey}</span>
-      </div>
-      {job.errorCode ? (
-        <div className="agent-job-row__failure">
-          <span>{job.errorCode}</span>
-          <b>{job.retryable ? "재시도 가능" : "재시도 불가"}</b>
-        </div>
-      ) : null}
-      <ul className="agent-job-row__events">
-        {job.events.map((event) => (
-          <li key={event}>{event}</li>
-        ))}
-      </ul>
-    </article>
-  );
+  if (status === "FAILED") {
+    return <AlertTriangle size={18} />;
+  }
+
+  if (status === "CANCELED") {
+    return <XCircle size={18} />;
+  }
+
+  if (status === "RUNNING") {
+    return <LoaderCircle size={18} />;
+  }
+
+  return <Clock3 size={18} />;
 }
 
-export function AgentJobStatusPanel() {
+export function AgentJobStatusPanel({
+  className,
+  eventLabel = "완료 시 WebSocket 이벤트와 알림으로 전달",
+  jobId = "job_8f42",
+  jobTypeLabel = "자료 분석 · WBS/TODO 후보",
+  modelLabel = "model_name 기록 대기",
+  onOpenSuggestions,
+  onRetryJob,
+  progress = 62,
+  schemaLabel = "schema v1.0",
+  startedAtLabel = "시작 1분 전",
+  status = "RUNNING",
+  steps = defaultSteps,
+  suggestionGroups = defaultSuggestionGroups,
+  ...props
+}: AgentJobStatusPanelProps) {
+  const draftCount = suggestionGroups
+    .filter((group) => group.status === "DRAFT" || group.status === "HELD")
+    .reduce((sum, group) => sum + group.count, 0);
+
   return (
-    <section className="agent-job-status" aria-label="에이전트 작업 상태">
-      <GlassPanel className="agent-job-status__hero">
-        <div className="agent-job-status__title">
-          <span className="bubli-icon-tile" aria-hidden="true">
-            <FileSearch size={18} strokeWidth={2.1} />
+    <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
+      <header className={styles.header}>
+        <div className={styles.titleBlock}>
+          <span className={cn(styles.statusOrb, styles[`statusOrb${status}`])} aria-hidden="true">
+            {getStatusIcon(status)}
           </span>
           <div>
-            <Chip selected>에이전트 작업</Chip>
-            <h2>문서 분석은 agent_jobs로 요청하고 상태를 확인합니다</h2>
-            <p>
-              생성 요청은 idempotencyKey로 중복을 막고, 상태 변화는 AGENT_JOB_STATUS_CHANGED 이벤트로 받습니다.
-            </p>
+            <StatusBadge tone={statusTone[status]}>{statusCopy[status]}</StatusBadge>
+            <h2>에이전트 작업 상태</h2>
+            <p>분석 결과는 후보로 저장하고, 사용자가 검토한 뒤 업무 데이터에 반영합니다.</p>
           </div>
         </div>
-        <div className="agent-job-status__summary">
-          <strong>3</strong>
-          <span>최근 작업</span>
-          <p>완료 이벤트는 프로젝트룸 이벤트와 개인 알림으로 이어집니다.</p>
+        <div className={styles.actions}>
+          <Button icon={<ListChecks size={15} />} onClick={onOpenSuggestions} size="sm" variant="primary">
+            후보 검토
+          </Button>
+          <Button icon={<RefreshCcw size={15} />} onClick={onRetryJob} size="sm" variant="quiet">
+            다시 시도
+          </Button>
         </div>
-      </GlassPanel>
+      </header>
 
-      <div className="agent-job-status__grid">
-        <GlassPanel className="agent-job-status__list">
-          <div className="agent-job-status__toolbar">
-            <h3>분석 작업</h3>
-            <Button icon={<RotateCcw size={15} />} size="sm" variant="quiet">
-              상태 새로고침
-            </Button>
+      <div className={styles.jobCard}>
+        <div className={styles.jobMeta}>
+          <Chip icon={<Sparkles size={14} />}>{jobTypeLabel}</Chip>
+          <Chip icon={<Clock3 size={14} />}>{startedAtLabel}</Chip>
+          <Chip icon={<Braces size={14} />}>{schemaLabel}</Chip>
+        </div>
+        <div className={styles.progressRow}>
+          <div>
+            <strong>{jobId}</strong>
+            <span>{modelLabel}</span>
           </div>
-          <div className="agent-job-status__items">
-            {jobs.map((job) => (
-              <AgentJobRow job={job} key={job.jobId} />
+          <span>{progress}%</span>
+        </div>
+        <ProgressBar label="에이전트 작업 진행률" value={progress} />
+      </div>
+
+      <div className={styles.grid}>
+        <section className={styles.stepPanel} aria-label="에이전트 작업 단계">
+          <h3>
+            <FileSearch size={17} />
+            처리 단계
+          </h3>
+          <ol className={styles.stepList}>
+            {steps.map((step) => (
+              <li className={styles.stepItem} key={step.id}>
+                <span className={cn(styles.stepIcon, styles[`stepIcon${step.status}`])} aria-hidden="true">
+                  {getStatusIcon(step.status)}
+                </span>
+                <div>
+                  <div className={styles.stepHead}>
+                    <strong>{step.label}</strong>
+                    <StatusBadge tone={statusTone[step.status]}>{statusCopy[step.status]}</StatusBadge>
+                  </div>
+                  <p>{step.description}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className={styles.suggestionPanel} aria-label="생성된 후보 상태">
+          <h3>
+            <ListChecks size={17} />
+            후보 상태
+          </h3>
+          <div className={styles.suggestionList}>
+            {suggestionGroups.map((group) => (
+              <article className={styles.suggestionCard} key={group.id}>
+                <div>
+                  <strong>{group.label}</strong>
+                  <span>{group.count}개</span>
+                </div>
+                <StatusBadge tone={suggestionTone[group.status]}>{suggestionCopy[group.status]}</StatusBadge>
+              </article>
             ))}
           </div>
-        </GlassPanel>
-
-        <GlassPanel className="agent-job-status__policy">
-          <h3>처리 경계</h3>
-          <div>
-            <span className="bubli-icon-tile" aria-hidden="true">
-              <Bot size={16} strokeWidth={2.1} />
-            </span>
-            <p>에이전트 모듈은 문서 분석, 후보 생성, 구조화, 모델 호출 로그 기록을 맡습니다.</p>
+          <div className={styles.notice}>
+            <Bell size={16} />
+            <span>{eventLabel}</span>
           </div>
-          <div>
-            <span className="bubli-icon-tile" aria-hidden="true">
-              <ListChecks size={16} strokeWidth={2.1} />
-            </span>
-            <p>에이전트는 후보만 만들고, 승인 후 확정 데이터 생성은 대상 도메인 Service가 처리합니다.</p>
-          </div>
-        </GlassPanel>
+        </section>
       </div>
-    </section>
+
+      <footer className={styles.boundary}>
+        <div>
+          <ShieldCheck size={18} />
+          <strong>확정 반영 기준</strong>
+        </div>
+        <p>
+          에이전트 모듈은 후보 생성과 모델 호출 로그 기록까지만 맡습니다. 승인 전 후보 {draftCount}개는 실제 WBS,
+          TODO, 일정에 반영하지 않습니다.
+        </p>
+      </footer>
+    </GlassPanel>
   );
 }
