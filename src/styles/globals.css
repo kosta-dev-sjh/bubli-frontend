@@ -556,7 +556,8 @@ select {
   border-radius: 27px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.38), transparent 38%),
-    radial-gradient(ellipse 78% 42% at 28% 0%, rgba(255, 255, 255, 0.58), transparent 70%);
+    radial-gradient(ellipse 78% 42% at 28% 0%, rgba(255, 255, 255, 0.58), transparent 70%),
+    radial-gradient(ellipse 52% 22% at 22% 14%, rgba(255, 255, 255, 0.72), transparent 72%);
   pointer-events: none;
 }
 
@@ -656,7 +657,7 @@ select {
 .bubli-bubble--todo { --bubble-tone: var(--color-todo); }
 .bubli-bubble--agent { --bubble-tone: var(--color-agent); }
 .bubli-bubble--communication { --bubble-tone: var(--color-dust-rose); }
-.bubli-bubble--timer { --bubble-tone: #B9DEC8; }
+.bubli-bubble--timer { --bubble-tone: var(--color-success); }
 .bubli-bubble--memo { --bubble-tone: var(--color-pearl); }
 .bubli-bubble--schedule { --bubble-tone: var(--color-lilac); }
 .bubli-bubble--resource { --bubble-tone: var(--color-water-blue); }

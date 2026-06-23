@@ -24,23 +24,23 @@ const widgetBubbles = [
     title: "TODO 버블",
     subtitle: "오늘 할 일 5개",
     rows: ["계약서 수정 조항 회신", "WBS 후보 3개 검토"],
-    source: "tasks · widget_item_states",
+    source: "TODO와 항목 상태",
     tone: "todo",
     icon: CheckCircle2,
   },
   {
     title: "개인 에이전트 버블",
-    subtitle: "로컬 원문 보관",
-    rows: ["새 회의록 정리 완료", "개인 대화는 Tauri SQLite"],
-    source: "local_agent_messages",
+    subtitle: "기기 안 대화 보관",
+    rows: ["새 회의록 정리 완료", "개인 대화는 기기 안에 보관"],
+    source: "개인 에이전트 기록",
     tone: "agent",
     icon: Bot,
   },
   {
     title: "타이머 버블",
     subtitle: "42:18 · 진행 중",
-    rows: ["1차 검수", "heartbeat 기준 복구"],
-    source: "time_logs · local_timer_state",
+    rows: ["1차 검수", "비정상 종료 후 복구"],
+    source: "작업 시간과 복구 상태",
     tone: "timer",
     icon: Clock3,
   },
@@ -48,15 +48,15 @@ const widgetBubbles = [
     title: "소통 버블",
     subtitle: "1:1 · 프로젝트룸",
     rows: ["민지: 검수 기준 댓글", "프로젝트룸 보이스 대기"],
-    source: "chat_messages · notifications",
+    source: "채팅과 알림",
     tone: "communication",
     icon: MessageCircle,
   },
   {
     title: "메모 버블",
     subtitle: "작성 중 초안",
-    rows: ["로컬 임시 초안", "저장 후 서버 memos"],
-    source: "memos · local_widget_display_cache",
+    rows: ["기기 안 임시 초안", "저장 후 메모에 반영"],
+    source: "메모와 임시 저장",
     tone: "memo",
     icon: NotebookPen,
   },
@@ -64,7 +64,7 @@ const widgetBubbles = [
     title: "일정/WBS 버블",
     subtitle: "금요일 중간보고",
     rows: ["D-2 일정", "자료보드 화면 정리 86%"],
-    source: "schedules · wbs_items",
+    source: "일정과 WBS",
     tone: "schedule",
     icon: CalendarDays,
   },
@@ -72,7 +72,7 @@ const widgetBubbles = [
     title: "자료 제안 버블",
     subtitle: "확인 필요 항목",
     rows: ["계약서와 회의록 조건 차이", "관련 자료 2개"],
-    source: "resource_relations · agent_suggestions",
+    source: "관련 자료와 후보",
     tone: "resource",
     icon: FolderSearch,
   },
@@ -80,7 +80,7 @@ const widgetBubbles = [
     title: "알림 버블",
     subtitle: "새 댓글 1개",
     rows: ["새 버전 1개", "읽음 상태 동기화"],
-    source: "notifications",
+    source: "알림 상태",
     tone: "notification",
     icon: Bell,
   },
@@ -106,7 +106,7 @@ const statusToneByBubble: Record<string, StatusTone> = {
 const policyRows = [
   ["개인 영역", "버블은 사용자 화면 위에 남는 개인 작업 인터페이스입니다."],
   ["권한 확인", "프로젝트룸 데이터는 사용자가 접근 권한을 가진 범위만 표시합니다."],
-  ["저장 기준", "표시 데이터는 서버 원본을 쓰고, 상세 사용 이벤트는 Tauri SQLite에 둡니다."],
+  ["저장 기준", "표시 데이터는 서버 값을 쓰고, 상세 사용 기록은 기기 안에 둡니다."],
   ["동작 기준", "항상 움직이는 효과보다 hover, 상태 전환, transform 중심으로 처리합니다."],
 ];
 
@@ -116,17 +116,17 @@ export function TauriWidgetLayer() {
       <header className={styles.header}>
         <div className={styles.eyebrow}>
           <Grip size={16} aria-hidden="true" />
-          Tauri 위젯 레이어
+          데스크톱 위젯 레이어
         </div>
         <div className={styles.titleRow}>
           <div className={styles.titleGroup}>
             <h2 className={styles.title}>작업 중 필요한 정보만 버블로 띄웁니다</h2>
             <p className={styles.summary}>
-              위젯은 웹 설정 페이지가 아니라 데스크탑 위에 떠 있는 개인 영역입니다. 각 버블은 서버 원본 데이터와 Tauri 로컬 캐시를
-              역할에 맞게 나눠 사용합니다.
+              위젯은 웹 설정 페이지가 아니라 데스크톱 위에 떠 있는 개인 영역입니다. 각 버블은 서버에 남길 값과 기기 안에 둘 기록을
+              역할에 맞게 나눠 씁니다.
             </p>
           </div>
-          <StatusBadge tone="personal">widget_bubbles</StatusBadge>
+          <StatusBadge tone="personal">개인 버블</StatusBadge>
         </div>
         <div className={styles.chips} aria-label="위젯 레이어 설정">
           <Chip selected>기본 밀도</Chip>

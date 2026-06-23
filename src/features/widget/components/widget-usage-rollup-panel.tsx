@@ -75,7 +75,7 @@ export function WidgetUsageRollupPanel() {
           </Chip>
           <h2>버블 사용 기록은 상세 이벤트와 날짜별 집계를 나눠서 관리합니다</h2>
           <p>
-            버블 열기, 클릭, 접기 같은 상세 이벤트는 Tauri 앱 안에 남기고, 서버에는 날짜별 집계와 항목 상태만
+            버블 열기, 클릭, 접기 같은 상세 이벤트는 데스크톱 앱 안에 남기고, 서버에는 날짜별 집계와 항목 상태만
             보냅니다. 하루정리는 이 집계값을 참고하되, 상세 이벤트 원문을 서버에 올리지 않습니다.
           </p>
         </div>
@@ -128,7 +128,7 @@ export function WidgetUsageRollupPanel() {
         <GlassPanel>
           <MousePointerClick size={18} strokeWidth={2.1} />
           <h3>상세 이벤트</h3>
-          <p>열기, 닫기, 클릭, 드래그 같은 세부 기록은 Tauri 앱 안에 둡니다.</p>
+          <p>열기, 닫기, 클릭, 드래그 같은 세부 기록은 데스크톱 앱 안에 둡니다.</p>
         </GlassPanel>
         <GlassPanel>
           <Smartphone size={18} strokeWidth={2.1} />

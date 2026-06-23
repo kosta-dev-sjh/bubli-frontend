@@ -28,7 +28,7 @@ export type WidgetStorageItem = {
   id: string;
   label: string;
   layer: WidgetStorageLayer;
-  tables: string[];
+  tags: string[];
 };
 
 export type WidgetRollupDevice = {
@@ -86,35 +86,35 @@ const defaultItems: WidgetStorageItem[] = [
     id: "settings",
     label: "위젯 설정",
     layer: "SERVER_STATE",
-    tables: ["widget_bubbles", "widget_layouts", "widget_preferences"],
+    tags: ["켜기/끄기", "위치와 크기", "표시 옵션"],
   },
   {
     description: "TODO, 일정, 채팅, 알림, 에이전트 제안처럼 웹과 앱에서 다시 보여야 하는 값입니다.",
     id: "display",
     label: "표시 데이터",
     layer: "SERVER_ORIGINAL",
-    tables: ["tasks", "schedules", "chat_messages", "notifications"],
+    tags: ["TODO", "일정", "채팅", "알림"],
   },
   {
     description: "확인, 숨김, 고정, 다시 보기 상태는 같은 항목 row를 갱신합니다.",
     id: "item-state",
     label: "항목 상태",
     layer: "SERVER_STATE",
-    tables: ["widget_item_states"],
+    tags: ["확인", "숨김", "고정", "나중에 보기"],
   },
   {
     description: "열기, 닫기, 클릭, 머문 시간 같은 상세 이벤트는 기기 안에만 둡니다.",
     id: "usage-event",
     label: "사용 기록",
     layer: "LOCAL_EVENT",
-    tables: ["local_widget_usage_events"],
+    tags: ["열기", "닫기", "클릭", "머문 시간"],
   },
   {
     description: "날짜별, 기기별, 버블별 집계만 서버로 보내 하루정리 근거에 씁니다.",
     id: "rollup",
     label: "사용 집계",
     layer: "LOCAL_ROLLUP",
-    tables: ["local_widget_usage_rollups", "widget_daily_summaries"],
+    tags: ["날짜별", "기기별", "버블별", "하루정리 근거"],
   },
 ];
 
@@ -172,8 +172,7 @@ export function WidgetStoragePolicyPanel({
             <StatusBadge tone="timer">버블 저장 정책</StatusBadge>
             <h2>위젯 데이터는 성격별로 나눠 저장합니다</h2>
             <p>
-              서버에 바로 보여야 하는 값은 원본 테이블에 두고, 상세 사용 이벤트는 Tauri SQLite에 남긴 뒤 집계만
-              서버로 보냅니다.
+              서버에 바로 보여야 하는 값은 서버에 두고, 상세 사용 기록은 기기 안에 남긴 뒤 집계만 서버로 보냅니다.
             </p>
           </div>
         </div>
@@ -189,8 +188,8 @@ export function WidgetStoragePolicyPanel({
 
       <div className={styles.summaryGrid}>
         <SummaryCard icon={<Server size={18} />} label="서버 원본" value="표시 데이터와 항목 상태" />
-        <SummaryCard icon={<Database size={18} />} label="Tauri SQLite" value="캐시, 상세 이벤트, 로컬 집계" />
-        <SummaryCard icon={<ArchiveRestore size={18} />} label="중복 방지" value="rollup_key와 idempotency_key" />
+        <SummaryCard icon={<Database size={18} />} label="기기 안 기록" value="캐시, 상세 이벤트, 로컬 집계" />
+        <SummaryCard icon={<ArchiveRestore size={18} />} label="중복 방지" value="같은 집계는 한 번만 반영" />
       </div>
 
       <div className={styles.storageGrid} aria-label="위젯 저장 분류">
@@ -203,8 +202,8 @@ export function WidgetStoragePolicyPanel({
             <h3>{item.label}</h3>
             <p>{item.description}</p>
             <div className={styles.tableList}>
-              {item.tables.map((table) => (
-                <Chip key={table}>{table}</Chip>
+              {item.tags.map((tag) => (
+                <Chip key={tag}>{tag}</Chip>
               ))}
             </div>
           </article>

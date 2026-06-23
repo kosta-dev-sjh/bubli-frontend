@@ -89,17 +89,17 @@ export const defaultWidgetWindowControls: WidgetWindowControl[] = [
 export const defaultWidgetPersistenceRules: WidgetPersistenceRule[] = [
   {
     description: "활성 여부, 위치, 크기, 최소화 상태는 서버 설정으로 유지합니다.",
-    label: "widget_layouts",
+    label: "창 위치와 크기",
     tone: "room",
   },
   {
     description: "선택한 프로젝트룸, 투명도, 고스트 모드, 알림 기준은 사용자 옵션으로 저장합니다.",
-    label: "widget_preferences",
+    label: "사용자 표시 옵션",
     tone: "personal",
   },
   {
-    description: "열기, 클릭, 드래그 같은 상세 이벤트는 Tauri SQLite에만 남깁니다.",
-    label: "local_widget_usage_events",
+    description: "열기, 클릭, 드래그 같은 상세 이벤트는 기기 안에만 남깁니다.",
+    label: "상세 사용 기록",
     tone: "pending",
   },
 ];
@@ -121,7 +121,7 @@ export function WidgetWindowControlsPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<Layers3 size={16} strokeWidth={2.1} />}>Tauri 위젯</Chip>
+          <Chip icon={<Layers3 size={16} strokeWidth={2.1} />}>데스크톱 버블</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
