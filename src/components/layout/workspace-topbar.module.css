@@ -4,12 +4,14 @@
   gap: 14px;
   align-items: center;
   width: 100%;
+  min-width: 0;
 }
 
 .projectButton,
 .searchBox,
 .profileButton {
   min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-card);
   background: rgba(255, 255, 255, 0.72);
@@ -195,20 +197,51 @@
 }
 
 @media (max-width: 720px) {
+  .topbar {
+    gap: 10px;
+  }
+
   .projectButton {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-height: auto;
+  }
+
+  .projectButton > svg {
+    display: none;
+  }
+
+  .projectButton :global(.bubli-status) {
+    justify-self: end;
+  }
+
+  .searchBox {
+    min-height: 48px;
+  }
+
+  .searchBox kbd {
+    display: none;
   }
 
   .actions {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+    justify-content: stretch;
   }
 
   .surfaceChip {
+    grid-column: 1 / -1;
     width: 100%;
     justify-content: center;
   }
 
   .profileButton {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .profileText {
     min-width: 0;
   }
 }
