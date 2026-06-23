@@ -19,7 +19,7 @@ const summaryItems = [
     title: "프로젝트룸 채팅",
   },
   {
-    body: "LiveKit 토큰은 API 서버에서 받아 입장합니다.",
+    body: "서버에서 발급한 연결 정보로 프로젝트룸 보이스에 입장합니다.",
     icon: Mic2,
     title: "프로젝트룸 보이스",
   },
@@ -97,9 +97,9 @@ export function CommunicationPanel() {
 
         <section className="communication-panel__chat" aria-label="프로젝트룸 채팅">
           <div className="communication-panel__head">
-            <div>
-              <h2>토모에 번역 프로젝트</h2>
-              <p>프로젝트룸 채팅 원본은 서버 DB에 저장되고, Tauri는 최근 메시지를 캐시합니다.</p>
+          <div>
+            <h2>토모에 번역 프로젝트</h2>
+              <p>프로젝트룸 채팅은 서버에 저장되고, 데스크톱 앱은 최근 메시지를 빠르게 불러옵니다.</p>
             </div>
             <StatusBadge tone="communication">프로젝트룸 채팅</StatusBadge>
           </div>
@@ -147,7 +147,7 @@ export function CommunicationPanel() {
           </GlassPanel>
           <GlassPanel className="communication-panel__side-card">
             <h3>Tauri 앱 기준</h3>
-            <p>앱에서 소통 탭을 숨기더라도 버블이나 전용 창에서 같은 API, WebSocket, LiveKit 연결을 씁니다.</p>
+            <p>앱에서 소통 탭을 숨기더라도 버블이나 전용 창에서 같은 서버와 보이스 연결을 씁니다.</p>
           </GlassPanel>
         </aside>
       </div>

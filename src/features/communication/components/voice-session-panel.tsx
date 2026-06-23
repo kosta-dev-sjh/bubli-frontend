@@ -54,10 +54,10 @@ export function VoiceSessionPanel() {
           </span>
           <div>
             <Chip selected>보이스챗</Chip>
-            <h2>회원 웹 앱과 Tauri 버블이 같은 LiveKit 연결로 프로젝트룸 소통을 이어갑니다</h2>
+            <h2>회원 웹 앱과 데스크톱 버블이 같은 보이스 연결로 프로젝트룸 소통을 이어갑니다</h2>
             <p>
-              웹에서는 소통 탭에서, Tauri에서는 별도 창이나 소통 버블에서 참여합니다. 토큰은 API 서버가 발급하고,
-              프론트와 Tauri는 LiveKit 서버를 직접 설정하지 않습니다.
+              웹에서는 소통 탭에서, 데스크톱 앱에서는 별도 창이나 소통 버블에서 참여합니다. 연결 정보는 서버가 발급하고,
+              화면에서는 받은 값으로만 입장합니다.
             </p>
           </div>
         </div>
@@ -76,7 +76,7 @@ export function VoiceSessionPanel() {
               <h3>프로젝트룸 보이스</h3>
               <p>대화와 보이스는 같은 프로젝트룸 맥락에 묶이고, 음성 저장과 회의 내용 요약은 포함하지 않습니다.</p>
             </div>
-            <Chip icon={<Volume2 size={14} />}>LiveKit</Chip>
+            <Chip icon={<Volume2 size={14} />}>보이스 연결</Chip>
           </div>
 
           <div className="voice-session__participants">
@@ -101,7 +101,7 @@ export function VoiceSessionPanel() {
             <span className="bubli-icon-tile" aria-hidden="true">
               <LockKeyhole size={16} strokeWidth={2.1} />
             </span>
-            <p>LiveKit 토큰은 API 서버에서 발급하고, 모델 키나 내부 토큰은 클라이언트에 노출하지 않습니다.</p>
+            <p>보이스 연결 정보는 서버에서 발급하고, 내부 키는 클라이언트에 노출하지 않습니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">

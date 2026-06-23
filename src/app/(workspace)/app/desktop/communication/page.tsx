@@ -13,7 +13,7 @@ const channels = [
     tone: "communication" as const,
   },
   {
-    description: "LiveKit 입장 토큰은 API 서버에서 발급받아 사용합니다.",
+    description: "보이스 입장은 서버에서 발급한 연결 정보로만 진행합니다.",
     label: "프로젝트룸 보이스",
     tone: "agent" as const,
   },
@@ -21,18 +21,18 @@ const channels = [
 
 const sharedConnections = [
   {
-    description: "웹과 Tauri 전용 창은 Spring Boot API 서버만 호출합니다.",
-    label: "같은 API",
+    description: "웹과 데스크톱 전용 창은 같은 서버 기준으로 동작합니다.",
+    label: "같은 서버",
     status: "ready" as const,
   },
   {
-    description: "채팅 메시지는 서버 DB 원본과 WebSocket topic을 기준으로 동기화합니다.",
-    label: "같은 WebSocket",
+    description: "채팅 메시지는 서버 원본과 실시간 연결 기준으로 동기화합니다.",
+    label: "같은 실시간 연결",
     status: "ready" as const,
   },
   {
-    description: "보이스챗은 HTTPS 회원 웹 앱 환경의 LiveKit 연결 기준을 그대로 씁니다.",
-    label: "같은 LiveKit",
+    description: "보이스챗은 배포된 회원 웹 앱의 보안 연결 기준을 그대로 씁니다.",
+    label: "같은 보이스 연결",
     status: "ready" as const,
   },
 ];
@@ -42,7 +42,7 @@ export default function DesktopCommunicationPage() {
     <>
       <PageHeading
         title="Tauri 소통 창과 버블"
-        description="앱에서는 메인 소통 탭을 숨기고, 같은 HTTPS 회원 웹 앱 연결을 전용 창이나 소통 버블에서 사용합니다."
+        description="앱에서는 메인 소통 탭을 숨기고, 배포된 회원 웹 앱 연결을 전용 창이나 소통 버블에서 사용합니다."
       />
       <div className="page-grid">
         <TauriCommunicationModePanel

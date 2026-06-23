@@ -29,7 +29,7 @@ const chatRooms: ChatRoomItem[] = [
     lastMessage: "계약서 납품일과 회의록 일정이 달라요. /bubli 질문으로 정리해볼게요.",
     lastSequence: 128,
     memberCount: 5,
-    permissionLabel: "room_members ACTIVE",
+    permissionLabel: "프로젝트룸 멤버",
     title: "K-Stay 프로젝트룸 채팅",
     type: "PROJECT_ROOM",
     unreadCount: 3,
@@ -40,7 +40,7 @@ const chatRooms: ChatRoomItem[] = [
     id: "direct-chat-1",
     lastMessage: "API 계약 문서에서 인증 응답 형태만 더 맞추면 될 것 같아요.",
     memberCount: 2,
-    permissionLabel: "friendships ACCEPTED",
+    permissionLabel: "친구",
     title: "김미연과 1:1 채팅",
     type: "DIRECT",
     unreadCount: 0,
@@ -52,7 +52,7 @@ const chatRooms: ChatRoomItem[] = [
     lastMessage: "보이스 전에 WBS 누락 항목을 먼저 확인할게요.",
     lastSequence: 42,
     memberCount: 3,
-    permissionLabel: "room_members ACTIVE",
+    permissionLabel: "프로젝트룸 멤버",
     title: "Bubli 제품 고도화 채팅",
     type: "PROJECT_ROOM",
     unreadCount: 1,
@@ -66,8 +66,8 @@ const roomTypeCopy: Record<ChatRoomType, { icon: ReactNode; label: string; tone:
 };
 
 const cacheCopy: Record<CacheStatus, { label: string; tone: "neutral" | "pending" | "success" }> = {
-  CACHE_STALE: { label: "캐시 보충 필요", tone: "pending" },
-  CACHE_VALID: { label: "SQLite 캐시 정상", tone: "success" },
+  CACHE_STALE: { label: "최근 메시지 보충 필요", tone: "pending" },
+  CACHE_VALID: { label: "최근 메시지 준비됨", tone: "success" },
   SERVER_ONLY: { label: "서버 원본", tone: "neutral" },
 };
 
@@ -88,10 +88,10 @@ export function ChatRoomListPanel() {
       </header>
 
       <div className={styles.policyGrid} aria-label="채팅 저장 정책">
-        <PolicyCard icon={<Database size={17} />} label="원본" value="chat_messages" />
-        <PolicyCard icon={<Radio size={17} />} label="전달" value="/topic/chat/{id}" />
+        <PolicyCard icon={<Database size={17} />} label="원본" value="서버 메시지" />
+        <PolicyCard icon={<Radio size={17} />} label="전달" value="실시간 연결" />
         <PolicyCard icon={<ShieldCheck size={17} />} label="권한" value="친구/멤버" />
-        <PolicyCard icon={<Bot size={17} />} label="에이전트" value="AGENT_RESPONSE" />
+        <PolicyCard icon={<Bot size={17} />} label="에이전트" value="응답 메시지" />
       </div>
 
       <section className={styles.roomSection} aria-labelledby="chat-room-list-title">
@@ -139,7 +139,7 @@ function ChatRoomRow({ room }: { room: ChatRoomItem }) {
           <span>{room.permissionLabel}</span>
           <span>{room.memberCount}명</span>
           <span>{room.updatedAt}</span>
-          {room.lastSequence ? <span>sequence {room.lastSequence}</span> : null}
+          {room.lastSequence ? <span>최근 기준 {room.lastSequence}</span> : null}
         </div>
       </div>
       <div className={styles.sideActions}>

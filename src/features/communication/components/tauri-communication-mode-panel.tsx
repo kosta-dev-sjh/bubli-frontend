@@ -89,8 +89,8 @@ export function TauriCommunicationModePanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              웹은 {webRoute}에서 소통을 다루고, Tauri 앱은 같은 HTTPS 회원 화면과 같은 API, WebSocket, LiveKit
-              토큰을 사용합니다. 앱에서는 작업 흐름을 줄이기 위해 소통을 별도 창이나 버블로 보여줄 수 있습니다.
+              웹은 {webRoute}에서 소통을 다루고, 데스크톱 앱은 배포된 회원 화면의 같은 서버 연결을 사용합니다.
+              앱에서는 작업 흐름을 줄이기 위해 소통을 별도 창이나 버블로 보여줄 수 있습니다.
             </p>
           </div>
         </div>
@@ -157,7 +157,7 @@ export function TauriCommunicationModePanel({
       <footer className={styles.footer}>
         <div className={styles.guardRail}>
           <ShieldCheck size={18} strokeWidth={2.1} aria-hidden="true" />
-          <span>LiveKit 토큰은 클라이언트에서 만들지 않고 API 서버에서 받은 값만 사용합니다.</span>
+          <span>보이스 연결 정보는 클라이언트에서 만들지 않고 서버에서 받은 값만 사용합니다.</span>
         </div>
         <div className={styles.actions}>
           <Button icon={<ExternalLink size={15} strokeWidth={2.1} />} size="sm" variant="primary">
