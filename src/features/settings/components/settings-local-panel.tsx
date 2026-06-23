@@ -157,6 +157,45 @@ function SettingGroup({
   );
 }
 
+const summaryItems = [
+  {
+    description: "알림, 버블 배치, 글자 크기처럼 사용자가 직접 고르는 값입니다.",
+    icon: SlidersHorizontal,
+    title: "사용자 설정",
+  },
+  {
+    description: "TODO, 일정, 채팅, 타이머처럼 웹과 앱에서 함께 보는 원본입니다.",
+    icon: DatabaseZap,
+    title: "서버 원본",
+  },
+  {
+    description: "개인 에이전트 원문, 상세 사용 기록, 복구 대기열처럼 기기 안에 남는 값입니다.",
+    icon: HardDriveDownload,
+    title: "Tauri 로컬",
+  },
+];
+
+function SettingsSummaryStrip() {
+  return (
+    <GlassPanel className="settings-summary" padded={false}>
+      {summaryItems.map((item) => {
+        const Icon = item.icon;
+        return (
+          <div className="settings-summary__item" key={item.title}>
+            <span className="bubli-icon-tile" aria-hidden="true">
+              <Icon size={17} strokeWidth={2.1} />
+            </span>
+            <div>
+              <h3>{item.title}</h3>
+              <p>{item.description}</p>
+            </div>
+          </div>
+        );
+      })}
+    </GlassPanel>
+  );
+}
+
 function LocalRecoveryPanel() {
   return (
     <GlassPanel className="settings-recovery">
@@ -187,9 +226,11 @@ export function SettingsLocalPanel() {
     <section className="settings-local-panel" aria-label="사용자 설정과 로컬 기능">
       <SectionHeading
         eyebrow="설정"
-        title="사용자 기준 설정과 Tauri 로컬 기능을 나눠 관리합니다"
-        description="같은 프로젝트룸에 있어도 알림, 위젯, 폴더, 활동 감지 동의는 사용자별로 저장됩니다. Tauri 전용 기능은 서버 원본과 로컬 데이터를 구분합니다."
+        title="내 설정과 로컬 기능을 한곳에서 관리합니다"
+        description="알림, 버블, 폴더, 활동 감지 동의는 사용자별로 저장됩니다. 웹과 함께 쓰는 값은 서버 원본을 따르고, Tauri 전용 기록은 기기 안에서 복구와 대기열을 맡습니다."
       />
+
+      <SettingsSummaryStrip />
 
       <div className="settings-local-panel__grid">
         <SettingGroup icon={Languages} rows={preferenceRows} title="프로필과 표시" />
