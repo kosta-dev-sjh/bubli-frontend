@@ -7,3 +7,6 @@ export * from "./friend-invite-panel";
 export * from "./friend-request-inbox";
 export * from "./friend-search-panel";
 export * from "./guest-communication-access-panel";
+export * from "./guest-session-expiry-panel";
+export * from "./guest-voice-access-panel";
+export * from "./voice-session-panel";
