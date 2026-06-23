@@ -1,0 +1,294 @@
+.panel {
+  display: grid;
+  gap: 18px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.heroCopy {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+}
+
+.heroCopy h2,
+.sectionTitle h3,
+.stepCard h3,
+.ruleCard h4 {
+  margin: 0;
+  color: var(--color-text);
+  letter-spacing: 0;
+}
+
+.heroCopy h2 {
+  max-width: 760px;
+  font-size: clamp(28px, 4vw, 46px);
+  font-weight: 880;
+  line-height: 1.08;
+}
+
+.heroCopy p,
+.heroMetric span,
+.sectionTitle p,
+.stepCard p,
+.traceRow p,
+.ruleCard p,
+.notice p {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.65;
+}
+
+.heroCopy p {
+  max-width: 760px;
+  font-size: 15px;
+}
+
+.heroMetric {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-card);
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.heroMetric strong {
+  color: var(--color-blue-deep);
+  font-size: 42px;
+  font-weight: 880;
+  line-height: 1;
+}
+
+.flowPanel,
+.tracePanel,
+.rulePanel {
+  display: grid;
+  gap: 16px;
+}
+
+.sectionTitle {
+  display: grid;
+  gap: 5px;
+}
+
+.sectionTitle h3 {
+  font-size: 20px;
+  font-weight: 840;
+}
+
+.sectionTitle p {
+  font-size: 13.5px;
+}
+
+.stepGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stepSlot {
+  position: relative;
+  min-width: 0;
+}
+
+.connector {
+  position: absolute;
+  top: 50%;
+  right: -14px;
+  z-index: 2;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-50%);
+}
+
+.stepCard {
+  display: grid;
+  min-height: 218px;
+  align-content: start;
+  gap: 14px;
+  border: 1px solid rgba(107, 143, 168, 0.13);
+  border-radius: var(--radius-card);
+  padding: 15px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.9), transparent 28%),
+    rgba(255, 255, 255, 0.6);
+  box-shadow: var(--shadow-soft);
+}
+
+.badges,
+.traceMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+}
+
+.badges {
+  margin-bottom: 10px;
+}
+
+.stepCard h3 {
+  font-size: 17px;
+  font-weight: 840;
+}
+
+.stepCard p {
+  margin-top: 6px;
+  font-size: 13.5px;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+  gap: 18px;
+}
+
+.traceList,
+.ruleList {
+  display: grid;
+  gap: 10px;
+}
+
+.traceRow {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  border: 1px solid rgba(107, 143, 168, 0.13);
+  border-radius: var(--radius-card);
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.sequenceBadge {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.13);
+  border-radius: 15px;
+  background: rgba(215, 234, 244, 0.62);
+  color: var(--color-blue-deep);
+  font-size: 13px;
+  font-weight: 860;
+}
+
+.traceMeta strong {
+  color: var(--color-text);
+  font-size: 13.5px;
+  font-weight: 850;
+}
+
+.traceMeta code,
+.ruleCard code {
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: 10px;
+  padding: 5px 8px;
+  background: rgba(215, 234, 244, 0.58);
+  color: var(--color-blue-deep);
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.traceRow p {
+  margin-top: 7px;
+  font-size: 13.5px;
+}
+
+.ruleCard {
+  display: grid;
+  gap: 9px;
+  border: 1px solid rgba(107, 143, 168, 0.13);
+  border-radius: var(--radius-card);
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.ruleCard h4 {
+  font-size: 14px;
+  font-weight: 840;
+}
+
+.ruleCard p {
+  font-size: 13px;
+}
+
+.topicBox {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  border: 1px solid rgba(107, 143, 168, 0.13);
+  border-radius: var(--radius-card);
+  padding: 13px;
+  color: var(--color-blue-deep);
+  background: rgba(215, 234, 244, 0.38);
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.notice {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  border: 1px solid rgba(107, 143, 168, 0.13);
+  border-radius: var(--radius-card);
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.notice svg {
+  margin-top: 3px;
+  color: var(--color-blue-deep);
+}
+
+.notice p {
+  font-size: 13px;
+}
+
+@media (max-width: 1080px) {
+  .hero,
+  .columns,
+  .stepGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .connector {
+    position: static;
+    margin: 10px auto -2px;
+    transform: rotate(90deg);
+  }
+
+  .stepCard {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .traceRow {
+    grid-template-columns: 1fr;
+  }
+
+  .heroCopy h2 {
+    font-size: 28px;
+  }
+
+  .heroMetric strong {
+    font-size: 34px;
+  }
+}

@@ -1,0 +1,192 @@
+.panel {
+  display: grid;
+  gap: 16px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.26fr);
+  gap: 18px;
+  align-items: stretch;
+  padding: 22px;
+}
+
+.hero h2 {
+  max-width: 850px;
+  margin: 12px 0 0;
+  color: var(--color-text);
+  font-size: clamp(28px, 3vw, 42px);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.hero p,
+.methodCard p,
+.acceptPanel p,
+.guestPanel p {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 620;
+  line-height: 1.65;
+}
+
+.summary {
+  display: grid;
+  align-content: center;
+  gap: 9px;
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 30% 0%, rgba(255, 255, 255, 0.88), transparent 42%),
+    rgba(255, 255, 255, 0.56);
+  box-shadow: var(--shadow-soft);
+}
+
+.summary strong {
+  color: var(--color-blue-deep);
+  font-size: 42px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.summary span {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 840;
+}
+
+.methodGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.methodCard {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: 22px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.78), transparent 36%),
+    rgba(255, 255, 255, 0.58);
+  box-shadow: var(--shadow-soft);
+}
+
+.methodHead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  color: var(--color-faint);
+  font-size: 11.5px;
+  font-weight: 760;
+}
+
+.methodCard h3,
+.acceptPanel h3,
+.guestPanel h3,
+.timeline strong {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+.methodCard h3 {
+  margin-top: 7px;
+}
+
+.methodCard code {
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 9px;
+  padding: 5px 8px;
+  color: var(--color-blue-deep);
+  background: rgba(215, 234, 244, 0.62);
+  font-size: 11px;
+  font-weight: 760;
+  overflow-wrap: anywhere;
+}
+
+.scopeList,
+.guestAccess {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(330px, 0.34fr);
+  gap: 16px;
+}
+
+.acceptPanel,
+.guestPanel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px;
+}
+
+.timeline {
+  display: grid;
+  gap: 12px;
+}
+
+.timeline article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.timeline article > span {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--color-blue-deep);
+  background: rgba(215, 234, 244, 0.7);
+}
+
+@media (max-width: 1040px) {
+  .methodGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 920px) {
+  .hero,
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .hero {
+    padding: 18px;
+  }
+
+  .hero h2 {
+    font-size: 28px;
+  }
+}

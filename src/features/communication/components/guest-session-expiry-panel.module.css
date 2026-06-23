@@ -1,0 +1,215 @@
+.panel {
+  display: grid;
+  gap: 18px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.titleBlock {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.description {
+  max-width: 860px;
+  margin: 7px 0 0;
+  color: var(--color-muted);
+  font-size: 14.5px;
+  line-height: 1.7;
+}
+
+.summaryCard {
+  display: grid;
+  min-width: 150px;
+  gap: 7px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 13px 14px;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: var(--shadow-soft);
+}
+
+.summaryCard span {
+  color: var(--color-faint);
+  font-size: 11.5px;
+  font-weight: 780;
+  line-height: 1.35;
+}
+
+.summaryCard strong {
+  color: var(--color-blue-deep);
+  font-size: 22px;
+  font-weight: 880;
+  line-height: 1.05;
+}
+
+.sessionCard,
+.permissionCard,
+.ruleGrid article {
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: var(--shadow-soft);
+}
+
+.sessionCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  border-radius: var(--radius-panel);
+  padding: 15px;
+}
+
+.iconTile {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 16px;
+  color: var(--color-blue-deep);
+  background:
+    radial-gradient(circle at 30% 15%, rgba(255, 255, 255, 0.92), transparent 44%),
+    rgba(215, 234, 244, 0.52);
+}
+
+.sessionContent {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.sessionTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sessionTop strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 880;
+  line-height: 1.25;
+}
+
+.sessionTop p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 12.8px;
+  line-height: 1.45;
+}
+
+.permissionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.permissionCard {
+  border-radius: var(--radius-panel);
+  padding: 14px;
+}
+
+.blockedCard {
+  border-color: rgba(232, 152, 152, 0.28);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.9), transparent 36%),
+    rgba(232, 196, 160, 0.18);
+}
+
+.permissionTop {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.permissionTop strong {
+  display: block;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 860;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.permissionTop p,
+.ruleGrid p {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  font-size: 12.7px;
+  line-height: 1.55;
+}
+
+.ruleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ruleGrid article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  border-radius: var(--radius-card);
+  padding: 13px;
+}
+
+.ruleGrid svg {
+  margin-top: 2px;
+  color: var(--color-blue-deep);
+}
+
+@media (max-width: 900px) {
+  .header {
+    display: grid;
+  }
+
+  .summaryCard {
+    min-width: 0;
+  }
+
+  .permissionGrid,
+  .ruleGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .sessionCard {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .sessionCard > button {
+    grid-column: 1 / -1;
+    width: fit-content;
+  }
+
+  .permissionTop {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .permissionTop > span:last-child {
+    grid-column: 1 / -1;
+    width: fit-content;
+  }
+}
