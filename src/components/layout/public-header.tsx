@@ -4,20 +4,12 @@ import { siteConfig } from "@/config/site";
 
 export function PublicHeader() {
   return (
-    <header className="glass-panel" style={{ padding: "14px 18px" }}>
-      <nav
-        aria-label="공개 사이트"
-        style={{
-          alignItems: "center",
-          display: "flex",
-          gap: 18,
-          justifyContent: "space-between",
-        }}
-      >
-        <Link href="/" style={{ color: "var(--color-brand)", fontSize: 28, fontWeight: 800 }}>
+    <header className="bubli-surface bubli-public-header">
+      <nav aria-label="공개 사이트" className="bubli-public-header__nav">
+        <Link className="bubli-brand" href="/">
           {siteConfig.name}
         </Link>
-        <div style={{ display: "flex", gap: 14 }}>
+        <div className="bubli-public-header__links">
           {siteConfig.publicNav.map((item) => (
             <Link key={item.href} href={item.href}>
               {item.label}
