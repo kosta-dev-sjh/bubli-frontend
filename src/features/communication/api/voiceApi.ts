@@ -1,4 +1,31 @@
-// LiveKit token 응답 DTO는 백엔드 voice.http 확정 후 연결한다.
+import { apiRequest } from "@/lib/api/client";
+import type { VoiceTokenResponse } from "@/types/api/voice";
+
 export const voiceApi = {
-  pending: true,
+  getToken(voiceRoomId: string) {
+    return apiRequest<VoiceTokenResponse>(`/api/voice/rooms/${voiceRoomId}/token`, {
+      method: "POST",
+    });
+  },
+
+  getGuestToken(voiceRoomId: string, guestToken: string) {
+    return apiRequest<VoiceTokenResponse>(`/api/voice/rooms/${voiceRoomId}/guest-token`, {
+      body: {
+        guestToken,
+      },
+      method: "POST",
+    });
+  },
+
+  leave(voiceRoomId: string) {
+    return apiRequest<null>(`/api/voice/rooms/${voiceRoomId}/leave`, {
+      method: "PATCH",
+    });
+  },
+
+  end(voiceRoomId: string) {
+    return apiRequest<null>(`/api/voice/rooms/${voiceRoomId}/end`, {
+      method: "PATCH",
+    });
+  },
 } as const;

@@ -10,17 +10,47 @@ export type ApiFailure = {
   error: {
     code: string;
     message: string;
-    traceId?: string;
-    details?: unknown;
+    traceId: string;
+    fields?: ApiFieldError[];
   };
 };
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiFailure;
 
+export type ApiFieldError = {
+  field: string;
+  reason: string;
+};
+
 export type PageResponse<T> = {
   items: T[];
-  page?: number;
-  size?: number;
+  page: number;
+  size: number;
   totalElements?: number;
-  nextCursor?: string;
+  totalPages: number;
+  hasNext: boolean;
+};
+
+export type SequenceListResponse<T> = {
+  items: T[];
+  lastReceivedSequence: number | null;
+  latestSequence: number;
+  hasNext: boolean;
+};
+
+export type RealtimeActor = {
+  type: "USER" | "GUEST" | "SYSTEM" | "AGENT";
+  id: string | null;
+  name: string;
+};
+
+export type RealtimeEnvelope<T> = {
+  eventId: string;
+  eventType: string;
+  sequence?: number;
+  roomId?: string;
+  chatRoomId?: string;
+  occurredAt: string;
+  actor?: RealtimeActor;
+  payload: T;
 };

@@ -16,13 +16,16 @@ export async function apiRequest<T>(
   options: ApiRequestOptions = {},
 ): Promise<T> {
   const { body, headers, ...init } = options;
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     ...init,
+    credentials: init.credentials ?? "include",
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...headers,
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
   });
 
   const payload = (await response.json()) as ApiResponse<T>;

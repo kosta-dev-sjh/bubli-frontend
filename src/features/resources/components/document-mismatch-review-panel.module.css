@@ -1,0 +1,257 @@
+.panel {
+  display: grid;
+  gap: 18px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.titleBlock {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.description {
+  max-width: 860px;
+  margin: 7px 0 0;
+  color: var(--color-muted);
+  font-size: 14.5px;
+  line-height: 1.7;
+}
+
+.summaryCard {
+  display: grid;
+  min-width: 150px;
+  gap: 7px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 13px 14px;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: var(--shadow-soft);
+}
+
+.summaryCard span {
+  color: var(--color-faint);
+  font-size: 11.5px;
+  font-weight: 780;
+  line-height: 1.35;
+}
+
+.summaryCard strong {
+  color: var(--color-blue-deep);
+  font-size: 22px;
+  font-weight: 880;
+  line-height: 1.05;
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metricGrid article {
+  display: grid;
+  gap: 7px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 13px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.92), transparent 36%),
+    rgba(255, 255, 255, 0.5);
+  box-shadow: var(--shadow-soft);
+}
+
+.metricGrid span {
+  color: var(--color-faint);
+  font-size: 11.5px;
+  font-weight: 780;
+  line-height: 1.35;
+}
+
+.metricGrid strong {
+  color: var(--color-text);
+  font-size: 21px;
+  font-weight: 880;
+  line-height: 1.05;
+}
+
+.reviewList {
+  display: grid;
+  gap: 10px;
+}
+
+.reviewItem {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-panel);
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: var(--shadow-soft);
+}
+
+.highSeverity {
+  border-color: rgba(232, 152, 152, 0.36);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.9), transparent 36%),
+    rgba(232, 196, 160, 0.22);
+}
+
+.itemHeader {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 11px;
+}
+
+.iconTile {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 14px;
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.itemTitle {
+  min-width: 0;
+}
+
+.itemTitle strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 880;
+  line-height: 1.25;
+}
+
+.itemTitle p {
+  margin: 5px 0 0;
+  color: var(--color-muted);
+  font-size: 12.8px;
+  line-height: 1.5;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.valueGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.valueCard {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: var(--radius-card);
+  padding: 11px;
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.valueCard span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 780;
+  line-height: 1.3;
+}
+
+.valueCard b {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 13.5px;
+  font-weight: 860;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemFooter,
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.itemFooter span,
+.notice {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 12.8px;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.itemFooter svg,
+.notice svg {
+  flex: 0 0 auto;
+  color: var(--color-blue-deep);
+}
+
+@media (max-width: 1040px) {
+  .header,
+  .metricGrid,
+  .valueGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    display: grid;
+  }
+
+  .summaryCard {
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .itemHeader {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .badges {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .itemFooter,
+  .footer {
+    display: grid;
+  }
+
+  .itemFooter button,
+  .footer button {
+    width: 100%;
+  }
+}
