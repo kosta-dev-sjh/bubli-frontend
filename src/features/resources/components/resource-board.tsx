@@ -1,6 +1,6 @@
 "use client";
 
-import { FileUp, Search } from "lucide-react";
+import { AlertCircle, FileUp, FolderLock, Search, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { ResourceCard } from "@/components/domain/resource-card";
@@ -81,6 +81,38 @@ export function ResourceBoard() {
   const [activeScope, setActiveScope] = useState<ResourceScope>("all");
   const [selectedId, setSelectedId] = useState(resourceItems[0]?.id ?? "");
 
+  const reviewCount = resourceItems.filter((resource) => resource.status === "needsReview").length;
+  const candidateCount = resourceItems.filter((resource) => resource.status === "candidate").length;
+  const personalCount = resourceItems.filter((resource) => resource.scope === "personal").length;
+  const roomCount = resourceItems.filter((resource) => resource.scope === "room").length;
+
+  const boardStats = [
+    {
+      icon: FileUp,
+      label: "받은 자료",
+      meta: `${resourceItems.length}개`,
+      tone: "blue",
+    },
+    {
+      icon: AlertCircle,
+      label: "확인 필요",
+      meta: `${reviewCount}개`,
+      tone: "pearl",
+    },
+    {
+      icon: Sparkles,
+      label: "후보",
+      meta: `${candidateCount}개`,
+      tone: "opal",
+    },
+    {
+      icon: FolderLock,
+      label: "자료 범위",
+      meta: `개인 ${personalCount} · 프로젝트룸 ${roomCount}`,
+      tone: "glass",
+    },
+  ] as const;
+
   const filteredResources = useMemo(() => {
     if (activeScope === "all") {
       return resourceItems;
@@ -118,6 +150,23 @@ export function ResourceBoard() {
           <input className="resource-board__search" placeholder="계약서 관련 회의록 찾아줘" style={{ paddingLeft: 38 }} type="search" />
         </label>
       </div>
+
+      <GlassPanel className="resource-board__summary" padded={false}>
+        {boardStats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div className={`resource-board__stat resource-board__stat--${stat.tone}`} key={stat.label}>
+              <span className="resource-board__stat-icon" aria-hidden="true">
+                <Icon size={17} strokeWidth={2.1} />
+              </span>
+              <div>
+                <b>{stat.label}</b>
+                <span>{stat.meta}</span>
+              </div>
+            </div>
+          );
+        })}
+      </GlassPanel>
 
       <div className="resource-board__grid">
         <section className="resource-board__list" aria-label="자료 목록">
