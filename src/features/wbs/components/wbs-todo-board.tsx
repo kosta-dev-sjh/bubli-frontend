@@ -100,15 +100,6 @@ const targets = [
 export function WbsTodoBoard() {
   return (
     <section className="work-board" aria-label="WBS와 TODO 작업판">
-      <div className="work-board__flow" aria-label="WBS 후보에서 실행 화면까지의 흐름">
-        {flowSteps.map((step) => (
-          <GlassPanel className="work-board__flow-step" key={step.title}>
-            <b>{step.title}</b>
-            <span>{step.body}</span>
-          </GlassPanel>
-        ))}
-      </div>
-
       <div className="work-board__focus">
         <GlassPanel className="work-board__todo">
           <StatusBadge tone="todo">하나의 TODO</StatusBadge>
@@ -129,6 +120,18 @@ export function WbsTodoBoard() {
             );
           })}
         </div>
+      </div>
+
+      <div className="work-board__flow" aria-label="WBS 후보에서 실행 화면까지의 흐름">
+        {flowSteps.map((step, index) => (
+          <GlassPanel className="work-board__flow-step" key={step.title}>
+            <StatusBadge tone={index === 2 ? "todo" : "personal"}>{String(index + 1).padStart(2, "0")}</StatusBadge>
+            <div>
+              <b>{step.title}</b>
+              <span>{step.body}</span>
+            </div>
+          </GlassPanel>
+        ))}
       </div>
 
       <div className="work-board__grid">

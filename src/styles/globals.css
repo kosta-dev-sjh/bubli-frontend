@@ -1483,32 +1483,6 @@ select {
   min-width: 0;
 }
 
-.work-board__flow {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.work-board__flow-step {
-  min-height: 120px;
-  padding: 15px;
-}
-
-.work-board__flow-step b {
-  display: block;
-  color: var(--color-text);
-  font-size: 14px;
-  font-weight: 840;
-}
-
-.work-board__flow-step span {
-  display: block;
-  margin-top: 7px;
-  color: var(--color-muted);
-  font-size: 12.5px;
-  line-height: 1.55;
-}
-
 .work-board__focus {
   display: grid;
   grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
@@ -1518,19 +1492,43 @@ select {
 }
 
 .work-board__todo {
+  position: relative;
   display: grid;
   min-height: 180px;
   align-content: center;
   gap: 12px;
-  padding: 20px;
+  overflow: hidden;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(142, 205, 246, 0.28), transparent 30%),
+    linear-gradient(150deg, rgba(255, 255, 255, 0.92), rgba(215, 234, 244, 0.36));
+}
+
+.work-board__todo::before {
+  content: "";
+  position: absolute;
+  right: -42px;
+  bottom: -52px;
+  width: 170px;
+  height: 170px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.95), rgba(215, 234, 244, 0.22) 62%, transparent 78%);
+  pointer-events: none;
+}
+
+.work-board__todo > * {
+  position: relative;
+  z-index: 1;
 }
 
 .work-board__todo h2 {
   margin: 0;
   color: var(--color-text);
-  font-size: 21px;
-  font-weight: 860;
-  line-height: 1.25;
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 890;
+  letter-spacing: 0;
+  line-height: 1.16;
 }
 
 .work-board__todo p {
@@ -1564,6 +1562,39 @@ select {
   color: var(--color-muted);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.work-board__flow {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.work-board__flow-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-height: auto;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 15px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.work-board__flow-step b {
+  display: block;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 840;
+}
+
+.work-board__flow-step span {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.48;
 }
 
 .work-board__grid {
