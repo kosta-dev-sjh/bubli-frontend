@@ -1,0 +1,412 @@
+.panel {
+  display: grid;
+  gap: 18px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.titleBlock {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.description {
+  max-width: 860px;
+  margin: 7px 0 0;
+  color: var(--color-muted);
+  font-size: 14.5px;
+  line-height: 1.7;
+}
+
+.summaryCard {
+  display: grid;
+  min-width: 154px;
+  gap: 7px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 13px 14px;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: var(--shadow-soft);
+}
+
+.summaryCard span {
+  color: var(--color-faint);
+  font-size: 11.5px;
+  font-weight: 780;
+  line-height: 1.35;
+}
+
+.summaryCard strong {
+  color: var(--color-blue-deep);
+  font-size: 22px;
+  font-weight: 880;
+  line-height: 1.05;
+}
+
+.previewGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(290px, 0.85fr);
+  gap: 12px;
+}
+
+.flowPreview {
+  position: relative;
+  display: grid;
+  min-height: 350px;
+  align-content: center;
+  gap: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-panel);
+  padding: 70px 22px 24px;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(142, 205, 246, 0.28), transparent 26%),
+    radial-gradient(circle at 82% 24%, rgba(230, 221, 248, 0.44), transparent 27%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.44), rgba(215, 234, 244, 0.72));
+  box-shadow: var(--shadow-soft);
+}
+
+.browserBar {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 36px);
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: var(--radius-pill);
+  padding: 7px 10px;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 11.5px;
+  font-weight: 820;
+  line-height: 1;
+}
+
+.browserBar span {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--color-todo);
+}
+
+.browserBar b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focusRail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.focusRail span {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-pill);
+  padding: 0 10px;
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  font-weight: 860;
+  line-height: 1;
+  box-shadow: var(--shadow-soft);
+}
+
+.focusCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(111, 184, 242, 0.38);
+  border-radius: var(--radius-panel);
+  padding: 16px;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(255, 255, 255, 0.94), transparent 36%),
+    rgba(255, 255, 255, 0.74);
+  box-shadow:
+    0 0 0 4px rgba(111, 184, 242, 0.14),
+    var(--shadow-glass);
+}
+
+.focusIcon {
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 15px;
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.focusCard strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 880;
+  line-height: 1.25;
+}
+
+.focusCard p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 12.8px;
+  line-height: 1.5;
+}
+
+.focusSteps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.focusSteps button {
+  min-height: 42px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-pill);
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: var(--shadow-soft);
+  font-size: 12.5px;
+  font-weight: 820;
+  line-height: 1;
+}
+
+.focusSteps .isFocused {
+  color: var(--color-blue-deep);
+  border-color: rgba(111, 184, 242, 0.5);
+  background: rgba(215, 234, 244, 0.78);
+  box-shadow:
+    0 0 0 4px rgba(111, 184, 242, 0.18),
+    var(--shadow-glass);
+}
+
+.targetList {
+  display: grid;
+  gap: 10px;
+}
+
+.targetCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 13px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.54);
+  box-shadow: var(--shadow-soft);
+  text-align: left;
+  transition:
+    transform 180ms var(--ease-out),
+    border-color 180ms var(--ease-out),
+    background 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out);
+}
+
+.targetCard:hover,
+.targetCard:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(111, 184, 242, 0.42);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: var(--shadow-glass);
+  outline: none;
+}
+
+.targetCard.selected {
+  border-color: rgba(111, 184, 242, 0.5);
+  background:
+    radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.88), transparent 35%),
+    rgba(215, 234, 244, 0.74);
+}
+
+.targetIcon {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 13px;
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.targetCopy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.targetCopy b {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 860;
+  line-height: 1.2;
+}
+
+.targetCopy span {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ruleGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ruleCard {
+  display: grid;
+  min-height: 158px;
+  align-content: start;
+  gap: 9px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.54);
+  box-shadow: var(--shadow-soft);
+}
+
+.ruleTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-blue-deep);
+}
+
+.ruleCard strong {
+  color: var(--color-text);
+  font-size: 14.5px;
+  font-weight: 880;
+  line-height: 1.25;
+}
+
+.ruleCard p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12.8px;
+  line-height: 1.55;
+}
+
+.boundaryCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 11px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 14px;
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: var(--shadow-soft);
+}
+
+.boundaryCard strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 13.5px;
+  font-weight: 860;
+  line-height: 1.25;
+}
+
+.boundaryCard p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 12.8px;
+  line-height: 1.55;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 1020px) {
+  .header,
+  .previewGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    display: grid;
+  }
+
+  .summaryCard {
+    width: 100%;
+  }
+
+  .ruleGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .flowPreview {
+    min-height: auto;
+    padding: 68px 14px 18px;
+  }
+
+  .focusCard,
+  .targetCard {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .focusCard :global(.bubli-status),
+  .targetCard :global(.bubli-status) {
+    grid-column: 1 / -1;
+    width: fit-content;
+  }
+
+  .focusSteps,
+  .ruleGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .footer {
+    justify-content: stretch;
+  }
+
+  .footer button {
+    flex: 1 1 170px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .targetCard {
+    transition: none;
+  }
+
+  .targetCard:hover,
+  .targetCard:focus-visible {
+    transform: none;
+  }
+}
