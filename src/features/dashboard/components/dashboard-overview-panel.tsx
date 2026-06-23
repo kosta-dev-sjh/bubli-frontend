@@ -15,10 +15,10 @@ type DashboardMetric = {
 };
 
 const metrics: DashboardMetric[] = [
-  { description: "tasks 중 담당자가 나인 항목", label: "오늘 할 일", tone: "todo", value: "8" },
-  { description: "schedules 기준 이번 주 마감", label: "가까운 마감", tone: "warning", value: "5" },
-  { description: "agent_suggestions 확인 대기", label: "확인 필요", tone: "agent", value: "3" },
-  { description: "time_logs 오늘 누적", label: "작업 시간", tone: "timer", value: "03:42" },
+  { description: "내가 맡은 항목", label: "오늘 할 일", tone: "todo", value: "8" },
+  { description: "이번 주 마감", label: "가까운 마감", tone: "warning", value: "5" },
+  { description: "내 검토 대기", label: "확인 필요", tone: "agent", value: "3" },
+  { description: "오늘 누적", label: "작업 시간", tone: "timer", value: "03:42" },
 ];
 
 function MetricCard({ metric }: { metric: DashboardMetric }) {
@@ -103,14 +103,14 @@ export function DashboardOverviewPanel() {
               <BellRing size={16} strokeWidth={2.1} />
               <div>
                 <b>계약서와 요구사항의 납품일이 다릅니다</b>
-                <p>번역 계약서 정리 · agent_suggestions</p>
+                <p>번역 계약서 정리 · 확인 필요</p>
               </div>
             </article>
             <article>
               <CheckCircle2 size={16} strokeWidth={2.1} />
               <div>
                 <b>WBS 후보 4건이 승인 대기 중입니다</b>
-                <p>웹사이트 리뉴얼 · agent_jobs</p>
+                <p>웹사이트 리뉴얼 · 에이전트 제안</p>
               </div>
             </article>
           </div>

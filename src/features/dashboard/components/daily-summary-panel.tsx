@@ -15,25 +15,25 @@ type SummarySource = {
 
 const summarySources: SummarySource[] = [
   {
-    detail: "tasks, schedules",
+    detail: "완료한 일과 일정",
     label: "완료 TODO",
     tone: "todo",
     value: "7개",
   },
   {
-    detail: "time_logs",
+    detail: "오늘 타이머 기록",
     label: "총 작업시간",
     tone: "timer",
     value: "4시간 28분",
   },
   {
-    detail: "widget_daily_summaries",
+    detail: "날짜별 버블 집계",
     label: "버블 사용 집계",
     tone: "pending",
     value: "6개 버블",
   },
   {
-    detail: "local_agent_summaries 참조",
+    detail: "로컬 요약 참조",
     label: "개인 에이전트 요약",
     tone: "agent",
     value: "2개",
@@ -63,7 +63,7 @@ export function DailySummaryPanel() {
             <h2>서버 원본과 로컬 요약을 모아, 사용자가 확인한 결과만 저장합니다</h2>
             <p>
               완료한 일, 작업시간, 일정, 알림, 버블 집계, 개인 에이전트 로컬 요약을 근거로 정리 초안을 만듭니다.
-              승인된 결과만 daily_summaries에 남습니다.
+              승인된 결과만 하루정리에 남습니다.
             </p>
           </div>
         </div>
