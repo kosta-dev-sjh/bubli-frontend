@@ -4589,6 +4589,188 @@ select {
   font-weight: 780;
 }
 
+.public-home-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.public-home-flow__main {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.42fr) minmax(0, 0.58fr);
+  gap: 20px;
+  overflow: hidden;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 15% 18%, rgba(142, 205, 246, 0.22), transparent 34%),
+    radial-gradient(circle at 92% 8%, rgba(255, 255, 255, 0.9), transparent 22%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(215, 234, 244, 0.34));
+}
+
+.public-home-flow__main::before {
+  content: "";
+  position: absolute;
+  right: 32px;
+  bottom: 26px;
+  width: 120px;
+  height: 120px;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.95), rgba(215, 234, 244, 0.22) 62%, transparent 78%);
+  opacity: 0.62;
+  pointer-events: none;
+}
+
+.public-home-flow__copy,
+.public-home-flow__steps,
+.public-home-flow__todo {
+  position: relative;
+  z-index: 1;
+}
+
+.public-home-flow__copy {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+}
+
+.public-home-flow__copy h2 {
+  max-width: 420px;
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(26px, 3.2vw, 40px);
+  font-weight: 880;
+  letter-spacing: 0;
+  line-height: 1.14;
+}
+
+.public-home-flow__copy p {
+  max-width: 440px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 620;
+  line-height: 1.75;
+}
+
+.public-home-flow__steps {
+  display: grid;
+  gap: 10px;
+}
+
+.public-home-flow__step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 18px;
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 12px 28px rgba(80, 110, 130, 0.07);
+}
+
+.public-home-flow__step h3 {
+  margin: 7px 0 2px;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
+  line-height: 20px;
+}
+
+.public-home-flow__step p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  font-weight: 620;
+  line-height: 1.55;
+}
+
+.public-home-flow__todo {
+  display: grid;
+  align-content: space-between;
+  gap: 16px;
+  overflow: hidden;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 82% 18%, rgba(142, 205, 246, 0.24), transparent 30%),
+    linear-gradient(155deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.64));
+}
+
+.public-home-flow__todo::before {
+  content: "";
+  position: absolute;
+  right: -28px;
+  top: -34px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 26%, rgba(255, 255, 255, 0.92), rgba(215, 234, 244, 0.22) 62%, transparent 76%);
+  pointer-events: none;
+}
+
+.public-home-flow__todo-head {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.public-home-flow__todo-head h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 24px;
+}
+
+.public-home-flow__todo-head p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 620;
+  line-height: 1.55;
+}
+
+.public-home-flow__todo-card {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(111, 184, 242, 0.24);
+  border-radius: 22px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: var(--shadow-soft);
+}
+
+.public-home-flow__todo-card b {
+  color: var(--color-text);
+  font-size: 17px;
+  font-weight: 870;
+  letter-spacing: 0;
+}
+
+.public-home-flow__todo-card span {
+  color: var(--color-blue-deep);
+  font-size: 12.5px;
+  font-weight: 780;
+}
+
+.public-home-flow__channels {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .public-feature-flow,
 .public-faq {
   position: relative;
@@ -6996,6 +7178,8 @@ select {
   }
 
   .public-hero,
+  .public-home-flow,
+  .public-home-flow__main,
   .hybrid-frame__grid,
   .font-strategy__grid,
   .widget-preview__policy {

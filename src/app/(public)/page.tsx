@@ -1,4 +1,4 @@
-import { HybridAppFrame } from "@/features/public-site/components/hybrid-app-frame";
+import { PublicHomeFlow } from "@/features/public-site/components/public-home-flow";
 import { PublicHero } from "@/features/public-site/components/public-hero";
 
 export default function HomePage() {
@@ -6,7 +6,7 @@ export default function HomePage() {
     <>
       <PublicHero />
       <div className="page-grid">
-        <HybridAppFrame />
+        <PublicHomeFlow />
       </div>
     </>
   );
