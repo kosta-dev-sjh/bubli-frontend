@@ -2005,6 +2005,158 @@ select {
   background: rgba(255, 255, 255, 0.48);
 }
 
+.candidate-approval {
+  display: grid;
+  gap: 16px;
+}
+
+.candidate-approval__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 0.3fr);
+  gap: 18px;
+  align-items: stretch;
+  padding: 22px;
+}
+
+.candidate-approval__hero h2 {
+  max-width: 860px;
+  margin: 12px 0 0;
+  color: var(--color-text);
+  font-size: clamp(27px, 3vw, 42px);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.candidate-approval__hero p,
+.candidate-approval__section-title p,
+.candidate-approval-card p,
+.candidate-approval__rules p {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 620;
+  line-height: 1.65;
+}
+
+.candidate-approval__summary {
+  display: grid;
+  align-content: center;
+  gap: 9px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.candidate-approval__summary strong {
+  color: var(--color-blue-deep);
+  font-size: 38px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.candidate-approval__summary span {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 840;
+}
+
+.candidate-approval__flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 18px;
+  padding: 12px;
+  color: var(--color-blue-deep);
+  background: rgba(215, 234, 244, 0.52);
+}
+
+.candidate-approval__flow span {
+  border-radius: var(--radius-pill);
+  padding: 7px 10px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.66);
+  font-size: 12.5px;
+  font-weight: 790;
+}
+
+.candidate-approval__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(330px, 0.38fr);
+  gap: 16px;
+}
+
+.candidate-approval__list,
+.candidate-approval__rules {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px;
+}
+
+.candidate-approval__section-title h3,
+.candidate-approval-card h3,
+.candidate-approval__rules h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+.candidate-approval__items {
+  display: grid;
+  gap: 12px;
+}
+
+.candidate-approval-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 12px 28px rgba(80, 110, 130, 0.08);
+}
+
+.candidate-approval-card__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.candidate-approval-card__top div {
+  min-width: 0;
+}
+
+.candidate-approval-card__meta,
+.candidate-approval-card__chips,
+.candidate-approval-card footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.candidate-approval-card__top h3 {
+  margin-top: 7px;
+}
+
+.candidate-approval__rules div {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 16px;
+  padding: 12px;
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.48);
+}
+
 .auth-page {
   display: grid;
   min-height: 100vh;
@@ -2534,6 +2686,15 @@ select {
   .agent-job-status__toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .candidate-approval__hero,
+  .candidate-approval__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .candidate-approval__hero h2 {
+    font-size: 28px;
   }
 
   .public-hero,
