@@ -1566,7 +1566,7 @@ select {
   border: 1px solid rgba(232, 196, 160, 0.44);
   border-radius: 14px;
   padding: 12px 13px;
-  color: #7A5A38;
+  color: var(--color-brand);
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(232, 196, 160, 0.18));
   font-size: 13px;
@@ -1793,7 +1793,7 @@ select {
   border: 1px solid rgba(232, 196, 160, 0.44);
   border-radius: 14px;
   padding: 12px;
-  color: #7A5A38;
+  color: var(--color-brand);
   background: rgba(232, 196, 160, 0.18);
   font-size: 12.5px;
   line-height: 1.6;
@@ -7285,6 +7285,10 @@ select {
   .work-board__targets,
   .work-board__grid {
     grid-template-columns: 1fr;
+  }
+
+  .work-board__kanban {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .schedule-overview__hero,

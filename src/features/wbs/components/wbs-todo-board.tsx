@@ -19,7 +19,7 @@ const flowSteps = [
     title: "하나의 TODO",
   },
   {
-    body: "같은 TODO가 작업판, 대시보드, 버블, 캘린더에 표시됩니다.",
+    body: "같은 TODO가 작업판, 대시보드, 버블, 일정에 표시됩니다.",
     title: "실행 화면 연결",
   },
 ];
@@ -94,7 +94,7 @@ const targets = [
   { icon: KanbanSquare, text: "상태 변경과 담당 작업 확인", title: "작업판" },
   { icon: LayoutDashboard, text: "내 TODO와 확인 필요 항목 표시", title: "대시보드" },
   { icon: MonitorUp, text: "작업 중 TODO 버블로 빠르게 확인", title: "버블" },
-  { icon: CalendarDays, text: "마감과 일정 후보 연결", title: "캘린더" },
+  { icon: CalendarDays, text: "마감과 일정 후보 연결", title: "일정" },
 ];
 
 export function WbsTodoBoard() {
