@@ -1,3 +1,4 @@
+export * from "./data-deletion-request-panel";
 export * from "./local-backup-recovery-panel";
 export * from "./local-sync-outbox-panel";
 export * from "./privacy-consent-panel";
