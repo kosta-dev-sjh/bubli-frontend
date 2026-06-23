@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, LockKeyhole, Mail, UserRound } from "lucide-react";
+import { ArrowRight, CheckCircle2, LockKeyhole, Mail, MessageCircle, PanelTop, UserRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -34,6 +34,19 @@ const modeCopy = {
 const loginChecks = ["회원 웹 앱은 로그인 후 사용", "LiveKit 토큰은 서버에서 발급", "Tauri도 같은 API 경계 사용"];
 const signupChecks = ["Bubli ID로 친구 검색", "친구 수락 후 1:1 채팅", "프로젝트룸 초대 수락 가능"];
 
+const previewItems = {
+  login: [
+    { label: "프로젝트룸", value: "3개" },
+    { label: "오늘 TODO", value: "8개" },
+    { label: "버블", value: "켜짐" },
+  ],
+  signup: [
+    { label: "Bubli ID", value: "생성" },
+    { label: "친구", value: "대기" },
+    { label: "초대", value: "수락" },
+  ],
+} satisfies Record<AuthMode, Array<{ label: string; value: string }>>;
+
 export function AuthPanel({ mode }: AuthPanelProps) {
   const copy = modeCopy[mode];
   const checks = mode === "login" ? loginChecks : signupChecks;
@@ -51,6 +64,26 @@ export function AuthPanel({ mode }: AuthPanelProps) {
             </Chip>
           ))}
         </div>
+        <div className="auth-preview" aria-label="로그인 후 연결되는 화면">
+          <div className="auth-preview__bubble auth-preview__bubble--main">
+            <PanelTop size={16} strokeWidth={2.1} aria-hidden="true" />
+            <strong>{mode === "login" ? "회원 웹 앱" : "Bubli ID"}</strong>
+            <span>{mode === "login" ? "/app" : "친구와 프로젝트룸 초대 기준"}</span>
+          </div>
+          <div className="auth-preview__bubble auth-preview__bubble--sub">
+            <MessageCircle size={15} strokeWidth={2.1} aria-hidden="true" />
+            <strong>{mode === "login" ? "소통 버블" : "친구 요청"}</strong>
+            <span>{mode === "login" ? "채팅과 보이스 연결" : "ID 검색 후 수락"}</span>
+          </div>
+          <div className="auth-preview__metrics">
+            {previewItems[mode].map((item) => (
+              <div key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       <GlassPanel as="section" className="auth-card">
@@ -60,7 +93,7 @@ export function AuthPanel({ mode }: AuthPanelProps) {
           </span>
           <div>
             <h2>{copy.action}</h2>
-            <p>API 계약 확정 후 이 폼에 인증 client를 연결합니다.</p>
+            <p>{mode === "login" ? "이메일과 비밀번호로 회원 웹 앱에 들어갑니다." : "Bubli ID와 이메일로 계정을 만듭니다."}</p>
           </div>
         </div>
 
