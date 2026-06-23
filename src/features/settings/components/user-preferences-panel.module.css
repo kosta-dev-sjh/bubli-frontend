@@ -1,0 +1,253 @@
+.panel {
+  display: grid;
+  gap: 22px;
+  color: var(--color-text);
+}
+
+.header {
+  display: grid;
+  gap: 14px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-blue-deep);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.titleGroup {
+  display: grid;
+  gap: 8px;
+  max-width: 820px;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(26px, 3vw, 40px);
+  font-weight: 860;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.summary {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 15px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.72fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.profileCard,
+.preferenceCard,
+.noteCard {
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: var(--shadow-soft);
+}
+
+.profileCard {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 20px;
+}
+
+.avatar {
+  display: inline-grid;
+  width: 66px;
+  height: 66px;
+  place-items: center;
+  border: 1px solid rgba(111, 184, 242, 0.26);
+  border-radius: 22px;
+  color: var(--color-blue-deep);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.96), transparent 58%),
+    rgba(215, 234, 244, 0.84);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 18px 34px rgba(80, 110, 130, 0.12);
+  font-size: 20px;
+  font-weight: 860;
+}
+
+.profileCopy,
+.preferenceCopy {
+  display: grid;
+  gap: 6px;
+}
+
+.profileCopy h3,
+.preferenceCopy h3,
+.noteCard h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 840;
+}
+
+.profileCopy p,
+.preferenceCopy p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.profileFields {
+  display: grid;
+  gap: 10px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field span {
+  color: var(--color-faint);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.field input {
+  width: 100%;
+  border: 1px solid rgba(107, 143, 168, 0.16);
+  border-radius: 14px;
+  padding: 11px 12px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.72);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 720;
+}
+
+.preferenceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.preferenceCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 13px;
+  align-items: start;
+  padding: 16px;
+}
+
+.iconBubble {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(111, 184, 242, 0.22);
+  border-radius: 999px;
+  color: var(--color-blue-deep);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.94), transparent 58%),
+    rgba(215, 234, 244, 0.76);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bottomGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.82fr);
+  gap: 16px;
+}
+
+.noteCard {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(215, 234, 244, 0.34)),
+    radial-gradient(circle at 96% 6%, rgba(111, 184, 242, 0.15), transparent 32%);
+}
+
+.checks,
+.apiList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checkItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.checkItem svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--color-blue-deep);
+}
+
+.apiRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.apiRow div {
+  display: grid;
+  gap: 2px;
+}
+
+.apiRow strong {
+  color: var(--color-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12.5px;
+}
+
+.apiRow span {
+  color: var(--color-muted);
+  font-size: 12.5px;
+}
+
+@media (max-width: 1020px) {
+  .layout,
+  .bottomGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .titleRow,
+  .preferenceGrid {
+    display: grid;
+  }
+}
