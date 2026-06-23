@@ -17,44 +17,44 @@ const events = [
   {
     title: "새 자료 버전이 올라옴",
     body: "같은 계약서 파일이 다시 올라와 이전 파일을 덮지 않고 v2로 보관합니다.",
-    detailTitle: "resource_versions",
+    detailTitle: "자료 버전 기록",
     detail: "프로젝트룸 멤버는 최신 버전과 이전 버전을 구분해 확인합니다.",
     actor: "김정현",
     time: "10:24",
-    badge: "RESOURCE_VERSION",
+    badge: "자료 버전",
     tone: "room" as const,
     icon: FileStack,
   },
   {
     title: "자료 댓글이 추가됨",
     body: "요구사항 문서의 검수 기준 부분에 멤버가 댓글을 남겼습니다.",
-    detailTitle: "resource_comments",
+    detailTitle: "자료 댓글",
     detail: "댓글은 프로젝트룸 자료에 우선 적용하고, 관련 멤버에게 알림을 남깁니다.",
     actor: "이준호",
     time: "10:31",
-    badge: "COMMENT",
+    badge: "댓글",
     tone: "communication" as const,
     icon: MessageSquareText,
   },
   {
     title: "에이전트 제안이 완료됨",
-    body: "문서 분석 job이 끝나고 확인 질문과 TODO 후보가 생성됐습니다.",
-    detailTitle: "agent_suggestions",
+    body: "문서 분석이 끝나고 확인 질문과 TODO 후보가 생성됐습니다.",
+    detailTitle: "에이전트 후보",
     detail: "사용자가 검토하기 전까지는 후보 상태로 머뭅니다.",
     actor: "프로젝트룸 에이전트",
     time: "10:38",
-    badge: "AGENT_DONE",
+    badge: "후보 완료",
     tone: "agent" as const,
     icon: Bot,
   },
   {
     title: "친구 초대가 수락됨",
     body: "초대받은 사용자가 프로젝트룸에 들어와 멤버 권한이 생겼습니다.",
-    detailTitle: "room_members",
+    detailTitle: "멤버 권한",
     detail: "수락 이후부터 자료, WBS/TODO, 채팅, 보이스 권한을 확인합니다.",
     actor: "박미연",
     time: "10:44",
-    badge: "MEMBER_JOINED",
+    badge: "수락 완료",
     tone: "approved" as const,
     icon: UserRoundPlus,
   },
@@ -63,7 +63,7 @@ const events = [
 const deliveryFlow = [
   ["서버 저장", "댓글, 버전, 제안 완료처럼 남겨야 하는 이벤트를 서버 원본으로 기록"],
   ["프로젝트룸 topic 발행", "같은 프로젝트룸을 보는 화면에 WebSocket으로 전달"],
-  ["개인 알림 생성", "사용자별 알림 설정에 맞는 항목만 notifications로 표시"],
+  ["개인 알림 생성", "사용자별 알림 설정에 맞는 항목만 개인 알림으로 표시"],
   ["버블 요약", "Tauri 알림 버블은 접근 가능한 이벤트만 짧게 보여줌"],
 ];
 
@@ -94,7 +94,7 @@ export function ProjectRoomEventTimeline() {
         </div>
         <div className={styles.chips} aria-label="프로젝트룸 이벤트 기준">
           <Chip selected icon={<Radio size={14} aria-hidden="true" />}>
-            /topic/project-rooms
+            프로젝트룸 화면 알림
           </Chip>
           <Chip icon={<BellRing size={14} aria-hidden="true" />}>개인 알림 큐 분리</Chip>
           <Chip icon={<ShieldCheck size={14} aria-hidden="true" />}>멤버 권한 확인</Chip>
@@ -153,13 +153,13 @@ export function ProjectRoomEventTimeline() {
           </section>
 
           <section className={styles.sideCard}>
-            <h3>연결 topic</h3>
+            <h3>연결 방식</h3>
             <div className={styles.topicBox}>
-              <code>/topic/project-rooms/{"{roomId}"}/events</code>
+              <strong>프로젝트룸 이벤트</strong>
               <span>프로젝트룸 자료, 댓글, 에이전트 제안 이벤트</span>
             </div>
             <div className={styles.topicBox}>
-              <code>/user/queue/notifications</code>
+              <strong>개인 알림</strong>
               <span>사용자별 개인 알림</span>
             </div>
           </section>

@@ -90,7 +90,7 @@ export const defaultHandoffRules: HandoffRule[] = [
     tone: "pending",
   },
   {
-    description: "위임과 나가기는 API 서버가 권한을 다시 확인한 뒤 room_members 상태에 반영합니다.",
+    description: "위임과 나가기는 서버가 권한을 다시 확인한 뒤 멤버 상태에 반영합니다.",
     label: "서버 확인",
     tone: "approved",
   },
@@ -114,7 +114,7 @@ export function ProjectRoomLeaderHandoffPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<DoorOpen size={16} strokeWidth={2.1} />}>room_members</Chip>
+          <Chip icon={<DoorOpen size={16} strokeWidth={2.1} />}>멤버 권한</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
@@ -179,7 +179,7 @@ export function ProjectRoomLeaderHandoffPanel({
               </div>
 
               <footer className={styles.candidateFooter}>
-                <span>{candidate.role.toLowerCase()}</span>
+                <span>{role.label}</span>
                 <Button
                   disabled={candidate.status === "MEMBER_ONLY"}
                   size="sm"

@@ -89,7 +89,7 @@ export function ProjectRoomCreateFlowPanel() {
           </div>
         </div>
         <div className="project-room-create__progress">
-          <StatusBadge tone="agent">agent_jobs</StatusBadge>
+          <StatusBadge tone="agent">후보 생성 중</StatusBadge>
           <strong>3/4</strong>
           <span>후보 생성 단계</span>
           <ProgressBar label="프로젝트룸 생성 진행률" value={75} />
@@ -101,7 +101,7 @@ export function ProjectRoomCreateFlowPanel() {
           <div className="project-room-create__panel-header">
             <div>
               <h3>업로드한 자료</h3>
-              <p>자료는 먼저 프로젝트룸 자료 후보로 올라가고, 권한 확인 후 서버 resources에 저장됩니다.</p>
+              <p>자료는 먼저 프로젝트룸 자료 후보로 올라가고, 권한 확인 후 프로젝트룸 자료로 저장됩니다.</p>
             </div>
             <Button icon={<UploadCloud size={15} />} size="sm" variant="primary">
               자료 올리기
@@ -143,7 +143,7 @@ export function ProjectRoomCreateFlowPanel() {
           <span className="bubli-icon-tile" aria-hidden="true">
             <CheckCircle2 size={16} strokeWidth={2.1} />
           </span>
-          <p>에이전트는 후보만 만들고, 확정 저장은 사용자의 승인 뒤 API/core 모듈이 처리합니다.</p>
+          <p>에이전트는 후보만 만들고, 확정 저장은 사용자의 승인 뒤 서버가 처리합니다.</p>
         </div>
         <div>
           <span className="bubli-icon-tile" aria-hidden="true">

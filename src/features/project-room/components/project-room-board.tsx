@@ -225,9 +225,7 @@ function InvitePanel() {
           );
         })}
       </div>
-      <div className="project-room-guardrail">
-        수락된 멤버만 자료, WBS/TODO, 일정, 멤버 목록, 위젯 표시 대상에 들어갑니다.
-      </div>
+      <div className="project-room-guardrail">수락된 멤버만 자료, WBS/TODO, 일정, 멤버 목록을 볼 수 있습니다.</div>
     </GlassPanel>
   );
 }

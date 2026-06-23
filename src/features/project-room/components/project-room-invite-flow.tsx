@@ -30,22 +30,22 @@ type InviteMethod = {
 
 const methods: InviteMethod[] = [
   {
-    api: "POST /api/project-rooms/{roomId}/invitations",
+    api: "친구 목록에서 초대 요청",
     description: "수락된 친구 목록에서 사용자를 골라 프로젝트룸 멤버로 초대합니다.",
     expiry: "기본 7일",
     icon: <UsersRound size={18} strokeWidth={2.1} />,
     id: "friend-invite",
-    scope: ["room_members 생성", "자료/WBS/TODO 접근", "프로젝트룸 알림"],
+    scope: ["멤버 권한 생성", "자료/WBS/TODO 접근", "프로젝트룸 알림"],
     status: "PENDING",
     title: "친구 초대",
   },
   {
-    api: "POST /api/project-rooms/{roomId}/invite-links",
+    api: "만료 시간이 있는 링크 생성",
     description: "아직 친구가 아닌 로그인 사용자에게 만료 시간이 있는 초대 URL을 보냅니다.",
     expiry: "기본 7일",
     icon: <Link2 size={18} strokeWidth={2.1} />,
     id: "member-link",
-    scope: ["로그인 후 수락", "token_hash 저장", "수락 후 멤버 권한"],
+    scope: ["로그인 후 수락", "만료 링크 저장", "수락 후 멤버 권한"],
     status: "ACCEPTED",
     title: "링크 초대",
   },
@@ -75,7 +75,7 @@ function InviteMethodCard({ method }: { method: InviteMethod }) {
           <p>{method.description}</p>
         </div>
       </div>
-      <code>{method.api}</code>
+      <div className={styles.methodApi}>{method.api}</div>
       <div className={styles.scopeList}>
         {method.scope.map((scope) => (
           <Chip key={scope}>{scope}</Chip>
@@ -122,7 +122,7 @@ export function ProjectRoomInviteFlow() {
               </span>
               <div>
                 <strong>초대 생성</strong>
-                <p>친구 초대는 invitee_user_id를, 링크 초대는 token_hash와 expires_at을 저장합니다.</p>
+                <p>친구 초대는 초대받을 사용자를, 링크 초대는 만료 시간과 확인용 값을 저장합니다.</p>
               </div>
             </article>
             <article>
@@ -131,7 +131,7 @@ export function ProjectRoomInviteFlow() {
               </span>
               <div>
                 <strong>로그인 후 수락</strong>
-                <p>링크를 받은 사용자는 로그인한 뒤 수락해야 room_members가 생성됩니다.</p>
+                <p>링크를 받은 사용자는 로그인한 뒤 수락해야 멤버 권한이 생깁니다.</p>
               </div>
             </article>
             <article>

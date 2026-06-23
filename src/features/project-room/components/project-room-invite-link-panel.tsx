@@ -49,7 +49,7 @@ export function ProjectRoomInviteLinkPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<Link2 size={14} strokeWidth={2.1} />}>LINK invitation</Chip>
+          <Chip icon={<Link2 size={14} strokeWidth={2.1} />}>링크 초대</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
@@ -68,7 +68,7 @@ export function ProjectRoomInviteLinkPanel({
           <ShieldCheck size={18} strokeWidth={2.1} />
         </span>
         <p>
-          링크만으로 자료, WBS/TODO, 일정에 접근할 수 없습니다. 수락 뒤 `room_members`가 생겨야 프로젝트룸 권한이 적용됩니다.
+          링크만으로 자료, WBS/TODO, 일정에 접근할 수 없습니다. 로그인 후 수락해야 프로젝트룸 멤버 권한이 적용됩니다.
         </p>
       </section>
 
@@ -83,7 +83,7 @@ export function ProjectRoomInviteLinkPanel({
                 <h3>{activeLink.urlPreview}</h3>
                 {status ? <StatusBadge tone={status.tone}>{status.label}</StatusBadge> : null}
               </div>
-              <p>원본 토큰은 화면에만 표시하고, 서버에는 token_hash와 만료 시간만 저장합니다.</p>
+              <p>초대 확인용 값은 화면에 그대로 남기지 않고, 서버에는 확인 가능한 형태와 만료 시간만 저장합니다.</p>
             </div>
           </div>
 
