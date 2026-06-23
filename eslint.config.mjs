@@ -3,7 +3,7 @@ import nextTs from "eslint-config-next/typescript";
 
 const eslintConfig = [
   {
-    ignores: [".next/**", "node_modules/**", "src-tauri/target/**"],
+    ignores: [".next/**", "node_modules/**", "src-tauri/target/**", "storybook-static/**"],
   },
   ...nextVitals,
   ...nextTs,

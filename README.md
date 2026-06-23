@@ -72,12 +72,15 @@ cp .env.example .env
 # 회원 웹 앱만 실행
 npm run dev
 
+# 컴포넌트 단위 확인
+npm run storybook
+
 # Tauri 데스크탑 앱 실행
 # Tauri dev는 beforeDevCommand로 Next 개발 서버를 함께 띄움
 npm run tauri:dev
 ```
 
-웹 화면만 작업할 때는 `npm run dev`로 충분합니다. 데스크탑 위젯, 로컬 폴더, SQLite, Tauri 전용 소통 창처럼 앱 기능을 확인할 때는 `npm run tauri:dev`를 사용합니다. 백엔드는 별도 레포에서 Spring Boot 서버를 실행해야 하며, 프론트는 `.env`의 `NEXT_PUBLIC_API_BASE_URL`로 해당 서버를 바라봅니다. LiveKit key와 secret은 클라이언트에 두지 않고, 보이스챗 입장에 필요한 token은 API 서버에서 받아 사용합니다.
+웹 화면만 작업할 때는 `npm run dev`로 충분합니다. 버튼, 카드, 버블처럼 단위별 컴포넌트를 확인할 때는 `npm run storybook`을 사용합니다. 데스크탑 위젯, 로컬 폴더, SQLite, Tauri 전용 소통 창처럼 앱 기능을 확인할 때는 `npm run tauri:dev`를 사용합니다. 백엔드는 별도 레포에서 Spring Boot 서버를 실행해야 하며, 프론트는 `.env`의 `NEXT_PUBLIC_API_BASE_URL`로 해당 서버를 바라봅니다. LiveKit key와 secret은 클라이언트에 두지 않고, 보이스챗 입장에 필요한 token은 API 서버에서 받아 사용합니다.
 
 ## 프로젝트 구조
 
@@ -87,7 +90,7 @@ src/
 │   ├── (public)/     # 공개 사이트: /, /features, /download, /faq
 │   ├── (auth)/       # 인증: /login, /signup
 │   └── (workspace)/  # 회원 앱: /app, /app/projects, /app/resources, /app/chat
-├── components/       # 공통 UI, 레이아웃, 아이콘, 버블 표시 컴포넌트
+├── components/       # 공통 UI, 레이아웃, 도메인 카드, 버블 표시 컴포넌트
 ├── features/         # 도메인별 기능 코드
 ├── lib/              # API 클라이언트, Tauri IPC, WebSocket, 공통 유틸
 ├── stores/           # 클라이언트 상태 관리
