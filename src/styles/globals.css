@@ -21,6 +21,8 @@
   --color-warning: #F1D7B8;
   --glass: rgba(255, 255, 255, 0.84);
   --glass-strong: rgba(255, 255, 255, 0.92);
+  --widget-glass: rgba(255, 255, 255, 0.58);
+  --widget-border: rgba(255, 255, 255, 0.65);
   --glass-border: rgba(107, 143, 168, 0.14);
   --line-strong: rgba(107, 143, 168, 0.18);
   --shadow-glass:
@@ -58,7 +60,12 @@ body {
 }
 
 body {
-  background: var(--color-bg);
+  background:
+    radial-gradient(ellipse 70% 50% at 8% 0%, rgba(215, 234, 244, 0.85), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 96% 6%, rgba(230, 221, 248, 0.5), transparent 60%),
+    radial-gradient(ellipse 80% 60% at 78% 100%, rgba(142, 205, 246, 0.2), transparent 62%),
+    linear-gradient(180deg, #FBFCFE, var(--color-bg));
+  background-attachment: fixed;
   color: var(--color-text);
   font-family:
     Pretendard,
@@ -68,6 +75,8 @@ body {
     sans-serif;
   font-size: 15px;
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 a {
@@ -90,9 +99,10 @@ select {
 .glass-panel {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-panel);
-  background: linear-gradient(155deg, var(--glass-strong), var(--glass));
+  background: linear-gradient(170deg, rgba(255, 255, 255, 0.68), var(--glass) 46%);
   box-shadow: var(--shadow-glass);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
 }
 
 .page-grid {
@@ -110,9 +120,10 @@ select {
   overflow: hidden;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-panel);
-  background: linear-gradient(155deg, var(--glass-strong), var(--glass));
+  background: linear-gradient(170deg, rgba(255, 255, 255, 0.68), var(--glass) 46%);
   box-shadow: var(--shadow-glass);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
 }
 
 .bubli-surface::before {
@@ -123,7 +134,16 @@ select {
   background:
     radial-gradient(ellipse 70% 40% at 28% 0%, rgba(255, 255, 255, 0.9), transparent 70%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent 42%);
-  opacity: 0.9;
+  opacity: 0.68;
+}
+
+.bubli-surface::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: calc(var(--radius-panel) - 1px);
 }
 
 .bubli-surface > * {
@@ -292,7 +312,11 @@ select {
 .bubli-sidebar {
   border-right: 1px solid var(--color-border);
   padding: 24px;
-  background: rgba(255, 255, 255, 0.34);
+  background:
+    radial-gradient(ellipse 120% 48% at 0% 0%, rgba(215, 234, 244, 0.82), transparent 62%),
+    rgba(255, 255, 255, 0.52);
+  backdrop-filter: blur(22px) saturate(1.24);
+  -webkit-backdrop-filter: blur(22px) saturate(1.24);
 }
 
 .bubli-brand {
@@ -425,29 +449,70 @@ select {
 
 .bubli-bubble {
   position: relative;
+  isolation: isolate;
+  --bubble-float-y: 0px;
   min-width: 260px;
   max-width: 360px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.68);
+  border: 1px solid var(--widget-border);
   border-radius: 28px;
   padding: 18px;
   background:
-    radial-gradient(circle at 24% 8%, rgba(255, 255, 255, 0.9), transparent 22%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.42));
+    radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.98), transparent 30%),
+    radial-gradient(circle at 82% 16%, color-mix(in srgb, var(--bubble-tone, var(--color-water-blue)) 24%, transparent), transparent 34%),
+    radial-gradient(circle at 86% 74%, rgba(232, 196, 160, 0.16), transparent 30%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.76), rgba(247, 251, 253, 0.52));
   box-shadow: var(--shadow-widget);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(26px) saturate(1.42);
+  -webkit-backdrop-filter: blur(26px) saturate(1.42);
   transition:
     transform 220ms var(--spring),
     opacity 220ms var(--ease-out),
     box-shadow 220ms var(--ease-out);
 }
 
+.bubli-bubble::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 27px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.38), transparent 38%),
+    radial-gradient(ellipse 78% 42% at 28% 0%, rgba(255, 255, 255, 0.58), transparent 70%);
+  pointer-events: none;
+}
+
+.bubli-bubble::after {
+  content: "";
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.2) 68%, transparent),
+    color-mix(in srgb, var(--bubble-tone, var(--color-water-blue)) 16%, transparent);
+  opacity: 0.72;
+  pointer-events: none;
+}
+
 .bubli-bubble:hover {
-  transform: translateY(-2px);
+  transform: translateY(calc(var(--bubble-float-y) - 3px));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 2px 6px rgba(40, 60, 75, 0.08),
+    0 22px 52px rgba(40, 60, 75, 0.2),
+    0 40px 82px rgba(40, 60, 75, 0.15);
 }
 
 .bubli-bubble--ghost {
-  background: rgba(255, 255, 255, 0.18);
+  color: var(--color-text);
+  background:
+    radial-gradient(circle at 20% 14%, rgba(255, 255, 255, 0.72), transparent 32%),
+    rgba(255, 255, 255, 0.2);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.68),
     0 14px 34px rgba(40, 60, 75, 0.12);
@@ -687,9 +752,67 @@ select {
 }
 
 .dashboard-bubble-row {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 28px;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 88% 14%, rgba(255, 255, 255, 0.92), transparent 10%),
+    radial-gradient(circle at 14% 18%, rgba(215, 234, 244, 0.8), transparent 30%),
+    radial-gradient(circle at 78% 78%, rgba(230, 221, 248, 0.5), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.44), rgba(215, 234, 244, 0.3));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.dashboard-bubble-row::before,
+.dashboard-bubble-row::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.dashboard-bubble-row::before {
+  right: 22px;
+  top: 20px;
+  width: 54px;
+  height: 54px;
+  background:
+    radial-gradient(circle at 34% 26%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.18) 62%, transparent),
+    rgba(142, 205, 246, 0.12);
+  box-shadow: inset 5px 7px 16px rgba(255, 255, 255, 0.46), inset -8px -10px 20px rgba(107, 143, 168, 0.12);
+  opacity: 0.78;
+}
+
+.dashboard-bubble-row::after {
+  left: 24px;
+  bottom: 22px;
+  width: 28px;
+  height: 28px;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.18) 70%, transparent);
+  opacity: 0.7;
+}
+
+.dashboard-bubble-row .bubli-bubble {
+  min-width: 0;
+}
+
+.dashboard-bubble-row .bubli-bubble:nth-child(2) {
+  --bubble-float-y: 18px;
+  transform: translateY(var(--bubble-float-y));
+}
+
+.dashboard-bubble-row .bubli-bubble:nth-child(3) {
+  --bubble-float-y: 6px;
+  transform: translateY(var(--bubble-float-y));
+}
+
+.dashboard-bubble-row .bubli-bubble:hover {
+  transform: translateY(calc(var(--bubble-float-y) - 3px));
 }
 
 .dashboard-overview__policy {
@@ -4047,7 +4170,7 @@ select {
 .public-hero {
   display: grid;
   gap: 28px;
-  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+  grid-template-columns: minmax(420px, 0.95fr) minmax(360px, 1.05fr);
   align-items: center;
   min-height: min(720px, calc(100vh - 120px));
 }
@@ -4060,10 +4183,15 @@ select {
 .public-hero__copy h1 {
   margin: 0;
   color: var(--color-text);
-  font-size: clamp(42px, 6vw, 72px);
+  max-width: 640px;
+  font-size: clamp(42px, 5.2vw, 66px);
   font-weight: 900;
   letter-spacing: 0;
-  line-height: 1.04;
+  line-height: 1.05;
+}
+
+.public-hero__copy h1 span {
+  display: block;
 }
 
 .public-hero__copy p {
@@ -4108,12 +4236,59 @@ select {
     inset 14px 18px 34px rgba(255, 255, 255, 0.72),
     inset -18px -22px 42px rgba(107, 143, 168, 0.12),
     0 38px 70px rgba(80, 110, 130, 0.18);
+  animation: bubli-bubble-wobble 7s ease-in-out infinite, bubli-bubble-float 5.2s ease-in-out infinite;
+}
+
+.public-hero__bubble::before {
+  content: "";
+  position: absolute;
+  left: 20%;
+  top: 16%;
+  width: 30%;
+  height: 20%;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0));
+  filter: blur(1px);
+  transform: rotate(-22deg);
+}
+
+.public-hero__bubble::after {
+  content: "";
+  position: absolute;
+  right: 24%;
+  bottom: 26%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.2) 70%, transparent);
 }
 
 .public-hero__bubble b {
+  position: relative;
+  z-index: 1;
   color: var(--color-brand);
   font-size: clamp(44px, 7vw, 74px);
   font-weight: 880;
+}
+
+@keyframes bubli-bubble-wobble {
+  0%,
+  100% {
+    border-radius: 50% 50% 50% 50% / 52% 48% 52% 48%;
+  }
+  50% {
+    border-radius: 48% 52% 47% 53% / 50% 53% 47% 50%;
+  }
+}
+
+@keyframes bubli-bubble-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -7px;
+  }
 }
 
 .public-hero__mini {

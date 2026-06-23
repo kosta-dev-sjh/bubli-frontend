@@ -6,11 +6,21 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { siteConfig } from "@/config/site";
 
 export function PublicHero() {
+  const [taglineLead, taglineRest] = siteConfig.tagline.split(", ");
+  const headline = taglineRest ? (
+    <>
+      <span>{taglineLead},</span>
+      <span>{taglineRest}</span>
+    </>
+  ) : (
+    siteConfig.tagline
+  );
+
   return (
     <section className="public-hero" aria-label="Bubli 소개">
       <div className="public-hero__copy">
         <Chip selected>프리랜서를 위한 업무 구조화와 버블 위젯</Chip>
-        <h1>{siteConfig.tagline}</h1>
+        <h1>{headline}</h1>
         <p>{siteConfig.description}</p>
         <div className="public-hero__actions">
           <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/download">

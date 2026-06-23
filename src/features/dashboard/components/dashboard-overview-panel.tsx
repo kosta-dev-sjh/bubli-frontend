@@ -43,7 +43,7 @@ export function DashboardOverviewPanel() {
             <Chip selected>대시보드</Chip>
             <h2>여러 프로젝트룸의 내 일을 한 화면에 모아 봅니다</h2>
             <p>
-              대시보드는 프로젝트룸 하나의 현황판이 아니라, 사용자를 기준으로 TODO, 일정, 확인 필요 항목을 모읍니다.
+              맡은 TODO, 가까운 일정, 확인할 후보를 모으고 작업 중에는 필요한 것만 버블로 띄웁니다.
             </p>
           </div>
         </div>
@@ -150,11 +150,11 @@ export function DashboardOverviewPanel() {
           <h3>데이터 기준</h3>
           <div>
             <CalendarDays size={16} strokeWidth={2.1} />
-            <p>TODO, 일정, 알림, 작업 시간은 서버 원본을 기준으로 표시합니다.</p>
+            <p>TODO, 일정, 알림, 작업 시간은 서버 원본을 기준으로 보여줍니다.</p>
           </div>
           <div>
             <Clock3 size={16} strokeWidth={2.1} />
-            <p>위젯 상세 사용 이벤트는 로컬에 남기고, 하루정리는 승인된 요약만 저장합니다.</p>
+            <p>버블의 상세 사용 기록은 로컬에 남기고, 승인한 하루정리만 서버에 저장합니다.</p>
           </div>
         </GlassPanel>
       </div>
