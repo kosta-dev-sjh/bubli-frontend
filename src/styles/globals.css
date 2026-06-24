@@ -7106,7 +7106,15 @@ select {
 
 @media (max-width: 720px) {
   .shell {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
     padding: 16px 18px 22px;
+  }
+
+  .bubli-main {
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 
   .auth-page {
@@ -7576,8 +7584,32 @@ select {
     grid-template-columns: 1fr;
   }
 
+  .settings-local-panel,
+  .settings-summary,
+  .settings-group,
+  .settings-permission,
+  .settings-recovery {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .settings-summary__item {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-local-panel .bubli-section-heading__title {
+    font-size: 28px;
+    line-height: 1.12;
+  }
+
+  .settings-local-panel .bubli-section-heading__description {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
   .settings-row {
     align-items: flex-start;
+    flex-direction: column;
   }
 
   .settings-recovery__actions {
