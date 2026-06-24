@@ -203,8 +203,7 @@
 
 .apiPath {
   color: var(--color-text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-weight: 760;
+  font-weight: 720;
 }
 
 .flowItem {
