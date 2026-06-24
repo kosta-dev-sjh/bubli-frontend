@@ -1,15 +1,4 @@
-import {
-  AlertTriangle,
-  BellRing,
-  CheckCircle2,
-  Clock3,
-  FileJson2,
-  ListRestart,
-  RefreshCcw,
-  Route,
-  ShieldCheck,
-  XCircle,
-} from "lucide-react";
+import { AlertTriangle, BellRing, CheckCircle2, Clock3, FileCheck2, ListRestart, RefreshCcw, Route, ShieldCheck, XCircle } from "lucide-react";
 import type { HTMLAttributes } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -60,16 +49,16 @@ const statusMeta: Record<JobStatus, { label: string; tone: StatusTone; icon: typ
 };
 
 const retryMeta: Record<RetryDecision, { label: string; tone: StatusTone }> = {
-  BLOCKED: { label: "재시도 제한", tone: "warning" },
-  RETRY_ALLOWED: { label: "재시도 가능", tone: "approved" },
-  WAITING: { label: "대기 후 재시도", tone: "pending" },
+  BLOCKED: { label: "다시 시도 제한", tone: "warning" },
+  RETRY_ALLOWED: { label: "다시 시도 가능", tone: "approved" },
+  WAITING: { label: "잠시 뒤 다시 시도", tone: "pending" },
 };
 
 export const defaultAgentRetryJobs: AgentJob[] = [
   {
-    failureReason: "응답 구조가 schema_version 2026-06-19와 맞지 않습니다.",
+    failureReason: "결과가 정해진 형식과 맞지 않아 다시 확인이 필요합니다.",
     jobType: "문서 분석",
-    lastEventLabel: "JSON 구조 검증 실패",
+    lastEventLabel: "결과 형식 확인 실패",
     modelName: "gpt-4.1-mini",
     promptVersion: "resource-analysis-v3",
     retryCount: 1,
@@ -104,17 +93,17 @@ export const defaultAgentRetryJobs: AgentJob[] = [
 
 export const defaultRetryPolicies: RetryPolicy[] = [
   {
-    description: "실패한 작업은 원인과 재시도 횟수를 확인한 뒤 같은 API 계약으로 다시 요청합니다.",
-    label: "상태 전이",
+    description: "실패한 정리 작업은 원인과 시도 횟수를 확인한 뒤 같은 조건으로 다시 요청합니다.",
+    label: "다시 시도 기준",
     tone: "pending",
   },
   {
-    description: "Structured Output 검증을 통과한 후보만 검토 화면에 노출합니다.",
-    label: "스키마 검증",
+    description: "정해진 형식을 통과한 후보만 검토 화면에 보여줍니다.",
+    label: "결과 형식 확인",
     tone: "agent",
   },
   {
-    description: "에이전트는 후보를 만들고, 확정 데이터 반영은 사용자 승인 후 API 서버가 처리합니다.",
+    description: "에이전트는 후보를 만들고, 확정 데이터 반영은 사용자 승인 후 처리합니다.",
     label: "확정 분리",
     tone: "approved",
   },
@@ -125,7 +114,7 @@ export function AgentJobRetryPolicyPanel({
   jobs,
   maxRetryCount = 3,
   policies,
-  title = "에이전트 작업 재시도",
+  title = "에이전트 정리 작업 다시 시도",
   ...props
 }: AgentJobRetryPolicyPanelProps) {
   const failedCount = jobs.filter((job) => job.status === "FAILED").length;
@@ -136,23 +125,23 @@ export function AgentJobRetryPolicyPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<ListRestart size={16} strokeWidth={2.1} />}>agent_jobs</Chip>
+          <Chip icon={<ListRestart size={16} strokeWidth={2.1} />}>정리 작업</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              에이전트 실행은 job으로 관리하고, 실패하면 원인과 재시도 가능 여부를 분리해 보여줍니다. 완료 결과는
-              WebSocket 이벤트나 알림으로 이어지고, 사용자가 확인한 후보만 반영합니다.
+              에이전트 정리 작업이 실패하면 원인과 다시 시도 가능 여부를 분리해 보여줍니다. 완료 결과는 화면 알림으로 이어지고,
+              사용자가 확인한 후보만 반영합니다.
             </p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>재시도 가능</span>
+          <span>다시 시도 가능</span>
           <strong>{retryableCount}개</strong>
           <StatusBadge tone={failedCount > 0 ? "warning" : "success"}>실패 {failedCount}개</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.retryOverview} aria-label="재시도 상태 요약">
+      <section className={styles.retryOverview} aria-label="다시 시도 상태 요약">
         <article className={styles.retryCard}>
           <div className={styles.retryTop}>
             <span className={styles.iconTile}>
@@ -160,7 +149,7 @@ export function AgentJobRetryPolicyPanel({
             </span>
             <div>
               <strong>{retryPercent}%</strong>
-              <p>재시도 가능한 작업 비율</p>
+              <p>다시 시도할 수 있는 작업 비율</p>
             </div>
             <StatusBadge tone="pending">최대 {maxRetryCount}회</StatusBadge>
           </div>
@@ -175,7 +164,7 @@ export function AgentJobRetryPolicyPanel({
         </article>
       </section>
 
-      <section className={styles.jobList} aria-label="에이전트 작업 목록">
+      <section className={styles.jobList} aria-label="에이전트 정리 작업 목록">
         {jobs.map((job) => {
           const status = statusMeta[job.status];
           const retry = retryMeta[job.retryDecision];
@@ -190,7 +179,7 @@ export function AgentJobRetryPolicyPanel({
                 <div className={styles.jobTitle}>
                   <strong>{job.title}</strong>
                   <span>
-                    {job.jobType} · 재시도 {job.retryCount}/{maxRetryCount}
+                    {job.jobType} · 다시 시도 {job.retryCount}/{maxRetryCount}
                   </span>
                 </div>
                 <div className={styles.badges}>
@@ -201,26 +190,26 @@ export function AgentJobRetryPolicyPanel({
 
               <div className={styles.metaGrid}>
                 <div>
-                  <span>prompt_version</span>
+                  <span>질문 방식</span>
                   <b>{job.promptVersion}</b>
                 </div>
                 <div>
-                  <span>schema_version</span>
+                  <span>결과 형식</span>
                   <b>{job.schemaVersion}</b>
                 </div>
                 <div>
-                  <span>model_name</span>
+                  <span>정리 모델</span>
                   <b>{job.modelName}</b>
                 </div>
               </div>
 
               <footer className={styles.jobFooter}>
                 <span>
-                  <FileJson2 size={15} strokeWidth={2.1} aria-hidden="true" />
+                  <FileCheck2 size={15} strokeWidth={2.1} aria-hidden="true" />
                   {job.failureReason ?? job.lastEventLabel}
                 </span>
                 <Button icon={<RefreshCcw size={14} strokeWidth={2.1} />} size="sm" variant="quiet">
-                  재시도 확인
+                  다시 시도 확인
                 </Button>
               </footer>
             </article>
@@ -228,11 +217,11 @@ export function AgentJobRetryPolicyPanel({
         })}
       </section>
 
-      <section className={styles.policyGrid} aria-label="에이전트 재시도 기준">
+      <section className={styles.policyGrid} aria-label="에이전트 다시 시도 기준">
         {policies.map((policy) => (
           <article key={policy.label}>
-            {policy.label === "스키마 검증" ? (
-              <FileJson2 size={17} strokeWidth={2.1} aria-hidden="true" />
+            {policy.label === "결과 형식 확인" ? (
+              <FileCheck2 size={17} strokeWidth={2.1} aria-hidden="true" />
             ) : policy.label === "확정 분리" ? (
               <ShieldCheck size={17} strokeWidth={2.1} aria-hidden="true" />
             ) : (

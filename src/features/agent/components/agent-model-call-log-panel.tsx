@@ -44,38 +44,38 @@ type TraceItem = {
 const logs: ModelCallLog[] = [
   {
     inputTokens: 4820,
-    jobId: "job-20260622-001",
+    jobId: "정리 작업 20260622-001",
     latencyMs: 1840,
     modelName: "bedrock-claude-haiku",
     outputTokens: 924,
     promptVersion: "resource-analysis-v3",
     schemaVersion: "resource-analysis-json-v2",
     status: "SUCCEEDED",
-    target: "resource_analysis",
+    target: "자료 분석 후보",
     title: "번역계약서_v2.pdf 분석",
   },
   {
     inputTokens: 2650,
-    jobId: "job-20260622-002",
+    jobId: "정리 작업 20260622-002",
     latencyMs: 1120,
     modelName: "bedrock-claude-haiku",
     outputTokens: 618,
     promptVersion: "wbs-todo-candidate-v2",
     schemaVersion: "agent-suggestion-json-v2",
     status: "SUCCEEDED",
-    target: "agent_suggestions",
+    target: "작업 후보",
     title: "회의록 WBS/TODO 후보",
   },
   {
-    errorCode: "SCHEMA_VALIDATION_FAILED",
+    errorCode: "결과 형식 확인 실패",
     inputTokens: 3912,
-    jobId: "job-20260621-014",
+    jobId: "정리 작업 20260621-014",
     modelName: "bedrock-claude-haiku",
     outputTokens: 204,
     promptVersion: "requirement-extract-v2",
     schemaVersion: "requirement-json-v2",
     status: "RETRIED",
-    target: "agent_job_events",
+    target: "다시 확인",
     title: "요구사항_초안.docx 재검증",
   },
 ];
@@ -90,22 +90,22 @@ const traceItems: TraceItem[] = [
   {
     icon: <Bot size={16} strokeWidth={2.1} />,
     label: "에이전트 모듈",
-    text: "문서 분석과 후보 JSON 생성을 맡고 확정 데이터는 만들지 않습니다.",
+    text: "문서 분석과 후보 정리를 맡고 확정 데이터는 만들지 않습니다.",
   },
   {
     icon: <FileJson size={16} strokeWidth={2.1} />,
-    label: "스키마 검증",
-    text: "Structured Output 결과는 schema_version 기준으로 검증합니다.",
+    label: "결과 형식 확인",
+    text: "에이전트 결과가 정해진 항목과 상태값에 맞는지 확인합니다.",
   },
   {
     icon: <Database size={16} strokeWidth={2.1} />,
     label: "저장 위치",
-    text: "결과는 resource_analysis, agent_suggestions, agent_job_events에 후보로 남깁니다.",
+    text: "결과는 자료 분석 후보, 작업 후보, 처리 기록으로 나누어 남깁니다.",
   },
   {
     icon: <ShieldCheck size={16} strokeWidth={2.1} />,
     label: "권한 경계",
-    text: "프론트와 Tauri는 API 서버를 통해 상태와 결과만 조회합니다.",
+    text: "웹과 앱은 사용자가 볼 수 있는 상태와 결과만 보여줍니다.",
   },
 ];
 
@@ -128,19 +128,19 @@ function LogRow({ log }: { log: ModelCallLog }) {
         <p>{log.jobId}</p>
         <div className={styles.versionGrid}>
           <span>
-            <b>prompt</b>
+            <b>질문 방식</b>
             {log.promptVersion}
           </span>
           <span>
-            <b>schema</b>
+            <b>결과 형식</b>
             {log.schemaVersion}
           </span>
           <span>
-            <b>tokens</b>
+            <b>사용량</b>
             {totalTokens.toLocaleString("ko-KR")}
           </span>
           <span>
-            <b>latency</b>
+            <b>응답 시간</b>
             {log.latencyMs ? `${log.latencyMs.toLocaleString("ko-KR")}ms` : "검증 실패"}
           </span>
         </div>
@@ -161,27 +161,27 @@ export function AgentModelCallLogPanel() {
       <GlassPanel className={styles.hero}>
         <div>
           <Chip icon={<Activity size={14} />} selected>
-            모델 호출 로그
+            에이전트 처리 기록
           </Chip>
-          <h2>에이전트 결과는 job, prompt, schema, model 기준으로 추적합니다</h2>
+          <h2>에이전트 결과는 작업, 질문 방식, 결과 형식, 모델 기준으로 추적합니다</h2>
           <p>
-            문서 분석 결과가 달라졌을 때 어떤 프롬프트와 스키마, 모델 기준으로 만들어졌는지 확인할 수 있어야
+            문서 분석 결과가 달라졌을 때 어떤 질문 방식과 결과 형식, 모델 기준으로 만들어졌는지 확인할 수 있어야
             합니다. 이 로그는 결과 품질과 호출량을 관리하기 위한 근거입니다.
           </p>
         </div>
         <div className={styles.summary}>
-          <StatusBadge tone="agent">agent_model_call_logs</StatusBadge>
+          <StatusBadge tone="agent">처리 기록</StatusBadge>
           <strong>3</strong>
           <span>최근 호출</span>
         </div>
       </GlassPanel>
 
       <div className={styles.flow} aria-label="모델 호출 추적 흐름">
-        <span>agent_jobs</span>
+        <span>정리 작업</span>
         <ArrowRight size={15} strokeWidth={2.1} />
-        <span>model call</span>
+        <span>모델 호출</span>
         <ArrowRight size={15} strokeWidth={2.1} />
-        <span>JSON schema 검증</span>
+        <span>결과 형식 확인</span>
         <ArrowRight size={15} strokeWidth={2.1} />
         <span>후보 저장</span>
       </div>
@@ -191,10 +191,10 @@ export function AgentModelCallLogPanel() {
           <div className={styles.toolbar}>
             <div>
               <h3>최근 호출 기록</h3>
-              <p>토큰 수, 응답 시간, 실패 코드는 모델 호출 로그에 남깁니다.</p>
+              <p>사용량, 응답 시간, 실패 사유는 에이전트 처리 기록에 남깁니다.</p>
             </div>
             <Button icon={<RotateCcw size={15} />} size="sm" variant="quiet">
-              로그 새로고침
+              기록 새로고침
             </Button>
           </div>
           <div className={styles.list}>
@@ -221,10 +221,10 @@ export function AgentModelCallLogPanel() {
       <GlassPanel className={styles.footer}>
         <Gauge size={17} strokeWidth={2.1} aria-hidden="true" />
         <p>
-          같은 샘플 문서를 다시 분석할 때는 prompt_version, schema_version, model_name을 함께 비교합니다.
+          같은 샘플 문서를 다시 분석할 때는 질문 방식, 결과 형식, 사용 모델을 함께 비교합니다.
         </p>
-        <Chip icon={<Braces size={14} />}>Structured Output</Chip>
-        <Chip icon={<Clock3 size={14} />}>latency_ms</Chip>
+        <Chip icon={<Braces size={14} />}>결과 형식</Chip>
+        <Chip icon={<Clock3 size={14} />}>응답 시간</Chip>
       </GlassPanel>
     </section>
   );

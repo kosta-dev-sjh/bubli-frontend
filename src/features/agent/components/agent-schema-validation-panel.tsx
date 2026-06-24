@@ -1,4 +1,4 @@
-import { Braces, BrainCircuit, CheckCircle2, FileJson2, ShieldCheck, TriangleAlert } from "lucide-react";
+import { BrainCircuit, CheckCircle2, FileCheck2, ShieldCheck, TriangleAlert } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 
 import { Chip } from "@/components/ui/chip";
@@ -39,8 +39,8 @@ const statusMeta: Record<SchemaValidationStatus, { label: string; tone: StatusTo
 };
 
 const metricIcon: Record<SchemaValidationMetric["icon"], ReactNode> = {
-  schema: <FileJson2 size={18} strokeWidth={2.1} />,
-  prompt: <Braces size={18} strokeWidth={2.1} />,
+  schema: <FileCheck2 size={18} strokeWidth={2.1} />,
+  prompt: <BrainCircuit size={18} strokeWidth={2.1} />,
   model: <BrainCircuit size={18} strokeWidth={2.1} />,
   job: <ShieldCheck size={18} strokeWidth={2.1} />,
 };
@@ -60,11 +60,11 @@ export function AgentSchemaValidationPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<FileJson2 size={14} strokeWidth={2.1} />}>Structured Output</Chip>
+          <Chip icon={<FileCheck2 size={14} strokeWidth={2.1} />}>결과 형식 확인</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              에이전트가 만든 JSON 결과는 schema_version 기준으로 검증한 뒤 후보로 저장합니다. 사용자가 승인하기 전에는 작업, WBS, 일정 같은 확정 데이터로 쓰지 않습니다.
+              에이전트가 만든 결과는 정해진 형식에 맞는지 확인한 뒤 후보로 저장합니다. 사용자가 승인하기 전에는 작업, WBS, 일정 같은 확정 데이터로 쓰지 않습니다.
             </p>
           </div>
         </div>
@@ -95,17 +95,17 @@ export function AgentSchemaValidationPanel({
             <BrainCircuit size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <h3>후보 JSON 생성</h3>
-            <p>에이전트는 요약, 확인 질문, WBS/TODO 후보를 구조화된 결과로 만듭니다.</p>
+            <h3>후보 만들기</h3>
+            <p>에이전트는 요약, 확인 질문, WBS/TODO 후보를 정해진 항목으로 정리합니다.</p>
           </div>
         </article>
         <article>
           <span aria-hidden="true">
-            <FileJson2 size={18} strokeWidth={2.1} />
+            <FileCheck2 size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <h3>schema 검증</h3>
-            <p>필수 필드와 상태값이 현재 schema_version과 맞는지 확인합니다.</p>
+            <h3>결과 형식 확인</h3>
+            <p>필수 항목과 상태값이 현재 기준과 맞는지 확인합니다.</p>
           </div>
         </article>
         <article>
@@ -127,7 +127,7 @@ export function AgentSchemaValidationPanel({
             <article className={styles.resultItem} key={`${result.field}-${result.value}`}>
               <div className={styles.resultMain}>
                 <span className={styles.fieldIcon} aria-hidden="true">
-                  {result.status === "failed" ? <TriangleAlert size={18} strokeWidth={2.1} /> : <Braces size={18} strokeWidth={2.1} />}
+                  {result.status === "failed" ? <TriangleAlert size={18} strokeWidth={2.1} /> : <FileCheck2 size={18} strokeWidth={2.1} />}
                 </span>
                 <div>
                   <h3>{result.field}</h3>

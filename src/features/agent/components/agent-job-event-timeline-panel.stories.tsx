@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "agent_jobs와 agent_job_events를 기준으로 에이전트 작업 상태 전이, 실패 사유, 재시도 이력을 보여주는 패널입니다.",
+          "에이전트 정리 작업의 상태 변화, 실패 사유, 다시 시도 이력을 보여주는 패널입니다.",
       },
     },
   },
@@ -24,7 +24,7 @@ export const RunningAnalysis: Story = {
     events: [
       {
         eventType: "created",
-        message: "API 서버가 권한을 확인하고 자료 분석 작업을 만들었습니다.",
+        message: "자료 접근 권한을 확인하고 분석 작업을 만들었습니다.",
         timeLabel: "10:12",
       },
       {
@@ -33,8 +33,8 @@ export const RunningAnalysis: Story = {
         timeLabel: "10:13",
       },
     ],
-    jobId: "job_82a1",
-    jobType: "ANALYZE_RESOURCE",
+    jobId: "정리 작업 82a1",
+    jobType: "자료 분석",
     retryCount: 0,
     status: "running",
     targetLabel: "웹사이트 구축 계약서_v2.pdf",
@@ -62,12 +62,12 @@ export const FailedWithRetry: Story = {
       },
       {
         eventType: "retried",
-        message: "사용자가 다시 시도했고, 같은 job 계열에 재시도 횟수를 남겼습니다.",
+        message: "사용자가 다시 시도했고, 같은 정리 작업 흐름에 시도 횟수를 남겼습니다.",
         timeLabel: "13:06",
       },
     ],
-    jobId: "job_f31c",
-    jobType: "GENERATE_REQUIREMENTS",
+    jobId: "정리 작업 f31c",
+    jobType: "요구사항 후보 생성",
     retryCount: 1,
     status: "failed",
     targetLabel: "요구사항 정리서_v1.3.docx",
@@ -93,11 +93,11 @@ export const CompletedSuggestionJob: Story = {
         timeLabel: "15:23",
       },
     ],
-    jobId: "job_7dd0",
-    jobType: "GENERATE_WBS",
+    jobId: "정리 작업 7dd0",
+    jobType: "WBS 후보 생성",
     retryCount: 0,
     status: "succeeded",
     targetLabel: "신축 사옥 이전 프로젝트",
-    title: "완료된 에이전트 작업",
+    title: "완료된 에이전트 정리 작업",
   },
 };

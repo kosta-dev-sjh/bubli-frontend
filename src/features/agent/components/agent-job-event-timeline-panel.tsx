@@ -95,7 +95,7 @@ export function AgentJobEventTimelinePanel({
   retryCount,
   status,
   targetLabel,
-  title = "에이전트 작업 이벤트",
+  title = "에이전트 정리 작업 흐름",
   ...props
 }: AgentJobEventTimelinePanelProps) {
   const statusInfo = statusMeta[status];
@@ -105,11 +105,11 @@ export function AgentJobEventTimelinePanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<ShieldCheck size={14} strokeWidth={2.1} />}>agent_job_events</Chip>
+          <Chip icon={<ShieldCheck size={14} strokeWidth={2.1} />}>작업 흐름</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              에이전트 작업은 job 단위로 상태를 추적합니다. 결과가 만들어져도 사용자 승인 전에는 작업, WBS, 일정 같은 확정 데이터로 반영하지 않습니다.
+              에이전트가 자료를 정리하는 동안 각 단계를 남깁니다. 결과가 만들어져도 사용자 승인 전에는 작업, WBS, 일정에 반영하지 않습니다.
             </p>
           </div>
         </div>
@@ -124,9 +124,9 @@ export function AgentJobEventTimelinePanel({
         </div>
       </header>
 
-      <section className={styles.summaryGrid} aria-label="에이전트 작업 요약">
+      <section className={styles.summaryGrid} aria-label="에이전트 정리 작업 요약">
         <article>
-          <span>작업 ID</span>
+          <span>정리 작업</span>
           <strong>{jobId}</strong>
         </article>
         <article>
@@ -138,7 +138,7 @@ export function AgentJobEventTimelinePanel({
           <strong>{targetLabel}</strong>
         </article>
         <article>
-          <span>재시도</span>
+          <span>다시 시도</span>
           <strong>{retryCount}회</strong>
         </article>
       </section>
@@ -158,7 +158,7 @@ export function AgentJobEventTimelinePanel({
         </section>
       ) : null}
 
-      <section className={styles.timeline} aria-label="에이전트 작업 이벤트 목록">
+      <section className={styles.timeline} aria-label="에이전트 정리 흐름 목록">
         {events.map((event, index) => {
           const meta = eventMeta[event.eventType];
           const isLast = index === events.length - 1;

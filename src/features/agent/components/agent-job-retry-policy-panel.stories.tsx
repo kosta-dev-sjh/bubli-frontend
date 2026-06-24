@@ -12,7 +12,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "v14의 agent_jobs 기반 비동기 처리, 실패/재시도, JSON schema 검증 정책을 바탕으로 에이전트 작업의 재시도 가능 여부를 보여주는 패널입니다.",
+          "에이전트 정리 작업의 실패, 다시 시도, 결과 형식 확인 기준을 바탕으로 다시 시도 가능 여부를 보여주는 패널입니다.",
       },
     },
   },
@@ -49,7 +49,7 @@ export const RetryLimitReached: Story = {
       job.status === "FAILED"
         ? {
             ...job,
-            failureReason: "같은 문서에서 3회 연속 구조 검증에 실패했습니다.",
+            failureReason: "같은 문서에서 3회 연속 결과 형식 확인에 실패했습니다.",
             retryCount: 3,
             retryDecision: "BLOCKED",
           }

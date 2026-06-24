@@ -1,17 +1,4 @@
-import {
-  AlertTriangle,
-  Bell,
-  Braces,
-  CheckCircle2,
-  Clock3,
-  FileSearch,
-  ListChecks,
-  LoaderCircle,
-  RefreshCcw,
-  ShieldCheck,
-  Sparkles,
-  XCircle,
-} from "lucide-react";
+import { AlertTriangle, Bell, CheckCircle2, Clock3, FileSearch, ListChecks, LoaderCircle, RefreshCcw, ShieldCheck, Sparkles, XCircle } from "lucide-react";
 import type { HTMLAttributes } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -87,9 +74,9 @@ const suggestionTone: Record<AgentSuggestionStatus, "pending" | "approved" | "wa
 
 const defaultSteps: AgentJobStep[] = [
   {
-    description: "API 서버가 로그인, 권한, 분석 제한을 확인한 뒤 작업을 만들었습니다.",
+    description: "요청한 사용자가 이 자료를 볼 수 있는지 확인한 뒤 정리 작업을 시작했습니다.",
     id: "created",
-    label: "agent_jobs 생성",
+    label: "정리 작업 시작",
     status: "SUCCEEDED",
   },
   {
@@ -101,11 +88,11 @@ const defaultSteps: AgentJobStep[] = [
   {
     description: "WBS, TODO, 확인 질문은 모두 후보로 저장됩니다.",
     id: "suggestions",
-    label: "후보 JSON 생성",
+    label: "후보 만들기",
     status: "PENDING",
   },
   {
-    description: "완료 이벤트는 WebSocket과 알림으로 화면에 전달됩니다.",
+    description: "완료되면 화면 알림으로 바로 확인할 수 있습니다.",
     id: "notify",
     label: "완료 알림",
     status: "PENDING",
@@ -155,14 +142,14 @@ function getStatusIcon(status: AgentJobStatus) {
 
 export function AgentJobStatusPanel({
   className,
-  eventLabel = "완료 시 WebSocket 이벤트와 알림으로 전달",
-  jobId = "job_8f42",
+  eventLabel = "완료되면 화면 알림으로 전달됩니다.",
+  jobId = "정리 작업 8f42",
   jobTypeLabel = "자료 분석 · WBS/TODO 후보",
-  modelLabel = "model_name 기록 대기",
+  modelLabel = "정리 방식 확인 중",
   onOpenSuggestions,
   onRetryJob,
   progress = 62,
-  schemaLabel = "schema v1.0",
+  schemaLabel = "정해진 형식 v1.0",
   startedAtLabel = "시작 1분 전",
   status = "RUNNING",
   steps = defaultSteps,
@@ -200,7 +187,7 @@ export function AgentJobStatusPanel({
         <div className={styles.jobMeta}>
           <Chip icon={<Sparkles size={14} />}>{jobTypeLabel}</Chip>
           <Chip icon={<Clock3 size={14} />}>{startedAtLabel}</Chip>
-          <Chip icon={<Braces size={14} />}>{schemaLabel}</Chip>
+          <Chip icon={<ShieldCheck size={14} />}>{schemaLabel}</Chip>
         </div>
         <div className={styles.progressRow}>
           <div>
@@ -213,7 +200,7 @@ export function AgentJobStatusPanel({
       </div>
 
       <div className={styles.grid}>
-        <section className={styles.stepPanel} aria-label="에이전트 작업 단계">
+        <section className={styles.stepPanel} aria-label="에이전트 정리 단계">
           <h3>
             <FileSearch size={17} />
             처리 단계
