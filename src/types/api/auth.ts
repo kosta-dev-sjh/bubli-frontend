@@ -1,47 +1,19 @@
 export type AuthUser = {
   id: string;
+  avatarUrl?: string | null;
   bubliId: string;
-  email?: string | null;
+  email: string;
+  googleSub: string;
   locale?: string | null;
   name: string;
-  profileImageUrl?: string | null;
   timezone?: string | null;
 };
 
-export type GoogleAuthorizeResponse = {
-  authorizeUrl: string;
-  state?: string;
-};
-
-export type GoogleCallbackRequest = {
-  code: string;
-  redirectUri?: string;
-  state?: string;
-};
-
-export type LoginResponse = {
+export type AuthTokenResponse = {
   accessToken: string;
-  tokenType: "Bearer";
-  expiresIn: number;
   expiresAt: string;
-  user: AuthUser;
-};
-
-export type TauriLoginResponse = LoginResponse & {
-  refreshToken: string;
-  refreshTokenExpiresAt: string;
-};
-
-export type RefreshResponse = {
-  accessToken: string;
-  tokenType: "Bearer";
   expiresIn: number;
-  expiresAt: string;
-};
-
-export type TauriRefreshResponse = RefreshResponse & {
-  refreshToken: string;
-  refreshTokenExpiresAt: string;
+  tokenType: "Bearer";
 };
 
 export type AuthErrorCode =

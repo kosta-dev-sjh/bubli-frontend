@@ -1,36 +1,11 @@
-import { apiRequest } from "@/lib/api/client";
-import type {
-  AuthUser,
-  GoogleAuthorizeResponse,
-  GoogleCallbackRequest,
-  LoginResponse,
-  RefreshResponse,
-  TauriLoginResponse,
-  TauriRefreshResponse,
-} from "@/types/api/auth";
+import { apiRequest, getApiBaseUrl } from "@/lib/api/client";
+import type { AuthTokenResponse, AuthUser } from "@/types/api/auth";
 
-export type UpdateMeRequest = Partial<Pick<AuthUser, "name" | "profileImageUrl">>;
+export type UpdateMeRequest = Partial<Pick<AuthUser, "avatarUrl" | "locale" | "name" | "timezone">>;
 
 export const authApi = {
-  getGoogleAuthorizeUrl() {
-    return apiRequest<GoogleAuthorizeResponse>("/api/auth/google/authorize");
-  },
-
-  completeGoogleLogin(body: GoogleCallbackRequest) {
-    return apiRequest<LoginResponse>("/api/auth/google/callback", {
-      body,
-      method: "POST",
-    });
-  },
-
-  completeGoogleLoginForTauri(body: GoogleCallbackRequest) {
-    return apiRequest<TauriLoginResponse>("/api/auth/google/callback", {
-      body,
-      headers: {
-        "X-Bubli-Client": "tauri",
-      },
-      method: "POST",
-    });
+  getGoogleAuthorizationUrl() {
+    return `${getApiBaseUrl()}/oauth2/authorization/google`;
   },
 
   logout() {
@@ -40,16 +15,7 @@ export const authApi = {
   },
 
   refresh() {
-    return apiRequest<RefreshResponse>("/api/auth/refresh", {
-      method: "POST",
-    });
-  },
-
-  refreshForTauri() {
-    return apiRequest<TauriRefreshResponse>("/api/auth/refresh", {
-      headers: {
-        "X-Bubli-Client": "tauri",
-      },
+    return apiRequest<AuthTokenResponse>("/api/auth/refresh", {
       method: "POST",
     });
   },

@@ -32,8 +32,8 @@ type ContractArea = {
 const contracts: ContractArea[] = [
   {
     checks: ["access token은 메모리", "refresh token은 cookie 또는 OS secure storage"],
-    description: "구글 OAuth 로그인, 토큰 재발급, 내 정보 조회는 공통 응답 형식에 맞춰 API client를 연결합니다.",
-    endpoint: "/api/auth/google/callback",
+    description: "구글 OAuth 시작은 서버 리다이렉트를 사용하고, 토큰 재발급과 내 정보 조회는 공통 응답 형식에 맞춰 연결합니다.",
+    endpoint: "/oauth2/authorization/google",
     label: "인증",
     owner: "features/auth/api",
     progress: 82,
