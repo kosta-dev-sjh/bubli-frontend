@@ -29,10 +29,21 @@ import {
   RequirementCandidateReviewPanel,
   RoomMemorySummaryPanel,
 } from "@/features/agent/components";
-import { DailySummaryPanel, DashboardOverviewPanel } from "@/features/dashboard/components";
-import { MemoListPanel } from "@/features/memo/components";
+import {
+  DailySummaryPanel,
+  DashboardCardLibraryPanel,
+  DashboardOverviewPanel,
+  defaultDashboardCards,
+  defaultDashboardRules,
+} from "@/features/dashboard/components";
+import { MemoDraftPanel, MemoListPanel } from "@/features/memo/components";
 import { TimerControlPanel } from "@/features/timer/components";
-import { TodoListPanel } from "@/features/todo/components";
+import {
+  defaultAssignedTodos,
+  defaultTodoSurfaces,
+  TodoAssigneeReflectionPanel,
+  TodoListPanel,
+} from "@/features/todo/components";
 
 const agentJobEvents = [
   {
@@ -141,9 +152,12 @@ export default function DashboardPage() {
       />
       <div className="page-grid">
         <DashboardOverviewPanel />
+        <DashboardCardLibraryPanel cards={defaultDashboardCards} rules={defaultDashboardRules} />
         <TodoListPanel />
+        <TodoAssigneeReflectionPanel surfaces={defaultTodoSurfaces} todos={defaultAssignedTodos} />
         <TimerControlPanel />
         <MemoListPanel />
+        <MemoDraftPanel />
         <DailySummaryPanel />
         <AgentJobStatusPanel />
         <AgentJobEventTimelinePanel
