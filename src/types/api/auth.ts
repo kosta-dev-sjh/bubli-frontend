@@ -1,8 +1,22 @@
 export type AuthUser = {
   id: string;
-  email: string;
+  bubliId: string;
+  email?: string | null;
+  locale?: string | null;
   name: string;
   profileImageUrl?: string | null;
+  timezone?: string | null;
+};
+
+export type GoogleAuthorizeResponse = {
+  authorizeUrl: string;
+  state?: string;
+};
+
+export type GoogleCallbackRequest = {
+  code: string;
+  redirectUri?: string;
+  state?: string;
 };
 
 export type LoginResponse = {
@@ -31,7 +45,9 @@ export type TauriRefreshResponse = RefreshResponse & {
 };
 
 export type AuthErrorCode =
-  | "AUTH_INVALID_CREDENTIALS"
+  | "AUTH_OAUTH_INVALID_CODE"
+  | "AUTH_OAUTH_SUB_MISSING"
+  | "AUTH_UNSUPPORTED_PROVIDER"
   | "AUTH_TOKEN_EXPIRED"
   | "AUTH_INVALID_TOKEN"
   | "AUTH_REFRESH_TOKEN_EXPIRED"

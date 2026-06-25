@@ -1,36 +1,30 @@
 import { apiRequest } from "@/lib/api/client";
-import type { AuthUser, LoginResponse, RefreshResponse, TauriLoginResponse, TauriRefreshResponse } from "@/types/api/auth";
-
-export type SignupRequest = {
-  email: string;
-  password: string;
-  name: string;
-};
-
-export type LoginRequest = {
-  email: string;
-  password: string;
-};
+import type {
+  AuthUser,
+  GoogleAuthorizeResponse,
+  GoogleCallbackRequest,
+  LoginResponse,
+  RefreshResponse,
+  TauriLoginResponse,
+  TauriRefreshResponse,
+} from "@/types/api/auth";
 
 export type UpdateMeRequest = Partial<Pick<AuthUser, "name" | "profileImageUrl">>;
 
 export const authApi = {
-  signup(body: SignupRequest) {
-    return apiRequest<LoginResponse>("/api/auth/signup", {
+  getGoogleAuthorizeUrl() {
+    return apiRequest<GoogleAuthorizeResponse>("/api/auth/google/authorize");
+  },
+
+  completeGoogleLogin(body: GoogleCallbackRequest) {
+    return apiRequest<LoginResponse>("/api/auth/google/callback", {
       body,
       method: "POST",
     });
   },
 
-  login(body: LoginRequest) {
-    return apiRequest<LoginResponse>("/api/auth/login", {
-      body,
-      method: "POST",
-    });
-  },
-
-  loginForTauri(body: LoginRequest) {
-    return apiRequest<TauriLoginResponse>("/api/auth/login", {
+  completeGoogleLoginForTauri(body: GoogleCallbackRequest) {
+    return apiRequest<TauriLoginResponse>("/api/auth/google/callback", {
       body,
       headers: {
         "X-Bubli-Client": "tauri",
