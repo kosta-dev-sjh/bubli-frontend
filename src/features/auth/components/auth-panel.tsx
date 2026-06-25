@@ -19,7 +19,7 @@ const modeCopy = {
     helper: "아직 계정이 없다면",
     helperHref: "/signup",
     helperLabel: "구글로 시작하기",
-    title: "다시 Bubli로 들어가기",
+    title: "Bubli로 돌아가기",
   },
   signup: {
     action: "시작하기",
@@ -31,7 +31,7 @@ const modeCopy = {
   },
 } satisfies Record<AuthMode, Record<string, string>>;
 
-const loginChecks = ["구글 OAuth로 로그인", "LiveKit 토큰은 서버에서 발급", "Tauri도 같은 인증 API 사용"];
+const loginChecks = ["구글 계정으로 로그인", "보이스 권한은 서버에서 확인", "Tauri도 같은 로그인 사용"];
 const signupChecks = ["최초 로그인 시 사용자 생성", "Bubli ID로 친구 검색", "프로젝트룸 초대 수락 가능"];
 
 const previewItems = {
@@ -95,21 +95,21 @@ export function AuthPanel({ mode }: AuthPanelProps) {
             <h2>{copy.action}</h2>
             <p>
               {mode === "login"
-                ? "구글 OAuth로 회원 웹 앱에 들어갑니다."
+                ? "구글 계정으로 회원 웹 앱에 들어갑니다."
                 : "구글 로그인 뒤 Bubli ID와 기본 프로필을 설정합니다."}
             </p>
           </div>
         </div>
 
-        <div className="auth-form" aria-label="구글 OAuth 로그인">
+        <div className="auth-form" aria-label="구글 계정 로그인">
           <Button className="auth-card__submit" icon={<KeyRound size={16} />} size="lg" variant="primary">
             Google로 계속하기
           </Button>
 
           <div className="auth-page__checks" aria-label="인증 처리 기준">
             <Chip icon={<ShieldCheck size={14} strokeWidth={2.1} />}>구글 계정 확인</Chip>
-            <Chip icon={<ArrowRight size={14} strokeWidth={2.1} />}>서버 token 발급</Chip>
-            <Chip icon={<LockKeyhole size={14} strokeWidth={2.1} />}>refresh token 안전 저장</Chip>
+            <Chip icon={<ArrowRight size={14} strokeWidth={2.1} />}>서버에서 세션 발급</Chip>
+            <Chip icon={<LockKeyhole size={14} strokeWidth={2.1} />}>기기별 안전 저장</Chip>
           </div>
         </div>
 
