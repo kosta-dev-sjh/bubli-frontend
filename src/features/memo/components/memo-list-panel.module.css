@@ -1,0 +1,283 @@
+.panel {
+  box-sizing: border-box;
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  gap: 18px;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.titleBlock {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 880;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.description {
+  max-width: 760px;
+  margin: 7px 0 0;
+  color: var(--color-muted);
+  font-size: 14.5px;
+  line-height: 1.7;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.summaryGrid article {
+  display: grid;
+  min-height: 116px;
+  align-content: center;
+  gap: 7px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-panel);
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: var(--shadow-soft);
+}
+
+.summaryGrid svg {
+  color: var(--color-blue-deep);
+}
+
+.summaryGrid span,
+.policyStrip span {
+  color: var(--color-faint);
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.summaryGrid strong {
+  color: var(--color-blue-deep);
+  font-size: 23px;
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.summaryGrid p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12.4px;
+  line-height: 1.45;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.62fr) minmax(280px, 0.38fr);
+  gap: 12px;
+}
+
+.listPanel,
+.detailPanel {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-panel);
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: var(--shadow-soft);
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sectionTitle strong {
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 880;
+  line-height: 1.3;
+}
+
+.memoStack {
+  display: grid;
+  gap: 8px;
+}
+
+.memoRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: var(--radius-card);
+  padding: 11px;
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  text-align: left;
+}
+
+.memoRowSelected {
+  border-color: rgba(107, 143, 168, 0.34);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.96), transparent 38%),
+    rgba(215, 234, 244, 0.42);
+}
+
+.memoIcon {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 14px;
+  color: var(--color-blue-deep);
+  background: rgba(215, 234, 244, 0.56);
+}
+
+.memoCopy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.memoCopy b {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 13.6px;
+  font-weight: 850;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memoCopy small {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memoBadges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.memoBody {
+  min-height: 160px;
+  margin: 0;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: var(--radius-card);
+  padding: 14px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.62);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.detailMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.detailMeta span {
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: var(--radius-pill);
+  padding: 6px 9px;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.58);
+  font-size: 11.6px;
+  font-weight: 760;
+  line-height: 1.2;
+}
+
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.emptyDetail {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  gap: 8px;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.emptyDetail strong {
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 880;
+}
+
+.emptyDetail p {
+  max-width: 260px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.policyStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: var(--radius-panel);
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.policyStrip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: var(--radius-pill);
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.56);
+}
+
+@media (max-width: 980px) {
+  .header {
+    display: grid;
+  }
+
+  .summaryGrid,
+  .contentGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .memoRow {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .memoBadges {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+}
