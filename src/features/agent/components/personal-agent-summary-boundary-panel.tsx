@@ -79,25 +79,25 @@ export const defaultBoundaryItems: BoundaryItem[] = [
 export const defaultSummaryInputs: SummaryInput[] = [
   {
     label: "완료 TODO",
-    source: "서버 tasks",
+    source: "서버 TODO",
     tone: "todo",
     value: "4개",
   },
   {
     label: "총 작업시간",
-    source: "서버 time_logs",
+    source: "서버 작업시간",
     tone: "timer",
     value: "3h 42m",
   },
   {
     label: "버블 사용 집계",
-    source: "서버 widget_daily_summaries",
+    source: "서버 버블 사용 집계",
     tone: "agent",
     value: "8회",
   },
   {
     label: "개인 에이전트 요약",
-    source: "Tauri SQLite",
+    source: "기기 안 저장소",
     tone: "personal",
     value: "1건",
   },

@@ -80,7 +80,7 @@ export function WidgetItemStatePanel({ className, items, title = "버블 항목 
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<Pin size={14} strokeWidth={2.1} />}>widget_item_states</Chip>
+          <Chip icon={<Pin size={14} strokeWidth={2.1} />}>버블 항목 상태</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>

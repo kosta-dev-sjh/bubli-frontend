@@ -55,7 +55,7 @@ export const PassedValidation: Story = {
         value: "제목, 요약, 원문 근거",
       },
       {
-        description: "확인 질문 후보가 DRAFT 상태로 저장됩니다.",
+        description: "확인 질문 후보가 승인 전 상태로 저장됩니다.",
         field: "확인 질문 후보",
         status: "passed",
         value: "승인 전",

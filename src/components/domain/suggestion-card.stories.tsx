@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "에이전트가 만든 값은 확정 데이터가 아니라 후보입니다. 승인 전에는 tasks, wbs_items, schedules 같은 확정 테이블로 반영하지 않습니다.",
+          "에이전트가 만든 값은 확정 데이터가 아니라 후보입니다. 승인 전에는 실제 작업, WBS, 일정으로 반영하지 않습니다.",
       },
     },
   },

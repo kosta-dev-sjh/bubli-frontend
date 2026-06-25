@@ -12,7 +12,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "v14의 일정과 Google Calendar 연동 기준을 바탕으로, Bubli schedules 원본과 외부 캘린더 값을 비교하고 사용자가 확인한 값만 반영하는 충돌 확인 패널입니다.",
+          "v14의 일정과 Google Calendar 연동 기준을 바탕으로, Bubli 일정 원본과 외부 캘린더 값을 비교하고 사용자가 확인한 값만 반영하는 충돌 확인 패널입니다.",
       },
     },
   },

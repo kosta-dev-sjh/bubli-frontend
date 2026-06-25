@@ -59,10 +59,10 @@ const resourceItems: [ResourceBoardItem, ...ResourceBoardItem[]] = [
     title: "번역계약서_v2.pdf",
   },
   {
-    agentSummary: "개인 관리 폴더에서 감지된 로컬 파일입니다. 서버 원본 자료로 올릴지 선택해야 합니다.",
-    body: "Tauri 개인 관리 폴더에서 감지된 정리 메모입니다.",
+    agentSummary: "개인 관리 폴더에서 감지된 파일입니다. 서버 원본 자료로 올릴지 선택해야 합니다.",
+    body: "개인 관리 폴더에서 감지된 정리 메모입니다.",
     id: "local-folder-note",
-    meta: "개인 자료 · Tauri SQLite 색인",
+    meta: "개인 자료 · 관리 폴더에서 감지",
     missingItems: ["서버 업로드 여부 선택", "프로젝트룸 자료로 공유할지 선택"],
     relatedDocs: ["개인 관리 폴더"],
     scope: "personal",

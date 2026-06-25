@@ -37,7 +37,7 @@ export const ResourceScopes: Story = {
       />
       <ResourceCard
         description="개인 관리 폴더에서 감지된 메모입니다. 프로젝트룸 공유는 사용자가 직접 승인해야 합니다."
-        meta="개인 자료 · 공유 전 · Tauri SQLite 색인"
+        meta="개인 자료 · 공유 전 · 관리 폴더에서 감지"
         relatedCount={1}
         scope="personal"
         status="candidate"

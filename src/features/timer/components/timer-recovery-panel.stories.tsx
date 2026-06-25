@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "Tauri 타이머 버블의 복구 상태 패널입니다. 서버 time_logs를 원본으로 두고 local_timer_state와 local_sync_outbox로 비정상 종료와 네트워크 끊김을 복구하는 기획 기준을 반영합니다.",
+          "Tauri 타이머 버블의 복구 상태 패널입니다. 서버 작업 시간 기록을 원본으로 두고 로컬 복구 상태와 전송 대기열로 비정상 종료와 네트워크 끊김을 복구하는 기획 기준을 반영합니다.",
       },
     },
   },

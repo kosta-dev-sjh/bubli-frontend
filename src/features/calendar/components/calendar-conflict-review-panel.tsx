@@ -95,7 +95,7 @@ export const defaultCalendarConflicts: CalendarConflict[] = [
 
 export const defaultCalendarReviewRules: CalendarReviewRule[] = [
   {
-    description: "Bubli 일정은 schedules를 원본으로 보고, Google Calendar 값은 비교 대상으로 표시합니다.",
+    description: "Bubli 일정은 서버에 저장된 일정을 원본으로 보고, Google Calendar 값은 비교 대상으로 표시합니다.",
     label: "서버 원본 기준",
     tone: "room",
   },
@@ -126,7 +126,7 @@ export function CalendarConflictReviewPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<CalendarDays size={16} strokeWidth={2.1} />}>schedules</Chip>
+          <Chip icon={<CalendarDays size={16} strokeWidth={2.1} />}>Bubli 일정</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>

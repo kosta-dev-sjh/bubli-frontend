@@ -104,7 +104,7 @@ export function ScheduleOverviewPanel() {
             <Chip selected>일정/WBS 버블</Chip>
             <h2>일정은 따로 흩어지지 않고 작업과 연결해서 봅니다</h2>
             <p>
-              Bubli 일정은 서버 schedules를 원본으로 두고, 연결된 TODO와 WBS를 함께 보여줍니다.
+              Bubli 일정은 서버에 저장된 일정을 원본으로 두고, 연결된 TODO와 WBS를 함께 보여줍니다.
             </p>
           </div>
         </div>
@@ -145,7 +145,7 @@ export function ScheduleOverviewPanel() {
             <span className="bubli-icon-tile" aria-hidden="true">
               <CheckCircle2 size={16} strokeWidth={2.1} />
             </span>
-            <p>내부 일정과 마감은 서버 schedules를 기준으로 대시보드와 버블에 같이 표시합니다.</p>
+            <p>내부 일정과 마감은 서버에 저장된 일정을 기준으로 대시보드와 버블에 같이 표시합니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">

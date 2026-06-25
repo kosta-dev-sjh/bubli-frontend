@@ -144,7 +144,7 @@ const defaultSurfaces: LinkedSurface[] = [
     sourceLabel: "버블 표시 데이터",
   },
   {
-    description: "마감과 일정은 같은 작업의 schedule 연결로 관리합니다.",
+    description: "마감과 일정은 같은 작업의 일정 정보로 함께 관리합니다.",
     id: "schedule",
     label: "일정",
     sourceLabel: "일정 연결 정보",
@@ -175,8 +175,8 @@ export function WbsTodoLinkagePanel({
           <Chip icon={<Workflow size={14} />}>WBS/TODO 연결</Chip>
           <h2>WBS 후보를 하나의 TODO로 연결</h2>
           <p>
-            에이전트 후보는 사용자가 승인하기 전까지 확정 데이터가 아닙니다. 승인된 작업만
-            tasks를 기준으로 여러 실행 화면에 함께 보입니다.
+            에이전트 후보는 사용자가 승인하기 전까지 확정 데이터가 아닙니다. 승인된 작업만 하나의
+            TODO를 기준으로 여러 실행 화면에 함께 보입니다.
           </p>
         </div>
         <StatusBadge tone={candidateTone[candidate.status]}>{candidateStatusCopy[candidate.status]}</StatusBadge>
@@ -228,7 +228,7 @@ export function WbsTodoLinkagePanel({
             <Chip>{task.idLabel}</Chip>
           </div>
           <ProgressBar label="진행률" value={task.progress} />
-          <p className={styles.taskNote}>복사본을 만들지 않고 같은 task를 각 화면에서 조회합니다.</p>
+          <p className={styles.taskNote}>복사본을 만들지 않고 같은 TODO를 각 화면에서 함께 봅니다.</p>
         </section>
 
         <section className={styles.surfaceGrid} aria-label="연결된 실행 화면">
@@ -261,7 +261,7 @@ export function WbsTodoLinkagePanel({
         <article>
           <Sparkles size={17} strokeWidth={2.1} />
           <h3>후보 생성</h3>
-          <p>에이전트는 WBS와 TODO 후보를 만들고 상태를 DRAFT로 둡니다.</p>
+          <p>에이전트는 WBS와 TODO 후보를 만들고 승인 전 상태로 둡니다.</p>
         </article>
         <article>
           <CheckCircle2 size={17} strokeWidth={2.1} />

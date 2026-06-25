@@ -112,7 +112,7 @@ const defaultCandidates: RequirementCandidate[] = [
   {
     category: "DATA",
     confidence: 79,
-    description: "후보는 승인 전까지 DRAFT 상태로 저장하고, 승인된 항목만 실제 작업 데이터로 반영합니다.",
+    description: "후보는 승인 전까지 검토 전 상태로 저장하고, 승인된 항목만 실제 작업 데이터로 반영합니다.",
     id: "candidate-data-draft",
     sourceLabel: "요구사항정의서_v1.3.pdf 6쪽",
     status: "HELD",

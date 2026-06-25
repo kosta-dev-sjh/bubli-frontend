@@ -64,15 +64,15 @@ const defaultEvidenceItems: DailySummaryEvidence[] = [
     description: "완료 TODO와 남은 TODO를 오늘 업무 기준으로 정리합니다.",
     id: "tasks",
     label: "TODO",
-    source: "tasks",
+    source: "서버 TODO",
     tone: "todo",
   },
   {
     countLabel: "3시간 42분",
-    description: "총 작업시간은 서버 time_logs 기준으로 계산합니다.",
+    description: "총 작업시간은 서버에 저장된 작업 시간 기록 기준으로 계산합니다.",
     id: "time",
     label: "작업 시간",
-    source: "time_logs",
+    source: "서버 작업시간",
     tone: "timer",
   },
   {
@@ -80,7 +80,7 @@ const defaultEvidenceItems: DailySummaryEvidence[] = [
     description: "오늘 일정과 지나간 마감을 함께 확인합니다.",
     id: "schedule",
     label: "일정",
-    source: "schedules",
+    source: "서버 일정",
     tone: "room",
   },
   {
@@ -88,7 +88,7 @@ const defaultEvidenceItems: DailySummaryEvidence[] = [
     description: "기기별 버블 사용 집계를 날짜 기준으로 합산합니다.",
     id: "widget",
     label: "버블 사용 집계",
-    source: "widget_daily_summaries",
+    source: "버블 사용 집계",
     tone: "personal",
   },
   {
@@ -96,7 +96,7 @@ const defaultEvidenceItems: DailySummaryEvidence[] = [
     description: "개인 에이전트 원문 대신 로컬 요약 참조만 하루정리에 씁니다.",
     id: "agent",
     label: "개인 에이전트 요약",
-    source: "local_agent_summaries",
+    source: "로컬 개인 에이전트 요약",
     tone: "agent",
   },
 ];

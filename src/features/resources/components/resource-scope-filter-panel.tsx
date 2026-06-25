@@ -111,7 +111,7 @@ export const defaultScopedResources: ScopedResource[] = [
     visibility: "PERSONAL",
   },
   {
-    detail: "개인 자료 · Tauri SQLite 색인",
+    detail: "개인 자료 · 관리 폴더에서 감지",
     id: "resource-4",
     state: "ready",
     title: "개인_아이디어_메모.txt",
