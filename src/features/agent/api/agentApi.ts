@@ -1,15 +1,19 @@
 import { apiRequest } from "@/lib/api/client";
-import type { AgentJobCreateResponse, AgentJobResponse } from "@/types/api/agent";
+import type { AgentJobCreateRequest, AgentJobResponse } from "@/types/api/agent";
 
 export type AnalyzeResourceRequest = {
+  idempotencyKey: string;
   resourceId: string;
-  projectRoomId?: string;
+  roomId?: string;
+};
+
+export type CreateAgentJobRequest = AgentJobCreateRequest & {
   idempotencyKey: string;
 };
 
 export const agentApi = {
-  analyzeResource({ idempotencyKey, ...body }: AnalyzeResourceRequest) {
-    return apiRequest<AgentJobCreateResponse>("/api/ai/analyze-resource", {
+  createJob({ idempotencyKey, ...body }: CreateAgentJobRequest) {
+    return apiRequest<AgentJobResponse>("/api/agent/jobs", {
       body,
       headers: {
         "Idempotency-Key": idempotencyKey,
@@ -18,7 +22,22 @@ export const agentApi = {
     });
   },
 
+  analyzeResource({ idempotencyKey, resourceId, roomId }: AnalyzeResourceRequest) {
+    return agentApi.createJob({
+      idempotencyKey,
+      jobType: "RESOURCE_ANALYSIS",
+      resourceIds: [resourceId],
+      roomId: roomId ?? null,
+      targetId: resourceId,
+      targetType: "RESOURCE",
+    });
+  },
+
   getJob(jobId: string) {
-    return apiRequest<AgentJobResponse>(`/api/agent-jobs/${jobId}`);
+    return apiRequest<AgentJobResponse>(`/api/agent/jobs/${jobId}`);
+  },
+
+  getJobEvents(jobId: string) {
+    return apiRequest<unknown[]>(`/api/agent/jobs/${jobId}/events`);
   },
 } as const;

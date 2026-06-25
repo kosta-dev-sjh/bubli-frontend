@@ -40,7 +40,7 @@ const outboxItems: OutboxItem[] = [
     operationType: "TIME_LOG",
     retryCount: 0,
     status: "PENDING",
-    target: "POST /api/time-logs/heartbeat",
+    target: "POST /api/time-logs/{id}/heartbeat",
     title: "타이머 heartbeat",
   },
   {
@@ -51,7 +51,7 @@ const outboxItems: OutboxItem[] = [
     operationType: "WIDGET_ROLLUP",
     retryCount: 2,
     status: "FAILED",
-    target: "POST /api/widget/usage-summaries",
+    target: "POST /api/widget/usage-rollups",
     title: "위젯 사용 집계",
   },
   {

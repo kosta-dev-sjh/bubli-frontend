@@ -43,9 +43,8 @@ const auditRows = [
 const apiRows = [
   ["GET", "/api/me/privacy-consents"],
   ["PATCH", "/api/me/privacy-consents"],
-  ["POST", "/api/activity/current-app"],
-  ["GET", "/api/activity/today"],
-  ["DELETE", "/api/activity/{id}"],
+  ["GET", "/api/activity-logs/today"],
+  ["DELETE", "/api/activity-logs/{id}"],
 ];
 
 export function PrivacyConsentPanel() {

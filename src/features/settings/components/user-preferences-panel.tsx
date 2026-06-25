@@ -57,8 +57,8 @@ const boundaries = [
 
 const apiRows = [
   ["PATCH", "/api/me", "이름, 프로필 이미지, 언어, 시간대"],
-  ["GET", "/api/me/preferences", "테마, 표시 밀도, 기본 프로젝트룸"],
-  ["PATCH", "/api/me/preferences", "사용자별 표시 설정 저장"],
+  ["GET", "/api/me/notification-preferences", "사용자별 알림 설정"],
+  ["GET", "/api/me/privacy-consents", "활동 감지와 로컬 기능 동의"],
 ];
 
 export function UserPreferencesPanel() {

@@ -1,36 +1,49 @@
 export type AgentJobStatus = "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELED";
 
-export type AgentJobTargetType = "RESOURCE" | "PROJECT_ROOM" | "CHAT_ROOM" | "DAILY_SUMMARY" | "LOCAL_SYNC";
+export type AgentJobTargetType = "RESOURCE" | "PROJECT_ROOM" | "DAILY_SUMMARY";
 
-export type AgentJobCreateResponse = {
-  jobId: string;
-  status: AgentJobStatus;
+export type AgentJobType =
+  | "RESOURCE_ANALYSIS"
+  | "DOCUMENT_REVIEW"
+  | "REQUIREMENT_SUGGESTION"
+  | "WBS_SUGGESTION"
+  | "TASK_SUGGESTION"
+  | "SCHEDULE_SUGGESTION"
+  | "DAILY_SUMMARY"
+  | "RESOURCE_SEARCH"
+  | "DOCUMENT_DRAFT";
+
+export type AgentJobCreateRequest = {
+  jobType: AgentJobType;
+  options?: Record<string, unknown>;
+  resourceIds?: string[];
+  roomId?: string | null;
+  targetId?: string | null;
   targetType: AgentJobTargetType;
-  targetId: string;
 };
 
-export type AgentJobFailure = {
-  errorCode: string;
-  errorMessage: string;
+export type AgentJobResponse = {
+  aiDocumentId?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  jobId: string;
+  resourceSummaryId?: string | null;
   retryable: boolean;
-};
-
-export type AgentJobResponse = AgentJobCreateResponse & {
-  progress?: number;
-  suggestionIds?: string[];
-  resourceAnalysisId?: string | null;
-  failure?: AgentJobFailure | null;
-  createdAt: string;
-  updatedAt: string;
+  status: AgentJobStatus;
+  suggestionIds: string[];
+  targetId?: string | null;
+  targetType: string;
 };
 
 export type AgentJobStatusChangedPayload = {
+  aiDocumentId?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
   jobId: string;
+  resourceSummaryId?: string | null;
+  retryable?: boolean;
   status: AgentJobStatus;
-  targetType: AgentJobTargetType;
-  targetId: string;
-  progress?: number;
-  failure?: AgentJobFailure | null;
+  targetId?: string | null;
+  targetType: string;
   suggestionIds?: string[];
-  resourceAnalysisId?: string | null;
 };

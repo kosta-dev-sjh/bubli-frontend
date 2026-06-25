@@ -78,7 +78,7 @@ const contracts: ContractArea[] = [
   {
     checks: ["jobId로 상태 조회", "후보만 생성", "확정 데이터는 target Service"],
     description: "에이전트 실행은 오래 걸릴 수 있으므로 agent job 상태와 이벤트를 함께 봅니다.",
-    endpoint: "/api/agent-jobs/{jobId}",
+    endpoint: "/api/agent/jobs/{jobId}",
     label: "agent_jobs",
     owner: "features/agent/api",
     progress: 86,
