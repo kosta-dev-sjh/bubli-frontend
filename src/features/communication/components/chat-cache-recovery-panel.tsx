@@ -73,7 +73,7 @@ export function ChatCacheRecoveryPanel({
           <div className="grid gap-1">
             <h2 className="m-0 text-[22px] font-[860] leading-tight text-[var(--color-text)]">{title}</h2>
             <p className="m-0 max-w-[720px] text-[14px] leading-6 text-[var(--color-muted)]">
-              서버 채팅 메시지가 원본입니다. Tauri SQLite 캐시는 최근 메시지를 빠르게 보여주기 위한 기기별 복제본입니다.
+              서버 채팅 메시지가 원본입니다. 기기 안 캐시는 최근 메시지를 빠르게 보여주기 위한 기기별 복제본입니다.
             </p>
           </div>
         </div>

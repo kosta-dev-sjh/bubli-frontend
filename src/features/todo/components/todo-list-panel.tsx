@@ -227,7 +227,7 @@ export function TodoListPanel({
                 </div>
 
                 <footer className={styles.todoFooter}>
-                  <span>승인한 후보는 확정 전까지 TODO로 만들지 않습니다.</span>
+                  <span>에이전트가 만든 후보는 사용자가 승인한 뒤에만 TODO로 만듭니다.</span>
                   <Button onClick={() => onOpenTodo?.(todo.id)} size="sm" variant="quiet">
                     자세히 보기
                   </Button>

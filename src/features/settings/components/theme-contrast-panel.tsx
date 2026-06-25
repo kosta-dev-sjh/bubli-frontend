@@ -48,7 +48,7 @@ export function ThemeContrastPanel() {
             <h2 className={styles.title}>밝은 화면은 맑게, 어두운 화면은 또렷하게 둡니다</h2>
             <p className={styles.summary}>
               테마는 사용자별 화면 설정이고, 고스트 모드는 버블별 표시 옵션입니다. 둘을 섞지 않고 저장 위치를 나눠야 웹 화면과
-              데스크탑 버블이 같은 기준으로 보입니다.
+              데스크톱 버블이 같은 기준으로 보입니다.
             </p>
           </div>
           <StatusBadge tone="personal">theme · ghost_mode</StatusBadge>

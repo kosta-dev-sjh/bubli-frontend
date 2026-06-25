@@ -29,7 +29,7 @@ export const RunningAnalysis: Story = {
       },
       {
         eventType: "started",
-        message: "에이전트 모듈이 문서 본문과 분류값을 읽어 분석을 시작했습니다.",
+        message: "에이전트가 문서 본문과 분류값을 읽어 분석을 시작했습니다.",
         timeLabel: "10:13",
       },
     ],
@@ -52,7 +52,7 @@ export const FailedWithRetry: Story = {
       },
       {
         eventType: "started",
-        message: "에이전트 모듈이 요구사항 후보 생성을 시작했습니다.",
+        message: "에이전트가 요구사항 후보 생성을 시작했습니다.",
         timeLabel: "13:03",
       },
       {
@@ -84,12 +84,12 @@ export const CompletedSuggestionJob: Story = {
       },
       {
         eventType: "started",
-        message: "에이전트 모듈이 계약 문서와 회의록을 읽어 후보 구조를 만들었습니다.",
+        message: "에이전트가 계약 문서와 회의록을 읽어 후보 구조를 만들었습니다.",
         timeLabel: "15:21",
       },
       {
         eventType: "succeeded",
-        message: "결과를 DRAFT 후보로 저장했습니다. 확정 반영은 사용자 승인 후 진행됩니다.",
+        message: "결과를 검토 전 후보로 저장했습니다. 확정 반영은 사용자 승인 후 진행됩니다.",
         timeLabel: "15:23",
       },
     ],

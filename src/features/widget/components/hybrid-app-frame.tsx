@@ -16,11 +16,11 @@ const webCards = [
 const localCards = [
   {
     title: "개인 관리 폴더",
-    body: "사용자가 지정한 폴더만 scan/watch 합니다. 전체 PC 자동 색인은 하지 않습니다.",
+    body: "사용자가 지정한 폴더만 살펴보고 변경을 감지합니다. 전체 PC 자동 색인은 하지 않습니다.",
     icon: FolderOpen,
   },
   {
-    title: "로컬 SQLite",
+    title: "기기 안 기록",
     body: "개인 에이전트 원문, 폴더 색인, 위젯 상세 이벤트, 복구 대기열을 기기 안에 둡니다.",
     icon: Database,
   },
@@ -38,8 +38,8 @@ const localCards = [
 
 const connectionRows = [
   ["메인 WebView", "/app", "회원 웹 앱 화면"],
-  ["Tauri 소통 창", "/app/desktop/communication", "같은 API, WebSocket, LiveKit 연결"],
-  ["보이스 연결", "API 서버 토큰", "LiveKit key와 secret은 서버 전용으로 관리"],
+  ["Tauri 소통 창", "/app/desktop/communication", "같은 서버와 실시간 연결"],
+  ["보이스 연결", "서버 발급 연결 정보", "보이스 key와 secret은 서버 전용으로 관리"],
   ["로컬 기능", "Tauri IPC", "폴더 선택, SQLite, 활동 감지, 위젯 복구"],
 ];
 
@@ -53,7 +53,7 @@ export function HybridAppFrame() {
         </div>
         <div className={styles.titleRow}>
           <div className={styles.titleGroup}>
-            <h2 className={styles.title}>같은 회원 웹 앱에 데스크탑 기능만 얹습니다</h2>
+            <h2 className={styles.title}>같은 회원 웹 앱에 데스크톱 기능만 얹습니다</h2>
             <p className={styles.summary}>
               Tauri 앱은 별도 서비스를 새로 만드는 방식이 아닙니다. 배포된 회원 웹 앱을 WebView로 열고, 앱에서만 필요한 버블,
               개인 관리 폴더, 로컬 SQLite, 활동 감지, 전용 소통 창을 붙입니다.
@@ -66,7 +66,7 @@ export function HybridAppFrame() {
             같은 회원 화면
           </Chip>
           <Chip icon={<MessageCircle size={14} aria-hidden="true" />}>소통 창 분리 가능</Chip>
-          <Chip icon={<Mic2 size={14} aria-hidden="true" />}>LiveKit 토큰은 서버 발급</Chip>
+          <Chip icon={<Mic2 size={14} aria-hidden="true" />}>보이스 연결은 서버 발급</Chip>
         </div>
       </header>
 

@@ -114,7 +114,7 @@ export function AgentSchemaValidationPanel({
           </span>
           <div>
             <h3>후보 저장</h3>
-            <p>검증된 결과만 DRAFT 후보로 저장하고 화면에 보여줍니다.</p>
+            <p>검증된 결과만 검토 전 후보로 저장하고 화면에 보여줍니다.</p>
           </div>
         </article>
       </div>

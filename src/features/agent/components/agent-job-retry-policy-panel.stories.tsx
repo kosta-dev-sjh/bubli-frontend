@@ -39,7 +39,7 @@ export const AllHealthy: Story = {
       status: "SUCCEEDED",
     })),
     policies: defaultRetryPolicies,
-    title: "에이전트 작업 정상 상태",
+    title: "에이전트 정리 작업 정상 상태",
   },
 };
 
@@ -57,6 +57,6 @@ export const RetryLimitReached: Story = {
     ),
     maxRetryCount: 3,
     policies: defaultRetryPolicies,
-    title: "재시도 제한 상태",
+    title: "다시 시도 제한 상태",
   },
 };

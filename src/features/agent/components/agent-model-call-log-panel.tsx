@@ -89,7 +89,7 @@ const statusMeta: Record<CallStatus, { label: string; tone: "success" | "warning
 const traceItems: TraceItem[] = [
   {
     icon: <Bot size={16} strokeWidth={2.1} />,
-    label: "에이전트 모듈",
+    label: "에이전트 역할",
     text: "문서 분석과 후보 정리를 맡고 확정 데이터는 만들지 않습니다.",
   },
   {
@@ -163,9 +163,9 @@ export function AgentModelCallLogPanel() {
           <Chip icon={<Activity size={14} />} selected>
             에이전트 처리 기록
           </Chip>
-          <h2>에이전트 결과는 작업, 질문 방식, 결과 형식, 모델 기준으로 추적합니다</h2>
+          <h2>에이전트 결과는 작업, 질문 방식, 결과 형식, 정리 모델 기준으로 추적합니다</h2>
           <p>
-            문서 분석 결과가 달라졌을 때 어떤 질문 방식과 결과 형식, 모델 기준으로 만들어졌는지 확인할 수 있어야
+            문서 분석 결과가 달라졌을 때 어떤 질문 방식과 결과 형식, 정리 모델 기준으로 만들어졌는지 확인할 수 있어야
             합니다. 이 로그는 결과 품질과 호출량을 관리하기 위한 근거입니다.
           </p>
         </div>
@@ -179,7 +179,7 @@ export function AgentModelCallLogPanel() {
       <div className={styles.flow} aria-label="모델 호출 추적 흐름">
         <span>정리 작업</span>
         <ArrowRight size={15} strokeWidth={2.1} />
-        <span>모델 호출</span>
+        <span>정리 모델</span>
         <ArrowRight size={15} strokeWidth={2.1} />
         <span>결과 형식 확인</span>
         <ArrowRight size={15} strokeWidth={2.1} />

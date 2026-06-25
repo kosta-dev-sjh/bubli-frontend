@@ -69,7 +69,7 @@ export const defaultAgentRetryJobs: AgentJob[] = [
   },
   {
     jobType: "WBS 후보 생성",
-    lastEventLabel: "에이전트 모듈 실행 중",
+    lastEventLabel: "에이전트 정리 진행 중",
     modelName: "gpt-4.1-mini",
     promptVersion: "wbs-draft-v2",
     retryCount: 0,

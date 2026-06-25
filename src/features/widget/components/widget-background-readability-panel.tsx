@@ -80,7 +80,7 @@ export const defaultReadabilityScenarios: BackgroundScenario[] = [
 export function WidgetBackgroundReadabilityPanel({
   className,
   scenarios,
-  title = "데스크탑 배경 가독성",
+  title = "데스크톱 배경 가독성",
   ...props
 }: WidgetBackgroundReadabilityPanelProps) {
   const passingCount = scenarios.filter((scenario) => scenario.result === "pass").length;
@@ -93,7 +93,7 @@ export function WidgetBackgroundReadabilityPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              위젯은 데스크탑 위에 남는 개인 영역이므로 배경이 바뀌어도 업무 내용이 먼저 읽혀야 합니다. 고스트
+              위젯은 데스크톱 위에 남는 개인 영역이므로 배경이 바뀌어도 업무 내용이 먼저 읽혀야 합니다. 고스트
               모드에서는 최소 글자 크기와 굵기를 올려 표시합니다.
             </p>
           </div>

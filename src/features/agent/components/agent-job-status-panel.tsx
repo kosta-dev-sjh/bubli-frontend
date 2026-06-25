@@ -80,7 +80,7 @@ const defaultSteps: AgentJobStep[] = [
     status: "SUCCEEDED",
   },
   {
-    description: "에이전트 모듈이 자료 요약과 확인 필요 항목을 구조화하고 있습니다.",
+    description: "에이전트가 자료 요약과 확인 필요 항목을 정리하고 있습니다.",
     id: "analyzing",
     label: "문서 분석",
     status: "RUNNING",
@@ -196,7 +196,7 @@ export function AgentJobStatusPanel({
           </div>
           <span>{progress}%</span>
         </div>
-        <ProgressBar label="에이전트 작업 진행률" value={progress} />
+        <ProgressBar label="에이전트 정리 진행률" value={progress} />
       </div>
 
       <div className={styles.grid}>
@@ -252,7 +252,7 @@ export function AgentJobStatusPanel({
           <strong>확정 반영 기준</strong>
         </div>
         <p>
-          에이전트 모듈은 후보 생성과 모델 호출 로그 기록까지만 맡습니다. 승인 전 후보 {draftCount}개는 실제 WBS,
+          에이전트는 후보 생성과 처리 기록까지만 맡습니다. 승인 전 후보 {draftCount}개는 실제 WBS,
           TODO, 일정에 반영하지 않습니다.
         </p>
       </footer>

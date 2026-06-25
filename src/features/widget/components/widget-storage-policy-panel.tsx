@@ -51,9 +51,9 @@ type WidgetStoragePolicyPanelProps = HTMLAttributes<HTMLElement> & {
 };
 
 const layerCopy: Record<WidgetStorageLayer, string> = {
-  LOCAL_CACHE: "로컬 캐시",
-  LOCAL_EVENT: "로컬 상세 이벤트",
-  LOCAL_ROLLUP: "로컬 집계",
+  LOCAL_CACHE: "기기 안 캐시",
+  LOCAL_EVENT: "기기 안 상세 기록",
+  LOCAL_ROLLUP: "기기 안 집계",
   SERVER_ORIGINAL: "서버 원본",
   SERVER_STATE: "서버 상태",
 };
@@ -247,7 +247,7 @@ export function WidgetStoragePolicyPanel({
           상세 이벤트 원문은 서버에 남기지 않고, 서버에는 항목 상태와 날짜별 집계만 저장합니다.
         </div>
         <Button icon={<Activity size={14} />} onClick={onRollupUsage} size="sm" variant="ghost">
-          로컬 집계 만들기
+          기기 안 집계 만들기
         </Button>
       </footer>
     </GlassPanel>
