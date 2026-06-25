@@ -3,7 +3,7 @@ import { AuthPanel, AuthRefreshRotationBoundaryPanel, AuthSessionSecurityPanel }
 export default function LoginPage() {
   return (
     <>
-      <AuthPanel mode="login" />
+      <AuthPanel />
       <div className="page-grid">
         <AuthSessionSecurityPanel />
         <AuthRefreshRotationBoundaryPanel />

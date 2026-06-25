@@ -88,7 +88,7 @@ npm run tauri:dev
 src/
 ├── app/              # Next.js App Router
 │   ├── (public)/     # 공개 사이트: /, /features, /download, /faq
-│   ├── (auth)/       # 인증: /login, /signup
+│   ├── (auth)/       # 인증: /login
 │   └── (workspace)/  # 회원 앱: /app, /app/projects, /app/resources, /app/chat
 ├── components/       # 공통 UI, 레이아웃, 도메인 카드, 버블 표시 컴포넌트
 ├── features/         # 도메인별 기능 코드

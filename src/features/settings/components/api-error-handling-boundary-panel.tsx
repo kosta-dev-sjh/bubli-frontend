@@ -49,7 +49,7 @@ const errorCases: ErrorCase[] = [
     action: "필드 하단에 표시",
     code: "VALIDATION_ERROR",
     description: "폼 입력 검증 실패는 화면 상단 경고와 필드별 reason을 함께 보여줍니다.",
-    fields: ["email", "password", "projectRoomName"],
+    fields: ["bubliId", "displayName", "projectRoomName"],
     icon: ListChecks,
     label: "입력 검증",
     owner: "lib/validators",
