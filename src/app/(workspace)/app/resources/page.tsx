@@ -1,5 +1,17 @@
 import { PageHeading } from "@/components/ui/page-heading";
-import { ResourceBoard } from "@/features/resources/components/resource-board";
+import {
+  defaultAnalysisSteps,
+  defaultAnalysisSuggestions,
+  defaultBoundarySteps,
+  defaultShareResources,
+  PersonalResourceShareBoundaryPanel,
+  ResourceAnalysisApprovalPanel,
+  ResourceBoard,
+  ResourceCommentThreadPanel,
+  ResourceProcessingStatusPanel,
+  ResourceUploadAnalysisPanel,
+  ResourceVersionHistoryPanel,
+} from "@/features/resources/components";
 
 export default function ResourcesPage() {
   return (
@@ -10,6 +22,24 @@ export default function ResourcesPage() {
       />
       <div className="page-grid">
         <ResourceBoard />
+        <ResourceUploadAnalysisPanel />
+        <ResourceProcessingStatusPanel />
+        <ResourceAnalysisApprovalPanel
+          confidence={86}
+          jobStatus="SUCCEEDED"
+          projectRoomName="신규 번역 프로젝트룸"
+          resourceName="번역계약서_v2.pdf"
+          steps={defaultAnalysisSteps}
+          suggestions={defaultAnalysisSuggestions}
+        />
+        <ResourceVersionHistoryPanel />
+        <ResourceCommentThreadPanel />
+        <PersonalResourceShareBoundaryPanel
+          resources={defaultShareResources}
+          selectedCount={2}
+          steps={defaultBoundarySteps}
+          targetProjectRoom="신규 번역 프로젝트룸"
+        />
       </div>
     </>
   );
