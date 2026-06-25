@@ -8,6 +8,7 @@ export * from "./friend-invite-panel";
 export * from "./friend-request-inbox";
 export * from "./friend-search-panel";
 export * from "./realtime-connection-status-panel";
+export * from "./room-agent-command";
 export * from "./tauri-communication-mode-panel";
 export * from "./voice-session-panel";
 export * from "./voice-token-safety-panel";
