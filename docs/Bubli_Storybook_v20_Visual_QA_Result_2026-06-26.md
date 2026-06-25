@@ -11,15 +11,15 @@
 | Storybook | `http://127.0.0.1:6006` |
 | 캡처 방식 | Playwright screenshot |
 | viewport | `1440 x 1000` |
-| 캡처 위치 | `output/playwright/storybook-v20-qa/` |
+| 캡처 위치 | `output/playwright/storybook-v20-qa/`, `output/playwright/storybook-v20-polish-followup/` |
 
 ## 2. 대표 Story 점검 결과
 
 | Story | 결과 | 판단 |
 |---|---|---|
-| `features-wbs-wbstodolinkagepanel--link-one-task-across-surfaces` | WBS 후보가 하나의 TODO로 확정되고 작업판, 대시보드, TODO 버블, 일정으로 연결되는 구조가 보인다. | 기획 방향 적합. 다만 `tasks`, `schedule` 같은 구현 용어는 polish 때 사용자 문구로 바꾼다. |
-| `features-widget-widgetdesktoppreview--default` | 위젯이 개인 영역이며 회원 웹 앱 위에 따로 뜨는 구조가 보인다. 서버 원본과 기기 안 기록 설명도 분리되어 있다. | 기획 방향 적합. v20의 비눗방울 림과 투명 질감은 더 살릴 필요가 있다. |
-| `features-communication-tauricommunicationmodepanel--web-chat-tab` | 웹은 `/app/chat`, Tauri는 별도 창/버블로 같은 서버 연결을 쓴다는 구조가 보인다. 보이스 연결 정보도 클라이언트 생성처럼 보이지 않는다. | 즉시 수정 필요 없음. |
+| `features-wbs-wbstodolinkagepanel--link-one-task-across-surfaces` | WBS 후보가 하나의 TODO로 확정되고 작업판, 대시보드, TODO 버블, 일정으로 연결되는 구조가 보인다. | 기획 방향 적합. `tasks`, `schedule` 같은 구현 용어는 사용자 문구로 낮췄다. |
+| `features-widget-widgetdesktoppreview--default` | 위젯이 개인 영역이며 회원 웹 앱 위에 따로 뜨는 구조가 보인다. 서버 원본과 기기 안 기록 설명도 분리되어 있다. | 기획 방향 적합. 공통 버블 림과 투명 질감을 1차 보강했다. |
+| `features-communication-tauricommunicationmodepanel--web-chat-tab` | 웹은 `/app/chat`, Tauri는 별도 창/버블로 같은 서버 연결을 쓴다는 구조가 보인다. 보이스 연결 정보도 클라이언트 생성처럼 보이지 않는다. | 헤더 칩이 가로로 늘어나는 표시 문제를 수정했다. |
 | `features-resources-resourceboard--default` | 개인 자료와 프로젝트룸 자료, 후보, 확인 필요 항목이 한 화면에서 구분된다. | 기획 방향 적합. 구현 표현은 `관리 폴더에서 감지`처럼 사용자 문구로 낮췄다. |
 | `features-agent-candidateapprovalpanel--default` | 에이전트 결과가 확정값이 아니라 후보로 보이고, 승인 후 반영 흐름이 분리되어 있다. | 즉시 수정 필요 없음. |
 | `features-auth-authpanel--login` | 자체 계정 입력 없이 Google 기반 진입으로 보인다. | H1 줄바꿈과 token 표현을 즉시 수정했다. |
@@ -39,12 +39,20 @@
 
 이 수정은 인증 구조 변경이 아니라, 사용자에게 보이는 문구와 긴 제목 줄바꿈을 정리한 것이다.
 
+추가로 v20 polish follow-up에서 아래 항목을 반영했다.
+
+| 항목 | 수정 |
+|---|---|
+| 공통 버블 질감 | `.bubli-surface`, `.bubli-bubble`의 림, 내부 하이라이트, 투명 글래스 그림자를 보강했다. |
+| 구현 용어 노출 | Storybook 화면의 `tasks`, `schedules`, `time_logs`, `DRAFT`, `Tauri SQLite` 표현을 사용자 문구로 낮췄다. |
+| Tauri 소통 패널 | 헤더 칩이 전체 폭으로 늘어나던 문제를 고치고, 캐시 표현을 기기 안 임시 보관으로 풀었다. |
+
 ## 4. 디자인보드 v20 polish로 넘길 항목
 
 | 묶음 | 해야 할 일 |
 |---|---|
-| 공통 문구 | 사용자 화면에서 `tasks`, `schedule`, `Tauri SQLite` 같은 구현 용어를 줄인다. |
-| 버블 질감 | 현재 글래스 카드 느낌이 강하다. 비눗방울 림, 좌상단 빛 호, 작은 내부 하이라이트를 더한다. |
+| 공통 문구 | 대표 Story의 구현 용어는 1차 정리했다. 이후 새 화면 추가 시 같은 기준으로 점검한다. |
+| 버블 질감 | 비눗방울 림과 내부 하이라이트를 1차 보강했다. 실제 앱 화면 조립 후 밀도와 대비를 다시 본다. |
 | 카드 밀도 | 기능 패널이 많아 정보가 무거워질 수 있다. 대표 화면별 카드 간격과 설명 길이를 줄인다. |
 | 공개/인증 화면 | 히어로와 로그인 화면의 큰 제목 줄바꿈을 viewport별로 다시 확인한다. |
 | 자료보드 | 기능 구조는 좋지만, 구현 저장소 설명은 사용자 행동 중심 문구로 바꾼다. |

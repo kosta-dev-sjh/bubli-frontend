@@ -13,6 +13,7 @@
 .titleBlock {
   display: grid;
   min-width: 0;
+  justify-items: start;
   gap: 12px;
 }
 

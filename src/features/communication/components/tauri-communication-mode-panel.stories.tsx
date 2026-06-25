@@ -44,7 +44,7 @@ const sharedConnections = [
     status: "ready" as const,
   },
   {
-    description: "채팅 메시지와 알림은 같은 실시간 연결을 쓰고, Tauri는 필요한 메시지만 캐시합니다.",
+    description: "채팅 메시지와 알림은 같은 실시간 연결을 쓰고, 앱은 필요한 메시지만 기기 안에 임시로 둡니다.",
     label: "같은 실시간 연결",
     status: "ready" as const,
   },
@@ -79,7 +79,7 @@ export const CommunicationBubble: Story = {
     sharedConnections: [
       ...sharedConnections,
       {
-        description: "최근 메시지와 알림 표시만 로컬 캐시에 남깁니다. 원본은 서버 채팅 기록입니다.",
+        description: "최근 메시지와 알림 표시만 기기 안에 임시로 남깁니다. 원본은 서버 채팅 기록입니다.",
         label: "기기 안 채팅 캐시",
         status: "checking" as const,
       },
