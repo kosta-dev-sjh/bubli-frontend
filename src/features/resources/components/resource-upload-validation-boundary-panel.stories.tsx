@@ -67,7 +67,7 @@ const meta = {
       <ResourceUploadValidationBoundaryPanel {...args} />
     </main>
   ),
-  title: "features/resources/ResourceUploadValidationBoundaryPanel",
+  title: "Features/Resources/ResourceUploadValidationBoundaryPanel",
 } satisfies Meta<typeof ResourceUploadValidationBoundaryPanel>;
 
 export default meta;

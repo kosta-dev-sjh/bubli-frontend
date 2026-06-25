@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "Todo/TodoListPanel",
+  title: "Features/Todo/TodoListPanel",
 } satisfies Meta<typeof TodoListPanel>;
 
 export default meta;

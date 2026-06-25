@@ -17,7 +17,7 @@ const meta = {
       },
     },
   },
-  title: "Timer/TimerRecoveryBoundaryPanel",
+  title: "Features/Timer/TimerRecoveryBoundaryPanel",
 } satisfies Meta<typeof TimerRecoveryBoundaryPanel>;
 
 export default meta;

@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Agent/AgentJobRetryPolicyPanel",
+  title: "Features/Agent/AgentJobRetryPolicyPanel",
 } satisfies Meta<typeof AgentJobRetryPolicyPanel>;
 
 export default meta;

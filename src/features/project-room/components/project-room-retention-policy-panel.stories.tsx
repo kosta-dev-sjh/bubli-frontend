@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "ProjectRoom/ProjectRoomRetentionPolicyPanel",
+  title: "Features/ProjectRoom/ProjectRoomRetentionPolicyPanel",
 } satisfies Meta<typeof ProjectRoomRetentionPolicyPanel>;
 
 export default meta;

@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Widget/WidgetTransparencyModePanel",
+  title: "Features/Widget/WidgetTransparencyModePanel",
 } satisfies Meta<typeof WidgetTransparencyModePanel>;
 
 export default meta;

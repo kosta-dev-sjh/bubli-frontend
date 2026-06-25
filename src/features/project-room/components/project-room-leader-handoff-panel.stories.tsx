@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "ProjectRoom/ProjectRoomLeaderHandoffPanel",
+  title: "Features/ProjectRoom/ProjectRoomLeaderHandoffPanel",
 } satisfies Meta<typeof ProjectRoomLeaderHandoffPanel>;
 
 export default meta;

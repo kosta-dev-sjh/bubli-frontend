@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "Resources/ContractReviewItemResolutionPanel",
+  title: "Features/Resources/ContractReviewItemResolutionPanel",
 } satisfies Meta<typeof ContractReviewItemResolutionPanel>;
 
 export default meta;

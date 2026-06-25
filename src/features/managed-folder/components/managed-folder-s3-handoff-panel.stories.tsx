@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "ManagedFolder/ManagedFolderS3HandoffPanel",
+  title: "Features/ManagedFolder/ManagedFolderS3HandoffPanel",
 } satisfies Meta<typeof ManagedFolderS3HandoffPanel>;
 
 export default meta;

@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "Agent/AgentJobEventTimelinePanel",
+  title: "Features/Agent/AgentJobEventTimelinePanel",
 } satisfies Meta<typeof AgentJobEventTimelinePanel>;
 
 export default meta;

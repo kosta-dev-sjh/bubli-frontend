@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Resources/PersonalResourceShareBoundaryPanel",
+  title: "Features/Resources/PersonalResourceShareBoundaryPanel",
 } satisfies Meta<typeof PersonalResourceShareBoundaryPanel>;
 
 export default meta;

@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "ProjectRoom/ProjectRoomInvitationResponsePanel",
+  title: "Features/ProjectRoom/ProjectRoomInvitationResponsePanel",
 } satisfies Meta<typeof ProjectRoomInvitationResponsePanel>;
 
 export default meta;

@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Calendar/CalendarConflictReviewPanel",
+  title: "Features/Calendar/CalendarConflictReviewPanel",
 } satisfies Meta<typeof CalendarConflictReviewPanel>;
 
 export default meta;

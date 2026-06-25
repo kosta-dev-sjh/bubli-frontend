@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "Resources/ResourceAnalysisCachePanel",
+  title: "Features/Resources/ResourceAnalysisCachePanel",
 } satisfies Meta<typeof ResourceAnalysisCachePanel>;
 
 export default meta;

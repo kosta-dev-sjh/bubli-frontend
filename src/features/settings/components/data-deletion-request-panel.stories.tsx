@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Settings/DataDeletionRequestPanel",
+  title: "Features/Settings/DataDeletionRequestPanel",
 } satisfies Meta<typeof DataDeletionRequestPanel>;
 
 export default meta;

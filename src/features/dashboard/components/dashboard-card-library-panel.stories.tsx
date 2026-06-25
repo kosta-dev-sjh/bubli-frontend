@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Dashboard/DashboardCardLibraryPanel",
+  title: "Features/Dashboard/DashboardCardLibraryPanel",
 } satisfies Meta<typeof DashboardCardLibraryPanel>;
 
 export default meta;

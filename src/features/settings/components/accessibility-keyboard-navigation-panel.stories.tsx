@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Settings/AccessibilityKeyboardNavigationPanel",
+  title: "Features/Settings/AccessibilityKeyboardNavigationPanel",
 } satisfies Meta<typeof AccessibilityKeyboardNavigationPanel>;
 
 export default meta;

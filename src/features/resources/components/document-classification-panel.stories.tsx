@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "Resources/DocumentClassificationPanel",
+  title: "Features/Resources/DocumentClassificationPanel",
 } satisfies Meta<typeof DocumentClassificationPanel>;
 
 export default meta;

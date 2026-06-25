@@ -17,7 +17,7 @@ const meta = {
       },
     },
   },
-  title: "Resources/PersonalResourceQuotaPanel",
+  title: "Features/Resources/PersonalResourceQuotaPanel",
 } satisfies Meta<typeof PersonalResourceQuotaPanel>;
 
 export default meta;

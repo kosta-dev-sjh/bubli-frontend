@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "Agent/AgentSchemaValidationPanel",
+  title: "Features/Agent/AgentSchemaValidationPanel",
 } satisfies Meta<typeof AgentSchemaValidationPanel>;
 
 export default meta;

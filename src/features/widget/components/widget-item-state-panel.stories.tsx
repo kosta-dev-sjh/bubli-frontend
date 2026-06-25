@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "Widget/WidgetItemStatePanel",
+  title: "Features/Widget/WidgetItemStatePanel",
 } satisfies Meta<typeof WidgetItemStatePanel>;
 
 export default meta;

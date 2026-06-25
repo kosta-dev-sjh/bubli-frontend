@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Widget/WidgetMotionPolicyPanel",
+  title: "Features/Widget/WidgetMotionPolicyPanel",
 } satisfies Meta<typeof WidgetMotionPolicyPanel>;
 
 export default meta;

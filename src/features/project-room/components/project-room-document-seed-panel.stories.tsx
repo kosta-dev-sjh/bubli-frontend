@@ -17,7 +17,7 @@ const meta = {
       },
     },
   },
-  title: "ProjectRoom/ProjectRoomDocumentSeedPanel",
+  title: "Features/ProjectRoom/ProjectRoomDocumentSeedPanel",
 } satisfies Meta<typeof ProjectRoomDocumentSeedPanel>;
 
 export default meta;

@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "Widget/WidgetMinimizedDockPanel",
+  title: "Features/Widget/WidgetMinimizedDockPanel",
 } satisfies Meta<typeof WidgetMinimizedDockPanel>;
 
 export default meta;

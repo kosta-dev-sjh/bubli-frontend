@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Widget/WidgetFontScalePanel",
+  title: "Features/Widget/WidgetFontScalePanel",
 } satisfies Meta<typeof WidgetFontScalePanel>;
 
 export default meta;

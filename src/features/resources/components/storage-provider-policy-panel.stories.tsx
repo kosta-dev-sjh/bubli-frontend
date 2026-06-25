@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "Resources/StorageProviderPolicyPanel",
+  title: "Features/Resources/StorageProviderPolicyPanel",
 } satisfies Meta<typeof StorageProviderPolicyPanel>;
 
 export default meta;

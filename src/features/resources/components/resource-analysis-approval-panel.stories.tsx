@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Resources/ResourceAnalysisApprovalPanel",
+  title: "Features/Resources/ResourceAnalysisApprovalPanel",
 } satisfies Meta<typeof ResourceAnalysisApprovalPanel>;
 
 export default meta;

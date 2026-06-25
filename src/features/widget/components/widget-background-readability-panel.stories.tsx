@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "Widget/WidgetBackgroundReadabilityPanel",
+  title: "Features/Widget/WidgetBackgroundReadabilityPanel",
 } satisfies Meta<typeof WidgetBackgroundReadabilityPanel>;
 
 export default meta;

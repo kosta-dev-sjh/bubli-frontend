@@ -35,7 +35,7 @@ const meta = {
       </section>
     </main>
   ),
-  title: "components/layout/WorkspaceTopbar",
+  title: "Layout/WorkspaceTopbar",
 } satisfies Meta<typeof WorkspaceTopbar>;
 
 export default meta;

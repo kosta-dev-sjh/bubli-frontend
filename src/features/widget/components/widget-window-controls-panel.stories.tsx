@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Widget/WidgetWindowControlsPanel",
+  title: "Features/Widget/WidgetWindowControlsPanel",
 } satisfies Meta<typeof WidgetWindowControlsPanel>;
 
 export default meta;

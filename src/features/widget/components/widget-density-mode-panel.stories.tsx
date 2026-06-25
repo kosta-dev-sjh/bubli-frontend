@@ -17,7 +17,7 @@ const meta = {
       },
     },
   },
-  title: "Widget/WidgetDensityModePanel",
+  title: "Features/Widget/WidgetDensityModePanel",
 } satisfies Meta<typeof WidgetDensityModePanel>;
 
 export default meta;

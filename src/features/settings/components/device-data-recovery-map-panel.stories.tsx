@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Settings/DeviceDataRecoveryMapPanel",
+  title: "Features/Settings/DeviceDataRecoveryMapPanel",
 } satisfies Meta<typeof DeviceDataRecoveryMapPanel>;
 
 export default meta;

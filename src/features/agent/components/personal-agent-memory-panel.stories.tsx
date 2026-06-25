@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Agent/PersonalAgentMemoryPanel",
+  title: "Features/Agent/PersonalAgentMemoryPanel",
 } satisfies Meta<typeof PersonalAgentMemoryPanel>;
 
 export default meta;

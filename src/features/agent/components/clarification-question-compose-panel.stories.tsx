@@ -17,7 +17,7 @@ const meta = {
       },
     },
   },
-  title: "Agent/ClarificationQuestionComposePanel",
+  title: "Features/Agent/ClarificationQuestionComposePanel",
 } satisfies Meta<typeof ClarificationQuestionComposePanel>;
 
 export default meta;

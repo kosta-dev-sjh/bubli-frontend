@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "Communication/TauriCommunicationModePanel",
+  title: "Features/Communication/TauriCommunicationModePanel",
 } satisfies Meta<typeof TauriCommunicationModePanel>;
 
 export default meta;

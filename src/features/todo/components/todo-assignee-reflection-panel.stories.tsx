@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Todo/TodoAssigneeReflectionPanel",
+  title: "Features/Todo/TodoAssigneeReflectionPanel",
 } satisfies Meta<typeof TodoAssigneeReflectionPanel>;
 
 export default meta;

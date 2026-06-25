@@ -17,7 +17,7 @@ const meta = {
       },
     },
   },
-  title: "Download/DesktopDownloadHandoffPanel",
+  title: "Features/Download/DesktopDownloadHandoffPanel",
 } satisfies Meta<typeof DesktopDownloadHandoffPanel>;
 
 export default meta;

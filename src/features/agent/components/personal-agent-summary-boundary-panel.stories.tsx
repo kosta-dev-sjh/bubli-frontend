@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Agent/PersonalAgentSummaryBoundaryPanel",
+  title: "Features/Agent/PersonalAgentSummaryBoundaryPanel",
 } satisfies Meta<typeof PersonalAgentSummaryBoundaryPanel>;
 
 export default meta;

@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Resources/DocumentMismatchReviewPanel",
+  title: "Features/Resources/DocumentMismatchReviewPanel",
 } satisfies Meta<typeof DocumentMismatchReviewPanel>;
 
 export default meta;

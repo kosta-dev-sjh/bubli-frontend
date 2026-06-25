@@ -12,7 +12,7 @@ const meta = {
       },
     },
   },
-  title: "Resources/ResourceDeleteRecoveryPanel",
+  title: "Features/Resources/ResourceDeleteRecoveryPanel",
 } satisfies Meta<typeof ResourceDeleteRecoveryPanel>;
 
 export default meta;

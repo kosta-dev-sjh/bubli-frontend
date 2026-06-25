@@ -16,7 +16,7 @@ const meta = {
       },
     },
   },
-  title: "Resources/ResourceScopeFilterPanel",
+  title: "Features/Resources/ResourceScopeFilterPanel",
 } satisfies Meta<typeof ResourceScopeFilterPanel>;
 
 export default meta;
