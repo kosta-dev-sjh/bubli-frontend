@@ -1,4 +1,4 @@
-import { Crown, Link2, Settings2, ShieldCheck, UserCheck, UserPlus, UsersRound } from "lucide-react";
+import { Crown, Settings2, ShieldCheck, UserCheck, UserPlus, UsersRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -100,15 +100,15 @@ export function MemberRolePanel() {
           <h3>관리 기준</h3>
           <div>
             <ShieldCheck size={17} strokeWidth={2.1} />
-            <p>프로젝트 리더는 멤버 초대, 초대 링크 관리, 프로젝트룸 설정 변경을 맡습니다.</p>
+            <p>프로젝트 리더는 멤버 초대, 역할 변경, 프로젝트룸 설정 변경을 맡습니다.</p>
           </div>
           <div>
             <Settings2 size={17} strokeWidth={2.1} />
             <p>마지막 프로젝트 리더는 바로 나갈 수 없고, 다른 멤버에게 리더 역할을 넘긴 뒤 나갑니다.</p>
           </div>
           <div>
-            <Link2 size={17} strokeWidth={2.1} />
-            <p>초대는 친구 목록에서 부르거나, 제한된 초대 링크로 프로젝트룸 참여 요청을 보낼 수 있습니다.</p>
+            <UserPlus size={17} strokeWidth={2.1} />
+            <p>초대는 수락된 친구 목록에서 기존 회원을 선택하는 방식으로 진행합니다.</p>
           </div>
         </GlassPanel>
       </div>

@@ -1,6 +1,6 @@
 # Bubli Frontend 폴더 구조
 
-이 문서는 최종 기획서 v14의 14장 API/화면 구조를 기준으로 Next.js와 Tauri 프론트 구조를 맞추기 위한 기준이다.
+이 문서는 최종 기획서 v15와 최신 `10_API-Design.md`의 API/화면 구조를 기준으로 Next.js와 Tauri 프론트 구조를 맞추기 위한 기준이다.
 
 ## 기준
 
@@ -66,7 +66,7 @@ src/app
 |---|---|
 | `features/auth` | 로그인, 회원가입, 사용자 세션 |
 | `features/dashboard` | 사용자 기준 대시보드 |
-| `features/project-room` | 프로젝트룸 생성, 설정, 멤버, 친구 기반 초대, 초대 링크 |
+| `features/project-room` | 프로젝트룸 생성, 설정, 멤버, 친구 기반 초대 |
 | `features/resources` | 개인 자료, 프로젝트룸 자료, 업로드, 문서 분석, 버전, 댓글 |
 | `features/agent` | agent_jobs, agent_suggestions, 문서 분석 후보, 문서 초안 후보, 후보 승인 전 표시 |
 | `features/wbs` | WBS 트리, 작업판, 후보 승인 후 작업 구조 표시. 백엔드 `work.wbs` API 사용 |
@@ -83,17 +83,17 @@ src/app
 각 기능 폴더의 `api/`에는 해당 기능에서 쓰는 API 호출 함수만 둔다. 공통 fetch 설정, 인증 헤더, 공통 응답 포맷, 에러 처리는 `src/lib/api`에서 관리한다.
 백엔드 Entity를 프론트 타입으로 직접 가정하지 않고, 백엔드 Response DTO 기준으로 `types/api`를 만든다.
 
-## v14 API 묶음과 프론트 위치
+## v15 API 묶음과 프론트 위치
 
-| v14 구간 | 프론트 위치 | 기준 |
+| v15/API 구간 | 프론트 위치 | 기준 |
 |---|---|---|
-| 14.1 공개 사이트와 회원 앱 라우트 | `src/app` | 실제 URL은 `/app` 기준으로 맞춘다 |
-| 14.2 프로젝트, 프로젝트룸, 자료 API | `features/project-room`, `features/resources` | 자료와 프로젝트룸 공유 권한을 화면에서 섞지 않는다 |
-| 14.3 에이전트, 작업, WBS API | `features/agent`, `features/todo`, `features/wbs`, `features/timer`, `features/widget` | 에이전트는 후보만 보여주고 확정은 API/core 승인 뒤 반영한다 |
-| 14.4 채팅, 알림, 일정, 위젯 API | `features/communication`, `features/notification`, `features/calendar`, `features/widget` | 채팅 원본은 서버 DB, Tauri는 캐시만 둔다 |
-| 14.5 사용자별 설정 API | `features/settings`, `features/managed-folder`, `features/activity` | 동의와 로컬 기능 설정을 분리한다 |
-| 14.6 Tauri 전용 API | `src/lib/tauri`, `src-tauri/src`, Tauri 관련 features | 로컬 접근은 IPC, 서버 반영은 HTTP API |
-| 14.7 보이스챗 API | `features/communication` | LiveKit key/secret은 클라이언트에 두지 않는다 |
+| 공개 사이트와 회원 앱 라우트 | `src/app` | 실제 URL은 `/app` 기준으로 맞춘다 |
+| 프로젝트룸, 멤버, 친구 초대, 자료 API | `features/project-room`, `features/resources` | 프로젝트와 프로젝트룸을 분리하지 않고 프로젝트룸 기준으로 맞춘다 |
+| 에이전트, 작업, WBS API | `features/agent`, `features/todo`, `features/wbs`, `features/timer`, `features/widget` | 에이전트는 후보만 보여주고 확정은 API/core 승인 뒤 반영한다 |
+| 채팅, 알림, 일정, 위젯 API | `features/communication`, `features/notification`, `features/calendar`, `features/widget` | 채팅 원본은 서버 DB, Tauri는 캐시만 둔다 |
+| 사용자별 설정 API | `features/settings`, `features/managed-folder`, `features/activity` | 동의와 로컬 기능 설정을 분리한다 |
+| Tauri 전용 API | `src/lib/tauri`, `src-tauri/src`, Tauri 관련 features | 로컬 접근은 IPC, 서버 반영은 HTTP API |
+| 보이스챗 API | `features/communication` | LiveKit key/secret은 클라이언트에 두지 않고 비회원 임시 참여 토큰을 만들지 않는다 |
 
 ## 공통 코드
 
@@ -154,7 +154,7 @@ src-tauri/src
 
 | HTTP API로 처리 | Tauri IPC로 처리 |
 |---|---|
-| 프로젝트룸, 멤버, 초대, 초대 링크 | 로컬 폴더 선택 |
+| 프로젝트룸, 멤버, 친구 초대 | 로컬 폴더 선택 |
 | 개인 자료와 프로젝트룸 자료 | 로컬 파일 scan/watch |
 | TODO, WBS, 일정, 알림 | SQLite 캐시와 무결성 확인 |
 | 채팅 원본 저장과 WebSocket 수신 | 프로젝트룸 채팅 캐시 재동기화 |

@@ -1,7 +1,6 @@
 import {
   CheckCircle2,
-  Copy,
-  Link2,
+  ShieldCheck,
   UserPlus,
   UsersRound,
 } from "lucide-react";
@@ -17,7 +16,6 @@ import { cn } from "@/lib/utils";
 import styles from "./project-room-invite-access-panel.module.css";
 
 type FriendInviteStatus = "FRIEND" | "INVITED" | "JOINED";
-type InviteLinkStatus = "ACTIVE" | "PAUSED";
 
 type FriendInvite = {
   displayName: string;
@@ -34,8 +32,6 @@ type InviteRule = {
 
 export type ProjectRoomInviteAccessPanelProps = HTMLAttributes<HTMLElement> & {
   friends: FriendInvite[];
-  inviteLinkStatus: InviteLinkStatus;
-  inviteLinkTitle: string;
   roomName: string;
   rules: InviteRule[];
   title?: string;
@@ -45,11 +41,6 @@ const friendStatusMeta: Record<FriendInviteStatus, { actionLabel: string; label:
   FRIEND: { actionLabel: "초대", label: "친구", tone: "personal" },
   INVITED: { actionLabel: "대기", label: "초대 보냄", tone: "pending" },
   JOINED: { actionLabel: "보기", label: "참여 중", tone: "approved" },
-};
-
-const linkStatusMeta: Record<InviteLinkStatus, { label: string; tone: StatusTone }> = {
-  ACTIVE: { label: "링크 사용 중", tone: "room" },
-  PAUSED: { label: "링크 일시 중지", tone: "warning" },
 };
 
 export const defaultInviteFriends: FriendInvite[] = [
@@ -80,13 +71,13 @@ export const defaultInviteRules: InviteRule[] = [
     tone: "personal",
   },
   {
-    description: "초대 링크는 필요할 때 열고, 입장 후 역할과 접근 범위는 서버가 다시 확인합니다.",
-    label: "링크 접근 확인",
+    description: "친구 관계가 수락된 기존 회원만 프로젝트룸 초대 대상에 표시합니다.",
+    label: "기존 회원만",
     tone: "room",
   },
   {
-    description: "초대 링크로 들어온 사용자는 로그인 후 수락해야 프로젝트룸 멤버가 됩니다.",
-    label: "로그인 후 수락",
+    description: "초대 수락 뒤에만 room_members 권한이 생기고 자료와 작업에 접근합니다.",
+    label: "수락 후 권한",
     tone: "approved",
   },
 ];
@@ -94,8 +85,6 @@ export const defaultInviteRules: InviteRule[] = [
 export function ProjectRoomInviteAccessPanel({
   className,
   friends,
-  inviteLinkStatus,
-  inviteLinkTitle,
   roomName,
   rules,
   title = "프로젝트룸 초대",
@@ -103,7 +92,6 @@ export function ProjectRoomInviteAccessPanel({
 }: ProjectRoomInviteAccessPanelProps) {
   const invitedCount = friends.filter((friend) => friend.status === "INVITED").length;
   const joinedCount = friends.filter((friend) => friend.status === "JOINED").length;
-  const linkStatus = linkStatusMeta[inviteLinkStatus];
 
   return (
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
@@ -113,8 +101,7 @@ export function ProjectRoomInviteAccessPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              프로젝트룸에는 친구를 불러와 초대하고, 필요할 때 로그인 사용자용 초대 링크를 함께 사용할 수 있습니다.
-              수락 뒤에만 멤버 권한이 생깁니다.
+              프로젝트룸에는 수락된 친구 목록에서 기존 회원을 불러옵니다. 수락 뒤에만 멤버 권한이 생깁니다.
             </p>
           </div>
         </div>
@@ -162,23 +149,23 @@ export function ProjectRoomInviteAccessPanel({
         <article className={styles.inviteCard}>
           <div className={styles.cardTop}>
             <span className={styles.iconTile}>
-              <Link2 size={18} strokeWidth={2.1} aria-hidden="true" />
+              <ShieldCheck size={18} strokeWidth={2.1} aria-hidden="true" />
             </span>
             <div>
-              <strong>{inviteLinkTitle}</strong>
-              <p>팀원이 친구 추가 전이라도 초대 링크로 입장 요청을 받을 수 있습니다.</p>
+              <strong>초대 제한</strong>
+              <p>친구가 아닌 사용자, 직접 주소 입력, 임시 참여는 프로젝트룸 초대에서 제외합니다.</p>
             </div>
-            <StatusBadge tone={linkStatus.tone}>{linkStatus.label}</StatusBadge>
+            <StatusBadge tone="warning">제외 기준</StatusBadge>
           </div>
           <div className={styles.linkBox}>
-            <span>project-room/invite/active-link</span>
-            <Button icon={<Copy size={15} strokeWidth={2.1} />} size="sm" variant="secondary">
-              복사
+            <span>친구 관계 확인 후 초대 요청 생성</span>
+            <Button icon={<UserPlus size={15} strokeWidth={2.1} />} size="sm" variant="secondary">
+              친구 선택
             </Button>
           </div>
           <div className={styles.statRow}>
             <span>초대 대기 {invitedCount}명</span>
-            <span>만료 설정 24시간</span>
+            <span>참여 중 {joinedCount}명</span>
           </div>
         </article>
 

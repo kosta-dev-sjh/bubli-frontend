@@ -142,7 +142,7 @@ export function CommunicationPanel() {
             <ul>
               <li>1:1 채팅은 친구 관계를 기준으로 엽니다.</li>
               <li>프로젝트룸 채팅과 보이스는 멤버 권한을 기준으로 엽니다.</li>
-              <li>초대 링크는 로그인 사용자 입장 요청에 사용합니다.</li>
+              <li>프로젝트룸 초대는 수락된 친구 목록에서 보냅니다.</li>
             </ul>
           </GlassPanel>
           <GlassPanel className="communication-panel__side-card">
