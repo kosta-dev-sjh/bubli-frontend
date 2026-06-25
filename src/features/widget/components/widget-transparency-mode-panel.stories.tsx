@@ -12,7 +12,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "v14의 widget_preferences.opacity, ghost_mode와 v20 디자인보드의 기본, 반투명, 고스트 위젯 표시 단계를 검토하는 패널입니다.",
+          "v15의 widget_preferences.opacity, ghost_mode와 v20 디자인보드의 기본, 반투명, 고스트 위젯 표시 단계를 검토하는 패널입니다.",
       },
     },
   },

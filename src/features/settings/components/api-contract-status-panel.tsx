@@ -166,7 +166,7 @@ export function ApiContractStatusPanel() {
       </GlassPanel>
 
       <div className={styles.flow}>
-        <span>기획서 v14</span>
+        <span>기획서 v15</span>
         <ArrowRight size={16} strokeWidth={2.1} />
         <span>백엔드 API 계약</span>
         <ArrowRight size={16} strokeWidth={2.1} />

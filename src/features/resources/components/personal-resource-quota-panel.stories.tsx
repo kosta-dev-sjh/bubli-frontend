@@ -13,7 +13,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "v14의 개인 자료함 동기화, 저장 용량, Tauri SQLite 로컬 색인 정책을 바탕으로 서버 반영 가능 여부를 보여주는 패널입니다.",
+          "v15의 개인 자료함 동기화, 저장 용량, Tauri SQLite 로컬 색인 정책을 바탕으로 서버 반영 가능 여부를 보여주는 패널입니다.",
       },
     },
   },

@@ -12,7 +12,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "v14의 user_preferences.font_scale와 v20 디자인보드의 90, 100, 115, 130 글자 크기 단계를 화면으로 검토하는 위젯 설정 패널입니다.",
+          "v15의 user_preferences.font_scale와 v20 디자인보드의 90, 100, 115, 130 글자 크기 단계를 화면으로 검토하는 위젯 설정 패널입니다.",
       },
     },
   },

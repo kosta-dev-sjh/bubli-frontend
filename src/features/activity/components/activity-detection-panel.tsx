@@ -33,7 +33,7 @@ const activitySources: ActivitySource[] = [
     duration: "19분",
     projectHint: "발표 정리",
     status: "local",
-    windowTitle: "Bubli v14 기획서",
+    windowTitle: "Bubli v15 기획서",
   },
 ];
 

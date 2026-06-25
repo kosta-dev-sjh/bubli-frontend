@@ -13,7 +13,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "v14의 user_preferences.density와 v20 디자인보드의 기본, 집중, 컴팩트 위젯 표시 밀도를 검토하는 패널입니다.",
+          "v15의 user_preferences.density와 v20 디자인보드의 기본, 집중, 컴팩트 위젯 표시 밀도를 검토하는 패널입니다.",
       },
     },
   },

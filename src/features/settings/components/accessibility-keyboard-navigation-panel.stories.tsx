@@ -12,7 +12,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "v14 NFR-16과 디자인보드 v20의 focus-visible 흐름을 기준으로, 자료 업로드, 후보 승인, 위젯 기본 조작을 키보드로 점검하는 패널입니다.",
+          "v15 NFR-16과 디자인보드 v20의 focus-visible 흐름을 기준으로, 자료 업로드, 후보 승인, 위젯 기본 조작을 키보드로 점검하는 패널입니다.",
       },
     },
   },
