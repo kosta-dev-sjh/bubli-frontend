@@ -1,6 +1,10 @@
 import { invokeTauri } from "@/lib/tauri/ipc";
 
 export const TAURI_COMMANDS = {
+  appReady: "app_ready",
+} as const;
+
+export const PLANNED_TAURI_COMMANDS = {
   backupLocalSqlite: "backup_local_sqlite",
   checkLocalSqliteIntegrity: "check_local_sqlite_integrity",
   flushSyncOutbox: "flush_sync_outbox",
@@ -18,6 +22,7 @@ export const TAURI_COMMANDS = {
 } as const;
 
 export type TauriCommandName = (typeof TAURI_COMMANDS)[keyof typeof TAURI_COMMANDS];
+export type PlannedTauriCommandName = (typeof PLANNED_TAURI_COMMANDS)[keyof typeof PLANNED_TAURI_COMMANDS];
 
 export type ManagedFolderSelection = {
   localFolderId: string;
@@ -90,59 +95,7 @@ export type TimerRecoveryState = {
 };
 
 export const tauriCommands = {
-  backupLocalSqlite() {
-    return invokeTauri<LocalBackupResult>(TAURI_COMMANDS.backupLocalSqlite);
-  },
-
-  checkLocalSqliteIntegrity() {
-    return invokeTauri<SqliteIntegrityResult>(TAURI_COMMANDS.checkLocalSqliteIntegrity);
-  },
-
-  flushSyncOutbox() {
-    return invokeTauri<SyncOutboxFlushResult>(TAURI_COMMANDS.flushSyncOutbox);
-  },
-
-  readActivityContext() {
-    return invokeTauri<ActivityContextResult>(TAURI_COMMANDS.readActivityContext);
-  },
-
-  recoverTimerState() {
-    return invokeTauri<TimerRecoveryState>(TAURI_COMMANDS.recoverTimerState);
-  },
-
-  recordWidgetUsageEvent(input: WidgetUsageEventInput) {
-    return invokeTauri<null>(TAURI_COMMANDS.recordWidgetUsageEvent, input);
-  },
-
-  restoreLocalSqliteBackup(backupId: string) {
-    return invokeTauri<SqliteIntegrityResult>(TAURI_COMMANDS.restoreLocalSqliteBackup, { backupId });
-  },
-
-  rollupWidgetUsage(summaryDate: string) {
-    return invokeTauri<WidgetUsageRollupResult[]>(TAURI_COMMANDS.rollupWidgetUsage, { summaryDate });
-  },
-
-  scanManagedFolder(localFolderId: string) {
-    return invokeTauri<ManagedFolderScanResult>(TAURI_COMMANDS.scanManagedFolder, { localFolderId });
-  },
-
-  searchLocalFiles(query: string) {
-    return invokeTauri<LocalFileSearchResult>(TAURI_COMMANDS.searchLocalFiles, { query });
-  },
-
-  selectManagedFolder() {
-    return invokeTauri<ManagedFolderSelection>(TAURI_COMMANDS.selectManagedFolder);
-  },
-
-  syncRoomMessages(chatRoomId: string) {
-    return invokeTauri<null>(TAURI_COMMANDS.syncRoomMessages, { chatRoomId });
-  },
-
-  syncWidgetUsageSummary(summaryDate: string) {
-    return invokeTauri<null>(TAURI_COMMANDS.syncWidgetUsageSummary, { summaryDate });
-  },
-
-  watchManagedFolder(localFolderId: string) {
-    return invokeTauri<null>(TAURI_COMMANDS.watchManagedFolder, { localFolderId });
+  appReady() {
+    return invokeTauri<string>(TAURI_COMMANDS.appReady);
   },
 } as const;
