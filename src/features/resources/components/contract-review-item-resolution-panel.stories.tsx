@@ -95,7 +95,7 @@ export const ResolvedItems: Story = {
           { documentName: "견적서", value: "참고 디자인 제공" },
           { documentName: "요구사항 문서", value: "디자인 시스템 별도 협의" },
         ],
-        description: "현재 프로젝트 관리 기준에 넣지 않기로 제외 처리했습니다.",
+        description: "현재 프로젝트룸 관리 기준에 넣지 않기로 제외 처리했습니다.",
         fieldLabel: "디자인 참고 조건",
         id: "review-005",
         severity: "low",
