@@ -1,5 +1,6 @@
 import { PageHeading } from "@/components/ui/page-heading";
-import { WbsTodoBoard } from "@/features/wbs/components/wbs-todo-board";
+import { TodoDetailPanel } from "@/features/todo/components";
+import { WbsTodoBoard, WbsTodoLinkagePanel } from "@/features/wbs/components";
 
 type ProjectRoomWorkPageProps = {
   params: Promise<{
@@ -17,7 +18,9 @@ export default async function ProjectRoomWorkPage({ params }: ProjectRoomWorkPag
         description={`프로젝트룸 ${roomId}의 WBS, TODO, 칸반, 타임라인을 같은 작업 기준으로 봅니다.`}
       />
       <div className="page-grid">
+        <WbsTodoLinkagePanel />
         <WbsTodoBoard />
+        <TodoDetailPanel />
       </div>
     </>
   );
