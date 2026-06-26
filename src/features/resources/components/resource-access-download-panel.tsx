@@ -22,7 +22,7 @@ const accessCards = [
     tone: "personal" as const,
     icon: UserRound,
     rules: [
-      ["접근 기준", "owner_id가 현재 사용자와 같을 때만 열람"],
+      ["접근 기준", "자료를 올린 본인만 열람"],
       ["다운로드", "서버 권한 확인 후 다운로드 주소 발급"],
       ["공유", "사용자가 프로젝트룸 공유를 승인한 뒤에만 전환"],
     ],
@@ -48,14 +48,14 @@ const accessCards = [
     rules: [
       ["허용 범위", "권한 없음"],
       ["차단 범위", "자료, WBS, 일정, 멤버 목록, 다운로드"],
-      ["근거", "room_members ACTIVE 확인 실패"],
+      ["근거", "프로젝트룸 멤버 권한 없음"],
     ],
   },
 ];
 
 const flowSteps = [
   ["자료 선택", "자료보드에서 개인 자료 또는 프로젝트룸 자료를 선택"],
-  ["visibility 확인", "PERSONAL과 ROOM_SHARED 기준을 먼저 판별"],
+  ["자료 범위 확인", "개인 자료와 프로젝트룸 자료 기준을 먼저 판별"],
   ["권한 확인", "소유자 또는 프로젝트룸 멤버 상태를 서버에서 확인"],
   ["다운로드 주소 발급", "권한이 맞을 때만 짧게 쓰는 주소를 반환"],
   ["원본 접근", "스토리지 원본은 서버 권한 흐름 밖에서 열지 않음"],
@@ -64,7 +64,7 @@ const flowSteps = [
 const policyChecks = [
   "개인 자료함 동기화는 프로젝트룸 공유와 분리합니다.",
   "개인 자료를 프로젝트룸에 보낼 때는 사용자의 공유 승인이 필요합니다.",
-  "Tauri SQLite 캐시는 빠른 표시와 복구용이며 권한 원본이 아닙니다.",
+  "기기 안 임시 보관은 빠른 표시와 복구용이며 권한 기준이 아닙니다.",
   "자료 다운로드는 클라이언트가 스토리지 원본을 직접 여는 흐름으로 만들지 않습니다.",
 ];
 
@@ -91,7 +91,7 @@ export function ResourceAccessDownloadPanel() {
               사용할 주소를 내려주는 흐름으로 처리합니다.
             </p>
           </div>
-          <StatusBadge tone="approved">서버 원본 기준</StatusBadge>
+          <StatusBadge tone="approved">권한 확인 기준</StatusBadge>
         </div>
         <div className={styles.chips} aria-label="자료 권한 핵심 기준">
           <Chip selected icon={<LockKeyhole size={14} aria-hidden="true" />}>
@@ -137,9 +137,9 @@ export function ResourceAccessDownloadPanel() {
         <div className={styles.flowTitle}>
           <div>
             <h3>다운로드 흐름</h3>
-            <p>클라이언트는 자료 원본 위치를 판단하지 않고, API 서버의 권한 확인 결과만 사용합니다.</p>
+            <p>화면은 자료 원본 위치를 직접 판단하지 않고, 서버의 권한 확인 결과만 사용합니다.</p>
           </div>
-          <StatusBadge tone="pending">download-url</StatusBadge>
+          <StatusBadge tone="pending">다운로드 주소</StatusBadge>
         </div>
         <div className={styles.flow}>
           {flowSteps.map(([title, body], index) => (
@@ -165,18 +165,18 @@ export function ResourceAccessDownloadPanel() {
           </ul>
         </div>
         <div className={styles.policyCard}>
-          <h3>연결 API 후보</h3>
+          <h3>연결 방식 후보</h3>
           <div className={styles.apiList}>
             {apiRows.map(([method, path]) => (
               <div className={styles.apiRow} key={path}>
-                <StatusBadge tone={method === "GET" ? "success" : "pending"}>{method}</StatusBadge>
+                <StatusBadge tone={method === "GET" ? "success" : "pending"}>{method === "GET" ? "조회" : "변경"}</StatusBadge>
                 <span className={styles.apiPath}>{path}</span>
               </div>
             ))}
           </div>
           <div className={styles.checkItem}>
             <FileCheck2 size={16} aria-hidden="true" />
-            <span>최종 API 계약이 바뀌면 feature API layer에서만 경로와 DTO를 맞춥니다.</span>
+            <span>최종 연결 방식이 바뀌면 화면이 아니라 연결부에서만 맞춥니다.</span>
           </div>
         </div>
       </section>

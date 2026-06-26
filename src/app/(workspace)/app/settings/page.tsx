@@ -62,7 +62,7 @@ const accessBoundaryItems = [
     note: "자료보드에서 프로젝트룸 공유를 선택한 뒤에만 room_resource 흐름으로 넘어갑니다.",
     ownerLabel: "사용자 소유",
     status: "allowed" as const,
-    storageLabel: "서버 DB + S3",
+    storageLabel: "서버 자료 저장소",
     tone: "personal" as const,
   },
   {
@@ -72,7 +72,7 @@ const accessBoundaryItems = [
     note: "프로젝트와 프로젝트룸은 분리하지 않고 project_room 하나를 업무 단위로 씁니다.",
     ownerLabel: "프로젝트룸 기준",
     status: "limited" as const,
-    storageLabel: "서버 DB + S3",
+    storageLabel: "서버 자료 저장소",
     tone: "room" as const,
   },
   {

@@ -139,7 +139,7 @@ export function ResourceAnalysisApprovalPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<FileSearch size={16} strokeWidth={2.1} />}>resource_analysis</Chip>
+          <Chip icon={<FileSearch size={16} strokeWidth={2.1} />}>분석 후보</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>

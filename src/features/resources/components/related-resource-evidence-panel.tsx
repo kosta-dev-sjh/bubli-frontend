@@ -184,7 +184,7 @@ export function RelatedResourceEvidencePanel({
               <span>1</span>
               <div>
                 <strong>접근 가능한 자료만 조회</strong>
-                <p>개인 자료는 owner 기준, 프로젝트룸 자료는 room_members 기준으로 확인합니다.</p>
+                <p>개인 자료는 올린 사람 기준, 프로젝트룸 자료는 멤버 권한 기준으로 확인합니다.</p>
               </div>
             </li>
             <li>

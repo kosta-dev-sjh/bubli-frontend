@@ -88,7 +88,7 @@ export const defaultQuotaRules: QuotaRule[] = [
     tone: "personal",
   },
   {
-    description: "용량 안에 있는 파일만 서버 DB와 S3의 개인 자료함에 반영합니다.",
+    description: "용량 안에 있는 파일만 서버 개인 자료함에 반영합니다.",
     label: "서버 반영 제한",
     tone: "todo",
   },
@@ -119,8 +119,8 @@ export function PersonalResourceQuotaPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              개인 자료함 동기화는 사용자별 용량 안에서만 서버에 반영합니다. 용량을 넘은 파일은 Tauri SQLite의
-              로컬 색인에는 남겨 검색할 수 있지만, 서버 업로드와 프로젝트룸 공유 단계로 넘어가지 않습니다.
+              개인 자료함 동기화는 사용자별 용량 안에서만 서버에 반영합니다. 용량을 넘은 파일은 기기 안
+              색인에는 남겨 검색할 수 있지만, 서버 업로드와 프로젝트룸 공유 단계로 넘어가지 않습니다.
             </p>
           </div>
         </div>
@@ -171,10 +171,10 @@ export function PersonalResourceQuotaPanel({
         <div className={styles.fileHeader}>
           <div>
             <strong>로컬 색인 파일</strong>
-            <p>서버 전송 전에도 Tauri SQLite에서 검색하고 상태를 확인합니다.</p>
+            <p>서버 전송 전에도 기기 안 색인에서 검색하고 상태를 확인합니다.</p>
           </div>
           <Button icon={<Search size={15} strokeWidth={2.1} />} size="sm" variant="quiet">
-            로컬에서 찾기
+            기기 안에서 찾기
           </Button>
         </div>
         <div className={styles.fileStack}>

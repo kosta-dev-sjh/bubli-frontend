@@ -136,8 +136,8 @@ const analysisCacheMetrics = [
   {
     description: "같은 파일인지 먼저 확인합니다.",
     icon: "hash" as const,
-    label: "파일 hash",
-    value: "sha256",
+    label: "파일 지문",
+    value: "같은 파일 확인",
   },
   {
     description: "기존 결과가 있으면 다시 분석하지 않습니다.",
@@ -155,7 +155,7 @@ const analysisCacheMetrics = [
     description: "원본 자료와 분석 결과를 분리합니다.",
     icon: "result" as const,
     label: "분석 결과",
-    value: "resource_analysis",
+    value: "후보로 보관",
   },
 ];
 
@@ -163,14 +163,14 @@ const analysisCacheEntries = [
   {
     description: "문서 종류와 주요 값 후보를 기존 분석 결과에서 불러왔습니다.",
     fileName: "번역계약서_v2.pdf",
-    hashLabel: "sha256: a91e",
+    hashLabel: "파일 지문 a91e",
     status: "hit" as const,
     updatedAtLabel: "오늘 10:22",
   },
   {
     description: "수정된 파일이라 새 분석 작업이 필요합니다.",
     fileName: "요구사항정의서_v1.4.pdf",
-    hashLabel: "sha256: f042",
+    hashLabel: "파일 지문 f042",
     status: "miss" as const,
     updatedAtLabel: "방금 업로드",
   },

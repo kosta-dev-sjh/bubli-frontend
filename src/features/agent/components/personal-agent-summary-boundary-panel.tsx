@@ -44,9 +44,9 @@ export type PersonalAgentSummaryBoundaryPanelProps = HTMLAttributes<HTMLElement>
 };
 
 const sideMeta: Record<StorageSide, { label: string; tone: StatusTone; icon: typeof HardDrive }> = {
-  LOCAL_ONLY: { icon: HardDrive, label: "로컬 원문", tone: "personal" },
-  LOCAL_SUMMARY: { icon: Archive, label: "로컬 요약", tone: "pending" },
-  SERVER_APPROVED: { icon: Cloud, label: "승인 후 서버", tone: "approved" },
+  LOCAL_ONLY: { icon: HardDrive, label: "기기 안 원문", tone: "personal" },
+  LOCAL_SUMMARY: { icon: Archive, label: "기기 안 요약", tone: "pending" },
+  SERVER_APPROVED: { icon: Cloud, label: "확인 후 저장", tone: "approved" },
 };
 
 const statusMeta: Record<BoundaryStatus, { label: string; tone: StatusTone }> = {
@@ -57,7 +57,7 @@ const statusMeta: Record<BoundaryStatus, { label: string; tone: StatusTone }> = 
 
 export const defaultBoundaryItems: BoundaryItem[] = [
   {
-    description: "개인 에이전트와 나눈 최근 대화 원문입니다. 서버에 올리지 않고 Tauri SQLite에만 둡니다.",
+    description: "개인 에이전트와 나눈 최근 대화 원문입니다. 서버에 올리지 않고 기기 안에만 둡니다.",
     label: "최근 대화 원문",
     side: "LOCAL_ONLY",
     status: "ACTIVE",
@@ -79,19 +79,19 @@ export const defaultBoundaryItems: BoundaryItem[] = [
 export const defaultSummaryInputs: SummaryInput[] = [
   {
     label: "완료 TODO",
-    source: "서버 TODO",
+    source: "완료한 TODO",
     tone: "todo",
     value: "4개",
   },
   {
     label: "총 작업시간",
-    source: "서버 작업시간",
+    source: "작업 시간 기록",
     tone: "timer",
     value: "3h 42m",
   },
   {
     label: "버블 사용 집계",
-    source: "서버 버블 사용 집계",
+    source: "버블 사용 집계",
     tone: "agent",
     value: "8회",
   },
@@ -122,13 +122,13 @@ export function PersonalAgentSummaryBoundaryPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              개인 에이전트 대화 원문은 기기 안에 둡니다. 하루정리는 서버 원본 데이터와 로컬 요약을 함께 참고하되,
+              개인 에이전트 대화 원문은 기기 안에 둡니다. 하루정리는 확정된 기록과 기기 안 요약을 함께 참고하되,
               사용자가 확인한 결과만 서버에 저장합니다.
             </p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>로컬 원문 제한</span>
+          <span>기기 안 원문 제한</span>
           <strong>{localMessageLimit}개</strong>
           <StatusBadge tone="personal">기기 안 보관</StatusBadge>
         </div>
@@ -170,7 +170,7 @@ export function PersonalAgentSummaryBoundaryPanel({
                 <HardDrive size={16} strokeWidth={2.1} aria-hidden="true" />
               </span>
               <div>
-                <b>로컬 보관</b>
+                <b>기기 안 보관</b>
                 <p>개인 대화 원문과 상세 맥락은 서버에 남기지 않습니다.</p>
               </div>
               <strong>{localOnlyCount}종</strong>
@@ -180,14 +180,14 @@ export function PersonalAgentSummaryBoundaryPanel({
                 <Cloud size={16} strokeWidth={2.1} aria-hidden="true" />
               </span>
               <div>
-                <b>서버 저장</b>
+                <b>확인 후 저장</b>
                 <p>사용자가 확인한 하루정리 결과만 서버에서 다시 불러올 수 있습니다.</p>
               </div>
               <strong>{serverSavedCount}종</strong>
             </div>
           </div>
           <ProgressBar value={64} />
-          <p className={styles.policyNote}>원문을 무한히 쌓지 않고, 오래된 대화는 로컬 요약 뒤 정리합니다.</p>
+          <p className={styles.policyNote}>원문을 무한히 쌓지 않고, 오래된 대화는 기기 안 요약 뒤 정리합니다.</p>
         </section>
 
         <section className={styles.inputCard} aria-label="하루정리 입력값">
@@ -211,11 +211,11 @@ export function PersonalAgentSummaryBoundaryPanel({
       <footer className={styles.footer}>
         <div className={styles.notice}>
           <ShieldCheck size={16} strokeWidth={2.1} aria-hidden="true" />
-          <span>개인 원문은 로컬 백업 없이는 복구할 수 없습니다. 확인한 하루정리만 서버에서 복구됩니다.</span>
+          <span>개인 원문은 기기 안 백업 없이는 복구할 수 없습니다. 확인한 하루정리만 서버에서 복구됩니다.</span>
         </div>
         <div className={styles.actions}>
           <Button icon={<FileClock size={15} strokeWidth={2.1} />} size="sm" variant="quiet">
-            로컬 요약 보기
+            기기 안 요약 보기
           </Button>
           <Button icon={<CheckCircle2 size={15} strokeWidth={2.1} />} size="sm" variant="primary">
             하루정리 저장

@@ -16,19 +16,19 @@ type MemoryItem = {
 const memoryItems: MemoryItem[] = [
   {
     description: "최근 개인 에이전트 대화 원문",
-    label: "local_agent_messages",
+    label: "최근 원문 대화",
     status: "local",
     value: "최근 96개",
   },
   {
-    description: "하루정리에 참조할 로컬 요약",
-    label: "local_agent_summaries",
+    description: "하루정리에 참조할 기기 안 요약",
+    label: "기기 안 요약",
     status: "summary",
     value: "3개",
   },
   {
-    description: "암호화된 로컬 백업 목록",
-    label: "local_backup_manifest",
+    description: "암호화된 기기 안 백업 목록",
+    label: "기기 안 백업 목록",
     status: "backup",
     value: "최근 7개",
   },
@@ -36,7 +36,7 @@ const memoryItems: MemoryItem[] = [
 
 const statusMeta: Record<MemoryItem["status"], { label: string; tone: "personal" | "agent" | "success" }> = {
   backup: { label: "백업", tone: "success" },
-  local: { label: "로컬 원문", tone: "personal" },
+  local: { label: "기기 안 원문", tone: "personal" },
   summary: { label: "요약", tone: "agent" },
 };
 
@@ -65,8 +65,8 @@ export function LocalAgentMemoryPanel() {
             <Chip selected>개인 에이전트</Chip>
             <h2>개인 대화 원문은 기기 안에 두고, 사용자가 확인한 요약만 서버에 남깁니다</h2>
             <p>
-              개인 에이전트의 최근 대화는 Tauri SQLite에 단기기억으로 저장합니다. 하루정리로 보낼 내용은 사용자가
-              확인한 요약만 daily_summaries에 연결합니다.
+              개인 에이전트의 최근 대화는 기기 안에 단기기억으로 저장합니다. 하루정리로 보낼 내용은 사용자가
+              확인한 요약만 저장 흐름에 연결합니다.
             </p>
           </div>
         </div>
@@ -85,7 +85,7 @@ export function LocalAgentMemoryPanel() {
               <h3>기억과 백업 상태</h3>
               <p>최근 100개를 기준으로 유지하고, 초과분은 요약하거나 삭제 후보로 보냅니다.</p>
             </div>
-            <Chip icon={<HardDrive size={14} />}>Tauri SQLite</Chip>
+            <Chip icon={<HardDrive size={14} />}>기기 안 저장소</Chip>
           </div>
 
           <div className="local-agent-memory__cards">
@@ -96,7 +96,7 @@ export function LocalAgentMemoryPanel() {
 
           <footer className="local-agent-memory__actions">
             <Button icon={<Archive size={15} />} size="sm" variant="primary">
-              로컬 백업 만들기
+              기기 안 백업 만들기
             </Button>
             <Button icon={<RotateCcw size={15} />} size="sm" variant="quiet">
               무결성 검사
@@ -110,25 +110,25 @@ export function LocalAgentMemoryPanel() {
             <span className="bubli-icon-tile" aria-hidden="true">
               <MessageCircle size={16} strokeWidth={2.1} />
             </span>
-            <p>개인 에이전트 원문 대화는 서버 DB에 저장하지 않습니다.</p>
+            <p>개인 에이전트 원문 대화는 서버에 저장하지 않습니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <CheckCircle2 size={16} strokeWidth={2.1} />
             </span>
-            <p>사용자가 확인한 하루정리 결과만 서버 daily_summaries에 저장합니다.</p>
+            <p>사용자가 확인한 하루정리 결과만 다시 볼 수 있게 저장합니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <Database size={16} strokeWidth={2.1} />
             </span>
-            <p>프로젝트룸 채팅은 별도 구조이며, 서버 chat_messages가 원본입니다.</p>
+            <p>프로젝트룸 채팅은 협업 기록이므로 서버 기록을 기준으로 봅니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <ShieldCheck size={16} strokeWidth={2.1} />
             </span>
-            <p>로컬 백업은 기기 안에 보관하고, 복구 실패 시 원문 복구가 불가능함을 안내합니다.</p>
+            <p>기기 안 백업은 해당 기기에 보관하고, 복구 실패 시 원문 복구가 불가능함을 안내합니다.</p>
           </div>
         </GlassPanel>
       </div>

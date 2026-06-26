@@ -59,7 +59,7 @@ const resourceItems: [ResourceBoardItem, ...ResourceBoardItem[]] = [
     title: "번역계약서_v2.pdf",
   },
   {
-    agentSummary: "개인 관리 폴더에서 감지된 파일입니다. 서버 원본 자료로 올릴지 선택해야 합니다.",
+    agentSummary: "개인 관리 폴더에서 감지된 파일입니다. 자료보드에 저장할지 선택해야 합니다.",
     body: "개인 관리 폴더에서 감지된 정리 메모입니다.",
     id: "local-folder-note",
     meta: "개인 자료 · 관리 폴더에서 감지",

@@ -48,9 +48,9 @@ const policyCards: Array<{
     label: "로컬 검증",
   },
   {
-    description: "최종 파일 원본은 S3에 두고, 서버 DB에는 접근 판단에 필요한 메타데이터를 남깁니다.",
+    description: "최종 파일 원본은 서버 저장소에 두고, 접근 판단에 필요한 자료 정보를 함께 남깁니다.",
     icon: <Cloud size={18} strokeWidth={2.1} />,
-    label: "S3 저장",
+    label: "서버 저장",
   },
   {
     description: "파일 경로가 아니라 로그인 사용자, visibility, 프로젝트룸 권한으로 내려받기를 판단합니다.",
@@ -112,7 +112,7 @@ export function StorageProviderPolicyPanel({
             <strong>{limitLabel}</strong>
           </div>
           <p className={styles.helperText}>
-            용량을 넘으면 로컬 색인은 유지하고, 서버 업로드만 막습니다.
+            용량을 넘으면 기기 안 색인은 유지하고, 서버 업로드만 막습니다.
           </p>
         </section>
 

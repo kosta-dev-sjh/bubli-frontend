@@ -46,9 +46,9 @@ export type PersonalAgentMemoryPanelProps = HTMLAttributes<HTMLElement> & {
 };
 
 const locationMeta: Record<MemoryLocation, { label: string; tone: StatusTone }> = {
-  LOCAL_ONLY: { label: "로컬 원문", tone: "personal" },
-  LOCAL_SUMMARY: { label: "로컬 요약", tone: "agent" },
-  SERVER_APPROVED: { label: "승인 후 서버", tone: "approved" },
+  LOCAL_ONLY: { label: "기기 안 원문", tone: "personal" },
+  LOCAL_SUMMARY: { label: "기기 안 요약", tone: "agent" },
+  SERVER_APPROVED: { label: "확인 후 저장", tone: "approved" },
 };
 
 const statusMeta: Record<MemoryStatus, { actionLabel: string; label: string; tone: StatusTone }> = {
@@ -60,26 +60,26 @@ const statusMeta: Record<MemoryStatus, { actionLabel: string; label: string; ton
 
 export const defaultPersonalAgentMemoryItems: MemoryItem[] = [
   {
-    description: "개인 에이전트 원문 대화는 Tauri SQLite에 최근 대화 중심으로 남깁니다.",
-    label: "local_agent_messages",
+    description: "개인 에이전트 원문 대화는 최근 대화 중심으로 기기 안에 남깁니다.",
+    label: "최근 원문 대화",
     location: "LOCAL_ONLY",
     status: "ACTIVE",
   },
   {
-    description: "오래된 원문은 로컬 요약으로 줄이고, 상세 원문을 서버로 보내지 않습니다.",
-    label: "local_agent_summaries",
+    description: "오래된 원문은 기기 안 요약으로 줄이고, 상세 원문을 서버로 보내지 않습니다.",
+    label: "기기 안 요약",
     location: "LOCAL_SUMMARY",
     status: "ROLLUP_READY",
   },
   {
-    description: "사용자가 확인한 하루정리 결과만 daily_summaries에 저장할 수 있습니다.",
-    label: "daily_summaries",
+    description: "사용자가 확인한 하루정리 결과만 다시 볼 수 있게 저장합니다.",
+    label: "확인한 하루정리",
     location: "SERVER_APPROVED",
     status: "APPROVED",
   },
   {
     description: "개인 로컬 데이터는 암호화된 기기 안 백업 목록으로 관리합니다.",
-    label: "local_backup_manifest",
+    label: "기기 안 백업 목록",
     location: "LOCAL_ONLY",
     status: "BACKUP_READY",
   },
@@ -87,17 +87,17 @@ export const defaultPersonalAgentMemoryItems: MemoryItem[] = [
 
 export const defaultPersonalAgentMemoryRules: MemoryRule[] = [
   {
-    description: "개인 에이전트 원문은 서버 DB에 저장하지 않고 Tauri SQLite에 둡니다.",
-    label: "원문 로컬 보관",
+    description: "개인 에이전트 원문은 서버에 저장하지 않고 기기 안에 둡니다.",
+    label: "원문 기기 보관",
     tone: "personal",
   },
   {
-    description: "최근 대화가 기준을 넘으면 로컬 요약이나 삭제 후보로 넘겨 단기기억 크기를 관리합니다.",
+    description: "최근 대화가 기준을 넘으면 기기 안 요약이나 삭제 후보로 넘겨 단기기억 크기를 관리합니다.",
     label: "단기기억 제한",
     tone: "agent",
   },
   {
-    description: "하루정리는 사용자가 확인한 결과만 서버에 저장하며, 로컬 원문 복구와 구분합니다.",
+    description: "하루정리는 사용자가 확인한 결과만 저장하며, 기기 안 원문 복구와 구분합니다.",
     label: "승인 요약 저장",
     tone: "approved",
   },
@@ -121,7 +121,7 @@ export function PersonalAgentMemoryPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<Sparkles size={16} strokeWidth={2.1} />}>local_agent_messages</Chip>
+          <Chip icon={<Sparkles size={16} strokeWidth={2.1} />}>개인 에이전트</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
@@ -143,7 +143,7 @@ export function PersonalAgentMemoryPanel({
             <HardDrive size={19} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <StatusBadge tone="personal">Tauri SQLite</StatusBadge>
+            <StatusBadge tone="personal">기기 안 보관</StatusBadge>
             <h3>최근 원문 대화</h3>
             <p>개인 에이전트의 원문 단기기억은 기기 안에서만 유지합니다.</p>
           </div>
@@ -157,7 +157,7 @@ export function PersonalAgentMemoryPanel({
             {usedMessageCount}/{messageLimit}개
           </Chip>
           <h3>단기기억 사용량</h3>
-          <p>기준을 넘기기 전에 로컬 요약이나 정리 후보로 넘깁니다.</p>
+          <p>기준을 넘기기 전에 기기 안 요약이나 정리 후보로 넘깁니다.</p>
           <ProgressBar label="개인 에이전트 단기기억 사용량" value={usagePercent} />
           <Button size="sm" variant="secondary">
             하루정리 확인
@@ -169,7 +169,7 @@ export function PersonalAgentMemoryPanel({
             <Server size={19} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <StatusBadge tone="approved">서버 DB</StatusBadge>
+            <StatusBadge tone="approved">확인 후 저장</StatusBadge>
             <h3>승인된 요약</h3>
             <p>사용자가 확인한 하루정리 결과만 서버에서 다시 조회할 수 있습니다.</p>
           </div>
@@ -190,7 +190,7 @@ export function PersonalAgentMemoryPanel({
         <article>
           <span>원문 복구</span>
           <strong>백업</strong>
-          <StatusBadge tone="room">로컬 기준</StatusBadge>
+          <StatusBadge tone="room">기기 기준</StatusBadge>
         </article>
       </section>
 

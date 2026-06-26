@@ -34,7 +34,7 @@ const decisionCards: DecisionCard[] = [
     description:
       "사용자가 확인한 뒤 자료 원본과 버전을 서버 자료보드에 기록하고 에이전트 정리 작업을 시작합니다.",
     icon: <Database size={18} strokeWidth={2.1} />,
-    meta: "resources / resource_versions / agent_jobs",
+    meta: "자료 원본 · 버전 · 에이전트 정리 작업 기록",
     steps: [
       { label: "용량 확인", description: "개인 자료함 용량과 파일 크기를 확인" },
       { label: "권한 확인", description: "개인 자료 또는 프로젝트룸 자료 범위 선택" },
@@ -46,7 +46,7 @@ const decisionCards: DecisionCard[] = [
     description:
       "원본을 자료보드에 등록하지 않고 현재 대화에서만 요약과 확인 항목을 살펴봅니다.",
     icon: <MessageSquareText size={18} strokeWidth={2.1} />,
-    meta: "current chat context / temporary analysis",
+    meta: "현재 대화 안에서만 확인",
     steps: [
       { label: "현재 대화", description: "대화 안에서만 결과 확인" },
       { label: "원본 미등록", description: "resources 레코드를 만들지 않음" },
@@ -59,8 +59,8 @@ const decisionCards: DecisionCard[] = [
 const boundaries = [
   {
     icon: <HardDrive size={16} strokeWidth={2.1} />,
-    label: "Tauri 로컬 파일",
-    text: "개인 관리 폴더 파일은 먼저 local_files와 local_file_events에 색인됩니다.",
+    label: "기기 안 파일",
+    text: "개인 관리 폴더 파일은 먼저 기기 안에서 감지하고 변경 기록을 남깁니다.",
   },
   {
     icon: <FolderInput size={16} strokeWidth={2.1} />,
@@ -91,7 +91,7 @@ function DecisionCardView({ card }: { card: DecisionCard }) {
           <p>{card.description}</p>
         </div>
       </div>
-      <code>{card.meta}</code>
+          <p className={styles.metaText}>{card.meta}</p>
       <ol className={styles.stepList}>
         {card.steps.map((step) => (
           <li key={step.label}>
@@ -126,7 +126,7 @@ export function ResourceUploadDecision() {
             </span>
             <div>
               <h3>번역계약서_v2.pdf</h3>
-              <p>PDF · 2.4MB · Tauri 개인 관리 폴더에서 선택</p>
+              <p>PDF · 2.4MB · 개인 관리 폴더에서 선택</p>
             </div>
           </div>
           <div className={styles.fileMeta}>
@@ -156,7 +156,7 @@ export function ResourceUploadDecision() {
         <GlassPanel className={styles.boundaryPanel}>
           <h3>저장 경계</h3>
           <p>
-            같은 파일이라도 로컬 색인, 개인 자료함 저장, 프로젝트룸 공유는 서로 다른 단계입니다.
+            같은 파일이라도 기기 안 색인, 개인 자료함 저장, 프로젝트룸 공유는 서로 다른 단계입니다.
           </p>
           <div className={styles.boundaryList}>
             {boundaries.map((item) => (

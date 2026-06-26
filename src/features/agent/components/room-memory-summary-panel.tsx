@@ -134,12 +134,12 @@ export function RoomMemorySummaryPanel() {
         <GlassPanel>
           <Server size={18} strokeWidth={2.1} />
           <h3>채팅 원본</h3>
-          <p>프로젝트룸 채팅과 1:1 채팅은 협업 기록이므로 서버 원본을 기준으로 봅니다.</p>
+          <p>프로젝트룸 채팅과 1:1 채팅은 협업 기록이므로 서버 기록을 기준으로 봅니다.</p>
         </GlassPanel>
         <GlassPanel>
           <MessageSquareText size={18} strokeWidth={2.1} />
-          <h3>Tauri 빠른 표시</h3>
-          <p>Tauri 앱은 최근 메시지를 먼저 보여주고, 빠진 메시지는 서버에서 보충합니다.</p>
+          <h3>앱 빠른 표시</h3>
+          <p>앱은 최근 메시지를 먼저 보여주고, 빠진 메시지는 서버에서 보충합니다.</p>
         </GlassPanel>
         <GlassPanel>
           <Database size={18} strokeWidth={2.1} />

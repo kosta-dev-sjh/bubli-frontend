@@ -26,7 +26,7 @@ const sharedConnections = [
     status: "ready" as const,
   },
   {
-    description: "채팅 메시지는 서버 원본과 실시간 연결 기준으로 동기화합니다.",
+    description: "채팅 메시지는 서버 기록과 실시간 연결 기준으로 동기화합니다.",
     label: "같은 실시간 연결",
     status: "ready" as const,
   },

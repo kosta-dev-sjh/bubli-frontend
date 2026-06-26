@@ -132,14 +132,14 @@ const modelCalls = [
     modelName: "문서 정리",
     promptVersion: "계약 검토 기준",
     schemaVersion: "후보 형식 확인",
-    tokenLabel: "보통",
+    usageLabel: "보통",
   },
   {
     latencyLabel: "1.4s",
     modelName: "하루 정리",
     promptVersion: "작업 요약 기준",
     schemaVersion: "하루정리 형식",
-    tokenLabel: "가벼움",
+    usageLabel: "가벼움",
   },
 ];
 

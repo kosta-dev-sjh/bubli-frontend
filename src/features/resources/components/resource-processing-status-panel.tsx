@@ -267,8 +267,8 @@ export function ResourceProcessingStatusPanel({
             <li>
               <CheckCircle2 size={17} strokeWidth={2.1} />
               <div>
-                <strong>서버 원본 기준</strong>
-                <p>자료 파일과 분석 상태는 서버 원본을 기준으로 복구할 수 있게 둡니다.</p>
+                <strong>서버 기록 기준</strong>
+                <p>자료 파일과 분석 상태는 서버 기록을 기준으로 복구할 수 있게 둡니다.</p>
               </div>
             </li>
             <li>

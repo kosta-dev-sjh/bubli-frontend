@@ -91,7 +91,7 @@ const defaultChecks: DownloadCheckItem[] = [
     status: "PASSED",
   },
   {
-    description: "개인 자료는 owner 기준, 프로젝트룸 자료는 room_members 기준으로 확인합니다.",
+    description: "개인 자료는 올린 사람 기준, 프로젝트룸 자료는 멤버 권한 기준으로 확인합니다.",
     id: "resource-scope",
     label: "자료 접근 권한",
     status: "PASSED",

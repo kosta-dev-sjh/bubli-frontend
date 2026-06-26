@@ -61,7 +61,7 @@ export function ResourceAnalysisCachePanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              같은 파일 hash는 다시 모델 호출하지 않고 분석 캐시를 먼저 확인합니다. 새 분석이 필요할 때만 agent job을 만들고, 결과는 자료 원본과 분리해 저장합니다.
+              같은 파일인지 먼저 확인해 기존 분석 결과를 다시 쓸 수 있는지 봅니다. 새 분석이 필요할 때만 에이전트 정리 작업을 만들고, 결과는 자료와 분리해 저장합니다.
             </p>
           </div>
         </div>
@@ -92,8 +92,8 @@ export function ResourceAnalysisCachePanel({
             <ShieldCheck size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <h3>hash 확인</h3>
-            <p>업로드된 파일의 hash와 이전 분석 결과를 비교합니다.</p>
+            <h3>파일 지문 확인</h3>
+            <p>업로드된 파일이 이전에 분석한 파일과 같은지 비교합니다.</p>
           </div>
         </article>
         <article>
@@ -110,8 +110,8 @@ export function ResourceAnalysisCachePanel({
             <BrainCircuit size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <h3>agent job 생성</h3>
-            <p>새 분석이 필요할 때만 job을 만들고 상태를 추적합니다.</p>
+            <h3>에이전트 정리 작업</h3>
+            <p>새 분석이 필요할 때만 정리 작업을 만들고 상태를 추적합니다.</p>
           </div>
         </article>
         <article>
@@ -120,7 +120,7 @@ export function ResourceAnalysisCachePanel({
           </span>
           <div>
             <h3>결과 분리 저장</h3>
-            <p>자료 원본과 분석 결과를 resource_analysis로 나눠 둡니다.</p>
+            <p>사용자가 올린 자료와 에이전트 분석 결과를 분리해 둡니다.</p>
           </div>
         </article>
       </div>

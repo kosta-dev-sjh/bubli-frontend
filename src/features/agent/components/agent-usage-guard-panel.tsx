@@ -22,7 +22,7 @@ export type AgentModelCallSummary = {
   modelName: string;
   promptVersion: string;
   schemaVersion: string;
-  tokenLabel: string;
+  usageLabel: string;
 };
 
 export type AgentUsageGuardPanelProps = HTMLAttributes<HTMLElement> & {
@@ -150,7 +150,7 @@ export function AgentUsageGuardPanel({
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                <Chip>{call.tokenLabel}</Chip>
+                <Chip>{call.usageLabel}</Chip>
                 <Chip>{call.latencyLabel}</Chip>
                 {call.errorCode ? <StatusBadge tone="warning">{call.errorCode}</StatusBadge> : <StatusBadge tone="success">성공</StatusBadge>}
               </div>

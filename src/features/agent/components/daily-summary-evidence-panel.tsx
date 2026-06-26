@@ -92,11 +92,11 @@ const defaultEvidenceItems: DailySummaryEvidence[] = [
     tone: "personal",
   },
   {
-    countLabel: "로컬 요약 1개",
-    description: "개인 에이전트 원문 대신 로컬 요약 참조만 하루정리에 씁니다.",
+    countLabel: "기기 안 요약 1개",
+    description: "개인 에이전트 원문 대신 기기 안 요약 참조만 하루정리에 씁니다.",
     id: "agent",
     label: "개인 에이전트 요약",
-    source: "로컬 개인 에이전트 요약",
+    source: "기기 안 개인 에이전트 요약",
     tone: "agent",
   },
 ];
@@ -126,7 +126,7 @@ export function DailySummaryEvidencePanel({
           <div>
             <StatusBadge tone={statusTone[status]}>{statusCopy[status]}</StatusBadge>
             <h2>하루정리 근거 확인</h2>
-            <p>서버 원본과 로컬 요약을 모아 후보를 만들고, 사용자가 확인한 요약만 서버에 저장합니다.</p>
+            <p>확정된 기록과 기기 안 요약을 모아 후보를 만들고, 사용자가 확인한 요약만 저장합니다.</p>
           </div>
         </div>
         <div className={styles.actions}>
@@ -143,7 +143,7 @@ export function DailySummaryEvidencePanel({
         <div>
           <Chip>{dateLabel}</Chip>
           <strong>{approvedSourceCount} / {totalSourceCount}개 근거 준비</strong>
-          <span>서버 저장 대상은 daily_summaries의 summary_json과 source_range_json입니다.</span>
+          <span>저장 대상은 사용자가 확인한 요약과 근거 범위입니다.</span>
         </div>
         <ProgressBar label="하루정리 근거 준비율" value={evidencePercent} />
       </div>
@@ -162,13 +162,13 @@ export function DailySummaryEvidencePanel({
         />
         <BoundaryItem
           icon={<LockKeyhole size={17} />}
-          label="로컬에만 남는 값"
+          label="기기 안에만 남는 값"
           value="개인 에이전트 원문과 상세 위젯 이벤트 원문은 기기 안에 둡니다."
         />
         <BoundaryItem
           icon={<ArchiveRestore size={17} />}
           label="복구 기준"
-          value="승인된 요약은 서버에서 다시 불러오고, 로컬 원문은 백업이 없으면 복구하지 못합니다."
+          value="승인된 요약은 서버에서 다시 불러오고, 기기 안 원문은 백업이 없으면 복구하지 못합니다."
         />
       </div>
 
@@ -178,7 +178,7 @@ export function DailySummaryEvidencePanel({
           {localContextLabel}
         </div>
         <Button icon={<ArchiveRestore size={14} />} onClick={onCreateLocalBackup} size="sm" variant="ghost">
-          로컬 백업 만들기
+          기기 안 백업 만들기
         </Button>
       </footer>
     </GlassPanel>
