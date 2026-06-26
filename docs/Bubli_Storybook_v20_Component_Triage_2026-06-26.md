@@ -67,6 +67,8 @@ npm run storybook
 npm run check:storybook
 ```
 
+PR에서는 `npm run build-storybook`이 CI에 포함된다. 대표 story 스모크 점검은 빠르게 보는 용도이고, 전체 Storybook 빌드는 story 파일 전체가 번들 단계에서 깨지지 않는지 확인하는 기준이다.
+
 | 묶음 | Story | 결과 |
 |---|---|---|
 | 공개 진입 | `features-publicsite-publichero--default` | 통과 |
@@ -160,7 +162,7 @@ npm run check:smoke
 |---|---:|---|
 | 1차 컴포넌트 추출 | 100% | Storybook story 149개와 feature component 141개가 있고, AtoZ 기준 누락 5종을 모두 실제 컴포넌트로 추가했다. |
 | 라우트 연결 | 약 98% | 주요 라우트 15개가 Next dev 서버에서 모두 200 응답으로 확인됐다. 남은 점검은 실제 클릭, 모바일 폭, 상호작용 확인이다. |
-| Storybook 대표 점검 | 약 81% | 대표 story 15개 iframe 응답과 Storybook index 존재를 자동 스모크 명령으로 반복 확인할 수 있다. 아직 픽셀, 모바일, 상호작용, 접근성 점검은 남아 있다. |
+| Storybook 대표 점검 | 약 83% | 대표 story 15개 iframe 응답과 Storybook index 존재를 자동 스모크 명령으로 반복 확인할 수 있고, PR CI에서 전체 Storybook 빌드까지 확인한다. 아직 픽셀, 모바일, 상호작용, 접근성 점검은 남아 있다. |
 | 디자인보드 v20 정합화 | 약 49% | 공통 버블 질감과 일부 문구는 보정했지만, 지금은 P0/P1이 우선이다. 디자인 전면 개편은 P2에서 클로드 작업 결과와 함께 크게 반영한다. |
 | API 계약 반영 | 약 20% | API client 위치와 일부 타입은 있으나, 확정 DTO와 payload가 오면 교체해야 한다. |
 | Tauri 경계 검증 | 약 43% | Tauri IPC wrapper와 관리 폴더/위젯/소통 경계 story는 있고, 소통 창/버블, 기기 안 저장소, 타이머 복구, 전송 대기열, 관리 폴더 반영 흐름, 공개/다운로드 하이브리드 앱, 소통/실시간 연결, 설정/기기 권한/위젯, 데스크탑 버블 라우트의 실제 화면과 정책 점검 분리, 에이전트 요청의 서버 경유 문구를 1차 보정했다. 실제 앱 연결 검증은 더 필요하다. |
