@@ -127,8 +127,8 @@ export function LocalBackupRecoveryPanel() {
       <div className="local-backup__policy">
         <GlassPanel>
           <CheckCircle2 size={18} strokeWidth={2.1} />
-          <h3>서버 원본 데이터</h3>
-          <p>프로젝트룸 채팅과 위젯 표시 데이터는 서버 원본을 기준으로 다시 가져옵니다.</p>
+          <h3>서버 기록 데이터</h3>
+          <p>프로젝트룸 채팅과 위젯 표시 데이터는 서버 기록을 기준으로 다시 가져옵니다.</p>
         </GlassPanel>
         <GlassPanel>
           <AlertTriangle size={18} strokeWidth={2.1} />

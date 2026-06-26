@@ -12,7 +12,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "v15의 개인정보, Tauri SQLite, 서버 원본 데이터 분리 기준을 바탕으로 설정 화면에서 데이터 삭제와 내보내기 요청 범위를 보여주는 패널입니다.",
+          "v15의 개인정보, 기기 안 저장소, 서버 기록 데이터 분리 기준을 바탕으로 설정 화면에서 데이터 삭제와 내보내기 요청 범위를 보여주는 패널입니다.",
       },
     },
   },
@@ -34,7 +34,7 @@ export const LocalOnlyCleanup: Story = {
   args: {
     checks: defaultDeletionChecks,
     options: defaultDeletionOptions.filter((option) => option.scope === "LOCAL_TAURI"),
-    title: "로컬 데이터 정리",
+    title: "기기 안 데이터 정리",
   },
 };
 

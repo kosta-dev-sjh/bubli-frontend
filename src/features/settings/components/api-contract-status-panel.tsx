@@ -31,65 +31,65 @@ type ContractArea = {
 
 const contracts: ContractArea[] = [
   {
-    checks: ["access token은 메모리", "refresh token은 cookie 또는 OS secure storage"],
+    checks: ["짧은 로그인 세션", "기기별 안전 보관"],
     description: "구글 OAuth 시작은 서버 리다이렉트를 사용하고, 토큰 재발급과 내 정보 조회는 공통 응답 형식에 맞춰 연결합니다.",
-    endpoint: "/oauth2/authorization/google",
+    endpoint: "서버 로그인 시작",
     label: "인증",
-    owner: "features/auth/api",
+    owner: "인증 연결부",
     progress: 82,
     status: "needsBackendSample",
   },
   {
-    checks: ["multipart 진행률 표시", "성공 후 resourceId 기준", "다운로드는 권한 확인 후 URL"],
+    checks: ["업로드 진행률 표시", "성공 후 자료 기준", "다운로드는 권한 확인 후 주소 발급"],
     description: "자료 업로드는 Spring Boot multipart 중계 방식을 기준으로 시작합니다.",
-    endpoint: "/api/resources",
+    endpoint: "자료 업로드",
     label: "파일 업로드",
-    owner: "features/resources/api",
+    owner: "자료 연결부",
     progress: 76,
     status: "watching",
   },
   {
-    checks: ["clientMessageId 필수", "roomSequence 기준", "DB 저장 후 WebSocket"],
+    checks: ["보낸 메시지 중복 방지", "순서 기준 보충", "저장 후 실시간 전달"],
     description: "채팅은 서버 메시지를 전송 완료 기준으로 삼고 누락분은 sequence로 보충합니다.",
-    endpoint: "/api/chat/rooms/{id}/messages",
+    endpoint: "채팅 메시지",
     label: "채팅",
-    owner: "features/communication/api",
+    owner: "소통 연결부",
     progress: 88,
     status: "ready",
   },
   {
-    checks: ["RealtimeEnvelope 사용", "토큰 만료 시 refresh 후 재연결"],
+    checks: ["실시간 메시지 형식 사용", "세션 만료 시 재연결"],
     description: "프로젝트룸 이벤트와 채팅 이벤트는 HTTP 응답이 아니라 실시간 envelope로 받습니다.",
-    endpoint: "/topic/project-rooms/{roomId}/events",
+    endpoint: "프로젝트룸 실시간 이벤트",
     label: "WebSocket",
-    owner: "app/providers",
+    owner: "실시간 연결부",
     progress: 72,
     status: "needsBackendSample",
   },
   {
-    checks: ["serverUrl과 token만 사용", "key와 secret은 서버 전용", "멤버 권한 확인 후 토큰 발급"],
+    checks: ["서버가 발급한 참여 정보만 사용", "보안 키는 서버 전용", "멤버 권한 확인 후 발급"],
     description: "보이스챗은 API 서버에서 받은 LiveKit 접속 정보로만 연결합니다.",
-    endpoint: "/api/voice/rooms/{id}/token",
+    endpoint: "보이스 참여 정보",
     label: "LiveKit",
-    owner: "features/communication/api",
+    owner: "보이스 연결부",
     progress: 79,
     status: "ready",
   },
   {
-    checks: ["jobId로 상태 조회", "후보만 생성", "확정 데이터는 target Service"],
-    description: "에이전트 실행은 오래 걸릴 수 있으므로 agent job 상태와 이벤트를 함께 봅니다.",
-    endpoint: "/api/agent/jobs/{jobId}",
-    label: "agent_jobs",
-    owner: "features/agent/api",
+    checks: ["작업 상태 조회", "후보만 생성", "확정 반영은 업무 모듈"],
+    description: "에이전트 실행은 오래 걸릴 수 있으므로 정리 작업 상태와 이벤트를 함께 봅니다.",
+    endpoint: "에이전트 정리 작업",
+    label: "에이전트 작업",
+    owner: "에이전트 연결부",
     progress: 86,
     status: "ready",
   },
   {
-    checks: ["idempotencyKey 필수", "재시도 대기열", "서버 원본과 로컬 복구 분리"],
-    description: "Tauri에서 생긴 미전송 요청은 local outbox에 두고 중복 없이 다시 보냅니다.",
-    endpoint: "flush_sync_outbox",
+    checks: ["중복 방지 키 필수", "재시도 대기열", "서버 기록과 기기 안 복구 분리"],
+    description: "Tauri에서 생긴 미전송 요청은 기기 안 대기열에 두고 중복 없이 다시 보냅니다.",
+    endpoint: "기기 안 대기열 전송",
     label: "Tauri 동기화",
-    owner: "src/lib/tauri",
+    owner: "Tauri 연결부",
     progress: 68,
     status: "watching",
   },
@@ -105,7 +105,7 @@ const iconMap: Record<string, typeof KeyRound> = {
   "LiveKit": RadioTower,
   "Tauri 동기화": Database,
   "WebSocket": Bell,
-  "agent_jobs": Bot,
+  "에이전트 작업": Bot,
   "인증": KeyRound,
   "채팅": MessageSquareText,
   "파일 업로드": FileUp,
@@ -153,8 +153,8 @@ export function ApiContractStatusPanel() {
           </Chip>
           <h2>프론트는 확정된 API 계약을 기준으로 연결하고, 대기 항목은 표시해 둡니다</h2>
           <p>
-            인증, 채팅, 보이스챗, 에이전트 job, Tauri 동기화는 API 계약의 저장 기준을 따릅니다. 백엔드
-            산출물과 DTO 샘플이 확인되면 API client에 반영합니다.
+            인증, 채팅, 보이스챗, 에이전트 작업, Tauri 동기화는 API 계약의 저장 기준을 따릅니다. 백엔드
+            산출물과 응답 샘플이 확인되면 프론트 연결부에 반영합니다.
           </p>
         </div>
         <div className={styles.summary}>
@@ -170,7 +170,7 @@ export function ApiContractStatusPanel() {
         <ArrowRight size={16} strokeWidth={2.1} />
         <span>백엔드 API 계약</span>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <span>프론트 API client</span>
+        <span>프론트 연결부</span>
         <ArrowRight size={16} strokeWidth={2.1} />
         <span>화면/버블 연결</span>
       </div>
@@ -193,22 +193,22 @@ export function ApiContractStatusPanel() {
           <article className={styles.requestCard}>
             <code>auth.http</code>
             <h4>인증 흐름 검증</h4>
-            <p>로그인, refresh, logout, 내 정보 조회 응답 DTO를 맞춥니다.</p>
+            <p>로그인, 세션 갱신, 로그아웃, 내 정보 조회 응답을 맞춥니다.</p>
           </article>
           <article className={styles.requestCard}>
             <code>Swagger/OpenAPI</code>
             <h4>request/response 기준</h4>
-            <p>프론트 타입은 Entity가 아니라 Response DTO를 기준으로 만듭니다.</p>
+            <p>프론트 타입은 DB 구조가 아니라 화면 응답 기준으로 만듭니다.</p>
           </article>
           <article className={styles.requestCard}>
             <code>WebSocket sample</code>
             <h4>실시간 payload 예시</h4>
-            <p>채팅, 프로젝트룸 이벤트, agent job 이벤트 envelope를 확인합니다.</p>
+            <p>채팅, 프로젝트룸 이벤트, 에이전트 작업 이벤트 형식을 확인합니다.</p>
           </article>
           <article className={styles.requestCard}>
             <code>voice.http</code>
-            <h4>LiveKit token 검증</h4>
-            <p>프론트와 Tauri는 서버가 발급한 token과 serverUrl만 사용합니다.</p>
+            <h4>보이스 참여 정보 검증</h4>
+            <p>프론트와 Tauri는 서버가 발급한 보이스 참여 정보만 사용합니다.</p>
           </article>
         </GlassPanel>
       </div>

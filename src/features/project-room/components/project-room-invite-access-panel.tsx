@@ -76,7 +76,7 @@ export const defaultInviteRules: InviteRule[] = [
     tone: "room",
   },
   {
-    description: "초대 수락 뒤에만 room_members 권한이 생기고 자료와 작업에 접근합니다.",
+    description: "초대 수락 뒤에만 프로젝트룸 멤버 권한이 생기고 자료와 작업에 접근합니다.",
     label: "수락 후 권한",
     tone: "approved",
   },
@@ -97,7 +97,7 @@ export function ProjectRoomInviteAccessPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<UserPlus size={16} strokeWidth={2.1} />}>room_invites</Chip>
+          <Chip icon={<UserPlus size={16} strokeWidth={2.1} />}>친구 초대</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>

@@ -38,7 +38,7 @@ const activitySources: ActivitySource[] = [
 ];
 
 const statusCopy: Record<ActivitySource["status"], { label: string; tone: "timer" | "pending" | "personal" }> = {
-  local: { label: "로컬 기록", tone: "personal" },
+  local: { label: "기기 안 기록", tone: "personal" },
   suggested: { label: "후보 생성", tone: "pending" },
   tracking: { label: "집계 중", tone: "timer" },
 };
@@ -118,7 +118,7 @@ export function ActivityDetectionPanel() {
             <span className="bubli-icon-tile" aria-hidden="true">
               <Database size={16} strokeWidth={2.1} />
             </span>
-            <p>상세 활동 원문은 Tauri SQLite에 두고, 서버에는 승인된 요약과 작업 시간만 반영합니다.</p>
+            <p>상세 활동 원문은 기기 안에 두고, 서버에는 승인된 요약과 작업 시간만 반영합니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">

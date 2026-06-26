@@ -51,7 +51,7 @@ const statusMeta: Record<BoundaryStatus, { label: string; tone: StatusTone }> = 
 export function AccessBoundaryMatrixPanel({
   className,
   items,
-  subtitle = "개인 자료, 프로젝트룸 자료, 위젯, Tauri 로컬 데이터의 접근 기준을 한 화면에서 확인합니다.",
+  subtitle = "개인 자료, 프로젝트룸 자료, 위젯, 기기 안 데이터의 접근 기준을 한 화면에서 확인합니다.",
   title = "접근 범위 기준",
   ...props
 }: AccessBoundaryMatrixPanelProps) {

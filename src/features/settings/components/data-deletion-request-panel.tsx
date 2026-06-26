@@ -59,21 +59,21 @@ const statusMeta: Record<DeletionStatus, { actionLabel: string; label: string; t
 export const defaultDeletionOptions: DeletionOption[] = [
   {
     description: "개인 자료, 개인 설정, 개인 하루정리처럼 사용자에게 귀속된 서버 데이터를 삭제 요청합니다.",
-    effect: "서버 DB 기준",
+    effect: "서버 기록 기준",
     scope: "SERVER_PERSONAL",
     status: "READY",
     title: "개인 서버 데이터",
   },
   {
     description: "개인 에이전트 원문, 위젯 상세 사용 기록, 로컬 백업 목록처럼 기기 안에 있는 데이터를 정리합니다.",
-    effect: "Tauri SQLite 기준",
+    effect: "기기 안 저장소 기준",
     scope: "LOCAL_TAURI",
     status: "READY",
-    title: "Tauri 로컬 데이터",
+    title: "기기 안 데이터",
   },
   {
     description: "프로젝트룸 참여 기록은 역할, 남은 멤버, 자료 접근 권한을 확인한 뒤 처리합니다.",
-    effect: "room_members 기준",
+    effect: "프로젝트룸 멤버 권한 기준",
     scope: "ROOM_PARTICIPATION",
     status: "NEEDS_REVIEW",
     title: "프로젝트룸 참여 정보",
@@ -123,7 +123,7 @@ export function DataDeletionRequestPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              삭제 요청은 서버 원본 데이터와 Tauri 로컬 데이터를 나눠 처리합니다. 프로젝트룸에 영향을 주는 데이터는
+              삭제 요청은 서버 기록과 기기 안 데이터를 나눠 처리합니다. 프로젝트룸에 영향을 주는 데이터는
               역할과 권한을 확인한 뒤 진행합니다.
             </p>
           </div>

@@ -77,7 +77,7 @@ const errorCases: ErrorCase[] = [
   {
     action: "대기열에 보관",
     code: "NETWORK_OFFLINE",
-    description: "Tauri에서 네트워크가 끊긴 작업은 local_sync_outbox에 남기고 중복 키로 다시 보냅니다.",
+    description: "Tauri에서 네트워크가 끊긴 작업은 기기 안 대기열에 남기고 중복 키로 다시 보냅니다.",
     icon: RefreshCcw,
     label: "로컬 동기화",
     owner: "src/lib/tauri",
@@ -228,7 +228,7 @@ export function ApiErrorHandlingBoundaryPanel() {
           </div>
           <div className={styles.notice}>
             <Clock3 size={16} strokeWidth={2.1} />
-            <p>Tauri 로컬 작업은 네트워크 복구 후 idempotency key 기준으로 한 번만 반영합니다.</p>
+            <p>Tauri 작업은 네트워크 복구 후 중복 방지 키 기준으로 한 번만 반영합니다.</p>
           </div>
           <Chip icon={<CheckCircle2 size={14} />}>화면별 문구는 실제 API code 확정 후 조정</Chip>
         </GlassPanel>

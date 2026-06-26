@@ -278,7 +278,7 @@ const storageSteps = [
     description: "서버 업로드는 용량과 권한 확인 후 진행합니다.",
     label: "서버 저장",
     status: "checking" as const,
-    value: "S3",
+    value: "서버 저장소",
   },
   {
     description: "다운로드는 서버가 발급한 제한 주소만 사용합니다.",
@@ -336,7 +336,7 @@ export default function ResourcesPage() {
         <ResourceAccessDownloadPanel />
         <ResourceDownloadAccessPanel />
         <StorageProviderPolicyPanel
-          currentProviderLabel="S3"
+          currentProviderLabel="서버 저장소"
           downloadRuleLabel="서버 권한 확인 뒤 다운로드"
           limitLabel="1GB"
           steps={storageSteps}

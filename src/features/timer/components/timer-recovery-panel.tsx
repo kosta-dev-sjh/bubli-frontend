@@ -73,25 +73,25 @@ const statusTone: Record<TimerRecoveryStatus, StatusTone> = {
 
 const defaultMetrics: TimerRecoveryMetric[] = [
   {
-    description: "시작, 일시정지, 재개, 종료, heartbeat를 저장합니다.",
+    description: "시작, 일시정지, 재개, 종료, 연결 확인 신호를 저장합니다.",
     id: "server",
-    label: "서버 원본",
+    label: "서버 기록",
     tone: "room",
-    value: "time_logs",
+    value: "작업 시간 기록",
   },
   {
     description: "앱 재실행 시 서버 기록과 비교해 복구 안내를 띄웁니다.",
     id: "local-state",
-    label: "로컬 복구 상태",
+    label: "기기 안 복구 상태",
     tone: "personal",
-    value: "local_timer_state",
+    value: "최근 실행 상태",
   },
   {
     description: "네트워크가 끊긴 동안 생긴 이벤트를 중복 없이 다시 보냅니다.",
     id: "outbox",
     label: "미전송 대기열",
     tone: "pending",
-    value: "local_sync_outbox",
+    value: "보낼 작업 목록",
   },
 ];
 
@@ -106,7 +106,7 @@ export function TimerRecoveryPanel({
   onSendHeartbeat,
   projectLabel = "Bubli 제품 개발",
   recoveryThresholdSeconds = 90,
-  serverStatusLabel = "마지막 heartbeat 42초 전",
+  serverStatusLabel = "마지막 연결 확인 42초 전",
   status = "RUNNING",
   taskLabel = "자료보드 검수",
   timeLabel = "42:18",
@@ -119,7 +119,7 @@ export function TimerRecoveryPanel({
     {
       detail: `${heartbeatIntervalSeconds}초마다 서버에 실행 상태를 보냅니다.`,
       id: "heartbeat",
-      label: "heartbeat 주기",
+      label: "연결 확인 주기",
       tone: "timer",
     },
     {
@@ -129,7 +129,7 @@ export function TimerRecoveryPanel({
       tone: isRecoveryNeeded ? "warning" : "success",
     },
     {
-      detail: `${unsentEventCount}개 이벤트가 idempotency_key 기준 재전송을 기다립니다.`,
+      detail: `${unsentEventCount}개 이벤트가 중복 방지 키 기준 재전송을 기다립니다.`,
       id: "outbox",
       label: "대기열",
       tone: unsentEventCount > 0 ? "pending" : "success",
@@ -151,7 +151,7 @@ export function TimerRecoveryPanel({
         </div>
         <div className={styles.actions}>
           <Button icon={<Wifi size={15} />} onClick={onSendHeartbeat} size="sm" variant="quiet">
-            heartbeat 보내기
+            연결 확인 보내기
           </Button>
           <Button icon={<RefreshCcw size={15} />} onClick={onResendOutbox} size="sm" variant="primary">
             대기열 재전송
@@ -180,9 +180,9 @@ export function TimerRecoveryPanel({
               <p>마지막 서버 신호 이후 경과 시간</p>
             </div>
           </div>
-          <ProgressBar label="복구 기준까지 남은 heartbeat 여유" value={heartbeatPercent} />
+          <ProgressBar label="복구 기준까지 남은 연결 확인 여유" value={heartbeatPercent} />
           <p>
-            실행 중 화면 시간은 계산값입니다. <code>duration_seconds</code>는 종료 또는 복구 확정 뒤 확정합니다.
+            실행 중 화면 시간은 계산값입니다. 실제 작업 시간은 종료 또는 복구 확정 뒤 확정합니다.
           </p>
         </article>
       </div>
