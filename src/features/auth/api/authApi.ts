@@ -1,5 +1,5 @@
 import { apiRequest, getApiBaseUrl } from "@/lib/api/client";
-import type { AuthTokenResponse, AuthUser } from "@/types/api/auth";
+import type { AuthRefreshResponse, AuthUser } from "@/types/api/auth";
 
 export type UpdateMeRequest = Partial<Pick<AuthUser, "avatarUrl" | "locale" | "name" | "timezone">>;
 
@@ -15,7 +15,7 @@ export const authApi = {
   },
 
   refresh() {
-    return apiRequest<AuthTokenResponse>("/api/auth/refresh", {
+    return apiRequest<AuthRefreshResponse>("/api/auth/refresh", {
       method: "POST",
     });
   },

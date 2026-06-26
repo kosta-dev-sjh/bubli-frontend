@@ -16,6 +16,12 @@ export type AuthTokenResponse = {
   tokenType: "Bearer";
 };
 
+export type AuthLoginResponse = AuthTokenResponse & {
+  user: AuthUser;
+};
+
+export type AuthRefreshResponse = AuthTokenResponse;
+
 export type AuthErrorCode =
   | "AUTH_OAUTH_INVALID_CODE"
   | "AUTH_OAUTH_SUB_MISSING"
