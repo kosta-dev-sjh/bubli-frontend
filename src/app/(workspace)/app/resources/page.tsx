@@ -5,24 +5,17 @@ import {
   ContractReviewItemResolutionPanel,
   defaultAnalysisSteps,
   defaultAnalysisSuggestions,
-  defaultBoundarySteps,
   defaultMismatchItems,
   defaultMismatchMetrics,
-  defaultResourceScopes,
-  defaultScopedResources,
-  defaultShareResources,
   DocumentClassificationPanel,
   DocumentMismatchReviewPanel,
-  PersonalResourceShareBoundaryPanel,
   RelatedResourceEvidencePanel,
   ResourceAnalysisApprovalPanel,
   ResourceBoard,
   ResourceCommentThreadPanel,
-  ResourceScopeFilterPanel,
   ResourceSearchCommand,
   ResourceShareApprovalPanel,
   ResourceUploadAnalysisPanel,
-  ResourceUploadDecisionPanel,
   ResourceVersionHistoryPanel,
 } from "@/features/resources/components";
 
@@ -123,33 +116,36 @@ export default function ResourcesPage() {
         title="자료보드"
         description="개인 자료와 프로젝트룸 자료를 찾고, 분석 결과와 관련 문서를 확인합니다."
       />
-      <div className="page-grid">
-        <ResourceBoard />
-        <ResourceSearchCommand />
-        <ResourceScopeFilterPanel resources={defaultScopedResources} scopes={defaultResourceScopes} />
-        <ResourceUploadAnalysisPanel />
-        <ResourceUploadDecisionPanel />
-        <DocumentClassificationPanel items={classificationItems} rules={classificationRules} />
-        <ResourceAnalysisApprovalPanel
-          confidence={86}
-          jobStatus="SUCCEEDED"
-          projectRoomName="신규 번역 프로젝트룸"
-          resourceName="번역계약서_v2.pdf"
-          steps={defaultAnalysisSteps}
-          suggestions={defaultAnalysisSuggestions}
-        />
-        <DocumentMismatchReviewPanel items={defaultMismatchItems} metrics={defaultMismatchMetrics} />
-        <ContractReviewItemResolutionPanel items={reviewItems} />
-        <RelatedResourceEvidencePanel />
-        <ResourceVersionHistoryPanel />
-        <ResourceCommentThreadPanel />
-        <ResourceShareApprovalPanel />
-        <PersonalResourceShareBoundaryPanel
-          resources={defaultShareResources}
-          selectedCount={2}
-          steps={defaultBoundarySteps}
-          targetProjectRoom="신규 번역 프로젝트룸"
-        />
+      <div className="resources-workspace">
+        <section className="resources-workspace__primary" aria-label="자료보드 기본 화면">
+          <ResourceBoard />
+        </section>
+
+        <section className="resources-workspace__analysis" aria-label="자료 검색과 에이전트 정리 흐름">
+          <ResourceSearchCommand />
+          <ResourceUploadAnalysisPanel />
+          <DocumentClassificationPanel items={classificationItems} rules={classificationRules} />
+          <ResourceAnalysisApprovalPanel
+            confidence={86}
+            jobStatus="SUCCEEDED"
+            projectRoomName="신규 번역 프로젝트룸"
+            resourceName="번역계약서_v2.pdf"
+            steps={defaultAnalysisSteps}
+            suggestions={defaultAnalysisSuggestions}
+          />
+        </section>
+
+        <section className="resources-workspace__review" aria-label="확인 필요 항목">
+          <DocumentMismatchReviewPanel items={defaultMismatchItems} metrics={defaultMismatchMetrics} />
+          <ContractReviewItemResolutionPanel items={reviewItems} />
+        </section>
+
+        <section className="resources-workspace__library" aria-label="관련 자료와 공유">
+          <RelatedResourceEvidencePanel />
+          <ResourceVersionHistoryPanel />
+          <ResourceCommentThreadPanel />
+          <ResourceShareApprovalPanel />
+        </section>
       </div>
     </>
   );

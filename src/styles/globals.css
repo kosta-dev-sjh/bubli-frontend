@@ -1328,6 +1328,41 @@ select {
   background: rgba(255, 255, 255, 0.48);
 }
 
+.resources-workspace {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+}
+
+.resources-workspace__primary,
+.resources-workspace__analysis,
+.resources-workspace__review,
+.resources-workspace__library {
+  min-width: 0;
+}
+
+.resources-workspace__analysis,
+.resources-workspace__review,
+.resources-workspace__library {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.resources-workspace__analysis > :first-child,
+.resources-workspace__library > :last-child {
+  grid-column: 1 / -1;
+}
+
+.resources-workspace__library {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.resources-workspace__library > :last-child {
+  max-width: min(100%, 760px);
+}
+
 .resource-board {
   display: grid;
   gap: 14px;
@@ -7290,6 +7325,18 @@ select {
 
   .project-room-create-candidate {
     grid-template-columns: 1fr;
+  }
+
+  .resources-workspace__analysis,
+  .resources-workspace__review,
+  .resources-workspace__library {
+    grid-template-columns: 1fr;
+  }
+
+  .resources-workspace__analysis > :first-child,
+  .resources-workspace__library > :last-child {
+    grid-column: auto;
+    max-width: none;
   }
 
   .resource-board__toolbar {
