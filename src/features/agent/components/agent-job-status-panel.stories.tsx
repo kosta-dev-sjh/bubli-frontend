@@ -23,9 +23,9 @@ export const Running: Story = {
   args: {
     jobId: "정리 작업 8f42",
     jobTypeLabel: "자료 분석 · WBS/TODO 후보",
-    modelLabel: "gpt-4.1-mini · 질문 방식 v3",
+    modelLabel: "질문 중심으로 정리 중",
     progress: 62,
-    schemaLabel: "정해진 형식 v1.0",
+    schemaLabel: "후보 형식 확인",
     startedAtLabel: "시작 1분 전",
     status: "RUNNING",
   },
@@ -38,7 +38,7 @@ export const FailedRetry: Story = {
     jobTypeLabel: "확인 질문 후보",
     modelLabel: "응답 지연 · 다시 시도 1회 남음",
     progress: 38,
-    schemaLabel: "정해진 형식 v1.0",
+    schemaLabel: "후보 형식 확인",
     startedAtLabel: "시작 4분 전",
     status: "FAILED",
     steps: [
@@ -49,9 +49,9 @@ export const FailedRetry: Story = {
         status: "SUCCEEDED",
       },
       {
-        description: "모델 응답 시간이 길어져 실패 이벤트를 남겼습니다.",
+        description: "정리 응답 시간이 길어져 실패 이벤트를 남겼습니다.",
         id: "failed",
-        label: "모델 호출",
+        label: "정리 응답",
         status: "FAILED",
       },
       {

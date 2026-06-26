@@ -149,7 +149,7 @@ export function AgentJobStatusPanel({
   onOpenSuggestions,
   onRetryJob,
   progress = 62,
-  schemaLabel = "정해진 형식 v1.0",
+  schemaLabel = "후보 형식 확인",
   startedAtLabel = "시작 1분 전",
   status = "RUNNING",
   steps = defaultSteps,
