@@ -4,6 +4,7 @@ import { join, relative } from "node:path";
 const ROOT = process.cwd();
 const SCAN_ROOTS = ["src", ".storybook"];
 const SOURCE_EXTENSIONS = new Set([".css", ".js", ".jsx", ".ts", ".tsx"]);
+const HEX_SOURCE_FILES = new Set(["src/styles/globals.css", ".storybook/preview.ts"]);
 
 const ALLOWED_HEX_COLORS = new Set(
   [
@@ -45,6 +46,11 @@ for (const root of SCAN_ROOTS) {
 
     for (const match of matches) {
       const color = match[0].toUpperCase();
+      if (!HEX_SOURCE_FILES.has(relativePath)) {
+        failures.push(`${relativePath}: ${match[0]} should use a CSS token instead of a direct hex color.`);
+        continue;
+      }
+
       if (!ALLOWED_HEX_COLORS.has(color)) {
         failures.push(`${relativePath}: ${match[0]} is not in the Bubli design token allowlist.`);
       }
