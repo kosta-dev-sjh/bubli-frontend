@@ -36,6 +36,20 @@ export type ManagedFolderScanResult = {
   scannedAt: string;
 };
 
+export type ManagedFolderCommandInput = {
+  localFolderId: string;
+};
+
+export type ManagedFolderWatchResult = {
+  localFolderId: string;
+  watching: boolean;
+};
+
+export type LocalFileSearchInput = {
+  limit?: number;
+  query: string;
+};
+
 export type LocalFileSearchResult = {
   items: Array<{
     localFileId: string;
@@ -52,11 +66,32 @@ export type SqliteIntegrityResult = {
   recoveryRequired: boolean;
 };
 
+export type LocalRoomMessageSyncInput = {
+  afterSequence?: number | null;
+  roomId: string;
+};
+
+export type LocalRoomMessageSyncResult = {
+  cachedCount: number;
+  latestSequence: number;
+  roomId: string;
+  syncedAt: string;
+};
+
 export type LocalBackupResult = {
   backupId: string;
   createdAt: string;
   fileName: string;
   sizeBytes: number;
+};
+
+export type LocalBackupRestoreInput = {
+  backupId: string;
+};
+
+export type LocalBackupRestoreResult = {
+  backupId: string;
+  restoredAt: string;
 };
 
 export type ActivityContextResult = {
@@ -74,11 +109,25 @@ export type WidgetUsageEventInput = {
   occurredAt: string;
 };
 
+export type WidgetUsageRollupInput = {
+  summaryDate?: string;
+};
+
 export type WidgetUsageRollupResult = {
   bubbleType: string;
   rollupKey: string;
   sourceEventCount: number;
   summaryDate: string;
+};
+
+export type WidgetUsageSummarySyncInput = {
+  rollupKeys?: string[];
+};
+
+export type WidgetUsageSummarySyncResult = {
+  failedCount: number;
+  sentCount: number;
+  syncedAt: string;
 };
 
 export type SyncOutboxFlushResult = {
@@ -93,6 +142,77 @@ export type TimerRecoveryState = {
   serverTimeLogId?: string;
   status: "NONE" | "RECOVERY_NEEDED" | "RESTORED" | "SERVER_WINS";
 };
+
+export type TauriCommandContract = {
+  app_ready: {
+    args: undefined;
+    result: string;
+  };
+};
+
+export type PlannedTauriCommandContract = {
+  backup_local_sqlite: {
+    args: undefined;
+    result: LocalBackupResult;
+  };
+  check_local_sqlite_integrity: {
+    args: undefined;
+    result: SqliteIntegrityResult;
+  };
+  flush_sync_outbox: {
+    args: undefined;
+    result: SyncOutboxFlushResult;
+  };
+  read_activity_context: {
+    args: undefined;
+    result: ActivityContextResult;
+  };
+  recover_timer_state: {
+    args: undefined;
+    result: TimerRecoveryState;
+  };
+  record_widget_usage_event: {
+    args: WidgetUsageEventInput;
+    result: { recordedAt: string };
+  };
+  restore_local_sqlite_backup: {
+    args: LocalBackupRestoreInput;
+    result: LocalBackupRestoreResult;
+  };
+  rollup_widget_usage: {
+    args: WidgetUsageRollupInput | undefined;
+    result: WidgetUsageRollupResult[];
+  };
+  scan_managed_folder: {
+    args: ManagedFolderCommandInput;
+    result: ManagedFolderScanResult;
+  };
+  search_local_files: {
+    args: LocalFileSearchInput;
+    result: LocalFileSearchResult;
+  };
+  select_managed_folder: {
+    args: undefined;
+    result: ManagedFolderSelection;
+  };
+  sync_room_messages: {
+    args: LocalRoomMessageSyncInput;
+    result: LocalRoomMessageSyncResult;
+  };
+  sync_widget_usage_summary: {
+    args: WidgetUsageSummarySyncInput | undefined;
+    result: WidgetUsageSummarySyncResult;
+  };
+  watch_managed_folder: {
+    args: ManagedFolderCommandInput;
+    result: ManagedFolderWatchResult;
+  };
+};
+
+export type TauriCommandArgs<TCommand extends TauriCommandName> = TauriCommandContract[TCommand]["args"];
+export type TauriCommandResult<TCommand extends TauriCommandName> = TauriCommandContract[TCommand]["result"];
+export type PlannedTauriCommandArgs<TCommand extends PlannedTauriCommandName> = PlannedTauriCommandContract[TCommand]["args"];
+export type PlannedTauriCommandResult<TCommand extends PlannedTauriCommandName> = PlannedTauriCommandContract[TCommand]["result"];
 
 export const tauriCommands = {
   appReady() {
