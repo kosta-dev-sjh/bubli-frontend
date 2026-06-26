@@ -35,7 +35,7 @@ export function PublicHero() {
         <div className="public-hero__checks">
           <Chip>공개 사이트</Chip>
           <Chip>회원 웹 앱</Chip>
-          <Chip>Tauri 앱</Chip>
+          <Chip>데스크탑 앱</Chip>
           <Chip>버블 위젯</Chip>
         </div>
       </div>

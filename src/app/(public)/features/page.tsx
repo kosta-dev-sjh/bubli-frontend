@@ -42,7 +42,7 @@ const featureFlow = [
     body: "작업 중 필요한 TODO, 알림, 타이머, 자료 제안만 데스크탑 위에 남깁니다.",
     icon: LayoutGrid,
     label: "버블",
-    status: "Tauri 기능",
+    status: "데스크탑 기능",
   },
 ];
 

@@ -37,10 +37,10 @@ const localCards = [
 ];
 
 const connectionRows = [
-  ["메인 WebView", "/app", "회원 웹 앱 화면"],
-  ["Tauri 소통 창", "/app/desktop/communication", "같은 서버와 실시간 연결"],
-  ["보이스 연결", "서버 발급 연결 정보", "보이스 key와 secret은 서버 전용으로 관리"],
-  ["로컬 기능", "Tauri IPC", "폴더 선택, SQLite, 활동 감지, 위젯 복구"],
+  ["메인 앱 화면", "회원 웹 앱", "프로젝트룸, 자료보드, 작업판을 같은 화면으로 봅니다."],
+  ["소통 전용 창", "앱 전용 창/버블", "같은 서버와 실시간 연결을 씁니다."],
+  ["보이스 연결", "서버 확인 후 참여", "보이스 연결 정보는 서버에서만 관리합니다."],
+  ["기기 기능", "데스크탑 앱 전용", "폴더 선택, 활동 감지, 위젯 복구를 앱에서 처리합니다."],
 ];
 
 export function HybridAppFrame() {
@@ -49,17 +49,17 @@ export function HybridAppFrame() {
       <header className={styles.header}>
         <div className={styles.eyebrow}>
           <Monitor size={16} aria-hidden="true" />
-          Tauri 하이브리드 앱
+          데스크탑 하이브리드 앱
         </div>
         <div className={styles.titleRow}>
           <div className={styles.titleGroup}>
             <h2 className={styles.title}>같은 회원 웹 앱에 데스크톱 기능만 얹습니다</h2>
             <p className={styles.summary}>
-              Tauri 앱은 별도 서비스를 새로 만드는 방식이 아닙니다. 배포된 회원 웹 앱을 WebView로 열고, 앱에서만 필요한 버블,
-              개인 관리 폴더, 로컬 SQLite, 활동 감지, 전용 소통 창을 붙입니다.
+              데스크탑 앱은 별도 서비스를 새로 만드는 방식이 아닙니다. 배포된 회원 웹 앱을 열고, 앱에서만 필요한 버블,
+              개인 관리 폴더, 기기 안 저장, 활동 감지, 전용 소통 창을 붙입니다.
             </p>
           </div>
-          <StatusBadge tone="personal">Tauri WebView</StatusBadge>
+          <StatusBadge tone="personal">데스크탑 앱</StatusBadge>
         </div>
         <div className={styles.chips} aria-label="하이브리드 앱 기준">
           <Chip selected icon={<Globe2 size={14} aria-hidden="true" />}>
@@ -70,13 +70,13 @@ export function HybridAppFrame() {
         </div>
       </header>
 
-      <section className={styles.layout} aria-label="회원 웹 앱과 Tauri 앱 구조">
+      <section className={styles.layout} aria-label="회원 웹 앱과 데스크탑 앱 구조">
         <div className={styles.window}>
           <div className={styles.windowBar}>
             <span />
             <span />
             <span />
-            <strong>Bubli Tauri WebView · /app</strong>
+            <strong>Bubli 데스크탑 앱 · 회원 웹 앱</strong>
           </div>
           <div className={styles.windowBody}>
             <aside className={styles.sidebar}>
@@ -107,7 +107,7 @@ export function HybridAppFrame() {
           </div>
         </div>
 
-        <aside className={styles.appLayer} aria-label="Tauri 앱 전용 기능">
+        <aside className={styles.appLayer} aria-label="데스크탑 앱 전용 기능">
           <div className={styles.layerHeader}>
             <Sparkles size={18} aria-hidden="true" />
             <h3>앱에서만 붙는 기능</h3>
@@ -132,11 +132,11 @@ export function HybridAppFrame() {
         </aside>
       </section>
 
-      <section className={styles.connectionGrid} aria-label="웹과 Tauri 연결 기준">
+      <section className={styles.connectionGrid} aria-label="웹과 데스크탑 앱 연결 기준">
         {connectionRows.map(([title, path, body]) => (
           <article className={styles.connectionCard} key={title}>
             <div className={styles.connectionTitle}>
-              {title === "보이스 연결" ? <Mic2 size={16} aria-hidden="true" /> : title === "로컬 기능" ? <Database size={16} aria-hidden="true" /> : <LayoutDashboard size={16} aria-hidden="true" />}
+              {title === "보이스 연결" ? <Mic2 size={16} aria-hidden="true" /> : title === "기기 기능" ? <Database size={16} aria-hidden="true" /> : <LayoutDashboard size={16} aria-hidden="true" />}
               <h3>{title}</h3>
             </div>
             <strong>{path}</strong>
@@ -152,7 +152,7 @@ export function HybridAppFrame() {
         </span>
         <span>
           <Bot size={14} aria-hidden="true" />
-          개인 에이전트 원문과 로컬 이벤트는 기기 안에 둡니다.
+          개인 에이전트 원문과 상세 사용 기록은 기기 안에 둡니다.
         </span>
       </div>
     </GlassPanel>
