@@ -4,7 +4,6 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { PageHeading } from "@/components/ui/page-heading";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { FontStrategyPanel } from "@/features/public-site/components/font-strategy-panel";
 import { HybridAppFrame } from "@/features/public-site/components/hybrid-app-frame";
 
 const featureFlow = [
@@ -88,7 +87,6 @@ export default function FeaturesPage() {
 
       <div className="page-grid">
         <HybridAppFrame />
-        <FontStrategyPanel />
       </div>
     </>
   );
