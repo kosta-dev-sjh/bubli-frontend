@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "프로젝트룸 채팅은 서버 chat_messages가 원본이고, Tauri SQLite의 local_room_message_cache는 기기별 캐시입니다. 캐시가 비거나 손상돼도 room_sequence 기준으로 서버에서 다시 보충해야 합니다.",
+          "프로젝트룸 채팅은 서버 채팅을 원본으로 두고, Tauri는 기기 안 최근 메시지를 빠른 표시용으로 씁니다. 기기 안 기록이 비거나 손상돼도 서버 메시지 순서값 기준으로 다시 보충해야 합니다.",
       },
     },
   },
@@ -38,7 +38,7 @@ export const HealthyCache: Story = {
         state: "valid",
       },
       {
-        description: "새 메시지는 WebSocket으로 받고, 같은 메시지는 서버 ID 기준으로 중복 저장하지 않습니다.",
+        description: "새 메시지는 실시간 연결로 받고, 같은 메시지는 서버 ID 기준으로 중복 저장하지 않습니다.",
         label: "실시간 보충",
         state: "valid",
       },
@@ -65,7 +65,7 @@ export const RebuildFromServer: Story = {
         state: "rebuilding",
       },
       {
-        description: "복구 뒤에는 afterSequence로 빠진 구간만 요청합니다. 다른 기기의 캐시와 직접 맞추지 않습니다.",
+        description: "복구 뒤에는 빠진 구간만 요청합니다. 다른 기기의 임시 보관 기록과 직접 맞추지 않습니다.",
         label: "기기별 캐시 유지",
         state: "stale",
       },

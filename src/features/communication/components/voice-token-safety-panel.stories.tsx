@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "프로젝트룸 보이스챗의 토큰 발급, 멤버 권한 확인, LiveKit secret 미노출, 녹음 제외 기준을 보여줍니다. 웹과 Tauri 보이스 버블은 같은 서버 API와 LiveKit 연결을 사용합니다.",
+          "프로젝트룸 보이스챗의 참여 권한 발급, 멤버 권한 확인, 내부 키 미노출, 녹음 제외 기준을 보여줍니다. 웹과 앱 보이스 버블은 같은 서버 연결을 사용합니다.",
       },
     },
   },
@@ -36,16 +36,16 @@ export const ProjectRoomVoiceToken: Story = {
       },
       {
         canJoinVoice: false,
-        label: "링크 미수락 사용자",
+        label: "초대 미수락 사용자",
         roleLabel: "초대 대기",
-        stateLabel: "토큰 발급 전",
+        stateLabel: "참여 권한 없음",
       },
     ],
     roomLabel: "Bubli 제품 개발룸",
     rules: [
       {
-        description: "LiveKit key와 secret은 서버에만 둡니다. 클라이언트는 serverUrl과 접속 토큰만 받습니다.",
-        label: "서버 토큰 발급",
+        description: "보이스 내부 키는 서버에만 둡니다. 앱은 서버가 확인한 참여 정보만 받습니다.",
+        label: "서버 참여 권한 발급",
         status: "safe",
       },
       {
@@ -59,7 +59,7 @@ export const ProjectRoomVoiceToken: Story = {
         status: "blocked",
       },
     ],
-    tokenEndpointLabel: "POST /api/voice/rooms/{id}/token",
+    tokenEndpointLabel: "서버에서 보이스 참여 정보를 발급",
   },
 };
 
@@ -75,8 +75,8 @@ export const PendingMemberBlocked: Story = {
       {
         canJoinVoice: false,
         label: "초대 대기 사용자",
-        roleLabel: "room_invites PENDING",
-        stateLabel: "토큰 발급 전",
+        roleLabel: "초대 수락 전",
+        stateLabel: "참여 권한 없음",
       },
       {
         canJoinVoice: false,
@@ -88,7 +88,7 @@ export const PendingMemberBlocked: Story = {
     roomLabel: "프로젝트룸 보이스",
     rules: [
       {
-        description: "초대 대기 사용자는 아직 프로젝트룸 멤버가 아니므로 보이스 토큰을 발급하지 않습니다.",
+        description: "초대 대기 사용자는 아직 프로젝트룸 멤버가 아니므로 보이스 참여 권한을 발급하지 않습니다.",
         label: "멤버 권한 확인",
         status: "limited",
       },
@@ -98,11 +98,11 @@ export const PendingMemberBlocked: Story = {
         status: "blocked",
       },
       {
-        description: "초대를 수락해 room_members가 생성된 뒤에만 보이스 토큰 발급 대상이 됩니다.",
+        description: "초대를 수락해 프로젝트룸 멤버가 된 뒤에만 보이스 참여 대상이 됩니다.",
         label: "수락 후 참여",
         status: "limited",
       },
     ],
-    tokenEndpointLabel: "POST /api/voice/rooms/{id}/token",
+    tokenEndpointLabel: "서버에서 보이스 참여 정보를 발급",
   },
 };

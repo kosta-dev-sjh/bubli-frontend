@@ -11,7 +11,7 @@
 | Storybook | `http://127.0.0.1:6006` |
 | 캡처 방식 | Playwright screenshot |
 | viewport | `1440 x 1000` |
-| 캡처 위치 | `output/playwright/storybook-v20-qa/`, `output/playwright/storybook-v20-polish-followup/`, `output/playwright/storybook-v20-managed-folder/`, `output/playwright/storybook-v20-project-room/`, `output/playwright/storybook-v20-todo/`, `output/playwright/storybook-v20-agent/`, `output/playwright/storybook-v20-agent-schema/` |
+| 캡처 위치 | `output/playwright/storybook-v20-qa/`, `output/playwright/storybook-v20-polish-followup/`, `output/playwright/storybook-v20-managed-folder/`, `output/playwright/storybook-v20-project-room/`, `output/playwright/storybook-v20-todo/`, `output/playwright/storybook-v20-agent/`, `output/playwright/storybook-v20-agent-schema/`, `output/playwright/storybook-v20-communication/` |
 
 ## 2. 대표 Story 점검 결과
 
@@ -29,6 +29,8 @@
 | `features-todo-todoassigneereflectionpanel--default` | 프로젝트룸에서 생긴 하나의 TODO가 담당자 기준으로 대시보드, 버블, 일정에 함께 표시되는 구조가 보인다. | 기획 방향 적합. 사용자 화면의 `서버 원본 작업` 표현을 `하나로 관리되는 작업` 기준으로 낮췄다. |
 | `features-agent-agentjobstatuspanel--running` | 에이전트 작업이 진행 상태로 보이고, WBS/TODO/확인 질문은 승인 전 후보로 분리되어 있다. | 기획 방향 적합. 모델명과 형식 버전처럼 보이는 문구를 사용자 기준 문구로 낮췄다. |
 | `features-agent-agentschemavalidationpanel--passed-validation` | 에이전트 결과를 후보 형식, 질문 방식, 정리 작업 상태로 확인하는 구조가 보인다. | 기획 방향 적합. `/app`에 보이던 `schema_version`, `agent_jobs`, 모델명 같은 구현 문구를 사용자 기준 문구로 낮췄다. |
+| `features-communication-voicetokensafetypanel--project-room-voice-token` | 프로젝트룸 보이스 참여가 서버 확인 권한, 멤버 권한, 녹음 제외 기준으로 분리되어 보인다. | 기획 방향 적합. `토큰`, `API 서버`, `LiveKit key`처럼 보이던 문구를 보이스 참여 권한 중심으로 낮췄다. |
+| `features-communication-chat-sequence-loading-boundary-panel--default` | 웹은 서버 메시지를 읽고, Tauri 앱은 기기 안 최근 대화를 빠른 표시용으로 쓰는 구조가 보인다. | 기획 방향 적합. `chat_messages`, `local_room_message_cache`, `afterSequence` 같은 구현 문구를 사용자 기준 문구로 낮췄다. |
 
 ## 3. 즉시 수정한 항목
 
@@ -57,6 +59,7 @@
 | 에이전트 작업 상태 문구 | 사용자 화면에 보이던 모델명과 형식 버전 표현을 `질문 중심으로 정리 중`, `후보 형식 확인`으로 낮췄다. |
 | 에이전트 결과 검증 문구 | `/app` 대시보드와 Storybook 예시에서 `schema_version`, `agent_jobs`, 모델명처럼 보이는 표현을 `후보 형식`, `정리 상태`, `정리 방식` 기준으로 낮췄다. |
 | 보이스 연결 문구 | `/app/chat`에 남아 있던 `보이스 토큰`, `토큰 서버 발급` 표현을 `보이스 권한`, `참여 권한 서버 발급`으로 낮췄다. |
+| 소통 경계 문구 | 보이스 권한, 채팅 읽음, 실시간 연결, 기기 안 임시 보관 관련 화면에서 DB 테이블명과 API 파라미터처럼 보이는 문구를 사용자 기준으로 낮췄다. |
 
 ## 4. 디자인보드 v20 polish로 넘길 항목
 

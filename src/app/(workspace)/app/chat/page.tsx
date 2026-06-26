@@ -59,7 +59,7 @@ const sharedConnections = [
     status: "ready" as const,
   },
   {
-    description: "LiveKit 연결 정보는 클라이언트에서 만들지 않습니다.",
+    description: "보이스 참여 정보는 클라이언트에서 만들지 않습니다.",
     label: "서버 발급 보이스 권한",
     status: "ready" as const,
   },
@@ -140,7 +140,7 @@ export default function ChatPage() {
           participants={voiceParticipants}
           roomLabel="K-Stay 프로젝트룸 보이스"
           rules={voiceRules}
-          tokenEndpointLabel="API 서버에서 보이스 참여 정보를 발급"
+          tokenEndpointLabel="서버에서 보이스 참여 정보를 발급"
         />
         <TauriCommunicationModePanel
           channels={communicationChannels}

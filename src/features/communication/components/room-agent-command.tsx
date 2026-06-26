@@ -27,9 +27,9 @@ const commands = [
 
 const flowRows = [
   ["명령 입력", "프로젝트룸 채팅에서 /bubli 명령어 실행"],
-  ["맥락 조회", "chat_messages와 room_memory_summaries 기준"],
-  ["응답 저장", "chat_messages.message_type = AGENT_RESPONSE"],
-  ["장기요약", "필요한 범위만 room_memory_summaries에 저장"],
+  ["맥락 조회", "프로젝트룸 채팅과 장기요약 기준"],
+  ["응답 저장", "에이전트 응답을 프로젝트룸 채팅에 저장"],
+  ["장기요약", "필요한 범위만 프로젝트룸 장기요약에 저장"],
 ];
 
 const chatPreview = [
@@ -54,7 +54,7 @@ export function RoomAgentCommand() {
               에이전트의 로컬 대화와는 저장 위치가 다릅니다.
             </p>
           </div>
-          <StatusBadge tone="room">room_members 권한</StatusBadge>
+          <StatusBadge tone="room">프로젝트룸 멤버 권한</StatusBadge>
         </div>
       </header>
 
@@ -89,9 +89,9 @@ export function RoomAgentCommand() {
           <div className={styles.chatHeader}>
             <div>
               <h3>K-Stay 프로젝트룸 채팅</h3>
-              <p>서버 chat_messages 원본 · Tauri는 최근 100개 캐시</p>
+              <p>서버 채팅 원본 · 앱은 최근 대화만 기기 안에 임시 보관</p>
             </div>
-            <StatusBadge tone="agent">AGENT_RESPONSE</StatusBadge>
+            <StatusBadge tone="agent">에이전트 응답</StatusBadge>
           </div>
           <div className={styles.chatList}>
             {chatPreview.map(([sender, body]) => (
@@ -120,7 +120,7 @@ export function RoomAgentCommand() {
         </span>
         <span>
           <FileText size={14} aria-hidden="true" />
-          개인 에이전트 원문은 Tauri SQLite에만 둡니다.
+          개인 에이전트 원문은 기기 안 저장소에만 둡니다.
         </span>
         <span>
           <Sparkles size={14} aria-hidden="true" />

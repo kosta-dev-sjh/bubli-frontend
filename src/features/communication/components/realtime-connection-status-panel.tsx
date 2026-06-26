@@ -69,9 +69,9 @@ const defaultTopics: RealtimeTopicHealth[] = [
     icon: <MessageCircle size={16} />,
     id: "chat",
     label: "채팅 메시지",
-    lastEventLabel: "room_sequence 129",
+    lastEventLabel: "최근 메시지 129",
     lagLabel: "방금 전",
-    sourceLabel: "chat_messages",
+    sourceLabel: "서버 채팅 원본",
     state: "CONNECTED",
     topic: "/topic/chat/{chatRoomId}",
   },
@@ -79,9 +79,9 @@ const defaultTopics: RealtimeTopicHealth[] = [
     icon: <Radio size={16} />,
     id: "room-events",
     label: "프로젝트룸 이벤트",
-    lastEventLabel: "agent_jobs 완료 대기",
+    lastEventLabel: "에이전트 정리 완료 대기",
     lagLabel: "12초 전",
-    sourceLabel: "resources, agent_suggestions",
+    sourceLabel: "자료와 에이전트 후보",
     state: "RECONNECTING",
     topic: "/topic/project-rooms/{roomId}/events",
   },
@@ -91,7 +91,7 @@ const defaultTopics: RealtimeTopicHealth[] = [
     label: "개인 알림",
     lastEventLabel: "읽지 않은 알림 2개",
     lagLabel: "1분 전",
-    sourceLabel: "notifications",
+    sourceLabel: "알림 원본",
     state: "DEGRADED",
     topic: "/user/queue/notifications",
   },
@@ -105,13 +105,13 @@ const defaultRecoverySteps: RealtimeRecoveryStep[] = [
   },
   {
     id: "tauri-cache",
-    label: "Tauri 캐시",
-    value: "최근 메시지를 먼저 보여주고 room_sequence 기준으로 보충합니다.",
+    label: "앱 임시 보관",
+    value: "최근 메시지를 먼저 보여주고 서버 순서값 기준으로 보충합니다.",
   },
   {
     id: "agent-events",
     label: "에이전트 완료",
-    value: "agent_jobs 상태 변경은 API 서버 이벤트와 알림으로 받습니다.",
+    value: "에이전트 정리 상태 변경은 API 서버 이벤트와 알림으로 받습니다.",
   },
 ];
 
@@ -161,9 +161,9 @@ export function RealtimeConnectionStatusPanel({
       </header>
 
       <div className={styles.summaryGrid} aria-label="실시간 연결 요약">
-        <SummaryItem icon={<Server size={17} />} label="연결 기준" value="API 서버 WebSocket" />
+        <SummaryItem icon={<Server size={17} />} label="연결 기준" value="API 서버 실시간 연결" />
         <SummaryItem icon={<Radio size={17} />} label="구독 토픽" value={`${connectedTopicCount}/${topics.length} 정상`} />
-        <SummaryItem icon={<Database size={17} />} label="복구 기준" value={isTauri ? "서버 원본 + SQLite 캐시" : "서버 원본"} />
+        <SummaryItem icon={<Database size={17} />} label="복구 기준" value={isTauri ? "서버 원본 + 기기 안 임시 보관" : "서버 원본"} />
         <SummaryItem icon={<Clock3 size={17} />} label="동기화" value={lastSyncedLabel} />
       </div>
 
@@ -208,8 +208,8 @@ export function RealtimeConnectionStatusPanel({
       </div>
 
       <footer className={styles.footer}>
-        <span>웹은 서버 DB와 WebSocket을 기준으로 다시 불러옵니다.</span>
-        <span>Tauri는 같은 서버 원본을 쓰고, 로컬 SQLite는 빠른 표시와 보충용으로만 씁니다.</span>
+        <span>웹은 서버 원본과 실시간 연결을 기준으로 다시 불러옵니다.</span>
+        <span>Tauri는 같은 서버 원본을 쓰고, 기기 안 임시 보관은 빠른 표시와 보충용으로만 씁니다.</span>
       </footer>
     </GlassPanel>
   );

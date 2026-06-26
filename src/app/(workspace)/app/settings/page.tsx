@@ -66,7 +66,7 @@ const accessBoundaryItems = [
     tone: "personal" as const,
   },
   {
-    allowed: "프로젝트룸 멤버는 room_members 권한 기준으로 자료, WBS, TODO, 채팅을 봅니다.",
+    allowed: "프로젝트룸 멤버는 프로젝트룸 멤버 권한 기준으로 자료, WBS, TODO, 채팅을 봅니다.",
     blocked: "친구가 아니거나 초대를 수락하지 않은 사용자는 프로젝트룸 자료에 접근하지 못합니다.",
     dataName: "프로젝트룸 자료",
     note: "프로젝트와 프로젝트룸은 분리하지 않고 project_room 하나를 업무 단위로 씁니다.",
@@ -76,13 +76,13 @@ const accessBoundaryItems = [
     tone: "room" as const,
   },
   {
-    allowed: "개인 에이전트 원문, 위젯 상세 이벤트, 로컬 대기열은 Tauri SQLite에만 둡니다.",
+    allowed: "개인 에이전트 원문, 위젯 상세 이벤트, 로컬 대기열은 기기 안 저장소에만 둡니다.",
     blocked: "개인 에이전트 원문과 상세 사용 이벤트 원문은 서버로 보내지 않습니다.",
     dataName: "Tauri 로컬 데이터",
     note: "서버에 필요한 값은 승인된 하루정리, 항목 상태, 날짜별 집계처럼 요약된 데이터만 반영합니다.",
     ownerLabel: "기기별 로컬",
     status: "limited" as const,
-    storageLabel: "Tauri SQLite",
+    storageLabel: "기기 안 저장소",
     tone: "local" as const,
   },
   {
