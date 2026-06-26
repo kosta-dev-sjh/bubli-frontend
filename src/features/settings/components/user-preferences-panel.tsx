@@ -55,10 +55,10 @@ const boundaries = [
   "알림, 위젯, 활동 감지 동의는 같은 설정 화면 안에 있어도 각각의 저장 정책을 따릅니다.",
 ];
 
-const apiRows = [
-  ["PATCH", "/api/me", "이름, 프로필 이미지, 언어, 시간대"],
-  ["GET", "/api/me/notification-preferences", "사용자별 알림 설정"],
-  ["GET", "/api/me/privacy-consents", "활동 감지와 기기 기능 동의"],
+const savedSettingRows = [
+  ["프로필", "이름, Bubli ID, 프로필 이미지"],
+  ["화면 표시", "언어, 시간대, 테마, 표시 밀도"],
+  ["개인 기능", "알림, 기기 기능 동의, 기본 프로젝트룸"],
 ];
 
 export function UserPreferencesPanel() {
@@ -147,13 +147,13 @@ export function UserPreferencesPanel() {
         </div>
 
         <div className={styles.noteCard}>
-          <h3>연결 API 후보</h3>
+          <h3>저장되는 설정</h3>
           <div className={styles.apiList}>
-            {apiRows.map(([method, path, description]) => (
-              <div className={styles.apiRow} key={path + description}>
-                <StatusBadge tone={method === "GET" ? "success" : "pending"}>{method}</StatusBadge>
+            {savedSettingRows.map(([label, description]) => (
+              <div className={styles.apiRow} key={label + description}>
+                <StatusBadge tone="personal">{label}</StatusBadge>
                 <div>
-                  <strong>{path}</strong>
+                  <strong>{label} 설정</strong>
                   <span>{description}</span>
                 </div>
               </div>

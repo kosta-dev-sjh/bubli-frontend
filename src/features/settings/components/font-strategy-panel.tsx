@@ -51,7 +51,7 @@ export function FontStrategyPanel() {
       <header className={styles.header}>
         <div className={styles.eyebrow}>
           <WandSparkles size={16} aria-hidden="true" />
-          폰트와 가독성
+          글자 표시 설정
         </div>
         <div className={styles.titleRow}>
           <div className={styles.titleGroup}>
@@ -63,16 +63,16 @@ export function FontStrategyPanel() {
           </div>
           <StatusBadge tone="personal">글자 크기</StatusBadge>
         </div>
-        <div className={styles.chips} aria-label="폰트 전략 핵심 기준">
+        <div className={styles.chips} aria-label="글자 표시 핵심 기준">
           <Chip selected icon={<Type size={14} aria-hidden="true" />}>
             Pretendard
           </Chip>
           <Chip icon={<Gauge size={14} aria-hidden="true" />}>90 · 100 · 115 · 130</Chip>
-          <Chip icon={<Moon size={14} aria-hidden="true" />}>고스트 가독성</Chip>
+          <Chip icon={<Moon size={14} aria-hidden="true" />}>고스트 모드 가독성</Chip>
         </div>
       </header>
 
-      <section className={styles.layout} aria-label="폰트 전략과 글자 크기 설정">
+      <section className={styles.layout} aria-label="글자 표시와 글자 크기 설정">
         <div className={styles.strategyGrid}>
           {strategyCards.map((card) => {
             const Icon = card.icon;
