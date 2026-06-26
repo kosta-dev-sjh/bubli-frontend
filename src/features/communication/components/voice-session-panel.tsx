@@ -101,7 +101,7 @@ export function VoiceSessionPanel() {
             <span className="bubli-icon-tile" aria-hidden="true">
               <LockKeyhole size={16} strokeWidth={2.1} />
             </span>
-            <p>보이스 연결 정보는 서버에서 발급하고, 내부 키는 클라이언트에 노출하지 않습니다.</p>
+            <p>보이스 연결 정보는 서버에서 발급하고, 내부 연결 값은 앱이나 브라우저에 노출하지 않습니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">

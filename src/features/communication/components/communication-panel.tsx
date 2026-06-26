@@ -146,7 +146,7 @@ export function CommunicationPanel() {
             </ul>
           </GlassPanel>
           <GlassPanel className="communication-panel__side-card">
-            <h3>Tauri 앱 기준</h3>
+            <h3>데스크탑 앱 기준</h3>
             <p>앱에서 소통 탭을 숨기더라도 버블이나 전용 창에서 같은 서버와 보이스 연결을 씁니다.</p>
           </GlassPanel>
         </aside>

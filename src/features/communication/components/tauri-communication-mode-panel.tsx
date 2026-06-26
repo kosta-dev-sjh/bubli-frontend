@@ -51,7 +51,7 @@ const surfaceMeta: Record<CommunicationSurface, { badge: string; description: st
     label: "웹 소통 탭",
   },
   "tauri-window": {
-    badge: "Tauri 전용 창",
+    badge: "데스크탑 전용 창",
     description: "앱에서는 메인 화면의 소통 탭을 숨기고, 별도 창에서 같은 연결을 엽니다.",
     icon: <MonitorUp size={20} strokeWidth={2.1} />,
     label: "앱 소통 창",
@@ -100,7 +100,7 @@ export function TauriCommunicationModePanel({
         </div>
       </header>
 
-      <div className={styles.flowGrid} aria-label="웹과 Tauri 소통 화면 연결 흐름">
+      <div className={styles.flowGrid} aria-label="웹과 데스크탑 소통 화면 연결 흐름">
         <article className={styles.surfaceCard}>
           <span className={styles.surfaceIcon} aria-hidden="true">
             <Globe2 size={22} strokeWidth={2.1} />
@@ -157,7 +157,7 @@ export function TauriCommunicationModePanel({
       <footer className={styles.footer}>
         <div className={styles.guardRail}>
           <ShieldCheck size={18} strokeWidth={2.1} aria-hidden="true" />
-          <span>보이스 연결 정보는 클라이언트에서 만들지 않고 서버에서 받은 값만 사용합니다.</span>
+          <span>보이스 연결 정보는 앱이나 브라우저에서 직접 만들지 않고 서버에서 받은 값만 사용합니다.</span>
         </div>
         <div className={styles.actions}>
           <Button icon={<ExternalLink size={15} strokeWidth={2.1} />} size="sm" variant="primary">

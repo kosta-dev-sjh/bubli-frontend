@@ -101,7 +101,7 @@ const defaultRecoverySteps: RealtimeRecoveryStep[] = [
   {
     id: "server-source",
     label: "서버 원본",
-    value: "확정 데이터는 서버 DB에서 다시 불러옵니다.",
+    value: "확정 데이터는 서버 기록에서 다시 불러옵니다.",
   },
   {
     id: "tauri-cache",
@@ -111,7 +111,7 @@ const defaultRecoverySteps: RealtimeRecoveryStep[] = [
   {
     id: "agent-events",
     label: "에이전트 완료",
-    value: "에이전트 정리 상태 변경은 API 서버 이벤트와 알림으로 받습니다.",
+    value: "에이전트 정리 상태 변경은 서버 이벤트와 알림으로 받습니다.",
   },
 ];
 
@@ -161,7 +161,7 @@ export function RealtimeConnectionStatusPanel({
       </header>
 
       <div className={styles.summaryGrid} aria-label="실시간 연결 요약">
-        <SummaryItem icon={<Server size={17} />} label="연결 기준" value="API 서버 실시간 연결" />
+        <SummaryItem icon={<Server size={17} />} label="연결 기준" value="서버 실시간 연결" />
         <SummaryItem icon={<Radio size={17} />} label="구독 토픽" value={`${connectedTopicCount}/${topics.length} 정상`} />
         <SummaryItem icon={<Database size={17} />} label="복구 기준" value={isTauri ? "서버 원본 + 기기 안 임시 보관" : "서버 원본"} />
         <SummaryItem icon={<Clock3 size={17} />} label="동기화" value={lastSyncedLabel} />
@@ -209,7 +209,7 @@ export function RealtimeConnectionStatusPanel({
 
       <footer className={styles.footer}>
         <span>웹은 서버 원본과 실시간 연결을 기준으로 다시 불러옵니다.</span>
-        <span>Tauri는 같은 서버 원본을 쓰고, 기기 안 임시 보관은 빠른 표시와 보충용으로만 씁니다.</span>
+        <span>데스크탑 앱은 같은 서버 원본을 쓰고, 기기 안 임시 보관은 빠른 표시와 보충용으로만 씁니다.</span>
       </footer>
     </GlassPanel>
   );

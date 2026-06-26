@@ -48,6 +48,6 @@ export const TauriCommunicationSurface: Story = {
   args: {
     notificationCount: 12,
     searchPlaceholder: "채팅, 보이스, 친구 검색",
-    surfaceLabel: "Tauri 소통 창",
+    surfaceLabel: "데스크탑 소통 창",
   },
 };

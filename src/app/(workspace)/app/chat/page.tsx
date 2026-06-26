@@ -54,17 +54,17 @@ const communicationChannels = [
 
 const sharedConnections = [
   {
-    description: "웹과 앱 모두 API 서버가 발급한 연결 정보만 사용합니다.",
-    label: "같은 API 서버",
+    description: "웹과 데스크탑 앱 모두 서버가 확인한 연결 정보만 사용합니다.",
+    label: "같은 서버 연결",
     status: "ready" as const,
   },
   {
-    description: "보이스 참여 정보는 클라이언트에서 만들지 않습니다.",
+    description: "보이스 참여 정보는 앱이나 브라우저에서 직접 만들지 않습니다.",
     label: "서버 발급 보이스 권한",
     status: "ready" as const,
   },
   {
-    description: "Tauri 메인 화면에서 소통 탭을 숨겨도 버블과 전용 창은 같은 연결을 씁니다.",
+    description: "데스크탑 앱 메인 화면에서 소통 탭을 숨겨도 버블과 전용 창은 같은 연결을 씁니다.",
     label: "앱 전용 소통 화면",
     status: "checking" as const,
   },
@@ -72,7 +72,7 @@ const sharedConnections = [
 
 const voiceRules = [
   {
-    description: "보이스 연결 정보는 서버에서 발급하고 내부 키는 클라이언트에 노출하지 않습니다.",
+    description: "보이스 연결 정보는 서버에서 발급하고 내부 연결 값은 앱이나 브라우저에 노출하지 않습니다.",
     label: "참여 권한 서버 발급",
     status: "safe" as const,
   },

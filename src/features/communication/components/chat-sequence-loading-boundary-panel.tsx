@@ -125,7 +125,7 @@ const syncRules: SyncRule[] = [
 ];
 
 const stateMeta: Record<MessageTrace["state"], { label: string; tone: "approved" | "pending" | "personal" }> = {
-  cached: { label: "캐시 반영", tone: "personal" },
+  cached: { label: "기기 안 반영", tone: "personal" },
   read: { label: "읽음", tone: "approved" },
   serverSaved: { label: "서버 저장", tone: "pending" },
 };
@@ -190,8 +190,8 @@ export function ChatSequenceLoadingBoundaryPanel() {
           </Chip>
           <h2>채팅은 메시지 순서값으로 이어 붙입니다</h2>
           <p>
-            프로젝트룸 채팅과 1:1 채팅은 서버 DB의 메시지를 원본으로 봅니다. 웹은 서버에서 바로 읽고,
-            Tauri는 기기 안 최근 대화를 먼저 보여준 뒤 빠진 메시지를 서버 순서값 기준으로 보충합니다.
+            프로젝트룸 채팅과 1:1 채팅은 서버에 남은 메시지를 기준으로 봅니다. 웹은 서버에서 바로 읽고,
+            데스크탑 앱은 기기 안 최근 대화를 먼저 보여준 뒤 빠진 메시지를 서버 순서값 기준으로 보충합니다.
           </p>
         </div>
         <div className={styles.heroMetric}>
@@ -237,7 +237,7 @@ export function ChatSequenceLoadingBoundaryPanel() {
         <GlassPanel className={styles.rulePanel}>
           <div className={styles.sectionTitle}>
             <h3>구현 규칙</h3>
-            <p>웹, Tauri, 실시간 연결이 같은 메시지를 다룰 때 지켜야 하는 기준입니다.</p>
+            <p>웹, 데스크탑 앱, 실시간 연결이 같은 메시지를 다룰 때 지켜야 하는 기준입니다.</p>
           </div>
           <div className={styles.ruleList}>
             {syncRules.map((rule) => (
