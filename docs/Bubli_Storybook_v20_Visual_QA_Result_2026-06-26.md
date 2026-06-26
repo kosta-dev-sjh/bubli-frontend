@@ -11,7 +11,7 @@
 | Storybook | `http://127.0.0.1:6006` |
 | 캡처 방식 | Playwright screenshot |
 | viewport | `1440 x 1000` |
-| 캡처 위치 | `output/playwright/storybook-v20-qa/`, `output/playwright/storybook-v20-polish-followup/`, `output/playwright/storybook-v20-managed-folder/`, `output/playwright/storybook-v20-project-room/`, `output/playwright/storybook-v20-todo/`, `output/playwright/storybook-v20-agent/` |
+| 캡처 위치 | `output/playwright/storybook-v20-qa/`, `output/playwright/storybook-v20-polish-followup/`, `output/playwright/storybook-v20-managed-folder/`, `output/playwright/storybook-v20-project-room/`, `output/playwright/storybook-v20-todo/`, `output/playwright/storybook-v20-agent/`, `output/playwright/storybook-v20-agent-schema/` |
 
 ## 2. 대표 Story 점검 결과
 
@@ -28,6 +28,7 @@
 | `features-projectroom-projectroominviteflow--default` | 프로젝트룸 초대가 친구 목록과 기존 회원 기준으로만 보이고, 수락 뒤 권한 생성 흐름이 분리되어 있다. | 기획 방향 적합. 게스트 초대나 이메일 초대처럼 보이는 흐름은 없다. |
 | `features-todo-todoassigneereflectionpanel--default` | 프로젝트룸에서 생긴 하나의 TODO가 담당자 기준으로 대시보드, 버블, 일정에 함께 표시되는 구조가 보인다. | 기획 방향 적합. 사용자 화면의 `서버 원본 작업` 표현을 `하나로 관리되는 작업` 기준으로 낮췄다. |
 | `features-agent-agentjobstatuspanel--running` | 에이전트 작업이 진행 상태로 보이고, WBS/TODO/확인 질문은 승인 전 후보로 분리되어 있다. | 기획 방향 적합. 모델명과 형식 버전처럼 보이는 문구를 사용자 기준 문구로 낮췄다. |
+| `features-agent-agentschemavalidationpanel--passed-validation` | 에이전트 결과를 후보 형식, 질문 방식, 정리 작업 상태로 확인하는 구조가 보인다. | 기획 방향 적합. `/app`에 보이던 `schema_version`, `agent_jobs`, 모델명 같은 구현 문구를 사용자 기준 문구로 낮췄다. |
 
 ## 3. 즉시 수정한 항목
 
@@ -54,6 +55,8 @@
 | 개인 관리 폴더 모바일 제목 | 동기화 패널의 긴 한국어 제목이 모바일에서 음절 단위로 끊기지 않도록 줄바꿈 기준과 모바일 제목 크기를 조정했다. |
 | TODO 담당자 반영 문구 | 사용자 화면에 보이던 `서버 원본 작업` 표현을 `하나로 관리되는 작업`으로 낮췄다. |
 | 에이전트 작업 상태 문구 | 사용자 화면에 보이던 모델명과 형식 버전 표현을 `질문 중심으로 정리 중`, `후보 형식 확인`으로 낮췄다. |
+| 에이전트 결과 검증 문구 | `/app` 대시보드와 Storybook 예시에서 `schema_version`, `agent_jobs`, 모델명처럼 보이는 표현을 `후보 형식`, `정리 상태`, `정리 방식` 기준으로 낮췄다. |
+| 보이스 연결 문구 | `/app/chat`에 남아 있던 `보이스 토큰`, `토큰 서버 발급` 표현을 `보이스 권한`, `참여 권한 서버 발급`으로 낮췄다. |
 
 ## 4. 디자인보드 v20 polish로 넘길 항목
 

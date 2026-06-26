@@ -60,7 +60,7 @@ const sharedConnections = [
   },
   {
     description: "LiveKit 연결 정보는 클라이언트에서 만들지 않습니다.",
-    label: "서버 발급 보이스 토큰",
+    label: "서버 발급 보이스 권한",
     status: "ready" as const,
   },
   {
@@ -73,7 +73,7 @@ const sharedConnections = [
 const voiceRules = [
   {
     description: "보이스 연결 정보는 서버에서 발급하고 내부 키는 클라이언트에 노출하지 않습니다.",
-    label: "토큰 서버 발급",
+    label: "참여 권한 서버 발급",
     status: "safe" as const,
   },
   {

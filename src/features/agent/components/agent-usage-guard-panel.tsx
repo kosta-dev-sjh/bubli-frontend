@@ -78,25 +78,25 @@ export function AgentUsageGuardPanel({
           <div className="grid gap-1">
             <h2 className="m-0 text-[22px] font-[860] leading-tight text-[var(--color-text)]">{title}</h2>
             <p className="m-0 max-w-[680px] text-[14px] leading-6 text-[var(--color-muted)]">
-              모델 호출은 사용자별 제한과 분석 캐시를 먼저 확인합니다. 호출 결과는 로그로 남기고, 사용자는 후보만 검토합니다.
+              에이전트 정리는 사용자별 제한과 분석 캐시를 먼저 확인합니다. 처리 결과는 기록으로 남기고, 사용자는 후보만 검토합니다.
             </p>
           </div>
         </div>
-        <StatusBadge tone={usagePercent >= 90 ? "warning" : "success"}>오늘 남은 호출 {remainingCount}회</StatusBadge>
+        <StatusBadge tone={usagePercent >= 90 ? "warning" : "success"}>오늘 남은 정리 {remainingCount}회</StatusBadge>
       </header>
 
       <section className="grid gap-4 rounded-[var(--radius-card)] border border-[var(--glass-border)] bg-white/70 p-4 shadow-[var(--shadow-soft)] md:grid-cols-[1.2fr_0.8fr]">
         <div className="grid gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="m-0 text-[14px] font-[820] text-[var(--color-text)]">오늘 모델 호출</p>
+              <p className="m-0 text-[14px] font-[820] text-[var(--color-text)]">오늘 에이전트 정리</p>
               <p className="m-0 text-[12.5px] text-[var(--color-muted)]">
-                {usedToday}회 사용 · 하루 제한 {dailyLimit}회
+                {usedToday}회 사용 · 하루 기준 {dailyLimit}회
               </p>
             </div>
             <Chip icon={<RefreshCcw size={14} strokeWidth={2.1} />}>{cacheHitLabel}</Chip>
           </div>
-          <ProgressBar label="오늘 모델 호출 사용량" value={usagePercent} />
+          <ProgressBar label="오늘 에이전트 정리 사용량" value={usagePercent} />
         </div>
         <div className="grid gap-2 rounded-[var(--radius-input)] bg-[rgba(215,234,244,0.42)] p-3">
           <div className="flex items-center gap-2 text-[12.5px] font-[820] text-[var(--color-blue-deep)]">
@@ -134,7 +134,7 @@ export function AgentUsageGuardPanel({
 
       <section className="grid gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="m-0 text-[15px] font-[840] text-[var(--color-text)]">최근 모델 호출 기록</h3>
+          <h3 className="m-0 text-[15px] font-[840] text-[var(--color-text)]">최근 에이전트 정리 기록</h3>
           <Chip icon={<History size={14} strokeWidth={2.1} />}>성공과 실패 모두 기록</Chip>
         </div>
         <ul className="m-0 grid list-none gap-2 p-0">
@@ -146,7 +146,7 @@ export function AgentUsageGuardPanel({
               <div className="min-w-0">
                 <p className="m-0 text-[13.5px] font-[820] text-[var(--color-text)]">{call.modelName}</p>
                 <p className="m-0 mt-1 text-[12.5px] text-[var(--color-muted)]">
-                  프롬프트 {call.promptVersion} · 스키마 {call.schemaVersion}
+                  질문 방식 {call.promptVersion} · 결과 형식 {call.schemaVersion}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2 md:justify-end">

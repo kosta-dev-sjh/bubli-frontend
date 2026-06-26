@@ -73,6 +73,7 @@ feature별 분포는 아래처럼 본다.
 | `features-publicsite/components/hybrid-app-frame`와 `features-widget/components/hybrid-app-frame` | 하이브리드 앱 설명이 중복될 수 있다. | Tauri WebView 구조 설명을 한 story에서 충분히 보여주면 하나로 합친다. |
 | `resource-download-access-panel`와 `resource-access-download-panel` | 이름과 역할이 비슷하다. | 한쪽이 다운로드 권한, 한쪽이 접근 권한으로 분리되지 않으면 합치거나 제거한다. |
 | `resource-upload-decision`와 `resource-upload-decision-panel` | 업로드 결정 화면이 중복될 수 있다. | 실제 업로드 플로우에서 하나만 쓰이면 나머지는 제거한다. |
+| `agent-model-call-log-panel` | 사용자 화면보다 에이전트 운영/추적 설명에 가깝다. | 실제 대시보드에서 필요한 정보가 아니면 개발 가이드나 운영 점검 story로 내리고, 사용자 화면에는 후보 상태와 승인 흐름만 남긴다. |
 | 과도한 boundary/policy 패널 | 사용자 화면보다 개발 경계 설명에 가까울 수 있다. | 개발 가이드 문서로 충분하고 화면에서 쓰이지 않으면 Storybook에서 제거한다. |
 
 ## 6. API 계약 확정 후 손볼 Story
@@ -96,7 +97,7 @@ feature별 분포는 아래처럼 본다.
 |---|---:|---|
 | 1차 컴포넌트 추출 | 약 80% | Storybook 기준 144개 story가 있고, 핵심 feature는 대부분 story가 있다. 다만 세부 상태, 중복 정리, 실제 라우트 배치는 남아 있다. |
 | 라우트 연결 | 약 90% | 공개 사이트, 로그인, `/app`, 프로젝트룸, 자료보드, 작업 화면, 채팅, 설정, Tauri desktop route가 존재한다. 세부 화면 연결과 실제 데이터 상태는 별도 작업이다. |
-| Storybook 대표 점검 | 약 35% | 대표 story 24개 기준 중 일부는 캡처와 문서 점검이 끝났고, 남은 story는 계속 순차 점검해야 한다. |
+| Storybook 대표 점검 | 약 38% | 대표 story 24개 기준 중 일부는 캡처와 문서 점검이 끝났고, 에이전트 결과 검증 문구까지 추가 보정했다. 남은 story는 계속 순차 점검해야 한다. |
 | 디자인보드 v20 정합화 | 약 25% | 공통 버블 질감, 일부 한국어 줄바꿈, Tauri 소통 패널 등은 보정됐지만 전체 화면 밀도와 질감은 아직 2차 polish가 필요하다. |
 | API 계약 반영 | 약 20% | API client 위치와 일부 타입은 있으나, 확정 DTO와 payload가 오면 교체해야 한다. |
 | Tauri 경계 검증 | 약 30% | Tauri IPC wrapper와 관리 폴더/위젯/소통 경계 story는 있으나 실제 앱 연결 검증은 더 필요하다. |

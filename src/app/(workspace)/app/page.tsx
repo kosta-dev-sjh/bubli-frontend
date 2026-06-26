@@ -65,37 +65,37 @@ const agentJobEvents = [
 
 const schemaMetrics = [
   {
-    description: "문서 추출 후보와 TODO 후보가 같은 스키마 버전으로 내려옵니다.",
+    description: "문서 추출 후보와 TODO 후보가 같은 형식으로 정리됩니다.",
     icon: "schema" as const,
-    label: "schema_version",
-    value: "agent-suggestion.v3",
+    label: "후보 형식",
+    value: "자료 분석 기준",
   },
   {
-    description: "프롬프트 버전을 남겨 결과가 달라진 이유를 추적합니다.",
+    description: "질문 방식이 바뀌면 정리 결과도 함께 비교합니다.",
     icon: "prompt" as const,
-    label: "prompt_version",
-    value: "contract-review.2026-06",
+    label: "질문 방식",
+    value: "계약 검토 기준",
   },
   {
-    description: "에이전트 작업은 agent_jobs 상태로 먼저 확인합니다.",
+    description: "에이전트 정리 작업은 승인 전 상태로 먼저 확인합니다.",
     icon: "job" as const,
-    label: "agent_jobs",
-    value: "SUCCEEDED",
+    label: "정리 상태",
+    value: "후보 생성 완료",
   },
 ];
 
 const schemaResults = [
   {
     description: "후보 종류가 요구사항, TODO, WBS, 확인 질문 중 하나로 들어왔습니다.",
-    field: "suggestionType",
+    field: "후보 종류",
     status: "passed" as const,
-    value: "TASK_CANDIDATE",
+    value: "TODO 후보",
   },
   {
     description: "확정 테이블에 바로 쓰지 않고 후보 ID만 내려옵니다.",
-    field: "targetWrite",
+    field: "확정 반영",
     status: "passed" as const,
-    value: "agent_suggestions",
+    value: "승인 전 대기",
   },
   {
     description: "사용자가 확인해야 하는 문서 근거가 함께 포함됐습니다.",
@@ -107,7 +107,7 @@ const schemaResults = [
 
 const usageGuards = [
   {
-    description: "같은 자료 해시가 있으면 새 모델 호출 전에 캐시를 확인합니다.",
+    description: "같은 자료 해시가 있으면 새 정리 작업 전에 캐시를 확인합니다.",
     label: "분석 캐시",
     status: "ready" as const,
     value: "사용 가능",
@@ -129,17 +129,17 @@ const usageGuards = [
 const modelCalls = [
   {
     latencyLabel: "2.1s",
-    modelName: "document-agent",
-    promptVersion: "contract-review.2026-06",
-    schemaVersion: "agent-suggestion.v3",
-    tokenLabel: "4.2k tokens",
+    modelName: "문서 정리",
+    promptVersion: "계약 검토 기준",
+    schemaVersion: "후보 형식 확인",
+    tokenLabel: "보통",
   },
   {
     latencyLabel: "1.4s",
-    modelName: "summary-agent",
-    promptVersion: "daily-summary.2026-06",
-    schemaVersion: "daily-summary.v2",
-    tokenLabel: "2.8k tokens",
+    modelName: "하루 정리",
+    promptVersion: "작업 요약 기준",
+    schemaVersion: "하루정리 형식",
+    tokenLabel: "가벼움",
   },
 ];
 

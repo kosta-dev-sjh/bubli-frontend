@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "에이전트가 만든 결과를 정해진 형식 기준으로 확인하고, 질문 방식과 사용 모델, 정리 작업을 함께 추적하는 패널입니다.",
+          "에이전트가 만든 결과를 정해진 형식 기준으로 확인하고, 질문 방식과 정리 작업 상태를 함께 추적하는 패널입니다.",
       },
     },
   },
@@ -26,25 +26,25 @@ export const PassedValidation: Story = {
         description: "에이전트 결과를 확인하는 기준입니다.",
         icon: "schema",
         label: "결과 형식",
-        value: "resource-analysis.v2",
+        value: "자료 분석 기준",
       },
       {
         description: "질문 방식 변경 전후 결과 비교 기준입니다.",
         icon: "prompt",
         label: "질문 방식",
-        value: "contract-review.2026-06",
+        value: "계약 검토 기준",
       },
       {
-        description: "분석에 사용한 모델을 남깁니다.",
+        description: "정리 방식이 바뀌면 결과를 비교할 수 있게 남깁니다.",
         icon: "model",
-        label: "사용 모델",
-        value: "Claude Haiku 4.5",
+        label: "정리 방식",
+        value: "가벼운 문서 정리",
       },
       {
         description: "정리 작업과 결과를 연결합니다.",
         icon: "job",
         label: "정리 작업",
-        value: "8f2c",
+        value: "후보 생성 완료",
       },
     ],
     validationResults: [
@@ -77,19 +77,19 @@ export const SchemaNeedsReview: Story = {
         description: "요구사항 후보 생성 결과를 검증합니다.",
         icon: "schema",
         label: "결과 형식",
-        value: "requirement-candidate.v1",
+        value: "요구사항 후보 기준",
       },
       {
         description: "질문 방식 버전이 결과에 남아야 합니다.",
         icon: "prompt",
         label: "질문 방식",
-        value: "requirements.2026-06",
+        value: "요구사항 정리 기준",
       },
       {
-        description: "처리 기록의 모델명과 결과의 모델명이 같아야 합니다.",
+        description: "처리 기록과 결과에 남은 정리 방식이 같아야 합니다.",
         icon: "model",
-        label: "사용 모델",
-        value: "Claude Haiku 4.5",
+        label: "정리 방식",
+        value: "요구사항 정리",
       },
       {
         description: "실패 내용은 처리 흐름에 남깁니다.",
