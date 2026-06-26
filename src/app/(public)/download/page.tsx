@@ -11,7 +11,7 @@ export default function DownloadPage() {
     <>
       <PageHeading
         title="데스크탑 앱 다운로드"
-        description="Tauri 앱은 배포된 HTTPS 회원 웹 앱을 WebView로 열고, 로컬 폴더와 버블 위젯 기능을 더합니다."
+        description="데스크탑 앱은 배포된 HTTPS 회원 웹 앱을 열고, 기기 폴더와 버블 위젯 기능을 더합니다."
       />
       <div className="page-grid">
         <DesktopDownloadHandoffPanel

@@ -44,61 +44,61 @@ type DeviceSession = {
 
 const rotationSteps: RotationStep[] = [
   {
-    description: "access token은 짧게 유지하고 요청 헤더에 붙입니다.",
+    description: "짧은 세션은 화면 요청마다 서버가 확인합니다.",
     icon: KeyRound,
-    label: "access token",
-    storage: "memory",
+    label: "짧은 세션",
+    storage: "화면 연결",
     tone: "pending",
   },
   {
-    description: "웹 refresh token은 JavaScript가 읽지 못하는 cookie로 받습니다.",
+    description: "웹 로그인 유지는 브라우저 보안 저장으로 관리합니다.",
     icon: Cookie,
-    label: "web refresh",
-    storage: "httpOnly cookie",
+    label: "웹 세션 유지",
+    storage: "브라우저 보안 저장",
     tone: "approved",
   },
   {
-    description: "Tauri refresh token은 운영체제 보안 저장소에만 둡니다.",
+    description: "데스크탑 앱은 운영체제 보안 저장소에 로그인 유지 정보를 둡니다.",
     icon: LockKeyhole,
-    label: "Tauri refresh",
-    storage: "OS secure storage",
+    label: "앱 세션 유지",
+    storage: "기기 보안 저장",
     tone: "personal",
   },
   {
-    description: "재발급이 성공하면 새 refresh token으로 교체합니다.",
+    description: "갱신이 성공하면 이전 로그인 유지 정보는 새 값으로 교체합니다.",
     icon: RefreshCcw,
-    label: "rotation",
-    storage: "device session",
+    label: "세션 갱신",
+    storage: "기기별 세션",
     tone: "warning",
   },
 ];
 
 const sessionCases: SessionCase[] = [
   {
-    action: "refresh 후 원래 요청 재시도",
-    code: "AUTH_TOKEN_EXPIRED",
-    description: "access token 만료는 즉시 로그아웃하지 않고 재발급을 먼저 시도합니다.",
-    label: "access 만료",
+    action: "갱신 후 원래 요청 재시도",
+    code: "짧은 세션 만료",
+    description: "짧은 세션이 끝나면 즉시 로그아웃하지 않고 갱신을 먼저 시도합니다.",
+    label: "세션 만료",
     tone: "pending",
   },
   {
     action: "현재 기기 세션 종료",
-    code: "AUTH_REFRESH_TOKEN_EXPIRED",
-    description: "refresh token 만료는 현재 device session을 종료하고 로그인 화면으로 보냅니다.",
-    label: "refresh 만료",
+    code: "로그인 유지 만료",
+    description: "로그인 유지 기간이 끝나면 현재 기기 세션을 종료하고 로그인 화면으로 보냅니다.",
+    label: "유지 기간 만료",
     tone: "warning",
   },
   {
     action: "전체 기기 점검 안내",
-    code: "AUTH_REFRESH_TOKEN_REUSED",
-    description: "rotation 이후 예전 refresh token이 다시 쓰이면 재사용 감지 상태로 봅니다.",
+    code: "이전 세션 재사용",
+    description: "교체된 로그인 유지 정보가 다시 쓰이면 재사용 감지 상태로 봅니다.",
     label: "재사용 감지",
     tone: "warning",
   },
   {
-    action: "STOMP 재연결",
-    code: "WEBSOCKET_TOKEN_EXPIRED",
-    description: "실시간 연결은 refresh 성공 뒤 새 access token으로 다시 연결합니다.",
+    action: "실시간 연결 다시 열기",
+    code: "실시간 연결 갱신",
+    description: "실시간 연결은 세션 갱신 뒤 다시 연결합니다.",
     label: "실시간 재연결",
     tone: "approved",
   },
@@ -109,13 +109,13 @@ const deviceSessions: DeviceSession[] = [
     device: "MacBook Pro · Tauri",
     lastUsed: "방금 전",
     sessionState: "current",
-    storage: "OS secure storage",
+    storage: "기기 보안 저장",
   },
   {
     device: "Chrome · Web",
     lastUsed: "18분 전",
     sessionState: "active",
-    storage: "httpOnly cookie",
+    storage: "브라우저 보안 저장",
   },
   {
     device: "Safari · Web",
@@ -188,30 +188,30 @@ function DeviceSessionRow({ session }: { session: DeviceSession }) {
 
 export function AuthRefreshRotationBoundaryPanel() {
   return (
-    <section className={styles.panel} aria-label="인증 refresh rotation 경계 패널">
+    <section className={styles.panel} aria-label="인증 세션 갱신 경계 패널">
       <GlassPanel className={styles.hero}>
         <div className={styles.heroCopy}>
           <Chip icon={<ShieldCheck size={14} />} selected>
-            인증 rotation
+            로그인 세션
           </Chip>
-          <h2>refresh token은 기기 세션 기준으로 돌리고, 재사용은 즉시 분리합니다</h2>
+          <h2>로그인 유지는 기기별로 관리하고, 오래된 세션 재사용은 분리합니다</h2>
           <p>
-            웹과 Tauri는 같은 인증 API를 쓰지만 refresh token 보관 위치가 다릅니다. 프론트는 만료, 재발급,
-            재사용 감지를 구분해 사용자 흐름과 실시간 연결을 안정적으로 이어갑니다.
+            웹과 Tauri는 같은 로그인 흐름을 쓰지만, 로그인 유지 정보는 환경에 맞게 나눠 보관합니다. 프론트는
+            만료, 갱신, 재사용 감지를 구분해 사용자 흐름과 실시간 연결을 안정적으로 이어갑니다.
           </p>
         </div>
         <div className={styles.heroMetric}>
-          <StatusBadge tone="approved">device session</StatusBadge>
+          <StatusBadge tone="approved">기기별 세션</StatusBadge>
           <strong>30일</strong>
-          <span>refresh token 만료</span>
-          <ProgressBar label="인증 rotation 정책 정합도" value={88} />
+          <span>로그인 유지 기간</span>
+          <ProgressBar label="로그인 세션 정책 정합도" value={88} />
         </div>
       </GlassPanel>
 
       <GlassPanel className={styles.flowPanel}>
         <div className={styles.sectionTitle}>
-          <h3>토큰 저장과 교체 흐름</h3>
-          <p>access token은 짧게 쓰고, refresh token은 환경별 안전 저장소에서 교체합니다.</p>
+          <h3>세션 저장과 교체 흐름</h3>
+          <p>짧은 세션은 화면 요청에 쓰고, 로그인 유지 정보는 환경별 안전 저장소에서 교체합니다.</p>
         </div>
         <div className={styles.rotationGrid}>
           {rotationSteps.map((step, index) => (
@@ -243,7 +243,7 @@ export function AuthRefreshRotationBoundaryPanel() {
         <GlassPanel className={styles.devicePanel}>
           <div className={styles.sectionTitle}>
             <h3>기기 세션</h3>
-            <p>로그아웃은 현재 기기 세션의 refresh token만 무효화합니다.</p>
+            <p>로그아웃은 현재 기기 세션만 종료합니다.</p>
           </div>
           <div className={styles.deviceList}>
             {deviceSessions.map((session) => (
@@ -252,21 +252,21 @@ export function AuthRefreshRotationBoundaryPanel() {
           </div>
           <div className={styles.notice}>
             <AlertTriangle size={16} strokeWidth={2.1} />
-            <p>refresh token 재사용이 감지되면 해당 계정의 다른 기기 상태 점검을 안내합니다.</p>
+            <p>오래된 로그인 유지 정보가 다시 쓰이면 해당 계정의 다른 기기 상태 점검을 안내합니다.</p>
           </div>
           <div className={styles.notice}>
             <RadioTower size={16} strokeWidth={2.1} />
-            <p>WebSocket은 refresh 성공 뒤 새 access token으로 다시 연결합니다.</p>
+            <p>실시간 연결은 세션 갱신이 성공한 뒤 다시 연결합니다.</p>
           </div>
-          <Chip icon={<CheckCircle2 size={14} />}>SQLite, localStorage, 평문 파일에 refresh token 저장 금지</Chip>
+          <Chip icon={<CheckCircle2 size={14} />}>일반 파일이나 화면 저장소에 로그인 유지 정보 저장 금지</Chip>
         </GlassPanel>
       </div>
 
       <GlassPanel className={styles.footerPanel}>
         <LogOut size={18} strokeWidth={2.1} />
-        <p>로그아웃은 서버의 device session을 종료하고, 웹 cookie 또는 Tauri secure storage의 refresh token을 비웁니다.</p>
-        <StatusBadge tone="approved">/api/auth/logout</StatusBadge>
-        <StatusBadge tone="pending">/api/auth/refresh</StatusBadge>
+        <p>로그아웃은 서버의 기기 세션을 종료하고, 웹 또는 Tauri에 남은 로그인 유지 정보를 비웁니다.</p>
+        <StatusBadge tone="approved">로그아웃</StatusBadge>
+        <StatusBadge tone="pending">세션 갱신</StatusBadge>
       </GlassPanel>
     </section>
   );

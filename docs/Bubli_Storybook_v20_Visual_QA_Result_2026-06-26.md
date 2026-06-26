@@ -23,6 +23,7 @@
 | `features-resources-resourceboard--default` | 개인 자료와 프로젝트룸 자료, 후보, 확인 필요 항목이 한 화면에서 구분된다. | 기획 방향 적합. 구현 표현은 `관리 폴더에서 감지`처럼 사용자 문구로 낮췄다. |
 | `features-agent-candidateapprovalpanel--default` | 에이전트 결과가 확정값이 아니라 후보로 보이고, 승인 후 반영 흐름이 분리되어 있다. | `agent_jobs`, `agent_suggestions`, API 서버 같은 구현 문구를 에이전트 정리와 서버 확인 기준으로 낮췄다. |
 | `features-auth-authpanel--login` | 자체 계정 입력 없이 Google 기반 진입으로 보인다. | H1 줄바꿈과 token 표현을 즉시 수정했다. |
+| `features-auth-authsessionsecuritypanel--default` | 웹과 데스크탑 앱의 로그인 세션을 기기별로 나눠 관리하는 구조가 보인다. | `access token`, `refresh token`, `cookie`, `secure storage`처럼 보이던 표현을 로그인 세션, 기기별 안전 저장, 세션 갱신 기준으로 낮췄다. |
 | `features-publicsite-publichero--default` | 공개 사이트가 서비스 소개, 다운로드, 웹 로그인 진입에 집중한다. | 기획 방향 적합. |
 | `features-managedfolder-managedfoldersyncpanel--default` | 개인 관리 폴더 변화 감지, 사용자 승인, 서버 반영 대기열 기준이 분리되어 보인다. | 기획 방향 적합. 모바일 제목 줄바꿈만 즉시 수정했다. |
 | `features-projectroom-projectroominviteflow--default` | 프로젝트룸 초대가 친구 목록과 기존 회원 기준으로만 보이고, 수락 뒤 권한 생성 흐름이 분리되어 있다. | 기획 방향 적합. 게스트 초대나 이메일 초대처럼 보이는 흐름은 없다. |
@@ -72,6 +73,7 @@
 | 타이머/기기 복구/초대 권한 문구 | 타이머 복구, 전송 대기열, 데이터 삭제, 접근 범위, 프로젝트룸 초대 패널에서 `time_logs`, `local_timer_state`, `local_sync_outbox`, `room_invites`, `room_members`처럼 보이던 표현을 사용자 기준으로 낮췄다. |
 | 관리 폴더/자료 업로드 문구 | 관리 폴더 반영, 자료 업로드, 자료 검증, 다운로드, 저장소 정책 패널에서 `S3`, `resourceId`, `agent_jobs`, `checksum`, `visibility`처럼 보이던 표현을 사용자 기준으로 낮췄다. |
 | 에이전트 후보/재시도 문구 | 후보 승인, 계약 문서 확인, 에이전트 재시도, 에이전트 사용량 패널에서 `agent_jobs`, `agent_suggestions`, 모델명, schema, 파일 해시처럼 보이던 표현을 에이전트 정리, 정리 기준, 후보 구조, 파일 지문 기준으로 낮췄다. |
+| 인증/공개 화면 문구 | 인증 세션, 세션 갱신, 공개 FAQ, 다운로드 화면에서 `access token`, `refresh token`, `SQLite`, `WebView`, `로컬 캐시`처럼 보이던 표현을 로그인 세션, 기기 안 저장소, 빠른 표시, 데스크탑 앱 기준으로 낮췄다. |
 
 ## 4. 디자인보드 v20 polish로 넘길 항목
 

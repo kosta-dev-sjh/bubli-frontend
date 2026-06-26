@@ -6,9 +6,9 @@ import { PageHeading } from "@/components/ui/page-heading";
 
 const faqItems = [
   {
-    answer: "웹은 프로젝트룸, 자료보드, 작업판, 소통 같은 기본 업무 화면입니다. Tauri 앱은 같은 회원 웹 앱을 열고 버블, 로컬 폴더, SQLite 캐시, 타이머 복구 같은 데스크탑 기능을 더합니다.",
+    answer: "웹은 프로젝트룸, 자료보드, 작업판, 소통 같은 기본 업무 화면입니다. 데스크탑 앱은 같은 회원 웹 앱을 열고 버블, 기기 폴더, 빠른 표시, 타이머 복구 같은 데스크탑 기능을 더합니다.",
     icon: AppWindow,
-    question: "웹과 Tauri 앱은 무엇이 다른가요?",
+    question: "웹과 데스크탑 앱은 무엇이 다른가요?",
   },
   {
     answer: "개인 자료는 사용자가 공유하기 전까지 프로젝트룸에 보이지 않습니다. 프로젝트룸 자료는 멤버 권한을 확인한 뒤 같은 공간에서 함께 봅니다.",
@@ -21,14 +21,14 @@ const faqItems = [
     question: "에이전트가 자동으로 작업을 확정하나요?",
   },
   {
-    answer: "회원 웹 앱에서는 소통 탭에서 채팅과 보이스를 사용합니다. Tauri 앱에서는 메인 탭을 숨기고 소통 버블이나 전용 창에서 같은 서버 연결과 보이스 연결을 씁니다.",
+    answer: "회원 웹 앱에서는 소통 탭에서 채팅과 보이스를 사용합니다. 데스크탑 앱에서는 메인 탭을 숨기고 소통 버블이나 전용 창에서 같은 서버 연결과 보이스 연결을 씁니다.",
     icon: MessageCircle,
     question: "앱에서는 채팅과 보이스를 어디서 쓰나요?",
   },
   {
-    answer: "TODO, 일정, 채팅, 알림, 타이머 원본은 서버에 둡니다. 개인 에이전트 원문, 상세 위젯 사용 이벤트, 로컬 캐시와 복구 대기열은 기기 안 저장소에 둡니다.",
+    answer: "TODO, 일정, 채팅, 알림, 타이머 원본은 서버에 둡니다. 개인 에이전트 원문, 상세 위젯 사용 이벤트, 빠른 표시와 복구 대기열은 기기 안 저장소에 둡니다.",
     icon: Database,
-    question: "로컬 SQLite에는 무엇을 저장하나요?",
+    question: "기기 안 저장소에는 무엇을 저장하나요?",
   },
 ];
 
@@ -40,7 +40,7 @@ export default function FaqPage() {
         <GlassPanel className="public-faq__intro">
           <Chip selected>사용 전 확인</Chip>
           <h2>웹, 앱, 버블, 자료 권한을 같은 기준으로 이해할 수 있게 정리했습니다</h2>
-          <p>Bubli는 공개 사이트, 회원 웹 앱, Tauri 앱이 역할을 나눕니다. FAQ는 이 경계가 헷갈리지 않게 잡는 화면입니다.</p>
+          <p>Bubli는 공개 사이트, 회원 웹 앱, 데스크탑 앱이 역할을 나눕니다. FAQ는 이 경계가 헷갈리지 않게 잡는 화면입니다.</p>
         </GlassPanel>
         <div className="public-faq__list">
           {faqItems.map((item) => {
