@@ -33,7 +33,7 @@ const strategyCards = [
   {
     title: "표시 설정 저장",
     body: "글자 크기와 표시 밀도는 사용자별 설정으로 저장합니다.",
-    value: "user_preferences.font_scale",
+    value: "내 글자 크기",
     icon: Gauge,
   },
 ];
@@ -57,11 +57,11 @@ export function FontStrategyPanel() {
           <div className={styles.titleGroup}>
             <h2 className={styles.title}>작은 글자보다 읽히는 업무 정보를 우선합니다</h2>
             <p className={styles.summary}>
-              Bubli는 회원 웹 앱과 Tauri 버블을 같은 글꼴로 맞추고, 글자 크기 설정을 사용자별로 저장합니다. 고스트 모드에서도
+              Bubli는 회원 웹 앱과 데스크탑 버블을 같은 글꼴로 맞추고, 글자 크기 설정을 사용자별로 저장합니다. 고스트 모드에서도
               오늘 할 일과 알림이 먼저 읽혀야 합니다.
             </p>
           </div>
-          <StatusBadge tone="personal">font_scale</StatusBadge>
+          <StatusBadge tone="personal">글자 크기</StatusBadge>
         </div>
         <div className={styles.chips} aria-label="폰트 전략 핵심 기준">
           <Chip selected icon={<Type size={14} aria-hidden="true" />}>

@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "Tauri 앱에서만 쓰는 개인 관리 폴더 상태 패널입니다. 사용자가 지정한 폴더만 색인하고, 서버 반영과 프로젝트룸 공유를 분리하는 기획 기준을 반영합니다.",
+          "데스크탑 앱에서만 쓰는 개인 관리 폴더 상태 패널입니다. 사용자가 지정한 폴더만 색인하고, 서버 반영과 프로젝트룸 공유를 분리하는 기획 기준을 반영합니다.",
       },
     },
   },
@@ -37,7 +37,7 @@ export const LocalOnly: Story = {
       {
         count: 12,
         id: "local",
-        label: "로컬 색인",
+        label: "기기 안 색인",
         status: "LOCAL_ONLY",
       },
       {

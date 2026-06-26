@@ -143,7 +143,7 @@ export function WidgetMotionPolicyPanel({
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
               위젯은 작업 중 화면 위에 남는 개인 영역입니다. 기본은 정적으로 두고, 필요한 순간에만
-              `transform`과 `opacity` 중심의 짧은 반응을 사용합니다. 모션 설정과 상세 사용 이벤트는 Tauri 쪽에서
+              위치와 투명도 중심의 짧은 반응을 사용합니다. 모션 설정과 상세 사용 이벤트는 데스크탑 앱에서
               다루고, 서버에는 필요한 설정과 집계값만 남깁니다.
             </p>
           </div>

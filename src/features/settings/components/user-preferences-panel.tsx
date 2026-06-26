@@ -13,52 +13,52 @@ const profileFields = [
 const preferenceRows = [
   {
     title: "언어",
-    description: "회원 웹 앱과 Tauri WebView의 기본 언어를 맞춥니다.",
+    description: "회원 웹 앱과 데스크탑 앱의 기본 언어를 맞춥니다.",
     value: "한국어",
-    dbField: "locale",
+    dbField: "표시 언어",
     icon: Languages,
   },
   {
     title: "시간대",
     description: "일정, 마감, 하루정리 날짜 계산의 기준입니다.",
     value: "Asia/Seoul",
-    dbField: "timezone",
+    dbField: "시간대",
     icon: Clock3,
   },
   {
     title: "테마",
     description: "웹과 앱에서 같은 화면 톤을 씁니다.",
     value: "라이트 · 물방울",
-    dbField: "theme",
+    dbField: "화면 톤",
     icon: Paintbrush,
   },
   {
     title: "표시 밀도",
     description: "대시보드와 자료보드의 카드 간격을 사용자 기준으로 저장합니다.",
     value: "보통",
-    dbField: "density",
+    dbField: "카드 간격",
     icon: Gauge,
   },
   {
     title: "기본 프로젝트룸",
     description: "앱을 열었을 때 먼저 볼 프로젝트룸을 지정합니다.",
     value: "Bubli 제품 개발룸",
-    dbField: "default_room_id",
+    dbField: "처음 열 화면",
     icon: FolderKanban,
   },
 ];
 
 const boundaries = [
-  "프로필과 표시 설정은 user_id 기준으로 저장합니다.",
+  "프로필과 표시 설정은 내 계정 기준으로 저장합니다.",
   "기본 프로젝트룸은 화면 진입 기본값일 뿐, 프로젝트룸 멤버 권한을 바꾸지 않습니다.",
-  "Tauri 앱은 같은 회원 웹 앱을 열지만 로컬 권한과 캐시는 별도 설정에서 관리합니다.",
+  "데스크탑 앱은 같은 회원 웹 앱을 열지만 기기 권한과 빠른 표시 기록은 별도 설정에서 관리합니다.",
   "알림, 위젯, 활동 감지 동의는 같은 설정 화면 안에 있어도 각각의 저장 정책을 따릅니다.",
 ];
 
 const apiRows = [
   ["PATCH", "/api/me", "이름, 프로필 이미지, 언어, 시간대"],
   ["GET", "/api/me/notification-preferences", "사용자별 알림 설정"],
-  ["GET", "/api/me/privacy-consents", "활동 감지와 로컬 기능 동의"],
+  ["GET", "/api/me/privacy-consents", "활동 감지와 기기 기능 동의"],
 ];
 
 export function UserPreferencesPanel() {
@@ -77,11 +77,11 @@ export function UserPreferencesPanel() {
               다른 멤버에게 영향을 주지 않습니다.
             </p>
           </div>
-          <StatusBadge tone="personal">user_preferences</StatusBadge>
+          <StatusBadge tone="personal">내 설정</StatusBadge>
         </div>
         <div className={styles.chips} aria-label="사용자 기본 설정 저장 기준">
           <Chip selected icon={<UserRound size={14} aria-hidden="true" />}>
-            user_id 기준
+            내 계정 기준
           </Chip>
           <Chip icon={<ShieldCheck size={14} aria-hidden="true" />}>멤버 권한과 분리</Chip>
           <Chip icon={<FolderKanban size={14} aria-hidden="true" />}>기본 프로젝트룸</Chip>

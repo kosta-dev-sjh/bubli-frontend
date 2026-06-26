@@ -70,12 +70,12 @@ export function ManagedFolderIndexPanel() {
           </Chip>
           <h2>사용자가 지정한 폴더만 감지하고, 먼저 개인 자료로 정리합니다</h2>
           <p>
-            Tauri 앱은 사용자가 선택한 로컬 폴더의 파일 변경을 감지합니다. 색인된 파일은 개인 자료로 남고,
+            데스크탑 앱은 사용자가 선택한 기기 폴더의 파일 변경을 감지합니다. 색인된 파일은 개인 자료로 남고,
             프로젝트룸에 공유하려면 사용자의 승인이 필요합니다.
           </p>
         </div>
         <div className="managed-folder__summary">
-          <StatusBadge tone="personal">로컬 색인</StatusBadge>
+          <StatusBadge tone="personal">기기 안 색인</StatusBadge>
           <strong>128</strong>
           <span>관리 중인 파일</span>
           <ProgressBar label="오늘 폴더 색인 진행률" value={82} />
@@ -108,7 +108,7 @@ export function ManagedFolderIndexPanel() {
           </div>
           <div>
             <Database size={17} strokeWidth={2.1} />
-            <p>빠른 표시와 변경 감지는 Tauri 로컬 저장소와 색인 상태를 우선 사용합니다.</p>
+            <p>빠른 표시와 변경 감지는 기기 안 저장소와 색인 상태를 우선 사용합니다.</p>
           </div>
           <div>
             <ShieldCheck size={17} strokeWidth={2.1} />

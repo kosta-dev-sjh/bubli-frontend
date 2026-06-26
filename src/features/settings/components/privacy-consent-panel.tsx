@@ -53,13 +53,13 @@ export function PrivacyConsentPanel() {
       <header className={styles.header}>
         <div className={styles.eyebrow}>
           <ShieldCheck size={16} aria-hidden="true" />
-          개인정보와 로컬 권한
+          개인정보와 기기 권한
         </div>
         <div className={styles.titleRow}>
           <div className={styles.titleGroup}>
-            <h2 className={styles.title}>동의한 범위 안에서만 로컬 기능을 켭니다</h2>
+            <h2 className={styles.title}>동의한 범위 안에서만 기기 기능을 켭니다</h2>
             <p className={styles.summary}>
-              활동 감지와 개인 관리 폴더는 Tauri 앱에서만 필요한 권한입니다. 사용자가 켠 항목만 동작하고, 화면 전체 내용과 키보드
+              활동 감지와 개인 관리 폴더는 데스크탑 앱에서만 필요한 권한입니다. 사용자가 켠 항목만 동작하고, 화면 전체 내용과 키보드
               입력은 수집하지 않습니다.
             </p>
           </div>

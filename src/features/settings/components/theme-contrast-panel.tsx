@@ -7,22 +7,22 @@ import styles from "./theme-contrast-panel.module.css";
 const themeCards = [
   {
     title: "기본 워터블루",
-    description: "회원 웹 앱과 기본 Tauri 화면은 밝은 배경, 밀크 글래스, 워터블루 강조를 우선합니다.",
-    storage: "user_preferences.theme",
+    description: "회원 웹 앱과 데스크탑 앱 기본 화면은 밝은 배경, 밀크 글래스, 워터블루 강조를 우선합니다.",
+    storage: "내 화면 테마",
     tone: "light",
     icon: SunMedium,
   },
   {
     title: "블랙화이트 다크",
     description: "어두운 화면은 넓은 남색 면을 줄이고 거의 검정에 가까운 표면과 흰 글자, 하늘색 강조만 남깁니다.",
-    storage: "user_preferences.theme",
+    storage: "내 화면 테마",
     tone: "dark",
     icon: Moon,
   },
   {
     title: "고스트 모드 글자",
     description: "버블 배경을 거의 지워도 업무 내용이 읽히도록 배경별 글자 색과 halo를 바꿉니다.",
-    storage: "widget_preferences.ghost_mode",
+    storage: "버블 표시 옵션",
     tone: "ghost",
     icon: EyeOff,
   },
@@ -51,7 +51,7 @@ export function ThemeContrastPanel() {
               데스크톱 버블이 같은 기준으로 보입니다.
             </p>
           </div>
-          <StatusBadge tone="personal">theme · ghost_mode</StatusBadge>
+          <StatusBadge tone="personal">테마 · 고스트 모드</StatusBadge>
         </div>
         <div className={styles.chips} aria-label="테마 설정 핵심 기준">
           <Chip selected icon={<SunMedium size={14} aria-hidden="true" />}>

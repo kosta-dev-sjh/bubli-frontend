@@ -100,7 +100,7 @@ export function WidgetMinimizedDockPanel({
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
               최소화된 버블은 큰 화면을 다시 열지 않아도 지금 볼 값만 짧게 보여줍니다. 서버 원본이 필요한 값과
-              Tauri 캐시로 빠르게 보여주는 값을 구분합니다.
+              기기 안 임시 기록으로 빠르게 보여주는 값을 구분합니다.
             </p>
           </div>
         </div>

@@ -53,7 +53,7 @@ export const ProductAccessBoundaries: Story = {
         tone: "widget",
       },
       {
-        allowed: "Tauri 앱은 사용자가 지정한 폴더와 빠른 표시용 기록, 개인 에이전트 원문을 기기 안에서 다룹니다.",
+        allowed: "데스크탑 앱은 사용자가 지정한 폴더와 빠른 표시용 기록, 개인 에이전트 원문을 기기 안에서 다룹니다.",
         blocked: "전체 PC 파일, 화면 내용, 키보드 입력은 수집 대상이 아닙니다.",
         dataName: "기기 안 데이터",
         note: "기기 안 저장소가 손상되면 기기 안 백업으로 복구하고, 서버 기록은 다시 내려받습니다.",

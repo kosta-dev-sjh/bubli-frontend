@@ -39,7 +39,7 @@ const errorCases: ErrorCase[] = [
   {
     action: "refresh 먼저 시도",
     code: "AUTH_TOKEN_EXPIRED",
-    description: "access token 만료는 바로 로그아웃하지 않고 재발급 요청 후 원래 요청을 한 번 다시 보냅니다.",
+    description: "로그인 세션이 만료되면 바로 로그아웃하지 않고 세션 갱신을 한 번 시도합니다.",
     icon: KeyRound,
     label: "인증 만료",
     owner: "src/lib/api",
@@ -77,7 +77,7 @@ const errorCases: ErrorCase[] = [
   {
     action: "대기열에 보관",
     code: "NETWORK_OFFLINE",
-    description: "Tauri에서 네트워크가 끊긴 작업은 기기 안 대기열에 남기고 중복 키로 다시 보냅니다.",
+    description: "데스크탑 앱에서 네트워크가 끊긴 작업은 기기 안 대기열에 남기고 중복 방지 기준으로 다시 보냅니다.",
     icon: RefreshCcw,
     label: "로컬 동기화",
     owner: "src/lib/tauri",
@@ -228,7 +228,7 @@ export function ApiErrorHandlingBoundaryPanel() {
           </div>
           <div className={styles.notice}>
             <Clock3 size={16} strokeWidth={2.1} />
-            <p>Tauri 작업은 네트워크 복구 후 중복 방지 키 기준으로 한 번만 반영합니다.</p>
+            <p>데스크탑 앱 작업은 네트워크 복구 후 중복 방지 기준으로 한 번만 반영합니다.</p>
           </div>
           <Chip icon={<CheckCircle2 size={14} />}>화면별 문구는 실제 API code 확정 후 조정</Chip>
         </GlassPanel>

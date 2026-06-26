@@ -136,7 +136,7 @@ export function StorageSyncPolicyPanel() {
         <div className={styles.sectionTitle}>
           <div>
             <h3>동기화 상태값</h3>
-            <p>자료보드와 Tauri 설정 화면에서 같은 상태 기준으로 보여줍니다.</p>
+            <p>자료보드와 데스크탑 앱 설정 화면에서 같은 상태 기준으로 보여줍니다.</p>
           </div>
           <StatusBadge tone="approved">같은 상태 기준</StatusBadge>
         </div>

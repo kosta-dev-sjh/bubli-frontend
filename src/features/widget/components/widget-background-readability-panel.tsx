@@ -89,7 +89,7 @@ export function WidgetBackgroundReadabilityPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<Monitor size={16} strokeWidth={2.1} />}>Tauri 위젯 검수</Chip>
+          <Chip icon={<Monitor size={16} strokeWidth={2.1} />}>데스크탑 위젯 검수</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>

@@ -32,8 +32,8 @@ const preferenceRows = [
 ];
 
 const languageRules = [
-  ["저장 위치", "user_preferences.locale, timezone"],
-  ["적용 범위", "공개 사이트, 회원 웹 앱, Tauri WebView의 핵심 화면"],
+  ["저장 위치", "내 계정의 언어와 시간대 설정"],
+  ["적용 범위", "공개 사이트, 회원 웹 앱, 데스크탑 앱의 핵심 화면"],
   ["에이전트 후보", "번역 결과도 후보로 표시하고 사용자가 확인한 내용만 반영"],
   ["권한 기준", "언어 설정은 사용자 개인 설정이며 프로젝트룸 멤버에게 공유하지 않음"],
 ];
@@ -127,7 +127,7 @@ export function LanguagePreferencesPanel() {
         <Chip selected icon={<ShieldCheck size={14} aria-hidden="true" />}>
           프로젝트룸 자료 원문 보존
         </Chip>
-        <Chip icon={<Globe2 size={14} aria-hidden="true" />}>사용자별 locale 적용</Chip>
+        <Chip icon={<Globe2 size={14} aria-hidden="true" />}>사용자별 언어 적용</Chip>
         <Chip icon={<Clock3 size={14} aria-hidden="true" />}>마감과 기록은 시간대 기준</Chip>
       </footer>
     </GlassPanel>

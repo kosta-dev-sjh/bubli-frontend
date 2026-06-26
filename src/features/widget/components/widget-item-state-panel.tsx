@@ -105,7 +105,7 @@ export function WidgetItemStatePanel({ className, items, title = "버블 항목 
           <CheckCircle2 size={18} strokeWidth={2.1} />
         </span>
         <p>
-          상태 저장 기준은 사용자, 버블 종류, 항목 종류, 원본 항목 ID 조합입니다. 웹과 Tauri에서 다시 열어도 같은 상태가 유지되어야 합니다.
+          상태 저장 기준은 사용자, 버블 종류, 항목 종류, 원본 항목 조합입니다. 웹과 데스크탑 앱에서 다시 열어도 같은 상태가 유지되어야 합니다.
         </p>
       </section>
 
