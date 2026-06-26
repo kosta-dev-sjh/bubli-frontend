@@ -17,7 +17,7 @@ npm run storybook
 npm run build-storybook
 ```
 
-현재 기준으로 Storybook story는 253개이며, root 그룹은 아래처럼 정리한다.
+현재 기준으로 Storybook story 파일은 144개이며, root 그룹은 아래처럼 정리한다.
 
 | 그룹 | 역할 |
 |---|---|
@@ -101,6 +101,7 @@ http://localhost:6006/?path=/story/features-widget-widgetdesktoppreview--default
 ## 5. 완료 기준
 
 - Storybook build가 통과한다.
+- `find src -name '*.stories.tsx' | wc -l` 기준 story 파일 수와 이 문서의 기준 수가 맞아야 한다.
 - Story root가 `UI`, `Domain`, `Bubbles`, `Layout`, `Features` 중심으로 정리되어 있다.
 - 대표 story에서 최신 기획과 충돌하는 흐름이 없다.
 - 디자인 세부 수정을 시작하기 전에 기획 충돌 수정 이슈를 먼저 분리한다.
