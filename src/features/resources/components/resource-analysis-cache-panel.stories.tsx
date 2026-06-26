@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "같은 파일 hash 반복 분석을 막고, 캐시 사용과 새 agent job 생성을 구분하는 자료 분석 정책 패널입니다.",
+          "같은 파일 지문 반복 분석을 막고, 기존 결과 사용과 새 에이전트 정리 작업 생성을 구분하는 자료 분석 정책 패널입니다.",
       },
     },
   },
@@ -23,23 +23,23 @@ export const CacheHitAndMiss: Story = {
   args: {
     entries: [
       {
-        description: "같은 hash의 이전 분석 결과가 있어 모델 호출 없이 결과를 다시 보여줍니다.",
+        description: "같은 파일 지문의 이전 분석 결과가 있어 새 분석 없이 결과를 다시 보여줍니다.",
         fileName: "요구사항_정의서_v1.3.pdf",
-        hashLabel: "hash: 7f2a...91c0",
+        hashLabel: "파일 지문 7f2a...91c0",
         status: "hit",
         updatedAtLabel: "분석 2일 전",
       },
       {
-        description: "새 파일이므로 agent job을 만들고 resource_analysis에 결과를 분리 저장합니다.",
+        description: "새 파일이므로 에이전트 정리 작업을 만들고 분석 결과를 후보로 분리 저장합니다.",
         fileName: "회의록_2026-06-23.md",
-        hashLabel: "hash: c83d...12aa",
+        hashLabel: "파일 지문 c83d...12aa",
         status: "miss",
         updatedAtLabel: "방금 업로드",
       },
       {
         description: "캐시 기준 기간을 지나 다시 분석할 수 있습니다.",
         fileName: "견적서_old.xlsx",
-        hashLabel: "hash: a1d0...e885",
+        hashLabel: "파일 지문 a1d0...e885",
         status: "expired",
         updatedAtLabel: "분석 31일 전",
       },
@@ -49,7 +49,7 @@ export const CacheHitAndMiss: Story = {
         description: "같은 파일인지 판단하는 기준입니다.",
         icon: "hash",
         label: "중복 기준",
-        value: "file hash",
+        value: "파일 지문",
       },
       {
         description: "기획서 기준 후보 기간입니다.",
@@ -61,13 +61,13 @@ export const CacheHitAndMiss: Story = {
         description: "새 분석이 필요할 때만 만듭니다.",
         icon: "job",
         label: "실행 단위",
-        value: "agent_jobs",
+        value: "정리 작업",
       },
       {
         description: "자료 원본과 분리해서 저장합니다.",
         icon: "result",
         label: "결과 저장",
-        value: "resource_analysis",
+        value: "분석 후보",
       },
     ],
   },
@@ -79,7 +79,7 @@ export const FailedAnalysisRetry: Story = {
       {
         description: "분석 실패가 전체 자료보드 장애로 이어지지 않도록 실패 상태와 재시도 진입점을 보여줍니다.",
         fileName: "스캔본_계약서.pdf",
-        hashLabel: "hash: 991e...7dd4",
+        hashLabel: "파일 지문 991e...7dd4",
         status: "failed",
         updatedAtLabel: "실패 12분 전",
       },

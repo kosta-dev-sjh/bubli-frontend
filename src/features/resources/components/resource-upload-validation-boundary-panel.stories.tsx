@@ -8,17 +8,17 @@ import {
 const demoProps: ResourceUploadValidationBoundaryPanelProps = {
   items: [
     {
-      checksumLabel: "checksum 새 값",
+      checksumLabel: "새 파일 지문",
       extensionLabel: "PDF 허용",
       fileName: "번역계약서_v2.pdf",
       mimeLabel: "application/pdf",
-      reason: "프로젝트룸 자료로 저장한 뒤 분석 job을 시작할 수 있습니다.",
+      reason: "프로젝트룸 자료로 저장한 뒤 에이전트 정리 작업을 시작할 수 있습니다.",
       sizeLabel: "2.4MB",
       status: "ready",
       targetLabel: "프로젝트룸 자료",
     },
     {
-      checksumLabel: "checksum 동일",
+      checksumLabel: "파일 지문 동일",
       extensionLabel: "MD 허용",
       fileName: "요구사항_정리.md",
       mimeLabel: "text/markdown",
@@ -38,11 +38,11 @@ const demoProps: ResourceUploadValidationBoundaryPanelProps = {
       targetLabel: "개인 자료",
     },
     {
-      checksumLabel: "checksum 확인 중",
+      checksumLabel: "파일 지문 확인 중",
       extensionLabel: "DOCX 허용",
       fileName: "회의결정_2026-06-20.docx",
       mimeLabel: "문서 형식 확인 중",
-      reason: "브라우저가 넘긴 MIME type을 확인한 뒤 업로드 가능 여부를 표시합니다.",
+      reason: "브라우저가 알려준 파일 형식을 확인한 뒤 업로드 가능 여부를 표시합니다.",
       sizeLabel: "1.1MB",
       status: "checking",
       targetLabel: "프로젝트룸 자료",

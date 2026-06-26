@@ -70,6 +70,7 @@
 | 위젯/기기 저장소 문구 | 위젯 설정, 위젯 저장 정책, 기기 복구, 동기화 대기열, 개인정보 동의 패널에서 `Tauri SQLite`, `idempotency_key`, 테이블명처럼 보이던 문구를 기기 안 저장소와 중복 방지 키 기준으로 낮췄다. |
 | 자료/개인 에이전트 문구 | 자료 권한, 자료 분석 캐시, 하루정리 근거, 개인 에이전트 기억 패널과 실제 라우트 예시에서 `owner`, `room_members`, `resource_analysis`, `local_agent_messages`, `Tauri SQLite`, `서버 DB + S3`처럼 보이던 표현을 사용자 기준으로 낮췄다. |
 | 타이머/기기 복구/초대 권한 문구 | 타이머 복구, 전송 대기열, 데이터 삭제, 접근 범위, 프로젝트룸 초대 패널에서 `time_logs`, `local_timer_state`, `local_sync_outbox`, `room_invites`, `room_members`처럼 보이던 표현을 사용자 기준으로 낮췄다. |
+| 관리 폴더/자료 업로드 문구 | 관리 폴더 반영, 자료 업로드, 자료 검증, 다운로드, 저장소 정책 패널에서 `S3`, `resourceId`, `agent_jobs`, `checksum`, `visibility`처럼 보이던 표현을 사용자 기준으로 낮췄다. |
 
 ## 4. 디자인보드 v20 polish로 넘길 항목
 

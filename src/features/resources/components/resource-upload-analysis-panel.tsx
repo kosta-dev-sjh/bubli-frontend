@@ -31,14 +31,14 @@ const files: UploadFile[] = [
   {
     analysis: 66,
     fileName: "번역계약서_v2.pdf",
-    meta: "PDF · 2.4MB · checksum 확인",
+    meta: "PDF · 2.4MB · 파일 지문 확인",
     scope: "프로젝트룸 자료",
     status: "analyzing",
   },
   {
     analysis: 100,
     fileName: "요구사항_정리.md",
-    meta: "Markdown · 84KB · resourceId 생성",
+    meta: "Markdown · 84KB · 자료 등록 완료",
     scope: "프로젝트룸 자료",
     status: "ready",
   },
@@ -78,7 +78,7 @@ function FileCard({ file }: { file: UploadFile }) {
       </div>
       <ProgressBar label={`${file.fileName} 처리 진행률`} value={file.analysis} />
       <div className={styles.meta}>
-        <span>업로드 성공 후 resourceId 기준</span>
+        <span>업로드 성공 후 자료 등록 기준</span>
         <span>분석 결과는 후보로 표시</span>
       </div>
     </article>
@@ -95,12 +95,12 @@ export function ResourceUploadAnalysisPanel() {
           </Chip>
           <h2>자료를 올리면 저장, 권한 확인, 분석 후보 생성까지 같은 흐름으로 이어집니다</h2>
           <p>
-            업로드는 Spring Boot multipart 중계 방식을 기준으로 시작합니다. 성공하면 resourceId를 만들고,
-            에이전트 분석은 job 상태와 후보 목록으로 이어집니다.
+            업로드는 서버를 거쳐 진행합니다. 성공하면 자료보드에 등록되고,
+            에이전트 분석은 정리 작업 상태와 후보 목록으로 이어집니다.
           </p>
         </div>
         <div className={styles.summary}>
-          <StatusBadge tone="todo">multipart</StatusBadge>
+          <StatusBadge tone="todo">서버 업로드</StatusBadge>
           <strong>100MB</strong>
           <span>단일 파일 기준</span>
           <ProgressBar label="업로드 준비 기준 반영률" value={81} />
@@ -110,11 +110,11 @@ export function ResourceUploadAnalysisPanel() {
       <div className={styles.flow}>
         <span>파일 선택</span>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <span>MIME/크기 확인</span>
+        <span>형식/크기 확인</span>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <span>resourceId 생성</span>
+        <span>자료 등록</span>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <span>agent_jobs 분석</span>
+        <span>에이전트 정리</span>
         <ArrowRight size={16} strokeWidth={2.1} />
         <span>후보 확인</span>
       </div>
@@ -153,27 +153,27 @@ export function ResourceUploadAnalysisPanel() {
             <article className={styles.ruleCard}>
               <code>권한 확인</code>
               <h4>자료 범위 먼저 확인</h4>
-              <p>개인 자료와 프로젝트룸 자료는 visibility와 room 권한으로 나눕니다.</p>
+              <p>개인 자료와 프로젝트룸 자료는 자료 범위와 프로젝트룸 권한으로 나눕니다.</p>
             </article>
             <article className={styles.ruleCard}>
-              <code>S3</code>
+              <code>서버 저장</code>
               <h4>공개 URL로 열지 않음</h4>
               <p>다운로드는 서버 권한 확인 뒤 발급된 URL로만 처리합니다.</p>
             </article>
             <article className={styles.ruleCard}>
-              <code>checksum</code>
+              <code>파일 지문</code>
               <h4>중복 분석 방지</h4>
-              <p>같은 파일 반복 업로드는 checksum 기준으로 분석 요청을 줄입니다.</p>
+              <p>같은 파일 반복 업로드는 파일 지문 기준으로 분석 요청을 줄입니다.</p>
             </article>
             <article className={styles.ruleCard}>
-              <code>agent_jobs</code>
+              <code>에이전트 정리</code>
               <h4>분석 결과는 후보</h4>
               <p>요약, 확인 필요 항목, WBS/TODO는 사용자가 확인하기 전까지 후보로 둡니다.</p>
             </article>
           </div>
           <div className={styles.chips}>
             <Chip icon={<ShieldCheck size={14} />}>프롬프트 인젝션 방어</Chip>
-            <Chip icon={<LockKeyhole size={14} />}>S3 public 금지</Chip>
+            <Chip icon={<LockKeyhole size={14} />}>공개 링크 금지</Chip>
             <Chip icon={<Bot size={14} />}>후보 생성</Chip>
             <Chip icon={<RefreshCw size={14} />}>상태 이벤트</Chip>
             <Chip icon={<FileArchive size={14} />}>버전 기록</Chip>

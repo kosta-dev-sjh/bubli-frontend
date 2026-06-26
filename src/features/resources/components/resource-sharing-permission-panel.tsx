@@ -95,7 +95,7 @@ export function ResourceSharingPermissionPanel() {
               <h3>공유 후보</h3>
               <p>개인 자료를 프로젝트룸 자료로 바꿀 때는 사용자의 명시적인 승인이 필요합니다.</p>
             </div>
-            <Chip icon={<UploadCloud size={14} />}>resources.visibility</Chip>
+            <Chip icon={<UploadCloud size={14} />}>자료 범위</Chip>
           </div>
 
           <div className="resource-sharing__list">
@@ -111,13 +111,13 @@ export function ResourceSharingPermissionPanel() {
             <span className="bubli-icon-tile" aria-hidden="true">
               <ShieldCheck size={16} strokeWidth={2.1} />
             </span>
-            <p>개인 자료는 `visibility=PERSONAL` 상태로 저장하고, 본인만 볼 수 있습니다.</p>
+            <p>개인 자료는 본인만 볼 수 있는 자료로 저장합니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <UsersRound size={16} strokeWidth={2.1} />
             </span>
-            <p>프로젝트룸 자료는 `visibility=ROOM_SHARED` 상태이며, 프로젝트룸 멤버 권한을 확인합니다.</p>
+            <p>프로젝트룸 자료는 프로젝트룸 멤버 권한을 확인한 뒤 함께 볼 수 있습니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
@@ -129,7 +129,7 @@ export function ResourceSharingPermissionPanel() {
             <span className="bubli-icon-tile" aria-hidden="true">
               <CheckCircle2 size={16} strokeWidth={2.1} />
             </span>
-            <p>에이전트가 만든 자료 제안은 후보이며, 공유 상태 변경은 API/core 모듈이 승인 후 처리합니다.</p>
+            <p>에이전트가 만든 자료 제안은 후보이며, 공유 상태 변경은 사용자 승인 후 반영합니다.</p>
           </div>
         </GlassPanel>
       </div>

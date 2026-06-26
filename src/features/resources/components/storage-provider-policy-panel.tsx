@@ -43,9 +43,9 @@ const policyCards: Array<{
   label: string;
 }> = [
   {
-    description: "초기 검증은 로컬 저장소로 빠르게 확인하고, 화면 계약은 그대로 둡니다.",
+    description: "초기 검증은 기기 안 저장소로 빠르게 확인하고, 화면 흐름은 그대로 둡니다.",
     icon: <HardDrive size={18} strokeWidth={2.1} />,
-    label: "로컬 검증",
+    label: "기기 안 검증",
   },
   {
     description: "최종 파일 원본은 서버 저장소에 두고, 접근 판단에 필요한 자료 정보를 함께 남깁니다.",
@@ -53,7 +53,7 @@ const policyCards: Array<{
     label: "서버 저장",
   },
   {
-    description: "파일 경로가 아니라 로그인 사용자, visibility, 프로젝트룸 권한으로 내려받기를 판단합니다.",
+    description: "파일 경로가 아니라 로그인 사용자, 자료 범위, 프로젝트룸 권한으로 내려받기를 판단합니다.",
     icon: <ShieldCheck size={18} strokeWidth={2.1} />,
     label: "서버 권한 확인",
   },
@@ -87,7 +87,7 @@ export function StorageProviderPolicyPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              저장 위치가 바뀌어도 자료보드는 같은 API 계약을 보고, 접근은 서버 권한 기준으로 판단합니다.
+              저장 위치가 바뀌어도 자료보드는 같은 화면 흐름을 쓰고, 접근은 서버 권한 기준으로 판단합니다.
             </p>
           </div>
         </div>
@@ -124,7 +124,7 @@ export function StorageProviderPolicyPanel({
             <p className={styles.kicker}>GET /api/resources/:id/download-url</p>
             <h3 className={styles.cardTitle}>{downloadRuleLabel}</h3>
             <p className={styles.helperText}>
-              S3 객체는 바로 열지 않고, 서버가 권한을 확인한 뒤 내려받기 주소를 발급합니다.
+              파일 원본은 바로 열지 않고, 서버가 권한을 확인한 뒤 내려받기 주소를 발급합니다.
             </p>
           </div>
         </section>

@@ -92,12 +92,12 @@ const stepIconMap: Record<ProcessingStepKind, typeof UploadCloud> = {
 
 const defaultSteps: ProcessingStep[] = [
   {
-    detailLabel: "S3 저장",
+    detailLabel: "서버 저장",
     kind: "UPLOAD",
     label: "자료 업로드",
     progress: 100,
     status: "SUCCEEDED",
-    supportingText: "원본 파일은 서버 저장소에 두고 접근 권한은 DB 기준으로 확인합니다.",
+    supportingText: "원본 파일은 서버 저장소에 두고 접근 권한은 서버 기준으로 확인합니다.",
   },
   {
     detailLabel: "PDF 텍스트",

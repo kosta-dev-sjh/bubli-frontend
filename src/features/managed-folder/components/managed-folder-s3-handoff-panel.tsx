@@ -86,7 +86,7 @@ export const defaultFolderEvents: FolderEvent[] = [
 export const defaultFolderHandoffRules: HandoffRule[] = [
   {
     description: "데스크탑 앱은 사용자가 지정한 관리 폴더의 변경 상태를 기기 안 색인에 남깁니다.",
-    label: "로컬 색인",
+    label: "기기 안 색인",
     tone: "personal",
   },
   {
@@ -142,7 +142,7 @@ export function ManagedFolderS3HandoffPanel({
           <div>
             <StatusBadge tone="personal">기기 안 기록</StatusBadge>
             <h3>관리 폴더</h3>
-            <p>지정 폴더의 추가, 수정, 삭제 상태를 로컬 색인에 기록합니다.</p>
+            <p>지정 폴더의 추가, 수정, 삭제 상태를 기기 안 색인에 기록합니다.</p>
           </div>
         </article>
 

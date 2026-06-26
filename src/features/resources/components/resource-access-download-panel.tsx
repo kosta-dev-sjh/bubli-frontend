@@ -18,7 +18,7 @@ const accessCards = [
   {
     title: "개인 자료",
     caption: "사용자가 직접 공유하기 전까지 본인만 보는 자료",
-    status: "PERSONAL",
+    status: "개인 자료",
     tone: "personal" as const,
     icon: UserRound,
     rules: [
@@ -30,11 +30,11 @@ const accessCards = [
   {
     title: "프로젝트룸 자료",
     caption: "프로젝트룸 멤버가 같은 맥락에서 보는 자료",
-    status: "ROOM_SHARED",
+    status: "프로젝트룸 자료",
     tone: "room" as const,
     icon: UsersRound,
     rules: [
-      ["접근 기준", "room_id와 활성 멤버 권한을 함께 확인"],
+      ["접근 기준", "프로젝트룸과 활성 멤버 권한을 함께 확인"],
       ["다운로드", "멤버 권한 확인 후 다운로드 주소 발급"],
       ["이벤트", "댓글, 버전, 에이전트 제안은 프로젝트룸 이벤트로 표시"],
     ],
@@ -42,7 +42,7 @@ const accessCards = [
   {
     title: "비멤버 접근",
     caption: "프로젝트룸 멤버가 아니면 자료 다운로드 차단",
-    status: "DOWNLOAD_BLOCKED",
+    status: "다운로드 차단",
     tone: "warning" as const,
     icon: MessageCircle,
     rules: [
@@ -85,7 +85,7 @@ export function ResourceAccessDownloadPanel() {
         </div>
         <div className={styles.titleRow}>
           <div>
-            <h2 className={styles.title}>자료 접근은 visibility와 서버 권한 확인으로 나눕니다</h2>
+            <h2 className={styles.title}>자료 접근은 자료 범위와 서버 권한 확인으로 나눕니다</h2>
             <p className={styles.summary}>
               개인 자료는 소유자 기준으로 보호하고, 프로젝트룸 자료는 멤버 권한을 확인합니다. 다운로드는 서버가 권한을 확인한 뒤에만
               사용할 주소를 내려주는 흐름으로 처리합니다.

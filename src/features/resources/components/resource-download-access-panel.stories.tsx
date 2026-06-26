@@ -61,7 +61,7 @@ export const NonMemberBlocked: Story = {
       },
     ],
     file: {
-      checksumLabel: "checksum 대기",
+      checksumLabel: "파일 지문 대기",
       fileName: "요구사항정의서_v1.3.pdf",
       mimeLabel: "PDF",
       sizeLabel: "3.1 MB",
@@ -76,7 +76,7 @@ export const ExpiredPersonalResourceUrl: Story = {
     accessScope: "PERSONAL",
     expiresLabel: "이미 만료됨",
     file: {
-      checksumLabel: "sha256 확인됨",
+      checksumLabel: "파일 지문 확인됨",
       fileName: "개인_계약검토_메모.md",
       mimeLabel: "Markdown",
       sizeLabel: "18 KB",

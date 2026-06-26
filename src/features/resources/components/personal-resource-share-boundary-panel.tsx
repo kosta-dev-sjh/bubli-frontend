@@ -90,12 +90,12 @@ export const defaultBoundarySteps: BoundaryStep[] = [
     tone: "personal",
   },
   {
-    description: "공유할 자료와 대상 프로젝트룸을 확인한 뒤 API 서버가 권한을 다시 검사합니다.",
+    description: "공유할 자료와 대상 프로젝트룸을 확인한 뒤 서버가 권한을 다시 검사합니다.",
     label: "권한 확인",
     tone: "room",
   },
   {
-    description: "승인된 자료만 resources.visibility 기준으로 프로젝트룸 자료에 연결됩니다.",
+    description: "승인된 자료만 프로젝트룸 자료로 연결됩니다.",
     label: "승인 후 반영",
     tone: "approved",
   },
@@ -117,7 +117,7 @@ export function PersonalResourceShareBoundaryPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<FolderLock size={16} strokeWidth={2.1} />}>resources.visibility</Chip>
+          <Chip icon={<FolderLock size={16} strokeWidth={2.1} />}>자료 공유</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
@@ -211,7 +211,7 @@ export function PersonalResourceShareBoundaryPanel({
               </div>
 
               <footer className={styles.resourceFooter}>
-                <span>{resource.readiness.toLowerCase()}</span>
+                <span>{readiness.label}</span>
                 <Button
                   disabled={resource.readiness === "PRIVATE_ONLY"}
                   size="sm"

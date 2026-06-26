@@ -138,7 +138,7 @@ export function ResourceCommentThreadPanel() {
             <h3>연결된 자료</h3>
             <div className={styles.resourceBox}>
               <strong>용역 계약서_최종본_v2.1.pdf</strong>
-              <span>ROOM_SHARED · 프로젝트룸 멤버만 접근</span>
+              <span>프로젝트룸 자료 · 프로젝트룸 멤버만 접근</span>
               <div className={styles.commentMeta}>
                 <Chip>댓글 3개</Chip>
                 <Chip>버전 v2</Chip>

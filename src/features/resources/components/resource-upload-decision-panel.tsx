@@ -50,14 +50,14 @@ const defaultOptions: ResourceDecisionOption[] = [
     icon: <HardDrive size={18} />,
     id: "PERSONAL_LIBRARY",
     label: "개인 자료보드 저장",
-    meta: "resources.visibility = PERSONAL",
+    meta: "개인 자료로 보관",
   },
   {
-    description: "선택한 프로젝트룸 멤버가 함께 보는 자료로 등록합니다. roomId와 멤버 권한을 확인합니다.",
+    description: "선택한 프로젝트룸 멤버가 함께 보는 자료로 등록합니다. 프로젝트룸과 멤버 권한을 확인합니다.",
     icon: <FolderInput size={18} />,
     id: "ROOM_RESOURCE",
     label: "프로젝트룸 자료로 등록",
-    meta: "resources.visibility = ROOM_SHARED",
+    meta: "프로젝트룸 자료로 보관",
   },
   {
     description: "원본을 자료보드에 등록하지 않고 요약과 확인할 항목만 이번 대화에서 봅니다.",
@@ -159,7 +159,7 @@ export function ResourceUploadDecisionPanel({
           value={
             currentDecision === "TEMP_ANALYSIS"
               ? "원본 저장 없이 이번 대화 안에서 요약과 확인 항목만 봅니다."
-              : "저장된 자료의 visibility와 접근 권한 안에서만 분석합니다."
+              : "저장된 자료의 범위와 접근 권한 안에서만 분석합니다."
           }
         />
         <PolicyItem icon={<Database size={17} />} label="저장 위치" value={selectedOption.meta} />
@@ -169,7 +169,7 @@ export function ResourceUploadDecisionPanel({
         <div className={styles.quota}>
           <div>
             <strong>{quotaLabel}</strong>
-            <span>용량을 넘으면 서버 업로드는 막고 로컬 색인은 유지합니다.</span>
+            <span>용량을 넘으면 서버 업로드는 막고 기기 안 색인은 유지합니다.</span>
           </div>
           <span>{quotaPercent}%</span>
         </div>

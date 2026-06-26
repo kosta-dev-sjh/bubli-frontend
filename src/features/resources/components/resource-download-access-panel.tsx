@@ -76,7 +76,7 @@ const checkStatusTone: Record<DownloadCheckStatus, StatusTone> = {
 };
 
 const defaultFile: DownloadFileMeta = {
-  checksumLabel: "sha256 확인됨",
+  checksumLabel: "파일 지문 확인됨",
   fileName: "번역계약서_v2.pdf",
   mimeLabel: "PDF",
   sizeLabel: "2.4 MB",
@@ -97,7 +97,7 @@ const defaultChecks: DownloadCheckItem[] = [
     status: "PASSED",
   },
   {
-    description: "파일 저장소 경로가 아니라 DB 권한 기준으로 다운로드 주소를 발급합니다.",
+    description: "파일 저장소 경로가 아니라 서버 권한 기준으로 다운로드 주소를 발급합니다.",
     id: "download-url",
     label: "다운로드 주소 발급",
     status: "PASSED",

@@ -236,7 +236,7 @@ const uploadQueueItems = [
 
 const uploadValidationItems = [
   {
-    checksumLabel: "sha256 확인",
+    checksumLabel: "파일 지문 확인",
     extensionLabel: "PDF",
     fileName: "번역계약서_v2.pdf",
     mimeLabel: "application/pdf",
@@ -246,7 +246,7 @@ const uploadValidationItems = [
     targetLabel: "프로젝트룸 자료" as const,
   },
   {
-    checksumLabel: "기존 hash",
+    checksumLabel: "기존 파일 지문",
     extensionLabel: "MD",
     fileName: "회의록_0618.md",
     mimeLabel: "text/markdown",

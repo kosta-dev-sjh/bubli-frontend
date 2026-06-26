@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "자료 상세에서 현재 자료와 관련 있는 문서를 보여주는 패널입니다. pgvector 검색 결과라도 owner, room, visibility 권한 기준을 통과한 자료만 후보로 표시합니다.",
+          "자료 상세에서 현재 자료와 관련 있는 문서를 보여주는 패널입니다. 의미 검색 결과라도 올린 사람, 프로젝트룸, 자료 범위 권한 기준을 통과한 자료만 후보로 표시합니다.",
       },
     },
     layout: "fullscreen",
