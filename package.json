@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "check:design-tokens": "node scripts/check-design-tokens.mjs",
     "check:product-rules": "node scripts/check-product-rules.mjs",
+    "check:tauri-boundaries": "node scripts/check-tauri-boundaries.mjs",
     "check:smoke": "node scripts/check-frontend-smoke.mjs",
     "check:routes": "SMOKE_TARGET=routes node scripts/check-frontend-smoke.mjs",
     "check:storybook": "SMOKE_TARGET=storybook node scripts/check-frontend-smoke.mjs",

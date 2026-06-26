@@ -34,6 +34,9 @@ jobs:
       - name: Design tokens
         run: npm run check:design-tokens
 
+      - name: Tauri boundaries
+        run: npm run check:tauri-boundaries
+
       - name: Typecheck
         run: npm run typecheck
 
