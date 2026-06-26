@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CalendarDays,
   Files,
   FolderKanban,
   LayoutDashboard,
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
 
 const navIcons: Record<(typeof siteConfig.appNav)[number]["href"], LucideIcon> = {
   "/app": LayoutDashboard,
+  "/app/calendar": CalendarDays,
   "/app/chat": MessageCircle,
   "/app/desktop/widgets": LayoutGrid,
   "/app/project-rooms": FolderKanban,

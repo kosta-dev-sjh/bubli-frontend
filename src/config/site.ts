@@ -13,6 +13,7 @@ export const siteConfig = {
     { href: "/app", label: "대시보드" },
     { href: "/app/project-rooms", label: "프로젝트룸" },
     { href: "/app/resources", label: "자료보드" },
+    { href: "/app/calendar", label: "일정" },
     { href: "/app/desktop/widgets", label: "버블" },
     { href: "/app/chat", label: "소통" },
     { href: "/app/settings", label: "설정" },
