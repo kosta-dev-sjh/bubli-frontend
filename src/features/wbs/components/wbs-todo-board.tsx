@@ -25,7 +25,7 @@ const flowSteps = [
 ];
 
 const treeItems = [
-  { code: "1", title: "번역 프로젝트 관리", count: "8개 작업" },
+  { code: "1", title: "번역 작업 구조", count: "8개 작업" },
   { code: "1.1", title: "착수와 계획 수립", count: "4개 작업" },
   { code: "1.2", title: "번역본 작성", count: "6개 작업" },
   { code: "1.3", title: "검수와 납품", count: "5개 작업" },

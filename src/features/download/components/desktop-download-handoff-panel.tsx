@@ -117,7 +117,7 @@ export const defaultDownloadRules: SafetyRule[] = [
     tone: "personal",
   },
   {
-    description: "프론트와 데스크탑 앱은 에이전트를 직접 부르지 않고, 같은 서버 연결을 사용합니다.",
+    description: "에이전트 요청도 프론트와 데스크탑 앱 모두 같은 서버 흐름으로 처리합니다.",
     label: "서버 기준",
     tone: "approved",
   },

@@ -69,7 +69,7 @@ const accessBoundaryItems = [
     allowed: "프로젝트룸 멤버는 프로젝트룸 멤버 권한 기준으로 자료, WBS, TODO, 채팅을 봅니다.",
     blocked: "친구가 아니거나 초대를 수락하지 않은 사용자는 프로젝트룸 자료에 접근하지 못합니다.",
     dataName: "프로젝트룸 자료",
-    note: "프로젝트와 프로젝트룸은 분리하지 않고 project_room 하나를 업무 단위로 씁니다.",
+    note: "프로젝트룸 하나를 업무 단위로 보고, 자료, WBS, TODO, 채팅 권한을 함께 관리합니다.",
     ownerLabel: "프로젝트룸 기준",
     status: "limited" as const,
     storageLabel: "서버 자료 저장소",
