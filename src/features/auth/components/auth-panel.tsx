@@ -72,7 +72,7 @@ export function AuthPanel() {
           </div>
         </div>
 
-        <p className="auth-card__helper">Bubli 계정은 Google 로그인으로 시작합니다. 별도 비밀번호 입력은 받지 않습니다.</p>
+        <p className="auth-card__helper">Bubli 계정은 Google 로그인으로 시작하고, 로그인 뒤 내 Bubli ID를 설정합니다.</p>
       </GlassPanel>
     </main>
   );

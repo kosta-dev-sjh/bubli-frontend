@@ -113,7 +113,7 @@ export const defaultDesktopCapabilities: DesktopCapability[] = [
 export const defaultDownloadRules: SafetyRule[] = [
   {
     description: "공개 사이트는 회원 데이터와 프로젝트룸 데이터를 요청하지 않습니다.",
-    label: "비회원 분리",
+    label: "공개 화면",
     tone: "personal",
   },
   {

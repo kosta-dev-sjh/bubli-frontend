@@ -46,7 +46,7 @@ export const CommunicationFocused: Story = {
     capabilities: defaultDesktopCapabilities.filter((capability) =>
       ["MEMBER_WEB_WINDOW", "COMMUNICATION"].includes(capability.kind),
     ),
-    rules: defaultDownloadRules.filter((rule) => ["비회원 분리", "보이스 연결"].includes(rule.label)),
+    rules: defaultDownloadRules.filter((rule) => ["공개 화면", "보이스 연결"].includes(rule.label)),
     surfaces: defaultDownloadSurfaces,
     title: "웹과 앱의 소통 연결",
   },
