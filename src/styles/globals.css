@@ -496,7 +496,8 @@ select {
   font-weight: 860;
   letter-spacing: 0;
   line-height: 1.08;
-  overflow-wrap: anywhere;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .bubli-section-heading__description {
@@ -698,6 +699,8 @@ select {
   font-size: 15px;
   font-weight: 830;
   line-height: 1.35;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .bubli-domain-card__meta {
@@ -712,6 +715,8 @@ select {
   color: var(--color-muted);
   font-size: 13px;
   line-height: 1.6;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .bubli-domain-card__footer {
@@ -4569,6 +4574,8 @@ select {
   color: var(--color-muted);
   font-size: 17px;
   line-height: 1.75;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .public-hero__actions,
