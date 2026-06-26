@@ -21,7 +21,7 @@
 | `features-widget-widgetdesktoppreview--default` | 위젯이 개인 영역이며 회원 웹 앱 위에 따로 뜨는 구조가 보인다. 서버 원본과 기기 안 기록 설명도 분리되어 있다. | 기획 방향 적합. 공통 버블 림과 투명 질감을 1차 보강했다. |
 | `features-communication-tauricommunicationmodepanel--web-chat-tab` | 웹은 `/app/chat`, Tauri는 별도 창/버블로 같은 서버 연결을 쓴다는 구조가 보인다. 보이스 연결 정보도 클라이언트 생성처럼 보이지 않는다. | 헤더 칩이 가로로 늘어나는 표시 문제를 수정했다. |
 | `features-resources-resourceboard--default` | 개인 자료와 프로젝트룸 자료, 후보, 확인 필요 항목이 한 화면에서 구분된다. | 기획 방향 적합. 구현 표현은 `관리 폴더에서 감지`처럼 사용자 문구로 낮췄다. |
-| `features-agent-candidateapprovalpanel--default` | 에이전트 결과가 확정값이 아니라 후보로 보이고, 승인 후 반영 흐름이 분리되어 있다. | 즉시 수정 필요 없음. |
+| `features-agent-candidateapprovalpanel--default` | 에이전트 결과가 확정값이 아니라 후보로 보이고, 승인 후 반영 흐름이 분리되어 있다. | `agent_jobs`, `agent_suggestions`, API 서버 같은 구현 문구를 에이전트 정리와 서버 확인 기준으로 낮췄다. |
 | `features-auth-authpanel--login` | 자체 계정 입력 없이 Google 기반 진입으로 보인다. | H1 줄바꿈과 token 표현을 즉시 수정했다. |
 | `features-publicsite-publichero--default` | 공개 사이트가 서비스 소개, 다운로드, 웹 로그인 진입에 집중한다. | 기획 방향 적합. |
 | `features-managedfolder-managedfoldersyncpanel--default` | 개인 관리 폴더 변화 감지, 사용자 승인, 서버 반영 대기열 기준이 분리되어 보인다. | 기획 방향 적합. 모바일 제목 줄바꿈만 즉시 수정했다. |
@@ -71,6 +71,7 @@
 | 자료/개인 에이전트 문구 | 자료 권한, 자료 분석 캐시, 하루정리 근거, 개인 에이전트 기억 패널과 실제 라우트 예시에서 `owner`, `room_members`, `resource_analysis`, `local_agent_messages`, `Tauri SQLite`, `서버 DB + S3`처럼 보이던 표현을 사용자 기준으로 낮췄다. |
 | 타이머/기기 복구/초대 권한 문구 | 타이머 복구, 전송 대기열, 데이터 삭제, 접근 범위, 프로젝트룸 초대 패널에서 `time_logs`, `local_timer_state`, `local_sync_outbox`, `room_invites`, `room_members`처럼 보이던 표현을 사용자 기준으로 낮췄다. |
 | 관리 폴더/자료 업로드 문구 | 관리 폴더 반영, 자료 업로드, 자료 검증, 다운로드, 저장소 정책 패널에서 `S3`, `resourceId`, `agent_jobs`, `checksum`, `visibility`처럼 보이던 표현을 사용자 기준으로 낮췄다. |
+| 에이전트 후보/재시도 문구 | 후보 승인, 계약 문서 확인, 에이전트 재시도, 에이전트 사용량 패널에서 `agent_jobs`, `agent_suggestions`, 모델명, schema, 파일 해시처럼 보이던 표현을 에이전트 정리, 정리 기준, 후보 구조, 파일 지문 기준으로 낮췄다. |
 
 ## 4. 디자인보드 v20 polish로 넘길 항목
 

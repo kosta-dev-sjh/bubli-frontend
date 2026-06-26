@@ -18,11 +18,11 @@ type AgentJob = {
   failureReason?: string;
   jobType: string;
   lastEventLabel: string;
-  modelName: string;
-  promptVersion: string;
   retryCount: number;
   retryDecision: RetryDecision;
-  schemaVersion: string;
+  reviewRuleLabel: string;
+  structureLabel: string;
+  strategyLabel: string;
   status: JobStatus;
   title: string;
 };
@@ -59,33 +59,33 @@ export const defaultAgentRetryJobs: AgentJob[] = [
     failureReason: "결과가 정해진 형식과 맞지 않아 다시 확인이 필요합니다.",
     jobType: "문서 분석",
     lastEventLabel: "결과 형식 확인 실패",
-    modelName: "gpt-4.1-mini",
-    promptVersion: "resource-analysis-v3",
     retryCount: 1,
     retryDecision: "RETRY_ALLOWED",
-    schemaVersion: "resource-analysis-2026-06-19",
+    reviewRuleLabel: "계약/요구사항 확인",
+    structureLabel: "자료 분석 후보",
+    strategyLabel: "짧은 문서 정리",
     status: "FAILED",
     title: "요구사항 문서 후보 생성",
   },
   {
     jobType: "WBS 후보 생성",
     lastEventLabel: "에이전트 정리 진행 중",
-    modelName: "gpt-4.1-mini",
-    promptVersion: "wbs-draft-v2",
     retryCount: 0,
     retryDecision: "WAITING",
-    schemaVersion: "wbs-task-2026-06-19",
+    reviewRuleLabel: "작업 범위 분리",
+    structureLabel: "WBS/TODO 후보",
+    strategyLabel: "작업 단위 정리",
     status: "RUNNING",
     title: "번역 프로젝트 WBS 초안",
   },
   {
     jobType: "질문 초안",
     lastEventLabel: "후보 저장 완료",
-    modelName: "gpt-4.1-mini",
-    promptVersion: "clarification-v1",
     retryCount: 0,
     retryDecision: "BLOCKED",
-    schemaVersion: "clarification-question-2026-06-19",
+    reviewRuleLabel: "확인 질문 우선",
+    structureLabel: "질문 후보",
+    strategyLabel: "클라이언트 질문 정리",
     status: "SUCCEEDED",
     title: "납품일 확인 질문",
   },
@@ -190,16 +190,16 @@ export function AgentJobRetryPolicyPanel({
 
               <div className={styles.metaGrid}>
                 <div>
-                  <span>질문 방식</span>
-                  <b>{job.promptVersion}</b>
+                  <span>정리 기준</span>
+                  <b>{job.reviewRuleLabel}</b>
                 </div>
                 <div>
-                  <span>결과 형식</span>
-                  <b>{job.schemaVersion}</b>
+                  <span>후보 구조</span>
+                  <b>{job.structureLabel}</b>
                 </div>
                 <div>
-                  <span>정리 모델</span>
-                  <b>{job.modelName}</b>
+                  <span>정리 방식</span>
+                  <b>{job.strategyLabel}</b>
                 </div>
               </div>
 

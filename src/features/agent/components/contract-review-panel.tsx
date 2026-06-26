@@ -145,7 +145,7 @@ export function ContractReviewPanel() {
           </p>
         </div>
         <div className="contract-review__job">
-          <StatusBadge tone="agent">agent_jobs</StatusBadge>
+          <StatusBadge tone="agent">에이전트 정리</StatusBadge>
           <strong>92%</strong>
           <span>문서 추출 후보 생성</span>
           <ProgressBar label="계약 문서 분석 진행률" value={92} />

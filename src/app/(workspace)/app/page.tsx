@@ -99,7 +99,7 @@ const schemaResults = [
   },
   {
     description: "사용자가 확인해야 하는 문서 근거가 함께 포함됐습니다.",
-    field: "evidence",
+    field: "근거",
     status: "needsReview" as const,
     value: "계약서 4p, 회의록 0618",
   },
@@ -107,19 +107,19 @@ const schemaResults = [
 
 const usageGuards = [
   {
-    description: "같은 자료 해시가 있으면 새 정리 작업 전에 캐시를 확인합니다.",
-    label: "분석 캐시",
+    description: "같은 파일 지문이 있으면 새 정리 작업 전에 기존 결과를 확인합니다.",
+    label: "기존 결과 확인",
     status: "ready" as const,
     value: "사용 가능",
   },
   {
     description: "후보 생성은 하루 제한 안에서만 실행합니다.",
-    label: "일일 호출 제한",
+    label: "하루 정리 제한",
     status: "watch" as const,
     value: "18/25",
   },
   {
-    description: "확정 데이터 변경은 사용자 승인 뒤 API가 처리합니다.",
+    description: "실제 작업 반영은 사용자 승인 뒤 서버에서 처리합니다.",
     label: "확정 쓰기 제한",
     status: "ready" as const,
     value: "직접 쓰기 없음",
@@ -129,16 +129,16 @@ const usageGuards = [
 const modelCalls = [
   {
     latencyLabel: "2.1s",
-    modelName: "문서 정리",
-    promptVersion: "계약 검토 기준",
-    schemaVersion: "후보 형식 확인",
+    resultLabel: "후보 형식 확인",
+    reviewRuleLabel: "계약 검토 기준",
+    strategyLabel: "문서 정리",
     usageLabel: "보통",
   },
   {
     latencyLabel: "1.4s",
-    modelName: "하루 정리",
-    promptVersion: "작업 요약 기준",
-    schemaVersion: "하루정리 형식",
+    resultLabel: "하루정리 형식",
+    reviewRuleLabel: "작업 요약 기준",
+    strategyLabel: "하루 정리",
     usageLabel: "가벼움",
   },
 ];

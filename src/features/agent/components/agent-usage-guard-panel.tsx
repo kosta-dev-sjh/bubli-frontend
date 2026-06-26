@@ -19,9 +19,9 @@ export type AgentUsageGuard = {
 export type AgentModelCallSummary = {
   errorCode?: string;
   latencyLabel: string;
-  modelName: string;
-  promptVersion: string;
-  schemaVersion: string;
+  resultLabel: string;
+  reviewRuleLabel: string;
+  strategyLabel: string;
   usageLabel: string;
 };
 
@@ -104,7 +104,7 @@ export function AgentUsageGuardPanel({
             반복 분석 방지
           </div>
           <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">
-            같은 파일 해시가 있으면 캐시 결과를 먼저 사용합니다. 분석 결과가 없거나 만료된 경우에만 새 작업을 만듭니다.
+            같은 파일 지문이 있으면 기존 정리 결과를 먼저 사용합니다. 분석 결과가 없거나 만료된 경우에만 새 작업을 만듭니다.
           </p>
         </div>
       </section>
@@ -141,12 +141,12 @@ export function AgentUsageGuardPanel({
           {modelCalls.map((call) => (
             <li
               className="grid gap-2 rounded-[var(--radius-input)] border border-[var(--glass-border)] bg-white/60 p-3 md:grid-cols-[1fr_auto]"
-              key={`${call.modelName}-${call.promptVersion}-${call.schemaVersion}-${call.latencyLabel}`}
+              key={`${call.strategyLabel}-${call.reviewRuleLabel}-${call.resultLabel}-${call.latencyLabel}`}
             >
               <div className="min-w-0">
-                <p className="m-0 text-[13.5px] font-[820] text-[var(--color-text)]">{call.modelName}</p>
+                <p className="m-0 text-[13.5px] font-[820] text-[var(--color-text)]">{call.strategyLabel}</p>
                 <p className="m-0 mt-1 text-[12.5px] text-[var(--color-muted)]">
-                  질문 방식 {call.promptVersion} · 결과 형식 {call.schemaVersion}
+                  정리 기준 {call.reviewRuleLabel} · 결과 {call.resultLabel}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2 md:justify-end">
