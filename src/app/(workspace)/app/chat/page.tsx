@@ -19,7 +19,7 @@ import {
 const chatCacheSteps = [
   {
     description: "앱을 열면 기기 안 최근 메시지를 먼저 보여줍니다.",
-    label: "로컬 캐시 표시",
+    label: "기기 안 최근 대화 표시",
     state: "valid" as const,
   },
   {

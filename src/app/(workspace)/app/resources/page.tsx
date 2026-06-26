@@ -146,9 +146,9 @@ const analysisCacheMetrics = [
     value: "유효 24시간",
   },
   {
-    description: "새 분석이 필요할 때만 job을 만듭니다.",
+    description: "새 분석이 필요할 때만 정리 작업을 만듭니다.",
     icon: "job" as const,
-    label: "agent job",
+    label: "에이전트 정리",
     value: "필요 시 생성",
   },
   {
@@ -168,7 +168,7 @@ const analysisCacheEntries = [
     updatedAtLabel: "오늘 10:22",
   },
   {
-    description: "수정된 파일이라 새 분석 job이 필요합니다.",
+    description: "수정된 파일이라 새 분석 작업이 필요합니다.",
     fileName: "요구사항정의서_v1.4.pdf",
     hashLabel: "sha256: f042",
     status: "miss" as const,
@@ -269,10 +269,10 @@ const uploadValidationItems = [
 
 const storageSteps = [
   {
-    description: "로컬에서는 파일 이름과 상태만 빠르게 확인합니다.",
-    label: "로컬 검증",
+    description: "기기 안에서는 파일 이름과 상태만 빠르게 확인합니다.",
+    label: "기기 안 확인",
     status: "ready" as const,
-    value: "Tauri",
+    value: "앱",
   },
   {
     description: "서버 업로드는 용량과 권한 확인 후 진행합니다.",

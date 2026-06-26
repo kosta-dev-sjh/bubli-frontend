@@ -78,21 +78,21 @@ const accessBoundaryItems = [
   {
     allowed: "개인 에이전트 원문, 위젯 상세 이벤트, 로컬 대기열은 기기 안 저장소에만 둡니다.",
     blocked: "개인 에이전트 원문과 상세 사용 이벤트 원문은 서버로 보내지 않습니다.",
-    dataName: "Tauri 로컬 데이터",
+    dataName: "기기 안 데이터",
     note: "서버에 필요한 값은 승인된 하루정리, 항목 상태, 날짜별 집계처럼 요약된 데이터만 반영합니다.",
-    ownerLabel: "기기별 로컬",
+    ownerLabel: "기기별 보관",
     status: "limited" as const,
     storageLabel: "기기 안 저장소",
     tone: "local" as const,
   },
   {
-    allowed: "버블은 사용자가 접근할 수 있는 서버 원본 데이터를 개인 기준으로 요약해 보여줍니다.",
+    allowed: "버블은 사용자가 접근할 수 있는 기준 데이터를 개인 기준으로 요약해 보여줍니다.",
     blocked: "버블은 프로젝트룸 화면을 복제하지 않고, 사용 권한 밖의 자료를 표시하지 않습니다.",
     dataName: "버블 표시 데이터",
-    note: "TODO, 일정, 채팅, 알림, 타이머 원본은 서버 기준이고 상세 위젯 이벤트는 로컬에 둡니다.",
+    note: "TODO, 일정, 채팅, 알림, 타이머 기록은 서버 기준이고 상세 위젯 이벤트는 기기 안에 둡니다.",
     ownerLabel: "사용자 개인 영역",
     status: "allowed" as const,
-    storageLabel: "서버 원본 + 로컬 캐시",
+    storageLabel: "서버 기준 + 기기 안 임시 보관",
     tone: "widget" as const,
   },
 ];
@@ -102,7 +102,7 @@ export default function SettingsPage() {
     <>
       <PageHeading
         title="설정"
-        description="사용자별 알림, 개인정보 동의, Tauri 로컬 저장, 백업과 삭제 요청을 한 흐름으로 확인합니다."
+        description="사용자별 알림, 개인정보 동의, 기기 안 저장, 백업과 삭제 요청을 한 흐름으로 확인합니다."
       />
       <div className="page-grid">
         <UserPreferencesPanel />

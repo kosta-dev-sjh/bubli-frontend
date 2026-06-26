@@ -33,7 +33,7 @@ const summarySources: SummarySource[] = [
     value: "6개 버블",
   },
   {
-    detail: "로컬 요약 참조",
+    detail: "기기 안 요약 참조",
     label: "개인 에이전트 요약",
     tone: "agent",
     value: "2개",
@@ -60,9 +60,9 @@ export function DailySummaryPanel() {
           </span>
           <div>
             <Chip selected>하루정리</Chip>
-            <h2>서버 원본과 로컬 요약을 모아, 사용자가 확인한 결과만 저장합니다</h2>
+            <h2>확정된 기록과 기기 안 요약을 모아, 사용자가 확인한 결과만 저장합니다</h2>
             <p>
-              완료한 일, 작업시간, 일정, 알림, 버블 집계, 개인 에이전트 로컬 요약을 근거로 정리 초안을 만듭니다.
+              완료한 일, 작업시간, 일정, 알림, 버블 집계, 개인 에이전트 요약을 근거로 정리 초안을 만듭니다.
               승인된 결과만 하루정리에 남습니다.
             </p>
           </div>
@@ -102,7 +102,7 @@ export function DailySummaryPanel() {
               <span className="bubli-icon-tile" aria-hidden="true">
                 <FileText size={16} strokeWidth={2.1} />
               </span>
-              <p>확인 필요 항목은 API 계약 세부 DTO와 LiveKit 토큰 응답 형식입니다.</p>
+              <p>확인 필요 항목은 자료 업로드 응답 방식과 보이스 참여 정보입니다.</p>
             </article>
           </div>
 

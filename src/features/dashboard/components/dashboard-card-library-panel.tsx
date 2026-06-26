@@ -66,8 +66,8 @@ const statusMeta: Record<CardStatus, { actionLabel: string; label: string; tone:
 };
 
 const sourceMeta: Record<CardSource, string> = {
-  LOCAL_HINT: "로컬 보조",
-  SERVER_ORIGINAL: "서버 원본",
+  LOCAL_HINT: "기기 안 보조",
+  SERVER_ORIGINAL: "기준 데이터",
   WIDGET_ROLLUP: "버블 집계",
 };
 
@@ -77,7 +77,7 @@ export const defaultDashboardCards: DashboardCardOption[] = [
     description: "여러 프로젝트룸에서 내 담당자로 연결된 할 일을 모아 보여줍니다.",
     kind: "TODO",
     source: "SERVER_ORIGINAL",
-    sourceLabel: "서버 TODO 원본",
+    sourceLabel: "확정된 TODO",
     status: "ADDED",
     title: "내 TODO",
     tone: "todo",
@@ -87,7 +87,7 @@ export const defaultDashboardCards: DashboardCardOption[] = [
     description: "오늘 일정과 WBS 흐름을 카드로 올려 작업 순서를 빠르게 확인합니다.",
     kind: "SCHEDULE_WBS",
     source: "SERVER_ORIGINAL",
-    sourceLabel: "일정과 WBS 원본",
+    sourceLabel: "확정된 일정과 WBS",
     status: "AVAILABLE",
     title: "일정/WBS",
     tone: "room",
@@ -104,7 +104,7 @@ export const defaultDashboardCards: DashboardCardOption[] = [
   },
   {
     countLabel: "2건",
-    description: "완료된 agent job의 후보를 승인 전 상태로 보여줍니다.",
+    description: "에이전트가 정리한 후보를 승인 전 상태로 보여줍니다.",
     kind: "AGENT",
     source: "SERVER_ORIGINAL",
     sourceLabel: "에이전트 작업 결과",
@@ -171,7 +171,7 @@ export function DashboardCardLibraryPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              대시보드에 올릴 카드를 고르는 영역입니다. 카드 원본은 서버 데이터와 버블 집계를 기준으로 가져오고,
+              대시보드에 올릴 카드를 고르는 영역입니다. 카드 내용은 확정된 데이터와 버블 집계를 기준으로 가져오고,
               사용자가 고른 구성만 개인 대시보드에 저장합니다.
             </p>
           </div>

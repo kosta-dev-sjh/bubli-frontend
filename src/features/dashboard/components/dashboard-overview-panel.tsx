@@ -150,11 +150,11 @@ export function DashboardOverviewPanel() {
           <h3>데이터 기준</h3>
           <div>
             <CalendarDays size={16} strokeWidth={2.1} />
-            <p>TODO, 일정, 알림, 작업 시간은 서버 원본을 기준으로 보여줍니다.</p>
+            <p>TODO, 일정, 알림, 작업 시간은 확정된 기준 데이터를 바탕으로 보여줍니다.</p>
           </div>
           <div>
             <Clock3 size={16} strokeWidth={2.1} />
-            <p>버블의 상세 사용 기록은 로컬에 남기고, 승인한 하루정리만 서버에 저장합니다.</p>
+            <p>버블의 상세 사용 기록은 기기 안에 남기고, 승인한 하루정리만 저장합니다.</p>
           </div>
         </GlassPanel>
       </div>
