@@ -51,11 +51,11 @@ type WidgetStoragePolicyPanelProps = HTMLAttributes<HTMLElement> & {
 };
 
 const layerCopy: Record<WidgetStorageLayer, string> = {
-  LOCAL_CACHE: "기기 안 캐시",
+  LOCAL_CACHE: "기기 안 임시 보관",
   LOCAL_EVENT: "기기 안 상세 기록",
   LOCAL_ROLLUP: "기기 안 집계",
-  SERVER_ORIGINAL: "서버 원본",
-  SERVER_STATE: "서버 상태",
+  SERVER_ORIGINAL: "기준 데이터",
+  SERVER_STATE: "저장된 상태",
 };
 
 const layerTone: Record<WidgetStorageLayer, StatusTone> = {
@@ -68,7 +68,7 @@ const layerTone: Record<WidgetStorageLayer, StatusTone> = {
 
 const statusCopy: Record<WidgetRollupDevice["status"], string> = {
   FAILED: "실패",
-  LOCAL_ONLY: "로컬",
+  LOCAL_ONLY: "기기 안 보관",
   SYNCED: "반영됨",
   SYNC_PENDING: "반영 대기",
 };
@@ -172,7 +172,7 @@ export function WidgetStoragePolicyPanel({
             <StatusBadge tone="timer">버블 저장 정책</StatusBadge>
             <h2>위젯 데이터는 성격별로 나눠 저장합니다</h2>
             <p>
-              서버에 바로 보여야 하는 값은 서버에 두고, 상세 사용 기록은 기기 안에 남긴 뒤 집계만 서버로 보냅니다.
+              다시 보여줘야 하는 값은 기준 데이터로 관리하고, 상세 사용 기록은 기기 안에 남긴 뒤 집계만 반영합니다.
             </p>
           </div>
         </div>
@@ -187,8 +187,8 @@ export function WidgetStoragePolicyPanel({
       </header>
 
       <div className={styles.summaryGrid}>
-        <SummaryCard icon={<Server size={18} />} label="서버 원본" value="표시 데이터와 항목 상태" />
-        <SummaryCard icon={<Database size={18} />} label="기기 안 기록" value="캐시, 상세 이벤트, 로컬 집계" />
+        <SummaryCard icon={<Server size={18} />} label="기준 데이터" value="표시 데이터와 항목 상태" />
+        <SummaryCard icon={<Database size={18} />} label="기기 안 기록" value="임시 보관, 상세 이벤트, 기기별 집계" />
         <SummaryCard icon={<ArchiveRestore size={18} />} label="중복 방지" value="같은 집계는 한 번만 반영" />
       </div>
 
@@ -222,7 +222,7 @@ export function WidgetStoragePolicyPanel({
             <span>표시 시간 합계</span>
           </div>
         </div>
-        <ProgressBar label="서버 집계 반영률" value={rollupProgress} />
+        <ProgressBar label="집계 반영률" value={rollupProgress} />
         <div className={styles.deviceList} aria-label="기기별 위젯 집계">
           {devices.map((device) => (
             <div className={styles.deviceItem} key={device.rollupKey}>
@@ -244,7 +244,7 @@ export function WidgetStoragePolicyPanel({
       <footer className={styles.footer}>
         <div>
           <CheckCircle2 size={16} />
-          상세 이벤트 원문은 서버에 남기지 않고, 서버에는 항목 상태와 날짜별 집계만 저장합니다.
+          상세 이벤트 원문은 서버에 남기지 않고, 항목 상태와 날짜별 집계만 저장합니다.
         </div>
         <Button icon={<Activity size={14} />} onClick={onRollupUsage} size="sm" variant="ghost">
           기기 안 집계 만들기

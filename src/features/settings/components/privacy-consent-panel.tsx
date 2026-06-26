@@ -10,23 +10,23 @@ const consentRows = [
     description: "작업 맥락과 하루정리를 위해 앱 이름, 창 제목, 머문 시간만 읽습니다.",
     consentType: "ACTIVITY_CONTEXT",
     state: "ON",
-    source: "Tauri IPC read_activity_context",
+    source: "앱 권한 확인",
     icon: MonitorCog,
   },
   {
     title: "개인 관리 폴더 접근",
-    description: "사용자가 직접 선택한 폴더만 스캔하고 변경 상태를 로컬 색인에 남깁니다.",
+    description: "사용자가 직접 선택한 폴더만 스캔하고 변경 상태를 기기 안 색인에 남깁니다.",
     consentType: "MANAGED_FOLDER_ACCESS",
     state: "ON",
-    source: "Tauri IPC select_managed_folder",
+    source: "선택한 폴더만 접근",
     icon: FolderLock,
   },
   {
     title: "로컬 개인 에이전트 원문",
-    description: "개인 에이전트 원문은 서버에 올리지 않고 Tauri SQLite에만 짧게 보관합니다.",
+    description: "개인 에이전트 원문은 서버에 올리지 않고 기기 안에만 짧게 보관합니다.",
     consentType: "LOCAL_AGENT_MEMORY",
     state: "OFF",
-    source: "Tauri SQLite local_agent_messages",
+    source: "기기 안 짧은 보관",
     icon: History,
   },
 ];
@@ -34,17 +34,17 @@ const consentRows = [
 const neverCollect = ["화면 전체 캡처", "키보드 입력", "브라우저 비밀번호", "프로젝트룸 권한 밖 자료"];
 
 const auditRows = [
-  ["저장 위치", "동의 상태는 user_privacy_consents, 상세 로컬 기록은 Tauri SQLite"],
+  ["저장 위치", "동의 상태는 서버에 저장하고, 상세 기기 기록은 기기 안에만 둠"],
   ["수정 권한", "본인만 조회와 수정"],
   ["삭제 기준", "활동 기록은 설정에서 삭제 가능"],
   ["프로젝트룸 영향", "다른 멤버 설정이나 프로젝트룸 권한을 바꾸지 않음"],
 ];
 
 const apiRows = [
-  ["GET", "/api/me/privacy-consents"],
-  ["PATCH", "/api/me/privacy-consents"],
-  ["GET", "/api/activity-logs/today"],
-  ["DELETE", "/api/activity-logs/{id}"],
+  ["조회", "현재 동의 상태 불러오기"],
+  ["수정", "동의 상태 켜기와 끄기"],
+  ["조회", "오늘 활동 기록 확인"],
+  ["삭제", "선택한 활동 기록 삭제"],
 ];
 
 export function PrivacyConsentPanel() {
@@ -63,7 +63,7 @@ export function PrivacyConsentPanel() {
               입력은 수집하지 않습니다.
             </p>
           </div>
-          <StatusBadge tone="personal">user_privacy_consents</StatusBadge>
+          <StatusBadge tone="personal">동의 기록</StatusBadge>
         </div>
         <div className={styles.chips} aria-label="개인정보 동의 핵심 기준">
           <Chip selected icon={<ShieldCheck size={14} aria-hidden="true" />}>
@@ -126,7 +126,7 @@ export function PrivacyConsentPanel() {
         </aside>
       </section>
 
-      <section className={styles.bottomGrid} aria-label="권한 저장과 연결 API">
+      <section className={styles.bottomGrid} aria-label="권한 저장과 연결 방식">
         <div className={styles.noteCard}>
           <h3>저장과 삭제 기준</h3>
           <dl className={styles.auditList}>
@@ -140,11 +140,11 @@ export function PrivacyConsentPanel() {
         </div>
 
         <div className={styles.noteCard}>
-          <h3>연결 API와 IPC</h3>
+          <h3>연결 방식</h3>
           <div className={styles.apiList}>
             {apiRows.map(([method, path]) => (
               <div className={styles.apiRow} key={path}>
-                <StatusBadge tone={method === "GET" ? "success" : method === "DELETE" ? "warning" : "pending"}>{method}</StatusBadge>
+                <StatusBadge tone={method === "조회" ? "success" : method === "삭제" ? "warning" : "pending"}>{method}</StatusBadge>
                 <strong>{path}</strong>
               </div>
             ))}

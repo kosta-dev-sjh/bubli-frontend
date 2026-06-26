@@ -45,9 +45,9 @@ export type DeviceDataRecoveryMapPanelProps = HTMLAttributes<HTMLElement> & {
 
 const sourceMeta: Record<RecoverySource, { label: string; tone: StatusTone; icon: typeof Cloud }> = {
   CACHE_REBUILD: { icon: RefreshCcw, label: "서버에서 재구성", tone: "pending" },
-  LOCAL_BACKUP: { icon: DatabaseBackup, label: "로컬 백업 필요", tone: "personal" },
+  LOCAL_BACKUP: { icon: DatabaseBackup, label: "기기 안 백업 필요", tone: "personal" },
   NOT_RECOVERABLE: { icon: ShieldAlert, label: "복구 제한", tone: "warning" },
-  SERVER: { icon: Cloud, label: "서버 원본", tone: "approved" },
+  SERVER: { icon: Cloud, label: "서버 기록", tone: "approved" },
 };
 
 const healthMeta: Record<RecoveryHealth, { label: string; tone: StatusTone }> = {
@@ -58,23 +58,23 @@ const healthMeta: Record<RecoveryHealth, { label: string; tone: StatusTone }> = 
 
 export const defaultRecoveryItems: RecoveryItem[] = [
   {
-    description: "프로젝트룸 채팅, TODO, 일정, 자료 메타데이터는 서버 DB 원본에서 다시 내려받습니다.",
+    description: "프로젝트룸 채팅, TODO, 일정, 자료 정보는 서버 기록에서 다시 내려받습니다.",
     health: "SAFE",
     label: "프로젝트룸 데이터",
     lastCheckedLabel: "방금 확인",
     source: "SERVER",
   },
   {
-    description: "Tauri의 프로젝트룸 채팅 캐시는 비어도 서버의 최근 메시지와 sequence 기준으로 다시 채웁니다.",
+    description: "앱의 프로젝트룸 최근 대화가 비어도 서버의 최근 메시지 기준으로 다시 채웁니다.",
     health: "SAFE",
-    label: "채팅 캐시",
+    label: "최근 대화",
     lastCheckedLabel: "5분 전",
     source: "CACHE_REBUILD",
   },
   {
-    description: "개인 에이전트 원문, 로컬 요약, 앱 설정은 암호화된 로컬 백업이 있을 때만 복구합니다.",
+    description: "개인 에이전트 원문, 기기 안 요약, 앱 설정은 암호화된 기기 안 백업이 있을 때만 복구합니다.",
     health: "ATTENTION",
-    label: "개인 로컬 데이터",
+    label: "개인 기기 데이터",
     lastCheckedLabel: "오늘 09:10",
     source: "LOCAL_BACKUP",
   },
@@ -113,8 +113,8 @@ export function DeviceDataRecoveryMapPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              Tauri SQLite가 비거나 손상될 때 어떤 데이터가 서버에서 복구되고, 어떤 데이터가 로컬 백업을 필요로
-              하는지 구분합니다. 프로젝트룸 원본과 개인 로컬 데이터의 복구 기준은 다릅니다.
+              기기 안 저장소가 비거나 손상될 때 어떤 데이터가 서버에서 복구되고, 어떤 데이터가 기기 안 백업을 필요로
+              하는지 구분합니다. 프로젝트룸 기록과 개인 기기 데이터의 복구 기준은 다릅니다.
             </p>
           </div>
         </div>
@@ -166,15 +166,15 @@ export function DeviceDataRecoveryMapPanel({
         <article>
           <Cloud size={18} strokeWidth={2.1} aria-hidden="true" />
           <div>
-            <strong>서버 원본 우선</strong>
-            <p>프로젝트룸 채팅, TODO, 일정, 자료 메타데이터는 서버 원본을 다시 불러옵니다.</p>
+            <strong>서버 기록 우선</strong>
+            <p>프로젝트룸 채팅, TODO, 일정, 자료 정보는 서버 기록을 다시 불러옵니다.</p>
           </div>
         </article>
         <article>
           <HardDrive size={18} strokeWidth={2.1} aria-hidden="true" />
           <div>
-            <strong>로컬 백업 필요</strong>
-            <p>개인 에이전트 원문과 로컬 설정은 기기 안의 백업이 있을 때만 되살립니다.</p>
+            <strong>기기 안 백업 필요</strong>
+            <p>개인 에이전트 원문과 기기 설정은 기기 안의 백업이 있을 때만 되살립니다.</p>
           </div>
         </article>
         <article>
@@ -189,7 +189,7 @@ export function DeviceDataRecoveryMapPanel({
       <footer className={styles.footer}>
         <div className={styles.notice}>
           <ShieldCheck size={16} strokeWidth={2.1} aria-hidden="true" />
-          <span>복구 전에 손상된 SQLite 파일은 따로 보관하고, 서버 원본과 로컬 백업을 순서대로 확인합니다.</span>
+          <span>복구 전에 손상된 기기 안 저장 파일은 따로 보관하고, 서버 기록과 기기 안 백업을 순서대로 확인합니다.</span>
         </div>
         <div className={styles.actions}>
           <Button icon={<RefreshCcw size={15} strokeWidth={2.1} />} size="sm" variant="quiet">
