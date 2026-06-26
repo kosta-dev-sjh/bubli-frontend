@@ -47,3 +47,69 @@ export type AgentJobStatusChangedPayload = {
   targetType: string;
   suggestionIds?: string[];
 };
+
+export type AgentSuggestionStatus = "PENDING" | "APPROVED" | "EDITED" | "HELD" | "DELETED";
+
+export type AgentSuggestionType =
+  | "REQUIREMENT"
+  | "WBS"
+  | "TASK"
+  | "SCHEDULE"
+  | "QUESTION"
+  | "EXTRACTED_FIELD"
+  | "RESOURCE";
+
+export type AgentSuggestionResponse = {
+  content: Record<string, unknown>;
+  createdAt: string;
+  id: string;
+  jobId?: string | null;
+  resourceId?: string | null;
+  roomId?: string | null;
+  status: AgentSuggestionStatus;
+  suggestionType: AgentSuggestionType;
+  updatedAt: string;
+};
+
+export type AgentSuggestionUpdateRequest = {
+  content?: Record<string, unknown>;
+  status: Extract<AgentSuggestionStatus, "APPROVED" | "EDITED" | "HELD" | "DELETED">;
+};
+
+export type AgentResourceSearchRequest = {
+  query: string;
+  roomId?: string | null;
+};
+
+export type AgentResourceSearchResponse = {
+  reason?: string | null;
+  resourceId: string;
+  score?: number | null;
+  title: string;
+};
+
+export type AgentDocumentDraftRequest = {
+  prompt: string;
+  resourceIds?: string[];
+  roomId?: string | null;
+};
+
+export type AgentDocumentDraftResponse = {
+  draft: string;
+  jobId?: string | null;
+};
+
+export type DailySummaryStatus = "PENDING" | "APPROVED" | "HELD";
+
+export type DailySummaryResponse = {
+  content: Record<string, unknown>;
+  id: string;
+  status: DailySummaryStatus;
+  summaryDate: string;
+  updatedAt: string;
+};
+
+export type DailySummaryUpdateRequest = {
+  content?: Record<string, unknown>;
+  status: DailySummaryStatus;
+};
