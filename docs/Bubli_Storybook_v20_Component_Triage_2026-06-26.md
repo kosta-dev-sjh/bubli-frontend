@@ -56,6 +56,28 @@ feature별 분포는 아래처럼 본다.
 | 타이머 | `features-timer-timerrecoveryboundarypanel--running` | 서버 `time_logs`와 Tauri 복구 상태의 책임 경계를 보여준다. |
 | 개인 관리 폴더 | `features-managedfolder-managedfoldersyncpanel--default` | 로컬 감지, 사용자 승인, 서버 반영 대기열을 보여준다. |
 
+## 3.1 대표 Story 렌더 스모크 점검
+
+2026-06-26 기준으로 아래 대표 story 15개는 Storybook iframe URL 응답이 모두 200으로 확인됐다. 이 점검은 화면 픽셀 품질 검수가 아니라, 대표 story가 Storybook index에 존재하고 렌더 진입점이 깨지지 않는지 확인하는 스모크 테스트다.
+
+| 묶음 | Story | 결과 |
+|---|---|---|
+| 공개 진입 | `features-publicsite-publichero--default` | 통과 |
+| 인증 | `features-auth-authpanel--login` | 통과 |
+| 자료보드 | `features-resources-resourceboard--default` | 통과 |
+| 프로젝트룸 | `features-projectroom-projectroomcreateflowpanel--default` | 통과 |
+| WBS/TODO | `features-wbs-wbstodolinkagepanel--link-one-task-across-surfaces` | 통과 |
+| 에이전트 | `features-agent-candidateapprovalpanel--default` | 통과 |
+| 소통 | `features-communication-tauricommunicationmodepanel--web-chat-tab` | 통과 |
+| 위젯 | `features-widget-widgetdesktoppreview--default` | 통과 |
+| 타이머 | `features-timer-timerrecoveryboundarypanel--running` | 통과 |
+| 개인 관리 폴더 | `features-managedfolder-managedfoldersyncpanel--default` | 통과 |
+| 대시보드 5카드 | `features-dashboard-dashboardfivecardpanel--ready` | 통과 |
+| WBS 4보기 | `features-wbs-wbsfourviewtogglepanel--tree` | 통과 |
+| 위젯 8종 | `features-widget-widgeteightbubblesetpanel--ready` | 통과 |
+| 에이전트 제안함 | `features-agent-agentsuggestioninboxpanel--ready` | 통과 |
+| 일정 | `features-calendar-calendarpagepanel--ready` | 통과 |
+
 ## 4. 병합 후보
 
 | 묶음 | 후보 | 병합 방향 |
@@ -101,7 +123,7 @@ feature별 분포는 아래처럼 본다.
 |---|---:|---|
 | 1차 컴포넌트 추출 | 100% | Storybook story 149개와 feature component 141개가 있고, AtoZ 기준 누락 5종을 모두 실제 컴포넌트로 추가했다. |
 | 라우트 연결 | 약 96% | 공개 사이트, 로그인, `/app`, 프로젝트룸, 자료보드, 작업 화면, 채팅, 일정, 전역 제안함, 설정, 데스크탑 소통/버블 route가 있다. |
-| Storybook 대표 점검 | 약 74% | 대표 story 24개 기준 중 일부는 캡처와 문서 점검이 끝났고, 에이전트 결과 검증, 소통 경계 문구, 대시보드/하루정리 문구, 위젯/기기 저장소 문구, 자료/개인 에이전트 문구, 타이머/기기 복구/초대 권한 문구, 관리 폴더/자료 업로드 문구, 에이전트 후보/재시도 문구, 인증 세션/공개 FAQ 문구, 공개/다운로드 하이브리드 앱 문구, 소통/실시간 연결 사용자 문구, 설정/기기 권한/위젯 문구, 최신 결정 충돌 후보 문구, 설정 라우트의 개발자용 패널 분리, 대시보드 라우트의 운영 점검 패널 분리, 자료보드 라우트의 점검 패널 분리, 프로젝트룸 라우트의 정책 점검 패널 분리, 웹 소통 라우트의 데스크탑/캐시/권한 점검 패널 분리, 데스크탑 버블 라우트의 세부 정책 패널 분리, 로그인 라우트의 세션 정책 패널 분리, 공개 기능 라우트의 디자인 점검 패널 분리, 설정 기본 카드의 API 후보 노출 제거, 설정 라우트의 점검용 패널 2차 분리까지 추가 보정했다. 남은 story는 계속 순차 점검해야 한다. |
+| Storybook 대표 점검 | 약 79% | 대표 story 15개 iframe 응답과 Storybook index 존재를 확인했다. 아직 픽셀, 모바일, 상호작용, 접근성 점검은 남아 있다. |
 | 디자인보드 v20 정합화 | 약 49% | 공통 버블 질감과 일부 문구는 보정했지만, 지금은 P0/P1이 우선이다. 디자인 전면 개편은 P2에서 클로드 작업 결과와 함께 크게 반영한다. |
 | API 계약 반영 | 약 20% | API client 위치와 일부 타입은 있으나, 확정 DTO와 payload가 오면 교체해야 한다. |
 | Tauri 경계 검증 | 약 43% | Tauri IPC wrapper와 관리 폴더/위젯/소통 경계 story는 있고, 소통 창/버블, 기기 안 저장소, 타이머 복구, 전송 대기열, 관리 폴더 반영 흐름, 공개/다운로드 하이브리드 앱, 소통/실시간 연결, 설정/기기 권한/위젯, 데스크탑 버블 라우트의 실제 화면과 정책 점검 분리, 에이전트 요청의 서버 경유 문구를 1차 보정했다. 실제 앱 연결 검증은 더 필요하다. |
@@ -109,6 +131,7 @@ feature별 분포는 아래처럼 본다.
 ## 8. 다음 작업 순서
 
 1. P1 전 화면 노출 점검으로 넘어간다.
-2. 사용자 화면에 점검용 패널이 과하게 섞인 곳은 route 조립만 정리한다.
-3. 점검용 패널은 삭제하지 않고 Storybook에 남긴다.
-4. 디자인보드 v20/클로드 전면 개편은 P2에서 한 번에 반영한다.
+2. 대표 story의 모바일 폭, hover/click, 접근성 상태를 추가로 확인한다.
+3. 사용자 화면에 점검용 패널이 과하게 섞인 곳은 route 조립만 정리한다.
+4. 점검용 패널은 삭제하지 않고 Storybook에 남긴다.
+5. 디자인보드 v20/클로드 전면 개편은 P2에서 한 번에 반영한다.
