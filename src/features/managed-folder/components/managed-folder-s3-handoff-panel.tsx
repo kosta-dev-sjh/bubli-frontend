@@ -85,17 +85,17 @@ export const defaultFolderEvents: FolderEvent[] = [
 
 export const defaultFolderHandoffRules: HandoffRule[] = [
   {
-    description: "Tauri는 사용자가 지정한 관리 폴더의 변경 상태를 로컬 색인에 남깁니다.",
+    description: "데스크탑 앱은 사용자가 지정한 관리 폴더의 변경 상태를 기기 안 색인에 남깁니다.",
     label: "로컬 색인",
     tone: "personal",
   },
   {
-    description: "파일 업로드는 S3 경로와 서버 권한 확인을 거친 뒤 자료보드에 연결됩니다.",
-    label: "S3 업로드",
+    description: "파일 업로드는 서버 권한 확인을 거친 뒤 자료보드에 연결됩니다.",
+    label: "서버 업로드",
     tone: "room",
   },
   {
-    description: "수정된 파일은 사용자가 새 버전으로 반영할지 선택한 뒤 resource_versions에 남깁니다.",
+    description: "수정된 파일은 사용자가 새 버전으로 반영할지 선택한 뒤 버전 기록에 남깁니다.",
     label: "버전 선택",
     tone: "approved",
   },
@@ -118,12 +118,12 @@ export function ManagedFolderS3HandoffPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<FolderSync size={16} strokeWidth={2.1} />}>local_file_events</Chip>
+          <Chip icon={<FolderSync size={16} strokeWidth={2.1} />}>변경 후보</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              관리 폴더에서 발견한 변경은 곧바로 자료보드에 반영되지 않습니다. Tauri가 로컬 상태를 기록하고,
-              사용자가 선택한 파일만 S3와 서버 검증을 거쳐 자료로 연결됩니다.
+              관리 폴더에서 발견한 변경은 곧바로 자료보드에 반영되지 않습니다. 앱이 기기 안 상태를 기록하고,
+              사용자가 선택한 파일만 서버 검증을 거쳐 자료로 연결됩니다.
             </p>
           </div>
         </div>
@@ -140,7 +140,7 @@ export function ManagedFolderS3HandoffPanel({
             <HardDrive size={19} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <StatusBadge tone="personal">Tauri</StatusBadge>
+            <StatusBadge tone="personal">기기 안 기록</StatusBadge>
             <h3>관리 폴더</h3>
             <p>지정 폴더의 추가, 수정, 삭제 상태를 로컬 색인에 기록합니다.</p>
           </div>
@@ -164,9 +164,9 @@ export function ManagedFolderS3HandoffPanel({
             <Cloud size={19} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <StatusBadge tone="room">S3 · 서버 DB</StatusBadge>
+            <StatusBadge tone="room">서버 저장</StatusBadge>
             <h3>자료보드 연결</h3>
-            <p>업로드된 파일은 resources와 resource_versions 기준으로 조회됩니다.</p>
+            <p>업로드된 파일은 자료보드에서 권한과 버전 기준으로 다시 조회됩니다.</p>
           </div>
         </article>
       </section>

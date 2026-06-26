@@ -143,26 +143,23 @@ export function ManagedFolderChangeReview() {
             변경 검토
           </Chip>
           <h2>로컬 변경은 먼저 후보로 모으고, 사용자가 고른 항목만 서버에 반영합니다</h2>
-          <p>
-            Tauri가 감지한 추가, 수정, 삭제, 이동 이벤트는 local_files와 local_file_events에 먼저 남습니다.
-            서버 자료보드 반영은 승인된 변경분만 진행합니다.
-          </p>
+          <p>앱이 감지한 추가, 수정, 삭제, 이동 내역은 기기 안에 먼저 남깁니다. 서버 자료보드 반영은 승인된 변경분만 진행합니다.</p>
         </div>
         <div className={styles.summary}>
           <strong>4</strong>
           <span>검토할 변경</span>
-          <StatusBadge tone="personal">Tauri SQLite 기준</StatusBadge>
+          <StatusBadge tone="personal">기기 안 기록 기준</StatusBadge>
         </div>
       </GlassPanel>
 
       <div className={styles.flow} aria-label="로컬 변경 처리 흐름">
-        <span>scan/watch</span>
+        <span>폴더 감지</span>
         <ArrowRight size={15} strokeWidth={2.1} />
-        <span>local_file_events</span>
+        <span>변경 후보</span>
         <ArrowRight size={15} strokeWidth={2.1} />
         <span>사용자 확인</span>
         <ArrowRight size={15} strokeWidth={2.1} />
-        <span>resources 반영</span>
+        <span>자료보드 반영</span>
       </div>
 
       <div className={styles.grid}>
@@ -187,7 +184,7 @@ export function ManagedFolderChangeReview() {
           <h3>처리 기준</h3>
           <article>
             <HardDrive size={17} strokeWidth={2.1} />
-            <p>색인과 상세 이벤트는 기기 안의 SQLite에 먼저 저장합니다.</p>
+            <p>색인과 상세 변경 내역은 기기 안 임시 저장소에 먼저 저장합니다.</p>
           </article>
           <article>
             <ShieldCheck size={17} strokeWidth={2.1} />

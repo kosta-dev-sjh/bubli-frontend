@@ -105,9 +105,7 @@ export function ManagedFolderSyncPanel() {
           <div>
             <Chip selected>개인 관리 폴더</Chip>
             <h2>로컬 폴더 변화는 먼저 감지하고, 사용자가 승인한 것만 서버에 반영합니다</h2>
-            <p>
-              Tauri가 선택한 폴더를 감시하고, 변경 후보는 local_sync_outbox를 거쳐 중복 없이 전송합니다.
-            </p>
+            <p>앱이 선택한 폴더를 감시하고, 변경 후보는 전송 대기 목록에 남긴 뒤 중복 없이 반영합니다.</p>
           </div>
         </div>
         <div className="managed-folder-sync__summary">
@@ -143,19 +141,19 @@ export function ManagedFolderSyncPanel() {
             <span className="bubli-icon-tile" aria-hidden="true">
               <HardDrive size={16} strokeWidth={2.1} />
             </span>
-            <p>파일 변경 감지와 색인 상태는 Tauri 로컬 캐시에 먼저 저장합니다.</p>
+            <p>파일 변경 감지와 색인 상태는 기기 안 임시 저장소에 먼저 저장합니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <ShieldCheck size={16} strokeWidth={2.1} />
             </span>
-            <p>사용자가 승인하지 않은 로컬 파일은 서버 resources로 등록하지 않습니다.</p>
+            <p>사용자가 승인하지 않은 로컬 파일은 서버 자료로 등록하지 않습니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <Database size={16} strokeWidth={2.1} />
             </span>
-            <p>전송 실패 작업은 local_sync_outbox에 남기고 idempotencyKey 기준으로 재시도합니다.</p>
+            <p>전송 실패 작업은 대기 목록에 남기고 같은 작업이 두 번 반영되지 않게 재시도합니다.</p>
           </div>
         </GlassPanel>
       </div>

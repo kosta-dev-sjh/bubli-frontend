@@ -138,7 +138,7 @@ export function ManagedFolderPolicyPanel({
         </div>
         <div className={styles.folderBody}>
           <strong>{folderAlias}</strong>
-          <span>scan_folder와 watch_folder는 이 폴더 안에서만 동작합니다.</span>
+          <span>폴더 선택과 변경 감지는 이 폴더 안에서만 동작합니다.</span>
         </div>
         <Chip>{pendingCount}개 확인 필요</Chip>
       </div>
@@ -164,7 +164,7 @@ export function ManagedFolderPolicyPanel({
         <PolicyItem
           icon={<Database size={17} />}
           label="저장 기준"
-          value="파일 색인과 변경 이벤트는 먼저 Tauri SQLite에 저장합니다."
+          value="파일 색인과 변경 이벤트는 먼저 기기 안 임시 저장소에 저장합니다."
         />
         <PolicyItem
           icon={<AlertTriangle size={17} />}

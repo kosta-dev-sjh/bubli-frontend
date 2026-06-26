@@ -31,11 +31,11 @@ const metrics = [
   },
   {
     title: "로컬 색인",
-    caption: "사용자가 지정한 개인 관리 폴더만 SQLite에 기록",
+    caption: "사용자가 지정한 개인 관리 폴더만 기기 안에 기록",
     value: "284",
     suffix: "개 파일",
     icon: FolderSearch,
-    badge: "local_files",
+    badge: "기기 안 기록",
     tone: "personal" as const,
   },
   {
@@ -50,11 +50,11 @@ const metrics = [
 ];
 
 const syncStatuses = [
-  ["LOCAL_ONLY", "로컬 색인만 있는 파일. 서버에는 아직 올라가지 않습니다."],
-  ["SYNC_PENDING", "개인 자료함 동기화 대기 상태입니다."],
-  ["SYNCED", "서버 개인 자료함에 반영된 파일입니다."],
-  ["DELETE_CANDIDATE", "로컬 삭제 감지 후 사용자의 확인을 기다립니다."],
-  ["STORAGE_LIMIT_EXCEEDED", "용량 제한 때문에 서버 반영이 막힌 파일입니다."],
+  ["기기 안에만 있음", "기기 안에만 있는 파일입니다. 서버에는 아직 올라가지 않습니다."],
+  ["반영 대기", "사용자 확인 뒤 개인 자료함에 반영할 파일입니다."],
+  ["반영 완료", "서버 개인 자료함에 반영된 파일입니다."],
+  ["삭제 확인 필요", "로컬 삭제 감지 후 사용자의 확인을 기다립니다."],
+  ["용량 초과", "용량 제한 때문에 서버 반영이 막힌 파일입니다."],
 ];
 
 const safetyRules = [
@@ -83,13 +83,13 @@ export function StorageSyncPolicyPanel() {
         <div className={styles.titleArea}>
           <h2 className={styles.title}>로컬 색인과 서버 저장 용량을 분리해서 보여줍니다</h2>
           <p className={styles.summary}>
-            Tauri 앱은 개인 관리 폴더의 변경을 로컬 SQLite에 먼저 기록합니다. 서버에는 사용자가 동기화를 켠 항목만 용량 제한 안에서
+            데스크탑 앱은 개인 관리 폴더의 변경을 기기 안에 먼저 기록합니다. 서버에는 사용자가 동기화를 켠 항목만 용량 제한 안에서
             개인 자료로 반영합니다.
           </p>
         </div>
         <div className={styles.chips} aria-label="동기화 핵심 기준">
           <Chip selected icon={<Database size={14} aria-hidden="true" />}>
-            SQLite 로컬 색인
+            기기 안 색인
           </Chip>
           <Chip icon={<Cloud size={14} aria-hidden="true" />}>서버 개인 자료함</Chip>
           <Chip icon={<RotateCcw size={14} aria-hidden="true" />}>삭제 후보와 복구</Chip>
@@ -138,15 +138,15 @@ export function StorageSyncPolicyPanel() {
             <h3>동기화 상태값</h3>
             <p>자료보드와 Tauri 설정 화면에서 같은 상태 기준으로 보여줍니다.</p>
           </div>
-          <StatusBadge tone="approved">local_files</StatusBadge>
+          <StatusBadge tone="approved">같은 상태 기준</StatusBadge>
         </div>
         <div className={styles.statusGrid}>
           {syncStatuses.map(([status, description]) => (
             <article className={styles.statusCard} key={status}>
-              <StatusBadge tone={status === "STORAGE_LIMIT_EXCEEDED" ? "warning" : status === "SYNCED" ? "success" : "pending"}>
+              <StatusBadge tone={status === "용량 초과" ? "warning" : status === "반영 완료" ? "success" : "pending"}>
                 {status}
               </StatusBadge>
-              <strong>{status.replaceAll("_", " ")}</strong>
+              <strong>{status}</strong>
               <span>{description}</span>
             </article>
           ))}
