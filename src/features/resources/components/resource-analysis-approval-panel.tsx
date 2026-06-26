@@ -171,7 +171,7 @@ export function ResourceAnalysisApprovalPanel({
             <Sparkles size={18} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <strong>agent_suggestions</strong>
+            <strong>에이전트 후보</strong>
             <p>확인할 항목 구성</p>
           </div>
         </div>

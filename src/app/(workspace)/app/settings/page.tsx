@@ -23,9 +23,6 @@ import { NotificationCenterPanel, NotificationRoutingBoundaryPanel } from "@/fea
 import {
   AccessBoundaryMatrixPanel,
   AccessibilityKeyboardNavigationPanel,
-  ApiContractAdapterBoundaryPanel,
-  ApiContractStatusPanel,
-  ApiErrorHandlingBoundaryPanel,
   DataDeletionRequestPanel,
   defaultBackupSnapshots,
   defaultDeletionChecks,
@@ -59,7 +56,7 @@ const accessBoundaryItems = [
     allowed: "본인이 올린 개인 자료와 직접 공유 승인한 자료만 볼 수 있습니다.",
     blocked: "개인 자료는 프로젝트룸에 자동으로 노출되지 않습니다.",
     dataName: "개인 자료",
-    note: "자료보드에서 프로젝트룸 공유를 선택한 뒤에만 room_resource 흐름으로 넘어갑니다.",
+    note: "자료보드에서 프로젝트룸 공유를 선택한 뒤에만 프로젝트룸 자료로 보입니다.",
     ownerLabel: "사용자 소유",
     status: "allowed" as const,
     storageLabel: "서버 자료 저장소",
@@ -116,9 +113,6 @@ export default function SettingsPage() {
         <NotificationRoutingBoundaryPanel />
         <TauriSyncStatusPanel />
         <AccessBoundaryMatrixPanel items={accessBoundaryItems} />
-        <ApiContractStatusPanel />
-        <ApiContractAdapterBoundaryPanel />
-        <ApiErrorHandlingBoundaryPanel />
         <AccessibilityKeyboardNavigationPanel rules={defaultKeyboardRules} targets={defaultKeyboardTargets} />
         <DeviceDataRecoveryMapPanel backupSnapshots={defaultBackupSnapshots} items={defaultRecoveryItems} />
         <ActivityDetectionPanel />
