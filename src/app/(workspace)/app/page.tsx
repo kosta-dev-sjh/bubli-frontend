@@ -17,6 +17,7 @@ import {
 import {
   DailySummaryPanel,
   DashboardCardLibraryPanel,
+  DashboardFiveCardPanel,
   DashboardOverviewPanel,
   defaultDashboardCards,
   defaultDashboardRules,
@@ -39,6 +40,7 @@ export default function DashboardPage() {
       />
       <div className="page-grid">
         <DashboardOverviewPanel />
+        <DashboardFiveCardPanel />
         <DashboardCardLibraryPanel cards={defaultDashboardCards} rules={defaultDashboardRules} />
         <TodoListPanel />
         <TodoAssigneeReflectionPanel surfaces={defaultTodoSurfaces} todos={defaultAssignedTodos} />

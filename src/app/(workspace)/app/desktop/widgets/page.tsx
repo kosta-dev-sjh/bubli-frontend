@@ -4,6 +4,7 @@ import {
   ResourceSuggestionBubblePanel,
   TauriWidgetLayer,
   WidgetDesktopPreview,
+  WidgetEightBubbleSetPanel,
   WidgetMinimizedDockPanel,
   WidgetSettingsPanel,
 } from "@/features/widget/components";
@@ -17,6 +18,7 @@ export default function DesktopWidgetsPage() {
       />
       <div className="desktop-widget-lab">
         <WidgetDesktopPreview />
+        <WidgetEightBubbleSetPanel />
         <TauriWidgetLayer />
         <WidgetSettingsPanel />
         <ResourceSuggestionBubblePanel />

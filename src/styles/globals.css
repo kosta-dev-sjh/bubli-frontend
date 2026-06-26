@@ -2733,6 +2733,209 @@ select {
   line-height: 1.3;
 }
 
+.dashboard-five-card,
+.wbs-four-view,
+.widget-eight {
+  display: grid;
+  gap: 18px;
+}
+
+.dashboard-five-card__head,
+.wbs-four-view__head,
+.widget-eight__head {
+  align-items: flex-end;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.dashboard-five-card__head h2,
+.wbs-four-view__head h2,
+.widget-eight__head h2 {
+  color: var(--color-text);
+  font-size: 28px;
+  line-height: 1.2;
+  margin: 10px 0 8px;
+}
+
+.dashboard-five-card__head p,
+.wbs-four-view__head p,
+.widget-eight__head p {
+  color: var(--color-muted);
+  line-height: 1.65;
+  margin: 0;
+}
+
+.dashboard-five-card__grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.dashboard-five-card__item {
+  display: grid;
+  gap: 10px;
+  min-block-size: 168px;
+}
+
+.dashboard-five-card__topline {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.dashboard-five-card__item strong {
+  color: var(--color-text);
+  font-size: 34px;
+  line-height: 1;
+}
+
+.dashboard-five-card__item b {
+  color: var(--color-text);
+  font-size: 16px;
+}
+
+.dashboard-five-card__item p {
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.dashboard-five-card-state,
+.wbs-four-view-state,
+.widget-eight-state {
+  display: grid;
+  gap: 12px;
+  min-block-size: 220px;
+  place-items: start;
+}
+
+.dashboard-five-card-state h2,
+.wbs-four-view-state h2,
+.widget-eight-state h2 {
+  color: var(--color-text);
+  font-size: 28px;
+  margin: 0;
+}
+
+.dashboard-five-card-state p,
+.wbs-four-view-state p,
+.widget-eight-state p {
+  color: var(--color-muted);
+  line-height: 1.65;
+  margin: 0;
+  max-inline-size: 680px;
+}
+
+.wbs-four-view__tabs {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+}
+
+.wbs-four-view__tab {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--color-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13px;
+  gap: 6px;
+  padding: 9px 12px;
+}
+
+.wbs-four-view__tab[aria-selected="true"] {
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(107, 143, 168, 0.16);
+  color: var(--color-brand);
+}
+
+.wbs-four-view__stage {
+  display: grid;
+  gap: 18px;
+}
+
+.wbs-four-view__stage-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.wbs-four-view__stage-head h3 {
+  color: var(--color-text);
+  font-size: 22px;
+  line-height: 1.35;
+  margin: 10px 0 0;
+}
+
+.wbs-four-view__stage-head span {
+  color: var(--color-faint);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.wbs-four-view__preview {
+  display: grid;
+  gap: 12px;
+  position: relative;
+}
+
+.wbs-four-view__preview--kanban {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wbs-four-view__preview--tree {
+  border-inline-start: 2px solid var(--color-border);
+  padding-inline-start: 16px;
+}
+
+.wbs-four-view__preview--timeline,
+.wbs-four-view__preview--gantt {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wbs-four-view__rail {
+  display: grid;
+  gap: 10px;
+  grid-column: 1 / -1;
+}
+
+.wbs-four-view__rail span {
+  background: linear-gradient(90deg, var(--color-water-blue), var(--color-brand));
+  block-size: 8px;
+  border-radius: 999px;
+}
+
+.wbs-four-view__columns {
+  color: var(--color-faint);
+  display: grid;
+  font-size: 12px;
+  gap: 8px;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  text-align: center;
+}
+
+.widget-eight__grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.widget-eight .bubli-bubble {
+  min-block-size: 190px;
+}
+
 .agent-draft {
   display: grid;
   gap: 18px;
@@ -7456,6 +7659,27 @@ select {
 
   .dashboard-overview__panel--wide {
     grid-column: auto;
+  }
+
+  .dashboard-five-card__head,
+  .wbs-four-view__head,
+  .widget-eight__head,
+  .wbs-four-view__stage-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dashboard-five-card__grid,
+  .wbs-four-view__preview--kanban,
+  .wbs-four-view__preview--timeline,
+  .wbs-four-view__preview--gantt,
+  .widget-eight__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wbs-four-view__tabs {
+    inline-size: 100%;
+    overflow-x: auto;
   }
 
   .project-room-create__hero,
