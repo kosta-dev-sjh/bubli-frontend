@@ -1,7 +1,8 @@
 import { PageHeading } from "@/components/ui/page-heading";
 import { AgentSuggestionInboxPanel } from "@/features/agent/components";
 import { TodoDetailPanel } from "@/features/todo/components";
-import { WbsFourViewTogglePanel, WbsTodoBoard, WbsTodoLinkagePanel } from "@/features/wbs/components";
+import { WbsFourViewTogglePanel } from "@/features/wbs/components/wbs-four-view-toggle-panel";
+import { WbsTodoBoard, WbsTodoLinkagePanel } from "@/features/wbs/components";
 
 export default function ProjectRoomWorkPage() {
   return (

@@ -78,6 +78,28 @@ feature별 분포는 아래처럼 본다.
 | 에이전트 제안함 | `features-agent-agentsuggestioninboxpanel--ready` | 통과 |
 | 일정 | `features-calendar-calendarpagepanel--ready` | 통과 |
 
+## 3.2 주요 라우트 노출 스모크 점검
+
+2026-06-26 기준으로 아래 주요 라우트 15개는 Next dev 서버에서 모두 200 응답으로 확인됐다. 작업판 라우트는 인터랙티브 패널의 클라이언트 경계가 빠져 500이 발생했으나, `WbsTodoLinkagePanel`, `TodoDetailPanel`, `AgentSuggestionInboxPanel`에 클라이언트 경계를 명시해 복구했다.
+
+| 영역 | 라우트 | 결과 |
+|---|---|---|
+| 공개 홈 | `/` | 통과 |
+| 기능 소개 | `/features` | 통과 |
+| 다운로드 | `/download` | 통과 |
+| FAQ | `/faq` | 통과 |
+| 로그인 | `/login` | 통과 |
+| 회원 앱 홈 | `/app` | 통과 |
+| 프로젝트룸 | `/app/project-rooms` | 통과 |
+| 자료보드 | `/app/resources` | 통과 |
+| WBS/작업판 | `/app/project-rooms/demo-room/work` | 통과 |
+| 소통 | `/app/chat` | 통과 |
+| 일정 | `/app/calendar` | 통과 |
+| 에이전트 제안함 | `/app/agent-suggestions` | 통과 |
+| 설정 | `/app/settings` | 통과 |
+| 데스크탑 소통 | `/app/desktop/communication` | 통과 |
+| 데스크탑 버블 | `/app/desktop/widgets` | 통과 |
+
 ## 4. 병합 후보
 
 | 묶음 | 후보 | 병합 방향 |
@@ -122,7 +144,7 @@ feature별 분포는 아래처럼 본다.
 | 작업 | 진행도 | 근거 |
 |---|---:|---|
 | 1차 컴포넌트 추출 | 100% | Storybook story 149개와 feature component 141개가 있고, AtoZ 기준 누락 5종을 모두 실제 컴포넌트로 추가했다. |
-| 라우트 연결 | 약 96% | 공개 사이트, 로그인, `/app`, 프로젝트룸, 자료보드, 작업 화면, 채팅, 일정, 전역 제안함, 설정, 데스크탑 소통/버블 route가 있다. |
+| 라우트 연결 | 약 98% | 주요 라우트 15개가 Next dev 서버에서 모두 200 응답으로 확인됐다. 남은 점검은 실제 클릭, 모바일 폭, 상호작용 확인이다. |
 | Storybook 대표 점검 | 약 79% | 대표 story 15개 iframe 응답과 Storybook index 존재를 확인했다. 아직 픽셀, 모바일, 상호작용, 접근성 점검은 남아 있다. |
 | 디자인보드 v20 정합화 | 약 49% | 공통 버블 질감과 일부 문구는 보정했지만, 지금은 P0/P1이 우선이다. 디자인 전면 개편은 P2에서 클로드 작업 결과와 함께 크게 반영한다. |
 | API 계약 반영 | 약 20% | API client 위치와 일부 타입은 있으나, 확정 DTO와 payload가 오면 교체해야 한다. |
