@@ -11,7 +11,7 @@ export const siteConfig = {
   ],
   appNav: [
     { href: "/app", label: "대시보드" },
-    { href: "/app/projects", label: "프로젝트룸" },
+    { href: "/app/project-rooms", label: "프로젝트룸" },
     { href: "/app/resources", label: "자료보드" },
     { href: "/app/desktop/widgets", label: "버블" },
     { href: "/app/chat", label: "소통" },

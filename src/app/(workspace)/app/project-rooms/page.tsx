@@ -113,7 +113,7 @@ const retentionActions = [
   },
 ];
 
-export default function ProjectsPage() {
+export default function ProjectRoomsPage() {
   return (
     <>
       <ProjectRoomBoard />

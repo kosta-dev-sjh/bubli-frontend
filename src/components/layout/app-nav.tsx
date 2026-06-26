@@ -19,7 +19,7 @@ const navIcons: Record<(typeof siteConfig.appNav)[number]["href"], LucideIcon> =
   "/app": LayoutDashboard,
   "/app/chat": MessageCircle,
   "/app/desktop/widgets": LayoutGrid,
-  "/app/projects": FolderKanban,
+  "/app/project-rooms": FolderKanban,
   "/app/resources": Files,
   "/app/settings": Settings,
 };
@@ -29,8 +29,8 @@ function isActiveNavItem(href: string, pathname: string) {
     return pathname === "/app";
   }
 
-  if (href === "/app/projects") {
-    return pathname.startsWith("/app/projects") || pathname.startsWith("/app/project-rooms");
+  if (href === "/app/project-rooms") {
+    return pathname.startsWith("/app/project-rooms");
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
