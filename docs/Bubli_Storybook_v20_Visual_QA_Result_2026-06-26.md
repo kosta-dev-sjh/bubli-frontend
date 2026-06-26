@@ -11,7 +11,7 @@
 | Storybook | `http://127.0.0.1:6006` |
 | 캡처 방식 | Playwright screenshot |
 | viewport | `1440 x 1000` |
-| 캡처 위치 | `output/playwright/storybook-v20-qa/`, `output/playwright/storybook-v20-polish-followup/`, `output/playwright/storybook-v20-managed-folder/` |
+| 캡처 위치 | `output/playwright/storybook-v20-qa/`, `output/playwright/storybook-v20-polish-followup/`, `output/playwright/storybook-v20-managed-folder/`, `output/playwright/storybook-v20-project-room/` |
 
 ## 2. 대표 Story 점검 결과
 
@@ -25,6 +25,7 @@
 | `features-auth-authpanel--login` | 자체 계정 입력 없이 Google 기반 진입으로 보인다. | H1 줄바꿈과 token 표현을 즉시 수정했다. |
 | `features-publicsite-publichero--default` | 공개 사이트가 서비스 소개, 다운로드, 웹 로그인 진입에 집중한다. | 기획 방향 적합. |
 | `features-managedfolder-managedfoldersyncpanel--default` | 개인 관리 폴더 변화 감지, 사용자 승인, 서버 반영 대기열 기준이 분리되어 보인다. | 기획 방향 적합. 모바일 제목 줄바꿈만 즉시 수정했다. |
+| `features-projectroom-projectroominviteflow--default` | 프로젝트룸 초대가 친구 목록과 기존 회원 기준으로만 보이고, 수락 뒤 권한 생성 흐름이 분리되어 있다. | 기획 방향 적합. 게스트 초대나 이메일 초대처럼 보이는 흐름은 없다. |
 
 ## 3. 즉시 수정한 항목
 
@@ -59,6 +60,7 @@
 | 카드 밀도 | 기능 패널이 많아 정보가 무거워질 수 있다. 대표 화면별 카드 간격과 설명 길이를 줄인다. |
 | 공개/인증 화면 | 히어로와 로그인 화면의 큰 제목 줄바꿈은 1차 확인했다. 이후 실제 페이지 조립 후 재확인한다. |
 | 자료보드 | 기능 구조는 좋지만, 구현 저장소 설명은 사용자 행동 중심 문구로 바꾼다. |
+| 프로젝트룸 초대 | 데스크톱에서 친구 초대 카드 주변 여백이 넓다. 실제 프로젝트룸 상세 화면에 조립할 때 카드 밀도를 다시 맞춘다. |
 
 ## 5. 검증 기준
 
