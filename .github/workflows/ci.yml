@@ -28,6 +28,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Product rules
+        run: npm run check:product-rules
+
       - name: Typecheck
         run: npm run typecheck
 
