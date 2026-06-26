@@ -1,4 +1,5 @@
 import { PageHeading } from "@/components/ui/page-heading";
+import { AgentSuggestionInboxPanel } from "@/features/agent/components";
 import { TodoDetailPanel } from "@/features/todo/components";
 import { WbsTodoBoard, WbsTodoLinkagePanel } from "@/features/wbs/components";
 
@@ -11,6 +12,7 @@ export default function ProjectRoomWorkPage() {
       />
       <div className="page-grid">
         <WbsTodoLinkagePanel />
+        <AgentSuggestionInboxPanel />
         <WbsTodoBoard />
         <TodoDetailPanel />
       </div>

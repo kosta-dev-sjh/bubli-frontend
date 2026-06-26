@@ -1,3 +1,4 @@
+export * from "./agent-suggestion-inbox-panel";
 export * from "./agent-job-status-panel";
 export * from "./agent-draft-suggestion-panel";
 export * from "./candidate-approval-panel";
