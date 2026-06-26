@@ -11,7 +11,7 @@
 | Storybook | `http://127.0.0.1:6006` |
 | 캡처 방식 | Playwright screenshot |
 | viewport | `1440 x 1000` |
-| 캡처 위치 | `output/playwright/storybook-v20-qa/`, `output/playwright/storybook-v20-polish-followup/`, `output/playwright/storybook-v20-managed-folder/`, `output/playwright/storybook-v20-project-room/` |
+| 캡처 위치 | `output/playwright/storybook-v20-qa/`, `output/playwright/storybook-v20-polish-followup/`, `output/playwright/storybook-v20-managed-folder/`, `output/playwright/storybook-v20-project-room/`, `output/playwright/storybook-v20-todo/` |
 
 ## 2. 대표 Story 점검 결과
 
@@ -26,6 +26,7 @@
 | `features-publicsite-publichero--default` | 공개 사이트가 서비스 소개, 다운로드, 웹 로그인 진입에 집중한다. | 기획 방향 적합. |
 | `features-managedfolder-managedfoldersyncpanel--default` | 개인 관리 폴더 변화 감지, 사용자 승인, 서버 반영 대기열 기준이 분리되어 보인다. | 기획 방향 적합. 모바일 제목 줄바꿈만 즉시 수정했다. |
 | `features-projectroom-projectroominviteflow--default` | 프로젝트룸 초대가 친구 목록과 기존 회원 기준으로만 보이고, 수락 뒤 권한 생성 흐름이 분리되어 있다. | 기획 방향 적합. 게스트 초대나 이메일 초대처럼 보이는 흐름은 없다. |
+| `features-todo-todoassigneereflectionpanel--default` | 프로젝트룸에서 생긴 하나의 TODO가 담당자 기준으로 대시보드, 버블, 일정에 함께 표시되는 구조가 보인다. | 기획 방향 적합. 사용자 화면의 `서버 원본 작업` 표현을 `하나로 관리되는 작업` 기준으로 낮췄다. |
 
 ## 3. 즉시 수정한 항목
 
@@ -50,6 +51,7 @@
 | Tauri 소통 패널 | 헤더 칩이 전체 폭으로 늘어나던 문제를 고치고, 캐시 표현을 기기 안 임시 보관으로 풀었다. |
 | 한국어 줄바꿈 | 공개 히어로와 도메인 카드에서 한국어가 음절 단위로 끊기지 않도록 줄바꿈 기준을 조정했다. |
 | 개인 관리 폴더 모바일 제목 | 동기화 패널의 긴 한국어 제목이 모바일에서 음절 단위로 끊기지 않도록 줄바꿈 기준과 모바일 제목 크기를 조정했다. |
+| TODO 담당자 반영 문구 | 사용자 화면에 보이던 `서버 원본 작업` 표현을 `하나로 관리되는 작업`으로 낮췄다. |
 
 ## 4. 디자인보드 v20 polish로 넘길 항목
 

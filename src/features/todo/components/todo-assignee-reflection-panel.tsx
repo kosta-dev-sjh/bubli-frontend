@@ -141,8 +141,8 @@ export function TodoAssigneeReflectionPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              프로젝트룸에서 생긴 TODO는 서버의 같은 작업을 원본으로 둡니다. 담당자가 지정되면 개인 대시보드와
-              버블은 같은 작업을 담당자 기준으로 보여줍니다.
+              프로젝트룸에서 생긴 TODO는 하나의 작업으로 관리합니다. 담당자가 지정되면 개인 대시보드와 버블은
+              같은 작업을 담당자 기준으로 보여줍니다.
             </p>
           </div>
         </div>
@@ -160,7 +160,7 @@ export function TodoAssigneeReflectionPanel({
           </span>
           <div>
             <strong>하나의 TODO</strong>
-            <p>프로젝트룸 작업판에서 생성된 서버 원본 작업입니다.</p>
+            <p>프로젝트룸 작업판에서 하나로 관리되는 작업입니다.</p>
           </div>
         </article>
         <span className={styles.flowLine} aria-hidden="true" />
