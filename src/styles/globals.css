@@ -6223,6 +6223,8 @@ select {
   font-weight: 900;
   letter-spacing: 0;
   line-height: 1.12;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .managed-folder__hero p,
@@ -6377,6 +6379,8 @@ select {
   font-weight: 900;
   letter-spacing: 0;
   line-height: 1.12;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .managed-folder-sync__title p,
@@ -7535,7 +7539,7 @@ select {
   }
 
   .managed-folder__hero h2 {
-    font-size: 28px;
+    font-size: 25px;
   }
 
   .managed-folder__list-top {
@@ -7554,7 +7558,7 @@ select {
   }
 
   .managed-folder-sync__title h2 {
-    font-size: 28px;
+    font-size: 25px;
   }
 
   .managed-folder-sync__toolbar {

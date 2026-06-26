@@ -11,7 +11,7 @@
 | Storybook | `http://127.0.0.1:6006` |
 | 캡처 방식 | Playwright screenshot |
 | viewport | `1440 x 1000` |
-| 캡처 위치 | `output/playwright/storybook-v20-qa/`, `output/playwright/storybook-v20-polish-followup/` |
+| 캡처 위치 | `output/playwright/storybook-v20-qa/`, `output/playwright/storybook-v20-polish-followup/`, `output/playwright/storybook-v20-managed-folder/` |
 
 ## 2. 대표 Story 점검 결과
 
@@ -24,6 +24,7 @@
 | `features-agent-candidateapprovalpanel--default` | 에이전트 결과가 확정값이 아니라 후보로 보이고, 승인 후 반영 흐름이 분리되어 있다. | 즉시 수정 필요 없음. |
 | `features-auth-authpanel--login` | 자체 계정 입력 없이 Google 기반 진입으로 보인다. | H1 줄바꿈과 token 표현을 즉시 수정했다. |
 | `features-publicsite-publichero--default` | 공개 사이트가 서비스 소개, 다운로드, 웹 로그인 진입에 집중한다. | 기획 방향 적합. |
+| `features-managedfolder-managedfoldersyncpanel--default` | 개인 관리 폴더 변화 감지, 사용자 승인, 서버 반영 대기열 기준이 분리되어 보인다. | 기획 방향 적합. 모바일 제목 줄바꿈만 즉시 수정했다. |
 
 ## 3. 즉시 수정한 항목
 
@@ -47,6 +48,7 @@
 | 구현 용어 노출 | Storybook 화면의 `tasks`, `schedules`, `time_logs`, `DRAFT`, `Tauri SQLite` 표현을 사용자 문구로 낮췄다. |
 | Tauri 소통 패널 | 헤더 칩이 전체 폭으로 늘어나던 문제를 고치고, 캐시 표현을 기기 안 임시 보관으로 풀었다. |
 | 한국어 줄바꿈 | 공개 히어로와 도메인 카드에서 한국어가 음절 단위로 끊기지 않도록 줄바꿈 기준을 조정했다. |
+| 개인 관리 폴더 모바일 제목 | 동기화 패널의 긴 한국어 제목이 모바일에서 음절 단위로 끊기지 않도록 줄바꿈 기준과 모바일 제목 크기를 조정했다. |
 
 ## 4. 디자인보드 v20 polish로 넘길 항목
 
