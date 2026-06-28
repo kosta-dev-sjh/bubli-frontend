@@ -1,0 +1,83 @@
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+
+import { DecorBubble } from "@/components/bubbles/decor-bubble";
+
+const meta = {
+  component: DecorBubble,
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "배경 공기감 전용 장식 버블. 소수만, opacity 낮게, float/breathe만. 기능 UI보다 시각 우선순위 낮음. 빈칸 채우기 남발 금지.",
+      },
+    },
+  },
+  title: "Bubbles/DecorBubble",
+} satisfies Meta<typeof DecorBubble>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+// DecorBubble은 position:absolute가 기본이라 데모는 relative 무대 위에 올린다.
+function Stage({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
+  return (
+    <div
+      data-theme={dark ? "dark" : undefined}
+      style={{
+        position: "relative",
+        height: 220,
+        borderRadius: 22,
+        overflow: "hidden",
+        background: dark
+          ? "linear-gradient(160deg,#161E2E,#10151F)"
+          : "radial-gradient(50% 50% at 20% 10%, rgba(158,216,255,.22), transparent 60%), linear-gradient(160deg,#F4F9FF,#EAF2FB)",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+export const Sizes: Story = {
+  render: () => (
+    <Stage>
+      <DecorBubble size="sm" style={{ left: "12%", top: "30%" }} />
+      <DecorBubble size="md" style={{ left: "42%", top: "20%" }} />
+      <DecorBubble size="lg" style={{ right: "8%", bottom: "-30px" }} />
+    </Stage>
+  ),
+};
+
+export const Small: Story = {
+  render: () => (
+    <Stage>
+      <DecorBubble size="sm" style={{ left: "44%", top: "40%" }} />
+    </Stage>
+  ),
+};
+
+export const Floating: Story = {
+  render: () => (
+    <Stage>
+      <DecorBubble floating size="lg" style={{ left: "30%", top: "20%" }} />
+    </Stage>
+  ),
+};
+
+export const Static: Story = {
+  render: () => (
+    <Stage>
+      <DecorBubble size="lg" style={{ left: "30%", top: "20%" }} />
+    </Stage>
+  ),
+};
+
+export const Dark: Story = {
+  parameters: { backgrounds: { default: "dark" } },
+  render: () => (
+    <Stage dark>
+      <DecorBubble size="sm" style={{ left: "14%", top: "30%" }} />
+      <DecorBubble floating size="lg" style={{ right: "6%", bottom: "-24px" }} />
+    </Stage>
+  ),
+};

@@ -4,6 +4,7 @@ import { BubbleCard } from "@/components/bubbles/bubble-card";
 import { Button } from "@/components/ui/button";
 
 const meta = {
+  tags: ["uikit", "bubbles"],
   component: BubbleCard,
   parameters: {
     docs: {

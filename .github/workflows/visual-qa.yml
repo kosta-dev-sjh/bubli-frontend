@@ -1,0 +1,55 @@
+name: Visual QA
+
+# 새 UI Kit 시각 회귀 검증. push/PR마다 Storybook을 빌드해 주요 스토리를 캡처하고,
+# 실제 /app 라우트(DashboardView flag on)도 함께 찍어 아티팩트로 올린다.
+# 사람이 수동으로 npm run visual:qa 를 돌리지 않아도 되게 자동화한다.
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+  push:
+    branches: [ develop ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium (+ system deps)
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Visual QA
+        # 라우트 캡처는 아티팩트로만(게이트는 Storybook 캡처 + tsc + 금지색)
+        env:
+          ROUTES_OPTIONAL: '1'
+        run: npm run visual:qa
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-qa-screenshots
+          path: docs/visual-qa/screenshots/
+          if-no-files-found: warn
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-qa-report
+          path: docs/visual-qa/visual-qa-report.md
+          if-no-files-found: warn

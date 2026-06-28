@@ -1,23 +1,45 @@
 @import "tailwindcss";
 
 :root {
-  --color-bg: #F7F9FA;
-  --color-text: #2C3540;
-  --color-muted: #5A6772;
-  --color-faint: #8A94A0;
+  /* === Sky Opal canonical (Brand Bible Part 4) — 색은 면이 아니라 빛에 === */
+  --bg: #FCFDFF;
+  --surface: #FFFFFF;
+  --pearl: #F8F6F4;
+  --mist: #F2F7FC;
+  --sky-light: #D8F0FF;
+  --sky: #9ED8FF;
+  --bubble-blue: #6FB8F2;
+  --blue-ink: #3A78B8;
+  --opal-lilac: #DCD8F8;
+  --lilac-ink: #6E63B8;
+  --soft-pink: #F6DDEB;
+  --ink: #23303B;
+  --ink-soft: #586978;
+  --ink-faint: #98A5AF;
+  /* signal: dot/ring/outline 전용(면 채움 금지) */
+  --signal-todo: #7CC4F5;
+  --signal-agent: #B0A8E0;
+  --signal-memo: #E6C49C;
+  --signal-alert: #E79BB0;
+  --signal-ok: #93CFA8;
+  /* === v20 토큰 → Sky Opal alias (기존 화면 호환, 즉시 삭제 금지) === */
+  --color-bg: var(--bg);
+  --color-text: var(--ink);
+  --color-muted: var(--ink-soft);
+  --color-faint: var(--ink-faint);
   --color-water-blue: #D7EAF4;
-  --color-brand: #6B8FA8;
-  --color-todo: #8ECDF6;
-  --color-pearl: #E8C4A0;
-  --color-dust-rose: #E89898;
-  --color-lilac: #E6DDF8;
+  --color-brand: var(--blue-ink);
+  --color-todo: var(--signal-todo);
+  --color-pearl: var(--signal-memo);
+  --color-dust-rose: var(--signal-alert);
+  --color-lilac: var(--opal-lilac);
   --color-rain-gray: #CDD8DF;
   --color-border: #E5E7EB;
-  --color-blue: #6FB8F2;
+  --color-blue: var(--bubble-blue);
   --color-blue-soft: #A8DBFA;
-  --color-blue-deep: #36729A;
-  --color-agent: #D9E2F3;
-  --color-success: #A7D8BE;
+  --color-blue-deep: var(--blue-ink);
+  --color-agent: var(--opal-lilac);
+  --color-success: var(--signal-ok);
   --color-warning: #F1D7B8;
   --glass: rgba(255, 255, 255, 0.84);
   --glass-strong: rgba(255, 255, 255, 0.92);
@@ -49,6 +71,43 @@
   --radius-pill: 999px;
   --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* === Interaction Bible Part 5 — 모션 토큰 === */
+  --ease-press: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --motion-hover: 160ms;
+  --motion-press: 120ms;
+  --motion-fade: 200ms;
+  --motion-slide: 240ms;
+  --motion-expand: 260ms;
+  --motion-collapse: 220ms;
+  --motion-float: 22s;
+  --motion-breathe: 9s;
+  /* === 공통 표면(Surface) 토큰 — Paper Glass 수렴 === */
+  --surface-radius: var(--radius-panel);
+  --surface-border: rgba(255, 255, 255, 0.82);
+  --surface-blur: 18px;
+  --surface-sat: 1.2;
+  /* Visual Target Guide 5장 — 작고 맑은 shadow. 깊이는 rim+highlight로. */
+  --surface-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(35, 48, 59, 0.05),
+    0 6px 14px -10px rgba(35, 48, 59, 0.12);
+  --surface-shadow-float:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 10px 22px -14px rgba(35, 48, 59, 0.18);
+  /* Night Bubble 표면 */
+  --surface-bg-dark: rgba(34, 46, 72, 0.42);
+  --surface-border-dark: rgba(150, 170, 215, 0.16);
+  /* 명명 토큰(시멘틱) — 위 값과 동일 스케일 */
+  --shadow-surface-light: 0 1px 2px rgba(35, 48, 59, 0.05), 0 6px 14px -10px rgba(35, 48, 59, 0.12);
+  --shadow-floating-light: 0 10px 22px -14px rgba(35, 48, 59, 0.18);
+  --shadow-surface-dark: 0 1px 2px rgba(0, 0, 0, 0.16);
+  --shadow-floating-dark: 0 12px 26px -18px rgba(0, 0, 0, 0.44);
+  --rim-light: rgba(255, 255, 255, 0.85);
+  --rim-dark: rgba(150, 170, 215, 0.16);
+  --inner-highlight-light: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --inner-highlight-dark: inset 0 1px 0 rgba(180, 205, 240, 0.07);
+  --glow-sky: 0 0 0 3px rgba(158, 216, 255, 0.2);
 }
 
 * {
@@ -110,12 +169,12 @@ select {
 
 .glass-panel {
   min-width: 0;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-panel);
-  background: linear-gradient(170deg, rgba(255, 255, 255, 0.68), var(--glass) 46%);
-  box-shadow: var(--shadow-glass);
-  backdrop-filter: blur(28px) saturate(1.4);
-  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--surface-radius);
+  background: linear-gradient(170deg, rgba(255, 255, 255, 0.78), var(--glass) 50%);
+  box-shadow: var(--surface-shadow);
+  backdrop-filter: blur(var(--surface-blur)) saturate(var(--surface-sat));
+  -webkit-backdrop-filter: blur(var(--surface-blur)) saturate(var(--surface-sat));
 }
 
 .page-grid {
@@ -139,9 +198,9 @@ select {
     linear-gradient(170deg, rgba(255, 255, 255, 0.72), var(--glass) 46%);
   box-shadow:
     inset 0 0 0 1px rgba(142, 205, 246, 0.1),
-    var(--shadow-glass);
-  backdrop-filter: blur(28px) saturate(1.4);
-  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+    var(--surface-shadow);
+  backdrop-filter: blur(var(--surface-blur)) saturate(var(--surface-sat));
+  -webkit-backdrop-filter: blur(var(--surface-blur)) saturate(var(--surface-sat));
 }
 
 .bubli-surface::before {
@@ -171,6 +230,100 @@ select {
 .bubli-surface > * {
   position: relative;
   z-index: 1;
+}
+
+/* === 공통 표면 variant (GlassPanel/Card 수렴) — 색은 빛에만, 면은 거의 흰색 === */
+/* interactive(hover 가능 카드만 아주 약한 lift) */
+.bubli-surface--interactive {
+  cursor: pointer;
+  transition:
+    transform var(--motion-hover) var(--ease-out),
+    box-shadow var(--motion-hover) var(--ease-out),
+    border-color var(--motion-hover) var(--ease-out);
+}
+.bubli-surface--interactive:hover,
+.bubli-surface.is-hover {
+  transform: translateY(-2px);
+  box-shadow: var(--surface-shadow-float);
+}
+.bubli-surface--interactive:focus-visible,
+.bubli-surface.is-focus {
+  outline: 3px solid rgba(111, 184, 242, 0.28);
+  outline-offset: 2px;
+}
+/* dense: 정보 많은 화면(자료보드/WBS) */
+.bubli-surface--dense {
+  border-radius: var(--radius-card);
+}
+/* floating: 바탕화면 위 떠 있는 위젯 카드 */
+.bubli-surface--floating {
+  border-radius: var(--radius-window);
+  box-shadow: var(--surface-shadow-float);
+}
+/* disabled: 낮은 대비 */
+.bubli-surface--disabled {
+  opacity: 0.6;
+  filter: saturate(0.9);
+  cursor: not-allowed;
+}
+/* empty: Bubble Empty State 톤(가운데 정렬 받침) */
+.bubli-surface--empty {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  text-align: center;
+  color: var(--ink-soft);
+}
+/* loading skeleton shimmer (조용한) */
+.bubli-skeleton {
+  border-radius: 10px;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(120, 150, 180, 0.08),
+      rgba(120, 150, 180, 0.16),
+      rgba(120, 150, 180, 0.08)
+    );
+  background-size: 200% 100%;
+  animation: bubli-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes bubli-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Night Bubble — 어두운 유리(검정 뒤집기 아님), 색은 빛에만 */
+[data-theme="dark"] .bubli-surface,
+[data-theme="dark"] .glass-panel,
+[data-theme="dark"] .bubli-card {
+  background: var(--surface-bg-dark);
+  border-color: var(--surface-border-dark);
+  box-shadow:
+    var(--inner-highlight-dark),
+    var(--shadow-floating-dark);
+  color: #C2CFE6;
+}
+[data-theme="dark"] .bubli-surface::before,
+[data-theme="dark"] .bubli-surface::after {
+  opacity: 0.12;
+}
+[data-theme="dark"] .bubli-skeleton {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(150, 170, 215, 0.08),
+      rgba(150, 170, 215, 0.18),
+      rgba(150, 170, 215, 0.08)
+    );
+  background-size: 200% 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubli-surface--interactive,
+  .bubli-skeleton {
+    transition: none;
+    animation: none;
+  }
 }
 
 .bubli-button {
@@ -208,11 +361,24 @@ select {
   outline-offset: 2px;
 }
 
+/* Primary CTA = White Glass + Bubble Blue outline + Blue ink (채움 버튼 금지) */
 .bubli-button--primary {
-  color: #fff;
-  border-color: rgba(54, 114, 154, 0.22);
-  background: linear-gradient(145deg, #6FB8F2, #4C91CD);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 14px 32px rgba(76, 145, 205, 0.24);
+  color: var(--blue-ink);
+  border-color: rgba(111, 184, 242, 0.85);
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 6px 16px -8px rgba(111, 184, 242, 0.4);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.bubli-button--primary:hover,
+.bubli-button--primary.is-hover {
+  transform: translateY(-1px);
+  border-color: var(--bubble-blue);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 0 0 4px rgba(111, 184, 242, 0.16),
+    0 8px 18px -8px rgba(111, 184, 242, 0.45);
 }
 
 .bubli-button--quiet {
@@ -239,6 +405,93 @@ select {
   font-size: 15px;
 }
 
+/* press squish */
+.bubli-button:active,
+.bubli-button.is-press {
+  transform: translateY(1px) scaleY(0.96);
+  transition-duration: var(--motion-press);
+  transition-timing-function: var(--ease-press);
+}
+
+/* demo states (Storybook에서 hover/focus를 정적으로 보여주기 위함) */
+.bubli-button.is-hover {
+  transform: translateY(-1px);
+  border-color: rgba(107, 143, 168, 0.22);
+  box-shadow: var(--shadow-soft);
+}
+.bubli-button.is-focus {
+  outline: 3px solid rgba(111, 184, 242, 0.28);
+  outline-offset: 2px;
+}
+
+/* disabled = 낮은 대비 Paper Glass */
+.bubli-button:disabled,
+.bubli-button[aria-disabled="true"] {
+  color: var(--ink-faint);
+  background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(120, 140, 165, 0.12);
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* loading = 조용한 점 3개 (텍스트 대체) */
+.bubli-button__dots {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+.bubli-button__dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+  animation: bubli-btn-dot 1.2s ease-in-out infinite;
+}
+.bubli-button__dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.bubli-button__dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes bubli-btn-dot {
+  0%, 100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-2px);
+  }
+}
+
+/* Dark (Night Bubble) — 버블 스코프, 청록 금지 */
+[data-theme="dark"] .bubli-button {
+  color: #EAF0F8;
+  background: rgba(40, 52, 80, 0.5);
+  border-color: rgba(150, 170, 215, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 18px -10px rgba(0, 0, 0, 0.5);
+}
+[data-theme="dark"] .bubli-button--primary {
+  color: #BFD6F5;
+  background: rgba(40, 52, 80, 0.4);
+  border-color: rgba(111, 184, 242, 0.55);
+}
+[data-theme="dark"] .bubli-button--primary:hover,
+[data-theme="dark"] .bubli-button--primary.is-hover {
+  border-color: var(--bubble-blue);
+  box-shadow: 0 0 0 4px rgba(111, 184, 242, 0.16), 0 8px 18px -8px rgba(111, 184, 242, 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubli-button,
+  .bubli-button__dots i {
+    animation: none;
+    transition: none;
+  }
+}
+
 .bubli-chip {
   display: inline-flex;
   min-height: 30px;
@@ -254,10 +507,11 @@ select {
   line-height: 1;
 }
 
-.bubli-chip--selected {
-  color: var(--color-blue-deep);
-  border-color: rgba(111, 184, 242, 0.42);
-  background: rgba(215, 234, 244, 0.72);
+.bubli-chip--selected,
+.bubli-chip.is-selected {
+  color: var(--blue-ink);
+  border-color: rgba(111, 184, 242, 0.55);
+  background: rgba(216, 240, 255, 0.45);
 }
 
 .bubli-status {
@@ -289,36 +543,443 @@ select {
 
 .bubli-status--todo { --status-color: var(--color-todo); }
 .bubli-status--agent { --status-color: var(--color-agent); }
-.bubli-status--communication { --status-color: var(--color-dust-rose); }
-.bubli-status--timer { --status-color: #A7D8BE; }
-.bubli-status--memo { --status-color: var(--color-pearl); }
-.bubli-status--warning { --status-color: var(--color-pearl); }
-.bubli-status--success { --status-color: var(--color-success); }
-.bubli-status--pending { --status-color: var(--color-lilac); }
-.bubli-status--approved { --status-color: #9ED3B2; }
+.bubli-status--communication { --status-color: var(--signal-alert); }
+.bubli-status--timer { --status-color: var(--bubble-blue); }
+.bubli-status--memo { --status-color: var(--signal-memo); }
+.bubli-status--warning { --status-color: var(--signal-alert); }
+.bubli-status--success { --status-color: var(--signal-ok); }
+.bubli-status--pending { --status-color: var(--opal-lilac); }
+.bubli-status--approved { --status-color: var(--signal-ok); }
 .bubli-status--room { --status-color: var(--color-blue-soft); }
 .bubli-status--personal { --status-color: var(--color-rain-gray); }
+
+/* === Chip / StatusBadge — Sky Opal interaction (색은 dot·rim·text·glow에만) === */
+.bubli-chip {
+  transition:
+    transform var(--motion-hover) var(--ease-out),
+    border-color var(--motion-hover) var(--ease-out),
+    box-shadow var(--motion-hover) var(--ease-out);
+}
+.bubli-chip:hover,
+.bubli-chip.is-hover {
+  transform: translateY(-1px);
+  border-color: rgba(111, 184, 242, 0.4);
+  box-shadow: 0 6px 14px -8px rgba(70, 110, 165, 0.18);
+}
+.bubli-chip.is-focus {
+  outline: 3px solid rgba(111, 184, 242, 0.28);
+  outline-offset: 2px;
+}
+.bubli-chip--disabled {
+  color: var(--ink-faint);
+  background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(120, 140, 165, 0.1);
+  cursor: not-allowed;
+}
+
+.bubli-status {
+  transition:
+    transform var(--motion-hover) var(--ease-out),
+    border-color var(--motion-hover) var(--ease-out),
+    box-shadow var(--motion-hover) var(--ease-out);
+}
+.bubli-status:hover,
+.bubli-status.is-hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--status-color, var(--bubble-blue)) 40%, rgba(107, 143, 168, 0.14));
+  box-shadow: 0 6px 14px -8px rgba(70, 110, 165, 0.16);
+}
+.bubli-status.is-focus {
+  outline: 3px solid rgba(111, 184, 242, 0.28);
+  outline-offset: 2px;
+}
+.bubli-status--selected,
+.bubli-status.is-selected {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--status-color, var(--bubble-blue)) 55%, transparent);
+}
+.bubli-status--disabled {
+  color: var(--ink-faint);
+  background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(120, 140, 165, 0.1);
+  cursor: not-allowed;
+}
+.bubli-status--disabled::before {
+  background: var(--color-rain-gray);
+  box-shadow: none;
+}
+
+/* Dark (Night Bubble) — 면은 어두운 유리, 색은 dot·text·rim에만 */
+[data-theme="dark"] .bubli-chip,
+[data-theme="dark"] .bubli-status {
+  color: #C2CFE6;
+  background: rgba(40, 52, 80, 0.45);
+  border-color: rgba(150, 170, 215, 0.18);
+}
+[data-theme="dark"] .bubli-chip--selected,
+[data-theme="dark"] .bubli-chip.is-selected {
+  color: #BFD6F5;
+  border-color: rgba(111, 184, 242, 0.5);
+  background: rgba(40, 52, 80, 0.55);
+}
+[data-theme="dark"] .bubli-status--selected,
+[data-theme="dark"] .bubli-status.is-selected {
+  color: #EAF0F8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubli-chip,
+  .bubli-status {
+    transition: none;
+  }
+}
 
 .bubli-progress {
   position: relative;
   height: 8px;
   overflow: hidden;
   border-radius: var(--radius-pill);
-  background: rgba(107, 143, 168, 0.12);
+  background: rgba(120, 150, 180, 0.12); /* 옅은 rain/mist track */
 }
 
 .bubli-progress__bar {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--progress-color, var(--color-blue)), var(--color-blue-soft));
-  transition: width 220ms var(--ease-out);
+  /* Sky Blue → Opal Lilac (청록 금지) */
+  background: linear-gradient(90deg, var(--progress-color, var(--bubble-blue)), var(--opal-lilac));
+  transition: width var(--motion-expand) var(--ease-out);
+}
+
+/* 완료/성공: 작은 soft green으로 마무리 */
+.bubli-progress--complete .bubli-progress__bar {
+  background: linear-gradient(90deg, var(--bubble-blue), var(--signal-ok));
+}
+
+/* indeterminate / loading (조용한 스윕) */
+.bubli-progress--indeterminate .bubli-progress__bar {
+  width: 38% !important;
+  background: linear-gradient(90deg, transparent, var(--bubble-blue), var(--opal-lilac), transparent);
+  animation: bubli-progress-indet 1.3s var(--ease-out) infinite;
+}
+@keyframes bubli-progress-indet {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
+[data-theme="dark"] .bubli-progress {
+  background: rgba(150, 170, 215, 0.16);
+}
+
+/* With label 행 */
+.bubli-progress-row { display: grid; gap: 6px; min-width: 0; }
+.bubli-progress-row__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+.bubli-progress-row__head span:first-child { color: var(--ink-soft); }
+.bubli-progress-row__head span:last-child {
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+[data-theme="dark"] .bubli-progress-row__head span:first-child { color: #A7B6CC; }
+[data-theme="dark"] .bubli-progress-row__head span:last-child { color: #EAF0F8; }
+
+/* === Ring (도넛, 데이터 신호 — 색은 Sky/Bubble Blue/Opal Lilac/Soft Pink/rain만) === */
+.bubli-ring {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+.bubli-ring > svg {
+  transform: rotate(-90deg);
+  display: block;
+}
+.bubli-ring__center {
+  position: absolute;
+  display: grid;
+  gap: 1px;
+  justify-items: center;
+  text-align: center;
+}
+.bubli-ring__metric {
+  font-size: var(--ring-metric, 18px);
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.bubli-ring__label {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+[data-theme="dark"] .bubli-ring__metric { color: #EAF0F8; }
+[data-theme="dark"] .bubli-ring__label { color: #A7B6CC; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bubli-progress--indeterminate .bubli-progress__bar { animation: none; }
+}
+
+/* =========================================================
+   Bubbles — 이미지 에셋 기반(/assets/bubble-sky.webp).
+   본체는 CSS radial이 아니라 투명 이미지. 색은 rim/highlight/glow에만.
+   크기/opacity/filter만 CSS로 조절.
+   ========================================================= */
+@keyframes bubli-float {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(3px, -7px); }
+}
+@keyframes bubli-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035); }
+}
+@keyframes bubli-dot {
+  0%, 100% { opacity: 0.35; transform: translateY(0); }
+  50% { opacity: 0.9; transform: translateY(-2px); }
+}
+
+/* BubbleMark */
+.bubli-mark { display: inline-block; line-height: 0; flex: 0 0 auto; }
+.bubli-mark > img { display: block; width: 100%; height: 100%; }
+.bubli-mark--sm { width: 20px; height: 20px; }
+.bubli-mark--md { width: 28px; height: 28px; }
+.bubli-mark--lg { width: 64px; height: 64px; }
+.bubli-mark--animated > img { animation: bubli-float var(--motion-float) ease-in-out infinite; }
+
+/* BubbleOrb / DockOrb */
+.bubli-orb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: transform var(--motion-hover) var(--ease-out), filter var(--motion-hover) var(--ease-out);
+}
+.bubli-orb > img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.bubli-orb__count {
+  position: relative;
+  z-index: 1;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--blue-ink);
+  font-variant-numeric: tabular-nums;
+}
+.bubli-orb:hover,
+.bubli-orb.is-hover { transform: scale(1.05); }
+.bubli-orb:focus-visible,
+.bubli-orb.is-focus { outline: 3px solid rgba(111, 184, 242, 0.3); outline-offset: 3px; border-radius: 50%; }
+.bubli-orb--active,
+.bubli-orb.is-active { filter: drop-shadow(0 0 5px rgba(111, 184, 242, 0.32)); }
+.bubli-orb__badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  z-index: 2;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #E79BB0;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+/* AgentBubble */
+.bubli-agent { position: relative; display: inline-grid; place-items: center; flex: 0 0 auto; }
+.bubli-agent > img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.bubli-agent__face { position: absolute; inset: 0; width: 100%; height: 100%; }
+.bubli-agent__dots { position: relative; z-index: 1; display: flex; gap: 3px; }
+.bubli-agent__dots i {
+  width: 3px; height: 3px; border-radius: 50%;
+  background: var(--lilac-ink); opacity: 0.5;
+  animation: bubli-dot 1.2s ease-in-out infinite;
+}
+.bubli-agent__dots i:nth-child(2) { animation-delay: 0.15s; }
+.bubli-agent__dots i:nth-child(3) { animation-delay: 0.3s; }
+.bubli-agent--thinking > img { animation: bubli-breathe calc(var(--motion-breathe) * 0.55) ease-in-out infinite; }
+.bubli-agent__signal {
+  position: absolute; top: 1px; right: 1px; z-index: 2;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--opal-lilac);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--opal-lilac) 22%, transparent);
+}
+
+/* DecorBubble */
+.bubli-decor { line-height: 0; pointer-events: none; opacity: 0.6; }
+.bubli-decor > img { display: block; width: 100%; height: 100%; }
+.bubli-decor--sm { width: 40px; height: 40px; }
+.bubli-decor--md { width: 80px; height: 80px; }
+.bubli-decor--lg { width: 140px; height: 140px; }
+.bubli-decor--floating > img { animation: bubli-float var(--motion-float) ease-in-out infinite; }
+
+/* BubbleBar (위젯 최소화) */
+.bubli-bubble-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--surface-border);
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: var(--surface-shadow);
+  -webkit-backdrop-filter: blur(var(--surface-blur)) saturate(var(--surface-sat));
+  backdrop-filter: blur(var(--surface-blur)) saturate(var(--surface-sat));
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform var(--motion-hover) var(--ease-out), box-shadow var(--motion-hover) var(--ease-out);
+}
+.bubli-bubble-bar small { color: var(--ink-soft); font-weight: 600; }
+.bubli-bubble-bar:hover,
+.bubli-bubble-bar.is-hover { transform: translateY(-1px); box-shadow: var(--surface-shadow-float); }
+.bubli-bubble-bar:focus-visible,
+.bubli-bubble-bar.is-focus { outline: 3px solid rgba(111, 184, 242, 0.28); outline-offset: 2px; }
+.bubli-bubble-bar--ghost {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: none;
+}
+
+/* Dark — 같은 에셋, bar/orb 면만 어둡게 */
+[data-theme="dark"] .bubli-bubble-bar {
+  background: var(--surface-bg-dark);
+  border-color: var(--surface-border-dark);
+  color: #EAF0F8;
+}
+[data-theme="dark"] .bubli-bubble-bar small { color: #A7B6CC; }
+[data-theme="dark"] .bubli-orb__count { color: #BFD6F5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bubli-mark--animated > img,
+  .bubli-decor--floating > img,
+  .bubli-agent--thinking > img,
+  .bubli-agent__dots i { animation: none; }
+}
+
+/* =========================================================
+   WidgetShell — 바탕화면 위에 떠 있는 Bubble Workspace.
+   카드가 아니다. 4상태(default/translucent/ghost/minimal)는
+   rim·blur·shadow·density·구조가 실제로 달라진다.
+   ========================================================= */
+.bubli-widget {
+  position: relative;
+  width: 300px;
+  padding: 16px;
+  border-radius: var(--radius-panel);
+  border: 1px solid var(--surface-border);
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: var(--surface-shadow-float); /* 떠 있는 ambient */
+  -webkit-backdrop-filter: blur(8px) saturate(1.15); /* 위젯 blur 8px(과한 frost 금지) */
+  backdrop-filter: blur(8px) saturate(1.15);
+  color: var(--ink);
+  transition: transform var(--motion-hover) var(--ease-out), box-shadow var(--motion-hover) var(--ease-out);
+}
+.bubli-widget--breathe { animation: bubli-breathe calc(var(--motion-breathe) * 0.9) ease-in-out infinite; }
+.bubli-widget--interactive { cursor: pointer; }
+.bubli-widget--interactive:hover,
+.bubli-widget.is-hover { transform: translateY(-2px); box-shadow: var(--surface-shadow-float); }
+.bubli-widget:focus-visible,
+.bubli-widget.is-focus { outline: 3px solid rgba(111, 184, 242, 0.28); outline-offset: 3px; }
+
+.bubli-widget__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.bubli-widget__title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.bubli-widget__body { display: grid; gap: 2px; }
+.bubli-widget__item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(120, 150, 170, 0.13); font-size: 13px; }
+.bubli-widget__item:first-child { border-top: none; }
+.bubli-widget__item small { color: var(--text-3); font-size: 11px; }
+.bubli-widget__cb { width: 18px; height: 18px; flex: 0 0 auto; border-radius: 6px; border: 1.6px solid rgba(140, 160, 185, 0.85); }
+.bubli-widget__cb--done { background: var(--bubble-blue); border-color: transparent; }
+.bubli-widget__timer { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; margin: 4px 0 0; }
+.bubli-widget__agent { display: flex; align-items: flex-start; gap: 9px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(120, 150, 170, 0.13); }
+.bubli-widget__agent p { margin: 0; font-size: 12px; line-height: 18px; color: var(--ink-soft); }
+
+/* Translucent — opacity만이 아니라 rim·blur·shadow·대비·밀도 함께↓ */
+.bubli-widget--translucent {
+  background: rgba(255, 255, 255, 0.26);
+  border-color: rgba(255, 255, 255, 0.34);
+  box-shadow: 0 10px 26px -20px rgba(35, 48, 59, 0.45);
+  -webkit-backdrop-filter: blur(3px) saturate(0.96);
+  backdrop-filter: blur(3px) saturate(0.96);
+  color: var(--ink-soft);
+  opacity: 0.92;
+}
+.bubli-widget--translucent .bubli-widget__title {
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* Ghost — 거의 투명, 본문 숨김, 신호만 */
+.bubli-widget--ghost {
+  width: auto;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed rgba(140, 165, 200, 0.5);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.bubli-widget__ghost { display: flex; align-items: center; gap: 16px; }
+.bubli-widget__signal { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-soft); }
+.bubli-widget__signal .bubli-widget__through {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text-3);
+}
+
+/* Minimal — BubbleBar/DockOrb로 접힘, 떠 있는 작은 존재 */
+.bubli-widget--minimal {
+  width: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Sleep — 절전(모션 정지, 살짝 흐림) */
+.bubli-widget--sleep { animation: none; opacity: 0.85; filter: saturate(0.88); }
+
+/* density */
+.bubli-widget--compact { width: 240px; padding: 13px; }
+.bubli-widget--compact .bubli-widget__item { padding: 6px 0; }
+.bubli-widget--expanded { width: 360px; }
+
+/* Dark — Night Bubble(면만 어둡게, 색은 빛에) */
+[data-theme="dark"] .bubli-widget {
+  background: var(--surface-bg-dark);
+  border-color: var(--surface-border-dark);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06), 0 26px 50px -22px rgba(0, 0, 0, 0.55);
+  color: #EAF0F8;
+}
+[data-theme="dark"] .bubli-widget__item small,
+[data-theme="dark"] .bubli-widget__agent p,
+[data-theme="dark"] .bubli-widget__signal { color: #A7B6CC; }
+[data-theme="dark"] .bubli-widget__item,
+[data-theme="dark"] .bubli-widget__agent { border-color: rgba(150, 170, 215, 0.14); }
+[data-theme="dark"] .bubli-widget--translucent { background: rgba(34, 46, 72, 0.32); }
+[data-theme="dark"] .bubli-widget--ghost { background: rgba(34, 46, 72, 0.12); border-color: rgba(150, 170, 215, 0.4); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bubli-widget--breathe { animation: none; }
 }
 
 .bubli-card {
-  border: 1px solid rgba(107, 143, 168, 0.14);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-card);
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: var(--shadow-soft);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--surface-shadow);
 }
 
 .bubli-card-row {
@@ -431,6 +1092,67 @@ select {
 .bubli-nav__item--active .bubli-nav__icon {
   border-color: rgba(255, 255, 255, 0.74);
   background: rgba(255, 255, 255, 0.78);
+}
+
+/* ============================================================
+   Night Bubble — AppShell(사이드바/내비/배경) 다크 정합화
+   색은 빛에만: 활성 내비는 Sky rim + 옅은 glow, 채움 없음. 청록 없음.
+   ============================================================ */
+[data-theme="dark"] body {
+  background:
+    radial-gradient(ellipse 70% 50% at 8% 0%, rgba(110, 160, 210, 0.16), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 96% 6%, rgba(120, 110, 180, 0.16), transparent 60%),
+    radial-gradient(ellipse 80% 60% at 78% 100%, rgba(110, 160, 210, 0.1), transparent 62%),
+    linear-gradient(180deg, #131a28, #161e2e);
+  color: rgba(232, 240, 250, 0.95);
+}
+
+[data-theme="dark"] .bubli-sidebar {
+  border-right-color: var(--surface-border-dark);
+  background:
+    radial-gradient(ellipse 120% 48% at 0% 0%, rgba(110, 160, 210, 0.12), transparent 62%),
+    rgba(34, 46, 72, 0.5);
+}
+
+[data-theme="dark"] .bubli-brand {
+  color: var(--sky);
+}
+
+[data-theme="dark"] .bubli-nav__item {
+  color: rgba(176, 190, 208, 0.74);
+}
+
+[data-theme="dark"] .bubli-nav__item:hover {
+  color: rgba(232, 240, 250, 0.95);
+  background: rgba(150, 170, 215, 0.08);
+}
+
+[data-theme="dark"] .bubli-nav__item--active {
+  color: rgba(232, 240, 250, 0.96);
+  border-color: rgba(158, 216, 255, 0.4);
+  background:
+    radial-gradient(circle at 16% 12%, rgba(158, 216, 255, 0.12), transparent 40%),
+    rgba(54, 72, 110, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(180, 210, 255, 0.12),
+    0 10px 24px -14px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .bubli-nav__icon {
+  border-color: var(--surface-border-dark);
+  background: rgba(54, 72, 110, 0.5);
+  color: var(--sky);
+}
+
+[data-theme="dark"] .bubli-nav__item--active .bubli-nav__icon {
+  border-color: rgba(158, 216, 255, 0.4);
+  background: rgba(70, 92, 140, 0.55);
+}
+
+[data-theme="dark"] .bubli-icon-tile {
+  border-color: var(--surface-border-dark);
+  background: rgba(54, 72, 110, 0.5);
+  color: var(--sky);
 }
 
 .bubli-public-header {
@@ -723,6 +1445,35 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* 도메인 카드 공통 상태 — 표면은 GlassPanel 토큰, 상태는 rim/glow/badge만(면 채움 금지) */
+.bubli-domain-card--interactive {
+  cursor: pointer;
+  transition: transform var(--motion-hover) var(--ease-out), box-shadow var(--motion-hover) var(--ease-out);
+}
+.bubli-domain-card--interactive:hover,
+.bubli-domain-card.is-hover {
+  transform: translateY(-2px);
+  box-shadow: var(--surface-shadow-float);
+}
+.bubli-domain-card--interactive:focus-visible,
+.bubli-domain-card.is-focus {
+  outline: 3px solid rgba(111, 184, 242, 0.28);
+  outline-offset: 2px;
+}
+.bubli-domain-card--selected,
+.bubli-domain-card.is-selected {
+  border-color: rgba(111, 184, 242, 0.55);
+  box-shadow: var(--surface-shadow), 0 0 0 3px rgba(111, 184, 242, 0.12);
+}
+.bubli-domain-card--error {
+  border-color: rgba(232, 155, 176, 0.6); /* rose rim 신호만 */
+}
+.bubli-domain-card--disabled {
+  opacity: 0.6;
+  filter: saturate(0.9);
+  cursor: not-allowed;
 }
 
 .dashboard-overview {
@@ -3361,16 +4112,178 @@ select {
 
 .bubli-chat-message__bubble {
   max-width: min(420px, 100%);
-  border: 1px solid rgba(107, 143, 168, 0.14);
+  border: 1px solid var(--surface-border);
   border-radius: 18px;
   padding: 11px 13px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 10px 24px rgba(80, 110, 130, 0.08);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--surface-shadow);
 }
 
 .bubli-chat-message--mine .bubli-chat-message__bubble {
   border-top-right-radius: 7px;
-  background: rgba(215, 234, 244, 0.7);
+  background: rgba(216, 240, 255, 0.4); /* 아주 옅은 sky 틴트 */
+}
+
+/* 채팅 상태 — 색은 rim/signal에만, 말풍선 전체 색칠 금지 */
+.bubli-chat-message--agent .bubli-chat-message__bubble {
+  border-color: rgba(176, 168, 224, 0.5); /* Opal Lilac rim */
+}
+.bubli-chat-message--system .bubli-chat-message__bubble {
+  background: rgba(248, 247, 245, 0.7); /* pearl 거의 흰색 */
+}
+.bubli-chat-message--pending .bubli-chat-message__bubble { opacity: 0.62; }
+.bubli-chat-message--failed .bubli-chat-message__bubble {
+  border-color: rgba(232, 155, 176, 0.6); /* rose rim 신호 */
+}
+.bubli-chat-message--failed .bubli-chat-message__author { color: #C56B85; }
+
+[data-theme="dark"] .bubli-chat-message__bubble {
+  background: var(--surface-bg-dark);
+  border-color: var(--surface-border-dark);
+  box-shadow: 0 14px 30px -18px rgba(0, 0, 0, 0.5);
+}
+[data-theme="dark"] .bubli-chat-message__author { color: #A7B6CC; }
+[data-theme="dark"] .bubli-chat-message__text { color: #EAF0F8; }
+[data-theme="dark"] .bubli-chat-message--mine .bubli-chat-message__bubble { background: rgba(60, 80, 125, 0.4); }
+
+/* =========================================================
+   Dashboard 커스터마이징 (12-col) — Paper Glass, 색은 신호에만.
+   ========================================================= */
+.bubli-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 14px;
+}
+.bubli-dash-grid--dense { gap: 10px; }
+.bubli-dash-grid--edit {
+  padding: 10px;
+  border-radius: var(--radius-panel);
+  background:
+    linear-gradient(rgba(111, 184, 242, 0.05) 1px, transparent 1px) 0 0 / 100% 44px,
+    rgba(216, 240, 255, 0.12);
+  outline: 1px dashed rgba(111, 184, 242, 0.28);
+  outline-offset: -1px;
+}
+
+/* WidgetTile — Paper Glass */
+.bubli-dash-tile {
+  position: relative;
+  grid-column: span 4;
+  min-width: 0;
+  padding: 14px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--surface-border);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--surface-shadow);
+  transition: transform var(--motion-hover) var(--ease-out), box-shadow var(--motion-hover) var(--ease-out);
+}
+.bubli-dash-tile--s { grid-column: span 3; }
+.bubli-dash-tile--m { grid-column: span 4; }
+.bubli-dash-tile--l { grid-column: span 6; }
+.bubli-dash-tile--full { grid-column: span 12; }
+.bubli-dash-tile--interactive { cursor: pointer; }
+.bubli-dash-tile--interactive:hover,
+.bubli-dash-tile.is-hover { transform: translateY(-2px); box-shadow: var(--surface-shadow-float); }
+.bubli-dash-tile:focus-visible,
+.bubli-dash-tile.is-focus { outline: 3px solid rgba(111, 184, 242, 0.28); outline-offset: 2px; }
+.bubli-dash-tile--selected,
+.bubli-dash-tile.is-selected {
+  border-color: rgba(111, 184, 242, 0.55);
+  box-shadow: var(--surface-shadow), 0 0 0 3px rgba(111, 184, 242, 0.12);
+}
+.bubli-dash-tile--dragging {
+  opacity: 0.6;
+  box-shadow: var(--surface-shadow-float);
+  cursor: grabbing;
+}
+.bubli-dash-tile--resizing { outline: 2px dashed rgba(111, 184, 242, 0.55); outline-offset: 2px; }
+.bubli-dash-tile--hidden { opacity: 0.42; filter: saturate(0.85); }
+.bubli-dash-tile--disabled { opacity: 0.55; filter: saturate(0.9); cursor: not-allowed; }
+.bubli-dash-tile__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.bubli-dash-tile__title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.bubli-dash-tile__icon { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; flex: 0 0 auto; background: rgba(216, 240, 255, 0.6); border: 1px solid var(--surface-border); color: var(--blue-ink); }
+.bubli-dash-tile__icon svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.bubli-dash-tile__actions { display: inline-flex; gap: 4px; }
+.bubli-dash-tile__act {
+  width: 24px; height: 24px; display: grid; place-items: center;
+  border-radius: 7px; border: 1px solid var(--surface-border);
+  background: rgba(255, 255, 255, 0.6); color: var(--ink-soft); cursor: pointer;
+}
+.bubli-dash-tile__act:hover { color: var(--blue-ink); border-color: rgba(111, 184, 242, 0.5); }
+.bubli-dash-tile__act svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.bubli-dash-tile__handle { cursor: grab; }
+.bubli-dash-tile__body { font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
+
+/* Palette */
+.bubli-dash-palette {
+  border-radius: var(--radius-panel);
+  border: 1px solid var(--surface-border);
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: var(--surface-shadow);
+  padding: 13px;
+  width: 240px;
+}
+.bubli-dash-palette__title { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--blue-ink); margin-bottom: 10px; }
+.bubli-dash-palette__search {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 11px; margin-bottom: 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--surface-border);
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 12px; color: var(--text-3);
+}
+.bubli-dash-palette__search input { border: none; background: transparent; outline: none; font: inherit; color: var(--ink); width: 100%; }
+.bubli-dash-palette__list { display: grid; gap: 4px; max-height: 360px; overflow: auto; }
+.bubli-dash-palette__item {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 8px 9px; border-radius: 9px;
+  cursor: grab; color: var(--ink);
+}
+.bubli-dash-palette__item:hover { background: rgba(216, 240, 255, 0.4); }
+.bubli-dash-palette__item .bubli-dash-tile__icon { width: 26px; height: 26px; }
+.bubli-dash-palette__item-title { font-size: 12px; font-weight: 600; }
+.bubli-dash-palette__item-desc { font-size: 11px; color: var(--text-3); }
+.bubli-dash-palette__empty { padding: 18px 8px; text-align: center; font-size: 12px; color: var(--text-3); }
+
+/* Dropzone */
+.bubli-dash-dropzone {
+  display: grid; place-items: center; gap: 6px;
+  min-height: 110px; padding: 18px;
+  border-radius: var(--radius-card);
+  border: 1.5px dashed rgba(140, 165, 200, 0.5);
+  background: rgba(242, 247, 252, 0.5);
+  color: var(--text-3); font-size: 12px; text-align: center;
+}
+.bubli-dash-dropzone svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.bubli-dash-dropzone--active {
+  border-color: var(--sky);
+  background: rgba(216, 240, 255, 0.45);
+  color: var(--blue-ink);
+  box-shadow: 0 0 0 3px rgba(111, 184, 242, 0.14);
+}
+.bubli-dash-dropzone--invalid { border-color: rgba(232, 155, 176, 0.7); color: #C56B85; background: rgba(246, 221, 235, 0.4); }
+
+/* Dark (Night Bubble) */
+[data-theme="dark"] .bubli-dash-tile,
+[data-theme="dark"] .bubli-dash-palette {
+  background: var(--surface-bg-dark);
+  border-color: var(--surface-border-dark);
+  box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.5);
+  color: #EAF0F8;
+}
+[data-theme="dark"] .bubli-dash-tile__body,
+[data-theme="dark"] .bubli-dash-palette__item-desc { color: #A7B6CC; }
+[data-theme="dark"] .bubli-dash-tile__icon,
+[data-theme="dark"] .bubli-dash-tile__act { background: rgba(60, 80, 125, 0.4); border-color: rgba(150, 170, 215, 0.2); color: #cdd9f0; }
+[data-theme="dark"] .bubli-dash-grid--edit { background: rgba(60, 80, 125, 0.14); outline-color: rgba(111, 184, 242, 0.35); }
+[data-theme="dark"] .bubli-dash-dropzone { background: rgba(34, 46, 72, 0.3); border-color: rgba(150, 170, 215, 0.4); color: #A7B6CC; }
+[data-theme="dark"] .bubli-dash-dropzone--active { border-color: var(--sky); background: rgba(60, 80, 125, 0.35); color: #BFD6F5; }
+
+@media (max-width: 760px) {
+  .bubli-dash-tile--s,
+  .bubli-dash-tile--m { grid-column: span 6; }
+  .bubli-dash-tile--l,
+  .bubli-dash-tile--full { grid-column: span 12; }
 }
 
 .bubli-chat-message__author {
@@ -8462,6 +9375,696 @@ select {
   }
 
   .desktop-widget-lab__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   ThemeToggle — 라이트/다크/시스템 세그먼트
+   색은 면이 아니라 빛: 활성칸은 Sky rim + Blue ink, 채움 없음
+   ============================================================ */
+.bubli-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 100px;
+  background: var(--surface-bg, rgba(255, 255, 255, 0.72));
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
+  box-shadow: var(--surface-shadow, 0 8px 24px -16px rgba(35, 48, 59, 0.4));
+  backdrop-filter: blur(var(--surface-blur, 18px)) saturate(var(--surface-sat, 1.2));
+}
+
+.bubli-seg__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  border-radius: 100px;
+  background: transparent;
+  color: var(--text-soft, #586978);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color var(--motion-hover, 160ms) var(--ease-in, ease),
+    border-color var(--motion-hover, 160ms) var(--ease-in, ease),
+    background var(--motion-hover, 160ms) var(--ease-in, ease);
+}
+
+.bubli-seg__item:hover {
+  color: var(--text, #23303b);
+}
+
+.bubli-seg__icon {
+  flex: none;
+  color: currentColor;
+}
+
+.bubli-seg__item.is-active {
+  color: var(--blue-ink, #3a78b8);
+  border-color: var(--sky, #9ed8ff);
+  background: var(--surface, #ffffff);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 6px 16px -12px rgba(58, 120, 184, 0.5);
+}
+
+.bubli-seg__item:focus-visible {
+  outline: none;
+  border-color: var(--sky, #9ed8ff);
+  box-shadow: 0 0 0 3px var(--sky-light, #d8f0ff);
+}
+
+[data-theme="dark"] .bubli-seg {
+  background: var(--surface-bg-dark, rgba(34, 46, 72, 0.5));
+  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
+}
+
+[data-theme="dark"] .bubli-seg__item {
+  color: rgba(206, 216, 230, 0.72);
+}
+
+[data-theme="dark"] .bubli-seg__item:hover {
+  color: rgba(232, 240, 250, 0.95);
+}
+
+[data-theme="dark"] .bubli-seg__item.is-active {
+  color: var(--sky, #9ed8ff);
+  border-color: rgba(158, 216, 255, 0.45);
+  background: rgba(54, 72, 110, 0.55);
+  box-shadow: 0 6px 16px -12px rgba(0, 0, 0, 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubli-seg__item {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   DashboardView — 새 UI Kit 조립(목 데이터). 표면 색칠 없음.
+   ============================================================ */
+.bubli-dash-view {
+  display: grid;
+  gap: 18px;
+}
+
+.bubli-dash-view__bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.bubli-dash-view__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text, #23303b);
+}
+
+.bubli-dash-view__sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-soft, #586978);
+}
+
+.bubli-dash-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-size: 13px;
+  color: var(--text, #23303b);
+}
+
+.bubli-dash-list {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.bubli-dash-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text, #23303b);
+}
+
+.bubli-dash-faint {
+  color: var(--text-faint, #98a5af);
+  font-size: 12px;
+}
+
+[data-theme="dark"] .bubli-dash-view__title {
+  color: rgba(232, 240, 250, 0.95);
+}
+
+[data-theme="dark"] .bubli-dash-view__sub,
+[data-theme="dark"] .bubli-dash-faint {
+  color: rgba(176, 190, 208, 0.7);
+}
+
+[data-theme="dark"] .bubli-dash-summary,
+[data-theme="dark"] .bubli-dash-line {
+  color: rgba(214, 224, 238, 0.92);
+}
+
+/* ============================================================
+   WidgetPreview Route — Tauri 위젯 4상태 비교(설정/미리보기)
+   장식 버블·wallpaper 없음. 깨끗한 Paper Glass seat 위 WidgetShell.
+   ============================================================ */
+.bubli-widget-states {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.bubli-widget-state {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.bubli-widget-state__cap {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.bubli-widget-state__cap strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text, #23303b);
+}
+
+.bubli-widget-state__cap span {
+  font-size: 11px;
+  color: var(--text-faint, #98a5af);
+}
+
+.bubli-widget-state__seat {
+  display: grid;
+  place-items: center;
+  min-height: 300px;
+  padding: 22px 14px;
+  border-radius: 18px;
+  background: var(--mist, #f2f7fc);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
+  box-shadow: var(--inner-highlight-light);
+}
+
+[data-theme="dark"] .bubli-widget-state__cap strong {
+  color: rgba(232, 240, 250, 0.95);
+}
+
+[data-theme="dark"] .bubli-widget-state__cap span {
+  color: rgba(176, 190, 208, 0.6);
+}
+
+[data-theme="dark"] .bubli-widget-state__seat {
+  background: rgba(40, 52, 80, 0.28);
+  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
+  box-shadow: var(--inner-highlight-dark);
+}
+
+@media (max-width: 1180px) {
+  .bubli-widget-states {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .bubli-widget-states {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   WidgetPreview — 데스크탑 위 위젯 시뮬 무대(Storybook 전용, 라우트 미사용)
+   ============================================================ */
+/* (아래 .bubli-desk* 는 롤백된 WidgetDesktopBoard 잔여 CSS — 라우트/컴포넌트 미참조) */
+.bubli-desk-head {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.bubli-desk-head strong {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text, #23303b);
+}
+
+.bubli-desk-head span {
+  font-size: 13px;
+  color: var(--text-soft, #586978);
+}
+
+[data-theme="dark"] .bubli-desk-head strong {
+  color: rgba(232, 240, 250, 0.95);
+}
+
+[data-theme="dark"] .bubli-desk-head span {
+  color: rgba(176, 190, 208, 0.7);
+}
+
+.bubli-desk {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  min-height: 600px;
+  margin-top: 16px;
+  border-radius: 28px;
+  overflow: hidden;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
+  background:
+    radial-gradient(58% 50% at 16% 10%, rgba(216, 240, 255, 0.92), transparent 60%),
+    radial-gradient(54% 48% at 88% 16%, rgba(220, 216, 248, 0.72), transparent 60%),
+    radial-gradient(70% 62% at 72% 102%, rgba(246, 221, 235, 0.5), transparent 60%),
+    linear-gradient(158deg, #eef5fb, #f6f3fb);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.bubli-desk__bar {
+  position: absolute;
+  top: 18px;
+  left: 22px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-soft, #586978);
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
+  box-shadow: 0 10px 24px -18px rgba(35, 48, 59, 0.45);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+}
+
+.bubli-desk__brand {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--blue-ink, #3a78b8);
+}
+
+.bubli-desk__bar-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--bubble-blue, #6fb8f2);
+}
+
+.bubli-desk__bar-note {
+  color: var(--text-faint, #98a5af);
+  font-weight: 500;
+}
+
+.bubli-desk__bubble {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.bubli-desk__bubble--1 {
+  top: 8%;
+  right: 30%;
+}
+
+.bubli-desk__bubble--2 {
+  bottom: 16%;
+  right: 12%;
+}
+
+.bubli-desk__bubble--3 {
+  top: 44%;
+  left: 40%;
+}
+
+.bubli-desk__hero {
+  position: absolute;
+  top: 84px;
+  left: 6%;
+  z-index: 4;
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
+.bubli-desk__notif {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 320px;
+  padding: 7px 13px;
+  border-radius: 100px;
+  font-size: 12px;
+  color: var(--text-soft, #586978);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
+  box-shadow: 0 10px 22px -16px rgba(35, 48, 59, 0.4);
+  animation: bubli-notif-in var(--motion-slide, 220ms) var(--ease-press, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+.bubli-desk__notif-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #b0a8e0;
+}
+
+.bubli-desk__float {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.bubli-desk__float--tl {
+  top: 116px;
+  right: 7%;
+}
+
+.bubli-desk__float--ghost {
+  bottom: 132px;
+  left: 12%;
+}
+
+.bubli-desk__dock {
+  position: absolute;
+  right: 26px;
+  bottom: 26px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bubli-desk__tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint, #98a5af);
+}
+
+.bubli-desk__tag--dock {
+  align-self: center;
+}
+
+/* 다크 — Night Bubble 바탕화면 + 고급 glass */
+[data-theme="dark"] .bubli-desk {
+  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
+  background:
+    radial-gradient(58% 50% at 16% 10%, rgba(110, 160, 210, 0.24), transparent 60%),
+    radial-gradient(54% 48% at 88% 16%, rgba(140, 120, 200, 0.2), transparent 60%),
+    radial-gradient(70% 62% at 72% 102%, rgba(170, 120, 160, 0.14), transparent 60%),
+    linear-gradient(158deg, #121a28, #161e2e);
+  box-shadow: inset 0 1px 0 rgba(180, 200, 235, 0.06);
+}
+
+[data-theme="dark"] .bubli-desk__bar {
+  color: rgba(214, 224, 238, 0.9);
+  background: var(--surface-bg-dark, rgba(34, 46, 72, 0.5));
+  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
+}
+
+[data-theme="dark"] .bubli-desk__brand {
+  color: var(--sky, #9ed8ff);
+}
+
+[data-theme="dark"] .bubli-desk__bar-note {
+  color: rgba(176, 190, 208, 0.6);
+}
+
+[data-theme="dark"] .bubli-desk__notif {
+  color: rgba(214, 224, 238, 0.92);
+  background: var(--surface-bg-dark, rgba(34, 46, 72, 0.55));
+  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
+}
+
+[data-theme="dark"] .bubli-desk__tag {
+  color: rgba(176, 190, 208, 0.55);
+}
+
+@media (max-width: 900px) {
+  .bubli-desk {
+    min-height: 0;
+    display: grid;
+    gap: 20px;
+    padding: 64px 18px 22px;
+  }
+
+  .bubli-desk__hero,
+  .bubli-desk__float,
+  .bubli-desk__dock {
+    position: static;
+    justify-items: center;
+  }
+
+  .bubli-desk__bubble {
+    display: none;
+  }
+}
+
+/* 위젯 모드 비교 보드 */
+.widget-modes-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.widget-mode-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.widget-mode-card__cap {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.widget-mode-card__cap strong {
+  font-size: 13px;
+  color: var(--text, #23303b);
+}
+
+.widget-mode-card__cap span {
+  font-size: 11px;
+  color: var(--text-faint, #98a5af);
+}
+
+[data-theme="dark"] .widget-mode-card__cap strong {
+  color: rgba(232, 240, 250, 0.95);
+}
+
+[data-theme="dark"] .widget-mode-card__cap span {
+  color: rgba(176, 190, 208, 0.62);
+}
+
+@media (max-width: 760px) {
+  .widget-modes-board {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bubli-widget-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 260px;
+  border-radius: 22px;
+  padding: 26px 22px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 100% at 80% 0%, var(--sky-light, #d8f0ff) 0%, transparent 58%),
+    radial-gradient(120% 120% at 0% 100%, var(--opal-lilac, #dcd8f8) 0%, transparent 58%),
+    var(--mist, #f2f7fc);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
+}
+
+.bubli-widget-stage__inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.bubli-widget-stage__decor {
+  position: absolute;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.bubli-widget-stage__decor--a {
+  top: -30px;
+  right: 14%;
+}
+
+.bubli-widget-stage__decor--b {
+  bottom: 18px;
+  left: 6%;
+}
+
+.bubli-widget-stage__dock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bubli-widget-stage__orb {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 3;
+}
+
+.bubli-widget-notif {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 86%;
+  padding: 7px 12px;
+  border-radius: 100px;
+  font-size: 12px;
+  color: var(--text-soft, #586978);
+  background: var(--surface, rgba(255, 255, 255, 0.92));
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
+  box-shadow: 0 8px 20px -14px rgba(35, 48, 59, 0.4);
+  animation: bubli-notif-in var(--motion-slide, 220ms) var(--ease-press, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+.bubli-widget-notif__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bubli-widget-notif__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.bubli-widget-notif__text {
+  white-space: nowrap;
+}
+
+@keyframes bubli-notif-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.bubli-widget-stage[data-mode="ghost"] .bubli-widget-stage__dock {
+  opacity: 0.92;
+}
+
+[data-theme="dark"] .bubli-widget-stage {
+  background:
+    radial-gradient(120% 100% at 80% 0%, rgba(110, 160, 210, 0.24) 0%, transparent 58%),
+    radial-gradient(120% 120% at 0% 100%, rgba(140, 120, 200, 0.22) 0%, transparent 58%),
+    #161e2e;
+  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
+}
+
+/* 다크에서도 오팔 글래스로 읽히는 새 에셋(bubble-opal.webp). 추가 보정 없이 살짝만 밝힘. */
+[data-theme="dark"] .bubli-widget-stage__decor {
+  opacity: 0.85;
+  filter: brightness(1.05);
+}
+
+[data-theme="dark"] .bubli-widget-notif {
+  color: rgba(214, 224, 238, 0.92);
+  background: var(--surface-bg-dark, rgba(34, 46, 72, 0.5));
+  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubli-widget-notif {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   ResourceFlowView — 자료→후보→승인→할일 4열 흐름
+   ============================================================ */
+.bubli-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.bubli-flow__col {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.bubli-flow__col-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.bubli-flow__col-head strong {
+  font-size: 14px;
+  color: var(--text, #23303b);
+}
+
+.bubli-flow__hint {
+  font-size: 11px;
+  color: var(--text-faint, #98a5af);
+}
+
+.bubli-flow__stack {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+[data-theme="dark"] .bubli-flow__col-head strong {
+  color: rgba(232, 240, 250, 0.95);
+}
+
+[data-theme="dark"] .bubli-flow__hint {
+  color: rgba(176, 190, 208, 0.6);
+}
+
+@media (max-width: 920px) {
+  .bubli-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .bubli-flow {
     grid-template-columns: 1fr;
   }
 }

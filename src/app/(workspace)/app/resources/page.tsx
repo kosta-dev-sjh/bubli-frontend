@@ -1,5 +1,6 @@
 "use client";
 
+import { ResourceFlowView } from "@/components/domain";
 import { PageHeading } from "@/components/ui/page-heading";
 import {
   ContractReviewItemResolutionPanel,
@@ -109,7 +110,27 @@ const reviewItems = [
   },
 ];
 
+// 새 UI Kit 자료 흐름(ResourceFlowView) 전환 플래그. 기본 false라 기존 자료보드가 그대로 뜬다.
+// 켜려면 .env에 NEXT_PUBLIC_BUBLI_NEW_RESOURCES=true. 문제 시 끄면 기존 화면으로 즉시 복귀.
+const USE_NEW_RESOURCES = process.env.NEXT_PUBLIC_BUBLI_NEW_RESOURCES === "true";
+
 export default function ResourcesPage() {
+  if (USE_NEW_RESOURCES) {
+    return (
+      <>
+        <PageHeading
+          title="자료 흐름"
+          description="자료에서 에이전트가 찾은 요구사항 후보를 승인해 오늘 할 일까지 잇습니다."
+        />
+        <ResourceFlowView />
+      </>
+    );
+  }
+  return <LegacyResources />;
+}
+
+// 기존 자료보드 화면. 삭제하지 않고 플래그 off일 때 그대로 사용한다.
+function LegacyResources() {
   return (
     <>
       <PageHeading

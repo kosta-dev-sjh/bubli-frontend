@@ -5,6 +5,8 @@ export { GlassPanel } from "./glass-panel";
 export { PageHeading } from "./page-heading";
 export { PlaceholderPanel } from "./placeholder-panel";
 export { ProgressBar } from "./progress-bar";
+export { Ring } from "./ring";
+export type { RingSegment } from "./ring";
 export { SectionHeading } from "./section-heading";
 export { StatusBadge } from "./status-badge";
 export type { StatusTone } from "./status-badge";

@@ -182,6 +182,66 @@
   white-space: nowrap;
 }
 
+/* ===== Night Bubble — Topbar 다크 정합화 (어두운 글래스, hairline) ===== */
+[data-theme="dark"] .projectButton,
+[data-theme="dark"] .searchBox,
+[data-theme="dark"] .profileButton {
+  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
+  background: rgba(34, 46, 72, 0.5);
+  box-shadow: 0 10px 28px -18px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .projectButton,
+[data-theme="dark"] .profileButton {
+  color: rgba(232, 240, 250, 0.95);
+}
+
+[data-theme="dark"] .projectButton:hover,
+[data-theme="dark"] .profileButton:hover {
+  border-color: rgba(158, 216, 255, 0.32);
+}
+
+[data-theme="dark"] .projectText strong,
+[data-theme="dark"] .profileText strong {
+  color: rgba(232, 240, 250, 0.95);
+}
+
+[data-theme="dark"] .projectText span,
+[data-theme="dark"] .profileText span {
+  color: rgba(176, 190, 208, 0.66);
+}
+
+[data-theme="dark"] .searchBox {
+  color: rgba(176, 190, 208, 0.6);
+}
+
+[data-theme="dark"] .searchBox input {
+  color: rgba(232, 240, 250, 0.95);
+}
+
+[data-theme="dark"] .searchBox input::placeholder {
+  color: rgba(176, 190, 208, 0.5);
+}
+
+[data-theme="dark"] .searchBox kbd {
+  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
+  color: rgba(176, 190, 208, 0.7);
+  background: rgba(54, 72, 110, 0.45);
+}
+
+[data-theme="dark"] .badge {
+  border-color: rgba(34, 46, 72, 0.9);
+  color: #0e1626;
+}
+
+[data-theme="dark"] .avatar {
+  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
+  color: #0e1626;
+  background:
+    radial-gradient(circle at 30% 18%, rgba(180, 210, 255, 0.9), transparent 40%),
+    linear-gradient(145deg, #9ed8ff, rgba(110, 160, 210, 0.6));
+}
+
 @media (max-width: 1120px) {
   .topbar {
     grid-template-columns: 1fr;

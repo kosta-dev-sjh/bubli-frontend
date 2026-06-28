@@ -17,12 +17,31 @@ export type StatusTone =
   | "personal";
 
 type StatusBadgeProps = HTMLAttributes<HTMLSpanElement> & {
+  disabled?: boolean;
+  selected?: boolean;
   tone?: StatusTone;
 };
 
-export function StatusBadge({ children, className, tone = "neutral", ...props }: StatusBadgeProps) {
+export function StatusBadge({
+  children,
+  className,
+  disabled = false,
+  selected = false,
+  tone = "neutral",
+  ...props
+}: StatusBadgeProps) {
   return (
-    <span className={cn("bubli-status", tone !== "neutral" && `bubli-status--${tone}`, className)} {...props}>
+    <span
+      aria-disabled={disabled || undefined}
+      className={cn(
+        "bubli-status",
+        tone !== "neutral" && `bubli-status--${tone}`,
+        selected && "bubli-status--selected",
+        disabled && "bubli-status--disabled",
+        className,
+      )}
+      {...props}
+    >
       {children}
     </span>
   );

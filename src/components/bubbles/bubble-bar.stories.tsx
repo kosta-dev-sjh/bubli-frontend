@@ -1,0 +1,62 @@
+import type { ReactNode } from "react";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+
+import { BubbleBar } from "@/components/bubbles/bubble-bar";
+
+const meta = {
+  tags: ["uikit", "bubbles"],
+  component: BubbleBar,
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "위젯 최소화 상태 바. 내부에 작은 BubbleMark + 'Bubli · 떠 있는 일 N · 일정 M'. hover 살짝 lift, 클릭 시 WidgetShell Default로 펼침(상위 onClick 연결). Ghost variant 포함.",
+      },
+    },
+  },
+  title: "Bubbles/BubbleBar",
+} satisfies Meta<typeof BubbleBar>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+const col = { display: "grid", gap: 14, justifyItems: "start" } as const;
+
+export const Default: Story = { render: () => <BubbleBar /> };
+
+export const WithCount: Story = { render: () => <BubbleBar schedules={2} todos={3} /> };
+
+export const Hover: Story = { render: () => <BubbleBar className="is-hover" schedules={2} todos={3} /> };
+
+export const Focus: Story = { render: () => <BubbleBar className="is-focus" schedules={2} todos={3} /> };
+
+export const Ghost: Story = {
+  render: () => (
+    <div
+      style={{
+        background: "radial-gradient(50% 50% at 20% 10%, rgba(158,216,255,.22), transparent 60%), linear-gradient(160deg,#EAF2FB,#E0EAF6)",
+        borderRadius: 20,
+        padding: 28,
+      }}
+    >
+      <BubbleBar ghost schedules={2} todos={3} />
+    </div>
+  ),
+};
+
+function DarkFrame({ children }: { children: ReactNode }) {
+  return (
+    <div data-theme="dark" style={{ background: "#161E2E", borderRadius: 18, padding: 28, ...col }}>
+      {children}
+    </div>
+  );
+}
+
+export const Dark: Story = {
+  parameters: { backgrounds: { default: "dark" } },
+  render: () => (
+    <DarkFrame>
+      <BubbleBar schedules={2} todos={3} />
+    </DarkFrame>
+  ),
+};

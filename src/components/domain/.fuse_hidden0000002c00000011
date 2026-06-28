@@ -1,0 +1,115 @@
+import type { ReactNode } from "react";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+
+import { ResourceCard } from "@/components/domain/resource-card";
+
+const meta = {
+  args: { meta: "프로젝트룸 자료", scope: "room", title: "회의록_0618.md" },
+  component: ResourceCard,
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "자료/파일/분석 상태 카드. 표면은 GlassPanel 공통 토큰(Paper Glass), 상태는 카드 배경이 아니라 dot/chip/badge/rim에만. 개인/공유는 chip, 분석 상태는 badge로.",
+      },
+    },
+  },
+  title: "Domain/ResourceCard",
+} satisfies Meta<typeof ResourceCard>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+const wrap = { display: "grid", gap: 14, width: 460 } as const;
+
+export const Default: Story = {
+  render: () => (
+    <div style={wrap}>
+      <ResourceCard meta="프로젝트룸 자료 · v3" relatedCount={3} scope="room" title="회의록_0618.md" />
+    </div>
+  ),
+};
+
+export const Hover: Story = {
+  render: () => (
+    <div style={wrap}>
+      <ResourceCard className="bubli-domain-card--interactive is-hover" meta="프로젝트룸 자료" scope="room" title="회의록_0618.md" />
+    </div>
+  ),
+};
+
+export const Focus: Story = {
+  render: () => (
+    <div style={wrap}>
+      <ResourceCard className="bubli-domain-card--interactive is-focus" meta="프로젝트룸 자료" scope="room" tabIndex={0} title="회의록_0618.md" />
+    </div>
+  ),
+};
+
+export const Analyzing: Story = {
+  render: () => (
+    <div style={wrap}>
+      <ResourceCard meta="에이전트 분석 중 · 방금 업로드" scope="room" status="needsReview" title="계약서_최종.pdf" />
+    </div>
+  ),
+};
+
+export const Analyzed: Story = {
+  render: () => (
+    <div style={wrap}>
+      <ResourceCard meta="분석 완료 · 요구사항 6개" relatedCount={6} scope="room" status="candidate" title="요구사항_정리.docx" />
+    </div>
+  ),
+};
+
+export const Shared: Story = {
+  render: () => (
+    <div style={wrap}>
+      <ResourceCard meta="프로젝트룸에 공유됨 · v2" scope="room" status="approved" title="브랜드_가이드.pdf" />
+    </div>
+  ),
+};
+
+export const Personal: Story = {
+  render: () => (
+    <div style={wrap}>
+      <ResourceCard meta="개인 자료 · 공유 전" scope="personal" status="normal" title="개인_검토메모.txt" />
+    </div>
+  ),
+};
+
+export const Error: Story = {
+  render: () => (
+    <div style={wrap}>
+      <ResourceCard className="bubli-domain-card--error" meta="분석 실패 · 다시 시도하세요" scope="room" title="손상된파일.pdf" />
+    </div>
+  ),
+};
+
+export const Selected: Story = {
+  render: () => (
+    <div style={wrap}>
+      <ResourceCard className="bubli-domain-card--selected" meta="선택됨" scope="room" title="회의록_0618.md" />
+    </div>
+  ),
+};
+
+function DarkFrame({ children }: { children: ReactNode }) {
+  return (
+    <div data-theme="dark" style={{ background: "#161E2E", borderRadius: 20, padding: 24, width: 480 }}>
+      {children}
+    </div>
+  );
+}
+
+export const Dark: Story = {
+  parameters: { backgrounds: { default: "dark" } },
+  render: () => (
+    <DarkFrame>
+      <div style={{ display: "grid", gap: 12 }}>
+        <ResourceCard meta="프로젝트룸 자료 · v3" relatedCount={3} scope="room" status="candidate" title="회의록_0618.md" />
+        <ResourceCard meta="개인 자료 · 공유 전" scope="personal" title="개인_검토메모.txt" />
+      </div>
+    </DarkFrame>
+  ),
+};

@@ -17,6 +17,8 @@
     "check:storybook": "SMOKE_TARGET=storybook node scripts/check-frontend-smoke.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
+    "visual:qa": "node scripts/visual-qa.mjs",
+    "storybook:visual": "node scripts/visual-qa.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
@@ -64,6 +66,7 @@
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.0.0",
+    "playwright": "^1.61.1",
     "storybook": "^10.4.6",
     "typescript": "^5.0.0"
   }

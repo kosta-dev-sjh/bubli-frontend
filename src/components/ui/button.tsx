@@ -7,6 +7,7 @@ type ButtonSize = "sm" | "md" | "lg";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   icon?: ReactNode;
+  loading?: boolean;
   size?: ButtonSize;
   variant?: ButtonVariant;
 };
@@ -27,16 +28,34 @@ const sizeClass: Record<ButtonSize, string> = {
 export function Button({
   children,
   className,
+  disabled,
   icon,
+  loading = false,
   size = "md",
   type = "button",
   variant = "secondary",
   ...props
 }: ButtonProps) {
   return (
-    <button className={cn("bubli-button", variantClass[variant], sizeClass[size], className)} type={type} {...props}>
-      {icon ? <span aria-hidden="true">{icon}</span> : null}
-      {children}
+    <button
+      aria-busy={loading || undefined}
+      className={cn("bubli-button", variantClass[variant], sizeClass[size], className)}
+      disabled={disabled || loading}
+      type={type}
+      {...props}
+    >
+      {loading ? (
+        <span className="bubli-button__dots" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+      ) : (
+        <>
+          {icon ? <span aria-hidden="true">{icon}</span> : null}
+          {children}
+        </>
+      )}
     </button>
   );
 }

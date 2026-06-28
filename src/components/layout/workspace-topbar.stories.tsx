@@ -17,6 +17,7 @@ const defaultArgs: WorkspaceTopbarProps = {
 };
 
 const meta = {
+  tags: ["uikit", "layout"],
   args: defaultArgs,
   component: WorkspaceTopbar,
   parameters: {
