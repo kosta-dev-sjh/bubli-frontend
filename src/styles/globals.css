@@ -45,6 +45,10 @@
   --signal-memo: #E6C49C;
   --signal-alert: #E79BB0;
   --signal-ok: #93CFA8;
+  --google-blue: rgb(66 133 244);
+  --google-green: rgb(52 168 83);
+  --google-yellow: rgb(251 188 5);
+  --google-red: rgb(234 67 53);
   /* === v20 토큰 → Sky Opal alias (기존 화면 호환, 즉시 삭제 금지) === */
   --color-bg: var(--bg);
   --color-text: var(--ink);
@@ -1139,7 +1143,7 @@ select {
     radial-gradient(ellipse 78% 56% at 4% -4%, rgba(110, 160, 210, 0.22), transparent 60%),
     radial-gradient(ellipse 66% 50% at 100% 0%, rgba(140, 120, 200, 0.2), transparent 60%),
     radial-gradient(ellipse 92% 68% at 82% 106%, rgba(110, 160, 210, 0.12), transparent 62%),
-    linear-gradient(180deg, #121826, #161e2e);
+    linear-gradient(180deg, #121A28, #161E2E);
   color: rgba(232, 240, 250, 0.95);
 }
 
@@ -3983,7 +3987,7 @@ select {
       rgba(230, 221, 248, 0.58),
       rgba(142, 205, 246, 0.16)
     );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask: linear-gradient(black 0 0) content-box, linear-gradient(black 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
 }
@@ -4243,7 +4247,7 @@ select {
 }
 
 .auth-card__submit:hover {
-  color: #2f78bd;
+  color: var(--blue-ink);
   transform:
     translate3d(var(--button-shift-x, 0), var(--button-shift-y, 0), 0)
     rotateX(var(--button-tilt-x, 0deg))
@@ -6364,7 +6368,7 @@ html {
 .bubli-wordmark {
   font-weight: 860;
   letter-spacing: -0.02em;
-  background: linear-gradient(100deg, #6fb8f2 0%, #9ed8ff 28%, #b9a7f4 62%, #6fb8f2 100%);
+  background: linear-gradient(100deg, var(--bubble-blue) 0%, var(--sky) 28%, var(--signal-agent) 62%, var(--bubble-blue) 100%);
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -6401,7 +6405,7 @@ html {
   bottom: -5px;
   height: 2px;
   border-radius: 2px;
-  background: linear-gradient(90deg, #6fb8f2, #b9a7f4);
+  background: linear-gradient(90deg, var(--bubble-blue), var(--signal-agent));
   transition: right 0.25s var(--ease-out, ease);
 }
 .landing-nav__links a:hover::after {

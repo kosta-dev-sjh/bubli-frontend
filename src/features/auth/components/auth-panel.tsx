@@ -12,19 +12,19 @@ function GoogleIcon() {
     <svg aria-hidden="true" className="auth-card__google-icon" viewBox="0 0 24 24">
       <path
         d="M21.6 12.23c0-.78-.07-1.53-.2-2.23H12v4.22h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.89-1.74 2.98-4.3 2.98-7.52z"
-        fill="#4285F4"
+        fill="var(--google-blue)"
       />
       <path
         d="M12 22c2.7 0 4.96-.89 6.62-2.41l-3.24-2.51c-.9.6-2.05.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.06v2.59A10 10 0 0 0 12 22z"
-        fill="#34A853"
+        fill="var(--google-green)"
       />
       <path
         d="M6.41 13.92A6 6 0 0 1 6.1 12c0-.67.11-1.31.31-1.92V7.49H3.06A10 10 0 0 0 2 12c0 1.61.39 3.14 1.06 4.51l3.35-2.59z"
-        fill="#FBBC05"
+        fill="var(--google-yellow)"
       />
       <path
         d="M12 5.96c1.47 0 2.79.5 3.82 1.5l2.87-2.87C16.95 2.97 14.7 2 12 2a10 10 0 0 0-8.94 5.49l3.35 2.59C7.2 7.72 9.4 5.96 12 5.96z"
-        fill="#EA4335"
+        fill="var(--google-red)"
       />
     </svg>
   );

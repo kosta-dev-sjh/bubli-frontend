@@ -2,7 +2,7 @@
 
 import { AlertCircle, CalendarDays, CheckCircle2, Clock3, LayoutDashboard, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
@@ -80,29 +80,34 @@ function ScheduleLine({ schedule }: { schedule: ScheduleResponse }) {
 export function WorkspaceDashboard() {
   const [state, setState] = useState<DashboardState>({ kind: "loading" });
 
-  const loadDashboard = useMemo(
-    () => async () => {
-      setState({ kind: "loading" });
-      try {
-        const data = await dashboardApi.getWork();
-        setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
-      } catch (error) {
-        if (error instanceof ApiClientError && error.status === 401) {
-          setState({ kind: "auth" });
-          return;
-        }
-        setState({
-          kind: "error",
-          message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "백엔드 연결을 기다리고 있습니다.",
-        });
+  const fetchDashboard = useCallback(async () => {
+    try {
+      const data = await dashboardApi.getWork();
+      setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 401) {
+        setState({ kind: "auth" });
+        return;
       }
-    },
-    [],
-  );
+      setState({
+        kind: "error",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "백엔드 연결을 기다리고 있습니다.",
+      });
+    }
+  }, []);
+
+  const refreshDashboard = useCallback(() => {
+    setState({ kind: "loading" });
+    void fetchDashboard();
+  }, [fetchDashboard]);
 
   useEffect(() => {
-    void loadDashboard();
-  }, [loadDashboard]);
+    const timeoutId = window.setTimeout(() => {
+      void fetchDashboard();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchDashboard]);
 
   const data = state.kind === "ready" || state.kind === "empty" ? state.data : emptyDashboard;
   const todayTasks = data.todayTasks.slice(0, 4);
@@ -122,7 +127,7 @@ export function WorkspaceDashboard() {
           <p>오늘 할 일, 가까운 마감, 오늘 일정을 먼저 보여줍니다. 아직 연결되지 않은 값은 비워둡니다.</p>
         </div>
         <div className="workspace-dashboard__actions">
-          <Button onClick={loadDashboard} variant="primary">
+          <Button onClick={refreshDashboard} variant="primary">
             <RefreshCw aria-hidden size={15} strokeWidth={1.9} />
             새로고침
           </Button>
