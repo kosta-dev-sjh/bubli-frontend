@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AppNav } from "@/components/layout/app-nav";
 import { WorkspaceTopbar } from "@/components/layout/workspace-topbar";
@@ -37,23 +37,27 @@ function initialsFromName(name?: string | null) {
 export function AppShell({ children }: AppShellProps) {
   const [state, setState] = useState<ShellState>({ kind: "loading" });
 
-  const loadShell = useCallback(async () => {
-    try {
-      const [user, roomPage] = await Promise.all([authApi.getMe(), projectRoomApi.list()]);
-      setState({ kind: "ready", rooms: roomPage.items, user });
-    } catch (error) {
-      if (error instanceof ApiClientError && error.status === 401) {
-        setState({ kind: "auth" });
-        return;
-      }
-
-      setState({ kind: "offline" });
-    }
-  }, []);
-
   useEffect(() => {
-    void loadShell();
-  }, [loadShell]);
+    let mounted = true;
+
+    Promise.all([authApi.getMe(), projectRoomApi.list()])
+      .then(([user, roomPage]) => {
+        if (mounted) setState({ kind: "ready", rooms: roomPage.items, user });
+      })
+      .catch((error) => {
+        if (!mounted) return;
+        if (error instanceof ApiClientError && error.status === 401) {
+          setState({ kind: "auth" });
+          return;
+        }
+
+        setState({ kind: "offline" });
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const firstRoom = state.kind === "ready" ? state.rooms[0] : undefined;
   const topbarProject = useMemo(() => {
