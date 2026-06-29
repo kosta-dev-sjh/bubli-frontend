@@ -67,7 +67,7 @@ const sourceMeta: Record<TodoSource, string> = {
 };
 
 const surfaceMeta: Record<TodoViewSurface, { icon: ReactNode; label: string }> = {
-  BUBBLE: { icon: <MonitorUp size={14} strokeWidth={2.1} />, label: "버블" },
+  BUBBLE: { icon: <MonitorUp size={14} strokeWidth={2.1} />, label: "데스크탑 위젯" },
   DASHBOARD: { icon: <LayoutDashboard size={14} strokeWidth={2.1} />, label: "대시보드" },
   SCHEDULE: { icon: <CalendarClock size={14} strokeWidth={2.1} />, label: "일정" },
   WORK_BOARD: { icon: <Columns3 size={14} strokeWidth={2.1} />, label: "작업판" },
@@ -149,7 +149,7 @@ export function TodoListPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              개인 TODO와 프로젝트룸 TODO를 한 화면에서 봅니다. 프로젝트룸 TODO는 담당자 기준으로 대시보드와 버블에도 함께 보입니다.
+              개인 TODO와 프로젝트룸 TODO를 한 화면에서 봅니다. 프로젝트룸 TODO는 담당자 기준으로 대시보드와 데스크탑 위젯에도 함께 보입니다.
             </p>
           </div>
         </div>
@@ -242,7 +242,7 @@ export function TodoListPanel({
             <UserRoundCheck size={18} strokeWidth={2.1} aria-hidden="true" />
             <div>
               <strong>담당자 기준</strong>
-              <p>프로젝트룸 TODO에 담당자가 지정되면 그 사용자의 대시보드와 TODO 버블에 보입니다.</p>
+              <p>프로젝트룸 TODO에 담당자가 지정되면 그 사용자의 대시보드와 데스크탑 위젯 요약에 보입니다.</p>
             </div>
           </article>
           <article>
@@ -255,8 +255,8 @@ export function TodoListPanel({
           <article>
             <MonitorUp size={18} strokeWidth={2.1} aria-hidden="true" />
             <div>
-              <strong>버블 표시</strong>
-              <p>오늘 볼 일과 가까운 마감은 작업 중 TODO 버블에 짧게 표시됩니다.</p>
+              <strong>데스크탑 표시</strong>
+              <p>오늘 볼 일과 가까운 마감은 작업 중 데스크탑 위젯에 짧게 표시됩니다.</p>
             </div>
           </article>
         </aside>

@@ -172,11 +172,11 @@ export function CandidateApprovalPanel() {
           </div>
           <div>
             <ListChecks size={17} strokeWidth={2.1} />
-            <p>담당자가 있는 TODO는 개인 대시보드와 TODO 버블에도 보입니다.</p>
+            <p>담당자가 있는 TODO는 개인 대시보드와 데스크탑 위젯 요약에도 보입니다.</p>
           </div>
           <div>
             <CalendarClock size={17} strokeWidth={2.1} />
-            <p>날짜가 확인된 항목만 일정과 일정/WBS 버블에 연결합니다.</p>
+            <p>날짜가 확인된 항목만 일정과 데스크탑 위젯 요약에 연결합니다.</p>
           </div>
           <div>
             <ShieldCheck size={17} strokeWidth={2.1} />

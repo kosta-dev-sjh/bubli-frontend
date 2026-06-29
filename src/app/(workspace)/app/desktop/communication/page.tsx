@@ -41,15 +41,15 @@ export default function DesktopCommunicationPage() {
   return (
     <>
       <PageHeading
-        title="데스크탑 소통 창과 버블"
-        description="앱에서는 메인 소통 탭을 숨기고, 배포된 회원 웹 앱 연결을 전용 창이나 소통 버블에서 사용합니다."
+        title="데스크탑 소통 창과 알림 위젯"
+        description="Tauri 데스크탑 앱에서는 배포된 회원 웹 앱 연결을 전용 창이나 소통 알림 위젯에서 사용합니다."
       />
       <div className="page-grid">
         <TauriCommunicationModePanel
           channels={channels}
           sharedConnections={sharedConnections}
           surface="bubble"
-          title="회원 웹 앱의 소통을 데스크탑 전용 창과 버블로 엽니다"
+          title="회원 웹 앱의 소통을 데스크탑 전용 창과 알림 위젯으로 엽니다"
           webRoute="/app/chat"
         />
       </div>

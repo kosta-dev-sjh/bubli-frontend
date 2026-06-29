@@ -90,8 +90,8 @@ export const defaultSummaryInputs: SummaryInput[] = [
     value: "3h 42m",
   },
   {
-    label: "버블 사용 집계",
-    source: "버블 사용 집계",
+    label: "위젯 사용 집계",
+    source: "위젯 사용 집계",
     tone: "agent",
     value: "8회",
   },

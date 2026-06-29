@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "Bubli",
   tagline: "받은 자료를, 오늘 할 일로.",
   description:
-    "계약서, 요구사항, 회의록을 업무 구조로 바꾸고 작업 중 필요한 정보만 버블로 보여주는 프리랜서 업무 비서",
+    "계약서, 요구사항, 회의록을 업무 구조로 바꾸고 오늘 필요한 일을 정리해주는 프리랜서 업무 비서",
   publicNav: [
     { href: "/", label: "홈" },
     { href: "/features", label: "기능" },
@@ -15,7 +15,6 @@ export const siteConfig = {
     { href: "/app/agent-suggestions", label: "제안함" },
     { href: "/app/resources", label: "자료보드" },
     { href: "/app/calendar", label: "일정" },
-    { href: "/app/desktop/widgets", label: "버블" },
     { href: "/app/chat", label: "소통" },
     { href: "/app/settings", label: "설정" },
   ],

@@ -80,7 +80,7 @@ export function TimerControlPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<TimerReset size={15} strokeWidth={2.1} />}>타이머 버블</Chip>
+          <Chip icon={<TimerReset size={15} strokeWidth={2.1} />}>타이머</Chip>
           <div>
             <h2 className={styles.title}>작업 시간을 바로 기록합니다</h2>
             <p className={styles.description}>
@@ -137,7 +137,7 @@ export function TimerControlPanel({
         <article>
           <CalendarClock size={17} strokeWidth={2.1} aria-hidden="true" />
           <span>표시 위치</span>
-          <strong>버블</strong>
+          <strong>데스크탑 위젯</strong>
           <p>대시보드도 같은 기록 사용</p>
         </article>
       </section>

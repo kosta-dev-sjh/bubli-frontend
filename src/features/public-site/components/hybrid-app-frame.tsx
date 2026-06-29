@@ -15,7 +15,7 @@ const frames = [
     title: "회원 웹 앱",
   },
   {
-    body: "배포된 회원 웹 앱을 데스크탑에서 열고, 버블과 기기 기능을 더합니다.",
+    body: "배포된 회원 웹 앱을 데스크탑에서 열고, 위젯과 기기 기능을 더합니다.",
     icon: MonitorDown,
     title: "데스크탑 앱",
   },
@@ -45,7 +45,7 @@ export function HybridAppFrame() {
       </div>
       <div className="hybrid-frame__note">
         <Chip>설계 포인트</Chip>
-        <span>회원 웹 앱 화면을 그대로 쓰고, 데스크탑에서만 필요한 버블과 기기 기능을 덧붙입니다.</span>
+        <span>회원 웹 앱 화면을 그대로 쓰고, 데스크탑에서만 필요한 위젯과 기기 기능을 덧붙입니다.</span>
       </div>
     </section>
   );

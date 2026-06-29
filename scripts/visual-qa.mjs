@@ -48,8 +48,6 @@ const ROUTES = [
   { path: "/app", scheme: "dark", file: "route-dashboard-dark.png", label: "Route /app (DashboardView·dark)" },
   { path: "/app/resources", scheme: "light", file: "route-resources-light.png", label: "Route /app/resources (ResourceFlowView·light)" },
   { path: "/app/resources", scheme: "dark", file: "route-resources-dark.png", label: "Route /app/resources (ResourceFlowView·dark)" },
-  { path: "/app/desktop/widgets", scheme: "light", file: "route-widgets-light.png", label: "Route /app/desktop/widgets (WidgetPreview·light)" },
-  { path: "/app/desktop/widgets", scheme: "dark", file: "route-widgets-dark.png", label: "Route /app/desktop/widgets (WidgetPreview·dark)" },
 ];
 
 const BANNED = ["#2E8E8A", "#8FD8D3", "#56B3AB", "#5FC9D6", "aqua", "teal", "mint"];

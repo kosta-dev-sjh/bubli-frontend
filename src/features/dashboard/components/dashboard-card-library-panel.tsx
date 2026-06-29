@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import styles from "./dashboard-card-library-panel.module.css";
 
 type DashboardCardKind = "TODO" | "SCHEDULE_WBS" | "REVIEW" | "AGENT" | "TIMER" | "RESOURCE";
-type CardSource = "SERVER_ORIGINAL" | "WIDGET_ROLLUP" | "LOCAL_HINT";
+type CardSource = "SERVER_ORIGINAL" | "ACTIVITY_ROLLUP" | "LOCAL_HINT";
 type CardStatus = "ADDED" | "AVAILABLE" | "DISABLED";
 
 type DashboardCardOption = {
@@ -68,7 +68,7 @@ const statusMeta: Record<CardStatus, { actionLabel: string; label: string; tone:
 const sourceMeta: Record<CardSource, string> = {
   LOCAL_HINT: "기기 안 보조",
   SERVER_ORIGINAL: "기준 데이터",
-  WIDGET_ROLLUP: "버블 집계",
+  ACTIVITY_ROLLUP: "작업 집계",
 };
 
 export const defaultDashboardCards: DashboardCardOption[] = [
@@ -114,10 +114,10 @@ export const defaultDashboardCards: DashboardCardOption[] = [
   },
   {
     countLabel: "03:42",
-    description: "타이머 원본과 버블 집계를 합쳐 오늘 작업 시간을 확인합니다.",
+    description: "타이머 원본과 작업 기록을 합쳐 오늘 작업 시간을 확인합니다.",
     kind: "TIMER",
-    source: "WIDGET_ROLLUP",
-    sourceLabel: "타이머와 버블 집계",
+    source: "ACTIVITY_ROLLUP",
+    sourceLabel: "타이머와 작업 집계",
     status: "AVAILABLE",
     title: "작업 시간",
     tone: "timer",
@@ -146,8 +146,8 @@ export const defaultDashboardRules: DashboardRule[] = [
     tone: "approved",
   },
   {
-    description: "버블은 같은 원본 데이터를 작업 중에 짧게 보여주는 개인 위젯으로 연결합니다.",
-    label: "버블 연결",
+    description: "대시보드 카드는 확정된 업무 기준을 요약하고, 화면별로 같은 데이터를 다시 씁니다.",
+    label: "화면 연결",
     tone: "todo",
   },
 ];
@@ -171,7 +171,7 @@ export function DashboardCardLibraryPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              대시보드에 올릴 카드를 고르는 영역입니다. 카드 내용은 확정된 데이터와 버블 집계를 기준으로 가져오고,
+              대시보드에 올릴 카드를 고르는 영역입니다. 카드 내용은 확정된 데이터와 작업 집계를 기준으로 가져오고,
               사용자가 고른 구성만 개인 대시보드에 저장합니다.
             </p>
           </div>

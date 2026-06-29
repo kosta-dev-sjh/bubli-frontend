@@ -27,10 +27,10 @@ const summarySources: SummarySource[] = [
     value: "4시간 28분",
   },
   {
-    detail: "날짜별 버블 집계",
-    label: "버블 사용 집계",
+    detail: "날짜별 작업 집계",
+    label: "작업 활동 집계",
     tone: "pending",
-    value: "6개 버블",
+    value: "6개 항목",
   },
   {
     detail: "기기 안 요약 참조",
@@ -62,7 +62,7 @@ export function DailySummaryPanel() {
             <Chip selected>하루정리</Chip>
             <h2>확정된 기록과 기기 안 요약을 모아, 사용자가 확인한 결과만 저장합니다</h2>
             <p>
-              완료한 일, 작업시간, 일정, 알림, 버블 집계, 개인 에이전트 요약을 근거로 정리 초안을 만듭니다.
+              완료한 일, 작업시간, 일정, 알림, 작업 활동, 개인 에이전트 요약을 근거로 정리 초안을 만듭니다.
               승인된 결과만 하루정리에 남습니다.
             </p>
           </div>
@@ -90,7 +90,7 @@ export function DailySummaryPanel() {
               <span className="bubli-icon-tile" aria-hidden="true">
                 <ListTodo size={16} strokeWidth={2.1} />
               </span>
-              <p>오늘은 Bubli 프론트 구조에서 대시보드와 위젯 관련 화면을 우선 정리했습니다.</p>
+              <p>오늘은 Bubli 프론트 구조에서 대시보드와 회원 업무 화면을 우선 정리했습니다.</p>
             </article>
             <article>
               <span className="bubli-icon-tile" aria-hidden="true">
@@ -128,7 +128,7 @@ export function DailySummaryPanel() {
               <Database size={16} strokeWidth={2.1} />
             </span>
             <p>
-              위젯 상세 사용 이벤트 원문은 서버에 저장하지 않고, 날짜별 집계와 사용자가 승인한 정리 결과만 서버에
+              상세 활동 이벤트 원문은 서버에 저장하지 않고, 날짜별 집계와 사용자가 승인한 정리 결과만 서버에
               남깁니다.
             </p>
           </div>

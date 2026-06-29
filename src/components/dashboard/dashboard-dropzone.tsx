@@ -11,10 +11,10 @@ type DashboardDropzoneProps = HTMLAttributes<HTMLDivElement> & {
 };
 
 const defaultLabel: Record<DropzoneState, string> = {
-  default: "여기에 위젯을 놓으세요",
+  default: "여기에 카드를 놓으세요",
   active: "놓으면 추가됩니다",
   invalid: "여기에는 놓을 수 없어요",
-  empty: "위젯을 끌어다 나만의 워크스페이스를 꾸며보세요",
+  empty: "카드를 끌어다 나만의 대시보드를 구성해보세요",
 };
 
 export function DashboardDropzone({ className, label, state = "default", ...props }: DashboardDropzoneProps) {

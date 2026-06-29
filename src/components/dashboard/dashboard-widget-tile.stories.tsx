@@ -12,7 +12,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "대시보드 위젯 블록. Paper Glass 표면, 크기 S/M/L. 핸들/숨김/삭제 버튼은 edit 모드에서만. 상태색은 dot/rim/badge에만(카드 색칠 금지). drag 중 네온 glow 없음.",
+          "대시보드 카드 블록. Paper Glass 표면, 크기 S/M/L. 핸들/숨김/삭제 버튼은 edit 모드에서만. 상태색은 dot/rim/badge에만(카드 색칠 금지). drag 중 네온 glow 없음.",
       },
     },
   },

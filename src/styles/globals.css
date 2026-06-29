@@ -1631,68 +1631,44 @@ select {
   box-shadow: 0 12px 28px rgba(80, 110, 130, 0.08);
 }
 
-.dashboard-bubble-row {
-  position: relative;
+.dashboard-handoff-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  overflow: hidden;
-  border: 1px solid rgba(107, 143, 168, 0.12);
-  border-radius: 28px;
-  padding: 24px;
-  background:
-    radial-gradient(circle at 88% 14%, rgba(255, 255, 255, 0.92), transparent 10%),
-    radial-gradient(circle at 14% 18%, rgba(215, 234, 244, 0.8), transparent 30%),
-    radial-gradient(circle at 78% 78%, rgba(230, 221, 248, 0.5), transparent 34%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.44), rgba(215, 234, 244, 0.3));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  gap: 12px;
 }
 
-.dashboard-bubble-row::before,
-.dashboard-bubble-row::after {
-  content: "";
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.dashboard-bubble-row::before {
-  right: 22px;
-  top: 20px;
-  width: 54px;
-  height: 54px;
-  background:
-    radial-gradient(circle at 34% 26%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.18) 62%, transparent),
-    rgba(142, 205, 246, 0.12);
-  box-shadow: inset 5px 7px 16px rgba(255, 255, 255, 0.46), inset -8px -10px 20px rgba(107, 143, 168, 0.12);
-  opacity: 0.78;
-}
-
-.dashboard-bubble-row::after {
-  left: 24px;
-  bottom: 22px;
-  width: 28px;
-  height: 28px;
-  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.18) 70%, transparent);
-  opacity: 0.7;
-}
-
-.dashboard-bubble-row .bubli-bubble {
+.dashboard-handoff-row article {
+  display: grid;
+  gap: 6px;
   min-width: 0;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow:
+    var(--inner-highlight-light),
+    0 10px 24px -22px rgba(35, 48, 59, 0.24);
 }
 
-.dashboard-bubble-row .bubli-bubble:nth-child(2) {
-  --bubble-float-y: 18px;
-  transform: translateY(var(--bubble-float-y));
+.dashboard-handoff-row span {
+  color: var(--color-blue-deep);
+  font-size: 12px;
+  font-weight: 820;
 }
 
-.dashboard-bubble-row .bubli-bubble:nth-child(3) {
-  --bubble-float-y: 6px;
-  transform: translateY(var(--bubble-float-y));
+.dashboard-handoff-row strong {
+  color: var(--color-text);
+  font-size: 22px;
+  font-weight: 860;
+  letter-spacing: 0;
 }
 
-.dashboard-bubble-row .bubli-bubble:hover {
-  transform: translateY(calc(var(--bubble-float-y) - 3px));
+.dashboard-handoff-row p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 620;
+  line-height: 1.55;
 }
 
 .dashboard-overview__policy {
@@ -6087,38 +6063,6 @@ html {
   overflow: hidden;
   background: linear-gradient(160deg, rgba(216, 240, 255, 0.5), rgba(220, 216, 248, 0.35));
 }
-.landing-desktop__scene {
-  position: absolute;
-  inset: 0;
-}
-.landing-desktop__bubble {
-  position: absolute;
-  border-radius: 50%;
-  background: radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.92), rgba(215, 234, 244, 0.4) 55%, rgba(142, 205, 246, 0.16));
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  box-shadow: inset 0 2px 12px rgba(255, 255, 255, 0.8), 0 18px 36px rgba(84, 115, 136, 0.16);
-}
-.landing-desktop__bubble.one {
-  width: 120px;
-  height: 120px;
-  left: 14%;
-  top: 22%;
-  animation: bubli-hero-float 6s ease-in-out infinite;
-}
-.landing-desktop__bubble.two {
-  width: 74px;
-  height: 74px;
-  right: 22%;
-  top: 18%;
-  animation: bubli-hero-float 7.5s ease-in-out infinite;
-}
-.landing-desktop__bubble.three {
-  width: 92px;
-  height: 92px;
-  right: 30%;
-  bottom: 18%;
-  animation: bubli-hero-float 6.8s ease-in-out infinite;
-}
 @media (max-width: 860px) {
   .landing-desktop {
     grid-template-columns: 1fr;
@@ -6429,7 +6373,7 @@ html {
     linear-gradient(145deg, rgba(255, 255, 255, 0.74), rgba(215, 234, 244, 0.5));
 }
 
-/* 랜딩 히어로 3D 글래스 버블(Three.js/R3F) + glow halo + 로드 전/실패 시 CSS fallback */
+/* 랜딩 히어로 브랜드 버블 halo */
 .public-hero__halo {
   position: absolute;
   inset: 34px 34px auto auto;
@@ -9809,7 +9753,7 @@ html {
   .dashboard-overview__hero,
   .dashboard-overview__grid,
   .dashboard-overview__metrics,
-  .dashboard-bubble-row {
+  .dashboard-handoff-row {
     grid-template-columns: 1fr;
   }
 
@@ -10793,6 +10737,17 @@ html {
   font-size: 12px;
 }
 
+.bubli-agent-signal {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: var(--opal-lilac, #dcd8f8);
+  box-shadow: 0 0 0 5px rgba(220, 216, 248, 0.34);
+}
+
 [data-theme="dark"] .bubli-dash-view__title {
   color: rgba(232, 240, 250, 0.95);
 }
@@ -10893,235 +10848,6 @@ html {
 /* ============================================================
    WidgetPreview — 데스크탑 위 위젯 시뮬 무대(Storybook 전용, 라우트 미사용)
    ============================================================ */
-/* (아래 .bubli-desk* 는 롤백된 WidgetDesktopBoard 잔여 CSS — 라우트/컴포넌트 미참조) */
-.bubli-desk-head {
-  display: grid;
-  gap: 4px;
-  margin-bottom: 4px;
-}
-
-.bubli-desk-head strong {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text, #23303b);
-}
-
-.bubli-desk-head span {
-  font-size: 13px;
-  color: var(--text-soft, #586978);
-}
-
-[data-theme="dark"] .bubli-desk-head strong {
-  color: rgba(232, 240, 250, 0.95);
-}
-
-[data-theme="dark"] .bubli-desk-head span {
-  color: rgba(176, 190, 208, 0.7);
-}
-
-.bubli-desk {
-  position: relative;
-  width: 100%;
-  min-width: 0;
-  min-height: 600px;
-  margin-top: 16px;
-  border-radius: 28px;
-  overflow: hidden;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
-  background:
-    radial-gradient(58% 50% at 16% 10%, rgba(216, 240, 255, 0.92), transparent 60%),
-    radial-gradient(54% 48% at 88% 16%, rgba(220, 216, 248, 0.72), transparent 60%),
-    radial-gradient(70% 62% at 72% 102%, rgba(246, 221, 235, 0.5), transparent 60%),
-    linear-gradient(158deg, #eef5fb, #f6f3fb);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-}
-
-.bubli-desk__bar {
-  position: absolute;
-  top: 18px;
-  left: 22px;
-  z-index: 5;
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
-  border-radius: 100px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-soft, #586978);
-  background: rgba(255, 255, 255, 0.66);
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
-  box-shadow: 0 10px 24px -18px rgba(35, 48, 59, 0.45);
-  backdrop-filter: blur(12px) saturate(1.2);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-}
-
-.bubli-desk__brand {
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--blue-ink, #3a78b8);
-}
-
-.bubli-desk__bar-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--bubble-blue, #6fb8f2);
-}
-
-.bubli-desk__bar-note {
-  color: var(--text-faint, #98a5af);
-  font-weight: 500;
-}
-
-.bubli-desk__bubble {
-  position: absolute;
-  z-index: 1;
-  pointer-events: none;
-}
-
-.bubli-desk__bubble--1 {
-  top: 8%;
-  right: 30%;
-}
-
-.bubli-desk__bubble--2 {
-  bottom: 16%;
-  right: 12%;
-}
-
-.bubli-desk__bubble--3 {
-  top: 44%;
-  left: 40%;
-}
-
-.bubli-desk__hero {
-  position: absolute;
-  top: 84px;
-  left: 6%;
-  z-index: 4;
-  display: grid;
-  justify-items: start;
-  gap: 12px;
-}
-
-.bubli-desk__notif {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  max-width: 320px;
-  padding: 7px 13px;
-  border-radius: 100px;
-  font-size: 12px;
-  color: var(--text-soft, #586978);
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
-  box-shadow: 0 10px 22px -16px rgba(35, 48, 59, 0.4);
-  animation: bubli-notif-in var(--motion-slide, 220ms) var(--ease-press, cubic-bezier(0.2, 0.8, 0.2, 1));
-}
-
-.bubli-desk__notif-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #b0a8e0;
-}
-
-.bubli-desk__float {
-  position: absolute;
-  z-index: 3;
-  display: grid;
-  justify-items: start;
-  gap: 8px;
-}
-
-.bubli-desk__float--tl {
-  top: 116px;
-  right: 7%;
-}
-
-.bubli-desk__float--ghost {
-  bottom: 132px;
-  left: 12%;
-}
-
-.bubli-desk__dock {
-  position: absolute;
-  right: 26px;
-  bottom: 26px;
-  z-index: 5;
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.bubli-desk__tag {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-faint, #98a5af);
-}
-
-.bubli-desk__tag--dock {
-  align-self: center;
-}
-
-/* 다크 — Night Bubble 바탕화면 + 고급 glass */
-[data-theme="dark"] .bubli-desk {
-  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
-  background:
-    radial-gradient(58% 50% at 16% 10%, rgba(110, 160, 210, 0.24), transparent 60%),
-    radial-gradient(54% 48% at 88% 16%, rgba(140, 120, 200, 0.2), transparent 60%),
-    radial-gradient(70% 62% at 72% 102%, rgba(170, 120, 160, 0.14), transparent 60%),
-    linear-gradient(158deg, #121a28, #161e2e);
-  box-shadow: inset 0 1px 0 rgba(180, 200, 235, 0.06);
-}
-
-[data-theme="dark"] .bubli-desk__bar {
-  color: rgba(214, 224, 238, 0.9);
-  background: var(--surface-bg-dark, rgba(34, 46, 72, 0.5));
-  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
-}
-
-[data-theme="dark"] .bubli-desk__brand {
-  color: var(--sky, #9ed8ff);
-}
-
-[data-theme="dark"] .bubli-desk__bar-note {
-  color: rgba(176, 190, 208, 0.6);
-}
-
-[data-theme="dark"] .bubli-desk__notif {
-  color: rgba(214, 224, 238, 0.92);
-  background: var(--surface-bg-dark, rgba(34, 46, 72, 0.55));
-  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
-}
-
-[data-theme="dark"] .bubli-desk__tag {
-  color: rgba(176, 190, 208, 0.55);
-}
-
-@media (max-width: 900px) {
-  .bubli-desk {
-    min-height: 0;
-    display: grid;
-    gap: 20px;
-    padding: 64px 18px 22px;
-  }
-
-  .bubli-desk__hero,
-  .bubli-desk__float,
-  .bubli-desk__dock {
-    position: static;
-    justify-items: center;
-  }
-
-  .bubli-desk__bubble {
-    display: none;
-  }
-}
-
 /* 위젯 모드 비교 보드 */
 .widget-modes-board {
   display: grid;

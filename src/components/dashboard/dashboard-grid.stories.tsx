@@ -9,7 +9,7 @@ const meta = {
   tags: ["uikit", "dashboard"],
   component: DashboardGrid,
   parameters: {
-    docs: { description: { component: "대시보드 위젯들이 놓이는 12-col 그리드. view/edit/empty/dense 지원. 위젯 카드를 색으로 칠하지 않는다." } },
+    docs: { description: { component: "대시보드 카드들이 놓이는 12-col 그리드. view/edit/empty/dense 지원. 카드를 색으로 칠하지 않는다." } },
   },
   title: "Dashboard/Grid",
 } satisfies Meta<typeof DashboardGrid>;

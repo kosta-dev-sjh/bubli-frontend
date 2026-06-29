@@ -108,8 +108,8 @@ export const defaultTodoSurfaces: SurfaceState[] = [
     tone: "personal",
   },
   {
-    description: "Tauri 앱에서는 TODO 버블과 알림 버블이 같은 작업을 표시합니다.",
-    label: "버블",
+    description: "Tauri 앱에서는 데스크탑 위젯과 알림이 같은 작업을 표시합니다.",
+    label: "데스크탑 위젯",
     surface: "BUBBLE",
     syncedCount: 2,
     tone: "todo",
@@ -141,7 +141,7 @@ export function TodoAssigneeReflectionPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              프로젝트룸에서 생긴 TODO는 하나의 작업으로 관리합니다. 담당자가 지정되면 개인 대시보드와 버블은
+              프로젝트룸에서 생긴 TODO는 하나의 작업으로 관리합니다. 담당자가 지정되면 개인 대시보드와 데스크탑 위젯은
               같은 작업을 담당자 기준으로 보여줍니다.
             </p>
           </div>
@@ -180,7 +180,7 @@ export function TodoAssigneeReflectionPanel({
           </span>
           <div>
             <strong>여러 화면 표시</strong>
-            <p>작업판, 대시보드, 버블, 일정이 같은 작업을 봅니다.</p>
+            <p>작업판, 대시보드, 데스크탑 위젯, 일정이 같은 작업을 봅니다.</p>
           </div>
         </article>
       </section>

@@ -13,7 +13,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "새 UI Kit(DashboardGrid·WidgetTile·Ring·AgentBubble·StatusBadge)으로 조립한 대시보드 1차. 목 데이터만 사용하고 dashboard_layouts 저장·API는 연결하지 않는다.",
+          "새 UI Kit(DashboardGrid·WidgetTile·Ring·StatusBadge)으로 조립한 대시보드 1차. 목 데이터만 사용하고 dashboard_layouts 저장·API는 연결하지 않는다.",
       },
     },
   },

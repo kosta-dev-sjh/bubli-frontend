@@ -39,18 +39,18 @@ export function DashboardPalette({ className, items, onAdd, onSearch, query = ""
 
   return (
     <div className={cn("bubli-dash-palette", className)} {...props}>
-      <div className="bubli-dash-palette__title">위젯 팔레트</div>
+      <div className="bubli-dash-palette__title">카드 팔레트</div>
       <label className="bubli-dash-palette__search">
         <Search size={14} />
         <input
-          aria-label="위젯 검색"
+          aria-label="카드 검색"
           onChange={(e) => onSearch?.(e.target.value)}
-          placeholder="위젯 검색"
+          placeholder="카드 검색"
           value={query}
         />
       </label>
       {filtered.length === 0 ? (
-        <div className="bubli-dash-palette__empty">찾는 위젯이 없어요. 다른 말로 검색해볼까요?</div>
+        <div className="bubli-dash-palette__empty">찾는 카드가 없어요. 다른 말로 검색해볼까요?</div>
       ) : (
         <div className="bubli-dash-palette__list">
           {filtered.map((w) => (

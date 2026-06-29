@@ -7,7 +7,7 @@ const meta = {
   tags: ["uikit", "dashboard"],
   component: DashboardDropzone,
   parameters: {
-    docs: { description: { component: "위젯을 끌어다 놓는 영역. 점선 + Sky 포커스/active. invalid는 rose. Sky/Mist 중심, 네온 없음." } },
+    docs: { description: { component: "대시보드 카드를 끌어다 놓는 영역. 점선 + Sky 포커스/active. invalid는 rose. Sky/Mist 중심, 네온 없음." } },
   },
   title: "Dashboard/Dropzone",
 } satisfies Meta<typeof DashboardDropzone>;

@@ -104,7 +104,7 @@ export const FailedAnalysisRetry: Story = {
         value: "FAILED",
       },
       {
-        description: "성공한 결과만 자료 상세와 버블에 표시합니다.",
+        description: "성공한 결과만 자료 상세와 데스크탑 위젯에 표시합니다.",
         icon: "result",
         label: "결과 표시",
         value: "보류",

@@ -77,7 +77,7 @@ const sourceMeta: Record<TodoDetailSource, { description: string; label: string 
 };
 
 const surfaceMeta: Record<TodoDetailSurface, { icon: ReactNode; label: string }> = {
-  BUBBLE: { icon: <MonitorUp size={15} strokeWidth={2.1} />, label: "버블" },
+  BUBBLE: { icon: <MonitorUp size={15} strokeWidth={2.1} />, label: "데스크탑 위젯" },
   DASHBOARD: { icon: <LayoutDashboard size={15} strokeWidth={2.1} />, label: "대시보드" },
   SCHEDULE: { icon: <CalendarClock size={15} strokeWidth={2.1} />, label: "일정" },
   WORK_BOARD: { icon: <Columns3 size={15} strokeWidth={2.1} />, label: "작업판" },
@@ -119,7 +119,7 @@ export function TodoDetailPanel({
           <div>
             <h2 className={styles.title}>{todo.title}</h2>
             <p className={styles.description}>
-              하나의 TODO를 원본으로 두고, 상태와 담당자 기준에 따라 작업판, 대시보드, 버블, 일정에 함께 표시합니다.
+              하나의 TODO를 원본으로 두고, 상태와 담당자 기준에 따라 작업판, 대시보드, 데스크탑 위젯, 일정에 함께 표시합니다.
             </p>
           </div>
         </div>

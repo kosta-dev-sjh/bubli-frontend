@@ -85,10 +85,10 @@ const defaultEvidenceItems: DailySummaryEvidence[] = [
   },
   {
     countLabel: "집계 8건",
-    description: "기기별 버블 사용 집계를 날짜 기준으로 합산합니다.",
+    description: "기기별 위젯 사용 집계를 날짜 기준으로 합산합니다.",
     id: "widget",
-    label: "버블 사용 집계",
-    source: "버블 사용 집계",
+    label: "위젯 사용 집계",
+    source: "위젯 사용 집계",
     tone: "personal",
   },
   {

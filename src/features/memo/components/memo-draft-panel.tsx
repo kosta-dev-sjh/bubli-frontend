@@ -65,15 +65,15 @@ function MemoRow({ memo }: { memo: MemoItem }) {
 
 export function MemoDraftPanel() {
   return (
-    <section className="memo-draft" aria-label="메모 버블과 로컬 초안">
+    <section className="memo-draft" aria-label="빠른 메모와 로컬 초안">
       <GlassPanel className="memo-draft__hero">
         <div>
           <Chip icon={<PencilLine size={14} />} selected>
-            메모 버블
+            빠른 메모
           </Chip>
           <h2>작업 중 메모는 바로 남기고, 저장 기준은 나눠서 관리합니다</h2>
           <p>
-            메모 버블은 작업 흐름을 끊지 않기 위한 개인 기능입니다. 작성 중 초안은 내 기기에 먼저 남기고,
+            빠른 메모는 작업 흐름을 끊지 않기 위한 개인 기능입니다. 작성 중 초안은 내 기기에 먼저 남기고,
             사용자가 저장한 메모만 웹과 앱에서 함께 볼 수 있게 반영합니다.
           </p>
         </div>
@@ -110,7 +110,7 @@ export function MemoDraftPanel() {
               서버에 저장
             </Button>
             <Button icon={<Pin size={15} />} variant="quiet">
-              메모 버블에 고정
+              빠른 메모에 고정
             </Button>
           </div>
         </GlassPanel>

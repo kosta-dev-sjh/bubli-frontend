@@ -52,7 +52,7 @@ export const defaultMemoList: MemoListItem[] = [
     updatedLabel: "로컬 초안 2분 전",
   },
   {
-    body: "발표에서는 자료 업로드, 후보 확인, TODO 반영, 버블 표시 흐름만 짧게 보여줍니다.",
+    body: "발표에서는 자료 업로드, 후보 확인, TODO 반영, 데스크탑 표시 흐름만 짧게 보여줍니다.",
     id: "memo-presentation-flow",
     projectRoomLabel: "Bubli 자료 정리",
     scope: "PROJECT_ROOM",
@@ -182,7 +182,7 @@ export function MemoListPanel({
             <div className={styles.emptyDetail}>
               <ListFilter size={22} strokeWidth={2.1} aria-hidden="true" />
               <strong>열 메모가 없습니다</strong>
-              <p>작업 중 떠오른 내용을 메모 버블에 남기면 여기에서 다시 볼 수 있습니다.</p>
+              <p>작업 중 떠오른 내용을 빠른 메모로 남기면 여기에서 다시 볼 수 있습니다.</p>
             </div>
           )}
         </aside>

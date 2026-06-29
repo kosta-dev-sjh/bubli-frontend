@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/layout/app-shell";
 
-// 회원 앱(/app) 전용 파비콘 = 다크 앱 타일 마크. 루트(라이트 버블)를 덮어쓴다.
+// 회원 앱(/app) 전용 파비콘 = 다크 앱 타일 마크. 루트의 공개 사이트 마크를 덮어쓴다.
 export const metadata: Metadata = {
   icons: {
     icon: [

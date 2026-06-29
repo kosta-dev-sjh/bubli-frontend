@@ -25,7 +25,7 @@ export function PublicHero() {
         <p>
           계약서, 요구사항, 회의록을 업무 구조로 바꾸고
           <br />
-          작업 중 필요한 정보만 버블로 보여주는 프리랜서 업무 비서
+          오늘 필요한 일을 한 화면에 정리해주는 프리랜서 업무 비서
         </p>
         <div className="public-hero__actions">
           <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/download">

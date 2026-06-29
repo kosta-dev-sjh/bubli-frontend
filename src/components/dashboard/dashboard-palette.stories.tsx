@@ -10,7 +10,7 @@ const meta = {
   args: { items: WIDGET_CATALOG },
   component: DashboardPalette,
   parameters: {
-    docs: { description: { component: "추가 가능한 위젯 목록(드래그 시작점). 검색·빈 상태 지원. Paper Glass 표면, 색은 아이콘/포커스에만." } },
+    docs: { description: { component: "추가 가능한 대시보드 카드 목록(드래그 시작점). 검색·빈 상태 지원. Paper Glass 표면, 색은 아이콘/포커스에만." } },
   },
   title: "Dashboard/Palette",
 } satisfies Meta<typeof DashboardPalette>;
@@ -30,7 +30,7 @@ export const Search: Story = {
 };
 
 export const Empty: Story = {
-  render: () => <DashboardPalette items={WIDGET_CATALOG} query="존재하지않는위젯" />,
+  render: () => <DashboardPalette items={WIDGET_CATALOG} query="존재하지않는카드" />,
 };
 
 function DarkFrame({ children }: { children: ReactNode }) {

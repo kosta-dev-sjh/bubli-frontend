@@ -1,6 +1,5 @@
 import { BellRing, CalendarDays, CheckCircle2, Clock3, LayoutDashboard, Sparkles } from "lucide-react";
 
-import { BubbleCard } from "@/components/bubbles";
 import { WorkItemCard } from "@/components/domain";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -43,7 +42,7 @@ export function DashboardOverviewPanel() {
             <Chip selected>대시보드</Chip>
             <h2>여러 프로젝트룸의 내 일을 한 화면에서 봅니다</h2>
             <p>
-              맡은 TODO, 가까운 일정, 확인할 후보를 모으고 작업 중에는 필요한 것만 버블로 띄웁니다.
+              맡은 TODO, 가까운 일정, 확인할 후보를 모아 오늘 처리할 일을 먼저 보여줍니다.
             </p>
           </div>
         </div>
@@ -118,31 +117,27 @@ export function DashboardOverviewPanel() {
 
         <GlassPanel className="dashboard-overview__panel dashboard-overview__panel--wide">
           <div className="dashboard-overview__panel-head">
-            <h3>오늘 표시될 버블</h3>
+            <h3>오늘 작업 요약</h3>
             <Button size="sm" variant="ghost">
-              위젯 설정
+              카드 설정
             </Button>
           </div>
-          <div className="dashboard-bubble-row">
-            <BubbleCard
-              type="todo"
-              meta="8건"
-              items={["1차 번역 검수 기준 확인", "납품물 범위 후보 승인"]}
-              title="TODO 버블"
-            />
-            <BubbleCard
-              type="schedule"
-              meta="오늘 4건"
-              items={["10:30 확인 미팅", "15:00 1차 납품 마감"]}
-              title="일정/WBS 버블"
-            />
-            <BubbleCard
-              type="timer"
-              meta="03:42"
-              progressLabel="오늘 작업 시간"
-              progressValue={68}
-              title="타이머 버블"
-            />
+          <div className="dashboard-handoff-row">
+            <article>
+              <span>TODO</span>
+              <strong>8건</strong>
+              <p>오늘 볼 일과 승인한 후보</p>
+            </article>
+            <article>
+              <span>일정</span>
+              <strong>4건</strong>
+              <p>미팅과 가까운 마감</p>
+            </article>
+            <article>
+              <span>작업 시간</span>
+              <strong>03:42</strong>
+              <p>타이머 원본 기준</p>
+            </article>
           </div>
         </GlassPanel>
 
@@ -154,7 +149,7 @@ export function DashboardOverviewPanel() {
           </div>
           <div>
             <Clock3 size={16} strokeWidth={2.1} />
-            <p>버블의 상세 사용 기록은 기기 안에 남기고, 승인한 하루정리만 저장합니다.</p>
+            <p>작업 시간과 활동 기록은 기준 데이터로 모으고, 사용자가 승인한 하루정리만 저장합니다.</p>
           </div>
         </GlassPanel>
       </div>

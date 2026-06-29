@@ -19,9 +19,9 @@ const flowSteps = [
     title: "사용자 승인",
   },
   {
-    body: "같은 TODO를 작업판, 대시보드, 버블에서 함께 봅니다.",
+    body: "같은 TODO를 작업판, 대시보드, 일정에서 같은 기준으로 확인합니다.",
     meta: "실행 화면",
-    title: "버블 표시",
+    title: "작업 연결",
   },
 ];
 
@@ -37,11 +37,11 @@ export function PublicHomeFlow() {
             오늘 일이 정리됩니다
           </h2>
           <p>
-            계약서와 요구사항을 올리고, 사용자가 후보를 확인하면 같은 TODO가 작업판, 대시보드, 버블로 이어집니다.
+            계약서와 요구사항을 올리고, 사용자가 후보를 확인하면 같은 TODO가 작업판, 대시보드, 일정으로 이어집니다.
           </p>
         </div>
 
-        <div className="public-home-flow__steps" aria-label="자료에서 버블까지 이어지는 순서">
+        <div className="public-home-flow__steps" aria-label="자료에서 실행 화면까지 이어지는 순서">
           {flowSteps.map((step, index) => {
             return (
               <Reveal className="public-home-flow__step-reveal" delay={index * 90} key={step.title}>
@@ -75,7 +75,7 @@ export function PublicHomeFlow() {
           <Chip>작업판</Chip>
           <Chip>대시보드</Chip>
           <Chip>일정</Chip>
-          <Chip>TODO 버블</Chip>
+          <Chip>작업 기준</Chip>
         </div>
       </GlassPanel>
     </section>

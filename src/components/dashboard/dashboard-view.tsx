@@ -3,7 +3,6 @@
 import { Settings2 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { AgentBubble } from "@/components/bubbles/agent-bubble";
 import { DashboardGrid } from "@/components/dashboard/dashboard-grid";
 import { widgetIcon } from "@/components/dashboard/dashboard-palette";
 import { DashboardWidgetTile } from "@/components/dashboard/dashboard-widget-tile";
@@ -86,7 +85,7 @@ export function DashboardView({ data = MOCK_DASHBOARD, empty = false, loading = 
         </div>
         <Button onClick={onCustomize} variant="primary">
           <Settings2 aria-hidden size={15} strokeWidth={1.8} />
-          위젯 편집
+          카드 편집
         </Button>
       </header>
 
@@ -158,7 +157,7 @@ export function DashboardView({ data = MOCK_DASHBOARD, empty = false, loading = 
               <Skeleton w="90%" h={40} />
             ) : (
               <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                <AgentBubble size={34} state="suggesting" />
+                <span aria-hidden="true" className="bubli-agent-signal" />
                 <div style={{ display: "grid", gap: 8 }}>
                   <p style={{ margin: 0, fontSize: 13 }}>{data.agent.message}</p>
                   <div style={{ display: "flex", gap: 8 }}>
