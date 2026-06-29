@@ -36,10 +36,14 @@ const flowSteps = [
   },
 ];
 
+type StickyMode = "before" | "fixed" | "after";
+
 export function PublicHomeFlow() {
   const sectionRef = useRef<HTMLElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [stickyMode, setStickyMode] = useState<StickyMode>("before");
+  const [stickyFrame, setStickyFrame] = useState<CSSProperties>({});
   const activeStep = flowSteps[activeIndex] ?? flowSteps[0];
 
   useEffect(() => {
@@ -51,11 +55,34 @@ export function PublicHomeFlow() {
     let frame = 0;
     const syncActiveStep = () => {
       const rect = section.getBoundingClientRect();
+      const sectionTop = rect.top + window.scrollY;
+      const topOffset = window.matchMedia("(max-width: 640px)").matches ? 72 : 96;
+      const sticky = section.querySelector<HTMLElement>(".public-home-flow__sticky");
+      const stickyHeight = sticky?.offsetHeight ?? Math.min(window.innerHeight - topOffset, 760);
       const scrollable = Math.max(rect.height - window.innerHeight, 1);
-      const nextProgress = Math.min(1, Math.max(0, (window.innerHeight * 0.42 - rect.top) / scrollable));
+      const nextProgress = Math.min(1, Math.max(0, (window.scrollY - sectionTop) / scrollable));
       const next = Math.min(flowSteps.length - 1, Math.floor(nextProgress * flowSteps.length));
       setProgress(nextProgress);
       setActiveIndex(next);
+
+      if (rect.top > topOffset) {
+        setStickyMode("before");
+        setStickyFrame({});
+        return;
+      }
+
+      if (rect.bottom - stickyHeight <= topOffset) {
+        setStickyMode("after");
+        setStickyFrame({});
+        return;
+      }
+
+      setStickyMode("fixed");
+      setStickyFrame({
+        left: rect.left,
+        top: topOffset,
+        width: rect.width,
+      });
     };
 
     const onScroll = () => {
@@ -73,11 +100,11 @@ export function PublicHomeFlow() {
     };
   }, []);
 
-  const flowStyle = { "--flow-progress": progress } as CSSProperties;
+  const flowStyle = { "--flow-progress": progress, ...stickyFrame } as CSSProperties;
 
   return (
     <section className="public-home-flow public-home-flow--story" aria-label="Bubli 핵심 업무 흐름" ref={sectionRef}>
-      <div className="public-home-flow__sticky" style={flowStyle}>
+      <div className={cn("public-home-flow__sticky", `is-${stickyMode}`)} style={flowStyle}>
         <video aria-hidden="true" autoPlay className="public-home-flow__video" loop muted playsInline poster="/landing/hero-bg.png">
           <source src="/landing/slow-bubble-flow.mp4" type="video/mp4" />
         </video>

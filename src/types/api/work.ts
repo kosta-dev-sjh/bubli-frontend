@@ -5,11 +5,11 @@ export type TaskSourceType = "USER" | "AGENT_SUGGESTION" | "RESOURCE";
 export type TaskResponse = {
   assigneeUserId?: string | null;
   createdAt: string;
-  dueDate?: string | null;
+  description?: string | null;
+  dueAt?: string | null;
   id: string;
   ownerUserId: string;
   roomId?: string | null;
-  sourceType?: TaskSourceType;
   status: TaskStatus;
   title: string;
   updatedAt: string;
@@ -18,13 +18,15 @@ export type TaskResponse = {
 
 export type TaskCreateRequest = {
   assigneeUserId?: string | null;
-  dueDate?: string | null;
+  description?: string | null;
+  dueAt?: string | null;
   roomId?: string | null;
+  status?: TaskStatus;
   title: string;
   wbsItemId?: string | null;
 };
 
-export type TaskUpdateRequest = Partial<Pick<TaskCreateRequest, "assigneeUserId" | "dueDate" | "title" | "wbsItemId">> & {
+export type TaskUpdateRequest = Partial<Pick<TaskCreateRequest, "assigneeUserId" | "description" | "dueAt" | "title" | "wbsItemId">> & {
   status?: TaskStatus;
 };
 
@@ -67,8 +69,26 @@ export type WbsBoardResponse = {
 };
 
 export type DashboardWorkResponse = {
-  checkItems?: Array<Record<string, unknown>>;
-  tasks: TaskResponse[];
-  todayTimeSeconds?: number;
-  upcomingSchedules?: Array<Record<string, unknown>>;
+  todaySchedules: ScheduleResponse[];
+  todayTasks: TaskResponse[];
+  upcomingDeadlines: TaskResponse[];
+};
+
+export type ScheduleSyncStatus = "LOCAL_ONLY" | "SYNCED" | "FAILED";
+
+export type ScheduleResponse = {
+  allDay: boolean;
+  createdAt: string;
+  endsAt?: string | null;
+  googleEventId?: string | null;
+  id: string;
+  lastSyncedAt?: string | null;
+  ownerUserId: string;
+  roomId?: string | null;
+  startsAt: string;
+  syncStatus: ScheduleSyncStatus;
+  taskId?: string | null;
+  title: string;
+  updatedAt: string;
+  wbsItemId?: string | null;
 };
