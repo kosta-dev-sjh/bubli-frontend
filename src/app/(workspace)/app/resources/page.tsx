@@ -2,6 +2,8 @@
 
 import { ResourceFlowView } from "@/components/domain";
 import { PageHeading } from "@/components/ui/page-heading";
+import { SectionHeading } from "@/components/ui/section-heading";
+import styles from "@/components/domain/resource-flow-view.module.css";
 import {
   ContractReviewItemResolutionPanel,
   defaultAnalysisSteps,
@@ -118,9 +120,10 @@ export default function ResourcesPage() {
   if (USE_NEW_RESOURCES) {
     return (
       <>
-        <PageHeading
-          title="자료 흐름"
-          description="자료에서 에이전트가 찾은 요구사항 후보를 승인해 오늘 할 일까지 잇습니다."
+        <SectionHeading
+          className={styles.pageHeading}
+          title="자료보드"
+          description="개인 자료와 프로젝트룸 자료를 확인하고, 에이전트가 찾은 후보를 업무로 정리합니다."
         />
         <ResourceFlowView />
       </>
