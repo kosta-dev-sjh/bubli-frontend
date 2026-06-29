@@ -73,7 +73,7 @@ export function ChatCacheRecoveryPanel({
           <div className="grid gap-1">
             <h2 className="m-0 text-[22px] font-[860] leading-tight text-[var(--color-text)]">{title}</h2>
             <p className="m-0 max-w-[720px] text-[14px] leading-6 text-[var(--color-muted)]">
-              서버 채팅 메시지가 원본입니다. Tauri SQLite 캐시는 최근 메시지를 빠르게 보여주기 위한 기기별 복제본입니다.
+              서버 채팅 메시지가 원본입니다. 기기 안 캐시는 최근 메시지를 빠르게 보여주기 위한 기기별 복제본입니다.
             </p>
           </div>
         </div>
@@ -91,10 +91,10 @@ export function ChatCacheRecoveryPanel({
             <div>
               <p className="m-0 text-[14px] font-[820] text-[var(--color-text)]">{roomLabel}</p>
               <p className="m-0 text-[12.5px] text-[var(--color-muted)]">
-                캐시 {cachedCount}개 · 빠진 메시지 {missingCount}개
+                기기 안 최근 메시지 {cachedCount}개 · 빠진 메시지 {missingCount}개
               </p>
             </div>
-            <Chip icon={<Wifi size={14} strokeWidth={2.1} />}>WebSocket 보충</Chip>
+            <Chip icon={<Wifi size={14} strokeWidth={2.1} />}>실시간 보충</Chip>
           </div>
           <ProgressBar label="채팅 캐시 동기화율" value={syncPercent} />
         </div>
@@ -105,7 +105,7 @@ export function ChatCacheRecoveryPanel({
             동기화 기준
           </div>
           <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">
-            서버 sequence {serverSequence}까지 있고, 이 기기는 {lastRoomSequence}까지 캐시했습니다. 부족한 구간은 afterSequence로 요청합니다.
+            서버에는 {serverSequence}번 메시지까지 있고, 이 기기는 {lastRoomSequence}번까지 보관했습니다. 부족한 구간만 다시 요청합니다.
           </p>
         </div>
       </section>
@@ -138,7 +138,7 @@ export function ChatCacheRecoveryPanel({
             <Database size={18} strokeWidth={2.1} />
           </span>
           <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">
-            웹은 서버에서 최근 메시지를 읽고 WebSocket으로 새 메시지를 받습니다. 새로고침해도 서버 원본을 다시 불러옵니다.
+            웹은 서버에서 최근 메시지를 읽고 실시간 연결로 새 메시지를 받습니다. 새로고침해도 서버 원본을 다시 불러옵니다.
           </p>
         </div>
         <div className="flex items-start gap-3">
@@ -146,7 +146,7 @@ export function ChatCacheRecoveryPanel({
             <HardDriveDownload size={18} strokeWidth={2.1} />
           </span>
           <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">
-            Tauri 캐시가 비었거나 손상되면 서버에서 최근 100개 메시지를 다시 내려받아 캐시를 만듭니다.
+            기기 안 최근 메시지가 비었거나 손상되면 서버에서 최근 100개 메시지를 다시 내려받아 복구합니다.
           </p>
         </div>
       </footer>

@@ -1,0 +1,297 @@
+.panel {
+  display: grid;
+  gap: 18px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.titleBlock {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.description {
+  max-width: 850px;
+  margin: 7px 0 0;
+  color: var(--color-muted);
+  font-size: 14.5px;
+  line-height: 1.7;
+}
+
+.summaryCard {
+  display: grid;
+  min-width: 220px;
+  gap: 7px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 13px 14px;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: var(--shadow-soft);
+}
+
+.summaryCard span {
+  overflow: hidden;
+  color: var(--color-faint);
+  font-size: 11.5px;
+  font-weight: 780;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summaryCard strong {
+  overflow: hidden;
+  color: var(--color-blue-deep);
+  font-size: 18px;
+  font-weight: 880;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipelineCard,
+.metrics article,
+.suggestionCard,
+.stepGrid article {
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: var(--shadow-soft);
+}
+
+.pipelineCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  border-radius: var(--radius-panel);
+  padding: 15px;
+}
+
+.pipelineCard > svg {
+  color: var(--color-blue-deep);
+}
+
+.pipelineNode {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.iconTile {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 16px;
+  color: var(--color-blue-deep);
+  background:
+    radial-gradient(circle at 30% 15%, rgba(255, 255, 255, 0.92), transparent 44%),
+    rgba(215, 234, 244, 0.52);
+}
+
+.pipelineNode strong {
+  display: block;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 860;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipelineNode p {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12.8px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: 1.25fr repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metrics article {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-height: 104px;
+  border-radius: var(--radius-card);
+  padding: 13px;
+}
+
+.metrics span {
+  color: var(--color-faint);
+  font-size: 11.5px;
+  font-weight: 780;
+  line-height: 1.25;
+}
+
+.metrics strong {
+  color: var(--color-text);
+  font-size: 26px;
+  font-weight: 880;
+  line-height: 1;
+}
+
+.suggestionList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.suggestionCard {
+  display: grid;
+  gap: 12px;
+  border-radius: var(--radius-panel);
+  padding: 14px;
+}
+
+.suggestionTop {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.suggestionTitle {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.suggestionTitle strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 14.5px;
+  font-weight: 880;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestionTitle span {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestionDetail {
+  min-height: 58px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.suggestionFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.stepGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stepGrid article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  border-radius: var(--radius-card);
+  padding: 13px;
+}
+
+.stepGrid svg {
+  margin-top: 2px;
+  color: var(--color-blue-deep);
+}
+
+.stepGrid p {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 12.7px;
+  line-height: 1.55;
+}
+
+@media (max-width: 1080px) {
+  .header {
+    display: grid;
+  }
+
+  .summaryCard {
+    min-width: 0;
+  }
+
+  .pipelineCard {
+    grid-template-columns: 1fr;
+  }
+
+  .pipelineCard > svg {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+
+  .metrics,
+  .suggestionList,
+  .stepGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .suggestionTop {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .suggestionTop > span:last-child {
+    grid-column: 1 / -1;
+    width: fit-content;
+  }
+
+  .suggestionFooter {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+}

@@ -12,11 +12,11 @@ const meta = {
     docs: {
       description: {
         component:
-          "v14 자료 구분/권한 정책과 디자인보드 v20의 자료보드 범위 필터를 바탕으로, 개인 자료와 프로젝트룸 자료를 같은 자료보드 안에서 전환하는 패널입니다.",
+          "v15 자료 구분/권한 정책과 디자인보드 v20의 자료보드 범위 필터를 바탕으로, 개인 자료와 프로젝트룸 자료를 같은 자료보드 안에서 전환하는 패널입니다.",
       },
     },
   },
-  title: "Resources/ResourceScopeFilterPanel",
+  title: "Features/Resources/ResourceScopeFilterPanel",
 } satisfies Meta<typeof ResourceScopeFilterPanel>;
 
 export default meta;

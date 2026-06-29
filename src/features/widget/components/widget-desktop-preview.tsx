@@ -7,7 +7,7 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 
 export function WidgetDesktopPreview() {
   return (
-    <section className="widget-preview" aria-label="데스크탑 버블 위젯 미리보기">
+    <section className="widget-preview" aria-label="데스크톱 버블 위젯 미리보기">
       <div className="widget-preview__toolbar">
         <div>
           <h2>버블 위젯</h2>
@@ -28,9 +28,9 @@ export function WidgetDesktopPreview() {
 
       <div className="widget-preview__desktop">
         <div className="widget-preview__app-frame">
-          <Chip selected>회원 웹 앱 /app</Chip>
+          <Chip selected>회원 웹 앱</Chip>
           <h3>토모에 번역 프로젝트</h3>
-          <p>메인 WebView는 배포된 HTTPS 회원 웹 앱을 열고, 버블은 Tauri 앱에서 창 레이어로 따로 띄웁니다.</p>
+          <p>메인 화면은 배포된 회원 웹 앱을 열고, 버블은 데스크톱 앱에서 작업 화면 위에 따로 띄웁니다.</p>
         </div>
 
         <div className="widget-preview__bubble-layer" aria-label="버블 레이어">
@@ -51,7 +51,7 @@ export function WidgetDesktopPreview() {
           />
           <BubbleCard
             className="widget-preview__bubble widget-preview__bubble--timer"
-            items={["heartbeat 기준 복구 가능"]}
+            items={["비정상 종료 후 복구 가능"]}
             meta="42:18"
             type="timer"
           />
@@ -74,11 +74,11 @@ export function WidgetDesktopPreview() {
       <div className="widget-preview__policy">
         <GlassPanel className="widget-preview__policy-card">
           <b>서버 원본</b>
-          <p>TODO, 일정, 채팅, 알림, 타이머 원본은 서버 DB 기준으로 표시합니다.</p>
+          <p>TODO, 일정, 채팅, 알림, 타이머는 서버에 남은 값을 기준으로 표시합니다.</p>
         </GlassPanel>
         <GlassPanel className="widget-preview__policy-card">
-          <b>Tauri SQLite</b>
-          <p>빠른 표시, 상세 사용 이벤트, 타이머 복구, 동기화 대기열에 사용합니다.</p>
+          <b>기기 안 기록</b>
+          <p>빠른 표시, 상세 사용 기록, 타이머 복구, 전송 대기 작업에 사용합니다.</p>
         </GlassPanel>
         <GlassPanel className="widget-preview__policy-card">
           <b>개인 영역</b>

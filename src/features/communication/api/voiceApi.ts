@@ -1,18 +1,20 @@
 import { apiRequest } from "@/lib/api/client";
-import type { VoiceTokenResponse } from "@/types/api/voice";
+import type { VoiceRoomCreateRequest, VoiceRoomResponse, VoiceTokenResponse } from "@/types/api/voice";
 
 export const voiceApi = {
-  getToken(voiceRoomId: string) {
-    return apiRequest<VoiceTokenResponse>(`/api/voice/rooms/${voiceRoomId}/token`, {
+  createRoom(body: VoiceRoomCreateRequest) {
+    return apiRequest<VoiceRoomResponse>("/api/voice/rooms", {
+      body,
       method: "POST",
     });
   },
 
-  getGuestToken(voiceRoomId: string, guestToken: string) {
-    return apiRequest<VoiceTokenResponse>(`/api/voice/rooms/${voiceRoomId}/guest-token`, {
-      body: {
-        guestToken,
-      },
+  getRoom(voiceRoomId: string) {
+    return apiRequest<VoiceRoomResponse>(`/api/voice/rooms/${voiceRoomId}`);
+  },
+
+  getToken(voiceRoomId: string) {
+    return apiRequest<VoiceTokenResponse>(`/api/voice/rooms/${voiceRoomId}/token`, {
       method: "POST",
     });
   },

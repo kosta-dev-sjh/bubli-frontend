@@ -1,13 +1,16 @@
+import type { CSSProperties, ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import { StatusBadge } from "@/components/ui/status-badge";
 
 const meta = {
+  tags: ["uikit", "primitive"],
   component: StatusBadge,
   parameters: {
     docs: {
       description: {
-        component: "기획서의 후보, 확인 필요 항목, 승인 상태를 화면에서 일관되게 표시하는 배지입니다.",
+        component:
+          "상태 신호 배지입니다. 상태색은 면 전체가 아니라 작은 dot·rim·text에만 들어갑니다(Paper Glass 면 + 신호 dot). Sky Opal 신호색만 사용(청록/민트 금지).",
       },
     },
   },
@@ -18,17 +21,107 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const PlanningStates: Story = {
+const row: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8, maxWidth: 680, alignItems: "center" };
+
+// 필수 tone: todo / agent / memo / alert / ok / neutral (+ 기존 tone 호환)
+export const Tones: Story = {
   render: () => (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, maxWidth: 640 }}>
-      <StatusBadge tone="room">프로젝트룸 자료</StatusBadge>
-      <StatusBadge tone="personal">개인 자료</StatusBadge>
-      <StatusBadge tone="warning">확인 필요</StatusBadge>
+    <div style={row}>
+      <StatusBadge tone="todo">할 일</StatusBadge>
+      <StatusBadge tone="agent">에이전트</StatusBadge>
+      <StatusBadge tone="memo">메모</StatusBadge>
+      <StatusBadge tone="warning">확인 필요(alert)</StatusBadge>
+      <StatusBadge tone="approved">완료(ok)</StatusBadge>
+      <StatusBadge tone="neutral">중립</StatusBadge>
       <StatusBadge tone="pending">후보</StatusBadge>
-      <StatusBadge tone="approved">승인됨</StatusBadge>
-      <StatusBadge tone="agent">프로젝트룸 에이전트</StatusBadge>
-      <StatusBadge tone="communication">소통</StatusBadge>
+      <StatusBadge tone="room">룸 자료</StatusBadge>
+      <StatusBadge tone="personal">개인 자료</StatusBadge>
       <StatusBadge tone="timer">타이머</StatusBadge>
     </div>
+  ),
+};
+
+export const Default: Story = {
+  render: () => (
+    <div style={row}>
+      <StatusBadge tone="pending">후보</StatusBadge>
+      <StatusBadge tone="agent">에이전트</StatusBadge>
+      <StatusBadge tone="approved">승인됨</StatusBadge>
+    </div>
+  ),
+};
+
+export const Hover: Story = {
+  render: () => (
+    <div style={row}>
+      <StatusBadge className="is-hover" tone="pending">
+        후보
+      </StatusBadge>
+      <StatusBadge className="is-hover" tone="agent">
+        에이전트
+      </StatusBadge>
+    </div>
+  ),
+};
+
+export const Focus: Story = {
+  render: () => (
+    <div style={row}>
+      <StatusBadge className="is-focus" tone="pending">
+        후보
+      </StatusBadge>
+    </div>
+  ),
+};
+
+export const Selected: Story = {
+  render: () => (
+    <div style={row}>
+      <StatusBadge selected tone="todo">
+        할 일
+      </StatusBadge>
+      <StatusBadge tone="todo">할 일</StatusBadge>
+      <StatusBadge className="is-selected" tone="agent">
+        에이전트
+      </StatusBadge>
+    </div>
+  ),
+};
+
+export const Disabled: Story = {
+  render: () => (
+    <div style={row}>
+      <StatusBadge disabled tone="pending">
+        후보
+      </StatusBadge>
+      <StatusBadge disabled tone="agent">
+        에이전트
+      </StatusBadge>
+    </div>
+  ),
+};
+
+function DarkFrame({ children }: { children: ReactNode }) {
+  return (
+    <div
+      data-theme="dark"
+      style={{ background: "#161E2E", borderRadius: 20, padding: 28, display: "flex", flexWrap: "wrap", gap: 8 }}
+    >
+      {children}
+    </div>
+  );
+}
+
+export const Dark: Story = {
+  parameters: { backgrounds: { default: "dark" } },
+  render: () => (
+    <DarkFrame>
+      <StatusBadge tone="todo">할 일</StatusBadge>
+      <StatusBadge tone="agent">에이전트</StatusBadge>
+      <StatusBadge tone="approved">승인됨</StatusBadge>
+      <StatusBadge selected tone="todo">
+        선택됨
+      </StatusBadge>
+    </DarkFrame>
   ),
 };

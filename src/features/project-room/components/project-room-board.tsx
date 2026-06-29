@@ -2,8 +2,6 @@ import {
   CalendarClock,
   CheckCircle2,
   FileUp,
-  Link2,
-  MessageCircle,
   Plus,
   UserPlus,
   UsersRound,
@@ -18,7 +16,6 @@ import { StatusBadge } from "@/components/ui/status-badge";
 
 type ProjectRoomRole = "PROJECT_LEADER" | "MEMBER";
 type ProjectRoomStatus = "active" | "review" | "archived";
-type InviteMethod = "friend" | "link" | "guest";
 
 type ProjectRoomItem = {
   checkNeededCount: number;
@@ -41,7 +38,8 @@ type MemberItem = {
 
 type InvitePolicy = {
   description: string;
-  method: InviteMethod;
+  id: string;
+  icon: typeof UserPlus;
   title: string;
 };
 
@@ -94,18 +92,15 @@ const members: MemberItem[] = [
 const invitePolicies: InvitePolicy[] = [
   {
     description: "수락된 친구 목록에서 선택해 프로젝트룸 멤버로 초대합니다.",
-    method: "friend",
+    icon: UserPlus,
+    id: "friend",
     title: "친구 초대",
   },
   {
-    description: "아직 친구가 아닌 로그인 사용자에게 7일 만료 링크를 보낼 수 있습니다.",
-    method: "link",
-    title: "링크 초대",
-  },
-  {
-    description: "비회원은 임시 이름으로 채팅과 보이스챗에만 2시간 참여합니다.",
-    method: "guest",
-    title: "게스트 참여",
+    description: "초대를 수락한 뒤에만 자료, WBS/TODO, 일정, 채팅 접근 권한을 부여합니다.",
+    icon: CheckCircle2,
+    id: "accepted-member",
+    title: "수락 후 멤버 권한",
   },
 ];
 
@@ -201,26 +196,20 @@ function CreationFlow() {
 }
 
 function InvitePanel() {
-  const iconByMethod = {
-    friend: UserPlus,
-    guest: MessageCircle,
-    link: Link2,
-  } satisfies Record<InviteMethod, typeof UserPlus>;
-
   return (
     <GlassPanel className="project-room-invite">
       <div className="project-room-panel-head">
         <div>
           <h3>초대와 참여 기준</h3>
-          <p>프로젝트 리더가 친구, 링크, 게스트 참여를 상황에 맞게 관리합니다.</p>
+          <p>프로젝트 리더가 수락된 친구 목록에서 프로젝트룸 멤버를 초대합니다.</p>
         </div>
         <Chip selected>프로젝트룸 단위</Chip>
       </div>
       <div className="project-room-invite__grid">
         {invitePolicies.map((policy) => {
-          const Icon = iconByMethod[policy.method];
+          const Icon = policy.icon;
           return (
-            <article className="project-room-policy" key={policy.method}>
+            <article className="project-room-policy" key={policy.id}>
               <span className="bubli-icon-tile" aria-hidden="true">
                 <Icon size={17} strokeWidth={2.1} />
               </span>
@@ -232,9 +221,7 @@ function InvitePanel() {
           );
         })}
       </div>
-      <div className="project-room-guardrail">
-        게스트는 자료, WBS/TODO, 일정, 멤버 목록, 위젯 표시 대상에 들어가지 않습니다.
-      </div>
+      <div className="project-room-guardrail">수락된 멤버만 자료, WBS/TODO, 일정, 멤버 목록을 볼 수 있습니다.</div>
     </GlassPanel>
   );
 }
@@ -276,7 +263,7 @@ export function ProjectRoomBoard() {
       <SectionHeading
         eyebrow="프로젝트룸"
         title="프로젝트를 혼자 시작하고, 필요할 때 함께 봅니다"
-        description="프로젝트룸은 자료, WBS, TODO, 채팅을 프로젝트 단위로 묶는 공간입니다. 혼자 만들 수 있고, 친구나 링크로 멤버를 초대할 수 있습니다."
+        description="프로젝트룸은 자료, WBS, TODO, 채팅을 프로젝트 단위로 묶는 공간입니다. 혼자 만들 수 있고, 필요하면 친구 목록에서 멤버를 초대할 수 있습니다."
       />
 
       <div className="project-room-board__summary">

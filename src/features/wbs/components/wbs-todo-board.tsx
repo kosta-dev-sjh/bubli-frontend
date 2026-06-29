@@ -19,13 +19,13 @@ const flowSteps = [
     title: "하나의 TODO",
   },
   {
-    body: "같은 TODO가 작업판, 대시보드, 버블, 캘린더에 표시됩니다.",
+    body: "같은 TODO가 작업판, 대시보드, 버블, 일정에 표시됩니다.",
     title: "실행 화면 연결",
   },
 ];
 
 const treeItems = [
-  { code: "1", title: "번역 프로젝트 관리", count: "8개 작업" },
+  { code: "1", title: "번역 작업 구조", count: "8개 작업" },
   { code: "1.1", title: "착수와 계획 수립", count: "4개 작업" },
   { code: "1.2", title: "번역본 작성", count: "6개 작업" },
   { code: "1.3", title: "검수와 납품", count: "5개 작업" },
@@ -94,21 +94,12 @@ const targets = [
   { icon: KanbanSquare, text: "상태 변경과 담당 작업 확인", title: "작업판" },
   { icon: LayoutDashboard, text: "내 TODO와 확인 필요 항목 표시", title: "대시보드" },
   { icon: MonitorUp, text: "작업 중 TODO 버블로 빠르게 확인", title: "버블" },
-  { icon: CalendarDays, text: "마감과 일정 후보 연결", title: "캘린더" },
+  { icon: CalendarDays, text: "마감과 일정 후보 연결", title: "일정" },
 ];
 
 export function WbsTodoBoard() {
   return (
     <section className="work-board" aria-label="WBS와 TODO 작업판">
-      <div className="work-board__flow" aria-label="WBS 후보에서 실행 화면까지의 흐름">
-        {flowSteps.map((step) => (
-          <GlassPanel className="work-board__flow-step" key={step.title}>
-            <b>{step.title}</b>
-            <span>{step.body}</span>
-          </GlassPanel>
-        ))}
-      </div>
-
       <div className="work-board__focus">
         <GlassPanel className="work-board__todo">
           <StatusBadge tone="todo">하나의 TODO</StatusBadge>
@@ -129,6 +120,18 @@ export function WbsTodoBoard() {
             );
           })}
         </div>
+      </div>
+
+      <div className="work-board__flow" aria-label="WBS 후보에서 실행 화면까지의 흐름">
+        {flowSteps.map((step, index) => (
+          <GlassPanel className="work-board__flow-step" key={step.title}>
+            <StatusBadge tone={index === 2 ? "todo" : "personal"}>{String(index + 1).padStart(2, "0")}</StatusBadge>
+            <div>
+              <b>{step.title}</b>
+              <span>{step.body}</span>
+            </div>
+          </GlassPanel>
+        ))}
       </div>
 
       <div className="work-board__grid">

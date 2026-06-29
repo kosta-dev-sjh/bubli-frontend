@@ -37,7 +37,7 @@ const checkItems = [
   ["납품물", "금액보다 작업 범위와 납품 기준을 함께 확인"],
 ];
 
-const boundaryItems = ["프로젝트 상세 안에서 표시", "문서 조건 확인 중심", "복잡한 금액 계산 제외", "작업 버블과 분리"];
+const boundaryItems = ["프로젝트룸 참고 정보로 표시", "문서 조건 확인 중심", "복잡한 금액 계산 제외", "작업 버블과 분리"];
 
 export function ProjectReferenceInfo() {
   return (
@@ -51,7 +51,7 @@ export function ProjectReferenceInfo() {
           <div className={styles.titleGroup}>
             <h2 className={styles.title}>계약 금액은 작업 기준을 확인하는 참고값입니다</h2>
             <p className={styles.summary}>
-              Bubli는 계약서와 견적서에서 금액, 지급 조건, 입금 예정일 후보를 뽑아 프로젝트 상세에서 함께 보여줍니다. 이 값은
+              Bubli는 계약서와 견적서에서 금액, 지급 조건, 입금 예정일 후보를 뽑아 프로젝트룸 참고 정보로 함께 보여줍니다. 이 값은
               작업 범위와 마감 확인을 돕는 보조 정보로 다룹니다.
             </p>
           </div>
@@ -109,7 +109,7 @@ export function ProjectReferenceInfo() {
 
       <footer className={styles.footer}>
         <Chip selected icon={<CalendarClock size={14} aria-hidden="true" />}>
-          프로젝트 상세에서만 표시
+          프로젝트룸 참고 정보로 표시
         </Chip>
         <Chip icon={<FileCheck2 size={14} aria-hidden="true" />}>사용자 확인 후 저장</Chip>
         <Chip icon={<CircleDollarSign size={14} aria-hidden="true" />}>작업 범위 확인 보조</Chip>

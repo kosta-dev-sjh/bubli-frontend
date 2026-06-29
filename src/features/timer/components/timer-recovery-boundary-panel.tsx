@@ -65,40 +65,40 @@ const syncStatusMeta: Record<SyncItemStatus, { label: string; tone: StatusTone }
 };
 
 export const defaultTimerRecoveryState: TimerRecoveryState = {
-  heartbeatLabel: "마지막 heartbeat 58초 전",
-  localStateLabel: "local_timer_state 저장됨",
-  serverTimeLabel: "time_logs 03:42:18",
+  heartbeatLabel: "마지막 연결 확인 58초 전",
+  localStateLabel: "기기 안 복구 상태 저장됨",
+  serverTimeLabel: "서버 기록 03:42:18",
   status: "RUNNING",
   taskTitle: "1차 번역본 검토",
 };
 
 export const defaultSyncItems: SyncItem[] = [
   {
-    description: "타이머 시작과 종료는 서버 time_logs에 바로 반영합니다.",
-    label: "time_logs",
+    description: "타이머 시작과 종료는 서버 작업 시간 기록에 바로 반영합니다.",
+    label: "서버 작업시간",
     status: "SENT",
   },
   {
-    description: "앱이 꺼져도 이어서 확인할 수 있도록 실행 중 상태를 로컬에 남깁니다.",
-    label: "local_timer_state",
+    description: "앱이 꺼져도 이어서 확인할 수 있도록 실행 중 상태를 기기 안에 남깁니다.",
+    label: "기기 안 복구 상태",
     status: "SENT",
   },
   {
-    description: "네트워크가 끊긴 동안 생긴 이벤트는 재연결 후 idempotency_key 기준으로 보냅니다.",
-    label: "local_sync_outbox",
+    description: "네트워크가 끊긴 동안 생긴 이벤트는 재연결 후 중복되지 않게 보냅니다.",
+    label: "전송 대기열",
     status: "WAITING",
   },
 ];
 
 export const defaultTimerRules: TimerRule[] = [
   {
-    description: "총 작업시간과 진행 중 타이머는 웹에서도 보여야 하므로 서버 time_logs를 원본으로 둡니다.",
-    label: "서버 원본",
+    description: "총 작업시간과 진행 중 타이머는 웹에서도 보여야 하므로 서버 작업 시간 기록을 기준으로 둡니다.",
+    label: "서버 기록",
     tone: "timer",
   },
   {
     description: "Tauri는 빠른 표시, 비정상 종료 복구, 미전송 작업 대기열을 맡습니다.",
-    label: "로컬 복구",
+    label: "기기 안 복구",
     tone: "personal",
   },
   {
@@ -124,11 +124,11 @@ export function TimerRecoveryBoundaryPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<Clock3 size={16} strokeWidth={2.1} />}>time_logs</Chip>
+          <Chip icon={<Clock3 size={16} strokeWidth={2.1} />}>작업 시간 기록</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              타이머는 서버 기록을 원본으로 두고, Tauri는 실행 중 상태와 미전송 작업을 보관합니다. 앱이 비정상
+              타이머는 서버 기록을 기준으로 두고, Tauri는 실행 중 상태와 미전송 작업을 보관합니다. 앱이 비정상
               종료되어도 마지막 기록을 기준으로 복구할 수 있게 합니다.
             </p>
           </div>
@@ -146,8 +146,8 @@ export function TimerRecoveryBoundaryPanel({
             <Server size={19} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <StatusBadge tone="timer">서버 DB</StatusBadge>
-            <h3>time_logs</h3>
+            <StatusBadge tone="timer">서버 기록</StatusBadge>
+            <h3>작업 시간 기록</h3>
             <p>총 작업시간, 시작, 일시정지, 재개, 종료 이벤트의 기준 기록입니다.</p>
           </div>
         </article>
@@ -170,8 +170,8 @@ export function TimerRecoveryBoundaryPanel({
             <Database size={19} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <StatusBadge tone="personal">Tauri SQLite</StatusBadge>
-            <h3>로컬 상태</h3>
+            <StatusBadge tone="personal">기기 안 저장소</StatusBadge>
+            <h3>복구 상태</h3>
             <p>실행 중 상태, 미전송 이벤트, 복구 안내에 필요한 최근 상태를 보관합니다.</p>
           </div>
         </article>

@@ -47,32 +47,32 @@ const sequenceSteps: SequenceStep[] = [
     description: "웹은 채팅방에 들어갈 때 서버에서 최근 메시지를 받습니다.",
     icon: Server,
     label: "서버 최근 메시지",
-    metric: "latestRoomSequence",
-    owner: "chat_messages",
+    metric: "최근 메시지 기준",
+    owner: "서버 채팅 원본",
     tone: "room",
   },
   {
-    description: "Tauri는 로컬 캐시를 먼저 보여주고 누락 메시지를 서버에서 보충합니다.",
+    description: "앱은 기기 안 최근 대화를 먼저 보여주고 누락 메시지를 서버에서 보충합니다.",
     icon: Laptop,
-    label: "Tauri 빠른 표시",
-    metric: "local_room_message_cache",
-    owner: "Tauri SQLite",
+    label: "앱 빠른 표시",
+    metric: "최근 대화 임시 보관",
+    owner: "기기 안 저장소",
     tone: "personal",
   },
   {
     description: "누락분은 마지막으로 받은 순서값 다음부터 요청합니다.",
     icon: ArrowDownToLine,
     label: "누락 보충",
-    metric: "afterSequence",
-    owner: "GET messages",
+    metric: "빠진 구간 요청",
+    owner: "서버 메시지 조회",
     tone: "pending",
   },
   {
     description: "읽음 위치는 사용자가 확인한 마지막 순서값으로 저장합니다.",
     icon: CheckCircle2,
     label: "읽음 반영",
-    metric: "lastReadSequence",
-    owner: "PATCH read",
+    metric: "마지막 읽음 기준",
+    owner: "읽음 상태 저장",
     tone: "approved",
   },
 ];
@@ -80,21 +80,21 @@ const sequenceSteps: SequenceStep[] = [
 const messageTrace: MessageTrace[] = [
   {
     body: "계약서 기준으로 납품일 확인 부탁드려요.",
-    clientMessageId: "client-8a1",
+    clientMessageId: "전송 ID A",
     roomSequence: 128,
     state: "read",
     writer: "정현",
   },
   {
     body: "/bubli 질문 후보 정리",
-    clientMessageId: "client-8a2",
+    clientMessageId: "전송 ID B",
     roomSequence: 129,
     state: "serverSaved",
     writer: "민준",
   },
   {
     body: "에이전트가 확인 질문 3개를 제안했어요.",
-    clientMessageId: "agent-129",
+    clientMessageId: "에이전트 응답 ID",
     roomSequence: 130,
     state: "cached",
     writer: "Bubli",
@@ -103,29 +103,29 @@ const messageTrace: MessageTrace[] = [
 
 const syncRules: SyncRule[] = [
   {
-    detail: "전송 완료는 낙관 표시가 아니라 서버가 반환한 `messageId`와 `roomSequence`를 기준으로 봅니다.",
+    detail: "전송 완료는 임시 표시가 아니라 서버가 확인한 메시지 ID와 순서값을 기준으로 봅니다.",
     label: "전송 기준",
-    token: "messageId",
+    token: "메시지 ID",
   },
   {
-    detail: "이전 메시지는 `beforeSequence`로 불러오고, 새 메시지는 WebSocket 이벤트를 먼저 받습니다.",
+    detail: "이전 메시지는 현재 위치 앞쪽으로 불러오고, 새 메시지는 실시간 이벤트를 먼저 받습니다.",
     label: "양방향 로딩",
-    token: "beforeSequence",
+    token: "이전 메시지",
   },
   {
     detail: "캐시가 비었거나 손상되면 서버 최근 메시지로 다시 채웁니다.",
     label: "캐시 복구",
-    token: "latestRoomSequence",
+    token: "최근 메시지",
   },
   {
-    detail: "프로젝트룸 이벤트는 별도 topic으로 받고, 채팅 본문은 채팅 topic으로 받습니다.",
-    label: "topic 분리",
-    token: "RealtimeEnvelope",
+    detail: "프로젝트룸 이벤트와 채팅 본문은 서로 다른 실시간 통로로 받습니다.",
+    label: "실시간 통로 분리",
+    token: "연결 이벤트",
   },
 ];
 
 const stateMeta: Record<MessageTrace["state"], { label: string; tone: "approved" | "pending" | "personal" }> = {
-  cached: { label: "캐시 반영", tone: "personal" },
+  cached: { label: "기기 안 반영", tone: "personal" },
   read: { label: "읽음", tone: "approved" },
   serverSaved: { label: "서버 저장", tone: "pending" },
 };
@@ -188,16 +188,16 @@ export function ChatSequenceLoadingBoundaryPanel() {
           <Chip icon={<MessageSquareText size={14} />} selected>
             채팅 로딩 기준
           </Chip>
-          <h2>채팅은 page가 아니라 roomSequence로 이어 붙입니다</h2>
+          <h2>채팅은 메시지 순서값으로 이어 붙입니다</h2>
           <p>
-            프로젝트룸 채팅과 1:1 채팅은 서버 DB의 메시지를 원본으로 봅니다. 웹은 서버에서 바로 읽고,
-            Tauri는 로컬 캐시를 먼저 보여준 뒤 빠진 메시지를 sequence 기준으로 보충합니다.
+            프로젝트룸 채팅과 1:1 채팅은 서버에 남은 메시지를 기준으로 봅니다. 웹은 서버에서 바로 읽고,
+            데스크탑 앱은 기기 안 최근 대화를 먼저 보여준 뒤 빠진 메시지를 서버 순서값 기준으로 보충합니다.
           </p>
         </div>
         <div className={styles.heroMetric}>
           <StatusBadge tone="approved">서버 원본</StatusBadge>
           <strong>130</strong>
-          <span>latestRoomSequence</span>
+          <span>최근 메시지 기준</span>
           <ProgressBar label="현재 채팅 동기화율" value={92} />
         </div>
       </GlassPanel>
@@ -225,7 +225,7 @@ export function ChatSequenceLoadingBoundaryPanel() {
         <GlassPanel className={styles.tracePanel}>
           <div className={styles.sectionTitle}>
             <h3>메시지 순서 예시</h3>
-            <p>`clientMessageId`는 전송 중복을 막고, `roomSequence`는 화면 정렬 기준이 됩니다.</p>
+            <p>전송 ID는 중복 전송을 막고, 메시지 순서값은 화면 정렬 기준이 됩니다.</p>
           </div>
           <div className={styles.traceList}>
             {messageTrace.map((item) => (
@@ -237,7 +237,7 @@ export function ChatSequenceLoadingBoundaryPanel() {
         <GlassPanel className={styles.rulePanel}>
           <div className={styles.sectionTitle}>
             <h3>구현 규칙</h3>
-            <p>웹, Tauri, WebSocket이 같은 메시지를 다룰 때 지켜야 하는 기준입니다.</p>
+            <p>웹, 데스크탑 앱, 실시간 연결이 같은 메시지를 다룰 때 지켜야 하는 기준입니다.</p>
           </div>
           <div className={styles.ruleList}>
             {syncRules.map((rule) => (
@@ -246,9 +246,9 @@ export function ChatSequenceLoadingBoundaryPanel() {
           </div>
           <div className={styles.topicBox}>
             <RadioTower size={16} strokeWidth={2.1} />
-            <span>/topic/chat/{"{chatRoomId}"}</span>
+            <span>채팅 실시간 연결</span>
             <ArrowLeftRight size={14} strokeWidth={2.1} />
-            <span>/topic/project-rooms/{"{roomId}"}/events</span>
+            <span>프로젝트룸 이벤트 연결</span>
           </div>
           <div className={styles.notice}>
             <BellRing size={16} strokeWidth={2.1} />
@@ -256,9 +256,9 @@ export function ChatSequenceLoadingBoundaryPanel() {
           </div>
           <div className={styles.notice}>
             <History size={16} strokeWidth={2.1} />
-            <p>Tauri 캐시는 빠른 표시용입니다. 비어 있으면 서버 최근 메시지로 다시 채웁니다.</p>
+            <p>기기 안 임시 보관은 빠른 표시용입니다. 비어 있으면 서버 최근 메시지로 다시 채웁니다.</p>
           </div>
-          <Chip icon={<Database size={14} />}>원본은 chat_messages, 로컬은 local_room_message_cache</Chip>
+          <Chip icon={<Database size={14} />}>원본은 서버 채팅, 기기 안 기록은 빠른 표시용</Chip>
         </GlassPanel>
       </div>
     </section>

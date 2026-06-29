@@ -28,5 +28,20 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Product rules
+        run: npm run check:product-rules
+
+      - name: Design tokens
+        run: npm run check:design-tokens
+
+      - name: Tauri boundaries
+        run: npm run check:tauri-boundaries
+
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Build
         run: npm run build
+
+      - name: Build Storybook
+        run: npm run build-storybook

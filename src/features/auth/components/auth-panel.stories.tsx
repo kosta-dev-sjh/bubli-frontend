@@ -15,13 +15,5 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Login: Story = {
-  args: {
-    mode: "login",
-  },
-};
-
-export const Signup: Story = {
-  args: {
-    mode: "signup",
-  },
+  args: {},
 };

@@ -63,7 +63,7 @@ const meta = {
       <ProjectRoomSwitcherPanel {...args} />
     </main>
   ),
-  title: "features/project-room/ProjectRoomSwitcherPanel",
+  title: "Features/ProjectRoom/ProjectRoomSwitcherPanel",
 } satisfies Meta<typeof ProjectRoomSwitcherPanel>;
 
 export default meta;

@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   Bot,
@@ -118,7 +120,7 @@ const defaultCandidate: WbsCandidate = {
 const defaultTask: LinkedTask = {
   assigneeLabel: "담당자 나",
   dueLabel: "D-2",
-  idLabel: "task_id로 연결",
+  idLabel: "같은 TODO로 연결",
   progress: 46,
   status: "IN_PROGRESS",
   title: "1차 번역본 검토",
@@ -129,25 +131,25 @@ const defaultSurfaces: LinkedSurface[] = [
     description: "WBS 트리와 칸반은 같은 작업을 다른 방식으로 보여줍니다.",
     id: "board",
     label: "WBS/작업판",
-    sourceLabel: "wbs_items + tasks",
+    sourceLabel: "WBS와 TODO 원본",
   },
   {
     description: "담당자 기준으로 내 TODO와 확인할 항목에 함께 표시됩니다.",
     id: "dashboard",
     label: "대시보드",
-    sourceLabel: "GET /api/dashboard/tasks",
+    sourceLabel: "대시보드 표시 데이터",
   },
   {
     description: "작업 중 필요한 제목, 마감, 상태만 버블에 띄웁니다.",
     id: "bubble",
     label: "TODO 버블",
-    sourceLabel: "GET /api/widget/summary",
+    sourceLabel: "버블 표시 데이터",
   },
   {
-    description: "마감과 일정은 같은 작업의 schedule 연결로 관리합니다.",
+    description: "마감과 일정은 같은 작업의 일정 정보로 함께 관리합니다.",
     id: "schedule",
-    label: "일정/캘린더",
-    sourceLabel: "schedules.task_id",
+    label: "일정",
+    sourceLabel: "일정 연결 정보",
   },
 ];
 
@@ -175,8 +177,8 @@ export function WbsTodoLinkagePanel({
           <Chip icon={<Workflow size={14} />}>WBS/TODO 연결</Chip>
           <h2>WBS 후보를 하나의 TODO로 연결</h2>
           <p>
-            에이전트 후보는 사용자가 승인하기 전까지 확정 데이터가 아닙니다. 승인된 작업만
-            tasks를 기준으로 여러 실행 화면에 함께 보입니다.
+            에이전트 후보는 사용자가 승인하기 전까지 확정 데이터가 아닙니다. 승인된 작업만 하나의
+            TODO를 기준으로 여러 실행 화면에 함께 보입니다.
           </p>
         </div>
         <StatusBadge tone={candidateTone[candidate.status]}>{candidateStatusCopy[candidate.status]}</StatusBadge>
@@ -228,7 +230,7 @@ export function WbsTodoLinkagePanel({
             <Chip>{task.idLabel}</Chip>
           </div>
           <ProgressBar label="진행률" value={task.progress} />
-          <p className={styles.taskNote}>복사본을 만들지 않고 같은 task를 각 화면에서 조회합니다.</p>
+          <p className={styles.taskNote}>복사본을 만들지 않고 같은 TODO를 각 화면에서 함께 봅니다.</p>
         </section>
 
         <section className={styles.surfaceGrid} aria-label="연결된 실행 화면">
@@ -261,17 +263,17 @@ export function WbsTodoLinkagePanel({
         <article>
           <Sparkles size={17} strokeWidth={2.1} />
           <h3>후보 생성</h3>
-          <p>에이전트는 WBS와 TODO 후보를 만들고 상태를 DRAFT로 둡니다.</p>
+          <p>에이전트는 WBS와 TODO 후보를 만들고 승인 전 상태로 둡니다.</p>
         </article>
         <article>
           <CheckCircle2 size={17} strokeWidth={2.1} />
           <h3>확정 반영</h3>
-          <p>사용자 승인 후 API가 tasks, wbs_items, schedules에 반영합니다.</p>
+          <p>사용자가 승인한 뒤 서버 원본 작업, WBS, 일정에 반영합니다.</p>
         </article>
         <article>
           <Link2 size={17} strokeWidth={2.1} />
           <h3>중복 방지</h3>
-          <p>대시보드와 버블은 같은 작업을 담당자와 task_id 기준으로 조회합니다.</p>
+          <p>대시보드와 버블은 같은 TODO를 담당자 기준으로 함께 보여줍니다.</p>
         </article>
       </section>
 

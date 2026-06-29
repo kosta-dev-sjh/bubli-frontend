@@ -1,0 +1,26 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Bubli">
+  <defs>
+    <linearGradient id="rim-l" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9ED8FF"/>
+      <stop offset="38%" stop-color="#DCD8F8"/>
+      <stop offset="70%" stop-color="#F6DDEB"/>
+      <stop offset="100%" stop-color="#9ED8FF"/>
+    </linearGradient>
+    <radialGradient id="fill-l" cx="40%" cy="34%" r="72%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="68%" stop-color="#CFE6FA" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#BFD3F2" stop-opacity="0.40"/>
+    </radialGradient>
+  </defs>
+  <!-- main soap bubble: see-through interior + iridescent rim -->
+  <circle cx="13.8" cy="16.6" r="9.2" fill="url(#fill-l)"/>
+  <circle cx="13.8" cy="16.6" r="9.2" fill="none" stroke="url(#rim-l)" stroke-width="1.9"/>
+  <circle cx="13.8" cy="16.6" r="8.2" fill="none" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="0.7"/>
+  <!-- shine arc + specular dot -->
+  <path d="M8 13.4A7 7 0 0 1 12.4 9.5" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.9"/>
+  <circle cx="10.4" cy="12.3" r="1.1" fill="#FFFFFF" opacity="0.95"/>
+  <!-- small companion bubble -->
+  <circle cx="25.2" cy="8.4" r="3.4" fill="url(#fill-l)"/>
+  <circle cx="25.2" cy="8.4" r="3.4" fill="none" stroke="url(#rim-l)" stroke-width="1.1"/>
+  <circle cx="24.1" cy="7.3" r="0.7" fill="#FFFFFF" opacity="0.95"/>
+</svg>

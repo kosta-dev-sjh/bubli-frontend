@@ -115,7 +115,7 @@ export function GoogleCalendarSyncPanel() {
             <span className="bubli-icon-tile" aria-hidden="true">
               <CheckCircle2 size={16} strokeWidth={2.1} />
             </span>
-            <p>에이전트가 만든 일정 후보는 사용자가 승인한 뒤 schedules에 저장합니다.</p>
+            <p>에이전트가 만든 일정 후보는 사용자가 승인한 뒤 Bubli 일정에 저장합니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">

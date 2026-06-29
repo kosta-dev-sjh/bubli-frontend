@@ -50,21 +50,21 @@ const readRooms: ReadRoom[] = [
 const notifications: NotificationItem[] = [
   {
     id: "notice-1",
-    source: "chat_messages",
+    source: "채팅 메시지",
     status: "UNREAD",
     title: "새 프로젝트룸 메시지 3개",
     updatedAt: "방금 전",
   },
   {
     id: "notice-2",
-    source: "agent_jobs",
+    source: "에이전트 정리",
     status: "READ",
     title: "에이전트 정리 완료",
     updatedAt: "12분 전",
   },
   {
     id: "notice-3",
-    source: "resource_versions",
+    source: "자료 새 버전",
     status: "ARCHIVED",
     title: "자료 새 버전 알림 보관",
     updatedAt: "어제",
@@ -97,15 +97,15 @@ export function ChatReadStatePanel() {
 
       <div className={styles.summaryGrid} aria-label="읽음 처리 요약">
         <SummaryCard icon={<BellDot size={18} />} label="읽지 않은 메시지" value={`${totalUnread}개`} />
-        <SummaryCard icon={<Eye size={18} />} label="저장 위치" value="last_read_at" />
-        <SummaryCard icon={<Radio size={18} />} label="전달 경로" value="/user/queue" />
+        <SummaryCard icon={<Eye size={18} />} label="저장 기준" value="마지막 읽음 시각" />
+        <SummaryCard icon={<Radio size={18} />} label="전달 경로" value="개인 알림 연결" />
       </div>
 
       <div className={styles.contentGrid}>
         <section className={styles.section} aria-labelledby="read-room-title">
           <div className={styles.sectionHeader}>
             <h3 id="read-room-title">채팅방별 읽음 기준</h3>
-            <span>room_sequence 이후 메시지를 읽지 않은 메시지로 봅니다.</span>
+            <span>마지막으로 읽은 메시지 이후를 읽지 않은 메시지로 봅니다.</span>
           </div>
           <div className={styles.roomList}>
             {readRooms.map((room) => (
@@ -156,7 +156,7 @@ function ReadRoomRow({ room }: { room: ReadRoom }) {
       <div className={styles.roomMain}>
         <strong>{room.roomTitle}</strong>
         <span>
-          마지막 읽음 {room.lastReadAt} · sequence {room.lastSequence}
+          마지막 읽음 {room.lastReadAt} · 메시지 {room.lastSequence}
         </span>
       </div>
       <StatusBadge tone={hasUnread ? "pending" : "success"}>{hasUnread ? `${room.unreadCount}개` : "읽음"}</StatusBadge>

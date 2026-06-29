@@ -1,5 +1,16 @@
 import { PageHeading } from "@/components/ui/page-heading";
-import { CommunicationPanel } from "@/features/communication/components/communication-panel";
+import {
+  ChatMessageComposer,
+  ChatReadStatePanel,
+  ChatRoomListPanel,
+  CommunicationPanel,
+  FriendInvitePanel,
+  FriendRequestInbox,
+  FriendSearchPanel,
+  RealtimeConnectionStatusPanel,
+  RoomAgentCommand,
+  VoiceSessionPanel,
+} from "@/features/communication/components";
 
 export default function ChatPage() {
   return (
@@ -10,6 +21,15 @@ export default function ChatPage() {
       />
       <div className="page-grid">
         <CommunicationPanel />
+        <FriendSearchPanel />
+        <FriendRequestInbox />
+        <FriendInvitePanel />
+        <ChatRoomListPanel />
+        <ChatMessageComposer />
+        <RoomAgentCommand />
+        <ChatReadStatePanel />
+        <RealtimeConnectionStatusPanel appMode="web" connectionState="CONNECTED" />
+        <VoiceSessionPanel />
       </div>
     </>
   );

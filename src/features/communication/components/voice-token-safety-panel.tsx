@@ -52,7 +52,7 @@ export function VoiceTokenSafetyPanel({
   participants,
   roomLabel,
   rules,
-  title = "보이스챗 토큰 안전 기준",
+  title = "보이스 참여 권한 기준",
   tokenEndpointLabel,
   ...props
 }: VoiceTokenSafetyPanelProps) {
@@ -68,7 +68,7 @@ export function VoiceTokenSafetyPanel({
           <div className="grid gap-1">
             <h2 className="m-0 text-[22px] font-[860] leading-tight text-[var(--color-text)]">{title}</h2>
             <p className="m-0 max-w-[700px] text-[14px] leading-6 text-[var(--color-muted)]">
-              클라이언트는 접속 토큰만 받고, LiveKit key와 secret은 서버에만 둡니다. 게스트는 만료 시간 안에서 채팅과 보이스만 사용할 수 있습니다.
+              앱은 서버가 확인한 보이스 참여 정보만 사용합니다. 내부 키는 서버에만 두고, 보이스 참여는 프로젝트룸 멤버 권한을 기준으로 확인합니다.
             </p>
           </div>
         </div>
@@ -82,13 +82,13 @@ export function VoiceTokenSafetyPanel({
             {roomLabel}
           </div>
           <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">
-            프로젝트룸 소통 화면과 Tauri 보이스 버블은 같은 API와 LiveKit 연결 기준을 사용합니다.
+            프로젝트룸 소통 화면과 앱 보이스 버블은 같은 서버 연결 기준을 사용합니다.
           </p>
         </div>
         <div className="grid gap-2 rounded-[var(--radius-input)] border border-[var(--glass-border)] bg-[rgba(255,255,255,0.62)] p-3">
           <div className="flex items-center gap-2 text-[12.5px] font-[820] text-[var(--color-text)]">
             <KeyRound size={15} strokeWidth={2.1} />
-            토큰 발급 API
+            참여 권한 발급
           </div>
           <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">{tokenEndpointLabel}</p>
         </div>

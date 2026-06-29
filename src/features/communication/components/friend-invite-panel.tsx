@@ -1,4 +1,4 @@
-import { Link2, MessageCircle, ShieldCheck, UserPlus, UsersRound } from "lucide-react";
+import { MessageCircle, ShieldCheck, UserCheck, UserPlus, UsersRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -72,10 +72,10 @@ export function FriendInvitePanel() {
           </span>
           <div>
             <Chip selected>소통</Chip>
-            <h2>친구를 추가하고, 프로젝트룸에는 친구나 제한된 링크로 초대합니다</h2>
+            <h2>친구를 추가하고, 프로젝트룸에는 친구를 초대합니다</h2>
             <p>
-              친구는 1:1 채팅과 프로젝트룸 초대의 기준이 됩니다. 초대 링크로 들어온 게스트는 채팅과 보이스챗만
-              잠깐 사용할 수 있습니다.
+              친구는 1:1 채팅과 프로젝트룸 초대의 기준이 됩니다. 프로젝트룸에는 수락된 친구 목록에서 기존 회원을
+              초대합니다.
             </p>
           </div>
         </div>
@@ -115,15 +115,15 @@ export function FriendInvitePanel() {
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
-              <Link2 size={16} strokeWidth={2.1} />
+              <UserCheck size={16} strokeWidth={2.1} />
             </span>
-            <p>초대 링크는 임시 게스트 입장에 쓰며, 만료 시간과 접근 범위를 제한합니다.</p>
+            <p>초대받은 친구가 수락한 뒤에만 프로젝트룸 멤버 권한이 생깁니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <ShieldCheck size={16} strokeWidth={2.1} />
             </span>
-            <p>게스트는 자료, WBS, 일정, 멤버 목록, 다운로드에 접근하지 못합니다.</p>
+            <p>수락된 멤버만 자료, WBS, 일정, 멤버 목록, 다운로드에 접근합니다.</p>
           </div>
         </GlassPanel>
       </div>

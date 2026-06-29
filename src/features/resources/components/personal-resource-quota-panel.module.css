@@ -1,0 +1,356 @@
+.panel {
+  display: grid;
+  gap: 18px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.titleBlock {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.description {
+  max-width: 880px;
+  margin: 7px 0 0;
+  color: var(--color-muted);
+  font-size: 14.5px;
+  line-height: 1.7;
+}
+
+.summaryCard {
+  display: grid;
+  min-width: 150px;
+  gap: 7px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 13px 14px;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: var(--shadow-soft);
+}
+
+.summaryCard span {
+  color: var(--color-faint);
+  font-size: 11.5px;
+  font-weight: 780;
+  line-height: 1.35;
+}
+
+.summaryCard strong {
+  color: var(--color-blue-deep);
+  font-size: 22px;
+  font-weight: 880;
+  line-height: 1.05;
+}
+
+.usageGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.8fr) minmax(220px, 0.8fr);
+  gap: 10px;
+}
+
+.usageCard,
+.warningCard,
+.pendingCard {
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-panel);
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: var(--shadow-soft);
+}
+
+.usageCard {
+  display: grid;
+  gap: 13px;
+  padding: 15px;
+}
+
+.usageTop {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.usageIcon {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 16px;
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.usageTop strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 17px;
+  font-weight: 880;
+  line-height: 1.2;
+}
+
+.usageTop p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 12.8px;
+  line-height: 1.4;
+}
+
+.progress :global(.bubli-progress__bar) {
+  background: linear-gradient(90deg, var(--color-todo), var(--color-blue));
+}
+
+.progressWarning :global(.bubli-progress__bar) {
+  background: linear-gradient(90deg, var(--color-pearl), var(--color-dust-rose));
+}
+
+.usageMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--color-faint);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.usageMeta b {
+  color: var(--color-blue-deep);
+  font-weight: 880;
+}
+
+.warningCard,
+.pendingCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: center;
+  gap: 11px;
+  padding: 15px;
+  color: var(--color-blue-deep);
+}
+
+.warningCard {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.9), transparent 38%),
+    rgba(232, 196, 160, 0.3);
+}
+
+.pendingCard {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.9), transparent 38%),
+    rgba(215, 234, 244, 0.54);
+}
+
+.warningCard strong,
+.pendingCard strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 14.5px;
+  font-weight: 880;
+  line-height: 1.25;
+}
+
+.warningCard p,
+.pendingCard p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 12.8px;
+  line-height: 1.5;
+}
+
+.fileGrid {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-panel);
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: var(--shadow-soft);
+}
+
+.fileHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fileHeader strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 880;
+  line-height: 1.25;
+}
+
+.fileHeader p {
+  margin: 5px 0 0;
+  color: var(--color-muted);
+  font-size: 12.8px;
+  line-height: 1.5;
+}
+
+.fileStack {
+  display: grid;
+  gap: 9px;
+}
+
+.fileRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: var(--radius-card);
+  padding: 11px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.fileRow.blocked {
+  border-color: rgba(232, 152, 152, 0.38);
+  background:
+    radial-gradient(circle at 15% 0%, rgba(255, 255, 255, 0.88), transparent 36%),
+    rgba(232, 196, 160, 0.22);
+}
+
+.fileIcon {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 13px;
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.fileCopy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.fileCopy b {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 13.5px;
+  font-weight: 860;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileCopy span {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12.2px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileSize {
+  color: var(--color-faint);
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ruleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ruleGrid article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 13px;
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.48);
+  box-shadow: var(--shadow-soft);
+}
+
+.ruleGrid strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 13.5px;
+  font-weight: 860;
+  line-height: 1.25;
+}
+
+.ruleGrid p {
+  margin: 4px 0 7px;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 1040px) {
+  .header {
+    display: grid;
+  }
+
+  .summaryCard {
+    width: 100%;
+  }
+
+  .usageGrid,
+  .ruleGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .usageTop,
+  .fileRow {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .usageTop :global(.bubli-status),
+  .fileRow :global(.bubli-status),
+  .fileSize {
+    grid-column: 1 / -1;
+    width: fit-content;
+  }
+
+  .fileHeader {
+    display: grid;
+  }
+
+  .footer {
+    justify-content: stretch;
+  }
+
+  .footer button {
+    flex: 1 1 170px;
+  }
+}

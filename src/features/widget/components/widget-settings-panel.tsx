@@ -17,25 +17,25 @@ const bubbleSettings: BubbleSetting[] = [
   {
     detail: "오늘 할 일 8개",
     name: "TODO 버블",
-    source: "tasks, widget_item_states",
+    source: "TODO 원본, 버블 항목 상태",
     state: "enabled",
   },
   {
     detail: "후보 3개 검토 대기",
     name: "에이전트 버블",
-    source: "agent_jobs, agent_suggestions",
+    source: "에이전트 작업, 후보 제안",
     state: "pinned",
   },
   {
     detail: "최근 프로젝트룸 메시지",
     name: "소통 버블",
-    source: "chat_messages, notifications",
+    source: "채팅 메시지, 알림",
     state: "enabled",
   },
   {
-    detail: "상세 이벤트는 로컬 보관",
+    detail: "상세 이벤트는 기기 안 보관",
     name: "타이머 버블",
-    source: "time_logs, local_widget_usage_events",
+    source: "작업 시간, 기기 안 사용 기록",
     state: "hidden",
   },
 ];
@@ -79,10 +79,10 @@ export function WidgetSettingsPanel() {
           </span>
           <div>
             <Chip selected>버블 위젯</Chip>
-            <h2>버블은 개인 영역이며, 권한 있는 서버 원본과 로컬 사용 기록을 나눠 표시합니다</h2>
+            <h2>버블은 개인 영역이며, 권한 있는 기준 데이터와 기기 안 기록을 나눠 표시합니다</h2>
             <p>
-              TODO, 일정, 채팅, 에이전트 제안처럼 웹에서도 보여야 하는 값은 서버 원본을 씁니다. 열기, 접기, 클릭,
-              머문 시간 같은 상세 사용 이벤트는 Tauri SQLite에 남깁니다.
+              TODO, 일정, 채팅, 에이전트 제안처럼 웹에서도 보여야 하는 값은 확정된 기준 데이터를 씁니다. 열기, 접기, 클릭,
+              머문 시간 같은 상세 사용 이벤트는 기기 안에 남깁니다.
             </p>
           </div>
         </div>
@@ -117,19 +117,19 @@ export function WidgetSettingsPanel() {
             <span className="bubli-icon-tile" aria-hidden="true">
               <CheckCircle2 size={16} strokeWidth={2.1} />
             </span>
-            <p>확인, 숨김, 고정, 다시 보기 상태는 widget_item_states에 사용자별로 저장합니다.</p>
+            <p>확인, 숨김, 고정, 다시 보기 상태는 사용자별로 저장합니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <Bell size={16} strokeWidth={2.1} />
             </span>
-            <p>알림과 채팅은 서버 원본을 기준으로 표시하고, Tauri는 최근 표시 데이터를 캐시합니다.</p>
+            <p>알림과 채팅은 확정된 기준 데이터로 표시하고, 앱은 최근 표시 데이터를 기기 안에 임시 보관합니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <Clock3 size={16} strokeWidth={2.1} />
             </span>
-            <p>타이머 총 작업시간은 서버 time_logs가 원본이고, 로컬 상태는 복구에 사용합니다.</p>
+            <p>타이머 총 작업시간은 저장된 작업 시간 기록을 기준으로 보고, 기기 안 상태는 복구에 사용합니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">

@@ -65,7 +65,7 @@ export function FriendSearchPanel() {
             사용자를 검색해 친구 요청을 보냅니다. 상대가 수락한 뒤에 1:1 채팅과 프로젝트룸 친구 초대가 열립니다.
           </p>
         </div>
-        <StatusBadge tone="room">서버 DB 기준</StatusBadge>
+        <StatusBadge tone="room">서버 상태 기준</StatusBadge>
       </header>
 
       <form className={styles.searchBox} aria-label="Bubli ID 검색">

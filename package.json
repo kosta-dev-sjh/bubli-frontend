@@ -9,8 +9,16 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "check:design-tokens": "node scripts/check-design-tokens.mjs",
+    "check:product-rules": "node scripts/check-product-rules.mjs",
+    "check:tauri-boundaries": "node scripts/check-tauri-boundaries.mjs",
+    "check:smoke": "node scripts/check-frontend-smoke.mjs",
+    "check:routes": "SMOKE_TARGET=routes node scripts/check-frontend-smoke.mjs",
+    "check:storybook": "SMOKE_TARGET=storybook node scripts/check-frontend-smoke.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
+    "visual:qa": "node scripts/visual-qa.mjs",
+    "storybook:visual": "node scripts/visual-qa.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
@@ -58,6 +66,7 @@
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.0.0",
+    "playwright": "^1.61.1",
     "storybook": "^10.4.6",
     "typescript": "^5.0.0"
   }

@@ -1,0 +1,276 @@
+.panel {
+  display: grid;
+  gap: 18px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.titleBlock {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.description {
+  max-width: 880px;
+  margin: 7px 0 0;
+  color: var(--color-muted);
+  font-size: 14.5px;
+  line-height: 1.7;
+}
+
+.summaryCard {
+  display: grid;
+  min-width: 210px;
+  gap: 7px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: var(--radius-card);
+  padding: 13px 14px;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: var(--shadow-soft);
+}
+
+.summaryCard span {
+  color: var(--color-faint);
+  font-size: 11.5px;
+  font-weight: 780;
+  line-height: 1.35;
+}
+
+.summaryCard strong {
+  overflow: hidden;
+  color: var(--color-blue-deep);
+  font-size: 18px;
+  font-weight: 880;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memoryGrid,
+.memoryCard,
+.centerCard,
+.metrics article,
+.itemCard,
+.ruleGrid article {
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: var(--shadow-soft);
+}
+
+.memoryGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 1.15fr) minmax(0, 1fr);
+  gap: 12px;
+  border-radius: var(--radius-panel);
+  padding: 14px;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(215, 234, 244, 0.48), transparent 38%),
+    rgba(255, 255, 255, 0.38);
+}
+
+.memoryCard,
+.centerCard {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  border-radius: var(--radius-panel);
+  padding: 16px;
+}
+
+.memoryCard {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.centerCard {
+  justify-items: center;
+  border-color: rgba(111, 184, 242, 0.24);
+  border-radius: calc(var(--radius-panel) + 8px);
+  text-align: center;
+  background:
+    radial-gradient(circle at 30% 8%, rgba(255, 255, 255, 0.95), transparent 32%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(215, 234, 244, 0.52));
+}
+
+.iconTile {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 16px;
+  color: var(--color-blue-deep);
+  background:
+    radial-gradient(circle at 30% 15%, rgba(255, 255, 255, 0.92), transparent 44%),
+    rgba(215, 234, 244, 0.52);
+}
+
+.memoryCard h3,
+.centerCard h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: 880;
+  line-height: 1.2;
+}
+
+.centerCard h3 {
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 900;
+}
+
+.memoryCard p,
+.centerCard p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.centerCard > div[role="progressbar"] {
+  width: min(230px, 100%);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metrics article {
+  display: grid;
+  gap: 8px;
+  border-radius: var(--radius-card);
+  padding: 13px;
+}
+
+.metrics span {
+  color: var(--color-faint);
+  font-size: 11.5px;
+  font-weight: 780;
+  line-height: 1.25;
+}
+
+.metrics strong {
+  color: var(--color-text);
+  font-size: 25px;
+  font-weight: 880;
+  line-height: 1;
+}
+
+.itemList {
+  display: grid;
+  gap: 10px;
+}
+
+.itemCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--radius-card);
+  padding: 12px;
+}
+
+.itemMain {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.itemMain strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 860;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemMain p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12.8px;
+  line-height: 1.5;
+}
+
+.ruleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ruleGrid article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  border-radius: var(--radius-card);
+  padding: 13px;
+}
+
+.ruleGrid svg {
+  margin-top: 2px;
+  color: var(--color-blue-deep);
+}
+
+.ruleGrid p {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 12.7px;
+  line-height: 1.55;
+}
+
+@media (max-width: 1080px) {
+  .header {
+    display: grid;
+  }
+
+  .summaryCard {
+    min-width: 0;
+  }
+
+  .memoryGrid,
+  .ruleGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .itemCard {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .itemCard > span:nth-of-type(3) {
+    grid-column: 2 / -1;
+  }
+}
+
+@media (max-width: 680px) {
+  .memoryCard,
+  .itemCard {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .centerCard {
+    justify-items: stretch;
+    text-align: left;
+  }
+
+  .centerCard .iconTile {
+    justify-self: start;
+  }
+}

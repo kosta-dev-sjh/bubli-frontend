@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "회원 웹 앱과 Tauri 앱의 채팅, 알림, 프로젝트룸 이벤트 연결 상태를 보여주는 패널입니다. 서버 DB를 원본으로 두고, Tauri는 SQLite 캐시를 보충용으로 쓰는 기획 기준을 반영합니다.",
+          "회원 웹 앱과 데스크탑 앱의 채팅, 알림, 프로젝트룸 이벤트 연결 상태를 보여주는 패널입니다. 서버 원본을 기준으로 두고, 데스크탑 앱은 기기 안 임시 보관을 빠른 표시와 보충용으로 쓰는 기획 기준을 반영합니다.",
       },
     },
   },
@@ -38,7 +38,7 @@ export const WebReconnecting: Story = {
         label: "채팅 메시지",
         lastEventLabel: "최근 메시지 100개 조회 완료",
         lagLabel: "3초 전",
-        sourceLabel: "chat_messages",
+        sourceLabel: "서버 채팅 원본",
         state: "RECONNECTING",
         topic: "/topic/chat/{chatRoomId}",
       },
@@ -47,7 +47,7 @@ export const WebReconnecting: Story = {
         label: "프로젝트룸 이벤트",
         lastEventLabel: "에이전트 완료 이벤트 대기",
         lagLabel: "연결 확인 중",
-        sourceLabel: "agent_jobs, resources",
+        sourceLabel: "에이전트 정리와 자료",
         state: "DEGRADED",
         topic: "/topic/project-rooms/{roomId}/events",
       },
@@ -56,7 +56,7 @@ export const WebReconnecting: Story = {
         label: "개인 알림",
         lastEventLabel: "알림 조회 가능",
         lagLabel: "방금 전",
-        sourceLabel: "notifications",
+        sourceLabel: "알림 원본",
         state: "CONNECTED",
         topic: "/user/queue/notifications",
       },

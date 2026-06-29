@@ -129,12 +129,12 @@ export function CandidateApprovalPanel() {
           </Chip>
           <h2>에이전트가 만든 후보는 사용자가 확인한 뒤 작업으로 반영합니다</h2>
           <p>
-            WBS, TODO, 일정, 확인 질문은 승인 전까지 후보 상태로 남습니다. 승인한 항목만 API 서버를 거쳐
-            확정 데이터로 저장됩니다.
+            WBS, TODO, 일정, 확인 질문은 승인 전까지 후보 상태로 남습니다. 승인한 항목만 서버 확인을 거쳐
+            실제 작업으로 저장됩니다.
           </p>
         </div>
         <div className="candidate-approval__summary">
-          <StatusBadge tone="agent">agent_suggestions</StatusBadge>
+          <StatusBadge tone="agent">정리 후보</StatusBadge>
           <strong>12개</strong>
           <span>검토할 후보</span>
           <ProgressBar label="후보 검토 진행률" value={64} />
@@ -142,7 +142,7 @@ export function CandidateApprovalPanel() {
       </GlassPanel>
 
       <div className="candidate-approval__flow">
-        <span>agent_jobs 완료</span>
+        <span>에이전트 정리 완료</span>
         <ArrowRight size={16} strokeWidth={2.1} />
         <span>후보 목록</span>
         <ArrowRight size={16} strokeWidth={2.1} />
@@ -172,11 +172,11 @@ export function CandidateApprovalPanel() {
           </div>
           <div>
             <ListChecks size={17} strokeWidth={2.1} />
-            <p>담당자가 있는 TODO는 개인 대시보드와 TODO 버블에도 보입니다.</p>
+            <p>담당자가 있는 TODO는 개인 대시보드와 데스크탑 위젯 요약에도 보입니다.</p>
           </div>
           <div>
             <CalendarClock size={17} strokeWidth={2.1} />
-            <p>날짜가 확인된 항목만 일정과 일정/WBS 버블에 연결합니다.</p>
+            <p>날짜가 확인된 항목만 일정과 데스크탑 위젯 요약에 연결합니다.</p>
           </div>
           <div>
             <ShieldCheck size={17} strokeWidth={2.1} />

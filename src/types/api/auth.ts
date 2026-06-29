@@ -1,37 +1,31 @@
 export type AuthUser = {
   id: string;
+  avatarUrl?: string | null;
+  bubliId: string;
   email: string;
+  googleSub: string;
+  locale?: string | null;
   name: string;
-  profileImageUrl?: string | null;
+  timezone?: string | null;
 };
 
-export type LoginResponse = {
+export type AuthTokenResponse = {
   accessToken: string;
-  tokenType: "Bearer";
-  expiresIn: number;
   expiresAt: string;
+  expiresIn: number;
+  tokenType: "Bearer";
+};
+
+export type AuthLoginResponse = AuthTokenResponse & {
   user: AuthUser;
 };
 
-export type TauriLoginResponse = LoginResponse & {
-  refreshToken: string;
-  refreshTokenExpiresAt: string;
-};
-
-export type RefreshResponse = {
-  accessToken: string;
-  tokenType: "Bearer";
-  expiresIn: number;
-  expiresAt: string;
-};
-
-export type TauriRefreshResponse = RefreshResponse & {
-  refreshToken: string;
-  refreshTokenExpiresAt: string;
-};
+export type AuthRefreshResponse = AuthTokenResponse;
 
 export type AuthErrorCode =
-  | "AUTH_INVALID_CREDENTIALS"
+  | "AUTH_OAUTH_INVALID_CODE"
+  | "AUTH_OAUTH_SUB_MISSING"
+  | "AUTH_UNSUPPORTED_PROVIDER"
   | "AUTH_TOKEN_EXPIRED"
   | "AUTH_INVALID_TOKEN"
   | "AUTH_REFRESH_TOKEN_EXPIRED"

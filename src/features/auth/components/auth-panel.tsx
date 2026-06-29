@@ -1,114 +1,132 @@
-import Link from "next/link";
-import { ArrowRight, CheckCircle2, LockKeyhole, Mail, UserRound } from "lucide-react";
+"use client";
 
-import { Button } from "@/components/ui/button";
-import { Chip } from "@/components/ui/chip";
+import Link from "next/link";
+import type { CSSProperties, PointerEvent } from "react";
+
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { siteConfig } from "@/config/site";
+import { authApi } from "@/features/auth/api/authApi";
 
-type AuthMode = "login" | "signup";
+function GoogleIcon() {
+  return (
+    <svg aria-hidden="true" className="auth-card__google-icon" viewBox="0 0 24 24">
+      <path
+        d="M21.6 12.23c0-.78-.07-1.53-.2-2.23H12v4.22h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.89-1.74 2.98-4.3 2.98-7.52z"
+        fill="var(--google-blue)"
+      />
+      <path
+        d="M12 22c2.7 0 4.96-.89 6.62-2.41l-3.24-2.51c-.9.6-2.05.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.06v2.59A10 10 0 0 0 12 22z"
+        fill="var(--google-green)"
+      />
+      <path
+        d="M6.41 13.92A6 6 0 0 1 6.1 12c0-.67.11-1.31.31-1.92V7.49H3.06A10 10 0 0 0 2 12c0 1.61.39 3.14 1.06 4.51l3.35-2.59z"
+        fill="var(--google-yellow)"
+      />
+      <path
+        d="M12 5.96c1.47 0 2.79.5 3.82 1.5l2.87-2.87C16.95 2.97 14.7 2 12 2a10 10 0 0 0-8.94 5.49l3.35 2.59C7.2 7.72 9.4 5.96 12 5.96z"
+        fill="var(--google-red)"
+      />
+    </svg>
+  );
+}
 
-type AuthPanelProps = {
-  mode: AuthMode;
-};
+function setSignedPointerVars(element: HTMLElement, x: number, y: number) {
+  element.style.setProperty("--auth-x", x.toFixed(3));
+  element.style.setProperty("--auth-y", y.toFixed(3));
+}
 
-const modeCopy = {
-  login: {
-    action: "로그인",
-    description: "프로젝트룸, 자료보드, WBS/작업판, 소통 화면으로 들어갑니다.",
-    helper: "아직 계정이 없다면",
-    helperHref: "/signup",
-    helperLabel: "회원가입",
-    title: "다시 Bubli로 들어가기",
-  },
-  signup: {
-    action: "회원가입",
-    description: "Bubli ID를 만들고 친구 요청과 프로젝트룸 초대를 받을 준비를 합니다.",
-    helper: "이미 계정이 있다면",
-    helperHref: "/login",
-    helperLabel: "로그인",
-    title: "Bubli 시작하기",
-  },
-} satisfies Record<AuthMode, Record<string, string>>;
+function handlePagePointerMove(event: PointerEvent<HTMLElement>) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
+  const y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
+  setSignedPointerVars(event.currentTarget, x, y);
+}
 
-const loginChecks = ["회원 웹 앱은 로그인 후 사용", "LiveKit 토큰은 서버에서 발급", "Tauri도 같은 API 경계 사용"];
-const signupChecks = ["Bubli ID로 친구 검색", "친구 수락 후 1:1 채팅", "프로젝트룸 초대 수락 가능"];
+function handlePagePointerLeave(event: PointerEvent<HTMLElement>) {
+  setSignedPointerVars(event.currentTarget, 0, 0);
+}
 
-export function AuthPanel({ mode }: AuthPanelProps) {
-  const copy = modeCopy[mode];
-  const checks = mode === "login" ? loginChecks : signupChecks;
+function handleSubmitPointerMove(event: PointerEvent<HTMLAnchorElement>) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const x = (event.clientX - rect.left) / rect.width;
+  const y = (event.clientY - rect.top) / rect.height;
+  const signedX = (x - 0.5) * 2;
+  const signedY = (y - 0.5) * 2;
+
+  event.currentTarget.style.setProperty("--button-light-x", `${(x * 100).toFixed(1)}%`);
+  event.currentTarget.style.setProperty("--button-light-y", `${(y * 100).toFixed(1)}%`);
+  event.currentTarget.style.setProperty("--button-tilt-x", `${(-signedY * 4).toFixed(2)}deg`);
+  event.currentTarget.style.setProperty("--button-tilt-y", `${(signedX * 5).toFixed(2)}deg`);
+  event.currentTarget.style.setProperty("--button-shift-x", `${(signedX * 7).toFixed(2)}px`);
+  event.currentTarget.style.setProperty("--button-shift-y", `${(signedY * 4).toFixed(2)}px`);
+}
+
+function handleSubmitPointerLeave(event: PointerEvent<HTMLAnchorElement>) {
+  event.currentTarget.style.setProperty("--button-light-x", "50%");
+  event.currentTarget.style.setProperty("--button-light-y", "50%");
+  event.currentTarget.style.setProperty("--button-tilt-x", "0deg");
+  event.currentTarget.style.setProperty("--button-tilt-y", "0deg");
+  event.currentTarget.style.setProperty("--button-shift-x", "0px");
+  event.currentTarget.style.setProperty("--button-shift-y", "0px");
+}
+
+export function AuthPanel() {
+  const googleLoginUrl = authApi.getGoogleAuthorizationUrl();
 
   return (
-    <main className="auth-page" aria-label={copy.action}>
+    <main
+      className="auth-page"
+      aria-label="로그인"
+      onPointerLeave={handlePagePointerLeave}
+      onPointerMove={handlePagePointerMove}
+      style={{ "--auth-x": 0, "--auth-y": 0 } as CSSProperties}
+    >
+      <div className="auth-page__motion" aria-hidden="true">
+        <video autoPlay loop muted playsInline preload="metadata">
+          <source src="/landing/login-bubble-flow.mp4" type="video/mp4" />
+        </video>
+      </div>
+      <div className="auth-page__bubble-field" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+        <span />
+        <span />
+      </div>
       <section className="auth-page__intro">
-        <Chip selected>{siteConfig.name}</Chip>
-        <h1>{copy.title}</h1>
-        <p>{copy.description}</p>
-        <div className="auth-page__checks">
-          {checks.map((check) => (
-            <Chip icon={<CheckCircle2 size={14} strokeWidth={2.1} />} key={check}>
-              {check}
-            </Chip>
-          ))}
-        </div>
+        <Link className="auth-page__brand bubli-wordmark" href="/">
+          {siteConfig.name}
+        </Link>
+        <p className="auth-page__welcome">Welcome!</p>
+        <h1>
+          <span>받은 자료를,</span>
+          <span>오늘 일로 이어갑니다.</span>
+        </h1>
+        <p>프리랜서를 위한 업무 비서</p>
       </section>
 
       <GlassPanel as="section" className="auth-card">
-        <div className="auth-card__head">
-          <span className="bubli-icon-tile" aria-hidden="true">
-            <LockKeyhole size={18} strokeWidth={2.1} />
-          </span>
-          <div>
-            <h2>{copy.action}</h2>
-            <p>API 계약 확정 후 이 폼에 인증 client를 연결합니다.</p>
-          </div>
+        <div className="auth-form" aria-label="구글 계정 로그인">
+          <a
+            className="bubli-button bubli-button--primary bubli-button--lg auth-card__submit"
+            href={googleLoginUrl}
+            onPointerLeave={handleSubmitPointerLeave}
+            onPointerMove={handleSubmitPointerMove}
+            style={
+              {
+                "--button-light-x": "50%",
+                "--button-light-y": "50%",
+                "--button-shift-x": "0px",
+                "--button-shift-y": "0px",
+                "--button-tilt-x": "0deg",
+                "--button-tilt-y": "0deg",
+              } as CSSProperties
+            }
+          >
+            <GoogleIcon />
+            Google로 계속하기
+          </a>
         </div>
-
-        <form className="auth-form">
-          {mode === "signup" ? (
-            <label className="auth-field">
-              <span>Bubli ID</span>
-              <div className="auth-input">
-                <UserRound aria-hidden="true" size={17} strokeWidth={2.1} />
-                <input placeholder="bubli-id" type="text" />
-              </div>
-            </label>
-          ) : null}
-
-          <label className="auth-field">
-            <span>이메일</span>
-            <div className="auth-input">
-              <Mail aria-hidden="true" size={17} strokeWidth={2.1} />
-              <input autoComplete="email" placeholder="name@example.com" type="email" />
-            </div>
-          </label>
-
-          <label className="auth-field">
-            <span>비밀번호</span>
-            <div className="auth-input">
-              <LockKeyhole aria-hidden="true" size={17} strokeWidth={2.1} />
-              <input autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="8자 이상" type="password" />
-            </div>
-          </label>
-
-          {mode === "signup" ? (
-            <label className="auth-field">
-              <span>비밀번호 확인</span>
-              <div className="auth-input">
-                <LockKeyhole aria-hidden="true" size={17} strokeWidth={2.1} />
-                <input autoComplete="new-password" placeholder="한 번 더 입력" type="password" />
-              </div>
-            </label>
-          ) : null}
-
-          <Button className="auth-card__submit" icon={<ArrowRight size={16} />} size="lg" variant="primary">
-            {copy.action}
-          </Button>
-        </form>
-
-        <p className="auth-card__helper">
-          {copy.helper} <Link href={copy.helperHref}>{copy.helperLabel}</Link>
-        </p>
       </GlassPanel>
     </main>
   );

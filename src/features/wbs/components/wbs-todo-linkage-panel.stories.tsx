@@ -32,7 +32,7 @@ export const LinkOneTaskAcrossSurfaces: Story = {
     task: {
       assigneeLabel: "담당자 나",
       dueLabel: "D-2",
-      idLabel: "task_id로 연결",
+      idLabel: "같은 TODO로 연결",
       progress: 46,
       status: "IN_PROGRESS",
       title: "1차 번역본 검토",
@@ -57,7 +57,7 @@ export const ApprovedTask: Story = {
     task: {
       assigneeLabel: "담당자 나",
       dueLabel: "6월 24일",
-      idLabel: "task_id로 연결",
+      idLabel: "같은 TODO로 연결",
       progress: 68,
       status: "REVIEW",
       title: "검수 기준 질문 정리",

@@ -111,7 +111,7 @@ export const defaultScopedResources: ScopedResource[] = [
     visibility: "PERSONAL",
   },
   {
-    detail: "개인 자료 · Tauri SQLite 색인",
+    detail: "개인 자료 · 관리 폴더에서 감지",
     id: "resource-4",
     state: "ready",
     title: "개인_아이디어_메모.txt",
@@ -244,14 +244,14 @@ export function ResourceScopeFilterPanel({
           <LockKeyhole size={17} strokeWidth={2.1} aria-hidden="true" />
           <div>
             <strong>개인 자료</strong>
-            <p>owner 기준으로 본인만 보고, 공유 전까지 프로젝트룸 에이전트가 읽지 않습니다.</p>
+            <p>올린 본인만 보고, 공유 전까지 프로젝트룸 에이전트가 읽지 않습니다.</p>
           </div>
         </article>
         <article>
           <ShieldCheck size={17} strokeWidth={2.1} aria-hidden="true" />
           <div>
             <strong>프로젝트룸 자료</strong>
-            <p>room_members 권한을 확인한 뒤 목록, 댓글, 버전, 분석 결과를 보여줍니다.</p>
+            <p>프로젝트룸 멤버 권한을 확인한 뒤 목록, 댓글, 버전, 분석 결과를 보여줍니다.</p>
           </div>
         </article>
         <article>

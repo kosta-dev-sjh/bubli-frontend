@@ -12,11 +12,11 @@ const meta = {
     docs: {
       description: {
         component:
-          "v14의 프로젝트룸 TODO와 개인 TODO 관계를 바탕으로, 같은 서버 작업이 담당자 기준으로 대시보드와 버블에 표시되는 구조를 보여주는 패널입니다.",
+          "v15의 프로젝트룸 TODO와 개인 TODO 관계를 바탕으로, 같은 서버 작업이 담당자 기준으로 대시보드와 데스크탑 위젯에 표시되는 구조를 보여주는 패널입니다.",
       },
     },
   },
-  title: "Todo/TodoAssigneeReflectionPanel",
+  title: "Features/Todo/TodoAssigneeReflectionPanel",
 } satisfies Meta<typeof TodoAssigneeReflectionPanel>;
 
 export default meta;

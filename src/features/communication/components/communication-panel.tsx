@@ -19,7 +19,7 @@ const summaryItems = [
     title: "프로젝트룸 채팅",
   },
   {
-    body: "LiveKit 토큰은 API 서버에서 받아 입장합니다.",
+    body: "서버에서 발급한 연결 정보로 프로젝트룸 보이스에 입장합니다.",
     icon: Mic2,
     title: "프로젝트룸 보이스",
   },
@@ -47,9 +47,9 @@ const rooms = [
     title: "김미연",
   },
   {
-    badge: "게스트",
-    detail: "보이스와 임시 채팅만 가능",
-    title: "클라이언트 검토 대기방",
+    badge: "프로젝트룸",
+    detail: "WBS 검토와 보이스 연결 대기",
+    title: "Bubli 제품 고도화",
   },
 ];
 
@@ -76,7 +76,7 @@ export function CommunicationPanel() {
           <div className="communication-panel__head">
             <div>
               <h2>소통</h2>
-              <p>친구, 프로젝트룸, 게스트 대화가 한 목록에 표시됩니다.</p>
+              <p>친구와 프로젝트룸 대화를 한 목록에서 확인합니다.</p>
             </div>
             <Button size="sm" variant="primary">
               친구 추가
@@ -97,9 +97,9 @@ export function CommunicationPanel() {
 
         <section className="communication-panel__chat" aria-label="프로젝트룸 채팅">
           <div className="communication-panel__head">
-            <div>
-              <h2>토모에 번역 프로젝트</h2>
-              <p>프로젝트룸 채팅 원본은 서버 DB에 저장되고, Tauri는 최근 메시지를 캐시합니다.</p>
+          <div>
+            <h2>토모에 번역 프로젝트</h2>
+              <p>프로젝트룸 채팅은 서버에 저장되고, 데스크톱 앱은 최근 메시지를 빠르게 불러옵니다.</p>
             </div>
             <StatusBadge tone="communication">프로젝트룸 채팅</StatusBadge>
           </div>
@@ -123,12 +123,6 @@ export function CommunicationPanel() {
               roleLabel="프리랜서 사용자"
               timeLabel="10:26"
             />
-            <ChatMessage
-              author="게스트"
-              message="잠깐 보이스만 들어와서 확인하겠습니다."
-              roleLabel="게스트"
-              timeLabel="10:27"
-            />
           </div>
           <div className="communication-panel__composer">
             <input aria-label="메시지 입력" placeholder="프로젝트룸에 메시지 보내기" />
@@ -138,21 +132,22 @@ export function CommunicationPanel() {
 
         <aside className="communication-panel__pane" aria-label="소통 보조 정보">
           <BubbleCard
-            items={["새 메시지 2개", "보이스 대기방 참여 가능", "확인 질문 후보 2개"]}
+            className="communication-panel__bubble"
+            items={["새 메시지 2개", "프로젝트룸 보이스 참여 가능", "확인 질문 후보 2개"]}
             meta="소통"
             type="communication"
           />
           <GlassPanel className="communication-panel__side-card">
-            <h3>게스트 접근 기준</h3>
+            <h3>소통 접근 기준</h3>
             <ul>
-              <li>채팅과 보이스 임시 참여만 가능합니다.</li>
-              <li>자료, WBS, 일정, 멤버 목록에는 접근하지 않습니다.</li>
-              <li>초대 링크는 만료와 회수 상태를 확인합니다.</li>
+              <li>1:1 채팅은 친구 관계를 기준으로 엽니다.</li>
+              <li>프로젝트룸 채팅과 보이스는 멤버 권한을 기준으로 엽니다.</li>
+              <li>프로젝트룸 초대는 수락된 친구 목록에서 보냅니다.</li>
             </ul>
           </GlassPanel>
           <GlassPanel className="communication-panel__side-card">
-            <h3>Tauri 앱 기준</h3>
-            <p>앱에서 소통 탭을 숨기더라도 버블이나 전용 창에서 같은 API, WebSocket, LiveKit 연결을 씁니다.</p>
+            <h3>데스크탑 앱 기준</h3>
+            <p>앱에서 소통 탭을 숨기더라도 버블이나 전용 창에서 같은 서버와 보이스 연결을 씁니다.</p>
           </GlassPanel>
         </aside>
       </div>

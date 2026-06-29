@@ -20,8 +20,8 @@ import { cn } from "@/lib/utils";
 
 import styles from "./desktop-download-handoff-panel.module.css";
 
-type SurfaceKind = "PUBLIC_SITE" | "MEMBER_WEB" | "TAURI_APP";
-type CapabilityKind = "WEBVIEW" | "BUBBLE" | "LOCAL_FOLDER" | "COMMUNICATION";
+type SurfaceKind = "PUBLIC_SITE" | "MEMBER_WEB" | "DESKTOP_APP";
+type CapabilityKind = "MEMBER_WEB_WINDOW" | "BUBBLE" | "DEVICE_FOLDER" | "COMMUNICATION";
 
 type ProductSurface = {
   description: string;
@@ -51,16 +51,16 @@ export type DesktopDownloadHandoffPanelProps = HTMLAttributes<HTMLElement> & {
 };
 
 const surfaceIcons: Record<SurfaceKind, typeof Globe2> = {
+  DESKTOP_APP: MonitorDown,
   MEMBER_WEB: AppWindow,
   PUBLIC_SITE: Globe2,
-  TAURI_APP: MonitorDown,
 };
 
 const capabilityIcons: Record<CapabilityKind, typeof AppWindow> = {
   BUBBLE: Sparkles,
   COMMUNICATION: MessageCircle,
-  LOCAL_FOLDER: HardDrive,
-  WEBVIEW: AppWindow,
+  DEVICE_FOLDER: HardDrive,
+  MEMBER_WEB_WINDOW: AppWindow,
 };
 
 export const defaultDownloadSurfaces: ProductSurface[] = [
@@ -79,18 +79,18 @@ export const defaultDownloadSurfaces: ProductSurface[] = [
     tone: "room",
   },
   {
-    description: "회원 웹 앱을 데스크탑에서 열고, 버블과 로컬 기능을 같은 작업 흐름에 붙입니다.",
-    kind: "TAURI_APP",
+    description: "회원 웹 앱을 데스크탑에서 열고, 버블과 기기 기능을 같은 작업 흐름에 붙입니다.",
+    kind: "DESKTOP_APP",
     label: "데스크탑",
-    title: "Tauri 앱",
+    title: "데스크탑 앱",
     tone: "todo",
   },
 ];
 
 export const defaultDesktopCapabilities: DesktopCapability[] = [
   {
-    description: "메인 창은 배포된 회원 웹 앱을 열어 웹과 같은 API 계약을 사용합니다.",
-    kind: "WEBVIEW",
+    description: "메인 창은 배포된 회원 웹 앱을 열어 브라우저와 같은 화면을 보여줍니다.",
+    kind: "MEMBER_WEB_WINDOW",
     title: "회원 웹 앱 열기",
   },
   {
@@ -99,12 +99,12 @@ export const defaultDesktopCapabilities: DesktopCapability[] = [
     title: "버블 표시",
   },
   {
-    description: "로컬 폴더 지정, 파일 감지, SQLite 캐시, 복구 대기열은 Tauri IPC로 처리합니다.",
-    kind: "LOCAL_FOLDER",
-    title: "로컬 기능",
+    description: "기기 폴더 선택, 파일 변경 감지, 기기 안 임시 저장, 복구 대기는 앱에서 처리합니다.",
+    kind: "DEVICE_FOLDER",
+    title: "기기 기능",
   },
   {
-    description: "채팅과 보이스는 API 서버에서 받은 연결 정보로 웹과 앱 전용 창에서 이어집니다.",
+    description: "채팅과 보이스는 서버에서 받은 연결 정보로 웹과 앱 전용 창에서 이어집니다.",
     kind: "COMMUNICATION",
     title: "소통 연결",
   },
@@ -113,17 +113,17 @@ export const defaultDesktopCapabilities: DesktopCapability[] = [
 export const defaultDownloadRules: SafetyRule[] = [
   {
     description: "공개 사이트는 회원 데이터와 프로젝트룸 데이터를 요청하지 않습니다.",
-    label: "비회원 분리",
+    label: "공개 화면",
     tone: "personal",
   },
   {
-    description: "프론트와 Tauri는 에이전트 서버가 아니라 API 서버를 기준으로 연결합니다.",
-    label: "API 기준",
+    description: "에이전트 요청도 프론트와 데스크탑 앱 모두 같은 서버 흐름으로 처리합니다.",
+    label: "서버 기준",
     tone: "approved",
   },
   {
-    description: "보이스 연결 정보는 프론트가 만들지 않고 API 서버에서 발급받습니다.",
-    label: "LiveKit 토큰",
+    description: "보이스 연결 정보는 화면에서 만들지 않고 서버에서 발급받습니다.",
+    label: "보이스 연결",
     tone: "room",
   },
 ];
@@ -145,7 +145,7 @@ export function DesktopDownloadHandoffPanel({
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
               공개 사이트는 앱을 내려받는 입구이고, 실제 업무는 로그인 후 회원 웹 앱에서 이어집니다. 데스크탑 앱은 같은
-              웹 화면을 열면서 버블, 로컬 폴더, SQLite 같은 앱 기능을 더합니다.
+              웹 화면을 열면서 버블, 기기 폴더, 기기 안 임시 저장 같은 앱 기능을 더합니다.
             </p>
           </div>
         </div>
@@ -180,7 +180,7 @@ export function DesktopDownloadHandoffPanel({
         })}
       </section>
 
-      <section className={styles.handoff} aria-label="Tauri 앱 기능 연결">
+      <section className={styles.handoff} aria-label="데스크탑 앱 기능 연결">
         <div className={styles.devicePreview}>
           <div className={styles.windowBar}>
             <span />

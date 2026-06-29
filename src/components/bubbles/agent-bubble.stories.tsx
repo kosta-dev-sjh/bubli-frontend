@@ -1,0 +1,80 @@
+import type { ReactNode } from "react";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+
+import { AgentBubble } from "@/components/bubbles/agent-bubble";
+
+const meta = {
+  tags: ["uikit", "bubbles"],
+  component: AgentBubble,
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "에이전트 신호 버블. 투명 이미지 막 + SVG 표정(Opal Lilac 잉크). Thinking은 점 3개+미세 breathe, Suggesting은 미소, Waiting은 라일락 신호. 조용한 비서 톤(명령형 아님).",
+      },
+    },
+  },
+  title: "Bubbles/AgentBubble",
+} satisfies Meta<typeof AgentBubble>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+const row = { display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" } as const;
+
+function Cell({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <div style={{ display: "grid", gap: 8, justifyItems: "center" }}>
+      {children}
+      <span style={{ fontSize: 11, color: "var(--ink-soft)" }}>{label}</span>
+    </div>
+  );
+}
+
+export const States: Story = {
+  render: () => (
+    <div style={row}>
+      <Cell label="Idle">
+        <AgentBubble size={40} state="idle" />
+      </Cell>
+      <Cell label="Listening">
+        <AgentBubble size={40} state="listening" />
+      </Cell>
+      <Cell label="Thinking">
+        <AgentBubble size={40} state="thinking" />
+      </Cell>
+      <Cell label="Suggesting">
+        <AgentBubble size={40} state="suggesting" />
+      </Cell>
+      <Cell label="Waiting">
+        <AgentBubble size={40} state="waiting" />
+      </Cell>
+    </div>
+  ),
+};
+
+export const Idle: Story = { render: () => <AgentBubble size={40} state="idle" /> };
+export const Listening: Story = { render: () => <AgentBubble size={40} state="listening" /> };
+export const Thinking: Story = { render: () => <AgentBubble size={40} state="thinking" /> };
+export const Suggesting: Story = { render: () => <AgentBubble size={40} state="suggesting" /> };
+export const Waiting: Story = { render: () => <AgentBubble size={40} state="waiting" /> };
+
+function DarkFrame({ children }: { children: ReactNode }) {
+  return (
+    <div data-theme="dark" style={{ background: "#161E2E", borderRadius: 18, padding: 28, ...row }}>
+      {children}
+    </div>
+  );
+}
+
+export const Dark: Story = {
+  parameters: { backgrounds: { default: "dark" } },
+  render: () => (
+    <DarkFrame>
+      <AgentBubble size={40} state="idle" />
+      <AgentBubble size={40} state="thinking" />
+      <AgentBubble size={40} state="suggesting" />
+      <AgentBubble size={40} state="waiting" />
+    </DarkFrame>
+  ),
+};

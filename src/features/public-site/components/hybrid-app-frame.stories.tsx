@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "공개 사이트, 회원 웹 앱, Tauri 앱의 역할 분리를 보여주는 구조 컴포넌트입니다. Tauri는 배포된 HTTPS 회원 웹 앱을 WebView로 열고 로컬 기능을 더합니다.",
+          "공개 사이트, 회원 웹 앱, 데스크탑 앱의 역할 분리를 보여주는 구조 컴포넌트입니다. 데스크탑 앱은 배포된 회원 웹 앱을 열고 위젯과 기기 기능을 더합니다.",
       },
     },
     layout: "fullscreen",

@@ -1,5 +1,14 @@
 import { apiRequest } from "@/lib/api/client";
-import type { ChatMessageListResponse, ChatMessageResponse, ChatMessageType } from "@/types/api/chat";
+import type {
+  ChatMessageListResponse,
+  ChatMessageResponse,
+  ChatMessageType,
+  ChatRoomResponse,
+  DirectChatRoomRequest,
+  RoomMemorySummaryCreateRequest,
+  RoomMemorySummaryResponse,
+  RoomAgentCommandRequest,
+} from "@/types/api/chat";
 
 export type SendChatMessageRequest = {
   clientMessageId: string;
@@ -8,6 +17,17 @@ export type SendChatMessageRequest = {
 };
 
 export const chatApi = {
+  listRooms() {
+    return apiRequest<ChatRoomResponse[]>("/api/chat/rooms");
+  },
+
+  getOrCreateDirectRoom(body: DirectChatRoomRequest) {
+    return apiRequest<ChatRoomResponse>("/api/chat/direct-rooms", {
+      body,
+      method: "POST",
+    });
+  },
+
   getMessages(chatRoomId: string, params: { afterSequence?: number; beforeSequence?: number; limit?: number } = {}) {
     const searchParams = new URLSearchParams();
 
@@ -36,5 +56,26 @@ export const chatApi = {
       },
       method: "PATCH",
     });
+  },
+
+  runRoomAgentCommand(roomId: string, { clientMessageId, ...body }: RoomAgentCommandRequest) {
+    return apiRequest<ChatMessageResponse>(`/api/project-rooms/${roomId}/agent-command`, {
+      body,
+      headers: {
+        "Idempotency-Key": clientMessageId,
+      },
+      method: "POST",
+    });
+  },
+
+  createRoomMemorySummary(roomId: string, body: RoomMemorySummaryCreateRequest) {
+    return apiRequest<RoomMemorySummaryResponse>(`/api/project-rooms/${roomId}/memory-summaries`, {
+      body,
+      method: "POST",
+    });
+  },
+
+  listRoomMemorySummaries(roomId: string) {
+    return apiRequest<RoomMemorySummaryResponse[]>(`/api/project-rooms/${roomId}/memory-summaries`);
   },
 } as const;

@@ -4,12 +4,13 @@ import { BubbleCard } from "@/components/bubbles/bubble-card";
 import { Button } from "@/components/ui/button";
 
 const meta = {
+  tags: ["uikit", "bubbles"],
   component: BubbleCard,
   parameters: {
     docs: {
       description: {
         component:
-          "버블은 개인 위젯 단위입니다. 프로젝트룸 화면을 복제하지 않고, 사용자가 접근 가능한 서버 원본과 Tauri 로컬 상태를 짧게 보여줍니다.",
+          "버블은 개인 위젯 단위입니다. 프로젝트룸 화면을 복제하지 않고, 사용자가 접근 가능한 서버 기록과 기기 안 상태를 짧게 보여줍니다.",
       },
     },
   },

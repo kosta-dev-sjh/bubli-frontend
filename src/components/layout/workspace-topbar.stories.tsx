@@ -17,6 +17,7 @@ const defaultArgs: WorkspaceTopbarProps = {
 };
 
 const meta = {
+  tags: ["uikit", "layout"],
   args: defaultArgs,
   component: WorkspaceTopbar,
   parameters: {
@@ -35,7 +36,7 @@ const meta = {
       </section>
     </main>
   ),
-  title: "components/layout/WorkspaceTopbar",
+  title: "Layout/WorkspaceTopbar",
 } satisfies Meta<typeof WorkspaceTopbar>;
 
 export default meta;
@@ -48,6 +49,6 @@ export const TauriCommunicationSurface: Story = {
   args: {
     notificationCount: 12,
     searchPlaceholder: "채팅, 보이스, 친구 검색",
-    surfaceLabel: "Tauri 소통 창",
+    surfaceLabel: "데스크탑 소통 창",
   },
 };

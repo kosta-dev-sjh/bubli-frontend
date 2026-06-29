@@ -1,4 +1,4 @@
-import { CalendarClock, CheckCircle2, DoorOpen, Link2, UserPlus, UsersRound, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, DoorOpen, UserPlus, UsersRound, XCircle } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 
 import styles from "./project-room-invitation-response-panel.module.css";
 
-type InvitationType = "friend" | "link";
 type InvitationStatus = "pending" | "accepted" | "expired" | "canceled";
 
 type InvitationAccess = {
@@ -21,7 +20,6 @@ type InvitationAccess = {
 export type ProjectRoomInvitationResponsePanelProps = HTMLAttributes<HTMLElement> & {
   accessPreview: InvitationAccess[];
   expiresLabel: string;
-  invitationType: InvitationType;
   inviterName: string;
   projectRoomName: string;
   roleLabel: "프로젝트 리더" | "멤버";
@@ -29,17 +27,10 @@ export type ProjectRoomInvitationResponsePanelProps = HTMLAttributes<HTMLElement
   title?: string;
 };
 
-const typeMeta: Record<InvitationType, { icon: ReactNode; label: string; tone: StatusTone }> = {
-  friend: {
-    icon: <UserPlus size={18} strokeWidth={2.1} />,
-    label: "친구 초대",
-    tone: "personal",
-  },
-  link: {
-    icon: <Link2 size={18} strokeWidth={2.1} />,
-    label: "링크 초대",
-    tone: "room",
-  },
+const invitationMeta: { icon: ReactNode; label: string; tone: StatusTone } = {
+  icon: <UserPlus size={18} strokeWidth={2.1} />,
+  label: "친구 초대",
+  tone: "personal",
 };
 
 const statusMeta: Record<InvitationStatus, { label: string; tone: StatusTone }> = {
@@ -53,7 +44,6 @@ export function ProjectRoomInvitationResponsePanel({
   accessPreview,
   className,
   expiresLabel,
-  invitationType,
   inviterName,
   projectRoomName,
   roleLabel,
@@ -61,7 +51,6 @@ export function ProjectRoomInvitationResponsePanel({
   title = "프로젝트룸 초대",
   ...props
 }: ProjectRoomInvitationResponsePanelProps) {
-  const type = typeMeta[invitationType];
   const currentStatus = statusMeta[status];
   const canRespond = status === "pending";
 
@@ -69,7 +58,7 @@ export function ProjectRoomInvitationResponsePanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={type.icon}>{type.label}</Chip>
+          <Chip icon={invitationMeta.icon}>{invitationMeta.label}</Chip>
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
@@ -107,18 +96,11 @@ export function ProjectRoomInvitationResponsePanel({
             <strong>{expiresLabel}</strong>
           </article>
           <article>
-            {type.icon}
+            {invitationMeta.icon}
             <span>방식</span>
-            <strong>{type.label}</strong>
+            <strong>{invitationMeta.label}</strong>
           </article>
         </div>
-
-        {invitationType === "link" ? (
-          <div className={styles.guardRail}>
-            <Link2 size={18} strokeWidth={2.1} aria-hidden="true" />
-            <span>링크 초대는 로그인한 사용자만 수락할 수 있습니다. 링크만으로 프로젝트룸 자료를 볼 수 없습니다.</span>
-          </div>
-        ) : null}
 
         <div className={styles.accessGrid} aria-label="수락 후 접근 가능 항목">
           {accessPreview.map((item) => (

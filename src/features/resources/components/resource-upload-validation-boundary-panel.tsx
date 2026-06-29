@@ -79,10 +79,10 @@ const ruleCards: Array<{
   value: string;
 }> = [
   {
-    description: "확장자만 믿지 않고 브라우저가 넘긴 MIME type도 함께 확인합니다.",
+    description: "확장자만 믿지 않고 브라우저가 알려준 파일 형식도 함께 확인합니다.",
     icon: <FileCheck2 size={18} strokeWidth={2.1} />,
     label: "형식 확인",
-    value: "extension + MIME",
+    value: "확장자 + 파일 형식",
   },
   {
     description: "단일 파일 제한을 넘으면 서버 저장과 분석 요청을 시작하지 않습니다.",
@@ -91,16 +91,16 @@ const ruleCards: Array<{
     value: "100MB",
   },
   {
-    description: "checksum이 같으면 같은 자료를 다시 분석하지 않고 기존 결과를 이어서 보여줍니다.",
+    description: "파일 지문이 같으면 같은 자료를 다시 분석하지 않고 기존 결과를 이어서 보여줍니다.",
     icon: <Fingerprint size={18} strokeWidth={2.1} />,
     label: "중복 분석 방지",
-    value: "checksum",
+    value: "파일 지문",
   },
   {
-    description: "성공한 자료만 resourceId를 받고, 그 뒤에 agent_jobs 분석 상태로 넘어갑니다.",
+    description: "성공한 자료만 자료보드에 등록하고, 그 뒤에 에이전트 정리 상태로 넘어갑니다.",
     icon: <DatabaseZap size={18} strokeWidth={2.1} />,
     label: "분석 시작 경계",
-    value: "resourceId",
+    value: "자료 등록",
   },
 ];
 
@@ -160,8 +160,8 @@ export function ResourceUploadValidationBoundaryPanel({
           <div>
             <h2>{title}</h2>
             <p>
-              서버에 파일을 보내기 전에 형식, 용량, checksum, 자료 범위를 먼저 확인합니다. 성공한
-              자료만 resourceId를 받고 분석 job으로 이어집니다.
+              서버에 파일을 보내기 전에 형식, 용량, 파일 지문, 자료 범위를 먼저 확인합니다. 성공한
+              자료만 자료보드에 등록하고 에이전트 정리 작업으로 이어집니다.
             </p>
           </div>
         </div>
@@ -187,18 +187,18 @@ export function ResourceUploadValidationBoundaryPanel({
         </div>
         <div>
           <span>분석 시작</span>
-          <strong>resourceId 이후</strong>
+          <strong>자료 등록 이후</strong>
         </div>
       </div>
 
       <section className={styles.flow} aria-label="업로드 검증 후 처리 흐름">
-        <div>로컬 검증</div>
+        <div>기기 안 확인</div>
         <span aria-hidden="true" />
-        <div>multipart 업로드</div>
+        <div>서버 업로드</div>
         <span aria-hidden="true" />
-        <div>resourceId 생성</div>
+        <div>자료 등록</div>
         <span aria-hidden="true" />
-        <div>agent_jobs 등록</div>
+        <div>에이전트 정리</div>
         <span aria-hidden="true" />
         <div>후보 확인</div>
       </section>
