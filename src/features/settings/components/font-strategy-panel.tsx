@@ -14,8 +14,8 @@ const scaleOptions = [
 const strategyCards = [
   {
     title: "사용 폰트",
-    body: "한국어 화면, 숫자, 버튼, 위젯을 Pretendard Variable 하나로 맞춥니다.",
-    value: "Pretendard Variable",
+    body: "비회원 랜딩과 로그인에서 확정한 LINE Seed Sans KR 기준으로 한국어 화면, 숫자, 버튼, 위젯을 맞춥니다.",
+    value: "LINE Seed Sans KR",
     icon: Type,
   },
   {
@@ -65,7 +65,7 @@ export function FontStrategyPanel() {
         </div>
         <div className={styles.chips} aria-label="글자 표시 핵심 기준">
           <Chip selected icon={<Type size={14} aria-hidden="true" />}>
-            Pretendard
+            LINE Seed
           </Chip>
           <Chip icon={<Gauge size={14} aria-hidden="true" />}>90 · 100 · 115 · 130</Chip>
           <Chip icon={<Moon size={14} aria-hidden="true" />}>고스트 모드 가독성</Chip>

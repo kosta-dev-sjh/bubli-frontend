@@ -1,3 +1,5 @@
+import type { PageResponse } from "@/types/api/common";
+
 export type ProjectRoomPaymentStatus = "NOT_RECORDED" | "PENDING" | "PAID" | "OVERDUE";
 
 export type ProjectRoomStatus = "ACTIVE" | "CLOSED";
@@ -54,3 +56,7 @@ export type ProjectRoomInvitationResponse = {
 export type ProjectRoomMemberRoleUpdateRequest = {
   role: ProjectRoomRole;
 };
+
+export type ProjectRoomPageResponse = PageResponse<ProjectRoomResponse>;
+export type ProjectRoomInvitationPageResponse = PageResponse<ProjectRoomInvitationResponse>;
+export type ProjectRoomMemberPageResponse = PageResponse<ProjectRoomMemberResponse>;

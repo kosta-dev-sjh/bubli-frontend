@@ -23,5 +23,6 @@ export * from "./resource-upload-queue-panel";
 export * from "./resource-upload-validation-boundary-panel";
 export { ResourceVersionDecisionPanel } from "./resource-version-decision-panel";
 export * from "./resource-version-history-panel";
+export * from "./resource-workspace";
 export * from "./resource-sharing-permission-panel";
 export * from "./storage-provider-policy-panel";
