@@ -27,7 +27,7 @@ export function PublicHero() {
           오늘 필요한 일을 한 화면에 정리해주는 프리랜서 업무 비서
         </p>
         <div className="public-hero__actions">
-          <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/download">
+          <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/#download">
             앱 다운로드
           </Link>
           <Link className="bubli-button bubli-button--lg" href="/login">

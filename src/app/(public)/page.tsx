@@ -42,9 +42,8 @@ export default function HomePage() {
 
       <section className="landing-section" id="features">
         <header className="landing-section__head">
-          <Chip selected>핵심 흐름</Chip>
           <h2>받은 자료가 오늘 할 일이 되기까지</h2>
-          <p>업로드한 자료를 에이전트가 정리하고, 사용자가 확인하면 같은 할 일이 작업판·대시보드·버블로 이어집니다.</p>
+          <p>올린 자료가 후보가 되고, 확인한 항목만 오늘 할 일로 이어집니다.</p>
         </header>
         <PublicHomeFlow />
       </section>
@@ -156,79 +155,64 @@ export default function HomePage() {
 
       <Reveal>
         <section className="landing-section landing-download" id="download">
-          <GlassPanel className="landing-download__card" padded={false}>
-            <div className="landing-download__hero">
-              <header className="landing-download__head">
-                <Chip selected>다운로드</Chip>
+          <div className="landing-download__stage">
+            <header className="landing-download__head">
+              <span className="landing-download__label">Download</span>
+              <div>
+                <strong>앱 다운로드</strong>
                 <h2>
-                  Bubli 앱으로
-                  <br />
-                  오늘 일을 바로 이어가세요
+                  <span>바탕화면에서</span>
+                  <span>오늘 일을 바로 봅니다</span>
                 </h2>
-                <p>회원 웹 앱은 그대로 쓰고, 데스크탑에서는 버블 위젯으로 오늘 할 일과 일정을 놓치지 않습니다.</p>
-                <div className="landing-download__actions">
-                  <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/download">
-                    앱 다운로드
-                  </Link>
-                  <Link className="bubli-button bubli-button--lg" href="/login">
-                    로그인
-                  </Link>
-                </div>
-              </header>
-
-              <div className="landing-download__visual" aria-label="앱 다운로드 후 시작 흐름">
-                <div className="landing-download__halo" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <article className="landing-download__device">
-                  <div className="landing-download__device-bar" aria-hidden="true">
-                    <span />
-                    <span />
-                    <span />
-                    <b>Bubli Desktop</b>
-                  </div>
-                  <div className="landing-download__device-body">
-                    <strong>오늘 먼저 볼 일</strong>
-                    <p>확정된 TODO, 일정, 타이머가 같은 기준으로 이어집니다.</p>
-                    <div>
-                      <span>자료 확인</span>
-                      <span>작업 연결</span>
-                      <span>버블 표시</span>
-                    </div>
-                  </div>
-                </article>
-                <div className="landing-download__mini-widget" aria-hidden="true">
-                  <b>버블 위젯</b>
-                  <span>다음 회의 18:00</span>
-                </div>
+                <p>작업 중에도 오늘 할 일, 일정, 타이머가 화면 위에 가볍게 남습니다.</p>
               </div>
-            </div>
-
-            <div className="landing-download__rows" aria-label="운영체제별 다운로드">
-              <div className="landing-download__row">
-                <span className="landing-download__mark" aria-hidden="true">mac</span>
-                <div className="landing-download__os">
-                  <strong>macOS 앱</strong>
-                  <span>Apple Silicon · Intel</span>
-                </div>
-                <Link className="bubli-button bubli-button--primary bubli-button--sm" href="/download">
-                  받기
+              <div className="landing-download__actions">
+                <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/#download">
+                  앱 다운로드
+                </Link>
+                <Link className="bubli-button bubli-button--lg" href="/login">
+                  로그인
                 </Link>
               </div>
-              <div className="landing-download__row">
-                <span className="landing-download__mark" aria-hidden="true">win</span>
-                <div className="landing-download__os">
-                  <strong>Windows 앱</strong>
-                  <span>Windows 10 이상</span>
+            </header>
+
+            <div className="landing-download__scene" aria-label="Bubli 앱 다운로드 미리보기">
+              <article className="landing-download__terminal">
+                <div className="landing-download__terminal-bar" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                  <b>bubli-desktop.app</b>
                 </div>
-                <Link className="bubli-button bubli-button--primary bubli-button--sm" href="/download">
-                  받기
-                </Link>
+                <div className="landing-download__terminal-body">
+                  <div>
+                    <span>오늘 할 일</span>
+                    <b>계약서 검토 기준 확인</b>
+                  </div>
+                  <div>
+                    <span>다음 일정</span>
+                    <b>18:00 리뷰 미팅</b>
+                  </div>
+                  <div>
+                    <span>타이머</span>
+                    <b>자료 정리 이어가기</b>
+                  </div>
+                </div>
+              </article>
+              <Link className="landing-download__float landing-download__float--primary" href="/#download">
+                macOS 앱 받기
+              </Link>
+              <Link className="landing-download__float landing-download__float--soft" href="/#download">
+                Windows 앱 받기
+              </Link>
+              <Link className="landing-download__float landing-download__float--login" href="/login">
+                로그인하고 시작
+              </Link>
+              <div className="landing-download__float landing-download__float--bubble" aria-hidden="true">
+                버블 위젯
               </div>
             </div>
-          </GlassPanel>
+          </div>
         </section>
       </Reveal>
 
