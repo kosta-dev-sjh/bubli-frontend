@@ -5882,6 +5882,499 @@ select {
   color: var(--color-blue-deep);
 }
 
+/* ===== 공개 랜딩(단일 페이지: 탑바 + 스크롤 섹션) ===== */
+html {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+.landing-nav {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 50;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  transition: background 0.25s ease, box-shadow 0.25s ease, backdrop-filter 0.25s ease;
+}
+.landing-nav__inner {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 4vw, 40px);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.landing-nav__brand {
+  font-size: 22px;
+  font-weight: 860;
+  color: var(--color-brand);
+  text-decoration: none;
+}
+.landing-nav__links {
+  display: flex;
+  gap: 24px;
+  margin-left: 30px;
+  flex: 1;
+}
+.landing-nav__links a {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--color-muted);
+  text-decoration: none;
+}
+.landing-nav__links a:hover {
+  color: var(--color-text);
+}
+.landing-nav__cta {
+  display: flex;
+  gap: 8px;
+}
+.landing-nav--scrolled {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: 0 1px 0 rgba(229, 231, 235, 0.8), 0 10px 30px -22px rgba(35, 48, 59, 0.3);
+}
+@media (max-width: 760px) {
+  .landing-nav__links {
+    display: none;
+  }
+}
+
+.landing-main {
+  padding-top: 64px;
+}
+
+.landing-hero {
+  position: relative;
+  margin-top: -64px;
+  min-height: 100vh;
+  display: grid;
+  align-items: center;
+  padding: 120px clamp(20px, 4vw, 48px) 72px;
+  overflow: hidden;
+}
+.landing-hero__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  opacity: 0.9;
+}
+.landing-hero__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(252, 253, 255, 0.5), rgba(252, 253, 255, 0.8) 72%, #fcfdff);
+}
+.landing-hero__content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.landing-section {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 84px clamp(20px, 4vw, 48px);
+  scroll-margin-top: 76px;
+}
+.landing-section__head {
+  max-width: 640px;
+  margin: 0 auto 34px;
+  text-align: center;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+.landing-section__head h2 {
+  margin: 0;
+  font-size: clamp(26px, 3.2vw, 38px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+.landing-section__head p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.landing-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.landing-feature-card {
+  display: grid;
+  gap: 10px;
+  padding: 22px;
+}
+.landing-feature-card h3 {
+  margin: 4px 0 0;
+  font-size: 17px;
+  font-weight: 750;
+  color: var(--color-text);
+}
+.landing-feature-card p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+@media (max-width: 860px) {
+  .landing-feature-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.landing-desktop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px;
+  align-items: center;
+}
+.landing-desktop__copy {
+  display: grid;
+  gap: 16px;
+}
+.landing-desktop__copy h2 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 800;
+  color: var(--color-text);
+}
+.landing-desktop__copy p {
+  margin: 0;
+  max-width: 520px;
+  color: var(--color-muted);
+  font-size: 16px;
+  line-height: 1.7;
+}
+.landing-desktop__list {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.landing-desktop__list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+.landing-desktop__list svg {
+  color: var(--blue-ink);
+}
+.landing-desktop__visual {
+  min-height: 320px;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, rgba(216, 240, 255, 0.5), rgba(220, 216, 248, 0.35));
+}
+.landing-desktop__scene {
+  position: absolute;
+  inset: 0;
+}
+.landing-desktop__bubble {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.92), rgba(215, 234, 244, 0.4) 55%, rgba(142, 205, 246, 0.16));
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: inset 0 2px 12px rgba(255, 255, 255, 0.8), 0 18px 36px rgba(84, 115, 136, 0.16);
+}
+.landing-desktop__bubble.one {
+  width: 120px;
+  height: 120px;
+  left: 14%;
+  top: 22%;
+  animation: bubli-hero-float 6s ease-in-out infinite;
+}
+.landing-desktop__bubble.two {
+  width: 74px;
+  height: 74px;
+  right: 22%;
+  top: 18%;
+  animation: bubli-hero-float 7.5s ease-in-out infinite;
+}
+.landing-desktop__bubble.three {
+  width: 92px;
+  height: 92px;
+  right: 30%;
+  bottom: 18%;
+  animation: bubli-hero-float 6.8s ease-in-out infinite;
+}
+@media (max-width: 860px) {
+  .landing-desktop {
+    grid-template-columns: 1fr;
+  }
+}
+
+.landing-download__card {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px;
+}
+.landing-download__head {
+  text-align: center;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  margin-bottom: 22px;
+}
+.landing-download__head h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+.landing-download__head p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 15px;
+}
+.landing-download__rows {
+  display: grid;
+  gap: 12px;
+}
+.landing-download__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--surface-border);
+}
+.landing-download__row svg {
+  color: var(--blue-ink);
+}
+.landing-download__os {
+  display: grid;
+  flex: 1;
+}
+.landing-download__os strong {
+  font-size: 15px;
+  color: var(--color-text);
+}
+.landing-download__os span {
+  font-size: 12.5px;
+  color: var(--color-faint);
+}
+
+.landing-faq__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.landing-faq__item {
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+}
+.landing-faq__item h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 750;
+  color: var(--color-text);
+}
+.landing-faq__item p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+@media (max-width: 760px) {
+  .landing-faq__list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.landing-footer {
+  max-width: 1180px;
+  margin: 40px auto 0;
+  padding: 40px clamp(20px, 4vw, 48px) 56px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.landing-footer__brand {
+  font-size: 18px;
+  font-weight: 860;
+  color: var(--color-brand);
+}
+.landing-footer__copy {
+  color: var(--color-muted);
+  font-size: 14px;
+}
+.landing-footer__links {
+  margin-left: auto;
+  display: flex;
+  gap: 18px;
+}
+.landing-footer__links a {
+  color: var(--color-muted);
+  font-size: 14px;
+  text-decoration: none;
+}
+.landing-footer__links a:hover {
+  color: var(--color-text);
+}
+
+/* ===== Bubli 워드마크 — iridescent 그라데이션 로고타입 ===== */
+.landing-nav__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.landing-nav__mark {
+  width: 24px;
+  height: 24px;
+}
+.bubli-wordmark {
+  font-weight: 860;
+  letter-spacing: -0.02em;
+  background: linear-gradient(100deg, #6fb8f2 0%, #9ed8ff 28%, #b9a7f4 62%, #6fb8f2 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: bubli-wordmark-pan 9s ease-in-out infinite;
+}
+@keyframes bubli-wordmark-pan {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* ===== 공개 랜딩 인터랙션 (Liquid Glass — 부드럽고 살아있게) ===== */
+.landing-nav a,
+.landing-footer__links a,
+.bubli-button {
+  cursor: pointer;
+}
+
+.landing-nav__links a {
+  position: relative;
+  transition: color 0.2s var(--ease-out, ease);
+}
+.landing-nav__links a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: -5px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #6fb8f2, #b9a7f4);
+  transition: right 0.25s var(--ease-out, ease);
+}
+.landing-nav__links a:hover::after {
+  right: 0;
+}
+
+.landing-feature-card,
+.landing-faq__item,
+.landing-download__row {
+  transition:
+    transform 0.3s var(--ease-out, ease),
+    box-shadow 0.3s var(--ease-out, ease),
+    border-color 0.3s var(--ease-out, ease);
+}
+.landing-feature-card:hover,
+.landing-faq__item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 30px 60px -28px rgba(64, 96, 122, 0.4);
+}
+.landing-download__row:hover {
+  transform: translateY(-2px);
+  border-color: rgba(111, 184, 242, 0.5);
+}
+
+.landing-nav .bubli-button,
+.landing-hero .bubli-button,
+.landing-section .bubli-button {
+  transition:
+    transform 0.2s var(--ease-out, ease),
+    box-shadow 0.25s var(--ease-out, ease);
+}
+.landing-nav .bubli-button:hover,
+.landing-hero .bubli-button:hover,
+.landing-section .bubli-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px -12px rgba(54, 114, 154, 0.5);
+}
+.landing-nav .bubli-button:active,
+.landing-hero .bubli-button:active,
+.landing-section .bubli-button:active {
+  transform: translateY(0) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubli-wordmark {
+    animation: none;
+  }
+  .landing-feature-card,
+  .landing-faq__item,
+  .landing-download__row,
+  .landing-nav .bubli-button,
+  .landing-hero .bubli-button,
+  .landing-section .bubli-button {
+    transition: none;
+  }
+  .landing-feature-card:hover,
+  .landing-faq__item:hover,
+  .landing-download__row:hover,
+  .bubli-button:hover {
+    transform: none;
+  }
+}
+
+/* 공개 랜딩 스크롤 리빌 (Reveal 컴포넌트) — 기본 visible, JS가 armed→is-visible */
+.bubli-reveal {
+  transition:
+    opacity 0.6s var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    transform 0.6s var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+.bubli-reveal--armed {
+  opacity: 0;
+  transform: translateY(18px);
+}
+.bubli-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bubli-reveal,
+  .bubli-reveal--armed {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
 .public-hero {
   display: grid;
   gap: 28px;
@@ -5936,56 +6429,76 @@ select {
     linear-gradient(145deg, rgba(255, 255, 255, 0.74), rgba(215, 234, 244, 0.5));
 }
 
+/* 랜딩 히어로 3D 글래스 버블(Three.js/R3F) + glow halo + 로드 전/실패 시 CSS fallback */
+.public-hero__halo {
+  position: absolute;
+  inset: 34px 34px auto auto;
+  width: min(330px, 58vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.66), rgba(215, 234, 244, 0.22) 45%, transparent 70%);
+  filter: blur(2px);
+  animation: public-hero-halo 7.5s ease-in-out infinite;
+}
+
+/* 히어로 버블 = v20 포토리얼 이미지(bubble-sky). 공개=라이트 전용이라 multiply로 흰 배경을 자연스럽게 제거 */
 .public-hero__bubble {
   position: absolute;
-  inset: 76px 62px auto auto;
-  display: grid;
-  width: min(330px, 52vw);
+  inset: 40px 44px auto auto;
+  width: min(300px, 50vw);
   aspect-ratio: 1;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.95), transparent 24%),
-    radial-gradient(circle at 70% 74%, rgba(142, 205, 246, 0.3), transparent 38%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.48), rgba(215, 234, 244, 0.18));
-  box-shadow:
-    inset 14px 18px 34px rgba(255, 255, 255, 0.72),
-    inset -18px -22px 42px rgba(107, 143, 168, 0.12),
-    0 38px 70px rgba(80, 110, 130, 0.18);
-  animation: bubli-bubble-wobble 7s ease-in-out infinite, bubli-bubble-float 5.2s ease-in-out infinite;
+  pointer-events: none;
+  animation: bubli-hero-float 6s ease-in-out infinite;
+  filter: drop-shadow(0 26px 40px rgba(84, 115, 136, 0.18));
 }
 
-.public-hero__bubble::before {
-  content: "";
-  position: absolute;
-  left: 20%;
-  top: 16%;
-  width: 30%;
-  height: 20%;
-  border-radius: 50%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0));
-  filter: blur(1px);
-  transform: rotate(-22deg);
+.public-hero__bubble picture,
+.public-hero__bubble img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  mix-blend-mode: multiply;
 }
 
-.public-hero__bubble::after {
-  content: "";
-  position: absolute;
-  right: 24%;
-  bottom: 26%;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.2) 70%, transparent);
+@keyframes bubli-hero-wobble {
+  0%,
+  100% {
+    border-radius: 50% 50% 50% 50% / 52% 48% 52% 48%;
+  }
+  50% {
+    border-radius: 48% 52% 47% 53% / 50% 53% 47% 50%;
+  }
 }
 
-.public-hero__bubble b {
-  position: relative;
-  z-index: 1;
-  color: var(--color-brand);
-  font-size: clamp(44px, 7vw, 74px);
-  font-weight: 880;
+@keyframes bubli-hero-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+@keyframes public-hero-halo {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.76;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.94;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-hero__bubble,
+  .public-hero__halo {
+    animation: none;
+  }
 }
 
 @keyframes bubli-bubble-wobble {
@@ -6280,6 +6793,709 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* ===== 공개 랜딩 v2 — 제품 장면 중심 톤 교정 ===== */
+.landing-main {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse 72% 46% at 8% 0%, rgba(216, 240, 255, 0.78), transparent 62%),
+    radial-gradient(ellipse 58% 42% at 92% 4%, rgba(220, 216, 248, 0.52), transparent 62%),
+    linear-gradient(180deg, var(--bg), var(--bg));
+}
+
+.landing-nav {
+  height: 72px;
+}
+
+.landing-nav__inner {
+  max-width: 1260px;
+}
+
+.landing-nav--scrolled .landing-nav__inner {
+  min-height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    var(--inner-highlight-light),
+    0 14px 28px -24px rgba(35, 48, 59, 0.28);
+  backdrop-filter: blur(18px) saturate(1.16);
+  -webkit-backdrop-filter: blur(18px) saturate(1.16);
+}
+
+.landing-nav--scrolled {
+  background: transparent;
+  box-shadow: none;
+}
+
+.landing-hero {
+  min-height: 100dvh;
+  padding-top: 138px;
+}
+
+.landing-hero__veil {
+  background:
+    linear-gradient(180deg, rgba(252, 253, 255, 0.2), rgba(252, 253, 255, 0.76) 68%, var(--bg)),
+    radial-gradient(ellipse 52% 40% at 76% 48%, rgba(216, 240, 255, 0.22), transparent 72%);
+}
+
+.landing-hero__video {
+  opacity: 0.48;
+  filter: saturate(0.86) brightness(1.06);
+}
+
+.public-hero {
+  grid-template-columns: minmax(390px, 0.8fr) minmax(520px, 1.2fr);
+  gap: clamp(28px, 4vw, 58px);
+}
+
+.public-hero__copy {
+  gap: 20px;
+}
+
+.public-hero__copy h1 {
+  max-width: 680px;
+  font-size: clamp(52px, 6.1vw, 88px);
+  line-height: 0.96;
+  text-wrap: balance;
+}
+
+.public-hero__copy p {
+  max-width: 560px;
+  font-size: 18px;
+  line-height: 1.72;
+}
+
+.public-hero__visual {
+  min-height: 560px;
+  border-radius: 40px;
+  background:
+    radial-gradient(ellipse 58% 46% at 72% 22%, rgba(255, 255, 255, 0.82), transparent 58%),
+    radial-gradient(ellipse 72% 52% at 34% 100%, rgba(216, 240, 255, 0.34), transparent 72%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(248, 251, 254, 0.56));
+  box-shadow:
+    var(--inner-highlight-light),
+    0 26px 58px -42px rgba(35, 48, 59, 0.26);
+}
+
+.public-hero__canvas {
+  position: absolute;
+  right: 14px;
+  top: 8px;
+  width: min(330px, 46%);
+  aspect-ratio: 1;
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.public-hero__bubble {
+  inset: 28px 28px auto auto;
+  width: min(250px, 42vw);
+  opacity: 0.52;
+}
+
+.public-hero__halo {
+  inset: 28px 26px auto auto;
+  width: min(300px, 44vw);
+}
+
+.public-hero__mini.one {
+  right: 54px;
+  top: 48px;
+  width: 42px;
+  height: 42px;
+}
+
+.public-hero__mini.two {
+  left: 48px;
+  bottom: 54px;
+  width: 64px;
+  height: 64px;
+}
+
+.public-hero__app-switch {
+  position: absolute;
+  left: 28px;
+  top: 28px;
+  z-index: 3;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 999px;
+  padding: 5px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: var(--inner-highlight-light);
+}
+
+.public-hero__app-switch span {
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.public-hero__app-switch .is-active {
+  color: var(--blue-ink);
+  background: rgba(216, 240, 255, 0.62);
+}
+
+.public-hero__workspace {
+  position: absolute;
+  inset: 102px 28px 30px;
+  z-index: 2;
+}
+
+.public-hero__window {
+  position: absolute;
+  inset: 0 36px 46px 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    var(--inner-highlight-light),
+    0 20px 46px -34px rgba(35, 48, 59, 0.34);
+  backdrop-filter: blur(18px) saturate(1.14);
+  -webkit-backdrop-filter: blur(18px) saturate(1.14);
+}
+
+.public-hero__window-bar,
+.landing-app-preview__bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(107, 143, 168, 0.1);
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.public-hero__window-bar span,
+.landing-app-preview__bar span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sky) 34%, var(--surface));
+}
+
+.public-hero__window-bar b,
+.landing-app-preview__bar b {
+  margin-left: 6px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.public-hero__window-body {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  height: calc(100% - 42px);
+}
+
+.public-hero__window-body aside,
+.landing-app-preview__body aside {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 18px;
+  border-right: 1px solid rgba(107, 143, 168, 0.1);
+  background: rgba(242, 247, 252, 0.42);
+}
+
+.public-hero__window-body aside span,
+.landing-app-preview__body aside span {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.public-hero__window-body aside .is-active,
+.landing-app-preview__body aside .is-on {
+  border-color: rgba(111, 184, 242, 0.42);
+  background: rgba(216, 240, 255, 0.66);
+  box-shadow: inset 3px 0 0 rgba(111, 184, 242, 0.7);
+}
+
+.public-hero__window-body main,
+.landing-app-preview__body main {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 18px;
+}
+
+.public-hero__metric-row,
+.landing-app-preview__summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.public-hero__metric-row span,
+.landing-app-preview__summary span {
+  border: 1px solid rgba(107, 143, 168, 0.1);
+  border-radius: 14px;
+  padding: 10px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.public-hero__resource-row,
+.landing-app-preview__lane {
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(107, 143, 168, 0.11);
+  border-radius: 16px;
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.public-hero__resource-row.is-selected {
+  border-color: rgba(111, 184, 242, 0.38);
+  background: rgba(216, 240, 255, 0.42);
+}
+
+.public-hero__resource-row b,
+.public-hero__approval b,
+.landing-app-preview__lane b {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-hero__resource-row small,
+.public-hero__approval small,
+.landing-app-preview__lane small {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.public-hero__approval {
+  display: grid;
+  gap: 5px;
+  margin-top: 2px;
+  border: 1px solid rgba(176, 168, 224, 0.24);
+  border-radius: 20px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 92% 18%, rgba(220, 216, 248, 0.34), transparent 42%),
+    rgba(255, 255, 255, 0.52);
+}
+
+.public-hero__approval span {
+  color: var(--lilac-ink);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.public-hero__widget {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  width: min(290px, 64%);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 24px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    var(--inner-highlight-light),
+    0 20px 38px -28px rgba(35, 48, 59, 0.32);
+  backdrop-filter: blur(18px) saturate(1.14);
+  -webkit-backdrop-filter: blur(18px) saturate(1.14);
+}
+
+.public-hero__widget-orb,
+.landing-app-preview__orb {
+  display: none !important;
+}
+
+.public-hero__widget b,
+.landing-app-preview__widget b {
+  display: block;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.public-hero__widget small,
+.landing-app-preview__widget small {
+  display: block;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.landing-desktop__visual {
+  min-height: 500px;
+  overflow: hidden;
+  border-radius: 34px;
+  background:
+    radial-gradient(ellipse 58% 42% at 16% 8%, rgba(216, 240, 255, 0.5), transparent 68%),
+    radial-gradient(ellipse 62% 46% at 100% 18%, rgba(220, 216, 248, 0.36), transparent 72%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.8), rgba(242, 247, 252, 0.6));
+}
+
+.landing-app-preview {
+  display: grid;
+  gap: 18px;
+  min-height: 100%;
+  padding: 24px;
+}
+
+.landing-app-preview__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.landing-app-preview__tabs button {
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: 999px;
+  padding: 9px 13px;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.52);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.landing-app-preview__tabs button.is-active {
+  border-color: rgba(111, 184, 242, 0.38);
+  color: var(--blue-ink);
+  background: rgba(216, 240, 255, 0.54);
+}
+
+.landing-app-preview__stage {
+  position: relative;
+  min-height: 390px;
+}
+
+.landing-app-preview__chrome {
+  position: absolute;
+  inset: 0 42px 58px 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow:
+    var(--inner-highlight-light),
+    0 24px 54px -40px rgba(35, 48, 59, 0.34);
+}
+
+.landing-app-preview__body {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  min-height: 292px;
+}
+
+.landing-app-preview__widget {
+  position: absolute;
+  right: 2px;
+  bottom: 42px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  width: min(300px, 70%);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 24px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow:
+    var(--inner-highlight-light),
+    0 20px 38px -28px rgba(35, 48, 59, 0.32);
+  backdrop-filter: blur(18px) saturate(1.14);
+  -webkit-backdrop-filter: blur(18px) saturate(1.14);
+}
+
+.landing-app-preview__dock {
+  position: absolute;
+  right: 82px;
+  bottom: 0;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 999px;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: var(--inner-highlight-light);
+}
+
+.landing-app-preview__dock span {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(216, 240, 255, 0.72);
+}
+
+.landing-app-preview__dock b {
+  color: var(--blue-ink);
+  font-size: 12px;
+  font-weight: 860;
+}
+
+/* 공개 랜딩 코멘트 반영 — 버튼, 히어로 배지, 제품 미리보기 모션 */
+.landing-nav__cta .bubli-button,
+.public-hero__actions .bubli-button {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  border-color: rgba(255, 255, 255, 0.78);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.62)),
+    rgba(255, 255, 255, 0.56);
+  box-shadow:
+    var(--inner-highlight-light),
+    0 14px 28px -24px rgba(35, 48, 59, 0.32);
+  backdrop-filter: blur(16px) saturate(1.16);
+  -webkit-backdrop-filter: blur(16px) saturate(1.16);
+}
+
+.landing-nav__cta .bubli-button::before,
+.public-hero__actions .bubli-button::before {
+  display: none !important;
+}
+
+.landing-nav__cta .bubli-button svg,
+.public-hero__actions .bubli-button svg {
+  position: relative;
+  z-index: 1;
+}
+
+.landing-nav__cta .bubli-button--primary,
+.public-hero__actions .bubli-button--primary {
+  border-color: rgba(111, 184, 242, 0.34);
+  color: var(--blue-ink);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(216, 240, 255, 0.62)),
+    rgba(255, 255, 255, 0.66);
+}
+
+.public-hero__actions {
+  gap: 12px;
+}
+
+.public-hero__actions .bubli-button {
+  min-height: 62px;
+  padding-inline: 22px 26px;
+  border-radius: 22px;
+  font-size: 16px;
+  box-shadow:
+    var(--inner-highlight-light),
+    0 18px 34px -26px rgba(35, 48, 59, 0.34);
+}
+
+.public-hero__actions .bubli-button::before {
+  display: none !important;
+}
+
+.public-hero__eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  max-width: min(100%, 560px);
+  align-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 999px;
+  padding: 9px 14px;
+  color: var(--blue-ink);
+  background: rgba(255, 255, 255, 0.54);
+  box-shadow: var(--inner-highlight-light);
+  backdrop-filter: blur(16px) saturate(1.12);
+  -webkit-backdrop-filter: blur(16px) saturate(1.12);
+}
+
+.public-hero__eyebrow span {
+  display: none !important;
+}
+
+.public-hero__eyebrow b {
+  font-size: 13px;
+  font-weight: 820;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.public-hero__copy h1 span:first-child {
+  display: inline-block;
+  width: fit-content;
+  color: transparent;
+  background:
+    linear-gradient(100deg, var(--blue-ink), var(--bubble-blue) 46%, var(--lilac-ink));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 18px 40px rgba(111, 184, 242, 0.14);
+}
+
+.public-hero__copy h1 span:first-child::after {
+  content: "";
+  display: block;
+  width: 72%;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(158, 216, 255, 0.34), rgba(220, 216, 248, 0.28));
+}
+
+.public-hero__visual {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(248, 251, 254, 0.62));
+}
+
+.public-hero__visual::before {
+  content: "";
+  position: absolute;
+  inset: 16px;
+  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  pointer-events: none;
+}
+
+.public-hero__canvas,
+.public-hero__bubble,
+.public-hero__halo,
+.public-hero__mini {
+  display: none;
+}
+
+.public-hero__window {
+  animation: public-preview-lift 5.8s var(--ease-out) infinite;
+}
+
+.public-hero__app-switch .is-active {
+  animation: public-preview-tab 5.8s var(--ease-out) infinite;
+}
+
+.public-hero__metric-row span:nth-child(2) {
+  animation: public-preview-chip 5.8s var(--ease-out) infinite;
+}
+
+.public-hero__resource-row.is-selected {
+  position: relative;
+  overflow: hidden;
+  animation: public-preview-select 5.8s var(--ease-out) infinite;
+}
+
+.public-hero__row-signal {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--bubble-blue);
+  transform: translateY(-50%);
+  box-shadow: 0 0 0 0 rgba(111, 184, 242, 0.26);
+  animation: public-preview-pulse 1.9s ease-out infinite;
+}
+
+.public-hero__resource-row.is-selected b,
+.public-hero__resource-row.is-selected small {
+  padding-left: 14px;
+}
+
+.public-hero__approval {
+  animation: public-preview-approval 5.8s var(--ease-out) infinite;
+}
+
+.public-hero__widget {
+  animation: public-preview-widget 5.8s var(--ease-out) infinite;
+}
+
+.public-hero__widget-orb {
+  animation: public-preview-orb 2.6s ease-in-out infinite;
+}
+
+@keyframes public-preview-lift {
+  0%,
+  100% { transform: translate3d(0, 0, 0); }
+  46% { transform: translate3d(0, -5px, 0); }
+}
+
+@keyframes public-preview-tab {
+  0%,
+  100% { box-shadow: none; }
+  44% { box-shadow: 0 0 0 4px rgba(158, 216, 255, 0.14); }
+}
+
+@keyframes public-preview-chip {
+  0%,
+  100% { border-color: rgba(107, 143, 168, 0.1); }
+  42% { border-color: rgba(111, 184, 242, 0.32); }
+}
+
+@keyframes public-preview-select {
+  0%,
+  100% { transform: translate3d(0, 0, 0); }
+  42% { transform: translate3d(0, -2px, 0); }
+}
+
+@keyframes public-preview-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(111, 184, 242, 0.28); }
+  80% { box-shadow: 0 0 0 13px rgba(111, 184, 242, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(111, 184, 242, 0); }
+}
+
+@keyframes public-preview-approval {
+  0%,
+  100% { border-color: rgba(176, 168, 224, 0.24); }
+  58% { border-color: rgba(176, 168, 224, 0.46); transform: translate3d(0, -3px, 0); }
+}
+
+@keyframes public-preview-widget {
+  0%,
+  100% { transform: translate3d(0, 0, 0); }
+  64% { transform: translate3d(-8px, -4px, 0); }
+}
+
+@keyframes public-preview-orb {
+  0%,
+  100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-hero__window,
+  .public-hero__app-switch .is-active,
+  .public-hero__metric-row span:nth-child(2),
+  .public-hero__resource-row.is-selected,
+  .public-hero__row-signal,
+  .public-hero__approval,
+  .public-hero__widget,
+  .public-hero__widget-orb {
+    animation: none;
+  }
+}
+
+/* 공개 랜딩: 앱 프레임 안쪽의 탁한 수정구슬 장식만 금지 */
+.public-hero__canvas,
+.public-hero__bubble,
+.public-hero__halo,
+.public-hero__mini,
+.public-home-flow__main::before,
+.public-home-flow__todo::before {
+  display: none !important;
 }
 
 .public-feature-flow,
@@ -10122,4 +11338,649 @@ select {
   .bubli-flow {
     grid-template-columns: 1fr;
   }
+}
+
+/* ============================================================
+   Public landing harmony pass
+   공개 사이트는 소개 -> 회원 앱 진입 -> 데스크탑 다운로드 흐름만 남긴다.
+   배경 버블 무드는 유지하고, 화면 안 장식 구슬은 쓰지 않는다.
+   ============================================================ */
+.landing-main {
+  background:
+    linear-gradient(180deg, rgba(252, 253, 255, 0.86), rgba(252, 253, 255, 0.98) 34%, var(--bg) 100%);
+}
+
+.landing-hero {
+  min-height: clamp(720px, 100dvh, 980px);
+  padding: clamp(100px, 11vh, 128px) clamp(20px, 4vw, 48px) clamp(64px, 8vh, 96px);
+  align-items: center;
+}
+
+.landing-hero__video {
+  opacity: 0.58;
+  filter: saturate(0.92) brightness(1.04);
+}
+
+.landing-hero__veil {
+  background:
+    linear-gradient(180deg, rgba(252, 253, 255, 0.18), rgba(252, 253, 255, 0.72) 72%, var(--bg));
+}
+
+.public-hero {
+  min-height: auto;
+  grid-template-columns: minmax(390px, 0.78fr) minmax(520px, 1.22fr);
+  gap: clamp(42px, 5vw, 72px);
+}
+
+.public-hero__copy {
+  align-content: center;
+  gap: 22px;
+}
+
+.public-hero__eyebrow {
+  border-radius: 16px;
+  padding: 9px 14px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.public-hero__copy h1 {
+  max-width: 700px;
+  font-size: clamp(52px, 5.8vw, 82px);
+  line-height: 0.94;
+}
+
+.public-hero__copy h1 span:first-child {
+  white-space: nowrap;
+}
+
+.public-hero__copy p {
+  max-width: 570px;
+  color: color-mix(in srgb, var(--ink-soft) 92%, var(--blue-ink) 8%);
+  font-size: 18px;
+  font-weight: 560;
+}
+
+.public-hero__actions {
+  margin-top: 2px;
+}
+
+.public-hero__actions .bubli-button,
+.landing-nav__cta .bubli-button {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow:
+    var(--inner-highlight-light),
+    0 12px 24px -22px rgba(35, 48, 59, 0.32);
+}
+
+.public-hero__actions .bubli-button--primary,
+.landing-nav__cta .bubli-button--primary {
+  border-color: rgba(111, 184, 242, 0.42);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(216, 240, 255, 0.56));
+}
+
+.public-hero__actions .bubli-button {
+  min-height: 58px;
+  border-radius: 20px;
+}
+
+.public-hero__visual {
+  min-height: 548px;
+  border-radius: 34px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(248, 251, 254, 0.62));
+}
+
+.public-hero__app-switch,
+.landing-app-preview__tabs {
+  border-radius: 18px;
+}
+
+.public-hero__window,
+.landing-app-preview__chrome {
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.public-hero__window-body aside span,
+.landing-app-preview__body aside span {
+  border-radius: 11px;
+}
+
+.public-hero__resource-row,
+.public-hero__approval,
+.landing-app-preview__lane,
+.landing-app-preview__summary span {
+  border-radius: 15px;
+}
+
+.public-hero__widget,
+.landing-app-preview__widget {
+  border-radius: 20px;
+  padding: 14px 16px;
+}
+
+.public-hero__widget,
+.landing-app-preview__widget,
+.landing-app-preview__dock {
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.public-hero__checks {
+  display: none;
+}
+
+.landing-section {
+  max-width: 1180px;
+  padding-block: clamp(56px, 7vw, 88px);
+}
+
+.landing-section__head {
+  margin-bottom: 30px;
+}
+
+.landing-section__head h2 {
+  max-width: 760px;
+  text-wrap: balance;
+}
+
+.landing-section__head p {
+  max-width: 680px;
+}
+
+.landing-section__head--left {
+  margin-inline: 0;
+  text-align: left;
+  justify-items: start;
+}
+
+.landing-section__head--left p {
+  margin: 0;
+}
+
+.landing-feature-grid {
+  gap: 14px;
+}
+
+.landing-feature-card,
+.landing-faq__item,
+.landing-download__row {
+  border-color: rgba(107, 143, 168, 0.1);
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow:
+    var(--inner-highlight-light),
+    0 10px 24px -22px rgba(35, 48, 59, 0.22);
+}
+
+.landing-feature-card {
+  min-height: 164px;
+  align-content: start;
+  padding: 24px;
+}
+
+.landing-feature-card .bubli-icon-tile {
+  border-radius: 12px;
+}
+
+.landing-desktop {
+  gap: clamp(38px, 5vw, 72px);
+  align-items: center;
+}
+
+.landing-desktop__copy {
+  align-content: center;
+}
+
+.landing-desktop__copy p {
+  max-width: 560px;
+}
+
+.landing-desktop__copy h2,
+.landing-download__head h2,
+.landing-section__head h2 {
+  letter-spacing: 0;
+}
+
+.landing-desktop__visual {
+  min-height: 480px;
+  border-radius: 34px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(242, 247, 252, 0.62));
+}
+
+.landing-download__card {
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.landing-footer {
+  margin-top: 0;
+}
+
+@media (max-width: 960px) {
+  .landing-hero {
+    min-height: auto;
+    padding-top: 96px;
+  }
+
+  .public-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .public-hero__copy h1 {
+    font-size: clamp(44px, 11vw, 66px);
+  }
+
+  .public-hero__visual {
+    min-height: 520px;
+  }
+}
+
+@media (max-width: 640px) {
+  .landing-hero {
+    padding-inline: 24px;
+  }
+
+  .public-hero__copy {
+    gap: 18px;
+  }
+
+  .public-hero__copy h1 {
+    font-size: clamp(42px, 10.5vw, 58px);
+  }
+
+  .public-hero__copy p {
+    font-size: 16px;
+  }
+
+  .public-hero__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .public-hero__actions .bubli-button {
+    min-height: 54px;
+    padding-inline: 14px;
+  }
+
+  .public-hero__visual {
+    min-height: 440px;
+  }
+
+  .public-hero__workspace {
+    inset: 86px 20px 26px;
+  }
+
+  .public-hero__window {
+    inset: 0 0 68px 0;
+  }
+
+  .public-hero__widget {
+    width: min(280px, 86%);
+  }
+}
+
+/* ============================================================
+   Public landing lower-section rebuild
+   아래 섹션은 발표용 보드가 아니라 제품의 실제 업무 흐름처럼 보이게 정리한다.
+   ============================================================ */
+.public-home-flow {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.42fr);
+  gap: 18px;
+}
+
+.public-home-flow__main {
+  grid-template-columns: minmax(240px, 0.36fr) minmax(0, 0.64fr);
+  gap: 22px;
+  border-color: rgba(107, 143, 168, 0.12);
+  border-radius: 28px;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(249, 252, 254, 0.68)),
+    linear-gradient(135deg, rgba(215, 234, 244, 0.36), rgba(255, 255, 255, 0.36));
+  box-shadow:
+    var(--inner-highlight-light),
+    0 18px 42px -34px rgba(44, 53, 64, 0.28);
+}
+
+.public-home-flow__copy {
+  align-content: center;
+  gap: 14px;
+}
+
+.public-home-flow__copy .bubli-chip {
+  justify-self: start;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.public-home-flow__copy h2 {
+  max-width: 320px;
+  font-size: clamp(27px, 2.7vw, 38px);
+  line-height: 1.08;
+}
+
+.public-home-flow__copy p {
+  max-width: 340px;
+  color: color-mix(in srgb, var(--ink-soft) 88%, var(--blue-ink) 12%);
+  font-size: 14px;
+  font-weight: 620;
+  line-height: 1.72;
+}
+
+.public-home-flow__steps {
+  position: relative;
+  align-content: center;
+  gap: 0;
+  border-radius: 24px;
+  padding: 10px 0;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.public-home-flow__steps::before {
+  content: "";
+  position: absolute;
+  top: 36px;
+  bottom: 36px;
+  left: 31px;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(111, 184, 242, 0.12), rgba(107, 143, 168, 0.42), rgba(111, 184, 242, 0.12));
+}
+
+.public-home-flow__step-reveal {
+  position: relative;
+}
+
+.public-home-flow__step {
+  position: relative;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 14px;
+  border: 0;
+  border-radius: 0;
+  padding: 15px 18px 15px 10px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.public-home-flow__step + .public-home-flow__step,
+.public-home-flow__step-reveal + .public-home-flow__step-reveal .public-home-flow__step {
+  border-top: 1px solid rgba(107, 143, 168, 0.09);
+}
+
+.public-home-flow__step-index {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.16);
+  border-radius: 14px;
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--inner-highlight-light);
+  font-size: 12px;
+  font-weight: 820;
+  font-variant-numeric: tabular-nums;
+}
+
+.public-home-flow__step-meta,
+.landing-feature-card__kicker {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  color: var(--color-blue-deep);
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1;
+}
+
+.public-home-flow__step h3 {
+  margin: 6px 0 3px;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.public-home-flow__step p {
+  max-width: 360px;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.public-home-flow__todo {
+  border-color: rgba(107, 143, 168, 0.12);
+  border-radius: 28px;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(249, 252, 254, 0.72));
+  box-shadow:
+    var(--inner-highlight-light),
+    0 18px 42px -34px rgba(44, 53, 64, 0.24);
+}
+
+.public-home-flow__todo-head {
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.public-home-flow__todo-signal {
+  width: 10px;
+  height: 10px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: var(--brand-water);
+  box-shadow: 0 0 0 6px rgba(215, 234, 244, 0.46);
+}
+
+.public-home-flow__todo-card {
+  border-color: rgba(107, 143, 168, 0.12);
+  border-radius: 18px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    var(--inner-highlight-light),
+    0 14px 30px -26px rgba(44, 53, 64, 0.28);
+}
+
+.public-home-flow__channels .bubli-chip {
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.landing-feature-grid {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.landing-feature-card {
+  grid-column: span 4;
+  min-height: 150px;
+  border-color: rgba(107, 143, 168, 0.12);
+  border-radius: 24px;
+  padding: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(249, 252, 254, 0.58));
+  box-shadow:
+    var(--inner-highlight-light),
+    0 16px 34px -30px rgba(44, 53, 64, 0.25);
+}
+
+.landing-feature-card::before {
+  content: "";
+  width: 42px;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-deep) 46%, transparent);
+}
+
+.landing-feature-card h3 {
+  margin: 8px 0 0;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.landing-feature-card p {
+  max-width: 30rem;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.68;
+}
+
+.landing-desktop__list li {
+  align-items: baseline;
+}
+
+.landing-desktop__list-mark,
+.landing-download__mark {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  color: var(--color-blue-deep);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: var(--inner-highlight-light);
+  font-weight: 820;
+  font-variant-numeric: tabular-nums;
+}
+
+.landing-desktop__list-mark {
+  width: 28px;
+  height: 22px;
+  border-radius: 9px;
+  font-size: 11px;
+}
+
+.landing-download__mark {
+  width: 46px;
+  height: 34px;
+  border-radius: 13px;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+@media (min-width: 861px) {
+  .landing-feature-card:nth-child(2) {
+    transform: translateY(18px);
+  }
+}
+
+@media (max-width: 960px) {
+  .public-home-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .public-home-flow__main {
+    grid-template-columns: 1fr;
+  }
+
+  .public-home-flow__copy h2,
+  .public-home-flow__copy p {
+    max-width: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .landing-feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-feature-card {
+    grid-column: auto;
+  }
+
+  .landing-feature-card:nth-child(2) {
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .public-home-flow__main,
+  .public-home-flow__todo {
+    border-radius: 24px;
+    padding: 20px;
+  }
+
+  .public-home-flow__steps {
+    margin-inline: -8px;
+  }
+
+  .public-home-flow__step {
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px 10px 14px 8px;
+  }
+
+  .public-home-flow__step-index {
+    width: 38px;
+    height: 38px;
+    border-radius: 13px;
+  }
+
+  .public-home-flow__steps::before {
+    left: 27px;
+  }
+
+  .landing-feature-card {
+    min-height: auto;
+    padding: 20px;
+  }
+}
+
+/* 공개 랜딩 CTA 최종 규칙: 버튼 안에는 버블/구슬 장식을 넣지 않는다. */
+.landing-nav__cta .bubli-button,
+.public-hero__actions .bubli-button,
+.landing-download__row .bubli-button,
+.landing-desktop__copy .bubli-button {
+  overflow: visible;
+  border-radius: 16px;
+  border-color: rgba(107, 143, 168, 0.16);
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 10px 22px -20px rgba(44, 53, 64, 0.3);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.landing-nav__cta .bubli-button--primary,
+.public-hero__actions .bubli-button--primary,
+.landing-download__row .bubli-button--primary,
+.landing-desktop__copy .bubli-button--primary {
+  border-color: rgba(111, 184, 242, 0.62);
+  color: var(--blue-ink);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.landing-nav__cta .bubli-button::before,
+.landing-nav__cta .bubli-button::after,
+.public-hero__actions .bubli-button::before,
+.public-hero__actions .bubli-button::after,
+.landing-download__row .bubli-button::before,
+.landing-download__row .bubli-button::after,
+.landing-desktop__copy .bubli-button::before,
+.landing-desktop__copy .bubli-button::after,
+.public-hero__eyebrow::before,
+.public-hero__eyebrow::after {
+  content: none !important;
+  display: none !important;
+}
+
+.landing-nav__cta .bubli-button svg,
+.public-hero__actions .bubli-button svg,
+.landing-download__row .bubli-button svg,
+.landing-desktop__copy .bubli-button svg,
+.landing-nav__cta .bubli-button__dots,
+.public-hero__actions .bubli-button__dots,
+.landing-download__row .bubli-button__dots,
+.landing-desktop__copy .bubli-button__dots {
+  display: none !important;
+}
+
+.public-hero__eyebrow {
+  gap: 0;
+  padding-inline: 16px;
+  background: rgba(255, 255, 255, 0.68);
 }

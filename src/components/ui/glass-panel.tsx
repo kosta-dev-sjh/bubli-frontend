@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ElementType, FC, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -28,7 +28,8 @@ export function GlassPanel<T extends ElementType = "section">({
   padded = true,
   ...props
 }: GlassPanelProps<T>) {
-  const Component = as ?? "section";
+  // 폴리모픽 컴포넌트 — @types/react 19.2 strict JSX에서 안전하게 캐스트
+  const Component = (as ?? "section") as FC<{ children?: ReactNode } & Record<string, unknown>>;
   const pad = padded ? (dense ? "p-3.5" : "p-5") : false;
 
   return (

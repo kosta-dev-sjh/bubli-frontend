@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
-import { PublicHeader } from "@/components/layout/public-header";
+import { ForceLightTheme } from "@/features/public-site/components/force-light-theme";
+import { LandingNav } from "@/features/public-site/components/landing-nav";
 
 type PublicLayoutProps = {
   children: ReactNode;
@@ -8,9 +9,11 @@ type PublicLayoutProps = {
 
 export default function PublicLayout({ children }: PublicLayoutProps) {
   return (
-    <div className="shell">
-      <PublicHeader />
-      <main style={{ marginTop: 48 }}>{children}</main>
-    </div>
+    <>
+      {/* 공개(비회원) 페이지는 라이트 전용 */}
+      <ForceLightTheme />
+      <LandingNav />
+      <main className="landing-main">{children}</main>
+    </>
   );
 }
