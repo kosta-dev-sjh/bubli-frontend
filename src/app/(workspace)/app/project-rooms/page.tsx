@@ -1,76 +1,110 @@
 "use client";
 
-import {
-  ContractExtractedFieldsReviewPanel,
-  defaultInviteFriends,
-  defaultInviteRules,
-  defaultSeedDocuments,
-  defaultSeedFields,
-  defaultSeedTargets,
-  ProjectRoomBoard,
-  ProjectRoomCreateFlowPanel,
-  ProjectRoomDocumentSeedPanel,
-  ProjectRoomInviteAccessPanel,
-  ProjectRoomInviteFlow,
-  ProjectReferenceInfo,
-  ProjectRoomSwitcherPanel,
-} from "@/features/project-room/components";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
-const projectRoomSwitcherItems = [
-  {
-    alertCount: 3,
-    description: "계약서와 요구사항 후보 확인이 남아 있습니다.",
-    id: "room-kstay",
-    myTodoCount: 8,
-    name: "K-Stay 번역 프로젝트",
-    nextDueLabel: "D-2",
-    progress: 62,
-    role: "leader" as const,
-    status: "needsReview" as const,
-  },
-  {
-    alertCount: 1,
-    description: "혼자 시작한 자료 정리 프로젝트룸입니다.",
-    id: "room-portfolio",
-    myTodoCount: 4,
-    name: "포트폴리오 리뉴얼",
-    nextDueLabel: "6.29",
-    progress: 44,
-    role: "member" as const,
-    status: "solo" as const,
-  },
-  {
-    alertCount: 0,
-    description: "팀원과 WBS 작업판을 함께 보고 있습니다.",
-    id: "room-bubli",
-    myTodoCount: 6,
-    name: "Bubli 제품 개발",
-    nextDueLabel: "오늘",
-    progress: 78,
-    role: "leader" as const,
-    status: "active" as const,
-  },
-];
+import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
+import { ApiClientError } from "@/lib/api/errors";
+import type { ProjectRoomResponse } from "@/types/api/projectRoom";
+
+type PageState =
+  | { kind: "loading" }
+  | { kind: "ready"; rooms: ProjectRoomResponse[] }
+  | { kind: "auth" }
+  | { kind: "offline" };
+
+function statusLabel(room: ProjectRoomResponse) {
+  if (room.status === "CLOSED") return "종료";
+  if (room.paymentStatus === "OVERDUE") return "확인";
+  return "진행";
+}
+
+function moneyLabel(amount?: number | null) {
+  if (!amount) return null;
+  return new Intl.NumberFormat("ko-KR").format(amount);
+}
 
 export default function ProjectRoomsPage() {
-  return (
-    <>
-      <ProjectRoomBoard />
+  const [state, setState] = useState<PageState>({ kind: "loading" });
 
-      <div className="page-grid">
-        <ProjectRoomSwitcherPanel activeRoomId="room-kstay" items={projectRoomSwitcherItems} />
-        <ProjectRoomCreateFlowPanel />
-        <ProjectRoomDocumentSeedPanel
-          documents={defaultSeedDocuments}
-          fields={defaultSeedFields}
-          targets={defaultSeedTargets}
-          title="문서 후보로 프로젝트룸 시작하기"
-        />
-        <ContractExtractedFieldsReviewPanel />
-        <ProjectReferenceInfo />
-        <ProjectRoomInviteFlow />
-        <ProjectRoomInviteAccessPanel friends={defaultInviteFriends} roomName="K-Stay 번역 프로젝트" rules={defaultInviteRules} />
-      </div>
-    </>
+  useEffect(() => {
+    let mounted = true;
+
+    projectRoomApi
+      .list()
+      .then((page) => {
+        if (mounted) setState({ kind: "ready", rooms: page.items });
+      })
+      .catch((error) => {
+        if (!mounted) return;
+        if (error instanceof ApiClientError && error.status === 401) {
+          setState({ kind: "auth" });
+          return;
+        }
+        setState({ kind: "offline" });
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return (
+    <section className="workspace-route" aria-labelledby="project-rooms-title">
+      <header className="workspace-route__header">
+        <div>
+          <p className="workspace-route__eyebrow">Rooms</p>
+          <h1 id="project-rooms-title">프로젝트룸</h1>
+        </div>
+        <Link className="bubli-button bubli-button--primary" href="/app/project-rooms/new">
+          새 프로젝트룸
+        </Link>
+      </header>
+
+      {state.kind === "loading" && <div className="workspace-route__panel">불러오는 중</div>}
+
+      {state.kind === "auth" && (
+        <div className="workspace-route__panel">
+          <strong>로그인이 필요합니다</strong>
+          <Link className="bubli-button bubli-button--primary" href="/login">
+            로그인
+          </Link>
+        </div>
+      )}
+
+      {state.kind === "offline" && (
+        <div className="workspace-route__panel">
+          <strong>API 연결 대기</strong>
+          <span>백엔드가 켜지면 프로젝트룸을 불러옵니다.</span>
+        </div>
+      )}
+
+      {state.kind === "ready" && state.rooms.length === 0 && (
+        <div className="workspace-route__panel">
+          <strong>프로젝트룸 없음</strong>
+          <Link className="bubli-button bubli-button--primary" href="/app/project-rooms/new">
+            만들기
+          </Link>
+        </div>
+      )}
+
+      {state.kind === "ready" && state.rooms.length > 0 && (
+        <div className="workspace-route__list">
+          {state.rooms.map((room) => (
+            <Link className="workspace-route__row" href={`/app/project-rooms/${room.id}`} key={room.id}>
+              <span className="workspace-route__dot" aria-hidden="true" />
+              <span className="workspace-route__main">
+                <strong>{room.name}</strong>
+                <span>{room.clientName ?? "클라이언트 미입력"}</span>
+              </span>
+              <span className="workspace-route__meta">
+                {moneyLabel(room.contractAmount) ? `${moneyLabel(room.contractAmount)}원` : "금액 미입력"}
+              </span>
+              <span className="workspace-route__status">{statusLabel(room)}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

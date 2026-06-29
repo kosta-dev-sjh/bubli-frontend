@@ -1169,6 +1169,188 @@ select {
   color: var(--blue-ink);
 }
 
+.workspace-route {
+  display: grid;
+  gap: 22px;
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  padding: 22px clamp(18px, 3vw, 34px) 48px;
+}
+
+.workspace-route__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+  padding: 4px 0 10px;
+}
+
+.workspace-route__header h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(34px, 5vw, 62px);
+  font-weight: 930;
+  line-height: 0.98;
+  letter-spacing: 0;
+}
+
+.workspace-route__eyebrow {
+  margin: 0 0 8px;
+  color: transparent;
+  background: linear-gradient(100deg, var(--blue-ink), var(--bubble-blue) 58%, var(--lilac-ink));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 13px;
+  font-weight: 880;
+}
+
+.workspace-route__panel,
+.workspace-route__card,
+.workspace-route__row {
+  border: 1px solid rgba(210, 225, 238, 0.76);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(250, 253, 255, 0.72)),
+    rgba(255, 255, 255, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 18px 42px -34px rgba(66, 110, 150, 0.42);
+  -webkit-backdrop-filter: blur(18px) saturate(1.18);
+  backdrop-filter: blur(18px) saturate(1.18);
+}
+
+.workspace-route__panel {
+  display: flex;
+  min-height: 220px;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  border-radius: 34px;
+  color: var(--ink-soft);
+  font-size: 16px;
+  font-weight: 760;
+  text-align: center;
+  word-break: keep-all;
+}
+
+.workspace-route__panel strong {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 900;
+  word-break: keep-all;
+}
+
+.workspace-route__list,
+.workspace-route__cards {
+  display: grid;
+  gap: 12px;
+}
+
+.workspace-route__cards {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.workspace-route__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 74px;
+  border-radius: 24px;
+  padding: 14px 16px;
+  color: var(--ink);
+  transition:
+    transform 180ms var(--ease-out),
+    border-color 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out);
+}
+
+.workspace-route__row:hover {
+  transform: translateY(-2px);
+  border-color: rgba(111, 184, 242, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 22px 42px -32px rgba(58, 120, 184, 0.5);
+}
+
+.workspace-route__dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--bubble-blue), var(--opal-lilac));
+  box-shadow: 0 0 0 5px rgba(111, 184, 242, 0.14);
+}
+
+.workspace-route__main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.workspace-route__main strong,
+.workspace-route__card strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 880;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-route__main span,
+.workspace-route__card span,
+.workspace-route__meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 690;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-route__meta {
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.workspace-route__status {
+  display: inline-flex;
+  min-width: 34px;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(111, 184, 242, 0.38);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: var(--blue-ink);
+  background: rgba(216, 240, 255, 0.5);
+  font-size: 12px;
+  font-weight: 860;
+}
+
+.workspace-route__card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 150px;
+  border-radius: 26px;
+  padding: 22px;
+}
+
+.workspace-route__label {
+  width: fit-content;
+  color: transparent;
+  background: linear-gradient(100deg, var(--blue-ink), var(--lilac-ink));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 12px;
+  font-weight: 880;
+}
+
 /* ============================================================
    Night Bubble — AppShell(사이드바/내비/배경) 다크 정합화
    색은 빛에만: 활성 내비는 Sky rim + 옅은 glow, 채움 없음. 청록 없음.
@@ -1225,6 +1407,38 @@ select {
 
 [data-theme="dark"] .bubli-nav__item--active .bubli-nav__icon {
   background: rgba(70, 92, 140, 0.55);
+}
+
+[data-theme="dark"] .workspace-route__header h1,
+[data-theme="dark"] .workspace-route__panel strong,
+[data-theme="dark"] .workspace-route__main strong,
+[data-theme="dark"] .workspace-route__card strong {
+  color: rgba(232, 240, 250, 0.98);
+}
+
+[data-theme="dark"] .workspace-route__panel,
+[data-theme="dark"] .workspace-route__card,
+[data-theme="dark"] .workspace-route__row {
+  border-color: rgba(150, 170, 215, 0.18);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(158, 216, 255, 0.08), transparent 34%),
+    rgba(34, 46, 72, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 20px 48px -34px rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="dark"] .workspace-route__main span,
+[data-theme="dark"] .workspace-route__card span,
+[data-theme="dark"] .workspace-route__meta,
+[data-theme="dark"] .workspace-route__panel {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .workspace-route__status {
+  color: #BFD6F5;
+  border-color: rgba(111, 184, 242, 0.42);
+  background: rgba(54, 72, 110, 0.44);
 }
 
 [data-theme="dark"] .bubli-icon-tile {
@@ -15045,6 +15259,34 @@ html {
 }
 
 @media (max-width: 640px) {
+  .workspace-route {
+    padding-inline: 14px;
+  }
+
+  .workspace-route__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workspace-route__panel {
+    flex-direction: column;
+    padding: 24px;
+  }
+
+  .workspace-route__cards {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-route__row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .workspace-route__meta,
+  .workspace-route__status {
+    grid-column: 2;
+    justify-self: start;
+  }
+
   .resource-workspace__board {
     padding: 12px;
   }
