@@ -1,5 +1,28 @@
 @import "tailwindcss";
 
+/* 디자인 시스템 폰트 — 목업(bubli-screen-mockups)과 정합. Pretendard fallback. */
+@font-face {
+  font-family: "LINE Seed Sans KR";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/npm/@fontpkg/line-seed-sans-kr/LINESeedSansKR-Th.woff2") format("woff2");
+}
+@font-face {
+  font-family: "LINE Seed Sans KR";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/npm/@fontpkg/line-seed-sans-kr/LINESeedSansKR-Rg.woff2") format("woff2");
+}
+@font-face {
+  font-family: "LINE Seed Sans KR";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/npm/@fontpkg/line-seed-sans-kr/LINESeedSansKR-Bd.woff2") format("woff2");
+}
+
 :root {
   /* === Sky Opal canonical (Brand Bible Part 4) — 색은 면이 아니라 빛에 === */
   --bg: #FCFDFF;
@@ -123,13 +146,15 @@ body {
 
 body {
   background:
-    radial-gradient(ellipse 70% 50% at 8% 0%, rgba(215, 234, 244, 0.85), transparent 60%),
-    radial-gradient(ellipse 60% 45% at 96% 6%, rgba(230, 221, 248, 0.5), transparent 60%),
-    radial-gradient(ellipse 80% 60% at 78% 100%, rgba(142, 205, 246, 0.2), transparent 62%),
-    linear-gradient(180deg, #FBFCFE, var(--color-bg));
+    radial-gradient(ellipse 78% 56% at 4% -4%, rgba(199, 227, 246, 0.92), transparent 60%),
+    radial-gradient(ellipse 66% 50% at 100% 0%, rgba(224, 214, 248, 0.64), transparent 60%),
+    radial-gradient(ellipse 60% 44% at 50% -6%, rgba(246, 221, 235, 0.34), transparent 58%),
+    radial-gradient(ellipse 92% 68% at 82% 106%, rgba(176, 214, 246, 0.3), transparent 62%),
+    linear-gradient(180deg, #FCFDFF, var(--color-bg));
   background-attachment: fixed;
   color: var(--color-text);
   font-family:
+    "LINE Seed Sans KR",
     Pretendard,
     -apple-system,
     BlinkMacSystemFont,
@@ -1104,10 +1129,10 @@ select {
    ============================================================ */
 [data-theme="dark"] body {
   background:
-    radial-gradient(ellipse 70% 50% at 8% 0%, rgba(110, 160, 210, 0.16), transparent 60%),
-    radial-gradient(ellipse 60% 45% at 96% 6%, rgba(120, 110, 180, 0.16), transparent 60%),
-    radial-gradient(ellipse 80% 60% at 78% 100%, rgba(110, 160, 210, 0.1), transparent 62%),
-    linear-gradient(180deg, #131a28, #161e2e);
+    radial-gradient(ellipse 78% 56% at 4% -4%, rgba(110, 160, 210, 0.22), transparent 60%),
+    radial-gradient(ellipse 66% 50% at 100% 0%, rgba(140, 120, 200, 0.2), transparent 60%),
+    radial-gradient(ellipse 92% 68% at 82% 106%, rgba(110, 160, 210, 0.12), transparent 62%),
+    linear-gradient(180deg, #121826, #161e2e);
   color: rgba(232, 240, 250, 0.95);
 }
 
@@ -4156,7 +4181,7 @@ select {
 .bubli-dash-grid {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
-  gap: 14px;
+  gap: 18px;
 }
 .bubli-dash-grid--dense { gap: 10px; }
 .bubli-dash-grid--edit {
@@ -4169,16 +4194,22 @@ select {
   outline-offset: -1px;
 }
 
-/* WidgetTile — Paper Glass */
+/* WidgetTile — 코덱스 목업(bubli-screen-mockups) 글래스 레시피와 정합: airy soft shadow + 위/아래 inner highlight */
 .bubli-dash-tile {
   position: relative;
   grid-column: span 4;
   min-width: 0;
-  padding: 14px;
-  border-radius: var(--radius-card);
-  border: 1px solid var(--surface-border);
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: var(--surface-shadow);
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(209, 224, 238, 0.78);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(250, 253, 255, 0.68));
+  box-shadow:
+    0 22px 70px rgba(83, 121, 160, 0.14),
+    0 9px 24px rgba(56, 92, 130, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(142, 205, 246, 0.12);
+  backdrop-filter: blur(28px) saturate(1.12);
+  -webkit-backdrop-filter: blur(28px) saturate(1.12);
   transition: transform var(--motion-hover) var(--ease-out), box-shadow var(--motion-hover) var(--ease-out);
 }
 .bubli-dash-tile--s { grid-column: span 3; }
@@ -4204,7 +4235,7 @@ select {
 .bubli-dash-tile--hidden { opacity: 0.42; filter: saturate(0.85); }
 .bubli-dash-tile--disabled { opacity: 0.55; filter: saturate(0.9); cursor: not-allowed; }
 .bubli-dash-tile__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
-.bubli-dash-tile__title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.bubli-dash-tile__title { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em; }
 .bubli-dash-tile__icon { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; flex: 0 0 auto; background: rgba(216, 240, 255, 0.6); border: 1px solid var(--surface-border); color: var(--blue-ink); }
 .bubli-dash-tile__icon svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; }
 .bubli-dash-tile__actions { display: inline-flex; gap: 4px; }
@@ -4216,7 +4247,7 @@ select {
 .bubli-dash-tile__act:hover { color: var(--blue-ink); border-color: rgba(111, 184, 242, 0.5); }
 .bubli-dash-tile__act svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.8; }
 .bubli-dash-tile__handle { cursor: grab; }
-.bubli-dash-tile__body { font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
+.bubli-dash-tile__body { font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
 
 /* Palette */
 .bubli-dash-palette {
@@ -4270,9 +4301,14 @@ select {
 /* Dark (Night Bubble) */
 [data-theme="dark"] .bubli-dash-tile,
 [data-theme="dark"] .bubli-dash-palette {
-  background: var(--surface-bg-dark);
-  border-color: var(--surface-border-dark);
-  box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.5);
+  border-color: rgba(150, 170, 215, 0.18);
+  background:
+    radial-gradient(120% 82% at 0% 0%, rgba(110, 160, 210, 0.14), transparent 55%),
+    radial-gradient(120% 92% at 100% 100%, rgba(140, 120, 200, 0.12), transparent 55%),
+    linear-gradient(168deg, rgba(44, 56, 84, 0.55), rgba(28, 38, 58, 0.46));
+  box-shadow:
+    var(--inner-highlight-dark),
+    var(--shadow-surface-dark);
   color: #EAF0F8;
 }
 [data-theme="dark"] .bubli-dash-tile__body,
@@ -9497,11 +9533,29 @@ select {
 }
 
 .bubli-dash-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 18px;
-  font-size: 13px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  font-size: 14px;
   color: var(--text, #23303b);
+}
+
+.bubli-dash-summary > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-weight: 650;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
+  box-shadow: var(--inner-highlight-light);
+}
+
+[data-theme="dark"] .bubli-dash-summary > span {
+  background: rgba(40, 52, 80, 0.28);
+  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
+  box-shadow: var(--inner-highlight-dark);
 }
 
 .bubli-dash-list {
@@ -9543,8 +9597,8 @@ select {
    ============================================================ */
 .bubli-widget-states {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
   margin-top: 22px;
 }
 
@@ -9562,25 +9616,31 @@ select {
 }
 
 .bubli-widget-state__cap strong {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text, #23303b);
 }
 
 .bubli-widget-state__cap span {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-faint, #98a5af);
 }
 
+/* 데스크탑 위에 위젯이 떠 있는 느낌의 맑은 프리뷰 면(사진 wallpaper·큰 장식 버블 없음, 색은 빛으로만) */
 .bubli-widget-state__seat {
   display: grid;
   place-items: center;
-  min-height: 300px;
-  padding: 22px 14px;
-  border-radius: 18px;
-  background: var(--mist, #f2f7fc);
+  min-height: 280px;
+  padding: 28px 18px;
+  border-radius: 20px;
+  background:
+    radial-gradient(120% 80% at 28% 0%, rgba(216, 240, 255, 0.5), transparent 60%),
+    radial-gradient(100% 80% at 100% 100%, rgba(220, 216, 248, 0.4), transparent 60%),
+    var(--surface, #ffffff);
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
-  box-shadow: var(--inner-highlight-light);
+  box-shadow:
+    var(--inner-highlight-light),
+    var(--shadow-surface-light);
 }
 
 [data-theme="dark"] .bubli-widget-state__cap strong {
@@ -9592,9 +9652,14 @@ select {
 }
 
 [data-theme="dark"] .bubli-widget-state__seat {
-  background: rgba(40, 52, 80, 0.28);
+  background:
+    radial-gradient(120% 80% at 28% 0%, rgba(110, 160, 210, 0.16), transparent 60%),
+    radial-gradient(100% 80% at 100% 100%, rgba(140, 120, 200, 0.14), transparent 60%),
+    rgba(22, 30, 46, 0.6);
   border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
-  box-shadow: var(--inner-highlight-dark);
+  box-shadow:
+    var(--inner-highlight-dark),
+    var(--shadow-surface-dark);
 }
 
 @media (max-width: 1180px) {
@@ -9997,14 +10062,16 @@ select {
 .bubli-flow {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 18px;
   align-items: start;
 }
 
+/* 자료 → 후보 → 승인 → 오늘 할 일: 카드가 airy 배경 위에 뜨고, 단계는 헤더로 구분(보드와 동일) */
 .bubli-flow__col {
   display: grid;
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
+  padding: 0 2px;
 }
 
 .bubli-flow__col-head {
@@ -10012,11 +10079,13 @@ select {
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 2px;
+  padding: 0 2px 10px;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
 }
 
 .bubli-flow__col-head strong {
   font-size: 14px;
+  font-weight: 750;
   color: var(--text, #23303b);
 }
 
@@ -10029,6 +10098,10 @@ select {
   display: grid;
   gap: 12px;
   min-width: 0;
+}
+
+[data-theme="dark"] .bubli-flow__col-head {
+  border-bottom-color: rgba(150, 170, 215, 0.18);
 }
 
 [data-theme="dark"] .bubli-flow__col-head strong {

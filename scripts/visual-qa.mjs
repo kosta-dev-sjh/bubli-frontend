@@ -42,6 +42,8 @@ const TARGETS = [
 // ---- 실제 Next 라우트 캡처 대상 (DashboardView를 flag on으로 렌더) ----
 const ROUTE_PORT = 3789;
 const ROUTES = [
+  { path: "/", scheme: "light", file: "route-home-light.png", label: "Route / (공개 랜딩·light)" },
+  { path: "/", scheme: "dark", file: "route-home-dark.png", label: "Route / (공개 랜딩·dark)" },
   { path: "/app", scheme: "light", file: "route-dashboard-light.png", label: "Route /app (DashboardView·light)" },
   { path: "/app", scheme: "dark", file: "route-dashboard-dark.png", label: "Route /app (DashboardView·dark)" },
   { path: "/app/resources", scheme: "light", file: "route-resources-light.png", label: "Route /app/resources (ResourceFlowView·light)" },
