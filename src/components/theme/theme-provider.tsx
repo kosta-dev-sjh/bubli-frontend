@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 
 export type Theme = "light" | "dark" | "system";
@@ -15,12 +15,15 @@ type ThemeContextValue = {
 const STORAGE_KEY = "bubli-theme";
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+function parseTheme(raw: string | null): Theme {
+  return raw === "light" || raw === "dark" || raw === "system" ? raw : "system";
+}
+
 function readStored(): Theme {
   if (typeof window === "undefined") {
     return "system";
   }
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  return raw === "light" || raw === "dark" || raw === "system" ? raw : "system";
+  return parseTheme(window.localStorage.getItem(STORAGE_KEY));
 }
 
 function systemPrefersDark(): boolean {
@@ -30,11 +33,28 @@ function systemPrefersDark(): boolean {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
-function resolve(theme: Theme): ResolvedTheme {
-  if (theme === "system") {
-    return systemPrefersDark() ? "dark" : "light";
+// 저장된 테마를 외부 스토어로 읽는다. 같은 탭에서 setTheme로 바뀌면 통지한다.
+// (effect에서 setState로 초기값을 끌어오지 않으므로 cascading render가 없고, 하이드레이션도 안전하다.)
+const storedListeners = new Set<() => void>();
+function notifyStored(): void {
+  for (const listener of storedListeners) {
+    listener();
   }
-  return theme;
+}
+function subscribeStored(onChange: () => void): () => void {
+  storedListeners.add(onChange);
+  return () => {
+    storedListeners.delete(onChange);
+  };
+}
+
+function subscribeSystem(onChange: () => void): () => void {
+  if (typeof window === "undefined" || !window.matchMedia) {
+    return () => {};
+  }
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
 }
 
 type ThemeProviderProps = {
@@ -53,49 +73,34 @@ export function ThemeProvider({
   defaultTheme,
   enableStorage = true,
 }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>(defaultTheme ?? "system");
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("light");
-  const mounted = useRef(false);
+  // 저장값(서버/하이드레이션 스냅샷은 "system" → 첫 렌더 불일치 없음, 이후 저장값으로 동기화)
+  const storedTheme = useSyncExternalStore<Theme>(
+    subscribeStored,
+    () => (enableStorage ? readStored() : "system"),
+    () => "system",
+  );
+  // 시스템 다크 선호(OS 변경에 반응)
+  const prefersDark = useSyncExternalStore(subscribeSystem, systemPrefersDark, () => false);
+  // 사용자가 세션 중 토글로 고른 값(저장을 끈 경우의 캐리어)
+  const [override, setOverride] = useState<Theme | null>(null);
 
-  // 첫 마운트에서 저장값 읽기(서버/클라 불일치 방지를 위해 effect에서만 처리)
-  useEffect(() => {
-    mounted.current = true;
-    if (defaultTheme) {
-      setThemeState(defaultTheme);
-      return;
-    }
-    if (enableStorage) {
-      setThemeState(readStored());
-    }
-  }, [defaultTheme, enableStorage]);
+  const theme: Theme = defaultTheme ?? override ?? storedTheme;
+  const resolvedTheme: ResolvedTheme = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
 
-  // theme이 바뀌거나 system 선호가 바뀔 때 attribute 적용
+  // theme이 바뀌면 attribute만 적용(상태 변경 없음)
   useEffect(() => {
     const target = attributeTarget ?? (typeof document !== "undefined" ? document.documentElement : null);
-    if (!target) {
-      return;
+    if (target) {
+      target.setAttribute("data-theme", resolvedTheme);
     }
-
-    const apply = () => {
-      const next = resolve(theme);
-      target.setAttribute("data-theme", next);
-      setResolvedTheme(next);
-    };
-    apply();
-
-    if (theme !== "system" || typeof window === "undefined" || !window.matchMedia) {
-      return;
-    }
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, [theme, attributeTarget]);
+  }, [resolvedTheme, attributeTarget]);
 
   const setTheme = useCallback(
     (next: Theme) => {
-      setThemeState(next);
+      setOverride(next);
       if (enableStorage && typeof window !== "undefined") {
         window.localStorage.setItem(STORAGE_KEY, next);
+        notifyStored();
       }
     },
     [enableStorage],

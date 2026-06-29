@@ -24,12 +24,8 @@ src-tauri/target/
 *.iml
 .vscode/
 
-# 개인 작업 문서 / 로컬 메모
-docs/.obsidian/
-docs/*AI작업자*
-docs/*현재작업*
-docs/*GitHub_이슈_초안*
-docs/*백엔드_PM_API_계약_확인요청*
+# 내부 작업 문서 전체 (공개 저장소에 올리지 않는다. 로컬에는 유지)
+docs/
 
 # OS
 .DS_Store
@@ -44,3 +40,6 @@ yarn-error.log*
 # 로컬 검증 산출물
 .playwright-cli/
 output/
+
+# 로컬 에이전트/스킬 캐시 (린트 대상 아님)
+.claude/

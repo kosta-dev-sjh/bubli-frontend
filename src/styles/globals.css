@@ -298,9 +298,10 @@ select {
 [data-theme="dark"] .bubli-card {
   background: var(--surface-bg-dark);
   border-color: var(--surface-border-dark);
+  /* 기본 카드는 떠 있는 ambient 금지 — rim + inner highlight + 아주 작은 깊이만(가이드 5·7장) */
   box-shadow:
     var(--inner-highlight-dark),
-    var(--shadow-floating-dark);
+    var(--shadow-surface-dark);
   color: #C2CFE6;
 }
 [data-theme="dark"] .bubli-surface::before,
@@ -796,7 +797,7 @@ select {
 /* AgentBubble */
 .bubli-agent { position: relative; display: inline-grid; place-items: center; flex: 0 0 auto; }
 .bubli-agent > img { position: absolute; inset: 0; width: 100%; height: 100%; }
-.bubli-agent__face { position: absolute; inset: 0; width: 100%; height: 100%; }
+.bubli-agent__face { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--lilac-ink); }
 .bubli-agent__dots { position: relative; z-index: 1; display: flex; gap: 3px; }
 .bubli-agent__dots i {
   width: 3px; height: 3px; border-radius: 50%;
@@ -960,7 +961,10 @@ select {
 [data-theme="dark"] .bubli-widget {
   background: var(--surface-bg-dark);
   border-color: var(--surface-border-dark);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06), 0 26px 50px -22px rgba(0, 0, 0, 0.55);
+  /* 떠 있는 위젯이라 floating은 쓰되 토큰화·경량화(먹먹한 검은 ambient 금지) */
+  box-shadow:
+    var(--inner-highlight-dark),
+    var(--shadow-floating-dark);
   color: #EAF0F8;
 }
 [data-theme="dark"] .bubli-widget__item small,
@@ -9908,22 +9912,6 @@ select {
   width: 100%;
 }
 
-.bubli-widget-stage__decor {
-  position: absolute;
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.bubli-widget-stage__decor--a {
-  top: -30px;
-  right: 14%;
-}
-
-.bubli-widget-stage__decor--b {
-  bottom: 18px;
-  left: 6%;
-}
-
 .bubli-widget-stage__dock {
   display: flex;
   align-items: center;
@@ -9989,12 +9977,6 @@ select {
     radial-gradient(120% 120% at 0% 100%, rgba(140, 120, 200, 0.22) 0%, transparent 58%),
     #161e2e;
   border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
-}
-
-/* 다크에서도 오팔 글래스로 읽히는 새 에셋(bubble-opal.webp). 추가 보정 없이 살짝만 밝힘. */
-[data-theme="dark"] .bubli-widget-stage__decor {
-  opacity: 0.85;
-  filter: brightness(1.05);
 }
 
 [data-theme="dark"] .bubli-widget-notif {

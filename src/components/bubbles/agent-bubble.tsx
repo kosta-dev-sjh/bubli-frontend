@@ -12,18 +12,17 @@ type AgentBubbleProps = HTMLAttributes<HTMLSpanElement> & {
   state?: AgentState;
 };
 
-const INK = "#6E63B8"; // Opal Lilac ink (청록 아님)
-
 // 스마일(idle/suggesting). thinking은 점 3개로 대체.
+// 색은 Opal Lilac ink — CSS .bubli-agent__face의 color(var(--lilac-ink))를 currentColor로 받는다(청록 아님).
 function Face({ smiling }: { smiling: boolean }) {
   return (
     <svg className="bubli-agent__face" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="9.2" cy="10.5" r="1.05" fill={INK} />
-      <circle cx="14.8" cy="10.5" r="1.05" fill={INK} />
+      <circle cx="9.2" cy="10.5" r="1.05" fill="currentColor" />
+      <circle cx="14.8" cy="10.5" r="1.05" fill="currentColor" />
       {smiling ? (
-        <path d="M9.2 14c1 1 4.6 1 5.6 0" stroke={INK} strokeWidth="1.3" fill="none" strokeLinecap="round" />
+        <path d="M9.2 14c1 1 4.6 1 5.6 0" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round" />
       ) : (
-        <path d="M9.6 14h4.8" stroke={INK} strokeWidth="1.3" fill="none" strokeLinecap="round" />
+        <path d="M9.6 14h4.8" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round" />
       )}
     </svg>
   );

@@ -15,7 +15,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "라이트/다크/시스템을 ThemeProvider로 연결. 토글을 누르면 data-theme이 바뀌고 기존 컴포넌트가 변수 기반으로 반응한다. 스토리는 격리를 위해 미리보기 박스에만 attribute를 적용하고 localStorage는 끈다.",
+          "라이트/다크/시스템을 ThemeProvider로 연결. 토글을 누르면 data-theme이 바뀌고 기존 컴포넌트가 변수 기반으로 반응한다. 스토리는 격리를 위해 미리보기 박스에만 attribute를 적용하고 브라우저 저장소는 끈다.",
       },
     },
   },

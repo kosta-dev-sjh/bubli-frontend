@@ -64,7 +64,7 @@ export function WidgetShell({
           <Ring label={undefined} metric={String(todoCount ?? 0)} size={46} thickness={9} value={66} />
           {typeof scheduleCount === "number" ? (
             <span className="bubli-widget__signal">
-              <span className="dot d-schedule" style={{ width: 8, height: 8, borderRadius: "50%", background: "#E6C49C" }} />
+              <span className="dot d-schedule" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--signal-memo)" }} />
               일정 {scheduleCount}
             </span>
           ) : null}

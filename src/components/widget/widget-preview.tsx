@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 
 import { AgentBubble } from "@/components/bubbles/agent-bubble";
 import { BubbleBar } from "@/components/bubbles/bubble-bar";
-import { DecorBubble } from "@/components/bubbles/decor-bubble";
 import { DockOrb } from "@/components/bubbles/bubble-orb";
 import { WidgetShell } from "@/components/widget/widget-shell";
 import type { WidgetMode } from "@/components/widget/widget-shell";
@@ -13,10 +12,10 @@ import type { WidgetMode } from "@/components/widget/widget-shell";
 type WidgetNotification = { id: string; tone: "todo" | "agent" | "comment" | "schedule"; text: string };
 
 const DOT_COLOR: Record<WidgetNotification["tone"], string> = {
-  todo: "#7CC4F5",
-  agent: "#B0A8E0",
-  comment: "#E79BB0",
-  schedule: "#E6C49C",
+  todo: "var(--signal-todo)",
+  agent: "var(--signal-agent)",
+  comment: "var(--signal-alert)",
+  schedule: "var(--signal-memo)",
 };
 
 type WidgetPreviewProps = {
@@ -29,10 +28,6 @@ type WidgetPreviewProps = {
 export function WidgetPreview({ mode = "default", minimized = false, notification = null }: WidgetPreviewProps) {
   return (
     <div className="bubli-widget-stage" data-mode={mode}>
-      {/* 데스크탑 배경의 떠다니는 장식 버블(가벼운 CSS) */}
-      <DecorBubble className="bubli-widget-stage__decor bubli-widget-stage__decor--a" floating size="lg" />
-      <DecorBubble className="bubli-widget-stage__decor bubli-widget-stage__decor--b" floating size="md" />
-
       <div className="bubli-widget-stage__inner">
         {notification ? (
           <div className="bubli-widget-notif" role="status">
