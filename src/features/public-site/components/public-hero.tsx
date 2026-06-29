@@ -1,8 +1,7 @@
 import Link from "next/link";
 
-import { Chip } from "@/components/ui/chip";
-import { GlassPanel } from "@/components/ui/glass-panel";
 import { siteConfig } from "@/config/site";
+import { PublicOrbitPreview } from "@/features/public-site/components/public-orbit-preview";
 
 export function PublicHero() {
   const [taglineLead, taglineRest] = siteConfig.tagline.split(", ");
@@ -37,58 +36,7 @@ export function PublicHero() {
         </div>
       </div>
 
-      <GlassPanel className="public-hero__visual" padded={false}>
-        <div className="public-hero__app-switch" aria-label="Bubli 실행 방식">
-          <span>공개 사이트</span>
-          <span className="is-active">로그인 후 업무 앱</span>
-          <span>데스크탑</span>
-        </div>
-        <div className="public-hero__workspace" aria-hidden="true">
-          <div className="public-hero__window">
-            <div className="public-hero__window-bar">
-              <span />
-              <span />
-              <span />
-              <b>자료보드</b>
-            </div>
-            <div className="public-hero__window-body">
-              <aside>
-                <span />
-                <span />
-                <span className="is-active" />
-                <span />
-              </aside>
-              <main>
-                <div className="public-hero__metric-row">
-                  <span>자료 12</span>
-                  <span>승인 대기 3</span>
-                  <span>오늘 할 일 5</span>
-                </div>
-                <div className="public-hero__resource-row is-selected">
-                  <span className="public-hero__row-signal" aria-hidden="true" />
-                  <b>요구사항 정의서.pdf</b>
-                  <small>확인 필요</small>
-                </div>
-                <div className="public-hero__resource-row">
-                  <b>회의록 06-29.md</b>
-                  <small>후보 4개</small>
-                </div>
-                <div className="public-hero__approval">
-                  <span>에이전트 후보</span>
-                  <b>결제 흐름 단순화</b>
-                  <small>사용자가 승인하면 오늘 할 일로 연결</small>
-                </div>
-              </main>
-            </div>
-          </div>
-          <div className="public-hero__widget">
-            <div>
-              <b>오늘 18:00</b>
-              <small>메인 배너 시안 1차</small>
-            </div>
-          </div>
-        </div>
-      </GlassPanel>
+      <PublicOrbitPreview />
     </section>
   );
 }

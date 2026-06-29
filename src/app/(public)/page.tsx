@@ -13,7 +13,7 @@ const featureCards = [
 ];
 
 const faqItems = [
-  { q: "회원가입은 어떻게 하나요?", a: "구글 로그인으로 바로 시작합니다. 별도의 이메일 회원가입은 없습니다." },
+  { q: "어떻게 시작하나요?", a: "로그인 후 프로젝트룸을 만들고, 계약서나 회의록 같은 자료를 올리면 됩니다." },
   { q: "내 PC 파일을 다 읽나요?", a: "아니요. 사용자가 직접 지정한 폴더만 감지하고, 전체 PC 자동 색인은 하지 않습니다." },
   { q: "데스크탑 앱은 무엇이 다른가요?", a: "회원 웹 앱을 그대로 띄우고, 바탕화면 위 버블 위젯·로컬 폴더 연동·빠른 캐시를 더합니다." },
   { q: "에이전트가 임의로 작업을 바꾸나요?", a: "아니요. 에이전트는 후보만 만들고, 사용자가 확인한 항목만 실제 작업이 됩니다." },
@@ -40,16 +40,14 @@ export default function HomePage() {
         </div>
       </section>
 
-      <Reveal>
-        <section className="landing-section" id="features">
-          <header className="landing-section__head">
-            <Chip selected>핵심 흐름</Chip>
-            <h2>받은 자료가 오늘 할 일이 되기까지</h2>
-            <p>업로드한 자료를 에이전트가 정리하고, 사용자가 확인하면 같은 할 일이 작업판·대시보드·버블로 이어집니다.</p>
-          </header>
-          <PublicHomeFlow />
-        </section>
-      </Reveal>
+      <section className="landing-section" id="features">
+        <header className="landing-section__head">
+          <Chip selected>핵심 흐름</Chip>
+          <h2>받은 자료가 오늘 할 일이 되기까지</h2>
+          <p>업로드한 자료를 에이전트가 정리하고, 사용자가 확인하면 같은 할 일이 작업판·대시보드·버블로 이어집니다.</p>
+        </header>
+        <PublicHomeFlow />
+      </section>
 
       <Reveal>
         <section className="landing-section" id="why">
@@ -123,9 +121,9 @@ export default function HomePage() {
                     </aside>
                     <main>
                       <div className="landing-app-preview__summary">
-                        <span>오늘 할 일 5</span>
-                        <span>확인 필요 3</span>
-                        <span>프로젝트룸 2</span>
+                        <span>자료 확인</span>
+                        <span>후보 승인</span>
+                        <span>오늘 실행</span>
                       </div>
                       <div className="landing-app-preview__lane">
                         <b>계약서 검토 질문 정리</b>
@@ -141,7 +139,7 @@ export default function HomePage() {
                 <div className="landing-app-preview__widget" aria-hidden="true">
                   <div>
                     <b>버블 위젯</b>
-                    <small>TODO 5 · 일정 2 · 자료 제안 3</small>
+                    <small>TODO · 일정 · 타이머 · 자료 제안</small>
                   </div>
                 </div>
                 <div className="landing-app-preview__dock" aria-hidden="true">
@@ -159,30 +157,74 @@ export default function HomePage() {
       <Reveal>
         <section className="landing-section landing-download" id="download">
           <GlassPanel className="landing-download__card" padded={false}>
-            <header className="landing-download__head">
-              <Chip selected>다운로드</Chip>
-              <h2>최신 버전 받기</h2>
-              <p>항상 최신 버전만 제공합니다. 설치 후 구글 로그인으로 바로 시작하세요.</p>
-            </header>
-            <div className="landing-download__rows">
+            <div className="landing-download__hero">
+              <header className="landing-download__head">
+                <Chip selected>다운로드</Chip>
+                <h2>
+                  Bubli 앱으로
+                  <br />
+                  오늘 일을 바로 이어가세요
+                </h2>
+                <p>회원 웹 앱은 그대로 쓰고, 데스크탑에서는 버블 위젯으로 오늘 할 일과 일정을 놓치지 않습니다.</p>
+                <div className="landing-download__actions">
+                  <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/download">
+                    앱 다운로드
+                  </Link>
+                  <Link className="bubli-button bubli-button--lg" href="/login">
+                    로그인
+                  </Link>
+                </div>
+              </header>
+
+              <div className="landing-download__visual" aria-label="앱 다운로드 후 시작 흐름">
+                <div className="landing-download__halo" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <article className="landing-download__device">
+                  <div className="landing-download__device-bar" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                    <b>Bubli Desktop</b>
+                  </div>
+                  <div className="landing-download__device-body">
+                    <strong>오늘 먼저 볼 일</strong>
+                    <p>확정된 TODO, 일정, 타이머가 같은 기준으로 이어집니다.</p>
+                    <div>
+                      <span>자료 확인</span>
+                      <span>작업 연결</span>
+                      <span>버블 표시</span>
+                    </div>
+                  </div>
+                </article>
+                <div className="landing-download__mini-widget" aria-hidden="true">
+                  <b>버블 위젯</b>
+                  <span>다음 회의 18:00</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="landing-download__rows" aria-label="운영체제별 다운로드">
               <div className="landing-download__row">
                 <span className="landing-download__mark" aria-hidden="true">mac</span>
                 <div className="landing-download__os">
-                  <strong>macOS</strong>
+                  <strong>macOS 앱</strong>
                   <span>Apple Silicon · Intel</span>
                 </div>
                 <Link className="bubli-button bubli-button--primary bubli-button--sm" href="/download">
-                  최신 버전
+                  받기
                 </Link>
               </div>
               <div className="landing-download__row">
                 <span className="landing-download__mark" aria-hidden="true">win</span>
                 <div className="landing-download__os">
-                  <strong>Windows</strong>
+                  <strong>Windows 앱</strong>
                   <span>Windows 10 이상</span>
                 </div>
                 <Link className="bubli-button bubli-button--primary bubli-button--sm" href="/download">
-                  최신 버전
+                  받기
                 </Link>
               </div>
             </div>
