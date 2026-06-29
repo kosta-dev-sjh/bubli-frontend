@@ -94,7 +94,7 @@ export function AuthPanel() {
         <span />
       </div>
       <section className="auth-page__intro">
-        <Link className="auth-page__brand" href="/">
+        <Link className="auth-page__brand bubli-wordmark" href="/">
           {siteConfig.name}
         </Link>
         <p className="auth-page__welcome">Welcome!</p>
