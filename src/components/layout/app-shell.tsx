@@ -18,19 +18,18 @@ export function AppShell({ children }: AppShellProps) {
         </Link>
         <div className="bubli-nav-wrap">
           <AppNav />
-          <span className="bubli-nav-hint" aria-hidden="true">
-            옆으로 더 보기
-          </span>
         </div>
       </aside>
       <main className="shell bubli-main">
         <WorkspaceTopbar
           notificationCount={3}
           project={{
-            description: "자료, 작업, 소통을 보는 현재 프로젝트룸",
+            description: "자료보드 · 작업판 · 소통",
             name: "Bubli 제품 개발룸",
             statusLabel: "진행 중",
           }}
+          searchPlaceholder="검색"
+          surfaceLabel="작업공간"
           user={{
             displayName: "정현 님",
             email: "jihyun.kim@bubli.kr",

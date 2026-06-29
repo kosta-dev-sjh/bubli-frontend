@@ -1,3 +1,5 @@
+import type { PageResponse } from "@/types/api/common";
+
 export type ResourceKind = "FILE" | "MEMO";
 
 export type ResourceVisibility = "PERSONAL" | "ROOM_SHARED";
@@ -10,10 +12,15 @@ export type AiDocumentStatus = "NONE" | "READY" | "ANALYZING" | "ANALYZED" | "FA
 
 export type ResourceVersionResponse = {
   createdAt: string;
-  fileName: string;
+  checksum?: string | null;
+  createdBy?: string | null;
+  fileId?: string | null;
   id: string;
+  originalName: string;
   mimeType?: string | null;
+  resourceId: string;
   sizeBytes?: number | null;
+  storageKey?: string | null;
   versionNo: number;
 };
 
@@ -40,10 +47,17 @@ export type ResourceDownloadUrlResponse = {
 };
 
 export type ResourceSummaryResponse = {
+  checklistJson?: string | null;
+  createdAt: string;
+  id: string;
+  jobId?: string | null;
+  modelName?: string | null;
+  promptVersion?: string | null;
   resourceId: string;
+  schemaVersion?: string | null;
   status: ResourceSummaryStatus;
-  summary?: string | null;
-  updatedAt?: string | null;
+  summaryJson?: string | null;
+  updatedAt: string;
 };
 
 export type AiDocumentResponse = {
@@ -54,20 +68,21 @@ export type AiDocumentResponse = {
 };
 
 export type ResourceRelationResponse = {
+  createdAt: string;
+  id: string;
   reason?: string | null;
+  relatedResourceId: string;
+  resourceId: string;
   relatedResource: ResourceResponse;
   score?: number | null;
 };
 
 export type ResourceCommentResponse = {
-  author: {
-    avatarUrl?: string | null;
-    id: string;
-    name: string;
-  };
+  authorId: string;
   body: string;
   createdAt: string;
   id: string;
+  parentId?: string | null;
   resourceId: string;
   updatedAt: string;
 };
@@ -77,3 +92,8 @@ export type ResourceCommentRequest = {
 };
 
 export type ResourceUploadRequest = FormData;
+
+export type ResourcePageResponse = PageResponse<ResourceResponse>;
+export type ResourceCommentPageResponse = PageResponse<ResourceCommentResponse>;
+export type ResourceRelationPageResponse = PageResponse<ResourceRelationResponse>;
+export type ResourceVersionPageResponse = PageResponse<ResourceVersionResponse>;

@@ -91,7 +91,7 @@ export function WorkspaceDashboard() {
       }
       setState({
         kind: "error",
-        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "백엔드 연결을 기다리고 있습니다.",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "연결 대기",
       });
     }
   }, []);
@@ -118,13 +118,7 @@ export function WorkspaceDashboard() {
     <section className="workspace-dashboard" aria-label="회원 앱 대시보드">
       <GlassPanel className="workspace-dashboard__hero">
         <div className="workspace-dashboard__copy">
-          <span className="workspace-dashboard__eyebrow">Bubli app</span>
-          <h1>
-            오늘 볼 일만
-            <br />
-            먼저 정리합니다
-          </h1>
-          <p>오늘 할 일, 가까운 마감, 오늘 일정을 먼저 보여줍니다. 아직 연결되지 않은 값은 비워둡니다.</p>
+          <h1>대시보드</h1>
         </div>
         <div className="workspace-dashboard__actions">
           <Button onClick={refreshDashboard} variant="primary">
@@ -141,8 +135,7 @@ export function WorkspaceDashboard() {
         <GlassPanel className="workspace-dashboard__state">
           <Clock3 aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>업무 데이터를 불러오는 중입니다</h2>
-            <p>샘플 숫자 대신 실제 API 응답이 도착하면 화면을 채웁니다.</p>
+            <h2>불러오는 중</h2>
           </div>
         </GlassPanel>
       ) : null}
@@ -151,8 +144,7 @@ export function WorkspaceDashboard() {
         <GlassPanel className="workspace-dashboard__state">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>로그인 뒤 업무 화면을 볼 수 있습니다</h2>
-            <p>공개 사이트에서는 로그인으로 진입하고, 회원 앱은 세션이 확인된 뒤 실제 데이터로 채워집니다.</p>
+            <h2>로그인이 필요합니다</h2>
             <Link className="bubli-button bubli-button--primary" href="/login">
               로그인
             </Link>
@@ -164,8 +156,7 @@ export function WorkspaceDashboard() {
         <GlassPanel className="workspace-dashboard__state">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>업무 데이터를 기다리고 있습니다</h2>
-            <p>{state.message}</p>
+            <h2>{state.message}</h2>
           </div>
         </GlassPanel>
       ) : null}
@@ -175,7 +166,6 @@ export function WorkspaceDashboard() {
           <CheckCircle2 aria-hidden size={20} strokeWidth={2} />
           <div>
             <h2>오늘 바로 처리할 일이 없습니다</h2>
-            <p>프로젝트룸에 자료를 올리거나 TODO를 추가하면 이 화면에 먼저 모입니다.</p>
           </div>
         </GlassPanel>
       ) : null}
@@ -186,7 +176,6 @@ export function WorkspaceDashboard() {
             <LayoutDashboard aria-hidden size={18} strokeWidth={2} />
             <div>
               <h2>오늘 할 일</h2>
-              <p>오늘 마감 작업</p>
             </div>
             <StatusBadge tone="todo">{todayTasks.length ? `${todayTasks.length}건` : "대기"}</StatusBadge>
           </div>
@@ -194,7 +183,7 @@ export function WorkspaceDashboard() {
             {todayTasks.length ? (
               todayTasks.map((task) => <TaskLine key={task.id} task={task} />)
             ) : (
-              <StatusLine meta="연결 대기">오늘 마감 TODO가 이곳에 표시됩니다</StatusLine>
+              <StatusLine meta="대기">항목 없음</StatusLine>
             )}
           </ul>
         </GlassPanel>
@@ -204,7 +193,6 @@ export function WorkspaceDashboard() {
             <CalendarDays aria-hidden size={18} strokeWidth={2} />
             <div>
               <h2>가까운 마감</h2>
-              <p>7일 안에 닫을 일</p>
             </div>
             <StatusBadge tone="warning">{upcomingDeadlines.length ? `${upcomingDeadlines.length}건` : "대기"}</StatusBadge>
           </div>
@@ -212,7 +200,7 @@ export function WorkspaceDashboard() {
             {upcomingDeadlines.length ? (
               upcomingDeadlines.map((task) => <TaskLine key={task.id} task={task} />)
             ) : (
-              <StatusLine meta="7일 기준">이번 주 마감 작업이 이곳에 표시됩니다</StatusLine>
+              <StatusLine meta="7일">항목 없음</StatusLine>
             )}
           </ul>
         </GlassPanel>
@@ -222,7 +210,6 @@ export function WorkspaceDashboard() {
             <Clock3 aria-hidden size={18} strokeWidth={2} />
             <div>
               <h2>오늘 일정</h2>
-              <p>오늘 캘린더</p>
             </div>
             <StatusBadge tone="timer">{todaySchedules.length ? `${todaySchedules.length}건` : "대기"}</StatusBadge>
           </div>
@@ -230,7 +217,7 @@ export function WorkspaceDashboard() {
             {todaySchedules.length ? (
               todaySchedules.map((schedule) => <ScheduleLine key={schedule.id} schedule={schedule} />)
             ) : (
-              <StatusLine meta="캘린더">오늘 일정이 이곳에 표시됩니다</StatusLine>
+              <StatusLine meta="일정">항목 없음</StatusLine>
             )}
           </ul>
         </GlassPanel>
