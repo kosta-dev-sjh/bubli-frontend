@@ -44,10 +44,7 @@ const ROUTE_PORT = 3789;
 const ROUTES = [
   { path: "/", scheme: "light", file: "route-home-light.png", label: "Route / (공개 랜딩·light)" },
   { path: "/", scheme: "dark", file: "route-home-dark.png", label: "Route / (공개 랜딩·dark)" },
-  { path: "/app", scheme: "light", file: "route-dashboard-light.png", label: "Route /app (DashboardView·light)" },
-  { path: "/app", scheme: "dark", file: "route-dashboard-dark.png", label: "Route /app (DashboardView·dark)" },
-  { path: "/app/resources", scheme: "light", file: "route-resources-light.png", label: "Route /app/resources (ResourceFlowView·light)" },
-  { path: "/app/resources", scheme: "dark", file: "route-resources-dark.png", label: "Route /app/resources (ResourceFlowView·dark)" },
+  { path: "/login", scheme: "light", file: "route-login-light.png", label: "Route /login (Google login·light)" },
 ];
 
 const BANNED = ["#2E8E8A", "#8FD8D3", "#56B3AB", "#5FC9D6", "aqua", "teal", "mint"];
@@ -174,7 +171,7 @@ async function captureRoutes(browser) {
     stdio: "ignore",
   });
   try {
-    const ready = await waitForServer(`http://127.0.0.1:${ROUTE_PORT}/app`);
+    const ready = await waitForServer(`http://127.0.0.1:${ROUTE_PORT}/login`);
     if (!ready) {
       ROUTES.forEach((r) => results.push({ ...r, ok: false, reason: "next dev 준비 시간 초과" }));
       return results;

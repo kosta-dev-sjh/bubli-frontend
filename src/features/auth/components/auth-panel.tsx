@@ -1,78 +1,132 @@
-import { ArrowRight, CheckCircle2, KeyRound, LockKeyhole, MessageCircle, PanelTop, ShieldCheck } from "lucide-react";
+"use client";
 
-import { Button } from "@/components/ui/button";
-import { Chip } from "@/components/ui/chip";
+import Link from "next/link";
+import type { CSSProperties, PointerEvent } from "react";
+
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { siteConfig } from "@/config/site";
+import { authApi } from "@/features/auth/api/authApi";
 
-const loginChecks = ["구글 계정으로 로그인", "최초 로그인 시 Bubli ID 설정", "Tauri도 같은 로그인 사용"];
+function GoogleIcon() {
+  return (
+    <svg aria-hidden="true" className="auth-card__google-icon" viewBox="0 0 24 24">
+      <path
+        d="M21.6 12.23c0-.78-.07-1.53-.2-2.23H12v4.22h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.89-1.74 2.98-4.3 2.98-7.52z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 22c2.7 0 4.96-.89 6.62-2.41l-3.24-2.51c-.9.6-2.05.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.06v2.59A10 10 0 0 0 12 22z"
+        fill="#34A853"
+      />
+      <path
+        d="M6.41 13.92A6 6 0 0 1 6.1 12c0-.67.11-1.31.31-1.92V7.49H3.06A10 10 0 0 0 2 12c0 1.61.39 3.14 1.06 4.51l3.35-2.59z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12 5.96c1.47 0 2.79.5 3.82 1.5l2.87-2.87C16.95 2.97 14.7 2 12 2a10 10 0 0 0-8.94 5.49l3.35 2.59C7.2 7.72 9.4 5.96 12 5.96z"
+        fill="#EA4335"
+      />
+    </svg>
+  );
+}
 
-const previewItems = [
-  { label: "프로젝트룸", value: "3개" },
-  { label: "오늘 TODO", value: "8개" },
-  { label: "버블", value: "켜짐" },
-];
+function setSignedPointerVars(element: HTMLElement, x: number, y: number) {
+  element.style.setProperty("--auth-x", x.toFixed(3));
+  element.style.setProperty("--auth-y", y.toFixed(3));
+}
+
+function handlePagePointerMove(event: PointerEvent<HTMLElement>) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
+  const y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
+  setSignedPointerVars(event.currentTarget, x, y);
+}
+
+function handlePagePointerLeave(event: PointerEvent<HTMLElement>) {
+  setSignedPointerVars(event.currentTarget, 0, 0);
+}
+
+function handleSubmitPointerMove(event: PointerEvent<HTMLAnchorElement>) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const x = (event.clientX - rect.left) / rect.width;
+  const y = (event.clientY - rect.top) / rect.height;
+  const signedX = (x - 0.5) * 2;
+  const signedY = (y - 0.5) * 2;
+
+  event.currentTarget.style.setProperty("--button-light-x", `${(x * 100).toFixed(1)}%`);
+  event.currentTarget.style.setProperty("--button-light-y", `${(y * 100).toFixed(1)}%`);
+  event.currentTarget.style.setProperty("--button-tilt-x", `${(-signedY * 4).toFixed(2)}deg`);
+  event.currentTarget.style.setProperty("--button-tilt-y", `${(signedX * 5).toFixed(2)}deg`);
+  event.currentTarget.style.setProperty("--button-shift-x", `${(signedX * 7).toFixed(2)}px`);
+  event.currentTarget.style.setProperty("--button-shift-y", `${(signedY * 4).toFixed(2)}px`);
+}
+
+function handleSubmitPointerLeave(event: PointerEvent<HTMLAnchorElement>) {
+  event.currentTarget.style.setProperty("--button-light-x", "50%");
+  event.currentTarget.style.setProperty("--button-light-y", "50%");
+  event.currentTarget.style.setProperty("--button-tilt-x", "0deg");
+  event.currentTarget.style.setProperty("--button-tilt-y", "0deg");
+  event.currentTarget.style.setProperty("--button-shift-x", "0px");
+  event.currentTarget.style.setProperty("--button-shift-y", "0px");
+}
 
 export function AuthPanel() {
+  const googleLoginUrl = authApi.getGoogleAuthorizationUrl();
+
   return (
-    <main className="auth-page" aria-label="로그인">
+    <main
+      className="auth-page"
+      aria-label="로그인"
+      onPointerLeave={handlePagePointerLeave}
+      onPointerMove={handlePagePointerMove}
+      style={{ "--auth-x": 0, "--auth-y": 0 } as CSSProperties}
+    >
+      <div className="auth-page__motion" aria-hidden="true">
+        <video autoPlay loop muted playsInline preload="metadata">
+          <source src="/landing/login-bubble-flow.mp4" type="video/mp4" />
+        </video>
+      </div>
+      <div className="auth-page__bubble-field" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+        <span />
+        <span />
+      </div>
       <section className="auth-page__intro">
-        <Chip selected>{siteConfig.name}</Chip>
-        <h1>Bubli로 돌아가기</h1>
-        <p>구글 계정으로 프로젝트룸, 자료보드, WBS/작업판, 소통 화면으로 들어갑니다.</p>
-        <div className="auth-page__checks">
-          {loginChecks.map((check) => (
-            <Chip icon={<CheckCircle2 size={14} strokeWidth={2.1} />} key={check}>
-              {check}
-            </Chip>
-          ))}
-        </div>
-        <div className="auth-preview" aria-label="로그인 후 연결되는 화면">
-          <div className="auth-preview__bubble auth-preview__bubble--main">
-            <PanelTop size={16} strokeWidth={2.1} aria-hidden="true" />
-            <strong>회원 웹 앱</strong>
-            <span>/app</span>
-          </div>
-          <div className="auth-preview__bubble auth-preview__bubble--sub">
-            <MessageCircle size={15} strokeWidth={2.1} aria-hidden="true" />
-            <strong>소통 버블</strong>
-            <span>채팅과 보이스 연결</span>
-          </div>
-          <div className="auth-preview__metrics">
-            {previewItems.map((item) => (
-              <div key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Link className="auth-page__brand" href="/">
+          {siteConfig.name}
+        </Link>
+        <p className="auth-page__welcome">Welcome!</p>
+        <h1>
+          <span>받은 자료를,</span>
+          <span>오늘 일로 이어갑니다.</span>
+        </h1>
+        <p>프리랜서를 위한 업무 비서</p>
       </section>
 
       <GlassPanel as="section" className="auth-card">
-        <div className="auth-card__head">
-          <span className="bubli-icon-tile" aria-hidden="true">
-            <LockKeyhole size={18} strokeWidth={2.1} />
-          </span>
-          <div>
-            <h2>로그인</h2>
-            <p>구글 계정으로 회원 웹 앱에 들어갑니다. 처음 들어온 사용자는 로그인 뒤 Bubli ID를 설정합니다.</p>
-          </div>
-        </div>
-
         <div className="auth-form" aria-label="구글 계정 로그인">
-          <Button className="auth-card__submit" icon={<KeyRound size={16} />} size="lg" variant="primary">
+          <a
+            className="bubli-button bubli-button--primary bubli-button--lg auth-card__submit"
+            href={googleLoginUrl}
+            onPointerLeave={handleSubmitPointerLeave}
+            onPointerMove={handleSubmitPointerMove}
+            style={
+              {
+                "--button-light-x": "50%",
+                "--button-light-y": "50%",
+                "--button-shift-x": "0px",
+                "--button-shift-y": "0px",
+                "--button-tilt-x": "0deg",
+                "--button-tilt-y": "0deg",
+              } as CSSProperties
+            }
+          >
+            <GoogleIcon />
             Google로 계속하기
-          </Button>
-
-          <div className="auth-page__checks" aria-label="인증 처리 기준">
-            <Chip icon={<ShieldCheck size={14} strokeWidth={2.1} />}>구글 계정 확인</Chip>
-            <Chip icon={<ArrowRight size={14} strokeWidth={2.1} />}>서버에서 세션 발급</Chip>
-            <Chip icon={<LockKeyhole size={14} strokeWidth={2.1} />}>기기별 안전 저장</Chip>
-          </div>
+          </a>
         </div>
-
-        <p className="auth-card__helper">Bubli 계정은 Google 로그인으로 시작하고, 로그인 뒤 내 Bubli ID를 설정합니다.</p>
       </GlassPanel>
     </main>
   );

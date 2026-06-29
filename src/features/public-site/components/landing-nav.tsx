@@ -42,7 +42,7 @@ export function LandingNav() {
             다운로드
           </Link>
           <Link className="bubli-button bubli-button--primary bubli-button--sm" href="/login">
-            회원 앱
+            로그인
           </Link>
         </div>
       </div>

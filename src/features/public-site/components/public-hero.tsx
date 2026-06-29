@@ -32,7 +32,7 @@ export function PublicHero() {
             앱 다운로드
           </Link>
           <Link className="bubli-button bubli-button--lg" href="/login">
-            회원 앱 열기
+            로그인
           </Link>
         </div>
       </div>
@@ -40,7 +40,7 @@ export function PublicHero() {
       <GlassPanel className="public-hero__visual" padded={false}>
         <div className="public-hero__app-switch" aria-label="Bubli 실행 방식">
           <span>공개 사이트</span>
-          <span className="is-active">회원 앱</span>
+          <span className="is-active">로그인 후 업무 앱</span>
           <span>데스크탑</span>
         </div>
         <div className="public-hero__workspace" aria-hidden="true">

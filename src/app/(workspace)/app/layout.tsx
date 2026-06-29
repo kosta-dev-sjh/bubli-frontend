@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 
-import { AppShell } from "@/components/layout/app-shell";
-
-// 회원 앱(/app) 전용 파비콘 = 다크 앱 타일 마크. 루트의 공개 사이트 마크를 덮어쓴다.
+// 로그인 전에는 회원 앱 목업 화면을 노출하지 않는다.
 export const metadata: Metadata = {
   icons: {
     icon: [
@@ -19,5 +18,6 @@ type WorkspaceLayoutProps = {
 };
 
 export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
-  return <AppShell>{children}</AppShell>;
+  void children;
+  redirect("/login");
 }
