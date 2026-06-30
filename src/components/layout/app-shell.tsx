@@ -14,7 +14,6 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
-  clearActiveProjectRoomId,
   getActiveProjectRoomId,
   getActiveProjectRoomLabel,
   setActiveProjectRoomId,
@@ -93,8 +92,8 @@ export function AppShell({ children }: AppShellProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [state, setState] = useState<ShellState>({ kind: "loading" });
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const [selectedRoomLabel, setSelectedRoomLabel] = useState<string | null>(null);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(() => getActiveProjectRoomId());
+  const [selectedRoomLabel, setSelectedRoomLabel] = useState<string | null>(() => getActiveProjectRoomLabel());
   const [projectSwitcherOpen, setProjectSwitcherOpen] = useState(false);
   const [createPanelOpen, setCreatePanelOpen] = useState(false);
   const [newRoomClient, setNewRoomClient] = useState("");
@@ -148,9 +147,6 @@ export function AppShell({ children }: AppShellProps) {
   }, [router, state.kind]);
 
   useEffect(() => {
-    setSelectedRoomId(getActiveProjectRoomId());
-    setSelectedRoomLabel(getActiveProjectRoomLabel());
-
     function syncActiveProjectRoom(event: Event) {
       const detail = event instanceof CustomEvent ? (event.detail as { roomId?: string | null; roomLabel?: string | null } | null) : null;
       setSelectedRoomId(detail?.roomId ?? getActiveProjectRoomId());
@@ -200,15 +196,8 @@ export function AppShell({ children }: AppShellProps) {
   useEffect(() => {
     const routeRoom = roomFromPath ?? roomFromQuery;
     if (!routeRoom || routeRoom.id === selectedRoomId) return;
-    setActiveProjectRoom(routeRoom);
+    setActiveProjectRoomId(routeRoom.id, routeRoom.name);
   }, [roomFromPath, roomFromQuery, selectedRoomId]);
-
-  useEffect(() => {
-    if (state.kind !== "ready" || !selectedRoomId || selectedRoom || roomFromPath || roomFromQuery || selectedRoomLabel) return;
-    setSelectedRoomId(null);
-    setSelectedRoomLabel(null);
-    clearActiveProjectRoomId();
-  }, [roomFromPath, roomFromQuery, selectedRoom, selectedRoomId, selectedRoomLabel, state.kind]);
 
   const topbarProject = useMemo(() => {
     if (state.kind === "loading") {
@@ -239,7 +228,9 @@ export function AppShell({ children }: AppShellProps) {
       };
     }
 
-    if (selectedRoomLabel) {
+    const staleSelectedRoom = state.kind === "ready" && selectedRoomId && !selectedRoom;
+
+    if (selectedRoomLabel && !staleSelectedRoom) {
       return {
         description: "현재 룸",
         name: selectedRoomLabel,
@@ -248,7 +239,7 @@ export function AppShell({ children }: AppShellProps) {
     }
 
     return routeFallbackProject();
-  }, [activeRoom, selectedRoomLabel, state]);
+  }, [activeRoom, selectedRoom, selectedRoomId, selectedRoomLabel, state]);
 
   const topbarUser = useMemo(() => {
     if (state.kind !== "ready") {

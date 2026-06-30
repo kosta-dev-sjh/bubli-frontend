@@ -3,7 +3,7 @@
 import { Bot, CheckCircle2, GitBranch, GripVertical, KanbanSquare, ListTodo, Trash2 } from "lucide-react";
 import Link from "next/link";
 import type { DragEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
@@ -213,18 +213,29 @@ export function ProjectRoomWorkBoard({
   roomId: string;
   suggestions: AgentSuggestionResponse[];
 }) {
+  const boardVersion = [
+    board.roomId,
+    board.tasks.map((task) => `${task.id}:${task.updatedAt}:${task.status}`).join("|"),
+    board.wbsItems.map((item) => `${item.id}:${item.updatedAt}`).join("|"),
+  ].join("::");
+
+  return <ProjectRoomWorkBoardContent board={board} key={boardVersion} roomId={roomId} suggestions={suggestions} />;
+}
+
+function ProjectRoomWorkBoardContent({
+  board,
+  roomId,
+  suggestions,
+}: {
+  board: WbsBoardResponse;
+  roomId: string;
+  suggestions: AgentSuggestionResponse[];
+}) {
   const [tasks, setTasks] = useState<LocalTask[]>(board.tasks);
   const [activeColumn, setActiveColumn] = useState<TaskStatus | null>(null);
   const [selectedWbsId, setSelectedWbsId] = useState<string | null>(board.wbsItems[0]?.id ?? null);
   const [removedNotice, setRemovedNotice] = useState<string | null>(null);
   const [trashActive, setTrashActive] = useState(false);
-
-  useEffect(() => {
-    setTasks(board.tasks);
-    setSelectedWbsId((current) =>
-      current && board.wbsItems.some((item) => item.id === current) ? current : board.wbsItems[0]?.id ?? null,
-    );
-  }, [board]);
 
   const wbsTitleById = useMemo(() => Object.fromEntries(board.wbsItems.map((item) => [item.id, item.title])), [board.wbsItems]);
   const linkedCountByWbsId = useMemo(() => {
