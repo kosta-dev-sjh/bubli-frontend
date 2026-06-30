@@ -31,13 +31,6 @@ export const resourcesApi = {
     });
   },
 
-  uploadRoomDocument(roomId: string, body: ResourceUploadRequest) {
-    return apiRequest<ResourceResponse>(`/api/project-rooms/${roomId}/documents`, {
-      body,
-      method: "POST",
-    });
-  },
-
   get(resourceId: string) {
     return apiRequest<ResourceResponse>(`/api/resources/${resourceId}`);
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import { Paperclip, RefreshCw, Send, Smile, X } from "lucide-react";
+import { MessageCircle, Paperclip, Phone, RefreshCw, Send, Smile, UsersRound, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -8,6 +8,8 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { chatApi } from "@/features/communication/api/chatApi";
+import { friendApi } from "@/features/communication/api/friendApi";
+import { voiceApi } from "@/features/communication/api/voiceApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { getActiveProjectRoomId, getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
@@ -17,6 +19,8 @@ import {
   workspacePreviewUser,
 } from "@/lib/workspace-preview-data";
 import type { ChatMessageResponse, ChatRoomResponse } from "@/types/api/chat";
+import type { FriendRequestResponse, FriendResponse } from "@/types/api/friend";
+import type { VoiceRoomResponse } from "@/types/api/voice";
 
 type RoomsState =
   | { kind: "loading" }
@@ -29,6 +33,49 @@ type MessagesState =
   | { kind: "loading" }
   | { kind: "ready"; messages: ChatMessageResponse[] }
   | { kind: "offline" };
+
+type SocialState =
+  | { kind: "loading" }
+  | { friends: FriendResponse[]; kind: "ready"; requests: FriendRequestResponse[] }
+  | { kind: "offline" };
+
+type VoiceState =
+  | { kind: "idle" }
+  | { kind: "starting" }
+  | { kind: "ready"; room: VoiceRoomResponse }
+  | { kind: "blocked"; message: string };
+
+const previewFriends: FriendResponse[] = [
+  {
+    bubliId: "brand-pm",
+    friendUserId: "preview-friend-1",
+    name: "브랜드 PM",
+  },
+  {
+    bubliId: "design-partner",
+    friendUserId: "preview-friend-2",
+    name: "디자인 파트너",
+  },
+];
+
+const previewFriendRequests: FriendRequestResponse[] = [
+  {
+    createdAt: "2026-06-30T08:30:00.000Z",
+    direction: "RECEIVED",
+    id: "preview-friend-request-1",
+    receiver: {
+      bubliId: "maren",
+      name: "Maren",
+      userId: workspacePreviewUser.id,
+    },
+    requester: {
+      bubliId: "copy-editor",
+      name: "카피 에디터",
+      userId: "preview-requester-1",
+    },
+    status: "PENDING",
+  },
+];
 
 const emoticonTokens = [
   { label: "좋아요", value: "[좋아요]" },
@@ -97,6 +144,8 @@ function ChatPageContent() {
   const queryMode = searchParams.get("mode");
   const [roomsState, setRoomsState] = useState<RoomsState>({ kind: "loading" });
   const [messagesState, setMessagesState] = useState<MessagesState>({ kind: "idle" });
+  const [socialState, setSocialState] = useState<SocialState>({ kind: "loading" });
+  const [voiceState, setVoiceState] = useState<VoiceState>({ kind: "idle" });
   const [selectedChatRoomId, setSelectedChatRoomId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [composerActive, setComposerActive] = useState(false);
@@ -115,6 +164,15 @@ function ChatPageContent() {
     if (roomsState.kind !== "ready") return null;
     return roomsState.rooms.find((room) => room.id === activeChatRoomId) ?? null;
   }, [activeChatRoomId, roomsState]);
+  const roomMode = queryMode === "direct" ? "direct" : "room";
+  const visibleRooms = useMemo(() => {
+    if (roomsState.kind !== "ready") return [];
+    return roomsState.rooms.filter((room) => (roomMode === "direct" ? room.chatType === "DIRECT" : room.chatType === "ROOM"));
+  }, [roomMode, roomsState]);
+  const roomConversationCount = roomsState.kind === "ready" ? roomsState.rooms.filter((room) => room.chatType === "ROOM").length : 0;
+  const directConversationCount = roomsState.kind === "ready" ? roomsState.rooms.filter((room) => room.chatType === "DIRECT").length : 0;
+  const friendCount = socialState.kind === "ready" ? socialState.friends.length : directConversationCount;
+  const pendingFriendRequestCount = socialState.kind === "ready" ? socialState.requests.filter((request) => request.status === "PENDING").length : 0;
 
   const loadRooms = useCallback(async () => {
     setRoomsState({ kind: "loading" });
@@ -156,6 +214,28 @@ function ChatPageContent() {
     }
   }, []);
 
+  const loadSocial = useCallback(async () => {
+    setSocialState({ kind: "loading" });
+
+    if (shouldUseWorkspacePreviewData()) {
+      setSocialState({ friends: previewFriends, kind: "ready", requests: previewFriendRequests });
+      return;
+    }
+
+    const [friends, requests] = await Promise.allSettled([friendApi.listFriends(), friendApi.listRequests()]);
+
+    if (friends.status === "rejected" && requests.status === "rejected") {
+      setSocialState({ kind: "offline" });
+      return;
+    }
+
+    setSocialState({
+      friends: friends.status === "fulfilled" ? friends.value : [],
+      kind: "ready",
+      requests: requests.status === "fulfilled" ? requests.value : [],
+    });
+  }, []);
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       void loadRooms();
@@ -163,6 +243,14 @@ function ChatPageContent() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadRooms]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadSocial();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadSocial]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -193,6 +281,46 @@ function ChatPageContent() {
       setActiveProjectRoomId(room.roomId, room.name?.replace(/\s*대화$/, "") ?? "프로젝트룸");
     }
   }
+
+  const startVoice = useCallback(async () => {
+    if (!selectedRoom?.roomId) {
+      setVoiceState({
+        kind: "blocked",
+        message: "현재 보이스는 프로젝트룸 대화에서 먼저 지원합니다. 1:1 보이스는 연결 준비 중입니다.",
+      });
+      return;
+    }
+
+    setVoiceState({ kind: "starting" });
+
+    if (shouldUseWorkspacePreviewData()) {
+      setVoiceState({
+        kind: "ready",
+        room: {
+          id: `preview-voice-${selectedRoom.roomId}`,
+          livekitRoomName: `bubli-preview-${selectedRoom.roomId}`,
+          participants: [
+            {
+              joinedAt: new Date().toISOString(),
+              name: workspacePreviewUser.name,
+              status: "JOINED",
+              userId: workspacePreviewUser.id,
+            },
+          ],
+          roomId: selectedRoom.roomId,
+          status: "OPEN",
+        },
+      });
+      return;
+    }
+
+    try {
+      const room = await voiceApi.createRoom({ roomId: selectedRoom.roomId });
+      setVoiceState({ kind: "ready", room });
+    } catch {
+      setVoiceState({ kind: "blocked", message: "보이스를 시작하지 못했습니다. 서버 상태를 확인하세요." });
+    }
+  }, [selectedRoom]);
 
 
   const sendMessage = useCallback(async () => {
@@ -253,8 +381,16 @@ function ChatPageContent() {
     <section className="workspace-route" aria-labelledby="chat-title">
       <header className="workspace-route__header">
         <div>
-          <h1 id="chat-title">대화</h1>
+          <h1 id="chat-title">소통</h1>
         </div>
+        <nav className="workspace-route__mode-tabs" aria-label="대화 보기">
+          <Link className={queryMode !== "direct" ? "is-active" : ""} href={queryRoomId ? `/app/chat?roomId=${queryRoomId}&mode=room` : "/app/chat?mode=room"}>
+            프로젝트룸
+          </Link>
+          <Link className={queryMode === "direct" ? "is-active" : ""} href="/app/chat?mode=direct">
+            1:1
+          </Link>
+        </nav>
       </header>
 
       {roomsState.kind === "loading" ? <GlassPanel className="workspace-route__panel">대화를 불러오는 중</GlassPanel> : null}
@@ -286,9 +422,39 @@ function ChatPageContent() {
       ) : null}
 
       {roomsState.kind === "ready" && roomsState.rooms.length > 0 ? (
+        <section className="workspace-route__chat-overview" aria-label="소통 상태">
+          <article>
+            <MessageCircle size={17} strokeWidth={2} aria-hidden="true" />
+            <div>
+              <strong>프로젝트룸 대화</strong>
+              <span>{roomConversationCount}개 룸</span>
+            </div>
+          </article>
+          <article>
+            <UsersRound size={17} strokeWidth={2} aria-hidden="true" />
+            <div>
+              <strong>1:1</strong>
+              <span>{friendCount}명 · 요청 {pendingFriendRequestCount}</span>
+            </div>
+          </article>
+          <article>
+            <Phone size={17} strokeWidth={2} aria-hidden="true" />
+            <div>
+              <strong>보이스</strong>
+              <span>{selectedRoom?.chatType === "ROOM" ? "프로젝트룸에서 시작" : "1:1 준비 중"}</span>
+            </div>
+          </article>
+        </section>
+      ) : null}
+
+      {roomsState.kind === "ready" && roomsState.rooms.length > 0 ? (
         <div className="workspace-route__chat">
           <aside className="workspace-route__section workspace-route__chat-list" aria-label="대화방">
-            {roomsState.rooms.map((room) => {
+            <div className="workspace-route__chat-list-head">
+              <strong>{roomMode === "direct" ? "친구와 1:1" : "프로젝트룸"}</strong>
+              <span>{visibleRooms.length}</span>
+            </div>
+            {visibleRooms.map((room) => {
               const selected = room.id === activeChatRoomId;
 
               return (
@@ -308,6 +474,32 @@ function ChatPageContent() {
                 </button>
               );
             })}
+            {visibleRooms.length === 0 ? (
+              <span className="workspace-route__empty">{roomMode === "direct" ? "아직 1:1 대화가 없습니다" : "프로젝트룸 대화가 없습니다"}</span>
+            ) : null}
+            {roomMode === "direct" ? (
+              <div className="workspace-route__friend-panel" aria-label="친구">
+                <div className="workspace-route__chat-list-head">
+                  <strong>친구</strong>
+                  <span>{friendCount}</span>
+                </div>
+                {socialState.kind === "loading" ? <span className="workspace-route__empty">친구 목록을 불러오는 중</span> : null}
+                {socialState.kind === "offline" ? <span className="workspace-route__empty">친구 목록을 불러오지 못했습니다</span> : null}
+                {socialState.kind === "ready" && socialState.friends.length === 0 ? <span className="workspace-route__empty">아직 친구가 없습니다</span> : null}
+                {socialState.kind === "ready"
+                  ? socialState.friends.slice(0, 4).map((friend) => (
+                      <div className="workspace-route__friend-row" key={friend.friendUserId}>
+                        <span aria-hidden="true">{friend.name.slice(0, 1)}</span>
+                        <div>
+                          <strong>{friend.name}</strong>
+                          <small>{friend.bubliId}</small>
+                        </div>
+                      </div>
+                    ))
+                  : null}
+                {pendingFriendRequestCount > 0 ? <span className="workspace-route__pending">{pendingFriendRequestCount}개 요청 확인 필요</span> : null}
+              </div>
+            ) : null}
           </aside>
 
           <GlassPanel className="workspace-route__section workspace-route__thread">
@@ -316,12 +508,24 @@ function ChatPageContent() {
                 <strong>{selectedRoom?.name ?? "대화"}</strong>
                 {selectedRoom ? <span>{roomTypeLabel(selectedRoom)}</span> : null}
               </div>
-              {selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? (
-                <Link className="bubli-button" href={`/app/project-rooms/${selectedRoom.roomId}`}>
-                  프로젝트룸
-                </Link>
-              ) : null}
+              <div className="workspace-route__thread-actions">
+                {selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? (
+                  <Link className="bubli-button" href={`/app/project-rooms/${selectedRoom.roomId}`}>
+                    프로젝트룸
+                  </Link>
+                ) : null}
+                <Button disabled={voiceState.kind === "starting"} loading={voiceState.kind === "starting"} onClick={() => void startVoice()} type="button" variant="quiet">
+                  보이스
+                </Button>
+              </div>
             </div>
+            {voiceState.kind === "ready" ? (
+              <div className="workspace-route__voice-status">
+                <Phone size={15} strokeWidth={2} aria-hidden="true" />
+                <span>보이스 열림 · {voiceState.room.participants.length}명 참여</span>
+              </div>
+            ) : null}
+            {voiceState.kind === "blocked" ? <div className="workspace-route__voice-status workspace-route__voice-status--blocked">{voiceState.message}</div> : null}
 
             {messagesState.kind === "loading" ? <span className="workspace-route__empty">메시지를 불러오는 중</span> : null}
             {messagesState.kind === "offline" ? <span className="workspace-route__empty">메시지를 불러오지 못했습니다</span> : null}
@@ -354,12 +558,6 @@ function ChatPageContent() {
                     </article>
                   );
                 })}
-                {composerActive && draft.trim() ? (
-                  <div className="workspace-route__typing" aria-live="polite">
-                    <span />
-                    <b>입력 중</b>
-                  </div>
-                ) : null}
               </div>
             ) : null}
 

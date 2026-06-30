@@ -136,7 +136,7 @@ export function PublicDownloadSection() {
               <span>Bubli 데스크탑 앱을</span>
               <span>바로 내려받기</span>
             </h2>
-            <p>회원 웹 앱과 같은 업무 흐름을 열고, 오늘 할 일과 일정은 바탕화면에서도 이어서 확인합니다.</p>
+            <p>앱을 열면 오늘 할 일과 일정이 바탕화면에서도 이어집니다.</p>
             <p className={styles.releaseNote}>실제 배포 파일 링크는 릴리스가 준비되면 이 버튼에 바로 연결합니다.</p>
           </div>
         </header>

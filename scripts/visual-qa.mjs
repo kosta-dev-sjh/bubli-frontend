@@ -41,6 +41,7 @@ const TARGETS = [
 
 // ---- 실제 Next 라우트 캡처 대상 (DashboardView를 flag on으로 렌더) ----
 const ROUTE_PORT = 3789;
+const ROUTE_SERVER_CANDIDATES = [ROUTE_PORT, 3791, 3000];
 const ROUTES = [
   { path: "/", scheme: "light", file: "route-home-light.png", label: "Route / (공개 랜딩·light)" },
   { path: "/", scheme: "dark", file: "route-home-dark.png", label: "Route / (공개 랜딩·dark)" },
@@ -117,6 +118,37 @@ function resolveId(stories, t) {
   return null;
 }
 
+async function waitForStoryRender(page) {
+  await page.waitForSelector("#storybook-root, #root", { timeout: 30000 });
+  await page.waitForFunction(
+    () => {
+      const root = document.querySelector("#storybook-root, #root");
+      if (!root) return false;
+      const rect = root.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 && (root.children.length > 0 || root.textContent.trim().length > 0);
+    },
+    { timeout: 30000 },
+  );
+  // Some Storybook stories keep background asset/font requests alive in CI.
+  // Capture should wait for the rendered story, while network idle is only a best-effort polish step.
+  await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
+}
+
+async function screenshotStory(page, dest) {
+  const root = await page.$("#storybook-root, #root");
+  if (!root) {
+    await page.screenshot({ path: dest });
+    return "page";
+  }
+  try {
+    await root.screenshot({ path: dest, timeout: 10000 });
+    return "root";
+  } catch {
+    await page.screenshot({ path: dest });
+    return "page fallback";
+  }
+}
+
 // ---- 5) 금지색 grep (src 스캔) ----
 async function bannedScan() {
   const hits = [];
@@ -156,23 +188,44 @@ async function waitForServer(url, ms = 90000) {
   return false;
 }
 
+async function resolveRouteBaseUrl() {
+  if (process.env.VISUAL_QA_ROUTE_BASE_URL) {
+    const base = process.env.VISUAL_QA_ROUTE_BASE_URL.replace(/\/$/, "");
+    if (await waitForServer(`${base}/login`, 5000)) return base;
+  }
+  for (const port of ROUTE_SERVER_CANDIDATES) {
+    const base = `http://127.0.0.1:${port}`;
+    if (await waitForServer(`${base}/login`, 2000)) return base;
+  }
+  return null;
+}
+
 async function captureRoutes(browser) {
   const results = [];
-  log("next dev 기동 (NEXT_PUBLIC_BUBLI_NEW_DASHBOARD=true)...");
-  const dev = spawn("npx", ["next", "dev", "-p", String(ROUTE_PORT)], {
-    cwd: ROOT,
-    env: {
-      ...process.env,
-      NEXT_PUBLIC_BUBLI_NEW_DASHBOARD: "true",
-      NEXT_PUBLIC_BUBLI_NEW_RESOURCES: "true",
-      NEXT_PUBLIC_BUBLI_NEW_WIDGET_PREVIEW: "true",
-      BROWSER: "none",
-    },
-    stdio: "ignore",
-  });
+  let routeBaseUrl = await resolveRouteBaseUrl();
+  let dev = null;
+  if (routeBaseUrl) {
+    log("기존 next dev 재사용:", routeBaseUrl);
+  } else {
+    log("next dev 기동 (NEXT_PUBLIC_BUBLI_NEW_DASHBOARD=true)...");
+    dev = spawn("npx", ["next", "dev", "-p", String(ROUTE_PORT)], {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        NEXT_PUBLIC_BUBLI_NEW_DASHBOARD: "true",
+        NEXT_PUBLIC_BUBLI_NEW_RESOURCES: "true",
+        NEXT_PUBLIC_BUBLI_NEW_WIDGET_PREVIEW: "true",
+        BROWSER: "none",
+      },
+      stdio: "ignore",
+    });
+  }
   try {
-    const ready = await waitForServer(`http://127.0.0.1:${ROUTE_PORT}/login`);
-    if (!ready) {
+    if (!routeBaseUrl) {
+      const ready = await waitForServer(`http://127.0.0.1:${ROUTE_PORT}/login`);
+      if (ready) routeBaseUrl = `http://127.0.0.1:${ROUTE_PORT}`;
+    }
+    if (!routeBaseUrl) {
       ROUTES.forEach((r) => results.push({ ...r, ok: false, reason: "next dev 준비 시간 초과" }));
       return results;
     }
@@ -194,7 +247,7 @@ async function captureRoutes(browser) {
       }, r.scheme);
       const page = await ctx.newPage();
       try {
-        await page.goto(`http://127.0.0.1:${ROUTE_PORT}${r.path}`, { waitUntil: "networkidle", timeout: 60000 });
+        await page.goto(`${routeBaseUrl}${r.path}`, { waitUntil: "networkidle", timeout: 60000 });
         await page.waitForTimeout(1000); // 마운트 + 테마 effect
         // ThemeProvider 타이밍에 의존하지 않고 캡처용으로 data-theme를 직접 고정한다.
         await page.evaluate((theme) => {
@@ -212,7 +265,7 @@ async function captureRoutes(browser) {
       }
     }
   } finally {
-    dev.kill("SIGTERM");
+    dev?.kill("SIGTERM");
   }
   return results;
 }
@@ -263,15 +316,13 @@ async function main() {
     const id = idRaw.replace(/ .*$/, "");
     const url = `${base}/iframe.html?id=${encodeURIComponent(id)}&viewMode=story`;
     try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-      await page.waitForSelector("#storybook-root, #root", { timeout: 15000 });
-      await page.waitForTimeout(500); // 안정화
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+      await waitForStoryRender(page);
+      await page.waitForTimeout(700); // 안정화
       const dest = path.join(SHOT_DIR, t.file);
-      const root = await page.$("#storybook-root, #root");
-      if (root) await root.screenshot({ path: dest });
-      else await page.screenshot({ path: dest });
+      const shotKind = await screenshotStory(page, dest);
       captures.push({ ...t, ok: true, id: idRaw });
-      log("캡처:", t.file, "←", id);
+      log("캡처:", t.file, "←", id, `(${shotKind})`);
     } catch (e) {
       captures.push({ ...t, ok: false, id: idRaw, reason: e.message.split("\n")[0] });
       log("실패:", t.file, e.message.split("\n")[0]);

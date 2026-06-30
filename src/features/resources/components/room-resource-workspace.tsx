@@ -253,7 +253,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
             <section className="resource-workspace__browser" aria-label="자료 탐색">
               <div className="resource-workspace__scope-head">
                 <span>프로젝트룸 자료</span>
-                <strong>{previewMode ? "서버 연결 전 화면 확인" : "공용 업로드"}</strong>
+                <strong>공용 업로드</strong>
               </div>
 
               <ResourceToolbar onQuery={setQuery} onViewMode={setViewMode} query={query} viewMode={viewMode} />
@@ -337,7 +337,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
             </section>
 
             <ResourcePreview
-              emptyHint={previewMode ? "서버 연결 전에는 선택한 파일의 실제 본문을 열지 않습니다." : "공용 자료를 선택하면 정리 상태와 다운로드를 확인합니다."}
+              emptyHint="공용 자료를 선택하면 정리 상태와 다운로드를 확인합니다."
               onError={(message) => setUploadState({ kind: "error", message })}
               resource={selectedResource}
               scope="room"

@@ -85,6 +85,14 @@ function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
+function startOfWeek(date: Date) {
+  const dayOffset = (date.getDay() + 6) % 7;
+  const start = new Date(date);
+  start.setDate(date.getDate() - dayOffset);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
 function endOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
 }
@@ -216,6 +224,7 @@ function CalendarPageContent() {
   const [repeatEnabled, setRepeatEnabled] = useState(false);
   const [repeatInterval, setRepeatInterval] = useState<RepeatInterval>("WEEKLY");
   const [repeatDays, setRepeatDays] = useState<string[]>(["MO", "WE", "FR"]);
+  const [viewMode, setViewMode] = useState<"month" | "week">("month");
   const [saving, setSaving] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const range = useMemo(() => {
@@ -292,6 +301,15 @@ function CalendarPageContent() {
       return new Date(currentMonth.getFullYear(), currentMonth.getMonth(), index - leadingDays + 1);
     });
   }, [currentMonth]);
+  const weekDays = useMemo(() => {
+    const start = startOfWeek(toSelectedDay(selectedDate));
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      return date;
+    });
+  }, [selectedDate]);
+  const visibleCalendarDays = viewMode === "week" ? weekDays : calendarDays;
 
   const roomEventsForSelectedDate = useMemo(
     () => {
@@ -406,14 +424,6 @@ function CalendarPageContent() {
           <h1 id="calendar-title">일정</h1>
           <p>프로젝트룸 일정, 개인 일정, 외부 캘린더 일정을 한 화면에서 봅니다.</p>
         </div>
-        <div className={styles.headerActions}>
-          <Button icon={<RefreshCw size={15} strokeWidth={2.1} />} onClick={loadEvents} variant="quiet">
-            새로고침
-          </Button>
-          <Button icon={<ExternalLink size={15} strokeWidth={2.1} />} onClick={handleConnectGoogle} variant="primary">
-            Google Calendar 연결
-          </Button>
-        </div>
       </header>
 
       {state.kind === "loading" && <GlassPanel className={styles.statePanel}>일정을 불러오는 중</GlassPanel>}
@@ -459,16 +469,36 @@ function CalendarPageContent() {
             </GlassPanel>
           </section>
 
+          <GlassPanel className={styles.googleSyncPanel}>
+            <div>
+              <strong>Google Calendar</strong>
+              <p>외부 캘린더를 연결하면 개인 일정과 프로젝트룸 일정을 같은 화면에서 봅니다.</p>
+            </div>
+            <Button icon={<ExternalLink size={15} strokeWidth={2.1} />} onClick={handleConnectGoogle} variant="primary">
+              연결 관리
+            </Button>
+          </GlassPanel>
+
           <div className={styles.mainGrid}>
             <GlassPanel className={styles.calendarPanel}>
               <div className={styles.panelHeader}>
                 <div>
-                  <h2>이번 달</h2>
-                  <p>월을 넘기고 날짜를 고르면 하루 타임라인이 바뀝니다.</p>
+                  <h2>{viewMode === "month" ? "월간 일정" : "주간 일정"}</h2>
+                  <p>날짜를 고르면 하루 타임라인과 프로젝트룸 변경 기록이 함께 바뀝니다.</p>
                 </div>
-                <StatusBadge tone={reviewCount > 0 ? "warning" : "success"}>
-                  {reviewCount > 0 ? "확인 필요" : "동기화 정상"}
-                </StatusBadge>
+                <div className={styles.panelTools}>
+                  <div className={styles.viewSwitch} aria-label="일정 보기 방식">
+                    <button aria-pressed={viewMode === "month"} onClick={() => setViewMode("month")} type="button">
+                      월
+                    </button>
+                    <button aria-pressed={viewMode === "week"} onClick={() => setViewMode("week")} type="button">
+                      주
+                    </button>
+                  </div>
+                  <StatusBadge tone={reviewCount > 0 ? "warning" : "success"}>
+                    {reviewCount > 0 ? "확인 필요" : "동기화 정상"}
+                  </StatusBadge>
+                </div>
               </div>
 
               <div className={styles.monthHeader}>
@@ -490,8 +520,8 @@ function CalendarPageContent() {
                 ))}
               </div>
 
-              <div className={styles.monthGrid} aria-label="월간 날짜 선택">
-                {calendarDays.map((date, index) => {
+              <div className={viewMode === "week" ? `${styles.monthGrid} ${styles.weekGrid}` : styles.monthGrid} aria-label="날짜 선택">
+                {visibleCalendarDays.map((date, index) => {
                   if (!date) return <span className={styles.daySpacer} key={`spacer-${index}`} />;
 
                   const dateValue = toDateValue(date);
@@ -665,7 +695,7 @@ function CalendarPageContent() {
               <CheckCircle2 size={17} strokeWidth={2.1} aria-hidden="true" />
               <div>
                 <strong>개인 일정과 프로젝트룸 일정 분리</strong>
-                <p>`roomId`가 없으면 개인 일정, 있으면 현재 프로젝트룸 일정으로 표시합니다.</p>
+                <p>프로젝트룸 연결값이 없으면 개인 일정, 있으면 현재 프로젝트룸 일정으로 표시합니다.</p>
               </div>
             </article>
             <article>

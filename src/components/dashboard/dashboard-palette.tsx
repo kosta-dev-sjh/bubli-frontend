@@ -96,7 +96,7 @@ function DashboardRemoveDropzone({ id }: { id: string }) {
   return (
     <div className="bubli-dash-palette__drop-remove" data-drop-active={isOver ? "true" : undefined} ref={setNodeRef}>
       <Trash2 aria-hidden size={15} strokeWidth={1.8} />
-      <strong>보드에서 빼기</strong>
+      <strong>여기로 끌어 보드에서 빼기</strong>
     </div>
   );
 }
@@ -108,19 +108,20 @@ export function DashboardPalette({ className, draggable = false, items, onAdd, o
 
   return (
     <div className={cn("bubli-dash-palette", className)} {...props}>
-      <div className="bubli-dash-palette__title">카드 추가</div>
+      <div className="bubli-dash-palette__title">보드에 추가할 항목</div>
+      <p className="bubli-dash-palette__hint">드래그하거나 클릭해서 내 대시보드에 놓습니다.</p>
       {removeDropId ? <DashboardRemoveDropzone id={removeDropId} /> : null}
       <label className="bubli-dash-palette__search">
         <Search size={14} />
         <input
-          aria-label="카드 검색"
+          aria-label="추가할 항목 찾기"
           onChange={(e) => onSearch?.(e.target.value)}
-          placeholder="카드 검색"
+          placeholder="추가할 항목 찾기"
           value={query}
         />
       </label>
       {filtered.length === 0 ? (
-        <div className="bubli-dash-palette__empty">카드 없음</div>
+        <div className="bubli-dash-palette__empty">추가할 수 있는 항목이 없습니다</div>
       ) : (
         <div className="bubli-dash-palette__list">
           {filtered.map((w) => (

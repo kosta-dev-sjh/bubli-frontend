@@ -236,6 +236,7 @@ function ProjectRoomWorkBoardContent({
   const [selectedWbsId, setSelectedWbsId] = useState<string | null>(board.wbsItems[0]?.id ?? null);
   const [removedNotice, setRemovedNotice] = useState<string | null>(null);
   const [trashActive, setTrashActive] = useState(false);
+  const [viewMode, setViewMode] = useState<"kanban" | "wbs">("kanban");
 
   const wbsTitleById = useMemo(() => Object.fromEntries(board.wbsItems.map((item) => [item.id, item.title])), [board.wbsItems]);
   const linkedCountByWbsId = useMemo(() => {
@@ -322,23 +323,35 @@ function ProjectRoomWorkBoardContent({
       <section className={styles.contextBand} aria-label="WBS와 작업판 연결 상태">
         <div>
           <StatusBadge tone="room">프로젝트룸 작업판</StatusBadge>
-          <h2>WBS에서 TODO로 이어지는 작업 흐름</h2>
-          <p>왼쪽 WBS를 고르면 연결된 TODO가 강조되고, 카드는 칸반에서 드래그해 상태만 화면에서 먼저 바꿀 수 있습니다.</p>
+          <h2>작업 구조와 실행 상태</h2>
+          <p>WBS로 작업 범위를 확인하고, 칸반에서 승인된 TODO의 상태를 바꿉니다.</p>
         </div>
-        <div className={styles.contextStats} aria-label="작업판 요약">
-          <span>
-            <GitBranch size={15} aria-hidden="true" /> WBS {board.wbsItems.length}
-          </span>
-          <span>
-            <ListTodo size={15} aria-hidden="true" /> TODO {visibleTasks.length}
-          </span>
-          <span>
-            <Bot size={15} aria-hidden="true" /> 후보 {suggestions.length}
-          </span>
+        <div className={styles.contextTools}>
+          <div className={styles.viewSwitch} aria-label="작업판 보기 전환">
+            <button aria-pressed={viewMode === "kanban"} onClick={() => setViewMode("kanban")} type="button">
+              <KanbanSquare size={15} aria-hidden="true" />
+              칸반
+            </button>
+            <button aria-pressed={viewMode === "wbs"} onClick={() => setViewMode("wbs")} type="button">
+              <GitBranch size={15} aria-hidden="true" />
+              WBS
+            </button>
+          </div>
+          <div className={styles.contextStats} aria-label="작업판 요약">
+            <span>
+              <GitBranch size={15} aria-hidden="true" /> WBS {board.wbsItems.length}
+            </span>
+            <span>
+              <ListTodo size={15} aria-hidden="true" /> TODO {visibleTasks.length}
+            </span>
+            <span>
+              <Bot size={15} aria-hidden="true" /> 후보 {suggestions.length}
+            </span>
+          </div>
         </div>
       </section>
 
-      <div className={styles.boardGrid}>
+      <div className={styles.boardGrid} data-view={viewMode}>
         <aside className={styles.pane} aria-label="WBS 리스트">
           <div className={styles.paneHead}>
             <div>
@@ -434,7 +447,7 @@ function ProjectRoomWorkBoardContent({
               <Trash2 aria-hidden="true" size={18} strokeWidth={2} />
               <span>
                 <strong>드래그 제거 영역</strong>
-                <small>API 삭제 연결 전이라 화면에서만 숨깁니다</small>
+                <small>보드 표시에서만 뺍니다</small>
               </span>
             </div>
             {removedNotice ? <p className={styles.notice}>{removedNotice}</p> : null}

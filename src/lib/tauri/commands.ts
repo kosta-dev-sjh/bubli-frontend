@@ -44,6 +44,13 @@ export type ManagedFolderSelection = {
   path: string;
 };
 
+// The native folder picker can be wired through the dialog plugin later; until
+// then the frontend may pass an already-resolved absolute path to register a
+// personal managed folder. Personal-only: a managed folder never carries roomId.
+export type SelectManagedFolderInput = {
+  path?: string;
+};
+
 export type ManagedFolderScanResult = {
   changedCount: number;
   localFolderId: string;
@@ -121,6 +128,10 @@ export type WidgetUsageEventInput = {
   itemId?: string;
   itemType?: string;
   occurredAt: string;
+};
+
+export type WidgetUsageEventRecordResult = {
+  recordedAt: string;
 };
 
 export type WidgetUsageRollupInput = {
@@ -278,7 +289,7 @@ export type PlannedTauriCommandContract = {
   };
   record_widget_usage_event: {
     args: WidgetUsageEventInput;
-    result: { recordedAt: string };
+    result: WidgetUsageEventRecordResult;
   };
   restore_local_sqlite_backup: {
     args: LocalBackupRestoreInput;
@@ -297,7 +308,7 @@ export type PlannedTauriCommandContract = {
     result: LocalFileSearchResult;
   };
   select_managed_folder: {
-    args: undefined;
+    args: SelectManagedFolderInput | undefined;
     result: ManagedFolderSelection;
   };
   sync_room_messages: {
@@ -355,5 +366,71 @@ export const tauriCommands = {
   },
   updateWidgetTrayState(input: WidgetBooleanInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.updateWidgetTrayState, { input });
+  },
+} as const;
+
+// Typed invoke wrappers for the local-only Tauri IPC commands (SQLite, folder
+// index, activity context, widget usage rollups, sync outbox). The Rust side is
+// implemented in src-tauri; these wrappers are the only sanctioned call path and
+// all go through invokeTauri (src/lib/tauri/ipc.ts) to satisfy the boundary check.
+// No UI is wired here on purpose: features call these when they are ready.
+export const plannedTauriCommands = {
+  // BUBLI-43: local managed folder index + sync outbox
+  selectManagedFolder(input?: SelectManagedFolderInput) {
+    return invokeTauri<ManagedFolderSelection>(
+      PLANNED_TAURI_COMMANDS.selectManagedFolder,
+      input ? { input } : undefined,
+    );
+  },
+  scanManagedFolder(input: ManagedFolderCommandInput) {
+    return invokeTauri<ManagedFolderScanResult>(PLANNED_TAURI_COMMANDS.scanManagedFolder, { input });
+  },
+  watchManagedFolder(input: ManagedFolderCommandInput) {
+    return invokeTauri<ManagedFolderWatchResult>(PLANNED_TAURI_COMMANDS.watchManagedFolder, { input });
+  },
+  searchLocalFiles(input: LocalFileSearchInput) {
+    return invokeTauri<LocalFileSearchResult>(PLANNED_TAURI_COMMANDS.searchLocalFiles, { input });
+  },
+  flushSyncOutbox() {
+    return invokeTauri<SyncOutboxFlushResult>(PLANNED_TAURI_COMMANDS.flushSyncOutbox);
+  },
+  // BUBLI-44: activity context (OS capture, user-consented)
+  readActivityContext() {
+    return invokeTauri<ActivityContextResult>(PLANNED_TAURI_COMMANDS.readActivityContext);
+  },
+  // BUBLI-41: widget usage events + local rollups + server sync staging
+  recordWidgetUsageEvent(input: WidgetUsageEventInput) {
+    return invokeTauri<WidgetUsageEventRecordResult>(
+      PLANNED_TAURI_COMMANDS.recordWidgetUsageEvent,
+      { input },
+    );
+  },
+  rollupWidgetUsage(input?: WidgetUsageRollupInput) {
+    return invokeTauri<WidgetUsageRollupResult[]>(
+      PLANNED_TAURI_COMMANDS.rollupWidgetUsage,
+      input ? { input } : undefined,
+    );
+  },
+  syncWidgetUsageSummary(input?: WidgetUsageSummarySyncInput) {
+    return invokeTauri<WidgetUsageSummarySyncResult>(
+      PLANNED_TAURI_COMMANDS.syncWidgetUsageSummary,
+      input ? { input } : undefined,
+    );
+  },
+  // Local SQLite lifecycle + recovery (shared by all three issues)
+  syncRoomMessages(input: LocalRoomMessageSyncInput) {
+    return invokeTauri<LocalRoomMessageSyncResult>(PLANNED_TAURI_COMMANDS.syncRoomMessages, { input });
+  },
+  recoverTimerState() {
+    return invokeTauri<TimerRecoveryState>(PLANNED_TAURI_COMMANDS.recoverTimerState);
+  },
+  backupLocalSqlite() {
+    return invokeTauri<LocalBackupResult>(PLANNED_TAURI_COMMANDS.backupLocalSqlite);
+  },
+  restoreLocalSqliteBackup(input: LocalBackupRestoreInput) {
+    return invokeTauri<LocalBackupRestoreResult>(PLANNED_TAURI_COMMANDS.restoreLocalSqliteBackup, { input });
+  },
+  checkLocalSqliteIntegrity() {
+    return invokeTauri<SqliteIntegrityResult>(PLANNED_TAURI_COMMANDS.checkLocalSqliteIntegrity);
   },
 } as const;

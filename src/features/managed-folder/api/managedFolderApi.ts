@@ -5,11 +5,17 @@ import type {
   LocalFileEventUpdateRequest,
   LocalFileResponse,
   LocalFileSyncResponse,
-  ResourceShareToRoomRequest,
   ResourceSyncPolicyUpdateRequest,
 } from "@/types/api/managedFolder";
 import type { ResourceResponse } from "@/types/api/resource";
 
+// Personal managed-folder flow. Boundary (10_API-Design 14.6, Data Model 13.2):
+// only POST /api/local-file-events/sync reflects approved local changes to the
+// personal library. Personal files are never auto-shared into a project room,
+// and there is no resource restore endpoint (delete is permanent).
+//
+// The suggest / approve / list / sync-policy endpoints below are a client flow
+// not yet pinned in the API spec; treat them as pending backend confirmation.
 export const managedFolderApi = {
   listLocalFiles() {
     return apiRequest<LocalFileResponse[]>("/api/local-files");
@@ -39,19 +45,6 @@ export const managedFolderApi = {
     return apiRequest<ResourceResponse>(`/api/resources/${resourceId}/sync-policy`, {
       body,
       method: "PATCH",
-    });
-  },
-
-  shareResourceToRoom(resourceId: string, body: ResourceShareToRoomRequest) {
-    return apiRequest<ResourceResponse>(`/api/resources/${resourceId}/share-to-room`, {
-      body,
-      method: "POST",
-    });
-  },
-
-  restoreResource(resourceId: string) {
-    return apiRequest<ResourceResponse>(`/api/resources/${resourceId}/restore`, {
-      method: "POST",
     });
   },
 } as const;

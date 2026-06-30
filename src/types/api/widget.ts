@@ -1,6 +1,14 @@
 export type WidgetMode = "PERSONAL" | "ROOM";
 
-export type WidgetBubbleType = "TODO" | "AGENT" | "CHAT" | "TIMER" | "MEMO" | "SCHEDULE" | "RESOURCE";
+export type WidgetBubbleType =
+  | "TODO"
+  | "SCHEDULE"
+  | "TIMER"
+  | "MEMO"
+  | "CHAT"
+  | "AGENT"
+  | "RESOURCE"
+  | "ALERT";
 
 export type WidgetContextResponse = {
   mode: WidgetMode;
@@ -51,7 +59,7 @@ export type WidgetSummaryResponse = {
   summaries: WidgetSummaryItem[];
 };
 
-export type WidgetItemState = "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED" | "UNREAD";
+export type WidgetItemState = "VISIBLE" | "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED" | "UNREAD";
 
 export type WidgetItemStateUpdateRequest = {
   bubbleType: WidgetBubbleType;

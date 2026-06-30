@@ -6,6 +6,11 @@ use tauri::{
     WebviewWindowBuilder,
 };
 
+mod activity;
+mod local_db;
+mod local_files;
+mod widget_usage;
+
 const WIDGET_WINDOW_LABEL_PREFIX: &str = "bubli-widget";
 const WIDGET_WINDOW_URL: &str = "desktop-widget";
 const DEFAULT_WIDGET_BUBBLE_TYPE: &str = "todo";
@@ -425,6 +430,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Mutex::new(WidgetWindowStore::default()))
+        .setup(|app| {
+            // Open the on-device SQLite store (folder index, widget usage,
+            // activity focus, sync outbox) and expose it as managed state.
+            let connection =
+                local_db::open_and_migrate(app.handle()).map_err(|error| error.to_string())?;
+            app.manage(local_db::Db(Mutex::new(connection)));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             app_ready,
             close_widget_window,
@@ -437,7 +450,25 @@ pub fn run() {
             set_widget_window_position,
             toggle_widget_window,
             toggle_widget_dock_orb,
-            update_widget_tray_state
+            update_widget_tray_state,
+            // BUBLI-44 activity context
+            activity::read_activity_context,
+            // BUBLI-41 widget usage events + rollups + server-sync staging
+            widget_usage::record_widget_usage_event,
+            widget_usage::rollup_widget_usage,
+            widget_usage::sync_widget_usage_summary,
+            // BUBLI-43 local file index + change events + sync outbox
+            local_files::select_managed_folder,
+            local_files::scan_managed_folder,
+            local_files::watch_managed_folder,
+            local_files::search_local_files,
+            local_files::flush_sync_outbox,
+            // Local SQLite lifecycle + cache recovery commands.
+            local_db::backup_local_sqlite,
+            local_db::check_local_sqlite_integrity,
+            local_db::recover_timer_state,
+            local_db::restore_local_sqlite_backup,
+            local_db::sync_room_messages
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Bubli Tauri application");

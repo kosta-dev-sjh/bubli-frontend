@@ -79,7 +79,6 @@ export function PersonalResourceWorkspace() {
   const analyzingCount = resources.filter((resource) => resource.status === "ANALYZING").length;
   const needsReviewCount = resources.filter((resource) => resource.status === "FAILED").length;
   const canShowBoard = state.kind !== "auth" && state.kind !== "error";
-  const previewMode = shouldUseWorkspacePreviewData();
   const latestScannedAt = resources.reduce<string | null>((latest, resource) => {
     if (!resource.updatedAt) {
       return latest;
@@ -97,7 +96,7 @@ export function PersonalResourceWorkspace() {
       <GlassPanel className="resource-workspace__hero">
         <div className="resource-workspace__copy">
           <h1>개인 자료</h1>
-          <p>내 컴퓨터 폴더 연결 상태, 개인 색인, 최근 동기화 결과를 확인합니다.</p>
+          <p>내 컴퓨터 폴더에서 감지한 자료를 확인합니다. 프로젝트룸을 바꿔도 개인 자료는 그대로 따라옵니다.</p>
         </div>
         <div className="resource-workspace__actions">
           <Link className="bubli-button" href="/app/settings">
@@ -139,7 +138,7 @@ export function PersonalResourceWorkspace() {
           <div className="resource-workspace__stats" aria-label="자료 상태 요약">
             <GlassPanel dense className="resource-workspace__stat">
               <span>연결 폴더</span>
-              <b>{isTauri ? "감지" : "앱 필요"}</b>
+              <b>{isTauri ? "연결됨" : "앱에서 설정"}</b>
             </GlassPanel>
             <GlassPanel dense className="resource-workspace__stat">
               <span>개인 색인</span>
@@ -151,7 +150,7 @@ export function PersonalResourceWorkspace() {
             </GlassPanel>
             <GlassPanel dense className="resource-workspace__stat">
               <span>최근 스캔</span>
-              <b>{state.kind === "loading" ? "-" : previewMode ? "확인용" : latestScannedAt ? formatDate(latestScannedAt) : "대기"}</b>
+              <b>{state.kind === "loading" ? "-" : latestScannedAt ? formatDate(latestScannedAt) : "대기"}</b>
             </GlassPanel>
           </div>
 
@@ -167,8 +166,8 @@ export function PersonalResourceWorkspace() {
               <div className="resource-workspace__source-note">
                 <HardDrive aria-hidden size={17} strokeWidth={2} />
                 <div>
-                  <strong>개인 폴더 동기화</strong>
-                  <span>{isTauri ? "기기 안 폴더를 읽어 개인 색인으로 정리" : "데스크탑 앱에서 폴더를 선택해야 연결"}</span>
+                  <strong>개인 폴더</strong>
+                  <span>{isTauri ? "기기 안 폴더를 개인 색인으로 정리" : "데스크탑 앱에서 폴더를 연결"}</span>
                 </div>
               </div>
             </aside>
@@ -176,7 +175,7 @@ export function PersonalResourceWorkspace() {
             <section className="resource-workspace__browser" aria-label="자료 탐색">
               <div className="resource-workspace__scope-head">
                 <span>개인 자료</span>
-                <strong>{previewMode ? "서버 연결 전 화면 확인" : isTauri ? "동기화 상태 확인" : "데스크탑 앱 필요"}</strong>
+                <strong>{isTauri ? "폴더 동기화" : "데스크탑 앱에서 폴더 연결"}</strong>
               </div>
 
               <ResourceToolbar onQuery={setQuery} onViewMode={setViewMode} query={query} viewMode={viewMode} />
@@ -187,7 +186,7 @@ export function PersonalResourceWorkspace() {
                   <strong>{isTauri ? "연결한 폴더를 읽는 중" : "개인 자료는 폴더 선택으로 연결합니다"}</strong>
                   <p>
                     {isTauri
-                      ? "기기 안 파일을 개인 색인으로 정리하고, 프로젝트룸 공유 전까지 공용 자료와 섞지 않습니다."
+                      ? "기기 안 파일을 개인 색인으로 정리합니다. 프로젝트룸 자료와는 분리됩니다."
                       : "브라우저 화면에서는 파일을 받지 않습니다. 데스크탑 앱에서 내 컴퓨터 폴더를 지정하세요."}
                   </p>
                 </div>
@@ -245,7 +244,7 @@ export function PersonalResourceWorkspace() {
             </section>
 
             <ResourcePreview
-              emptyHint={previewMode ? "서버 연결 전에는 선택한 파일의 실제 본문을 열지 않습니다." : "동기화된 자료를 선택하면 상태와 정리 결과를 확인합니다."}
+              emptyHint="자료를 선택하면 상태와 정리 결과를 확인합니다."
               resource={selectedResource}
               scope="personal"
             />

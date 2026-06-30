@@ -1,0 +1,371 @@
+//! BUBLI-43: local file index, change candidates, approval, sync staging.
+//!
+//! Personal-only boundary (Data Model 13.2, 09C): managed folders and their
+//! files belong to the user, never to a project room. Nothing here writes a
+//! room_id or shares a file into a room. Reflecting approved changes to the
+//! server personal library is done by the frontend client (POST
+//! /api/local-file-events/sync); this module stages the candidates locally.
+
+use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
+
+use rusqlite::{params, OptionalExtension};
+use serde::{Deserialize, Serialize};
+use tauri::State;
+use uuid::Uuid;
+
+use crate::local_db::{ms_to_iso, now_ms, Db};
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectManagedFolderInput {
+    path: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderSelection {
+    local_folder_id: String,
+    name: String,
+    path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderCommandInput {
+    local_folder_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderScanResult {
+    changed_count: i64,
+    local_folder_id: String,
+    scanned_at: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderWatchResult {
+    local_folder_id: String,
+    watching: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileSearchInput {
+    query: String,
+    limit: Option<i64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileSearchItem {
+    local_file_id: String,
+    matched_text: Option<String>,
+    name: String,
+    path: String,
+    updated_at: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileSearchResult {
+    items: Vec<LocalFileSearchItem>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncOutboxFlushResult {
+    failed_count: i64,
+    flushed_at: String,
+    sent_count: i64,
+}
+
+/// Register a personal managed folder. The native folder picker can be wired
+/// through the dialog plugin later; for now the frontend passes a resolved path.
+#[tauri::command]
+pub fn select_managed_folder(
+    state: State<'_, Db>,
+    input: Option<SelectManagedFolderInput>,
+) -> Result<ManagedFolderSelection, String> {
+    let path = input
+        .and_then(|value| value.path)
+        .ok_or_else(|| "no folder path provided (native picker not wired yet)".to_string())?;
+
+    let path_buf = PathBuf::from(&path);
+    if !path_buf.is_dir() {
+        return Err(format!("not a directory: {path}"));
+    }
+    let name = path_buf
+        .file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.clone());
+
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let id = Uuid::new_v4().to_string();
+    let now = now_ms();
+    conn.execute(
+        "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, 'ACTIVE', 0, ?4, ?4) \
+         ON CONFLICT(path) DO UPDATE SET status = 'ACTIVE', updated_at = excluded.updated_at",
+        params![id, name, path, now],
+    )
+    .map_err(|error| error.to_string())?;
+
+    // Resolve the canonical id (existing one wins on conflict).
+    let local_folder_id: String = conn
+        .query_row(
+            "SELECT id FROM managed_folders WHERE path = ?1",
+            params![path],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+
+    Ok(ManagedFolderSelection {
+        local_folder_id,
+        name,
+        path,
+    })
+}
+
+/// Re-scan a managed folder, upsert the file index, and record change events.
+#[tauri::command]
+pub fn scan_managed_folder(
+    state: State<'_, Db>,
+    input: ManagedFolderCommandInput,
+) -> Result<ManagedFolderScanResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+
+    let folder_path: String = conn
+        .query_row(
+            "SELECT path FROM managed_folders WHERE id = ?1",
+            params![input.local_folder_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| format!("managed folder not found: {}", input.local_folder_id))?;
+
+    let mut files: Vec<PathBuf> = Vec::new();
+    collect_files(Path::new(&folder_path), &mut files)
+        .map_err(|error| format!("scan failed: {error}"))?;
+
+    let now = now_ms();
+    let mut changed_count = 0i64;
+
+    for file in files {
+        let local_path = file.to_string_lossy().to_string();
+        let file_name = file
+            .file_name()
+            .map(|value| value.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let metadata = match std::fs::metadata(&file) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let size_bytes = metadata.len() as i64;
+        let modified_ms = metadata
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as i64);
+
+        let existing: Option<(String, Option<i64>, Option<i64>)> = conn
+            .query_row(
+                "SELECT id, size_bytes, modified_at FROM local_files \
+                 WHERE local_folder_id = ?1 AND local_path = ?2",
+                params![input.local_folder_id, local_path],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Option<i64>>(1)?,
+                        row.get::<_, Option<i64>>(2)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+
+        match existing {
+            None => {
+                let file_id = Uuid::new_v4().to_string();
+                conn.execute(
+                    "INSERT INTO local_files \
+                     (id, local_folder_id, file_name, local_path, resource_id, size_bytes, checksum, sync_status, modified_at, updated_at) \
+                     VALUES (?1, ?2, ?3, ?4, NULL, ?5, NULL, 'LOCAL_ONLY', ?6, ?7)",
+                    params![file_id, input.local_folder_id, file_name, local_path, size_bytes, modified_ms, now],
+                )
+                .map_err(|error| error.to_string())?;
+                record_event(
+                    &conn,
+                    &input.local_folder_id,
+                    Some(file_id.as_str()),
+                    "CREATED",
+                    &file_name,
+                    &local_path,
+                    size_bytes,
+                    modified_ms,
+                    now,
+                )?;
+                changed_count += 1;
+            }
+            Some((file_id, prev_size, prev_modified)) => {
+                let changed = prev_size != Some(size_bytes) || prev_modified != modified_ms;
+                if changed {
+                    conn.execute(
+                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, sync_status = 'LOCAL_ONLY', updated_at = ?4 \
+                         WHERE id = ?1",
+                        params![file_id, size_bytes, modified_ms, now],
+                    )
+                    .map_err(|error| error.to_string())?;
+                    record_event(
+                        &conn,
+                        &input.local_folder_id,
+                        Some(file_id.as_str()),
+                        "UPDATED",
+                        &file_name,
+                        &local_path,
+                        size_bytes,
+                        modified_ms,
+                        now,
+                    )?;
+                    changed_count += 1;
+                }
+            }
+        }
+    }
+
+    Ok(ManagedFolderScanResult {
+        changed_count,
+        local_folder_id: input.local_folder_id,
+        scanned_at: ms_to_iso(now),
+    })
+}
+
+/// Continuous watching (notify-based) is the remaining native step. Until then
+/// callers refresh on demand with `scan_managed_folder`.
+#[tauri::command]
+pub fn watch_managed_folder(
+    input: ManagedFolderCommandInput,
+) -> Result<ManagedFolderWatchResult, String> {
+    let _ = input.local_folder_id;
+    Err("continuous folder watch is not wired yet; call scan_managed_folder to refresh".to_string())
+}
+
+/// Search the local file index by name or path (LIKE; FTS5 is an enhancement).
+#[tauri::command]
+pub fn search_local_files(
+    state: State<'_, Db>,
+    input: LocalFileSearchInput,
+) -> Result<LocalFileSearchResult, String> {
+    let limit = input.limit.unwrap_or(50).clamp(1, 500);
+    let needle = format!("%{}%", input.query);
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, file_name, local_path, updated_at FROM local_files \
+             WHERE file_name LIKE ?1 OR local_path LIKE ?1 \
+             ORDER BY updated_at DESC LIMIT ?2",
+        )
+        .map_err(|error| error.to_string())?;
+
+    let rows = stmt
+        .query_map(params![needle, limit], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)?,
+            ))
+        })
+        .map_err(|error| error.to_string())?;
+
+    let mut items = Vec::new();
+    for row in rows {
+        let (id, name, path, updated_ms) = row.map_err(|error| error.to_string())?;
+        items.push(LocalFileSearchItem {
+            local_file_id: id,
+            matched_text: None,
+            name,
+            path,
+            updated_at: ms_to_iso(updated_ms),
+        });
+    }
+
+    Ok(LocalFileSearchResult { items })
+}
+
+/// Report the sync outbox backlog. Actual transmission is done by the frontend
+/// API client (auth tokens live there); this returns current counts so the UI
+/// can show whether anything is waiting.
+#[tauri::command]
+pub fn flush_sync_outbox(state: State<'_, Db>) -> Result<SyncOutboxFlushResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let failed_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM local_sync_outbox WHERE status = 'FAILED'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    Ok(SyncOutboxFlushResult {
+        failed_count,
+        flushed_at: crate::local_db::now_iso(),
+        sent_count: 0,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_event(
+    conn: &rusqlite::Connection,
+    local_folder_id: &str,
+    local_file_id: Option<&str>,
+    event_type: &str,
+    file_name: &str,
+    local_path: &str,
+    size_bytes: i64,
+    modified_ms: Option<i64>,
+    now: i64,
+) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO local_file_events \
+         (id, local_file_id, local_folder_id, event_type, file_name, local_path, hash, size_bytes, status, reason, modified_at, created_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, 'PENDING', NULL, ?8, ?9)",
+        params![
+            Uuid::new_v4().to_string(),
+            local_file_id,
+            local_folder_id,
+            event_type,
+            file_name,
+            local_path,
+            size_bytes,
+            modified_ms,
+            now,
+        ],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        // Skip hidden files and common noise directories.
+        if name.starts_with('.') || name == "node_modules" {
+            continue;
+        }
+        let file_type = entry.file_type()?;
+        let path = entry.path();
+        if file_type.is_dir() {
+            collect_files(&path, out)?;
+        } else if file_type.is_file() {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
