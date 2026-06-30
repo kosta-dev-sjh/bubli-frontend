@@ -1,0 +1,394 @@
+.shell {
+  display: grid;
+  gap: 18px;
+}
+
+.contextBand {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(215, 234, 244, 0.48)),
+    #f7f9fa;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 18px 46px rgba(107, 143, 168, 0.14);
+  color: #2c3540;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 20px;
+}
+
+.contextBand h2,
+.paneHead h2 {
+  color: #2c3540;
+  font-size: 18px;
+  line-height: 1.35;
+  margin: 8px 0 4px;
+}
+
+.contextBand p,
+.paneHead p {
+  color: #5a6772;
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.contextStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.contextStats span {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  color: #5a6772;
+  display: inline-flex;
+  font-size: 12px;
+  gap: 6px;
+  padding: 8px 11px;
+}
+
+.boardGrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(220px, 0.82fr) minmax(420px, 1.8fr) minmax(220px, 0.88fr);
+}
+
+.pane,
+.kanbanPane {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 14px 34px rgba(107, 143, 168, 0.12);
+  min-inline-size: 0;
+  padding: 16px;
+}
+
+.paneHead {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-block-end: 14px;
+}
+
+.wbsList,
+.suggestionList,
+.cardList {
+  display: grid;
+  gap: 10px;
+}
+
+.wbsRow {
+  align-items: center;
+  appearance: none;
+  background: rgba(247, 249, 250, 0.78);
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  color: #2c3540;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 4px minmax(0, 1fr) auto;
+  padding: 11px;
+  text-align: start;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.wbsRow:hover,
+.wbsRowSelected {
+  border-color: rgba(107, 143, 168, 0.46);
+  box-shadow: 0 10px 24px rgba(107, 143, 168, 0.12);
+  transform: translateY(-1px);
+}
+
+.wbsRail {
+  align-self: stretch;
+  background: #d7eaf4;
+  border-radius: 999px;
+}
+
+.wbsMain,
+.suggestion span,
+.selectedWbs span,
+.trashZone span {
+  display: grid;
+  gap: 3px;
+  min-inline-size: 0;
+}
+
+.wbsMain strong,
+.suggestion strong,
+.cardTop strong,
+.selectedWbs strong,
+.trashZone strong {
+  color: #2c3540;
+  font-size: 13px;
+  line-height: 1.35;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.wbsMain small,
+.suggestion small,
+.cardBody p,
+.selectedWbs small,
+.trashZone small {
+  color: #5a6772;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.selectedWbs {
+  align-items: center;
+  background: rgba(215, 234, 244, 0.34);
+  border: 1px dashed rgba(107, 143, 168, 0.34);
+  border-radius: 14px;
+  color: #6b8fa8;
+  display: flex;
+  gap: 10px;
+  margin-block-start: 14px;
+  padding: 11px;
+}
+
+.columns {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+}
+
+.column {
+  background: rgba(247, 249, 250, 0.72);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  border-radius: 18px;
+  min-block-size: 390px;
+  padding: 12px;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.columnActive {
+  background: rgba(215, 234, 244, 0.42);
+  border-color: rgba(107, 143, 168, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9);
+}
+
+.columnHead {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-block-end: 10px;
+}
+
+.columnHead span {
+  display: grid;
+  gap: 3px;
+}
+
+.columnHead strong {
+  color: #2c3540;
+  font-size: 13px;
+}
+
+.columnHead small {
+  color: #8a94a0;
+  font-size: 11px;
+}
+
+.columnHead b {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  color: #6b8fa8;
+  font-size: 12px;
+  min-inline-size: 26px;
+  padding: 3px 8px;
+  text-align: center;
+}
+
+.dropIndicator {
+  background: #6b8fa8;
+  border-radius: 999px;
+  display: block;
+  block-size: 2px;
+  inline-size: 100%;
+  margin-block: 3px;
+  opacity: 0;
+  transition: opacity 120ms ease, block-size 120ms ease;
+}
+
+.dropIndicator[data-active="true"] {
+  block-size: 4px;
+  opacity: 1;
+}
+
+.card {
+  align-items: flex-start;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 14px;
+  box-shadow: 0 8px 22px rgba(107, 143, 168, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  cursor: grab;
+  display: flex;
+  gap: 9px;
+  padding: 11px;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.card:active {
+  cursor: grabbing;
+}
+
+.card:hover,
+.cardSelected {
+  border-color: rgba(142, 205, 246, 0.82);
+  box-shadow: 0 12px 28px rgba(107, 143, 168, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  transform: translateY(-1px);
+}
+
+.grip {
+  color: #8a94a0;
+  flex: 0 0 auto;
+  margin-block-start: 3px;
+}
+
+.cardBody {
+  display: grid;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.cardTop {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.cardTop :global(.bubli-status) {
+  flex: 0 0 auto;
+}
+
+.kanbanFooter {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  margin-block-start: 12px;
+}
+
+.trashZone {
+  align-items: center;
+  background: rgba(232, 152, 152, 0.11);
+  border: 1px dashed rgba(232, 152, 152, 0.62);
+  border-radius: 16px;
+  color: var(--color-dust-rose);
+  display: flex;
+  gap: 10px;
+  min-inline-size: 240px;
+  padding: 11px 13px;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.trashZoneActive {
+  background: rgba(232, 152, 152, 0.2);
+  border-color: rgba(232, 152, 152, 0.86);
+  transform: translateY(-1px);
+}
+
+.notice {
+  color: #5a6772;
+  font-size: 12px;
+  margin: 0;
+}
+
+.suggestion {
+  align-items: center;
+  background: rgba(230, 221, 248, 0.24);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  border-radius: 14px;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 30px minmax(0, 1fr);
+  padding: 11px;
+}
+
+.suggestion :global(.bubli-status) {
+  grid-column: 2;
+  justify-self: start;
+}
+
+.suggestionIcon {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  color: #6b8fa8;
+  display: inline-flex;
+  block-size: 30px;
+  inline-size: 30px;
+  justify-content: center;
+}
+
+.empty {
+  border: 1px dashed #cdd8df;
+  border-radius: 14px;
+  color: #8a94a0;
+  font-size: 12px;
+  margin: 0;
+  padding: 12px;
+  text-align: center;
+}
+
+@media (max-width: 1180px) {
+  .boardGrid,
+  .columns {
+    grid-template-columns: 1fr;
+  }
+
+  .column {
+    min-block-size: 180px;
+  }
+}
+
+@media (max-width: 760px) {
+  .contextBand,
+  .kanbanFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .contextStats {
+    justify-content: flex-start;
+  }
+
+  .trashZone {
+    min-inline-size: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wbsRow,
+  .column,
+  .dropIndicator,
+  .card,
+  .trashZone {
+    transition: none;
+  }
+
+  .wbsRow:hover,
+  .wbsRowSelected,
+  .card:hover,
+  .cardSelected,
+  .trashZoneActive {
+    transform: none;
+  }
+}

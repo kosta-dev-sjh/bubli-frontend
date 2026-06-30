@@ -4,7 +4,7 @@ export type ResourceKind = "FILE" | "MEMO";
 
 export type ResourceVisibility = "PERSONAL" | "ROOM_SHARED";
 
-export type ResourceStatus = "UPLOADED" | "ANALYZING" | "ANALYZED" | "FAILED" | "ARCHIVED";
+export type ResourceStatus = "UPLOADING" | "UPLOADED" | "READY" | "ANALYZING" | "ANALYZED" | "FAILED" | "ARCHIVED";
 
 export type ResourceSummaryStatus = "NONE" | "PENDING" | "SUCCEEDED" | "FAILED";
 

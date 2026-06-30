@@ -1,14 +1,35 @@
 "use client";
 
-import { AlertCircle, CalendarDays, CheckCircle2, Clock3, LayoutDashboard, RefreshCw } from "lucide-react";
+import { DndContext, DragOverlay, PointerSensor, closestCenter, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
+import type { CollisionDetection, DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
+import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { AlertCircle, CheckCircle2, Clock3, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { DashboardGrid, DashboardPalette, DashboardWidgetTile, WIDGET_CATALOG, sizeToClass, widgetIcon } from "@/components/dashboard";
+import type { DashboardWidgetDef } from "@/components/dashboard";
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { dashboardApi } from "@/features/dashboard/api/dashboardApi";
+import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
+import {
+  ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
+  getActiveProjectRoomId,
+  getActiveProjectRoomLabel,
+} from "@/lib/workspace-active-room";
+import {
+  shouldUseWorkspacePreviewData,
+  workspacePreviewDashboard,
+  workspacePreviewPersonalResources,
+  workspacePreviewRoomResources,
+  workspacePreviewRooms,
+} from "@/lib/workspace-preview-data";
+import type { ProjectRoomResponse } from "@/types/api/projectRoom";
+import type { ResourceResponse } from "@/types/api/resource";
 import type { DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
 
 type DashboardState =
@@ -23,6 +44,40 @@ const emptyDashboard: DashboardWorkResponse = {
   todayTasks: [],
   upcomingDeadlines: [],
 };
+
+const connectedWidgetIds = [
+  "today-summary",
+  "today-todos",
+  "schedule",
+  "project-rooms",
+  "pending-approval",
+  "timer",
+  "recent-resources",
+  "agent-suggestions",
+];
+const defaultWidgetIds = ["today-summary", "today-todos", "schedule", "project-rooms", "pending-approval", "timer", "recent-resources"];
+const dashboardDropzoneId = "dashboard-canvas";
+const dashboardRemoveDropzoneId = "dashboard-remove-card";
+let dashboardWidgetLayoutSnapshot = [...defaultWidgetIds];
+
+function normalizeWidgetIds(ids: string[]) {
+  const seen = new Set<string>();
+  const normalized = ids.filter((id) => {
+    if (!connectedWidgetIds.includes(id) || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  return normalized.length > 0 ? normalized : [...defaultWidgetIds];
+}
+
+function readStoredWidgetIds() {
+  return normalizeWidgetIds(dashboardWidgetLayoutSnapshot);
+}
+
+function storeWidgetIds(ids: string[]) {
+  dashboardWidgetLayoutSnapshot = normalizeWidgetIds(ids);
+}
 
 function formatTime(value?: string | null) {
   if (!value) {
@@ -60,11 +115,11 @@ function hasDashboardItems(data: DashboardWorkResponse) {
   return data.todayTasks.length + data.upcomingDeadlines.length + data.todaySchedules.length > 0;
 }
 
-function StatusLine({ children, meta }: { children: string; meta: string }) {
+function StatusLine({ children, meta }: { children: string; meta?: string }) {
   return (
     <li className="workspace-dashboard__line">
       <span>{children}</span>
-      <b>{meta}</b>
+      {meta ? <b>{meta}</b> : null}
     </li>
   );
 }
@@ -77,13 +132,151 @@ function ScheduleLine({ schedule }: { schedule: ScheduleResponse }) {
   return <StatusLine meta={formatTime(schedule.startsAt)}>{schedule.title}</StatusLine>;
 }
 
+function DashboardSummary({ data }: { data: DashboardWorkResponse }) {
+  return (
+    <div className="workspace-dashboard__summary">
+      <span>
+        <b>{data.todayTasks.length + data.upcomingDeadlines.length}</b>
+        할 일
+      </span>
+      <span>
+        <b>{data.todaySchedules.length}</b>
+        일정
+      </span>
+      <span>
+        <b>{data.todayTasks.filter((task) => task.status === "REVIEW" || task.status === "BLOCKED").length}</b>
+        확인
+      </span>
+    </div>
+  );
+}
+
+function DashboardLineList({ children }: { children: React.ReactNode }) {
+  return <ul className="workspace-dashboard__list workspace-dashboard__list--compact">{children}</ul>;
+}
+
+function ResourceLine({ resource }: { resource: ResourceResponse }) {
+  return <StatusLine meta={resource.visibility === "ROOM_SHARED" ? "프로젝트룸" : "개인"}>{resource.title}</StatusLine>;
+}
+
+function EmptyWidget() {
+  return <div className="workspace-dashboard__empty-widget">현재 데이터가 없습니다</div>;
+}
+
+function SortableDashboardTile({
+  children,
+  def,
+  editMode,
+  onRemove,
+}: {
+  children: React.ReactNode;
+  def: DashboardWidgetDef;
+  editMode: boolean;
+  onRemove: () => void;
+}) {
+  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({ id: def.widgetId });
+  const dragHandleProps = { ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={sizeToClass[def.size]}
+      style={{
+        minWidth: 0,
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+    >
+      <DashboardWidgetTile
+        dragHandleProps={dragHandleProps}
+        dragging={isDragging}
+        editMode={editMode}
+        icon={widgetIcon(def.widgetId)}
+        interactive
+        onRemove={onRemove}
+        size={def.size}
+        title={def.title}
+      >
+        {children}
+      </DashboardWidgetTile>
+    </div>
+  );
+}
+
+function DashboardCanvas({
+  boardDragging,
+  children,
+  editMode,
+  sorting,
+}: {
+  boardDragging: boolean;
+  children: React.ReactNode;
+  editMode: boolean;
+  sorting: boolean;
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    disabled: !editMode,
+    id: dashboardDropzoneId,
+  });
+
+  return (
+    <section
+      className="workspace-dashboard__canvas"
+      data-drop-active={isOver ? "true" : undefined}
+      data-sorting={sorting ? "true" : undefined}
+      ref={setNodeRef}
+      aria-label="대시보드 카드 배치"
+    >
+      {children}
+      {editMode ? <DashboardCanvasRemoveDropzone active={boardDragging} /> : null}
+    </section>
+  );
+}
+
+function DashboardCanvasRemoveDropzone({ active }: { active: boolean }) {
+  const { isOver, setNodeRef } = useDroppable({
+    disabled: !active,
+    id: dashboardRemoveDropzoneId,
+  });
+
+  return (
+    <div
+      className="workspace-dashboard__remove-drop"
+      data-drop-active={isOver ? "true" : undefined}
+      data-visible={active ? "true" : undefined}
+      ref={setNodeRef}
+    >
+      <span>카드를 여기로 끌어 빼기</span>
+    </div>
+  );
+}
+
 export function WorkspaceDashboard() {
   const [state, setState] = useState<DashboardState>({ kind: "loading" });
+  const [editMode, setEditMode] = useState(false);
+  const [activeBoardWidgetId, setActiveBoardWidgetId] = useState<string | null>(null);
+  const [activePaletteWidgetId, setActivePaletteWidgetId] = useState<string | null>(null);
+  const [activeRoom, setActiveRoom] = useState<{ label: string | null; roomId: string | null }>({ label: null, roomId: null });
+  const [rooms, setRooms] = useState<ProjectRoomResponse[]>([]);
+  const [widgetIds, setWidgetIds] = useState(() => readStoredWidgetIds());
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const fetchDashboard = useCallback(async () => {
+    if (shouldUseWorkspacePreviewData()) {
+      setState({ data: workspacePreviewDashboard, kind: "ready" });
+      setRooms(workspacePreviewRooms);
+      return;
+    }
+
     try {
       const data = await dashboardApi.getWork();
       setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
+      try {
+        const roomPage = await projectRoomApi.list();
+        setRooms(roomPage.items);
+      } catch {
+        setRooms([]);
+      }
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
@@ -91,15 +284,10 @@ export function WorkspaceDashboard() {
       }
       setState({
         kind: "error",
-        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "연결 대기",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "대시보드를 불러오지 못했습니다",
       });
     }
   }, []);
-
-  const refreshDashboard = useCallback(() => {
-    setState({ kind: "loading" });
-    void fetchDashboard();
-  }, [fetchDashboard]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -109,26 +297,254 @@ export function WorkspaceDashboard() {
     return () => window.clearTimeout(timeoutId);
   }, [fetchDashboard]);
 
-  const data = state.kind === "ready" || state.kind === "empty" ? state.data : emptyDashboard;
-  const todayTasks = data.todayTasks.slice(0, 4);
-  const upcomingDeadlines = data.upcomingDeadlines.slice(0, 4);
+  useEffect(() => {
+    function syncActiveRoom(event?: Event) {
+      const detail = event instanceof CustomEvent ? (event.detail as { roomId?: string | null; roomLabel?: string | null } | null) : null;
+      setActiveRoom({
+        label: detail?.roomLabel ?? getActiveProjectRoomLabel(),
+        roomId: detail?.roomId ?? getActiveProjectRoomId(),
+      });
+    }
+
+    syncActiveRoom();
+    window.addEventListener(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, syncActiveRoom);
+
+    return () => {
+      window.removeEventListener(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, syncActiveRoom);
+    };
+  }, []);
+
+  useEffect(() => {
+    storeWidgetIds(widgetIds);
+  }, [widgetIds]);
+
+  const realData = state.kind === "ready" || state.kind === "empty" ? state.data : emptyDashboard;
+  const data = useMemo<DashboardWorkResponse>(() => {
+    if (!activeRoom.roomId) return realData;
+
+    return {
+      todaySchedules: realData.todaySchedules.filter((schedule) => schedule.roomId === activeRoom.roomId),
+      todayTasks: realData.todayTasks.filter((task) => task.roomId === activeRoom.roomId),
+      upcomingDeadlines: realData.upcomingDeadlines.filter((task) => task.roomId === activeRoom.roomId),
+    };
+  }, [activeRoom.roomId, realData]);
+  const taskItems = [...data.todayTasks, ...data.upcomingDeadlines]
+    .filter((task, index, source) => source.findIndex((item) => item.id === task.id) === index)
+    .slice(0, 4);
   const todaySchedules = data.todaySchedules.slice(0, 4);
+  const reviewTasks = [...data.todayTasks, ...data.upcomingDeadlines]
+    .filter((task, index, source) => (task.status === "REVIEW" || task.status === "BLOCKED") && source.findIndex((item) => item.id === task.id) === index)
+    .slice(0, 4);
+  const canShowDashboardGrid = state.kind === "ready" || state.kind === "empty";
+  const inProgressTask = [...data.todayTasks, ...data.upcomingDeadlines].find((task) => task.status === "IN_PROGRESS") ?? null;
+  const recentResources = useMemo(() => {
+    if (!shouldUseWorkspacePreviewData()) return [];
+    const resources = activeRoom.roomId
+      ? workspacePreviewRoomResources.filter((resource) => resource.roomId === activeRoom.roomId)
+      : [...workspacePreviewPersonalResources, ...workspacePreviewRoomResources];
+
+    return resources.slice().sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 3);
+  }, [activeRoom.roomId]);
+  const activeRooms = useMemo(() => {
+    const filtered = rooms.filter((room) => room.status === "ACTIVE");
+    if (!activeRoom.roomId) return filtered;
+    return filtered.filter((room) => room.id === activeRoom.roomId);
+  }, [activeRoom.roomId, rooms]);
+  const visibleWidgets = useMemo(
+    () =>
+      widgetIds
+        .filter((id) => connectedWidgetIds.includes(id))
+        .map((id) => WIDGET_CATALOG.find((widget) => widget.widgetId === id))
+        .filter((widget): widget is DashboardWidgetDef => Boolean(widget)),
+    [widgetIds],
+  );
+  const availableWidgets = WIDGET_CATALOG.filter(
+    (widget) => connectedWidgetIds.includes(widget.widgetId) && !widgetIds.includes(widget.widgetId),
+  );
+
+  const activePaletteWidget = activePaletteWidgetId ? WIDGET_CATALOG.find((widget) => widget.widgetId === activePaletteWidgetId) ?? null : null;
+  const activeBoardWidget = activeBoardWidgetId ? WIDGET_CATALOG.find((widget) => widget.widgetId === activeBoardWidgetId) ?? null : null;
+  const dashboardCollisionDetection = useCallback<CollisionDetection>((args) => {
+    const activeId = String(args.active.id);
+    const droppableContainers = activeId.startsWith("palette:")
+      ? args.droppableContainers
+      : args.droppableContainers.filter((container) => container.id !== dashboardDropzoneId);
+
+    return closestCenter({ ...args, droppableContainers });
+  }, []);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const activeId = String(event.active.id);
+    if (activeId.startsWith("palette:")) {
+      setActivePaletteWidgetId(activeId.replace("palette:", ""));
+      setActiveBoardWidgetId(null);
+      return;
+    }
+
+    setActiveBoardWidgetId(activeId);
+    setActivePaletteWidgetId(null);
+  }, []);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    const activeId = String(active.id);
+    const overId = over ? String(over.id) : null;
+
+    setActivePaletteWidgetId(null);
+    setActiveBoardWidgetId(null);
+
+    if (!overId || activeId === overId) {
+      return;
+    }
+
+    if (activeId.startsWith("palette:")) {
+      const widgetId = activeId.replace("palette:", "");
+      setWidgetIds((current) => {
+        if (current.includes(widgetId)) return current;
+        if (overId === dashboardRemoveDropzoneId) return current;
+        if (overId === dashboardDropzoneId || overId.startsWith("palette:")) return [...current, widgetId];
+
+        const overIndex = current.indexOf(overId);
+        if (overIndex < 0) return [...current, widgetId];
+
+        const next = [...current];
+        next.splice(overIndex, 0, widgetId);
+        return next;
+      });
+      return;
+    }
+
+    setWidgetIds((current) => {
+      if (overId === dashboardRemoveDropzoneId) {
+        return current.filter((id) => id !== activeId);
+      }
+
+      const activeIndex = current.indexOf(activeId);
+      const overIndex = current.indexOf(overId);
+      if (activeIndex < 0 || overIndex < 0) return current;
+      return arrayMove(current, activeIndex, overIndex);
+    });
+  }, []);
+
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (activeId.startsWith("palette:") || activeId === overId || overId === dashboardDropzoneId || overId === dashboardRemoveDropzoneId) return;
+
+    setWidgetIds((current) => {
+      const activeIndex = current.indexOf(activeId);
+      const overIndex = current.indexOf(overId);
+      if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) return current;
+      return arrayMove(current, activeIndex, overIndex);
+    });
+  }, []);
+
+  const handleDragCancel = useCallback(() => {
+    setActivePaletteWidgetId(null);
+    setActiveBoardWidgetId(null);
+  }, []);
+
+  const renderWidgetBody = useCallback(
+    (widgetId: string) => {
+      switch (widgetId) {
+        case "today-summary":
+          return <DashboardSummary data={data} />;
+        case "today-todos":
+          if (taskItems.length === 0) return <EmptyWidget />;
+          return (
+            <DashboardLineList>
+              {taskItems.map((task) => (
+                <TaskLine key={task.id} task={task} />
+              ))}
+            </DashboardLineList>
+          );
+        case "pending-approval":
+          if (reviewTasks.length === 0) return <EmptyWidget />;
+          return (
+            <DashboardLineList>
+              {reviewTasks.map((task) => (
+                <TaskLine key={task.id} task={task} />
+              ))}
+            </DashboardLineList>
+          );
+        case "schedule":
+          if (todaySchedules.length === 0) return <EmptyWidget />;
+          return (
+            <DashboardLineList>
+              {todaySchedules.map((schedule) => (
+                <ScheduleLine key={schedule.id} schedule={schedule} />
+              ))}
+            </DashboardLineList>
+          );
+        case "project-rooms":
+          if (activeRooms.length === 0) return <EmptyWidget />;
+          return (
+            <DashboardLineList>
+              {activeRooms.slice(0, 4).map((room) => (
+                <StatusLine key={room.id} meta={room.clientName ?? undefined}>
+                  {room.name}
+                </StatusLine>
+              ))}
+            </DashboardLineList>
+          );
+        case "timer":
+          if (!inProgressTask) return <EmptyWidget />;
+          return (
+            <div className="workspace-dashboard__timer-preview">
+              <b>42분</b>
+              <span>{inProgressTask.title} 진행 중</span>
+            </div>
+          );
+        case "recent-resources":
+          if (recentResources.length === 0) return <EmptyWidget />;
+          return (
+            <DashboardLineList>
+              {recentResources.map((resource) => (
+                <ResourceLine key={resource.id} resource={resource} />
+              ))}
+            </DashboardLineList>
+          );
+        case "agent-suggestions":
+          if (reviewTasks.length === 0) return <EmptyWidget />;
+          return (
+            <div className="workspace-dashboard__agent-preview">
+              <span aria-hidden="true" />
+              <p>{reviewTasks[0].title} 확인이 필요합니다</p>
+              <StatusBadge tone="agent">후보</StatusBadge>
+            </div>
+          );
+        default:
+          return null;
+      }
+    },
+    [activeRooms, data, inProgressTask, recentResources, reviewTasks, taskItems, todaySchedules],
+  );
 
   return (
     <section className="workspace-dashboard" aria-label="회원 앱 대시보드">
       <GlassPanel className="workspace-dashboard__hero">
         <div className="workspace-dashboard__copy">
-          <h1>대시보드</h1>
+          <div className="workspace-dashboard__titlebar">
+            <h1>대시보드</h1>
+            <span>개인 홈</span>
+          </div>
         </div>
-        <div className="workspace-dashboard__actions">
-          <Button onClick={refreshDashboard} variant="primary">
-            <RefreshCw aria-hidden size={15} strokeWidth={1.9} />
-            새로고침
-          </Button>
-          <Link className="bubli-button" href="/app/project-rooms">
-            프로젝트룸
-          </Link>
-        </div>
+        {canShowDashboardGrid ? (
+          <div className="workspace-dashboard__actions">
+            {editMode ? (
+              <Button onClick={() => setWidgetIds([...defaultWidgetIds])} variant="secondary">
+                기본값
+              </Button>
+            ) : null}
+            <Button onClick={() => setEditMode((current) => !current)} variant={editMode ? "primary" : "secondary"}>
+              <LayoutDashboard aria-hidden size={15} strokeWidth={1.9} />
+              {editMode ? "완료" : "편집"}
+            </Button>
+          </div>
+        ) : null}
       </GlassPanel>
 
       {state.kind === "loading" ? (
@@ -156,7 +572,8 @@ export function WorkspaceDashboard() {
         <GlassPanel className="workspace-dashboard__state">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>{state.message}</h2>
+            <h2>서버 연결 대기</h2>
+            <p>{state.message}</p>
           </div>
         </GlassPanel>
       ) : null}
@@ -165,63 +582,75 @@ export function WorkspaceDashboard() {
         <GlassPanel className="workspace-dashboard__state">
           <CheckCircle2 aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>오늘 바로 처리할 일이 없습니다</h2>
+            <h2>아직 표시할 항목이 없습니다</h2>
           </div>
         </GlassPanel>
       ) : null}
 
-      <div className="workspace-dashboard__grid">
-        <GlassPanel className="workspace-dashboard__card workspace-dashboard__card--main">
-          <div className="workspace-dashboard__card-head">
-            <LayoutDashboard aria-hidden size={18} strokeWidth={2} />
-            <div>
-              <h2>오늘 할 일</h2>
-            </div>
-            <StatusBadge tone="todo">{todayTasks.length ? `${todayTasks.length}건` : "대기"}</StatusBadge>
-          </div>
-          <ul className="workspace-dashboard__list">
-            {todayTasks.length ? (
-              todayTasks.map((task) => <TaskLine key={task.id} task={task} />)
-            ) : (
-              <StatusLine meta="대기">항목 없음</StatusLine>
-            )}
-          </ul>
-        </GlassPanel>
+      {canShowDashboardGrid ? (
+        <DndContext
+          collisionDetection={dashboardCollisionDetection}
+          onDragCancel={handleDragCancel}
+          onDragEnd={handleDragEnd}
+          onDragOver={handleDragOver}
+          onDragStart={handleDragStart}
+          sensors={sensors}
+        >
+          <div className={`workspace-dashboard__stage${editMode ? " workspace-dashboard__stage--editing" : ""}`}>
+            <DashboardCanvas boardDragging={Boolean(activeBoardWidgetId)} editMode={editMode} sorting={Boolean(activeBoardWidgetId)}>
+              <div className="workspace-dashboard__canvas-head">
+                <div>
+                  <strong>내 보드</strong>
+                  <span>{editMode ? "편집 중" : activeRoom.roomId ? `${activeRoom.label ?? "프로젝트룸"} 항목 포함` : `카드 ${visibleWidgets.length}개`}</span>
+                </div>
+                {editMode ? <StatusBadge tone="agent">자동 저장</StatusBadge> : null}
+              </div>
+              <SortableContext items={visibleWidgets.map((widget) => widget.widgetId)} strategy={rectSortingStrategy}>
+                <DashboardGrid mode={editMode ? "edit" : "view"}>
+                  {visibleWidgets.map((widget) => (
+                    <SortableDashboardTile
+                      def={widget}
+                      editMode={editMode}
+                      key={widget.widgetId}
+                      onRemove={() => setWidgetIds((current) => current.filter((id) => id !== widget.widgetId))}
+                    >
+                      {renderWidgetBody(widget.widgetId)}
+                    </SortableDashboardTile>
+                  ))}
+                </DashboardGrid>
+              </SortableContext>
+            </DashboardCanvas>
 
-        <GlassPanel className="workspace-dashboard__card">
-          <div className="workspace-dashboard__card-head">
-            <CalendarDays aria-hidden size={18} strokeWidth={2} />
-            <div>
-              <h2>가까운 마감</h2>
-            </div>
-            <StatusBadge tone="warning">{upcomingDeadlines.length ? `${upcomingDeadlines.length}건` : "대기"}</StatusBadge>
+            {editMode ? (
+              <aside className="workspace-dashboard__palette" aria-label="카드 추가">
+                <DashboardPalette
+                  draggable
+                  items={availableWidgets}
+                  onAdd={(widgetId) => setWidgetIds((current) => (current.includes(widgetId) ? current : [...current, widgetId]))}
+                />
+              </aside>
+            ) : null}
           </div>
-          <ul className="workspace-dashboard__list">
-            {upcomingDeadlines.length ? (
-              upcomingDeadlines.map((task) => <TaskLine key={task.id} task={task} />)
-            ) : (
-              <StatusLine meta="7일">항목 없음</StatusLine>
-            )}
-          </ul>
-        </GlassPanel>
-
-        <GlassPanel className="workspace-dashboard__card">
-          <div className="workspace-dashboard__card-head">
-            <Clock3 aria-hidden size={18} strokeWidth={2} />
-            <div>
-              <h2>오늘 일정</h2>
-            </div>
-            <StatusBadge tone="timer">{todaySchedules.length ? `${todaySchedules.length}건` : "대기"}</StatusBadge>
-          </div>
-          <ul className="workspace-dashboard__list">
-            {todaySchedules.length ? (
-              todaySchedules.map((schedule) => <ScheduleLine key={schedule.id} schedule={schedule} />)
-            ) : (
-              <StatusLine meta="일정">항목 없음</StatusLine>
-            )}
-          </ul>
-        </GlassPanel>
-      </div>
+          <DragOverlay>
+            {activePaletteWidget ? (
+              <div className="bubli-dash-palette__drag-preview">
+                <span className="bubli-dash-tile__icon">{widgetIcon(activePaletteWidget.widgetId)}</span>
+                <strong>{activePaletteWidget.title}</strong>
+              </div>
+            ) : activeBoardWidget ? (
+              <div className={`bubli-dash-tile ${sizeToClass[activeBoardWidget.size]} bubli-dash-tile--overlay`}>
+                <div className="bubli-dash-tile__head">
+                  <span className="bubli-dash-tile__title">
+                    <span className="bubli-dash-tile__icon">{widgetIcon(activeBoardWidget.widgetId)}</span>
+                    {activeBoardWidget.title}
+                  </span>
+                </div>
+                <div className="bubli-dash-tile__body">{activeBoardWidget.description}</div>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      ) : null}
     </section>
   );
 }

@@ -3,6 +3,7 @@ import type {
   ChatMessageListResponse,
   ChatMessageResponse,
   ChatMessageType,
+  ChatRoomPageResponse,
   ChatRoomResponse,
   DirectChatRoomRequest,
   RoomMemorySummaryCreateRequest,
@@ -18,7 +19,7 @@ export type SendChatMessageRequest = {
 
 export const chatApi = {
   listRooms() {
-    return apiRequest<ChatRoomResponse[]>("/api/chat/rooms");
+    return apiRequest<ChatRoomPageResponse>("/api/chat/rooms");
   },
 
   getOrCreateDirectRoom(body: DirectChatRoomRequest) {
@@ -28,12 +29,12 @@ export const chatApi = {
     });
   },
 
-  getMessages(chatRoomId: string, params: { afterSequence?: number; beforeSequence?: number; limit?: number } = {}) {
+  getMessages(chatRoomId: string, params: { afterSequence?: number; beforeSequence?: number; size?: number } = {}) {
     const searchParams = new URLSearchParams();
 
     if (params.afterSequence !== undefined) searchParams.set("afterSequence", String(params.afterSequence));
     if (params.beforeSequence !== undefined) searchParams.set("beforeSequence", String(params.beforeSequence));
-    if (params.limit !== undefined) searchParams.set("limit", String(params.limit));
+    if (params.size !== undefined) searchParams.set("size", String(params.size));
 
     const query = searchParams.toString();
     return apiRequest<ChatMessageListResponse>(`/api/chat/rooms/${chatRoomId}/messages${query ? `?${query}` : ""}`);
@@ -50,7 +51,7 @@ export const chatApi = {
   },
 
   markRead(chatRoomId: string, lastReadSequence: number) {
-    return apiRequest<null>(`/api/chat/rooms/${chatRoomId}/read`, {
+    return apiRequest<unknown>(`/api/chat/rooms/${chatRoomId}/read`, {
       body: {
         lastReadSequence,
       },

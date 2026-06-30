@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bubli Tauri Widget Mockup</title>
+  <link rel="stylesheet" href="./tauri-widget-mockup.css">
+</head>
+<body>
+  <main class="widget-board" aria-label="Bubli Tauri desktop widget design">
+    <section class="mode-section" aria-labelledby="mode-title">
+      <header class="section-title">
+        <h1 id="mode-title">Tauri 데스크탑 위젯 4가지 상태</h1>
+        <p>기본 · 반투명 · 고스트 · 최소화</p>
+      </header>
+
+      <div class="mode-grid">
+        <article class="mode-column">
+          <h2>기본 모드</h2>
+          <div class="mode-wall">
+            <div class="widget-window widget-default">
+              <div class="widget-head">
+                <strong>오늘 할 일</strong>
+                <span class="bubble-count">3</span>
+              </div>
+              <ul class="todo-list">
+                <li><i></i><span>시안 1차 보내기</span></li>
+                <li><i></i><span>계약서 검토</span></li>
+                <li><i></i><span>WBS 구조 검토</span></li>
+              </ul>
+              <div class="timer-row">
+                <strong>25:00</strong>
+                <button aria-label="타이머 시작">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+                </button>
+              </div>
+              <img class="dock-orb" src="./assets/visual-target/bubbles/dock-orb.png" alt="">
+            </div>
+          </div>
+          <p class="mode-caption">자료 확인과 타이머를 동시에 보는 기본 창</p>
+        </article>
+
+        <article class="mode-column">
+          <h2>반투명 모드</h2>
+          <div class="mode-wall">
+            <div class="widget-window widget-translucent">
+              <div class="widget-head">
+                <strong>오늘 할 일</strong>
+                <span class="bubble-count muted">3</span>
+              </div>
+              <ul class="todo-list">
+                <li><i></i><span>시안 1차 보내기</span></li>
+                <li><i></i><span>계약서 검토</span></li>
+                <li class="faint"><i></i><span>WBS 구조 검토</span></li>
+              </ul>
+              <div class="timer-row">
+                <strong>25:00</strong>
+                <button aria-label="타이머 시작">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+                </button>
+              </div>
+              <img class="dock-orb" src="./assets/visual-target/bubbles/agent-bubble.png" alt="">
+            </div>
+          </div>
+          <p class="mode-caption">작업 흐름을 가리지 않도록 밝기와 채도만 낮춘 상태</p>
+        </article>
+
+        <article class="mode-column">
+          <h2>고스트 모드</h2>
+          <div class="mode-wall">
+            <div class="ghost-widget" aria-label="고스트 위젯">
+              <div class="ghost-ring"><span>3</span><small>파일 확인</small></div>
+              <div class="ghost-dots"><i></i><i></i><i></i></div>
+            </div>
+          </div>
+          <p class="mode-caption">내용은 감추고 상태 신호만 남기는 클릭 방해 없음 모드</p>
+        </article>
+
+        <article class="mode-column">
+          <h2>최소화 모드</h2>
+          <div class="mode-wall">
+            <div class="minimal-widget">
+              <span>Bubli</span>
+              <i></i>
+              <b>3</b>
+              <small>2</small>
+              <img src="./assets/visual-target/bubbles/dock-orb.png" alt="">
+            </div>
+          </div>
+          <p class="mode-caption">필요할 때만 펼치는 작은 바와 도크 오브</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="desktop-section" aria-labelledby="desktop-title">
+      <header class="section-title">
+        <h1 id="desktop-title">바탕화면 위에 떠 있는 실제 느낌</h1>
+        <p>투명 · 얇은 유리막 · 공기감 · 의미 있는 버블만 사용</p>
+      </header>
+
+      <div class="desktop-scene">
+        <div class="desktop-widget todo-widget">
+          <div class="widget-head">
+            <strong>오늘 할 일</strong>
+            <span class="bubble-count">3</span>
+          </div>
+          <ul class="todo-list compact">
+            <li><i></i><span>시안 1차 보내기</span><em>3</em></li>
+            <li><i></i><span>계약서 검토</span><em>6</em></li>
+            <li><i></i><span>WBS 구조 검토</span><em>5</em></li>
+          </ul>
+        </div>
+
+        <div class="desktop-widget timer-widget">
+          <span>집중 타이머</span>
+          <strong>25:00</strong>
+          <button aria-label="타이머 시작">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+          </button>
+        </div>
+
+        <div class="desktop-widget agent-widget">
+          <div>
+            <strong>에이전트</strong>
+            <span>3</span>
+          </div>
+          <p>계약서에서 요구사항 6개와 마감 3건을 찾았어요.</p>
+          <img src="./assets/visual-target/bubbles/agent-bubble.png" alt="">
+        </div>
+
+        <nav class="desktop-dock" aria-label="Widget dock">
+          <button aria-label="Bubli"><img src="./assets/visual-target/bubbles/dock-orb.png" alt=""></button>
+          <button aria-label="오늘 할 일"><span class="dock-icon todo"></span></button>
+          <button aria-label="일정"><span class="dock-icon calendar"></span></button>
+          <button aria-label="자료 제안"><span class="dock-icon file"></span></button>
+          <button aria-label="설정"><span class="dock-icon gear"></span></button>
+        </nav>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "로컬 파일 삭제가 바로 서버 삭제로 이어지지 않고, 삭제 후보와 복구 흐름을 거치는 자료 안전 패널입니다.",
+          "로컬 파일 삭제가 바로 서버 삭제로 이어지지 않고, 삭제 후보 확인 흐름을 거치는 자료 안전 패널입니다.",
       },
     },
   },
@@ -23,7 +23,7 @@ export const DeleteCandidates: Story = {
   args: {
     items: [
       {
-        action: "restore",
+        action: "keep",
         description: "개인 관리 폴더에서 사라졌지만 서버 자료는 삭제 후보로만 표시됩니다.",
         fileName: "요구사항_정의서_v1.3.pdf",
         meta: "DELETE_CANDIDATE · 개인 자료 · 2026-06-23 감지",
@@ -38,7 +38,7 @@ export const DeleteCandidates: Story = {
       },
       {
         action: "confirmDelete",
-        description: "복구할 필요가 없다고 확인한 뒤에만 서버 반영을 진행합니다.",
+        description: "유지할 필요가 없다고 확인한 뒤에만 서버 반영을 진행합니다.",
         fileName: "중복_참고자료_old.docx",
         meta: "중복 후보 · 개인 자료 · 관련 문서 1개",
         status: "archived",
@@ -48,14 +48,14 @@ export const DeleteCandidates: Story = {
   },
 };
 
-export const RestoredResource: Story = {
+export const KeptResource: Story = {
   args: {
     items: [
       {
         action: "archive",
-        description: "복구가 끝난 자료는 다시 READY 상태로 표시하고, 필요한 경우 보관으로 옮길 수 있습니다.",
+        description: "유지하기로 선택한 자료는 다시 READY 상태로 표시하고, 필요한 경우 보관으로 옮길 수 있습니다.",
         fileName: "계약서_final.pdf",
-        meta: "READY · 복구 완료 · 서버 자료 유지",
+        meta: "READY · 유지 선택 · 서버 자료 유지",
         status: "ready",
       },
     ],

@@ -1,4 +1,4 @@
-import { Archive, FileWarning, RotateCcw, ShieldAlert, Trash2 } from "lucide-react";
+import { Archive, FileWarning, ShieldAlert, Trash2, Undo2 } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 
 import { Chip } from "@/components/ui/chip";
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import styles from "./resource-delete-recovery-panel.module.css";
 
 type DeleteRecoveryStatus = "deleteCandidate" | "archived" | "ready" | "blocked";
-type DeleteRecoveryAction = "restore" | "archive" | "confirmDelete";
+type DeleteRecoveryAction = "keep" | "archive" | "confirmDelete";
 
 type DeleteRecoveryItem = {
   action: DeleteRecoveryAction;
@@ -34,9 +34,9 @@ const statusMeta: Record<DeleteRecoveryStatus, { label: string; tone: StatusTone
 };
 
 const actionMeta: Record<DeleteRecoveryAction, { icon: ReactNode; label: string }> = {
-  restore: {
-    icon: <RotateCcw size={15} strokeWidth={2.1} />,
-    label: "복구",
+  keep: {
+    icon: <Undo2 size={15} strokeWidth={2.1} />,
+    label: "유지",
   },
   archive: {
     icon: <Archive size={15} strokeWidth={2.1} />,
@@ -52,7 +52,7 @@ export function ResourceDeleteRecoveryPanel({
   className,
   items,
   pendingCount,
-  title = "자료 삭제 후보와 복구",
+  title = "자료 삭제 확인",
   ...props
 }: ResourceDeleteRecoveryPanelProps) {
   return (
@@ -63,7 +63,7 @@ export function ResourceDeleteRecoveryPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              로컬에서 파일이 사라져도 서버 자료는 바로 지우지 않습니다. 사용자가 확인한 뒤 복구하거나, 보관하거나, 서버 반영을 선택합니다.
+              로컬에서 파일이 사라져도 서버 자료는 바로 지우지 않습니다. 사용자가 확인한 뒤 유지, 보관, 삭제 반영을 선택합니다.
             </p>
           </div>
         </div>
@@ -85,11 +85,11 @@ export function ResourceDeleteRecoveryPanel({
         </article>
         <article>
           <span aria-hidden="true">
-            <RotateCcw size={18} strokeWidth={2.1} />
+            <Undo2 size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <h3>복구 경로 유지</h3>
-            <p>삭제 후보 상태의 개인 자료는 복구 API로 되돌릴 수 있어야 합니다.</p>
+            <h3>유지 선택</h3>
+            <p>삭제 후보 상태의 개인 자료는 사용자가 유지하도록 선택할 수 있습니다.</p>
           </div>
         </article>
         <article>
@@ -133,7 +133,7 @@ export function ResourceDeleteRecoveryPanel({
       </div>
 
       <footer className={styles.footer}>
-        <p>DELETE /api/resources/:id는 삭제 후보 또는 보관 처리로 시작하고, 복구는 POST /api/resources/:id/restore로 분리합니다.</p>
+        <p>최종 서버 삭제는 DELETE /api/resources/:id로 처리합니다. 삭제 전 확인과 보관 판단은 화면 상태로 분리합니다.</p>
       </footer>
     </GlassPanel>
   );

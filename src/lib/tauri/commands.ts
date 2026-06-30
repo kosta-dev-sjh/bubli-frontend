@@ -2,8 +2,22 @@ import { invokeTauri } from "@/lib/tauri/ipc";
 
 export const TAURI_COMMANDS = {
   appReady: "app_ready",
+  closeWidgetWindow: "close_widget_window",
+  getWidgetWindowState: "get_widget_window_state",
+  openWidgetWindow: "open_widget_window",
+  registerWidgetShortcut: "register_widget_shortcut",
+  setWidgetAlwaysOnTop: "set_widget_always_on_top",
+  setWidgetClickThrough: "set_widget_click_through",
+  setWidgetWindowMode: "set_widget_window_mode",
+  setWidgetWindowPosition: "set_widget_window_position",
+  toggleWidgetDockOrb: "toggle_widget_dock_orb",
+  toggleWidgetWindow: "toggle_widget_window",
+  updateWidgetTrayState: "update_widget_tray_state",
 } as const;
 
+// Tauri widget work treats v20 as the feature checklist, not just visual reference.
+// Match the v20 desktop widget responsibilities first, then add only the missing pieces.
+// Missing commands stay planned until Rust and capabilities are ready.
 export const PLANNED_TAURI_COMMANDS = {
   backupLocalSqlite: "backup_local_sqlite",
   checkLocalSqliteIntegrity: "check_local_sqlite_integrity",
@@ -130,6 +144,53 @@ export type WidgetUsageSummarySyncResult = {
   syncedAt: string;
 };
 
+export type WidgetBubbleType = "agent" | "alert" | "chat" | "memo" | "resource" | "schedule" | "timer" | "todo";
+
+export type WidgetWindowMode = "DEFAULT" | "TRANSLUCENT" | "GHOST" | "MINIMIZED";
+
+export type WidgetWindowPosition = {
+  x: number;
+  y: number;
+};
+
+export type WidgetWindowState = {
+  activeBubble: WidgetBubbleType;
+  alwaysOnTop: boolean;
+  clickThrough: boolean;
+  dockOrbVisible: boolean;
+  mode: WidgetWindowMode;
+  position: WidgetWindowPosition;
+  shortcut?: string;
+  trayVisible: boolean;
+  windowVisible: boolean;
+};
+
+export type WidgetWindowModeInput = {
+  bubbleType?: WidgetBubbleType;
+  mode: WidgetWindowMode;
+};
+
+export type WidgetWindowPositionInput = WidgetWindowPosition & {
+  bubbleType?: WidgetBubbleType;
+};
+
+export type WidgetWindowOpenInput = {
+  bubbleType?: WidgetBubbleType;
+};
+
+export type WidgetWindowTargetInput = {
+  bubbleType?: WidgetBubbleType;
+};
+
+export type WidgetBooleanInput = {
+  bubbleType?: WidgetBubbleType;
+  enabled: boolean;
+};
+
+export type WidgetShortcutInput = {
+  shortcut: string;
+};
+
 export type SyncOutboxFlushResult = {
   failedCount: number;
   flushedAt: string;
@@ -147,6 +208,50 @@ export type TauriCommandContract = {
   app_ready: {
     args: undefined;
     result: string;
+  };
+  close_widget_window: {
+    args: WidgetWindowTargetInput | undefined;
+    result: WidgetWindowState;
+  };
+  get_widget_window_state: {
+    args: WidgetWindowTargetInput | undefined;
+    result: WidgetWindowState;
+  };
+  open_widget_window: {
+    args: WidgetWindowOpenInput | undefined;
+    result: WidgetWindowState;
+  };
+  register_widget_shortcut: {
+    args: WidgetShortcutInput;
+    result: WidgetWindowState;
+  };
+  set_widget_always_on_top: {
+    args: WidgetBooleanInput;
+    result: WidgetWindowState;
+  };
+  set_widget_click_through: {
+    args: WidgetBooleanInput;
+    result: WidgetWindowState;
+  };
+  set_widget_window_mode: {
+    args: WidgetWindowModeInput;
+    result: WidgetWindowState;
+  };
+  set_widget_window_position: {
+    args: WidgetWindowPositionInput;
+    result: WidgetWindowState;
+  };
+  toggle_widget_dock_orb: {
+    args: WidgetBooleanInput | undefined;
+    result: WidgetWindowState;
+  };
+  toggle_widget_window: {
+    args: WidgetWindowTargetInput | undefined;
+    result: WidgetWindowState;
+  };
+  update_widget_tray_state: {
+    args: WidgetBooleanInput;
+    result: WidgetWindowState;
   };
 };
 
@@ -217,5 +322,38 @@ export type PlannedTauriCommandResult<TCommand extends PlannedTauriCommandName> 
 export const tauriCommands = {
   appReady() {
     return invokeTauri<string>(TAURI_COMMANDS.appReady);
+  },
+  closeWidgetWindow(input?: WidgetWindowTargetInput) {
+    return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.closeWidgetWindow, input ? { input } : undefined);
+  },
+  getWidgetWindowState(input?: WidgetWindowTargetInput) {
+    return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.getWidgetWindowState, input ? { input } : undefined);
+  },
+  openWidgetWindow(input?: WidgetWindowOpenInput) {
+    return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.openWidgetWindow, input ? { input } : undefined);
+  },
+  registerWidgetShortcut(input: WidgetShortcutInput) {
+    return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.registerWidgetShortcut, { input });
+  },
+  setWidgetAlwaysOnTop(input: WidgetBooleanInput) {
+    return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetAlwaysOnTop, { input });
+  },
+  setWidgetClickThrough(input: WidgetBooleanInput) {
+    return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetClickThrough, { input });
+  },
+  setWidgetWindowMode(input: WidgetWindowModeInput) {
+    return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetWindowMode, { input });
+  },
+  setWidgetWindowPosition(input: WidgetWindowPositionInput) {
+    return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetWindowPosition, { input });
+  },
+  toggleWidgetDockOrb(input?: WidgetBooleanInput) {
+    return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.toggleWidgetDockOrb, input ? { input } : undefined);
+  },
+  toggleWidgetWindow(input?: WidgetWindowTargetInput) {
+    return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.toggleWidgetWindow, input ? { input } : undefined);
+  },
+  updateWidgetTrayState(input: WidgetBooleanInput) {
+    return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.updateWidgetTrayState, { input });
   },
 } as const;

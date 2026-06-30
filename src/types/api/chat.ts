@@ -1,41 +1,39 @@
-import type { RealtimeActor } from "@/types/api/common";
+import type { PageResponse, RealtimeActor } from "@/types/api/common";
 
 export type ChatMessageType = "TEXT" | "FILE" | "AGENT_COMMAND" | "AGENT_RESPONSE" | "SYSTEM";
 
 export type ChatMessageResponse = {
-  id: string;
-  chatRoomId: string;
-  sender: RealtimeActor;
-  messageType: ChatMessageType;
   body: Record<string, unknown>;
+  chatRoomId: string;
   clientMessageId?: string;
-  roomSequence: number;
   createdAt: string;
+  id: string;
+  messageType: ChatMessageType;
+  resourceId?: string | null;
+  roomSequence: number;
+  sender: RealtimeActor;
 };
 
-export type ChatMessageListResponse = {
-  messages: ChatMessageResponse[];
-  oldestSequence: number | null;
-  lastReceivedSequence: number | null;
-  latestRoomSequence: number;
-  hasPrevious: boolean;
-  hasNext: boolean;
-};
+export type ChatMessageListResponse = PageResponse<ChatMessageResponse>;
 
-export type ChatRoomType = "DIRECT" | "PROJECT_ROOM";
+export type ChatRoomType = "DIRECT" | "ROOM";
+
+export type ChatRoomStatus = "ACTIVE" | "CLOSED";
 
 export type ChatRoomResponse = {
+  chatType: ChatRoomType;
+  createdAt: string;
   id: string;
-  lastMessage?: ChatMessageResponse | null;
   name?: string | null;
   roomId?: string | null;
-  type: ChatRoomType;
-  unreadCount: number;
+  status: ChatRoomStatus;
   updatedAt: string;
 };
 
+export type ChatRoomPageResponse = PageResponse<ChatRoomResponse>;
+
 export type DirectChatRoomRequest = {
-  friendUserId: string;
+  targetUserId: string;
 };
 
 export type RoomAgentCommandRequest = {

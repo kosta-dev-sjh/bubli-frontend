@@ -65,9 +65,11 @@ export function DashboardWidgetTile({
             <button aria-label="이동" className="bubli-dash-tile__act bubli-dash-tile__handle" type="button" {...dragHandleProps}>
               <GripVertical />
             </button>
-            <button aria-label={hidden ? "보이기" : "숨기기"} className="bubli-dash-tile__act" onClick={onToggleHide} type="button">
-              {hidden ? <Eye /> : <EyeOff />}
-            </button>
+            {onToggleHide ? (
+              <button aria-label={hidden ? "보이기" : "숨기기"} className="bubli-dash-tile__act" onClick={onToggleHide} type="button">
+                {hidden ? <Eye /> : <EyeOff />}
+              </button>
+            ) : null}
             <button aria-label="삭제" className="bubli-dash-tile__act" onClick={onRemove} type="button">
               <X />
             </button>

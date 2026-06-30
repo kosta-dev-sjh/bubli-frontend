@@ -6,13 +6,14 @@ export const siteConfig = {
   publicNav: [
     { href: "/", label: "홈" },
     { href: "/features", label: "기능" },
-    { href: "/download", label: "다운로드" },
+    { href: "/#download", label: "다운로드" },
     { href: "/faq", label: "FAQ" },
   ],
   appNav: [
     { href: "/app", label: "대시보드" },
     { href: "/app/project-rooms", label: "프로젝트룸" },
-    { href: "/app/resources", label: "자료보드" },
+    { href: "/app/resources", label: "개인 자료" },
+    { href: "/app/agent", label: "후보" },
     { href: "/app/calendar", label: "일정" },
     { href: "/app/chat", label: "소통" },
     { href: "/app/settings", label: "설정" },

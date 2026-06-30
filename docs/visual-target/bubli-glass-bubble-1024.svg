@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Bubli glass bubble asset">
+  <defs>
+    <radialGradient id="pageGlow" cx="42%" cy="36%" r="64%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity=".86"/>
+      <stop offset="48%" stop-color="#EEF8FC" stop-opacity=".34"/>
+      <stop offset="100%" stop-color="#D7EAF4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bubbleBody" cx="34%" cy="26%" r="74%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity=".98"/>
+      <stop offset="18%" stop-color="#FFFFFF" stop-opacity=".64"/>
+      <stop offset="42%" stop-color="#EAF7FC" stop-opacity=".22"/>
+      <stop offset="68%" stop-color="#BFE5F8" stop-opacity=".13"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity=".26"/>
+    </radialGradient>
+    <radialGradient id="innerBlue" cx="68%" cy="72%" r="56%">
+      <stop offset="0%" stop-color="#8ECDF6" stop-opacity=".40"/>
+      <stop offset="52%" stop-color="#D7EAF4" stop-opacity=".18"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="innerPearl" cx="78%" cy="26%" r="46%">
+      <stop offset="0%" stop-color="#E6DDF8" stop-opacity=".26"/>
+      <stop offset="54%" stop-color="#F7F9FA" stop-opacity=".08"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rimA" x1="230" y1="176" x2="786" y2="852">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity=".94"/>
+      <stop offset="24%" stop-color="#D7EAF4" stop-opacity=".70"/>
+      <stop offset="48%" stop-color="#8ECDF6" stop-opacity=".46"/>
+      <stop offset="72%" stop-color="#E8C4A0" stop-opacity=".26"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity=".70"/>
+    </linearGradient>
+    <linearGradient id="rimB" x1="786" y1="184" x2="206" y2="784">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity=".44"/>
+      <stop offset="42%" stop-color="#8ECDF6" stop-opacity=".36"/>
+      <stop offset="76%" stop-color="#FFFFFF" stop-opacity=".18"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity=".68"/>
+    </linearGradient>
+    <filter id="softShadow" x="-18%" y="-18%" width="136%" height="136%">
+      <feDropShadow dx="0" dy="34" stdDeviation="38" flood-color="#547388" flood-opacity=".20"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="20" flood-color="#8ECDF6" flood-opacity=".20"/>
+    </filter>
+    <filter id="tinyShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#547388" flood-opacity=".16"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="none"/>
+  <ellipse cx="516" cy="576" rx="364" ry="322" fill="url(#pageGlow)" opacity=".86"/>
+
+  <g filter="url(#softShadow)">
+    <circle cx="512" cy="512" r="282" fill="#FFFFFF" opacity=".10"/>
+    <circle cx="512" cy="512" r="282" fill="url(#bubbleBody)"/>
+    <circle cx="512" cy="512" r="282" fill="url(#innerBlue)"/>
+    <circle cx="512" cy="512" r="282" fill="url(#innerPearl)"/>
+    <circle cx="512" cy="512" r="282" fill="none" stroke="url(#rimA)" stroke-width="10"/>
+    <circle cx="512" cy="512" r="263" fill="none" stroke="url(#rimB)" stroke-width="4" opacity=".78"/>
+    <path d="M296 426c34-96 118-156 220-162" fill="none" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round" opacity=".72"/>
+    <path d="M324 388c30-52 82-86 150-98" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" opacity=".86"/>
+    <path d="M694 306c46 52 76 126 74 204" fill="none" stroke="#8ECDF6" stroke-width="7" stroke-linecap="round" opacity=".28"/>
+    <path d="M336 632c36 72 98 118 184 136" fill="none" stroke="#8ECDF6" stroke-width="7" stroke-linecap="round" opacity=".20"/>
+    <ellipse cx="386" cy="330" rx="70" ry="28" fill="#FFFFFF" opacity=".42" transform="rotate(-24 386 330)"/>
+    <ellipse cx="640" cy="760" rx="104" ry="18" fill="#8ECDF6" opacity=".12" transform="rotate(-18 640 760)"/>
+  </g>
+
+  <g filter="url(#tinyShadow)">
+    <circle cx="778" cy="342" r="70" fill="url(#bubbleBody)" stroke="url(#rimA)" stroke-width="5" opacity=".90"/>
+    <path d="M744 322c12-28 36-46 66-48" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" opacity=".76"/>
+    <circle cx="286" cy="618" r="54" fill="url(#bubbleBody)" stroke="url(#rimB)" stroke-width="4" opacity=".68"/>
+    <path d="M262 600c9-21 27-34 49-36" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity=".70"/>
+  </g>
+</svg>

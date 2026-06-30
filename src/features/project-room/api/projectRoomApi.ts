@@ -1,5 +1,7 @@
 import { apiRequest } from "@/lib/api/client";
 import type {
+  ContractDocumentType,
+  ContractDocumentUploadResponse,
   ProjectRoomInvitationCreateRequest,
   ProjectRoomInvitationPageResponse,
   ProjectRoomInvitationResponse,
@@ -23,6 +25,17 @@ export const projectRoomApi = {
     });
   },
 
+  uploadContractDocument(roomId: string, file: File, documentType: ContractDocumentType) {
+    const body = new FormData();
+    body.append("documentType", documentType);
+    body.append("file", file);
+
+    return apiRequest<ContractDocumentUploadResponse>(`/api/project-rooms/${roomId}/contract-documents`, {
+      body,
+      method: "POST",
+    });
+  },
+
   get(roomId: string) {
     return apiRequest<ProjectRoomResponse>(`/api/project-rooms/${roomId}`);
   },
@@ -35,7 +48,14 @@ export const projectRoomApi = {
   },
 
   close(roomId: string) {
-    return apiRequest<ProjectRoomResponse>(`/api/project-rooms/${roomId}/close`, {
+    return apiRequest<ProjectRoomResponse>(`/api/project-rooms/${roomId}`, {
+      method: "DELETE",
+    });
+  },
+
+  updatePayment(roomId: string, body: Pick<ProjectRoomUpsertRequest, "contractAmount" | "paidAt" | "paymentDueDate" | "paymentStatus">) {
+    return apiRequest<ProjectRoomResponse>(`/api/project-rooms/${roomId}/payment`, {
+      body,
       method: "PATCH",
     });
   },

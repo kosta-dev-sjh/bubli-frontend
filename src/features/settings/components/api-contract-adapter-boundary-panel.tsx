@@ -90,9 +90,9 @@ const changeCases: ChangeCase[] = [
   {
     after: "rollupKey",
     before: "summaryKey",
-    impact: "위젯 집계 요청 타입만 수정",
+    impact: "Tauri 집계 동기화 계약만 수정",
     label: "위젯",
-    target: "widgetApi",
+    target: "widget boundary",
   },
 ];
 

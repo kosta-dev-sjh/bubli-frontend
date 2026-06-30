@@ -1,0 +1,406 @@
+# Codex Working Context
+
+마지막 갱신: 2026-06-30
+
+## 지금 목표
+
+- 최신 확정: Tauri 쪽 위젯은 20v 디자인보드에 있던 기능을 거의 그대로 구현 대상으로 본다. 지금 빠진 기능은 삭제가 아니라 추가할 누락 항목이다. 회원앱 화면과 세부 디자인은 이후에 천천히 손보더라도, Tauri 위젯 기능 범위는 20v보다 작아지면 안 된다.
+- 비로그인 상태에서 회원앱 화면을 보여주지 않고 로그인 화면으로 보낸다.
+- 로그인은 Google 로그인만 둔다.
+- 로그인 페이지와 회원앱 톤은 공개 랜딩의 밝은 glass/bubble 톤과 맞춘다.
+- 회원앱 안의 목업용 데이터, 데모 냄새 나는 문구, 긴 설명, 작은 장식성 요소를 줄인다.
+- 화면은 실제 작업공간처럼 보이게 한다. 소개 페이지처럼 설명하지 않는다.
+- API 문서와 기획 기준에 맞춰 화면과 API 래퍼를 정리한다.
+- 자료보드는 개인 자료와 프로젝트룸 자료를 분리한다.
+- 개인 자료는 로컬 폴더 동기화가 가능하다. 프로젝트룸 공용 자료는 업로드만 허용한다.
+- 개인 자료를 프로젝트룸 자료로 자동 공유하거나 이동하는 흐름은 만들지 않는다.
+- PR은 확실한 분기점이 생겼을 때만 한다.
+- PR 전에는 필요 없어진 API 래퍼, 오래된 화면 문구, 검증 산출물, 임시 흔적을 먼저 정리한다.
+
+## 사용자가 반복해서 강조한 것
+
+- 비회원 페이지와 회원앱은 역할이 다르다.
+- 공개 사이트는 소개, 다운로드, 로그인 진입이 중심이다.
+- 회원앱은 실제 업무공간이다. 소개식 문구를 덜어낸다.
+- 디자인보드를 그대로 복붙하지 않는다.
+- 버블은 컨셉이지만, 웹앱 안에 의미 없는 큰 장식 버블을 넣지 않는다.
+- 대시보드는 개인 기준이다. 여러 프로젝트룸의 원하는 요소를 끌어와 보는 홈이다.
+- 프로젝트룸은 슬랙/디스코드처럼 구분되어야 한다.
+- 소통은 프로젝트룸 채팅과 1:1 채팅을 모두 고려한다.
+- 위젯과 Tauri는 별도 책임이다. 웹앱 화면에 실제 위젯을 억지로 넣지 않는다.
+- Tauri 데스크탑 위젯은 20v에 있던 기능 구성을 기준으로 유지한다.
+- Tauri 데스크탑 위젯은 20v 기능을 거의 그대로 구현한다고 본다.
+- 20v는 위젯의 시각 참고만이 아니라 기능 체크리스트다.
+- Tauri 위젯은 20v에 있던 기능을 같은 책임으로 가져오고, 현재 빠진 부분만 추가한다.
+- 빠진 위젯 기능은 새 해석으로 줄이지 말고 20v 기준에 맞춰 추가한다.
+- 나머지 화면과 세부 디자인은 이후 단계에서 천천히 손본다.
+- 우선순위는 Tauri 위젯 20v 기능 동등성을 먼저 맞추고, 회원앱 전체 톤 정리는 그 위에서 단계별로 진행한다.
+- 단, 기획에서 삭제된 받을돈/페이 위젯은 되살리지 않는다.
+
+## Tauri 데스크탑 위젯 기준
+
+- 위젯은 Next 회원 웹앱 안에 박는 카드가 아니다.
+- Next 회원 웹앱을 Tauri WebView로 띄우고, 데스크탑 버블 창은 Tauri 쪽 로컬 기능으로 붙는다.
+- `/app/desktop/widgets`는 실제 위젯 창이 아니라, Tauri 버블의 설정/상태/미리보기 관리 화면이다.
+- Tauri 위젯 기능은 v20 디자인보드 기준을 기본값으로 본다.
+- v20에 있던 기능은 삭제 후보가 아니라 구현 체크리스트다.
+- 회원앱 디자인 정리 중에도 v20 위젯 기능 범위는 축소하지 않는다.
+- 디자인 다이어트는 웹앱 표현을 정리하는 일이고, Tauri 위젯 기능을 줄이는 근거가 아니다.
+- 앞으로 위젯을 손볼 때는 v20에서 있던 기능을 줄이는 방식이 아니라, 빠진 부분을 채우는 방식으로 간다.
+- 지금 코드나 화면에 없는 기능은 "기획에서 빠짐"이 아니라 "아직 구현 전"으로 표시한다.
+- 단, 기획에서 삭제된 받을돈/페이 위젯은 v20 이전 흔적이 남아 있어도 되살리지 않는다.
+- v20 리사이즈 중 방울이 뜨는 장식 연출은 후순위다. 기능 구성이 먼저다.
+- 실제 구현 기준은 `docs/UI_Reference_Library.md`의 v20 우선순위와 `Bubli_Tauri_위젯_4상태_명세_2026-06-26.md`의 4상태 명세를 같이 본다.
+- 20v 기준으로 유지할 버블 단위:
+  - TODO
+  - 에이전트
+  - 소통
+  - 타이머
+  - 메모
+  - 일정
+  - 자료
+  - 알림
+- 실제 위젯 창에서 필요한 것:
+  - 기본 / 반투명 / 고스트 / 최소화 상태
+  - 표시 항목 선택
+  - 항목 확인 / 고정 / 숨김
+  - 드래그 이동
+  - always-on-top
+  - 프레임리스 창
+  - 창 위치와 모드 기억
+  - 고스트 모드의 클릭 투과
+  - 전역 단축키
+  - 트레이
+  - Bubble Bar 또는 Dock Orb 최소화
+  - 로컬 SQLite 사용 이벤트 기록
+  - 날짜별/기기별 사용 집계 후 서버 반영
+- 웹앱 라우트에서 하면 안 되는 것:
+  - 프로젝트룸 화면 전체를 위젯 안에 축소 복사
+  - 웹앱 배경에 큰 장식 버블을 깔기
+  - 위젯 상세 사용 이벤트 원문을 서버로 직접 전송하는 흐름
+  - Tauri 전용 로컬 권한을 일반 웹 기능처럼 표시
+- `/app/desktop/widgets`에서 API가 아직 비어 있더라도 위젯 기능 자체를 없어진 것으로 해석하지 않는다.
+- API 미연결 상태에서는 설정/상태/권한/표시 슬롯을 남기고, 실제 데이터만 연결 대기 상태로 둔다.
+
+## 우선 참고 자료
+
+- `/Users/maren/EDU/Final Project/AGENTS.md`
+- `00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md`
+- `00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/09_Data-Model.md`
+- `00_현재_프로젝트/최종_산출물/03_화면설계_프론트명세_2026-06-29/README_화면설계_프론트명세.md`
+- `docs/Bubli_Visual_Target_Guide_2026-06-26.md`
+- `docs/visual-target/`
+- `docs/visual-qa/visual-qa-report.md`
+
+## 현재 작업 상태
+
+- `/app`와 `/app/resources`는 비로그인 상태에서 `/login`으로 이동하는 것을 확인했다.
+- 백엔드는 `origin/develop` 최신 확인 완료.
+- Docker는 `bubli-postgres`, `bubli-redis` healthy 상태를 확인했다.
+- 프론트 검증 결과:
+  - `npm run typecheck` 통과
+  - `npm run lint` 통과, 기존 img 경고 5개
+  - `npm run build` 통과
+  - `SKIP_BUILD=1 npm run visual:qa` 통과, 캡처 19/19
+
+## 이번 브랜치에서 이미 한 일
+
+- AppShell에 실제 프로젝트룸 목록 레일과 소통 레일을 추가했다.
+- 로그인 전 목업 룸을 보여주지 않도록 했다.
+- `/app/project-rooms/[roomId]/resources` 라우트를 추가했다.
+- 자료보드 화면을 개인 / 프로젝트룸 / 로컬 폴더 기준으로 재정리했다.
+- 대시보드는 실제 API 데이터가 준비된 경우에만 카드 배치를 보여주도록 했다.
+- 개발자용 문구인 `API 데이터`, `API 연결 대기`를 사용자용 상태 문구로 낮췄다.
+
+## 다음에 볼 문제
+
+- 회원앱 라우트 안에 남은 Storybook/데모 컴포넌트를 실제 API 연결 화면으로 바꿀 것.
+- API 문서에 없는 오래된 프론트 API 래퍼를 제거할 것.
+- 프로젝트룸 상세 홈, 룸 자료, 룸 채팅 구조를 API 기준으로 더 맞출 것.
+- 로그인 후 화면을 확인할 개발용 인증 또는 안전한 fixture 전략을 정할 것.
+- 공개 랜딩의 sticky 흐름 구간은 추후 다시 점검할 것.
+
+## 2026-06-30 추가 정리
+
+- 프론트 API 래퍼에서 현재 기준 문서에 없는 오래된 경로를 제거했다.
+  - 제거: `/api/resources/{id}/share-to-room`
+  - 제거: `/api/resources/{id}/sync-policy`
+  - 제거: `/api/resources/{id}/restore`
+  - 제거: `/api/project-rooms/{roomId}/documents`
+- 자료 삭제/동기화 관련 컴포넌트 문구도 복구 API 중심에서 삭제 전 확인/유지/보관/삭제 반영 흐름으로 바꿨다.
+- 이 변경은 `10_API-Design.md`, `09_Data-Model.md`의 개인 자료/프로젝트룸 자료 분리 기준을 따른다.
+- `/app/project-rooms/[roomId]/work`에서 Storybook/데모 패널 조합을 제거했다.
+- 작업판 라우트는 `projectRoomApi.get`, `wbsApi.getBoard`, `agentApi.listRoomSuggestions`를 호출하는 실제 API 기반 화면으로 바꿨다.
+- `/app/desktop/widgets`에서 4상태 목업 보드를 제거했다.
+- 이 라우트는 Tauri 데스크탑 버블 위젯의 설정/상태/표시 데이터 확인 화면으로 정리했다.
+- 백엔드 최신 기준에서 위젯 컨트롤러는 아직 비어 있다.
+- `/app/desktop/widgets`는 없는 `/api/widget/*`를 호출하지 않고, Tauri 위젯 기준과 표시 범위를 확인하는 화면으로 둔다.
+- `/app/project-rooms/new` 라우트를 추가했다.
+- 프로젝트룸 생성은 `POST /api/project-rooms` 기준으로 연결한다.
+- `/app/project-rooms/[roomId]` 홈 라우트를 추가했다.
+- 프로젝트룸 홈은 설명 보드가 아니라 자료, 작업, 소통으로 들어가는 얇은 허브로 둔다.
+- 프로젝트룸 목록의 기존 `/app/project-rooms/new`, `/app/project-rooms/{roomId}` 링크가 실제 라우트로 연결된다.
+- `projectRoomApi.close`는 백엔드 기준인 `DELETE /api/project-rooms/{roomId}`로 맞췄다.
+- `projectRoomApi.updatePayment`는 `PATCH /api/project-rooms/{roomId}/payment`로 추가했다.
+- 채팅 API 타입을 백엔드 기준으로 맞췄다.
+  - `GET /api/chat/rooms`는 `PageResponse<ChatRoomResponse>`다.
+  - 채팅방 타입은 `ROOM` / `DIRECT`다.
+  - 프론트에 남아 있던 `unreadCount`, `lastMessage`, `PROJECT_ROOM` 기준은 실제 라우트에서 제거했다.
+- 알림 API 타입을 백엔드 기준으로 맞췄다.
+  - `GET /api/notifications`는 `PageResponse<NotificationResponse>`다.
+  - 읽음/보관 API는 응답 본문을 기대하지 않는다.
+- `/app/desktop/communication`에서 정적 채널 설명 패널을 제거했다.
+- 데스크탑 소통 라우트는 채팅방 목록과 알림 목록을 API로 읽는 상태 화면으로 바꿨다.
+- 일정 API를 백엔드 기준으로 맞췄다.
+  - 제거: `/api/calendar/events`
+  - 제거: `/api/calendar/google/connect`
+  - 사용: `/api/schedules`
+  - 목록 응답은 배열이 아니라 `PageResponse<ScheduleResponse>`다.
+- `/app/calendar` 화면에서 구현되지 않은 캘린더 연결 버튼을 제거했다.
+- 일정 화면은 다가오는 일정 목록, 빈 상태, 로그인 필요, 불러오기 실패 상태만 표시한다.
+- 에이전트 API 래퍼를 백엔드 최신 컨트롤러 기준으로 맞췄다.
+  - 제거: `/api/agent/jobs`
+  - 제거: `/api/agent/search-resources`
+  - 제거: `/api/agent/draft-document`
+  - 제거: `/api/agent/summarize-day`
+  - 사용: `/api/agent-jobs/{jobId}`, `/api/agent-jobs/{jobId}/events`
+  - 사용: `/api/ai/analyze-resource`, `/api/ai/generate-*`, `/api/ai/search-resource`, `/api/ai/draft-document`, `/api/ai/summarize-day`
+- 에이전트 job, resource search, daily summary 타입을 백엔드 DTO 모양으로 맞췄다.
+- 백엔드에는 아직 `/api/local-files`, `/api/local-file-events/*`, `/api/me/managed-folders` 컨트롤러가 없다.
+- 프론트에서 쓰이지 않던 managed-folder HTTP API 래퍼와 타입을 제거했다.
+- 로컬 폴더 동기화는 현재 회원 웹앱 HTTP API가 아니라 Tauri IPC, SQLite, 향후 localsync 구현으로 다시 연결해야 한다.
+- 개인 자료는 로컬 폴더 동기화 가능, 프로젝트룸 공용 자료는 업로드만 허용이라는 기준은 유지한다.
+- 백엔드 최신 기준에서 activity, voice, widget은 엔티티와 package-info만 있고 HTTP 컨트롤러가 없다.
+- 사용되지 않던 `activityApi`, `voiceApi` 래퍼와 API 타입을 제거했다.
+- `/app/desktop/widgets`에서 존재하지 않는 `/api/widget/*` 호출을 제거했다.
+- 위젯 라우트는 Tauri 데스크탑 버블의 기능 단위, 창 동작, 앱 전용 경계를 보여주는 상태 화면으로 정리했다.
+- 위젯 기능은 v20 기준을 줄이지 않는다. 지금 비어 보이는 항목은 삭제가 아니라 다음 구현에서 채울 항목이다.
+- 회원앱 실제 라우트에 남은 `연결 대기`, `Rooms`, `Messages` 같은 개발자 문구를 사용자용 상태 문구로 낮췄다.
+- `/app` 홈은 `내 대시보드`로 정리했다.
+- 카드 팔레트는 보기 모드에서 숨기고, `카드 편집`을 눌렀을 때만 오른쪽에 표시한다.
+- 사이드바 폭과 메뉴 대비를 키워 프로젝트룸, 개인 메뉴, 소통 진입이 더 또렷하게 보이도록 했다.
+- Dashboard Storybook 정적 데이터 이름을 `DASHBOARD_STORY_DATA`로 바꿨다. 실제 라우트는 `dashboardApi.getWork()` 응답만 사용한다.
+- Tauri 위젯 기준을 다시 고정했다.
+- 타우리쪽 위젯은 20v 디자인보드에 있던 기능을 거의 그대로 구현 대상으로 본다.
+- 위젯 기능을 줄여서 새로 해석하지 않는다.
+- 현재 빠져 있는 항목은 삭제가 아니라 다음 구현에서 채울 항목이다.
+- 다른 회원앱 화면은 천천히 손보더라도 Tauri 위젯은 20v 기능 동등성을 먼저 맞춘다.
+- 이번 기준은 위젯 기능 동등성을 먼저 맞추고, 나머지 화면은 천천히 손보는 것이다.
+- 유지 기준은 TODO, 에이전트, 소통, 타이머, 메모, 일정, 자료, 알림 8개 단위와 기본, 반투명, 고스트, 최소화 4상태다.
+- 창 제어 기준은 always-on-top, 프레임리스 이동, 위치 기억, 클릭 투과, 전역 단축키, 트레이, Bubble Bar 또는 Dock Orb다.
+- `src/lib/tauri/commands.ts`에 위 기준을 planned IPC 계약으로 추가했다.
+- `/app/desktop/widgets`에는 `v20 유지 기준` 섹션을 추가해 웹앱 라우트가 실제 위젯 창이 아니라 Tauri 위젯 설정/검토 화면임을 더 분명하게 했다.
+- `/app/desktop/widgets`의 화면 문구에서 `Tauri IPC`, `웹앱 화면`처럼 사용자에게 필요 없는 기술어를 낮췄다.
+- `/app/project-rooms/[roomId]/resources`에서 개인 자료 API를 같이 읽지 않도록 정리했다.
+- 룸 자료보드는 공용 자료와 업로드만 보여준다. 개인 자료 수, 개인 로컬 폴더, 개인 동기화는 룸 자료 라우트에 표시하지 않는다.
+- `/app/resources`는 개인 자료, 개인 로컬 폴더, 룸 업로드를 나누어 보여준다.
+- 자료 미리보기에서 동작 없는 `열어보기` 버튼을 제거했다.
+- 프로젝트룸 목록과 홈에서 `Rooms`, `Project room`, `New room`, `금액 미입력`, `참고값 없음`처럼 작업용이거나 빈값을 크게 드러내는 문구를 제거했다.
+- 값이 없는 의뢰처/계약 정보 카드는 프로젝트룸 홈에서 보여주지 않는다.
+- 백엔드 `develop`은 `git fetch origin --prune` 후 `develop...origin/develop` 상태를 확인했다.
+- `/app` 대시보드의 기본 카드에서 아직 API 데이터가 없는 타이머, 최근 자료, 에이전트 제안, 프로젝트별 시간 카드를 제외했다.
+- 대시보드 기본 화면은 현재 `/api/dashboard/work`가 주는 오늘 할 일, 일정, 확인 필요 항목, 요약만 보여준다.
+- 카드 편집 팔레트도 현재 연결된 카드만 추가할 수 있게 제한했다.
+- 대시보드의 `0분`, `최근 자료 없음`, `검토할 후보가 없습니다` 같은 연결 전 placeholder가 실제 라우트에 자동 표시되지 않게 했다.
+- `/app/chat`은 실제 채팅방 목록만 보여주고, 클릭 동작이 없는 `열기` 표시는 제거했다.
+- `/app/desktop/communication`에서 `Desktop communication`, `Tauri 창 연결 후 표시` 같은 기술/설명성 문구와 데스크탑 대기 카드를 제거했다.
+- `/app/settings`는 실제 계정/언어 값만 보여주게 줄였다.
+- 설정 화면의 데스크탑 앱 설명 카드는 실제 설정 기능이 아직 없어서 제거했다.
+- `/app/calendar`는 다른 회원앱 라우트와 같은 glass 상태 패널과 새로고침 동작을 쓰게 맞췄다.
+- `/app/project-rooms/[roomId]/work`에서 `Work board` 라벨을 제거하고 빈 상태를 `아직 작업이 없습니다`로 낮췄다.
+- `/app/desktop/widgets` 화면 문구의 `Tauri SQLite`를 사용자용 표현인 `기기 안 기록`으로 바꿨다.
+- `/app/agent` 라우트를 추가했다.
+- `/app/agent-suggestions`는 `/app/agent`로 넘긴다.
+- 에이전트 후보 화면은 Storybook용 정적 패널을 쓰지 않고 `GET /api/agent/suggestions`, `GET /api/project-rooms/{roomId}/agent/suggestions`, `PATCH /api/agent/suggestions/{suggestionId}`만 사용한다.
+- 후보 상태와 타입은 백엔드 최신 enum에 맞췄다.
+  - 상태: DRAFT, APPROVED, HELD, REJECTED
+  - 타입: REQUIREMENT, TODO, WBS, TASK, SCHEDULE, QUESTION, CONTRACT_FIELD, CONTRACT_REVIEW, REVIEW_ITEM, DOCUMENT_DRAFT, DAILY_SUMMARY, MEMO
+- 회원앱 사이드바에는 `후보` 메뉴를 추가했다.
+- 후보 화면은 개인 후보와 프로젝트룸 후보를 선택해서 보는 구조다.
+- 후보 검토 액션은 승인, 보류, 제외만 노출한다. 편집 UI는 아직 만들지 않았다.
+- 프로젝트룸 작업판의 확인 대기 후보 기준도 `PENDING`이 아니라 `DRAFT`로 맞췄다.
+- `/app/chat`은 대화방 목록만 보여주던 상태에서 실제 메시지 스레드 조회와 텍스트 전송까지 연결했다.
+- 소통 화면은 `GET /api/chat/rooms`, `GET /api/chat/rooms/{chatRoomId}/messages`, `POST /api/chat/rooms/{chatRoomId}/messages`를 사용한다.
+- `/app/chat?roomId={roomId}`는 해당 프로젝트룸 채팅방을 우선 선택하고, `mode=direct`와 `mode=room`도 선택 기준으로 쓴다.
+- 채팅 메시지는 서버 응답의 `body.text`, `body.message`, `body.content` 순서로 표시한다.
+- 메시지 조회 크기 파라미터는 백엔드 Pageable 기준에 맞춰 `limit`이 아니라 `size`로 보낸다.
+- 1:1 대화방 생성 요청 타입은 백엔드 DTO 기준인 `targetUserId`로 맞췄다.
+- `/app/project-rooms/[roomId]/chat` 라우트를 추가했다.
+- 프로젝트룸 홈과 사이드바의 소통 링크는 spec 기준인 `/app/project-rooms/{roomId}/chat`로 이동한다.
+- 실제 채팅 화면은 중복 구현하지 않고 `/app/chat?roomId={roomId}`로 넘겨 같은 API 연결 화면을 쓴다.
+- AppShell 상단바가 후보, 일정, 설정 같은 비프로젝트룸 화면에서 계속 `홈 / 내 대시보드`로 보이지 않게 라우트별 표시를 맞췄다.
+- Tauri 위젯 기준을 다시 못 박았다.
+- 20v는 단순 디자인 참고가 아니라 Tauri 위젯 기능 체크리스트다.
+- 나머지 회원앱 화면은 천천히 손보더라도 Tauri 위젯 기능 범위는 v20보다 작아지면 안 된다.
+- 이 기준은 앞으로 Codex, Claude Code, 다른 에이전트에게도 같은 기준으로 전달한다. 위젯 기능을 줄이는 제안은 기본적으로 잘못된 방향으로 본다.
+- Tauri 위젯은 20v 기능을 먼저 동등하게 맞추고, 나머지 웹앱 화면과 세부 디자인은 그 뒤에 천천히 손본다.
+- `/app/desktop/widgets` 실제 화면에서는 `20v 유지 기준`, `기능 범위 유지`, `축소 복사하지 않음`처럼 사용자에게 필요 없는 내부 기준 문구를 제거했다.
+- 20v 기능 동등성 기준은 문서와 작업 컨텍스트에 남기고, 화면은 `버블에 띄울 항목`, `데스크탑 동작`, `앱에서 버블 사용`처럼 사용자가 볼 설정/상태만 남긴다.
+- 자료보드 화면에서 설명용 규칙 박스와 긴 빈 상태 문구를 줄였다.
+- `/app/resources`는 개인 자료, 개인 폴더, 룸 업로드를 짧게 보여주고, `/app/project-rooms/{roomId}/resources`는 공용 자료와 업로드만 보이게 유지한다.
+- Tauri 위젯은 20v 기능을 줄이지 않는다는 기준을 코드에도 첫 단계로 연결했다.
+- `src-tauri/src/lib.rs`에 위젯 창 상태 IPC 스캐폴딩을 추가했다.
+  - 현재 상태 조회
+  - 기본, 반투명, 고스트, 최소화 모드 변경
+  - 위치 기억 입력
+  - always-on-top 상태 입력
+  - 고스트 클릭 투과 상태 입력
+  - Dock Orb 표시 상태 입력
+  - 트레이 표시 상태 입력
+  - 전역 단축키 문자열 등록 입력
+- 이번 Rust 구현은 아직 실제 별도 위젯 창 생성, 트레이 생성, 단축키 등록, SQLite 저장까지 끝낸 것은 아니다.
+- 지금 단계의 목적은 v20 기능 체크리스트를 줄이지 않고, 실제 Tauri IPC 명령 이름과 프론트 래퍼를 먼저 고정하는 것이다.
+- `src/lib/tauri/commands.ts`에서 위젯 창 상태 관련 명령을 planned에서 실제 `tauriCommands`로 옮겼다.
+- `/app/desktop/widgets`는 Tauri 실행 환경에서 위젯 창 상태를 읽고, 기본/반투명/고스트/최소화 전환 버튼을 보여준다.
+- 브라우저 실행 환경에서는 실제 창 제어 버튼을 숨기고, 앱에서 전환해야 하는 상태로만 보여준다.
+- `/app/desktop/widgets`는 프로젝트룸 API가 실패해도 전체 화면을 죽이지 않고, 위젯 설정/상태 화면은 계속 보여준다.
+- Tauri 위젯 창 구현을 한 단계 더 진행했다.
+- Rust에 `open_widget_window`, `close_widget_window`, `toggle_widget_window` 명령을 추가했다.
+- 실제 별도 위젯 창은 `bubli-widget` 라벨로 만들고 `/desktop-widget`을 연다.
+- 위젯 창은 프레임리스, always-on-top, 작업표시줄 제외, 위치 지정 가능한 창으로 만든다.
+- Tauri 실행 환경의 `/app/desktop/widgets`에는 `버블 열기`, `접기` 버튼을 추가했다.
+- 브라우저 실행 환경에서는 이 버튼을 보여주지 않는다.
+- 상태 객체에는 `windowVisible`을 추가했다.
+- 기본/반투명/고스트 모드에서는 창을 보이게 하고, 최소화 모드에서는 창을 숨기고 Dock Orb 대기 상태로 본다.
+- 아직 투명 window effect, 실제 Dock Orb 창, 트레이, 전역 단축키 등록, 위치 영구 저장, SQLite 캐시는 다음 단계다.
+- 실제 Tauri 위젯 창용으로 AppShell을 타지 않는 `/desktop-widget` 라우트를 추가했다.
+- Tauri 위젯 창 URL은 `/desktop-widget` 계열로 바꿨다.
+- `/desktop-widget`는 사이드바와 상단바 없이 작은 데스크탑 버블 창만 보여준다.
+- 버블 창 URL은 `/desktop-widget?bubble=todo`처럼 버블 타입을 쿼리로 받는다.
+- Rust 창 라벨도 `bubli-widget-{bubbleType}` 형태로 열 수 있게 바꿔, 여러 버블을 독립 창 단위로 확장할 수 있게 했다.
+- Bubli에서 버블은 각각 독립적인 데스크탑 위젯 단위다.
+- 여러 버블은 한 창 안에 세로 카드로 쌓지 않는다.
+- 여러 버블이 켜질 수는 있지만 각각은 별도 위젯 창/단위로 보고, 하나의 Tauri 앱 생명주기에 묶는다.
+- 앱이 종료되면 떠 있는 버블 위젯도 함께 종료되는 구조를 기준으로 한다.
+- `/desktop-widget`는 실제 위젯 하나의 표면을 보여주는 라우트다.
+- `/desktop-widget`에는 v20의 고스트, 최소화, 반투명, Dock Orb, 진행 링, 에이전트 신호 같은 내부 객체를 기능 단위로 반영한다.
+- 시안 항목을 그대로 베끼지 않고, 실제 API/SQLite 연결 전에는 기능 슬롯과 빈 상태 중심으로 보여준다.
+- 브라우저 360x520 캡처 결과: `/tmp/bubli-desktop-widget-surface.png`
+- 현재 캡처에서는 API/세션 문제로 `불러오지 못했습니다` 상태가 표시된다. 다음 단계에서는 이 상태를 더 자연스럽게 낮추고 Tauri 세션 공유를 점검한다.
+- 진행률 기준을 다시 잡았다.
+  - 공개/로그인: 약 65%
+  - 회원앱: 약 40%
+  - Tauri 위젯: 약 17%
+  - 전체 프론트 제품 체감: 약 35%
+- 검증:
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml` 통과
+  - `cargo check --manifest-path src-tauri/Cargo.toml` 통과
+  - `npm run typecheck` 통과
+  - `git diff --check` 통과
+  - 브라우저 캡처: `/tmp/bubli-member-desktop-widgets-ipc-ready.png`
+- 자료보드 미리보기 빈 상태는 `선택 전`, `왼쪽에서 자료를 선택하세요`처럼 실제 조작 안내만 남긴다.
+- `/app/project-rooms/new`는 프로젝트룸 생성이 주연이 되게 정리했다.
+- 생성 폼 첫 화면은 프로젝트룸 이름과 의뢰처만 보이고, 금액과 입금 예정일은 접힌 `계약 참고값` 안으로 내렸다.
+- 계약/입금 값은 API 요청 필드로 유지하되, 회계나 정산 기능처럼 보이지 않게 선택 참고값으로만 둔다.
+- `/app` 대시보드는 실제 데이터가 있는 카드만 보이도록 정리했다.
+- `없음`, `항목 없음`, `0분`처럼 빈 카드가 반복되는 표현은 실제 홈 라우트에서 제거했다.
+- 카드 편집의 드래그 대상도 화면에 보이는 카드 기준으로 맞췄다.
+- `/app/desktop/widgets`에서 `tasks`, `wbs_items`, `agent_suggestions` 같은 내부 테이블명을 화면에 노출하지 않게 정리했다.
+- 같은 화면에서 앱 명령 개수와 구현 대기 숫자를 사용자에게 보여주지 않도록 제거했다.
+- 자료보드 미리보기에서 `PENDING`, `SUCCEEDED` 같은 원시 상태값 대신 사용자 문구를 보여주게 했다.
+- `/app/resources` 상단을 큰 소개형 히어로에서 낮은 작업 툴바 톤으로 줄였다.
+- 자료보드 통계, 드롭존, 미리보기 카드의 그림자와 밀도를 낮춰 공개 랜딩의 밝은 glass 톤에 맞췄다.
+- 자료 API 실패 상태에서는 0개짜리 빈 자료보드를 계속 보여주지 않고 에러 상태만 남긴다.
+- Chrome 캡처로 `/app/resources` 실패 상태에서 `.resource-workspace__board`가 0개로 사라진 것을 확인했다. 캡처: `/tmp/bubli-resources-check-2.png`
+- `/app/chat` 화면 문구를 `소통` 중심에서 사용자가 바로 이해하는 `대화` 중심으로 낮췄다.
+- `/app/chat` 빈 상태는 막연한 빈 패널이 아니라 프로젝트룸으로 이어지는 행동을 남긴다.
+- `/app/desktop/communication` 화면 제목을 `소통 알림`에서 `알림`으로 낮추고, 데스크탑 설명 보드처럼 보이는 표현을 줄였다.
+- `AppShell` 상단바가 `/app/chat`, `/app/desktop/communication`, `/app/desktop/widgets`에서 더 이상 `내 대시보드 / 홈`으로 보이지 않게 라우트별 이름과 surface label을 맞췄다.
+- Chrome 캡처로 `/app/chat`와 `/app/desktop/communication`의 실패 상태 렌더링을 확인했다.
+  - `/tmp/bubli-app-chat-after.png`
+  - `/tmp/bubli-app-desktop-communication-after.png`
+- `/app/agent` 화면을 `확인할 후보` 중심으로 낮췄다.
+- 후보 기본 조회는 전체 상태가 아니라 `DRAFT` 검토 대기 후보만 불러오게 했다.
+- 후보 타입 문구에서 `TODO`, `WBS`, `계약값` 같은 내부/딱딱한 표현을 `할 일`, `작업 구조`, `계약 정보`로 바꿨다.
+- 후보 화면의 요약 카드는 승인/보류까지 동등하게 보여주지 않고 현재 확인할 후보 수만 보여주게 줄였다.
+- Chrome 캡처로 `/app/agent` 실패 상태 렌더링을 확인했다. 캡처: `/tmp/bubli-app-agent-after.png`
+- `/app/project-rooms` 목록에서 계약 금액을 크게 보여주던 표시를 제거했다.
+- 프로젝트룸 목록은 룸 이름, 의뢰처 또는 최근 수정일, 진행 상태만 보여준다.
+- 금액은 프로젝트룸의 보조 참고 정보일 뿐 목록의 주목 요소가 아니다.
+- `/app/project-rooms/[roomId]` 홈은 큰 설명 카드가 아니라 자료, 작업, 대화로 바로 들어가는 얇은 허브로 정리했다.
+- 프로젝트룸 상세 홈의 요약은 진행 상태, 멤버 수, 의뢰처, 선택 입력된 계약 참고값만 작은 칩으로 둔다.
+- 멤버 목록은 실제 멤버가 있을 때만 보여준다. 멤버가 없다는 빈 패널을 일부러 크게 표시하지 않는다.
+- `/app/project-rooms/[roomId]/work` 작업판은 Storybook용 WBS/TODO 패널 묶음이 아니라 실제 API 화면으로 둔다.
+- 작업판 상단의 무거운 숫자 카드는 작은 상태 칩으로 낮췄다.
+- 화면 문구는 `WBS`, `TODO`보다 `작업 구조`, `할 일`을 우선한다.
+- 마감일이 없는 작업에는 `마감 없음` 같은 빈값을 반복 표시하지 않는다.
+- 작업판은 DRAFT 후보만 불러와 `확인할 후보` 섹션으로 보여주고, 전체 검토는 `/app/agent?roomId={roomId}`로 이어진다.
+- 작업 구조나 할 일이 비어 있으면 빈 섹션을 크게 만들지 않고 실제 내용이 있는 섹션만 보여준다.
+- `/app/agent`는 `roomId` query를 읽어 프로젝트룸 후보 화면으로 바로 들어갈 수 있다.
+- `useSearchParams`를 쓰는 `/app/agent`, `/app/chat`는 Suspense 경계로 감싸 Next build의 CSR bailout 오류를 막았다.
+- `/app/chat`에서 `최근 활동 없음`, `대화가 없습니다`, `메시지가 없습니다`처럼 죽은 빈값 문구를 제거했다.
+- 채팅 빈 상태는 `대화 시작 전`, `첫 메시지를 남겨보세요`처럼 실제 행동으로 이어지는 짧은 문구만 남긴다.
+- `/app/desktop/communication`에서도 `최근 활동 없음`, `새 알림 없음`을 낮추고, 대화가 없을 때는 프로젝트룸으로 이동하는 행을 남긴다.
+- 사이드바 프로젝트룸 빈 상태는 `프로젝트룸 없음` 대신 `프로젝트룸 만들기`로 바꿔 행동 링크처럼 보이게 했다.
+- `/app/calendar`의 빈 상태는 `예정된 일정이 없습니다` 대신 `일정 전`과 프로젝트룸 진입 링크로 낮췄다.
+- `/app/settings`에서 `ko`, `Asia/Seoul` 같은 개발값이 카드에 그대로 보이지 않게 `한국어`, `서울 시간`으로 표시한다.
+- `/app/desktop/widgets`의 요약 카드는 구현 숫자보다 실행 환경, 4상태, 표시 항목, 프로젝트룸 준비 상태가 보이게 낮췄다.
+- 버블 설정 화면의 접근성 이름에서도 `앱 전용 항목` 같은 내부 기준 문구를 제거했다.
+- 회원앱 공통 `workspace-route` 표면을 한 단계 가볍게 조정했다.
+- route 제목은 랜딩/로그인과 같은 blue-lilac gradient 흐름을 쓰되, hero처럼 과하게 커지지 않게 낮췄다.
+- 공통 카드, 행, 빈 패널의 높이, 반경, 그림자를 줄여 실제 작업공간처럼 보이게 했다.
+- 자료보드 board, row, detail 표면도 같은 방향으로 가볍게 낮췄다.
+- `/app`, `/app/resources`, `/app/desktop/widgets`를 Playwright로 캡처했다.
+  - `/tmp/bubli-member-css-check/app.png`
+  - `/tmp/bubli-member-css-check/app_resources.png`
+  - `/tmp/bubli-member-css-check/app_desktop_widgets_after.png`
+- `/app/desktop/widgets`에서 `Failed to fetch`가 노출되던 것을 `버블 설정을 불러오지 못했습니다`로 고쳤다.
+- `src/styles/globals.css` 안에 남아 있던 목업 관련 내부 주석도 중립화했다.
+- `/app` 대시보드의 실패/빈 상태에 프로젝트룸, 자료보드, 후보 바로가기를 추가했다.
+- 대시보드 상태 패널은 목업 데이터를 채우지 않고, 실제 업무 시작점으로 이동하는 액션만 남긴다.
+- `/app` 대시보드를 다시 캡처해 상태 액션과 빈 문구 제거를 확인했다.
+  - `/tmp/bubli-member-css-check/app_dashboard_state_actions.png`
+- `/app/project-rooms` 실패 상태에 새로고침 액션을 붙이고, 빈 상태 문구를 `프로젝트룸 시작 전`으로 낮췄다.
+- 프로젝트룸 목록의 `OVERDUE` 상태는 `확인`보다 명확한 `확인 필요`로 표시한다.
+- `/app/project-rooms/new`의 시안처럼 보이는 placeholder를 실제 입력 필드명 중심으로 바꿨다.
+- 프로젝트룸 생성 실패 기본 문구는 `연결을 확인하세요` 대신 `프로젝트룸을 만들지 못했습니다.`로 바꿨다.
+- `/app/project-rooms/{roomId}` 실패 상태에는 새로고침과 목록 이동을 붙였다.
+- 프로젝트룸 목록과 생성 화면을 다시 캡처했다.
+  - `/tmp/bubli-member-css-check/app_project-rooms.png`
+  - `/tmp/bubli-member-css-check/app_project-rooms_new.png`
+- Tauri 위젯 기준을 체크리스트에도 다시 고정했다.
+- `docs/implementation-checklist/README_기능연결_리디자인체크_2026-06-30.md`에서 오래된 `widgetApi`, `managedFolderApi`, `activityApi` 기준을 Tauri planned IPC와 local sync 기준으로 바꿨다.
+- Tauri 위젯은 20v 기능 동등성을 먼저 맞추고, 나머지 회원앱 화면과 세부 디자인은 그 뒤에 단계적으로 손보는 흐름으로 둔다.
+- `/app/project-rooms/{roomId}/work` 작업판에서 데이터가 없을 때 `작업 구조 0`, `할 일 0`, `확인할 후보 0` 같은 0개 요약 칩을 숨기도록 바꿨다.
+- 작업판 빈 상태는 목업을 채우지 않고 `작업 전`과 `자료 올리기`, `후보 확인` 동선만 남긴다.
+- 작업판 API 실패 상태에는 다시 불러오기와 프로젝트룸 홈 이동을 붙여 막힌 상태로 두지 않는다.
+- 작업판 검증:
+  - `npm run typecheck` 통과
+  - `git diff --check` 통과
+  - 작업판 라우트 검색에서 남은 `WBS`, `TODO`, `DRAFT`는 화면 문구가 아니라 API enum 라벨 변환 분기다.
+- `/app/agent` 후보 화면에서 후보가 0개일 때 `확인할 후보 0` 카드와 `확인할 후보가 없습니다` 문구를 숨기고, `후보 전`과 자료보드/프로젝트룸 이동만 남겼다.
+- `/app/agent`에서 잘못된 날짜가 들어와도 `시간 없음`을 표시하지 않고 타입 라벨만 보여주게 했다.
+- `/app/agent` 실패 상태에는 다시 불러오기와 자료보드 이동을 붙였다.
+- `/app/chat` 메시지 조회 호출을 백엔드 Pageable 기준에 맞춰 `limit`이 아니라 `size`로 통일했다.
+- `chatApi.getMessages` 타입도 `size`를 받도록 바꿨다.
+- `/app/chat` 실패 상태에는 다시 불러오기 버튼을 붙였다.
+- `/app/agent`, `/app/chat`을 Playwright로 캡처해 목업 데이터 없이 실패 상태와 액션만 렌더링되는 것을 확인했다.
+  - `/tmp/bubli-member-agent-after.png`
+  - `/tmp/bubli-member-chat-after.png`
+- 이번 검증:
+  - `npm run typecheck` 통과
+  - `git diff --check` 통과
+  - 실제 `/app/**` 라우트 검색에서 목업, 데모, 샘플, 마감 없음, 시간 없음, 0분 같은 직접 노출 문구는 잡히지 않았다.
+- AppShell 사이드바에서 실제 데이터가 아닌 고정 소통 카드 `1:1 채팅`, `룸 채팅`을 제거했다.
+- 소통 진입은 개인 메뉴의 `소통` 하나로 남기고, 실제 프로젝트룸 소통은 각 프로젝트룸 카드의 빠른 이동에서만 보이게 했다.
+- 상단 알림 수는 `notificationCount={0}` 하드코딩을 제거하고 `/api/notifications`의 unread 개수를 읽어 표시하게 바꿨다.
+- 알림 조회 실패는 전체 회원앱을 오프라인으로 만들지 않고 알림 수만 0으로 둔다.
+- 상단 프로필의 `계정 확인 불가` 문구는 `다시 시도 필요`로 낮췄다.
+- 사용하지 않게 된 `.bubli-comm-*` CSS를 제거했다.
+- `/app`을 다시 캡처해 사이드바 고정 소통 카드가 사라진 것을 확인했다.
+  - `/tmp/bubli-member-app-shell-after.png`
+- 이번 검증:
+  - `npm run typecheck` 통과
+  - `git diff --check` 통과
+  - 실제 앱/스타일에서 `bubli-comm`, `1:1 채팅`, `룸 채팅`, `notificationCount={0}`, `계정 확인 불가` 참조가 사라진 것을 확인했다.
+- `/app` 대시보드 상단을 다시 낮췄다.
+- 대시보드 제목은 `내 대시보드`에서 `대시보드`로 줄이고, `개인 기준`, `프로젝트룸 항목`, `드래그 배치` 칩은 제거했다.
+- API 실패 상태는 큰 빈 히어로가 아니라 `서버 연결 대기` 상태 패널과 프로젝트룸, 자료보드, 후보 이동만 남긴다.
+- AppShell 상단의 기본 `대기` 상태 배지는 일반 화면에서 숨기고, 실제 프로젝트룸이 있을 때만 진행 상태를 보여준다.
+- 상단 프로필의 `다시 시도 필요`는 `서버 연결 대기`로 정리했다.
+- 대시보드 상태 패널 폭과 타이틀 크기를 줄여 랜딩 히어로처럼 보이지 않게 했다.
+- `/app` 대시보드를 다시 캡처했다.
+  - `/tmp/bubli-member-app-dashboard-after-compact-v2.png`
+- 이번 검증:
+  - `npm run typecheck` 통과
+  - `git diff --check` 통과

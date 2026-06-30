@@ -1,13 +1,16 @@
 import { apiRequest } from "@/lib/api/client";
 import type {
   AgentDocumentDraftRequest,
-  AgentDocumentDraftResponse,
-  AgentJobCreateRequest,
+  AgentJobEventPageResponse,
   AgentJobResponse,
   AgentResourceSearchRequest,
   AgentResourceSearchResponse,
   AgentSuggestionResponse,
+  AgentSuggestionStatus,
+  AgentSuggestionType,
   AgentSuggestionUpdateRequest,
+  DailySummaryPageResponse,
+  DailySummaryRequest,
   DailySummaryResponse,
   DailySummaryUpdateRequest,
 } from "@/types/api/agent";
@@ -15,17 +18,31 @@ import type {
 export type AnalyzeResourceRequest = {
   idempotencyKey: string;
   resourceId: string;
-  roomId?: string;
 };
 
-export type CreateAgentJobRequest = AgentJobCreateRequest & {
-  idempotencyKey: string;
+export type RoomAgentJobRequest = {
+  roomId: string;
 };
+
+export type AgentSuggestionListParams = {
+  status?: AgentSuggestionStatus;
+  suggestionType?: AgentSuggestionType;
+};
+
+function suggestionQuery(params?: AgentSuggestionListParams) {
+  const search = new URLSearchParams();
+
+  if (params?.status) search.set("status", params.status);
+  if (params?.suggestionType) search.set("suggestionType", params.suggestionType);
+
+  const value = search.toString();
+  return value ? `?${value}` : "";
+}
 
 export const agentApi = {
-  createJob({ idempotencyKey, ...body }: CreateAgentJobRequest) {
-    return apiRequest<AgentJobResponse>("/api/agent/jobs", {
-      body,
+  analyzeResource({ idempotencyKey, resourceId }: AnalyzeResourceRequest) {
+    return apiRequest<AgentJobResponse>("/api/ai/analyze-resource", {
+      body: { resourceId },
       headers: {
         "Idempotency-Key": idempotencyKey,
       },
@@ -33,31 +50,55 @@ export const agentApi = {
     });
   },
 
-  analyzeResource({ idempotencyKey, resourceId, roomId }: AnalyzeResourceRequest) {
-    return agentApi.createJob({
-      idempotencyKey,
-      jobType: "RESOURCE_ANALYSIS",
-      resourceIds: [resourceId],
-      roomId: roomId ?? null,
-      targetId: resourceId,
-      targetType: "RESOURCE",
+  generateRequirements(body: RoomAgentJobRequest) {
+    return apiRequest<AgentJobResponse>("/api/ai/generate-requirements", {
+      body,
+      method: "POST",
+    });
+  },
+
+  generateTasks(body: RoomAgentJobRequest) {
+    return apiRequest<AgentJobResponse>("/api/ai/generate-tasks", {
+      body,
+      method: "POST",
+    });
+  },
+
+  generateWbs(body: RoomAgentJobRequest) {
+    return apiRequest<AgentJobResponse>("/api/ai/generate-wbs", {
+      body,
+      method: "POST",
+    });
+  },
+
+  generateQuestions(body: RoomAgentJobRequest) {
+    return apiRequest<AgentJobResponse>("/api/ai/generate-questions", {
+      body,
+      method: "POST",
+    });
+  },
+
+  reviewContractDocuments(body: RoomAgentJobRequest) {
+    return apiRequest<AgentJobResponse>("/api/ai/review-contract-documents", {
+      body,
+      method: "POST",
     });
   },
 
   getJob(jobId: string) {
-    return apiRequest<AgentJobResponse>(`/api/agent/jobs/${jobId}`);
+    return apiRequest<AgentJobResponse>(`/api/agent-jobs/${jobId}`);
   },
 
   getJobEvents(jobId: string) {
-    return apiRequest<unknown[]>(`/api/agent/jobs/${jobId}/events`);
+    return apiRequest<AgentJobEventPageResponse>(`/api/agent-jobs/${jobId}/events`);
   },
 
-  listPersonalSuggestions() {
-    return apiRequest<AgentSuggestionResponse[]>("/api/agent/suggestions");
+  listPersonalSuggestions(params?: AgentSuggestionListParams) {
+    return apiRequest<AgentSuggestionResponse[]>(`/api/agent/suggestions${suggestionQuery(params)}`);
   },
 
-  listRoomSuggestions(roomId: string) {
-    return apiRequest<AgentSuggestionResponse[]>(`/api/project-rooms/${roomId}/agent/suggestions`);
+  listRoomSuggestions(roomId: string, params?: AgentSuggestionListParams) {
+    return apiRequest<AgentSuggestionResponse[]>(`/api/project-rooms/${roomId}/agent/suggestions${suggestionQuery(params)}`);
   },
 
   updateSuggestion(suggestionId: string, body: AgentSuggestionUpdateRequest) {
@@ -68,28 +109,28 @@ export const agentApi = {
   },
 
   searchResources(body: AgentResourceSearchRequest) {
-    return apiRequest<AgentResourceSearchResponse[]>("/api/agent/search-resources", {
+    return apiRequest<AgentResourceSearchResponse>("/api/ai/search-resource", {
       body,
       method: "POST",
     });
   },
 
   draftDocument(body: AgentDocumentDraftRequest) {
-    return apiRequest<AgentDocumentDraftResponse>("/api/agent/draft-document", {
+    return apiRequest<AgentJobResponse>("/api/ai/draft-document", {
       body,
       method: "POST",
     });
   },
 
-  summarizeDay(body: Record<string, unknown>) {
-    return apiRequest<AgentJobResponse>("/api/agent/summarize-day", {
+  summarizeDay(body?: DailySummaryRequest) {
+    return apiRequest<AgentJobResponse>("/api/ai/summarize-day", {
       body,
       method: "POST",
     });
   },
 
   listDailySummaries() {
-    return apiRequest<DailySummaryResponse[]>("/api/daily-summaries");
+    return apiRequest<DailySummaryPageResponse>("/api/daily-summaries");
   },
 
   updateDailySummary(summaryId: string, body: DailySummaryUpdateRequest) {

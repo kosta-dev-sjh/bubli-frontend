@@ -7,6 +7,10 @@
   min-width: 0;
 }
 
+.topbarNoSearch {
+  grid-template-columns: minmax(260px, 1fr) auto;
+}
+
 .projectButton,
 .searchBox,
 .profileButton {
@@ -29,11 +33,16 @@
   min-height: 50px;
   padding: 8px 10px;
   color: var(--color-text);
-  cursor: pointer;
+  cursor: default;
   transition:
     transform 180ms var(--ease-out),
     border-color 180ms var(--ease-out),
     box-shadow 180ms var(--ease-out);
+}
+
+button.projectButton,
+button.profileButton {
+  cursor: pointer;
 }
 
 .projectButton:hover,
@@ -308,5 +317,62 @@
 
   .profileText {
     min-width: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .projectButton {
+    min-height: 52px;
+    padding: 7px 9px;
+  }
+
+  .projectText strong {
+    font-size: 13px;
+  }
+
+  .projectText span {
+    font-size: 11px;
+  }
+
+  .searchBox {
+    grid-column: 1 / -1;
+    min-height: 46px;
+  }
+
+  .actions {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .surfaceChip {
+    display: none;
+  }
+
+  .iconButton {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+  }
+
+  .profileButton {
+    width: 46px;
+    min-width: 46px;
+    height: 46px;
+    min-height: 46px;
+    justify-content: center;
+    padding: 5px;
+  }
+
+  .profileText,
+  .profileButton > svg {
+    display: none;
   }
 }

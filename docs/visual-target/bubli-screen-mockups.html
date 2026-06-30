@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bubli Screen Mockups - Drifty Dashboard</title>
+  <link rel="stylesheet" href="./bubli-screen-mockups.css">
+</head>
+<body>
+  <main class="mockup-board" aria-label="Bubli focused screen mockups">
+    <section class="mockup-section mockup-section-drifty" aria-labelledby="drifty-title">
+      <h1 id="drifty-title">2. Drifty 스타일 - 정보 구조 참고</h1>
+      <div class="app-window drifty-window">
+        <aside class="rail" aria-label="Bubli navigation">
+          <div class="rail-brand">
+            <img src="./assets/visual-target/brand/bubble-mark-light.png" alt="">
+            <strong>Bubli</strong>
+          </div>
+          <nav>
+            <a class="is-active" href="#"><span class="nav-icon home"></span>오늘</a>
+            <a href="#"><span class="nav-icon flow"></span>시간 흐름</a>
+            <a href="#"><span class="nav-icon list"></span>프로젝트</a>
+            <a href="#"><span class="nav-icon file"></span>자료</a>
+            <a href="#"><span class="nav-icon calendar"></span>일정</a>
+            <a href="#"><span class="nav-icon memo"></span>메모</a>
+            <a href="#"><span class="nav-icon gear"></span>설정</a>
+          </nav>
+        </aside>
+
+        <section class="workspace" aria-label="Dashboard">
+          <header class="topbar">
+            <div>
+              <p class="eyebrow">오늘도 좋은 흐름이에요</p>
+              <h2>Good morning, Alex</h2>
+              <div class="status-line">
+                <span>오늘도 흐름 효율이에요</span>
+                <span class="spark"></span>
+                <span class="status-pill">자동 기록 중</span>
+              </div>
+            </div>
+            <div class="top-actions" aria-label="tools">
+              <button aria-label="Search">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
+              </button>
+              <button aria-label="Notifications" class="has-dot">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"></path><path d="M10 20a2 2 0 0 0 4 0"></path></svg>
+              </button>
+              <span class="avatar"></span>
+            </div>
+          </header>
+
+          <div class="drifty-grid">
+            <article class="glass-card summary-card">
+              <div class="card-head">
+                <h3>오늘의 요약</h3>
+                <span class="tiny-count">3</span>
+              </div>
+              <ul class="summary-list">
+                <li><span class="list-icon doc"></span><b>받은 자료</b><strong>3</strong></li>
+                <li><span class="list-icon users"></span><b>후보</b><strong>6</strong></li>
+                <li><span class="list-icon lock"></span><b>승인 대기</b><strong>2</strong></li>
+                <li><span class="list-icon check"></span><b>오늘 할 일</b><strong>3</strong></li>
+              </ul>
+              <div class="time-chip">
+                <div class="graph-ring graph-ring-mini" aria-hidden="true">
+                  <svg class="ring-svg" viewBox="0 0 120 120">
+                    <circle class="ring-track" cx="60" cy="60" r="44"></circle>
+                    <circle class="ring-segment ring-blue" cx="60" cy="60" r="44"></circle>
+                    <circle class="ring-segment ring-indigo" cx="60" cy="60" r="44"></circle>
+                    <circle class="ring-segment ring-violet" cx="60" cy="60" r="44"></circle>
+                    <circle class="ring-segment ring-pale" cx="60" cy="60" r="44"></circle>
+                  </svg>
+                  <span><b>2h</b></span>
+                </div>
+                <div>
+                  <span>프로젝트 시간</span>
+                  <strong>2h 15m</strong>
+                  <small>오늘 기록</small>
+                </div>
+              </div>
+            </article>
+
+            <article class="glass-card timeline-card">
+              <div class="card-head">
+                <h3>시간 흐름</h3>
+                <span>프로젝트</span>
+              </div>
+              <ol class="timeline">
+                <li><time>09:00</time><span></span><p>ClientA 리뉴얼 - 자료 정리</p></li>
+                <li><time>10:00</time><span></span><p>회의 - 요구사항 확인</p></li>
+                <li><time>11:15</time><span></span><p>ClientA - 시안 1차 제작</p></li>
+                <li><time>13:00</time><span></span><p>계약서 검토</p></li>
+                <li><time>14:00</time><span></span><p>WBS 정리</p></li>
+              </ol>
+            </article>
+
+            <article class="glass-card ring-card">
+              <div class="card-head">
+                <h3>프로젝트 시간 링</h3>
+              </div>
+              <div class="big-ring graph-ring" aria-label="프로젝트 시간 2시간 15분">
+                <svg class="ring-svg" viewBox="0 0 120 120">
+                  <circle class="ring-track" cx="60" cy="60" r="44"></circle>
+                  <circle class="ring-segment ring-blue" cx="60" cy="60" r="44"></circle>
+                  <circle class="ring-segment ring-indigo" cx="60" cy="60" r="44"></circle>
+                  <circle class="ring-segment ring-violet" cx="60" cy="60" r="44"></circle>
+                  <circle class="ring-segment ring-pale" cx="60" cy="60" r="44"></circle>
+                </svg>
+                <span><b>2h 15m</b><small>오늘 기록</small></span>
+              </div>
+              <ul class="legend">
+                <li><span class="blue"></span>ClientA <strong>1h 26m</strong></li>
+                <li><span class="violet"></span>자료 정리 <strong>32m</strong></li>
+                <li><span class="pale"></span>미분류 <strong>17m</strong></li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="agent-callout">
+            <img src="./assets/visual-target/bubbles/agent-bubble.png" alt="">
+            <div>
+              <strong>에이전트 제안</strong>
+              <p>계약서에서 요구사항 6개와 마감 3건을 찾았어요.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="mockup-section mockup-section-customizer" aria-labelledby="customizer-title">
+      <h1 id="customizer-title">5. 대시보드 위젯 커스터마이징 예시</h1>
+      <div class="app-window customizer-window">
+        <aside class="widget-sidebar" aria-label="Widget palette">
+          <div class="palette-title">위젯 추가</div>
+          <a class="is-active" href="#"><span class="nav-icon check"></span>오늘 할 일</a>
+          <a href="#"><span class="nav-icon calendar"></span>일정</a>
+          <a href="#"><span class="nav-icon ring"></span>프로젝트 시간</a>
+          <a href="#"><span class="nav-icon flow"></span>시간 흐름</a>
+          <a href="#"><span class="nav-icon agent"></span>에이전트 제안</a>
+          <a href="#"><span class="nav-icon memo"></span>메모</a>
+          <a href="#"><span class="nav-icon bell"></span>알림</a>
+          <a href="#"><span class="nav-icon file"></span>최근 자료</a>
+          <a href="#"><span class="nav-icon plus"></span>더보기</a>
+        </aside>
+
+        <section class="widget-canvas" aria-label="Custom widget dashboard">
+          <article class="widget-tile today-tile">
+            <div class="tile-head">
+              <h3>오늘 할 일</h3>
+              <span class="bubble-badge">3</span>
+            </div>
+            <label><span class="check-dot filled"></span>시안 1차 보내기</label>
+            <label><span class="check-dot"></span>계약서 검토</label>
+            <label><span class="check-dot"></span>WBS 구조 검토</label>
+          </article>
+
+          <article class="widget-tile project-ring-tile">
+            <div class="tile-head">
+              <h3>프로젝트 시간</h3>
+              <span class="chevron"></span>
+            </div>
+            <div class="graph-ring graph-ring-widget" aria-label="프로젝트 시간 2시간 15분">
+              <svg class="ring-svg" viewBox="0 0 120 120">
+                <circle class="ring-track" cx="60" cy="60" r="44"></circle>
+                <circle class="ring-segment ring-blue" cx="60" cy="60" r="44"></circle>
+                <circle class="ring-segment ring-indigo" cx="60" cy="60" r="44"></circle>
+                <circle class="ring-segment ring-violet" cx="60" cy="60" r="44"></circle>
+                <circle class="ring-segment ring-pale" cx="60" cy="60" r="44"></circle>
+              </svg>
+              <span><b>2h 15m</b><small>오늘 기록</small></span>
+            </div>
+          </article>
+
+          <article class="widget-tile agent-tile">
+            <div class="tile-head">
+              <h3>에이전트 제안</h3>
+              <span class="bubble-badge small">2</span>
+            </div>
+            <img src="./assets/visual-target/bubbles/agent-bubble.png" alt="">
+          </article>
+
+          <article class="widget-tile flow-tile">
+            <h3>시간 흐름</h3>
+            <div class="bar-row"><time>09:00</time><span>시안</span><i style="--w: 78%"></i></div>
+            <div class="bar-row"><time>10:00</time><span>제안</span><i style="--w: 62%"></i></div>
+            <div class="bar-row"><time>13:00</time><span>자료</span><i style="--w: 70%"></i></div>
+            <div class="bar-row"><time>14:00</time><span>정리</span><i style="--w: 45%"></i></div>
+          </article>
+
+          <article class="widget-tile schedule-tile">
+            <h3>일정</h3>
+            <div class="schedule-row"><span></span><b>회의</b><time>10:00</time></div>
+            <div class="schedule-row"><span></span><b>시안 검토</b><time>14:00</time></div>
+          </article>
+
+          <article class="widget-tile drop-tile">
+            <p>여기에 놓아보세요</p>
+          </article>
+        </section>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
