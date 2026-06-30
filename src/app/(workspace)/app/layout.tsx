@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Suspense } from "react";
 
 import { AppShell } from "@/components/layout/app-shell";
 
@@ -18,5 +19,9 @@ type WorkspaceLayoutProps = {
 };
 
 export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <Suspense fallback={null}>
+      <AppShell>{children}</AppShell>
+    </Suspense>
+  );
 }
