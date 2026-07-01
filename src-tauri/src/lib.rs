@@ -597,6 +597,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Mutex::new(WidgetWindowStore::default()))
+        .manage(local_files::ManagedFolderWatchers::default())
         .setup(|app| {
             // Open the on-device SQLite store (folder index, widget usage,
             // activity focus, sync outbox) and expose it as managed state.
