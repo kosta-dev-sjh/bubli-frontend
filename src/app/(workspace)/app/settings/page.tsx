@@ -13,7 +13,7 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
-import { readCurrentActivityContext } from "@/lib/local/activity-client";
+import { recordCurrentActivityContext } from "@/lib/local/activity-client";
 import {
   backupLocalSqlite,
   checkLocalSqliteIntegrity,
@@ -30,6 +30,7 @@ import {
 } from "@/lib/local/managed-folder-client";
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { tauriCommands, type AppMonitorInfo, type AppMonitorPreference } from "@/lib/tauri/commands";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
@@ -172,6 +173,12 @@ function localResultMessage<TData, TSummary>(result: LocalAdapterResult<TData, T
   return result.message;
 }
 
+function monitorLabel(monitor: AppMonitorInfo, index: number) {
+  const name = monitor.name?.trim() || `모니터 ${index + 1}`;
+  const primaryLabel = monitor.isPrimary ? " · 기본" : "";
+  return `${name}${primaryLabel} - ${monitor.size.width}x${monitor.size.height} @ ${monitor.position.x},${monitor.position.y}`;
+}
+
 function statusTone(value: string) {
   if (value.includes("못") || value.includes("필요") || value.includes("대기")) return "warning" as const;
   return "approved" as const;
@@ -187,6 +194,7 @@ export default function SettingsPage() {
   const [localFiles, setLocalFiles] = useState<Array<{ localFileId: string; name: string; path: string }>>([]);
   const [lastBackupId, setLastBackupId] = useState<string | null>(null);
   const [desktopRuntime, setDesktopRuntime] = useState(false);
+  const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -241,6 +249,26 @@ export default function SettingsPage() {
       window.clearTimeout(loadHandle);
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!desktopRuntime) {
+      return;
+    }
+
+    let cancelled = false;
+    void tauriCommands
+      .listAppMonitors()
+      .then((preference) => {
+        if (!cancelled) setMonitorPreference(preference);
+      })
+      .catch(() => {
+        if (!cancelled) setLocalActionMessage("모니터 목록을 불러올 수 없습니다");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [desktopRuntime]);
 
   const updateReadyState = useCallback((updater: (current: Extract<PageState, { kind: "ready" }>) => Extract<PageState, { kind: "ready" }>) => {
     setState((current) => (current.kind === "ready" ? updater(current) : current));
@@ -466,7 +494,7 @@ export default function SettingsPage() {
 
   const readActivity = useCallback(async () => {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
-    const result = await readCurrentActivityContext({ consentGranted });
+    const result = await recordCurrentActivityContext({ consentGranted });
     if (result.status === "ready") {
       setLocalActionMessage(`활동 감지 · ${result.data.appName}${result.data.windowTitle ? ` · ${result.data.windowTitle}` : ""}`);
       return;
@@ -474,6 +502,21 @@ export default function SettingsPage() {
 
     setLocalActionMessage(localResultMessage(result));
   }, [state]);
+
+  const selectAppMonitor = useCallback(
+    async (monitorId: string) => {
+      if (!desktopRuntime) return;
+
+      try {
+        const preference = await tauriCommands.setPreferredAppMonitor({ monitorId });
+        setMonitorPreference(preference);
+        setLocalActionMessage("앱 표시 모니터를 저장했습니다");
+      } catch {
+        setLocalActionMessage("앱 표시 모니터를 저장하지 못했습니다");
+      }
+    },
+    [desktopRuntime],
+  );
 
   const openGoogleCalendarConnect = useCallback(() => {
     if (state.kind !== "ready" || !state.settings.googleCalendarConnectUrl) return;
@@ -771,7 +814,7 @@ export default function SettingsPage() {
               </div>
               <p className={styles.guard}>화면 전체 내용과 키보드 입력은 수집하지 않습니다.</p>
               <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void readActivity()} type="button" variant="quiet">
-                현재 활동 확인
+                현재 활동 기록
               </Button>
             </GlassPanel>
           </div>
@@ -794,6 +837,25 @@ export default function SettingsPage() {
                   <StatusBadge tone={localCacheReadiness.status === "ready" ? "approved" : "neutral"}>
                     {localCacheReadiness.status === "ready" ? "준비됨" : "앱 필요"}
                   </StatusBadge>
+                </div>
+                <div className={styles.row}>
+                  <span>
+                    <strong>앱 표시 모니터</strong>
+                    <small>하이브리드 앱과 위젯을 선택한 모니터에 띄웁니다.</small>
+                  </span>
+                  <select
+                    className={styles.inlineSelect}
+                    disabled={!desktopRuntime || !monitorPreference}
+                    onChange={(event) => void selectAppMonitor(event.target.value)}
+                    value={monitorPreference?.preferredMonitorId ?? "primary"}
+                  >
+                    <option value="primary">기본 모니터</option>
+                    {monitorPreference?.monitors.map((monitor, index) => (
+                      <option key={monitor.id} value={monitor.id}>
+                        {monitorLabel(monitor, index)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 {activeFolders.length > 0 ? (
                   activeFolders.map((folder) => (
