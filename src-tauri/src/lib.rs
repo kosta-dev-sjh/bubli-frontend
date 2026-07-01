@@ -979,6 +979,7 @@ pub fn run() {
             local_files::select_managed_folder,
             local_files::scan_managed_folder,
             local_files::watch_managed_folder,
+            local_files::read_local_file,
             local_files::search_local_files,
             local_files::flush_sync_outbox,
             local_files::stage_local_file_events_for_sync,
