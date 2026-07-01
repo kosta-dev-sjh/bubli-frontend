@@ -158,6 +158,25 @@ pub struct LocalFileOpenResult {
     path: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileReindexInput {
+    local_file_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileReindexResult {
+    changed: bool,
+    checksum: Option<String>,
+    local_file_id: String,
+    local_folder_id: String,
+    name: String,
+    path: String,
+    reindexed_at: String,
+    status: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncOutboxFlushResult {
@@ -691,6 +710,130 @@ fn pending_syncable_event_count(conn: &Connection, local_folder_id: &str) -> Res
     .map_err(|error| error.to_string())
 }
 
+fn reindex_file_for_conn(
+    conn: &Connection,
+    local_file_id: &str,
+    now: i64,
+) -> Result<LocalFileReindexResult, String> {
+    let row: Option<(
+        String,
+        String,
+        String,
+        String,
+        Option<i64>,
+        Option<i64>,
+        Option<String>,
+    )> = conn
+        .query_row(
+            "SELECT id, local_folder_id, file_name, local_path, size_bytes, modified_at, checksum \
+             FROM local_files WHERE id = ?1",
+            params![local_file_id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some((
+        local_file_id,
+        local_folder_id,
+        stored_name,
+        local_path,
+        prev_size,
+        prev_modified,
+        prev_checksum,
+    )) = row
+    else {
+        return Err(format!(
+            "local file not found in managed index: {local_file_id}"
+        ));
+    };
+
+    let path = PathBuf::from(&local_path);
+    if !path.exists() {
+        let changed_count =
+            record_watch_path_delete(conn, &local_folder_id, &stored_name, &local_path, now)?;
+        return Ok(LocalFileReindexResult {
+            changed: changed_count > 0,
+            checksum: prev_checksum,
+            local_file_id,
+            local_folder_id,
+            name: stored_name,
+            path: local_path,
+            reindexed_at: ms_to_iso(now),
+            status: "MISSING".to_string(),
+        });
+    }
+
+    let metadata = std::fs::metadata(&path).map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err(format!("not a file: {local_path}"));
+    }
+
+    let file_name = path
+        .file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or(stored_name);
+    let size_bytes = metadata.len() as i64;
+    let modified_ms = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as i64);
+    let checksum = sha256_head(&path)?;
+    let changed = local_file_changed(
+        prev_size,
+        prev_modified,
+        prev_checksum.as_deref(),
+        size_bytes,
+        modified_ms,
+        &checksum,
+    );
+
+    conn.execute(
+        "UPDATE local_files \
+         SET file_name = ?2, size_bytes = ?3, modified_at = ?4, checksum = ?5, sync_status = 'LOCAL_ONLY', updated_at = ?6 \
+         WHERE id = ?1",
+        params![local_file_id, file_name, size_bytes, modified_ms, checksum, now],
+    )
+    .map_err(|error| error.to_string())?;
+    upsert_file_fts_index(conn, &local_file_id, &file_name, &local_path, &path)?;
+
+    if changed {
+        record_event(
+            conn,
+            &local_folder_id,
+            Some(local_file_id.as_str()),
+            "UPDATED",
+            &file_name,
+            &local_path,
+            Some(&checksum),
+            size_bytes,
+            modified_ms,
+            now,
+        )?;
+    }
+
+    Ok(LocalFileReindexResult {
+        changed,
+        checksum: Some(checksum),
+        local_file_id,
+        local_folder_id,
+        name: file_name,
+        path: local_path,
+        reindexed_at: ms_to_iso(now),
+        status: "REINDEXED".to_string(),
+    })
+}
+
 fn should_process_watch_event(event: &Event) -> bool {
     matches!(
         event.kind,
@@ -1214,6 +1357,17 @@ pub fn open_local_file(
     })
 }
 
+/// Re-read a locally indexed file and refresh its FTS row. If the content
+/// changed, record an UPDATED event so sync-enabled folders can reflect it.
+#[tauri::command]
+pub fn reindex_file(
+    state: State<'_, Db>,
+    input: LocalFileReindexInput,
+) -> Result<LocalFileReindexResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    reindex_file_for_conn(&conn, &input.local_file_id, now_ms())
+}
+
 /// Report the sync outbox backlog. Actual transmission is done by the frontend
 /// API client (auth tokens live there); this returns current counts so the UI
 /// can show whether anything is waiting.
@@ -1725,6 +1879,48 @@ mod tests {
         assert_eq!(stored, 1);
         assert!(result.sync_enabled);
         assert_eq!(result.pending_event_count, 1);
+    }
+
+    #[test]
+    fn reindex_file_refreshes_fts_and_records_updated_event() {
+        let conn = test_connection();
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-reindex-test-{}.txt", Uuid::new_v4()));
+        std::fs::write(&path, "before text").expect("write first content");
+        let first_checksum = sha256_head(&path).expect("first checksum");
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![path.parent().unwrap().to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, size_bytes, checksum, sync_status, modified_at, updated_at) \
+             VALUES ('file-1', 'folder-1', 'note.txt', ?1, 11, ?2, 'SYNCED', 1, 1)",
+            params![path.to_string_lossy().to_string(), first_checksum],
+        )
+        .expect("insert local file");
+        upsert_file_fts_index(&conn, "file-1", "note.txt", &path.to_string_lossy(), &path)
+            .expect("initial fts");
+
+        std::fs::write(&path, "after searchable text").expect("write changed content");
+        let result = reindex_file_for_conn(&conn, "file-1", 20).expect("reindex file");
+        let items = search_local_files_fts(&conn, "searchable", 10).expect("search changed text");
+        let event_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM local_file_events WHERE local_file_id = 'file-1' AND event_type = 'UPDATED'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read updated event count");
+
+        assert!(result.changed);
+        assert_eq!(result.status, "REINDEXED");
+        assert_eq!(items.len(), 1);
+        assert_eq!(event_count, 1);
+
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]

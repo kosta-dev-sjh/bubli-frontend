@@ -17,6 +17,8 @@ import type {
   LocalFileOpenAdapterResult,
   LocalFilePreviewAdapterInput,
   LocalFilePreviewAdapterResult,
+  LocalFileReindexAdapterInput,
+  LocalFileReindexAdapterResult,
   LocalFileSearchAdapterInput,
   LocalFileSearchAdapterResult,
   ManagedFolderIndexProgressAdapterResult,
@@ -197,6 +199,22 @@ export async function readPersonalLocalFilePreview(
 
   return runTauriAdapter(TAURI_COMMANDS.readLocalFilePreview, () =>
     tauriCommands.readLocalFilePreview(tauriInput),
+  );
+}
+
+export async function reindexPersonalLocalFile(
+  input: LocalFileReindexAdapterInput,
+): Promise<LocalFileReindexAdapterResult> {
+  if (!isTauriRuntime()) {
+    return unavailable(TAURI_COMMANDS.reindexFile);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.reindexFile);
+  }
+
+  return runTauriAdapter(TAURI_COMMANDS.reindexFile, () =>
+    tauriCommands.reindexFile({ localFileId: input.localFileId }),
   );
 }
 

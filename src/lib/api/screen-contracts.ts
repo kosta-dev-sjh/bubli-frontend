@@ -100,7 +100,7 @@ export const screenApiContracts = [
     boundary: "personal-resource",
     currentCodeNotes: [
       "Personal resource workspace uses resourcesApi.listPersonal.",
-      "Managed-folder selection, scan, watch, local search, index progress, and sync toggle are Tauri IPC/local adapter responsibilities.",
+      "Managed-folder selection, scan, watch, local search, single-file reindex, index progress, and sync toggle are Tauri IPC/local adapter responsibilities.",
     ],
     id: "personal-resources",
     label: "개인 자료",
@@ -271,7 +271,7 @@ export const screenApiContracts = [
       "Settings page currently reads authApi.getMe for account display.",
       "settingsApi contains profile-adjacent preferences, privacy consent, notification preference, and storage calls.",
       "Activity logs are consent-gated and surfaced from /api/activity/today with per-log delete.",
-      "Managed-folder controls use Tauri IPC/local adapters for folder selection, scan/watch, index progress, sync toggle, and local search instead of invented server endpoints.",
+      "Managed-folder controls use Tauri IPC/local adapters for folder selection, scan/watch, index progress, sync toggle, local search, and single-file reindex instead of invented server endpoints.",
     ],
     id: "settings",
     label: "설정",

@@ -125,6 +125,7 @@ export const screenApiContract: readonly ScreenApiBinding[] = [
       "tauri:scan_managed_folder",
       "tauri:get_index_progress",
       "tauri:set_folder_sync",
+      "tauri:reindex_file",
     ],
     state: "PREVIEW_FALLBACK",
     refresh: "AUTO_REVALIDATE",

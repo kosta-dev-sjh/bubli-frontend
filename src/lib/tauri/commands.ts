@@ -17,6 +17,7 @@ export const TAURI_COMMANDS = {
   readTauriAuthSession: "read_tauri_auth_session",
   readActivityContext: "read_activity_context",
   readLocalFilePreview: "read_local_file_preview",
+  reindexFile: "reindex_file",
   recoverTimerState: "recover_timer_state",
   recordActivityContext: "record_activity_context",
   recordTimerState: "record_timer_state",
@@ -145,6 +146,21 @@ export type LocalFileOpenResult = {
   name: string;
   openedAt: string;
   path: string;
+};
+
+export type LocalFileReindexInput = {
+  localFileId: string;
+};
+
+export type LocalFileReindexResult = {
+  changed: boolean;
+  checksum?: string | null;
+  localFileId: string;
+  localFolderId: string;
+  name: string;
+  path: string;
+  reindexedAt: string;
+  status: "REINDEXED" | "MISSING";
 };
 
 export type LocalFileEventsSyncStageInput = {
@@ -511,6 +527,10 @@ export type TauriCommandContract = {
     args: LocalFilePreviewInput;
     result: LocalFilePreviewResult;
   };
+  reindex_file: {
+    args: LocalFileReindexInput;
+    result: LocalFileReindexResult;
+  };
   recover_timer_state: {
     args: undefined;
     result: TimerRecoveryState;
@@ -680,6 +700,9 @@ export const tauriCommands = {
   },
   readLocalFilePreview(input: LocalFilePreviewInput) {
     return invokeTauri<LocalFilePreviewResult>(TAURI_COMMANDS.readLocalFilePreview, { input });
+  },
+  reindexFile(input: LocalFileReindexInput) {
+    return invokeTauri<LocalFileReindexResult>(TAURI_COMMANDS.reindexFile, { input });
   },
   recoverTimerState() {
     return invokeTauri<TimerRecoveryState>(TAURI_COMMANDS.recoverTimerState);

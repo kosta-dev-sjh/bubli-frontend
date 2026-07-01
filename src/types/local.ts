@@ -9,6 +9,8 @@ import type {
   LocalFileOpenResult,
   LocalFilePreviewInput,
   LocalFilePreviewResult,
+  LocalFileReindexInput,
+  LocalFileReindexResult,
   LocalFileSearchInput,
   LocalFileSearchResult,
   ManagedFolderCommandInput,
@@ -159,6 +161,8 @@ export type LocalFileOpenAdapterInput = LocalFileOpenInput & LocalFolderScopeInp
 export type LocalFileOpenAdapterResult = LocalAdapterResult<LocalFileOpenResult>;
 export type LocalFilePreviewAdapterInput = LocalFilePreviewInput & LocalFolderScopeInput;
 export type LocalFilePreviewAdapterResult = LocalAdapterResult<LocalFilePreviewResult>;
+export type LocalFileReindexAdapterInput = LocalFileReindexInput & LocalFolderScopeInput;
+export type LocalFileReindexAdapterResult = LocalAdapterResult<LocalFileReindexResult>;
 export type ActivityContextAdapterResult = LocalAdapterResult<ActivityContextResult>;
 export type ActivityContextRecordAdapterResult = LocalAdapterResult<ActivityContextRecordResult>;
 export type ActivityBufferSyncAdapterResult = LocalAdapterResult<ActivityBufferSyncResult>;

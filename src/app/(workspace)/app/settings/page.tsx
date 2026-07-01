@@ -25,6 +25,7 @@ import {
 import {
   getPersonalManagedFolderIndexProgress,
   openPersonalLocalFile,
+  reindexPersonalLocalFile,
   scanPersonalManagedFolder,
   searchPersonalLocalFiles,
   selectPersonalManagedFolder,
@@ -604,6 +605,36 @@ export default function SettingsPage() {
     setLocalActionMessage(result.status === "ready" ? `${result.data.name} 파일을 열었습니다` : localResultMessage(result));
   }, []);
 
+  const reindexLocalFile = useCallback(
+    async (localFileId: string) => {
+      const result = await reindexPersonalLocalFile({ localFileId });
+      if (result.status !== "ready") {
+        setLocalActionMessage(localResultMessage(result));
+        return;
+      }
+
+      const query = folderSearchQuery.trim();
+      if (query) {
+        void searchPersonalLocalFiles({ limit: 20, query }).then((searchResult) => {
+          if (searchResult.status !== "ready") return;
+          setLocalFiles(
+            searchResult.data.items.map((item) => ({
+              localFileId: item.localFileId,
+              name: item.name,
+              path: item.path,
+            })),
+          );
+        });
+      }
+      setLocalActionMessage(
+        result.data.status === "MISSING"
+          ? `${result.data.name} 파일이 사라져 삭제 후보로 표시했습니다`
+          : `${result.data.name} 파일을 다시 색인했습니다${result.data.changed ? " · 변경 후보 생성" : ""}`,
+      );
+    },
+    [folderSearchQuery],
+  );
+
   useEffect(() => {
     if (!desktopRuntime) return;
 
@@ -1156,6 +1187,15 @@ export default function SettingsPage() {
                           variant="quiet"
                         >
                           열기
+                        </Button>
+                        <Button
+                          disabled={!desktopRuntime}
+                          onClick={() => void reindexLocalFile(file.localFileId)}
+                          size="sm"
+                          type="button"
+                          variant="quiet"
+                        >
+                          재색인
                         </Button>
                       </div>
                     </div>

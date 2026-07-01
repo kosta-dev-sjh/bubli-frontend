@@ -172,6 +172,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.reindexFile,
+    responsibility: "Re-read one locally indexed personal file, refresh FTS, and stage a local UPDATED/DELETED event when needed",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.readLocalFilePreview,
     responsibility: "Read a bounded preview for a locally indexed personal file",
     reflectsToServer: false,
