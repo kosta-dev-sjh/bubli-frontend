@@ -1,6 +1,6 @@
 ﻿sheet,row,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12
 요약,1,Bubli 프론트엔드 진행 요약 · 2026-07-01 (목업 제거·최신 백엔드 #145·API 용도맵 반영),,,,,,,,,,,
-요약,2,"측정 기준: 기능/API CSV·색상표, 최신 백엔드 origin/develop 03f7541, 프론트 코드 실측 · 헤드라인=① 가중합",,,,,,,,,,,
+요약,2,"측정 기준: 기능/API CSV·색상표, 최신 백엔드 origin/develop 5f5d1ce(#146), 프론트 코드 실측 · 프로젝트룸 생성 런타임 검증 반영",,,,,,,,,,,
 요약,3,,,,,,,,,,,,
 요약,4,프론트 구현·연결 (코드 기준),,76%,,,,,,,,,
 요약,5,배포 실동작 (인증 완료·실백엔드 왕복 전),,55%,,,,,,,,,
@@ -50,7 +50,7 @@
 기능 연결 상세,8,대시보드,워크스페이스 대시보드,/app,dashboardApi+projectRoomApi+todoApi+widgetApi,GET /api/dashboard/work · /api/dashboard/tasks · GET /api/project-rooms · GET /api/tasks · GET /api/widget/summary,O,O,O,부분(실계정 검증 필요),일치,됨,대시보드는 실제 API 우선. preview dashboard/resources는 NEXT_PUBLIC_BUBLI_PREVIEW_DATA=true에서 실패 fallback으로만 노출.
 기능 연결 상세,9,회원앱 — 프로젝트룸,,,,,,,,,,,
 기능 연결 상세,10,프로젝트룸,룸 목록,/app/project-rooms,projectRoomApi,GET/POST /api/project-rooms,O,O,O,O,일치,됨,다른 룸 화면 진입점
-기능 연결 상세,11,프로젝트룸,룸 생성,/app/project-rooms/new,projectRoom+resources+agent,POST /project-rooms · /resources · /ai/*,O,O,O,O,일치,됨,업로드+분석 트리거
+기능 연결 상세,11,프로젝트룸,룸 생성,/app/project-rooms/new,projectRoom+resources+agent,POST /api/project-rooms · 선택 파일 업로드 /api/resources · 에이전트 문서 검토 트리거,O,O,O,O,일치,됨,"2026-07-01 로컬 백엔드+브라우저 버튼 검증 완료: POST /api/project-rooms 200, 생성 후 룸 상세·WBS·자료·멤버 조회 200. 캡처 output/playwright/project-room-create-runtime-2026-07-01.png."
 기능 연결 상세,12,프로젝트룸,룸 상세,/app/project-rooms/[roomId],projectRoom+calendar+agent+resources+wbs,GET /project-rooms/{id} · /members · /events · /resources · /wbs-board · /agent/suggestions,O,O,O,부분(실계정 검증 필요),일치,됨,룸 홈은 실제 API 우선. preview 룸/멤버/WBS/일정/자료/후보는 명시 개발 fallback으로만 제한.
 기능 연결 상세,13,프로젝트룸,룸 자료보드,[roomId]/resources,resourcesApi,GET /project-rooms/{id}/resources · POST /api/resources · GET /api/resources/{id}/download-url,O,O,O,부분(업로드 실파일 검증 필요),일치,됨,룸 자료 목록/업로드 API 우선. 업로드 실패 시 preview 리소스 성공 처리 제거.
 기능 연결 상세,14,프로젝트룸,룸 작업(WBS),[roomId]/work,wbsApi(+agent+projectRoom),GET /wbs-board · /wbs-items · POST /wbs-items · PATCH /wbs-items/{id} · DELETE /wbs-items/{id} · reorder,O,O,O,O,일치,됨,"WBS/칸반/후보를 보기 전환으로 분리. 칸반 드래그 상태 변경, WBS 트리+상세, WBS 생성·수정·상태 변경·삭제 연결. docs/work-board-requirements-2026-07-01.md 기준."
