@@ -249,6 +249,11 @@
   gap: 10px;
 }
 
+.activityList {
+  display: grid;
+  gap: 8px;
+}
+
 .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

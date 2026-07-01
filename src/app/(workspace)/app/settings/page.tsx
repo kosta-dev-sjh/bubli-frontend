@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/theme";
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { activityApi } from "@/features/activity/api/activityApi";
 import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
@@ -32,6 +33,7 @@ import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-c
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { tauriCommands, type AppMonitorInfo, type AppMonitorPreference } from "@/lib/tauri/commands";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
+import type { ActivityLogResponse } from "@/types/api/activity";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
 import type {
@@ -158,6 +160,17 @@ function storageLabel(storage: StorageUsageResponse | null) {
   return `${byteLabel(storage.usedBytes)} / ${byteLabel(storage.limitBytes)}`;
 }
 
+function activityTimeLabel(activity: ActivityLogResponse) {
+  const startedAt = new Date(activity.startedAt);
+  const timeLabel = Number.isNaN(startedAt.getTime())
+    ? "시간 확인 전"
+    : startedAt.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  const seconds = Math.max(0, Math.trunc(activity.durationSeconds ?? 0));
+  const durationLabel = seconds > 0 ? `${Math.max(1, Math.round(seconds / 60))}분` : "방금";
+
+  return `${timeLabel} · ${durationLabel}`;
+}
+
 function userToProfileDraft(user: AuthUser) {
   return {
     locale: user.locale ?? "ko",
@@ -192,6 +205,8 @@ export default function SettingsPage() {
   const [localActionMessage, setLocalActionMessage] = useState<string | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState("");
   const [localFiles, setLocalFiles] = useState<Array<{ localFileId: string; name: string; path: string }>>([]);
+  const [todayActivities, setTodayActivities] = useState<ActivityLogResponse[]>([]);
+  const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
   const [lastBackupId, setLastBackupId] = useState<string | null>(null);
   const [desktopRuntime, setDesktopRuntime] = useState(false);
   const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
@@ -203,15 +218,17 @@ export default function SettingsPage() {
 
     try {
       const user = await authApi.getMe();
-      const [notifications, privacy, storage, widgetBubbles, widgetUsage] = await Promise.allSettled([
+      const [notifications, privacy, storage, widgetBubbles, widgetUsage, activities] = await Promise.allSettled([
         settingsApi.getNotificationPreferences(),
         settingsApi.getPrivacyConsents(),
         settingsApi.getStorageUsage(),
         widgetApi.getBubbles(),
         widgetApi.getTodayUsageRollups(),
+        activityApi.getToday(),
       ]);
 
       setProfileDraft(userToProfileDraft(user));
+      setTodayActivities(settledValue(activities, []));
       setState({
         kind: "ready",
         settings: {
@@ -232,6 +249,7 @@ export default function SettingsPage() {
       }
 
       setProfileDraft(defaultProfileDraft);
+      setTodayActivities([]);
       setState({ kind: "offline" });
     }
   }, []);
@@ -496,12 +514,32 @@ export default function SettingsPage() {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
     const result = await recordCurrentActivityContext({ consentGranted });
     if (result.status === "ready") {
+      setTodayActivities(result.data.todayActivities);
       setLocalActionMessage(`활동 감지 · ${result.data.appName}${result.data.windowTitle ? ` · ${result.data.windowTitle}` : ""}`);
       return;
     }
 
     setLocalActionMessage(localResultMessage(result));
   }, [state]);
+
+  const deleteActivity = useCallback(
+    async (activityId: string) => {
+      if (state.kind !== "ready") return;
+
+      setDeletingActivityId(activityId);
+      try {
+        await activityApi.delete(activityId);
+        setTodayActivities((current) => current.filter((activity) => activity.id !== activityId));
+        setLocalActionMessage("활동 기록을 삭제했습니다");
+      } catch {
+        if (shouldUseWorkspacePreviewData()) return;
+        setLocalActionMessage("활동 기록을 삭제하지 못했습니다");
+      } finally {
+        setDeletingActivityId(null);
+      }
+    },
+    [state.kind],
+  );
 
   const selectAppMonitor = useCallback(
     async (monitorId: string) => {
@@ -816,6 +854,31 @@ export default function SettingsPage() {
               <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void readActivity()} type="button" variant="quiet">
                 현재 활동 기록
               </Button>
+              <div className={styles.activityList}>
+                {todayActivities.length > 0 ? (
+                  todayActivities.slice(0, 4).map((activity) => (
+                    <div className={styles.row} key={activity.id}>
+                      <span>
+                        <strong>{activity.appName ?? "앱 이름 없음"}</strong>
+                        <small>
+                          {activityTimeLabel(activity)}
+                          {activity.windowTitle ? ` · ${activity.windowTitle}` : ""}
+                        </small>
+                      </span>
+                      <Button
+                        disabled={deletingActivityId === activity.id}
+                        onClick={() => void deleteActivity(activity.id)}
+                        type="button"
+                        variant="quiet"
+                      >
+                        삭제
+                      </Button>
+                    </div>
+                  ))
+                ) : (
+                  <p className={styles.emptyRow}>오늘 서버에 기록된 활동이 없습니다.</p>
+                )}
+              </div>
             </GlassPanel>
           </div>
 
