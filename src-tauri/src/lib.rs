@@ -281,6 +281,14 @@ fn widget_window_label(widget: &WidgetWindowState) -> String {
     format!("{WIDGET_WINDOW_LABEL_PREFIX}-{window_key}")
 }
 
+fn widget_window_title(widget: &WidgetWindowState) -> &'static str {
+    match widget.active_bubble.as_str() {
+        "bar" => "Bubli widget bar",
+        "menu" => "Bubli widget menu",
+        _ => "Bubli widget",
+    }
+}
+
 fn is_widget_window_label(label: &str) -> bool {
     label.starts_with(&format!("{WIDGET_WINDOW_LABEL_PREFIX}-"))
 }
@@ -572,7 +580,7 @@ fn build_widget_window(
         label,
         WebviewUrl::App(widget_window_url(widget).into()),
     )
-    .title("Bubli 버블")
+    .title(widget_window_title(widget))
     .inner_size(size.width, size.height)
     .min_inner_size(size.width, size.height)
     .max_inner_size(size.width, size.height)
@@ -816,14 +824,27 @@ fn app_ready(
     monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
 ) -> Result<&'static str, String> {
-    open_login_startup_widget(&app, &monitor_state, &state, "bar", "bar")?;
-    open_login_startup_widget(
+    let bar_result = open_login_startup_widget(&app, &monitor_state, &state, "bar", "bar");
+    let default_result = open_login_startup_widget(
         &app,
         &monitor_state,
         &state,
         DEFAULT_WIDGET_BUBBLE_TYPE,
         DEFAULT_WIDGET_BUBBLE_TYPE,
-    )?;
+    );
+
+    if let Err(error) = &bar_result {
+        eprintln!("failed to open login startup widget bar: {error}");
+    }
+    if let Err(error) = &default_result {
+        eprintln!("failed to open login startup default widget: {error}");
+    }
+    if let (Err(bar_error), Err(default_error)) = (bar_result, default_result) {
+        return Err(format!(
+            "failed to open login startup widgets: bar={bar_error}; default={default_error}"
+        ));
+    }
+
     Ok("bubli-tauri-ready")
 }
 
