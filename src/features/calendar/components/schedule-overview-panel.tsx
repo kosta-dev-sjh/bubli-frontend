@@ -37,13 +37,13 @@ const schedules: ScheduleItem[] = [
     title: "클라이언트 확인 미팅",
   },
   {
-    connectedItem: "WBS 2.1 납품물 정리",
+    connectedItem: "WBS 2.1 결과물 정리",
     dateLabel: "오늘",
     kind: "deadline",
     projectRoom: "브랜드 소개서",
     source: "internal",
     time: "15:00",
-    title: "1차 납품 마감",
+    title: "1차 결과물 마감",
   },
   {
     connectedItem: "타이머 버블 집중 세션",

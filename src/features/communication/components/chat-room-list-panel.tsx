@@ -26,7 +26,7 @@ const chatRooms: ChatRoomItem[] = [
   {
     cacheStatus: "CACHE_VALID",
     id: "room-chat-1",
-    lastMessage: "업무 범위 문서 납품일과 회의록 일정이 달라요. /bubli 질문으로 정리해볼게요.",
+    lastMessage: "업무 범위 문서 마감일과 회의록 일정이 달라요. /bubli 질문으로 정리해볼게요.",
     lastSequence: 128,
     memberCount: 5,
     permissionLabel: "프로젝트룸 멤버",

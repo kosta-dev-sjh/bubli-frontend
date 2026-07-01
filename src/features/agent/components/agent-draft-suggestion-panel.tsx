@@ -25,7 +25,7 @@ const suggestions: DraftSuggestion[] = [
   {
     confidence: 82,
     source: "요구사항 문서",
-    summary: "납품 파일 형식과 검수 담당자를 클라이언트에게 묻는 문장입니다.",
+    summary: "제출 파일 형식과 검수 담당자를 클라이언트에게 묻는 문장입니다.",
     title: "클라이언트 질문 초안",
     type: "client",
   },
@@ -101,9 +101,9 @@ export function AgentDraftSuggestionPanel() {
 
           <div className="agent-draft__message">
             <StatusBadge tone="room">보낼 문장 후보</StatusBadge>
-            <h3>검수 기준과 납품 파일 형식을 한 번 더 확인하고 싶습니다.</h3>
+            <h3>검수 기준과 제출 파일 형식을 한 번 더 확인하고 싶습니다.</h3>
             <p>
-              업무 범위 문서에는 최종 PDF 납품으로 적혀 있고, 회의록에는 원본 파일 전달도 언급되어 있어 어느 형식을
+              업무 범위 문서에는 최종 PDF 결과물으로 적혀 있고, 회의록에는 원본 파일 전달도 언급되어 있어 어느 형식을
               기준으로 검수할지 확인 부탁드립니다.
             </p>
           </div>

@@ -83,7 +83,7 @@ export const defaultTodos: TodoItem[] = [
     source: "APPROVED_CANDIDATE",
     status: "IN_PROGRESS",
     surfaces: ["WORK_BOARD", "DASHBOARD", "BUBBLE"],
-    title: "납품일 확인 질문 보내기",
+    title: "마감일 확인 질문 보내기",
   },
   {
     assigneeLabel: "나",

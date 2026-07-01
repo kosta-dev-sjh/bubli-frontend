@@ -21,7 +21,7 @@ const memoryItems: MemoryItem[] = [
     title: "결정사항 요약",
   },
   {
-    detail: "납품 파일명과 검수 기준이 아직 불명확",
+    detail: "제출 파일명과 검수 기준이 아직 불명확",
     range: "대화 249-263",
     status: "review",
     title: "남은 질문",

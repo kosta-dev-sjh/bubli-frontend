@@ -122,7 +122,7 @@ const defaultFields: ExtractedField[] = [
     confidence: 91,
     id: "field-deliverable",
     kind: "DELIVERABLE",
-    label: "납품물",
+    label: "결과물",
     sourceLabel: "요구사항 문서",
     status: "DRAFT",
     value: "번역본, 용어집, 검수 질문 목록",
@@ -132,7 +132,7 @@ const defaultFields: ExtractedField[] = [
 const defaultReviewItems: ReviewItem[] = [
   {
     id: "review-due-date",
-    message: "업무 범위 문서 납품일은 7월 15일이고 회의록에는 7월 20일로 적혀 있습니다.",
+    message: "업무 범위 문서 마감일은 7월 15일이고 회의록에는 7월 20일로 적혀 있습니다.",
     sourceLabel: "업무 범위 문서 2쪽, 회의록_0618.md",
     tone: "conflict",
   },

@@ -32,7 +32,7 @@ const compareFields: CompareField[] = [
   {
     contractValue: "상세페이지 120건",
     estimateValue: "120건",
-    field: "납품물",
+    field: "결과물",
     requirementValue: "상세페이지 120건",
     status: "match",
   },
@@ -95,7 +95,7 @@ export function ResourceComparePanel() {
             <Chip selected>자료보드</Chip>
             <h2>업무 범위 문서, 견적서, 요구사항 문서의 값 차이를 확인 필요 항목으로 정리합니다</h2>
             <p>
-              에이전트는 금액 참고값, 부가세, 납품물, 검수 기준, 개인정보, 저작권 조건을 비교합니다. 결과는 판단이
+              에이전트는 금액 참고값, 부가세, 결과물, 검수 기준, 개인정보, 저작권 조건을 비교합니다. 결과는 판단이
               아니라 사용자가 확인할 후보입니다.
             </p>
           </div>

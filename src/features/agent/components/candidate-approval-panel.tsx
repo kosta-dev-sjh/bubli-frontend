@@ -35,7 +35,7 @@ const candidates: Candidate[] = [
   {
     assignee: "나",
     confidence: 91,
-    description: "번역 범위를 1차 번역, 용어 검수, 최종 납품 단계로 나눈 WBS 후보입니다.",
+    description: "번역 범위를 1차 번역, 용어 검수, 최종 완료 단계로 나눈 WBS 후보입니다.",
     dueLabel: "D-5",
     source: "업무 범위 문서 · 요구사항 문서",
     status: "pending",
@@ -45,11 +45,11 @@ const candidates: Candidate[] = [
   {
     assignee: "나",
     confidence: 87,
-    description: "납품일 차이를 확인한 뒤 클라이언트에게 보낼 질문으로 남길 수 있습니다.",
+    description: "마감일 차이를 확인한 뒤 클라이언트에게 보낼 질문으로 남길 수 있습니다.",
     dueLabel: "오늘",
     source: "업무 범위 문서 · 회의록",
     status: "edited",
-    title: "납품일 기준 확인 질문",
+    title: "마감일 기준 확인 질문",
     type: "question",
   },
   {

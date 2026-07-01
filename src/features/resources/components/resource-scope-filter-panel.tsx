@@ -226,7 +226,7 @@ export function ResourceScopeFilterPanel({
           </div>
           <div className={styles.detailCard}>
             <b>확인할 항목</b>
-            <span>납품일과 수정 범위를 비교해 검토합니다.</span>
+            <span>마감일과 수정 범위를 비교해 검토합니다.</span>
           </div>
           <div className={styles.detailCard}>
             <b>관련 자료</b>

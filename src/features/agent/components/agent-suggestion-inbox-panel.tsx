@@ -60,14 +60,14 @@ const defaultItems: AgentSuggestionInboxItem[] = [
   },
   {
     confidence: 87,
-    description: "업무 범위 문서와 회의록의 납품일이 달라 클라이언트에게 확인할 질문입니다.",
+    description: "업무 범위 문서와 회의록의 마감일이 달라 클라이언트에게 확인할 질문입니다.",
     dueLabel: "오늘",
     id: "suggestion-question-due-date",
     kind: "QUESTION",
     projectRoomName: "업무범위정리 정리",
     sourceLabel: "업무 범위 문서 · 회의록",
     status: "EDITED",
-    title: "납품일 기준 확인 질문",
+    title: "마감일 기준 확인 질문",
   },
   {
     confidence: 83,

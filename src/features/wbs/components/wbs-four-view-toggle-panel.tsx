@@ -64,7 +64,7 @@ export function WbsFourViewTogglePanel({
           title: "칸반",
         },
         timeline: {
-          body: "오늘부터 납품일까지 필요한 작업과 일정을 시간순으로 봅니다.",
+          body: "오늘부터 마감일까지 필요한 작업과 일정을 시간순으로 봅니다.",
           title: "타임라인",
         },
         tree: {

@@ -129,7 +129,7 @@ const defaultSteps: ProcessingStep[] = [
     label: "자료 분석",
     progress: 0,
     status: "PENDING",
-    supportingText: "작업 범위, 납품물, 확인 필요 항목, WBS/TODO 후보를 생성합니다.",
+    supportingText: "작업 범위, 결과물, 확인 필요 항목, WBS/TODO 후보를 생성합니다.",
   },
   {
     detailLabel: "관련 문서",

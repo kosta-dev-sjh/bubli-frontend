@@ -27,8 +27,8 @@ const uploadedResources: UploadedResource[] = [
 
 const candidates: CandidateItem[] = [
   { label: "프로젝트명", target: "프로젝트룸", value: "브랜드 상세페이지" },
-  { label: "납품일", target: "일정", value: "2026-07-15" },
-  { label: "납품물", target: "WBS", value: "상품 상세 120건 번역" },
+  { label: "마감일", target: "일정", value: "2026-07-15" },
+  { label: "결과물", target: "WBS", value: "상품 상세 120건 번역" },
   { label: "확인 질문", target: "TODO", value: "검수 기준과 수정 횟수 확인" },
 ];
 
@@ -83,7 +83,7 @@ export function ProjectRoomCreateFlowPanel() {
             <Chip selected>프로젝트룸 생성</Chip>
             <h2>자료를 올리면 에이전트가 후보를 만들고, 확인한 값만 업무에 반영합니다</h2>
             <p>
-              업무 범위 문서, 견적서, 요구사항 문서, 회의록을 모아 문서 종류를 분류합니다. 작업 범위, 납품물, 마감, 확인
+              업무 범위 문서, 견적서, 요구사항 문서, 회의록을 모아 문서 종류를 분류합니다. 작업 범위, 결과물, 마감, 확인
               질문, WBS/TODO 후보는 사용자가 승인한 뒤에만 저장됩니다.
             </p>
           </div>
@@ -137,7 +137,7 @@ export function ProjectRoomCreateFlowPanel() {
           <span className="bubli-icon-tile" aria-hidden="true">
             <ListChecks size={16} strokeWidth={2.1} />
           </span>
-          <p>문서 사이의 금액 참고값, 부가세, 납품물, 검수 기준, 개인정보, 저작권 조건 차이를 확인 필요 항목으로 표시합니다.</p>
+          <p>문서 사이의 금액 참고값, 부가세, 결과물, 검수 기준, 개인정보, 저작권 조건 차이를 확인 필요 항목으로 표시합니다.</p>
         </div>
         <div>
           <span className="bubli-icon-tile" aria-hidden="true">

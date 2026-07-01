@@ -79,7 +79,7 @@ export const defaultAssignedTodos: AssignedTodo[] = [
     priority: "MEDIUM",
     progressPercent: 30,
     projectRoomLabel: "브랜드 상세페이지",
-    title: "납품일 확인 질문 보내기",
+    title: "마감일 확인 질문 보내기",
   },
   {
     assigneeLabel: "팀원 C",

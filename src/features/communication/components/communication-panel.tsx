@@ -112,7 +112,7 @@ export function CommunicationPanel() {
             />
             <ChatMessage
               author="Bubli"
-              message="업무 범위 문서와 회의록의 납품일 표현이 다릅니다. 확인 질문 후보를 만들 수 있습니다."
+              message="업무 범위 문서와 회의록의 마감일 표현이 다릅니다. 확인 질문 후보를 만들 수 있습니다."
               roleLabel="프로젝트룸 에이전트"
               timeLabel="10:25"
             />

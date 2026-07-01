@@ -43,7 +43,7 @@ export const DASHBOARD_STORY_DATA: DashboardViewData = {
   agent: { message: "자료 3건에서 요구사항 후보 6개를 찾았어요. 정리해 둘까요?", count: 6 },
   approvals: [
     { id: "a1", title: "요구사항 후보 6개 승인", from: "에이전트" },
-    { id: "a2", title: "납품 일정 변경 확인", from: "A사 룸" },
+    { id: "a2", title: "결과물 일정 변경 확인", from: "A사 룸" },
   ],
   schedule: [
     { id: "s1", time: "11:00", title: "A사 정기 미팅" },

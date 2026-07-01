@@ -19,7 +19,7 @@ const calendarItems: CalendarItem[] = [
     source: "Bubli",
     status: "confirmed",
     time: "10:00",
-    title: "납품물 범위 확인",
+    title: "결과물 범위 확인",
   },
   {
     projectHint: "외부 일정",

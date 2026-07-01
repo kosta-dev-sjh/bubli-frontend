@@ -72,10 +72,10 @@ const reviewMeta: Record<ReviewState, { actionLabel: string; label: string; tone
 
 export const defaultAnalysisSuggestions: AnalysisSuggestion[] = [
   {
-    detail: "납품일 후보를 7월 15일로 읽었습니다. 일정에 넣기 전 원문 날짜와 한 번 더 맞춥니다.",
+    detail: "마감일 후보를 7월 15일로 읽었습니다. 일정에 넣기 전 원문 날짜와 한 번 더 맞춥니다.",
     evidenceLabel: "업무 범위 문서 2쪽",
     reviewState: "PENDING",
-    title: "납품일 후보",
+    title: "마감일 후보",
     type: "SCHEDULE",
   },
   {

@@ -374,7 +374,7 @@ export default function ProjectRoomHomePage() {
                   <CalendarDays aria-hidden size={18} strokeWidth={1.9} />
                   <span>
                     <strong>일정</strong>
-                    <span>{roomContent.nextSchedule ? `${roomContent.nextSchedule.title} · ${formatDue(roomContent.nextSchedule.startsAt)}` : "납품일과 회의 일정을 연결"}</span>
+                    <span>{roomContent.nextSchedule ? `${roomContent.nextSchedule.title} · ${formatDue(roomContent.nextSchedule.startsAt)}` : "마감일과 회의 일정을 연결"}</span>
                   </span>
                   <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
                 </Link>

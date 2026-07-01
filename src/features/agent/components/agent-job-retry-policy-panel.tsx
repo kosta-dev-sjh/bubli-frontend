@@ -87,7 +87,7 @@ export const defaultAgentRetryJobs: AgentJob[] = [
     structureLabel: "질문 후보",
     strategyLabel: "클라이언트 질문 정리",
     status: "SUCCEEDED",
-    title: "납품일 확인 질문",
+    title: "마감일 확인 질문",
   },
 ];
 

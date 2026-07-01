@@ -79,7 +79,7 @@ const sequenceSteps: SequenceStep[] = [
 
 const messageTrace: MessageTrace[] = [
   {
-    body: "업무 범위 문서 기준으로 납품일 확인 부탁드려요.",
+    body: "업무 범위 문서 기준으로 마감일 확인 부탁드려요.",
     clientMessageId: "전송 ID A",
     roomSequence: 128,
     state: "read",

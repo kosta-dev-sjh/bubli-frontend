@@ -23,7 +23,7 @@ const versions: VersionItem[] = [
     version: "v2.1",
   },
   {
-    note: "납품일 표현이 회의록과 달라 확인 필요",
+    note: "마감일 표현이 회의록과 달라 확인 필요",
     status: "review",
     title: "업무범위정리_최종본_v2.pdf",
     updatedAt: "어제 18:10",

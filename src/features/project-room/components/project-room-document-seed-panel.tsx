@@ -96,13 +96,13 @@ export const defaultSeedFields: ExtractedField[] = [
     value: "ABC 콘텐츠",
   },
   {
-    label: "납품일",
+    label: "마감일",
     sourceLabel: "업무 범위 문서, 회의록",
     status: "NEEDS_REVIEW",
     value: "2026.07.15 또는 2026.07.20",
   },
   {
-    label: "납품물",
+    label: "결과물",
     sourceLabel: "요구사항 문서",
     status: "READY",
     value: "번역 원고, 용어집, 검수표",
@@ -122,7 +122,7 @@ export const defaultSeedTargets: SeedTarget[] = [
     tone: "room",
   },
   {
-    description: "승인한 납품물과 작업 범위만 WBS와 TODO 후보로 이어집니다.",
+    description: "승인한 결과물과 작업 범위만 WBS와 TODO 후보로 이어집니다.",
     label: "WBS/TODO 후보",
     tone: "todo",
   },
@@ -182,7 +182,7 @@ export function ProjectRoomDocumentSeedPanel({
           </span>
           <div>
             <strong>후보 생성</strong>
-            <p>작업 범위, 납품물, 마감, 확인 질문을 후보로 정리합니다.</p>
+            <p>작업 범위, 결과물, 마감, 확인 질문을 후보로 정리합니다.</p>
           </div>
         </article>
         <ArrowRight className={styles.flowArrow} size={20} strokeWidth={2.1} aria-hidden="true" />

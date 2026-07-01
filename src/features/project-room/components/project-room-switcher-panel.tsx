@@ -181,7 +181,7 @@ export function ProjectRoomSwitcherPanel({
       <label className={styles.search}>
         <Search size={17} strokeWidth={2.1} aria-hidden="true" />
         <span className={styles.visuallyHidden}>프로젝트룸 검색</span>
-        <input defaultValue={searchValue} placeholder="프로젝트룸, 클라이언트, 납품물 검색" type="search" />
+        <input defaultValue={searchValue} placeholder="프로젝트룸, 클라이언트, 결과물 검색" type="search" />
       </label>
 
       <div className={styles.roomGrid}>

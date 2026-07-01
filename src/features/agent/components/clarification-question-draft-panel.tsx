@@ -71,11 +71,11 @@ const defaultDrafts: QuestionDraft[] = [
   {
     confidence: 91,
     id: "question-due-date",
-    question: "최종 납품일은 7월 5일과 7월 10일 중 어느 날짜가 맞을까요?",
+    question: "최종 마감일은 7월 5일과 7월 10일 중 어느 날짜가 맞을까요?",
     sourceLabel: "업무 범위 문서 2쪽, 견적서 1쪽",
     status: "DRAFT",
     tone: "conflict",
-    triggerLabel: "납품일 후보가 문서마다 다름",
+    triggerLabel: "마감일 후보가 문서마다 다름",
   },
   {
     confidence: 86,

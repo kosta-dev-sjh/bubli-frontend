@@ -17,7 +17,7 @@ type SuggestedResource = {
 const resources: SuggestedResource[] = [
   {
     confidence: 86,
-    reason: "현재 TODO의 납품 기준과 관련",
+    reason: "현재 TODO의 결과물 기준과 관련",
     source: "프로젝트룸 자료",
     status: "candidate",
     title: "업무범위정리_최종본_v2.1.pdf",
