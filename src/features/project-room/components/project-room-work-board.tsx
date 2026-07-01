@@ -31,27 +31,24 @@ type WbsEditDraft = {
 };
 
 const columns: KanbanColumn[] = [
-  { description: "확정됐지만 아직 시작 전", label: "대기", status: "TODO" },
-  { description: "지금 진행 중인 일", label: "진행", status: "IN_PROGRESS" },
-  { description: "검토나 막힘 확인", label: "검토", status: "REVIEW" },
-  { description: "마무리된 일", label: "완료", status: "DONE" },
+  { description: "시작 전", label: "대기", status: "TODO" },
+  { description: "진행 중", label: "진행", status: "IN_PROGRESS" },
+  { description: "검토·막힘", label: "검토", status: "REVIEW" },
+  { description: "마무리", label: "완료", status: "DONE" },
 ];
 
 const viewCopy = {
   kanban: {
-    badge: "작업 진행",
-    description: "확정된 할 일을 상태별로 옮기고, 같은 상태 안에서 순서를 정리합니다.",
-    title: "칸반 작업판",
+    badge: "칸반",
+    title: "TODO 상태판",
   },
   suggestions: {
-    badge: "후보 확인",
-    description: "에이전트가 만든 후보를 실제 WBS나 할 일과 분리해서 확인합니다.",
+    badge: "후보",
     title: "확정 전 후보",
   },
   wbs: {
-    badge: "작업 구조",
-    description: "자료에서 확정된 작업 범위를 계층으로 나누고, 연결된 할 일을 확인합니다.",
-    title: "WBS 구조",
+    badge: "WBS",
+    title: "작업 구조표",
   },
 } as const;
 
@@ -287,7 +284,7 @@ function ProjectRoomWorkBoardContent({
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(board.tasks[0]?.id ?? null);
   const [trashActive, setTrashActive] = useState(false);
-  const [viewMode, setViewMode] = useState<"kanban" | "suggestions" | "wbs">("kanban");
+  const [viewMode, setViewMode] = useState<"kanban" | "suggestions" | "wbs">("wbs");
   const [wbsDraft, setWbsDraft] = useState({ dueDate: "", title: "" });
   const [wbsEditDraft, setWbsEditDraft] = useState<WbsEditDraft>(() => ({
     dueDate: normalizeDateValue(initialWbs?.dueDate),
@@ -590,7 +587,6 @@ function ProjectRoomWorkBoardContent({
         <div className={styles.contextCopy}>
           <StatusBadge tone="room">{currentViewCopy.badge}</StatusBadge>
           <h2>{currentViewCopy.title}</h2>
-          <p>{currentViewCopy.description}</p>
         </div>
         <div className={styles.contextTools}>
           <div className={styles.viewSwitch} aria-label="작업판 보기 전환">
@@ -628,7 +624,7 @@ function ProjectRoomWorkBoardContent({
               <div className={styles.paneHead}>
                 <div>
                   <h2>작업 구조표</h2>
-                  <p>줄 단위로 범위, 상태, 연결된 할 일을 확인합니다.</p>
+                  <p>선택한 줄의 연결 할 일을 바로 확인합니다.</p>
                 </div>
                 <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
               </div>
@@ -802,7 +798,7 @@ function ProjectRoomWorkBoardContent({
             <div className={styles.paneHead}>
               <div>
                 <h2>칸반</h2>
-                <p>할 일 카드를 끌어 상태를 바꿉니다.</p>
+                <p>WBS에서 확정된 할 일을 상태별로 옮깁니다.</p>
               </div>
               <KanbanSquare aria-hidden="true" size={19} strokeWidth={2} />
             </div>

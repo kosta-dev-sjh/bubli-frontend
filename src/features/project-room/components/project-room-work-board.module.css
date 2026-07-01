@@ -1,27 +1,26 @@
 .shell {
   display: grid;
   font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
-  gap: 16px;
+  gap: 12px;
 }
 
 .contextBand {
-  align-items: flex-start;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(215, 234, 244, 0.48)),
-    #f7f9fa;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 20px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 18px 46px rgba(107, 143, 168, 0.14);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 12px 30px rgba(107, 143, 168, 0.1);
   color: #2c3540;
   display: flex;
-  gap: 16px;
+  gap: 12px;
   justify-content: space-between;
-  padding: 16px;
+  padding: 10px 12px;
 }
 
 .contextCopy {
-  display: grid;
-  gap: 6px;
+  align-items: center;
+  display: flex;
+  gap: 9px;
   min-inline-size: 0;
 }
 
@@ -70,9 +69,10 @@
 
 .contextBand h2 {
   color: #2c3540;
-  font-size: 19px;
+  font-size: 15px;
   line-height: 1.25;
   margin: 0;
+  white-space: nowrap;
 }
 
 .paneHead h2 {
@@ -106,7 +106,7 @@
   display: inline-flex;
   font-size: 12px;
   gap: 6px;
-  padding: 8px 11px;
+  padding: 7px 10px;
 }
 
 .boardGrid {
@@ -120,7 +120,7 @@
   background: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(18px);
   border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 20px;
+  border-radius: 18px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 14px 34px rgba(107, 143, 168, 0.12);
   min-inline-size: 0;
   padding: 16px;
@@ -135,6 +135,7 @@
 
 .wbsWorkspace .pane {
   overflow-x: auto;
+  padding: 14px;
 }
 
 .paneHead {
@@ -152,44 +153,61 @@
   gap: 8px;
 }
 
+.wbsList {
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(229, 231, 235, 0.82);
+  border-radius: 14px;
+  gap: 0;
+  min-inline-size: 860px;
+  overflow: hidden;
+}
+
 .wbsTableHead {
   align-items: center;
+  background: rgba(247, 249, 250, 0.86);
+  border: 1px solid rgba(229, 231, 235, 0.82);
+  border-radius: 14px;
   color: #5a6772;
   display: grid;
   font-size: 11px;
   font-weight: 900;
-  gap: 10px;
-  grid-template-columns: 54px minmax(240px, 1fr) 92px 62px 92px 62px;
+  gap: 12px;
+  grid-template-columns: 72px minmax(360px, 1.7fr) 104px 72px 104px 72px;
   letter-spacing: 0;
-  min-inline-size: 676px;
-  padding: 0 12px 8px;
+  margin-block-end: 8px;
+  min-inline-size: 860px;
+  padding: 10px 14px;
   text-transform: none;
 }
 
 .wbsRow {
   align-items: center;
   appearance: none;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(229, 231, 235, 0.84);
-  border-radius: 12px;
+  background: transparent;
+  border: 0;
+  border-block-end: 1px solid rgba(229, 231, 235, 0.78);
+  border-radius: 0;
   color: #2c3540;
   cursor: pointer;
   display: grid;
-  gap: 10px;
-  grid-template-columns: 54px minmax(240px, 1fr) 92px 62px 92px 62px;
-  min-block-size: 48px;
-  min-inline-size: 676px;
-  padding: 8px 12px;
+  gap: 12px;
+  grid-template-columns: 72px minmax(360px, 1.7fr) 104px 72px 104px 72px;
+  min-block-size: 46px;
+  min-inline-size: 860px;
+  padding: 9px 14px;
   text-align: start;
   transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
+.wbsRow:last-child {
+  border-block-end: 0;
+}
+
 .wbsRow:hover,
 .wbsRowSelected {
-  background: rgba(215, 234, 244, 0.42);
-  border-color: rgba(107, 143, 168, 0.42);
-  box-shadow: 0 10px 22px rgba(107, 143, 168, 0.1);
-  transform: translateY(-1px);
+  background: rgba(215, 234, 244, 0.34);
+  border-color: rgba(107, 143, 168, 0.2);
+  box-shadow: inset 3px 0 0 rgba(107, 143, 168, 0.5);
 }
 
 .wbsCode {
@@ -217,7 +235,7 @@
 }
 
 .wbsMain {
-  padding-inline-start: calc(var(--wbs-depth, 0) * 20px);
+  padding-inline-start: calc(var(--wbs-depth, 0) * 22px);
   position: relative;
 }
 
@@ -244,10 +262,13 @@
 .selectedWbs strong,
 .trashZone strong {
   color: #2c3540;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.35;
   min-inline-size: 0;
-  overflow-wrap: break-word;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   word-break: keep-all;
 }
 
@@ -274,7 +295,7 @@
   color: #5a6772;
   font-size: 11px;
   line-height: 1.4;
-  overflow-wrap: break-word;
+  overflow-wrap: normal;
   word-break: keep-all;
 }
 
@@ -417,7 +438,7 @@
 .dangerAction {
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(232, 152, 152, 0.52);
-  color: #9c4f4f;
+  color: #C56B85;
 }
 
 .primaryAction:hover,
@@ -461,7 +482,7 @@
   color: #2c3540;
   font-size: 14px;
   line-height: 1.35;
-  overflow-wrap: break-word;
+  overflow-wrap: normal;
   word-break: keep-all;
 }
 
@@ -475,8 +496,8 @@
 
 .columns {
   display: grid;
-  gap: 10px;
-  grid-auto-columns: minmax(264px, 1fr);
+  gap: 12px;
+  grid-auto-columns: minmax(320px, 1fr);
   grid-auto-flow: column;
   grid-template-columns: none;
   overflow-x: auto;
@@ -502,7 +523,7 @@
   border: 1px solid rgba(229, 231, 235, 0.9);
   border-radius: 18px;
   min-block-size: 340px;
-  min-inline-size: 264px;
+  min-inline-size: 320px;
   padding: 12px;
   scroll-snap-align: start;
   transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
@@ -573,9 +594,9 @@
   box-shadow: 0 8px 22px rgba(107, 143, 168, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.92);
   cursor: grab;
   display: flex;
-  gap: 9px;
+  gap: 10px;
   min-inline-size: 0;
-  padding: 11px;
+  padding: 12px;
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
@@ -604,16 +625,15 @@
 }
 
 .cardTop {
-  align-items: flex-start;
-  display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
-  justify-content: space-between;
   min-inline-size: 0;
 }
 
 .cardTop strong {
-  flex: 1 1 160px;
+  inline-size: 100%;
 }
 
 .cardTop :global(.bubli-status) {
@@ -759,7 +779,7 @@
   }
 
   .columns {
-    grid-auto-columns: minmax(288px, 42vw);
+    grid-auto-columns: minmax(320px, 42vw);
   }
 
   .column {
@@ -792,7 +812,7 @@
   }
 
   .columns {
-    grid-auto-columns: minmax(280px, 86vw);
+    grid-auto-columns: minmax(310px, 86vw);
   }
 
   .statusActions {
