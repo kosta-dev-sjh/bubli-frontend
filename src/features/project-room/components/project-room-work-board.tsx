@@ -557,10 +557,10 @@ function ProjectRoomWorkBoardContent({
   const canDeleteSelectedWbs = Boolean(selectedWbs && selectedWbsChildCount === 0 && selectedWbsLinkedCount === 0);
   const currentViewCopy = viewCopy[viewMode];
   const timelineTasks = useMemo(() => {
-    return visibleTasks
-      .filter((task) => task.dueAt && !Number.isNaN(new Date(task.dueAt).getTime()))
+    return tasks
+      .filter((task) => !task.localRemoved && task.dueAt && !Number.isNaN(new Date(task.dueAt).getTime()))
       .sort((a, b) => new Date(a.dueAt ?? "").getTime() - new Date(b.dueAt ?? "").getTime());
-  }, [visibleTasks]);
+  }, [tasks]);
   const periodAnchor = useMemo(() => {
     const firstDueAt = timelineTasks[0]?.dueAt;
     return firstDueAt ? new Date(firstDueAt) : new Date();
