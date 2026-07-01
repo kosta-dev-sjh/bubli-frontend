@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 
 const ROOT = process.cwd();
 const SOURCE_ROOT = join(ROOT, "src");
@@ -42,7 +42,7 @@ const failures = [];
 
 for (const filePath of walkSourceFiles(SOURCE_ROOT)) {
   const text = readFileSync(filePath, "utf8");
-  const relativePath = relative(ROOT, filePath);
+  const relativePath = relative(ROOT, filePath).split(sep).join("/");
 
   for (const rule of BOUNDARY_RULES) {
     for (const match of text.matchAll(rule.pattern)) {
