@@ -150,6 +150,42 @@ pub struct TimerStateRecordResult {
     status: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityContextRecordInput {
+    app_name: String,
+    captured_at: String,
+    duration_seconds: Option<i64>,
+    ended_at: String,
+    room_id: Option<String>,
+    started_at: String,
+    window_title: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityContextRecordResult {
+    local_activity_id: String,
+    recorded_at: String,
+    sync_status: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityContextSyncInput {
+    local_activity_id: String,
+    server_activity_log_id: Option<String>,
+    status: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityContextSyncResult {
+    local_activity_id: String,
+    marked_at: String,
+    sync_status: String,
+}
+
 #[tauri::command]
 pub fn check_local_sqlite_integrity(
     state: tauri::State<'_, Db>,
@@ -338,6 +374,76 @@ pub fn recover_timer_state(state: tauri::State<'_, Db>) -> Result<TimerRecoveryS
     }
 }
 
+#[tauri::command]
+pub fn record_activity_context(
+    state: tauri::State<'_, Db>,
+    input: ActivityContextRecordInput,
+) -> Result<ActivityContextRecordResult, String> {
+    let now = now_ms();
+    let local_activity_id = Uuid::new_v4().to_string();
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+
+    conn.execute(
+        "INSERT INTO local_activity_buffer \
+         (id, server_activity_log_id, room_id, app_name, window_title, duration_seconds, started_at, ended_at, captured_at, sync_status, created_at, updated_at) \
+         VALUES (?1, NULL, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'LOCAL_ONLY', ?9, ?9)",
+        params![
+            local_activity_id,
+            input.room_id,
+            input.app_name,
+            input.window_title,
+            input.duration_seconds,
+            input.started_at,
+            input.ended_at,
+            input.captured_at,
+            now
+        ],
+    )
+    .map_err(|error| error.to_string())?;
+
+    Ok(ActivityContextRecordResult {
+        local_activity_id,
+        recorded_at: ms_to_iso(now),
+        sync_status: "LOCAL_ONLY".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn mark_activity_context_synced(
+    state: tauri::State<'_, Db>,
+    input: ActivityContextSyncInput,
+) -> Result<ActivityContextSyncResult, String> {
+    let sync_status = normalize_activity_sync_status(&input.status);
+    let now = now_ms();
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+
+    let updated = conn
+        .execute(
+            "UPDATE local_activity_buffer \
+             SET server_activity_log_id = COALESCE(?2, server_activity_log_id), sync_status = ?3, updated_at = ?4 \
+             WHERE id = ?1",
+            params![
+                input.local_activity_id,
+                input.server_activity_log_id,
+                sync_status,
+                now
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+    if updated == 0 {
+        return Err(format!(
+            "local activity buffer row not found: {}",
+            input.local_activity_id
+        ));
+    }
+
+    Ok(ActivityContextSyncResult {
+        local_activity_id: input.local_activity_id,
+        marked_at: ms_to_iso(now),
+        sync_status,
+    })
+}
+
 fn normalize_timer_status(value: &str) -> String {
     match value {
         "RUNNING" => "RUNNING",
@@ -345,6 +451,16 @@ fn normalize_timer_status(value: &str) -> String {
         "ENDED" => "ENDED",
         "RECOVERY_NEEDED" | "NEEDS_RECOVERY" => "RECOVERY_NEEDED",
         _ => "NONE",
+    }
+    .to_string()
+}
+
+fn normalize_activity_sync_status(value: &str) -> String {
+    match value {
+        "SYNCED" => "SYNCED",
+        "FAILED" => "FAILED",
+        "SYNC_PENDING" => "SYNC_PENDING",
+        _ => "LOCAL_ONLY",
     }
     .to_string()
 }
@@ -484,4 +600,22 @@ CREATE TABLE IF NOT EXISTS local_activity_focus (
     focus_started_ms INTEGER NOT NULL,
     last_seen_ms    INTEGER NOT NULL
 );
+
+-- Consent-gated activity captures. Raw activity context stays local first;
+-- successful server reflection stores the server activity log id.
+CREATE TABLE IF NOT EXISTS local_activity_buffer (
+    id                     TEXT PRIMARY KEY,
+    server_activity_log_id TEXT,
+    room_id                TEXT,
+    app_name               TEXT NOT NULL,
+    window_title           TEXT,
+    duration_seconds       INTEGER,
+    started_at             TEXT NOT NULL,
+    ended_at               TEXT NOT NULL,
+    captured_at            TEXT NOT NULL,
+    sync_status            TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
+    created_at             INTEGER NOT NULL,
+    updated_at             INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_local_activity_buffer_status ON local_activity_buffer(sync_status, updated_at);
 "#;

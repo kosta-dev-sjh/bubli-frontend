@@ -49,23 +49,48 @@ export async function recordCurrentActivityContext(
   const capturedAt = parseIsoDate(context.data.capturedAt);
   const durationSeconds = Math.max(0, Math.trunc(context.data.durationSeconds ?? 0));
   const startedAt = new Date(capturedAt.getTime() - durationSeconds * 1000).toISOString();
+  const endedAt = capturedAt.toISOString();
+  const localActivity = await runTauriAdapter(TAURI_COMMANDS.recordActivityContext, () =>
+    tauriCommands.recordActivityContext({
+      appName: context.data.appName,
+      capturedAt: context.data.capturedAt,
+      durationSeconds,
+      endedAt,
+      roomId: input.roomId ?? null,
+      startedAt,
+      windowTitle: context.data.windowTitle ?? null,
+    }),
+  );
+
+  if (localActivity.status !== "ready") {
+    return localActivity;
+  }
 
   try {
     const recordedActivity = await activityApi.recordCurrentApp({
       appName: context.data.appName,
       durationSeconds,
-      endedAt: capturedAt.toISOString(),
+      endedAt,
       roomId: input.roomId ?? null,
       startedAt,
       windowTitle: context.data.windowTitle ?? null,
     });
+    await tauriCommands
+      .markActivityContextSynced({
+        localActivityId: localActivity.data.localActivityId,
+        serverActivityLogId: recordedActivity.id,
+        status: "SYNCED",
+      })
+      .catch(() => undefined);
     const todayActivities = await activityApi.getToday();
 
     return ready(
       {
         appName: context.data.appName,
         context: context.data,
+        localActivityId: localActivity.data.localActivityId,
         recordedActivity,
+        syncStatus: "SYNCED",
         todayActivities,
         windowTitle: context.data.windowTitle,
       },
@@ -73,6 +98,12 @@ export async function recordCurrentActivityContext(
       "현재 활동을 서버에 기록했습니다.",
     );
   } catch (error) {
+    await tauriCommands
+      .markActivityContextSynced({
+        localActivityId: localActivity.data.localActivityId,
+        status: "FAILED",
+      })
+      .catch(() => undefined);
     return failed(getErrorMessage(error), commandName);
   }
 }

@@ -10,10 +10,12 @@ export const TAURI_COMMANDS = {
   getWidgetBarItems: "get_widget_bar_items",
   getWidgetWindowState: "get_widget_window_state",
   listAppMonitors: "list_app_monitors",
+  markActivityContextSynced: "mark_activity_context_synced",
   openWidgetWindow: "open_widget_window",
   readActivityContext: "read_activity_context",
   readLocalFilePreview: "read_local_file_preview",
   recoverTimerState: "recover_timer_state",
+  recordActivityContext: "record_activity_context",
   recordTimerState: "record_timer_state",
   recordWidgetUsageEvent: "record_widget_usage_event",
   markLocalFileEventsSynced: "mark_local_file_events_synced",
@@ -180,6 +182,34 @@ export type ActivityContextResult = {
   capturedAt: string;
   durationSeconds?: number;
   windowTitle?: string;
+};
+
+export type ActivityContextRecordInput = {
+  appName: string;
+  capturedAt: string;
+  durationSeconds?: number | null;
+  endedAt: string;
+  roomId?: string | null;
+  startedAt: string;
+  windowTitle?: string | null;
+};
+
+export type ActivityContextRecordResult = {
+  localActivityId: string;
+  recordedAt: string;
+  syncStatus: "LOCAL_ONLY" | "SYNC_PENDING" | "SYNCED" | "FAILED";
+};
+
+export type ActivityContextSyncInput = {
+  localActivityId: string;
+  serverActivityLogId?: string | null;
+  status: "SYNCED" | "FAILED" | "SYNC_PENDING" | "LOCAL_ONLY";
+};
+
+export type ActivityContextSyncResult = {
+  localActivityId: string;
+  markedAt: string;
+  syncStatus: "LOCAL_ONLY" | "SYNC_PENDING" | "SYNCED" | "FAILED";
 };
 
 export type AppMonitorPosition = {
@@ -384,6 +414,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: AppMonitorPreference;
   };
+  mark_activity_context_synced: {
+    args: ActivityContextSyncInput;
+    result: ActivityContextSyncResult;
+  };
   open_widget_window: {
     args: WidgetWindowOpenInput | undefined;
     result: WidgetWindowState;
@@ -399,6 +433,10 @@ export type TauriCommandContract = {
   recover_timer_state: {
     args: undefined;
     result: TimerRecoveryState;
+  };
+  record_activity_context: {
+    args: ActivityContextRecordInput;
+    result: ActivityContextRecordResult;
   };
   record_timer_state: {
     args: TimerStateRecordInput;
@@ -525,6 +563,9 @@ export const tauriCommands = {
   listAppMonitors() {
     return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.listAppMonitors);
   },
+  markActivityContextSynced(input: ActivityContextSyncInput) {
+    return invokeTauri<ActivityContextSyncResult>(TAURI_COMMANDS.markActivityContextSynced, { input });
+  },
   openWidgetWindow(input?: WidgetWindowOpenInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.openWidgetWindow, input ? { input } : undefined);
   },
@@ -536,6 +577,9 @@ export const tauriCommands = {
   },
   recoverTimerState() {
     return invokeTauri<TimerRecoveryState>(TAURI_COMMANDS.recoverTimerState);
+  },
+  recordActivityContext(input: ActivityContextRecordInput) {
+    return invokeTauri<ActivityContextRecordResult>(TAURI_COMMANDS.recordActivityContext, { input });
   },
   recordTimerState(input: TimerStateRecordInput) {
     return invokeTauri<TimerStateRecordResult>(TAURI_COMMANDS.recordTimerState, { input });

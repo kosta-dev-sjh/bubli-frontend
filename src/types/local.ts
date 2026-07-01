@@ -114,7 +114,9 @@ export type ActivityContextRecordInput = ActivityContextReadInput & {
 export type ActivityContextRecordResult = {
   appName: string;
   context: ActivityContextResult;
+  localActivityId: string;
   recordedActivity: ActivityLogResponse;
+  syncStatus: string;
   todayActivities: ActivityLogsTodayResponse;
   windowTitle?: string;
 };

@@ -12,7 +12,7 @@ import { TAURI_COMMANDS } from "@/lib/tauri/commands";
 
 /** Concerns that live only on the device. */
 export const LOCAL_ONLY_RESPONSIBILITIES = [
-  "SQLite cache (chat cache, widget usage detail, activity focus, sync outbox)",
+  "SQLite cache (chat cache, widget usage detail, activity focus/buffer, sync outbox)",
   "Personal managed-folder detection and local file index",
   "Activity context capture (app name, window title, dwell time) with consent",
   "Widget window state (mode, position, always-on-top, click-through)",
@@ -87,6 +87,18 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
   {
     ipc: TAURI_COMMANDS.readActivityContext,
     responsibility: "Read current app/window/dwell (consent-gated)",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.recordActivityContext,
+    responsibility: "Store consent-gated activity capture in local SQLite before server reflection",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.markActivityContextSynced,
+    responsibility: "Mark a local activity capture as reflected or failed after API sync",
     reflectsToServer: true,
     serverApi: "/api/activity/current-app",
   },
