@@ -668,6 +668,20 @@ function DesktopWidgetSurface() {
 
       if (cancelled) return;
 
+      if (isTauri && activeRoom && messages?.items.length) {
+        void tauriCommands
+          .syncRoomMessages({
+            afterSequence: 0,
+            messages: messages.items.map((message) => ({
+              bodyJson: JSON.stringify(message),
+              roomSequence: message.roomSequence,
+              serverMessageId: message.id,
+            })),
+            roomId: activeRoom.id,
+          })
+          .catch(() => undefined);
+      }
+
       setNotificationSignal(buildNotificationSignal(notifications));
       const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
       const activeTimer = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
@@ -704,7 +718,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, memoRevision, requestedRoomId, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId]);
+  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, memoRevision, requestedRoomId, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId]);
 
   useEffect(() => {
     if (!isBubbleBar) return;

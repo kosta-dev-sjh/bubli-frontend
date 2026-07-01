@@ -230,7 +230,14 @@ export type ActiveProjectRoomReadResult = {
 
 export type LocalRoomMessageSyncInput = {
   afterSequence?: number | null;
+  messages?: LocalRoomMessageCacheInput[];
   roomId: string;
+};
+
+export type LocalRoomMessageCacheInput = {
+  bodyJson: string;
+  roomSequence: number;
+  serverMessageId: string;
 };
 
 export type LocalRoomMessageSyncResult = {

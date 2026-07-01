@@ -112,7 +112,17 @@ pub struct LocalBackupRestoreResult {
 #[serde(rename_all = "camelCase")]
 pub struct LocalRoomMessageSyncInput {
     after_sequence: Option<i64>,
+    #[serde(default)]
+    messages: Vec<LocalRoomMessageCacheInput>,
     room_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalRoomMessageCacheInput {
+    body_json: String,
+    room_sequence: i64,
+    server_message_id: String,
 }
 
 #[derive(Serialize)]
@@ -371,39 +381,85 @@ pub fn sync_room_messages(
     state: tauri::State<'_, Db>,
     input: LocalRoomMessageSyncInput,
 ) -> Result<LocalRoomMessageSyncResult, String> {
-    let after_sequence = input.after_sequence.unwrap_or(0);
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    sync_room_messages_for_conn(&conn, input)
+}
+
+fn sync_room_messages_for_conn(
+    conn: &Connection,
+    input: LocalRoomMessageSyncInput,
+) -> Result<LocalRoomMessageSyncResult, String> {
+    let after_sequence = input.after_sequence.unwrap_or(0).max(0);
+    let room_id = input.room_id.trim().to_string();
+    if room_id.is_empty() {
+        return Err("roomId is required to sync room messages".to_string());
+    }
+
+    let cached_at = now_ms();
+    for message in input.messages {
+        if message.room_sequence <= 0 {
+            return Err("roomSequence must be greater than 0".to_string());
+        }
+        let server_message_id = message.server_message_id.trim().to_string();
+        if server_message_id.is_empty() {
+            return Err("serverMessageId is required to cache room messages".to_string());
+        }
+        serde_json::from_str::<Value>(&message.body_json)
+            .map_err(|error| format!("bodyJson must be valid JSON: {error}"))?;
+
+        let cache_id = format!("{room_id}:{}", message.room_sequence);
+        conn.execute(
+            "INSERT INTO local_room_message_cache \
+             (id, room_id, server_message_id, room_sequence, body, cached_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6) \
+             ON CONFLICT(room_id, room_sequence) DO UPDATE SET \
+               server_message_id = excluded.server_message_id, \
+               body = excluded.body, \
+               cached_at = excluded.cached_at",
+            params![
+                cache_id,
+                room_id,
+                server_message_id,
+                message.room_sequence,
+                message.body_json,
+                cached_at
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
+    let latest_sequence: i64 = conn
+        .query_row(
+            "SELECT COALESCE(MAX(room_sequence), ?2) FROM local_room_message_cache WHERE room_id = ?1",
+            params![room_id, after_sequence],
+            |row| row.get(0),
+        )
+        .unwrap_or(after_sequence);
+
     conn.execute(
         "INSERT INTO local_room_cache_state (room_id, latest_sequence, state, synced_at) \
-         VALUES (?1, ?2, 'STALE', ?3) \
+         VALUES (?1, ?2, 'SYNCED', ?3) \
          ON CONFLICT(room_id) DO UPDATE SET \
            latest_sequence = MAX(local_room_cache_state.latest_sequence, excluded.latest_sequence), \
-           state = 'STALE', \
+           state = 'SYNCED', \
            synced_at = excluded.synced_at",
-        params![input.room_id, after_sequence, now_ms()],
+        params![room_id, latest_sequence, cached_at],
     )
     .map_err(|error| error.to_string())?;
 
     let cached_count: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM local_room_message_cache WHERE room_id = ?1 AND room_sequence > ?2",
-            params![input.room_id, after_sequence],
+            params![room_id, after_sequence],
             |row| row.get(0),
         )
         .unwrap_or(0);
-    let latest_sequence: i64 = conn
-        .query_row(
-            "SELECT COALESCE(MAX(room_sequence), ?2) FROM local_room_message_cache WHERE room_id = ?1",
-            params![input.room_id, after_sequence],
-            |row| row.get(0),
-        )
-        .unwrap_or(after_sequence);
 
     Ok(LocalRoomMessageSyncResult {
         cached_count,
         latest_sequence,
-        room_id: input.room_id,
-        synced_at: now_iso(),
+        room_id,
+        synced_at: ms_to_iso(cached_at),
     })
 }
 
@@ -932,8 +988,9 @@ mod tests {
     use super::{
         mark_activity_context_synced_conn, read_active_project_room_for_conn,
         read_auth_session_json, stage_activity_contexts_for_sync_conn,
-        store_active_project_room_for_conn, store_auth_session_json, validate_auth_session_json,
-        ActiveProjectRoomStoreInput, ActivityContextSyncInput, SCHEMA_SQL,
+        store_active_project_room_for_conn, store_auth_session_json, sync_room_messages_for_conn,
+        validate_auth_session_json, ActiveProjectRoomStoreInput, ActivityContextSyncInput,
+        LocalRoomMessageCacheInput, LocalRoomMessageSyncInput, SCHEMA_SQL,
     };
     use rusqlite::{params, Connection};
 
@@ -1016,6 +1073,88 @@ mod tests {
         )
         .expect_err("blank room id should fail");
         assert!(missing_id.contains("roomId"));
+    }
+
+    #[test]
+    fn syncs_room_messages_into_local_cache_and_updates_existing_rows() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+
+        let first = sync_room_messages_for_conn(
+            &conn,
+            LocalRoomMessageSyncInput {
+                after_sequence: Some(0),
+                messages: vec![
+                    LocalRoomMessageCacheInput {
+                        body_json: serde_json::json!({"text":"first"}).to_string(),
+                        room_sequence: 1,
+                        server_message_id: "message-1".to_string(),
+                    },
+                    LocalRoomMessageCacheInput {
+                        body_json: serde_json::json!({"text":"second"}).to_string(),
+                        room_sequence: 2,
+                        server_message_id: "message-2".to_string(),
+                    },
+                ],
+                room_id: " chat-room-1 ".to_string(),
+            },
+        )
+        .expect("sync first messages");
+        assert_eq!(first.room_id, "chat-room-1");
+        assert_eq!(first.cached_count, 2);
+        assert_eq!(first.latest_sequence, 2);
+
+        let second = sync_room_messages_for_conn(
+            &conn,
+            LocalRoomMessageSyncInput {
+                after_sequence: Some(1),
+                messages: vec![
+                    LocalRoomMessageCacheInput {
+                        body_json: serde_json::json!({"text":"second updated"}).to_string(),
+                        room_sequence: 2,
+                        server_message_id: "message-2b".to_string(),
+                    },
+                    LocalRoomMessageCacheInput {
+                        body_json: serde_json::json!({"text":"third"}).to_string(),
+                        room_sequence: 3,
+                        server_message_id: "message-3".to_string(),
+                    },
+                ],
+                room_id: "chat-room-1".to_string(),
+            },
+        )
+        .expect("sync updated messages");
+        assert_eq!(second.cached_count, 2);
+        assert_eq!(second.latest_sequence, 3);
+
+        let row_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM local_room_message_cache WHERE room_id = 'chat-room-1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count cached messages");
+        assert_eq!(row_count, 3);
+
+        let updated: (String, String) = conn
+            .query_row(
+                "SELECT server_message_id, body FROM local_room_message_cache \
+                 WHERE room_id = 'chat-room-1' AND room_sequence = 2",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read updated message");
+        assert_eq!(updated.0, "message-2b");
+        assert!(updated.1.contains("second updated"));
+
+        let state: (i64, String) = conn
+            .query_row(
+                "SELECT latest_sequence, state FROM local_room_cache_state WHERE room_id = 'chat-room-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read cache state");
+        assert_eq!(state, (3, "SYNCED".to_string()));
     }
 
     fn insert_activity_row(conn: &Connection, id: &str, status: &str, updated_at: i64) {
