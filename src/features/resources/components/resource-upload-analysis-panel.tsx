@@ -30,7 +30,7 @@ type UploadFile = {
 const files: UploadFile[] = [
   {
     analysis: 66,
-    fileName: "번역계약서_v2.pdf",
+    fileName: "업무범위정리_v2.pdf",
     meta: "PDF · 2.4MB · 파일 지문 확인",
     scope: "프로젝트룸 자료",
     status: "analyzing",
@@ -126,7 +126,7 @@ export function ResourceUploadAnalysisPanel() {
               <span className="bubli-icon-tile" aria-hidden="true">
                 <UploadCloud size={18} strokeWidth={2.1} />
               </span>
-              <h3>계약서, 요구사항, 회의록, 참고자료를 올립니다</h3>
+              <h3>업무 범위 문서, 요구사항, 회의록, 참고자료를 올립니다</h3>
               <p>PDF, DOCX, PPTX, XLSX, TXT, MD, CSV, PNG, JPG, JPEG, WEBP를 우선 지원합니다.</p>
               <div className={styles.chips}>
                 <Chip>개인 자료</Chip>

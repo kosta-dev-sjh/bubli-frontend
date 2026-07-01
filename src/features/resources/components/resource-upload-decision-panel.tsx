@@ -72,7 +72,7 @@ export function ResourceUploadDecisionPanel({
   className,
   currentDecision = "PERSONAL_LIBRARY",
   fileKindLabel = "PDF",
-  fileName = "번역계약서_v2.pdf",
+  fileName = "업무범위정리_v2.pdf",
   fileSizeLabel = "2.4MB",
   onConfirmDecision,
   onSelectDecision,

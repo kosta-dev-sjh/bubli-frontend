@@ -211,7 +211,7 @@ function CalendarPageContent() {
     try {
       const [scheduleResult, roomEventResult, googleConnectionResult] = await Promise.allSettled([
         calendarApi.getEvents({ ...range, roomId: selectedRoomId ?? undefined }),
-        selectedRoomId ? calendarApi.getProjectRoomEvents(selectedRoomId, { limit: 100 }) : Promise.resolve(null),
+        selectedRoomId ? calendarApi.getProjectRoomEvents(selectedRoomId, { limit: 100 }) : null,
         calendarApi.getGoogleConnection(),
       ]);
 

@@ -43,9 +43,9 @@ const scopeMeta: Record<MemoScope, { label: string; tone: StatusTone }> = {
 
 export const defaultMemoList: MemoListItem[] = [
   {
-    body: "계약서에는 2회 무상 수정, 회의록에는 페이지별 수정이라는 표현이 있어 확인 필요 항목으로 남겨둡니다.",
+    body: "업무 범위 문서에는 2회 무상 수정, 회의록에는 페이지별 수정이라는 표현이 있어 확인 필요 항목으로 남겨둡니다.",
     id: "memo-contract-scope",
-    projectRoomLabel: "번역 계약 검토",
+    projectRoomLabel: "번역 자료 검토",
     scope: "PROJECT_ROOM",
     status: "LOCAL_DRAFT",
     title: "수정 범위 확인 메모",

@@ -636,8 +636,8 @@ function DesktopWidgetSurface() {
           widgetDisplayApi.listNotifications(6),
           widgetDisplayApi.listChatRooms(6),
           widgetDisplayApi.listFriends(),
-          selectedRoomId ? widgetDisplayApi.getProjectRoom(selectedRoomId) : Promise.resolve(null),
-          voiceRoomId ? widgetDisplayApi.getVoiceRoom(voiceRoomId) : Promise.resolve(null),
+          selectedRoomId ? widgetDisplayApi.getProjectRoom(selectedRoomId) : null,
+          voiceRoomId ? widgetDisplayApi.getVoiceRoom(voiceRoomId) : null,
         ]);
 
       if (cancelled) return;

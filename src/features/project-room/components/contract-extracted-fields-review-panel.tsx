@@ -96,9 +96,9 @@ const defaultFields: ExtractedField[] = [
     id: "field-project-name",
     kind: "PROJECT_NAME",
     label: "프로젝트명",
-    sourceLabel: "계약서 1쪽",
+    sourceLabel: "업무 범위 문서 1쪽",
     status: "DRAFT",
-    value: "신규 웹사이트 번역 프로젝트",
+    value: "브랜드 상세페이지 프로젝트",
   },
   {
     confidence: 89,
@@ -114,7 +114,7 @@ const defaultFields: ExtractedField[] = [
     id: "field-period",
     kind: "PERIOD",
     label: "프로젝트 기간",
-    sourceLabel: "계약서 2쪽",
+    sourceLabel: "업무 범위 문서 2쪽",
     status: "HELD",
     value: "2026.06.24 - 2026.07.15",
   },
@@ -132,13 +132,13 @@ const defaultFields: ExtractedField[] = [
 const defaultReviewItems: ReviewItem[] = [
   {
     id: "review-due-date",
-    message: "계약서 납품일은 7월 15일이고 회의록에는 7월 20일로 적혀 있습니다.",
-    sourceLabel: "계약서 2쪽, 회의록_0618.md",
+    message: "업무 범위 문서 납품일은 7월 15일이고 회의록에는 7월 20일로 적혀 있습니다.",
+    sourceLabel: "업무 범위 문서 2쪽, 회의록_0618.md",
     tone: "conflict",
   },
   {
     id: "review-standard",
-    message: "검수 기준은 요구사항 문서에만 있고 계약서에는 따로 적혀 있지 않습니다.",
+    message: "검수 기준은 요구사항 문서에만 있고 업무 범위 문서에는 따로 적혀 있지 않습니다.",
     sourceLabel: "요구사항정의서_v1.3.pdf",
     tone: "missing",
   },
@@ -165,7 +165,7 @@ export function ContractExtractedFieldsReviewPanel({
           <Chip icon={<Bot size={14} />}>프로젝트룸 생성 보조</Chip>
           <h2>문서에서 뽑은 프로젝트 후보를 확인합니다</h2>
           <p>
-            계약서, 견적서, 요구사항 문서에서 뽑은 값은 후보입니다. 사용자가 확인한 값만
+            업무 범위 문서, 견적서, 요구사항 문서에서 뽑은 값은 후보입니다. 사용자가 확인한 값만
             프로젝트룸, WBS, TODO, 일정에 이어집니다.
           </p>
         </div>

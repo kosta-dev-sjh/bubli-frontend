@@ -54,7 +54,7 @@ const questionStatusMeta: Record<QuestionStatus, { label: string; tone: StatusTo
 
 export const defaultReviewItems: ReviewItem[] = [
   {
-    evidenceLabel: "계약서 4p, 요구사항 문서 2p",
+    evidenceLabel: "업무 범위 문서 4p, 요구사항 문서 2p",
     id: "delivery-date",
     priority: "HIGH",
     title: "납품일이 문서마다 다릅니다.",

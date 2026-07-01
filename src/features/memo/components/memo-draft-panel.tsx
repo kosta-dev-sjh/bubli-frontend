@@ -15,7 +15,7 @@ type MemoItem = {
 
 const memos: MemoItem[] = [
   {
-    projectRoom: "번역 계약 검토",
+    projectRoom: "번역 자료 검토",
     status: "draft",
     title: "클라이언트에게 확인할 수정 범위",
     updatedAt: "로컬 초안 2분 전",
@@ -98,10 +98,10 @@ export function MemoDraftPanel() {
           </div>
 
           <div className="memo-draft__note">
-            <span>번역 계약 검토</span>
+            <span>번역 자료 검토</span>
             <h3>수정 범위가 2회인지, 문서별 2회인지 다시 확인하기</h3>
             <p>
-              계약서에는 2회 무상 수정, 회의록에는 페이지별 수정이라는 표현이 있어 확인 필요 항목으로 보관.
+              업무 범위 문서에는 2회 무상 수정, 회의록에는 페이지별 수정이라는 표현이 있어 확인 필요 항목으로 보관.
             </p>
           </div>
 

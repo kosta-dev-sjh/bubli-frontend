@@ -94,7 +94,7 @@ export function ThemeContrastPanel() {
                 <span>TODO 버블</span>
                 <Eye size={15} aria-hidden="true" />
               </div>
-              <strong>번역 계약서 확인</strong>
+              <strong>업무범위정리 확인</strong>
               <p>마감 D-2 · 확인 필요 2건</p>
             </div>
           </div>

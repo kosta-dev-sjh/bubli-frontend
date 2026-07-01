@@ -52,7 +52,7 @@ export type ProjectRoomDocumentSeedPanelProps = HTMLAttributes<HTMLElement> & {
 };
 
 const documentMeta: Record<SourceDocumentType, { label: string; tone: StatusTone }> = {
-  CONTRACT: { label: "계약서", tone: "room" },
+  CONTRACT: { label: "업무 범위 문서", tone: "room" },
   ESTIMATE: { label: "견적서", tone: "todo" },
   MEETING_NOTE: { label: "회의록", tone: "memo" },
   REQUIREMENTS: { label: "요구사항 문서", tone: "agent" },
@@ -66,7 +66,7 @@ const statusMeta: Record<CandidateStatus, { label: string; tone: StatusTone }> =
 
 export const defaultSeedDocuments: SourceDocument[] = [
   {
-    filename: "번역계약서_v2.pdf",
+    filename: "업무범위정리_v2.pdf",
     kind: "CONTRACT",
     status: "READY",
   },
@@ -87,17 +87,17 @@ export const defaultSeedFields: ExtractedField[] = [
     label: "프로젝트명",
     sourceLabel: "요구사항 문서",
     status: "APPROVED",
-    value: "신규 웹사이트 번역",
+    value: "브랜드 상세페이지",
   },
   {
     label: "클라이언트명",
-    sourceLabel: "계약서",
+    sourceLabel: "업무 범위 문서",
     status: "APPROVED",
     value: "ABC 콘텐츠",
   },
   {
     label: "납품일",
-    sourceLabel: "계약서, 회의록",
+    sourceLabel: "업무 범위 문서, 회의록",
     status: "NEEDS_REVIEW",
     value: "2026.07.15 또는 2026.07.20",
   },
@@ -153,7 +153,7 @@ export function ProjectRoomDocumentSeedPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              계약서, 견적서, 요구사항 문서를 올리면 에이전트가 프로젝트룸에 필요한 값을 후보로 정리합니다.
+              업무 범위 문서, 견적서, 요구사항 문서를 올리면 에이전트가 프로젝트룸에 필요한 값을 후보로 정리합니다.
               확인한 값만 프로젝트룸 정보와 WBS/TODO, 일정 후보로 이어집니다.
             </p>
           </div>
@@ -172,7 +172,7 @@ export function ProjectRoomDocumentSeedPanel({
           </span>
           <div>
             <strong>문서 업로드</strong>
-            <p>계약서, 견적서, 요구사항 문서를 같은 프로젝트 맥락에 둡니다.</p>
+            <p>업무 범위 문서, 견적서, 요구사항 문서를 같은 프로젝트 맥락에 둡니다.</p>
           </div>
         </article>
         <ArrowRight className={styles.flowArrow} size={20} strokeWidth={2.1} aria-hidden="true" />

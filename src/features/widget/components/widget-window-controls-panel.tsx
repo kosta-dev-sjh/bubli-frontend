@@ -143,7 +143,7 @@ export function WidgetWindowControlsPanel({
           <b>작업 화면 위 버블</b>
           <em>{currentTextMode.label}</em>
         </div>
-        <div className={styles.bubbleMock}>
+        <div className={styles.bubblePreview}>
           <div className={styles.bubbleHeader}>
             <strong>TODO 버블</strong>
             <div className={styles.iconButtons} aria-hidden="true">
@@ -153,7 +153,7 @@ export function WidgetWindowControlsPanel({
             </div>
           </div>
           <div className={styles.bubbleBody}>
-            <span>계약서 수정 조항 확인</span>
+            <span>업무 범위 문서 수정 조항 확인</span>
             <b>오늘 18:00</b>
           </div>
           <div className={styles.bubbleFooter}>

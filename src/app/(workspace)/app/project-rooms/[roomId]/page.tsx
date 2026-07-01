@@ -342,7 +342,7 @@ export default function ProjectRoomHomePage() {
                     <span>
                       {roomContent.recentResources.length > 0
                         ? roomContent.recentResources.map((resource) => resource.title).join(" · ")
-                        : "계약서, 요구사항, 회의록을 먼저 올립니다"}
+                        : "업무 범위 문서, 요구사항, 회의록을 먼저 올립니다"}
                     </span>
                   </span>
                   <span className="workspace-route__status">{state.resources.length}개</span>

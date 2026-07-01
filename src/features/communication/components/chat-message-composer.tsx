@@ -98,7 +98,7 @@ function ComposerBox() {
       <div className={styles.textareaWrap}>
         <textarea
           aria-label="메시지 보내기"
-          defaultValue="/bubli 질문 계약서와 회의록에서 일정이 다른 부분 정리해줘."
+          defaultValue="/bubli 질문 업무 범위 문서와 회의록에서 일정이 다른 부분 정리해줘."
           rows={3}
         />
       </div>

@@ -83,7 +83,7 @@ const projectRooms: ProjectRoomItem[] = [
 ];
 
 const members: MemberItem[] = [
-  { displayName: "정현", role: "PROJECT_LEADER", status: "ACTIVE" },
+  { displayName: "나", role: "PROJECT_LEADER", status: "ACTIVE" },
   { displayName: "지유", role: "MEMBER", status: "ACTIVE" },
   { displayName: "하루카", role: "MEMBER", status: "ACTIVE" },
   { displayName: "민지", role: "MEMBER", status: "INVITED" },
@@ -158,7 +158,7 @@ function RoomCard({ room }: { room: ProjectRoomItem }) {
 
 function CreationFlow() {
   const steps = [
-    { icon: FileUp, label: "계약서·견적서·요구사항 업로드" },
+    { icon: FileUp, label: "업무 범위 문서·견적서·요구사항 업로드" },
     { icon: CheckCircle2, label: "추출 후보 확인" },
     { icon: CalendarClock, label: "WBS·TODO·일정 저장" },
   ];

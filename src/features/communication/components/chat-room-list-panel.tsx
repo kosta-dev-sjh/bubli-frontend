@@ -26,7 +26,7 @@ const chatRooms: ChatRoomItem[] = [
   {
     cacheStatus: "CACHE_VALID",
     id: "room-chat-1",
-    lastMessage: "계약서 납품일과 회의록 일정이 달라요. /bubli 질문으로 정리해볼게요.",
+    lastMessage: "업무 범위 문서 납품일과 회의록 일정이 달라요. /bubli 질문으로 정리해볼게요.",
     lastSequence: 128,
     memberCount: 5,
     permissionLabel: "프로젝트룸 멤버",
@@ -38,10 +38,10 @@ const chatRooms: ChatRoomItem[] = [
   {
     cacheStatus: "SERVER_ONLY",
     id: "direct-chat-1",
-    lastMessage: "API 계약 문서에서 인증 응답 형태만 더 맞추면 될 것 같아요.",
+    lastMessage: "API 기준 문서에서 인증 응답 형태만 더 맞추면 될 것 같아요.",
     memberCount: 2,
     permissionLabel: "친구",
-    title: "김미연과 1:1 채팅",
+    title: "김팀원 C과 1:1 채팅",
     type: "DIRECT",
     unreadCount: 0,
     updatedAt: "12분 전",

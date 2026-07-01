@@ -84,7 +84,7 @@ export function ContractReviewItemResolutionPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              계약서, 견적서, 요구사항 문서에서 같은 항목의 값이 다르거나 한쪽에만 있는 조건을 모아 봅니다. 사용자가 처리한 항목만 프로젝트 참고 정보와 작업 후보에 반영합니다.
+              업무 범위 문서, 견적서, 요구사항 문서에서 같은 항목의 값이 다르거나 한쪽에만 있는 조건을 모아 봅니다. 사용자가 처리한 항목만 프로젝트 참고 정보와 작업 후보에 반영합니다.
             </p>
           </div>
         </div>

@@ -62,7 +62,7 @@ const targetMeta: Record<HandoffTarget, { label: string; tone: StatusTone }> = {
 export const defaultFolderEvents: FolderEvent[] = [
   {
     eventLabel: "파일 수정",
-    fileName: "번역 계약서_v3.pdf",
+    fileName: "업무범위정리_v3.pdf",
     status: "REVIEW_NEEDED",
     target: "NEW_VERSION",
     updatedLabel: "오늘 11:08",
