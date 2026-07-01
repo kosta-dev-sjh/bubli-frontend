@@ -22,6 +22,8 @@ use serde_json::Value;
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
+const ACTIVITY_SYNC_PENDING_STALE_MS: i64 = 120_000;
+
 /// Managed Tauri state: a single SQLite connection guarded by a mutex.
 pub struct Db(pub Mutex<Connection>);
 
@@ -818,16 +820,18 @@ fn stage_activity_contexts_for_sync_conn(
     limit: i64,
 ) -> Result<ActivityContextSyncStageResult, String> {
     let now = now_ms();
+    let stale_pending_before = now.saturating_sub(ACTIVITY_SYNC_PENDING_STALE_MS);
     let mut stmt = conn
         .prepare(
             "SELECT id, room_id, app_name, window_title, duration_seconds, started_at, ended_at, captured_at \
              FROM local_activity_buffer \
              WHERE sync_status IN ('LOCAL_ONLY', 'FAILED') \
-             ORDER BY updated_at ASC LIMIT ?1",
+                OR (sync_status = 'SYNC_PENDING' AND updated_at <= ?1) \
+             ORDER BY updated_at ASC LIMIT ?2",
         )
         .map_err(|error| error.to_string())?;
     let rows = stmt
-        .query_map(params![limit], |row| {
+        .query_map(params![stale_pending_before, limit], |row| {
             Ok(ActivityContextSyncCandidate {
                 local_activity_id: row.get(0)?,
                 room_id: row.get(1)?,
@@ -1183,13 +1187,13 @@ CREATE INDEX IF NOT EXISTS idx_local_activity_buffer_status ON local_activity_bu
 #[cfg(test)]
 mod tests {
     use super::{
-        mark_activity_context_synced_conn, read_active_project_room_for_conn,
+        mark_activity_context_synced_conn, now_ms, read_active_project_room_for_conn,
         read_auth_session_json, read_room_messages_for_conn, read_widget_summary_cache_for_conn,
         stage_activity_contexts_for_sync_conn, store_active_project_room_for_conn,
         store_auth_session_json, store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
         validate_auth_session_json, validate_widget_summary_json, ActiveProjectRoomStoreInput,
         ActivityContextSyncInput, LocalRoomMessageCacheInput, LocalRoomMessageReadInput,
-        LocalRoomMessageSyncInput, SCHEMA_SQL,
+        LocalRoomMessageSyncInput, ACTIVITY_SYNC_PENDING_STALE_MS, SCHEMA_SQL,
     };
     use rusqlite::{params, Connection};
 
@@ -1476,13 +1480,19 @@ mod tests {
     }
 
     #[test]
-    fn stages_only_local_or_failed_activity_contexts_for_retry() {
+    fn stages_retryable_and_stale_pending_activity_contexts_for_retry() {
         let conn = Connection::open_in_memory().expect("open in-memory db");
         conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
         insert_activity_row(&conn, "activity-local", "LOCAL_ONLY", 10);
         insert_activity_row(&conn, "activity-failed", "FAILED", 20);
-        insert_activity_row(&conn, "activity-pending", "SYNC_PENDING", 30);
+        insert_activity_row(&conn, "activity-stale-pending", "SYNC_PENDING", 30);
         insert_activity_row(&conn, "activity-synced", "SYNCED", 40);
+        insert_activity_row(
+            &conn,
+            "activity-recent-pending",
+            "SYNC_PENDING",
+            now_ms() + ACTIVITY_SYNC_PENDING_STALE_MS,
+        );
 
         let staged =
             stage_activity_contexts_for_sync_conn(&conn, 10).expect("stage activity contexts");
@@ -1492,7 +1502,14 @@ mod tests {
             .iter()
             .map(|activity| activity.local_activity_id.as_str())
             .collect();
-        assert_eq!(ids, vec!["activity-local", "activity-failed"]);
+        assert_eq!(
+            ids,
+            vec![
+                "activity-local",
+                "activity-failed",
+                "activity-stale-pending"
+            ]
+        );
         assert_eq!(staged.activities[0].room_id.as_deref(), Some("room-1"));
         assert_eq!(staged.activities[0].app_name, "Code");
         assert_eq!(staged.activities[0].duration_seconds, Some(30));
@@ -1507,7 +1524,14 @@ mod tests {
 
         assert!(statuses.contains(&("activity-local".to_string(), "SYNC_PENDING".to_string())));
         assert!(statuses.contains(&("activity-failed".to_string(), "SYNC_PENDING".to_string())));
-        assert!(statuses.contains(&("activity-pending".to_string(), "SYNC_PENDING".to_string())));
+        assert!(statuses.contains(&(
+            "activity-stale-pending".to_string(),
+            "SYNC_PENDING".to_string()
+        )));
+        assert!(statuses.contains(&(
+            "activity-recent-pending".to_string(),
+            "SYNC_PENDING".to_string()
+        )));
         assert!(statuses.contains(&("activity-synced".to_string(), "SYNCED".to_string())));
     }
 
