@@ -30,6 +30,7 @@ type WbsEditDraft = {
 };
 
 type WbsPeriodMode = "day" | "month" | "rows" | "week";
+const wbsPeriodModes: WbsPeriodMode[] = ["rows", "month", "week", "day"];
 
 const columns: KanbanColumn[] = [
   { description: "시작 전", label: "대기", status: "TODO" },
@@ -72,7 +73,7 @@ const viewCopy = {
 const wbsPeriodCopy: Record<WbsPeriodMode, string> = {
   day: "일",
   month: "월",
-  rows: "줄",
+  rows: "목록",
   week: "주",
 };
 
@@ -937,12 +938,12 @@ function ProjectRoomWorkBoardContent({
               <div className={styles.paneHead}>
                 <div>
                   <h2>WBS 줄 목록</h2>
-                  <p>줄 구조와 월·주·일 기간을 함께 확인합니다.</p>
+                  <p>하위 줄은 색 라인으로 구분하고, 월·주·일 기한 보기로 전환합니다.</p>
                 </div>
                 <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
               </div>
               <div className={styles.wbsPeriodSwitch} aria-label="WBS 보기 방식">
-                {(Object.keys(wbsPeriodCopy) as WbsPeriodMode[]).map((mode) => (
+                {wbsPeriodModes.map((mode) => (
                   <button aria-pressed={wbsPeriodMode === mode} key={mode} onClick={() => setWbsPeriodMode(mode)} type="button">
                     {wbsPeriodCopy[mode]}
                   </button>
@@ -993,7 +994,7 @@ function ProjectRoomWorkBoardContent({
                 <div className={cn(styles.periodBoard, wbsPeriodMode === "month" ? styles.periodBoardMonth : styles.periodBoardWeek)}>
                   <div className={styles.periodBoardHead}>
                     <strong>{wbsPeriodMode === "month" ? formatMonthTitle(periodAnchor) : `${formatPeriodDate(weekDays[0])} - ${formatPeriodDate(weekDays[6])}`}</strong>
-                    <span>Google Calendar와 같은 기한 기준</span>
+                    <span>일정과 같은 기한 기준</span>
                   </div>
                   <div className={styles.periodGrid}>
                     {periodDays.map((day) => {
@@ -1030,7 +1031,7 @@ function ProjectRoomWorkBoardContent({
                 <div className={styles.periodDayBoard}>
                   <div className={styles.periodBoardHead}>
                     <strong>{formatPeriodDate(periodAnchor)}</strong>
-                    <span>이날 처리할 WBS/TODO</span>
+                    <span>선택 기준일의 WBS/TODO</span>
                   </div>
                   <div className={styles.dayTaskList}>
                     {dayTasks.length > 0 ? (
