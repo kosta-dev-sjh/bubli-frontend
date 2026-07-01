@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/api/client";
 import type { PageResponse } from "@/types/api/common";
+import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
 
 export type WidgetTaskStatus = "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE" | "BLOCKED";
 export type WidgetResourceKind = "FILE" | "MEMO";
@@ -183,19 +184,10 @@ export type WidgetVoiceRoomResponse = {
   status: "OPEN" | "ENDED";
 };
 
-function withWidgetAuthHeaders() {
-  const token = process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN;
-  return token ? { Authorization: `Bearer ${token}` } : undefined;
-}
-
 function widgetDisplayRequest<T>(path: string, options: Parameters<typeof apiRequest<T>>[1] = {}) {
-  const authHeaders = withWidgetAuthHeaders();
   return apiRequest<T>(path, {
     ...options,
-    headers: {
-      ...authHeaders,
-      ...options.headers,
-    },
+    headers: withWidgetDevAuthHeaders(options.headers),
   });
 }
 

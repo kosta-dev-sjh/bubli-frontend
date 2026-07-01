@@ -2,6 +2,7 @@ import { apiRequest } from "@/lib/api/client";
 import type { ChatMessageListResponse, ChatMessageResponse, ChatRoomResponse } from "@/types/api/chat";
 import type { FriendResponse } from "@/types/api/friend";
 import type { VoiceRoomResponse, VoiceTokenResponse } from "@/types/api/voice";
+import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
 
 export type WidgetChatRoomPageResponse = {
   hasNext: boolean;
@@ -12,19 +13,10 @@ export type WidgetChatRoomPageResponse = {
   totalPages: number;
 };
 
-function withWidgetAuthHeaders() {
-  const token = process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN;
-  return token ? { Authorization: `Bearer ${token}` } : undefined;
-}
-
 function widgetCommunicationRequest<T>(path: string, options: Parameters<typeof apiRequest<T>>[1] = {}) {
-  const authHeaders = withWidgetAuthHeaders();
   return apiRequest<T>(path, {
     ...options,
-    headers: {
-      ...authHeaders,
-      ...options.headers,
-    },
+    headers: withWidgetDevAuthHeaders(options.headers),
   });
 }
 
