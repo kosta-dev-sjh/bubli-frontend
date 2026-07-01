@@ -1087,6 +1087,29 @@ function DesktopWidgetSurface() {
   );
 
   useEffect(() => {
+    if (!isTauri || isWidgetChrome) return;
+
+    let cancelled = false;
+
+    async function recoverTimerFromLocalState() {
+      const recovery = await tauriCommands.recoverTimerState().catch(() => null);
+      if (cancelled || !recovery?.recoveryRequired || !recovery.serverTimeLogId) return;
+
+      const timeLog = await timerApi.heartbeat(recovery.serverTimeLogId).catch(() => null);
+      if (cancelled || !timeLog) return;
+
+      applyTimerResult(timeLog);
+      recordTimerUsage("timer:recover", timeLog.id);
+    }
+
+    void recoverTimerFromLocalState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyTimerResult, isTauri, isWidgetChrome, recordTimerUsage]);
+
+  useEffect(() => {
     if (!activeTimerHeartbeatId) return;
 
     let cancelled = false;
