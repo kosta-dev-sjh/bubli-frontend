@@ -7,10 +7,10 @@ import type {
   ManagedFolderScanResult,
   ManagedFolderSelection,
   ManagedFolderWatchResult,
-  PlannedTauriCommandName,
   SelectManagedFolderInput,
   SqliteIntegrityResult,
   SyncOutboxFlushResult,
+  TauriCommandName,
   TimerRecoveryState,
   WidgetUsageEventInput,
   WidgetUsageEventRecordResult,
@@ -33,7 +33,7 @@ export type LocalAdapterBlockedReason =
 export type LocalAdapterFailedReason = "tauri_command_failed" | "invalid_input";
 
 export type LocalAdapterReady<TData> = {
-  commandName?: PlannedTauriCommandName;
+  commandName?: TauriCommandName;
   data: TData;
   environment: "tauri";
   message?: string;
@@ -41,7 +41,7 @@ export type LocalAdapterReady<TData> = {
 };
 
 export type LocalAdapterPending<TSummary> = {
-  commandName?: PlannedTauriCommandName;
+  commandName?: TauriCommandName;
   environment: "tauri";
   message: string;
   status: "pending";
@@ -49,7 +49,7 @@ export type LocalAdapterPending<TSummary> = {
 };
 
 export type LocalAdapterUnavailable = {
-  commandName?: PlannedTauriCommandName;
+  commandName?: TauriCommandName;
   environment: Exclude<LocalAdapterEnvironment, "tauri">;
   message: string;
   reason: LocalAdapterUnavailableReason;
@@ -57,7 +57,7 @@ export type LocalAdapterUnavailable = {
 };
 
 export type LocalAdapterBlocked = {
-  commandName?: PlannedTauriCommandName;
+  commandName?: TauriCommandName;
   environment: LocalAdapterEnvironment;
   message: string;
   reason: LocalAdapterBlockedReason;
@@ -65,7 +65,7 @@ export type LocalAdapterBlocked = {
 };
 
 export type LocalAdapterFailed = {
-  commandName?: PlannedTauriCommandName;
+  commandName?: TauriCommandName;
   environment: LocalAdapterEnvironment;
   message: string;
   reason: LocalAdapterFailedReason;
@@ -83,8 +83,8 @@ export type LocalNativeCommandState = "implemented" | "planned";
 
 export type LocalCacheReadinessSummary = {
   cacheStore: "sqlite";
-  implementedCommands: PlannedTauriCommandName[];
-  plannedCommands: PlannedTauriCommandName[];
+  implementedCommands: TauriCommandName[];
+  plannedCommands: string[];
   serverTransfer: "not_started";
 };
 

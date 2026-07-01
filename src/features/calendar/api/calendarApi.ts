@@ -1,5 +1,10 @@
 import { apiRequest, getApiBaseUrl } from "@/lib/api/client";
 import type {
+  CalendarEventResponse,
+  GoogleCalendarCallbackRequest,
+  GoogleCalendarConnectResponse,
+  GoogleCalendarConnectionResponse,
+  GoogleCalendarSyncParams,
   ProjectRoomEventListParams,
   ProjectRoomEventListResponse,
   ScheduleListParams,
@@ -33,10 +38,50 @@ function projectRoomEventQuery(params: ProjectRoomEventListParams = {}) {
   return query ? `?${query}` : "";
 }
 
+function requiredCalendarRangeQuery(params: GoogleCalendarSyncParams) {
+  const searchParams = new URLSearchParams();
+  searchParams.set("from", params.from);
+  searchParams.set("to", params.to);
+  return `?${searchParams.toString()}`;
+}
+
 export const calendarApi = {
   // 구글 연결만 calendar 컨트롤러를 쓴다. 일정 CRUD는 /api/schedules가 기준.
   getGoogleConnectUrl() {
     return `${getApiBaseUrl()}/api/calendar/google/connect`;
+  },
+
+  requestGoogleConnectUrl() {
+    return apiRequest<GoogleCalendarConnectResponse>("/api/calendar/google/connect");
+  },
+
+  callbackGoogle(body: GoogleCalendarCallbackRequest) {
+    return apiRequest<GoogleCalendarConnectionResponse>("/api/calendar/google/callback", {
+      body,
+      method: "POST",
+    });
+  },
+
+  getGoogleConnection() {
+    return apiRequest<GoogleCalendarConnectionResponse>("/api/calendar/google/connection");
+  },
+
+  disconnectGoogleConnection() {
+    return apiRequest<null>("/api/calendar/google/connection", {
+      method: "DELETE",
+    });
+  },
+
+  syncGoogleEvents(params: GoogleCalendarSyncParams) {
+    return apiRequest<ScheduleResponse[]>(`/api/calendar/sync${requiredCalendarRangeQuery(params)}`, {
+      method: "POST",
+    });
+  },
+
+  pushUnsyncedGoogleEvents(params: GoogleCalendarSyncParams) {
+    return apiRequest<ScheduleResponse[]>(`/api/calendar/push-unsynced${requiredCalendarRangeQuery(params)}`, {
+      method: "POST",
+    });
   },
 
   getEvents(params?: ScheduleListParams) {
@@ -51,6 +96,30 @@ export const calendarApi = {
     return apiRequest<ScheduleResponse>("/api/schedules", {
       body,
       method: "POST",
+    });
+  },
+
+  createGoogleCalendarEvent(body: ScheduleRequest) {
+    return apiRequest<CalendarEventResponse>("/api/calendar/events", {
+      body,
+      method: "POST",
+    });
+  },
+
+  getGoogleCalendarEvents(params?: ScheduleListParams) {
+    return apiRequest<SchedulePageResponse>(`/api/calendar/events${calendarQuery(params)}`);
+  },
+
+  updateGoogleCalendarEvent(scheduleId: string, body: Partial<ScheduleRequest>) {
+    return apiRequest<CalendarEventResponse>(`/api/calendar/events/${scheduleId}`, {
+      body,
+      method: "PATCH",
+    });
+  },
+
+  deleteGoogleCalendarEvent(scheduleId: string) {
+    return apiRequest<null>(`/api/calendar/events/${scheduleId}`, {
+      method: "DELETE",
     });
   },
 

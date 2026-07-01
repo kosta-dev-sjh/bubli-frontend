@@ -49,17 +49,16 @@ export default function ProjectRoomsPage() {
   const loadRooms = useCallback(async () => {
     setState({ kind: "loading" });
 
-    if (shouldUseWorkspacePreviewData()) {
-      setState({ kind: "ready", rooms: workspacePreviewRooms });
-      return;
-    }
-
     try {
       const page = await projectRoomApi.list();
       setState({ kind: "ready", rooms: page.items });
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
+        return;
+      }
+      if (shouldUseWorkspacePreviewData()) {
+        setState({ kind: "ready", rooms: workspacePreviewRooms });
         return;
       }
       setState({ kind: "offline" });

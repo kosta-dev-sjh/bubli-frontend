@@ -94,6 +94,28 @@ export type AgentSuggestionUpdateRequest = {
   payloadJson?: Record<string, unknown>;
 };
 
+export type GeneratedDocumentResponse = {
+  contentMarkdown: string;
+  createdAt: string;
+  documentType: string;
+  id: string;
+  metadataJson: Record<string, unknown>;
+  resourceId: string | null;
+  roomId: string | null;
+  suggestionId: string | null;
+  title: string;
+  updatedAt: string;
+  userId: string;
+};
+
+export type GeneratedDocumentPageResponse = PageResponse<GeneratedDocumentResponse>;
+
+export type GeneratedDocumentExport = {
+  blob: Blob;
+  contentType: string;
+  fileName: string;
+};
+
 export type AgentResourceSearchScope = "ROOM_SHARED" | "PERSONAL";
 
 export type AgentResourceSearchRequest = {

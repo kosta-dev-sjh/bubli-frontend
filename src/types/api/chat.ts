@@ -1,4 +1,5 @@
 import type { PageResponse, RealtimeActor } from "@/types/api/common";
+import type { AgentSuggestionResponse } from "@/types/api/agent";
 
 export type ChatMessageType = "TEXT" | "FILE" | "AGENT_COMMAND" | "AGENT_RESPONSE" | "SYSTEM";
 
@@ -36,10 +37,21 @@ export type DirectChatRoomRequest = {
   targetUserId: string;
 };
 
+export type GroupChatRoomRequest = {
+  memberUserIds: string[];
+  name: string;
+};
+
 export type RoomAgentCommandRequest = {
   body: Record<string, unknown>;
   clientMessageId: string;
   command: string;
+};
+
+export type RoomAgentCommandResponse = {
+  message: ChatMessageResponse;
+  memorySummary?: Record<string, unknown> | null;
+  suggestions: AgentSuggestionResponse[];
 };
 
 export type RoomMemorySummaryCreateRequest = {

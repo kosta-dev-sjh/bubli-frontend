@@ -1,4 +1,4 @@
-import { plannedTauriCommands, PLANNED_TAURI_COMMANDS } from "@/lib/tauri/commands";
+import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { blocked, runTauriAdapter, unavailable } from "@/lib/local/adapter-result";
 import type { ActivityContextAdapterResult, ActivityContextReadInput } from "@/types/local";
@@ -6,7 +6,7 @@ import type { ActivityContextAdapterResult, ActivityContextReadInput } from "@/t
 export async function readCurrentActivityContext(
   input: ActivityContextReadInput,
 ): Promise<ActivityContextAdapterResult> {
-  const commandName = PLANNED_TAURI_COMMANDS.readActivityContext;
+  const commandName = TAURI_COMMANDS.readActivityContext;
 
   if (!isTauriRuntime()) {
     return unavailable(commandName);
@@ -20,5 +20,5 @@ export async function readCurrentActivityContext(
     );
   }
 
-  return runTauriAdapter(commandName, () => plannedTauriCommands.readActivityContext());
+  return runTauriAdapter(commandName, () => tauriCommands.readActivityContext());
 }

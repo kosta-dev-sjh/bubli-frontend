@@ -47,34 +47,6 @@ function createUploadBody(file: File, roomId: string) {
   return body;
 }
 
-function createPreviewUploadedResource(file: File, roomId: string, index: number): ResourceResponse {
-  const now = new Date().toISOString();
-  const resourceId = `preview-upload-${Date.now()}-${index}`;
-
-  return {
-    aiDocumentStatus: "ANALYZING",
-    createdAt: now,
-    currentVersion: {
-      createdAt: now,
-      id: `${resourceId}-version-1`,
-      mimeType: file.type || null,
-      originalName: file.name,
-      resourceId,
-      sizeBytes: file.size,
-      versionNo: 1,
-    },
-    id: resourceId,
-    kind: "FILE",
-    ownerId: "preview-user",
-    roomId,
-    status: "ANALYZING",
-    summaryStatus: "PENDING",
-    title: file.name,
-    updatedAt: now,
-    visibility: "ROOM_SHARED",
-  };
-}
-
 export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   const [state, setState] = useState<RoomState>({ kind: "loading" });
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
@@ -85,20 +57,19 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadResources = useCallback(async () => {
-    if (shouldUseWorkspacePreviewData()) {
-      const matched = workspacePreviewRoomResources.filter((resource) => resource.roomId === roomId);
-      const resources = matched.length ? matched : workspacePreviewRoomResources;
-      setState({ kind: "ready", resources });
-      setSelectedResourceId((current) => (current && resources.some((resource) => resource.id === current) ? current : null));
-      return;
-    }
-
     try {
       const page = await resourcesApi.listRoomResources(roomId);
       setState({ kind: "ready", resources: page.items });
       setSelectedResourceId((current) => (current && page.items.some((resource) => resource.id === current) ? current : null));
     } catch (error) {
       const message = getErrorMessage(error);
+      if (message !== "AUTH_REQUIRED" && shouldUseWorkspacePreviewData()) {
+        const matched = workspacePreviewRoomResources.filter((resource) => resource.roomId === roomId);
+        const resources = matched.length ? matched : workspacePreviewRoomResources;
+        setState({ kind: "ready", resources });
+        setSelectedResourceId((current) => (current && resources.some((resource) => resource.id === current) ? current : null));
+        return;
+      }
       setState(message === "AUTH_REQUIRED" ? { kind: "auth" } : { kind: "error", message });
     }
   }, [roomId]);
@@ -143,16 +114,6 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
         return;
       }
 
-      if (shouldUseWorkspacePreviewData()) {
-        const previewResources = selectedFiles.map((file, index) => createPreviewUploadedResource(file, roomId, index));
-        const firstResource = previewResources[0];
-
-        setState((current) => (current.kind === "ready" ? { ...current, resources: [...previewResources, ...current.resources] } : current));
-        setUploadState({ fileName: firstFile.name, kind: "success" });
-        setSelectedResourceId(firstResource?.id ?? null);
-        return;
-      }
-
       setUploadState({ fileName: firstFile.name, kind: "uploading" });
 
       try {
@@ -179,7 +140,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
         <div className="resource-workspace__copy">
           <span className={styles.kicker}>프로젝트룸 자료</span>
           <h1>자료보드</h1>
-          <p>현재 프로젝트룸의 공용 파일을 올리고 확인합니다.</p>
+          <p>현재 룸의 공용 파일만 올리고 확인합니다.</p>
         </div>
         <div className={styles.headerActions}>
           <ResourceScopeSwitch activeScope="room" roomHref={`/app/project-rooms/${roomId}/resources`} roomLabel="프로젝트룸" />

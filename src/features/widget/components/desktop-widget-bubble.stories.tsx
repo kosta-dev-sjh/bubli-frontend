@@ -20,7 +20,6 @@ const baseArgs = {
   clickThrough: false,
   onClose: () => undefined,
   onModeChange: () => undefined,
-  onOpenBubble: () => undefined,
   onToggleAlwaysOnTop: () => undefined,
   presentation: "preview",
 } satisfies Partial<Story["args"]>;

@@ -26,8 +26,8 @@ function Sample({ editMode = false }: { editMode?: boolean }) {
       <DashboardWidgetTile editMode={editMode} icon={widgetIcon("project-time-ring")} size="M" title="프로젝트별 시간">
         2h15m
       </DashboardWidgetTile>
-      <DashboardWidgetTile editMode={editMode} icon={widgetIcon("agent-suggestions")} size="M" title="에이전트 제안">
-        요구사항 6개 정리할까요?
+      <DashboardWidgetTile editMode={editMode} icon={widgetIcon("pending-approval")} size="M" title="확인 필요">
+        승인 전 항목 2건
       </DashboardWidgetTile>
       <DashboardWidgetTile editMode={editMode} icon={widgetIcon("timer")} size="S" title="타이머">
         25:00

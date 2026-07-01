@@ -340,6 +340,7 @@ export function ResourceTile({
       aria-pressed={selected}
       className={cn("resource-workspace__item", styles.fileItem, mode === "list" && "resource-workspace__item--list", mode === "list" && styles.fileItemList)}
       onClick={onSelect}
+      title={resource.title}
       type="button"
     >
       <span className={cn("resource-workspace__file-icon", styles.fileGlyph, styles[`fileGlyph${previewKind[0].toUpperCase()}${previewKind.slice(1)}`])} aria-hidden="true">

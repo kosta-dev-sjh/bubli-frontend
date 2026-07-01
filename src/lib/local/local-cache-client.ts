@@ -1,4 +1,4 @@
-import { plannedTauriCommands, PLANNED_TAURI_COMMANDS } from "@/lib/tauri/commands";
+import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { ready, runTauriAdapter, unavailable } from "@/lib/local/adapter-result";
 import type {
@@ -14,13 +14,13 @@ import type {
 } from "@/types/local";
 
 const IMPLEMENTED_LOCAL_CACHE_COMMANDS = [
-  PLANNED_TAURI_COMMANDS.backupLocalSqlite,
-  PLANNED_TAURI_COMMANDS.checkLocalSqliteIntegrity,
-  PLANNED_TAURI_COMMANDS.recoverTimerState,
-  PLANNED_TAURI_COMMANDS.recordWidgetUsageEvent,
-  PLANNED_TAURI_COMMANDS.restoreLocalSqliteBackup,
-  PLANNED_TAURI_COMMANDS.rollupWidgetUsage,
-  PLANNED_TAURI_COMMANDS.syncRoomMessages,
+  TAURI_COMMANDS.backupLocalSqlite,
+  TAURI_COMMANDS.checkLocalSqliteIntegrity,
+  TAURI_COMMANDS.recoverTimerState,
+  TAURI_COMMANDS.recordWidgetUsageEvent,
+  TAURI_COMMANDS.restoreLocalSqliteBackup,
+  TAURI_COMMANDS.rollupWidgetUsage,
+  TAURI_COMMANDS.syncRoomMessages,
 ] as const;
 
 const PLANNED_LOCAL_CACHE_COMMANDS = [] as const;
@@ -36,58 +36,58 @@ export function getLocalCacheReadiness(): LocalCacheReadinessResult {
 }
 
 export function checkLocalSqliteIntegrity(): Promise<LocalCacheIntegrityResult> | LocalCacheIntegrityResult {
-  const commandName = PLANNED_TAURI_COMMANDS.checkLocalSqliteIntegrity;
+  const commandName = TAURI_COMMANDS.checkLocalSqliteIntegrity;
 
   if (!isTauriRuntime()) {
     return unavailable(commandName);
   }
 
-  return runTauriAdapter(commandName, () => plannedTauriCommands.checkLocalSqliteIntegrity());
+  return runTauriAdapter(commandName, () => tauriCommands.checkLocalSqliteIntegrity());
 }
 
 export function backupLocalSqlite() {
-  const commandName = PLANNED_TAURI_COMMANDS.backupLocalSqlite;
+  const commandName = TAURI_COMMANDS.backupLocalSqlite;
 
   if (!isTauriRuntime()) {
     return unavailable(commandName);
   }
 
-  return runTauriAdapter(commandName, () => plannedTauriCommands.backupLocalSqlite());
+  return runTauriAdapter(commandName, () => tauriCommands.backupLocalSqlite());
 }
 
 export function restoreLocalSqliteBackup(input: LocalBackupRestoreRequest) {
-  const commandName = PLANNED_TAURI_COMMANDS.restoreLocalSqliteBackup;
+  const commandName = TAURI_COMMANDS.restoreLocalSqliteBackup;
 
   if (!isTauriRuntime()) {
     return unavailable(commandName);
   }
 
-  return runTauriAdapter(commandName, () => plannedTauriCommands.restoreLocalSqliteBackup(input));
+  return runTauriAdapter(commandName, () => tauriCommands.restoreLocalSqliteBackup(input));
 }
 
 export function recoverLocalTimerState(): Promise<LocalTimerRecoveryResult> | LocalTimerRecoveryResult {
-  const commandName = PLANNED_TAURI_COMMANDS.recoverTimerState;
+  const commandName = TAURI_COMMANDS.recoverTimerState;
 
   if (!isTauriRuntime()) {
     return unavailable(commandName);
   }
 
-  return runTauriAdapter(commandName, () => plannedTauriCommands.recoverTimerState());
+  return runTauriAdapter(commandName, () => tauriCommands.recoverTimerState());
 }
 
 export async function recordWidgetUsageEvent(
   input: WidgetUsageEventAdapterInput,
 ): Promise<WidgetUsageEventAdapterResult> {
-  return runTauriAdapter(PLANNED_TAURI_COMMANDS.recordWidgetUsageEvent, () =>
-    plannedTauriCommands.recordWidgetUsageEvent(input),
+  return runTauriAdapter(TAURI_COMMANDS.recordWidgetUsageEvent, () =>
+    tauriCommands.recordWidgetUsageEvent(input),
   );
 }
 
 export async function rollupWidgetUsage(
   input?: WidgetUsageRollupAdapterInput,
 ): Promise<WidgetUsageRollupAdapterResult> {
-  return runTauriAdapter(PLANNED_TAURI_COMMANDS.rollupWidgetUsage, () =>
-    plannedTauriCommands.rollupWidgetUsage(input),
+  return runTauriAdapter(TAURI_COMMANDS.rollupWidgetUsage, () =>
+    tauriCommands.rollupWidgetUsage(input),
   );
 }
 

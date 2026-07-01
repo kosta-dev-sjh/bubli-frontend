@@ -157,7 +157,7 @@ function buildPreviewRoomEvents(roomId: string | null, schedules: ScheduleRespon
     .map((event, index) => ({
       actor: {
         id: index === 2 ? null : "preview-user",
-        name: index === 2 ? "에이전트" : "Maren",
+        name: index === 2 ? "에이전트" : "사용자",
         type: index === 2 ? "AGENT" : "USER",
       },
       eventId: `preview-room-event-${index + 1}`,
@@ -195,12 +195,6 @@ function CalendarPageContent() {
   const loadEvents = useCallback(async () => {
     setState({ kind: "loading" });
 
-    if (shouldUseWorkspacePreviewData()) {
-      const events = buildPreviewEvents(selectedRoomId);
-      setState({ events, kind: "ready", roomEvents: buildPreviewRoomEvents(selectedRoomId, events) });
-      return;
-    }
-
     try {
       const [scheduleResult, roomEventResult] = await Promise.allSettled([
         calendarApi.getEvents({ ...range, roomId: selectedRoomId ?? undefined }),
@@ -219,6 +213,11 @@ function CalendarPageContent() {
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
+        return;
+      }
+      if (shouldUseWorkspacePreviewData()) {
+        const events = buildPreviewEvents(selectedRoomId);
+        setState({ events, kind: "ready", roomEvents: buildPreviewRoomEvents(selectedRoomId, events) });
         return;
       }
       setState({ kind: "offline" });
@@ -343,38 +342,6 @@ function CalendarPageContent() {
     const endsAt = toDateTime(selectedDate, draftEndTime);
     setSaving(true);
     setDraftNotice(null);
-
-    if (shouldUseWorkspacePreviewData()) {
-      const previewEvent: ScheduleResponse = {
-        allDay: false,
-        createdAt: new Date().toISOString(),
-        endsAt,
-        googleEventId: null,
-        id: `preview-created-${Date.now()}`,
-        lastSyncedAt: null,
-        ownerUserId: "preview-user",
-        roomId: selectedRoomId,
-        startsAt,
-        syncStatus: "LOCAL_ONLY",
-        taskId: null,
-        title,
-        updatedAt: new Date().toISOString(),
-        wbsItemId: null,
-      };
-      setState((current) =>
-        current.kind === "ready"
-          ? {
-              ...current,
-              events: [previewEvent, ...current.events],
-              roomEvents: previewEvent.roomId ? [...buildPreviewRoomEvents(previewEvent.roomId, [previewEvent]), ...current.roomEvents] : current.roomEvents,
-            }
-          : current,
-      );
-      setDraftNotice(repeatEnabled ? `${repeatLabels[repeatInterval]} 반복 설정을 일정 후보에 붙였습니다.` : "Bubli 일정 후보를 추가했습니다.");
-      setComposerOpen(false);
-      setSaving(false);
-      return;
-    }
 
     try {
       const created = await calendarApi.createEvent({

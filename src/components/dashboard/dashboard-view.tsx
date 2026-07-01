@@ -152,17 +152,17 @@ export function DashboardView({ data = DASHBOARD_STORY_DATA, empty = false, load
             )}
           </DashboardWidgetTile>
 
-          <DashboardWidgetTile icon={widgetIcon("agent-suggestions")} size="M" title="에이전트 제안">
+          <DashboardWidgetTile icon={widgetIcon("pending-approval")} size="M" title="확인 필요">
             {loading ? (
               <Skeleton w="90%" h={40} />
             ) : (
               <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                 <span aria-hidden="true" className="bubli-agent-signal" />
                 <div style={{ display: "grid", gap: 8 }}>
-                  <p style={{ margin: 0, fontSize: 13 }}>{data.agent.message}</p>
+                  <p style={{ margin: 0, fontSize: 13 }}>승인 전 항목을 확인합니다.</p>
                   <div style={{ display: "flex", gap: 8 }}>
                     <Button size="sm" variant="primary">
-                      정리하기
+                      확인
                     </Button>
                     <Chip>후보 {data.agent.count}</Chip>
                   </div>

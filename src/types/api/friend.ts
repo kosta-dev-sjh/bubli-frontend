@@ -1,4 +1,5 @@
 export type FriendResponse = {
+  acceptedAt?: string;
   avatarUrl?: string | null;
   bubliId: string;
   friendUserId: string;
@@ -26,5 +27,32 @@ export type FriendRequestResponse = {
 };
 
 export type FriendRequestCreateRequest = {
-  receiverUserId: string;
+  bubliId: string;
+};
+
+export type FriendApiResponse = {
+  acceptedAt: string;
+  avatarUrl?: string | null;
+  bubliId: string;
+  name: string;
+  userId: string;
+};
+
+export type FriendSearchApiResponse = {
+  avatarUrl?: string | null;
+  bubliId: string;
+  id: string;
+  name: string;
+};
+
+export type FriendRequestApiResponse = {
+  createdAt: string;
+  id: string;
+  receiverBubliId: string;
+  receiverId: string;
+  receiverName: string;
+  requesterBubliId: string;
+  requesterId: string;
+  requesterName: string;
+  status: FriendRequestStatus;
 };

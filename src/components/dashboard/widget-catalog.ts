@@ -11,10 +11,10 @@ export type DashboardWidgetDef = {
 };
 
 export const WIDGET_CATALOG: DashboardWidgetDef[] = [
+  { category: "work", description: "다음으로 이어 볼 작업과 일정", size: "M", title: "지금 이어 할 일", widgetId: "next-focus" },
   { category: "work", description: "오늘 할 일", size: "M", title: "오늘 할 일", widgetId: "today-todos" },
   { category: "time", description: "오늘 일정", size: "M", title: "일정", widgetId: "schedule" },
   { category: "time", description: "집중 타이머와 기록", size: "S", title: "타이머", widgetId: "timer" },
-  { category: "agent", description: "에이전트가 만든 후보 제안", size: "M", title: "에이전트 제안", widgetId: "agent-suggestions" },
   { category: "agent", description: "확인할 항목", size: "S", title: "확인 필요", widgetId: "pending-approval" },
   { category: "work", description: "진행 중인 프로젝트룸", size: "M", title: "진행 중 프로젝트룸", widgetId: "project-rooms" },
   { category: "time", description: "프로젝트별 시간 귀속 링", size: "M", title: "프로젝트별 시간", widgetId: "project-time-ring" },

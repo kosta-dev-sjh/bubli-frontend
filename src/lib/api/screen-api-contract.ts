@@ -118,7 +118,7 @@ export const screenApiContract: readonly ScreenApiBinding[] = [
     screen: "Personal resources",
     surface: "WEB_APP",
     route: "/app/resources",
-    apis: ["/api/resources?scope=personal", "/api/local-files", "/api/local-file-events/sync"],
+    apis: ["/api/resources?scope=personal", "/api/local-file-events/sync", "tauri:select_managed_folder", "tauri:scan_managed_folder"],
     state: "PREVIEW_FALLBACK",
     refresh: "AUTO_REVALIDATE",
     fallback: WORKSPACE_PREVIEW,

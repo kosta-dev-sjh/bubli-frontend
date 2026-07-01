@@ -1,4 +1,4 @@
-import { plannedTauriCommands, PLANNED_TAURI_COMMANDS } from "@/lib/tauri/commands";
+import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
   blocked,
@@ -26,17 +26,17 @@ export async function selectPersonalManagedFolder(
   input?: PersonalManagedFolderSelectInput,
 ): Promise<ManagedFolderSelectResult> {
   if (!isTauriRuntime()) {
-    return unavailable(PLANNED_TAURI_COMMANDS.selectManagedFolder);
+    return unavailable(TAURI_COMMANDS.selectManagedFolder);
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, PLANNED_TAURI_COMMANDS.selectManagedFolder);
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.selectManagedFolder);
   }
 
   const { roomId: _roomId, ...tauriInput } = input ?? {};
 
-  return runTauriAdapter(PLANNED_TAURI_COMMANDS.selectManagedFolder, () =>
-    plannedTauriCommands.selectManagedFolder(tauriInput),
+  return runTauriAdapter(TAURI_COMMANDS.selectManagedFolder, () =>
+    tauriCommands.selectManagedFolder(tauriInput),
   );
 }
 
@@ -44,17 +44,17 @@ export async function scanPersonalManagedFolder(
   input: PersonalManagedFolderCommandInput,
 ): Promise<ManagedFolderScanAdapterResult> {
   if (!isTauriRuntime()) {
-    return unavailable(PLANNED_TAURI_COMMANDS.scanManagedFolder);
+    return unavailable(TAURI_COMMANDS.scanManagedFolder);
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, PLANNED_TAURI_COMMANDS.scanManagedFolder);
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.scanManagedFolder);
   }
 
   const { roomId: _roomId, ...tauriInput } = input;
 
-  return runTauriAdapter(PLANNED_TAURI_COMMANDS.scanManagedFolder, () =>
-    plannedTauriCommands.scanManagedFolder(tauriInput),
+  return runTauriAdapter(TAURI_COMMANDS.scanManagedFolder, () =>
+    tauriCommands.scanManagedFolder(tauriInput),
   );
 }
 
@@ -62,17 +62,17 @@ export async function watchPersonalManagedFolder(
   input: PersonalManagedFolderCommandInput,
 ): Promise<ManagedFolderWatchAdapterResult> {
   if (!isTauriRuntime()) {
-    return unavailable(PLANNED_TAURI_COMMANDS.watchManagedFolder);
+    return unavailable(TAURI_COMMANDS.watchManagedFolder);
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, PLANNED_TAURI_COMMANDS.watchManagedFolder);
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.watchManagedFolder);
   }
 
   const { roomId: _roomId, ...tauriInput } = input;
-  const commandName = PLANNED_TAURI_COMMANDS.watchManagedFolder;
+  const commandName = TAURI_COMMANDS.watchManagedFolder;
 
-  const result = await runTauriAdapter(commandName, () => plannedTauriCommands.watchManagedFolder(tauriInput));
+  const result = await runTauriAdapter(commandName, () => tauriCommands.watchManagedFolder(tauriInput));
   if (result.status !== "failed") {
     return result;
   }
@@ -92,16 +92,16 @@ export async function searchPersonalLocalFiles(
   input: LocalFileSearchAdapterInput,
 ): Promise<LocalFileSearchAdapterResult> {
   if (!isTauriRuntime()) {
-    return unavailable(PLANNED_TAURI_COMMANDS.searchLocalFiles);
+    return unavailable(TAURI_COMMANDS.searchLocalFiles);
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, PLANNED_TAURI_COMMANDS.searchLocalFiles);
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.searchLocalFiles);
   }
 
   const { roomId: _roomId, ...tauriInput } = input;
 
-  return runTauriAdapter(PLANNED_TAURI_COMMANDS.searchLocalFiles, () =>
-    plannedTauriCommands.searchLocalFiles(tauriInput),
+  return runTauriAdapter(TAURI_COMMANDS.searchLocalFiles, () =>
+    tauriCommands.searchLocalFiles(tauriInput),
   );
 }

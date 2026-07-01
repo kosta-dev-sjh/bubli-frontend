@@ -4,8 +4,6 @@ import type {
   NotificationPreferencesUpdateRequest,
 } from "@/types/api/notification";
 import type {
-  ManagedFolderCreateRequest,
-  ManagedFolderResponse,
   PrivacyConsentsResponse,
   PrivacyConsentsUpdateRequest,
   StorageUsageResponse,
@@ -44,23 +42,6 @@ export const settingsApi = {
     return apiRequest<PrivacyConsentsResponse>("/api/me/privacy-consents", {
       body,
       method: "PATCH",
-    });
-  },
-
-  getManagedFolders() {
-    return apiRequest<ManagedFolderResponse[]>("/api/me/managed-folders");
-  },
-
-  createManagedFolder(body: ManagedFolderCreateRequest) {
-    return apiRequest<ManagedFolderResponse>("/api/me/managed-folders", {
-      body,
-      method: "POST",
-    });
-  },
-
-  deleteManagedFolder(managedFolderId: string) {
-    return apiRequest<null>(`/api/me/managed-folders/${managedFolderId}`, {
-      method: "DELETE",
     });
   },
 

@@ -16,12 +16,6 @@ export type ManagedFolderResponse = {
   updatedAt: string;
 };
 
-export type ManagedFolderCreateRequest = {
-  localPath?: string | null;
-  name: string;
-  syncEnabled?: boolean;
-};
-
 export type StorageUsageResponse = {
   limitBytes: number;
   roomId?: string | null;

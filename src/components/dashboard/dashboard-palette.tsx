@@ -1,6 +1,5 @@
 import {
   Bell,
-  Bot,
   CalendarDays,
   CheckCircle2,
   Clock3,
@@ -24,10 +23,10 @@ import { cn } from "@/lib/utils";
 import type { DashboardWidgetDef } from "./widget-catalog";
 
 const ICONS: Record<string, ComponentType<{ size?: number }>> = {
+  "next-focus": Clock3,
   "today-todos": CheckCircle2,
   schedule: CalendarDays,
   timer: Timer,
-  "agent-suggestions": Bot,
   "pending-approval": Clock3,
   "project-rooms": FolderKanban,
   "project-time-ring": Gauge,
@@ -108,15 +107,15 @@ export function DashboardPalette({ className, draggable = false, items, onAdd, o
 
   return (
     <div className={cn("bubli-dash-palette", className)} {...props}>
-      <div className="bubli-dash-palette__title">보드에 추가할 항목</div>
-      <p className="bubli-dash-palette__hint">드래그하거나 클릭해서 내 대시보드에 놓습니다.</p>
+      <div className="bubli-dash-palette__title">대시보드에 넣을 항목</div>
+      <p className="bubli-dash-palette__hint">끌어 놓거나 눌러서 보드에 추가합니다.</p>
       {removeDropId ? <DashboardRemoveDropzone id={removeDropId} /> : null}
       <label className="bubli-dash-palette__search">
         <Search size={14} />
         <input
-          aria-label="추가할 항목 찾기"
+          aria-label="이름으로 항목 찾기"
           onChange={(e) => onSearch?.(e.target.value)}
-          placeholder="추가할 항목 찾기"
+          placeholder="이름으로 항목 찾기"
           value={query}
         />
       </label>

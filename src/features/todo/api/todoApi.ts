@@ -1,13 +1,14 @@
 import { apiRequest } from "@/lib/api/client";
+import type { PageResponse } from "@/types/api/common";
 import type { TaskCreateRequest, TaskResponse, TaskUpdateRequest } from "@/types/api/work";
 
 export const todoApi = {
   list() {
-    return apiRequest<TaskResponse[]>("/api/tasks");
+    return apiRequest<PageResponse<TaskResponse>>("/api/tasks");
   },
 
   listRoomTasks(roomId: string) {
-    return apiRequest<TaskResponse[]>(`/api/project-rooms/${roomId}/tasks`);
+    return apiRequest<PageResponse<TaskResponse>>(`/api/project-rooms/${roomId}/tasks`);
   },
 
   create(body: TaskCreateRequest) {

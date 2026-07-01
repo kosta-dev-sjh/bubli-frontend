@@ -33,19 +33,18 @@ export function PersonalResourceWorkspace() {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(() => getActiveProjectRoomId());
 
   const loadResources = useCallback(async () => {
-    if (shouldUseWorkspacePreviewData()) {
-      const resources = workspacePreviewPersonalResources;
-      setState({ kind: "ready", resources });
-      setSelectedResourceId((current) => (current && resources.some((resource) => resource.id === current) ? current : null));
-      return;
-    }
-
     try {
       const page = await resourcesApi.listPersonal();
       setState({ kind: "ready", resources: page.items });
       setSelectedResourceId((current) => (current && page.items.some((resource) => resource.id === current) ? current : null));
     } catch (error) {
       const message = getErrorMessage(error);
+      if (message !== "AUTH_REQUIRED" && shouldUseWorkspacePreviewData()) {
+        const resources = workspacePreviewPersonalResources;
+        setState({ kind: "ready", resources });
+        setSelectedResourceId((current) => (current && resources.some((resource) => resource.id === current) ? current : null));
+        return;
+      }
       setState(message === "AUTH_REQUIRED" ? { kind: "auth" } : { kind: "error", message });
     }
   }, []);
@@ -107,7 +106,7 @@ export function PersonalResourceWorkspace() {
         <div className="resource-workspace__copy">
           <span className={styles.kicker}>개인 자료</span>
           <h1>자료보드</h1>
-          <p>로컬 폴더 색인 상태와 최근 자료를 확인합니다.</p>
+          <p>내 로컬 폴더에서 색인된 자료만 봅니다.</p>
         </div>
         <div className={styles.headerActions}>
           <ResourceScopeSwitch activeScope="personal" roomHref={activeRoomId ? `/app/project-rooms/${activeRoomId}/resources` : "/app/project-rooms"} roomLabel="프로젝트룸" />

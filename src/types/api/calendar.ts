@@ -23,6 +23,34 @@ export type ScheduleRequest = {
 
 export type SchedulePageResponse = PageResponse<ScheduleResponse>;
 
+export type CalendarEventResponse = {
+  calendarConnectionRequired: boolean;
+  schedule: ScheduleResponse;
+};
+
+export type GoogleCalendarConnectResponse = {
+  authorizeUrl: string;
+};
+
+export type GoogleCalendarConnectionStatus = "ACTIVE" | "REVOKED";
+
+export type GoogleCalendarConnectionResponse = {
+  expiresAt?: string | null;
+  googleAccountEmail?: string | null;
+  status: GoogleCalendarConnectionStatus;
+  updatedAt: string;
+};
+
+export type GoogleCalendarCallbackRequest = {
+  code: string;
+  redirectUri?: string | null;
+};
+
+export type GoogleCalendarSyncParams = {
+  from: string;
+  to: string;
+};
+
 export type ProjectRoomEventType =
   | "ROOM_UPDATED"
   | "ROOM_MEMBER_JOINED"

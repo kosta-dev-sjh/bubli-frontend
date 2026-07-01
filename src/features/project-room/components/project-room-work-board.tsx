@@ -2,11 +2,12 @@
 
 import { Bot, GitBranch, GripVertical, Inbox, KanbanSquare, ListTodo, PanelRightOpen, Trash2 } from "lucide-react";
 import Link from "next/link";
-import type { CSSProperties, DragEvent } from "react";
+import type { CSSProperties, DragEvent, FormEvent } from "react";
 import { useMemo, useState } from "react";
 
 import { StatusBadge } from "@/components/ui/status-badge";
 import { todoApi } from "@/features/todo/api/todoApi";
+import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { cn } from "@/lib/utils";
 import type { AgentSuggestionResponse } from "@/types/api/agent";
 import type { TaskResponse, TaskStatus, WbsBoardResponse, WbsItemResponse } from "@/types/api/work";
@@ -23,12 +24,33 @@ type LocalTask = TaskResponse & {
   localRemoved?: boolean;
 };
 
+type WbsEditDraft = {
+  dueDate: string;
+  title: string;
+  wbsId: string | null;
+};
+
 const columns: KanbanColumn[] = [
-  { description: "확정됐지만 아직 시작 전", label: "대기", status: "TODO" },
-  { description: "지금 진행 중인 일", label: "진행", status: "IN_PROGRESS" },
-  { description: "검토나 막힘 확인", label: "검토", status: "REVIEW" },
-  { description: "마무리된 일", label: "완료", status: "DONE" },
+  { description: "시작 전", label: "대기", status: "TODO" },
+  { description: "진행 중", label: "진행", status: "IN_PROGRESS" },
+  { description: "검토·막힘", label: "검토", status: "REVIEW" },
+  { description: "마무리", label: "완료", status: "DONE" },
 ];
+
+const viewCopy = {
+  kanban: {
+    badge: "칸반",
+    title: "TODO 상태판",
+  },
+  suggestions: {
+    badge: "후보",
+    title: "확정 전 후보",
+  },
+  wbs: {
+    badge: "WBS",
+    title: "작업 구조표",
+  },
+} as const;
 
 function formatDue(value?: string | null) {
   if (!value) return null;
@@ -60,7 +82,7 @@ function taskTone(status?: string | null) {
 
 function suggestionTypeLabel(type: AgentSuggestionResponse["suggestionType"]) {
   if (type === "WBS") return "WBS 후보";
-  if (type === "TODO" || type === "TASK") return "TODO 후보";
+  if (type === "TODO" || type === "TASK") return "할 일 후보";
   if (type === "SCHEDULE") return "일정 후보";
   if (type === "QUESTION") return "확인 질문";
   if (type === "REQUIREMENT") return "요구사항 후보";
@@ -68,7 +90,7 @@ function suggestionTypeLabel(type: AgentSuggestionResponse["suggestionType"]) {
   if (type === "REVIEW_ITEM") return "확인 항목";
   if (type === "DOCUMENT_DRAFT") return "문서 초안";
   if (type === "DAILY_SUMMARY") return "하루정리";
-  return "에이전트 후보";
+  return "후보";
 }
 
 function suggestionText(suggestion: AgentSuggestionResponse) {
@@ -83,6 +105,10 @@ function wbsDue(item: WbsItemResponse) {
   return formatDue(item.dueDate);
 }
 
+function normalizeDateValue(value?: string | null) {
+  return value ? value.slice(0, 10) : "";
+}
+
 function activeTaskStatus(status: TaskStatus) {
   return status === "BLOCKED" ? "REVIEW" : status;
 }
@@ -90,7 +116,7 @@ function activeTaskStatus(status: TaskStatus) {
 function sourceLabel(task: TaskResponse, wbsTitle?: string | null) {
   if (task.wbsItemId && wbsTitle) return `WBS · ${wbsTitle}`;
   if (task.wbsItemId) return "WBS 연결";
-  return "승인 TODO";
+  return "승인 할 일";
 }
 
 function getDropIndicators(status: TaskStatus) {
@@ -170,6 +196,7 @@ function ProjectRoomWorkCard({
 
 function WbsRow({
   childCount,
+  code,
   item,
   linkedCount,
   level,
@@ -177,6 +204,7 @@ function WbsRow({
   selected,
 }: {
   childCount: number;
+  code: string;
   item: WbsItemResponse;
   linkedCount: number;
   level: number;
@@ -192,16 +220,15 @@ function WbsRow({
       style={{ "--wbs-depth": level } as CSSProperties}
       type="button"
     >
-      <span className={styles.wbsRail} aria-hidden="true" />
+      <span className={styles.wbsCode}>{code}</span>
       <span className={styles.wbsMain}>
         <strong>{item.title}</strong>
-        <small>
-          {[dueLabel, linkedCount > 0 ? `TODO ${linkedCount}` : null, childCount > 0 ? `하위 ${childCount}` : null]
-            .filter(Boolean)
-            .join(" · ") || "연결 대기"}
-        </small>
+        <small>{item.parentId ? "하위 작업" : "상위 작업"}</small>
       </span>
       <StatusBadge tone={taskTone(item.status)}>{statusLabel(item.status)}</StatusBadge>
+      <span className={styles.wbsMetric}>{linkedCount}</span>
+      <span className={styles.wbsDate}>{dueLabel ?? "-"}</span>
+      <span className={styles.wbsMetric}>{childCount}</span>
     </button>
   );
 }
@@ -216,7 +243,7 @@ function SuggestionRow({ suggestion }: { suggestion: AgentSuggestionResponse }) 
         <strong>{suggestionText(suggestion)}</strong>
         <small>{suggestionTypeLabel(suggestion.suggestionType)}</small>
       </span>
-      <StatusBadge tone="agent">에이전트 후보</StatusBadge>
+      <StatusBadge tone="agent">후보</StatusBadge>
     </article>
   );
 }
@@ -248,27 +275,62 @@ function ProjectRoomWorkBoardContent({
   roomId: string;
   suggestions: AgentSuggestionResponse[];
 }) {
+  const initialWbs = board.wbsItems[0] ?? null;
   const [tasks, setTasks] = useState<LocalTask[]>(board.tasks);
+  const [wbsItems, setWbsItems] = useState<WbsItemResponse[]>(board.wbsItems);
   const [activeColumn, setActiveColumn] = useState<TaskStatus | null>(null);
-  const [selectedWbsId, setSelectedWbsId] = useState<string | null>(board.wbsItems[0]?.id ?? null);
+  const [selectedWbsId, setSelectedWbsId] = useState<string | null>(initialWbs?.id ?? null);
   const [removedNotice, setRemovedNotice] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(board.tasks[0]?.id ?? null);
   const [trashActive, setTrashActive] = useState(false);
-  const [viewMode, setViewMode] = useState<"kanban" | "suggestions" | "wbs">("kanban");
+  const [viewMode, setViewMode] = useState<"kanban" | "suggestions" | "wbs">("wbs");
+  const [wbsDraft, setWbsDraft] = useState({ dueDate: "", title: "" });
+  const [wbsEditDraft, setWbsEditDraft] = useState<WbsEditDraft>(() => ({
+    dueDate: normalizeDateValue(initialWbs?.dueDate),
+    title: initialWbs?.title ?? "",
+    wbsId: initialWbs?.id ?? null,
+  }));
 
-  const wbsTitleById = useMemo(() => Object.fromEntries(board.wbsItems.map((item) => [item.id, item.title])), [board.wbsItems]);
-  const sortedWbsItems = useMemo(() => [...board.wbsItems].sort((a, b) => a.sortOrder - b.sortOrder), [board.wbsItems]);
+  const wbsTitleById = useMemo(() => Object.fromEntries(wbsItems.map((item) => [item.id, item.title])), [wbsItems]);
+  const wbsTree = useMemo(() => {
+    const childrenByParent = wbsItems.reduce<Record<string, WbsItemResponse[]>>((acc, item) => {
+      const parentKey = item.parentId ?? "__root__";
+      acc[parentKey] = [...(acc[parentKey] ?? []), item];
+      return acc;
+    }, {});
+
+    Object.values(childrenByParent).forEach((items) => {
+      items.sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
+    });
+
+    const rows: WbsItemResponse[] = [];
+    const codeById: Record<string, string> = {};
+
+    const visit = (parentKey: string, prefix: string) => {
+      const children = childrenByParent[parentKey] ?? [];
+      children.forEach((item, index) => {
+        const code = prefix ? `${prefix}.${index + 1}` : String(index + 1);
+        codeById[item.id] = code;
+        rows.push(item);
+        visit(item.id, code);
+      });
+    };
+
+    visit("__root__", "");
+
+    return { codeById, rows };
+  }, [wbsItems]);
   const childCountByWbsId = useMemo(() => {
-    return board.wbsItems.reduce<Record<string, number>>((acc, item) => {
+    return wbsItems.reduce<Record<string, number>>((acc, item) => {
       if (item.parentId) {
         acc[item.parentId] = (acc[item.parentId] ?? 0) + 1;
       }
       return acc;
     }, {});
-  }, [board.wbsItems]);
+  }, [wbsItems]);
   const wbsDepthById = useMemo(() => {
-    const byId = new Map(board.wbsItems.map((item) => [item.id, item]));
+    const byId = new Map(wbsItems.map((item) => [item.id, item]));
     const depthOf = (item: WbsItemResponse, seen = new Set<string>()): number => {
       if (!item.parentId || seen.has(item.parentId)) return 0;
       const parent = byId.get(item.parentId);
@@ -277,10 +339,10 @@ function ProjectRoomWorkBoardContent({
       return Math.min(3, depthOf(parent, seen) + 1);
     };
 
-    return Object.fromEntries(board.wbsItems.map((item) => [item.id, depthOf(item)]));
-  }, [board.wbsItems]);
+    return Object.fromEntries(wbsItems.map((item) => [item.id, depthOf(item)]));
+  }, [wbsItems]);
   const descendantIdsByWbsId = useMemo(() => {
-    const childrenByParent = board.wbsItems.reduce<Record<string, string[]>>((acc, item) => {
+    const childrenByParent = wbsItems.reduce<Record<string, string[]>>((acc, item) => {
       if (item.parentId) {
         acc[item.parentId] = [...(acc[item.parentId] ?? []), item.id];
       }
@@ -292,8 +354,8 @@ function ProjectRoomWorkBoardContent({
       return children.flatMap((childId) => [childId, ...collect(childId)]);
     };
 
-    return Object.fromEntries(board.wbsItems.map((item) => [item.id, collect(item.id)]));
-  }, [board.wbsItems]);
+    return Object.fromEntries(wbsItems.map((item) => [item.id, collect(item.id)]));
+  }, [wbsItems]);
   const linkedCountByWbsId = useMemo(() => {
     return tasks.reduce<Record<string, number>>((acc, task) => {
       if (task.wbsItemId && !task.localRemoved) {
@@ -304,7 +366,7 @@ function ProjectRoomWorkBoardContent({
   }, [tasks]);
 
   const visibleTasks = tasks.filter((task) => !task.localRemoved);
-  const selectedWbs = selectedWbsId ? board.wbsItems.find((item) => item.id === selectedWbsId) : null;
+  const selectedWbs = selectedWbsId ? wbsItems.find((item) => item.id === selectedWbsId) : null;
   const selectedTask = selectedTaskId ? visibleTasks.find((task) => task.id === selectedTaskId) ?? null : null;
   const selectedWbsTasks = selectedWbsId
     ? visibleTasks.filter((task) => {
@@ -313,6 +375,124 @@ function ProjectRoomWorkBoardContent({
       })
     : [];
   const activeWbsTitle = selectedWbsId ? wbsTitleById[selectedWbsId] : null;
+  const selectedWbsLinkedCount = selectedWbsId ? selectedWbsTasks.filter((task) => task.wbsItemId === selectedWbsId).length : 0;
+  const selectedWbsChildCount = selectedWbsId ? childCountByWbsId[selectedWbsId] ?? 0 : 0;
+  const canDeleteSelectedWbs = Boolean(selectedWbs && selectedWbsChildCount === 0 && selectedWbsLinkedCount === 0);
+  const currentViewCopy = viewCopy[viewMode];
+  const activeWbsEditDraft =
+    selectedWbs && wbsEditDraft.wbsId === selectedWbs.id
+      ? wbsEditDraft
+      : {
+          dueDate: normalizeDateValue(selectedWbs?.dueDate),
+          title: selectedWbs?.title ?? "",
+          wbsId: selectedWbs?.id ?? null,
+        };
+
+  const handleCreateWbs = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const title = wbsDraft.title.trim();
+    if (!title) return;
+
+    const now = new Date().toISOString();
+    const optimistic: WbsItemResponse = {
+      createdAt: now,
+      dueDate: wbsDraft.dueDate || null,
+      id: `local-wbs-${Date.now()}`,
+      parentId: selectedWbsId,
+      roomId: board.roomId,
+      sortOrder: wbsItems.length + 1,
+      status: "TODO",
+      title,
+      updatedAt: now,
+    };
+
+    setWbsItems((current) => [...current, optimistic]);
+    setSelectedWbsId(optimistic.id);
+    setWbsDraft({ dueDate: "", title: "" });
+    setSaveNotice("WBS 저장 중");
+
+    try {
+      const created = await wbsApi.createItem(roomId, {
+        dueDate: optimistic.dueDate,
+        parentId: optimistic.parentId,
+        title,
+      });
+      setWbsItems((current) => current.map((item) => (item.id === optimistic.id ? created : item)));
+      setSelectedWbsId(created.id);
+      setSaveNotice("WBS 저장됨");
+    } catch {
+      setSaveNotice("WBS 서버 저장 대기");
+    }
+  };
+
+  const handleUpdateWbs = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!selectedWbs) return;
+
+    const title = activeWbsEditDraft.title.trim();
+    if (!title) return;
+
+    const patch = {
+      dueDate: activeWbsEditDraft.dueDate || null,
+      title,
+    };
+    const previous = selectedWbs;
+
+    setWbsItems((current) => current.map((item) => (item.id === selectedWbs.id ? { ...item, ...patch } : item)));
+    setSaveNotice("WBS 수정 중");
+
+    try {
+      const updated = await wbsApi.updateItem(selectedWbs.id, patch);
+      setWbsItems((current) => current.map((item) => (item.id === selectedWbs.id ? updated : item)));
+      setSaveNotice("WBS 수정됨");
+    } catch {
+      setWbsItems((current) => current.map((item) => (item.id === previous.id ? previous : item)));
+      setSaveNotice("WBS 서버 저장 대기");
+    }
+  };
+
+  const updateSelectedWbsStatus = (status: TaskStatus) => {
+    if (!selectedWbs) return;
+
+    const previous = selectedWbs;
+    setWbsItems((current) => current.map((item) => (item.id === selectedWbs.id ? { ...item, status } : item)));
+    setSaveNotice("WBS 상태 저장 중");
+
+    void wbsApi
+      .updateItem(selectedWbs.id, { status })
+      .then((updated) => {
+        setWbsItems((current) => current.map((item) => (item.id === selectedWbs.id ? updated : item)));
+        setSaveNotice("WBS 상태 저장됨");
+      })
+      .catch(() => {
+        setWbsItems((current) => current.map((item) => (item.id === previous.id ? previous : item)));
+        setSaveNotice("WBS 서버 저장 대기");
+      });
+  };
+
+  const deleteSelectedWbs = () => {
+    if (!selectedWbs || !canDeleteSelectedWbs) return;
+
+    const previousItems = wbsItems;
+    const fallbackId = selectedWbs.parentId ?? wbsItems.find((item) => item.id !== selectedWbs.id)?.id ?? null;
+
+    setWbsItems((current) => current.filter((item) => item.id !== selectedWbs.id));
+    setSelectedWbsId(fallbackId);
+    setSaveNotice("WBS 삭제 중");
+
+    void wbsApi
+      .deleteItem(selectedWbs.id)
+      .then(() => {
+        setSaveNotice("WBS 삭제됨");
+      })
+      .catch(() => {
+        setWbsItems(previousItems);
+        setSelectedWbsId(selectedWbs.id);
+        setSaveNotice("WBS 서버 저장 대기");
+      });
+  };
 
   const persistTaskStatus = async (taskId: string, status: TaskStatus) => {
     setSaveNotice("저장 중");
@@ -404,10 +584,9 @@ function ProjectRoomWorkBoardContent({
   return (
     <div className={styles.shell}>
       <section className={styles.contextBand} aria-label="WBS와 작업판 연결 상태">
-        <div>
-          <StatusBadge tone="room">프로젝트룸 작업판</StatusBadge>
-          <h2>WBS와 칸반</h2>
-          <p>확정된 작업 구조와 진행 상태를 나눠 봅니다.</p>
+        <div className={styles.contextCopy}>
+          <StatusBadge tone="room">{currentViewCopy.badge}</StatusBadge>
+          <h2>{currentViewCopy.title}</h2>
         </div>
         <div className={styles.contextTools}>
           <div className={styles.viewSwitch} aria-label="작업판 보기 전환">
@@ -426,10 +605,10 @@ function ProjectRoomWorkBoardContent({
           </div>
           <div className={styles.contextStats} aria-label="작업판 요약">
             <span>
-              <GitBranch size={15} aria-hidden="true" /> WBS {board.wbsItems.length}
+              <GitBranch size={15} aria-hidden="true" /> 구조 {wbsItems.length}
             </span>
             <span>
-              <ListTodo size={15} aria-hidden="true" /> TODO {visibleTasks.length}
+              <ListTodo size={15} aria-hidden="true" /> 카드 {visibleTasks.length}
             </span>
             <span>
               <Bot size={15} aria-hidden="true" /> 후보 {suggestions.length}
@@ -441,19 +620,28 @@ function ProjectRoomWorkBoardContent({
       <div className={styles.boardGrid} data-view={viewMode}>
         {viewMode === "wbs" ? (
           <section className={styles.wbsWorkspace} aria-label="WBS 보기">
-            <aside className={styles.pane} aria-label="WBS 리스트">
+            <section className={styles.pane} aria-label="WBS 작업 구조표">
               <div className={styles.paneHead}>
                 <div>
-                  <h2>WBS</h2>
-                  <p>확정된 작업 범위</p>
+                  <h2>작업 구조표</h2>
+                  <p>선택한 줄의 연결 할 일을 바로 확인합니다.</p>
                 </div>
-                <StatusBadge tone="neutral">{board.wbsItems.length}</StatusBadge>
+                <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
               </div>
-              <div className={styles.wbsList}>
-                {sortedWbsItems.length > 0 ? (
-                  sortedWbsItems.map((item) => (
+              <div className={styles.wbsTableHead} aria-hidden="true">
+                <span>번호</span>
+                <span>작업명</span>
+                <span>상태</span>
+                <span>TODO</span>
+                <span>기한</span>
+                <span>하위</span>
+              </div>
+              <div className={styles.wbsList} role="list">
+                {wbsTree.rows.length > 0 ? (
+                  wbsTree.rows.map((item) => (
                     <WbsRow
                       childCount={childCountByWbsId[item.id] ?? 0}
+                      code={wbsTree.codeById[item.id] ?? "-"}
                       item={item}
                       key={item.id}
                       level={wbsDepthById[item.id] ?? 0}
@@ -466,7 +654,7 @@ function ProjectRoomWorkBoardContent({
                   <p className={styles.empty}>현재 데이터가 없습니다</p>
                 )}
               </div>
-            </aside>
+            </section>
 
             <section className={styles.wbsDetail} aria-label="선택한 WBS 상세">
               <div className={styles.paneHead}>
@@ -480,7 +668,7 @@ function ProjectRoomWorkBoardContent({
               <div className={styles.detailMetrics}>
                 <span>
                   <strong>{selectedWbsTasks.length}</strong>
-                  <small>연결 TODO</small>
+                  <small>연결 할 일</small>
                 </span>
                 <span>
                   <strong>{selectedWbs ? wbsDue(selectedWbs) ?? "-" : "-"}</strong>
@@ -495,7 +683,7 @@ function ProjectRoomWorkBoardContent({
               <div className={styles.linkedTasks}>
                 <div className={styles.sectionLabel}>
                   <ListTodo aria-hidden="true" size={16} strokeWidth={2} />
-                  <strong>연결된 TODO</strong>
+                  <strong>연결된 할 일</strong>
                 </div>
                 {selectedWbsTasks.length > 0 ? (
                   selectedWbsTasks.map((task) => (
@@ -511,118 +699,217 @@ function ProjectRoomWorkBoardContent({
                   <p className={styles.empty}>현재 데이터가 없습니다</p>
                 )}
               </div>
+
+              <form className={styles.wbsEditor} onSubmit={handleUpdateWbs}>
+                <div className={styles.sectionLabel}>
+                  <GitBranch aria-hidden="true" size={16} strokeWidth={2} />
+                  <strong>선택한 WBS 수정</strong>
+                </div>
+                {selectedWbs ? (
+                  <>
+                    <div className={styles.wbsFormGrid}>
+                      <label>
+                        <span>WBS 이름</span>
+                        <input
+                          aria-label="WBS 이름"
+                          onChange={(event) => setWbsEditDraft({ ...activeWbsEditDraft, title: event.target.value })}
+                          value={activeWbsEditDraft.title}
+                        />
+                      </label>
+                      <label>
+                        <span>기한</span>
+                        <input
+                          aria-label="WBS 기한"
+                          onChange={(event) => setWbsEditDraft({ ...activeWbsEditDraft, dueDate: event.target.value })}
+                          type="date"
+                          value={activeWbsEditDraft.dueDate}
+                        />
+                      </label>
+                    </div>
+                    <div className={styles.statusActions} aria-label="WBS 상태 변경">
+                      {columns.map((column) => (
+                        <button
+                          aria-pressed={activeTaskStatus(selectedWbs.status ?? "TODO") === column.status}
+                          key={column.status}
+                          onClick={() => updateSelectedWbsStatus(column.status)}
+                          type="button"
+                        >
+                          {column.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className={styles.wbsFormActions}>
+                      <button className={styles.primaryAction} type="submit">
+                        수정
+                      </button>
+                      <button
+                        className={styles.dangerAction}
+                        disabled={!canDeleteSelectedWbs}
+                        onClick={deleteSelectedWbs}
+                        title={canDeleteSelectedWbs ? "선택한 WBS 삭제" : "연결된 하위 작업이나 할 일이 있으면 삭제할 수 없습니다"}
+                        type="button"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className={styles.empty}>수정할 WBS를 선택하세요</p>
+                )}
+              </form>
+
+              <form className={styles.wbsCreate} onSubmit={handleCreateWbs}>
+                <div className={styles.sectionLabel}>
+                  <GitBranch aria-hidden="true" size={16} strokeWidth={2} />
+                  <strong>{selectedWbs ? "하위 WBS 추가" : "WBS 추가"}</strong>
+                </div>
+                <div className={styles.wbsFormGrid}>
+                  <label>
+                    <span>WBS 이름</span>
+                    <input
+                      aria-label="추가할 WBS 이름"
+                      onChange={(event) => setWbsDraft((current) => ({ ...current, title: event.target.value }))}
+                      placeholder="예: 1차 시안 정리"
+                      value={wbsDraft.title}
+                    />
+                  </label>
+                  <label>
+                    <span>기한</span>
+                    <input
+                      aria-label="추가할 WBS 기한"
+                      onChange={(event) => setWbsDraft((current) => ({ ...current, dueDate: event.target.value }))}
+                      type="date"
+                      value={wbsDraft.dueDate}
+                    />
+                  </label>
+                </div>
+                <div className={styles.wbsFormActions}>
+                  <button className={styles.primaryAction} type="submit">
+                    추가
+                  </button>
+                </div>
+              </form>
             </section>
           </section>
         ) : null}
 
         {viewMode === "kanban" ? (
-        <section className={styles.kanbanPane} aria-label="드래그 가능한 칸반 작업판">
-          <div className={styles.paneHead}>
-            <div>
-              <h2>칸반</h2>
-              <p>TODO 카드를 끌어 상태를 바꿉니다.</p>
+          <section className={styles.kanbanPane} aria-label="드래그 가능한 칸반 작업판">
+            <div className={styles.paneHead}>
+              <div>
+                <h2>칸반</h2>
+                <p>WBS에서 확정된 할 일을 상태별로 옮깁니다.</p>
+              </div>
+              <KanbanSquare aria-hidden="true" size={19} strokeWidth={2} />
             </div>
-            <KanbanSquare aria-hidden="true" size={19} strokeWidth={2} />
-          </div>
 
-          <div className={styles.columns}>
-            {columns.map((column) => {
-              const columnTasks = visibleTasks.filter((task) => activeTaskStatus(task.status) === column.status);
-              return (
-                <section
-                  className={cn(styles.column, activeColumn === column.status && styles.columnActive)}
-                  key={column.status}
-                  onDragLeave={() => handleDragLeave(column.status)}
-                  onDragOver={(event) => handleDragOver(event, column.status)}
-                  onDrop={(event) => handleDrop(event, column.status)}
-                >
-                  <header className={styles.columnHead}>
-                    <span>
-                      <strong>{column.label}</strong>
-                      <small>{column.description}</small>
+            <div className={styles.columns}>
+              {columns.map((column) => {
+                const columnTasks = visibleTasks.filter((task) => activeTaskStatus(task.status) === column.status);
+                return (
+                  <section
+                    aria-label={`${column.label} 칸반 열`}
+                    className={cn(styles.column, activeColumn === column.status && styles.columnActive)}
+                    key={column.status}
+                    onDragLeave={() => handleDragLeave(column.status)}
+                    onDragOver={(event) => handleDragOver(event, column.status)}
+                    onDrop={(event) => handleDrop(event, column.status)}
+                  >
+                    <header className={styles.columnHead}>
+                      <span>
+                        <strong>{column.label}</strong>
+                        <small>{column.description}</small>
+                      </span>
+                      <b>{columnTasks.length}</b>
+                    </header>
+                    <div className={styles.cardList}>
+                      {columnTasks.map((task) => (
+                        <div key={task.id}>
+                          <DropIndicator beforeId={task.id} status={column.status} />
+                          <ProjectRoomWorkCard
+                            onDragStart={handleDragStart}
+                            onSelect={setSelectedTaskId}
+                            selected={Boolean(
+                              selectedWbsId &&
+                                (task.wbsItemId === selectedWbsId ||
+                                  Boolean(task.wbsItemId && descendantIdsByWbsId[selectedWbsId]?.includes(task.wbsItemId))),
+                            )}
+                            task={task}
+                            wbsTitle={task.wbsItemId ? wbsTitleById[task.wbsItemId] : null}
+                          />
+                        </div>
+                      ))}
+                      <DropIndicator beforeId={null} status={column.status} />
+                      {columnTasks.length === 0 ? <p className={styles.empty}>여기에 놓으면 상태가 바뀝니다</p> : null}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+
+            <div className={styles.kanbanFooter}>
+              <div
+                className={cn(styles.trashZone, trashActive && styles.trashZoneActive)}
+                onDragLeave={() => setTrashActive(false)}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setTrashActive(true);
+                }}
+                onDrop={handleTrashDrop}
+                role="region"
+                aria-label="카드 화면 제거 영역"
+              >
+                <Trash2 aria-hidden="true" size={18} strokeWidth={2} />
+                <span>
+                  <strong>드래그 제거 영역</strong>
+                  <small>보드 표시에서만 뺍니다</small>
+                </span>
+              </div>
+              {removedNotice ? (
+                <p className={styles.notice} aria-live="polite">
+                  {removedNotice}
+                </p>
+              ) : null}
+              {saveNotice ? (
+                <p className={styles.notice} aria-live="polite">
+                  {saveNotice}
+                </p>
+              ) : null}
+            </div>
+
+            <section className={styles.taskInspector} aria-label="선택한 작업 상세">
+              {selectedTask ? (
+                <>
+                  <div>
+                    <span className={styles.sectionLabel}>
+                      <ListTodo aria-hidden="true" size={16} strokeWidth={2} />
+                      <strong>{selectedTask.title}</strong>
                     </span>
-                    <b>{columnTasks.length}</b>
-                  </header>
-                  <div className={styles.cardList}>
-                    {columnTasks.map((task) => (
-                      <div key={task.id}>
-                        <DropIndicator beforeId={task.id} status={column.status} />
-                        <ProjectRoomWorkCard
-                          onDragStart={handleDragStart}
-                          onSelect={setSelectedTaskId}
-                    selected={Boolean(
-                      selectedWbsId &&
-                        (task.wbsItemId === selectedWbsId ||
-                          Boolean(task.wbsItemId && descendantIdsByWbsId[selectedWbsId]?.includes(task.wbsItemId))),
-                    )}
-                          task={task}
-                          wbsTitle={task.wbsItemId ? wbsTitleById[task.wbsItemId] : null}
-                        />
-                      </div>
-                    ))}
-                    <DropIndicator beforeId={null} status={column.status} />
-                    {columnTasks.length === 0 ? <p className={styles.empty}>여기에 놓으면 상태가 바뀝니다</p> : null}
+                    <p>{selectedTask.description || "현재 데이터가 없습니다"}</p>
+                    <small>
+                      {[selectedTask.wbsItemId ? wbsTitleById[selectedTask.wbsItemId] : null, formatDue(selectedTask.dueAt)]
+                        .filter(Boolean)
+                        .join(" · ") || "연결 정보 없음"}
+                    </small>
                   </div>
-                </section>
-              );
-            })}
-          </div>
-
-          <div className={styles.kanbanFooter}>
-            <div
-              className={cn(styles.trashZone, trashActive && styles.trashZoneActive)}
-              onDragLeave={() => setTrashActive(false)}
-              onDragOver={(event) => {
-                event.preventDefault();
-                setTrashActive(true);
-              }}
-              onDrop={handleTrashDrop}
-              role="region"
-              aria-label="카드 화면 제거 영역"
-            >
-              <Trash2 aria-hidden="true" size={18} strokeWidth={2} />
-              <span>
-                <strong>드래그 제거 영역</strong>
-                <small>보드 표시에서만 뺍니다</small>
-              </span>
-            </div>
-            {removedNotice ? <p className={styles.notice}>{removedNotice}</p> : null}
-            {saveNotice ? <p className={styles.notice}>{saveNotice}</p> : null}
-          </div>
-
-          <section className={styles.taskInspector} aria-label="선택한 작업 상세">
-            {selectedTask ? (
-              <>
-                <div>
-                  <span className={styles.sectionLabel}>
-                    <ListTodo aria-hidden="true" size={16} strokeWidth={2} />
-                    <strong>{selectedTask.title}</strong>
-                  </span>
-                  <p>{selectedTask.description || "현재 데이터가 없습니다"}</p>
-                  <small>
-                    {[selectedTask.wbsItemId ? wbsTitleById[selectedTask.wbsItemId] : null, formatDue(selectedTask.dueAt)]
-                      .filter(Boolean)
-                      .join(" · ") || "연결 정보 없음"}
-                  </small>
-                </div>
-                <div className={styles.statusActions} aria-label="작업 상태 변경">
-                  {columns.map((column) => (
-                    <button
-                      aria-pressed={activeTaskStatus(selectedTask.status) === column.status}
-                      key={column.status}
-                      onClick={() => updateTaskStatus(selectedTask.id, column.status)}
-                      type="button"
-                    >
-                      {column.label}
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <p className={styles.empty}>현재 데이터가 없습니다</p>
-            )}
+                  <div className={styles.statusActions} aria-label="작업 상태 변경">
+                    {columns.map((column) => (
+                      <button
+                        aria-pressed={activeTaskStatus(selectedTask.status) === column.status}
+                        key={column.status}
+                        onClick={() => updateTaskStatus(selectedTask.id, column.status)}
+                        type="button"
+                      >
+                        {column.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className={styles.empty}>현재 데이터가 없습니다</p>
+              )}
+            </section>
           </section>
-        </section>
         ) : null}
       </div>
 
@@ -634,7 +921,7 @@ function ProjectRoomWorkBoardContent({
               <p>아직 실제 작업이 아닙니다. 필요한 항목만 확인해 반영합니다.</p>
             </div>
             <Link className="bubli-button" href={`/app/agent?roomId=${roomId}`}>
-              후보 관리
+              후보 확인
             </Link>
           </div>
           <div className={styles.suggestionList}>
@@ -652,7 +939,7 @@ function ProjectRoomWorkBoardContent({
           <PanelRightOpen aria-hidden="true" size={17} strokeWidth={2} />
           <span>
             <strong>{activeWbsTitle ?? "WBS 선택 전"}</strong>
-            <small>연결 TODO {selectedWbsTasks.length}개가 칸반에서 강조됩니다</small>
+            <small>연결 할 일 {selectedWbsTasks.length}개가 칸반에서 강조됩니다</small>
           </span>
         </aside>
       ) : null}
