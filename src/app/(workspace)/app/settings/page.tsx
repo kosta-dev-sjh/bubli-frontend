@@ -424,7 +424,7 @@ export default function SettingsPage() {
   }, [state.kind, updateReadyState]);
 
   const checkLocalCache = useCallback(async () => {
-    const result = await Promise.resolve(checkLocalSqliteIntegrity());
+    const result = await checkLocalSqliteIntegrity();
     if (result.status === "ready") {
       setLocalActionMessage(result.data.ok ? "로컬 캐시 상태가 정상입니다" : "로컬 캐시 복구가 필요합니다");
       return;
@@ -433,7 +433,7 @@ export default function SettingsPage() {
   }, []);
 
   const backupLocalCache = useCallback(async () => {
-    const result = await Promise.resolve(backupLocalSqlite());
+    const result = await backupLocalSqlite();
     if (result.status === "ready") {
       setLastBackupId(result.data.backupId);
       setLocalActionMessage(`백업을 만들었습니다 · ${result.data.fileName}`);
@@ -448,7 +448,7 @@ export default function SettingsPage() {
       return;
     }
 
-    const result = await Promise.resolve(restoreLocalSqliteBackup({ backupId: lastBackupId }));
+    const result = await restoreLocalSqliteBackup({ backupId: lastBackupId });
     setLocalActionMessage(result.status === "ready" ? "백업 복구를 완료했습니다" : localResultMessage(result));
   }, [lastBackupId]);
 
@@ -535,7 +535,7 @@ export default function SettingsPage() {
   }, []);
 
   const recoverTimer = useCallback(async () => {
-    const result = await Promise.resolve(recoverLocalTimerState());
+    const result = await recoverLocalTimerState();
     if (result.status === "ready") {
       setLocalActionMessage(result.data.recoveryRequired ? "타이머 복구가 필요합니다" : "타이머 상태가 정상입니다");
       return;

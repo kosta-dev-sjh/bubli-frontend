@@ -203,7 +203,7 @@ export function ApiErrorHandlingBoundaryPanel() {
         <GlassPanel className={styles.casePanel}>
           <div className={styles.sectionTitle}>
             <h3>대표 실패 흐름</h3>
-            <p>기획서와 백엔드 계약에서 화면 정책이 필요한 오류입니다.</p>
+            <p>기획서와 백엔드 업무 기준에서 화면 정책이 필요한 오류입니다.</p>
           </div>
           <div className={styles.caseGrid}>
             {errorCases.map((item) => (

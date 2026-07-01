@@ -35,7 +35,7 @@ const emptyDraft: RoomDraft = {
 };
 
 const documentSlots = [
-  { label: "계약서", target: "프로젝트룸 참고 정보" },
+  { label: "업무 기준 문서", target: "프로젝트룸 참고 정보" },
   { label: "요구사항", target: "WBS/TODO 후보" },
   { label: "회의록", target: "확인 질문" },
 ] as const;
@@ -179,7 +179,7 @@ export default function NewProjectRoomPage() {
                 {attachedFiles.length > 0 ? <FileText size={20} strokeWidth={2} /> : <UploadCloud size={21} strokeWidth={2} />}
               </span>
               <span>
-                <strong>{attachedFiles.length > 0 ? `${attachedFiles.length}개 자료 첨부` : "계약서, 요구사항, 회의록 첨부"}</strong>
+                <strong>{attachedFiles.length > 0 ? `${attachedFiles.length}개 자료 첨부` : "업무 기준 문서, 요구사항, 회의록 첨부"}</strong>
                 <small>
                   {attachedFiles.length > 0
                     ? "생성 후 프로젝트룸 자료로 올리고 에이전트 후보를 만듭니다."
@@ -241,14 +241,14 @@ export default function NewProjectRoomPage() {
                   maxLength={120}
                   name="clientName"
                   onChange={(event) => updateDraft("clientName", event.target.value)}
-                  placeholder="계약서에서 확인한 의뢰처"
+                  placeholder="업무 기준 문서에서 확인한 의뢰처"
                   value={draft.clientName}
                 />
               </label>
 
               <div className="workspace-route__field-grid">
                 <label className="workspace-route__field">
-                  <span>계약 금액</span>
+                  <span>작업 금액</span>
                   <input
                     inputMode="numeric"
                     name="contractAmount"

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { ResourceFlowView } from "@/components/domain/resource-flow-view";
+import { RESOURCE_FLOW_SAMPLE, ResourceFlowView } from "@/components/domain/resource-flow-view";
 import { ThemeProvider } from "@/components/theme";
 
 const meta = {
@@ -13,7 +13,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "자료 → 에이전트 후보 → 승인·근거 → 오늘 할 일 흐름을 새 UI Kit으로 조립. 목 데이터만 사용하고 업로드·에이전트 job API는 연결하지 않는다.",
+          "자료 → 에이전트 후보 → 승인·근거 → 오늘 할 일 흐름을 새 UI Kit으로 조립. 스토리 전용 샘플 데이터를 주입한다.",
       },
     },
   },
@@ -28,7 +28,7 @@ const frame = { padding: 24, maxWidth: 1180 } as const;
 export const Default: Story = {
   render: () => (
     <div style={frame}>
-      <ResourceFlowView />
+      <ResourceFlowView data={RESOURCE_FLOW_SAMPLE} />
     </div>
   ),
 };
@@ -74,7 +74,7 @@ export const Dark: Story = {
   parameters: { backgrounds: { default: "dark" } },
   render: () => (
     <DarkPreview>
-      <ResourceFlowView />
+      <ResourceFlowView data={RESOURCE_FLOW_SAMPLE} />
     </DarkPreview>
   ),
 };

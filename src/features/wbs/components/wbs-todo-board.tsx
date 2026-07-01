@@ -50,7 +50,7 @@ const columns = [
       {
         code: "1.2.2",
         dueLabel: "오늘",
-        sourceLabel: "번역계약서_v2.pdf에서 승인",
+        sourceLabel: "업무기준문서_v2.pdf에서 승인",
         status: "doing" as const,
         title: "1차 번역본 검토",
       },
@@ -104,7 +104,7 @@ export function WbsTodoBoard() {
         <GlassPanel className="work-board__todo">
           <StatusBadge tone="todo">하나의 TODO</StatusBadge>
           <h2>1차 번역본 검토</h2>
-          <p>담당자 정현 · D-2 · 번역계약서_v2.pdf에서 승인된 작업</p>
+          <p>담당자 담당자 · D-2 · 업무기준문서_v2.pdf에서 승인된 작업</p>
         </GlassPanel>
         <div className="work-board__targets">
           {targets.map((target) => {
@@ -167,7 +167,7 @@ export function WbsTodoBoard() {
               <div className="work-board__column" key={column.title}>
                 <h3>{column.title}</h3>
                 {column.items.map((item) => (
-                  <WorkItemCard assignee="정현" key={item.code} {...item} />
+                  <WorkItemCard assignee="담당자" key={item.code} {...item} />
                 ))}
               </div>
             ))}

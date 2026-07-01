@@ -15,11 +15,11 @@ const resultItems = [
   {
     title: "회의록_0618.md",
     meta: "프로젝트룸 자료 · 댓글 4 · 관련도 92%",
-    detail: "검수 기준, 중간보고 일정, 보이스 대기방 범위가 계약서와 함께 언급됐습니다.",
+    detail: "검수 기준, 중간보고 일정, 보이스 대기방 범위가 업무 기준 문서와 함께 언급됐습니다.",
     tone: "room" as const,
   },
   {
-    title: "번역계약서_v2.pdf",
+    title: "업무기준문서_v2.pdf",
     meta: "프로젝트룸 자료 · 확인할 항목 2 · 관련도 88%",
     detail: "납품일, 수정 범위, 2차 사용권 범위를 견적서와 함께 확인해야 합니다.",
     tone: "warning" as const,
@@ -51,7 +51,7 @@ export function ResourceSearchCommand() {
           <div className={styles.titleGroup}>
             <h2 className={styles.title}>흩어진 자료를 권한 범위 안에서 찾아봅니다</h2>
             <p className={styles.summary}>
-              자료보드 검색은 파일명만 찾는 기능이 아닙니다. 계약서, 회의록, 요구사항 문서의 내용을 함께 보고, 같은 권한 범위
+              자료보드 검색은 파일명만 찾는 기능이 아닙니다. 업무 기준 문서, 회의록, 요구사항 문서의 내용을 함께 보고, 같은 권한 범위
               안에서 관련 문서와 확인할 항목을 이어서 보여줍니다.
             </p>
           </div>
@@ -62,7 +62,7 @@ export function ResourceSearchCommand() {
       <section className={styles.commandBox} aria-label="자료 검색 명령">
         <div className={styles.commandInput}>
           <Search size={18} aria-hidden="true" />
-          <span>계약서 관련 회의록 찾아줘</span>
+          <span>업무 기준 문서 관련 회의록 찾아줘</span>
           <kbd>Ctrl K</kbd>
         </div>
         <div className={styles.commandMeta}>

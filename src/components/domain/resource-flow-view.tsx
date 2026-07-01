@@ -56,7 +56,7 @@ export type ResourceFlowData = {
   }[];
 };
 
-export const MOCK_FLOW: ResourceFlowData = {
+export const RESOURCE_FLOW_SAMPLE: ResourceFlowData = {
   resources: [
     {
       description: "메인, 상세, 마이페이지 개편 범위와 검수 기준이 들어 있습니다.",
@@ -177,19 +177,22 @@ function ResourceSkeleton() {
 
 export function ResourceFlowView({
   className,
-  data = MOCK_FLOW,
+  data,
   empty = false,
   error = false,
   loading = false,
 }: ResourceFlowViewProps) {
-  const [selectedId, setSelectedId] = useState(data.resources[0]?.id);
+  const resources = data?.resources ?? [];
+  const suggestions = data?.suggestions ?? [];
+  const works = data?.works ?? [];
+  const [selectedId, setSelectedId] = useState(resources[0]?.id);
   const selected = useMemo(
-    () => data.resources.find((resource) => resource.id === selectedId) ?? data.resources[0],
-    [data.resources, selectedId],
+    () => resources.find((resource) => resource.id === selectedId) ?? resources[0],
+    [resources, selectedId],
   );
-  const selectedSuggestions = data.suggestions.filter((suggestion) => suggestion.resourceId === selected?.id);
-  const pendingCount = data.suggestions.filter((suggestion) => suggestion.status === "pending").length;
-  const roomCount = data.resources.filter((resource) => resource.scope === "room").length;
+  const selectedSuggestions = suggestions.filter((suggestion) => suggestion.resourceId === selected?.id);
+  const pendingCount = suggestions.filter((suggestion) => suggestion.status === "pending").length;
+  const roomCount = resources.filter((resource) => resource.scope === "room").length;
 
   if (error) {
     return (
@@ -199,7 +202,7 @@ export function ResourceFlowView({
     );
   }
 
-  if (empty || data.resources.length === 0) {
+  if (empty || resources.length === 0) {
     return (
       <GlassPanel className={styles.statePanel}>
         <EmptyState description="자료를 올리면 에이전트가 확인 필요 항목과 업무 후보를 정리한다." title="아직 올린 자료가 없어요" />
@@ -212,7 +215,7 @@ export function ResourceFlowView({
       <div className={styles.summaryStrip} aria-label="자료보드 요약">
         <div>
           <span>전체 자료</span>
-          <strong>{data.resources.length}</strong>
+          <strong>{resources.length}</strong>
         </div>
         <div>
           <span>프로젝트룸 자료</span>
@@ -224,7 +227,7 @@ export function ResourceFlowView({
         </div>
         <div>
           <span>오늘 연결</span>
-          <strong>{data.works.length}</strong>
+          <strong>{works.length}</strong>
         </div>
       </div>
 
@@ -249,7 +252,7 @@ export function ResourceFlowView({
           <div className={styles.resourceList}>
             {loading
               ? [0, 1, 2].map((item) => <ResourceSkeleton key={item} />)
-              : data.resources.map((resource) => {
+              : resources.map((resource) => {
                   const status = resourceStatusCopy[resource.status];
                   const active = resource.id === selected?.id;
 
@@ -348,7 +351,7 @@ export function ResourceFlowView({
           </header>
 
           <div className={styles.workList}>
-            {data.works.map((work) => {
+            {works.map((work) => {
               const status = workStatusCopy[work.status];
 
               return (

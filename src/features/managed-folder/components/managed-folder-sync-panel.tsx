@@ -19,10 +19,10 @@ type LocalFileEvent = {
 
 const localEvents: LocalFileEvent[] = [
   {
-    fileName: "번역계약서_v3.pdf",
-    folderName: "Bubli/번역 계약서 정리",
+    fileName: "업무기준문서_v3.pdf",
+    folderName: "Bubli/자료 기준 정리",
     modifiedAt: "방금 전",
-    projectHint: "번역 계약서 정리",
+    projectHint: "자료 기준 정리",
     status: "suggested",
     type: "changed",
   },

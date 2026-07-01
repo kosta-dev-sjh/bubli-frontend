@@ -64,7 +64,7 @@ const surfaceIcon: Record<TodoSurface, typeof ListTodo> = {
 
 export const defaultAssignedTodos: AssignedTodo[] = [
   {
-    assigneeLabel: "정현",
+    assigneeLabel: "담당자",
     dueLabel: "D-2",
     id: "todo-translation-review",
     priority: "HIGH",
@@ -73,7 +73,7 @@ export const defaultAssignedTodos: AssignedTodo[] = [
     title: "1차 번역본 검토",
   },
   {
-    assigneeLabel: "정현",
+    assigneeLabel: "담당자",
     dueLabel: "오늘",
     id: "todo-question-send",
     priority: "MEDIUM",
@@ -130,7 +130,7 @@ export function TodoAssigneeReflectionPanel({
   todos,
   ...props
 }: TodoAssigneeReflectionPanelProps) {
-  const myTodoCount = todos.filter((todo) => todo.assigneeLabel === "정현").length;
+  const myTodoCount = todos.filter((todo) => todo.assigneeLabel === "담당자").length;
   const urgentCount = todos.filter((todo) => todo.priority === "HIGH").length;
 
   return (
@@ -196,7 +196,7 @@ export function TodoAssigneeReflectionPanel({
               const priority = priorityMeta[todo.priority];
 
               return (
-                <article className={cn(styles.todoRow, todo.assigneeLabel === "정현" && styles.myTodo)} key={todo.id}>
+                <article className={cn(styles.todoRow, todo.assigneeLabel === "담당자" && styles.myTodo)} key={todo.id}>
                   <div className={styles.todoTop}>
                     <span className={styles.checkTile}>
                       <CheckCircle2 size={16} strokeWidth={2.1} aria-hidden="true" />

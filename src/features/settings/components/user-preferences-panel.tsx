@@ -5,9 +5,9 @@ import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
 import styles from "./user-preferences-panel.module.css";
 
 const profileFields = [
-  ["이름", "정현"],
-  ["Bubli ID", "junghyun.k"],
-  ["이메일", "junghyun@bubli.kr"],
+  ["이름", "담당자"],
+  ["Bubli ID", "user.k"],
+  ["이메일", "user@bubli.kr"],
 ];
 
 const preferenceRows = [
@@ -91,7 +91,7 @@ export function UserPreferencesPanel() {
       <section className={styles.layout} aria-label="프로필과 사용자 표시 설정">
         <div className={styles.profileCard}>
           <div className={styles.avatar} aria-hidden="true">
-            JH
+            BU
           </div>
           <div className={styles.profileCopy}>
             <h3>내 프로필</h3>

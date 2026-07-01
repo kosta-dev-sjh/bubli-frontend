@@ -11,10 +11,10 @@ const loginStartupWindows: WidgetWindowOpenInput[] = [
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
 ];
 
-export function launchTauriAuthenticatedSurfaces() {
-  if (!isTauriRuntime()) return Promise.resolve();
+export async function launchTauriAuthenticatedSurfaces() {
+  if (!isTauriRuntime()) return;
   if (launchRequested && launchPromise) return launchPromise;
-  if (launchRequested) return Promise.resolve();
+  if (launchRequested) return;
 
   launchRequested = true;
   launchPromise = (async () => {

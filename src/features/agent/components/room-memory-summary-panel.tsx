@@ -95,7 +95,7 @@ export function RoomMemorySummaryPanel() {
           </div>
 
           <div className="room-memory__chat">
-            <span>정현</span>
+            <span>담당자</span>
             <p>/bubli 정리 오늘 회의에서 결정된 것만 정리해줘</p>
           </div>
           <div className="room-memory__agent">

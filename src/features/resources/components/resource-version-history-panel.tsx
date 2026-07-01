@@ -18,21 +18,21 @@ const versions: VersionItem[] = [
   {
     note: "검수 기준 문구가 추가됨",
     status: "current",
-    title: "번역계약서_최종본_v2.1.pdf",
+    title: "업무기준문서_최종본_v2.1.pdf",
     updatedAt: "오늘 14:32",
     version: "v2.1",
   },
   {
     note: "납품일 표현이 회의록과 달라 확인 필요",
     status: "review",
-    title: "번역계약서_최종본_v2.pdf",
+    title: "업무기준문서_최종본_v2.pdf",
     updatedAt: "어제 18:10",
     version: "v2.0",
   },
   {
     note: "초안 보관",
     status: "previous",
-    title: "번역계약서_초안.pdf",
+    title: "업무기준문서_초안.pdf",
     updatedAt: "6월 18일 09:20",
     version: "v1.0",
   },
@@ -78,7 +78,7 @@ export function ResourceVersionHistoryPanel() {
           </Chip>
           <h2>같은 파일을 다시 올려도 덮어쓰지 않고 새 버전으로 남깁니다</h2>
           <p>
-            자료보드는 계약서, 요구사항, 회의록처럼 계속 바뀌는 파일의 흐름을 남깁니다. 프로젝트룸 자료는 멤버가
+            자료보드는 업무 기준 문서, 요구사항, 회의록처럼 계속 바뀌는 파일의 흐름을 남깁니다. 프로젝트룸 자료는 멤버가
             같은 이력을 보고, 개인 자료는 공유하기 전까지 본인만 확인합니다.
           </p>
         </div>
@@ -116,7 +116,7 @@ export function ResourceVersionHistoryPanel() {
           </div>
           <div>
             <Link2 size={17} strokeWidth={2.1} />
-            <p>관련 문서는 계약서, 견적서, 요구사항, 회의록을 같은 맥락으로 묶습니다.</p>
+            <p>관련 문서는 업무 기준 문서, 견적서, 요구사항, 회의록을 같은 맥락으로 묶습니다.</p>
           </div>
           <div>
             <ShieldCheck size={17} strokeWidth={2.1} />

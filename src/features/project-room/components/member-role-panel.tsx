@@ -15,7 +15,7 @@ type MemberItem = {
 
 const members: MemberItem[] = [
   {
-    name: "정현",
+    name: "담당자",
     role: "leader",
     status: "프로젝트 리더",
     visibleScope: "설정, 초대, 역할 변경 가능",

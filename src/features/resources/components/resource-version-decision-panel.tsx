@@ -74,7 +74,7 @@ const decisionCopy: Record<ResourceVersionDecision, { description: string; label
 
 const defaultVersions: ResourceVersionItem[] = [
   {
-    authorLabel: "김정현",
+    authorLabel: "멤버 A",
     changedAtLabel: "2026-06-18 15:20",
     fileName: "요구사항정의서_v1.3.pdf",
     id: "version-current",
@@ -92,7 +92,7 @@ const defaultVersions: ResourceVersionItem[] = [
     versionLabel: "v2",
   },
   {
-    authorLabel: "김정현",
+    authorLabel: "멤버 A",
     changedAtLabel: "2026-06-14 09:18",
     fileName: "요구사항정의서_초안.pdf",
     id: "version-previous-1",

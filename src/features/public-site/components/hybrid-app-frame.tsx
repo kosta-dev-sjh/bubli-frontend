@@ -15,7 +15,7 @@ const frames = [
     title: "회원 웹 앱",
   },
   {
-    body: "배포된 회원 웹 앱을 데스크탑에서 열고, 위젯과 기기 기능을 더합니다.",
+    body: "회원 업무 화면을 데스크탑에서 이어 보고, 위젯과 기기 기능을 더합니다.",
     icon: MonitorDown,
     title: "데스크탑 앱",
   },
@@ -34,10 +34,10 @@ export function HybridAppFrame() {
               </span>
               <h3>{frame.title}</h3>
               <p>{frame.body}</p>
-              <div className="hybrid-frame__mock" aria-hidden="true">
-                <span className="hybrid-frame__mock-line" style={{ width: "72%" }} />
-                <span className="hybrid-frame__mock-line" style={{ width: "92%" }} />
-                <span className="hybrid-frame__mock-line" style={{ width: "58%" }} />
+              <div className="hybrid-frame__surface" aria-hidden="true">
+                <span className="hybrid-frame__surface-line" style={{ width: "72%" }} />
+                <span className="hybrid-frame__surface-line" style={{ width: "92%" }} />
+                <span className="hybrid-frame__surface-line" style={{ width: "58%" }} />
               </div>
             </GlassPanel>
           );
@@ -45,7 +45,7 @@ export function HybridAppFrame() {
       </div>
       <div className="hybrid-frame__note">
         <Chip>설계 포인트</Chip>
-        <span>회원 웹 앱 화면을 그대로 쓰고, 데스크탑에서만 필요한 위젯과 기기 기능을 덧붙입니다.</span>
+        <span>회원 업무 화면과 데스크탑 위젯이 같은 작업 흐름을 이어갑니다.</span>
       </div>
     </section>
   );

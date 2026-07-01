@@ -71,7 +71,7 @@ export const defaultCalendarConflicts: CalendarConflict[] = [
     bubliValue: "클라이언트 확인 질문 보내기",
     googleValue: "질문 정리 미팅",
     kind: "TITLE",
-    projectRoomName: "신규 웹사이트 구축",
+    projectRoomName: "웹사이트 리뉴얼",
     status: "NEEDS_REVIEW",
     title: "질문 초안 확인",
   },

@@ -158,15 +158,15 @@ export function PublicDownloadSection() {
           <div className={styles.platforms} aria-label="운영체제별 앱 다운로드">
             {platformCards.map((card) => {
               const Icon = card.icon;
-              const hasReleaseLink = card.href !== "/#download";
+              const hasDownloadLink = card.href !== "/#download";
               return (
                 <Link
                   className={`${styles.platform} ${card.className}`}
-                  data-release-ready={hasReleaseLink}
+                  data-download-ready={hasDownloadLink}
                   href={card.href}
                   key={card.label}
-                  rel={hasReleaseLink ? "noreferrer" : undefined}
-                  target={hasReleaseLink ? "_blank" : undefined}
+                  rel={hasDownloadLink ? "noreferrer" : undefined}
+                  target={hasDownloadLink ? "_blank" : undefined}
                 >
                   <span className={styles.platformIcon}>
                     <Icon />
