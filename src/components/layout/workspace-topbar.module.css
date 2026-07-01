@@ -11,6 +11,13 @@
   grid-template-columns: minmax(260px, 1fr) auto;
 }
 
+:global(body[data-bubli-surface="hybrid-app"]) .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  padding-bottom: 2px;
+}
+
 .projectButton,
 .searchBox,
 .profileButton {
@@ -23,6 +30,18 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
     0 12px 28px -24px rgba(58, 120, 184, 0.32);
   backdrop-filter: blur(22px) saturate(1.2);
+}
+
+:global(body[data-bubli-surface="hybrid-app"]) .projectButton,
+:global(body[data-bubli-surface="hybrid-app"]) .searchBox,
+:global(body[data-bubli-surface="hybrid-app"]) .profileButton {
+  border-color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    0 14px 32px -24px rgba(58, 120, 184, 0.4);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
 }
 
 .projectButton,
