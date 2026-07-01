@@ -171,6 +171,151 @@
   overflow: hidden;
 }
 
+.wbsPeriodSwitch {
+  align-items: center;
+  background: rgba(247, 249, 250, 0.72);
+  border: 1px solid rgba(229, 231, 235, 0.86);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 4px;
+  margin-block-end: 10px;
+  padding: 4px;
+}
+
+.wbsPeriodSwitch button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: #5a6772;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  min-block-size: 30px;
+  min-inline-size: 40px;
+  padding: 0 10px;
+}
+
+.wbsPeriodSwitch button[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 18px rgba(107, 143, 168, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  color: #2c3540;
+}
+
+.periodBoard,
+.periodDayBoard {
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(229, 231, 235, 0.86);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  min-inline-size: 0;
+  padding: 12px;
+}
+
+.periodBoardHead {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.periodBoardHead strong {
+  color: #2c3540;
+  font-size: 14px;
+  font-weight: 880;
+}
+
+.periodBoardHead span {
+  color: #5a6772;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.periodGrid {
+  display: grid;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+.periodBoardMonth .periodGrid {
+  grid-template-columns: repeat(7, minmax(104px, 1fr));
+  overflow-x: auto;
+  padding-block-end: 4px;
+}
+
+.periodBoardWeek .periodGrid {
+  grid-template-columns: repeat(7, minmax(118px, 1fr));
+  overflow-x: auto;
+  padding-block-end: 4px;
+}
+
+.periodCell {
+  background: rgba(247, 249, 250, 0.7);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  border-radius: 13px;
+  display: grid;
+  gap: 8px;
+  min-block-size: 132px;
+  min-inline-size: 0;
+  padding: 9px;
+}
+
+.periodCell header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.periodCell header span {
+  color: #8a94a0;
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.periodCell header strong {
+  color: #2c3540;
+  font-size: 14px;
+  font-weight: 880;
+}
+
+.periodItems,
+.dayTaskList {
+  display: grid;
+  gap: 7px;
+}
+
+.periodItems small {
+  color: #8a94a0;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.periodPill {
+  background: linear-gradient(90deg, var(--wbs-accent-soft, rgba(215, 234, 244, 0.34)), rgba(255, 255, 255, 0.86));
+  border: 1px solid rgba(229, 231, 235, 0.88);
+  border-inline-start: 3px solid var(--wbs-accent, #8ecdf6);
+  border-radius: 11px;
+  display: grid;
+  gap: 3px;
+  padding: 8px 9px;
+}
+
+.periodPill strong {
+  color: #2c3540;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.periodPill small {
+  color: #5a6772;
+  font-size: 10.5px;
+  font-weight: 740;
+  line-height: 1.35;
+}
+
 .wbsTableHead {
   align-items: center;
   background: rgba(247, 249, 250, 0.86);
@@ -204,8 +349,32 @@
   min-block-size: 42px;
   min-inline-size: 780px;
   padding: 8px 12px;
+  position: relative;
   text-align: start;
   transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.wbsRow::before {
+  background: transparent;
+  border-radius: 999px;
+  content: "";
+  inline-size: 3px;
+  inset-block: 8px;
+  inset-inline-start: 0;
+  position: absolute;
+}
+
+.wbsRowTinted {
+  background: linear-gradient(90deg, var(--wbs-accent-soft, transparent) 0%, rgba(255, 255, 255, 0) 50%);
+}
+
+.wbsRowTinted::before {
+  background: var(--wbs-accent, #8ecdf6);
+}
+
+.wbsRowChild .wbsCode {
+  border-color: color-mix(in srgb, var(--wbs-accent, #8ecdf6) 36%, #e5e7eb);
+  color: color-mix(in srgb, var(--wbs-accent, #8ecdf6) 58%, #2c3540);
 }
 
 .wbsRow:last-child {
@@ -217,6 +386,12 @@
   background: rgba(215, 234, 244, 0.34);
   border-color: rgba(107, 143, 168, 0.2);
   box-shadow: inset 3px 0 0 rgba(107, 143, 168, 0.5);
+}
+
+.wbsRowTinted:hover,
+.wbsRowTinted.wbsRowSelected {
+  background: linear-gradient(90deg, var(--wbs-accent-soft, rgba(215, 234, 244, 0.34)) 0%, rgba(215, 234, 244, 0.34) 62%);
+  box-shadow: inset 3px 0 0 var(--wbs-accent, rgba(107, 143, 168, 0.5));
 }
 
 .wbsRowDragging {
@@ -271,7 +446,7 @@
 }
 
 .wbsMain::before {
-  background: rgba(107, 143, 168, 0.22);
+  background: var(--wbs-accent, rgba(107, 143, 168, 0.22));
   border-radius: 999px;
   content: "";
   display: none;
@@ -285,6 +460,7 @@
 .wbsRow[style*="--wbs-depth: 2"] .wbsMain::before,
 .wbsRow[style*="--wbs-depth: 3"] .wbsMain::before {
   display: block;
+  opacity: 0.54;
 }
 
 .wbsMain strong,
@@ -396,6 +572,64 @@
   display: grid;
   gap: 12px;
   padding: 12px;
+}
+
+.colorControl {
+  display: grid;
+  gap: 8px;
+}
+
+.colorControl > span {
+  color: #5a6772;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.colorSwatches {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.colorSwatch {
+  appearance: none;
+  background: var(--swatch-color);
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(205, 216, 223, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  block-size: 26px;
+  inline-size: 26px;
+  padding: 0;
+}
+
+.colorSwatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px rgba(107, 143, 168, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.customColor {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  border-radius: 999px;
+  color: #5a6772;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  gap: 7px;
+  min-block-size: 28px;
+  padding: 0 8px 0 10px;
+}
+
+.customColor input {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  block-size: 20px;
+  inline-size: 24px;
+  padding: 0;
 }
 
 .wbsCreate {
@@ -587,11 +821,15 @@
 .columnHead strong {
   color: #2c3540;
   font-size: 13px;
+  font-weight: 850;
+  line-height: 1.25;
 }
 
 .columnHead small {
   color: #8a94a0;
   font-size: 11px;
+  font-weight: 740;
+  line-height: 1.35;
 }
 
 .columnHead b {
@@ -600,6 +838,7 @@
   border-radius: 999px;
   color: #6b8fa8;
   font-size: 12px;
+  font-weight: 850;
   min-inline-size: 26px;
   padding: 3px 8px;
   text-align: center;
@@ -626,12 +865,12 @@
   background: rgba(255, 255, 255, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.86);
   border-radius: 12px;
-  box-shadow: 0 8px 22px rgba(107, 143, 168, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  box-shadow: 0 7px 18px rgba(107, 143, 168, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.92);
   cursor: grab;
   display: flex;
-  gap: 10px;
+  gap: 9px;
   min-inline-size: 0;
-  padding: 11px;
+  padding: 10px;
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
@@ -654,26 +893,42 @@
 
 .cardBody {
   display: grid;
-  gap: 6px;
+  gap: 5px;
   min-inline-size: 0;
   inline-size: 100%;
 }
 
 .cardTop {
-  align-items: center;
+  align-items: flex-start;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: 7px;
   min-inline-size: 0;
 }
 
 .cardTop strong {
+  font-size: 13px;
+  font-weight: 840;
   inline-size: 100%;
+  line-height: 1.38;
+  overflow-wrap: break-word;
   white-space: normal;
 }
 
 .cardTop :global(.bubli-status) {
   flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 820;
+  min-block-size: 22px;
+  padding-inline: 7px;
+  white-space: nowrap;
+}
+
+.cardBody p {
+  color: #5a6772;
+  font-size: 11.5px;
+  font-weight: 720;
+  line-height: 1.45;
 }
 
 .kanbanFooter {

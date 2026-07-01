@@ -29,6 +29,8 @@ type WbsEditDraft = {
   wbsId: string | null;
 };
 
+type WbsPeriodMode = "day" | "month" | "rows" | "week";
+
 const columns: KanbanColumn[] = [
   { description: "시작 전", label: "대기", status: "TODO" },
   { description: "진행 중", label: "진행", status: "IN_PROGRESS" },
@@ -41,6 +43,14 @@ const wbsStatusOptions: Array<{ label: string; status: WbsStatus }> = [
   { label: "진행", status: "IN_PROGRESS" },
   { label: "완료", status: "DONE" },
 ];
+
+const wbsAccentOptions = [
+  { label: "하늘", value: "#8ECDF6" },
+  { label: "물빛", value: "#D7EAF4" },
+  { label: "라일락", value: "#E6DDF8" },
+  { label: "펄", value: "#E8C4A0" },
+  { label: "회청", value: "#CDD8DF" },
+] as const;
 
 const viewCopy = {
   kanban: {
@@ -57,6 +67,13 @@ const viewCopy = {
   },
 } as const;
 
+const wbsPeriodCopy: Record<WbsPeriodMode, string> = {
+  day: "일",
+  month: "월",
+  rows: "줄",
+  week: "주",
+};
+
 function formatDue(value?: string | null) {
   if (!value) return null;
 
@@ -67,6 +84,69 @@ function formatDue(value?: string | null) {
     day: "numeric",
     month: "short",
   }).format(date);
+}
+
+function formatPeriodDate(date: Date) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    day: "numeric",
+    month: "short",
+  }).format(date);
+}
+
+function formatMonthTitle(date: Date) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatWeekday(date: Date) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    weekday: "short",
+  }).format(date);
+}
+
+function formatTime(value?: string | null) {
+  if (!value) return null;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function startOfWeek(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  const day = next.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  next.setDate(next.getDate() + diff);
+  return next;
+}
+
+function addDays(date: Date, amount: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function monthDays(date: Date) {
+  const first = new Date(date.getFullYear(), date.getMonth(), 1);
+  const days: Date[] = [];
+  for (let current = new Date(first); current.getMonth() === first.getMonth(); current.setDate(current.getDate() + 1)) {
+    days.push(new Date(current));
+  }
+  return days;
 }
 
 function statusLabel(status?: string | null) {
@@ -83,6 +163,52 @@ function taskTone(status?: string | null) {
   if (status === "BLOCKED") return "warning";
   if (status === "IN_PROGRESS") return "todo";
   return "neutral";
+}
+
+function normalizeHexColor(value: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(value) ? value.toUpperCase() : wbsAccentOptions[0].value;
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const normalized = normalizeHexColor(hex).slice(1);
+  const red = Number.parseInt(normalized.slice(0, 2), 16);
+  const green = Number.parseInt(normalized.slice(2, 4), 16);
+  const blue = Number.parseInt(normalized.slice(4, 6), 16);
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+function createInitialWbsAccentMap(items: WbsItemResponse[]) {
+  return Object.fromEntries(
+    items
+      .filter((item) => item.parentId)
+      .map((item, index) => [item.id, wbsAccentOptions[index % wbsAccentOptions.length].value]),
+  );
+}
+
+function PeriodTaskPill({
+  color,
+  task,
+  wbsTitle,
+}: {
+  color?: string;
+  task: TaskResponse;
+  wbsTitle?: string | null;
+}) {
+  return (
+    <article
+      className={styles.periodPill}
+      style={
+        {
+          "--wbs-accent": color,
+          "--wbs-accent-soft": color ? hexToRgba(color, 0.18) : undefined,
+        } as CSSProperties
+      }
+    >
+      <strong>{task.title}</strong>
+      <small>{[wbsTitle ?? "WBS", formatTime(task.dueAt)].filter(Boolean).join(" · ")}</small>
+    </article>
+  );
 }
 
 function suggestionTypeLabel(type: AgentSuggestionResponse["suggestionType"]) {
@@ -203,6 +329,7 @@ function ProjectRoomWorkCard({
 function WbsRow({
   childCount,
   code,
+  color,
   dueLabel,
   item,
   linkedCount,
@@ -218,6 +345,7 @@ function WbsRow({
 }: {
   childCount: number;
   code: string;
+  color?: string;
   dueLabel: string | null;
   item: WbsItemResponse;
   linkedCount: number;
@@ -238,6 +366,8 @@ function WbsRow({
         selected && styles.wbsRowSelected,
         reorderActive && styles.wbsRowDragging,
         reorderTarget && styles.wbsRowDropTarget,
+        level > 0 && styles.wbsRowChild,
+        color && styles.wbsRowTinted,
       )}
       draggable
       onDragEnd={onDragEnd}
@@ -245,7 +375,13 @@ function WbsRow({
       onDragStart={(event) => onDragStart(event, item)}
       onDrop={(event) => onDrop(event, item.id)}
       onClick={() => onSelect(item.id)}
-      style={{ "--wbs-depth": level } as CSSProperties}
+      style={
+        {
+          "--wbs-accent": color,
+          "--wbs-accent-soft": color ? hexToRgba(color, 0.16) : undefined,
+          "--wbs-depth": level,
+        } as CSSProperties
+      }
       type="button"
     >
       <GripVertical aria-hidden="true" className={styles.wbsHandle} size={15} strokeWidth={2} />
@@ -316,7 +452,9 @@ function ProjectRoomWorkBoardContent({
   const [viewMode, setViewMode] = useState<"kanban" | "suggestions" | "wbs">("wbs");
   const [draggedWbsId, setDraggedWbsId] = useState<string | null>(null);
   const [wbsDropTargetId, setWbsDropTargetId] = useState<string | null>(null);
+  const [wbsPeriodMode, setWbsPeriodMode] = useState<WbsPeriodMode>("rows");
   const [wbsDraft, setWbsDraft] = useState({ title: "" });
+  const [wbsAccentById, setWbsAccentById] = useState<Record<string, string>>(() => createInitialWbsAccentMap(board.wbsItems));
   const [wbsEditDraft, setWbsEditDraft] = useState<WbsEditDraft>(() => ({
     title: initialWbs?.title ?? "",
     wbsId: initialWbs?.id ?? null,
@@ -405,6 +543,7 @@ function ProjectRoomWorkBoardContent({
 
   const visibleTasks = tasks.filter((task) => !task.localRemoved);
   const selectedWbs = selectedWbsId ? wbsItems.find((item) => item.id === selectedWbsId) : null;
+  const selectedWbsAccent = selectedWbsId ? wbsAccentById[selectedWbsId] ?? wbsAccentOptions[0].value : wbsAccentOptions[0].value;
   const selectedTask = selectedTaskId ? visibleTasks.find((task) => task.id === selectedTaskId) ?? null : null;
   const selectedWbsTasks = selectedWbsId
     ? visibleTasks.filter((task) => {
@@ -417,6 +556,31 @@ function ProjectRoomWorkBoardContent({
   const selectedWbsChildCount = selectedWbsId ? childCountByWbsId[selectedWbsId] ?? 0 : 0;
   const canDeleteSelectedWbs = Boolean(selectedWbs && selectedWbsChildCount === 0 && selectedWbsLinkedCount === 0);
   const currentViewCopy = viewCopy[viewMode];
+  const timelineTasks = useMemo(() => {
+    return visibleTasks
+      .filter((task) => task.dueAt && !Number.isNaN(new Date(task.dueAt).getTime()))
+      .sort((a, b) => new Date(a.dueAt ?? "").getTime() - new Date(b.dueAt ?? "").getTime());
+  }, [visibleTasks]);
+  const periodAnchor = useMemo(() => {
+    const firstDueAt = timelineTasks[0]?.dueAt;
+    return firstDueAt ? new Date(firstDueAt) : new Date();
+  }, [timelineTasks]);
+  const tasksByDate = useMemo(() => {
+    return timelineTasks.reduce<Record<string, LocalTask[]>>((acc, task) => {
+      const dueAt = task.dueAt ? new Date(task.dueAt) : null;
+      if (!dueAt || Number.isNaN(dueAt.getTime())) return acc;
+      const key = dateKey(dueAt);
+      acc[key] = [...(acc[key] ?? []), task];
+      return acc;
+    }, {});
+  }, [timelineTasks]);
+  const weekDays = useMemo(() => {
+    const start = startOfWeek(periodAnchor);
+    return Array.from({ length: 7 }, (_, index) => addDays(start, index));
+  }, [periodAnchor]);
+  const monthDateCells = useMemo(() => monthDays(periodAnchor), [periodAnchor]);
+  const periodDays = wbsPeriodMode === "month" ? monthDateCells : weekDays;
+  const dayTasks = tasksByDate[dateKey(periodAnchor)] ?? [];
   const activeWbsEditDraft =
     selectedWbs && wbsEditDraft.wbsId === selectedWbs.id
       ? wbsEditDraft
@@ -444,6 +608,12 @@ function ProjectRoomWorkBoardContent({
     };
 
     setWbsItems((current) => [...current, optimistic]);
+    if (optimistic.parentId) {
+      setWbsAccentById((current) => ({
+        ...current,
+        [optimistic.id]: current[optimistic.parentId ?? ""] ?? wbsAccentOptions[wbsItems.length % wbsAccentOptions.length].value,
+      }));
+    }
     setSelectedWbsId(optimistic.id);
     setWbsDraft({ title: "" });
     setSaveNotice("WBS 저장 중");
@@ -455,6 +625,15 @@ function ProjectRoomWorkBoardContent({
         title,
       });
       setWbsItems((current) => current.map((item) => (item.id === optimistic.id ? created : item)));
+      setWbsAccentById((current) => {
+        const next = { ...current };
+        const color = next[optimistic.id];
+        delete next[optimistic.id];
+        if (created.parentId) {
+          next[created.id] = color ?? next[created.parentId] ?? wbsAccentOptions[0].value;
+        }
+        return next;
+      });
       setSelectedWbsId(created.id);
       setSaveNotice("WBS 저장됨");
     } catch {
@@ -514,6 +693,11 @@ function ProjectRoomWorkBoardContent({
     const fallbackId = selectedWbs.parentId ?? wbsItems.find((item) => item.id !== selectedWbs.id)?.id ?? null;
 
     setWbsItems((current) => current.filter((item) => item.id !== selectedWbs.id));
+    setWbsAccentById((current) => {
+      const next = { ...current };
+      delete next[selectedWbs.id];
+      return next;
+    });
     setSelectedWbsId(fallbackId);
     setSaveNotice("WBS 삭제 중");
 
@@ -524,9 +708,19 @@ function ProjectRoomWorkBoardContent({
       })
       .catch(() => {
         setWbsItems(previousItems);
+        setWbsAccentById((current) => ({ ...current, [selectedWbs.id]: selectedWbsAccent }));
         setSelectedWbsId(selectedWbs.id);
         setSaveNotice("WBS 서버 저장 대기");
       });
+  };
+
+  const updateSelectedWbsAccent = (color: string) => {
+    if (!selectedWbsId) return;
+
+    setWbsAccentById((current) => ({
+      ...current,
+      [selectedWbsId]: normalizeHexColor(color),
+    }));
   };
 
   const reorderWbsRows = (draggedId: string, targetId: string) => {
@@ -740,44 +934,117 @@ function ProjectRoomWorkBoardContent({
               <div className={styles.paneHead}>
                 <div>
                   <h2>WBS 줄 목록</h2>
-                  <p>같은 단계 안에서 끌어 순서를 바꾸고, 선택한 줄의 할 일을 확인합니다.</p>
+                  <p>줄 구조와 월·주·일 기간을 함께 확인합니다.</p>
                 </div>
                 <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
               </div>
-              <div className={styles.wbsTableHead} aria-hidden="true">
-                <span>이동</span>
-                <span>번호</span>
-                <span>작업명</span>
-                <span>상태</span>
-                <span>TODO</span>
-                <span>기한</span>
-                <span>하위</span>
+              <div className={styles.wbsPeriodSwitch} aria-label="WBS 보기 방식">
+                {(Object.keys(wbsPeriodCopy) as WbsPeriodMode[]).map((mode) => (
+                  <button aria-pressed={wbsPeriodMode === mode} key={mode} onClick={() => setWbsPeriodMode(mode)} type="button">
+                    {wbsPeriodCopy[mode]}
+                  </button>
+                ))}
               </div>
-              <div className={styles.wbsList} role="list">
-                {wbsTree.rows.length > 0 ? (
-                  wbsTree.rows.map((item) => (
-                    <WbsRow
-                      childCount={childCountByWbsId[item.id] ?? 0}
-                      code={wbsTree.codeById[item.id] ?? "-"}
-                      dueLabel={dueLabelByWbsId[item.id] ?? null}
-                      item={item}
-                      key={item.id}
-                      level={wbsDepthById[item.id] ?? 0}
-                      linkedCount={linkedCountByWbsId[item.id] ?? 0}
-                      onDragEnd={handleWbsDragEnd}
-                      onDragOver={handleWbsDragOver}
-                      onDragStart={handleWbsDragStart}
-                      onDrop={handleWbsDrop}
-                      onSelect={setSelectedWbsId}
-                      reorderActive={draggedWbsId === item.id}
-                      reorderTarget={wbsDropTargetId === item.id && draggedWbsId !== item.id}
-                      selected={selectedWbsId === item.id}
-                    />
-                  ))
-                ) : (
-                  <p className={styles.empty}>현재 데이터가 없습니다</p>
-                )}
-              </div>
+
+              {wbsPeriodMode === "rows" ? (
+                <>
+                  <div className={styles.wbsTableHead} aria-hidden="true">
+                    <span>이동</span>
+                    <span>번호</span>
+                    <span>작업명</span>
+                    <span>상태</span>
+                    <span>TODO</span>
+                    <span>기한</span>
+                    <span>하위</span>
+                  </div>
+                  <div className={styles.wbsList} role="list">
+                    {wbsTree.rows.length > 0 ? (
+                      wbsTree.rows.map((item) => (
+                        <WbsRow
+                          childCount={childCountByWbsId[item.id] ?? 0}
+                          code={wbsTree.codeById[item.id] ?? "-"}
+                          color={wbsAccentById[item.id]}
+                          dueLabel={dueLabelByWbsId[item.id] ?? null}
+                          item={item}
+                          key={item.id}
+                          level={wbsDepthById[item.id] ?? 0}
+                          linkedCount={linkedCountByWbsId[item.id] ?? 0}
+                          onDragEnd={handleWbsDragEnd}
+                          onDragOver={handleWbsDragOver}
+                          onDragStart={handleWbsDragStart}
+                          onDrop={handleWbsDrop}
+                          onSelect={setSelectedWbsId}
+                          reorderActive={draggedWbsId === item.id}
+                          reorderTarget={wbsDropTargetId === item.id && draggedWbsId !== item.id}
+                          selected={selectedWbsId === item.id}
+                        />
+                      ))
+                    ) : (
+                      <p className={styles.empty}>현재 데이터가 없습니다</p>
+                    )}
+                  </div>
+                </>
+              ) : null}
+
+              {wbsPeriodMode === "month" || wbsPeriodMode === "week" ? (
+                <div className={cn(styles.periodBoard, wbsPeriodMode === "month" ? styles.periodBoardMonth : styles.periodBoardWeek)}>
+                  <div className={styles.periodBoardHead}>
+                    <strong>{wbsPeriodMode === "month" ? formatMonthTitle(periodAnchor) : `${formatPeriodDate(weekDays[0])} - ${formatPeriodDate(weekDays[6])}`}</strong>
+                    <span>Google Calendar와 같은 기한 기준</span>
+                  </div>
+                  <div className={styles.periodGrid}>
+                    {periodDays.map((day) => {
+                      const key = dateKey(day);
+                      const dayItems = tasksByDate[key] ?? [];
+                      return (
+                        <section className={styles.periodCell} key={key} aria-label={`${formatPeriodDate(day)} 작업`}>
+                          <header>
+                            <span>{formatWeekday(day)}</span>
+                            <strong>{day.getDate()}</strong>
+                          </header>
+                          <div className={styles.periodItems}>
+                            {dayItems.length > 0 ? (
+                              dayItems.map((task) => (
+                                <PeriodTaskPill
+                                  color={task.wbsItemId ? wbsAccentById[task.wbsItemId] : undefined}
+                                  key={task.id}
+                                  task={task}
+                                  wbsTitle={task.wbsItemId ? wbsTitleById[task.wbsItemId] : null}
+                                />
+                              ))
+                            ) : (
+                              <small>비어 있음</small>
+                            )}
+                          </div>
+                        </section>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {wbsPeriodMode === "day" ? (
+                <div className={styles.periodDayBoard}>
+                  <div className={styles.periodBoardHead}>
+                    <strong>{formatPeriodDate(periodAnchor)}</strong>
+                    <span>이날 처리할 WBS/TODO</span>
+                  </div>
+                  <div className={styles.dayTaskList}>
+                    {dayTasks.length > 0 ? (
+                      dayTasks.map((task) => (
+                        <PeriodTaskPill
+                          color={task.wbsItemId ? wbsAccentById[task.wbsItemId] : undefined}
+                          key={task.id}
+                          task={task}
+                          wbsTitle={task.wbsItemId ? wbsTitleById[task.wbsItemId] : null}
+                        />
+                      ))
+                    ) : (
+                      <p className={styles.empty}>현재 데이터가 없습니다</p>
+                    )}
+                  </div>
+                </div>
+              ) : null}
             </section>
 
             <section className={styles.wbsDetail} aria-label="선택한 WBS 상세">
@@ -852,6 +1119,31 @@ function ProjectRoomWorkBoardContent({
                           {column.label}
                         </button>
                       ))}
+                    </div>
+                    <div className={styles.colorControl}>
+                      <span>줄 색</span>
+                      <div className={styles.colorSwatches} aria-label="WBS 줄 색 선택" role="group">
+                        {wbsAccentOptions.map((option) => (
+                          <button
+                            aria-label={`${option.label} 줄 색`}
+                            aria-pressed={selectedWbsAccent === option.value}
+                            className={styles.colorSwatch}
+                            key={option.value}
+                            onClick={() => updateSelectedWbsAccent(option.value)}
+                            style={{ "--swatch-color": option.value } as CSSProperties}
+                            type="button"
+                          />
+                        ))}
+                        <label className={styles.customColor}>
+                          <span>직접</span>
+                          <input
+                            aria-label="직접 줄 색 선택"
+                            onChange={(event) => updateSelectedWbsAccent(event.target.value)}
+                            type="color"
+                            value={selectedWbsAccent}
+                          />
+                        </label>
+                      </div>
                     </div>
                     <div className={styles.wbsFormActions}>
                       <button className={styles.primaryAction} type="submit">
