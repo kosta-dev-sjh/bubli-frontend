@@ -125,7 +125,7 @@ export function ResourceUploadDecision() {
               <FileText size={17} strokeWidth={2.1} />
             </span>
             <div>
-              <h3>번역계약서_v2.pdf</h3>
+              <h3>업무기준서_v2.pdf</h3>
               <p>PDF · 2.4MB · 개인 관리 폴더에서 선택</p>
             </div>
           </div>

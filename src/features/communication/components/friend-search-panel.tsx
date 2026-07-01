@@ -19,7 +19,7 @@ type FriendSearchResult = {
 const searchResults: FriendSearchResult[] = [
   {
     bubliId: "miyeon",
-    displayName: "김미연",
+    displayName: "김팀원 B",
     id: "user-1",
     lastProjectLabel: "신규 홈페이지 리뉴얼",
     status: "NONE",
@@ -28,7 +28,7 @@ const searchResults: FriendSearchResult[] = [
     bubliId: "junhwa",
     displayName: "홍준화",
     id: "user-2",
-    lastProjectLabel: "API 계약 정리",
+    lastProjectLabel: "API 기준 정리",
     status: "PENDING_SENT",
   },
   {

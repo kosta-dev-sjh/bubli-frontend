@@ -15,7 +15,7 @@ const frames = [
     title: "회원 웹 앱",
   },
   {
-    body: "배포된 회원 웹 앱을 데스크탑에서 열고, 위젯과 기기 기능을 더합니다.",
+    body: "회원 웹 앱의 업무 흐름을 데스크탑에서 열고, 버블과 기기 기능을 더합니다.",
     icon: MonitorDown,
     title: "데스크탑 앱",
   },
@@ -34,10 +34,10 @@ export function HybridAppFrame() {
               </span>
               <h3>{frame.title}</h3>
               <p>{frame.body}</p>
-              <div className="hybrid-frame__mock" aria-hidden="true">
-                <span className="hybrid-frame__mock-line" style={{ width: "72%" }} />
-                <span className="hybrid-frame__mock-line" style={{ width: "92%" }} />
-                <span className="hybrid-frame__mock-line" style={{ width: "58%" }} />
+              <div className="hybrid-frame__sample" aria-hidden="true">
+                <span className="hybrid-frame__sample-line" style={{ width: "72%" }} />
+                <span className="hybrid-frame__sample-line" style={{ width: "92%" }} />
+                <span className="hybrid-frame__sample-line" style={{ width: "58%" }} />
               </div>
             </GlassPanel>
           );

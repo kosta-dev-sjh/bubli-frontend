@@ -89,7 +89,7 @@ export const defaultDownloadSurfaces: ProductSurface[] = [
 
 export const defaultDesktopCapabilities: DesktopCapability[] = [
   {
-    description: "메인 창은 배포된 회원 웹 앱을 열어 브라우저와 같은 화면을 보여줍니다.",
+    description: "메인 창은 회원 웹 앱을 열어 브라우저와 같은 화면을 보여줍니다.",
     kind: "MEMBER_WEB_WINDOW",
     title: "회원 웹 앱 열기",
   },

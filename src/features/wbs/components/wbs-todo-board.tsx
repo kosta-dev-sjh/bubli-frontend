@@ -50,14 +50,14 @@ const columns = [
       {
         code: "1.2.2",
         dueLabel: "오늘",
-        sourceLabel: "번역계약서_v2.pdf에서 승인",
+        sourceLabel: "업무기준서_v2.pdf에서 승인",
         status: "doing" as const,
         title: "1차 번역본 검토",
       },
       {
         code: "1.2.3",
         dueLabel: "오늘",
-        sourceLabel: "요구사항_초안.docx에서 승인",
+        sourceLabel: "요구사항_정리.docx에서 승인",
         status: "doing" as const,
         title: "용어집 초안 정리",
       },
@@ -104,7 +104,7 @@ export function WbsTodoBoard() {
         <GlassPanel className="work-board__todo">
           <StatusBadge tone="todo">하나의 TODO</StatusBadge>
           <h2>1차 번역본 검토</h2>
-          <p>담당자 정현 · D-2 · 번역계약서_v2.pdf에서 승인된 작업</p>
+          <p>담당자 나 · D-2 · 업무기준서_v2.pdf에서 승인된 작업</p>
         </GlassPanel>
         <div className="work-board__targets">
           {targets.map((target) => {
@@ -167,7 +167,7 @@ export function WbsTodoBoard() {
               <div className="work-board__column" key={column.title}>
                 <h3>{column.title}</h3>
                 {column.items.map((item) => (
-                  <WorkItemCard assignee="정현" key={item.code} {...item} />
+                  <WorkItemCard assignee="나" key={item.code} {...item} />
                 ))}
               </div>
             ))}
@@ -191,7 +191,7 @@ export function WbsTodoBoard() {
           <SuggestionCard
             confidence={86}
             description="요구사항 문서의 용어집 정리를 WBS 하위 작업 후보로 제안합니다."
-            source="요구사항_초안.docx"
+            source="요구사항_정리.docx"
             title="용어집 정리"
           />
         </aside>

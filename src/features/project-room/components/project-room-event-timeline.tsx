@@ -16,10 +16,10 @@ import styles from "./project-room-event-timeline.module.css";
 const events = [
   {
     title: "새 자료 버전이 올라옴",
-    body: "같은 계약서 파일이 다시 올라와 이전 파일을 덮지 않고 v2로 보관합니다.",
+    body: "같은 업무 기준 문서 파일이 다시 올라와 이전 파일을 덮지 않고 v2로 보관합니다.",
     detailTitle: "자료 버전 기록",
     detail: "프로젝트룸 멤버는 최신 버전과 이전 버전을 구분해 확인합니다.",
-    actor: "김정현",
+    actor: "프로젝트 리더",
     time: "10:24",
     badge: "자료 버전",
     tone: "room" as const,
@@ -52,7 +52,7 @@ const events = [
     body: "초대받은 사용자가 프로젝트룸에 들어와 멤버 권한이 생겼습니다.",
     detailTitle: "멤버 권한",
     detail: "수락 이후부터 자료, WBS/TODO, 채팅, 보이스 권한을 확인합니다.",
-    actor: "박미연",
+    actor: "팀원 B",
     time: "10:44",
     badge: "수락 완료",
     tone: "approved" as const,

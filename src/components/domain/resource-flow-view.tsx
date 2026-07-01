@@ -56,7 +56,7 @@ export type ResourceFlowData = {
   }[];
 };
 
-export const MOCK_FLOW: ResourceFlowData = {
+export const DEFAULT_RESOURCE_FLOW: ResourceFlowData = {
   resources: [
     {
       description: "메인, 상세, 마이페이지 개편 범위와 검수 기준이 들어 있습니다.",
@@ -177,7 +177,7 @@ function ResourceSkeleton() {
 
 export function ResourceFlowView({
   className,
-  data = MOCK_FLOW,
+  data = DEFAULT_RESOURCE_FLOW,
   empty = false,
   error = false,
   loading = false,

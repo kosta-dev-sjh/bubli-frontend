@@ -71,7 +71,7 @@ export const defaultMismatchItems: MismatchItem[] = [
   {
     actionLabel: "납품일 기준 질문 만들기",
     comparedValues: [
-      { documentLabel: "계약서", value: "2026.07.15" },
+      { documentLabel: "업무 기준 문서", value: "마감일 확인" },
       { documentLabel: "회의록", value: "2026.07.20" },
     ],
     fieldLabel: "납품일",
@@ -84,7 +84,7 @@ export const defaultMismatchItems: MismatchItem[] = [
     actionLabel: "부가세 포함 여부 확인",
     comparedValues: [
       { documentLabel: "견적서", value: "8,000,000원" },
-      { documentLabel: "계약서", value: "금액만 기재" },
+      { documentLabel: "업무 기준 문서", value: "금액만 기재" },
     ],
     fieldLabel: "금액 참고값",
     id: "amount-vat",
@@ -96,7 +96,7 @@ export const defaultMismatchItems: MismatchItem[] = [
     actionLabel: "검수 기준 질문 만들기",
     comparedValues: [
       { documentLabel: "요구사항 문서", value: "1차 검수" },
-      { documentLabel: "계약서", value: "최종 검수 1회" },
+      { documentLabel: "업무 기준 문서", value: "최종 검수 1회" },
     ],
     fieldLabel: "검수 기준",
     id: "inspection-rule",
@@ -107,7 +107,7 @@ export const defaultMismatchItems: MismatchItem[] = [
   {
     actionLabel: "자료 취급 기준 확인",
     comparedValues: [
-      { documentLabel: "계약서", value: "비밀 유지 조항 있음" },
+      { documentLabel: "업무 기준 문서", value: "비밀 유지 조항 있음" },
       { documentLabel: "요구사항 문서", value: "샘플 원문 공유 필요" },
     ],
     fieldLabel: "개인정보/저작권 조건",
@@ -136,7 +136,7 @@ export function DocumentMismatchReviewPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              계약서, 견적서, 요구사항 문서에서 서로 다른 값과 빠진 조건을 모아 보여줍니다. 결과는 확정 값이 아니라
+              업무 기준 문서, 견적서, 요구사항 문서에서 서로 다른 값과 빠진 조건을 모아 보여줍니다. 결과는 확정 값이 아니라
               사용자가 확인할 항목이며, 승인 전에는 WBS/TODO나 일정에 반영하지 않습니다.
             </p>
           </div>

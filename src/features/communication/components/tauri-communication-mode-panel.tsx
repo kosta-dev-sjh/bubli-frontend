@@ -89,7 +89,7 @@ export function TauriCommunicationModePanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              웹은 {webRoute}에서 소통을 다루고, 데스크톱 앱은 배포된 회원 화면의 같은 서버 연결을 사용합니다.
+              웹은 {webRoute}에서 소통을 다루고, 데스크톱 앱은 회원 화면의 같은 서버 연결을 사용합니다.
               앱에서는 작업 흐름을 줄이기 위해 소통을 별도 창이나 버블로 보여줄 수 있습니다.
             </p>
           </div>
