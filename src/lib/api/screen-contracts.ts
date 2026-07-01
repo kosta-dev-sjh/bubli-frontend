@@ -100,13 +100,13 @@ export const screenApiContracts = [
     boundary: "personal-resource",
     currentCodeNotes: [
       "Personal resource workspace uses resourcesApi.listPersonal.",
-      "Managed-folder API exists for local-file sync, but several helper endpoints are pending backend confirmation.",
+      "Managed-folder selection, scan, watch, and local search are Tauri IPC/local adapter responsibilities.",
     ],
     id: "personal-resources",
     label: "개인 자료",
     missingOrMismatch: [
       "Personal resources must be local managed-folder sync, not browser upload or drag-and-drop.",
-      "GET /api/local-files, POST /api/local-file-events/suggest, PATCH /api/local-file-events/{id}, and PATCH /api/resources/{id}/sync-policy are frontend contracts not pinned in 10_API-Design.",
+      "Only POST /api/local-file-events/sync is a server API for approved local file events; local file browsing stays in Tauri.",
     ],
     requiredApis: [
       "GET /api/resources?scope=personal",
@@ -224,7 +224,7 @@ export const screenApiContracts = [
       "GET /api/chat/rooms/{id}/messages",
       "POST /api/chat/rooms/{id}/messages",
       "PATCH /api/chat/rooms/{id}/read",
-      "POST /api/project-rooms/{roomId}/agent-command",
+      "POST /api/project-rooms/{roomId}/agent/commands",
       "POST /api/project-rooms/{roomId}/memory-summaries",
       "GET /api/project-rooms/{roomId}/memory-summaries",
       "POST /api/voice/rooms",
@@ -269,13 +269,14 @@ export const screenApiContracts = [
     boundary: "settings",
     currentCodeNotes: [
       "Settings page currently reads authApi.getMe for account display.",
-      "settingsApi contains preferences, privacy consent, notification preference, managed-folder, and storage calls.",
+      "settingsApi contains profile-adjacent preferences, privacy consent, notification preference, and storage calls.",
+      "Managed-folder controls use Tauri IPC/local adapters instead of invented server endpoints.",
     ],
     id: "settings",
     label: "설정",
     missingOrMismatch: [
       "The screen needs to wire preferences, notification preferences, privacy consents, managed folders, storage usage, and Google Calendar state.",
-      "GET/POST/DELETE /api/me/managed-folders is a frontend contract but 10_API-Design only names the Tauri IPC and sync API.",
+      "Managed folders follow the Tauri IPC and sync API boundary; no /api/me/managed-folders backend route is used.",
     ],
     requiredApis: [
       "GET /api/me",

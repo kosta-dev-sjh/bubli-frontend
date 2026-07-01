@@ -29,7 +29,7 @@ function getApiTimeoutMs() {
     return configured;
   }
 
-  if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_BUBLI_PREVIEW_DATA !== "false") {
+  if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_BUBLI_PREVIEW_DATA === "true") {
     return PREVIEW_API_TIMEOUT_MS;
   }
 

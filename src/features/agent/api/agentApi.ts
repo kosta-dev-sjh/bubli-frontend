@@ -1,4 +1,6 @@
 import { apiRequest } from "@/lib/api/client";
+import { getApiBaseUrl } from "@/lib/api/client";
+import { getAuthAccessToken } from "@/lib/auth/auth-session";
 import type {
   AgentDocumentDraftRequest,
   AgentJobEventPageResponse,
@@ -13,6 +15,9 @@ import type {
   DailySummaryRequest,
   DailySummaryResponse,
   DailySummaryUpdateRequest,
+  GeneratedDocumentExport,
+  GeneratedDocumentPageResponse,
+  GeneratedDocumentResponse,
 } from "@/types/api/agent";
 
 export type AnalyzeResourceRequest = {
@@ -101,6 +106,18 @@ export const agentApi = {
     return apiRequest<AgentSuggestionResponse[]>(`/api/project-rooms/${roomId}/agent/suggestions${suggestionQuery(params)}`);
   },
 
+  listRoomConfirmationItems(roomId: string, params?: Pick<AgentSuggestionListParams, "status">) {
+    return apiRequest<AgentSuggestionResponse[]>(`/api/project-rooms/${roomId}/agent/confirmation-items${suggestionQuery(params)}`);
+  },
+
+  listRoomConfirmedRequirements(roomId: string) {
+    return apiRequest<AgentSuggestionResponse[]>(`/api/project-rooms/${roomId}/agent/confirmed-requirements`);
+  },
+
+  listRoomContractReferences(roomId: string) {
+    return apiRequest<AgentSuggestionResponse[]>(`/api/project-rooms/${roomId}/agent/contract-references`);
+  },
+
   updateSuggestion(suggestionId: string, body: AgentSuggestionUpdateRequest) {
     return apiRequest<AgentSuggestionResponse>(`/api/agent/suggestions/${suggestionId}`, {
       body,
@@ -138,5 +155,43 @@ export const agentApi = {
       body,
       method: "PATCH",
     });
+  },
+
+  listGeneratedDocuments() {
+    return apiRequest<GeneratedDocumentPageResponse>("/api/generated-documents");
+  },
+
+  listRoomGeneratedDocuments(roomId: string) {
+    return apiRequest<GeneratedDocumentPageResponse>(`/api/project-rooms/${roomId}/generated-documents`);
+  },
+
+  getGeneratedDocument(documentId: string) {
+    return apiRequest<GeneratedDocumentResponse>(`/api/generated-documents/${documentId}`);
+  },
+
+  async exportGeneratedDocument(documentId: string): Promise<GeneratedDocumentExport> {
+    const headers = new Headers();
+    const accessToken = getAuthAccessToken();
+    if (accessToken) {
+      headers.set("Authorization", `Bearer ${accessToken}`);
+    }
+
+    const response = await fetch(`${getApiBaseUrl()}/api/generated-documents/${documentId}/export`, {
+      credentials: "include",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Generated document export failed with status ${response.status}`);
+    }
+
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const fileName = decodeURIComponent(disposition.match(/filename\*=UTF-8''([^;]+)/)?.[1] ?? "generated-document.md");
+
+    return {
+      blob: await response.blob(),
+      contentType: response.headers.get("Content-Type") ?? "text/markdown;charset=UTF-8",
+      fileName,
+    };
   },
 } as const;

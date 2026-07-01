@@ -15,16 +15,18 @@ export type VoiceRoomCreateRequest = {
 };
 
 export type VoiceParticipantResponse = {
-  id: string;
+  id?: string;
   joinedAt: string;
   leftAt?: string | null;
+  micStatus?: string | null;
+  name?: string | null;
   status: VoiceParticipantStatus;
   userId: string;
   userName: string;
 };
 
 export type VoiceRoomResponse = {
-  createdAt: string;
+  createdAt?: string;
   id: string;
   livekitRoomName: string;
   participants: VoiceParticipantResponse[];

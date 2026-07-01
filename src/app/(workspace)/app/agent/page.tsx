@@ -92,21 +92,6 @@ function AgentPageContent() {
       return { kind: "loading" };
     });
 
-    if (shouldUseWorkspacePreviewData()) {
-      const selectedRoom = roomId ? workspacePreviewRooms.find((room) => room.id === roomId) ?? workspacePreviewRooms[0] : null;
-      if (selectedRoom) {
-        setActiveProjectRoomId(selectedRoom.id, selectedRoom.name);
-      }
-
-      setState({
-        kind: "ready",
-        rooms: workspacePreviewRooms,
-        selectedRoomId: selectedRoom?.id ?? null,
-        suggestions: selectedRoom ? workspacePreviewRoomSuggestions(selectedRoom.id) : workspacePreviewPersonalSuggestions(),
-      });
-      return;
-    }
-
     try {
       const [roomPage, suggestions] = await Promise.all([
         projectRoomApi.list(),
@@ -126,6 +111,21 @@ function AgentPageContent() {
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
+        return;
+      }
+
+      if (shouldUseWorkspacePreviewData()) {
+        const selectedRoom = roomId ? workspacePreviewRooms.find((room) => room.id === roomId) ?? workspacePreviewRooms[0] : null;
+        if (selectedRoom) {
+          setActiveProjectRoomId(selectedRoom.id, selectedRoom.name);
+        }
+
+        setState({
+          kind: "ready",
+          rooms: workspacePreviewRooms,
+          selectedRoomId: selectedRoom?.id ?? null,
+          suggestions: selectedRoom ? workspacePreviewRoomSuggestions(selectedRoom.id) : workspacePreviewPersonalSuggestions(),
+        });
         return;
       }
 
@@ -158,30 +158,35 @@ function AgentPageContent() {
     setUpdatingId(suggestionId);
 
     try {
-      if (shouldUseWorkspacePreviewData()) {
-        const nextStatus: AgentSuggestionStatus = action === "APPROVE" ? "APPROVED" : action === "HOLD" ? "HELD" : "REJECTED";
-        setState((current) => {
-          if (current.kind !== "ready") return current;
-
-          return {
-            ...current,
-            suggestions: current.suggestions.map((suggestion) =>
-              suggestion.suggestionId === suggestionId
-                ? {
-                    ...suggestion,
-                    reviewedAt: new Date().toISOString(),
-                    status: nextStatus,
-                    updatedAt: new Date().toISOString(),
-                  }
-                : suggestion,
-            ),
-          };
+      await agentApi.updateSuggestion(suggestionId, { action });
+      await load(selectedRoomId);
+    } catch (error) {
+      if (!shouldUseWorkspacePreviewData()) {
+        setState({
+          kind: "offline",
+          message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "후보 상태를 바꾸지 못했습니다.",
         });
         return;
       }
 
-      await agentApi.updateSuggestion(suggestionId, { action });
-      await load(selectedRoomId);
+      const nextStatus: AgentSuggestionStatus = action === "APPROVE" ? "APPROVED" : action === "HOLD" ? "HELD" : "REJECTED";
+      setState((current) => {
+        if (current.kind !== "ready") return current;
+
+        return {
+          ...current,
+          suggestions: current.suggestions.map((suggestion) =>
+            suggestion.suggestionId === suggestionId
+              ? {
+                  ...suggestion,
+                  reviewedAt: new Date().toISOString(),
+                  status: nextStatus,
+                  updatedAt: new Date().toISOString(),
+                }
+              : suggestion,
+          ),
+        };
+      });
     } finally {
       setUpdatingId(null);
     }

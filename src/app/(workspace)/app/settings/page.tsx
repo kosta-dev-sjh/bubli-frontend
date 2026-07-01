@@ -29,6 +29,7 @@ import {
 } from "@/lib/local/managed-folder-client";
 import { getLocalSyncOutboxSummary, stageWidgetUsageSummary } from "@/lib/sync/local-sync-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
 import type {
@@ -189,13 +190,13 @@ export default function SettingsPage() {
   const load = useCallback(async () => {
     setState({ kind: "loading" });
     setSaveMessage(null);
+    setLocalActionMessage(null);
 
     try {
       const user = await authApi.getMe();
-      const [notifications, privacy, folders, storage, widgetBubbles, widgetUsage] = await Promise.allSettled([
+      const [notifications, privacy, storage, widgetBubbles, widgetUsage] = await Promise.allSettled([
         settingsApi.getNotificationPreferences(),
         settingsApi.getPrivacyConsents(),
-        settingsApi.getManagedFolders(),
         settingsApi.getStorageUsage(),
         widgetApi.getBubbles(),
         widgetApi.getTodayUsageRollups(),
@@ -205,7 +206,7 @@ export default function SettingsPage() {
       setState({
         kind: "ready",
         settings: {
-          folders: settledValue(folders, []),
+          folders: [],
           notifications: settledValue(notifications, null),
           privacy: settledValue(privacy, null),
           storage: settledValue(storage, null),
@@ -265,6 +266,7 @@ export default function SettingsPage() {
       });
       updateReadyState((current) => ({ ...current, user: saved }));
     } catch {
+      if (shouldUseWorkspacePreviewData()) return;
       setSaveMessage("저장하지 못했습니다. 서버 연결을 확인하세요");
     }
   }, [profileDraft, state, updateReadyState]);
@@ -295,6 +297,7 @@ export default function SettingsPage() {
           settings: { ...ready.settings, notifications: saved },
         }));
       } catch {
+        if (shouldUseWorkspacePreviewData()) return;
         setSaveMessage("알림 설정을 저장하지 못했습니다");
       }
     },
@@ -311,7 +314,7 @@ export default function SettingsPage() {
         ...ready,
         settings: { ...ready.settings, privacy: next },
       }));
-      setSaveMessage("동의 상태를 저장했습니다");
+      setSaveMessage("기기 권한 설정을 저장했습니다");
 
       try {
         const patch: PrivacyConsentsUpdateRequest = { [key]: next[key] };
@@ -321,7 +324,8 @@ export default function SettingsPage() {
           settings: { ...ready.settings, privacy: saved },
         }));
       } catch {
-        setSaveMessage("동의 상태를 저장하지 못했습니다");
+        if (shouldUseWorkspacePreviewData()) return;
+        setSaveMessage("기기 권한 설정을 저장하지 못했습니다");
       }
     },
     [state, updateReadyState],
@@ -355,6 +359,7 @@ export default function SettingsPage() {
           settings: { ...ready.settings, widgetBubbles: saved },
         }));
       } catch {
+        if (shouldUseWorkspacePreviewData()) return;
         setSaveMessage("버블 표시 설정을 저장하지 못했습니다");
       }
     },
@@ -386,23 +391,7 @@ export default function SettingsPage() {
       },
     }));
 
-    try {
-      const saved = await settingsApi.createManagedFolder({
-        localPath: folder.path,
-        name: folder.name,
-        syncEnabled: true,
-      });
-      updateReadyState((ready) => ({
-        ...ready,
-        settings: {
-          ...ready.settings,
-          folders: [saved, ...ready.settings.folders.filter((item) => item.id !== saved.id)],
-        },
-      }));
-      setLocalActionMessage("개인 폴더를 연결했습니다");
-    } catch {
-      setLocalActionMessage("폴더는 선택됐지만 서버 등록을 마치지 못했습니다");
-    }
+    setLocalActionMessage("개인 폴더를 로컬 앱에 연결했습니다");
   }, [state.kind, updateReadyState]);
 
   const checkLocalCache = useCallback(async () => {

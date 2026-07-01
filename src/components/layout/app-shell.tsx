@@ -63,25 +63,6 @@ function routeFallbackProject(activeRoom?: ProjectRoomResponse) {
   };
 }
 
-function createPreviewRoom(name: string, clientName?: string | null): ProjectRoomResponse {
-  const now = new Date().toISOString();
-  const roomId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `preview-${Date.now()}`;
-
-  return {
-    clientName: clientName?.trim() || null,
-    contractAmount: null,
-    createdAt: now,
-    createdByUserId: workspacePreviewUser.id,
-    id: roomId,
-    name: name.trim(),
-    paidAt: null,
-    paymentDueDate: null,
-    paymentStatus: "NOT_RECORDED",
-    status: "ACTIVE",
-    updatedAt: now,
-  };
-}
-
 function inferContractDocumentType(file: File): ContractDocumentType {
   const name = file.name.toLowerCase();
   return name.includes("requirement") || name.includes("요구") || name.includes("요건") ? "REQUIREMENT" : "CONTRACT";
@@ -105,8 +86,6 @@ export function AppShell({ children }: AppShellProps) {
     let mounted = true;
 
     async function loadShell() {
-      const usePreviewData = shouldUseWorkspacePreviewData();
-
       try {
         const [user, roomPage] = await Promise.all([authApi.getMe(), projectRoomApi.list()]);
         let notificationCount = 0;
@@ -121,12 +100,13 @@ export function AppShell({ children }: AppShellProps) {
         if (mounted) setState({ kind: "ready", notificationCount, rooms: roomPage.items, user });
       } catch (error) {
         if (!mounted) return;
-        if (usePreviewData) {
-          setState({ kind: "ready", notificationCount: 0, rooms: workspacePreviewRooms, user: workspacePreviewUser });
-          return;
-        }
         if (error instanceof ApiClientError && error.status === 401) {
           setState({ kind: "auth" });
+          return;
+        }
+
+        if (shouldUseWorkspacePreviewData()) {
+          setState({ kind: "ready", notificationCount: 0, rooms: workspacePreviewRooms, user: workspacePreviewUser });
           return;
         }
 
@@ -265,7 +245,7 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   async function uploadNewRoomDocuments(roomId: string) {
-    if (!newRoomFiles.length || shouldUseWorkspacePreviewData()) return;
+    if (!newRoomFiles.length) return;
 
     for (const file of newRoomFiles) {
       try {
@@ -307,10 +287,7 @@ export function AppShell({ children }: AppShellProps) {
       await uploadNewRoomDocuments(createdRoom.id);
       finishCreatedRoom(createdRoom);
     } catch {
-      if (!shouldUseWorkspacePreviewData()) return;
-
-      const createdRoom = createPreviewRoom(cleanName, newRoomClient);
-      finishCreatedRoom(createdRoom);
+      return;
     } finally {
       setIsCreatingRoom(false);
     }

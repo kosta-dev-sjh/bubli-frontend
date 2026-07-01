@@ -156,21 +156,6 @@ export default function ProjectRoomHomePage() {
   const load = useCallback(async () => {
     setState({ kind: "loading" });
 
-    if (shouldUseWorkspacePreviewData()) {
-      const room = workspacePreviewRoomById(roomId, getActiveProjectRoomLabel());
-      setActiveProjectRoomId(room.id, room.name);
-      setState({
-        board: workspacePreviewWbsBoard(room.id),
-        kind: "ready",
-        members: workspacePreviewMembers,
-        resources: workspacePreviewRoomResources.filter((resource) => resource.roomId === room.id),
-        room,
-        schedules: workspacePreviewSchedules(room.id),
-        suggestions: workspacePreviewRoomSuggestions(room.id),
-      });
-      return;
-    }
-
     try {
       const [room, members, board, suggestions, resources, schedules] = await Promise.allSettled([
         projectRoomApi.get(roomId),
@@ -204,6 +189,21 @@ export default function ProjectRoomHomePage() {
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
+        return;
+      }
+
+      if (shouldUseWorkspacePreviewData()) {
+        const room = workspacePreviewRoomById(roomId, getActiveProjectRoomLabel());
+        setActiveProjectRoomId(room.id, room.name);
+        setState({
+          board: workspacePreviewWbsBoard(room.id),
+          kind: "ready",
+          members: workspacePreviewMembers,
+          resources: workspacePreviewRoomResources.filter((resource) => resource.roomId === room.id),
+          room,
+          schedules: workspacePreviewSchedules(room.id),
+          suggestions: workspacePreviewRoomSuggestions(room.id),
+        });
         return;
       }
 

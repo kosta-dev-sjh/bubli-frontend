@@ -451,14 +451,6 @@ export function WorkspaceDashboard() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const fetchDashboard = useCallback(async () => {
-    if (shouldUseWorkspacePreviewData()) {
-      setState({ data: workspacePreviewDashboard, kind: "ready" });
-      setPersonalTasks([]);
-      setRooms(workspacePreviewRooms);
-      setWidgetSummary(null);
-      return;
-    }
-
     try {
       const data = await dashboardApi.getWork();
       setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
@@ -474,6 +466,11 @@ export function WorkspaceDashboard() {
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
+        return;
+      }
+      if (shouldUseWorkspacePreviewData()) {
+        setState({ data: workspacePreviewDashboard, kind: "ready" });
+        setRooms(workspacePreviewRooms);
         return;
       }
       setState({

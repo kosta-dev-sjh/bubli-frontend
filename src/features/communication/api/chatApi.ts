@@ -6,9 +6,11 @@ import type {
   ChatRoomPageResponse,
   ChatRoomResponse,
   DirectChatRoomRequest,
+  GroupChatRoomRequest,
   RoomMemorySummaryCreateRequest,
   RoomMemorySummaryResponse,
   RoomAgentCommandRequest,
+  RoomAgentCommandResponse,
 } from "@/types/api/chat";
 
 export type SendChatMessageRequest = {
@@ -25,6 +27,13 @@ export const chatApi = {
 
   getOrCreateDirectRoom(body: DirectChatRoomRequest) {
     return apiRequest<ChatRoomResponse>("/api/chat/direct-rooms", {
+      body,
+      method: "POST",
+    });
+  },
+
+  createGroupRoom(body: GroupChatRoomRequest) {
+    return apiRequest<ChatRoomResponse>("/api/chat/group-rooms", {
       body,
       method: "POST",
     });
@@ -58,7 +67,7 @@ export const chatApi = {
   },
 
   runRoomAgentCommand(roomId: string, { clientMessageId, ...body }: RoomAgentCommandRequest) {
-    return apiRequest<ChatMessageResponse>(`/api/project-rooms/${roomId}/agent-command`, {
+    return apiRequest<RoomAgentCommandResponse>(`/api/project-rooms/${roomId}/agent/commands`, {
       body,
       headers: {
         "Idempotency-Key": clientMessageId,

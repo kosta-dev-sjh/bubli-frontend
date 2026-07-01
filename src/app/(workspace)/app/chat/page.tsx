@@ -112,19 +112,6 @@ const previewFriendRequests: FriendRequestResponse[] = [
   },
 ];
 
-const previewFriendSearchResults: FriendSearchResponse[] = [
-  {
-    bubliId: "motion-editor",
-    name: "모션 에디터",
-    userId: "preview-search-friend-1",
-  },
-  {
-    bubliId: "voice-partner",
-    name: "보이스 파트너",
-    userId: "preview-search-friend-2",
-  },
-];
-
 const emoticonTokens = [
   { label: "좋아요", value: "[좋아요]" },
   { label: "확인", value: "[확인]" },
@@ -254,32 +241,43 @@ function ChatPageContent() {
   const directConversationCount = roomsState.kind === "ready" ? roomsState.rooms.filter((room) => room.chatType === "DIRECT").length : 0;
   const friendCount = socialState.kind === "ready" ? socialState.friends.length : directConversationCount;
   const pendingFriendRequestCount = pendingFriendRequests.length;
-  const currentUser = profileState.kind === "ready" ? profileState.user : workspacePreviewUser;
-  const myBubliId = currentUser.bubliId;
+  const currentUser = profileState.kind === "ready" ? profileState.user : null;
+  const myBubliId = currentUser?.bubliId ?? "";
   const selectedProjectRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : queryRoomId;
   const selectedProjectRoomName =
     selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? getActiveProjectRoomLabel() ?? "프로젝트룸" : getActiveProjectRoomLabel();
   const inviteTargetLabel = selectedProjectRoomId ? selectedProjectRoomName ?? "현재 프로젝트룸" : "프로젝트룸 선택 필요";
   const voiceParticipants = useMemo<VoiceParticipantResponse[]>(() => {
-    if (voiceState.kind === "ready") return voiceState.room.participants;
+    if (voiceState.kind === "ready") {
+      return voiceState.room.participants.map((participant) => ({
+        ...participant,
+        userName: participant.userName ?? participant.name ?? "참여자",
+      }));
+    }
 
     const now = new Date().toISOString();
-    const me: VoiceParticipantResponse = {
-      id: `preview-voice-participant-${currentUser.id}`,
-      joinedAt: now,
-      status: "JOINED",
-      userId: currentUser.id,
-      userName: currentUser.name,
-    };
+    const me: VoiceParticipantResponse | null = currentUser
+      ? {
+          id: `local-voice-participant-${currentUser.id}`,
+          joinedAt: now,
+          name: currentUser.name,
+          status: "JOINED",
+          userId: currentUser.id,
+          userName: currentUser.name,
+        }
+      : null;
 
     if (selectedRoom?.chatType === "DIRECT") {
       const directFriend = socialState.kind === "ready" ? socialState.friends.find((friend) => selectedRoom.name?.includes(friend.name)) : null;
+      if (!me) return directFriend ? [] : [];
+
       return directFriend
         ? [
             me,
             {
               id: `preview-voice-participant-${directFriend.friendUserId}`,
               joinedAt: now,
+              name: directFriend.name,
               status: "JOINED",
               userId: directFriend.friendUserId,
               userName: directFriend.name,
@@ -289,32 +287,28 @@ function ChatPageContent() {
     }
 
     if (selectedRoom?.chatType === "ROOM") {
+      if (!me) return [];
+
       return [
         me,
-        ...previewFriends.slice(0, 2).map((friend, index) => ({
-          id: `preview-voice-participant-${friend.friendUserId}`,
-          joinedAt: now,
-          status: index === 0 ? ("JOINED" as const) : ("DISCONNECTED" as const),
-          userId: friend.friendUserId,
-          userName: friend.name,
-        })),
+        ...(shouldUseWorkspacePreviewData()
+          ? previewFriends.slice(0, 2).map((friend, index) => ({
+              id: `preview-voice-participant-${friend.friendUserId}`,
+              joinedAt: now,
+              name: friend.name,
+              status: index === 0 ? ("JOINED" as const) : ("DISCONNECTED" as const),
+              userId: friend.friendUserId,
+              userName: friend.name,
+            }))
+          : []),
       ];
     }
 
-    return [me];
+    return me ? [me] : [];
   }, [currentUser, selectedRoom, socialState, voiceState]);
 
   const loadRooms = useCallback(async () => {
     setRoomsState({ kind: "loading" });
-
-    if (shouldUseWorkspacePreviewData()) {
-      const storedRoomId = getActiveProjectRoomId();
-      setRoomsState({
-        kind: "ready",
-        rooms: workspacePreviewChatRoomsFor(queryRoomId, storedRoomId === queryRoomId ? getActiveProjectRoomLabel() : null),
-      });
-      return;
-    }
 
     try {
       const page = await chatApi.listRooms();
@@ -324,6 +318,14 @@ function ChatPageContent() {
         setRoomsState({ kind: "auth" });
         return;
       }
+      if (shouldUseWorkspacePreviewData()) {
+        const storedRoomId = getActiveProjectRoomId();
+        setRoomsState({
+          kind: "ready",
+          rooms: workspacePreviewChatRoomsFor(queryRoomId, storedRoomId === queryRoomId ? getActiveProjectRoomLabel() : null),
+        });
+        return;
+      }
       setRoomsState({ kind: "offline" });
     }
   }, [queryRoomId]);
@@ -331,15 +333,14 @@ function ChatPageContent() {
   const loadMessages = useCallback(async (chatRoomId: string) => {
     setMessagesState({ kind: "loading" });
 
-    if (shouldUseWorkspacePreviewData()) {
-      setMessagesState({ kind: "ready", messages: workspacePreviewChatMessages(chatRoomId) });
-      return;
-    }
-
     try {
       const page = await chatApi.getMessages(chatRoomId, { size: 40 });
       setMessagesState({ kind: "ready", messages: [...page.items].sort((a, b) => a.roomSequence - b.roomSequence) });
     } catch {
+      if (shouldUseWorkspacePreviewData()) {
+        setMessagesState({ kind: "ready", messages: workspacePreviewChatMessages(chatRoomId) });
+        return;
+      }
       setMessagesState({ kind: "offline" });
     }
   }, []);
@@ -347,14 +348,13 @@ function ChatPageContent() {
   const loadSocial = useCallback(async () => {
     setSocialState({ kind: "loading" });
 
-    if (shouldUseWorkspacePreviewData()) {
-      setSocialState({ friends: previewFriends, kind: "ready", requests: previewFriendRequests });
-      return;
-    }
-
     const [friends, requests] = await Promise.allSettled([friendApi.listFriends(), friendApi.listRequests()]);
 
     if (friends.status === "rejected" && requests.status === "rejected") {
+      if (shouldUseWorkspacePreviewData()) {
+        setSocialState({ friends: previewFriends, kind: "ready", requests: previewFriendRequests });
+        return;
+      }
       setSocialState({ kind: "offline" });
       return;
     }
@@ -372,7 +372,11 @@ function ChatPageContent() {
     try {
       const user = await authApi.getMe();
       setProfileState({ kind: "ready", user });
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 401) {
+        setProfileState({ kind: "offline" });
+        return;
+      }
       if (shouldUseWorkspacePreviewData()) {
         setProfileState({ kind: "ready", user: workspacePreviewUser });
         return;
@@ -426,7 +430,7 @@ function ChatPageContent() {
   useEffect(() => {
     if (!selectedRoom?.roomId || selectedRoom.chatType !== "ROOM") return;
     setActiveProjectRoomId(selectedRoom.roomId, selectedRoom.name?.replace(/\s*대화$/, "") ?? "프로젝트룸");
-  }, [selectedRoom]);
+  }, [currentUser, selectedRoom]);
 
   function selectChatRoom(room: ChatRoomResponse) {
     setSelectedChatRoomId(room.id);
@@ -444,23 +448,6 @@ function ChatPageContent() {
 
       if (existingRoom) {
         selectChatRoom(existingRoom);
-        return;
-      }
-
-      if (shouldUseWorkspacePreviewData()) {
-        const createdAt = new Date().toISOString();
-        const previewRoom: ChatRoomResponse = {
-          chatType: "DIRECT",
-          createdAt,
-          id: `preview-direct-${friend.friendUserId}`,
-          name: `${friend.name}와 1:1`,
-          roomId: null,
-          status: "ACTIVE",
-          updatedAt: createdAt,
-        };
-
-        setRoomsState({ kind: "ready", rooms: [...roomsState.rooms, previewRoom] });
-        setSelectedChatRoomId(previewRoom.id);
         return;
       }
 
@@ -484,13 +471,6 @@ function ChatPageContent() {
 
       setRoomInviteState({ friendName: friend.name, kind: "sending" });
 
-      if (shouldUseWorkspacePreviewData()) {
-        window.setTimeout(() => {
-          setRoomInviteState({ friendName: friend.name, kind: "sent" });
-        }, 220);
-        return;
-      }
-
       try {
         await projectRoomApi.createInvitation(selectedProjectRoomId, {
           inviteeUserId: friend.friendUserId,
@@ -508,24 +488,6 @@ function ChatPageContent() {
     async (request: FriendRequestResponse, action: "accept" | "reject") => {
       if (socialState.kind !== "ready") return;
 
-      if (shouldUseWorkspacePreviewData()) {
-        const nextRequests = socialState.requests.filter((item) => item.id !== request.id);
-        const nextFriends =
-          action === "accept"
-            ? [
-                ...socialState.friends,
-                {
-                  avatarUrl: request.requester.avatarUrl,
-                  bubliId: request.requester.bubliId,
-                  friendUserId: request.requester.userId,
-                  name: request.requester.name,
-                },
-              ]
-            : socialState.friends;
-        setSocialState({ friends: nextFriends, kind: "ready", requests: nextRequests });
-        return;
-      }
-
       try {
         if (action === "accept") {
           await friendApi.acceptRequest(request.id);
@@ -541,6 +503,8 @@ function ChatPageContent() {
   );
 
   const copyMyBubliId = useCallback(async () => {
+    if (!myBubliId) return;
+
     try {
       await navigator.clipboard.writeText(myBubliId);
       setCopiedBubliId(true);
@@ -559,13 +523,6 @@ function ChatPageContent() {
 
     setFriendSearchState({ kind: "searching" });
 
-    if (shouldUseWorkspacePreviewData()) {
-      const pool = [...previewFriendSearchResults, ...previewFriends.map(({ friendUserId, ...friend }) => ({ ...friend, userId: friendUserId }))];
-      const results = pool.filter((person) => person.bubliId.includes(query) || person.name.includes(query));
-      setFriendSearchState(results.length > 0 ? { kind: "ready", results } : { kind: "empty" });
-      return;
-    }
-
     try {
       const results = await friendApi.searchByBubliId(query);
       setFriendSearchState(results.length > 0 ? { kind: "ready", results } : { kind: "empty" });
@@ -578,31 +535,6 @@ function ChatPageContent() {
     async (target: FriendSearchResponse) => {
       if (socialState.kind !== "ready") return;
 
-      if (shouldUseWorkspacePreviewData()) {
-        const createdAt = new Date().toISOString();
-        const nextRequest: FriendRequestResponse = {
-          createdAt,
-          direction: "SENT",
-          id: `preview-request-${target.userId}`,
-          receiver: target,
-          requester: {
-            avatarUrl: currentUser.avatarUrl,
-            bubliId: currentUser.bubliId,
-            name: currentUser.name,
-            userId: currentUser.id,
-          },
-          status: "PENDING",
-        };
-
-        setSocialState({
-          friends: socialState.friends,
-          kind: "ready",
-          requests: [nextRequest, ...socialState.requests.filter((request) => request.id !== nextRequest.id)],
-        });
-        setFriendSearchState({ kind: "sent", targetName: target.name });
-        return;
-      }
-
       try {
         await friendApi.sendRequest({ bubliId: target.bubliId });
         setFriendSearchState({ kind: "sent", targetName: target.name });
@@ -611,7 +543,7 @@ function ChatPageContent() {
         setFriendSearchState({ kind: "offline" });
       }
     },
-    [currentUser, loadSocial, socialState],
+    [loadSocial, socialState],
   );
 
   const startVoice = useCallback(async () => {
@@ -625,37 +557,13 @@ function ChatPageContent() {
 
     setVoiceState({ kind: "starting" });
 
-    if (shouldUseWorkspacePreviewData()) {
-      setVoiceState({
-        kind: "ready",
-        room: {
-          createdAt: new Date().toISOString(),
-          id: `preview-voice-${selectedRoom.roomId}`,
-          livekitRoomName: `bubli-preview-${selectedRoom.roomId}`,
-          participants: [
-            {
-              id: `preview-voice-participant-${currentUser.id}`,
-              joinedAt: new Date().toISOString(),
-              status: "JOINED",
-              userId: currentUser.id,
-              userName: currentUser.name,
-            },
-          ],
-          roomId: selectedRoom.roomId,
-          status: "OPEN",
-        },
-      });
-      return;
-    }
-
     try {
       const room = await voiceApi.createRoom({ roomId: selectedRoom.roomId });
       setVoiceState({ kind: "ready", room });
     } catch {
       setVoiceState({ kind: "blocked", message: "보이스를 시작하지 못했습니다. 서버 상태를 확인하세요." });
     }
-  }, [currentUser, selectedRoom]);
-
+  }, [selectedRoom]);
 
   const sendMessage = useCallback(async () => {
     const text = draft.trim();
@@ -671,32 +579,6 @@ function ChatPageContent() {
     setSending(true);
 
     try {
-      if (shouldUseWorkspacePreviewData()) {
-        const currentMessages = messagesState.kind === "ready" ? messagesState.messages : [];
-        const nextSequence = Math.max(0, ...currentMessages.map((message) => message.roomSequence)) + 1;
-        const createdAt = new Date().toISOString();
-        const nextMessage: ChatMessageResponse = {
-          body: messageBody,
-          chatRoomId: activeChatRoomId,
-          clientMessageId: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `preview-${createdAt}`,
-          createdAt,
-          id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `preview-message-${createdAt}`,
-          messageType,
-          roomSequence: nextSequence,
-          sender: {
-            id: currentUser.id,
-            name: currentUser.name,
-            type: "USER",
-          },
-        };
-
-        setMessagesState({ kind: "ready", messages: [...currentMessages, nextMessage] });
-        setDraft("");
-        setSelectedAttachmentName(null);
-        setEmoticonOpen(false);
-        return;
-      }
-
       await chatApi.sendMessage(activeChatRoomId, {
         body: messageBody,
         clientMessageId: crypto.randomUUID(),
@@ -706,10 +588,12 @@ function ChatPageContent() {
       setSelectedAttachmentName(null);
       setEmoticonOpen(false);
       await loadMessages(activeChatRoomId);
+    } catch {
+      setMessagesState({ kind: "offline" });
     } finally {
       setSending(false);
     }
-  }, [activeChatRoomId, currentUser, draft, loadMessages, messagesState, selectedAttachmentName]);
+  }, [activeChatRoomId, draft, loadMessages, selectedAttachmentName]);
 
   return (
     <section className="workspace-route" aria-labelledby="chat-title">
@@ -780,7 +664,7 @@ function ChatPageContent() {
 
       {roomsState.kind === "ready" && roomsState.rooms.length > 0 ? (
         <div className="workspace-route__chat-quick-actions" aria-label="친구와 초대 빠른 실행">
-          <button className="workspace-route__quick-button" onClick={() => void copyMyBubliId()} type="button">
+          <button className="workspace-route__quick-button" disabled={!myBubliId} onClick={() => void copyMyBubliId()} type="button">
             <Copy aria-hidden size={15} strokeWidth={2} />
             {copiedBubliId ? "ID 복사됨" : "내 ID 복사"}
           </button>
@@ -893,7 +777,7 @@ function ChatPageContent() {
             {messagesState.kind === "ready" && messagesState.messages.length > 0 ? (
               <div className="workspace-route__messages">
                 {messagesState.messages.map((message) => {
-                  const isMine = message.sender.id === currentUser.id;
+                  const isMine = Boolean(currentUser?.id && message.sender.id === currentUser.id);
                   const isAgent = message.sender.type === "AGENT";
 
                   return (
@@ -1027,9 +911,9 @@ function ChatPageContent() {
                 <div className="workspace-route__my-code">
                   <div>
                     <small>친구 추가용</small>
-                    <strong>{myBubliId}</strong>
+                    <strong>{myBubliId || "로그인 후 표시"}</strong>
                   </div>
-                  <button aria-label="내 Bubli ID 복사" onClick={() => void copyMyBubliId()} type="button">
+                  <button aria-label="내 Bubli ID 복사" disabled={!myBubliId} onClick={() => void copyMyBubliId()} type="button">
                     {copiedBubliId ? <Check aria-hidden size={15} strokeWidth={2.2} /> : <Copy aria-hidden size={15} strokeWidth={2} />}
                     {copiedBubliId ? "복사됨" : "복사"}
                   </button>
@@ -1058,7 +942,7 @@ function ChatPageContent() {
                         setFriendSearchQuery(event.target.value);
                         if (!event.target.value.trim()) setFriendSearchState({ kind: "idle" });
                       }}
-                      placeholder="예: maren"
+                      placeholder="예: bubli-id"
                       ref={friendSearchInputRef}
                       value={friendSearchQuery}
                     />

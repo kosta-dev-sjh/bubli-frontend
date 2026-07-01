@@ -42,18 +42,6 @@ export default function ProjectRoomWorkPage() {
   const load = useCallback(async () => {
     setState({ kind: "loading" });
 
-    if (shouldUseWorkspacePreviewData()) {
-      const room = workspacePreviewRoomById(roomId, getActiveProjectRoomLabel());
-      setActiveProjectRoomId(room.id, room.name);
-      setState({
-        board: workspacePreviewWbsBoard(room.id),
-        kind: "ready",
-        room,
-        suggestions: workspacePreviewRoomSuggestions(room.id),
-      });
-      return;
-    }
-
     try {
       const [room, board, suggestions] = await Promise.all([
         projectRoomApi.get(roomId),
@@ -65,6 +53,18 @@ export default function ProjectRoomWorkPage() {
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
+        return;
+      }
+
+      if (shouldUseWorkspacePreviewData()) {
+        const room = workspacePreviewRoomById(roomId, getActiveProjectRoomLabel());
+        setActiveProjectRoomId(room.id, room.name);
+        setState({
+          board: workspacePreviewWbsBoard(room.id),
+          kind: "ready",
+          room,
+          suggestions: workspacePreviewRoomSuggestions(room.id),
+        });
         return;
       }
 

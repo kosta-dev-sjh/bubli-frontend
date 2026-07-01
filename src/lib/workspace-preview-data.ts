@@ -12,7 +12,7 @@ const todayEvening = new Date("2026-06-30T18:00:00.000+09:00").toISOString();
 const tomorrow = new Date("2026-07-01T10:00:00.000+09:00").toISOString();
 
 export function shouldUseWorkspacePreviewData() {
-  return process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_BUBLI_PREVIEW_DATA !== "false";
+  return process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_BUBLI_PREVIEW_DATA === "true";
 }
 
 export function pageOf<T>(items: T[]): PageResponse<T> {

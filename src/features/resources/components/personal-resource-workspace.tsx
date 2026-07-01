@@ -33,19 +33,18 @@ export function PersonalResourceWorkspace() {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(() => getActiveProjectRoomId());
 
   const loadResources = useCallback(async () => {
-    if (shouldUseWorkspacePreviewData()) {
-      const resources = workspacePreviewPersonalResources;
-      setState({ kind: "ready", resources });
-      setSelectedResourceId((current) => (current && resources.some((resource) => resource.id === current) ? current : null));
-      return;
-    }
-
     try {
       const page = await resourcesApi.listPersonal();
       setState({ kind: "ready", resources: page.items });
       setSelectedResourceId((current) => (current && page.items.some((resource) => resource.id === current) ? current : null));
     } catch (error) {
       const message = getErrorMessage(error);
+      if (message !== "AUTH_REQUIRED" && shouldUseWorkspacePreviewData()) {
+        const resources = workspacePreviewPersonalResources;
+        setState({ kind: "ready", resources });
+        setSelectedResourceId((current) => (current && resources.some((resource) => resource.id === current) ? current : null));
+        return;
+      }
       setState(message === "AUTH_REQUIRED" ? { kind: "auth" } : { kind: "error", message });
     }
   }, []);
