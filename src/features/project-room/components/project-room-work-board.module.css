@@ -163,7 +163,7 @@
 }
 
 .wbsList {
-  background: rgba(255, 255, 255, 0.68);
+  background: rgba(247, 249, 250, 0.72);
   border: 1px solid rgba(229, 231, 235, 0.82);
   border-radius: 14px;
   gap: 0;
@@ -318,6 +318,25 @@
   line-height: 1.35;
 }
 
+.wbsGuide {
+  align-items: center;
+  color: #5a6772;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-block: 4px 9px;
+}
+
+.wbsGuide span {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(229, 231, 235, 0.86);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 780;
+  line-height: 1.35;
+  padding: 5px 9px;
+}
+
 .wbsTableHead {
   align-items: center;
   background: rgba(247, 249, 250, 0.86);
@@ -326,7 +345,7 @@
   color: #5a6772;
   display: grid;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 780;
   gap: 8px;
   grid-template-columns: 34px 60px minmax(280px, 1.7fr) 88px 58px 82px 54px;
   letter-spacing: 0;
@@ -350,7 +369,7 @@
   grid-template-columns: 34px 60px minmax(280px, 1.7fr) 88px 58px 82px 54px;
   min-block-size: 42px;
   min-inline-size: 780px;
-  padding: 8px 12px;
+  padding: 7px 12px;
   position: relative;
   text-align: start;
   transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
@@ -360,25 +379,55 @@
   background: transparent;
   border-radius: 999px;
   content: "";
-  inline-size: 3px;
-  inset-block: 8px;
+  inline-size: 4px;
+  inset-block: 6px;
   inset-inline-start: 0;
   position: absolute;
 }
 
 .wbsRowTinted {
-  --wbs-accent-soft: color-mix(in srgb, var(--wbs-accent, var(--color-water-blue)) 16%, transparent);
+  --wbs-accent-soft: color-mix(in srgb, var(--wbs-accent, var(--color-water-blue)) 22%, transparent);
 
-  background: linear-gradient(90deg, var(--wbs-accent-soft, transparent) 0%, rgba(255, 255, 255, 0) 50%);
+  background: linear-gradient(90deg, var(--wbs-accent-soft, transparent) 0%, rgba(255, 255, 255, 0.9) 56%);
 }
 
 .wbsRowTinted::before {
   background: var(--wbs-accent, var(--color-todo));
 }
 
+.wbsRowParent {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.wbsRowParent.wbsRowTinted {
+  background: linear-gradient(90deg, var(--wbs-accent-soft, rgba(255, 255, 255, 0.82)) 0%, rgba(255, 255, 255, 0.86) 58%);
+}
+
+.wbsRowParent .wbsMain {
+  padding-inline-start: 0;
+}
+
+.wbsRowParent .wbsMain strong {
+  font-size: 14.5px;
+  font-weight: 840;
+}
+
+.wbsRowParent .wbsMain small {
+  color: #6b8fa8;
+  font-weight: 780;
+}
+
 .wbsRowChild .wbsCode {
   border-color: color-mix(in srgb, var(--wbs-accent, var(--color-todo)) 36%, var(--color-border));
   color: color-mix(in srgb, var(--wbs-accent, var(--color-todo)) 58%, var(--color-text));
+}
+
+.wbsRowChild {
+  background: linear-gradient(90deg, rgba(247, 249, 250, 0.92), rgba(255, 255, 255, 0.78));
+}
+
+.wbsRowChild.wbsRowTinted {
+  background: linear-gradient(90deg, var(--wbs-accent-soft, rgba(247, 249, 250, 0.92)) 0%, rgba(255, 255, 255, 0.78) 68%);
 }
 
 .wbsRow:last-child {
@@ -454,8 +503,8 @@
   border-radius: 999px;
   content: "";
   display: none;
-  inline-size: 2px;
-  inset-block: 4px;
+  inline-size: 4px;
+  inset-block: 3px;
   inset-inline-start: calc((var(--wbs-depth, 0) * 16px) - 8px);
   position: absolute;
 }
@@ -464,7 +513,7 @@
 .wbsRow[style*="--wbs-depth: 2"] .wbsMain::before,
 .wbsRow[style*="--wbs-depth: 3"] .wbsMain::before {
   display: block;
-  opacity: 0.54;
+  opacity: 0.78;
 }
 
 .wbsMain strong,
@@ -474,6 +523,7 @@
 .trashZone strong {
   color: #2c3540;
   font-size: 14px;
+  font-weight: 760;
   line-height: 1.35;
   min-inline-size: 0;
   overflow: hidden;
@@ -487,7 +537,7 @@
 .wbsDate {
   color: #5a6772;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 760;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -505,6 +555,7 @@
 .trashZone small {
   color: #5a6772;
   font-size: 11px;
+  font-weight: 720;
   line-height: 1.4;
   overflow-wrap: normal;
   word-break: keep-all;

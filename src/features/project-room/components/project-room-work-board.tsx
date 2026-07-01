@@ -184,11 +184,26 @@ function accentPickerValue(value: string) {
 }
 
 function createInitialWbsAccentMap(items: WbsItemResponse[]) {
-  return Object.fromEntries(
-    items
-      .filter((item) => item.parentId)
-      .map((item, index) => [item.id, wbsAccentOptions[index % wbsAccentOptions.length].value]),
-  );
+  const rootAccentById = new Map<string, string>();
+  const accentById: Record<string, string> = {};
+
+  items
+    .filter((item) => !item.parentId)
+    .sort((a, b) => a.orderNo - b.orderNo || a.createdAt.localeCompare(b.createdAt))
+    .forEach((item, index) => {
+      const color = wbsAccentOptions[index % wbsAccentOptions.length].value;
+      rootAccentById.set(item.id, color);
+      accentById[item.id] = color;
+    });
+
+  items
+    .filter((item) => item.parentId)
+    .sort((a, b) => a.orderNo - b.orderNo || a.createdAt.localeCompare(b.createdAt))
+    .forEach((item, index) => {
+      accentById[item.id] = rootAccentById.get(item.parentId ?? "") ?? wbsAccentOptions[index % wbsAccentOptions.length].value;
+    });
+
+  return accentById;
 }
 
 function PeriodTaskPill({
@@ -370,6 +385,7 @@ function WbsRow({
         selected && styles.wbsRowSelected,
         reorderActive && styles.wbsRowDragging,
         reorderTarget && styles.wbsRowDropTarget,
+        level === 0 && styles.wbsRowParent,
         level > 0 && styles.wbsRowChild,
         color && styles.wbsRowTinted,
       )}
@@ -391,7 +407,7 @@ function WbsRow({
       <span className={styles.wbsCode}>{code}</span>
       <span className={styles.wbsMain}>
         <strong>{item.title}</strong>
-        <small>{item.parentId ? "하위 작업" : "상위 작업"}</small>
+        <small>{item.parentId ? `하위 ${level}단계` : "상위 작업"}</small>
       </span>
       <StatusBadge tone={taskTone(item.status)}>{statusLabel(item.status)}</StatusBadge>
       <span className={styles.wbsMetric}>{linkedCount}</span>
@@ -719,10 +735,11 @@ function ProjectRoomWorkBoardContent({
 
   const updateSelectedWbsAccent = (color: string) => {
     if (!selectedWbsId) return;
+    const normalizedColor = normalizeAccentColor(color);
 
     setWbsAccentById((current) => ({
       ...current,
-      [selectedWbsId]: normalizeAccentColor(color),
+      [selectedWbsId]: normalizedColor,
     }));
   };
 
@@ -951,6 +968,10 @@ function ProjectRoomWorkBoardContent({
 
               {wbsPeriodMode === "rows" ? (
                 <>
+                  <div className={styles.wbsGuide} aria-hidden="true">
+                    <span>색 줄은 WBS 묶음과 하위 단계를 구분합니다.</span>
+                    <span>줄을 끌어 같은 단계 안에서 순서를 바꿀 수 있습니다.</span>
+                  </div>
                   <div className={styles.wbsTableHead} aria-hidden="true">
                     <span>이동</span>
                     <span>번호</span>
@@ -966,7 +987,7 @@ function ProjectRoomWorkBoardContent({
                         <WbsRow
                           childCount={childCountByWbsId[item.id] ?? 0}
                           code={wbsTree.codeById[item.id] ?? "-"}
-                          color={wbsAccentById[item.id]}
+                          color={wbsAccentById[item.id] ?? (item.parentId ? wbsAccentById[item.parentId] : undefined)}
                           dueLabel={dueLabelByWbsId[item.id] ?? null}
                           item={item}
                           key={item.id}
