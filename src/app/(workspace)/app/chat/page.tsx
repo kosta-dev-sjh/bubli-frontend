@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Check, Copy, Inbox, MessageCircle, Mic, MoreHorizontal, Paperclip, Phone, Search, Send, Smile, UserPlus, UsersRound, X } from "lucide-react";
+import { AtSign, Check, Copy, Inbox, KeyRound, LogOut, MessageCircle, Mic, MicOff, MoreHorizontal, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -24,7 +24,7 @@ import type { AuthUser } from "@/types/api/auth";
 import type { ChatMessageResponse, ChatRoomResponse } from "@/types/api/chat";
 import type { FriendRequestResponse, FriendResponse, FriendSearchResponse } from "@/types/api/friend";
 import type { ProjectRoomInvitationResponse } from "@/types/api/projectRoom";
-import type { VoiceParticipantResponse, VoiceRoomResponse } from "@/types/api/voice";
+import type { VoiceParticipantResponse, VoiceRoomResponse, VoiceTokenResponse } from "@/types/api/voice";
 
 type RoomsState =
   | { kind: "loading" }
@@ -58,6 +58,10 @@ type VoiceState =
   | { kind: "starting" }
   | { kind: "ready"; room: VoiceRoomResponse }
   | { kind: "blocked"; message: string };
+
+type VoiceAction = "token" | "mic" | "leave" | "end";
+
+type VoiceTokenInfo = Pick<VoiceTokenResponse, "expiresAt" | "serverUrl">;
 
 type RoomInviteState =
   | { kind: "idle" }
@@ -164,6 +168,18 @@ function messageTime(value: string) {
   }).format(date);
 }
 
+function compactDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
 function initialOf(name: string) {
   return name.trim().slice(0, 1).toUpperCase() || "B";
 }
@@ -200,11 +216,15 @@ function ChatPageContent() {
   const [profileState, setProfileState] = useState<ProfileState>({ kind: "loading" });
   const [friendSearchState, setFriendSearchState] = useState<FriendSearchState>({ kind: "idle" });
   const [voiceState, setVoiceState] = useState<VoiceState>({ kind: "idle" });
+  const [voiceAction, setVoiceAction] = useState<VoiceAction | null>(null);
   const [selectedChatRoomId, setSelectedChatRoomId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
   const [copiedBubliId, setCopiedBubliId] = useState(false);
   const [voiceExpanded, setVoiceExpanded] = useState(false);
+  const [voiceMicMuted, setVoiceMicMuted] = useState(false);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+  const [voiceTokenInfo, setVoiceTokenInfo] = useState<VoiceTokenInfo | null>(null);
   const [roomInviteState, setRoomInviteState] = useState<RoomInviteState>({ kind: "idle" });
   const [roomInvitationsState, setRoomInvitationsState] = useState<RoomInvitationsState>({ kind: "idle" });
   const [busyFriendUserId, setBusyFriendUserId] = useState<string | null>(null);
@@ -258,6 +278,7 @@ function ChatPageContent() {
     selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? getActiveProjectRoomLabel() ?? "프로젝트룸" : getActiveProjectRoomLabel();
   const inviteTargetLabel = selectedProjectRoomId ? selectedProjectRoomName ?? "현재 프로젝트룸" : "프로젝트룸 선택 필요";
   const pendingRoomInvitations = roomInvitationsState.kind === "ready" ? roomInvitationsState.invitations.filter((invitation) => invitation.status === "PENDING") : [];
+  const activeVoiceRoom = voiceState.kind === "ready" && voiceState.room.status === "OPEN" ? voiceState.room : null;
   const voiceParticipants = useMemo<VoiceParticipantResponse[]>(() => {
     if (voiceState.kind === "ready") {
       return voiceState.room.participants.map((participant) => ({
@@ -266,57 +287,8 @@ function ChatPageContent() {
       }));
     }
 
-    const now = new Date().toISOString();
-    const me: VoiceParticipantResponse | null = currentUser
-      ? {
-          id: `local-voice-participant-${currentUser.id}`,
-          joinedAt: now,
-          name: currentUser.name,
-          status: "JOINED",
-          userId: currentUser.id,
-          userName: currentUser.name,
-        }
-      : null;
-
-    if (selectedRoom?.chatType === "DIRECT") {
-      const directFriend = socialState.kind === "ready" ? socialState.friends.find((friend) => selectedRoom.name?.includes(friend.name)) : null;
-      if (!me) return directFriend ? [] : [];
-
-      return directFriend
-        ? [
-            me,
-            {
-              id: `preview-voice-participant-${directFriend.friendUserId}`,
-              joinedAt: now,
-              name: directFriend.name,
-              status: "JOINED",
-              userId: directFriend.friendUserId,
-              userName: directFriend.name,
-            },
-          ]
-        : [me];
-    }
-
-    if (selectedRoom?.chatType === "ROOM") {
-      if (!me) return [];
-
-      return [
-        me,
-        ...(shouldUseWorkspacePreviewData()
-          ? previewFriends.slice(0, 2).map((friend, index) => ({
-              id: `preview-voice-participant-${friend.friendUserId}`,
-              joinedAt: now,
-              name: friend.name,
-              status: index === 0 ? ("JOINED" as const) : ("DISCONNECTED" as const),
-              userId: friend.friendUserId,
-              userName: friend.name,
-            }))
-          : []),
-      ];
-    }
-
-    return me ? [me] : [];
-  }, [currentUser, selectedRoom, socialState, voiceState]);
+    return [];
+  }, [voiceState]);
 
   const loadRooms = useCallback(async () => {
     setRoomsState({ kind: "loading" });
@@ -470,6 +442,10 @@ function ChatPageContent() {
   function selectChatRoom(room: ChatRoomResponse) {
     setSelectedChatRoomId(room.id);
     setVoiceState({ kind: "idle" });
+    setVoiceAction(null);
+    setVoiceMicMuted(false);
+    setVoiceNotice(null);
+    setVoiceTokenInfo(null);
     if (room.chatType === "ROOM" && room.roomId) {
       setActiveProjectRoomId(room.roomId, room.name?.replace(/\s*대화$/, "") ?? "프로젝트룸");
     }
@@ -626,14 +602,99 @@ function ChatPageContent() {
     }
 
     setVoiceState({ kind: "starting" });
+    setVoiceAction(null);
+    setVoiceMicMuted(false);
+    setVoiceNotice(null);
+    setVoiceTokenInfo(null);
 
     try {
       const room = await voiceApi.createRoom({ roomId: selectedRoom.roomId });
       setVoiceState({ kind: "ready", room });
+      setVoiceExpanded(true);
+      setVoiceNotice("보이스룸이 열렸습니다. 참여 토큰을 받아 LiveKit 연결을 준비할 수 있습니다.");
     } catch {
       setVoiceState({ kind: "blocked", message: "보이스를 시작하지 못했습니다. 서버 상태를 확인하세요." });
     }
   }, [selectedRoom]);
+
+  const requestVoiceToken = useCallback(async () => {
+    if (!activeVoiceRoom || voiceAction) return;
+
+    setVoiceAction("token");
+    try {
+      const token = await voiceApi.getToken(activeVoiceRoom.id);
+      setVoiceTokenInfo({
+        expiresAt: token.expiresAt,
+        serverUrl: token.serverUrl,
+      });
+      setVoiceNotice("참여 토큰을 받았습니다. 실제 음성 연결은 LiveKit 클라이언트 연결 단계에서 사용합니다.");
+    } catch {
+      setVoiceNotice("참여 토큰을 받지 못했습니다. 보이스 서버 상태를 확인하세요.");
+    } finally {
+      setVoiceAction(null);
+    }
+  }, [activeVoiceRoom, voiceAction]);
+
+  const toggleVoiceMic = useCallback(async () => {
+    if (!activeVoiceRoom || voiceAction) return;
+
+    const nextMuted = !voiceMicMuted;
+    const nextMicStatus = nextMuted ? "MUTED" : "UNMUTED";
+    setVoiceAction("mic");
+
+    try {
+      await voiceApi.updateMicStatus(activeVoiceRoom.id, { micStatus: nextMicStatus });
+      setVoiceMicMuted(nextMuted);
+      setVoiceState((state) => {
+        if (state.kind !== "ready" || !currentUser) return state;
+
+        return {
+          kind: "ready",
+          room: {
+            ...state.room,
+            participants: state.room.participants.map((participant) =>
+              participant.userId === currentUser.id ? { ...participant, micStatus: nextMicStatus } : participant,
+            ),
+          },
+        };
+      });
+      setVoiceNotice(nextMuted ? "내 마이크를 껐습니다." : "내 마이크를 켰습니다.");
+    } catch {
+      setVoiceNotice("마이크 상태를 바꾸지 못했습니다.");
+    } finally {
+      setVoiceAction(null);
+    }
+  }, [activeVoiceRoom, currentUser, voiceAction, voiceMicMuted]);
+
+  const leaveVoice = useCallback(async () => {
+    if (!activeVoiceRoom || voiceAction) return;
+
+    setVoiceAction("leave");
+    try {
+      const room = await voiceApi.leave(activeVoiceRoom.id);
+      setVoiceState({ kind: "ready", room });
+      setVoiceNotice("보이스룸에서 나갔습니다.");
+    } catch {
+      setVoiceNotice("보이스룸에서 나가지 못했습니다.");
+    } finally {
+      setVoiceAction(null);
+    }
+  }, [activeVoiceRoom, voiceAction]);
+
+  const endVoice = useCallback(async () => {
+    if (!activeVoiceRoom || voiceAction) return;
+
+    setVoiceAction("end");
+    try {
+      const room = await voiceApi.end(activeVoiceRoom.id);
+      setVoiceState({ kind: "ready", room });
+      setVoiceNotice("보이스룸을 종료했습니다.");
+    } catch {
+      setVoiceNotice("보이스룸을 종료하지 못했습니다.");
+    } finally {
+      setVoiceAction(null);
+    }
+  }, [activeVoiceRoom, voiceAction]);
 
   const sendMessage = useCallback(async () => {
     const text = draft.trim();
@@ -1166,19 +1227,44 @@ function ChatPageContent() {
               </div>
               <button
                 className="workspace-route__voice-card-main"
-                disabled={voiceState.kind === "starting" || selectedRoom?.chatType !== "ROOM"}
+                disabled={voiceState.kind === "starting" || Boolean(activeVoiceRoom) || selectedRoom?.chatType !== "ROOM"}
                 onClick={() => void startVoice()}
                 type="button"
               >
                 <Phone aria-hidden size={17} strokeWidth={2} />
                 <div>
                   <strong>{selectedRoom?.chatType === "ROOM" ? "프로젝트룸 보이스" : "1:1 보이스"}</strong>
-                  <small>{voiceState.kind === "ready" ? "열림" : selectedRoom?.chatType === "ROOM" ? "시작 가능" : "API 확정 후 연결"}</small>
+                  <small>{activeVoiceRoom ? "열림" : voiceState.kind === "ready" ? "종료됨" : selectedRoom?.chatType === "ROOM" ? "시작 가능" : "프로젝트룸 보이스 우선"}</small>
                 </div>
               </button>
+              <div className="workspace-route__voice-controls" aria-label="보이스 액션">
+                <button disabled={!activeVoiceRoom || voiceAction === "token"} onClick={() => void requestVoiceToken()} type="button">
+                  <KeyRound aria-hidden size={14} strokeWidth={2} />
+                  {voiceAction === "token" ? "받는 중" : "참여 토큰"}
+                </button>
+                <button disabled={!activeVoiceRoom || voiceAction === "mic"} onClick={() => void toggleVoiceMic()} type="button">
+                  {voiceMicMuted ? <Mic aria-hidden size={14} strokeWidth={2} /> : <MicOff aria-hidden size={14} strokeWidth={2} />}
+                  {voiceAction === "mic" ? "변경 중" : voiceMicMuted ? "마이크 켜기" : "마이크 끄기"}
+                </button>
+                <button disabled={!activeVoiceRoom || voiceAction === "leave"} onClick={() => void leaveVoice()} type="button">
+                  <LogOut aria-hidden size={14} strokeWidth={2} />
+                  {voiceAction === "leave" ? "나가는 중" : "나가기"}
+                </button>
+                <button disabled={!activeVoiceRoom || voiceAction === "end"} onClick={() => void endVoice()} type="button">
+                  <Square aria-hidden size={14} strokeWidth={2} />
+                  {voiceAction === "end" ? "종료 중" : "종료"}
+                </button>
+              </div>
+              {voiceTokenInfo ? (
+                <div className="workspace-route__voice-note">
+                  <strong>토큰 준비됨</strong>
+                  <span>{voiceTokenInfo.serverUrl} · {compactDateTime(voiceTokenInfo.expiresAt)}까지</span>
+                </div>
+              ) : null}
+              {voiceNotice ? <div className="workspace-route__voice-note">{voiceNotice}</div> : null}
               {voiceExpanded || voiceState.kind === "ready" ? (
                 <div className="workspace-route__voice-people">
-                  {voiceParticipants.map((participant, index) => (
+                  {voiceParticipants.length > 0 ? voiceParticipants.map((participant, index) => (
                     <div className="workspace-route__voice-person" key={participant.userId}>
                       <span data-status={participant.status.toLowerCase()}>{initialOf(participant.userName)}</span>
                       <div>
@@ -1186,7 +1272,7 @@ function ChatPageContent() {
                         <small>{index === 0 && participant.status === "JOINED" ? "말하는 중" : voiceParticipantStatusLabel(participant.status)}</small>
                       </div>
                     </div>
-                  ))}
+                  )) : <span className="workspace-route__empty">아직 참여자가 없습니다</span>}
                 </div>
               ) : null}
             </div>
