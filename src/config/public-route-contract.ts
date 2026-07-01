@@ -84,9 +84,9 @@ export const routeContractGaps: readonly RouteGap[] = [
   },
   {
     current: "/app/desktop/communication",
-    target: null,
-    status: "EXTRA_IN_CODE",
-    note: "Not in the route spec; verify whether it should remain.",
+    target: "/app/desktop/widgets?autoOpen=chat",
+    status: "RENAME_NEEDED",
+    note: "Legacy communication route redirects to the widget chat surface.",
   },
   {
     current: "/desktop-widget",

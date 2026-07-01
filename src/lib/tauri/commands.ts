@@ -6,12 +6,15 @@ export const TAURI_COMMANDS = {
   checkLocalSqliteIntegrity: "check_local_sqlite_integrity",
   closeWidgetWindow: "close_widget_window",
   flushSyncOutbox: "flush_sync_outbox",
+  getPreferredAppMonitor: "get_preferred_app_monitor",
   getWidgetBarItems: "get_widget_bar_items",
   getWidgetWindowState: "get_widget_window_state",
+  listAppMonitors: "list_app_monitors",
   openWidgetWindow: "open_widget_window",
   readActivityContext: "read_activity_context",
   recoverTimerState: "recover_timer_state",
   recordWidgetUsageEvent: "record_widget_usage_event",
+  markLocalFileEventsSynced: "mark_local_file_events_synced",
   markWidgetUsageSummarySynced: "mark_widget_usage_summary_synced",
   registerWidgetShortcut: "register_widget_shortcut",
   restoreLocalSqliteBackup: "restore_local_sqlite_backup",
@@ -19,10 +22,12 @@ export const TAURI_COMMANDS = {
   scanManagedFolder: "scan_managed_folder",
   searchLocalFiles: "search_local_files",
   selectManagedFolder: "select_managed_folder",
+  setPreferredAppMonitor: "set_preferred_app_monitor",
   setWidgetAlwaysOnTop: "set_widget_always_on_top",
   setWidgetClickThrough: "set_widget_click_through",
   setWidgetWindowMode: "set_widget_window_mode",
   setWidgetWindowPosition: "set_widget_window_position",
+  stageLocalFileEventsForSync: "stage_local_file_events_for_sync",
   syncRoomMessages: "sync_room_messages",
   syncWidgetUsageSummary: "sync_widget_usage_summary",
   toggleWidgetDockOrb: "toggle_widget_dock_orb",
@@ -82,6 +87,42 @@ export type LocalFileSearchResult = {
   }>;
 };
 
+export type LocalFileEventsSyncStageInput = {
+  limit?: number;
+  localFolderId?: string;
+};
+
+export type LocalFileSyncEventCandidate = {
+  eventType: "CREATED" | "DELETED";
+  fileName: string;
+  fileSizeBytes?: number | null;
+  localEventId: string;
+  localFileId?: string | null;
+  mimeType?: string | null;
+  resourceId?: string | null;
+};
+
+export type LocalFileEventsSyncStageResult = {
+  events: LocalFileSyncEventCandidate[];
+  stagedAt: string;
+};
+
+export type LocalFileEventSyncResultInput = {
+  localEventId: string;
+  resourceId?: string | null;
+  status: string;
+};
+
+export type LocalFileEventsMarkSyncedInput = {
+  results: LocalFileEventSyncResultInput[];
+};
+
+export type LocalFileEventsMarkSyncedResult = {
+  completedAt: string;
+  failedCount: number;
+  syncedCount: number;
+};
+
 export type SqliteIntegrityResult = {
   checkedAt: string;
   ok: boolean;
@@ -121,6 +162,34 @@ export type ActivityContextResult = {
   capturedAt: string;
   durationSeconds?: number;
   windowTitle?: string;
+};
+
+export type AppMonitorPosition = {
+  x: number;
+  y: number;
+};
+
+export type AppMonitorSize = {
+  height: number;
+  width: number;
+};
+
+export type AppMonitorInfo = {
+  id: string;
+  isPrimary: boolean;
+  name?: string;
+  position: AppMonitorPosition;
+  scaleFactor: number;
+  size: AppMonitorSize;
+};
+
+export type AppMonitorPreference = {
+  monitors: AppMonitorInfo[];
+  preferredMonitorId: string;
+};
+
+export type AppMonitorPreferenceInput = {
+  monitorId: string;
 };
 
 export type WidgetUsageEventInput = {
@@ -260,6 +329,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: SyncOutboxFlushResult;
   };
+  get_preferred_app_monitor: {
+    args: undefined;
+    result: AppMonitorPreference;
+  };
   get_widget_window_state: {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
@@ -267,6 +340,10 @@ export type TauriCommandContract = {
   get_widget_bar_items: {
     args: undefined;
     result: WidgetWindowState[];
+  };
+  list_app_monitors: {
+    args: undefined;
+    result: AppMonitorPreference;
   };
   open_widget_window: {
     args: WidgetWindowOpenInput | undefined;
@@ -283,6 +360,10 @@ export type TauriCommandContract = {
   record_widget_usage_event: {
     args: WidgetUsageEventInput;
     result: WidgetUsageEventRecordResult;
+  };
+  mark_local_file_events_synced: {
+    args: LocalFileEventsMarkSyncedInput;
+    result: LocalFileEventsMarkSyncedResult;
   };
   mark_widget_usage_summary_synced: {
     args: WidgetUsageSummaryMarkSyncedInput;
@@ -312,6 +393,10 @@ export type TauriCommandContract = {
     args: SelectManagedFolderInput | undefined;
     result: ManagedFolderSelection;
   };
+  set_preferred_app_monitor: {
+    args: AppMonitorPreferenceInput;
+    result: AppMonitorPreference;
+  };
   set_widget_always_on_top: {
     args: WidgetBooleanInput;
     result: WidgetWindowState;
@@ -327,6 +412,10 @@ export type TauriCommandContract = {
   set_widget_window_position: {
     args: WidgetWindowPositionInput;
     result: WidgetWindowState;
+  };
+  stage_local_file_events_for_sync: {
+    args: LocalFileEventsSyncStageInput | undefined;
+    result: LocalFileEventsSyncStageResult;
   };
   sync_room_messages: {
     args: LocalRoomMessageSyncInput;
@@ -377,11 +466,17 @@ export const tauriCommands = {
   flushSyncOutbox() {
     return invokeTauri<SyncOutboxFlushResult>(TAURI_COMMANDS.flushSyncOutbox);
   },
+  getPreferredAppMonitor() {
+    return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.getPreferredAppMonitor);
+  },
   getWidgetWindowState(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.getWidgetWindowState, input ? { input } : undefined);
   },
   getWidgetBarItems() {
     return invokeTauri<WidgetWindowState[]>(TAURI_COMMANDS.getWidgetBarItems);
+  },
+  listAppMonitors() {
+    return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.listAppMonitors);
   },
   openWidgetWindow(input?: WidgetWindowOpenInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.openWidgetWindow, input ? { input } : undefined);
@@ -394,6 +489,9 @@ export const tauriCommands = {
   },
   recordWidgetUsageEvent(input: WidgetUsageEventInput) {
     return invokeTauri<WidgetUsageEventRecordResult>(TAURI_COMMANDS.recordWidgetUsageEvent, { input });
+  },
+  markLocalFileEventsSynced(input: LocalFileEventsMarkSyncedInput) {
+    return invokeTauri<LocalFileEventsMarkSyncedResult>(TAURI_COMMANDS.markLocalFileEventsSynced, { input });
   },
   markWidgetUsageSummarySynced(input: WidgetUsageSummaryMarkSyncedInput) {
     return invokeTauri<WidgetUsageSummaryMarkSyncedResult>(TAURI_COMMANDS.markWidgetUsageSummarySynced, { input });
@@ -422,6 +520,9 @@ export const tauriCommands = {
       input ? { input } : undefined,
     );
   },
+  setPreferredAppMonitor(input: AppMonitorPreferenceInput) {
+    return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.setPreferredAppMonitor, { input });
+  },
   setWidgetAlwaysOnTop(input: WidgetBooleanInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetAlwaysOnTop, { input });
   },
@@ -433,6 +534,12 @@ export const tauriCommands = {
   },
   setWidgetWindowPosition(input: WidgetWindowPositionInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetWindowPosition, { input });
+  },
+  stageLocalFileEventsForSync(input?: LocalFileEventsSyncStageInput) {
+    return invokeTauri<LocalFileEventsSyncStageResult>(
+      TAURI_COMMANDS.stageLocalFileEventsForSync,
+      input ? { input } : undefined,
+    );
   },
   syncRoomMessages(input: LocalRoomMessageSyncInput) {
     return invokeTauri<LocalRoomMessageSyncResult>(TAURI_COMMANDS.syncRoomMessages, { input });

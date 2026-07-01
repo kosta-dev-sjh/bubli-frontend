@@ -1,6 +1,6 @@
 export type TimerType = "GENERAL" | "WORK";
 
-export type TimeLogStatus = "RUNNING" | "PAUSED" | "STOPPED" | "RECOVERY_NEEDED";
+export type TimeLogStatus = "RUNNING" | "PAUSED" | "ENDED" | "NEEDS_RECOVERY";
 
 export type TimeLogResponse = {
   createdAt?: string;

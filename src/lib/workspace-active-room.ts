@@ -1,3 +1,5 @@
+import { widgetApi } from "@/features/widget/api/widgetApi";
+
 export const ACTIVE_PROJECT_ROOM_CHANGE_EVENT = "bubli:active-project-room-change";
 
 // 프로젝트룸 선택 상태는 현재 작업공간 컨텍스트(메모리)에서만 유지한다.
@@ -19,6 +21,7 @@ export function setActiveProjectRoomId(roomId: string, roomLabel?: string | null
     activeProjectRoomLabel = roomLabel.trim();
   }
   if (typeof window === "undefined") return;
+  void widgetApi.updateContext({ selectedRoomId: roomId }).catch(() => undefined);
   window.dispatchEvent(
     new CustomEvent(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, {
       detail: { roomId, roomLabel: roomLabel ?? null },
@@ -30,6 +33,7 @@ export function clearActiveProjectRoomId() {
   activeProjectRoomId = null;
   activeProjectRoomLabel = null;
   if (typeof window === "undefined") return;
+  void widgetApi.updateContext({ selectedRoomId: null }).catch(() => undefined);
   window.dispatchEvent(
     new CustomEvent(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, { detail: { roomId: null } }),
   );

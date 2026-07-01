@@ -61,21 +61,23 @@ export type RoomAgentCommandRequest = {
 
 export type RoomAgentCommandResponse = {
   message: ChatMessageResponse;
-  memorySummary?: Record<string, unknown> | null;
+  memorySummary?: RoomMemorySummaryResponse | null;
   suggestions: AgentSuggestionResponse[];
 };
 
 export type RoomMemorySummaryCreateRequest = {
-  fromSequence?: number;
-  toSequence?: number;
-  trigger?: "MANUAL" | "AGENT_COMMAND" | "AUTO";
+  fromSequence: number;
+  summaryJson: string;
+  toSequence: number;
 };
+
+export type RoomMemorySummaryStatus = "DRAFT" | "APPROVED";
 
 export type RoomMemorySummaryResponse = {
   createdAt: string;
   fromSequence: number;
   id: string;
-  roomId: string;
-  summary: Record<string, unknown>;
+  status: RoomMemorySummaryStatus;
+  summaryJson: string;
   toSequence: number;
 };

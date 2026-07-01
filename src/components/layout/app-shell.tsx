@@ -12,6 +12,8 @@ import { authApi } from "@/features/auth/api/authApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -83,6 +85,22 @@ export function AppShell({ children }: AppShellProps) {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
 
   useEffect(() => {
+    if (!isTauriRuntime()) return;
+
+    document.documentElement.dataset.bubliSurface = "hybrid-app";
+    document.body.dataset.bubliSurface = "hybrid-app";
+
+    return () => {
+      if (document.documentElement.dataset.bubliSurface === "hybrid-app") {
+        delete document.documentElement.dataset.bubliSurface;
+      }
+      if (document.body.dataset.bubliSurface === "hybrid-app") {
+        delete document.body.dataset.bubliSurface;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
 
     async function loadShell() {
@@ -128,6 +146,11 @@ export function AppShell({ children }: AppShellProps) {
   }, [router, state.kind]);
 
   useEffect(() => {
+    if (state.kind !== "ready") return;
+    void launchTauriAuthenticatedSurfaces().catch(() => undefined);
+  }, [state.kind]);
+
+  useEffect(() => {
     function syncActiveProjectRoom(event: Event) {
       const detail = event instanceof CustomEvent ? (event.detail as { roomId?: string | null; roomLabel?: string | null } | null) : null;
       setSelectedRoomId(detail?.roomId ?? getActiveProjectRoomId());
@@ -163,7 +186,7 @@ export function AppShell({ children }: AppShellProps) {
 
   const rooms = state.kind === "ready" ? state.rooms : [];
   const roomFromPath = rooms.find((room) => isActiveRoom(pathname, room.id));
-  const roomIdFromQuery = pathname === "/app/chat" ? searchParams.get("roomId") : null;
+  const roomIdFromQuery = searchParams.get("roomId");
   const roomFromQuery = roomIdFromQuery ? rooms.find((room) => room.id === roomIdFromQuery) : undefined;
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId);
   const activeRoom = roomFromPath ?? roomFromQuery ?? selectedRoom;
@@ -179,6 +202,11 @@ export function AppShell({ children }: AppShellProps) {
     if (!routeRoom || routeRoom.id === selectedRoomId) return;
     setActiveProjectRoomId(routeRoom.id, routeRoom.name);
   }, [roomFromPath, roomFromQuery, selectedRoomId]);
+
+  useEffect(() => {
+    if (state.kind !== "ready" || !selectedRoom) return;
+    setActiveProjectRoomId(selectedRoom.id, selectedRoom.name);
+  }, [selectedRoom, state.kind]);
 
   const topbarProject = useMemo(() => {
     if (state.kind === "loading") {
@@ -411,7 +439,7 @@ export function AppShell({ children }: AppShellProps) {
             </section>
           </>
         ) : null}
-        {children}
+        <div className="bubli-main-scroll">{children}</div>
       </main>
     </div>
   );

@@ -76,8 +76,15 @@ export type WidgetUsageSummarySaveRequest = {
   visibleSeconds: number;
 };
 
-export type WidgetDailySummaryResponse = WidgetUsageSummarySaveRequest & {
+export type WidgetDailySummaryResponse = {
+  bubbleSettingId: string;
+  deviceId: string;
   id: string;
+  interactionCount: number;
+  openCount: number;
+  summaryDate: string;
+  syncedAt: string;
+  visibleSeconds: number;
 };
 
 export type WidgetUsageRollupRequest = WidgetUsageSummarySaveRequest & {

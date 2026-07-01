@@ -40,6 +40,7 @@
 
 .sourcePanel {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
   justify-content: space-between;
@@ -133,6 +134,64 @@
   color: var(--color-muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.syncActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.syncActionButton,
+.syncIconButton {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: 999px;
+  padding: 0 11px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition:
+    transform var(--motion-hover) var(--ease-out),
+    border-color var(--motion-hover) var(--ease-out),
+    background var(--motion-hover) var(--ease-out);
+}
+
+.syncIconButton {
+  padding-inline: 10px;
+  color: var(--color-muted);
+}
+
+.syncActionButton:hover,
+.syncIconButton:hover {
+  transform: translateY(-1px);
+  border-color: rgba(142, 205, 246, 0.5);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.syncActionButton:disabled,
+.syncIconButton:disabled {
+  cursor: wait;
+  opacity: 0.58;
+  transform: none;
+}
+
+.syncNotice {
+  flex: 1 0 100%;
+  margin: 0;
+  padding-inline: 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 820;
 }
 
 .statePanel {
@@ -272,6 +331,18 @@
 .selectedSummary span {
   color: var(--color-brand);
   background: rgba(215, 234, 244, 0.46);
+}
+
+.loadWarning {
+  margin: -4px 0 0;
+  border: 1px solid rgba(232, 196, 160, 0.36);
+  border-radius: 14px;
+  padding: 10px 12px;
+  color: var(--color-muted);
+  background: color-mix(in srgb, var(--color-pearl) 18%, rgba(255, 255, 255, 0.72));
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1.45;
 }
 
 .monthHeader strong {

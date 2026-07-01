@@ -8,7 +8,7 @@ export type WidgetPreviewItem = {
   handoffLabel?: string;
   handoffUrl?: string;
   id: string;
-  kind?: "agent" | "friend" | "message" | "resource" | "schedule" | "task" | "time" | "voice";
+  kind?: "agent" | "friend" | "memo" | "message" | "resource" | "schedule" | "task" | "time" | "voice";
   label: string;
   stateId?: string;
   status: string;
@@ -17,10 +17,12 @@ export type WidgetPreviewItem = {
 export type WidgetPreviewBubble = {
   accent: WidgetBubbleAccent;
   actionLabel: string;
+  chatRoomId?: string;
   compactLabel: string;
   id: WidgetBubbleType;
   inputPlaceholder?: string;
   label: string;
+  lastMessageSequence?: number;
   metric: string;
   metricLabel: string;
   notificationLabel: string;
@@ -28,9 +30,11 @@ export type WidgetPreviewBubble = {
   panelLabel: string;
   participantLabels?: string[];
   reactionLabels?: string[];
+  roomId?: string | null;
   roomLabel: string;
   rows: WidgetPreviewItem[];
   voiceLabel?: string;
+  voiceRoomId?: string;
   voiceParticipants?: string;
 };
 

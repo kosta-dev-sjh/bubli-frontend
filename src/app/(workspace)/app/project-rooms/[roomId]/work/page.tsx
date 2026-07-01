@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Clock3, RefreshCw } from "lucide-react";
+import { AlertCircle, Clock3 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -88,17 +88,10 @@ export default function ProjectRoomWorkPage() {
       return null;
     }
 
-    const summaryItems = [
-      state.board.wbsItems.length > 0 ? `작업 구조 ${state.board.wbsItems.length}` : null,
-      state.board.tasks.length > 0 ? `할 일 ${state.board.tasks.length}` : null,
-      state.suggestions.length > 0 ? `확인할 후보 ${state.suggestions.length}` : null,
-    ].filter((item): item is string => Boolean(item));
-
     return {
       board: state.board,
       hasBoardItems: state.board.wbsItems.length > 0 || state.board.tasks.length > 0,
       pendingSuggestions: state.suggestions,
-      summaryItems,
     };
   }, [state]);
 
@@ -133,8 +126,7 @@ export default function ProjectRoomWorkPage() {
           <strong>{state.message}</strong>
           <div className="workspace-route__actions">
             <Button onClick={() => void load()} variant="primary">
-              <RefreshCw aria-hidden size={15} strokeWidth={1.9} />
-              다시 연결
+              작업판 다시 불러오기
             </Button>
             <Link className="bubli-button" href={`/app/project-rooms/${roomId}`}>
               프로젝트룸
@@ -145,14 +137,6 @@ export default function ProjectRoomWorkPage() {
 
       {state.kind === "ready" && content ? (
         <>
-          {content.summaryItems.length > 0 ? (
-            <div className="workspace-route__summary" aria-label="작업판 상태">
-              {content.summaryItems.map((item) => (
-                <span key={item}>{item}</span>
-              ))}
-            </div>
-          ) : null}
-
           {content.board.wbsItems.length + content.board.tasks.length + content.pendingSuggestions.length === 0 ? (
             <GlassPanel className="workspace-route__panel">
               <strong>현재 데이터가 없습니다</strong>

@@ -64,6 +64,16 @@ export type WidgetResourceResponse = {
   visibility: "PERSONAL" | "ROOM_SHARED";
 };
 
+export type WidgetMemoResponse = {
+  authorUserId: string;
+  body: string;
+  createdAt: string;
+  id: string;
+  roomId: string | null;
+  status: "ACTIVE" | "DELETED";
+  updatedAt: string;
+};
+
 export type WidgetAgentSuggestionResponse = {
   createdAt: string;
   evidenceJson: Record<string, unknown> | null;
@@ -219,6 +229,26 @@ export const widgetDisplayApi = {
       return widgetDisplayRequest<PageResponse<WidgetResourceResponse>>(`/api/project-rooms/${roomId}/resources?page=0&size=${size}`);
     }
     return widgetDisplayRequest<PageResponse<WidgetResourceResponse>>(`/api/resources?scope=personal&page=0&size=${size}`);
+  },
+
+  listMemos(roomId?: string | null, size = 6) {
+    if (roomId) {
+      return widgetDisplayRequest<PageResponse<WidgetMemoResponse>>(`/api/project-rooms/${roomId}/memos?page=0&size=${size}`);
+    }
+    return widgetDisplayRequest<PageResponse<WidgetMemoResponse>>(`/api/memos?page=0&size=${size}`);
+  },
+
+  createMemo(body: string, roomId?: string | null) {
+    if (roomId) {
+      return widgetDisplayRequest<WidgetMemoResponse>(`/api/project-rooms/${roomId}/memos`, {
+        body: { body },
+        method: "POST",
+      });
+    }
+    return widgetDisplayRequest<WidgetMemoResponse>("/api/memos", {
+      body: { body },
+      method: "POST",
+    });
   },
 
   listAgentSuggestions(roomId?: string | null) {

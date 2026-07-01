@@ -5,7 +5,6 @@ import {
   Files,
   FolderKanban,
   LayoutDashboard,
-  MessageCircle,
   Settings,
   Sparkles,
   type LucideIcon,
@@ -21,7 +20,6 @@ const navIcons: Record<(typeof siteConfig.appNav)[number]["href"], LucideIcon> =
   "/app": LayoutDashboard,
   "/app/agent": Sparkles,
   "/app/calendar": CalendarDays,
-  "/app/chat": MessageCircle,
   "/app/project-rooms": FolderKanban,
   "/app/resources": Files,
   "/app/settings": Settings,
@@ -48,10 +46,6 @@ function navHref(href: (typeof siteConfig.appNav)[number]["href"], activeRoomId?
 
   if (href === "/app/project-rooms") {
     return `/app/project-rooms/${activeRoomId}`;
-  }
-
-  if (href === "/app/chat") {
-    return `/app/project-rooms/${activeRoomId}/chat`;
   }
 
   if (href === "/app/agent" || href === "/app/calendar") {

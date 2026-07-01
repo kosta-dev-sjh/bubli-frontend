@@ -21,6 +21,7 @@ import {
   Search,
   Send,
   Sparkles,
+  Square,
   StickyNote,
   Timer,
   Users,
@@ -91,10 +92,18 @@ export type DesktopWidgetBubbleProps = {
   mode: WidgetWindowMode;
   onClose: () => void;
   onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
+  onLeaveVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  onMarkChatRead?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onModeChange: (mode: WidgetWindowMode) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
+  onCreateMemo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onRestore?: () => void;
+  onSendChatMessage?: (bubble: WidgetPreviewBubble, text: string) => Promise<void> | void;
+  onStartVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  onPauseTimer?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  onPrimaryTimerAction?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onToggleAlwaysOnTop: () => void;
+  onToggleVoiceMic?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   presentation?: "preview" | "tauri";
   windowVisible?: boolean;
 };
@@ -236,8 +245,28 @@ function AgentBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble;
   );
 }
 
-function ChatBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+function ChatBody({
+  bubble,
+  onItemStateChange,
+  onLeaveVoice,
+  onMarkChatRead,
+  onSendChatMessage,
+  onStartVoice,
+  onToggleVoiceMic,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
+  onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
+  onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
+  onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
+  onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
+}) {
+  const [draft, setDraft] = useState("");
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
+  const [statusText, setStatusText] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [voiceSubmitting, setVoiceSubmitting] = useState(false);
   const visibleRows = bubble.rows.filter((item) => !hiddenIds.includes(item.id));
   const handoffItem = visibleRows.find((item) => item.handoffUrl);
   const agentRows = visibleRows.filter((item) => item.kind === "agent");
@@ -258,6 +287,51 @@ function ChatBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; 
     window.open(item.handoffUrl, "_blank", "noopener,noreferrer");
   };
 
+  const sendDraftMessage = async () => {
+    const text = draft.trim();
+    if (!text || !onSendChatMessage || submitting) return;
+
+    setSubmitting(true);
+    setStatusText(null);
+    try {
+      await onSendChatMessage(bubble, text);
+      setDraft("");
+      setStatusText("전송됨");
+    } catch {
+      setStatusText("전송 실패");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const markRead = async () => {
+    if (!onMarkChatRead) return;
+
+    setStatusText(null);
+    try {
+      await onMarkChatRead(bubble);
+      setStatusText("읽음 처리됨");
+    } catch {
+      setStatusText("읽음 처리 실패");
+    }
+  };
+
+  const runVoiceAction = async (action: "leave" | "mic" | "start") => {
+    const handler = action === "start" ? onStartVoice : action === "leave" ? onLeaveVoice : onToggleVoiceMic;
+    if (!handler || voiceSubmitting) return;
+
+    setVoiceSubmitting(true);
+    setStatusText(null);
+    try {
+      await handler(bubble);
+      setStatusText(action === "start" ? "Voice ready" : action === "leave" ? "Voice left" : "Mic updated");
+    } catch {
+      setStatusText(action === "start" ? "Voice failed" : action === "leave" ? "Leave failed" : "Mic failed");
+    } finally {
+      setVoiceSubmitting(false);
+    }
+  };
+
   return (
     <div className={styles.body}>
       <div className={styles.chatHead}>
@@ -275,13 +349,13 @@ function ChatBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; 
           <span>{voiceRows[0]?.label ?? bubble.voiceLabel ?? "보이스 대기"}</span>
           <small>{bubble.voiceParticipants ?? "참여자 없음"}</small>
         </div>
-        <button aria-label="마이크 상태" type="button">
+        <button aria-label="마이크 상태" disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("mic")} type="button">
           <Mic size={13} strokeWidth={2} />
         </button>
-        <button aria-label="헤드셋" type="button">
+        <button aria-label="보이스 시작" disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
           <Headphones size={13} strokeWidth={2} />
         </button>
-        <button aria-label="보이스 나가기" type="button">
+        <button aria-label="보이스 나가기" disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("leave")} type="button">
           <PhoneOff size={13} strokeWidth={2} />
         </button>
       </div>
@@ -316,24 +390,57 @@ function ChatBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; 
       <div className={styles.reactionDock} aria-label="빠른 반응">
         <SmilePlus size={14} strokeWidth={2} />
         {(bubble.reactionLabels ?? ["확인", "좋아요", "잠시 후"]).map((label) => (
-          <button key={label} type="button">
+          <button key={label} onClick={() => void markRead()} type="button">
             {label}
           </button>
         ))}
+        {statusText ? <span>{statusText}</span> : null}
       </div>
       <div className={styles.input}>
         <SmilePlus size={14} strokeWidth={2} />
-        <input placeholder={bubble.inputPlaceholder} />
-        <button aria-label="보이스 시작" type="button">
+        <input
+          disabled={!bubble.chatRoomId || submitting}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void sendDraftMessage();
+            }
+          }}
+          placeholder={bubble.chatRoomId ? bubble.inputPlaceholder : "채팅방을 먼저 선택하세요"}
+          value={draft}
+        />
+        <button aria-label="보이스 시작" disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
           <Mic size={13} strokeWidth={2} />
         </button>
-        <Send size={14} strokeWidth={2} />
+        <button
+          aria-label="메시지 전송"
+          disabled={!draft.trim() || !bubble.chatRoomId || submitting}
+          onClick={() => void sendDraftMessage()}
+          type="button"
+        >
+          <Send size={14} strokeWidth={2} />
+        </button>
       </div>
     </div>
   );
 }
 
-function TimerBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+function TimerBody({
+  bubble,
+  onItemStateChange,
+  onPauseTimer,
+  onPrimaryTimerAction,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onPauseTimer?: DesktopWidgetBubbleProps["onPauseTimer"];
+  onPrimaryTimerAction?: DesktopWidgetBubbleProps["onPrimaryTimerAction"];
+}) {
+  const timerStatus = bubble.rows[0]?.status;
+  const canPause = timerStatus === "RUNNING";
+  const PrimaryIcon = timerStatus === "RUNNING" ? Square : Play;
+
   return (
     <div className={styles.body}>
       <div className={styles.timer}>
@@ -348,12 +455,12 @@ function TimerBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble;
         <button type="button">뽀모도로</button>
       </div>
       <div className={styles.timerActions}>
-        <button type="button">
+        <button disabled={!canPause} onClick={() => void onPauseTimer?.(bubble)} type="button">
           <Pause size={13} />
-          일시정지
+          {timerStatus === "PAUSED" ? "일시정지됨" : "일시정지"}
         </button>
-        <button type="button">
-          <Play size={13} />
+        <button onClick={() => void onPrimaryTimerAction?.(bubble)} type="button">
+          <PrimaryIcon size={13} />
           {bubble.actionLabel}
         </button>
       </div>
@@ -362,7 +469,7 @@ function TimerBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble;
   );
 }
 
-function MemoBody({ bubble }: { bubble: WidgetPreviewBubble }) {
+function MemoBody({ bubble, onCreateMemo }: { bubble: WidgetPreviewBubble; onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"] }) {
   return (
     <div className={[styles.body, styles.memoGrid].join(" ")}>
       {bubble.rows.length > 0 ? (
@@ -377,7 +484,7 @@ function MemoBody({ bubble }: { bubble: WidgetPreviewBubble }) {
           <span>{bubble.notificationLabel}</span>
         </div>
       )}
-      <button className={styles.wideAction} type="button">
+      <button className={styles.wideAction} onClick={() => void onCreateMemo?.(bubble)} type="button">
         <Plus size={14} strokeWidth={2} />
         {bubble.actionLabel}
       </button>
@@ -441,11 +548,47 @@ function ResourceBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubb
   );
 }
 
-function BubbleBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+function BubbleBody({
+  bubble,
+  onItemStateChange,
+  onCreateMemo,
+  onLeaveVoice,
+  onMarkChatRead,
+  onPauseTimer,
+  onPrimaryTimerAction,
+  onSendChatMessage,
+  onStartVoice,
+  onToggleVoiceMic,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
+  onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
+  onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
+  onPauseTimer?: DesktopWidgetBubbleProps["onPauseTimer"];
+  onPrimaryTimerAction?: DesktopWidgetBubbleProps["onPrimaryTimerAction"];
+  onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
+  onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
+  onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
+}) {
   if (bubble.id === "agent") return <AgentBody bubble={bubble} onItemStateChange={onItemStateChange} />;
-  if (bubble.id === "chat") return <ChatBody bubble={bubble} onItemStateChange={onItemStateChange} />;
-  if (bubble.id === "timer") return <TimerBody bubble={bubble} onItemStateChange={onItemStateChange} />;
-  if (bubble.id === "memo") return <MemoBody bubble={bubble} />;
+  if (bubble.id === "chat") {
+    return (
+      <ChatBody
+        bubble={bubble}
+        onItemStateChange={onItemStateChange}
+        onLeaveVoice={onLeaveVoice}
+        onMarkChatRead={onMarkChatRead}
+        onSendChatMessage={onSendChatMessage}
+        onStartVoice={onStartVoice}
+        onToggleVoiceMic={onToggleVoiceMic}
+      />
+    );
+  }
+  if (bubble.id === "timer") {
+    return <TimerBody bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />;
+  }
+  if (bubble.id === "memo") return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} />;
   if (bubble.id === "schedule") return <ScheduleBody bubble={bubble} onItemStateChange={onItemStateChange} />;
   if (bubble.id === "resource") return <ResourceBody bubble={bubble} onItemStateChange={onItemStateChange} />;
   return <TodoBody bubble={bubble} onItemStateChange={onItemStateChange} />;
@@ -469,9 +612,17 @@ export function DesktopWidgetBubble({
   mode,
   onClose,
   onItemStateChange,
+  onLeaveVoice,
+  onMarkChatRead,
   onModeChange,
+  onCreateMemo,
+  onPauseTimer,
+  onPrimaryTimerAction,
   onRestore,
+  onSendChatMessage,
+  onStartVoice,
   onToggleAlwaysOnTop,
+  onToggleVoiceMic,
   presentation = "tauri",
   windowVisible = true,
 }: DesktopWidgetBubbleProps) {
@@ -524,7 +675,22 @@ export function DesktopWidgetBubble({
               </div>
             ) : null}
 
-            {mode === "GHOST" ? <GhostSignal bubble={activeData} /> : <BubbleBody bubble={activeData} onItemStateChange={onItemStateChange} />}
+            {mode === "GHOST" ? (
+              <GhostSignal bubble={activeData} />
+            ) : (
+              <BubbleBody
+                bubble={activeData}
+                onItemStateChange={onItemStateChange}
+                onLeaveVoice={onLeaveVoice}
+                onMarkChatRead={onMarkChatRead}
+                onCreateMemo={onCreateMemo}
+                onPauseTimer={onPauseTimer}
+                onPrimaryTimerAction={onPrimaryTimerAction}
+                onSendChatMessage={onSendChatMessage}
+                onStartVoice={onStartVoice}
+                onToggleVoiceMic={onToggleVoiceMic}
+              />
+            )}
 
             {isPreview ? (
               <div className={styles.bubbleNote}>

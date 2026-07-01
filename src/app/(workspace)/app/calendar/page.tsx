@@ -1,12 +1,15 @@
 "use client";
 
 import {
+  ArrowDownToLine,
+  ArrowUpToLine,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
   Plus,
   Repeat2,
+  Unplug,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -21,19 +24,25 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewSchedules } from "@/lib/workspace-preview-data";
-import type { ProjectRoomEventEnvelope, ProjectRoomEventType } from "@/types/api/calendar";
+import type { GoogleCalendarConnectionResponse, ProjectRoomEventEnvelope, ProjectRoomEventType } from "@/types/api/calendar";
 import type { ScheduleResponse } from "@/types/api/work";
 
 import styles from "./calendar-page.module.css";
 
 type PageState =
   | { kind: "loading" }
-  | { events: ScheduleResponse[]; kind: "ready"; roomEvents: ProjectRoomEventEnvelope[] }
+  | { events: ScheduleResponse[]; kind: "ready"; loadWarning?: string | null; roomEvents: ProjectRoomEventEnvelope[] }
   | { kind: "auth" }
   | { kind: "offline" };
 
 type RepeatInterval = "DAILY" | "WEEKLY" | "MONTHLY";
 type CalendarSourceFilter = "all" | "external" | "personal" | "room";
+type GoogleConnectionState =
+  | { kind: "connected"; value: GoogleCalendarConnectionResponse }
+  | { kind: "disconnected" }
+  | { kind: "error" }
+  | { kind: "loading" };
+type SyncAction = "connect" | "disconnect" | "pull" | "push";
 
 const dayLabels = [
   { label: "월", value: "MO" },
@@ -186,6 +195,9 @@ function CalendarPageContent() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
+  const [googleConnection, setGoogleConnection] = useState<GoogleConnectionState>({ kind: "loading" });
+  const [googleNotice, setGoogleNotice] = useState<string | null>(null);
+  const [syncAction, setSyncAction] = useState<SyncAction | null>(null);
   const range = useMemo(() => {
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
@@ -194,33 +206,44 @@ function CalendarPageContent() {
 
   const loadEvents = useCallback(async () => {
     setState({ kind: "loading" });
+    setGoogleConnection({ kind: "loading" });
 
     try {
-      const [scheduleResult, roomEventResult] = await Promise.allSettled([
+      const [scheduleResult, roomEventResult, googleConnectionResult] = await Promise.allSettled([
         calendarApi.getEvents({ ...range, roomId: selectedRoomId ?? undefined }),
         selectedRoomId ? calendarApi.getProjectRoomEvents(selectedRoomId, { limit: 100 }) : Promise.resolve(null),
+        calendarApi.getGoogleConnection(),
       ]);
 
-      if (scheduleResult.status === "rejected") {
+      if (scheduleResult.status === "rejected" && scheduleResult.reason instanceof ApiClientError && scheduleResult.reason.status === 401) {
         throw scheduleResult.reason;
       }
 
       setState({
-        events: scheduleResult.value.items,
+        events: scheduleResult.status === "fulfilled" ? scheduleResult.value.items : [],
         kind: "ready",
+        loadWarning: scheduleResult.status === "rejected" ? "일정 목록을 불러오지 못했습니다. 연결 버튼과 일정 추가는 계속 사용할 수 있습니다." : null,
         roomEvents: roomEventResult.status === "fulfilled" && roomEventResult.value ? roomEventResult.value.items : [],
       });
+      if (googleConnectionResult.status === "fulfilled" && googleConnectionResult.value?.status === "ACTIVE") {
+        setGoogleConnection({ kind: "connected", value: googleConnectionResult.value });
+      } else {
+        setGoogleConnection({ kind: googleConnectionResult.status === "rejected" ? "error" : "disconnected" });
+      }
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
+        setGoogleConnection({ kind: "disconnected" });
         return;
       }
       if (shouldUseWorkspacePreviewData()) {
         const events = buildPreviewEvents(selectedRoomId);
         setState({ events, kind: "ready", roomEvents: buildPreviewRoomEvents(selectedRoomId, events) });
+        setGoogleConnection({ kind: "disconnected" });
         return;
       }
       setState({ kind: "offline" });
+      setGoogleConnection({ kind: "error" });
     }
   }, [range, selectedRoomId]);
 
@@ -286,6 +309,15 @@ function CalendarPageContent() {
     });
   }, [selectedDate]);
   const visibleCalendarDays = viewMode === "week" ? weekDays : calendarDays;
+  const googleConnected = googleConnection.kind === "connected";
+  const googleConnectionLabel =
+    googleConnection.kind === "connected"
+      ? googleConnection.value.googleAccountEmail ?? "연결됨"
+      : googleConnection.kind === "loading"
+        ? "확인 중"
+        : googleConnection.kind === "error"
+          ? "상태 확인 필요"
+          : "연결 전";
 
   const roomEventsForSelectedDate = useMemo(
     () => {
@@ -323,12 +355,57 @@ function CalendarPageContent() {
     }
   };
 
+  const mergeSyncedEvents = (syncedEvents: ScheduleResponse[]) => {
+    setState((current) => {
+      if (current.kind !== "ready") return current;
+
+      const byId = new Map(current.events.map((event) => [event.id, event]));
+      for (const event of syncedEvents) {
+        byId.set(event.id, event);
+      }
+
+      return { ...current, events: Array.from(byId.values()) };
+    });
+  };
+
   const toggleRepeatDay = (day: string) => {
     setRepeatDays((current) => (current.includes(day) ? current.filter((value) => value !== day) : [...current, day]));
   };
 
-  const handleConnectGoogle = () => {
-    window.location.href = calendarApi.getGoogleConnectUrl();
+  const runGoogleAction = async (action: SyncAction) => {
+    setSyncAction(action);
+    setGoogleNotice(null);
+
+    try {
+      if (action === "connect") {
+        const response = await calendarApi.requestGoogleConnectUrl();
+        window.location.href = response.authorizeUrl;
+        return;
+      }
+
+      if (action === "disconnect") {
+        await calendarApi.disconnectGoogleConnection();
+        setGoogleConnection({ kind: "disconnected" });
+        setGoogleNotice("Google Calendar 연결을 해제했습니다.");
+        return;
+      }
+
+      const syncRange = { from: range.start, to: range.end };
+      const syncedEvents =
+        action === "pull"
+          ? await calendarApi.syncGoogleEvents(syncRange)
+          : await calendarApi.pushUnsyncedGoogleEvents(syncRange);
+      mergeSyncedEvents(syncedEvents);
+      setGoogleNotice(action === "pull" ? `외부 일정 ${syncedEvents.length}건을 확인했습니다.` : `Bubli 일정 ${syncedEvents.length}건을 보냈습니다.`);
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 401) {
+        setGoogleNotice("로그인 후 Google Calendar를 연결할 수 있습니다.");
+      } else {
+        setGoogleNotice("Google Calendar 작업을 완료하지 못했습니다.");
+      }
+    } finally {
+      setSyncAction(null);
+    }
   };
 
   const handleCreateEvent = async () => {
@@ -410,13 +487,34 @@ function CalendarPageContent() {
             </div>
             <div className={styles.syncCompact}>
               <div>
-                <strong>외부 캘린더</strong>
-                <span>{sourceCounts.external > 0 ? "연결됨" : "연결 전"}</span>
+                <strong>Google Calendar</strong>
+                <span>{googleConnectionLabel}</span>
               </div>
-              <Button icon={<ExternalLink size={15} strokeWidth={2.1} />} onClick={handleConnectGoogle} variant="quiet">
-                연결
-              </Button>
+              <div className={styles.syncActions} aria-label="Google Calendar 동기화">
+                {!googleConnected ? (
+                  <button className={styles.syncActionButton} disabled={syncAction === "connect"} onClick={() => void runGoogleAction("connect")} type="button">
+                    <ExternalLink size={14} strokeWidth={2.1} />
+                    <span>{syncAction === "connect" ? "이동 중" : "연결"}</span>
+                  </button>
+                ) : (
+                  <>
+                    <button className={styles.syncActionButton} disabled={syncAction !== null} onClick={() => void runGoogleAction("pull")} type="button">
+                      <ArrowDownToLine size={14} strokeWidth={2.1} />
+                      <span>{syncAction === "pull" ? "확인 중" : "가져오기"}</span>
+                    </button>
+                    <button className={styles.syncActionButton} disabled={syncAction !== null} onClick={() => void runGoogleAction("push")} type="button">
+                      <ArrowUpToLine size={14} strokeWidth={2.1} />
+                      <span>{syncAction === "push" ? "보내는 중" : "보내기"}</span>
+                    </button>
+                    <button className={styles.syncIconButton} disabled={syncAction !== null} onClick={() => void runGoogleAction("disconnect")} type="button">
+                      <Unplug size={14} strokeWidth={2.1} />
+                      <span>해제</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
+            {googleNotice ? <p className={styles.syncNotice}>{googleNotice}</p> : null}
           </GlassPanel>
 
           <div className={styles.mainGrid}>
@@ -462,6 +560,7 @@ function CalendarPageContent() {
                 <span>{selectedEvents.length > 0 ? `일정 ${selectedEvents.length}건` : "일정 없음"}</span>
                 {roomEventsForSelectedDate.length > 0 ? <span>룸 변경 {roomEventsForSelectedDate.length}건</span> : null}
               </div>
+              {state.loadWarning ? <p className={styles.loadWarning}>{state.loadWarning}</p> : null}
 
               <div className={styles.weekLabelGrid} aria-hidden="true">
                 {dayLabels.map((day) => (
@@ -575,9 +674,11 @@ function CalendarPageContent() {
                         value={repeatInterval}
                         onChange={(event) => setRepeatInterval(event.target.value as RepeatInterval)}
                       >
-                        <option value="DAILY">매일</option>
-                        <option value="WEEKLY">매주</option>
-                        <option value="MONTHLY">매월</option>
+                        {Object.entries(repeatLabels).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <div className={styles.dayChips} aria-label="반복 요일">

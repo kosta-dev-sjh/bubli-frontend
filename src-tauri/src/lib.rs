@@ -1,11 +1,11 @@
-use std::{collections::HashMap, env, sync::Mutex};
+use std::{collections::HashMap, env, fs, path::PathBuf, sync::Mutex};
 
 use serde::{Deserialize, Serialize};
+use tauri::utils::config::Color;
 use tauri::{
-    AppHandle, LogicalPosition, LogicalSize, Manager, Position, Size, WebviewUrl,
+    AppHandle, LogicalPosition, LogicalSize, Manager, Monitor, Position, Size, WebviewUrl,
     WebviewWindowBuilder,
 };
-use tauri::utils::config::Color;
 
 mod activity;
 mod local_db;
@@ -22,21 +22,10 @@ const WIDGET_BAR_HEIGHT: f64 = 168.0;
 const WIDGET_MENU_SIZE: f64 = 192.0;
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
+const PRIMARY_MONITOR_ID: &str = "primary";
 const QA_ALL_WIDGET_BUBBLES: [&str; 8] = [
-    "todo",
-    "agent",
-    "chat",
-    "timer",
-    "memo",
-    "schedule",
-    "resource",
-    "alert",
+    "todo", "agent", "chat", "timer", "memo", "schedule", "resource", "alert",
 ];
-
-#[tauri::command]
-fn app_ready() -> &'static str {
-    "bubli-tauri-ready"
-}
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -89,6 +78,65 @@ impl Default for WidgetWindowStore {
 }
 
 type WidgetState = Mutex<WidgetWindowStore>;
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppMonitorPosition {
+    x: i32,
+    y: i32,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppMonitorSize {
+    height: u32,
+    width: u32,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppMonitorInfo {
+    id: String,
+    is_primary: bool,
+    name: Option<String>,
+    position: AppMonitorPosition,
+    scale_factor: f64,
+    size: AppMonitorSize,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppMonitorPreference {
+    monitors: Vec<AppMonitorInfo>,
+    preferred_monitor_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AppMonitorPreferenceInput {
+    monitor_id: String,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredAppMonitorPreference {
+    preferred_monitor_id: String,
+}
+
+#[derive(Clone)]
+struct AppMonitorPreferenceStore {
+    preferred_monitor_id: String,
+}
+
+impl Default for AppMonitorPreferenceStore {
+    fn default() -> Self {
+        Self {
+            preferred_monitor_id: PRIMARY_MONITOR_ID.to_string(),
+        }
+    }
+}
+
+type AppMonitorState = Mutex<AppMonitorPreferenceStore>;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -274,6 +322,143 @@ fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
     }
 }
 
+fn monitor_id(monitor: &Monitor, index: usize) -> String {
+    monitor
+        .name()
+        .filter(|name| !name.trim().is_empty())
+        .cloned()
+        .unwrap_or_else(|| format!("monitor-{}", index + 1))
+}
+
+fn monitors_match(left: &Monitor, right: &Monitor) -> bool {
+    left.name() == right.name()
+        && left.position().x == right.position().x
+        && left.position().y == right.position().y
+        && left.size().width == right.size().width
+        && left.size().height == right.size().height
+}
+
+fn app_monitor_info(monitor: &Monitor, index: usize, primary: Option<&Monitor>) -> AppMonitorInfo {
+    AppMonitorInfo {
+        id: monitor_id(monitor, index),
+        is_primary: primary.is_some_and(|primary_monitor| monitors_match(monitor, primary_monitor)),
+        name: monitor.name().cloned(),
+        position: AppMonitorPosition {
+            x: monitor.position().x,
+            y: monitor.position().y,
+        },
+        scale_factor: monitor.scale_factor(),
+        size: AppMonitorSize {
+            height: monitor.size().height,
+            width: monitor.size().width,
+        },
+    }
+}
+
+fn list_monitors(app: &AppHandle) -> Result<(Vec<Monitor>, Option<Monitor>), String> {
+    let monitors = app
+        .available_monitors()
+        .map_err(|error| error.to_string())?;
+    let primary = app.primary_monitor().map_err(|error| error.to_string())?;
+    Ok((monitors, primary))
+}
+
+fn monitor_preference_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| format!("app_config_dir resolve failed: {error}"))?;
+    Ok(dir.join("monitor-preference.json"))
+}
+
+fn load_preferred_monitor_id(app: &AppHandle) -> Result<String, String> {
+    let path = monitor_preference_path(app)?;
+    if !path.exists() {
+        return Ok(PRIMARY_MONITOR_ID.to_string());
+    }
+
+    let stored: StoredAppMonitorPreference =
+        serde_json::from_str(&fs::read_to_string(path).map_err(|error| error.to_string())?)
+            .map_err(|error| error.to_string())?;
+    Ok(if stored.preferred_monitor_id.trim().is_empty() {
+        PRIMARY_MONITOR_ID.to_string()
+    } else {
+        stored.preferred_monitor_id
+    })
+}
+
+fn save_preferred_monitor_id(app: &AppHandle, preferred_monitor_id: &str) -> Result<(), String> {
+    let path = monitor_preference_path(app)?;
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir).map_err(|error| error.to_string())?;
+    }
+
+    let payload = StoredAppMonitorPreference {
+        preferred_monitor_id: preferred_monitor_id.to_string(),
+    };
+    let content = serde_json::to_string_pretty(&payload).map_err(|error| error.to_string())?;
+    fs::write(path, content).map_err(|error| error.to_string())
+}
+
+fn get_preferred_monitor_id(state: &AppMonitorState) -> Result<String, String> {
+    let guard = state
+        .lock()
+        .map_err(|_| "app monitor state lock failed".to_string())?;
+    Ok(guard.preferred_monitor_id.clone())
+}
+
+fn monitor_preference_result(
+    app: &AppHandle,
+    preferred_monitor_id: String,
+) -> Result<AppMonitorPreference, String> {
+    let (monitors, primary) = list_monitors(app)?;
+    let monitor_infos = monitors
+        .iter()
+        .enumerate()
+        .map(|(index, monitor)| app_monitor_info(monitor, index, primary.as_ref()))
+        .collect();
+
+    Ok(AppMonitorPreference {
+        monitors: monitor_infos,
+        preferred_monitor_id,
+    })
+}
+
+fn resolve_preferred_monitor(
+    app: &AppHandle,
+    preferred_monitor_id: &str,
+) -> Result<Option<Monitor>, String> {
+    let (monitors, primary) = list_monitors(app)?;
+    if preferred_monitor_id == PRIMARY_MONITOR_ID {
+        return Ok(primary.or_else(|| monitors.first().cloned()));
+    }
+
+    Ok(monitors
+        .iter()
+        .enumerate()
+        .find(|(index, monitor)| monitor_id(monitor, *index) == preferred_monitor_id)
+        .map(|(_, monitor)| monitor.clone())
+        .or(primary)
+        .or_else(|| monitors.first().cloned()))
+}
+
+fn widget_screen_position(
+    app: &AppHandle,
+    monitor_state: &AppMonitorState,
+    widget: &WidgetWindowState,
+) -> Result<LogicalPosition<f64>, String> {
+    let preferred_monitor_id = get_preferred_monitor_id(monitor_state)?;
+    let monitor = resolve_preferred_monitor(app, &preferred_monitor_id)?;
+    let origin = monitor.as_ref().map(|monitor| monitor.position());
+    let origin_x = origin.map_or(0, |position| position.x);
+    let origin_y = origin.map_or(0, |position| position.y);
+
+    Ok(LogicalPosition::new(
+        (origin_x + widget.position.x) as f64,
+        (origin_y + widget.position.y) as f64,
+    ))
+}
+
 fn widget_keeps_webview_when_hidden(widget: &WidgetWindowState) -> bool {
     widget.active_bubble == "bar" || widget.active_bubble == "menu"
 }
@@ -295,6 +480,7 @@ fn qa_all_widget_windows_enabled() -> bool {
 
 fn build_widget_qa_windows(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<WidgetState>();
+    let monitor_state = app.state::<AppMonitorState>();
 
     for bubble_type in QA_ALL_WIDGET_BUBBLES {
         let widget = {
@@ -305,7 +491,9 @@ fn build_widget_qa_windows(app: &AppHandle) -> Result<(), String> {
             let widget = guard
                 .bubbles
                 .entry(bubble_type.to_string())
-                .or_insert_with(|| default_widget_window_state(bubble_type, Some(bubble_type.to_string())));
+                .or_insert_with(|| {
+                    default_widget_window_state(bubble_type, Some(bubble_type.to_string()))
+                });
             widget.mode = "DEFAULT".to_string();
             widget.click_through = false;
             widget.dock_orb_visible = false;
@@ -313,7 +501,7 @@ fn build_widget_qa_windows(app: &AppHandle) -> Result<(), String> {
             widget.clone()
         };
 
-        build_widget_window(app, &widget)?;
+        build_widget_window(app, &monitor_state, &widget)?;
     }
 
     eprintln!("opened QA widget windows: {:?}", QA_ALL_WIDGET_BUBBLES);
@@ -322,6 +510,7 @@ fn build_widget_qa_windows(app: &AppHandle) -> Result<(), String> {
 
 fn apply_widget_window_state(
     app: &AppHandle,
+    monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
     let label = widget_window_label(widget);
@@ -339,10 +528,11 @@ fn apply_widget_window_state(
             .set_ignore_cursor_events(widget.click_through)
             .map_err(|error| error.to_string())?;
         window
-            .set_position(Position::Logical(LogicalPosition::new(
-                widget.position.x as f64,
-                widget.position.y as f64,
-            )))
+            .set_position(Position::Logical(widget_screen_position(
+                app,
+                monitor_state,
+                widget,
+            )?))
             .map_err(|error| error.to_string())?;
 
         window
@@ -364,6 +554,7 @@ fn apply_widget_window_state(
 
 fn build_widget_window(
     app: &AppHandle,
+    monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
     let label = widget_window_label(widget);
@@ -371,10 +562,11 @@ fn build_widget_window(
     if let Some(window) = app.get_webview_window(&label) {
         window.show().map_err(|error| error.to_string())?;
         window.set_focus().map_err(|error| error.to_string())?;
-        return apply_widget_window_state(app, widget);
+        return apply_widget_window_state(app, monitor_state, widget);
     }
 
     let size = widget_window_size(widget);
+    let position = widget_screen_position(app, monitor_state, widget)?;
     let window = WebviewWindowBuilder::new(
         app,
         label,
@@ -384,7 +576,7 @@ fn build_widget_window(
     .inner_size(size.width, size.height)
     .min_inner_size(size.width, size.height)
     .max_inner_size(size.width, size.height)
-    .position(widget.position.x as f64, widget.position.y as f64)
+    .position(position.x, position.y)
     .decorations(false)
     .transparent(true)
     .background_color(Color(0, 0, 0, 0))
@@ -400,7 +592,7 @@ fn build_widget_window(
         .set_ignore_cursor_events(widget.click_through)
         .map_err(|error| error.to_string())?;
     window.show().map_err(|error| error.to_string())?;
-    apply_widget_window_state(app, widget)
+    apply_widget_window_state(app, monitor_state, widget)
 }
 
 #[tauri::command]
@@ -414,14 +606,18 @@ fn get_widget_window_state(
 }
 
 #[tauri::command]
-fn get_widget_bar_items(state: tauri::State<'_, WidgetState>) -> Result<Vec<WidgetWindowState>, String> {
+fn get_widget_bar_items(
+    state: tauri::State<'_, WidgetState>,
+) -> Result<Vec<WidgetWindowState>, String> {
     let guard = state
         .lock()
         .map_err(|_| "widget state lock failed".to_string())?;
     let mut items: Vec<WidgetWindowState> = guard
         .bubbles
         .values()
-        .filter(|widget| widget.active_bubble != "bar" && widget.mode == "MINIMIZED" && !widget.window_visible)
+        .filter(|widget| {
+            widget.active_bubble != "bar" && widget.mode == "MINIMIZED" && !widget.window_visible
+        })
         .cloned()
         .collect();
 
@@ -435,8 +631,71 @@ fn get_widget_bar_items(state: tauri::State<'_, WidgetState>) -> Result<Vec<Widg
 }
 
 #[tauri::command]
+fn get_preferred_app_monitor(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+) -> Result<AppMonitorPreference, String> {
+    monitor_preference_result(&app, get_preferred_monitor_id(&monitor_state)?)
+}
+
+#[tauri::command]
+fn list_app_monitors(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+) -> Result<AppMonitorPreference, String> {
+    monitor_preference_result(&app, get_preferred_monitor_id(&monitor_state)?)
+}
+
+#[tauri::command]
+fn set_preferred_app_monitor(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+    state: tauri::State<'_, WidgetState>,
+    input: AppMonitorPreferenceInput,
+) -> Result<AppMonitorPreference, String> {
+    let requested_monitor_id = if input.monitor_id.trim().is_empty() {
+        PRIMARY_MONITOR_ID.to_string()
+    } else {
+        input.monitor_id
+    };
+    let (monitors, _primary) = list_monitors(&app)?;
+    let monitor_exists = requested_monitor_id == PRIMARY_MONITOR_ID
+        || monitors
+            .iter()
+            .enumerate()
+            .any(|(index, monitor)| monitor_id(monitor, index) == requested_monitor_id);
+
+    if !monitor_exists {
+        return Err(format!("unknown monitor id: {requested_monitor_id}"));
+    }
+
+    save_preferred_monitor_id(&app, &requested_monitor_id)?;
+
+    {
+        let mut guard = monitor_state
+            .lock()
+            .map_err(|_| "app monitor state lock failed".to_string())?;
+        guard.preferred_monitor_id = requested_monitor_id.clone();
+    }
+
+    let widgets: Vec<WidgetWindowState> = {
+        let guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        guard.bubbles.values().cloned().collect()
+    };
+
+    for widget in widgets {
+        apply_widget_window_state(&app, &monitor_state, &widget)?;
+    }
+
+    monitor_preference_result(&app, requested_monitor_id)
+}
+
+#[tauri::command]
 fn set_widget_window_mode(
     app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
     input: WidgetWindowModeInput,
 ) -> Result<WidgetWindowState, String> {
@@ -446,12 +705,13 @@ fn set_widget_window_mode(
         widget.dock_orb_visible = false;
         widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
     })?;
-    apply_widget_window_state(&app, &widget)
+    apply_widget_window_state(&app, &monitor_state, &widget)
 }
 
 #[tauri::command]
 fn set_widget_window_position(
     app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
     input: WidgetWindowPositionInput,
 ) -> Result<WidgetWindowState, String> {
@@ -461,31 +721,33 @@ fn set_widget_window_position(
             y: input.y,
         };
     })?;
-    apply_widget_window_state(&app, &widget)
+    apply_widget_window_state(&app, &monitor_state, &widget)
 }
 
 #[tauri::command]
 fn set_widget_always_on_top(
     app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
     input: WidgetBooleanInput,
 ) -> Result<WidgetWindowState, String> {
     let widget = with_widget_state(state, input.bubble_type, input.window_id, |widget| {
         widget.always_on_top = input.enabled;
     })?;
-    apply_widget_window_state(&app, &widget)
+    apply_widget_window_state(&app, &monitor_state, &widget)
 }
 
 #[tauri::command]
 fn set_widget_click_through(
     app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
     input: WidgetBooleanInput,
 ) -> Result<WidgetWindowState, String> {
     let widget = with_widget_state(state, input.bubble_type, input.window_id, |widget| {
         widget.click_through = input.enabled;
     })?;
-    apply_widget_window_state(&app, &widget)
+    apply_widget_window_state(&app, &monitor_state, &widget)
 }
 
 #[tauri::command]
@@ -520,9 +782,55 @@ fn register_widget_shortcut(
     })
 }
 
+fn open_login_startup_widget(
+    app: &AppHandle,
+    monitor_state: &AppMonitorState,
+    state: &WidgetState,
+    bubble_type: &str,
+    window_id: &str,
+) -> Result<WidgetWindowState, String> {
+    let widget = {
+        let mut guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        let target = normalize_bubble_type(Some(bubble_type.to_string()));
+        let window_key = normalize_window_key(&target, Some(window_id.to_string()));
+        guard.active_bubble = target.clone();
+        let widget = guard
+            .bubbles
+            .entry(window_key.clone())
+            .or_insert_with(|| default_widget_window_state(&target, Some(window_key)));
+        widget.mode = "DEFAULT".to_string();
+        widget.click_through = false;
+        widget.dock_orb_visible = false;
+        widget.window_visible = true;
+        widget.clone()
+    };
+
+    build_widget_window(app, monitor_state, &widget)
+}
+
+#[tauri::command]
+fn app_ready(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+    state: tauri::State<'_, WidgetState>,
+) -> Result<&'static str, String> {
+    open_login_startup_widget(&app, &monitor_state, &state, "bar", "bar")?;
+    open_login_startup_widget(
+        &app,
+        &monitor_state,
+        &state,
+        DEFAULT_WIDGET_BUBBLE_TYPE,
+        DEFAULT_WIDGET_BUBBLE_TYPE,
+    )?;
+    Ok("bubli-tauri-ready")
+}
+
 #[tauri::command]
 fn open_widget_window(
     app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
     input: Option<WidgetWindowOpenInput>,
 ) -> Result<WidgetWindowState, String> {
@@ -539,12 +847,13 @@ fn open_widget_window(
         widget.dock_orb_visible = false;
         widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
     })?;
-    build_widget_window(&app, &widget)
+    build_widget_window(&app, &monitor_state, &widget)
 }
 
 #[tauri::command]
 fn close_widget_window(
     app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
     input: Option<WidgetWindowTargetInput>,
 ) -> Result<WidgetWindowState, String> {
@@ -557,7 +866,7 @@ fn close_widget_window(
         widget.window_visible = false;
     })?;
     if widget_keeps_webview_when_hidden(&widget) {
-        apply_widget_window_state(&app, &widget)
+        apply_widget_window_state(&app, &monitor_state, &widget)
     } else {
         let label = widget_window_label(&widget);
         if let Some(window) = app.get_webview_window(&label) {
@@ -570,6 +879,7 @@ fn close_widget_window(
 #[tauri::command]
 fn toggle_widget_window(
     app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
     input: Option<WidgetWindowTargetInput>,
 ) -> Result<WidgetWindowState, String> {
@@ -586,9 +896,9 @@ fn toggle_widget_window(
     })?;
 
     if widget.window_visible {
-        build_widget_window(&app, &widget)
+        build_widget_window(&app, &monitor_state, &widget)
     } else {
-        apply_widget_window_state(&app, &widget)
+        apply_widget_window_state(&app, &monitor_state, &widget)
     }
 }
 
@@ -596,22 +906,40 @@ fn toggle_widget_window(
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .manage(Mutex::new(AppMonitorPreferenceStore::default()))
         .manage(Mutex::new(WidgetWindowStore::default()))
+        .manage(local_files::ManagedFolderWatchers::default())
         .setup(|app| {
             // Open the on-device SQLite store (folder index, widget usage,
             // activity focus, sync outbox) and expose it as managed state.
             let connection =
                 local_db::open_and_migrate(app.handle()).map_err(|error| error.to_string())?;
             app.manage(local_db::Db(Mutex::new(connection)));
+
+            match load_preferred_monitor_id(app.handle()) {
+                Ok(preferred_monitor_id) => {
+                    let monitor_state = app.state::<AppMonitorState>();
+                    let mut guard = monitor_state
+                        .lock()
+                        .map_err(|_| "app monitor state lock failed".to_string())?;
+                    guard.preferred_monitor_id = preferred_monitor_id;
+                }
+                Err(error) => {
+                    eprintln!("failed to load monitor preference: {error}");
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             app_ready,
             close_widget_window,
             get_widget_bar_items,
+            get_preferred_app_monitor,
             get_widget_window_state,
+            list_app_monitors,
             open_widget_window,
             register_widget_shortcut,
+            set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,
             set_widget_window_mode,
@@ -632,6 +960,8 @@ pub fn run() {
             local_files::watch_managed_folder,
             local_files::search_local_files,
             local_files::flush_sync_outbox,
+            local_files::stage_local_file_events_for_sync,
+            local_files::mark_local_file_events_synced,
             // Local SQLite lifecycle + cache recovery commands.
             local_db::backup_local_sqlite,
             local_db::check_local_sqlite_integrity,
@@ -642,19 +972,17 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("failed to build Bubli Tauri application");
 
-    app.run(|app_handle, event| {
-        match event {
-            tauri::RunEvent::Ready => {
-                if qa_all_widget_windows_enabled() {
-                    if let Err(error) = build_widget_qa_windows(app_handle) {
-                        eprintln!("failed to open QA widget windows: {error}");
-                    }
+    app.run(|app_handle, event| match event {
+        tauri::RunEvent::Ready => {
+            if qa_all_widget_windows_enabled() {
+                if let Err(error) = build_widget_qa_windows(app_handle) {
+                    eprintln!("failed to open QA widget windows: {error}");
                 }
             }
-            tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
-                destroy_all_widget_windows(app_handle);
-            }
-            _ => {}
         }
+        tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
+            destroy_all_widget_windows(app_handle);
+        }
+        _ => {}
     });
 }

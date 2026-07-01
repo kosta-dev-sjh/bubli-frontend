@@ -14,6 +14,7 @@ import type {
   WidgetItemStateUpdateRequest,
   WidgetUsageRollupRequest,
   WidgetUsageRollupResponse,
+  WidgetUsageSummarySaveRequest,
 } from "@/types/api/widget";
 import type {
   LocalAdapterResult,
@@ -89,6 +90,19 @@ function toServerUsageRollupMappings(
   });
 }
 
+function toUsageSummarySaveRequest(request: WidgetUsageRollupRequest): WidgetUsageSummarySaveRequest {
+  return {
+    bubbleSettingId: request.bubbleSettingId,
+    deviceId: request.deviceId,
+    interactionCount: request.interactionCount,
+    openCount: request.openCount,
+    rollupKey: request.rollupKey,
+    summaryDate: request.summaryDate,
+    syncedAt: request.syncedAt,
+    visibleSeconds: request.visibleSeconds,
+  };
+}
+
 export async function saveWidgetItemState(input: WidgetItemStateSaveInput): Promise<null> {
   const { itemStateId, ...body } = input;
 
@@ -155,19 +169,34 @@ export async function syncLocalWidgetUsageSummaryToServer(
     const settings = await widgetApi.getSettings();
     const syncedAt = new Date().toISOString();
     const mappings = toServerUsageRollupMappings(staged.data.rollups, settings, syncedAt);
-    const requests = mappings.map((mapping) => mapping.request);
-
-    if (requests.length === 0) {
+    if (mappings.length === 0) {
       return failed("No staged widget usage rollups matched the current backend widget settings.", commandName);
     }
 
-    const responses = await widgetApi.syncUsageRollups(requests);
-    const localRollupKeys = mappings.map((mapping) => mapping.localRollupKey);
+    const settled = await Promise.allSettled(
+      mappings.map(async (mapping) => ({
+        localRollupKey: mapping.localRollupKey,
+        response: await widgetApi.saveUsageSummary(toUsageSummarySaveRequest(mapping.request)),
+      })),
+    );
+    const successful = settled
+      .filter((result): result is PromiseFulfilledResult<{ localRollupKey: string; response: WidgetUsageRollupResponse }> => result.status === "fulfilled")
+      .map((result) => result.value);
+
+    if (successful.length === 0) {
+      return failed("All staged widget usage rollups failed to sync to the backend.", commandName);
+    }
+
+    const responses = successful.map((result) => result.response);
+    const localRollupKeys = successful.map((result) => result.localRollupKey);
     const markResult = await tauriCommands.markWidgetUsageSummarySynced({ rollupKeys: localRollupKeys });
+    const rejectedCount = settled.filter((result) => result.status === "rejected").length;
+    const unmatchedCount = Math.max(0, staged.data.rollups.length - mappings.length);
+    const failedCount = staged.data.failedCount + rejectedCount + unmatchedCount;
 
     return ready(
       {
-        failedCount: 0,
+        failedCount,
         markedSyncedCount: markResult.syncedCount,
         responses,
         sentCount: responses.length,
@@ -175,7 +204,9 @@ export async function syncLocalWidgetUsageSummaryToServer(
         syncedAt,
       },
       commandName,
-      `Synced ${responses.length} widget usage rollup${responses.length === 1 ? "" : "s"} to the backend.`,
+      failedCount > 0
+        ? `Synced ${responses.length} widget usage rollup${responses.length === 1 ? "" : "s"} to the backend; ${failedCount} remain pending.`
+        : `Synced ${responses.length} widget usage rollup${responses.length === 1 ? "" : "s"} to the backend.`,
     );
   } catch (error) {
     return failed(getErrorMessage(error), commandName);
