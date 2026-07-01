@@ -1798,6 +1798,53 @@ select {
   word-break: keep-all;
 }
 
+.workspace-route__panel--document {
+  display: grid;
+  min-height: 0;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 14px;
+  padding: 18px;
+  text-align: left;
+}
+
+.workspace-route__icon-button {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgba(190, 213, 230, 0.72);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.68);
+  transition:
+    border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+}
+
+.workspace-route__icon-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(111, 184, 242, 0.56);
+  color: var(--blue-ink);
+}
+
+.workspace-route__document-body {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid rgba(210, 225, 238, 0.72);
+  border-radius: 18px;
+  padding: 16px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.62);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.72;
+  white-space: pre-wrap;
+  word-break: keep-all;
+}
+
 .workspace-route__list,
 .workspace-route__cards {
   display: grid;
