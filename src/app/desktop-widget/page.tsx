@@ -29,8 +29,10 @@ import {
   type WidgetPreviewBubble,
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
+import { timerApi } from "@/features/timer/api/timerApi";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import type { TimeLogResponse } from "@/types/api/timer";
 import type { WidgetBubbleType as ApiWidgetBubbleType } from "@/types/api/widget";
 
 const apiBubbleTypeMap: Partial<Record<WidgetBubbleType, BackendWidgetBubbleType>> = {
@@ -177,14 +179,33 @@ function messageText(message: WidgetChatMessageResponse) {
   return message.messageType;
 }
 
-function elapsedTimerLabel(timer?: WidgetDashboardWorkResponse["runningTimer"]) {
+type TimerDisplay = WidgetDashboardWorkResponse["runningTimer"] | TimeLogResponse | null | undefined;
+
+function elapsedTimerLabel(timer?: TimerDisplay) {
   if (!timer) return "00:00";
   const startedAt = new Date(timer.lastStartedAt ?? timer.startedAt).getTime();
   if (Number.isNaN(startedAt)) return "00:00";
-  const seconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000) + timer.durationSeconds);
+  const seconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000) + (timer.durationSeconds ?? 0));
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+}
+
+function timerStatusLabel(status: NonNullable<TimerDisplay>["status"]) {
+  const labels: Record<NonNullable<TimerDisplay>["status"], string> = {
+    ENDED: "종료",
+    NEEDS_RECOVERY: "복구 필요",
+    PAUSED: "일시정지",
+    RUNNING: "실행 중",
+  };
+  return labels[status] ?? status;
+}
+
+function timerActionLabel(timer?: TimerDisplay) {
+  if (!timer) return "시작";
+  if (timer.status === "PAUSED") return "재개";
+  if (timer.status === "RUNNING") return "종료";
+  return "시작";
 }
 
 function roomLabel(room?: WidgetProjectRoomResponse | null, fallbackRoomId?: string | null) {
@@ -229,10 +250,12 @@ function buildDisplayBubbles(input: {
   schedules: WidgetScheduleResponse[];
   suggestions: WidgetAgentSuggestionResponse[];
   tasks: WidgetTaskResponse[];
+  timer?: TimerDisplay;
   voiceConnectionLabel?: string | null;
   voiceRoom?: WidgetVoiceRoomResponse | null;
 }): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
   const label = roomLabel(input.room, input.roomId);
+  const activeTimer = input.timer ?? input.dashboard?.runningTimer ?? null;
   const todoItems = (input.dashboard?.todayTasks.length ? input.dashboard.todayTasks : input.tasks).slice(0, 3);
   const scheduleItems = (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules).slice(0, 3);
   const memoItems = input.memos.filter((item) => item.status === "ACTIVE").slice(0, 3);
@@ -353,19 +376,21 @@ function buildDisplayBubbles(input: {
       })),
     }),
     timer: withBubble("timer", {
-      compactLabel: `타이머 ${elapsedTimerLabel(input.dashboard?.runningTimer)}`,
-      metric: elapsedTimerLabel(input.dashboard?.runningTimer),
-      metricLabel: input.dashboard?.runningTimer ? "진행 중" : "대기",
-      notificationLabel: input.dashboard?.runningTimer ? "작업 시간 기록 중" : "진행 중인 타이머 없음",
-      panelBody: "대시보드 작업 API의 진행 중 타이머를 표시합니다.",
+      actionLabel: timerActionLabel(activeTimer),
+      compactLabel: `타이머 ${elapsedTimerLabel(activeTimer ?? undefined)}`,
+      metric: elapsedTimerLabel(activeTimer ?? undefined),
+      metricLabel: activeTimer ? timerStatusLabel(activeTimer.status) : "대기",
+      notificationLabel: activeTimer ? "작업 시간 기록 중" : "진행 중인 타이머 없음",
+      panelBody: "time_logs API의 타이머 상태를 표시합니다.",
+      roomId: input.roomId,
       roomLabel: label,
-      rows: input.dashboard?.runningTimer
+      rows: activeTimer
         ? [
             {
-              id: input.dashboard.runningTimer.id,
+              id: activeTimer.id,
               kind: "time",
-              label: input.dashboard.runningTimer.timerType === "WORK" ? "작업 타이머" : "일반 타이머",
-              status: input.dashboard.runningTimer.status,
+              label: activeTimer.timerType === "WORK" ? "작업 타이머" : "일반 타이머",
+              status: activeTimer.status,
             },
           ]
         : [],
@@ -409,6 +434,8 @@ function DesktopWidgetSurface() {
   const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID ?? null);
   const [communicationRevision, setCommunicationRevision] = useState(0);
   const [memoRevision, setMemoRevision] = useState(0);
+  const [timerRevision, setTimerRevision] = useState(0);
+  const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
   const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(widgetNotificationSignal);
@@ -623,10 +650,13 @@ function DesktopWidgetSurface() {
       if (cancelled) return;
 
       setNotificationSignal(buildNotificationSignal(notifications));
+      const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
+      const activeTimer = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
+
       setDisplayBubbles(
         buildDisplayBubbles({
           chatRoom: activeRoom ?? null,
-          dashboard: dashboardResult.status === "fulfilled" ? dashboardResult.value : null,
+          dashboard,
           friends: friendsResult.status === "fulfilled" ? friendsResult.value : [],
           memos: memosResult.status === "fulfilled" ? memosResult.value.items : [],
           messages: messages?.items ?? [],
@@ -637,6 +667,7 @@ function DesktopWidgetSurface() {
           schedules: schedulesResult.status === "fulfilled" ? schedulesResult.value.items : [],
           suggestions: suggestionsResult.status === "fulfilled" ? suggestionsResult.value : [],
           tasks: tasksResult.status === "fulfilled" ? tasksResult.value.items : [],
+          timer: activeTimer,
           voiceConnectionLabel,
           voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
         }),
@@ -653,7 +684,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, memoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId]);
+  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, memoRevision, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId]);
 
   useEffect(() => {
     if (!isBubbleBar) return;
@@ -977,6 +1008,70 @@ function DesktopWidgetSurface() {
     [isTauri, widgetContext?.selectedRoomId],
   );
 
+  const recordTimerUsage = useCallback(
+    (eventType: string, itemId?: string) => {
+      if (!isTauri) return;
+
+      void tauriCommands
+        .recordWidgetUsageEvent({
+          bubbleType: "timer",
+          eventType,
+          itemId,
+          itemType: "TIME_LOG",
+          occurredAt: new Date().toISOString(),
+        })
+        .catch(() => undefined);
+    },
+    [isTauri],
+  );
+
+  const applyTimerResult = useCallback((timeLog: TimeLogResponse) => {
+    setTimerSnapshot(timeLog.status === "ENDED" ? null : timeLog);
+    setTimerRevision((current) => current + 1);
+  }, []);
+
+  const pauseWidgetTimer = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      const timeLogId = bubble.rows[0]?.id;
+      if (!timeLogId || bubble.rows[0]?.status !== "RUNNING") return;
+
+      const timeLog = await timerApi.pause(timeLogId);
+      applyTimerResult(timeLog);
+      recordTimerUsage("timer:pause", timeLog.id);
+    },
+    [applyTimerResult, recordTimerUsage],
+  );
+
+  const runPrimaryTimerAction = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      const currentTimer = bubble.rows[0];
+
+      if (currentTimer?.status === "RUNNING") {
+        const timeLog = await timerApi.stop(currentTimer.id);
+        applyTimerResult(timeLog);
+        recordTimerUsage("timer:stop", timeLog.id);
+        return;
+      }
+
+      if (currentTimer?.status === "PAUSED") {
+        const timeLog = await timerApi.resume(currentTimer.id);
+        applyTimerResult(timeLog);
+        recordTimerUsage("timer:resume", timeLog.id);
+        return;
+      }
+
+      const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
+      const timeLog = await timerApi.start({
+        idempotencyKey: `widget-timer-${crypto.randomUUID()}`,
+        roomId,
+        timerType: roomId ? "WORK" : "GENERAL",
+      });
+      applyTimerResult(timeLog);
+      recordTimerUsage("timer:start", timeLog.id);
+    },
+    [applyTimerResult, recordTimerUsage, widgetContext?.selectedRoomId],
+  );
+
   const startWidgetVoice = useCallback(
     async (bubble: WidgetPreviewBubble) => {
       if (!bubble.roomId) {
@@ -1128,6 +1223,8 @@ function DesktopWidgetSurface() {
       onMarkChatRead={markWidgetChatRead}
       onModeChange={(nextMode) => void setWindowMode(nextMode)}
       onCreateMemo={createWidgetMemo}
+      onPauseTimer={pauseWidgetTimer}
+      onPrimaryTimerAction={runPrimaryTimerAction}
       onRestore={() => void restoreCurrentWindow()}
       onSendChatMessage={sendWidgetChatMessage}
       onStartVoice={startWidgetVoice}

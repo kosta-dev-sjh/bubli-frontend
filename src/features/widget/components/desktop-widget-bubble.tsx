@@ -21,6 +21,7 @@ import {
   Search,
   Send,
   Sparkles,
+  Square,
   StickyNote,
   Timer,
   Users,
@@ -99,6 +100,8 @@ export type DesktopWidgetBubbleProps = {
   onRestore?: () => void;
   onSendChatMessage?: (bubble: WidgetPreviewBubble, text: string) => Promise<void> | void;
   onStartVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  onPauseTimer?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  onPrimaryTimerAction?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onToggleAlwaysOnTop: () => void;
   onToggleVoiceMic?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   presentation?: "preview" | "tauri";
@@ -423,7 +426,21 @@ function ChatBody({
   );
 }
 
-function TimerBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+function TimerBody({
+  bubble,
+  onItemStateChange,
+  onPauseTimer,
+  onPrimaryTimerAction,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onPauseTimer?: DesktopWidgetBubbleProps["onPauseTimer"];
+  onPrimaryTimerAction?: DesktopWidgetBubbleProps["onPrimaryTimerAction"];
+}) {
+  const timerStatus = bubble.rows[0]?.status;
+  const canPause = timerStatus === "RUNNING";
+  const PrimaryIcon = timerStatus === "RUNNING" ? Square : Play;
+
   return (
     <div className={styles.body}>
       <div className={styles.timer}>
@@ -438,12 +455,12 @@ function TimerBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble;
         <button type="button">뽀모도로</button>
       </div>
       <div className={styles.timerActions}>
-        <button type="button">
+        <button disabled={!canPause} onClick={() => void onPauseTimer?.(bubble)} type="button">
           <Pause size={13} />
-          일시정지
+          {timerStatus === "PAUSED" ? "일시정지됨" : "일시정지"}
         </button>
-        <button type="button">
-          <Play size={13} />
+        <button onClick={() => void onPrimaryTimerAction?.(bubble)} type="button">
+          <PrimaryIcon size={13} />
           {bubble.actionLabel}
         </button>
       </div>
@@ -537,6 +554,8 @@ function BubbleBody({
   onCreateMemo,
   onLeaveVoice,
   onMarkChatRead,
+  onPauseTimer,
+  onPrimaryTimerAction,
   onSendChatMessage,
   onStartVoice,
   onToggleVoiceMic,
@@ -546,6 +565,8 @@ function BubbleBody({
   onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
   onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
   onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
+  onPauseTimer?: DesktopWidgetBubbleProps["onPauseTimer"];
+  onPrimaryTimerAction?: DesktopWidgetBubbleProps["onPrimaryTimerAction"];
   onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
   onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
   onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
@@ -564,7 +585,9 @@ function BubbleBody({
       />
     );
   }
-  if (bubble.id === "timer") return <TimerBody bubble={bubble} onItemStateChange={onItemStateChange} />;
+  if (bubble.id === "timer") {
+    return <TimerBody bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />;
+  }
   if (bubble.id === "memo") return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} />;
   if (bubble.id === "schedule") return <ScheduleBody bubble={bubble} onItemStateChange={onItemStateChange} />;
   if (bubble.id === "resource") return <ResourceBody bubble={bubble} onItemStateChange={onItemStateChange} />;
@@ -593,6 +616,8 @@ export function DesktopWidgetBubble({
   onMarkChatRead,
   onModeChange,
   onCreateMemo,
+  onPauseTimer,
+  onPrimaryTimerAction,
   onRestore,
   onSendChatMessage,
   onStartVoice,
@@ -659,6 +684,8 @@ export function DesktopWidgetBubble({
                 onLeaveVoice={onLeaveVoice}
                 onMarkChatRead={onMarkChatRead}
                 onCreateMemo={onCreateMemo}
+                onPauseTimer={onPauseTimer}
+                onPrimaryTimerAction={onPrimaryTimerAction}
                 onSendChatMessage={onSendChatMessage}
                 onStartVoice={onStartVoice}
                 onToggleVoiceMic={onToggleVoiceMic}
