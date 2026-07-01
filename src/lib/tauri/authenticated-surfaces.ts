@@ -7,8 +7,8 @@ let launchRequested = false;
 let launchPromise: Promise<void> | null = null;
 
 const loginStartupWindows: WidgetWindowOpenInput[] = [
-  { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" },
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
+  { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" },
 ];
 
 export function launchTauriAuthenticatedSurfaces() {
@@ -20,14 +20,11 @@ export function launchTauriAuthenticatedSurfaces() {
   launchPromise = (async () => {
     await tauriCommands.appReady().catch(() => undefined);
 
-    const errors: unknown[] = [];
-    for (const input of loginStartupWindows) {
-      try {
-        await tauriCommands.openWidgetWindow(input);
-      } catch (error) {
-        errors.push(error);
-      }
-    }
+    loginStartupWindows.forEach((input, index) => {
+      window.setTimeout(() => {
+        void tauriCommands.openWidgetWindow(input).catch(() => undefined);
+      }, index * 250);
+    });
 
     void tauriCommands
       .recordWidgetUsageEvent({
@@ -36,10 +33,6 @@ export function launchTauriAuthenticatedSurfaces() {
         occurredAt: new Date().toISOString(),
       })
       .catch(() => undefined);
-
-    if (errors.length === loginStartupWindows.length) {
-      throw errors[0];
-    }
   })()
     .catch((error) => {
       launchRequested = false;
