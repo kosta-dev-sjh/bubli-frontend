@@ -9,7 +9,6 @@ import type {
   WidgetSettingsResponse as ApiWidgetSettingsResponse,
   WidgetSummaryResponse as ApiWidgetSummaryResponse,
   WidgetTodayUsageSummaryResponse as ApiWidgetTodayUsageSummaryResponse,
-  WidgetUsageRollupRequest as ApiWidgetUsageRollupRequest,
   WidgetUsageRollupResponse as ApiWidgetUsageRollupResponse,
   WidgetUsageSummarySaveRequest as ApiWidgetUsageSummarySaveRequest,
 } from "@/types/api/widget";
@@ -24,19 +23,6 @@ function widgetRequest<T>(path: string, options: Parameters<typeof apiRequest<T>
     ...options,
     headers: withWidgetDevAuthHeaders(options.headers),
   });
-}
-
-function toUsageSummarySaveRequest(body: ApiWidgetUsageRollupRequest): ApiWidgetUsageSummarySaveRequest {
-  return {
-    bubbleSettingId: body.bubbleSettingId,
-    deviceId: body.deviceId,
-    interactionCount: body.interactionCount,
-    openCount: body.openCount,
-    rollupKey: body.rollupKey,
-    summaryDate: body.summaryDate,
-    syncedAt: body.syncedAt,
-    visibleSeconds: body.visibleSeconds,
-  };
 }
 
 export const widgetApi = {
@@ -91,8 +77,8 @@ export const widgetApi = {
     });
   },
 
-  syncUsageRollups(body: ApiWidgetUsageRollupRequest[]) {
-    return Promise.all(body.map((rollup) => widgetApi.saveUsageSummary(toUsageSummarySaveRequest(rollup))));
+  saveUsageSummariesSequentially(body: ApiWidgetUsageSummarySaveRequest[]) {
+    return Promise.all(body.map((summary) => widgetApi.saveUsageSummary(summary)));
   },
 
   getTodayUsageRollups() {

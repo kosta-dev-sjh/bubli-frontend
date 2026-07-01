@@ -12,6 +12,11 @@ use uuid::Uuid;
 
 use crate::local_db::{now_iso, now_ms, Db};
 
+const PENDING_WIDGET_USAGE_ROLLUPS_SQL: &str =
+    "SELECT rollup_key, bubble_type, summary_date, source_event_count \
+     FROM local_widget_usage_rollups \
+     WHERE sync_status IN ('LOCAL_ONLY', 'FAILED', 'SYNC_PENDING')";
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WidgetUsageEventInput {
@@ -226,15 +231,12 @@ pub fn sync_widget_usage_summary(
     let filter_keys = input.and_then(|value| value.rollup_keys);
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
 
-    // Collect rollups that still need to be reflected.
+    // Collect rollups that still need to be reflected. SYNC_PENDING is included
+    // so a frontend/backend failure after staging can be retried on the next run.
     let mut pending: Vec<(String, String, String, i64)> = Vec::new();
     {
         let mut stmt = conn
-            .prepare(
-                "SELECT rollup_key, bubble_type, summary_date, source_event_count \
-                 FROM local_widget_usage_rollups \
-                 WHERE sync_status IN ('LOCAL_ONLY', 'FAILED')",
-            )
+            .prepare(PENDING_WIDGET_USAGE_ROLLUPS_SQL)
             .map_err(|error| error.to_string())?;
         let rows = stmt
             .query_map([], |row| {
@@ -345,4 +347,14 @@ pub fn mark_widget_usage_summary_synced(
         completed_at: now_iso(),
         synced_count: synced,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PENDING_WIDGET_USAGE_ROLLUPS_SQL;
+
+    #[test]
+    fn staged_widget_usage_rollups_are_retry_candidates() {
+        assert!(PENDING_WIDGET_USAGE_ROLLUPS_SQL.contains("'SYNC_PENDING'"));
+    }
 }

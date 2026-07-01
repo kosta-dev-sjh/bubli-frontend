@@ -12,9 +12,9 @@ import { toApiWidgetBubbleType, toLocalWidgetBubbleType } from "@/lib/widget/wid
 import type {
   WidgetSettingsResponse,
   WidgetItemStateUpdateRequest,
-  WidgetUsageRollupRequest,
   WidgetUsageRollupResponse,
   WidgetUsageSummarySaveRequest,
+  WidgetUsageSummarySyncCandidate,
 } from "@/types/api/widget";
 import type {
   LocalAdapterResult,
@@ -40,7 +40,7 @@ export type WidgetUsageServerSyncResult = {
 
 type ServerUsageRollupMapping = {
   localRollupKey: string;
-  request: WidgetUsageRollupRequest;
+  request: WidgetUsageSummarySyncCandidate;
 };
 
 function getWidgetUsageDeviceId(): string {
@@ -90,7 +90,7 @@ function toServerUsageRollupMappings(
   });
 }
 
-function toUsageSummarySaveRequest(request: WidgetUsageRollupRequest): WidgetUsageSummarySaveRequest {
+function toUsageSummarySaveRequest(request: WidgetUsageSummarySyncCandidate): WidgetUsageSummarySaveRequest {
   return {
     bubbleSettingId: request.bubbleSettingId,
     deviceId: request.deviceId,
@@ -135,9 +135,9 @@ export async function stageLocalWidgetUsageSummary(
 }
 
 export async function syncWidgetUsageRollupsToServer(
-  rollups: WidgetUsageRollupRequest[],
+  rollups: WidgetUsageSummarySaveRequest[],
 ): Promise<WidgetUsageRollupResponse[]> {
-  return widgetApi.syncUsageRollups(rollups);
+  return widgetApi.saveUsageSummariesSequentially(rollups);
 }
 
 export async function syncLocalWidgetUsageSummaryToServer(
