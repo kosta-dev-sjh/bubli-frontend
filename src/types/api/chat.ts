@@ -17,7 +17,7 @@ export type ChatMessageResponse = {
 
 export type ChatMessageListResponse = PageResponse<ChatMessageResponse>;
 
-export type ChatRoomType = "DIRECT" | "ROOM";
+export type ChatRoomType = "DIRECT" | "GROUP" | "ROOM";
 
 export type ChatRoomStatus = "ACTIVE" | "CLOSED";
 
@@ -42,10 +42,21 @@ export type GroupChatRoomRequest = {
   name: string;
 };
 
+export type ProjectChatRoomRequest = {
+  roomId: string;
+};
+
+export type InviteChatRoomMembersRequest = {
+  memberUserIds: string[];
+};
+
+export type RoomAgentCommandMode = "ANSWER" | "SUMMARIZE" | "SUGGEST";
+
 export type RoomAgentCommandRequest = {
-  body: Record<string, unknown>;
   clientMessageId: string;
-  command: string;
+  message: string;
+  mode?: RoomAgentCommandMode;
+  resourceIds?: string[];
 };
 
 export type RoomAgentCommandResponse = {
