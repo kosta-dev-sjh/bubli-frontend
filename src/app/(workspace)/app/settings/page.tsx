@@ -13,7 +13,7 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
-import { readCurrentActivityContext } from "@/lib/local/activity-client";
+import { recordCurrentActivityContext } from "@/lib/local/activity-client";
 import {
   backupLocalSqlite,
   checkLocalSqliteIntegrity,
@@ -466,7 +466,7 @@ export default function SettingsPage() {
 
   const readActivity = useCallback(async () => {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
-    const result = await readCurrentActivityContext({ consentGranted });
+    const result = await recordCurrentActivityContext({ consentGranted });
     if (result.status === "ready") {
       setLocalActionMessage(`활동 감지 · ${result.data.appName}${result.data.windowTitle ? ` · ${result.data.windowTitle}` : ""}`);
       return;
@@ -771,7 +771,7 @@ export default function SettingsPage() {
               </div>
               <p className={styles.guard}>화면 전체 내용과 키보드 입력은 수집하지 않습니다.</p>
               <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void readActivity()} type="button" variant="quiet">
-                현재 활동 확인
+                현재 활동 기록
               </Button>
             </GlassPanel>
           </div>
