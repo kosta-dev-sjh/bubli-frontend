@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/api/client";
+import type { PageResponse } from "@/types/api/common";
 import type {
   WbsBoardResponse,
   WbsItemCreateRequest,
@@ -8,12 +9,13 @@ import type {
 } from "@/types/api/work";
 
 export const wbsApi = {
-  getBoard(roomId: string) {
-    return apiRequest<WbsBoardResponse>(`/api/project-rooms/${roomId}/wbs-board`);
+  async getBoard(roomId: string) {
+    const board = await apiRequest<WbsBoardResponse>(`/api/project-rooms/${roomId}/wbs-board`);
+    return { ...board, roomId };
   },
 
   listItems(roomId: string) {
-    return apiRequest<WbsItemResponse[]>(`/api/project-rooms/${roomId}/wbs-items`);
+    return apiRequest<PageResponse<WbsItemResponse>>(`/api/project-rooms/${roomId}/wbs-items`);
   },
 
   createItem(roomId: string, body: WbsItemCreateRequest) {
