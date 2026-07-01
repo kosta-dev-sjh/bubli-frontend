@@ -21,19 +21,25 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewSchedules } from "@/lib/workspace-preview-data";
-import type { ProjectRoomEventEnvelope, ProjectRoomEventType } from "@/types/api/calendar";
+import type { GoogleCalendarConnectionResponse, ProjectRoomEventEnvelope, ProjectRoomEventType } from "@/types/api/calendar";
 import type { ScheduleResponse } from "@/types/api/work";
 
 import styles from "./calendar-page.module.css";
 
 type PageState =
   | { kind: "loading" }
-  | { events: ScheduleResponse[]; kind: "ready"; roomEvents: ProjectRoomEventEnvelope[] }
+  | {
+      events: ScheduleResponse[];
+      googleConnection: GoogleCalendarConnectionResponse | null;
+      kind: "ready";
+      roomEvents: ProjectRoomEventEnvelope[];
+    }
   | { kind: "auth" }
   | { kind: "offline" };
 
 type RepeatInterval = "DAILY" | "WEEKLY" | "MONTHLY";
 type CalendarSourceFilter = "all" | "external" | "personal" | "room";
+type GoogleCalendarAction = "connect" | "disconnect" | "pull" | "push";
 
 const dayLabels = [
   { label: "월", value: "MO" },
@@ -44,12 +50,6 @@ const dayLabels = [
   { label: "토", value: "SA" },
   { label: "일", value: "SU" },
 ] as const;
-
-const repeatLabels: Record<RepeatInterval, string> = {
-  DAILY: "매일",
-  MONTHLY: "매월",
-  WEEKLY: "매주",
-};
 
 const sourceFilters: Array<{ key: CalendarSourceFilter; label: string }> = [
   { key: "all", label: "전체" },
@@ -169,6 +169,14 @@ function buildPreviewRoomEvents(roomId: string | null, schedules: ScheduleRespon
     })) satisfies ProjectRoomEventEnvelope[];
 }
 
+function mergeScheduleEvents(current: ScheduleResponse[], incoming: ScheduleResponse[]) {
+  const byId = new Map(current.map((event) => [event.id, event]));
+  for (const event of incoming) {
+    byId.set(event.id, event);
+  }
+  return Array.from(byId.values()).sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
+}
+
 function CalendarPageContent() {
   const searchParams = useSearchParams();
   const selectedRoomId = searchParams.get("roomId") ?? getActiveProjectRoomId();
@@ -185,6 +193,7 @@ function CalendarPageContent() {
   const [sourceFilter, setSourceFilter] = useState<CalendarSourceFilter>("all");
   const [composerOpen, setComposerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [googleAction, setGoogleAction] = useState<GoogleCalendarAction | null>(null);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const range = useMemo(() => {
     const start = startOfMonth(currentMonth);
@@ -196,9 +205,10 @@ function CalendarPageContent() {
     setState({ kind: "loading" });
 
     try {
-      const [scheduleResult, roomEventResult] = await Promise.allSettled([
+      const [scheduleResult, roomEventResult, googleConnectionResult] = await Promise.allSettled([
         calendarApi.getEvents({ ...range, roomId: selectedRoomId ?? undefined }),
         selectedRoomId ? calendarApi.getProjectRoomEvents(selectedRoomId, { limit: 100 }) : Promise.resolve(null),
+        calendarApi.getGoogleConnection(),
       ]);
 
       if (scheduleResult.status === "rejected") {
@@ -207,6 +217,7 @@ function CalendarPageContent() {
 
       setState({
         events: scheduleResult.value.items,
+        googleConnection: googleConnectionResult.status === "fulfilled" ? googleConnectionResult.value : null,
         kind: "ready",
         roomEvents: roomEventResult.status === "fulfilled" && roomEventResult.value ? roomEventResult.value.items : [],
       });
@@ -217,7 +228,7 @@ function CalendarPageContent() {
       }
       if (shouldUseWorkspacePreviewData()) {
         const events = buildPreviewEvents(selectedRoomId);
-        setState({ events, kind: "ready", roomEvents: buildPreviewRoomEvents(selectedRoomId, events) });
+        setState({ events, googleConnection: null, kind: "ready", roomEvents: buildPreviewRoomEvents(selectedRoomId, events) });
         return;
       }
       setState({ kind: "offline" });
@@ -233,6 +244,7 @@ function CalendarPageContent() {
   }, [loadEvents]);
 
   const events = useMemo(() => (state.kind === "ready" ? state.events : []), [state]);
+  const googleConnection = state.kind === "ready" ? state.googleConnection : null;
   const roomEvents = useMemo(() => (state.kind === "ready" ? state.roomEvents : []), [state]);
   const sourceCounts = useMemo(
     () => ({
@@ -263,6 +275,9 @@ function CalendarPageContent() {
     [visibleEvents, selectedDate],
   );
   const reviewCount = events.filter((event) => event.syncStatus === "SYNC_FAILED").length;
+  const unsyncedCount = events.filter((event) => event.syncStatus === "LOCAL_ONLY" || event.syncStatus === "SYNC_FAILED").length;
+  const googleConnected = googleConnection?.status === "ACTIVE";
+  const googleStatusLabel = googleConnected ? (googleConnection.googleAccountEmail ?? "연결됨") : "연결 전";
   const now = new Date();
   const monthLabel = new Intl.DateTimeFormat("ko-KR", { month: "long", year: "numeric" }).format(currentMonth);
   const selectedDayLabel = new Intl.DateTimeFormat("ko-KR", { day: "numeric", month: "long", weekday: "long" }).format(toSelectedDay(selectedDate));
@@ -327,8 +342,58 @@ function CalendarPageContent() {
     setRepeatDays((current) => (current.includes(day) ? current.filter((value) => value !== day) : [...current, day]));
   };
 
-  const handleConnectGoogle = () => {
-    window.location.href = calendarApi.getGoogleConnectUrl();
+  const handleConnectGoogle = async () => {
+    setGoogleAction("connect");
+    setDraftNotice(null);
+
+    try {
+      const response = await calendarApi.requestGoogleConnectUrl();
+      window.location.href = response.authorizeUrl;
+    } catch (error) {
+      setDraftNotice(error instanceof ApiClientError && error.status === 401 ? "로그인이 필요합니다." : "Google Calendar 연결 URL을 만들지 못했습니다.");
+      setGoogleAction(null);
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    setGoogleAction("disconnect");
+    setDraftNotice(null);
+
+    try {
+      await calendarApi.disconnectGoogleConnection();
+      setState((current) => (current.kind === "ready" ? { ...current, googleConnection: null } : current));
+      setDraftNotice("Google Calendar 연결을 해제했습니다.");
+    } catch (error) {
+      setDraftNotice(error instanceof ApiClientError && error.status === 401 ? "로그인이 필요합니다." : "Google Calendar 연결을 해제하지 못했습니다.");
+    } finally {
+      setGoogleAction(null);
+    }
+  };
+
+  const handleSyncGoogle = async (direction: "pull" | "push") => {
+    setGoogleAction(direction);
+    setDraftNotice(null);
+
+    try {
+      const syncedEvents =
+        direction === "pull"
+          ? await calendarApi.syncGoogleEvents({ from: range.start, to: range.end })
+          : await calendarApi.pushUnsyncedGoogleEvents({ from: range.start, to: range.end });
+
+      setState((current) =>
+        current.kind === "ready"
+          ? {
+              ...current,
+              events: mergeScheduleEvents(current.events, syncedEvents),
+            }
+          : current,
+      );
+      setDraftNotice(direction === "pull" ? `Google Calendar에서 ${syncedEvents.length}개를 가져왔습니다.` : `Google Calendar로 ${syncedEvents.length}개를 내보냈습니다.`);
+    } catch (error) {
+      setDraftNotice(error instanceof ApiClientError && error.status === 401 ? "로그인이 필요합니다." : "Google Calendar 동기화를 완료하지 못했습니다.");
+    } finally {
+      setGoogleAction(null);
+    }
   };
 
   const handleCreateEvent = async () => {
@@ -411,11 +476,22 @@ function CalendarPageContent() {
             <div className={styles.syncCompact}>
               <div>
                 <strong>외부 캘린더</strong>
-                <span>{sourceCounts.external > 0 ? "연결됨" : "연결 전"}</span>
+                <span>{googleStatusLabel}</span>
               </div>
-              <Button icon={<ExternalLink size={15} strokeWidth={2.1} />} onClick={handleConnectGoogle} variant="quiet">
-                연결
-              </Button>
+              <div className={styles.syncActions}>
+                <Button disabled={googleAction !== null} icon={<ExternalLink size={15} strokeWidth={2.1} />} loading={googleAction === "connect"} onClick={handleConnectGoogle} variant="quiet">
+                  {googleConnected ? "다시 연결" : "연결"}
+                </Button>
+                <Button disabled={!googleConnected || googleAction !== null} icon={<Repeat2 size={15} strokeWidth={2.1} />} loading={googleAction === "pull"} onClick={() => void handleSyncGoogle("pull")} variant="quiet">
+                  가져오기
+                </Button>
+                <Button disabled={!googleConnected || googleAction !== null || unsyncedCount === 0} loading={googleAction === "push"} onClick={() => void handleSyncGoogle("push")} variant="quiet">
+                  내보내기 {unsyncedCount}
+                </Button>
+                <Button disabled={!googleConnected || googleAction !== null} icon={<X size={15} strokeWidth={2.1} />} loading={googleAction === "disconnect"} onClick={() => void handleDisconnectGoogle()} variant="quiet">
+                  해제
+                </Button>
+              </div>
             </div>
           </GlassPanel>
 
