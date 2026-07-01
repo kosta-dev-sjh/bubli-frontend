@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Check, Copy, Inbox, MessageCircle, Mic, MoreHorizontal, Paperclip, Phone, Search, Send, Smile, UserPlus, UsersRound, X } from "lucide-react";
+import { AtSign, Check, Copy, MessageCircle, Mic, MoreHorizontal, Paperclip, Phone, Search, Send, Smile, UserPlus, UsersRound, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -21,7 +21,7 @@ import {
   workspacePreviewUser,
 } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
-import type { ChatMessageResponse, ChatRoomResponse } from "@/types/api/chat";
+import type { ChatMessageResponse, ChatRoomResponse, RoomAgentCommandMode } from "@/types/api/chat";
 import type { FriendRequestResponse, FriendResponse, FriendSearchResponse } from "@/types/api/friend";
 import type { VoiceParticipantResponse, VoiceRoomResponse } from "@/types/api/voice";
 
@@ -63,6 +63,17 @@ type RoomInviteState =
   | { friendName: string; kind: "sending" }
   | { friendName: string; kind: "sent" }
   | { kind: "blocked"; message: string };
+
+type ChatRoomInviteState =
+  | { kind: "idle" }
+  | { friendName: string; kind: "sending" }
+  | { friendName: string; kind: "sent" }
+  | { kind: "blocked"; message: string };
+
+type AgentCommandDraft = {
+  message: string;
+  mode: RoomAgentCommandMode;
+};
 
 const previewFriends: FriendResponse[] = [
   {
@@ -121,6 +132,7 @@ const emoticonTokens = [
 ];
 
 function roomTypeLabel(room: ChatRoomResponse) {
+  if (room.chatType === "GROUP") return "그룹";
   return room.chatType === "ROOM" ? "프로젝트룸" : "1:1";
 }
 
@@ -167,6 +179,22 @@ function voiceParticipantStatusLabel(status: VoiceParticipantResponse["status"])
   return "연결 끊김";
 }
 
+function parseBubliCommand(text: string): AgentCommandDraft | null {
+  const match = text.trim().match(/^\/bubli(?:\s+(.+))?$/i);
+  if (!match) return null;
+
+  const message = match[1]?.trim() || "현재 프로젝트룸 맥락을 기준으로 도와줘";
+  const normalized = message.toLowerCase();
+  const mode: RoomAgentCommandMode =
+    /^(정리|요약|summary|summarize)\b/.test(normalized)
+      ? "SUMMARIZE"
+      : /^(todo|할일|작업|질문|제안|검토|suggest|proposal)\b/.test(normalized)
+        ? "SUGGEST"
+        : "ANSWER";
+
+  return { message, mode };
+}
+
 function preferredRoomId(rooms: ChatRoomResponse[], roomId: string | null, mode: string | null) {
   if (roomId) {
     return rooms.find((room) => room.roomId === roomId)?.id ?? null;
@@ -199,10 +227,17 @@ function ChatPageContent() {
   const [copiedBubliId, setCopiedBubliId] = useState(false);
   const [voiceExpanded, setVoiceExpanded] = useState(false);
   const [roomInviteState, setRoomInviteState] = useState<RoomInviteState>({ kind: "idle" });
+  const [chatRoomInviteState, setChatRoomInviteState] = useState<ChatRoomInviteState>({ kind: "idle" });
   const [composerActive, setComposerActive] = useState(false);
   const [selectedAttachmentName, setSelectedAttachmentName] = useState<string | null>(null);
   const [emoticonOpen, setEmoticonOpen] = useState(false);
+  const [friendAddOpen, setFriendAddOpen] = useState(false);
+  const [newRoomPickerOpen, setNewRoomPickerOpen] = useState(false);
+  const [groupRoomName, setGroupRoomName] = useState("");
+  const [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
+  const [agentCommandNotice, setAgentCommandNotice] = useState<string | null>(null);
+  const [roomCreateNotice, setRoomCreateNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const friendSearchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -218,10 +253,11 @@ function ChatPageContent() {
     return roomsState.rooms.find((room) => room.id === activeChatRoomId) ?? null;
   }, [activeChatRoomId, roomsState]);
   const isProjectRoomScoped = Boolean(queryRoomId);
-  const roomMode = selectedRoom?.chatType === "DIRECT" || queryMode === "direct" ? "direct" : "room";
+  const isProjectRoomMode = queryMode !== "direct";
+  const roomMode = selectedRoom?.chatType === "DIRECT" || selectedRoom?.chatType === "GROUP" || queryMode === "direct" ? "direct" : "room";
   const visibleRooms = useMemo(() => {
     if (roomsState.kind !== "ready") return [];
-    if (roomMode === "direct") return roomsState.rooms.filter((room) => room.chatType === "DIRECT");
+    if (roomMode === "direct") return roomsState.rooms.filter((room) => room.chatType === "DIRECT" || room.chatType === "GROUP");
     if (queryRoomId) return roomsState.rooms.filter((room) => room.roomId === queryRoomId);
     return roomsState.rooms.filter((room) => room.chatType === "ROOM");
   }, [queryRoomId, roomMode, roomsState]);
@@ -241,12 +277,15 @@ function ChatPageContent() {
   const directConversationCount = roomsState.kind === "ready" ? roomsState.rooms.filter((room) => room.chatType === "DIRECT").length : 0;
   const friendCount = socialState.kind === "ready" ? socialState.friends.length : directConversationCount;
   const pendingFriendRequestCount = pendingFriendRequests.length;
+  const selectedGroupFriendCount = selectedGroupMemberIds.length;
   const currentUser = profileState.kind === "ready" ? profileState.user : null;
   const myBubliId = currentUser?.bubliId ?? "";
-  const selectedProjectRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : queryRoomId;
+  const activeProjectRoomId = queryRoomId ?? getActiveProjectRoomId();
+  const selectedProjectRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : activeProjectRoomId;
+  const selectedAgentRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : null;
   const selectedProjectRoomName =
     selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? getActiveProjectRoomLabel() ?? "프로젝트룸" : getActiveProjectRoomLabel();
-  const inviteTargetLabel = selectedProjectRoomId ? selectedProjectRoomName ?? "현재 프로젝트룸" : "프로젝트룸 선택 필요";
+  const pendingAgentCommand = useMemo(() => parseBubliCommand(draft), [draft]);
   const voiceParticipants = useMemo<VoiceParticipantResponse[]>(() => {
     if (voiceState.kind === "ready") {
       return voiceState.room.participants.map((participant) => ({
@@ -455,11 +494,110 @@ function ChatPageContent() {
         const room = await chatApi.getOrCreateDirectRoom({ targetUserId: friend.friendUserId });
         setRoomsState({ kind: "ready", rooms: [room, ...roomsState.rooms.filter((item) => item.id !== room.id)] });
         setSelectedChatRoomId(room.id);
+        setNewRoomPickerOpen(false);
       } catch {
         setSocialState({ kind: "offline" });
       }
     },
     [roomsState],
+  );
+
+  const createProjectChatRoom = useCallback(async () => {
+    if (roomsState.kind !== "ready") return;
+
+    if (!selectedProjectRoomId) {
+      setRoomCreateNotice("프로젝트룸을 먼저 선택하세요.");
+      setNewRoomPickerOpen(false);
+      return;
+    }
+
+    setSending(true);
+    setRoomCreateNotice(null);
+
+    try {
+      const room = await chatApi.createProjectRoomChatRoom({ roomId: selectedProjectRoomId });
+      setRoomsState({ kind: "ready", rooms: [room, ...roomsState.rooms.filter((item) => item.id !== room.id)] });
+      setSelectedChatRoomId(room.id);
+      setNewRoomPickerOpen(false);
+      if (room.roomId) setActiveProjectRoomId(room.roomId, room.name?.replace(/\s*대화$/, "") ?? selectedProjectRoomName ?? "프로젝트룸");
+      setRoomCreateNotice("프로젝트룸 채팅방을 만들었습니다.");
+    } catch {
+      if (shouldUseWorkspacePreviewData()) {
+        const previewRooms = workspacePreviewChatRoomsFor(selectedProjectRoomId, selectedProjectRoomName);
+        const room = previewRooms.find((item) => item.roomId === selectedProjectRoomId);
+        setRoomsState({ kind: "ready", rooms: previewRooms });
+        if (room) setSelectedChatRoomId(room.id);
+        setNewRoomPickerOpen(false);
+        setRoomCreateNotice("프로젝트룸 채팅방을 만들었습니다.");
+        return;
+      }
+      setRoomCreateNotice("프로젝트룸 채팅방을 만들지 못했습니다. 프로젝트룸 선택이나 서버 상태를 확인하세요.");
+    } finally {
+      setSending(false);
+    }
+  }, [roomsState, selectedProjectRoomId, selectedProjectRoomName]);
+
+  const toggleGroupMember = useCallback((friendUserId: string) => {
+    setSelectedGroupMemberIds((current) =>
+      current.includes(friendUserId) ? current.filter((memberId) => memberId !== friendUserId) : [...current, friendUserId],
+    );
+  }, []);
+
+  const createGroupRoom = useCallback(async () => {
+    if (roomsState.kind !== "ready" || selectedGroupMemberIds.length === 0) return;
+
+    const fallbackName =
+      socialState.kind === "ready"
+        ? socialState.friends
+            .filter((friend) => selectedGroupMemberIds.includes(friend.friendUserId))
+            .map((friend) => friend.name)
+            .slice(0, 3)
+            .join(", ")
+        : "";
+    const name = groupRoomName.trim() || (fallbackName ? `${fallbackName} 그룹` : "새 그룹 채팅");
+
+    setSending(true);
+    setChatRoomInviteState({ kind: "idle" });
+
+    try {
+      const room = await chatApi.createGroupRoom({
+        memberUserIds: selectedGroupMemberIds,
+        name,
+      });
+      setRoomsState({ kind: "ready", rooms: [room, ...roomsState.rooms.filter((item) => item.id !== room.id)] });
+      setSelectedChatRoomId(room.id);
+      setNewRoomPickerOpen(false);
+      setGroupRoomName("");
+      setSelectedGroupMemberIds([]);
+    } catch {
+      setChatRoomInviteState({ kind: "blocked", message: "그룹 채팅방을 만들지 못했습니다. 친구 선택이나 서버 상태를 확인하세요." });
+    } finally {
+      setSending(false);
+    }
+  }, [groupRoomName, roomsState, selectedGroupMemberIds, socialState]);
+
+  const inviteFriendToChatRoom = useCallback(
+    async (friend: FriendResponse) => {
+      if (!selectedRoom || selectedRoom.chatType !== "GROUP") {
+        setChatRoomInviteState({ kind: "blocked", message: "그룹 채팅방에서 친구를 초대할 수 있습니다." });
+        return;
+      }
+
+      setChatRoomInviteState({ friendName: friend.name, kind: "sending" });
+
+      try {
+        const room = await chatApi.inviteMembers(selectedRoom.id, {
+          memberUserIds: [friend.friendUserId],
+        });
+        setRoomsState((current) =>
+          current.kind === "ready" ? { kind: "ready", rooms: current.rooms.map((item) => (item.id === room.id ? room : item)) } : current,
+        );
+        setChatRoomInviteState({ friendName: friend.name, kind: "sent" });
+      } catch {
+        setChatRoomInviteState({ kind: "blocked", message: "채팅방에 초대하지 못했습니다. 서버 상태나 권한을 확인하세요." });
+      }
+    },
+    [selectedRoom],
   );
 
   const inviteFriendToRoom = useCallback(
@@ -550,7 +688,7 @@ function ChatPageContent() {
     if (!selectedRoom?.roomId) {
       setVoiceState({
         kind: "blocked",
-        message: "1:1 보이스는 서버 방 연결이 필요합니다. 지금은 프로젝트룸 보이스부터 시작할 수 있습니다.",
+        message: "보이스는 프로젝트룸에서 사용할 수 있습니다.",
       });
       return;
     }
@@ -568,6 +706,39 @@ function ChatPageContent() {
   const sendMessage = useCallback(async () => {
     const text = draft.trim();
     if (!activeChatRoomId || (!text && !selectedAttachmentName)) return;
+    const agentCommand = parseBubliCommand(text);
+
+    if (agentCommand) {
+      if (!selectedAgentRoomId) {
+        setComposerActive(true);
+        setAgentCommandNotice("/bubli는 프로젝트룸 대화에서만 사용할 수 있습니다.");
+        return;
+      }
+
+      setSending(true);
+      setAgentCommandNotice("에이전트에게 질문을 보내는 중입니다.");
+
+      try {
+        await chatApi.runRoomAgentCommand(selectedAgentRoomId, {
+          clientMessageId: crypto.randomUUID(),
+          message: agentCommand.message,
+          mode: agentCommand.mode,
+          resourceIds: [],
+        });
+        setDraft("");
+        setSelectedAttachmentName(null);
+        setEmoticonOpen(false);
+        await loadMessages(activeChatRoomId);
+        setComposerActive(true);
+        setAgentCommandNotice("에이전트에게 질문을 보냈습니다.");
+      } catch {
+        setAgentCommandNotice("에이전트에게 질문을 보내지 못했습니다. 서버 상태나 프로젝트룸 권한을 확인하세요.");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     const messageType = selectedAttachmentName && !text ? "FILE" : "TEXT";
     const messageBody = selectedAttachmentName
       ? {
@@ -577,6 +748,7 @@ function ChatPageContent() {
       : { text };
 
     setSending(true);
+    setAgentCommandNotice(null);
 
     try {
       await chatApi.sendMessage(activeChatRoomId, {
@@ -593,7 +765,7 @@ function ChatPageContent() {
     } finally {
       setSending(false);
     }
-  }, [activeChatRoomId, draft, loadMessages, selectedAttachmentName]);
+  }, [activeChatRoomId, draft, loadMessages, selectedAgentRoomId, selectedAttachmentName]);
 
   return (
     <section className="workspace-route" aria-labelledby="chat-title">
@@ -606,7 +778,7 @@ function ChatPageContent() {
             프로젝트룸
           </Link>
           <Link className={queryMode === "direct" ? "is-active" : ""} href="/app/chat?mode=direct">
-            1:1
+            1:1/그룹
           </Link>
         </nav>
       </header>
@@ -662,8 +834,24 @@ function ChatPageContent() {
         </section>
       ) : null}
 
-      {roomsState.kind === "ready" && roomsState.rooms.length > 0 ? (
+      {roomsState.kind === "ready" ? (
         <div className="workspace-route__chat-quick-actions" aria-label="친구와 초대 빠른 실행">
+          <button
+            className="workspace-route__quick-button"
+            onClick={() => {
+              if (isProjectRoomMode) {
+                void createProjectChatRoom();
+                return;
+              }
+              setRoomCreateNotice(null);
+              setNewRoomPickerOpen((open) => !open);
+              setFriendAddOpen(false);
+            }}
+            type="button"
+          >
+            새로 만들기
+          </button>
+          {roomCreateNotice ? <span className="workspace-route__pending">{roomCreateNotice}</span> : null}
           <button className="workspace-route__quick-button" disabled={!myBubliId} onClick={() => void copyMyBubliId()} type="button">
             <Copy aria-hidden size={15} strokeWidth={2} />
             {copiedBubliId ? "ID 복사됨" : "내 ID 복사"}
@@ -693,11 +881,11 @@ function ChatPageContent() {
         </div>
       ) : null}
 
-      {roomsState.kind === "ready" && roomsState.rooms.length > 0 ? (
+      {roomsState.kind === "ready" ? (
         <div className="workspace-route__chat">
           <aside className="workspace-route__section workspace-route__chat-list" aria-label="대화방">
             <div className="workspace-route__chat-list-head">
-              <strong>{roomMode === "direct" ? "친구와 1:1" : isProjectRoomScoped ? "현재 프로젝트룸 대화" : "프로젝트룸 대화"}</strong>
+              <strong>{roomMode === "direct" ? "친구 대화" : isProjectRoomScoped ? "현재 프로젝트룸 대화" : "프로젝트룸 대화"}</strong>
               <span>{visibleRooms.length}</span>
             </div>
             {visibleRooms.map((room) => {
@@ -721,7 +909,7 @@ function ChatPageContent() {
               );
             })}
             {visibleRooms.length === 0 ? (
-              <span className="workspace-route__empty">{roomMode === "direct" ? "아직 1:1 대화가 없습니다" : "프로젝트룸 대화가 없습니다"}</span>
+              <span className="workspace-route__empty">{roomMode === "direct" ? "아직 친구 대화가 없습니다" : "프로젝트룸 대화가 없습니다"}</span>
             ) : null}
           </aside>
 
@@ -730,7 +918,7 @@ function ChatPageContent() {
               <div>
                 <strong>{selectedRoom?.name ?? "대화"}</strong>
                 {selectedRoom ? (
-                  <span>{selectedRoom.chatType === "ROOM" ? "이 프로젝트룸에 묶인 대화" : "친구와 1:1 대화"}</span>
+                  <span>{selectedRoom.chatType === "ROOM" ? "이 프로젝트룸에 묶인 대화" : selectedRoom.chatType === "GROUP" ? "친구들과 함께하는 그룹 대화" : "친구와 1:1 대화"}</span>
                 ) : null}
               </div>
               <div className="workspace-route__thread-actions">
@@ -743,12 +931,76 @@ function ChatPageContent() {
                   <Button disabled={voiceState.kind === "starting"} loading={voiceState.kind === "starting"} onClick={() => void startVoice()} type="button" variant="quiet">
                     보이스 시작
                   </Button>
-                ) : (
-                  <span className="workspace-route__action-note">1:1 보이스는 API 확정 후 연결</span>
-                )}
+                ) : null}
               </div>
             </div>
-            {selectedRoom ? (
+            {newRoomPickerOpen ? (
+              <div className="workspace-route__new-room-panel" aria-label="새 1:1 채팅방 만들기">
+                <div>
+                  <strong>새 채팅방</strong>
+                  <span>친구 한 명은 1:1로 열고, 여러 명을 선택하면 그룹 채팅방을 만듭니다.</span>
+                </div>
+                {socialState.kind === "loading" ? <span className="workspace-route__empty">친구 목록을 불러오는 중</span> : null}
+                {socialState.kind === "offline" ? <span className="workspace-route__empty">친구 목록을 불러오지 못했습니다</span> : null}
+                {socialState.kind === "ready" && socialState.friends.length === 0 ? (
+                  <button
+                    className="workspace-route__quick-button"
+                    onClick={() => {
+                      setFriendAddOpen(true);
+                      window.setTimeout(() => friendSearchInputRef.current?.focus(), 0);
+                    }}
+                    type="button"
+                  >
+                    친구 추가
+                  </button>
+                ) : null}
+                {socialState.kind === "ready" && socialState.friends.length > 0 ? (
+                  <>
+                    <label className="workspace-route__group-name-field" htmlFor="group-room-name">
+                      <span>그룹 이름</span>
+                      <input
+                        id="group-room-name"
+                        onChange={(event) => setGroupRoomName(event.target.value)}
+                        placeholder="비워두면 친구 이름으로 생성"
+                        value={groupRoomName}
+                      />
+                    </label>
+                    <div className="workspace-route__new-room-friends">
+                      {socialState.friends.map((friend) => {
+                        const selected = selectedGroupMemberIds.includes(friend.friendUserId);
+
+                        return (
+                          <div className="workspace-route__friend-row workspace-route__group-friend-row" key={friend.friendUserId}>
+                            <button aria-pressed={selected} className="workspace-route__group-select" onClick={() => toggleGroupMember(friend.friendUserId)} type="button">
+                              {selected ? <Check aria-hidden size={14} strokeWidth={2.2} /> : initialOf(friend.name)}
+                            </button>
+                            <div>
+                              <strong>{friend.name}</strong>
+                              <small>{friend.bubliId}</small>
+                            </div>
+                            <div className="workspace-route__friend-actions">
+                              <button onClick={() => void openDirectRoom(friend)} type="button">
+                                1:1
+                              </button>
+                              <button onClick={() => toggleGroupMember(friend.friendUserId)} type="button">
+                                {selected ? "선택 해제" : "그룹 선택"}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="workspace-route__group-create-actions">
+                      <span>{selectedGroupFriendCount}명 선택</span>
+                      <Button disabled={selectedGroupFriendCount === 0 || sending} loading={sending} onClick={() => void createGroupRoom()} type="button" variant="primary">
+                        그룹 채팅방 만들기
+                      </Button>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+            {selectedRoom?.chatType === "ROOM" ? (
               <button
                 aria-expanded={voiceExpanded}
                 className="workspace-route__voice-status workspace-route__voice-status--interactive"
@@ -756,7 +1008,7 @@ function ChatPageContent() {
                 type="button"
               >
                 <Phone size={15} strokeWidth={2} aria-hidden="true" />
-                <span>{voiceState.kind === "ready" ? "보이스 열림" : selectedRoom.chatType === "ROOM" ? "보이스 대기" : "1:1 보이스 연결 전"}</span>
+                <span>{voiceState.kind === "ready" ? "보이스 열림" : "보이스 대기"}</span>
                 <span className="workspace-route__voice-stack" aria-label={`참여자 ${voiceParticipants.length}명`}>
                   {voiceParticipants.slice(0, 3).map((participant) => (
                     <i data-status={participant.status.toLowerCase()} key={participant.userId}>
@@ -766,7 +1018,7 @@ function ChatPageContent() {
                 </span>
               </button>
             ) : null}
-            {voiceState.kind === "blocked" ? <div className="workspace-route__voice-status workspace-route__voice-status--blocked">{voiceState.message}</div> : null}
+            {selectedRoom?.chatType === "ROOM" && voiceState.kind === "blocked" ? <div className="workspace-route__voice-status workspace-route__voice-status--blocked">{voiceState.message}</div> : null}
 
             {messagesState.kind === "loading" ? <span className="workspace-route__empty">메시지를 불러오는 중</span> : null}
             {messagesState.kind === "offline" ? <span className="workspace-route__empty">메시지를 불러오지 못했습니다</span> : null}
@@ -844,7 +1096,10 @@ function ChatPageContent() {
                     onBlur={() => {
                       if (!draft.trim() && !selectedAttachmentName) setComposerActive(false);
                     }}
-                    onChange={(event) => setDraft(event.target.value)}
+                    onChange={(event) => {
+                      setDraft(event.target.value);
+                      if (agentCommandNotice) setAgentCommandNotice(null);
+                    }}
                     onFocus={() => setComposerActive(true)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
@@ -870,8 +1125,16 @@ function ChatPageContent() {
                         첨부 {selectedAttachmentName}
                         <X aria-hidden size={13} strokeWidth={2} />
                       </button>
+                    ) : agentCommandNotice ? (
+                      <span className="workspace-route__agent-notice" role="status">
+                        {agentCommandNotice}
+                      </span>
+                    ) : pendingAgentCommand ? (
+                      <span className="workspace-route__agent-command-hint">
+                        에이전트 질문 · {pendingAgentCommand.mode === "SUMMARIZE" ? "정리" : pendingAgentCommand.mode === "SUGGEST" ? "제안" : "답변"}
+                      </span>
                     ) : (
-                      <span>Shift+Enter 줄바꿈</span>
+                      <span>Shift+Enter 줄바꿈 · /bubli 질문으로 에이전트 호출</span>
                     )}
                     {emoticonOpen ? (
                       <div className="workspace-route__emoticons" aria-label="이모티콘 선택">
@@ -896,72 +1159,72 @@ function ChatPageContent() {
             ) : null}
           </GlassPanel>
 
-          <aside className="workspace-route__section workspace-route__chat-social" aria-label="친구와 보이스">
-            <div className="workspace-route__chat-list-head">
-              <strong>친구와 초대</strong>
-              <span>{friendCount}</span>
-            </div>
+          <aside className="workspace-route__section workspace-route__chat-social" aria-label="친구">
+            <button
+              aria-expanded={friendAddOpen}
+              className="bubli-button bubli-button--quiet workspace-route__friend-add-control"
+              onClick={() => {
+                setFriendAddOpen((open) => !open);
+                window.setTimeout(() => friendSearchInputRef.current?.focus(), 0);
+              }}
+              type="button"
+            >
+              친구추가
+            </button>
 
-            <div className="workspace-route__social-flow" aria-label="친구 추가와 프로젝트룸 초대">
-              <section className="workspace-route__social-card workspace-route__social-card--code">
-                <span className="workspace-route__social-kicker">
-                  <AtSign aria-hidden size={14} strokeWidth={2} />
-                  내 Bubli ID
-                </span>
-                <div className="workspace-route__my-code">
-                  <div>
-                    <small>친구 추가용</small>
-                    <strong>{myBubliId || "로그인 후 표시"}</strong>
-                  </div>
-                  <button aria-label="내 Bubli ID 복사" disabled={!myBubliId} onClick={() => void copyMyBubliId()} type="button">
-                    {copiedBubliId ? <Check aria-hidden size={15} strokeWidth={2.2} /> : <Copy aria-hidden size={15} strokeWidth={2} />}
-                    {copiedBubliId ? "복사됨" : "복사"}
-                  </button>
-                </div>
-              </section>
-
-              <section className="workspace-route__social-card">
-                <span className="workspace-route__social-kicker">
-                  <UserPlus aria-hidden size={14} strokeWidth={2} />
-                  친구 추가
-                </span>
-                <form
-                  className="workspace-route__friend-search"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void searchFriend();
-                  }}
-                >
-                  <label htmlFor="friend-id-search">Bubli ID를 입력해 요청을 보냅니다</label>
-                  <div>
-                    <Search aria-hidden size={16} strokeWidth={2} />
-                    <input
-                      autoComplete="off"
-                      id="friend-id-search"
-                      onChange={(event) => {
-                        setFriendSearchQuery(event.target.value);
-                        if (!event.target.value.trim()) setFriendSearchState({ kind: "idle" });
-                      }}
-                      placeholder="예: bubli-id"
-                      ref={friendSearchInputRef}
-                      value={friendSearchQuery}
-                    />
-                    <button aria-label="친구 검색" type="submit">
-                      찾기
+            {friendAddOpen ? (
+              <div className="workspace-route__social-flow" aria-label="친구 추가">
+                <section className="workspace-route__social-card workspace-route__social-card--code">
+                  <span className="workspace-route__social-kicker">
+                    <AtSign aria-hidden size={14} strokeWidth={2} />
+                    내 Bubli ID
+                  </span>
+                  <div className="workspace-route__my-code">
+                    <div>
+                      <small>친구 추가용</small>
+                      <strong>{myBubliId || "로그인 후 표시"}</strong>
+                    </div>
+                    <button aria-label="내 Bubli ID 복사" disabled={!myBubliId} onClick={() => void copyMyBubliId()} type="button">
+                      {copiedBubliId ? <Check aria-hidden size={15} strokeWidth={2.2} /> : <Copy aria-hidden size={15} strokeWidth={2} />}
+                      {copiedBubliId ? "복사됨" : "복사"}
                     </button>
                   </div>
-                </form>
-              </section>
+                </section>
 
-              <section className="workspace-route__social-card workspace-route__social-card--invite">
-                <span className="workspace-route__social-kicker">
-                  <Inbox aria-hidden size={14} strokeWidth={2} />
-                  프로젝트룸 초대
-                </span>
-                <strong>{inviteTargetLabel}</strong>
-                <small>수락된 친구만 현재 프로젝트룸에 초대할 수 있습니다.</small>
-              </section>
-            </div>
+                <section className="workspace-route__social-card">
+                  <span className="workspace-route__social-kicker">
+                    <UserPlus aria-hidden size={14} strokeWidth={2} />
+                    친구 추가
+                  </span>
+                  <form
+                    className="workspace-route__friend-search"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void searchFriend();
+                    }}
+                  >
+                    <label htmlFor="friend-id-search">Bubli ID를 입력해 요청을 보냅니다</label>
+                    <div>
+                      <Search aria-hidden size={16} strokeWidth={2} />
+                      <input
+                        autoComplete="off"
+                        id="friend-id-search"
+                        onChange={(event) => {
+                          setFriendSearchQuery(event.target.value);
+                          if (!event.target.value.trim()) setFriendSearchState({ kind: "idle" });
+                        }}
+                        placeholder="예: bubli-id"
+                        ref={friendSearchInputRef}
+                        value={friendSearchQuery}
+                      />
+                      <button aria-label="친구 검색" type="submit">
+                        찾기
+                      </button>
+                    </div>
+                  </form>
+                </section>
+              </div>
+            ) : null}
 
             {friendSearchState.kind === "searching" ? <span className="workspace-route__empty">친구를 찾는 중</span> : null}
             {friendSearchState.kind === "empty" ? <span className="workspace-route__empty">일치하는 Bubli ID가 없습니다</span> : null}
@@ -989,7 +1252,7 @@ function ChatPageContent() {
 
             <div className="workspace-route__friend-panel" aria-label="친구와 1:1">
               <div className="workspace-route__chat-list-head">
-                <strong>친구</strong>
+                <strong>친구목록</strong>
                 <span>{friendCount}</span>
               </div>
               {socialState.kind === "loading" ? <span className="workspace-route__empty">친구 목록을 불러오는 중</span> : null}
@@ -1007,6 +1270,11 @@ function ChatPageContent() {
                         <button onClick={() => void openDirectRoom(friend)} type="button">
                           1:1
                         </button>
+                        {selectedRoom?.chatType === "GROUP" ? (
+                          <button disabled={chatRoomInviteState.kind === "sending"} onClick={() => void inviteFriendToChatRoom(friend)} type="button">
+                            {chatRoomInviteState.kind === "sending" && chatRoomInviteState.friendName === friend.name ? "초대 중" : "채팅 초대"}
+                          </button>
+                        ) : null}
                         <button disabled={!selectedProjectRoomId || roomInviteState.kind === "sending"} onClick={() => void inviteFriendToRoom(friend)} type="button">
                           {roomInviteState.kind === "sending" && roomInviteState.friendName === friend.name ? "보내는 중" : "룸 초대"}
                         </button>
@@ -1021,6 +1289,9 @@ function ChatPageContent() {
                 </span>
               ) : null}
               {roomInviteState.kind === "blocked" ? <span className="workspace-route__empty">{roomInviteState.message}</span> : null}
+              {chatRoomInviteState.kind === "sending" ? <span className="workspace-route__pending">{chatRoomInviteState.friendName}님을 채팅방에 초대하는 중</span> : null}
+              {chatRoomInviteState.kind === "sent" ? <span className="workspace-route__pending">{chatRoomInviteState.friendName}님을 채팅방에 초대했습니다</span> : null}
+              {chatRoomInviteState.kind === "blocked" ? <span className="workspace-route__empty">{chatRoomInviteState.message}</span> : null}
             </div>
 
             <div className="workspace-route__friend-panel" aria-label="친구 요청">
