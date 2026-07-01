@@ -45,7 +45,7 @@ const wbsStatusOptions: Array<{ label: string; status: WbsStatus }> = [
 const viewCopy = {
   kanban: {
     badge: "칸반",
-    title: "TODO 상태판",
+    title: "상태별 작업판",
   },
   suggestions: {
     badge: "후보",
@@ -53,7 +53,7 @@ const viewCopy = {
   },
   wbs: {
     badge: "WBS",
-    title: "작업 구조표",
+    title: "줄 단위 작업 구조",
   },
 } as const;
 
@@ -706,13 +706,13 @@ function ProjectRoomWorkBoardContent({
         </div>
         <div className={styles.contextTools}>
           <div className={styles.viewSwitch} aria-label="작업판 보기 전환">
-            <button aria-pressed={viewMode === "kanban"} onClick={() => setViewMode("kanban")} type="button">
-              <KanbanSquare size={15} aria-hidden="true" />
-              칸반
-            </button>
             <button aria-pressed={viewMode === "wbs"} onClick={() => setViewMode("wbs")} type="button">
               <GitBranch size={15} aria-hidden="true" />
               WBS
+            </button>
+            <button aria-pressed={viewMode === "kanban"} onClick={() => setViewMode("kanban")} type="button">
+              <KanbanSquare size={15} aria-hidden="true" />
+              칸반
             </button>
             <button aria-pressed={viewMode === "suggestions"} onClick={() => setViewMode("suggestions")} type="button">
               <Inbox size={15} aria-hidden="true" />
@@ -739,8 +739,8 @@ function ProjectRoomWorkBoardContent({
             <section className={styles.pane} aria-label="WBS 작업 구조표">
               <div className={styles.paneHead}>
                 <div>
-                  <h2>작업 구조표</h2>
-                  <p>선택한 줄의 연결 할 일을 바로 확인합니다.</p>
+                  <h2>WBS 줄 목록</h2>
+                  <p>같은 단계 안에서 끌어 순서를 바꾸고, 선택한 줄의 할 일을 확인합니다.</p>
                 </div>
                 <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
               </div>
@@ -855,7 +855,7 @@ function ProjectRoomWorkBoardContent({
                     </div>
                     <div className={styles.wbsFormActions}>
                       <button className={styles.primaryAction} type="submit">
-                        수정
+                        저장
                       </button>
                       <button
                         className={styles.dangerAction}
@@ -891,7 +891,7 @@ function ProjectRoomWorkBoardContent({
                 </div>
                 <div className={styles.wbsFormActions}>
                   <button className={styles.primaryAction} type="submit">
-                    추가
+                    줄 추가
                   </button>
                 </div>
               </form>

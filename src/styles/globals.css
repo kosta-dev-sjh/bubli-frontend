@@ -1719,6 +1719,10 @@ select {
   padding: 18px clamp(18px, 3vw, 34px) 46px;
 }
 
+.workspace-route--work {
+  width: min(100%, 1280px);
+}
+
 .workspace-route__header {
   display: flex;
   align-items: flex-end;
