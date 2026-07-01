@@ -12,6 +12,8 @@ import { authApi } from "@/features/auth/api/authApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { tauriCommands } from "@/lib/tauri/commands";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -21,6 +23,8 @@ import {
 import { shouldUseWorkspacePreviewData, workspacePreviewRooms, workspacePreviewUser } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
 import type { ContractDocumentType, ProjectRoomResponse } from "@/types/api/projectRoom";
+
+let desktopWidgetLaunchRequested = false;
 
 type AppShellProps = {
   children: ReactNode;
@@ -128,6 +132,27 @@ export function AppShell({ children }: AppShellProps) {
   }, [router, state.kind]);
 
   useEffect(() => {
+    if (state.kind !== "ready" || !isTauriRuntime() || desktopWidgetLaunchRequested) return;
+
+    desktopWidgetLaunchRequested = true;
+    void (async () => {
+      try {
+        await tauriCommands.openWidgetWindow({ bubbleType: "todo", mode: "DEFAULT", windowId: "todo" });
+        await tauriCommands.openWidgetWindow({ bubbleType: "bar", mode: "DEFAULT", windowId: "bar" });
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "todo",
+            eventType: "open:auto-login",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      } catch {
+        desktopWidgetLaunchRequested = false;
+      }
+    })();
+  }, [state.kind]);
+
+  useEffect(() => {
     function syncActiveProjectRoom(event: Event) {
       const detail = event instanceof CustomEvent ? (event.detail as { roomId?: string | null; roomLabel?: string | null } | null) : null;
       setSelectedRoomId(detail?.roomId ?? getActiveProjectRoomId());
@@ -179,6 +204,11 @@ export function AppShell({ children }: AppShellProps) {
     if (!routeRoom || routeRoom.id === selectedRoomId) return;
     setActiveProjectRoomId(routeRoom.id, routeRoom.name);
   }, [roomFromPath, roomFromQuery, selectedRoomId]);
+
+  useEffect(() => {
+    if (state.kind !== "ready" || !selectedRoom) return;
+    setActiveProjectRoomId(selectedRoom.id, selectedRoom.name);
+  }, [selectedRoom, state.kind]);
 
   const topbarProject = useMemo(() => {
     if (state.kind === "loading") {
