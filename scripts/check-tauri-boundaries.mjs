@@ -9,7 +9,10 @@ const ALLOWED_TAURI_IMPORT_PREFIXES = ["src/lib/tauri/"];
 const ALLOWED_TAURI_GLOBAL_FILES = new Set(["src/lib/tauri/is-tauri.ts"]);
 const ALLOWED_INVOKE_FILES = new Set(["src/lib/tauri/ipc.ts"]);
 // 테마 영속화는 user_preferences API 연결 전까지 ThemeProvider 한 곳에서만 localStorage를 쓴다.
-const ALLOWED_LOCALSTORAGE_FILES = new Set(["src/components/theme/theme-provider.tsx"]);
+const ALLOWED_LOCALSTORAGE_FILES = new Set([
+  "src/components/theme/theme-provider.tsx",
+  "src/lib/auth/auth-session.ts",
+]);
 
 const BOUNDARY_RULES = [
   {

@@ -2,23 +2,36 @@ export type AuthUser = {
   id: string;
   avatarUrl?: string | null;
   bubliId: string;
-  email: string;
-  googleSub: string;
+  email?: string | null;
+  googleSub?: string | null;
   locale?: string | null;
   name: string;
   timezone?: string | null;
 };
 
+export type AuthClientType = "WEB" | "TAURI";
+
 export type AuthTokenResponse = {
   accessToken: string;
   expiresAt: string;
   expiresIn: number;
+  refreshToken: string;
+  refreshTokenExpiresAt: string;
   tokenType: "Bearer";
-};
-
-export type AuthLoginResponse = AuthTokenResponse & {
   user: AuthUser;
 };
+
+export type GoogleAuthorizeResponse = {
+  authorizeUrl: string;
+};
+
+export type GoogleCallbackRequest = {
+  clientType: AuthClientType;
+  code: string;
+  redirectUri: string;
+};
+
+export type AuthLoginResponse = AuthTokenResponse;
 
 export type AuthRefreshResponse = AuthTokenResponse;
 

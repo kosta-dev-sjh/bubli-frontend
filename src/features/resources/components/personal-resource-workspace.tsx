@@ -1,18 +1,20 @@
 "use client";
 
-import { AlertCircle, FileText, FolderOpen, HardDrive, Laptop, RefreshCw, Settings } from "lucide-react";
+import { AlertCircle, FolderOpen, HardDrive, Laptop, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
+import { ACTIVE_PROJECT_ROOM_CHANGE_EVENT, getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewPersonalResources } from "@/lib/workspace-preview-data";
 import type { ResourceResponse } from "@/types/api/resource";
 
-import { formatDate, getErrorMessage, ResourcePreview, ResourceTile, ResourceToolbar, type ViewMode } from "./resource-board-common";
+import { formatDate, getErrorMessage, ResourcePreview, ResourceScopeSwitch, ResourceTile, ResourceToolbar, type ViewMode } from "./resource-board-common";
+import styles from "./resource-board-polish.module.css";
 
 const EMPTY_RESOURCES: ResourceResponse[] = [];
 
@@ -28,19 +30,20 @@ export function PersonalResourceWorkspace() {
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [isTauri, setIsTauri] = useState(false);
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(() => getActiveProjectRoomId());
 
   const loadResources = useCallback(async () => {
     if (shouldUseWorkspacePreviewData()) {
       const resources = workspacePreviewPersonalResources;
       setState({ kind: "ready", resources });
-      setSelectedResourceId((current) => (current && resources.some((resource) => resource.id === current) ? current : resources[0]?.id ?? null));
+      setSelectedResourceId((current) => (current && resources.some((resource) => resource.id === current) ? current : null));
       return;
     }
 
     try {
       const page = await resourcesApi.listPersonal();
       setState({ kind: "ready", resources: page.items });
-      setSelectedResourceId((current) => (current && page.items.some((resource) => resource.id === current) ? current : page.items[0]?.id ?? null));
+      setSelectedResourceId((current) => (current && page.items.some((resource) => resource.id === current) ? current : null));
     } catch (error) {
       const message = getErrorMessage(error);
       setState(message === "AUTH_REQUIRED" ? { kind: "auth" } : { kind: "error", message });
@@ -61,6 +64,15 @@ export function PersonalResourceWorkspace() {
     return () => window.clearTimeout(timeoutId);
   }, [loadResources]);
 
+  useEffect(() => {
+    function handleRoomChange() {
+      setActiveRoomId(getActiveProjectRoomId());
+    }
+
+    window.addEventListener(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, handleRoomChange);
+    return () => window.removeEventListener(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, handleRoomChange);
+  }, []);
+
   const resources = useMemo(() => (state.kind === "ready" ? state.resources : EMPTY_RESOURCES), [state]);
 
   const filteredResources = useMemo(() => {
@@ -75,9 +87,7 @@ export function PersonalResourceWorkspace() {
     });
   }, [query, resources]);
 
-  const selectedResource = filteredResources.find((resource) => resource.id === selectedResourceId) ?? filteredResources[0] ?? null;
-  const analyzingCount = resources.filter((resource) => resource.status === "ANALYZING").length;
-  const needsReviewCount = resources.filter((resource) => resource.status === "FAILED").length;
+  const selectedResource = selectedResourceId ? filteredResources.find((resource) => resource.id === selectedResourceId) ?? null : null;
   const canShowBoard = state.kind !== "auth" && state.kind !== "error";
   const latestScannedAt = resources.reduce<string | null>((latest, resource) => {
     if (!resource.updatedAt) {
@@ -92,17 +102,15 @@ export function PersonalResourceWorkspace() {
   }, null);
 
   return (
-    <section className="resource-workspace" aria-label="개인 자료">
-      <GlassPanel className="resource-workspace__hero">
+    <section className={cn("resource-workspace", styles.workspace)} aria-label="자료보드">
+      <GlassPanel className={cn("resource-workspace__hero", styles.boardHeader)}>
         <div className="resource-workspace__copy">
-          <h1>개인 자료</h1>
-          <p>내 컴퓨터 폴더에서 감지한 자료를 확인합니다. 프로젝트룸을 바꿔도 개인 자료는 그대로 따라옵니다.</p>
+          <span className={styles.kicker}>개인 자료</span>
+          <h1>자료보드</h1>
+          <p>로컬 폴더 색인 상태와 최근 자료를 확인합니다.</p>
         </div>
-        <div className="resource-workspace__actions">
-          <Link className="bubli-button" href="/app/settings">
-            <Settings aria-hidden size={15} strokeWidth={1.9} />
-            폴더 설정
-          </Link>
+        <div className={styles.headerActions}>
+          <ResourceScopeSwitch activeScope="personal" roomHref={activeRoomId ? `/app/project-rooms/${activeRoomId}/resources` : "/app/project-rooms"} roomLabel="프로젝트룸" />
         </div>
       </GlassPanel>
 
@@ -135,67 +143,32 @@ export function PersonalResourceWorkspace() {
 
       {canShowBoard ? (
         <>
-          <div className="resource-workspace__stats" aria-label="자료 상태 요약">
-            <GlassPanel dense className="resource-workspace__stat">
-              <span>연결 폴더</span>
-              <b>{isTauri ? "연결됨" : "앱에서 설정"}</b>
-            </GlassPanel>
-            <GlassPanel dense className="resource-workspace__stat">
-              <span>개인 색인</span>
-              <b>{state.kind === "loading" ? "-" : resources.length}</b>
-            </GlassPanel>
-            <GlassPanel dense className="resource-workspace__stat">
-              <span>확인 필요</span>
-              <b>{state.kind === "loading" ? "-" : needsReviewCount}</b>
-            </GlassPanel>
-            <GlassPanel dense className="resource-workspace__stat">
-              <span>최근 스캔</span>
-              <b>{state.kind === "loading" ? "-" : latestScannedAt ? formatDate(latestScannedAt) : "대기"}</b>
-            </GlassPanel>
-          </div>
-
-          <GlassPanel className="resource-workspace__board">
-            <aside className="resource-workspace__sources" aria-label="자료 위치">
-              <button className="is-active" type="button">
-                <FileText aria-hidden size={18} strokeWidth={2} />
-                <span>
-                  개인 자료
-                  <b>{resources.length}</b>
-                </span>
-              </button>
-              <div className="resource-workspace__source-note">
-                <HardDrive aria-hidden size={17} strokeWidth={2} />
-                <div>
-                  <strong>개인 폴더</strong>
-                  <span>{isTauri ? "기기 안 폴더를 개인 색인으로 정리" : "데스크탑 앱에서 폴더를 연결"}</span>
-                </div>
-              </div>
-            </aside>
-
+          <GlassPanel className={cn("resource-workspace__board", styles.boardShell, styles.boardShellFlat, selectedResource ? styles.boardShellHasPreview : styles.boardShellNoPreview)}>
             <section className="resource-workspace__browser" aria-label="자료 탐색">
-              <div className="resource-workspace__scope-head">
-                <span>개인 자료</span>
-                <strong>{isTauri ? "폴더 동기화" : "데스크탑 앱에서 폴더 연결"}</strong>
+              <div className={styles.listHeader}>
+                <div>
+                  <span>개인 자료</span>
+                  <strong>총 {state.kind === "loading" ? "-" : resources.length}개</strong>
+                </div>
+                <p>{isTauri ? `로컬 폴더 색인 · 최근 스캔 ${latestScannedAt ? formatDate(latestScannedAt) : "대기"}` : "데스크탑 앱에서 로컬 폴더를 연결합니다"}</p>
               </div>
 
               <ResourceToolbar onQuery={setQuery} onViewMode={setViewMode} query={query} viewMode={viewMode} />
 
-              <GlassPanel className="resource-workspace__dropzone resource-workspace__dropzone--local">
+              <GlassPanel className={cn("resource-workspace__dropzone resource-workspace__dropzone--local", styles.syncStrip)}>
                 <HardDrive aria-hidden size={22} strokeWidth={2} />
                 <div>
-                  <strong>{isTauri ? "연결한 폴더를 읽는 중" : "개인 자료는 폴더 선택으로 연결합니다"}</strong>
+                  <strong>{isTauri ? "로컬 폴더 동기화" : "데스크탑 앱 연결 필요"}</strong>
                   <p>
                     {isTauri
-                      ? "기기 안 파일을 개인 색인으로 정리합니다. 프로젝트룸 자료와는 분리됩니다."
-                      : "브라우저 화면에서는 파일을 받지 않습니다. 데스크탑 앱에서 내 컴퓨터 폴더를 지정하세요."}
+                      ? "앱에서 지정한 폴더만 개인 자료로 읽습니다."
+                      : "브라우저에서는 개인 파일을 받지 않습니다."}
                   </p>
                 </div>
-                <Link className="bubli-button" href="/app/settings">
-                  폴더 설정
-                </Link>
+                <span className={styles.syncBadge}>{isTauri ? "연결됨" : "앱 필요"}</span>
               </GlassPanel>
 
-              <div className={cn("resource-workspace__items", viewMode === "list" && "resource-workspace__items--list")}>
+              <div className={cn("resource-workspace__items", styles.fileGrid, viewMode === "list" && "resource-workspace__items--list", viewMode === "list" && styles.fileList)}>
                 {state.kind === "loading" ? (
                   <>
                     <GlassPanel loading />
@@ -206,12 +179,8 @@ export function PersonalResourceWorkspace() {
                   <GlassPanel className="resource-workspace__empty">
                     <FolderOpen aria-hidden size={22} strokeWidth={2} />
                     <div>
-                      <h2>{isTauri ? "아직 동기화된 자료가 없습니다" : "앱에서 폴더를 연결하세요"}</h2>
-                      <p>
-                        {isTauri
-                          ? "연결한 폴더의 스캔이 끝나면 개인 색인 목록에 표시됩니다."
-                          : "개인 자료는 브라우저에서 파일을 받지 않습니다. 데스크탑 앱의 폴더 연결을 사용합니다."}
-                      </p>
+                      <h2>현재 데이터가 없습니다</h2>
+                      <p>{isTauri ? "연결한 폴더의 스캔이 끝나면 여기에 표시됩니다." : "데스크탑 앱에서 폴더를 연결하면 여기에 표시됩니다."}</p>
                       <div className="resource-workspace__local-steps">
                         <span>
                           <Laptop aria-hidden size={14} strokeWidth={2} />
@@ -244,7 +213,8 @@ export function PersonalResourceWorkspace() {
             </section>
 
             <ResourcePreview
-              emptyHint="자료를 선택하면 상태와 정리 결과를 확인합니다."
+              emptyHint="자료를 선택하면 파일 정보와 정리 상태를 확인합니다."
+              onClose={() => setSelectedResourceId(null)}
               resource={selectedResource}
               scope="personal"
             />

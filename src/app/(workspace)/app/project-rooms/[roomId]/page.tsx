@@ -114,7 +114,7 @@ function suggestionTypeLabel(type: AgentSuggestionResponse["suggestionType"]) {
   if (type === "SCHEDULE") return "일정";
   if (type === "QUESTION") return "확인 질문";
   if (type === "REQUIREMENT") return "요구사항";
-  if (type === "CONTRACT_FIELD" || type === "CONTRACT_REVIEW") return "계약 확인";
+  if (type === "CONTRACT_FIELD" || type === "CONTRACT_REVIEW") return "범위 확인";
   if (type === "REVIEW_ITEM") return "확인 항목";
   if (type === "DOCUMENT_DRAFT") return "문서 초안";
   if (type === "DAILY_SUMMARY") return "하루정리";

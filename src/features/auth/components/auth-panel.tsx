@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { CSSProperties, PointerEvent } from "react";
+import { useState, type CSSProperties, type PointerEvent } from "react";
 
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { siteConfig } from "@/config/site";
@@ -46,7 +46,7 @@ function handlePagePointerLeave(event: PointerEvent<HTMLElement>) {
   setSignedPointerVars(event.currentTarget, 0, 0);
 }
 
-function handleSubmitPointerMove(event: PointerEvent<HTMLAnchorElement>) {
+function handleSubmitPointerMove(event: PointerEvent<HTMLButtonElement>) {
   const rect = event.currentTarget.getBoundingClientRect();
   const x = (event.clientX - rect.left) / rect.width;
   const y = (event.clientY - rect.top) / rect.height;
@@ -61,7 +61,7 @@ function handleSubmitPointerMove(event: PointerEvent<HTMLAnchorElement>) {
   event.currentTarget.style.setProperty("--button-shift-y", `${(signedY * 4).toFixed(2)}px`);
 }
 
-function handleSubmitPointerLeave(event: PointerEvent<HTMLAnchorElement>) {
+function handleSubmitPointerLeave(event: PointerEvent<HTMLButtonElement>) {
   event.currentTarget.style.setProperty("--button-light-x", "50%");
   event.currentTarget.style.setProperty("--button-light-y", "50%");
   event.currentTarget.style.setProperty("--button-tilt-x", "0deg");
@@ -71,7 +71,23 @@ function handleSubmitPointerLeave(event: PointerEvent<HTMLAnchorElement>) {
 }
 
 export function AuthPanel() {
-  const googleLoginUrl = authApi.getGoogleAuthorizationUrl();
+  const [isStartingLogin, setIsStartingLogin] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  async function handleGoogleLogin() {
+    setIsStartingLogin(true);
+    setLoginError(null);
+
+    try {
+      const { authorizeUrl } = await authApi.getGoogleAuthorizationUrl({
+        state: "login",
+      });
+      window.location.assign(authorizeUrl);
+    } catch {
+      setLoginError("로그인 시작에 실패했습니다. 잠시 뒤 다시 시도하세요.");
+      setIsStartingLogin(false);
+    }
+  }
 
   return (
     <main
@@ -107,9 +123,10 @@ export function AuthPanel() {
 
       <GlassPanel as="section" className="auth-card">
         <div className="auth-form" aria-label="구글 계정 로그인">
-          <a
+          <button
             className="bubli-button bubli-button--primary bubli-button--lg auth-card__submit"
-            href={googleLoginUrl}
+            disabled={isStartingLogin}
+            onClick={handleGoogleLogin}
             onPointerLeave={handleSubmitPointerLeave}
             onPointerMove={handleSubmitPointerMove}
             style={
@@ -122,10 +139,12 @@ export function AuthPanel() {
                 "--button-tilt-y": "0deg",
               } as CSSProperties
             }
+            type="button"
           >
             <GoogleIcon />
-            Google로 계속하기
-          </a>
+            {isStartingLogin ? "Google로 이동 중" : "Google로 계속하기"}
+          </button>
+          {loginError ? <p className="auth-card__error">{loginError}</p> : null}
         </div>
       </GlassPanel>
     </main>

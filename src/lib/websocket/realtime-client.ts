@@ -5,6 +5,7 @@ import {
   type RealtimeConnectionStatus,
 } from "@/lib/realtime/browser-client";
 import { parseRealtimeEventJson } from "@/lib/realtime/events";
+import { getAuthAccessToken } from "@/lib/auth/auth-session";
 import type { BubliRealtimeEvent } from "@/types/realtime";
 import { websocketTopics } from "@/lib/websocket/topics";
 
@@ -46,7 +47,7 @@ export function deriveTopic(envelope: BubliRealtimeEvent): string {
 export function createRealtimeClient(options: RealtimeClientOptions = {}): RealtimeClient {
   return createRealtimeBrowserClient({
     dispatcher: options.dispatcher,
-    getAccessToken: options.getAccessToken,
+    getAccessToken: options.getAccessToken ?? getAuthAccessToken,
     maxReconnectDelayMs: options.maxReconnectDelayMs,
     reconnectBaseDelayMs: options.reconnectBaseDelayMs ?? options.baseReconnectDelayMs,
     url: resolveRealtimeUrl(options.url),
