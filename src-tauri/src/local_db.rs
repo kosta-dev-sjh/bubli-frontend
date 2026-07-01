@@ -132,6 +132,24 @@ pub struct TimerRecoveryState {
     status: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimerStateRecordInput {
+    room_id: Option<String>,
+    server_time_log_id: String,
+    started_at: Option<String>,
+    status: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimerStateRecordResult {
+    local_time_log_id: String,
+    recorded_at: String,
+    server_time_log_id: String,
+    status: String,
+}
+
 #[tauri::command]
 pub fn check_local_sqlite_integrity(
     state: tauri::State<'_, Db>,
@@ -248,6 +266,45 @@ pub fn sync_room_messages(
 }
 
 #[tauri::command]
+pub fn record_timer_state(
+    state: tauri::State<'_, Db>,
+    input: TimerStateRecordInput,
+) -> Result<TimerStateRecordResult, String> {
+    let status = normalize_timer_status(&input.status);
+    let now = now_ms();
+    let local_time_log_id = format!("timer-{}", input.server_time_log_id);
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+
+    conn.execute(
+        "INSERT INTO local_timer_state \
+         (id, room_id, server_time_log_id, status, started_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6) \
+         ON CONFLICT(id) DO UPDATE SET \
+           room_id = excluded.room_id, \
+           server_time_log_id = excluded.server_time_log_id, \
+           status = excluded.status, \
+           started_at = COALESCE(excluded.started_at, local_timer_state.started_at), \
+           updated_at = excluded.updated_at",
+        params![
+            local_time_log_id,
+            input.room_id,
+            input.server_time_log_id,
+            status,
+            input.started_at,
+            now
+        ],
+    )
+    .map_err(|error| error.to_string())?;
+
+    Ok(TimerStateRecordResult {
+        local_time_log_id,
+        recorded_at: ms_to_iso(now),
+        server_time_log_id: input.server_time_log_id,
+        status,
+    })
+}
+
+#[tauri::command]
 pub fn recover_timer_state(state: tauri::State<'_, Db>) -> Result<TimerRecoveryState, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
     let row: Option<(String, Option<String>, String)> = conn
@@ -279,6 +336,17 @@ pub fn recover_timer_state(state: tauri::State<'_, Db>) -> Result<TimerRecoveryS
             status: "NONE".to_string(),
         }),
     }
+}
+
+fn normalize_timer_status(value: &str) -> String {
+    match value {
+        "RUNNING" => "RUNNING",
+        "PAUSED" => "PAUSED",
+        "ENDED" => "ENDED",
+        "RECOVERY_NEEDED" | "NEEDS_RECOVERY" => "RECOVERY_NEEDED",
+        _ => "NONE",
+    }
+    .to_string()
 }
 
 const SCHEMA_SQL: &str = r#"

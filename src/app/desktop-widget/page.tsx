@@ -1060,11 +1060,31 @@ function DesktopWidgetSurface() {
     [isTauri],
   );
 
-  const applyTimerResult = useCallback((timeLog: TimeLogResponse) => {
-    setTimerSnapshot(timeLog.status === "ENDED" ? null : timeLog);
-    setActiveTimerHeartbeatId(timeLog.status === "RUNNING" ? timeLog.id : null);
-    setTimerRevision((current) => current + 1);
-  }, []);
+  const recordLocalTimerState = useCallback(
+    (timeLog: TimeLogResponse) => {
+      if (!isTauri) return;
+
+      void tauriCommands
+        .recordTimerState({
+          roomId: timeLog.roomId ?? null,
+          serverTimeLogId: timeLog.id,
+          startedAt: timeLog.startedAt,
+          status: timeLog.status,
+        })
+        .catch(() => undefined);
+    },
+    [isTauri],
+  );
+
+  const applyTimerResult = useCallback(
+    (timeLog: TimeLogResponse) => {
+      setTimerSnapshot(timeLog.status === "ENDED" ? null : timeLog);
+      setActiveTimerHeartbeatId(timeLog.status === "RUNNING" ? timeLog.id : null);
+      recordLocalTimerState(timeLog);
+      setTimerRevision((current) => current + 1);
+    },
+    [recordLocalTimerState],
+  );
 
   useEffect(() => {
     if (!activeTimerHeartbeatId) return;

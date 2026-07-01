@@ -1053,6 +1053,7 @@ pub fn run() {
             // Local SQLite lifecycle + cache recovery commands.
             local_db::backup_local_sqlite,
             local_db::check_local_sqlite_integrity,
+            local_db::record_timer_state,
             local_db::recover_timer_state,
             local_db::restore_local_sqlite_backup,
             local_db::sync_room_messages

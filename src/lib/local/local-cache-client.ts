@@ -16,6 +16,7 @@ import type {
 const IMPLEMENTED_LOCAL_CACHE_COMMANDS = [
   TAURI_COMMANDS.backupLocalSqlite,
   TAURI_COMMANDS.checkLocalSqliteIntegrity,
+  TAURI_COMMANDS.recordTimerState,
   TAURI_COMMANDS.recoverTimerState,
   TAURI_COMMANDS.recordWidgetUsageEvent,
   TAURI_COMMANDS.restoreLocalSqliteBackup,

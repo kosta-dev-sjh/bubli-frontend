@@ -14,6 +14,7 @@ export const TAURI_COMMANDS = {
   readActivityContext: "read_activity_context",
   readLocalFilePreview: "read_local_file_preview",
   recoverTimerState: "recover_timer_state",
+  recordTimerState: "record_timer_state",
   recordWidgetUsageEvent: "record_widget_usage_event",
   markLocalFileEventsSynced: "mark_local_file_events_synced",
   markWidgetUsageSummarySynced: "mark_widget_usage_summary_synced",
@@ -332,6 +333,20 @@ export type TimerRecoveryState = {
   status: "NONE" | "RECOVERY_NEEDED" | "RESTORED" | "SERVER_WINS";
 };
 
+export type TimerStateRecordInput = {
+  roomId?: string | null;
+  serverTimeLogId: string;
+  startedAt?: string | null;
+  status: "ENDED" | "NEEDS_RECOVERY" | "PAUSED" | "RUNNING";
+};
+
+export type TimerStateRecordResult = {
+  localTimeLogId: string;
+  recordedAt: string;
+  serverTimeLogId: string;
+  status: string;
+};
+
 export type TauriCommandContract = {
   app_ready: {
     args: AppReadyInput | undefined;
@@ -384,6 +399,10 @@ export type TauriCommandContract = {
   recover_timer_state: {
     args: undefined;
     result: TimerRecoveryState;
+  };
+  record_timer_state: {
+    args: TimerStateRecordInput;
+    result: TimerStateRecordResult;
   };
   record_widget_usage_event: {
     args: WidgetUsageEventInput;
@@ -517,6 +536,9 @@ export const tauriCommands = {
   },
   recoverTimerState() {
     return invokeTauri<TimerRecoveryState>(TAURI_COMMANDS.recoverTimerState);
+  },
+  recordTimerState(input: TimerStateRecordInput) {
+    return invokeTauri<TimerStateRecordResult>(TAURI_COMMANDS.recordTimerState, { input });
   },
   recordWidgetUsageEvent(input: WidgetUsageEventInput) {
     return invokeTauri<WidgetUsageEventRecordResult>(TAURI_COMMANDS.recordWidgetUsageEvent, { input });
