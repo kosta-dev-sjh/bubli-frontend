@@ -608,6 +608,15 @@ fn build_widget_window(
     apply_widget_window_state(app, monitor_state, widget)
 }
 
+fn spawn_widget_window_build(app: AppHandle, widget: WidgetWindowState) {
+    tauri::async_runtime::spawn(async move {
+        let monitor_state = app.state::<AppMonitorState>();
+        if let Err(error) = build_widget_window(&app, &monitor_state, &widget) {
+            eprintln!("failed to build widget window: {error}");
+        }
+    });
+}
+
 #[tauri::command]
 fn get_widget_window_state(
     state: tauri::State<'_, WidgetState>,
@@ -803,7 +812,6 @@ fn app_ready() -> &'static str {
 #[tauri::command]
 fn open_widget_window(
     app: AppHandle,
-    monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
     input: Option<WidgetWindowOpenInput>,
 ) -> Result<WidgetWindowState, String> {
@@ -820,7 +828,8 @@ fn open_widget_window(
         widget.dock_orb_visible = false;
         widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
     })?;
-    build_widget_window(&app, &monitor_state, &widget)
+    spawn_widget_window_build(app, widget.clone());
+    Ok(widget)
 }
 
 #[tauri::command]
