@@ -26,7 +26,7 @@ const uploadedResources: UploadedResource[] = [
 ];
 
 const candidates: CandidateItem[] = [
-  { label: "프로젝트명", target: "프로젝트룸", value: "일본어 쇼핑몰 번역" },
+  { label: "프로젝트명", target: "프로젝트룸", value: "브랜드 상세페이지" },
   { label: "납품일", target: "일정", value: "2026-07-15" },
   { label: "납품물", target: "WBS", value: "상품 상세 120건 번역" },
   { label: "확인 질문", target: "TODO", value: "검수 기준과 수정 횟수 확인" },

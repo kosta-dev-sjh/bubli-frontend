@@ -79,7 +79,7 @@ export function ResourceUploadDecisionPanel({
   options = defaultOptions,
   quotaLabel = "개인 자료함 820MB / 1GB",
   quotaPercent = 82,
-  roomLabel = "토모에 번역 프로젝트룸",
+  roomLabel = "브랜드 상세페이지",
   ...props
 }: ResourceUploadDecisionPanelProps) {
   const selectedOption = options.find((option) => option.id === currentDecision) ?? options[0];

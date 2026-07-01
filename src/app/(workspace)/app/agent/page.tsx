@@ -157,7 +157,7 @@ function AgentPageContent() {
         roomId ? agentApi.listRoomSuggestions(roomId, { status: "DRAFT" }) : agentApi.listPersonalSuggestions({ status: "DRAFT" }),
         agentApi.listDailySummaries(),
         roomId ? agentApi.listRoomGeneratedDocuments(roomId) : agentApi.listGeneratedDocuments(),
-        roomId ? chatApi.listRoomMemorySummaries(roomId) : Promise.resolve([]),
+        roomId ? chatApi.listRoomMemorySummaries(roomId) : [],
       ]);
       const selectedRoom = roomId ? roomPage.items.find((room) => room.id === roomId) : null;
       if (selectedRoom) {
