@@ -387,6 +387,49 @@ button.row:not(:disabled):hover {
   align-items: end;
 }
 
+.activityList {
+  display: grid;
+  gap: 8px;
+}
+
+.activityRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 58px;
+  border: 1px solid var(--settings-rim);
+  border-radius: 16px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.activityRow > span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.activityRow strong,
+.activityRow small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activityRow strong {
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 740;
+}
+
+.activityRow small {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 610;
+}
+
 .integrationGrid {
   display: grid;
   grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
@@ -518,6 +561,7 @@ button.row:not(:disabled):hover {
 :global([data-theme="dark"]) .identity strong,
 :global([data-theme="dark"]) .integrationLead strong,
 :global([data-theme="dark"]) .bubbleRow strong,
+:global([data-theme="dark"]) .activityRow strong,
 :global([data-theme="dark"]) .row strong {
   color: rgba(232, 240, 250, 0.94);
 }
@@ -527,6 +571,7 @@ button.row:not(:disabled):hover {
 :global([data-theme="dark"]) .settingBlock,
 :global([data-theme="dark"]) .integrationLead,
 :global([data-theme="dark"]) .bubbleRow,
+:global([data-theme="dark"]) .activityRow,
 :global([data-theme="dark"]) .row,
 :global([data-theme="dark"]) .metrics div,
 :global([data-theme="dark"]) .emptyRow {
@@ -544,6 +589,7 @@ button.row:not(:disabled):hover {
 :global([data-theme="dark"]) .settingBlock > span,
 :global([data-theme="dark"]) .integrationLead span,
 :global([data-theme="dark"]) .bubbleRow small,
+:global([data-theme="dark"]) .activityRow small,
 :global([data-theme="dark"]) .row small,
 :global([data-theme="dark"]) .guard,
 :global([data-theme="dark"]) .emptyRow {
@@ -611,6 +657,14 @@ button.row:not(:disabled):hover {
   }
 
   .row small {
+    white-space: normal;
+  }
+
+  .activityRow {
+    grid-template-columns: 1fr;
+  }
+
+  .activityRow small {
     white-space: normal;
   }
 }

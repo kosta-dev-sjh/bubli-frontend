@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/theme";
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { activityApi } from "@/features/activity/api/activityApi";
 import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
@@ -33,6 +34,7 @@ import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { tauriCommands, type AppMonitorInfo, type AppMonitorPreference } from "@/lib/tauri/commands";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
+import type { ActivityLogResponse } from "@/types/api/activity";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
 import type {
@@ -56,6 +58,7 @@ type SettingsData = {
   privacy: PrivacyConsentsResponse | null;
   storage: StorageUsageResponse | null;
   googleCalendarConnectUrl: string | null;
+  activityLogs: ActivityLogResponse[] | null;
   widgetBubbles: WidgetBubbleSettingResponse[] | null;
   widgetUsage: WidgetTodayUsageSummaryResponse | null;
 };
@@ -87,6 +90,7 @@ const emptySettings: SettingsData = {
   privacy: null,
   storage: null,
   googleCalendarConnectUrl: null,
+  activityLogs: null,
   widgetBubbles: null,
   widgetUsage: null,
 };
@@ -180,6 +184,31 @@ function monitorLabel(monitor: AppMonitorInfo, index: number) {
   return `${name}${primaryLabel} - ${monitor.size.width}x${monitor.size.height} @ ${monitor.position.x},${monitor.position.y}`;
 }
 
+function activityDurationLabel(seconds?: number | null) {
+  if (!seconds || seconds < 0) return "방금 기록";
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.max(1, Math.floor((seconds % 3600) / 60));
+
+  if (hours > 0) {
+    return `${hours}시간 ${minutes}분`;
+  }
+
+  return `${minutes}분`;
+}
+
+function activityStartedLabel(value?: string | null) {
+  if (!value) return "시간 미정";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "시간 미정";
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function statusTone(value: string) {
   if (value.includes("못") || value.includes("필요") || value.includes("대기")) return "warning" as const;
   return "approved" as const;
@@ -196,6 +225,7 @@ export default function SettingsPage() {
   const [lastBackupId, setLastBackupId] = useState<string | null>(null);
   const [desktopRuntime, setDesktopRuntime] = useState(false);
   const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
+  const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -204,10 +234,11 @@ export default function SettingsPage() {
 
     try {
       const user = await authApi.getMe();
-      const [notifications, privacy, storage, widgetBubbles, widgetUsage] = await Promise.allSettled([
+      const [notifications, privacy, storage, activityLogs, widgetBubbles, widgetUsage] = await Promise.allSettled([
         settingsApi.getNotificationPreferences(),
         settingsApi.getPrivacyConsents(),
         settingsApi.getStorageUsage(),
+        activityApi.getToday(),
         widgetApi.getBubbles(),
         widgetApi.getTodayUsageRollups(),
       ]);
@@ -221,6 +252,7 @@ export default function SettingsPage() {
           privacy: settledValue(privacy, null),
           storage: settledValue(storage, null),
           googleCalendarConnectUrl: calendarApi.getGoogleConnectUrl(),
+          activityLogs: settledValue(activityLogs, null),
           widgetBubbles: settledValue(widgetBubbles, null),
           widgetUsage: settledValue(widgetUsage, null),
         },
@@ -274,6 +306,21 @@ export default function SettingsPage() {
   const updateReadyState = useCallback((updater: (current: Extract<PageState, { kind: "ready" }>) => Extract<PageState, { kind: "ready" }>) => {
     setState((current) => (current.kind === "ready" ? updater(current) : current));
   }, []);
+
+  const refreshActivityLogs = useCallback(async () => {
+    if (state.kind !== "ready") return;
+
+    try {
+      const activityLogs = await activityApi.getToday();
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: { ...ready.settings, activityLogs },
+      }));
+      setLocalActionMessage(`오늘 활동 ${activityLogs.length}건을 불러왔습니다`);
+    } catch {
+      setLocalActionMessage("활동 기록을 불러오지 못했습니다");
+    }
+  }, [state.kind, updateReadyState]);
 
   const saveProfile = useCallback(async () => {
     if (state.kind !== "ready") return;
@@ -530,12 +577,48 @@ export default function SettingsPage() {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
     const result = await recordCurrentActivityContext({ consentGranted });
     if (result.status === "ready") {
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: { ...ready.settings, activityLogs: result.data.todayActivities },
+      }));
       setLocalActionMessage(`활동 감지 · ${result.data.appName}${result.data.windowTitle ? ` · ${result.data.windowTitle}` : ""}`);
       return;
     }
 
     setLocalActionMessage(localResultMessage(result));
-  }, [state]);
+  }, [state, updateReadyState]);
+
+  const deleteActivityLog = useCallback(
+    async (activityLogId: string) => {
+      if (state.kind !== "ready") return;
+
+      setDeletingActivityId(activityLogId);
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: {
+          ...ready.settings,
+          activityLogs: ready.settings.activityLogs?.filter((activity) => activity.id !== activityLogId) ?? null,
+        },
+      }));
+
+      try {
+        await activityApi.delete(activityLogId);
+        setLocalActionMessage("활동 기록을 삭제했습니다");
+      } catch {
+        const activityLogs = await activityApi.getToday().catch(() => null);
+        if (activityLogs) {
+          updateReadyState((ready) => ({
+            ...ready,
+            settings: { ...ready.settings, activityLogs },
+          }));
+        }
+        setLocalActionMessage("활동 기록을 삭제하지 못했습니다");
+      } finally {
+        setDeletingActivityId(null);
+      }
+    },
+    [state.kind, updateReadyState],
+  );
 
   const selectAppMonitor = useCallback(
     async (monitorId: string) => {
@@ -585,6 +668,7 @@ export default function SettingsPage() {
   const widgetBubbles = readySettings.widgetBubbles ?? [];
   const enabledWidgetCount = widgetBubbles.filter((bubble) => bubble.enabled).length;
   const localCacheReadiness = getLocalCacheReadiness();
+  const todayActivityLogs = readySettings.activityLogs ?? [];
 
   return (
     <section className={`workspace-route ${styles.route}`} aria-labelledby="settings-title">
@@ -847,9 +931,42 @@ export default function SettingsPage() {
                 ))}
               </div>
               <p className={styles.guard}>화면 전체 내용과 키보드 입력은 수집하지 않습니다.</p>
-              <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void readActivity()} type="button" variant="quiet">
-                현재 활동 기록
-              </Button>
+              <div className={styles.inlineActions}>
+                <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void readActivity()} type="button" variant="quiet">
+                  현재 활동 기록
+                </Button>
+                <Button disabled={state.kind !== "ready" || !privacySettings.activityDetectionEnabled} onClick={() => void refreshActivityLogs()} type="button" variant="secondary">
+                  오늘 기록 새로고침
+                </Button>
+              </div>
+              <div className={styles.activityList} aria-label="오늘 활동 기록">
+                {todayActivityLogs.length > 0 ? (
+                  todayActivityLogs.map((activity) => (
+                    <div className={styles.activityRow} key={activity.id}>
+                      <span>
+                        <strong>{activity.appName || "앱 이름 없음"}</strong>
+                        <small>
+                          {[activity.windowTitle, activityStartedLabel(activity.startedAt), activityDurationLabel(activity.durationSeconds)]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </small>
+                      </span>
+                      <Button
+                        disabled={deletingActivityId === activity.id}
+                        loading={deletingActivityId === activity.id}
+                        onClick={() => void deleteActivityLog(activity.id)}
+                        size="sm"
+                        type="button"
+                        variant="quiet"
+                      >
+                        삭제
+                      </Button>
+                    </div>
+                  ))
+                ) : (
+                  <p className={styles.emptyRow}>오늘 서버에 반영된 활동 기록이 없습니다.</p>
+                )}
+              </div>
             </GlassPanel>
           </div>
 

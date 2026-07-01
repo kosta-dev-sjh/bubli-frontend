@@ -270,6 +270,7 @@ export const screenApiContracts = [
     currentCodeNotes: [
       "Settings page currently reads authApi.getMe for account display.",
       "settingsApi contains profile-adjacent preferences, privacy consent, notification preference, and storage calls.",
+      "Activity logs are consent-gated and surfaced from /api/activity/today with per-log delete.",
       "Managed-folder controls use Tauri IPC/local adapters instead of invented server endpoints.",
     ],
     id: "settings",
@@ -289,6 +290,8 @@ export const screenApiContracts = [
       "PATCH /api/me/privacy-consents",
       "GET /api/storage/usage",
       "GET /api/calendar/google/status",
+      "GET /api/activity/today",
+      "DELETE /api/activity/{id}",
     ],
     status: "진행",
     route: "/app/settings",
