@@ -8,11 +8,11 @@
 요약,7,① 항목별 점수 (가중합 76%),,,,,,,,,,,
 요약,8,항목,가중치,점수,근거(측정),,,,,,,,
 요약,9,화면/라우트 구현,15%,79%,라우트 21개 존재(리다이렉트 2 제외 실질 19),,,,,,,,
-요약,10,화면-API 연결(페이지),25%,90%,"유효 18페이지 중 됨15·부분3·안됨0 (실제 API 우선, 쓰기 목업 성공 제거, preview는 명시 개발 fallback)",,,,,,,,
-요약,11,프론트 API 커버리지(백엔드),15%,92%,백엔드 149 unique method+path 중 프론트 어댑터/호출 137개. 화면연결과 API어댑터를 분리 표기,,,,,,,,
-요약,12,상태처리(로딩·빈·오류·권한),10%,78%,"401은 로그인 필요, 실패/데이터 없음은 empty/offline, 쓰기 액션의 가짜 성공 데이터 제거",,,,,,,,
-요약,13,앱·로컬(타우리),15%,66%,타우리 6기능 평균(위젯창65·SQLite76·폴더74·앱감지58·아웃박스58·사용량62),,,,,,,,
-요약,14,품질 게이트/안정도,10%,87%,typecheck 통과 · tauri/product/diff 재검증 예정 · 최신 API 경로 정정,,,,,,,,
+요약,10,화면-API 연결(페이지),25%,83%,유효 18페이지 중 됨13·부분4·안됨1 (대시보드·일정·소통·알림 2차 반영),,,,,,,,
+요약,11,프론트 API 커버리지(명세),15%,80%,명세 92경로 중 프론트 api 74 정의 (백엔드 116 기준 72%),,,,,,,,
+요약,12,상태처리(로딩·빈·오류·권한),10%,62%,대부분 화면 loading/error/fallback(추정),,,,,,,,
+요약,13,앱·로컬(타우리),15%,74%,Tauri 런타임 QA 진행: 메인+TODO 위젯+bar 창 동시 핸들 확인 및 보조 모니터 좌표 이동 확인 · 앱 스크롤 구조 보강 · Windows 활동 감지 구현 반영,,,,,,,,
+요약,14,품질 게이트/안정도,10%,85%,design-tokens·product-rules·tauri-boundaries·typecheck 통과,,,,,,,,
 요약,15,다국어(i18n),10%,50%,메시지 완성·main 미병합·런타임 없음,,,,,,,,
 요약,16,,,,,,,,,,,,
 요약,17,② 배포 실동작 (별개 축),,,,,,,,,,,
@@ -69,7 +69,7 @@
 기능 연결 상세,27,설정,알림·동의,/app/settings,settingsApi+widgetApi,/me/notification-preferences · /privacy-consents · /api/widget/settings,O,O,O,부분(실계정 필요),일치,됨,"설정 저장은 API 우선, 실패 시 저장 성공처럼 보이는 목업 유지 제거."
 기능 연결 상세,28,설정,로컬 폴더·캐시,/app/settings,local cache clients+managed folder client,tauri:select_managed_folder · scan_managed_folder · search_local_files · check_local_sqlite_integrity · backup_local_sqlite · POST /api/local-file-events/sync,O,O,O(Tauri),부분(앱 런타임 필요),일치,부분,"관리폴더 서버 API 발명 제거. 선택/스캔/검색/감시는 Tauri 로컬 command, 서버 반영은 approved local events sync만 사용."
 기능 연결 상세,29,데스크탑 / 위젯,,,,,,,,,,,
-기능 연결 상세,30,위젯,데스크탑 위젯,/app/desktop/widgets,widgetApi+tauriCommands,GET /api/widget/context · /summary · /settings · /usage-summaries/today · Tauri widget window commands,O,O,O(Tauri),부분(Tauri 창 검증 필요),일치,부분,위젯 summary/settings/usage API 래퍼 유지. 화면/창 런타임은 Tauri 검증 필요.
+기능 연결 상세,30,위젯,데스크탑 위젯,/app/desktop/widgets,widgetApi+tauriCommands,GET /api/widget/context · /summary · /settings · Tauri widget window commands,O,부분,O(Tauri runtime 확인),부분,일치,부분,"8개 버블 타입과 기본/반투명/고스트/최소화 상태는 UI에 있음. 로그인 후 TODO 위젯+위젯 바 자동 실행을 공용 Tauri 런처에서 보장하고, 소통/chat 위젯은 시작 시 자동 실행하지 않도록 제외. Tauri QA에서 bar 단독·todo 단독 창 생성 현상을 확인해 app_ready 다중 창 생성 의존을 제거하고, open_widget_window를 비동기 창 생성으로 전환 + 위젯 페이지 초기 Tauri IPC 지연 처리. 최신 develop 병합 후 Bubli/Bubli widget todo/Bubli widget bar 3개 핸들 동시 관측 및 보조 모니터 좌표 이동 확인."
 기능 연결 상세,31,미연결 기능 (백엔드 준비됨 · 화면만 안 붙음),,,,,,,,,,,
 기능 연결 상세,32,미연결,개인 TODO,(미연결),todoApi,GET/POST /api/tasks,O,X,X,X,일치,됨,대시보드에서 todoApi.list() 연결(Codex 2차)
 기능 연결 상세,33,공통,타이머,/app,timerApi,POST/PATCH /api/time-logs/* (start·stop),O,O,O,부분(실계정 검증 필요),일치,부분,대시보드 타이머 카드에서 start/stop 실제 API 연결. pause/resume/heartbeat는 버블·Tauri 후속.
@@ -123,7 +123,7 @@
 타우리 앱·로컬,1,타우리 데스크탑 앱 · 로컬 기능 (프론트 담당)  ·  2026-07-01,,,,,,,,,,,
 타우리 앱·로컬,2,정정(2026-07-01): src/lib/local·sync·widget 어댑터가 14개 command 전부 완비(브라우저=데스크탑앱 안내 분기). 예전 'JS 미배선'은 오판. 실제 gap은 마운트 UI 노출. 설정 화면에 폴더 스캔·로컬검색·활동읽기·대기열상태·타이머복구 연결함.,,,,,,,,,,,
 타우리 앱·로컬,3,기능,Rust (src-tauri),JS 브리지,화면 연결,플랫폼,진행%,상태,비고,,,,
-타우리 앱·로컬,4,위젯 창 런타임,O · lib.rs 26개 invoke_handler + close destroy + exit cleanup,"활성(26개 command, local 14개 active 승격)",O · 위젯 화면,mac/win,70%,부분,후속(2026-07-01): close_widget_window는 WebViewWindow.destroy()로 해제. 최소화/토글 숨김은 WebView 유지. 앱 종료 시 bubli-widget-* 정리. 실제 tauri:dev 창 검증은 남음.,,,,
+타우리 앱·로컬,4,위젯 창 런타임,O · lib.rs 26개 invoke_handler + close destroy + exit cleanup,"활성(26개 command, local 14개 active 승격)",O · 위젯 화면+로그인 후 자동 실행 보강,mac/win,78%,부분,후속(2026-07-02): close_widget_window는 WebViewWindow.destroy()로 해제. 로그인 후 TODO 위젯+위젯 바 자동 실행은 공용 프론트 런처에서 수행. 소통/chat 위젯은 시작 시 자동 실행하지 않음. 창 제목을 bar/todo로 분리하고 app_ready 다중 창 생성 의존 제거 + open_widget_window 비동기 창 생성 + 위젯 페이지 초기 IPC 지연 처리. 최신 develop 반영 후 Bubli/Bubli widget todo/Bubli widget bar 동시 핸들 관측 및 보조 모니터 좌표 이동 확인.,,,,
 타우리 앱·로컬,5,SQLite 로컬 DB,O · local_db.rs 394줄,어댑터 완비,O · 설정(무결성·백업·복구·타이머),mac/win,76%,됨,Rust invoke 등록 확인 · 어댑터+설정 소비 확인 · restore 재시작 제약(코드). 실제 앱 런타임 검증 필요,,,,
 타우리 앱·로컬,6,앱 감지(활동 인식),"부분 · macOS osascript, Win 미구현",어댑터 완비,"O · 설정(활동 읽기, 동의 게이트)",mac만,58%,부분,"Rust invoke 등록 + 설정 활동 읽기 소비. macOS osascript 구현, Windows 미구현. 앱 검증 필요",,,,
 타우리 앱·로컬,7,로컬 폴더 추적(관리폴더),O · local_files.rs 371줄,어댑터 완비,O · 설정(선택·스캔·검색·감시),mac/win,74%,됨,Rust invoke 등록 + 설정 화면 선택·스캔·검색·감시 소비 확인. 네이티브 picker/watch는 앱 검증 필요,,,,
@@ -156,8 +156,8 @@
 페이지별 백엔드 맵핑,18,회원,소통(데스크탑),/app/desktop/communication,채팅 목록·알림,listRooms+notification.list,됨,확인예정,알림 읽음/보관 연결 완료 / 디자인 미확인,,,,
 페이지별 백엔드 맵핑,19,회원,후보/제안,/app/agent,개인·룸 제안·확정요구사항·계약참조·생성문서,listPersonal·listRoom·confirmationItems·confirmedRequirements·contractReferences·generatedDocuments,됨,확인예정,최신 백엔드 #143-#145 래퍼 추가. 생성문서 화면 소비는 후속.,,,,
 페이지별 백엔드 맵핑,20,회원,제안함(리다이렉트),/app/agent-suggestions,-,redirect -> /app/agent,리다이렉트,해당없음,-,,,,
-페이지별 백엔드 맵핑,21,회원,설정,/app/settings,프로필·알림·동의·저장소·위젯버블·Tauri 로컬,getMe·updateMe+settings4+widget2+Tauri local clients,됨,개선 반영,"관리폴더 서버 API 제거. 실제 API/Tauri command/empty state 중심, preview 설정 기본 노출 제거.",,,,
-페이지별 백엔드 맵핑,22,위젯,데스크탑 위젯,/app/desktop/widgets,위젯 창 런타임 + 사용량 + 서버 summary/settings,tauriCommands + widgetApi summary/settings/usage,부분,안됨,서버 위젯 API어댑터 준비. 실제 창/버블 디자인과 Tauri 런타임 검증 필요.,,,,
+페이지별 백엔드 맵핑,21,회원,설정,/app/settings,프로필·알림·동의·폴더·저장소·위젯버블,getMe·updateMe+settings5+widget2,됨,개선 반영,계정·언어·테마·알림·동의·로컬 앱(SQLite/폴더)·위젯 상태 중심으로 재구성. 새로고침/목업 실패 카드 제거. 실제 Tauri 런타임 검증은 남음.,,,,
+페이지별 백엔드 맵핑,22,위젯,데스크탑 위젯,/app/desktop/widgets,위젯 창 런타임 + 사용량,tauriCommands + widget-local-client,부분,부분,로그인 후 TODO 위젯+위젯 바 자동 실행을 프론트 런처에서 보강. 소통/chat 위젯은 시작 시 자동 실행 제외. Tauri QA에서 Bubli/Bubli widget todo/Bubli widget bar 동시 핸들 및 보조 모니터 좌표 이동 확인,,,,
 페이지별 백엔드 맵핑,23,위젯,독립 위젯 창,/desktop-widget,위젯 창 런타임(Tauri),tauriCommands 창 제어,됨,안됨,디자인 전면 재작업 필요,,,,
 페이지별 백엔드 맵핑,24,공통,활동 감지 서버반영,/app/settings,활동(/api/activity),activityApi+tauriCommands,부분,확인예정,"설정 화면에서 Tauri 활동 읽기와 서버 current-app 기록을 연결. 실제 장시간 자동 추적/주기 기록 QA는 후속.",,,,
 페이지별 백엔드 맵핑,25,공통,타이머 서버반영,/app,작업시간(/api/time-logs),timerApi adapter,부분,확인예정,"대시보드 타이머 카드에서 POST /start, PATCH /stop 실제 호출. pause/resume/heartbeat UI는 버블·Tauri 후속.",,,,
