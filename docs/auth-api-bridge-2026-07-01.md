@@ -33,6 +33,8 @@
 
 프론트는 잘못된 Google authorize URL을 그대로 열지 않는다. `client_id`가 비어 있거나 `CHANGE_ME`이면 로그인 화면에 안내를 보여주고 멈춘다. 예전 주소 `/oauth2/authorization/google`로 들어온 경우에도 404 대신 새 로그인 흐름으로 연결한다.
 
+백엔드 `GET /api/me`와 로그인 토큰 응답의 `user` 객체는 현재 `id`, `bubliId`, `name`, `avatarUrl`, `locale`, `timezone`을 내려준다. 이메일은 별도 필드로 내려오지 않으므로 프론트 계정 표시는 이메일을 필수로 보지 않고 `bubliId`를 보조 식별자로 사용한다.
+
 ## WebSocket 기준
 
 백엔드는 `/ws` STOMP endpoint를 열고, CONNECT 프레임의 native header `Authorization: Bearer <accessToken>`을 검사한다. 프론트 `createRealtimeClient()`는 저장된 access token을 읽어 STOMP CONNECT 프레임에 붙인다.

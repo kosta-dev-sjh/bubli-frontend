@@ -65,7 +65,7 @@
 기능 연결 상세,23,후보,제안함(리다이렉트),/app/agent-suggestions,-,redirect,-,-,-,-,-,리다이렉트,-> /app/agent 로 이동
 기능 연결 상세,24,알림,알림,위젯/소통 내,notificationApi,GET /api/notifications · /{id}/read · /{id}/archive,O,O,O,O,일치,됨,소통 화면 알림 목록에서 읽음/보관 처리 연결
 기능 연결 상세,25,회원앱 — 설정,,,,,,,,,,,
-기능 연결 상세,26,설정,프로필,/app/settings,authApi+settingsApi+widgetApi,GET /api/me · /settings/* · /api/widget/settings/bubbles,O,O,O,O,일치,됨,계정·언어·테마·알림·동의·로컬 앱·위젯 상태를 실제 설정 행으로 재구성. 새로고침/목업 카드 제거.
+기능 연결 상세,26,설정,프로필,/app/settings,authApi+settingsApi+widgetApi,GET /api/me · /settings/* · /api/widget/settings/bubbles,O,O,O,O,일치,됨,계정·언어·테마·알림·동의·로컬 앱·위젯 상태를 실제 설정 행으로 재구성. /api/me 현재 응답은 email 없이 bubliId를 내려주므로 계정 표시는 Bubli ID 기준으로 보강. 새로고침/목업 카드 제거.
 기능 연결 상세,27,설정,알림·동의,/app/settings,settingsApi+widgetApi,/me/notification-preferences · /privacy-consents · /api/widget/settings/bubbles,O,O,O,O,일치,됨,알림·동의·버블 표시 조작 연결. 실패 시 서버 연결 대기/로그인 필요/앱에서 사용 가능 상태로 분기.
 기능 연결 상세,28,설정,로컬 폴더·캐시,/app/settings,settingsApi+local cache clients+managed folder client,POST /api/local-file-events/sync · select_personal_managed_folder · get_index_progress · set_folder_sync · reindex_file · read_local_file_preview · open_local_file · check_local_sqlite_integrity · backup_local_sqlite,O,O,O(Tauri에서 실제),부분(배포 웹은 앱 기능 안내),일치,부분,"개인 자료 로컬 폴더, SQLite 무결성/백업/복구, 폴더 선택·스캔·색인 진행률·서버 반영 토글·단일 파일 재색인·검색·제한 미리보기 읽기·검색 결과 OS 열기·감시, sha256 head checksum 기반 CREATED/UPDATED/DELETED 동기화 대기열 상태를 설정 화면에 배치. 2026-07-02 watch 변경 이벤트를 Tauri emit으로 올리고 설정 화면이 현재 검색 결과를 자동 갱신하도록 보강. 2026-07-02 open_local_file로 DB에 색인된 개인 로컬 파일 ID만 OS 기본 앱으로 열도록 설정 화면 액션 연결. 2026-07-02 get_index_progress와 set_folder_sync를 추가하고, sync_enabled=1인 폴더만 /api/local-file-events/sync 후보로 stage되도록 보강. 2026-07-02 reindex_file로 DB에 등록된 단일 로컬 파일을 다시 읽어 FTS를 갱신하고 변경 시 UPDATED/삭제 시 DELETED 후보를 남기도록 연결. 2026-07-02 Tauri 로그인 후 60초 주기 managed-folder auto sync를 시작해 대기 local-file-event를 /api/local-file-events/sync로 반영하고 세션 종료 시 중지. 실제 네이티브 장시간 동작은 Tauri 앱 런타임 검증 필요."
 기능 연결 상세,29,데스크탑 / 위젯,,,,,,,,,,,
@@ -106,7 +106,7 @@
 다음 작업,20,시트,대시보드 카드 후보,색상표 추가,완료,,,,,,,,
 연동·인증 세팅,1,프론트-백엔드 연동·인증 세팅 (가로지르는 항목)  ·  2026-07-01,,,,,,,,,,,
 연동·인증 세팅,2,순위,항목,현재 상태,무엇을 맞춰야 하나,담당,막는 대상,상태,,,,,
-연동·인증 세팅,3,0,인증 토큰 attach (블로커),완료: apiRequest Bearer 주입 + access/refresh 저장 + 401 단일 refresh 재시도 + 구글 콜백/logout,apiRequest에 Bearer 헤더 주입 + 토큰 저장소(인메모리) + 401시 refresh 재발급,프론트,로그인 필요한 전 화면,됨,,,,,
+연동·인증 세팅,3,0,인증 토큰 attach (블로커),완료: apiRequest Bearer 주입 + access/refresh 저장 + 401 단일 refresh 재시도 + 구글 콜백/logout + 세션 변경 시 사용자 정보 재조회 + /api/me 실제 필드(bubliId) 기준 계정 표시,apiRequest에 Bearer 헤더 주입 + 토큰 저장소 + 401시 refresh 재발급 + /api/me 갱신,프론트,로그인 필요한 전 화면,됨,,,,,
 연동·인증 세팅,4,1,API 주소(빌드타임),NEXT_PUBLIC_API_BASE_URL 빌드 시 고정. GitHub 변수 의존,배포 도메인 https://bubli.n-e.kr 로 고정(같은 출처→nginx /api 프록시). 변경 시 재빌드,인프라·프론트,전체 호출,확인필요,,,,,
 연동·인증 세팅,5,2,응답 봉투,"백엔드 ApiResponse {success,data,error} = 프론트 기대치와 동일",맞춰져 있음. 손댈 것 없음,-,-,됨,,,,,
 연동·인증 세팅,6,3,CORS,SecurityConfig allowedOriginPatterns(env) + allowCredentials(true),같은 출처 배포는 무관. 앱(app.bubli.kr)·로컬(localhost)은 출처를 env에 명시 등록(*는 불가),백엔드,앱·로컬 연동,부분,,,,,
