@@ -1550,6 +1550,18 @@ select {
   white-space: nowrap;
 }
 
+.workspace-switcher__message {
+  margin: -2px 0 0;
+  border: 1px solid color-mix(in srgb, var(--color-dust-rose) 32%, transparent);
+  border-radius: 14px;
+  padding: 9px 10px;
+  color: color-mix(in srgb, var(--color-dust-rose) 58%, var(--color-text));
+  background: color-mix(in srgb, var(--color-dust-rose) 13%, white);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
 .workspace-switcher__create button {
   min-height: 40px;
   border: 1px solid rgba(111, 184, 242, 0.38);

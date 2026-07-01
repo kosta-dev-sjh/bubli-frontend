@@ -35,9 +35,9 @@ const emptyDraft: RoomDraft = {
 };
 
 const documentSlots = [
-  { label: "계약서", target: "프로젝트룸 참고 정보" },
-  { label: "요구사항", target: "WBS/TODO 후보" },
+  { label: "요구사항", target: "작업 기준" },
   { label: "회의록", target: "확인 질문" },
+  { label: "참고 자료", target: "자료보드" },
 ] as const;
 
 function nullableText(value: FormDataEntryValue | null) {
@@ -79,7 +79,7 @@ export default function NewProjectRoomPage() {
     setDraft((current) => ({
       ...current,
       name: current.name || firstName,
-      deliveryScope: current.deliveryScope || "자료에서 납품물과 작업 범위를 확인",
+      deliveryScope: current.deliveryScope || "자료에서 작업 범위와 결과물을 확인",
       reviewQuestion: current.reviewQuestion || "검수 기준과 수정 범위를 확인",
     }));
   }
@@ -135,7 +135,7 @@ export default function NewProjectRoomPage() {
         try {
           await uploadRoomFiles(room.id, attachedFiles);
         } catch {
-          // 프로젝트룸 생성은 유지하고, 자료 업로드/분석은 룸 자료보드에서 다시 이어갈 수 있게 한다.
+          // 프로젝트룸 생성은 유지하고, 자료 업로드는 룸 자료보드에서 다시 이어갈 수 있게 한다.
         }
       }
       router.push(`/app/project-rooms/${room.id}`);
@@ -179,11 +179,11 @@ export default function NewProjectRoomPage() {
                 {attachedFiles.length > 0 ? <FileText size={20} strokeWidth={2} /> : <UploadCloud size={21} strokeWidth={2} />}
               </span>
               <span>
-                <strong>{attachedFiles.length > 0 ? `${attachedFiles.length}개 자료 첨부` : "계약서, 요구사항, 회의록 첨부"}</strong>
+                <strong>{attachedFiles.length > 0 ? `${attachedFiles.length}개 자료 첨부` : "요구사항, 회의록, 참고 자료 첨부"}</strong>
                 <small>
                   {attachedFiles.length > 0
                     ? "생성 후 프로젝트룸 자료로 올리고 에이전트 후보를 만듭니다."
-                    : "자료를 올리면 이름, 의뢰처, 납품물, 확인 질문 후보를 같은 흐름에서 검토합니다."}
+                    : "자료를 올리면 이름, 의뢰처, 작업 범위, 확인 질문 후보를 같은 흐름에서 검토합니다."}
                 </small>
               </span>
             </button>
@@ -241,14 +241,14 @@ export default function NewProjectRoomPage() {
                   maxLength={120}
                   name="clientName"
                   onChange={(event) => updateDraft("clientName", event.target.value)}
-                  placeholder="계약서에서 확인한 의뢰처"
+                  placeholder="자료에서 확인한 의뢰처"
                   value={draft.clientName}
                 />
               </label>
 
               <div className="workspace-route__field-grid">
                 <label className="workspace-route__field">
-                  <span>계약 금액</span>
+                  <span>참고 금액</span>
                   <input
                     inputMode="numeric"
                     name="contractAmount"
@@ -259,7 +259,7 @@ export default function NewProjectRoomPage() {
                 </label>
 
                 <label className="workspace-route__field">
-                  <span>납품일 또는 입금 예정일</span>
+                  <span>마감일 또는 확인 예정일</span>
                   <input name="paymentDueDate" onChange={(event) => updateDraft("paymentDueDate", event.target.value)} type="date" value={draft.paymentDueDate} />
                 </label>
               </div>

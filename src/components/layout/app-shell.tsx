@@ -83,6 +83,7 @@ export function AppShell({ children }: AppShellProps) {
   const [newRoomFiles, setNewRoomFiles] = useState<File[]>([]);
   const [newRoomName, setNewRoomName] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [createRoomMessage, setCreateRoomMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -261,7 +262,7 @@ export function AppShell({ children }: AppShellProps) {
 
     return {
       displayName: state.user.name,
-      email: state.user.email ?? "로그인 정보 없음",
+      email: state.user.email ?? state.user.bubliId ?? "계정 정보 확인 중",
       initials: initialsFromName(state.user.name),
     };
   }, [state]);
@@ -270,18 +271,24 @@ export function AppShell({ children }: AppShellProps) {
     setNewRoomClient("");
     setNewRoomFiles([]);
     setNewRoomName("");
+    setCreateRoomMessage(null);
   }
 
   async function uploadNewRoomDocuments(roomId: string) {
-    if (!newRoomFiles.length) return;
+    if (!newRoomFiles.length) return true;
+
+    let uploaded = true;
 
     for (const file of newRoomFiles) {
       try {
         await projectRoomApi.uploadContractDocument(roomId, file, inferContractDocumentType(file));
       } catch {
-        // 프로젝트룸 생성은 유지하고, 자료 업로드 실패는 자료보드에서 다시 처리한다.
+        // 프로젝트룸 생성은 유지하고, 자료 업로드 실패는 자료보드에서 다시 이어간다.
+        uploaded = false;
       }
     }
+
+    return uploaded;
   }
 
   function finishCreatedRoom(createdRoom: ProjectRoomResponse) {
@@ -304,6 +311,7 @@ export function AppShell({ children }: AppShellProps) {
     if (!cleanName || isCreatingRoom) return;
 
     setIsCreatingRoom(true);
+    setCreateRoomMessage(null);
 
     try {
       const createdRoom = await projectRoomApi.create({
@@ -314,8 +322,18 @@ export function AppShell({ children }: AppShellProps) {
 
       await uploadNewRoomDocuments(createdRoom.id);
       finishCreatedRoom(createdRoom);
-    } catch {
-      return;
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 401) {
+        setCreateRoomMessage("로그인이 필요합니다. 다시 로그인한 뒤 프로젝트룸을 만들어 주세요.");
+        router.replace("/login");
+        return;
+      }
+
+      setCreateRoomMessage(
+        error instanceof Error && error.message !== "Failed to fetch"
+          ? error.message
+          : "프로젝트룸을 만들지 못했습니다. 잠시 뒤 다시 시도하세요.",
+      );
     } finally {
       setIsCreatingRoom(false);
     }
@@ -365,9 +383,12 @@ export function AppShell({ children }: AppShellProps) {
                   <span>룸을 고르면 작업 기준이 유지됩니다</span>
                 </div>
                 <button
-                  aria-label="프로젝트룸 만들기"
+                  aria-label={createPanelOpen ? "새 프로젝트룸 양식 닫기" : "새 프로젝트룸 양식 열기"}
                   className="workspace-switcher__add"
-                  onClick={() => setCreatePanelOpen((current) => !current)}
+                  onClick={() => {
+                    setCreateRoomMessage(null);
+                    setCreatePanelOpen((current) => !current);
+                  }}
                   type="button"
                 >
                   +
@@ -403,26 +424,39 @@ export function AppShell({ children }: AppShellProps) {
                     <span>프로젝트룸 이름</span>
                     <input
                       autoFocus
-                      onChange={(event) => setNewRoomName(event.target.value)}
+                      onChange={(event) => {
+                        setCreateRoomMessage(null);
+                        setNewRoomName(event.target.value);
+                      }}
                       placeholder="예: 브랜드 리뉴얼"
                       value={newRoomName}
                     />
                   </label>
                   <label>
                     <span>의뢰처</span>
-                    <input onChange={(event) => setNewRoomClient(event.target.value)} placeholder="선택 입력" value={newRoomClient} />
+                    <input
+                      onChange={(event) => {
+                        setCreateRoomMessage(null);
+                        setNewRoomClient(event.target.value);
+                      }}
+                      placeholder="선택 입력"
+                      value={newRoomClient}
+                    />
                   </label>
                   <label>
                     <span>첨부 자료</span>
                     <input
                       accept=".pdf,.txt,.md,.doc,.docx"
                       multiple
-                      onChange={(event) => setNewRoomFiles(Array.from(event.target.files ?? []))}
+                      onChange={(event) => {
+                        setCreateRoomMessage(null);
+                        setNewRoomFiles(Array.from(event.target.files ?? []));
+                      }}
                       type="file"
                     />
                   </label>
                   <div className="workspace-switcher__file-hint">
-                    {newRoomFiles.length ? `${newRoomFiles.length}개 선택됨` : "계약서나 요구사항을 같이 올리면 분석 요청까지 이어집니다."}
+                    {newRoomFiles.length ? `${newRoomFiles.length}개 선택됨` : "요구사항이나 회의록을 같이 올리면 자료보드에서 이어서 확인합니다."}
                   </div>
                   {newRoomFiles.length ? (
                     <div className="workspace-switcher__files">
@@ -431,8 +465,13 @@ export function AppShell({ children }: AppShellProps) {
                       ))}
                     </div>
                   ) : null}
+                  {createRoomMessage ? (
+                    <p className="workspace-switcher__message" role="alert">
+                      {createRoomMessage}
+                    </p>
+                  ) : null}
                   <button disabled={!newRoomName.trim() || isCreatingRoom} type="submit">
-                    {isCreatingRoom ? "만드는 중" : newRoomFiles.length ? "만들고 자료 분석" : "프로젝트룸 만들기"}
+                    {isCreatingRoom ? "만드는 중" : newRoomFiles.length ? "만들고 자료 올리기" : "프로젝트룸 만들기"}
                   </button>
                 </form>
               ) : null}
