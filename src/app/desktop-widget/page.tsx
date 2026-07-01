@@ -421,13 +421,16 @@ function DesktopWidgetSurface() {
   const isWidgetChrome = isBubbleBar || isMenuOrb;
   const requestedBubble = getRequestedBubble(requestedSurface);
   const requestedMode = getRequestedMode(searchParams.get("mode"));
+  const requestedRoomId = searchParams.get("roomId") ?? null;
   const windowId = searchParams.get("windowId") ?? undefined;
   const [activeBubble, setActiveBubble] = useState<WidgetBubbleType>(requestedBubble);
   const [mode, setMode] = useState<WidgetWindowMode>(requestedMode);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [clickThrough, setClickThrough] = useState(false);
   const [windowVisible, setWindowVisible] = useState(true);
-  const [widgetContext, setWidgetContext] = useState<WidgetContextResponse | null>(null);
+  const [widgetContext, setWidgetContext] = useState<WidgetContextResponse | null>(
+    requestedRoomId ? { mode: "ROOM", selectedRoomId: requestedRoomId } : null,
+  );
   const [serverSettings, setServerSettings] = useState<WidgetBubbleSettingResponse[]>([]);
   const [barItems, setBarItems] = useState<WidgetWindowState[]>([]);
   const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>({});
@@ -440,6 +443,7 @@ function DesktopWidgetSurface() {
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(widgetNotificationSignal);
   const liveKitRoomRef = useRef<Room | null>(null);
+  const selectedWidgetRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
 
   useEffect(() => {
     const htmlStyle = document.documentElement.style;
@@ -505,7 +509,12 @@ function DesktopWidgetSurface() {
       .getWidgetWindowState({ bubbleType: requestedBubble, windowId })
       .then(async (state) => {
         const nextState = requestedMode !== state.mode
-          ? await tauriCommands.setWidgetWindowMode({ bubbleType: requestedBubble, mode: requestedMode, windowId })
+          ? await tauriCommands.setWidgetWindowMode({
+            bubbleType: requestedBubble,
+            mode: requestedMode,
+            selectedRoomId: selectedWidgetRoomId,
+            windowId,
+          })
           : state;
 
         setActiveBubble(resolveWidgetBubble(nextState.activeBubble, requestedBubble));
@@ -517,7 +526,7 @@ function DesktopWidgetSurface() {
       .catch(() => {
         // Browser previews and incomplete Tauri permissions should not break the widget surface.
       });
-  }, [isTauri, isWidgetChrome, requestedBubble, requestedMode, windowId]);
+  }, [isTauri, isWidgetChrome, requestedBubble, requestedMode, selectedWidgetRoomId, windowId]);
 
   useEffect(() => {
     if (isWidgetChrome) return;
@@ -530,7 +539,10 @@ function DesktopWidgetSurface() {
         if (cancelled) return;
 
         const settings = summary.bubbles ?? [];
-        setWidgetContext(summary.context);
+        setWidgetContext((current) => {
+          if (summary.context.selectedRoomId || !requestedRoomId) return summary.context;
+          return current ?? { mode: "ROOM", selectedRoomId: requestedRoomId };
+        });
         setServerSettings(settings);
 
         const backendBubbleType = apiBubbleTypeMap[requestedBubble];
@@ -566,7 +578,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [isWidgetChrome, requestedBubble, requestedMode, windowId]);
+  }, [isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, windowId]);
 
   useEffect(() => {
     return () => {
@@ -591,7 +603,8 @@ function DesktopWidgetSurface() {
         ) {
           return current;
         }
-        return summary.context;
+        if (summary.context.selectedRoomId || !requestedRoomId) return summary.context;
+        return current ?? { mode: "ROOM", selectedRoomId: requestedRoomId };
       });
       setServerSettings(summary.bubbles ?? []);
     }
@@ -604,7 +617,7 @@ function DesktopWidgetSurface() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [isWidgetChrome]);
+  }, [isWidgetChrome, requestedRoomId]);
 
   useEffect(() => {
     if (isMenuOrb) return;
@@ -612,13 +625,16 @@ function DesktopWidgetSurface() {
     let cancelled = false;
 
     async function loadDisplayApiState() {
-      let selectedRoomId = widgetContext?.selectedRoomId ?? null;
+      let selectedRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
       if (!selectedRoomId) {
         const summary = await widgetApi.getSummary().catch(() => null);
         if (summary?.context) {
-          selectedRoomId = summary.context.selectedRoomId ?? null;
+          selectedRoomId = summary.context.selectedRoomId ?? requestedRoomId ?? null;
           if (!cancelled) {
-            setWidgetContext(summary.context);
+            setWidgetContext((current) => {
+              if (summary.context.selectedRoomId || !requestedRoomId) return summary.context;
+              return current ?? { mode: "ROOM", selectedRoomId: requestedRoomId };
+            });
             setServerSettings(summary.bubbles ?? []);
           }
         }
@@ -684,7 +700,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, memoRevision, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId]);
+  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, memoRevision, requestedRoomId, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId]);
 
   useEffect(() => {
     if (!isBubbleBar) return;
@@ -735,7 +751,12 @@ function DesktopWidgetSurface() {
       if (!isTauri) return;
 
       try {
-        const state = await tauriCommands.setWidgetWindowMode({ bubbleType: activeBubble, mode: nextMode, windowId });
+        const state = await tauriCommands.setWidgetWindowMode({
+          bubbleType: activeBubble,
+          mode: nextMode,
+          selectedRoomId: selectedWidgetRoomId,
+          windowId,
+        });
         const settingPatch = getSettingPatch(activeBubble, state.mode);
         if (settingPatch) {
           const size = getWidgetWindowSize(activeBubble, state.mode);
@@ -769,7 +790,7 @@ function DesktopWidgetSurface() {
         // Browser preview fallback.
       }
     },
-    [activeBubble, isTauri, windowId],
+    [activeBubble, isTauri, selectedWidgetRoomId, windowId],
   );
 
   const toggleAlwaysOnTop = useCallback(async () => {
@@ -809,7 +830,12 @@ function DesktopWidgetSurface() {
     if (!isTauri) return;
 
     try {
-      const state = await tauriCommands.openWidgetWindow({ bubbleType: activeBubble, mode: "DEFAULT", windowId });
+      const state = await tauriCommands.openWidgetWindow({
+        bubbleType: activeBubble,
+        mode: "DEFAULT",
+        selectedRoomId: selectedWidgetRoomId,
+        windowId,
+      });
       const settingPatch = getSettingPatch(activeBubble, state.mode);
       if (settingPatch) {
         const size = getWidgetWindowSize(activeBubble, state.mode);
@@ -842,7 +868,7 @@ function DesktopWidgetSurface() {
     } catch {
       // Browser preview fallback.
     }
-  }, [activeBubble, isTauri, windowId]);
+  }, [activeBubble, isTauri, selectedWidgetRoomId, windowId]);
 
   const closeWindow = useCallback(async () => {
     setMode("MINIMIZED");
@@ -890,14 +916,19 @@ function DesktopWidgetSurface() {
       if (!isTauri) return;
 
       try {
-        await tauriCommands.openWidgetWindow({ bubbleType, mode: "DEFAULT", windowId: restoredWindowId ?? bubbleType });
+        await tauriCommands.openWidgetWindow({
+          bubbleType,
+          mode: "DEFAULT",
+          selectedRoomId: selectedWidgetRoomId,
+          windowId: restoredWindowId ?? bubbleType,
+        });
         const items = await tauriCommands.getWidgetBarItems();
         setBarItems(items.filter((item) => isDesktopWidgetBubble(item.activeBubble)));
       } catch {
         // Browser preview fallback.
       }
     },
-    [isTauri],
+    [isTauri, selectedWidgetRoomId],
   );
 
   const handleItemStateChange = useCallback(
@@ -1189,11 +1220,16 @@ function DesktopWidgetSurface() {
     if (!isTauri) return;
 
     try {
-      await tauriCommands.openWidgetWindow({ bubbleType: "bar", mode: "DEFAULT", windowId: "bar" });
+      await tauriCommands.openWidgetWindow({
+        bubbleType: "bar",
+        mode: "DEFAULT",
+        selectedRoomId: selectedWidgetRoomId,
+        windowId: "bar",
+      });
     } catch {
       // Browser preview fallback.
     }
-  }, [isTauri]);
+  }, [isTauri, selectedWidgetRoomId]);
 
   if (isMenuOrb) {
     return <DesktopWidgetMenuOrb onOpenMenu={() => void openBubbleBar()} />;

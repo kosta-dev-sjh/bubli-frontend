@@ -2,6 +2,7 @@
 
 import { tauriCommands, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 
 let launchRequested = false;
 let launchPromise: Promise<void> | null = null;
@@ -18,12 +19,13 @@ export function launchTauriAuthenticatedSurfaces() {
 
   launchRequested = true;
   launchPromise = (async () => {
-    await tauriCommands.appReady().catch(() => undefined);
+    const selectedRoomId = getActiveProjectRoomId();
+    await tauriCommands.appReady({ selectedRoomId }).catch(() => undefined);
 
     const errors: unknown[] = [];
     for (const input of loginStartupWindows) {
       try {
-        await tauriCommands.openWidgetWindow(input);
+        await tauriCommands.openWidgetWindow({ ...input, selectedRoomId });
       } catch (error) {
         errors.push(error);
       }

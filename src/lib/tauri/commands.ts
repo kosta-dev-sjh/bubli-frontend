@@ -274,15 +274,21 @@ export type WidgetWindowState = {
   dockOrbVisible: boolean;
   mode: WidgetWindowMode;
   position: WidgetWindowPosition;
+  selectedRoomId?: string | null;
   shortcut?: string;
   trayVisible: boolean;
   windowId?: string;
   windowVisible: boolean;
 };
 
+export type AppReadyInput = {
+  selectedRoomId?: string | null;
+};
+
 export type WidgetWindowModeInput = {
   bubbleType?: WidgetWindowBubbleType;
   mode: WidgetWindowMode;
+  selectedRoomId?: string | null;
   windowId?: string;
 };
 
@@ -294,6 +300,7 @@ export type WidgetWindowPositionInput = WidgetWindowPosition & {
 export type WidgetWindowOpenInput = {
   bubbleType?: WidgetWindowBubbleType;
   mode?: WidgetWindowMode;
+  selectedRoomId?: string | null;
   windowId?: string;
 };
 
@@ -327,7 +334,7 @@ export type TimerRecoveryState = {
 
 export type TauriCommandContract = {
   app_ready: {
-    args: undefined;
+    args: AppReadyInput | undefined;
     result: string;
   };
   backup_local_sqlite: {
@@ -472,8 +479,8 @@ export type PlannedTauriCommandArgs<TCommand extends PlannedTauriCommandName> = 
 export type PlannedTauriCommandResult<TCommand extends PlannedTauriCommandName> = never;
 
 export const tauriCommands = {
-  appReady() {
-    return invokeTauri<string>(TAURI_COMMANDS.appReady);
+  appReady(input?: AppReadyInput) {
+    return invokeTauri<string>(TAURI_COMMANDS.appReady, input ? { input } : undefined);
   },
   backupLocalSqlite() {
     return invokeTauri<LocalBackupResult>(TAURI_COMMANDS.backupLocalSqlite);

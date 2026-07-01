@@ -43,6 +43,7 @@ struct WidgetWindowState {
     dock_orb_visible: bool,
     mode: String,
     position: WidgetWindowPosition,
+    selected_room_id: Option<String>,
     shortcut: Option<String>,
     tray_visible: bool,
     window_id: Option<String>,
@@ -143,6 +144,7 @@ type AppMonitorState = Mutex<AppMonitorPreferenceStore>;
 struct WidgetWindowModeInput {
     bubble_type: Option<String>,
     mode: String,
+    selected_room_id: Option<String>,
     window_id: Option<String>,
 }
 
@@ -160,7 +162,14 @@ struct WidgetWindowPositionInput {
 struct WidgetWindowOpenInput {
     bubble_type: Option<String>,
     mode: Option<String>,
+    selected_room_id: Option<String>,
     window_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AppReadyInput {
+    selected_room_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -207,6 +216,7 @@ fn default_widget_window_state(bubble_type: &str, window_id: Option<String>) -> 
             x: 32 + offset,
             y: 32 + offset,
         },
+        selected_room_id: None,
         shortcut: Some("CommandOrControl+Shift+B".to_string()),
         tray_visible: true,
         window_id,
@@ -262,6 +272,17 @@ fn normalize_widget_mode(value: String) -> String {
     }
 }
 
+fn normalize_optional_query_value(value: Option<String>) -> Option<String> {
+    value.and_then(|raw| {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
+}
+
 fn normalize_window_key(bubble_type: &str, window_id: Option<String>) -> String {
     let raw = window_id.unwrap_or_else(|| bubble_type.to_string());
     let cleaned: String = raw
@@ -273,6 +294,17 @@ fn normalize_window_key(bubble_type: &str, window_id: Option<String>) -> String 
         bubble_type.to_string()
     } else {
         cleaned
+    }
+}
+
+fn append_widget_url_query(url: &mut String, key: &str, value: &str) {
+    url.push('&');
+    url.push_str(key);
+    url.push('=');
+    for character in value.chars() {
+        if character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.' | '~') {
+            url.push(character);
+        }
     }
 }
 
@@ -300,8 +332,11 @@ fn widget_window_url(widget: &WidgetWindowState) -> String {
     );
 
     if let Some(window_id) = &widget.window_id {
-        url.push_str("&windowId=");
-        url.push_str(window_id);
+        append_widget_url_query(&mut url, "windowId", window_id);
+    }
+
+    if let Some(selected_room_id) = &widget.selected_room_id {
+        append_widget_url_query(&mut url, "roomId", selected_room_id);
     }
 
     url
@@ -707,10 +742,20 @@ fn set_widget_window_mode(
     state: tauri::State<'_, WidgetState>,
     input: WidgetWindowModeInput,
 ) -> Result<WidgetWindowState, String> {
-    let widget = with_widget_state(state, input.bubble_type, input.window_id, |widget| {
-        widget.mode = normalize_widget_mode(input.mode);
+    let WidgetWindowModeInput {
+        bubble_type,
+        mode,
+        selected_room_id,
+        window_id,
+    } = input;
+    let selected_room_id = normalize_optional_query_value(selected_room_id);
+    let widget = with_widget_state(state, bubble_type, window_id, |widget| {
+        widget.mode = normalize_widget_mode(mode);
         widget.click_through = widget.mode == "GHOST";
         widget.dock_orb_visible = false;
+        if selected_room_id.is_some() {
+            widget.selected_room_id = selected_room_id.clone();
+        }
         widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
     })?;
     apply_widget_window_state(&app, &monitor_state, &widget)
@@ -796,6 +841,7 @@ fn open_login_startup_widget(
     state: &WidgetState,
     bubble_type: &str,
     window_id: &str,
+    selected_room_id: Option<String>,
 ) -> Result<WidgetWindowState, String> {
     let widget = {
         let mut guard = state
@@ -811,6 +857,7 @@ fn open_login_startup_widget(
         widget.mode = "DEFAULT".to_string();
         widget.click_through = false;
         widget.dock_orb_visible = false;
+        widget.selected_room_id = selected_room_id;
         widget.window_visible = true;
         widget.clone()
     };
@@ -823,14 +870,25 @@ fn app_ready(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
+    input: Option<AppReadyInput>,
 ) -> Result<&'static str, String> {
-    let bar_result = open_login_startup_widget(&app, &monitor_state, &state, "bar", "bar");
+    let selected_room_id =
+        input.and_then(|value| normalize_optional_query_value(value.selected_room_id));
+    let bar_result = open_login_startup_widget(
+        &app,
+        &monitor_state,
+        &state,
+        "bar",
+        "bar",
+        selected_room_id.clone(),
+    );
     let default_result = open_login_startup_widget(
         &app,
         &monitor_state,
         &state,
         DEFAULT_WIDGET_BUBBLE_TYPE,
         DEFAULT_WIDGET_BUBBLE_TYPE,
+        selected_room_id,
     );
 
     if let Err(error) = &bar_result {
@@ -858,6 +916,11 @@ fn open_widget_window(
     let bubble_type =
         normalize_bubble_type(input.as_ref().and_then(|value| value.bubble_type.clone()));
     let window_id = input.as_ref().and_then(|value| value.window_id.clone());
+    let selected_room_id = normalize_optional_query_value(
+        input
+            .as_ref()
+            .and_then(|value| value.selected_room_id.clone()),
+    );
     let next_mode = input
         .and_then(|value| value.mode)
         .map(normalize_widget_mode)
@@ -866,6 +929,9 @@ fn open_widget_window(
         widget.mode = next_mode.clone();
         widget.click_through = widget.mode == "GHOST";
         widget.dock_orb_visible = false;
+        if selected_room_id.is_some() {
+            widget.selected_room_id = selected_room_id.clone();
+        }
         widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
     })?;
     build_widget_window(&app, &monitor_state, &widget)
