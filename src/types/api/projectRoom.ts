@@ -49,6 +49,9 @@ export type ProjectRoomInvitationCreateRequest = {
 export type ProjectRoomInvitationResponse = {
   createdAt: string;
   id: string;
+  inviteeAvatarUrl?: string | null;
+  inviteeBubliId?: string | null;
+  inviteeName?: string | null;
   inviteeUserId: string;
   inviterUserId: string;
   role: "MEMBER";

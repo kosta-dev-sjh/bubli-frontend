@@ -23,6 +23,7 @@ import {
 import type { AuthUser } from "@/types/api/auth";
 import type { ChatMessageResponse, ChatRoomResponse } from "@/types/api/chat";
 import type { FriendRequestResponse, FriendResponse, FriendSearchResponse } from "@/types/api/friend";
+import type { ProjectRoomInvitationResponse } from "@/types/api/projectRoom";
 import type { VoiceParticipantResponse, VoiceRoomResponse } from "@/types/api/voice";
 
 type RoomsState =
@@ -63,6 +64,12 @@ type RoomInviteState =
   | { friendName: string; kind: "sending" }
   | { friendName: string; kind: "sent" }
   | { kind: "blocked"; message: string };
+
+type RoomInvitationsState =
+  | { kind: "idle" }
+  | { invitations: ProjectRoomInvitationResponse[]; kind: "ready" }
+  | { kind: "loading" }
+  | { kind: "offline" };
 
 const previewFriends: FriendResponse[] = [
   {
@@ -199,6 +206,9 @@ function ChatPageContent() {
   const [copiedBubliId, setCopiedBubliId] = useState(false);
   const [voiceExpanded, setVoiceExpanded] = useState(false);
   const [roomInviteState, setRoomInviteState] = useState<RoomInviteState>({ kind: "idle" });
+  const [roomInvitationsState, setRoomInvitationsState] = useState<RoomInvitationsState>({ kind: "idle" });
+  const [busyFriendUserId, setBusyFriendUserId] = useState<string | null>(null);
+  const [busyInvitationId, setBusyInvitationId] = useState<string | null>(null);
   const [composerActive, setComposerActive] = useState(false);
   const [selectedAttachmentName, setSelectedAttachmentName] = useState<string | null>(null);
   const [emoticonOpen, setEmoticonOpen] = useState(false);
@@ -247,6 +257,7 @@ function ChatPageContent() {
   const selectedProjectRoomName =
     selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? getActiveProjectRoomLabel() ?? "프로젝트룸" : getActiveProjectRoomLabel();
   const inviteTargetLabel = selectedProjectRoomId ? selectedProjectRoomName ?? "현재 프로젝트룸" : "프로젝트룸 선택 필요";
+  const pendingRoomInvitations = roomInvitationsState.kind === "ready" ? roomInvitationsState.invitations.filter((invitation) => invitation.status === "PENDING") : [];
   const voiceParticipants = useMemo<VoiceParticipantResponse[]>(() => {
     if (voiceState.kind === "ready") {
       return voiceState.room.participants.map((participant) => ({
@@ -366,6 +377,22 @@ function ChatPageContent() {
     });
   }, []);
 
+  const loadRoomInvitations = useCallback(async () => {
+    if (!selectedProjectRoomId) {
+      setRoomInvitationsState({ kind: "idle" });
+      return;
+    }
+
+    setRoomInvitationsState({ kind: "loading" });
+
+    try {
+      const page = await projectRoomApi.getInvitations(selectedProjectRoomId);
+      setRoomInvitationsState({ invitations: page.items, kind: "ready" });
+    } catch {
+      setRoomInvitationsState({ kind: "offline" });
+    }
+  }, [selectedProjectRoomId]);
+
   const loadProfile = useCallback(async () => {
     setProfileState({ kind: "loading" });
 
@@ -408,6 +435,14 @@ function ChatPageContent() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadProfile]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadRoomInvitations();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadRoomInvitations]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -462,6 +497,23 @@ function ChatPageContent() {
     [roomsState],
   );
 
+  const deleteFriend = useCallback(
+    async (friend: FriendResponse) => {
+      if (socialState.kind !== "ready" || busyFriendUserId) return;
+
+      setBusyFriendUserId(friend.friendUserId);
+      try {
+        await friendApi.deleteFriend(friend.friendUserId);
+        await loadSocial();
+      } catch {
+        setSocialState({ kind: "offline" });
+      } finally {
+        setBusyFriendUserId(null);
+      }
+    },
+    [busyFriendUserId, loadSocial, socialState],
+  );
+
   const inviteFriendToRoom = useCallback(
     async (friend: FriendResponse) => {
       if (!selectedProjectRoomId) {
@@ -477,11 +529,29 @@ function ChatPageContent() {
           role: "MEMBER",
         });
         setRoomInviteState({ friendName: friend.name, kind: "sent" });
+        await loadRoomInvitations();
       } catch {
         setRoomInviteState({ kind: "blocked", message: "초대를 보내지 못했습니다. 멤버 권한이나 서버 상태를 확인하세요." });
       }
     },
-    [selectedProjectRoomId],
+    [loadRoomInvitations, selectedProjectRoomId],
+  );
+
+  const cancelRoomInvitation = useCallback(
+    async (invitation: ProjectRoomInvitationResponse) => {
+      if (busyInvitationId) return;
+
+      setBusyInvitationId(invitation.id);
+      try {
+        await projectRoomApi.cancelInvitation(invitation.id);
+        await loadRoomInvitations();
+      } catch {
+        setRoomInvitationsState({ kind: "offline" });
+      } finally {
+        setBusyInvitationId(null);
+      }
+    },
+    [busyInvitationId, loadRoomInvitations],
   );
 
   const respondFriendRequest = useCallback(
@@ -1010,6 +1080,9 @@ function ChatPageContent() {
                         <button disabled={!selectedProjectRoomId || roomInviteState.kind === "sending"} onClick={() => void inviteFriendToRoom(friend)} type="button">
                           {roomInviteState.kind === "sending" && roomInviteState.friendName === friend.name ? "보내는 중" : "룸 초대"}
                         </button>
+                        <button disabled={busyFriendUserId === friend.friendUserId} onClick={() => void deleteFriend(friend)} type="button">
+                          {busyFriendUserId === friend.friendUserId ? "삭제 중" : "삭제"}
+                        </button>
                       </div>
                     </article>
                   ))
@@ -1021,6 +1094,24 @@ function ChatPageContent() {
                 </span>
               ) : null}
               {roomInviteState.kind === "blocked" ? <span className="workspace-route__empty">{roomInviteState.message}</span> : null}
+              {roomInvitationsState.kind === "loading" ? <span className="workspace-route__empty">초대 목록을 불러오는 중</span> : null}
+              {roomInvitationsState.kind === "offline" ? <span className="workspace-route__empty">초대 목록을 불러오지 못했습니다</span> : null}
+              {pendingRoomInvitations.length > 0 ? (
+                <div className="workspace-route__request-group">
+                  <span>대기 중인 룸 초대 {pendingRoomInvitations.length}</span>
+                  {pendingRoomInvitations.slice(0, 3).map((invitation) => (
+                    <div className="workspace-route__friend-request workspace-route__friend-request--sent" key={invitation.id}>
+                      <div>
+                        <strong>{invitation.inviteeName ?? invitation.inviteeBubliId ?? invitation.inviteeUserId}</strong>
+                        <small>{invitation.inviteeBubliId ?? invitation.role}</small>
+                      </div>
+                      <button disabled={busyInvitationId === invitation.id} onClick={() => void cancelRoomInvitation(invitation)} type="button">
+                        {busyInvitationId === invitation.id ? "취소 중" : "초대 취소"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             <div className="workspace-route__friend-panel" aria-label="친구 요청">
