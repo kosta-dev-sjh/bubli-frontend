@@ -7,6 +7,8 @@
 //! /api/local-file-events/sync); this module stages the candidates locally.
 
 use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
@@ -15,12 +17,14 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 use crate::local_db::{ms_to_iso, now_ms, Db};
 
 const MAX_EXTRACT_BYTES: u64 = 1024 * 1024;
+const CHECKSUM_HEAD_BYTES: u64 = 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -259,10 +263,14 @@ pub fn scan_managed_folder(
             .ok()
             .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
             .map(|d| d.as_millis() as i64);
+        let checksum = match sha256_head(&file) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
 
-        let existing: Option<(String, Option<i64>, Option<i64>)> = conn
+        let existing: Option<(String, Option<i64>, Option<i64>, Option<String>)> = conn
             .query_row(
-                "SELECT id, size_bytes, modified_at FROM local_files \
+                "SELECT id, size_bytes, modified_at, checksum FROM local_files \
                  WHERE local_folder_id = ?1 AND local_path = ?2",
                 params![input.local_folder_id, local_path],
                 |row| {
@@ -270,6 +278,7 @@ pub fn scan_managed_folder(
                         row.get::<_, String>(0)?,
                         row.get::<_, Option<i64>>(1)?,
                         row.get::<_, Option<i64>>(2)?,
+                        row.get::<_, Option<String>>(3)?,
                     ))
                 },
             )
@@ -282,8 +291,8 @@ pub fn scan_managed_folder(
                 conn.execute(
                     "INSERT INTO local_files \
                      (id, local_folder_id, file_name, local_path, resource_id, size_bytes, checksum, sync_status, modified_at, updated_at) \
-                     VALUES (?1, ?2, ?3, ?4, NULL, ?5, NULL, 'LOCAL_ONLY', ?6, ?7)",
-                    params![file_id, input.local_folder_id, file_name, local_path, size_bytes, modified_ms, now],
+                     VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6, 'LOCAL_ONLY', ?7, ?8)",
+                    params![file_id, input.local_folder_id, file_name, local_path, size_bytes, checksum, modified_ms, now],
                 )
                 .map_err(|error| error.to_string())?;
                 upsert_file_fts_index(&conn, &file_id, &file_name, &local_path, &file)?;
@@ -294,19 +303,27 @@ pub fn scan_managed_folder(
                     "CREATED",
                     &file_name,
                     &local_path,
+                    Some(&checksum),
                     size_bytes,
                     modified_ms,
                     now,
                 )?;
                 changed_count += 1;
             }
-            Some((file_id, prev_size, prev_modified)) => {
-                let changed = prev_size != Some(size_bytes) || prev_modified != modified_ms;
+            Some((file_id, prev_size, prev_modified, prev_checksum)) => {
+                let changed = local_file_changed(
+                    prev_size,
+                    prev_modified,
+                    prev_checksum.as_deref(),
+                    size_bytes,
+                    modified_ms,
+                    &checksum,
+                );
                 if changed {
                     conn.execute(
-                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, sync_status = 'LOCAL_ONLY', updated_at = ?4 \
+                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, checksum = ?4, sync_status = 'LOCAL_ONLY', updated_at = ?5 \
                          WHERE id = ?1",
-                        params![file_id, size_bytes, modified_ms, now],
+                        params![file_id, size_bytes, modified_ms, checksum, now],
                     )
                     .map_err(|error| error.to_string())?;
                     upsert_file_fts_index(&conn, &file_id, &file_name, &local_path, &file)?;
@@ -317,11 +334,18 @@ pub fn scan_managed_folder(
                         "UPDATED",
                         &file_name,
                         &local_path,
+                        Some(&checksum),
                         size_bytes,
                         modified_ms,
                         now,
                     )?;
                     changed_count += 1;
+                } else if prev_checksum.is_none() {
+                    conn.execute(
+                        "UPDATE local_files SET checksum = ?2, updated_at = ?3 WHERE id = ?1",
+                        params![file_id, checksum, now],
+                    )
+                    .map_err(|error| error.to_string())?;
                 }
             }
         }
@@ -331,7 +355,7 @@ pub fn scan_managed_folder(
     {
         let mut stmt = conn
             .prepare(
-                "SELECT id, file_name, local_path, COALESCE(size_bytes, 0), modified_at \
+                "SELECT id, file_name, local_path, COALESCE(size_bytes, 0), modified_at, checksum \
                  FROM local_files WHERE local_folder_id = ?1",
             )
             .map_err(|error| error.to_string())?;
@@ -343,6 +367,7 @@ pub fn scan_managed_folder(
                     row.get::<_, String>(2)?,
                     row.get::<_, i64>(3)?,
                     row.get::<_, Option<i64>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
                 ))
             })
             .map_err(|error| error.to_string())?;
@@ -351,7 +376,7 @@ pub fn scan_managed_folder(
         }
     }
 
-    for (file_id, file_name, local_path, size_bytes, modified_ms) in known_files {
+    for (file_id, file_name, local_path, size_bytes, modified_ms, checksum) in known_files {
         if current_paths.contains(&local_path) {
             continue;
         }
@@ -375,6 +400,7 @@ pub fn scan_managed_folder(
             "DELETED",
             &file_name,
             &local_path,
+            checksum.as_deref(),
             size_bytes,
             modified_ms,
             now,
@@ -517,10 +543,11 @@ fn record_watch_path_change(
                 .ok()
                 .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as i64);
+            let checksum = sha256_head(path)?;
 
-            let existing: Option<(String, Option<i64>, Option<i64>)> = conn
+            let existing: Option<(String, Option<i64>, Option<i64>, Option<String>)> = conn
                 .query_row(
-                    "SELECT id, size_bytes, modified_at FROM local_files \
+                    "SELECT id, size_bytes, modified_at, checksum FROM local_files \
                      WHERE local_folder_id = ?1 AND local_path = ?2",
                     params![local_folder_id, local_path],
                     |row| {
@@ -528,6 +555,7 @@ fn record_watch_path_change(
                             row.get::<_, String>(0)?,
                             row.get::<_, Option<i64>>(1)?,
                             row.get::<_, Option<i64>>(2)?,
+                            row.get::<_, Option<String>>(3)?,
                         ))
                     },
                 )
@@ -540,8 +568,8 @@ fn record_watch_path_change(
                     conn.execute(
                         "INSERT INTO local_files \
                          (id, local_folder_id, file_name, local_path, resource_id, size_bytes, checksum, sync_status, modified_at, updated_at) \
-                         VALUES (?1, ?2, ?3, ?4, NULL, ?5, NULL, 'LOCAL_ONLY', ?6, ?7)",
-                        params![file_id, local_folder_id, file_name, local_path, size_bytes, modified_ms, now],
+                         VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6, 'LOCAL_ONLY', ?7, ?8)",
+                        params![file_id, local_folder_id, file_name, local_path, size_bytes, checksum, modified_ms, now],
                     )
                     .map_err(|error| error.to_string())?;
                     upsert_file_fts_index(
@@ -558,20 +586,35 @@ fn record_watch_path_change(
                         "CREATED",
                         &file_name,
                         &local_path,
+                        Some(&checksum),
                         size_bytes,
                         modified_ms,
                         now,
                     )?;
                     Ok(1)
                 }
-                Some((file_id, prev_size, prev_modified)) => {
-                    if prev_size == Some(size_bytes) && prev_modified == modified_ms {
+                Some((file_id, prev_size, prev_modified, prev_checksum)) => {
+                    if !local_file_changed(
+                        prev_size,
+                        prev_modified,
+                        prev_checksum.as_deref(),
+                        size_bytes,
+                        modified_ms,
+                        &checksum,
+                    ) {
+                        if prev_checksum.is_none() {
+                            conn.execute(
+                                "UPDATE local_files SET checksum = ?2, updated_at = ?3 WHERE id = ?1",
+                                params![file_id, checksum, now],
+                            )
+                            .map_err(|error| error.to_string())?;
+                        }
                         return Ok(0);
                     }
                     conn.execute(
-                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, sync_status = 'LOCAL_ONLY', updated_at = ?4 \
+                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, checksum = ?4, sync_status = 'LOCAL_ONLY', updated_at = ?5 \
                          WHERE id = ?1",
-                        params![file_id, size_bytes, modified_ms, now],
+                        params![file_id, size_bytes, modified_ms, checksum, now],
                     )
                     .map_err(|error| error.to_string())?;
                     upsert_file_fts_index(
@@ -588,6 +631,7 @@ fn record_watch_path_change(
                         "UPDATED",
                         &file_name,
                         &local_path,
+                        Some(&checksum),
                         size_bytes,
                         modified_ms,
                         now,
@@ -608,16 +652,16 @@ fn record_watch_path_delete(
     local_path: &str,
     now: i64,
 ) -> Result<i64, String> {
-    let existing: Option<(String, i64, Option<i64>)> = conn
+    let existing: Option<(String, i64, Option<i64>, Option<String>)> = conn
         .query_row(
-            "SELECT id, COALESCE(size_bytes, 0), modified_at FROM local_files \
+            "SELECT id, COALESCE(size_bytes, 0), modified_at, checksum FROM local_files \
              WHERE local_folder_id = ?1 AND local_path = ?2",
             params![local_folder_id, local_path],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
         .optional()
         .map_err(|error| error.to_string())?;
-    let Some((file_id, size_bytes, modified_ms)) = existing else {
+    let Some((file_id, size_bytes, modified_ms, checksum)) = existing else {
         return Ok(0);
     };
 
@@ -640,6 +684,7 @@ fn record_watch_path_delete(
         "DELETED",
         file_name,
         local_path,
+        checksum.as_deref(),
         size_bytes,
         modified_ms,
         now,
@@ -738,6 +783,41 @@ fn is_supported_text_file(path: &Path) -> bool {
             | "yaml"
             | "yml"
     )
+}
+
+fn sha256_head(path: &Path) -> Result<String, String> {
+    let mut file = File::open(path).map_err(|error| error.to_string())?;
+    let mut hasher = Sha256::new();
+    let mut remaining = CHECKSUM_HEAD_BYTES;
+    let mut buffer = [0_u8; 8192];
+
+    while remaining > 0 {
+        let max_read = buffer.len().min(remaining as usize);
+        let read_len = file
+            .read(&mut buffer[..max_read])
+            .map_err(|error| error.to_string())?;
+        if read_len == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read_len]);
+        remaining -= read_len as u64;
+    }
+
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn local_file_changed(
+    prev_size: Option<i64>,
+    prev_modified: Option<i64>,
+    prev_checksum: Option<&str>,
+    size_bytes: i64,
+    modified_ms: Option<i64>,
+    checksum: &str,
+) -> bool {
+    match prev_checksum {
+        Some(value) => value != checksum,
+        None => prev_size != Some(size_bytes) || prev_modified != modified_ms,
+    }
 }
 
 fn read_local_text_preview(
@@ -1160,6 +1240,7 @@ fn record_event(
     event_type: &str,
     file_name: &str,
     local_path: &str,
+    checksum: Option<&str>,
     size_bytes: i64,
     modified_ms: Option<i64>,
     now: i64,
@@ -1167,7 +1248,7 @@ fn record_event(
     conn.execute(
         "INSERT INTO local_file_events \
          (id, local_file_id, local_folder_id, event_type, file_name, local_path, hash, size_bytes, status, reason, modified_at, created_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, 'PENDING', NULL, ?8, ?9)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'PENDING', NULL, ?9, ?10)",
         params![
             Uuid::new_v4().to_string(),
             local_file_id,
@@ -1175,6 +1256,7 @@ fn record_event(
             event_type,
             file_name,
             local_path,
+            checksum,
             size_bytes,
             modified_ms,
             now,
@@ -1384,6 +1466,36 @@ mod tests {
         assert_eq!(status, "UNSUPPORTED");
         assert!(preview.is_none());
         assert!(!truncated);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn checksum_detects_content_change_when_size_and_modified_match() {
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-checksum-test-{}.txt", Uuid::new_v4()));
+        std::fs::write(&path, "alpha").expect("write first temp text file");
+        let first_checksum = sha256_head(&path).expect("checksum first content");
+        std::fs::write(&path, "bravo").expect("write second temp text file");
+        let second_checksum = sha256_head(&path).expect("checksum second content");
+
+        assert_ne!(first_checksum, second_checksum);
+        assert!(local_file_changed(
+            Some(5),
+            Some(100),
+            Some(&first_checksum),
+            5,
+            Some(100),
+            &second_checksum,
+        ));
+        assert!(!local_file_changed(
+            Some(5),
+            Some(100),
+            None,
+            5,
+            Some(100),
+            &second_checksum,
+        ));
 
         let _ = std::fs::remove_file(path);
     }
