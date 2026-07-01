@@ -118,13 +118,14 @@ export function AppShell({ children }: AppShellProps) {
         if (mounted) setState({ kind: "ready", notificationCount, rooms: roomPage.items, user });
       } catch (error) {
         if (!mounted) return;
-        if (error instanceof ApiClientError && error.status === 401) {
-          setState({ kind: "auth" });
-          return;
-        }
 
         if (shouldUseWorkspacePreviewData()) {
           setState({ kind: "ready", notificationCount: 0, rooms: workspacePreviewRooms, user: workspacePreviewUser });
+          return;
+        }
+
+        if (error instanceof ApiClientError && error.status === 401) {
+          setState({ kind: "auth" });
           return;
         }
 

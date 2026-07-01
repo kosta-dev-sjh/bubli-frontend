@@ -51,11 +51,6 @@ export default function ProjectRoomWorkPage() {
       setActiveProjectRoomId(room.id, room.name);
       setState({ board, kind: "ready", room, suggestions });
     } catch (error) {
-      if (error instanceof ApiClientError && error.status === 401) {
-        setState({ kind: "auth" });
-        return;
-      }
-
       if (shouldUseWorkspacePreviewData()) {
         const room = workspacePreviewRoomById(roomId, getActiveProjectRoomLabel());
         setActiveProjectRoomId(room.id, room.name);
@@ -65,6 +60,11 @@ export default function ProjectRoomWorkPage() {
           room,
           suggestions: workspacePreviewRoomSuggestions(room.id),
         });
+        return;
+      }
+
+      if (error instanceof ApiClientError && error.status === 401) {
+        setState({ kind: "auth" });
         return;
       }
 

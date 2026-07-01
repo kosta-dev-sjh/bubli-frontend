@@ -60,7 +60,7 @@
   background: transparent;
   font: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: 0;
   cursor: pointer;
   transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease, transform 160ms ease;
@@ -191,7 +191,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 800;
   min-block-size: 30px;
   min-inline-size: 40px;
   padding: 0 10px;
@@ -224,13 +224,13 @@
 .periodBoardHead strong {
   color: #2c3540;
   font-size: 14px;
-  font-weight: 880;
+  font-weight: 780;
 }
 
 .periodBoardHead span {
   color: #5a6772;
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .periodGrid {
@@ -240,14 +240,14 @@
 }
 
 .periodBoardMonth .periodGrid {
-  grid-template-columns: repeat(7, minmax(104px, 1fr));
-  overflow-x: auto;
+  grid-template-columns: repeat(7, minmax(74px, 1fr));
+  overflow: visible;
   padding-block-end: 4px;
 }
 
 .periodBoardWeek .periodGrid {
-  grid-template-columns: repeat(7, minmax(118px, 1fr));
-  overflow-x: auto;
+  grid-template-columns: repeat(7, minmax(82px, 1fr));
+  overflow: visible;
   padding-block-end: 4px;
 }
 
@@ -257,9 +257,9 @@
   border-radius: 13px;
   display: grid;
   gap: 8px;
-  min-block-size: 132px;
+  min-block-size: 114px;
   min-inline-size: 0;
-  padding: 9px;
+  padding: 8px;
 }
 
 .periodCell header {
@@ -271,13 +271,13 @@
 .periodCell header span {
   color: #8a94a0;
   font-size: 11px;
-  font-weight: 820;
+  font-weight: 700;
 }
 
 .periodCell header strong {
   color: #2c3540;
   font-size: 14px;
-  font-weight: 880;
+  font-weight: 760;
 }
 
 .periodItems,
@@ -289,7 +289,7 @@
 .periodItems small {
   color: #8a94a0;
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 680;
 }
 
 .periodPill {
@@ -307,14 +307,14 @@
 .periodPill strong {
   color: #2c3540;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 760;
   line-height: 1.35;
 }
 
 .periodPill small {
   color: #5a6772;
   font-size: 10.5px;
-  font-weight: 740;
+  font-weight: 680;
   line-height: 1.35;
 }
 
@@ -326,9 +326,9 @@
   color: #5a6772;
   display: grid;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 760;
   gap: 8px;
-  grid-template-columns: 34px 60px minmax(280px, 1.7fr) 88px 58px 82px 54px;
+  grid-template-columns: 30px 56px minmax(260px, 1.7fr) 82px 54px 78px 50px;
   letter-spacing: 0;
   margin-block-end: 8px;
   min-inline-size: 780px;
@@ -347,7 +347,7 @@
   cursor: pointer;
   display: grid;
   gap: 8px;
-  grid-template-columns: 34px 60px minmax(280px, 1.7fr) 88px 58px 82px 54px;
+  grid-template-columns: 30px 56px minmax(260px, 1.7fr) 82px 54px 78px 50px;
   min-block-size: 42px;
   min-inline-size: 780px;
   padding: 8px 12px;
@@ -360,16 +360,17 @@
   background: transparent;
   border-radius: 999px;
   content: "";
-  inline-size: 3px;
-  inset-block: 8px;
+  inline-size: 5px;
+  inset-block: 7px;
   inset-inline-start: 0;
   position: absolute;
 }
 
 .wbsRowTinted {
-  --wbs-accent-soft: color-mix(in srgb, var(--wbs-accent, var(--color-water-blue)) 16%, transparent);
+  --wbs-accent-soft: color-mix(in srgb, var(--wbs-accent, var(--color-water-blue)) 18%, transparent);
+  --wbs-accent-sheen: color-mix(in srgb, var(--wbs-accent, var(--color-water-blue)) 8%, transparent);
 
-  background: linear-gradient(90deg, var(--wbs-accent-soft, transparent) 0%, rgba(255, 255, 255, 0) 50%);
+  background: linear-gradient(90deg, var(--wbs-accent-soft) 0 18px, var(--wbs-accent-sheen) 18px 190px, rgba(255, 255, 255, 0) 54%);
 }
 
 .wbsRowTinted::before {
@@ -377,6 +378,7 @@
 }
 
 .wbsRowChild .wbsCode {
+  background: color-mix(in srgb, var(--wbs-accent, var(--color-todo)) 12%, rgba(255, 255, 255, 0.92));
   border-color: color-mix(in srgb, var(--wbs-accent, var(--color-todo)) 36%, var(--color-border));
   color: color-mix(in srgb, var(--wbs-accent, var(--color-todo)) 58%, var(--color-text));
 }
@@ -389,13 +391,13 @@
 .wbsRowSelected {
   background: rgba(215, 234, 244, 0.34);
   border-color: rgba(107, 143, 168, 0.2);
-  box-shadow: inset 3px 0 0 rgba(107, 143, 168, 0.5);
+  box-shadow: inset 4px 0 0 rgba(107, 143, 168, 0.5);
 }
 
 .wbsRowTinted:hover,
 .wbsRowTinted.wbsRowSelected {
   background: linear-gradient(90deg, var(--wbs-accent-soft, rgba(215, 234, 244, 0.34)) 0%, rgba(215, 234, 244, 0.34) 62%);
-  box-shadow: inset 3px 0 0 var(--wbs-accent, rgba(107, 143, 168, 0.5));
+  box-shadow: inset 5px 0 0 var(--wbs-accent, rgba(107, 143, 168, 0.5));
 }
 
 .wbsRowDragging {
@@ -428,7 +430,7 @@
   color: #6b8fa8;
   display: inline-flex;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 760;
   inline-size: fit-content;
   justify-content: center;
   min-inline-size: 30px;
@@ -437,8 +439,7 @@
 
 .wbsMain,
 .suggestion span,
-.selectedWbs span,
-.trashZone span {
+.selectedWbs span {
   display: grid;
   gap: 3px;
   min-inline-size: 0;
@@ -464,16 +465,17 @@
 .wbsRow[style*="--wbs-depth: 2"] .wbsMain::before,
 .wbsRow[style*="--wbs-depth: 3"] .wbsMain::before {
   display: block;
-  opacity: 0.54;
+  opacity: 0.82;
 }
 
 .wbsMain strong,
 .suggestion strong,
 .cardTop strong,
 .selectedWbs strong,
-.trashZone strong {
+.selectedWbs strong {
   color: #2c3540;
   font-size: 14px;
+  font-weight: 760;
   line-height: 1.35;
   min-inline-size: 0;
   overflow: hidden;
@@ -487,7 +489,7 @@
 .wbsDate {
   color: #5a6772;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 760;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -502,7 +504,7 @@
 .suggestion small,
 .cardBody p,
 .selectedWbs small,
-.trashZone small {
+.selectedWbs small {
   color: #5a6772;
   font-size: 11px;
   line-height: 1.4;
@@ -586,7 +588,7 @@
 .colorControl > span {
   color: #5a6772;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 760;
 }
 
 .colorSwatches {
@@ -620,7 +622,7 @@
   color: #5a6772;
   display: inline-flex;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 760;
   gap: 7px;
   min-block-size: 28px;
   padding: 0 8px 0 10px;
@@ -651,7 +653,7 @@
   color: #5a6772;
   display: grid;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 760;
   gap: 6px;
   min-inline-size: 0;
 }
@@ -664,7 +666,7 @@
   color: #2c3540;
   font: inherit;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 720;
   min-block-size: 42px;
   min-inline-size: 0;
   outline: none;
@@ -696,7 +698,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 800;
   min-block-size: 36px;
   padding: 0 14px;
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
@@ -770,10 +772,8 @@
 .columns {
   display: grid;
   gap: 12px;
-  grid-auto-columns: minmax(280px, 1fr);
-  grid-auto-flow: column;
-  grid-template-columns: none;
-  overflow-x: auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: visible;
   overscroll-behavior-inline: contain;
   padding-block-end: 8px;
   padding-inline-end: 2px;
@@ -796,7 +796,7 @@
   border: 1px solid rgba(229, 231, 235, 0.9);
   border-radius: 18px;
   min-block-size: 300px;
-  min-inline-size: 280px;
+  min-inline-size: 0;
   padding: 12px;
   scroll-snap-align: start;
   transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
@@ -825,14 +825,14 @@
 .columnHead strong {
   color: #2c3540;
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 760;
   line-height: 1.25;
 }
 
 .columnHead small {
   color: #8a94a0;
   font-size: 11px;
-  font-weight: 740;
+  font-weight: 680;
   line-height: 1.35;
 }
 
@@ -842,7 +842,7 @@
   border-radius: 999px;
   color: #6b8fa8;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 760;
   min-inline-size: 26px;
   padding: 3px 8px;
   text-align: center;
@@ -912,7 +912,7 @@
 
 .cardTop strong {
   font-size: 13px;
-  font-weight: 840;
+  font-weight: 760;
   inline-size: 100%;
   line-height: 1.38;
   overflow-wrap: break-word;
@@ -922,7 +922,7 @@
 .cardTop :global(.bubli-status) {
   flex: 0 0 auto;
   font-size: 10px;
-  font-weight: 820;
+  font-weight: 720;
   min-block-size: 22px;
   padding-inline: 7px;
   white-space: nowrap;
@@ -931,7 +931,7 @@
 .cardBody p {
   color: #5a6772;
   font-size: 11.5px;
-  font-weight: 720;
+  font-weight: 680;
   line-height: 1.45;
 }
 
@@ -940,7 +940,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-block-start: 12px;
 }
 
@@ -966,7 +966,7 @@
 .taskInspector small {
   color: #8a94a0;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .statusActions {
@@ -985,7 +985,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 760;
   min-block-size: 34px;
   padding: 0 12px;
 }
@@ -1003,25 +1003,6 @@
 
 .suggestionTray .suggestionList {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-}
-
-.trashZone {
-  align-items: center;
-  background: rgba(232, 152, 152, 0.11);
-  border: 1px dashed rgba(232, 152, 152, 0.62);
-  border-radius: 16px;
-  color: var(--color-dust-rose);
-  display: flex;
-  gap: 10px;
-  min-inline-size: 240px;
-  padding: 11px 13px;
-  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
-}
-
-.trashZoneActive {
-  background: rgba(232, 152, 152, 0.2);
-  border-color: rgba(232, 152, 152, 0.86);
-  transform: translateY(-1px);
 }
 
 .notice {
@@ -1080,6 +1061,9 @@
 
   .columns {
     grid-auto-columns: minmax(320px, 42vw);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    overflow-x: auto;
   }
 
   .column {
@@ -1100,10 +1084,6 @@
   .contextTools,
   .contextStats {
     justify-content: flex-start;
-  }
-
-  .trashZone {
-    min-inline-size: 0;
   }
 
   .detailMetrics,
@@ -1127,7 +1107,6 @@
   .column,
   .dropIndicator,
   .card,
-  .trashZone,
   .primaryAction,
   .dangerAction,
   .viewSwitch button,
@@ -1139,7 +1118,6 @@
   .wbsRowSelected,
   .card:hover,
   .cardSelected,
-  .trashZoneActive,
   .primaryAction:hover,
   .dangerAction:hover:not(:disabled),
   .viewSwitch button[aria-pressed="true"] {

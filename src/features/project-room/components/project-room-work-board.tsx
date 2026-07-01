@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, GitBranch, GripVertical, Inbox, KanbanSquare, ListTodo, PanelRightOpen, Trash2 } from "lucide-react";
+import { Bot, GitBranch, GripVertical, Inbox, KanbanSquare, ListTodo, PanelRightOpen } from "lucide-react";
 import Link from "next/link";
 import type { CSSProperties, DragEvent, FormEvent } from "react";
 import { useMemo, useState } from "react";
@@ -20,9 +20,7 @@ type KanbanColumn = {
   status: TaskStatus;
 };
 
-type LocalTask = TaskResponse & {
-  localRemoved?: boolean;
-};
+type LocalTask = TaskResponse;
 
 type WbsEditDraft = {
   title: string;
@@ -75,6 +73,8 @@ const wbsPeriodCopy: Record<WbsPeriodMode, string> = {
   rows: "줄",
   week: "주",
 };
+
+const wbsPeriodOrder: WbsPeriodMode[] = ["rows", "month", "week", "day"];
 
 function formatDue(value?: string | null) {
   if (!value) return null;
@@ -448,10 +448,8 @@ function ProjectRoomWorkBoardContent({
   const [wbsItems, setWbsItems] = useState<WbsItemResponse[]>(board.wbsItems);
   const [activeColumn, setActiveColumn] = useState<TaskStatus | null>(null);
   const [selectedWbsId, setSelectedWbsId] = useState<string | null>(initialWbs?.id ?? null);
-  const [removedNotice, setRemovedNotice] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(board.tasks[0]?.id ?? null);
-  const [trashActive, setTrashActive] = useState(false);
   const [viewMode, setViewMode] = useState<"kanban" | "suggestions" | "wbs">("wbs");
   const [draggedWbsId, setDraggedWbsId] = useState<string | null>(null);
   const [wbsDropTargetId, setWbsDropTargetId] = useState<string | null>(null);
@@ -529,7 +527,7 @@ function ProjectRoomWorkBoardContent({
   }, [wbsItems]);
   const linkedCountByWbsId = useMemo(() => {
     return tasks.reduce<Record<string, number>>((acc, task) => {
-      if (task.wbsItemId && !task.localRemoved) {
+      if (task.wbsItemId) {
         acc[task.wbsItemId] = (acc[task.wbsItemId] ?? 0) + 1;
       }
       return acc;
@@ -538,13 +536,13 @@ function ProjectRoomWorkBoardContent({
   const dueLabelByWbsId = useMemo(() => {
     return Object.fromEntries(
       wbsItems.map((item) => {
-        const linkedTasks = tasks.filter((task) => task.wbsItemId === item.id && !task.localRemoved);
+        const linkedTasks = tasks.filter((task) => task.wbsItemId === item.id);
         return [item.id, earliestDueLabel(linkedTasks)];
       }),
     );
   }, [tasks, wbsItems]);
 
-  const visibleTasks = tasks.filter((task) => !task.localRemoved);
+  const visibleTasks = tasks;
   const selectedWbs = selectedWbsId ? wbsItems.find((item) => item.id === selectedWbsId) : null;
   const selectedWbsAccent = selectedWbsId ? wbsAccentById[selectedWbsId] ?? wbsAccentOptions[0].value : wbsAccentOptions[0].value;
   const selectedTask = selectedTaskId ? visibleTasks.find((task) => task.id === selectedTaskId) ?? null : null;
@@ -561,7 +559,7 @@ function ProjectRoomWorkBoardContent({
   const currentViewCopy = viewCopy[viewMode];
   const timelineTasks = useMemo(() => {
     return tasks
-      .filter((task) => !task.localRemoved && task.dueAt && !Number.isNaN(new Date(task.dueAt).getTime()))
+      .filter((task) => task.dueAt && !Number.isNaN(new Date(task.dueAt).getTime()))
       .sort((a, b) => new Date(a.dueAt ?? "").getTime() - new Date(b.dueAt ?? "").getTime());
   }, [tasks]);
   const periodAnchor = useMemo(() => {
@@ -877,23 +875,6 @@ function ProjectRoomWorkBoardContent({
     });
   };
 
-  const handleTrashDrop = (event: DragEvent<HTMLElement>) => {
-    event.preventDefault();
-    const taskId = event.dataTransfer.getData("application/x-bubli-task-id") || event.dataTransfer.getData("text/plain");
-    setTrashActive(false);
-
-    if (!taskId) return;
-
-    setTasks((current) =>
-      current.map((task) => {
-        if (task.id !== taskId) return task;
-        setRemovedNotice(`'${task.title}' 카드를 화면에서만 제거했습니다`);
-        setSelectedTaskId((selected) => (selected === taskId ? null : selected));
-        return { ...task, localRemoved: true };
-      }),
-    );
-  };
-
   return (
     <div className={styles.shell}>
       <section className={styles.contextBand} aria-label="WBS와 작업판 연결 상태">
@@ -942,7 +923,7 @@ function ProjectRoomWorkBoardContent({
                 <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
               </div>
               <div className={styles.wbsPeriodSwitch} aria-label="WBS 보기 방식">
-                {(Object.keys(wbsPeriodCopy) as WbsPeriodMode[]).map((mode) => (
+                {wbsPeriodOrder.map((mode) => (
                   <button aria-pressed={wbsPeriodMode === mode} key={mode} onClick={() => setWbsPeriodMode(mode)} type="button">
                     {wbsPeriodCopy[mode]}
                   </button>
@@ -993,7 +974,7 @@ function ProjectRoomWorkBoardContent({
                 <div className={cn(styles.periodBoard, wbsPeriodMode === "month" ? styles.periodBoardMonth : styles.periodBoardWeek)}>
                   <div className={styles.periodBoardHead}>
                     <strong>{wbsPeriodMode === "month" ? formatMonthTitle(periodAnchor) : `${formatPeriodDate(weekDays[0])} - ${formatPeriodDate(weekDays[6])}`}</strong>
-                    <span>Google Calendar와 같은 기한 기준</span>
+                    <span>기한 기준 보기</span>
                   </div>
                   <div className={styles.periodGrid}>
                     {periodDays.map((day) => {
@@ -1015,9 +996,7 @@ function ProjectRoomWorkBoardContent({
                                   wbsTitle={task.wbsItemId ? wbsTitleById[task.wbsItemId] : null}
                                 />
                               ))
-                            ) : (
-                              <small>비어 있음</small>
-                            )}
+                            ) : null}
                           </div>
                         </section>
                       );
@@ -1030,7 +1009,7 @@ function ProjectRoomWorkBoardContent({
                 <div className={styles.periodDayBoard}>
                   <div className={styles.periodBoardHead}>
                     <strong>{formatPeriodDate(periodAnchor)}</strong>
-                    <span>이날 처리할 WBS/TODO</span>
+                    <span>선택한 날의 작업</span>
                   </div>
                   <div className={styles.dayTaskList}>
                     {dayTasks.length > 0 ? (
@@ -1249,28 +1228,6 @@ function ProjectRoomWorkBoardContent({
             </div>
 
             <div className={styles.kanbanFooter}>
-              <div
-                className={cn(styles.trashZone, trashActive && styles.trashZoneActive)}
-                onDragLeave={() => setTrashActive(false)}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setTrashActive(true);
-                }}
-                onDrop={handleTrashDrop}
-                role="region"
-                aria-label="카드 화면 제거 영역"
-              >
-                <Trash2 aria-hidden="true" size={18} strokeWidth={2} />
-                <span>
-                  <strong>드래그 제거 영역</strong>
-                  <small>보드 표시에서만 뺍니다</small>
-                </span>
-              </div>
-              {removedNotice ? (
-                <p className={styles.notice} aria-live="polite">
-                  {removedNotice}
-                </p>
-              ) : null}
               {saveNotice ? (
                 <p className={styles.notice} aria-live="polite">
                   {saveNotice}
