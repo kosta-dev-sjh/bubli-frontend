@@ -98,6 +98,22 @@ async function smokeBackend(accessToken) {
   assert(roomWidgetContext.selectedRoomId === SEED_ROOM_ID, "widget context did not switch back to the seeded room");
   assert(roomWidgetContext.mode === "ROOM", "widget context did not return ROOM mode");
 
+  const chatRooms = await apiGet("/api/chat/rooms?page=0&size=20", headers);
+  const roomChat = chatRooms.items?.find((room) => room.roomId === SEED_ROOM_ID);
+  assert(roomChat?.id, "chat room list did not include the seeded project room chat");
+
+  const chatSend = await apiPost(`/api/chat/rooms/${roomChat.id}/messages`, headers, {
+    body: { text: "Codex widget communication send smoke" },
+    clientMessageId: `codex-widget-send-${Date.now()}`,
+    messageType: "TEXT",
+  });
+  assert(chatSend.body?.text === "Codex widget communication send smoke", "widget chat send did not echo the message body");
+
+  const chatRead = await apiPatch(`/api/chat/rooms/${roomChat.id}/read`, headers, {
+    lastReadSequence: chatSend.roomSequence,
+  });
+  assert(chatRead.lastReadSequence === chatSend.roomSequence, "widget chat read marker did not return the sent sequence");
+
   const todoSetting = settings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
   assert(todoSetting?.id, "widget settings did not include a TODO bubble setting id");
 
@@ -184,7 +200,7 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 
@@ -320,6 +336,28 @@ ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, sta
 INSERT INTO agent_suggestions (id, user_id, room_id, job_id, resource_id, suggestion_type, payload_json, evidence_json, status, created_at, updated_at, reviewed_by, reviewed_at)
 VALUES ('99999999-9999-4999-8999-999999999999', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, NULL, 'TASK', '{"title":"Review desktop widget live backend response"}'::jsonb, '{"source":"codex-local-seed"}'::jsonb, 'DRAFT', now(), now(), NULL, NULL)
 ON CONFLICT (id) DO UPDATE SET payload_json = EXCLUDED.payload_json, evidence_json = EXCLUDED.evidence_json, status = EXCLUDED.status, updated_at = now();
+
+INSERT INTO chat_rooms (id, room_id, chat_type, name, status, created_at, updated_at)
+VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '${SEED_ROOM_ID}', 'ROOM', 'Codex Local Room chat', 'ACTIVE', now(), now())
+ON CONFLICT (id) DO UPDATE SET room_id = EXCLUDED.room_id, chat_type = EXCLUDED.chat_type, name = EXCLUDED.name, status = EXCLUDED.status, updated_at = now();
+
+INSERT INTO chat_room_members (id, chat_room_id, user_id, last_read_message_id, last_read_at, status, created_at, updated_at, last_read_sequence)
+VALUES ('ffffffff-ffff-4fff-8fff-ffffffffffff', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '${SEED_USER_ID}', NULL, NULL, 'ACTIVE', now(), now(), NULL)
+ON CONFLICT (chat_room_id, user_id) DO UPDATE SET status = EXCLUDED.status, updated_at = now();
+
+INSERT INTO chat_messages (id, chat_room_id, sender_user_id, client_message_id, room_sequence, message_type, body, resource_id, created_at)
+VALUES (
+'abababab-abab-4aba-8aba-abababababab',
+'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+'${SEED_USER_ID}',
+'codex-widget-seed-message',
+1,
+'TEXT',
+'{"text":"Codex widget communication seed"}'::jsonb,
+NULL,
+now()
+)
+ON CONFLICT (chat_room_id, client_message_id) DO UPDATE SET body = EXCLUDED.body, message_type = EXCLUDED.message_type;
 
 INSERT INTO agent_suggestions (id, user_id, room_id, job_id, resource_id, suggestion_type, payload_json, evidence_json, status, created_at, updated_at, reviewed_by, reviewed_at)
 VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, NULL, 'DOCUMENT_DRAFT', '{"title":"Codex generated document smoke"}'::jsonb, '{"source":"codex-local-seed"}'::jsonb, 'APPROVED', now(), now(), '${SEED_USER_ID}', now())

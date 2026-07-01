@@ -37,10 +37,8 @@ export const widgetCommunicationApi = {
     return widgetCommunicationRequest<ChatMessageResponse>(`/api/chat/rooms/${chatRoomId}/messages`, {
       body: {
         body: request.body,
+        clientMessageId: request.clientMessageId,
         messageType: request.messageType ?? "TEXT",
-      },
-      headers: {
-        "Idempotency-Key": request.clientMessageId,
       },
       method: "POST",
     });
@@ -55,7 +53,7 @@ export const widgetCommunicationApi = {
 
   createDirectRoom(friendUserId: string) {
     return widgetCommunicationRequest<ChatRoomResponse>("/api/chat/direct-rooms", {
-      body: { friendUserId },
+      body: { targetUserId: friendUserId },
       method: "POST",
     });
   },

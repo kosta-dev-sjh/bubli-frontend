@@ -7,6 +7,7 @@ import {
   widgetDisplayApi,
   type WidgetAgentSuggestionResponse,
   type WidgetChatMessageResponse,
+  type WidgetChatRoomResponse,
   type WidgetDashboardWorkResponse,
   type WidgetFriendResponse,
   type WidgetNotificationResponse,
@@ -17,6 +18,7 @@ import {
   type WidgetVoiceRoomResponse,
 } from "@/features/widget/api/widgetDisplayApi";
 import { widgetApi, type BackendWidgetBubbleType, type WidgetBubbleSettingResponse, type WidgetContextResponse } from "@/features/widget/api/widgetApi";
+import { widgetCommunicationApi } from "@/features/widget/api/widgetCommunicationApi";
 import { DesktopWidgetBubble, DesktopWidgetBubbleBar, DesktopWidgetMenuOrb, desktopWidgetBubbleTypes } from "@/features/widget/components/desktop-widget-bubble";
 import {
   getWidgetPreviewBubble,
@@ -209,6 +211,7 @@ function buildDisplayBubbles(input: {
   notifications: WidgetNotificationResponse[];
   resources: WidgetResourceResponse[];
   room?: WidgetProjectRoomResponse | null;
+  chatRoom?: WidgetChatRoomResponse | null;
   roomId?: string | null;
   schedules: WidgetScheduleResponse[];
   suggestions: WidgetAgentSuggestionResponse[];
@@ -256,7 +259,9 @@ function buildDisplayBubbles(input: {
       })),
     }),
     chat: withBubble("chat", {
+      chatRoomId: input.chatRoom?.id,
       compactLabel: `소통 ${input.messages.length + voiceParticipants.length}`,
+      lastMessageSequence: input.messages.reduce((max, item) => Math.max(max, item.roomSequence), 0),
       metric: String(input.messages.length),
       notificationLabel: unreadCount > 0 ? `읽지 않은 알림 ${unreadCount}` : "새 소통 없음",
       panelBody: "친구, 메시지, 보이스 상태를 함께 표시합니다.",
@@ -384,6 +389,7 @@ function DesktopWidgetSurface() {
   const [serverSettings, setServerSettings] = useState<WidgetBubbleSettingResponse[]>([]);
   const [barItems, setBarItems] = useState<WidgetWindowState[]>([]);
   const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>({});
+  const [communicationRevision, setCommunicationRevision] = useState(0);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(widgetNotificationSignal);
 
   useEffect(() => {
@@ -589,6 +595,7 @@ function DesktopWidgetSurface() {
       setNotificationSignal(buildNotificationSignal(notifications));
       setDisplayBubbles(
         buildDisplayBubbles({
+          chatRoom: activeRoom ?? null,
           dashboard: dashboardResult.status === "fulfilled" ? dashboardResult.value : null,
           friends: friendsResult.status === "fulfilled" ? friendsResult.value : [],
           messages: messages?.items ?? [],
@@ -614,7 +621,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [isMenuOrb, widgetContext?.selectedRoomId]);
+  }, [communicationRevision, isMenuOrb, widgetContext?.selectedRoomId]);
 
   useEffect(() => {
     if (!isBubbleBar) return;
@@ -867,6 +874,52 @@ function DesktopWidgetSurface() {
     [activeBubble, isTauri],
   );
 
+  const sendWidgetChatMessage = useCallback(
+    async (bubble: WidgetPreviewBubble, text: string) => {
+      if (!bubble.chatRoomId) return;
+
+      await widgetCommunicationApi.sendChatMessage(bubble.chatRoomId, {
+        body: { text },
+        clientMessageId: crypto.randomUUID(),
+        messageType: "TEXT",
+      });
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "chat",
+            eventType: "chat:send",
+            itemId: bubble.chatRoomId,
+            itemType: "MESSAGE",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+      setCommunicationRevision((current) => current + 1);
+    },
+    [isTauri],
+  );
+
+  const markWidgetChatRead = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      if (!bubble.chatRoomId || !bubble.lastMessageSequence) return;
+
+      await widgetCommunicationApi.markChatRead(bubble.chatRoomId, bubble.lastMessageSequence);
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "chat",
+            eventType: "chat:read",
+            itemId: bubble.chatRoomId,
+            itemType: "MESSAGE",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+      setCommunicationRevision((current) => current + 1);
+    },
+    [isTauri],
+  );
+
   const openBubbleBar = useCallback(async () => {
     if (!isTauri) return;
 
@@ -901,8 +954,10 @@ function DesktopWidgetSurface() {
       mode={mode}
       onClose={closeWindow}
       onItemStateChange={(item, state) => void handleItemStateChange(item, state)}
+      onMarkChatRead={markWidgetChatRead}
       onModeChange={(nextMode) => void setWindowMode(nextMode)}
       onRestore={() => void restoreCurrentWindow()}
+      onSendChatMessage={sendWidgetChatMessage}
       onToggleAlwaysOnTop={() => void toggleAlwaysOnTop()}
       presentation="tauri"
       windowVisible={windowVisible}

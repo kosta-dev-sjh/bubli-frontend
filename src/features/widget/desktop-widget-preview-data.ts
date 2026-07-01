@@ -17,10 +17,12 @@ export type WidgetPreviewItem = {
 export type WidgetPreviewBubble = {
   accent: WidgetBubbleAccent;
   actionLabel: string;
+  chatRoomId?: string;
   compactLabel: string;
   id: WidgetBubbleType;
   inputPlaceholder?: string;
   label: string;
+  lastMessageSequence?: number;
   metric: string;
   metricLabel: string;
   notificationLabel: string;

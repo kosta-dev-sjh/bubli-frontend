@@ -91,9 +91,11 @@ export type DesktopWidgetBubbleProps = {
   mode: WidgetWindowMode;
   onClose: () => void;
   onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
+  onMarkChatRead?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onModeChange: (mode: WidgetWindowMode) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onRestore?: () => void;
+  onSendChatMessage?: (bubble: WidgetPreviewBubble, text: string) => Promise<void> | void;
   onToggleAlwaysOnTop: () => void;
   presentation?: "preview" | "tauri";
   windowVisible?: boolean;
@@ -236,8 +238,21 @@ function AgentBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble;
   );
 }
 
-function ChatBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+function ChatBody({
+  bubble,
+  onItemStateChange,
+  onMarkChatRead,
+  onSendChatMessage,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
+  onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
+}) {
+  const [draft, setDraft] = useState("");
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
+  const [statusText, setStatusText] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const visibleRows = bubble.rows.filter((item) => !hiddenIds.includes(item.id));
   const handoffItem = visibleRows.find((item) => item.handoffUrl);
   const agentRows = visibleRows.filter((item) => item.kind === "agent");
@@ -256,6 +271,35 @@ function ChatBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; 
     event.preventDefault();
     if (item.dismissOnOpen) hideAfterHandoff(item.id);
     window.open(item.handoffUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const sendDraftMessage = async () => {
+    const text = draft.trim();
+    if (!text || !onSendChatMessage || submitting) return;
+
+    setSubmitting(true);
+    setStatusText(null);
+    try {
+      await onSendChatMessage(bubble, text);
+      setDraft("");
+      setStatusText("전송됨");
+    } catch {
+      setStatusText("전송 실패");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const markRead = async () => {
+    if (!onMarkChatRead) return;
+
+    setStatusText(null);
+    try {
+      await onMarkChatRead(bubble);
+      setStatusText("읽음 처리됨");
+    } catch {
+      setStatusText("읽음 처리 실패");
+    }
   };
 
   return (
@@ -316,18 +360,37 @@ function ChatBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; 
       <div className={styles.reactionDock} aria-label="빠른 반응">
         <SmilePlus size={14} strokeWidth={2} />
         {(bubble.reactionLabels ?? ["확인", "좋아요", "잠시 후"]).map((label) => (
-          <button key={label} type="button">
+          <button key={label} onClick={() => void markRead()} type="button">
             {label}
           </button>
         ))}
+        {statusText ? <span>{statusText}</span> : null}
       </div>
       <div className={styles.input}>
         <SmilePlus size={14} strokeWidth={2} />
-        <input placeholder={bubble.inputPlaceholder} />
+        <input
+          disabled={!bubble.chatRoomId || submitting}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void sendDraftMessage();
+            }
+          }}
+          placeholder={bubble.chatRoomId ? bubble.inputPlaceholder : "채팅방을 먼저 선택하세요"}
+          value={draft}
+        />
         <button aria-label="보이스 시작" type="button">
           <Mic size={13} strokeWidth={2} />
         </button>
-        <Send size={14} strokeWidth={2} />
+        <button
+          aria-label="메시지 전송"
+          disabled={!draft.trim() || !bubble.chatRoomId || submitting}
+          onClick={() => void sendDraftMessage()}
+          type="button"
+        >
+          <Send size={14} strokeWidth={2} />
+        </button>
       </div>
     </div>
   );
@@ -441,9 +504,21 @@ function ResourceBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubb
   );
 }
 
-function BubbleBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+function BubbleBody({
+  bubble,
+  onItemStateChange,
+  onMarkChatRead,
+  onSendChatMessage,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
+  onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
+}) {
   if (bubble.id === "agent") return <AgentBody bubble={bubble} onItemStateChange={onItemStateChange} />;
-  if (bubble.id === "chat") return <ChatBody bubble={bubble} onItemStateChange={onItemStateChange} />;
+  if (bubble.id === "chat") {
+    return <ChatBody bubble={bubble} onItemStateChange={onItemStateChange} onMarkChatRead={onMarkChatRead} onSendChatMessage={onSendChatMessage} />;
+  }
   if (bubble.id === "timer") return <TimerBody bubble={bubble} onItemStateChange={onItemStateChange} />;
   if (bubble.id === "memo") return <MemoBody bubble={bubble} />;
   if (bubble.id === "schedule") return <ScheduleBody bubble={bubble} onItemStateChange={onItemStateChange} />;
@@ -469,8 +544,10 @@ export function DesktopWidgetBubble({
   mode,
   onClose,
   onItemStateChange,
+  onMarkChatRead,
   onModeChange,
   onRestore,
+  onSendChatMessage,
   onToggleAlwaysOnTop,
   presentation = "tauri",
   windowVisible = true,
@@ -524,7 +601,16 @@ export function DesktopWidgetBubble({
               </div>
             ) : null}
 
-            {mode === "GHOST" ? <GhostSignal bubble={activeData} /> : <BubbleBody bubble={activeData} onItemStateChange={onItemStateChange} />}
+            {mode === "GHOST" ? (
+              <GhostSignal bubble={activeData} />
+            ) : (
+              <BubbleBody
+                bubble={activeData}
+                onItemStateChange={onItemStateChange}
+                onMarkChatRead={onMarkChatRead}
+                onSendChatMessage={onSendChatMessage}
+              />
+            )}
 
             {isPreview ? (
               <div className={styles.bubbleNote}>
