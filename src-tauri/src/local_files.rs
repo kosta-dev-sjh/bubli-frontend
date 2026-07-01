@@ -14,6 +14,7 @@ use std::time::UNIX_EPOCH;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
@@ -828,12 +829,72 @@ pub fn flush_sync_outbox(state: State<'_, Db>) -> Result<SyncOutboxFlushResult, 
             |row| row.get(0),
         )
         .unwrap_or(0);
+    let sent_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM local_sync_outbox WHERE status = 'SENT'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
 
     Ok(SyncOutboxFlushResult {
         failed_count,
         flushed_at: crate::local_db::now_iso(),
-        sent_count: 0,
+        sent_count,
     })
+}
+
+fn local_file_event_outbox_key(local_event_id: &str) -> String {
+    format!("local-file-event:{local_event_id}")
+}
+
+fn stage_local_file_event_outbox(
+    conn: &Connection,
+    event: &LocalFileSyncEventCandidate,
+    now: i64,
+) -> Result<(), String> {
+    let idempotency_key = local_file_event_outbox_key(&event.local_event_id);
+    let payload_json = json!(event).to_string();
+
+    conn.execute(
+        "INSERT INTO local_sync_outbox \
+         (id, idempotency_key, operation, payload_json, status, retry_count, created_at, updated_at) \
+         VALUES (?1, ?2, 'local_file_event', ?3, 'PENDING', 0, ?4, ?4) \
+         ON CONFLICT(idempotency_key) DO UPDATE SET \
+           payload_json = excluded.payload_json, status = 'PENDING', updated_at = excluded.updated_at",
+        params![Uuid::new_v4().to_string(), idempotency_key, payload_json, now],
+    )
+    .map_err(|error| error.to_string())?;
+
+    Ok(())
+}
+
+fn mark_local_file_event_outbox(
+    conn: &Connection,
+    local_event_id: &str,
+    status: &str,
+    now: i64,
+) -> Result<(), String> {
+    let idempotency_key = local_file_event_outbox_key(local_event_id);
+    if status == "FAILED" {
+        conn.execute(
+            "UPDATE local_sync_outbox \
+             SET status = 'FAILED', retry_count = retry_count + 1, updated_at = ?2 \
+             WHERE idempotency_key = ?1 AND operation = 'local_file_event'",
+            params![idempotency_key, now],
+        )
+        .map_err(|error| error.to_string())?;
+    } else {
+        conn.execute(
+            "UPDATE local_sync_outbox \
+             SET status = 'SENT', updated_at = ?2 \
+             WHERE idempotency_key = ?1 AND operation = 'local_file_event'",
+            params![idempotency_key, now],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
+    Ok(())
 }
 
 /// Stage local file events for the authenticated frontend to reflect via
@@ -906,6 +967,7 @@ pub fn stage_local_file_events_for_sync(
 
     let now = now_ms();
     for event in &candidates {
+        stage_local_file_event_outbox(&conn, event, now)?;
         conn.execute(
             "UPDATE local_file_events SET status = 'APPROVED' WHERE id = ?1",
             params![event.local_event_id],
@@ -952,6 +1014,7 @@ pub fn mark_local_file_events_synced(
 
         let failed = result.status.eq_ignore_ascii_case("FAILED");
         let event_status = if failed { "FAILED" } else { "SYNCED" };
+        mark_local_file_event_outbox(&conn, &result.local_event_id, event_status, now)?;
         conn.execute(
             "UPDATE local_file_events SET status = ?2 WHERE id = ?1",
             params![result.local_event_id, event_status],
@@ -1101,6 +1164,16 @@ mod tests {
                 local_path UNINDEXED,
                 tokenize = 'trigram'
             );
+            CREATE TABLE local_sync_outbox (
+                id TEXT PRIMARY KEY,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                operation TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
             ",
         )
         .expect("create local file schema");
@@ -1152,5 +1225,41 @@ mod tests {
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'CREATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'UPDATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'DELETED'"));
+    }
+
+    #[test]
+    fn local_file_event_outbox_uses_idempotent_retry_state() {
+        let conn = test_connection();
+        let event = LocalFileSyncEventCandidate {
+            event_type: "UPDATED".to_string(),
+            file_name: "brief.md".to_string(),
+            file_size_bytes: Some(128),
+            local_event_id: "event-1".to_string(),
+            local_file_id: Some("file-1".to_string()),
+            mime_type: Some("text/markdown".to_string()),
+            resource_id: Some("resource-1".to_string()),
+        };
+
+        stage_local_file_event_outbox(&conn, &event, 10).expect("stage local file event");
+        mark_local_file_event_outbox(&conn, &event.local_event_id, "FAILED", 20)
+            .expect("mark failed");
+        stage_local_file_event_outbox(&conn, &event, 30).expect("restage local file event");
+        mark_local_file_event_outbox(&conn, &event.local_event_id, "SYNCED", 40)
+            .expect("mark sent");
+
+        let (row_count, status, retry_count, payload): (i64, String, i64, String) = conn
+            .query_row(
+                "SELECT COUNT(*), MAX(status), MAX(retry_count), MAX(payload_json) \
+                 FROM local_sync_outbox WHERE idempotency_key = 'local-file-event:event-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("read outbox row");
+
+        assert_eq!(row_count, 1);
+        assert_eq!(status, "SENT");
+        assert_eq!(retry_count, 1);
+        assert!(payload.contains("\"eventType\":\"UPDATED\""));
+        assert!(payload.contains("\"resourceId\":\"resource-1\""));
     }
 }
