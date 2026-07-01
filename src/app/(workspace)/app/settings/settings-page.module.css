@@ -313,6 +313,11 @@ button.row:not(:disabled):hover {
   white-space: nowrap;
 }
 
+.inlineSelect {
+  min-width: 220px;
+  max-width: min(340px, 42vw);
+}
+
 .toggle {
   position: relative;
   display: inline-flex;
@@ -590,6 +595,11 @@ button.row:not(:disabled):hover {
 
   .searchLine {
     grid-template-columns: 1fr;
+  }
+
+  .inlineSelect {
+    width: 100%;
+    max-width: none;
   }
 
   .segmented {

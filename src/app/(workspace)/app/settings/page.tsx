@@ -30,6 +30,7 @@ import {
 } from "@/lib/local/managed-folder-client";
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { tauriCommands, type AppMonitorInfo, type AppMonitorPreference } from "@/lib/tauri/commands";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
@@ -172,6 +173,12 @@ function localResultMessage<TData, TSummary>(result: LocalAdapterResult<TData, T
   return result.message;
 }
 
+function monitorLabel(monitor: AppMonitorInfo, index: number) {
+  const name = monitor.name?.trim() || `Monitor ${index + 1}`;
+  const primaryLabel = monitor.isPrimary ? " primary" : "";
+  return `${name}${primaryLabel} - ${monitor.size.width}x${monitor.size.height} @ ${monitor.position.x},${monitor.position.y}`;
+}
+
 function statusTone(value: string) {
   if (value.includes("못") || value.includes("필요") || value.includes("대기")) return "warning" as const;
   return "approved" as const;
@@ -187,6 +194,7 @@ export default function SettingsPage() {
   const [localFiles, setLocalFiles] = useState<Array<{ localFileId: string; name: string; path: string }>>([]);
   const [lastBackupId, setLastBackupId] = useState<string | null>(null);
   const [desktopRuntime, setDesktopRuntime] = useState(false);
+  const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -241,6 +249,26 @@ export default function SettingsPage() {
       window.clearTimeout(loadHandle);
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!desktopRuntime) {
+      return;
+    }
+
+    let cancelled = false;
+    void tauriCommands
+      .listAppMonitors()
+      .then((preference) => {
+        if (!cancelled) setMonitorPreference(preference);
+      })
+      .catch(() => {
+        if (!cancelled) setLocalActionMessage("Monitor list unavailable");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [desktopRuntime]);
 
   const updateReadyState = useCallback((updater: (current: Extract<PageState, { kind: "ready" }>) => Extract<PageState, { kind: "ready" }>) => {
     setState((current) => (current.kind === "ready" ? updater(current) : current));
@@ -474,6 +502,21 @@ export default function SettingsPage() {
 
     setLocalActionMessage(localResultMessage(result));
   }, [state]);
+
+  const selectAppMonitor = useCallback(
+    async (monitorId: string) => {
+      if (!desktopRuntime) return;
+
+      try {
+        const preference = await tauriCommands.setPreferredAppMonitor({ monitorId });
+        setMonitorPreference(preference);
+        setLocalActionMessage("Monitor setting updated");
+      } catch {
+        setLocalActionMessage("Monitor setting failed");
+      }
+    },
+    [desktopRuntime],
+  );
 
   const openGoogleCalendarConnect = useCallback(() => {
     if (state.kind !== "ready" || !state.settings.googleCalendarConnectUrl) return;
@@ -794,6 +837,25 @@ export default function SettingsPage() {
                   <StatusBadge tone={localCacheReadiness.status === "ready" ? "approved" : "neutral"}>
                     {localCacheReadiness.status === "ready" ? "준비됨" : "앱 필요"}
                   </StatusBadge>
+                </div>
+                <div className={styles.row}>
+                  <span>
+                    <strong>App monitor</strong>
+                    <small>Hybrid app and widgets open on the selected monitor.</small>
+                  </span>
+                  <select
+                    className={styles.inlineSelect}
+                    disabled={!desktopRuntime || !monitorPreference}
+                    onChange={(event) => void selectAppMonitor(event.target.value)}
+                    value={monitorPreference?.preferredMonitorId ?? "primary"}
+                  >
+                    <option value="primary">Primary monitor</option>
+                    {monitorPreference?.monitors.map((monitor, index) => (
+                      <option key={monitor.id} value={monitor.id}>
+                        {monitorLabel(monitor, index)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 {activeFolders.length > 0 ? (
                   activeFolders.map((folder) => (
