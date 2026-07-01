@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Settings, UploadCloud } from "lucide-react";
+import { AlertCircle, UploadCloud } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -183,10 +183,6 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
         </div>
         <div className={styles.headerActions}>
           <ResourceScopeSwitch activeScope="room" roomHref={`/app/project-rooms/${roomId}/resources`} roomLabel="프로젝트룸" />
-          <Link className="bubli-button" href={`/app/project-rooms/${roomId}`}>
-            <Settings aria-hidden size={15} strokeWidth={1.9} />
-            프로젝트룸
-          </Link>
         </div>
       </GlassPanel>
 
