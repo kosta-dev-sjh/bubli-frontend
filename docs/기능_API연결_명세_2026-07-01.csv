@@ -142,6 +142,7 @@
 페이지별 백엔드 맵핑,4,비회원,기능 소개,/features,정적,-,정적,부분,디자인 완료 · 반응형 미확인,,,,
 페이지별 백엔드 맵핑,5,비회원,FAQ,/faq,정적,-,정적,부분,디자인 완료 · 반응형 미확인,,,,
 페이지별 백엔드 맵핑,6,비회원,로그인,/login,구글 OAuth 시작 URL,getGoogleAuthorizationUrl,됨,부분,디자인 완료 · 반응형 미확인,,,,
+페이지별 백엔드 맵핑,6-1,비회원,구글 OAuth legacy 진입,/oauth2/authorization/google,서버 redirect bridge,/api/auth/google/authorize,됨,코드검증,Next route.ts에서 authorizeUrl을 받아 Google로 redirect. page.tsx 중복 route는 제거.,,,,
 페이지별 백엔드 맵핑,7,비회원,OAuth 콜백,/auth/callback,코드→토큰 교환,callbackGoogle,됨,부분,디자인 완료 · 반응형 미확인,,,,
 페이지별 백엔드 맵핑,8,회원,대시보드,/app,대시보드 업무,getWork + projectRoom.list + timerApi + widgetApi.getTodayUsageRollups + activityApi.getToday,됨,코드검증,위젯 summary·TODO·타이머 표시와 시작/일시정지/재개/종료 조작 연결. 2026-07-02 오늘 활동 링에서 버블 사용 요약과 활동 집중 시간을 표시하고 선택 프로젝트룸이면 activity roomId 기준으로 필터링. 알림만 대시보드 미맵핑,,,,
 페이지별 백엔드 맵핑,9,회원,룸 목록,/app/project-rooms,룸 목록,projectRoom.list,됨,확인예정,디자인 상태 미확인,,,,
