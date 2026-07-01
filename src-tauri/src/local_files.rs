@@ -6,13 +6,15 @@
 //! server personal library is done by the frontend client (POST
 //! /api/local-file-events/sync); this module stages the candidates locally.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 
-use rusqlite::{params, OptionalExtension};
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 use crate::local_db::{ms_to_iso, now_ms, Db};
@@ -129,6 +131,15 @@ pub struct LocalFileEventsMarkSyncedResult {
     completed_at: String,
     failed_count: i64,
     synced_count: i64,
+}
+
+/// Keeps native file watchers alive for the lifetime of the app process.
+pub struct ManagedFolderWatchers(pub Mutex<HashMap<String, RecommendedWatcher>>);
+
+impl Default for ManagedFolderWatchers {
+    fn default() -> Self {
+        Self(Mutex::new(HashMap::new()))
+    }
 }
 
 /// Register a personal managed folder. The native folder picker can be wired
@@ -356,14 +367,255 @@ pub fn scan_managed_folder(
     })
 }
 
-/// Continuous watching (notify-based) is the remaining native step. Until then
-/// callers refresh on demand with `scan_managed_folder`.
+/// Start native recursive watching for a managed folder. Changes are reflected
+/// into the same local SQLite index/events used by manual scans.
 #[tauri::command]
 pub fn watch_managed_folder(
+    app: AppHandle,
+    state: State<'_, Db>,
+    watchers: State<'_, ManagedFolderWatchers>,
     input: ManagedFolderCommandInput,
 ) -> Result<ManagedFolderWatchResult, String> {
-    let _ = input.local_folder_id;
-    Err("continuous folder watch is not wired yet; call scan_managed_folder to refresh".to_string())
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let folder_path: String = conn
+        .query_row(
+            "SELECT path FROM managed_folders WHERE id = ?1 AND status = 'ACTIVE'",
+            params![input.local_folder_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| format!("managed folder not found: {}", input.local_folder_id))?;
+    drop(conn);
+
+    let folder = PathBuf::from(&folder_path);
+    if !folder.is_dir() {
+        return Err(format!("not a directory: {folder_path}"));
+    }
+
+    let db_path = crate::local_db::database_path(&app)?;
+    let local_folder_id = input.local_folder_id;
+    let mut guard = watchers
+        .0
+        .lock()
+        .map_err(|_| "folder watcher state lock failed".to_string())?;
+
+    if guard.contains_key(&local_folder_id) {
+        return Ok(ManagedFolderWatchResult {
+            local_folder_id,
+            watching: true,
+        });
+    }
+
+    let callback_folder_id = local_folder_id.clone();
+    let callback_db_path = db_path.clone();
+    let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
+        let event = match result {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("managed folder watch error: {error}");
+                return;
+            }
+        };
+        if !should_process_watch_event(&event) {
+            return;
+        }
+
+        let conn = match Connection::open(&callback_db_path) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("managed folder watch db open failed: {error}");
+                return;
+            }
+        };
+        crate::local_db::configure_connection(&conn);
+        let now = now_ms();
+
+        for path in event.paths {
+            if let Err(error) = record_watch_path_change(&conn, &callback_folder_id, &path, now) {
+                eprintln!("managed folder watch event failed: {error}");
+            }
+        }
+    })
+    .map_err(|error| format!("folder watch setup failed: {error}"))?;
+
+    watcher
+        .watch(&folder, RecursiveMode::Recursive)
+        .map_err(|error| format!("folder watch failed: {error}"))?;
+
+    guard.insert(local_folder_id.clone(), watcher);
+
+    Ok(ManagedFolderWatchResult {
+        local_folder_id,
+        watching: true,
+    })
+}
+
+fn should_process_watch_event(event: &Event) -> bool {
+    matches!(
+        event.kind,
+        EventKind::Any
+            | EventKind::Create(_)
+            | EventKind::Modify(_)
+            | EventKind::Remove(_)
+            | EventKind::Other
+    )
+}
+
+fn record_watch_path_change(
+    conn: &Connection,
+    local_folder_id: &str,
+    path: &Path,
+    now: i64,
+) -> Result<i64, String> {
+    if is_ignored_path(path) {
+        return Ok(0);
+    }
+
+    let local_path = path.to_string_lossy().to_string();
+    let file_name = path
+        .file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_default();
+    if file_name.is_empty() {
+        return Ok(0);
+    }
+
+    match std::fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => {
+            let size_bytes = metadata.len() as i64;
+            let modified_ms = metadata
+                .modified()
+                .ok()
+                .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as i64);
+
+            let existing: Option<(String, Option<i64>, Option<i64>)> = conn
+                .query_row(
+                    "SELECT id, size_bytes, modified_at FROM local_files \
+                     WHERE local_folder_id = ?1 AND local_path = ?2",
+                    params![local_folder_id, local_path],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, Option<i64>>(1)?,
+                            row.get::<_, Option<i64>>(2)?,
+                        ))
+                    },
+                )
+                .optional()
+                .map_err(|error| error.to_string())?;
+
+            match existing {
+                None => {
+                    let file_id = Uuid::new_v4().to_string();
+                    conn.execute(
+                        "INSERT INTO local_files \
+                         (id, local_folder_id, file_name, local_path, resource_id, size_bytes, checksum, sync_status, modified_at, updated_at) \
+                         VALUES (?1, ?2, ?3, ?4, NULL, ?5, NULL, 'LOCAL_ONLY', ?6, ?7)",
+                        params![file_id, local_folder_id, file_name, local_path, size_bytes, modified_ms, now],
+                    )
+                    .map_err(|error| error.to_string())?;
+                    record_event(
+                        conn,
+                        local_folder_id,
+                        Some(file_id.as_str()),
+                        "CREATED",
+                        &file_name,
+                        &local_path,
+                        size_bytes,
+                        modified_ms,
+                        now,
+                    )?;
+                    Ok(1)
+                }
+                Some((file_id, prev_size, prev_modified)) => {
+                    if prev_size == Some(size_bytes) && prev_modified == modified_ms {
+                        return Ok(0);
+                    }
+                    conn.execute(
+                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, sync_status = 'LOCAL_ONLY', updated_at = ?4 \
+                         WHERE id = ?1",
+                        params![file_id, size_bytes, modified_ms, now],
+                    )
+                    .map_err(|error| error.to_string())?;
+                    record_event(
+                        conn,
+                        local_folder_id,
+                        Some(file_id.as_str()),
+                        "UPDATED",
+                        &file_name,
+                        &local_path,
+                        size_bytes,
+                        modified_ms,
+                        now,
+                    )?;
+                    Ok(1)
+                }
+            }
+        }
+        Ok(_) => Ok(0),
+        Err(_) => record_watch_path_delete(conn, local_folder_id, &file_name, &local_path, now),
+    }
+}
+
+fn record_watch_path_delete(
+    conn: &Connection,
+    local_folder_id: &str,
+    file_name: &str,
+    local_path: &str,
+    now: i64,
+) -> Result<i64, String> {
+    let existing: Option<(String, i64, Option<i64>)> = conn
+        .query_row(
+            "SELECT id, COALESCE(size_bytes, 0), modified_at FROM local_files \
+             WHERE local_folder_id = ?1 AND local_path = ?2",
+            params![local_folder_id, local_path],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some((file_id, size_bytes, modified_ms)) = existing else {
+        return Ok(0);
+    };
+
+    let pending_delete_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM local_file_events \
+             WHERE local_file_id = ?1 AND event_type = 'DELETED' AND status IN ('PENDING', 'APPROVED', 'FAILED')",
+            params![file_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    if pending_delete_count > 0 {
+        return Ok(0);
+    }
+
+    record_event(
+        conn,
+        local_folder_id,
+        Some(file_id.as_str()),
+        "DELETED",
+        file_name,
+        local_path,
+        size_bytes,
+        modified_ms,
+        now,
+    )?;
+    conn.execute(
+        "UPDATE local_files SET sync_status = 'LOCAL_ONLY', updated_at = ?2 WHERE id = ?1",
+        params![file_id, now],
+    )
+    .map_err(|error| error.to_string())?;
+
+    Ok(1)
+}
+
+fn is_ignored_path(path: &Path) -> bool {
+    path.components().any(|component| {
+        let name = component.as_os_str().to_string_lossy();
+        name.starts_with('.') || name == "node_modules"
+    })
 }
 
 /// Search the local file index by name or path (LIKE; FTS5 is an enhancement).
@@ -564,8 +816,11 @@ pub fn mark_local_file_events_synced(
         synced_count += 1;
         if let Some(local_file_id) = local_file_id {
             if event_type == "DELETED" {
-                conn.execute("DELETE FROM local_files WHERE id = ?1", params![local_file_id])
-                    .map_err(|error| error.to_string())?;
+                conn.execute(
+                    "DELETE FROM local_files WHERE id = ?1",
+                    params![local_file_id],
+                )
+                .map_err(|error| error.to_string())?;
             } else {
                 conn.execute(
                     "UPDATE local_files SET resource_id = COALESCE(?2, resource_id), sync_status = 'SYNCED', updated_at = ?3 \

@@ -12,6 +12,7 @@
 //!   work into `local_sync_outbox`; the authenticated frontend client performs
 //!   the actual transmission.
 
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -45,20 +46,35 @@ pub fn ms_to_iso(ms: i64) -> String {
 
 /// Open the on-device database under the app data dir and run migrations.
 pub fn open_and_migrate(app: &AppHandle) -> Result<Connection, String> {
+    let db_path = database_path(app)?;
+    if let Some(dir) = db_path.parent() {
+        std::fs::create_dir_all(dir).map_err(|error| error.to_string())?;
+    }
+
+    let conn = Connection::open(db_path).map_err(|error| error.to_string())?;
+    configure_connection(&conn);
+    conn.execute_batch(SCHEMA_SQL)
+        .map_err(|error| error.to_string())?;
+    Ok(conn)
+}
+
+/// Resolve the canonical on-device SQLite path so background workers can open
+/// their own short-lived connection without borrowing Tauri state.
+pub fn database_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
         .app_data_dir()
         .map_err(|error| format!("app_data_dir resolve failed: {error}"))?;
     std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    Ok(dir.join("bubli-local.sqlite3"))
+}
 
-    let db_path = dir.join("bubli-local.sqlite3");
-    let conn = Connection::open(db_path).map_err(|error| error.to_string())?;
+/// Apply connection-level pragmas consistently for the main DB and watcher
+/// worker connections.
+pub fn configure_connection(conn: &Connection) {
     // WAL keeps reads fast while the widget writes usage events frequently.
     let _ = conn.pragma_update(None, "journal_mode", "WAL");
     let _ = conn.pragma_update(None, "foreign_keys", "ON");
-    conn.execute_batch(SCHEMA_SQL)
-        .map_err(|error| error.to_string())?;
-    Ok(conn)
 }
 
 #[derive(Serialize)]
