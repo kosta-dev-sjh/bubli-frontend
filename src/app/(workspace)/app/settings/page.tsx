@@ -31,6 +31,7 @@ import {
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { tauriCommands, type AppMonitorInfo, type AppMonitorPreference } from "@/lib/tauri/commands";
+import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
@@ -491,6 +492,39 @@ export default function SettingsPage() {
     setLocalFiles([]);
     setLocalActionMessage(localResultMessage(result));
   }, [folderSearchQuery]);
+
+  useEffect(() => {
+    if (!desktopRuntime) return;
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    void listenManagedFolderWatchEvents((event) => {
+      if (disposed) return;
+
+      setLocalActionMessage(`로컬 폴더 변경 ${event.changedCount}건 감지됨`);
+      const query = folderSearchQuery.trim();
+      if (!query) return;
+
+      void searchPersonalLocalFiles({ limit: 20, query }).then((result) => {
+        if (disposed || result.status !== "ready") return;
+        setLocalFiles(result.data.items.map((item) => ({ localFileId: item.localFileId, name: item.name, path: item.path })));
+      });
+    })
+      .then((cleanup) => {
+        if (disposed) {
+          cleanup();
+          return;
+        }
+        unlisten = cleanup;
+      })
+      .catch(() => undefined);
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [desktopRuntime, folderSearchQuery]);
 
   const readActivity = useCallback(async () => {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;

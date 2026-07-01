@@ -105,7 +105,7 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
   },
   {
     ipc: TAURI_COMMANDS.watchManagedFolder,
-    responsibility: "Watch folder for changes (native step pending)",
+    responsibility: "Watch folder for changes, update the local index, and emit refresh events",
     reflectsToServer: false,
     serverApi: null,
   },

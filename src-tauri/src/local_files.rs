@@ -18,7 +18,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
 use crate::local_db::{ms_to_iso, now_ms, Db};
@@ -60,6 +60,16 @@ pub struct ManagedFolderWatchResult {
     local_folder_id: String,
     watching: bool,
 }
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderWatchEvent {
+    changed_count: i64,
+    local_folder_id: String,
+    observed_at: String,
+}
+
+const MANAGED_FOLDER_WATCH_EVENT: &str = "bubli-managed-folder-watch-event";
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -463,6 +473,7 @@ pub fn watch_managed_folder(
 
     let callback_folder_id = local_folder_id.clone();
     let callback_db_path = db_path.clone();
+    let callback_app = app.clone();
     let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
         let event = match result {
             Ok(value) => value,
@@ -484,10 +495,23 @@ pub fn watch_managed_folder(
         };
         crate::local_db::configure_connection(&conn);
         let now = now_ms();
+        let mut changed_count = 0;
 
         for path in event.paths {
-            if let Err(error) = record_watch_path_change(&conn, &callback_folder_id, &path, now) {
-                eprintln!("managed folder watch event failed: {error}");
+            match record_watch_path_change(&conn, &callback_folder_id, &path, now) {
+                Ok(count) => changed_count += count,
+                Err(error) => eprintln!("managed folder watch event failed: {error}"),
+            }
+        }
+
+        if changed_count > 0 {
+            let payload = ManagedFolderWatchEvent {
+                changed_count,
+                local_folder_id: callback_folder_id.clone(),
+                observed_at: ms_to_iso(now),
+            };
+            if let Err(error) = callback_app.emit(MANAGED_FOLDER_WATCH_EVENT, payload) {
+                eprintln!("managed folder watch emit failed: {error}");
             }
         }
     })
