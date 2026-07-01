@@ -1,3 +1,5 @@
+"use client";
+
 import {
   BellRing,
   CheckCircle2,
@@ -9,10 +11,21 @@ import {
 } from "lucide-react";
 
 import { Chip, GlassPanel, StatusBadge } from "@/components/ui";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 
 import styles from "./resource-comment-thread-panel.module.css";
 
-const comments = [
+type CommentStatus = "확인 필요" | "답글" | "후보";
+
+const comments: {
+  author: string;
+  initials: string;
+  role: string;
+  time: string;
+  body: string;
+  status: CommentStatus;
+  tagged: string[];
+}[] = [
   {
     author: "김정현",
     initials: "JH",
@@ -42,17 +55,23 @@ const comments = [
   },
 ];
 
-const taggedMembers = [
-  "태그된 멤버에게 개인 알림을 보냅니다.",
-  "댓글 작성 이력은 멤버가 나가도 보존합니다.",
-  "프로젝트룸 자료 접근 권한이 있는 멤버만 댓글을 봅니다.",
+const statusCopy: Record<CommentStatus, MessageKey> = {
+  "확인 필요": "resources.comment.statusReview",
+  답글: "resources.comment.statusReply",
+  후보: "resources.comment.statusCandidate",
+};
+
+const taggedMembers: MessageKey[] = [
+  "resources.comment.tagged1",
+  "resources.comment.tagged2",
+  "resources.comment.tagged3",
 ];
 
-const checks = [
-  "자료 댓글은 프로젝트룸 자료에 우선 적용합니다.",
-  "댓글 알림은 사용자별 알림 설정을 따릅니다.",
-  "에이전트 댓글은 질문 후보를 제안할 뿐 사용자가 확인하기 전까지 후보 상태입니다.",
-  "프로젝트룸 밖 사용자와 나간 멤버는 자료 댓글과 자료 상세에 접근하지 않습니다.",
+const checks: MessageKey[] = [
+  "resources.comment.check1",
+  "resources.comment.check2",
+  "resources.comment.check3",
+  "resources.comment.check4",
 ];
 
 const apiRows = [
@@ -63,33 +82,32 @@ const apiRows = [
 ];
 
 export function ResourceCommentThreadPanel() {
+  const { t } = useI18n();
+
   return (
     <GlassPanel className={styles.panel}>
       <header className={styles.header}>
         <div className={styles.eyebrow}>
           <MessageSquareText size={16} aria-hidden="true" />
-          프로젝트룸 자료 댓글
+          {t("resources.comment.eyebrow")}
         </div>
         <div className={styles.titleRow}>
           <div className={styles.titleGroup}>
-            <h2 className={styles.title}>자료의 확인 대화를 댓글과 알림으로 남깁니다</h2>
-            <p className={styles.summary}>
-              프로젝트룸 자료에 남긴 댓글은 자료 접근 권한을 기준으로 보이고, 태그된 멤버에게는 개인 알림으로 이어집니다. 채팅처럼
-              흘러가도 자료와 연결된 기록은 자료 상세에 남깁니다.
-            </p>
+            <h2 className={styles.title}>{t("resources.comment.title")}</h2>
+            <p className={styles.summary}>{t("resources.comment.summary")}</p>
           </div>
           <StatusBadge tone="room">resource_comments</StatusBadge>
         </div>
-        <div className={styles.chips} aria-label="자료 댓글 핵심 기준">
+        <div className={styles.chips} aria-label={t("resources.comment.chipsAria")}>
           <Chip selected icon={<FileText size={14} aria-hidden="true" />}>
-            프로젝트룸 자료 기준
+            {t("resources.comment.chipRoomScope")}
           </Chip>
-          <Chip icon={<BellRing size={14} aria-hidden="true" />}>태그 알림</Chip>
-          <Chip icon={<ShieldCheck size={14} aria-hidden="true" />}>자료 권한 확인</Chip>
+          <Chip icon={<BellRing size={14} aria-hidden="true" />}>{t("resources.comment.chipTagNotify")}</Chip>
+          <Chip icon={<ShieldCheck size={14} aria-hidden="true" />}>{t("resources.comment.chipPermission")}</Chip>
         </div>
       </header>
 
-      <section className={styles.layout} aria-label="자료 댓글 스레드">
+      <section className={styles.layout} aria-label={t("resources.comment.threadAria")}>
         <div className={styles.thread}>
           {comments.map((comment) => (
             <article className={styles.comment} key={`${comment.author}-${comment.time}`}>
@@ -104,74 +122,78 @@ export function ResourceCommentThreadPanel() {
                   </span>
                 </div>
                 <StatusBadge tone={comment.status === "후보" ? "agent" : comment.status === "확인 필요" ? "warning" : "communication"}>
-                  {comment.status}
+                  {t(statusCopy[comment.status])}
                 </StatusBadge>
               </div>
               <p className={styles.commentBody}>{comment.body}</p>
               <div className={styles.commentMeta}>
-                {comment.tagged.length > 0 ? comment.tagged.map((member) => <Chip key={member}>태그 {member}</Chip>) : <Chip>태그 없음</Chip>}
-                <Chip>자료 상세에 보관</Chip>
+                {comment.tagged.length > 0 ? (
+                  comment.tagged.map((member) => <Chip key={member}>{t("resources.comment.tagPrefix", { member })}</Chip>)
+                ) : (
+                  <Chip>{t("resources.comment.tagNone")}</Chip>
+                )}
+                <Chip>{t("resources.comment.keepInDetail")}</Chip>
               </div>
             </article>
           ))}
 
           <div className={styles.composer}>
             <div className={styles.composerLabel}>
-              <h3>댓글 작성</h3>
-              <StatusBadge tone="pending">권한 확인 후 저장</StatusBadge>
+              <h3>{t("resources.comment.composeHeading")}</h3>
+              <StatusBadge tone="pending">{t("resources.comment.composeSaveBadge")}</StatusBadge>
             </div>
             <textarea
               className={styles.textarea}
               defaultValue="검수 기준과 수정 범위를 이 자료에 연결해서 남겨둘게요."
-              aria-label="자료 댓글 입력"
+              aria-label={t("resources.comment.composeInputAria")}
             />
             <div className={styles.commentMeta}>
-              <Chip selected>프로젝트룸 자료</Chip>
-              <Chip>태그 멤버 선택</Chip>
-              <Chip>알림 생성</Chip>
+              <Chip selected>{t("resources.comment.composeChipRoom")}</Chip>
+              <Chip>{t("resources.comment.composeChipTag")}</Chip>
+              <Chip>{t("resources.comment.composeChipNotify")}</Chip>
             </div>
           </div>
         </div>
 
-        <aside className={styles.side} aria-label="댓글 저장과 알림 기준">
+        <aside className={styles.side} aria-label={t("resources.comment.sideAria")}>
           <section className={styles.sideCard}>
-            <h3>연결된 자료</h3>
+            <h3>{t("resources.comment.linkedHeading")}</h3>
             <div className={styles.resourceBox}>
               <strong>용역 계약서_최종본_v2.1.pdf</strong>
-              <span>프로젝트룸 자료 · 프로젝트룸 멤버만 접근</span>
+              <span>{t("resources.comment.linkedScope")}</span>
               <div className={styles.commentMeta}>
-                <Chip>댓글 3개</Chip>
-                <Chip>버전 v2</Chip>
+                <Chip>{t("resources.comment.linkedCount")}</Chip>
+                <Chip>{t("resources.comment.linkedVersion")}</Chip>
               </div>
             </div>
           </section>
 
           <section className={styles.sideCard}>
-            <h3>태그와 알림</h3>
+            <h3>{t("resources.comment.tagNotifyHeading")}</h3>
             <ul className={styles.memberList}>
               {taggedMembers.map((item) => (
                 <li className={styles.memberItem} key={item}>
                   <UsersRound size={16} aria-hidden="true" />
-                  <span>{item}</span>
+                  <span>{t(item)}</span>
                 </li>
               ))}
             </ul>
           </section>
 
           <section className={styles.sideCard}>
-            <h3>검증 기준</h3>
+            <h3>{t("resources.comment.checksHeading")}</h3>
             <ul className={styles.checks}>
               {checks.map((item) => (
                 <li className={styles.checkItem} key={item}>
                   <CheckCircle2 size={16} aria-hidden="true" />
-                  <span>{item}</span>
+                  <span>{t(item)}</span>
                 </li>
               ))}
             </ul>
           </section>
 
           <section className={styles.sideCard}>
-            <h3>연결 API 후보</h3>
+            <h3>{t("resources.comment.apiHeading")}</h3>
             <div className={styles.apiList}>
               {apiRows.map(([method, path]) => (
                 <div className={styles.apiRow} key={path}>
@@ -182,7 +204,7 @@ export function ResourceCommentThreadPanel() {
             </div>
             <div className={styles.memberItem}>
               <UserRound size={16} aria-hidden="true" />
-              <span>댓글 권한은 자료 접근 권한과 같은 기준으로 확인합니다.</span>
+              <span>{t("resources.comment.apiNote")}</span>
             </div>
           </section>
         </aside>
