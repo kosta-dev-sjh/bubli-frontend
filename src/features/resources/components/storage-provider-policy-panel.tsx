@@ -1,3 +1,5 @@
+"use client";
+
 import { AlertTriangle, Cloud, Database, Download, HardDrive, ShieldCheck } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 
@@ -6,6 +8,7 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./storage-provider-policy-panel.module.css";
@@ -30,37 +33,37 @@ export type StorageProviderPolicyPanelProps = HTMLAttributes<HTMLElement> & {
   usagePercent: number;
 };
 
-const statusMeta: Record<StoragePolicyStatus, { label: string; tone: StatusTone }> = {
-  ready: { label: "준비됨", tone: "success" },
-  checking: { label: "확인 중", tone: "pending" },
-  limited: { label: "제한 있음", tone: "warning" },
-  blocked: { label: "차단됨", tone: "warning" },
+const statusMeta: Record<StoragePolicyStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  ready: { labelKey: "resources.storage.status.ready", tone: "success" },
+  checking: { labelKey: "resources.storage.status.checking", tone: "pending" },
+  limited: { labelKey: "resources.storage.status.limited", tone: "warning" },
+  blocked: { labelKey: "resources.storage.status.blocked", tone: "warning" },
 };
 
 const policyCards: Array<{
-  description: string;
+  descriptionKey: MessageKey;
   icon: ReactNode;
-  label: string;
+  labelKey: MessageKey;
 }> = [
   {
-    description: "초기 검증은 기기 안 저장소로 빠르게 확인하고, 화면 흐름은 그대로 둡니다.",
+    descriptionKey: "resources.storage.card.localDesc",
     icon: <HardDrive size={18} strokeWidth={2.1} />,
-    label: "기기 안 검증",
+    labelKey: "resources.storage.card.localTitle",
   },
   {
-    description: "최종 파일 원본은 서버 저장소에 두고, 접근 판단에 필요한 자료 정보를 함께 남깁니다.",
+    descriptionKey: "resources.storage.card.serverDesc",
     icon: <Cloud size={18} strokeWidth={2.1} />,
-    label: "서버 저장",
+    labelKey: "resources.storage.card.serverTitle",
   },
   {
-    description: "파일 경로가 아니라 로그인 사용자, 자료 범위, 프로젝트룸 권한으로 내려받기를 판단합니다.",
+    descriptionKey: "resources.storage.card.permissionDesc",
     icon: <ShieldCheck size={18} strokeWidth={2.1} />,
-    label: "서버 권한 확인",
+    labelKey: "resources.storage.card.permissionTitle",
   },
   {
-    description: "권한이 확인된 사용자에게만 짧게 쓰는 내려받기 주소를 발급합니다.",
+    descriptionKey: "resources.storage.card.urlDesc",
     icon: <Download size={18} strokeWidth={2.1} />,
-    label: "주소 발급",
+    labelKey: "resources.storage.card.urlTitle",
   },
 ];
 
@@ -71,11 +74,13 @@ export function StorageProviderPolicyPanel({
   failureReason,
   limitLabel,
   steps,
-  title = "저장소 제공자 정책",
+  title,
   usageLabel,
   usagePercent,
   ...props
 }: StorageProviderPolicyPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("resources.storage.defaultTitle");
   const safeUsagePercent = Math.max(0, Math.min(100, usagePercent));
   const usageTone = safeUsagePercent >= 100 ? "warning" : safeUsagePercent >= 80 ? "pending" : "success";
 
@@ -83,68 +88,64 @@ export function StorageProviderPolicyPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<Database size={14} strokeWidth={2.1} />}>자료 저장소</Chip>
+          <Chip icon={<Database size={14} strokeWidth={2.1} />}>{t("resources.storage.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              저장 위치가 바뀌어도 자료보드는 같은 화면 흐름을 쓰고, 접근은 서버 권한 기준으로 판단합니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("resources.storage.description")}</p>
           </div>
         </div>
         <div className={styles.providerBadge}>
-          <span>현재 기준</span>
+          <span>{t("resources.storage.currentLabel")}</span>
           <strong>{currentProviderLabel}</strong>
         </div>
       </header>
 
       <div className={styles.grid}>
-        <section className={styles.usageCard} aria-label="저장 용량 상태">
+        <section className={styles.usageCard} aria-label={t("resources.storage.usageAria")}>
           <div className={styles.usageHeader}>
             <div>
               <p className={styles.kicker}>GET /api/storage/usage</p>
-              <h3 className={styles.cardTitle}>개인 자료함 용량</h3>
+              <h3 className={styles.cardTitle}>{t("resources.storage.usageTitle")}</h3>
             </div>
-            <StatusBadge tone={usageTone}>{safeUsagePercent >= 100 ? "업로드 차단" : "사용 가능"}</StatusBadge>
+            <StatusBadge tone={usageTone}>
+              {safeUsagePercent >= 100 ? t("resources.storage.usageBadgeBlocked") : t("resources.storage.usageBadgeAvailable")}
+            </StatusBadge>
           </div>
-          <ProgressBar label="개인 자료함 서버 저장 용량" value={safeUsagePercent} />
+          <ProgressBar label={t("resources.storage.usageProgressLabel")} value={safeUsagePercent} />
           <div className={styles.usageMeta}>
             <span>{usageLabel}</span>
             <strong>{limitLabel}</strong>
           </div>
-          <p className={styles.helperText}>
-            용량을 넘으면 기기 안 색인은 유지하고, 서버 업로드만 막습니다.
-          </p>
+          <p className={styles.helperText}>{t("resources.storage.usageHelper")}</p>
         </section>
 
-        <section className={styles.downloadCard} aria-label="다운로드 정책">
+        <section className={styles.downloadCard} aria-label={t("resources.storage.downloadAria")}>
           <span className="bubli-icon-tile" aria-hidden="true">
             <ShieldCheck size={18} strokeWidth={2.1} />
           </span>
           <div>
             <p className={styles.kicker}>GET /api/resources/:id/download-url</p>
             <h3 className={styles.cardTitle}>{downloadRuleLabel}</h3>
-            <p className={styles.helperText}>
-              파일 원본은 바로 열지 않고, 서버가 권한을 확인한 뒤 내려받기 주소를 발급합니다.
-            </p>
+            <p className={styles.helperText}>{t("resources.storage.downloadHelper")}</p>
           </div>
         </section>
       </div>
 
       <div className={styles.policyGrid}>
         {policyCards.map((card) => (
-          <article className={styles.policyCard} key={card.label}>
+          <article className={styles.policyCard} key={card.labelKey}>
             <span className={styles.policyIcon} aria-hidden="true">
               {card.icon}
             </span>
             <div>
-              <h3>{card.label}</h3>
-              <p>{card.description}</p>
+              <h3>{t(card.labelKey)}</h3>
+              <p>{t(card.descriptionKey)}</p>
             </div>
           </article>
         ))}
       </div>
 
-      <section className={styles.steps} aria-label="저장소 처리 단계">
+      <section className={styles.steps} aria-label={t("resources.storage.stepsAria")}>
         {steps.map((step) => {
           const meta = statusMeta[step.status];
 
@@ -152,7 +153,7 @@ export function StorageProviderPolicyPanel({
             <article className={styles.step} key={`${step.label}-${step.value}`}>
               <div className={styles.stepHeader}>
                 <h3>{step.label}</h3>
-                <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
+                <StatusBadge tone={meta.tone}>{t(meta.labelKey)}</StatusBadge>
               </div>
               <strong>{step.value}</strong>
               <p>{step.description}</p>
@@ -162,10 +163,10 @@ export function StorageProviderPolicyPanel({
       </section>
 
       {failureReason ? (
-        <aside className={styles.notice} aria-label="업로드 실패 사유">
+        <aside className={styles.notice} aria-label={t("resources.storage.failureAria")}>
           <AlertTriangle size={18} strokeWidth={2.1} aria-hidden="true" />
           <div>
-            <strong>업로드 실패 사유 저장</strong>
+            <strong>{t("resources.storage.failureTitle")}</strong>
             <p>{failureReason}</p>
           </div>
         </aside>

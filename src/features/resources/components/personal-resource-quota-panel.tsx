@@ -1,3 +1,5 @@
+"use client";
+
 import { AlertTriangle, Archive, Cloud, Database, FolderSync, HardDrive, Search, ShieldCheck } from "lucide-react";
 import type { HTMLAttributes } from "react";
 
@@ -7,6 +9,7 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./personal-resource-quota-panel.module.css";
@@ -40,11 +43,11 @@ export type PersonalResourceQuotaPanelProps = HTMLAttributes<HTMLElement> & {
   usage: StorageUsage;
 };
 
-const statusMeta: Record<LocalFileStatus, { label: string; tone: StatusTone }> = {
-  LOCAL_ONLY: { label: "로컬만", tone: "personal" },
-  STORAGE_LIMIT_EXCEEDED: { label: "용량 초과", tone: "warning" },
-  SYNC_PENDING: { label: "대기", tone: "pending" },
-  SYNCED: { label: "반영됨", tone: "success" },
+const statusMeta: Record<LocalFileStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  LOCAL_ONLY: { labelKey: "resources.quota.status.LOCAL_ONLY", tone: "personal" },
+  STORAGE_LIMIT_EXCEEDED: { labelKey: "resources.quota.status.STORAGE_LIMIT_EXCEEDED", tone: "warning" },
+  SYNC_PENDING: { labelKey: "resources.quota.status.SYNC_PENDING", tone: "pending" },
+  SYNCED: { labelKey: "resources.quota.status.SYNCED", tone: "success" },
 };
 
 export const defaultStorageUsage: StorageUsage = {
@@ -103,10 +106,12 @@ export function PersonalResourceQuotaPanel({
   className,
   files,
   rules,
-  title = "개인 자료함 용량",
+  title,
   usage,
   ...props
 }: PersonalResourceQuotaPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("resources.quota.defaultTitle");
   const overLimitCount = files.filter((file) => file.status === "STORAGE_LIMIT_EXCEEDED").length;
   const pendingCount = files.filter((file) => file.status === "SYNC_PENDING").length;
   const usageTone: StatusTone = usage.percent >= 90 ? "warning" : usage.percent >= 75 ? "pending" : "success";
@@ -115,23 +120,20 @@ export function PersonalResourceQuotaPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<HardDrive size={16} strokeWidth={2.1} />}>개인 저장 정책</Chip>
+          <Chip icon={<HardDrive size={16} strokeWidth={2.1} />}>{t("resources.quota.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              개인 자료함 동기화는 사용자별 용량 안에서만 서버에 반영합니다. 용량을 넘은 파일은 기기 안
-              색인에는 남겨 검색할 수 있지만, 서버 업로드와 프로젝트룸 공유 단계로 넘어가지 않습니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("resources.quota.description")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>무료 기준</span>
+          <span>{t("resources.quota.summaryLabel")}</span>
           <strong>{usage.limitLabel}</strong>
           <StatusBadge tone={usageTone}>{usage.percent}%</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.usageGrid} aria-label="개인 자료함 사용량">
+      <section className={styles.usageGrid} aria-label={t("resources.quota.usageAria")}>
         <article className={styles.usageCard}>
           <div className={styles.usageTop}>
             <span className={styles.usageIcon}>
@@ -145,7 +147,7 @@ export function PersonalResourceQuotaPanel({
           </div>
           <ProgressBar className={cn(styles.progress, usageTone === "warning" && styles.progressWarning)} value={usage.percent} />
           <div className={styles.usageMeta}>
-            <span>서버 개인 자료함</span>
+            <span>{t("resources.quota.usageMetaLabel")}</span>
             <b>{usage.limitLabel}</b>
           </div>
         </article>
@@ -153,28 +155,28 @@ export function PersonalResourceQuotaPanel({
         <article className={styles.warningCard}>
           <AlertTriangle size={18} strokeWidth={2.1} aria-hidden="true" />
           <div>
-            <strong>초과 파일 {overLimitCount}개</strong>
-            <p>서버 반영은 멈추지만 로컬 색인과 변경 확인은 유지합니다.</p>
+            <strong>{t("resources.quota.overLimitTitle", { count: overLimitCount })}</strong>
+            <p>{t("resources.quota.overLimitDesc")}</p>
           </div>
         </article>
 
         <article className={styles.pendingCard}>
           <FolderSync size={18} strokeWidth={2.1} aria-hidden="true" />
           <div>
-            <strong>동기화 대기 {pendingCount}개</strong>
-            <p>네트워크와 용량을 확인한 뒤 사용자가 승인한 항목만 반영합니다.</p>
+            <strong>{t("resources.quota.pendingTitle", { count: pendingCount })}</strong>
+            <p>{t("resources.quota.pendingDesc")}</p>
           </div>
         </article>
       </section>
 
-      <section className={styles.fileGrid} aria-label="로컬 파일 동기화 상태">
+      <section className={styles.fileGrid} aria-label={t("resources.quota.fileAria")}>
         <div className={styles.fileHeader}>
           <div>
-            <strong>로컬 색인 파일</strong>
-            <p>서버 전송 전에도 기기 안 색인에서 검색하고 상태를 확인합니다.</p>
+            <strong>{t("resources.quota.fileListTitle")}</strong>
+            <p>{t("resources.quota.fileListDesc")}</p>
           </div>
           <Button icon={<Search size={15} strokeWidth={2.1} />} size="sm" variant="quiet">
-            기기 안에서 찾기
+            {t("resources.quota.findLocal")}
           </Button>
         </div>
         <div className={styles.fileStack}>
@@ -191,21 +193,21 @@ export function PersonalResourceQuotaPanel({
                   <span>{file.pathLabel}</span>
                 </span>
                 <span className={styles.fileSize}>{file.sizeLabel}</span>
-                <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
               </article>
             );
           })}
         </div>
       </section>
 
-      <section className={styles.ruleGrid} aria-label="개인 자료함 동기화 규칙">
+      <section className={styles.ruleGrid} aria-label={t("resources.quota.ruleAria")}>
         {rules.map((rule) => (
           <article key={rule.label}>
             <ShieldCheck size={17} strokeWidth={2.1} aria-hidden="true" />
             <div>
               <strong>{rule.label}</strong>
               <p>{rule.description}</p>
-              <StatusBadge tone={rule.tone}>정책</StatusBadge>
+              <StatusBadge tone={rule.tone}>{t("resources.quota.rulePolicy")}</StatusBadge>
             </div>
           </article>
         ))}
@@ -213,10 +215,10 @@ export function PersonalResourceQuotaPanel({
 
       <footer className={styles.footer}>
         <Button icon={<Cloud size={15} strokeWidth={2.1} />} size="sm" variant="primary">
-          동기화 대상 확인
+          {t("resources.quota.footerConfirm")}
         </Button>
         <Button icon={<ShieldCheck size={15} strokeWidth={2.1} />} size="sm" variant="quiet">
-          공유 승인으로 이동
+          {t("resources.quota.footerShare")}
         </Button>
       </footer>
     </GlassPanel>
