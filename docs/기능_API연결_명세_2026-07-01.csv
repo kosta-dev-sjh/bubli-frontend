@@ -75,7 +75,7 @@
 기능 연결 상세,33,미연결,타이머,(미연결),timerApi,POST /api/time-logs/* (start·heartbeat·stop),O,X,X,X,일치,부분,대시보드 runningTimer 표시 연결 · 시작/정지 UI는 남음
 기능 연결 상세,34,소통,친구/요청/초대,/app/chat,friendApi+projectRoomApi,GET /api/friends · /api/friend-requests · POST /api/project-rooms/{roomId}/invitations,O,O,O,O,일치,됨,"상단 빠른 실행(내 ID 복사·친구 추가·현재 룸 초대), 오른쪽 친구 허브, Bubli ID 복사/검색/요청, 받은/보낸 요청 분리, 수락/거절 연결, 수락된 친구의 1:1·룸 초대 연결. 친구 삭제와 초대 수락/취소 화면은 후속. 링크 초대·이메일 초대·게스트 초대는 금지."
 기능 연결 상세,35,소통,프로젝트룸 보이스,/app/chat,voiceApi,POST /api/voice/rooms,O,O,O,O,일치,됨,"보이스 생성, 참여 토큰, 마이크 상태, 나가기, 종료 버튼을 /app/chat에서 실제 voiceApi로 연결. LiveKit 클라이언트 입장과 WS 참여자 자동갱신은 후속 검증."
-기능 연결 상세,36,활동인식,현재 활동 기록,/app/settings,activityApi+tauriCommands,GET /api/activity/today · POST /api/activity/current-app,O,O,O(Tauri),부분,일치,부분,"설정 화면에서 read_activity_context 결과를 current-app API로 기록하도록 연결. Windows는 Win32 foreground window API, macOS는 osascript 기반. 실제 장시간 자동 추적/주기 기록 QA는 남음."
+기능 연결 상세,36,활동인식,현재 활동 기록,/app/settings,activityApi+tauriCommands,GET /api/activity/today · POST /api/activity/current-app,O,O,O(Tauri),부분,일치,부분,"설정 화면 수동 기록 + 로그인 후 Tauri 인증 표면 시작 시 30초 자동 캡처 루프 연결. 루프는 /api/me/privacy-consents의 activityDetectionEnabled가 켜진 경우에만 read_activity_context를 호출하고, 현재 활성 프로젝트룸 ID를 roomId로 함께 POST. Windows는 Win32 foreground window API, macOS는 osascript 기반. 실제 장시간 자동 추적/주기 기록 QA는 남음."
 기능 연결 상세,37,관리폴더,로컬 파일 이벤트 서버 반영,/app/settings,managedFolderApi+tauriCommands,POST /api/local-file-events/sync,O,O,O(Tauri),부분,일치,부분,"scan/watch가 만든 local_file_events 중 CREATED/UPDATED/DELETED를 stage_local_file_events_for_sync 후보로 올리고, local_sync_outbox에 local-file-event:{local_event_id} idempotency_key와 payload를 적재한 뒤 프론트 인증 API가 /api/local-file-events/sync로 전송. 응답 성공은 outbox SENT, 서버 응답 실패와 POST 예외는 FAILED+retry_count로 남김. 실제 Tauri 런타임 왕복 QA 필요."
 기능 연결 상세,38,,,,,,,,,,,,
 기능 연결 상세,39,범례,,,,,,,,,,,
@@ -159,7 +159,7 @@
 페이지별 백엔드 맵핑,21,회원,설정,/app/settings,프로필·알림·동의·폴더·저장소·위젯버블,getMe·updateMe+settings5+widget2,됨,개선 반영,계정·언어·테마·알림·동의·로컬 앱(SQLite/폴더)·위젯 상태 중심으로 재구성. 새로고침/목업 실패 카드 제거. 실제 Tauri 런타임 검증은 남음.,,,,
 페이지별 백엔드 맵핑,22,위젯,데스크탑 위젯,/app/desktop/widgets,위젯 창 런타임 + 사용량,tauriCommands + widget-local-client,부분,부분,로그인 후 TODO 위젯+위젯 바 자동 실행을 프론트 런처와 Rust app_ready에서 보강. 소통/chat 위젯은 시작 시 자동 실행 제외. Tauri QA에서 메인/버블 창 2번 모니터 표시 확인. 2026-07-02 선택 프로젝트룸 ID를 위젯 열기/모드 변경 입력에 포함하도록 보강. bar/menu/default 창 제목 분리 후 별도 bar 창 관측 재검증 필요,,,,
 페이지별 백엔드 맵핑,23,위젯,독립 위젯 창,/desktop-widget,위젯 창 런타임(Tauri),tauriCommands 창 제어,됨,부분,2026-07-02 Tauri WidgetWindowState와 /desktop-widget URL에 selectedRoomId/roomId 전달 추가. 위젯 초기 렌더가 서버 context 응답 전에도 선택 룸 기준 데이터 호출 가능. 실제 Windows 런타임 재생성/복원 QA는 남음.,,,,
-페이지별 백엔드 맵핑,24,공통,활동 감지 서버반영,(화면 미연결),활동(/api/activity),activityApi 미호출,안됨,해당없음,화면 미맵핑,,,,
+페이지별 백엔드 맵핑,24,공통,활동 감지 서버반영,로그인 후 Tauri 런처 + /app/settings,활동(/api/activity),read_activity_context + POST /api/activity/current-app + GET /api/activity/today,부분,부분,설정 화면 수동 기록과 로그인 후 30초 자동 캡처 루프 연결. 동의 꺼짐이면 네이티브 캡처 호출 안 함. 실제 Windows 장시간 런타임 QA와 서버 왕복 관측은 남음.,,,,
 페이지별 백엔드 맵핑,25,공통,타이머 서버반영,(화면 미연결),작업시간(/api/time-logs),timerApi 미호출,부분,해당없음,대시보드 runningTimer 표시 · 서버 time-logs 시작/정지 UI 미맵핑,,,,
 페이지별 백엔드 맵핑,26,,,,,,,,,,,,
 페이지별 백엔드 맵핑,27,범례,,,,,,,,,,,

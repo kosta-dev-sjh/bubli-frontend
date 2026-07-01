@@ -3,6 +3,7 @@
 import { tauriCommands, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
+import { startActivityAutoCapture } from "@/lib/local/activity-auto-capture";
 
 let launchRequested = false;
 let launchPromise: Promise<void> | null = null;
@@ -38,6 +39,8 @@ export function launchTauriAuthenticatedSurfaces() {
         occurredAt: new Date().toISOString(),
       })
       .catch(() => undefined);
+
+    startActivityAutoCapture();
 
     if (errors.length === loginStartupWindows.length) {
       throw errors[0];
