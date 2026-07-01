@@ -22,6 +22,7 @@ import type {
   LocalFileSearchAdapterInput,
   LocalFileSearchAdapterResult,
   ManagedFolderIndexProgressAdapterResult,
+  ManagedFolderListAdapterResult,
   ManagedFolderScanAdapterResult,
   ManagedFolderSelectResult,
   ManagedFolderSyncAdapterInput,
@@ -58,6 +59,16 @@ export async function selectPersonalManagedFolder(
   return runTauriAdapter(TAURI_COMMANDS.selectManagedFolder, () =>
     tauriCommands.selectManagedFolder(tauriInput),
   );
+}
+
+export async function listPersonalManagedFolders(): Promise<ManagedFolderListAdapterResult> {
+  const commandName = TAURI_COMMANDS.listManagedFolders;
+
+  if (!isTauriRuntime()) {
+    return unavailable(commandName);
+  }
+
+  return runTauriAdapter(commandName, () => tauriCommands.listManagedFolders());
 }
 
 export async function scanPersonalManagedFolder(
