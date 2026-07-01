@@ -12,6 +12,7 @@ import { authApi } from "@/features/auth/api/authApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { authUserAccountLabel, authUserDisplayName } from "@/lib/auth/user-display";
 import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
@@ -260,9 +261,9 @@ export function AppShell({ children }: AppShellProps) {
     }
 
     return {
-      displayName: state.user.name,
-      email: state.user.email ?? "로그인 정보 없음",
-      initials: initialsFromName(state.user.name),
+      displayName: authUserDisplayName(state.user),
+      email: authUserAccountLabel(state.user),
+      initials: initialsFromName(authUserDisplayName(state.user)),
     };
   }, [state]);
 

@@ -13,6 +13,7 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { authUserAccountLabel, authUserDisplayName } from "@/lib/auth/user-display";
 import { recordCurrentActivityContext } from "@/lib/local/activity-client";
 import {
   backupLocalSqlite,
@@ -596,8 +597,8 @@ export default function SettingsPage() {
           <div className={styles.statusGrid}>
             <GlassPanel className={styles.statusCard}>
               <span>계정</span>
-              <strong>{state.kind === "ready" ? state.user.name : "연결 전"}</strong>
-              <small>{state.kind === "ready" ? state.user.email : "서버 연결 후 표시"}</small>
+              <strong>{state.kind === "ready" ? authUserDisplayName(state.user) : "연결 전"}</strong>
+              <small>{state.kind === "ready" ? authUserAccountLabel(state.user) : "서버 연결 후 표시"}</small>
             </GlassPanel>
             <GlassPanel className={styles.statusCard}>
               <span>알림</span>
@@ -627,11 +628,11 @@ export default function SettingsPage() {
             <div className={styles.accountGrid}>
               <div className={styles.identity}>
                 <span>이름</span>
-                <strong>{state.kind === "ready" ? state.user.name : "서버 연결 후 표시"}</strong>
+                <strong>{state.kind === "ready" ? authUserDisplayName(state.user) : "서버 연결 후 표시"}</strong>
               </div>
               <div className={styles.identity}>
-                <span>이메일</span>
-                <strong>{state.kind === "ready" ? state.user.email : "서버 연결 후 표시"}</strong>
+                <span>로그인 계정</span>
+                <strong>{state.kind === "ready" ? authUserAccountLabel(state.user) : "서버 연결 후 표시"}</strong>
               </div>
               <div className={styles.identity}>
                 <span>Bubli ID</span>
