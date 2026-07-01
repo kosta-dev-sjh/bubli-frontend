@@ -73,50 +73,7 @@ const surfaceMeta: Record<TodoViewSurface, { icon: ReactNode; label: string }> =
   WORK_BOARD: { icon: <Columns3 size={14} strokeWidth={2.1} />, label: "작업판" },
 };
 
-export const defaultTodos: TodoItem[] = [
-  {
-    assigneeLabel: "정현",
-    dueLabel: "오늘",
-    id: "todo-send-client-question",
-    projectRoomLabel: "신규 웹사이트 번역",
-    scope: "PROJECT_ROOM",
-    source: "APPROVED_CANDIDATE",
-    status: "IN_PROGRESS",
-    surfaces: ["WORK_BOARD", "DASHBOARD", "BUBBLE"],
-    title: "납품일 확인 질문 보내기",
-  },
-  {
-    assigneeLabel: "정현",
-    dueLabel: "D-2",
-    id: "todo-review-translation",
-    projectRoomLabel: "신규 웹사이트 번역",
-    scope: "PROJECT_ROOM",
-    source: "DIRECT",
-    status: "REVIEW",
-    surfaces: ["WORK_BOARD", "DASHBOARD", "BUBBLE", "SCHEDULE"],
-    title: "1차 번역본 검토",
-  },
-  {
-    dueLabel: "오늘",
-    id: "todo-personal-memo",
-    scope: "PERSONAL",
-    source: "DIRECT",
-    status: "TODO",
-    surfaces: ["DASHBOARD", "BUBBLE"],
-    title: "회의 전에 확인할 질문 정리",
-  },
-  {
-    assigneeLabel: "정현",
-    dueLabel: "6.27",
-    id: "todo-resource-tags",
-    projectRoomLabel: "서비스 소개 페이지",
-    scope: "PROJECT_ROOM",
-    source: "APPROVED_CANDIDATE",
-    status: "BLOCKED",
-    surfaces: ["WORK_BOARD", "DASHBOARD"],
-    title: "참고 자료 태그 기준 확인",
-  },
-];
+export const defaultTodos: TodoItem[] = [];
 
 function getFilteredTodos(todos: TodoItem[], selectedFilter: TodoListPanelProps["selectedFilter"]) {
   if (!selectedFilter || selectedFilter === "ALL") {
@@ -235,6 +192,12 @@ export function TodoListPanel({
               </article>
             );
           })}
+          {filteredTodos.length === 0 ? (
+            <GlassPanel className={styles.policyPanel}>
+              <strong>표시할 TODO가 없습니다</strong>
+              <p>백엔드에서 내려온 개인 TODO나 프로젝트룸 TODO가 있으면 이 목록에 표시됩니다.</p>
+            </GlassPanel>
+          ) : null}
         </section>
 
         <aside className={styles.policyPanel} aria-label="TODO 저장과 표시 기준">

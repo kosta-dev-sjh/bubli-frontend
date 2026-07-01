@@ -57,7 +57,7 @@ export const defaultInviteFriends: FriendInvite[] = [
     status: "INVITED",
   },
   {
-    displayName: "박민수",
+    displayName: "팀원",
     handle: "minsu.park",
     lastSeenLabel: "어제 참여",
     status: "JOINED",

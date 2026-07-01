@@ -55,7 +55,7 @@ export function HybridAppFrame() {
           <div className={styles.titleGroup}>
             <h2 className={styles.title}>같은 회원 웹 앱에 데스크톱 기능만 얹습니다</h2>
             <p className={styles.summary}>
-              데스크탑 앱은 별도 서비스를 새로 만드는 방식이 아닙니다. 배포된 회원 웹 앱을 열고, 앱에서만 필요한 버블,
+              데스크탑 앱은 별도 서비스를 새로 만드는 방식이 아닙니다. 로그인한 업무 화면을 열고, 앱에서만 필요한 버블,
               개인 관리 폴더, 기기 안 저장, 활동 감지, 전용 소통 창을 붙입니다.
             </p>
           </div>

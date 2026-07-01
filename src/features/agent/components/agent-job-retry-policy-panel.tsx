@@ -61,7 +61,7 @@ export const defaultAgentRetryJobs: AgentJob[] = [
     lastEventLabel: "결과 형식 확인 실패",
     retryCount: 1,
     retryDecision: "RETRY_ALLOWED",
-    reviewRuleLabel: "계약/요구사항 확인",
+    reviewRuleLabel: "업무 기준/요구사항 확인",
     structureLabel: "자료 분석 후보",
     strategyLabel: "짧은 문서 정리",
     status: "FAILED",

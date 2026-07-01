@@ -162,7 +162,7 @@ export function PublicDownloadSection() {
               return (
                 <Link
                   className={`${styles.platform} ${card.className}`}
-                  data-release-ready={hasReleaseLink}
+                  data-has-download={hasReleaseLink}
                   href={card.href}
                   key={card.label}
                   rel={hasReleaseLink ? "noreferrer" : undefined}

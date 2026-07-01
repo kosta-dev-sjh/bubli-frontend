@@ -46,41 +46,7 @@ export type AgentSuggestionInboxPanelProps = HTMLAttributes<HTMLElement> & {
   state?: AgentSuggestionInboxState;
 };
 
-const defaultItems: AgentSuggestionInboxItem[] = [
-  {
-    confidence: 92,
-    description: "요구사항 문서의 화면 범위를 WBS 상위 작업으로 묶을 수 있습니다.",
-    dueLabel: "이번 주",
-    id: "suggestion-wbs-scope",
-    kind: "WBS",
-    projectRoomName: "브랜드 상세페이지 번역",
-    sourceLabel: "요구사항정의서_v1.3.pdf",
-    status: "DRAFT",
-    title: "번역 검수 WBS 구조",
-  },
-  {
-    confidence: 87,
-    description: "계약서와 회의록의 납품일이 달라 클라이언트에게 확인할 질문입니다.",
-    dueLabel: "오늘",
-    id: "suggestion-question-due-date",
-    kind: "QUESTION",
-    projectRoomName: "번역 계약서 정리",
-    sourceLabel: "계약서 · 회의록",
-    status: "EDITED",
-    title: "납품일 기준 확인 질문",
-  },
-  {
-    confidence: 83,
-    description: "검수 기준표를 먼저 만들면 이후 TODO와 일정으로 연결하기 쉽습니다.",
-    dueLabel: "D-2",
-    id: "suggestion-todo-review-table",
-    kind: "TODO",
-    projectRoomName: "웹사이트 리뉴얼",
-    sourceLabel: "회의록_0618.md",
-    status: "HELD",
-    title: "검수 기준표 초안 작성",
-  },
-];
+const defaultItems: AgentSuggestionInboxItem[] = [];
 
 const kindMeta: Record<AgentSuggestionKind, { icon: typeof Bot; label: string; tone: StatusTone }> = {
   QUESTION: { icon: FileQuestion, label: "확인 질문", tone: "warning" },
@@ -197,12 +163,13 @@ export function AgentSuggestionInboxPanel({
   state = "ready",
   ...props
 }: AgentSuggestionInboxPanelProps) {
+  const viewState = state === "ready" && items.length === 0 ? "empty" : state;
   const pendingCount = items.filter((item) => item.status === "DRAFT" || item.status === "EDITED").length;
   const approvedCount = items.filter((item) => item.status === "APPROVED").length;
 
   return (
     <section className={cn("agent-suggestion-inbox", className)} aria-label="에이전트 제안함" {...props}>
-      {state === "ready" ? (
+      {viewState === "ready" ? (
         <>
           <GlassPanel className="agent-suggestion-inbox__hero">
             <div>
@@ -228,7 +195,7 @@ export function AgentSuggestionInboxPanel({
           </GlassPanel>
         </>
       ) : (
-        <SuggestionInboxStatePanel state={state} />
+        <SuggestionInboxStatePanel state={viewState} />
       )}
     </section>
   );

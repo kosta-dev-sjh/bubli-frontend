@@ -14,11 +14,11 @@ import styles from "./resource-comment-thread-panel.module.css";
 
 const comments = [
   {
-    author: "김정현",
+    author: "팀원",
     initials: "JH",
     role: "프로젝트 리더",
     time: "10:24",
-    body: "검수 기준 문장이 계약서와 요구사항 문서에서 조금 다르게 적혀 있어요. 최종 검수 횟수는 이 자료 기준으로 확인하면 좋겠습니다.",
+    body: "검수 기준 문장이 업무 기준 문서와 요구사항 문서에서 조금 다르게 적혀 있어요. 최종 검수 횟수는 이 자료 기준으로 확인하면 좋겠습니다.",
     status: "확인 필요",
     tagged: ["이준호"],
   },
@@ -29,14 +29,14 @@ const comments = [
     time: "10:31",
     body: "관련 회의록에는 중간 검수 1회, 최종 검수 1회로 적혀 있습니다. 자료 관계에 회의록도 같이 묶어두겠습니다.",
     status: "답글",
-    tagged: ["김정현", "박미연"],
+    tagged: ["팀원", "팀원"],
   },
   {
     author: "프로젝트룸 에이전트",
     initials: "AI",
     role: "후보 제안",
     time: "10:38",
-    body: "확인 질문 후보: 검수 기준은 계약서의 표현을 따르는지, 회의록의 검수 횟수를 따르는지 클라이언트에게 확인할 수 있습니다.",
+    body: "확인 질문 후보: 검수 기준은 업무 기준 문서의 표현을 따르는지, 회의록의 검수 횟수를 따르는지 클라이언트에게 확인할 수 있습니다.",
     status: "후보",
     tagged: [],
   },
@@ -137,7 +137,7 @@ export function ResourceCommentThreadPanel() {
           <section className={styles.sideCard}>
             <h3>연결된 자료</h3>
             <div className={styles.resourceBox}>
-              <strong>용역 계약서_최종본_v2.1.pdf</strong>
+              <strong>용역 업무 기준 문서_최종본_v2.1.pdf</strong>
               <span>프로젝트룸 자료 · 프로젝트룸 멤버만 접근</span>
               <div className={styles.commentMeta}>
                 <Chip>댓글 3개</Chip>

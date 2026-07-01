@@ -77,7 +77,7 @@ const checkStatusTone: Record<DownloadCheckStatus, StatusTone> = {
 
 const defaultFile: DownloadFileMeta = {
   checksumLabel: "파일 지문 확인됨",
-  fileName: "번역계약서_v2.pdf",
+  fileName: "요구사항정리_v2.pdf",
   mimeLabel: "PDF",
   sizeLabel: "2.4 MB",
   updatedLabel: "2026-06-18 15:20",

@@ -21,7 +21,7 @@ const friends: FriendItem[] = [
   },
   {
     handle: "minsu.park",
-    name: "박민수",
+    name: "팀원",
     roleHint: "프론트 개발",
     status: "invited",
   },

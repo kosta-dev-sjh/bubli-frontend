@@ -75,7 +75,7 @@ export function DashboardOverviewPanel() {
               assignee="나"
               code="D-2"
               dueLabel="오늘"
-              sourceLabel="번역 계약서 정리"
+              sourceLabel="요구사항 정리"
               status="doing"
               title="1차 번역 검수 기준 확인"
             />
@@ -101,8 +101,8 @@ export function DashboardOverviewPanel() {
             <article>
               <BellRing size={16} strokeWidth={2.1} />
               <div>
-                <b>계약서와 요구사항의 납품일이 다릅니다</b>
-                <p>번역 계약서 정리 · 확인 필요</p>
+                <b>업무 기준 문서와 요구사항의 납품일이 다릅니다</b>
+                <p>요구사항 정리 · 확인 필요</p>
               </div>
             </article>
             <article>

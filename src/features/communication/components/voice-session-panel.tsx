@@ -13,8 +13,8 @@ type Participant = {
 };
 
 const participants: Participant[] = [
-  { name: "김정현", role: "프로젝트 리더", state: "speaking" },
-  { name: "박민수", role: "멤버", state: "listening" },
+  { name: "팀원", role: "프로젝트 리더", state: "speaking" },
+  { name: "팀원", role: "멤버", state: "listening" },
   { name: "이서연", role: "멤버", state: "muted" },
 ];
 

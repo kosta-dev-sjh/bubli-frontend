@@ -59,7 +59,7 @@ const typeTone: Record<ResourceType, StatusTone> = {
 
 export const defaultShareResources: ShareResource[] = [
   {
-    fileName: "번역 계약서_검토본.pdf",
+    fileName: "요구사항 정리_검토본.pdf",
     linkedProjectRoom: "신규 번역 프로젝트룸",
     readiness: "READY",
     sourceLabel: "개인 자료함",

@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 
 type UploadedResource = {
   name: string;
-  kind: "계약서" | "견적서" | "요구사항 문서" | "회의록";
+  kind: "업무 기준 문서" | "견적서" | "요구사항 문서" | "회의록";
   status: "classified" | "analyzing" | "ready";
 };
 
@@ -19,7 +19,7 @@ type CandidateItem = {
 };
 
 const uploadedResources: UploadedResource[] = [
-  { kind: "계약서", name: "번역계약서_v2.pdf", status: "ready" },
+  { kind: "업무 기준 문서", name: "요구사항정리_v2.pdf", status: "ready" },
   { kind: "견적서", name: "서비스_견적서_0622.pdf", status: "classified" },
   { kind: "요구사항 문서", name: "요구사항_정리본.docx", status: "analyzing" },
   { kind: "회의록", name: "회의록_0621.md", status: "ready" },
@@ -83,7 +83,7 @@ export function ProjectRoomCreateFlowPanel() {
             <Chip selected>프로젝트룸 생성</Chip>
             <h2>자료를 올리면 에이전트가 후보를 만들고, 확인한 값만 업무에 반영합니다</h2>
             <p>
-              계약서, 견적서, 요구사항 문서, 회의록을 모아 문서 종류를 분류합니다. 작업 범위, 납품물, 마감, 확인
+              업무 기준 문서, 견적서, 요구사항 문서, 회의록을 모아 문서 종류를 분류합니다. 작업 범위, 납품물, 마감, 확인
               질문, WBS/TODO 후보는 사용자가 승인한 뒤에만 저장됩니다.
             </p>
           </div>

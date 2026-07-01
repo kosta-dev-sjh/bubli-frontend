@@ -79,11 +79,11 @@ const sequenceSteps: SequenceStep[] = [
 
 const messageTrace: MessageTrace[] = [
   {
-    body: "계약서 기준으로 납품일 확인 부탁드려요.",
+    body: "업무 기준 문서 기준으로 납품일 확인 부탁드려요.",
     clientMessageId: "전송 ID A",
     roomSequence: 128,
     state: "read",
-    writer: "정현",
+    writer: "사용자",
   },
   {
     body: "/bubli 질문 후보 정리",

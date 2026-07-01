@@ -44,9 +44,10 @@ type SurfaceState = {
 };
 
 export type TodoAssigneeReflectionPanelProps = HTMLAttributes<HTMLElement> & {
-  surfaces: SurfaceState[];
+  currentUserLabel?: string;
+  surfaces?: SurfaceState[];
   title?: string;
-  todos: AssignedTodo[];
+  todos?: AssignedTodo[];
 };
 
 const priorityMeta: Record<TodoPriority, { label: string; tone: StatusTone }> = {
@@ -62,35 +63,7 @@ const surfaceIcon: Record<TodoSurface, typeof ListTodo> = {
   WORK_BOARD: PanelTop,
 };
 
-export const defaultAssignedTodos: AssignedTodo[] = [
-  {
-    assigneeLabel: "정현",
-    dueLabel: "D-2",
-    id: "todo-translation-review",
-    priority: "HIGH",
-    progressPercent: 62,
-    projectRoomLabel: "신규 웹사이트 번역",
-    title: "1차 번역본 검토",
-  },
-  {
-    assigneeLabel: "정현",
-    dueLabel: "오늘",
-    id: "todo-question-send",
-    priority: "MEDIUM",
-    progressPercent: 30,
-    projectRoomLabel: "신규 웹사이트 번역",
-    title: "납품일 확인 질문 보내기",
-  },
-  {
-    assigneeLabel: "미연",
-    dueLabel: "6.25",
-    id: "todo-resource-sort",
-    priority: "LOW",
-    progressPercent: 18,
-    projectRoomLabel: "서비스 소개 페이지",
-    title: "참고 자료 태그 정리",
-  },
-];
+export const defaultAssignedTodos: AssignedTodo[] = [];
 
 export const defaultTodoSurfaces: SurfaceState[] = [
   {
@@ -125,12 +98,13 @@ export const defaultTodoSurfaces: SurfaceState[] = [
 
 export function TodoAssigneeReflectionPanel({
   className,
-  surfaces,
+  currentUserLabel = "나",
+  surfaces = defaultTodoSurfaces,
   title = "담당자 기준 TODO 반영",
-  todos,
+  todos = defaultAssignedTodos,
   ...props
 }: TodoAssigneeReflectionPanelProps) {
-  const myTodoCount = todos.filter((todo) => todo.assigneeLabel === "정현").length;
+  const myTodoCount = todos.filter((todo) => todo.assigneeLabel === currentUserLabel).length;
   const urgentCount = todos.filter((todo) => todo.priority === "HIGH").length;
 
   return (
@@ -196,7 +170,7 @@ export function TodoAssigneeReflectionPanel({
               const priority = priorityMeta[todo.priority];
 
               return (
-                <article className={cn(styles.todoRow, todo.assigneeLabel === "정현" && styles.myTodo)} key={todo.id}>
+                <article className={cn(styles.todoRow, todo.assigneeLabel === currentUserLabel && styles.myTodo)} key={todo.id}>
                   <div className={styles.todoTop}>
                     <span className={styles.checkTile}>
                       <CheckCircle2 size={16} strokeWidth={2.1} aria-hidden="true" />
@@ -213,6 +187,19 @@ export function TodoAssigneeReflectionPanel({
                 </article>
               );
             })}
+            {todos.length === 0 ? (
+              <article className={styles.todoRow}>
+                <div className={styles.todoTop}>
+                  <span className={styles.checkTile}>
+                    <CheckCircle2 size={16} strokeWidth={2.1} aria-hidden="true" />
+                  </span>
+                  <div className={styles.todoCopy}>
+                    <b>담당 작업이 없습니다</b>
+                    <span>서버에서 담당자 기준 TODO를 받으면 이곳에 표시됩니다.</span>
+                  </div>
+                </div>
+              </article>
+            ) : null}
           </div>
         </section>
 

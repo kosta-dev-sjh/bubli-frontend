@@ -35,7 +35,7 @@ const readRooms: ReadRoom[] = [
     id: "read-room-2",
     lastReadAt: "오늘 09:58",
     lastSequence: 41,
-    roomTitle: "김미연과 1:1 채팅",
+    roomTitle: "김팀원과 1:1 채팅",
     unreadCount: 0,
   },
   {

@@ -422,7 +422,7 @@ export function AppShell({ children }: AppShellProps) {
                     />
                   </label>
                   <div className="workspace-switcher__file-hint">
-                    {newRoomFiles.length ? `${newRoomFiles.length}개 선택됨` : "계약서나 요구사항을 같이 올리면 분석 요청까지 이어집니다."}
+                    {newRoomFiles.length ? `${newRoomFiles.length}개 선택됨` : "업무 기준 문서나 요구사항을 같이 올리면 분석 요청까지 이어집니다."}
                   </div>
                   {newRoomFiles.length ? (
                     <div className="workspace-switcher__files">

@@ -73,14 +73,14 @@ const reviewMeta: Record<ReviewState, { actionLabel: string; label: string; tone
 export const defaultAnalysisSuggestions: AnalysisSuggestion[] = [
   {
     detail: "납품일 후보를 7월 15일로 읽었습니다. 일정에 넣기 전 원문 날짜와 한 번 더 맞춥니다.",
-    evidenceLabel: "계약서 2쪽",
+    evidenceLabel: "업무 기준 문서 2쪽",
     reviewState: "PENDING",
     title: "납품일 후보",
     type: "SCHEDULE",
   },
   {
     detail: "수정 횟수와 검수 기준이 문서마다 다르게 적혀 있어 클라이언트 확인 질문으로 묶습니다.",
-    evidenceLabel: "계약서 · 회의록",
+    evidenceLabel: "업무 기준 문서 · 회의록",
     reviewState: "EDIT_NEEDED",
     title: "수정 범위 확인",
     type: "CHECK_ITEM",

@@ -86,11 +86,11 @@ const surfaceMeta: Record<TodoDetailSurface, { icon: ReactNode; label: string }>
 const statusOrder: TodoDetailStatus[] = ["TODO", "IN_PROGRESS", "REVIEW", "DONE", "BLOCKED"];
 
 export const defaultTodoDetail: TodoDetail = {
-  assigneeLabel: "정현",
-  description: "회의록과 계약서의 납품일 표현이 달라 클라이언트에게 기준 날짜를 확인합니다.",
+  assigneeLabel: "나",
+  description: "회의록과 요구사항 문서의 일정 표현이 달라 기준 날짜를 확인합니다.",
   dueLabel: "오늘",
   id: "todo-send-client-question",
-  linkedProjectRoomLabel: "신규 웹사이트 번역",
+  linkedProjectRoomLabel: "프로젝트룸",
   progressPercent: 42,
   scope: "PROJECT_ROOM",
   source: "APPROVED_CANDIDATE",

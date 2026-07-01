@@ -23,7 +23,7 @@ const notifications: NotificationItem[] = [
     description: "검수 기준 확인 요청이 생겼습니다. 승인 전 후보라서 작업판에는 아직 반영되지 않았습니다.",
     kind: "agent",
     originLabel: "에이전트 후보",
-    projectRoom: "번역 계약서 정리",
+    projectRoom: "요구사항 정리",
     state: "unread",
     time: "방금 전",
     title: "확인 질문 후보 2건",

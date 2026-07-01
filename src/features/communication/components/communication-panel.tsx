@@ -38,13 +38,13 @@ const summaryItems = [
 const rooms = [
   {
     badge: "프로젝트룸",
-    detail: "번역계약서_v2.pdf 기준 대화",
+    detail: "요구사항정리_v2.pdf 기준 대화",
     title: "토모에 번역 프로젝트",
   },
   {
     badge: "1:1",
-    detail: "김미연 님과 직접 대화",
-    title: "김미연",
+    detail: "김팀원 님과 직접 대화",
+    title: "김팀원",
   },
   {
     badge: "프로젝트룸",
@@ -105,19 +105,19 @@ export function CommunicationPanel() {
           </div>
           <div className="communication-panel__messages">
             <ChatMessage
-              author="김미연"
-              message="검수 기준은 계약서 기준으로 다시 확인해볼게요."
+              author="김팀원"
+              message="검수 기준은 업무 기준 문서 기준으로 다시 확인해볼게요."
               roleLabel="프리랜서 사용자"
               timeLabel="10:24"
             />
             <ChatMessage
               author="Bubli"
-              message="계약서와 회의록의 납품일 표현이 다릅니다. 확인 질문 후보를 만들 수 있습니다."
+              message="업무 기준 문서와 회의록의 납품일 표현이 다릅니다. 확인 질문 후보를 만들 수 있습니다."
               roleLabel="프로젝트룸 에이전트"
               timeLabel="10:25"
             />
             <ChatMessage
-              author="정현"
+              author="사용자"
               message="/bubli 질문 후보로 정리해줘."
               mine
               roleLabel="프리랜서 사용자"

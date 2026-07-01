@@ -34,7 +34,7 @@ const flowRows = [
 
 const chatPreview = [
   ["나", "오후 공유 전까지 검수 기준 문구를 다시 정리해야 해."],
-  ["미", "번역계약서_v2.pdf 7조랑 회의록_0618 기준으로 보면 될 것 같아요."],
+  ["미", "요구사항정리_v2.pdf 7조랑 회의록_0618 기준으로 보면 될 것 같아요."],
   ["에", "결정사항 2개, 남은 질문 3개, TODO 후보 2개를 찾았어요. 승인 전에는 작업판에 반영하지 않습니다."],
 ];
 
@@ -67,7 +67,7 @@ export function RoomAgentCommand() {
         </div>
         <div className={styles.inputLine}>
           <span>/bubli 정리</span>
-          <small>이 대화와 번역계약서_v2 기준으로 결정사항 정리해줘</small>
+          <small>이 대화와 요구사항정리_v2 기준으로 결정사항 정리해줘</small>
           <button type="button" aria-label="명령어 보내기">
             <Send size={17} aria-hidden="true" />
           </button>
