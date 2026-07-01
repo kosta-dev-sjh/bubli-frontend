@@ -130,7 +130,7 @@ function suggestionText(suggestion: AgentSuggestionResponse) {
 }
 
 function boardItemDue(item: TaskResponse | WbsItemResponse) {
-  return "sortOrder" in item ? item.dueDate : item.dueAt;
+  return "orderNo" in item ? null : item.dueAt;
 }
 
 function BoardMiniRow({ item, meta }: { item: TaskResponse | WbsItemResponse; meta?: string | null }) {
@@ -486,11 +486,11 @@ export default function ProjectRoomHomePage() {
               </div>
               <div className="workspace-route__summary" aria-label="멤버 요약">
                 {state.members.slice(0, 4).map((member) => (
-                  <article className="workspace-route__row" key={member.user.id}>
+                  <article className="workspace-route__row" key={member.userId}>
                     <span className="workspace-route__dot" aria-hidden="true" />
                     <span className="workspace-route__main">
-                      <strong>{member.user.name}</strong>
-                      <span>{member.user.bubliId ?? "참여 중"}</span>
+                      <strong>{member.name}</strong>
+                      <span>{member.bubliId ?? "참여 중"}</span>
                     </span>
                     <span className="workspace-route__status">{member.role === "PROJECT_LEADER" ? "리더" : "멤버"}</span>
                   </article>

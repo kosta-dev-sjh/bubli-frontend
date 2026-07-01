@@ -29,15 +29,16 @@ export type ProjectRoomResponse = ProjectRoomUpsertRequest & {
 };
 
 export type ProjectRoomMemberResponse = {
-  joinedAt: string;
+  avatarUrl?: string | null;
+  bubliId?: string | null;
+  createdAt: string;
+  id: string;
+  name: string;
   role: ProjectRoomRole;
+  roomId: string;
   status: "ACTIVE" | "LEFT" | "REMOVED";
-  user: {
-    avatarUrl?: string | null;
-    bubliId?: string | null;
-    id: string;
-    name: string;
-  };
+  updatedAt: string;
+  userId: string;
 };
 
 export type ProjectRoomInvitationCreateRequest = {

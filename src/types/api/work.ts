@@ -1,6 +1,7 @@
 import type { TimeLogResponse } from "@/types/api/timer";
 
 export type TaskStatus = "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE" | "BLOCKED";
+export type WbsStatus = "TODO" | "IN_PROGRESS" | "DONE";
 
 export type TaskSourceType = "USER" | "AGENT_SUGGESTION" | "RESOURCE";
 
@@ -33,39 +34,37 @@ export type TaskUpdateRequest = Partial<Pick<TaskCreateRequest, "assigneeUserId"
 };
 
 export type WbsItemResponse = {
-  assigneeUserId?: string | null;
   createdAt: string;
-  dueDate?: string | null;
   id: string;
+  orderNo: number;
   parentId?: string | null;
   roomId: string;
-  sortOrder: number;
-  status?: TaskStatus;
+  status: WbsStatus;
   title: string;
   updatedAt: string;
 };
 
 export type WbsItemCreateRequest = {
-  assigneeUserId?: string | null;
-  dueDate?: string | null;
+  orderNo?: number | null;
   parentId?: string | null;
+  status?: WbsStatus;
   title: string;
 };
 
 export type WbsItemUpdateRequest = Partial<WbsItemCreateRequest> & {
-  status?: TaskStatus;
+  status?: WbsStatus;
 };
 
 export type WbsItemReorderRequest = {
   items: Array<{
-    id: string;
+    wbsItemId: string;
     parentId?: string | null;
-    sortOrder: number;
+    orderNo: number;
   }>;
 };
 
 export type WbsBoardResponse = {
-  roomId: string;
+  roomId?: string;
   tasks: TaskResponse[];
   wbsItems: WbsItemResponse[];
 };

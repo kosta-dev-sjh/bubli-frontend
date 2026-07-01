@@ -10,7 +10,7 @@ import { todoApi } from "@/features/todo/api/todoApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { cn } from "@/lib/utils";
 import type { AgentSuggestionResponse } from "@/types/api/agent";
-import type { TaskResponse, TaskStatus, WbsBoardResponse, WbsItemResponse } from "@/types/api/work";
+import type { TaskResponse, TaskStatus, WbsBoardResponse, WbsItemResponse, WbsStatus } from "@/types/api/work";
 
 import styles from "./project-room-work-board.module.css";
 
@@ -25,7 +25,6 @@ type LocalTask = TaskResponse & {
 };
 
 type WbsEditDraft = {
-  dueDate: string;
   title: string;
   wbsId: string | null;
 };
@@ -35,6 +34,12 @@ const columns: KanbanColumn[] = [
   { description: "진행 중", label: "진행", status: "IN_PROGRESS" },
   { description: "검토·막힘", label: "검토", status: "REVIEW" },
   { description: "마무리", label: "완료", status: "DONE" },
+];
+
+const wbsStatusOptions: Array<{ label: string; status: WbsStatus }> = [
+  { label: "대기", status: "TODO" },
+  { label: "진행", status: "IN_PROGRESS" },
+  { label: "완료", status: "DONE" },
 ];
 
 const viewCopy = {
@@ -101,16 +106,17 @@ function suggestionText(suggestion: AgentSuggestionResponse) {
   return preferred ?? suggestionTypeLabel(suggestion.suggestionType);
 }
 
-function wbsDue(item: WbsItemResponse) {
-  return formatDue(item.dueDate);
-}
-
-function normalizeDateValue(value?: string | null) {
-  return value ? value.slice(0, 10) : "";
-}
-
 function activeTaskStatus(status: TaskStatus) {
   return status === "BLOCKED" ? "REVIEW" : status;
+}
+
+function earliestDueLabel(tasks: TaskResponse[]) {
+  const earliest = tasks
+    .map((task) => task.dueAt)
+    .filter((dueAt): dueAt is string => Boolean(dueAt))
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
+
+  return formatDue(earliest);
 }
 
 function sourceLabel(task: TaskResponse, wbsTitle?: string | null) {
@@ -197,6 +203,7 @@ function ProjectRoomWorkCard({
 function WbsRow({
   childCount,
   code,
+  dueLabel,
   item,
   linkedCount,
   level,
@@ -205,14 +212,13 @@ function WbsRow({
 }: {
   childCount: number;
   code: string;
+  dueLabel: string | null;
   item: WbsItemResponse;
   linkedCount: number;
   level: number;
   onSelect: (id: string) => void;
   selected: boolean;
 }) {
-  const dueLabel = wbsDue(item);
-
   return (
     <button
       className={cn(styles.wbsRow, selected && styles.wbsRowSelected)}
@@ -258,7 +264,7 @@ export function ProjectRoomWorkBoard({
   suggestions: AgentSuggestionResponse[];
 }) {
   const boardVersion = [
-    board.roomId,
+    roomId,
     board.tasks.map((task) => `${task.id}:${task.updatedAt}:${task.status}`).join("|"),
     board.wbsItems.map((item) => `${item.id}:${item.updatedAt}`).join("|"),
   ].join("::");
@@ -285,9 +291,8 @@ function ProjectRoomWorkBoardContent({
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(board.tasks[0]?.id ?? null);
   const [trashActive, setTrashActive] = useState(false);
   const [viewMode, setViewMode] = useState<"kanban" | "suggestions" | "wbs">("wbs");
-  const [wbsDraft, setWbsDraft] = useState({ dueDate: "", title: "" });
+  const [wbsDraft, setWbsDraft] = useState({ title: "" });
   const [wbsEditDraft, setWbsEditDraft] = useState<WbsEditDraft>(() => ({
-    dueDate: normalizeDateValue(initialWbs?.dueDate),
     title: initialWbs?.title ?? "",
     wbsId: initialWbs?.id ?? null,
   }));
@@ -301,7 +306,7 @@ function ProjectRoomWorkBoardContent({
     }, {});
 
     Object.values(childrenByParent).forEach((items) => {
-      items.sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
+      items.sort((a, b) => a.orderNo - b.orderNo || a.createdAt.localeCompare(b.createdAt));
     });
 
     const rows: WbsItemResponse[] = [];
@@ -364,6 +369,14 @@ function ProjectRoomWorkBoardContent({
       return acc;
     }, {});
   }, [tasks]);
+  const dueLabelByWbsId = useMemo(() => {
+    return Object.fromEntries(
+      wbsItems.map((item) => {
+        const linkedTasks = tasks.filter((task) => task.wbsItemId === item.id && !task.localRemoved);
+        return [item.id, earliestDueLabel(linkedTasks)];
+      }),
+    );
+  }, [tasks, wbsItems]);
 
   const visibleTasks = tasks.filter((task) => !task.localRemoved);
   const selectedWbs = selectedWbsId ? wbsItems.find((item) => item.id === selectedWbsId) : null;
@@ -383,7 +396,6 @@ function ProjectRoomWorkBoardContent({
     selectedWbs && wbsEditDraft.wbsId === selectedWbs.id
       ? wbsEditDraft
       : {
-          dueDate: normalizeDateValue(selectedWbs?.dueDate),
           title: selectedWbs?.title ?? "",
           wbsId: selectedWbs?.id ?? null,
         };
@@ -397,11 +409,10 @@ function ProjectRoomWorkBoardContent({
     const now = new Date().toISOString();
     const optimistic: WbsItemResponse = {
       createdAt: now,
-      dueDate: wbsDraft.dueDate || null,
       id: `local-wbs-${Date.now()}`,
+      orderNo: wbsItems.length + 1,
       parentId: selectedWbsId,
-      roomId: board.roomId,
-      sortOrder: wbsItems.length + 1,
+      roomId,
       status: "TODO",
       title,
       updatedAt: now,
@@ -409,12 +420,12 @@ function ProjectRoomWorkBoardContent({
 
     setWbsItems((current) => [...current, optimistic]);
     setSelectedWbsId(optimistic.id);
-    setWbsDraft({ dueDate: "", title: "" });
+    setWbsDraft({ title: "" });
     setSaveNotice("WBS 저장 중");
 
     try {
       const created = await wbsApi.createItem(roomId, {
-        dueDate: optimistic.dueDate,
+        orderNo: optimistic.orderNo,
         parentId: optimistic.parentId,
         title,
       });
@@ -435,7 +446,6 @@ function ProjectRoomWorkBoardContent({
     if (!title) return;
 
     const patch = {
-      dueDate: activeWbsEditDraft.dueDate || null,
       title,
     };
     const previous = selectedWbs;
@@ -453,7 +463,7 @@ function ProjectRoomWorkBoardContent({
     }
   };
 
-  const updateSelectedWbsStatus = (status: TaskStatus) => {
+  const updateSelectedWbsStatus = (status: WbsStatus) => {
     if (!selectedWbs) return;
 
     const previous = selectedWbs;
@@ -642,6 +652,7 @@ function ProjectRoomWorkBoardContent({
                     <WbsRow
                       childCount={childCountByWbsId[item.id] ?? 0}
                       code={wbsTree.codeById[item.id] ?? "-"}
+                      dueLabel={dueLabelByWbsId[item.id] ?? null}
                       item={item}
                       key={item.id}
                       level={wbsDepthById[item.id] ?? 0}
@@ -671,8 +682,8 @@ function ProjectRoomWorkBoardContent({
                   <small>연결 할 일</small>
                 </span>
                 <span>
-                  <strong>{selectedWbs ? wbsDue(selectedWbs) ?? "-" : "-"}</strong>
-                  <small>기한</small>
+                  <strong>{selectedWbs ? dueLabelByWbsId[selectedWbs.id] ?? "-" : "-"}</strong>
+                  <small>가까운 마감</small>
                 </span>
                 <span>
                   <strong>{selectedWbs ? childCountByWbsId[selectedWbs.id] ?? 0 : 0}</strong>
@@ -716,20 +727,11 @@ function ProjectRoomWorkBoardContent({
                           value={activeWbsEditDraft.title}
                         />
                       </label>
-                      <label>
-                        <span>기한</span>
-                        <input
-                          aria-label="WBS 기한"
-                          onChange={(event) => setWbsEditDraft({ ...activeWbsEditDraft, dueDate: event.target.value })}
-                          type="date"
-                          value={activeWbsEditDraft.dueDate}
-                        />
-                      </label>
                     </div>
                     <div className={styles.statusActions} aria-label="WBS 상태 변경">
-                      {columns.map((column) => (
+                      {wbsStatusOptions.map((column) => (
                         <button
-                          aria-pressed={activeTaskStatus(selectedWbs.status ?? "TODO") === column.status}
+                          aria-pressed={selectedWbs.status === column.status}
                           key={column.status}
                           onClick={() => updateSelectedWbsStatus(column.status)}
                           type="button"
@@ -771,15 +773,6 @@ function ProjectRoomWorkBoardContent({
                       onChange={(event) => setWbsDraft((current) => ({ ...current, title: event.target.value }))}
                       placeholder="예: 1차 시안 정리"
                       value={wbsDraft.title}
-                    />
-                  </label>
-                  <label>
-                    <span>기한</span>
-                    <input
-                      aria-label="추가할 WBS 기한"
-                      onChange={(event) => setWbsDraft((current) => ({ ...current, dueDate: event.target.value }))}
-                      type="date"
-                      value={wbsDraft.dueDate}
                     />
                   </label>
                 </div>
