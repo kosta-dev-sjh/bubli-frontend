@@ -277,7 +277,7 @@ export default function ProjectRoomHomePage() {
             <Link className="bubli-button" href={`/app/project-rooms/${roomId}/resources`}>
               자료
             </Link>
-            <Link className="bubli-button" href={`/app/project-rooms/${roomId}/chat`}>
+            <Link className="bubli-button" href={`/app/desktop/widgets?autoOpen=chat&roomId=${encodeURIComponent(roomId)}`}>
               소통
             </Link>
           </div>
@@ -458,7 +458,7 @@ export default function ProjectRoomHomePage() {
                   </span>
                   <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
                 </Link>
-                <Link className="room-home__quick-link" href={`/app/project-rooms/${roomId}/chat`}>
+                <Link className="room-home__quick-link" href={`/app/desktop/widgets?autoOpen=chat&roomId=${encodeURIComponent(roomId)}`}>
                   <MessageCircle aria-hidden size={18} strokeWidth={1.9} />
                   <span>
                     <strong>소통</strong>

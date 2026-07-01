@@ -163,7 +163,7 @@ export function AppShell({ children }: AppShellProps) {
 
   const rooms = state.kind === "ready" ? state.rooms : [];
   const roomFromPath = rooms.find((room) => isActiveRoom(pathname, room.id));
-  const roomIdFromQuery = pathname === "/app/chat" ? searchParams.get("roomId") : null;
+  const roomIdFromQuery = searchParams.get("roomId");
   const roomFromQuery = roomIdFromQuery ? rooms.find((room) => room.id === roomIdFromQuery) : undefined;
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId);
   const activeRoom = roomFromPath ?? roomFromQuery ?? selectedRoom;
