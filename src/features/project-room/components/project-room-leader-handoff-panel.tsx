@@ -70,7 +70,7 @@ export const defaultHandoffCandidates: HandoffCandidate[] = [
     taskCount: 4,
   },
   {
-    displayName: "박민수",
+    displayName: "팀 멤버",
     lastActiveLabel: "3일 전 접속",
     role: "MEMBER",
     status: "MEMBER_ONLY",

@@ -30,8 +30,8 @@ const resourceItems: [ResourceBoardItem, ...ResourceBoardItem[]] = [
     body: "클라이언트가 올린 회의록입니다. 검수 기준, 중간보고 일정, 보이스 대기방 요구가 함께 들어 있습니다.",
     id: "meeting-0618",
     meta: "프로젝트룸 자료 · v3 · 댓글 4",
-    missingItems: ["중간보고 날짜가 계약서 납품일과 맞는지 확인", "보이스 대기방을 프로젝트룸 보이스로 처리할지 확인"],
-    relatedDocs: ["번역계약서_v2.pdf", "요구사항_초안.docx", "견적서_최종.pdf"],
+    missingItems: ["중간보고 날짜가 업무 문서 납품일과 맞는지 확인", "보이스 대기방을 프로젝트룸 보이스로 처리할지 확인"],
+    relatedDocs: ["업무기준문서_v2.pdf", "요구사항_정리.docx", "견적서_최종.pdf"],
     scope: "room",
     status: "needsReview",
     title: "회의록_0618.md",
@@ -49,14 +49,14 @@ const resourceItems: [ResourceBoardItem, ...ResourceBoardItem[]] = [
   },
   {
     agentSummary: "납품일과 수정 범위가 견적서와 다릅니다. 확인 질문 후보를 만들 수 있습니다.",
-    body: "납품일, 수정 범위, 저작권 조건이 들어 있는 계약서입니다.",
+    body: "납품일, 수정 범위, 저작권 조건이 들어 있는 업무 문서입니다.",
     id: "contract-v2",
     meta: "프로젝트룸 자료 · v2 · 확인 필요 2",
     missingItems: ["견적서의 납품일 07.15와 회의록의 07.20이 다름", "수정 횟수 기준 표현이 문서마다 다름"],
     relatedDocs: ["견적서_최종.pdf", "회의록_0618.md"],
     scope: "room",
     status: "needsReview",
-    title: "번역계약서_v2.pdf",
+    title: "업무기준문서_v2.pdf",
   },
   {
     agentSummary: "개인 관리 폴더에서 감지된 파일입니다. 자료보드에 저장할지 선택해야 합니다.",
@@ -147,7 +147,7 @@ export function ResourceBoard() {
         </div>
         <label style={{ position: "relative" }}>
           <Search aria-hidden="true" size={16} style={{ color: "var(--color-faint)", left: 14, position: "absolute", top: 14 }} />
-          <input className="resource-board__search" placeholder="계약서 관련 회의록 찾아줘" style={{ paddingLeft: 38 }} type="search" />
+          <input className="resource-board__search" placeholder="업무 문서 관련 회의록 찾아줘" style={{ paddingLeft: 38 }} type="search" />
         </label>
       </div>
 

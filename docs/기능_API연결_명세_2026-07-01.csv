@@ -16,7 +16,7 @@
 요약,15,다국어(i18n),10%,50%,메시지 완성·main 미병합·런타임 없음,,,,,,,,
 요약,16,,,,,,,,,,,,
 요약,17,② 배포 실동작 (별개 축),,,,,,,,,,,
-요약,18,배포 실동작,—,55%,인증 attach 완료 · 공개·로그인 실동작 · 실백엔드 왕복/구글 OAuth/WS 수신 미검증,,,,,,,,
+요약,18,배포 실동작,—,60%,인증 attach 완료 · 로컬 실백엔드 왕복 확인 · Google OAuth 시작 URL 307 확인 · 실계정 OAuth/WS 수신은 수동 검증 남음,,,,,,,,
 요약,19,,,,,,,,,,,,
 요약,20,"③ 기능 상태 집계 (기능 연결 상세, 28개)",,,,,,,,,,,
 요약,21,됨,19,,,,,,,,,,
@@ -45,12 +45,12 @@
 기능 연결 상세,3,공개,랜딩,/,public-site,정적(영상·카피),-,O,-,O,일치,됨,비회원 랜딩. 제품규칙 통과
 기능 연결 상세,4,공개,기능 소개,/features,public-site,정적,-,O,-,O,일치,됨,
 기능 연결 상세,5,공개,FAQ,/faq,public-site,정적,-,O,-,O,일치,됨,
-기능 연결 상세,6,공개,로그인,/login,authApi,구글 OAuth 진입,O,O,O,O,일치,됨,세션 refresh·logout 연결
+기능 연결 상세,6,공개,로그인,/login,authApi,구글 OAuth 진입,O,O,O,O,일치,됨,세션 refresh·logout 연결. 2026-07-02 /oauth2/authorization/google 호환 라우트 307 확인.
 기능 연결 상세,7,회원앱 — 대시보드,,,,,,,,,,,
 기능 연결 상세,8,대시보드,워크스페이스 대시보드,/app,dashboardApi,GET /api/dashboard/work · /tasks,O,O,O,O,일치,됨,getWork + todoApi.list + widgetApi.getSummary + runningTimer 연결
 기능 연결 상세,9,회원앱 — 프로젝트룸,,,,,,,,,,,
 기능 연결 상세,10,프로젝트룸,룸 목록,/app/project-rooms,projectRoomApi,GET/POST /api/project-rooms,O,O,O,O,일치,됨,다른 룸 화면 진입점
-기능 연결 상세,11,프로젝트룸,룸 생성,/app/project-rooms/new,projectRoom+resources+agent,POST /project-rooms · /resources · /ai/*,O,O,O,O,일치,됨,2026-07-01 로컬 백엔드 직접 POST 200 + Playwright 화면 버튼 생성/상세 이동 검증 완료. 자료 첨부 시 업로드와 에이전트 후보 생성은 후속 화면에서 이어감.
+기능 연결 상세,11,프로젝트룸,룸 생성,/app/project-rooms/new,projectRoom+resources+agent,POST /project-rooms · /resources · /ai/*,O,O,O,O,일치,됨,2026-07-02 로컬 백엔드 직접 POST 200 + Playwright 상단 프로젝트룸 패널 버튼 생성/상세 이동 검증 완료. 자료 첨부 시 업로드와 에이전트 후보 생성은 후속 화면에서 이어감.
 기능 연결 상세,12,프로젝트룸,룸 상세,/app/project-rooms/[roomId],projectRoom+calendar+agent+resources+wbs,GET /project-rooms/{id} 외 4종,O,O,O,O,문서 drift,됨,5개 api 묶어 호출
 기능 연결 상세,13,프로젝트룸,룸 자료보드,[roomId]/resources,resourcesApi,GET /project-rooms/{id}/resources,O,O,O,O,일치,됨,ResourceWorkspace
 기능 연결 상세,14,프로젝트룸,룸 작업(WBS),[roomId]/work,wbsApi(+agent+projectRoom),GET /wbs-board · /wbs-items · POST /wbs-items · PATCH /wbs-items/{id} · DELETE /wbs-items/{id} · reorder,O,O,O,O,일치,됨,"WBS/칸반/후보를 보기 전환으로 분리. 칸반 드래그 상태 변경, WBS 줄 목록+상세, WBS 생성·수정·상태 변경·삭제 연결. 2026-07-01 Playwright로 WBS 줄 추가 POST와 상태 변경 PATCH 검증 완료. docs/work-board-requirements-2026-07-01.md 기준."
@@ -65,8 +65,8 @@
 기능 연결 상세,23,후보,제안함(리다이렉트),/app/agent-suggestions,-,redirect,-,-,-,-,-,리다이렉트,-> /app/agent 로 이동
 기능 연결 상세,24,알림,알림,위젯/소통 내,notificationApi,GET /api/notifications · /{id}/read · /{id}/archive,O,O,O,O,일치,됨,소통 화면 알림 목록에서 읽음/보관 처리 연결
 기능 연결 상세,25,회원앱 — 설정,,,,,,,,,,,
-기능 연결 상세,26,설정,프로필,/app/settings,authApi+settingsApi+widgetApi,GET /api/me · /settings/* · /api/widget/settings/bubbles,O,O,O,O,일치,됨,계정·언어·테마·알림·동의·로컬 앱·위젯 상태를 실제 설정 행으로 재구성. 새로고침/목업 카드 제거.
-기능 연결 상세,27,설정,알림·동의,/app/settings,settingsApi+widgetApi,/me/notification-preferences · /privacy-consents · /api/widget/settings/bubbles,O,O,O,O,일치,됨,알림·동의·버블 표시 조작 연결. 실패 시 서버 연결 대기/로그인 필요/앱에서 사용 가능 상태로 분기.
+기능 연결 상세,26,설정,프로필,/app/settings,authApi+settingsApi+widgetApi,GET /api/me · /settings/* · /api/widget/settings/bubbles,O,O,O,O,일치,됨,계정·언어·테마·알림·동의·로컬 앱·위젯 상태를 실제 설정 행으로 재구성. /api/me의 bubliId·avatarUrl 기준 표시 확인. 새로고침/목업 카드 제거.
+기능 연결 상세,27,설정,알림·동의,/app/settings,settingsApi+widgetApi,/me/notification-preferences · /privacy-consents · /api/widget/settings/bubbles,O,O,O,O,일치,됨,알림·동의·버블 표시 조작 연결. 2026-07-02 로컬 seed enum 정렬 후 notification/preferences·privacy-consents 200 확인.
 기능 연결 상세,28,설정,로컬 폴더·캐시,/app/settings,settingsApi+local cache clients+managed folder client,POST /api/me/managed-folders · select_personal_managed_folder · check_local_sqlite_integrity · backup_local_sqlite,O,O,O(Tauri에서 실제),부분(배포 웹은 앱 기능 안내),일치,부분,"개인 자료 로컬 폴더, SQLite 무결성/백업/복구, 폴더 선택·스캔·검색·감시, 동기화 대기열 상태를 설정 화면에 배치. 실제 네이티브 동작은 Tauri 앱 런타임 검증 필요."
 기능 연결 상세,29,데스크탑 / 위젯,,,,,,,,,,,
 기능 연결 상세,30,위젯,데스크탑 위젯,/app/desktop/widgets,widgetApi+tauriCommands,GET /api/widget/context · /summary · /settings · Tauri widget window commands,O,부분,부분(Tauri runtime 검증 중),부분,일치,부분,"8개 버블 타입과 기본/반투명/고스트/최소화 상태는 UI에 있음. 로그인 후 TODO 위젯+위젯 바 자동 실행을 공용 Tauri 런처와 Rust app_ready 보장 경로로 보강했고, 소통/chat 위젯은 시작 시 자동 실행하지 않도록 제외. Tauri QA에서 Bubli 메인/버블 창 2번 모니터 표시 확인. 후속 보강: bar/menu/TODO 창 제목 분리 + app_ready 부분 실패 내성 추가. 별도 bar 창은 새 제목 기준 런타임 재검증 필요."
@@ -141,11 +141,11 @@
 페이지별 백엔드 맵핑,3,비회원,랜딩,/,정적 소개,-,정적,부분,디자인 완료 · 모바일/사이즈별 미확인,,,,
 페이지별 백엔드 맵핑,4,비회원,기능 소개,/features,정적,-,정적,부분,디자인 완료 · 반응형 미확인,,,,
 페이지별 백엔드 맵핑,5,비회원,FAQ,/faq,정적,-,정적,부분,디자인 완료 · 반응형 미확인,,,,
-페이지별 백엔드 맵핑,6,비회원,로그인,/login,구글 OAuth 시작 URL,getGoogleAuthorizationUrl,됨,부분,디자인 완료 · 반응형 미확인,,,,
+페이지별 백엔드 맵핑,6,비회원,로그인,/login,구글 OAuth 시작 URL,getGoogleAuthorizationUrl,됨,부분,/oauth2/authorization/google 호환 라우트 추가 · 307 Google authorize URL 확인 · 실계정 왕복은 수동 검증,,,,
 페이지별 백엔드 맵핑,7,비회원,OAuth 콜백,/auth/callback,코드→토큰 교환,callbackGoogle,됨,부분,디자인 완료 · 반응형 미확인,,,,
 페이지별 백엔드 맵핑,8,회원,대시보드,/app,대시보드 업무,getWork + projectRoom.list,됨,확인예정,위젯 summary·TODO·타이머 연결(Codex 2차) · 알림만 대시보드 미맵핑,,,,
 페이지별 백엔드 맵핑,9,회원,룸 목록,/app/project-rooms,룸 목록,projectRoom.list,됨,확인예정,디자인 상태 미확인,,,,
-페이지별 백엔드 맵핑,10,회원,룸 생성,/app/project-rooms/new,룸 생성·업로드·계약서분석,create+upload+reviewContractDocuments,됨,검증완료,2026-07-01 로컬 백엔드 직접 POST 200 + Playwright 버튼 생성/상세 이동 검증 완료,,,,
+페이지별 백엔드 맵핑,10,회원,룸 생성,/app/project-rooms/new,룸 생성·업로드·계약서분석,create+upload+reviewContractDocuments,됨,검증완료,2026-07-02 로컬 백엔드 직접 POST 200 + Playwright 상단 프로젝트룸 패널 버튼 생성/상세 이동 검증 완료,,,,
 페이지별 백엔드 맵핑,11,회원,룸 상세,[roomId],룸 상세·멤버·일정·제안·자료·WBS,get·getMembers+calendar+agent+resources+wbs,됨,확인예정,결제·초대·AI문서 미맵핑 / 디자인 미확인,,,,
 페이지별 백엔드 맵핑,12,회원,룸 자료보드,[roomId]/resources,룸 자료 목록·업로드·다운로드,listRoomResources·upload·getDownloadUrl,부분,작업중,댓글·버전·요약 미맵핑 / 자료보드 디자인 재작업 중,,,,
 페이지별 백엔드 맵핑,13,회원,룸 작업(WBS),[roomId]/work,WBS 보드·항목·제안,wbs.getBoard+projectRoom.get+agent,됨,검증완료,"WBS/칸반/후보 보기 전환 유지. 칸반은 Jira식 가로 보드+드래그 제거 영역으로 보강. WBS 항목 추가·수정·상태 변경·빈 항목 삭제를 wbsApi에 연결. 2026-07-01 Playwright로 WBS 줄 추가 POST, 상태 변경 PATCH, WBS/칸반/후보 탭 전환 검증 완료. 후보 확정은 agent 화면 책임 유지.",,,,
@@ -156,7 +156,7 @@
 페이지별 백엔드 맵핑,18,회원,소통(데스크탑),/app/desktop/communication,채팅 목록·알림,listRooms+notification.list,됨,확인예정,알림 읽음/보관 연결 완료 / 디자인 미확인,,,,
 페이지별 백엔드 맵핑,19,회원,후보/제안,/app/agent,개인·룸 제안·승인,listPersonal·listRoom·updateSuggestion+list,됨,확인예정,디자인 상태 미확인,,,,
 페이지별 백엔드 맵핑,20,회원,제안함(리다이렉트),/app/agent-suggestions,-,redirect -> /app/agent,리다이렉트,해당없음,-,,,,
-페이지별 백엔드 맵핑,21,회원,설정,/app/settings,프로필·알림·동의·폴더·저장소·위젯버블,getMe·updateMe+settings5+widget2,됨,개선 반영,계정·언어·테마·알림·동의·로컬 앱(SQLite/폴더)·위젯 상태 중심으로 재구성. 새로고침/목업 실패 카드 제거. 실제 Tauri 런타임 검증은 남음.,,,,
+페이지별 백엔드 맵핑,21,회원,설정,/app/settings,프로필·알림·동의·폴더·저장소·위젯버블,getMe·updateMe+settings5+widget2,됨,개선 반영,계정·언어·테마·알림·동의·로컬 앱(SQLite/폴더)·위젯 상태 중심으로 재구성. /api/me 사용자 표시, 알림·동의 API 200, 콘솔 에러 0 확인. 실제 Tauri 런타임 검증은 남음.,,,,
 페이지별 백엔드 맵핑,22,위젯,데스크탑 위젯,/app/desktop/widgets,위젯 창 런타임 + 사용량,tauriCommands + widget-local-client,부분,부분,로그인 후 TODO 위젯+위젯 바 자동 실행을 프론트 런처와 Rust app_ready에서 보강. 소통/chat 위젯은 시작 시 자동 실행 제외. Tauri QA에서 메인/버블 창 2번 모니터 표시 확인. bar/menu/default 창 제목 분리 후 별도 bar 창 관측 재검증 필요,,,,
 페이지별 백엔드 맵핑,23,위젯,독립 위젯 창,/desktop-widget,위젯 창 런타임(Tauri),tauriCommands 창 제어,됨,안됨,디자인 전면 재작업 필요,,,,
 페이지별 백엔드 맵핑,24,공통,활동 감지 서버반영,(화면 미연결),활동(/api/activity),activityApi 미호출,안됨,해당없음,화면 미맵핑,,,,
@@ -376,3 +376,8 @@ API 명세 맵핑,198,,GET,/api/widget/usage-summaries/today,명세,O,연결됨,
 대시보드 카드 후보,9,작업 연속 기록,실제 업무 리듬을 누적 흐름으로 본다,"작업 시작, 일정 처리, 후보 확인, 타이머 사용","activity API, widget usage rollup",아직 누적 기록이 없습니다,3,,,,,,
 대시보드 카드 후보,10,버블 사용 요약,Tauri 버블이 실제로 쓰였는지 본다,"열린 횟수, 상호작용 수, 표시 시간, 기기별 요약","widgetApi.getUsageSummariesToday, Tauri rollup",오늘 버블 사용 기록이 없습니다,3,,,,,,
 대시보드 카드 후보,11,집중 시간,동의한 경우 작업 앱/창 흐름을 시간으로 요약한다,"활성 앱 이름, 창 제목, 머문 시간","Tauri activity, 향후 서버 activity API",동의 후 표시됩니다,4,,,,,,
+품질 감사,1,목업·하드코딩 제거,src 화면 코드,MOCK_FLOW export 제거,완료,2026-07-02 ResourceFlowView 기본 목업 제거 및 데이터 없음 상태로 전환,,,,,,
+품질 감사,2,개발자 관점 문구 제거,공개/위젯/다운로드 설명,"배포된 회원 웹 앱, data-release-ready, hybrid-frame__mock",완료,2026-07-02 사용자 중심 문구와 일반 surface 클래스명으로 정리,,,,,,
+품질 감사,3,사용자 이름·문서명 하드코딩 제거,소통 제외 src 화면 코드,"정현·김정현·박민수·박미연, 번역계약서, 요구사항_초안",완료,2026-07-02 소통 담당 영역 제외 후 화면 문구 정리,,,,,,
+품질 감사,4,금지/민감 용어 정리,소통 제외 src 화면 코드,계약/계약서 노출 문구,완료,2026-07-02 업무 문서·업무 기준·API 기준 표현으로 정리,,,,,,
+품질 감사,5,소통 화면 잔여 문구,src/features/communication,팀원 작업 구역,분리 처리,소통 담당자가 같은 기준으로 정리 필요,,,,,,
