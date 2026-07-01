@@ -22,6 +22,7 @@ import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { readWidgetSummary } from "@/lib/widget";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -597,14 +598,14 @@ export function WorkspaceDashboard() {
       const [roomResult, personalTaskResult, widgetSummaryResult, widgetUsageResult, activityResult] = await Promise.allSettled([
         projectRoomApi.list(),
         todoApi.list(),
-        widgetApi.getSummary(),
+        readWidgetSummary(),
         widgetApi.getTodayUsageRollups(),
         activityApi.getToday(),
       ]);
 
       setRooms(roomResult.status === "fulfilled" ? roomResult.value.items : []);
       setPersonalTasks(personalTaskResult.status === "fulfilled" ? personalTaskResult.value.items : []);
-      setWidgetSummary(widgetSummaryResult.status === "fulfilled" ? widgetSummaryResult.value : null);
+      setWidgetSummary(widgetSummaryResult.status === "fulfilled" && widgetSummaryResult.value.status === "ready" ? widgetSummaryResult.value.data : null);
       setTodayWidgetUsageSummary(widgetUsageResult.status === "fulfilled" ? widgetUsageResult.value : null);
       setTodayActivityLogs(activityResult.status === "fulfilled" ? activityResult.value : null);
     } catch (error) {

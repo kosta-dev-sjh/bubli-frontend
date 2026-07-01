@@ -1,5 +1,6 @@
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { getLocalAdapterEnvironment } from "@/lib/local/adapter-result";
+import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { WidgetSummaryResponse } from "@/types/api/widget";
 import type { LocalAdapterEnvironment } from "@/types/local";
@@ -45,11 +46,13 @@ export type WidgetSummaryClientResult =
   | WidgetSummaryClientFailed;
 
 export type WidgetLocalSummaryReader = () => Promise<WidgetSummaryResponse | null> | WidgetSummaryResponse | null;
+export type WidgetLocalSummaryWriter = (summary: WidgetSummaryResponse) => Promise<void> | void;
 
 export type WidgetSummaryClientOptions = {
   fetchServerSummary?: () => Promise<WidgetSummaryResponse>;
   preferLocalCache?: boolean;
   readLocalSummary?: WidgetLocalSummaryReader;
+  writeLocalSummary?: WidgetLocalSummaryWriter;
 };
 
 export async function readWidgetSummary(
@@ -58,17 +61,21 @@ export async function readWidgetSummary(
   const environment = getLocalAdapterEnvironment();
   const fetchServerSummary = options.fetchServerSummary ?? widgetApi.getSummary;
   const preferLocalCache = options.preferLocalCache ?? true;
+  const readLocalSummary =
+    options.readLocalSummary ?? (isTauriRuntime() ? readLocalWidgetSummaryCache : undefined);
+  const writeLocalSummary =
+    options.writeLocalSummary ?? (isTauriRuntime() ? writeLocalWidgetSummaryCache : undefined);
 
   if (!preferLocalCache || !isTauriRuntime()) {
-    return readServerWidgetSummary(fetchServerSummary, environment, "not_tauri_runtime");
+    return readServerWidgetSummary(fetchServerSummary, environment, "not_tauri_runtime", writeLocalSummary);
   }
 
-  if (!options.readLocalSummary) {
-    return readServerWidgetSummary(fetchServerSummary, environment, "local_cache_reader_missing");
+  if (!readLocalSummary) {
+    return readServerWidgetSummary(fetchServerSummary, environment, "local_cache_reader_missing", writeLocalSummary);
   }
 
   try {
-    const localSummary = await options.readLocalSummary();
+    const localSummary = await readLocalSummary();
 
     if (localSummary) {
       return {
@@ -79,9 +86,9 @@ export async function readWidgetSummary(
       };
     }
 
-    return readServerWidgetSummary(fetchServerSummary, environment, "local_cache_empty");
+    return readServerWidgetSummary(fetchServerSummary, environment, "local_cache_empty", writeLocalSummary);
   } catch {
-    return readServerWidgetSummary(fetchServerSummary, environment, "local_cache_failed");
+    return readServerWidgetSummary(fetchServerSummary, environment, "local_cache_failed", writeLocalSummary);
   }
 }
 
@@ -102,10 +109,14 @@ async function readServerWidgetSummary(
   fetchServerSummary: () => Promise<WidgetSummaryResponse>,
   environment: LocalAdapterEnvironment,
   fallbackReason?: WidgetSummaryFallbackReason,
+  writeLocalSummary?: WidgetLocalSummaryWriter,
 ): Promise<WidgetSummaryClientReady | WidgetSummaryClientFailed> {
   try {
+    const data = await fetchServerSummary();
+    await writeLocalSummary?.(data);
+
     return {
-      data: await fetchServerSummary(),
+      data,
       environment,
       fallbackReason,
       source: "server-api",
@@ -122,3 +133,21 @@ async function readServerWidgetSummary(
   }
 }
 
+async function readLocalWidgetSummaryCache(): Promise<WidgetSummaryResponse | null> {
+  const cached = await tauriCommands.readWidgetSummaryCache();
+  if (!cached) return null;
+  const parsed = JSON.parse(cached.summaryJson);
+  return isWidgetSummaryResponse(parsed) ? parsed : null;
+}
+
+async function writeLocalWidgetSummaryCache(summary: WidgetSummaryResponse) {
+  await tauriCommands.storeWidgetSummaryCache({
+    summaryJson: JSON.stringify(summary),
+  });
+}
+
+function isWidgetSummaryResponse(value: unknown): value is WidgetSummaryResponse {
+  if (!value || typeof value !== "object") return false;
+  const summary = value as Partial<WidgetSummaryResponse>;
+  return !!summary.context && typeof summary.context === "object" && Array.isArray(summary.bubbles);
+}

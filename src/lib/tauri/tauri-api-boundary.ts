@@ -103,6 +103,18 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     reflectsToServer: true,
     serverApi: "/api/widget/usage-summaries",
   },
+  {
+    ipc: TAURI_COMMANDS.storeWidgetSummaryCache,
+    responsibility: "Mirror the server widget summary into the local display cache",
+    reflectsToServer: false,
+    serverApi: "/api/widget/summary",
+  },
+  {
+    ipc: TAURI_COMMANDS.readWidgetSummaryCache,
+    responsibility: "Read the last mirrored widget summary for fast display or server fallback",
+    reflectsToServer: false,
+    serverApi: "/api/widget/summary",
+  },
   // BUBLI-44 activity context: local capture, server reflect of consented data.
   {
     ipc: TAURI_COMMANDS.readActivityContext,

@@ -1103,6 +1103,7 @@ pub fn run() {
             local_db::mark_activity_context_synced,
             local_db::read_active_project_room,
             local_db::read_tauri_auth_session,
+            local_db::read_widget_summary_cache,
             local_db::record_activity_context,
             local_db::record_timer_state,
             local_db::recover_timer_state,
@@ -1110,6 +1111,7 @@ pub fn run() {
             local_db::stage_activity_contexts_for_sync,
             local_db::store_active_project_room,
             local_db::store_tauri_auth_session,
+            local_db::store_widget_summary_cache,
             local_db::restore_local_sqlite_backup,
             local_db::sync_room_messages
         ])

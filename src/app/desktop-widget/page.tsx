@@ -32,6 +32,7 @@ import {
 import { timerApi } from "@/features/timer/api/timerApi";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { readWidgetSummary } from "@/lib/widget";
 import type { TimeLogResponse } from "@/types/api/timer";
 import type { WidgetBubbleType as ApiWidgetBubbleType } from "@/types/api/widget";
 
@@ -566,8 +567,10 @@ function DesktopWidgetSurface() {
 
     async function loadWidgetApiState() {
       try {
-        const summary = await widgetApi.getSummary();
+        const summaryResult = await readWidgetSummary();
+        const summary = summaryResult.status === "ready" ? summaryResult.data : null;
         if (cancelled) return;
+        if (!summary) return;
 
         const settings = summary.bubbles ?? [];
         setWidgetContext((current) => {
@@ -624,7 +627,8 @@ function DesktopWidgetSurface() {
     let cancelled = false;
 
     async function refreshWidgetContext() {
-      const summary = await widgetApi.getSummary().catch(() => null);
+      const summaryResult = await readWidgetSummary().catch(() => null);
+      const summary = summaryResult?.status === "ready" ? summaryResult.data : null;
       if (cancelled || !summary?.context) return;
 
       setWidgetContext((current) => {
@@ -658,7 +662,8 @@ function DesktopWidgetSurface() {
     async function loadDisplayApiState() {
       let selectedRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
       if (!selectedRoomId) {
-        const summary = await widgetApi.getSummary().catch(() => null);
+        const summaryResult = await readWidgetSummary().catch(() => null);
+        const summary = summaryResult?.status === "ready" ? summaryResult.data : null;
         if (summary?.context) {
           selectedRoomId = summary.context.selectedRoomId ?? requestedRoomId ?? null;
           if (!cancelled) {

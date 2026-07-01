@@ -151,6 +151,19 @@ pub struct LocalRoomMessageReadResult {
     synced_at: Option<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetSummaryCacheStoreInput {
+    summary_json: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetSummaryCacheReadResult {
+    cached_at: String,
+    summary_json: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalRoomMessageSyncResult {
@@ -420,6 +433,23 @@ pub fn read_room_messages(
     read_room_messages_for_conn(&conn, input)
 }
 
+#[tauri::command]
+pub fn store_widget_summary_cache(
+    state: tauri::State<'_, Db>,
+    input: WidgetSummaryCacheStoreInput,
+) -> Result<WidgetSummaryCacheReadResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    store_widget_summary_cache_for_conn(&conn, &input.summary_json)
+}
+
+#[tauri::command]
+pub fn read_widget_summary_cache(
+    state: tauri::State<'_, Db>,
+) -> Result<Option<WidgetSummaryCacheReadResult>, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    read_widget_summary_cache_for_conn(&conn)
+}
+
 fn sync_room_messages_for_conn(
     conn: &Connection,
     input: LocalRoomMessageSyncInput,
@@ -563,6 +593,62 @@ fn read_room_messages_for_conn(
         state,
         synced_at,
     })
+}
+
+fn validate_widget_summary_json(summary_json: &str) -> Result<(), String> {
+    let value: Value = serde_json::from_str(summary_json)
+        .map_err(|error| format!("widget summary json parse failed: {error}"))?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| "widget summary must be a JSON object".to_string())?;
+    if !object.get("context").is_some_and(Value::is_object) {
+        return Err("widget summary missing context".to_string());
+    }
+    if !object.get("bubbles").is_some_and(Value::is_array) {
+        return Err("widget summary missing bubbles".to_string());
+    }
+    Ok(())
+}
+
+fn store_widget_summary_cache_for_conn(
+    conn: &Connection,
+    summary_json: &str,
+) -> Result<WidgetSummaryCacheReadResult, String> {
+    validate_widget_summary_json(summary_json)?;
+    let cached_at = now_ms();
+    conn.execute(
+        "INSERT INTO local_widget_display_cache (id, summary_json, cached_at) \
+         VALUES ('summary', ?1, ?2) \
+         ON CONFLICT(id) DO UPDATE SET \
+           summary_json = excluded.summary_json, \
+           cached_at = excluded.cached_at",
+        params![summary_json, cached_at],
+    )
+    .map_err(|error| error.to_string())?;
+
+    Ok(WidgetSummaryCacheReadResult {
+        cached_at: ms_to_iso(cached_at),
+        summary_json: summary_json.to_string(),
+    })
+}
+
+fn read_widget_summary_cache_for_conn(
+    conn: &Connection,
+) -> Result<Option<WidgetSummaryCacheReadResult>, String> {
+    conn.query_row(
+        "SELECT summary_json, cached_at FROM local_widget_display_cache WHERE id = 'summary'",
+        [],
+        |row| {
+            let summary_json: String = row.get(0)?;
+            let cached_at: i64 = row.get(1)?;
+            Ok(WidgetSummaryCacheReadResult {
+                cached_at: ms_to_iso(cached_at),
+                summary_json,
+            })
+        },
+    )
+    .optional()
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -1039,6 +1125,15 @@ CREATE TABLE IF NOT EXISTS local_room_cache_state (
     synced_at       INTEGER NOT NULL
 );
 
+-- Widget display cache. Server widget summary remains the source of truth;
+-- this row lets the Tauri shell show the last known bubble layout/context when
+-- the server API is temporarily unavailable.
+CREATE TABLE IF NOT EXISTS local_widget_display_cache (
+    id           TEXT PRIMARY KEY,
+    summary_json TEXT NOT NULL,
+    cached_at    INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS local_timer_state (
     id                 TEXT PRIMARY KEY,
     room_id            TEXT,
@@ -1089,11 +1184,12 @@ CREATE INDEX IF NOT EXISTS idx_local_activity_buffer_status ON local_activity_bu
 mod tests {
     use super::{
         mark_activity_context_synced_conn, read_active_project_room_for_conn,
-        read_auth_session_json, read_room_messages_for_conn, stage_activity_contexts_for_sync_conn,
-        store_active_project_room_for_conn, store_auth_session_json, sync_room_messages_for_conn,
-        validate_auth_session_json, ActiveProjectRoomStoreInput, ActivityContextSyncInput,
-        LocalRoomMessageCacheInput, LocalRoomMessageReadInput, LocalRoomMessageSyncInput,
-        SCHEMA_SQL,
+        read_auth_session_json, read_room_messages_for_conn, read_widget_summary_cache_for_conn,
+        stage_activity_contexts_for_sync_conn, store_active_project_room_for_conn,
+        store_auth_session_json, store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
+        validate_auth_session_json, validate_widget_summary_json, ActiveProjectRoomStoreInput,
+        ActivityContextSyncInput, LocalRoomMessageCacheInput, LocalRoomMessageReadInput,
+        LocalRoomMessageSyncInput, SCHEMA_SQL,
     };
     use rusqlite::{params, Connection};
 
@@ -1315,6 +1411,58 @@ mod tests {
             Some("message-3")
         );
         assert!(cached.items[1].body_json.contains("message-3"));
+    }
+
+    #[test]
+    fn stores_reads_and_replaces_widget_summary_cache() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+
+        let first_summary = serde_json::json!({
+            "context": { "mode": "ROOM", "selectedRoomId": "room-1" },
+            "bubbles": [
+                { "id": "bubble-1", "bubbleType": "TODO", "enabled": true, "alertEnabled": true, "ghostMode": false, "minimized": false, "x": 10, "y": 20 }
+            ]
+        })
+        .to_string();
+        let stored = store_widget_summary_cache_for_conn(&conn, &first_summary)
+            .expect("store widget summary cache");
+        assert_eq!(stored.summary_json, first_summary);
+        assert!(!stored.cached_at.is_empty());
+
+        let second_summary = serde_json::json!({
+            "context": { "mode": "PERSONAL", "selectedRoomId": null },
+            "bubbles": []
+        })
+        .to_string();
+        store_widget_summary_cache_for_conn(&conn, &second_summary)
+            .expect("replace widget summary cache");
+
+        let cached = read_widget_summary_cache_for_conn(&conn)
+            .expect("read widget summary cache")
+            .expect("cache exists");
+        assert_eq!(cached.summary_json, second_summary);
+        assert!(!cached.cached_at.is_empty());
+
+        let row_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM local_widget_display_cache",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count widget cache rows");
+        assert_eq!(row_count, 1);
+    }
+
+    #[test]
+    fn rejects_invalid_widget_summary_cache_json() {
+        let missing_context =
+            validate_widget_summary_json(r#"{"bubbles":[]}"#).expect_err("context is required");
+        assert!(missing_context.contains("context"));
+
+        let missing_bubbles = validate_widget_summary_json(r#"{"context":{"mode":"PERSONAL"}}"#)
+            .expect_err("bubbles are required");
+        assert!(missing_bubbles.contains("bubbles"));
     }
 
     fn insert_activity_row(conn: &Connection, id: &str, status: &str, updated_at: i64) {
