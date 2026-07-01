@@ -93,7 +93,7 @@ export type LocalFileEventsSyncStageInput = {
 };
 
 export type LocalFileSyncEventCandidate = {
-  eventType: "CREATED" | "DELETED";
+  eventType: "CREATED" | "UPDATED" | "DELETED";
   fileName: string;
   fileSizeBytes?: number | null;
   localEventId: string;

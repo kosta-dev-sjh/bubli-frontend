@@ -138,6 +138,8 @@ pub struct LocalFileEventsMarkSyncedResult {
 /// Keeps native file watchers alive for the lifetime of the app process.
 pub struct ManagedFolderWatchers(pub Mutex<HashMap<String, RecommendedWatcher>>);
 
+const SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL: &str = "'CREATED', 'UPDATED', 'DELETED'";
+
 impl Default for ManagedFolderWatchers {
     fn default() -> Self {
         Self(Mutex::new(HashMap::new()))
@@ -853,27 +855,31 @@ pub fn stage_local_file_events_for_sync(
     {
         let (sql, has_filter) = match &folder_filter {
             Some(_) => (
-                "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
+                format!(
+                    "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
                  FROM local_file_events e \
                  LEFT JOIN local_files f ON f.id = e.local_file_id \
                  WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
-                   AND e.event_type IN ('CREATED', 'DELETED') \
+                   AND e.event_type IN ({SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL}) \
                    AND e.local_folder_id = ?1 \
-                 ORDER BY e.created_at ASC LIMIT ?2",
+                 ORDER BY e.created_at ASC LIMIT ?2"
+                ),
                 true,
             ),
             None => (
-                "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
+                format!(
+                    "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
                  FROM local_file_events e \
                  LEFT JOIN local_files f ON f.id = e.local_file_id \
                  WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
-                   AND e.event_type IN ('CREATED', 'DELETED') \
-                 ORDER BY e.created_at ASC LIMIT ?1",
+                   AND e.event_type IN ({SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL}) \
+                 ORDER BY e.created_at ASC LIMIT ?1"
+                ),
                 false,
             ),
         };
 
-        let mut stmt = conn.prepare(sql).map_err(|error| error.to_string())?;
+        let mut stmt = conn.prepare(&sql).map_err(|error| error.to_string())?;
         let map_row = |row: &rusqlite::Row<'_>| {
             let file_name = row.get::<_, String>(3)?;
             Ok(LocalFileSyncEventCandidate {
@@ -1139,5 +1145,12 @@ mod tests {
             .contains("[renewal]"));
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn sync_stage_includes_updated_file_events() {
+        assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'CREATED'"));
+        assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'UPDATED'"));
+        assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'DELETED'"));
     }
 }
