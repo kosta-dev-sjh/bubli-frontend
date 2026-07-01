@@ -5,6 +5,8 @@ import type {
 import type {
   ActivityContextResult,
   LocalBackupRestoreInput,
+  LocalFilePreviewInput,
+  LocalFilePreviewResult,
   LocalFileSearchInput,
   LocalFileSearchResult,
   ManagedFolderCommandInput,
@@ -136,6 +138,8 @@ export type ManagedFolderWatchAdapterResult = LocalAdapterResult<
 >;
 export type LocalFileSearchAdapterInput = LocalFileSearchInput & LocalFolderScopeInput;
 export type LocalFileSearchAdapterResult = LocalAdapterResult<LocalFileSearchResult>;
+export type LocalFilePreviewAdapterInput = LocalFilePreviewInput & LocalFolderScopeInput;
+export type LocalFilePreviewAdapterResult = LocalAdapterResult<LocalFilePreviewResult>;
 export type ActivityContextAdapterResult = LocalAdapterResult<ActivityContextResult>;
 export type ActivityContextRecordAdapterResult = LocalAdapterResult<ActivityContextRecordResult>;
 export type WidgetUsageEventAdapterInput = WidgetUsageEventInput;

@@ -80,6 +80,26 @@ pub struct LocalFileSearchResult {
     items: Vec<LocalFileSearchItem>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFilePreviewInput {
+    local_file_id: String,
+    max_chars: Option<usize>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFilePreviewResult {
+    local_file_id: String,
+    mime_type: Option<String>,
+    name: String,
+    path: String,
+    preview_text: Option<String>,
+    read_at: String,
+    status: String,
+    truncated: bool,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncOutboxFlushResult {
@@ -720,6 +740,38 @@ fn is_supported_text_file(path: &Path) -> bool {
     )
 }
 
+fn read_local_text_preview(
+    path: &Path,
+    max_chars: usize,
+) -> Result<(Option<String>, String, bool), String> {
+    if !is_supported_text_file(path) {
+        return Ok((None, "UNSUPPORTED".to_string(), false));
+    }
+
+    let metadata = match std::fs::metadata(path) {
+        Ok(value) if value.is_file() => value,
+        _ => return Ok((None, "MISSING".to_string(), false)),
+    };
+    if metadata.len() > MAX_EXTRACT_BYTES {
+        return Ok((None, "TOO_LARGE".to_string(), false));
+    }
+
+    let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
+    let text = String::from_utf8_lossy(&bytes)
+        .replace('\0', " ")
+        .trim()
+        .to_string();
+    let total_chars = text.chars().count();
+    let truncated = total_chars > max_chars;
+    let preview_text = if truncated {
+        text.chars().take(max_chars).collect::<String>()
+    } else {
+        text
+    };
+
+    Ok((Some(preview_text), "READY".to_string(), truncated))
+}
+
 fn search_local_files_fts(
     conn: &Connection,
     query: &str,
@@ -814,6 +866,46 @@ pub fn search_local_files(
     }
 
     Ok(LocalFileSearchResult { items })
+}
+
+/// Read a bounded text preview for a file already registered in the personal
+/// managed-folder index. This never uploads raw file content.
+#[tauri::command]
+pub fn read_local_file_preview(
+    state: State<'_, Db>,
+    input: LocalFilePreviewInput,
+) -> Result<LocalFilePreviewResult, String> {
+    let max_chars = input.max_chars.unwrap_or(4_000).clamp(200, 12_000);
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let row: Option<(String, String)> = conn
+        .query_row(
+            "SELECT file_name, local_path FROM local_files WHERE id = ?1",
+            params![input.local_file_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+
+    let Some((name, path)) = row else {
+        return Err(format!(
+            "local file not found in managed index: {}",
+            input.local_file_id
+        ));
+    };
+
+    let path_buf = PathBuf::from(&path);
+    let (preview_text, status, truncated) = read_local_text_preview(&path_buf, max_chars)?;
+
+    Ok(LocalFilePreviewResult {
+        local_file_id: input.local_file_id,
+        mime_type: guess_mime_type(&name),
+        name,
+        path,
+        preview_text,
+        read_at: crate::local_db::now_iso(),
+        status,
+        truncated,
+    })
 }
 
 /// Report the sync outbox backlog. Actual transmission is done by the frontend
@@ -1261,5 +1353,38 @@ mod tests {
         assert_eq!(retry_count, 1);
         assert!(payload.contains("\"eventType\":\"UPDATED\""));
         assert!(payload.contains("\"resourceId\":\"resource-1\""));
+    }
+
+    #[test]
+    fn reads_bounded_preview_for_registered_text_file() {
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-preview-test-{}.md", Uuid::new_v4()));
+        std::fs::write(&path, "first line\nsecond line\nthird line")
+            .expect("write temp markdown file");
+
+        let (preview, status, truncated) =
+            read_local_text_preview(&path, 7).expect("read local preview");
+
+        assert_eq!(status, "READY");
+        assert_eq!(preview.as_deref(), Some("first l"));
+        assert!(truncated);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn reports_unsupported_preview_without_reading_binary() {
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-preview-test-{}.bin", Uuid::new_v4()));
+        std::fs::write(&path, [0_u8, 1, 2, 3]).expect("write temp binary file");
+
+        let (preview, status, truncated) =
+            read_local_text_preview(&path, 100).expect("read unsupported preview state");
+
+        assert_eq!(status, "UNSUPPORTED");
+        assert!(preview.is_none());
+        assert!(!truncated);
+
+        let _ = std::fs::remove_file(path);
     }
 }

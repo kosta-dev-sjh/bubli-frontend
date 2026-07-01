@@ -12,6 +12,7 @@ export const TAURI_COMMANDS = {
   listAppMonitors: "list_app_monitors",
   openWidgetWindow: "open_widget_window",
   readActivityContext: "read_activity_context",
+  readLocalFilePreview: "read_local_file_preview",
   recoverTimerState: "recover_timer_state",
   recordWidgetUsageEvent: "record_widget_usage_event",
   markLocalFileEventsSynced: "mark_local_file_events_synced",
@@ -85,6 +86,22 @@ export type LocalFileSearchResult = {
     path: string;
     updatedAt: string;
   }>;
+};
+
+export type LocalFilePreviewInput = {
+  localFileId: string;
+  maxChars?: number;
+};
+
+export type LocalFilePreviewResult = {
+  localFileId: string;
+  mimeType?: string | null;
+  name: string;
+  path: string;
+  previewText?: string | null;
+  readAt: string;
+  status: "READY" | "UNSUPPORTED" | "MISSING" | "TOO_LARGE";
+  truncated: boolean;
 };
 
 export type LocalFileEventsSyncStageInput = {
@@ -353,6 +370,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: ActivityContextResult;
   };
+  read_local_file_preview: {
+    args: LocalFilePreviewInput;
+    result: LocalFilePreviewResult;
+  };
   recover_timer_state: {
     args: undefined;
     result: TimerRecoveryState;
@@ -483,6 +504,9 @@ export const tauriCommands = {
   },
   readActivityContext() {
     return invokeTauri<ActivityContextResult>(TAURI_COMMANDS.readActivityContext);
+  },
+  readLocalFilePreview(input: LocalFilePreviewInput) {
+    return invokeTauri<LocalFilePreviewResult>(TAURI_COMMANDS.readLocalFilePreview, { input });
   },
   recoverTimerState() {
     return invokeTauri<TimerRecoveryState>(TAURI_COMMANDS.recoverTimerState);
