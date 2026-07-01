@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   Bot,
@@ -15,6 +17,7 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 
 import styles from "./resource-upload-analysis-panel.module.css";
 
@@ -51,14 +54,18 @@ const files: UploadFile[] = [
   },
 ];
 
-const statusMeta: Record<UploadStatus, { label: string; tone: "todo" | "agent" | "approved" }> = {
-  analyzing: { label: "분석 중", tone: "agent" },
-  ready: { label: "준비됨", tone: "approved" },
-  uploading: { label: "업로드 중", tone: "todo" },
+const statusMeta: Record<UploadStatus, { labelKey: MessageKey; tone: "todo" | "agent" | "approved" }> = {
+  analyzing: { labelKey: "resources.upload.analysis.status.analyzing", tone: "agent" },
+  ready: { labelKey: "resources.upload.analysis.status.ready", tone: "approved" },
+  uploading: { labelKey: "resources.upload.analysis.status.uploading", tone: "todo" },
 };
 
 function FileCard({ file }: { file: UploadFile }) {
+  const { t } = useI18n();
   const status = statusMeta[file.status];
+  const scopeLabel = t(
+    file.scope === "개인 자료" ? "resources.upload.scopePersonal" : "resources.upload.scopeRoom",
+  );
 
   return (
     <article className={styles.fileCard}>
@@ -68,55 +75,54 @@ function FileCard({ file }: { file: UploadFile }) {
         </span>
         <div>
           <div className={styles.badges}>
-            <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-            <StatusBadge tone={file.scope === "개인 자료" ? "personal" : "room"}>{file.scope}</StatusBadge>
+            <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
+            <StatusBadge tone={file.scope === "개인 자료" ? "personal" : "room"}>{scopeLabel}</StatusBadge>
           </div>
           <h3>{file.fileName}</h3>
           <p>{file.meta}</p>
         </div>
         <StatusBadge tone="neutral">{file.analysis}%</StatusBadge>
       </div>
-      <ProgressBar label={`${file.fileName} 처리 진행률`} value={file.analysis} />
+      <ProgressBar label={t("resources.upload.analysis.progressLabel", { fileName: file.fileName })} value={file.analysis} />
       <div className={styles.meta}>
-        <span>업로드 성공 후 자료 등록 기준</span>
-        <span>분석 결과는 후보로 표시</span>
+        <span>{t("resources.upload.analysis.cardMetaRegister")}</span>
+        <span>{t("resources.upload.analysis.cardMetaCandidate")}</span>
       </div>
     </article>
   );
 }
 
 export function ResourceUploadAnalysisPanel() {
+  const { t } = useI18n();
+
   return (
-    <section className={styles.panel} aria-label="자료 업로드와 분석 흐름">
+    <section className={styles.panel} aria-label={t("resources.upload.analysis.aria")}>
       <GlassPanel className={styles.hero}>
         <div>
           <Chip icon={<HardDriveUpload size={14} />} selected>
-            자료 업로드
+            {t("resources.upload.analysis.chip")}
           </Chip>
-          <h2>자료를 올리면 저장, 권한 확인, 분석 후보 생성까지 같은 흐름으로 이어집니다</h2>
-          <p>
-            업로드는 서버를 거쳐 진행합니다. 성공하면 자료보드에 등록되고,
-            에이전트 분석은 정리 작업 상태와 후보 목록으로 이어집니다.
-          </p>
+          <h2>{t("resources.upload.analysis.title")}</h2>
+          <p>{t("resources.upload.analysis.desc")}</p>
         </div>
         <div className={styles.summary}>
-          <StatusBadge tone="todo">서버 업로드</StatusBadge>
+          <StatusBadge tone="todo">{t("resources.upload.analysis.summaryBadge")}</StatusBadge>
           <strong>100MB</strong>
-          <span>단일 파일 기준</span>
-          <ProgressBar label="업로드 준비 기준 반영률" value={81} />
+          <span>{t("resources.upload.analysis.summaryUnit")}</span>
+          <ProgressBar label={t("resources.upload.analysis.summaryProgressLabel")} value={81} />
         </div>
       </GlassPanel>
 
       <div className={styles.flow}>
-        <span>파일 선택</span>
+        <span>{t("resources.upload.analysis.flowSelectFile")}</span>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <span>형식/크기 확인</span>
+        <span>{t("resources.upload.analysis.flowCheck")}</span>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <span>자료 등록</span>
+        <span>{t("resources.upload.analysis.flowRegister")}</span>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <span>에이전트 정리</span>
+        <span>{t("resources.upload.analysis.flowAgent")}</span>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <span>후보 확인</span>
+        <span>{t("resources.upload.analysis.flowCandidate")}</span>
       </div>
 
       <div className={styles.grid}>
@@ -126,19 +132,19 @@ export function ResourceUploadAnalysisPanel() {
               <span className="bubli-icon-tile" aria-hidden="true">
                 <UploadCloud size={18} strokeWidth={2.1} />
               </span>
-              <h3>계약서, 요구사항, 회의록, 참고자료를 올립니다</h3>
-              <p>PDF, DOCX, PPTX, XLSX, TXT, MD, CSV, PNG, JPG, JPEG, WEBP를 우선 지원합니다.</p>
+              <h3>{t("resources.upload.analysis.dropzoneTitle")}</h3>
+              <p>{t("resources.upload.analysis.dropzoneDesc")}</p>
               <div className={styles.chips}>
-                <Chip>개인 자료</Chip>
-                <Chip>프로젝트룸 자료</Chip>
-                <Chip>진행률 표시</Chip>
+                <Chip>{t("resources.upload.scopePersonal")}</Chip>
+                <Chip>{t("resources.upload.scopeRoom")}</Chip>
+                <Chip>{t("resources.upload.analysis.chipProgress")}</Chip>
               </div>
             </div>
           </div>
 
           <div className={styles.sectionTitle}>
-            <h3>업로드 상태</h3>
-            <p>자료 원본과 분석 결과는 분리해서 보여줍니다.</p>
+            <h3>{t("resources.upload.analysis.uploadStateTitle")}</h3>
+            <p>{t("resources.upload.analysis.uploadStateDesc")}</p>
           </div>
           <div className={styles.fileList}>
             {files.map((file) => (
@@ -148,36 +154,36 @@ export function ResourceUploadAnalysisPanel() {
         </GlassPanel>
 
         <GlassPanel className={styles.rules}>
-          <h3>저장과 분석 기준</h3>
+          <h3>{t("resources.upload.analysis.rulesTitle")}</h3>
           <div className={styles.ruleList}>
             <article className={styles.ruleCard}>
-              <code>권한 확인</code>
-              <h4>자료 범위 먼저 확인</h4>
-              <p>개인 자료와 프로젝트룸 자료는 자료 범위와 프로젝트룸 권한으로 나눕니다.</p>
+              <code>{t("resources.upload.analysis.rulePermissionCode")}</code>
+              <h4>{t("resources.upload.analysis.rulePermissionTitle")}</h4>
+              <p>{t("resources.upload.analysis.rulePermissionDesc")}</p>
             </article>
             <article className={styles.ruleCard}>
-              <code>서버 저장</code>
-              <h4>공개 URL로 열지 않음</h4>
-              <p>다운로드는 서버 권한 확인 뒤 발급된 URL로만 처리합니다.</p>
+              <code>{t("resources.upload.analysis.ruleStorageCode")}</code>
+              <h4>{t("resources.upload.analysis.ruleStorageTitle")}</h4>
+              <p>{t("resources.upload.analysis.ruleStorageDesc")}</p>
             </article>
             <article className={styles.ruleCard}>
-              <code>파일 지문</code>
-              <h4>중복 분석 방지</h4>
-              <p>같은 파일 반복 업로드는 파일 지문 기준으로 분석 요청을 줄입니다.</p>
+              <code>{t("resources.upload.analysis.ruleDedupeCode")}</code>
+              <h4>{t("resources.upload.analysis.ruleDedupeTitle")}</h4>
+              <p>{t("resources.upload.analysis.ruleDedupeDesc")}</p>
             </article>
             <article className={styles.ruleCard}>
-              <code>에이전트 정리</code>
-              <h4>분석 결과는 후보</h4>
-              <p>요약, 확인 필요 항목, WBS/TODO는 사용자가 확인하기 전까지 후보로 둡니다.</p>
+              <code>{t("resources.upload.analysis.ruleAgentCode")}</code>
+              <h4>{t("resources.upload.analysis.ruleAgentTitle")}</h4>
+              <p>{t("resources.upload.analysis.ruleAgentDesc")}</p>
             </article>
           </div>
           <div className={styles.chips}>
-            <Chip icon={<ShieldCheck size={14} />}>프롬프트 인젝션 방어</Chip>
-            <Chip icon={<LockKeyhole size={14} />}>공개 링크 금지</Chip>
-            <Chip icon={<Bot size={14} />}>후보 생성</Chip>
-            <Chip icon={<RefreshCw size={14} />}>상태 이벤트</Chip>
-            <Chip icon={<FileArchive size={14} />}>버전 기록</Chip>
-            <Chip icon={<CheckCircle2 size={14} />}>사용자 확인</Chip>
+            <Chip icon={<ShieldCheck size={14} />}>{t("resources.upload.analysis.chipInjection")}</Chip>
+            <Chip icon={<LockKeyhole size={14} />}>{t("resources.upload.analysis.chipNoPublicLink")}</Chip>
+            <Chip icon={<Bot size={14} />}>{t("resources.upload.analysis.chipCandidate")}</Chip>
+            <Chip icon={<RefreshCw size={14} />}>{t("resources.upload.analysis.chipStatusEvent")}</Chip>
+            <Chip icon={<FileArchive size={14} />}>{t("resources.upload.analysis.chipVersion")}</Chip>
+            <Chip icon={<CheckCircle2 size={14} />}>{t("resources.upload.analysis.chipUserConfirm")}</Chip>
           </div>
         </GlassPanel>
       </div>

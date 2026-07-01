@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AlertTriangle,
   CheckCircle2,
@@ -16,6 +18,7 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 type UploadScope = "personal" | "room";
@@ -40,42 +43,42 @@ export type ResourceUploadQueuePanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const statusMeta: Record<UploadStatus, { icon: ReactNode; label: string; tone: StatusTone }> = {
+const statusMeta: Record<UploadStatus, { icon: ReactNode; labelKey: MessageKey; tone: StatusTone }> = {
   queued: {
     icon: <Clock3 size={15} strokeWidth={2.1} />,
-    label: "대기",
+    labelKey: "resources.upload.queue.status.queued",
     tone: "pending",
   },
   checking: {
     icon: <ShieldCheck size={15} strokeWidth={2.1} />,
-    label: "확인 중",
+    labelKey: "resources.upload.queue.status.checking",
     tone: "agent",
   },
   uploading: {
     icon: <UploadCloud size={15} strokeWidth={2.1} />,
-    label: "업로드 중",
+    labelKey: "resources.upload.queue.status.uploading",
     tone: "todo",
   },
   ready: {
     icon: <CheckCircle2 size={15} strokeWidth={2.1} />,
-    label: "반영됨",
+    labelKey: "resources.upload.queue.status.ready",
     tone: "success",
   },
   blocked: {
     icon: <AlertTriangle size={15} strokeWidth={2.1} />,
-    label: "차단됨",
+    labelKey: "resources.upload.queue.status.blocked",
     tone: "warning",
   },
   failed: {
     icon: <XCircle size={15} strokeWidth={2.1} />,
-    label: "실패",
+    labelKey: "resources.upload.queue.status.failed",
     tone: "warning",
   },
 };
 
-const scopeLabel: Record<UploadScope, string> = {
-  personal: "개인 자료",
-  room: "프로젝트룸 자료",
+const scopeLabelKey: Record<UploadScope, MessageKey> = {
+  personal: "resources.upload.scopePersonal",
+  room: "resources.upload.scopeRoom",
 };
 
 export function ResourceUploadQueuePanel({
@@ -86,9 +89,10 @@ export function ResourceUploadQueuePanel({
   onRetryFailed,
   storageUsageLabel,
   storageUsagePercent,
-  title = "자료 업로드 대기열",
+  title,
   ...props
 }: ResourceUploadQueuePanelProps) {
+  const { t } = useI18n();
   const failedCount = items.filter((item) => item.status === "failed").length;
   const blockedCount = items.filter((item) => item.status === "blocked").length;
   const activeCount = items.filter((item) => item.status === "queued" || item.status === "checking" || item.status === "uploading").length;
@@ -98,19 +102,19 @@ export function ResourceUploadQueuePanel({
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="grid gap-2">
           <Chip icon={<FileUp size={14} strokeWidth={2.1} />} selected>
-            자료보드
+            {t("resources.upload.queue.chip")}
           </Chip>
           <div className="grid gap-1">
-            <h2 className="m-0 text-[22px] font-[860] leading-tight text-[var(--color-text)]">{title}</h2>
+            <h2 className="m-0 text-[22px] font-[860] leading-tight text-[var(--color-text)]">{title ?? t("resources.upload.queue.defaultTitle")}</h2>
             <p className="m-0 max-w-[660px] text-[14px] leading-6 text-[var(--color-muted)]">
-              서버에 반영되기 전 상태를 보여줍니다. 용량을 넘거나 전송이 실패한 자료는 사용자가 다시 확인해야 합니다.
+              {t("resources.upload.queue.intro")}
             </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <StatusBadge tone="pending">진행 {activeCount}개</StatusBadge>
-          <StatusBadge tone={blockedCount > 0 ? "warning" : "neutral"}>차단 {blockedCount}개</StatusBadge>
-          <StatusBadge tone={failedCount > 0 ? "warning" : "neutral"}>실패 {failedCount}개</StatusBadge>
+          <StatusBadge tone="pending">{t("resources.upload.queue.badgeActive", { count: activeCount })}</StatusBadge>
+          <StatusBadge tone={blockedCount > 0 ? "warning" : "neutral"}>{t("resources.upload.queue.badgeBlocked", { count: blockedCount })}</StatusBadge>
+          <StatusBadge tone={failedCount > 0 ? "warning" : "neutral"}>{t("resources.upload.queue.badgeFailed", { count: failedCount })}</StatusBadge>
         </div>
       </header>
 
@@ -121,13 +125,13 @@ export function ResourceUploadQueuePanel({
               <HardDrive size={18} strokeWidth={2.1} />
             </span>
             <div>
-              <p className="m-0 text-[14px] font-[820] text-[var(--color-text)]">개인 자료함 용량</p>
+              <p className="m-0 text-[14px] font-[820] text-[var(--color-text)]">{t("resources.upload.queue.storageTitle")}</p>
               <p className="m-0 text-[12.5px] text-[var(--color-muted)]">{storageUsageLabel}</p>
             </div>
           </div>
           <Chip>{limitLabel}</Chip>
         </div>
-        <ProgressBar label="개인 자료함 사용량" value={storageUsagePercent} />
+        <ProgressBar label={t("resources.upload.queue.storageProgressLabel")} value={storageUsagePercent} />
       </section>
 
       <ul className="m-0 grid list-none gap-3 p-0">
@@ -146,17 +150,17 @@ export function ResourceUploadQueuePanel({
                     <StatusBadge tone={meta.tone}>
                       <span className="inline-flex items-center gap-1">
                         {meta.icon}
-                        {meta.label}
+                        {t(meta.labelKey)}
                       </span>
                     </StatusBadge>
                   </div>
                   <p className="m-0 mt-1 text-[12.5px] text-[var(--color-muted)]">
-                    {scopeLabel[item.scope]} · {item.sizeLabel}
+                    {t(scopeLabelKey[item.scope])} · {item.sizeLabel}
                   </p>
                 </div>
                 <span className="text-[13px] font-[800] text-[var(--color-blue-deep)]">{Math.round(item.progress)}%</span>
               </div>
-              <ProgressBar label={`${item.fileName} 업로드 진행률`} value={item.progress} />
+              <ProgressBar label={t("resources.upload.queue.progressLabel", { fileName: item.fileName })} value={item.progress} />
               {item.message ? <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">{item.message}</p> : null}
             </li>
           );
@@ -165,14 +169,14 @@ export function ResourceUploadQueuePanel({
 
       <footer className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-[var(--glass-border)] bg-[rgba(215,234,244,0.42)] p-4">
         <p className="m-0 max-w-[620px] text-[13px] leading-5 text-[var(--color-muted)]">
-          개인 자료는 사용자가 선택한 범위만 서버에 반영합니다. 프로젝트룸 자료로 보이게 하려면 별도 공유 승인이 필요합니다.
+          {t("resources.upload.queue.footerNote")}
         </p>
         <div className="flex flex-wrap gap-2">
           <Button icon={<RefreshCw size={15} strokeWidth={2.1} />} onClick={onRetryFailed} size="sm" variant="quiet">
-            실패 항목 재시도
+            {t("resources.upload.queue.retryFailed")}
           </Button>
           <Button onClick={onOpenStorageSettings} size="sm" variant="secondary">
-            저장 설정 열기
+            {t("resources.upload.queue.openStorageSettings")}
           </Button>
         </div>
       </footer>
