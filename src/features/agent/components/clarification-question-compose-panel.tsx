@@ -57,7 +57,7 @@ export const defaultReviewItems: ReviewItem[] = [
     evidenceLabel: "업무 기준 문서 4p, 요구사항 문서 2p",
     id: "delivery-date",
     priority: "HIGH",
-    title: "납품일이 문서마다 다릅니다.",
+    title: "마감일이 문서마다 다릅니다.",
   },
   {
     evidenceLabel: "견적서 1p",
@@ -77,7 +77,7 @@ export const defaultQuestionDrafts: QuestionDraft[] = [
   {
     id: "question-delivery-date",
     linkedReviewItemId: "delivery-date",
-    message: "납품일은 2026년 7월 15일과 7월 20일 중 어떤 날짜를 기준으로 진행하면 될까요?",
+    message: "마감일은 2026년 7월 15일과 7월 20일 중 어떤 날짜를 기준으로 진행하면 될까요?",
     status: "SELECTED",
   },
   {

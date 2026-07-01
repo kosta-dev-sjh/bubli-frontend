@@ -60,7 +60,7 @@ const typeTone: Record<ResourceType, StatusTone> = {
 export const defaultShareResources: ShareResource[] = [
   {
     fileName: "업무 기준 문서_검토본.pdf",
-    linkedProjectRoom: "신규 번역 프로젝트룸",
+    linkedProjectRoom: "신규 프로젝트룸",
     readiness: "READY",
     sourceLabel: "개인 자료함",
     type: "PDF",
@@ -68,7 +68,7 @@ export const defaultShareResources: ShareResource[] = [
   },
   {
     fileName: "회의 후 확인할 질문.md",
-    linkedProjectRoom: "신규 번역 프로젝트룸",
+    linkedProjectRoom: "신규 프로젝트룸",
     readiness: "NEEDS_REVIEW",
     sourceLabel: "개인 메모",
     type: "MD",

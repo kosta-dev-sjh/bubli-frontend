@@ -28,7 +28,7 @@ const days = [
 
 const schedules: ScheduleItem[] = [
   {
-    connectedItem: "TODO: 번역 검수 기준 확인",
+    connectedItem: "TODO: 검토 기준 확인",
     dateLabel: "오늘",
     kind: "meeting",
     projectRoom: "자료 기준 정리",
@@ -37,7 +37,7 @@ const schedules: ScheduleItem[] = [
     title: "클라이언트 확인 미팅",
   },
   {
-    connectedItem: "WBS 2.1 납품물 정리",
+    connectedItem: "WBS 2.1 결과물 정리",
     dateLabel: "오늘",
     kind: "deadline",
     projectRoom: "브랜드 소개서",

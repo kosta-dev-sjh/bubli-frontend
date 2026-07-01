@@ -27,7 +27,7 @@ export const PersonalResource: Story = {
     fileSizeLabel: "2.4MB",
     quotaLabel: "개인 자료함 820MB / 1GB",
     quotaPercent: 82,
-    roomLabel: "토모에 번역 프로젝트룸",
+    roomLabel: "토모에 프로젝트룸",
   },
 };
 

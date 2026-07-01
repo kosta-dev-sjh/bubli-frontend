@@ -61,7 +61,7 @@ export const ApprovedSet: Story = {
       {
         category: "ENVIRONMENT",
         confidence: 77,
-        description: "Tauri 앱에서는 회원 웹 앱을 감싸고, 위젯과 로컬 기능은 별도 앱 기능으로 제공합니다.",
+        description: "Tauri 앱에서는 작업공간을 감싸고, 위젯과 로컬 기능은 별도 앱 기능으로 제공합니다.",
         id: "candidate-env-tauri",
         sourceLabel: "회의록_0618.md",
         status: "APPROVED",

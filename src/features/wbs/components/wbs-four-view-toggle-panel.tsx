@@ -20,7 +20,7 @@ const viewOptions: Array<{ icon: typeof GitBranch; key: WbsWorkView; label: stri
 ];
 
 const sampleTasks = [
-  { code: "1.1", dueLabel: "D-2", status: "doing" as const, title: "1차 번역본 검토" },
+  { code: "1.1", dueLabel: "D-2", status: "doing" as const, title: "1차 시안 검토" },
   { code: "1.2", dueLabel: "내일", status: "review" as const, title: "검수 기준 질문 정리" },
   { code: "2.1", dueLabel: "6월 25일", status: "waiting" as const, title: "용어집 초안 정리" },
 ];
@@ -64,7 +64,7 @@ export function WbsFourViewTogglePanel({
           title: "칸반",
         },
         timeline: {
-          body: "오늘부터 납품일까지 필요한 작업과 일정을 시간순으로 봅니다.",
+          body: "오늘부터 마감일까지 필요한 작업과 일정을 시간순으로 봅니다.",
           title: "타임라인",
         },
         tree: {

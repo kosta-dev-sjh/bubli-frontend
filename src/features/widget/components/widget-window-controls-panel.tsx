@@ -143,7 +143,7 @@ export function WidgetWindowControlsPanel({
           <b>작업 화면 위 버블</b>
           <em>{currentTextMode.label}</em>
         </div>
-        <div className={styles.bubbleMock}>
+        <div className={styles.bubblePreview}>
           <div className={styles.bubbleHeader}>
             <strong>TODO 버블</strong>
             <div className={styles.iconButtons} aria-hidden="true">

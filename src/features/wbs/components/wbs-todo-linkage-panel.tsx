@@ -114,7 +114,7 @@ const defaultCandidate: WbsCandidate = {
   confidence: 91,
   sourceLabel: "업무기준문서_v2.pdf, 회의록_0618.md",
   status: "DRAFT",
-  title: "1차 번역본 검토",
+  title: "1차 시안 검토",
 };
 
 const defaultTask: LinkedTask = {
@@ -123,7 +123,7 @@ const defaultTask: LinkedTask = {
   idLabel: "같은 TODO로 연결",
   progress: 46,
   status: "IN_PROGRESS",
-  title: "1차 번역본 검토",
+  title: "1차 시안 검토",
 };
 
 const defaultSurfaces: LinkedSurface[] = [

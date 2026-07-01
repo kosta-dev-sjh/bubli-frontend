@@ -14,7 +14,7 @@ const bubbles: Array<{
   title: string;
   type: BubbleType;
 }> = [
-  { items: ["1차 번역본 검토", "검수 기준 질문 정리"], meta: "8건", progressLabel: "완료 3/8", progressValue: 38, title: "TODO 버블", type: "todo" },
+  { items: ["1차 시안 검토", "검수 기준 질문 정리"], meta: "8건", progressLabel: "완료 3/8", progressValue: 38, title: "TODO 버블", type: "todo" },
   { items: ["확인 질문 후보 2개", "WBS 후보 3개"], meta: "승인 전", title: "에이전트 버블", type: "agent" },
   { items: ["프로젝트룸 새 메시지", "보이스 참여자 2명"], meta: "소통", title: "소통 버블", type: "communication" },
   { items: ["비정상 종료 복구 가능"], meta: "03:42", progressLabel: "오늘 누적", progressValue: 68, title: "타이머 버블", type: "timer" },

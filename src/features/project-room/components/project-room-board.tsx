@@ -49,7 +49,7 @@ const projectRooms: ProjectRoomItem[] = [
     dueLabel: "D-9",
     id: "room-1",
     memberCount: 4,
-    name: "K-Stay 번역 프로젝트",
+    name: "K-Stay 리뉴얼 프로젝트",
     myRole: "PROJECT_LEADER",
     progress: 68,
     resourceCount: 18,
@@ -189,7 +189,7 @@ function CreationFlow() {
       </ol>
       <div className="project-room-candidate">
         <b>생성 후보</b>
-        <span>프로젝트명, 클라이언트명, 납품일, 납품물, 확인 필요 항목, WBS/TODO 후보</span>
+        <span>프로젝트명, 클라이언트명, 마감일, 결과물, 확인 필요 항목, WBS/TODO 후보</span>
       </div>
     </GlassPanel>
   );

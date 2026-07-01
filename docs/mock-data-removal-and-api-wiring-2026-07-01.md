@@ -23,6 +23,8 @@ API 연결 기준은 docs/기능_API연결_명세_2026-07-01.csv와 docs/기능_
 | API timeout preview 모드 | 개발 기본값으로 1.2초 fallback | `NEXT_PUBLIC_BUBLI_PREVIEW_DATA=true`일 때만 짧은 timeout 사용 |
 | 쓰기 실패 fallback | 가짜 친구요청, 가짜 메시지, 가짜 보이스룸, 가짜 일정, 가짜 업로드 성공 | API 실패 시 offline/error/blocked 상태로 표시 |
 | 관리폴더 서버 경로 | `/api/me/managed-folders`, `/api/local-files`, `/api/resources/{id}/sync-policy` | 최신 백엔드에 없는 경로 제거. Tauri IPC와 `/api/local-file-events/sync`만 사용 |
+| 사용자 노출 샘플 업무명 | `납품일`, `납품물`, `요구사항_초안.docx`, 특정 번역 프로젝트/번역본 샘플 | 소통 컴포넌트 제외 production 화면 코드에서 `마감일`, `결과물`, `작업범위_초안.docx`, 브랜드/콘텐츠 작업 표현으로 중립화 |
+| 개발자 관점 용어 | `회원 웹 앱`, `mock` 클래스명 | 사용자 화면 문구는 `Bubli 업무 화면`으로 정리하고, 스타일 클래스는 `bubblePreview`로 변경 |
 
 ## 실제 API 우선으로 바꾼 화면
 

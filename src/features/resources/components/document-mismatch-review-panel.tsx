@@ -69,12 +69,12 @@ export const defaultMismatchMetrics: ReviewMetric[] = [
 
 export const defaultMismatchItems: MismatchItem[] = [
   {
-    actionLabel: "납품일 기준 질문 만들기",
+    actionLabel: "마감일 기준 질문 만들기",
     comparedValues: [
       { documentLabel: "업무 기준 문서", value: "2026.07.15" },
       { documentLabel: "회의록", value: "2026.07.20" },
     ],
-    fieldLabel: "납품일",
+    fieldLabel: "마감일",
     id: "delivery-date",
     reason: "문서마다 날짜가 달라 WBS와 일정에 바로 반영하기 어렵습니다.",
     severity: "HIGH",

@@ -54,9 +54,9 @@ export const defaultTimerControlState: TimerControlState = {
   elapsedLabel: "25:00",
   heartbeatLabel: "마지막 신호 18초 전",
   id: "timer-current-focus",
-  projectRoomLabel: "신규 웹사이트 번역",
+  projectRoomLabel: "웹사이트 리뉴얼",
   status: "RUNNING",
-  taskLabel: "1차 번역본 검토",
+  taskLabel: "1차 시안 검토",
   todayTotalLabel: "03:42",
   unsentEventCount: 1,
 };

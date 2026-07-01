@@ -87,16 +87,16 @@ const statusOrder: TodoDetailStatus[] = ["TODO", "IN_PROGRESS", "REVIEW", "DONE"
 
 export const defaultTodoDetail: TodoDetail = {
   assigneeLabel: "담당자",
-  description: "회의록과 업무 기준 문서의 납품일 표현이 달라 클라이언트에게 기준 날짜를 확인합니다.",
+  description: "회의록과 업무 기준 문서의 마감일 표현이 달라 클라이언트에게 기준 날짜를 확인합니다.",
   dueLabel: "오늘",
   id: "todo-send-client-question",
-  linkedProjectRoomLabel: "신규 웹사이트 번역",
+  linkedProjectRoomLabel: "웹사이트 리뉴얼",
   progressPercent: 42,
   scope: "PROJECT_ROOM",
   source: "APPROVED_CANDIDATE",
   status: "IN_PROGRESS",
   surfaces: ["WORK_BOARD", "DASHBOARD", "BUBBLE"],
-  title: "납품일 확인 질문 보내기",
+  title: "마감일 확인 질문 보내기",
 };
 
 export function TodoDetailPanel({

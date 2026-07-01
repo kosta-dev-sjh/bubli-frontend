@@ -77,7 +77,7 @@ export function DashboardOverviewPanel() {
               dueLabel="오늘"
               sourceLabel="자료 기준 정리"
               status="doing"
-              title="1차 번역 검수 기준 확인"
+              title="1차 시안 검토 기준 확인"
             />
             <WorkItemCard
               assignee="나"
@@ -85,7 +85,7 @@ export function DashboardOverviewPanel() {
               dueLabel="내일"
               sourceLabel="브랜드 소개서"
               status="review"
-              title="납품물 범위 후보 승인"
+              title="결과물 범위 후보 승인"
             />
           </div>
         </GlassPanel>
@@ -101,7 +101,7 @@ export function DashboardOverviewPanel() {
             <article>
               <BellRing size={16} strokeWidth={2.1} />
               <div>
-                <b>업무 기준 문서와 요구사항의 납품일이 다릅니다</b>
+                <b>업무 기준 문서와 요구사항의 마감일이 다릅니다</b>
                 <p>자료 기준 정리 · 확인 필요</p>
               </div>
             </article>

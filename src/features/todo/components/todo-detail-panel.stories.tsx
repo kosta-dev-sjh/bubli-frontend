@@ -31,13 +31,13 @@ const reviewTodo: TodoDetail = {
   description: "에이전트가 문서에서 뽑은 후보를 승인해 만들어진 작업입니다. 검토가 끝나면 완료로 바꿉니다.",
   dueLabel: "D-2",
   id: "todo-review-translation",
-  linkedProjectRoomLabel: "신규 웹사이트 번역",
+  linkedProjectRoomLabel: "웹사이트 리뉴얼",
   progressPercent: 74,
   scope: "PROJECT_ROOM",
   source: "APPROVED_CANDIDATE",
   status: "REVIEW",
   surfaces: ["WORK_BOARD", "DASHBOARD", "BUBBLE", "SCHEDULE"],
-  title: "1차 번역본 검토",
+  title: "1차 시안 검토",
 };
 
 export const Default: Story = {};

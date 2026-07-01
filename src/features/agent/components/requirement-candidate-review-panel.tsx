@@ -85,7 +85,7 @@ const defaultCandidates: RequirementCandidate[] = [
   {
     category: "FEATURE",
     confidence: 93,
-    description: "사용자가 번역 파일을 업로드하면 원문, 번역본, 검수 질문을 같은 프로젝트룸 자료로 묶어야 합니다.",
+    description: "사용자가 작업 파일을 업로드하면 원문, 결과물, 검수 질문을 같은 프로젝트룸 자료로 묶어야 합니다.",
     id: "candidate-feature-resource-group",
     sourceLabel: "요구사항정의서_v1.3.pdf 3쪽",
     status: "DRAFT",

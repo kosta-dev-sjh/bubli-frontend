@@ -42,7 +42,7 @@ export type RelatedResourceEvidencePanelProps = {
 
 const reasonCopy: Record<ResourceRelationReason, string> = {
   MATCHES_REQUIREMENT: "요구사항 연결",
-  MENTIONS_DELIVERABLE: "납품물 언급",
+  MENTIONS_DELIVERABLE: "결과물 언급",
   SAME_MEETING: "같은 회의 흐름",
   SAME_SCOPE: "작업 범위 유사",
 };
@@ -52,7 +52,7 @@ const defaultRelatedResources: RelatedResource[] = [
     id: "resource-meeting-0618",
     reason: "SAME_MEETING",
     score: 92,
-    summary: "납품일과 검수 기준을 다시 확인한 회의 기록입니다.",
+    summary: "마감일과 검수 기준을 다시 확인한 회의 기록입니다.",
     title: "회의록_0618.md",
     updatedLabel: "2026-06-18",
     visibility: "ROOM_SHARED",

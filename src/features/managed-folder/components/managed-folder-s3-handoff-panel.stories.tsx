@@ -29,7 +29,7 @@ export const Default: Story = {
     folderName: "Bubli 번역 자료",
     quotaPercent: 64,
     rules: defaultFolderHandoffRules,
-    selectedProjectRoom: "번역 프로젝트룸",
+    selectedProjectRoom: "프로젝트룸",
   },
 };
 

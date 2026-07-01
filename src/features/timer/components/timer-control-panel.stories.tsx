@@ -29,9 +29,9 @@ const recoveryState: TimerControlState = {
   elapsedLabel: "42:18",
   heartbeatLabel: "마지막 신호 2분 전",
   id: "timer-recovery",
-  projectRoomLabel: "신규 웹사이트 번역",
+  projectRoomLabel: "웹사이트 리뉴얼",
   status: "RECOVERY_NEEDED",
-  taskLabel: "1차 번역본 검토",
+  taskLabel: "1차 시안 검토",
   todayTotalLabel: "03:42",
   unsentEventCount: 4,
 };

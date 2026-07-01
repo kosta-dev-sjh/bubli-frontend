@@ -69,7 +69,7 @@ export const defaultTimerRecoveryState: TimerRecoveryState = {
   localStateLabel: "기기 안 복구 상태 저장됨",
   serverTimeLabel: "서버 기록 03:42:18",
   status: "RUNNING",
-  taskTitle: "1차 번역본 검토",
+  taskTitle: "1차 시안 검토",
 };
 
 export const defaultSyncItems: SyncItem[] = [

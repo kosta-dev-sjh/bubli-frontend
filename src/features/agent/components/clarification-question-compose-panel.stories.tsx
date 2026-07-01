@@ -46,6 +46,6 @@ export const MinimalReview: Story = {
     drafts: defaultQuestionDrafts.slice(0, 1),
     reviewItems: defaultReviewItems.slice(0, 1),
     rules: defaultComposeRules,
-    title: "납품일 질문 초안",
+    title: "마감일 질문 초안",
   },
 };

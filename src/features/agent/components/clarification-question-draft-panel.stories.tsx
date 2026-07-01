@@ -34,11 +34,11 @@ export const SelectedQuestion: Story = {
       {
         confidence: 91,
         id: "question-due-date",
-        question: "최종 납품일은 7월 5일과 7월 10일 중 어느 날짜가 맞을까요?",
+        question: "최종 마감일은 7월 5일과 7월 10일 중 어느 날짜가 맞을까요?",
         sourceLabel: "계약서 2쪽, 견적서 1쪽",
         status: "APPROVED",
         tone: "conflict",
-        triggerLabel: "납품일 후보가 문서마다 다름",
+        triggerLabel: "마감일 후보가 문서마다 다름",
       },
       {
         confidence: 86,
@@ -52,7 +52,7 @@ export const SelectedQuestion: Story = {
       {
         confidence: 79,
         id: "question-copyright",
-        question: "완료된 번역본의 사용 범위와 저작권 표기 방식은 어떤 기준으로 진행하면 될까요?",
+        question: "완료된 결과물의 사용 범위와 저작권 표기 방식은 어떤 기준으로 진행하면 될까요?",
         sourceLabel: "계약서 4쪽",
         status: "HELD",
         tone: "unclear",

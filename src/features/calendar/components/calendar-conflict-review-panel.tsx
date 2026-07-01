@@ -63,9 +63,9 @@ export const defaultCalendarConflicts: CalendarConflict[] = [
     bubliValue: "6월 24일 14:00",
     googleValue: "6월 24일 15:00",
     kind: "TIME",
-    projectRoomName: "번역 프로젝트룸",
+    projectRoomName: "프로젝트룸",
     status: "NEEDS_REVIEW",
-    title: "1차 번역 검토",
+    title: "1차 시안 검토",
   },
   {
     bubliValue: "클라이언트 확인 질문 보내기",

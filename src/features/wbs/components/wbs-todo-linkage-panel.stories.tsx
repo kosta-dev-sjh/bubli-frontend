@@ -27,7 +27,7 @@ export const LinkOneTaskAcrossSurfaces: Story = {
       confidence: 91,
       sourceLabel: "번역계약서_v2.pdf, 회의록_0618.md",
       status: "DRAFT",
-      title: "1차 번역본 검토",
+      title: "1차 시안 검토",
     },
     task: {
       assigneeLabel: "담당자 나",
@@ -35,7 +35,7 @@ export const LinkOneTaskAcrossSurfaces: Story = {
       idLabel: "같은 TODO로 연결",
       progress: 46,
       status: "IN_PROGRESS",
-      title: "1차 번역본 검토",
+      title: "1차 시안 검토",
     },
   },
   render: (args) => (

@@ -79,7 +79,7 @@ export default function NewProjectRoomPage() {
     setDraft((current) => ({
       ...current,
       name: current.name || firstName,
-      deliveryScope: current.deliveryScope || "자료에서 납품물과 작업 범위를 확인",
+      deliveryScope: current.deliveryScope || "자료에서 결과물과 작업 범위를 확인",
       reviewQuestion: current.reviewQuestion || "검수 기준과 수정 범위를 확인",
     }));
   }
@@ -183,7 +183,7 @@ export default function NewProjectRoomPage() {
                 <small>
                   {attachedFiles.length > 0
                     ? "생성 후 프로젝트룸 자료로 올리고 에이전트 후보를 만듭니다."
-                    : "자료를 올리면 이름, 의뢰처, 납품물, 확인 질문 후보를 같은 흐름에서 검토합니다."}
+                    : "자료를 올리면 이름, 의뢰처, 결과물, 확인 질문 후보를 같은 흐름에서 검토합니다."}
                 </small>
               </span>
             </button>
@@ -259,7 +259,7 @@ export default function NewProjectRoomPage() {
                 </label>
 
                 <label className="workspace-route__field">
-                  <span>납품일 또는 입금 예정일</span>
+                  <span>마감일 또는 입금 예정일</span>
                   <input name="paymentDueDate" onChange={(event) => updateDraft("paymentDueDate", event.target.value)} type="date" value={draft.paymentDueDate} />
                 </label>
               </div>
@@ -306,7 +306,7 @@ export default function NewProjectRoomPage() {
                   maxLength={160}
                   name="deliveryScope"
                   onChange={(event) => updateDraft("deliveryScope", event.target.value)}
-                  placeholder="예: 상품 상세 120건 번역"
+                  placeholder="예: 상품 상세 120건 정리"
                   value={draft.deliveryScope}
                 />
               </label>

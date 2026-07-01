@@ -35,7 +35,7 @@ const notifications: NotificationItem[] = [
     projectRoom: "브랜드 소개서",
     state: "unread",
     time: "12분 전",
-    title: "1차 번역 검토",
+    title: "1차 시안 검토",
   },
   {
     description: "프로젝트룸 채팅에서 나를 언급했습니다. 데스크톱 앱에서는 소통 버블에서 바로 열 수 있습니다.",

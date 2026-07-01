@@ -16,7 +16,7 @@ const featureCards = [
 const faqItems = [
   { q: "어떻게 시작하나요?", a: "로그인 후 프로젝트룸을 만들고, 요구사항이나 회의록 같은 자료를 올리면 됩니다." },
   { q: "내 PC 파일을 다 읽나요?", a: "아니요. 사용자가 직접 지정한 폴더만 감지하고, 전체 PC 자동 색인은 하지 않습니다." },
-  { q: "데스크탑 앱은 무엇이 다른가요?", a: "회원 웹 앱을 그대로 띄우고, 바탕화면 위 버블 위젯·로컬 폴더 연동·빠른 캐시를 더합니다." },
+  { q: "데스크탑 앱은 무엇이 다른가요?", a: "로그인 후 작업공간을 열고, 바탕화면 위 버블 위젯·로컬 폴더 연동·빠른 캐시를 더합니다." },
   { q: "에이전트가 임의로 작업을 바꾸나요?", a: "아니요. 에이전트는 후보만 만들고, 사용자가 확인한 항목만 실제 작업이 됩니다." },
 ];
 
@@ -76,7 +76,7 @@ export default function HomePage() {
             <Chip>데스크탑 앱</Chip>
             <h2>작업 중에도, 화면 위에 가볍게</h2>
             <p>
-              Bubli 데스크탑 앱은 회원 웹 앱을 그대로 띄우고, 바탕화면 위에 오늘 할 일, 일정, 타이머, 자료 제안을 버블로
+              Bubli 데스크탑 앱은 로그인 후 작업공간을 열고, 바탕화면 위에 오늘 할 일, 일정, 타이머, 자료 제안을 버블로
               남깁니다. 화면을 전환하지 않아도 필요한 정보만 맑게 떠 있습니다.
             </p>
             <ul className="landing-desktop__list">
@@ -102,7 +102,7 @@ export default function HomePage() {
               <div className="landing-app-preview__tabs">
                 <button className="is-active" type="button">macOS 앱</button>
                 <button type="button">Windows 앱</button>
-                <button type="button">회원 웹 앱</button>
+                <button type="button">작업공간</button>
               </div>
               <div className="landing-app-preview__stage">
                 <div className="landing-app-preview__chrome" aria-hidden="true">
@@ -110,7 +110,7 @@ export default function HomePage() {
                     <span />
                     <span />
                     <span />
-                    <b>Bubli 회원 앱</b>
+                    <b>Bubli 작업공간</b>
                   </div>
                   <div className="landing-app-preview__body">
                     <aside>

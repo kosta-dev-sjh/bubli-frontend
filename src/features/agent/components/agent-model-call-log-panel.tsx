@@ -76,7 +76,7 @@ const logs: ModelCallLog[] = [
     schemaVersion: "requirement-json-v2",
     status: "RETRIED",
     target: "다시 확인",
-    title: "요구사항_초안.docx 재검증",
+    title: "작업범위_초안.docx 재검증",
   },
 ];
 

@@ -42,16 +42,16 @@ const documents: DocumentSource[] = [
 ];
 
 const extractedValues: ExtractedValue[] = [
-  { label: "프로젝트명", source: "업무 기준 문서", value: "서비스 소개 페이지 번역" },
-  { label: "납품일 후보", source: "업무 기준 문서, 견적서", value: "2026.07.15" },
+  { label: "프로젝트명", source: "업무 기준 문서", value: "서비스 소개 페이지 정리" },
+  { label: "마감일 후보", source: "업무 기준 문서, 견적서", value: "2026.07.15" },
   { label: "금액 참고값", source: "견적서", value: "8,000,000원" },
-  { label: "납품물 후보", source: "요구사항", value: "한영 번역본, 용어집" },
+  { label: "결과물 후보", source: "요구사항", value: "초안, 기준표" },
 ];
 
 const reviewItems: ReviewItem[] = [
   {
     detail: "업무 기준 문서에는 7월 15일, 회의록에는 7월 20일로 적혀 있습니다.",
-    label: "납품일 값 차이",
+    label: "마감일 값 차이",
     source: "업무 기준 문서 · 회의록",
     type: "difference",
   },

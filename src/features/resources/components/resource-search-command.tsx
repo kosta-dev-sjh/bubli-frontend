@@ -21,7 +21,7 @@ const resultItems = [
   {
     title: "업무기준문서_v2.pdf",
     meta: "프로젝트룸 자료 · 확인할 항목 2 · 관련도 88%",
-    detail: "납품일, 수정 범위, 2차 사용권 범위를 견적서와 함께 확인해야 합니다.",
+    detail: "마감일, 수정 범위, 2차 사용권 범위를 견적서와 함께 확인해야 합니다.",
     tone: "warning" as const,
   },
   {

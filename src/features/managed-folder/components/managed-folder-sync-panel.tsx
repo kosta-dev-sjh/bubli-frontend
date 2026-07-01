@@ -35,7 +35,7 @@ const localEvents: LocalFileEvent[] = [
     type: "new",
   },
   {
-    fileName: "요구사항_초안.docx",
+    fileName: "작업범위_초안.docx",
     folderName: "Bubli/브랜드 소개서",
     modifiedAt: "35분 전",
     projectHint: "브랜드 소개서",

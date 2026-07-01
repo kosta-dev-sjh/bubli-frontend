@@ -162,7 +162,7 @@ export function AccessibilityKeyboardNavigationPanel({
         <article className={styles.flowPreview}>
           <div className={styles.browserBar}>
             <span />
-            <b>회원 웹 앱 / 데스크탑 앱</b>
+            <b>작업공간 / 데스크탑 앱</b>
           </div>
           <div className={styles.focusRail}>
             <span>Tab</span>

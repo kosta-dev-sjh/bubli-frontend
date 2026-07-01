@@ -38,7 +38,7 @@ export const PartlyApproved: Story = {
         label: "프로젝트명",
         sourceLabel: "계약서 1쪽",
         status: "APPROVED",
-        value: "신규 웹사이트 번역 프로젝트",
+        value: "웹사이트 리뉴얼 프로젝트",
       },
       {
         confidence: 89,
@@ -53,7 +53,7 @@ export const PartlyApproved: Story = {
         confidence: 78,
         id: "field-due-date",
         kind: "DUE_DATE",
-        label: "납품일",
+        label: "마감일",
         sourceLabel: "회의록_0618.md",
         status: "HELD",
         value: "2026.07.20",
@@ -71,7 +71,7 @@ export const PartlyApproved: Story = {
     reviewItems: [
       {
         id: "review-due-date",
-        message: "납품일 후보가 계약서와 회의록에서 다르게 나왔습니다.",
+        message: "마감일 후보가 계약서와 회의록에서 다르게 나왔습니다.",
         sourceLabel: "계약서 2쪽, 회의록_0618.md",
         tone: "conflict",
       },

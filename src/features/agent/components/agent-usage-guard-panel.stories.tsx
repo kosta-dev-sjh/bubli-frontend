@@ -99,7 +99,7 @@ export const NearDailyLimit: Story = {
       {
         latencyLabel: "1.2초",
         resultLabel: "확인 질문 후보",
-        reviewRuleLabel: "납품일 확인",
+        reviewRuleLabel: "마감일 확인",
         strategyLabel: "질문 초안 정리",
         usageLabel: "분량 보통",
       },

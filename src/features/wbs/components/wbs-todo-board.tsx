@@ -25,9 +25,9 @@ const flowSteps = [
 ];
 
 const treeItems = [
-  { code: "1", title: "번역 작업 구조", count: "8개 작업" },
+  { code: "1", title: "콘텐츠 작업 구조", count: "8개 작업" },
   { code: "1.1", title: "착수와 계획 수립", count: "4개 작업" },
-  { code: "1.2", title: "번역본 작성", count: "6개 작업" },
+  { code: "1.2", title: "초안 작성", count: "6개 작업" },
   { code: "1.3", title: "검수와 납품", count: "5개 작업" },
   { code: "2", title: "요구사항 확인", count: "3개 후보" },
 ];
@@ -52,12 +52,12 @@ const columns = [
         dueLabel: "오늘",
         sourceLabel: "업무기준문서_v2.pdf에서 승인",
         status: "doing" as const,
-        title: "1차 번역본 검토",
+        title: "1차 시안 검토",
       },
       {
         code: "1.2.3",
         dueLabel: "오늘",
-        sourceLabel: "요구사항_초안.docx에서 승인",
+        sourceLabel: "작업범위_초안.docx에서 승인",
         status: "doing" as const,
         title: "용어집 초안 정리",
       },
@@ -103,7 +103,7 @@ export function WbsTodoBoard() {
       <div className="work-board__focus">
         <GlassPanel className="work-board__todo">
           <StatusBadge tone="todo">하나의 TODO</StatusBadge>
-          <h2>1차 번역본 검토</h2>
+          <h2>1차 시안 검토</h2>
           <p>담당자 담당자 · D-2 · 업무기준문서_v2.pdf에서 승인된 작업</p>
         </GlassPanel>
         <div className="work-board__targets">
@@ -191,7 +191,7 @@ export function WbsTodoBoard() {
           <SuggestionCard
             confidence={86}
             description="요구사항 문서의 용어집 정리를 WBS 하위 작업 후보로 제안합니다."
-            source="요구사항_초안.docx"
+            source="작업범위_초안.docx"
             title="용어집 정리"
           />
         </aside>

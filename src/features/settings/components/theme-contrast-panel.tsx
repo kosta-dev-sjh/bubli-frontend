@@ -7,7 +7,7 @@ import styles from "./theme-contrast-panel.module.css";
 const themeCards = [
   {
     title: "기본 워터블루",
-    description: "회원 웹 앱과 데스크탑 앱 기본 화면은 밝은 배경, 밀크 글래스, 워터블루 강조를 우선합니다.",
+    description: "작업공간과 데스크탑 앱 기본 화면은 밝은 배경, 밀크 글래스, 워터블루 강조를 우선합니다.",
     storage: "내 화면 테마",
     tone: "light",
     icon: SunMedium,

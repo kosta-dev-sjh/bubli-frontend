@@ -28,7 +28,7 @@ export const Default: Story = {
     resources: defaultShareResources,
     selectedCount: 2,
     steps: defaultBoundarySteps,
-    targetProjectRoom: "신규 번역 프로젝트룸",
+    targetProjectRoom: "신규 프로젝트룸",
   },
 };
 

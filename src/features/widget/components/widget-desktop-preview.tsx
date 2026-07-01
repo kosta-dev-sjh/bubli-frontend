@@ -28,15 +28,15 @@ export function WidgetDesktopPreview() {
 
       <div className="widget-preview__desktop">
         <div className="widget-preview__app-frame">
-          <Chip selected>회원 웹 앱</Chip>
-          <h3>토모에 번역 프로젝트</h3>
+          <Chip selected>작업공간</Chip>
+          <h3>브랜드 작업 프로젝트</h3>
           <p>메인 화면은 회원 업무 흐름을 이어가고, 버블은 데스크톱 앱에서 작업 화면 위에 따로 띄웁니다.</p>
         </div>
 
         <div className="widget-preview__bubble-layer" aria-label="버블 레이어">
           <BubbleCard
             className="widget-preview__bubble widget-preview__bubble--todo"
-            items={["1차 번역본 검토", "검수 기준 질문 정리", "용어집 초안 정리"]}
+            items={["1차 시안 검토", "검수 기준 질문 정리", "용어집 초안 정리"]}
             meta="오늘"
             progressLabel="오늘 할 일"
             progressValue={62}

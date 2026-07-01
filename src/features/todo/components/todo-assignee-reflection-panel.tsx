@@ -69,8 +69,8 @@ export const defaultAssignedTodos: AssignedTodo[] = [
     id: "todo-translation-review",
     priority: "HIGH",
     progressPercent: 62,
-    projectRoomLabel: "신규 웹사이트 번역",
-    title: "1차 번역본 검토",
+    projectRoomLabel: "웹사이트 리뉴얼",
+    title: "1차 시안 검토",
   },
   {
     assigneeLabel: "담당자",
@@ -78,8 +78,8 @@ export const defaultAssignedTodos: AssignedTodo[] = [
     id: "todo-question-send",
     priority: "MEDIUM",
     progressPercent: 30,
-    projectRoomLabel: "신규 웹사이트 번역",
-    title: "납품일 확인 질문 보내기",
+    projectRoomLabel: "웹사이트 리뉴얼",
+    title: "마감일 확인 질문 보내기",
   },
   {
     assigneeLabel: "미연",

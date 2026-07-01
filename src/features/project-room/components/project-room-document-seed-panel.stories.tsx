@@ -44,7 +44,7 @@ export const NeedsMoreReview: Story = {
       },
     ],
     fields: defaultSeedFields.map((field) =>
-      field.label === "납품물" || field.label === "금액 참고값" ? { ...field, status: "NEEDS_REVIEW" } : field,
+      field.label === "결과물" || field.label === "금액 참고값" ? { ...field, status: "NEEDS_REVIEW" } : field,
     ),
     progressPercent: 42,
     targets: defaultSeedTargets,

@@ -42,7 +42,7 @@ export const ClassifiedDocuments: Story = {
     items: [
       {
         confidenceLabel: "신뢰도 94%",
-        description: "계약 기간, 납품일, 수정 범위, 지급 조건 문장이 함께 감지됐습니다.",
+        description: "계약 기간, 마감일, 수정 범위, 지급 조건 문장이 함께 감지됐습니다.",
         detectedKind: "contract",
         fileName: "웹사이트 구축 계약서_v2.pdf",
         nextUse: "확인 필요 항목과 프로젝트 참고 정보 후보",
@@ -50,7 +50,7 @@ export const ClassifiedDocuments: Story = {
       },
       {
         confidenceLabel: "신뢰도 91%",
-        description: "금액, 부가세 포함 여부, 납품물별 단가 항목이 중심입니다.",
+        description: "금액, 부가세 포함 여부, 결과물별 단가 항목이 중심입니다.",
         detectedKind: "quote",
         fileName: "서비스 견적서_최종.pdf",
         nextUse: "계약서와 같은 항목 값 차이 확인",

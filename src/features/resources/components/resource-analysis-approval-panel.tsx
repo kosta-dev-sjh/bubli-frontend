@@ -72,10 +72,10 @@ const reviewMeta: Record<ReviewState, { actionLabel: string; label: string; tone
 
 export const defaultAnalysisSuggestions: AnalysisSuggestion[] = [
   {
-    detail: "납품일 후보를 7월 15일로 읽었습니다. 일정에 넣기 전 원문 날짜와 한 번 더 맞춥니다.",
+    detail: "마감일 후보를 7월 15일로 읽었습니다. 일정에 넣기 전 원문 날짜와 한 번 더 맞춥니다.",
     evidenceLabel: "업무 기준 문서 2쪽",
     reviewState: "PENDING",
-    title: "납품일 후보",
+    title: "마감일 후보",
     type: "SCHEDULE",
   },
   {
@@ -86,14 +86,14 @@ export const defaultAnalysisSuggestions: AnalysisSuggestion[] = [
     type: "CHECK_ITEM",
   },
   {
-    detail: "번역 초안, 1차 검토, 최종 반영을 하위 작업으로 나눌 수 있습니다.",
+    detail: "콘텐츠 초안, 1차 검토, 최종 반영을 하위 작업으로 나눌 수 있습니다.",
     evidenceLabel: "요구사항 문서",
     reviewState: "PENDING",
     title: "WBS 후보",
     type: "WBS",
   },
   {
-    detail: "1차 번역본 검토 요청을 내 TODO로 추가할 수 있습니다.",
+    detail: "1차 시안 검토 요청을 내 TODO로 추가할 수 있습니다.",
     evidenceLabel: "회의록 6월 18일",
     reviewState: "APPROVED",
     title: "내 TODO 후보",
