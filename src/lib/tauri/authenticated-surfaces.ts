@@ -21,14 +21,19 @@ export function launchTauriAuthenticatedSurfaces() {
   launchRequested = true;
   launchPromise = (async () => {
     const selectedRoomId = getActiveProjectRoomId();
-    await tauriCommands.appReady({ selectedRoomId }).catch(() => undefined);
+    const appReadyOpenedWidgets = await tauriCommands
+      .appReady({ selectedRoomId })
+      .then(() => true)
+      .catch(() => false);
 
     const errors: unknown[] = [];
-    for (const input of loginStartupWindows) {
-      try {
-        await tauriCommands.openWidgetWindow({ ...input, selectedRoomId });
-      } catch (error) {
-        errors.push(error);
+    if (!appReadyOpenedWidgets) {
+      for (const input of loginStartupWindows) {
+        try {
+          await tauriCommands.openWidgetWindow({ ...input, selectedRoomId });
+        } catch (error) {
+          errors.push(error);
+        }
       }
     }
 
@@ -42,7 +47,7 @@ export function launchTauriAuthenticatedSurfaces() {
 
     startActivityAutoCapture();
 
-    if (errors.length === loginStartupWindows.length) {
+    if (!appReadyOpenedWidgets && errors.length === loginStartupWindows.length) {
       throw errors[0];
     }
   })()

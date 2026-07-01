@@ -14,6 +14,9 @@ mod widget_usage;
 
 const WIDGET_WINDOW_LABEL_PREFIX: &str = "bubli-widget";
 const WIDGET_WINDOW_URL: &str = "desktop-widget";
+const MAIN_WINDOW_LABEL: &str = "main";
+const MAIN_WINDOW_DEFAULT_WIDTH: i32 = 1280;
+const MAIN_WINDOW_DEFAULT_HEIGHT: i32 = 820;
 const DEFAULT_WIDGET_BUBBLE_TYPE: &str = "todo";
 const WIDGET_DEFAULT_WIDTH: f64 = 324.0;
 const WIDGET_DEFAULT_HEIGHT: f64 = 392.0;
@@ -420,8 +423,9 @@ fn load_preferred_monitor_id(app: &AppHandle) -> Result<String, String> {
         return Ok(PRIMARY_MONITOR_ID.to_string());
     }
 
+    let content = fs::read_to_string(path).map_err(|error| error.to_string())?;
     let stored: StoredAppMonitorPreference =
-        serde_json::from_str(&fs::read_to_string(path).map_err(|error| error.to_string())?)
+        serde_json::from_str(content.trim_start_matches('\u{feff}').trim())
             .map_err(|error| error.to_string())?;
     Ok(if stored.preferred_monitor_id.trim().is_empty() {
         PRIMARY_MONITOR_ID.to_string()
@@ -500,6 +504,36 @@ fn widget_screen_position(
         (origin_x + widget.position.x) as f64,
         (origin_y + widget.position.y) as f64,
     ))
+}
+
+fn position_main_window_on_preferred_monitor(
+    app: &AppHandle,
+    monitor_state: &AppMonitorState,
+) -> Result<(), String> {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return Ok(());
+    };
+    let preferred_monitor_id = get_preferred_monitor_id(monitor_state)?;
+    let Some(monitor) = resolve_preferred_monitor(app, &preferred_monitor_id)? else {
+        return Ok(());
+    };
+    let origin = monitor.position();
+    let monitor_size = monitor.size();
+    let window_size = window.outer_size().ok();
+    let window_width = window_size
+        .as_ref()
+        .map(|size| size.width as i32)
+        .unwrap_or(MAIN_WINDOW_DEFAULT_WIDTH);
+    let window_height = window_size
+        .as_ref()
+        .map(|size| size.height as i32)
+        .unwrap_or(MAIN_WINDOW_DEFAULT_HEIGHT);
+    let x = origin.x + ((monitor_size.width as i32 - window_width).max(0) / 2);
+    let y = origin.y + ((monitor_size.height as i32 - window_height).max(0) / 2);
+
+    window
+        .set_position(Position::Logical(LogicalPosition::new(x as f64, y as f64)))
+        .map_err(|error| error.to_string())
 }
 
 fn widget_keeps_webview_when_hidden(widget: &WidgetWindowState) -> bool {
@@ -623,7 +657,7 @@ fn build_widget_window(
     .decorations(false)
     .transparent(true)
     .background_color(Color(0, 0, 0, 0))
-    .shadow(false)
+    .shadow(true)
     .resizable(false)
     .always_on_top(widget.always_on_top)
     .skip_taskbar(true)
@@ -720,6 +754,8 @@ fn set_preferred_app_monitor(
             .map_err(|_| "app monitor state lock failed".to_string())?;
         guard.preferred_monitor_id = requested_monitor_id.clone();
     }
+
+    position_main_window_on_preferred_monitor(&app, &monitor_state)?;
 
     let widgets: Vec<WidgetWindowState> = {
         let guard = state
@@ -891,15 +927,20 @@ fn app_ready(
         selected_room_id,
     );
 
-    if let Err(error) = &bar_result {
+    let bar_error = bar_result.as_ref().err().map(ToString::to_string);
+    let default_error = default_result.as_ref().err().map(ToString::to_string);
+
+    if let Some(error) = &bar_error {
         eprintln!("failed to open login startup widget bar: {error}");
     }
-    if let Err(error) = &default_result {
+    if let Some(error) = &default_error {
         eprintln!("failed to open login startup default widget: {error}");
     }
-    if let (Err(bar_error), Err(default_error)) = (bar_result, default_result) {
+    if bar_error.is_some() || default_error.is_some() {
         return Err(format!(
-            "failed to open login startup widgets: bar={bar_error}; default={default_error}"
+            "failed to open login startup widgets: bar={}; default={}",
+            bar_error.unwrap_or_else(|| "ok".to_string()),
+            default_error.unwrap_or_else(|| "ok".to_string())
         ));
     }
 
@@ -1073,6 +1114,12 @@ pub fn run() {
 
     app.run(|app_handle, event| match event {
         tauri::RunEvent::Ready => {
+            let monitor_state = app_handle.state::<AppMonitorState>();
+            if let Err(error) =
+                position_main_window_on_preferred_monitor(app_handle, &monitor_state)
+            {
+                eprintln!("failed to position main window on preferred monitor: {error}");
+            }
             if qa_all_widget_windows_enabled() {
                 if let Err(error) = build_widget_qa_windows(app_handle) {
                     eprintln!("failed to open QA widget windows: {error}");
