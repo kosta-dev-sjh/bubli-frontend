@@ -1,13 +1,21 @@
 import { apiRequest } from "@/lib/api/client";
-import type { ActivityLogsTodayResponse } from "@/types/api/activity";
+import type { ActivityCurrentAppRequest, ActivityLogsTodayResponse } from "@/types/api/activity";
 
+// Endpoints follow 10_API-Design 14.6: /api/activity/* (not /api/activity-logs/*).
 export const activityApi = {
+  recordCurrentApp(body: ActivityCurrentAppRequest) {
+    return apiRequest<null>("/api/activity/current-app", {
+      body,
+      method: "POST",
+    });
+  },
+
   getToday() {
-    return apiRequest<ActivityLogsTodayResponse>("/api/activity-logs/today");
+    return apiRequest<ActivityLogsTodayResponse>("/api/activity/today");
   },
 
   delete(activityLogId: string) {
-    return apiRequest<null>(`/api/activity-logs/${activityLogId}`, {
+    return apiRequest<null>(`/api/activity/${activityLogId}`, {
       method: "DELETE",
     });
   },

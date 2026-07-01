@@ -1,0 +1,86 @@
+{
+  "name": "Bubli Mock-Faithful Asset Pack",
+  "version": "2026-06-29",
+  "priority": "primary",
+  "purpose": "PNG assets that preserve the original Bubli reference mockup's airy liquid-glass, prism, and soap-bubble material. Use this pack before the cleaner v2 pack when visual fidelity matters.",
+  "preview": "previews/mock-faithful-preview.png",
+  "sourceReferences": [
+    "source/original-mock-board.png",
+    "source/png-asset-board-original.png",
+    "source/png-asset-board-photoroom.png",
+    "source/bubli-glass-bubble-photoreal.png"
+  ],
+  "preferredOver": [
+    "../bubli-asset-pack-rain-glass-v2-2026-06-29",
+    "../bubli-asset-pack-2026-06-29"
+  ],
+  "categories": {
+    "mockSections": {
+      "usage": "Visual comparison references. Use to match lightness, haze, prism depth, and UI density; do not treat these as production component backgrounds.",
+      "files": [
+        "source/mock-section-01-mood.png",
+        "source/mock-section-03-liquid-glass.png",
+        "source/mock-section-08-bubble-ui.png",
+        "source/mock-section-09-floating-desktop.png"
+      ]
+    },
+    "textures": {
+      "usage": "Raster prism and atmosphere textures for design boards, Tauri widget previews, and desktop floating scenes. Do not use as normal /app route backgrounds.",
+      "files": [
+        "textures/glass-prism-bg-light-1920.png",
+        "textures/glass-prism-bg-light-soft-1920.png",
+        "textures/glass-prism-bg-dark-1920.png",
+        "textures/glass-prism-bg-dark-soft-1920.png",
+        "textures/mountain-widget-bg-1920.png"
+      ]
+    },
+    "surfaces": {
+      "usage": "Glass card and panel material references with soft blur, white haze, and rim light.",
+      "files": [
+        "surfaces/glass-card-bg-light-800.png",
+        "surfaces/glass-card-bg-dark-800.png",
+        "surfaces/glass-panel-lg-600x400.png",
+        "surfaces/glass-panel-md-380x246.png",
+        "surfaces/glass-panel-sm-240x160.png"
+      ]
+    },
+    "bubbles": {
+      "usage": "Functional Bubble UI units only. Use as AgentBubble, DockOrb, BubbleMark, badge, notification, or ghost signal. Avoid large decorative wallpaper bubbles in /app routes.",
+      "files": [
+        "bubbles/bubble-large-512.png",
+        "bubbles/bubble-medium-256.png",
+        "bubbles/bubble-small-128.png",
+        "bubbles/bubble-tiny-64.png",
+        "bubbles/bubble-photoreal-512.png",
+        "bubbles/bubble-photoreal-256.png",
+        "bubbles/orb-agent-128.png",
+        "bubbles/orb-agent-96.png",
+        "bubbles/orb-agent-64.png",
+        "bubbles/orb-smile-96.png",
+        "bubbles/dock-orb-96.png",
+        "bubbles/dock-orb-64.png",
+        "bubbles/ghost-indicator-96.png",
+        "bubbles/ghost-indicator-64.png"
+      ]
+    },
+    "widgets": {
+      "usage": "Widget, dock, status-ring, timer, and small chart references that should keep the original mockup's soft glass material.",
+      "files": [
+        "widgets/progress-ring-200.png",
+        "widgets/widget-ring-blue-120.png",
+        "widgets/timer-circle-120.png",
+        "widgets/widget-pill-120x40.png",
+        "widgets/minimized-bar-160x32.png",
+        "widgets/bar-chart-120x80.png"
+      ]
+    }
+  },
+  "hardRules": [
+    "Use this pack first when matching the original mockup.",
+    "Do not replace these raster textures with CSS-only circles, gradients, or SVG-like flat shapes for fidelity-critical work.",
+    "Use source/mock-section-* as visual references for lightness, haze, and material, not as literal UI components.",
+    "Do not use large texture backgrounds as normal member-web-app route backgrounds.",
+    "Keep bubbles small and functional: AgentBubble, DockOrb, BubbleMark, badge, notification, ghost signal.",
+    "Keep face orbs subtle at 64-96px; high-contrast facial details look uncanny."
+  ]
+}

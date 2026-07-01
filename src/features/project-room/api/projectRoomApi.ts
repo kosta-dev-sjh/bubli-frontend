@@ -1,20 +1,36 @@
 import { apiRequest } from "@/lib/api/client";
 import type {
+  ContractDocumentType,
+  ContractDocumentUploadResponse,
   ProjectRoomInvitationCreateRequest,
+  ProjectRoomInvitationPageResponse,
   ProjectRoomInvitationResponse,
+  ProjectRoomMemberPageResponse,
   ProjectRoomMemberResponse,
   ProjectRoomMemberRoleUpdateRequest,
+  ProjectRoomPageResponse,
   ProjectRoomResponse,
   ProjectRoomUpsertRequest,
 } from "@/types/api/projectRoom";
 
 export const projectRoomApi = {
   list() {
-    return apiRequest<ProjectRoomResponse[]>("/api/project-rooms");
+    return apiRequest<ProjectRoomPageResponse>("/api/project-rooms");
   },
 
   create(body: ProjectRoomUpsertRequest) {
     return apiRequest<ProjectRoomResponse>("/api/project-rooms", {
+      body,
+      method: "POST",
+    });
+  },
+
+  uploadContractDocument(roomId: string, file: File, documentType: ContractDocumentType) {
+    const body = new FormData();
+    body.append("documentType", documentType);
+    body.append("file", file);
+
+    return apiRequest<ContractDocumentUploadResponse>(`/api/project-rooms/${roomId}/contract-documents`, {
       body,
       method: "POST",
     });
@@ -32,13 +48,20 @@ export const projectRoomApi = {
   },
 
   close(roomId: string) {
-    return apiRequest<ProjectRoomResponse>(`/api/project-rooms/${roomId}/close`, {
+    return apiRequest<ProjectRoomResponse>(`/api/project-rooms/${roomId}`, {
+      method: "DELETE",
+    });
+  },
+
+  updatePayment(roomId: string, body: Pick<ProjectRoomUpsertRequest, "contractAmount" | "paidAt" | "paymentDueDate" | "paymentStatus">) {
+    return apiRequest<ProjectRoomResponse>(`/api/project-rooms/${roomId}/payment`, {
+      body,
       method: "PATCH",
     });
   },
 
   getMembers(roomId: string) {
-    return apiRequest<ProjectRoomMemberResponse[]>(`/api/project-rooms/${roomId}/members`);
+    return apiRequest<ProjectRoomMemberPageResponse>(`/api/project-rooms/${roomId}/members`);
   },
 
   createInvitation(roomId: string, body: ProjectRoomInvitationCreateRequest) {
@@ -49,7 +72,7 @@ export const projectRoomApi = {
   },
 
   getInvitations(roomId: string) {
-    return apiRequest<ProjectRoomInvitationResponse[]>(`/api/project-rooms/${roomId}/invitations`);
+    return apiRequest<ProjectRoomInvitationPageResponse>(`/api/project-rooms/${roomId}/invitations`);
   },
 
   acceptInvitation(invitationId: string) {

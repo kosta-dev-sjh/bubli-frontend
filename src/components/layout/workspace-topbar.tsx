@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, FolderKanban, Monitor, Search, UserRound } from "lucide-react";
+import { Bell, ChevronDown, FolderKanban, Search, UserRound } from "lucide-react";
 import type { HTMLAttributes } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ export type WorkspaceTopbarProps = HTMLAttributes<HTMLElement> & {
   onOpenProfile?: () => void;
   onOpenProjectSwitcher?: () => void;
   project: WorkspaceTopbarProject;
+  searchEnabled?: boolean;
   searchPlaceholder?: string;
   surfaceLabel?: string;
   user: WorkspaceTopbarUser;
@@ -38,6 +39,7 @@ export function WorkspaceTopbar({
   onOpenProfile,
   onOpenProjectSwitcher,
   project,
+  searchEnabled = false,
   searchPlaceholder = "자료, TODO, 채팅 검색",
   surfaceLabel = "회원 웹 앱",
   user,
@@ -46,35 +48,48 @@ export function WorkspaceTopbar({
   const visibleNotificationCount = Math.min(notificationCount, 99);
 
   return (
-    <header className={cn(styles.topbar, className)} {...props}>
-      <button
-        aria-label={`${project.name} 프로젝트룸 선택`}
-        className={styles.projectButton}
-        onClick={onOpenProjectSwitcher}
-        type="button"
-      >
-        <span className="bubli-icon-tile" aria-hidden="true">
-          <FolderKanban size={18} strokeWidth={2.1} />
-        </span>
-        <span className={styles.projectText}>
-          <strong>{project.name}</strong>
-          <span>{project.description}</span>
-        </span>
-        <StatusBadge tone="room">{project.statusLabel}</StatusBadge>
-        <ChevronDown size={16} strokeWidth={2.1} aria-hidden="true" />
-      </button>
+    <header className={cn(styles.topbar, !searchEnabled && styles.topbarNoSearch, className)} {...props}>
+      {onOpenProjectSwitcher ? (
+        <button
+          aria-label={`${project.name} 프로젝트룸 선택`}
+          className={styles.projectButton}
+          onClick={onOpenProjectSwitcher}
+          type="button"
+        >
+          <span className="bubli-icon-tile" aria-hidden="true">
+            <FolderKanban size={18} strokeWidth={2.1} />
+          </span>
+          <span className={styles.projectText}>
+            <strong>{project.name}</strong>
+            <span>{project.description}</span>
+          </span>
+          {project.statusLabel ? <StatusBadge tone="room">{project.statusLabel}</StatusBadge> : null}
+          <ChevronDown size={16} strokeWidth={2.1} aria-hidden="true" />
+        </button>
+      ) : (
+        <div aria-label={`${project.name} 현재 위치`} className={styles.projectButton} role="group">
+          <span className="bubli-icon-tile" aria-hidden="true">
+            <FolderKanban size={18} strokeWidth={2.1} />
+          </span>
+          <span className={styles.projectText}>
+            <strong>{project.name}</strong>
+            <span>{project.description}</span>
+          </span>
+          {project.statusLabel ? <StatusBadge tone="room">{project.statusLabel}</StatusBadge> : null}
+        </div>
+      )}
 
-      <label className={styles.searchBox}>
-        <Search size={17} strokeWidth={2.1} aria-hidden="true" />
-        <span className={styles.visuallyHidden}>전체 검색</span>
-        <input placeholder={searchPlaceholder} type="search" />
-        <kbd>⌘K</kbd>
-      </label>
+      {searchEnabled ? (
+        <label className={styles.searchBox}>
+          <Search size={17} strokeWidth={2.1} aria-hidden="true" />
+          <span className={styles.visuallyHidden}>검색</span>
+          <input placeholder={searchPlaceholder} type="search" />
+          <kbd>⌘K</kbd>
+        </label>
+      ) : null}
 
       <div className={styles.actions}>
-        <Chip className={styles.surfaceChip} icon={<Monitor size={14} strokeWidth={2.1} />}>
-          {surfaceLabel}
-        </Chip>
+        {surfaceLabel ? <Chip className={styles.surfaceChip}>{surfaceLabel}</Chip> : null}
         <Button
           aria-label={`알림 ${notificationCount}개 열기`}
           className={styles.iconButton}

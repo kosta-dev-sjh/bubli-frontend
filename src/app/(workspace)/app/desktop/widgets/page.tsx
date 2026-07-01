@@ -1,79 +1,266 @@
-import { WidgetShell } from "@/components/widget";
-import type { WidgetMode } from "@/components/widget";
-import { PageHeading } from "@/components/ui/page-heading";
-import {
-  defaultDockItems,
-  ResourceSuggestionBubblePanel,
-  TauriWidgetLayer,
-  WidgetDesktopPreview,
-  WidgetEightBubbleSetPanel,
-  WidgetMinimizedDockPanel,
-  WidgetSettingsPanel,
-} from "@/features/widget/components";
+"use client";
 
-// 새 UI Kit 위젯 프리뷰 전환 플래그. 기본 false라 기존 데스크톱 위젯 랩이 그대로 뜬다.
-// 켜려면 .env에 NEXT_PUBLIC_BUBLI_NEW_WIDGET_PREVIEW=true. 실제 Tauri 창 제어는 없다(설정/미리보기 화면).
-const USE_NEW_WIDGET_PREVIEW = process.env.NEXT_PUBLIC_BUBLI_NEW_WIDGET_PREVIEW === "true";
+import { Bell, CheckCircle2, Clock3, FileText, MessageSquare, MonitorUp, Pin, Settings2, Sparkles, StickyNote, Timer } from "lucide-react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-const WIDGET_STATES: { label: string; hint: string; mode: WidgetMode }[] = [
-  { label: "기본", hint: "또렷하게 작업 보조", mode: "default" },
-  { label: "반투명", hint: "작업 중 방해 없이", mode: "translucent" },
-  { label: "고스트", hint: "신호만, 클릭은 통과", mode: "ghost" },
-  { label: "최소화", hint: "바·도크로 접힘", mode: "minimal" },
-];
+import { DesktopWidgetBubble } from "@/features/widget/components/desktop-widget-bubble";
+import { widgetPreviewBubbles } from "@/features/widget/desktop-widget-preview-data";
+import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
-export default function DesktopWidgetsPage() {
-  if (USE_NEW_WIDGET_PREVIEW) {
-    return (
-      <>
-        <PageHeading
-          title="데스크톱 위젯"
-          description="작업 중 필요한 정보만 화면 위에 가볍게 띄웁니다. 상황에 따라 네 가지 모드로 바뀝니다."
-        />
-        <div className="bubli-widget-states">
-          {WIDGET_STATES.map((s) => (
-            <section className="bubli-widget-state" key={s.label}>
-              <header className="bubli-widget-state__cap">
-                <strong>{s.label}</strong>
-                <span>{s.hint}</span>
-              </header>
-              <div className="bubli-widget-state__seat">
-                <WidgetShell
-                  agentCount={1}
-                  agentMessage="요구사항 후보 6개를 정리해 둘까요?"
-                  density="compact"
-                  mode={s.mode}
-                  projectLabel="A사 리뉴얼"
-                  scheduleCount={2}
-                  timerText="25:00"
-                  todoCount={4}
-                />
-              </div>
-            </section>
-          ))}
-        </div>
-      </>
-    );
-  }
-  return <LegacyDesktopWidgets />;
+import styles from "./page.module.css";
+
+type WidgetRuntimeState = {
+  isTauri: boolean;
+  widgetWindow: WidgetWindowState | null;
+};
+
+const modeLabels: Record<WidgetWindowMode, string> = {
+  DEFAULT: "기본",
+  GHOST: "고스트",
+  MINIMIZED: "최소화",
+  TRANSLUCENT: "반투명",
+};
+
+const modeOptions: WidgetWindowMode[] = ["DEFAULT", "TRANSLUCENT", "GHOST", "MINIMIZED"];
+
+const featureIcons: Record<WidgetBubbleType, typeof CheckCircle2> = {
+  agent: Sparkles,
+  alert: Bell,
+  chat: MessageSquare,
+  memo: StickyNote,
+  resource: FileText,
+  schedule: Clock3,
+  timer: Timer,
+  todo: CheckCircle2,
+};
+
+function requestedBubbleFromSearch(): WidgetBubbleType | null {
+  if (typeof window === "undefined") return null;
+  const requested = new URLSearchParams(window.location.search).get("autoOpen");
+  return widgetPreviewBubbles.some((bubble) => bubble.id === requested) ? (requested as WidgetBubbleType) : null;
 }
 
-// 기존 데스크톱 위젯 랩 화면. 삭제하지 않고 플래그 off일 때 그대로 사용한다.
-function LegacyDesktopWidgets() {
+function requestedModeFromSearch(): WidgetWindowMode | null {
+  if (typeof window === "undefined") return null;
+  const requested = new URLSearchParams(window.location.search).get("autoMode");
+  return modeOptions.includes(requested as WidgetWindowMode) ? (requested as WidgetWindowMode) : null;
+}
+
+function runtimeLabel(runtime: WidgetRuntimeState) {
+  if (!runtime.isTauri) return "검토 화면";
+  if (!runtime.widgetWindow) return "앱 대기";
+  return runtime.widgetWindow.windowVisible ? "떠 있음" : "숨김";
+}
+
+export default function DesktopWidgetsPage() {
+  const [runtime, setRuntime] = useState<WidgetRuntimeState>({ isTauri: false, widgetWindow: null });
+  const [previewBubble, setPreviewBubble] = useState<WidgetBubbleType>("todo");
+  const [previewMode, setPreviewMode] = useState<WidgetWindowMode>("DEFAULT");
+  const [previewAlwaysOnTop, setPreviewAlwaysOnTop] = useState(true);
+  const [previewWindowVisible, setPreviewWindowVisible] = useState(true);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const isTauri = isTauriRuntime();
+      setRuntime((current) => ({ ...current, isTauri }));
+
+      if (!isTauri) return;
+
+      void tauriCommands
+        .getWidgetWindowState()
+        .then(async (widgetWindow) => {
+          const requestedBubble = requestedBubbleFromSearch();
+          const requestedMode = requestedModeFromSearch();
+
+          if (requestedBubble) {
+            const opened = await tauriCommands.openWidgetWindow({ bubbleType: requestedBubble });
+            const nextWindow = requestedMode ? await tauriCommands.setWidgetWindowMode({ bubbleType: requestedBubble, mode: requestedMode }) : opened;
+            setRuntime({ isTauri, widgetWindow: nextWindow });
+            setPreviewBubble(nextWindow.activeBubble);
+            setPreviewMode(nextWindow.mode);
+            setPreviewAlwaysOnTop(nextWindow.alwaysOnTop);
+            setPreviewWindowVisible(nextWindow.windowVisible);
+            return;
+          }
+
+          setRuntime({ isTauri, widgetWindow });
+          setPreviewBubble(widgetWindow.activeBubble);
+          setPreviewMode(widgetWindow.mode);
+          setPreviewAlwaysOnTop(widgetWindow.alwaysOnTop);
+          setPreviewWindowVisible(widgetWindow.windowVisible);
+        })
+        .catch(() => {
+          setRuntime({ isTauri, widgetWindow: null });
+        });
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  const activeBubble = runtime.widgetWindow?.activeBubble ?? previewBubble;
+  const activeMode = runtime.widgetWindow?.mode ?? previewMode;
+  const activeAlwaysOnTop = runtime.widgetWindow?.alwaysOnTop ?? previewAlwaysOnTop;
+  const activeClickThrough = runtime.widgetWindow?.clickThrough ?? activeMode === "GHOST";
+  const activeWindowVisible = runtime.widgetWindow?.windowVisible ?? previewWindowVisible;
+
+  const currentSummary = useMemo(() => {
+    const active = widgetPreviewBubbles.find((bubble) => bubble.id === activeBubble) ?? widgetPreviewBubbles[0];
+    return `${active.label} · ${modeLabels[activeMode]} · ${active.notificationLabel}`;
+  }, [activeBubble, activeMode]);
+
+  const setWidgetMode = useCallback(
+    async (mode: WidgetWindowMode) => {
+      setPreviewMode(mode);
+      setPreviewWindowVisible(true);
+
+      if (!runtime.isTauri) return;
+
+      try {
+        const widgetWindow = await tauriCommands.setWidgetWindowMode({ bubbleType: activeBubble, mode });
+        setRuntime((current) => ({ ...current, widgetWindow }));
+        setPreviewMode(widgetWindow.mode);
+      } catch {
+        setRuntime((current) => ({ ...current, widgetWindow: null }));
+      }
+    },
+    [activeBubble, runtime.isTauri],
+  );
+
+  const openWidgetWindow = useCallback(
+    async (bubbleType: WidgetBubbleType = activeBubble) => {
+      setPreviewBubble(bubbleType);
+      setPreviewMode("DEFAULT");
+      setPreviewWindowVisible(true);
+
+      if (!runtime.isTauri) return;
+
+      try {
+        const widgetWindow = await tauriCommands.openWidgetWindow({ bubbleType });
+        setRuntime((current) => ({ ...current, widgetWindow }));
+        setPreviewBubble(widgetWindow.activeBubble);
+        setPreviewMode(widgetWindow.mode);
+        setPreviewAlwaysOnTop(widgetWindow.alwaysOnTop);
+      } catch {
+        setRuntime((current) => ({ ...current, widgetWindow: null }));
+      }
+    },
+    [activeBubble, runtime.isTauri],
+  );
+
+  const closeWidgetWindow = useCallback(async () => {
+    setPreviewMode("MINIMIZED");
+    setPreviewWindowVisible(false);
+
+    if (!runtime.isTauri) return;
+
+    try {
+      const widgetWindow = await tauriCommands.closeWidgetWindow({ bubbleType: activeBubble });
+      setRuntime((current) => ({ ...current, widgetWindow }));
+      setPreviewMode(widgetWindow.mode);
+    } catch {
+      setRuntime((current) => ({ ...current, widgetWindow: null }));
+    }
+  }, [activeBubble, runtime.isTauri]);
+
+  const toggleAlwaysOnTop = useCallback(async () => {
+    const enabled = !activeAlwaysOnTop;
+    setPreviewAlwaysOnTop(enabled);
+
+    if (!runtime.isTauri) return;
+
+    try {
+      const widgetWindow = await tauriCommands.setWidgetAlwaysOnTop({ bubbleType: activeBubble, enabled });
+      setRuntime((current) => ({ ...current, widgetWindow }));
+      setPreviewAlwaysOnTop(widgetWindow.alwaysOnTop);
+    } catch {
+      setRuntime((current) => ({ ...current, widgetWindow: null }));
+    }
+  }, [activeAlwaysOnTop, activeBubble, runtime.isTauri]);
+
   return (
-    <>
-      <PageHeading
-        title="데스크톱 버블 위젯"
-        description="Tauri 데스크탑 앱에서 개인 버블 위젯을 띄우고, 작업 중 필요한 정보만 맑게 보여줍니다."
-      />
-      <div className="desktop-widget-lab">
-        <WidgetDesktopPreview />
-        <WidgetEightBubbleSetPanel />
-        <TauriWidgetLayer />
-        <WidgetSettingsPanel />
-        <ResourceSuggestionBubblePanel />
-        <WidgetMinimizedDockPanel dockItems={defaultDockItems} lastSyncedLabel="최근 동기화 12초 전" />
+    <section className={styles.page} aria-labelledby="widget-title">
+      <header className={styles.header}>
+        <div>
+          <span className={styles.kicker}>Tauri 독립 버블 창</span>
+          <h1 id="widget-title">데스크탑 버블 검토</h1>
+        </div>
+        <Link className={styles.settingsLink} href="/app/settings">
+          <Settings2 size={16} strokeWidth={2} />
+          설정
+        </Link>
+      </header>
+
+      <div className={styles.statusStrip} aria-label="위젯 실행 상태">
+        <span>{runtimeLabel(runtime)}</span>
+        <strong>{currentSummary}</strong>
+        <span>{activeAlwaysOnTop ? "상단 고정" : "일반 창"}</span>
       </div>
-    </>
+
+      <div className={styles.stage}>
+        <div className={styles.desktopSurface} aria-label="데스크탑 위젯 프리뷰">
+          <DesktopWidgetBubble
+            activeBubble={activeBubble}
+            alwaysOnTop={activeAlwaysOnTop}
+            clickThrough={activeClickThrough}
+            mode={activeMode}
+            onClose={() => void closeWidgetWindow()}
+            onModeChange={(mode) => void setWidgetMode(mode)}
+            onOpenBubble={(bubbleType) => void openWidgetWindow(bubbleType)}
+            onRestore={() => void openWidgetWindow(activeBubble)}
+            onToggleAlwaysOnTop={() => void toggleAlwaysOnTop()}
+            presentation="preview"
+            windowVisible={activeWindowVisible}
+          />
+        </div>
+
+        <aside className={styles.controlRail} aria-label="위젯 조작">
+          <div className={styles.controlGroup}>
+            <strong>창</strong>
+            <div className={styles.actionRow}>
+              <button onClick={() => void openWidgetWindow()} type="button">
+                <MonitorUp size={15} strokeWidth={2} />
+                열기
+              </button>
+              <button onClick={() => void closeWidgetWindow()} type="button">
+                숨김
+              </button>
+              <button aria-pressed={activeAlwaysOnTop} onClick={() => void toggleAlwaysOnTop()} type="button">
+                <Pin size={14} strokeWidth={2} />
+                고정
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.controlGroup}>
+            <strong>상태</strong>
+            <div className={styles.modeGrid}>
+              {modeOptions.map((mode) => (
+                <button aria-pressed={activeMode === mode} key={mode} onClick={() => void setWidgetMode(mode)} type="button">
+                  {modeLabels[mode]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.controlGroup}>
+            <strong>버블</strong>
+            <div className={styles.bubbleGrid}>
+              {widgetPreviewBubbles.map((bubble) => {
+                const Icon = featureIcons[bubble.id];
+
+                return (
+                  <button aria-pressed={activeBubble === bubble.id} key={bubble.id} onClick={() => void openWidgetWindow(bubble.id)} type="button">
+                    <Icon size={14} strokeWidth={2} />
+                    {bubble.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
   );
 }

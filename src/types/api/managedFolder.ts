@@ -48,7 +48,3 @@ export type LocalFileSyncResponse = {
 export type ResourceSyncPolicyUpdateRequest = {
   syncEnabled: boolean;
 };
-
-export type ResourceShareToRoomRequest = {
-  roomId: string;
-};

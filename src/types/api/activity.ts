@@ -15,3 +15,14 @@ export type ActivityLogsTodayResponse = {
   items: ActivityLogResponse[];
   totalDurationSeconds?: number;
 };
+
+// POST /api/activity/current-app — record the current app/window context.
+// Consent-gated (user_privacy_consents ACTIVITY_CONTEXT). The values come from
+// the Tauri read_activity_context IPC; no full-screen or keystroke capture.
+export type ActivityCurrentAppRequest = {
+  appName: string;
+  windowTitle?: string | null;
+  durationSeconds?: number | null;
+  roomId?: string | null;
+  taskId?: string | null;
+};

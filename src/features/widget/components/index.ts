@@ -1,4 +1,5 @@
 export * from "./hybrid-app-frame";
+export * from "./desktop-widget-bubble";
 export * from "./resource-suggestion-bubble-panel";
 export * from "./tauri-widget-layer";
 export * from "./widget-background-readability-panel";

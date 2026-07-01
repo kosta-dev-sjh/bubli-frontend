@@ -4,9 +4,9 @@ export type NotificationResponse = {
   body?: string | null;
   createdAt: string;
   id: string;
-  linkUrl?: string | null;
+  readAt?: string | null;
   sourceId?: string | null;
-  sourceType?: string | null;
+  sourceType?: "MESSAGE" | "COMMENT" | "RESOURCE" | "AGENT" | null;
   status: NotificationStatus;
   title: string;
 };

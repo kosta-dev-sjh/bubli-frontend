@@ -11,7 +11,7 @@ import { Chip } from "@/components/ui/chip";
 import { Ring } from "@/components/ui/ring";
 import { StatusBadge } from "@/components/ui/status-badge";
 
-/* ---- mock 데이터 형태(실제 API/DB 아님. 화면 조립 검증용) ---- */
+/* Storybook에서 카드 조립을 확인하는 정적 데이터다. 실제 라우트는 API 데이터를 쓴다. */
 export type DashboardViewData = {
   summary: { resources: number; candidates: number; todos: number; minutesFocused: number };
   todos: { id: string; title: string; tone: "todo" | "warning" | "approved"; meta: string }[];
@@ -22,7 +22,7 @@ export type DashboardViewData = {
   notifications: { id: string; tone: "todo" | "agent" | "memo" | "communication"; text: string }[];
 };
 
-export const MOCK_DASHBOARD: DashboardViewData = {
+export const DASHBOARD_STORY_DATA: DashboardViewData = {
   summary: { resources: 3, candidates: 6, todos: 4, minutesFocused: 135 },
   todos: [
     { id: "t1", title: "시안 1차 보내기", tone: "warning", meta: "오늘 18:00" },
@@ -71,7 +71,7 @@ type DashboardViewProps = {
   onCustomize?: () => void;
 };
 
-export function DashboardView({ data = MOCK_DASHBOARD, empty = false, loading = false, onCustomize }: DashboardViewProps) {
+export function DashboardView({ data = DASHBOARD_STORY_DATA, empty = false, loading = false, onCustomize }: DashboardViewProps) {
   const hoursLabel = `${Math.floor(data.summary.minutesFocused / 60)}h ${data.summary.minutesFocused % 60}m`;
 
   return (

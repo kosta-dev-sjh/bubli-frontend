@@ -1,115 +1,151 @@
+import type { PageResponse } from "./common";
+
 export type AgentJobStatus = "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELED";
 
-export type AgentJobTargetType = "RESOURCE" | "PROJECT_ROOM" | "DAILY_SUMMARY";
-
 export type AgentJobType =
-  | "RESOURCE_ANALYSIS"
-  | "DOCUMENT_REVIEW"
-  | "REQUIREMENT_SUGGESTION"
-  | "WBS_SUGGESTION"
-  | "TASK_SUGGESTION"
-  | "SCHEDULE_SUGGESTION"
+  | "ANALYZE_RESOURCE"
+  | "GENERATE_WBS"
+  | "GENERATE_TASKS"
+  | "GENERATE_REQUIREMENTS"
+  | "REVIEW_CONTRACT_DOCUMENTS"
+  | "GENERATE_QUESTIONS"
   | "DAILY_SUMMARY"
-  | "RESOURCE_SEARCH"
   | "DOCUMENT_DRAFT";
-
-export type AgentJobCreateRequest = {
-  jobType: AgentJobType;
-  options?: Record<string, unknown>;
-  resourceIds?: string[];
-  roomId?: string | null;
-  targetId?: string | null;
-  targetType: AgentJobTargetType;
-};
 
 export type AgentJobResponse = {
   aiDocumentId?: string | null;
   errorCode?: string | null;
   errorMessage?: string | null;
+  finishedAt?: string | null;
+  jobType: AgentJobType;
   jobId: string;
+  resourceId?: string | null;
   resourceSummaryId?: string | null;
-  retryable: boolean;
+  retryCount: number;
+  roomId?: string | null;
+  startedAt?: string | null;
   status: AgentJobStatus;
   suggestionIds: string[];
-  targetId?: string | null;
-  targetType: string;
 };
 
 export type AgentJobStatusChangedPayload = {
   aiDocumentId?: string | null;
   errorCode?: string | null;
   errorMessage?: string | null;
+  finishedAt?: string | null;
+  jobType?: AgentJobType;
   jobId: string;
+  resourceId?: string | null;
   resourceSummaryId?: string | null;
-  retryable?: boolean;
+  retryCount?: number;
+  roomId?: string | null;
+  startedAt?: string | null;
   status: AgentJobStatus;
-  targetId?: string | null;
-  targetType: string;
   suggestionIds?: string[];
 };
 
-export type AgentSuggestionStatus = "PENDING" | "APPROVED" | "EDITED" | "HELD" | "DELETED";
+export type AgentJobEventResponse = {
+  createdAt: string;
+  eventType: string;
+  id: string;
+  jobId: string;
+  message?: string | null;
+};
+
+export type AgentJobEventPageResponse = PageResponse<AgentJobEventResponse>;
+
+export type AgentSuggestionStatus = "DRAFT" | "APPROVED" | "HELD" | "REJECTED";
 
 export type AgentSuggestionType =
   | "REQUIREMENT"
+  | "TODO"
   | "WBS"
   | "TASK"
   | "SCHEDULE"
   | "QUESTION"
-  | "EXTRACTED_FIELD"
-  | "RESOURCE";
+  | "CONTRACT_FIELD"
+  | "CONTRACT_REVIEW"
+  | "REVIEW_ITEM"
+  | "DOCUMENT_DRAFT"
+  | "DAILY_SUMMARY"
+  | "MEMO";
 
 export type AgentSuggestionResponse = {
-  content: Record<string, unknown>;
   createdAt: string;
-  id: string;
-  jobId?: string | null;
-  resourceId?: string | null;
-  roomId?: string | null;
+  evidenceJson: Record<string, unknown>;
+  jobId: string | null;
+  payloadJson: Record<string, unknown>;
+  resourceId: string | null;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  roomId: string | null;
+  suggestionId: string;
   status: AgentSuggestionStatus;
   suggestionType: AgentSuggestionType;
   updatedAt: string;
+  userId: string;
 };
 
+export type AgentSuggestionReviewAction = "APPROVE" | "EDIT" | "HOLD" | "REJECT" | "DELETE" | "MODIFY";
+
 export type AgentSuggestionUpdateRequest = {
-  content?: Record<string, unknown>;
-  status: Extract<AgentSuggestionStatus, "APPROVED" | "EDITED" | "HELD" | "DELETED">;
+  action: AgentSuggestionReviewAction;
+  editedContent?: Record<string, unknown>;
+  payloadJson?: Record<string, unknown>;
 };
+
+export type AgentResourceSearchScope = "ROOM_SHARED" | "PERSONAL";
 
 export type AgentResourceSearchRequest = {
   query: string;
+  scope?: AgentResourceSearchScope;
   roomId?: string | null;
+  topK?: number;
+};
+
+export type AgentResourceSearchHit = {
+  chunkIndex: number;
+  chunkMetadata?: string | null;
+  chunkText: string;
+  embeddingId: string;
+  pageNumber?: number | null;
+  resourceId: string;
+  similarityScore: number;
 };
 
 export type AgentResourceSearchResponse = {
-  reason?: string | null;
-  resourceId: string;
-  score?: number | null;
-  title: string;
+  hits: AgentResourceSearchHit[];
 };
 
 export type AgentDocumentDraftRequest = {
-  prompt: string;
-  resourceIds?: string[];
-  roomId?: string | null;
+  documentType?: string | null;
+  instruction?: string | null;
+  roomId: string;
+  sourceResourceIds?: string[];
 };
 
-export type AgentDocumentDraftResponse = {
-  draft: string;
-  jobId?: string | null;
+export type DailySummaryRequest = {
+  summaryDate?: string;
 };
 
-export type DailySummaryStatus = "PENDING" | "APPROVED" | "HELD";
+export type DailySummaryStatus = "DRAFT" | "APPROVED";
 
 export type DailySummaryResponse = {
-  content: Record<string, unknown>;
+  approvedAt?: string | null;
+  createdAt: string;
   id: string;
-  status: DailySummaryStatus;
   summaryDate: string;
+  summaryJson: string;
+  status: DailySummaryStatus;
+  userId: string;
   updatedAt: string;
 };
 
+export type DailySummaryPageResponse = PageResponse<DailySummaryResponse>;
+
+export type DailySummaryAction = "APPROVE" | "EDIT" | "HOLD";
+
 export type DailySummaryUpdateRequest = {
-  content?: Record<string, unknown>;
-  status: DailySummaryStatus;
+  action: DailySummaryAction;
+  summaryJson?: string | null;
 };

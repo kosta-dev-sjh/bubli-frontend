@@ -74,7 +74,7 @@ export type DashboardWorkResponse = {
   upcomingDeadlines: TaskResponse[];
 };
 
-export type ScheduleSyncStatus = "LOCAL_ONLY" | "SYNCED" | "FAILED";
+export type ScheduleSyncStatus = "LOCAL_ONLY" | "SYNCED" | "SYNC_FAILED";
 
 export type ScheduleResponse = {
   allDay: boolean;

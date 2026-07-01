@@ -1,3 +1,5 @@
+import type { PageResponse } from "@/types/api/common";
+
 export type ProjectRoomPaymentStatus = "NOT_RECORDED" | "PENDING" | "PAID" | "OVERDUE";
 
 export type ProjectRoomStatus = "ACTIVE" | "CLOSED";
@@ -5,6 +7,8 @@ export type ProjectRoomStatus = "ACTIVE" | "CLOSED";
 export type ProjectRoomRole = "PROJECT_LEADER" | "MEMBER";
 
 export type ProjectRoomInvitationStatus = "PENDING" | "ACCEPTED" | "CANCELED" | "EXPIRED";
+
+export type ContractDocumentType = "CONTRACT" | "REQUIREMENT";
 
 export type ProjectRoomUpsertRequest = {
   clientName?: string | null;
@@ -54,3 +58,13 @@ export type ProjectRoomInvitationResponse = {
 export type ProjectRoomMemberRoleUpdateRequest = {
   role: ProjectRoomRole;
 };
+
+export type ContractDocumentUploadResponse = {
+  jobId: string;
+  resourceId: string;
+  status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELED";
+};
+
+export type ProjectRoomPageResponse = PageResponse<ProjectRoomResponse>;
+export type ProjectRoomInvitationPageResponse = PageResponse<ProjectRoomInvitationResponse>;
+export type ProjectRoomMemberPageResponse = PageResponse<ProjectRoomMemberResponse>;

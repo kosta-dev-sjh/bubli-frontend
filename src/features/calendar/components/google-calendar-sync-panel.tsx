@@ -1,6 +1,5 @@
-import { CalendarCheck2, CalendarClock, CheckCircle2, ExternalLink, RefreshCw, ShieldCheck, Sparkles, Unplug } from "lucide-react";
+import { CalendarCheck2, CalendarClock, CheckCircle2, ExternalLink, ShieldCheck, Sparkles, Unplug } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -75,10 +74,10 @@ export function GoogleCalendarSyncPanel() {
           </span>
           <div>
             <Chip selected>일정 연동</Chip>
-            <h2>Bubli 일정은 서버 원본으로 관리하고, Google Calendar는 외부 일정 확인용으로 연결합니다</h2>
+            <h2>Bubli 일정과 외부 일정을 한 화면에서 봅니다</h2>
             <p>
               프로젝트룸에서 승인된 일정과 TODO 마감은 Bubli 서버에 저장됩니다. Google Calendar 일정은 오늘의
-              충돌과 빈 시간을 확인하는 보조 정보로 보여줍니다.
+              충돌과 빈 시간을 함께 볼 수 있게 연결합니다.
             </p>
           </div>
         </div>
@@ -97,9 +96,6 @@ export function GoogleCalendarSyncPanel() {
               <h3>오늘 일정</h3>
               <p>Bubli 원본 일정과 외부 일정을 구분해서 보여줍니다.</p>
             </div>
-            <Button icon={<RefreshCw size={15} />} size="sm" variant="primary">
-              새로고침
-            </Button>
           </div>
 
           <div className="google-calendar-sync__list">

@@ -20,7 +20,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "mock·local state·dnd kit 기반 커스터마이징 UX. edit mode·widget selected·dragging visual·hidden widget·dropzone active를 한 화면에서 확인. 실제 dashboard_layouts API는 미연결.",
+          "Storybook 정적 상태와 dnd kit 기반 커스터마이징 UX. edit mode, widget selected, dragging visual, hidden widget, dropzone active를 한 화면에서 확인한다.",
       },
     },
   },

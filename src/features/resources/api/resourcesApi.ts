@@ -4,32 +4,28 @@ import type {
   ResourceCommentRequest,
   ResourceCommentResponse,
   ResourceDownloadUrlResponse,
-  ResourceRelationResponse,
+  ResourceCommentPageResponse,
+  ResourcePageResponse,
+  ResourceRelationPageResponse,
   ResourceResponse,
   ResourceSummaryResponse,
   ResourceUpdateRequest,
   ResourceUploadRequest,
+  ResourceVersionPageResponse,
   ResourceVersionResponse,
 } from "@/types/api/resource";
 
 export const resourcesApi = {
   listPersonal() {
-    return apiRequest<ResourceResponse[]>("/api/resources?scope=personal");
+    return apiRequest<ResourcePageResponse>("/api/resources?scope=personal");
   },
 
   listRoomResources(roomId: string) {
-    return apiRequest<ResourceResponse[]>(`/api/project-rooms/${roomId}/resources`);
+    return apiRequest<ResourcePageResponse>(`/api/project-rooms/${roomId}/resources`);
   },
 
   upload(body: ResourceUploadRequest) {
     return apiRequest<ResourceResponse>("/api/resources", {
-      body,
-      method: "POST",
-    });
-  },
-
-  uploadRoomDocument(roomId: string, body: ResourceUploadRequest) {
-    return apiRequest<ResourceResponse>(`/api/project-rooms/${roomId}/documents`, {
       body,
       method: "POST",
     });
@@ -59,11 +55,11 @@ export const resourcesApi = {
   },
 
   getRelated(resourceId: string) {
-    return apiRequest<ResourceRelationResponse[]>(`/api/resources/${resourceId}/related`);
+    return apiRequest<ResourceRelationPageResponse>(`/api/resources/${resourceId}/related`);
   },
 
   getVersions(resourceId: string) {
-    return apiRequest<ResourceVersionResponse[]>(`/api/resources/${resourceId}/versions`);
+    return apiRequest<ResourceVersionPageResponse>(`/api/resources/${resourceId}/versions`);
   },
 
   uploadVersion(resourceId: string, body: ResourceUploadRequest) {
@@ -74,7 +70,7 @@ export const resourcesApi = {
   },
 
   getComments(resourceId: string) {
-    return apiRequest<ResourceCommentResponse[]>(`/api/resources/${resourceId}/comments`);
+    return apiRequest<ResourceCommentPageResponse>(`/api/resources/${resourceId}/comments`);
   },
 
   createComment(resourceId: string, body: ResourceCommentRequest) {

@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bubli — 버블 히어로 / 위젯 데모 (실제 영상 + 버블 이미지)</title>
+<style>
+  :root{
+    --bg:#FCFDFF;--ink:#2C3540;--sub:#5A6772;--mut:#8A94A0;
+    --sky:#9ED8FF;--bubble:#6FB8F2;--deep:#36729A;--lilac:#DCD8F8;--pink:#F6DDEB;
+    --line:#E5E7EB;--glass:rgba(255,255,255,.82);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:Pretendard,-apple-system,system-ui,"Apple SD Gothic Neo",sans-serif;color:var(--ink);background:var(--bg)}
+  .hero{position:relative;min-height:100vh;overflow:hidden}
+  .hero__video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+  .hero__veil{position:absolute;inset:0;z-index:1;background:
+    radial-gradient(120% 90% at 20% 8%,rgba(255,255,255,.30),rgba(255,255,255,.62) 60%,rgba(255,255,255,.82) 100%)}
+  .bubbles{position:absolute;inset:0;z-index:2;pointer-events:none}
+  .bubbles img{position:absolute;will-change:transform;filter:drop-shadow(0 14px 30px rgba(120,150,190,.18))}
+  @keyframes floaty{0%{transform:translateY(0) translateX(0)}50%{transform:translateY(-26px) translateX(10px)}100%{transform:translateY(0) translateX(0)}}
+
+  .nav{position:relative;z-index:5;display:flex;align-items:center;gap:14px;padding:20px 40px}
+  .nav .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:19px;letter-spacing:.2px}
+  .nav .brand img{width:30px;height:30px}
+  .nav .links{display:flex;gap:22px;margin-left:14px;font-size:14px;color:var(--sub)}
+  .nav .right{margin-left:auto;display:flex;gap:10px;align-items:center}
+  .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--glass);
+    color:var(--ink);border-radius:100px;padding:10px 16px;font-size:14px;cursor:pointer;text-decoration:none;backdrop-filter:blur(8px)}
+  .btn--primary{background:linear-gradient(180deg,#7FC0F4,#5AA7E8);border-color:transparent;color:#fff;box-shadow:0 10px 22px rgba(90,140,200,.3)}
+  .btn--lg{padding:13px 22px;font-size:15px}
+
+  .stage{position:relative;z-index:4;display:grid;grid-template-columns:1.05fr .95fr;gap:30px;align-items:center;
+    max-width:1180px;margin:0 auto;padding:30px 40px 80px}
+  .copy .eyebrow{display:inline-block;font-size:13px;color:var(--deep);background:rgba(255,255,255,.7);
+    border:1px solid rgba(255,255,255,.85);border-radius:100px;padding:7px 14px;margin-bottom:18px;backdrop-filter:blur(8px)}
+  .copy h1{font-size:54px;line-height:1.12;margin:0 0 18px;letter-spacing:-.5px}
+  .copy h1 .nb{white-space:nowrap}
+  .copy h1 .grad{background:linear-gradient(120deg,#6FB8F2,#9B8FE0 60%,#E59DBE);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .copy p{font-size:17px;color:var(--sub);line-height:1.6;margin:0 0 26px;max-width:430px}
+  .copy .cta{display:flex;gap:12px}
+
+  /* desktop preview */
+  .preview{perspective:1400px}
+  .scene{position:relative;transform-style:preserve-3d;transition:transform .15s ease-out}
+  .win{border-radius:18px;overflow:hidden;background:rgba(255,255,255,.9);border:1px solid rgba(255,255,255,.92);
+    box-shadow:0 34px 80px rgba(80,110,150,.25);backdrop-filter:blur(12px);transform:translateZ(40px)}
+  .win__bar{display:flex;align-items:center;gap:7px;padding:12px 15px;border-bottom:1px solid #EEF1F4}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .win__bar b{margin-left:8px;font-size:13px;font-weight:600}
+  .win__bar .tag{margin-left:auto;font-size:11px;color:var(--mut)}
+  .win__body{display:flex;min-height:248px}
+  .win__side{width:58px;display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 0;border-right:1px solid #EEF1F4;background:rgba(247,249,250,.55)}
+  .win__side .sx{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#A7B2BE}
+  .win__side .sx.on{background:#E3F1FB;color:var(--deep)}
+  .win__main{flex:1;padding:16px}
+  . chip{}
+  .chips{display:flex;gap:8px;margin-bottom:12px}
+  .chips span{font-size:11.5px;color:var(--sub);background:#F2F7FC;border:1px solid var(--line);border-radius:100px;padding:5px 11px}
+  .listrow{display:flex;align-items:center;gap:9px;padding:11px 13px;margin-bottom:8px;border-radius:12px;border:1px solid #EEF1F4;background:#fff}
+  .listrow.sel{border-color:var(--sky);background:rgba(214,234,244,.5)}
+  .listrow b{font-size:12.5px;font-weight:600}
+  .listrow small{margin-left:auto;font-size:11px;color:var(--mut)}
+  .listrow svg{color:var(--bubble)}
+  .agentcard{display:flex;gap:10px;align-items:flex-start;margin-bottom:10px}
+  .agentcard img{width:34px;height:34px}
+  .agentcard .bubbleq{background:#F4F1FB;border-radius:12px;padding:9px 12px;font-size:12.5px}
+  .kpis{display:flex;gap:10px;margin-bottom:14px}
+  .kpi{flex:1;border:1px solid #EEF1F4;border-radius:12px;padding:11px;background:#fff}
+  .kpi i{font-style:normal;font-size:11px;color:var(--mut);display:block}
+  .kpi b{font-size:20px}
+  .barrow{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+  .barrow b{font-size:12px;width:96px}
+  .track{flex:1;height:8px;border-radius:100px;background:#EEF1F4;overflow:hidden}
+  .track i{display:block;height:100%;background:linear-gradient(90deg,var(--sky),var(--bubble))}
+  .barrow small{font-size:11px;color:var(--mut)}
+  .evrow{display:flex;align-items:center;gap:11px;padding:10px 12px;margin-bottom:8px;border-radius:12px;background:#fff;border:1px solid #EEF1F4}
+  .evrow span.tm{font-size:12px;font-weight:700;color:var(--deep);width:42px}
+  .evrow span.pin{width:6px;height:30px;border-radius:100px}
+  .evrow b{font-size:12.5px;font-weight:600}
+
+  /* floating widget made from real bubble image */
+  .widget{position:absolute;right:-22px;top:-30px;cursor:pointer;transform:translateZ(90px);
+    transition:all .4s cubic-bezier(.2,.9,.3,1.25);width:96px;height:96px}
+  .widget img{width:100%;height:100%;display:block;filter:drop-shadow(0 18px 30px rgba(120,150,190,.35))}
+  .widget .badge{position:absolute;right:8px;top:8px;min-width:20px;height:20px;border-radius:100px;background:#8ECDF6;color:#fff;
+    font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 6px;box-shadow:0 3px 8px rgba(110,140,170,.35)}
+  .widget.open{width:262px;height:auto}
+  .widget .full{display:none;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.92);border-radius:18px;
+    box-shadow:0 24px 56px rgba(80,110,150,.24);backdrop-filter:blur(12px);padding:15px 16px}
+  .widget.open img,.widget.open .badge{display:none}
+  .widget.open .full{display:block}
+  .full .fhead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .full .fhead img{width:24px;height:24px;display:inline}
+  .full .fhead b{font-size:13px}
+  .full .fhead .c{margin-left:auto;font-size:10.5px;color:#fff;background:#8ECDF6;border-radius:100px;padding:2px 8px}
+  .todo{display:flex;gap:8px;align-items:center;padding:6px 0}
+  .todo i{width:14px;height:14px;border-radius:5px;border:1.6px solid var(--sky)}
+  .todo span{font-size:12px}
+  .timer{display:flex;align-items:center;gap:9px;margin-top:10px;padding-top:10px;border-top:1px solid #EEF1F4}
+  .timer b{font-size:18px;letter-spacing:.5px}
+  .timer .play{margin-left:auto;width:30px;height:30px;border-radius:50%;border:0;background:var(--bubble);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+  .dock{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:6;display:flex;gap:10px;align-items:center;
+    padding:9px 13px;border-radius:20px;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.8);
+    backdrop-filter:blur(14px);box-shadow:0 18px 44px rgba(80,110,150,.2)}
+  .dock .orb{width:46px;height:46px}
+  .dock .sep{width:1px;height:30px;background:rgba(120,150,190,.25)}
+  .dock button{width:46px;height:46px;border-radius:13px;border:1px solid rgba(255,255,255,.8);
+    background:linear-gradient(150deg,#fff,#EAF4FF);display:flex;align-items:center;justify-content:center;cursor:pointer;
+    transition:transform .18s;box-shadow:0 6px 14px rgba(110,140,170,.16);color:var(--deep)}
+  .dock button:hover{transform:translateY(-7px) scale(1.08)}
+  .dock button.on{outline:2px solid var(--bubble);outline-offset:2px}
+  svg.ic{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .hint{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:6;font-size:12px;color:var(--sub);
+    background:rgba(255,255,255,.72);padding:6px 13px;border-radius:100px;backdrop-filter:blur(8px)}
+  @media(max-width:880px){.stage{grid-template-columns:1fr}.copy h1{font-size:40px}.preview{display:none}}
+</style>
+</head>
+<body>
+<!-- 아이콘 스프라이트 (v20 보드 따옴) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5v12h17v-9h-8.6l-2-2z"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5M6 10v9h12v-9"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="3"/><path d="M4 10h16M9 3.8v3.4M15 3.8v3.4"/></symbol>
+<symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 4.5 13.6 10 19 11.5 13.6 13 12 18.5 10.4 13 5 11.5 10.4 10z"/></symbol>
+<symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3.8h7l4 4v12.4H7z"/><path d="M13.6 4v4.2H18M9.6 13h5.4M9.6 16.2h5.4"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5 10 17l9-10"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M12 7.6V12l3.2 2"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 4.2v2.2M12 17.6v2.2M19.8 12h-2.2M6.4 12H4.2M17.5 6.5l-1.6 1.6M8.1 15.9l-1.6 1.6M17.5 17.5l-1.6-1.6M8.1 8.1 6.5 6.5"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M8.5 6.2v12.6L18 12z"/></symbol>
+</defs></svg>
+
+<div class="hero">
+  <video class="hero__video" autoplay muted loop playsinline poster="">
+    <source src="./motion/bubble-hero-bright-medium.mp4" type="video/mp4" />
+  </video>
+  <div class="hero__veil"></div>
+
+  <!-- 실제 포토리얼 버블 이미지들이 떠다님 -->
+  <div class="bubbles" id="bubbles"></div>
+
+  <nav class="nav">
+    <span class="brand"><img src="../bubli-brand-assets-2026-06-29/png/app-icon-light-source.png" alt="">Bubli</span>
+    <span class="links"><a>기능</a><a>데스크탑 앱</a><a>다운로드</a><a>FAQ</a></span>
+    <span class="right">
+      <a class="btn">다운로드</a>
+      <a class="btn btn--primary">회원 앱</a>
+    </span>
+  </nav>
+
+  <div class="stage">
+    <div class="copy">
+      <span class="eyebrow">프리랜서 업무를 자료에서 실행까지</span>
+      <h1><span class="nb">받은 <span class="grad">자료</span>를,</span><br><span class="nb">오늘 할 일로.</span></h1>
+      <p>계약서·요구사항·회의록을 올리면 에이전트가 정리하고, 확인한 것만 오늘 할 일·일정·버블 위젯으로 이어집니다.</p>
+      <div class="cta">
+        <a class="btn btn--primary btn--lg">앱 다운로드</a>
+        <a class="btn btn--lg">회원 앱 열기</a>
+      </div>
+    </div>
+
+    <div class="preview">
+      <div class="scene" id="scene">
+        <div class="win">
+          <div class="win__bar">
+            <span class="dot" style="background:#F6C5C5"></span><span class="dot" style="background:#F1D9B0"></span><span class="dot" style="background:#BFE3C4"></span>
+            <b id="wtitle">자료보드</b><span class="tag">Bubli 회원 앱</span>
+          </div>
+          <div class="win__body">
+            <div class="win__side" id="wside"></div>
+            <div class="win__main" id="wbody"></div>
+          </div>
+        </div>
+        <!-- 실제 버블 이미지로 만든 위젯 -->
+        <div class="widget" id="widget" title="버블 위젯 — 눌러서 펼치기">
+          <img src="../bubli-asset-pack-mock-faithful-2026-06-29/bubbles/bubble-medium-256.png" alt="">
+          <span class="badge">3</span>
+          <div class="full">
+            <div class="fhead"><img src="../bubli-brand-assets-2026-06-29/png/app-icon-light-source.png" alt=""><b>오늘 할 일</b><span class="c">3</span></div>
+            <div class="todo"><i></i><span>시안 1차 보내기</span></div>
+            <div class="todo"><i></i><span>계약서 검토</span></div>
+            <div class="todo"><i></i><span>WBS 구조 검토</span></div>
+            <div class="timer"><svg class="ic" width="16" height="16" style="color:#36729A"><use href="#i-clock"/></svg><b>25:00</b><button class="play"><svg class="ic" width="13" height="13" style="color:#fff"><use href="#i-play"/></svg></button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<nav class="dock" id="dock"></nav>
+<div class="hint">Dock 아이콘을 눌러 화면 전환 · 버블 위젯을 눌러 펼치기 · 배경은 실제 버블 영상</div>
+
+<script>
+  // 떠다니는 실제 버블 이미지
+  var imgs=[
+    '../bubli-asset-pack-mock-faithful-2026-06-29/bubbles/bubble-photoreal-512.png',
+    '../bubli-asset-pack-mock-faithful-2026-06-29/bubbles/bubble-medium-256.png',
+    '../bubli-asset-pack-mock-faithful-2026-06-29/bubbles/bubble-small-128.png',
+    '../bubli-asset-pack-mock-faithful-2026-06-29/bubbles/bubble-tiny-64.png'
+  ];
+  var layer=document.getElementById('bubbles');
+  var specs=[[60,'7%','62%',.5,0],[120,'14%','12%',.45,1.5],[40,'72%','20%',.6,3],[90,'78%','68%',.4,2],[30,'46%','82%',.6,4],[160,'88%','38%',.32,1]];
+  var floaties=[];
+  specs.forEach(function(s,i){var im=document.createElement('img');im.src=imgs[i%imgs.length];im.style.width=s[0]+'px';im.style.left=s[2];im.style.top=s[1];im.style.opacity=s[3];im.style.animation='floaty '+(9+s[4])+'s ease-in-out infinite';im.style.animationDelay=(-s[4])+'s';layer.appendChild(im);floaties.push({el:im});});
+
+  // 아이콘 + 화면 데이터
+  function ic(id,sz,color){return '<svg class="ic" width="'+sz+'" height="'+sz+'" style="color:'+(color||'#36729A')+'"><use href="#'+id+'"/></svg>';}
+  var CR='../bubli-brand-assets-2026-06-29/png/app-icon-light-source.png';
+  function chips(a){return '<div class="chips">'+a.map(function(t){return '<span>'+t+'</span>';}).join('')+'</div>';}
+  function lr(icon,a,b,sel){return '<div class="listrow'+(sel?' sel':'')+'">'+ic(icon,17,'#6FB8F2')+'<b>'+a+'</b><small>'+b+'</small></div>';}
+  function kpi(k,v){return '<div class="kpi"><i>'+k+'</i><b>'+v+'</b></div>';}
+  function bar(t,p){return '<div class="barrow"><b>'+t+'</b><div class="track"><i style="width:'+p+'%"></i></div><small>'+p+'%</small></div>';}
+  function ev(tm,t,c){return '<div class="evrow"><span class="tm">'+tm+'</span><span class="pin" style="background:'+c+'"></span><b>'+t+'</b></div>';}
+  var apps={
+    board:{t:'자료보드',side:0,html:chips(['자료 12','승인 대기 3','오늘 할 일 5'])+lr('i-doc','요구사항 정의서.pdf','확인 필요',true)+lr('i-doc','회의록 06-29.md','후보 4개',false)+'<div class="agentcard"><img src="'+CR+'"><div class="bubbleq">자료 3건에서 <b>할 일 후보 5개</b>를 찾았어요. 확인해 주세요.</div></div>'},
+    dash:{t:'대시보드',side:1,html:'<div class="kpis">'+kpi('오늘 할 일','5')+kpi('확인 필요','3')+kpi('프로젝트','2')+'</div>'+bar('계약서 검토',72)+bar('회의록 반영',40)},
+    cal:{t:'일정',side:2,html:'<div style="font-size:12px;color:#8A94A0;margin-bottom:8px">오늘 · 6월 29일</div>'+ev('10:00','클라이언트 콜','#9ED8FF')+ev('14:00','요구사항 정리','#DCD8F8')+ev('18:00','메인 배너 시안 1차','#F6DDEB')},
+    agent:{t:'에이전트',side:3,html:'<div class="agentcard"><img src="'+CR+'"><div class="bubbleq">자료에서 요구사항 6개와 마감 3건을 찾았어요. 오늘 할 일로 만들까요?</div></div>'+lr('i-check','계약서 검토 질문 정리','후보',false)+lr('i-check','회의록 결정사항 반영','후보',false)}
+  };
+  var sideI=['i-folder','i-home','i-cal','i-spark'],order=['board','dash','cal','agent'],dockI={board:'i-folder',dash:'i-home',cal:'i-cal',agent:'i-spark'};
+  var dock=document.getElementById('dock'),side=document.getElementById('wside'),body=document.getElementById('wbody'),title=document.getElementById('wtitle');
+  var ob=document.createElement('img');ob.className='orb';ob.src=CR;dock.appendChild(ob);
+  var sp=document.createElement('span');sp.className='sep';dock.appendChild(sp);
+  order.forEach(function(k){var b=document.createElement('button');b.dataset.app=k;b.innerHTML=ic(dockI[k],21);b.onclick=function(){setApp(k);};dock.appendChild(b);});
+  var gb=document.createElement('button');gb.innerHTML=ic('i-gear',21,'#8A94A0');dock.appendChild(gb);
+  sideI.forEach(function(si){var s=document.createElement('div');s.className='sx';s.innerHTML=ic(si,18,'#A7B2BE');side.appendChild(s);});
+  function setApp(k){var a=apps[k];title.textContent=a.t;body.style.opacity=0;body.style.transform='translateY(8px)';setTimeout(function(){body.innerHTML=a.html;body.style.transition='all .3s';body.style.opacity=1;body.style.transform='none';},120);Array.prototype.forEach.call(side.children,function(s,j){s.className='sx'+(j===a.side?' on':'');s.querySelector('svg').style.color=(j===a.side)?'#36729A':'#A7B2BE';});Array.prototype.forEach.call(dock.querySelectorAll('[data-app]'),function(b){b.className=(b.dataset.app===k)?'on':'';});}
+  setApp('board');
+
+  var widget=document.getElementById('widget');
+  widget.addEventListener('click',function(){widget.classList.toggle('open');});
+
+  // 마우스 기울기 + 패럴랙스
+  var scene=document.getElementById('scene'),hero=document.querySelector('.hero');
+  hero.addEventListener('pointermove',function(e){
+    var r=hero.getBoundingClientRect();var nx=((e.clientX-r.left)/r.width)*2-1,ny=((e.clientY-r.top)/r.height)*2-1;
+    if(scene)scene.style.transform='rotateY('+(nx*6)+'deg) rotateX('+(-ny*5)+'deg)';
+    floaties.forEach(function(f,i){var d=(i%3+1)*6;f.el.style.marginLeft=(nx*d)+'px';f.el.style.marginTop=(ny*d)+'px';});
+  });
+</script>
+</body>
+</html>

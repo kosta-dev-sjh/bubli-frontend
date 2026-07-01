@@ -1,19 +1,20 @@
 import { apiRequest } from "@/lib/api/client";
+import type { PageResponse } from "@/types/api/common";
 import type { NotificationResponse } from "@/types/api/notification";
 
 export const notificationApi = {
   list() {
-    return apiRequest<NotificationResponse[]>("/api/notifications");
+    return apiRequest<PageResponse<NotificationResponse>>("/api/notifications");
   },
 
   markRead(notificationId: string) {
-    return apiRequest<NotificationResponse>(`/api/notifications/${notificationId}/read`, {
+    return apiRequest<unknown>(`/api/notifications/${notificationId}/read`, {
       method: "PATCH",
     });
   },
 
   archive(notificationId: string) {
-    return apiRequest<NotificationResponse>(`/api/notifications/${notificationId}/archive`, {
+    return apiRequest<unknown>(`/api/notifications/${notificationId}/archive`, {
       method: "PATCH",
     });
   },

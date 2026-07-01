@@ -24,7 +24,7 @@ const accessCards = [
     rules: [
       ["접근 기준", "자료를 올린 본인만 열람"],
       ["다운로드", "서버 권한 확인 후 다운로드 주소 발급"],
-      ["공유", "사용자가 프로젝트룸 공유를 승인한 뒤에만 전환"],
+      ["프로젝트룸", "해당 룸 자료보드에서 별도 업로드"],
     ],
   },
   {
@@ -63,15 +63,15 @@ const flowSteps = [
 
 const policyChecks = [
   "개인 자료함 동기화는 프로젝트룸 공유와 분리합니다.",
-  "개인 자료를 프로젝트룸에 보낼 때는 사용자의 공유 승인이 필요합니다.",
+  "프로젝트룸 자료는 해당 룸 자료보드에서 직접 업로드합니다.",
   "기기 안 임시 보관은 빠른 표시와 복구용이며 권한 기준이 아닙니다.",
   "자료 다운로드는 클라이언트가 스토리지 원본을 직접 여는 흐름으로 만들지 않습니다.",
 ];
 
 const apiRows = [
+  ["GET", "/api/resources?scope=personal"],
+  ["POST", "/api/resources"],
   ["GET", "/api/resources/{id}/download-url"],
-  ["POST", "/api/resources/{id}/share-to-room"],
-  ["PATCH", "/api/resources/{id}/sync-policy"],
   ["GET", "/api/project-rooms/{roomId}/resources"],
 ];
 

@@ -4,7 +4,6 @@ import {
   Database,
   FolderSearch,
   HardDrive,
-  RotateCcw,
   ShieldCheck,
   UploadCloud,
 } from "lucide-react";
@@ -61,15 +60,13 @@ const safetyRules = [
   "개인 관리 폴더는 사용자가 직접 지정한 폴더만 다룹니다.",
   "용량을 넘으면 로컬 색인은 유지하고 서버 업로드만 막습니다.",
   "삭제된 파일은 사용자 확인 전까지 삭제 후보로 표시합니다.",
-  "프로젝트룸 자료로 보내려면 사용자가 공유 대상을 따로 선택해야 합니다.",
+  "프로젝트룸 자료는 개인 동기화와 분리해서 룸 자료보드에서 직접 올립니다.",
 ];
 
-const apiRows = [
-  ["GET", "/api/storage/usage"],
-  ["GET", "/api/local-files"],
-  ["POST", "/api/local-file-events/sync"],
-  ["PATCH", "/api/resources/{id}/sync-policy"],
-  ["POST", "/api/resources/{id}/restore"],
+const connectionRows = [
+  ["서버 저장 용량", "/api/storage/usage"],
+  ["로컬 색인", "Tauri IPC와 SQLite"],
+  ["서버 반영", "localsync 구현 후 연결"],
 ];
 
 export function StorageSyncPolicyPanel() {
@@ -92,7 +89,7 @@ export function StorageSyncPolicyPanel() {
             기기 안 색인
           </Chip>
           <Chip icon={<Cloud size={14} aria-hidden="true" />}>서버 개인 자료함</Chip>
-          <Chip icon={<RotateCcw size={14} aria-hidden="true" />}>삭제 후보와 복구</Chip>
+          <Chip icon={<ShieldCheck size={14} aria-hidden="true" />}>확인 후 반영</Chip>
         </div>
       </header>
 
@@ -153,7 +150,7 @@ export function StorageSyncPolicyPanel() {
         </div>
       </section>
 
-      <section className={styles.policyGrid} aria-label="동기화 안전 기준과 API 후보">
+      <section className={styles.policyGrid} aria-label="동기화 안전 기준과 연결 경계">
         <article className={styles.policyCard}>
           <h3>안전 기준</h3>
           <ul className={styles.checks}>
@@ -166,11 +163,11 @@ export function StorageSyncPolicyPanel() {
           </ul>
         </article>
         <article className={styles.policyCard}>
-          <h3>연결 API 후보</h3>
+          <h3>연결 경계</h3>
           <div className={styles.apiList}>
-            {apiRows.map(([method, path]) => (
-              <div className={styles.apiRow} key={path}>
-                <StatusBadge tone={method === "GET" ? "success" : "pending"}>{method}</StatusBadge>
+            {connectionRows.map(([label, path]) => (
+              <div className={styles.apiRow} key={label}>
+                <StatusBadge tone={path.startsWith("/api") ? "success" : "pending"}>{label}</StatusBadge>
                 <span className={styles.apiPath}>{path}</span>
               </div>
             ))}
