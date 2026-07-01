@@ -145,7 +145,7 @@
 페이지별 백엔드 맵핑,7,비회원,OAuth 콜백,/auth/callback,코드→토큰 교환,callbackGoogle,됨,부분,디자인 완료 · 반응형 미확인,,,,
 페이지별 백엔드 맵핑,8,회원,대시보드,/app,대시보드 업무·작업·위젯 summary,getWork + projectRoom.list + todo.list + widget.summary,됨,확인예정,"실제 API 우선. preview 우선 노출 제거, recent resources는 실제 데이터 없으면 empty.",,,,
 페이지별 백엔드 맵핑,9,회원,룸 목록,/app/project-rooms,룸 목록,projectRoom.list,됨,확인예정,디자인 상태 미확인,,,,
-페이지별 백엔드 맵핑,10,회원,룸 생성,/app/project-rooms/new,룸 생성·업로드·계약서분석,create+upload+reviewContractDocuments,됨,확인예정,디자인 상태 미확인,,,,
+페이지별 백엔드 맵핑,10,회원,룸 생성,/app/project-rooms/new,룸 생성·업로드·계약서분석,create+upload+reviewContractDocuments,됨,검증완료,2026-07-01 로컬 백엔드 직접 POST 200 + Playwright 버튼 생성/상세 이동 검증 완료,,,,
 페이지별 백엔드 맵핑,11,회원,룸 상세,[roomId],룸 상세·멤버·일정·제안·자료·WBS,get·getMembers+calendar+agent+resources+wbs,됨,확인예정,결제·초대·AI문서 미맵핑 / 디자인 미확인,,,,
 페이지별 백엔드 맵핑,12,회원,룸 자료보드,[roomId]/resources,룸 자료 목록·업로드·다운로드,listRoomResources·upload·getDownloadUrl,됨,작업중,목록/업로드 API 우선. 업로드 실패 시 목업 파일 성공 처리 제거. 댓글·버전·요약은 API어댑터 준비.,,,,
 페이지별 백엔드 맵핑,13,회원,룸 작업(WBS),[roomId]/work,WBS 보드·항목·제안,wbs.getBoard+projectRoom.get+agent,됨,검증완료,"WBS/칸반/후보를 탭 전환으로 분리. WBS는 Jira식 줄 목록+우측 상세, 하위 WBS 색 라인/색상 선택, 월·주·일 기간 보기로 정리. 칸반은 가로 4열 드래그 보드 유지. 2026-07-01 실제 로컬 백엔드 데이터(WBS 10·TODO 6)와 Playwright 캡처로 확인. 칸반 카드 제목·상태칩·보조문구 폰트 밀도 조정.",,,,
