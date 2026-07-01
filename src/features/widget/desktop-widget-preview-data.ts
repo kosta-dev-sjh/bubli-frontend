@@ -8,7 +8,7 @@ export type WidgetPreviewItem = {
   handoffLabel?: string;
   handoffUrl?: string;
   id: string;
-  kind?: "agent" | "friend" | "message" | "resource" | "schedule" | "task" | "time" | "voice";
+  kind?: "agent" | "friend" | "memo" | "message" | "resource" | "schedule" | "task" | "time" | "voice";
   label: string;
   stateId?: string;
   status: string;

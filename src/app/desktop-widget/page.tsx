@@ -11,6 +11,7 @@ import {
   type WidgetChatRoomResponse,
   type WidgetDashboardWorkResponse,
   type WidgetFriendResponse,
+  type WidgetMemoResponse,
   type WidgetNotificationResponse,
   type WidgetProjectRoomResponse,
   type WidgetResourceResponse,
@@ -142,6 +143,16 @@ function resourceStatusLabel(status: WidgetResourceResponse["status"]) {
   return labels[status];
 }
 
+function memoTitle(memo: WidgetMemoResponse) {
+  const firstLine = memo.body
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+
+  if (!firstLine) return "빈 메모";
+  return firstLine.length > 36 ? `${firstLine.slice(0, 36)}...` : firstLine;
+}
+
 function suggestionStatusLabel(status: WidgetAgentSuggestionResponse["status"]) {
   const labels: Record<WidgetAgentSuggestionResponse["status"], string> = {
     APPROVED: "승인됨",
@@ -208,6 +219,7 @@ function buildNotificationSignal(notifications: WidgetNotificationResponse[]): W
 function buildDisplayBubbles(input: {
   dashboard?: WidgetDashboardWorkResponse | null;
   friends: WidgetFriendResponse[];
+  memos: WidgetMemoResponse[];
   messages: WidgetChatMessageResponse[];
   notifications: WidgetNotificationResponse[];
   resources: WidgetResourceResponse[];
@@ -223,7 +235,7 @@ function buildDisplayBubbles(input: {
   const label = roomLabel(input.room, input.roomId);
   const todoItems = (input.dashboard?.todayTasks.length ? input.dashboard.todayTasks : input.tasks).slice(0, 3);
   const scheduleItems = (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules).slice(0, 3);
-  const memoItems = input.resources.filter((item) => item.kind === "MEMO").slice(0, 3);
+  const memoItems = input.memos.filter((item) => item.status === "ACTIVE").slice(0, 3);
   const fileItems = input.resources.filter((item) => item.kind !== "MEMO").slice(0, 3);
   const agentItems = input.suggestions.slice(0, 3);
   const unreadNotifications = input.notifications.filter((item) => item.status === "UNREAD").slice(0, 3);
@@ -304,13 +316,14 @@ function buildDisplayBubbles(input: {
       compactLabel: `메모 ${memoItems.length}`,
       metric: String(memoItems.length),
       notificationLabel: memoItems.length > 0 ? "저장된 메모" : "저장된 메모 없음",
-      panelBody: "자료 API의 MEMO 항목을 표시합니다.",
+      panelBody: input.roomId ? "프로젝트룸 메모를 표시합니다." : "개인 메모를 표시합니다.",
+      roomId: input.roomId,
       roomLabel: label,
       rows: memoItems.map((item) => ({
         id: item.id,
-        kind: "resource",
-        label: item.title,
-        status: resourceStatusLabel(item.status),
+        kind: "memo",
+        label: memoTitle(item),
+        status: formatShortTime(item.updatedAt),
       })),
     }),
     resource: withBubble("resource", {
@@ -395,6 +408,7 @@ function DesktopWidgetSurface() {
   const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>({});
   const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID ?? null);
   const [communicationRevision, setCommunicationRevision] = useState(0);
+  const [memoRevision, setMemoRevision] = useState(0);
   const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(widgetNotificationSignal);
@@ -584,12 +598,13 @@ function DesktopWidgetSurface() {
       }
 
       const voiceRoomId = activeVoiceRoomId;
-      const [dashboardResult, tasksResult, schedulesResult, resourcesResult, suggestionsResult, notificationsResult, chatRoomsResult, friendsResult, roomResult, voiceResult] =
+      const [dashboardResult, tasksResult, schedulesResult, resourcesResult, memosResult, suggestionsResult, notificationsResult, chatRoomsResult, friendsResult, roomResult, voiceResult] =
         await Promise.allSettled([
           widgetDisplayApi.getDashboardWork(),
           widgetDisplayApi.listDashboardTasks(6),
           widgetDisplayApi.listSchedules(selectedRoomId, 6),
           widgetDisplayApi.listResources(selectedRoomId, 6),
+          widgetDisplayApi.listMemos(selectedRoomId, 6),
           widgetDisplayApi.listAgentSuggestions(selectedRoomId),
           widgetDisplayApi.listNotifications(6),
           widgetDisplayApi.listChatRooms(6),
@@ -613,6 +628,7 @@ function DesktopWidgetSurface() {
           chatRoom: activeRoom ?? null,
           dashboard: dashboardResult.status === "fulfilled" ? dashboardResult.value : null,
           friends: friendsResult.status === "fulfilled" ? friendsResult.value : [],
+          memos: memosResult.status === "fulfilled" ? memosResult.value.items : [],
           messages: messages?.items ?? [],
           notifications,
           resources: resourcesResult.status === "fulfilled" ? resourcesResult.value.items : [],
@@ -637,7 +653,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, voiceConnectionLabel, widgetContext?.selectedRoomId]);
+  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, memoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId]);
 
   useEffect(() => {
     if (!isBubbleBar) return;
@@ -936,6 +952,31 @@ function DesktopWidgetSurface() {
     [isTauri],
   );
 
+  const createWidgetMemo = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      const body = window.prompt("메모 내용을 입력하세요.")?.trim();
+      if (!body) return;
+
+      const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
+      const memo = await widgetDisplayApi.createMemo(body, roomId);
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "memo",
+            eventType: "memo:create",
+            itemId: memo.id,
+            itemType: "MEMO",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setMemoRevision((current) => current + 1);
+    },
+    [isTauri, widgetContext?.selectedRoomId],
+  );
+
   const startWidgetVoice = useCallback(
     async (bubble: WidgetPreviewBubble) => {
       if (!bubble.roomId) {
@@ -1086,6 +1127,7 @@ function DesktopWidgetSurface() {
       onLeaveVoice={leaveWidgetVoice}
       onMarkChatRead={markWidgetChatRead}
       onModeChange={(nextMode) => void setWindowMode(nextMode)}
+      onCreateMemo={createWidgetMemo}
       onRestore={() => void restoreCurrentWindow()}
       onSendChatMessage={sendWidgetChatMessage}
       onStartVoice={startWidgetVoice}

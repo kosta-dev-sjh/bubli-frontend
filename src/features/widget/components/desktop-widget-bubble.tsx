@@ -95,6 +95,7 @@ export type DesktopWidgetBubbleProps = {
   onMarkChatRead?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onModeChange: (mode: WidgetWindowMode) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
+  onCreateMemo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onRestore?: () => void;
   onSendChatMessage?: (bubble: WidgetPreviewBubble, text: string) => Promise<void> | void;
   onStartVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
@@ -451,7 +452,7 @@ function TimerBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble;
   );
 }
 
-function MemoBody({ bubble }: { bubble: WidgetPreviewBubble }) {
+function MemoBody({ bubble, onCreateMemo }: { bubble: WidgetPreviewBubble; onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"] }) {
   return (
     <div className={[styles.body, styles.memoGrid].join(" ")}>
       {bubble.rows.length > 0 ? (
@@ -466,7 +467,7 @@ function MemoBody({ bubble }: { bubble: WidgetPreviewBubble }) {
           <span>{bubble.notificationLabel}</span>
         </div>
       )}
-      <button className={styles.wideAction} type="button">
+      <button className={styles.wideAction} onClick={() => void onCreateMemo?.(bubble)} type="button">
         <Plus size={14} strokeWidth={2} />
         {bubble.actionLabel}
       </button>
@@ -533,6 +534,7 @@ function ResourceBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubb
 function BubbleBody({
   bubble,
   onItemStateChange,
+  onCreateMemo,
   onLeaveVoice,
   onMarkChatRead,
   onSendChatMessage,
@@ -541,6 +543,7 @@ function BubbleBody({
 }: {
   bubble: WidgetPreviewBubble;
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
   onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
   onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
   onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
@@ -562,7 +565,7 @@ function BubbleBody({
     );
   }
   if (bubble.id === "timer") return <TimerBody bubble={bubble} onItemStateChange={onItemStateChange} />;
-  if (bubble.id === "memo") return <MemoBody bubble={bubble} />;
+  if (bubble.id === "memo") return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} />;
   if (bubble.id === "schedule") return <ScheduleBody bubble={bubble} onItemStateChange={onItemStateChange} />;
   if (bubble.id === "resource") return <ResourceBody bubble={bubble} onItemStateChange={onItemStateChange} />;
   return <TodoBody bubble={bubble} onItemStateChange={onItemStateChange} />;
@@ -589,6 +592,7 @@ export function DesktopWidgetBubble({
   onLeaveVoice,
   onMarkChatRead,
   onModeChange,
+  onCreateMemo,
   onRestore,
   onSendChatMessage,
   onStartVoice,
@@ -654,6 +658,7 @@ export function DesktopWidgetBubble({
                 onItemStateChange={onItemStateChange}
                 onLeaveVoice={onLeaveVoice}
                 onMarkChatRead={onMarkChatRead}
+                onCreateMemo={onCreateMemo}
                 onSendChatMessage={onSendChatMessage}
                 onStartVoice={onStartVoice}
                 onToggleVoiceMic={onToggleVoiceMic}
