@@ -96,8 +96,9 @@ async function smokeBackend(accessToken) {
 
 async function runTauriDev(accessToken) {
   console.log("\nStarting Tauri dev with real backend widget token...");
+  const command = tauriDevCommand();
 
-  const child = spawn(npmCommand(), ["run", "tauri:dev"], {
+  const child = spawn(command.file, command.args, {
     env: {
       ...process.env,
       NEXT_PUBLIC_API_BASE_URL: API_BASE_URL,
@@ -209,8 +210,12 @@ function withDockerPath(env) {
   };
 }
 
-function npmCommand() {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
+function tauriDevCommand() {
+  if (process.platform === "win32") {
+    return { args: ["/d", "/s", "/c", "npm run tauri:dev"], file: "cmd.exe" };
+  }
+
+  return { args: ["run", "tauri:dev"], file: "npm" };
 }
 
 function maskToken(value) {
