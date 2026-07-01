@@ -24,6 +24,7 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
@@ -55,15 +56,17 @@ type RoomHomeState =
 
 type SettledValue<T> = PromiseSettledResult<T>;
 
+type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
 function settledOr<T>(result: SettledValue<T>, fallback: T) {
   return result.status === "fulfilled" ? result.value : fallback;
 }
 
-function paymentLabel(room: ProjectRoomResponse) {
+function paymentLabelKey(room: ProjectRoomResponse): MessageKey | null {
   if (!room.contractAmount && room.paymentStatus === "NOT_RECORDED") return null;
-  if (room.paymentStatus === "PAID") return "입금 완료";
-  if (room.paymentStatus === "OVERDUE") return "확인 필요";
-  return "기록됨";
+  if (room.paymentStatus === "PAID") return "room.detail.payment.paid";
+  if (room.paymentStatus === "OVERDUE") return "room.detail.payment.overdue";
+  return "room.detail.payment.recorded";
 }
 
 function formatMoney(amount?: number | null) {
@@ -93,12 +96,12 @@ function formatDue(value?: string | null) {
   }).format(date);
 }
 
-function statusLabel(status?: string | null) {
-  if (status === "DONE") return "완료";
-  if (status === "IN_PROGRESS") return "진행";
-  if (status === "REVIEW") return "검토";
-  if (status === "BLOCKED") return "막힘";
-  return "대기";
+function statusLabelKey(status?: string | null): MessageKey {
+  if (status === "DONE") return "room.status.done";
+  if (status === "IN_PROGRESS") return "room.status.inProgress";
+  if (status === "REVIEW") return "room.status.review";
+  if (status === "BLOCKED") return "room.status.blocked";
+  return "room.status.waiting";
 }
 
 function taskTone(status?: string | null) {
@@ -108,32 +111,32 @@ function taskTone(status?: string | null) {
   return "neutral";
 }
 
-function suggestionTypeLabel(type: AgentSuggestionResponse["suggestionType"]) {
-  if (type === "WBS") return "작업 구조";
-  if (type === "TODO" || type === "TASK") return "할 일";
-  if (type === "SCHEDULE") return "일정";
-  if (type === "QUESTION") return "확인 질문";
-  if (type === "REQUIREMENT") return "요구사항";
-  if (type === "CONTRACT_FIELD" || type === "CONTRACT_REVIEW") return "범위 확인";
-  if (type === "REVIEW_ITEM") return "확인 항목";
-  if (type === "DOCUMENT_DRAFT") return "문서 초안";
-  if (type === "DAILY_SUMMARY") return "하루정리";
-  return "후보";
+function suggestionTypeLabelKey(type: AgentSuggestionResponse["suggestionType"]): MessageKey {
+  if (type === "WBS") return "room.detail.suggestion.wbs";
+  if (type === "TODO" || type === "TASK") return "room.detail.suggestion.todo";
+  if (type === "SCHEDULE") return "room.detail.suggestion.schedule";
+  if (type === "QUESTION") return "room.detail.suggestion.question";
+  if (type === "REQUIREMENT") return "room.detail.suggestion.requirement";
+  if (type === "CONTRACT_FIELD" || type === "CONTRACT_REVIEW") return "room.detail.suggestion.scope";
+  if (type === "REVIEW_ITEM") return "room.detail.suggestion.reviewItem";
+  if (type === "DOCUMENT_DRAFT") return "room.detail.suggestion.documentDraft";
+  if (type === "DAILY_SUMMARY") return "room.detail.suggestion.dailySummary";
+  return "room.detail.suggestion.fallback";
 }
 
-function suggestionText(suggestion: AgentSuggestionResponse) {
+function suggestionText(suggestion: AgentSuggestionResponse, t: Translate) {
   const preferred = ["title", "name", "label", "summary", "question", "description", "content"]
     .map((key) => suggestion.payloadJson[key])
     .find((value): value is string => typeof value === "string" && value.trim().length > 0);
 
-  return preferred ?? suggestionTypeLabel(suggestion.suggestionType);
+  return preferred ?? t(suggestionTypeLabelKey(suggestion.suggestionType));
 }
 
 function boardItemDue(item: TaskResponse | WbsItemResponse) {
   return "orderNo" in item ? null : item.dueAt;
 }
 
-function BoardMiniRow({ item, meta }: { item: TaskResponse | WbsItemResponse; meta?: string | null }) {
+function BoardMiniRow({ item, meta, t }: { item: TaskResponse | WbsItemResponse; meta?: string | null; t: Translate }) {
   const due = formatDue(boardItemDue(item));
 
   return (
@@ -143,12 +146,13 @@ function BoardMiniRow({ item, meta }: { item: TaskResponse | WbsItemResponse; me
         <strong>{item.title}</strong>
         {meta || due ? <span>{[meta, due].filter(Boolean).join(" · ")}</span> : null}
       </span>
-      <StatusBadge tone={taskTone(item.status)}>{statusLabel(item.status)}</StatusBadge>
+      <StatusBadge tone={taskTone(item.status)}>{t(statusLabelKey(item.status))}</StatusBadge>
     </article>
   );
 }
 
 export default function ProjectRoomHomePage() {
+  const { t } = useI18n();
   const params = useParams<{ roomId: string }>();
   const roomId = params.roomId;
   const [state, setState] = useState<RoomHomeState>({ kind: "loading" });
@@ -173,7 +177,7 @@ export default function ProjectRoomHomePage() {
           setState({ kind: "auth" });
           return;
         }
-        throw roomError instanceof Error ? roomError : new Error("프로젝트룸을 불러오지 못했습니다.");
+        throw roomError instanceof Error ? roomError : new Error(t("room.detail.loadFailed"));
       }
 
       setActiveProjectRoomId(roomData.id, roomData.name);
@@ -209,10 +213,10 @@ export default function ProjectRoomHomePage() {
 
       setState({
         kind: "error",
-        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "프로젝트룸을 불러오지 못했습니다.",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("room.detail.loadFailed"),
       });
     }
-  }, [roomId]);
+  }, [roomId, t]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -232,14 +236,14 @@ export default function ProjectRoomHomePage() {
     const checkItems = [
       ...state.suggestions.slice(0, 3).map((suggestion) => ({
         id: suggestion.suggestionId,
-        label: suggestionText(suggestion),
-        meta: suggestionTypeLabel(suggestion.suggestionType),
+        label: suggestionText(suggestion, t),
+        meta: t(suggestionTypeLabelKey(suggestion.suggestionType)),
         tone: "agent" as const,
       })),
       ...blockedTasks.slice(0, 2).map((task) => ({
         id: task.id,
         label: task.title,
-        meta: "막힌 작업",
+        meta: t("room.detail.blockedTask"),
         tone: "warning" as const,
       })),
     ].slice(0, 4);
@@ -260,25 +264,25 @@ export default function ProjectRoomHomePage() {
       wbsTitleById,
       wbsItems: state.board.wbsItems,
     };
-  }, [state]);
+  }, [state, t]);
 
   return (
     <section className="workspace-route workspace-route--room-home" aria-labelledby="room-home-title">
       <header className="workspace-route__header">
         <div>
-          <h1 id="room-home-title">{state.kind === "ready" ? state.room.name : "프로젝트룸"}</h1>
-          {state.kind === "ready" ? <p className="workspace-route__eyebrow">이 룸에서 자료, 작업, 소통, 일정을 이어서 봅니다</p> : null}
+          <h1 id="room-home-title">{state.kind === "ready" ? state.room.name : t("room.fallbackName")}</h1>
+          {state.kind === "ready" ? <p className="workspace-route__eyebrow">{t("room.detail.eyebrow")}</p> : null}
         </div>
         {state.kind === "ready" ? (
           <div className="workspace-route__actions">
             <Link className="bubli-button" href={`/app/project-rooms/${roomId}/work`}>
-              WBS/칸반
+              {t("room.detail.tabWork")}
             </Link>
             <Link className="bubli-button" href={`/app/project-rooms/${roomId}/resources`}>
-              자료
+              {t("room.detail.tabResources")}
             </Link>
             <Link className="bubli-button" href={`/app/desktop/widgets?autoOpen=chat&roomId=${encodeURIComponent(roomId)}`}>
-              소통
+              {t("room.detail.tabChat")}
             </Link>
           </div>
         ) : null}
@@ -286,16 +290,16 @@ export default function ProjectRoomHomePage() {
 
       {state.kind === "loading" ? (
         <GlassPanel className="workspace-route__panel">
-          <strong>불러오는 중</strong>
+          <strong>{t("room.loading")}</strong>
         </GlassPanel>
       ) : null}
 
       {state.kind === "auth" ? (
         <GlassPanel className="workspace-route__panel">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
-          <strong>로그인이 필요합니다</strong>
+          <strong>{t("room.authTitle")}</strong>
           <Link className="bubli-button bubli-button--primary" href="/login">
-            로그인
+            {t("common.login")}
           </Link>
         </GlassPanel>
       ) : null}
@@ -306,30 +310,30 @@ export default function ProjectRoomHomePage() {
           <strong>{state.message}</strong>
           <Button onClick={() => void load()} variant="primary">
             <RefreshCw aria-hidden size={15} strokeWidth={1.9} />
-            다시 연결
+            {t("room.reconnect")}
           </Button>
           <Link className="bubli-button" href="/app/project-rooms">
-            목록
+            {t("room.list")}
           </Link>
         </GlassPanel>
       ) : null}
 
       {state.kind === "ready" && roomContent ? (
         <>
-          <div className="workspace-route__summary" aria-label="프로젝트룸 상태">
-            <span>{state.room.status === "CLOSED" ? "종료" : "진행 중"}</span>
-            <span>멤버 {state.members.length}</span>
+          <div className="workspace-route__summary" aria-label={t("room.detail.summaryLabel")}>
+            <span>{state.room.status === "CLOSED" ? t("room.detail.statusClosed") : t("room.detail.statusActive")}</span>
+            <span>{t("room.detail.memberCount", { count: state.members.length })}</span>
             {state.room.clientName ? <span>{state.room.clientName}</span> : null}
             {formatMoney(state.room.contractAmount) ? <span>{formatMoney(state.room.contractAmount)}</span> : null}
-            {formatDate(state.room.paymentDueDate) ? <span>입금 {formatDate(state.room.paymentDueDate)}</span> : null}
-            {paymentLabel(state.room) && !formatMoney(state.room.contractAmount) ? <span>{paymentLabel(state.room)}</span> : null}
+            {formatDate(state.room.paymentDueDate) ? <span>{t("room.detail.paymentPrefix", { date: formatDate(state.room.paymentDueDate) ?? "" })}</span> : null}
+            {paymentLabelKey(state.room) && !formatMoney(state.room.contractAmount) ? <span>{t(paymentLabelKey(state.room) as MessageKey)}</span> : null}
           </div>
 
           <GlassPanel className="workspace-route__section">
             <div className="workspace-route__section-head">
               <div>
-                <strong>현재 작업 맥락</strong>
-                <span>이 프로젝트룸에서 승인한 내용만 작업판, 일정, 대시보드와 버블 표시로 이어집니다</span>
+                <strong>{t("room.detail.contextTitle")}</strong>
+                <span>{t("room.detail.contextSub")}</span>
               </div>
               <Sparkles aria-hidden size={18} strokeWidth={1.9} />
             </div>
@@ -338,26 +342,26 @@ export default function ProjectRoomHomePage() {
                 <article className="workspace-route__row">
                   <FileText aria-hidden size={18} strokeWidth={1.9} />
                   <span className="workspace-route__main">
-                    <strong>프로젝트룸 자료</strong>
+                    <strong>{t("room.detail.resourcesTitle")}</strong>
                     <span>
                       {roomContent.recentResources.length > 0
                         ? roomContent.recentResources.map((resource) => resource.title).join(" · ")
-                        : "계약서, 요구사항, 회의록을 먼저 올립니다"}
+                        : t("room.detail.resourcesEmpty")}
                     </span>
                   </span>
-                  <span className="workspace-route__status">{state.resources.length}개</span>
+                  <span className="workspace-route__status">{t("room.detail.countUnit", { count: state.resources.length })}</span>
                 </article>
                 <article className="workspace-route__row">
                   <Sparkles aria-hidden size={18} strokeWidth={1.9} />
                   <span className="workspace-route__main">
-                    <strong>에이전트 후보</strong>
+                    <strong>{t("room.detail.suggestionsTitle")}</strong>
                     <span>
                       {roomContent.readySuggestions.length > 0
-                        ? roomContent.readySuggestions.map((suggestion) => suggestionTypeLabel(suggestion.suggestionType)).join(" · ")
-                        : "확인 질문, WBS, TODO 후보가 여기에 모입니다"}
+                        ? roomContent.readySuggestions.map((suggestion) => t(suggestionTypeLabelKey(suggestion.suggestionType))).join(" · ")
+                        : t("room.detail.suggestionsEmpty")}
                     </span>
                   </span>
-                  <span className="workspace-route__status">{state.suggestions.length}개</span>
+                  <span className="workspace-route__status">{t("room.detail.countUnit", { count: state.suggestions.length })}</span>
                 </article>
               </div>
 
@@ -365,16 +369,16 @@ export default function ProjectRoomHomePage() {
                 <Link className="room-home__quick-link" href={`/app/project-rooms/${roomId}/work`}>
                   <ListChecks aria-hidden size={18} strokeWidth={1.9} />
                   <span>
-                    <strong>WBS와 칸반 작업판</strong>
-                    <span>승인한 요구사항과 TODO를 이 룸 기준으로 정리</span>
+                    <strong>{t("room.detail.workLinkTitle")}</strong>
+                    <span>{t("room.detail.workLinkSub")}</span>
                   </span>
                   <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
                 </Link>
                 <Link className="room-home__quick-link" href={`/app/calendar?roomId=${roomId}`}>
                   <CalendarDays aria-hidden size={18} strokeWidth={1.9} />
                   <span>
-                    <strong>일정</strong>
-                    <span>{roomContent.nextSchedule ? `${roomContent.nextSchedule.title} · ${formatDue(roomContent.nextSchedule.startsAt)}` : "납품일과 회의 일정을 연결"}</span>
+                    <strong>{t("room.detail.scheduleTitle")}</strong>
+                    <span>{roomContent.nextSchedule ? `${roomContent.nextSchedule.title} · ${formatDue(roomContent.nextSchedule.startsAt)}` : t("room.detail.scheduleEmpty")}</span>
                   </span>
                   <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
                 </Link>
@@ -382,24 +386,24 @@ export default function ProjectRoomHomePage() {
             </div>
           </GlassPanel>
 
-          <div className="room-home__metrics" aria-label="프로젝트룸 작업 요약">
+          <div className="room-home__metrics" aria-label={t("room.detail.metricsLabel")}>
             <GlassPanel className="room-home__metric">
               <ListChecks aria-hidden size={18} strokeWidth={1.9} />
-              <span>WBS</span>
+              <span>{t("room.detail.metricWbs")}</span>
               <strong>{roomContent.wbsItems.length}</strong>
             </GlassPanel>
             <GlassPanel className="room-home__metric">
-              <span>진행 작업</span>
+              <span>{t("room.detail.metricActive")}</span>
               <strong>{roomContent.activeTasks.length}</strong>
             </GlassPanel>
             <GlassPanel className="room-home__metric">
               <Sparkles aria-hidden size={18} strokeWidth={1.9} />
-              <span>확인</span>
+              <span>{t("room.detail.metricCheck")}</span>
               <strong>{roomContent.reviewCount}</strong>
             </GlassPanel>
             <GlassPanel className="room-home__metric">
               <FileText aria-hidden size={18} strokeWidth={1.9} />
-              <span>자료</span>
+              <span>{t("room.detail.metricResources")}</span>
               <strong>{state.resources.length}</strong>
             </GlassPanel>
           </div>
@@ -408,8 +412,8 @@ export default function ProjectRoomHomePage() {
             <GlassPanel className="workspace-route__section">
               <div className="workspace-route__section-head">
                 <div>
-                  <strong>다음에 볼 것</strong>
-                  <span>확인 후보와 진행 중 작업</span>
+                  <strong>{t("room.detail.nextTitle")}</strong>
+                  <span>{t("room.detail.nextSub")}</span>
                 </div>
               </div>
               <div className="workspace-route__list">
@@ -421,15 +425,15 @@ export default function ProjectRoomHomePage() {
                         <strong>{item.label}</strong>
                         <span>{item.meta}</span>
                       </span>
-                      <StatusBadge tone={item.tone}>확인</StatusBadge>
+                      <StatusBadge tone={item.tone}>{t("room.detail.check")}</StatusBadge>
                     </article>
                   ))
                 ) : roomContent.urgentTasks.length > 0 ? (
                   roomContent.urgentTasks.map((task) => (
-                    <BoardMiniRow item={task} key={task.id} meta={task.wbsItemId ? roomContent.wbsTitleById[task.wbsItemId] : null} />
+                    <BoardMiniRow item={task} key={task.id} meta={task.wbsItemId ? roomContent.wbsTitleById[task.wbsItemId] : null} t={t} />
                   ))
                 ) : (
-                  <p className="workspace-route__empty">현재 데이터가 없습니다</p>
+                  <p className="workspace-route__empty">{t("room.noData")}</p>
                 )}
               </div>
             </GlassPanel>
@@ -437,40 +441,40 @@ export default function ProjectRoomHomePage() {
             <GlassPanel className="workspace-route__section">
               <div className="workspace-route__section-head">
                 <div>
-                  <strong>다음 행동</strong>
-                  <span>상세 화면으로 이동</span>
+                  <strong>{t("room.detail.nextActionTitle")}</strong>
+                  <span>{t("room.detail.nextActionSub")}</span>
                 </div>
               </div>
               <div className="room-home__quick-stack">
                 <Link className="room-home__quick-link" href={`/app/project-rooms/${roomId}/work`}>
                   <ListChecks aria-hidden size={18} strokeWidth={1.9} />
                   <span>
-                    <strong>WBS/칸반</strong>
-                    <span>WBS {roomContent.wbsItems.length}개, 진행 작업 {roomContent.activeTasks.length}개</span>
+                    <strong>{t("room.detail.quickWorkTitle")}</strong>
+                    <span>{t("room.detail.quickWorkSub", { active: roomContent.activeTasks.length, wbs: roomContent.wbsItems.length })}</span>
                   </span>
                   <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
                 </Link>
                 <Link className="room-home__quick-link" href={`/app/project-rooms/${roomId}/resources`}>
                   <FileText aria-hidden size={18} strokeWidth={1.9} />
                   <span>
-                    <strong>자료</strong>
-                    <span>프로젝트룸 자료 {state.resources.length}개</span>
+                    <strong>{t("room.detail.quickResourceTitle")}</strong>
+                    <span>{t("room.detail.quickResourceSub", { count: state.resources.length })}</span>
                   </span>
                   <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
                 </Link>
                 <Link className="room-home__quick-link" href={`/app/desktop/widgets?autoOpen=chat&roomId=${encodeURIComponent(roomId)}`}>
                   <MessageCircle aria-hidden size={18} strokeWidth={1.9} />
                   <span>
-                    <strong>소통</strong>
-                    <span>자료와 작업 맥락을 유지한 룸 대화</span>
+                    <strong>{t("room.detail.quickChatTitle")}</strong>
+                    <span>{t("room.detail.quickChatSub")}</span>
                   </span>
                   <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
                 </Link>
                 <Link className="room-home__quick-link" href={`/app/calendar?roomId=${roomId}`}>
                   <CalendarDays aria-hidden size={18} strokeWidth={1.9} />
                   <span>
-                    <strong>{roomContent.nextSchedule?.title ?? "일정"}</strong>
-                    <span>{roomContent.nextSchedule ? formatDue(roomContent.nextSchedule.startsAt) : "현재 데이터가 없습니다"}</span>
+                    <strong>{roomContent.nextSchedule?.title ?? t("room.detail.scheduleTitle")}</strong>
+                    <span>{roomContent.nextSchedule ? formatDue(roomContent.nextSchedule.startsAt) : t("room.noData")}</span>
                   </span>
                   <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
                 </Link>
@@ -482,20 +486,20 @@ export default function ProjectRoomHomePage() {
             <GlassPanel className="workspace-route__section">
               <div className="workspace-route__section-head">
                 <UsersRound aria-hidden size={18} strokeWidth={2} />
-                <strong>멤버</strong>
+                <strong>{t("room.detail.membersTitle")}</strong>
               </div>
-              <div className="workspace-route__summary" aria-label="멤버 요약">
+              <div className="workspace-route__summary" aria-label={t("room.detail.membersLabel")}>
                 {state.members.slice(0, 4).map((member) => (
                   <article className="workspace-route__row" key={member.userId}>
                     <span className="workspace-route__dot" aria-hidden="true" />
                     <span className="workspace-route__main">
                       <strong>{member.name}</strong>
-                      <span>{member.bubliId ?? "참여 중"}</span>
+                      <span>{member.bubliId ?? t("room.detail.memberJoined")}</span>
                     </span>
-                    <span className="workspace-route__status">{member.role === "PROJECT_LEADER" ? "리더" : "멤버"}</span>
+                    <span className="workspace-route__status">{member.role === "PROJECT_LEADER" ? t("room.detail.roleLeader") : t("room.detail.roleMember")}</span>
                   </article>
                 ))}
-                {state.members.length > 4 ? <span>외 {state.members.length - 4}명</span> : null}
+                {state.members.length > 4 ? <span>{t("room.detail.moreMembers", { count: state.members.length - 4 })}</span> : null}
               </div>
             </GlassPanel>
           ) : null}
