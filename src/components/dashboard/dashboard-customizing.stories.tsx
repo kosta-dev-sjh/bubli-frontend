@@ -78,12 +78,12 @@ function Flow() {
   const [ids, setIds] = useState<string[]>([
     "today-todos",
     "project-time-ring",
-    "agent-suggestions",
+    "pending-approval",
     "timer",
     "today-summary",
   ]);
   const [hidden, setHidden] = useState<Set<string>>(new Set(["today-summary"]));
-  const [selected, setSelected] = useState<string | null>("agent-suggestions");
+  const [selected, setSelected] = useState<string | null>("pending-approval");
   const [query, setQuery] = useState("");
   const [editMode, setEditMode] = useState(true);
 

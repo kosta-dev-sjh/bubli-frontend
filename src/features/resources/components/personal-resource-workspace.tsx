@@ -107,7 +107,7 @@ export function PersonalResourceWorkspace() {
         <div className="resource-workspace__copy">
           <span className={styles.kicker}>개인 자료</span>
           <h1>자료보드</h1>
-          <p>로컬 폴더 색인 상태와 최근 자료를 확인합니다.</p>
+          <p>내 로컬 폴더에서 색인된 자료만 봅니다.</p>
         </div>
         <div className={styles.headerActions}>
           <ResourceScopeSwitch activeScope="personal" roomHref={activeRoomId ? `/app/project-rooms/${activeRoomId}/resources` : "/app/project-rooms"} roomLabel="프로젝트룸" />

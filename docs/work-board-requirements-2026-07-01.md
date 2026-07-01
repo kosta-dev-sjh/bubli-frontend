@@ -17,6 +17,9 @@
 - 부모 WBS와 하위 WBS의 관계가 보이게 들여쓰기한다.
 - 선택한 WBS의 연결 TODO, 기한, 하위 작업 수를 보여준다.
 - 상위 WBS를 선택하면 하위 WBS에 연결된 TODO도 함께 보여준다.
+- 선택한 WBS는 이름, 기한, 상태를 바로 수정할 수 있어야 한다.
+- 새 WBS는 선택한 WBS의 하위 항목으로 추가할 수 있어야 한다.
+- 연결된 하위 WBS나 할 일이 없는 WBS만 삭제할 수 있다.
 - 빈 상태는 "현재 데이터가 없습니다"로만 표시한다.
 
 ## 칸반 보기
@@ -26,6 +29,8 @@
 - `BLOCKED`는 검토 칼럼에서 함께 다룬다.
 - 카드는 드래그해서 상태를 바꿀 수 있어야 한다.
 - 카드 제목이 세로로 찢어지거나 좁게 접히면 안 된다.
+- 칸반은 Jira처럼 가로 보드로 읽혀야 한다. 화면 폭이 좁으면 칼럼을 억지로 압축하지 말고 가로 스크롤을 허용한다.
+- 칼럼 안 카드에는 작업 제목, 연결 WBS, 기한, 상태가 한 덩어리로 보여야 한다.
 - 화면에서 뺄 때도 드래그 제거 영역을 지원한다.
 
 ## 후보 보기
@@ -41,6 +46,7 @@
 - WBS 생성: `POST /api/project-rooms/{roomId}/wbs-items`
 - WBS 순서 변경: `PATCH /api/project-rooms/{roomId}/wbs-items/reorder`
 - WBS 수정: `PATCH /api/wbs-items/{id}`
+- WBS 상태 변경: `PATCH /api/wbs-items/{id}`
 - WBS 삭제: `DELETE /api/wbs-items/{id}`
 - 프로젝트룸 TODO: `GET /api/project-rooms/{roomId}/tasks`
 - 후보 승인: `PATCH /api/agent/suggestions/{id}`

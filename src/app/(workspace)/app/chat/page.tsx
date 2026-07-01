@@ -83,8 +83,8 @@ const previewFriendRequests: FriendRequestResponse[] = [
     direction: "RECEIVED",
     id: "preview-friend-request-1",
     receiver: {
-      bubliId: "maren",
-      name: "Maren",
+      bubliId: workspacePreviewUser.bubliId,
+      name: workspacePreviewUser.name,
       userId: workspacePreviewUser.id,
     },
     requester: {
@@ -104,8 +104,8 @@ const previewFriendRequests: FriendRequestResponse[] = [
       userId: "preview-search-friend-1",
     },
     requester: {
-      bubliId: "maren",
-      name: "Maren",
+      bubliId: workspacePreviewUser.bubliId,
+      name: workspacePreviewUser.name,
       userId: workspacePreviewUser.id,
     },
     status: "PENDING",
@@ -265,10 +265,11 @@ function ChatPageContent() {
 
     const now = new Date().toISOString();
     const me: VoiceParticipantResponse = {
+      id: `preview-voice-participant-${currentUser.id}`,
       joinedAt: now,
-      name: currentUser.name,
       status: "JOINED",
       userId: currentUser.id,
+      userName: currentUser.name,
     };
 
     if (selectedRoom?.chatType === "DIRECT") {
@@ -277,10 +278,11 @@ function ChatPageContent() {
         ? [
             me,
             {
+              id: `preview-voice-participant-${directFriend.friendUserId}`,
               joinedAt: now,
-              name: directFriend.name,
               status: "JOINED",
               userId: directFriend.friendUserId,
+              userName: directFriend.name,
             },
           ]
         : [me];
@@ -290,10 +292,11 @@ function ChatPageContent() {
       return [
         me,
         ...previewFriends.slice(0, 2).map((friend, index) => ({
+          id: `preview-voice-participant-${friend.friendUserId}`,
           joinedAt: now,
-          name: friend.name,
           status: index === 0 ? ("JOINED" as const) : ("DISCONNECTED" as const),
           userId: friend.friendUserId,
+          userName: friend.name,
         })),
       ];
     }
@@ -366,15 +369,14 @@ function ChatPageContent() {
   const loadProfile = useCallback(async () => {
     setProfileState({ kind: "loading" });
 
-    if (shouldUseWorkspacePreviewData()) {
-      setProfileState({ kind: "ready", user: workspacePreviewUser });
-      return;
-    }
-
     try {
       const user = await authApi.getMe();
       setProfileState({ kind: "ready", user });
     } catch {
+      if (shouldUseWorkspacePreviewData()) {
+        setProfileState({ kind: "ready", user: workspacePreviewUser });
+        return;
+      }
       setProfileState({ kind: "offline" });
     }
   }, []);
@@ -602,7 +604,7 @@ function ChatPageContent() {
       }
 
       try {
-        await friendApi.sendRequest({ receiverUserId: target.userId });
+        await friendApi.sendRequest({ bubliId: target.bubliId });
         setFriendSearchState({ kind: "sent", targetName: target.name });
         await loadSocial();
       } catch {
@@ -627,14 +629,16 @@ function ChatPageContent() {
       setVoiceState({
         kind: "ready",
         room: {
+          createdAt: new Date().toISOString(),
           id: `preview-voice-${selectedRoom.roomId}`,
           livekitRoomName: `bubli-preview-${selectedRoom.roomId}`,
           participants: [
             {
+              id: `preview-voice-participant-${currentUser.id}`,
               joinedAt: new Date().toISOString(),
-              name: workspacePreviewUser.name,
               status: "JOINED",
-              userId: workspacePreviewUser.id,
+              userId: currentUser.id,
+              userName: currentUser.name,
             },
           ],
           roomId: selectedRoom.roomId,
@@ -650,7 +654,7 @@ function ChatPageContent() {
     } catch {
       setVoiceState({ kind: "blocked", message: "보이스를 시작하지 못했습니다. 서버 상태를 확인하세요." });
     }
-  }, [selectedRoom]);
+  }, [currentUser, selectedRoom]);
 
 
   const sendMessage = useCallback(async () => {
@@ -680,8 +684,8 @@ function ChatPageContent() {
           messageType,
           roomSequence: nextSequence,
           sender: {
-            id: workspacePreviewUser.id,
-            name: workspacePreviewUser.name,
+            id: currentUser.id,
+            name: currentUser.name,
             type: "USER",
           },
         };
@@ -705,7 +709,7 @@ function ChatPageContent() {
     } finally {
       setSending(false);
     }
-  }, [activeChatRoomId, draft, loadMessages, messagesState, selectedAttachmentName]);
+  }, [activeChatRoomId, currentUser, draft, loadMessages, messagesState, selectedAttachmentName]);
 
   return (
     <section className="workspace-route" aria-labelledby="chat-title">
@@ -872,7 +876,7 @@ function ChatPageContent() {
                 <span className="workspace-route__voice-stack" aria-label={`참여자 ${voiceParticipants.length}명`}>
                   {voiceParticipants.slice(0, 3).map((participant) => (
                     <i data-status={participant.status.toLowerCase()} key={participant.userId}>
-                      {initialOf(participant.name)}
+                      {initialOf(participant.userName)}
                     </i>
                   ))}
                 </span>
@@ -1201,9 +1205,9 @@ function ChatPageContent() {
                 <div className="workspace-route__voice-people">
                   {voiceParticipants.map((participant, index) => (
                     <div className="workspace-route__voice-person" key={participant.userId}>
-                      <span data-status={participant.status.toLowerCase()}>{initialOf(participant.name)}</span>
+                      <span data-status={participant.status.toLowerCase()}>{initialOf(participant.userName)}</span>
                       <div>
-                        <strong>{participant.name}</strong>
+                        <strong>{participant.userName}</strong>
                         <small>{index === 0 && participant.status === "JOINED" ? "말하는 중" : voiceParticipantStatusLabel(participant.status)}</small>
                       </div>
                     </div>

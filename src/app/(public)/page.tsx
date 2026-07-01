@@ -8,13 +8,13 @@ import { PublicHomeFlow } from "@/features/public-site/components/public-home-fl
 import { Reveal } from "@/features/public-site/components/reveal";
 
 const featureCards = [
-  { kicker: "문제", title: "자료가 흩어지지 않게", body: "계약서·요구사항·회의록을 프로젝트룸 기준으로 묶어 업무 기준을 잃지 않습니다." },
+  { kicker: "문제", title: "자료가 흩어지지 않게", body: "요구사항·회의록·참고 자료를 프로젝트룸 기준으로 묶어 업무 기준을 잃지 않습니다." },
   { kicker: "판단", title: "에이전트는 후보만", body: "확인 질문과 TODO 후보를 제안하고, 사용자가 승인한 항목만 실제 작업이 됩니다." },
   { kicker: "결과", title: "결정은 맥락 옆에", body: "자료 옆에서 대화를 이어가 결정, 근거, 할 일이 따로 흩어지지 않습니다." },
 ];
 
 const faqItems = [
-  { q: "어떻게 시작하나요?", a: "로그인 후 프로젝트룸을 만들고, 계약서나 회의록 같은 자료를 올리면 됩니다." },
+  { q: "어떻게 시작하나요?", a: "로그인 후 프로젝트룸을 만들고, 요구사항이나 회의록 같은 자료를 올리면 됩니다." },
   { q: "내 PC 파일을 다 읽나요?", a: "아니요. 사용자가 직접 지정한 폴더만 감지하고, 전체 PC 자동 색인은 하지 않습니다." },
   { q: "데스크탑 앱은 무엇이 다른가요?", a: "회원 웹 앱을 그대로 띄우고, 바탕화면 위 버블 위젯·로컬 폴더 연동·빠른 캐시를 더합니다." },
   { q: "에이전트가 임의로 작업을 바꾸나요?", a: "아니요. 에이전트는 후보만 만들고, 사용자가 확인한 항목만 실제 작업이 됩니다." },
@@ -126,7 +126,7 @@ export default function HomePage() {
                         <span>오늘 실행</span>
                       </div>
                       <div className="landing-app-preview__lane">
-                        <b>계약서 검토 질문 정리</b>
+                        <b>업무 범위 질문 정리</b>
                         <small>자료 후보 승인에서 연결됨</small>
                       </div>
                       <div className="landing-app-preview__lane">

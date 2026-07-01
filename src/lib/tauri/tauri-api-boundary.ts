@@ -8,7 +8,7 @@
 // This file imports command names from commands.ts for reference only; it does
 // not modify the IPC contract.
 
-import { PLANNED_TAURI_COMMANDS, TAURI_COMMANDS } from "@/lib/tauri/commands";
+import { TAURI_COMMANDS } from "@/lib/tauri/commands";
 
 /** Concerns that live only on the device. */
 export const LOCAL_ONLY_RESPONSIBILITIES = [
@@ -66,71 +66,71 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
   },
   // BUBLI-41 widget usage: local detail -> local rollup -> staged for server summary.
   {
-    ipc: PLANNED_TAURI_COMMANDS.recordWidgetUsageEvent,
+    ipc: TAURI_COMMANDS.recordWidgetUsageEvent,
     responsibility: "Record widget usage detail event (kept on device)",
     reflectsToServer: false,
     serverApi: null,
   },
   {
-    ipc: PLANNED_TAURI_COMMANDS.rollupWidgetUsage,
+    ipc: TAURI_COMMANDS.rollupWidgetUsage,
     responsibility: "Compress detail events into per-date rollups",
     reflectsToServer: false,
     serverApi: null,
   },
   {
-    ipc: PLANNED_TAURI_COMMANDS.syncWidgetUsageSummary,
+    ipc: TAURI_COMMANDS.syncWidgetUsageSummary,
     responsibility: "Stage rollups for server reflection",
     reflectsToServer: true,
     serverApi: "/api/widget/usage-summaries",
   },
   // BUBLI-44 activity context: local capture, server reflect of consented data.
   {
-    ipc: PLANNED_TAURI_COMMANDS.readActivityContext,
+    ipc: TAURI_COMMANDS.readActivityContext,
     responsibility: "Read current app/window/dwell (consent-gated)",
     reflectsToServer: true,
     serverApi: "/api/activity/current-app",
   },
   // BUBLI-43 personal managed folder: local index, only approved items reach server.
   {
-    ipc: PLANNED_TAURI_COMMANDS.selectManagedFolder,
+    ipc: TAURI_COMMANDS.selectManagedFolder,
     responsibility: "Register a personal managed folder",
     reflectsToServer: false,
     serverApi: null,
   },
   {
-    ipc: PLANNED_TAURI_COMMANDS.scanManagedFolder,
+    ipc: TAURI_COMMANDS.scanManagedFolder,
     responsibility: "Scan folder, build local index and change events",
     reflectsToServer: false,
     serverApi: null,
   },
   {
-    ipc: PLANNED_TAURI_COMMANDS.watchManagedFolder,
+    ipc: TAURI_COMMANDS.watchManagedFolder,
     responsibility: "Watch folder for changes (native step pending)",
     reflectsToServer: false,
     serverApi: null,
   },
   {
-    ipc: PLANNED_TAURI_COMMANDS.searchLocalFiles,
+    ipc: TAURI_COMMANDS.searchLocalFiles,
     responsibility: "Search the local file index",
     reflectsToServer: false,
     serverApi: null,
   },
   {
-    ipc: PLANNED_TAURI_COMMANDS.flushSyncOutbox,
+    ipc: TAURI_COMMANDS.flushSyncOutbox,
     responsibility: "Report/flush server-reflect backlog",
     reflectsToServer: true,
     serverApi: "/api/local-file-events/sync",
   },
   // Chat cache: server is the source of truth.
   {
-    ipc: PLANNED_TAURI_COMMANDS.syncRoomMessages,
+    ipc: TAURI_COMMANDS.syncRoomMessages,
     responsibility: "Mirror server chat into the local room cache",
     reflectsToServer: false,
     serverApi: "/api/chat/rooms/{id}/messages",
   },
   // Timer recovery: compares against server time_logs.
   {
-    ipc: PLANNED_TAURI_COMMANDS.recoverTimerState,
+    ipc: TAURI_COMMANDS.recoverTimerState,
     responsibility: "Compare local timer state with server on restart",
     reflectsToServer: true,
     serverApi: "/api/time-logs/{id}/heartbeat",

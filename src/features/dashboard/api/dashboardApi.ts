@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/api/client";
+import type { PageResponse } from "@/types/api/common";
 import type { DashboardWorkResponse, TaskResponse } from "@/types/api/work";
 
 export const dashboardApi = {
@@ -7,6 +8,6 @@ export const dashboardApi = {
   },
 
   getTasks() {
-    return apiRequest<TaskResponse[]>("/api/dashboard/tasks");
+    return apiRequest<PageResponse<TaskResponse>>("/api/dashboard/tasks");
   },
 } as const;

@@ -157,7 +157,7 @@ function buildPreviewRoomEvents(roomId: string | null, schedules: ScheduleRespon
     .map((event, index) => ({
       actor: {
         id: index === 2 ? null : "preview-user",
-        name: index === 2 ? "에이전트" : "Maren",
+        name: index === 2 ? "에이전트" : "사용자",
         type: index === 2 ? "AGENT" : "USER",
       },
       eventId: `preview-room-event-${index + 1}`,

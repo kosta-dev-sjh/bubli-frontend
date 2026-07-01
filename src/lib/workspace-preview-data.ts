@@ -28,12 +28,12 @@ export function pageOf<T>(items: T[]): PageResponse<T> {
 
 export const workspacePreviewUser: AuthUser = {
   avatarUrl: null,
-  bubliId: "maren",
-  email: "preview@bubli.local",
-  googleSub: "preview-google-sub",
+  bubliId: "local-user",
+  email: null,
+  googleSub: null,
   id: "11111111-1111-4111-8111-111111111111",
   locale: "ko-KR",
-  name: "Maren",
+  name: "사용자",
   timezone: "Asia/Seoul",
 };
 
@@ -95,9 +95,9 @@ export const workspacePreviewMembers: ProjectRoomMemberResponse[] = [
     status: "ACTIVE",
     user: {
       avatarUrl: null,
-      bubliId: "maren",
+      bubliId: workspacePreviewUser.bubliId,
       id: workspacePreviewUser.id,
-      name: "Maren",
+      name: workspacePreviewUser.name,
     },
   },
 ];

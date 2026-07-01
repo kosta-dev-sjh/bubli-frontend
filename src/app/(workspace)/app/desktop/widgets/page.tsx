@@ -37,6 +37,10 @@ const featureIcons: Record<WidgetBubbleType, typeof CheckCircle2> = {
   todo: CheckCircle2,
 };
 
+function resolvePreviewBubble(value: WidgetWindowState["activeBubble"] | null | undefined, fallback: WidgetBubbleType): WidgetBubbleType {
+  return widgetPreviewBubbles.some((bubble) => bubble.id === value) ? (value as WidgetBubbleType) : fallback;
+}
+
 function requestedBubbleFromSearch(): WidgetBubbleType | null {
   if (typeof window === "undefined") return null;
   const requested = new URLSearchParams(window.location.search).get("autoOpen");
@@ -80,7 +84,7 @@ export default function DesktopWidgetsPage() {
             const opened = await tauriCommands.openWidgetWindow({ bubbleType: requestedBubble });
             const nextWindow = requestedMode ? await tauriCommands.setWidgetWindowMode({ bubbleType: requestedBubble, mode: requestedMode }) : opened;
             setRuntime({ isTauri, widgetWindow: nextWindow });
-            setPreviewBubble(nextWindow.activeBubble);
+            setPreviewBubble(resolvePreviewBubble(nextWindow.activeBubble, requestedBubble));
             setPreviewMode(nextWindow.mode);
             setPreviewAlwaysOnTop(nextWindow.alwaysOnTop);
             setPreviewWindowVisible(nextWindow.windowVisible);
@@ -88,7 +92,7 @@ export default function DesktopWidgetsPage() {
           }
 
           setRuntime({ isTauri, widgetWindow });
-          setPreviewBubble(widgetWindow.activeBubble);
+          setPreviewBubble(resolvePreviewBubble(widgetWindow.activeBubble, previewBubble));
           setPreviewMode(widgetWindow.mode);
           setPreviewAlwaysOnTop(widgetWindow.alwaysOnTop);
           setPreviewWindowVisible(widgetWindow.windowVisible);
@@ -135,7 +139,7 @@ export default function DesktopWidgetsPage() {
     setUsageMessage(result.message ?? "요약 동기화를 처리했습니다");
   }, []);
 
-  const activeBubble = runtime.widgetWindow?.activeBubble ?? previewBubble;
+  const activeBubble = resolvePreviewBubble(runtime.widgetWindow?.activeBubble, previewBubble);
   const activeMode = runtime.widgetWindow?.mode ?? previewMode;
   const activeAlwaysOnTop = runtime.widgetWindow?.alwaysOnTop ?? previewAlwaysOnTop;
   const activeClickThrough = runtime.widgetWindow?.clickThrough ?? activeMode === "GHOST";
@@ -177,7 +181,7 @@ export default function DesktopWidgetsPage() {
       try {
         const widgetWindow = await tauriCommands.openWidgetWindow({ bubbleType });
         setRuntime((current) => ({ ...current, widgetWindow }));
-        setPreviewBubble(widgetWindow.activeBubble);
+        setPreviewBubble(resolvePreviewBubble(widgetWindow.activeBubble, bubbleType));
         setPreviewMode(widgetWindow.mode);
         setPreviewAlwaysOnTop(widgetWindow.alwaysOnTop);
       } catch {

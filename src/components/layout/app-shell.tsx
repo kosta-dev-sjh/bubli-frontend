@@ -105,10 +105,7 @@ export function AppShell({ children }: AppShellProps) {
     let mounted = true;
 
     async function loadShell() {
-      if (shouldUseWorkspacePreviewData()) {
-        setState({ kind: "ready", notificationCount: 0, rooms: workspacePreviewRooms, user: workspacePreviewUser });
-        return;
-      }
+      const usePreviewData = shouldUseWorkspacePreviewData();
 
       try {
         const [user, roomPage] = await Promise.all([authApi.getMe(), projectRoomApi.list()]);
@@ -124,6 +121,10 @@ export function AppShell({ children }: AppShellProps) {
         if (mounted) setState({ kind: "ready", notificationCount, rooms: roomPage.items, user });
       } catch (error) {
         if (!mounted) return;
+        if (usePreviewData) {
+          setState({ kind: "ready", notificationCount: 0, rooms: workspacePreviewRooms, user: workspacePreviewUser });
+          return;
+        }
         if (error instanceof ApiClientError && error.status === 401) {
           setState({ kind: "auth" });
           return;
@@ -252,7 +253,7 @@ export function AppShell({ children }: AppShellProps) {
 
     return {
       displayName: state.user.name,
-      email: state.user.email ?? "",
+      email: state.user.email ?? "로그인 정보 없음",
       initials: initialsFromName(state.user.name),
     };
   }, [state]);

@@ -1,10 +1,11 @@
 .shell {
   display: grid;
-  gap: 18px;
+  font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
+  gap: 16px;
 }
 
 .contextBand {
-  align-items: center;
+  align-items: flex-start;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(215, 234, 244, 0.48)),
     #f7f9fa;
@@ -13,9 +14,15 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 18px 46px rgba(107, 143, 168, 0.14);
   color: #2c3540;
   display: flex;
-  gap: 18px;
+  gap: 16px;
   justify-content: space-between;
-  padding: 20px;
+  padding: 16px;
+}
+
+.contextCopy {
+  display: grid;
+  gap: 6px;
+  min-inline-size: 0;
 }
 
 .contextTools {
@@ -49,6 +56,7 @@
   font-weight: 900;
   letter-spacing: 0;
   cursor: pointer;
+  transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
 .viewSwitch button[aria-pressed="true"] {
@@ -57,14 +65,21 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.94),
     0 10px 24px -18px rgba(107, 143, 168, 0.5);
+  transform: translateY(-1px);
 }
 
-.contextBand h2,
+.contextBand h2 {
+  color: #2c3540;
+  font-size: 19px;
+  line-height: 1.25;
+  margin: 0;
+}
+
 .paneHead h2 {
   color: #2c3540;
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1.35;
-  margin: 8px 0 4px;
+  margin: 0 0 4px;
 }
 
 .contextBand p,
@@ -114,8 +129,12 @@
 .wbsWorkspace {
   display: grid;
   gap: 16px;
-  grid-template-columns: minmax(320px, 0.42fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
+}
+
+.wbsWorkspace .pane {
+  overflow-x: auto;
 }
 
 .paneHead {
@@ -130,37 +149,62 @@
 .suggestionList,
 .cardList {
   display: grid;
+  gap: 8px;
+}
+
+.wbsTableHead {
+  align-items: center;
+  color: #5a6772;
+  display: grid;
+  font-size: 11px;
+  font-weight: 900;
   gap: 10px;
+  grid-template-columns: 54px minmax(240px, 1fr) 92px 62px 92px 62px;
+  letter-spacing: 0;
+  min-inline-size: 676px;
+  padding: 0 12px 8px;
+  text-transform: none;
 }
 
 .wbsRow {
   align-items: center;
   appearance: none;
-  background: rgba(247, 249, 250, 0.78);
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(229, 231, 235, 0.84);
+  border-radius: 12px;
   color: #2c3540;
   cursor: pointer;
   display: grid;
   gap: 10px;
-  grid-template-columns: 4px minmax(0, 1fr) auto;
-  margin-inline-start: calc(var(--wbs-depth, 0) * 18px);
-  padding: 11px;
+  grid-template-columns: 54px minmax(240px, 1fr) 92px 62px 92px 62px;
+  min-block-size: 48px;
+  min-inline-size: 676px;
+  padding: 8px 12px;
   text-align: start;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .wbsRow:hover,
 .wbsRowSelected {
-  border-color: rgba(107, 143, 168, 0.46);
-  box-shadow: 0 10px 24px rgba(107, 143, 168, 0.12);
+  background: rgba(215, 234, 244, 0.42);
+  border-color: rgba(107, 143, 168, 0.42);
+  box-shadow: 0 10px 22px rgba(107, 143, 168, 0.1);
   transform: translateY(-1px);
 }
 
-.wbsRail {
-  align-self: stretch;
-  background: #d7eaf4;
+.wbsCode {
+  align-items: center;
+  background: rgba(247, 249, 250, 0.9);
+  border: 1px solid rgba(229, 231, 235, 0.9);
   border-radius: 999px;
+  color: #6b8fa8;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  inline-size: fit-content;
+  justify-content: center;
+  min-inline-size: 34px;
+  padding: 5px 9px;
 }
 
 .wbsMain,
@@ -170,6 +214,28 @@
   display: grid;
   gap: 3px;
   min-inline-size: 0;
+}
+
+.wbsMain {
+  padding-inline-start: calc(var(--wbs-depth, 0) * 20px);
+  position: relative;
+}
+
+.wbsMain::before {
+  background: rgba(107, 143, 168, 0.22);
+  border-radius: 999px;
+  content: "";
+  display: none;
+  inline-size: 2px;
+  inset-block: 4px;
+  inset-inline-start: calc((var(--wbs-depth, 0) * 20px) - 10px);
+  position: absolute;
+}
+
+.wbsRow[style*="--wbs-depth: 1"] .wbsMain::before,
+.wbsRow[style*="--wbs-depth: 2"] .wbsMain::before,
+.wbsRow[style*="--wbs-depth: 3"] .wbsMain::before {
+  display: block;
 }
 
 .wbsMain strong,
@@ -183,6 +249,21 @@
   min-inline-size: 0;
   overflow-wrap: break-word;
   word-break: keep-all;
+}
+
+.wbsMetric,
+.wbsDate {
+  color: #5a6772;
+  font-size: 12px;
+  font-weight: 900;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wbsMetric {
+  text-align: center;
 }
 
 .wbsMain small,
@@ -251,6 +332,107 @@
   gap: 10px;
 }
 
+.wbsEditor,
+.wbsCreate {
+  background: rgba(247, 249, 250, 0.64);
+  border: 1px solid rgba(229, 231, 235, 0.86);
+  border-radius: 16px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.wbsCreate {
+  background: rgba(215, 234, 244, 0.24);
+  border-color: rgba(107, 143, 168, 0.24);
+}
+
+.wbsFormGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.34fr);
+}
+
+.wbsFormGrid label {
+  color: #5a6772;
+  display: grid;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.wbsFormGrid input {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(229, 231, 235, 0.95);
+  border-radius: 12px;
+  color: #2c3540;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  min-block-size: 42px;
+  min-inline-size: 0;
+  outline: none;
+  padding: 0 12px;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.wbsFormGrid input::placeholder {
+  color: #8a94a0;
+}
+
+.wbsFormGrid input:focus-visible {
+  border-color: rgba(107, 143, 168, 0.62);
+  box-shadow: 0 0 0 4px rgba(215, 234, 244, 0.58);
+}
+
+.wbsFormActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.primaryAction,
+.dangerAction {
+  appearance: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  min-block-size: 36px;
+  padding: 0 14px;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.primaryAction {
+  background: rgba(215, 234, 244, 0.78);
+  border: 1px solid rgba(107, 143, 168, 0.45);
+  color: #2c3540;
+}
+
+.dangerAction {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(232, 152, 152, 0.52);
+  color: #9c4f4f;
+}
+
+.primaryAction:hover,
+.dangerAction:hover:not(:disabled) {
+  box-shadow: 0 12px 24px rgba(107, 143, 168, 0.12);
+  transform: translateY(-1px);
+}
+
+.dangerAction:disabled {
+  border-color: rgba(229, 231, 235, 0.9);
+  color: #8a94a0;
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
 .sectionLabel {
   align-items: center;
   color: #2c3540;
@@ -293,10 +475,26 @@
 
 .columns {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(4, minmax(260px, 1fr));
+  gap: 10px;
+  grid-auto-columns: minmax(264px, 1fr);
+  grid-auto-flow: column;
+  grid-template-columns: none;
   overflow-x: auto;
-  padding-block-end: 4px;
+  overscroll-behavior-inline: contain;
+  padding-block-end: 8px;
+  padding-inline-end: 2px;
+  scrollbar-color: rgba(107, 143, 168, 0.34) transparent;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+
+.columns::-webkit-scrollbar {
+  block-size: 8px;
+}
+
+.columns::-webkit-scrollbar-thumb {
+  background: rgba(107, 143, 168, 0.28);
+  border-radius: 999px;
 }
 
 .column {
@@ -304,8 +502,9 @@
   border: 1px solid rgba(229, 231, 235, 0.9);
   border-radius: 18px;
   min-block-size: 340px;
-  min-inline-size: 260px;
+  min-inline-size: 264px;
   padding: 12px;
+  scroll-snap-align: start;
   transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
@@ -326,6 +525,7 @@
 .columnHead span {
   display: grid;
   gap: 3px;
+  min-inline-size: 0;
 }
 
 .columnHead strong {
@@ -405,10 +605,15 @@
 
 .cardTop {
   align-items: flex-start;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  justify-content: space-between;
   min-inline-size: 0;
+}
+
+.cardTop strong {
+  flex: 1 1 160px;
 }
 
 .cardTop :global(.bubli-status) {
@@ -482,7 +687,7 @@
 }
 
 .suggestionTray .suggestionList {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .trashZone {
@@ -554,7 +759,7 @@
   }
 
   .columns {
-    grid-template-columns: repeat(4, minmax(260px, 1fr));
+    grid-auto-columns: minmax(288px, 42vw);
   }
 
   .column {
@@ -581,12 +786,13 @@
 
   .detailMetrics,
   .suggestionTray .suggestionList,
-  .taskInspector {
+  .taskInspector,
+  .wbsFormGrid {
     grid-template-columns: 1fr;
   }
 
   .columns {
-    grid-template-columns: repeat(4, minmax(250px, 1fr));
+    grid-auto-columns: minmax(280px, 86vw);
   }
 
   .statusActions {
@@ -599,7 +805,11 @@
   .column,
   .dropIndicator,
   .card,
-  .trashZone {
+  .trashZone,
+  .primaryAction,
+  .dangerAction,
+  .viewSwitch button,
+  .wbsFormGrid input {
     transition: none;
   }
 
@@ -607,7 +817,10 @@
   .wbsRowSelected,
   .card:hover,
   .cardSelected,
-  .trashZoneActive {
+  .trashZoneActive,
+  .primaryAction:hover,
+  .dangerAction:hover:not(:disabled),
+  .viewSwitch button[aria-pressed="true"] {
     transform: none;
   }
 }

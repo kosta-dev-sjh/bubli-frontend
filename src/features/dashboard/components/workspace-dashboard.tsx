@@ -15,6 +15,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { dashboardApi } from "@/features/dashboard/api/dashboardApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
+import { todoApi } from "@/features/todo/api/todoApi";
+import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
@@ -30,6 +32,7 @@ import {
 } from "@/lib/workspace-preview-data";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { ResourceResponse } from "@/types/api/resource";
+import type { WidgetSummaryResponse } from "@/types/api/widget";
 import type { DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
 
 type DashboardState =
@@ -47,15 +50,15 @@ const emptyDashboard: DashboardWorkResponse = {
 
 const connectedWidgetIds = [
   "today-summary",
+  "next-focus",
   "today-todos",
   "schedule",
   "project-rooms",
   "pending-approval",
   "timer",
   "recent-resources",
-  "agent-suggestions",
 ];
-const defaultWidgetIds = ["today-summary", "today-todos", "schedule", "project-rooms", "pending-approval", "timer", "recent-resources"];
+const defaultWidgetIds = ["today-summary", "next-focus", "today-todos", "schedule", "project-rooms", "pending-approval", "timer"];
 const dashboardDropzoneId = "dashboard-canvas";
 const dashboardRemoveDropzoneId = "dashboard-remove-card";
 let dashboardWidgetLayoutSnapshot = [...defaultWidgetIds];
@@ -111,8 +114,41 @@ function formatDue(value?: string | null) {
   }).format(date);
 }
 
+function formatDuration(seconds?: number | null) {
+  if (!seconds || seconds < 0) {
+    return "기록 중";
+  }
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.max(1, Math.floor((seconds % 3600) / 60));
+
+  if (hours > 0) {
+    return `${hours}시간 ${minutes}분`;
+  }
+
+  return `${minutes}분`;
+}
+
+function getTimerSeconds(timer: DashboardWorkResponse["runningTimer"]) {
+  if (!timer) return null;
+  if (typeof timer.durationSeconds === "number") return timer.durationSeconds;
+
+  const startedAt = timer.lastStartedAt ?? timer.startedAt;
+  const started = startedAt ? new Date(startedAt).getTime() : NaN;
+  if (timer.status !== "RUNNING" || Number.isNaN(started)) return null;
+
+  return Math.max(0, Math.floor((Date.now() - started) / 1000));
+}
+
 function hasDashboardItems(data: DashboardWorkResponse) {
-  return data.todayTasks.length + data.upcomingDeadlines.length + data.todaySchedules.length > 0;
+  return (
+    data.todayTasks.length +
+      data.upcomingDeadlines.length +
+      data.todaySchedules.length +
+      (data.runningTimer ? 1 : 0) +
+      (data.unreadNotificationCount ?? 0) >
+    0
+  );
 }
 
 function StatusLine({ children, meta }: { children: string; meta?: string }) {
@@ -132,22 +168,173 @@ function ScheduleLine({ schedule }: { schedule: ScheduleResponse }) {
   return <StatusLine meta={formatTime(schedule.startsAt)}>{schedule.title}</StatusLine>;
 }
 
-function DashboardSummary({ data }: { data: DashboardWorkResponse }) {
+function pickNextTask(tasks: TaskResponse[]) {
+  const inProgressTask = tasks.find((task) => task.status === "IN_PROGRESS");
+  if (inProgressTask) return inProgressTask;
+
+  const withDueDate = tasks
+    .filter((task) => task.status !== "DONE" && task.dueAt)
+    .sort((left, right) => new Date(left.dueAt ?? "").getTime() - new Date(right.dueAt ?? "").getTime());
+  if (withDueDate[0]) return withDueDate[0];
+
+  return tasks.find((task) => task.status !== "DONE") ?? null;
+}
+
+function pickNextSchedule(schedules: ScheduleResponse[]) {
+  const now = Date.now();
+  const sorted = schedules
+    .filter((schedule) => schedule.startsAt)
+    .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
+
+  return sorted.find((schedule) => new Date(schedule.startsAt).getTime() >= now) ?? sorted[0] ?? null;
+}
+
+function getMetricProgress(value: number, max: number) {
+  if (value <= 0) return 0;
+  return Math.min(100, Math.max(18, Math.round((value / max) * 100)));
+}
+
+function DashboardMetricRing({ label, progress, tone, value }: { label: string; progress: number; tone: string; value: number | string }) {
+  return (
+    <div className="workspace-dashboard__metric-ring" data-tone={tone}>
+      <span className="workspace-dashboard__metric-ring-graph" aria-hidden="true">
+        <svg viewBox="0 0 36 36">
+          <path d="M18 2.0845a15.9155 15.9155 0 0 1 0 31.831a15.9155 15.9155 0 0 1 0-31.831" />
+          <path
+            d="M18 2.0845a15.9155 15.9155 0 0 1 0 31.831a15.9155 15.9155 0 0 1 0-31.831"
+            style={{ strokeDasharray: `${progress}, 100` }}
+          />
+        </svg>
+        <b>{value}</b>
+      </span>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function DashboardSummary({ data, enabledBubbleCount, tasks }: { data: DashboardWorkResponse; enabledBubbleCount: number | null; tasks: TaskResponse[] }) {
+  const reviewCount = tasks.filter((task) => task.status === "REVIEW" || task.status === "BLOCKED").length;
+  const timerActive = data.runningTimer ? 1 : 0;
+  const metrics = [
+    { label: "할 일", progress: getMetricProgress(tasks.length, 8), tone: "task", value: tasks.length },
+    { label: "일정", progress: getMetricProgress(data.todaySchedules.length, 6), tone: "schedule", value: data.todaySchedules.length },
+    { label: "확인", progress: getMetricProgress(reviewCount, 5), tone: "review", value: reviewCount },
+    { label: "타이머", progress: timerActive ? 100 : 0, tone: "timer", value: timerActive ? "ON" : "0" },
+    ...(enabledBubbleCount !== null
+      ? [{ label: "버블", progress: getMetricProgress(enabledBubbleCount, 8), tone: "bubble", value: enabledBubbleCount }]
+      : []),
+  ];
+
   return (
     <div className="workspace-dashboard__summary">
-      <span>
-        <b>{data.todayTasks.length + data.upcomingDeadlines.length}</b>
-        할 일
-      </span>
-      <span>
-        <b>{data.todaySchedules.length}</b>
-        일정
-      </span>
-      <span>
-        <b>{data.todayTasks.filter((task) => task.status === "REVIEW" || task.status === "BLOCKED").length}</b>
-        확인
-      </span>
+      {metrics.map((metric) => (
+        <DashboardMetricRing key={metric.label} {...metric} />
+      ))}
     </div>
+  );
+}
+
+function NextFocusWidget({
+  nextSchedule,
+  nextTask,
+  runningTimer,
+}: {
+  nextSchedule: ScheduleResponse | null;
+  nextTask: TaskResponse | null;
+  runningTimer?: DashboardWorkResponse["runningTimer"];
+}) {
+  if (!nextTask && !nextSchedule && !runningTimer) {
+    return <EmptyWidget />;
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      {runningTimer ? (
+        <div className="workspace-dashboard__timer-preview">
+          <b>{formatDuration(getTimerSeconds(runningTimer))}</b>
+          <span>{nextTask ? `${nextTask.title} 이어서 진행 중` : "지금 진행 중인 일이 있습니다"}</span>
+        </div>
+      ) : null}
+      <DashboardLineList>
+        {nextTask ? <TaskLine task={nextTask} /> : null}
+        {nextSchedule ? <ScheduleLine schedule={nextSchedule} /> : null}
+      </DashboardLineList>
+    </div>
+  );
+}
+
+function ProjectRoomScopeSelector({
+  activeRoomId,
+  onSelect,
+  rooms,
+}: {
+  activeRoomId: string | null;
+  onSelect: (room: { label: string | null; roomId: string | null }) => void;
+  rooms: ProjectRoomResponse[];
+}) {
+  if (rooms.length === 0) return null;
+
+  return (
+    <div className="workspace-dashboard__scope-strip" aria-label="대시보드 프로젝트룸 범위">
+      <button data-active={!activeRoomId ? "true" : undefined} onClick={() => onSelect({ label: null, roomId: null })} type="button">
+        전체
+      </button>
+      {rooms.slice(0, 5).map((room) => (
+        <button
+          data-active={activeRoomId === room.id ? "true" : undefined}
+          key={room.id}
+          onClick={() => onSelect({ label: room.name, roomId: room.id })}
+          type="button"
+        >
+          {room.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SelectedProjectRoomSummary({
+  room,
+  schedules,
+  tasks,
+}: {
+  room: ProjectRoomResponse | null;
+  schedules: ScheduleResponse[];
+  tasks: TaskResponse[];
+}) {
+  if (!room) return null;
+
+  const reviewCount = tasks.filter((task) => task.status === "REVIEW" || task.status === "BLOCKED").length;
+  const inProgressCount = tasks.filter((task) => task.status === "IN_PROGRESS").length;
+
+  return (
+    <GlassPanel className="workspace-dashboard__room-summary">
+      <div>
+        <span>선택한 프로젝트룸</span>
+        <strong>{room.name}</strong>
+      </div>
+      <dl>
+        <div>
+          <dt>할 일</dt>
+          <dd>{tasks.length}</dd>
+        </div>
+        <div>
+          <dt>진행</dt>
+          <dd>{inProgressCount}</dd>
+        </div>
+        <div>
+          <dt>일정</dt>
+          <dd>{schedules.length}</dd>
+        </div>
+        <div>
+          <dt>확인</dt>
+          <dd>{reviewCount}</dd>
+        </div>
+      </dl>
+      <Link className="bubli-button bubli-button--quiet" href={`/app/project-rooms/${room.id}`}>
+        룸 보기
+      </Link>
+    </GlassPanel>
   );
 }
 
@@ -257,26 +444,33 @@ export function WorkspaceDashboard() {
   const [activeBoardWidgetId, setActiveBoardWidgetId] = useState<string | null>(null);
   const [activePaletteWidgetId, setActivePaletteWidgetId] = useState<string | null>(null);
   const [activeRoom, setActiveRoom] = useState<{ label: string | null; roomId: string | null }>({ label: null, roomId: null });
+  const [personalTasks, setPersonalTasks] = useState<TaskResponse[]>([]);
   const [rooms, setRooms] = useState<ProjectRoomResponse[]>([]);
+  const [widgetSummary, setWidgetSummary] = useState<WidgetSummaryResponse | null>(null);
   const [widgetIds, setWidgetIds] = useState(() => readStoredWidgetIds());
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const fetchDashboard = useCallback(async () => {
     if (shouldUseWorkspacePreviewData()) {
       setState({ data: workspacePreviewDashboard, kind: "ready" });
+      setPersonalTasks([]);
       setRooms(workspacePreviewRooms);
+      setWidgetSummary(null);
       return;
     }
 
     try {
       const data = await dashboardApi.getWork();
       setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
-      try {
-        const roomPage = await projectRoomApi.list();
-        setRooms(roomPage.items);
-      } catch {
-        setRooms([]);
-      }
+      const [roomResult, personalTaskResult, widgetSummaryResult] = await Promise.allSettled([
+        projectRoomApi.list(),
+        todoApi.list(),
+        widgetApi.getSummary(),
+      ]);
+
+      setRooms(roomResult.status === "fulfilled" ? roomResult.value.items : []);
+      setPersonalTasks(personalTaskResult.status === "fulfilled" ? personalTaskResult.value.items : []);
+      setWidgetSummary(widgetSummaryResult.status === "fulfilled" ? widgetSummaryResult.value : null);
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
@@ -323,20 +517,28 @@ export function WorkspaceDashboard() {
     if (!activeRoom.roomId) return realData;
 
     return {
+      ...realData,
+      runningTimer: realData.runningTimer?.roomId === activeRoom.roomId ? realData.runningTimer : null,
       todaySchedules: realData.todaySchedules.filter((schedule) => schedule.roomId === activeRoom.roomId),
       todayTasks: realData.todayTasks.filter((task) => task.roomId === activeRoom.roomId),
       upcomingDeadlines: realData.upcomingDeadlines.filter((task) => task.roomId === activeRoom.roomId),
     };
   }, [activeRoom.roomId, realData]);
-  const taskItems = [...data.todayTasks, ...data.upcomingDeadlines]
+  const dashboardTasks = [...data.todayTasks, ...data.upcomingDeadlines, ...(activeRoom.roomId ? [] : personalTasks)].filter(
+    (task, index, source) => source.findIndex((item) => item.id === task.id) === index,
+  );
+  const taskItems = dashboardTasks
     .filter((task, index, source) => source.findIndex((item) => item.id === task.id) === index)
     .slice(0, 4);
   const todaySchedules = data.todaySchedules.slice(0, 4);
-  const reviewTasks = [...data.todayTasks, ...data.upcomingDeadlines]
+  const reviewTasks = dashboardTasks
     .filter((task, index, source) => (task.status === "REVIEW" || task.status === "BLOCKED") && source.findIndex((item) => item.id === task.id) === index)
     .slice(0, 4);
+  const nextFocusTask = pickNextTask(dashboardTasks);
+  const nextFocusSchedule = pickNextSchedule(todaySchedules);
   const canShowDashboardGrid = state.kind === "ready" || state.kind === "empty";
-  const inProgressTask = [...data.todayTasks, ...data.upcomingDeadlines].find((task) => task.status === "IN_PROGRESS") ?? null;
+  const inProgressTask = dashboardTasks.find((task) => task.status === "IN_PROGRESS") ?? null;
+  const enabledBubbleCount = widgetSummary ? widgetSummary.bubbles.filter((bubble) => bubble.enabled).length : null;
   const recentResources = useMemo(() => {
     if (!shouldUseWorkspacePreviewData()) return [];
     const resources = activeRoom.roomId
@@ -350,6 +552,11 @@ export function WorkspaceDashboard() {
     if (!activeRoom.roomId) return filtered;
     return filtered.filter((room) => room.id === activeRoom.roomId);
   }, [activeRoom.roomId, rooms]);
+  const selectableRooms = useMemo(() => rooms.filter((room) => room.status === "ACTIVE"), [rooms]);
+  const selectedRoom = useMemo(
+    () => (activeRoom.roomId ? rooms.find((room) => room.id === activeRoom.roomId) ?? null : null),
+    [activeRoom.roomId, rooms],
+  );
   const visibleWidgets = useMemo(
     () =>
       widgetIds
@@ -451,7 +658,9 @@ export function WorkspaceDashboard() {
     (widgetId: string) => {
       switch (widgetId) {
         case "today-summary":
-          return <DashboardSummary data={data} />;
+          return <DashboardSummary data={data} enabledBubbleCount={enabledBubbleCount} tasks={dashboardTasks} />;
+        case "next-focus":
+          return <NextFocusWidget nextSchedule={nextFocusSchedule} nextTask={nextFocusTask} runningTimer={data.runningTimer} />;
         case "today-todos":
           if (taskItems.length === 0) return <EmptyWidget />;
           return (
@@ -491,11 +700,11 @@ export function WorkspaceDashboard() {
             </DashboardLineList>
           );
         case "timer":
-          if (!inProgressTask) return <EmptyWidget />;
+          if (!data.runningTimer && !inProgressTask) return <EmptyWidget />;
           return (
             <div className="workspace-dashboard__timer-preview">
-              <b>42분</b>
-              <span>{inProgressTask.title} 진행 중</span>
+              <b>{formatDuration(getTimerSeconds(data.runningTimer))}</b>
+              <span>{inProgressTask ? `${inProgressTask.title} 진행 중` : "타이머 실행 중"}</span>
             </div>
           );
         case "recent-resources":
@@ -507,20 +716,11 @@ export function WorkspaceDashboard() {
               ))}
             </DashboardLineList>
           );
-        case "agent-suggestions":
-          if (reviewTasks.length === 0) return <EmptyWidget />;
-          return (
-            <div className="workspace-dashboard__agent-preview">
-              <span aria-hidden="true" />
-              <p>{reviewTasks[0].title} 확인이 필요합니다</p>
-              <StatusBadge tone="agent">후보</StatusBadge>
-            </div>
-          );
         default:
           return null;
       }
     },
-    [activeRooms, data, inProgressTask, recentResources, reviewTasks, taskItems, todaySchedules],
+    [activeRooms, dashboardTasks, data, enabledBubbleCount, inProgressTask, nextFocusSchedule, nextFocusTask, recentResources, reviewTasks, taskItems, todaySchedules],
   );
 
   return (
@@ -531,6 +731,7 @@ export function WorkspaceDashboard() {
             <h1>대시보드</h1>
             <span>개인 홈</span>
           </div>
+          <ProjectRoomScopeSelector activeRoomId={activeRoom.roomId} onSelect={setActiveRoom} rooms={selectableRooms} />
         </div>
         {canShowDashboardGrid ? (
           <div className="workspace-dashboard__actions">
@@ -596,6 +797,7 @@ export function WorkspaceDashboard() {
           onDragStart={handleDragStart}
           sensors={sensors}
         >
+          <SelectedProjectRoomSummary room={selectedRoom} schedules={todaySchedules} tasks={dashboardTasks} />
           <div className={`workspace-dashboard__stage${editMode ? " workspace-dashboard__stage--editing" : ""}`}>
             <DashboardCanvas boardDragging={Boolean(activeBoardWidgetId)} editMode={editMode} sorting={Boolean(activeBoardWidgetId)}>
               <div className="workspace-dashboard__canvas-head">
@@ -622,7 +824,7 @@ export function WorkspaceDashboard() {
             </DashboardCanvas>
 
             {editMode ? (
-              <aside className="workspace-dashboard__palette" aria-label="카드 추가">
+              <aside className="workspace-dashboard__palette" aria-label="대시보드 항목 추가">
                 <DashboardPalette
                   draggable
                   items={availableWidgets}

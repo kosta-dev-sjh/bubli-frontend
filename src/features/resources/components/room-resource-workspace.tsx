@@ -179,7 +179,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
         <div className="resource-workspace__copy">
           <span className={styles.kicker}>프로젝트룸 자료</span>
           <h1>자료보드</h1>
-          <p>현재 프로젝트룸의 공용 파일을 올리고 확인합니다.</p>
+          <p>현재 룸의 공용 파일만 올리고 확인합니다.</p>
         </div>
         <div className={styles.headerActions}>
           <ResourceScopeSwitch activeScope="room" roomHref={`/app/project-rooms/${roomId}/resources`} roomLabel="프로젝트룸" />

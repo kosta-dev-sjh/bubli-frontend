@@ -15,6 +15,7 @@ export type SendChatMessageRequest = {
   clientMessageId: string;
   messageType?: Extract<ChatMessageType, "TEXT" | "FILE" | "AGENT_COMMAND">;
   body: Record<string, unknown>;
+  resourceId?: string | null;
 };
 
 export const chatApi = {
@@ -40,12 +41,9 @@ export const chatApi = {
     return apiRequest<ChatMessageListResponse>(`/api/chat/rooms/${chatRoomId}/messages${query ? `?${query}` : ""}`);
   },
 
-  sendMessage(chatRoomId: string, { clientMessageId, ...body }: SendChatMessageRequest) {
+  sendMessage(chatRoomId: string, body: SendChatMessageRequest) {
     return apiRequest<ChatMessageResponse>(`/api/chat/rooms/${chatRoomId}/messages`, {
       body,
-      headers: {
-        "Idempotency-Key": clientMessageId,
-      },
       method: "POST",
     });
   },

@@ -47,16 +47,13 @@ export type WidgetBubbleSettingsUpdateRequest = {
   bubbles: WidgetBubbleSettingUpdate[];
 };
 
-export type WidgetSummaryItem = {
-  bubbleType: WidgetBubbleType;
-  count?: number;
-  items: Array<Record<string, unknown>>;
-  updatedAt?: string;
+export type WidgetSettingsResponse = {
+  bubbles: WidgetBubbleSettingResponse[];
 };
 
 export type WidgetSummaryResponse = {
+  bubbles: WidgetBubbleSettingResponse[];
   context: WidgetContextResponse;
-  summaries: WidgetSummaryItem[];
 };
 
 export type WidgetItemState = "VISIBLE" | "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED" | "UNREAD";
@@ -68,19 +65,33 @@ export type WidgetItemStateUpdateRequest = {
   state: WidgetItemState;
 };
 
-export type WidgetUsageRollupRequest = {
-  bubbleType: WidgetBubbleType;
-  confirmedItemCount?: number;
+export type WidgetUsageSummarySaveRequest = {
+  bubbleSettingId: string;
   deviceId: string;
   interactionCount: number;
   openCount: number;
   rollupKey: string;
-  sourceEventCount: number;
   summaryDate: string;
+  syncedAt: string;
   visibleSeconds: number;
 };
 
-export type WidgetUsageRollupResponse = WidgetUsageRollupRequest & {
+export type WidgetDailySummaryResponse = WidgetUsageSummarySaveRequest & {
   id: string;
-  syncedAt: string;
+};
+
+export type WidgetUsageRollupRequest = WidgetUsageSummarySaveRequest & {
+  bubbleType?: WidgetBubbleType;
+  confirmedItemCount?: number;
+  sourceEventCount?: number;
+};
+
+export type WidgetUsageRollupResponse = WidgetDailySummaryResponse;
+
+export type WidgetTodayUsageSummaryResponse = {
+  byDevice: WidgetDailySummaryResponse[];
+  date: string;
+  totalInteractionCount: number;
+  totalOpenCount: number;
+  totalVisibleSeconds: number;
 };

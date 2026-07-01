@@ -1,5 +1,11 @@
 import { apiRequest } from "@/lib/api/client";
-import type { VoiceRoomCreateRequest, VoiceRoomResponse, VoiceTokenResponse } from "@/types/api/voice";
+import type {
+  VoiceMicStatusUpdateRequest,
+  VoiceParticipantResponse,
+  VoiceRoomCreateRequest,
+  VoiceRoomResponse,
+  VoiceTokenResponse,
+} from "@/types/api/voice";
 
 export const voiceApi = {
   createRoom(body: VoiceRoomCreateRequest) {
@@ -19,14 +25,21 @@ export const voiceApi = {
     });
   },
 
+  updateMicStatus(voiceRoomId: string, body: VoiceMicStatusUpdateRequest) {
+    return apiRequest<VoiceParticipantResponse>(`/api/voice/rooms/${voiceRoomId}/mic`, {
+      body,
+      method: "PATCH",
+    });
+  },
+
   leave(voiceRoomId: string) {
-    return apiRequest<null>(`/api/voice/rooms/${voiceRoomId}/leave`, {
+    return apiRequest<VoiceRoomResponse>(`/api/voice/rooms/${voiceRoomId}/leave`, {
       method: "PATCH",
     });
   },
 
   end(voiceRoomId: string) {
-    return apiRequest<null>(`/api/voice/rooms/${voiceRoomId}/end`, {
+    return apiRequest<VoiceRoomResponse>(`/api/voice/rooms/${voiceRoomId}/end`, {
       method: "PATCH",
     });
   },

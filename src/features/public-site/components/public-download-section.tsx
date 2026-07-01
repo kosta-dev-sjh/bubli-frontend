@@ -31,17 +31,6 @@ function DownloadIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-function LaptopIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...props}>
-      <path d="M6 5h12a2 2 0 0 1 2 2v8H4V7a2 2 0 0 1 2-2Z" />
-      <path d="M3 19h18" />
-      <path d="m8 15-.7 4" />
-      <path d="m16 15 .7 4" />
-    </svg>
-  );
-}
-
 function CheckIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...props}>
@@ -92,7 +81,7 @@ const platformCards = [
 ];
 
 const statusCards = [
-  { icon: CheckIcon, label: "오늘 할 일", value: "계약서 검토 기준 확인" },
+  { icon: CheckIcon, label: "오늘 할 일", value: "업무 범위 확인" },
   { icon: CalendarIcon, label: "다음 일정", value: "18:00 리뷰 미팅" },
   { icon: TimerIcon, label: "타이머", value: "자료 정리 이어가기" },
 ];
@@ -133,11 +122,10 @@ export function PublicDownloadSection() {
           <span className={styles.label}>Download</span>
           <div>
             <h2>
-              <span>Bubli 데스크탑 앱을</span>
-              <span>바로 내려받기</span>
+              <span>바탕화면에서</span>
+              <span>오늘 일을 바로 봅니다</span>
             </h2>
-            <p>앱을 열면 오늘 할 일과 일정이 바탕화면에서도 이어집니다.</p>
-            <p className={styles.releaseNote}>실제 배포 파일 링크는 릴리스가 준비되면 이 버튼에 바로 연결합니다.</p>
+            <p>할 일, 일정, 타이머만 화면 위에 가볍게 남깁니다.</p>
           </div>
         </header>
 
@@ -147,11 +135,11 @@ export function PublicDownloadSection() {
               <span />
               <span />
               <span />
-              <b>bubli-desktop.app</b>
+              <b>Bubli 데스크탑</b>
             </div>
             <div className={styles.appBody}>
               <div className={styles.widgetSummary}>
-                <span>버블 위젯</span>
+                <span>오늘 보기</span>
                 <strong>작업 중에도 필요한 것만 화면 위에 남깁니다.</strong>
                 <small>TODO · 일정 · 타이머 · 자료 제안</small>
               </div>
@@ -167,7 +155,6 @@ export function PublicDownloadSection() {
               })}
             </div>
           </article>
-
           <div className={styles.platforms} aria-label="운영체제별 앱 다운로드">
             {platformCards.map((card) => {
               const Icon = card.icon;
@@ -195,11 +182,6 @@ export function PublicDownloadSection() {
               );
             })}
           </div>
-
-          <Link className={styles.signin} href="/login">
-            <LaptopIcon />
-            <span>앱 없이 로그인</span>
-          </Link>
         </div>
       </div>
     </section>

@@ -1,5 +1,5 @@
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import type { PlannedTauriCommandName } from "@/lib/tauri/commands";
+import type { TauriCommandName } from "@/lib/tauri/commands";
 import type {
   LocalAdapterBlocked,
   LocalAdapterBlockedReason,
@@ -19,7 +19,7 @@ export function getLocalAdapterEnvironment(): LocalAdapterEnvironment {
   return typeof window === "undefined" ? "server" : "browser";
 }
 
-export function unavailable(commandName?: PlannedTauriCommandName): LocalAdapterUnavailable {
+export function unavailable(commandName?: TauriCommandName): LocalAdapterUnavailable {
   const environment = getLocalAdapterEnvironment();
 
   return {
@@ -34,7 +34,7 @@ export function unavailable(commandName?: PlannedTauriCommandName): LocalAdapter
 export function blocked(
   reason: LocalAdapterBlockedReason,
   message: string,
-  commandName?: PlannedTauriCommandName,
+  commandName?: TauriCommandName,
 ): LocalAdapterBlocked {
   return {
     commandName,
@@ -48,7 +48,7 @@ export function blocked(
 export function pending<TSummary>(
   summary: TSummary,
   message: string,
-  commandName?: PlannedTauriCommandName,
+  commandName?: TauriCommandName,
 ): LocalAdapterPending<TSummary> {
   return {
     commandName,
@@ -61,7 +61,7 @@ export function pending<TSummary>(
 
 export function ready<TData>(
   data: TData,
-  commandName?: PlannedTauriCommandName,
+  commandName?: TauriCommandName,
   message?: string,
 ): LocalAdapterReady<TData> {
   return {
@@ -75,7 +75,7 @@ export function ready<TData>(
 
 export function failed(
   message: string,
-  commandName?: PlannedTauriCommandName,
+  commandName?: TauriCommandName,
 ): LocalAdapterFailed {
   return {
     commandName,
@@ -87,7 +87,7 @@ export function failed(
 }
 
 export async function runTauriAdapter<TData>(
-  commandName: PlannedTauriCommandName,
+  commandName: TauriCommandName,
   action: () => Promise<TData>,
 ): Promise<LocalAdapterResult<TData>> {
   if (!isTauriRuntime()) {

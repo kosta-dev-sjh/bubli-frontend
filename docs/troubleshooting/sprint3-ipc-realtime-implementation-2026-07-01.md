@@ -23,9 +23,9 @@
 
 수정 파일
 
-- `src-tauri/src/lib.rs` — `mod` 선언 + `.setup()`에서 DB 열어 `manage` + invoke_handler에 9개 명령 등록.
+- `src-tauri/src/lib.rs` — `mod` 선언 + `.setup()`에서 DB 열어 `manage` + invoke_handler에 로컬 명령 등록. 후속 수정으로 명시 닫기 시 위젯 WebView를 해제하고, 앱 종료 시 `bubli-widget-*` 창을 정리한다.
 - `src-tauri/Cargo.toml` — `rusqlite(bundled)`, `uuid(v4)`, `chrono` 추가.
-- `src/lib/tauri/commands.ts` — planned 14개 명령의 타입 안전 invoke 래퍼(`plannedTauriCommands`) 추가. (기존 위젯 창 래퍼는 그대로.)
+- `src/lib/tauri/commands.ts` — Rust와 adapter 소비가 확인된 14개 로컬 명령을 `TAURI_COMMANDS`와 `tauriCommands`로 승격. `PLANNED_TAURI_COMMANDS`는 새 미구현 IPC를 위한 빈 placeholder로 유지.
 
 경계 준수: 개인 관리 폴더/로컬 파일에는 `room_id`를 절대 붙이지 않는다(개인 전용). 프로젝트룸 공유는 별도 업로드 흐름이며 여기서 만들지 않는다. Rust는 서버/에이전트를 직접 호출하지 않고 `local_sync_outbox`에 적재만 한다.
 
@@ -120,7 +120,7 @@ docs/troubleshooting/sprint3-ipc-realtime-implementation-2026-07-01.md
 ```
 src-tauri/src/lib.rs        (mod 선언 + setup + invoke_handler 9개 등록)
 src-tauri/Cargo.toml        (rusqlite, uuid, chrono)
-src/lib/tauri/commands.ts   (plannedTauriCommands 래퍼 + 헬퍼 타입)
+src/lib/tauri/commands.ts   (TAURI_COMMANDS 승격 + 헬퍼 타입)
 ```
 
 맥에서 깨끗한 브랜치로 분리하려면 위 목록만 골라 새 브랜치에 stage 하면 된다.

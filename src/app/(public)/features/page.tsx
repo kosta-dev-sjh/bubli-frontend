@@ -8,7 +8,7 @@ import { HybridAppFrame } from "@/features/public-site/components/hybrid-app-fra
 
 const featureFlow = [
   {
-    body: "계약서, 요구사항, 회의록을 한 프로젝트 기준으로 모읍니다.",
+    body: "요구사항, 회의록, 참고 자료를 한 프로젝트 기준으로 모읍니다.",
     icon: FolderKanban,
     label: "프로젝트룸",
     status: "자료 시작점",

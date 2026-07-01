@@ -1,3 +1,5 @@
+import type { TimeLogResponse } from "@/types/api/timer";
+
 export type TaskStatus = "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE" | "BLOCKED";
 
 export type TaskSourceType = "USER" | "AGENT_SUGGESTION" | "RESOURCE";
@@ -69,8 +71,11 @@ export type WbsBoardResponse = {
 };
 
 export type DashboardWorkResponse = {
+  agentSuggestionSummary?: string[];
+  runningTimer?: TimeLogResponse | null;
   todaySchedules: ScheduleResponse[];
   todayTasks: TaskResponse[];
+  unreadNotificationCount?: number;
   upcomingDeadlines: TaskResponse[];
 };
 

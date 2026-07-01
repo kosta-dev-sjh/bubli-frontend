@@ -8,7 +8,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 18px;
-  padding: 20px 22px;
+  padding: 18px 22px;
 }
 
 .boardHeader h1 {
@@ -16,15 +16,15 @@
   color: transparent;
   background: linear-gradient(92deg, var(--blue-ink), var(--bubble-blue) 52%, var(--lilac-ink));
   background-clip: text;
-  font-size: clamp(28px, 3vw, 38px);
-  font-weight: 760;
-  line-height: 0.98;
+  font-size: clamp(27px, 2.5vw, 34px);
+  font-weight: 680;
+  line-height: 1.04;
 }
 
 .boardHeader p {
   max-width: 44ch;
-  font-size: 14px;
-  font-weight: 560;
+  font-size: 12.5px;
+  font-weight: 470;
 }
 
 .headerActions {
@@ -40,17 +40,17 @@
   width: fit-content;
   border: 1px solid rgba(107, 143, 168, 0.12);
   border-radius: var(--radius-pill);
-  padding: 7px 11px;
+  padding: 6px 10px;
   color: var(--blue-ink);
   background: rgba(255, 255, 255, 0.66);
-  font-size: 12px;
-  font-weight: 680;
+  font-size: 11.5px;
+  font-weight: 620;
 }
 
 .scopeSwitch {
   display: inline-grid;
   grid-template-columns: repeat(2, minmax(104px, 1fr));
-  width: min(270px, 100%);
+  width: min(252px, 100%);
   gap: 4px;
   align-items: center;
   border: 1px solid rgba(107, 143, 168, 0.12);
@@ -68,11 +68,11 @@
   gap: 7px;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
+  min-height: 32px;
   border-radius: var(--radius-pill);
   padding: 5px 10px;
   color: var(--color-muted);
-  font-weight: 620;
+  font-weight: 570;
   line-height: 1.1;
   text-decoration: none;
   transition:
@@ -94,14 +94,14 @@
 
 .scopeSwitch a strong {
   color: inherit;
-  font-size: 12px;
-  font-weight: 720;
+  font-size: 11.5px;
+  font-weight: 650;
 }
 
 .scopeSwitch a b {
   color: var(--color-faint);
   font-size: 9.5px;
-  font-weight: 560;
+  font-weight: 500;
 }
 
 .scopeSwitch a:hover {
@@ -126,7 +126,7 @@
   display: inline-flex;
   gap: 4px;
   align-items: center;
-  min-height: 42px;
+  min-height: 38px;
   border: 1px solid rgba(107, 143, 168, 0.12);
   border-radius: var(--radius-pill);
   padding: 4px;
@@ -139,16 +139,16 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  min-width: 72px;
-  height: 34px;
+  min-width: 64px;
+  height: 30px;
   border: 0;
   border-radius: var(--radius-pill);
   padding: 0 11px;
   color: var(--color-muted);
   background: transparent;
   font: inherit;
-  font-size: 12px;
-  font-weight: 640;
+  font-size: 11.5px;
+  font-weight: 560;
   cursor: pointer;
   transition:
     background 180ms var(--ease-out),
@@ -184,7 +184,7 @@
 
 .boardShell {
   gap: 14px;
-  min-height: 520px;
+  min-height: 430px;
 }
 
 .boardShellFlat {
@@ -210,7 +210,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  min-height: 38px;
+  min-height: 36px;
 }
 
 .listHeader > div {
@@ -224,22 +224,24 @@
 .listHeader span {
   color: var(--blue-ink);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .listHeader strong {
   color: var(--color-text);
   font-size: 13px;
-  font-weight: 690;
+  font-weight: 640;
 }
 
 .listHeader p {
+  flex: 1 1 auto;
   min-width: 0;
   margin: 0;
   color: var(--color-muted);
   font-size: 12px;
-  font-weight: 560;
+  font-weight: 500;
   line-height: 1.35;
+  text-align: center;
 }
 
 .listHeader :global(.bubli-button) {
@@ -247,7 +249,7 @@
 }
 
 .fileGrid {
-  grid-template-columns: repeat(auto-fill, minmax(174px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
   align-items: stretch;
 }
 
@@ -258,11 +260,11 @@
 .fileItem {
   grid-template-columns: 1fr;
   gap: 14px;
-  min-height: 166px;
+  min-height: 154px;
   align-content: start;
   justify-items: start;
   overflow: hidden;
-  padding: 16px;
+  padding: 15px;
   transition:
     border-color 180ms var(--ease-out),
     box-shadow 180ms var(--ease-out),
@@ -275,16 +277,16 @@
 
 .fileItem :global(.resource-workspace__item-main b) {
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 590;
   line-height: 1.38;
 }
 
 .fileItem :global(.resource-workspace__item-main span) {
-  font-weight: 520;
+  font-weight: 480;
 }
 
 .fileItem :global(.bubli-status) {
-  font-weight: 560;
+  font-weight: 500;
 }
 
 .fileItemList {
@@ -304,9 +306,9 @@
 .fileGlyph {
   position: relative;
   overflow: hidden;
-  width: 54px;
-  height: 54px;
-  border-radius: 18px;
+  width: 50px;
+  height: 50px;
+  border-radius: 17px;
   color: var(--file-glyph-color, var(--blue-ink));
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.88), var(--file-glyph-bg, rgba(216, 240, 255, 0.68)));
@@ -322,7 +324,7 @@
   background: rgba(255, 255, 255, 0.72);
   font-size: 8px;
   font-style: normal;
-  font-weight: 680;
+  font-weight: 620;
   letter-spacing: 0;
   line-height: 1.2;
 }
@@ -389,7 +391,7 @@
 .previewTitle span {
   color: var(--blue-ink);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 560;
 }
 
 .previewTitle strong {
@@ -429,7 +431,7 @@
 
 .previewChrome strong {
   color: var(--blue-ink);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .previewPage {
@@ -458,11 +460,11 @@
   color: var(--blue-ink);
   background: rgba(216, 240, 255, 0.58);
   font-size: 11px;
-  font-weight: 620;
+  font-weight: 560;
 }
 
 .previewPage :global(h2) {
-  font-weight: 720;
+  font-weight: 610;
 }
 
 .previewPage :global(p) {
@@ -509,7 +511,7 @@
   margin: 0;
   color: var(--color-text);
   font-size: 12px;
-  font-weight: 620;
+  font-weight: 560;
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
@@ -528,7 +530,7 @@
 .previewBody strong {
   color: var(--color-text);
   font-size: 14px;
-  font-weight: 680;
+  font-weight: 580;
 }
 
 .previewBody span {
@@ -602,7 +604,7 @@
   }
 
   .boardHeader h1 {
-    font-size: clamp(26px, 9vw, 34px);
+    font-size: clamp(25px, 8.2vw, 31px);
   }
 
   .headerActions {
@@ -633,6 +635,10 @@
 
   .previewPage {
     min-height: 220px;
+  }
+
+  .boardShell {
+    min-height: 0;
   }
 
   .fileFacts {

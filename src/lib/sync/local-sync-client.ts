@@ -1,4 +1,4 @@
-import { plannedTauriCommands, PLANNED_TAURI_COMMANDS } from "@/lib/tauri/commands";
+import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
 import { blocked, pending, runTauriAdapter } from "@/lib/local/adapter-result";
 import type {
   LocalSyncSummary,
@@ -8,8 +8,8 @@ import type {
 } from "@/types/local";
 
 export async function getLocalSyncOutboxSummary(): Promise<SyncOutboxSummaryResult> {
-  const commandName = PLANNED_TAURI_COMMANDS.flushSyncOutbox;
-  const result = await runTauriAdapter(commandName, () => plannedTauriCommands.flushSyncOutbox());
+  const commandName = TAURI_COMMANDS.flushSyncOutbox;
+  const result = await runTauriAdapter(commandName, () => tauriCommands.flushSyncOutbox());
 
   if (result.status === "ready") {
     const summary: LocalSyncSummary = {
@@ -31,8 +31,8 @@ export async function getLocalSyncOutboxSummary(): Promise<SyncOutboxSummaryResu
 export async function stageWidgetUsageSummary(
   input?: WidgetUsageSummarySyncAdapterInput,
 ): Promise<WidgetUsageSummarySyncAdapterResult> {
-  const commandName = PLANNED_TAURI_COMMANDS.syncWidgetUsageSummary;
-  const result = await runTauriAdapter(commandName, () => plannedTauriCommands.syncWidgetUsageSummary(input));
+  const commandName = TAURI_COMMANDS.syncWidgetUsageSummary;
+  const result = await runTauriAdapter(commandName, () => tauriCommands.syncWidgetUsageSummary(input));
 
   if (result.status === "ready") {
     const summary: LocalSyncSummary = {

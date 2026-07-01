@@ -3,7 +3,7 @@
 import type { CSSProperties, PointerEvent } from "react";
 
 const orbitItems = [
-  { className: "public-orbit-preview__node--file", label: "자료", title: "계약서와 회의록" },
+  { className: "public-orbit-preview__node--file", label: "자료", title: "요구사항과 회의록" },
   { className: "public-orbit-preview__node--agent", label: "후보", title: "확인할 항목" },
   { className: "public-orbit-preview__node--approve", label: "승인", title: "내가 확정" },
   { className: "public-orbit-preview__node--todo", label: "실행", title: "오늘 할 일" },
@@ -65,7 +65,7 @@ export function PublicOrbitPreview() {
             <article>
               <span>들어온 자료</span>
               <b>프로젝트룸에 모으기</b>
-              <small>계약서, 요구사항, 회의록</small>
+              <small>요구사항, 회의록, 참고 자료</small>
             </article>
             <article>
               <span>에이전트 후보</span>
