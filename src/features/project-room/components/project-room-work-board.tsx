@@ -142,6 +142,21 @@ function addDays(date: Date, amount: number) {
   return next;
 }
 
+function addMonths(date: Date, amount: number) {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + amount);
+  return next;
+}
+
+function initialPeriodAnchor(tasks: TaskResponse[]) {
+  const firstDueAt = tasks
+    .map((task) => task.dueAt)
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
+
+  return firstDueAt ? new Date(firstDueAt) : new Date();
+}
+
 function monthDays(date: Date) {
   const first = new Date(date.getFullYear(), date.getMonth(), 1);
   const days: Date[] = [];
@@ -456,6 +471,7 @@ function ProjectRoomWorkBoardContent({
   const [draggedWbsId, setDraggedWbsId] = useState<string | null>(null);
   const [wbsDropTargetId, setWbsDropTargetId] = useState<string | null>(null);
   const [wbsPeriodMode, setWbsPeriodMode] = useState<WbsPeriodMode>("rows");
+  const [periodAnchor, setPeriodAnchor] = useState(() => initialPeriodAnchor(board.tasks));
   const [wbsDraft, setWbsDraft] = useState({ title: "" });
   const [wbsAccentById, setWbsAccentById] = useState<Record<string, string>>(() => createInitialWbsAccentMap(board.wbsItems));
   const [wbsEditDraft, setWbsEditDraft] = useState<WbsEditDraft>(() => ({
@@ -564,10 +580,6 @@ function ProjectRoomWorkBoardContent({
       .filter((task) => !task.localRemoved && task.dueAt && !Number.isNaN(new Date(task.dueAt).getTime()))
       .sort((a, b) => new Date(a.dueAt ?? "").getTime() - new Date(b.dueAt ?? "").getTime());
   }, [tasks]);
-  const periodAnchor = useMemo(() => {
-    const firstDueAt = timelineTasks[0]?.dueAt;
-    return firstDueAt ? new Date(firstDueAt) : new Date();
-  }, [timelineTasks]);
   const tasksByDate = useMemo(() => {
     return timelineTasks.reduce<Record<string, LocalTask[]>>((acc, task) => {
       const dueAt = task.dueAt ? new Date(task.dueAt) : null;
@@ -584,6 +596,12 @@ function ProjectRoomWorkBoardContent({
   const monthDateCells = useMemo(() => monthDays(periodAnchor), [periodAnchor]);
   const periodDays = wbsPeriodMode === "month" ? monthDateCells : weekDays;
   const dayTasks = tasksByDate[dateKey(periodAnchor)] ?? [];
+  const periodTitle =
+    wbsPeriodMode === "month"
+      ? formatMonthTitle(periodAnchor)
+      : wbsPeriodMode === "week"
+        ? `${formatPeriodDate(weekDays[0])} - ${formatPeriodDate(weekDays[6])}`
+        : formatPeriodDate(periodAnchor);
   const activeWbsEditDraft =
     selectedWbs && wbsEditDraft.wbsId === selectedWbs.id
       ? wbsEditDraft
@@ -591,6 +609,18 @@ function ProjectRoomWorkBoardContent({
           title: selectedWbs?.title ?? "",
           wbsId: selectedWbs?.id ?? null,
         };
+
+  const movePeriod = (amount: number) => {
+    setPeriodAnchor((current) => {
+      if (wbsPeriodMode === "month") return addMonths(current, amount);
+      if (wbsPeriodMode === "week") return addDays(current, amount * 7);
+      return addDays(current, amount);
+    });
+  };
+
+  const goToToday = () => {
+    setPeriodAnchor(new Date());
+  };
 
   const handleCreateWbs = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -992,8 +1022,21 @@ function ProjectRoomWorkBoardContent({
               {wbsPeriodMode === "month" || wbsPeriodMode === "week" ? (
                 <div className={cn(styles.periodBoard, wbsPeriodMode === "month" ? styles.periodBoardMonth : styles.periodBoardWeek)}>
                   <div className={styles.periodBoardHead}>
-                    <strong>{wbsPeriodMode === "month" ? formatMonthTitle(periodAnchor) : `${formatPeriodDate(weekDays[0])} - ${formatPeriodDate(weekDays[6])}`}</strong>
-                    <span>Google Calendar와 같은 기한 기준</span>
+                    <span className={styles.periodTitle}>
+                      <strong>{periodTitle}</strong>
+                      <span>Google Calendar처럼 기한을 기준으로 봅니다</span>
+                    </span>
+                    <div className={styles.periodNav} aria-label="WBS 기간 이동">
+                      <button type="button" onClick={() => movePeriod(-1)}>
+                        이전
+                      </button>
+                      <button type="button" onClick={goToToday}>
+                        오늘
+                      </button>
+                      <button type="button" onClick={() => movePeriod(1)}>
+                        다음
+                      </button>
+                    </div>
                   </div>
                   <div className={styles.periodGrid}>
                     {periodDays.map((day) => {
@@ -1029,8 +1072,21 @@ function ProjectRoomWorkBoardContent({
               {wbsPeriodMode === "day" ? (
                 <div className={styles.periodDayBoard}>
                   <div className={styles.periodBoardHead}>
-                    <strong>{formatPeriodDate(periodAnchor)}</strong>
-                    <span>이날 처리할 WBS/TODO</span>
+                    <span className={styles.periodTitle}>
+                      <strong>{periodTitle}</strong>
+                      <span>이날 처리할 WBS/TODO</span>
+                    </span>
+                    <div className={styles.periodNav} aria-label="WBS 날짜 이동">
+                      <button type="button" onClick={() => movePeriod(-1)}>
+                        이전
+                      </button>
+                      <button type="button" onClick={goToToday}>
+                        오늘
+                      </button>
+                      <button type="button" onClick={() => movePeriod(1)}>
+                        다음
+                      </button>
+                    </div>
                   </div>
                   <div className={styles.dayTaskList}>
                     {dayTasks.length > 0 ? (
