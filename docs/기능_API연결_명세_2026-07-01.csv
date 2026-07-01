@@ -72,7 +72,7 @@
 기능 연결 상세,30,위젯,데스크탑 위젯,/app/desktop/widgets,widgetApi+tauriCommands,GET /api/widget/context · /summary · /settings · Tauri widget window commands,O,부분,부분(Tauri runtime 검증 중),부분,일치,부분,"8개 버블 타입과 기본/반투명/고스트/최소화 상태는 UI에 있음. 로그인 후 TODO 위젯+위젯 바 자동 실행을 공용 Tauri 런처와 Rust app_ready 보장 경로로 보강했고, 소통/chat 위젯은 시작 시 자동 실행하지 않도록 제외. Tauri QA에서 Bubli 메인/버블 창 2번 모니터 표시 확인. 후속 보강: bar/menu/TODO 창 제목 분리 + app_ready 부분 실패 내성 추가. 별도 bar 창은 새 제목 기준 런타임 재검증 필요."
 기능 연결 상세,31,미연결 기능 (백엔드 준비됨 · 화면만 안 붙음),,,,,,,,,,,
 기능 연결 상세,32,미연결,개인 TODO,(미연결),todoApi,GET/POST /api/tasks,O,X,X,X,일치,됨,대시보드에서 todoApi.list() 연결(Codex 2차)
-기능 연결 상세,33,미연결,타이머,(미연결),timerApi,POST /api/time-logs/* (start·heartbeat·stop),O,X,X,X,일치,부분,대시보드 runningTimer 표시 연결 · 시작/정지 UI는 남음
+기능 연결 상세,33,타이머,위젯 타이머,/desktop-widget,timerApi,POST /api/time-logs/start · PATCH heartbeat/pause/resume/stop,O,O,O,부분,일치,부분,데스크탑 위젯 타이머에서 start/pause/resume/stop 실제 API 호출. 2026-07-02 RUNNING 타이머는 60초 heartbeat 루프 연결. 대시보드 표시와 위젯 조작은 연결됐고 일반 페이지 타이머 UI와 장시간 런타임 QA는 남음.
 기능 연결 상세,34,소통,친구/요청/초대,/app/chat,friendApi+projectRoomApi,GET /api/friends · /api/friend-requests · POST /api/project-rooms/{roomId}/invitations,O,O,O,O,일치,됨,"상단 빠른 실행(내 ID 복사·친구 추가·현재 룸 초대), 오른쪽 친구 허브, Bubli ID 복사/검색/요청, 받은/보낸 요청 분리, 수락/거절 연결, 수락된 친구의 1:1·룸 초대 연결. 친구 삭제와 초대 수락/취소 화면은 후속. 링크 초대·이메일 초대·게스트 초대는 금지."
 기능 연결 상세,35,소통,프로젝트룸 보이스,/app/chat,voiceApi,POST /api/voice/rooms,O,O,O,O,일치,됨,"보이스 생성, 참여 토큰, 마이크 상태, 나가기, 종료 버튼을 /app/chat에서 실제 voiceApi로 연결. LiveKit 클라이언트 입장과 WS 참여자 자동갱신은 후속 검증."
 기능 연결 상세,36,활동인식,현재 활동 기록,/app/settings,activityApi+tauriCommands,GET /api/activity/today · POST /api/activity/current-app,O,O,O(Tauri),부분,일치,부분,"설정 화면 수동 기록 + 로그인 후 Tauri 인증 표면 시작 시 30초 자동 캡처 루프 연결. 루프는 /api/me/privacy-consents의 activityDetectionEnabled가 켜진 경우에만 read_activity_context를 호출하고, 현재 활성 프로젝트룸 ID를 roomId로 함께 POST. Windows는 Win32 foreground window API, macOS는 osascript 기반. 실제 장시간 자동 추적/주기 기록 QA는 남음."
@@ -160,7 +160,7 @@
 페이지별 백엔드 맵핑,22,위젯,데스크탑 위젯,/app/desktop/widgets,위젯 창 런타임 + 사용량,tauriCommands + widget-local-client,부분,부분,로그인 후 TODO 위젯+위젯 바 자동 실행을 프론트 런처와 Rust app_ready에서 보강. 소통/chat 위젯은 시작 시 자동 실행 제외. Tauri QA에서 메인/버블 창 2번 모니터 표시 확인. 2026-07-02 선택 프로젝트룸 ID를 위젯 열기/모드 변경 입력에 포함하도록 보강. bar/menu/default 창 제목 분리 후 별도 bar 창 관측 재검증 필요,,,,
 페이지별 백엔드 맵핑,23,위젯,독립 위젯 창,/desktop-widget,위젯 창 런타임(Tauri),tauriCommands 창 제어,됨,부분,2026-07-02 Tauri WidgetWindowState와 /desktop-widget URL에 selectedRoomId/roomId 전달 추가. 위젯 초기 렌더가 서버 context 응답 전에도 선택 룸 기준 데이터 호출 가능. 실제 Windows 런타임 재생성/복원 QA는 남음.,,,,
 페이지별 백엔드 맵핑,24,공통,활동 감지 서버반영,로그인 후 Tauri 런처 + /app/settings,활동(/api/activity),read_activity_context + POST /api/activity/current-app + GET /api/activity/today,부분,부분,설정 화면 수동 기록과 로그인 후 30초 자동 캡처 루프 연결. 동의 꺼짐이면 네이티브 캡처 호출 안 함. 실제 Windows 장시간 런타임 QA와 서버 왕복 관측은 남음.,,,,
-페이지별 백엔드 맵핑,25,공통,타이머 서버반영,(화면 미연결),작업시간(/api/time-logs),timerApi 미호출,부분,해당없음,대시보드 runningTimer 표시 · 서버 time-logs 시작/정지 UI 미맵핑,,,,
+페이지별 백엔드 맵핑,25,공통,타이머 서버반영,/desktop-widget + /app,작업시간(/api/time-logs),timerApi start/pause/resume/stop/heartbeat,부분,부분,데스크탑 위젯에서 타이머 시작·일시정지·재개·종료와 RUNNING 60초 heartbeat 연결. 대시보드는 runningTimer 표시. 일반 페이지 타이머 조작 UI와 장시간 복구 QA는 남음.,,,,
 페이지별 백엔드 맵핑,26,,,,,,,,,,,,
 페이지별 백엔드 맵핑,27,범례,,,,,,,,,,,
 페이지별 백엔드 맵핑,28,됨,맵핑/디자인 완료,,,,,,,,,,
@@ -341,10 +341,10 @@ API 명세 맵핑,171,,DELETE,/api/tasks/{id},명세,O,연결됨,,,,,,
 API 명세 맵핑,172,,PATCH,/api/tasks/{id},명세,O,연결됨,,,,,,
 API 명세 맵핑,173,◆ time-logs,,,,,,,,,,,
 API 명세 맵핑,174,,POST,/api/time-logs/start,명세,O,연결됨,,,,,,
-API 명세 맵핑,175,,PATCH,/api/time-logs/{id}/heartbeat,명세,X,미연결,,,,,,
-API 명세 맵핑,176,,PATCH,/api/time-logs/{id}/pause,명세,X,미연결,,,,,,
-API 명세 맵핑,177,,PATCH,/api/time-logs/{id}/resume,명세,X,미연결,,,,,,
-API 명세 맵핑,178,,PATCH,/api/time-logs/{id}/stop,명세,X,미연결,,,,,,
+API 명세 맵핑,175,,PATCH,/api/time-logs/{id}/heartbeat,명세,O,연결됨,/desktop-widget RUNNING 타이머 60초 주기,,,,,
+API 명세 맵핑,176,,PATCH,/api/time-logs/{id}/pause,명세,O,연결됨,/desktop-widget 타이머 일시정지,,,,,
+API 명세 맵핑,177,,PATCH,/api/time-logs/{id}/resume,명세,O,연결됨,/desktop-widget 타이머 재개,,,,,
+API 명세 맵핑,178,,PATCH,/api/time-logs/{id}/stop,명세,O,연결됨,/desktop-widget 타이머 종료,,,,,
 API 명세 맵핑,179,◆ voice,,,,,,,,,,,
 API 명세 맵핑,180,,POST,/api/voice/rooms,명세,O,연결됨,,,,,,
 API 명세 맵핑,181,,GET,/api/voice/rooms/{id},명세,O,연결됨,,,,,,

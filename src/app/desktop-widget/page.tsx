@@ -55,6 +55,8 @@ const apiItemBubbleTypeMap: Record<WidgetBubbleType, ApiWidgetBubbleType> = {
   todo: "TODO",
 };
 
+const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
+
 function getRequestedBubble(value: string | null): WidgetBubbleType {
   return desktopWidgetBubbleTypes.includes(value as WidgetBubbleType) ? (value as WidgetBubbleType) : "todo";
 }
@@ -439,6 +441,7 @@ function DesktopWidgetSurface() {
   const [memoRevision, setMemoRevision] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
   const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
+  const [activeTimerHeartbeatId, setActiveTimerHeartbeatId] = useState<string | null>(null);
   const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(widgetNotificationSignal);
@@ -668,6 +671,7 @@ function DesktopWidgetSurface() {
       setNotificationSignal(buildNotificationSignal(notifications));
       const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
       const activeTimer = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
+      setActiveTimerHeartbeatId(activeTimer?.status === "RUNNING" ? activeTimer.id : null);
 
       setDisplayBubbles(
         buildDisplayBubbles({
@@ -1058,8 +1062,30 @@ function DesktopWidgetSurface() {
 
   const applyTimerResult = useCallback((timeLog: TimeLogResponse) => {
     setTimerSnapshot(timeLog.status === "ENDED" ? null : timeLog);
+    setActiveTimerHeartbeatId(timeLog.status === "RUNNING" ? timeLog.id : null);
     setTimerRevision((current) => current + 1);
   }, []);
+
+  useEffect(() => {
+    if (!activeTimerHeartbeatId) return;
+
+    let cancelled = false;
+    const intervalId = window.setInterval(() => {
+      void timerApi
+        .heartbeat(activeTimerHeartbeatId)
+        .then((timeLog) => {
+          if (cancelled) return;
+          applyTimerResult(timeLog);
+          recordTimerUsage("timer:heartbeat", timeLog.id);
+        })
+        .catch(() => undefined);
+    }, TIMER_HEARTBEAT_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeTimerHeartbeatId, applyTimerResult, recordTimerUsage]);
 
   const pauseWidgetTimer = useCallback(
     async (bubble: WidgetPreviewBubble) => {
