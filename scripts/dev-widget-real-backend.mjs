@@ -91,6 +91,13 @@ async function smokeBackend(accessToken) {
   );
   assert(dashboard.todayTasks !== undefined, "dashboard response did not include todayTasks");
 
+  const personalWidgetContext = await apiPatch("/api/widget/context", headers, { selectedRoomId: null });
+  assert(personalWidgetContext.mode === "PERSONAL", "widget context did not switch to PERSONAL mode");
+
+  const roomWidgetContext = await apiPatch("/api/widget/context", headers, { selectedRoomId: SEED_ROOM_ID });
+  assert(roomWidgetContext.selectedRoomId === SEED_ROOM_ID, "widget context did not switch back to the seeded room");
+  assert(roomWidgetContext.mode === "ROOM", "widget context did not return ROOM mode");
+
   const todoSetting = settings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
   assert(todoSetting?.id, "widget settings did not include a TODO bubble setting id");
 
@@ -177,7 +184,7 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 

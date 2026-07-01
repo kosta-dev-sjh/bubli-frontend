@@ -514,6 +514,37 @@ function DesktopWidgetSurface() {
   }, [isWidgetChrome, requestedBubble, requestedMode, windowId]);
 
   useEffect(() => {
+    if (isWidgetChrome) return;
+
+    let cancelled = false;
+
+    async function refreshWidgetContext() {
+      const summary = await widgetApi.getSummary().catch(() => null);
+      if (cancelled || !summary?.context) return;
+
+      setWidgetContext((current) => {
+        if (
+          current?.mode === summary.context.mode &&
+          current?.selectedRoomId === summary.context.selectedRoomId
+        ) {
+          return current;
+        }
+        return summary.context;
+      });
+      setServerSettings(summary.bubbles ?? []);
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshWidgetContext();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [isWidgetChrome]);
+
+  useEffect(() => {
     if (isMenuOrb) return;
 
     let cancelled = false;

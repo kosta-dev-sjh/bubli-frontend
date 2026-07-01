@@ -15,7 +15,6 @@ export const siteConfig = {
     { href: "/app/resources", label: "자료보드" },
     { href: "/app/agent", label: "후보" },
     { href: "/app/calendar", label: "일정" },
-    { href: "/app/chat", label: "소통" },
     { href: "/app/settings", label: "설정" },
   ],
 } as const;
