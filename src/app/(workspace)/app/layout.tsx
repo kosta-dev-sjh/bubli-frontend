@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 
 import { AppShell } from "@/components/layout/app-shell";
+import { TauriPostLoginLauncher } from "@/lib/tauri/tauri-post-login-launcher";
 
 export const metadata: Metadata = {
   icons: {
@@ -21,6 +22,7 @@ type WorkspaceLayoutProps = {
 export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   return (
     <Suspense fallback={null}>
+      <TauriPostLoginLauncher />
       <AppShell>{children}</AppShell>
     </Suspense>
   );

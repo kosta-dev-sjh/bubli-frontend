@@ -13,10 +13,18 @@ import type {
   WidgetUsageRollupResponse as ApiWidgetUsageRollupResponse,
   WidgetUsageSummarySaveRequest as ApiWidgetUsageSummarySaveRequest,
 } from "@/types/api/widget";
+import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
 
 export type BackendWidgetBubbleType = Exclude<ApiWidgetBubbleType, "ALERT" | "RESOURCE">;
 export type WidgetBubbleSettingResponse = ApiWidgetBubbleSettingResponse;
 export type WidgetContextResponse = ApiWidgetContextResponse;
+
+function widgetRequest<T>(path: string, options: Parameters<typeof apiRequest<T>>[1] = {}) {
+  return apiRequest<T>(path, {
+    ...options,
+    headers: withWidgetDevAuthHeaders(options.headers),
+  });
+}
 
 function toUsageSummarySaveRequest(body: ApiWidgetUsageRollupRequest): ApiWidgetUsageSummarySaveRequest {
   return {
@@ -33,22 +41,22 @@ function toUsageSummarySaveRequest(body: ApiWidgetUsageRollupRequest): ApiWidget
 
 export const widgetApi = {
   getContext() {
-    return apiRequest<ApiWidgetContextResponse>("/api/widget/context");
+    return widgetRequest<ApiWidgetContextResponse>("/api/widget/context");
   },
 
   updateContext(body: ApiWidgetContextUpdateRequest) {
-    return apiRequest<ApiWidgetContextResponse>("/api/widget/context", {
+    return widgetRequest<ApiWidgetContextResponse>("/api/widget/context", {
       body,
       method: "PATCH",
     });
   },
 
   getSettings() {
-    return apiRequest<ApiWidgetSettingsResponse>("/api/widget/settings");
+    return widgetRequest<ApiWidgetSettingsResponse>("/api/widget/settings");
   },
 
   updateSettings(body: ApiWidgetBubbleSettingsUpdateRequest) {
-    return apiRequest<ApiWidgetSettingsResponse>("/api/widget/settings", {
+    return widgetRequest<ApiWidgetSettingsResponse>("/api/widget/settings", {
       body,
       method: "PATCH",
     });
@@ -66,18 +74,18 @@ export const widgetApi = {
   },
 
   getSummary() {
-    return apiRequest<ApiWidgetSummaryResponse>("/api/widget/summary");
+    return widgetRequest<ApiWidgetSummaryResponse>("/api/widget/summary");
   },
 
   updateItemState(itemStateId: string, body: ApiWidgetItemStateUpdateRequest) {
-    return apiRequest<null>(`/api/widget/items/${itemStateId}/state`, {
+    return widgetRequest<null>(`/api/widget/items/${itemStateId}/state`, {
       body,
       method: "PATCH",
     });
   },
 
   saveUsageSummary(body: ApiWidgetUsageSummarySaveRequest) {
-    return apiRequest<ApiWidgetUsageRollupResponse>("/api/widget/usage-summaries", {
+    return widgetRequest<ApiWidgetUsageRollupResponse>("/api/widget/usage-summaries", {
       body,
       method: "POST",
     });
@@ -88,7 +96,7 @@ export const widgetApi = {
   },
 
   getTodayUsageRollups() {
-    return apiRequest<ApiWidgetTodayUsageSummaryResponse>("/api/widget/usage-summaries/today");
+    return widgetRequest<ApiWidgetTodayUsageSummaryResponse>("/api/widget/usage-summaries/today");
   },
 
   getTodayUsageSummary() {

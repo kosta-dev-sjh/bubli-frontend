@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, type CSSProperties, type PointerEvent } from "react";
 
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { siteConfig } from "@/config/site";
 import { authApi } from "@/features/auth/api/authApi";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 function GoogleIcon() {
   return (
@@ -71,14 +73,22 @@ function handleSubmitPointerLeave(event: PointerEvent<HTMLButtonElement>) {
 }
 
 export function AuthPanel() {
+  const router = useRouter();
   const [isStartingLogin, setIsStartingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const isDevTauriLogin = isTauriRuntime() && Boolean(process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN);
 
   async function handleGoogleLogin() {
     setIsStartingLogin(true);
     setLoginError(null);
 
     try {
+      if (isDevTauriLogin && process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN) {
+        await authApi.loginWithDevAccessToken(process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN);
+        router.replace("/app");
+        return;
+      }
+
       const { authorizeUrl } = await authApi.getGoogleAuthorizationUrl({
         state: "login",
       });
@@ -142,7 +152,7 @@ export function AuthPanel() {
             type="button"
           >
             <GoogleIcon />
-            {isStartingLogin ? "Google로 이동 중" : "Google로 계속하기"}
+            {isStartingLogin ? "Google로 이동 중" : "Google로 로그인"}
           </button>
           {loginError ? <p className="auth-card__error">{loginError}</p> : null}
         </div>
