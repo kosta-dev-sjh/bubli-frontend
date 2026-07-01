@@ -23,6 +23,7 @@ import {
   restoreLocalSqliteBackup,
 } from "@/lib/local/local-cache-client";
 import {
+  openPersonalLocalFile,
   scanPersonalManagedFolder,
   searchPersonalLocalFiles,
   selectPersonalManagedFolder,
@@ -540,6 +541,11 @@ export default function SettingsPage() {
     setLocalActionMessage(localResultMessage(result));
   }, [folderSearchQuery]);
 
+  const openLocalFile = useCallback(async (localFileId: string) => {
+    const result = await openPersonalLocalFile({ localFileId });
+    setLocalActionMessage(result.status === "ready" ? `${result.data.name} 파일을 열었습니다` : localResultMessage(result));
+  }, []);
+
   useEffect(() => {
     if (!desktopRuntime) return;
 
@@ -1055,7 +1061,18 @@ export default function SettingsPage() {
                         <strong>{file.name}</strong>
                         <small>{file.path}</small>
                       </span>
-                      <StatusBadge tone="neutral">로컬</StatusBadge>
+                      <div className={styles.inlineActions}>
+                        <StatusBadge tone="neutral">로컬</StatusBadge>
+                        <Button
+                          disabled={!desktopRuntime}
+                          onClick={() => void openLocalFile(file.localFileId)}
+                          size="sm"
+                          type="button"
+                          variant="quiet"
+                        >
+                          열기
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>

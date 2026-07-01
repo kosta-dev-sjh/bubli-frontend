@@ -22,6 +22,7 @@ export const TAURI_COMMANDS = {
   recordWidgetUsageEvent: "record_widget_usage_event",
   markLocalFileEventsSynced: "mark_local_file_events_synced",
   markWidgetUsageSummarySynced: "mark_widget_usage_summary_synced",
+  openLocalFile: "open_local_file",
   registerWidgetShortcut: "register_widget_shortcut",
   restoreLocalSqliteBackup: "restore_local_sqlite_backup",
   rollupWidgetUsage: "rollup_widget_usage",
@@ -109,6 +110,17 @@ export type LocalFilePreviewResult = {
   readAt: string;
   status: "READY" | "UNSUPPORTED" | "MISSING" | "TOO_LARGE";
   truncated: boolean;
+};
+
+export type LocalFileOpenInput = {
+  localFileId: string;
+};
+
+export type LocalFileOpenResult = {
+  localFileId: string;
+  name: string;
+  openedAt: string;
+  path: string;
 };
 
 export type LocalFileEventsSyncStageInput = {
@@ -495,6 +507,10 @@ export type TauriCommandContract = {
     args: WidgetUsageSummaryMarkSyncedInput;
     result: WidgetUsageSummaryMarkSyncedResult;
   };
+  open_local_file: {
+    args: LocalFileOpenInput;
+    result: LocalFileOpenResult;
+  };
   register_widget_shortcut: {
     args: WidgetShortcutInput;
     result: WidgetWindowState;
@@ -647,6 +663,9 @@ export const tauriCommands = {
   },
   markWidgetUsageSummarySynced(input: WidgetUsageSummaryMarkSyncedInput) {
     return invokeTauri<WidgetUsageSummaryMarkSyncedResult>(TAURI_COMMANDS.markWidgetUsageSummarySynced, { input });
+  },
+  openLocalFile(input: LocalFileOpenInput) {
+    return invokeTauri<LocalFileOpenResult>(TAURI_COMMANDS.openLocalFile, { input });
   },
   registerWidgetShortcut(input: WidgetShortcutInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.registerWidgetShortcut, { input });

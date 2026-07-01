@@ -13,6 +13,8 @@ import {
 } from "@/lib/local/adapter-result";
 import type {
   LocalAdapterResult,
+  LocalFileOpenAdapterInput,
+  LocalFileOpenAdapterResult,
   LocalFilePreviewAdapterInput,
   LocalFilePreviewAdapterResult,
   LocalFileSearchAdapterInput,
@@ -116,6 +118,22 @@ export async function searchPersonalLocalFiles(
 
   return runTauriAdapter(TAURI_COMMANDS.searchLocalFiles, () =>
     tauriCommands.searchLocalFiles(tauriInput),
+  );
+}
+
+export async function openPersonalLocalFile(
+  input: LocalFileOpenAdapterInput,
+): Promise<LocalFileOpenAdapterResult> {
+  if (!isTauriRuntime()) {
+    return unavailable(TAURI_COMMANDS.openLocalFile);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.openLocalFile);
+  }
+
+  return runTauriAdapter(TAURI_COMMANDS.openLocalFile, () =>
+    tauriCommands.openLocalFile({ localFileId: input.localFileId }),
   );
 }
 

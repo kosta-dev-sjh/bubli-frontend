@@ -154,6 +154,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.openLocalFile,
+    responsibility: "Open only a locally indexed personal file by id with the OS default app",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.readLocalFilePreview,
     responsibility: "Read a bounded preview for a locally indexed personal file",
     reflectsToServer: false,

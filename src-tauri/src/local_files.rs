@@ -114,6 +114,21 @@ pub struct LocalFilePreviewResult {
     truncated: bool,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileOpenInput {
+    local_file_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileOpenResult {
+    local_file_id: String,
+    name: String,
+    opened_at: String,
+    path: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncOutboxFlushResult {
@@ -1009,6 +1024,46 @@ pub fn read_local_file_preview(
         read_at: crate::local_db::now_iso(),
         status,
         truncated,
+    })
+}
+
+/// Open a file that is already registered in the personal managed-folder index.
+/// The caller passes only the local file id; arbitrary path opening is rejected
+/// by resolving the path from SQLite first.
+#[tauri::command]
+pub fn open_local_file(
+    state: State<'_, Db>,
+    input: LocalFileOpenInput,
+) -> Result<LocalFileOpenResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let row: Option<(String, String)> = conn
+        .query_row(
+            "SELECT file_name, local_path FROM local_files WHERE id = ?1",
+            params![input.local_file_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+
+    let Some((name, path)) = row else {
+        return Err(format!(
+            "local file not found in managed index: {}",
+            input.local_file_id
+        ));
+    };
+
+    let path_buf = PathBuf::from(&path);
+    if !path_buf.exists() {
+        return Err(format!("local file is no longer available: {path}"));
+    }
+
+    tauri_plugin_opener::open_path(&path_buf, None::<&str>).map_err(|error| error.to_string())?;
+
+    Ok(LocalFileOpenResult {
+        local_file_id: input.local_file_id,
+        name,
+        opened_at: crate::local_db::now_iso(),
+        path,
     })
 }
 
