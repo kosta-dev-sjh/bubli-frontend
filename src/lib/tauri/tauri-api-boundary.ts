@@ -102,6 +102,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     reflectsToServer: true,
     serverApi: "/api/activity/current-app",
   },
+  {
+    ipc: TAURI_COMMANDS.stageActivityContextsForSync,
+    responsibility: "Stage failed or local-only activity captures for API retry",
+    reflectsToServer: true,
+    serverApi: "/api/activity/current-app",
+  },
   // BUBLI-43 personal managed folder: local index, only approved items reach server.
   {
     ipc: TAURI_COMMANDS.selectManagedFolder,

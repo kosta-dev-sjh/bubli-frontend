@@ -10,6 +10,7 @@ import {
   unavailable,
 } from "@/lib/local/adapter-result";
 import type {
+  ActivityBufferSyncAdapterResult,
   ActivityContextAdapterResult,
   ActivityContextReadInput,
   ActivityContextRecordAdapterResult,
@@ -40,6 +41,8 @@ export async function recordCurrentActivityContext(
   input: ActivityContextRecordInput,
 ): Promise<ActivityContextRecordAdapterResult> {
   const commandName = TAURI_COMMANDS.readActivityContext;
+  await syncLocalActivityBufferToServer({ limit: 10 }).catch(() => undefined);
+
   const context = await readCurrentActivityContext(input);
 
   if (context.status !== "ready") {
@@ -106,6 +109,73 @@ export async function recordCurrentActivityContext(
       .catch(() => undefined);
     return failed(getErrorMessage(error), commandName);
   }
+}
+
+export async function syncLocalActivityBufferToServer(input?: {
+  limit?: number;
+}): Promise<ActivityBufferSyncAdapterResult> {
+  const commandName = TAURI_COMMANDS.stageActivityContextsForSync;
+  const staged = await runTauriAdapter(commandName, () =>
+    tauriCommands.stageActivityContextsForSync(input),
+  );
+
+  if (staged.status !== "ready") {
+    return staged;
+  }
+
+  if (staged.data.activities.length === 0) {
+    return ready(
+      {
+        failedCount: 0,
+        sentCount: 0,
+        stagedCount: 0,
+        syncedAt: staged.data.stagedAt,
+      },
+      commandName,
+      "서버에 다시 보낼 활동 기록이 없습니다.",
+    );
+  }
+
+  let sentCount = 0;
+  let failedCount = 0;
+
+  for (const activity of staged.data.activities) {
+    try {
+      const recorded = await activityApi.recordCurrentApp({
+        appName: activity.appName,
+        durationSeconds: activity.durationSeconds ?? null,
+        endedAt: activity.endedAt,
+        roomId: activity.roomId ?? null,
+        startedAt: activity.startedAt,
+        windowTitle: activity.windowTitle ?? null,
+      });
+      await tauriCommands.markActivityContextSynced({
+        localActivityId: activity.localActivityId,
+        serverActivityLogId: recorded.id,
+        status: "SYNCED",
+      });
+      sentCount += 1;
+    } catch {
+      failedCount += 1;
+      await tauriCommands
+        .markActivityContextSynced({
+          localActivityId: activity.localActivityId,
+          status: "FAILED",
+        })
+        .catch(() => undefined);
+    }
+  }
+
+  return ready(
+    {
+      failedCount,
+      sentCount,
+      stagedCount: staged.data.activities.length,
+      syncedAt: new Date().toISOString(),
+    },
+    commandName,
+    `활동 기록 ${sentCount}건을 서버에 다시 반영했습니다.`,
+  );
 }
 
 function parseIsoDate(value: string) {

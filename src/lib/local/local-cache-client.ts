@@ -23,6 +23,7 @@ const IMPLEMENTED_LOCAL_CACHE_COMMANDS = [
   TAURI_COMMANDS.recordWidgetUsageEvent,
   TAURI_COMMANDS.restoreLocalSqliteBackup,
   TAURI_COMMANDS.rollupWidgetUsage,
+  TAURI_COMMANDS.stageActivityContextsForSync,
   TAURI_COMMANDS.syncRoomMessages,
 ] as const;
 

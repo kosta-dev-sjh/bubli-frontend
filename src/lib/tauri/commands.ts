@@ -31,6 +31,7 @@ export const TAURI_COMMANDS = {
   setWidgetClickThrough: "set_widget_click_through",
   setWidgetWindowMode: "set_widget_window_mode",
   setWidgetWindowPosition: "set_widget_window_position",
+  stageActivityContextsForSync: "stage_activity_contexts_for_sync",
   stageLocalFileEventsForSync: "stage_local_file_events_for_sync",
   syncRoomMessages: "sync_room_messages",
   syncWidgetUsageSummary: "sync_widget_usage_summary",
@@ -210,6 +211,26 @@ export type ActivityContextSyncResult = {
   localActivityId: string;
   markedAt: string;
   syncStatus: "LOCAL_ONLY" | "SYNC_PENDING" | "SYNCED" | "FAILED";
+};
+
+export type ActivityContextSyncStageInput = {
+  limit?: number;
+};
+
+export type ActivityContextSyncCandidate = {
+  appName: string;
+  capturedAt: string;
+  durationSeconds?: number | null;
+  endedAt: string;
+  localActivityId: string;
+  roomId?: string | null;
+  startedAt: string;
+  windowTitle?: string | null;
+};
+
+export type ActivityContextSyncStageResult = {
+  activities: ActivityContextSyncCandidate[];
+  stagedAt: string;
 };
 
 export type AppMonitorPosition = {
@@ -498,6 +519,10 @@ export type TauriCommandContract = {
     args: WidgetWindowPositionInput;
     result: WidgetWindowState;
   };
+  stage_activity_contexts_for_sync: {
+    args: ActivityContextSyncStageInput | undefined;
+    result: ActivityContextSyncStageResult;
+  };
   stage_local_file_events_for_sync: {
     args: LocalFileEventsSyncStageInput | undefined;
     result: LocalFileEventsSyncStageResult;
@@ -631,6 +656,12 @@ export const tauriCommands = {
   },
   setWidgetWindowPosition(input: WidgetWindowPositionInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetWindowPosition, { input });
+  },
+  stageActivityContextsForSync(input?: ActivityContextSyncStageInput) {
+    return invokeTauri<ActivityContextSyncStageResult>(
+      TAURI_COMMANDS.stageActivityContextsForSync,
+      input ? { input } : undefined,
+    );
   },
   stageLocalFileEventsForSync(input?: LocalFileEventsSyncStageInput) {
     return invokeTauri<LocalFileEventsSyncStageResult>(

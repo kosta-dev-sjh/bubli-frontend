@@ -1057,6 +1057,7 @@ pub fn run() {
             local_db::record_activity_context,
             local_db::record_timer_state,
             local_db::recover_timer_state,
+            local_db::stage_activity_contexts_for_sync,
             local_db::restore_local_sqlite_backup,
             local_db::sync_room_messages
         ])

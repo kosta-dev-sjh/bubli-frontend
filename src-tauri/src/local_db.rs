@@ -186,6 +186,32 @@ pub struct ActivityContextSyncResult {
     sync_status: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityContextSyncStageInput {
+    limit: Option<i64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityContextSyncCandidate {
+    app_name: String,
+    captured_at: String,
+    duration_seconds: Option<i64>,
+    ended_at: String,
+    local_activity_id: String,
+    room_id: Option<String>,
+    started_at: String,
+    window_title: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityContextSyncStageResult {
+    activities: Vec<ActivityContextSyncCandidate>,
+    staged_at: String,
+}
+
 #[tauri::command]
 pub fn check_local_sqlite_integrity(
     state: tauri::State<'_, Db>,
@@ -441,6 +467,59 @@ pub fn mark_activity_context_synced(
         local_activity_id: input.local_activity_id,
         marked_at: ms_to_iso(now),
         sync_status,
+    })
+}
+
+#[tauri::command]
+pub fn stage_activity_contexts_for_sync(
+    state: tauri::State<'_, Db>,
+    input: Option<ActivityContextSyncStageInput>,
+) -> Result<ActivityContextSyncStageResult, String> {
+    let limit = input
+        .and_then(|value| value.limit)
+        .unwrap_or(20)
+        .clamp(1, 100);
+    let now = now_ms();
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, room_id, app_name, window_title, duration_seconds, started_at, ended_at, captured_at \
+             FROM local_activity_buffer \
+             WHERE sync_status IN ('LOCAL_ONLY', 'FAILED') \
+             ORDER BY updated_at ASC LIMIT ?1",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = stmt
+        .query_map(params![limit], |row| {
+            Ok(ActivityContextSyncCandidate {
+                local_activity_id: row.get(0)?,
+                room_id: row.get(1)?,
+                app_name: row.get(2)?,
+                window_title: row.get(3)?,
+                duration_seconds: row.get(4)?,
+                started_at: row.get(5)?,
+                ended_at: row.get(6)?,
+                captured_at: row.get(7)?,
+            })
+        })
+        .map_err(|error| error.to_string())?;
+
+    let activities = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    drop(stmt);
+
+    for activity in &activities {
+        conn.execute(
+            "UPDATE local_activity_buffer SET sync_status = 'SYNC_PENDING', updated_at = ?2 WHERE id = ?1",
+            params![activity.local_activity_id, now],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
+    Ok(ActivityContextSyncStageResult {
+        activities,
+        staged_at: ms_to_iso(now),
     })
 }
 

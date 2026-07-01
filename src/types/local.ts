@@ -121,6 +121,13 @@ export type ActivityContextRecordResult = {
   windowTitle?: string;
 };
 
+export type ActivityBufferSyncResult = {
+  failedCount: number;
+  sentCount: number;
+  stagedCount: number;
+  syncedAt: string;
+};
+
 export type LocalFolderScopeInput = {
   roomId?: string | null;
 };
@@ -144,6 +151,7 @@ export type LocalFilePreviewAdapterInput = LocalFilePreviewInput & LocalFolderSc
 export type LocalFilePreviewAdapterResult = LocalAdapterResult<LocalFilePreviewResult>;
 export type ActivityContextAdapterResult = LocalAdapterResult<ActivityContextResult>;
 export type ActivityContextRecordAdapterResult = LocalAdapterResult<ActivityContextRecordResult>;
+export type ActivityBufferSyncAdapterResult = LocalAdapterResult<ActivityBufferSyncResult>;
 export type WidgetUsageEventAdapterInput = WidgetUsageEventInput;
 export type WidgetUsageEventAdapterResult = LocalAdapterResult<WidgetUsageEventRecordResult>;
 export type WidgetUsageRollupAdapterInput = WidgetUsageRollupInput;
