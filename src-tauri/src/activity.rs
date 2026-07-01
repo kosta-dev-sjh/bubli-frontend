@@ -129,9 +129,79 @@ return appName & "\n" & winTitle
     Ok((app_name, window_title))
 }
 
-/// Other platforms: native capture is the remaining step (Windows: GetForegroundWindow,
-/// Linux: depends on the window manager). Returns a clear error instead of fake data.
-#[cfg(not(target_os = "macos"))]
+/// Windows: read the foreground window and owning process through Win32 APIs.
+#[cfg(target_os = "windows")]
 fn capture_foreground() -> Result<(String, Option<String>), String> {
-    Err("activity context capture is implemented on macOS only for now".to_string())
+    use std::path::Path;
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
+    };
+
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd == 0 {
+            return Err("foreground window was not available".to_string());
+        }
+
+        let title_length = GetWindowTextLengthW(hwnd);
+        let window_title = if title_length > 0 {
+            let mut buffer = vec![0_u16; title_length as usize + 1];
+            let read = GetWindowTextW(hwnd, buffer.as_mut_ptr(), buffer.len() as i32);
+            if read > 0 {
+                Some(
+                    String::from_utf16_lossy(&buffer[..read as usize])
+                        .trim()
+                        .to_string(),
+                )
+                .filter(|value| !value.is_empty())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let mut process_id = 0_u32;
+        GetWindowThreadProcessId(hwnd, &mut process_id);
+        if process_id == 0 {
+            return Err("foreground process id was not available".to_string());
+        }
+
+        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id);
+        if process == 0 {
+            return Ok((format!("process-{process_id}"), window_title));
+        }
+
+        let mut path_buffer = vec![0_u16; 32768];
+        let mut path_size = path_buffer.len() as u32;
+        let query_ok =
+            QueryFullProcessImageNameW(process, 0, path_buffer.as_mut_ptr(), &mut path_size);
+        CloseHandle(process);
+
+        if query_ok == 0 || path_size == 0 {
+            return Ok((format!("process-{process_id}"), window_title));
+        }
+
+        let process_path = String::from_utf16_lossy(&path_buffer[..path_size as usize]);
+        let app_name = Path::new(&process_path)
+            .file_stem()
+            .or_else(|| Path::new(&process_path).file_name())
+            .and_then(|value| value.to_str())
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| format!("process-{process_id}"));
+
+        Ok((app_name, window_title))
+    }
+}
+
+/// Other platforms: native capture depends on the desktop/window manager.
+/// Returns a clear error instead of fake data.
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn capture_foreground() -> Result<(String, Option<String>), String> {
+    Err("activity context capture is not implemented on this platform yet".to_string())
 }
