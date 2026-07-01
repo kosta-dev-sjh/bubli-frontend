@@ -91,12 +91,15 @@ export type DesktopWidgetBubbleProps = {
   mode: WidgetWindowMode;
   onClose: () => void;
   onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
+  onLeaveVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onMarkChatRead?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onModeChange: (mode: WidgetWindowMode) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onRestore?: () => void;
   onSendChatMessage?: (bubble: WidgetPreviewBubble, text: string) => Promise<void> | void;
+  onStartVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onToggleAlwaysOnTop: () => void;
+  onToggleVoiceMic?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   presentation?: "preview" | "tauri";
   windowVisible?: boolean;
 };
@@ -241,18 +244,25 @@ function AgentBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble;
 function ChatBody({
   bubble,
   onItemStateChange,
+  onLeaveVoice,
   onMarkChatRead,
   onSendChatMessage,
+  onStartVoice,
+  onToggleVoiceMic,
 }: {
   bubble: WidgetPreviewBubble;
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
   onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
   onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
+  onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
+  onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
 }) {
   const [draft, setDraft] = useState("");
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [statusText, setStatusText] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [voiceSubmitting, setVoiceSubmitting] = useState(false);
   const visibleRows = bubble.rows.filter((item) => !hiddenIds.includes(item.id));
   const handoffItem = visibleRows.find((item) => item.handoffUrl);
   const agentRows = visibleRows.filter((item) => item.kind === "agent");
@@ -302,6 +312,22 @@ function ChatBody({
     }
   };
 
+  const runVoiceAction = async (action: "leave" | "mic" | "start") => {
+    const handler = action === "start" ? onStartVoice : action === "leave" ? onLeaveVoice : onToggleVoiceMic;
+    if (!handler || voiceSubmitting) return;
+
+    setVoiceSubmitting(true);
+    setStatusText(null);
+    try {
+      await handler(bubble);
+      setStatusText(action === "start" ? "Voice ready" : action === "leave" ? "Voice left" : "Mic updated");
+    } catch {
+      setStatusText(action === "start" ? "Voice failed" : action === "leave" ? "Leave failed" : "Mic failed");
+    } finally {
+      setVoiceSubmitting(false);
+    }
+  };
+
   return (
     <div className={styles.body}>
       <div className={styles.chatHead}>
@@ -319,13 +345,13 @@ function ChatBody({
           <span>{voiceRows[0]?.label ?? bubble.voiceLabel ?? "보이스 대기"}</span>
           <small>{bubble.voiceParticipants ?? "참여자 없음"}</small>
         </div>
-        <button aria-label="마이크 상태" type="button">
+        <button aria-label="마이크 상태" disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("mic")} type="button">
           <Mic size={13} strokeWidth={2} />
         </button>
-        <button aria-label="헤드셋" type="button">
+        <button aria-label="보이스 시작" disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
           <Headphones size={13} strokeWidth={2} />
         </button>
-        <button aria-label="보이스 나가기" type="button">
+        <button aria-label="보이스 나가기" disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("leave")} type="button">
           <PhoneOff size={13} strokeWidth={2} />
         </button>
       </div>
@@ -380,7 +406,7 @@ function ChatBody({
           placeholder={bubble.chatRoomId ? bubble.inputPlaceholder : "채팅방을 먼저 선택하세요"}
           value={draft}
         />
-        <button aria-label="보이스 시작" type="button">
+        <button aria-label="보이스 시작" disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
           <Mic size={13} strokeWidth={2} />
         </button>
         <button
@@ -507,17 +533,33 @@ function ResourceBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubb
 function BubbleBody({
   bubble,
   onItemStateChange,
+  onLeaveVoice,
   onMarkChatRead,
   onSendChatMessage,
+  onStartVoice,
+  onToggleVoiceMic,
 }: {
   bubble: WidgetPreviewBubble;
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
   onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
   onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
+  onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
+  onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
 }) {
   if (bubble.id === "agent") return <AgentBody bubble={bubble} onItemStateChange={onItemStateChange} />;
   if (bubble.id === "chat") {
-    return <ChatBody bubble={bubble} onItemStateChange={onItemStateChange} onMarkChatRead={onMarkChatRead} onSendChatMessage={onSendChatMessage} />;
+    return (
+      <ChatBody
+        bubble={bubble}
+        onItemStateChange={onItemStateChange}
+        onLeaveVoice={onLeaveVoice}
+        onMarkChatRead={onMarkChatRead}
+        onSendChatMessage={onSendChatMessage}
+        onStartVoice={onStartVoice}
+        onToggleVoiceMic={onToggleVoiceMic}
+      />
+    );
   }
   if (bubble.id === "timer") return <TimerBody bubble={bubble} onItemStateChange={onItemStateChange} />;
   if (bubble.id === "memo") return <MemoBody bubble={bubble} />;
@@ -544,11 +586,14 @@ export function DesktopWidgetBubble({
   mode,
   onClose,
   onItemStateChange,
+  onLeaveVoice,
   onMarkChatRead,
   onModeChange,
   onRestore,
   onSendChatMessage,
+  onStartVoice,
   onToggleAlwaysOnTop,
+  onToggleVoiceMic,
   presentation = "tauri",
   windowVisible = true,
 }: DesktopWidgetBubbleProps) {
@@ -607,8 +652,11 @@ export function DesktopWidgetBubble({
               <BubbleBody
                 bubble={activeData}
                 onItemStateChange={onItemStateChange}
+                onLeaveVoice={onLeaveVoice}
                 onMarkChatRead={onMarkChatRead}
                 onSendChatMessage={onSendChatMessage}
+                onStartVoice={onStartVoice}
+                onToggleVoiceMic={onToggleVoiceMic}
               />
             )}
 

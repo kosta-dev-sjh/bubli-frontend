@@ -1,7 +1,8 @@
 "use client";
 
+import { Room } from "livekit-client";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import {
   widgetDisplayApi,
@@ -216,6 +217,7 @@ function buildDisplayBubbles(input: {
   schedules: WidgetScheduleResponse[];
   suggestions: WidgetAgentSuggestionResponse[];
   tasks: WidgetTaskResponse[];
+  voiceConnectionLabel?: string | null;
   voiceRoom?: WidgetVoiceRoomResponse | null;
 }): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
   const label = roomLabel(input.room, input.roomId);
@@ -267,9 +269,11 @@ function buildDisplayBubbles(input: {
       panelBody: "친구, 메시지, 보이스 상태를 함께 표시합니다.",
       panelLabel: `소통 · ${label}`,
       participantLabels: input.friends.slice(0, 3).map((item) => item.name),
+      roomId: input.roomId,
       roomLabel: label,
-      voiceLabel: input.voiceRoom?.status === "OPEN" ? "보이스 진행 중" : "보이스 대기",
+      voiceLabel: input.voiceConnectionLabel ?? (input.voiceRoom?.status === "OPEN" ? "보이스 진행 중" : "보이스 대기"),
       voiceParticipants: voiceParticipants.map((item) => item.userName).filter(Boolean).join(" · ") || "참여자 없음",
+      voiceRoomId: input.voiceRoom?.id,
       rows: [
         ...input.friends.slice(0, 1).map((item) => ({
           id: item.userId ?? item.friendUserId ?? item.bubliId,
@@ -389,8 +393,12 @@ function DesktopWidgetSurface() {
   const [serverSettings, setServerSettings] = useState<WidgetBubbleSettingResponse[]>([]);
   const [barItems, setBarItems] = useState<WidgetWindowState[]>([]);
   const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>({});
+  const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID ?? null);
   const [communicationRevision, setCommunicationRevision] = useState(0);
+  const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
+  const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(widgetNotificationSignal);
+  const liveKitRoomRef = useRef<Room | null>(null);
 
   useEffect(() => {
     const htmlStyle = document.documentElement.style;
@@ -520,6 +528,13 @@ function DesktopWidgetSurface() {
   }, [isWidgetChrome, requestedBubble, requestedMode, windowId]);
 
   useEffect(() => {
+    return () => {
+      liveKitRoomRef.current?.disconnect();
+      liveKitRoomRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     if (isWidgetChrome) return;
 
     let cancelled = false;
@@ -568,7 +583,7 @@ function DesktopWidgetSurface() {
         }
       }
 
-      const voiceRoomId = process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID;
+      const voiceRoomId = activeVoiceRoomId;
       const [dashboardResult, tasksResult, schedulesResult, resourcesResult, suggestionsResult, notificationsResult, chatRoomsResult, friendsResult, roomResult, voiceResult] =
         await Promise.allSettled([
           widgetDisplayApi.getDashboardWork(),
@@ -606,6 +621,7 @@ function DesktopWidgetSurface() {
           schedules: schedulesResult.status === "fulfilled" ? schedulesResult.value.items : [],
           suggestions: suggestionsResult.status === "fulfilled" ? suggestionsResult.value : [],
           tasks: tasksResult.status === "fulfilled" ? tasksResult.value.items : [],
+          voiceConnectionLabel,
           voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
         }),
       );
@@ -621,7 +637,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [communicationRevision, isMenuOrb, widgetContext?.selectedRoomId]);
+  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, voiceConnectionLabel, widgetContext?.selectedRoomId]);
 
   useEffect(() => {
     if (!isBubbleBar) return;
@@ -920,6 +936,119 @@ function DesktopWidgetSurface() {
     [isTauri],
   );
 
+  const startWidgetVoice = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      if (!bubble.roomId) {
+        setVoiceConnectionLabel("Select a room first");
+        return;
+      }
+
+      const voiceRoom = activeVoiceRoomId
+        ? await widgetCommunicationApi.getVoiceRoom(activeVoiceRoomId)
+        : await widgetCommunicationApi.createVoiceRoom(bubble.roomId);
+
+      setActiveVoiceRoomId(voiceRoom.id);
+      setVoiceConnectionLabel("Voice room opened");
+
+      let token;
+      try {
+        token = await widgetCommunicationApi.getVoiceToken(voiceRoom.id);
+        setVoiceConnectionLabel("Voice token issued");
+      } catch (error) {
+        setVoiceConnectionLabel("Voice room open; token failed");
+        setCommunicationRevision((current) => current + 1);
+        throw error;
+      }
+
+      if (token.serverUrl && token.token) {
+        const liveKitRoom = new Room();
+        liveKitRoomRef.current?.disconnect();
+        liveKitRoomRef.current = liveKitRoom;
+
+        try {
+          await liveKitRoom.connect(token.serverUrl, token.token);
+          await liveKitRoom.localParticipant.setMicrophoneEnabled(true);
+          setVoiceMicMuted(false);
+          setVoiceConnectionLabel("LiveKit connected");
+        } catch {
+          setVoiceConnectionLabel("Token issued; media connect failed");
+        }
+      }
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "chat",
+            eventType: "voice:start",
+            itemId: voiceRoom.id,
+            itemType: "MESSAGE",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setCommunicationRevision((current) => current + 1);
+    },
+    [activeVoiceRoomId, isTauri],
+  );
+
+  const toggleWidgetVoiceMic = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      const voiceRoomId = bubble.voiceRoomId ?? activeVoiceRoomId;
+      if (!voiceRoomId) return;
+
+      const nextMuted = !voiceMicMuted;
+      await widgetCommunicationApi.updateMicStatus(voiceRoomId, nextMuted ? "MUTED" : "UNMUTED");
+      await liveKitRoomRef.current?.localParticipant.setMicrophoneEnabled(!nextMuted);
+      setVoiceMicMuted(nextMuted);
+      setVoiceConnectionLabel(nextMuted ? "Mic muted" : "Mic live");
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "chat",
+            eventType: nextMuted ? "voice:mic-muted" : "voice:mic-live",
+            itemId: voiceRoomId,
+            itemType: "MESSAGE",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setCommunicationRevision((current) => current + 1);
+    },
+    [activeVoiceRoomId, isTauri, voiceMicMuted],
+  );
+
+  const leaveWidgetVoice = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      const voiceRoomId = bubble.voiceRoomId ?? activeVoiceRoomId;
+      if (!voiceRoomId) return;
+
+      liveKitRoomRef.current?.disconnect();
+      liveKitRoomRef.current = null;
+      await widgetCommunicationApi.leaveVoiceRoom(voiceRoomId);
+      setActiveVoiceRoomId(null);
+      setVoiceMicMuted(false);
+      setVoiceConnectionLabel("Voice left");
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "chat",
+            eventType: "voice:leave",
+            itemId: voiceRoomId,
+            itemType: "MESSAGE",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setCommunicationRevision((current) => current + 1);
+    },
+    [activeVoiceRoomId, isTauri],
+  );
+
   const openBubbleBar = useCallback(async () => {
     if (!isTauri) return;
 
@@ -954,11 +1083,14 @@ function DesktopWidgetSurface() {
       mode={mode}
       onClose={closeWindow}
       onItemStateChange={(item, state) => void handleItemStateChange(item, state)}
+      onLeaveVoice={leaveWidgetVoice}
       onMarkChatRead={markWidgetChatRead}
       onModeChange={(nextMode) => void setWindowMode(nextMode)}
       onRestore={() => void restoreCurrentWindow()}
       onSendChatMessage={sendWidgetChatMessage}
+      onStartVoice={startWidgetVoice}
       onToggleAlwaysOnTop={() => void toggleAlwaysOnTop()}
+      onToggleVoiceMic={toggleWidgetVoiceMic}
       presentation="tauri"
       windowVisible={windowVisible}
     />

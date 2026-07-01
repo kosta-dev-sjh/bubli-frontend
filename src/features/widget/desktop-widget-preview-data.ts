@@ -30,9 +30,11 @@ export type WidgetPreviewBubble = {
   panelLabel: string;
   participantLabels?: string[];
   reactionLabels?: string[];
+  roomId?: string | null;
   roomLabel: string;
   rows: WidgetPreviewItem[];
   voiceLabel?: string;
+  voiceRoomId?: string;
   voiceParticipants?: string;
 };
 
