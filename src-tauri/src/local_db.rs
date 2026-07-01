@@ -137,6 +137,21 @@ pub struct AuthSessionReadResult {
     session_json: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveProjectRoomStoreInput {
+    room_id: String,
+    room_label: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveProjectRoomReadResult {
+    room_id: String,
+    room_label: Option<String>,
+    saved_at: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TimerRecoveryState {
@@ -322,6 +337,31 @@ pub fn read_tauri_auth_session(
 pub fn clear_tauri_auth_session(state: tauri::State<'_, Db>) -> Result<(), String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
     conn.execute("DELETE FROM local_auth_session WHERE id = 1", [])
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn store_active_project_room(
+    state: tauri::State<'_, Db>,
+    input: ActiveProjectRoomStoreInput,
+) -> Result<ActiveProjectRoomReadResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    store_active_project_room_for_conn(&conn, input)
+}
+
+#[tauri::command]
+pub fn read_active_project_room(
+    state: tauri::State<'_, Db>,
+) -> Result<Option<ActiveProjectRoomReadResult>, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    read_active_project_room_for_conn(&conn)
+}
+
+#[tauri::command]
+pub fn clear_active_project_room(state: tauri::State<'_, Db>) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    conn.execute("DELETE FROM local_active_project_room WHERE id = 1", [])
         .map_err(|error| error.to_string())?;
     Ok(())
 }
@@ -659,6 +699,61 @@ fn read_auth_session_json(conn: &Connection) -> Result<Option<AuthSessionReadRes
     .map_err(|error| error.to_string())
 }
 
+fn store_active_project_room_for_conn(
+    conn: &Connection,
+    input: ActiveProjectRoomStoreInput,
+) -> Result<ActiveProjectRoomReadResult, String> {
+    let room_id = input.room_id.trim();
+    if room_id.is_empty() {
+        return Err("roomId is required".to_string());
+    }
+
+    let room_label = input
+        .room_label
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+    let saved_at = now_ms();
+    conn.execute(
+        "INSERT INTO local_active_project_room (id, room_id, room_label, saved_at) \
+         VALUES (1, ?1, ?2, ?3) \
+         ON CONFLICT(id) DO UPDATE SET \
+           room_id = excluded.room_id, \
+           room_label = excluded.room_label, \
+           saved_at = excluded.saved_at",
+        params![room_id, room_label, saved_at],
+    )
+    .map_err(|error| error.to_string())?;
+
+    Ok(ActiveProjectRoomReadResult {
+        room_id: room_id.to_string(),
+        room_label,
+        saved_at: ms_to_iso(saved_at),
+    })
+}
+
+fn read_active_project_room_for_conn(
+    conn: &Connection,
+) -> Result<Option<ActiveProjectRoomReadResult>, String> {
+    conn.query_row(
+        "SELECT room_id, room_label, saved_at FROM local_active_project_room WHERE id = 1",
+        [],
+        |row| {
+            let room_id: String = row.get(0)?;
+            let room_label: Option<String> = row.get(1)?;
+            let saved_at: i64 = row.get(2)?;
+            Ok(ActiveProjectRoomReadResult {
+                room_id,
+                room_label,
+                saved_at: ms_to_iso(saved_at),
+            })
+        },
+    )
+    .optional()
+    .map_err(|error| error.to_string())
+}
+
 const SCHEMA_SQL: &str = r#"
 -- Desktop auth session mirror. The frontend still performs refresh/logout
 -- through the server; this row lets the Tauri shell restore the session after
@@ -667,6 +762,15 @@ CREATE TABLE IF NOT EXISTS local_auth_session (
     id           INTEGER PRIMARY KEY CHECK (id = 1),
     session_json TEXT NOT NULL,
     saved_at     INTEGER NOT NULL
+);
+
+-- Last selected project room for Tauri shell/window startup. Server widget
+-- context remains the cross-device source; this row protects local relaunches.
+CREATE TABLE IF NOT EXISTS local_active_project_room (
+    id         INTEGER PRIMARY KEY CHECK (id = 1),
+    room_id    TEXT NOT NULL,
+    room_label TEXT,
+    saved_at   INTEGER NOT NULL
 );
 
 -- Personal managed folders (user-selected). Personal-only: no room_id column.
@@ -826,9 +930,10 @@ CREATE INDEX IF NOT EXISTS idx_local_activity_buffer_status ON local_activity_bu
 #[cfg(test)]
 mod tests {
     use super::{
-        mark_activity_context_synced_conn, read_auth_session_json,
-        stage_activity_contexts_for_sync_conn, store_auth_session_json, validate_auth_session_json,
-        ActivityContextSyncInput, SCHEMA_SQL,
+        mark_activity_context_synced_conn, read_active_project_room_for_conn,
+        read_auth_session_json, stage_activity_contexts_for_sync_conn,
+        store_active_project_room_for_conn, store_auth_session_json, validate_auth_session_json,
+        ActiveProjectRoomStoreInput, ActivityContextSyncInput, SCHEMA_SQL,
     };
     use rusqlite::{params, Connection};
 
@@ -866,6 +971,51 @@ mod tests {
         let error = validate_auth_session_json(r#"{"accessToken":"access-token"}"#)
             .expect_err("incomplete session should fail");
         assert!(error.contains("refreshToken"));
+    }
+
+    #[test]
+    fn stores_reads_and_replaces_active_project_room() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+
+        let first = store_active_project_room_for_conn(
+            &conn,
+            ActiveProjectRoomStoreInput {
+                room_id: " room-1 ".to_string(),
+                room_label: Some(" First room ".to_string()),
+            },
+        )
+        .expect("store first active room");
+        assert_eq!(first.room_id, "room-1");
+        assert_eq!(first.room_label.as_deref(), Some("First room"));
+
+        let second = store_active_project_room_for_conn(
+            &conn,
+            ActiveProjectRoomStoreInput {
+                room_id: "room-2".to_string(),
+                room_label: None,
+            },
+        )
+        .expect("replace active room");
+        assert_eq!(second.room_id, "room-2");
+        assert_eq!(second.room_label, None);
+
+        let stored = read_active_project_room_for_conn(&conn)
+            .expect("read active room")
+            .expect("active room exists");
+        assert_eq!(stored.room_id, "room-2");
+        assert_eq!(stored.room_label, None);
+        assert!(!stored.saved_at.is_empty());
+
+        let missing_id = store_active_project_room_for_conn(
+            &conn,
+            ActiveProjectRoomStoreInput {
+                room_id: " ".to_string(),
+                room_label: Some("Missing".to_string()),
+            },
+        )
+        .expect_err("blank room id should fail");
+        assert!(missing_id.contains("roomId"));
     }
 
     fn insert_activity_row(conn: &Connection, id: &str, status: &str, updated_at: i64) {
