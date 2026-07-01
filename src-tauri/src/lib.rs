@@ -228,12 +228,15 @@ fn with_widget_state(
         .lock()
         .map_err(|_| "widget state lock failed".to_string())?;
     let target = normalize_bubble_type(Some(resolve_target_bubble(&guard, bubble_type)));
-    let window_key = normalize_window_key(&target, window_id);
+    let window_key = normalize_window_key(&target, window_id.clone());
     guard.active_bubble = target.clone();
     let widget = guard
         .bubbles
         .entry(window_key.clone())
         .or_insert_with(|| default_widget_window_state(&target, Some(window_key)));
+    if widget.window_id.is_none() {
+        widget.window_id = window_id.or_else(|| Some(target.clone()));
+    }
     update(widget);
     Ok(widget.clone())
 }
@@ -285,6 +288,7 @@ fn widget_window_title(widget: &WidgetWindowState) -> &'static str {
     match widget.active_bubble.as_str() {
         "bar" => "Bubli widget bar",
         "menu" => "Bubli widget menu",
+        "todo" => "Bubli widget todo",
         _ => "Bubli widget",
     }
 }
@@ -603,6 +607,15 @@ fn build_widget_window(
     apply_widget_window_state(app, monitor_state, widget)
 }
 
+fn spawn_widget_window_build(app: AppHandle, widget: WidgetWindowState) {
+    tauri::async_runtime::spawn(async move {
+        let monitor_state = app.state::<AppMonitorState>();
+        if let Err(error) = build_widget_window(&app, &monitor_state, &widget) {
+            eprintln!("failed to build widget window: {error}");
+        }
+    });
+}
+
 #[tauri::command]
 fn get_widget_window_state(
     state: tauri::State<'_, WidgetState>,
@@ -791,8 +804,6 @@ fn register_widget_shortcut(
 }
 
 fn open_login_startup_widget(
-    app: &AppHandle,
-    monitor_state: &AppMonitorState,
     state: &WidgetState,
     bubble_type: &str,
     window_id: &str,
@@ -808,6 +819,9 @@ fn open_login_startup_widget(
             .bubbles
             .entry(window_key.clone())
             .or_insert_with(|| default_widget_window_state(&target, Some(window_key)));
+        if widget.window_id.is_none() {
+            widget.window_id = Some(window_id.to_string());
+        }
         widget.mode = "DEFAULT".to_string();
         widget.click_through = false;
         widget.dock_orb_visible = false;
@@ -815,29 +829,25 @@ fn open_login_startup_widget(
         widget.clone()
     };
 
-    build_widget_window(app, monitor_state, &widget)
+    Ok(widget)
 }
 
 #[tauri::command]
-fn app_ready(
-    app: AppHandle,
-    monitor_state: tauri::State<'_, AppMonitorState>,
-    state: tauri::State<'_, WidgetState>,
-) -> Result<&'static str, String> {
-    let bar_result = open_login_startup_widget(&app, &monitor_state, &state, "bar", "bar");
+fn app_ready(app: AppHandle, state: tauri::State<'_, WidgetState>) -> Result<&'static str, String> {
+    let bar_result = open_login_startup_widget(&state, "bar", "bar");
     let default_result = open_login_startup_widget(
-        &app,
-        &monitor_state,
         &state,
         DEFAULT_WIDGET_BUBBLE_TYPE,
         DEFAULT_WIDGET_BUBBLE_TYPE,
     );
 
-    if let Err(error) = &bar_result {
-        eprintln!("failed to open login startup widget bar: {error}");
+    match &bar_result {
+        Ok(widget) => spawn_widget_window_build(app.clone(), widget.clone()),
+        Err(error) => eprintln!("failed to prepare login startup widget bar: {error}"),
     }
-    if let Err(error) = &default_result {
-        eprintln!("failed to open login startup default widget: {error}");
+    match &default_result {
+        Ok(widget) => spawn_widget_window_build(app.clone(), widget.clone()),
+        Err(error) => eprintln!("failed to prepare login startup default widget: {error}"),
     }
     if let (Err(bar_error), Err(default_error)) = (bar_result, default_result) {
         return Err(format!(
@@ -999,6 +1009,14 @@ pub fn run() {
                 if let Err(error) = build_widget_qa_windows(app_handle) {
                     eprintln!("failed to open QA widget windows: {error}");
                 }
+            }
+        }
+        tauri::RunEvent::WindowEvent { label, event, .. } => {
+            if matches!(event, tauri::WindowEvent::CloseRequested { .. })
+                && !is_widget_window_label(&label)
+            {
+                destroy_all_widget_windows(app_handle);
+                app_handle.exit(0);
             }
         }
         tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {

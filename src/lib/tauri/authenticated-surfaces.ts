@@ -7,8 +7,8 @@ let launchRequested = false;
 let launchPromise: Promise<void> | null = null;
 
 const loginStartupWindows: WidgetWindowOpenInput[] = [
-  { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" },
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
+  { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" },
 ];
 
 export function launchTauriAuthenticatedSurfaces() {
@@ -20,14 +20,18 @@ export function launchTauriAuthenticatedSurfaces() {
   launchPromise = (async () => {
     await tauriCommands.appReady().catch(() => undefined);
 
-    const errors: unknown[] = [];
-    for (const input of loginStartupWindows) {
-      try {
-        await tauriCommands.openWidgetWindow(input);
-      } catch (error) {
-        errors.push(error);
-      }
-    }
+    const launches = loginStartupWindows.map(
+      (input, index) =>
+        new Promise<boolean>((resolve) => {
+          window.setTimeout(() => {
+            void tauriCommands.openWidgetWindow(input).then(
+              () => resolve(true),
+              () => resolve(false),
+            );
+          }, index * 250);
+        }),
+    );
+    const results = await Promise.all(launches);
 
     void tauriCommands
       .recordWidgetUsageEvent({
@@ -37,8 +41,8 @@ export function launchTauriAuthenticatedSurfaces() {
       })
       .catch(() => undefined);
 
-    if (errors.length === loginStartupWindows.length) {
-      throw errors[0];
+    if (results.every((result) => !result)) {
+      throw new Error("failed to open login startup widgets");
     }
   })()
     .catch((error) => {
