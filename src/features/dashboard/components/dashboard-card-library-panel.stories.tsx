@@ -36,14 +36,14 @@ export const ProjectRoomFiltered: Story = {
       card.kind === "RESOURCE"
         ? {
             ...card,
-            countLabel: "2건",
+            countLabelKey: "dashboard.library.card.scheduleCount",
             status: "AVAILABLE",
           }
         : card,
     ),
     rules: defaultDashboardRules,
     selectedProjectRoomName: "Bubli 제품 개발룸",
-    title: "선택 프로젝트룸 카드",
+    titleKey: "dashboard.library.title",
   },
 };
 
@@ -51,6 +51,6 @@ export const MinimalCards: Story = {
   args: {
     cards: defaultDashboardCards.slice(0, 3),
     rules: defaultDashboardRules,
-    title: "오늘 카드 보관함",
+    titleKey: "dashboard.library.title",
   },
 };

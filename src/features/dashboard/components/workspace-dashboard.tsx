@@ -18,6 +18,7 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -34,6 +35,9 @@ import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { ResourceResponse } from "@/types/api/resource";
 import type { WidgetSummaryResponse } from "@/types/api/widget";
 import type { DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
+
+// 번역 함수 시그니처. 모듈 레벨 헬퍼/컴포넌트에 t를 넘길 때 사용한다.
+type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string;
 
 type DashboardState =
   | { kind: "loading" }
@@ -82,14 +86,14 @@ function storeWidgetIds(ids: string[]) {
   dashboardWidgetLayoutSnapshot = normalizeWidgetIds(ids);
 }
 
-function formatTime(value?: string | null) {
+function formatTime(value: string | null | undefined, t: Translate) {
   if (!value) {
-    return "시간 미정";
+    return t("dashboard.common.timeUndecided");
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "시간 미정";
+    return t("dashboard.common.timeUndecided");
   }
 
   return new Intl.DateTimeFormat("ko-KR", {
@@ -98,14 +102,14 @@ function formatTime(value?: string | null) {
   }).format(date);
 }
 
-function formatDue(value?: string | null) {
+function formatDue(value: string | null | undefined, t: Translate) {
   if (!value) {
-    return "마감 미정";
+    return t("dashboard.common.dueUndecided");
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "마감 미정";
+    return t("dashboard.common.dueUndecided");
   }
 
   return new Intl.DateTimeFormat("ko-KR", {
@@ -114,19 +118,19 @@ function formatDue(value?: string | null) {
   }).format(date);
 }
 
-function formatDuration(seconds?: number | null) {
+function formatDuration(seconds: number | null | undefined, t: Translate) {
   if (!seconds || seconds < 0) {
-    return "기록 중";
+    return t("dashboard.common.recording");
   }
 
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.max(1, Math.floor((seconds % 3600) / 60));
 
   if (hours > 0) {
-    return `${hours}시간 ${minutes}분`;
+    return t("dashboard.common.hourMinute", { hours, minutes });
   }
 
-  return `${minutes}분`;
+  return t("dashboard.common.minute", { minutes });
 }
 
 function getTimerSeconds(timer: DashboardWorkResponse["runningTimer"]) {
@@ -160,12 +164,12 @@ function StatusLine({ children, meta }: { children: string; meta?: string }) {
   );
 }
 
-function TaskLine({ task }: { task: TaskResponse }) {
-  return <StatusLine meta={formatDue(task.dueAt)}>{task.title}</StatusLine>;
+function TaskLine({ task, t }: { task: TaskResponse; t: Translate }) {
+  return <StatusLine meta={formatDue(task.dueAt, t)}>{task.title}</StatusLine>;
 }
 
-function ScheduleLine({ schedule }: { schedule: ScheduleResponse }) {
-  return <StatusLine meta={formatTime(schedule.startsAt)}>{schedule.title}</StatusLine>;
+function ScheduleLine({ schedule, t }: { schedule: ScheduleResponse; t: Translate }) {
+  return <StatusLine meta={formatTime(schedule.startsAt, t)}>{schedule.title}</StatusLine>;
 }
 
 function pickNextTask(tasks: TaskResponse[]) {
@@ -212,16 +216,16 @@ function DashboardMetricRing({ label, progress, tone, value }: { label: string; 
   );
 }
 
-function DashboardSummary({ data, enabledBubbleCount, tasks }: { data: DashboardWorkResponse; enabledBubbleCount: number | null; tasks: TaskResponse[] }) {
+function DashboardSummary({ data, enabledBubbleCount, t, tasks }: { data: DashboardWorkResponse; enabledBubbleCount: number | null; t: Translate; tasks: TaskResponse[] }) {
   const reviewCount = tasks.filter((task) => task.status === "REVIEW" || task.status === "BLOCKED").length;
   const timerActive = data.runningTimer ? 1 : 0;
   const metrics = [
-    { label: "할 일", progress: getMetricProgress(tasks.length, 8), tone: "task", value: tasks.length },
-    { label: "일정", progress: getMetricProgress(data.todaySchedules.length, 6), tone: "schedule", value: data.todaySchedules.length },
-    { label: "확인", progress: getMetricProgress(reviewCount, 5), tone: "review", value: reviewCount },
-    { label: "타이머", progress: timerActive ? 100 : 0, tone: "timer", value: timerActive ? "ON" : "0" },
+    { label: t("dashboard.metric.todos"), progress: getMetricProgress(tasks.length, 8), tone: "task", value: tasks.length },
+    { label: t("dashboard.metric.schedule"), progress: getMetricProgress(data.todaySchedules.length, 6), tone: "schedule", value: data.todaySchedules.length },
+    { label: t("dashboard.metric.review"), progress: getMetricProgress(reviewCount, 5), tone: "review", value: reviewCount },
+    { label: t("dashboard.metric.timer"), progress: timerActive ? 100 : 0, tone: "timer", value: timerActive ? t("dashboard.metric.timerOn") : "0" },
     ...(enabledBubbleCount !== null
-      ? [{ label: "버블", progress: getMetricProgress(enabledBubbleCount, 8), tone: "bubble", value: enabledBubbleCount }]
+      ? [{ label: t("dashboard.metric.bubble"), progress: getMetricProgress(enabledBubbleCount, 8), tone: "bubble", value: enabledBubbleCount }]
       : []),
   ];
 
@@ -238,26 +242,28 @@ function NextFocusWidget({
   nextSchedule,
   nextTask,
   runningTimer,
+  t,
 }: {
   nextSchedule: ScheduleResponse | null;
   nextTask: TaskResponse | null;
   runningTimer?: DashboardWorkResponse["runningTimer"];
+  t: Translate;
 }) {
   if (!nextTask && !nextSchedule && !runningTimer) {
-    return <EmptyWidget />;
+    return <EmptyWidget t={t} />;
   }
 
   return (
     <div style={{ display: "grid", gap: 10 }}>
       {runningTimer ? (
         <div className="workspace-dashboard__timer-preview">
-          <b>{formatDuration(getTimerSeconds(runningTimer))}</b>
-          <span>{nextTask ? `${nextTask.title} 이어서 진행 중` : "지금 진행 중인 일이 있습니다"}</span>
+          <b>{formatDuration(getTimerSeconds(runningTimer), t)}</b>
+          <span>{nextTask ? t("dashboard.nextFocus.continueTask", { title: nextTask.title }) : t("dashboard.nextFocus.hasOngoing")}</span>
         </div>
       ) : null}
       <DashboardLineList>
-        {nextTask ? <TaskLine task={nextTask} /> : null}
-        {nextSchedule ? <ScheduleLine schedule={nextSchedule} /> : null}
+        {nextTask ? <TaskLine task={nextTask} t={t} /> : null}
+        {nextSchedule ? <ScheduleLine schedule={nextSchedule} t={t} /> : null}
       </DashboardLineList>
     </div>
   );
@@ -267,17 +273,19 @@ function ProjectRoomScopeSelector({
   activeRoomId,
   onSelect,
   rooms,
+  t,
 }: {
   activeRoomId: string | null;
   onSelect: (room: { label: string | null; roomId: string | null }) => void;
   rooms: ProjectRoomResponse[];
+  t: Translate;
 }) {
   if (rooms.length === 0) return null;
 
   return (
-    <div className="workspace-dashboard__scope-strip" aria-label="대시보드 프로젝트룸 범위">
+    <div className="workspace-dashboard__scope-strip" aria-label={t("dashboard.scope.aria")}>
       <button data-active={!activeRoomId ? "true" : undefined} onClick={() => onSelect({ label: null, roomId: null })} type="button">
-        전체
+        {t("dashboard.scope.all")}
       </button>
       {rooms.slice(0, 5).map((room) => (
         <button
@@ -296,10 +304,12 @@ function ProjectRoomScopeSelector({
 function SelectedProjectRoomSummary({
   room,
   schedules,
+  t,
   tasks,
 }: {
   room: ProjectRoomResponse | null;
   schedules: ScheduleResponse[];
+  t: Translate;
   tasks: TaskResponse[];
 }) {
   if (!room) return null;
@@ -310,29 +320,29 @@ function SelectedProjectRoomSummary({
   return (
     <GlassPanel className="workspace-dashboard__room-summary">
       <div>
-        <span>선택한 프로젝트룸</span>
+        <span>{t("dashboard.roomSummary.selected")}</span>
         <strong>{room.name}</strong>
       </div>
       <dl>
         <div>
-          <dt>할 일</dt>
+          <dt>{t("dashboard.roomSummary.todos")}</dt>
           <dd>{tasks.length}</dd>
         </div>
         <div>
-          <dt>진행</dt>
+          <dt>{t("dashboard.roomSummary.inProgress")}</dt>
           <dd>{inProgressCount}</dd>
         </div>
         <div>
-          <dt>일정</dt>
+          <dt>{t("dashboard.roomSummary.schedule")}</dt>
           <dd>{schedules.length}</dd>
         </div>
         <div>
-          <dt>확인</dt>
+          <dt>{t("dashboard.roomSummary.review")}</dt>
           <dd>{reviewCount}</dd>
         </div>
       </dl>
       <Link className="bubli-button bubli-button--quiet" href={`/app/project-rooms/${room.id}`}>
-        룸 보기
+        {t("dashboard.common.viewRoom")}
       </Link>
     </GlassPanel>
   );
@@ -342,12 +352,12 @@ function DashboardLineList({ children }: { children: React.ReactNode }) {
   return <ul className="workspace-dashboard__list workspace-dashboard__list--compact">{children}</ul>;
 }
 
-function ResourceLine({ resource }: { resource: ResourceResponse }) {
-  return <StatusLine meta={resource.visibility === "ROOM_SHARED" ? "프로젝트룸" : "개인"}>{resource.title}</StatusLine>;
+function ResourceLine({ resource, t }: { resource: ResourceResponse; t: Translate }) {
+  return <StatusLine meta={resource.visibility === "ROOM_SHARED" ? t("dashboard.resource.room") : t("dashboard.resource.personal")}>{resource.title}</StatusLine>;
 }
 
-function EmptyWidget() {
-  return <div className="workspace-dashboard__empty-widget">현재 데이터가 없습니다</div>;
+function EmptyWidget({ t }: { t: Translate }) {
+  return <div className="workspace-dashboard__empty-widget">{t("dashboard.common.noData")}</div>;
 }
 
 function SortableDashboardTile({
@@ -395,11 +405,13 @@ function DashboardCanvas({
   children,
   editMode,
   sorting,
+  t,
 }: {
   boardDragging: boolean;
   children: React.ReactNode;
   editMode: boolean;
   sorting: boolean;
+  t: Translate;
 }) {
   const { isOver, setNodeRef } = useDroppable({
     disabled: !editMode,
@@ -412,15 +424,15 @@ function DashboardCanvas({
       data-drop-active={isOver ? "true" : undefined}
       data-sorting={sorting ? "true" : undefined}
       ref={setNodeRef}
-      aria-label="대시보드 카드 배치"
+      aria-label={t("dashboard.canvas.placeAria")}
     >
       {children}
-      {editMode ? <DashboardCanvasRemoveDropzone active={boardDragging} /> : null}
+      {editMode ? <DashboardCanvasRemoveDropzone active={boardDragging} t={t} /> : null}
     </section>
   );
 }
 
-function DashboardCanvasRemoveDropzone({ active }: { active: boolean }) {
+function DashboardCanvasRemoveDropzone({ active, t }: { active: boolean; t: Translate }) {
   const { isOver, setNodeRef } = useDroppable({
     disabled: !active,
     id: dashboardRemoveDropzoneId,
@@ -433,12 +445,13 @@ function DashboardCanvasRemoveDropzone({ active }: { active: boolean }) {
       data-visible={active ? "true" : undefined}
       ref={setNodeRef}
     >
-      <span>카드를 여기로 끌어 빼기</span>
+      <span>{t("dashboard.canvas.removeHint")}</span>
     </div>
   );
 }
 
 export function WorkspaceDashboard() {
+  const { t } = useI18n();
   const [state, setState] = useState<DashboardState>({ kind: "loading" });
   const [editMode, setEditMode] = useState(false);
   const [activeBoardWidgetId, setActiveBoardWidgetId] = useState<string | null>(null);
@@ -475,10 +488,10 @@ export function WorkspaceDashboard() {
       }
       setState({
         kind: "error",
-        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "대시보드를 불러오지 못했습니다",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("dashboard.state.loadFailed"),
       });
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -655,38 +668,38 @@ export function WorkspaceDashboard() {
     (widgetId: string) => {
       switch (widgetId) {
         case "today-summary":
-          return <DashboardSummary data={data} enabledBubbleCount={enabledBubbleCount} tasks={dashboardTasks} />;
+          return <DashboardSummary data={data} enabledBubbleCount={enabledBubbleCount} t={t} tasks={dashboardTasks} />;
         case "next-focus":
-          return <NextFocusWidget nextSchedule={nextFocusSchedule} nextTask={nextFocusTask} runningTimer={data.runningTimer} />;
+          return <NextFocusWidget nextSchedule={nextFocusSchedule} nextTask={nextFocusTask} runningTimer={data.runningTimer} t={t} />;
         case "today-todos":
-          if (taskItems.length === 0) return <EmptyWidget />;
+          if (taskItems.length === 0) return <EmptyWidget t={t} />;
           return (
             <DashboardLineList>
               {taskItems.map((task) => (
-                <TaskLine key={task.id} task={task} />
+                <TaskLine key={task.id} task={task} t={t} />
               ))}
             </DashboardLineList>
           );
         case "pending-approval":
-          if (reviewTasks.length === 0) return <EmptyWidget />;
+          if (reviewTasks.length === 0) return <EmptyWidget t={t} />;
           return (
             <DashboardLineList>
               {reviewTasks.map((task) => (
-                <TaskLine key={task.id} task={task} />
+                <TaskLine key={task.id} task={task} t={t} />
               ))}
             </DashboardLineList>
           );
         case "schedule":
-          if (todaySchedules.length === 0) return <EmptyWidget />;
+          if (todaySchedules.length === 0) return <EmptyWidget t={t} />;
           return (
             <DashboardLineList>
               {todaySchedules.map((schedule) => (
-                <ScheduleLine key={schedule.id} schedule={schedule} />
+                <ScheduleLine key={schedule.id} schedule={schedule} t={t} />
               ))}
             </DashboardLineList>
           );
         case "project-rooms":
-          if (activeRooms.length === 0) return <EmptyWidget />;
+          if (activeRooms.length === 0) return <EmptyWidget t={t} />;
           return (
             <DashboardLineList>
               {activeRooms.slice(0, 4).map((room) => (
@@ -697,19 +710,19 @@ export function WorkspaceDashboard() {
             </DashboardLineList>
           );
         case "timer":
-          if (!data.runningTimer && !inProgressTask) return <EmptyWidget />;
+          if (!data.runningTimer && !inProgressTask) return <EmptyWidget t={t} />;
           return (
             <div className="workspace-dashboard__timer-preview">
-              <b>{formatDuration(getTimerSeconds(data.runningTimer))}</b>
-              <span>{inProgressTask ? `${inProgressTask.title} 진행 중` : "타이머 실행 중"}</span>
+              <b>{formatDuration(getTimerSeconds(data.runningTimer), t)}</b>
+              <span>{inProgressTask ? t("dashboard.timer.taskRunning", { title: inProgressTask.title }) : t("dashboard.timer.running")}</span>
             </div>
           );
         case "recent-resources":
-          if (recentResources.length === 0) return <EmptyWidget />;
+          if (recentResources.length === 0) return <EmptyWidget t={t} />;
           return (
             <DashboardLineList>
               {recentResources.map((resource) => (
-                <ResourceLine key={resource.id} resource={resource} />
+                <ResourceLine key={resource.id} resource={resource} t={t} />
               ))}
             </DashboardLineList>
           );
@@ -717,29 +730,29 @@ export function WorkspaceDashboard() {
           return null;
       }
     },
-    [activeRooms, dashboardTasks, data, enabledBubbleCount, inProgressTask, nextFocusSchedule, nextFocusTask, recentResources, reviewTasks, taskItems, todaySchedules],
+    [activeRooms, dashboardTasks, data, enabledBubbleCount, inProgressTask, nextFocusSchedule, nextFocusTask, recentResources, reviewTasks, t, taskItems, todaySchedules],
   );
 
   return (
-    <section className="workspace-dashboard" aria-label="회원 앱 대시보드">
+    <section className="workspace-dashboard" aria-label={t("dashboard.aria")}>
       <GlassPanel className="workspace-dashboard__hero">
         <div className="workspace-dashboard__copy">
           <div className="workspace-dashboard__titlebar">
-            <h1>대시보드</h1>
-            <span>개인 홈</span>
+            <h1>{t("dashboard.title")}</h1>
+            <span>{t("dashboard.personalHome")}</span>
           </div>
-          <ProjectRoomScopeSelector activeRoomId={activeRoom.roomId} onSelect={setActiveRoom} rooms={selectableRooms} />
+          <ProjectRoomScopeSelector activeRoomId={activeRoom.roomId} onSelect={setActiveRoom} rooms={selectableRooms} t={t} />
         </div>
         {canShowDashboardGrid ? (
           <div className="workspace-dashboard__actions">
             {editMode ? (
               <Button onClick={() => setWidgetIds([...defaultWidgetIds])} variant="secondary">
-                기본값
+                {t("dashboard.action.default")}
               </Button>
             ) : null}
             <Button onClick={() => setEditMode((current) => !current)} variant={editMode ? "primary" : "secondary"}>
               <LayoutDashboard aria-hidden size={15} strokeWidth={1.9} />
-              {editMode ? "완료" : "편집"}
+              {editMode ? t("dashboard.action.done") : t("dashboard.action.edit")}
             </Button>
           </div>
         ) : null}
@@ -749,7 +762,7 @@ export function WorkspaceDashboard() {
         <GlassPanel className="workspace-dashboard__state">
           <Clock3 aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>불러오는 중</h2>
+            <h2>{t("dashboard.state.loading")}</h2>
           </div>
         </GlassPanel>
       ) : null}
@@ -758,9 +771,9 @@ export function WorkspaceDashboard() {
         <GlassPanel className="workspace-dashboard__state">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>로그인이 필요합니다</h2>
+            <h2>{t("dashboard.state.authTitle")}</h2>
             <Link className="bubli-button bubli-button--primary" href="/login">
-              로그인
+              {t("common.login")}
             </Link>
           </div>
         </GlassPanel>
@@ -770,7 +783,7 @@ export function WorkspaceDashboard() {
         <GlassPanel className="workspace-dashboard__state">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>서버 연결 대기</h2>
+            <h2>{t("dashboard.state.errorTitle")}</h2>
             <p>{state.message}</p>
           </div>
         </GlassPanel>
@@ -780,7 +793,7 @@ export function WorkspaceDashboard() {
         <GlassPanel className="workspace-dashboard__state">
           <CheckCircle2 aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>아직 표시할 항목이 없습니다</h2>
+            <h2>{t("dashboard.state.emptyTitle")}</h2>
           </div>
         </GlassPanel>
       ) : null}
@@ -794,15 +807,21 @@ export function WorkspaceDashboard() {
           onDragStart={handleDragStart}
           sensors={sensors}
         >
-          <SelectedProjectRoomSummary room={selectedRoom} schedules={todaySchedules} tasks={dashboardTasks} />
+          <SelectedProjectRoomSummary room={selectedRoom} schedules={todaySchedules} t={t} tasks={dashboardTasks} />
           <div className={`workspace-dashboard__stage${editMode ? " workspace-dashboard__stage--editing" : ""}`}>
-            <DashboardCanvas boardDragging={Boolean(activeBoardWidgetId)} editMode={editMode} sorting={Boolean(activeBoardWidgetId)}>
+            <DashboardCanvas boardDragging={Boolean(activeBoardWidgetId)} editMode={editMode} sorting={Boolean(activeBoardWidgetId)} t={t}>
               <div className="workspace-dashboard__canvas-head">
                 <div>
-                  <strong>내 보드</strong>
-                  <span>{editMode ? "편집 중" : activeRoom.roomId ? `${activeRoom.label ?? "프로젝트룸"} 항목 포함` : `카드 ${visibleWidgets.length}개`}</span>
+                  <strong>{t("dashboard.board.title")}</strong>
+                  <span>
+                    {editMode
+                      ? t("dashboard.board.editing")
+                      : activeRoom.roomId
+                        ? t("dashboard.board.roomItems", { room: activeRoom.label ?? t("dashboard.board.roomFallback") })
+                        : t("dashboard.board.cardCount", { count: visibleWidgets.length })}
+                  </span>
                 </div>
-                {editMode ? <StatusBadge tone="agent">자동 저장</StatusBadge> : null}
+                {editMode ? <StatusBadge tone="agent">{t("dashboard.board.autoSave")}</StatusBadge> : null}
               </div>
               <SortableContext items={visibleWidgets.map((widget) => widget.widgetId)} strategy={rectSortingStrategy}>
                 <DashboardGrid mode={editMode ? "edit" : "view"}>
@@ -821,7 +840,7 @@ export function WorkspaceDashboard() {
             </DashboardCanvas>
 
             {editMode ? (
-              <aside className="workspace-dashboard__palette" aria-label="대시보드 항목 추가">
+              <aside className="workspace-dashboard__palette" aria-label={t("dashboard.board.addAria")}>
                 <DashboardPalette
                   draggable
                   items={availableWidgets}

@@ -1,3 +1,5 @@
+"use client";
+
 import { CalendarCheck2, CheckCircle2, Clock3, Database, FileText, ListTodo, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -5,73 +7,74 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n, type MessageKey } from "@/lib/i18n";
+
+type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string;
 
 type SummarySource = {
-  label: string;
-  value: string;
-  detail: string;
+  labelKey: MessageKey;
+  valueKey: MessageKey;
+  detailKey: MessageKey;
   tone: "todo" | "timer" | "pending" | "agent";
 };
 
 const summarySources: SummarySource[] = [
   {
-    detail: "완료한 일과 일정",
-    label: "완료 TODO",
+    detailKey: "dashboard.daily.source.doneTodoDetail",
+    labelKey: "dashboard.daily.source.doneTodoLabel",
     tone: "todo",
-    value: "7개",
+    valueKey: "dashboard.daily.source.doneTodoValue",
   },
   {
-    detail: "오늘 타이머 기록",
-    label: "총 작업시간",
+    detailKey: "dashboard.daily.source.timerDetail",
+    labelKey: "dashboard.daily.source.timerLabel",
     tone: "timer",
-    value: "4시간 28분",
+    valueKey: "dashboard.daily.source.timerValue",
   },
   {
-    detail: "날짜별 작업 집계",
-    label: "작업 활동 집계",
+    detailKey: "dashboard.daily.source.activityDetail",
+    labelKey: "dashboard.daily.source.activityLabel",
     tone: "pending",
-    value: "6개 항목",
+    valueKey: "dashboard.daily.source.activityValue",
   },
   {
-    detail: "기기 안 요약 참조",
-    label: "개인 에이전트 요약",
+    detailKey: "dashboard.daily.source.agentDetail",
+    labelKey: "dashboard.daily.source.agentLabel",
     tone: "agent",
-    value: "2개",
+    valueKey: "dashboard.daily.source.agentValue",
   },
 ];
 
-function SummarySourceCard({ source }: { source: SummarySource }) {
+function SummarySourceCard({ source, t }: { source: SummarySource; t: Translate }) {
   return (
     <article className="daily-summary-source">
-      <StatusBadge tone={source.tone}>{source.label}</StatusBadge>
-      <strong>{source.value}</strong>
-      <span>{source.detail}</span>
+      <StatusBadge tone={source.tone}>{t(source.labelKey)}</StatusBadge>
+      <strong>{t(source.valueKey)}</strong>
+      <span>{t(source.detailKey)}</span>
     </article>
   );
 }
 
 export function DailySummaryPanel() {
+  const { t } = useI18n();
   return (
-    <section className="daily-summary" aria-label="하루정리">
+    <section className="daily-summary" aria-label={t("dashboard.daily.aria")}>
       <GlassPanel className="daily-summary__hero">
         <div className="daily-summary__title">
           <span className="bubli-icon-tile" aria-hidden="true">
             <Sparkles size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <Chip selected>하루정리</Chip>
-            <h2>확정된 기록과 기기 안 요약을 모아, 사용자가 확인한 결과만 저장합니다</h2>
-            <p>
-              완료한 일, 작업시간, 일정, 알림, 작업 활동, 개인 에이전트 요약을 근거로 정리 초안을 만듭니다.
-              승인된 결과만 하루정리에 남습니다.
-            </p>
+            <Chip selected>{t("dashboard.daily.kicker")}</Chip>
+            <h2>{t("dashboard.daily.heroTitle")}</h2>
+            <p>{t("dashboard.daily.heroBody")}</p>
           </div>
         </div>
         <div className="daily-summary__score">
-          <StatusBadge tone="pending">검토 대기</StatusBadge>
+          <StatusBadge tone="pending">{t("dashboard.daily.reviewWaiting")}</StatusBadge>
           <strong>82%</strong>
-          <span>오늘 정리 준비도</span>
-          <ProgressBar label="오늘 정리 준비도" value={82} />
+          <span>{t("dashboard.daily.readiness")}</span>
+          <ProgressBar label={t("dashboard.daily.readiness")} value={82} />
         </div>
       </GlassPanel>
 
@@ -79,8 +82,8 @@ export function DailySummaryPanel() {
         <GlassPanel className="daily-summary__draft">
           <div className="daily-summary__draft-header">
             <div>
-              <h3>정리 초안</h3>
-              <p>에이전트가 제안한 문장은 사용자가 수정하거나 제외할 수 있습니다.</p>
+              <h3>{t("dashboard.daily.draftTitle")}</h3>
+              <p>{t("dashboard.daily.draftHelper")}</p>
             </div>
             <Chip icon={<CalendarCheck2 size={14} />}>2026-06-22</Chip>
           </div>
@@ -90,47 +93,44 @@ export function DailySummaryPanel() {
               <span className="bubli-icon-tile" aria-hidden="true">
                 <ListTodo size={16} strokeWidth={2.1} />
               </span>
-              <p>오늘은 Bubli 프론트 구조에서 대시보드와 회원 업무 화면을 우선 정리했습니다.</p>
+              <p>{t("dashboard.daily.draftLine1")}</p>
             </article>
             <article>
               <span className="bubli-icon-tile" aria-hidden="true">
                 <Clock3 size={16} strokeWidth={2.1} />
               </span>
-              <p>타이머 기록 기준으로 집중 시간이 가장 길었던 작업은 디자인 시스템 컴포넌트 검토입니다.</p>
+              <p>{t("dashboard.daily.draftLine2")}</p>
             </article>
             <article>
               <span className="bubli-icon-tile" aria-hidden="true">
                 <FileText size={16} strokeWidth={2.1} />
               </span>
-              <p>확인 필요 항목은 자료 업로드 응답 방식과 보이스 참여 정보입니다.</p>
+              <p>{t("dashboard.daily.draftLine3")}</p>
             </article>
           </div>
 
           <footer className="daily-summary__actions">
             <Button icon={<CheckCircle2 size={15} />} size="sm" variant="primary">
-              확인 후 저장
+              {t("dashboard.daily.saveAfterCheck")}
             </Button>
             <Button size="sm" variant="quiet">
-              수정하기
+              {t("dashboard.daily.edit")}
             </Button>
           </footer>
         </GlassPanel>
 
         <GlassPanel className="daily-summary__source-panel">
-          <h3>입력 근거</h3>
+          <h3>{t("dashboard.daily.inputBasis")}</h3>
           <div className="daily-summary__sources">
             {summarySources.map((source) => (
-              <SummarySourceCard key={source.label} source={source} />
+              <SummarySourceCard key={source.labelKey} source={source} t={t} />
             ))}
           </div>
           <div className="daily-summary__rule">
             <span className="bubli-icon-tile" aria-hidden="true">
               <Database size={16} strokeWidth={2.1} />
             </span>
-            <p>
-              상세 활동 이벤트 원문은 서버에 저장하지 않고, 날짜별 집계와 사용자가 승인한 정리 결과만 서버에
-              남깁니다.
-            </p>
+            <p>{t("dashboard.daily.rule")}</p>
           </div>
         </GlassPanel>
       </div>
