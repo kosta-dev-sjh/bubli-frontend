@@ -174,8 +174,8 @@ function localResultMessage<TData, TSummary>(result: LocalAdapterResult<TData, T
 }
 
 function monitorLabel(monitor: AppMonitorInfo, index: number) {
-  const name = monitor.name?.trim() || `Monitor ${index + 1}`;
-  const primaryLabel = monitor.isPrimary ? " primary" : "";
+  const name = monitor.name?.trim() || `모니터 ${index + 1}`;
+  const primaryLabel = monitor.isPrimary ? " · 기본" : "";
   return `${name}${primaryLabel} - ${monitor.size.width}x${monitor.size.height} @ ${monitor.position.x},${monitor.position.y}`;
 }
 
@@ -262,7 +262,7 @@ export default function SettingsPage() {
         if (!cancelled) setMonitorPreference(preference);
       })
       .catch(() => {
-        if (!cancelled) setLocalActionMessage("Monitor list unavailable");
+        if (!cancelled) setLocalActionMessage("모니터 목록을 불러올 수 없습니다");
       });
 
     return () => {
@@ -510,9 +510,9 @@ export default function SettingsPage() {
       try {
         const preference = await tauriCommands.setPreferredAppMonitor({ monitorId });
         setMonitorPreference(preference);
-        setLocalActionMessage("Monitor setting updated");
+        setLocalActionMessage("앱 표시 모니터를 저장했습니다");
       } catch {
-        setLocalActionMessage("Monitor setting failed");
+        setLocalActionMessage("앱 표시 모니터를 저장하지 못했습니다");
       }
     },
     [desktopRuntime],
@@ -840,8 +840,8 @@ export default function SettingsPage() {
                 </div>
                 <div className={styles.row}>
                   <span>
-                    <strong>App monitor</strong>
-                    <small>Hybrid app and widgets open on the selected monitor.</small>
+                    <strong>앱 표시 모니터</strong>
+                    <small>하이브리드 앱과 위젯을 선택한 모니터에 띄웁니다.</small>
                   </span>
                   <select
                     className={styles.inlineSelect}
@@ -849,7 +849,7 @@ export default function SettingsPage() {
                     onChange={(event) => void selectAppMonitor(event.target.value)}
                     value={monitorPreference?.preferredMonitorId ?? "primary"}
                   >
-                    <option value="primary">Primary monitor</option>
+                    <option value="primary">기본 모니터</option>
                     {monitorPreference?.monitors.map((monitor, index) => (
                       <option key={monitor.id} value={monitor.id}>
                         {monitorLabel(monitor, index)}
