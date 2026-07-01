@@ -86,7 +86,7 @@ export const ResourceSuggestionStates: Story = {
         meta: "이미 확인한 참고 자료입니다. 상태는 같은 항목 row를 갱신해 유지합니다.",
         sourceLabel: "자료 제안",
         state: "confirmed",
-        title: "계약서_최종본.pdf",
+        title: "기준 자료_최종본.pdf",
         updatedAt: "오늘 09:42",
       },
     ],

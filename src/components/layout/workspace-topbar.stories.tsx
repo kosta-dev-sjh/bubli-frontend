@@ -5,12 +5,12 @@ import { WorkspaceTopbar, type WorkspaceTopbarProps } from "./workspace-topbar";
 const defaultArgs: WorkspaceTopbarProps = {
   notificationCount: 3,
   project: {
-    description: "번역 계약서 검토와 WBS 정리 중",
+    description: "작업 범위 검토와 WBS 정리 중",
     name: "브랜드 상세페이지 번역",
     statusLabel: "프로젝트룸",
   },
   user: {
-    displayName: "정현 님",
+    displayName: "나 님",
     email: "junghyun@bubli.kr",
     initials: "JH",
   },

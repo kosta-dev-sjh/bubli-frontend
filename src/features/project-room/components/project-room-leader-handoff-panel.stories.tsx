@@ -26,7 +26,7 @@ type Story = StoryObj<typeof meta>;
 export const HasOtherLeader: Story = {
   args: {
     candidates: defaultHandoffCandidates,
-    currentUserName: "정현",
+    currentUserName: "나",
     roomName: "Bubli 제품 개발룸",
     rules: defaultHandoffRules,
   },
@@ -39,7 +39,7 @@ export const NeedsHandoff: Story = {
       role: "MEMBER",
       status: candidate.displayName === "이서연" ? "NEEDS_LEADER" : "MEMBER_ONLY",
     })),
-    currentUserName: "정현",
+    currentUserName: "나",
     roomName: "번역 프로젝트룸",
     rules: defaultHandoffRules,
     title: "프로젝트 리더 위임",

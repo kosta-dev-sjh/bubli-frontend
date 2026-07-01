@@ -37,7 +37,7 @@ export const RunningAnalysis: Story = {
     jobType: "자료 분석",
     retryCount: 0,
     status: "running",
-    targetLabel: "웹사이트 구축 계약서_v2.pdf",
+    targetLabel: "웹사이트 구축 기준 자료_v2.pdf",
   },
 };
 
@@ -84,7 +84,7 @@ export const CompletedSuggestionJob: Story = {
       },
       {
         eventType: "started",
-        message: "에이전트가 계약 문서와 회의록을 읽어 후보 구조를 만들었습니다.",
+        message: "에이전트가 기준 문서와 회의록을 읽어 후보 구조를 만들었습니다.",
         timeLabel: "15:21",
       },
       {

@@ -35,7 +35,7 @@ export const WidgetSet: Story = {
       }}
     >
       <BubbleCard
-        items={["번역계약서 납품일 확인", "회의록 검수 기준 정리", "용어집 초안 검토"]}
+        items={["작업범위 납품일 확인", "회의록 검수 기준 정리", "용어집 초안 검토"]}
         meta="3 / 6 완료"
         progressLabel="오늘 할 일"
         progressValue={50}

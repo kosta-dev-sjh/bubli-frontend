@@ -28,8 +28,8 @@ export const Pending: Story = {
     <div style={wrap}>
       <SuggestionCard
         confidence={92}
-        description="계약서와 회의록의 납품일 표현이 다릅니다. 기준 날짜를 확인해야 합니다."
-        source="번역계약서_v2.pdf · 회의록_0618.md"
+        description="기준 자료와 회의록의 납품일 표현이 다릅니다. 기준 날짜를 확인해야 합니다."
+        source="작업범위_v2.pdf · 회의록_0618.md"
         status="pending"
         title="납품일 확인 필요"
       />
@@ -43,7 +43,7 @@ export const WithEvidence: Story = {
       <SuggestionCard
         confidence={88}
         description="요구사항 문서의 용어집 정리를 WBS 하위 작업 후보로 제안합니다."
-        source="요구사항_초안.docx · 계약서 p.3"
+        source="요구사항_초안.docx · 기준 자료 p.3"
         status="pending"
         title="용어집 초안 정리"
       />
@@ -54,7 +54,7 @@ export const WithEvidence: Story = {
 export const Approved: Story = {
   render: () => (
     <div style={wrap}>
-      <SuggestionCard confidence={92} description="승인되어 오늘 할 일로 반영되었습니다." source="번역계약서_v2.pdf" status="approved" title="납품일 확인" />
+      <SuggestionCard confidence={92} description="승인되어 오늘 할 일로 반영되었습니다." source="작업범위_v2.pdf" status="approved" title="납품일 확인" />
     </div>
   ),
 };
@@ -78,7 +78,7 @@ export const Rejected: Story = {
 export const Thinking: Story = {
   render: () => (
     <div style={wrap}>
-      <SuggestionCard confidence={0} description="자료를 읽고 후보를 정리하고 있어요…" source="계약서_최종.pdf 분석 중" status="pending" title="후보 생성 중" />
+      <SuggestionCard confidence={0} description="자료를 읽고 후보를 정리하고 있어요…" source="기준 자료_최종.pdf 분석 중" status="pending" title="후보 생성 중" />
     </div>
   ),
 };
@@ -97,8 +97,8 @@ export const Dark: Story = {
     <DarkFrame>
       <SuggestionCard
         confidence={92}
-        description="계약서와 회의록의 납품일 표현이 다릅니다. 기준 날짜를 확인해야 합니다."
-        source="번역계약서_v2.pdf · 회의록_0618.md"
+        description="기준 자료와 회의록의 납품일 표현이 다릅니다. 기준 날짜를 확인해야 합니다."
+        source="작업범위_v2.pdf · 회의록_0618.md"
         status="pending"
         title="납품일 확인 필요"
       />

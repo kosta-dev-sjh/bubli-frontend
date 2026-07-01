@@ -34,7 +34,7 @@ export const OnlyMine: Story = {
   args: {
     surfaces: defaultTodoSurfaces.map((surface) => ({ ...surface, syncedCount: surface.surface === "WORK_BOARD" ? 2 : 2 })),
     title: "내 TODO만 모아보기",
-    todos: defaultAssignedTodos.filter((todo) => todo.assigneeLabel === "정현"),
+    todos: defaultAssignedTodos.filter((todo) => todo.assigneeLabel === "나"),
   },
 };
 
@@ -44,7 +44,7 @@ export const LightWorkload: Story = {
     title: "마감 여유 상태",
     todos: [
       {
-        assigneeLabel: "정현",
+        assigneeLabel: "나",
         dueLabel: "6.30",
         id: "todo-style-check",
         priority: "LOW",

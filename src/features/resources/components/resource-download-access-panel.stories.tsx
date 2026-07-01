@@ -77,7 +77,7 @@ export const ExpiredPersonalResourceUrl: Story = {
     expiresLabel: "이미 만료됨",
     file: {
       checksumLabel: "파일 지문 확인됨",
-      fileName: "개인_계약검토_메모.md",
+      fileName: "개인_자료검토_메모.md",
       mimeLabel: "Markdown",
       sizeLabel: "18 KB",
       updatedLabel: "2026-06-18 21:10",

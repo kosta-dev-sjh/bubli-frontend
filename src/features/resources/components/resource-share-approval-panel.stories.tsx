@@ -35,7 +35,7 @@ type Story = StoryObj<typeof meta>;
 export const ReadyToShare: Story = {
   args: {
     readiness: "READY",
-    resourceTitle: "개인_계약검토_메모.md",
+    resourceTitle: "개인_자료검토_메모.md",
     targetRoom: {
       memberCountLabel: "멤버 4명",
       name: "신축 홈페이지 리뉴얼",

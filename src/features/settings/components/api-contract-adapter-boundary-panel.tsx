@@ -90,7 +90,7 @@ const changeCases: ChangeCase[] = [
   {
     after: "rollupKey",
     before: "summaryKey",
-    impact: "Tauri 집계 동기화 계약만 수정",
+    impact: "Tauri 집계 동기화 기준만 수정",
     label: "위젯",
     target: "widget boundary",
   },
@@ -142,7 +142,7 @@ function ChangeCaseRow({ item }: { item: ChangeCase }) {
 
 export function ApiContractAdapterBoundaryPanel() {
   return (
-    <section className={styles.panel} aria-label="API 계약 변경 경계 패널">
+    <section className={styles.panel} aria-label="API 기준 변경 경계 패널">
       <GlassPanel className={styles.hero}>
         <div className={styles.heroCopy}>
           <Chip icon={<ShieldCheck size={14} />} selected>
@@ -214,7 +214,7 @@ export function ApiContractAdapterBoundaryPanel() {
             </li>
             <li>
               <SlidersHorizontal size={15} strokeWidth={2.1} />
-              <span>확정 전 API는 TODO가 아니라 계약 대기 상태로 표시한다.</span>
+              <span>확정 전 API는 TODO가 아니라 기준 대기 상태로 표시한다.</span>
             </li>
           </ul>
         </GlassPanel>

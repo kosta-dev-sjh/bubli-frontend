@@ -23,7 +23,7 @@ export const PersonalResource: Story = {
   args: {
     currentDecision: "PERSONAL_LIBRARY",
     fileKindLabel: "PDF",
-    fileName: "번역계약서_v2.pdf",
+    fileName: "작업범위_v2.pdf",
     fileSizeLabel: "2.4MB",
     quotaLabel: "개인 자료함 820MB / 1GB",
     quotaPercent: 82,

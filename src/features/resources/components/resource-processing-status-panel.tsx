@@ -172,7 +172,7 @@ export function ResourceProcessingStatusPanel({
   onOpenAnalysis,
   onOpenResource,
   onRetryFailedStep,
-  resourceTitle = "번역계약서_v2.pdf",
+  resourceTitle = "작업범위_v2.pdf",
   status = "ANALYZING",
   steps = defaultSteps,
   visibility = "ROOM_SHARED",

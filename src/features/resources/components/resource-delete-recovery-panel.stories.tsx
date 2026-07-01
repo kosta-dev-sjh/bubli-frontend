@@ -54,7 +54,7 @@ export const KeptResource: Story = {
       {
         action: "archive",
         description: "유지하기로 선택한 자료는 다시 READY 상태로 표시하고, 필요한 경우 보관으로 옮길 수 있습니다.",
-        fileName: "계약서_final.pdf",
+        fileName: "기준 자료_final.pdf",
         meta: "READY · 유지 선택 · 서버 자료 유지",
         status: "ready",
       },

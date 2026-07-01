@@ -68,7 +68,7 @@ export const defaultQuotaFiles: LocalFileItem[] = [
     status: "LOCAL_ONLY",
   },
   {
-    filename: "번역계약서_참고자료.zip",
+    filename: "작업범위_참고자료.zip",
     pathLabel: "서버 반영 대기",
     sizeLabel: "120MB",
     status: "SYNC_PENDING",

@@ -23,7 +23,7 @@ const widgetBubbles = [
   {
     title: "TODO 버블",
     subtitle: "오늘 할 일 5개",
-    rows: ["계약서 수정 조항 회신", "WBS 후보 3개 검토"],
+    rows: ["기준 자료 수정 조항 회신", "WBS 후보 3개 검토"],
     source: "TODO와 항목 상태",
     tone: "todo",
     icon: CheckCircle2,
@@ -71,7 +71,7 @@ const widgetBubbles = [
   {
     title: "자료 제안 버블",
     subtitle: "확인 필요 항목",
-    rows: ["계약서와 회의록 조건 차이", "관련 자료 2개"],
+    rows: ["기준 자료와 회의록 조건 차이", "관련 자료 2개"],
     source: "관련 자료와 후보",
     tone: "resource",
     icon: FolderSearch,

@@ -75,10 +75,10 @@ const surfaceMeta: Record<TodoViewSurface, { icon: ReactNode; label: string }> =
 
 export const defaultTodos: TodoItem[] = [
   {
-    assigneeLabel: "정현",
+    assigneeLabel: "나",
     dueLabel: "오늘",
     id: "todo-send-client-question",
-    projectRoomLabel: "신규 웹사이트 번역",
+    projectRoomLabel: "웹사이트 개편",
     scope: "PROJECT_ROOM",
     source: "APPROVED_CANDIDATE",
     status: "IN_PROGRESS",
@@ -86,10 +86,10 @@ export const defaultTodos: TodoItem[] = [
     title: "납품일 확인 질문 보내기",
   },
   {
-    assigneeLabel: "정현",
+    assigneeLabel: "나",
     dueLabel: "D-2",
     id: "todo-review-translation",
-    projectRoomLabel: "신규 웹사이트 번역",
+    projectRoomLabel: "웹사이트 개편",
     scope: "PROJECT_ROOM",
     source: "DIRECT",
     status: "REVIEW",
@@ -106,7 +106,7 @@ export const defaultTodos: TodoItem[] = [
     title: "회의 전에 확인할 질문 정리",
   },
   {
-    assigneeLabel: "정현",
+    assigneeLabel: "나",
     dueLabel: "6.27",
     id: "todo-resource-tags",
     projectRoomLabel: "서비스 소개 페이지",

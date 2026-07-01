@@ -20,7 +20,7 @@ const resources: SuggestedResource[] = [
     reason: "현재 TODO의 납품 기준과 관련",
     source: "프로젝트룸 자료",
     status: "candidate",
-    title: "번역계약서_최종본_v2.1.pdf",
+    title: "작업범위_최종본_v2.1.pdf",
   },
   {
     confidence: 74,
@@ -107,7 +107,7 @@ export function ResourceSuggestionBubblePanel() {
             </div>
             <div className="resource-suggestion__bubble-card">
               <StatusBadge tone="room">프로젝트룸 자료</StatusBadge>
-              <h3>번역계약서_최종본_v2.1.pdf</h3>
+              <h3>작업범위_최종본_v2.1.pdf</h3>
               <p>현재 작업의 검수 기준과 관련 있어요.</p>
               <div>
                 <Button icon={<Pin size={14} />} size="sm" variant="primary">

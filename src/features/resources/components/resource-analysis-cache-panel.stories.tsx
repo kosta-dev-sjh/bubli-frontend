@@ -78,7 +78,7 @@ export const FailedAnalysisRetry: Story = {
     entries: [
       {
         description: "분석 실패가 전체 자료보드 장애로 이어지지 않도록 실패 상태와 재시도 진입점을 보여줍니다.",
-        fileName: "스캔본_계약서.pdf",
+        fileName: "스캔본_기준 자료.pdf",
         hashLabel: "파일 지문 991e...7dd4",
         status: "failed",
         updatedAtLabel: "실패 12분 전",

@@ -26,7 +26,7 @@ const wrap = { display: "grid", gap: 14, width: 460 } as const;
 export const Todo: Story = {
   render: () => (
     <div style={wrap}>
-      <WorkItemCard assignee="정현" code="1.2.1" dueLabel="D-5" sourceLabel="요구사항_초안.docx" status="waiting" title="반응형 브레이크포인트 정리" />
+      <WorkItemCard assignee="나" code="1.2.1" dueLabel="D-5" sourceLabel="요구사항_초안.docx" status="waiting" title="반응형 브레이크포인트 정리" />
     </div>
   ),
 };
@@ -34,7 +34,7 @@ export const Todo: Story = {
 export const InProgress: Story = {
   render: () => (
     <div style={wrap}>
-      <WorkItemCard assignee="정현" code="1.2.1" dueLabel="D-2" sourceLabel="번역계약서_v2.pdf" status="doing" title="1차 번역본 검토" />
+      <WorkItemCard assignee="나" code="1.2.1" dueLabel="D-2" sourceLabel="작업범위_v2.pdf" status="doing" title="1차 번역본 검토" />
     </div>
   ),
 };
@@ -42,7 +42,7 @@ export const InProgress: Story = {
 export const Review: Story = {
   render: () => (
     <div style={wrap}>
-      <WorkItemCard assignee="정현" code="1.2.2" dueLabel="6월 24일" status="review" title="검수 기준 질문 정리" />
+      <WorkItemCard assignee="나" code="1.2.2" dueLabel="6월 24일" status="review" title="검수 기준 질문 정리" />
     </div>
   ),
 };
@@ -50,7 +50,7 @@ export const Review: Story = {
 export const Done: Story = {
   render: () => (
     <div style={wrap}>
-      <WorkItemCard assignee="정현" code="1.2.3" dueLabel="완료" status="done" title="용어집 초안 작성" />
+      <WorkItemCard assignee="나" code="1.2.3" dueLabel="완료" status="done" title="용어집 초안 작성" />
     </div>
   ),
 };
@@ -59,7 +59,7 @@ export const Done: Story = {
 export const Blocked: Story = {
   render: () => (
     <div style={wrap}>
-      <WorkItemCard className="bubli-domain-card--error" assignee="정현" code="1.2.4" dueLabel="대기 중" sourceLabel="선행 작업 필요" status="waiting" title="API 연동 (블록됨)" />
+      <WorkItemCard className="bubli-domain-card--error" assignee="나" code="1.2.4" dueLabel="대기 중" sourceLabel="선행 작업 필요" status="waiting" title="API 연동 (블록됨)" />
     </div>
   ),
 };
@@ -67,7 +67,7 @@ export const Blocked: Story = {
 export const Overdue: Story = {
   render: () => (
     <div style={wrap}>
-      <WorkItemCard className="bubli-domain-card--error" assignee="정현" code="1.2.5" dueLabel="2일 지남" status="doing" title="시안 1차 마감" />
+      <WorkItemCard className="bubli-domain-card--error" assignee="나" code="1.2.5" dueLabel="2일 지남" status="doing" title="시안 1차 마감" />
     </div>
   ),
 };
@@ -93,8 +93,8 @@ export const Dark: Story = {
   render: () => (
     <DarkFrame>
       <div style={{ display: "grid", gap: 12 }}>
-        <WorkItemCard assignee="정현" code="1.2.1" dueLabel="D-2" status="doing" title="1차 번역본 검토" />
-        <WorkItemCard assignee="정현" code="1.2.3" dueLabel="완료" status="done" title="용어집 초안 작성" />
+        <WorkItemCard assignee="나" code="1.2.1" dueLabel="D-2" status="doing" title="1차 번역본 검토" />
+        <WorkItemCard assignee="나" code="1.2.3" dueLabel="완료" status="done" title="용어집 초안 작성" />
       </div>
     </DarkFrame>
   ),

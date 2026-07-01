@@ -53,7 +53,7 @@ export const defaultDockItems: DockItem[] = [
     label: "TODO 버블",
     source: "server",
     tone: "todo",
-    value: "계약서 수정 조항 회신",
+    value: "기준 자료 수정 조항 회신",
   },
   {
     badge: "1개",

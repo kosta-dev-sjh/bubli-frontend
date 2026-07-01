@@ -103,7 +103,7 @@
   font-style: normal;
 }
 
-.bubbleMock {
+.bubblePreview {
   width: min(100%, 380px);
   margin: 42px auto 0;
   border: 1px solid rgba(255, 255, 255, 0.78);

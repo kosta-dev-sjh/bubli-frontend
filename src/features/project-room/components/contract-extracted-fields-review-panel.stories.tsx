@@ -8,7 +8,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "프로젝트룸 생성 시 계약서, 견적서, 요구사항 문서에서 뽑은 프로젝트 정보 후보를 사용자가 확인하는 패널입니다. 승인된 값만 프로젝트룸, WBS, TODO, 일정에 이어집니다.",
+          "프로젝트룸 생성 시 기준 자료, 견적서, 요구사항 문서에서 뽑은 프로젝트 정보 후보를 사용자가 확인하는 패널입니다. 승인된 값만 프로젝트룸, WBS, TODO, 일정에 이어집니다.",
       },
     },
     layout: "fullscreen",
@@ -36,9 +36,9 @@ export const PartlyApproved: Story = {
         id: "field-project-name",
         kind: "PROJECT_NAME",
         label: "프로젝트명",
-        sourceLabel: "계약서 1쪽",
+        sourceLabel: "기준 자료 1쪽",
         status: "APPROVED",
-        value: "신규 웹사이트 번역 프로젝트",
+        value: "웹사이트 개편 프로젝트",
       },
       {
         confidence: 89,
@@ -71,8 +71,8 @@ export const PartlyApproved: Story = {
     reviewItems: [
       {
         id: "review-due-date",
-        message: "납품일 후보가 계약서와 회의록에서 다르게 나왔습니다.",
-        sourceLabel: "계약서 2쪽, 회의록_0618.md",
+        message: "납품일 후보가 기준 자료와 회의록에서 다르게 나왔습니다.",
+        sourceLabel: "기준 자료 2쪽, 회의록_0618.md",
         tone: "conflict",
       },
     ],

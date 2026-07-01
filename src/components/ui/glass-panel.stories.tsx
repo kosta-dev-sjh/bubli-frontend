@@ -32,7 +32,7 @@ function Sample({ title = "오늘 할 일" }: { title?: string }) {
         <StatusBadge tone="todo">3</StatusBadge>
       </div>
       <p style={{ margin: 0, fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.6 }}>
-        계약서·요구사항·회의록을 모으면 에이전트가 오늘 할 일로 정리해드려요.
+        기준 자료·요구사항·회의록을 모으면 에이전트가 오늘 할 일로 정리해드려요.
       </p>
     </>
   );
@@ -109,7 +109,7 @@ export const Dense: Story = {
   render: () => (
     <div style={{ display: "grid", gap: 10, maxWidth: 420 }}>
       <GlassPanel dense>
-        <Sample title="계약서_최종.pdf" />
+        <Sample title="기준 자료_최종.pdf" />
       </GlassPanel>
       <GlassPanel dense>
         <Sample title="요구사항_정리.docx" />

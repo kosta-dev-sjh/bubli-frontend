@@ -141,7 +141,7 @@ export function PublicDownloadSection() {
               <div className={styles.widgetSummary}>
                 <span>오늘 보기</span>
                 <strong>작업 중에도 필요한 것만 화면 위에 남깁니다.</strong>
-                <small>TODO · 일정 · 타이머 · 자료 제안</small>
+                <small>할 일 · 일정 · 타이머 · 자료 제안</small>
               </div>
               {statusCards.map((card) => {
                 const Icon = card.icon;
@@ -162,7 +162,6 @@ export function PublicDownloadSection() {
               return (
                 <Link
                   className={`${styles.platform} ${card.className}`}
-                  data-release-ready={hasReleaseLink}
                   href={card.href}
                   key={card.label}
                   rel={hasReleaseLink ? "noreferrer" : undefined}

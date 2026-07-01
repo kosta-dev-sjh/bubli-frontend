@@ -28,7 +28,7 @@ export const DASHBOARD_STORY_DATA: DashboardViewData = {
     { id: "t1", title: "시안 1차 보내기", tone: "warning", meta: "오늘 18:00" },
     { id: "t2", title: "견적서 회신 확인", tone: "todo", meta: "진행중" },
     { id: "t3", title: "WBS 구조 검토", tone: "todo", meta: "내일" },
-    { id: "t4", title: "계약서 검토 회신", tone: "approved", meta: "완료" },
+    { id: "t4", title: "자료 검토 회신", tone: "approved", meta: "완료" },
   ],
   timeRing: {
     label: "오늘 집중",

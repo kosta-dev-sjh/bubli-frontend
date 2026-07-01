@@ -28,7 +28,7 @@ export const Succeeded: Story = {
     confidence: 86,
     jobStatus: "SUCCEEDED",
     projectRoomName: "번역 프로젝트룸",
-    resourceName: "번역 계약서_v2.pdf",
+    resourceName: "작업 범위_v2.pdf",
     steps: defaultAnalysisSteps,
     suggestions: defaultAnalysisSuggestions,
   },

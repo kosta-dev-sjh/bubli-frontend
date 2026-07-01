@@ -16,9 +16,9 @@ type FolderEvent = {
 const folderEvents: FolderEvent[] = [
   {
     detail: "개인 자료로만 표시",
-    path: "~/Documents/Bubli/번역계약서",
+    path: "~/Documents/Bubli/작업범위",
     status: "indexed",
-    title: "계약서_최종본.pdf",
+    title: "기준 자료_최종본.pdf",
   },
   {
     detail: "변경 감지 후 다시 색인",

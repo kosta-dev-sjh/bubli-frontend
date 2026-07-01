@@ -31,7 +31,7 @@ const schedules: ScheduleItem[] = [
     connectedItem: "TODO: 번역 검수 기준 확인",
     dateLabel: "오늘",
     kind: "meeting",
-    projectRoom: "번역 계약서 정리",
+    projectRoom: "작업 범위 정리",
     source: "google",
     time: "10:30",
     title: "클라이언트 확인 미팅",

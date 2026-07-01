@@ -25,7 +25,7 @@ export const LinkOneTaskAcrossSurfaces: Story = {
     candidate: {
       code: "1.2.1",
       confidence: 91,
-      sourceLabel: "번역계약서_v2.pdf, 회의록_0618.md",
+      sourceLabel: "작업범위_v2.pdf, 회의록_0618.md",
       status: "DRAFT",
       title: "1차 번역본 검토",
     },

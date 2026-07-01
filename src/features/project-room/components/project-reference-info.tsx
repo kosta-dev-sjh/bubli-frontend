@@ -12,7 +12,7 @@ const referenceItems = [
     tone: "personal" as const,
   },
   {
-    label: "계약 금액",
+    label: "예상 금액",
     value: "8,500,000원",
     note: "사용자 확인 전",
     tone: "warning" as const,
@@ -32,7 +32,7 @@ const referenceItems = [
 ];
 
 const checkItems = [
-  ["금액/부가세", "견적서와 계약서 금액이 다르면 확인 필요 항목으로 표시"],
+  ["금액/부가세", "견적서와 기준 자료 금액이 다르면 확인 필요 항목으로 표시"],
   ["지급 조건", "검수 완료 후 며칠 이내인지 문서에서 후보 추출"],
   ["납품물", "금액보다 작업 범위와 납품 기준을 함께 확인"],
 ];
@@ -49,9 +49,9 @@ export function ProjectReferenceInfo() {
         </div>
         <div className={styles.titleRow}>
           <div className={styles.titleGroup}>
-            <h2 className={styles.title}>계약 금액은 작업 기준을 확인하는 참고값입니다</h2>
+            <h2 className={styles.title}>예상 금액은 작업 기준을 확인하는 참고값입니다</h2>
             <p className={styles.summary}>
-              Bubli는 계약서와 견적서에서 금액, 지급 조건, 입금 예정일 후보를 뽑아 프로젝트룸 참고 정보로 함께 보여줍니다. 이 값은
+              Bubli는 기준 자료와 견적서에서 금액, 지급 조건, 입금 예정일 후보를 뽑아 프로젝트룸 참고 정보로 함께 보여줍니다. 이 값은
               작업 범위와 마감 확인을 돕는 보조 정보로 다룹니다.
             </p>
           </div>
@@ -71,7 +71,7 @@ export function ProjectReferenceInfo() {
         ))}
       </section>
 
-      <section className={styles.contentGrid} aria-label="계약 참고 정보 확인 기준">
+      <section className={styles.contentGrid} aria-label="자료 참고 정보 확인 기준">
         <div className={styles.checkPanel}>
           <div className={styles.panelTitle}>
             <FileCheck2 size={18} aria-hidden="true" />

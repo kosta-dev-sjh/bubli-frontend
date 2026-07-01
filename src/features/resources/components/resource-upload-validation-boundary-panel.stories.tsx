@@ -10,7 +10,7 @@ const demoProps: ResourceUploadValidationBoundaryPanelProps = {
     {
       checksumLabel: "새 파일 지문",
       extensionLabel: "PDF 허용",
-      fileName: "번역계약서_v2.pdf",
+      fileName: "작업범위_v2.pdf",
       mimeLabel: "application/pdf",
       reason: "프로젝트룸 자료로 저장한 뒤 에이전트 정리 작업을 시작할 수 있습니다.",
       sizeLabel: "2.4MB",

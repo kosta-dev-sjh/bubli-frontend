@@ -40,8 +40,8 @@ const changes: LocalChange[] = [
     updatedAt: "방금 전",
   },
   {
-    fileName: "번역계약서_v3.pdf",
-    folderName: "Bubli/번역 계약서 정리",
+    fileName: "작업범위_v3.pdf",
+    folderName: "Bubli/작업 범위 정리",
     kind: "updated",
     note: "서버 버전과 비교 필요",
     status: "CONFLICT",

@@ -20,7 +20,7 @@ const bubbles: Array<{
   { items: ["비정상 종료 복구 가능"], meta: "03:42", progressLabel: "오늘 누적", progressValue: 68, title: "타이머 버블", type: "timer" },
   { items: ["회의 중 빠른 기록", "개인 메모 초안"], meta: "로컬 초안", title: "메모 버블", type: "memo" },
   { items: ["10:30 확인 미팅", "D-2 납품 마감"], meta: "오늘", title: "일정/WBS 버블", type: "schedule" },
-  { items: ["번역 계약서_v2.pdf", "회의록_0618.md"], meta: "관련 자료", title: "자료 제안 버블", type: "resource" },
+  { items: ["작업 범위_v2.pdf", "회의록_0618.md"], meta: "관련 자료", title: "자료 제안 버블", type: "resource" },
   { items: ["확인 필요 3건", "타이머 동기화 완료"], meta: "알림", title: "알림 버블", type: "notification" },
 ];
 

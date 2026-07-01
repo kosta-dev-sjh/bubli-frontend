@@ -22,7 +22,7 @@ type Story = StoryObj<typeof meta>;
 
 const common = {
   agentCount: 1,
-  agentMessage: "계약서에서 요구사항 6개와 마감 3건을 찾았어요. 정리할까요?",
+  agentMessage: "기준 자료에서 요구사항 6개와 마감 3건을 찾았어요. 정리할까요?",
   projectLabel: "오늘 할 일",
   scheduleCount: 2,
   timerText: "25:00",

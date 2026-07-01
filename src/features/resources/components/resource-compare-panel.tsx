@@ -67,7 +67,7 @@ function CompareRow({ item }: { item: CompareField }) {
       </div>
       <div className="resource-compare-row__values">
         <span>
-          <strong>계약서</strong>
+          <strong>기준 자료</strong>
           {item.contractValue}
         </span>
         <span>
@@ -93,7 +93,7 @@ export function ResourceComparePanel() {
           </span>
           <div>
             <Chip selected>자료보드</Chip>
-            <h2>계약서, 견적서, 요구사항 문서의 값 차이를 확인 필요 항목으로 정리합니다</h2>
+            <h2>기준 자료, 견적서, 요구사항 문서의 값 차이를 확인 필요 항목으로 정리합니다</h2>
             <p>
               에이전트는 금액 참고값, 부가세, 납품물, 검수 기준, 개인정보, 저작권 조건을 비교합니다. 결과는 판단이
               아니라 사용자가 확인할 후보입니다.

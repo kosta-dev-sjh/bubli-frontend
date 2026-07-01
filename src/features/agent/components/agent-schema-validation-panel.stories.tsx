@@ -32,7 +32,7 @@ export const PassedValidation: Story = {
         description: "질문 방식 변경 전후 결과 비교 기준입니다.",
         icon: "prompt",
         label: "질문 방식",
-        value: "계약 검토 기준",
+        value: "자료 검토 기준",
       },
       {
         description: "정리 방식이 바뀌면 결과를 비교할 수 있게 남깁니다.",

@@ -39,7 +39,7 @@ export const RecoveryNeeded: Story = {
     heartbeatAgeSeconds: 124,
     heartbeatIntervalSeconds: 60,
     modeLabel: "25분 집중",
-    projectLabel: "번역 계약 검토",
+    projectLabel: "번역 자료 검토",
     recoveryThresholdSeconds: 90,
     serverStatusLabel: "마지막 heartbeat 2분 전",
     status: "RECOVERY_NEEDED",

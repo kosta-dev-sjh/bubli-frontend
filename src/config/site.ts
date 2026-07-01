@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "Bubli",
   tagline: "받은 자료를, 오늘 할 일로.",
   description:
-    "계약서, 요구사항, 회의록을 업무 구조로 바꾸고 오늘 필요한 일을 정리해주는 프리랜서 업무 비서",
+    "요구사항, 회의록, 참고 자료를 업무 구조로 바꾸고 오늘 필요한 일을 정리해주는 프리랜서 업무 비서",
   publicNav: [
     { href: "/", label: "홈" },
     { href: "/features", label: "기능" },

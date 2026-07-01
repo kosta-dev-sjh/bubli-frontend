@@ -129,7 +129,7 @@ export function WidgetBackgroundReadabilityPanel({
                       <Eye size={14} strokeWidth={2.1} aria-label="일반 표시" />
                     )}
                   </div>
-                  <p>계약서 수정 조항 회신</p>
+                  <p>기준 자료 수정 조항 회신</p>
                   <b>오늘 18:00</b>
                 </div>
               </div>

@@ -27,11 +27,11 @@ const personalTodo: TodoDetail = {
 };
 
 const reviewTodo: TodoDetail = {
-  assigneeLabel: "정현",
+  assigneeLabel: "나",
   description: "에이전트가 문서에서 뽑은 후보를 승인해 만들어진 작업입니다. 검토가 끝나면 완료로 바꿉니다.",
   dueLabel: "D-2",
   id: "todo-review-translation",
-  linkedProjectRoomLabel: "신규 웹사이트 번역",
+  linkedProjectRoomLabel: "웹사이트 개편",
   progressPercent: 74,
   scope: "PROJECT_ROOM",
   source: "APPROVED_CANDIDATE",

@@ -17,7 +17,7 @@ type DraftSuggestion = {
 const suggestions: DraftSuggestion[] = [
   {
     confidence: 88,
-    source: "계약서, 회의록",
+    source: "기준 자료, 회의록",
     summary: "수정 2회가 문서 전체 기준인지, 페이지별 기준인지 확인이 필요합니다.",
     title: "수정 범위 확인 질문",
     type: "question",
@@ -75,7 +75,7 @@ export function AgentDraftSuggestionPanel() {
           </Chip>
           <h2>에이전트는 바로 보내는 답이 아니라, 사용자가 검토할 초안을 만듭니다</h2>
           <p>
-            계약서, 요구사항, 회의록을 읽고 확인 질문 후보와 클라이언트에게 보낼 질문 초안을 만듭니다. 모든
+            기준 자료, 요구사항, 회의록을 읽고 확인 질문 후보와 클라이언트에게 보낼 질문 초안을 만듭니다. 모든
             초안은 사용자가 검토한 뒤 복사하거나 작업에 반영합니다.
           </p>
         </div>
@@ -103,7 +103,7 @@ export function AgentDraftSuggestionPanel() {
             <StatusBadge tone="room">보낼 문장 후보</StatusBadge>
             <h3>검수 기준과 납품 파일 형식을 한 번 더 확인하고 싶습니다.</h3>
             <p>
-              계약서에는 최종 PDF 납품으로 적혀 있고, 회의록에는 원본 파일 전달도 언급되어 있어 어느 형식을
+              기준 자료에는 최종 PDF 납품으로 적혀 있고, 회의록에는 원본 파일 전달도 언급되어 있어 어느 형식을
               기준으로 검수할지 확인 부탁드립니다.
             </p>
           </div>

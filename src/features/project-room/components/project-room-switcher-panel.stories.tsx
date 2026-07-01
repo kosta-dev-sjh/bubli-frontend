@@ -7,7 +7,7 @@ const demoProps: ProjectRoomSwitcherPanelProps = {
   items: [
     {
       alertCount: 3,
-      description: "번역 계약서, 요구사항 문서, 납품 일정 확인 중",
+      description: "작업 범위, 요구사항 문서, 납품 일정 확인 중",
       id: "room-brand-translation",
       myTodoCount: 8,
       name: "브랜드 상세페이지 번역",

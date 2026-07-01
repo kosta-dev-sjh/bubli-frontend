@@ -37,7 +37,7 @@ export const PersonalResourceContext: Story = {
         reason: "MENTIONS_DELIVERABLE",
         score: 87,
         summary: "납품물과 검수 기준이 연결되는 프로젝트룸 자료입니다.",
-        title: "번역계약서_v2.pdf",
+        title: "작업범위_v2.pdf",
         updatedLabel: "2026-06-17",
         visibility: "ROOM_SHARED",
       },

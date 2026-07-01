@@ -20,7 +20,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "자료 업로드 이후 서버 저장, 텍스트 추출, 의미 검색 준비, 에이전트 후보 생성 흐름을 단계별로 보여주는 패널입니다. API 계약이 바뀌어도 화면은 props 기준으로 유지하고 연결부만 교체할 수 있게 분리합니다.",
+          "자료 업로드 이후 서버 저장, 텍스트 추출, 의미 검색 준비, 에이전트 후보 생성 흐름을 단계별로 보여주는 패널입니다. API 기준이 바뀌어도 화면은 props 기준으로 유지하고 연결부만 교체할 수 있게 분리합니다.",
       },
     },
   },
@@ -33,7 +33,7 @@ type Story = StoryObj<typeof meta>;
 
 export const AnalyzingProjectRoomResource: Story = {
   args: {
-    resourceTitle: "번역계약서_v2.pdf",
+    resourceTitle: "작업범위_v2.pdf",
     status: "ANALYZING",
     visibility: "ROOM_SHARED",
   },

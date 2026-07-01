@@ -50,7 +50,7 @@ export const Focus: Story = {
 export const Analyzing: Story = {
   render: () => (
     <div style={wrap}>
-      <ResourceCard meta="에이전트 분석 중 · 방금 업로드" scope="room" status="needsReview" title="계약서_최종.pdf" />
+      <ResourceCard meta="에이전트 분석 중 · 방금 업로드" scope="room" status="needsReview" title="기준 자료_최종.pdf" />
     </div>
   ),
 };

@@ -79,7 +79,7 @@ const defaultRelatedResources: RelatedResource[] = [
 
 export function RelatedResourceEvidencePanel({
   className,
-  currentResourceTitle = "번역계약서_v2.pdf",
+  currentResourceTitle = "작업범위_v2.pdf",
   onOpenResource,
   onRunRelatedSearch,
   relatedResources = defaultRelatedResources,

@@ -24,7 +24,7 @@ export const ReviewQueue: Story = {
     items: [
       {
         comparedDocuments: [
-          { documentName: "계약서", value: "2026.07.10" },
+          { documentName: "기준 자료", value: "2026.07.10" },
           { documentName: "견적서", value: "2026.07.05" },
           { documentName: "요구사항 문서", value: "별도 기재 없음" },
         ],
@@ -32,14 +32,14 @@ export const ReviewQueue: Story = {
         fieldLabel: "납품일",
         id: "review-001",
         severity: "high",
-        sourceHint: "계약서 2쪽, 견적서 1쪽",
+        sourceHint: "기준 자료 2쪽, 견적서 1쪽",
         status: "draft",
         title: "납품일 값 차이",
         type: "valueMismatch",
       },
       {
         comparedDocuments: [
-          { documentName: "계약서", value: "수정 2회 포함" },
+          { documentName: "기준 자료", value: "수정 2회 포함" },
           { documentName: "견적서", value: "수정 범위 없음" },
           { documentName: "요구사항 문서", value: "검수 후 피드백 반영" },
         ],
@@ -47,14 +47,14 @@ export const ReviewQueue: Story = {
         fieldLabel: "수정 범위",
         id: "review-002",
         severity: "medium",
-        sourceHint: "계약서 4쪽",
+        sourceHint: "기준 자료 4쪽",
         status: "held",
         title: "수정 조건 확인",
         type: "missingCondition",
       },
       {
         comparedDocuments: [
-          { documentName: "계약서", value: "개발 범위 중심" },
+          { documentName: "기준 자료", value: "개발 범위 중심" },
           { documentName: "견적서", value: "관리자 페이지 포함" },
           { documentName: "요구사항 문서", value: "관리자 권한 3종" },
         ],
@@ -76,7 +76,7 @@ export const ResolvedItems: Story = {
     items: [
       {
         comparedDocuments: [
-          { documentName: "계약서", value: "최종 검수 1회" },
+          { documentName: "기준 자료", value: "최종 검수 1회" },
           { documentName: "견적서", value: "검수 1회" },
           { documentName: "요구사항 문서", value: "최종 검수 후 오픈" },
         ],
@@ -84,14 +84,14 @@ export const ResolvedItems: Story = {
         fieldLabel: "검수 기준",
         id: "review-004",
         severity: "low",
-        sourceHint: "계약서 5쪽, 요구사항 문서 6쪽",
+        sourceHint: "기준 자료 5쪽, 요구사항 문서 6쪽",
         status: "approved",
         title: "검수 조건 반영",
         type: "valueMismatch",
       },
       {
         comparedDocuments: [
-          { documentName: "계약서", value: "별도 기재 없음" },
+          { documentName: "기준 자료", value: "별도 기재 없음" },
           { documentName: "견적서", value: "참고 디자인 제공" },
           { documentName: "요구사항 문서", value: "디자인 시스템 별도 협의" },
         ],

@@ -42,9 +42,9 @@ export const ClassifiedDocuments: Story = {
     items: [
       {
         confidenceLabel: "신뢰도 94%",
-        description: "계약 기간, 납품일, 수정 범위, 지급 조건 문장이 함께 감지됐습니다.",
+        description: "진행 기간, 납품일, 수정 범위, 지급 조건 문장이 함께 감지됐습니다.",
         detectedKind: "contract",
-        fileName: "웹사이트 구축 계약서_v2.pdf",
+        fileName: "웹사이트 구축 기준 자료_v2.pdf",
         nextUse: "확인 필요 항목과 프로젝트 참고 정보 후보",
         status: "analyzed",
       },
@@ -53,7 +53,7 @@ export const ClassifiedDocuments: Story = {
         description: "금액, 부가세 포함 여부, 납품물별 단가 항목이 중심입니다.",
         detectedKind: "quote",
         fileName: "서비스 견적서_최종.pdf",
-        nextUse: "계약서와 같은 항목 값 차이 확인",
+        nextUse: "기준 자료와 같은 항목 값 차이 확인",
         status: "analyzed",
       },
       {
@@ -90,7 +90,7 @@ export const NeedsReview: Story = {
       },
       {
         confidenceLabel: "신뢰도 43%",
-        description: "계약 조건보다 참고 링크와 이미지 설명이 많습니다.",
+        description: "자료 조건보다 참고 링크와 이미지 설명이 많습니다.",
         detectedKind: "reference",
         fileName: "레퍼런스 화면 모음.pdf",
         nextUse: "자료 제안 후보",
@@ -100,7 +100,7 @@ export const NeedsReview: Story = {
         confidenceLabel: "파일 읽기 실패",
         description: "텍스트 추출에 실패해 문서 종류 후보를 만들 수 없습니다.",
         detectedKind: "reference",
-        fileName: "스캔본_계약자료.png",
+        fileName: "스캔본_기준자료.png",
         nextUse: "다시 업로드 또는 직접 분류",
         status: "failed",
       },

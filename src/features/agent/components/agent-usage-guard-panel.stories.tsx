@@ -47,8 +47,8 @@ export const NormalUsage: Story = {
       {
         latencyLabel: "1.8초",
         resultLabel: "자료 분석 후보",
-        reviewRuleLabel: "계약 조건 확인",
-        strategyLabel: "계약 문서 정리",
+        reviewRuleLabel: "자료 조건 확인",
+        strategyLabel: "기준 문서 정리",
         usageLabel: "분량 보통",
       },
       {

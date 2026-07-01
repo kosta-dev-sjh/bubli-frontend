@@ -42,7 +42,7 @@ export const FriendInvitationPending: Story = {
   args: {
     accessPreview,
     expiresLabel: "6일 18시간 남음",
-    inviterName: "정현",
+    inviterName: "나",
     projectRoomName: "신축 사옥 이전 프로젝트",
     roleLabel: "멤버",
     status: "pending",

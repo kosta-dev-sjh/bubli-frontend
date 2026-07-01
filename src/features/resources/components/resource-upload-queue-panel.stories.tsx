@@ -65,7 +65,7 @@ export const StorageLimitAndRetry: Story = {
         status: "blocked",
       },
       {
-        fileName: "계약서_최종본.pdf",
+        fileName: "기준 자료_최종본.pdf",
         message: "전송 중 연결이 끊겼습니다. 같은 파일은 중복 생성하지 않고 실패 항목으로 남깁니다.",
         progress: 74,
         scope: "room",

@@ -52,7 +52,7 @@ const logs: ModelCallLog[] = [
     schemaVersion: "resource-analysis-json-v2",
     status: "SUCCEEDED",
     target: "자료 분석 후보",
-    title: "번역계약서_v2.pdf 분석",
+    title: "작업범위_v2.pdf 분석",
   },
   {
     inputTokens: 2650,
