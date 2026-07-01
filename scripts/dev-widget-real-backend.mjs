@@ -91,7 +91,28 @@ async function smokeBackend(accessToken) {
   );
   assert(dashboard.todayTasks !== undefined, "dashboard response did not include todayTasks");
 
-  console.log("Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/dashboard/work.");
+  const todoSetting = settings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
+  assert(todoSetting?.id, "widget settings did not include a TODO bubble setting id");
+
+  const today = new Date().toISOString().slice(0, 10);
+  const usageSummary = await apiPost("/api/widget/usage-summaries", headers, {
+    bubbleSettingId: todoSetting.id,
+    deviceId: "codex-tauri-smoke",
+    interactionCount: 2,
+    openCount: 1,
+    rollupKey: `codex-tauri-smoke:${todoSetting.id}:${today}`,
+    summaryDate: today,
+    syncedAt: new Date().toISOString(),
+    visibleSeconds: 2,
+  });
+  const todayUsage = await apiGet("/api/widget/usage-summaries/today", headers);
+
+  assert(usageSummary.bubbleSettingId === todoSetting.id, "usage summary save did not return the TODO setting id");
+  assert(todayUsage.totalInteractionCount >= 2, "today usage summary did not include the smoke interaction count");
+
+  console.log(
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/dashboard/work, /api/widget/usage-summaries.",
+  );
 }
 
 async function runTauriDev(accessToken) {
@@ -118,6 +139,24 @@ async function runTauriDev(accessToken) {
 
 async function apiGet(path, headers) {
   const response = await fetch(`${API_BASE_URL}${path}`, { headers });
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || !payload?.success) {
+    throw new Error(`${path} returned HTTP ${response.status}: ${JSON.stringify(payload)}`);
+  }
+
+  return payload.data;
+}
+
+async function apiPost(path, headers, body) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    body: JSON.stringify(body),
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
   const payload = await response.json().catch(() => null);
 
   if (!response.ok || !payload?.success) {

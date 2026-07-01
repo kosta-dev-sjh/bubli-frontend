@@ -12,6 +12,7 @@ export const TAURI_COMMANDS = {
   readActivityContext: "read_activity_context",
   recoverTimerState: "recover_timer_state",
   recordWidgetUsageEvent: "record_widget_usage_event",
+  markWidgetUsageSummarySynced: "mark_widget_usage_summary_synced",
   registerWidgetShortcut: "register_widget_shortcut",
   restoreLocalSqliteBackup: "restore_local_sqlite_backup",
   rollupWidgetUsage: "rollup_widget_usage",
@@ -140,19 +141,34 @@ export type WidgetUsageRollupInput = {
 
 export type WidgetUsageRollupResult = {
   bubbleType: string;
+  interactionCount: number;
+  openCount: number;
   rollupKey: string;
   sourceEventCount: number;
   summaryDate: string;
+  visibleSeconds: number;
 };
 
 export type WidgetUsageSummarySyncInput = {
   rollupKeys?: string[];
 };
 
+export type WidgetUsageSummaryStagedRollup = WidgetUsageRollupResult;
+
 export type WidgetUsageSummarySyncResult = {
   failedCount: number;
+  rollups: WidgetUsageSummaryStagedRollup[];
   sentCount: number;
   syncedAt: string;
+};
+
+export type WidgetUsageSummaryMarkSyncedInput = {
+  rollupKeys: string[];
+};
+
+export type WidgetUsageSummaryMarkSyncedResult = {
+  completedAt: string;
+  syncedCount: number;
 };
 
 export type WidgetBubbleType = "agent" | "alert" | "chat" | "memo" | "resource" | "schedule" | "timer" | "todo";
@@ -268,6 +284,10 @@ export type TauriCommandContract = {
     args: WidgetUsageEventInput;
     result: WidgetUsageEventRecordResult;
   };
+  mark_widget_usage_summary_synced: {
+    args: WidgetUsageSummaryMarkSyncedInput;
+    result: WidgetUsageSummaryMarkSyncedResult;
+  };
   register_widget_shortcut: {
     args: WidgetShortcutInput;
     result: WidgetWindowState;
@@ -374,6 +394,9 @@ export const tauriCommands = {
   },
   recordWidgetUsageEvent(input: WidgetUsageEventInput) {
     return invokeTauri<WidgetUsageEventRecordResult>(TAURI_COMMANDS.recordWidgetUsageEvent, { input });
+  },
+  markWidgetUsageSummarySynced(input: WidgetUsageSummaryMarkSyncedInput) {
+    return invokeTauri<WidgetUsageSummaryMarkSyncedResult>(TAURI_COMMANDS.markWidgetUsageSummarySynced, { input });
   },
   registerWidgetShortcut(input: WidgetShortcutInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.registerWidgetShortcut, { input });

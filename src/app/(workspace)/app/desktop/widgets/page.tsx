@@ -8,7 +8,7 @@ import { DesktopWidgetBubble } from "@/features/widget/components/desktop-widget
 import { widgetPreviewBubbles } from "@/features/widget/desktop-widget-preview-data";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { recordLocalWidgetUsageEvent, rollupLocalWidgetUsage, stageLocalWidgetUsageSummary } from "@/lib/widget/widget-local-client";
+import { recordLocalWidgetUsageEvent, rollupLocalWidgetUsage, syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 
 import styles from "./page.module.css";
 
@@ -127,13 +127,13 @@ export default function DesktopWidgetsPage() {
   }, []);
 
   const syncUsageSummary = useCallback(async () => {
-    const result = await stageLocalWidgetUsageSummary();
+    const result = await syncLocalWidgetUsageSummaryToServer();
     if (result.status === "unavailable") {
       setUsageMessage("데스크탑 앱에서 사용할 수 있습니다");
       return;
     }
     if (result.status === "ready") {
-      setUsageMessage("요약을 서버 전송 대기열에 올렸습니다");
+      setUsageMessage(`요약 ${result.data.sentCount}건을 서버에 동기화했습니다`);
       return;
     }
     setUsageMessage(result.message ?? "요약 동기화를 처리했습니다");

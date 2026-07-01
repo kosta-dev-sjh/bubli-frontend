@@ -625,6 +625,7 @@ pub fn run() {
             widget_usage::record_widget_usage_event,
             widget_usage::rollup_widget_usage,
             widget_usage::sync_widget_usage_summary,
+            widget_usage::mark_widget_usage_summary_synced,
             // BUBLI-43 local file index + change events + sync outbox
             local_files::select_managed_folder,
             local_files::scan_managed_folder,

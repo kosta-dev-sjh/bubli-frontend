@@ -4,8 +4,9 @@
 //! sync outbox. Raw events never leave the device; only rollups are reflected
 //! to the server (POST /api/widget/usage-summaries per the API spec).
 
-use rusqlite::params;
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use tauri::State;
 use uuid::Uuid;
 
@@ -37,17 +38,46 @@ pub struct WidgetUsageRollupInput {
 #[serde(rename_all = "camelCase")]
 pub struct WidgetUsageRollupResult {
     bubble_type: String,
+    interaction_count: i64,
+    open_count: i64,
     rollup_key: String,
     source_event_count: i64,
     summary_date: String,
+    visible_seconds: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetUsageSummaryStagedRollup {
+    bubble_type: String,
+    interaction_count: i64,
+    open_count: i64,
+    rollup_key: String,
+    source_event_count: i64,
+    summary_date: String,
+    visible_seconds: i64,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WidgetUsageSummarySyncResult {
     failed_count: i64,
+    rollups: Vec<WidgetUsageSummaryStagedRollup>,
     sent_count: i64,
     synced_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetUsageSummaryMarkSyncedInput {
+    rollup_keys: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetUsageSummaryMarkSyncedResult {
+    completed_at: String,
+    synced_count: i64,
 }
 
 /// Record one detailed widget usage event into the local store.
@@ -76,6 +106,29 @@ pub fn record_widget_usage_event(
     Ok(WidgetUsageEventRecordResult {
         recorded_at: now_iso(),
     })
+}
+
+fn read_usage_metrics(
+    conn: &Connection,
+    summary_date: &str,
+    bubble_type: &str,
+) -> Result<(i64, i64, i64), String> {
+    let (source_event_count, open_count): (i64, i64) = conn
+        .query_row(
+            "SELECT \
+               COUNT(*) AS source_event_count, \
+               COALESCE(SUM(CASE WHEN lower(event_type) LIKE 'open%' THEN 1 ELSE 0 END), 0) AS open_count \
+             FROM local_widget_usage_events \
+             WHERE substr(occurred_at, 1, 10) = ?1 AND bubble_type = ?2",
+            params![summary_date, bubble_type],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|error| error.to_string())?;
+
+    // Raw events stay local. The server only needs aggregate counters, so for
+    // now every local event is counted as one interaction and one visible
+    // second unless a later native dwell tracker supplies a real duration.
+    Ok((source_event_count, open_count, source_event_count))
 }
 
 /// Compress detail events into per-date, per-bubble rollups.
@@ -128,6 +181,7 @@ pub fn rollup_widget_usage(
 
     let mut results = Vec::with_capacity(grouped.len());
     for (date, bubble_type, count) in grouped {
+        let (_, open_count, visible_seconds) = read_usage_metrics(&conn, &date, &bubble_type)?;
         let rollup_key = format!("{date}:{bubble_type}");
         conn.execute(
             "INSERT INTO local_widget_usage_rollups \
@@ -142,9 +196,12 @@ pub fn rollup_widget_usage(
 
         results.push(WidgetUsageRollupResult {
             bubble_type,
+            interaction_count: count,
+            open_count,
             rollup_key,
             source_event_count: count,
             summary_date: date,
+            visible_seconds,
         });
     }
 
@@ -195,6 +252,7 @@ pub fn sync_widget_usage_summary(
     }
 
     let mut queued = 0i64;
+    let mut staged_rollups = Vec::new();
     for (rollup_key, bubble_type, summary_date, count) in pending {
         if let Some(keys) = &filter_keys {
             if !keys.contains(&rollup_key) {
@@ -202,9 +260,17 @@ pub fn sync_widget_usage_summary(
             }
         }
 
-        let payload = format!(
-            "{{\"rollupKey\":\"{rollup_key}\",\"bubbleType\":\"{bubble_type}\",\"summaryDate\":\"{summary_date}\",\"sourceEventCount\":{count}}}"
-        );
+        let (_, open_count, visible_seconds) = read_usage_metrics(&conn, &summary_date, &bubble_type)?;
+        let payload = json!({
+            "rollupKey": rollup_key,
+            "bubbleType": bubble_type,
+            "summaryDate": summary_date,
+            "sourceEventCount": count,
+            "interactionCount": count,
+            "openCount": open_count,
+            "visibleSeconds": visible_seconds,
+        })
+        .to_string();
         // Idempotency key = rollup key, so a re-run does not double-insert.
         conn.execute(
             "INSERT INTO local_sync_outbox \
@@ -224,11 +290,58 @@ pub fn sync_widget_usage_summary(
         .map_err(|error| error.to_string())?;
 
         queued += 1;
+        staged_rollups.push(WidgetUsageSummaryStagedRollup {
+            bubble_type,
+            interaction_count: count,
+            open_count,
+            rollup_key,
+            source_event_count: count,
+            summary_date,
+            visible_seconds,
+        });
     }
 
     Ok(WidgetUsageSummarySyncResult {
         failed_count: 0,
+        rollups: staged_rollups,
         sent_count: queued,
         synced_at: now_iso(),
+    })
+}
+
+/// Mark staged widget usage rollups as reflected by the authenticated frontend.
+#[tauri::command]
+pub fn mark_widget_usage_summary_synced(
+    state: State<'_, Db>,
+    input: WidgetUsageSummaryMarkSyncedInput,
+) -> Result<WidgetUsageSummaryMarkSyncedResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let now = now_ms();
+    let mut synced = 0i64;
+
+    for rollup_key in input.rollup_keys {
+        let updated = conn
+            .execute(
+                "UPDATE local_widget_usage_rollups SET sync_status = 'SYNCED', updated_at = ?2 \
+                 WHERE rollup_key = ?1",
+                params![rollup_key, now],
+            )
+            .map_err(|error| error.to_string())?;
+
+        if updated > 0 {
+            synced += 1;
+        }
+
+        conn.execute(
+            "UPDATE local_sync_outbox SET status = 'SENT', updated_at = ?2 \
+             WHERE idempotency_key = ?1 AND operation = 'widget_usage_summary'",
+            params![rollup_key, now],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
+    Ok(WidgetUsageSummaryMarkSyncedResult {
+        completed_at: now_iso(),
+        synced_count: synced,
     })
 }

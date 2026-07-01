@@ -23,6 +23,20 @@ type GetGoogleAuthorizationInput = {
   state?: string;
 };
 
+function getAccessTokenExpiresAt(accessToken: string) {
+  try {
+    const [, payload] = accessToken.split(".");
+    const claims = JSON.parse(globalThis.atob(payload)) as { exp?: number };
+    if (claims.exp) {
+      return new Date(claims.exp * 1000).toISOString();
+    }
+  } catch {
+    // Fall through to a short local-dev expiry.
+  }
+
+  return new Date(Date.now() + 60 * 60 * 1000).toISOString();
+}
+
 export const authApi = {
   getGoogleAuthorizationUrl(input: GetGoogleAuthorizationInput = {}) {
     const params = new URLSearchParams();
@@ -47,6 +61,31 @@ export const authApi = {
       skipAuthRefresh: true,
     });
     setStoredAuthSession({ ...token, clientType: input.clientType });
+    return token;
+  },
+
+  async loginWithDevAccessToken(accessToken: string) {
+    const user = await apiRequest<AuthUser>("/api/me", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      method: "GET",
+      skipAuth: true,
+      skipAuthRefresh: true,
+    });
+    const expiresAt = getAccessTokenExpiresAt(accessToken);
+    const expiresIn = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
+    const token: AuthTokenResponse = {
+      accessToken,
+      expiresAt,
+      expiresIn,
+      refreshToken: `dev-refresh-token:${user.id}`,
+      refreshTokenExpiresAt: expiresAt,
+      tokenType: "Bearer",
+      user,
+    };
+
+    setStoredAuthSession({ ...token, clientType: getAuthClientType() });
     return token;
   },
 

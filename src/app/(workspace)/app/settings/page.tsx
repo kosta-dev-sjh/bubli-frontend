@@ -27,7 +27,8 @@ import {
   selectPersonalManagedFolder,
   watchPersonalManagedFolder,
 } from "@/lib/local/managed-folder-client";
-import { getLocalSyncOutboxSummary, stageWidgetUsageSummary } from "@/lib/sync/local-sync-client";
+import { getLocalSyncOutboxSummary } from "@/lib/sync/local-sync-client";
+import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
@@ -485,7 +486,7 @@ export default function SettingsPage() {
   }, []);
 
   const syncWidgetUsage = useCallback(async () => {
-    const result = await stageWidgetUsageSummary();
+    const result = await syncLocalWidgetUsageSummaryToServer();
     setLocalActionMessage(localResultMessage(result));
   }, []);
 

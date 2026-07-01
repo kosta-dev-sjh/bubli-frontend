@@ -92,7 +92,8 @@ export type LocalSyncSummary = {
   failedCount: number;
   pendingCount?: number;
   queuedCount?: number;
-  serverTransfer: "queued_only" | "not_started";
+  sentCount?: number;
+  serverTransfer: "queued_only" | "not_started" | "sent";
   summarizedAt: string;
 };
 

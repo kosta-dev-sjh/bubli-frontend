@@ -15,7 +15,7 @@ export function TauriPostLoginLauncher() {
     }
 
     function launchAuthenticatedSurfaces() {
-      const hasAuthenticatedSession = Boolean(getStoredAuthSession() ?? process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN);
+      const hasAuthenticatedSession = Boolean(getStoredAuthSession());
       if (launchedRef.current || !hasAuthenticatedSession) {
         return;
       }
