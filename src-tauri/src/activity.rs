@@ -12,10 +12,11 @@
 //! local focus row here only exists to compute dwell time between reads.
 
 use rusqlite::{params, OptionalExtension};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
+use uuid::Uuid;
 
-use crate::local_db::{now_iso, now_ms, Db};
+use crate::local_db::{ms_to_iso, now_iso, now_ms, Db};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,6 +25,24 @@ pub struct ActivityContextResult {
     window_title: Option<String>,
     duration_seconds: Option<i64>,
     captured_at: String,
+    local_event_id: String,
+    sync_status: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityEventSyncStatusInput {
+    local_event_id: String,
+    server_activity_id: Option<String>,
+    status: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityEventSyncStatusResult {
+    local_event_id: String,
+    status: String,
+    updated_at: String,
 }
 
 /// Read the current foreground activity context and compute dwell time.
@@ -73,13 +92,63 @@ pub fn read_activity_context(state: State<'_, Db>) -> Result<ActivityContextResu
     )
     .map_err(|error| error.to_string())?;
 
-    let duration_seconds = Some(((now - focus_started_ms).max(0)) / 1000);
+    let duration_seconds = ((now - focus_started_ms).max(0)) / 1000;
+    let local_event_id = Uuid::new_v4().to_string();
+    conn.execute(
+        "INSERT INTO local_activity_events \
+         (id, app_name, window_title, started_at, ended_at, duration_seconds, sync_status, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'LOCAL_ONLY', ?7, ?7)",
+        params![
+            local_event_id,
+            app_name,
+            window_title,
+            ms_to_iso(focus_started_ms),
+            ms_to_iso(now),
+            duration_seconds,
+            now
+        ],
+    )
+    .map_err(|error| error.to_string())?;
 
     Ok(ActivityContextResult {
         app_name,
         window_title,
-        duration_seconds,
+        duration_seconds: Some(duration_seconds),
         captured_at: now_iso(),
+        local_event_id,
+        sync_status: "LOCAL_ONLY".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn mark_activity_event_sync_status(
+    state: State<'_, Db>,
+    input: ActivityEventSyncStatusInput,
+) -> Result<ActivityEventSyncStatusResult, String> {
+    let status = match input.status.as_str() {
+        "SYNCED" => "SYNCED",
+        "FAILED" => "FAILED",
+        value => return Err(format!("unsupported activity sync status: {value}")),
+    };
+    let now = now_ms();
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let updated = conn
+        .execute(
+            "UPDATE local_activity_events \
+             SET sync_status = ?2, server_activity_id = ?3, updated_at = ?4 \
+             WHERE id = ?1",
+            params![input.local_event_id, status, input.server_activity_id, now],
+        )
+        .map_err(|error| error.to_string())?;
+
+    if updated == 0 {
+        return Err("activity event was not found".to_string());
+    }
+
+    Ok(ActivityEventSyncStatusResult {
+        local_event_id: input.local_event_id,
+        status: status.to_string(),
+        updated_at: ms_to_iso(now),
     })
 }
 

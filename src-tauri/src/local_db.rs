@@ -416,4 +416,43 @@ CREATE TABLE IF NOT EXISTS local_activity_focus (
     focus_started_ms INTEGER NOT NULL,
     last_seen_ms    INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS local_activity_events (
+    id                 TEXT PRIMARY KEY,
+    app_name           TEXT NOT NULL,
+    window_title       TEXT,
+    started_at         TEXT NOT NULL,
+    ended_at           TEXT NOT NULL,
+    duration_seconds   INTEGER NOT NULL DEFAULT 0,
+    sync_status        TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
+    server_activity_id TEXT,
+    created_at         INTEGER NOT NULL,
+    updated_at         INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_local_activity_events_status ON local_activity_events(sync_status, updated_at);
 "#;
+
+#[cfg(test)]
+mod tests {
+    use rusqlite::Connection;
+
+    use super::{configure_connection, SCHEMA_SQL};
+
+    #[test]
+    fn schema_creates_activity_event_sync_table() {
+        let conn = Connection::open_in_memory().expect("open in-memory sqlite");
+        configure_connection(&conn);
+        conn.execute_batch(SCHEMA_SQL).expect("run schema");
+
+        let column_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('local_activity_events') \
+                 WHERE name IN ('id', 'app_name', 'started_at', 'ended_at', 'duration_seconds', 'sync_status', 'server_activity_id')",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read local_activity_events columns");
+
+        assert_eq!(column_count, 7);
+    }
+}

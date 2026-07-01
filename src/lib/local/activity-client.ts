@@ -61,10 +61,19 @@ export async function recordCurrentActivityContext(
     });
     const todayActivities = await activityApi.getToday();
 
+    const localSyncMarked = await tauriCommands
+      .markActivityEventSyncStatus({
+        localEventId: context.data.localEventId,
+        serverActivityId: recordedActivity.id,
+        status: "SYNCED",
+      })
+      .then(() => true)
+      .catch(() => false);
+
     return ready(
       {
         appName: context.data.appName,
-        context: context.data,
+        context: { ...context.data, syncStatus: localSyncMarked ? "SYNCED" : context.data.syncStatus },
         recordedActivity,
         todayActivities,
         windowTitle: context.data.windowTitle,
@@ -73,6 +82,12 @@ export async function recordCurrentActivityContext(
       "현재 활동을 서버에 기록했습니다.",
     );
   } catch (error) {
+    await tauriCommands
+      .markActivityEventSyncStatus({
+        localEventId: context.data.localEventId,
+        status: "FAILED",
+      })
+      .catch(() => undefined);
     return failed(getErrorMessage(error), commandName);
   }
 }

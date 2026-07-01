@@ -86,9 +86,15 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
   // BUBLI-44 activity context: local capture, server reflect of consented data.
   {
     ipc: TAURI_COMMANDS.readActivityContext,
-    responsibility: "Read current app/window/dwell (consent-gated)",
+    responsibility: "Read current app/window/dwell and store a local SQLite activity event (consent-gated)",
     reflectsToServer: true,
     serverApi: "/api/activity/current-app",
+  },
+  {
+    ipc: TAURI_COMMANDS.markActivityEventSyncStatus,
+    responsibility: "Mark the local SQLite activity event after server reflection",
+    reflectsToServer: false,
+    serverApi: null,
   },
   // BUBLI-43 personal managed folder: local index, only approved items reach server.
   {

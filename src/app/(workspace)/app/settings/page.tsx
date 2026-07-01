@@ -30,7 +30,7 @@ import {
 } from "@/lib/local/managed-folder-client";
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { tauriCommands, type AppMonitorInfo, type AppMonitorPreference } from "@/lib/tauri/commands";
+import { tauriCommands, type ActivityContextResult, type AppMonitorInfo, type AppMonitorPreference } from "@/lib/tauri/commands";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
@@ -195,6 +195,7 @@ export default function SettingsPage() {
   const [lastBackupId, setLastBackupId] = useState<string | null>(null);
   const [desktopRuntime, setDesktopRuntime] = useState(false);
   const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
+  const [lastActivityCapture, setLastActivityCapture] = useState<ActivityContextResult | null>(null);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -496,6 +497,7 @@ export default function SettingsPage() {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
     const result = await recordCurrentActivityContext({ consentGranted });
     if (result.status === "ready") {
+      setLastActivityCapture(result.data.context);
       setLocalActionMessage(`활동 감지 · ${result.data.appName}${result.data.windowTitle ? ` · ${result.data.windowTitle}` : ""}`);
       return;
     }
@@ -813,6 +815,20 @@ export default function SettingsPage() {
                 ))}
               </div>
               <p className={styles.guard}>화면 전체 내용과 키보드 입력은 수집하지 않습니다.</p>
+              {lastActivityCapture ? (
+                <div className={styles.row}>
+                  <span>
+                    <strong>{lastActivityCapture.appName}</strong>
+                    <small>
+                      {lastActivityCapture.windowTitle ?? "창 제목 없음"} · {Math.max(0, Math.round((lastActivityCapture.durationSeconds ?? 0) / 60))}분 ·{" "}
+                      {lastActivityCapture.localEventId}
+                    </small>
+                  </span>
+                  <StatusBadge tone={lastActivityCapture.syncStatus === "SYNCED" ? "approved" : "warning"}>
+                    {lastActivityCapture.syncStatus === "SYNCED" ? "서버 반영" : "로컬 기록"}
+                  </StatusBadge>
+                </div>
+              ) : null}
               <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void readActivity()} type="button" variant="quiet">
                 현재 활동 기록
               </Button>

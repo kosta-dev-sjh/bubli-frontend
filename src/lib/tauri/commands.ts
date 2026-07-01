@@ -10,6 +10,7 @@ export const TAURI_COMMANDS = {
   getWidgetBarItems: "get_widget_bar_items",
   getWidgetWindowState: "get_widget_window_state",
   listAppMonitors: "list_app_monitors",
+  markActivityEventSyncStatus: "mark_activity_event_sync_status",
   openWidgetWindow: "open_widget_window",
   readActivityContext: "read_activity_context",
   recoverTimerState: "recover_timer_state",
@@ -161,7 +162,21 @@ export type ActivityContextResult = {
   appName: string;
   capturedAt: string;
   durationSeconds?: number;
+  localEventId: string;
+  syncStatus: "LOCAL_ONLY" | "SYNC_PENDING" | "SYNCED" | "FAILED";
   windowTitle?: string;
+};
+
+export type ActivityEventSyncStatusInput = {
+  localEventId: string;
+  serverActivityId?: string | null;
+  status: "SYNCED" | "FAILED";
+};
+
+export type ActivityEventSyncStatusResult = {
+  localEventId: string;
+  status: "SYNCED" | "FAILED";
+  updatedAt: string;
 };
 
 export type AppMonitorPosition = {
@@ -345,6 +360,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: AppMonitorPreference;
   };
+  mark_activity_event_sync_status: {
+    args: ActivityEventSyncStatusInput;
+    result: ActivityEventSyncStatusResult;
+  };
   open_widget_window: {
     args: WidgetWindowOpenInput | undefined;
     result: WidgetWindowState;
@@ -477,6 +496,9 @@ export const tauriCommands = {
   },
   listAppMonitors() {
     return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.listAppMonitors);
+  },
+  markActivityEventSyncStatus(input: ActivityEventSyncStatusInput) {
+    return invokeTauri<ActivityEventSyncStatusResult>(TAURI_COMMANDS.markActivityEventSyncStatus, { input });
   },
   openWidgetWindow(input?: WidgetWindowOpenInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.openWidgetWindow, input ? { input } : undefined);

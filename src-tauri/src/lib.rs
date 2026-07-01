@@ -969,6 +969,7 @@ pub fn run() {
             toggle_widget_dock_orb,
             update_widget_tray_state,
             // BUBLI-44 activity context
+            activity::mark_activity_event_sync_status,
             activity::read_activity_context,
             // BUBLI-41 widget usage events + rollups + server-sync staging
             widget_usage::record_widget_usage_event,
