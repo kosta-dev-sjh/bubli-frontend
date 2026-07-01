@@ -45,7 +45,7 @@
 기능 연결 상세,3,공개,랜딩,/,public-site,정적(영상·카피),-,O,-,O,일치,됨,비회원 랜딩. 제품규칙 통과
 기능 연결 상세,4,공개,기능 소개,/features,public-site,정적,-,O,-,O,일치,됨,
 기능 연결 상세,5,공개,FAQ,/faq,public-site,정적,-,O,-,O,일치,됨,
-기능 연결 상세,6,공개,로그인,/login,authApi,구글 OAuth 진입,O,O,O,O,일치,됨,세션 refresh·logout 연결
+기능 연결 상세,6,공개,로그인,/login,authApi,구글 OAuth 진입 · /oauth2/authorization/google 호환 라우트,O,O,O,O,일치 · 2026-07-02: /oauth2/authorization/google 호환 진입 추가로 이전 링크 404 방지,됨,세션 refresh·logout 연결
 기능 연결 상세,7,회원앱 — 대시보드,,,,,,,,,,,
 기능 연결 상세,8,대시보드,워크스페이스 대시보드,/app,dashboardApi,GET /api/dashboard/work · /tasks,O,O,O,O,일치,됨,getWork + todoApi.list + widgetApi.getSummary + runningTimer 연결
 기능 연결 상세,9,회원앱 — 프로젝트룸,,,,,,,,,,,
@@ -111,7 +111,7 @@
 연동·인증 세팅,5,2,응답 봉투,"백엔드 ApiResponse {success,data,error} = 프론트 기대치와 동일",맞춰져 있음. 손댈 것 없음,-,-,됨,,,,,
 연동·인증 세팅,6,3,CORS,SecurityConfig allowedOriginPatterns(env) + allowCredentials(true),같은 출처 배포는 무관. 앱(app.bubli.kr)·로컬(localhost)은 출처를 env에 명시 등록(*는 불가),백엔드,앱·로컬 연동,부분,,,,,
 연동·인증 세팅,7,4,WebSocket 토큰,완료: STOMP CONNECT 프레임에 Authorization: Bearer 부착(토큰 없으면 대기),0번에서 만든 accessToken을 WS 클라이언트에 전달,프론트,실시간 채팅,됨,,,,,
-연동·인증 세팅,8,5,구글 OAuth redirect,프론트 콜백·토큰저장 완료. redirectUri 등록 + 실 로그인 왕복은 수동 검증 남음,구글 콘솔에 배포 redirectUri 등록 + 프론트가 같은 redirectUri 전송 + 응답 accessToken 저장,프론트·백,구글 로그인,부분,,,,,
+연동·인증 세팅,8,5,구글 OAuth redirect,프론트 콜백·토큰저장 완료. /oauth2/authorization/google 호환 진입 추가. redirectUri 실계정 왕복은 수동 검증 남음,구글 콘솔에 배포 redirectUri 등록 + 프론트가 같은 redirectUri 전송 + 응답 accessToken 저장 + 이전 OAuth 진입 URL 404 방지,프론트·백,구글 로그인,부분,,,,,
 연동·인증 세팅,9,6,타우리 토큰 저장,localStorage 저장(boundary allowlist 등록). Tauri 보안저장은 하드닝 follow-up,"토큰은 인메모리 + refresh, 영속 필요시 Tauri SQLite/보안저장 사용",프론트,앱 로그인 유지,부분,,,,,
 연동·인증 세팅,10,7,빌드 재배포,NEXT_PUBLIC_*는 런타임 env 아님(빌드 시 번들에 굳음),주소·플래그 바꾸면 프론트 이미지 재빌드+재배포,인프라,배포 반영,참고,,,,,
 연동·인증 세팅,11,,,,,,,,,,,,
@@ -141,7 +141,7 @@
 페이지별 백엔드 맵핑,3,비회원,랜딩,/,정적 소개,-,정적,부분,디자인 완료 · 모바일/사이즈별 미확인,,,,
 페이지별 백엔드 맵핑,4,비회원,기능 소개,/features,정적,-,정적,부분,디자인 완료 · 반응형 미확인,,,,
 페이지별 백엔드 맵핑,5,비회원,FAQ,/faq,정적,-,정적,부분,디자인 완료 · 반응형 미확인,,,,
-페이지별 백엔드 맵핑,6,비회원,로그인,/login,구글 OAuth 시작 URL,getGoogleAuthorizationUrl,됨,부분,디자인 완료 · 반응형 미확인,,,,
+페이지별 백엔드 맵핑,6,비회원,로그인,/login,구글 OAuth 시작 URL + 구버전 OAuth 진입 호환,getGoogleAuthorizationUrl · /oauth2/authorization/google,됨,부분,디자인 완료 · 반응형 미확인 · 이전 OAuth URL 404 방지 추가,,,,
 페이지별 백엔드 맵핑,7,비회원,OAuth 콜백,/auth/callback,코드→토큰 교환,callbackGoogle,됨,부분,디자인 완료 · 반응형 미확인,,,,
 페이지별 백엔드 맵핑,8,회원,대시보드,/app,대시보드 업무,getWork + projectRoom.list,됨,확인예정,위젯 summary·TODO·타이머 연결(Codex 2차) · 알림만 대시보드 미맵핑,,,,
 페이지별 백엔드 맵핑,9,회원,룸 목록,/app/project-rooms,룸 목록,projectRoom.list,됨,확인예정,디자인 상태 미확인,,,,
