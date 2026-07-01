@@ -110,8 +110,43 @@ async function smokeBackend(accessToken) {
   assert(usageSummary.bubbleSettingId === todoSetting.id, "usage summary save did not return the TODO setting id");
   assert(todayUsage.totalInteractionCount >= 2, "today usage summary did not include the smoke interaction count");
 
+  const localFileSync = await apiPost("/api/local-file-events/sync", headers, {
+    events: [
+      {
+        eventType: "CREATED",
+        fileName: "codex-local-sync-smoke.txt",
+        fileSizeBytes: 42,
+        mimeType: "text/plain",
+        resourceId: null,
+      },
+    ],
+  });
+
+  assert(
+    localFileSync.results?.[0]?.status === "SYNCED",
+    "local file event sync did not return a SYNCED result",
+  );
+  const syncedResourceId = localFileSync.results[0].resourceId;
+  assert(syncedResourceId, "local file event sync did not return a resource id");
+
+  const localFileDelete = await apiPost("/api/local-file-events/sync", headers, {
+    events: [
+      {
+        eventType: "DELETED",
+        fileName: "codex-local-sync-smoke.txt",
+        fileSizeBytes: 42,
+        mimeType: "text/plain",
+        resourceId: syncedResourceId,
+      },
+    ],
+  });
+  assert(
+    localFileDelete.results?.[0]?.status === "SYNCED",
+    "local file event delete sync did not return a SYNCED result",
+  );
+
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/dashboard/work, /api/widget/usage-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync.",
   );
 }
 

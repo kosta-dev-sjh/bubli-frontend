@@ -1,6 +1,11 @@
-import type { ResourceResponse } from "@/types/api/resource";
-
-export type LocalFileSyncStatus = "LOCAL_ONLY" | "SUGGESTED" | "SYNCED" | "IGNORED" | "FAILED";
+export type LocalFileSyncStatus =
+  | "LOCAL_ONLY"
+  | "SYNC_PENDING"
+  | "SYNCED"
+  | "CONFLICT"
+  | "SUGGESTED"
+  | "IGNORED"
+  | "FAILED";
 
 export type LocalFileResponse = {
   fileName: string;
@@ -23,15 +28,13 @@ export type LocalFileEventResponse = {
   status: LocalFileEventStatus;
 };
 
-export type LocalFileEventSuggestRequest = {
+export type LocalFileEventSyncRequest = {
   events: Array<{
     eventType: LocalFileEventResponse["eventType"];
     fileName: string;
-    hash?: string | null;
-    localFolderId: string;
-    localPath: string;
-    modifiedAt?: string | null;
-    sizeBytes?: number | null;
+    fileSizeBytes?: number | null;
+    mimeType?: string | null;
+    resourceId?: string | null;
   }>;
 };
 
@@ -40,9 +43,11 @@ export type LocalFileEventUpdateRequest = {
 };
 
 export type LocalFileSyncResponse = {
-  failedCount: number;
-  resources: ResourceResponse[];
-  syncedCount: number;
+  results: Array<{
+    eventType: LocalFileEventResponse["eventType"] | string;
+    resourceId?: string | null;
+    status: "SYNCED" | "SKIPPED" | "FAILED" | string;
+  }>;
 };
 
 export type ResourceSyncPolicyUpdateRequest = {

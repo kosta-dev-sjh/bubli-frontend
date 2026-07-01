@@ -12,6 +12,7 @@ export const TAURI_COMMANDS = {
   readActivityContext: "read_activity_context",
   recoverTimerState: "recover_timer_state",
   recordWidgetUsageEvent: "record_widget_usage_event",
+  markLocalFileEventsSynced: "mark_local_file_events_synced",
   markWidgetUsageSummarySynced: "mark_widget_usage_summary_synced",
   registerWidgetShortcut: "register_widget_shortcut",
   restoreLocalSqliteBackup: "restore_local_sqlite_backup",
@@ -23,6 +24,7 @@ export const TAURI_COMMANDS = {
   setWidgetClickThrough: "set_widget_click_through",
   setWidgetWindowMode: "set_widget_window_mode",
   setWidgetWindowPosition: "set_widget_window_position",
+  stageLocalFileEventsForSync: "stage_local_file_events_for_sync",
   syncRoomMessages: "sync_room_messages",
   syncWidgetUsageSummary: "sync_widget_usage_summary",
   toggleWidgetDockOrb: "toggle_widget_dock_orb",
@@ -80,6 +82,42 @@ export type LocalFileSearchResult = {
     path: string;
     updatedAt: string;
   }>;
+};
+
+export type LocalFileEventsSyncStageInput = {
+  limit?: number;
+  localFolderId?: string;
+};
+
+export type LocalFileSyncEventCandidate = {
+  eventType: "CREATED" | "DELETED";
+  fileName: string;
+  fileSizeBytes?: number | null;
+  localEventId: string;
+  localFileId?: string | null;
+  mimeType?: string | null;
+  resourceId?: string | null;
+};
+
+export type LocalFileEventsSyncStageResult = {
+  events: LocalFileSyncEventCandidate[];
+  stagedAt: string;
+};
+
+export type LocalFileEventSyncResultInput = {
+  localEventId: string;
+  resourceId?: string | null;
+  status: string;
+};
+
+export type LocalFileEventsMarkSyncedInput = {
+  results: LocalFileEventSyncResultInput[];
+};
+
+export type LocalFileEventsMarkSyncedResult = {
+  completedAt: string;
+  failedCount: number;
+  syncedCount: number;
 };
 
 export type SqliteIntegrityResult = {
@@ -284,6 +322,10 @@ export type TauriCommandContract = {
     args: WidgetUsageEventInput;
     result: WidgetUsageEventRecordResult;
   };
+  mark_local_file_events_synced: {
+    args: LocalFileEventsMarkSyncedInput;
+    result: LocalFileEventsMarkSyncedResult;
+  };
   mark_widget_usage_summary_synced: {
     args: WidgetUsageSummaryMarkSyncedInput;
     result: WidgetUsageSummaryMarkSyncedResult;
@@ -327,6 +369,10 @@ export type TauriCommandContract = {
   set_widget_window_position: {
     args: WidgetWindowPositionInput;
     result: WidgetWindowState;
+  };
+  stage_local_file_events_for_sync: {
+    args: LocalFileEventsSyncStageInput | undefined;
+    result: LocalFileEventsSyncStageResult;
   };
   sync_room_messages: {
     args: LocalRoomMessageSyncInput;
@@ -395,6 +441,9 @@ export const tauriCommands = {
   recordWidgetUsageEvent(input: WidgetUsageEventInput) {
     return invokeTauri<WidgetUsageEventRecordResult>(TAURI_COMMANDS.recordWidgetUsageEvent, { input });
   },
+  markLocalFileEventsSynced(input: LocalFileEventsMarkSyncedInput) {
+    return invokeTauri<LocalFileEventsMarkSyncedResult>(TAURI_COMMANDS.markLocalFileEventsSynced, { input });
+  },
   markWidgetUsageSummarySynced(input: WidgetUsageSummaryMarkSyncedInput) {
     return invokeTauri<WidgetUsageSummaryMarkSyncedResult>(TAURI_COMMANDS.markWidgetUsageSummarySynced, { input });
   },
@@ -433,6 +482,12 @@ export const tauriCommands = {
   },
   setWidgetWindowPosition(input: WidgetWindowPositionInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetWindowPosition, { input });
+  },
+  stageLocalFileEventsForSync(input?: LocalFileEventsSyncStageInput) {
+    return invokeTauri<LocalFileEventsSyncStageResult>(
+      TAURI_COMMANDS.stageLocalFileEventsForSync,
+      input ? { input } : undefined,
+    );
   },
   syncRoomMessages(input: LocalRoomMessageSyncInput) {
     return invokeTauri<LocalRoomMessageSyncResult>(TAURI_COMMANDS.syncRoomMessages, { input });
