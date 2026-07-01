@@ -2544,7 +2544,7 @@ select {
 
 .workspace-route__chat {
   display: grid;
-  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(210px, 260px) minmax(0, 1fr) minmax(230px, 280px);
   gap: 16px;
   align-items: start;
 }
@@ -2708,6 +2708,155 @@ select {
   padding-top: 14px;
 }
 
+.workspace-route__chat-social {
+  display: grid;
+  gap: 12px;
+  max-height: min(680px, calc(100vh - 210px));
+  overflow: auto;
+}
+
+.workspace-route__my-code,
+.workspace-route__friend-search,
+.workspace-route__friend-result,
+.workspace-route__voice-card,
+.workspace-route__voice-card-main {
+  border: 1px solid rgba(213, 228, 240, 0.72);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(248, 252, 255, 0.58)),
+    rgba(255, 255, 255, 0.68);
+  box-shadow: var(--inner-highlight-light);
+}
+
+.workspace-route__my-code {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+}
+
+.workspace-route__my-code div,
+.workspace-route__friend-result div,
+.workspace-route__voice-card-main div,
+.workspace-route__voice-person div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.workspace-route__my-code small,
+.workspace-route__friend-search label,
+.workspace-route__friend-result small,
+.workspace-route__voice-card-main small,
+.workspace-route__voice-person small {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.workspace-route__my-code strong,
+.workspace-route__friend-result strong,
+.workspace-route__voice-card-main strong,
+.workspace-route__voice-person strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-route__my-code button,
+.workspace-route__friend-search button,
+.workspace-route__friend-result button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(190, 213, 230, 0.72);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: var(--blue-ink);
+  background: rgba(255, 255, 255, 0.74);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 880;
+  cursor: pointer;
+}
+
+.workspace-route__friend-search {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.workspace-route__friend-search > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid rgba(213, 228, 240, 0.72);
+  border-radius: 999px;
+  padding: 6px 7px 6px 10px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.workspace-route__friend-search svg {
+  color: var(--color-muted);
+}
+
+.workspace-route__friend-search input {
+  min-width: 0;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 780;
+  outline: none;
+}
+
+.workspace-route__friend-search input::placeholder {
+  color: var(--color-faint);
+}
+
+.workspace-route__friend-result {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+}
+
+.workspace-route__friend-result > span,
+.workspace-route__voice-stack i,
+.workspace-route__voice-person > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--blue-ink);
+  background:
+    linear-gradient(145deg, rgba(231, 246, 255, 0.9), rgba(247, 243, 255, 0.76)),
+    rgba(255, 255, 255, 0.76);
+  font-style: normal;
+  font-weight: 900;
+  box-shadow: var(--inner-highlight-light);
+}
+
+.workspace-route__friend-result > span {
+  width: 34px;
+  height: 34px;
+  font-size: 13px;
+}
+
+.workspace-route__friend-result button:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
 .workspace-route__friend-row {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
@@ -2717,6 +2866,19 @@ select {
   border-radius: 18px;
   padding: 9px 10px;
   background: rgba(255, 255, 255, 0.58);
+}
+
+button.workspace-route__friend-row {
+  width: 100%;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.workspace-route__friend-row:hover {
+  border-color: rgba(142, 205, 246, 0.72);
+  background: rgba(255, 255, 255, 0.76);
 }
 
 .workspace-route__friend-row > span {
@@ -2771,6 +2933,58 @@ select {
   font-weight: 860;
 }
 
+.workspace-route__friend-request {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgba(230, 221, 248, 0.82);
+  border-radius: 18px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.workspace-route__friend-request > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.workspace-route__friend-request strong,
+.workspace-route__friend-request small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-route__friend-request strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 860;
+}
+
+.workspace-route__friend-request small {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.workspace-route__friend-request > div:last-child {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.workspace-route__friend-request button {
+  border: 1px solid rgba(213, 228, 240, 0.72);
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: var(--blue-ink);
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 860;
+  cursor: pointer;
+}
+
 .workspace-route__thread {
   min-height: min(680px, calc(100vh - 210px));
 }
@@ -2799,8 +3013,90 @@ select {
   color: var(--blue-ink);
 }
 
+.workspace-route__voice-status--interactive {
+  cursor: pointer;
+}
+
+.workspace-route__voice-stack {
+  display: inline-flex;
+  align-items: center;
+  padding-left: 3px;
+}
+
+.workspace-route__voice-stack i {
+  width: 24px;
+  height: 24px;
+  margin-left: -5px;
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  font-size: 10px;
+}
+
+.workspace-route__voice-stack i:first-child {
+  margin-left: 0;
+}
+
+.workspace-route__voice-stack i[data-status="disconnected"],
+.workspace-route__voice-person > span[data-status="disconnected"] {
+  opacity: 0.48;
+}
+
 .workspace-route__voice-status--blocked {
   border-color: rgba(232, 196, 160, 0.62);
+}
+
+.workspace-route__voice-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.workspace-route__voice-card-main {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workspace-route__voice-card-main svg {
+  width: 36px;
+  height: 36px;
+  border-radius: 15px;
+  padding: 10px;
+  color: var(--blue-ink);
+  background: rgba(216, 240, 255, 0.58);
+}
+
+.workspace-route__voice-card-main:disabled {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.workspace-route__voice-people {
+  display: grid;
+  gap: 7px;
+}
+
+.workspace-route__voice-person {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  border: 1px solid rgba(213, 228, 240, 0.58);
+  border-radius: 16px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.workspace-route__voice-person > span {
+  width: 32px;
+  height: 32px;
+  font-size: 12px;
 }
 
 .workspace-route__messages {
@@ -2845,6 +3141,31 @@ select {
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+.workspace-route__message-tools {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 140ms var(--ease-out);
+}
+
+.workspace-route__message:hover .workspace-route__message-tools,
+.workspace-route__message:focus-within .workspace-route__message-tools {
+  opacity: 1;
+}
+
+.workspace-route__message-tools button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid rgba(213, 228, 240, 0.6);
+  border-radius: 999px;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
 }
 
 .workspace-route__message strong {
@@ -2924,7 +3245,7 @@ select {
 
 .workspace-route__composer-main {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: end;
 }
@@ -3038,7 +3359,8 @@ select {
   }
 
   .workspace-route__thread,
-  .workspace-route__chat-list {
+  .workspace-route__chat-list,
+  .workspace-route__chat-social {
     max-height: none;
   }
 
@@ -3047,7 +3369,7 @@ select {
   }
 
   .workspace-route__composer-main {
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
   }
 }
 

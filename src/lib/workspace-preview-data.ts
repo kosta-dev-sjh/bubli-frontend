@@ -159,7 +159,7 @@ export const workspacePreviewRoomResources: ResourceResponse[] = [
       createdAt: "2026-06-27T11:00:00.000+09:00",
       id: "55555555-5555-4555-8555-555555555501",
       mimeType: "application/pdf",
-      originalName: "계약서_브랜드상세페이지.pdf",
+      originalName: "브랜드상세페이지_작업범위.pdf",
       resourceId: "55555555-5555-4555-8555-555555555500",
       sizeBytes: 2200000,
       versionNo: 1,
@@ -170,7 +170,7 @@ export const workspacePreviewRoomResources: ResourceResponse[] = [
     roomId: primaryRoomId,
     status: "READY",
     summaryStatus: "NONE",
-    title: "계약서_브랜드상세페이지.pdf",
+    title: "브랜드상세페이지_작업범위.pdf",
     updatedAt: todayNoon,
     visibility: "ROOM_SHARED",
   },
@@ -201,13 +201,13 @@ const previewTasks: TaskResponse[] = [
   {
     assigneeUserId: workspacePreviewUser.id,
     createdAt: now,
-    description: "계약서 범위와 첫 납품 기준 확인",
+    description: "작업 범위와 첫 납품 기준 확인",
     dueAt: todayEvening,
     id: "66666666-6666-4666-8666-666666666600",
     ownerUserId: workspacePreviewUser.id,
     roomId: primaryRoomId,
     status: "REVIEW",
-    title: "계약 범위 확인",
+    title: "작업 범위 확인",
     updatedAt: now,
     wbsItemId: null,
   },
@@ -296,9 +296,9 @@ export function workspacePreviewRoomSuggestions(roomId = primaryRoomId): AgentSu
   return [
     {
       createdAt: now,
-      evidenceJson: { resourceTitle: "계약서_브랜드상세페이지.pdf" },
+      evidenceJson: { resourceTitle: "브랜드상세페이지_작업범위.pdf" },
       jobId: null,
-      payloadJson: { title: "계약 범위 확인을 작업으로 승인" },
+      payloadJson: { title: "작업 범위 확인을 작업으로 승인" },
       resourceId: workspacePreviewRoomResources[0]?.id ?? null,
       roomId,
       suggestionId: "99999999-9999-4999-8999-999999999900",
@@ -404,7 +404,7 @@ export function workspacePreviewChatMessages(chatRoomId = primaryChatRoomId): Ch
 
   return [
     {
-      body: { text: "계약서 범위와 메인 배너 시안은 자료보드에 올려뒀습니다." },
+      body: { text: "작업 범위와 메인 배너 시안은 자료보드에 올려뒀습니다." },
       chatRoomId,
       createdAt: "2026-06-30T09:20:00.000+09:00",
       id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
