@@ -28,6 +28,7 @@ export const TAURI_COMMANDS = {
   setWidgetClickThrough: "set_widget_click_through",
   setWidgetWindowMode: "set_widget_window_mode",
   setWidgetWindowPosition: "set_widget_window_position",
+  stageActivityEventsForSync: "stage_activity_events_for_sync",
   stageLocalFileEventsForSync: "stage_local_file_events_for_sync",
   syncRoomMessages: "sync_room_messages",
   syncWidgetUsageSummary: "sync_widget_usage_summary",
@@ -177,6 +178,24 @@ export type ActivityEventSyncStatusResult = {
   localEventId: string;
   status: "SYNCED" | "FAILED";
   updatedAt: string;
+};
+
+export type ActivityEventsSyncStageInput = {
+  limit?: number;
+};
+
+export type ActivityEventSyncCandidate = {
+  appName: string;
+  durationSeconds: number;
+  endedAt: string;
+  localEventId: string;
+  startedAt: string;
+  windowTitle?: string | null;
+};
+
+export type ActivityEventsSyncStageResult = {
+  events: ActivityEventSyncCandidate[];
+  stagedAt: string;
 };
 
 export type AppMonitorPosition = {
@@ -372,6 +391,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: ActivityContextResult;
   };
+  stage_activity_events_for_sync: {
+    args: ActivityEventsSyncStageInput | undefined;
+    result: ActivityEventsSyncStageResult;
+  };
   recover_timer_state: {
     args: undefined;
     result: TimerRecoveryState;
@@ -505,6 +528,12 @@ export const tauriCommands = {
   },
   readActivityContext() {
     return invokeTauri<ActivityContextResult>(TAURI_COMMANDS.readActivityContext);
+  },
+  stageActivityEventsForSync(input?: ActivityEventsSyncStageInput) {
+    return invokeTauri<ActivityEventsSyncStageResult>(
+      TAURI_COMMANDS.stageActivityEventsForSync,
+      input ? { input } : undefined,
+    );
   },
   recoverTimerState() {
     return invokeTauri<TimerRecoveryState>(TAURI_COMMANDS.recoverTimerState);

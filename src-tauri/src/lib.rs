@@ -971,6 +971,7 @@ pub fn run() {
             // BUBLI-44 activity context
             activity::mark_activity_event_sync_status,
             activity::read_activity_context,
+            activity::stage_activity_events_for_sync,
             // BUBLI-41 widget usage events + rollups + server-sync staging
             widget_usage::record_widget_usage_event,
             widget_usage::rollup_widget_usage,

@@ -91,6 +91,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: "/api/activity/current-app",
   },
   {
+    ipc: TAURI_COMMANDS.stageActivityEventsForSync,
+    responsibility: "Stage failed/local-only activity events for authenticated server retry",
+    reflectsToServer: true,
+    serverApi: "/api/activity/current-app",
+  },
+  {
     ipc: TAURI_COMMANDS.markActivityEventSyncStatus,
     responsibility: "Mark the local SQLite activity event after server reflection",
     reflectsToServer: false,

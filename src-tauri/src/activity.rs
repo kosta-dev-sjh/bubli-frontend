@@ -37,6 +37,30 @@ pub struct ActivityEventSyncStatusInput {
     status: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityEventsSyncStageInput {
+    limit: Option<i64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityEventSyncCandidate {
+    local_event_id: String,
+    app_name: String,
+    window_title: Option<String>,
+    started_at: String,
+    ended_at: String,
+    duration_seconds: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityEventsSyncStageResult {
+    events: Vec<ActivityEventSyncCandidate>,
+    staged_at: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityEventSyncStatusResult {
@@ -117,6 +141,59 @@ pub fn read_activity_context(state: State<'_, Db>) -> Result<ActivityContextResu
         captured_at: now_iso(),
         local_event_id,
         sync_status: "LOCAL_ONLY".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn stage_activity_events_for_sync(
+    state: State<'_, Db>,
+    input: Option<ActivityEventsSyncStageInput>,
+) -> Result<ActivityEventsSyncStageResult, String> {
+    let limit = input
+        .and_then(|value| value.limit)
+        .unwrap_or(25)
+        .clamp(1, 100);
+    let now = now_ms();
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, app_name, window_title, started_at, ended_at, duration_seconds \
+             FROM local_activity_events \
+             WHERE sync_status IN ('LOCAL_ONLY', 'FAILED') \
+             ORDER BY updated_at ASC LIMIT ?1",
+        )
+        .map_err(|error| error.to_string())?;
+
+    let rows = stmt
+        .query_map(params![limit], |row| {
+            Ok(ActivityEventSyncCandidate {
+                local_event_id: row.get(0)?,
+                app_name: row.get(1)?,
+                window_title: row.get(2)?,
+                started_at: row.get(3)?,
+                ended_at: row.get(4)?,
+                duration_seconds: row.get(5)?,
+            })
+        })
+        .map_err(|error| error.to_string())?;
+
+    let mut events = Vec::new();
+    for row in rows {
+        events.push(row.map_err(|error| error.to_string())?);
+    }
+
+    for event in &events {
+        conn.execute(
+            "UPDATE local_activity_events SET sync_status = 'SYNC_PENDING', updated_at = ?2 WHERE id = ?1",
+            params![event.local_event_id, now],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
+    Ok(ActivityEventsSyncStageResult {
+        events,
+        staged_at: ms_to_iso(now),
     })
 }
 

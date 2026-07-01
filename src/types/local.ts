@@ -109,12 +109,25 @@ export type ActivityContextRecordInput = ActivityContextReadInput & {
   roomId?: string | null;
 };
 
+export type ActivityEventsSyncInput = ActivityContextReadInput & {
+  limit?: number;
+  roomId?: string | null;
+};
+
 export type ActivityContextRecordResult = {
   appName: string;
   context: ActivityContextResult;
   recordedActivity: ActivityLogResponse;
   todayActivities: ActivityLogsTodayResponse;
   windowTitle?: string;
+};
+
+export type ActivityEventsSyncResult = {
+  failedCount: number;
+  sentCount: number;
+  stagedCount: number;
+  syncedAt: string;
+  syncedCount: number;
 };
 
 export type LocalFolderScopeInput = {
@@ -138,6 +151,7 @@ export type LocalFileSearchAdapterInput = LocalFileSearchInput & LocalFolderScop
 export type LocalFileSearchAdapterResult = LocalAdapterResult<LocalFileSearchResult>;
 export type ActivityContextAdapterResult = LocalAdapterResult<ActivityContextResult>;
 export type ActivityContextRecordAdapterResult = LocalAdapterResult<ActivityContextRecordResult>;
+export type ActivityEventsSyncAdapterResult = LocalAdapterResult<ActivityEventsSyncResult>;
 export type WidgetUsageEventAdapterInput = WidgetUsageEventInput;
 export type WidgetUsageEventAdapterResult = LocalAdapterResult<WidgetUsageEventRecordResult>;
 export type WidgetUsageRollupAdapterInput = WidgetUsageRollupInput;

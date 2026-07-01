@@ -13,7 +13,7 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
-import { recordCurrentActivityContext } from "@/lib/local/activity-client";
+import { recordCurrentActivityContext, syncPendingActivityEventsToServer } from "@/lib/local/activity-client";
 import {
   backupLocalSqlite,
   checkLocalSqliteIntegrity,
@@ -505,6 +505,12 @@ export default function SettingsPage() {
     setLocalActionMessage(localResultMessage(result));
   }, [state]);
 
+  const syncActivityEvents = useCallback(async () => {
+    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
+    const result = await syncPendingActivityEventsToServer({ consentGranted, limit: 25 });
+    setLocalActionMessage(localResultMessage(result));
+  }, [state]);
+
   const selectAppMonitor = useCallback(
     async (monitorId: string) => {
       if (!desktopRuntime) return;
@@ -831,6 +837,9 @@ export default function SettingsPage() {
               ) : null}
               <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void readActivity()} type="button" variant="quiet">
                 현재 활동 기록
+              </Button>
+              <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void syncActivityEvents()} type="button" variant="quiet">
+                활동 대기열 동기화
               </Button>
             </GlassPanel>
           </div>

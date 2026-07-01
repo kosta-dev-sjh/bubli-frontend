@@ -2,7 +2,7 @@
 
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { getStoredAuthSession } from "@/lib/auth/auth-session";
-import { recordCurrentActivityContext } from "@/lib/local/activity-client";
+import { recordCurrentActivityContext, syncPendingActivityEventsToServer } from "@/lib/local/activity-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 const ACTIVITY_CAPTURE_INTERVAL_MS = 60_000;
@@ -37,6 +37,7 @@ async function captureActivityOnce() {
     }
 
     await recordCurrentActivityContext({ consentGranted });
+    await syncPendingActivityEventsToServer({ consentGranted, limit: 10 });
   } finally {
     activityRuntimeRunning = false;
   }

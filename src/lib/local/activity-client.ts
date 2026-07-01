@@ -14,6 +14,8 @@ import type {
   ActivityContextReadInput,
   ActivityContextRecordAdapterResult,
   ActivityContextRecordInput,
+  ActivityEventsSyncAdapterResult,
+  ActivityEventsSyncInput,
 } from "@/types/local";
 
 export async function readCurrentActivityContext(
@@ -90,6 +92,91 @@ export async function recordCurrentActivityContext(
       .catch(() => undefined);
     return failed(getErrorMessage(error), commandName);
   }
+}
+
+export async function syncPendingActivityEventsToServer(
+  input: ActivityEventsSyncInput,
+): Promise<ActivityEventsSyncAdapterResult> {
+  const commandName = TAURI_COMMANDS.stageActivityEventsForSync;
+
+  if (!isTauriRuntime()) {
+    return unavailable(commandName);
+  }
+
+  if (!input.consentGranted) {
+    return blocked(
+      "activity_consent_required",
+      "활동 감지는 사용자가 동의한 뒤에만 동기화할 수 있습니다.",
+      commandName,
+    );
+  }
+
+  const staged = await runTauriAdapter(commandName, () =>
+    tauriCommands.stageActivityEventsForSync({ limit: input.limit }),
+  );
+
+  if (staged.status !== "ready") {
+    return staged;
+  }
+
+  if (staged.data.events.length === 0) {
+    return ready(
+      {
+        failedCount: 0,
+        sentCount: 0,
+        stagedCount: 0,
+        syncedAt: staged.data.stagedAt,
+        syncedCount: 0,
+      },
+      commandName,
+      "서버에 보낼 활동 기록이 없습니다.",
+    );
+  }
+
+  let failedCount = 0;
+  let syncedCount = 0;
+
+  for (const event of staged.data.events) {
+    try {
+      const recordedActivity = await activityApi.recordCurrentApp({
+        appName: event.appName,
+        durationSeconds: Math.max(0, Math.trunc(event.durationSeconds)),
+        endedAt: event.endedAt,
+        roomId: input.roomId ?? null,
+        startedAt: event.startedAt,
+        windowTitle: event.windowTitle ?? null,
+      });
+
+      await tauriCommands.markActivityEventSyncStatus({
+        localEventId: event.localEventId,
+        serverActivityId: recordedActivity.id,
+        status: "SYNCED",
+      });
+      syncedCount += 1;
+    } catch {
+      failedCount += 1;
+      await tauriCommands
+        .markActivityEventSyncStatus({
+          localEventId: event.localEventId,
+          status: "FAILED",
+        })
+        .catch(() => undefined);
+    }
+  }
+
+  return ready(
+    {
+      failedCount,
+      sentCount: staged.data.events.length,
+      stagedCount: staged.data.events.length,
+      syncedAt: new Date().toISOString(),
+      syncedCount,
+    },
+    commandName,
+    failedCount > 0
+      ? `활동 기록 ${syncedCount}건을 서버에 반영했고 ${failedCount}건은 재시도 대기 중입니다.`
+      : `활동 기록 ${syncedCount}건을 서버에 반영했습니다.`,
+  );
 }
 
 function parseIsoDate(value: string) {
