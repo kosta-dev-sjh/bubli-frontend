@@ -145,8 +145,39 @@ async function smokeBackend(accessToken) {
     "local file event delete sync did not return a SYNCED result",
   );
 
+  const [dailySummaries, generatedDocuments, roomMemorySummaries] = await Promise.all([
+    apiGet("/api/daily-summaries", headers),
+    apiGet(`/api/project-rooms/${SEED_ROOM_ID}/generated-documents`, headers),
+    apiGet(`/api/project-rooms/${SEED_ROOM_ID}/memory-summaries`, headers),
+  ]);
+  const dailySummary = dailySummaries.items?.find((item) => item.summaryJson?.includes("Codex backend daily summary"));
+  const generatedDocument = generatedDocuments.items?.find((item) => item.title === "Codex generated document smoke");
+
+  assert(dailySummary?.id, "daily summaries did not include the seeded summary");
+  assert(generatedDocument?.id, "generated documents did not include the seeded document");
+  assert(
+    roomMemorySummaries.some((item) => item.summaryJson?.includes("Codex room memory smoke")),
+    "room memory summaries did not include the seeded memory summary",
+  );
+
+  const approvedDailySummary = await apiPatch(`/api/daily-summaries/${dailySummary.id}`, headers, {
+    action: "APPROVE",
+  });
+  assert(approvedDailySummary.status === "APPROVED", "daily summary approve did not return APPROVED");
+
+  const generatedDocumentExport = await apiGetRaw(`/api/generated-documents/${generatedDocument.id}/export`, headers);
+  assert(generatedDocumentExport.ok, "generated document export did not return HTTP 2xx");
+  assert(
+    generatedDocumentExport.headers.get("Content-Type")?.includes("text/markdown"),
+    "generated document export did not return markdown content",
+  );
+  assert(
+    (await generatedDocumentExport.text()).includes("Codex generated document"),
+    "generated document export did not include the seeded markdown",
+  );
+
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 
@@ -199,6 +230,28 @@ async function apiPost(path, headers, body) {
   }
 
   return payload.data;
+}
+
+async function apiPatch(path, headers, body) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    body: JSON.stringify(body),
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
+  });
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || !payload?.success) {
+    throw new Error(`${path} returned HTTP ${response.status}: ${JSON.stringify(payload)}`);
+  }
+
+  return payload.data;
+}
+
+async function apiGetRaw(path, headers) {
+  return fetch(`${API_BASE_URL}${path}`, { headers });
 }
 
 function createLocalAccessToken(userId) {
@@ -260,6 +313,53 @@ ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, sta
 INSERT INTO agent_suggestions (id, user_id, room_id, job_id, resource_id, suggestion_type, payload_json, evidence_json, status, created_at, updated_at, reviewed_by, reviewed_at)
 VALUES ('99999999-9999-4999-8999-999999999999', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, NULL, 'TASK', '{"title":"Review desktop widget live backend response"}'::jsonb, '{"source":"codex-local-seed"}'::jsonb, 'DRAFT', now(), now(), NULL, NULL)
 ON CONFLICT (id) DO UPDATE SET payload_json = EXCLUDED.payload_json, evidence_json = EXCLUDED.evidence_json, status = EXCLUDED.status, updated_at = now();
+
+INSERT INTO agent_suggestions (id, user_id, room_id, job_id, resource_id, suggestion_type, payload_json, evidence_json, status, created_at, updated_at, reviewed_by, reviewed_at)
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, NULL, 'DOCUMENT_DRAFT', '{"title":"Codex generated document smoke"}'::jsonb, '{"source":"codex-local-seed"}'::jsonb, 'APPROVED', now(), now(), '${SEED_USER_ID}', now())
+ON CONFLICT (id) DO UPDATE SET payload_json = EXCLUDED.payload_json, evidence_json = EXCLUDED.evidence_json, status = EXCLUDED.status, reviewed_by = EXCLUDED.reviewed_by, reviewed_at = EXCLUDED.reviewed_at, updated_at = now();
+
+INSERT INTO generated_documents (id, user_id, room_id, suggestion_id, resource_id, title, document_type, content_markdown, metadata_json, created_at, updated_at)
+VALUES (
+'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+'${SEED_USER_ID}',
+'${SEED_ROOM_ID}',
+'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+NULL,
+'Codex generated document smoke',
+'DAILY_BRIEF',
+E'# Codex generated document\\n\\nThis markdown came from the real backend seed and export endpoint.',
+'{"source":"codex-local-seed","screen":"/app/agent"}'::jsonb,
+now(),
+now()
+)
+ON CONFLICT (suggestion_id) DO UPDATE SET title = EXCLUDED.title, document_type = EXCLUDED.document_type, content_markdown = EXCLUDED.content_markdown, metadata_json = EXCLUDED.metadata_json, updated_at = now();
+
+INSERT INTO daily_summaries (id, user_id, summary_date, summary_json, status, approved_at, created_at, updated_at)
+VALUES (
+'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+'${SEED_USER_ID}',
+current_date,
+'{"title":"Codex backend daily summary","summary":"Seeded daily summary for the Tauri agent screen.","items":["real backend daily summary","approve action smoke"]}'::jsonb,
+'DRAFT',
+NULL,
+now(),
+now()
+)
+ON CONFLICT (user_id, summary_date) DO UPDATE SET summary_json = EXCLUDED.summary_json, status = EXCLUDED.status, approved_at = EXCLUDED.approved_at, updated_at = now();
+
+INSERT INTO room_memory_summaries (id, room_id, from_sequence, to_sequence, summary_json, created_by_user_id, status, created_at, updated_at)
+VALUES (
+'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+'${SEED_ROOM_ID}',
+1,
+12,
+'{"title":"Codex room memory smoke","summary":"Seeded room memory summary for the Tauri agent screen."}'::jsonb,
+'${SEED_USER_ID}',
+'DRAFT',
+now(),
+now()
+)
+ON CONFLICT (id) DO UPDATE SET summary_json = EXCLUDED.summary_json, status = EXCLUDED.status, updated_at = now();
 `;
 }
 
