@@ -24,6 +24,7 @@ import {
 } from "@/lib/local/local-cache-client";
 import {
   getPersonalManagedFolderIndexProgress,
+  listPersonalManagedFolders,
   openPersonalLocalFile,
   reindexPersonalLocalFile,
   scanPersonalManagedFolder,
@@ -180,6 +181,28 @@ function userToProfileDraft(user: AuthUser) {
   };
 }
 
+function localManagedFolderToSettingsFolder(folder: {
+  createdAt: string;
+  localFolderId: string;
+  name: string;
+  path: string;
+  syncEnabled: boolean;
+  updatedAt: string;
+}): ManagedFolderResponse {
+  return {
+    createdAt: folder.createdAt,
+    id: folder.localFolderId,
+    localPath: folder.path,
+    name: folder.name,
+    syncEnabled: folder.syncEnabled,
+    updatedAt: folder.updatedAt,
+  };
+}
+
+function accountHandle(user: AuthUser) {
+  return user.bubliId ? `@${user.bubliId}` : "Bubli 계정";
+}
+
 function localResultMessage<TData, TSummary>(result: LocalAdapterResult<TData, TSummary>) {
   if (result.status === "ready") return result.message ?? "완료했습니다";
   if (result.status === "pending") return result.message;
@@ -244,20 +267,26 @@ export default function SettingsPage() {
 
     try {
       const user = await authApi.getMe();
-      const [notifications, privacy, storage, activityLogs, widgetBubbles, widgetUsage] = await Promise.allSettled([
+      const [notifications, privacy, storage, activityLogs, widgetBubbles, widgetUsage, localFolders] =
+        await Promise.allSettled([
         settingsApi.getNotificationPreferences(),
         settingsApi.getPrivacyConsents(),
         settingsApi.getStorageUsage(),
         activityApi.getToday(),
         widgetApi.getBubbles(),
         widgetApi.getTodayUsageRollups(),
+        listPersonalManagedFolders(),
       ]);
+      const folderResult = settledValue(localFolders, null);
 
       setProfileDraft(userToProfileDraft(user));
       setState({
         kind: "ready",
         settings: {
-          folders: [],
+          folders:
+            folderResult?.status === "ready"
+              ? folderResult.data.folders.map(localManagedFolderToSettingsFolder)
+              : [],
           notifications: settledValue(notifications, null),
           privacy: settledValue(privacy, null),
           storage: settledValue(storage, null),
