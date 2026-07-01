@@ -1106,6 +1106,7 @@ pub fn run() {
             local_db::record_activity_context,
             local_db::record_timer_state,
             local_db::recover_timer_state,
+            local_db::read_room_messages,
             local_db::stage_activity_contexts_for_sync,
             local_db::store_active_project_room,
             local_db::store_tauri_auth_session,

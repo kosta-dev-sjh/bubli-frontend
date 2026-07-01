@@ -181,6 +181,34 @@ function messageText(message: WidgetChatMessageResponse) {
   return message.messageType;
 }
 
+function isWidgetChatMessageResponse(value: unknown): value is WidgetChatMessageResponse {
+  if (!value || typeof value !== "object") return false;
+  const message = value as Partial<WidgetChatMessageResponse>;
+  return (
+    typeof message.id === "string" &&
+    typeof message.chatRoomId === "string" &&
+    typeof message.createdAt === "string" &&
+    typeof message.messageType === "string" &&
+    typeof message.roomSequence === "number" &&
+    !!message.body &&
+    typeof message.body === "object" &&
+    !!message.sender &&
+    typeof message.sender === "object" &&
+    typeof message.sender.name === "string"
+  );
+}
+
+function parseCachedWidgetChatMessages(items: Array<{ bodyJson: string }>): WidgetChatMessageResponse[] {
+  return items.flatMap((item) => {
+    try {
+      const parsed = JSON.parse(item.bodyJson);
+      return isWidgetChatMessageResponse(parsed) ? [parsed] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
 type TimerDisplay = WidgetDashboardWorkResponse["runningTimer"] | TimeLogResponse | null | undefined;
 
 function elapsedTimerLabel(timer?: TimerDisplay) {
@@ -665,6 +693,13 @@ function DesktopWidgetSurface() {
       const rooms = chatRoomsResult.status === "fulfilled" ? chatRoomsResult.value.items : [];
       const activeRoom = rooms.find((item) => (selectedRoomId ? item.roomId === selectedRoomId : true));
       const messages = activeRoom ? await widgetDisplayApi.listChatMessages(activeRoom.id, 6).catch(() => null) : null;
+      const cachedMessages =
+        isTauri && activeRoom && !messages
+          ? await tauriCommands
+              .readRoomMessages({ limit: 6, roomId: activeRoom.id })
+              .then((result) => parseCachedWidgetChatMessages(result.items))
+              .catch(() => [])
+          : [];
 
       if (cancelled) return;
 
@@ -685,6 +720,7 @@ function DesktopWidgetSurface() {
       setNotificationSignal(buildNotificationSignal(notifications));
       const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
       const activeTimer = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
+      const messageItems = messages?.items ?? cachedMessages;
       setActiveTimerHeartbeatId(activeTimer?.status === "RUNNING" ? activeTimer.id : null);
 
       setDisplayBubbles(
@@ -693,7 +729,7 @@ function DesktopWidgetSurface() {
           dashboard,
           friends: friendsResult.status === "fulfilled" ? friendsResult.value : [],
           memos: memosResult.status === "fulfilled" ? memosResult.value.items : [],
-          messages: messages?.items ?? [],
+          messages: messageItems,
           notifications,
           resources: resourcesResult.status === "fulfilled" ? resourcesResult.value.items : [],
           room: roomResult.status === "fulfilled" ? roomResult.value : null,

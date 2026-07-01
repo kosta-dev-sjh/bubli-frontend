@@ -196,6 +196,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     reflectsToServer: false,
     serverApi: "/api/chat/rooms/{id}/messages",
   },
+  {
+    ipc: TAURI_COMMANDS.readRoomMessages,
+    responsibility: "Read recent mirrored server chat from the local room cache for fast display or fallback",
+    reflectsToServer: false,
+    serverApi: "/api/chat/rooms/{id}/messages",
+  },
   // Timer recovery: compares against server time_logs.
   {
     ipc: TAURI_COMMANDS.recoverTimerState,

@@ -19,6 +19,7 @@ export const TAURI_COMMANDS = {
   readTauriAuthSession: "read_tauri_auth_session",
   readActivityContext: "read_activity_context",
   readLocalFilePreview: "read_local_file_preview",
+  readRoomMessages: "read_room_messages",
   reindexFile: "reindex_file",
   recoverTimerState: "recover_timer_state",
   recordActivityContext: "record_activity_context",
@@ -238,6 +239,26 @@ export type LocalRoomMessageCacheInput = {
   bodyJson: string;
   roomSequence: number;
   serverMessageId: string;
+};
+
+export type LocalRoomMessageReadInput = {
+  limit?: number | null;
+  roomId: string;
+};
+
+export type LocalRoomMessageCacheEntry = {
+  bodyJson: string;
+  cachedAt: string;
+  roomSequence: number;
+  serverMessageId?: string | null;
+};
+
+export type LocalRoomMessageReadResult = {
+  items: LocalRoomMessageCacheEntry[];
+  latestSequence: number;
+  roomId: string;
+  state: "EMPTY" | "STALE" | "SYNCED" | string;
+  syncedAt?: string | null;
 };
 
 export type LocalRoomMessageSyncResult = {
@@ -556,6 +577,10 @@ export type TauriCommandContract = {
     args: LocalFilePreviewInput;
     result: LocalFilePreviewResult;
   };
+  read_room_messages: {
+    args: LocalRoomMessageReadInput;
+    result: LocalRoomMessageReadResult;
+  };
   reindex_file: {
     args: LocalFileReindexInput;
     result: LocalFileReindexResult;
@@ -739,6 +764,9 @@ export const tauriCommands = {
   },
   readLocalFilePreview(input: LocalFilePreviewInput) {
     return invokeTauri<LocalFilePreviewResult>(TAURI_COMMANDS.readLocalFilePreview, { input });
+  },
+  readRoomMessages(input: LocalRoomMessageReadInput) {
+    return invokeTauri<LocalRoomMessageReadResult>(TAURI_COMMANDS.readRoomMessages, { input });
   },
   reindexFile(input: LocalFileReindexInput) {
     return invokeTauri<LocalFileReindexResult>(TAURI_COMMANDS.reindexFile, { input });
