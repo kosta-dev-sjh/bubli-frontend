@@ -14,7 +14,7 @@ import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { ApiClientError } from "@/lib/api/errors";
 import type { ProjectRoomUpsertRequest } from "@/types/api/projectRoom";
 
-type SubmitState = "idle" | "submitting" | "auth" | "error";
+type SubmitState = "idle" | "submitting" | "auth" | "error" | "partial";
 
 type RoomDraft = {
   clientName: string;
@@ -35,8 +35,8 @@ const emptyDraft: RoomDraft = {
 };
 
 const documentSlots = [
-  { label: "계약서", target: "프로젝트룸 참고 정보" },
-  { label: "요구사항", target: "WBS/TODO 후보" },
+  { label: "업무 자료", target: "프로젝트룸 참고 정보" },
+  { label: "요구사항 문서", target: "WBS/TODO 후보" },
   { label: "회의록", target: "확인 질문" },
 ] as const;
 
@@ -57,6 +57,7 @@ export default function NewProjectRoomPage() {
   const router = useRouter();
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [createdRoomHref, setCreatedRoomHref] = useState<string | null>(null);
   const [draft, setDraft] = useState<RoomDraft>(emptyDraft);
   const [message, setMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -79,8 +80,8 @@ export default function NewProjectRoomPage() {
     setDraft((current) => ({
       ...current,
       name: current.name || firstName,
-      deliveryScope: current.deliveryScope || "자료에서 납품물과 작업 범위를 확인",
-      reviewQuestion: current.reviewQuestion || "검수 기준과 수정 범위를 확인",
+      deliveryScope: current.deliveryScope || "자료에서 작업 범위와 결과물을 확인",
+      reviewQuestion: current.reviewQuestion || "확인 기준과 수정 범위를 확인",
     }));
   }
 
@@ -128,17 +129,23 @@ export default function NewProjectRoomPage() {
 
     setSubmitState("submitting");
     setMessage(null);
+    setCreatedRoomHref(null);
 
     try {
       const room = await projectRoomApi.create(body);
+      const roomHref = `/app/project-rooms/${room.id}`;
+      setCreatedRoomHref(roomHref);
+
       if (attachedFiles.length > 0) {
         try {
           await uploadRoomFiles(room.id, attachedFiles);
         } catch {
-          // 프로젝트룸 생성은 유지하고, 자료 업로드/분석은 룸 자료보드에서 다시 이어갈 수 있게 한다.
+          setSubmitState("partial");
+          setMessage("프로젝트룸은 만들어졌지만 자료 업로드나 에이전트 검토를 이어가지 못했습니다. 만든 룸에서 자료를 다시 올릴 수 있습니다.");
+          return;
         }
       }
-      router.push(`/app/project-rooms/${room.id}`);
+      router.push(roomHref);
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setSubmitState("auth");
@@ -179,11 +186,11 @@ export default function NewProjectRoomPage() {
                 {attachedFiles.length > 0 ? <FileText size={20} strokeWidth={2} /> : <UploadCloud size={21} strokeWidth={2} />}
               </span>
               <span>
-                <strong>{attachedFiles.length > 0 ? `${attachedFiles.length}개 자료 첨부` : "계약서, 요구사항, 회의록 첨부"}</strong>
+                <strong>{attachedFiles.length > 0 ? `${attachedFiles.length}개 자료 첨부` : "업무 자료, 요구사항, 회의록 첨부"}</strong>
                 <small>
                   {attachedFiles.length > 0
                     ? "생성 후 프로젝트룸 자료로 올리고 에이전트 후보를 만듭니다."
-                    : "자료를 올리면 이름, 의뢰처, 납품물, 확인 질문 후보를 같은 흐름에서 검토합니다."}
+                    : "자료를 올리면 이름, 의뢰처, 작업 범위, 확인 질문 후보를 같은 흐름에서 검토합니다."}
                 </small>
               </span>
             </button>
@@ -241,14 +248,14 @@ export default function NewProjectRoomPage() {
                   maxLength={120}
                   name="clientName"
                   onChange={(event) => updateDraft("clientName", event.target.value)}
-                  placeholder="계약서에서 확인한 의뢰처"
+                  placeholder="자료에서 확인한 의뢰처"
                   value={draft.clientName}
                 />
               </label>
 
               <div className="workspace-route__field-grid">
                 <label className="workspace-route__field">
-                  <span>계약 금액</span>
+                  <span>예상 금액</span>
                   <input
                     inputMode="numeric"
                     name="contractAmount"
@@ -259,7 +266,7 @@ export default function NewProjectRoomPage() {
                 </label>
 
                 <label className="workspace-route__field">
-                  <span>납품일 또는 입금 예정일</span>
+                  <span>마감일 또는 입금 예정일</span>
                   <input name="paymentDueDate" onChange={(event) => updateDraft("paymentDueDate", event.target.value)} type="date" value={draft.paymentDueDate} />
                 </label>
               </div>
@@ -317,7 +324,7 @@ export default function NewProjectRoomPage() {
                   maxLength={160}
                   name="reviewQuestion"
                   onChange={(event) => updateDraft("reviewQuestion", event.target.value)}
-                  placeholder="예: 검수 기준과 수정 횟수 확인"
+                  placeholder="예: 확인 기준과 수정 범위 확인"
                   value={draft.reviewQuestion}
                 />
               </label>
@@ -332,7 +339,7 @@ export default function NewProjectRoomPage() {
           </div>
 
           {message ? (
-            <p className="workspace-route__form-message" role={submitState === "error" || submitState === "auth" ? "alert" : undefined}>
+            <p className="workspace-route__form-message" role={submitState === "error" || submitState === "auth" ? "alert" : "status"}>
               <AlertCircle aria-hidden size={16} strokeWidth={2} />
               {message}
             </p>
@@ -342,8 +349,13 @@ export default function NewProjectRoomPage() {
             <Button loading={submitState === "submitting"} type="submit" variant="primary">
               {submitState === "submitting" ? <Loader2 aria-hidden size={15} strokeWidth={2} /> : null}
               <CheckCircle2 aria-hidden size={15} strokeWidth={2} />
-              후보 확인하고 만들기
+              프로젝트룸 만들기
             </Button>
+            {submitState === "partial" && createdRoomHref ? (
+              <Link className="bubli-button" href={createdRoomHref}>
+                만든 프로젝트룸 열기
+              </Link>
+            ) : null}
             {submitState === "auth" ? (
               <Link className="bubli-button" href="/login">
                 로그인

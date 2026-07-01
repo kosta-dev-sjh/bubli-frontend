@@ -76,7 +76,10 @@ export function AuthPanel() {
   const router = useRouter();
   const [isStartingLogin, setIsStartingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const isDevTauriLogin = isTauriRuntime() && Boolean(process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN);
+  const [devAccessToken, setDevAccessToken] = useState("");
+  const configuredDevAccessToken = process.env.NODE_ENV === "development" ? (process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN?.trim() ?? "") : "";
+  const isDevelopmentLoginEnabled = process.env.NODE_ENV === "development";
+  const isDevTauriLogin = isTauriRuntime() && Boolean(configuredDevAccessToken);
 
   async function handleGoogleLogin() {
     setIsStartingLogin(true);
@@ -95,6 +98,25 @@ export function AuthPanel() {
       window.location.assign(authorizeUrl);
     } catch {
       setLoginError("로그인 시작에 실패했습니다. 잠시 뒤 다시 시도하세요.");
+      setIsStartingLogin(false);
+    }
+  }
+
+  async function handleDevTokenLogin() {
+    const accessToken = (devAccessToken || configuredDevAccessToken).trim();
+    if (!accessToken) {
+      setLoginError("로컬 검증용 access token을 입력하세요.");
+      return;
+    }
+
+    setIsStartingLogin(true);
+    setLoginError(null);
+
+    try {
+      await authApi.loginWithDevAccessToken(accessToken);
+      router.replace("/app");
+    } catch {
+      setLoginError("로컬 검증 세션을 만들지 못했습니다. 백엔드 seed 사용자 토큰인지 확인하세요.");
       setIsStartingLogin(false);
     }
   }
@@ -155,6 +177,24 @@ export function AuthPanel() {
             {isStartingLogin ? "구글로 이동 중" : "구글로 로그인"}
           </button>
           {loginError ? <p className="auth-card__error">{loginError}</p> : null}
+          {isDevelopmentLoginEnabled ? (
+            <div className="auth-card__dev" aria-label="로컬 개발용 로그인">
+              <label className="auth-card__dev-field">
+                <span>로컬 검증 토큰</span>
+                <textarea
+                  className="auth-card__dev-token"
+                  onChange={(event) => setDevAccessToken(event.target.value)}
+                  placeholder={configuredDevAccessToken ? "환경변수 토큰 사용 가능" : "백엔드 local seed access token"}
+                  rows={3}
+                  value={devAccessToken}
+                />
+              </label>
+              <button className="bubli-button bubli-button--quiet auth-card__dev-button" disabled={isStartingLogin} onClick={handleDevTokenLogin} type="button">
+                개발용 토큰으로 접속
+              </button>
+              <p className="auth-card__dev-hint">로컬 Docker seed 데이터와 실제 API 연결을 확인할 때만 씁니다.</p>
+            </div>
+          ) : null}
         </div>
       </GlassPanel>
     </main>

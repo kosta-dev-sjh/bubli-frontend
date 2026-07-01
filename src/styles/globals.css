@@ -7107,6 +7107,56 @@ button.workspace-route__friend-row:hover {
   text-align: center;
 }
 
+.auth-card__dev {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 14px;
+  border: 1px solid rgba(107, 143, 168, 0.18);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.auth-card__dev-field {
+  display: grid;
+  gap: 7px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.auth-card__dev-token {
+  min-height: 72px;
+  resize: vertical;
+  border: 1px solid rgba(107, 143, 168, 0.24);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  outline: none;
+}
+
+.auth-card__dev-token:focus {
+  border-color: rgba(65, 132, 216, 0.42);
+  box-shadow: 0 0 0 4px rgba(142, 205, 246, 0.18);
+}
+
+.auth-card__dev-button {
+  justify-content: center;
+  min-height: 40px;
+}
+
+.auth-card__dev-hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 620;
+  line-height: 1.55;
+}
+
 .auth-card__helper a {
   color: var(--color-blue-deep);
   font-weight: 830;

@@ -45,9 +45,12 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
 NEXT_PUBLIC_APP_BASE_URL=http://localhost:3000
 NEXT_PUBLIC_WS_URL=ws://localhost:8080/ws
 NEXT_PUBLIC_BUBLI_PREVIEW_DATA=false
+NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN=
 ```
 
 배포에서는 `NEXT_PUBLIC_API_BASE_URL=https://bubli.n-e.kr`, `NEXT_PUBLIC_WS_URL=wss://bubli.n-e.kr/ws`처럼 같은 배포 도메인 기준으로 맞춘다. `NEXT_PUBLIC_*` 값은 Next 빌드 시점에 번들에 들어가므로 주소를 바꾸면 프론트 이미지를 다시 빌드해야 한다.
+
+`NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN`은 로컬 개발에서만 쓴다. 백엔드 seed 사용자 access token을 넣거나 로그인 화면의 개발용 토큰 입력칸에 붙여 넣으면, 브라우저에서도 실제 `/api/me` 세션을 만든 뒤 프로젝트룸 생성 같은 API 흐름을 검증할 수 있다. 이 입력칸은 `NODE_ENV=development`에서만 렌더링한다.
 
 ## Tauri 기준
 

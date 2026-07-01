@@ -50,7 +50,7 @@
 기능 연결 상세,8,대시보드,워크스페이스 대시보드,/app,dashboardApi,GET /api/dashboard/work · /tasks,O,O,O,O,일치,됨,getWork + todoApi.list + widgetApi.getSummary + runningTimer 연결
 기능 연결 상세,9,회원앱 — 프로젝트룸,,,,,,,,,,,
 기능 연결 상세,10,프로젝트룸,룸 목록,/app/project-rooms,projectRoomApi,GET/POST /api/project-rooms,O,O,O,O,일치,됨,다른 룸 화면 진입점
-기능 연결 상세,11,프로젝트룸,룸 생성,/app/project-rooms/new,projectRoom+resources+agent,POST /project-rooms · /resources · /ai/*,O,O,O,O,일치,됨,2026-07-01 로컬 백엔드 직접 POST 200 + Playwright 화면 버튼 생성/상세 이동 검증 완료. 자료 첨부 시 업로드와 에이전트 후보 생성은 후속 화면에서 이어감.
+기능 연결 상세,11,프로젝트룸,룸 생성,/app/project-rooms/new,projectRoom+resources+agent,POST /api/project-rooms · POST /api/resources · POST /api/ai/review-contract-documents,O,O,부분(로컬 UI 검증 완료),O,일치,됨,2026-07-02 local seed 토큰 로그인 → /api/me 200 → UI에서 POST /api/project-rooms 200 → 새 룸 상세 이동 확인. 자료 업로드/에이전트 검토 실패는 부분 성공으로 노출.
 기능 연결 상세,12,프로젝트룸,룸 상세,/app/project-rooms/[roomId],projectRoom+calendar+agent+resources+wbs,GET /project-rooms/{id} 외 4종,O,O,O,O,문서 drift,됨,5개 api 묶어 호출
 기능 연결 상세,13,프로젝트룸,룸 자료보드,[roomId]/resources,resourcesApi,GET /project-rooms/{id}/resources,O,O,O,O,일치,됨,ResourceWorkspace
 기능 연결 상세,14,프로젝트룸,룸 작업(WBS),[roomId]/work,wbsApi(+agent+projectRoom),GET /wbs-board · /wbs-items · POST /wbs-items · PATCH /wbs-items/{id} · DELETE /wbs-items/{id} · reorder,O,O,O,O,일치,됨,"WBS/칸반/후보를 보기 전환으로 분리. 칸반 드래그 상태 변경, WBS 줄 목록+상세, WBS 생성·수정·상태 변경·삭제 연결. 2026-07-01 Playwright로 WBS 줄 추가 POST와 상태 변경 PATCH 검증 완료. docs/work-board-requirements-2026-07-01.md 기준."
@@ -106,7 +106,7 @@
 다음 작업,20,시트,대시보드 카드 후보,색상표 추가,완료,,,,,,,,
 연동·인증 세팅,1,프론트-백엔드 연동·인증 세팅 (가로지르는 항목)  ·  2026-07-01,,,,,,,,,,,
 연동·인증 세팅,2,순위,항목,현재 상태,무엇을 맞춰야 하나,담당,막는 대상,상태,,,,,
-연동·인증 세팅,3,0,인증 토큰 attach (블로커),완료: apiRequest Bearer 주입 + access/refresh 저장 + 401 단일 refresh 재시도 + 구글 콜백/logout,apiRequest에 Bearer 헤더 주입 + 토큰 저장소(인메모리) + 401시 refresh 재발급,프론트,로그인 필요한 전 화면,됨,,,,,
+연동·인증 세팅,3,0,인증 토큰 attach (블로커),완료: apiRequest Bearer 주입 + access/refresh 저장 + 401 단일 refresh 재시도 + 구글 콜백/logout + 로컬 개발 토큰 로그인,apiRequest Bearer 헤더 유지. 로컬은 seed access token으로 /api/me 세션을 만들고 실제 API 버튼 흐름을 검증한다.,프론트,로그인 필요한 전 화면,됨,,,,,
 연동·인증 세팅,4,1,API 주소(빌드타임),NEXT_PUBLIC_API_BASE_URL 빌드 시 고정. GitHub 변수 의존,배포 도메인 https://bubli.n-e.kr 로 고정(같은 출처→nginx /api 프록시). 변경 시 재빌드,인프라·프론트,전체 호출,확인필요,,,,,
 연동·인증 세팅,5,2,응답 봉투,"백엔드 ApiResponse {success,data,error} = 프론트 기대치와 동일",맞춰져 있음. 손댈 것 없음,-,-,됨,,,,,
 연동·인증 세팅,6,3,CORS,SecurityConfig allowedOriginPatterns(env) + allowCredentials(true),같은 출처 배포는 무관. 앱(app.bubli.kr)·로컬(localhost)은 출처를 env에 명시 등록(*는 불가),백엔드,앱·로컬 연동,부분,,,,,
@@ -125,7 +125,7 @@
 타우리 앱·로컬,3,기능,Rust (src-tauri),JS 브리지,화면 연결,플랫폼,진행%,상태,비고,,,,
 타우리 앱·로컬,4,위젯 창 런타임,O · lib.rs 26개 invoke_handler + close destroy + exit cleanup,"활성(26개 command, local 14개 active 승격)",O · 위젯 화면+로그인 후 자동 실행 보강,mac/win,74%,부분,후속(2026-07-01): close_widget_window는 WebViewWindow.destroy()로 해제. 로그인 후 TODO 위젯+위젯 바 자동 실행을 공용 프론트 런처와 Rust app_ready 보장 경로로 보강. 소통/chat 위젯은 시작 시 자동 실행하지 않음. Tauri QA에서 메인/버블 창 2번 모니터 표시 확인. 추가 보강: bar/menu/default 창 제목 분리 및 app_ready 양쪽 창 독립 시도. 별도 bar 창은 새 제목 기준 재검증 필요.,,,,
 타우리 앱·로컬,5,SQLite 로컬 DB,O · local_db.rs 394줄,어댑터 완비,O · 설정(무결성·백업·복구·타이머),mac/win,76%,됨,Rust invoke 등록 확인 · 어댑터+설정 소비 확인 · restore 재시작 제약(코드). 실제 앱 런타임 검증 필요,,,,
-타우리 앱·로컬,6,앱 감지(활동 인식),"O · macOS osascript + Windows Win32 foreground window",어댑터 완비,"O · 설정(활동 읽기, 동의 게이트)",mac/win,68%,부분,"Rust invoke 등록 + 설정 활동 기록 API 소비. macOS는 osascript, Windows는 GetForegroundWindow/GetWindowTextW/QueryFullProcessImageNameW로 앱·창 제목 캡처. 실제 앱 런타임 장시간 검증 필요",,,,
+타우리 앱·로컬,6,앱 감지(활동 인식),O · macOS osascript + Windows Win32 foreground window,어댑터 완비,"O · 설정(활동 읽기, 동의 게이트)",mac/win,68%,부분,"Rust invoke 등록 + 설정 활동 기록 API 소비. macOS는 osascript, Windows는 GetForegroundWindow/GetWindowTextW/QueryFullProcessImageNameW로 앱·창 제목 캡처. 실제 앱 런타임 장시간 검증 필요",,,,
 타우리 앱·로컬,7,로컬 폴더 추적(관리폴더),O · local_files.rs 371줄,어댑터 완비,O · 설정(선택·스캔·검색·감시),mac/win,74%,됨,Rust invoke 등록 + 설정 화면 선택·스캔·검색·감시 소비 확인. 네이티브 picker/watch는 앱 검증 필요,,,,
 타우리 앱·로컬,8,동기화 아웃박스,O · flush_sync_outbox,어댑터 완비,O · 설정(대기열 상태),mac/win,58%,부분,"상태 확인만, 실제 서버 전송은 인증 API 몫",,,,
 타우리 앱·로컬,9,위젯 사용량 집계,O · widget_usage.rs 234줄,어댑터 완비,O · 위젯 화면+설정(사용량·동기화 상태),mac/win,62%,됨,상호작용 시 record + 집계/동기화 버튼 연결. 설정 화면에서 오늘 사용량과 대기열 상태 확인 가능(2026-07-01).,,,,
@@ -145,7 +145,7 @@
 페이지별 백엔드 맵핑,7,비회원,OAuth 콜백,/auth/callback,코드→토큰 교환,callbackGoogle,됨,부분,디자인 완료 · 반응형 미확인,,,,
 페이지별 백엔드 맵핑,8,회원,대시보드,/app,대시보드 업무,getWork + projectRoom.list,됨,확인예정,위젯 summary·TODO·타이머 연결(Codex 2차) · 알림만 대시보드 미맵핑,,,,
 페이지별 백엔드 맵핑,9,회원,룸 목록,/app/project-rooms,룸 목록,projectRoom.list,됨,확인예정,디자인 상태 미확인,,,,
-페이지별 백엔드 맵핑,10,회원,룸 생성,/app/project-rooms/new,룸 생성·업로드·계약서분석,create+upload+reviewContractDocuments,됨,검증완료,2026-07-01 로컬 백엔드 직접 POST 200 + Playwright 버튼 생성/상세 이동 검증 완료,,,,
+페이지별 백엔드 맵핑,10,회원,룸 생성,/app/project-rooms/new,룸 생성·자료 업로드·에이전트 자료 검토,create+upload+reviewContractDocuments,됨,검증완료,"로컬 seed 사용자로 로그인 화면 개발 토큰 접속, 프로젝트룸 생성 버튼, POST /api/project-rooms 200, 상세 이동까지 확인. 자료 후속 실패는 사용자에게 표시.",,,,
 페이지별 백엔드 맵핑,11,회원,룸 상세,[roomId],룸 상세·멤버·일정·제안·자료·WBS,get·getMembers+calendar+agent+resources+wbs,됨,확인예정,결제·초대·AI문서 미맵핑 / 디자인 미확인,,,,
 페이지별 백엔드 맵핑,12,회원,룸 자료보드,[roomId]/resources,룸 자료 목록·업로드·다운로드,listRoomResources·upload·getDownloadUrl,부분,작업중,댓글·버전·요약 미맵핑 / 자료보드 디자인 재작업 중,,,,
 페이지별 백엔드 맵핑,13,회원,룸 작업(WBS),[roomId]/work,WBS 보드·항목·제안,wbs.getBoard+projectRoom.get+agent,됨,검증완료,"WBS/칸반/후보 보기 전환 유지. 칸반은 Jira식 가로 보드+드래그 제거 영역으로 보강. WBS 항목 추가·수정·상태 변경·빈 항목 삭제를 wbsApi에 연결. 2026-07-01 Playwright로 WBS 줄 추가 POST, 상태 변경 PATCH, WBS/칸반/후보 탭 전환 검증 완료. 후보 확정은 agent 화면 책임 유지.",,,,
