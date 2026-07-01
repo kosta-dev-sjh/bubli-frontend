@@ -17643,6 +17643,112 @@ html {
   list-style: none;
 }
 
+.workspace-dashboard__todo-widget {
+  display: grid;
+  gap: 10px;
+}
+
+.workspace-dashboard__todo-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 16px;
+  padding: 10px;
+  background: rgba(215, 234, 244, 0.24);
+}
+
+.workspace-dashboard__todo-form label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.workspace-dashboard__todo-form label > span {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.workspace-dashboard__todo-form input {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid rgba(107, 143, 168, 0.16);
+  border-radius: 12px;
+  padding: 0 10px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.82);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 780;
+  outline: none;
+}
+
+.workspace-dashboard__todo-form input:focus-visible {
+  border-color: rgba(107, 143, 168, 0.42);
+  box-shadow: 0 0 0 3px rgba(215, 234, 244, 0.52);
+}
+
+.workspace-dashboard__todo-form button,
+.workspace-dashboard__task-delete {
+  display: inline-flex;
+  gap: 5px;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(107, 143, 168, 0.16);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.72);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.workspace-dashboard__todo-form button {
+  color: var(--blue-ink);
+}
+
+.workspace-dashboard__todo-form button:disabled,
+.workspace-dashboard__task-delete:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.workspace-dashboard__todo-notice {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 780;
+  line-height: 1.45;
+}
+
+.workspace-dashboard__line-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.workspace-dashboard__task-delete {
+  min-height: 28px;
+  padding-inline: 8px;
+  color: var(--color-dust-rose);
+}
+
+.workspace-dashboard__task-delete span {
+  color: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .workspace-dashboard__line {
   display: flex;
   min-width: 0;
@@ -17804,11 +17910,19 @@ html {
     overflow-wrap: normal;
   }
 
-  .workspace-dashboard__line {
-    display: grid;
-    align-items: start;
+    .workspace-dashboard__line {
+      display: grid;
+      align-items: start;
+    }
+
+    .workspace-dashboard__todo-form {
+      grid-template-columns: 1fr;
+    }
+
+    .workspace-dashboard__line-actions {
+      justify-content: flex-start;
+    }
   }
-}
 
 @media (max-width: 900px) {
   .bubli-app-layout {
