@@ -17302,6 +17302,11 @@ html {
   width: 100%;
 }
 
+.workspace-dashboard__summary-wrap {
+  display: grid;
+  gap: 10px;
+}
+
 .workspace-dashboard__summary {
   display: flex;
   flex-wrap: wrap;
@@ -17367,12 +17372,38 @@ html {
   stroke: var(--color-sky);
 }
 
+.workspace-dashboard__metric-ring[data-tone="focus"] .workspace-dashboard__metric-ring-graph svg path + path {
+  stroke: var(--signal-agent);
+}
+
 .workspace-dashboard__metric-ring b {
   position: relative;
   color: var(--blue-ink);
   font-size: 17px;
   font-weight: 920;
   line-height: 1;
+}
+
+.workspace-dashboard__summary-insights {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.workspace-dashboard__summary-insights span {
+  min-width: 0;
+  border: 1px solid rgba(107, 143, 168, 0.08);
+  border-radius: 14px;
+  padding: 8px 10px;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.44);
+  box-shadow: var(--inner-highlight-light);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workspace-dashboard__room-summary {
@@ -17484,6 +17515,10 @@ html {
   gap: 10px;
   align-content: center;
   min-height: 148px;
+}
+
+.workspace-dashboard__timer-preview--compact {
+  min-height: 116px;
 }
 
 .workspace-dashboard__timer-preview b {

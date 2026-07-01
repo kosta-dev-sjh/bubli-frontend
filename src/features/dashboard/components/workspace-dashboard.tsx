@@ -13,6 +13,7 @@ import type { DashboardWidgetDef } from "@/components/dashboard";
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { activityApi } from "@/features/activity/api/activityApi";
 import { dashboardApi } from "@/features/dashboard/api/dashboardApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { timerApi } from "@/features/timer/api/timerApi";
@@ -33,10 +34,11 @@ import {
   workspacePreviewRoomResources,
   workspacePreviewRooms,
 } from "@/lib/workspace-preview-data";
+import type { ActivityLogResponse } from "@/types/api/activity";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { ResourceResponse } from "@/types/api/resource";
 import type { TimeLogResponse } from "@/types/api/timer";
-import type { WidgetSummaryResponse } from "@/types/api/widget";
+import type { WidgetSummaryResponse, WidgetTodayUsageSummaryResponse } from "@/types/api/widget";
 import type { DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
 
 type DashboardState =
@@ -68,6 +70,12 @@ const dashboardRemoveDropzoneId = "dashboard-remove-card";
 const DASHBOARD_TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
 let dashboardWidgetLayoutSnapshot = [...defaultWidgetIds];
 type DashboardTimerAction = "idle" | "starting" | "pausing" | "resuming" | "stopping";
+type ActivityFocusSummary = {
+  logCount: number;
+  topAppName: string | null;
+  topWindowTitle: string | null;
+  totalSeconds: number;
+};
 
 function normalizeWidgetIds(ids: string[]) {
   const seen = new Set<string>();
@@ -131,6 +139,16 @@ function formatDuration(seconds?: number | null) {
   if (hours > 0) {
     return `${hours}시간 ${minutes}분`;
   }
+
+  return `${minutes}분`;
+}
+
+function formatMetricDuration(seconds: number) {
+  if (seconds <= 0) return "0분";
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.max(1, Math.floor((seconds % 3600) / 60));
+  if (hours > 0) return `${hours}시간`;
 
   return `${minutes}분`;
 }
@@ -215,6 +233,47 @@ function getMetricProgress(value: number, max: number) {
   return Math.min(100, Math.max(18, Math.round((value / max) * 100)));
 }
 
+function getActivitySeconds(activity: ActivityLogResponse) {
+  if (typeof activity.durationSeconds === "number" && activity.durationSeconds >= 0) {
+    return activity.durationSeconds;
+  }
+
+  const started = new Date(activity.startedAt).getTime();
+  const ended = activity.endedAt ? new Date(activity.endedAt).getTime() : NaN;
+  if (Number.isNaN(started) || Number.isNaN(ended) || ended <= started) return 0;
+
+  return Math.floor((ended - started) / 1000);
+}
+
+function summarizeActivityFocus(logs: ActivityLogResponse[] | null, activeRoomId: string | null): ActivityFocusSummary | null {
+  if (!logs) return null;
+
+  const scopedLogs = activeRoomId ? logs.filter((activity) => activity.roomId === activeRoomId) : logs;
+  const byApp = new Map<string, { seconds: number; title: string | null }>();
+  let totalSeconds = 0;
+
+  for (const activity of scopedLogs) {
+    const seconds = getActivitySeconds(activity);
+    totalSeconds += seconds;
+
+    const appName = activity.appName?.trim() || "앱 이름 없음";
+    const current = byApp.get(appName) ?? { seconds: 0, title: null };
+    current.seconds += seconds;
+    current.title = activity.windowTitle?.trim() || current.title;
+    byApp.set(appName, current);
+  }
+
+  const [topAppName, topApp] =
+    [...byApp.entries()].sort((left, right) => right[1].seconds - left[1].seconds)[0] ?? [null, null];
+
+  return {
+    logCount: scopedLogs.length,
+    topAppName,
+    topWindowTitle: topApp?.title ?? null,
+    totalSeconds,
+  };
+}
+
 function DashboardMetricRing({ label, progress, tone, value }: { label: string; progress: number; tone: string; value: number | string }) {
   return (
     <div className="workspace-dashboard__metric-ring" data-tone={tone}>
@@ -233,38 +292,88 @@ function DashboardMetricRing({ label, progress, tone, value }: { label: string; 
   );
 }
 
-function DashboardSummary({ data, enabledBubbleCount, tasks }: { data: DashboardWorkResponse; enabledBubbleCount: number | null; tasks: TaskResponse[] }) {
+function DashboardSummary({
+  activityFocus,
+  data,
+  enabledBubbleCount,
+  tasks,
+  widgetUsageSummary,
+}: {
+  activityFocus: ActivityFocusSummary | null;
+  data: DashboardWorkResponse;
+  enabledBubbleCount: number | null;
+  tasks: TaskResponse[];
+  widgetUsageSummary: WidgetTodayUsageSummaryResponse | null;
+}) {
   const reviewCount = tasks.filter((task) => task.status === "REVIEW" || task.status === "BLOCKED").length;
   const timerActive = data.runningTimer ? 1 : 0;
+  const bubbleUsageCount = widgetUsageSummary ? widgetUsageSummary.totalOpenCount + widgetUsageSummary.totalInteractionCount : null;
   const metrics = [
     { label: "할 일", progress: getMetricProgress(tasks.length, 8), tone: "task", value: tasks.length },
     { label: "일정", progress: getMetricProgress(data.todaySchedules.length, 6), tone: "schedule", value: data.todaySchedules.length },
     { label: "확인", progress: getMetricProgress(reviewCount, 5), tone: "review", value: reviewCount },
     { label: "타이머", progress: timerActive ? 100 : 0, tone: "timer", value: timerActive ? "ON" : "0" },
-    ...(enabledBubbleCount !== null
-      ? [{ label: "버블", progress: getMetricProgress(enabledBubbleCount, 8), tone: "bubble", value: enabledBubbleCount }]
+    ...(bubbleUsageCount !== null
+      ? [{ label: "버블 사용", progress: getMetricProgress(bubbleUsageCount, 24), tone: "bubble", value: bubbleUsageCount }]
+      : enabledBubbleCount !== null
+        ? [{ label: "활성 버블", progress: getMetricProgress(enabledBubbleCount, 8), tone: "bubble", value: enabledBubbleCount }]
+        : []),
+    ...(activityFocus
+      ? [
+          {
+            label: "집중",
+            progress: getMetricProgress(Math.round(activityFocus.totalSeconds / 60), 240),
+            tone: "focus",
+            value: formatMetricDuration(activityFocus.totalSeconds),
+          },
+        ]
       : []),
   ];
 
   return (
-    <div className="workspace-dashboard__summary">
-      {metrics.map((metric) => (
-        <DashboardMetricRing key={metric.label} {...metric} />
-      ))}
+    <div className="workspace-dashboard__summary-wrap">
+      <div className="workspace-dashboard__summary">
+        {metrics.map((metric) => (
+          <DashboardMetricRing key={metric.label} {...metric} />
+        ))}
+      </div>
+      <div className="workspace-dashboard__summary-insights">
+        {widgetUsageSummary ? (
+          <span>
+            버블 {widgetUsageSummary.totalOpenCount}회 열림 · {widgetUsageSummary.totalInteractionCount}회 상호작용 ·{" "}
+            {formatDuration(widgetUsageSummary.totalVisibleSeconds)} 표시
+          </span>
+        ) : (
+          <span>{enabledBubbleCount !== null ? `활성 버블 ${enabledBubbleCount}개` : "오늘 버블 사용 기록이 없습니다"}</span>
+        )}
+        {activityFocus ? (
+          <span>
+            {activityFocus.totalSeconds > 0
+              ? `${activityFocus.topAppName ?? "작업 앱"} 중심 · ${formatDuration(activityFocus.totalSeconds)} 기록`
+              : activityFocus.logCount > 0
+                ? "활동 기록은 있지만 머문 시간이 아직 없습니다"
+                : "오늘 활동 기록이 없습니다"}
+          </span>
+        ) : (
+          <span>활동 동의 후 집중 시간이 표시됩니다</span>
+        )}
+      </div>
     </div>
   );
 }
 
 function NextFocusWidget({
+  activityFocus,
   nextSchedule,
   nextTask,
   runningTimer,
 }: {
+  activityFocus: ActivityFocusSummary | null;
   nextSchedule: ScheduleResponse | null;
   nextTask: TaskResponse | null;
   runningTimer?: DashboardWorkResponse["runningTimer"];
 }) {
-  if (!nextTask && !nextSchedule && !runningTimer) {
+  if (!nextTask && !nextSchedule && !runningTimer && !activityFocus?.totalSeconds) {
     return <EmptyWidget />;
   }
 
@@ -274,6 +383,12 @@ function NextFocusWidget({
         <div className="workspace-dashboard__timer-preview">
           <b>{formatDuration(getTimerSeconds(runningTimer))}</b>
           <span>{nextTask ? `${nextTask.title} 이어서 진행 중` : "지금 진행 중인 일이 있습니다"}</span>
+        </div>
+      ) : activityFocus?.totalSeconds ? (
+        <div className="workspace-dashboard__timer-preview workspace-dashboard__timer-preview--compact">
+          <b>{formatDuration(activityFocus.totalSeconds)}</b>
+          <span>{activityFocus.topAppName ? `${activityFocus.topAppName} 중심으로 작업했습니다` : "오늘 집중 시간이 기록됐습니다"}</span>
+          {activityFocus.topWindowTitle ? <small>{activityFocus.topWindowTitle}</small> : null}
         </div>
       ) : null}
       <DashboardLineList>
@@ -467,6 +582,8 @@ export function WorkspaceDashboard() {
   const [activeRoom, setActiveRoom] = useState<{ label: string | null; roomId: string | null }>({ label: null, roomId: null });
   const [personalTasks, setPersonalTasks] = useState<TaskResponse[]>([]);
   const [rooms, setRooms] = useState<ProjectRoomResponse[]>([]);
+  const [todayActivityLogs, setTodayActivityLogs] = useState<ActivityLogResponse[] | null>(null);
+  const [todayWidgetUsageSummary, setTodayWidgetUsageSummary] = useState<WidgetTodayUsageSummaryResponse | null>(null);
   const [widgetSummary, setWidgetSummary] = useState<WidgetSummaryResponse | null>(null);
   const [widgetIds, setWidgetIds] = useState(() => readStoredWidgetIds());
   const [timerAction, setTimerAction] = useState<DashboardTimerAction>("idle");
@@ -477,15 +594,19 @@ export function WorkspaceDashboard() {
     try {
       const data = await dashboardApi.getWork();
       setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
-      const [roomResult, personalTaskResult, widgetSummaryResult] = await Promise.allSettled([
+      const [roomResult, personalTaskResult, widgetSummaryResult, widgetUsageResult, activityResult] = await Promise.allSettled([
         projectRoomApi.list(),
         todoApi.list(),
         widgetApi.getSummary(),
+        widgetApi.getTodayUsageRollups(),
+        activityApi.getToday(),
       ]);
 
       setRooms(roomResult.status === "fulfilled" ? roomResult.value.items : []);
       setPersonalTasks(personalTaskResult.status === "fulfilled" ? personalTaskResult.value.items : []);
       setWidgetSummary(widgetSummaryResult.status === "fulfilled" ? widgetSummaryResult.value : null);
+      setTodayWidgetUsageSummary(widgetUsageResult.status === "fulfilled" ? widgetUsageResult.value : null);
+      setTodayActivityLogs(activityResult.status === "fulfilled" ? activityResult.value : null);
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
@@ -494,6 +615,8 @@ export function WorkspaceDashboard() {
       if (shouldUseWorkspacePreviewData()) {
         setState({ data: workspacePreviewDashboard, kind: "ready" });
         setRooms(workspacePreviewRooms);
+        setTodayActivityLogs([]);
+        setTodayWidgetUsageSummary(null);
         return;
       }
       setState({
@@ -654,6 +777,7 @@ export function WorkspaceDashboard() {
     .slice(0, 4);
   const nextFocusTask = pickNextTask(dashboardTasks);
   const nextFocusSchedule = pickNextSchedule(todaySchedules);
+  const activityFocus = useMemo(() => summarizeActivityFocus(todayActivityLogs, activeRoom.roomId), [activeRoom.roomId, todayActivityLogs]);
   const canShowDashboardGrid = state.kind === "ready" || state.kind === "empty";
   const inProgressTask = dashboardTasks.find((task) => task.status === "IN_PROGRESS") ?? null;
   const enabledBubbleCount = widgetSummary ? widgetSummary.bubbles.filter((bubble) => bubble.enabled).length : null;
@@ -776,9 +900,17 @@ export function WorkspaceDashboard() {
     (widgetId: string) => {
       switch (widgetId) {
         case "today-summary":
-          return <DashboardSummary data={data} enabledBubbleCount={enabledBubbleCount} tasks={dashboardTasks} />;
+          return (
+            <DashboardSummary
+              activityFocus={activityFocus}
+              data={data}
+              enabledBubbleCount={enabledBubbleCount}
+              tasks={dashboardTasks}
+              widgetUsageSummary={todayWidgetUsageSummary}
+            />
+          );
         case "next-focus":
-          return <NextFocusWidget nextSchedule={nextFocusSchedule} nextTask={nextFocusTask} runningTimer={data.runningTimer} />;
+          return <NextFocusWidget activityFocus={activityFocus} nextSchedule={nextFocusSchedule} nextTask={nextFocusTask} runningTimer={data.runningTimer} />;
         case "today-todos":
           if (taskItems.length === 0) return <EmptyWidget />;
           return (
@@ -899,6 +1031,7 @@ export function WorkspaceDashboard() {
     [
       activeDashboardTimer,
       activeRooms,
+      activityFocus,
       dashboardTasks,
       data,
       enabledBubbleCount,
@@ -915,6 +1048,7 @@ export function WorkspaceDashboard() {
       timerBusy,
       timerMessage,
       todaySchedules,
+      todayWidgetUsageSummary,
     ],
   );
 
