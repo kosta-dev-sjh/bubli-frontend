@@ -926,6 +926,7 @@ fn toggle_widget_window(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(Mutex::new(AppMonitorPreferenceStore::default()))
         .manage(Mutex::new(WidgetWindowStore::default()))
