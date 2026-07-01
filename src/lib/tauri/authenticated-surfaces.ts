@@ -4,6 +4,7 @@ import { tauriCommands, type WidgetWindowOpenInput } from "@/lib/tauri/commands"
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { startActivityAutoCapture } from "@/lib/local/activity-auto-capture";
+import { startManagedFolderAutoSync } from "@/lib/local/managed-folder-auto-sync";
 
 let launchRequested = false;
 let launchPromise: Promise<void> | null = null;
@@ -46,6 +47,7 @@ export function launchTauriAuthenticatedSurfaces() {
       .catch(() => undefined);
 
     startActivityAutoCapture();
+    startManagedFolderAutoSync();
 
     if (!appReadyOpenedWidgets && errors.length === loginStartupWindows.length) {
       throw errors[0];
