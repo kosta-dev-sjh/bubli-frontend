@@ -52,11 +52,11 @@
 기능 연결 상세,10,프로젝트룸,룸 목록,/app/project-rooms,projectRoomApi,GET/POST /api/project-rooms,O,O,O,O,일치,됨,다른 룸 화면 진입점
 기능 연결 상세,11,프로젝트룸,룸 생성,/app/project-rooms/new,projectRoom+resources+agent,POST /project-rooms · /resources · /ai/*,O,O,O,O,일치,됨,2026-07-01 로컬 백엔드 직접 POST 200 + Playwright 화면 버튼 생성/상세 이동 검증 완료. 자료 첨부 시 업로드와 에이전트 후보 생성은 후속 화면에서 이어감.
 기능 연결 상세,12,프로젝트룸,룸 상세,/app/project-rooms/[roomId],projectRoom+calendar+agent+resources+wbs,GET /project-rooms/{id} 외 4종,O,O,O,O,문서 drift,됨,5개 api 묶어 호출
-기능 연결 상세,13,프로젝트룸,룸 자료보드,[roomId]/resources,resourcesApi,GET /project-rooms/{id}/resources,O,O,O,O,일치,됨,ResourceWorkspace
+기능 연결 상세,13,프로젝트룸,룸 자료보드,[roomId]/resources,resourcesApi,GET /project-rooms/{id}/resources · GET /api/resources/{id} · /summary · /versions · /comments · POST /comments · PATCH/DELETE /api/resource-comments/{id},O,O,O,O,일치,됨,ResourcePreview에서 상세·요약·버전·댓글 조회와 댓글 생성·수정·삭제 연결
 기능 연결 상세,14,프로젝트룸,룸 작업(WBS),[roomId]/work,wbsApi(+agent+projectRoom),GET /wbs-board · /wbs-items · POST /wbs-items · PATCH /wbs-items/{id} · DELETE /wbs-items/{id} · reorder,O,O,O,O,일치,됨,"WBS/칸반/후보를 보기 전환으로 분리. 칸반 드래그 상태 변경, WBS 줄 목록+상세, WBS 생성·수정·상태 변경·삭제 연결. 2026-07-01 Playwright로 WBS 줄 추가 POST와 상태 변경 PATCH 검증 완료. docs/work-board-requirements-2026-07-01.md 기준."
 기능 연결 상세,15,프로젝트룸,룸 채팅(리다이렉트),[roomId]/chat,-,redirect,-,-,-,-,-,리다이렉트,-> /app/chat 로 이동
 기능 연결 상세,16,회원앱 — 개인 자료 / 일정,,,,,,,,,,,
-기능 연결 상세,17,개인자료,개인 자료보드,/app/resources,resourcesApi,GET /api/resources?scope=personal,O,O,O,O,일치,됨,
+기능 연결 상세,17,개인자료,개인 자료보드,/app/resources,resourcesApi,GET /api/resources?scope=personal · GET /api/resources/{id} · /summary · /versions · /comments · POST /comments · PATCH/DELETE /api/resource-comments/{id},O,O,O,O,일치,됨,개인 자료 상세 패널도 공통 ResourcePreview로 상세·요약·버전·댓글 연결
 기능 연결 상세,18,일정,일정,/app/calendar,calendarApi,GET/POST/PATCH/DELETE /api/schedules · GET /api/project-rooms/{roomId}/events · /api/calendar/google/connect · /connection · /sync · /push-unsynced,O,O,O,부분(OAuth 실계정 필요),일치,됨,"월/주 보기, 출처 필터, 날짜 클릭 일정 추가 창, Google Calendar 연결 상태·연결 URL·가져오기(sync)·보내기(push-unsynced)·해제 UI 연결. OAuth 실계정 왕복과 WS 자동갱신은 후속."
 기능 연결 상세,19,회원앱 — 소통 / 후보,,,,,,,,,,,
 기능 연결 상세,20,소통,채팅,/app/chat,chatApi,GET /chat/rooms · /messages · /read,O,O,O,O,일치,됨,
@@ -147,10 +147,10 @@
 페이지별 백엔드 맵핑,9,회원,룸 목록,/app/project-rooms,룸 목록,projectRoom.list,됨,확인예정,디자인 상태 미확인,,,,
 페이지별 백엔드 맵핑,10,회원,룸 생성,/app/project-rooms/new,룸 생성·업로드·계약서분석,create+upload+reviewContractDocuments,됨,검증완료,2026-07-01 로컬 백엔드 직접 POST 200 + Playwright 버튼 생성/상세 이동 검증 완료,,,,
 페이지별 백엔드 맵핑,11,회원,룸 상세,[roomId],룸 상세·멤버·일정·제안·자료·WBS,get·getMembers+calendar+agent+resources+wbs,됨,확인예정,결제·초대·AI문서 미맵핑 / 디자인 미확인,,,,
-페이지별 백엔드 맵핑,12,회원,룸 자료보드,[roomId]/resources,룸 자료 목록·업로드·다운로드,listRoomResources·upload·getDownloadUrl,부분,작업중,댓글·버전·요약 미맵핑 / 자료보드 디자인 재작업 중,,,,
+페이지별 백엔드 맵핑,12,회원,룸 자료보드,[roomId]/resources,룸 자료 목록·업로드·다운로드·상세·요약·버전·댓글,listRoomResources·upload·getDownloadUrl·get·getSummary·getVersions·getComments·createComment·updateComment·deleteComment,부분,확인예정,자료 선택 시 상세/요약/버전/댓글 조회와 댓글 생성·수정·삭제 UI 연결. 실백엔드 장시간 QA는 후속.,,,,
 페이지별 백엔드 맵핑,13,회원,룸 작업(WBS),[roomId]/work,WBS 보드·항목·제안,wbs.getBoard+projectRoom.get+agent,됨,검증완료,"WBS/칸반/후보 보기 전환 유지. 칸반은 Jira식 가로 보드+드래그 제거 영역으로 보강. WBS 항목 추가·수정·상태 변경·빈 항목 삭제를 wbsApi에 연결. 2026-07-01 Playwright로 WBS 줄 추가 POST, 상태 변경 PATCH, WBS/칸반/후보 탭 전환 검증 완료. 후보 확정은 agent 화면 책임 유지.",,,,
 페이지별 백엔드 맵핑,14,회원,룸 채팅(리다이렉트),[roomId]/chat,-,redirect -> /app/chat,리다이렉트,해당없음,-,,,,
-페이지별 백엔드 맵핑,15,회원,개인 자료보드,/app/resources,개인 자료 목록·업로드·다운로드,listPersonal·upload·getDownloadUrl,부분,작업중,댓글·버전·요약 미맵핑 / 자료보드 디자인 재작업 중,,,,
+페이지별 백엔드 맵핑,15,회원,개인 자료보드,/app/resources,개인 자료 목록·다운로드·상세·요약·버전·댓글,listPersonal·getDownloadUrl·get·getSummary·getVersions·getComments·createComment·updateComment·deleteComment,부분,확인예정,개인 자료 선택 시 상세/요약/버전/댓글 조회와 댓글 생성·수정·삭제 UI 연결. 로컬 파일 색인 실데이터 장시간 QA는 후속.,,,,
 페이지별 백엔드 맵핑,16,회원,일정,/app/calendar,일정 조회·생성·룸이벤트·구글캘린더,getEvents·createEvent·getProjectRoomEvents·getGoogleConnection·connect·sync·pushUnsynced·disconnect,됨,부분,Google connect/connection/sync/push-unsynced/disconnect를 실제 API 액션으로 연결. OAuth 실계정 왕복·WS 자동갱신은 후속.,,,,
 페이지별 백엔드 맵핑,17,회원,소통(채팅),/app/chat,채팅·친구·초대·보이스·프로필,chat4+friend6+voice+invite+getMe,됨,확인예정,메시지/친구요청/초대/보이스 생성·토큰·마이크·나가기·종료 버튼 연결. LiveKit 실세션과 WS 참여자 자동갱신 후속.,,,,
 페이지별 백엔드 맵핑,18,회원,소통(데스크탑),/app/desktop/communication,채팅 목록·알림,listRooms+notification.list,됨,확인예정,알림 읽음/보관 연결 완료 / 디자인 미확인,,,,
@@ -311,8 +311,8 @@ API 명세 맵핑,141,,GET,/api/project-rooms/{id}/wbs-items,명세,O,연결됨,
 API 명세 맵핑,142,,POST,/api/project-rooms/{id}/wbs-items,명세,O,연결됨,,,,,,
 API 명세 맵핑,143,,PATCH,/api/project-rooms/{id}/wbs-items/reorder,명세,O,연결됨,,,,,,
 API 명세 맵핑,144,◆ resource-comments,,,,,,,,,,,
-API 명세 맵핑,145,,DELETE,/api/resource-comments/{id},명세,X,미연결,,,,,,
-API 명세 맵핑,146,,PATCH,/api/resource-comments/{id},명세,X,미연결,,,,,,
+API 명세 맵핑,145,,DELETE,/api/resource-comments/{id},명세,O,연결됨,자료 상세 댓글 목록에서 삭제 버튼 연결,,,,,
+API 명세 맵핑,146,,PATCH,/api/resource-comments/{id},명세,O,연결됨,자료 상세 댓글 목록에서 수정 저장 연결,,,,,
 API 명세 맵핑,147,◆ resources,,,,,,,,,,,
 API 명세 맵핑,148,,GET,/api/resources,명세,O,연결됨,,,,,,
 API 명세 맵핑,149,,POST,/api/resources,명세,O,연결됨,,,,,,
