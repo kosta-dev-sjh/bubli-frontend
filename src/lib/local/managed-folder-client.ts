@@ -214,6 +214,19 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
       `로컬 파일 변경 ${response.results.length}건을 서버에 반영했습니다.`,
     );
   } catch (error) {
-    return failed(getErrorMessage(error), commandName);
+    const syncErrorMessage = getErrorMessage(error);
+    try {
+      await tauriCommands.markLocalFileEventsSynced({
+        results: staged.data.events.map((event) => ({
+          localEventId: event.localEventId,
+          resourceId: event.resourceId,
+          status: "FAILED",
+        })),
+      });
+    } catch (markError) {
+      return failed(`${syncErrorMessage} / local failure mark failed: ${getErrorMessage(markError)}`, commandName);
+    }
+
+    return failed(syncErrorMessage, commandName);
   }
 }
