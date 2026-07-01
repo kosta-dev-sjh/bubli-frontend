@@ -23,16 +23,23 @@ import {
   restoreLocalSqliteBackup,
 } from "@/lib/local/local-cache-client";
 import {
+  getPersonalManagedFolderIndexProgress,
   openPersonalLocalFile,
   scanPersonalManagedFolder,
   searchPersonalLocalFiles,
   selectPersonalManagedFolder,
+  setPersonalManagedFolderSync,
   syncPersonalLocalFileEventsToServer,
   watchPersonalManagedFolder,
 } from "@/lib/local/managed-folder-client";
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { tauriCommands, type AppMonitorInfo, type AppMonitorPreference } from "@/lib/tauri/commands";
+import {
+  tauriCommands,
+  type AppMonitorInfo,
+  type AppMonitorPreference,
+  type ManagedFolderIndexProgressResult,
+} from "@/lib/tauri/commands";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { ActivityLogResponse } from "@/types/api/activity";
@@ -223,6 +230,7 @@ export default function SettingsPage() {
   const [localActionMessage, setLocalActionMessage] = useState<string | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState("");
   const [localFiles, setLocalFiles] = useState<Array<{ localFileId: string; name: string; path: string }>>([]);
+  const [folderProgress, setFolderProgress] = useState<Record<string, ManagedFolderIndexProgressResult>>({});
   const [lastBackupId, setLastBackupId] = useState<string | null>(null);
   const [desktopRuntime, setDesktopRuntime] = useState(false);
   const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
@@ -457,7 +465,7 @@ export default function SettingsPage() {
       id: folder.localFolderId,
       localPath: folder.path,
       name: folder.name,
-      syncEnabled: true,
+      syncEnabled: false,
       updatedAt: new Date().toISOString(),
     };
 
@@ -501,19 +509,69 @@ export default function SettingsPage() {
     setLocalActionMessage(result.status === "ready" ? "백업 복구를 완료했습니다" : localResultMessage(result));
   }, [lastBackupId]);
 
+  const refreshManagedFolderProgress = useCallback(async (localFolderId: string) => {
+    const result = await getPersonalManagedFolderIndexProgress({ localFolderId });
+    if (result.status === "ready") {
+      setFolderProgress((current) => ({ ...current, [localFolderId]: result.data }));
+      setLocalActionMessage(
+        `색인 ${result.data.indexedFiles}/${result.data.totalFiles} · 동기화 대기 ${result.data.pendingEventCount}건`,
+      );
+      return;
+    }
+
+    setLocalActionMessage(localResultMessage(result));
+  }, []);
+
+  const toggleManagedFolderSync = useCallback(
+    async (folder: ManagedFolderResponse) => {
+      const result = await setPersonalManagedFolderSync({
+        enabled: !folder.syncEnabled,
+        localFolderId: folder.id,
+      });
+      if (result.status !== "ready") {
+        setLocalActionMessage(localResultMessage(result));
+        return;
+      }
+
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: {
+          ...ready.settings,
+          folders: ready.settings.folders.map((item) =>
+            item.id === folder.id
+              ? {
+                  ...item,
+                  syncEnabled: result.data.syncEnabled,
+                  updatedAt: result.data.updatedAt,
+                }
+              : item,
+          ),
+        },
+      }));
+      setLocalActionMessage(
+        result.data.syncEnabled
+          ? `서버 반영 후보를 켰습니다 · 대기 ${result.data.pendingEventCount}건`
+          : "서버 반영 후보를 껐습니다. 로컬 색인은 유지됩니다.",
+      );
+      void refreshManagedFolderProgress(folder.id);
+    },
+    [refreshManagedFolderProgress, updateReadyState],
+  );
+
   const scanManagedFolder = useCallback(async () => {
-    const folderId = state.kind === "ready" ? state.settings.folders.find((folder) => folder.syncEnabled)?.id : undefined;
+    const folderId = state.kind === "ready" ? state.settings.folders[0]?.id : undefined;
     if (!folderId) {
       setLocalActionMessage("먼저 개인 폴더를 선택하세요");
       return;
     }
 
     const result = await scanPersonalManagedFolder({ localFolderId: folderId });
+    if (result.status === "ready") void refreshManagedFolderProgress(folderId);
     setLocalActionMessage(result.status === "ready" ? `폴더 변경 ${result.data.changedCount}건 감지` : localResultMessage(result));
-  }, [state]);
+  }, [refreshManagedFolderProgress, state]);
 
   const watchManagedFolder = useCallback(async () => {
-    const folderId = state.kind === "ready" ? state.settings.folders.find((folder) => folder.syncEnabled)?.id : undefined;
+    const folderId = state.kind === "ready" ? state.settings.folders[0]?.id : undefined;
     if (!folderId) {
       setLocalActionMessage("먼저 개인 폴더를 선택하세요");
       return;
@@ -670,7 +728,7 @@ export default function SettingsPage() {
   const readySettings = state.kind === "ready" ? state.settings : emptySettings;
   const notificationSettings = readySettings.notifications ?? defaultNotifications;
   const privacySettings = readySettings.privacy ?? defaultPrivacy;
-  const activeFolders = readySettings.folders.filter((folder) => folder.syncEnabled);
+  const managedFolders = readySettings.folders;
   const widgetBubbles = readySettings.widgetBubbles ?? [];
   const enabledWidgetCount = widgetBubbles.filter((bubble) => bubble.enabled).length;
   const localCacheReadiness = getLocalCacheReadiness();
@@ -1014,14 +1072,41 @@ export default function SettingsPage() {
                     ))}
                   </select>
                 </div>
-                {activeFolders.length > 0 ? (
-                  activeFolders.map((folder) => (
+                {managedFolders.length > 0 ? (
+                  managedFolders.map((folder) => (
                     <div className={styles.row} key={folder.id}>
                       <span>
                         <strong>{folder.name}</strong>
-                        <small>{folder.localPath ?? "로컬 경로는 데스크탑 앱에서만 표시됩니다"}</small>
+                        <small>
+                          {folder.localPath ?? "로컬 경로는 데스크탑 앱에서만 표시됩니다"}
+                          {folderProgress[folder.id]
+                            ? ` · 색인 ${folderProgress[folder.id].progressPercent}% · 대기 ${folderProgress[folder.id].pendingEventCount}건`
+                            : ""}
+                        </small>
                       </span>
-                      <StatusBadge tone="approved">동기화</StatusBadge>
+                      <div className={styles.inlineActions}>
+                        <StatusBadge tone={folder.syncEnabled ? "approved" : "neutral"}>
+                          {folder.syncEnabled ? "동기화 켜짐" : "로컬만"}
+                        </StatusBadge>
+                        <Button
+                          disabled={!desktopRuntime}
+                          onClick={() => void refreshManagedFolderProgress(folder.id)}
+                          size="sm"
+                          type="button"
+                          variant="quiet"
+                        >
+                          진행률
+                        </Button>
+                        <Button
+                          disabled={!desktopRuntime}
+                          onClick={() => void toggleManagedFolderSync(folder)}
+                          size="sm"
+                          type="button"
+                          variant="quiet"
+                        >
+                          {folder.syncEnabled ? "동기화 끄기" : "동기화 켜기"}
+                        </Button>
+                      </div>
                     </div>
                   ))
                 ) : (

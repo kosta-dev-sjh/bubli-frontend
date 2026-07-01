@@ -7,6 +7,7 @@ export const TAURI_COMMANDS = {
   clearTauriAuthSession: "clear_tauri_auth_session",
   closeWidgetWindow: "close_widget_window",
   flushSyncOutbox: "flush_sync_outbox",
+  getIndexProgress: "get_index_progress",
   getPreferredAppMonitor: "get_preferred_app_monitor",
   getWidgetBarItems: "get_widget_bar_items",
   getWidgetWindowState: "get_widget_window_state",
@@ -30,6 +31,7 @@ export const TAURI_COMMANDS = {
   searchLocalFiles: "search_local_files",
   selectManagedFolder: "select_managed_folder",
   setPreferredAppMonitor: "set_preferred_app_monitor",
+  setFolderSync: "set_folder_sync",
   setWidgetAlwaysOnTop: "set_widget_always_on_top",
   setWidgetClickThrough: "set_widget_click_through",
   setWidgetWindowMode: "set_widget_window_mode",
@@ -74,6 +76,28 @@ export type ManagedFolderScanResult = {
 
 export type ManagedFolderCommandInput = {
   localFolderId: string;
+};
+
+export type ManagedFolderSyncInput = ManagedFolderCommandInput & {
+  enabled: boolean;
+};
+
+export type ManagedFolderSyncResult = {
+  localFolderId: string;
+  pendingEventCount: number;
+  syncEnabled: boolean;
+  updatedAt: string;
+};
+
+export type ManagedFolderIndexProgressResult = {
+  calculatedAt: string;
+  indexedFiles: number;
+  localFolderId: string;
+  pendingEventCount: number;
+  pendingFiles: number;
+  progressPercent: number;
+  syncEnabled: boolean;
+  totalFiles: number;
 };
 
 export type ManagedFolderWatchResult = {
@@ -447,6 +471,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: SyncOutboxFlushResult;
   };
+  get_index_progress: {
+    args: ManagedFolderCommandInput;
+    result: ManagedFolderIndexProgressResult;
+  };
   get_preferred_app_monitor: {
     args: undefined;
     result: AppMonitorPreference;
@@ -539,6 +567,10 @@ export type TauriCommandContract = {
     args: AppMonitorPreferenceInput;
     result: AppMonitorPreference;
   };
+  set_folder_sync: {
+    args: ManagedFolderSyncInput;
+    result: ManagedFolderSyncResult;
+  };
   set_widget_always_on_top: {
     args: WidgetBooleanInput;
     result: WidgetWindowState;
@@ -619,6 +651,9 @@ export const tauriCommands = {
   flushSyncOutbox() {
     return invokeTauri<SyncOutboxFlushResult>(TAURI_COMMANDS.flushSyncOutbox);
   },
+  getIndexProgress(input: ManagedFolderCommandInput) {
+    return invokeTauri<ManagedFolderIndexProgressResult>(TAURI_COMMANDS.getIndexProgress, { input });
+  },
   getPreferredAppMonitor() {
     return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.getPreferredAppMonitor);
   },
@@ -693,6 +728,9 @@ export const tauriCommands = {
   },
   setPreferredAppMonitor(input: AppMonitorPreferenceInput) {
     return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.setPreferredAppMonitor, { input });
+  },
+  setFolderSync(input: ManagedFolderSyncInput) {
+    return invokeTauri<ManagedFolderSyncResult>(TAURI_COMMANDS.setFolderSync, { input });
   },
   setWidgetAlwaysOnTop(input: WidgetBooleanInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetAlwaysOnTop, { input });

@@ -12,8 +12,11 @@ import type {
   LocalFileSearchInput,
   LocalFileSearchResult,
   ManagedFolderCommandInput,
+  ManagedFolderIndexProgressResult,
   ManagedFolderScanResult,
   ManagedFolderSelection,
+  ManagedFolderSyncInput,
+  ManagedFolderSyncResult,
   ManagedFolderWatchResult,
   SelectManagedFolderInput,
   SqliteIntegrityResult,
@@ -142,7 +145,10 @@ export type LocalCacheReadinessResult = LocalAdapterResult<LocalCacheReadinessSu
 export type LocalTimerRecoveryResult = LocalAdapterResult<TimerRecoveryState, LocalCacheReadinessSummary>;
 export type LocalBackupRestoreRequest = LocalBackupRestoreInput;
 export type ManagedFolderSelectResult = LocalAdapterResult<ManagedFolderSelection>;
+export type ManagedFolderIndexProgressAdapterResult = LocalAdapterResult<ManagedFolderIndexProgressResult>;
 export type ManagedFolderScanAdapterResult = LocalAdapterResult<ManagedFolderScanResult>;
+export type ManagedFolderSyncAdapterInput = ManagedFolderSyncInput & LocalFolderScopeInput;
+export type ManagedFolderSyncAdapterResult = LocalAdapterResult<ManagedFolderSyncResult>;
 export type ManagedFolderWatchAdapterResult = LocalAdapterResult<
   ManagedFolderWatchResult,
   { localFolderId: string; watching: false }

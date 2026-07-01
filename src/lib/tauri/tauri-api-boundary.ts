@@ -142,6 +142,18 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.getIndexProgress,
+    responsibility: "Read local file index progress and pending syncable event count",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.setFolderSync,
+    responsibility: "Toggle whether a personal managed folder can stage detected file events for server reflection",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.watchManagedFolder,
     responsibility: "Watch folder for changes, update the local index, and emit refresh events",
     reflectsToServer: false,

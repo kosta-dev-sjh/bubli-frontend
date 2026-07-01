@@ -46,12 +46,41 @@ pub struct ManagedFolderCommandInput {
     local_folder_id: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderSyncInput {
+    enabled: bool,
+    local_folder_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderSyncResult {
+    local_folder_id: String,
+    pending_event_count: i64,
+    sync_enabled: bool,
+    updated_at: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ManagedFolderScanResult {
     changed_count: i64,
     local_folder_id: String,
     scanned_at: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderIndexProgressResult {
+    calculated_at: String,
+    indexed_files: i64,
+    local_folder_id: String,
+    pending_event_count: i64,
+    pending_files: i64,
+    progress_percent: i64,
+    sync_enabled: bool,
+    total_files: i64,
 }
 
 #[derive(Serialize)]
@@ -240,6 +269,56 @@ pub fn select_managed_folder(
         local_folder_id,
         name,
         path,
+    })
+}
+
+/// Return the current local index progress for one personal managed folder.
+#[tauri::command]
+pub fn get_index_progress(
+    state: State<'_, Db>,
+    input: ManagedFolderCommandInput,
+) -> Result<ManagedFolderIndexProgressResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    get_index_progress_for_conn(&conn, &input.local_folder_id)
+}
+
+/// Toggle whether detected file events from a personal managed folder may be
+/// staged for server reflection. Raw file contents still stay local.
+#[tauri::command]
+pub fn set_folder_sync(
+    state: State<'_, Db>,
+    input: ManagedFolderSyncInput,
+) -> Result<ManagedFolderSyncResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let now = now_ms();
+    set_folder_sync_for_conn(&conn, &input.local_folder_id, input.enabled, now)
+}
+
+fn set_folder_sync_for_conn(
+    conn: &Connection,
+    local_folder_id: &str,
+    enabled: bool,
+    now: i64,
+) -> Result<ManagedFolderSyncResult, String> {
+    let changed = conn
+        .execute(
+            "UPDATE managed_folders SET sync_enabled = ?2, updated_at = ?3 \
+             WHERE id = ?1 AND status != 'REMOVED'",
+            params![local_folder_id, if enabled { 1_i64 } else { 0_i64 }, now],
+        )
+        .map_err(|error| error.to_string())?;
+
+    if changed == 0 {
+        return Err(format!("managed folder not found: {local_folder_id}"));
+    }
+
+    let pending_event_count = pending_syncable_event_count(conn, local_folder_id)?;
+
+    Ok(ManagedFolderSyncResult {
+        local_folder_id: local_folder_id.to_string(),
+        pending_event_count,
+        sync_enabled: enabled,
+        updated_at: ms_to_iso(now),
     })
 }
 
@@ -542,6 +621,74 @@ pub fn watch_managed_folder(
         local_folder_id,
         watching: true,
     })
+}
+
+fn get_index_progress_for_conn(
+    conn: &Connection,
+    local_folder_id: &str,
+) -> Result<ManagedFolderIndexProgressResult, String> {
+    let sync_enabled: Option<i64> = conn
+        .query_row(
+            "SELECT sync_enabled FROM managed_folders WHERE id = ?1 AND status != 'REMOVED'",
+            params![local_folder_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some(sync_enabled) = sync_enabled else {
+        return Err(format!("managed folder not found: {local_folder_id}"));
+    };
+
+    let total_files: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM local_files WHERE local_folder_id = ?1",
+            params![local_folder_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let indexed_files: i64 = conn
+        .query_row(
+            "SELECT COUNT(DISTINCT f.id) \
+             FROM local_files f \
+             INNER JOIN local_file_fts fts ON fts.local_file_id = f.id \
+             WHERE f.local_folder_id = ?1",
+            params![local_folder_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let pending_event_count = pending_syncable_event_count(conn, local_folder_id)?;
+    let pending_files = (total_files - indexed_files).max(0);
+    let progress_percent = if total_files == 0 {
+        100
+    } else {
+        ((indexed_files * 100) / total_files).clamp(0, 100)
+    };
+
+    Ok(ManagedFolderIndexProgressResult {
+        calculated_at: ms_to_iso(now_ms()),
+        indexed_files,
+        local_folder_id: local_folder_id.to_string(),
+        pending_event_count,
+        pending_files,
+        progress_percent,
+        sync_enabled: sync_enabled == 1,
+        total_files,
+    })
+}
+
+fn pending_syncable_event_count(conn: &Connection, local_folder_id: &str) -> Result<i64, String> {
+    conn.query_row(
+        format!(
+            "SELECT COUNT(*) FROM local_file_events \
+             WHERE local_folder_id = ?1 \
+               AND status IN ('PENDING', 'APPROVED', 'FAILED') \
+               AND event_type IN ({SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL})"
+        )
+        .as_str(),
+        params![local_folder_id],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
 }
 
 fn should_process_watch_event(event: &Event) -> bool {
@@ -1171,8 +1318,11 @@ pub fn stage_local_file_events_for_sync(
                     "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
                  FROM local_file_events e \
                  LEFT JOIN local_files f ON f.id = e.local_file_id \
+                 INNER JOIN managed_folders m ON m.id = e.local_folder_id \
                  WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
                    AND e.event_type IN ({SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL}) \
+                   AND m.status = 'ACTIVE' \
+                   AND m.sync_enabled = 1 \
                    AND e.local_folder_id = ?1 \
                  ORDER BY e.created_at ASC LIMIT ?2"
                 ),
@@ -1183,8 +1333,11 @@ pub fn stage_local_file_events_for_sync(
                     "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
                  FROM local_file_events e \
                  LEFT JOIN local_files f ON f.id = e.local_file_id \
+                 INNER JOIN managed_folders m ON m.id = e.local_folder_id \
                  WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
                    AND e.event_type IN ({SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL}) \
+                   AND m.status = 'ACTIVE' \
+                   AND m.sync_enabled = 1 \
                  ORDER BY e.created_at ASC LIMIT ?1"
                 ),
                 false,
@@ -1410,6 +1563,29 @@ mod tests {
                 modified_at INTEGER,
                 updated_at INTEGER NOT NULL
             );
+            CREATE TABLE managed_folders (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                path TEXT NOT NULL UNIQUE,
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                sync_enabled INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            CREATE TABLE local_file_events (
+                id TEXT PRIMARY KEY,
+                local_file_id TEXT,
+                local_folder_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                local_path TEXT NOT NULL,
+                hash TEXT,
+                size_bytes INTEGER,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                reason TEXT,
+                modified_at INTEGER,
+                created_at INTEGER NOT NULL
+            );
             CREATE VIRTUAL TABLE local_file_fts USING fts5 (
                 local_file_id UNINDEXED,
                 file_name,
@@ -1478,6 +1654,77 @@ mod tests {
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'CREATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'UPDATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'DELETED'"));
+    }
+
+    #[test]
+    fn index_progress_reports_fts_and_pending_events() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', '/tmp/docs', 'ACTIVE', 1, 1, 1)",
+            [],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_files (id, local_folder_id, file_name, local_path, updated_at) \
+             VALUES ('file-1', 'folder-1', 'a.txt', '/tmp/docs/a.txt', 1), \
+                    ('file-2', 'folder-1', 'b.txt', '/tmp/docs/b.txt', 1)",
+            [],
+        )
+        .expect("insert local files");
+        conn.execute(
+            "INSERT INTO local_file_fts (local_file_id, file_name, content, local_path) \
+             VALUES ('file-1', 'a.txt', 'alpha', '/tmp/docs/a.txt')",
+            [],
+        )
+        .expect("insert fts row");
+        conn.execute(
+            "INSERT INTO local_file_events \
+             (id, local_file_id, local_folder_id, event_type, file_name, local_path, status, created_at) \
+             VALUES ('event-1', 'file-2', 'folder-1', 'UPDATED', 'b.txt', '/tmp/docs/b.txt', 'PENDING', 1)",
+            [],
+        )
+        .expect("insert event row");
+
+        let progress = get_index_progress_for_conn(&conn, "folder-1").expect("read progress");
+
+        assert_eq!(progress.total_files, 2);
+        assert_eq!(progress.indexed_files, 1);
+        assert_eq!(progress.pending_files, 1);
+        assert_eq!(progress.pending_event_count, 1);
+        assert_eq!(progress.progress_percent, 50);
+        assert!(progress.sync_enabled);
+    }
+
+    #[test]
+    fn set_folder_sync_updates_flag_and_keeps_pending_count() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', '/tmp/docs', 'ACTIVE', 0, 1, 1)",
+            [],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_file_events \
+             (id, local_file_id, local_folder_id, event_type, file_name, local_path, status, created_at) \
+             VALUES ('event-1', NULL, 'folder-1', 'CREATED', 'a.txt', '/tmp/docs/a.txt', 'PENDING', 1)",
+            [],
+        )
+        .expect("insert pending event");
+
+        let result = set_folder_sync_for_conn(&conn, "folder-1", true, 10).expect("enable sync");
+        let stored: i64 = conn
+            .query_row(
+                "SELECT sync_enabled FROM managed_folders WHERE id = 'folder-1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read sync flag");
+
+        assert_eq!(stored, 1);
+        assert!(result.sync_enabled);
+        assert_eq!(result.pending_event_count, 1);
     }
 
     #[test]

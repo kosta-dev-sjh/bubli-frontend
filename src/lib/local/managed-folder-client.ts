@@ -19,8 +19,11 @@ import type {
   LocalFilePreviewAdapterResult,
   LocalFileSearchAdapterInput,
   LocalFileSearchAdapterResult,
+  ManagedFolderIndexProgressAdapterResult,
   ManagedFolderScanAdapterResult,
   ManagedFolderSelectResult,
+  ManagedFolderSyncAdapterInput,
+  ManagedFolderSyncAdapterResult,
   ManagedFolderWatchAdapterResult,
   PersonalManagedFolderCommandInput,
   PersonalManagedFolderSelectInput,
@@ -70,6 +73,45 @@ export async function scanPersonalManagedFolder(
 
   return runTauriAdapter(TAURI_COMMANDS.scanManagedFolder, () =>
     tauriCommands.scanManagedFolder(tauriInput),
+  );
+}
+
+export async function getPersonalManagedFolderIndexProgress(
+  input: PersonalManagedFolderCommandInput,
+): Promise<ManagedFolderIndexProgressAdapterResult> {
+  if (!isTauriRuntime()) {
+    return unavailable(TAURI_COMMANDS.getIndexProgress);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.getIndexProgress);
+  }
+
+  const tauriInput = { localFolderId: input.localFolderId };
+
+  return runTauriAdapter(TAURI_COMMANDS.getIndexProgress, () =>
+    tauriCommands.getIndexProgress(tauriInput),
+  );
+}
+
+export async function setPersonalManagedFolderSync(
+  input: ManagedFolderSyncAdapterInput,
+): Promise<ManagedFolderSyncAdapterResult> {
+  if (!isTauriRuntime()) {
+    return unavailable(TAURI_COMMANDS.setFolderSync);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.setFolderSync);
+  }
+
+  const tauriInput = {
+    enabled: input.enabled,
+    localFolderId: input.localFolderId,
+  };
+
+  return runTauriAdapter(TAURI_COMMANDS.setFolderSync, () =>
+    tauriCommands.setFolderSync(tauriInput),
   );
 }
 
