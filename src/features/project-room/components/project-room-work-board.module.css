@@ -293,9 +293,11 @@
 }
 
 .periodPill {
-  background: linear-gradient(90deg, var(--wbs-accent-soft, rgba(215, 234, 244, 0.34)), rgba(255, 255, 255, 0.86));
+  --wbs-accent-soft: color-mix(in srgb, var(--wbs-accent, var(--color-water-blue)) 18%, transparent);
+
+  background: linear-gradient(90deg, var(--wbs-accent-soft), rgba(255, 255, 255, 0.86));
   border: 1px solid rgba(229, 231, 235, 0.88);
-  border-inline-start: 3px solid var(--wbs-accent, #8ecdf6);
+  border-inline-start: 3px solid var(--wbs-accent, var(--color-todo));
   border-radius: 11px;
   display: grid;
   gap: 3px;
@@ -365,16 +367,18 @@
 }
 
 .wbsRowTinted {
+  --wbs-accent-soft: color-mix(in srgb, var(--wbs-accent, var(--color-water-blue)) 16%, transparent);
+
   background: linear-gradient(90deg, var(--wbs-accent-soft, transparent) 0%, rgba(255, 255, 255, 0) 50%);
 }
 
 .wbsRowTinted::before {
-  background: var(--wbs-accent, #8ecdf6);
+  background: var(--wbs-accent, var(--color-todo));
 }
 
 .wbsRowChild .wbsCode {
-  border-color: color-mix(in srgb, var(--wbs-accent, #8ecdf6) 36%, #e5e7eb);
-  color: color-mix(in srgb, var(--wbs-accent, #8ecdf6) 58%, #2c3540);
+  border-color: color-mix(in srgb, var(--wbs-accent, var(--color-todo)) 36%, var(--color-border));
+  color: color-mix(in srgb, var(--wbs-accent, var(--color-todo)) 58%, var(--color-text));
 }
 
 .wbsRow:last-child {

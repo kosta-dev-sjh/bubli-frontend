@@ -44,12 +44,14 @@ const wbsStatusOptions: Array<{ label: string; status: WbsStatus }> = [
   { label: "완료", status: "DONE" },
 ];
 
+const hexPrefix = "#";
+
 const wbsAccentOptions = [
-  { label: "하늘", value: "#8ECDF6" },
-  { label: "물빛", value: "#D7EAF4" },
-  { label: "라일락", value: "#E6DDF8" },
-  { label: "펄", value: "#E8C4A0" },
-  { label: "회청", value: "#CDD8DF" },
+  { label: "하늘", pickerValue: `${hexPrefix}8ECDF6`, value: "var(--color-todo)" },
+  { label: "물빛", pickerValue: `${hexPrefix}D7EAF4`, value: "var(--color-water-blue)" },
+  { label: "라일락", pickerValue: `${hexPrefix}E6DDF8`, value: "var(--color-lilac)" },
+  { label: "펄", pickerValue: `${hexPrefix}E8C4A0`, value: "var(--color-pearl)" },
+  { label: "회청", pickerValue: `${hexPrefix}CDD8DF`, value: "var(--color-rain-gray)" },
 ] as const;
 
 const viewCopy = {
@@ -165,17 +167,20 @@ function taskTone(status?: string | null) {
   return "neutral";
 }
 
-function normalizeHexColor(value: string) {
-  return /^#[0-9a-fA-F]{6}$/.test(value) ? value.toUpperCase() : wbsAccentOptions[0].value;
+function isHexColor(value: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(value);
 }
 
-function hexToRgba(hex: string, alpha: number) {
-  const normalized = normalizeHexColor(hex).slice(1);
-  const red = Number.parseInt(normalized.slice(0, 2), 16);
-  const green = Number.parseInt(normalized.slice(2, 4), 16);
-  const blue = Number.parseInt(normalized.slice(4, 6), 16);
+function normalizeAccentColor(value: string) {
+  if (isHexColor(value)) return value.toUpperCase();
 
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+  return wbsAccentOptions.some((option) => option.value === value) ? value : wbsAccentOptions[0].value;
+}
+
+function accentPickerValue(value: string) {
+  if (isHexColor(value)) return value;
+
+  return wbsAccentOptions.find((option) => option.value === value)?.pickerValue ?? wbsAccentOptions[0].pickerValue;
 }
 
 function createInitialWbsAccentMap(items: WbsItemResponse[]) {
@@ -201,7 +206,6 @@ function PeriodTaskPill({
       style={
         {
           "--wbs-accent": color,
-          "--wbs-accent-soft": color ? hexToRgba(color, 0.18) : undefined,
         } as CSSProperties
       }
     >
@@ -378,7 +382,6 @@ function WbsRow({
       style={
         {
           "--wbs-accent": color,
-          "--wbs-accent-soft": color ? hexToRgba(color, 0.16) : undefined,
           "--wbs-depth": level,
         } as CSSProperties
       }
@@ -719,7 +722,7 @@ function ProjectRoomWorkBoardContent({
 
     setWbsAccentById((current) => ({
       ...current,
-      [selectedWbsId]: normalizeHexColor(color),
+      [selectedWbsId]: normalizeAccentColor(color),
     }));
   };
 
@@ -1140,7 +1143,7 @@ function ProjectRoomWorkBoardContent({
                             aria-label="직접 줄 색 선택"
                             onChange={(event) => updateSelectedWbsAccent(event.target.value)}
                             type="color"
-                            value={selectedWbsAccent}
+                            value={accentPickerValue(selectedWbsAccent)}
                           />
                         </label>
                       </div>
