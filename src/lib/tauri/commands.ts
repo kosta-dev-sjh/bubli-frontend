@@ -4,6 +4,7 @@ export const TAURI_COMMANDS = {
   appReady: "app_ready",
   backupLocalSqlite: "backup_local_sqlite",
   checkLocalSqliteIntegrity: "check_local_sqlite_integrity",
+  clearTauriAuthSession: "clear_tauri_auth_session",
   closeWidgetWindow: "close_widget_window",
   flushSyncOutbox: "flush_sync_outbox",
   getPreferredAppMonitor: "get_preferred_app_monitor",
@@ -12,6 +13,7 @@ export const TAURI_COMMANDS = {
   listAppMonitors: "list_app_monitors",
   markActivityContextSynced: "mark_activity_context_synced",
   openWidgetWindow: "open_widget_window",
+  readTauriAuthSession: "read_tauri_auth_session",
   readActivityContext: "read_activity_context",
   readLocalFilePreview: "read_local_file_preview",
   recoverTimerState: "recover_timer_state",
@@ -33,6 +35,7 @@ export const TAURI_COMMANDS = {
   setWidgetWindowPosition: "set_widget_window_position",
   stageActivityContextsForSync: "stage_activity_contexts_for_sync",
   stageLocalFileEventsForSync: "stage_local_file_events_for_sync",
+  storeTauriAuthSession: "store_tauri_auth_session",
   syncRoomMessages: "sync_room_messages",
   syncWidgetUsageSummary: "sync_widget_usage_summary",
   toggleWidgetDockOrb: "toggle_widget_dock_orb",
@@ -148,6 +151,15 @@ export type SqliteIntegrityResult = {
   checkedAt: string;
   ok: boolean;
   recoveryRequired: boolean;
+};
+
+export type TauriAuthSessionStoreInput = {
+  sessionJson: string;
+};
+
+export type TauriAuthSessionReadResult = {
+  savedAt: string;
+  sessionJson: string;
 };
 
 export type LocalRoomMessageSyncInput = {
@@ -411,6 +423,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: SqliteIntegrityResult;
   };
+  clear_tauri_auth_session: {
+    args: undefined;
+    result: null;
+  };
   close_widget_window: {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
@@ -442,6 +458,10 @@ export type TauriCommandContract = {
   open_widget_window: {
     args: WidgetWindowOpenInput | undefined;
     result: WidgetWindowState;
+  };
+  read_tauri_auth_session: {
+    args: undefined;
+    result: TauriAuthSessionReadResult | null;
   };
   read_activity_context: {
     args: undefined;
@@ -527,6 +547,10 @@ export type TauriCommandContract = {
     args: LocalFileEventsSyncStageInput | undefined;
     result: LocalFileEventsSyncStageResult;
   };
+  store_tauri_auth_session: {
+    args: TauriAuthSessionStoreInput;
+    result: TauriAuthSessionReadResult;
+  };
   sync_room_messages: {
     args: LocalRoomMessageSyncInput;
     result: LocalRoomMessageSyncResult;
@@ -570,6 +594,9 @@ export const tauriCommands = {
   checkLocalSqliteIntegrity() {
     return invokeTauri<SqliteIntegrityResult>(TAURI_COMMANDS.checkLocalSqliteIntegrity);
   },
+  clearTauriAuthSession() {
+    return invokeTauri<null>(TAURI_COMMANDS.clearTauriAuthSession);
+  },
   closeWidgetWindow(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.closeWidgetWindow, input ? { input } : undefined);
   },
@@ -593,6 +620,9 @@ export const tauriCommands = {
   },
   openWidgetWindow(input?: WidgetWindowOpenInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.openWidgetWindow, input ? { input } : undefined);
+  },
+  readTauriAuthSession() {
+    return invokeTauri<TauriAuthSessionReadResult | null>(TAURI_COMMANDS.readTauriAuthSession);
   },
   readActivityContext() {
     return invokeTauri<ActivityContextResult>(TAURI_COMMANDS.readActivityContext);
@@ -668,6 +698,9 @@ export const tauriCommands = {
       TAURI_COMMANDS.stageLocalFileEventsForSync,
       input ? { input } : undefined,
     );
+  },
+  storeTauriAuthSession(input: TauriAuthSessionStoreInput) {
+    return invokeTauri<TauriAuthSessionReadResult>(TAURI_COMMANDS.storeTauriAuthSession, { input });
   },
   syncRoomMessages(input: LocalRoomMessageSyncInput) {
     return invokeTauri<LocalRoomMessageSyncResult>(TAURI_COMMANDS.syncRoomMessages, { input });

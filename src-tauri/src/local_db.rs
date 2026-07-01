@@ -18,6 +18,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
@@ -121,6 +122,19 @@ pub struct LocalRoomMessageSyncResult {
     latest_sequence: i64,
     room_id: String,
     synced_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthSessionStoreInput {
+    session_json: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthSessionReadResult {
+    saved_at: String,
+    session_json: String,
 }
 
 #[derive(Serialize)]
@@ -284,6 +298,32 @@ pub fn restore_local_sqlite_backup(
         "restore requires an app restart before replacing the open SQLite file: {}",
         input.backup_id
     ))
+}
+
+#[tauri::command]
+pub fn store_tauri_auth_session(
+    state: tauri::State<'_, Db>,
+    input: AuthSessionStoreInput,
+) -> Result<AuthSessionReadResult, String> {
+    validate_auth_session_json(&input.session_json)?;
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    store_auth_session_json(&conn, &input.session_json)
+}
+
+#[tauri::command]
+pub fn read_tauri_auth_session(
+    state: tauri::State<'_, Db>,
+) -> Result<Option<AuthSessionReadResult>, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    read_auth_session_json(&conn)
+}
+
+#[tauri::command]
+pub fn clear_tauri_auth_session(state: tauri::State<'_, Db>) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    conn.execute("DELETE FROM local_auth_session WHERE id = 1", [])
+        .map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -544,7 +584,78 @@ fn normalize_activity_sync_status(value: &str) -> String {
     .to_string()
 }
 
+fn validate_auth_session_json(session_json: &str) -> Result<(), String> {
+    let value: Value = serde_json::from_str(session_json)
+        .map_err(|error| format!("auth session json parse failed: {error}"))?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| "auth session must be a JSON object".to_string())?;
+
+    for key in [
+        "accessToken",
+        "refreshToken",
+        "expiresAt",
+        "refreshTokenExpiresAt",
+        "tokenType",
+        "clientType",
+    ] {
+        let valid = object
+            .get(key)
+            .and_then(Value::as_str)
+            .is_some_and(|text| !text.trim().is_empty());
+        if !valid {
+            return Err(format!("auth session missing {key}"));
+        }
+    }
+
+    Ok(())
+}
+
+fn store_auth_session_json(
+    conn: &Connection,
+    session_json: &str,
+) -> Result<AuthSessionReadResult, String> {
+    let saved_at = now_ms();
+    conn.execute(
+        "INSERT INTO local_auth_session (id, session_json, saved_at) VALUES (1, ?1, ?2) \
+         ON CONFLICT(id) DO UPDATE SET session_json = excluded.session_json, saved_at = excluded.saved_at",
+        params![session_json, saved_at],
+    )
+    .map_err(|error| error.to_string())?;
+
+    Ok(AuthSessionReadResult {
+        saved_at: ms_to_iso(saved_at),
+        session_json: session_json.to_string(),
+    })
+}
+
+fn read_auth_session_json(conn: &Connection) -> Result<Option<AuthSessionReadResult>, String> {
+    conn.query_row(
+        "SELECT session_json, saved_at FROM local_auth_session WHERE id = 1",
+        [],
+        |row| {
+            let session_json: String = row.get(0)?;
+            let saved_at: i64 = row.get(1)?;
+            Ok(AuthSessionReadResult {
+                saved_at: ms_to_iso(saved_at),
+                session_json,
+            })
+        },
+    )
+    .optional()
+    .map_err(|error| error.to_string())
+}
+
 const SCHEMA_SQL: &str = r#"
+-- Desktop auth session mirror. The frontend still performs refresh/logout
+-- through the server; this row lets the Tauri shell restore the session after
+-- a WebView/localStorage reset. Replace with OS secure storage in hardening.
+CREATE TABLE IF NOT EXISTS local_auth_session (
+    id           INTEGER PRIMARY KEY CHECK (id = 1),
+    session_json TEXT NOT NULL,
+    saved_at     INTEGER NOT NULL
+);
+
 -- Personal managed folders (user-selected). Personal-only: no room_id column.
 CREATE TABLE IF NOT EXISTS managed_folders (
     id            TEXT PRIMARY KEY,
@@ -698,3 +809,47 @@ CREATE TABLE IF NOT EXISTS local_activity_buffer (
 );
 CREATE INDEX IF NOT EXISTS idx_local_activity_buffer_status ON local_activity_buffer(sync_status, updated_at);
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        read_auth_session_json, store_auth_session_json, validate_auth_session_json, SCHEMA_SQL,
+    };
+    use rusqlite::Connection;
+
+    fn auth_session_fixture() -> String {
+        serde_json::json!({
+            "accessToken": "access-token",
+            "refreshToken": "refresh-token",
+            "expiresAt": "2026-07-02T01:00:00Z",
+            "refreshTokenExpiresAt": "2026-08-02T01:00:00Z",
+            "tokenType": "Bearer",
+            "clientType": "TAURI",
+            "savedAt": "2026-07-02T00:00:00Z",
+            "user": { "id": "user-1", "name": "Bubli User" }
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn stores_and_reads_tauri_auth_session_json() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+
+        let session_json = auth_session_fixture();
+        store_auth_session_json(&conn, &session_json).expect("store auth session");
+        let stored = read_auth_session_json(&conn)
+            .expect("read auth session")
+            .expect("session exists");
+
+        assert_eq!(stored.session_json, session_json);
+        assert!(!stored.saved_at.is_empty());
+    }
+
+    #[test]
+    fn rejects_incomplete_tauri_auth_session_json() {
+        let error = validate_auth_session_json(r#"{"accessToken":"access-token"}"#)
+            .expect_err("incomplete session should fail");
+        assert!(error.contains("refreshToken"));
+    }
+}

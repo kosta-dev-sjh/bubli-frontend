@@ -12,6 +12,7 @@ import { TAURI_COMMANDS } from "@/lib/tauri/commands";
 
 /** Concerns that live only on the device. */
 export const LOCAL_ONLY_RESPONSIBILITIES = [
+  "Desktop auth session mirror and restore trigger",
   "SQLite cache (chat cache, widget usage detail, activity focus/buffer, sync outbox)",
   "Personal managed-folder detection and local file index",
   "Activity context capture (app name, window title, dwell time) with consent",
@@ -39,6 +40,25 @@ export type IpcBoundaryRow = {
 
 /** Per-IPC responsibility and whether/where it reflects to the server. */
 export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
+  // Auth session mirror: local restore only. Server auth stays in authApi/apiRequest.
+  {
+    ipc: TAURI_COMMANDS.storeTauriAuthSession,
+    responsibility: "Mirror the authenticated web session into local SQLite for app restart recovery",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.readTauriAuthSession,
+    responsibility: "Restore the local mirrored auth session before app shell API calls",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.clearTauriAuthSession,
+    responsibility: "Remove the local mirrored auth session on logout or expired refresh token",
+    reflectsToServer: false,
+    serverApi: null,
+  },
   // Widget window state: local only.
   {
     ipc: TAURI_COMMANDS.openWidgetWindow,

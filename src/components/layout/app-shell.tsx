@@ -12,6 +12,7 @@ import { authApi } from "@/features/auth/api/authApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
@@ -105,6 +106,7 @@ export function AppShell({ children }: AppShellProps) {
 
     async function loadShell() {
       try {
+        await restoreStoredAuthSessionFromTauri();
         const [user, roomPage] = await Promise.all([authApi.getMe(), projectRoomApi.list()]);
         let notificationCount = 0;
 

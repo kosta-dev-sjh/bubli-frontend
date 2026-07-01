@@ -1053,11 +1053,14 @@ pub fn run() {
             // Local SQLite lifecycle + cache recovery commands.
             local_db::backup_local_sqlite,
             local_db::check_local_sqlite_integrity,
+            local_db::clear_tauri_auth_session,
             local_db::mark_activity_context_synced,
+            local_db::read_tauri_auth_session,
             local_db::record_activity_context,
             local_db::record_timer_state,
             local_db::recover_timer_state,
             local_db::stage_activity_contexts_for_sync,
+            local_db::store_tauri_auth_session,
             local_db::restore_local_sqlite_backup,
             local_db::sync_room_messages
         ])
