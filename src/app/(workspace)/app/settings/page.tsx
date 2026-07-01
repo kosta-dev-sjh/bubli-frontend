@@ -13,6 +13,7 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { normalizeLocale, useI18n, type Locale, type MessageKey } from "@/lib/i18n";
 import { recordCurrentActivityContext } from "@/lib/local/activity-client";
 import {
   backupLocalSqlite,
@@ -48,6 +49,9 @@ import type {
 import type { LocalAdapterResult } from "@/types/local";
 
 import styles from "./settings-page.module.css";
+
+// 번역 함수 시그니처. 모듈 레벨 헬퍼에 t를 넘길 때 사용한다.
+type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string;
 
 type SettingsData = {
   folders: ManagedFolderResponse[];
@@ -90,50 +94,51 @@ const emptySettings: SettingsData = {
   widgetUsage: null,
 };
 
-const widgetBubbleLabels: Record<WidgetBubbleType, string> = {
-  AGENT: "에이전트",
-  ALERT: "알림",
-  CHAT: "대화",
-  MEMO: "메모",
-  RESOURCE: "자료",
-  SCHEDULE: "일정",
-  TIMER: "타이머",
-  TODO: "할 일",
+const bubbleTypeKey: Record<WidgetBubbleType, MessageKey> = {
+  AGENT: "settings.bubbleType.AGENT",
+  ALERT: "settings.bubbleType.ALERT",
+  CHAT: "settings.bubbleType.CHAT",
+  MEMO: "settings.bubbleType.MEMO",
+  RESOURCE: "settings.bubbleType.RESOURCE",
+  SCHEDULE: "settings.bubbleType.SCHEDULE",
+  TIMER: "settings.bubbleType.TIMER",
+  TODO: "settings.bubbleType.TODO",
 };
 
 const notificationRows: Array<{
-  description: string;
+  descKey: MessageKey;
   key: keyof NotificationPreferencesResponse;
-  title: string;
+  titleKey: MessageKey;
 }> = [
-  { key: "messageEnabled", title: "새 메시지", description: "프로젝트룸 대화와 1:1 대화" },
-  { key: "commentEnabled", title: "댓글과 언급", description: "자료 댓글, 확인 요청, 멤버 언급" },
-  { key: "resourceVersionEnabled", title: "자료 변경", description: "프로젝트룸 공용 자료의 새 버전" },
-  { key: "agentEnabled", title: "에이전트 후보", description: "확인할 후보, WBS/TODO 후보" },
-  { key: "capacityEnabled", title: "용량", description: "개인 자료 동기화 용량 경고" },
+  { key: "messageEnabled", titleKey: "settings.notif.message.title", descKey: "settings.notif.message.desc" },
+  { key: "commentEnabled", titleKey: "settings.notif.comment.title", descKey: "settings.notif.comment.desc" },
+  { key: "resourceVersionEnabled", titleKey: "settings.notif.resource.title", descKey: "settings.notif.resource.desc" },
+  { key: "agentEnabled", titleKey: "settings.notif.agent.title", descKey: "settings.notif.agent.desc" },
+  { key: "capacityEnabled", titleKey: "settings.notif.capacity.title", descKey: "settings.notif.capacity.desc" },
 ];
 
 const privacyRows: Array<{
-  description: string;
+  descKey: MessageKey;
   key: keyof PrivacyConsentsResponse;
-  title: string;
+  titleKey: MessageKey;
 }> = [
-  { key: "localFolderEnabled", title: "개인 폴더 동기화", description: "내가 선택한 로컬 폴더만 개인 자료로 색인" },
-  { key: "activityDetectionEnabled", title: "활성 앱과 창 제목", description: "동의한 경우 앱 이름, 창 제목, 머문 시간만 사용" },
-  { key: "personalAgentLocalMemoryEnabled", title: "개인 에이전트 기억", description: "개인 작업 맥락을 기기 안 캐시에 보관" },
-  { key: "widgetUsageLocalEventEnabled", title: "버블 사용 기록", description: "위치, 표시 상태, 타이머 복구에 사용" },
+  { key: "localFolderEnabled", titleKey: "settings.privacy.folder.title", descKey: "settings.privacy.folder.desc" },
+  { key: "activityDetectionEnabled", titleKey: "settings.privacy.activity.title", descKey: "settings.privacy.activity.desc" },
+  { key: "personalAgentLocalMemoryEnabled", titleKey: "settings.privacy.memory.title", descKey: "settings.privacy.memory.desc" },
+  { key: "widgetUsageLocalEventEnabled", titleKey: "settings.privacy.widget.title", descKey: "settings.privacy.widget.desc" },
 ];
 
-const localeOptions = [
+// 언어 라벨은 각 언어의 자기 표기(endonym)이므로 번역하지 않는다.
+const localeOptions: Array<{ label: string; value: Locale }> = [
   { label: "한국어", value: "ko" },
   { label: "English", value: "en" },
   { label: "日本語", value: "ja" },
 ];
 
-const timezoneOptions = [
-  { label: "서울 시간", value: "Asia/Seoul" },
-  { label: "UTC", value: "UTC" },
-  { label: "도쿄 시간", value: "Asia/Tokyo" },
+const timezoneOptions: Array<{ labelKey: MessageKey; value: string }> = [
+  { labelKey: "settings.tz.seoul", value: "Asia/Seoul" },
+  { labelKey: "settings.tz.utc", value: "UTC" },
+  { labelKey: "settings.tz.tokyo", value: "Asia/Tokyo" },
 ];
 
 const defaultProfileDraft = { locale: "ko", name: "", timezone: "Asia/Seoul" };
@@ -153,8 +158,8 @@ function byteLabel(value: number) {
   return `${Math.round(value / 1024)}KB`;
 }
 
-function storageLabel(storage: StorageUsageResponse | null) {
-  if (!storage) return "확인 전";
+function storageLabel(storage: StorageUsageResponse | null, notReadyLabel: string) {
+  if (!storage) return notReadyLabel;
   return `${byteLabel(storage.usedBytes)} / ${byteLabel(storage.limitBytes)}`;
 }
 
@@ -173,9 +178,9 @@ function localResultMessage<TData, TSummary>(result: LocalAdapterResult<TData, T
   return result.message;
 }
 
-function monitorLabel(monitor: AppMonitorInfo, index: number) {
-  const name = monitor.name?.trim() || `모니터 ${index + 1}`;
-  const primaryLabel = monitor.isPrimary ? " · 기본" : "";
+function monitorLabel(monitor: AppMonitorInfo, index: number, t: Translate) {
+  const name = monitor.name?.trim() || t("settings.folders.monitorFallback", { index: index + 1 });
+  const primaryLabel = monitor.isPrimary ? ` · ${t("settings.folders.primaryTag")}` : "";
   return `${name}${primaryLabel} - ${monitor.size.width}x${monitor.size.height} @ ${monitor.position.x},${monitor.position.y}`;
 }
 
@@ -186,6 +191,7 @@ function statusTone(value: string) {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { t, setLocale } = useI18n();
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [profileDraft, setProfileDraft] = useState(defaultProfileDraft);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -212,6 +218,8 @@ export default function SettingsPage() {
       ]);
 
       setProfileDraft(userToProfileDraft(user));
+      // 앱 진입 시 서버 locale을 우선 반영한다.
+      setLocale(normalizeLocale(user.locale));
       setState({
         kind: "ready",
         settings: {
@@ -234,7 +242,7 @@ export default function SettingsPage() {
       setProfileDraft(defaultProfileDraft);
       setState({ kind: "offline" });
     }
-  }, []);
+  }, [setLocale]);
 
   useEffect(() => {
     const runtimeHandle = window.setTimeout(() => {
@@ -274,9 +282,19 @@ export default function SettingsPage() {
     setState((current) => (current.kind === "ready" ? updater(current) : current));
   }, []);
 
+  // 언어 버튼: 클릭 즉시 화면 언어를 미리보기로 전환한다.
+  const selectLocale = useCallback(
+    (nextLocale: Locale) => {
+      setProfileDraft((draft) => ({ ...draft, locale: nextLocale }));
+      setLocale(nextLocale);
+    },
+    [setLocale],
+  );
+
   const saveProfile = useCallback(async () => {
     if (state.kind !== "ready") return;
 
+    const previousLocale = normalizeLocale(state.user.locale);
     const nextUser = {
       ...state.user,
       locale: profileDraft.locale,
@@ -294,11 +312,15 @@ export default function SettingsPage() {
         timezone: nextUser.timezone,
       });
       updateReadyState((current) => ({ ...current, user: saved }));
+      // 저장 성공 시 전역 locale을 서버가 확정한 값으로 동기화한다.
+      setLocale(normalizeLocale(saved.locale));
     } catch {
       if (shouldUseWorkspacePreviewData()) return;
+      // 저장 실패 시 미리보기로 바꾼 언어를 기존 값으로 롤백한다.
+      setLocale(previousLocale);
       setSaveMessage("저장하지 못했습니다. 서버 연결을 확인하세요");
     }
-  }, [profileDraft, state, updateReadyState]);
+  }, [profileDraft, setLocale, state, updateReadyState]);
 
   const logout = useCallback(async () => {
     await authApi.logout();
@@ -556,37 +578,43 @@ export default function SettingsPage() {
     <section className={`workspace-route ${styles.route}`} aria-labelledby="settings-title">
       <header className={`${styles.routeHeader} workspace-route__header`}>
         <div>
-          <span className={styles.kicker}>회원 설정</span>
-          <h1 id="settings-title">설정</h1>
-          <p>계정, 알림, 언어, 로컬 앱 권한을 실제 상태 기준으로 관리합니다.</p>
+          <span className={styles.kicker}>{t("settings.kicker")}</span>
+          <h1 id="settings-title">{t("settings.title")}</h1>
+          <p>{t("settings.subtitle")}</p>
         </div>
         <div className={styles.headerStatus}>
           <StatusBadge tone={state.kind === "ready" ? "approved" : state.kind === "auth" ? "warning" : "neutral"}>
-            {state.kind === "ready" ? "서버 연결됨" : state.kind === "auth" ? "로그인 필요" : "서버 연결 대기"}
+            {state.kind === "ready"
+              ? t("settings.status.connected")
+              : state.kind === "auth"
+                ? t("settings.status.loginRequired")
+                : t("settings.status.waiting")}
           </StatusBadge>
-          <StatusBadge tone={desktopRuntime ? "personal" : "neutral"}>{desktopRuntime ? "데스크탑 앱" : "브라우저"}</StatusBadge>
+          <StatusBadge tone={desktopRuntime ? "personal" : "neutral"}>
+            {desktopRuntime ? t("settings.status.desktopApp") : t("settings.status.browser")}
+          </StatusBadge>
           {localActionMessage ? <StatusBadge tone={statusTone(localActionMessage)}>{localActionMessage}</StatusBadge> : null}
           {saveMessage ? <StatusBadge tone={statusTone(saveMessage)}>{saveMessage}</StatusBadge> : null}
         </div>
       </header>
 
-      {state.kind === "loading" && <GlassPanel className={styles.notice}>설정을 불러오는 중입니다.</GlassPanel>}
+      {state.kind === "loading" && <GlassPanel className={styles.notice}>{t("settings.notice.loading")}</GlassPanel>}
       {state.kind === "auth" && (
         <GlassPanel className={styles.notice}>
           <div>
-            <strong>로그인이 필요합니다</strong>
-            <span>계정 설정과 알림 설정은 로그인 뒤 표시됩니다.</span>
+            <strong>{t("settings.notice.authTitle")}</strong>
+            <span>{t("settings.notice.authBody")}</span>
           </div>
           <Link className="bubli-button bubli-button--primary" href="/login">
-            로그인
+            {t("common.login")}
           </Link>
         </GlassPanel>
       )}
       {state.kind === "offline" && (
         <GlassPanel className={styles.notice}>
           <div>
-            <strong>서버 연결 대기</strong>
-            <span>계정, 알림, 버블 서버 설정은 연결되면 표시됩니다. 로컬 앱 항목은 현재 실행 환경 기준입니다.</span>
+            <strong>{t("settings.notice.offlineTitle")}</strong>
+            <span>{t("settings.notice.offlineBody")}</span>
           </div>
         </GlassPanel>
       )}
@@ -595,51 +623,57 @@ export default function SettingsPage() {
         <div className={styles.page}>
           <div className={styles.statusGrid}>
             <GlassPanel className={styles.statusCard}>
-              <span>계정</span>
-              <strong>{state.kind === "ready" ? state.user.name : "연결 전"}</strong>
-              <small>{state.kind === "ready" ? state.user.email : "서버 연결 후 표시"}</small>
+              <span>{t("settings.card.account")}</span>
+              <strong>{state.kind === "ready" ? state.user.name : t("settings.value.beforeConnect")}</strong>
+              <small>{state.kind === "ready" ? state.user.email : t("settings.value.shownAfterConnect")}</small>
             </GlassPanel>
             <GlassPanel className={styles.statusCard}>
-              <span>알림</span>
-              <strong>{state.kind === "ready" ? `${enabledCount(notificationSettings)}개 켜짐` : "확인 전"}</strong>
-              <small>{readySettings.notifications ? "서버 설정" : "서버 연결 대기"}</small>
+              <span>{t("settings.card.notifications")}</span>
+              <strong>
+                {state.kind === "ready"
+                  ? t("settings.value.enabledCount", { count: enabledCount(notificationSettings) })
+                  : t("settings.value.beforeCheck")}
+              </strong>
+              <small>{readySettings.notifications ? t("settings.value.serverSetting") : t("settings.status.waiting")}</small>
             </GlassPanel>
             <GlassPanel className={styles.statusCard}>
-              <span>데스크탑 앱</span>
-              <strong>{desktopRuntime ? "실행 중" : "앱 전용"}</strong>
-              <small>{desktopRuntime ? "Tauri 실행 중" : "브라우저에서는 읽기 전용"}</small>
+              <span>{t("settings.card.desktopApp")}</span>
+              <strong>{desktopRuntime ? t("settings.value.running") : t("settings.value.appOnly")}</strong>
+              <small>{desktopRuntime ? t("settings.value.tauriRunning") : t("settings.value.browserReadonly")}</small>
             </GlassPanel>
             <GlassPanel className={styles.statusCard}>
-              <span>저장공간</span>
-              <strong>{storageLabel(readySettings.storage)}</strong>
-              <small>{readySettings.storage ? "서버 사용량" : "현재 데이터가 없습니다"}</small>
+              <span>{t("settings.card.storage")}</span>
+              <strong>{storageLabel(readySettings.storage, t("settings.value.beforeCheck"))}</strong>
+              <small>{readySettings.storage ? t("settings.value.serverUsage") : t("settings.value.noData")}</small>
             </GlassPanel>
           </div>
 
           <GlassPanel className={styles.section}>
             <div className={styles.sectionHead}>
               <div>
-                <span className={styles.sectionLabel}>계정</span>
-                <h2>로그인 정보</h2>
+                <span className={styles.sectionLabel}>{t("settings.card.account")}</span>
+                <h2>{t("settings.account.title")}</h2>
               </div>
-              <StatusBadge tone={state.kind === "ready" ? "approved" : "neutral"}>{state.kind === "ready" ? "연결됨" : "연결 전"}</StatusBadge>
+              <StatusBadge tone={state.kind === "ready" ? "approved" : "neutral"}>
+                {state.kind === "ready" ? t("settings.value.connected") : t("settings.value.beforeConnect")}
+              </StatusBadge>
             </div>
             <div className={styles.accountGrid}>
               <div className={styles.identity}>
-                <span>이름</span>
-                <strong>{state.kind === "ready" ? state.user.name : "서버 연결 후 표시"}</strong>
+                <span>{t("settings.account.name")}</span>
+                <strong>{state.kind === "ready" ? state.user.name : t("settings.value.shownAfterConnect")}</strong>
               </div>
               <div className={styles.identity}>
-                <span>이메일</span>
-                <strong>{state.kind === "ready" ? state.user.email : "서버 연결 후 표시"}</strong>
+                <span>{t("settings.account.email")}</span>
+                <strong>{state.kind === "ready" ? state.user.email : t("settings.value.shownAfterConnect")}</strong>
               </div>
               <div className={styles.identity}>
                 <span>Bubli ID</span>
-                <strong>{state.kind === "ready" ? state.user.bubliId : "현재 데이터가 없습니다"}</strong>
+                <strong>{state.kind === "ready" ? state.user.bubliId : t("settings.value.noData")}</strong>
               </div>
               <div className={styles.actions}>
                 <Button disabled={state.kind !== "ready"} onClick={() => void logout()} type="button" variant="quiet">
-                  로그아웃
+                  {t("settings.account.logout")}
                 </Button>
               </div>
             </div>
@@ -648,16 +682,16 @@ export default function SettingsPage() {
           <GlassPanel className={styles.section}>
             <div className={styles.sectionHead}>
               <div>
-                <span className={styles.sectionLabel}>표시</span>
-                <h2>언어와 화면</h2>
+                <span className={styles.sectionLabel}>{t("settings.display")}</span>
+                <h2>{t("settings.languageScreen")}</h2>
               </div>
               <Button disabled={state.kind !== "ready"} onClick={() => void saveProfile()} type="button" variant="primary">
-                저장
+                {t("settings.save")}
               </Button>
             </div>
             <div className={styles.profileGrid}>
               <label className="workspace-route__field">
-                <span>표시 이름</span>
+                <span>{t("settings.display.name")}</span>
                 <input
                   disabled={state.kind !== "ready"}
                   onChange={(event) => setProfileDraft((draft) => ({ ...draft, name: event.target.value }))}
@@ -665,15 +699,15 @@ export default function SettingsPage() {
                 />
               </label>
               <div className={styles.settingBlock}>
-                <span>언어</span>
-                <div aria-label="언어 선택" className={styles.segmented} role="radiogroup">
+                <span>{t("settings.language")}</span>
+                <div aria-label={t("settings.display.languageAria")} className={styles.segmented} role="radiogroup">
                   {localeOptions.map((option) => (
                     <button
                       aria-checked={profileDraft.locale === option.value}
                       className={profileDraft.locale === option.value ? styles.segmentedActive : ""}
                       disabled={state.kind !== "ready"}
                       key={option.value}
-                      onClick={() => setProfileDraft((draft) => ({ ...draft, locale: option.value }))}
+                      onClick={() => selectLocale(option.value)}
                       role="radio"
                       type="button"
                     >
@@ -683,7 +717,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <label className="workspace-route__field">
-                <span>시간대</span>
+                <span>{t("settings.display.timezone")}</span>
                 <select
                   disabled={state.kind !== "ready"}
                   onChange={(event) => setProfileDraft((draft) => ({ ...draft, timezone: event.target.value }))}
@@ -691,13 +725,13 @@ export default function SettingsPage() {
                 >
                   {timezoneOptions.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </option>
                   ))}
                 </select>
               </label>
               <div className={styles.settingBlock}>
-                <span>테마</span>
+                <span>{t("settings.display.theme")}</span>
                 <ThemeToggle />
               </div>
             </div>
@@ -706,43 +740,43 @@ export default function SettingsPage() {
           <GlassPanel className={styles.section}>
             <div className={styles.sectionHead}>
               <div>
-                <span className={styles.sectionLabel}>외부 연동</span>
+                <span className={styles.sectionLabel}>{t("settings.section.integration")}</span>
                 <h2>Google Calendar</h2>
               </div>
               <StatusBadge tone={state.kind === "ready" ? "approved" : "neutral"}>
-                {state.kind === "ready" ? "연결 준비" : "서버 연결 대기"}
+                {state.kind === "ready" ? t("settings.gcal.ready") : t("settings.status.waiting")}
               </StatusBadge>
             </div>
             <div className={styles.integrationGrid}>
               <div className={styles.integrationLead}>
-                <strong>일정은 Bubli에서 관리하고, 외부 캘린더와 함께 확인합니다.</strong>
-                <span>프로젝트룸 일정과 개인 일정을 Google Calendar와 연결할 수 있습니다.</span>
+                <strong>{t("settings.gcal.lead")}</strong>
+                <span>{t("settings.gcal.leadSub")}</span>
               </div>
               <div className={styles.rows}>
                 <div className={styles.row}>
                   <span>
-                    <strong>연결 상태</strong>
-                    <small>{state.kind === "ready" ? "연결 또는 재연결을 시작할 수 있습니다" : "로그인 후 확인합니다"}</small>
+                    <strong>{t("settings.gcal.connectionStatus")}</strong>
+                    <small>{state.kind === "ready" ? t("settings.gcal.canConnect") : t("settings.gcal.afterLogin")}</small>
                   </span>
                   <StatusBadge tone={state.kind === "ready" ? "approved" : "neutral"}>
-                    {state.kind === "ready" ? "준비됨" : "대기"}
+                    {state.kind === "ready" ? t("settings.value.prepared") : t("settings.value.waiting")}
                   </StatusBadge>
                 </div>
                 <div className={styles.row}>
                   <span>
-                    <strong>반영 범위</strong>
-                    <small>일정과 마감만 연결합니다. 자료와 대화는 바꾸지 않습니다.</small>
+                    <strong>{t("settings.gcal.scope")}</strong>
+                    <small>{t("settings.gcal.scopeDesc")}</small>
                   </span>
-                  <StatusBadge tone="personal">일정</StatusBadge>
+                  <StatusBadge tone="personal">{t("settings.value.schedule")}</StatusBadge>
                 </div>
               </div>
             </div>
             <div className={styles.inlineActions}>
               <Button disabled={state.kind !== "ready"} onClick={openGoogleCalendarConnect} type="button" variant="primary">
-                Google Calendar 연결
+                {t("settings.gcal.connectCta")}
               </Button>
               <Link className="bubli-button" href="/app/calendar">
-                일정 보기
+                {t("settings.gcal.viewCalendar")}
               </Link>
             </div>
           </GlassPanel>
@@ -751,11 +785,13 @@ export default function SettingsPage() {
             <GlassPanel className={styles.section}>
               <div className={styles.sectionHead}>
                 <div>
-                  <span className={styles.sectionLabel}>알림</span>
-                  <h2>받을 알림</h2>
+                  <span className={styles.sectionLabel}>{t("settings.card.notifications")}</span>
+                  <h2>{t("settings.notifications.title")}</h2>
                 </div>
                 <StatusBadge tone={readySettings.notifications ? "approved" : "neutral"}>
-                  {readySettings.notifications ? `${enabledCount(notificationSettings)}개 켜짐` : "서버 연결 대기"}
+                  {readySettings.notifications
+                    ? t("settings.value.enabledCount", { count: enabledCount(notificationSettings) })
+                    : t("settings.status.waiting")}
                 </StatusBadge>
               </div>
               <div className={styles.rows}>
@@ -768,8 +804,8 @@ export default function SettingsPage() {
                     type="button"
                   >
                     <span>
-                      <strong>{row.title}</strong>
-                      <small>{row.description}</small>
+                      <strong>{t(row.titleKey)}</strong>
+                      <small>{t(row.descKey)}</small>
                     </span>
                     <span
                       aria-checked={notificationSettings[row.key]}
@@ -786,11 +822,13 @@ export default function SettingsPage() {
             <GlassPanel className={styles.section}>
               <div className={styles.sectionHead}>
                 <div>
-                  <span className={styles.sectionLabel}>개인정보</span>
-                  <h2>동의 상태</h2>
+                  <span className={styles.sectionLabel}>{t("settings.section.privacy")}</span>
+                  <h2>{t("settings.privacy.title")}</h2>
                 </div>
                 <StatusBadge tone={readySettings.privacy ? "personal" : "neutral"}>
-                  {readySettings.privacy ? `${enabledCount(privacySettings)}개 동의` : "서버 연결 대기"}
+                  {readySettings.privacy
+                    ? t("settings.value.consentCount", { count: enabledCount(privacySettings) })
+                    : t("settings.status.waiting")}
                 </StatusBadge>
               </div>
               <div className={styles.rows}>
@@ -803,8 +841,8 @@ export default function SettingsPage() {
                     type="button"
                   >
                     <span>
-                      <strong>{row.title}</strong>
-                      <small>{row.description}</small>
+                      <strong>{t(row.titleKey)}</strong>
+                      <small>{t(row.descKey)}</small>
                     </span>
                     <span aria-checked={privacySettings[row.key]} className={`${styles.toggle}${privacySettings[row.key] ? ` ${styles.toggleOn}` : ""}`} role="switch">
                       <span />
@@ -812,9 +850,9 @@ export default function SettingsPage() {
                   </button>
                 ))}
               </div>
-              <p className={styles.guard}>화면 전체 내용과 키보드 입력은 수집하지 않습니다.</p>
+              <p className={styles.guard}>{t("settings.privacy.guard")}</p>
               <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void readActivity()} type="button" variant="quiet">
-                현재 활동 기록
+                {t("settings.privacy.recordActivity")}
               </Button>
             </GlassPanel>
           </div>
@@ -823,25 +861,31 @@ export default function SettingsPage() {
             <GlassPanel className={styles.section}>
               <div className={styles.sectionHead}>
                 <div>
-                  <span className={styles.sectionLabel}>데스크탑 앱</span>
-                  <h2>폴더와 SQLite</h2>
+                  <span className={styles.sectionLabel}>{t("settings.card.desktopApp")}</span>
+                  <h2>{t("settings.folders.title")}</h2>
                 </div>
-                <StatusBadge tone={desktopRuntime ? "personal" : "neutral"}>{desktopRuntime ? "앱 실행 중" : "앱에서 사용 가능"}</StatusBadge>
+                <StatusBadge tone={desktopRuntime ? "personal" : "neutral"}>
+                  {desktopRuntime ? t("settings.value.appRunning") : t("settings.value.availableInApp")}
+                </StatusBadge>
               </div>
               <div className={styles.rows}>
                 <div className={styles.row}>
                   <span>
-                    <strong>로컬 SQLite</strong>
-                    <small>{localCacheReadiness.status === "ready" ? "로컬 캐시를 사용할 수 있습니다" : "브라우저에서는 사용할 수 없습니다"}</small>
+                    <strong>{t("settings.folders.localSqlite")}</strong>
+                    <small>
+                      {localCacheReadiness.status === "ready"
+                        ? t("settings.folders.cacheAvailable")
+                        : t("settings.folders.cacheUnavailable")}
+                    </small>
                   </span>
                   <StatusBadge tone={localCacheReadiness.status === "ready" ? "approved" : "neutral"}>
-                    {localCacheReadiness.status === "ready" ? "준비됨" : "앱 필요"}
+                    {localCacheReadiness.status === "ready" ? t("settings.value.prepared") : t("settings.value.appRequired")}
                   </StatusBadge>
                 </div>
                 <div className={styles.row}>
                   <span>
-                    <strong>앱 표시 모니터</strong>
-                    <small>하이브리드 앱과 위젯을 선택한 모니터에 띄웁니다.</small>
+                    <strong>{t("settings.folders.appMonitor")}</strong>
+                    <small>{t("settings.folders.appMonitorDesc")}</small>
                   </span>
                   <select
                     className={styles.inlineSelect}
@@ -849,10 +893,10 @@ export default function SettingsPage() {
                     onChange={(event) => void selectAppMonitor(event.target.value)}
                     value={monitorPreference?.preferredMonitorId ?? "primary"}
                   >
-                    <option value="primary">기본 모니터</option>
+                    <option value="primary">{t("settings.folders.primaryMonitor")}</option>
                     {monitorPreference?.monitors.map((monitor, index) => (
                       <option key={monitor.id} value={monitor.id}>
-                        {monitorLabel(monitor, index)}
+                        {monitorLabel(monitor, index, t)}
                       </option>
                     ))}
                   </select>
@@ -862,38 +906,38 @@ export default function SettingsPage() {
                     <div className={styles.row} key={folder.id}>
                       <span>
                         <strong>{folder.name}</strong>
-                        <small>{folder.localPath ?? "로컬 경로는 데스크탑 앱에서만 표시됩니다"}</small>
+                        <small>{folder.localPath ?? t("settings.folders.localPathAppOnly")}</small>
                       </span>
-                      <StatusBadge tone="approved">동기화</StatusBadge>
+                      <StatusBadge tone="approved">{t("settings.value.synced")}</StatusBadge>
                     </div>
                   ))
                 ) : (
-                  <div className={styles.emptyRow}>현재 연결된 개인 폴더가 없습니다.</div>
+                  <div className={styles.emptyRow}>{t("settings.folders.noFolder")}</div>
                 )}
               </div>
               <div className={styles.inlineActions}>
                 <Button disabled={state.kind !== "ready" || !desktopRuntime} onClick={() => void selectManagedFolder()} type="button" variant="primary">
-                  폴더 선택
+                  {t("settings.folders.selectFolder")}
                 </Button>
                 <Button disabled={state.kind !== "ready" || !desktopRuntime} onClick={() => void scanManagedFolder()} type="button" variant="quiet">
-                  스캔
+                  {t("settings.folders.scan")}
                 </Button>
                 <Button disabled={state.kind !== "ready" || !desktopRuntime} onClick={() => void watchManagedFolder()} type="button" variant="quiet">
-                  감시
+                  {t("settings.folders.watch")}
                 </Button>
               </div>
               <div className={styles.searchLine}>
                 <label className="workspace-route__field">
-                  <span>로컬 파일 검색</span>
+                  <span>{t("settings.folders.searchLocal")}</span>
                   <input
                     disabled={!desktopRuntime}
                     onChange={(event) => setFolderSearchQuery(event.target.value)}
-                    placeholder="파일명 일부"
+                    placeholder={t("settings.folders.searchPlaceholder")}
                     value={folderSearchQuery}
                   />
                 </label>
                 <Button disabled={!desktopRuntime} onClick={() => void searchLocalFiles()} type="button" variant="quiet">
-                  검색
+                  {t("common.search")}
                 </Button>
               </div>
               {localFiles.length > 0 ? (
@@ -904,7 +948,7 @@ export default function SettingsPage() {
                         <strong>{file.name}</strong>
                         <small>{file.path}</small>
                       </span>
-                      <StatusBadge tone="neutral">로컬</StatusBadge>
+                      <StatusBadge tone="neutral">{t("settings.value.local")}</StatusBadge>
                     </div>
                   ))}
                 </div>
@@ -914,11 +958,13 @@ export default function SettingsPage() {
             <GlassPanel className={styles.section}>
               <div className={styles.sectionHead}>
                 <div>
-                  <span className={styles.sectionLabel}>버블</span>
-                  <h2>버블과 복구</h2>
+                  <span className={styles.sectionLabel}>{t("settings.section.bubble")}</span>
+                  <h2>{t("settings.bubble.title")}</h2>
                 </div>
                 <StatusBadge tone={enabledWidgetCount > 0 ? "personal" : "neutral"}>
-                  {widgetBubbles.length > 0 ? `${enabledWidgetCount}개 켜짐` : "현재 데이터가 없습니다"}
+                  {widgetBubbles.length > 0
+                    ? t("settings.value.enabledCount", { count: enabledWidgetCount })
+                    : t("settings.value.noData")}
                 </StatusBadge>
               </div>
               {widgetBubbles.length > 0 ? (
@@ -926,9 +972,14 @@ export default function SettingsPage() {
                   {widgetBubbles.map((bubble) => (
                     <button className={styles.bubbleRow} key={bubble.id} onClick={() => void toggleWidgetBubble(bubble)} type="button">
                       <span>
-                        <strong>{widgetBubbleLabels[bubble.bubbleType]}</strong>
+                        <strong>{t(bubbleTypeKey[bubble.bubbleType])}</strong>
                         <small>
-                          {bubble.minimized ? "최소화" : bubble.ghostMode ? "고스트" : "기본"} · 알림 {bubble.alertEnabled ? "켜짐" : "꺼짐"}
+                          {bubble.minimized
+                            ? t("settings.bubble.stateMinimized")
+                            : bubble.ghostMode
+                              ? t("settings.bubble.stateGhost")
+                              : t("settings.bubble.stateDefault")}{" "}
+                          · {bubble.alertEnabled ? t("settings.bubble.alertOn") : t("settings.bubble.alertOff")}
                         </small>
                       </span>
                       <span aria-checked={bubble.enabled} className={`${styles.toggle}${bubble.enabled ? ` ${styles.toggleOn}` : ""}`} role="switch">
@@ -938,31 +989,35 @@ export default function SettingsPage() {
                   ))}
                 </div>
               ) : (
-                <div className={styles.emptyRow}>현재 데이터가 없습니다.</div>
+                <div className={styles.emptyRow}>{t("settings.value.noData")}</div>
               )}
               <div className={styles.metrics}>
                 <div>
-                  <span>오늘 열기</span>
+                  <span>{t("settings.bubble.todayOpen")}</span>
                   <strong>{readySettings.widgetUsage ? readySettings.widgetUsage.totalOpenCount : "-"}</strong>
                 </div>
                 <div>
-                  <span>오늘 조작</span>
+                  <span>{t("settings.bubble.todayInteraction")}</span>
                   <strong>{readySettings.widgetUsage ? readySettings.widgetUsage.totalInteractionCount : "-"}</strong>
                 </div>
                 <div>
-                  <span>표시 시간</span>
-                  <strong>{readySettings.widgetUsage ? `${Math.round(readySettings.widgetUsage.totalVisibleSeconds / 60)}분` : "-"}</strong>
+                  <span>{t("settings.bubble.visibleTime")}</span>
+                  <strong>
+                    {readySettings.widgetUsage
+                      ? t("settings.value.minutes", { count: Math.round(readySettings.widgetUsage.totalVisibleSeconds / 60) })
+                      : "-"}
+                  </strong>
                 </div>
               </div>
               <div className={styles.inlineActions}>
                 <Link className="bubli-button" href="/app/desktop/widgets">
-                  버블 화면
+                  {t("settings.bubble.screen")}
                 </Link>
                 <Button disabled={!desktopRuntime} onClick={() => void syncWidgetUsage()} type="button" variant="quiet">
-                  사용량 동기화
+                  {t("settings.bubble.syncUsage")}
                 </Button>
                 <Button disabled={!desktopRuntime} onClick={() => void recoverTimer()} type="button" variant="quiet">
-                  타이머 복구
+                  {t("settings.bubble.recoverTimer")}
                 </Button>
               </div>
             </GlassPanel>
@@ -971,39 +1026,41 @@ export default function SettingsPage() {
           <GlassPanel className={styles.section}>
             <div className={styles.sectionHead}>
               <div>
-                <span className={styles.sectionLabel}>백업</span>
-                <h2>기기 데이터</h2>
+                <span className={styles.sectionLabel}>{t("settings.section.backup")}</span>
+                <h2>{t("settings.backup.title")}</h2>
               </div>
-              <StatusBadge tone={desktopRuntime ? "personal" : "neutral"}>{desktopRuntime ? "로컬 실행" : "앱 필요"}</StatusBadge>
+              <StatusBadge tone={desktopRuntime ? "personal" : "neutral"}>
+                {desktopRuntime ? t("settings.value.localRun") : t("settings.value.appRequired")}
+              </StatusBadge>
             </div>
             <div className={styles.recoveryGrid}>
               <button className={styles.row} disabled={!desktopRuntime} onClick={() => void checkLocalCache()} type="button">
                 <span>
-                  <strong>캐시 점검</strong>
-                  <small>SQLite 무결성을 확인합니다.</small>
+                  <strong>{t("settings.backup.checkCache")}</strong>
+                  <small>{t("settings.backup.checkCacheDesc")}</small>
                 </span>
-                <StatusBadge tone="neutral">점검</StatusBadge>
+                <StatusBadge tone="neutral">{t("settings.value.check")}</StatusBadge>
               </button>
               <button className={styles.row} disabled={!desktopRuntime} onClick={() => void backupLocalCache()} type="button">
                 <span>
-                  <strong>백업 만들기</strong>
-                  <small>로컬 캐시 스냅샷을 만듭니다.</small>
+                  <strong>{t("settings.backup.create")}</strong>
+                  <small>{t("settings.backup.createDesc")}</small>
                 </span>
-                <StatusBadge tone="neutral">백업</StatusBadge>
+                <StatusBadge tone="neutral">{t("settings.value.backup")}</StatusBadge>
               </button>
               <button className={styles.row} disabled={!desktopRuntime || !lastBackupId} onClick={() => void restoreLocalCache()} type="button">
                 <span>
-                  <strong>백업 복구</strong>
-                  <small>{lastBackupId ? "방금 만든 백업으로 복구합니다." : "백업을 먼저 만들어야 합니다."}</small>
+                  <strong>{t("settings.backup.restore")}</strong>
+                  <small>{lastBackupId ? t("settings.backup.restoreReady") : t("settings.backup.restoreNeed")}</small>
                 </span>
-                <StatusBadge tone="neutral">복구</StatusBadge>
+                <StatusBadge tone="neutral">{t("settings.value.restore")}</StatusBadge>
               </button>
               <button className={styles.row} disabled={!desktopRuntime} onClick={() => void checkSyncOutbox()} type="button">
                 <span>
-                  <strong>동기화 대기열</strong>
-                  <small>서버 전송 대기 상태를 확인합니다.</small>
+                  <strong>{t("settings.backup.outbox")}</strong>
+                  <small>{t("settings.backup.outboxDesc")}</small>
                 </span>
-                <StatusBadge tone="neutral">확인</StatusBadge>
+                <StatusBadge tone="neutral">{t("settings.value.confirm")}</StatusBadge>
               </button>
             </div>
           </GlassPanel>
