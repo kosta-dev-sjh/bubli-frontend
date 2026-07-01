@@ -1,3 +1,5 @@
+"use client";
+
 import { AlertCircle, CheckCircle2, FileSearch, FileText, ListChecks, Scale, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -5,6 +7,7 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 
 type CompareField = {
   field: string;
@@ -45,37 +48,37 @@ const compareFields: CompareField[] = [
   },
 ];
 
-const statusMeta: Record<CompareField["status"], { label: string; tone: "success" | "warning" | "pending" }> = {
-  different: { label: "값 차이", tone: "warning" },
-  match: { label: "일치", tone: "success" },
-  missing: { label: "조건 확인", tone: "pending" },
+const statusMeta: Record<CompareField["status"], { labelKey: MessageKey; tone: "success" | "warning" | "pending" }> = {
+  different: { labelKey: "resources.compare.status.different", tone: "warning" },
+  match: { labelKey: "resources.compare.status.match", tone: "success" },
+  missing: { labelKey: "resources.compare.status.missing", tone: "pending" },
 };
 
-function CompareRow({ item }: { item: CompareField }) {
+function CompareRow({ item, t }: { item: CompareField; t: (key: MessageKey) => string }) {
   const status = statusMeta[item.status];
 
   return (
     <article className="resource-compare-row">
       <div className="resource-compare-row__head">
         <div>
-          <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+          <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
           <h3>{item.field}</h3>
         </div>
         <Button size="sm" variant="quiet">
-          질문 초안 만들기
+          {t("resources.compare.rowQuestion")}
         </Button>
       </div>
       <div className="resource-compare-row__values">
         <span>
-          <strong>계약서</strong>
+          <strong>{t("resources.compare.docContract")}</strong>
           {item.contractValue}
         </span>
         <span>
-          <strong>견적서</strong>
+          <strong>{t("resources.compare.docEstimate")}</strong>
           {item.estimateValue}
         </span>
         <span>
-          <strong>요구사항</strong>
+          <strong>{t("resources.compare.docRequirement")}</strong>
           {item.requirementValue}
         </span>
       </div>
@@ -84,27 +87,26 @@ function CompareRow({ item }: { item: CompareField }) {
 }
 
 export function ResourceComparePanel() {
+  const { t } = useI18n();
+
   return (
-    <section className="resource-compare" aria-label="문서 비교와 확인 필요 항목">
+    <section className="resource-compare" aria-label={t("resources.compare.aria")}>
       <GlassPanel className="resource-compare__hero">
         <div className="resource-compare__title">
           <span className="bubli-icon-tile" aria-hidden="true">
             <FileSearch size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <Chip selected>자료보드</Chip>
-            <h2>계약서, 견적서, 요구사항 문서의 값 차이를 확인 필요 항목으로 정리합니다</h2>
-            <p>
-              에이전트는 금액 참고값, 부가세, 납품물, 검수 기준, 개인정보, 저작권 조건을 비교합니다. 결과는 판단이
-              아니라 사용자가 확인할 후보입니다.
-            </p>
+            <Chip selected>{t("resources.compare.chip")}</Chip>
+            <h2>{t("resources.compare.heroTitle")}</h2>
+            <p>{t("resources.compare.heroDesc")}</p>
           </div>
         </div>
         <div className="resource-compare__score">
-          <StatusBadge tone="warning">검토 필요</StatusBadge>
-          <strong>3건</strong>
-          <span>값 차이와 누락 조건</span>
-          <ProgressBar label="문서 비교 진행률" value={88} />
+          <StatusBadge tone="warning">{t("resources.compare.scoreBadge")}</StatusBadge>
+          <strong>{t("resources.compare.scoreCount")}</strong>
+          <span>{t("resources.compare.scoreCaption")}</span>
+          <ProgressBar label={t("resources.compare.scoreProgress")} value={88} />
         </div>
       </GlassPanel>
 
@@ -112,44 +114,44 @@ export function ResourceComparePanel() {
         <GlassPanel className="resource-compare__panel">
           <div className="resource-compare__panel-header">
             <div>
-              <h3>비교 결과</h3>
-              <p>확인한 항목만 WBS, TODO, 일정 후보로 이어집니다.</p>
+              <h3>{t("resources.compare.resultTitle")}</h3>
+              <p>{t("resources.compare.resultDesc")}</p>
             </div>
-            <Chip icon={<ListChecks size={14} />}>사용자 확인 필요</Chip>
+            <Chip icon={<ListChecks size={14} />}>{t("resources.compare.resultChip")}</Chip>
           </div>
 
           <div className="resource-compare__list">
             {compareFields.map((item) => (
-              <CompareRow item={item} key={item.field} />
+              <CompareRow item={item} key={item.field} t={t} />
             ))}
           </div>
         </GlassPanel>
 
         <GlassPanel className="resource-compare__policy">
-          <h3>비교 기준</h3>
+          <h3>{t("resources.compare.policyTitle")}</h3>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <FileText size={16} strokeWidth={2.1} />
             </span>
-            <p>문서 종류를 먼저 분류한 뒤 같은 항목끼리 값을 맞춰 봅니다.</p>
+            <p>{t("resources.compare.policyClassify")}</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <AlertCircle size={16} strokeWidth={2.1} />
             </span>
-            <p>서로 다른 값과 빠진 조건은 확인 필요 항목으로만 표시합니다.</p>
+            <p>{t("resources.compare.policyDiff")}</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <Scale size={16} strokeWidth={2.1} />
             </span>
-            <p>법적 해석이나 책임 판단 대신 확인 질문과 정리 초안을 제안합니다.</p>
+            <p>{t("resources.compare.policyLegal")}</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <ShieldCheck size={16} strokeWidth={2.1} />
             </span>
-            <p>사용자가 승인하기 전에는 확정 데이터와 공유 자료 상태를 바꾸지 않습니다.</p>
+            <p>{t("resources.compare.policyApproval")}</p>
           </div>
         </GlassPanel>
       </div>
@@ -158,7 +160,7 @@ export function ResourceComparePanel() {
         <span className="bubli-icon-tile" aria-hidden="true">
           <CheckCircle2 size={16} strokeWidth={2.1} />
         </span>
-        <p>확인한 항목은 클라이언트 질문 초안, 요구사항 정리 초안, WBS/TODO 후보로 이어집니다.</p>
+        <p>{t("resources.compare.nextNote")}</p>
       </GlassPanel>
     </section>
   );
