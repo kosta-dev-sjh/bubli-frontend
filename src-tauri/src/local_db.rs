@@ -479,10 +479,16 @@ pub fn mark_activity_context_synced(
     state: tauri::State<'_, Db>,
     input: ActivityContextSyncInput,
 ) -> Result<ActivityContextSyncResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    mark_activity_context_synced_conn(&conn, input)
+}
+
+fn mark_activity_context_synced_conn(
+    conn: &Connection,
+    input: ActivityContextSyncInput,
+) -> Result<ActivityContextSyncResult, String> {
     let sync_status = normalize_activity_sync_status(&input.status);
     let now = now_ms();
-    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-
     let updated = conn
         .execute(
             "UPDATE local_activity_buffer \
@@ -519,8 +525,15 @@ pub fn stage_activity_contexts_for_sync(
         .and_then(|value| value.limit)
         .unwrap_or(20)
         .clamp(1, 100);
-    let now = now_ms();
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    stage_activity_contexts_for_sync_conn(&conn, limit)
+}
+
+fn stage_activity_contexts_for_sync_conn(
+    conn: &Connection,
+    limit: i64,
+) -> Result<ActivityContextSyncStageResult, String> {
+    let now = now_ms();
     let mut stmt = conn
         .prepare(
             "SELECT id, room_id, app_name, window_title, duration_seconds, started_at, ended_at, captured_at \
@@ -813,9 +826,11 @@ CREATE INDEX IF NOT EXISTS idx_local_activity_buffer_status ON local_activity_bu
 #[cfg(test)]
 mod tests {
     use super::{
-        read_auth_session_json, store_auth_session_json, validate_auth_session_json, SCHEMA_SQL,
+        mark_activity_context_synced_conn, read_auth_session_json,
+        stage_activity_contexts_for_sync_conn, store_auth_session_json, validate_auth_session_json,
+        ActivityContextSyncInput, SCHEMA_SQL,
     };
-    use rusqlite::Connection;
+    use rusqlite::{params, Connection};
 
     fn auth_session_fixture() -> String {
         serde_json::json!({
@@ -851,5 +866,104 @@ mod tests {
         let error = validate_auth_session_json(r#"{"accessToken":"access-token"}"#)
             .expect_err("incomplete session should fail");
         assert!(error.contains("refreshToken"));
+    }
+
+    fn insert_activity_row(conn: &Connection, id: &str, status: &str, updated_at: i64) {
+        conn.execute(
+            "INSERT INTO local_activity_buffer \
+             (id, server_activity_log_id, room_id, app_name, window_title, duration_seconds, started_at, ended_at, captured_at, sync_status, created_at, updated_at) \
+             VALUES (?1, NULL, 'room-1', 'Code', 'Bubli 작업', 30, '2026-07-02T00:00:00Z', '2026-07-02T00:00:30Z', '2026-07-02T00:00:30Z', ?2, ?3, ?3)",
+            params![id, status, updated_at],
+        )
+        .expect("insert activity row");
+    }
+
+    #[test]
+    fn stages_only_local_or_failed_activity_contexts_for_retry() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+        insert_activity_row(&conn, "activity-local", "LOCAL_ONLY", 10);
+        insert_activity_row(&conn, "activity-failed", "FAILED", 20);
+        insert_activity_row(&conn, "activity-pending", "SYNC_PENDING", 30);
+        insert_activity_row(&conn, "activity-synced", "SYNCED", 40);
+
+        let staged =
+            stage_activity_contexts_for_sync_conn(&conn, 10).expect("stage activity contexts");
+
+        let ids: Vec<_> = staged
+            .activities
+            .iter()
+            .map(|activity| activity.local_activity_id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["activity-local", "activity-failed"]);
+        assert_eq!(staged.activities[0].room_id.as_deref(), Some("room-1"));
+        assert_eq!(staged.activities[0].app_name, "Code");
+        assert_eq!(staged.activities[0].duration_seconds, Some(30));
+
+        let statuses: Vec<(String, String)> = conn
+            .prepare("SELECT id, sync_status FROM local_activity_buffer ORDER BY updated_at ASC")
+            .expect("prepare status query")
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .expect("query statuses")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("collect statuses");
+
+        assert!(statuses.contains(&("activity-local".to_string(), "SYNC_PENDING".to_string())));
+        assert!(statuses.contains(&("activity-failed".to_string(), "SYNC_PENDING".to_string())));
+        assert!(statuses.contains(&("activity-pending".to_string(), "SYNC_PENDING".to_string())));
+        assert!(statuses.contains(&("activity-synced".to_string(), "SYNCED".to_string())));
+    }
+
+    #[test]
+    fn marks_activity_context_sync_result_and_preserves_server_id() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+        insert_activity_row(&conn, "activity-1", "LOCAL_ONLY", 10);
+
+        let synced = mark_activity_context_synced_conn(
+            &conn,
+            ActivityContextSyncInput {
+                local_activity_id: "activity-1".to_string(),
+                server_activity_log_id: Some("server-activity-1".to_string()),
+                status: "SYNCED".to_string(),
+            },
+        )
+        .expect("mark synced");
+        assert_eq!(synced.local_activity_id, "activity-1");
+        assert_eq!(synced.sync_status, "SYNCED");
+
+        let failed = mark_activity_context_synced_conn(
+            &conn,
+            ActivityContextSyncInput {
+                local_activity_id: "activity-1".to_string(),
+                server_activity_log_id: None,
+                status: "FAILED".to_string(),
+            },
+        )
+        .expect("mark failed");
+        assert_eq!(failed.sync_status, "FAILED");
+
+        let row: (Option<String>, String) = conn
+            .query_row(
+                "SELECT server_activity_log_id, sync_status FROM local_activity_buffer WHERE id = 'activity-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read activity row");
+        assert_eq!(row.0.as_deref(), Some("server-activity-1"));
+        assert_eq!(row.1, "FAILED");
+
+        let missing = match mark_activity_context_synced_conn(
+            &conn,
+            ActivityContextSyncInput {
+                local_activity_id: "missing".to_string(),
+                server_activity_log_id: None,
+                status: "SYNCED".to_string(),
+            },
+        ) {
+            Ok(_) => panic!("missing row should fail"),
+            Err(error) => error,
+        };
+        assert!(missing.contains("local activity buffer row not found"));
     }
 }
