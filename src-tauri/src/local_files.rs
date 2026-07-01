@@ -19,6 +19,8 @@ use uuid::Uuid;
 
 use crate::local_db::{ms_to_iso, now_ms, Db};
 
+const MAX_EXTRACT_BYTES: u64 = 1024 * 1024;
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectManagedFolderInput {
@@ -261,6 +263,7 @@ pub fn scan_managed_folder(
                     params![file_id, input.local_folder_id, file_name, local_path, size_bytes, modified_ms, now],
                 )
                 .map_err(|error| error.to_string())?;
+                upsert_file_fts_index(&conn, &file_id, &file_name, &local_path, &file)?;
                 record_event(
                     &conn,
                     &input.local_folder_id,
@@ -283,6 +286,7 @@ pub fn scan_managed_folder(
                         params![file_id, size_bytes, modified_ms, now],
                     )
                     .map_err(|error| error.to_string())?;
+                    upsert_file_fts_index(&conn, &file_id, &file_name, &local_path, &file)?;
                     record_event(
                         &conn,
                         &input.local_folder_id,
@@ -352,6 +356,7 @@ pub fn scan_managed_folder(
             modified_ms,
             now,
         )?;
+        delete_file_fts_index(&conn, &file_id)?;
         conn.execute(
             "UPDATE local_files SET sync_status = 'LOCAL_ONLY', updated_at = ?2 WHERE id = ?1",
             params![file_id, now],
@@ -516,6 +521,13 @@ fn record_watch_path_change(
                         params![file_id, local_folder_id, file_name, local_path, size_bytes, modified_ms, now],
                     )
                     .map_err(|error| error.to_string())?;
+                    upsert_file_fts_index(
+                        conn,
+                        &file_id,
+                        &file_name,
+                        &local_path,
+                        Path::new(&local_path),
+                    )?;
                     record_event(
                         conn,
                         local_folder_id,
@@ -539,6 +551,13 @@ fn record_watch_path_change(
                         params![file_id, size_bytes, modified_ms, now],
                     )
                     .map_err(|error| error.to_string())?;
+                    upsert_file_fts_index(
+                        conn,
+                        &file_id,
+                        &file_name,
+                        &local_path,
+                        Path::new(&local_path),
+                    )?;
                     record_event(
                         conn,
                         local_folder_id,
@@ -602,6 +621,7 @@ fn record_watch_path_delete(
         modified_ms,
         now,
     )?;
+    delete_file_fts_index(conn, &file_id)?;
     conn.execute(
         "UPDATE local_files SET sync_status = 'LOCAL_ONLY', updated_at = ?2 WHERE id = ?1",
         params![file_id, now],
@@ -618,6 +638,127 @@ fn is_ignored_path(path: &Path) -> bool {
     })
 }
 
+fn upsert_file_fts_index(
+    conn: &Connection,
+    local_file_id: &str,
+    file_name: &str,
+    local_path: &str,
+    path: &Path,
+) -> Result<(), String> {
+    let content = extract_text_preview(path).unwrap_or_default();
+    conn.execute(
+        "DELETE FROM local_file_fts WHERE local_file_id = ?1",
+        params![local_file_id],
+    )
+    .map_err(|error| error.to_string())?;
+    conn.execute(
+        "INSERT INTO local_file_fts (local_file_id, file_name, content, local_path) \
+         VALUES (?1, ?2, ?3, ?4)",
+        params![local_file_id, file_name, content, local_path],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn delete_file_fts_index(conn: &Connection, local_file_id: &str) -> Result<(), String> {
+    conn.execute(
+        "DELETE FROM local_file_fts WHERE local_file_id = ?1",
+        params![local_file_id],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn extract_text_preview(path: &Path) -> Option<String> {
+    if !is_supported_text_file(path) {
+        return None;
+    }
+
+    let metadata = std::fs::metadata(path).ok()?;
+    if metadata.len() > MAX_EXTRACT_BYTES {
+        return None;
+    }
+
+    let bytes = std::fs::read(path).ok()?;
+    let text = String::from_utf8_lossy(&bytes)
+        .replace('\0', " ")
+        .trim()
+        .to_string();
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
+    }
+}
+
+fn is_supported_text_file(path: &Path) -> bool {
+    let Some(extension) = path
+        .extension()
+        .map(|value| value.to_string_lossy().to_ascii_lowercase())
+    else {
+        return false;
+    };
+
+    matches!(
+        extension.as_str(),
+        "csv"
+            | "htm"
+            | "html"
+            | "json"
+            | "log"
+            | "md"
+            | "markdown"
+            | "rtf"
+            | "tsv"
+            | "txt"
+            | "xml"
+            | "yaml"
+            | "yml"
+    )
+}
+
+fn search_local_files_fts(
+    conn: &Connection,
+    query: &str,
+    limit: i64,
+) -> Result<Vec<LocalFileSearchItem>, String> {
+    let fts_query = escape_fts_query(query);
+    let mut stmt = conn
+        .prepare(
+            "SELECT f.id, f.file_name, f.local_path, f.updated_at, \
+                    snippet(local_file_fts, 2, '[', ']', '...', 12) AS matched_text \
+             FROM local_file_fts \
+             JOIN local_files f ON f.id = local_file_fts.local_file_id \
+             WHERE local_file_fts MATCH ?1 \
+             ORDER BY rank, f.updated_at DESC \
+             LIMIT ?2",
+        )
+        .map_err(|error| error.to_string())?;
+
+    let rows = stmt
+        .query_map(params![fts_query, limit], |row| {
+            let matched_text: Option<String> = row.get(4)?;
+            Ok(LocalFileSearchItem {
+                local_file_id: row.get(0)?,
+                name: row.get(1)?,
+                path: row.get(2)?,
+                updated_at: ms_to_iso(row.get::<_, i64>(3)?),
+                matched_text: matched_text.filter(|value| !value.trim().is_empty()),
+            })
+        })
+        .map_err(|error| error.to_string())?;
+
+    let mut items = Vec::new();
+    for row in rows {
+        items.push(row.map_err(|error| error.to_string())?);
+    }
+    Ok(items)
+}
+
+fn escape_fts_query(query: &str) -> String {
+    format!("\"{}\"", query.replace('"', "\"\""))
+}
+
 /// Search the local file index by name or path (LIKE; FTS5 is an enhancement).
 #[tauri::command]
 pub fn search_local_files(
@@ -625,9 +766,19 @@ pub fn search_local_files(
     input: LocalFileSearchInput,
 ) -> Result<LocalFileSearchResult, String> {
     let limit = input.limit.unwrap_or(50).clamp(1, 500);
-    let needle = format!("%{}%", input.query);
+    let query = input.query.trim().to_string();
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
 
+    if !query.is_empty() {
+        match search_local_files_fts(&conn, &query, limit) {
+            Ok(items) => return Ok(LocalFileSearchResult { items }),
+            Err(error) => {
+                eprintln!("local file FTS search failed; falling back to LIKE: {error}");
+            }
+        }
+    }
+
+    let needle = format!("%{}%", query);
     let mut stmt = conn
         .prepare(
             "SELECT id, file_name, local_path, updated_at FROM local_files \
@@ -816,6 +967,7 @@ pub fn mark_local_file_events_synced(
         synced_count += 1;
         if let Some(local_file_id) = local_file_id {
             if event_type == "DELETED" {
+                delete_file_fts_index(&conn, &local_file_id)?;
                 conn.execute(
                     "DELETE FROM local_files WHERE id = ?1",
                     params![local_file_id],
@@ -914,4 +1066,78 @@ fn guess_mime_type(file_name: &str) -> Option<String> {
         _ => return None,
     };
     Some(mime.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_connection() -> Connection {
+        let conn = Connection::open_in_memory().expect("open in-memory sqlite");
+        conn.execute_batch(
+            "
+            CREATE TABLE local_files (
+                id TEXT PRIMARY KEY,
+                local_folder_id TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                local_path TEXT NOT NULL,
+                resource_id TEXT,
+                size_bytes INTEGER,
+                checksum TEXT,
+                sync_status TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
+                modified_at INTEGER,
+                updated_at INTEGER NOT NULL
+            );
+            CREATE VIRTUAL TABLE local_file_fts USING fts5 (
+                local_file_id UNINDEXED,
+                file_name,
+                content,
+                local_path UNINDEXED,
+                tokenize = 'trigram'
+            );
+            ",
+        )
+        .expect("create local file schema");
+        conn
+    }
+
+    #[test]
+    fn indexes_supported_text_file_and_returns_snippet() {
+        let conn = test_connection();
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-fts-test-{}.txt", Uuid::new_v4()));
+        std::fs::write(
+            &path,
+            "Local contract renewal note. This should stay on device.",
+        )
+        .expect("write temp text file");
+
+        let local_file_id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO local_files (id, local_folder_id, file_name, local_path, updated_at) \
+             VALUES (?1, 'folder-1', 'contract.txt', ?2, 1)",
+            params![local_file_id, path.to_string_lossy()],
+        )
+        .expect("insert local file row");
+
+        upsert_file_fts_index(
+            &conn,
+            &local_file_id,
+            "contract.txt",
+            &path.to_string_lossy(),
+            &path,
+        )
+        .expect("index local file text");
+
+        let items = search_local_files_fts(&conn, "renewal", 10).expect("search fts");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].local_file_id, local_file_id);
+        assert!(items[0]
+            .matched_text
+            .as_deref()
+            .unwrap_or("")
+            .contains("[renewal]"));
+
+        let _ = std::fs::remove_file(path);
+    }
 }

@@ -310,6 +310,15 @@ CREATE TABLE IF NOT EXISTS local_files (
 CREATE INDEX IF NOT EXISTS idx_local_files_folder ON local_files(local_folder_id);
 CREATE INDEX IF NOT EXISTS idx_local_files_name ON local_files(file_name);
 
+-- Local full-text index. Personal file contents stay on-device.
+CREATE VIRTUAL TABLE IF NOT EXISTS local_file_fts USING fts5 (
+    local_file_id UNINDEXED,
+    file_name,
+    content,
+    local_path UNINDEXED,
+    tokenize = 'trigram'
+);
+
 -- File change events detected by scan/watch; PENDING until user approves sync.
 CREATE TABLE IF NOT EXISTS local_file_events (
     id              TEXT PRIMARY KEY,
