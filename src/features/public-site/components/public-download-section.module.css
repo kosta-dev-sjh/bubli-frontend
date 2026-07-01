@@ -167,8 +167,9 @@
 
 .appBody {
   display: grid;
-  gap: 13px;
-  padding: clamp(24px, 4vw, 40px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: clamp(18px, 3vw, 30px);
 }
 
 .widgetSummary,
@@ -180,8 +181,9 @@
 
 .widgetSummary {
   display: grid;
+  grid-column: 1 / -1;
   gap: 7px;
-  padding: 20px;
+  padding: 17px 18px;
 }
 
 .widgetSummary span {
@@ -196,7 +198,7 @@
 
 .widgetSummary strong {
   color: var(--color-text, #2C3540);
-  font-size: clamp(20px, 2.3vw, 30px);
+  font-size: clamp(20px, 2.1vw, 27px);
   font-weight: 900;
   line-height: 1.14;
   word-break: keep-all;
@@ -214,7 +216,9 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: 5px 10px;
   align-items: center;
-  padding: 16px 18px;
+  align-content: start;
+  min-height: 88px;
+  padding: 12px 14px;
 }
 
 .statusRow svg {
@@ -234,7 +238,7 @@
 .statusRow b {
   min-width: 0;
   color: var(--color-text, #2C3540);
-  font-size: clamp(17px, 1.8vw, 24px);
+  font-size: clamp(16px, 1.45vw, 20px);
   font-weight: 900;
   line-height: 1.12;
   word-break: keep-all;
@@ -397,8 +401,8 @@
 .floatCalendar {
   right: 7%;
   bottom: 13%;
-  color: #8A94A0;
-  background: rgba(232, 196, 160, 0.3);
+  color: #6B8FA8;
+  background: rgba(255, 255, 255, 0.66);
   transform: translate(calc(var(--download-shift-x) * 0.68), calc(var(--download-shift-y) * 0.58)) rotate(7deg);
   animation: download-float 7.8s 700ms ease-in-out infinite;
 }
@@ -407,7 +411,7 @@
   top: 54%;
   left: 42%;
   color: #6B8FA8;
-  background: rgba(230, 221, 248, 0.42);
+  background: rgba(255, 255, 255, 0.66);
   transform: translate(calc(var(--download-shift-x) * -0.5), calc(var(--download-shift-y) * 0.7)) rotate(10deg);
   animation: download-float 8.4s 320ms ease-in-out infinite;
 }
@@ -464,7 +468,96 @@
   }
 }
 
-@media (max-width: 1180px) {
+@media (min-width: 821px) and (max-width: 1180px) {
+  .stage {
+    min-height: clamp(560px, 68vw, 690px);
+    grid-template-columns: minmax(260px, 0.42fr) minmax(0, 0.58fr);
+    gap: clamp(20px, 3.8vw, 44px);
+    padding: clamp(30px, 4.6vw, 56px);
+  }
+
+  .head {
+    max-width: 430px;
+    gap: clamp(12px, 2vw, 20px);
+    padding-top: clamp(54px, 8vw, 90px);
+  }
+
+  .label {
+    font-size: clamp(50px, 7.4vw, 78px);
+  }
+
+  .head h2 {
+    max-width: 430px;
+    font-size: clamp(36px, 5.1vw, 58px);
+    line-height: 1.05;
+  }
+
+  .head p {
+    max-width: 390px;
+    font-size: clamp(15px, 1.8vw, 18px);
+    line-height: 1.58;
+  }
+
+  .scene {
+    min-height: clamp(500px, 58vw, 620px);
+  }
+
+  .appCard {
+    top: clamp(4px, 1.6vw, 18px);
+    left: 0;
+    width: min(540px, 100%);
+    transform: rotate(-2deg) rotateY(-5deg);
+  }
+
+  .appBody {
+    gap: 10px;
+    padding: clamp(18px, 2.6vw, 28px);
+  }
+
+  .widgetSummary {
+    padding: 17px 18px;
+  }
+
+  .widgetSummary strong {
+    font-size: clamp(20px, 2.7vw, 27px);
+  }
+
+  .statusRow {
+    padding: 12px 14px;
+  }
+
+  .statusRow b {
+    font-size: clamp(16px, 2.1vw, 20px);
+  }
+
+  .platforms {
+    right: -4%;
+    bottom: 5%;
+    width: min(640px, 112%);
+    gap: 12px;
+  }
+
+  .platform {
+    min-height: 58px;
+    width: min(292px, calc(50% - 8px));
+  }
+
+  .platformWindows {
+    margin-top: 18px;
+  }
+
+  .floatCalendar {
+    right: 2%;
+    bottom: 15%;
+  }
+
+  .floatTimer {
+    top: 52%;
+    left: 34%;
+  }
+}
+
+@media (max-width: 820px) {
   .stage {
     min-height: auto;
     grid-template-columns: 1fr;
@@ -494,8 +587,35 @@
   }
 
   .appCard {
+    width: min(660px, 100%);
     transform: none;
     animation: none;
+  }
+
+  .appBody {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    padding: 20px;
+  }
+
+  .widgetSummary {
+    grid-column: 1 / -1;
+    padding: 16px 18px;
+  }
+
+  .widgetSummary strong {
+    max-width: 520px;
+    font-size: clamp(22px, 3.1vw, 28px);
+  }
+
+  .statusRow {
+    align-content: start;
+    min-height: 88px;
+    padding: 12px 13px;
+  }
+
+  .statusRow b {
+    font-size: clamp(16px, 2.2vw, 20px);
   }
 
   .platformWindows {
@@ -508,7 +628,7 @@
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 820px) {
   .stage {
     padding: 72px 38px 42px;
   }
@@ -557,6 +677,7 @@
   }
 
   .appBody {
+    grid-template-columns: 1fr;
     padding: 22px;
   }
 

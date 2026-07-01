@@ -3,7 +3,7 @@
 import { Bot, GitBranch, GripVertical, Inbox, KanbanSquare, ListTodo, PanelRightOpen, Trash2 } from "lucide-react";
 import Link from "next/link";
 import type { CSSProperties, DragEvent, FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { StatusBadge } from "@/components/ui/status-badge";
 import { todoApi } from "@/features/todo/api/todoApi";
@@ -22,6 +22,12 @@ type KanbanColumn = {
 
 type LocalTask = TaskResponse & {
   localRemoved?: boolean;
+};
+
+type WbsEditDraft = {
+  dueDate: string;
+  title: string;
+  wbsId: string | null;
 };
 
 const columns: KanbanColumn[] = [
@@ -272,17 +278,22 @@ function ProjectRoomWorkBoardContent({
   roomId: string;
   suggestions: AgentSuggestionResponse[];
 }) {
+  const initialWbs = board.wbsItems[0] ?? null;
   const [tasks, setTasks] = useState<LocalTask[]>(board.tasks);
   const [wbsItems, setWbsItems] = useState<WbsItemResponse[]>(board.wbsItems);
   const [activeColumn, setActiveColumn] = useState<TaskStatus | null>(null);
-  const [selectedWbsId, setSelectedWbsId] = useState<string | null>(board.wbsItems[0]?.id ?? null);
+  const [selectedWbsId, setSelectedWbsId] = useState<string | null>(initialWbs?.id ?? null);
   const [removedNotice, setRemovedNotice] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(board.tasks[0]?.id ?? null);
   const [trashActive, setTrashActive] = useState(false);
   const [viewMode, setViewMode] = useState<"kanban" | "suggestions" | "wbs">("kanban");
   const [wbsDraft, setWbsDraft] = useState({ dueDate: "", title: "" });
-  const [wbsEditDraft, setWbsEditDraft] = useState({ dueDate: "", title: "" });
+  const [wbsEditDraft, setWbsEditDraft] = useState<WbsEditDraft>(() => ({
+    dueDate: normalizeDateValue(initialWbs?.dueDate),
+    title: initialWbs?.title ?? "",
+    wbsId: initialWbs?.id ?? null,
+  }));
 
   const wbsTitleById = useMemo(() => Object.fromEntries(wbsItems.map((item) => [item.id, item.title])), [wbsItems]);
   const wbsTree = useMemo(() => {
@@ -371,13 +382,14 @@ function ProjectRoomWorkBoardContent({
   const selectedWbsChildCount = selectedWbsId ? childCountByWbsId[selectedWbsId] ?? 0 : 0;
   const canDeleteSelectedWbs = Boolean(selectedWbs && selectedWbsChildCount === 0 && selectedWbsLinkedCount === 0);
   const currentViewCopy = viewCopy[viewMode];
-
-  useEffect(() => {
-    setWbsEditDraft({
-      dueDate: normalizeDateValue(selectedWbs?.dueDate),
-      title: selectedWbs?.title ?? "",
-    });
-  }, [selectedWbs?.dueDate, selectedWbs?.id, selectedWbs?.title]);
+  const activeWbsEditDraft =
+    selectedWbs && wbsEditDraft.wbsId === selectedWbs.id
+      ? wbsEditDraft
+      : {
+          dueDate: normalizeDateValue(selectedWbs?.dueDate),
+          title: selectedWbs?.title ?? "",
+          wbsId: selectedWbs?.id ?? null,
+        };
 
   const handleCreateWbs = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -422,11 +434,11 @@ function ProjectRoomWorkBoardContent({
 
     if (!selectedWbs) return;
 
-    const title = wbsEditDraft.title.trim();
+    const title = activeWbsEditDraft.title.trim();
     if (!title) return;
 
     const patch = {
-      dueDate: wbsEditDraft.dueDate || null,
+      dueDate: activeWbsEditDraft.dueDate || null,
       title,
     };
     const previous = selectedWbs;
@@ -704,17 +716,17 @@ function ProjectRoomWorkBoardContent({
                         <span>WBS 이름</span>
                         <input
                           aria-label="WBS 이름"
-                          onChange={(event) => setWbsEditDraft((current) => ({ ...current, title: event.target.value }))}
-                          value={wbsEditDraft.title}
+                          onChange={(event) => setWbsEditDraft({ ...activeWbsEditDraft, title: event.target.value })}
+                          value={activeWbsEditDraft.title}
                         />
                       </label>
                       <label>
                         <span>기한</span>
                         <input
                           aria-label="WBS 기한"
-                          onChange={(event) => setWbsEditDraft((current) => ({ ...current, dueDate: event.target.value }))}
+                          onChange={(event) => setWbsEditDraft({ ...activeWbsEditDraft, dueDate: event.target.value })}
                           type="date"
-                          value={wbsEditDraft.dueDate}
+                          value={activeWbsEditDraft.dueDate}
                         />
                       </label>
                     </div>
