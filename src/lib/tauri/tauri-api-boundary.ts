@@ -116,6 +116,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.readLocalFile,
+    responsibility: "Read a limited text preview from a personal local file",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.flushSyncOutbox,
     responsibility: "Report/flush server-reflect backlog",
     reflectsToServer: true,
