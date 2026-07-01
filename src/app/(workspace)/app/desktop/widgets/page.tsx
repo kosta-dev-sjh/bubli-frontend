@@ -8,6 +8,7 @@ import { DesktopWidgetBubble } from "@/features/widget/components/desktop-widget
 import { widgetPreviewBubbles } from "@/features/widget/desktop-widget-preview-data";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { recordLocalWidgetUsageEvent, rollupLocalWidgetUsage, stageLocalWidgetUsageSummary } from "@/lib/widget/widget-local-client";
 
 import styles from "./page.module.css";
 
@@ -60,6 +61,7 @@ export default function DesktopWidgetsPage() {
   const [previewMode, setPreviewMode] = useState<WidgetWindowMode>("DEFAULT");
   const [previewAlwaysOnTop, setPreviewAlwaysOnTop] = useState(true);
   const [previewWindowVisible, setPreviewWindowVisible] = useState(true);
+  const [usageMessage, setUsageMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -99,6 +101,40 @@ export default function DesktopWidgetsPage() {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
+  const recordUsage = useCallback(
+    (bubbleType: WidgetBubbleType, eventType: string) => {
+      if (!isTauriRuntime()) return;
+      void recordLocalWidgetUsageEvent({ bubbleType, eventType, occurredAt: new Date().toISOString() });
+    },
+    [],
+  );
+
+  const rollupUsage = useCallback(async () => {
+    const result = await rollupLocalWidgetUsage();
+    if (result.status === "ready") {
+      setUsageMessage(`사용량 집계 ${result.data.length}건`);
+      return;
+    }
+    if (result.status === "unavailable") {
+      setUsageMessage("데스크탑 앱에서 사용할 수 있습니다");
+      return;
+    }
+    setUsageMessage(result.message ?? "집계를 처리했습니다");
+  }, []);
+
+  const syncUsageSummary = useCallback(async () => {
+    const result = await stageLocalWidgetUsageSummary();
+    if (result.status === "unavailable") {
+      setUsageMessage("데스크탑 앱에서 사용할 수 있습니다");
+      return;
+    }
+    if (result.status === "ready") {
+      setUsageMessage("요약을 서버 전송 대기열에 올렸습니다");
+      return;
+    }
+    setUsageMessage(result.message ?? "요약 동기화를 처리했습니다");
+  }, []);
+
   const activeBubble = runtime.widgetWindow?.activeBubble ?? previewBubble;
   const activeMode = runtime.widgetWindow?.mode ?? previewMode;
   const activeAlwaysOnTop = runtime.widgetWindow?.alwaysOnTop ?? previewAlwaysOnTop;
@@ -114,6 +150,7 @@ export default function DesktopWidgetsPage() {
     async (mode: WidgetWindowMode) => {
       setPreviewMode(mode);
       setPreviewWindowVisible(true);
+      recordUsage(activeBubble, "MODE_CHANGE");
 
       if (!runtime.isTauri) return;
 
@@ -125,7 +162,7 @@ export default function DesktopWidgetsPage() {
         setRuntime((current) => ({ ...current, widgetWindow: null }));
       }
     },
-    [activeBubble, runtime.isTauri],
+    [activeBubble, recordUsage, runtime.isTauri],
   );
 
   const openWidgetWindow = useCallback(
@@ -133,6 +170,7 @@ export default function DesktopWidgetsPage() {
       setPreviewBubble(bubbleType);
       setPreviewMode("DEFAULT");
       setPreviewWindowVisible(true);
+      recordUsage(bubbleType, "OPEN");
 
       if (!runtime.isTauri) return;
 
@@ -146,12 +184,13 @@ export default function DesktopWidgetsPage() {
         setRuntime((current) => ({ ...current, widgetWindow: null }));
       }
     },
-    [activeBubble, runtime.isTauri],
+    [activeBubble, recordUsage, runtime.isTauri],
   );
 
   const closeWidgetWindow = useCallback(async () => {
     setPreviewMode("MINIMIZED");
     setPreviewWindowVisible(false);
+    recordUsage(activeBubble, "CLOSE");
 
     if (!runtime.isTauri) return;
 
@@ -167,6 +206,7 @@ export default function DesktopWidgetsPage() {
   const toggleAlwaysOnTop = useCallback(async () => {
     const enabled = !activeAlwaysOnTop;
     setPreviewAlwaysOnTop(enabled);
+    recordUsage(activeBubble, "PIN_TOGGLE");
 
     if (!runtime.isTauri) return;
 
@@ -177,7 +217,7 @@ export default function DesktopWidgetsPage() {
     } catch {
       setRuntime((current) => ({ ...current, widgetWindow: null }));
     }
-  }, [activeAlwaysOnTop, activeBubble, runtime.isTauri]);
+  }, [activeAlwaysOnTop, activeBubble, recordUsage, runtime.isTauri]);
 
   return (
     <section className={styles.page} aria-labelledby="widget-title">
@@ -258,6 +298,19 @@ export default function DesktopWidgetsPage() {
                 );
               })}
             </div>
+          </div>
+
+          <div className={styles.controlGroup}>
+            <strong>사용량</strong>
+            <div className={styles.actionRow}>
+              <button onClick={() => void rollupUsage()} type="button">
+                집계
+              </button>
+              <button onClick={() => void syncUsageSummary()} type="button">
+                요약 동기화
+              </button>
+            </div>
+            {usageMessage ? <span>{usageMessage}</span> : null}
           </div>
         </aside>
       </div>

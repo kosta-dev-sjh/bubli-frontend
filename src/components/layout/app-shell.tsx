@@ -252,7 +252,7 @@ export function AppShell({ children }: AppShellProps) {
 
     return {
       displayName: state.user.name,
-      email: state.user.email,
+      email: state.user.email ?? "",
       initials: initialsFromName(state.user.name),
     };
   }, [state]);

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Settings, UploadCloud, Users } from "lucide-react";
+import { AlertCircle, UploadCloud } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -11,7 +11,16 @@ import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewRoomResources } from "@/lib/workspace-preview-data";
 import type { ResourceResponse } from "@/types/api/resource";
 
-import { getErrorMessage, ResourcePreview, ResourceTile, ResourceToolbar, type ViewMode } from "./resource-board-common";
+import {
+  getErrorMessage,
+  ResourcePreview,
+  ResourceScopeSwitch,
+  ResourceTile,
+  ResourceToolbar,
+  SUPPORTED_RESOURCE_UPLOAD_ACCEPT,
+  type ViewMode,
+} from "./resource-board-common";
+import styles from "./resource-board-polish.module.css";
 
 const EMPTY_RESOURCES: ResourceResponse[] = [];
 
@@ -80,14 +89,14 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
       const matched = workspacePreviewRoomResources.filter((resource) => resource.roomId === roomId);
       const resources = matched.length ? matched : workspacePreviewRoomResources;
       setState({ kind: "ready", resources });
-      setSelectedResourceId((current) => (current && resources.some((resource) => resource.id === current) ? current : resources[0]?.id ?? null));
+      setSelectedResourceId((current) => (current && resources.some((resource) => resource.id === current) ? current : null));
       return;
     }
 
     try {
       const page = await resourcesApi.listRoomResources(roomId);
       setState({ kind: "ready", resources: page.items });
-      setSelectedResourceId((current) => (current && page.items.some((resource) => resource.id === current) ? current : page.items[0]?.id ?? null));
+      setSelectedResourceId((current) => (current && page.items.some((resource) => resource.id === current) ? current : null));
     } catch (error) {
       const message = getErrorMessage(error);
       setState(message === "AUTH_REQUIRED" ? { kind: "auth" } : { kind: "error", message });
@@ -121,14 +130,9 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
     });
   }, [query, resources]);
 
-  const selectedResource = filteredResources.find((resource) => resource.id === selectedResourceId) ?? filteredResources[0] ?? null;
-  const analyzingCount = resources.filter((resource) => resource.status === "ANALYZING").length;
-  const needsReviewCount = resources.filter((resource) => resource.status === "FAILED").length;
+  const selectedResource = selectedResourceId ? filteredResources.find((resource) => resource.id === selectedResourceId) ?? null : null;
   const canShowBoard = state.kind !== "auth" && state.kind !== "error";
   const uploadDisabled = state.kind !== "ready" || uploadState.kind === "uploading";
-  const previewMode = shouldUseWorkspacePreviewData();
-  const uploadStatusLabel =
-    uploadState.kind === "uploading" ? "진행 중" : uploadState.kind === "success" ? "완료" : uploadState.kind === "error" ? "확인 필요" : "대기";
 
   const handleFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -170,17 +174,15 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   );
 
   return (
-    <section className="resource-workspace" aria-label="프로젝트룸 자료">
-      <GlassPanel className="resource-workspace__hero">
+    <section className={cn("resource-workspace", styles.workspace)} aria-label="자료보드">
+      <GlassPanel className={cn("resource-workspace__hero", styles.boardHeader)}>
         <div className="resource-workspace__copy">
-          <h1>프로젝트룸 자료</h1>
-          <p>멤버가 함께 보는 파일을 올리고, 정리 상태와 승인 대상을 확인합니다.</p>
+          <span className={styles.kicker}>프로젝트룸 자료</span>
+          <h1>자료보드</h1>
+          <p>현재 프로젝트룸의 공용 파일을 올리고 확인합니다.</p>
         </div>
-        <div className="resource-workspace__actions">
-          <Link className="bubli-button" href={`/app/project-rooms/${roomId}`}>
-            <Settings aria-hidden size={15} strokeWidth={1.9} />
-            프로젝트룸
-          </Link>
+        <div className={styles.headerActions}>
+          <ResourceScopeSwitch activeScope="room" roomHref={`/app/project-rooms/${roomId}/resources`} roomLabel="프로젝트룸" />
         </div>
       </GlassPanel>
 
@@ -213,47 +215,48 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
 
       {canShowBoard ? (
         <>
-          <div className="resource-workspace__stats" aria-label="자료 상태 요약">
-            <GlassPanel dense className="resource-workspace__stat">
-              <span>프로젝트룸 자료</span>
-              <b>{state.kind === "loading" ? "-" : resources.length}</b>
-            </GlassPanel>
-            <GlassPanel dense className="resource-workspace__stat">
-              <span>정리 중</span>
-              <b>{state.kind === "loading" ? "-" : analyzingCount}</b>
-            </GlassPanel>
-            <GlassPanel dense className="resource-workspace__stat">
-              <span>확인 필요</span>
-              <b>{state.kind === "loading" ? "-" : needsReviewCount}</b>
-            </GlassPanel>
-            <GlassPanel dense className="resource-workspace__stat">
-              <span>업로드 상태</span>
-              <b>{state.kind === "loading" ? "-" : uploadStatusLabel}</b>
-            </GlassPanel>
-          </div>
-
-          <GlassPanel className="resource-workspace__board">
-            <aside className="resource-workspace__sources" aria-label="자료 위치">
-              <button className="is-active" type="button">
-                <Users aria-hidden size={18} strokeWidth={2} />
-                <span>
-                  프로젝트룸 자료
-                  <b>{resources.length}</b>
-                </span>
-              </button>
-              <div className="resource-workspace__source-note">
-                <Users aria-hidden size={17} strokeWidth={2} />
-                <div>
-                  <strong>프로젝트룸 공용 자료</strong>
-                  <span>멤버 공용 / 파일 선택과 끌어놓기로 추가</span>
-                </div>
-              </div>
-            </aside>
-
+          <GlassPanel
+            className={cn(
+              "resource-workspace__board",
+              styles.boardShell,
+              styles.boardShellFlat,
+              selectedResource ? styles.boardShellHasPreview : styles.boardShellNoPreview,
+              dragActive && styles.boardDropActive,
+            )}
+            onDragEnter={(event) => {
+              event.preventDefault();
+              setDragActive(true);
+            }}
+            onDragLeave={(event) => {
+              event.preventDefault();
+              if (event.currentTarget === event.target) {
+                setDragActive(false);
+              }
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragActive(false);
+              if (!uploadDisabled) {
+                void handleFiles(event.dataTransfer.files);
+              }
+            }}
+          >
             <section className="resource-workspace__browser" aria-label="자료 탐색">
-              <div className="resource-workspace__scope-head">
-                <span>프로젝트룸 자료</span>
-                <strong>공용 업로드</strong>
+              <div className={styles.listHeader}>
+                <div>
+                  <span>프로젝트룸 자료</span>
+                  <strong>총 {state.kind === "loading" ? "-" : resources.length}개</strong>
+                </div>
+                <p>{uploadState.kind === "idle" ? "파일을 끌어다 놓거나 선택해 추가합니다" : null}</p>
+                {uploadState.kind === "uploading" ? <p>{uploadState.fileName} 업로드 중</p> : null}
+                {uploadState.kind === "success" ? <p>{uploadState.fileName} 업로드 완료</p> : null}
+                {uploadState.kind === "error" ? <p>{uploadState.message}</p> : null}
+                <Button disabled={uploadDisabled} onClick={() => fileInputRef.current?.click()} variant="primary">
+                  파일 선택
+                </Button>
               </div>
 
               <ResourceToolbar onQuery={setQuery} onViewMode={setViewMode} query={query} viewMode={viewMode} />
@@ -262,6 +265,8 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                 ref={fileInputRef}
                 className="resource-workspace__file-input"
                 disabled={uploadDisabled}
+                accept={SUPPORTED_RESOURCE_UPLOAD_ACCEPT}
+                multiple
                 onChange={(event) => {
                   if (event.target.files) {
                     void handleFiles(event.target.files);
@@ -271,42 +276,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                 type="file"
               />
 
-              <GlassPanel
-                className={cn("resource-workspace__dropzone", dragActive && "is-dragging", uploadDisabled && "is-disabled")}
-                onDragEnter={(event) => {
-                  event.preventDefault();
-                  setDragActive(true);
-                }}
-                onDragLeave={(event) => {
-                  event.preventDefault();
-                  setDragActive(false);
-                }}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  setDragActive(false);
-                  if (!uploadDisabled) {
-                    void handleFiles(event.dataTransfer.files);
-                  }
-                }}
-                aria-disabled={uploadDisabled}
-              >
-                <UploadCloud aria-hidden size={23} strokeWidth={2} />
-                <div>
-                  <strong>공용 자료 추가</strong>
-                  <p>계약서, 요구사항, 회의록처럼 프로젝트룸 멤버가 함께 볼 파일을 추가합니다.</p>
-                  {uploadState.kind === "uploading" ? <span>{uploadState.fileName} 업로드 중</span> : null}
-                  {uploadState.kind === "success" ? <span>{uploadState.fileName} 업로드 완료</span> : null}
-                  {uploadState.kind === "error" ? <span>{uploadState.message}</span> : null}
-                </div>
-                <Button disabled={uploadDisabled} onClick={() => fileInputRef.current?.click()} variant="primary">
-                  파일 선택
-                </Button>
-              </GlassPanel>
-
-              <div className={cn("resource-workspace__items", viewMode === "list" && "resource-workspace__items--list")}>
+              <div className={cn("resource-workspace__items", styles.fileGrid, viewMode === "list" && "resource-workspace__items--list", viewMode === "list" && styles.fileList)}>
                 {state.kind === "loading" ? (
                   <>
                     <GlassPanel loading />
@@ -317,8 +287,8 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                   <GlassPanel className="resource-workspace__empty">
                     <UploadCloud aria-hidden size={22} strokeWidth={2} />
                     <div>
-                      <h2>아직 올라온 자료가 없습니다</h2>
-                      <p>공용 파일을 추가하면 이 프로젝트룸의 정리, 확인, 승인 흐름에 연결됩니다.</p>
+                      <h2>현재 데이터가 없습니다</h2>
+                      <p>파일을 추가하면 이 룸의 자료 목록에 표시됩니다.</p>
                     </div>
                   </GlassPanel>
                 ) : (
@@ -337,7 +307,8 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
             </section>
 
             <ResourcePreview
-              emptyHint="공용 자료를 선택하면 정리 상태와 다운로드를 확인합니다."
+              emptyHint="자료를 선택하면 파일 정보와 정리 상태를 확인합니다."
+              onClose={() => setSelectedResourceId(null)}
               onError={(message) => setUploadState({ kind: "error", message })}
               resource={selectedResource}
               scope="room"

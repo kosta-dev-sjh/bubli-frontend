@@ -28,8 +28,8 @@ type AgentPageState =
   | { kind: "offline"; message: string };
 
 const typeLabels: Record<AgentSuggestionType, string> = {
-  CONTRACT_FIELD: "계약 정보",
-  CONTRACT_REVIEW: "계약 확인",
+  CONTRACT_FIELD: "프로젝트 참고값",
+  CONTRACT_REVIEW: "범위 확인",
   DAILY_SUMMARY: "하루정리",
   DOCUMENT_DRAFT: "문서 초안",
   MEMO: "메모",

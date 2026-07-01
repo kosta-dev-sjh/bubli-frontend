@@ -1,6 +1,7 @@
 import { createRealtimeDispatcher, type RealtimeDispatcher } from "@/lib/realtime/dispatcher";
 import { parseRealtimeEventJson } from "@/lib/realtime/events";
 import type { BubliRealtimeEvent, RealtimeTopic } from "@/types/realtime";
+import { websocketTopics } from "@/lib/websocket/topics";
 
 export type RealtimeConnectionStatus =
   | "IDLE"
@@ -42,8 +43,10 @@ export function createRealtimeBrowserClient(
   let socket: WebSocket | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectAttempt = 0;
+  let subscriptionId = 0;
   let status: RealtimeConnectionStatus = "IDLE";
   let manuallyClosed = false;
+  const subscribedTopics = new Map<string, string>();
 
   function setStatus(next: RealtimeConnectionStatus) {
     status = next;
@@ -81,6 +84,10 @@ export function createRealtimeBrowserClient(
     }, delay);
   }
 
+  async function readAccessToken() {
+    return (await options.getAccessToken?.()) ?? null;
+  }
+
   async function openSocket() {
     clearReconnectTimer();
     manuallyClosed = false;
@@ -93,17 +100,26 @@ export function createRealtimeBrowserClient(
 
     socket = nextSocket;
     nextSocket.onopen = () => {
-      reconnectAttempt = 0;
-      setStatus("OPEN");
+      void readAccessToken().then((token) => {
+        if (!token || nextSocket.readyState !== WebSocket.OPEN) {
+          nextSocket.close();
+          return;
+        }
+
+        nextSocket.send(
+          encodeStompFrame("CONNECT", {
+            Authorization: `Bearer ${token}`,
+            "accept-version": "1.2",
+            "heart-beat": "10000,10000",
+          }),
+        );
+      });
     };
     nextSocket.onmessage = (message) => {
       if (typeof message.data !== "string") {
         return;
       }
-      const event = parseRealtimeEventJson(message.data);
-      if (event) {
-        dispatcher.dispatch(event);
-      }
+      handleSocketMessage(message.data);
     };
     nextSocket.onclose = () => {
       socket = null;
@@ -116,6 +132,60 @@ export function createRealtimeBrowserClient(
     nextSocket.onerror = () => {
       nextSocket.close();
     };
+  }
+
+  function handleSocketMessage(raw: string) {
+    for (const frame of parseStompFrames(raw)) {
+      if (frame.command === "CONNECTED") {
+        reconnectAttempt = 0;
+        setStatus("OPEN");
+        subscribedTopics.forEach((destination) => {
+          sendSubscribe(destination);
+        });
+        continue;
+      }
+      if (frame.command === "MESSAGE") {
+        const event = parseRealtimeEventJson(frame.body);
+        if (event) {
+          dispatcher.dispatch(event);
+        }
+        continue;
+      }
+      if (frame.command === "ERROR") {
+        socket?.close();
+      }
+    }
+
+    if (!raw.includes("\n")) {
+      const event = parseRealtimeEventJson(raw);
+      if (event) {
+        dispatcher.dispatch(event);
+      }
+    }
+  }
+
+  function sendSubscribe(destination: string) {
+    if (!socket || socket.readyState !== WebSocket.OPEN || status !== "OPEN") {
+      return;
+    }
+
+    socket.send(
+      encodeStompFrame("SUBSCRIBE", {
+        ack: "auto",
+        destination,
+        id: `sub-${subscriptionId++}`,
+      }),
+    );
+  }
+
+  function topicToDestination(topic: RealtimeTopic) {
+    if (topic.kind === "chatRoom") {
+      return websocketTopics.chatRoom(topic.chatRoomId);
+    }
+    if (topic.kind === "projectRoom") {
+      return websocketTopics.projectRoomEvents(topic.roomId);
+    }
+    return websocketTopics.notifications;
   }
 
   return {
@@ -143,6 +213,52 @@ export function createRealtimeBrowserClient(
       };
     },
     subscribe: dispatcher.subscribe,
-    subscribeToTopic: dispatcher.subscribeToTopic,
+    subscribeToTopic(topic, handler) {
+      const destination = topicToDestination(topic);
+      subscribedTopics.set(JSON.stringify(topic), destination);
+      sendSubscribe(destination);
+      const unsubscribe = dispatcher.subscribeToTopic(topic, handler);
+      return () => {
+        unsubscribe();
+        subscribedTopics.delete(JSON.stringify(topic));
+      };
+    },
   };
+}
+
+type StompFrame = {
+  body: string;
+  command: string;
+  headers: Record<string, string>;
+};
+
+function encodeStompFrame(command: string, headers: Record<string, string>, body = "") {
+  const headerText = Object.entries(headers)
+    .map(([key, value]) => `${key}:${value}`)
+    .join("\n");
+
+  return `${command}\n${headerText}\n\n${body}\0`;
+}
+
+function parseStompFrames(raw: string): StompFrame[] {
+  return raw
+    .split("\0")
+    .map((frame) => frame.trim())
+    .filter(Boolean)
+    .map(parseStompFrame);
+}
+
+function parseStompFrame(raw: string): StompFrame {
+  const [head = "", body = ""] = raw.split("\n\n");
+  const [command = "", ...headerLines] = head.split("\n");
+  const headers = Object.fromEntries(
+    headerLines
+      .map((line) => {
+        const separator = line.indexOf(":");
+        return separator >= 0 ? [line.slice(0, separator), line.slice(separator + 1)] : null;
+      })
+      .filter((entry): entry is [string, string] => Boolean(entry)),
+  );
+
+  return { body, command, headers };
 }

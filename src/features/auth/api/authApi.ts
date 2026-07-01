@@ -1,23 +1,94 @@
-import { apiRequest, getApiBaseUrl } from "@/lib/api/client";
-import type { AuthRefreshResponse, AuthUser } from "@/types/api/auth";
+import { apiRequest } from "@/lib/api/client";
+import {
+  clearStoredAuthSession,
+  getAuthClientType,
+  getAuthRedirectUri,
+  getAuthRefreshToken,
+  setStoredAuthSession,
+} from "@/lib/auth/auth-session";
+import type {
+  AuthClientType,
+  AuthRefreshResponse,
+  AuthTokenResponse,
+  AuthUser,
+  GoogleAuthorizeResponse,
+  GoogleCallbackRequest,
+} from "@/types/api/auth";
 
 export type UpdateMeRequest = Partial<Pick<AuthUser, "avatarUrl" | "locale" | "name" | "timezone">>;
 
+type GetGoogleAuthorizationInput = {
+  clientType?: AuthClientType;
+  redirectUri?: string;
+  state?: string;
+};
+
 export const authApi = {
-  getGoogleAuthorizationUrl() {
-    return `${getApiBaseUrl()}/oauth2/authorization/google`;
-  },
+  getGoogleAuthorizationUrl(input: GetGoogleAuthorizationInput = {}) {
+    const params = new URLSearchParams();
+    params.set("clientType", input.clientType ?? getAuthClientType());
+    params.set("redirectUri", input.redirectUri ?? getAuthRedirectUri());
+    if (input.state) {
+      params.set("state", input.state);
+    }
 
-  logout() {
-    return apiRequest<null>("/api/auth/logout", {
-      method: "POST",
+    return apiRequest<GoogleAuthorizeResponse>(`/api/auth/google/authorize?${params.toString()}`, {
+      method: "GET",
+      skipAuth: true,
+      skipAuthRefresh: true,
     });
   },
 
-  refresh() {
-    return apiRequest<AuthRefreshResponse>("/api/auth/refresh", {
+  async callbackGoogle(input: GoogleCallbackRequest) {
+    const token = await apiRequest<AuthTokenResponse>("/api/auth/google/callback", {
+      body: input,
       method: "POST",
+      skipAuth: true,
+      skipAuthRefresh: true,
     });
+    setStoredAuthSession({ ...token, clientType: input.clientType });
+    return token;
+  },
+
+  async logout() {
+    const refreshToken = getAuthRefreshToken();
+    if (!refreshToken) {
+      clearStoredAuthSession();
+      return null;
+    }
+
+    try {
+      return await apiRequest<null>("/api/auth/logout", {
+        body: {
+          clientType: getAuthClientType(),
+          refreshToken,
+        },
+        method: "POST",
+      });
+    } finally {
+      clearStoredAuthSession();
+    }
+  },
+
+  async refresh() {
+    const refreshToken = getAuthRefreshToken();
+    if (!refreshToken) {
+      clearStoredAuthSession();
+      return null;
+    }
+
+    const clientType = getAuthClientType();
+    const token = await apiRequest<AuthRefreshResponse>("/api/auth/refresh", {
+      body: {
+        clientType,
+        refreshToken,
+      },
+      method: "POST",
+      skipAuth: true,
+      skipAuthRefresh: true,
+    });
+    setStoredAuthSession({ ...token, clientType });
+    return token;
   },
 
   getMe() {

@@ -12,7 +12,7 @@ export const siteConfig = {
   appNav: [
     { href: "/app", label: "대시보드" },
     { href: "/app/project-rooms", label: "프로젝트룸" },
-    { href: "/app/resources", label: "개인 자료" },
+    { href: "/app/resources", label: "자료보드" },
     { href: "/app/agent", label: "후보" },
     { href: "/app/calendar", label: "일정" },
     { href: "/app/chat", label: "소통" },

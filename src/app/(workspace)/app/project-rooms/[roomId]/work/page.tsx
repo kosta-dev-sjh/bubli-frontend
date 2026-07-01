@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Clock3, RefreshCw } from "lucide-react";
+import { AlertCircle, Clock3, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -108,11 +108,6 @@ export default function ProjectRoomWorkPage() {
         <div>
           <h1 id="work-title">{state.kind === "ready" ? state.room.name : "작업판"}</h1>
         </div>
-        <div className="workspace-route__actions">
-          <Link className="bubli-button" href={`/app/project-rooms/${roomId}/resources`}>
-            자료
-          </Link>
-        </div>
       </header>
 
       {state.kind === "loading" ? (
@@ -160,16 +155,7 @@ export default function ProjectRoomWorkPage() {
 
           {content.board.wbsItems.length + content.board.tasks.length + content.pendingSuggestions.length === 0 ? (
             <GlassPanel className="workspace-route__panel">
-              <CheckCircle2 aria-hidden size={20} strokeWidth={2} />
-              <strong>작업 전</strong>
-              <div className="workspace-route__actions">
-                <Link className="bubli-button bubli-button--primary" href={`/app/project-rooms/${roomId}/resources`}>
-                  자료 올리기
-                </Link>
-                <Link className="bubli-button" href={`/app/agent?roomId=${roomId}`}>
-                  후보 확인
-                </Link>
-              </div>
+              <strong>현재 데이터가 없습니다</strong>
             </GlassPanel>
           ) : (
             <>
