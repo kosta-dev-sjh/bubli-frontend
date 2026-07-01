@@ -4,7 +4,7 @@ import { DndContext, DragOverlay, PointerSensor, closestCenter, useDroppable, us
 import type { CollisionDetection, DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AlertCircle, CheckCircle2, Clock3, LayoutDashboard } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, LayoutDashboard, Pause, Play, RotateCcw, Square } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -15,9 +15,12 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { dashboardApi } from "@/features/dashboard/api/dashboardApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
+import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { tauriCommands } from "@/lib/tauri/commands";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -32,6 +35,7 @@ import {
 } from "@/lib/workspace-preview-data";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { ResourceResponse } from "@/types/api/resource";
+import type { TimeLogResponse } from "@/types/api/timer";
 import type { WidgetSummaryResponse } from "@/types/api/widget";
 import type { DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
 
@@ -61,7 +65,9 @@ const connectedWidgetIds = [
 const defaultWidgetIds = ["today-summary", "next-focus", "today-todos", "schedule", "project-rooms", "pending-approval", "timer"];
 const dashboardDropzoneId = "dashboard-canvas";
 const dashboardRemoveDropzoneId = "dashboard-remove-card";
+const DASHBOARD_TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
 let dashboardWidgetLayoutSnapshot = [...defaultWidgetIds];
+type DashboardTimerAction = "idle" | "starting" | "pausing" | "resuming" | "stopping";
 
 function normalizeWidgetIds(ids: string[]) {
   const seen = new Set<string>();
@@ -138,6 +144,21 @@ function getTimerSeconds(timer: DashboardWorkResponse["runningTimer"]) {
   if (timer.status !== "RUNNING" || Number.isNaN(started)) return null;
 
   return Math.max(0, Math.floor((Date.now() - started) / 1000));
+}
+
+function makeTimerIdempotencyKey() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `dashboard-timer-${crypto.randomUUID()}`;
+  }
+
+  return `dashboard-timer-${Date.now()}`;
+}
+
+function timerActionLabel(timer?: DashboardWorkResponse["runningTimer"]) {
+  if (timer?.status === "RUNNING") return "실행 중";
+  if (timer?.status === "PAUSED") return "일시정지";
+  if (timer?.status === "NEEDS_RECOVERY") return "복구 필요";
+  return "대기";
 }
 
 function hasDashboardItems(data: DashboardWorkResponse) {
@@ -448,6 +469,8 @@ export function WorkspaceDashboard() {
   const [rooms, setRooms] = useState<ProjectRoomResponse[]>([]);
   const [widgetSummary, setWidgetSummary] = useState<WidgetSummaryResponse | null>(null);
   const [widgetIds, setWidgetIds] = useState(() => readStoredWidgetIds());
+  const [timerAction, setTimerAction] = useState<DashboardTimerAction>("idle");
+  const [timerMessage, setTimerMessage] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const fetchDashboard = useCallback(async () => {
@@ -509,6 +532,36 @@ export function WorkspaceDashboard() {
     storeWidgetIds(widgetIds);
   }, [widgetIds]);
 
+  const recordDashboardTimerState = useCallback((timeLog: TimeLogResponse) => {
+    if (!isTauriRuntime()) return;
+
+    void tauriCommands
+      .recordTimerState({
+        roomId: timeLog.roomId ?? null,
+        serverTimeLogId: timeLog.id,
+        startedAt: timeLog.startedAt,
+        status: timeLog.status,
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const applyDashboardTimerResult = useCallback(
+    (timeLog: TimeLogResponse) => {
+      setState((current) => {
+        if (current.kind !== "ready" && current.kind !== "empty") return current;
+
+        const nextData = {
+          ...current.data,
+          runningTimer: timeLog.status === "ENDED" ? null : timeLog,
+        };
+
+        return hasDashboardItems(nextData) ? { data: nextData, kind: "ready" } : { data: nextData, kind: "empty" };
+      });
+      recordDashboardTimerState(timeLog);
+    },
+    [recordDashboardTimerState],
+  );
+
   const realData = state.kind === "ready" || state.kind === "empty" ? state.data : emptyDashboard;
   const data = useMemo<DashboardWorkResponse>(() => {
     if (!activeRoom.roomId) return realData;
@@ -521,6 +574,74 @@ export function WorkspaceDashboard() {
       upcomingDeadlines: realData.upcomingDeadlines.filter((task) => task.roomId === activeRoom.roomId),
     };
   }, [activeRoom.roomId, realData]);
+  const activeDashboardTimer = data.runningTimer ?? null;
+  const roomFilteredRunningTimer = activeRoom.roomId && realData.runningTimer && !activeDashboardTimer ? realData.runningTimer : null;
+  const timerBusy = timerAction !== "idle";
+  const activeHeartbeatTimerId = realData.runningTimer?.status === "RUNNING" ? realData.runningTimer.id : null;
+
+  useEffect(() => {
+    if (!activeHeartbeatTimerId) return;
+
+    let cancelled = false;
+    const intervalId = window.setInterval(() => {
+      void timerApi
+        .heartbeat(activeHeartbeatTimerId)
+        .then((timeLog) => {
+          if (!cancelled) {
+            applyDashboardTimerResult(timeLog);
+          }
+        })
+        .catch(() => undefined);
+    }, DASHBOARD_TIMER_HEARTBEAT_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeHeartbeatTimerId, applyDashboardTimerResult]);
+
+  const runDashboardTimerAction = useCallback(
+    async (action: Exclude<DashboardTimerAction, "idle">) => {
+      const currentTimer = data.runningTimer ?? realData.runningTimer ?? null;
+      setTimerAction(action);
+      setTimerMessage(null);
+
+      try {
+        if (action === "starting") {
+          const roomId = activeRoom.roomId ?? null;
+          const timeLog = await timerApi.start({
+            idempotencyKey: makeTimerIdempotencyKey(),
+            roomId,
+            timerType: roomId ? "WORK" : "GENERAL",
+          });
+          applyDashboardTimerResult(timeLog);
+          setTimerMessage("타이머를 시작했습니다");
+          return;
+        }
+
+        if (!currentTimer) {
+          setTimerMessage("실행 중인 타이머가 없습니다");
+          return;
+        }
+
+        const timeLog =
+          action === "pausing"
+            ? await timerApi.pause(currentTimer.id)
+            : action === "resuming"
+              ? await timerApi.resume(currentTimer.id)
+              : await timerApi.stop(currentTimer.id);
+
+        applyDashboardTimerResult(timeLog);
+        setTimerMessage(action === "pausing" ? "타이머를 일시정지했습니다" : action === "resuming" ? "타이머를 재개했습니다" : "타이머를 종료했습니다");
+      } catch (error) {
+        setTimerMessage(error instanceof Error && error.message !== "Failed to fetch" ? error.message : "타이머 요청을 처리하지 못했습니다");
+      } finally {
+        setTimerAction("idle");
+      }
+    },
+    [activeRoom.roomId, applyDashboardTimerResult, data.runningTimer, realData.runningTimer],
+  );
+
   const dashboardTasks = [...data.todayTasks, ...data.upcomingDeadlines, ...(activeRoom.roomId ? [] : personalTasks)].filter(
     (task, index, source) => source.findIndex((item) => item.id === task.id) === index,
   );
@@ -697,11 +818,69 @@ export function WorkspaceDashboard() {
             </DashboardLineList>
           );
         case "timer":
-          if (!data.runningTimer && !inProgressTask) return <EmptyWidget />;
           return (
             <div className="workspace-dashboard__timer-preview">
-              <b>{formatDuration(getTimerSeconds(data.runningTimer))}</b>
-              <span>{inProgressTask ? `${inProgressTask.title} 진행 중` : "타이머 실행 중"}</span>
+              <b>{formatDuration(getTimerSeconds(activeDashboardTimer))}</b>
+              <span>
+                {activeDashboardTimer
+                  ? timerActionLabel(activeDashboardTimer)
+                  : roomFilteredRunningTimer
+                    ? "다른 프로젝트룸에서 실행 중"
+                    : inProgressTask
+                      ? `${inProgressTask.title} 진행 중`
+                      : "타이머 대기"}
+              </span>
+              <div className="workspace-dashboard__timer-actions" aria-label="타이머 조작" role="group">
+                <Button
+                  aria-label="타이머 시작"
+                  className="workspace-dashboard__timer-action"
+                  disabled={timerBusy || Boolean(realData.runningTimer)}
+                  icon={<Play size={13} strokeWidth={2.2} />}
+                  loading={timerAction === "starting"}
+                  onClick={() => void runDashboardTimerAction("starting")}
+                  size="sm"
+                  variant="primary"
+                >
+                  시작
+                </Button>
+                <Button
+                  aria-label="타이머 일시정지"
+                  className="workspace-dashboard__timer-action"
+                  disabled={timerBusy || activeDashboardTimer?.status !== "RUNNING"}
+                  icon={<Pause size={13} strokeWidth={2.2} />}
+                  loading={timerAction === "pausing"}
+                  onClick={() => void runDashboardTimerAction("pausing")}
+                  size="sm"
+                  variant="secondary"
+                >
+                  일시정지
+                </Button>
+                <Button
+                  aria-label="타이머 재개"
+                  className="workspace-dashboard__timer-action"
+                  disabled={timerBusy || activeDashboardTimer?.status !== "PAUSED"}
+                  icon={<RotateCcw size={13} strokeWidth={2.2} />}
+                  loading={timerAction === "resuming"}
+                  onClick={() => void runDashboardTimerAction("resuming")}
+                  size="sm"
+                  variant="secondary"
+                >
+                  재개
+                </Button>
+                <Button
+                  aria-label="타이머 종료"
+                  className="workspace-dashboard__timer-action"
+                  disabled={timerBusy || !activeDashboardTimer || activeDashboardTimer.status === "ENDED"}
+                  icon={<Square size={12} strokeWidth={2.4} />}
+                  loading={timerAction === "stopping"}
+                  onClick={() => void runDashboardTimerAction("stopping")}
+                  size="sm"
+                  variant="quiet"
+                >
+                  종료
+                </Button>
+              </div>
+              {timerMessage ? <small aria-live="polite">{timerMessage}</small> : null}
             </div>
           );
         case "recent-resources":
@@ -717,7 +896,26 @@ export function WorkspaceDashboard() {
           return null;
       }
     },
-    [activeRooms, dashboardTasks, data, enabledBubbleCount, inProgressTask, nextFocusSchedule, nextFocusTask, recentResources, reviewTasks, taskItems, todaySchedules],
+    [
+      activeDashboardTimer,
+      activeRooms,
+      dashboardTasks,
+      data,
+      enabledBubbleCount,
+      inProgressTask,
+      nextFocusSchedule,
+      nextFocusTask,
+      realData.runningTimer,
+      recentResources,
+      reviewTasks,
+      roomFilteredRunningTimer,
+      runDashboardTimerAction,
+      taskItems,
+      timerAction,
+      timerBusy,
+      timerMessage,
+      todaySchedules,
+    ],
   );
 
   return (
