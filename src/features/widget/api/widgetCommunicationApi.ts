@@ -1,7 +1,7 @@
 import { apiRequest } from "@/lib/api/client";
 import type { ChatMessageListResponse, ChatMessageResponse, ChatRoomResponse } from "@/types/api/chat";
 import type { FriendResponse } from "@/types/api/friend";
-import type { VoiceRoomResponse, VoiceTokenResponse } from "@/types/api/voice";
+import type { VoiceParticipantResponse, VoiceRoomResponse, VoiceTokenResponse } from "@/types/api/voice";
 import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
 
 export type WidgetChatRoomPageResponse = {
@@ -37,10 +37,8 @@ export const widgetCommunicationApi = {
     return widgetCommunicationRequest<ChatMessageResponse>(`/api/chat/rooms/${chatRoomId}/messages`, {
       body: {
         body: request.body,
+        clientMessageId: request.clientMessageId,
         messageType: request.messageType ?? "TEXT",
-      },
-      headers: {
-        "Idempotency-Key": request.clientMessageId,
       },
       method: "POST",
     });
@@ -55,7 +53,7 @@ export const widgetCommunicationApi = {
 
   createDirectRoom(friendUserId: string) {
     return widgetCommunicationRequest<ChatRoomResponse>("/api/chat/direct-rooms", {
-      body: { friendUserId },
+      body: { targetUserId: friendUserId },
       method: "POST",
     });
   },
@@ -78,14 +76,14 @@ export const widgetCommunicationApi = {
   },
 
   updateMicStatus(voiceRoomId: string, micStatus: "MUTED" | "UNMUTED") {
-    return widgetCommunicationRequest<null>(`/api/voice/rooms/${voiceRoomId}/mic`, {
+    return widgetCommunicationRequest<VoiceParticipantResponse>(`/api/voice/rooms/${voiceRoomId}/mic`, {
       body: { micStatus },
       method: "PATCH",
     });
   },
 
   leaveVoiceRoom(voiceRoomId: string) {
-    return widgetCommunicationRequest<null>(`/api/voice/rooms/${voiceRoomId}/leave`, {
+    return widgetCommunicationRequest<VoiceRoomResponse>(`/api/voice/rooms/${voiceRoomId}/leave`, {
       method: "PATCH",
     });
   },

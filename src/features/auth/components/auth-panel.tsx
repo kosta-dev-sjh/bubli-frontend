@@ -152,7 +152,7 @@ export function AuthPanel() {
             type="button"
           >
             <GoogleIcon />
-            {isStartingLogin ? "Google로 이동 중" : "Google로 로그인"}
+            {isStartingLogin ? "구글로 이동 중" : "구글로 로그인"}
           </button>
           {loginError ? <p className="auth-card__error">{loginError}</p> : null}
         </div>

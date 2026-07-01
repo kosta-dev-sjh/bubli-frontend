@@ -1,14 +1,17 @@
 "use client";
 
+import { Room } from "livekit-client";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import {
   widgetDisplayApi,
   type WidgetAgentSuggestionResponse,
   type WidgetChatMessageResponse,
+  type WidgetChatRoomResponse,
   type WidgetDashboardWorkResponse,
   type WidgetFriendResponse,
+  type WidgetMemoResponse,
   type WidgetNotificationResponse,
   type WidgetProjectRoomResponse,
   type WidgetResourceResponse,
@@ -17,6 +20,7 @@ import {
   type WidgetVoiceRoomResponse,
 } from "@/features/widget/api/widgetDisplayApi";
 import { widgetApi, type BackendWidgetBubbleType, type WidgetBubbleSettingResponse, type WidgetContextResponse } from "@/features/widget/api/widgetApi";
+import { widgetCommunicationApi } from "@/features/widget/api/widgetCommunicationApi";
 import { DesktopWidgetBubble, DesktopWidgetBubbleBar, DesktopWidgetMenuOrb, desktopWidgetBubbleTypes } from "@/features/widget/components/desktop-widget-bubble";
 import {
   getWidgetPreviewBubble,
@@ -25,8 +29,10 @@ import {
   type WidgetPreviewBubble,
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
+import { timerApi } from "@/features/timer/api/timerApi";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import type { TimeLogResponse } from "@/types/api/timer";
 import type { WidgetBubbleType as ApiWidgetBubbleType } from "@/types/api/widget";
 
 const apiBubbleTypeMap: Partial<Record<WidgetBubbleType, BackendWidgetBubbleType>> = {
@@ -139,6 +145,16 @@ function resourceStatusLabel(status: WidgetResourceResponse["status"]) {
   return labels[status];
 }
 
+function memoTitle(memo: WidgetMemoResponse) {
+  const firstLine = memo.body
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+
+  if (!firstLine) return "빈 메모";
+  return firstLine.length > 36 ? `${firstLine.slice(0, 36)}...` : firstLine;
+}
+
 function suggestionStatusLabel(status: WidgetAgentSuggestionResponse["status"]) {
   const labels: Record<WidgetAgentSuggestionResponse["status"], string> = {
     APPROVED: "승인됨",
@@ -163,14 +179,33 @@ function messageText(message: WidgetChatMessageResponse) {
   return message.messageType;
 }
 
-function elapsedTimerLabel(timer?: WidgetDashboardWorkResponse["runningTimer"]) {
+type TimerDisplay = WidgetDashboardWorkResponse["runningTimer"] | TimeLogResponse | null | undefined;
+
+function elapsedTimerLabel(timer?: TimerDisplay) {
   if (!timer) return "00:00";
   const startedAt = new Date(timer.lastStartedAt ?? timer.startedAt).getTime();
   if (Number.isNaN(startedAt)) return "00:00";
-  const seconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000) + timer.durationSeconds);
+  const seconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000) + (timer.durationSeconds ?? 0));
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+}
+
+function timerStatusLabel(status: NonNullable<TimerDisplay>["status"]) {
+  const labels: Record<NonNullable<TimerDisplay>["status"], string> = {
+    ENDED: "종료",
+    NEEDS_RECOVERY: "복구 필요",
+    PAUSED: "일시정지",
+    RUNNING: "실행 중",
+  };
+  return labels[status] ?? status;
+}
+
+function timerActionLabel(timer?: TimerDisplay) {
+  if (!timer) return "시작";
+  if (timer.status === "PAUSED") return "재개";
+  if (timer.status === "RUNNING") return "종료";
+  return "시작";
 }
 
 function roomLabel(room?: WidgetProjectRoomResponse | null, fallbackRoomId?: string | null) {
@@ -205,20 +240,25 @@ function buildNotificationSignal(notifications: WidgetNotificationResponse[]): W
 function buildDisplayBubbles(input: {
   dashboard?: WidgetDashboardWorkResponse | null;
   friends: WidgetFriendResponse[];
+  memos: WidgetMemoResponse[];
   messages: WidgetChatMessageResponse[];
   notifications: WidgetNotificationResponse[];
   resources: WidgetResourceResponse[];
   room?: WidgetProjectRoomResponse | null;
+  chatRoom?: WidgetChatRoomResponse | null;
   roomId?: string | null;
   schedules: WidgetScheduleResponse[];
   suggestions: WidgetAgentSuggestionResponse[];
   tasks: WidgetTaskResponse[];
+  timer?: TimerDisplay;
+  voiceConnectionLabel?: string | null;
   voiceRoom?: WidgetVoiceRoomResponse | null;
 }): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
   const label = roomLabel(input.room, input.roomId);
+  const activeTimer = input.timer ?? input.dashboard?.runningTimer ?? null;
   const todoItems = (input.dashboard?.todayTasks.length ? input.dashboard.todayTasks : input.tasks).slice(0, 3);
   const scheduleItems = (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules).slice(0, 3);
-  const memoItems = input.resources.filter((item) => item.kind === "MEMO").slice(0, 3);
+  const memoItems = input.memos.filter((item) => item.status === "ACTIVE").slice(0, 3);
   const fileItems = input.resources.filter((item) => item.kind !== "MEMO").slice(0, 3);
   const agentItems = input.suggestions.slice(0, 3);
   const unreadNotifications = input.notifications.filter((item) => item.status === "UNREAD").slice(0, 3);
@@ -256,15 +296,19 @@ function buildDisplayBubbles(input: {
       })),
     }),
     chat: withBubble("chat", {
+      chatRoomId: input.chatRoom?.id,
       compactLabel: `소통 ${input.messages.length + voiceParticipants.length}`,
+      lastMessageSequence: input.messages.reduce((max, item) => Math.max(max, item.roomSequence), 0),
       metric: String(input.messages.length),
       notificationLabel: unreadCount > 0 ? `읽지 않은 알림 ${unreadCount}` : "새 소통 없음",
       panelBody: "친구, 메시지, 보이스 상태를 함께 표시합니다.",
       panelLabel: `소통 · ${label}`,
       participantLabels: input.friends.slice(0, 3).map((item) => item.name),
+      roomId: input.roomId,
       roomLabel: label,
-      voiceLabel: input.voiceRoom?.status === "OPEN" ? "보이스 진행 중" : "보이스 대기",
+      voiceLabel: input.voiceConnectionLabel ?? (input.voiceRoom?.status === "OPEN" ? "보이스 진행 중" : "보이스 대기"),
       voiceParticipants: voiceParticipants.map((item) => item.userName).filter(Boolean).join(" · ") || "참여자 없음",
+      voiceRoomId: input.voiceRoom?.id,
       rows: [
         ...input.friends.slice(0, 1).map((item) => ({
           id: item.userId ?? item.friendUserId ?? item.bubliId,
@@ -295,13 +339,14 @@ function buildDisplayBubbles(input: {
       compactLabel: `메모 ${memoItems.length}`,
       metric: String(memoItems.length),
       notificationLabel: memoItems.length > 0 ? "저장된 메모" : "저장된 메모 없음",
-      panelBody: "자료 API의 MEMO 항목을 표시합니다.",
+      panelBody: input.roomId ? "프로젝트룸 메모를 표시합니다." : "개인 메모를 표시합니다.",
+      roomId: input.roomId,
       roomLabel: label,
       rows: memoItems.map((item) => ({
         id: item.id,
-        kind: "resource",
-        label: item.title,
-        status: resourceStatusLabel(item.status),
+        kind: "memo",
+        label: memoTitle(item),
+        status: formatShortTime(item.updatedAt),
       })),
     }),
     resource: withBubble("resource", {
@@ -331,19 +376,21 @@ function buildDisplayBubbles(input: {
       })),
     }),
     timer: withBubble("timer", {
-      compactLabel: `타이머 ${elapsedTimerLabel(input.dashboard?.runningTimer)}`,
-      metric: elapsedTimerLabel(input.dashboard?.runningTimer),
-      metricLabel: input.dashboard?.runningTimer ? "진행 중" : "대기",
-      notificationLabel: input.dashboard?.runningTimer ? "작업 시간 기록 중" : "진행 중인 타이머 없음",
-      panelBody: "대시보드 작업 API의 진행 중 타이머를 표시합니다.",
+      actionLabel: timerActionLabel(activeTimer),
+      compactLabel: `타이머 ${elapsedTimerLabel(activeTimer ?? undefined)}`,
+      metric: elapsedTimerLabel(activeTimer ?? undefined),
+      metricLabel: activeTimer ? timerStatusLabel(activeTimer.status) : "대기",
+      notificationLabel: activeTimer ? "작업 시간 기록 중" : "진행 중인 타이머 없음",
+      panelBody: "time_logs API의 타이머 상태를 표시합니다.",
+      roomId: input.roomId,
       roomLabel: label,
-      rows: input.dashboard?.runningTimer
+      rows: activeTimer
         ? [
             {
-              id: input.dashboard.runningTimer.id,
+              id: activeTimer.id,
               kind: "time",
-              label: input.dashboard.runningTimer.timerType === "WORK" ? "작업 타이머" : "일반 타이머",
-              status: input.dashboard.runningTimer.status,
+              label: activeTimer.timerType === "WORK" ? "작업 타이머" : "일반 타이머",
+              status: activeTimer.status,
             },
           ]
         : [],
@@ -384,7 +431,15 @@ function DesktopWidgetSurface() {
   const [serverSettings, setServerSettings] = useState<WidgetBubbleSettingResponse[]>([]);
   const [barItems, setBarItems] = useState<WidgetWindowState[]>([]);
   const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>({});
+  const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID ?? null);
+  const [communicationRevision, setCommunicationRevision] = useState(0);
+  const [memoRevision, setMemoRevision] = useState(0);
+  const [timerRevision, setTimerRevision] = useState(0);
+  const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
+  const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
+  const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(widgetNotificationSignal);
+  const liveKitRoomRef = useRef<Room | null>(null);
 
   useEffect(() => {
     const htmlStyle = document.documentElement.style;
@@ -514,6 +569,44 @@ function DesktopWidgetSurface() {
   }, [isWidgetChrome, requestedBubble, requestedMode, windowId]);
 
   useEffect(() => {
+    return () => {
+      liveKitRoomRef.current?.disconnect();
+      liveKitRoomRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isWidgetChrome) return;
+
+    let cancelled = false;
+
+    async function refreshWidgetContext() {
+      const summary = await widgetApi.getSummary().catch(() => null);
+      if (cancelled || !summary?.context) return;
+
+      setWidgetContext((current) => {
+        if (
+          current?.mode === summary.context.mode &&
+          current?.selectedRoomId === summary.context.selectedRoomId
+        ) {
+          return current;
+        }
+        return summary.context;
+      });
+      setServerSettings(summary.bubbles ?? []);
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshWidgetContext();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [isWidgetChrome]);
+
+  useEffect(() => {
     if (isMenuOrb) return;
 
     let cancelled = false;
@@ -531,13 +624,14 @@ function DesktopWidgetSurface() {
         }
       }
 
-      const voiceRoomId = process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID;
-      const [dashboardResult, tasksResult, schedulesResult, resourcesResult, suggestionsResult, notificationsResult, chatRoomsResult, friendsResult, roomResult, voiceResult] =
+      const voiceRoomId = activeVoiceRoomId;
+      const [dashboardResult, tasksResult, schedulesResult, resourcesResult, memosResult, suggestionsResult, notificationsResult, chatRoomsResult, friendsResult, roomResult, voiceResult] =
         await Promise.allSettled([
           widgetDisplayApi.getDashboardWork(),
           widgetDisplayApi.listDashboardTasks(6),
           widgetDisplayApi.listSchedules(selectedRoomId, 6),
           widgetDisplayApi.listResources(selectedRoomId, 6),
+          widgetDisplayApi.listMemos(selectedRoomId, 6),
           widgetDisplayApi.listAgentSuggestions(selectedRoomId),
           widgetDisplayApi.listNotifications(6),
           widgetDisplayApi.listChatRooms(6),
@@ -556,10 +650,15 @@ function DesktopWidgetSurface() {
       if (cancelled) return;
 
       setNotificationSignal(buildNotificationSignal(notifications));
+      const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
+      const activeTimer = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
+
       setDisplayBubbles(
         buildDisplayBubbles({
-          dashboard: dashboardResult.status === "fulfilled" ? dashboardResult.value : null,
+          chatRoom: activeRoom ?? null,
+          dashboard,
           friends: friendsResult.status === "fulfilled" ? friendsResult.value : [],
+          memos: memosResult.status === "fulfilled" ? memosResult.value.items : [],
           messages: messages?.items ?? [],
           notifications,
           resources: resourcesResult.status === "fulfilled" ? resourcesResult.value.items : [],
@@ -568,6 +667,8 @@ function DesktopWidgetSurface() {
           schedules: schedulesResult.status === "fulfilled" ? schedulesResult.value.items : [],
           suggestions: suggestionsResult.status === "fulfilled" ? suggestionsResult.value : [],
           tasks: tasksResult.status === "fulfilled" ? tasksResult.value.items : [],
+          timer: activeTimer,
+          voiceConnectionLabel,
           voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
         }),
       );
@@ -583,7 +684,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [isMenuOrb, widgetContext?.selectedRoomId]);
+  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, memoRevision, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId]);
 
   useEffect(() => {
     if (!isBubbleBar) return;
@@ -836,6 +937,254 @@ function DesktopWidgetSurface() {
     [activeBubble, isTauri],
   );
 
+  const sendWidgetChatMessage = useCallback(
+    async (bubble: WidgetPreviewBubble, text: string) => {
+      if (!bubble.chatRoomId) return;
+
+      await widgetCommunicationApi.sendChatMessage(bubble.chatRoomId, {
+        body: { text },
+        clientMessageId: crypto.randomUUID(),
+        messageType: "TEXT",
+      });
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "chat",
+            eventType: "chat:send",
+            itemId: bubble.chatRoomId,
+            itemType: "MESSAGE",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+      setCommunicationRevision((current) => current + 1);
+    },
+    [isTauri],
+  );
+
+  const markWidgetChatRead = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      if (!bubble.chatRoomId || !bubble.lastMessageSequence) return;
+
+      await widgetCommunicationApi.markChatRead(bubble.chatRoomId, bubble.lastMessageSequence);
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "chat",
+            eventType: "chat:read",
+            itemId: bubble.chatRoomId,
+            itemType: "MESSAGE",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+      setCommunicationRevision((current) => current + 1);
+    },
+    [isTauri],
+  );
+
+  const createWidgetMemo = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      const body = window.prompt("메모 내용을 입력하세요.")?.trim();
+      if (!body) return;
+
+      const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
+      const memo = await widgetDisplayApi.createMemo(body, roomId);
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "memo",
+            eventType: "memo:create",
+            itemId: memo.id,
+            itemType: "MEMO",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setMemoRevision((current) => current + 1);
+    },
+    [isTauri, widgetContext?.selectedRoomId],
+  );
+
+  const recordTimerUsage = useCallback(
+    (eventType: string, itemId?: string) => {
+      if (!isTauri) return;
+
+      void tauriCommands
+        .recordWidgetUsageEvent({
+          bubbleType: "timer",
+          eventType,
+          itemId,
+          itemType: "TIME_LOG",
+          occurredAt: new Date().toISOString(),
+        })
+        .catch(() => undefined);
+    },
+    [isTauri],
+  );
+
+  const applyTimerResult = useCallback((timeLog: TimeLogResponse) => {
+    setTimerSnapshot(timeLog.status === "ENDED" ? null : timeLog);
+    setTimerRevision((current) => current + 1);
+  }, []);
+
+  const pauseWidgetTimer = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      const timeLogId = bubble.rows[0]?.id;
+      if (!timeLogId || bubble.rows[0]?.status !== "RUNNING") return;
+
+      const timeLog = await timerApi.pause(timeLogId);
+      applyTimerResult(timeLog);
+      recordTimerUsage("timer:pause", timeLog.id);
+    },
+    [applyTimerResult, recordTimerUsage],
+  );
+
+  const runPrimaryTimerAction = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      const currentTimer = bubble.rows[0];
+
+      if (currentTimer?.status === "RUNNING") {
+        const timeLog = await timerApi.stop(currentTimer.id);
+        applyTimerResult(timeLog);
+        recordTimerUsage("timer:stop", timeLog.id);
+        return;
+      }
+
+      if (currentTimer?.status === "PAUSED") {
+        const timeLog = await timerApi.resume(currentTimer.id);
+        applyTimerResult(timeLog);
+        recordTimerUsage("timer:resume", timeLog.id);
+        return;
+      }
+
+      const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
+      const timeLog = await timerApi.start({
+        idempotencyKey: `widget-timer-${crypto.randomUUID()}`,
+        roomId,
+        timerType: roomId ? "WORK" : "GENERAL",
+      });
+      applyTimerResult(timeLog);
+      recordTimerUsage("timer:start", timeLog.id);
+    },
+    [applyTimerResult, recordTimerUsage, widgetContext?.selectedRoomId],
+  );
+
+  const startWidgetVoice = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      if (!bubble.roomId) {
+        setVoiceConnectionLabel("Select a room first");
+        return;
+      }
+
+      const voiceRoom = activeVoiceRoomId
+        ? await widgetCommunicationApi.getVoiceRoom(activeVoiceRoomId)
+        : await widgetCommunicationApi.createVoiceRoom(bubble.roomId);
+
+      setActiveVoiceRoomId(voiceRoom.id);
+      setVoiceConnectionLabel("Voice room opened");
+
+      let token;
+      try {
+        token = await widgetCommunicationApi.getVoiceToken(voiceRoom.id);
+        setVoiceConnectionLabel("Voice token issued");
+      } catch (error) {
+        setVoiceConnectionLabel("Voice room open; token failed");
+        setCommunicationRevision((current) => current + 1);
+        throw error;
+      }
+
+      if (token.serverUrl && token.token) {
+        const liveKitRoom = new Room();
+        liveKitRoomRef.current?.disconnect();
+        liveKitRoomRef.current = liveKitRoom;
+
+        try {
+          await liveKitRoom.connect(token.serverUrl, token.token);
+          await liveKitRoom.localParticipant.setMicrophoneEnabled(true);
+          setVoiceMicMuted(false);
+          setVoiceConnectionLabel("LiveKit connected");
+        } catch {
+          setVoiceConnectionLabel("Token issued; media connect failed");
+        }
+      }
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "chat",
+            eventType: "voice:start",
+            itemId: voiceRoom.id,
+            itemType: "MESSAGE",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setCommunicationRevision((current) => current + 1);
+    },
+    [activeVoiceRoomId, isTauri],
+  );
+
+  const toggleWidgetVoiceMic = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      const voiceRoomId = bubble.voiceRoomId ?? activeVoiceRoomId;
+      if (!voiceRoomId) return;
+
+      const nextMuted = !voiceMicMuted;
+      await widgetCommunicationApi.updateMicStatus(voiceRoomId, nextMuted ? "MUTED" : "UNMUTED");
+      await liveKitRoomRef.current?.localParticipant.setMicrophoneEnabled(!nextMuted);
+      setVoiceMicMuted(nextMuted);
+      setVoiceConnectionLabel(nextMuted ? "Mic muted" : "Mic live");
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "chat",
+            eventType: nextMuted ? "voice:mic-muted" : "voice:mic-live",
+            itemId: voiceRoomId,
+            itemType: "MESSAGE",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setCommunicationRevision((current) => current + 1);
+    },
+    [activeVoiceRoomId, isTauri, voiceMicMuted],
+  );
+
+  const leaveWidgetVoice = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      const voiceRoomId = bubble.voiceRoomId ?? activeVoiceRoomId;
+      if (!voiceRoomId) return;
+
+      liveKitRoomRef.current?.disconnect();
+      liveKitRoomRef.current = null;
+      await widgetCommunicationApi.leaveVoiceRoom(voiceRoomId);
+      setActiveVoiceRoomId(null);
+      setVoiceMicMuted(false);
+      setVoiceConnectionLabel("Voice left");
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "chat",
+            eventType: "voice:leave",
+            itemId: voiceRoomId,
+            itemType: "MESSAGE",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setCommunicationRevision((current) => current + 1);
+    },
+    [activeVoiceRoomId, isTauri],
+  );
+
   const openBubbleBar = useCallback(async () => {
     if (!isTauri) return;
 
@@ -870,9 +1219,17 @@ function DesktopWidgetSurface() {
       mode={mode}
       onClose={closeWindow}
       onItemStateChange={(item, state) => void handleItemStateChange(item, state)}
+      onLeaveVoice={leaveWidgetVoice}
+      onMarkChatRead={markWidgetChatRead}
       onModeChange={(nextMode) => void setWindowMode(nextMode)}
+      onCreateMemo={createWidgetMemo}
+      onPauseTimer={pauseWidgetTimer}
+      onPrimaryTimerAction={runPrimaryTimerAction}
       onRestore={() => void restoreCurrentWindow()}
+      onSendChatMessage={sendWidgetChatMessage}
+      onStartVoice={startWidgetVoice}
       onToggleAlwaysOnTop={() => void toggleAlwaysOnTop()}
+      onToggleVoiceMic={toggleWidgetVoiceMic}
       presentation="tauri"
       windowVisible={windowVisible}
     />

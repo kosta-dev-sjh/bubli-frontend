@@ -6,6 +6,7 @@
 //! server personal library is done by the frontend client (POST
 //! /api/local-file-events/sync); this module stages the candidates locally.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
@@ -82,6 +83,54 @@ pub struct SyncOutboxFlushResult {
     sent_count: i64,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileEventsSyncStageInput {
+    limit: Option<i64>,
+    local_folder_id: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileSyncEventCandidate {
+    event_type: String,
+    file_name: String,
+    file_size_bytes: Option<i64>,
+    local_event_id: String,
+    local_file_id: Option<String>,
+    mime_type: Option<String>,
+    resource_id: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileEventsSyncStageResult {
+    events: Vec<LocalFileSyncEventCandidate>,
+    staged_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileEventSyncResultInput {
+    local_event_id: String,
+    resource_id: Option<String>,
+    status: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileEventsMarkSyncedInput {
+    results: Vec<LocalFileEventSyncResultInput>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileEventsMarkSyncedResult {
+    completed_at: String,
+    failed_count: i64,
+    synced_count: i64,
+}
+
 /// Register a personal managed folder. The native folder picker can be wired
 /// through the dialog plugin later; for now the frontend passes a resolved path.
 #[tauri::command]
@@ -150,6 +199,10 @@ pub fn scan_managed_folder(
     let mut files: Vec<PathBuf> = Vec::new();
     collect_files(Path::new(&folder_path), &mut files)
         .map_err(|error| format!("scan failed: {error}"))?;
+    let current_paths: HashSet<String> = files
+        .iter()
+        .map(|file| file.to_string_lossy().to_string())
+        .collect();
 
     let now = now_ms();
     let mut changed_count = 0i64;
@@ -236,6 +289,66 @@ pub fn scan_managed_folder(
         }
     }
 
+    let mut known_files = Vec::new();
+    {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, file_name, local_path, COALESCE(size_bytes, 0), modified_at \
+                 FROM local_files WHERE local_folder_id = ?1",
+            )
+            .map_err(|error| error.to_string())?;
+        let rows = stmt
+            .query_map(params![input.local_folder_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, Option<i64>>(4)?,
+                ))
+            })
+            .map_err(|error| error.to_string())?;
+        for row in rows {
+            known_files.push(row.map_err(|error| error.to_string())?);
+        }
+    }
+
+    for (file_id, file_name, local_path, size_bytes, modified_ms) in known_files {
+        if current_paths.contains(&local_path) {
+            continue;
+        }
+
+        let existing_delete: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM local_file_events \
+                 WHERE local_file_id = ?1 AND event_type = 'DELETED' AND status IN ('PENDING', 'APPROVED', 'FAILED')",
+                params![file_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+        if existing_delete > 0 {
+            continue;
+        }
+
+        record_event(
+            &conn,
+            &input.local_folder_id,
+            Some(file_id.as_str()),
+            "DELETED",
+            &file_name,
+            &local_path,
+            size_bytes,
+            modified_ms,
+            now,
+        )?;
+        conn.execute(
+            "UPDATE local_files SET sync_status = 'LOCAL_ONLY', updated_at = ?2 WHERE id = ?1",
+            params![file_id, now],
+        )
+        .map_err(|error| error.to_string())?;
+        changed_count += 1;
+    }
+
     Ok(ManagedFolderScanResult {
         changed_count,
         local_folder_id: input.local_folder_id,
@@ -318,6 +431,159 @@ pub fn flush_sync_outbox(state: State<'_, Db>) -> Result<SyncOutboxFlushResult, 
     })
 }
 
+/// Stage local file events for the authenticated frontend to reflect via
+/// POST /api/local-file-events/sync. Raw file contents stay local.
+#[tauri::command]
+pub fn stage_local_file_events_for_sync(
+    state: State<'_, Db>,
+    input: Option<LocalFileEventsSyncStageInput>,
+) -> Result<LocalFileEventsSyncStageResult, String> {
+    let limit = input
+        .as_ref()
+        .and_then(|value| value.limit)
+        .unwrap_or(100)
+        .clamp(1, 500);
+    let folder_filter = input.and_then(|value| value.local_folder_id);
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+
+    let mut candidates = Vec::new();
+    {
+        let (sql, has_filter) = match &folder_filter {
+            Some(_) => (
+                "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
+                 FROM local_file_events e \
+                 LEFT JOIN local_files f ON f.id = e.local_file_id \
+                 WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
+                   AND e.event_type IN ('CREATED', 'DELETED') \
+                   AND e.local_folder_id = ?1 \
+                 ORDER BY e.created_at ASC LIMIT ?2",
+                true,
+            ),
+            None => (
+                "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
+                 FROM local_file_events e \
+                 LEFT JOIN local_files f ON f.id = e.local_file_id \
+                 WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
+                   AND e.event_type IN ('CREATED', 'DELETED') \
+                 ORDER BY e.created_at ASC LIMIT ?1",
+                false,
+            ),
+        };
+
+        let mut stmt = conn.prepare(sql).map_err(|error| error.to_string())?;
+        let map_row = |row: &rusqlite::Row<'_>| {
+            let file_name = row.get::<_, String>(3)?;
+            Ok(LocalFileSyncEventCandidate {
+                local_event_id: row.get(0)?,
+                local_file_id: row.get(1)?,
+                event_type: row.get(2)?,
+                mime_type: guess_mime_type(&file_name),
+                file_name,
+                file_size_bytes: row.get(4)?,
+                resource_id: row.get(5)?,
+            })
+        };
+        let rows = if has_filter {
+            stmt.query_map(params![folder_filter.as_ref().unwrap(), limit], map_row)
+        } else {
+            stmt.query_map(params![limit], map_row)
+        }
+        .map_err(|error| error.to_string())?;
+
+        for row in rows {
+            candidates.push(row.map_err(|error| error.to_string())?);
+        }
+    }
+
+    let now = now_ms();
+    for event in &candidates {
+        conn.execute(
+            "UPDATE local_file_events SET status = 'APPROVED' WHERE id = ?1",
+            params![event.local_event_id],
+        )
+        .map_err(|error| error.to_string())?;
+        if let Some(local_file_id) = &event.local_file_id {
+            conn.execute(
+                "UPDATE local_files SET sync_status = 'SYNC_PENDING', updated_at = ?2 WHERE id = ?1",
+                params![local_file_id, now],
+            )
+            .map_err(|error| error.to_string())?;
+        }
+    }
+
+    Ok(LocalFileEventsSyncStageResult {
+        events: candidates,
+        staged_at: ms_to_iso(now),
+    })
+}
+
+/// Apply backend local-file sync results back into the local SQLite index.
+#[tauri::command]
+pub fn mark_local_file_events_synced(
+    state: State<'_, Db>,
+    input: LocalFileEventsMarkSyncedInput,
+) -> Result<LocalFileEventsMarkSyncedResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let now = now_ms();
+    let mut synced_count = 0i64;
+    let mut failed_count = 0i64;
+
+    for result in input.results {
+        let row: Option<(Option<String>, String)> = conn
+            .query_row(
+                "SELECT local_file_id, event_type FROM local_file_events WHERE id = ?1",
+                params![result.local_event_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        let Some((local_file_id, event_type)) = row else {
+            continue;
+        };
+
+        let failed = result.status.eq_ignore_ascii_case("FAILED");
+        let event_status = if failed { "FAILED" } else { "SYNCED" };
+        conn.execute(
+            "UPDATE local_file_events SET status = ?2 WHERE id = ?1",
+            params![result.local_event_id, event_status],
+        )
+        .map_err(|error| error.to_string())?;
+
+        if failed {
+            failed_count += 1;
+            if let Some(local_file_id) = local_file_id {
+                conn.execute(
+                    "UPDATE local_files SET sync_status = 'FAILED', updated_at = ?2 WHERE id = ?1",
+                    params![local_file_id, now],
+                )
+                .map_err(|error| error.to_string())?;
+            }
+            continue;
+        }
+
+        synced_count += 1;
+        if let Some(local_file_id) = local_file_id {
+            if event_type == "DELETED" {
+                conn.execute("DELETE FROM local_files WHERE id = ?1", params![local_file_id])
+                    .map_err(|error| error.to_string())?;
+            } else {
+                conn.execute(
+                    "UPDATE local_files SET resource_id = COALESCE(?2, resource_id), sync_status = 'SYNCED', updated_at = ?3 \
+                     WHERE id = ?1",
+                    params![local_file_id, result.resource_id, now],
+                )
+                .map_err(|error| error.to_string())?;
+            }
+        }
+    }
+
+    Ok(LocalFileEventsMarkSyncedResult {
+        completed_at: ms_to_iso(now),
+        failed_count,
+        synced_count,
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 fn record_event(
     conn: &rusqlite::Connection,
@@ -368,4 +634,29 @@ fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
         }
     }
     Ok(())
+}
+
+fn guess_mime_type(file_name: &str) -> Option<String> {
+    let extension = Path::new(file_name)
+        .extension()
+        .map(|value| value.to_string_lossy().to_ascii_lowercase())?;
+    let mime = match extension.as_str() {
+        "csv" => "text/csv",
+        "doc" => "application/msword",
+        "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "gif" => "image/gif",
+        "htm" | "html" => "text/html",
+        "jpg" | "jpeg" => "image/jpeg",
+        "json" => "application/json",
+        "md" => "text/markdown",
+        "pdf" => "application/pdf",
+        "png" => "image/png",
+        "ppt" => "application/vnd.ms-powerpoint",
+        "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "txt" => "text/plain",
+        "xls" => "application/vnd.ms-excel",
+        "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        _ => return None,
+    };
+    Some(mime.to_string())
 }

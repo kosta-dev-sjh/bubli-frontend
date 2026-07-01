@@ -25,9 +25,9 @@ import {
   scanPersonalManagedFolder,
   searchPersonalLocalFiles,
   selectPersonalManagedFolder,
+  syncPersonalLocalFileEventsToServer,
   watchPersonalManagedFolder,
 } from "@/lib/local/managed-folder-client";
-import { getLocalSyncOutboxSummary } from "@/lib/sync/local-sync-client";
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
@@ -481,9 +481,10 @@ export default function SettingsPage() {
   }, [state]);
 
   const checkSyncOutbox = useCallback(async () => {
-    const result = await getLocalSyncOutboxSummary();
+    const folderId = state.kind === "ready" ? state.settings.folders[0]?.id : undefined;
+    const result = await syncPersonalLocalFileEventsToServer(folderId ? { localFolderId: folderId } : undefined);
     setLocalActionMessage(localResultMessage(result));
-  }, []);
+  }, [state]);
 
   const syncWidgetUsage = useCallback(async () => {
     const result = await syncLocalWidgetUsageSummaryToServer();
