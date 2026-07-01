@@ -27,11 +27,6 @@ const QA_ALL_WIDGET_BUBBLES: [&str; 8] = [
     "todo", "agent", "chat", "timer", "memo", "schedule", "resource", "alert",
 ];
 
-#[tauri::command]
-fn app_ready() -> &'static str {
-    "bubli-tauri-ready"
-}
-
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct WidgetWindowPosition {
@@ -785,6 +780,51 @@ fn register_widget_shortcut(
     with_widget_state(state, None, None, |widget| {
         widget.shortcut = Some(input.shortcut);
     })
+}
+
+fn open_login_startup_widget(
+    app: &AppHandle,
+    monitor_state: &AppMonitorState,
+    state: &WidgetState,
+    bubble_type: &str,
+    window_id: &str,
+) -> Result<WidgetWindowState, String> {
+    let widget = {
+        let mut guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        let target = normalize_bubble_type(Some(bubble_type.to_string()));
+        let window_key = normalize_window_key(&target, Some(window_id.to_string()));
+        guard.active_bubble = target.clone();
+        let widget = guard
+            .bubbles
+            .entry(window_key.clone())
+            .or_insert_with(|| default_widget_window_state(&target, Some(window_key)));
+        widget.mode = "DEFAULT".to_string();
+        widget.click_through = false;
+        widget.dock_orb_visible = false;
+        widget.window_visible = true;
+        widget.clone()
+    };
+
+    build_widget_window(app, monitor_state, &widget)
+}
+
+#[tauri::command]
+fn app_ready(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+    state: tauri::State<'_, WidgetState>,
+) -> Result<&'static str, String> {
+    open_login_startup_widget(&app, &monitor_state, &state, "bar", "bar")?;
+    open_login_startup_widget(
+        &app,
+        &monitor_state,
+        &state,
+        DEFAULT_WIDGET_BUBBLE_TYPE,
+        DEFAULT_WIDGET_BUBBLE_TYPE,
+    )?;
+    Ok("bubli-tauri-ready")
 }
 
 #[tauri::command]

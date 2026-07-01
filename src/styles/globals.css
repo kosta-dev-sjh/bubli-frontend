@@ -20280,3 +20280,72 @@ html {
     grid-template-columns: 1fr;
   }
 }
+
+.bubli-main-scroll {
+  min-width: 0;
+}
+
+html[data-bubli-surface="hybrid-app"],
+body[data-bubli-surface="hybrid-app"] {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+body[data-bubli-surface="hybrid-app"] .bubli-app-layout {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-sidebar {
+  position: sticky;
+  top: 18px;
+  align-self: start;
+  max-height: calc(100dvh - 36px);
+}
+
+body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: clamp(22px, 3vw, 42px);
+  scrollbar-gutter: stable;
+}
+
+body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(111, 143, 168, 0.28);
+  background-clip: padding-box;
+}
+
+@media (max-width: 900px) {
+  body[data-bubli-surface="hybrid-app"] .bubli-app-layout {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-sidebar {
+    position: relative;
+    top: auto;
+    max-height: none;
+  }
+
+  body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main {
+    height: auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+}

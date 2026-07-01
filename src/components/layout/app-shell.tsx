@@ -12,8 +12,8 @@ import { authApi } from "@/features/auth/api/authApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { tauriCommands } from "@/lib/tauri/commands";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -23,8 +23,6 @@ import {
 import { shouldUseWorkspacePreviewData, workspacePreviewRooms, workspacePreviewUser } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
 import type { ContractDocumentType, ProjectRoomResponse } from "@/types/api/projectRoom";
-
-let desktopWidgetLaunchRequested = false;
 
 type AppShellProps = {
   children: ReactNode;
@@ -87,6 +85,22 @@ export function AppShell({ children }: AppShellProps) {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
 
   useEffect(() => {
+    if (!isTauriRuntime()) return;
+
+    document.documentElement.dataset.bubliSurface = "hybrid-app";
+    document.body.dataset.bubliSurface = "hybrid-app";
+
+    return () => {
+      if (document.documentElement.dataset.bubliSurface === "hybrid-app") {
+        delete document.documentElement.dataset.bubliSurface;
+      }
+      if (document.body.dataset.bubliSurface === "hybrid-app") {
+        delete document.body.dataset.bubliSurface;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
 
     async function loadShell() {
@@ -132,24 +146,8 @@ export function AppShell({ children }: AppShellProps) {
   }, [router, state.kind]);
 
   useEffect(() => {
-    if (state.kind !== "ready" || !isTauriRuntime() || desktopWidgetLaunchRequested) return;
-
-    desktopWidgetLaunchRequested = true;
-    void (async () => {
-      try {
-        await tauriCommands.openWidgetWindow({ bubbleType: "todo", mode: "DEFAULT", windowId: "todo" });
-        await tauriCommands.openWidgetWindow({ bubbleType: "bar", mode: "DEFAULT", windowId: "bar" });
-        void tauriCommands
-          .recordWidgetUsageEvent({
-            bubbleType: "todo",
-            eventType: "open:auto-login",
-            occurredAt: new Date().toISOString(),
-          })
-          .catch(() => undefined);
-      } catch {
-        desktopWidgetLaunchRequested = false;
-      }
-    })();
+    if (state.kind !== "ready") return;
+    void launchTauriAuthenticatedSurfaces().catch(() => undefined);
   }, [state.kind]);
 
   useEffect(() => {
@@ -441,7 +439,7 @@ export function AppShell({ children }: AppShellProps) {
             </section>
           </>
         ) : null}
-        {children}
+        <div className="bubli-main-scroll">{children}</div>
       </main>
     </div>
   );
