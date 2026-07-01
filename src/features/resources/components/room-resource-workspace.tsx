@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewRoomResources } from "@/lib/workspace-preview-data";
 import type { ResourceResponse } from "@/types/api/resource";
@@ -14,6 +15,7 @@ import type { ResourceResponse } from "@/types/api/resource";
 import {
   getErrorMessage,
   ResourcePreview,
+  resolveErrorMessage,
   ResourceScopeSwitch,
   ResourceTile,
   ResourceToolbar,
@@ -48,6 +50,7 @@ function createUploadBody(file: File, roomId: string) {
 }
 
 export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
+  const { t } = useI18n();
   const [state, setState] = useState<RoomState>({ kind: "loading" });
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -135,15 +138,15 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   );
 
   return (
-    <section className={cn("resource-workspace", styles.workspace)} aria-label="자료보드">
+    <section className={cn("resource-workspace", styles.workspace)} aria-label={t("resources.workspace.aria")}>
       <GlassPanel className={cn("resource-workspace__hero", styles.boardHeader)}>
         <div className="resource-workspace__copy">
-          <span className={styles.kicker}>프로젝트룸 자료</span>
-          <h1>자료보드</h1>
-          <p>현재 룸의 공용 파일만 올리고 확인합니다.</p>
+          <span className={styles.kicker}>{t("resources.workspace.roomKicker")}</span>
+          <h1>{t("resources.workspace.title")}</h1>
+          <p>{t("resources.workspace.roomDesc")}</p>
         </div>
         <div className={styles.headerActions}>
-          <ResourceScopeSwitch activeScope="room" roomHref={`/app/project-rooms/${roomId}/resources`} roomLabel="프로젝트룸" />
+          <ResourceScopeSwitch activeScope="room" roomHref={`/app/project-rooms/${roomId}/resources`} roomLabel={t("resources.board.scope.room")} />
         </div>
       </GlassPanel>
 
@@ -151,9 +154,9 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
         <GlassPanel className="resource-workspace__notice">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>로그인이 필요합니다</h2>
+            <h2>{t("resources.workspace.authTitle")}</h2>
             <Link className="bubli-button bubli-button--primary" href="/login">
-              로그인
+              {t("common.login")}
             </Link>
           </div>
         </GlassPanel>
@@ -163,11 +166,11 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
         <GlassPanel className="resource-workspace__notice">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>서버 연결 대기</h2>
-            <p>{state.message}</p>
-            <div className="resource-workspace__notice-actions" aria-label="자료보드 상태 액션">
+            <h2>{t("resources.workspace.offlineTitle")}</h2>
+            <p>{resolveErrorMessage(state.message, t)}</p>
+            <div className="resource-workspace__notice-actions" aria-label={t("resources.workspace.statusActionsAria")}>
               <Button onClick={refreshResources} variant="primary">
-                다시 연결
+                {t("resources.workspace.reconnect")}
               </Button>
             </div>
           </div>
@@ -205,18 +208,18 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
               }
             }}
           >
-            <section className="resource-workspace__browser" aria-label="자료 탐색">
+            <section className="resource-workspace__browser" aria-label={t("resources.workspace.browseAria")}>
               <div className={styles.listHeader}>
                 <div>
-                  <span>프로젝트룸 자료</span>
-                  <strong>총 {state.kind === "loading" ? "-" : resources.length}개</strong>
+                  <span>{t("resources.workspace.roomListLabel")}</span>
+                  <strong>{t("resources.workspace.totalCount", { count: state.kind === "loading" ? "-" : resources.length })}</strong>
                 </div>
-                <p>{uploadState.kind === "idle" ? "파일을 끌어다 놓거나 선택해 추가합니다" : null}</p>
-                {uploadState.kind === "uploading" ? <p>{uploadState.fileName} 업로드 중</p> : null}
-                {uploadState.kind === "success" ? <p>{uploadState.fileName} 업로드 완료</p> : null}
-                {uploadState.kind === "error" ? <p>{uploadState.message}</p> : null}
+                <p>{uploadState.kind === "idle" ? t("resources.workspace.uploadHint") : null}</p>
+                {uploadState.kind === "uploading" ? <p>{t("resources.workspace.uploading", { fileName: uploadState.fileName })}</p> : null}
+                {uploadState.kind === "success" ? <p>{t("resources.workspace.uploadSuccess", { fileName: uploadState.fileName })}</p> : null}
+                {uploadState.kind === "error" ? <p>{resolveErrorMessage(uploadState.message, t)}</p> : null}
                 <Button disabled={uploadDisabled} onClick={() => fileInputRef.current?.click()} variant="primary">
-                  파일 선택
+                  {t("resources.workspace.selectFile")}
                 </Button>
               </div>
 
@@ -248,8 +251,8 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                   <GlassPanel className="resource-workspace__empty">
                     <UploadCloud aria-hidden size={22} strokeWidth={2} />
                     <div>
-                      <h2>현재 데이터가 없습니다</h2>
-                      <p>파일을 추가하면 이 룸의 자료 목록에 표시됩니다.</p>
+                      <h2>{t("resources.workspace.emptyTitle")}</h2>
+                      <p>{t("resources.workspace.roomEmptyDesc")}</p>
                     </div>
                   </GlassPanel>
                 ) : (
@@ -268,7 +271,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
             </section>
 
             <ResourcePreview
-              emptyHint="자료를 선택하면 파일 정보와 정리 상태를 확인합니다."
+              emptyHint={t("resources.workspace.previewEmptyHint")}
               onClose={() => setSelectedResourceId(null)}
               onError={(message) => setUploadState({ kind: "error", message })}
               resource={selectedResource}

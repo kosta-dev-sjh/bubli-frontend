@@ -1,15 +1,11 @@
+"use client";
+
 import { Bot, FileSearch, FolderOpen, LockKeyhole, Search, ShieldCheck, Sparkles } from "lucide-react";
 
 import { Chip, GlassPanel, StatusBadge } from "@/components/ui";
+import { useI18n } from "@/lib/i18n";
 
 import styles from "./resource-search-command.module.css";
-
-const scopeFilters = [
-  { label: "전체", count: "32", selected: true },
-  { label: "프로젝트룸 자료", count: "18", selected: false },
-  { label: "개인 자료", count: "9", selected: false },
-  { label: "확인할 항목", count: "3", selected: false },
-];
 
 const resultItems = [
   {
@@ -32,49 +28,53 @@ const resultItems = [
   },
 ];
 
-const evidenceRows = [
-  ["검색 범위", "내 개인 자료와 접근 권한이 있는 프로젝트룸 자료"],
-  ["권한 필터", "올린 사람, 프로젝트룸, 자료 범위 기준"],
-  ["검색 방식", "키워드 검색과 의미 검색 결과를 함께 표시"],
-  ["에이전트 사용", "검색된 문서를 근거로 요약과 확인 질문 후보 생성"],
-];
-
 export function ResourceSearchCommand() {
+  const { t } = useI18n();
+  const scopeFilters = [
+    { label: t("resources.search.scopeAll"), count: "32", selected: true },
+    { label: t("resources.search.scopeRoom"), count: "18", selected: false },
+    { label: t("resources.search.scopePersonal"), count: "9", selected: false },
+    { label: t("resources.search.scopeReview"), count: "3", selected: false },
+  ];
+  const evidenceRows = [
+    [t("resources.search.evidenceScopeLabel"), t("resources.search.evidenceScopeValue")],
+    [t("resources.search.evidencePermissionLabel"), t("resources.search.evidencePermissionValue")],
+    [t("resources.search.evidenceMethodLabel"), t("resources.search.evidenceMethodValue")],
+    [t("resources.search.evidenceAgentLabel"), t("resources.search.evidenceAgentValue")],
+  ];
+
   return (
     <GlassPanel className={styles.panel}>
       <header className={styles.header}>
         <div className={styles.eyebrow}>
           <FileSearch size={16} aria-hidden="true" />
-          자료보드 검색
+          {t("resources.search.eyebrow")}
         </div>
         <div className={styles.titleRow}>
           <div className={styles.titleGroup}>
-            <h2 className={styles.title}>흩어진 자료를 권한 범위 안에서 찾아봅니다</h2>
-            <p className={styles.summary}>
-              자료보드 검색은 파일명만 찾는 기능이 아닙니다. 계약서, 회의록, 요구사항 문서의 내용을 함께 보고, 같은 권한 범위
-              안에서 관련 문서와 확인할 항목을 이어서 보여줍니다.
-            </p>
+            <h2 className={styles.title}>{t("resources.search.title")}</h2>
+            <p className={styles.summary}>{t("resources.search.summary")}</p>
           </div>
-          <StatusBadge tone="agent">에이전트 검색</StatusBadge>
+          <StatusBadge tone="agent">{t("resources.search.badge")}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.commandBox} aria-label="자료 검색 명령">
+      <section className={styles.commandBox} aria-label={t("resources.search.commandAria")}>
         <div className={styles.commandInput}>
           <Search size={18} aria-hidden="true" />
-          <span>계약서 관련 회의록 찾아줘</span>
+          <span>{t("resources.search.commandQuery")}</span>
           <kbd>Ctrl K</kbd>
         </div>
         <div className={styles.commandMeta}>
           <Chip selected icon={<ShieldCheck size={14} aria-hidden="true" />}>
-            권한 필터 적용
+            {t("resources.search.chipPermission")}
           </Chip>
-          <Chip icon={<Bot size={14} aria-hidden="true" />}>관련 문서 추천</Chip>
-          <Chip icon={<Sparkles size={14} aria-hidden="true" />}>확인 질문 후보</Chip>
+          <Chip icon={<Bot size={14} aria-hidden="true" />}>{t("resources.search.chipRelated")}</Chip>
+          <Chip icon={<Sparkles size={14} aria-hidden="true" />}>{t("resources.search.chipCandidate")}</Chip>
         </div>
       </section>
 
-      <nav className={styles.scopeTabs} aria-label="자료 검색 범위">
+      <nav className={styles.scopeTabs} aria-label={t("resources.search.scopeAria")}>
         {scopeFilters.map((filter) => (
           <button className={filter.selected ? styles.scopeActive : ""} type="button" key={filter.label}>
             <span>{filter.label}</span>
@@ -83,7 +83,7 @@ export function ResourceSearchCommand() {
         ))}
       </nav>
 
-      <section className={styles.contentGrid} aria-label="검색 결과와 판단 패널">
+      <section className={styles.contentGrid} aria-label={t("resources.search.contentAria")}>
         <div className={styles.resultList}>
           {resultItems.map((item) => (
             <article className={styles.resultCard} key={item.title}>
@@ -95,17 +95,17 @@ export function ResourceSearchCommand() {
                   <h3>{item.title}</h3>
                   <p>{item.meta}</p>
                 </div>
-                <StatusBadge tone={item.tone}>{item.tone === "personal" ? "개인" : item.tone === "warning" ? "확인" : "룸"}</StatusBadge>
+                <StatusBadge tone={item.tone}>{item.tone === "personal" ? t("resources.search.resultPersonal") : item.tone === "warning" ? t("resources.search.resultReview") : t("resources.search.resultRoom")}</StatusBadge>
               </div>
               <p className={styles.resultDetail}>{item.detail}</p>
             </article>
           ))}
         </div>
 
-        <aside className={styles.judgementPanel} aria-label="검색 근거와 권한 기준">
+        <aside className={styles.judgementPanel} aria-label={t("resources.search.evidenceAria")}>
           <div className={styles.panelTitle}>
             <LockKeyhole size={18} aria-hidden="true" />
-            <h3>검색 근거</h3>
+            <h3>{t("resources.search.evidenceTitle")}</h3>
           </div>
           <div className={styles.evidenceList}>
             {evidenceRows.map(([label, value]) => (
@@ -117,7 +117,7 @@ export function ResourceSearchCommand() {
           </div>
           <div className={styles.notice}>
             <ShieldCheck size={17} aria-hidden="true" />
-            <p>개인 자료는 직접 공유하기 전까지 프로젝트룸 멤버와 프로젝트룸 에이전트에게 보이지 않습니다.</p>
+            <p>{t("resources.search.notice")}</p>
           </div>
         </aside>
       </section>
