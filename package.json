@@ -12,6 +12,7 @@
     "check:design-tokens": "node scripts/check-design-tokens.mjs",
     "check:product-rules": "node scripts/check-product-rules.mjs",
     "check:tauri-boundaries": "node scripts/check-tauri-boundaries.mjs",
+    "dev:widget:backend": "node scripts/dev-widget-real-backend.mjs seed",
     "check:smoke": "node scripts/check-frontend-smoke.mjs",
     "check:routes": "SMOKE_TARGET=routes node scripts/check-frontend-smoke.mjs",
     "check:storybook": "SMOKE_TARGET=storybook node scripts/check-frontend-smoke.mjs",
@@ -21,6 +22,7 @@
     "storybook:visual": "node scripts/visual-qa.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
+    "tauri:dev:backend": "node scripts/dev-widget-real-backend.mjs tauri",
     "tauri:build": "tauri build"
   },
   "dependencies": {
