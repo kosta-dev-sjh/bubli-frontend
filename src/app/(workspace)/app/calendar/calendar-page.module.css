@@ -577,6 +577,138 @@
   color: var(--color-muted);
 }
 
+.selectedEventPanel {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.selectedEventPanel > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.selectedEventPanel > div strong {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 920;
+}
+
+.selectedEventPanel > div span {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 10px;
+  color: var(--color-brand);
+  background: rgba(215, 234, 244, 0.5);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.selectedEventList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.selectedEventList li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  gap: 8px;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.selectedEventEdit,
+.emptySelectedEvent,
+.selectedEventDelete {
+  min-width: 0;
+  border: 1px solid rgba(107, 143, 168, 0.13);
+  border-radius: 14px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    transform var(--motion-hover) var(--ease-out),
+    border-color var(--motion-hover) var(--ease-out),
+    background var(--motion-hover) var(--ease-out);
+}
+
+.selectedEventEdit {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 12px;
+  text-align: left;
+}
+
+.selectedEventEdit span,
+.selectedEventEdit small {
+  color: var(--color-brand);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.selectedEventEdit strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 920;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectedEventEdit small {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(215, 234, 244, 0.46);
+}
+
+.selectedEventDelete {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+}
+
+.emptySelectedEvent {
+  min-height: 42px;
+  padding: 0 14px;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.selectedEventEdit:hover,
+.emptySelectedEvent:hover,
+.selectedEventDelete:hover {
+  transform: translateY(-1px);
+  border-color: rgba(142, 205, 246, 0.46);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.selectedEventDelete:disabled {
+  cursor: wait;
+  opacity: 0.52;
+  transform: none;
+}
+
 .timeline {
   display: grid;
   gap: 0;
@@ -1065,6 +1197,15 @@
 
   .dayEventList {
     display: none;
+  }
+
+  .selectedEventEdit {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .selectedEventEdit small {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 
   .dayButtonToday::after {
