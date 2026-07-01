@@ -207,7 +207,13 @@ function WbsRow({
   item,
   linkedCount,
   level,
+  onDragEnd,
+  onDragOver,
+  onDragStart,
+  onDrop,
   onSelect,
+  reorderActive,
+  reorderTarget,
   selected,
 }: {
   childCount: number;
@@ -216,16 +222,33 @@ function WbsRow({
   item: WbsItemResponse;
   linkedCount: number;
   level: number;
+  onDragEnd: () => void;
+  onDragOver: (event: DragEvent<HTMLButtonElement>, targetId: string) => void;
+  onDragStart: (event: DragEvent<HTMLButtonElement>, item: WbsItemResponse) => void;
+  onDrop: (event: DragEvent<HTMLButtonElement>, targetId: string) => void;
   onSelect: (id: string) => void;
+  reorderActive: boolean;
+  reorderTarget: boolean;
   selected: boolean;
 }) {
   return (
     <button
-      className={cn(styles.wbsRow, selected && styles.wbsRowSelected)}
+      className={cn(
+        styles.wbsRow,
+        selected && styles.wbsRowSelected,
+        reorderActive && styles.wbsRowDragging,
+        reorderTarget && styles.wbsRowDropTarget,
+      )}
+      draggable
+      onDragEnd={onDragEnd}
+      onDragOver={(event) => onDragOver(event, item.id)}
+      onDragStart={(event) => onDragStart(event, item)}
+      onDrop={(event) => onDrop(event, item.id)}
       onClick={() => onSelect(item.id)}
       style={{ "--wbs-depth": level } as CSSProperties}
       type="button"
     >
+      <GripVertical aria-hidden="true" className={styles.wbsHandle} size={15} strokeWidth={2} />
       <span className={styles.wbsCode}>{code}</span>
       <span className={styles.wbsMain}>
         <strong>{item.title}</strong>
@@ -291,6 +314,8 @@ function ProjectRoomWorkBoardContent({
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(board.tasks[0]?.id ?? null);
   const [trashActive, setTrashActive] = useState(false);
   const [viewMode, setViewMode] = useState<"kanban" | "suggestions" | "wbs">("wbs");
+  const [draggedWbsId, setDraggedWbsId] = useState<string | null>(null);
+  const [wbsDropTargetId, setWbsDropTargetId] = useState<string | null>(null);
   const [wbsDraft, setWbsDraft] = useState({ title: "" });
   const [wbsEditDraft, setWbsEditDraft] = useState<WbsEditDraft>(() => ({
     title: initialWbs?.title ?? "",
@@ -504,6 +529,87 @@ function ProjectRoomWorkBoardContent({
       });
   };
 
+  const reorderWbsRows = (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
+
+    const dragged = wbsItems.find((item) => item.id === draggedId);
+    const target = wbsItems.find((item) => item.id === targetId);
+    if (!dragged || !target || (dragged.parentId ?? null) !== (target.parentId ?? null)) {
+      setSaveNotice("같은 단계 안에서만 순서를 바꿀 수 있습니다");
+      return;
+    }
+
+    const siblingParentId = dragged.parentId ?? null;
+    const siblings = wbsItems
+      .filter((item) => (item.parentId ?? null) === siblingParentId)
+      .sort((a, b) => a.orderNo - b.orderNo || a.createdAt.localeCompare(b.createdAt));
+    const moving = siblings.find((item) => item.id === draggedId);
+    if (!moving) return;
+
+    const withoutMoving = siblings.filter((item) => item.id !== draggedId);
+    const targetIndex = withoutMoving.findIndex((item) => item.id === targetId);
+    const originalDraggedIndex = siblings.findIndex((item) => item.id === draggedId);
+    const originalTargetIndex = siblings.findIndex((item) => item.id === targetId);
+    if (targetIndex < 0) return;
+
+    const insertAt = originalDraggedIndex < originalTargetIndex ? targetIndex + 1 : targetIndex;
+    const nextSiblings = [...withoutMoving.slice(0, insertAt), moving, ...withoutMoving.slice(insertAt)].map((item, index) => ({
+      ...item,
+      orderNo: index + 1,
+    }));
+    const siblingById = new Map(nextSiblings.map((item) => [item.id, item]));
+    const previousItems = wbsItems;
+    const nextItems = wbsItems.map((item) => siblingById.get(item.id) ?? item);
+
+    setWbsItems(nextItems);
+    setSaveNotice("WBS 순서 저장 중");
+
+    void wbsApi
+      .reorderItems(roomId, {
+        items: nextItems.map((item) => ({
+          orderNo: item.orderNo,
+          parentId: item.parentId ?? null,
+          wbsItemId: item.id,
+        })),
+      })
+      .then((updated) => {
+        setWbsItems(updated);
+        setSaveNotice("WBS 순서 저장됨");
+      })
+      .catch(() => {
+        setWbsItems(previousItems);
+        setSaveNotice("WBS 서버 저장 대기");
+      });
+  };
+
+  const handleWbsDragStart = (event: DragEvent<HTMLButtonElement>, item: WbsItemResponse) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-bubli-wbs-id", item.id);
+    event.dataTransfer.setData("text/plain", item.id);
+    setDraggedWbsId(item.id);
+  };
+
+  const handleWbsDragOver = (event: DragEvent<HTMLButtonElement>, targetId: string) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setWbsDropTargetId(targetId);
+  };
+
+  const handleWbsDrop = (event: DragEvent<HTMLButtonElement>, targetId: string) => {
+    event.preventDefault();
+    const draggedId = event.dataTransfer.getData("application/x-bubli-wbs-id") || event.dataTransfer.getData("text/plain");
+    setDraggedWbsId(null);
+    setWbsDropTargetId(null);
+    if (draggedId) {
+      reorderWbsRows(draggedId, targetId);
+    }
+  };
+
+  const handleWbsDragEnd = () => {
+    setDraggedWbsId(null);
+    setWbsDropTargetId(null);
+  };
+
   const persistTaskStatus = async (taskId: string, status: TaskStatus) => {
     setSaveNotice("저장 중");
 
@@ -639,6 +745,7 @@ function ProjectRoomWorkBoardContent({
                 <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
               </div>
               <div className={styles.wbsTableHead} aria-hidden="true">
+                <span>이동</span>
                 <span>번호</span>
                 <span>작업명</span>
                 <span>상태</span>
@@ -657,7 +764,13 @@ function ProjectRoomWorkBoardContent({
                       key={item.id}
                       level={wbsDepthById[item.id] ?? 0}
                       linkedCount={linkedCountByWbsId[item.id] ?? 0}
+                      onDragEnd={handleWbsDragEnd}
+                      onDragOver={handleWbsDragOver}
+                      onDragStart={handleWbsDragStart}
+                      onDrop={handleWbsDrop}
                       onSelect={setSelectedWbsId}
+                      reorderActive={draggedWbsId === item.id}
+                      reorderTarget={wbsDropTargetId === item.id && draggedWbsId !== item.id}
                       selected={selectedWbsId === item.id}
                     />
                   ))
@@ -714,13 +827,13 @@ function ProjectRoomWorkBoardContent({
               <form className={styles.wbsEditor} onSubmit={handleUpdateWbs}>
                 <div className={styles.sectionLabel}>
                   <GitBranch aria-hidden="true" size={16} strokeWidth={2} />
-                  <strong>선택한 WBS 수정</strong>
+                  <strong>선택한 줄 수정</strong>
                 </div>
                 {selectedWbs ? (
                   <>
                     <div className={styles.wbsFormGrid}>
                       <label>
-                        <span>WBS 이름</span>
+                        <span>작업명</span>
                         <input
                           aria-label="WBS 이름"
                           onChange={(event) => setWbsEditDraft({ ...activeWbsEditDraft, title: event.target.value })}
@@ -763,11 +876,11 @@ function ProjectRoomWorkBoardContent({
               <form className={styles.wbsCreate} onSubmit={handleCreateWbs}>
                 <div className={styles.sectionLabel}>
                   <GitBranch aria-hidden="true" size={16} strokeWidth={2} />
-                  <strong>{selectedWbs ? "하위 WBS 추가" : "WBS 추가"}</strong>
+                  <strong>{selectedWbs ? "하위 줄 추가" : "작업 줄 추가"}</strong>
                 </div>
                 <div className={styles.wbsFormGrid}>
                   <label>
-                    <span>WBS 이름</span>
+                    <span>작업명</span>
                     <input
                       aria-label="추가할 WBS 이름"
                       onChange={(event) => setWbsDraft((current) => ({ ...current, title: event.target.value }))}
