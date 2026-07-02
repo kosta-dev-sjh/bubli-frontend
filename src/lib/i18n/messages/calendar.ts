@@ -111,6 +111,7 @@ const ko = {
   "calendar.draft.authRequired": "로그인이 필요합니다.",
   "calendar.draft.saveFailed": "일정을 저장하지 못했습니다.",
   "calendar.draft.deleteFailed": "일정을 삭제하지 못했습니다.",
+  "calendar.draft.deleted": "일정이 삭제되었습니다.",
 
   // 페이지 패널(상태 화면)
   "calendar.pagePanel.aria": "일정 화면",
@@ -311,6 +312,7 @@ const en: Record<Key, string> = {
   "calendar.draft.authRequired": "Login required.",
   "calendar.draft.saveFailed": "Couldn't save the event.",
   "calendar.draft.deleteFailed": "Couldn't delete the event.",
+  "calendar.draft.deleted": "The event was deleted.",
 
   "calendar.pagePanel.aria": "Calendar screen",
   "calendar.pageState.chip.loading": "Loading",
@@ -505,6 +507,7 @@ const ja: Record<Key, string> = {
   "calendar.draft.authRequired": "ログインが必要です。",
   "calendar.draft.saveFailed": "予定を保存できませんでした。",
   "calendar.draft.deleteFailed": "予定を削除できませんでした。",
+  "calendar.draft.deleted": "予定を削除しました。",
 
   "calendar.pagePanel.aria": "予定画面",
   "calendar.pageState.chip.loading": "読み込み",

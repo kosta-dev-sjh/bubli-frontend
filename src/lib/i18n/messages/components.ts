@@ -121,8 +121,8 @@ const ko = {
   "ui.kanban.unassigned": "미지정",
   "ui.kanban.taskNamePlaceholder": "작업명 입력",
   "ui.kanban.addCard": "추가",
-  "ui.kanban.cancelAddCard": "카드 추가 취소",
-  "ui.kanban.addCardButton": "카드 추가",
+  "ui.kanban.cancelAddCard": "작업 추가 취소",
+  "ui.kanban.addCardButton": "작업 추가",
 } as const;
 
 type Key = keyof typeof ko;
@@ -244,8 +244,8 @@ const en: Record<Key, string> = {
   "ui.kanban.unassigned": "Unassigned",
   "ui.kanban.taskNamePlaceholder": "Enter task name",
   "ui.kanban.addCard": "Add",
-  "ui.kanban.cancelAddCard": "Cancel adding card",
-  "ui.kanban.addCardButton": "Add card",
+  "ui.kanban.cancelAddCard": "Cancel adding task",
+  "ui.kanban.addCardButton": "Add task",
 };
 
 const ja: Record<Key, string> = {
@@ -365,8 +365,8 @@ const ja: Record<Key, string> = {
   "ui.kanban.unassigned": "未指定",
   "ui.kanban.taskNamePlaceholder": "作業名を入力",
   "ui.kanban.addCard": "追加",
-  "ui.kanban.cancelAddCard": "カード追加をキャンセル",
-  "ui.kanban.addCardButton": "カード追加",
+  "ui.kanban.cancelAddCard": "タスク追加をキャンセル",
+  "ui.kanban.addCardButton": "タスク追加",
 };
 
 export const componentsMessages = { ko, en, ja };
