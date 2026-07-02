@@ -1096,6 +1096,7 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
   const scrollRef = useRef<HTMLDivElement>(null);
   const [timelineData] = useState<TimelineData>(createInitialTimelineData(new Date()));
   const [sidebarWidth, setSidebarWidth] = useState(350);
+  const [isDragging] = useGanttDragging();
   const [, setScrollX] = useGanttScrollX();
 
   const headerHeight = 60;
@@ -1133,9 +1134,13 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
         return;
       }
 
+      if (isDragging) {
+        return;
+      }
+
       setScrollX(scrollRef.current.scrollLeft);
     }, 100),
-    [setScrollX],
+    [isDragging, setScrollX],
   );
 
   useEffect(() => {

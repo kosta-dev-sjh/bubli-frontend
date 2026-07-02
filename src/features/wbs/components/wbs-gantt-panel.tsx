@@ -315,7 +315,7 @@ export function WbsGanttPanel({
     });
   };
 
-  const getParentIdForChild = (item: WbsItemResponse) => item.parentId ?? item.id;
+  const getParentIdForChild = (item: WbsItemResponse) => item.id;
 
   const persistRange = useCallback((item: WbsItemResponse, nextRange: LocalRange) => {
     const schedule = scheduleByWbsId.get(item.id);
