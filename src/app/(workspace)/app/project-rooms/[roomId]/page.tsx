@@ -3,7 +3,6 @@
 import {
   AlertCircle,
   CalendarDays,
-  ChevronRight,
   FileText,
   ListChecks,
   MessageCircle,
@@ -197,6 +196,26 @@ export default function ProjectRoomHomePage() {
         <div>
           <h1 id="room-home-title">{state.kind === "ready" ? state.room.name : "프로젝트룸"}</h1>
         </div>
+        {state.kind === "ready" ? (
+          <nav className="room-home__segmented-nav" aria-label="프로젝트룸 메뉴">
+            <Link href={`/app/project-rooms/${roomId}/work`}>
+              <ListChecks aria-hidden size={18} strokeWidth={1.9} />
+              <span>WBS/칸반</span>
+            </Link>
+            <Link href={`/app/project-rooms/${roomId}/resources`}>
+              <FileText aria-hidden size={18} strokeWidth={1.9} />
+              <span>자료</span>
+            </Link>
+            <Link href={`/app/chat?mode=room&roomId=${encodeURIComponent(roomId)}`}>
+              <MessageCircle aria-hidden size={18} strokeWidth={1.9} />
+              <span>소통</span>
+            </Link>
+            <Link href={`/app/calendar?roomId=${roomId}`}>
+              <CalendarDays aria-hidden size={18} strokeWidth={1.9} />
+              <span>일정</span>
+            </Link>
+          </nav>
+        ) : null}
       </header>
 
       {state.kind === "loading" ? (
