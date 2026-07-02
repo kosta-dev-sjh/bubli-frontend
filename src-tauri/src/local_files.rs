@@ -16,6 +16,7 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
+use tauri_plugin_dialog::DialogExt;
 use uuid::Uuid;
 
 use crate::local_db::{ms_to_iso, now_ms, Db};
@@ -168,21 +169,19 @@ impl Default for ManagedFolderWatchers {
     }
 }
 
-/// Register a personal managed folder. The native folder picker can be wired
-/// through the dialog plugin later; for now the frontend passes a resolved path.
+/// Register a personal managed folder. When the frontend does not pass an
+/// explicit path, use the native desktop folder picker.
 #[tauri::command]
 pub fn select_managed_folder(
+    app: AppHandle,
     state: State<'_, Db>,
     input: Option<SelectManagedFolderInput>,
 ) -> Result<ManagedFolderSelection, String> {
-    let path = input
-        .and_then(|value| value.path)
-        .ok_or_else(|| "no folder path provided (native picker not wired yet)".to_string())?;
-
-    let path_buf = PathBuf::from(&path);
+    let path_buf = resolve_managed_folder_path(&app, input)?;
     if !path_buf.is_dir() {
-        return Err(format!("not a directory: {path}"));
+        return Err(format!("not a directory: {}", path_buf.display()));
     }
+    let path = path_buf.to_string_lossy().to_string();
     let name = path_buf
         .file_name()
         .map(|value| value.to_string_lossy().to_string())
@@ -213,6 +212,27 @@ pub fn select_managed_folder(
         name,
         path,
     })
+}
+
+fn resolve_managed_folder_path(
+    app: &AppHandle,
+    input: Option<SelectManagedFolderInput>,
+) -> Result<PathBuf, String> {
+    if let Some(path) = input
+        .and_then(|value| value.path)
+        .map(|path| path.trim().to_string())
+        .filter(|path| !path.is_empty())
+    {
+        return Ok(PathBuf::from(path));
+    }
+
+    app.dialog()
+        .file()
+        .set_title("관리 폴더 선택")
+        .blocking_pick_folder()
+        .ok_or_else(|| "folder selection cancelled".to_string())?
+        .into_path()
+        .map_err(|error| format!("folder path resolve failed: {error}"))
 }
 
 /// Re-scan a managed folder, upsert the file index, and record change events.
