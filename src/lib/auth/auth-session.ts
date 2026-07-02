@@ -181,10 +181,13 @@ export function isAccessTokenExpiringSoon(session = getStoredAuthSession()) {
 }
 
 export function getAuthRedirectUri() {
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL?.trim().replace(/\/$/, "");
+  if (configuredBaseUrl) {
+    return `${configuredBaseUrl}/auth/callback`;
+  }
+
   if (typeof window === "undefined") {
-    return process.env.NEXT_PUBLIC_APP_BASE_URL
-      ? `${process.env.NEXT_PUBLIC_APP_BASE_URL}/auth/callback`
-      : "http://localhost:3000/auth/callback";
+    return "http://localhost:3791/auth/callback";
   }
 
   return `${window.location.origin}/auth/callback`;
