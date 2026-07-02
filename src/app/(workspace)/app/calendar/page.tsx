@@ -204,6 +204,8 @@ function CalendarPageContent() {
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
   const [sourceFilter, setSourceFilter] = useState<CalendarSourceFilter>("all");
   const [composerOpen, setComposerOpen] = useState(false);
+  const [detailPanelOpen, setDetailPanelOpen] = useState(false);
+  const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const [googleConnection, setGoogleConnection] = useState<GoogleConnectionState>({ kind: "loading" });
@@ -359,7 +361,13 @@ function CalendarPageContent() {
     setDraftTitle("");
     setDraftStartTime("10:30");
     setDraftEndTime("11:00");
-    setComposerOpen(!hasEvents);
+    if (hasEvents) {
+      setDetailPanelOpen(true);
+      setComposerOpen(false);
+    } else {
+      setComposerOpen(true);
+      setDetailPanelOpen(false);
+    }
   };
 
   const openCreateComposer = () => {
@@ -381,6 +389,7 @@ function CalendarPageContent() {
     setDraftStartTime(toTimeValue(event.startsAt));
     setDraftEndTime(event.endsAt && endDate && !Number.isNaN(endDate.getTime()) ? toTimeValue(event.endsAt) : toTimeValue(event.startsAt));
     setDraftNotice(null);
+    setDetailPanelOpen(false);
     setComposerOpen(true);
   };
 
@@ -522,6 +531,16 @@ function CalendarPageContent() {
       removeEventFromState(event.id);
       if (editingEventId === event.id) {
         closeComposer();
+      }
+      const isLastEvent = selectedEvents.length === 1 && selectedEvents[0].id === event.id;
+      setDeleteNotice("일정이 삭제되었습니다.");
+      const noticeTimer = window.setTimeout(() => setDeleteNotice(null), 3000);
+      if (isLastEvent) {
+        window.setTimeout(() => {
+          setDetailPanelOpen(false);
+          window.clearTimeout(noticeTimer);
+          setDeleteNotice(null);
+        }, 1600);
       }
     } catch (error) {
       setDraftNotice(error instanceof ApiClientError && error.status === 401 ? "로그인이 필요합니다." : "일정을 삭제하지 못했습니다.");
@@ -711,6 +730,7 @@ function CalendarPageContent() {
                   <strong>{selectedDayLabel}</strong>
                   <span>{selectedEvents.length > 0 ? `${selectedEvents.length}건` : "일정 없음"}</span>
                 </div>
+                {deleteNotice && !detailPanelOpen ? <p className={styles.notice}>{deleteNotice}</p> : null}
                 {selectedEvents.length > 0 ? (
                   <ul className={styles.selectedEventList}>
                     {selectedEvents.map((event) => {
@@ -743,6 +763,60 @@ function CalendarPageContent() {
               </section>
             </GlassPanel>
           </div>
+
+          {detailPanelOpen ? (
+            <div className={styles.composerLayer} role="presentation" onMouseDown={() => setDetailPanelOpen(false)}>
+              <GlassPanel
+                aria-labelledby="calendar-detail-title"
+                className={`${styles.createPanel} ${styles.composerPanel}`}
+                role="dialog"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div className={styles.panelHeader}>
+                  <div>
+                    <h2 id="calendar-detail-title">{selectedDayLabel}</h2>
+                    <p>{selectedEvents.length > 0 ? `일정 ${selectedEvents.length}건` : "일정 없음"}</p>
+                  </div>
+                  <button aria-label="닫기" className={styles.composerClose} onClick={() => setDetailPanelOpen(false)} type="button">
+                    <X size={16} strokeWidth={2.2} />
+                  </button>
+                </div>
+                {deleteNotice ? <p className={styles.notice}>{deleteNotice}</p> : null}
+                {selectedEvents.length > 0 ? (
+                  <ul className={styles.selectedEventList}>
+                    {selectedEvents.map((event) => {
+                      const source = event.roomId ? "프로젝트룸" : event.googleEventId || event.syncStatus === "SYNCED" ? "외부" : "개인";
+                      return (
+                        <li key={event.id}>
+                          <button className={styles.selectedEventEdit} onClick={() => openEditComposer(event)} type="button">
+                            <span>{formatTime(event)}</span>
+                            <strong>{event.title}</strong>
+                            <small>{source}</small>
+                          </button>
+                          <button
+                            aria-label={`${event.title} 삭제`}
+                            className={styles.selectedEventDelete}
+                            disabled={deletingEventId === event.id}
+                            onClick={() => void handleDeleteEvent(event)}
+                            type="button"
+                          >
+                            <Trash2 size={15} strokeWidth={2.1} />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+                <Button
+                  icon={<Plus size={15} strokeWidth={2.1} />}
+                  onClick={() => { setDetailPanelOpen(false); openCreateComposer(); }}
+                  variant="quiet"
+                >
+                  일정 추가
+                </Button>
+              </GlassPanel>
+            </div>
+          ) : null}
 
           {composerOpen ? (
             <div className={styles.composerLayer} role="presentation" onMouseDown={closeComposer}>
