@@ -18943,6 +18943,56 @@ html {
   z-index: 320 !important;
 }
 
+.bubli-app-layout .bubli-sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.bubli-app-layout .bubli-nav-wrap {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.bubli-app-layout .bubli-nav {
+  width: 100%;
+  align-content: start;
+  gap: clamp(2px, 0.75dvh, 5px);
+}
+
+.bubli-app-layout .bubli-nav__item {
+  min-height: clamp(36px, 6.4dvh, 44px);
+}
+
+.bubli-app-layout .bubli-nav__icon {
+  width: clamp(30px, 5.1dvh, 34px);
+  height: clamp(30px, 5.1dvh, 34px);
+}
+
+@media (max-height: 560px) and (min-width: 901px) {
+  .bubli-app-layout .bubli-sidebar {
+    top: 10px;
+    height: calc(100dvh - 20px);
+    margin-top: 10px;
+    margin-bottom: 10px;
+    padding: 9px 6px;
+    border-radius: 28px;
+  }
+
+  .bubli-app-layout .bubli-brand {
+    width: 42px;
+    height: 42px;
+    margin-bottom: 7px;
+    border-radius: 17px;
+  }
+
+  .bubli-app-layout .bubli-brand::after {
+    width: 38px;
+    height: 38px;
+  }
+}
+
 .bubli-app-layout .bubli-main {
   position: relative;
   z-index: 1;
