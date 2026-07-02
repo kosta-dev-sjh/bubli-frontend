@@ -8,6 +8,7 @@ import {
   KanbanBoard,
   type KanbanAssigneeOption,
   type KanbanColumn as KanbanBoardColumn,
+  type KanbanWbsOption,
 } from "@/components/ui/kanban";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { agentApi } from "@/features/agent/api/agentApi";
@@ -278,6 +279,13 @@ function ProjectRoomWorkBoardContent({
   });
 
   const wbsTitleById = useMemo(() => Object.fromEntries(wbsItems.map((item) => [item.id, item.title])), [wbsItems]);
+  const wbsParentTitleById = useMemo(
+    () =>
+      Object.fromEntries(
+        wbsItems.map((item) => [item.id, item.parentId ? wbsTitleById[item.parentId] ?? null : null]),
+      ),
+    [wbsItems, wbsTitleById],
+  );
   const childCountByWbsId = useMemo(() => {
     return wbsItems.reduce<Record<string, number>>((acc, item) => {
       if (item.parentId) {
@@ -310,11 +318,22 @@ function ProjectRoomWorkBoardContent({
   const kanbanAssigneeOptions = useMemo<KanbanAssigneeOption[]>(
     () =>
       activeMembers.map((member) => ({
+        avatarUrl: member.avatarUrl || null,
         id: member.userId,
         label: member.name,
-        shortLabel: member.name.slice(0, 1).toUpperCase(),
+        meta: member.bubliId ? `@${member.bubliId}` : member.role === "PROJECT_LEADER" ? "리더" : "멤버",
+        shortLabel: member.name.trim().slice(0, 1).toUpperCase() || "멤",
       })),
     [activeMembers],
+  );
+  const kanbanWbsOptions = useMemo<KanbanWbsOption[]>(
+    () =>
+      wbsItems.map((item) => ({
+        id: item.id,
+        parentTitle: item.parentId ? wbsTitleById[item.parentId] ?? null : null,
+        title: item.title,
+      })),
+    [wbsItems, wbsTitleById],
   );
   const selectedWbs = selectedWbsId ? wbsItems.find((item) => item.id === selectedWbsId) : null;
   const selectedWbsAccent = selectedWbsId ? wbsAccentById[selectedWbsId] ?? wbsAccentOptions[0].value : wbsAccentOptions[0].value;
@@ -346,11 +365,14 @@ function ProjectRoomWorkBoardContent({
               id: task.id,
               labels: wbsTitle ? [wbsTitle] : [],
               title: task.title,
+              wbsItemId: task.wbsItemId ?? null,
+              wbsParentTitle: task.wbsItemId ? wbsParentTitleById[task.wbsItemId] ?? null : null,
+              wbsTitle: wbsTitle ?? null,
             };
           }),
         title: t(column.labelKey),
       })),
-    [memberByUserId, t, visibleTasks, wbsTitleById],
+    [memberByUserId, t, visibleTasks, wbsParentTitleById, wbsTitleById],
   );
   const wbsGeneration = candidateGeneration?.kind === "wbs" ? candidateGeneration : null;
   const taskGeneration = candidateGeneration?.kind === "tasks" ? candidateGeneration : null;
@@ -709,6 +731,24 @@ function ProjectRoomWorkBoardContent({
       .catch(() => {
         setTasks(previousTasks);
         setSaveNotice(t("room.workBoard.noticeAssigneeServerPending"));
+      });
+  };
+
+  const updateTaskWbs = (taskId: string, wbsItemId: string | null) => {
+    const previousTasks = tasks;
+
+    setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, wbsItemId } : task)));
+    setSaveNotice(t("room.workBoard.noticeTaskWbsSaving"));
+
+    void todoApi
+      .update(taskId, { wbsItemId })
+      .then((updated) => {
+        setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, ...updated } : task)));
+        setSaveNotice(t("room.workBoard.noticeTaskWbsSaved"));
+      })
+      .catch(() => {
+        setTasks(previousTasks);
+        setSaveNotice(t("room.workBoard.noticeTaskWbsServerPending"));
       });
   };
 
@@ -1146,7 +1186,9 @@ function ProjectRoomWorkBoardContent({
               onTaskDelete={(taskId) => void deleteTask(taskId)}
               onTaskMove={handleKanbanTaskMove}
               onTaskTitleChange={updateTaskTitle}
+              onTaskWbsChange={updateTaskWbs}
               selectedTaskId={selectedTaskId}
+              wbsOptions={kanbanWbsOptions}
             />
           </section>
         ) : null}

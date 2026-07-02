@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
+import { authApi } from "@/features/auth/api/authApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ProjectRoomWorkBoard } from "@/features/project-room/components/project-room-work-board";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
@@ -43,13 +44,24 @@ export default function ProjectRoomWorkPage() {
     setState({ kind: "loading" });
 
     try {
-      const [room, board, membersPage] = await Promise.all([
+      const [currentUser, room, board, membersPage] = await Promise.all([
+        authApi.getMe(),
         projectRoomApi.get(roomId),
         wbsApi.getBoard(roomId),
         projectRoomApi.getMembers(roomId),
       ]);
+      const members = membersPage.items.map((member) =>
+        member.userId === currentUser.id
+          ? {
+              ...member,
+              avatarUrl: member.avatarUrl || currentUser.avatarUrl || null,
+              bubliId: member.bubliId || currentUser.bubliId || null,
+              name: member.name || currentUser.name,
+            }
+          : member,
+      );
       setActiveProjectRoomId(room.id, room.name);
-      setState({ board, kind: "ready", members: membersPage.items, room });
+      setState({ board, kind: "ready", members, room });
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
