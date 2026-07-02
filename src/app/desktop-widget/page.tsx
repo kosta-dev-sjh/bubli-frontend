@@ -35,8 +35,12 @@ import { tauriCommands, type WidgetBubbleType, type WidgetWindowBubbleType, type
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readWidgetSummary } from "@/lib/widget";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import type { TimeLogResponse } from "@/types/api/timer";
 import type { WidgetBubbleType as ApiWidgetBubbleType } from "@/types/api/widget";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 const apiBubbleTypeMap: Partial<Record<WidgetBubbleType, BackendWidgetBubbleType>> = {
   agent: "AGENT",
@@ -113,7 +117,7 @@ function formatShortTime(value?: string | null) {
   }
 }
 
-function formatDue(value?: string | null) {
+function formatDue(t: TranslateFn, value?: string | null) {
   if (!value) return "";
   const due = new Date(value);
   if (Number.isNaN(due.getTime())) return "";
@@ -122,52 +126,52 @@ function formatDue(value?: string | null) {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const target = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
   const diff = Math.round((target - start) / dayMs);
-  if (diff === 0) return formatShortTime(value) || "오늘";
-  if (diff === 1) return "내일";
+  if (diff === 0) return formatShortTime(value) || t("widget.due.today");
+  if (diff === 1) return t("widget.due.tomorrow");
   if (diff > 1) return `D-${diff}`;
-  return "지난 일정";
+  return t("widget.due.past");
 }
 
-function taskStatusLabel(status: WidgetTaskResponse["status"]) {
-  const labels: Record<WidgetTaskResponse["status"], string> = {
-    BLOCKED: "막힘",
-    DONE: "완료",
-    IN_PROGRESS: "진행",
-    REVIEW: "검토",
-    TODO: "대기",
+function taskStatusLabel(t: TranslateFn, status: WidgetTaskResponse["status"]) {
+  const labels: Record<WidgetTaskResponse["status"], MessageKey> = {
+    BLOCKED: "widget.task.blocked",
+    DONE: "widget.task.done",
+    IN_PROGRESS: "widget.task.inProgress",
+    REVIEW: "widget.task.review",
+    TODO: "widget.task.todo",
   };
-  return labels[status];
+  return t(labels[status]);
 }
 
-function resourceStatusLabel(status: WidgetResourceResponse["status"]) {
-  const labels: Record<WidgetResourceResponse["status"], string> = {
-    ANALYZED: "분석됨",
-    ANALYZING: "분석 중",
-    FAILED: "실패",
-    READY: "준비됨",
-    UPLOADING: "업로드",
+function resourceStatusLabel(t: TranslateFn, status: WidgetResourceResponse["status"]) {
+  const labels: Record<WidgetResourceResponse["status"], MessageKey> = {
+    ANALYZED: "widget.resourceStatus.analyzed",
+    ANALYZING: "widget.resourceStatus.analyzing",
+    FAILED: "widget.resourceStatus.failed",
+    READY: "widget.resourceStatus.ready",
+    UPLOADING: "widget.resourceStatus.uploading",
   };
-  return labels[status];
+  return t(labels[status]);
 }
 
-function memoTitle(memo: WidgetMemoResponse) {
+function memoTitle(t: TranslateFn, memo: WidgetMemoResponse) {
   const firstLine = memo.body
     .split(/\r?\n/)
     .map((line) => line.trim())
     .find(Boolean);
 
-  if (!firstLine) return "빈 메모";
+  if (!firstLine) return t("widget.memo.empty");
   return firstLine.length > 36 ? `${firstLine.slice(0, 36)}...` : firstLine;
 }
 
-function suggestionStatusLabel(status: WidgetAgentSuggestionResponse["status"]) {
-  const labels: Record<WidgetAgentSuggestionResponse["status"], string> = {
-    APPROVED: "승인됨",
-    DRAFT: "대기",
-    HELD: "보류",
-    REJECTED: "제외",
+function suggestionStatusLabel(t: TranslateFn, status: WidgetAgentSuggestionResponse["status"]) {
+  const labels: Record<WidgetAgentSuggestionResponse["status"], MessageKey> = {
+    APPROVED: "widget.suggestion.approved",
+    DRAFT: "widget.suggestion.draft",
+    HELD: "widget.suggestion.held",
+    REJECTED: "widget.suggestion.rejected",
   };
-  return labels[status];
+  return t(labels[status]);
 }
 
 function suggestionTitle(suggestion: WidgetAgentSuggestionResponse) {
@@ -224,26 +228,26 @@ function elapsedTimerLabel(timer?: TimerDisplay) {
   return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
 }
 
-function timerStatusLabel(status: NonNullable<TimerDisplay>["status"]) {
-  const labels: Record<NonNullable<TimerDisplay>["status"], string> = {
-    ENDED: "종료",
-    NEEDS_RECOVERY: "복구 필요",
-    PAUSED: "일시정지",
-    RUNNING: "실행 중",
+function timerStatusLabel(t: TranslateFn, status: NonNullable<TimerDisplay>["status"]) {
+  const labels: Record<NonNullable<TimerDisplay>["status"], MessageKey> = {
+    ENDED: "widget.timerStatus.ended",
+    NEEDS_RECOVERY: "widget.timerStatus.needsRecovery",
+    PAUSED: "widget.timerStatus.paused",
+    RUNNING: "widget.timerStatus.running",
   };
-  return labels[status] ?? status;
+  return labels[status] ? t(labels[status]) : status;
 }
 
-function timerActionLabel(timer?: TimerDisplay) {
-  if (!timer) return "시작";
-  if (timer.status === "PAUSED") return "재개";
-  if (timer.status === "RUNNING") return "종료";
-  return "시작";
+function timerActionLabel(t: TranslateFn, timer?: TimerDisplay) {
+  if (!timer) return t("widget.timerAction.start");
+  if (timer.status === "PAUSED") return t("widget.timerAction.resume");
+  if (timer.status === "RUNNING") return t("widget.timerAction.stop");
+  return t("widget.timerAction.start");
 }
 
-function roomLabel(room?: WidgetProjectRoomResponse | null, fallbackRoomId?: string | null) {
+function roomLabel(t: TranslateFn, room?: WidgetProjectRoomResponse | null, fallbackRoomId?: string | null) {
   if (room?.name) return room.name;
-  return fallbackRoomId ? "선택한 프로젝트룸" : "개인 작업";
+  return fallbackRoomId ? t("widget.room.selected") : t("widget.room.personal");
 }
 
 function withBubble(id: WidgetBubbleType, patch: Partial<WidgetPreviewBubble>): WidgetPreviewBubble {
@@ -255,12 +259,12 @@ function withBubble(id: WidgetBubbleType, patch: Partial<WidgetPreviewBubble>): 
   };
 }
 
-function buildNotificationSignal(notifications: WidgetNotificationResponse[]): WidgetNotificationSignal {
+function buildNotificationSignal(t: TranslateFn, notifications: WidgetNotificationResponse[]): WidgetNotificationSignal {
   const unread = notifications.filter((item) => item.status === "UNREAD");
   return {
-    compactLabel: `알림 ${unread.length}`,
+    compactLabel: t("widget.signal.alertCount", { count: unread.length }),
     metric: String(unread.length),
-    notificationLabel: unread.length > 0 ? `새 알림 ${unread.length}` : "새 알림 없음",
+    notificationLabel: unread.length > 0 ? t("widget.signal.newAlertCount", { count: unread.length }) : t("widget.signal.noNewAlert"),
     rows: unread.slice(0, 3).map((item) => ({
       id: item.id,
       kind: item.sourceType === "MESSAGE" ? "message" : item.sourceType === "RESOURCE" ? "resource" : "agent",
@@ -286,8 +290,8 @@ function buildDisplayBubbles(input: {
   timer?: TimerDisplay;
   voiceConnectionLabel?: string | null;
   voiceRoom?: WidgetVoiceRoomResponse | null;
-}): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
-  const label = roomLabel(input.room, input.roomId);
+}, t: TranslateFn): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
+  const label = roomLabel(t, input.room, input.roomId);
   const activeTimer = input.timer ?? input.dashboard?.runningTimer ?? null;
   const todoItems = (input.dashboard?.todayTasks.length ? input.dashboard.todayTasks : input.tasks).slice(0, 3);
   const scheduleItems = (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules).slice(0, 3);
@@ -300,26 +304,26 @@ function buildDisplayBubbles(input: {
 
   return {
     agent: withBubble("agent", {
-      compactLabel: `후보 ${agentItems.length}`,
+      compactLabel: t("widget.agent.candidateCount", { count: agentItems.length }),
       metric: String(agentItems.length),
-      notificationLabel: agentItems.length > 0 ? "승인 대기 후보" : "대기 후보 없음",
-      panelBody: agentItems.length > 0 ? "승인 전 후보만 표시합니다." : "대기 중인 후보가 없습니다.",
+      notificationLabel: agentItems.length > 0 ? t("widget.agent.waitingCandidates") : t("widget.agent.noWaitingCandidates"),
+      panelBody: agentItems.length > 0 ? t("widget.agent.onlyBeforeApproval") : t("widget.agent.noWaiting"),
       roomLabel: label,
       rows: agentItems.map((item) => ({
         id: item.suggestionId,
         kind: "agent",
         label: suggestionTitle(item),
-        status: suggestionStatusLabel(item.status),
+        status: suggestionStatusLabel(t, item.status),
       })),
     }),
     alert: withBubble("alert", {
-      actionLabel: "알림 확인",
-      compactLabel: `알림 ${unreadCount}`,
+      actionLabel: t("widget.alert.action"),
+      compactLabel: t("widget.signal.alertCount", { count: unreadCount }),
       metric: String(unreadCount),
-      metricLabel: "읽지 않음",
-      notificationLabel: unreadCount > 0 ? `새 알림 ${unreadCount}` : "새 알림 없음",
-      panelBody: unreadCount > 0 ? "확인이 필요한 알림만 모읍니다." : "지금 확인할 알림이 없습니다.",
-      panelLabel: "알림",
+      metricLabel: t("widget.alert.unread"),
+      notificationLabel: unreadCount > 0 ? t("widget.signal.newAlertCount", { count: unreadCount }) : t("widget.signal.noNewAlert"),
+      panelBody: unreadCount > 0 ? t("widget.alert.needCheck") : t("widget.alert.noneNow"),
+      panelLabel: t("widget.alert.panelLabel"),
       roomLabel: label,
       rows: unreadNotifications.map((item) => ({
         id: item.id,
@@ -330,32 +334,32 @@ function buildDisplayBubbles(input: {
     }),
     chat: withBubble("chat", {
       chatRoomId: input.chatRoom?.id,
-      compactLabel: `소통 ${input.messages.length + voiceParticipants.length}`,
+      compactLabel: t("widget.chat.count", { count: input.messages.length + voiceParticipants.length }),
       lastMessageSequence: input.messages.reduce((max, item) => Math.max(max, item.roomSequence), 0),
       metric: String(input.messages.length),
-      notificationLabel: unreadCount > 0 ? `읽지 않은 알림 ${unreadCount}` : "새 소통 없음",
-      panelBody: "친구, 메시지, 보이스 상태를 함께 표시합니다.",
-      panelLabel: `소통 · ${label}`,
+      notificationLabel: unreadCount > 0 ? t("widget.chat.unreadCount", { count: unreadCount }) : t("widget.chat.noNew"),
+      panelBody: t("widget.chat.body"),
+      panelLabel: t("widget.chat.panelLabel", { label }),
       participantLabels: input.friends.slice(0, 3).map((item) => item.name),
       roomId: input.roomId,
       roomLabel: label,
-      voiceLabel: input.voiceConnectionLabel ?? (input.voiceRoom?.status === "OPEN" ? "보이스 진행 중" : "보이스 대기"),
-      voiceParticipants: voiceParticipants.map((item) => item.userName).filter(Boolean).join(" · ") || "참여자 없음",
+      voiceLabel: input.voiceConnectionLabel ?? (input.voiceRoom?.status === "OPEN" ? t("widget.chat.voiceOpen") : t("widget.chat.voiceWaiting")),
+      voiceParticipants: voiceParticipants.map((item) => item.userName).filter(Boolean).join(" · ") || t("widget.chat.noParticipants"),
       voiceRoomId: input.voiceRoom?.id,
       rows: [
         ...input.friends.slice(0, 1).map((item) => ({
           id: item.userId ?? item.friendUserId ?? item.bubliId,
           kind: "friend" as const,
           label: item.name,
-          status: "친구",
+          status: t("widget.chat.people"),
         })),
         ...(input.voiceRoom
           ? [
               {
                 id: input.voiceRoom.id,
                 kind: "voice" as const,
-                label: input.voiceRoom.status === "OPEN" ? "보이스 진행 중" : "보이스 종료",
-                status: `${voiceParticipants.length}명`,
+                label: input.voiceRoom.status === "OPEN" ? t("widget.chat.voiceOpen") : t("widget.chat.voiceEnded"),
+                status: t("widget.chat.participantCount", { count: voiceParticipants.length }),
               },
             ]
           : []),
@@ -369,37 +373,37 @@ function buildDisplayBubbles(input: {
       ],
     }),
     memo: withBubble("memo", {
-      compactLabel: `메모 ${memoItems.length}`,
+      compactLabel: t("widget.memo.count", { count: memoItems.length }),
       metric: String(memoItems.length),
-      notificationLabel: memoItems.length > 0 ? "저장된 메모" : "저장된 메모 없음",
-      panelBody: input.roomId ? "프로젝트룸 메모를 표시합니다." : "개인 메모를 표시합니다.",
+      notificationLabel: memoItems.length > 0 ? t("widget.memo.saved") : t("widget.memo.noneSaved"),
+      panelBody: input.roomId ? t("widget.memo.roomBody") : t("widget.memo.personalBody"),
       roomId: input.roomId,
       roomLabel: label,
       rows: memoItems.map((item) => ({
         id: item.id,
         kind: "memo",
-        label: memoTitle(item),
+        label: memoTitle(t, item),
         status: formatShortTime(item.updatedAt),
       })),
     }),
     resource: withBubble("resource", {
-      compactLabel: `자료 ${fileItems.length}`,
+      compactLabel: t("widget.resource.count", { count: fileItems.length }),
       metric: String(fileItems.length),
-      notificationLabel: fileItems.length > 0 ? "확인할 자료" : "확인할 자료 없음",
-      panelBody: fileItems.length > 0 ? "프로젝트룸 자료를 표시합니다." : "표시할 자료가 없습니다.",
+      notificationLabel: fileItems.length > 0 ? t("widget.resource.toCheck") : t("widget.resource.noneToCheck"),
+      panelBody: fileItems.length > 0 ? t("widget.resource.roomBody") : t("widget.resource.noneBody"),
       roomLabel: label,
       rows: fileItems.map((item) => ({
         id: item.id,
         kind: "resource",
         label: item.title,
-        status: resourceStatusLabel(item.status),
+        status: resourceStatusLabel(t, item.status),
       })),
     }),
     schedule: withBubble("schedule", {
-      compactLabel: `일정 ${scheduleItems.length}`,
+      compactLabel: t("widget.schedule.count", { count: scheduleItems.length }),
       metric: scheduleItems[0] ? formatShortTime(scheduleItems[0].startsAt) : "0",
-      notificationLabel: scheduleItems[0]?.title ?? "오늘 일정 없음",
-      panelBody: "오늘 일정과 다가오는 일정을 표시합니다.",
+      notificationLabel: scheduleItems[0]?.title ?? t("widget.schedule.none"),
+      panelBody: t("widget.schedule.body"),
       roomLabel: label,
       rows: scheduleItems.map((item) => ({
         id: item.id,
@@ -409,12 +413,12 @@ function buildDisplayBubbles(input: {
       })),
     }),
     timer: withBubble("timer", {
-      actionLabel: timerActionLabel(activeTimer),
-      compactLabel: `타이머 ${elapsedTimerLabel(activeTimer ?? undefined)}`,
+      actionLabel: timerActionLabel(t, activeTimer),
+      compactLabel: t("widget.timer.count", { value: elapsedTimerLabel(activeTimer ?? undefined) }),
       metric: elapsedTimerLabel(activeTimer ?? undefined),
-      metricLabel: activeTimer ? timerStatusLabel(activeTimer.status) : "대기",
-      notificationLabel: activeTimer ? "작업 시간 기록 중" : "진행 중인 타이머 없음",
-      panelBody: "time_logs API의 타이머 상태를 표시합니다.",
+      metricLabel: activeTimer ? timerStatusLabel(t, activeTimer.status) : t("widget.timer.waiting"),
+      notificationLabel: activeTimer ? t("widget.timer.recording") : t("widget.timer.noneRunning"),
+      panelBody: t("widget.timer.body"),
       roomId: input.roomId,
       roomLabel: label,
       rows: activeTimer
@@ -422,30 +426,31 @@ function buildDisplayBubbles(input: {
             {
               id: activeTimer.id,
               kind: "time",
-              label: activeTimer.timerType === "WORK" ? "작업 타이머" : "일반 타이머",
+              label: activeTimer.timerType === "WORK" ? t("widget.timer.workTimer") : t("widget.timer.generalTimer"),
               status: activeTimer.status,
             },
           ]
         : [],
     }),
     todo: withBubble("todo", {
-      compactLabel: `TODO ${todoItems.length}`,
+      compactLabel: t("widget.todo.count", { count: todoItems.length }),
       metric: String(todoItems.length),
-      notificationLabel: todoItems[0] ? todoItems[0].title : "오늘 할 일 없음",
-      panelBody: "오늘 할 일과 다가오는 작업을 표시합니다.",
+      notificationLabel: todoItems[0] ? todoItems[0].title : t("widget.todo.none"),
+      panelBody: t("widget.todo.body"),
       roomLabel: label,
       rows: todoItems.map((item) => ({
         checked: item.status === "DONE",
         id: item.id,
         kind: "task",
         label: item.title,
-        status: formatDue(item.dueAt) || taskStatusLabel(item.status),
+        status: formatDue(t, item.dueAt) || taskStatusLabel(t, item.status),
       })),
     }),
   };
 }
 
 function DesktopWidgetSurface() {
+  const { t } = useI18n();
   const isTauri = isTauriRuntime();
   const searchParams = useSearchParams();
   const requestedSurface = searchParams.get("bubble");
@@ -783,7 +788,7 @@ function DesktopWidgetSurface() {
           .catch(() => undefined);
       }
 
-      setNotificationSignal(buildNotificationSignal(notifications));
+      setNotificationSignal(buildNotificationSignal(t, notifications));
       const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
       const activeTimer = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
       const messageItems = messages?.items ?? cachedMessages;
@@ -806,7 +811,7 @@ function DesktopWidgetSurface() {
           timer: activeTimer,
           voiceConnectionLabel,
           voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
-        }),
+        }, t),
       );
     }
 
@@ -1137,7 +1142,7 @@ function DesktopWidgetSurface() {
 
   const createWidgetMemo = useCallback(
     async (bubble: WidgetPreviewBubble) => {
-      const body = window.prompt("메모 내용을 입력하세요.")?.trim();
+      const body = window.prompt(t("widget.memo.prompt"))?.trim();
       if (!body) return;
 
       const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;

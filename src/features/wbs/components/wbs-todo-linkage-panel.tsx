@@ -20,6 +20,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./wbs-todo-linkage-panel.module.css";
@@ -63,11 +65,11 @@ export type WbsTodoLinkagePanelProps = {
   task?: LinkedTask;
 };
 
-const candidateStatusCopy: Record<WbsCandidateStatus, string> = {
-  APPROVED: "승인됨",
-  DRAFT: "승인 전",
-  HELD: "보류",
-  REJECTED: "제외",
+const candidateStatusCopy: Record<WbsCandidateStatus, MessageKey> = {
+  APPROVED: "wbs.linkage.candidate.approved",
+  DRAFT: "wbs.linkage.candidate.draft",
+  HELD: "wbs.linkage.candidate.held",
+  REJECTED: "wbs.linkage.candidate.rejected",
 };
 
 const candidateTone: Record<WbsCandidateStatus, "approved" | "pending" | "warning" | "neutral"> = {
@@ -77,12 +79,12 @@ const candidateTone: Record<WbsCandidateStatus, "approved" | "pending" | "warnin
   REJECTED: "neutral",
 };
 
-const taskStatusCopy: Record<LinkedTaskStatus, string> = {
-  BLOCKED: "막힘",
-  DONE: "완료",
-  IN_PROGRESS: "진행 중",
-  REVIEW: "검토",
-  TODO: "할 일",
+const taskStatusCopy: Record<LinkedTaskStatus, MessageKey> = {
+  BLOCKED: "wbs.linkage.task.blocked",
+  DONE: "wbs.linkage.task.done",
+  IN_PROGRESS: "wbs.linkage.task.inProgress",
+  REVIEW: "wbs.linkage.task.review",
+  TODO: "wbs.linkage.task.todo",
 };
 
 const taskTone: Record<LinkedTaskStatus, "approved" | "pending" | "todo" | "warning" | "neutral"> = {
@@ -102,67 +104,85 @@ const surfaceIcon: Record<LinkedSurfaceTone, ReactNode> = {
 
 type SurfaceHandlerKey = "onOpenBoard" | "onOpenSchedule" | "onOpenWidget";
 
-const surfaceCta: Record<LinkedSurfaceTone, { label: string; onClick: SurfaceHandlerKey }> = {
-  board: { label: "작업판 열기", onClick: "onOpenBoard" },
-  bubble: { label: "버블 보기", onClick: "onOpenWidget" },
-  dashboard: { label: "대시보드 기준", onClick: "onOpenBoard" },
-  schedule: { label: "일정 열기", onClick: "onOpenSchedule" },
+const surfaceCta: Record<LinkedSurfaceTone, { labelKey: MessageKey; onClick: SurfaceHandlerKey }> = {
+  board: { labelKey: "wbs.linkage.cta.openBoard", onClick: "onOpenBoard" },
+  bubble: { labelKey: "wbs.linkage.cta.viewBubble", onClick: "onOpenWidget" },
+  dashboard: { labelKey: "wbs.linkage.cta.dashboardBase", onClick: "onOpenBoard" },
+  schedule: { labelKey: "wbs.linkage.cta.openSchedule", onClick: "onOpenSchedule" },
 };
 
 const defaultCandidate: WbsCandidate = {
   code: "1.2.1",
   confidence: 91,
-  sourceLabel: "업무기준문서_v2.pdf, 회의록_0618.md",
+  sourceLabel: "wbs.linkage.default.sourceLabel",
   status: "DRAFT",
-  title: "1차 번역본 검토",
+  title: "wbs.linkage.default.candidateTitle",
 };
 
 const defaultTask: LinkedTask = {
-  assigneeLabel: "담당자 나",
+  assigneeLabel: "wbs.linkage.default.assignee",
   dueLabel: "D-2",
-  idLabel: "같은 TODO로 연결",
+  idLabel: "wbs.linkage.default.idLabel",
   progress: 46,
   status: "IN_PROGRESS",
-  title: "1차 번역본 검토",
+  title: "wbs.linkage.default.taskTitle",
 };
 
 const defaultSurfaces: LinkedSurface[] = [
   {
-    description: "WBS 트리와 칸반은 같은 작업을 다른 방식으로 보여줍니다.",
+    description: "wbs.linkage.surface.board.description",
     id: "board",
-    label: "WBS/작업판",
-    sourceLabel: "WBS와 TODO 원본",
+    label: "wbs.linkage.surface.board.label",
+    sourceLabel: "wbs.linkage.surface.board.source",
   },
   {
-    description: "담당자 기준으로 내 TODO와 확인할 항목에 함께 표시됩니다.",
+    description: "wbs.linkage.surface.dashboard.description",
     id: "dashboard",
-    label: "대시보드",
-    sourceLabel: "대시보드 표시 데이터",
+    label: "wbs.linkage.surface.dashboard.label",
+    sourceLabel: "wbs.linkage.surface.dashboard.source",
   },
   {
-    description: "작업 중 필요한 제목, 마감, 상태만 버블에 띄웁니다.",
+    description: "wbs.linkage.surface.bubble.description",
     id: "bubble",
-    label: "TODO 버블",
-    sourceLabel: "버블 표시 데이터",
+    label: "wbs.linkage.surface.bubble.label",
+    sourceLabel: "wbs.linkage.surface.bubble.source",
   },
   {
-    description: "마감과 일정은 같은 작업의 일정 정보로 함께 관리합니다.",
+    description: "wbs.linkage.surface.schedule.description",
     id: "schedule",
-    label: "일정",
-    sourceLabel: "일정 연결 정보",
+    label: "wbs.linkage.surface.schedule.label",
+    sourceLabel: "wbs.linkage.surface.schedule.source",
   },
 ];
 
 export function WbsTodoLinkagePanel({
-  candidate = defaultCandidate,
+  candidate,
   className,
-  linkedSurfaces = defaultSurfaces,
+  linkedSurfaces,
   onApproveCandidate,
   onOpenBoard,
   onOpenSchedule,
   onOpenWidget,
-  task = defaultTask,
+  task,
 }: WbsTodoLinkagePanelProps) {
+  const { t } = useI18n();
+  const resolvedCandidate: WbsCandidate = candidate ?? {
+    ...defaultCandidate,
+    sourceLabel: t("wbs.linkage.default.sourceLabel"),
+    title: t("wbs.linkage.default.candidateTitle"),
+  };
+  const resolvedTask: LinkedTask = task ?? {
+    ...defaultTask,
+    assigneeLabel: t("wbs.linkage.default.assignee"),
+    idLabel: t("wbs.linkage.default.idLabel"),
+    title: t("wbs.linkage.default.taskTitle"),
+  };
+  const resolvedSurfaces: LinkedSurface[] = linkedSurfaces ?? defaultSurfaces.map((surface) => ({
+    ...surface,
+    description: t(surface.description as MessageKey),
+    label: t(surface.label as MessageKey),
+    sourceLabel: t(surface.sourceLabel as MessageKey),
+  }));
   const handlers = {
     onApproveCandidate,
     onOpenBoard,
@@ -174,67 +194,64 @@ export function WbsTodoLinkagePanel({
     <GlassPanel className={cn(styles.panel, className)}>
       <header className={styles.header}>
         <div>
-          <Chip icon={<Workflow size={14} />}>WBS/TODO 연결</Chip>
-          <h2>WBS 후보를 하나의 TODO로 연결</h2>
-          <p>
-            에이전트 후보는 사용자가 승인하기 전까지 확정 데이터가 아닙니다. 승인된 작업만 하나의
-            TODO를 기준으로 여러 실행 화면에 함께 보입니다.
-          </p>
+          <Chip icon={<Workflow size={14} />}>{t("wbs.linkage.chip")}</Chip>
+          <h2>{t("wbs.linkage.heading")}</h2>
+          <p>{t("wbs.linkage.intro")}</p>
         </div>
-        <StatusBadge tone={candidateTone[candidate.status]}>{candidateStatusCopy[candidate.status]}</StatusBadge>
+        <StatusBadge tone={candidateTone[resolvedCandidate.status]}>{t(candidateStatusCopy[resolvedCandidate.status])}</StatusBadge>
       </header>
 
       <div className={styles.flow}>
-        <section className={styles.candidateCard} aria-label="WBS 후보">
+        <section className={styles.candidateCard} aria-label={t("wbs.linkage.candidateAria")}>
           <span className={styles.stepIcon} aria-hidden="true">
             <Bot size={18} strokeWidth={2.1} />
           </span>
-          <p className={styles.eyebrow}>WBS 후보</p>
-          <h3>{candidate.title}</h3>
+          <p className={styles.eyebrow}>{t("wbs.linkage.candidateEyebrow")}</p>
+          <h3>{resolvedCandidate.title}</h3>
           <dl className={styles.metaGrid}>
             <div>
-              <dt>WBS 코드</dt>
-              <dd>{candidate.code}</dd>
+              <dt>{t("wbs.linkage.wbsCode")}</dt>
+              <dd>{resolvedCandidate.code}</dd>
             </div>
             <div>
-              <dt>출처</dt>
-              <dd>{candidate.sourceLabel}</dd>
+              <dt>{t("wbs.linkage.source")}</dt>
+              <dd>{resolvedCandidate.sourceLabel}</dd>
             </div>
           </dl>
-          {typeof candidate.confidence === "number" ? (
-            <ProgressBar label="후보 신뢰도" value={candidate.confidence} />
+          {typeof resolvedCandidate.confidence === "number" ? (
+            <ProgressBar label={t("wbs.linkage.confidence")} value={resolvedCandidate.confidence} />
           ) : null}
           <Button icon={<CheckCircle2 size={15} />} onClick={onApproveCandidate} size="sm" variant="primary">
-            후보 승인
+            {t("wbs.linkage.approveCandidate")}
           </Button>
         </section>
 
         <div className={styles.connector} aria-hidden="true">
           <ArrowRight size={22} />
-          <span>사용자 확정</span>
+          <span>{t("wbs.linkage.userConfirm")}</span>
         </div>
 
-        <section className={styles.taskCard} aria-label="생성된 하나의 TODO">
+        <section className={styles.taskCard} aria-label={t("wbs.linkage.taskAria")}>
           <div className={styles.taskHalo} aria-hidden="true" />
           <div className={styles.taskTop}>
             <span className={styles.taskIcon} aria-hidden="true">
               <ClipboardList size={20} strokeWidth={2.2} />
             </span>
-            <StatusBadge tone={taskTone[task.status]}>{taskStatusCopy[task.status]}</StatusBadge>
+            <StatusBadge tone={taskTone[resolvedTask.status]}>{t(taskStatusCopy[resolvedTask.status])}</StatusBadge>
           </div>
-          <p className={styles.eyebrow}>하나의 TODO</p>
-          <h3>{task.title}</h3>
+          <p className={styles.eyebrow}>{t("wbs.linkage.taskEyebrow")}</p>
+          <h3>{resolvedTask.title}</h3>
           <div className={styles.taskChips}>
-            <Chip>{task.dueLabel}</Chip>
-            <Chip>{task.assigneeLabel}</Chip>
-            <Chip>{task.idLabel}</Chip>
+            <Chip>{resolvedTask.dueLabel}</Chip>
+            <Chip>{resolvedTask.assigneeLabel}</Chip>
+            <Chip>{resolvedTask.idLabel}</Chip>
           </div>
-          <ProgressBar label="진행률" value={task.progress} />
-          <p className={styles.taskNote}>복사본을 만들지 않고 같은 TODO를 각 화면에서 함께 봅니다.</p>
+          <ProgressBar label={t("wbs.linkage.progress")} value={resolvedTask.progress} />
+          <p className={styles.taskNote}>{t("wbs.linkage.taskNote")}</p>
         </section>
 
-        <section className={styles.surfaceGrid} aria-label="연결된 실행 화면">
-          {linkedSurfaces.map((surface) => {
+        <section className={styles.surfaceGrid} aria-label={t("wbs.linkage.surfaceGridAria")}>
+          {resolvedSurfaces.map((surface) => {
             const cta = surfaceCta[surface.id];
             const handler = handlers[cta.onClick];
 
@@ -250,7 +267,7 @@ export function WbsTodoLinkagePanel({
                 </div>
                 {typeof handler === "function" ? (
                   <button className={styles.surfaceButton} onClick={handler} type="button">
-                    {cta.label}
+                    {t(cta.labelKey)}
                   </button>
                 ) : null}
               </article>
@@ -259,26 +276,26 @@ export function WbsTodoLinkagePanel({
         </section>
       </div>
 
-      <section className={styles.policyGrid} aria-label="연결 정책">
+      <section className={styles.policyGrid} aria-label={t("wbs.linkage.policyAria")}>
         <article>
           <Sparkles size={17} strokeWidth={2.1} />
-          <h3>후보 생성</h3>
-          <p>에이전트는 WBS와 TODO 후보를 만들고 승인 전 상태로 둡니다.</p>
+          <h3>{t("wbs.linkage.policy.createTitle")}</h3>
+          <p>{t("wbs.linkage.policy.createBody")}</p>
         </article>
         <article>
           <CheckCircle2 size={17} strokeWidth={2.1} />
-          <h3>확정 반영</h3>
-          <p>사용자가 승인한 뒤 서버 원본 작업, WBS, 일정에 반영합니다.</p>
+          <h3>{t("wbs.linkage.policy.confirmTitle")}</h3>
+          <p>{t("wbs.linkage.policy.confirmBody")}</p>
         </article>
         <article>
           <Link2 size={17} strokeWidth={2.1} />
-          <h3>중복 방지</h3>
-          <p>대시보드와 버블은 같은 TODO를 담당자 기준으로 함께 보여줍니다.</p>
+          <h3>{t("wbs.linkage.policy.dedupeTitle")}</h3>
+          <p>{t("wbs.linkage.policy.dedupeBody")}</p>
         </article>
       </section>
 
       <footer className={styles.footer}>
-        TODO를 복사하지 않고, 하나의 작업을 여러 실행 화면에서 함께 봅니다.
+        {t("wbs.linkage.footer")}
       </footer>
     </GlassPanel>
   );

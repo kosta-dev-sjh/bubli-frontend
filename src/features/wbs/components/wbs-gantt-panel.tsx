@@ -29,27 +29,37 @@ import {
 } from "@/components/ui/gantt";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { ScheduleResponse, WbsItemResponse, WbsStatus } from "@/types/api/work";
 
 import styles from "./wbs-gantt-panel.module.css";
 
-const rangeOptions: Array<{ icon: typeof Milestone; key: Range; label: string }> = [
-  { icon: Milestone, key: "monthly", label: "월" },
-  { icon: CalendarRange, key: "weekly", label: "주" },
-  { icon: CalendarDays, key: "daily", label: "일" },
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
+
+const rangeOptions: Array<{ icon: typeof Milestone; key: Range; labelKey: MessageKey }> = [
+  { icon: Milestone, key: "monthly", labelKey: "wbs.gantt.range.monthly" },
+  { icon: CalendarRange, key: "weekly", labelKey: "wbs.gantt.range.weekly" },
+  { icon: CalendarDays, key: "daily", labelKey: "wbs.gantt.range.daily" },
 ];
 
-const wbsGanttStatuses: Record<WbsStatus, GanttStatus> = {
-  DONE: { color: "var(--signal-ok)", id: "DONE", name: "완료" },
-  IN_PROGRESS: { color: "var(--signal-todo)", id: "IN_PROGRESS", name: "진행" },
-  TODO: { color: "var(--ink-faint)", id: "TODO", name: "대기" },
+const wbsGanttStatusColors: Record<WbsStatus, string> = {
+  DONE: "var(--signal-ok)",
+  IN_PROGRESS: "var(--signal-todo)",
+  TODO: "var(--ink-faint)",
 };
 
-const statusOptions: Array<{ label: string; status: WbsStatus }> = [
-  { label: "대기", status: "TODO" },
-  { label: "진행", status: "IN_PROGRESS" },
-  { label: "완료", status: "DONE" },
+const wbsGanttStatusNameKeys: Record<WbsStatus, MessageKey> = {
+  DONE: "wbs.gantt.status.done",
+  IN_PROGRESS: "wbs.gantt.status.inProgress",
+  TODO: "wbs.gantt.status.todo",
+};
+
+const statusOptions: Array<{ labelKey: MessageKey; status: WbsStatus }> = [
+  { labelKey: "wbs.gantt.status.todo", status: "TODO" },
+  { labelKey: "wbs.gantt.status.inProgress", status: "IN_PROGRESS" },
+  { labelKey: "wbs.gantt.status.done", status: "DONE" },
 ];
 
 const markerPalette = [
@@ -132,6 +142,7 @@ export function WbsGanttPanel({
   selectedWbsId: string | null;
   wbsItems: WbsItemResponse[];
 }) {
+  const { t } = useI18n();
   const [range, setRange] = useState<Range>("monthly");
   const [schedules, setSchedules] = useState<ScheduleResponse[]>([]);
   const [localRanges, setLocalRanges] = useState<Record<string, LocalRange>>({});
@@ -207,11 +218,15 @@ export function WbsGanttPanel({
         id: item.id,
         name: item.title,
         startAt: resolved.startAt,
-        status: wbsGanttStatuses[item.status],
+        status: {
+          color: wbsGanttStatusColors[item.status],
+          id: item.status,
+          name: t(wbsGanttStatusNameKeys[item.status]),
+        },
       });
     }
     return map;
-  }, [localRanges, scheduleByWbsId, wbsItems]);
+  }, [localRanges, scheduleByWbsId, t, wbsItems]);
 
   const rootIdOf = (id: string) => {
     let current = itemById.get(id);
@@ -249,7 +264,7 @@ export function WbsGanttPanel({
 
     if (item.id.startsWith(LOCAL_ID_PREFIX)) {
       // 서버에 없는 로컬 항목은 화면 상태로만 유지한다.
-      onNotice("기간 저장됨 (로컬)");
+      onNotice(t("wbs.gantt.notice.rangeSavedLocal"));
       return;
     }
 
@@ -258,9 +273,9 @@ export function WbsGanttPanel({
         .updateEvent(schedule.id, body)
         .then((updated) => {
           setSchedules((current) => current.map((entry) => (entry.id === updated.id ? updated : entry)));
-          onNotice("기간 저장됨");
+          onNotice(t("wbs.gantt.notice.rangeSaved"));
         })
-        .catch(() => onNotice(shouldUseWorkspacePreviewData() ? "기간 저장됨 (로컬)" : "기간 서버 저장 대기"));
+        .catch(() => onNotice(shouldUseWorkspacePreviewData() ? t("wbs.gantt.notice.rangeSavedLocal") : t("wbs.gantt.notice.rangeServerPending")));
       return;
     }
 
@@ -268,9 +283,9 @@ export function WbsGanttPanel({
       .createEvent({ ...body, roomId, title: item.title, wbsItemId: item.id })
       .then((created) => {
         setSchedules((current) => [...current, created]);
-        onNotice("기간 저장됨");
+        onNotice(t("wbs.gantt.notice.rangeSaved"));
       })
-      .catch(() => onNotice(shouldUseWorkspacePreviewData() ? "기간 저장됨 (로컬)" : "기간 서버 저장 대기"));
+      .catch(() => onNotice(shouldUseWorkspacePreviewData() ? t("wbs.gantt.notice.rangeSavedLocal") : t("wbs.gantt.notice.rangeServerPending")));
   };
 
   const applyRange = (item: WbsItemResponse, startAt: Date, endAt: Date | null) => {
@@ -283,7 +298,7 @@ export function WbsGanttPanel({
     const item = itemById.get(id);
     if (!item) return;
 
-    onNotice("기간 저장 중");
+    onNotice(t("wbs.gantt.notice.rangeSaving"));
     applyRange(item, startAt, endAt);
   };
 
@@ -300,7 +315,7 @@ export function WbsGanttPanel({
       parentId,
       roomId,
       status: "TODO",
-      title: isGroup ? "새 그룹" : "새 작업",
+      title: isGroup ? t("wbs.gantt.newGroup") : t("wbs.gantt.newTask"),
       updatedAt: now,
     };
 
@@ -315,7 +330,7 @@ export function WbsGanttPanel({
       title: optimistic.title,
     });
     onSelectItem(optimistic.id);
-    onNotice(isGroup ? "그룹 추가됨 — 이름을 입력하세요" : "작업 추가됨 — 이름을 입력하세요");
+    onNotice(isGroup ? t("wbs.gantt.notice.groupAdded") : t("wbs.gantt.notice.taskAdded"));
 
     void wbsApi
       .createItem(roomId, { orderNo: optimistic.orderNo, parentId, title: optimistic.title })
@@ -332,7 +347,7 @@ export function WbsGanttPanel({
       })
       .catch(() => {
         if (!shouldUseWorkspacePreviewData()) {
-          onNotice("서버 저장 대기 — 화면에는 유지됩니다");
+          onNotice(t("wbs.gantt.notice.serverSavePending"));
         }
       });
   };
@@ -362,31 +377,31 @@ export function WbsGanttPanel({
     if (!schedule) return;
 
     setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
-    onNotice("기간 초기화 중");
+    onNotice(t("wbs.gantt.notice.rangeClearing"));
 
     void calendarApi
       .deleteEvent(schedule.id)
-      .then(() => onNotice("기간 초기화됨"))
+      .then(() => onNotice(t("wbs.gantt.notice.rangeCleared")))
       .catch(() => {
         if (shouldUseWorkspacePreviewData()) {
-          onNotice("기간 초기화됨 (로컬)");
+          onNotice(t("wbs.gantt.notice.rangeClearedLocal"));
           return;
         }
         setSchedules((current) => [...current, schedule]);
-        onNotice("기간 서버 저장 대기");
+        onNotice(t("wbs.gantt.notice.rangeServerPending"));
       });
   };
 
   const handleDeleteItem = (item: WbsItemResponse) => {
     if (wbsItems.some((entry) => entry.parentId === item.id)) {
-      onNotice("그룹에 작업이 남아 있습니다 — 작업을 먼저 삭제하세요");
+      onNotice(t("wbs.gantt.notice.groupHasTasks"));
       return;
     }
 
     const schedule = scheduleByWbsId.get(item.id);
     setEditor((current) => (current?.kind === "item" && current.id === item.id ? null : current));
     onWbsDeleted(item.id);
-    onNotice("삭제 중");
+    onNotice(t("wbs.gantt.notice.deleting"));
 
     if (schedule) {
       setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
@@ -396,20 +411,20 @@ export function WbsGanttPanel({
     }
 
     if (item.id.startsWith(LOCAL_ID_PREFIX)) {
-      onNotice("삭제됨");
+      onNotice(t("wbs.gantt.notice.deleted"));
       return;
     }
 
     void wbsApi
       .deleteItem(item.id)
-      .then(() => onNotice("삭제됨"))
+      .then(() => onNotice(t("wbs.gantt.notice.deleted")))
       .catch(() => {
         if (shouldUseWorkspacePreviewData()) {
-          onNotice("삭제됨 (로컬)");
+          onNotice(t("wbs.gantt.notice.deletedLocal"));
           return;
         }
         onWbsCreated(item);
-        onNotice("삭제 실패 — 항목을 되돌렸습니다");
+        onNotice(t("wbs.gantt.notice.deleteFailed"));
       });
   };
 
@@ -422,7 +437,7 @@ export function WbsGanttPanel({
         setMarkers((current) => current.map((marker) => (marker.id === editor.id ? { ...marker, label } : marker)));
       }
       setEditor(null);
-      onNotice("마일스톤 이름 저장됨");
+      onNotice(t("wbs.gantt.notice.markerNameSaved"));
       return;
     }
 
@@ -444,10 +459,10 @@ export function WbsGanttPanel({
     const patched: WbsItemResponse = { ...item, status, title, updatedAt: new Date().toISOString() };
     onWbsUpdated(patched);
     setEditor(null);
-    onNotice("저장 중");
+    onNotice(t("wbs.gantt.notice.saving"));
 
     if (item.id.startsWith(LOCAL_ID_PREFIX)) {
-      onNotice("저장됨 (로컬)");
+      onNotice(t("wbs.gantt.notice.savedLocal"));
       return;
     }
 
@@ -455,15 +470,15 @@ export function WbsGanttPanel({
       .updateItem(item.id, { status, title })
       .then((updated) => {
         onWbsUpdated(updated);
-        onNotice("저장됨");
+        onNotice(t("wbs.gantt.notice.saved"));
       })
       .catch(() => {
         if (shouldUseWorkspacePreviewData()) {
-          onNotice("저장됨 (로컬)");
+          onNotice(t("wbs.gantt.notice.savedLocal"));
           return;
         }
         onWbsUpdated(item);
-        onNotice("저장 실패 — 이전 값으로 되돌렸습니다");
+        onNotice(t("wbs.gantt.notice.saveFailed"));
       });
   };
 
@@ -472,11 +487,11 @@ export function WbsGanttPanel({
       className: markerPalette[markers.length % markerPalette.length],
       date,
       id: `marker-${markers.length + 1}-${date.getTime()}`,
-      label: `마일스톤 ${markers.length + 1}`,
+      label: t("wbs.gantt.markerLabel", { index: markers.length + 1 }),
     };
     setMarkers((current) => [...current, marker]);
     setEditor({ id: marker.id, kind: "marker", label: marker.label });
-    onNotice("마일스톤 추가됨 — 이름을 입력하세요");
+    onNotice(t("wbs.gantt.notice.markerAdded"));
   };
 
   const handleRenameMarker = (id: string) => {
@@ -497,7 +512,7 @@ export function WbsGanttPanel({
   return (
     <div className={styles.panel}>
       <div className={styles.toolbar}>
-        <div aria-label="간트 기간 단위 전환" className={styles.rangeSwitch} role="tablist">
+        <div aria-label={t("wbs.gantt.rangeSwitchAria")} className={styles.rangeSwitch} role="tablist">
           {rangeOptions.map((option) => {
             const Icon = option.icon;
             const selected = range === option.key;
@@ -510,7 +525,7 @@ export function WbsGanttPanel({
                 type="button"
               >
                 <Icon aria-hidden="true" size={13} strokeWidth={2.1} />
-                {option.label}
+                {t(option.labelKey)}
               </button>
             );
           })}
@@ -518,20 +533,20 @@ export function WbsGanttPanel({
 
         <button className={styles.toolButton} onClick={handleAddGroup} type="button">
           <FolderPlus aria-hidden="true" size={13} strokeWidth={2.1} />
-          그룹 추가
+          {t("wbs.gantt.addGroup")}
         </button>
         <button
           className={styles.toolButton}
           disabled={orderedGroups.length === 0}
           onClick={handleAddTask}
-          title={orderedGroups.length === 0 ? "먼저 그룹을 추가하세요" : "선택한 그룹에 작업을 추가합니다"}
+          title={orderedGroups.length === 0 ? t("wbs.gantt.addTaskDisabledTitle") : t("wbs.gantt.addTaskTitle")}
           type="button"
         >
           <Plus aria-hidden="true" size={13} strokeWidth={2.1} />
-          작업 추가
+          {t("wbs.gantt.addTask")}
         </button>
 
-        <p className={styles.hint}>바 클릭 = 편집 · 바 드래그 = 이동 · 바 양끝 = 기간 조절 · 타임라인 위쪽 + = 마일스톤(기준선)</p>
+        <p className={styles.hint}>{t("wbs.gantt.hint")}</p>
       </div>
 
       {editor ? (
@@ -539,19 +554,19 @@ export function WbsGanttPanel({
           {editor.kind === "marker" ? (
             <>
               <label className={styles.field}>
-                마일스톤 이름
+                {t("wbs.gantt.markerName")}
                 <input
                   onChange={(event) => setEditor({ ...editor, label: event.target.value })}
                   onKeyDown={(event) => event.key === "Enter" && handleEditorSave()}
                   value={editor.label}
                 />
               </label>
-              <p className={styles.editorNote}>마일스톤은 이 화면에서만 보이는 날짜 기준선입니다.</p>
+              <p className={styles.editorNote}>{t("wbs.gantt.markerNote")}</p>
             </>
           ) : (
             <>
               <label className={styles.field}>
-                {editingIsGroup ? "그룹 이름" : "작업 이름"}
+                {editingIsGroup ? t("wbs.gantt.groupName") : t("wbs.gantt.taskName")}
                 <input
                   onChange={(event) => setEditor({ ...editor, title: event.target.value })}
                   onKeyDown={(event) => event.key === "Enter" && handleEditorSave()}
@@ -559,7 +574,7 @@ export function WbsGanttPanel({
                 />
               </label>
               <div className={styles.field}>
-                상태
+                {t("wbs.gantt.statusLabel")}
                 <div className={styles.statusRow}>
                   {statusOptions.map((option) => (
                     <button
@@ -568,13 +583,13 @@ export function WbsGanttPanel({
                       onClick={() => setEditor({ ...editor, status: option.status })}
                       type="button"
                     >
-                      {option.label}
+                      {t(option.labelKey)}
                     </button>
                   ))}
                 </div>
               </div>
               <label className={styles.field}>
-                시작일
+                {t("wbs.gantt.startDate")}
                 <input
                   onChange={(event) => setEditor({ ...editor, start: event.target.value })}
                   type="date"
@@ -582,7 +597,7 @@ export function WbsGanttPanel({
                 />
               </label>
               <label className={styles.field}>
-                종료일
+                {t("wbs.gantt.endDate")}
                 <input
                   onChange={(event) => setEditor({ ...editor, end: event.target.value })}
                   type="date"
@@ -594,14 +609,14 @@ export function WbsGanttPanel({
 
           <div className={styles.editorActions}>
             <button className={styles.primaryAction} onClick={handleEditorSave} type="button">
-              저장
+              {t("wbs.gantt.save")}
             </button>
             {editor.kind === "item" && editingItem ? (
               <button className={styles.dangerAction} onClick={() => handleDeleteItem(editingItem)} type="button">
-                삭제
+                {t("wbs.gantt.delete")}
               </button>
             ) : null}
-            <button aria-label="편집 닫기" className={styles.closeButton} onClick={() => setEditor(null)} type="button">
+            <button aria-label={t("wbs.gantt.closeEditorAria")} className={styles.closeButton} onClick={() => setEditor(null)} type="button">
               <X size={14} strokeWidth={2.2} />
             </button>
           </div>
@@ -647,7 +662,7 @@ export function WbsGanttPanel({
                       <ContextMenu>
                         <ContextMenuTrigger asChild>
                           <button
-                            aria-label={`${item.title} 편집`}
+                            aria-label={t("wbs.gantt.editItemAria", { title: item.title })}
                             className="block w-full text-left"
                             onClick={() => openItemEditor(item)}
                             type="button"
@@ -661,28 +676,28 @@ export function WbsGanttPanel({
                             onClick={() => openItemEditor(item)}
                           >
                             <PencilIcon className="text-muted-foreground" size={16} />
-                            편집
+                            {t("wbs.gantt.menu.edit")}
                           </ContextMenuItem>
                           <ContextMenuItem
                             className="flex items-center gap-2"
                             onClick={() => onOpenSettings(item.id)}
                           >
                             <Palette className="text-muted-foreground" size={16} />
-                            색상·연결 할 일
+                            {t("wbs.gantt.menu.colorLink")}
                           </ContextMenuItem>
                           <ContextMenuItem
                             className="flex items-center gap-2"
                             onClick={() => handleClearSchedule(item)}
                           >
                             <Eraser className="text-muted-foreground" size={16} />
-                            기간 초기화
+                            {t("wbs.gantt.menu.clearRange")}
                           </ContextMenuItem>
                           <ContextMenuItem
                             className="flex items-center gap-2 text-destructive"
                             onClick={() => handleDeleteItem(item)}
                           >
                             <TrashIcon size={16} />
-                            삭제
+                            {t("wbs.gantt.menu.delete")}
                           </ContextMenuItem>
                         </ContextMenuContent>
                       </ContextMenu>

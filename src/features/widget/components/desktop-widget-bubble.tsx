@@ -36,6 +36,8 @@ import {
   type WidgetPreviewBubble,
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import type { WidgetBubbleType, WidgetWindowMode, WidgetWindowState } from "@/lib/tauri/commands";
 
 import styles from "./desktop-widget-bubble.module.css";
@@ -43,26 +45,26 @@ import styles from "./desktop-widget-bubble.module.css";
 type BubbleMeta = {
   accent: "blue" | "lilac" | "rose" | "pearl";
   id: WidgetBubbleType;
-  label: string;
+  label: MessageKey;
   Icon: typeof CheckCircle2;
 };
 
 const bubbleMeta: BubbleMeta[] = [
-  { Icon: CheckCircle2, accent: "blue", id: "todo", label: "TODO" },
-  { Icon: Sparkles, accent: "lilac", id: "agent", label: "에이전트" },
-  { Icon: MessageSquare, accent: "rose", id: "chat", label: "소통" },
-  { Icon: Timer, accent: "pearl", id: "timer", label: "타이머" },
-  { Icon: StickyNote, accent: "pearl", id: "memo", label: "메모" },
-  { Icon: Clock3, accent: "blue", id: "schedule", label: "일정" },
-  { Icon: FileText, accent: "lilac", id: "resource", label: "자료" },
-  { Icon: Bell, accent: "blue", id: "alert", label: "알림" },
+  { Icon: CheckCircle2, accent: "blue", id: "todo", label: "widget.kind.todo" },
+  { Icon: Sparkles, accent: "lilac", id: "agent", label: "widget.kind.agent" },
+  { Icon: MessageSquare, accent: "rose", id: "chat", label: "widget.kind.chat" },
+  { Icon: Timer, accent: "pearl", id: "timer", label: "widget.kind.timer" },
+  { Icon: StickyNote, accent: "pearl", id: "memo", label: "widget.kind.memo" },
+  { Icon: Clock3, accent: "blue", id: "schedule", label: "widget.kind.schedule" },
+  { Icon: FileText, accent: "lilac", id: "resource", label: "widget.kind.resource" },
+  { Icon: Bell, accent: "blue", id: "alert", label: "widget.kind.notification" },
 ];
 
-const modeLabels: Record<WidgetWindowMode, string> = {
-  DEFAULT: "기본",
-  GHOST: "고스트",
-  MINIMIZED: "최소화",
-  TRANSLUCENT: "반투명",
+const modeLabels: Record<WidgetWindowMode, MessageKey> = {
+  DEFAULT: "widget.mode.default",
+  GHOST: "widget.mode.ghost",
+  MINIMIZED: "widget.mode.minimized",
+  TRANSLUCENT: "widget.mode.translucent",
 };
 
 const modeClassNames: Record<WidgetWindowMode, string> = {
@@ -129,23 +131,24 @@ function WidgetControls({
   onPin: () => void;
   presentation: "preview" | "tauri";
 }) {
+  const { t } = useI18n();
   return (
-    <div className={[styles.controls, presentation === "tauri" ? styles.controlsTauri : styles.controlsPreview].join(" ")} aria-label="위젯 조작">
-      <button aria-pressed={alwaysOnTop} aria-label="상단 고정" onClick={onPin} type="button">
+    <div className={[styles.controls, presentation === "tauri" ? styles.controlsTauri : styles.controlsPreview].join(" ")} aria-label={t("widget.control.aria")}>
+      <button aria-pressed={alwaysOnTop} aria-label={t("widget.control.pin")} onClick={onPin} type="button">
         <Pin size={12} strokeWidth={2} />
       </button>
-      <button aria-label="최소화" onClick={() => onMode("MINIMIZED")} type="button">
+      <button aria-label={t("widget.control.minimize")} onClick={() => onMode("MINIMIZED")} type="button">
         <Minus size={13} strokeWidth={2} />
       </button>
-      <button aria-pressed={mode === "GHOST"} aria-label="고스트" onClick={() => onMode(mode === "GHOST" ? "DEFAULT" : "GHOST")} type="button">
+      <button aria-pressed={mode === "GHOST"} aria-label={t("widget.control.ghost")} onClick={() => onMode(mode === "GHOST" ? "DEFAULT" : "GHOST")} type="button">
         <Ghost size={13} strokeWidth={2} />
       </button>
       {presentation === "preview" ? (
-        <button aria-pressed={mode === "TRANSLUCENT"} aria-label="반투명" onClick={() => onMode(mode === "TRANSLUCENT" ? "DEFAULT" : "TRANSLUCENT")} type="button">
+        <button aria-pressed={mode === "TRANSLUCENT"} aria-label={t("widget.control.translucent")} onClick={() => onMode(mode === "TRANSLUCENT" ? "DEFAULT" : "TRANSLUCENT")} type="button">
           <CircleDashed size={13} strokeWidth={2} />
         </button>
       ) : null}
-      <button aria-label="닫기" onClick={onClose} type="button">
+      <button aria-label={t("widget.control.close")} onClick={onClose} type="button">
         <X size={13} strokeWidth={2} />
       </button>
     </div>
@@ -159,17 +162,18 @@ function ItemActions({
   item: WidgetPreviewItem;
   onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
 }) {
+  const { t } = useI18n();
   if (!onItemStateChange) return null;
 
   return (
     <span className={styles.itemActions}>
-      <button aria-label="확인" onClick={() => onItemStateChange(item, "CONFIRMED")} type="button">
+      <button aria-label={t("widget.item.confirm")} onClick={() => onItemStateChange(item, "CONFIRMED")} type="button">
         <CheckCircle2 size={12} strokeWidth={2} />
       </button>
-      <button aria-label="고정" onClick={() => onItemStateChange(item, "PINNED")} type="button">
+      <button aria-label={t("widget.item.pin")} onClick={() => onItemStateChange(item, "PINNED")} type="button">
         <Pin size={12} strokeWidth={2} />
       </button>
-      <button aria-label="숨김" onClick={() => onItemStateChange(item, "HIDDEN")} type="button">
+      <button aria-label={t("widget.item.hide")} onClick={() => onItemStateChange(item, "HIDDEN")} type="button">
         <X size={12} strokeWidth={2} />
       </button>
     </span>
@@ -183,10 +187,11 @@ function ItemRows({
   bubble: WidgetPreviewBubble;
   onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
 }) {
+  const { t } = useI18n();
   if (bubble.rows.length === 0) {
     return (
       <div className={styles.emptyState}>
-        <span>{bubble.notificationLabel}</span>
+        <span>{t(bubble.notificationLabel as MessageKey)}</span>
       </div>
     );
   }
@@ -206,40 +211,42 @@ function ItemRows({
 }
 
 function TodoBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+  const { t } = useI18n();
   return (
     <div className={styles.body}>
       <div className={styles.progress}>
         <span>{bubble.metric}</span>
-        <b>{bubble.metricLabel}</b>
+        <b>{t(bubble.metricLabel as MessageKey)}</b>
       </div>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
       <button className={styles.wideAction} type="button">
         <Plus size={14} strokeWidth={2} />
-        {bubble.actionLabel}
+        {t(bubble.actionLabel as MessageKey)}
       </button>
     </div>
   );
 }
 
 function AgentBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+  const { t } = useI18n();
   return (
     <div className={styles.body}>
-      <div className={styles.agentHalo} aria-label="에이전트 신호">
+      <div className={styles.agentHalo} aria-label={t("widget.agentSignal")}>
         <span className={styles.agentHaloCore} />
         <span className={styles.agentHaloRing} />
       </div>
       <div className={styles.bubbleNote}>
-        <strong>{bubble.panelLabel}</strong>
-        <span>{bubble.panelBody}</span>
+        <strong>{t(bubble.panelLabel as MessageKey)}</strong>
+        <span>{t(bubble.panelBody as MessageKey)}</span>
       </div>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
       <div className={styles.dropPanel}>
         <FileText size={16} strokeWidth={2} />
-        <span>{bubble.notificationLabel}</span>
+        <span>{t(bubble.notificationLabel as MessageKey)}</span>
       </div>
       <label className={styles.input}>
         <Search size={14} strokeWidth={2} />
-        <input placeholder={bubble.inputPlaceholder} />
+        <input placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : undefined} />
       </label>
     </div>
   );
@@ -262,6 +269,7 @@ function ChatBody({
   onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
   onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
 }) {
+  const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [statusText, setStatusText] = useState<string | null>(null);
@@ -296,9 +304,9 @@ function ChatBody({
     try {
       await onSendChatMessage(bubble, text);
       setDraft("");
-      setStatusText("전송됨");
+      setStatusText(t("widget.chat.sent"));
     } catch {
-      setStatusText("전송 실패");
+      setStatusText(t("widget.chat.sendFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -310,9 +318,9 @@ function ChatBody({
     setStatusText(null);
     try {
       await onMarkChatRead(bubble);
-      setStatusText("읽음 처리됨");
+      setStatusText(t("widget.chat.markedRead"));
     } catch {
-      setStatusText("읽음 처리 실패");
+      setStatusText(t("widget.chat.markReadFailed"));
     }
   };
 
@@ -335,27 +343,27 @@ function ChatBody({
   return (
     <div className={styles.body}>
       <div className={styles.chatHead}>
-        <span>{bubble.panelLabel}</span>
+        <span>{t(bubble.panelLabel as MessageKey)}</span>
         <b>{visibleRows.length}</b>
       </div>
       <div className={styles.chatPeople}>
         <Users size={14} strokeWidth={2} />
-        <span>{friendRows[0]?.label ?? bubble.participantLabels?.join(" · ") ?? bubble.roomLabel}</span>
-        <b>{friendRows[0]?.status ?? "친구"}</b>
+        <span>{friendRows[0]?.label ?? bubble.participantLabels?.join(" · ") ?? t(bubble.roomLabel as MessageKey)}</span>
+        <b>{friendRows[0]?.status ?? t("widget.chat.people")}</b>
       </div>
       <div className={styles.voiceStrip}>
         <div>
           <Mic size={14} strokeWidth={2} />
-          <span>{voiceRows[0]?.label ?? bubble.voiceLabel ?? "보이스 대기"}</span>
-          <small>{bubble.voiceParticipants ?? "참여자 없음"}</small>
+          <span>{voiceRows[0]?.label ?? bubble.voiceLabel ?? t("widget.chat.voiceWaiting")}</span>
+          <small>{bubble.voiceParticipants ?? t("widget.chat.noParticipants")}</small>
         </div>
-        <button aria-label="마이크 상태" disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("mic")} type="button">
+        <button aria-label={t("widget.chat.micStatus")} disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("mic")} type="button">
           <Mic size={13} strokeWidth={2} />
         </button>
-        <button aria-label="보이스 시작" disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
+        <button aria-label={t("widget.chat.startVoice")} disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
           <Headphones size={13} strokeWidth={2} />
         </button>
-        <button aria-label="보이스 나가기" disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("leave")} type="button">
+        <button aria-label={t("widget.chat.leaveVoice")} disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("leave")} type="button">
           <PhoneOff size={13} strokeWidth={2} />
         </button>
       </div>
@@ -367,7 +375,7 @@ function ChatBody({
         </a>
       ) : (
         <div className={styles.handoffDone}>
-          <span>소통 링크 공유됨 · 버블에서 숨김</span>
+          <span>{t("widget.chat.linkShared")}</span>
         </div>
       )}
       {first ? <p className={styles.message}>{first.label}</p> : null}
@@ -387,11 +395,11 @@ function ChatBody({
           <ItemActions item={item} onItemStateChange={onItemStateChange} />
         </div>
       ))}
-      <div className={styles.reactionDock} aria-label="빠른 반응">
+      <div className={styles.reactionDock} aria-label={t("widget.chat.quickReaction")}>
         <SmilePlus size={14} strokeWidth={2} />
-        {(bubble.reactionLabels ?? ["확인", "좋아요", "잠시 후"]).map((label) => (
+        {(bubble.reactionLabels ?? ["widget.data.reaction.confirm", "widget.data.reaction.like", "widget.data.reaction.later"]).map((label) => (
           <button key={label} onClick={() => void markRead()} type="button">
-            {label}
+            {t(label as MessageKey)}
           </button>
         ))}
         {statusText ? <span>{statusText}</span> : null}
@@ -407,14 +415,14 @@ function ChatBody({
               void sendDraftMessage();
             }
           }}
-          placeholder={bubble.chatRoomId ? bubble.inputPlaceholder : "채팅방을 먼저 선택하세요"}
+          placeholder={bubble.chatRoomId ? (bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : undefined) : t("widget.chat.selectRoomFirst")}
           value={draft}
         />
-        <button aria-label="보이스 시작" disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
+        <button aria-label={t("widget.chat.startVoice")} disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
           <Mic size={13} strokeWidth={2} />
         </button>
         <button
-          aria-label="메시지 전송"
+          aria-label={t("widget.chat.sendMessage")}
           disabled={!draft.trim() || !bubble.chatRoomId || submitting}
           onClick={() => void sendDraftMessage()}
           type="button"

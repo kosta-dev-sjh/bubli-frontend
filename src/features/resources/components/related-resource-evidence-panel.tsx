@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   Bot,
@@ -15,6 +17,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./related-resource-evidence-panel.module.css";
@@ -40,98 +44,102 @@ export type RelatedResourceEvidencePanelProps = {
   relatedResources?: RelatedResource[];
 };
 
-const reasonCopy: Record<ResourceRelationReason, string> = {
-  MATCHES_REQUIREMENT: "요구사항 연결",
-  MENTIONS_DELIVERABLE: "납품물 언급",
-  SAME_MEETING: "같은 회의 흐름",
-  SAME_SCOPE: "작업 범위 유사",
+const reasonCopyKey: Record<ResourceRelationReason, MessageKey> = {
+  MATCHES_REQUIREMENT: "resources.evidence.reason.MATCHES_REQUIREMENT",
+  MENTIONS_DELIVERABLE: "resources.evidence.reason.MENTIONS_DELIVERABLE",
+  SAME_MEETING: "resources.evidence.reason.SAME_MEETING",
+  SAME_SCOPE: "resources.evidence.reason.SAME_SCOPE",
 };
 
-const defaultRelatedResources: RelatedResource[] = [
-  {
-    id: "resource-meeting-0618",
-    reason: "SAME_MEETING",
-    score: 92,
-    summary: "납품일과 검수 기준을 다시 확인한 회의 기록입니다.",
-    title: "회의록_0618.md",
-    updatedLabel: "2026-06-18",
-    visibility: "ROOM_SHARED",
-  },
-  {
-    id: "resource-requirements-v13",
-    reason: "MATCHES_REQUIREMENT",
-    score: 88,
-    summary: "자료 상세 화면과 WBS 후보의 근거가 되는 요구사항 문서입니다.",
-    title: "요구사항정의서_v1.3.pdf",
-    updatedLabel: "2026-06-16",
-    visibility: "ROOM_SHARED",
-  },
-  {
-    id: "resource-private-note",
-    reason: "MENTIONS_DELIVERABLE",
-    score: 74,
-    summary: "개인 검토 메모입니다. 사용자가 공유하기 전까지 프로젝트룸에는 보이지 않습니다.",
-    title: "개인_검토메모.txt",
-    updatedLabel: "2026-06-15",
-    visibility: "PERSONAL",
-  },
-];
+type TranslateFn = (key: MessageKey) => string;
+
+function buildDefaultRelatedResources(t: TranslateFn): RelatedResource[] {
+  return [
+    {
+      id: "resource-meeting-0618",
+      reason: "SAME_MEETING",
+      score: 92,
+      summary: t("resources.evidence.itemMeetingSummary"),
+      title: "회의록_0618.md",
+      updatedLabel: "2026-06-18",
+      visibility: "ROOM_SHARED",
+    },
+    {
+      id: "resource-requirements-v13",
+      reason: "MATCHES_REQUIREMENT",
+      score: 88,
+      summary: t("resources.evidence.itemRequirementSummary"),
+      title: "요구사항정의서_v1.3.pdf",
+      updatedLabel: "2026-06-16",
+      visibility: "ROOM_SHARED",
+    },
+    {
+      id: "resource-private-note",
+      reason: "MENTIONS_DELIVERABLE",
+      score: 74,
+      summary: t("resources.evidence.itemPrivateSummary"),
+      title: "개인_검토메모.txt",
+      updatedLabel: "2026-06-15",
+      visibility: "PERSONAL",
+    },
+  ];
+}
 
 export function RelatedResourceEvidencePanel({
   className,
-  currentResourceTitle = "업무기준문서_v2.pdf",
+  currentResourceTitle,
   onOpenResource,
   onRunRelatedSearch,
-  relatedResources = defaultRelatedResources,
+  relatedResources,
 }: RelatedResourceEvidencePanelProps) {
-  const roomCount = relatedResources.filter((resource) => resource.visibility === "ROOM_SHARED").length;
-  const personalCount = relatedResources.filter((resource) => resource.visibility === "PERSONAL").length;
+  const { t } = useI18n();
+  const resolvedCurrentTitle = currentResourceTitle ?? t("resources.evidence.defaultCurrentTitle");
+  const resolvedRelated = relatedResources ?? buildDefaultRelatedResources(t);
+  const roomCount = resolvedRelated.filter((resource) => resource.visibility === "ROOM_SHARED").length;
+  const personalCount = resolvedRelated.filter((resource) => resource.visibility === "PERSONAL").length;
 
   return (
     <GlassPanel className={cn(styles.panel, className)}>
       <header className={styles.header}>
         <div>
-          <Chip icon={<FileSearch size={14} />}>관련 문서</Chip>
-          <h2>같은 권한 범위 안에서 근거 문서를 찾습니다</h2>
-          <p>
-            현재 자료와 비슷한 내용을 가진 문서를 추천합니다. 개인 자료는 사용자가 직접 공유하기
-            전까지 프로젝트룸 자료로 보이지 않습니다.
-          </p>
+          <Chip icon={<FileSearch size={14} />}>{t("resources.evidence.chip")}</Chip>
+          <h2>{t("resources.evidence.title")}</h2>
+          <p>{t("resources.evidence.description")}</p>
         </div>
         <Button icon={<Search size={15} />} onClick={onRunRelatedSearch} size="sm" variant="quiet">
-          다시 찾기
+          {t("resources.evidence.searchAction")}
         </Button>
       </header>
 
-      <section className={styles.currentResource} aria-label="현재 자료">
+      <section className={styles.currentResource} aria-label={t("resources.evidence.currentAria")}>
         <span className={styles.resourceIcon} aria-hidden="true">
           <FileText size={19} strokeWidth={2.1} />
         </span>
         <div>
-          <span>현재 자료</span>
-          <strong>{currentResourceTitle}</strong>
+          <span>{t("resources.evidence.currentLabel")}</span>
+          <strong>{resolvedCurrentTitle}</strong>
         </div>
-        <StatusBadge tone="approved">분석됨</StatusBadge>
+        <StatusBadge tone="approved">{t("resources.evidence.currentBadge")}</StatusBadge>
       </section>
 
-      <section className={styles.summary} aria-label="관련 문서 요약">
+      <section className={styles.summary} aria-label={t("resources.evidence.summaryAria")}>
         <article>
-          <strong>{relatedResources.length}</strong>
-          <span>추천 후보</span>
+          <strong>{resolvedRelated.length}</strong>
+          <span>{t("resources.evidence.summaryCandidate")}</span>
         </article>
         <article>
           <strong>{roomCount}</strong>
-          <span>프로젝트룸 자료</span>
+          <span>{t("resources.evidence.summaryRoom")}</span>
         </article>
         <article>
           <strong>{personalCount}</strong>
-          <span>개인 자료</span>
+          <span>{t("resources.evidence.summaryPersonal")}</span>
         </article>
       </section>
 
       <div className={styles.contentGrid}>
-        <section className={styles.resourceList} aria-label="관련 문서 후보 목록">
-          {relatedResources.map((resource) => {
+        <section className={styles.resourceList} aria-label={t("resources.evidence.listAria")}>
+          {resolvedRelated.map((resource) => {
             const ScopeIcon = resource.visibility === "ROOM_SHARED" ? UsersRound : FolderLock;
 
             return (
@@ -143,16 +151,16 @@ export function RelatedResourceEvidencePanel({
                   <div className={styles.cardTop}>
                     <div>
                       <Chip selected={resource.visibility === "ROOM_SHARED"}>
-                        {resource.visibility === "ROOM_SHARED" ? "프로젝트룸 자료" : "개인 자료"}
+                        {resource.visibility === "ROOM_SHARED" ? t("resources.evidence.scopeRoom") : t("resources.evidence.scopePersonal")}
                       </Chip>
                       <h3>{resource.title}</h3>
                     </div>
-                    <StatusBadge tone={resource.score >= 85 ? "approved" : "pending"}>{reasonCopy[resource.reason]}</StatusBadge>
+                    <StatusBadge tone={resource.score >= 85 ? "approved" : "pending"}>{t(reasonCopyKey[resource.reason])}</StatusBadge>
                   </div>
                   <p>{resource.summary}</p>
                   <div className={styles.metaRow}>
                     <span>{resource.updatedLabel}</span>
-                    <ProgressBar label="관련도" value={resource.score} />
+                    <ProgressBar label={t("resources.evidence.relevance")} value={resource.score} />
                   </div>
                   <Button
                     icon={<Link2 size={15} />}
@@ -160,7 +168,7 @@ export function RelatedResourceEvidencePanel({
                     size="sm"
                     variant="ghost"
                   >
-                    자료 열기
+                    {t("resources.evidence.openResource")}
                   </Button>
                 </div>
               </article>
@@ -168,14 +176,14 @@ export function RelatedResourceEvidencePanel({
           })}
         </section>
 
-        <aside className={styles.policyPanel} aria-label="관련 문서 권한 기준">
+        <aside className={styles.policyPanel} aria-label={t("resources.evidence.policyAria")}>
           <div className={styles.policyHeader}>
             <span className={styles.policyIcon} aria-hidden="true">
               <ShieldCheck size={20} strokeWidth={2.1} />
             </span>
             <div>
-              <h3>권한 필터 먼저</h3>
-              <p>검색 결과보다 접근 기준을 먼저 확인합니다.</p>
+              <h3>{t("resources.evidence.policyTitle")}</h3>
+              <p>{t("resources.evidence.policyDesc")}</p>
             </div>
           </div>
 
@@ -183,37 +191,37 @@ export function RelatedResourceEvidencePanel({
             <li>
               <span>1</span>
               <div>
-                <strong>접근 가능한 자료만 조회</strong>
-                <p>개인 자료는 올린 사람 기준, 프로젝트룸 자료는 멤버 권한 기준으로 확인합니다.</p>
+                <strong>{t("resources.evidence.step1Title")}</strong>
+                <p>{t("resources.evidence.step1Desc")}</p>
               </div>
             </li>
             <li>
               <span>2</span>
               <div>
-                <strong>의미 검색으로 후보 찾기</strong>
-                <p>문서 chunk와 임베딩을 사용해 현재 자료와 가까운 문서를 찾습니다.</p>
+                <strong>{t("resources.evidence.step2Title")}</strong>
+                <p>{t("resources.evidence.step2Desc")}</p>
               </div>
             </li>
             <li>
               <span>3</span>
               <div>
-                <strong>근거 후보로 표시</strong>
-                <p>에이전트 답변과 WBS/TODO 후보의 근거로 사용할 수 있게 보여줍니다.</p>
+                <strong>{t("resources.evidence.step3Title")}</strong>
+                <p>{t("resources.evidence.step3Desc")}</p>
               </div>
             </li>
           </ol>
 
           <div className={styles.flowFooter}>
-            <span>권한 확인</span>
+            <span>{t("resources.evidence.flowPermission")}</span>
             <ArrowRight size={16} />
-            <span>관련 문서 후보</span>
+            <span>{t("resources.evidence.flowRelated")}</span>
             <ArrowRight size={16} />
-            <span>에이전트 근거</span>
+            <span>{t("resources.evidence.flowAgent")}</span>
           </div>
 
           <div className={styles.agentNote}>
             <Bot size={17} strokeWidth={2.1} />
-            <p>프로젝트룸 에이전트는 공유 전 개인 자료를 읽지 않습니다.</p>
+            <p>{t("resources.evidence.agentNote")}</p>
           </div>
         </aside>
       </div>

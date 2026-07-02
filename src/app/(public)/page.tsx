@@ -1,3 +1,5 @@
+"use client";
+
 import { Apple, Download, MonitorDown } from "lucide-react";
 import Link from "next/link";
 
@@ -6,21 +8,25 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { PublicHero } from "@/features/public-site/components/public-hero";
 import { PublicHomeFlow } from "@/features/public-site/components/public-home-flow";
 import { Reveal } from "@/features/public-site/components/reveal";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
-const featureCards = [
-  { kicker: "문제", title: "자료가 흩어지지 않게", body: "요구사항·회의록·참고 자료를 프로젝트룸 기준으로 묶어 업무 기준을 잃지 않습니다." },
-  { kicker: "판단", title: "에이전트는 후보만", body: "확인 질문과 TODO 후보를 제안하고, 사용자가 승인한 항목만 실제 작업이 됩니다." },
-  { kicker: "결과", title: "결정은 맥락 옆에", body: "자료 옆에서 대화를 이어가 결정, 근거, 할 일이 따로 흩어지지 않습니다." },
+const featureCards: { kickerKey: MessageKey; titleKey: MessageKey; bodyKey: MessageKey }[] = [
+  { kickerKey: "public.home.card1Kicker", titleKey: "public.home.card1Title", bodyKey: "public.home.card1Body" },
+  { kickerKey: "public.home.card2Kicker", titleKey: "public.home.card2Title", bodyKey: "public.home.card2Body" },
+  { kickerKey: "public.home.card3Kicker", titleKey: "public.home.card3Title", bodyKey: "public.home.card3Body" },
 ];
 
-const faqItems = [
-  { q: "어떻게 시작하나요?", a: "로그인 후 프로젝트룸을 만들고, 요구사항이나 회의록 같은 자료를 올리면 됩니다." },
-  { q: "내 PC 파일을 다 읽나요?", a: "아니요. 사용자가 직접 지정한 폴더만 감지하고, 전체 PC 자동 색인은 하지 않습니다." },
-  { q: "데스크탑 앱은 무엇이 다른가요?", a: "회원 웹 앱을 그대로 띄우고, 바탕화면 위 버블 위젯·로컬 폴더 연동·빠른 캐시를 더합니다." },
-  { q: "에이전트가 임의로 작업을 바꾸나요?", a: "아니요. 에이전트는 후보만 만들고, 사용자가 확인한 항목만 실제 작업이 됩니다." },
+const faqItems: { qKey: MessageKey; aKey: MessageKey }[] = [
+  { qKey: "public.home.faq1Q", aKey: "public.home.faq1A" },
+  { qKey: "public.home.faq2Q", aKey: "public.home.faq2A" },
+  { qKey: "public.home.faq3Q", aKey: "public.home.faq3A" },
+  { qKey: "public.home.faq4Q", aKey: "public.home.faq4A" },
 ];
 
 export default function HomePage() {
+  const { t } = useI18n();
+
   return (
     <>
       <section className="landing-hero" id="hero">
@@ -43,8 +49,8 @@ export default function HomePage() {
 
       <section className="landing-section" id="features">
         <header className="landing-section__head">
-          <h2>받은 자료가 오늘 할 일이 되기까지</h2>
-          <p>올린 자료가 후보가 되고, 확인한 항목만 오늘 할 일로 이어집니다.</p>
+          <h2>{t("public.home.flowHeadTitle")}</h2>
+          <p>{t("public.home.flowHeadSub")}</p>
         </header>
         <PublicHomeFlow />
       </section>
@@ -52,17 +58,17 @@ export default function HomePage() {
       <Reveal>
         <section className="landing-section" id="why">
           <header className="landing-section__head landing-section__head--left">
-            <Chip>왜 필요한가</Chip>
-            <h2>프리랜서의 일은 자료에서 흔들립니다</h2>
-            <p>파일, 대화, 일정이 따로 움직이면 오늘 무엇을 해야 하는지 다시 찾는 데 시간이 빠집니다.</p>
+            <Chip>{t("public.home.whyChip")}</Chip>
+            <h2>{t("public.home.whyTitle")}</h2>
+            <p>{t("public.home.whySub")}</p>
           </header>
           <div className="landing-feature-grid">
             {featureCards.map((card) => {
               return (
-                <GlassPanel className="landing-feature-card" key={card.title}>
-                  <span className="landing-feature-card__kicker">{card.kicker}</span>
-                  <h3>{card.title}</h3>
-                  <p>{card.body}</p>
+                <GlassPanel className="landing-feature-card" key={card.titleKey}>
+                  <span className="landing-feature-card__kicker">{t(card.kickerKey)}</span>
+                  <h3>{t(card.titleKey)}</h3>
+                  <p>{t(card.bodyKey)}</p>
                 </GlassPanel>
               );
             })}
@@ -73,36 +79,33 @@ export default function HomePage() {
       <Reveal>
         <section className="landing-section landing-desktop" id="desktop">
           <div className="landing-desktop__copy">
-            <Chip>데스크탑 앱</Chip>
-            <h2>작업 중에도, 화면 위에 가볍게</h2>
-            <p>
-              Bubli 데스크탑 앱은 회원 웹 앱을 그대로 띄우고, 바탕화면 위에 오늘 할 일, 일정, 타이머, 자료 제안을 버블로
-              남깁니다. 화면을 전환하지 않아도 필요한 정보만 맑게 떠 있습니다.
-            </p>
+            <Chip>{t("public.home.desktopChip")}</Chip>
+            <h2>{t("public.home.desktopTitle")}</h2>
+            <p>{t("public.home.desktopBody")}</p>
             <ul className="landing-desktop__list">
               <li>
                 <span className="landing-desktop__list-mark" aria-hidden="true">01</span>
-                바탕화면 버블 위젯 (기본·반투명·고스트·최소화)
+                {t("public.home.desktopList1")}
               </li>
               <li>
                 <span className="landing-desktop__list-mark" aria-hidden="true">02</span>
-                개인 관리 폴더 감지와 빠른 로컬 캐시
+                {t("public.home.desktopList2")}
               </li>
               <li>
                 <span className="landing-desktop__list-mark" aria-hidden="true">03</span>
-                개인 데이터는 로컬에, 원본은 서버 기준
+                {t("public.home.desktopList3")}
               </li>
             </ul>
             <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/#download">
-              데스크탑 앱 받기
+              {t("public.home.desktopCta")}
             </Link>
           </div>
           <GlassPanel className="landing-desktop__visual" padded={false}>
-            <div className="landing-app-preview" aria-label="Bubli 앱 버전 미리보기">
+            <div className="landing-app-preview" aria-label={t("public.home.previewAria")}>
               <div className="landing-app-preview__tabs">
-                <button className="is-active" type="button">macOS 앱</button>
-                <button type="button">Windows 앱</button>
-                <button type="button">회원 웹 앱</button>
+                <button className="is-active" type="button">{t("public.home.previewTabMac")}</button>
+                <button type="button">{t("public.home.previewTabWin")}</button>
+                <button type="button">{t("public.home.previewTabWeb")}</button>
               </div>
               <div className="landing-app-preview__stage">
                 <div className="landing-app-preview__chrome" aria-hidden="true">
@@ -110,7 +113,7 @@ export default function HomePage() {
                     <span />
                     <span />
                     <span />
-                    <b>Bubli 회원 앱</b>
+                    <b>{t("public.home.previewBarTitle")}</b>
                   </div>
                   <div className="landing-app-preview__body">
                     <aside>
@@ -121,25 +124,25 @@ export default function HomePage() {
                     </aside>
                     <main>
                       <div className="landing-app-preview__summary">
-                        <span>자료 확인</span>
-                        <span>후보 승인</span>
-                        <span>오늘 실행</span>
+                        <span>{t("public.home.previewSummary1")}</span>
+                        <span>{t("public.home.previewSummary2")}</span>
+                        <span>{t("public.home.previewSummary3")}</span>
                       </div>
                       <div className="landing-app-preview__lane">
-                        <b>업무 범위 질문 정리</b>
-                        <small>자료 후보 승인에서 연결됨</small>
+                        <b>{t("public.home.previewLane1Title")}</b>
+                        <small>{t("public.home.previewLane1Sub")}</small>
                       </div>
                       <div className="landing-app-preview__lane">
-                        <b>회의록 결정사항 반영</b>
-                        <small>오늘 대시보드와 버블에 표시</small>
+                        <b>{t("public.home.previewLane2Title")}</b>
+                        <small>{t("public.home.previewLane2Sub")}</small>
                       </div>
                     </main>
                   </div>
                 </div>
                 <div className="landing-app-preview__widget" aria-hidden="true">
                   <div>
-                    <b>버블 위젯</b>
-                    <small>TODO · 일정 · 타이머 · 자료 제안</small>
+                    <b>{t("public.home.previewWidgetTitle")}</b>
+                    <small>{t("public.home.previewWidgetSub")}</small>
                   </div>
                 </div>
                 <div className="landing-app-preview__dock" aria-hidden="true">
@@ -158,18 +161,18 @@ export default function HomePage() {
         <section className="landing-section landing-download" id="download">
           <div className="landing-download__stage">
             <header className="landing-download__head">
-              <span className="landing-download__label">Download</span>
+              <span className="landing-download__label">{t("public.home.downloadLabel")}</span>
               <div>
-                <strong>앱 다운로드</strong>
+                <strong>{t("public.home.downloadTitle")}</strong>
                 <h2>
-                  <span>바탕화면에서</span>
-                  <span>오늘 일을 바로 봅니다</span>
+                  <span>{t("public.home.downloadHead1")}</span>
+                  <span>{t("public.home.downloadHead2")}</span>
                 </h2>
-                <p>작업 중에도 오늘 할 일, 일정, 타이머가 화면 위에 가볍게 남습니다.</p>
+                <p>{t("public.home.downloadSub")}</p>
               </div>
             </header>
 
-            <div className="landing-download__scene" aria-label="Bubli 앱 다운로드 미리보기">
+            <div className="landing-download__scene" aria-label={t("public.home.downloadSceneAria")}>
               <article className="landing-download__terminal">
                 <div className="landing-download__terminal-bar" aria-hidden="true">
                   <span />
@@ -179,42 +182,42 @@ export default function HomePage() {
                 </div>
                 <div className="landing-download__terminal-body">
                   <div>
-                    <span>오늘 할 일</span>
-                    <b>업무 범위 확인</b>
+                    <span>{t("public.home.downloadTermTodo")}</span>
+                    <b>{t("public.home.downloadTermTodoValue")}</b>
                   </div>
                   <div>
-                    <span>다음 일정</span>
-                    <b>18:00 리뷰 미팅</b>
+                    <span>{t("public.home.downloadTermNext")}</span>
+                    <b>{t("public.home.downloadTermNextValue")}</b>
                   </div>
                   <div>
-                    <span>타이머</span>
-                    <b>자료 정리 이어가기</b>
+                    <span>{t("public.home.downloadTermTimer")}</span>
+                    <b>{t("public.home.downloadTermTimerValue")}</b>
                   </div>
                 </div>
               </article>
-              <Link aria-label="macOS 앱 다운로드" className="landing-download__float landing-download__float--primary" href="/#download">
+              <Link aria-label={t("public.home.downloadMacAria")} className="landing-download__float landing-download__float--primary" href="/#download">
                 <span className="landing-download__float-os" aria-hidden="true">
                   <Apple size={24} strokeWidth={2.15} />
                 </span>
-                <span>macOS 앱 받기</span>
+                <span>{t("public.home.downloadMac")}</span>
                 <span className="landing-download__float-download" aria-hidden="true">
                   <Download size={20} strokeWidth={2.2} />
                 </span>
               </Link>
-              <Link aria-label="Windows 앱 다운로드" className="landing-download__float landing-download__float--soft" href="/#download">
+              <Link aria-label={t("public.home.downloadWinAria")} className="landing-download__float landing-download__float--soft" href="/#download">
                 <span className="landing-download__float-os" aria-hidden="true">
                   <MonitorDown size={23} strokeWidth={2.1} />
                 </span>
-                <span>Windows 앱 받기</span>
+                <span>{t("public.home.downloadWin")}</span>
                 <span className="landing-download__float-download" aria-hidden="true">
                   <Download size={20} strokeWidth={2.2} />
                 </span>
               </Link>
               <Link className="landing-download__float landing-download__float--login" href="/login">
-                로그인하고 시작
+                {t("public.home.downloadLogin")}
               </Link>
               <div className="landing-download__float landing-download__float--bubble" aria-hidden="true">
-                버블 위젯
+                {t("public.home.downloadBubble")}
               </div>
             </div>
           </div>
@@ -224,14 +227,14 @@ export default function HomePage() {
       <Reveal>
         <section className="landing-section landing-faq" id="faq">
           <header className="landing-section__head">
-            <Chip>자주 묻는 질문</Chip>
-            <h2>Bubli, 이런 게 궁금해요</h2>
+            <Chip>{t("public.home.faqChip")}</Chip>
+            <h2>{t("public.home.faqTitle")}</h2>
           </header>
           <div className="landing-faq__list">
             {faqItems.map((item) => (
-              <GlassPanel className="landing-faq__item" key={item.q}>
-                <h3>{item.q}</h3>
-                <p>{item.a}</p>
+              <GlassPanel className="landing-faq__item" key={item.qKey}>
+                <h3>{t(item.qKey)}</h3>
+                <p>{t(item.aKey)}</p>
               </GlassPanel>
             ))}
           </div>
@@ -240,12 +243,12 @@ export default function HomePage() {
 
       <footer className="landing-footer">
         <span className="landing-footer__brand bubli-wordmark">Bubli</span>
-        <span className="landing-footer__copy">받은 자료를, 오늘 할 일로.</span>
-        <nav aria-label="푸터" className="landing-footer__links">
-          <Link href="/#features">기능</Link>
-          <Link href="/#download">다운로드</Link>
-          <Link href="/#faq">FAQ</Link>
-          <Link href="/login">로그인</Link>
+        <span className="landing-footer__copy">{t("public.footer.tagline")}</span>
+        <nav aria-label={t("public.footer.navAria")} className="landing-footer__links">
+          <Link href="/#features">{t("public.footer.features")}</Link>
+          <Link href="/#download">{t("public.footer.download")}</Link>
+          <Link href="/#faq">{t("public.footer.faq")}</Link>
+          <Link href="/login">{t("public.footer.login")}</Link>
         </nav>
       </footer>
     </>

@@ -25,6 +25,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewSchedules } from "@/lib/workspace-preview-data";
 import type { GoogleCalendarConnectionResponse, ProjectRoomEventEnvelope, ProjectRoomEventType } from "@/types/api/calendar";
@@ -47,27 +49,29 @@ type GoogleConnectionState =
   | { kind: "loading" };
 type SyncAction = "connect" | "disconnect" | "pull" | "push";
 
-const dayLabels = [
-  { label: "월", value: "MO" },
-  { label: "화", value: "TU" },
-  { label: "수", value: "WE" },
-  { label: "목", value: "TH" },
-  { label: "금", value: "FR" },
-  { label: "토", value: "SA" },
-  { label: "일", value: "SU" },
-] as const;
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
-const repeatLabels: Record<RepeatInterval, string> = {
-  DAILY: "매일",
-  MONTHLY: "매월",
-  WEEKLY: "매주",
+const dayLabels = [
+  { labelKey: "calendar.day.mon", value: "MO" },
+  { labelKey: "calendar.day.tue", value: "TU" },
+  { labelKey: "calendar.day.wed", value: "WE" },
+  { labelKey: "calendar.day.thu", value: "TH" },
+  { labelKey: "calendar.day.fri", value: "FR" },
+  { labelKey: "calendar.day.sat", value: "SA" },
+  { labelKey: "calendar.day.sun", value: "SU" },
+] as const satisfies ReadonlyArray<{ labelKey: MessageKey; value: string }>;
+
+const repeatLabelKeys: Record<RepeatInterval, MessageKey> = {
+  DAILY: "calendar.repeat.daily",
+  MONTHLY: "calendar.repeat.monthly",
+  WEEKLY: "calendar.repeat.weekly",
 };
 
-const sourceFilters: Array<{ key: CalendarSourceFilter; label: string }> = [
-  { key: "all", label: "전체" },
-  { key: "personal", label: "개인" },
-  { key: "room", label: "프로젝트룸" },
-  { key: "external", label: "외부" },
+const sourceFilters: Array<{ key: CalendarSourceFilter; labelKey: MessageKey }> = [
+  { key: "all", labelKey: "calendar.source.all" },
+  { key: "personal", labelKey: "calendar.source.personal" },
+  { key: "room", labelKey: "calendar.source.room" },
+  { key: "external", labelKey: "calendar.source.external" },
 ];
 
 function toDateValue(date: Date) {
@@ -111,10 +115,10 @@ function toSelectedDay(value: string) {
   return new Date(`${value}T00:00:00`);
 }
 
-function formatTime(event: ScheduleResponse) {
-  if (event.allDay) return "종일";
+function formatTime(t: TranslateFn, event: ScheduleResponse) {
+  if (event.allDay) return t("calendar.time.allDay");
   const start = new Date(event.startsAt);
-  if (Number.isNaN(start.getTime())) return "시간 미정";
+  if (Number.isNaN(start.getTime())) return t("calendar.time.undecided");
   return new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit" }).format(start);
 }
 
@@ -188,6 +192,7 @@ function buildPreviewRoomEvents(roomId: string | null, schedules: ScheduleRespon
 }
 
 function CalendarPageContent() {
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const selectedRoomId = searchParams.get("roomId") ?? getActiveProjectRoomId();
   const [state, setState] = useState<PageState>({ kind: "loading" });
@@ -233,7 +238,7 @@ function CalendarPageContent() {
       setState({
         events: scheduleResult.status === "fulfilled" ? scheduleResult.value.items : [],
         kind: "ready",
-        loadWarning: scheduleResult.status === "rejected" ? "일정 목록을 불러오지 못했습니다. 연결 버튼과 일정 추가는 계속 사용할 수 있습니다." : null,
+        loadWarning: scheduleResult.status === "rejected" ? t("calendar.notice.loadWarning") : null,
         roomEvents: roomEventResult.status === "fulfilled" && roomEventResult.value ? roomEventResult.value.items : [],
       });
       if (googleConnectionResult.status === "fulfilled" && googleConnectionResult.value?.status === "ACTIVE") {
@@ -256,7 +261,7 @@ function CalendarPageContent() {
       setState({ kind: "offline" });
       setGoogleConnection({ kind: "error" });
     }
-  }, [range, selectedRoomId]);
+  }, [range, selectedRoomId, t]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -323,12 +328,12 @@ function CalendarPageContent() {
   const googleConnected = googleConnection.kind === "connected";
   const googleConnectionLabel =
     googleConnection.kind === "connected"
-      ? googleConnection.value.googleAccountEmail ?? "연결됨"
+      ? googleConnection.value.googleAccountEmail ?? t("calendar.google.connected")
       : googleConnection.kind === "loading"
-        ? "확인 중"
+        ? t("calendar.google.checking")
         : googleConnection.kind === "error"
-          ? "상태 확인 필요"
-          : "연결 전";
+          ? t("calendar.google.needsCheck")
+          : t("calendar.google.beforeConnect");
 
   const roomEventsForSelectedDate = useMemo(
     () => {
@@ -429,7 +434,7 @@ function CalendarPageContent() {
       if (action === "disconnect") {
         await calendarApi.disconnectGoogleConnection();
         setGoogleConnection({ kind: "disconnected" });
-        setGoogleNotice("Google Calendar 연결을 해제했습니다.");
+        setGoogleNotice(t("calendar.notice.disconnected"));
         return;
       }
 
@@ -439,12 +444,16 @@ function CalendarPageContent() {
           ? await calendarApi.syncGoogleEvents(syncRange)
           : await calendarApi.pushUnsyncedGoogleEvents(syncRange);
       mergeSyncedEvents(syncedEvents);
-      setGoogleNotice(action === "pull" ? `외부 일정 ${syncedEvents.length}건을 확인했습니다.` : `Bubli 일정 ${syncedEvents.length}건을 보냈습니다.`);
+      setGoogleNotice(
+        action === "pull"
+          ? t("calendar.notice.pullDone", { count: syncedEvents.length })
+          : t("calendar.notice.pushDone", { count: syncedEvents.length }),
+      );
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
-        setGoogleNotice("로그인 후 Google Calendar를 연결할 수 있습니다.");
+        setGoogleNotice(t("calendar.notice.loginNeeded"));
       } else {
-        setGoogleNotice("Google Calendar 작업을 완료하지 못했습니다.");
+        setGoogleNotice(t("calendar.notice.actionFailed"));
       }
     } finally {
       setSyncAction(null);
@@ -470,7 +479,7 @@ function CalendarPageContent() {
   const handleSaveEvent = async () => {
     const title = draftTitle.trim();
     if (!title) {
-      setDraftNotice("일정 제목을 먼저 적어주세요.");
+      setDraftNotice(t("calendar.draft.titleRequired"));
       return;
     }
 
@@ -494,15 +503,15 @@ function CalendarPageContent() {
           ? (await calendarApi.updateGoogleCalendarEvent(editingEventId, body)).schedule
           : await calendarApi.updateEvent(editingEventId, body);
         updateEventInState(updated);
-        setDraftNotice("일정을 수정했습니다.");
+        setDraftNotice(t("calendar.draft.updated"));
       } else {
         const created = await calendarApi.createEvent(body);
         updateEventInState(created);
-        setDraftNotice("일정을 추가했습니다.");
+        setDraftNotice(t("calendar.draft.added"));
       }
       closeComposer();
     } catch (error) {
-      setDraftNotice(error instanceof ApiClientError && error.status === 401 ? "로그인이 필요합니다." : "일정을 저장하지 못했습니다.");
+      setDraftNotice(error instanceof ApiClientError && error.status === 401 ? t("calendar.draft.authRequired") : t("calendar.draft.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -524,7 +533,7 @@ function CalendarPageContent() {
         closeComposer();
       }
     } catch (error) {
-      setDraftNotice(error instanceof ApiClientError && error.status === 401 ? "로그인이 필요합니다." : "일정을 삭제하지 못했습니다.");
+      setDraftNotice(error instanceof ApiClientError && error.status === 401 ? t("calendar.draft.authRequired") : t("calendar.draft.deleteFailed"));
     } finally {
       setDeletingEventId(null);
     }
@@ -535,36 +544,36 @@ function CalendarPageContent() {
       <header className={styles.header}>
         <div>
           <Chip selected icon={<CalendarDays size={15} strokeWidth={2.1} />}>
-            일정
+            {t("calendar.kicker")}
           </Chip>
-          <h1 id="calendar-title">일정</h1>
-          <p>개인 일정, 현재 프로젝트룸 일정, 외부 캘린더를 월/주 보기로 확인합니다.</p>
+          <h1 id="calendar-title">{t("calendar.title")}</h1>
+          <p>{t("calendar.subtitle")}</p>
         </div>
       </header>
 
-      {state.kind === "loading" && <GlassPanel className={styles.statePanel}>일정을 불러오는 중</GlassPanel>}
+      {state.kind === "loading" && <GlassPanel className={styles.statePanel}>{t("calendar.state.loading")}</GlassPanel>}
       {state.kind === "auth" && (
         <GlassPanel className={styles.statePanel}>
-          <strong>로그인이 필요합니다</strong>
+          <strong>{t("calendar.state.authTitle")}</strong>
           <Link className="bubli-button bubli-button--primary" href="/login">
-            로그인
+            {t("common.login")}
           </Link>
         </GlassPanel>
       )}
       {state.kind === "offline" && (
         <GlassPanel className={styles.statePanel}>
-          <strong>일정을 불러오지 못했습니다</strong>
+          <strong>{t("calendar.state.offlineTitle")}</strong>
           <Button onClick={loadEvents} variant="quiet">
-            다시 연결
+            {t("calendar.state.reconnect")}
           </Button>
         </GlassPanel>
       )}
 
       {state.kind === "ready" && (
         <>
-          <GlassPanel className={styles.sourcePanel} aria-label="일정 출처와 외부 캘린더 연결">
-            <div className={styles.sourceTabs} aria-label="일정 출처 필터">
-              {sourceFilters.map(({ key, label }) => (
+          <GlassPanel className={styles.sourcePanel} aria-label={t("calendar.sourcePanel.aria")}>
+            <div className={styles.sourceTabs} aria-label={t("calendar.sourceTabs.aria")}>
+              {sourceFilters.map(({ key, labelKey }) => (
                 <button
                   aria-pressed={sourceFilter === key}
                   className={styles.sourceButton}
@@ -572,7 +581,7 @@ function CalendarPageContent() {
                   onClick={() => setSourceFilter(key)}
                   type="button"
                 >
-                  <span>{label}</span>
+                  <span>{t(labelKey)}</span>
                   <strong>{sourceCounts[key]}</strong>
                 </button>
               ))}
@@ -582,25 +591,25 @@ function CalendarPageContent() {
                 <strong>Google Calendar</strong>
                 <span>{googleConnectionLabel}</span>
               </div>
-              <div className={styles.syncActions} aria-label="Google Calendar 동기화">
+              <div className={styles.syncActions} aria-label={t("calendar.google.syncAria")}>
                 {!googleConnected ? (
                   <button className={styles.syncActionButton} disabled={syncAction === "connect"} onClick={() => void runGoogleAction("connect")} type="button">
                     <ExternalLink size={14} strokeWidth={2.1} />
-                    <span>{syncAction === "connect" ? "이동 중" : "연결"}</span>
+                    <span>{syncAction === "connect" ? t("calendar.google.moving") : t("calendar.google.connect")}</span>
                   </button>
                 ) : (
                   <>
                     <button className={styles.syncActionButton} disabled={syncAction !== null} onClick={() => void runGoogleAction("pull")} type="button">
                       <ArrowDownToLine size={14} strokeWidth={2.1} />
-                      <span>{syncAction === "pull" ? "확인 중" : "가져오기"}</span>
+                      <span>{syncAction === "pull" ? t("calendar.google.pulling") : t("calendar.google.pull")}</span>
                     </button>
                     <button className={styles.syncActionButton} disabled={syncAction !== null} onClick={() => void runGoogleAction("push")} type="button">
                       <ArrowUpToLine size={14} strokeWidth={2.1} />
-                      <span>{syncAction === "push" ? "보내는 중" : "보내기"}</span>
+                      <span>{syncAction === "push" ? t("calendar.google.pushing") : t("calendar.google.push")}</span>
                     </button>
                     <button className={styles.syncIconButton} disabled={syncAction !== null} onClick={() => void runGoogleAction("disconnect")} type="button">
                       <Unplug size={14} strokeWidth={2.1} />
-                      <span>해제</span>
+                      <span>{t("calendar.google.disconnect")}</span>
                     </button>
                   </>
                 )}
@@ -613,54 +622,54 @@ function CalendarPageContent() {
             <GlassPanel className={styles.calendarPanel}>
               <div className={styles.panelHeader}>
                 <div>
-                  <h2>{viewMode === "month" ? "월간 일정" : "주간 일정"}</h2>
-                  <p>날짜를 누르면 Mac 캘린더처럼 작은 입력 창에서 바로 추가합니다.</p>
+                  <h2>{viewMode === "month" ? t("calendar.view.monthTitle") : t("calendar.view.weekTitle")}</h2>
+                  <p>{t("calendar.view.helper")}</p>
                 </div>
                 <div className={styles.panelTools}>
-                  <div className={styles.viewSwitch} aria-label="일정 보기 방식">
+                  <div className={styles.viewSwitch} aria-label={t("calendar.view.aria")}>
                     <button aria-pressed={viewMode === "month"} onClick={() => setViewMode("month")} type="button">
-                      월
+                      {t("calendar.view.month")}
                     </button>
                     <button aria-pressed={viewMode === "week"} onClick={() => setViewMode("week")} type="button">
-                      주
+                      {t("calendar.view.week")}
                     </button>
                   </div>
                   <StatusBadge tone={reviewCount > 0 ? "warning" : "success"}>
-                    {reviewCount > 0 ? "확인 필요" : "동기화 정상"}
+                    {reviewCount > 0 ? t("calendar.view.needsCheck") : t("calendar.view.synced")}
                   </StatusBadge>
                   <Button icon={<Plus size={15} strokeWidth={2.1} />} onClick={openCreateComposer} variant="quiet">
-                    새 일정
+                    {t("calendar.view.newEvent")}
                   </Button>
                 </div>
               </div>
 
               <div className={styles.monthHeader}>
-                <button aria-label="이전 달" className={styles.monthNavButton} onClick={() => moveMonth(-1)} type="button">
+                <button aria-label={t("calendar.nav.prevMonth")} className={styles.monthNavButton} onClick={() => moveMonth(-1)} type="button">
                   <ChevronLeft size={18} strokeWidth={2.1} />
                 </button>
                 <strong key={monthLabel}>{monthLabel}</strong>
-                <button aria-label="다음 달" className={styles.monthNavButton} onClick={() => moveMonth(1)} type="button">
+                <button aria-label={t("calendar.nav.nextMonth")} className={styles.monthNavButton} onClick={() => moveMonth(1)} type="button">
                   <ChevronRight size={18} strokeWidth={2.1} />
                 </button>
                 <button className={styles.todayButton} onClick={goToToday} type="button">
-                  오늘
+                  {t("calendar.nav.today")}
                 </button>
               </div>
 
               <div className={styles.selectedSummary} aria-live="polite">
                 <strong>{selectedDayLabel}</strong>
-                <span>{selectedEvents.length > 0 ? `일정 ${selectedEvents.length}건` : "일정 없음"}</span>
-                {roomEventsForSelectedDate.length > 0 ? <span>룸 변경 {roomEventsForSelectedDate.length}건</span> : null}
+                <span>{selectedEvents.length > 0 ? t("calendar.summary.eventCount", { count: selectedEvents.length }) : t("calendar.summary.noEvent")}</span>
+                {roomEventsForSelectedDate.length > 0 ? <span>{t("calendar.summary.roomChange", { count: roomEventsForSelectedDate.length })}</span> : null}
               </div>
               {state.loadWarning ? <p className={styles.loadWarning}>{state.loadWarning}</p> : null}
 
               <div className={styles.weekLabelGrid} aria-hidden="true">
                 {dayLabels.map((day) => (
-                  <span key={day.value}>{day.label}</span>
+                  <span key={day.value}>{t(day.labelKey)}</span>
                 ))}
               </div>
 
-              <div className={viewMode === "week" ? `${styles.monthGrid} ${styles.weekGrid}` : styles.monthGrid} aria-label="날짜 선택">
+              <div className={viewMode === "week" ? `${styles.monthGrid} ${styles.weekGrid}` : styles.monthGrid} aria-label={t("calendar.grid.aria")}>
                 {visibleCalendarDays.map((date, index) => {
                   if (!date) return <span className={styles.daySpacer} key={`spacer-${index}`} />;
 
@@ -685,14 +694,14 @@ function CalendarPageContent() {
                     <button aria-pressed={selected} className={className} key={dateValue} onClick={() => selectCalendarDate(date, count > 0)} type="button">
                       <span>{new Intl.DateTimeFormat("ko-KR", { weekday: "short" }).format(date)}</span>
                       <strong>{date.getDate()}</strong>
-                      <small>{count > 0 ? `${count}건` : "비어 있음"}</small>
+                      <small>{count > 0 ? t("calendar.grid.countUnit", { count }) : t("calendar.grid.empty")}</small>
                       {count > 0 ? (
-                        <ul className={styles.dayEventList} aria-label={`${date.getDate()}일 일정`}>
+                        <ul className={styles.dayEventList} aria-label={t("calendar.grid.dayEventsAria", { day: date.getDate() })}>
                           {dayEvents.slice(0, 3).map((event) => {
                             const source = event.roomId ? "room" : event.googleEventId || event.syncStatus === "SYNCED" ? "external" : "personal";
                             return (
                               <li className={`${styles.dayEventItem} ${styles[`dayEventItem_${source}`]}`} key={event.id}>
-                                <span>{formatTime(event)}</span>
+                                <span>{formatTime(t, event)}</span>
                                 <b>{event.title}</b>
                               </li>
                             );
@@ -700,30 +709,34 @@ function CalendarPageContent() {
                           {count > 3 ? <li className={styles.dayEventMore}>+{count - 3}</li> : null}
                         </ul>
                       ) : null}
-                      {roomEventCount > 0 ? <i aria-label={`룸 이벤트 ${roomEventCount}건`} /> : null}
+                      {roomEventCount > 0 ? <i aria-label={t("calendar.grid.roomEventsAria", { count: roomEventCount })} /> : null}
                     </button>
                   );
                 })}
               </div>
 
-              <section className={styles.selectedEventPanel} aria-label="선택한 날짜 일정">
+              <section className={styles.selectedEventPanel} aria-label={t("calendar.selected.aria")}>
                 <div>
                   <strong>{selectedDayLabel}</strong>
-                  <span>{selectedEvents.length > 0 ? `${selectedEvents.length}건` : "일정 없음"}</span>
+                  <span>{selectedEvents.length > 0 ? t("calendar.selected.count", { count: selectedEvents.length }) : t("calendar.summary.noEvent")}</span>
                 </div>
                 {selectedEvents.length > 0 ? (
                   <ul className={styles.selectedEventList}>
                     {selectedEvents.map((event) => {
-                      const source = event.roomId ? "프로젝트룸" : event.googleEventId || event.syncStatus === "SYNCED" ? "외부" : "개인";
+                      const source = event.roomId
+                        ? t("calendar.source.room")
+                        : event.googleEventId || event.syncStatus === "SYNCED"
+                          ? t("calendar.source.external")
+                          : t("calendar.source.personal");
                       return (
                         <li key={event.id}>
                           <button className={styles.selectedEventEdit} onClick={() => openEditComposer(event)} type="button">
-                            <span>{formatTime(event)}</span>
+                            <span>{formatTime(t, event)}</span>
                             <strong>{event.title}</strong>
                             <small>{source}</small>
                           </button>
                           <button
-                            aria-label={`${event.title} 삭제`}
+                            aria-label={t("calendar.selected.deleteAria", { title: event.title })}
                             className={styles.selectedEventDelete}
                             disabled={deletingEventId === event.id}
                             onClick={() => void handleDeleteEvent(event)}
@@ -737,7 +750,7 @@ function CalendarPageContent() {
                   </ul>
                 ) : (
                   <button className={styles.emptySelectedEvent} onClick={openCreateComposer} type="button">
-                    이 날짜에 일정 추가
+                    {t("calendar.selected.addForDate")}
                   </button>
                 )}
               </section>
@@ -754,34 +767,34 @@ function CalendarPageContent() {
               >
                 <div className={styles.panelHeader}>
                   <div>
-                    <h2 id="calendar-composer-title">{editingEventId ? "일정 수정" : "일정 추가"}</h2>
-                    <p>선택한 날짜의 개인 일정이나 현재 프로젝트룸 일정을 관리합니다.</p>
+                    <h2 id="calendar-composer-title">{editingEventId ? t("calendar.composer.editTitle") : t("calendar.composer.title")}</h2>
+                    <p>{t("calendar.composer.subtitle")}</p>
                   </div>
-                  <button aria-label="닫기" className={styles.composerClose} onClick={closeComposer} type="button">
+                  <button aria-label={t("calendar.composer.close")} className={styles.composerClose} onClick={closeComposer} type="button">
                     <X size={16} strokeWidth={2.2} />
                   </button>
                 </div>
 
                 <label className={styles.field}>
-                  <span>제목</span>
-                  <input placeholder="일정 제목" value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
+                  <span>{t("calendar.composer.titleLabel")}</span>
+                  <input placeholder={t("calendar.composer.titlePlaceholder")} value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
                 </label>
                 <div className={styles.fieldGrid}>
                   <label className={styles.field}>
-                    <span>날짜</span>
+                    <span>{t("calendar.composer.dateLabel")}</span>
                     <input type="date" value={selectedDate} onChange={(event) => selectDateFromInput(event.target.value)} />
                   </label>
                   <label className={styles.field}>
-                    <span>시작</span>
+                    <span>{t("calendar.composer.startLabel")}</span>
                     <input type="time" value={draftStartTime} onChange={(event) => setDraftStartTime(event.target.value)} />
                   </label>
                   <label className={styles.field}>
-                    <span>종료</span>
+                    <span>{t("calendar.composer.endLabel")}</span>
                     <input type="time" value={draftEndTime} onChange={(event) => setDraftEndTime(event.target.value)} />
                   </label>
                 </div>
 
-                <section className={styles.repeatBox} aria-label="반복 일정 설정">
+                <section className={styles.repeatBox} aria-label={t("calendar.composer.repeatAria")}>
                   <button
                     aria-pressed={repeatEnabled}
                     className={repeatEnabled ? `${styles.repeatToggle} ${styles.repeatToggleOn}` : styles.repeatToggle}
@@ -790,26 +803,26 @@ function CalendarPageContent() {
                   >
                     <span>
                       <Repeat2 size={15} strokeWidth={2.1} aria-hidden="true" />
-                      반복
+                      {t("calendar.composer.repeat")}
                     </span>
                     <i aria-hidden="true" />
                   </button>
                   <div className={repeatEnabled ? styles.repeatControls : `${styles.repeatControls} ${styles.repeatControlsDisabled}`}>
                     <label className={styles.field}>
-                      <span>주기</span>
+                      <span>{t("calendar.composer.intervalLabel")}</span>
                       <select
                         disabled={!repeatEnabled}
                         value={repeatInterval}
                         onChange={(event) => setRepeatInterval(event.target.value as RepeatInterval)}
                       >
-                        {Object.entries(repeatLabels).map(([value, label]) => (
+                        {Object.entries(repeatLabelKeys).map(([value, labelKey]) => (
                           <option key={value} value={value}>
-                            {label}
+                            {t(labelKey)}
                           </option>
                         ))}
                       </select>
                     </label>
-                    <div className={styles.dayChips} aria-label="반복 요일">
+                    <div className={styles.dayChips} aria-label={t("calendar.composer.repeatDaysAria")}>
                       {dayLabels.map((day) => {
                         const selected = repeatDays.includes(day.value);
                         return (
@@ -821,7 +834,7 @@ function CalendarPageContent() {
                             onClick={() => toggleRepeatDay(day.value)}
                             type="button"
                           >
-                            {day.label}
+                            {t(day.labelKey)}
                           </button>
                         );
                       })}
@@ -831,7 +844,7 @@ function CalendarPageContent() {
 
                 {draftNotice ? <p className={styles.notice}>{draftNotice}</p> : null}
                 <Button icon={editingEventId ? <Pencil size={15} strokeWidth={2.1} /> : <Plus size={15} strokeWidth={2.1} />} loading={saving} onClick={handleSaveEvent} variant="primary">
-                  {editingEventId ? "수정 저장" : "일정 추가"}
+                  {editingEventId ? t("calendar.composer.submitEdit") : t("calendar.composer.submit")}
                 </Button>
               </GlassPanel>
             </div>
@@ -843,8 +856,9 @@ function CalendarPageContent() {
 }
 
 export default function CalendarPage() {
+  const { t } = useI18n();
   return (
-    <Suspense fallback={<GlassPanel className={styles.statePanel}>일정을 불러오는 중</GlassPanel>}>
+    <Suspense fallback={<GlassPanel className={styles.statePanel}>{t("calendar.state.loading")}</GlassPanel>}>
       <CalendarPageContent />
     </Suspense>
   );

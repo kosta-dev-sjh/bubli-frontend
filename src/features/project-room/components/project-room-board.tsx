@@ -1,3 +1,5 @@
+"use client";
+
 import {
   CalendarClock,
   CheckCircle2,
@@ -13,6 +15,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
 type ProjectRoomRole = "PROJECT_LEADER" | "MEMBER";
 type ProjectRoomStatus = "active" | "review" | "archived";
@@ -34,13 +38,6 @@ type MemberItem = {
   displayName: string;
   role: ProjectRoomRole;
   status: "ACTIVE" | "INVITED";
-};
-
-type InvitePolicy = {
-  description: string;
-  id: string;
-  icon: typeof UserPlus;
-  title: string;
 };
 
 const projectRooms: ProjectRoomItem[] = [
@@ -89,67 +86,73 @@ const members: MemberItem[] = [
   { displayName: "민지", role: "MEMBER", status: "INVITED" },
 ];
 
-const invitePolicies: InvitePolicy[] = [
+const invitePolicies: Array<{
+  descriptionKey: MessageKey;
+  icon: typeof UserPlus;
+  id: string;
+  titleKey: MessageKey;
+}> = [
   {
-    description: "수락된 친구 목록에서 선택해 프로젝트룸 멤버로 초대합니다.",
+    descriptionKey: "room.board.invite1Description",
     icon: UserPlus,
     id: "friend",
-    title: "친구 초대",
+    titleKey: "room.board.invite1Title",
   },
   {
-    description: "초대를 수락한 뒤에만 자료, WBS/TODO, 일정, 채팅 접근 권한을 부여합니다.",
+    descriptionKey: "room.board.invite2Description",
     icon: CheckCircle2,
     id: "accepted-member",
-    title: "수락 후 멤버 권한",
+    titleKey: "room.board.invite2Title",
   },
 ];
 
-const roleLabel: Record<ProjectRoomRole, string> = {
-  PROJECT_LEADER: "프로젝트 리더",
-  MEMBER: "멤버",
+const roleLabelKey: Record<ProjectRoomRole, MessageKey> = {
+  PROJECT_LEADER: "room.board.roleLeader",
+  MEMBER: "room.board.roleMember",
 };
 
-const statusLabel: Record<ProjectRoomStatus, string> = {
-  active: "진행 중",
-  review: "확인 필요",
-  archived: "보관",
+const statusLabelKey: Record<ProjectRoomStatus, MessageKey> = {
+  active: "room.board.statusActive",
+  review: "room.board.statusReview",
+  archived: "room.board.statusArchived",
 };
 
 function RoomCard({ room }: { room: ProjectRoomItem }) {
+  const { t } = useI18n();
   return (
     <GlassPanel as="article" className="project-room-card">
       <div className="project-room-card__head">
         <div>
           <StatusBadge tone={room.status === "review" ? "warning" : room.status === "archived" ? "neutral" : "success"}>
-            {statusLabel[room.status]}
+            {t(statusLabelKey[room.status])}
           </StatusBadge>
           <h3>{room.name}</h3>
         </div>
-        <Chip selected={room.myRole === "PROJECT_LEADER"}>{roleLabel[room.myRole]}</Chip>
+        <Chip selected={room.myRole === "PROJECT_LEADER"}>{t(roleLabelKey[room.myRole])}</Chip>
       </div>
-      <ProgressBar label={`${room.name} 진행률`} value={room.progress} />
+      <ProgressBar label={t("room.board.progressLabel", { name: room.name })} value={room.progress} />
       <dl className="project-room-card__stats">
         <div>
-          <dt>자료</dt>
+          <dt>{t("room.board.resources")}</dt>
           <dd>{room.resourceCount}</dd>
         </div>
         <div>
-          <dt>TODO</dt>
+          <dt>{t("room.board.todo")}</dt>
           <dd>{room.todoCount}</dd>
         </div>
         <div>
-          <dt>멤버</dt>
+          <dt>{t("room.board.members")}</dt>
           <dd>{room.memberCount}</dd>
         </div>
         <div>
-          <dt>마감</dt>
-          <dd>{room.dueLabel}</dd>
+          <dt>{t("room.board.due")}</dt>
+          <dd>{room.dueLabel === "보관" ? t("room.board.dueArchived") : room.dueLabel}</dd>
         </div>
       </dl>
       <footer className="project-room-card__footer">
-        {room.checkNeededCount > 0 ? <Chip selected>확인 필요 {room.checkNeededCount}개</Chip> : <Chip>확인 필요 없음</Chip>}
+        {room.checkNeededCount > 0 ? <Chip selected>{t("room.board.checkNeeded", { count: room.checkNeededCount })}</Chip> : <Chip>{t("room.board.checkNone")}</Chip>}
         <Button size="sm" variant="quiet">
-          열기
+          {t("room.board.open")}
         </Button>
       </footer>
     </GlassPanel>
@@ -157,53 +160,55 @@ function RoomCard({ room }: { room: ProjectRoomItem }) {
 }
 
 function CreationFlow() {
-  const steps = [
-    { icon: FileUp, label: "업무 문서·견적서·요구사항 업로드" },
-    { icon: CheckCircle2, label: "추출 후보 확인" },
-    { icon: CalendarClock, label: "WBS·TODO·일정 저장" },
+  const { t } = useI18n();
+  const steps: Array<{ icon: typeof FileUp; labelKey: MessageKey }> = [
+    { icon: FileUp, labelKey: "room.board.step1" },
+    { icon: CheckCircle2, labelKey: "room.board.step2" },
+    { icon: CalendarClock, labelKey: "room.board.step3" },
   ];
 
   return (
     <GlassPanel className="project-room-flow">
       <div className="project-room-panel-head">
         <div>
-          <h3>새 프로젝트룸 만들기</h3>
-          <p>문서에서 뽑은 값은 후보로만 보여주고, 사용자가 확인한 값만 저장합니다.</p>
+          <h3>{t("room.board.createTitle")}</h3>
+          <p>{t("room.board.createSub")}</p>
         </div>
         <Button icon={<Plus size={16} />} size="sm" variant="primary">
-          만들기
+          {t("room.board.create")}
         </Button>
       </div>
       <ol className="project-room-flow__steps">
         {steps.map((step) => {
           const Icon = step.icon;
           return (
-            <li key={step.label}>
+            <li key={step.labelKey}>
               <span className="bubli-icon-tile" aria-hidden="true">
                 <Icon size={17} strokeWidth={2.1} />
               </span>
-              <span>{step.label}</span>
+              <span>{t(step.labelKey)}</span>
             </li>
           );
         })}
       </ol>
       <div className="project-room-candidate">
-        <b>생성 후보</b>
-        <span>프로젝트명, 클라이언트명, 납품일, 납품물, 확인 필요 항목, WBS/TODO 후보</span>
+        <b>{t("room.board.createCandidate")}</b>
+        <span>{t("room.board.createCandidateList")}</span>
       </div>
     </GlassPanel>
   );
 }
 
 function InvitePanel() {
+  const { t } = useI18n();
   return (
     <GlassPanel className="project-room-invite">
       <div className="project-room-panel-head">
         <div>
-          <h3>초대와 참여 기준</h3>
-          <p>프로젝트 리더가 수락된 친구 목록에서 프로젝트룸 멤버를 초대합니다.</p>
+          <h3>{t("room.board.inviteTitle")}</h3>
+          <p>{t("room.board.inviteSub")}</p>
         </div>
-        <Chip selected>프로젝트룸 단위</Chip>
+        <Chip selected>{t("room.board.inviteUnit")}</Chip>
       </div>
       <div className="project-room-invite__grid">
         {invitePolicies.map((policy) => {
@@ -214,27 +219,28 @@ function InvitePanel() {
                 <Icon size={17} strokeWidth={2.1} />
               </span>
               <div>
-                <b>{policy.title}</b>
-                <p>{policy.description}</p>
+                <b>{t(policy.titleKey)}</b>
+                <p>{t(policy.descriptionKey)}</p>
               </div>
             </article>
           );
         })}
       </div>
-      <div className="project-room-guardrail">수락된 멤버만 자료, WBS/TODO, 일정, 멤버 목록을 볼 수 있습니다.</div>
+      <div className="project-room-guardrail">{t("room.board.inviteGuardrail")}</div>
     </GlassPanel>
   );
 }
 
 function MemberPanel() {
+  const { t } = useI18n();
   return (
     <GlassPanel className="project-room-members">
       <div className="project-room-panel-head">
         <div>
-          <h3>멤버와 권한</h3>
-          <p>기본 권한은 프로젝트 리더와 멤버로 시작합니다.</p>
+          <h3>{t("room.board.memberTitle")}</h3>
+          <p>{t("room.board.memberSub")}</p>
         </div>
-        <Chip icon={<UsersRound size={14} />}>4명</Chip>
+        <Chip icon={<UsersRound size={14} />}>{t("room.board.memberCount", { count: 4 })}</Chip>
       </div>
       <div className="project-room-members__list">
         {members.map((member) => (
@@ -242,45 +248,46 @@ function MemberPanel() {
             <span className="project-room-member__avatar">{member.displayName.slice(0, 1)}</span>
             <div>
               <b>{member.displayName}</b>
-              <span>{roleLabel[member.role]}</span>
+              <span>{t(roleLabelKey[member.role])}</span>
             </div>
             <StatusBadge tone={member.status === "ACTIVE" ? "success" : "pending"}>
-              {member.status === "ACTIVE" ? "참여 중" : "초대 대기"}
+              {member.status === "ACTIVE" ? t("room.board.memberJoined") : t("room.board.memberInvited")}
             </StatusBadge>
           </div>
         ))}
       </div>
       <p className="project-room-members__note">
-        마지막 프로젝트 리더가 나가려면 먼저 다른 참여 중인 멤버에게 프로젝트 리더 권한을 넘깁니다.
+        {t("room.board.memberNote")}
       </p>
     </GlassPanel>
   );
 }
 
 export function ProjectRoomBoard() {
+  const { t } = useI18n();
   return (
-    <section className="project-room-board" aria-label="프로젝트룸 관리">
+    <section className="project-room-board" aria-label={t("room.board.sectionAria")}>
       <SectionHeading
-        eyebrow="프로젝트룸"
-        title="프로젝트를 혼자 시작하고, 필요할 때 함께 봅니다"
-        description="프로젝트룸은 자료, WBS, TODO, 채팅을 프로젝트 단위로 묶는 공간입니다. 혼자 만들 수 있고, 필요하면 친구 목록에서 멤버를 초대할 수 있습니다."
+        eyebrow={t("room.board.sectionEyebrow")}
+        title={t("room.board.sectionTitle")}
+        description={t("room.board.sectionDescription")}
       />
 
       <div className="project-room-board__summary">
         <GlassPanel className="project-room-summary-card">
-          <b>내가 만든 프로젝트룸</b>
+          <b>{t("room.board.summaryMineTitle")}</b>
           <strong>2</strong>
-          <span>프로젝트 리더 기준</span>
+          <span>{t("room.board.summaryMineNote")}</span>
         </GlassPanel>
         <GlassPanel className="project-room-summary-card">
-          <b>참여 중</b>
+          <b>{t("room.board.summaryJoinedTitle")}</b>
           <strong>3</strong>
-          <span>참여 중인 프로젝트룸</span>
+          <span>{t("room.board.summaryJoinedNote")}</span>
         </GlassPanel>
         <GlassPanel className="project-room-summary-card">
-          <b>초대 대기</b>
+          <b>{t("room.board.summaryInvitedTitle")}</b>
           <strong>1</strong>
-          <span>7일 만료 기준</span>
+          <span>{t("room.board.summaryInvitedNote")}</span>
         </GlassPanel>
       </div>
 

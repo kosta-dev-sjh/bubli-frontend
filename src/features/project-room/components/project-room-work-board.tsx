@@ -13,6 +13,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { WbsGanttPanel } from "@/features/wbs/components/wbs-gantt-panel";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { ProjectRoomMemberResponse } from "@/types/api/projectRoom";
@@ -20,9 +22,11 @@ import type { TaskResponse, TaskStatus, WbsBoardResponse, WbsItemResponse, WbsSt
 
 import styles from "./project-room-work-board.module.css";
 
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
+
 type KanbanColumn = {
-  description: string;
-  label: string;
+  descriptionKey: MessageKey;
+  labelKey: MessageKey;
   status: TaskStatus;
 };
 
@@ -36,10 +40,10 @@ type WbsEditDraft = {
 };
 
 const columns: KanbanColumn[] = [
-  { description: "시작 전", label: "대기", status: "TODO" },
-  { description: "진행 중", label: "진행", status: "IN_PROGRESS" },
-  { description: "검토·막힘", label: "검토", status: "REVIEW" },
-  { description: "마무리", label: "완료", status: "DONE" },
+  { descriptionKey: "room.workBoard.colTodoDescription", labelKey: "room.workBoard.colTodoLabel", status: "TODO" },
+  { descriptionKey: "room.workBoard.colInProgressDescription", labelKey: "room.workBoard.colInProgressLabel", status: "IN_PROGRESS" },
+  { descriptionKey: "room.workBoard.colReviewDescription", labelKey: "room.workBoard.colReviewLabel", status: "REVIEW" },
+  { descriptionKey: "room.workBoard.colDoneDescription", labelKey: "room.workBoard.colDoneLabel", status: "DONE" },
 ];
 
 const kanbanColumnIdByStatus: Record<TaskStatus, string> = {
@@ -162,6 +166,7 @@ function ProjectRoomWorkBoardContent({
   members: ProjectRoomMemberResponse[];
   roomId: string;
 }) {
+  const { t } = useI18n();
   const initialWbs = board.wbsItems[0] ?? null;
   const [tasks, setTasks] = useState<LocalTask[]>(board.tasks);
   const [wbsItems, setWbsItems] = useState<WbsItemResponse[]>(board.wbsItems);
@@ -246,9 +251,9 @@ function ProjectRoomWorkBoardContent({
               title: task.title,
             };
           }),
-        title: column.label,
+        title: t(column.labelKey),
       })),
-    [memberByUserId, visibleTasks, wbsTitleById],
+    [memberByUserId, visibleTasks, wbsTitleById, t],
   );
   const activeWbsEditDraft =
     selectedWbs && wbsEditDraft.wbsId === selectedWbs.id

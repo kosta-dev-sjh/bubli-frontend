@@ -5,6 +5,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./project-room-retention-policy-panel.module.css";
@@ -34,11 +36,11 @@ export type ProjectRoomRetentionPolicyPanelProps = HTMLAttributes<HTMLElement> &
   title?: string;
 };
 
-const statusMeta: Record<RetentionStatus, { label: string; tone: StatusTone }> = {
-  active: { label: "활성", tone: "success" },
-  readonly: { label: "읽기 전용", tone: "neutral" },
-  needsLeader: { label: "리더 필요", tone: "warning" },
-  blocked: { label: "차단", tone: "pending" },
+const statusMetaKey: Record<RetentionStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  active: { labelKey: "room.retention.statusActive", tone: "success" },
+  readonly: { labelKey: "room.retention.statusReadonly", tone: "neutral" },
+  needsLeader: { labelKey: "room.retention.statusNeedsLeader", tone: "warning" },
+  blocked: { labelKey: "room.retention.statusBlocked", tone: "pending" },
 };
 
 const actionIcon: Record<RetentionAction["icon"], ReactNode> = {
@@ -55,25 +57,25 @@ export function ProjectRoomRetentionPolicyPanel({
   retentionActions,
   retentionRules,
   roomName,
-  title = "프로젝트룸 보관 정책",
+  title,
   ...props
 }: ProjectRoomRetentionPolicyPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("room.retention.defaultTitle");
   const leaderStatus = leaderCount > 0 ? "active" : "needsLeader";
 
   return (
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<Archive size={14} strokeWidth={2.1} />}>프로젝트룸 설정</Chip>
+          <Chip icon={<Archive size={14} strokeWidth={2.1} />}>{t("room.retention.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              프로젝트룸은 만료 즉시 지우지 않고, 보관 또는 읽기 전용 상태로 남깁니다. 멤버 권한과 자료 접근은 서버의 프로젝트룸 상태를 기준으로 판단합니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("room.retention.description")}</p>
           </div>
         </div>
         <div className={styles.roomCard}>
-          <span>대상 프로젝트룸</span>
+          <span>{t("room.retention.targetRoom")}</span>
           <strong>{roomName}</strong>
         </div>
       </header>
@@ -84,7 +86,7 @@ export function ProjectRoomRetentionPolicyPanel({
             <CalendarClock size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <p>활성 기간</p>
+            <p>{t("room.retention.activePeriod")}</p>
             <strong>{activeUntilLabel}</strong>
           </div>
         </article>
@@ -93,22 +95,22 @@ export function ProjectRoomRetentionPolicyPanel({
             <UsersRound size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <p>멤버와 프로젝트 리더</p>
-            <strong>{memberCount}명 중 {leaderCount}명</strong>
+            <p>{t("room.retention.memberLeader")}</p>
+            <strong>{t("room.retention.memberLeaderCount", { member: memberCount, leader: leaderCount })}</strong>
           </div>
-          <StatusBadge tone={statusMeta[leaderStatus].tone}>{statusMeta[leaderStatus].label}</StatusBadge>
+          <StatusBadge tone={statusMetaKey[leaderStatus].tone}>{t(statusMetaKey[leaderStatus].labelKey)}</StatusBadge>
         </article>
       </div>
 
-      <section className={styles.ruleGrid} aria-label="보관 정책 기준">
+      <section className={styles.ruleGrid} aria-label={t("room.retention.ruleAria")}>
         {retentionRules.map((rule) => {
-          const meta = statusMeta[rule.status];
+          const meta = statusMetaKey[rule.status];
 
           return (
             <article className={styles.ruleCard} key={`${rule.label}-${rule.value}`}>
               <div className={styles.ruleHeader}>
                 <h3>{rule.label}</h3>
-                <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
+                <StatusBadge tone={meta.tone}>{t(meta.labelKey)}</StatusBadge>
               </div>
               <strong>{rule.value}</strong>
               <p>{rule.description}</p>
@@ -117,7 +119,7 @@ export function ProjectRoomRetentionPolicyPanel({
         })}
       </section>
 
-      <section className={styles.actionList} aria-label="프로젝트룸 보관 작업">
+      <section className={styles.actionList} aria-label={t("room.retention.actionAria")}>
         {retentionActions.map((action) => (
           <article className={styles.actionItem} key={action.label}>
             <span className={styles.actionIcon} aria-hidden="true">
@@ -133,9 +135,7 @@ export function ProjectRoomRetentionPolicyPanel({
 
       <footer className={styles.footer}>
         <ShieldCheck size={18} strokeWidth={2.1} aria-hidden="true" />
-        <p>
-          마지막 프로젝트 리더가 나가거나 멤버로 바뀌려면 먼저 다른 활성 멤버에게 리더 권한을 넘깁니다. 혼자 남은 리더는 보관 또는 삭제 검토를 선택할 수 있습니다.
-        </p>
+        <p>{t("room.retention.footerNote")}</p>
       </footer>
     </GlassPanel>
   );

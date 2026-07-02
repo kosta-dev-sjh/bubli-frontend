@@ -6,6 +6,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./project-room-invitation-response-panel.module.css";
@@ -27,17 +29,17 @@ export type ProjectRoomInvitationResponsePanelProps = HTMLAttributes<HTMLElement
   title?: string;
 };
 
-const invitationMeta: { icon: ReactNode; label: string; tone: StatusTone } = {
+const invitationMeta: { icon: ReactNode; labelKey: MessageKey; tone: StatusTone } = {
   icon: <UserPlus size={18} strokeWidth={2.1} />,
-  label: "친구 초대",
+  labelKey: "room.invitation.method",
   tone: "personal",
 };
 
-const statusMeta: Record<InvitationStatus, { label: string; tone: StatusTone }> = {
-  pending: { label: "수락 대기", tone: "pending" },
-  accepted: { label: "수락됨", tone: "success" },
-  expired: { label: "만료됨", tone: "warning" },
-  canceled: { label: "취소됨", tone: "neutral" },
+const statusMetaKey: Record<InvitationStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  pending: { labelKey: "room.invitation.statusPending", tone: "pending" },
+  accepted: { labelKey: "room.invitation.statusAccepted", tone: "success" },
+  expired: { labelKey: "room.invitation.statusExpired", tone: "warning" },
+  canceled: { labelKey: "room.invitation.statusCanceled", tone: "neutral" },
 };
 
 export function ProjectRoomInvitationResponsePanel({
@@ -48,61 +50,62 @@ export function ProjectRoomInvitationResponsePanel({
   projectRoomName,
   roleLabel,
   status,
-  title = "프로젝트룸 초대",
+  title,
   ...props
 }: ProjectRoomInvitationResponsePanelProps) {
-  const currentStatus = statusMeta[status];
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("room.invitation.defaultTitle");
+  const currentStatus = statusMetaKey[status];
+  const invitationLabel = t(invitationMeta.labelKey);
   const canRespond = status === "pending";
 
   return (
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={invitationMeta.icon}>{invitationMeta.label}</Chip>
+          <Chip icon={invitationMeta.icon}>{invitationLabel}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              초대를 수락하면 프로젝트룸 멤버가 되고, 그때부터 자료, WBS/TODO, 채팅, 보이스, 알림 접근 권한이 생깁니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("room.invitation.description")}</p>
           </div>
         </div>
         <div className={styles.statusCard}>
-          <span>초대 상태</span>
-          <strong>{currentStatus.label}</strong>
-          <StatusBadge tone={currentStatus.tone}>{currentStatus.label}</StatusBadge>
+          <span>{t("room.invitation.statusLabel")}</span>
+          <strong>{t(currentStatus.labelKey)}</strong>
+          <StatusBadge tone={currentStatus.tone}>{t(currentStatus.labelKey)}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.inviteCard} aria-label="초대 정보">
+      <section className={styles.inviteCard} aria-label={t("room.invitation.infoAria")}>
         <div className={styles.roomIntro}>
           <span className={styles.roomIcon} aria-hidden="true">
             <DoorOpen size={22} strokeWidth={2.1} />
           </span>
           <div>
             <h3>{projectRoomName}</h3>
-            <p>{inviterName} 님이 프로젝트룸에 초대했습니다.</p>
+            <p>{t("room.invitation.invitedBy", { name: inviterName })}</p>
           </div>
         </div>
 
         <div className={styles.metaGrid}>
           <article>
             <UsersRound size={16} strokeWidth={2.1} aria-hidden="true" />
-            <span>초대 역할</span>
+            <span>{t("room.invitation.roleLabel")}</span>
             <strong>{roleLabel}</strong>
           </article>
           <article>
             <CalendarClock size={16} strokeWidth={2.1} aria-hidden="true" />
-            <span>만료</span>
+            <span>{t("room.invitation.expiresLabel")}</span>
             <strong>{expiresLabel}</strong>
           </article>
           <article>
             {invitationMeta.icon}
-            <span>방식</span>
-            <strong>{invitationMeta.label}</strong>
+            <span>{t("room.invitation.methodLabel")}</span>
+            <strong>{invitationLabel}</strong>
           </article>
         </div>
 
-        <div className={styles.accessGrid} aria-label="수락 후 접근 가능 항목">
+        <div className={styles.accessGrid} aria-label={t("room.invitation.accessAria")}>
           {accessPreview.map((item) => (
             <article className={styles.accessCard} key={item.label}>
               <CheckCircle2 size={16} strokeWidth={2.1} aria-hidden="true" />
@@ -114,12 +117,12 @@ export function ProjectRoomInvitationResponsePanel({
           ))}
         </div>
 
-        <div className={styles.actions} aria-label="초대 응답">
+        <div className={styles.actions} aria-label={t("room.invitation.responseAria")}>
           <Button disabled={!canRespond} icon={<CheckCircle2 size={15} strokeWidth={2.1} />} size="sm" variant="primary">
-            초대 수락
+            {t("room.invitation.accept")}
           </Button>
           <Button disabled={!canRespond} icon={<XCircle size={15} strokeWidth={2.1} />} size="sm" variant="ghost">
-            거절
+            {t("room.invitation.decline")}
           </Button>
         </div>
       </section>

@@ -1,9 +1,13 @@
+"use client";
+
 import { CalendarClock, UserRound } from "lucide-react";
 import type { HTMLAttributes } from "react";
 
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 type WorkStatus = "waiting" | "doing" | "review" | "done";
@@ -17,11 +21,11 @@ type WorkItemCardProps = HTMLAttributes<HTMLElement> & {
   title: string;
 };
 
-const statusCopy: Record<WorkStatus, string> = {
-  waiting: "대기",
-  doing: "진행 중",
-  review: "검토",
-  done: "완료",
+const statusCopyKey: Record<WorkStatus, MessageKey> = {
+  waiting: "domain.work.statusWaiting",
+  doing: "domain.work.statusDoing",
+  review: "domain.work.statusReview",
+  done: "domain.work.statusDone",
 };
 
 export function WorkItemCard({
@@ -34,6 +38,7 @@ export function WorkItemCard({
   title,
   ...props
 }: WorkItemCardProps) {
+  const { t } = useI18n();
   return (
     <GlassPanel as="article" className={cn("bubli-domain-card", className)} {...props}>
       <div className="bubli-card-row">
@@ -45,7 +50,7 @@ export function WorkItemCard({
           {sourceLabel ? <p className="bubli-domain-card__meta">{sourceLabel}</p> : null}
         </div>
         <StatusBadge tone={status === "done" ? "approved" : status === "review" ? "warning" : status === "doing" ? "todo" : "neutral"}>
-          {statusCopy[status]}
+          {t(statusCopyKey[status])}
         </StatusBadge>
       </div>
       <footer className="bubli-domain-card__footer">

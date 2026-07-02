@@ -1,73 +1,75 @@
+"use client";
+
 import { CalendarDays, CheckCircle2, Clock3, ExternalLink, Link2, Video } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 type ScheduleSource = "internal" | "google";
 type ScheduleKind = "meeting" | "deadline" | "focus";
 
 type ScheduleItem = {
-  connectedItem: string;
-  dateLabel: string;
+  connectedItemKey: MessageKey;
   kind: ScheduleKind;
-  projectRoom: string;
+  projectRoomKey: MessageKey;
   source: ScheduleSource;
   time: string;
-  title: string;
+  titleKey: MessageKey;
 };
 
 const days = [
-  { day: "월", date: "22", count: 4, selected: true },
-  { day: "화", date: "23", count: 2 },
-  { day: "수", date: "24", count: 3 },
-  { day: "목", date: "25", count: 1 },
-  { day: "금", date: "26", count: 5 },
-];
+  { dayKey: "calendar.day.mon", date: "22", count: 4, selected: true },
+  { dayKey: "calendar.day.tue", date: "23", count: 2 },
+  { dayKey: "calendar.day.wed", date: "24", count: 3 },
+  { dayKey: "calendar.day.thu", date: "25", count: 1 },
+  { dayKey: "calendar.day.fri", date: "26", count: 5 },
+] as const satisfies ReadonlyArray<{ dayKey: MessageKey; date: string; count: number; selected?: boolean }>;
 
 const schedules: ScheduleItem[] = [
   {
-    connectedItem: "TODO: 번역 검수 기준 확인",
-    dateLabel: "오늘",
+    connectedItemKey: "calendar.overview.item.clientMeeting.connected",
     kind: "meeting",
-    projectRoom: "업무 기준 문서 정리",
+    projectRoomKey: "calendar.overview.item.clientMeeting.room",
     source: "google",
     time: "10:30",
-    title: "클라이언트 확인 미팅",
+    titleKey: "calendar.overview.item.clientMeeting.title",
   },
   {
-    connectedItem: "WBS 2.1 납품물 정리",
-    dateLabel: "오늘",
+    connectedItemKey: "calendar.overview.item.delivery.connected",
     kind: "deadline",
-    projectRoom: "브랜드 소개서",
+    projectRoomKey: "calendar.overview.item.delivery.room",
     source: "internal",
     time: "15:00",
-    title: "1차 납품 마감",
+    titleKey: "calendar.overview.item.delivery.title",
   },
   {
-    connectedItem: "타이머 버블 집중 세션",
-    dateLabel: "오늘",
+    connectedItemKey: "calendar.overview.item.board.connected",
     kind: "focus",
-    projectRoom: "웹사이트 리뉴얼",
+    projectRoomKey: "calendar.overview.item.board.room",
     source: "internal",
     time: "17:00",
-    title: "작업판 정리",
+    titleKey: "calendar.overview.item.board.title",
   },
 ];
 
-const kindMeta: Record<ScheduleKind, { label: string; tone: "communication" | "warning" | "timer" }> = {
-  deadline: { label: "마감", tone: "warning" },
-  focus: { label: "집중", tone: "timer" },
-  meeting: { label: "미팅", tone: "communication" },
+const kindMeta: Record<ScheduleKind, { labelKey: MessageKey; tone: "communication" | "warning" | "timer" }> = {
+  deadline: { labelKey: "calendar.overview.kind.deadline", tone: "warning" },
+  focus: { labelKey: "calendar.overview.kind.focus", tone: "timer" },
+  meeting: { labelKey: "calendar.overview.kind.meeting", tone: "communication" },
 };
 
-const sourceCopy: Record<ScheduleSource, string> = {
-  google: "Google Calendar",
-  internal: "Bubli 일정",
-};
+function sourceCopy(t: TranslateFn, source: ScheduleSource): string {
+  return source === "google" ? "Google Calendar" : t("calendar.overview.source.internal");
+}
 
 function ScheduleRow({ item }: { item: ScheduleItem }) {
+  const { t } = useI18n();
   const meta = kindMeta[item.kind];
 
   return (
@@ -78,14 +80,14 @@ function ScheduleRow({ item }: { item: ScheduleItem }) {
       </div>
       <div className="schedule-row__body">
         <div className="schedule-row__meta">
-          <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
-          <span>{item.projectRoom}</span>
-          <span>{sourceCopy[item.source]}</span>
+          <StatusBadge tone={meta.tone}>{t(meta.labelKey)}</StatusBadge>
+          <span>{t(item.projectRoomKey)}</span>
+          <span>{sourceCopy(t, item.source)}</span>
         </div>
-        <h3>{item.title}</h3>
+        <h3>{t(item.titleKey)}</h3>
         <p>
           <Link2 size={14} strokeWidth={2.1} aria-hidden="true" />
-          {item.connectedItem}
+          {t(item.connectedItemKey)}
         </p>
       </div>
     </article>
@@ -93,65 +95,64 @@ function ScheduleRow({ item }: { item: ScheduleItem }) {
 }
 
 export function ScheduleOverviewPanel() {
+  const { t } = useI18n();
   return (
-    <section className="schedule-overview" aria-label="일정과 캘린더">
+    <section className="schedule-overview" aria-label={t("calendar.overview.aria")}>
       <GlassPanel className="schedule-overview__hero">
         <div className="schedule-overview__title">
           <span className="bubli-icon-tile" aria-hidden="true">
             <CalendarDays size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <Chip selected>일정/WBS 버블</Chip>
-            <h2>일정은 따로 흩어지지 않고 작업과 연결해서 봅니다</h2>
-            <p>
-              Bubli 일정은 서버에 저장된 일정을 원본으로 두고, 연결된 TODO와 WBS를 함께 보여줍니다.
-            </p>
+            <Chip selected>{t("calendar.overview.chip")}</Chip>
+            <h2>{t("calendar.overview.heroTitle")}</h2>
+            <p>{t("calendar.overview.heroDescription")}</p>
           </div>
         </div>
         <div className="schedule-overview__summary">
-          <strong>4</strong>
-          <span>오늘 일정</span>
-          <p>외부 캘린더 일정은 사용자가 연결한 범위 안에서 표시합니다.</p>
+          <strong>{t("calendar.overview.todayCount")}</strong>
+          <span>{t("calendar.overview.todayLabel")}</span>
+          <p>{t("calendar.overview.todayHint")}</p>
         </div>
       </GlassPanel>
 
       <div className="schedule-overview__grid">
         <GlassPanel className="schedule-overview__calendar">
           <div className="schedule-overview__toolbar">
-            <h3>6월 일정</h3>
+            <h3>{t("calendar.overview.monthTitle")}</h3>
             <Button icon={<ExternalLink size={15} />} size="sm" variant="quiet">
-              Google Calendar 연결
+              {t("calendar.overview.connectGoogle")}
             </Button>
           </div>
-          <div className="schedule-days" aria-label="주간 일정 요약">
+          <div className="schedule-days" aria-label={t("calendar.overview.weekAria")}>
             {days.map((day) => (
-              <button className={day.selected ? "schedule-day schedule-day--selected" : "schedule-day"} key={day.date} type="button">
-                <span>{day.day}</span>
+              <button className={"selected" in day && day.selected ? "schedule-day schedule-day--selected" : "schedule-day"} key={day.date} type="button">
+                <span>{t(day.dayKey)}</span>
                 <b>{day.date}</b>
-                <small>{day.count}건</small>
+                <small>{t("calendar.grid.countUnit", { count: day.count })}</small>
               </button>
             ))}
           </div>
           <div className="schedule-overview__items">
             {schedules.map((item) => (
-              <ScheduleRow item={item} key={`${item.time}-${item.title}`} />
+              <ScheduleRow item={item} key={`${item.time}-${item.titleKey}`} />
             ))}
           </div>
         </GlassPanel>
 
         <GlassPanel className="schedule-overview__policy">
-          <h3>표시 기준</h3>
+          <h3>{t("calendar.overview.policyTitle")}</h3>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <CheckCircle2 size={16} strokeWidth={2.1} />
             </span>
-            <p>내부 일정과 마감은 서버에 저장된 일정을 기준으로 대시보드와 버블에 같이 표시합니다.</p>
+            <p>{t("calendar.overview.policy.server")}</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <Video size={16} strokeWidth={2.1} />
             </span>
-            <p>프로젝트룸 보이스 일정은 소통 기능과 연결하지만, 보이스 녹음이나 자동 회의록은 만들지 않습니다.</p>
+            <p>{t("calendar.overview.policy.voice")}</p>
           </div>
         </GlassPanel>
       </div>

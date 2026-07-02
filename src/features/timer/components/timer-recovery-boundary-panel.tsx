@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Activity,
   AlertCircle,
@@ -16,6 +18,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./timer-recovery-boundary-panel.module.css";
@@ -51,17 +55,17 @@ export type TimerRecoveryBoundaryPanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const runStatusMeta: Record<TimerRunStatus, { label: string; tone: StatusTone }> = {
-  PAUSED: { label: "일시정지", tone: "pending" },
-  RECOVERY_NEEDED: { label: "복구 확인", tone: "warning" },
-  RUNNING: { label: "실행 중", tone: "timer" },
-  STOPPED: { label: "종료", tone: "approved" },
+const runStatusMeta: Record<TimerRunStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  PAUSED: { labelKey: "timer.status.paused", tone: "pending" },
+  RECOVERY_NEEDED: { labelKey: "timer.status.recoveryNeeded", tone: "warning" },
+  RUNNING: { labelKey: "timer.status.running", tone: "timer" },
+  STOPPED: { labelKey: "timer.status.stopped", tone: "approved" },
 };
 
-const syncStatusMeta: Record<SyncItemStatus, { label: string; tone: StatusTone }> = {
-  RETRYING: { label: "다시 전송", tone: "warning" },
-  SENT: { label: "전송됨", tone: "approved" },
-  WAITING: { label: "대기", tone: "pending" },
+const syncStatusMeta: Record<SyncItemStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  RETRYING: { labelKey: "timer.sync.retrying", tone: "warning" },
+  SENT: { labelKey: "timer.sync.sent", tone: "approved" },
+  WAITING: { labelKey: "timer.sync.waiting", tone: "pending" },
 };
 
 export const defaultTimerRecoveryState: TimerRecoveryState = {
@@ -114,41 +118,40 @@ export function TimerRecoveryBoundaryPanel({
   recoveryState,
   rules,
   syncItems,
-  title = "타이머 복구 상태",
+  title,
   ...props
 }: TimerRecoveryBoundaryPanelProps) {
+  const { t } = useI18n();
   const runStatus = runStatusMeta[recoveryState.status];
   const pendingCount = syncItems.filter((item) => item.status !== "SENT").length;
+  const panelTitle = title ?? t("timer.boundary.defaultTitle");
 
   return (
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<Clock3 size={16} strokeWidth={2.1} />}>작업 시간 기록</Chip>
+          <Chip icon={<Clock3 size={16} strokeWidth={2.1} />}>{t("timer.boundary.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              타이머는 서버 기록을 기준으로 두고, Tauri는 실행 중 상태와 미전송 작업을 보관합니다. 앱이 비정상
-              종료되어도 마지막 기록을 기준으로 복구할 수 있게 합니다.
-            </p>
+            <h2 className={styles.title}>{panelTitle}</h2>
+            <p className={styles.description}>{t("timer.boundary.description")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
           <span>{recoveryState.taskTitle}</span>
           <strong>{recoveryState.serverTimeLabel}</strong>
-          <StatusBadge tone={runStatus.tone}>{runStatus.label}</StatusBadge>
+          <StatusBadge tone={runStatus.tone}>{t(runStatus.labelKey)}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.recoveryGrid} aria-label="타이머 저장 경계">
+      <section className={styles.recoveryGrid} aria-label={t("timer.boundary.gridAria")}>
         <article className={styles.boundaryCard}>
           <span className={styles.iconTile}>
             <Server size={19} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <StatusBadge tone="timer">서버 기록</StatusBadge>
-            <h3>작업 시간 기록</h3>
-            <p>총 작업시간, 시작, 일시정지, 재개, 종료 이벤트의 기준 기록입니다.</p>
+            <StatusBadge tone="timer">{t("timer.boundary.serverRecord")}</StatusBadge>
+            <h3>{t("timer.boundary.serverRecordTitle")}</h3>
+            <p>{t("timer.boundary.serverRecordDesc")}</p>
           </div>
         </article>
 
@@ -157,11 +160,11 @@ export function TimerRecoveryBoundaryPanel({
             <HeartPulse size={20} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <Chip selected>{recoveryState.heartbeatLabel}</Chip>
-          <h3>{recoveryState.status === "RECOVERY_NEEDED" ? "사용자 확인 필요" : "기록 유지 중"}</h3>
+          <h3>{recoveryState.status === "RECOVERY_NEEDED" ? t("timer.boundary.needConfirm") : t("timer.boundary.keepingRecord")}</h3>
           <p>{recoveryState.localStateLabel}</p>
-          <ProgressBar label="타이머 복구 준비율" value={recoveryPercent} />
+          <ProgressBar label={t("timer.boundary.recoveryRate")} value={recoveryPercent} />
           <Button icon={<RotateCw size={15} strokeWidth={2.1} />} size="sm" variant="secondary">
-            복구 흐름 확인
+            {t("timer.boundary.checkRecoveryFlow")}
           </Button>
         </article>
 
@@ -170,14 +173,14 @@ export function TimerRecoveryBoundaryPanel({
             <Database size={19} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <StatusBadge tone="personal">기기 안 저장소</StatusBadge>
-            <h3>복구 상태</h3>
-            <p>실행 중 상태, 미전송 이벤트, 복구 안내에 필요한 최근 상태를 보관합니다.</p>
+            <StatusBadge tone="personal">{t("timer.boundary.deviceStorage")}</StatusBadge>
+            <h3>{t("timer.boundary.recoveryState")}</h3>
+            <p>{t("timer.boundary.recoveryStateDesc")}</p>
           </div>
         </article>
       </section>
 
-      <section className={styles.syncList} aria-label="타이머 동기화 항목">
+      <section className={styles.syncList} aria-label={t("timer.boundary.syncListAria")}>
         {syncItems.map((item) => {
           const status = syncStatusMeta[item.status];
 
@@ -194,22 +197,22 @@ export function TimerRecoveryBoundaryPanel({
                 <strong>{item.label}</strong>
                 <p>{item.description}</p>
               </div>
-              <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+              <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
             </article>
           );
         })}
       </section>
 
-      <section className={styles.metaStrip} aria-label="타이머 복구 요약">
+      <section className={styles.metaStrip} aria-label={t("timer.boundary.summaryAria")}>
         <span>
           <Activity size={15} strokeWidth={2.1} aria-hidden="true" />
-          미전송 항목 {pendingCount}개
+          {t("timer.boundary.pendingCount", { count: pendingCount })}
         </span>
-        <span>heartbeat 기본 60초</span>
-        <span>90초 이상 신호가 없으면 복구 확인</span>
+        <span>{t("timer.boundary.heartbeatDefault")}</span>
+        <span>{t("timer.boundary.recoveryThreshold")}</span>
       </section>
 
-      <section className={styles.ruleGrid} aria-label="타이머 저장 기준">
+      <section className={styles.ruleGrid} aria-label={t("timer.boundary.ruleAria")}>
         {rules.map((rule) => (
           <article key={rule.label}>
             <CheckCircle2 size={18} strokeWidth={2.1} aria-hidden="true" />

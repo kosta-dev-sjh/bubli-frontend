@@ -7,7 +7,8 @@ type ChatMessageProps = HTMLAttributes<HTMLDivElement> & {
   author: string;
   message: string;
   mine?: boolean;
-  roleLabel?: "프리랜서 사용자" | "프로젝트룸 에이전트";
+  roleLabel?: string;
+  roleTone?: "agent" | "neutral";
   timeLabel?: string;
 };
 
@@ -17,6 +18,7 @@ export function ChatMessage({
   message,
   mine = false,
   roleLabel,
+  roleTone = "neutral",
   timeLabel,
   ...props
 }: ChatMessageProps) {
@@ -30,7 +32,7 @@ export function ChatMessage({
         <p className="bubli-chat-message__text">{message}</p>
         {roleLabel ? (
           <div style={{ marginTop: 8 }}>
-            <StatusBadge tone={roleLabel === "프로젝트룸 에이전트" ? "agent" : "neutral"}>{roleLabel}</StatusBadge>
+            <StatusBadge tone={roleTone}>{roleLabel}</StatusBadge>
           </div>
         ) : null}
       </div>

@@ -35,7 +35,11 @@ import type { CSSProperties, FC, KeyboardEventHandler, MouseEventHandler, ReactN
 
 import { Card } from "@/components/ui/card";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 const draggingAtom = atom(false);
 const scrollXAtom = atom(0);
@@ -45,13 +49,21 @@ export const useGanttScrollX = () => useAtom(scrollXAtom);
 
 const WEEK_OPTIONS = { weekStartsOn: 1 } as const;
 const DAYS_IN_WEEK = 7;
-const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+const WEEKDAY_LABEL_KEYS: MessageKey[] = [
+  "ui.gantt.weekdaySun",
+  "ui.gantt.weekdayMon",
+  "ui.gantt.weekdayTue",
+  "ui.gantt.weekdayWed",
+  "ui.gantt.weekdayThu",
+  "ui.gantt.weekdayFri",
+  "ui.gantt.weekdaySat",
+];
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 const formatShortDate = (date: Date) => `${date.getMonth() + 1}/${date.getDate()}`;
 const formatFullDate = (date: Date) => `${date.getFullYear()}.${pad2(date.getMonth() + 1)}.${pad2(date.getDate())}`;
-const formatDateRange = (startAt: Date, endAt: Date | null) =>
-  endAt ? `${formatShortDate(startAt)} - ${formatShortDate(endAt)}` : `${formatShortDate(startAt)}부터`;
+const formatDateRange = (t: TranslateFn, startAt: Date, endAt: Date | null) =>
+  endAt ? `${formatShortDate(startAt)} - ${formatShortDate(endAt)}` : t("ui.gantt.rangeFrom", { start: formatShortDate(startAt) });
 
 export type GanttStatus = {
   id: string;
@@ -352,6 +364,7 @@ export const GanttContentHeader: FC<GanttContentHeaderProps> = ({ title, columns
 
 const DailyHeader: FC = () => {
   const gantt = useContext(GanttContext);
+  const { t } = useI18n();
 
   return gantt.timelineData.map((year) =>
     year.quarters
@@ -364,11 +377,11 @@ const DailyHeader: FC = () => {
               <div className="flex items-center justify-center gap-1">
                 <p>{addDays(new Date(year.year, index, 1), item).getDate()}</p>
                 <p className="text-muted-foreground">
-                  {WEEKDAY_LABELS[addDays(new Date(year.year, index, 1), item).getDay()]}
+                  {t(WEEKDAY_LABEL_KEYS[addDays(new Date(year.year, index, 1), item).getDay()])}
                 </p>
               </div>
             )}
-            title={`${year.year}년 ${index + 1}월`}
+            title={t("ui.gantt.yearMonth", { year: year.year, month: index + 1 })}
           />
           <GanttColumns
             columns={month.days}
@@ -401,12 +414,13 @@ const WeeklyHeader: FC = () => {
 
 const MonthlyHeader: FC = () => {
   const gantt = useContext(GanttContext);
+  const { t } = useI18n();
 
   return gantt.timelineData.map((year) => (
     <div className="relative flex flex-col" key={year.year}>
       <GanttContentHeader
         columns={year.quarters.flatMap((quarter) => quarter.months).length}
-        renderHeaderItem={(item: number) => <p>{item + 1}월</p>}
+        renderHeaderItem={(item: number) => <p>{t("ui.gantt.month", { month: item + 1 })}</p>}
         title={`${year.year}`}
       />
       <GanttColumns columns={year.quarters.flatMap((quarter) => quarter.months).length} />
@@ -416,14 +430,15 @@ const MonthlyHeader: FC = () => {
 
 const QuarterlyHeader: FC = () => {
   const gantt = useContext(GanttContext);
+  const { t } = useI18n();
 
   return gantt.timelineData.map((year) =>
     year.quarters.map((quarter, quarterIndex) => (
       <div className="relative flex flex-col" key={`${year.year}-${quarterIndex}`}>
         <GanttContentHeader
           columns={quarter.months.length}
-          renderHeaderItem={(item: number) => <p>{quarterIndex * 3 + item + 1}월</p>}
-          title={`${year.year}년 ${quarterIndex + 1}분기`}
+          renderHeaderItem={(item: number) => <p>{t("ui.gantt.month", { month: quarterIndex * 3 + item + 1 })}</p>}
+          title={t("ui.gantt.yearQuarter", { year: year.year, quarter: quarterIndex + 1 })}
         />
         <GanttColumns columns={quarter.months.length} />
       </div>
@@ -460,8 +475,9 @@ export type GanttSidebarItemProps = {
 };
 
 export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({ feature, onSelectItem, className }) => {
+  const { t } = useI18n();
   const tempEndAt = feature.endAt && isSameDay(feature.startAt, feature.endAt) ? addDays(feature.endAt, 1) : feature.endAt;
-  const duration = formatDateRange(feature.startAt, tempEndAt);
+  const duration = formatDateRange(t, feature.startAt, tempEndAt);
 
   const handleClick: MouseEventHandler<HTMLDivElement> = (event) => {
     if (event.target === event.currentTarget) {
@@ -499,15 +515,19 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({ feature, onSelectI
   );
 };
 
-export const GanttSidebarHeader: FC = () => (
-  <div
-    className="sticky top-0 z-10 flex shrink-0 items-end justify-between gap-2.5 border-border/50 border-b bg-backdrop/90 p-2.5 font-medium text-muted-foreground text-xs backdrop-blur-sm"
-    style={{ height: "var(--gantt-header-height)" }}
-  >
-    <p className="flex-1 truncate text-left">작업</p>
-    <p className="shrink-0">기간</p>
-  </div>
-);
+export const GanttSidebarHeader: FC = () => {
+  const { t } = useI18n();
+
+  return (
+    <div
+      className="sticky top-0 z-10 flex shrink-0 items-end justify-between gap-2.5 border-border/50 border-b bg-backdrop/90 p-2.5 font-medium text-muted-foreground text-xs backdrop-blur-sm"
+      style={{ height: "var(--gantt-header-height)" }}
+    >
+      <p className="flex-1 truncate text-left">{t("ui.gantt.taskColumn")}</p>
+      <p className="shrink-0">{t("ui.gantt.durationColumn")}</p>
+    </div>
+  );
+};
 
 export type GanttSidebarGroupProps = {
   children: ReactNode;
@@ -897,6 +917,7 @@ export const GanttMarker: FC<
     className?: string;
   }
 > = ({ label, date, id, onRemove, onRename, className }) => {
+  const { t } = useI18n();
   const gantt = useContext(GanttContext);
   const differenceIn = getDifferenceIn(gantt.range);
   const timelineStartDate = new Date(gantt.timelineData.at(0)?.year ?? 0, 0, 1);
@@ -931,13 +952,13 @@ export const GanttMarker: FC<
           {onRename ? (
             <ContextMenuItem className="flex items-center gap-2" onClick={handleRename}>
               <PencilIcon className="text-muted-foreground" size={16} />
-              이름 변경
+              {t("ui.gantt.rename")}
             </ContextMenuItem>
           ) : null}
           {onRemove ? (
             <ContextMenuItem className="flex items-center gap-2 text-destructive" onClick={handleRemove}>
               <TrashIcon size={16} />
-              마커 제거
+              {t("ui.gantt.removeMarker")}
             </ContextMenuItem>
           ) : null}
         </ContextMenuContent>
@@ -1116,7 +1137,8 @@ export type GanttTodayProps = {
 };
 
 export const GanttToday: FC<GanttTodayProps> = ({ className }) => {
-  const label = "오늘";
+  const { t } = useI18n();
+  const label = t("ui.gantt.today");
   const date = new Date();
   const gantt = useContext(GanttContext);
   const differenceIn = getDifferenceIn(gantt.range);

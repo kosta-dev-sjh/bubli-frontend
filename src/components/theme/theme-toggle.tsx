@@ -4,13 +4,15 @@ import { Monitor, Moon, Sun } from "lucide-react";
 
 import { useTheme } from "@/components/theme/theme-provider";
 import type { Theme } from "@/components/theme/theme-provider";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
-type Option = { value: Theme; label: string; icon: typeof Sun };
+type Option = { value: Theme; labelKey: MessageKey; icon: typeof Sun };
 
 const OPTIONS: Option[] = [
-  { value: "light", label: "라이트", icon: Sun },
-  { value: "dark", label: "다크", icon: Moon },
-  { value: "system", label: "시스템", icon: Monitor },
+  { value: "light", labelKey: "theme.light", icon: Sun },
+  { value: "dark", labelKey: "theme.dark", icon: Moon },
+  { value: "system", labelKey: "theme.system", icon: Monitor },
 ];
 
 type ThemeToggleProps = {
@@ -20,9 +22,10 @@ type ThemeToggleProps = {
 
 export function ThemeToggle({ compact = false }: ThemeToggleProps) {
   const { theme, setTheme } = useTheme();
+  const { t } = useI18n();
 
   return (
-    <div aria-label="테마 선택" className="bubli-seg" role="radiogroup">
+    <div aria-label={t("theme.selectAria")} className="bubli-seg" role="radiogroup">
       {OPTIONS.map((opt) => {
         const Icon = opt.icon;
         const active = theme === opt.value;
@@ -36,7 +39,7 @@ export function ThemeToggle({ compact = false }: ThemeToggleProps) {
             type="button"
           >
             <Icon aria-hidden className="bubli-seg__icon" size={15} strokeWidth={1.8} />
-            {compact ? null : <span>{opt.label}</span>}
+            {compact ? null : <span>{t(opt.labelKey)}</span>}
           </button>
         );
       })}

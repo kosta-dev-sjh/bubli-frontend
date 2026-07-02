@@ -9,6 +9,7 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { ACTIVE_PROJECT_ROOM_CHANGE_EVENT, getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewPersonalResources } from "@/lib/workspace-preview-data";
 import type { ResourceResponse } from "@/types/api/resource";
@@ -25,6 +26,7 @@ type PersonalState =
   | { kind: "error"; message: string };
 
 export function PersonalResourceWorkspace() {
+  const { t } = useI18n();
   const [state, setState] = useState<PersonalState>({ kind: "loading" });
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -38,7 +40,7 @@ export function PersonalResourceWorkspace() {
       setState({ kind: "ready", resources: page.items });
       setSelectedResourceId((current) => (current && page.items.some((resource) => resource.id === current) ? current : null));
     } catch (error) {
-      const message = getErrorMessage(error);
+      const message = getErrorMessage(error, t);
       if (message !== "AUTH_REQUIRED" && shouldUseWorkspacePreviewData()) {
         const resources = workspacePreviewPersonalResources;
         setState({ kind: "ready", resources });
@@ -47,7 +49,7 @@ export function PersonalResourceWorkspace() {
       }
       setState(message === "AUTH_REQUIRED" ? { kind: "auth" } : { kind: "error", message });
     }
-  }, []);
+  }, [t]);
 
   const refreshResources = useCallback(() => {
     setState({ kind: "loading" });
@@ -101,15 +103,15 @@ export function PersonalResourceWorkspace() {
   }, null);
 
   return (
-    <section className={cn("resource-workspace", styles.workspace)} aria-label="자료보드">
+    <section className={cn("resource-workspace", styles.workspace)} aria-label={t("resources.workspace.aria")}>
       <GlassPanel className={cn("resource-workspace__hero", styles.boardHeader)}>
         <div className="resource-workspace__copy">
-          <span className={styles.kicker}>개인 자료</span>
-          <h1>자료보드</h1>
-          <p>내 로컬 폴더에서 색인된 자료만 봅니다.</p>
+          <span className={styles.kicker}>{t("resources.workspace.kickerPersonal")}</span>
+          <h1>{t("resources.workspace.title")}</h1>
+          <p>{t("resources.workspace.personalHint")}</p>
         </div>
         <div className={styles.headerActions}>
-          <ResourceScopeSwitch activeScope="personal" roomHref={activeRoomId ? `/app/project-rooms/${activeRoomId}/resources` : "/app/project-rooms"} roomLabel="프로젝트룸" />
+          <ResourceScopeSwitch activeScope="personal" roomHref={activeRoomId ? `/app/project-rooms/${activeRoomId}/resources` : "/app/project-rooms"} roomLabel={t("resources.common.roomFallback")} />
         </div>
       </GlassPanel>
 
@@ -117,9 +119,9 @@ export function PersonalResourceWorkspace() {
         <GlassPanel className="resource-workspace__notice">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>로그인이 필요합니다</h2>
+            <h2>{t("resources.workspace.loginRequired")}</h2>
             <Link className="bubli-button bubli-button--primary" href="/login">
-              로그인
+              {t("resources.workspace.login")}
             </Link>
           </div>
         </GlassPanel>
@@ -129,11 +131,11 @@ export function PersonalResourceWorkspace() {
         <GlassPanel className="resource-workspace__notice">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>서버 연결 대기</h2>
+            <h2>{t("resources.workspace.serverWaiting")}</h2>
             <p>{state.message}</p>
-            <div className="resource-workspace__notice-actions" aria-label="자료보드 상태 액션">
+            <div className="resource-workspace__notice-actions" aria-label={t("resources.workspace.statusActionAria")}>
               <Button onClick={refreshResources} variant="primary">
-                다시 연결
+                {t("resources.workspace.reconnect")}
               </Button>
             </div>
           </div>
@@ -143,13 +145,13 @@ export function PersonalResourceWorkspace() {
       {canShowBoard ? (
         <>
           <GlassPanel className={cn("resource-workspace__board", styles.boardShell, styles.boardShellFlat, selectedResource ? styles.boardShellHasPreview : styles.boardShellNoPreview)}>
-            <section className="resource-workspace__browser" aria-label="자료 탐색">
+            <section className="resource-workspace__browser" aria-label={t("resources.workspace.browseAria")}>
               <div className={styles.listHeader}>
                 <div>
-                  <span>개인 자료</span>
-                  <strong>총 {state.kind === "loading" ? "-" : resources.length}개</strong>
+                  <span>{t("resources.workspace.kickerPersonal")}</span>
+                  <strong>{state.kind === "loading" ? t("resources.workspace.totalUnknown") : t("resources.workspace.totalCount", { count: resources.length })}</strong>
                 </div>
-                <p>{isTauri ? `로컬 폴더 색인 · 최근 스캔 ${latestScannedAt ? formatDate(latestScannedAt) : "대기"}` : "데스크탑 앱에서 로컬 폴더를 연결합니다"}</p>
+                <p>{isTauri ? t("resources.workspace.scanLatest", { date: latestScannedAt ? formatDate(latestScannedAt, t) : t("resources.workspace.scanWaiting") }) : t("resources.workspace.personalConnect")}</p>
               </div>
 
               <ResourceToolbar onQuery={setQuery} onViewMode={setViewMode} query={query} viewMode={viewMode} />
@@ -157,11 +159,11 @@ export function PersonalResourceWorkspace() {
               <GlassPanel className={cn("resource-workspace__dropzone resource-workspace__dropzone--local", styles.syncStrip)}>
                 <HardDrive aria-hidden size={22} strokeWidth={2} />
                 <div>
-                  <strong>{isTauri ? "개인 폴더 동기화" : "개인 폴더 연결"}</strong>
+                  <strong>{isTauri ? t("resources.workspace.syncTitleTauri") : t("resources.workspace.syncTitleWeb")}</strong>
                   <p>
                     {isTauri
-                      ? "연결한 폴더의 파일명과 상태만 모아봅니다."
-                      : "데스크탑 앱에서 폴더를 연결하면 개인 자료가 모입니다."}
+                      ? t("resources.workspace.syncDescTauri")
+                      : t("resources.workspace.syncDescWeb")}
                   </p>
                 </div>
               </GlassPanel>
@@ -178,9 +180,9 @@ export function PersonalResourceWorkspace() {
                 <div className={styles.emptyCanvas} role="status">
                   <div className={styles.emptyCanvasInner}>
                     <FolderOpen aria-hidden size={24} strokeWidth={1.8} />
-                    <strong>{isTauri ? "아직 색인된 자료가 없습니다" : "아직 연결된 개인 자료가 없습니다"}</strong>
-                    <p>{isTauri ? "폴더 스캔이 끝나면 이곳에 표시됩니다." : "데스크탑 앱에서 개인 폴더를 연결하면 이곳에 표시됩니다."}</p>
-                    {!isTauri ? <span>데스크탑 앱 열기 · 폴더 선택 · 자동 동기화</span> : null}
+                    <strong>{isTauri ? t("resources.workspace.emptyPersonalTitleTauri") : t("resources.workspace.emptyPersonalTitleWeb")}</strong>
+                    <p>{isTauri ? t("resources.workspace.emptyPersonalDescTauri") : t("resources.workspace.emptyPersonalDescWeb")}</p>
+                    {!isTauri ? <span>{t("resources.workspace.emptyPersonalSteps")}</span> : null}
                   </div>
                 </div>
               ) : (
@@ -200,7 +202,7 @@ export function PersonalResourceWorkspace() {
             </section>
 
             <ResourcePreview
-              emptyHint="자료를 선택하면 파일 정보와 정리 상태를 확인합니다."
+              emptyHint={t("resources.workspace.previewEmptyHint")}
               onClose={() => setSelectedResourceId(null)}
               onDeleted={() => {
                 setSelectedResourceId(null);

@@ -1,3 +1,5 @@
+"use client";
+
 import { Bot, Mic2, MessageCircle, UserPlus, UsersRound } from "lucide-react";
 
 import { BubbleCard } from "@/components/bubbles/bubble-card";
@@ -6,57 +8,60 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
-
-const summaryItems = [
-  {
-    body: "Bubli ID로 친구를 추가하고 1:1 채팅방을 엽니다.",
-    icon: UserPlus,
-    title: "친구와 1:1 채팅",
-  },
-  {
-    body: "프로젝트룸 자료와 작업 맥락을 기준으로 대화합니다.",
-    icon: UsersRound,
-    title: "프로젝트룸 채팅",
-  },
-  {
-    body: "서버에서 발급한 연결 정보로 프로젝트룸 보이스에 입장합니다.",
-    icon: Mic2,
-    title: "프로젝트룸 보이스",
-  },
-  {
-    body: "명령어로 후보 생성과 정리를 요청합니다.",
-    icon: Bot,
-    title: "프로젝트룸 에이전트 호출",
-  },
-  {
-    body: "개인 에이전트 대화는 프로젝트룸 채팅과 분리합니다.",
-    icon: MessageCircle,
-    title: "개인 에이전트 대화",
-  },
-];
-
-const rooms = [
-  {
-    badge: "프로젝트룸",
-    detail: "번역계약서_v2.pdf 기준 대화",
-    title: "토모에 번역 프로젝트",
-  },
-  {
-    badge: "1:1",
-    detail: "김미연 님과 직접 대화",
-    title: "김미연",
-  },
-  {
-    badge: "프로젝트룸",
-    detail: "WBS 검토와 보이스 연결 대기",
-    title: "Bubli 제품 고도화",
-  },
-];
+import { useI18n } from "@/lib/i18n";
 
 export function CommunicationPanel() {
+  const { t } = useI18n();
+
+  const summaryItems = [
+    {
+      body: t("chat.commPanel.feature.directBody"),
+      icon: UserPlus,
+      title: t("chat.commPanel.feature.directTitle"),
+    },
+    {
+      body: t("chat.commPanel.feature.roomBody"),
+      icon: UsersRound,
+      title: t("chat.commPanel.feature.roomTitle"),
+    },
+    {
+      body: t("chat.commPanel.feature.voiceBody"),
+      icon: Mic2,
+      title: t("chat.commPanel.feature.voiceTitle"),
+    },
+    {
+      body: t("chat.commPanel.feature.agentBody"),
+      icon: Bot,
+      title: t("chat.commPanel.feature.agentTitle"),
+    },
+    {
+      body: t("chat.commPanel.feature.personalBody"),
+      icon: MessageCircle,
+      title: t("chat.commPanel.feature.personalTitle"),
+    },
+  ];
+
+  const rooms = [
+    {
+      badge: t("chat.roomType.room"),
+      detail: t("chat.commPanel.roomExampleDetail"),
+      title: t("chat.commPanel.roomExampleTitle"),
+    },
+    {
+      badge: t("chat.roomType.direct"),
+      detail: t("chat.commPanel.directExampleDetail"),
+      title: t("chat.commPanel.directExampleTitle"),
+    },
+    {
+      badge: t("chat.roomType.room"),
+      detail: t("chat.commPanel.roomExample2Detail"),
+      title: t("chat.commPanel.roomExample2Title"),
+    },
+  ];
+
   return (
-    <section className="communication-panel" aria-label="소통">
-      <div className="communication-panel__summary" aria-label="소통 기능 구분">
+    <section className="communication-panel" aria-label={t("chat.commPanel.aria")}>
+      <div className="communication-panel__summary" aria-label={t("chat.commPanel.summaryAria")}>
         {summaryItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -72,14 +77,14 @@ export function CommunicationPanel() {
       </div>
 
       <div className="communication-panel__grid">
-        <aside className="communication-panel__pane" aria-label="채팅방 목록">
+        <aside className="communication-panel__pane" aria-label={t("chat.commPanel.roomListAria")}>
           <div className="communication-panel__head">
             <div>
-              <h2>소통</h2>
-              <p>친구와 프로젝트룸 대화를 한 목록에서 확인합니다.</p>
+              <h2>{t("chat.title")}</h2>
+              <p>{t("chat.commPanel.desc")}</p>
             </div>
             <Button size="sm" variant="primary">
-              친구 추가
+              {t("chat.social.addFriend")}
             </Button>
           </div>
           <div className="communication-panel__room-list">
@@ -88,66 +93,67 @@ export function CommunicationPanel() {
                 <b>{room.title}</b>
                 <span>{room.detail}</span>
                 <div>
-                  <Chip selected={room.badge === "프로젝트룸"}>{room.badge}</Chip>
+                  <Chip selected={room.badge === t("chat.roomType.room")}>{room.badge}</Chip>
                 </div>
               </div>
             ))}
           </div>
         </aside>
 
-        <section className="communication-panel__chat" aria-label="프로젝트룸 채팅">
+        <section className="communication-panel__chat" aria-label={t("chat.commPanel.chatAria")}>
           <div className="communication-panel__head">
           <div>
-            <h2>토모에 번역 프로젝트</h2>
-              <p>프로젝트룸 채팅은 서버에 저장되고, 데스크톱 앱은 최근 메시지를 빠르게 불러옵니다.</p>
+            <h2>{t("chat.commPanel.roomExampleTitle")}</h2>
+              <p>{t("chat.commPanel.chatDesc")}</p>
             </div>
-            <StatusBadge tone="communication">프로젝트룸 채팅</StatusBadge>
+            <StatusBadge tone="communication">{t("chat.commPanel.chatBadge")}</StatusBadge>
           </div>
           <div className="communication-panel__messages">
             <ChatMessage
-              author="김미연"
-              message="검수 기준은 계약서 기준으로 다시 확인해볼게요."
-              roleLabel="프리랜서 사용자"
+              author={t("chat.commPanel.msg1Author")}
+              message={t("chat.commPanel.msg1Body")}
+              roleLabel={t("chat.commPanel.msg1Role")}
               timeLabel="10:24"
             />
             <ChatMessage
-              author="Bubli"
-              message="계약서와 회의록의 납품일 표현이 다릅니다. 확인 질문 후보를 만들 수 있습니다."
-              roleLabel="프로젝트룸 에이전트"
+              author={t("chat.commPanel.msg2Author")}
+              message={t("chat.commPanel.msg2Body")}
+              roleLabel={t("chat.commPanel.msg2Role")}
+              roleTone="agent"
               timeLabel="10:25"
             />
             <ChatMessage
-              author="정현"
-              message="/bubli 질문 후보로 정리해줘."
+              author={t("chat.commPanel.msg3Author")}
+              message={t("chat.commPanel.msg3Body")}
               mine
-              roleLabel="프리랜서 사용자"
+              roleLabel={t("chat.commPanel.msg3Role")}
               timeLabel="10:26"
             />
           </div>
           <div className="communication-panel__composer">
-            <input aria-label="메시지 입력" placeholder="프로젝트룸에 메시지 보내기" />
-            <Button variant="primary">보내기</Button>
+            <input aria-label={t("chat.commPanel.composerAria")} placeholder={t("chat.commPanel.composerPlaceholder")} />
+            <Button variant="primary">{t("chat.commPanel.send")}</Button>
           </div>
         </section>
 
-        <aside className="communication-panel__pane" aria-label="소통 보조 정보">
+        <aside className="communication-panel__pane" aria-label={t("chat.commPanel.sideAria")}>
           <BubbleCard
             className="communication-panel__bubble"
-            items={["새 메시지 2개", "프로젝트룸 보이스 참여 가능", "확인 질문 후보 2개"]}
-            meta="소통"
+            items={[t("chat.commPanel.bubble1"), t("chat.commPanel.bubble2"), t("chat.commPanel.bubble3")]}
+            meta={t("chat.commPanel.bubbleMeta")}
             type="communication"
           />
           <GlassPanel className="communication-panel__side-card">
-            <h3>소통 접근 기준</h3>
+            <h3>{t("chat.commPanel.accessTitle")}</h3>
             <ul>
-              <li>1:1 채팅은 친구 관계를 기준으로 엽니다.</li>
-              <li>프로젝트룸 채팅과 보이스는 멤버 권한을 기준으로 엽니다.</li>
-              <li>프로젝트룸 초대는 수락된 친구 목록에서 보냅니다.</li>
+              <li>{t("chat.commPanel.access1")}</li>
+              <li>{t("chat.commPanel.access2")}</li>
+              <li>{t("chat.commPanel.access3")}</li>
             </ul>
           </GlassPanel>
           <GlassPanel className="communication-panel__side-card">
-            <h3>데스크탑 앱 기준</h3>
-            <p>앱에서 소통 탭을 숨기더라도 버블이나 전용 창에서 같은 서버와 보이스 연결을 씁니다.</p>
+            <h3>{t("chat.commPanel.desktopTitle")}</h3>
+            <p>{t("chat.commPanel.desktopBody")}</p>
           </GlassPanel>
         </aside>
       </div>

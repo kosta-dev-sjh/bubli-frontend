@@ -1,5 +1,7 @@
 "use client";
 
+"use client";
+
 import {
   CalendarClock,
   CheckCircle2,
@@ -22,6 +24,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./todo-detail-panel.module.css";
@@ -52,51 +56,51 @@ export type TodoDetailPanelProps = HTMLAttributes<HTMLElement> & {
   todo?: TodoDetail;
 };
 
-const statusMeta: Record<TodoDetailStatus, { icon: ReactNode; label: string; tone: StatusTone }> = {
-  BLOCKED: { icon: <PauseCircle size={16} strokeWidth={2.1} />, label: "막힘", tone: "warning" },
-  DONE: { icon: <CheckCircle2 size={16} strokeWidth={2.1} />, label: "완료", tone: "approved" },
-  IN_PROGRESS: { icon: <PencilLine size={16} strokeWidth={2.1} />, label: "진행 중", tone: "todo" },
-  REVIEW: { icon: <UserRoundCheck size={16} strokeWidth={2.1} />, label: "검토", tone: "pending" },
-  TODO: { icon: <Circle size={16} strokeWidth={2.1} />, label: "할 일", tone: "neutral" },
+const statusMeta: Record<TodoDetailStatus, { icon: ReactNode; labelKey: MessageKey; tone: StatusTone }> = {
+  BLOCKED: { icon: <PauseCircle size={16} strokeWidth={2.1} />, labelKey: "todo.detail.status.blocked", tone: "warning" },
+  DONE: { icon: <CheckCircle2 size={16} strokeWidth={2.1} />, labelKey: "todo.detail.status.done", tone: "approved" },
+  IN_PROGRESS: { icon: <PencilLine size={16} strokeWidth={2.1} />, labelKey: "todo.detail.status.inProgress", tone: "todo" },
+  REVIEW: { icon: <UserRoundCheck size={16} strokeWidth={2.1} />, labelKey: "todo.detail.status.review", tone: "pending" },
+  TODO: { icon: <Circle size={16} strokeWidth={2.1} />, labelKey: "todo.detail.status.todo", tone: "neutral" },
 };
 
-const scopeMeta: Record<TodoDetailScope, { label: string; tone: StatusTone }> = {
-  PERSONAL: { label: "개인 TODO", tone: "personal" },
-  PROJECT_ROOM: { label: "프로젝트룸 TODO", tone: "room" },
+const scopeMeta: Record<TodoDetailScope, { labelKey: MessageKey; tone: StatusTone }> = {
+  PERSONAL: { labelKey: "todo.detail.scope.personal", tone: "personal" },
+  PROJECT_ROOM: { labelKey: "todo.detail.scope.room", tone: "room" },
 };
 
-const sourceMeta: Record<TodoDetailSource, { description: string; label: string }> = {
+const sourceMeta: Record<TodoDetailSource, { descriptionKey: MessageKey; labelKey: MessageKey }> = {
   APPROVED_CANDIDATE: {
-    description: "에이전트가 제안한 후보를 사용자가 확인한 뒤 TODO로 만든 항목입니다.",
-    label: "승인한 후보",
+    descriptionKey: "todo.detail.source.approvedDescription",
+    labelKey: "todo.detail.source.approvedLabel",
   },
   DIRECT: {
-    description: "사용자가 직접 추가한 TODO입니다.",
-    label: "직접 추가",
+    descriptionKey: "todo.detail.source.directDescription",
+    labelKey: "todo.detail.source.directLabel",
   },
 };
 
-const surfaceMeta: Record<TodoDetailSurface, { icon: ReactNode; label: string }> = {
-  BUBBLE: { icon: <MonitorUp size={15} strokeWidth={2.1} />, label: "데스크탑 위젯" },
-  DASHBOARD: { icon: <LayoutDashboard size={15} strokeWidth={2.1} />, label: "대시보드" },
-  SCHEDULE: { icon: <CalendarClock size={15} strokeWidth={2.1} />, label: "일정" },
-  WORK_BOARD: { icon: <Columns3 size={15} strokeWidth={2.1} />, label: "작업판" },
+const surfaceMeta: Record<TodoDetailSurface, { icon: ReactNode; labelKey: MessageKey }> = {
+  BUBBLE: { icon: <MonitorUp size={15} strokeWidth={2.1} />, labelKey: "todo.detail.surface.bubble" },
+  DASHBOARD: { icon: <LayoutDashboard size={15} strokeWidth={2.1} />, labelKey: "todo.detail.surface.dashboard" },
+  SCHEDULE: { icon: <CalendarClock size={15} strokeWidth={2.1} />, labelKey: "todo.detail.surface.schedule" },
+  WORK_BOARD: { icon: <Columns3 size={15} strokeWidth={2.1} />, labelKey: "todo.detail.surface.board" },
 };
 
 const statusOrder: TodoDetailStatus[] = ["TODO", "IN_PROGRESS", "REVIEW", "DONE", "BLOCKED"];
 
 export const defaultTodoDetail: TodoDetail = {
-  assigneeLabel: "나",
-  description: "회의록과 업무 문서의 납품일 표현이 달라 클라이언트에게 기준 날짜를 확인합니다.",
-  dueLabel: "오늘",
+  assigneeLabel: "todo.detail.default.assigneeMe",
+  description: "todo.detail.default.description",
+  dueLabel: "todo.detail.default.dueToday",
   id: "todo-send-client-question",
-  linkedProjectRoomLabel: "신규 웹사이트 번역",
+  linkedProjectRoomLabel: "todo.detail.default.roomTranslation",
   progressPercent: 42,
   scope: "PROJECT_ROOM",
   source: "APPROVED_CANDIDATE",
   status: "IN_PROGRESS",
   surfaces: ["WORK_BOARD", "DASHBOARD", "BUBBLE"],
-  title: "납품일 확인 질문 보내기",
+  title: "todo.detail.default.title",
 };
 
 export function TodoDetailPanel({
@@ -107,6 +111,7 @@ export function TodoDetailPanel({
   todo = defaultTodoDetail,
   ...props
 }: TodoDetailPanelProps) {
+  const { t } = useI18n();
   const status = statusMeta[todo.status];
   const scope = scopeMeta[todo.scope];
   const source = sourceMeta[todo.source];
@@ -115,52 +120,50 @@ export function TodoDetailPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<ListTodo size={15} strokeWidth={2.1} />}>TODO 상세</Chip>
+          <Chip icon={<ListTodo size={15} strokeWidth={2.1} />}>{t("todo.detail.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{todo.title}</h2>
-            <p className={styles.description}>
-              하나의 TODO를 원본으로 두고, 상태와 담당자 기준에 따라 작업판, 대시보드, 데스크탑 위젯, 일정에 함께 표시합니다.
-            </p>
+            <h2 className={styles.title}>{t(todo.title as MessageKey)}</h2>
+            <p className={styles.description}>{t("todo.detail.description")}</p>
           </div>
         </div>
         <div className={styles.actions}>
           <Button icon={<Save size={15} strokeWidth={2.1} />} onClick={() => onSave?.(todo.id)} size="sm" variant="primary">
-            저장
+            {t("todo.detail.save")}
           </Button>
           <Button icon={<Trash2 size={15} strokeWidth={2.1} />} onClick={() => onDelete?.(todo.id)} size="sm" variant="quiet">
-            삭제
+            {t("todo.detail.delete")}
           </Button>
         </div>
       </header>
 
-      <section className={styles.summaryGrid} aria-label="TODO 핵심 정보">
+      <section className={styles.summaryGrid} aria-label={t("todo.detail.summaryAria")}>
         <article>
-          <span>상태</span>
-          <strong>{status.label}</strong>
-          <StatusBadge tone={status.tone}>{status.icon} 현재 상태</StatusBadge>
+          <span>{t("todo.detail.field.status")}</span>
+          <strong>{t(status.labelKey)}</strong>
+          <StatusBadge tone={status.tone}>{status.icon} {t("todo.detail.currentStatus")}</StatusBadge>
         </article>
         <article>
-          <span>구분</span>
-          <strong>{scope.label}</strong>
-          <StatusBadge tone={scope.tone}>{todo.linkedProjectRoomLabel ?? "개인 작업"}</StatusBadge>
+          <span>{t("todo.detail.field.scope")}</span>
+          <strong>{t(scope.labelKey)}</strong>
+          <StatusBadge tone={scope.tone}>{todo.linkedProjectRoomLabel ? t(todo.linkedProjectRoomLabel as MessageKey) : t("todo.detail.personalWork")}</StatusBadge>
         </article>
         <article>
-          <span>담당자</span>
-          <strong>{todo.assigneeLabel ?? "나"}</strong>
-          <p>{todo.scope === "PROJECT_ROOM" ? "담당자 기준으로 개인 화면에 표시" : "사용자에게 귀속"}</p>
+          <span>{t("todo.detail.field.assignee")}</span>
+          <strong>{todo.assigneeLabel ? t(todo.assigneeLabel as MessageKey) : t("todo.detail.assigneeMe")}</strong>
+          <p>{todo.scope === "PROJECT_ROOM" ? t("todo.detail.assigneeRoomNote") : t("todo.detail.assigneePersonalNote")}</p>
         </article>
         <article>
-          <span>마감</span>
-          <strong>{todo.dueLabel ?? "없음"}</strong>
-          <p>마감이 있으면 일정에도 연결됩니다.</p>
+          <span>{t("todo.detail.field.due")}</span>
+          <strong>{todo.dueLabel ? t(todo.dueLabel as MessageKey) : t("todo.detail.dueNone")}</strong>
+          <p>{t("todo.detail.dueNote")}</p>
         </article>
       </section>
 
       <div className={styles.contentGrid}>
-        <section className={styles.editorCard} aria-label="TODO 수정">
+        <section className={styles.editorCard} aria-label={t("todo.detail.editAria")}>
           <div className={styles.sectionTitle}>
-            <strong>상태 변경</strong>
-            <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+            <strong>{t("todo.detail.statusChange")}</strong>
+            <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
           </div>
           <div className={styles.statusGrid}>
             {statusOrder.map((statusKey) => {
@@ -175,30 +178,30 @@ export function TodoDetailPanel({
                   type="button"
                 >
                   <span aria-hidden="true">{meta.icon}</span>
-                  <b>{meta.label}</b>
+                  <b>{t(meta.labelKey)}</b>
                 </button>
               );
             })}
           </div>
 
           <div className={styles.memoBox}>
-            <span>설명</span>
-            <p>{todo.description ?? "아직 설명이 없습니다."}</p>
+            <span>{t("todo.detail.memoLabel")}</span>
+            <p>{todo.description ? t(todo.description as MessageKey) : t("todo.detail.memoEmpty")}</p>
           </div>
 
           <div className={styles.progressBox}>
             <div>
-              <span>진행률</span>
+              <span>{t("todo.detail.progress")}</span>
               <strong>{todo.progressPercent}%</strong>
             </div>
             <ProgressBar value={todo.progressPercent} />
           </div>
         </section>
 
-        <aside className={styles.linkCard} aria-label="TODO 연결 기준">
+        <aside className={styles.linkCard} aria-label={t("todo.detail.linkAria")}>
           <div className={styles.sectionTitle}>
-            <strong>표시 화면</strong>
-            <StatusBadge tone="todo">{todo.surfaces.length}곳</StatusBadge>
+            <strong>{t("todo.detail.displaySurface")}</strong>
+            <StatusBadge tone="todo">{t("todo.detail.surfaceCount", { count: todo.surfaces.length })}</StatusBadge>
           </div>
           <div className={styles.surfaceStack}>
             {todo.surfaces.map((surface) => {
@@ -207,22 +210,22 @@ export function TodoDetailPanel({
               return (
                 <div className={styles.surfaceRow} key={surface}>
                   <span aria-hidden="true">{meta.icon}</span>
-                  <b>{meta.label}</b>
-                  <small>{surface === "WORK_BOARD" ? "프로젝트룸 안 작업" : "개인 실행 화면"}</small>
+                  <b>{t(meta.labelKey)}</b>
+                  <small>{surface === "WORK_BOARD" ? t("todo.detail.surfaceRoomNote") : t("todo.detail.surfacePersonalNote")}</small>
                 </div>
               );
             })}
           </div>
 
           <div className={styles.sourceCard}>
-            <span>{source.label}</span>
-            <p>{source.description}</p>
+            <span>{t(source.labelKey)}</span>
+            <p>{t(source.descriptionKey)}</p>
           </div>
 
           <div className={styles.ruleList}>
-            <p>같은 TODO를 화면마다 복사하지 않습니다.</p>
-            <p>후보는 승인 전까지 확정 TODO가 아닙니다.</p>
-            <p>프로젝트룸 TODO는 담당자 기준으로 개인 화면에 보입니다.</p>
+            <p>{t("todo.detail.rule1")}</p>
+            <p>{t("todo.detail.rule2")}</p>
+            <p>{t("todo.detail.rule3")}</p>
           </div>
         </aside>
       </div>

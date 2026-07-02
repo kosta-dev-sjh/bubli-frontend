@@ -1,3 +1,5 @@
+"use client";
+
 import { AlertTriangle, BellRing, CheckCircle2, Clock3, FileCheck2, ListRestart, RefreshCcw, Route, ShieldCheck, XCircle } from "lucide-react";
 import type { HTMLAttributes } from "react";
 
@@ -7,6 +9,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./agent-job-retry-policy-panel.module.css";
@@ -40,71 +44,73 @@ export type AgentJobRetryPolicyPanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const statusMeta: Record<JobStatus, { label: string; tone: StatusTone; icon: typeof Clock3 }> = {
-  CANCELED: { icon: XCircle, label: "취소됨", tone: "personal" },
-  FAILED: { icon: AlertTriangle, label: "실패", tone: "warning" },
-  PENDING: { icon: Clock3, label: "대기", tone: "pending" },
-  RUNNING: { icon: RefreshCcw, label: "실행 중", tone: "todo" },
-  SUCCEEDED: { icon: CheckCircle2, label: "완료", tone: "approved" },
+const statusMeta: Record<JobStatus, { labelKey: MessageKey; tone: StatusTone; icon: typeof Clock3 }> = {
+  CANCELED: { icon: XCircle, labelKey: "agent.retry.statusCanceled", tone: "personal" },
+  FAILED: { icon: AlertTriangle, labelKey: "agent.retry.statusFailed", tone: "warning" },
+  PENDING: { icon: Clock3, labelKey: "agent.retry.statusPending", tone: "pending" },
+  RUNNING: { icon: RefreshCcw, labelKey: "agent.retry.statusRunning", tone: "todo" },
+  SUCCEEDED: { icon: CheckCircle2, labelKey: "agent.retry.statusSucceeded", tone: "approved" },
 };
 
-const retryMeta: Record<RetryDecision, { label: string; tone: StatusTone }> = {
-  BLOCKED: { label: "다시 시도 제한", tone: "warning" },
-  RETRY_ALLOWED: { label: "다시 시도 가능", tone: "approved" },
-  WAITING: { label: "잠시 뒤 다시 시도", tone: "pending" },
+const retryMeta: Record<RetryDecision, { labelKey: MessageKey; tone: StatusTone }> = {
+  BLOCKED: { labelKey: "agent.retry.decisionBlocked", tone: "warning" },
+  RETRY_ALLOWED: { labelKey: "agent.retry.decisionAllowed", tone: "approved" },
+  WAITING: { labelKey: "agent.retry.decisionWaiting", tone: "pending" },
 };
 
+// 라벨 텍스트는 t() 키로 저장하고 렌더 시 번역한다. 호출부가 문자열을 넘기면 t()가 그대로 반환한다.
 export const defaultAgentRetryJobs: AgentJob[] = [
   {
-    failureReason: "결과가 정해진 형식과 맞지 않아 다시 확인이 필요합니다.",
-    jobType: "문서 분석",
-    lastEventLabel: "결과 형식 확인 실패",
+    failureReason: "agent.retry.job1FailureReason",
+    jobType: "agent.retry.job1JobType",
+    lastEventLabel: "agent.retry.job1LastEvent",
     retryCount: 1,
     retryDecision: "RETRY_ALLOWED",
-    reviewRuleLabel: "업무 기준/요구사항 확인",
-    structureLabel: "자료 분석 후보",
-    strategyLabel: "짧은 문서 정리",
+    reviewRuleLabel: "agent.retry.job1ReviewRule",
+    structureLabel: "agent.retry.job1Structure",
+    strategyLabel: "agent.retry.job1Strategy",
     status: "FAILED",
-    title: "요구사항 문서 후보 생성",
+    title: "agent.retry.job1Title",
   },
   {
-    jobType: "WBS 후보 생성",
-    lastEventLabel: "에이전트 정리 진행 중",
+    jobType: "agent.retry.job2JobType",
+    lastEventLabel: "agent.retry.job2LastEvent",
     retryCount: 0,
     retryDecision: "WAITING",
-    reviewRuleLabel: "작업 범위 분리",
-    structureLabel: "WBS/TODO 후보",
-    strategyLabel: "작업 단위 정리",
+    reviewRuleLabel: "agent.retry.job2ReviewRule",
+    structureLabel: "agent.retry.job2Structure",
+    strategyLabel: "agent.retry.job2Strategy",
     status: "RUNNING",
-    title: "번역 프로젝트 WBS 초안",
+    title: "agent.retry.job2Title",
   },
   {
-    jobType: "질문 초안",
-    lastEventLabel: "후보 저장 완료",
+    jobType: "agent.retry.job3JobType",
+    lastEventLabel: "agent.retry.job3LastEvent",
     retryCount: 0,
     retryDecision: "BLOCKED",
-    reviewRuleLabel: "확인 질문 우선",
-    structureLabel: "질문 후보",
-    strategyLabel: "클라이언트 질문 정리",
+    reviewRuleLabel: "agent.retry.job3ReviewRule",
+    structureLabel: "agent.retry.job3Structure",
+    strategyLabel: "agent.retry.job3Strategy",
     status: "SUCCEEDED",
-    title: "납품일 확인 질문",
+    title: "agent.retry.job3Title",
   },
 ];
 
+// label/description 필드는 t() 키를 담는다(렌더 시 번역, 호출부 문자열은 그대로 통과).
 export const defaultRetryPolicies: RetryPolicy[] = [
   {
-    description: "실패한 정리 작업은 원인과 시도 횟수를 확인한 뒤 같은 조건으로 다시 요청합니다.",
-    label: "다시 시도 기준",
+    description: "agent.retry.policyRetryDesc",
+    label: "agent.retry.policyRetryLabel",
     tone: "pending",
   },
   {
-    description: "정해진 형식을 통과한 후보만 검토 화면에 보여줍니다.",
-    label: "결과 형식 확인",
+    description: "agent.retry.policySchemaDesc",
+    label: "agent.retry.policySchemaLabel",
     tone: "agent",
   },
   {
-    description: "에이전트는 후보를 만들고, 확정 데이터 반영은 사용자 승인 후 처리합니다.",
-    label: "확정 분리",
+    description: "agent.retry.policyBoundaryDesc",
+    label: "agent.retry.policyBoundaryLabel",
     tone: "approved",
   },
 ];
@@ -114,9 +120,11 @@ export function AgentJobRetryPolicyPanel({
   jobs,
   maxRetryCount = 3,
   policies,
-  title = "에이전트 정리 작업 다시 시도",
+  title,
   ...props
 }: AgentJobRetryPolicyPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("agent.retry.defaultTitle");
   const failedCount = jobs.filter((job) => job.status === "FAILED").length;
   const retryableCount = jobs.filter((job) => job.retryDecision === "RETRY_ALLOWED").length;
   const retryPercent = Math.round((retryableCount / Math.max(jobs.length, 1)) * 100);
@@ -125,23 +133,20 @@ export function AgentJobRetryPolicyPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<ListRestart size={16} strokeWidth={2.1} />}>정리 작업</Chip>
+          <Chip icon={<ListRestart size={16} strokeWidth={2.1} />}>{t("agent.retry.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              에이전트 정리 작업이 실패하면 원인과 다시 시도 가능 여부를 분리해 보여줍니다. 완료 결과는 화면 알림으로 이어지고,
-              사용자가 확인한 후보만 반영합니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("agent.retry.desc")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>다시 시도 가능</span>
-          <strong>{retryableCount}개</strong>
-          <StatusBadge tone={failedCount > 0 ? "warning" : "success"}>실패 {failedCount}개</StatusBadge>
+          <span>{t("agent.retry.retryable")}</span>
+          <strong>{t("agent.retry.countItems", { count: retryableCount })}</strong>
+          <StatusBadge tone={failedCount > 0 ? "warning" : "success"}>{t("agent.retry.failedCount", { count: failedCount })}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.retryOverview} aria-label="다시 시도 상태 요약">
+      <section className={styles.retryOverview} aria-label={t("agent.retry.overviewAria")}>
         <article className={styles.retryCard}>
           <div className={styles.retryTop}>
             <span className={styles.iconTile}>
@@ -149,22 +154,22 @@ export function AgentJobRetryPolicyPanel({
             </span>
             <div>
               <strong>{retryPercent}%</strong>
-              <p>다시 시도할 수 있는 작업 비율</p>
+              <p>{t("agent.retry.retryRatioDesc")}</p>
             </div>
-            <StatusBadge tone="pending">최대 {maxRetryCount}회</StatusBadge>
+            <StatusBadge tone="pending">{t("agent.retry.maxRetry", { count: maxRetryCount })}</StatusBadge>
           </div>
           <ProgressBar value={retryPercent} />
         </article>
         <article className={styles.eventCard}>
           <BellRing size={18} strokeWidth={2.1} aria-hidden="true" />
           <div>
-            <strong>완료 이벤트</strong>
-            <p>작업 완료나 실패는 프로젝트룸 이벤트와 개인 알림으로 표시합니다.</p>
+            <strong>{t("agent.retry.completeEvent")}</strong>
+            <p>{t("agent.retry.completeEventDesc")}</p>
           </div>
         </article>
       </section>
 
-      <section className={styles.jobList} aria-label="에이전트 정리 작업 목록">
+      <section className={styles.jobList} aria-label={t("agent.retry.jobListAria")}>
         {jobs.map((job) => {
           const status = statusMeta[job.status];
           const retry = retryMeta[job.retryDecision];
@@ -177,39 +182,39 @@ export function AgentJobRetryPolicyPanel({
                   <StatusIcon size={18} strokeWidth={2.1} aria-hidden="true" />
                 </span>
                 <div className={styles.jobTitle}>
-                  <strong>{job.title}</strong>
+                  <strong>{t(job.title as MessageKey)}</strong>
                   <span>
-                    {job.jobType} · 다시 시도 {job.retryCount}/{maxRetryCount}
+                    {t("agent.retry.jobRetryMeta", { count: job.retryCount, jobType: t(job.jobType as MessageKey), max: maxRetryCount })}
                   </span>
                 </div>
                 <div className={styles.badges}>
-                  <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-                  <StatusBadge tone={retry.tone}>{retry.label}</StatusBadge>
+                  <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
+                  <StatusBadge tone={retry.tone}>{t(retry.labelKey)}</StatusBadge>
                 </div>
               </div>
 
               <div className={styles.metaGrid}>
                 <div>
-                  <span>정리 기준</span>
-                  <b>{job.reviewRuleLabel}</b>
+                  <span>{t("agent.retry.reviewRule")}</span>
+                  <b>{t(job.reviewRuleLabel as MessageKey)}</b>
                 </div>
                 <div>
-                  <span>후보 구조</span>
-                  <b>{job.structureLabel}</b>
+                  <span>{t("agent.retry.structure")}</span>
+                  <b>{t(job.structureLabel as MessageKey)}</b>
                 </div>
                 <div>
-                  <span>정리 방식</span>
-                  <b>{job.strategyLabel}</b>
+                  <span>{t("agent.retry.strategy")}</span>
+                  <b>{t(job.strategyLabel as MessageKey)}</b>
                 </div>
               </div>
 
               <footer className={styles.jobFooter}>
                 <span>
                   <FileCheck2 size={15} strokeWidth={2.1} aria-hidden="true" />
-                  {job.failureReason ?? job.lastEventLabel}
+                  {t((job.failureReason ?? job.lastEventLabel) as MessageKey)}
                 </span>
                 <Button icon={<RefreshCcw size={14} strokeWidth={2.1} />} size="sm" variant="quiet">
-                  다시 시도 확인
+                  {t("agent.retry.retryConfirm")}
                 </Button>
               </footer>
             </article>
@@ -217,20 +222,20 @@ export function AgentJobRetryPolicyPanel({
         })}
       </section>
 
-      <section className={styles.policyGrid} aria-label="에이전트 다시 시도 기준">
+      <section className={styles.policyGrid} aria-label={t("agent.retry.policyAria")}>
         {policies.map((policy) => (
           <article key={policy.label}>
-            {policy.label === "결과 형식 확인" ? (
+            {policy.label === "agent.retry.policySchemaLabel" ? (
               <FileCheck2 size={17} strokeWidth={2.1} aria-hidden="true" />
-            ) : policy.label === "확정 분리" ? (
+            ) : policy.label === "agent.retry.policyBoundaryLabel" ? (
               <ShieldCheck size={17} strokeWidth={2.1} aria-hidden="true" />
             ) : (
               <Route size={17} strokeWidth={2.1} aria-hidden="true" />
             )}
             <div>
-              <strong>{policy.label}</strong>
-              <p>{policy.description}</p>
-              <StatusBadge tone={policy.tone}>기준</StatusBadge>
+              <strong>{t(policy.label as MessageKey)}</strong>
+              <p>{t(policy.description as MessageKey)}</p>
+              <StatusBadge tone={policy.tone}>{t("agent.retry.criterion")}</StatusBadge>
             </div>
           </article>
         ))}

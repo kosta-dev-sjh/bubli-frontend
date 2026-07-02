@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AlertCircle,
   ArrowRight,
@@ -16,6 +18,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./resource-analysis-approval-panel.module.css";
@@ -25,16 +29,16 @@ type SuggestionType = "PROJECT_INFO" | "CHECK_ITEM" | "WBS" | "TODO" | "SCHEDULE
 type ReviewState = "PENDING" | "APPROVED" | "EDIT_NEEDED" | "HELD";
 
 type AnalysisSuggestion = {
-  detail: string;
-  evidenceLabel: string;
+  detailKey: MessageKey;
+  evidenceLabelKey: MessageKey;
   reviewState: ReviewState;
-  title: string;
+  titleKey: MessageKey;
   type: SuggestionType;
 };
 
 type AnalysisStep = {
-  description: string;
-  label: string;
+  descriptionKey: MessageKey;
+  labelKey: MessageKey;
   tone: StatusTone;
 };
 
@@ -48,73 +52,73 @@ export type ResourceAnalysisApprovalPanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const jobStatusMeta: Record<AgentJobStatus, { label: string; tone: StatusTone }> = {
-  FAILED: { label: "분석 실패", tone: "warning" },
-  PENDING: { label: "대기", tone: "pending" },
-  RUNNING: { label: "분석 중", tone: "agent" },
-  SUCCEEDED: { label: "후보 생성", tone: "approved" },
+const jobStatusMeta: Record<AgentJobStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  FAILED: { labelKey: "resources.analysis.job.FAILED", tone: "warning" },
+  PENDING: { labelKey: "resources.analysis.job.PENDING", tone: "pending" },
+  RUNNING: { labelKey: "resources.analysis.job.RUNNING", tone: "agent" },
+  SUCCEEDED: { labelKey: "resources.analysis.job.SUCCEEDED", tone: "approved" },
 };
 
-const suggestionTypeMeta: Record<SuggestionType, { label: string; tone: StatusTone }> = {
-  CHECK_ITEM: { label: "확인 필요", tone: "warning" },
-  PROJECT_INFO: { label: "프로젝트 정보", tone: "room" },
-  SCHEDULE: { label: "일정", tone: "timer" },
-  TODO: { label: "TODO", tone: "todo" },
-  WBS: { label: "WBS", tone: "agent" },
+const suggestionTypeMeta: Record<SuggestionType, { labelKey: MessageKey; tone: StatusTone }> = {
+  CHECK_ITEM: { labelKey: "resources.analysis.type.CHECK_ITEM", tone: "warning" },
+  PROJECT_INFO: { labelKey: "resources.analysis.type.PROJECT_INFO", tone: "room" },
+  SCHEDULE: { labelKey: "resources.analysis.type.SCHEDULE", tone: "timer" },
+  TODO: { labelKey: "resources.analysis.type.TODO", tone: "todo" },
+  WBS: { labelKey: "resources.analysis.type.WBS", tone: "agent" },
 };
 
-const reviewMeta: Record<ReviewState, { actionLabel: string; label: string; tone: StatusTone }> = {
-  APPROVED: { actionLabel: "반영됨", label: "승인됨", tone: "approved" },
-  EDIT_NEEDED: { actionLabel: "수정", label: "수정 필요", tone: "warning" },
-  HELD: { actionLabel: "보류", label: "보류", tone: "pending" },
-  PENDING: { actionLabel: "승인", label: "검토 대기", tone: "personal" },
+const reviewMeta: Record<ReviewState, { actionLabelKey: MessageKey; labelKey: MessageKey; tone: StatusTone }> = {
+  APPROVED: { actionLabelKey: "resources.analysis.review.APPROVED.action", labelKey: "resources.analysis.review.APPROVED.label", tone: "approved" },
+  EDIT_NEEDED: { actionLabelKey: "resources.analysis.review.EDIT_NEEDED.action", labelKey: "resources.analysis.review.EDIT_NEEDED.label", tone: "warning" },
+  HELD: { actionLabelKey: "resources.analysis.review.HELD.action", labelKey: "resources.analysis.review.HELD.label", tone: "pending" },
+  PENDING: { actionLabelKey: "resources.analysis.review.PENDING.action", labelKey: "resources.analysis.review.PENDING.label", tone: "personal" },
 };
 
 export const defaultAnalysisSuggestions: AnalysisSuggestion[] = [
   {
-    detail: "납품일 후보를 7월 15일로 읽었습니다. 일정에 넣기 전 원문 날짜와 한 번 더 맞춥니다.",
-    evidenceLabel: "업무 문서 2쪽",
+    detailKey: "resources.analysis.suggestionDeliveryDetail",
+    evidenceLabelKey: "resources.analysis.suggestionDeliveryEvidence",
     reviewState: "PENDING",
-    title: "납품일 후보",
+    titleKey: "resources.analysis.suggestionDeliveryTitle",
     type: "SCHEDULE",
   },
   {
-    detail: "수정 횟수와 검수 기준이 문서마다 다르게 적혀 있어 클라이언트 확인 질문으로 묶습니다.",
-    evidenceLabel: "업무 문서 · 회의록",
+    detailKey: "resources.analysis.suggestionScopeDetail",
+    evidenceLabelKey: "resources.analysis.suggestionScopeEvidence",
     reviewState: "EDIT_NEEDED",
-    title: "수정 범위 확인",
+    titleKey: "resources.analysis.suggestionScopeTitle",
     type: "CHECK_ITEM",
   },
   {
-    detail: "번역 초안, 1차 검토, 최종 반영을 하위 작업으로 나눌 수 있습니다.",
-    evidenceLabel: "요구사항 문서",
+    detailKey: "resources.analysis.suggestionWbsDetail",
+    evidenceLabelKey: "resources.analysis.suggestionWbsEvidence",
     reviewState: "PENDING",
-    title: "WBS 후보",
+    titleKey: "resources.analysis.suggestionWbsTitle",
     type: "WBS",
   },
   {
-    detail: "1차 번역본 검토 요청을 내 TODO로 추가할 수 있습니다.",
-    evidenceLabel: "회의록 6월 18일",
+    detailKey: "resources.analysis.suggestionTodoDetail",
+    evidenceLabelKey: "resources.analysis.suggestionTodoEvidence",
     reviewState: "APPROVED",
-    title: "내 TODO 후보",
+    titleKey: "resources.analysis.suggestionTodoTitle",
     type: "TODO",
   },
 ];
 
 export const defaultAnalysisSteps: AnalysisStep[] = [
   {
-    description: "자료를 올리면 에이전트가 프로젝트 정보, 확인 필요 항목, WBS/TODO 후보를 구조화합니다.",
-    label: "후보 생성",
+    descriptionKey: "resources.analysis.stepGenDesc",
+    labelKey: "resources.analysis.stepGenLabel",
     tone: "agent",
   },
   {
-    description: "후보는 확정 데이터가 아니며 사용자가 승인, 수정, 보류 중 하나를 고릅니다.",
-    label: "사용자 검토",
+    descriptionKey: "resources.analysis.stepReviewDesc",
+    labelKey: "resources.analysis.stepReviewLabel",
     tone: "personal",
   },
   {
-    description: "승인된 항목만 API/core 모듈을 거쳐 WBS, TODO, 일정에 반영됩니다.",
-    label: "승인 후 반영",
+    descriptionKey: "resources.analysis.stepApplyDesc",
+    labelKey: "resources.analysis.stepApplyLabel",
     tone: "approved",
   },
 ];
@@ -127,9 +131,11 @@ export function ResourceAnalysisApprovalPanel({
   resourceName,
   steps,
   suggestions,
-  title = "자료 분석 후보 검토",
+  title,
   ...props
 }: ResourceAnalysisApprovalPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("resources.analysis.defaultTitle");
   const jobStatusView = jobStatusMeta[jobStatus];
   const pendingCount = suggestions.filter((suggestion) => suggestion.reviewState === "PENDING").length;
   const approvedCount = suggestions.filter((suggestion) => suggestion.reviewState === "APPROVED").length;
@@ -139,30 +145,27 @@ export function ResourceAnalysisApprovalPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<FileSearch size={16} strokeWidth={2.1} />}>분석 후보</Chip>
+          <Chip icon={<FileSearch size={16} strokeWidth={2.1} />}>{t("resources.analysis.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              업로드한 자료에서 뽑은 값은 바로 업무에 들어가지 않습니다. 사용자가 확인한 후보만 프로젝트룸의 WBS,
-              TODO, 일정으로 이어집니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("resources.analysis.description")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
           <span>{projectRoomName}</span>
           <strong>{resourceName}</strong>
-          <StatusBadge tone={jobStatusView.tone}>{jobStatusView.label}</StatusBadge>
+          <StatusBadge tone={jobStatusView.tone}>{t(jobStatusView.labelKey)}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.pipelineCard} aria-label="자료 분석 승인 흐름">
+      <section className={styles.pipelineCard} aria-label={t("resources.analysis.pipelineAria")}>
         <div className={styles.pipelineNode}>
           <span className={styles.iconTile}>
             <FileSearch size={18} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <strong>자료 분석</strong>
-            <p>문서에서 후보 추출</p>
+            <strong>{t("resources.analysis.pipelineAnalysisTitle")}</strong>
+            <p>{t("resources.analysis.pipelineAnalysisDesc")}</p>
           </div>
         </div>
         <ArrowRight size={20} strokeWidth={2.1} aria-hidden="true" />
@@ -171,8 +174,8 @@ export function ResourceAnalysisApprovalPanel({
             <Sparkles size={18} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <strong>에이전트 후보</strong>
-            <p>확인할 항목 구성</p>
+            <strong>{t("resources.analysis.pipelineAgentTitle")}</strong>
+            <p>{t("resources.analysis.pipelineAgentDesc")}</p>
           </div>
         </div>
         <ArrowRight size={20} strokeWidth={2.1} aria-hidden="true" />
@@ -181,42 +184,42 @@ export function ResourceAnalysisApprovalPanel({
             <ListChecks size={18} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <strong>사용자 승인</strong>
-            <p>확정 데이터 반영</p>
+            <strong>{t("resources.analysis.pipelineApproveTitle")}</strong>
+            <p>{t("resources.analysis.pipelineApproveDesc")}</p>
           </div>
         </div>
       </section>
 
-      <section className={styles.metrics} aria-label="자료 분석 후보 요약">
+      <section className={styles.metrics} aria-label={t("resources.analysis.metricsAria")}>
         <article>
-          <span>분석 신뢰도</span>
+          <span>{t("resources.analysis.metricConfidence")}</span>
           <strong>{confidence}%</strong>
-          <ProgressBar label="분석 신뢰도" value={confidence} />
+          <ProgressBar label={t("resources.analysis.metricConfidence")} value={confidence} />
         </article>
         <article>
-          <span>검토 대기</span>
+          <span>{t("resources.analysis.metricPending")}</span>
           <strong>{pendingCount}</strong>
-          <StatusBadge tone="personal">후보</StatusBadge>
+          <StatusBadge tone="personal">{t("resources.analysis.metricPendingBadge")}</StatusBadge>
         </article>
         <article>
-          <span>확인 필요</span>
+          <span>{t("resources.analysis.metricReview")}</span>
           <strong>{reviewNeededCount}</strong>
-          <StatusBadge tone="warning">질문 후보</StatusBadge>
+          <StatusBadge tone="warning">{t("resources.analysis.metricReviewBadge")}</StatusBadge>
         </article>
         <article>
-          <span>승인됨</span>
+          <span>{t("resources.analysis.metricApproved")}</span>
           <strong>{approvedCount}</strong>
-          <StatusBadge tone="approved">반영 대상</StatusBadge>
+          <StatusBadge tone="approved">{t("resources.analysis.metricApprovedBadge")}</StatusBadge>
         </article>
       </section>
 
-      <section className={styles.suggestionList} aria-label="분석 후보 목록">
+      <section className={styles.suggestionList} aria-label={t("resources.analysis.suggestionAria")}>
         {suggestions.map((suggestion) => {
           const type = suggestionTypeMeta[suggestion.type];
           const review = reviewMeta[suggestion.reviewState];
 
           return (
-            <article className={styles.suggestionCard} key={`${suggestion.type}-${suggestion.title}`}>
+            <article className={styles.suggestionCard} key={`${suggestion.type}-${suggestion.titleKey}`}>
               <div className={styles.suggestionTop}>
                 <span className={styles.iconTile}>
                   {suggestion.type === "CHECK_ITEM" ? (
@@ -226,19 +229,19 @@ export function ResourceAnalysisApprovalPanel({
                   )}
                 </span>
                 <div className={styles.suggestionTitle}>
-                  <strong>{suggestion.title}</strong>
-                  <span>{suggestion.evidenceLabel}</span>
+                  <strong>{t(suggestion.titleKey)}</strong>
+                  <span>{t(suggestion.evidenceLabelKey)}</span>
                 </div>
-                <StatusBadge tone={type.tone}>{type.label}</StatusBadge>
+                <StatusBadge tone={type.tone}>{t(type.labelKey)}</StatusBadge>
               </div>
 
-              <p className={styles.suggestionDetail}>{suggestion.detail}</p>
+              <p className={styles.suggestionDetail}>{t(suggestion.detailKey)}</p>
 
               <footer className={styles.suggestionFooter}>
-                <StatusBadge tone={review.tone}>{review.label}</StatusBadge>
+                <StatusBadge tone={review.tone}>{t(review.labelKey)}</StatusBadge>
                 <div className={styles.actions}>
                   <Button icon={<PencilLine size={15} strokeWidth={2.1} />} size="sm" variant="ghost">
-                    수정
+                    {t("resources.analysis.editAction")}
                   </Button>
                   <Button
                     disabled={suggestion.reviewState === "APPROVED"}
@@ -246,7 +249,7 @@ export function ResourceAnalysisApprovalPanel({
                     size="sm"
                     variant={suggestion.reviewState === "PENDING" ? "secondary" : "quiet"}
                   >
-                    {review.actionLabel}
+                    {t(review.actionLabelKey)}
                   </Button>
                 </div>
               </footer>
@@ -255,13 +258,13 @@ export function ResourceAnalysisApprovalPanel({
         })}
       </section>
 
-      <section className={styles.stepGrid} aria-label="후보 승인 기준">
+      <section className={styles.stepGrid} aria-label={t("resources.analysis.stepAria")}>
         {steps.map((step) => (
-          <article key={step.label}>
+          <article key={step.labelKey}>
             <CheckCircle2 size={18} strokeWidth={2.1} aria-hidden="true" />
             <div>
-              <StatusBadge tone={step.tone}>{step.label}</StatusBadge>
-              <p>{step.description}</p>
+              <StatusBadge tone={step.tone}>{t(step.labelKey)}</StatusBadge>
+              <p>{t(step.descriptionKey)}</p>
             </div>
           </article>
         ))}

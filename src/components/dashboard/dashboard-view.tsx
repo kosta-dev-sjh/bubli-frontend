@@ -10,49 +10,51 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Ring } from "@/components/ui/ring";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
 /* Storybook에서 카드 조립을 확인하는 정적 데이터다. 실제 라우트는 API 데이터를 쓴다. */
 export type DashboardViewData = {
   summary: { resources: number; candidates: number; todos: number; minutesFocused: number };
-  todos: { id: string; title: string; tone: "todo" | "warning" | "approved"; meta: string }[];
-  timeRing: { label: string; value: number; max: number; segments: { label: string; value: number }[] };
-  agent: { message: string; count: number };
-  approvals: { id: string; title: string; from: string }[];
-  schedule: { id: string; time: string; title: string }[];
-  notifications: { id: string; tone: "todo" | "agent" | "memo" | "communication"; text: string }[];
+  todos: { id: string; titleKey: MessageKey; tone: "todo" | "warning" | "approved"; metaKey: MessageKey }[];
+  timeRing: { labelKey: MessageKey; value: number; max: number; segments: { labelKey: MessageKey; value: number }[] };
+  agent: { messageKey: MessageKey; count: number };
+  approvals: { id: string; titleKey: MessageKey; fromKey: MessageKey }[];
+  schedule: { id: string; time: string; titleKey: MessageKey }[];
+  notifications: { id: string; tone: "todo" | "agent" | "memo" | "communication"; textKey: MessageKey }[];
 };
 
 export const DASHBOARD_STORY_DATA: DashboardViewData = {
   summary: { resources: 3, candidates: 6, todos: 4, minutesFocused: 135 },
   todos: [
-    { id: "t1", title: "시안 1차 보내기", tone: "warning", meta: "오늘 18:00" },
-    { id: "t2", title: "견적서 회신 확인", tone: "todo", meta: "진행중" },
-    { id: "t3", title: "WBS 구조 검토", tone: "todo", meta: "내일" },
-    { id: "t4", title: "업무 문서 검토 회신", tone: "approved", meta: "완료" },
+    { id: "t1", titleKey: "dashboard.view.todo1", tone: "warning", metaKey: "dashboard.view.todo1Meta" },
+    { id: "t2", titleKey: "dashboard.view.todo2", tone: "todo", metaKey: "dashboard.view.todo2Meta" },
+    { id: "t3", titleKey: "dashboard.view.todo3", tone: "todo", metaKey: "dashboard.view.todo3Meta" },
+    { id: "t4", titleKey: "dashboard.view.todo4", tone: "approved", metaKey: "dashboard.view.todo4Meta" },
   ],
   timeRing: {
-    label: "오늘 집중",
+    labelKey: "dashboard.view.ringLabel",
     value: 135,
     max: 240,
     segments: [
-      { label: "A사 리뉴얼", value: 70 },
-      { label: "B사 앱", value: 45 },
-      { label: "기타", value: 20 },
+      { labelKey: "dashboard.view.ringSeg1", value: 70 },
+      { labelKey: "dashboard.view.ringSeg2", value: 45 },
+      { labelKey: "dashboard.view.ringSeg3", value: 20 },
     ],
   },
-  agent: { message: "자료 3건에서 요구사항 후보 6개를 찾았어요. 정리해 둘까요?", count: 6 },
+  agent: { messageKey: "dashboard.view.agentMessage", count: 6 },
   approvals: [
-    { id: "a1", title: "요구사항 후보 6개 승인", from: "에이전트" },
-    { id: "a2", title: "납품 일정 변경 확인", from: "A사 룸" },
+    { id: "a1", titleKey: "dashboard.view.approval1", fromKey: "dashboard.view.approval1From" },
+    { id: "a2", titleKey: "dashboard.view.approval2", fromKey: "dashboard.view.approval2From" },
   ],
   schedule: [
-    { id: "s1", time: "11:00", title: "A사 정기 미팅" },
-    { id: "s2", time: "15:30", title: "B사 디자인 리뷰" },
+    { id: "s1", time: "11:00", titleKey: "dashboard.view.schedule1" },
+    { id: "s2", time: "15:30", titleKey: "dashboard.view.schedule2" },
   ],
   notifications: [
-    { id: "n1", tone: "communication", text: "A사 룸에 새 댓글 2개" },
-    { id: "n2", tone: "agent", text: "에이전트가 하루 정리를 마쳤어요" },
-    { id: "n3", tone: "memo", text: "메모 '컬러 톤' 업데이트됨" },
+    { id: "n1", tone: "communication", textKey: "dashboard.view.noti1" },
+    { id: "n2", tone: "agent", textKey: "dashboard.view.noti2" },
+    { id: "n3", tone: "memo", textKey: "dashboard.view.noti3" },
   ],
 };
 
@@ -72,20 +74,24 @@ type DashboardViewProps = {
 };
 
 export function DashboardView({ data = DASHBOARD_STORY_DATA, empty = false, loading = false, onCustomize }: DashboardViewProps) {
-  const hoursLabel = `${Math.floor(data.summary.minutesFocused / 60)}h ${data.summary.minutesFocused % 60}m`;
+  const { t } = useI18n();
+  const hoursLabel = t("dashboard.common.hourMinute", {
+    hours: Math.floor(data.summary.minutesFocused / 60),
+    minutes: data.summary.minutesFocused % 60,
+  });
 
   return (
     <div className="bubli-dash-view">
       <header className="bubli-dash-view__bar">
         <div>
-          <strong className="bubli-dash-view__title">대시보드</strong>
+          <strong className="bubli-dash-view__title">{t("dashboard.view.title")}</strong>
           <p className="bubli-dash-view__sub">
-            여러 프로젝트룸에서 내가 맡은 할 일, 일정, 확인할 항목을 한곳에 모았다.
+            {t("dashboard.view.subtitle")}
           </p>
         </div>
         <Button onClick={onCustomize} variant="primary">
           <Settings2 aria-hidden size={15} strokeWidth={1.8} />
-          카드 편집
+          {t("dashboard.view.editCards")}
         </Button>
       </header>
 
@@ -93,7 +99,7 @@ export function DashboardView({ data = DASHBOARD_STORY_DATA, empty = false, load
         <DashboardGrid empty mode="edit" />
       ) : (
         <DashboardGrid mode="view">
-          <DashboardWidgetTile icon={widgetIcon("today-summary")} size="L" title="오늘 요약">
+          <DashboardWidgetTile icon={widgetIcon("today-summary")} size="L" title={t("dashboard.view.todaySummary")}>
             {loading ? (
               <div style={{ display: "grid", gap: 8 }}>
                 <Skeleton w="60%" />
@@ -101,15 +107,15 @@ export function DashboardView({ data = DASHBOARD_STORY_DATA, empty = false, load
               </div>
             ) : (
               <div className="bubli-dash-summary">
-                <span>자료 {data.summary.resources}</span>
-                <span>후보 {data.summary.candidates}</span>
-                <span>할 일 {data.summary.todos}</span>
-                <span>집중 {hoursLabel}</span>
+                <span>{t("dashboard.view.resources", { count: data.summary.resources })}</span>
+                <span>{t("dashboard.view.candidates", { count: data.summary.candidates })}</span>
+                <span>{t("dashboard.view.todos", { count: data.summary.todos })}</span>
+                <span>{t("dashboard.view.focus", { value: hoursLabel })}</span>
               </div>
             )}
           </DashboardWidgetTile>
 
-          <DashboardWidgetTile icon={widgetIcon("today-todos")} size="M" title="오늘 할 일">
+          <DashboardWidgetTile icon={widgetIcon("today-todos")} size="M" title={t("dashboard.view.todayTodos")}>
             {loading ? (
               <div style={{ display: "grid", gap: 8 }}>
                 <Skeleton />
@@ -118,33 +124,33 @@ export function DashboardView({ data = DASHBOARD_STORY_DATA, empty = false, load
               </div>
             ) : (
               <div className="bubli-dash-list">
-                {data.todos.map((t) => (
-                  <Line key={t.id}>
-                    <span>{t.title}</span>
-                    <StatusBadge tone={t.tone}>{t.meta}</StatusBadge>
+                {data.todos.map((todo) => (
+                  <Line key={todo.id}>
+                    <span>{t(todo.titleKey)}</span>
+                    <StatusBadge tone={todo.tone}>{t(todo.metaKey)}</StatusBadge>
                   </Line>
                 ))}
               </div>
             )}
           </DashboardWidgetTile>
 
-          <DashboardWidgetTile icon={widgetIcon("project-time-ring")} size="M" title="프로젝트별 시간">
+          <DashboardWidgetTile icon={widgetIcon("project-time-ring")} size="M" title={t("dashboard.view.projectTime")}>
             {loading ? (
               <Skeleton h={96} w={96} />
             ) : (
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <Ring
-                  label={data.timeRing.label}
+                  label={t(data.timeRing.labelKey)}
                   max={data.timeRing.max}
                   metric={`${Math.round((data.timeRing.value / data.timeRing.max) * 100)}%`}
-                  segments={data.timeRing.segments}
+                  segments={data.timeRing.segments.map((s) => ({ label: t(s.labelKey), value: s.value }))}
                   variant="time"
                 />
                 <div className="bubli-dash-list" style={{ flex: 1 }}>
                   {data.timeRing.segments.map((s) => (
-                    <Line key={s.label}>
-                      <span>{s.label}</span>
-                      <span className="bubli-dash-faint">{s.value}분</span>
+                    <Line key={s.labelKey}>
+                      <span>{t(s.labelKey)}</span>
+                      <span className="bubli-dash-faint">{t("dashboard.view.minutes", { value: s.value })}</span>
                     </Line>
                   ))}
                 </div>
@@ -152,41 +158,41 @@ export function DashboardView({ data = DASHBOARD_STORY_DATA, empty = false, load
             )}
           </DashboardWidgetTile>
 
-          <DashboardWidgetTile icon={widgetIcon("pending-approval")} size="M" title="확인 필요">
+          <DashboardWidgetTile icon={widgetIcon("pending-approval")} size="M" title={t("dashboard.view.needCheck")}>
             {loading ? (
               <Skeleton w="90%" h={40} />
             ) : (
               <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                 <span aria-hidden="true" className="bubli-agent-signal" />
                 <div style={{ display: "grid", gap: 8 }}>
-                  <p style={{ margin: 0, fontSize: 13 }}>승인 전 항목을 확인합니다.</p>
+                  <p style={{ margin: 0, fontSize: 13 }}>{t("dashboard.view.needCheckBody")}</p>
                   <div style={{ display: "flex", gap: 8 }}>
                     <Button size="sm" variant="primary">
-                      확인
+                      {t("dashboard.view.confirm")}
                     </Button>
-                    <Chip>후보 {data.agent.count}</Chip>
+                    <Chip>{t("dashboard.view.candidateCount", { count: data.agent.count })}</Chip>
                   </div>
                 </div>
               </div>
             )}
           </DashboardWidgetTile>
 
-          <DashboardWidgetTile icon={widgetIcon("pending-approval")} size="M" title="승인 대기">
+          <DashboardWidgetTile icon={widgetIcon("pending-approval")} size="M" title={t("dashboard.view.pendingApproval")}>
             {loading ? (
               <Skeleton w="80%" />
             ) : (
               <div className="bubli-dash-list">
                 {data.approvals.map((a) => (
                   <Line key={a.id}>
-                    <span>{a.title}</span>
-                    <span className="bubli-dash-faint">{a.from}</span>
+                    <span>{t(a.titleKey)}</span>
+                    <span className="bubli-dash-faint">{t(a.fromKey)}</span>
                   </Line>
                 ))}
               </div>
             )}
           </DashboardWidgetTile>
 
-          <DashboardWidgetTile icon={widgetIcon("schedule")} size="M" title="일정">
+          <DashboardWidgetTile icon={widgetIcon("schedule")} size="M" title={t("dashboard.view.schedule")}>
             {loading ? (
               <Skeleton w="70%" />
             ) : (
@@ -194,14 +200,14 @@ export function DashboardView({ data = DASHBOARD_STORY_DATA, empty = false, load
                 {data.schedule.map((s) => (
                   <Line key={s.id}>
                     <span className="bubli-dash-faint">{s.time}</span>
-                    <span style={{ flex: 1, textAlign: "right" }}>{s.title}</span>
+                    <span style={{ flex: 1, textAlign: "right" }}>{t(s.titleKey)}</span>
                   </Line>
                 ))}
               </div>
             )}
           </DashboardWidgetTile>
 
-          <DashboardWidgetTile icon={widgetIcon("notifications")} size="M" title="알림">
+          <DashboardWidgetTile icon={widgetIcon("notifications")} size="M" title={t("dashboard.view.notifications")}>
             {loading ? (
               <Skeleton w="85%" />
             ) : (
@@ -209,7 +215,7 @@ export function DashboardView({ data = DASHBOARD_STORY_DATA, empty = false, load
                 {data.notifications.map((n) => (
                   <Line key={n.id}>
                     <StatusBadge tone={n.tone}>·</StatusBadge>
-                    <span style={{ flex: 1 }}>{n.text}</span>
+                    <span style={{ flex: 1 }}>{t(n.textKey)}</span>
                   </Line>
                 ))}
               </div>

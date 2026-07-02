@@ -1,9 +1,13 @@
+"use client";
+
 import { FileText, FolderLock, UsersRound } from "lucide-react";
 import type { HTMLAttributes } from "react";
 
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 type ResourceScope = "personal" | "room";
@@ -18,11 +22,11 @@ type ResourceCardProps = HTMLAttributes<HTMLElement> & {
   title: string;
 };
 
-const statusLabel: Record<ResourceStatus, string> = {
-  normal: "자료",
-  needsReview: "확인 필요",
-  candidate: "후보",
-  approved: "승인됨",
+const statusLabelKey: Record<ResourceStatus, MessageKey> = {
+  normal: "domain.resource.statusNormal",
+  needsReview: "domain.resource.statusNeedsReview",
+  candidate: "domain.resource.statusCandidate",
+  approved: "domain.resource.statusApproved",
 };
 
 export function ResourceCard({
@@ -35,6 +39,7 @@ export function ResourceCard({
   title,
   ...props
 }: ResourceCardProps) {
+  const { t } = useI18n();
   const ScopeIcon = scope === "room" ? UsersRound : FolderLock;
 
   return (
@@ -51,12 +56,12 @@ export function ResourceCard({
       {description ? <p className="bubli-domain-card__body">{description}</p> : null}
       <footer className="bubli-domain-card__footer">
         <Chip icon={<ScopeIcon size={14} strokeWidth={2.1} />} selected={scope === "room"}>
-          {scope === "room" ? "프로젝트룸 자료" : "개인 자료"}
+          {scope === "room" ? t("domain.resource.scopeRoom") : t("domain.resource.scopePersonal")}
         </Chip>
         <StatusBadge tone={status === "needsReview" ? "warning" : status === "approved" ? "approved" : status === "candidate" ? "pending" : "neutral"}>
-          {statusLabel[status]}
+          {t(statusLabelKey[status])}
         </StatusBadge>
-        {typeof relatedCount === "number" ? <Chip>관련 문서 {relatedCount}개</Chip> : null}
+        {typeof relatedCount === "number" ? <Chip>{t("domain.resource.relatedCount", { count: relatedCount })}</Chip> : null}
       </footer>
     </GlassPanel>
   );

@@ -1,39 +1,33 @@
+"use client";
+
 import { Globe2, MonitorDown, PanelTop } from "lucide-react";
 
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
-const frames = [
-  {
-    body: "서비스 소개, 기능 안내, 다운로드 진입을 맡습니다. 회원 자료는 보이지 않습니다.",
-    icon: Globe2,
-    title: "공개 사이트",
-  },
-  {
-    body: "로그인 후 프로젝트룸, 자료보드, 작업판, 소통을 처리하는 업무 공간입니다.",
-    icon: PanelTop,
-    title: "회원 작업 화면",
-  },
-  {
-    body: "회원 작업 화면을 데스크탑에서 열고, 위젯과 기기 기능을 더합니다.",
-    icon: MonitorDown,
-    title: "데스크탑 앱",
-  },
+const frames: { icon: typeof Globe2; titleKey: MessageKey; bodyKey: MessageKey }[] = [
+  { icon: Globe2, titleKey: "public.hybrid.frame1Title", bodyKey: "public.hybrid.frame1Body" },
+  { icon: PanelTop, titleKey: "public.hybrid.frame2Title", bodyKey: "public.hybrid.frame2Body" },
+  { icon: MonitorDown, titleKey: "public.hybrid.frame3Title", bodyKey: "public.hybrid.frame3Body" },
 ];
 
 export function HybridAppFrame() {
+  const { t } = useI18n();
+
   return (
-    <section className="hybrid-frame" aria-label="웹과 앱 역할 분리">
+    <section className="hybrid-frame" aria-label={t("public.hybrid.aria")}>
       <div className="hybrid-frame__grid">
         {frames.map((frame) => {
           const Icon = frame.icon;
           return (
-            <GlassPanel className="hybrid-frame__card" key={frame.title}>
+            <GlassPanel className="hybrid-frame__card" key={frame.titleKey}>
               <span className="bubli-icon-tile" aria-hidden="true">
                 <Icon size={18} strokeWidth={2.1} />
               </span>
-              <h3>{frame.title}</h3>
-              <p>{frame.body}</p>
+              <h3>{t(frame.titleKey)}</h3>
+              <p>{t(frame.bodyKey)}</p>
               <div className="hybrid-frame__surface" aria-hidden="true">
                 <span className="hybrid-frame__surface-line" style={{ width: "72%" }} />
                 <span className="hybrid-frame__surface-line" style={{ width: "92%" }} />
@@ -44,8 +38,8 @@ export function HybridAppFrame() {
         })}
       </div>
       <div className="hybrid-frame__note">
-        <Chip>설계 포인트</Chip>
-        <span>회원 작업 화면을 그대로 쓰고, 데스크탑에서만 필요한 위젯과 기기 기능을 덧붙입니다.</span>
+        <Chip>{t("public.hybrid.noteChip")}</Chip>
+        <span>{t("public.hybrid.note")}</span>
       </div>
     </section>
   );

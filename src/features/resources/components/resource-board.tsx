@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
 type ResourceScope = "all" | "personal" | "room";
 
@@ -71,13 +73,14 @@ const resourceItems: [ResourceBoardItem, ...ResourceBoardItem[]] = [
   },
 ];
 
-const scopeCopy: Record<ResourceScope, string> = {
-  all: "전체",
-  personal: "개인 자료",
-  room: "프로젝트룸 자료",
+const scopeCopyKey: Record<ResourceScope, MessageKey> = {
+  all: "resources.board.scopeAll",
+  personal: "resources.board.scopePersonal",
+  room: "resources.board.scopeRoom",
 };
 
 export function ResourceBoard() {
+  const { t } = useI18n();
   const [activeScope, setActiveScope] = useState<ResourceScope>("all");
   const [selectedId, setSelectedId] = useState(resourceItems[0]?.id ?? "");
 
@@ -89,26 +92,26 @@ export function ResourceBoard() {
   const boardStats = [
     {
       icon: FileUp,
-      label: "받은 자료",
-      meta: `${resourceItems.length}개`,
+      label: t("resources.board.statReceived"),
+      meta: t("resources.board.countUnit", { count: resourceItems.length }),
       tone: "blue",
     },
     {
       icon: AlertCircle,
-      label: "확인 필요",
-      meta: `${reviewCount}개`,
+      label: t("resources.board.statReview"),
+      meta: t("resources.board.countUnit", { count: reviewCount }),
       tone: "pearl",
     },
     {
       icon: Sparkles,
-      label: "후보",
-      meta: `${candidateCount}개`,
+      label: t("resources.board.statCandidate"),
+      meta: t("resources.board.countUnit", { count: candidateCount }),
       tone: "opal",
     },
     {
       icon: FolderLock,
-      label: "자료 범위",
-      meta: `개인 ${personalCount} · 프로젝트룸 ${roomCount}`,
+      label: t("resources.board.statScope"),
+      meta: t("resources.board.statScopeMeta", { personal: personalCount, room: roomCount }),
       tone: "glass",
     },
   ] as const;
@@ -124,15 +127,15 @@ export function ResourceBoard() {
   const selectedResource = resourceItems.find((resource) => resource.id === selectedId) ?? filteredResources[0] ?? resourceItems[0];
 
   return (
-    <section className="resource-board" aria-label="자료보드">
+    <section className="resource-board" aria-label={t("resources.board.aria")}>
       <div className="resource-board__toolbar">
-        <div className="resource-board__filters" aria-label="자료 범위 필터">
-          {Object.entries(scopeCopy).map(([scope, label]) => (
+        <div className="resource-board__filters" aria-label={t("resources.board.filterAria")}>
+          {(Object.keys(scopeCopyKey) as ResourceScope[]).map((scope) => (
             <button
               className="resource-board__select"
               key={scope}
               onClick={() => {
-                setActiveScope(scope as ResourceScope);
+                setActiveScope(scope);
                 const nextItem = scope === "all" ? resourceItems[0] : resourceItems.find((resource) => resource.scope === scope);
                 if (nextItem) {
                   setSelectedId(nextItem.id);
@@ -141,13 +144,13 @@ export function ResourceBoard() {
               style={{ width: "auto" }}
               type="button"
             >
-              <Chip selected={activeScope === scope}>{label}</Chip>
+              <Chip selected={activeScope === scope}>{t(scopeCopyKey[scope])}</Chip>
             </button>
           ))}
         </div>
         <label style={{ position: "relative" }}>
           <Search aria-hidden="true" size={16} style={{ color: "var(--color-faint)", left: 14, position: "absolute", top: 14 }} />
-          <input className="resource-board__search" placeholder="업무 문서 관련 회의록 찾아줘" style={{ paddingLeft: 38 }} type="search" />
+          <input className="resource-board__search" placeholder={t("resources.board.demoSearchPlaceholder")} style={{ paddingLeft: 38 }} type="search" />
         </label>
       </div>
 
@@ -169,14 +172,14 @@ export function ResourceBoard() {
       </GlassPanel>
 
       <div className="resource-board__grid">
-        <section className="resource-board__list" aria-label="자료 목록">
+        <section className="resource-board__list" aria-label={t("resources.board.listAria")}>
           <div className="resource-board__list-head">
             <div>
-              <h2>자료 목록</h2>
-              <p>개인 자료와 프로젝트룸 자료를 범위별로 확인합니다.</p>
+              <h2>{t("resources.board.listTitle")}</h2>
+              <p>{t("resources.board.listDesc")}</p>
             </div>
             <Button icon={<FileUp size={15} />} size="sm" variant="primary">
-              자료 올리기
+              {t("resources.board.upload")}
             </Button>
           </div>
 
@@ -200,28 +203,28 @@ export function ResourceBoard() {
           ))}
         </section>
 
-        <section className="resource-board__detail" aria-label="자료 상세">
+        <section className="resource-board__detail" aria-label={t("resources.board.detailAria")}>
           <div className="resource-board__detail-head">
             <div>
               <h2>{selectedResource.title}</h2>
               <p>{selectedResource.meta}</p>
             </div>
             <StatusBadge tone={selectedResource.scope === "room" ? "room" : "personal"}>
-              {selectedResource.scope === "room" ? "프로젝트룸 자료" : "개인 자료"}
+              {selectedResource.scope === "room" ? t("resources.board.badgeRoom") : t("resources.board.badgePersonal")}
             </StatusBadge>
           </div>
 
           {selectedResource.scope === "personal" ? (
-            <div className="resource-board__note">개인 자료는 사용자가 공유하기 전까지 프로젝트룸 멤버와 프로젝트룸 에이전트에게 보이지 않습니다.</div>
+            <div className="resource-board__note">{t("resources.board.personalNote")}</div>
           ) : null}
 
           <div className="resource-board__detail-grid">
             <GlassPanel className="resource-board__section">
-              <h3>에이전트 정리</h3>
+              <h3>{t("resources.board.agentSummary")}</h3>
               <p>{selectedResource.agentSummary}</p>
             </GlassPanel>
             <GlassPanel className="resource-board__section">
-              <h3>관련 문서</h3>
+              <h3>{t("resources.board.relatedDocs")}</h3>
               <ul>
                 {selectedResource.relatedDocs.map((doc) => (
                   <li key={doc}>{doc}</li>
@@ -231,7 +234,7 @@ export function ResourceBoard() {
           </div>
 
           <GlassPanel className="resource-board__section">
-            <h3>확인 필요 항목</h3>
+            <h3>{t("resources.board.missingItems")}</h3>
             <ul>
               {selectedResource.missingItems.map((item) => (
                 <li key={item}>{item}</li>
@@ -241,15 +244,15 @@ export function ResourceBoard() {
 
           <SuggestionCard
             confidence={88}
-            description="자료에서 바로 확정하지 않고, 사용자가 검토할 WBS/TODO 후보로만 표시합니다."
+            description={t("resources.board.suggestionDesc")}
             source={selectedResource.title}
-            title="WBS/TODO 후보 생성"
+            title={t("resources.board.suggestionTitle")}
           />
 
           <div className="resource-board__footer">
-            <Button variant="primary">후보 확인</Button>
-            <Button variant="quiet">관련 문서 보기</Button>
-            {selectedResource.scope === "personal" ? <Button>프로젝트룸에 공유</Button> : null}
+            <Button variant="primary">{t("resources.board.confirmCandidate")}</Button>
+            <Button variant="quiet">{t("resources.board.viewRelated")}</Button>
+            {selectedResource.scope === "personal" ? <Button>{t("resources.board.shareToRoom")}</Button> : null}
           </div>
         </section>
       </div>
