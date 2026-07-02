@@ -12940,8 +12940,10 @@ html {
   }
 
   .auth-page {
-    min-height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
     grid-template-columns: 1fr;
+    align-content: center;
     padding: 22px;
   }
 
