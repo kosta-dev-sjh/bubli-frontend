@@ -55,21 +55,6 @@ const wbsAccentOptions = [
   { label: "회청", pickerValue: `${hexPrefix}CDD8DF`, value: "var(--color-rain-gray)" },
 ] as const;
 
-const viewCopy = {
-  kanban: {
-    badge: "칸반",
-    title: "상태별 작업판",
-  },
-  suggestions: {
-    badge: "후보",
-    title: "확정 전 후보",
-  },
-  wbs: {
-    badge: "WBS",
-    title: "줄 단위 작업 구조",
-  },
-} as const;
-
 const wbsPeriodCopy: Record<WbsPeriodMode, string> = {
   day: "일",
   month: "월",
@@ -471,7 +456,7 @@ function ProjectRoomWorkBoardContent({
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(board.tasks[0]?.id ?? null);
   const [trashActive, setTrashActive] = useState(false);
-  const [viewMode, setViewMode] = useState<"kanban" | "suggestions" | "wbs">("wbs");
+  const [viewMode, setViewMode] = useState<"kanban" | "suggestions" | "wbs">("kanban");
   const [draggedWbsId, setDraggedWbsId] = useState<string | null>(null);
   const [wbsDropTargetId, setWbsDropTargetId] = useState<string | null>(null);
   const [wbsPeriodMode, setWbsPeriodMode] = useState<WbsPeriodMode>("rows");
@@ -581,7 +566,6 @@ function ProjectRoomWorkBoardContent({
   const selectedWbsLinkedCount = selectedWbsId ? selectedWbsTasks.filter((task) => task.wbsItemId === selectedWbsId).length : 0;
   const selectedWbsChildCount = selectedWbsId ? childCountByWbsId[selectedWbsId] ?? 0 : 0;
   const canDeleteSelectedWbs = Boolean(selectedWbs && selectedWbsChildCount === 0 && selectedWbsLinkedCount === 0);
-  const currentViewCopy = viewCopy[viewMode];
   const timelineTasks = useMemo(() => {
     return tasks
       .filter((task) => !task.localRemoved && task.dueAt && !Number.isNaN(new Date(task.dueAt).getTime()))
@@ -981,10 +965,6 @@ function ProjectRoomWorkBoardContent({
   return (
     <div className={styles.shell}>
       <section className={styles.contextBand} aria-label="WBS와 작업판 연결 상태">
-        <div className={styles.contextCopy}>
-          <StatusBadge tone="room">{currentViewCopy.badge}</StatusBadge>
-          <h2>{currentViewCopy.title}</h2>
-        </div>
         <div className={styles.contextTools}>
           <div className={styles.viewSwitch} aria-label="작업판 보기 전환">
             <button aria-pressed={viewMode === "wbs"} onClick={() => setViewMode("wbs")} type="button">
@@ -1018,19 +998,15 @@ function ProjectRoomWorkBoardContent({
         {viewMode === "wbs" ? (
           <section className={styles.wbsWorkspace} aria-label="WBS 보기">
             <section className={styles.pane} aria-label="WBS 작업 구조표">
-              <div className={styles.paneHead}>
-                <div>
-                  <h2>WBS 줄 목록</h2>
-                  <p>하위 줄은 색 라인으로 구분하고, 월·주·일 기한 보기로 전환합니다.</p>
+              <div className={styles.wbsToolbar}>
+                <div className={styles.wbsPeriodSwitch} aria-label="WBS 보기 방식">
+                  {wbsPeriodModes.map((mode) => (
+                    <button aria-pressed={wbsPeriodMode === mode} key={mode} onClick={() => setWbsPeriodMode(mode)} type="button">
+                      {wbsPeriodCopy[mode]}
+                    </button>
+                  ))}
                 </div>
                 <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
-              </div>
-              <div className={styles.wbsPeriodSwitch} aria-label="WBS 보기 방식">
-                {wbsPeriodModes.map((mode) => (
-                  <button aria-pressed={wbsPeriodMode === mode} key={mode} onClick={() => setWbsPeriodMode(mode)} type="button">
-                    {wbsPeriodCopy[mode]}
-                  </button>
-                ))}
               </div>
 
               {wbsPeriodMode === "rows" ? (
@@ -1078,7 +1054,6 @@ function ProjectRoomWorkBoardContent({
                   <div className={styles.periodBoardHead}>
                     <span className={styles.periodTitle}>
                       <strong>{periodTitle}</strong>
-                      <span>Google Calendar처럼 기한을 기준으로 봅니다</span>
                     </span>
                     <div className={styles.periodNav} aria-label="WBS 기간 이동">
                       <button type="button" onClick={() => movePeriod(-1)}>
@@ -1128,7 +1103,6 @@ function ProjectRoomWorkBoardContent({
                   <div className={styles.periodBoardHead}>
                     <span className={styles.periodTitle}>
                       <strong>{periodTitle}</strong>
-                      <span>이날 처리할 WBS/TODO</span>
                     </span>
                     <div className={styles.periodNav} aria-label="WBS 날짜 이동">
                       <button type="button" onClick={() => movePeriod(-1)}>
@@ -1163,8 +1137,8 @@ function ProjectRoomWorkBoardContent({
             <section className={styles.wbsDetail} aria-label="선택한 WBS 상세">
               <div className={styles.paneHead}>
                 <div>
-                  <h2>{activeWbsTitle ?? "WBS 선택"}</h2>
-                  <p>{selectedWbs?.parentId ? `상위: ${wbsTitleById[selectedWbs.parentId] ?? "상위 항목"}` : "최상위 작업"}</p>
+                  <h2>{activeWbsTitle ?? "줄 선택"}</h2>
+                  {selectedWbs?.parentId ? <p>상위 {wbsTitleById[selectedWbs.parentId] ?? "항목"}</p> : null}
                 </div>
                 {selectedWbs ? <StatusBadge tone={taskTone(selectedWbs.status)}>{statusLabel(selectedWbs.status)}</StatusBadge> : null}
               </div>

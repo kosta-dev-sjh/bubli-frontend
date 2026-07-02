@@ -10,7 +10,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -101,6 +101,7 @@ function formatDue(value?: string | null) {
 
 export default function ProjectRoomHomePage() {
   const params = useParams<{ roomId: string }>();
+  const router = useRouter();
   const roomId = params.roomId;
   const [state, setState] = useState<RoomHomeState>({ kind: "loading" });
 
@@ -172,6 +173,12 @@ export default function ProjectRoomHomePage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [load]);
+
+  useEffect(() => {
+    if (state.kind === "ready") {
+      router.replace(`/app/project-rooms/${roomId}/work`);
+    }
+  }, [roomId, router, state.kind]);
 
   const roomContent = useMemo(() => {
     if (state.kind !== "ready") return null;

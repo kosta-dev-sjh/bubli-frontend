@@ -1,32 +1,32 @@
 .shell {
   display: grid;
   font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
-  gap: 12px;
+  gap: 10px;
   letter-spacing: 0;
   min-inline-size: 0;
   text-rendering: optimizeLegibility;
   word-break: keep-all;
 }
 
-.contextBand {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 16px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 12px 30px rgba(107, 143, 168, 0.1);
-  color: #2c3540;
-  display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  justify-content: stretch;
-  padding: 8px 10px;
+.shell button,
+.shell input,
+.shell :global(.bubli-status) {
+  font-family: inherit;
+  letter-spacing: 0;
 }
 
-.contextCopy {
+.contextBand {
   align-items: center;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 12px 30px rgba(107, 143, 168, 0.1);
+  color: #2c3540;
   display: flex;
-  gap: 9px;
+  gap: 12px;
   min-inline-size: 0;
+  justify-content: flex-end;
+  padding: 7px;
 }
 
 .contextTools {
@@ -36,12 +36,13 @@
   gap: 8px;
   justify-content: flex-end;
   min-inline-size: 0;
+  inline-size: 100%;
 }
 
 .viewSwitch {
   display: inline-flex;
-  gap: 5px;
-  padding: 5px;
+  gap: 2px;
+  padding: 4px;
   border: 1px solid rgba(255, 255, 255, 0.86);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.64);
@@ -52,15 +53,15 @@
   display: inline-flex;
   gap: 6px;
   align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 36px;
+  padding: 0 14px;
   border: 0;
   border-radius: 999px;
   color: #5a6772;
   background: transparent;
   font: inherit;
-  font-size: 12px;
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: 820;
   letter-spacing: 0;
   cursor: pointer;
   transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease, transform 160ms ease;
@@ -75,26 +76,18 @@
   transform: translateY(-1px);
 }
 
-.contextBand h2 {
-  color: #2c3540;
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.25;
-  margin: 0;
-  white-space: nowrap;
-}
-
 .paneHead h2 {
   color: #2c3540;
-  font-size: 17px;
+  font-size: 15px;
+  font-weight: 820;
   line-height: 1.35;
   margin: 0 0 4px;
 }
 
-.contextBand p,
 .paneHead p {
   color: #5a6772;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 700;
   line-height: 1.55;
   margin: 0;
 }
@@ -113,7 +106,8 @@
   border-radius: 999px;
   color: #5a6772;
   display: inline-flex;
-  font-size: 12px;
+  font-size: 11.5px;
+  font-weight: 780;
   gap: 6px;
   padding: 6px 9px;
 }
@@ -126,13 +120,13 @@
 .kanbanPane,
 .wbsDetail,
 .suggestionTray {
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(18px);
   border: 1px solid rgba(255, 255, 255, 0.85);
   border-radius: 16px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 14px 34px rgba(107, 143, 168, 0.12);
   min-inline-size: 0;
-  padding: 14px;
+  padding: 12px;
 }
 
 .wbsWorkspace {
@@ -146,6 +140,14 @@
 .wbsWorkspace .pane {
   overflow-x: auto;
   padding: 12px;
+}
+
+.wbsToolbar {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-block-end: 10px;
 }
 
 .paneHead {
@@ -164,7 +166,7 @@
 }
 
 .wbsList {
-  background: rgba(255, 255, 255, 0.68);
+  background: rgba(255, 255, 255, 0.78);
   border: 1px solid rgba(229, 231, 235, 0.82);
   border-radius: 14px;
   gap: 0;
@@ -179,7 +181,6 @@
   border-radius: 999px;
   display: inline-flex;
   gap: 4px;
-  margin-block-end: 10px;
   padding: 4px;
 }
 
@@ -359,13 +360,13 @@
 
 .wbsTableHead {
   align-items: center;
-  background: rgba(247, 249, 250, 0.86);
+  background: rgba(247, 249, 250, 0.9);
   border: 1px solid rgba(229, 231, 235, 0.82);
   border-radius: 14px;
   color: #5a6772;
   display: grid;
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 11.5px;
+  font-weight: 760;
   gap: 8px;
   grid-template-columns: 42px 56px minmax(240px, 1.7fr) 82px 54px 76px 50px;
   letter-spacing: 0;
@@ -387,7 +388,7 @@
   display: grid;
   gap: 8px;
   grid-template-columns: 42px 56px minmax(240px, 1.7fr) 82px 54px 76px 50px;
-  min-block-size: 48px;
+  min-block-size: 50px;
   min-inline-size: 720px;
   padding: 8px 12px;
   position: relative;
@@ -541,8 +542,8 @@
 .selectedWbs strong,
 .trashZone strong {
   color: #2c3540;
-  font-size: 14px;
-  font-weight: 800;
+  font-size: 13.5px;
+  font-weight: 760;
   line-height: 1.35;
   min-inline-size: 0;
   overflow: hidden;
@@ -583,7 +584,8 @@
 .selectedWbs small,
 .trashZone small {
   color: #5a6772;
-  font-size: 11px;
+  font-size: 11.5px;
+  font-weight: 680;
   line-height: 1.4;
   overflow-wrap: normal;
   word-break: keep-all;
