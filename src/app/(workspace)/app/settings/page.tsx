@@ -668,6 +668,7 @@ export default function SettingsPage() {
   const searchLocalFiles = useCallback(async () => {
     const query = folderSearchQuery.trim();
     if (!query) {
+      setLocalFiles([]);
       setLocalActionMessage("검색어를 입력하세요");
       return;
     }
