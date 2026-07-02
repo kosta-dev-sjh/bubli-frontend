@@ -7,11 +7,8 @@ import {
   getStoredAuthSession,
   restoreStoredAuthSessionFromTauri,
 } from "@/lib/auth/auth-session";
-import { stopActivityAutoCapture } from "@/lib/local/activity-auto-capture";
-import { stopManagedFolderAutoSync } from "@/lib/local/managed-folder-auto-sync";
-import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
+import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
 
 export function TauriPostLoginLauncher() {
   useEffect(() => {
@@ -23,9 +20,7 @@ export function TauriPostLoginLauncher() {
       const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
       const hasAuthenticatedSession = Boolean(session);
       if (!hasAuthenticatedSession) {
-        stopActivityAutoCapture();
-        stopManagedFolderAutoSync();
-        stopWidgetUsageAutoSync();
+        await stopTauriAuthenticatedSurfaces();
         return;
       }
 
@@ -39,9 +34,7 @@ export function TauriPostLoginLauncher() {
 
     return () => {
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
-      stopActivityAutoCapture();
-      stopManagedFolderAutoSync();
-      stopWidgetUsageAutoSync();
+      void stopTauriAuthenticatedSurfaces();
     };
   }, []);
 

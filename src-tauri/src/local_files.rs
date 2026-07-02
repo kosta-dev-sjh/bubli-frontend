@@ -183,6 +183,7 @@ pub struct LocalFileReindexResult {
 pub struct SyncOutboxFlushResult {
     failed_count: i64,
     flushed_at: String,
+    pending_count: i64,
     sent_count: i64,
 }
 
@@ -1394,24 +1395,27 @@ pub fn reindex_file(
 #[tauri::command]
 pub fn flush_sync_outbox(state: State<'_, Db>) -> Result<SyncOutboxFlushResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-    let failed_count: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM local_sync_outbox WHERE status = 'FAILED'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
-    let sent_count: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM local_sync_outbox WHERE status = 'SENT'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
+    sync_outbox_summary_for_conn(&conn)
+}
+
+fn sync_outbox_count_for_conn(conn: &Connection, status: &str) -> Result<i64, String> {
+    conn.query_row(
+        "SELECT COUNT(*) FROM local_sync_outbox WHERE status = ?1",
+        params![status],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn sync_outbox_summary_for_conn(conn: &Connection) -> Result<SyncOutboxFlushResult, String> {
+    let pending_count = sync_outbox_count_for_conn(conn, "PENDING")?;
+    let failed_count = sync_outbox_count_for_conn(conn, "FAILED")?;
+    let sent_count = sync_outbox_count_for_conn(conn, "SENT")?;
 
     Ok(SyncOutboxFlushResult {
         failed_count,
         flushed_at: crate::local_db::now_iso(),
+        pending_count,
         sent_count,
     })
 }
@@ -1977,6 +1981,28 @@ mod tests {
         assert_eq!(retry_count, 1);
         assert!(payload.contains("\"eventType\":\"UPDATED\""));
         assert!(payload.contains("\"resourceId\":\"resource-1\""));
+    }
+
+    #[test]
+    fn sync_outbox_summary_reports_pending_failed_and_sent_counts() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO local_sync_outbox \
+             (id, idempotency_key, operation, payload_json, status, retry_count, created_at, updated_at) \
+             VALUES \
+             ('outbox-1', 'key-1', 'local_file_event', '{}', 'PENDING', 0, 1, 1), \
+             ('outbox-2', 'key-2', 'local_file_event', '{}', 'PENDING', 0, 1, 1), \
+             ('outbox-3', 'key-3', 'local_file_event', '{}', 'FAILED', 1, 1, 1), \
+             ('outbox-4', 'key-4', 'local_file_event', '{}', 'SENT', 0, 1, 1)",
+            [],
+        )
+        .expect("insert outbox rows");
+
+        let summary = sync_outbox_summary_for_conn(&conn).expect("read outbox summary");
+
+        assert_eq!(summary.pending_count, 2);
+        assert_eq!(summary.failed_count, 1);
+        assert_eq!(summary.sent_count, 1);
     }
 
     #[test]
