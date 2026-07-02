@@ -332,12 +332,12 @@ impl Default for ManagedFolderWatchers {
 /// Register a personal managed folder. When the frontend does not pass an
 /// explicit path, use the native desktop folder picker.
 #[tauri::command]
-pub fn select_managed_folder(
+pub async fn select_managed_folder(
     app: AppHandle,
     state: State<'_, Db>,
     input: Option<SelectManagedFolderInput>,
 ) -> Result<ManagedFolderSelection, String> {
-    let path_buf = resolve_managed_folder_path(&app, input)?;
+    let path_buf = resolve_managed_folder_path(&app, input).await?;
     if !path_buf.is_dir() {
         return Err(format!("not a directory: {}", path_buf.display()));
     }
@@ -415,7 +415,7 @@ fn list_managed_folders_for_conn(
     })
 }
 
-fn resolve_managed_folder_path(
+async fn resolve_managed_folder_path(
     app: &AppHandle,
     input: Option<SelectManagedFolderInput>,
 ) -> Result<PathBuf, String> {
@@ -427,10 +427,18 @@ fn resolve_managed_folder_path(
         return Ok(PathBuf::from(path));
     }
 
+    let (sender, mut receiver) = tauri::async_runtime::channel(1);
     app.dialog()
         .file()
         .set_title("Select managed folder")
-        .blocking_pick_folder()
+        .pick_folder(move |folder| {
+            let _ = sender.blocking_send(folder);
+        });
+
+    receiver
+        .recv()
+        .await
+        .ok_or_else(|| "folder selection channel closed".to_string())?
         .ok_or_else(|| "folder selection cancelled".to_string())?
         .into_path()
         .map_err(|error| format!("folder path resolve failed: {error}"))
