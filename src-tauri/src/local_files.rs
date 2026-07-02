@@ -91,6 +91,16 @@ pub struct ManagedFolderWatchResult {
     watching: bool,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderWatchAllResult {
+    active_folder_count: i64,
+    skipped_count: i64,
+    skipped_folder_ids: Vec<String>,
+    watched_count: i64,
+    watched_folder_ids: Vec<String>,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ManagedFolderWatchEvent {
@@ -574,24 +584,90 @@ pub fn watch_managed_folder(
     input: ManagedFolderCommandInput,
 ) -> Result<ManagedFolderWatchResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-    let folder_path: String = conn
-        .query_row(
-            "SELECT path FROM managed_folders WHERE id = ?1 AND status = 'ACTIVE'",
-            params![input.local_folder_id],
-            |row| row.get(0),
-        )
-        .optional()
-        .map_err(|error| error.to_string())?
+    let folder_path: String = managed_folder_path_for_conn(&conn, &input.local_folder_id)?
         .ok_or_else(|| format!("managed folder not found: {}", input.local_folder_id))?;
     drop(conn);
 
+    start_managed_folder_watcher(&app, &watchers, input.local_folder_id, folder_path)
+}
+
+/// Restore native watching for every registered active managed folder after a
+/// Tauri session starts. Server sync still only stages folders with
+/// sync_enabled=1; watching keeps the local SQLite index fresh.
+#[tauri::command]
+pub fn watch_all_managed_folders(
+    app: AppHandle,
+    state: State<'_, Db>,
+    watchers: State<'_, ManagedFolderWatchers>,
+) -> Result<ManagedFolderWatchAllResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let folders = active_managed_folders_for_conn(&conn)?;
+    drop(conn);
+
+    let active_folder_count = folders.len() as i64;
+    let mut watched_folder_ids = Vec::new();
+    let mut skipped_folder_ids = Vec::new();
+
+    for (local_folder_id, folder_path) in folders {
+        match start_managed_folder_watcher(&app, &watchers, local_folder_id.clone(), folder_path) {
+            Ok(result) if result.watching => watched_folder_ids.push(result.local_folder_id),
+            Ok(_) => skipped_folder_ids.push(local_folder_id),
+            Err(error) => {
+                eprintln!("managed folder auto-watch skipped {local_folder_id}: {error}");
+                skipped_folder_ids.push(local_folder_id);
+            }
+        }
+    }
+
+    Ok(ManagedFolderWatchAllResult {
+        active_folder_count,
+        skipped_count: skipped_folder_ids.len() as i64,
+        skipped_folder_ids,
+        watched_count: watched_folder_ids.len() as i64,
+        watched_folder_ids,
+    })
+}
+
+fn managed_folder_path_for_conn(
+    conn: &Connection,
+    local_folder_id: &str,
+) -> Result<Option<String>, String> {
+    conn.query_row(
+        "SELECT path FROM managed_folders WHERE id = ?1 AND status = 'ACTIVE'",
+        params![local_folder_id],
+        |row| row.get(0),
+    )
+    .optional()
+    .map_err(|error| error.to_string())
+}
+
+fn active_managed_folders_for_conn(conn: &Connection) -> Result<Vec<(String, String)>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, path FROM managed_folders WHERE status = 'ACTIVE' ORDER BY updated_at DESC",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|error| error.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())
+}
+
+fn start_managed_folder_watcher(
+    app: &AppHandle,
+    watchers: &ManagedFolderWatchers,
+    local_folder_id: String,
+    folder_path: String,
+) -> Result<ManagedFolderWatchResult, String> {
     let folder = PathBuf::from(&folder_path);
     if !folder.is_dir() {
         return Err(format!("not a directory: {folder_path}"));
     }
 
-    let db_path = crate::local_db::database_path(&app)?;
-    let local_folder_id = input.local_folder_id;
+    let db_path = crate::local_db::database_path(app)?;
     let mut guard = watchers
         .0
         .lock()

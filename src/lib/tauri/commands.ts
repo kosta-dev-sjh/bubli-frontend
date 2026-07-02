@@ -51,6 +51,7 @@ export const TAURI_COMMANDS = {
   toggleWidgetDockOrb: "toggle_widget_dock_orb",
   toggleWidgetWindow: "toggle_widget_window",
   updateWidgetTrayState: "update_widget_tray_state",
+  watchAllManagedFolders: "watch_all_managed_folders",
   watchManagedFolder: "watch_managed_folder",
 } as const;
 
@@ -110,6 +111,14 @@ export type ManagedFolderIndexProgressResult = {
 export type ManagedFolderWatchResult = {
   localFolderId: string;
   watching: boolean;
+};
+
+export type ManagedFolderWatchAllResult = {
+  activeFolderCount: number;
+  skippedCount: number;
+  skippedFolderIds: string[];
+  watchedCount: number;
+  watchedFolderIds: string[];
 };
 
 export type LocalFileSearchInput = {
@@ -716,6 +725,10 @@ export type TauriCommandContract = {
     args: WidgetBooleanInput;
     result: WidgetWindowState;
   };
+  watch_all_managed_folders: {
+    args: undefined;
+    result: ManagedFolderWatchAllResult;
+  };
   watch_managed_folder: {
     args: ManagedFolderCommandInput;
     result: ManagedFolderWatchResult;
@@ -894,6 +907,9 @@ export const tauriCommands = {
   },
   updateWidgetTrayState(input: WidgetBooleanInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.updateWidgetTrayState, { input });
+  },
+  watchAllManagedFolders() {
+    return invokeTauri<ManagedFolderWatchAllResult>(TAURI_COMMANDS.watchAllManagedFolders);
   },
   watchManagedFolder(input: ManagedFolderCommandInput) {
     return invokeTauri<ManagedFolderWatchResult>(TAURI_COMMANDS.watchManagedFolder, { input });
