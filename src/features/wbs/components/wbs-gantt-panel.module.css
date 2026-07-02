@@ -108,15 +108,17 @@
   background:
     linear-gradient(
       90deg,
-      color-mix(in srgb, var(--gantt-row-accent) 26%, rgba(255, 255, 255, 0.92)) 0%,
-      rgba(215, 234, 244, 0.72) 48%,
-      rgba(255, 255, 255, 0.9) 100%
+      color-mix(in srgb, var(--gantt-row-accent) 42%, rgba(255, 255, 255, 0.9)) 0%,
+      rgba(215, 234, 244, 0.92) 46%,
+      rgba(255, 255, 255, 0.96) 100%
     ) !important;
   box-shadow:
-    inset 4px 0 0 var(--gantt-row-accent),
-    inset 0 0 0 1px rgba(107, 143, 168, 0.28),
-    0 10px 22px -20px rgba(44, 53, 64, 0.36);
+    inset 6px 0 0 var(--gantt-row-accent),
+    inset 0 0 0 1px color-mix(in srgb, var(--gantt-row-accent) 52%, rgba(107, 143, 168, 0.38)),
+    0 12px 24px -18px rgba(44, 53, 64, 0.42);
   color: #2C3540;
+  outline: 1px solid color-mix(in srgb, var(--gantt-row-accent) 38%, rgba(107, 143, 168, 0.28));
+  outline-offset: -1px;
 }
 
 .selectedRow :global(.text-muted-foreground) {
@@ -144,6 +146,16 @@
   border-color: rgba(229, 231, 235, 0.9);
   left: 0;
   position: sticky;
+}
+
+.ganttSurface :global([data-gantt-item-kind="child"]) {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--gantt-row-accent) 16%, rgba(255, 255, 255, 0.96)) 0%,
+      rgba(255, 255, 255, 0.94) 54%,
+      rgba(255, 255, 255, 0.9) 100%
+    );
 }
 
 .ganttSurface :global(.bg-secondary) {

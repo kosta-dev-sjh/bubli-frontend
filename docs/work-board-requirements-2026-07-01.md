@@ -22,8 +22,8 @@
 - 일 보기는 하루 안에 처리할 WBS/TODO를 목록으로 보여준다.
 - 기간 보기는 Google Calendar 연동과 같은 일정 기준을 따른다. WBS/TODO에서 만든 기한은 일정 추가 또는 동기화 시 캘린더에 이어질 수 있어야 한다.
 - WBS 간트에서 만든 기간은 `schedules.wbsItemId`로 연결된 일정으로 저장한다.
-- WBS 기간을 지우거나 WBS를 삭제할 때는 먼저 `DELETE /api/schedules/{scheduleId}`로 일정과 Google Calendar 이벤트를 지운다.
-- 일정 삭제가 실패하면 화면에서도 기간이나 WBS를 지우지 않는다. 화면에 없는 데이터가 DB나 Google Calendar에 남으면 안 된다.
+- WBS 기간을 지우거나 WBS를 삭제할 때는 연결된 `schedules.wbsItemId` 일정을 함께 정리한다.
+- Google Calendar 삭제가 실패해도 Bubli WBS 삭제는 막지 않는다. Bubli DB에서 삭제가 확정된 뒤, Google 쪽 삭제 실패분은 재동기화 또는 삭제 재시도 대상으로 남긴다.
 - 선택한 WBS의 연결 TODO, 기한, 하위 작업 수를 보여준다.
 - 상위 WBS를 선택하면 하위 WBS에 연결된 TODO도 함께 보여준다.
 - 선택한 WBS는 이름, 기한, 상태를 바로 수정할 수 있어야 한다.
@@ -75,9 +75,9 @@
 - 프로젝트룸 TODO: `GET /api/project-rooms/{roomId}/tasks`
 - WBS/TODO 기간 표시: `dueAt` 기준으로 월/주/일 보기에 매핑
 - WBS 기간 생성/수정: `POST /api/schedules`, `PATCH /api/schedules/{scheduleId}`
-- WBS 기간 삭제: `DELETE /api/schedules/{scheduleId}`. 백엔드가 Google Calendar 동기화 삭제와 DB 삭제를 함께 처리한다.
-- Google Calendar 연동: WBS 기간은 일정 생성/동기화 API와 같은 날짜 기준을 사용하고, 삭제도 일정 삭제 API 성공 후 화면에서 제거한다.
-- Google Calendar에서 직접 삭제한 일정은 다음 동기화 때 `cancelled` 상태로 들어오며, 같은 `googleEventId`를 가진 로컬 일정을 제거해야 한다.
+- WBS 기간 삭제: `DELETE /api/schedules/{scheduleId}`. Google Calendar 이벤트가 이미 없으면 삭제 성공으로 본다.
+- Google Calendar 연동: WBS 기간은 일정 생성/동기화 API와 같은 날짜 기준을 사용한다. 삭제는 Bubli DB를 기준으로 먼저 확정하고, Google Calendar 삭제 실패분은 재시도 대기열로 처리한다.
+- Google Calendar에서 직접 삭제한 일정은 다음 동기화 때 `cancelled` 상태로 들어오거나 조회되지 않을 수 있다. 같은 `googleEventId`를 가진 로컬 일정은 삭제된 외부 일정으로 판단해 제거해야 한다.
 - WBS 후보 생성: `POST /api/ai/generate-wbs`
 - 칸반 후보 생성: `POST /api/ai/generate-tasks`
 - 후보 목록: `GET /api/project-rooms/{roomId}/agent/suggestions?status=DRAFT&suggestionType=...`

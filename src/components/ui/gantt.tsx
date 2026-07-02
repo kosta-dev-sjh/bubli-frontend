@@ -509,6 +509,7 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
   return (
     <div
       className={cn("relative flex items-center gap-2.5 p-2.5 text-xs", className)}
+      data-gantt-item-kind={indentLevel > 0 ? "child" : "parent"}
       key={feature.id}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
@@ -858,6 +859,7 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
   const timelineStartDate = new Date(gantt.timelineData.at(0)?.year ?? 0, 0, 1);
   const [startAt, setStartAt] = useState<Date>(feature.startAt);
   const [endAt, setEndAt] = useState<Date | null>(feature.endAt);
+  const lockedScrollLeftRef = useRef<number | null>(null);
   const width = getWidth(startAt, endAt, gantt);
   const offset = getOffset(startAt, timelineStartDate, gantt);
   const addRange = getAddRange(gantt.range);
@@ -875,16 +877,41 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
 
   const getTimelineMouseX = () => {
     const ganttRect = gantt.ref?.current?.getBoundingClientRect();
-    return mousePosition.x - (ganttRect?.left ?? 0) + scrollX - gantt.sidebarWidth;
+    const effectiveScrollLeft = lockedScrollLeftRef.current ?? scrollX;
+    return mousePosition.x - (ganttRect?.left ?? 0) + effectiveScrollLeft - gantt.sidebarWidth;
+  };
+
+  const lockScrollLeft = () => {
+    if (lockedScrollLeftRef.current === null) {
+      lockedScrollLeftRef.current = gantt.ref?.current?.scrollLeft ?? scrollX;
+    }
+  };
+
+  const restoreScrollLeft = () => {
+    const lockedScrollLeft = lockedScrollLeftRef.current;
+    const root = gantt.ref?.current;
+    if (root && lockedScrollLeft !== null && root.scrollLeft !== lockedScrollLeft) {
+      root.scrollTo({ behavior: "auto", left: lockedScrollLeft, top: root.scrollTop });
+    }
+  };
+
+  const releaseScrollLeft = () => {
+    lockedScrollLeftRef.current = null;
   };
 
   const handleItemDragStart = () => {
+    lockScrollLeft();
     setPreviousMouseX(getTimelineMouseX());
     setPreviousStartAt(startAt);
     setPreviousEndAt(endAt);
   };
 
+  const handleRangeDragStart = () => {
+    lockScrollLeft();
+  };
+
   const handleItemDragMove = () => {
+    restoreScrollLeft();
     const currentDate = getDateByMousePosition(gantt, getTimelineMouseX());
     const originalDate = getDateByMousePosition(gantt, previousMouseX);
     const delta =
@@ -898,15 +925,21 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
     setEndAt(newEndDate);
   };
 
-  const onDragEnd = () => onMove?.(feature.id, startAt, endAt);
+  const onDragEnd = () => {
+    restoreScrollLeft();
+    onMove?.(feature.id, startAt, endAt);
+    releaseScrollLeft();
+  };
 
   const handleLeftDragMove = () => {
+    restoreScrollLeft();
     const newStartAt = getDateByMousePosition(gantt, getTimelineMouseX());
 
     setStartAt(newStartAt);
   };
 
   const handleRightDragMove = () => {
+    restoreScrollLeft();
     const newEndAt = getDateByMousePosition(gantt, getTimelineMouseX());
 
     setEndAt(newEndAt);
@@ -932,6 +965,7 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
             modifiers={[restrictToHorizontalAxis]}
             onDragEnd={onDragEnd}
             onDragMove={handleLeftDragMove}
+            onDragStart={handleRangeDragStart}
             sensors={[mouseSensor]}
           >
             <GanttFeatureDragHelper date={startAt} direction="left" featureId={feature.id} />
@@ -955,6 +989,7 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
             modifiers={[restrictToHorizontalAxis]}
             onDragEnd={onDragEnd}
             onDragMove={handleRightDragMove}
+            onDragStart={handleRangeDragStart}
             sensors={[mouseSensor]}
           >
             <GanttFeatureDragHelper date={endAt ?? addRange(startAt, 2)} direction="right" featureId={feature.id} />

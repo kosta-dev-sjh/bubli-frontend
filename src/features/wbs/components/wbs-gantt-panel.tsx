@@ -453,31 +453,44 @@ export function WbsGanttPanel({
       return;
     }
 
-    try {
-      if (schedule) {
+    let calendarDeleteFailed = false;
+
+    if (schedule) {
+      try {
         await calendarApi.deleteEvent(schedule.id);
+      } catch {
+        calendarDeleteFailed = true;
+      } finally {
         setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
       }
+    }
 
+    try {
       await wbsApi.deleteItem(item.id);
-      setLocalRanges((current) => {
-        const next = { ...current };
-        delete next[item.id];
-        return next;
-      });
-      onWbsDeleted(item.id);
-      onNotice(t("wbs.gantt.notice.deleted"));
     } catch {
       if (shouldUseWorkspacePreviewData()) {
-        if (schedule) {
-          setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
-        }
         onWbsDeleted(item.id);
         onNotice(t("wbs.gantt.notice.deletedLocal"));
         return;
       }
-      onNotice(t("wbs.gantt.notice.deleteFailed"));
+      if (schedule) {
+        setSchedules((current) => {
+          if (current.some((entry) => entry.id === schedule.id)) return current;
+          return [...current, schedule];
+        });
+      }
+
+      onNotice("삭제 실패 — WBS가 서버에 남아 있습니다");
+      return;
     }
+
+    setLocalRanges((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    onWbsDeleted(item.id);
+    onNotice(calendarDeleteFailed ? "삭제됨 — 캘린더 동기화 대기" : "삭제됨");
   };
 
   return (
