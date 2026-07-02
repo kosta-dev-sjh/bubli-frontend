@@ -171,18 +171,6 @@ const getAddRange = (range: Range) => {
 const weeksInYear = (year: number) =>
   differenceInCalendarWeeks(new Date(year + 1, 0, 1), new Date(year, 0, 1), WEEK_OPTIONS);
 
-const getYearColumnCount = (year: number, range: Range) => {
-  if (range === "daily") {
-    return differenceInDays(new Date(year + 1, 0, 1), new Date(year, 0, 1));
-  }
-
-  if (range === "weekly") {
-    return weeksInYear(year);
-  }
-
-  return 12;
-};
-
 const getDateByMousePosition = (context: GanttContextProps, mouseX: number) => {
   const rawTimelineStartDate = new Date(context.timelineData[0].year, 0, 1);
   const timelineStartDate = getStartOf(context.range)(rawTimelineStartDate);
@@ -490,10 +478,8 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
   const duration = formatDateRange(feature.startAt, tempEndAt);
   const color = accentColor ?? feature.status.color;
 
-  const handleClick: MouseEventHandler<HTMLDivElement> = (event) => {
-    if (event.target === event.currentTarget) {
-      onSelectItem?.(feature.id);
-    }
+  const handleClick: MouseEventHandler<HTMLDivElement> = () => {
+    onSelectItem?.(feature.id);
   };
 
   const handleKeyDown: KeyboardEventHandler<HTMLDivElement> = (event) => {
@@ -871,7 +857,11 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
   };
 
   return (
-    <div className={cn("relative flex w-max min-w-full py-0.5", className)} style={{ height: "var(--gantt-row-height)" }}>
+    <div
+      className={cn("relative flex w-max min-w-full py-0.5", className)}
+      data-gantt-feature-id={feature.id}
+      style={{ height: "var(--gantt-row-height)" }}
+    >
       <div
         className="pointer-events-auto absolute top-0.5"
         style={{
@@ -1009,7 +999,7 @@ export type GanttProviderProps = {
 
 export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "monthly", onAddItem, children, className }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [timelineData, setTimelineData] = useState<TimelineData>(createInitialTimelineData(new Date()));
+  const [timelineData] = useState<TimelineData>(createInitialTimelineData(new Date()));
   const [, setScrollX] = useGanttScrollX();
   const sidebarElement = scrollRef.current?.querySelector('[data-roadmap-ui="gantt-sidebar"]');
 
@@ -1071,64 +1061,9 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
         return;
       }
 
-      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-
-      setScrollX(scrollLeft);
-
-      if (scrollLeft === 0) {
-        // Extend timelineData to the past
-        const firstYear = timelineData[0]?.year;
-
-        if (!firstYear) {
-          return;
-        }
-
-        const newTimelineData: TimelineData = [...timelineData];
-        newTimelineData.unshift({
-          year: firstYear - 1,
-          quarters: new Array(4).fill(null).map((_, quarterIndex) => ({
-            months: new Array(3).fill(null).map((_, monthIndex) => {
-              const month = quarterIndex * 3 + monthIndex;
-              return {
-                days: getDaysInMonth(new Date(firstYear, month, 1)),
-              };
-            }),
-          })),
-        });
-
-        setTimelineData(newTimelineData);
-
-        const addedYearWidth = getYearColumnCount(firstYear - 1, range) * ((zoom / 100) * columnWidth);
-        scrollRef.current.scrollLeft = scrollLeft + addedYearWidth;
-        setScrollX(scrollRef.current.scrollLeft);
-      } else if (scrollLeft + clientWidth >= scrollWidth) {
-        // Extend timelineData to the future
-        const lastYear = timelineData.at(-1)?.year;
-
-        if (!lastYear) {
-          return;
-        }
-
-        const newTimelineData: TimelineData = [...timelineData];
-        newTimelineData.push({
-          year: lastYear + 1,
-          quarters: new Array(4).fill(null).map((_, quarterIndex) => ({
-            months: new Array(3).fill(null).map((_, monthIndex) => {
-              const month = quarterIndex * 3 + monthIndex;
-              return {
-                days: getDaysInMonth(new Date(lastYear, month, 1)),
-              };
-            }),
-          })),
-        });
-
-        setTimelineData(newTimelineData);
-
-        scrollRef.current.scrollLeft = scrollLeft;
-        setScrollX(scrollRef.current.scrollLeft);
-      }
+      setScrollX(scrollRef.current.scrollLeft);
     }, 100),
-    [timelineData, setScrollX],
+    [setScrollX],
   );
 
   useEffect(() => {
