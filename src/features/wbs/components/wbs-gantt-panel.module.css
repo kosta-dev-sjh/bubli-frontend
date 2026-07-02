@@ -216,18 +216,21 @@
 .ganttSurface :global([data-roadmap-ui="gantt-sidebar"]) {
   background: rgba(255, 255, 255, 0.92);
   border-color: rgba(229, 231, 235, 0.9);
+  inline-size: var(--gantt-sidebar-width);
   left: 0;
   position: sticky;
+  z-index: 48;
 }
 
 .ganttSurface :global([data-gantt-item-kind="child"]) {
   background:
     linear-gradient(
       90deg,
-      color-mix(in srgb, var(--gantt-row-accent) 16%, rgba(255, 255, 255, 0.96)) 0%,
-      rgba(255, 255, 255, 0.94) 54%,
+      color-mix(in srgb, var(--gantt-row-accent) 24%, rgba(255, 255, 255, 0.94)) 0%,
+      rgba(255, 255, 255, 0.94) 58%,
       rgba(255, 255, 255, 0.9) 100%
     );
+  box-shadow: inset 4px 0 0 color-mix(in srgb, var(--gantt-row-accent) 62%, rgba(107, 143, 168, 0.3));
 }
 
 .ganttSurface :global(.bg-secondary) {

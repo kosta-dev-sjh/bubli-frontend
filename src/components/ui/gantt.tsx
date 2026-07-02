@@ -1094,6 +1094,7 @@ export type GanttProviderProps = {
 
 export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "monthly", onAddItem, children, className }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const centeredRangeRef = useRef<string | null>(null);
   const [timelineData] = useState<TimelineData>(createInitialTimelineData(new Date()));
   const [sidebarWidth, setSidebarWidth] = useState(350);
   const [isDragging] = useGanttDragging();
@@ -1126,6 +1127,29 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
       setScrollX(element.scrollLeft);
     }
   }, [range, zoom, setScrollX]);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    const rangeKey = `${range}:${zoom}`;
+    if (!element || centeredRangeRef.current === rangeKey) return;
+
+    centeredRangeRef.current = rangeKey;
+    const frameId = window.requestAnimationFrame(() => {
+      const today = element.querySelector<HTMLElement>('[data-roadmap-ui="gantt-today"]');
+      if (!today) return;
+
+      const elementRect = element.getBoundingClientRect();
+      const todayRect = today.getBoundingClientRect();
+      const viewportCenter = elementRect.left + sidebarWidth + (element.clientWidth - sidebarWidth) / 2;
+      const todayCenter = todayRect.left + todayRect.width / 2;
+      const nextScrollLeft = Math.max(0, element.scrollLeft + todayCenter - viewportCenter);
+
+      element.scrollTo({ behavior: "auto", left: nextScrollLeft, top: element.scrollTop });
+      setScrollX(nextScrollLeft);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [range, sidebarWidth, setScrollX, zoom]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: "Throttled"
   const handleScroll = useCallback(
