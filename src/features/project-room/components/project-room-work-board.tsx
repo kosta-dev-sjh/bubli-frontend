@@ -10,6 +10,7 @@ import {
   type KanbanColumn as KanbanBoardColumn,
 } from "@/components/ui/kanban";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { agentApi } from "@/features/agent/api/agentApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { WbsGanttPanel } from "@/features/wbs/components/wbs-gantt-panel";
@@ -33,6 +34,14 @@ type LocalTask = TaskResponse & {
 type WbsEditDraft = {
   title: string;
   wbsId: string | null;
+};
+
+type CandidateGenerationKind = "tasks" | "wbs";
+
+type CandidateGenerationState = {
+  kind: CandidateGenerationKind;
+  message: string;
+  status: "error" | "pending" | "success";
 };
 
 const columns: KanbanColumn[] = [
@@ -136,6 +145,11 @@ function activeTaskStatus(status: TaskStatus) {
   return status === "BLOCKED" ? "REVIEW" : status;
 }
 
+function generationErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  return "요청을 처리하지 못했습니다";
+}
+
 export function ProjectRoomWorkBoard({
   board,
   members,
@@ -178,6 +192,7 @@ function ProjectRoomWorkBoardContent({
     title: initialWbs?.title ?? "",
     wbsId: initialWbs?.id ?? null,
   }));
+  const [candidateGeneration, setCandidateGeneration] = useState<CandidateGenerationState | null>(null);
 
   const wbsTitleById = useMemo(() => Object.fromEntries(wbsItems.map((item) => [item.id, item.title])), [wbsItems]);
   const childCountByWbsId = useMemo(() => {
@@ -256,6 +271,8 @@ function ProjectRoomWorkBoardContent({
       })),
     [memberByUserId, visibleTasks, wbsTitleById],
   );
+  const wbsGeneration = candidateGeneration?.kind === "wbs" ? candidateGeneration : null;
+  const taskGeneration = candidateGeneration?.kind === "tasks" ? candidateGeneration : null;
   const activeWbsEditDraft =
     selectedWbs && wbsEditDraft.wbsId === selectedWbs.id
       ? wbsEditDraft
@@ -519,6 +536,34 @@ function ProjectRoomWorkBoardContent({
     }
   };
 
+  const handleGenerateCandidates = async (kind: CandidateGenerationKind) => {
+    const isWbs = kind === "wbs";
+    const label = isWbs ? "WBS 후보" : "칸반 후보";
+
+    setCandidateGeneration({
+      kind,
+      message: `${label} 생성 요청 중`,
+      status: "pending",
+    });
+
+    try {
+      const job = isWbs ? await agentApi.generateWbs({ roomId }) : await agentApi.generateTasks({ roomId });
+      const jobLabel = job.jobId ? ` · 작업 ${job.jobId.slice(0, 8)}` : "";
+
+      setCandidateGeneration({
+        kind,
+        message: `${label} 생성 요청됨${jobLabel}`,
+        status: "success",
+      });
+    } catch (error) {
+      setCandidateGeneration({
+        kind,
+        message: `${label} 생성 실패: ${generationErrorMessage(error)}`,
+        status: "error",
+      });
+    }
+  };
+
   return (
     <div className={styles.shell}>
       <section className={styles.contextBand} aria-label="작업판 보기 전환">
@@ -542,8 +587,24 @@ function ProjectRoomWorkBoardContent({
                 <div>
                   <h2>WBS</h2>
                 </div>
-                <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
+                <div className={styles.paneActions}>
+                  <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
+                  <button
+                    className={styles.generateButton}
+                    disabled={wbsGeneration?.status === "pending"}
+                    onClick={() => void handleGenerateCandidates("wbs")}
+                    type="button"
+                  >
+                    <GitBranch aria-hidden="true" size={14} strokeWidth={2.2} />
+                    {wbsGeneration?.status === "pending" ? "생성 중" : "WBS 후보 생성"}
+                  </button>
+                </div>
               </div>
+              {wbsGeneration ? (
+                <p className={wbsGeneration.status === "error" ? styles.generateError : styles.generateNotice}>
+                  {wbsGeneration.message}
+                </p>
+              ) : null}
               {wbsItems.length > 0 ? (
                 <WbsGanttPanel
                   onNotice={setSaveNotice}
@@ -746,8 +807,24 @@ function ProjectRoomWorkBoardContent({
               <div>
                 <h2>칸반</h2>
               </div>
-              <KanbanSquare aria-hidden="true" size={19} strokeWidth={2} />
+              <div className={styles.paneActions}>
+                <button
+                  className={styles.generateButton}
+                  disabled={taskGeneration?.status === "pending"}
+                  onClick={() => void handleGenerateCandidates("tasks")}
+                  type="button"
+                >
+                  <KanbanSquare aria-hidden="true" size={14} strokeWidth={2.2} />
+                  {taskGeneration?.status === "pending" ? "생성 중" : "칸반 후보 생성"}
+                </button>
+                <KanbanSquare aria-hidden="true" size={19} strokeWidth={2} />
+              </div>
             </div>
+            {taskGeneration ? (
+              <p className={taskGeneration.status === "error" ? styles.generateError : styles.generateNotice}>
+                {taskGeneration.message}
+              </p>
+            ) : null}
 
             <KanbanBoard
               assigneeOptions={kanbanAssigneeOptions}

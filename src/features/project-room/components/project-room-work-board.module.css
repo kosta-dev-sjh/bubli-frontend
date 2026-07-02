@@ -48,13 +48,22 @@
   opacity: 0.68;
 }
 
+.paneActions {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  min-inline-size: 0;
+}
+
 .generateNotice,
 .generateError {
   border-radius: 12px;
   font-size: 12px;
   font-weight: 650;
   line-height: 1.45;
-  margin: 0;
+  margin: -4px 0 12px;
   padding: 9px 11px;
 }
 
