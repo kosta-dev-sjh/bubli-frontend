@@ -2356,7 +2356,7 @@ fn escape_fts_query(query: &str) -> String {
     format!("\"{}\"", query.replace('"', "\"\""))
 }
 
-/// Search the local file index by name or path (LIKE; FTS5 is an enhancement).
+/// Search the local file index by name. Path-like queries can also match paths.
 #[tauri::command]
 pub fn search_local_files(
     state: State<'_, Db>,
@@ -2383,12 +2383,17 @@ fn search_local_files_for_conn(
     }
 
     let needle = format!("%{}%", query);
+    let path_like_query = is_path_like_search_query(&query);
     let mut stmt = conn
-        .prepare(
+        .prepare(if path_like_query {
             "SELECT id, file_name, local_path, updated_at FROM local_files \
              WHERE file_name LIKE ?1 OR local_path LIKE ?1 \
-             ORDER BY updated_at DESC LIMIT ?2",
-        )
+             ORDER BY updated_at DESC LIMIT ?2"
+        } else {
+            "SELECT id, file_name, local_path, updated_at FROM local_files \
+             WHERE file_name LIKE ?1 \
+             ORDER BY updated_at DESC LIMIT ?2"
+        })
         .map_err(|error| error.to_string())?;
 
     let rows = stmt
@@ -2415,6 +2420,10 @@ fn search_local_files_for_conn(
     }
 
     Ok(LocalFileSearchResult { items })
+}
+
+fn is_path_like_search_query(query: &str) -> bool {
+    query.contains('/') || query.contains('\\') || query.starts_with('~')
 }
 
 /// Read a bounded text preview for a file already registered in the personal
@@ -3146,6 +3155,46 @@ mod tests {
         assert_eq!(result.items[0].local_file_id, "file-ui");
         assert_eq!(result.items[0].name, "UI_contract_notes.bin");
         assert!(result.items[0].matched_text.is_none());
+    }
+
+    #[test]
+    fn short_file_name_search_does_not_match_user_home_path() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO local_files (id, local_folder_id, file_name, local_path, updated_at) \
+             VALUES ('file-contract', 'folder-1', 'contract_notes.bin', '/Users/miyeon/contracts/contract_notes.bin', 1)",
+            [],
+        )
+        .expect("insert local file row");
+        conn.execute(
+            "INSERT INTO local_file_fts (local_file_id, file_name, content, local_path) \
+             VALUES ('file-contract', 'contract_notes.bin', 'no matching content', '/Users/miyeon/contracts/contract_notes.bin')",
+            [],
+        )
+        .expect("insert fts row");
+
+        let result = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "U".to_string(),
+            },
+        )
+        .expect("search local files");
+
+        assert!(result.items.is_empty());
+
+        let path_result = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "/Users".to_string(),
+            },
+        )
+        .expect("search path-like query");
+
+        assert_eq!(path_result.items.len(), 1);
+        assert_eq!(path_result.items[0].local_file_id, "file-contract");
     }
 
     #[test]
