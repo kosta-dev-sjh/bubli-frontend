@@ -21,6 +21,9 @@
 - 주 보기는 이번 주의 작업 흐름을 날짜별로 훑게 한다.
 - 일 보기는 하루 안에 처리할 WBS/TODO를 목록으로 보여준다.
 - 기간 보기는 Google Calendar 연동과 같은 일정 기준을 따른다. WBS/TODO에서 만든 기한은 일정 추가 또는 동기화 시 캘린더에 이어질 수 있어야 한다.
+- WBS 간트에서 만든 기간은 `schedules.wbsItemId`로 연결된 일정으로 저장한다.
+- WBS 기간을 지우거나 WBS를 삭제할 때는 먼저 `DELETE /api/schedules/{scheduleId}`로 일정과 Google Calendar 이벤트를 지운다.
+- 일정 삭제가 실패하면 화면에서도 기간이나 WBS를 지우지 않는다. 화면에 없는 데이터가 DB나 Google Calendar에 남으면 안 된다.
 - 선택한 WBS의 연결 TODO, 기한, 하위 작업 수를 보여준다.
 - 상위 WBS를 선택하면 하위 WBS에 연결된 TODO도 함께 보여준다.
 - 선택한 WBS는 이름, 기한, 상태를 바로 수정할 수 있어야 한다.
@@ -48,6 +51,9 @@
 - 후보는 실제 작업판 옆에 항상 붙어 있는 보조 카드가 아니다.
 - 후보 보기에서만 따로 확인하고, 승인 후 WBS 또는 TODO로 반영한다.
 - 후보 목록은 `후보 관리` 화면으로 이어진다.
+- WBS 화면에서는 `WBS 후보 생성` 버튼으로 WBS 후보만 만든다.
+- 칸반 화면에서는 `칸반 후보 생성` 버튼으로 TODO/작업 후보만 만든다.
+- 후보는 승인, 보류, 제외 액션을 제공한다. 승인된 후보만 실제 WBS 또는 칸반 작업으로 다시 조회된다.
 
 ## API 기준
 
@@ -60,7 +66,12 @@
 - WBS 삭제: `DELETE /api/wbs-items/{id}`
 - 프로젝트룸 TODO: `GET /api/project-rooms/{roomId}/tasks`
 - WBS/TODO 기간 표시: `dueAt` 기준으로 월/주/일 보기에 매핑
-- Google Calendar 연동: 일정 생성/동기화 API와 같은 날짜 기준을 사용. 서버 계약 확정 후 WBS/TODO 기한과 캘린더 일정을 연결한다.
+- WBS 기간 생성/수정: `POST /api/schedules`, `PATCH /api/schedules/{scheduleId}`
+- WBS 기간 삭제: `DELETE /api/schedules/{scheduleId}`. 백엔드가 Google Calendar 동기화 삭제와 DB 삭제를 함께 처리한다.
+- Google Calendar 연동: WBS 기간은 일정 생성/동기화 API와 같은 날짜 기준을 사용하고, 삭제도 일정 삭제 API 성공 후 화면에서 제거한다.
+- WBS 후보 생성: `POST /api/ai/generate-wbs`
+- 칸반 후보 생성: `POST /api/ai/generate-tasks`
+- 후보 목록: `GET /api/project-rooms/{roomId}/agent/suggestions?status=DRAFT&suggestionType=...`
 - 후보 승인: `PATCH /api/agent/suggestions/{id}`
 
 ## 금지

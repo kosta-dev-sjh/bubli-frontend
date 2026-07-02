@@ -1,8 +1,8 @@
 "use client";
 
-import { GitBranch, KanbanSquare, X } from "lucide-react";
+import { Check, GitBranch, KanbanSquare, Pause, X } from "lucide-react";
 import type { CSSProperties, FormEvent } from "react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   KanbanBoard,
@@ -15,7 +15,8 @@ import { todoApi } from "@/features/todo/api/todoApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { WbsGanttPanel } from "@/features/wbs/components/wbs-gantt-panel";
 import { cn } from "@/lib/utils";
-import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
+import { shouldUseWorkspacePreviewData, workspacePreviewRoomSuggestions } from "@/lib/workspace-preview-data";
+import type { AgentSuggestionResponse, AgentSuggestionReviewAction, AgentSuggestionType } from "@/types/api/agent";
 import type { ProjectRoomMemberResponse } from "@/types/api/projectRoom";
 import type { TaskResponse, TaskStatus, WbsBoardResponse, WbsItemResponse, WbsStatus } from "@/types/api/work";
 
@@ -43,6 +44,10 @@ type CandidateGenerationState = {
   message: string;
   status: "error" | "pending" | "success";
 };
+
+type CandidateSuggestionMap = Record<CandidateGenerationKind, AgentSuggestionResponse[]>;
+
+type CandidateReviewAction = Extract<AgentSuggestionReviewAction, "APPROVE" | "HOLD" | "REJECT">;
 
 const columns: KanbanColumn[] = [
   { description: "시작 전", label: "대기", status: "TODO" },
@@ -150,13 +155,51 @@ function generationErrorMessage(error: unknown) {
   return "요청을 처리하지 못했습니다";
 }
 
+const candidateSuggestionTypes: Record<CandidateGenerationKind, AgentSuggestionType[]> = {
+  tasks: ["TASK", "TODO"],
+  wbs: ["WBS"],
+};
+
+function candidateKindLabel(kind: CandidateGenerationKind) {
+  return kind === "wbs" ? "WBS 후보" : "칸반 후보";
+}
+
+function candidateTitle(suggestion: AgentSuggestionResponse) {
+  const payload = suggestion.payloadJson;
+  const preferred = ["title", "name", "label", "summary", "description", "content"]
+    .map((key) => payload[key])
+    .find((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+  if (preferred) return preferred;
+
+  const firstString = Object.values(payload).find((value): value is string => typeof value === "string" && value.trim().length > 0);
+  return firstString ?? "확인할 후보";
+}
+
+function candidateSource(suggestion: AgentSuggestionResponse) {
+  const evidence = suggestion.evidenceJson;
+  const source = ["resourceTitle", "fileName", "source", "documentTitle"]
+    .map((key) => evidence[key])
+    .find((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+  if (source) return source;
+  return suggestion.suggestionType === "WBS" ? "작업 구조" : "작업판";
+}
+
+function candidatePreviewSuggestions(roomId: string, kind: CandidateGenerationKind) {
+  const allowed = new Set(candidateSuggestionTypes[kind]);
+  return workspacePreviewRoomSuggestions(roomId).filter((suggestion) => allowed.has(suggestion.suggestionType));
+}
+
 export function ProjectRoomWorkBoard({
   board,
   members,
+  onBoardReload,
   roomId,
 }: {
   board: WbsBoardResponse;
   members: ProjectRoomMemberResponse[];
+  onBoardReload?: () => Promise<void> | void;
   roomId: string;
 }) {
   const boardVersion = [
@@ -165,16 +208,18 @@ export function ProjectRoomWorkBoard({
     board.wbsItems.map((item) => `${item.id}:${item.updatedAt}`).join("|"),
   ].join("::");
 
-  return <ProjectRoomWorkBoardContent board={board} key={boardVersion} members={members} roomId={roomId} />;
+  return <ProjectRoomWorkBoardContent board={board} key={boardVersion} members={members} onBoardReload={onBoardReload} roomId={roomId} />;
 }
 
 function ProjectRoomWorkBoardContent({
   board,
   members,
+  onBoardReload,
   roomId,
 }: {
   board: WbsBoardResponse;
   members: ProjectRoomMemberResponse[];
+  onBoardReload?: () => Promise<void> | void;
   roomId: string;
 }) {
   const initialWbs = board.wbsItems[0] ?? null;
@@ -193,6 +238,12 @@ function ProjectRoomWorkBoardContent({
     wbsId: initialWbs?.id ?? null,
   }));
   const [candidateGeneration, setCandidateGeneration] = useState<CandidateGenerationState | null>(null);
+  const [candidateLoadingKind, setCandidateLoadingKind] = useState<CandidateGenerationKind | null>(null);
+  const [candidateReviewingId, setCandidateReviewingId] = useState<string | null>(null);
+  const [candidateSuggestions, setCandidateSuggestions] = useState<CandidateSuggestionMap>({
+    tasks: [],
+    wbs: [],
+  });
 
   const wbsTitleById = useMemo(() => Object.fromEntries(wbsItems.map((item) => [item.id, item.title])), [wbsItems]);
   const childCountByWbsId = useMemo(() => {
@@ -249,7 +300,6 @@ function ProjectRoomWorkBoardContent({
   const selectedCreateParentTitle = selectedParentWbs?.title ?? null;
   const selectedWbsLinkedCount = selectedWbsId ? selectedWbsTasks.filter((task) => task.wbsItemId === selectedWbsId).length : 0;
   const selectedWbsChildCount = selectedWbsId ? childCountByWbsId[selectedWbsId] ?? 0 : 0;
-  const canDeleteSelectedWbs = Boolean(selectedWbs && selectedWbsChildCount === 0 && selectedWbsLinkedCount === 0);
   const kanbanColumns = useMemo<KanbanBoardColumn[]>(
     () =>
       columns.map((column) => ({
@@ -280,6 +330,76 @@ function ProjectRoomWorkBoardContent({
           title: selectedWbs?.title ?? "",
           wbsId: selectedWbs?.id ?? null,
         };
+
+  const loadCandidateSuggestions = useCallback(
+    async (kind: CandidateGenerationKind) => {
+      setCandidateLoadingKind(kind);
+
+      try {
+        const suggestions = (
+          await Promise.all(
+            candidateSuggestionTypes[kind].map((suggestionType) =>
+              agentApi.listRoomSuggestions(roomId, {
+                status: "DRAFT",
+                suggestionType,
+              }),
+            ),
+          )
+        ).flat();
+
+        setCandidateSuggestions((current) => ({
+          ...current,
+          [kind]: suggestions,
+        }));
+      } catch (error) {
+        if (shouldUseWorkspacePreviewData()) {
+          setCandidateSuggestions((current) => ({
+            ...current,
+            [kind]: candidatePreviewSuggestions(roomId, kind),
+          }));
+          return;
+        }
+
+        setCandidateGeneration({
+          kind,
+          message: `${candidateKindLabel(kind)} 목록을 불러오지 못했습니다: ${generationErrorMessage(error)}`,
+          status: "error",
+        });
+      } finally {
+        setCandidateLoadingKind(null);
+      }
+    },
+    [roomId],
+  );
+
+  useEffect(() => {
+    void loadCandidateSuggestions("wbs");
+    void loadCandidateSuggestions("tasks");
+  }, [loadCandidateSuggestions]);
+
+  const handleReviewCandidate = async (kind: CandidateGenerationKind, suggestionId: string, action: CandidateReviewAction) => {
+    setCandidateReviewingId(suggestionId);
+
+    try {
+      await agentApi.updateSuggestion(suggestionId, { action });
+      setCandidateSuggestions((current) => ({
+        ...current,
+        [kind]: current[kind].filter((suggestion) => suggestion.suggestionId !== suggestionId),
+      }));
+
+      if (action === "APPROVE") {
+        await onBoardReload?.();
+      }
+    } catch (error) {
+      setCandidateGeneration({
+        kind,
+        message: `${candidateKindLabel(kind)} 처리 실패: ${generationErrorMessage(error)}`,
+        status: "error",
+      });
+    } finally {
+      setCandidateReviewingId(null);
+    }
+  };
 
   const openWbsSettings = (id: string) => {
     setSelectedWbsId(id);
@@ -395,40 +515,6 @@ function ProjectRoomWorkBoardContent({
       });
   };
 
-  const deleteSelectedWbs = () => {
-    if (!selectedWbs || !canDeleteSelectedWbs) return;
-
-    const previousItems = wbsItems;
-    const fallbackId = selectedWbs.parentId ?? wbsItems.find((item) => item.id !== selectedWbs.id)?.id ?? null;
-
-    setWbsItems((current) => current.filter((item) => item.id !== selectedWbs.id));
-    setWbsAccentById((current) => {
-      const next = { ...current };
-      delete next[selectedWbs.id];
-      return next;
-    });
-    setSelectedWbsId(fallbackId);
-    setIsWbsSettingsOpen(Boolean(fallbackId));
-    setSaveNotice("WBS 삭제 중");
-
-    void wbsApi
-      .deleteItem(selectedWbs.id)
-      .then(() => {
-        setSaveNotice("WBS 삭제됨");
-      })
-      .catch(() => {
-        if (selectedWbs.id.startsWith("local-wbs-") || shouldUseWorkspacePreviewData()) {
-          setSaveNotice("WBS 삭제됨 (로컬)");
-          return;
-        }
-        setWbsItems(previousItems);
-        setWbsAccentById((current) => ({ ...current, [selectedWbs.id]: selectedWbsAccent }));
-        setSelectedWbsId(selectedWbs.id);
-        setIsWbsSettingsOpen(true);
-        setSaveNotice("WBS 서버 저장 대기");
-      });
-  };
-
   const updateSelectedWbsAccent = (color: string) => {
     if (!selectedWbsId) return;
 
@@ -537,8 +623,7 @@ function ProjectRoomWorkBoardContent({
   };
 
   const handleGenerateCandidates = async (kind: CandidateGenerationKind) => {
-    const isWbs = kind === "wbs";
-    const label = isWbs ? "WBS 후보" : "칸반 후보";
+    const label = candidateKindLabel(kind);
 
     setCandidateGeneration({
       kind,
@@ -547,7 +632,7 @@ function ProjectRoomWorkBoardContent({
     });
 
     try {
-      const job = isWbs ? await agentApi.generateWbs({ roomId }) : await agentApi.generateTasks({ roomId });
+      const job = kind === "wbs" ? await agentApi.generateWbs({ roomId }) : await agentApi.generateTasks({ roomId });
       const jobLabel = job.jobId ? ` · 작업 ${job.jobId.slice(0, 8)}` : "";
 
       setCandidateGeneration({
@@ -555,6 +640,7 @@ function ProjectRoomWorkBoardContent({
         message: `${label} 생성 요청됨${jobLabel}`,
         status: "success",
       });
+      await loadCandidateSuggestions(kind);
     } catch (error) {
       setCandidateGeneration({
         kind,
@@ -562,6 +648,73 @@ function ProjectRoomWorkBoardContent({
         status: "error",
       });
     }
+  };
+
+  const renderCandidateTray = (kind: CandidateGenerationKind) => {
+    const suggestions = candidateSuggestions[kind];
+    const isLoading = candidateLoadingKind === kind;
+    const label = candidateKindLabel(kind);
+
+    if (suggestions.length === 0 && !isLoading) return null;
+
+    return (
+      <section className={styles.suggestionTray} aria-label={`${label} 목록`}>
+        <div className={styles.candidateTrayHead}>
+          <strong>{label}</strong>
+          <StatusBadge tone={suggestions.length > 0 ? "agent" : "neutral"}>
+            {isLoading && suggestions.length === 0 ? "확인 중" : `${suggestions.length}개`}
+          </StatusBadge>
+        </div>
+        {suggestions.length > 0 ? (
+          <div className={styles.suggestionList}>
+            {suggestions.slice(0, 4).map((suggestion) => {
+              const isReviewing = candidateReviewingId === suggestion.suggestionId;
+
+              return (
+                <article className={styles.suggestion} key={suggestion.suggestionId}>
+                  <span className={styles.suggestionIcon} aria-hidden="true">
+                    {kind === "wbs" ? <GitBranch size={15} strokeWidth={2.2} /> : <KanbanSquare size={15} strokeWidth={2.2} />}
+                  </span>
+                  <span>
+                    <strong>{candidateTitle(suggestion)}</strong>
+                    <small>{candidateSource(suggestion)}</small>
+                  </span>
+                  <StatusBadge tone="agent">확인 필요</StatusBadge>
+                  <div className={styles.candidateActions} aria-label={`${candidateTitle(suggestion)} 처리`}>
+                    <button
+                      disabled={isReviewing}
+                      onClick={() => void handleReviewCandidate(kind, suggestion.suggestionId, "APPROVE")}
+                      type="button"
+                    >
+                      <Check aria-hidden="true" size={13} strokeWidth={2.2} />
+                      승인
+                    </button>
+                    <button
+                      disabled={isReviewing}
+                      onClick={() => void handleReviewCandidate(kind, suggestion.suggestionId, "HOLD")}
+                      type="button"
+                    >
+                      <Pause aria-hidden="true" size={13} strokeWidth={2.2} />
+                      보류
+                    </button>
+                    <button
+                      disabled={isReviewing}
+                      onClick={() => void handleReviewCandidate(kind, suggestion.suggestionId, "REJECT")}
+                      type="button"
+                    >
+                      <X aria-hidden="true" size={13} strokeWidth={2.2} />
+                      제외
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className={styles.candidateEmpty}>후보를 확인하는 중입니다.</p>
+        )}
+      </section>
+    );
   };
 
   return (
@@ -605,6 +758,7 @@ function ProjectRoomWorkBoardContent({
                   {wbsGeneration.message}
                 </p>
               ) : null}
+              {renderCandidateTray("wbs")}
               {wbsItems.length > 0 ? (
                 <WbsGanttPanel
                   onNotice={setSaveNotice}
@@ -761,15 +915,6 @@ function ProjectRoomWorkBoardContent({
                         <button className={styles.primaryAction} type="submit">
                           저장
                         </button>
-                        <button
-                          className={styles.dangerAction}
-                          disabled={!canDeleteSelectedWbs}
-                          onClick={deleteSelectedWbs}
-                          title={canDeleteSelectedWbs ? "선택한 WBS 삭제" : "연결된 하위 작업이나 할 일이 있으면 삭제할 수 없습니다"}
-                          type="button"
-                        >
-                          삭제
-                        </button>
                       </div>
                     </>
                   ) : (
@@ -825,6 +970,7 @@ function ProjectRoomWorkBoardContent({
                 {taskGeneration.message}
               </p>
             ) : null}
+            {renderCandidateTray("tasks")}
 
             <KanbanBoard
               assigneeOptions={kanbanAssigneeOptions}

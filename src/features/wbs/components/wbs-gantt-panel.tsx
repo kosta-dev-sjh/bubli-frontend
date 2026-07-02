@@ -308,66 +308,93 @@ export function WbsGanttPanel({
     createItem(parentId, date);
   };
 
-  const handleClearSchedule = (item: WbsItemResponse) => {
+  const handleClearSchedule = async (item: WbsItemResponse) => {
     const schedule = scheduleByWbsId.get(item.id);
 
-    setLocalRanges((current) => {
-      const next = { ...current };
-      delete next[item.id];
-      return next;
-    });
+    if (!schedule) {
+      setLocalRanges((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      onNotice("기간 초기화됨");
+      return;
+    }
 
-    if (!schedule) return;
-
-    setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
     onNotice("기간 초기화 중");
 
-    void calendarApi
-      .deleteEvent(schedule.id)
-      .then(() => onNotice("기간 초기화됨"))
-      .catch(() => {
-        if (shouldUseWorkspacePreviewData()) {
-          onNotice("기간 초기화됨 (로컬)");
-          return;
-        }
-        setSchedules((current) => [...current, schedule]);
-        onNotice("기간 반영 대기");
+    try {
+      await calendarApi.deleteEvent(schedule.id);
+      setLocalRanges((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
       });
+      setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
+      onNotice("기간 초기화됨");
+    } catch {
+      if (shouldUseWorkspacePreviewData()) {
+        setLocalRanges((current) => {
+          const next = { ...current };
+          delete next[item.id];
+          return next;
+        });
+        setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
+        onNotice("기간 초기화됨 (로컬)");
+        return;
+      }
+      onNotice("기간 초기화 실패 — 일정이 서버에 남아 있습니다");
+    }
   };
 
-  const handleDeleteItem = (item: WbsItemResponse) => {
+  const handleDeleteItem = async (item: WbsItemResponse) => {
     if (wbsItems.some((entry) => entry.parentId === item.id)) {
       onNotice("하위 작업이 남아 있습니다 — 작업을 먼저 삭제하세요");
       return;
     }
 
     const schedule = scheduleByWbsId.get(item.id);
-    onWbsDeleted(item.id);
     onNotice("삭제 중");
 
-    if (schedule) {
-      setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
-      void calendarApi.deleteEvent(schedule.id).catch(() => {
-        // 일정 삭제 실패는 무시한다. WBS 삭제 결과를 우선한다.
-      });
-    }
-
     if (item.id.startsWith(LOCAL_ID_PREFIX)) {
+      setLocalRanges((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      if (schedule) {
+        setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
+      }
+      onWbsDeleted(item.id);
       onNotice("삭제됨");
       return;
     }
 
-    void wbsApi
-      .deleteItem(item.id)
-      .then(() => onNotice("삭제됨"))
-      .catch(() => {
-        if (shouldUseWorkspacePreviewData()) {
-          onNotice("삭제됨 (로컬)");
-          return;
-        }
-        onWbsCreated(item);
-        onNotice("삭제 실패 — 항목을 되돌렸습니다");
+    try {
+      if (schedule) {
+        await calendarApi.deleteEvent(schedule.id);
+        setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
+      }
+
+      await wbsApi.deleteItem(item.id);
+      setLocalRanges((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
       });
+      onWbsDeleted(item.id);
+      onNotice("삭제됨");
+    } catch {
+      if (shouldUseWorkspacePreviewData()) {
+        if (schedule) {
+          setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
+        }
+        onWbsDeleted(item.id);
+        onNotice("삭제됨 (로컬)");
+        return;
+      }
+      onNotice("삭제 실패 — 일정과 WBS가 서버에 남아 있습니다");
+    }
   };
 
   return (
@@ -456,7 +483,7 @@ export function WbsGanttPanel({
                         className={styles.rowActionButton}
                         onClick={(event) => {
                           event.stopPropagation();
-                          handleClearSchedule(item);
+                          void handleClearSchedule(item);
                         }}
                         type="button"
                       >
@@ -467,7 +494,7 @@ export function WbsGanttPanel({
                         className={styles.rowActionButton}
                         onClick={(event) => {
                           event.stopPropagation();
-                          handleDeleteItem(item);
+                          void handleDeleteItem(item);
                         }}
                         type="button"
                       >
