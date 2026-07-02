@@ -97,6 +97,23 @@ pub struct LocalBackupResult {
     size_bytes: u64,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalBackupManifestEntry {
+    backup_id: String,
+    created_at: String,
+    file_name: String,
+    size_bytes: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalBackupManifestResult {
+    backups: Vec<LocalBackupManifestEntry>,
+    latest_backup_id: Option<String>,
+    read_at: String,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalBackupRestoreInput {
@@ -356,6 +373,14 @@ pub fn backup_local_sqlite(
 }
 
 #[tauri::command]
+pub fn list_local_sqlite_backups(
+    state: tauri::State<'_, Db>,
+) -> Result<LocalBackupManifestResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    list_local_sqlite_backups_for_conn(&conn)
+}
+
+#[tauri::command]
 pub fn restore_local_sqlite_backup(
     _state: tauri::State<'_, Db>,
     input: LocalBackupRestoreInput,
@@ -364,6 +389,38 @@ pub fn restore_local_sqlite_backup(
         "restore requires an app restart before replacing the open SQLite file: {}",
         input.backup_id
     ))
+}
+
+fn list_local_sqlite_backups_for_conn(
+    conn: &Connection,
+) -> Result<LocalBackupManifestResult, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, file_name, size_bytes, created_at \
+             FROM local_backup_manifest \
+             ORDER BY created_at DESC, id DESC \
+             LIMIT 20",
+        )
+        .map_err(|error| error.to_string())?;
+    let backups = stmt
+        .query_map([], |row| {
+            Ok(LocalBackupManifestEntry {
+                backup_id: row.get(0)?,
+                file_name: row.get(1)?,
+                size_bytes: row.get::<_, i64>(2)?.max(0) as u64,
+                created_at: row.get(3)?,
+            })
+        })
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    let latest_backup_id = backups.first().map(|backup| backup.backup_id.clone());
+
+    Ok(LocalBackupManifestResult {
+        backups,
+        latest_backup_id,
+        read_at: now_iso(),
+    })
 }
 
 #[tauri::command]
@@ -1199,6 +1256,7 @@ CREATE INDEX IF NOT EXISTS idx_local_activity_buffer_status ON local_activity_bu
 #[cfg(test)]
 mod tests {
     use super::{
+        list_local_sqlite_backups_for_conn,
         mark_activity_context_synced_conn, now_ms, read_active_project_room_for_conn,
         read_auth_session_json, read_room_messages_for_conn, read_widget_summary_cache_for_conn,
         record_timer_state_for_conn, recover_timer_state_for_conn,
@@ -1245,6 +1303,29 @@ mod tests {
         let error = validate_auth_session_json(r#"{"accessToken":"access-token"}"#)
             .expect_err("incomplete session should fail");
         assert!(error.contains("refreshToken"));
+    }
+
+    #[test]
+    fn lists_local_sqlite_backups_latest_first() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+        conn.execute(
+            "INSERT INTO local_backup_manifest (id, file_name, path, size_bytes, created_at) \
+             VALUES \
+             ('backup-old', 'old.sqlite3', '/tmp/old.sqlite3', 10, '2026-07-01T00:00:00Z'), \
+             ('backup-new', 'new.sqlite3', '/tmp/new.sqlite3', 20, '2026-07-02T00:00:00Z')",
+            [],
+        )
+        .expect("insert backup manifest rows");
+
+        let manifest = list_local_sqlite_backups_for_conn(&conn).expect("list backups");
+
+        assert_eq!(manifest.latest_backup_id.as_deref(), Some("backup-new"));
+        assert_eq!(manifest.backups.len(), 2);
+        assert_eq!(manifest.backups[0].backup_id, "backup-new");
+        assert_eq!(manifest.backups[0].file_name, "new.sqlite3");
+        assert_eq!(manifest.backups[0].size_bytes, 20);
+        assert!(!manifest.read_at.is_empty());
     }
 
     #[test]

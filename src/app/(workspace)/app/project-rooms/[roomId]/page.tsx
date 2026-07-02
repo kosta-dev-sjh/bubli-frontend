@@ -210,6 +210,41 @@ export default function ProjectRoomHomePage() {
             {formatDate(state.room.paymentDueDate) ? <span>입금 {formatDate(state.room.paymentDueDate)}</span> : null}
             {paymentLabel(state.room) && !formatMoney(state.room.contractAmount) ? <span>{paymentLabel(state.room)}</span> : null}
           </div>
+
+          <div className="room-home__route-grid" aria-label="프로젝트룸 메뉴">
+            <Link className="room-home__route-card" href={`/app/project-rooms/${roomId}/work`}>
+              <ListChecks aria-hidden size={19} strokeWidth={1.9} />
+              <span>
+                <strong>WBS/칸반</strong>
+                <small>작업 {roomContent.activeTasks.length}개</small>
+              </span>
+              <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
+            </Link>
+            <Link className="room-home__route-card" href={`/app/project-rooms/${roomId}/resources`}>
+              <FileText aria-hidden size={19} strokeWidth={1.9} />
+              <span>
+                <strong>자료</strong>
+                <small>{state.resources.length}개</small>
+              </span>
+              <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
+            </Link>
+            <Link className="room-home__route-card" href={`/app/chat?mode=room&roomId=${encodeURIComponent(roomId)}`}>
+              <MessageCircle aria-hidden size={19} strokeWidth={1.9} />
+              <span>
+                <strong>소통</strong>
+                <small>룸 대화</small>
+              </span>
+              <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
+            </Link>
+            <Link className="room-home__route-card" href={`/app/calendar?roomId=${roomId}`}>
+              <CalendarDays aria-hidden size={19} strokeWidth={1.9} />
+              <span>
+                <strong>일정</strong>
+                <small>{roomContent.nextSchedule ? formatDue(roomContent.nextSchedule.startsAt) : "없음"}</small>
+              </span>
+              <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
+            </Link>
+          </div>
         </>
       ) : null}
     </section>

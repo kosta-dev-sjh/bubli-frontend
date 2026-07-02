@@ -6,5 +6,5 @@ type ProjectRoomChatPageProps = {
 
 export default async function ProjectRoomChatPage({ params }: ProjectRoomChatPageProps) {
   const { roomId } = await params;
-  redirect(`/app/desktop/widgets?autoOpen=chat&roomId=${encodeURIComponent(roomId)}`);
+  redirect(`/app/chat?mode=room&roomId=${encodeURIComponent(roomId)}`);
 }

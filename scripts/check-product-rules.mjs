@@ -14,6 +14,10 @@ const DISALLOWED_ROUTES = [
     path: "src/app/(workspace)/app/projects",
     reason: "v15 uses project_rooms as the work unit, so a separate projects route must not exist.",
   },
+  {
+    path: "src/app/(workspace)/app/desktop/widgets/page.tsx",
+    reason: "In-app widget review routes are retired; the real widget runs on /desktop-widget as a Tauri window.",
+  },
 ];
 
 const DISALLOWED_SOURCE_PATTERNS = [
@@ -50,6 +54,10 @@ const DISALLOWED_SOURCE_PATTERNS = [
     reason: "Use /app/project-rooms instead of a separate projects route.",
   },
   {
+    pattern: /\/app\/desktop\/widgets\b/i,
+    reason: "Do not route users to the retired in-app widget review surface.",
+  },
+  {
     pattern: /\b(NEXT_PUBLIC_AGENT|VITE_AGENT|TAURI_AGENT|AGENT_BASE_URL|AGENT_SERVER_URL)\b/,
     reason: "Frontend and Tauri must call the API server, not an agent server directly.",
   },
@@ -81,16 +89,16 @@ if (existsSync(appNavPath)) {
   const text = readFileSync(appNavPath, "utf8");
   if (text.includes('href: "/app/desktop/communication"')) {
     failures.push(
-      "src/config/site.ts: /app/desktop/communication must not be exposed in the main app nav; Tauri communication opens through the chat widget.",
+      "src/config/site.ts: /app/desktop/communication must not be exposed in the main app nav; use /app/chat for web communication.",
     );
   }
 }
 
 if (existsSync(desktopCommunicationRoutePath)) {
   const text = readFileSync(desktopCommunicationRoutePath, "utf8");
-  if (!text.includes("/app/desktop/widgets") || !text.includes("autoOpen") || !text.includes('"chat"')) {
+  if (!text.includes("/app/chat") || !text.includes("mode") || !text.includes('"room"')) {
     failures.push(
-      "src/app/(workspace)/app/desktop/communication/page.tsx: legacy communication route must redirect to the widget chat surface.",
+      "src/app/(workspace)/app/desktop/communication/page.tsx: legacy communication route must redirect to the web chat surface.",
     );
   }
 }

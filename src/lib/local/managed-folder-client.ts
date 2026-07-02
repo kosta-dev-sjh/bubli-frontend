@@ -23,6 +23,7 @@ import type {
   LocalFileSearchAdapterResult,
   ManagedFolderIndexProgressAdapterResult,
   ManagedFolderListAdapterResult,
+  ManagedFolderRemoveAdapterResult,
   ManagedFolderScanAdapterResult,
   ManagedFolderSelectResult,
   ManagedFolderSyncAdapterInput,
@@ -82,7 +83,7 @@ export async function scanPersonalManagedFolder(
     return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.scanManagedFolder);
   }
 
-  const { roomId: _roomId, ...tauriInput } = input;
+  const tauriInput = { localFolderId: input.localFolderId };
 
   return runTauriAdapter(TAURI_COMMANDS.scanManagedFolder, () =>
     tauriCommands.scanManagedFolder(tauriInput),
@@ -125,6 +126,24 @@ export async function setPersonalManagedFolderSync(
 
   return runTauriAdapter(TAURI_COMMANDS.setFolderSync, () =>
     tauriCommands.setFolderSync(tauriInput),
+  );
+}
+
+export async function removePersonalManagedFolder(
+  input: PersonalManagedFolderCommandInput,
+): Promise<ManagedFolderRemoveAdapterResult> {
+  if (!isTauriRuntime()) {
+    return unavailable(TAURI_COMMANDS.removeManagedFolder);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.removeManagedFolder);
+  }
+
+  const tauriInput = { localFolderId: input.localFolderId };
+
+  return runTauriAdapter(TAURI_COMMANDS.removeManagedFolder, () =>
+    tauriCommands.removeManagedFolder(tauriInput),
   );
 }
 
