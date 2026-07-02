@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, fs, path::PathBuf, sync::Mutex};
+use std::{collections::HashMap, env, fs, path::PathBuf, sync::Mutex, thread};
 
 use serde::{Deserialize, Serialize};
 use tauri::utils::config::Color;
@@ -253,6 +253,7 @@ fn with_widget_state(
 
 fn normalize_bubble_type(value: Option<String>) -> String {
     match value.as_deref() {
+        Some("todo") => "todo".to_string(),
         Some("agent") => "agent".to_string(),
         Some("chat") => "chat".to_string(),
         Some("timer") => "timer".to_string(),
@@ -650,32 +651,45 @@ fn build_widget_window(
 
     let size = widget_window_size(widget);
     let position = widget_screen_position(app, monitor_state, widget)?;
-    let window = WebviewWindowBuilder::new(
-        app,
-        label,
-        WebviewUrl::App(widget_window_url(widget).into()),
-    )
-    .title(widget_window_title(widget))
-    .inner_size(size.width, size.height)
-    .min_inner_size(size.width, size.height)
-    .max_inner_size(size.width, size.height)
-    .position(position.x, position.y)
-    .decorations(false)
-    .transparent(true)
-    .background_color(Color(0, 0, 0, 0))
-    .shadow(true)
-    .resizable(false)
-    .always_on_top(widget.always_on_top)
-    .skip_taskbar(true)
-    .focused(false)
-    .build()
-    .map_err(|error| error.to_string())?;
+    let app_handle = app.clone();
+    let url = widget_window_url(widget);
+    let title = widget_window_title(widget);
+    let always_on_top = widget.always_on_top;
+    let click_through = widget.click_through;
+    let label_for_log = label.clone();
 
-    window
-        .set_ignore_cursor_events(widget.click_through)
-        .map_err(|error| error.to_string())?;
-    window.show().map_err(|error| error.to_string())?;
-    apply_widget_window_state(app, monitor_state, widget)
+    thread::spawn(move || {
+        let result = (|| -> Result<(), String> {
+            let window = WebviewWindowBuilder::new(&app_handle, label, WebviewUrl::App(url.into()))
+                .title(title)
+                .inner_size(size.width, size.height)
+                .min_inner_size(size.width, size.height)
+                .max_inner_size(size.width, size.height)
+                .position(position.x, position.y)
+                .decorations(false)
+                .transparent(true)
+                .background_color(Color(0, 0, 0, 0))
+                .shadow(true)
+                .resizable(false)
+                .always_on_top(always_on_top)
+                .skip_taskbar(true)
+                .focused(false)
+                .build()
+                .map_err(|error| error.to_string())?;
+
+            window
+                .set_ignore_cursor_events(click_through)
+                .map_err(|error| error.to_string())?;
+            window.show().map_err(|error| error.to_string())?;
+            Ok(())
+        })();
+
+        if let Err(error) = result {
+            eprintln!("failed to build widget window {label_for_log}: {error}");
+        }
+    });
+
+    Ok(widget.clone())
 }
 
 #[tauri::command]
@@ -916,22 +930,16 @@ fn app_ready(
 ) -> Result<&'static str, String> {
     let selected_room_id =
         input.and_then(|value| normalize_optional_query_value(value.selected_room_id));
-    let bar_result = open_login_startup_widget(
-        &app,
-        &monitor_state,
-        &state,
-        "bar",
-        "bar",
-        selected_room_id.clone(),
-    );
     let default_result = open_login_startup_widget(
         &app,
         &monitor_state,
         &state,
         DEFAULT_WIDGET_BUBBLE_TYPE,
         DEFAULT_WIDGET_BUBBLE_TYPE,
-        selected_room_id,
+        selected_room_id.clone(),
     );
+    let bar_result =
+        open_login_startup_widget(&app, &monitor_state, &state, "bar", "bar", selected_room_id);
 
     let bar_error = bar_result.as_ref().err().map(ToString::to_string);
     let default_error = default_result.as_ref().err().map(ToString::to_string);

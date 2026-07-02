@@ -11,8 +11,8 @@ let launchRequested = false;
 let launchPromise: Promise<void> | null = null;
 
 const loginStartupWindows: WidgetWindowOpenInput[] = [
-  { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" },
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
+  { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" },
 ];
 
 export function resetTauriAuthenticatedSurfaceLaunch() {
@@ -35,13 +35,13 @@ export function launchTauriAuthenticatedSurfaces() {
   launchRequested = true;
   launchPromise = (async () => {
     const selectedRoomId = getActiveProjectRoomId();
-    const appReadyOpenedWidgets = await tauriCommands
+    const appReadyError = await tauriCommands
       .appReady({ selectedRoomId })
-      .then(() => true)
-      .catch(() => false);
+      .then(() => null)
+      .catch((error) => error);
 
     const errors: unknown[] = [];
-    if (!appReadyOpenedWidgets) {
+    if (appReadyError) {
       for (const input of loginStartupWindows) {
         try {
           await tauriCommands.openWidgetWindow({ ...input, selectedRoomId });
@@ -63,8 +63,8 @@ export function launchTauriAuthenticatedSurfaces() {
     startManagedFolderAutoSync();
     startWidgetUsageAutoSync();
 
-    if (!appReadyOpenedWidgets && errors.length === loginStartupWindows.length) {
-      throw errors[0];
+    if (appReadyError && errors.length === loginStartupWindows.length) {
+      throw errors[0] ?? appReadyError;
     }
   })()
     .catch((error) => {
