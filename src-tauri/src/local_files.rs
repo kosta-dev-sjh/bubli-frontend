@@ -84,6 +84,14 @@ pub struct ManagedFolderSyncResult {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ManagedFolderRemoveResult {
+    local_folder_id: String,
+    removed_at: String,
+    status: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ManagedFolderScanResult {
     changed_count: i64,
     local_folder_id: String,
@@ -436,6 +444,53 @@ fn set_folder_sync_for_conn(
         pending_event_count,
         sync_enabled: enabled,
         updated_at: ms_to_iso(now),
+    })
+}
+
+/// Stop using a personal managed folder. The local index/event history is kept
+/// for audit/retry safety, but the folder no longer watches or stages events.
+#[tauri::command]
+pub fn remove_managed_folder(
+    state: State<'_, Db>,
+    watchers: State<'_, ManagedFolderWatchers>,
+    input: ManagedFolderCommandInput,
+) -> Result<ManagedFolderRemoveResult, String> {
+    let now = now_ms();
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let result = remove_managed_folder_for_conn(&conn, &input.local_folder_id, now)?;
+    drop(conn);
+
+    let mut guard = watchers
+        .0
+        .lock()
+        .map_err(|_| "folder watcher state lock failed".to_string())?;
+    guard.remove(&input.local_folder_id);
+
+    Ok(result)
+}
+
+fn remove_managed_folder_for_conn(
+    conn: &Connection,
+    local_folder_id: &str,
+    now: i64,
+) -> Result<ManagedFolderRemoveResult, String> {
+    let changed = conn
+        .execute(
+            "UPDATE managed_folders \
+             SET status = 'REMOVED', sync_enabled = 0, updated_at = ?2 \
+             WHERE id = ?1 AND status != 'REMOVED'",
+            params![local_folder_id, now],
+        )
+        .map_err(|error| error.to_string())?;
+
+    if changed == 0 {
+        return Err(format!("managed folder not found: {local_folder_id}"));
+    }
+
+    Ok(ManagedFolderRemoveResult {
+        local_folder_id: local_folder_id.to_string(),
+        removed_at: ms_to_iso(now),
+        status: "REMOVED".to_string(),
     })
 }
 
@@ -2090,6 +2145,52 @@ mod tests {
         assert_eq!(stored, 1);
         assert!(result.sync_enabled);
         assert_eq!(result.pending_event_count, 1);
+    }
+
+    #[test]
+    fn remove_managed_folder_excludes_future_sync_stage() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', '/tmp/docs', 'ACTIVE', 1, 1, 1)",
+            [],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_file_events \
+             (id, local_file_id, local_folder_id, event_type, file_name, local_path, status, created_at) \
+             VALUES ('event-1', NULL, 'folder-1', 'CREATED', 'a.txt', '/tmp/docs/a.txt', 'PENDING', 1)",
+            [],
+        )
+        .expect("insert pending event");
+
+        let result =
+            remove_managed_folder_for_conn(&conn, "folder-1", 20).expect("remove managed folder");
+        let stored: (String, i64) = conn
+            .query_row(
+                "SELECT status, sync_enabled FROM managed_folders WHERE id = 'folder-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read removed folder");
+        let stageable_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) \
+                 FROM local_file_events e \
+                 INNER JOIN managed_folders m ON m.id = e.local_folder_id \
+                 WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
+                   AND e.event_type = 'CREATED' \
+                   AND m.status = 'ACTIVE' \
+                   AND m.sync_enabled = 1",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count stageable events");
+
+        assert_eq!(result.status, "REMOVED");
+        assert_eq!(result.removed_at, ms_to_iso(20));
+        assert_eq!(stored, ("REMOVED".to_string(), 0));
+        assert_eq!(stageable_count, 0);
     }
 
     #[test]

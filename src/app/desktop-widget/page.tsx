@@ -30,7 +30,8 @@ import {
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
 import { timerApi } from "@/features/timer/api/timerApi";
-import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
+import { tauriCommands, type WidgetBubbleType, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readWidgetSummary } from "@/lib/widget";
@@ -452,9 +453,12 @@ function DesktopWidgetSurface() {
   const isMenuOrb = requestedSurface === "menu";
   const isWidgetChrome = isBubbleBar || isMenuOrb;
   const requestedBubble = getRequestedBubble(requestedSurface);
+  const currentWindowBubble: WidgetWindowBubbleType = isBubbleBar ? "bar" : isMenuOrb ? "menu" : requestedBubble;
   const requestedMode = getRequestedMode(searchParams.get("mode"));
   const requestedRoomId = searchParams.get("roomId") ?? null;
   const windowId = searchParams.get("windowId") ?? undefined;
+  const [authReady, setAuthReady] = useState(!isTauri);
+  const [hasAuthSession, setHasAuthSession] = useState(!isTauri);
   const [activeBubble, setActiveBubble] = useState<WidgetBubbleType>(requestedBubble);
   const [mode, setMode] = useState<WidgetWindowMode>(requestedMode);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
@@ -477,6 +481,7 @@ function DesktopWidgetSurface() {
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(widgetNotificationSignal);
   const liveKitRoomRef = useRef<Room | null>(null);
   const selectedWidgetRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
+  const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
 
   useEffect(() => {
     const htmlStyle = document.documentElement.style;
@@ -524,6 +529,32 @@ function DesktopWidgetSurface() {
   }, []);
 
   useEffect(() => {
+    if (!isTauri) return;
+
+    let cancelled = false;
+
+    async function restoreWidgetAuthSession() {
+      const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
+      if (cancelled) return;
+      setHasAuthSession(Boolean(session));
+      setAuthReady(true);
+    }
+
+    void restoreWidgetAuthSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isTauri]);
+
+  useEffect(() => {
+    if (!isTauri || !authReady || hasAuthSession) return;
+
+    void tauriCommands.closeWidgetWindow({ bubbleType: currentWindowBubble, windowId }).catch(() => undefined);
+  }, [authReady, currentWindowBubble, hasAuthSession, isTauri, windowId]);
+
+  useEffect(() => {
+    if (!widgetSessionReady) return;
     if (isWidgetChrome) return;
 
     const timeoutId = window.setTimeout(() => {
@@ -532,9 +563,10 @@ function DesktopWidgetSurface() {
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [isTauri, isWidgetChrome, requestedBubble, requestedMode]);
+  }, [isTauri, isWidgetChrome, requestedBubble, requestedMode, widgetSessionReady]);
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (isWidgetChrome) return;
     if (!isTauri) return;
 
@@ -559,9 +591,10 @@ function DesktopWidgetSurface() {
       .catch(() => {
         // Browser previews and incomplete Tauri permissions should not break the widget surface.
       });
-  }, [isTauri, isWidgetChrome, requestedBubble, requestedMode, selectedWidgetRoomId, windowId]);
+  }, [isTauri, isWidgetChrome, requestedBubble, requestedMode, selectedWidgetRoomId, widgetSessionReady, windowId]);
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (isWidgetChrome) return;
 
     let cancelled = false;
@@ -613,7 +646,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, windowId]);
+  }, [isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, widgetSessionReady, windowId]);
 
   useEffect(() => {
     if (!isTauri || isWidgetChrome) return;
@@ -648,6 +681,7 @@ function DesktopWidgetSurface() {
   }, []);
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (isWidgetChrome) return;
 
     let cancelled = false;
@@ -678,9 +712,10 @@ function DesktopWidgetSurface() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [isWidgetChrome, requestedRoomId]);
+  }, [isWidgetChrome, requestedRoomId, widgetSessionReady]);
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (isMenuOrb) return;
 
     let cancelled = false;
@@ -785,9 +820,10 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, memoRevision, requestedRoomId, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId]);
+  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, memoRevision, requestedRoomId, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (!isBubbleBar) return;
 
     let cancelled = false;
@@ -825,7 +861,7 @@ function DesktopWidgetSurface() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [isBubbleBar, isTauri]);
+  }, [isBubbleBar, isTauri, widgetSessionReady]);
 
   const setWindowMode = useCallback(
     async (nextMode: WidgetWindowMode) => {
@@ -1168,6 +1204,7 @@ function DesktopWidgetSurface() {
   );
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (!isTauri || isWidgetChrome) return;
 
     let cancelled = false;
@@ -1188,9 +1225,10 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [applyTimerResult, isTauri, isWidgetChrome, recordTimerUsage]);
+  }, [applyTimerResult, isTauri, isWidgetChrome, recordTimerUsage, widgetSessionReady]);
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (!activeTimerHeartbeatId) return;
 
     let cancelled = false;
@@ -1209,7 +1247,7 @@ function DesktopWidgetSurface() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [activeTimerHeartbeatId, applyTimerResult, recordTimerUsage]);
+  }, [activeTimerHeartbeatId, applyTimerResult, recordTimerUsage, widgetSessionReady]);
 
   const pauseWidgetTimer = useCallback(
     async (bubble: WidgetPreviewBubble) => {
@@ -1380,6 +1418,10 @@ function DesktopWidgetSurface() {
       // Browser preview fallback.
     }
   }, [isTauri, selectedWidgetRoomId]);
+
+  if (!widgetSessionReady) {
+    return null;
+  }
 
   if (isMenuOrb) {
     return <DesktopWidgetMenuOrb onOpenMenu={() => void openBubbleBar()} />;

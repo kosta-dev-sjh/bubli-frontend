@@ -19,6 +19,7 @@ import {
   backupLocalSqlite,
   checkLocalSqliteIntegrity,
   getLocalCacheReadiness,
+  listLocalSqliteBackups,
   recoverLocalTimerState,
   restoreLocalSqliteBackup,
 } from "@/lib/local/local-cache-client";
@@ -27,6 +28,7 @@ import {
   listPersonalManagedFolders,
   openPersonalLocalFile,
   reindexPersonalLocalFile,
+  removePersonalManagedFolder,
   scanPersonalManagedFolder,
   searchPersonalLocalFiles,
   selectPersonalManagedFolder,
@@ -256,6 +258,7 @@ export default function SettingsPage() {
   const [localFiles, setLocalFiles] = useState<Array<{ localFileId: string; name: string; path: string }>>([]);
   const [folderProgress, setFolderProgress] = useState<Record<string, ManagedFolderIndexProgressResult>>({});
   const [lastBackupId, setLastBackupId] = useState<string | null>(null);
+  const [backupListLabel, setBackupListLabel] = useState("백업 목록을 불러오지 않았습니다");
   const [desktopRuntime, setDesktopRuntime] = useState(false);
   const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
   const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
@@ -523,6 +526,7 @@ export default function SettingsPage() {
     const result = await Promise.resolve(backupLocalSqlite());
     if (result.status === "ready") {
       setLastBackupId(result.data.backupId);
+      setBackupListLabel(`최근 백업 ${result.data.fileName}`);
       setLocalActionMessage(`백업을 만들었습니다 · ${result.data.fileName}`);
       return;
     }
@@ -538,6 +542,30 @@ export default function SettingsPage() {
     const result = await Promise.resolve(restoreLocalSqliteBackup({ backupId: lastBackupId }));
     setLocalActionMessage(result.status === "ready" ? "백업 복구를 완료했습니다" : localResultMessage(result));
   }, [lastBackupId]);
+
+  useEffect(() => {
+    if (!desktopRuntime) return;
+
+    let cancelled = false;
+
+    async function loadBackupManifest() {
+      const result = await Promise.resolve(listLocalSqliteBackups());
+      if (cancelled || result.status !== "ready") return;
+
+      setLastBackupId(result.data.latestBackupId ?? null);
+      setBackupListLabel(
+        result.data.backups.length > 0
+          ? `보관 중 ${result.data.backups.length}개 · 최근 ${result.data.backups[0].fileName}`
+          : "보관 중인 백업이 없습니다",
+      );
+    }
+
+    void loadBackupManifest();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [desktopRuntime]);
 
   const refreshManagedFolderProgress = useCallback(async (localFolderId: string) => {
     const result = await getPersonalManagedFolderIndexProgress({ localFolderId });
@@ -586,6 +614,32 @@ export default function SettingsPage() {
       void refreshManagedFolderProgress(folder.id);
     },
     [refreshManagedFolderProgress, updateReadyState],
+  );
+
+  const removeManagedFolder = useCallback(
+    async (folder: ManagedFolderResponse) => {
+      const result = await removePersonalManagedFolder({ localFolderId: folder.id });
+      if (result.status !== "ready") {
+        setLocalActionMessage(localResultMessage(result));
+        return;
+      }
+
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: {
+          ...ready.settings,
+          folders: ready.settings.folders.filter((item) => item.id !== folder.id),
+        },
+      }));
+      setFolderProgress((current) => {
+        const next = { ...current };
+        delete next[folder.id];
+        return next;
+      });
+      setLocalFiles([]);
+      setLocalActionMessage("개인 폴더 추적을 해제했습니다. 기존 로컬 기록은 기기 안에 보존됩니다.");
+    },
+    [updateReadyState],
   );
 
   const scanManagedFolder = useCallback(async () => {
@@ -1166,6 +1220,15 @@ export default function SettingsPage() {
                         >
                           {folder.syncEnabled ? "동기화 끄기" : "동기화 켜기"}
                         </Button>
+                        <Button
+                          disabled={!desktopRuntime}
+                          onClick={() => void removeManagedFolder(folder)}
+                          size="sm"
+                          type="button"
+                          variant="quiet"
+                        >
+                          해제
+                        </Button>
                       </div>
                     </div>
                   ))
@@ -1277,9 +1340,6 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className={styles.inlineActions}>
-                <Link className="bubli-button" href="/app/desktop/widgets">
-                  버블 화면
-                </Link>
                 <Button disabled={!desktopRuntime} onClick={() => void syncWidgetUsage()} type="button" variant="quiet">
                   사용량 동기화
                 </Button>
@@ -1298,6 +1358,7 @@ export default function SettingsPage() {
               </div>
               <StatusBadge tone={desktopRuntime ? "personal" : "neutral"}>{desktopRuntime ? "로컬 실행" : "앱 필요"}</StatusBadge>
             </div>
+            <p className={styles.mutedText}>{backupListLabel}</p>
             <div className={styles.recoveryGrid}>
               <button className={styles.row} disabled={!desktopRuntime} onClick={() => void checkLocalCache()} type="button">
                 <span>
@@ -1316,7 +1377,7 @@ export default function SettingsPage() {
               <button className={styles.row} disabled={!desktopRuntime || !lastBackupId} onClick={() => void restoreLocalCache()} type="button">
                 <span>
                   <strong>백업 복구</strong>
-                  <small>{lastBackupId ? "방금 만든 백업으로 복구합니다." : "백업을 먼저 만들어야 합니다."}</small>
+                  <small>{lastBackupId ? "최근 백업으로 복구합니다." : "백업을 먼저 만들어야 합니다."}</small>
                 </span>
                 <StatusBadge tone="neutral">복구</StatusBadge>
               </button>

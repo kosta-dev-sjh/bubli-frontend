@@ -14,6 +14,7 @@ export const TAURI_COMMANDS = {
   getWidgetBarItems: "get_widget_bar_items",
   getWidgetWindowState: "get_widget_window_state",
   listAppMonitors: "list_app_monitors",
+  listLocalSqliteBackups: "list_local_sqlite_backups",
   markActivityContextSynced: "mark_activity_context_synced",
   listManagedFolders: "list_managed_folders",
   openWidgetWindow: "open_widget_window",
@@ -28,6 +29,7 @@ export const TAURI_COMMANDS = {
   recordActivityContext: "record_activity_context",
   recordTimerState: "record_timer_state",
   recordWidgetUsageEvent: "record_widget_usage_event",
+  removeManagedFolder: "remove_managed_folder",
   markLocalFileEventsSynced: "mark_local_file_events_synced",
   markWidgetUsageSummarySynced: "mark_widget_usage_summary_synced",
   openLocalFile: "open_local_file",
@@ -111,6 +113,12 @@ export type ManagedFolderSyncResult = {
   pendingEventCount: number;
   syncEnabled: boolean;
   updatedAt: string;
+};
+
+export type ManagedFolderRemoveResult = {
+  localFolderId: string;
+  removedAt: string;
+  status: "REMOVED";
 };
 
 export type ManagedFolderIndexProgressResult = {
@@ -314,6 +322,14 @@ export type LocalBackupResult = {
   createdAt: string;
   fileName: string;
   sizeBytes: number;
+};
+
+export type LocalBackupManifestEntry = LocalBackupResult;
+
+export type LocalBackupManifestResult = {
+  backups: LocalBackupManifestEntry[];
+  latestBackupId?: string | null;
+  readAt: string;
 };
 
 export type LocalBackupRestoreInput = {
@@ -603,6 +619,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: AppMonitorPreference;
   };
+  list_local_sqlite_backups: {
+    args: undefined;
+    result: LocalBackupManifestResult;
+  };
   mark_activity_context_synced: {
     args: ActivityContextSyncInput;
     result: ActivityContextSyncResult;
@@ -658,6 +678,10 @@ export type TauriCommandContract = {
   record_widget_usage_event: {
     args: WidgetUsageEventInput;
     result: WidgetUsageEventRecordResult;
+  };
+  remove_managed_folder: {
+    args: ManagedFolderCommandInput;
+    result: ManagedFolderRemoveResult;
   };
   mark_local_file_events_synced: {
     args: LocalFileEventsMarkSyncedInput;
@@ -824,6 +848,9 @@ export const tauriCommands = {
   listAppMonitors() {
     return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.listAppMonitors);
   },
+  listLocalSqliteBackups() {
+    return invokeTauri<LocalBackupManifestResult>(TAURI_COMMANDS.listLocalSqliteBackups);
+  },
   markActivityContextSynced(input: ActivityContextSyncInput) {
     return invokeTauri<ActivityContextSyncResult>(TAURI_COMMANDS.markActivityContextSynced, { input });
   },
@@ -865,6 +892,9 @@ export const tauriCommands = {
   },
   recordWidgetUsageEvent(input: WidgetUsageEventInput) {
     return invokeTauri<WidgetUsageEventRecordResult>(TAURI_COMMANDS.recordWidgetUsageEvent, { input });
+  },
+  removeManagedFolder(input: ManagedFolderCommandInput) {
+    return invokeTauri<ManagedFolderRemoveResult>(TAURI_COMMANDS.removeManagedFolder, { input });
   },
   markLocalFileEventsSynced(input: LocalFileEventsMarkSyncedInput) {
     return invokeTauri<LocalFileEventsMarkSyncedResult>(TAURI_COMMANDS.markLocalFileEventsSynced, { input });
