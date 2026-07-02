@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, fs, path::PathBuf, sync::Mutex};
+use std::{collections::HashMap, env, fs, path::PathBuf, sync::Mutex, thread};
 
 use serde::{Deserialize, Serialize};
 use tauri::utils::config::Color;
@@ -21,6 +21,7 @@ const MAIN_WINDOW_DEFAULT_HEIGHT: i32 = 820;
 const DEFAULT_WIDGET_BUBBLE_TYPE: &str = "todo";
 const WIDGET_DEFAULT_WIDTH: f64 = 324.0;
 const WIDGET_DEFAULT_HEIGHT: f64 = 392.0;
+const WIDGET_WINDOW_GUTTER: f64 = 36.0;
 const WIDGET_BAR_WIDTH: f64 = 360.0;
 const WIDGET_BAR_HEIGHT: f64 = 168.0;
 const WIDGET_MENU_SIZE: f64 = 192.0;
@@ -501,16 +502,26 @@ fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
     }
 
     match widget.mode.as_str() {
-        "MINIMIZED" => LogicalSize::new(WIDGET_MINIMIZED_WIDTH, WIDGET_MINIMIZED_HEIGHT),
-        "GHOST" => LogicalSize::new(188.0, 188.0),
+        "MINIMIZED" => LogicalSize::new(
+            WIDGET_MINIMIZED_WIDTH + 20.0,
+            WIDGET_MINIMIZED_HEIGHT + 20.0,
+        ),
+        "GHOST" => LogicalSize::new(188.0 + 24.0, 188.0 + 24.0),
         _ => match widget.active_bubble.as_str() {
-            "chat" => LogicalSize::new(336.0, 476.0),
-            "agent" => LogicalSize::new(332.0, 444.0),
-            "timer" => LogicalSize::new(324.0, 420.0),
-            "resource" => LogicalSize::new(324.0, 340.0),
-            "memo" => LogicalSize::new(308.0, 304.0),
-            "schedule" => LogicalSize::new(324.0, 340.0),
-            _ => LogicalSize::new(WIDGET_DEFAULT_WIDTH, WIDGET_DEFAULT_HEIGHT),
+            "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 476.0 + WIDGET_WINDOW_GUTTER),
+            "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 444.0 + WIDGET_WINDOW_GUTTER),
+            "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
+            "resource" => {
+                LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER)
+            }
+            "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 304.0 + WIDGET_WINDOW_GUTTER),
+            "schedule" => {
+                LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER)
+            }
+            _ => LogicalSize::new(
+                WIDGET_DEFAULT_WIDTH + WIDGET_WINDOW_GUTTER,
+                WIDGET_DEFAULT_HEIGHT + WIDGET_WINDOW_GUTTER,
+            ),
         },
     }
 }
@@ -752,7 +763,7 @@ fn build_widget_qa_windows(
 
 fn apply_widget_window_state(
     app: &AppHandle,
-    monitor_state: &AppMonitorState,
+    _monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
     let label = widget_window_label(widget);
@@ -769,14 +780,6 @@ fn apply_widget_window_state(
         window
             .set_ignore_cursor_events(widget.click_through)
             .map_err(|error| error.to_string())?;
-        window
-            .set_position(Position::Logical(widget_screen_position(
-                app,
-                monitor_state,
-                widget,
-            )?))
-            .map_err(|error| error.to_string())?;
-
         window
             .set_size(Size::Logical(widget_window_size(widget)))
             .map_err(|error| error.to_string())?;
@@ -801,9 +804,7 @@ fn build_widget_window(
 ) -> Result<WidgetWindowState, String> {
     let label = widget_window_label(widget);
 
-    if let Some(window) = app.get_webview_window(&label) {
-        window.show().map_err(|error| error.to_string())?;
-        window.set_focus().map_err(|error| error.to_string())?;
+    if app.get_webview_window(&label).is_some() {
         return apply_widget_window_state(app, monitor_state, widget);
     }
 
@@ -850,6 +851,28 @@ fn build_widget_window(
         .map_err(|error| error.to_string())?;
     window.show().map_err(|error| error.to_string())?;
     apply_widget_window_state(app, monitor_state, widget)
+}
+
+fn schedule_widget_window_build(
+    app: &AppHandle,
+    widget: &WidgetWindowState,
+) -> Result<WidgetWindowState, String> {
+    let app_for_build = app.clone();
+    let widget_for_build = widget.clone();
+    let label = widget_window_label(widget);
+    thread::Builder::new()
+        .name(format!("bubli-widget-build-{label}"))
+        .spawn(move || {
+            let monitor_state = app_for_build.state::<AppMonitorState>();
+            if let Err(error) =
+                build_widget_window(&app_for_build, &monitor_state, &widget_for_build)
+            {
+                eprintln!("failed to build widget window {label}: {error}");
+            }
+        })
+        .map_err(|error| error.to_string())?;
+
+    Ok(widget.clone())
 }
 
 #[tauri::command]
@@ -1113,7 +1136,7 @@ fn register_widget_shortcut(
 
 fn open_login_startup_widget(
     app: &AppHandle,
-    monitor_state: &AppMonitorState,
+    _monitor_state: &AppMonitorState,
     state: &WidgetState,
     bubble_type: &str,
     window_id: &str,
@@ -1139,7 +1162,7 @@ fn open_login_startup_widget(
     };
 
     persist_widget_window_state(app, state)?;
-    build_widget_window(app, monitor_state, &widget)
+    schedule_widget_window_build(app, &widget)
 }
 
 fn app_ready_qa_all_widgets_requested(input: &Option<AppReadyInput>) -> bool {
@@ -1204,7 +1227,7 @@ fn app_ready(
 #[tauri::command]
 fn open_widget_window(
     app: AppHandle,
-    monitor_state: tauri::State<'_, AppMonitorState>,
+    _monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
     input: Option<WidgetWindowOpenInput>,
 ) -> Result<WidgetWindowState, String> {
@@ -1230,7 +1253,7 @@ fn open_widget_window(
         widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
     })?;
     persist_widget_window_state(&app, &state)?;
-    build_widget_window(&app, &monitor_state, &widget)
+    schedule_widget_window_build(&app, &widget)
 }
 
 #[tauri::command]

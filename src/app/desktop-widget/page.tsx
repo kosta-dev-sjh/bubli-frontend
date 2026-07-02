@@ -453,6 +453,7 @@ function DesktopWidgetSurface() {
   const { t } = useI18n();
   const isTauri = isTauriRuntime();
   const searchParams = useSearchParams();
+  const [mounted, setMounted] = useState(false);
   const requestedSurface = searchParams.get("bubble");
   const isBubbleBar = requestedSurface === "bar";
   const isMenuOrb = requestedSurface === "menu";
@@ -489,6 +490,10 @@ function DesktopWidgetSurface() {
   const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     const htmlStyle = document.documentElement.style;
     const bodyStyle = document.body.style;
     const previous = {
@@ -497,11 +502,14 @@ function DesktopWidgetSurface() {
       bodyMinHeight: bodyStyle.minHeight,
       bodyOverflow: bodyStyle.overflow,
       bodyWidth: bodyStyle.width,
+      bodyHeight: bodyStyle.height,
+      bodyDisplay: bodyStyle.display,
       htmlBackground: htmlStyle.background,
       htmlMargin: htmlStyle.margin,
       htmlMinHeight: htmlStyle.minHeight,
       htmlOverflow: htmlStyle.overflow,
       htmlWidth: htmlStyle.width,
+      htmlHeight: htmlStyle.height,
     };
 
     document.documentElement.dataset.bubliSurface = "desktop-widget";
@@ -510,12 +518,15 @@ function DesktopWidgetSurface() {
     htmlStyle.margin = "0";
     htmlStyle.minHeight = "0";
     htmlStyle.overflow = "hidden";
-    htmlStyle.width = "fit-content";
+    htmlStyle.width = "100%";
+    htmlStyle.height = "100%";
     bodyStyle.background = "transparent";
     bodyStyle.margin = "0";
     bodyStyle.minHeight = "0";
     bodyStyle.overflow = "hidden";
-    bodyStyle.width = "fit-content";
+    bodyStyle.width = "100%";
+    bodyStyle.height = "100%";
+    bodyStyle.display = "grid";
 
     return () => {
       delete document.documentElement.dataset.bubliSurface;
@@ -525,11 +536,14 @@ function DesktopWidgetSurface() {
       htmlStyle.minHeight = previous.htmlMinHeight;
       htmlStyle.overflow = previous.htmlOverflow;
       htmlStyle.width = previous.htmlWidth;
+      htmlStyle.height = previous.htmlHeight;
       bodyStyle.background = previous.bodyBackground;
       bodyStyle.margin = previous.bodyMargin;
       bodyStyle.minHeight = previous.bodyMinHeight;
       bodyStyle.overflow = previous.bodyOverflow;
       bodyStyle.width = previous.bodyWidth;
+      bodyStyle.height = previous.bodyHeight;
+      bodyStyle.display = previous.bodyDisplay;
     };
   }, []);
 
@@ -1424,7 +1438,7 @@ function DesktopWidgetSurface() {
     }
   }, [isTauri, selectedWidgetRoomId]);
 
-  if (!widgetSessionReady) {
+  if (!mounted || !widgetSessionReady) {
     return null;
   }
 
