@@ -27,6 +27,7 @@ import {
   listPersonalManagedFolders,
   openPersonalLocalFile,
   reindexPersonalLocalFile,
+  removePersonalManagedFolder,
   scanPersonalManagedFolder,
   searchPersonalLocalFiles,
   selectPersonalManagedFolder,
@@ -586,6 +587,32 @@ export default function SettingsPage() {
       void refreshManagedFolderProgress(folder.id);
     },
     [refreshManagedFolderProgress, updateReadyState],
+  );
+
+  const removeManagedFolder = useCallback(
+    async (folder: ManagedFolderResponse) => {
+      const result = await removePersonalManagedFolder({ localFolderId: folder.id });
+      if (result.status !== "ready") {
+        setLocalActionMessage(localResultMessage(result));
+        return;
+      }
+
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: {
+          ...ready.settings,
+          folders: ready.settings.folders.filter((item) => item.id !== folder.id),
+        },
+      }));
+      setFolderProgress((current) => {
+        const next = { ...current };
+        delete next[folder.id];
+        return next;
+      });
+      setLocalFiles([]);
+      setLocalActionMessage("개인 폴더 추적을 해제했습니다. 기존 로컬 기록은 기기 안에 보존됩니다.");
+    },
+    [updateReadyState],
   );
 
   const scanManagedFolder = useCallback(async () => {
@@ -1165,6 +1192,15 @@ export default function SettingsPage() {
                           variant="quiet"
                         >
                           {folder.syncEnabled ? "동기화 끄기" : "동기화 켜기"}
+                        </Button>
+                        <Button
+                          disabled={!desktopRuntime}
+                          onClick={() => void removeManagedFolder(folder)}
+                          size="sm"
+                          type="button"
+                          variant="quiet"
+                        >
+                          해제
                         </Button>
                       </div>
                     </div>

@@ -1173,6 +1173,7 @@ pub fn run() {
             local_files::select_managed_folder,
             local_files::get_index_progress,
             local_files::set_folder_sync,
+            local_files::remove_managed_folder,
             local_files::scan_managed_folder,
             local_files::watch_managed_folder,
             local_files::search_local_files,
