@@ -104,7 +104,7 @@ const defaultEvidenceItems: DailySummaryEvidence[] = [
 export function DailySummaryEvidencePanel({
   approvedSourceCount = 4,
   className,
-  dateLabel = "2026-06-23",
+  dateLabel = "오늘",
   evidenceItems = defaultEvidenceItems,
   localContextLabel = "최근 개인 에이전트 원문 100개 기준",
   onApproveSummary,
