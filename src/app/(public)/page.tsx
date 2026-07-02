@@ -1,3 +1,4 @@
+import { Apple, Download, MonitorDown } from "lucide-react";
 import Link from "next/link";
 
 import { Chip } from "@/components/ui/chip";
@@ -166,14 +167,6 @@ export default function HomePage() {
                 </h2>
                 <p>작업 중에도 오늘 할 일, 일정, 타이머가 화면 위에 가볍게 남습니다.</p>
               </div>
-              <div className="landing-download__actions">
-                <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/#download">
-                  앱 다운로드
-                </Link>
-                <Link className="bubli-button bubli-button--lg" href="/login">
-                  로그인
-                </Link>
-              </div>
             </header>
 
             <div className="landing-download__scene" aria-label="Bubli 앱 다운로드 미리보기">
@@ -199,11 +192,23 @@ export default function HomePage() {
                   </div>
                 </div>
               </article>
-              <Link className="landing-download__float landing-download__float--primary" href="/#download">
-                macOS 앱 받기
+              <Link aria-label="macOS 앱 다운로드" className="landing-download__float landing-download__float--primary" href="/#download">
+                <span className="landing-download__float-os" aria-hidden="true">
+                  <Apple size={24} strokeWidth={2.15} />
+                </span>
+                <span>macOS 앱 받기</span>
+                <span className="landing-download__float-download" aria-hidden="true">
+                  <Download size={20} strokeWidth={2.2} />
+                </span>
               </Link>
-              <Link className="landing-download__float landing-download__float--soft" href="/#download">
-                Windows 앱 받기
+              <Link aria-label="Windows 앱 다운로드" className="landing-download__float landing-download__float--soft" href="/#download">
+                <span className="landing-download__float-os" aria-hidden="true">
+                  <MonitorDown size={23} strokeWidth={2.1} />
+                </span>
+                <span>Windows 앱 받기</span>
+                <span className="landing-download__float-download" aria-hidden="true">
+                  <Download size={20} strokeWidth={2.2} />
+                </span>
               </Link>
               <Link className="landing-download__float landing-download__float--login" href="/login">
                 로그인하고 시작
