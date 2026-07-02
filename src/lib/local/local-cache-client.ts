@@ -16,6 +16,7 @@ import type {
 const IMPLEMENTED_LOCAL_CACHE_COMMANDS = [
   TAURI_COMMANDS.backupLocalSqlite,
   TAURI_COMMANDS.checkLocalSqliteIntegrity,
+  TAURI_COMMANDS.listLocalSqliteBackups,
   TAURI_COMMANDS.markActivityContextSynced,
   TAURI_COMMANDS.recordActivityContext,
   TAURI_COMMANDS.recordTimerState,
@@ -57,6 +58,16 @@ export function backupLocalSqlite() {
   }
 
   return runTauriAdapter(commandName, () => tauriCommands.backupLocalSqlite());
+}
+
+export function listLocalSqliteBackups() {
+  const commandName = TAURI_COMMANDS.listLocalSqliteBackups;
+
+  if (!isTauriRuntime()) {
+    return unavailable(commandName);
+  }
+
+  return runTauriAdapter(commandName, () => tauriCommands.listLocalSqliteBackups());
 }
 
 export function restoreLocalSqliteBackup(input: LocalBackupRestoreRequest) {

@@ -232,6 +232,31 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     reflectsToServer: false,
     serverApi: "/api/chat/rooms/{id}/messages",
   },
+  // Local SQLite lifecycle and backup metadata.
+  {
+    ipc: TAURI_COMMANDS.checkLocalSqliteIntegrity,
+    responsibility: "Run SQLite quick_check before local recovery decisions",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.backupLocalSqlite,
+    responsibility: "Create a local SQLite backup and write its manifest row",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.listLocalSqliteBackups,
+    responsibility: "Read local SQLite backup manifest entries after app restart",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.restoreLocalSqliteBackup,
+    responsibility: "Prepare local SQLite backup restore flow that requires restart before file replacement",
+    reflectsToServer: false,
+    serverApi: null,
+  },
   // Timer recovery: compares against server time_logs.
   {
     ipc: TAURI_COMMANDS.recoverTimerState,

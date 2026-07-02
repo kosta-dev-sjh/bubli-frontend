@@ -1189,6 +1189,7 @@ pub fn run() {
             local_db::check_local_sqlite_integrity,
             local_db::clear_active_project_room,
             local_db::clear_tauri_auth_session,
+            local_db::list_local_sqlite_backups,
             local_db::mark_activity_context_synced,
             local_db::read_active_project_room,
             local_db::read_tauri_auth_session,
