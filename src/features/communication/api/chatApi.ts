@@ -7,6 +7,8 @@ import type {
   ChatRoomResponse,
   DirectChatRoomRequest,
   GroupChatRoomRequest,
+  InviteChatRoomMembersRequest,
+  ProjectChatRoomRequest,
   RoomMemorySummaryCreateRequest,
   RoomMemorySummaryResponse,
   RoomAgentCommandRequest,
@@ -34,6 +36,19 @@ export const chatApi = {
 
   createGroupRoom(body: GroupChatRoomRequest) {
     return apiRequest<ChatRoomResponse>("/api/chat/group-rooms", {
+      body,
+      method: "POST",
+    });
+  },
+
+  createProjectRoomChatRoom({ roomId }: ProjectChatRoomRequest) {
+    return apiRequest<ChatRoomResponse>(`/api/project-rooms/${roomId}/chat-room`, {
+      method: "POST",
+    });
+  },
+
+  inviteMembers(chatRoomId: string, body: InviteChatRoomMembersRequest) {
+    return apiRequest<ChatRoomResponse>(`/api/chat/rooms/${chatRoomId}/members`, {
       body,
       method: "POST",
     });

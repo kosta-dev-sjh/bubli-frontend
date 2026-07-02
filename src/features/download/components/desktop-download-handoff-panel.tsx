@@ -75,11 +75,11 @@ export const defaultDownloadSurfaces: ProductSurface[] = [
     description: "로그인 후 프로젝트룸, 자료보드, WBS/작업판, 소통, 설정을 사용하는 실제 업무 화면입니다.",
     kind: "MEMBER_WEB",
     label: "로그인 후",
-    title: "회원 웹 앱",
+    title: "회원 작업 화면",
     tone: "room",
   },
   {
-    description: "회원 웹 앱을 데스크탑에서 열고, 버블과 기기 기능을 같은 작업 흐름에 붙입니다.",
+    description: "회원 작업 화면을 데스크탑에서 열고, 버블과 기기 기능을 같은 작업 흐름에 붙입니다.",
     kind: "DESKTOP_APP",
     label: "데스크탑",
     title: "데스크탑 앱",
@@ -89,9 +89,9 @@ export const defaultDownloadSurfaces: ProductSurface[] = [
 
 export const defaultDesktopCapabilities: DesktopCapability[] = [
   {
-    description: "메인 창은 배포된 회원 웹 앱을 열어 브라우저와 같은 화면을 보여줍니다.",
+    description: "메인 창은 회원 작업 화면을 열어 브라우저와 같은 업무 흐름을 보여줍니다.",
     kind: "MEMBER_WEB_WINDOW",
-    title: "회원 웹 앱 열기",
+    title: "회원 작업 화면 열기",
   },
   {
     description: "TODO, 알림, 타이머, 소통 같은 작업 중 정보는 개인 버블로 띄웁니다.",
@@ -144,7 +144,7 @@ export function DesktopDownloadHandoffPanel({
           <div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.description}>
-              공개 사이트는 앱을 내려받는 입구이고, 실제 업무는 로그인 후 회원 웹 앱에서 이어집니다. 데스크탑 앱은 같은
+              공개 사이트는 앱을 내려받는 입구이고, 실제 업무는 로그인 후 회원 작업 화면에서 이어집니다. 데스크탑 앱은 같은
               웹 화면을 열면서 버블, 기기 폴더, 기기 안 임시 저장 같은 앱 기능을 더합니다.
             </p>
           </div>

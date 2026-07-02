@@ -94,7 +94,7 @@ const failures = [];
 for (const root of SCAN_ROOTS) {
   yieldFiles(join(ROOT, root), (filePath) => {
     const text = readFileSync(filePath, "utf8");
-    const relativePath = relative(ROOT, filePath);
+    const relativePath = relative(ROOT, filePath).replaceAll("\\", "/");
     const matches = text.matchAll(/#[0-9a-fA-F]{3,8}\b/g);
 
     for (const match of matches) {

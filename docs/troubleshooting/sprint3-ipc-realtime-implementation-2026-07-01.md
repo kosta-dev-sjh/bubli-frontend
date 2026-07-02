@@ -18,7 +18,7 @@
 
 - `src-tauri/src/local_db.rs` — rusqlite(bundled) 연결 + 마이그레이션. 09C 기준 로컬 테이블 생성: `managed_folders`, `local_files`, `local_file_events`, `local_widget_usage_events`, `local_widget_usage_rollups`, `local_sync_outbox`, `local_activity_focus`. DB는 앱 데이터 폴더의 `bubli-local.sqlite3`.
 - `src-tauri/src/widget_usage.rs` — `record_widget_usage_event`, `rollup_widget_usage`, `sync_widget_usage_summary`.
-- `src-tauri/src/activity.rs` — `read_activity_context` (macOS는 osascript로 앞 앱 이름/창 제목, 머문시간은 포커스 추적으로 계산. 그 외 OS는 명확한 에러).
+- `src-tauri/src/activity.rs` — `read_activity_context` (macOS는 osascript, Windows는 Win32 foreground window API로 앞 앱 이름/창 제목을 읽고, 머문시간은 포커스 추적으로 계산. Linux 등 그 외 OS는 명확한 에러).
 - `src-tauri/src/local_files.rs` — `select_managed_folder`, `scan_managed_folder`(std::fs 실제 스캔/색인/이벤트), `search_local_files`(LIKE), `watch_managed_folder`(에러: 연속 감시는 남은 단계), `flush_sync_outbox`(백로그 보고).
 
 수정 파일
@@ -85,7 +85,7 @@ npm run typecheck
 
 ## 4. 남은 단계 (네이티브/백엔드)
 
-- macOS 외 활동 캡처(Windows GetForegroundWindow, Linux WM), 창 제목은 macOS 접근성 권한 필요.
+- Linux 등 기타 데스크탑의 활동 캡처(WM별 구현). macOS 창 제목은 접근성 권한이 필요하고, Windows 경로는 실제 Tauri 앱 런타임 검증이 남았다.
 - 연속 폴더 감시(`watch_managed_folder`): `notify` 크레이트 기반 워처. 지금은 `scan_managed_folder`로 수동 갱신.
 - 네이티브 폴더 선택: dialog 플러그인 연결 전까지 `select_managed_folder`는 경로 입력을 받는다.
 - `local_sync_outbox` 실제 전송: 인증 토큰이 프론트/OS 보안 저장소에 있으므로 전송은 프론트 API 클라이언트가 담당. Rust는 적재만.

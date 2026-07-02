@@ -13,7 +13,7 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
-import { readCurrentActivityContext } from "@/lib/local/activity-client";
+import { recordCurrentActivityContext } from "@/lib/local/activity-client";
 import {
   backupLocalSqlite,
   checkLocalSqliteIntegrity,
@@ -22,6 +22,7 @@ import {
   restoreLocalSqliteBackup,
 } from "@/lib/local/local-cache-client";
 import {
+  readPersonalLocalFile,
   scanPersonalManagedFolder,
   searchPersonalLocalFiles,
   selectPersonalManagedFolder,
@@ -29,7 +30,14 @@ import {
   watchPersonalManagedFolder,
 } from "@/lib/local/managed-folder-client";
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
+import { refreshTauriActivityRuntime } from "@/lib/tauri/activity-runtime";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import {
+  tauriCommands,
+  type AppMonitorInfo,
+  type AppMonitorPreference,
+  type LocalFileReadResult,
+} from "@/lib/tauri/commands";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
@@ -165,11 +173,21 @@ function userToProfileDraft(user: AuthUser) {
   };
 }
 
+function accountHandle(user: AuthUser) {
+  return user.bubliId ? `@${user.bubliId}` : "Bubli 계정";
+}
+
 function localResultMessage<TData, TSummary>(result: LocalAdapterResult<TData, TSummary>) {
   if (result.status === "ready") return result.message ?? "완료했습니다";
   if (result.status === "pending") return result.message;
   if (result.status === "unavailable") return "데스크탑 앱에서 사용할 수 있습니다";
   return result.message;
+}
+
+function monitorLabel(monitor: AppMonitorInfo, index: number) {
+  const name = monitor.name?.trim() || `모니터 ${index + 1}`;
+  const primaryLabel = monitor.isPrimary ? " · 기본" : "";
+  return `${name}${primaryLabel} - ${monitor.size.width}x${monitor.size.height} @ ${monitor.position.x},${monitor.position.y}`;
 }
 
 function statusTone(value: string) {
@@ -185,8 +203,10 @@ export default function SettingsPage() {
   const [localActionMessage, setLocalActionMessage] = useState<string | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState("");
   const [localFiles, setLocalFiles] = useState<Array<{ localFileId: string; name: string; path: string }>>([]);
+  const [localFilePreview, setLocalFilePreview] = useState<LocalFileReadResult | null>(null);
   const [lastBackupId, setLastBackupId] = useState<string | null>(null);
   const [desktopRuntime, setDesktopRuntime] = useState(false);
+  const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -241,6 +261,26 @@ export default function SettingsPage() {
       window.clearTimeout(loadHandle);
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!desktopRuntime) {
+      return;
+    }
+
+    let cancelled = false;
+    void tauriCommands
+      .listAppMonitors()
+      .then((preference) => {
+        if (!cancelled) setMonitorPreference(preference);
+      })
+      .catch(() => {
+        if (!cancelled) setLocalActionMessage("모니터 목록을 불러올 수 없습니다");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [desktopRuntime]);
 
   const updateReadyState = useCallback((updater: (current: Extract<PageState, { kind: "ready" }>) => Extract<PageState, { kind: "ready" }>) => {
     setState((current) => (current.kind === "ready" ? updater(current) : current));
@@ -324,6 +364,9 @@ export default function SettingsPage() {
           ...ready,
           settings: { ...ready.settings, privacy: saved },
         }));
+        if (key === "activityDetectionEnabled") {
+          refreshTauriActivityRuntime();
+        }
       } catch {
         if (shouldUseWorkspacePreviewData()) return;
         setSaveMessage("기기 권한 설정을 저장하지 못했습니다");
@@ -453,6 +496,7 @@ export default function SettingsPage() {
       return;
     }
 
+    setLocalFilePreview(null);
     const result = await searchPersonalLocalFiles({ limit: 20, query });
     if (result.status === "ready") {
       setLocalFiles(result.data.items.map((item) => ({ localFileId: item.localFileId, name: item.name, path: item.path })));
@@ -464,9 +508,25 @@ export default function SettingsPage() {
     setLocalActionMessage(localResultMessage(result));
   }, [folderSearchQuery]);
 
+  const readLocalFilePreview = useCallback(async (localFileId: string) => {
+    const result = await readPersonalLocalFile({ localFileId, maxBytes: 64 * 1024 });
+    if (result.status === "ready") {
+      setLocalFilePreview(result.data);
+      if (result.data.readable) {
+        setLocalActionMessage(result.data.truncated ? "로컬 파일 프리뷰를 일부만 읽었습니다" : "로컬 파일 프리뷰를 읽었습니다");
+        return;
+      }
+      setLocalActionMessage(`로컬 파일을 읽을 수 없습니다: ${result.data.reason ?? "지원하지 않는 형식"}`);
+      return;
+    }
+
+    setLocalFilePreview(null);
+    setLocalActionMessage(localResultMessage(result));
+  }, []);
+
   const readActivity = useCallback(async () => {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
-    const result = await readCurrentActivityContext({ consentGranted });
+    const result = await recordCurrentActivityContext({ consentGranted });
     if (result.status === "ready") {
       setLocalActionMessage(`활동 감지 · ${result.data.appName}${result.data.windowTitle ? ` · ${result.data.windowTitle}` : ""}`);
       return;
@@ -474,6 +534,21 @@ export default function SettingsPage() {
 
     setLocalActionMessage(localResultMessage(result));
   }, [state]);
+
+  const selectAppMonitor = useCallback(
+    async (monitorId: string) => {
+      if (!desktopRuntime) return;
+
+      try {
+        const preference = await tauriCommands.setPreferredAppMonitor({ monitorId });
+        setMonitorPreference(preference);
+        setLocalActionMessage("앱 표시 모니터를 저장했습니다");
+      } catch {
+        setLocalActionMessage("앱 표시 모니터를 저장하지 못했습니다");
+      }
+    },
+    [desktopRuntime],
+  );
 
   const openGoogleCalendarConnect = useCallback(() => {
     if (state.kind !== "ready" || !state.settings.googleCalendarConnectUrl) return;
@@ -554,7 +629,7 @@ export default function SettingsPage() {
             <GlassPanel className={styles.statusCard}>
               <span>계정</span>
               <strong>{state.kind === "ready" ? state.user.name : "연결 전"}</strong>
-              <small>{state.kind === "ready" ? state.user.email : "서버 연결 후 표시"}</small>
+              <small>{state.kind === "ready" ? accountHandle(state.user) : "서버 연결 후 표시"}</small>
             </GlassPanel>
             <GlassPanel className={styles.statusCard}>
               <span>알림</span>
@@ -587,12 +662,12 @@ export default function SettingsPage() {
                 <strong>{state.kind === "ready" ? state.user.name : "서버 연결 후 표시"}</strong>
               </div>
               <div className={styles.identity}>
-                <span>이메일</span>
-                <strong>{state.kind === "ready" ? state.user.email : "서버 연결 후 표시"}</strong>
+                <span>Bubli ID</span>
+                <strong>{state.kind === "ready" ? accountHandle(state.user) : "서버 연결 후 표시"}</strong>
               </div>
               <div className={styles.identity}>
-                <span>Bubli ID</span>
-                <strong>{state.kind === "ready" ? state.user.bubliId : "현재 데이터가 없습니다"}</strong>
+                <span>시간대</span>
+                <strong>{state.kind === "ready" ? state.user.timezone ?? "Asia/Seoul" : "현재 데이터가 없습니다"}</strong>
               </div>
               <div className={styles.actions}>
                 <Button disabled={state.kind !== "ready"} onClick={() => void logout()} type="button" variant="quiet">
@@ -771,7 +846,7 @@ export default function SettingsPage() {
               </div>
               <p className={styles.guard}>화면 전체 내용과 키보드 입력은 수집하지 않습니다.</p>
               <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void readActivity()} type="button" variant="quiet">
-                현재 활동 확인
+                현재 활동 기록
               </Button>
             </GlassPanel>
           </div>
@@ -794,6 +869,25 @@ export default function SettingsPage() {
                   <StatusBadge tone={localCacheReadiness.status === "ready" ? "approved" : "neutral"}>
                     {localCacheReadiness.status === "ready" ? "준비됨" : "앱 필요"}
                   </StatusBadge>
+                </div>
+                <div className={styles.row}>
+                  <span>
+                    <strong>앱 표시 모니터</strong>
+                    <small>하이브리드 앱과 위젯을 선택한 모니터에 띄웁니다.</small>
+                  </span>
+                  <select
+                    className={styles.inlineSelect}
+                    disabled={!desktopRuntime || !monitorPreference}
+                    onChange={(event) => void selectAppMonitor(event.target.value)}
+                    value={monitorPreference?.preferredMonitorId ?? "primary"}
+                  >
+                    <option value="primary">기본 모니터</option>
+                    {monitorPreference?.monitors.map((monitor, index) => (
+                      <option key={monitor.id} value={monitor.id}>
+                        {monitorLabel(monitor, index)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 {activeFolders.length > 0 ? (
                   activeFolders.map((folder) => (
@@ -842,9 +936,35 @@ export default function SettingsPage() {
                         <strong>{file.name}</strong>
                         <small>{file.path}</small>
                       </span>
-                      <StatusBadge tone="neutral">로컬</StatusBadge>
+                      <span className={styles.rowActions}>
+                        <Button disabled={!desktopRuntime} onClick={() => void readLocalFilePreview(file.localFileId)} type="button" variant="quiet">
+                          읽기
+                        </Button>
+                        <StatusBadge tone="neutral">로컬</StatusBadge>
+                      </span>
                     </div>
                   ))}
+                </div>
+              ) : null}
+              {localFilePreview ? (
+                <div className={styles.localPreview}>
+                  <div className={styles.previewHeader}>
+                    <span>
+                      <strong>{localFilePreview.name}</strong>
+                      <small>
+                        {localFilePreview.sizeBytes != null ? byteLabel(localFilePreview.sizeBytes) : "크기 확인 대기"}
+                        {localFilePreview.modifiedAt ? ` · 수정 ${localFilePreview.modifiedAt}` : ""}
+                      </small>
+                    </span>
+                    <StatusBadge tone={localFilePreview.readable ? "approved" : "warning"}>
+                      {localFilePreview.readable ? (localFilePreview.truncated ? "일부 읽음" : "읽음") : "읽기 불가"}
+                    </StatusBadge>
+                  </div>
+                  {localFilePreview.readable ? (
+                    <pre className={styles.previewBody}>{localFilePreview.content || "내용이 비어 있습니다."}</pre>
+                  ) : (
+                    <p className={styles.guard}>읽을 수 없는 파일입니다. 사유: {localFilePreview.reason ?? "지원하지 않는 형식"}</p>
+                  )}
                 </div>
               ) : null}
             </GlassPanel>

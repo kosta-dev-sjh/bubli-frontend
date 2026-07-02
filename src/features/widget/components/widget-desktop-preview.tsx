@@ -28,9 +28,9 @@ export function WidgetDesktopPreview() {
 
       <div className="widget-preview__desktop">
         <div className="widget-preview__app-frame">
-          <Chip selected>회원 웹 앱</Chip>
+          <Chip selected>회원 작업 화면</Chip>
           <h3>토모에 번역 프로젝트</h3>
-          <p>메인 화면은 배포된 회원 웹 앱을 열고, 버블은 데스크톱 앱에서 작업 화면 위에 따로 띄웁니다.</p>
+          <p>메인 화면은 회원 작업 화면을 열고, 버블은 데스크톱 앱에서 작업 화면 위에 따로 띄웁니다.</p>
         </div>
 
         <div className="widget-preview__bubble-layer" aria-label="버블 레이어">

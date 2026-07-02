@@ -260,7 +260,8 @@ pub fn sync_widget_usage_summary(
             }
         }
 
-        let (_, open_count, visible_seconds) = read_usage_metrics(&conn, &summary_date, &bubble_type)?;
+        let (_, open_count, visible_seconds) =
+            read_usage_metrics(&conn, &summary_date, &bubble_type)?;
         let payload = json!({
             "rollupKey": rollup_key,
             "bubbleType": bubble_type,

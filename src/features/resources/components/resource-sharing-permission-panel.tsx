@@ -16,7 +16,7 @@ type ResourceShareItem = {
 const shareItems: ResourceShareItem[] = [
   {
     currentScope: "개인 자료",
-    name: "개인 메모_계약 검토.md",
+    name: "개인 메모_자료 검토.md",
     nextAction: "공유 전 검토",
     status: "private",
   },
@@ -28,7 +28,7 @@ const shareItems: ResourceShareItem[] = [
   },
   {
     currentScope: "프로젝트룸 자료",
-    name: "번역계약서_v2.pdf",
+    name: "업무기준문서_v2.pdf",
     nextAction: "버전 히스토리 확인",
     status: "shared",
   },

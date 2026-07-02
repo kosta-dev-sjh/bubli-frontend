@@ -36,29 +36,29 @@ type ReviewItem = {
 };
 
 const documents: DocumentSource[] = [
-  { name: "번역계약서_v2.pdf", status: "needsReview", type: "계약서" },
+  { name: "업무기준문서_v2.pdf", status: "needsReview", type: "업무 문서" },
   { name: "견적서_final.pdf", status: "analyzed", type: "견적서" },
   { name: "요구사항_정리.md", status: "analyzed", type: "요구사항" },
 ];
 
 const extractedValues: ExtractedValue[] = [
-  { label: "프로젝트명", source: "계약서", value: "서비스 소개 페이지 번역" },
-  { label: "납품일 후보", source: "계약서, 견적서", value: "2026.07.15" },
+  { label: "프로젝트명", source: "업무 문서", value: "서비스 소개 페이지 번역" },
+  { label: "납품일 후보", source: "업무 문서, 견적서", value: "7월 15일" },
   { label: "금액 참고값", source: "견적서", value: "8,000,000원" },
   { label: "납품물 후보", source: "요구사항", value: "한영 번역본, 용어집" },
 ];
 
 const reviewItems: ReviewItem[] = [
   {
-    detail: "계약서에는 7월 15일, 회의록에는 7월 20일로 적혀 있습니다.",
+    detail: "업무 문서에는 7월 15일, 회의록에는 7월 20일로 적혀 있습니다.",
     label: "납품일 값 차이",
-    source: "계약서 · 회의록",
+    source: "업무 문서 · 회의록",
     type: "difference",
   },
   {
-    detail: "견적서에는 2회 수정이 있으나 계약서에는 수정 범위가 비어 있습니다.",
+    detail: "견적서에는 2회 수정이 있으나 업무 문서에는 수정 범위가 비어 있습니다.",
     label: "수정 범위 확인",
-    source: "계약서 · 견적서",
+    source: "업무 문서 · 견적서",
     type: "missing",
   },
   {
@@ -132,13 +132,13 @@ function ReviewItemCard({ item }: { item: ReviewItem }) {
 
 export function ContractReviewPanel() {
   return (
-    <section className="contract-review" aria-label="계약 문서 확인 패널">
+    <section className="contract-review" aria-label="업무 문서 확인 패널">
       <GlassPanel className="contract-review__hero">
         <div>
           <Chip icon={<Bot size={14} />} selected>
-            계약 문서 확인
+            업무 문서 확인
           </Chip>
-          <h2>계약서, 견적서, 요구사항의 값 차이와 빠진 조건을 확인합니다</h2>
+          <h2>업무 문서, 견적서, 요구사항의 값 차이와 빠진 조건을 확인합니다</h2>
           <p>
             에이전트는 문서에서 프로젝트 정보와 확인 필요 항목을 후보로 정리합니다. 사용자가 확인한 값만
             프로젝트룸, WBS, TODO, 일정에 반영됩니다.
@@ -148,7 +148,7 @@ export function ContractReviewPanel() {
           <StatusBadge tone="agent">에이전트 정리</StatusBadge>
           <strong>92%</strong>
           <span>문서 추출 후보 생성</span>
-          <ProgressBar label="계약 문서 분석 진행률" value={92} />
+          <ProgressBar label="업무 문서 분석 진행률" value={92} />
         </div>
       </GlassPanel>
 

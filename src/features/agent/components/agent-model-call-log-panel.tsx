@@ -52,7 +52,7 @@ const logs: ModelCallLog[] = [
     schemaVersion: "resource-analysis-json-v2",
     status: "SUCCEEDED",
     target: "자료 분석 후보",
-    title: "번역계약서_v2.pdf 분석",
+    title: "업무기준문서_v2.pdf 분석",
   },
   {
     inputTokens: 2650,
@@ -76,7 +76,7 @@ const logs: ModelCallLog[] = [
     schemaVersion: "requirement-json-v2",
     status: "RETRIED",
     target: "다시 확인",
-    title: "요구사항_초안.docx 재검증",
+    title: "요구사항_정리.docx 재검증",
   },
 ];
 

@@ -1,6 +1,12 @@
 import type {
+  ActivityLogResponse,
+  ActivityLogsTodayResponse,
+} from "@/types/api/activity";
+import type {
   ActivityContextResult,
   LocalBackupRestoreInput,
+  LocalFileReadInput,
+  LocalFileReadResult,
   LocalFileSearchInput,
   LocalFileSearchResult,
   ManagedFolderCommandInput,
@@ -101,6 +107,18 @@ export type ActivityContextReadInput = {
   consentGranted: boolean;
 };
 
+export type ActivityContextRecordInput = ActivityContextReadInput & {
+  roomId?: string | null;
+};
+
+export type ActivityContextRecordResult = {
+  appName: string;
+  context: ActivityContextResult;
+  recordedActivity: ActivityLogResponse;
+  todayActivities: ActivityLogsTodayResponse;
+  windowTitle?: string;
+};
+
 export type LocalFolderScopeInput = {
   roomId?: string | null;
 };
@@ -120,7 +138,10 @@ export type ManagedFolderWatchAdapterResult = LocalAdapterResult<
 >;
 export type LocalFileSearchAdapterInput = LocalFileSearchInput & LocalFolderScopeInput;
 export type LocalFileSearchAdapterResult = LocalAdapterResult<LocalFileSearchResult>;
+export type LocalFileReadAdapterInput = LocalFileReadInput & LocalFolderScopeInput;
+export type LocalFileReadAdapterResult = LocalAdapterResult<LocalFileReadResult>;
 export type ActivityContextAdapterResult = LocalAdapterResult<ActivityContextResult>;
+export type ActivityContextRecordAdapterResult = LocalAdapterResult<ActivityContextRecordResult>;
 export type WidgetUsageEventAdapterInput = WidgetUsageEventInput;
 export type WidgetUsageEventAdapterResult = LocalAdapterResult<WidgetUsageEventRecordResult>;
 export type WidgetUsageRollupAdapterInput = WidgetUsageRollupInput;

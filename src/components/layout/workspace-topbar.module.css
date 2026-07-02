@@ -187,6 +187,13 @@ button.profileButton {
   font-weight: 880;
 }
 
+.avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 .visuallyHidden {
   position: absolute;
   width: 1px;

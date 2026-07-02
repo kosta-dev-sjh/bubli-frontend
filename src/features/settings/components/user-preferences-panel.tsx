@@ -5,7 +5,7 @@ import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
 import styles from "./user-preferences-panel.module.css";
 
 const profileFields = [
-  ["이름", "정현"],
+  ["이름", "나"],
   ["Bubli ID", "junghyun.k"],
   ["이메일", "junghyun@bubli.kr"],
 ];

@@ -97,10 +97,10 @@ export const defaultScopedResources: ScopedResource[] = [
     visibility: "ROOM_SHARED",
   },
   {
-    detail: "프로젝트룸 자료 · 어제 업로드 · 계약 조건 확인",
+    detail: "프로젝트룸 자료 · 어제 업로드 · 업무 조건 확인",
     id: "resource-2",
     state: "analyzing",
-    title: "번역계약서_v2.pdf",
+    title: "업무기준문서_v2.pdf",
     visibility: "ROOM_SHARED",
   },
   {
@@ -179,7 +179,7 @@ export function ResourceScopeFilterPanel({
         <article className={styles.resourceList}>
           <div className={styles.searchBar}>
             <Search size={16} strokeWidth={2.1} aria-hidden="true" />
-            <span>계약서 관련 회의록 찾아줘</span>
+            <span>업무 문서 관련 회의록 찾아줘</span>
           </div>
           <div className={styles.listHeader}>
             <div>

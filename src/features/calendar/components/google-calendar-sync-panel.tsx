@@ -15,7 +15,7 @@ type CalendarItem = {
 
 const calendarItems: CalendarItem[] = [
   {
-    projectHint: "번역 계약서 정리",
+    projectHint: "업무 기준 문서 정리",
     source: "Bubli",
     status: "confirmed",
     time: "10:00",
