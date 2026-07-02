@@ -11,12 +11,17 @@ type TauriListen = <TPayload>(
 
 export const TAURI_EVENTS = {
   managedFolderWatchEvent: "bubli-managed-folder-watch-event",
+  widgetRoomContextChanged: "bubli-widget-room-context-changed",
 } as const;
 
 export type ManagedFolderWatchEventPayload = {
   changedCount: number;
   localFolderId: string;
   observedAt: string;
+};
+
+export type WidgetRoomContextChangedPayload = {
+  selectedRoomId?: string | null;
 };
 
 async function listenTauriEvent<TPayload>(
@@ -38,4 +43,10 @@ export function listenManagedFolderWatchEvents(
   handler: (payload: ManagedFolderWatchEventPayload) => void,
 ) {
   return listenTauriEvent(TAURI_EVENTS.managedFolderWatchEvent, handler);
+}
+
+export function listenWidgetRoomContextChanged(
+  handler: (payload: WidgetRoomContextChangedPayload) => void,
+) {
+  return listenTauriEvent(TAURI_EVENTS.widgetRoomContextChanged, handler);
 }

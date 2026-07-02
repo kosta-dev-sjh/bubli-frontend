@@ -3,7 +3,7 @@ use std::{collections::HashMap, env, fs, path::PathBuf, sync::Mutex};
 use serde::{Deserialize, Serialize};
 use tauri::utils::config::Color;
 use tauri::{
-    AppHandle, LogicalPosition, LogicalSize, Manager, Monitor, Position, Size, WebviewUrl,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Monitor, Position, Size, WebviewUrl,
     WebviewWindowBuilder,
 };
 
@@ -14,6 +14,7 @@ mod widget_usage;
 
 const WIDGET_WINDOW_LABEL_PREFIX: &str = "bubli-widget";
 const WIDGET_WINDOW_URL: &str = "desktop-widget";
+const WIDGET_ROOM_CONTEXT_CHANGED_EVENT: &str = "bubli-widget-room-context-changed";
 const MAIN_WINDOW_LABEL: &str = "main";
 const MAIN_WINDOW_DEFAULT_WIDTH: i32 = 1280;
 const MAIN_WINDOW_DEFAULT_HEIGHT: i32 = 820;
@@ -167,6 +168,18 @@ struct WidgetWindowOpenInput {
     mode: Option<String>,
     selected_room_id: Option<String>,
     window_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WidgetRoomContextInput {
+    selected_room_id: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WidgetRoomContextChangedPayload {
+    selected_room_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -540,6 +553,17 @@ fn widget_keeps_webview_when_hidden(widget: &WidgetWindowState) -> bool {
     widget.active_bubble == "bar" || widget.active_bubble == "menu"
 }
 
+fn set_widget_room_context_for_store(
+    store: &mut WidgetWindowStore,
+    selected_room_id: Option<String>,
+) -> Vec<WidgetWindowState> {
+    for widget in store.bubbles.values_mut() {
+        widget.selected_room_id = selected_room_id.clone();
+    }
+
+    store.bubbles.values().cloned().collect()
+}
+
 fn destroy_all_widget_windows(app: &AppHandle) -> usize {
     let mut destroyed_count = 0;
     for (label, window) in app.webview_windows() {
@@ -841,6 +865,33 @@ fn set_widget_window_position(
 }
 
 #[tauri::command]
+fn set_widget_room_context(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+    state: tauri::State<'_, WidgetState>,
+    input: WidgetRoomContextInput,
+) -> Result<Vec<WidgetWindowState>, String> {
+    let selected_room_id = normalize_optional_query_value(input.selected_room_id);
+    let widgets = {
+        let mut guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        set_widget_room_context_for_store(&mut guard, selected_room_id.clone())
+    };
+    let payload = WidgetRoomContextChangedPayload { selected_room_id };
+
+    for widget in &widgets {
+        apply_widget_window_state(&app, &monitor_state, widget)?;
+        let label = widget_window_label(widget);
+        if app.get_webview_window(&label).is_some() {
+            let _ = app.emit_to(&label, WIDGET_ROOM_CONTEXT_CHANGED_EVENT, payload.clone());
+        }
+    }
+
+    Ok(widgets)
+}
+
+#[tauri::command]
 fn set_widget_always_on_top(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
@@ -1104,6 +1155,7 @@ pub fn run() {
             set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,
+            set_widget_room_context,
             set_widget_window_mode,
             set_widget_window_position,
             toggle_widget_window,
@@ -1176,4 +1228,35 @@ pub fn run() {
         }
         _ => {}
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn widget_room_context_updates_all_known_widgets_and_can_clear_room() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "bar".to_string(),
+            default_widget_window_state("bar", Some("bar".to_string())),
+        );
+        store.bubbles.insert(
+            "chat".to_string(),
+            default_widget_window_state("chat", Some("chat".to_string())),
+        );
+
+        let selected = set_widget_room_context_for_store(&mut store, Some("room-1".to_string()));
+
+        assert_eq!(selected.len(), 3);
+        assert!(selected
+            .iter()
+            .all(|widget| widget.selected_room_id.as_deref() == Some("room-1")));
+
+        let cleared = set_widget_room_context_for_store(&mut store, None);
+
+        assert!(cleared
+            .iter()
+            .all(|widget| widget.selected_room_id.as_deref().is_none()));
+    }
 }
