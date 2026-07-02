@@ -387,7 +387,10 @@ function WbsRow({
       }
       type="button"
     >
-      <GripVertical aria-hidden="true" className={styles.wbsHandle} size={15} strokeWidth={2} />
+      <span className={styles.wbsHierarchy} aria-hidden="true">
+        <GripVertical className={styles.wbsHandle} size={15} strokeWidth={2} />
+        <span className={styles.wbsRail} />
+      </span>
       <span className={styles.wbsCode}>{code}</span>
       <span className={styles.wbsMain}>
         <strong>{item.title}</strong>
