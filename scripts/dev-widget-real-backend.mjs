@@ -117,13 +117,16 @@ async function smokeBackend(accessToken) {
   const todoSetting = settings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
   assert(todoSetting?.id, "widget settings did not include a TODO bubble setting id");
 
-  const today = new Date().toISOString().slice(0, 10);
+  const todayUsageBefore = await apiGet("/api/widget/usage-summaries/today", headers);
+  const today = todayUsageBefore.date;
+  const smokeUsageDeviceId = `codex-tauri-${Date.now()}`;
+  const usageRollupKey = `${smokeUsageDeviceId}:${todoSetting.id}:${today}`;
   const usageSummary = await apiPost("/api/widget/usage-summaries", headers, {
     bubbleSettingId: todoSetting.id,
-    deviceId: "codex-tauri-smoke",
+    deviceId: smokeUsageDeviceId,
     interactionCount: 2,
     openCount: 1,
-    rollupKey: `codex-tauri-smoke:${todoSetting.id}:${today}`,
+    rollupKey: usageRollupKey,
     summaryDate: today,
     syncedAt: new Date().toISOString(),
     visibleSeconds: 2,
@@ -131,7 +134,14 @@ async function smokeBackend(accessToken) {
   const todayUsage = await apiGet("/api/widget/usage-summaries/today", headers);
 
   assert(usageSummary.bubbleSettingId === todoSetting.id, "usage summary save did not return the TODO setting id");
-  assert(todayUsage.totalInteractionCount >= 2, "today usage summary did not include the smoke interaction count");
+  assert(
+    todayUsage.totalInteractionCount >= todayUsageBefore.totalInteractionCount + 2,
+    "today usage summary did not include the smoke interaction count",
+  );
+  assert(
+    todayUsage.byDevice?.some((item) => item.id === usageSummary.id),
+    "today usage summary did not include the saved smoke rollup",
+  );
 
   const localFileSync = await apiPost("/api/local-file-events/sync", headers, {
     events: [
