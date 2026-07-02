@@ -140,7 +140,6 @@ export default function ProjectRoomHomePage() {
       <header className="workspace-route__header">
         <div>
           <h1 id="room-home-title">{state.kind === "ready" ? state.room.name : "프로젝트룸"}</h1>
-          {state.kind === "ready" ? <p className="workspace-route__eyebrow">자료 · 작업 · 소통 · 일정</p> : null}
         </div>
         {state.kind === "ready" ? (
           <nav className="room-home__segmented-nav" aria-label="프로젝트룸 메뉴">
