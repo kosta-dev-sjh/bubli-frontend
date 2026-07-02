@@ -787,8 +787,11 @@ fn apply_widget_window_state(
             .set_background_color(Some(Color(0, 0, 0, 0)))
             .map_err(|error| error.to_string())?;
 
+        let is_visible = window.is_visible().unwrap_or(false);
         if widget.window_visible {
-            window.show().map_err(|error| error.to_string())?;
+            if !is_visible {
+                window.show().map_err(|error| error.to_string())?;
+            }
         } else {
             window.hide().map_err(|error| error.to_string())?;
         }

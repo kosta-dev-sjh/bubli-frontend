@@ -2,7 +2,7 @@
 
 import { Room } from "livekit-client";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   widgetDisplayApi,
@@ -63,6 +63,19 @@ const apiItemBubbleTypeMap: Record<WidgetBubbleType, ApiWidgetBubbleType> = {
 };
 
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
+
+function subscribeToClientMount(onStoreChange: () => void) {
+  const timeoutId = window.setTimeout(onStoreChange, 0);
+  return () => window.clearTimeout(timeoutId);
+}
+
+function getClientMountSnapshot() {
+  return true;
+}
+
+function getServerMountSnapshot() {
+  return false;
+}
 
 function getRequestedBubble(value: string | null): WidgetBubbleType {
   return desktopWidgetBubbleTypes.includes(value as WidgetBubbleType) ? (value as WidgetBubbleType) : "todo";
@@ -453,7 +466,7 @@ function DesktopWidgetSurface() {
   const { t } = useI18n();
   const isTauri = isTauriRuntime();
   const searchParams = useSearchParams();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(subscribeToClientMount, getClientMountSnapshot, getServerMountSnapshot);
   const requestedSurface = searchParams.get("bubble");
   const isBubbleBar = requestedSurface === "bar";
   const isMenuOrb = requestedSurface === "menu";
@@ -488,10 +501,6 @@ function DesktopWidgetSurface() {
   const liveKitRoomRef = useRef<Room | null>(null);
   const selectedWidgetRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
   const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     const htmlStyle = document.documentElement.style;
