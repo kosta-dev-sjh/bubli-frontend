@@ -504,7 +504,7 @@ export function WbsGanttPanel({
 
         <button className={styles.toolButton} onClick={scrollToToday} type="button">
           <CalendarDays aria-hidden="true" size={13} strokeWidth={2.1} />
-          오늘
+          {t("wbs.board.due.today")}
         </button>
         <button className={styles.toolButton} onClick={handleAddGroup} type="button">
           <FolderPlus aria-hidden="true" size={13} strokeWidth={2.1} />
