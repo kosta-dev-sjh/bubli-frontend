@@ -43,7 +43,7 @@
   background: rgba(231, 246, 255, 0.78);
   border: 1px solid rgba(111, 184, 242, 0.28);
   border-radius: 999px;
-  color: #2f648d;
+  color: var(--blue-ink);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
@@ -78,13 +78,13 @@
 .generateNotice {
   background: rgba(231, 246, 255, 0.72);
   border: 1px solid rgba(111, 184, 242, 0.2);
-  color: #2f648d;
+  color: var(--blue-ink);
 }
 
 .generateError {
   background: rgba(255, 245, 235, 0.82);
   border: 1px solid rgba(232, 196, 160, 0.3);
-  color: #9a4f2d;
+  color: color-mix(in srgb, var(--color-warning) 42%, var(--ink) 58%);
 }
 
 .viewSwitch {

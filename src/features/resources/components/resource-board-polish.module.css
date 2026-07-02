@@ -709,7 +709,7 @@
   border: 1px solid rgba(211, 72, 92, 0.42);
   border-radius: var(--radius-pill);
   padding: 0 16px;
-  color: #b91c35;
+  color: color-mix(in srgb, var(--signal-alert) 55%, var(--ink) 45%);
   background: rgba(255, 232, 236, 0.86);
   box-shadow: var(--inner-highlight-light);
   font: inherit;
