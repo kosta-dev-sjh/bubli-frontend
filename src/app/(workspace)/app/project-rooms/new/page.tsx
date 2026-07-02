@@ -12,6 +12,7 @@ import { agentApi } from "@/features/agent/api/agentApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import type { ProjectRoomUpsertRequest } from "@/types/api/projectRoom";
 
 type SubmitState = "idle" | "submitting" | "auth" | "error";
@@ -34,11 +35,11 @@ const emptyDraft: RoomDraft = {
   reviewQuestion: "",
 };
 
-const documentSlots = [
-  { label: "계약서", target: "프로젝트룸 참고 정보" },
-  { label: "요구사항", target: "WBS/TODO 후보" },
-  { label: "회의록", target: "확인 질문" },
-] as const;
+const documentSlots: Array<{ labelKey: MessageKey; targetKey: MessageKey }> = [
+  { labelKey: "room.new.slot.contract", targetKey: "room.new.slot.contractTarget" },
+  { labelKey: "room.new.slot.requirement", targetKey: "room.new.slot.requirementTarget" },
+  { labelKey: "room.new.slot.minutes", targetKey: "room.new.slot.minutesTarget" },
+];
 
 function nullableText(value: FormDataEntryValue | null) {
   const text = typeof value === "string" ? value.trim() : "";
@@ -55,6 +56,7 @@ function nullableAmount(value: FormDataEntryValue | null) {
 
 export default function NewProjectRoomPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [draft, setDraft] = useState<RoomDraft>(emptyDraft);
@@ -79,8 +81,8 @@ export default function NewProjectRoomPage() {
     setDraft((current) => ({
       ...current,
       name: current.name || firstName,
-      deliveryScope: current.deliveryScope || "자료에서 납품물과 작업 범위를 확인",
-      reviewQuestion: current.reviewQuestion || "검수 기준과 수정 범위를 확인",
+      deliveryScope: current.deliveryScope || t("room.new.autofillScope"),
+      reviewQuestion: current.reviewQuestion || t("room.new.autofillReview"),
     }));
   }
 
@@ -112,7 +114,7 @@ export default function NewProjectRoomPage() {
 
     if (!name) {
       setSubmitState("error");
-      setMessage("프로젝트룸 이름을 입력하세요.");
+      setMessage(t("room.new.errorNameRequired"));
       return;
     }
 
@@ -142,12 +144,12 @@ export default function NewProjectRoomPage() {
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setSubmitState("auth");
-        setMessage("로그인이 필요합니다.");
+        setMessage(t("room.new.errorAuth"));
         return;
       }
 
       setSubmitState("error");
-      setMessage(error instanceof Error && error.message !== "Failed to fetch" ? error.message : "프로젝트룸을 만들지 못했습니다.");
+      setMessage(error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("room.new.errorCreateFailed"));
     }
   }
 
@@ -155,11 +157,11 @@ export default function NewProjectRoomPage() {
     <section className="workspace-route workspace-route--room-form" aria-labelledby="new-room-title">
       <header className="workspace-route__header">
         <div>
-          <h1 id="new-room-title">프로젝트룸 만들기</h1>
+          <h1 id="new-room-title">{t("room.new.title")}</h1>
         </div>
         <Link className="bubli-button" href="/app/project-rooms">
           <ArrowLeft aria-hidden size={15} strokeWidth={1.9} />
-          목록
+          {t("room.list")}
         </Link>
       </header>
 
@@ -179,28 +181,28 @@ export default function NewProjectRoomPage() {
                 {attachedFiles.length > 0 ? <FileText size={20} strokeWidth={2} /> : <UploadCloud size={21} strokeWidth={2} />}
               </span>
               <span>
-                <strong>{attachedFiles.length > 0 ? `${attachedFiles.length}개 자료 첨부` : "계약서, 요구사항, 회의록 첨부"}</strong>
+                <strong>{attachedFiles.length > 0 ? t("room.new.attachedCount", { count: attachedFiles.length }) : t("room.new.attachPrompt")}</strong>
                 <small>
                   {attachedFiles.length > 0
-                    ? "생성 후 프로젝트룸 자료로 올리고 에이전트 후보를 만듭니다."
-                    : "자료를 올리면 이름, 의뢰처, 납품물, 확인 질문 후보를 같은 흐름에서 검토합니다."}
+                    ? t("room.new.attachedHint")
+                    : t("room.new.attachHint")}
                 </small>
               </span>
             </button>
             {attachedFiles.length > 0 ? (
-              <button className="workspace-route__upload-clear" onClick={() => setAttachedFiles([])} type="button" aria-label="첨부 모두 제거">
+              <button className="workspace-route__upload-clear" onClick={() => setAttachedFiles([])} type="button" aria-label={t("room.new.clearAttachments")}>
                 <X size={16} strokeWidth={2} aria-hidden="true" />
               </button>
             ) : null}
           </div>
 
           {attachedFiles.length > 0 ? (
-            <div className="workspace-route__summary" aria-label="첨부 자료">
+            <div className="workspace-route__summary" aria-label={t("room.new.attachmentsLabel")}>
               {attachedFiles.map((file) => (
                 <span key={file.name}>
                   {file.name}
                   <button
-                    aria-label={`${file.name} 제거`}
+                    aria-label={t("room.new.removeFile", { name: file.name })}
                     onClick={() => removeAttachedFile(file.name)}
                     style={{ border: 0, background: "transparent", color: "inherit", cursor: "pointer", font: "inherit", marginLeft: 8, padding: 0 }}
                     type="button"
@@ -216,50 +218,50 @@ export default function NewProjectRoomPage() {
             <div className="workspace-route__section">
               <div className="workspace-route__section-head">
                 <div>
-                  <strong>사용자가 확인할 값</strong>
-                  <span>후보로 채워져도 직접 고칠 수 있습니다</span>
+                  <strong>{t("room.new.userSection")}</strong>
+                  <span>{t("room.new.userSectionSub")}</span>
                 </div>
               </div>
 
               <label className="workspace-route__field">
-                <span>프로젝트룸 이름</span>
+                <span>{t("room.new.nameLabel")}</span>
                 <input
                   autoComplete="off"
                   maxLength={120}
                   name="name"
                   onChange={(event) => updateDraft("name", event.target.value)}
-                  placeholder="자료에서 후보로 채워질 이름"
+                  placeholder={t("room.new.namePlaceholder")}
                   required
                   value={draft.name}
                 />
               </label>
 
               <label className="workspace-route__field">
-                <span>의뢰처</span>
+                <span>{t("room.new.clientLabel")}</span>
                 <input
                   autoComplete="organization"
                   maxLength={120}
                   name="clientName"
                   onChange={(event) => updateDraft("clientName", event.target.value)}
-                  placeholder="계약서에서 확인한 의뢰처"
+                  placeholder={t("room.new.clientPlaceholder")}
                   value={draft.clientName}
                 />
               </label>
 
               <div className="workspace-route__field-grid">
                 <label className="workspace-route__field">
-                  <span>계약 금액</span>
+                  <span>{t("room.new.amountLabel")}</span>
                   <input
                     inputMode="numeric"
                     name="contractAmount"
                     onChange={(event) => updateDraft("contractAmount", event.target.value)}
-                    placeholder="필요할 때만 입력"
+                    placeholder={t("room.new.amountPlaceholder")}
                     value={draft.contractAmount}
                   />
                 </label>
 
                 <label className="workspace-route__field">
-                  <span>납품일 또는 입금 예정일</span>
+                  <span>{t("room.new.dueLabel")}</span>
                   <input name="paymentDueDate" onChange={(event) => updateDraft("paymentDueDate", event.target.value)} type="date" value={draft.paymentDueDate} />
                 </label>
               </div>
@@ -268,8 +270,8 @@ export default function NewProjectRoomPage() {
             <div className="workspace-route__section">
               <div className="workspace-route__section-head">
                 <div>
-                  <strong>에이전트 추출 후보</strong>
-                  <span>{candidateState === "ready" ? attachedNames : "자료를 첨부하면 후보가 나타납니다"}</span>
+                  <strong>{t("room.new.agentSection")}</strong>
+                  <span>{candidateState === "ready" ? attachedNames : t("room.new.agentSectionEmpty")}</span>
                 </div>
                 <Sparkles aria-hidden size={17} strokeWidth={2} />
               </div>
@@ -278,7 +280,7 @@ export default function NewProjectRoomPage() {
                 {documentSlots.map((slot, index) => (
                   <article
                     className="workspace-route__row"
-                    key={slot.label}
+                    key={slot.labelKey}
                     style={{
                       opacity: candidateState === "ready" ? 1 : 0.72,
                       transform: candidateState === "ready" ? "translateY(0)" : "translateY(2px)",
@@ -287,10 +289,10 @@ export default function NewProjectRoomPage() {
                   >
                     <span className="workspace-route__dot" aria-hidden="true" />
                     <span className="workspace-route__main">
-                      <strong>{slot.label}</strong>
-                      <span>{slot.target}</span>
+                      <strong>{t(slot.labelKey)}</strong>
+                      <span>{t(slot.targetKey)}</span>
                     </span>
-                    <span className="workspace-route__status">{candidateState === "ready" ? "후보 준비" : "대기"}</span>
+                    <span className="workspace-route__status">{candidateState === "ready" ? t("room.new.candidateReady") : t("room.new.candidateWaiting")}</span>
                   </article>
                 ))}
               </div>
@@ -298,37 +300,37 @@ export default function NewProjectRoomPage() {
           </div>
 
           <details className="workspace-route__details">
-            <summary>WBS와 TODO로 이어질 후보</summary>
+            <summary>{t("room.new.wbsDetails")}</summary>
             <div className="workspace-route__field-grid">
               <label className="workspace-route__field">
-                <span>작업 범위 후보</span>
+                <span>{t("room.new.scopeLabel")}</span>
                 <input
                   maxLength={160}
                   name="deliveryScope"
                   onChange={(event) => updateDraft("deliveryScope", event.target.value)}
-                  placeholder="예: 상품 상세 120건 번역"
+                  placeholder={t("room.new.scopePlaceholder")}
                   value={draft.deliveryScope}
                 />
               </label>
 
               <label className="workspace-route__field">
-                <span>확인 질문 후보</span>
+                <span>{t("room.new.reviewLabel")}</span>
                 <input
                   maxLength={160}
                   name="reviewQuestion"
                   onChange={(event) => updateDraft("reviewQuestion", event.target.value)}
-                  placeholder="예: 검수 기준과 수정 횟수 확인"
+                  placeholder={t("room.new.reviewPlaceholder")}
                   value={draft.reviewQuestion}
                 />
               </label>
             </div>
           </details>
 
-          <div className="workspace-route__summary" aria-label="생성 후 흐름">
-            <span>프로젝트룸 자료로 저장</span>
-            <span>에이전트 후보 생성</span>
-            <span>사용자 확인</span>
-            <span>WBS/TODO/일정으로 연결</span>
+          <div className="workspace-route__summary" aria-label={t("room.new.flowLabel")}>
+            <span>{t("room.new.flowSave")}</span>
+            <span>{t("room.new.flowCandidates")}</span>
+            <span>{t("room.new.flowConfirm")}</span>
+            <span>{t("room.new.flowConnect")}</span>
           </div>
 
           {message ? (
@@ -342,11 +344,11 @@ export default function NewProjectRoomPage() {
             <Button loading={submitState === "submitting"} type="submit" variant="primary">
               {submitState === "submitting" ? <Loader2 aria-hidden size={15} strokeWidth={2} /> : null}
               <CheckCircle2 aria-hidden size={15} strokeWidth={2} />
-              후보 확인하고 만들기
+              {t("room.new.submit")}
             </Button>
             {submitState === "auth" ? (
               <Link className="bubli-button" href="/login">
-                로그인
+                {t("common.login")}
               </Link>
             ) : null}
           </div>
