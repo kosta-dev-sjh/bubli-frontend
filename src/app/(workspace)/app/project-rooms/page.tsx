@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewRooms } from "@/lib/workspace-preview-data";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
@@ -17,10 +18,10 @@ type PageState =
   | { kind: "auth" }
   | { kind: "offline" };
 
-function statusLabel(room: ProjectRoomResponse) {
-  if (room.status === "CLOSED") return "종료";
-  if (room.paymentStatus === "OVERDUE") return "확인 필요";
-  return "진행";
+function statusLabelKey(room: ProjectRoomResponse): MessageKey {
+  if (room.status === "CLOSED") return "room.list.statusClosed";
+  if (room.paymentStatus === "OVERDUE") return "room.list.statusNeedsCheck";
+  return "room.list.statusActive";
 }
 
 function formatDate(value: string) {
@@ -40,6 +41,7 @@ function roomMeta(room: ProjectRoomResponse) {
 }
 
 export default function ProjectRoomsPage() {
+  const { t } = useI18n();
   const [state, setState] = useState<PageState>({ kind: "loading" });
 
   function openProjectRoomCreate() {
@@ -79,40 +81,40 @@ export default function ProjectRoomsPage() {
     <section className="workspace-route" aria-labelledby="project-rooms-title">
       <header className="workspace-route__header">
         <div>
-          <h1 id="project-rooms-title">프로젝트룸</h1>
+          <h1 id="project-rooms-title">{t("room.list.title")}</h1>
         </div>
         <button className="bubli-button bubli-button--primary" onClick={openProjectRoomCreate} type="button">
           <Plus aria-hidden size={16} strokeWidth={2.2} />
-          새 프로젝트룸
+          {t("room.list.new")}
         </button>
       </header>
 
-      {state.kind === "loading" && <div className="workspace-route__panel">불러오는 중</div>}
+      {state.kind === "loading" && <div className="workspace-route__panel">{t("room.loading")}</div>}
 
       {state.kind === "auth" && (
         <div className="workspace-route__panel">
-          <strong>로그인이 필요합니다</strong>
+          <strong>{t("room.authTitle")}</strong>
           <Link className="bubli-button bubli-button--primary" href="/login">
-            로그인
+            {t("common.login")}
           </Link>
         </div>
       )}
 
       {state.kind === "offline" && (
         <div className="workspace-route__panel">
-          <strong>프로젝트룸을 불러오지 못했습니다</strong>
+          <strong>{t("room.list.loadFailed")}</strong>
           <Button onClick={() => void loadRooms()} variant="primary">
             <RefreshCw aria-hidden size={15} strokeWidth={1.9} />
-            다시 연결
+            {t("room.reconnect")}
           </Button>
         </div>
       )}
 
       {state.kind === "ready" && state.rooms.length === 0 && (
         <div className="workspace-route__panel">
-          <strong>프로젝트룸 시작 전</strong>
+          <strong>{t("room.list.emptyTitle")}</strong>
           <button className="bubli-button bubli-button--primary" onClick={openProjectRoomCreate} type="button">
-            프로젝트룸 만들기
+            {t("room.list.create")}
           </button>
         </div>
       )}
@@ -131,7 +133,7 @@ export default function ProjectRoomsPage() {
                 <strong>{room.name}</strong>
                 <span>{roomMeta(room)}</span>
               </span>
-              <span className="workspace-route__status">{statusLabel(room)}</span>
+              <span className="workspace-route__status">{t(statusLabelKey(room))}</span>
             </Link>
           ))}
         </div>
