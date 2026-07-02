@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
@@ -57,6 +58,7 @@ const DISALLOWED_SOURCE_PATTERNS = [
 const SOURCE_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx"]);
 const failures = [];
 const appNavPath = join(ROOT, "src/config/site.ts");
+const generatedApiCsvPath = "docs/기능_API연결_명세_2026-07-01.csv";
 const desktopCommunicationRoutePath = join(
   ROOT,
   "src/app/(workspace)/app/desktop/communication/page.tsx",
@@ -67,6 +69,12 @@ for (const route of DISALLOWED_ROUTES) {
   if (existsSync(absolutePath)) {
     failures.push(`${route.path}: ${route.reason}`);
   }
+}
+
+if (isGitTracked(generatedApiCsvPath)) {
+  failures.push(
+    `${generatedApiCsvPath}: generated CSV views must stay untracked. Keep the xlsx/source docs in Git and regenerate CSV locally when needed.`,
+  );
 }
 
 if (existsSync(appNavPath)) {
@@ -139,4 +147,16 @@ function getExtension(fileName) {
     return "";
   }
   return fileName.slice(dotIndex);
+}
+
+function isGitTracked(path) {
+  try {
+    execFileSync("git", ["ls-files", "--error-unmatch", path], {
+      cwd: ROOT,
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
