@@ -1,16 +1,17 @@
 "use client";
 
+import { Check, Pencil, Plus, Trash2, UserRound, X } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-// Types - exported for reusability
 export interface KanbanTask {
   id: string;
   title: string;
   description?: string;
   labels?: string[];
   assignee?: string;
+  assigneeId?: string;
 }
 
 export interface KanbanColumn {
@@ -19,36 +20,46 @@ export interface KanbanColumn {
   tasks: KanbanTask[];
 }
 
+export interface KanbanAssigneeOption {
+  id: string;
+  label: string;
+  shortLabel?: string;
+}
+
 export interface KanbanBoardProps {
   columns: KanbanColumn[];
   onColumnsChange?: (columns: KanbanColumn[]) => void;
   onTaskMove?: (taskId: string, fromColumnId: string, toColumnId: string) => void;
   onTaskAdd?: (columnId: string, title: string) => void;
   onTaskClick?: (taskId: string) => void;
+  onTaskAssigneeChange?: (taskId: string, assigneeId: string | null) => void;
+  onTaskDelete?: (taskId: string) => void;
+  onTaskTitleChange?: (taskId: string, title: string) => void;
   selectedTaskId?: string | null;
-  labelColors?: Record<string, string>;
   columnColors?: Record<string, string>;
   className?: string;
   allowAddTask?: boolean;
+  assigneeOptions?: KanbanAssigneeOption[];
+  deletingTaskId?: string | null;
 }
 
-const defaultLabelColors: Record<string, string> = {
-  research: "bg-pink-500",
-  design: "bg-violet-500",
-  frontend: "bg-blue-500",
-  backend: "bg-emerald-500",
-  devops: "bg-amber-500",
-  docs: "bg-slate-500",
-  urgent: "bg-red-500",
+const defaultColumnColors: Record<string, string> = {
+  backlog: "var(--color-rain-gray)",
+  done: "var(--color-success)",
+  "in-progress": "var(--color-pearl)",
+  review: "var(--color-lilac)",
+  todo: "var(--color-todo)",
 };
 
-const defaultColumnColors: Record<string, string> = {
-  backlog: "bg-slate-500",
-  todo: "bg-blue-500",
-  "in-progress": "bg-amber-500",
-  review: "bg-violet-500",
-  done: "bg-emerald-500",
-};
+function getInitial(label?: string) {
+  if (!label) return "미";
+
+  return label.trim().slice(0, 1).toUpperCase();
+}
+
+function stopInteractive(event: React.PointerEvent | React.MouseEvent) {
+  event.stopPropagation();
+}
 
 export function KanbanBoard({
   columns: initialColumns,
@@ -56,11 +67,15 @@ export function KanbanBoard({
   onTaskMove,
   onTaskAdd,
   onTaskClick,
+  onTaskAssigneeChange,
+  onTaskDelete,
+  onTaskTitleChange,
   selectedTaskId,
-  labelColors = defaultLabelColors,
   columnColors = defaultColumnColors,
   className,
   allowAddTask = true,
+  assigneeOptions = [],
+  deletingTaskId,
 }: KanbanBoardProps) {
   const [columns, setColumns] = React.useState<KanbanColumn[]>(initialColumns);
   const [draggedTask, setDraggedTask] = React.useState<{
@@ -69,11 +84,12 @@ export function KanbanBoard({
   } | null>(null);
   const [dropTarget, setDropTarget] = React.useState<string | null>(null);
   const [addingCardTo, setAddingCardTo] = React.useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = React.useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = React.useState("");
   const [newCardTitle, setNewCardTitle] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
   const tempIdCounter = React.useRef(0);
 
-  // 실데이터 연동: 부모의 columns가 갱신되면 내부 상태를 동기화한다. (props 변경 시 상태 조정 패턴)
   const [prevInitialColumns, setPrevInitialColumns] = React.useState(initialColumns);
   if (prevInitialColumns !== initialColumns) {
     setPrevInitialColumns(initialColumns);
@@ -90,8 +106,8 @@ export function KanbanBoard({
     setDraggedTask({ task, sourceColumnId: columnId });
   };
 
-  const handleDragOver = (e: React.DragEvent, columnId: string) => {
-    e.preventDefault();
+  const handleDragOver = (event: React.DragEvent, columnId: string) => {
+    event.preventDefault();
     setDropTarget(columnId);
   };
 
@@ -102,14 +118,14 @@ export function KanbanBoard({
       return;
     }
 
-    const newColumns = columns.map((col) => {
-      if (col.id === draggedTask.sourceColumnId) {
-        return { ...col, tasks: col.tasks.filter((t) => t.id !== draggedTask.task.id) };
+    const newColumns = columns.map((column) => {
+      if (column.id === draggedTask.sourceColumnId) {
+        return { ...column, tasks: column.tasks.filter((task) => task.id !== draggedTask.task.id) };
       }
-      if (col.id === targetColumnId) {
-        return { ...col, tasks: [...col.tasks, draggedTask.task] };
+      if (column.id === targetColumnId) {
+        return { ...column, tasks: [...column.tasks, draggedTask.task] };
       }
-      return col;
+      return column;
     });
 
     setColumns(newColumns);
@@ -120,167 +136,272 @@ export function KanbanBoard({
   };
 
   const handleAddCard = (columnId: string) => {
-    if (!newCardTitle.trim()) return;
+    const title = newCardTitle.trim();
+    if (!title) return;
 
     tempIdCounter.current += 1;
     const newTask: KanbanTask = {
       id: `task-temp-${tempIdCounter.current}`,
-      title: newCardTitle.trim(),
-      labels: [],
+      title,
     };
 
-    const newColumns = columns.map((col) => (col.id === columnId ? { ...col, tasks: [...col.tasks, newTask] } : col));
+    const newColumns = columns.map((column) => (column.id === columnId ? { ...column, tasks: [...column.tasks, newTask] } : column));
     setColumns(newColumns);
     onColumnsChange?.(newColumns);
-    onTaskAdd?.(columnId, newCardTitle.trim());
+    onTaskAdd?.(columnId, title);
     setNewCardTitle("");
     setAddingCardTo(null);
   };
 
-  const getColumnColor = (columnId: string) => columnColors[columnId] || "bg-slate-500";
-  const getLabelColor = (label: string) => labelColors[label] || "bg-slate-500";
+  const startEditing = (task: KanbanTask) => {
+    setEditingTaskId(task.id);
+    setEditingTitle(task.title);
+  };
+
+  const cancelEditing = () => {
+    setEditingTaskId(null);
+    setEditingTitle("");
+  };
+
+  const commitEditing = (taskId: string) => {
+    const title = editingTitle.trim();
+    if (!title) return;
+
+    setColumns((current) =>
+      current.map((column) => ({
+        ...column,
+        tasks: column.tasks.map((task) => (task.id === taskId ? { ...task, title } : task)),
+      })),
+    );
+    onTaskTitleChange?.(taskId, title);
+    cancelEditing();
+  };
+
+  const getColumnColor = (columnId: string) => columnColors[columnId] || "var(--color-rain-gray)";
 
   return (
-    <div className={cn("flex gap-4 overflow-x-auto pb-4", className)}>
+    <div className={cn("flex gap-4 overflow-x-auto pb-3", className)}>
       {columns.map((column) => {
         const isDropActive = dropTarget === column.id && draggedTask?.sourceColumnId !== column.id;
+        const columnColor = getColumnColor(column.id);
 
         return (
           <div
             className={cn(
-              "min-w-[280px] max-w-[280px] rounded-xl p-3 transition-all duration-200",
-              "bg-muted/50 border-2",
-              isDropActive ? "border-primary/50 border-dashed bg-primary/5" : "border-transparent",
+              "min-w-[260px] max-w-[292px] rounded-[18px] border p-3 transition-all duration-200",
+              "border-[var(--color-border)] bg-white/58 shadow-[inset_0_1px_0_rgba(255,255,255,.9)] backdrop-blur-md",
+              isDropActive && "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-water-blue)_32%,transparent)]",
             )}
             key={column.id}
             onDragLeave={() => setDropTarget(null)}
-            onDragOver={(e) => handleDragOver(e, column.id)}
+            onDragOver={(event) => handleDragOver(event, column.id)}
             onDrop={() => handleDrop(column.id)}
           >
-            {/* Column Header */}
             <div className="mb-3 flex items-center justify-between px-1">
-              <div className="flex items-center gap-2">
-                <div className={cn("h-3 w-3 rounded", getColumnColor(column.id))} />
-                <h2 className="text-sm font-semibold text-foreground">{column.title}</h2>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+              <div className="flex min-w-0 items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ background: columnColor }}
+                />
+                <h2 className="truncate text-[15px] font-[850] leading-none text-[var(--color-text)]">{column.title}</h2>
+                <span className="rounded-full bg-white/72 px-2 py-0.5 text-xs font-[760] text-[var(--color-brand)]">
                   {column.tasks.length}
                 </span>
               </div>
-              <button
-                aria-label="열 옵션"
-                className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                type="button"
-              >
-                <svg fill="none" height="16" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="16">
-                  <circle cx="12" cy="12" r="1" />
-                  <circle cx="19" cy="12" r="1" />
-                  <circle cx="5" cy="12" r="1" />
-                </svg>
-              </button>
             </div>
 
-            {/* Tasks */}
-            <div className="flex min-h-[100px] flex-col gap-2">
+            <div className="flex min-h-[160px] flex-col gap-2.5">
               {column.tasks.map((task) => {
                 const isDragging = draggedTask?.task.id === task.id;
+                const isSelected = selectedTaskId === task.id;
+                const isEditing = editingTaskId === task.id;
+                const assigneeLabel = task.assignee ?? assigneeOptions.find((option) => option.id === task.assigneeId)?.label;
 
                 return (
-                  <div
+                  <article
                     className={cn(
-                      "cursor-grab rounded-lg border border-border bg-card p-3 shadow-sm transition-all duration-150",
-                      "hover:-translate-y-0.5 hover:shadow-md active:cursor-grabbing",
-                      isDragging && "rotate-2 opacity-50",
-                      selectedTaskId === task.id && "ring-2 ring-primary/40",
+                      "rounded-[14px] border bg-white/86 p-3 text-left shadow-[0_10px_24px_rgba(107,143,168,.12)] transition-all duration-150",
+                      "border-[var(--color-border)] hover:-translate-y-0.5 hover:border-[var(--color-rain-gray)]",
+                      isDragging && "opacity-60",
+                      isSelected && "border-[var(--color-todo)] bg-[var(--color-bg)]",
                     )}
-                    draggable
+                    draggable={!isEditing}
                     key={task.id}
                     onClick={() => onTaskClick?.(task.id)}
                     onDragEnd={() => setDraggedTask(null)}
                     onDragStart={() => handleDragStart(task, column.id)}
                   >
-                    {task.labels && task.labels.length > 0 && (
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        {isEditing ? (
+                          <input
+                            aria-label="작업명 수정"
+                            className="min-h-9 w-full rounded-xl border border-[var(--color-water-blue)] bg-white px-3 text-[14px] font-[850] text-[var(--color-text)] outline-none focus:border-[var(--color-todo)]"
+                            onChange={(event) => setEditingTitle(event.target.value)}
+                            onClick={stopInteractive}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") commitEditing(task.id);
+                              if (event.key === "Escape") cancelEditing();
+                            }}
+                            onPointerDown={stopInteractive}
+                            value={editingTitle}
+                          />
+                        ) : (
+                          <h3 className="break-keep text-[14px] font-[850] leading-[1.38] text-[var(--color-text)]">{task.title}</h3>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {isEditing ? (
+                          <>
+                            <button
+                              aria-label="작업명 저장"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-water-blue)] bg-white/90 text-[var(--color-brand)]"
+                              onClick={(event) => {
+                                stopInteractive(event);
+                                commitEditing(task.id);
+                              }}
+                              onPointerDown={stopInteractive}
+                              type="button"
+                            >
+                              <Check aria-hidden="true" size={15} strokeWidth={2.3} />
+                            </button>
+                            <button
+                              aria-label="작업명 수정 취소"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/72 text-[var(--color-faint)]"
+                              onClick={(event) => {
+                                stopInteractive(event);
+                                cancelEditing();
+                              }}
+                              onPointerDown={stopInteractive}
+                              type="button"
+                            >
+                              <X aria-hidden="true" size={15} strokeWidth={2.3} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              aria-label="작업명 수정"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent text-[var(--color-brand)] transition-colors hover:border-[var(--color-water-blue)] hover:bg-[color-mix(in_srgb,var(--color-water-blue)_40%,transparent)]"
+                              onClick={(event) => {
+                                stopInteractive(event);
+                                startEditing(task);
+                              }}
+                              onPointerDown={stopInteractive}
+                              type="button"
+                            >
+                              <Pencil aria-hidden="true" size={14} strokeWidth={2.2} />
+                            </button>
+                            {onTaskDelete ? (
+                              <button
+                                aria-label="작업 삭제"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent text-[var(--color-faint)] transition-colors hover:border-[color-mix(in_srgb,var(--color-dust-rose)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-dust-rose)_10%,transparent)] hover:text-[var(--color-dust-rose)]"
+                                disabled={deletingTaskId === task.id}
+                                onClick={(event) => {
+                                  stopInteractive(event);
+                                  onTaskDelete(task.id);
+                                }}
+                                onPointerDown={stopInteractive}
+                                type="button"
+                              >
+                                <Trash2 aria-hidden="true" size={14} strokeWidth={2.2} />
+                              </button>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {task.labels && task.labels.length > 0 ? (
                       <div className="mb-2 flex flex-wrap gap-1">
-                        {task.labels.map((label) => (
+                        {task.labels.slice(0, 2).map((label) => (
                           <span
-                            className={cn(
-                              "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white",
-                              getLabelColor(label),
-                            )}
+                            className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-[11px] font-[780] leading-none text-[var(--color-brand)]"
                             key={label}
                           >
                             {label}
                           </span>
                         ))}
                       </div>
-                    )}
-                    <h3 className={cn("text-sm font-medium text-card-foreground", task.description && "mb-1")}>
-                      {task.title}
-                    </h3>
-                    {task.description && <p className="mb-2 text-xs text-muted-foreground">{task.description}</p>}
-                    {task.assignee && (
-                      <div className="flex justify-end">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
-                          {task.assignee}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    ) : null}
+
+                    {task.description ? (
+                      <p className="mb-3 break-keep text-[12px] font-[680] leading-[1.45] text-[var(--color-muted)]">{task.description}</p>
+                    ) : null}
+
+                    <div className="flex items-center justify-between gap-2 border-t border-[var(--color-border)] pt-2.5">
+                      <label className="relative inline-flex min-w-0 items-center gap-2">
+                        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--color-water-blue)] bg-[color-mix(in_srgb,var(--color-water-blue)_50%,transparent)] text-[11px] font-[850] text-[var(--color-brand)]">
+                          {assigneeLabel ? getInitial(assigneeLabel) : <UserRound aria-hidden="true" size={14} strokeWidth={2.1} />}
+                        </span>
+                        <select
+                          aria-label="담당자 선택"
+                          className="max-w-[132px] appearance-none truncate rounded-full border border-[var(--color-border)] bg-white/76 px-3 py-1.5 text-[12px] font-[780] text-[var(--color-muted)] outline-none transition-colors hover:border-[var(--color-rain-gray)] focus:border-[var(--color-todo)]"
+                          onChange={(event) => onTaskAssigneeChange?.(task.id, event.target.value || null)}
+                          onClick={stopInteractive}
+                          onPointerDown={stopInteractive}
+                          value={task.assigneeId ?? ""}
+                        >
+                          <option value="">미지정</option>
+                          {assigneeOptions.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </article>
                 );
               })}
 
-              {/* Add Card */}
-              {allowAddTask && (
-                <>
-                  {addingCardTo === column.id ? (
-                    <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
-                      <input
-                        className="mb-2 w-full border-none bg-transparent text-sm text-card-foreground outline-none placeholder:text-muted-foreground"
-                        onChange={(e) => setNewCardTitle(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleAddCard(column.id)}
-                        placeholder="카드 제목 입력..."
-                        ref={inputRef}
-                        type="text"
-                        value={newCardTitle}
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          className="rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                          onClick={() => handleAddCard(column.id)}
-                          type="button"
-                        >
-                          카드 추가
-                        </button>
-                        <button
-                          aria-label="취소"
-                          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          onClick={() => {
-                            setAddingCardTo(null);
-                            setNewCardTitle("");
-                          }}
-                          type="button"
-                        >
-                          <svg fill="none" height="16" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="16">
-                            <line x1="18" x2="6" y1="6" y2="18" />
-                            <line x1="6" x2="18" y1="6" y2="18" />
-                          </svg>
-                        </button>
-                      </div>
+              {allowAddTask ? (
+                addingCardTo === column.id ? (
+                  <div className="rounded-[14px] border border-[var(--color-water-blue)] bg-white/82 p-3 shadow-[0_10px_24px_rgba(107,143,168,.1)]">
+                    <input
+                      className="mb-2 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-[13px] font-[760] text-[var(--color-text)] outline-none placeholder:text-[var(--color-faint)] focus:border-[var(--color-todo)]"
+                      onChange={(event) => setNewCardTitle(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") handleAddCard(column.id);
+                      }}
+                      placeholder="작업명 입력"
+                      ref={inputRef}
+                      type="text"
+                      value={newCardTitle}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        className="inline-flex min-h-9 items-center justify-center rounded-full bg-[var(--color-todo)] px-3 text-xs font-[850] text-[var(--color-text)]"
+                        onClick={() => handleAddCard(column.id)}
+                        type="button"
+                      >
+                        추가
+                      </button>
+                      <button
+                        aria-label="카드 추가 취소"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/72 text-[var(--color-faint)]"
+                        onClick={() => {
+                          setAddingCardTo(null);
+                          setNewCardTitle("");
+                        }}
+                        type="button"
+                      >
+                        <X aria-hidden="true" size={15} strokeWidth={2.3} />
+                      </button>
                     </div>
-                  ) : (
-                    <button
-                      className="flex w-full items-center justify-center gap-1 rounded-lg p-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      onClick={() => setAddingCardTo(column.id)}
-                      type="button"
-                    >
-                      <svg fill="none" height="16" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="16">
-                        <line x1="12" x2="12" y1="5" y2="19" />
-                        <line x1="5" x2="19" y1="12" y2="12" />
-                      </svg>
-                      카드 추가
-                    </button>
-                  )}
-                </>
-              )}
+                  </div>
+                ) : (
+                  <button
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] border border-dashed border-[var(--color-rain-gray)] bg-white/42 text-sm font-[780] text-[var(--color-brand)] transition-colors hover:border-[var(--color-todo)] hover:bg-[color-mix(in_srgb,var(--color-water-blue)_30%,transparent)]"
+                    onClick={() => setAddingCardTo(column.id)}
+                    type="button"
+                  >
+                    <Plus aria-hidden="true" size={15} strokeWidth={2.2} />
+                    카드 추가
+                  </button>
+                )
+              ) : null}
             </div>
           </div>
         );

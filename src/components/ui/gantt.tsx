@@ -29,7 +29,7 @@ import {
 } from "date-fns";
 import { atom, useAtom } from "jotai";
 import throttle from "lodash.throttle";
-import { PlusIcon, TrashIcon } from "lucide-react";
+import { PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
 import type { CSSProperties, FC, KeyboardEventHandler, MouseEventHandler, ReactNode, RefObject } from "react";
 
@@ -893,15 +893,17 @@ export const GanttFeatureList: FC<GanttFeatureListProps> = ({ className, childre
 export const GanttMarker: FC<
   GanttMarkerProps & {
     onRemove?: (id: string) => void;
+    onRename?: (id: string) => void;
     className?: string;
   }
-> = ({ label, date, id, onRemove, className }) => {
+> = ({ label, date, id, onRemove, onRename, className }) => {
   const gantt = useContext(GanttContext);
   const differenceIn = getDifferenceIn(gantt.range);
   const timelineStartDate = new Date(gantt.timelineData.at(0)?.year ?? 0, 0, 1);
   const offset = differenceIn(date, timelineStartDate);
   const innerOffset = calculateInnerOffset(date, gantt.range, (gantt.columnWidth * gantt.zoom) / 100);
   const handleRemove = () => onRemove?.(id);
+  const handleRename = () => onRename?.(id);
 
   return (
     <div
@@ -926,6 +928,12 @@ export const GanttMarker: FC<
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          {onRename ? (
+            <ContextMenuItem className="flex items-center gap-2" onClick={handleRename}>
+              <PencilIcon className="text-muted-foreground" size={16} />
+              이름 변경
+            </ContextMenuItem>
+          ) : null}
           {onRemove ? (
             <ContextMenuItem className="flex items-center gap-2 text-destructive" onClick={handleRemove}>
               <TrashIcon size={16} />

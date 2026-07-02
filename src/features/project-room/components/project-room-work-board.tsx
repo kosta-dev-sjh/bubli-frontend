@@ -1,15 +1,20 @@
 "use client";
 
-import { GitBranch, KanbanSquare, ListTodo, X } from "lucide-react";
+import { GitBranch, KanbanSquare, X } from "lucide-react";
 import type { CSSProperties, FormEvent } from "react";
 import { useMemo, useState } from "react";
 
-import { KanbanBoard, type KanbanColumn as KanbanBoardColumn } from "@/components/ui/kanban";
+import {
+  KanbanBoard,
+  type KanbanAssigneeOption,
+  type KanbanColumn as KanbanBoardColumn,
+} from "@/components/ui/kanban";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { WbsGanttPanel } from "@/features/wbs/components/wbs-gantt-panel";
 import { cn } from "@/lib/utils";
+import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { ProjectRoomMemberResponse } from "@/types/api/projectRoom";
 import type { TaskResponse, TaskStatus, WbsBoardResponse, WbsItemResponse, WbsStatus } from "@/types/api/work";
 
@@ -51,8 +56,6 @@ const kanbanStatusByColumnId: Record<string, TaskStatus> = {
   review: "REVIEW",
   todo: "TODO",
 };
-
-const kanbanLabelPalette = ["bg-blue-500", "bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-pink-500"];
 
 const wbsStatusOptions: Array<{ label: string; status: WbsStatus }> = [
   { label: "대기", status: "TODO" },
@@ -205,9 +208,17 @@ function ProjectRoomWorkBoardContent({
     () => Object.fromEntries(activeMembers.map((member) => [member.userId, member])),
     [activeMembers],
   );
+  const kanbanAssigneeOptions = useMemo<KanbanAssigneeOption[]>(
+    () =>
+      activeMembers.map((member) => ({
+        id: member.userId,
+        label: member.name,
+        shortLabel: member.name.slice(0, 1).toUpperCase(),
+      })),
+    [activeMembers],
+  );
   const selectedWbs = selectedWbsId ? wbsItems.find((item) => item.id === selectedWbsId) : null;
   const selectedWbsAccent = selectedWbsId ? wbsAccentById[selectedWbsId] ?? wbsAccentOptions[0].value : wbsAccentOptions[0].value;
-  const selectedTask = selectedTaskId ? visibleTasks.find((task) => task.id === selectedTaskId) ?? null : null;
   const selectedWbsTasks = selectedWbsId
     ? visibleTasks.filter((task) => {
         if (task.wbsItemId === selectedWbsId) return true;
@@ -228,6 +239,7 @@ function ProjectRoomWorkBoardContent({
             const wbsTitle = task.wbsItemId ? wbsTitleById[task.wbsItemId] : null;
             return {
               assignee: task.assigneeUserId ? memberByUserId[task.assigneeUserId]?.name ?? "담당자" : undefined,
+              assigneeId: task.assigneeUserId ?? undefined,
               description: [sourceLabel(task, wbsTitle), formatDue(task.dueAt)].filter(Boolean).join(" · "),
               id: task.id,
               labels: wbsTitle ? [wbsTitle] : [],
@@ -237,13 +249,6 @@ function ProjectRoomWorkBoardContent({
         title: column.label,
       })),
     [memberByUserId, visibleTasks, wbsTitleById],
-  );
-  const kanbanLabelColors = useMemo(
-    () =>
-      Object.fromEntries(
-        wbsItems.map((item, index) => [item.title, kanbanLabelPalette[index % kanbanLabelPalette.length]]),
-      ),
-    [wbsItems],
   );
   const activeWbsEditDraft =
     selectedWbs && wbsEditDraft.wbsId === selectedWbs.id
@@ -333,6 +338,10 @@ function ProjectRoomWorkBoardContent({
       setWbsItems((current) => current.map((item) => (item.id === selectedWbs.id ? updated : item)));
       setSaveNotice("WBS 수정됨");
     } catch {
+      if (selectedWbs.id.startsWith("local-wbs-") || shouldUseWorkspacePreviewData()) {
+        setSaveNotice("WBS 수정됨 (로컬)");
+        return;
+      }
       setWbsItems((current) => current.map((item) => (item.id === previous.id ? previous : item)));
       setSaveNotice("WBS 서버 저장 대기");
     }
@@ -352,6 +361,10 @@ function ProjectRoomWorkBoardContent({
         setSaveNotice("WBS 상태 저장됨");
       })
       .catch(() => {
+        if (selectedWbs.id.startsWith("local-wbs-") || shouldUseWorkspacePreviewData()) {
+          setSaveNotice("WBS 상태 저장됨 (로컬)");
+          return;
+        }
         setWbsItems((current) => current.map((item) => (item.id === previous.id ? previous : item)));
         setSaveNotice("WBS 서버 저장 대기");
       });
@@ -379,6 +392,10 @@ function ProjectRoomWorkBoardContent({
         setSaveNotice("WBS 삭제됨");
       })
       .catch(() => {
+        if (selectedWbs.id.startsWith("local-wbs-") || shouldUseWorkspacePreviewData()) {
+          setSaveNotice("WBS 삭제됨 (로컬)");
+          return;
+        }
         setWbsItems(previousItems);
         setWbsAccentById((current) => ({ ...current, [selectedWbs.id]: selectedWbsAccent }));
         setSelectedWbsId(selectedWbs.id);
@@ -455,21 +472,39 @@ function ProjectRoomWorkBoardContent({
       });
   };
 
-  const deleteSelectedTask = async () => {
-    if (!selectedTask) return;
-
+  const updateTaskTitle = (taskId: string, title: string) => {
     const previousTasks = tasks;
-    setDeletingTaskId(selectedTask.id);
+
+    setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, title } : task)));
+    setSaveNotice("작업명 저장 중");
+
+    void todoApi
+      .update(taskId, { title })
+      .then((updated) => {
+        setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, ...updated } : task)));
+        setSaveNotice("작업명 저장됨");
+      })
+      .catch(() => {
+        setTasks(previousTasks);
+        setSaveNotice("작업명 서버 저장 대기");
+      });
+  };
+
+  const deleteTask = async (taskId: string) => {
+    const previousTasks = tasks;
+
+    setDeletingTaskId(taskId);
     setSaveNotice("할 일 삭제 중");
-    setTasks((current) => current.filter((task) => task.id !== selectedTask.id));
-    setSelectedTaskId(null);
+    setTasks((current) => current.filter((task) => task.id !== taskId));
+    if (selectedTaskId === taskId) {
+      setSelectedTaskId(null);
+    }
 
     try {
-      await todoApi.delete(selectedTask.id);
+      await todoApi.delete(taskId);
       setSaveNotice("할 일 삭제됨");
     } catch {
       setTasks(previousTasks);
-      setSelectedTaskId(selectedTask.id);
       setSaveNotice("할 일 서버 삭제 대기");
     } finally {
       setDeletingTaskId(null);
@@ -504,7 +539,8 @@ function ProjectRoomWorkBoardContent({
               {wbsItems.length > 0 ? (
                 <WbsGanttPanel
                   onNotice={setSaveNotice}
-                  onSelectItem={openWbsSettings}
+                  onOpenSettings={openWbsSettings}
+                  onSelectItem={setSelectedWbsId}
                   onWbsCreated={(item, temporaryId) => {
                     setWbsItems((current) => {
                       if (temporaryId) {
@@ -514,7 +550,16 @@ function ProjectRoomWorkBoardContent({
                       return [...current, item];
                     });
                     setSelectedWbsId(item.id);
-                    setIsWbsSettingsOpen(true);
+                  }}
+                  onWbsDeleted={(id) => {
+                    setWbsItems((current) => current.filter((entry) => entry.id !== id));
+                    if (selectedWbsId === id) {
+                      setSelectedWbsId(null);
+                      setIsWbsSettingsOpen(false);
+                    }
+                  }}
+                  onWbsUpdated={(item) => {
+                    setWbsItems((current) => current.map((entry) => (entry.id === item.id ? item : entry)));
                   }}
                   roomId={roomId}
                   selectedWbsId={selectedWbsId}
@@ -524,7 +569,7 @@ function ProjectRoomWorkBoardContent({
                 <form className={cn(styles.wbsCreate, styles.inlineCreate)} onSubmit={handleCreateWbs}>
                   <div className={styles.wbsFormGrid}>
                     <label>
-                      <span>작업 줄 추가</span>
+                      <span>첫 그룹 추가</span>
                       <input
                         aria-label="추가할 WBS 이름"
                         onChange={(event) => setWbsDraft((current) => ({ ...current, title: event.target.value }))}
@@ -552,7 +597,7 @@ function ProjectRoomWorkBoardContent({
                   />
                   <span className={styles.inspectorTitle}>
                     <strong>{activeWbsTitle ?? "줄을 선택하세요"}</strong>
-                    <small>{selectedWbs.parentId ? `상위 ${wbsTitleById[selectedWbs.parentId] ?? "작업"}` : "최상위 줄"}</small>
+                    <small>{selectedWbs.parentId ? `${wbsTitleById[selectedWbs.parentId] ?? "그룹"} 그룹의 작업` : "그룹"}</small>
                   </span>
                   <StatusBadge tone={taskTone(selectedWbs.status)}>{statusLabel(selectedWbs.status)}</StatusBadge>
                   <span className={styles.inspectorMeta}>
@@ -652,7 +697,7 @@ function ProjectRoomWorkBoardContent({
                 <form className={styles.wbsCreate} onSubmit={handleCreateWbs}>
                   <div className={styles.wbsFormGrid}>
                     <label>
-                      <span>{selectedWbs ? "하위 줄 추가" : "작업 줄 추가"}</span>
+                      <span>{selectedWbs ? "이 그룹에 작업 추가" : "그룹 추가"}</span>
                       <input
                         aria-label="추가할 WBS 이름"
                         onChange={(event) => setWbsDraft((current) => ({ ...current, title: event.target.value }))}
@@ -683,69 +728,17 @@ function ProjectRoomWorkBoardContent({
             </div>
 
             <KanbanBoard
+              assigneeOptions={kanbanAssigneeOptions}
               columns={kanbanColumns}
-              labelColors={kanbanLabelColors}
+              deletingTaskId={deletingTaskId}
+              onTaskAssigneeChange={updateTaskAssignee}
               onTaskAdd={handleKanbanTaskAdd}
               onTaskClick={setSelectedTaskId}
+              onTaskDelete={(taskId) => void deleteTask(taskId)}
               onTaskMove={handleKanbanTaskMove}
+              onTaskTitleChange={updateTaskTitle}
               selectedTaskId={selectedTaskId}
             />
-
-            <section className={styles.taskInspector} aria-label="선택한 작업 상세">
-              {selectedTask ? (
-                <>
-                  <div>
-                    <span className={styles.sectionLabel}>
-                      <ListTodo aria-hidden="true" size={16} strokeWidth={2} />
-                      <strong>{selectedTask.title}</strong>
-                    </span>
-                    <p>{selectedTask.description || "현재 데이터가 없습니다"}</p>
-                    <small>
-                      {[selectedTask.wbsItemId ? wbsTitleById[selectedTask.wbsItemId] : null, formatDue(selectedTask.dueAt)]
-                        .filter(Boolean)
-                        .join(" · ") || "연결 정보 없음"}
-                    </small>
-                    <label className={styles.assigneeControl}>
-                      <span>담당자</span>
-                      <select
-                        aria-label="작업 담당자"
-                        onChange={(event) => updateTaskAssignee(selectedTask.id, event.target.value || null)}
-                        value={selectedTask.assigneeUserId ?? ""}
-                      >
-                        <option value="">미지정</option>
-                        {activeMembers.map((member) => (
-                          <option key={member.userId} value={member.userId}>
-                            {member.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                  <div className={styles.statusActions} aria-label="작업 상태 변경">
-                    {columns.map((column) => (
-                      <button
-                        aria-pressed={activeTaskStatus(selectedTask.status) === column.status}
-                        key={column.status}
-                        onClick={() => updateTaskStatus(selectedTask.id, column.status)}
-                        type="button"
-                      >
-                        {column.label}
-                      </button>
-                    ))}
-                    <button
-                      className={styles.dangerAction}
-                      disabled={deletingTaskId === selectedTask.id}
-                      onClick={() => void deleteSelectedTask()}
-                      type="button"
-                    >
-                      {deletingTaskId === selectedTask.id ? "삭제 중" : "삭제"}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <p className={styles.empty}>현재 데이터가 없습니다</p>
-              )}
-            </section>
           </section>
         ) : null}
       </div>
