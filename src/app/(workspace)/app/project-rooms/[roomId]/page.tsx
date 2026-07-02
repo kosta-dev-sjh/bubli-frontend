@@ -66,6 +66,15 @@ function paymentLabel(room: ProjectRoomResponse) {
   return "기록됨";
 }
 
+function roomLifecycleLabel(room: ProjectRoomResponse) {
+  return room.status === "CLOSED" ? "종료됨" : "진행 중";
+}
+
+function roomLifecycleDetail(room: ProjectRoomResponse) {
+  if (room.status !== "CLOSED") return "작업 가능";
+  return room.closedAt ? `종료 ${formatDate(room.closedAt)}` : "읽기 전용";
+}
+
 function formatMoney(amount?: number | null) {
   if (!amount) return null;
   return `${new Intl.NumberFormat("ko-KR").format(amount)}원`;
@@ -313,7 +322,11 @@ export default function ProjectRoomHomePage() {
       {state.kind === "ready" && roomContent ? (
         <>
           <div className="workspace-route__summary" aria-label="프로젝트룸 상태">
-            <span>{state.room.status === "CLOSED" ? "종료" : "진행 중"}</span>
+            <span className={`workspace-route__status-chip ${state.room.status === "CLOSED" ? "is-closed" : "is-active"}`}>
+              <b>상태</b>
+              <strong>{roomLifecycleLabel(state.room)}</strong>
+              <small>{roomLifecycleDetail(state.room)}</small>
+            </span>
             <span>멤버 {state.members.length}</span>
             {formatMoney(state.room.contractAmount) ? <span>{formatMoney(state.room.contractAmount)}</span> : null}
             {formatDate(state.room.paymentDueDate) ? <span>입금 {formatDate(state.room.paymentDueDate)}</span> : null}

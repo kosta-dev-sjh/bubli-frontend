@@ -1940,6 +1940,49 @@ select {
   font-weight: 780;
 }
 
+.workspace-route__summary .workspace-route__status-chip {
+  gap: 7px;
+  padding-inline: 10px 12px;
+}
+
+.workspace-route__status-chip::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bubble-blue);
+  box-shadow: 0 0 0 4px rgba(142, 205, 246, 0.22);
+}
+
+.workspace-route__status-chip.is-closed::before {
+  background: var(--color-rain-gray);
+  box-shadow: 0 0 0 4px rgba(205, 216, 223, 0.24);
+}
+
+.workspace-route__status-chip b,
+.workspace-route__status-chip strong,
+.workspace-route__status-chip small {
+  line-height: 1;
+}
+
+.workspace-route__status-chip b {
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.workspace-route__status-chip strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.workspace-route__status-chip small {
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 760;
+}
+
 .workspace-route__cards--actions {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
