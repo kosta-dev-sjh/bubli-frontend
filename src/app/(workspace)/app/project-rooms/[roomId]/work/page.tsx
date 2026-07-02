@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Clock3 } from "lucide-react";
+import { AlertCircle, Clock3, GitBranch, ListTodo } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -34,10 +34,17 @@ type WorkPageState =
   | { kind: "auth" }
   | { kind: "error"; message: string };
 
+type GenerateState =
+  | { kind: "idle" }
+  | { kind: "running"; label: string }
+  | { jobId: string; kind: "started"; label: string }
+  | { kind: "error"; label: string; message: string };
+
 export default function ProjectRoomWorkPage() {
   const params = useParams<{ roomId: string }>();
   const roomId = params.roomId;
   const [state, setState] = useState<WorkPageState>({ kind: "loading" });
+  const [generateState, setGenerateState] = useState<GenerateState>({ kind: "idle" });
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -83,6 +90,26 @@ export default function ProjectRoomWorkPage() {
     return () => window.clearTimeout(timeoutId);
   }, [load]);
 
+  const runGenerator = useCallback(
+    async (label: string, request: () => Promise<{ jobId: string }>) => {
+      setGenerateState({ kind: "running", label });
+
+      try {
+        const job = await request();
+        setGenerateState({ jobId: job.jobId, kind: "started", label });
+      } catch (error) {
+        setGenerateState({
+          kind: "error",
+          label,
+          message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : `${label} 생성에 실패했습니다.`,
+        });
+      }
+    },
+    [],
+  );
+
+  const generating = generateState.kind === "running";
+
   const content = useMemo(() => {
     if (state.kind !== "ready") {
       return null;
@@ -101,7 +128,49 @@ export default function ProjectRoomWorkPage() {
         <div>
           <h1 id="work-title">{state.kind === "ready" ? state.room.name : "작업판"}</h1>
         </div>
+        <div className="workspace-route__actions">
+          <Button
+            disabled={state.kind !== "ready" || generating}
+            icon={<ListTodo aria-hidden size={15} strokeWidth={1.9} />}
+            loading={generateState.kind === "running" && generateState.label === "작업 후보"}
+            onClick={() => void runGenerator("작업 후보", () => agentApi.generateTasks({ roomId }))}
+            variant="secondary"
+          >
+            작업 후보 생성
+          </Button>
+          <Button
+            disabled={state.kind !== "ready" || generating}
+            icon={<GitBranch aria-hidden size={15} strokeWidth={1.9} />}
+            loading={generateState.kind === "running" && generateState.label === "WBS 후보"}
+            onClick={() => void runGenerator("WBS 후보", () => agentApi.generateWbs({ roomId }))}
+            variant="primary"
+          >
+            WBS 후보 생성
+          </Button>
+        </div>
       </header>
+
+      {generateState.kind === "running" ? (
+        <GlassPanel className="workspace-route__panel">
+          <Clock3 aria-hidden size={20} strokeWidth={2} />
+          <strong>{generateState.label} 생성 중</strong>
+        </GlassPanel>
+      ) : null}
+
+      {generateState.kind === "started" ? (
+        <GlassPanel className="workspace-route__panel">
+          <strong>{generateState.label} 생성 요청됨</strong>
+          <span>작업 ID: {generateState.jobId.slice(0, 8)}</span>
+        </GlassPanel>
+      ) : null}
+
+      {generateState.kind === "error" ? (
+        <GlassPanel className="workspace-route__panel">
+          <AlertCircle aria-hidden size={20} strokeWidth={2} />
+          <strong>{generateState.label} 생성 실패</strong>
+          <span>{generateState.message}</span>
+        </GlassPanel>
+      ) : null}
 
       {state.kind === "loading" ? (
         <GlassPanel className="workspace-route__panel">

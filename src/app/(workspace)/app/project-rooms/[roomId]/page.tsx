@@ -8,6 +8,7 @@ import {
   ListChecks,
   MessageCircle,
   RefreshCw,
+  Sparkles,
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
@@ -49,6 +50,12 @@ type RoomHomeState =
       kind: "ready";
     }
   | { kind: "auth" }
+  | { kind: "error"; message: string };
+
+type GenerateState =
+  | { kind: "idle" }
+  | { kind: "running" }
+  | { jobId: string; kind: "started" }
   | { kind: "error"; message: string };
 
 type SettledValue<T> = PromiseSettledResult<T>;
@@ -104,6 +111,7 @@ export default function ProjectRoomHomePage() {
   const params = useParams<{ roomId: string }>();
   const roomId = params.roomId;
   const [state, setState] = useState<RoomHomeState>({ kind: "loading" });
+  const [requirementsState, setRequirementsState] = useState<GenerateState>({ kind: "idle" });
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -174,6 +182,20 @@ export default function ProjectRoomHomePage() {
     return () => window.clearTimeout(timeoutId);
   }, [load]);
 
+  const generateRequirements = useCallback(async () => {
+    setRequirementsState({ kind: "running" });
+
+    try {
+      const job = await agentApi.generateRequirements({ roomId });
+      setRequirementsState({ jobId: job.jobId, kind: "started" });
+    } catch (error) {
+      setRequirementsState({
+        kind: "error",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "요구사항 후보 생성에 실패했습니다.",
+      });
+    }
+  }, [roomId]);
+
   const roomContent = useMemo(() => {
     if (state.kind !== "ready") return null;
 
@@ -185,6 +207,11 @@ export default function ProjectRoomHomePage() {
 
     return {
       activeTasks,
+      isInitialEmpty:
+        state.resources.length === 0 &&
+        state.suggestions.length === 0 &&
+        state.board.wbsItems.length === 0 &&
+        activeTasks.length === 0,
       nextSchedule,
       reviewCount,
       wbsItems: state.board.wbsItems,
@@ -282,6 +309,31 @@ export default function ProjectRoomHomePage() {
               <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
             </Link>
           </div>
+
+          {roomContent.isInitialEmpty ? (
+            <GlassPanel className="workspace-route__panel">
+              <Sparkles aria-hidden size={20} strokeWidth={2} />
+              <strong>요구사항 후보 생성</strong>
+              <span>
+                {requirementsState.kind === "running"
+                  ? "생성 중"
+                  : requirementsState.kind === "started"
+                    ? `생성 요청됨 · 작업 ID ${requirementsState.jobId.slice(0, 8)}`
+                    : requirementsState.kind === "error"
+                      ? `실패 · ${requirementsState.message}`
+                      : "초기 자료를 바탕으로 확인할 요구사항 후보를 만듭니다."}
+              </span>
+              <Button
+                disabled={requirementsState.kind === "running"}
+                icon={<Sparkles aria-hidden size={15} strokeWidth={1.9} />}
+                loading={requirementsState.kind === "running"}
+                onClick={() => void generateRequirements()}
+                variant="primary"
+              >
+                요구사항 후보 생성
+              </Button>
+            </GlassPanel>
+          ) : null}
         </>
       ) : null}
     </section>

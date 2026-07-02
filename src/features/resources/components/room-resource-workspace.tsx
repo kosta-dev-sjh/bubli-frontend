@@ -270,8 +270,13 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
             <ResourcePreview
               emptyHint="자료를 선택하면 파일 정보와 정리 상태를 확인합니다."
               onClose={() => setSelectedResourceId(null)}
+              onDeleted={() => {
+                setSelectedResourceId(null);
+                void loadResources();
+              }}
               onError={(message) => setUploadState({ kind: "error", message })}
               resource={selectedResource}
+              roomId={roomId}
               scope="room"
             />
           </GlassPanel>

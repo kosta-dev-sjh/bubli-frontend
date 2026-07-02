@@ -400,6 +400,51 @@
   font-weight: 540;
 }
 
+.previewTitle .previewTitleActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.previewAiActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin: -4px 0 10px;
+}
+
+.analyzeResourceButton {
+  display: inline-flex;
+  min-width: 88px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid rgba(111, 184, 242, 0.22);
+  border-radius: var(--radius-pill);
+  padding: 0 11px;
+  color: var(--blue-ink);
+  background: rgba(231, 246, 255, 0.72);
+  box-shadow: var(--inner-highlight-light);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 720;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.analyzeResourceButton:hover:not(:disabled) {
+  border-color: rgba(111, 184, 242, 0.46);
+  background: rgba(216, 240, 255, 0.82);
+}
+
+.analyzeResourceButton:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
 .closePreview {
   display: grid;
   width: 34px;
@@ -582,6 +627,18 @@
   line-height: 1.45;
 }
 
+.previewNotice {
+  margin: 10px 0 0;
+  border: 1px solid rgba(111, 184, 242, 0.18);
+  border-radius: 14px;
+  padding: 9px 11px;
+  color: var(--blue-ink);
+  background: rgba(231, 246, 255, 0.66);
+  font-size: 11.5px;
+  font-weight: 560;
+  line-height: 1.45;
+}
+
 .commentPanel {
   display: grid;
   gap: 10px;
@@ -590,6 +647,42 @@
   padding: 12px;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(247, 251, 255, 0.62));
+}
+
+.resourceDeleteArea {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 2px 0 8px;
+}
+
+.resourceDeleteButton {
+  display: inline-flex;
+  min-width: 124px;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(211, 72, 92, 0.42);
+  border-radius: var(--radius-pill);
+  padding: 0 16px;
+  color: #b91c35;
+  background: rgba(255, 232, 236, 0.86);
+  box-shadow: var(--inner-highlight-light);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 780;
+  cursor: pointer;
+}
+
+.resourceDeleteButton:hover:not(:disabled) {
+  border-color: rgba(211, 72, 92, 0.72);
+  background: rgba(255, 218, 225, 0.94);
+}
+
+.resourceDeleteButton:disabled {
+  cursor: wait;
+  opacity: 0.68;
 }
 
 .commentPanelTitle,

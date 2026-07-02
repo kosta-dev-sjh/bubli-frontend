@@ -214,6 +214,10 @@ export function PersonalResourceWorkspace() {
             <ResourcePreview
               emptyHint="자료를 선택하면 파일 정보와 정리 상태를 확인합니다."
               onClose={() => setSelectedResourceId(null)}
+              onDeleted={() => {
+                setSelectedResourceId(null);
+                void loadResources();
+              }}
               resource={selectedResource}
               scope="personal"
             />
