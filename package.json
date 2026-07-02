@@ -12,6 +12,7 @@
     "check:design-tokens": "node scripts/check-design-tokens.mjs",
     "check:product-rules": "node scripts/check-product-rules.mjs",
     "check:tauri-boundaries": "node scripts/check-tauri-boundaries.mjs",
+    "check:i18n": "node scripts/check-i18n-messages.mjs",
     "dev:widget:backend": "node scripts/dev-widget-real-backend.mjs seed",
     "check:smoke": "node scripts/check-frontend-smoke.mjs",
     "check:routes": "SMOKE_TARGET=routes node scripts/check-frontend-smoke.mjs",
