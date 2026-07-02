@@ -987,7 +987,7 @@ function ProjectRoomWorkBoardContent({
                 </div>
 
               {selectedWbsTasks.length > 0 ? (
-                <div className={styles.linkedTaskStrip} aria-label="연결된 할 일">
+                <div className={styles.linkedTaskStrip} aria-label={t("room.workBoard.linkedTasksAria")}>
                   {selectedWbsTasks.slice(0, 3).map((task) => (
                     <article className={styles.linkedTask} key={task.id}>
                       <span>
@@ -1006,27 +1006,27 @@ function ProjectRoomWorkBoardContent({
                     <>
                       <div className={styles.wbsFormGrid}>
                         <label>
-                          <span>작업명</span>
+                          <span>{t("room.workBoard.taskName")}</span>
                           <input
-                            aria-label="WBS 이름"
+                            aria-label={t("room.workBoard.wbsNameLabel")}
                             onChange={(event) => setWbsEditDraft({ ...activeWbsEditDraft, title: event.target.value })}
                             value={activeWbsEditDraft.title}
                           />
                         </label>
                         <div className={styles.wbsDateGrid}>
                           <label>
-                            <span>시작일</span>
+                            <span>{t("room.workBoard.wbsStartDate")}</span>
                             <input
-                              aria-label="WBS 시작일"
+                              aria-label={t("room.workBoard.wbsStartDateAria")}
                               onChange={(event) => requestSelectedWbsRangeUpdate("startAt", event.target.value)}
                               type="date"
                               value={toDateInputValue(selectedWbsRange?.startAt)}
                             />
                           </label>
                           <label>
-                            <span>종료일</span>
+                            <span>{t("room.workBoard.wbsEndDate")}</span>
                             <input
-                              aria-label="WBS 종료일"
+                              aria-label={t("room.workBoard.wbsEndDateAria")}
                               onChange={(event) => requestSelectedWbsRangeUpdate("endAt", event.target.value)}
                               type="date"
                               value={toDateInputValue(selectedWbsRange?.endAt)}
@@ -1034,7 +1034,7 @@ function ProjectRoomWorkBoardContent({
                           </label>
                         </div>
                       </div>
-                      <div className={styles.statusActions} aria-label="WBS 상태 변경">
+                      <div className={styles.statusActions} aria-label={t("room.workBoard.statusChangeAria")}>
                         {wbsStatusOptions.map((column) => (
                           <button
                             aria-pressed={selectedWbs.status === column.status}
@@ -1047,11 +1047,11 @@ function ProjectRoomWorkBoardContent({
                         ))}
                       </div>
                       <div className={styles.colorControl}>
-                        <span>줄 색</span>
-                        <div className={styles.colorSwatches} aria-label="WBS 줄 색 선택" role="group">
+                        <span>{t("room.workBoard.lineColor")}</span>
+                        <div className={styles.colorSwatches} aria-label={t("room.workBoard.lineColorSelectAria")} role="group">
                           {wbsAccentOptions.map((option) => (
                             <button
-                              aria-label={t("room.workBoard.accentColorAria", { label: t(option.labelKey) })}
+                              aria-label={t("room.workBoard.accentColorLabel", { name: t(option.labelKey) })}
                               aria-pressed={selectedWbsAccent === option.value}
                               className={styles.colorSwatch}
                               key={option.value}
@@ -1061,9 +1061,9 @@ function ProjectRoomWorkBoardContent({
                             />
                           ))}
                           <label className={styles.customColor}>
-                            <span>직접</span>
+                            <span>{t("room.workBoard.custom")}</span>
                             <input
-                              aria-label="직접 줄 색 선택"
+                              aria-label={t("room.workBoard.customColorAria")}
                               onChange={(event) => updateSelectedWbsAccent(event.target.value)}
                               type="color"
                               value={accentPickerValue(selectedWbsAccent)}
@@ -1073,30 +1073,34 @@ function ProjectRoomWorkBoardContent({
                       </div>
                       <div className={styles.wbsFormActions}>
                         <button className={styles.primaryAction} type="submit">
-                          저장
+                          {t("room.workBoard.save")}
                         </button>
                       </div>
                     </>
                   ) : (
-                    <p className={styles.empty}>간트에서 줄을 선택하세요</p>
+                    <p className={styles.empty}>{t("room.workBoard.selectRowInGantt")}</p>
                   )}
                 </form>
 
                 <form className={styles.wbsCreate} onSubmit={handleCreateWbs}>
                   <div className={styles.wbsFormGrid}>
                     <label>
-                      <span>{selectedCreateParentTitle ? `${selectedCreateParentTitle} 아래 하위 작업 추가` : "상위 작업 추가"}</span>
+                      <span>
+                        {selectedCreateParentTitle
+                          ? t("room.workBoard.addChildUnder", { parent: selectedCreateParentTitle })
+                          : t("room.workBoard.addParentTask")}
+                      </span>
                       <input
-                        aria-label="추가할 WBS 이름"
+                        aria-label={t("room.workBoard.wbsNameAria")}
                         onChange={(event) => setWbsDraft((current) => ({ ...current, title: event.target.value }))}
-                        placeholder="예: 1차 시안 정리"
+                        placeholder={t("room.workBoard.wbsNamePlaceholder")}
                         value={wbsDraft.title}
                       />
                     </label>
                   </div>
                   <div className={styles.wbsFormActions}>
                     <button className={styles.primaryAction} type="submit">
-                      줄 추가
+                      {t("room.workBoard.addLine")}
                     </button>
                   </div>
                 </form>
@@ -1107,10 +1111,10 @@ function ProjectRoomWorkBoardContent({
         ) : null}
 
         {viewMode === "kanban" ? (
-          <section className={styles.kanbanPane} aria-label="드래그 가능한 칸반 작업판">
+          <section className={styles.kanbanPane} aria-label={t("room.workBoard.kanbanPaneAria")}>
             <div className={styles.paneHead}>
               <div>
-                <h2>칸반</h2>
+                <h2>{t("room.workBoard.kanban")}</h2>
               </div>
               <div className={styles.paneActions}>
                 <button
@@ -1120,7 +1124,7 @@ function ProjectRoomWorkBoardContent({
                   type="button"
                 >
                   <KanbanSquare aria-hidden="true" size={14} strokeWidth={2.2} />
-                  {taskGeneration?.status === "pending" ? "생성 중" : "칸반 후보 생성"}
+                  {taskGeneration?.status === "pending" ? t("room.workBoard.generating") : t("room.workBoard.generateKanban")}
                 </button>
                 <KanbanSquare aria-hidden="true" size={19} strokeWidth={2} />
               </div>
