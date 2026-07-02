@@ -15,6 +15,7 @@ export type WorkspaceTopbarProject = {
 };
 
 export type WorkspaceTopbarUser = {
+  avatarUrl?: string | null;
   displayName: string;
   email: string;
   initials: string;
@@ -102,7 +103,7 @@ export function WorkspaceTopbar({
         </Button>
         <button aria-label={`${user.displayName} 프로필 열기`} className={styles.profileButton} onClick={onOpenProfile} type="button">
           <span className={styles.avatar} aria-hidden="true">
-            {user.initials}
+            {user.avatarUrl ? <img alt="" src={user.avatarUrl} /> : user.initials}
           </span>
           <span className={styles.profileText}>
             <strong>{user.displayName}</strong>

@@ -37,7 +37,7 @@ const localCards = [
 ];
 
 const connectionRows = [
-  ["메인 앱 화면", "회원 웹 앱", "프로젝트룸, 자료보드, 작업판을 같은 화면으로 봅니다."],
+  ["메인 앱 화면", "회원 작업 화면", "프로젝트룸, 자료보드, 작업판을 같은 화면으로 봅니다."],
   ["소통 전용 창", "앱 전용 창/버블", "같은 서버와 실시간 연결을 씁니다."],
   ["보이스 연결", "서버 확인 후 참여", "보이스 연결 정보는 서버에서만 관리합니다."],
   ["기기 기능", "데스크탑 앱 전용", "폴더 선택, 활동 감지, 위젯 복구를 앱에서 처리합니다."],
@@ -53,9 +53,9 @@ export function HybridAppFrame() {
         </div>
         <div className={styles.titleRow}>
           <div className={styles.titleGroup}>
-            <h2 className={styles.title}>같은 회원 웹 앱에 데스크톱 기능만 얹습니다</h2>
+            <h2 className={styles.title}>같은 회원 작업 화면에 데스크톱 기능만 얹습니다</h2>
             <p className={styles.summary}>
-              데스크탑 앱은 별도 서비스를 새로 만드는 방식이 아닙니다. 배포된 회원 웹 앱을 열고, 앱에서만 필요한 버블,
+              데스크탑 앱은 별도 서비스를 새로 만드는 방식이 아닙니다. 회원 작업 화면을 열고, 앱에서만 필요한 버블,
               개인 관리 폴더, 기기 안 저장, 활동 감지, 전용 소통 창을 붙입니다.
             </p>
           </div>
@@ -70,13 +70,13 @@ export function HybridAppFrame() {
         </div>
       </header>
 
-      <section className={styles.layout} aria-label="회원 웹 앱과 데스크탑 앱 구조">
+      <section className={styles.layout} aria-label="회원 작업 화면과 데스크탑 앱 구조">
         <div className={styles.window}>
           <div className={styles.windowBar}>
             <span />
             <span />
             <span />
-            <strong>Bubli 데스크탑 앱 · 회원 웹 앱</strong>
+            <strong>Bubli 데스크탑 앱 · 회원 작업 화면</strong>
           </div>
           <div className={styles.windowBody}>
             <aside className={styles.sidebar}>
@@ -93,7 +93,7 @@ export function HybridAppFrame() {
                   <h3>토모에 번역 프로젝트룸</h3>
                   <p>자료 12개 · TODO 18개 · 확인 필요 3개</p>
                 </div>
-                <StatusBadge tone="room">회원 웹 앱</StatusBadge>
+                <StatusBadge tone="room">회원 작업 화면</StatusBadge>
               </div>
               <div className={styles.cardGrid}>
                 {webCards.map(([title, body]) => (

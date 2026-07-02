@@ -138,37 +138,37 @@ function ContractCard({ item }: { item: ContractArea }) {
           </Chip>
         ))}
       </div>
-      <ProgressBar label={`${item.label} 계약 반영률`} value={item.progress} />
+      <ProgressBar label={`${item.label} 기준 반영률`} value={item.progress} />
     </article>
   );
 }
 
 export function ApiContractStatusPanel() {
   return (
-    <section className={styles.panel} aria-label="API 계약 상태 패널">
+    <section className={styles.panel} aria-label="API 기준 상태 패널">
       <GlassPanel className={styles.hero}>
         <div>
           <Chip icon={<ShieldCheck size={14} />} selected>
-            API 계약 상태
+            API 기준 상태
           </Chip>
-          <h2>프론트는 확정된 API 계약을 기준으로 연결하고, 대기 항목은 표시해 둡니다</h2>
+          <h2>프론트는 확정된 API 기준에 맞춰 연결하고, 대기 항목은 표시해 둡니다</h2>
           <p>
-            인증, 채팅, 보이스챗, 에이전트 작업, Tauri 동기화는 API 계약의 저장 기준을 따릅니다. 백엔드
+            인증, 채팅, 보이스챗, 에이전트 작업, Tauri 동기화는 API 저장 기준을 따릅니다. 백엔드
             산출물과 응답 샘플이 확인되면 프론트 연결부에 반영합니다.
           </p>
         </div>
         <div className={styles.summary}>
-          <StatusBadge tone="approved">계약 기준</StatusBadge>
+          <StatusBadge tone="approved">기준 확정</StatusBadge>
           <strong>7개</strong>
           <span>연동 축 확인</span>
-          <ProgressBar label="API 계약 반영 준비도" value={79} />
+          <ProgressBar label="API 기준 반영 준비도" value={79} />
         </div>
       </GlassPanel>
 
       <div className={styles.flow}>
         <span>기획서 v15</span>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <span>백엔드 API 계약</span>
+        <span>백엔드 API 기준</span>
         <ArrowRight size={16} strokeWidth={2.1} />
         <span>프론트 연결부</span>
         <ArrowRight size={16} strokeWidth={2.1} />
@@ -179,7 +179,7 @@ export function ApiContractStatusPanel() {
         <GlassPanel className={styles.list}>
           <div className={styles.sectionTitle}>
             <h3>연동 기준</h3>
-            <p>기능별 화면보다 먼저 맞춰야 하는 API 계약입니다.</p>
+            <p>기능별 화면보다 먼저 맞춰야 하는 API 기준입니다.</p>
           </div>
           <div className={styles.items}>
             {contracts.map((item) => (
