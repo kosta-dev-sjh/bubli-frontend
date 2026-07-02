@@ -251,6 +251,19 @@ export const widgetDisplayApi = {
     });
   },
 
+  updateMemo(memoId: string, body: string) {
+    return widgetDisplayRequest<WidgetMemoResponse>(`/api/memos/${memoId}`, {
+      body: { body },
+      method: "PATCH",
+    });
+  },
+
+  deleteMemo(memoId: string) {
+    return widgetDisplayRequest<null>(`/api/memos/${memoId}`, {
+      method: "DELETE",
+    });
+  },
+
   listAgentSuggestions(roomId?: string | null) {
     if (roomId) {
       return widgetDisplayRequest<WidgetAgentSuggestionResponse[]>(`/api/project-rooms/${roomId}/agent/suggestions?status=DRAFT`);

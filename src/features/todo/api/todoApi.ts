@@ -18,6 +18,13 @@ export const todoApi = {
     });
   },
 
+  createRoomTask(roomId: string, body: TaskCreateRequest) {
+    return apiRequest<TaskResponse>(`/api/project-rooms/${roomId}/tasks`, {
+      body,
+      method: "POST",
+    });
+  },
+
   update(taskId: string, body: TaskUpdateRequest) {
     return apiRequest<TaskResponse>(`/api/tasks/${taskId}`, {
       body,

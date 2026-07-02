@@ -743,7 +743,7 @@ export function DesktopWidgetBubbleBar({
           const Icon = meta.Icon;
 
           return (
-            <button className={styles.barItem} key={`${bubbleType}-${index}`} onClick={() => onRestoreBubble(bubbleType, bubbleType)} type="button">
+            <button className={styles.barItem} key={`${bubbleType}-${item.windowId ?? index}`} onClick={() => onRestoreBubble(bubbleType, item.windowId ?? bubbleType)} type="button">
               <Icon size={12} strokeWidth={2} />
               <b>{bubble.compactLabel.replace("떠 있는 ", "").replace("타이머 ", "")}</b>
             </button>

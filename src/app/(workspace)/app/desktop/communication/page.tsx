@@ -1,5 +1,16 @@
 import { redirect } from "next/navigation";
 
-export default function DesktopCommunicationPage() {
-  redirect("/app/desktop/widgets?autoOpen=chat");
+type DesktopCommunicationPageProps = {
+  searchParams: Promise<{ roomId?: string | string[] }>;
+};
+
+export default async function DesktopCommunicationPage({ searchParams }: DesktopCommunicationPageProps) {
+  const params = await searchParams;
+  const roomId = Array.isArray(params.roomId) ? params.roomId[0] : params.roomId;
+  const nextParams = new URLSearchParams({ autoOpen: "chat" });
+  if (roomId?.trim()) {
+    nextParams.set("roomId", roomId.trim());
+  }
+
+  redirect(`/app/desktop/widgets?${nextParams.toString()}`);
 }

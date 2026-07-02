@@ -109,9 +109,21 @@ return appName & "\n" & winTitle
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "activity capture not permitted or failed: {stderr}"
-        ));
+        // macOS TCC: sending Apple events to System Events needs the Automation
+        // permission. Error -1743 means the user has not allowed it yet. We name
+        // the exact permission so the settings screen can guide the user instead
+        // of showing a raw AppleScript error. (Window title also needs the
+        // Accessibility permission, but that path is handled below by the empty
+        // title, not by this hard failure.)
+        if stderr.contains("-1743") || stderr.contains("Not authorized") {
+            return Err(
+                "activity capture needs the macOS Automation permission for System Events. \
+                 Open System Settings > Privacy & Security > Automation and allow Bubli to \
+                 control System Events, then try again."
+                    .to_string(),
+            );
+        }
+        return Err(format!("activity capture failed: {stderr}"));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);

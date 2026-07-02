@@ -7,8 +7,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Pencil,
   Plus,
   Repeat2,
+  Trash2,
   Unplug,
   X,
 } from "lucide-react";
@@ -76,6 +78,12 @@ function toDateValue(date: Date) {
 
 function toDateTime(date: string, time: string) {
   return new Date(`${date}T${time}:00`).toISOString();
+}
+
+function toTimeValue(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "09:00";
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 function sameDate(left: Date, right: Date) {
@@ -184,9 +192,11 @@ function CalendarPageContent() {
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [selectedDate, setSelectedDate] = useState(() => toDateValue(new Date()));
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
-  const [draftTitle, setDraftTitle] = useState("클라이언트 확인 미팅");
+  const [draftTitle, setDraftTitle] = useState("");
   const [draftStartTime, setDraftStartTime] = useState("10:30");
   const [draftEndTime, setDraftEndTime] = useState("11:00");
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [repeatEnabled, setRepeatEnabled] = useState(false);
   const [repeatInterval, setRepeatInterval] = useState<RepeatInterval>("WEEKLY");
   const [repeatDays, setRepeatDays] = useState<string[]>(["MO", "WE", "FR"]);
@@ -344,7 +354,39 @@ function CalendarPageContent() {
 
   const selectCalendarDate = (date: Date) => {
     setSelectedDate(toDateValue(date));
+    setEditingEventId(null);
+    setDraftTitle("");
+    setDraftStartTime("10:30");
+    setDraftEndTime("11:00");
     setComposerOpen(true);
+  };
+
+  const openCreateComposer = () => {
+    setEditingEventId(null);
+    setDraftTitle("");
+    setDraftStartTime("10:30");
+    setDraftEndTime("11:00");
+    setDraftNotice(null);
+    setComposerOpen(true);
+  };
+
+  const openEditComposer = (event: ScheduleResponse) => {
+    const startDate = new Date(event.startsAt);
+    const endDate = event.endsAt ? new Date(event.endsAt) : null;
+    setSelectedDate(toDateValue(startDate));
+    setCurrentMonth(startOfMonth(startDate));
+    setEditingEventId(event.id);
+    setDraftTitle(event.title);
+    setDraftStartTime(toTimeValue(event.startsAt));
+    setDraftEndTime(event.endsAt && endDate && !Number.isNaN(endDate.getTime()) ? toTimeValue(event.endsAt) : toTimeValue(event.startsAt));
+    setDraftNotice(null);
+    setComposerOpen(true);
+  };
+
+  const closeComposer = () => {
+    setComposerOpen(false);
+    setEditingEventId(null);
+    setDraftNotice(null);
   };
 
   const selectDateFromInput = (value: string) => {
@@ -408,7 +450,23 @@ function CalendarPageContent() {
     }
   };
 
-  const handleCreateEvent = async () => {
+  const updateEventInState = (event: ScheduleResponse) => {
+    setState((current) => {
+      if (current.kind !== "ready") return current;
+
+      const exists = current.events.some((item) => item.id === event.id);
+      return {
+        ...current,
+        events: exists ? current.events.map((item) => (item.id === event.id ? event : item)) : [event, ...current.events],
+      };
+    });
+  };
+
+  const removeEventFromState = (eventId: string) => {
+    setState((current) => (current.kind === "ready" ? { ...current, events: current.events.filter((event) => event.id !== eventId) } : current));
+  };
+
+  const handleSaveEvent = async () => {
     const title = draftTitle.trim();
     if (!title) {
       setDraftNotice("일정 제목을 먼저 적어주세요.");
@@ -421,20 +479,53 @@ function CalendarPageContent() {
     setDraftNotice(null);
 
     try {
-      const created = await calendarApi.createEvent({
+      const body = {
         allDay: false,
         endsAt,
         roomId: selectedRoomId,
         startsAt,
         title,
-      });
-      setState((current) => (current.kind === "ready" ? { ...current, events: [created, ...current.events] } : current));
-      setDraftNotice("Bubli API로 일정을 만들었습니다.");
-      setComposerOpen(false);
+      };
+      if (editingEventId) {
+        const currentEvent = events.find((event) => event.id === editingEventId);
+        const shouldSyncGoogle = Boolean(currentEvent?.googleEventId || currentEvent?.syncStatus === "SYNCED");
+        const updated = shouldSyncGoogle
+          ? (await calendarApi.updateGoogleCalendarEvent(editingEventId, body)).schedule
+          : await calendarApi.updateEvent(editingEventId, body);
+        updateEventInState(updated);
+        setDraftNotice("일정을 수정했습니다.");
+      } else {
+        const created = await calendarApi.createEvent(body);
+        updateEventInState(created);
+        setDraftNotice("일정을 추가했습니다.");
+      }
+      closeComposer();
     } catch (error) {
       setDraftNotice(error instanceof ApiClientError && error.status === 401 ? "로그인이 필요합니다." : "일정을 저장하지 못했습니다.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteEvent = async (event: ScheduleResponse) => {
+    setDeletingEventId(event.id);
+    setDraftNotice(null);
+
+    try {
+      const shouldSyncGoogle = Boolean(event.googleEventId || event.syncStatus === "SYNCED");
+      if (shouldSyncGoogle) {
+        await calendarApi.deleteGoogleCalendarEvent(event.id);
+      } else {
+        await calendarApi.deleteEvent(event.id);
+      }
+      removeEventFromState(event.id);
+      if (editingEventId === event.id) {
+        closeComposer();
+      }
+    } catch (error) {
+      setDraftNotice(error instanceof ApiClientError && error.status === 401 ? "로그인이 필요합니다." : "일정을 삭제하지 못했습니다.");
+    } finally {
+      setDeletingEventId(null);
     }
   };
 
@@ -536,7 +627,7 @@ function CalendarPageContent() {
                   <StatusBadge tone={reviewCount > 0 ? "warning" : "success"}>
                     {reviewCount > 0 ? "확인 필요" : "동기화 정상"}
                   </StatusBadge>
-                  <Button icon={<Plus size={15} strokeWidth={2.1} />} onClick={() => setComposerOpen(true)} variant="quiet">
+                  <Button icon={<Plus size={15} strokeWidth={2.1} />} onClick={openCreateComposer} variant="quiet">
                     새 일정
                   </Button>
                 </div>
@@ -613,11 +704,47 @@ function CalendarPageContent() {
                   );
                 })}
               </div>
+
+              <section className={styles.selectedEventPanel} aria-label="선택한 날짜 일정">
+                <div>
+                  <strong>{selectedDayLabel}</strong>
+                  <span>{selectedEvents.length > 0 ? `${selectedEvents.length}건` : "일정 없음"}</span>
+                </div>
+                {selectedEvents.length > 0 ? (
+                  <ul className={styles.selectedEventList}>
+                    {selectedEvents.map((event) => {
+                      const source = event.roomId ? "프로젝트룸" : event.googleEventId || event.syncStatus === "SYNCED" ? "외부" : "개인";
+                      return (
+                        <li key={event.id}>
+                          <button className={styles.selectedEventEdit} onClick={() => openEditComposer(event)} type="button">
+                            <span>{formatTime(event)}</span>
+                            <strong>{event.title}</strong>
+                            <small>{source}</small>
+                          </button>
+                          <button
+                            aria-label={`${event.title} 삭제`}
+                            className={styles.selectedEventDelete}
+                            disabled={deletingEventId === event.id}
+                            onClick={() => void handleDeleteEvent(event)}
+                            type="button"
+                          >
+                            <Trash2 size={15} strokeWidth={2.1} />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <button className={styles.emptySelectedEvent} onClick={openCreateComposer} type="button">
+                    이 날짜에 일정 추가
+                  </button>
+                )}
+              </section>
             </GlassPanel>
           </div>
 
           {composerOpen ? (
-            <div className={styles.composerLayer} role="presentation" onMouseDown={() => setComposerOpen(false)}>
+            <div className={styles.composerLayer} role="presentation" onMouseDown={closeComposer}>
               <GlassPanel
                 aria-labelledby="calendar-composer-title"
                 className={`${styles.createPanel} ${styles.composerPanel}`}
@@ -626,17 +753,17 @@ function CalendarPageContent() {
               >
                 <div className={styles.panelHeader}>
                   <div>
-                    <h2 id="calendar-composer-title">일정 추가</h2>
-                    <p>선택한 날짜에 개인 일정이나 현재 프로젝트룸 일정을 추가합니다.</p>
+                    <h2 id="calendar-composer-title">{editingEventId ? "일정 수정" : "일정 추가"}</h2>
+                    <p>선택한 날짜의 개인 일정이나 현재 프로젝트룸 일정을 관리합니다.</p>
                   </div>
-                  <button aria-label="닫기" className={styles.composerClose} onClick={() => setComposerOpen(false)} type="button">
+                  <button aria-label="닫기" className={styles.composerClose} onClick={closeComposer} type="button">
                     <X size={16} strokeWidth={2.2} />
                   </button>
                 </div>
 
                 <label className={styles.field}>
                   <span>제목</span>
-                  <input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
+                  <input placeholder="일정 제목" value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
                 </label>
                 <div className={styles.fieldGrid}>
                   <label className={styles.field}>
@@ -702,8 +829,8 @@ function CalendarPageContent() {
                 </section>
 
                 {draftNotice ? <p className={styles.notice}>{draftNotice}</p> : null}
-                <Button icon={<Plus size={15} strokeWidth={2.1} />} loading={saving} onClick={handleCreateEvent} variant="primary">
-                  일정 추가
+                <Button icon={editingEventId ? <Pencil size={15} strokeWidth={2.1} /> : <Plus size={15} strokeWidth={2.1} />} loading={saving} onClick={handleSaveEvent} variant="primary">
+                  {editingEventId ? "수정 저장" : "일정 추가"}
                 </Button>
               </GlassPanel>
             </div>

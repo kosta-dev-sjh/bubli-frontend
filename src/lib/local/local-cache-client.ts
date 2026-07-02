@@ -16,10 +16,14 @@ import type {
 const IMPLEMENTED_LOCAL_CACHE_COMMANDS = [
   TAURI_COMMANDS.backupLocalSqlite,
   TAURI_COMMANDS.checkLocalSqliteIntegrity,
+  TAURI_COMMANDS.markActivityContextSynced,
+  TAURI_COMMANDS.recordActivityContext,
+  TAURI_COMMANDS.recordTimerState,
   TAURI_COMMANDS.recoverTimerState,
   TAURI_COMMANDS.recordWidgetUsageEvent,
   TAURI_COMMANDS.restoreLocalSqliteBackup,
   TAURI_COMMANDS.rollupWidgetUsage,
+  TAURI_COMMANDS.stageActivityContextsForSync,
   TAURI_COMMANDS.syncRoomMessages,
 ] as const;
 

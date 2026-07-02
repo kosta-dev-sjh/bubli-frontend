@@ -56,11 +56,34 @@ const DISALLOWED_SOURCE_PATTERNS = [
 
 const SOURCE_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx"]);
 const failures = [];
+const appNavPath = join(ROOT, "src/config/site.ts");
+const desktopCommunicationRoutePath = join(
+  ROOT,
+  "src/app/(workspace)/app/desktop/communication/page.tsx",
+);
 
 for (const route of DISALLOWED_ROUTES) {
   const absolutePath = join(ROOT, route.path);
   if (existsSync(absolutePath)) {
     failures.push(`${route.path}: ${route.reason}`);
+  }
+}
+
+if (existsSync(appNavPath)) {
+  const text = readFileSync(appNavPath, "utf8");
+  if (text.includes('href: "/app/desktop/communication"')) {
+    failures.push(
+      "src/config/site.ts: /app/desktop/communication must not be exposed in the main app nav; Tauri communication opens through the chat widget.",
+    );
+  }
+}
+
+if (existsSync(desktopCommunicationRoutePath)) {
+  const text = readFileSync(desktopCommunicationRoutePath, "utf8");
+  if (!text.includes("/app/desktop/widgets") || !text.includes("autoOpen") || !text.includes('"chat"')) {
+    failures.push(
+      "src/app/(workspace)/app/desktop/communication/page.tsx: legacy communication route must redirect to the widget chat surface.",
+    );
   }
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Download, Pause, RefreshCw, Sparkles, X } from "lucide-react";
+import { Check, Download, Eye, Pause, RefreshCw, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -130,6 +130,8 @@ function AgentPageContent() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [dailyUpdatingId, setDailyUpdatingId] = useState<string | null>(null);
   const [exportingDocumentId, setExportingDocumentId] = useState<string | null>(null);
+  const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<GeneratedDocumentResponse | null>(null);
   const [startingSummaryJob, setStartingSummaryJob] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -137,6 +139,7 @@ function AgentPageContent() {
 
   const load = useCallback(async (roomId: string | null) => {
     setNotice(null);
+    setSelectedDocument(null);
     setState((current) => {
       if (current.kind === "ready") {
         return {
@@ -289,6 +292,21 @@ function AgentPageContent() {
       });
     } finally {
       setStartingSummaryJob(false);
+    }
+  }, []);
+
+  const openDocument = useCallback(async (documentId: string) => {
+    setOpeningDocumentId(documentId);
+    try {
+      const document = await agentApi.getGeneratedDocument(documentId);
+      setSelectedDocument(document);
+    } catch (error) {
+      setState({
+        kind: "offline",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "생성 문서를 열지 못했습니다.",
+      });
+    } finally {
+      setOpeningDocumentId(null);
     }
   }, []);
 
@@ -501,19 +519,52 @@ function AgentPageContent() {
                       <strong>{item.title}</strong>
                       <span>{item.documentType}</span>
                     </span>
-                    <Button
-                      icon={<Download size={14} strokeWidth={1.9} />}
-                      loading={exportingDocumentId === item.id}
-                      onClick={() => void exportDocument(item.id)}
-                      size="sm"
-                      variant="quiet"
-                    >
-                      내려받기
-                    </Button>
+                    <span className="workspace-route__actions workspace-route__actions--compact">
+                      <button disabled={openingDocumentId === item.id} onClick={() => void openDocument(item.id)} type="button">
+                        <Eye aria-hidden size={14} />
+                        {openingDocumentId === item.id ? "여는 중" : "열기"}
+                      </button>
+                      <button disabled={exportingDocumentId === item.id} onClick={() => void exportDocument(item.id)} type="button">
+                        <Download aria-hidden size={14} />
+                        {exportingDocumentId === item.id ? "내려받는 중" : "내려받기"}
+                      </button>
+                    </span>
                   </article>
                 ))}
               </div>
             )}
+            {selectedDocument ? (
+              <GlassPanel className="workspace-route__panel workspace-route__panel--document">
+                <div className="workspace-route__section-head">
+                  <div>
+                    <h3>{selectedDocument.title}</h3>
+                    <span>{selectedDocument.documentType}</span>
+                  </div>
+                  <button
+                    aria-label="문서 미리보기 닫기"
+                    className="workspace-route__icon-button"
+                    onClick={() => setSelectedDocument(null)}
+                    type="button"
+                  >
+                    <X aria-hidden size={16} />
+                  </button>
+                </div>
+                <pre className="workspace-route__document-body">
+                  {selectedDocument.contentMarkdown.trim().length > 0 ? selectedDocument.contentMarkdown : "문서 본문이 비어 있습니다."}
+                </pre>
+                <div className="workspace-route__actions">
+                  <Button
+                    icon={<Download size={14} strokeWidth={1.9} />}
+                    loading={exportingDocumentId === selectedDocument.id}
+                    onClick={() => void exportDocument(selectedDocument.id)}
+                    size="sm"
+                    variant="quiet"
+                  >
+                    문서 내려받기
+                  </Button>
+                </div>
+              </GlassPanel>
+            ) : null}
           </section>
 
           {state.selectedRoomId ? (

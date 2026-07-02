@@ -84,6 +84,11 @@ export type WidgetUsageSummarySaveRequest = {
   visibleSeconds: number;
 };
 
+export type WidgetUsageSummarySyncCandidate = WidgetUsageSummarySaveRequest & {
+  bubbleType: WidgetBubbleType;
+  sourceEventCount: number;
+};
+
 export type WidgetDailySummaryResponse = {
   bubbleSettingId: string;
   deviceId: string;
@@ -93,12 +98,6 @@ export type WidgetDailySummaryResponse = {
   summaryDate: string;
   syncedAt: string;
   visibleSeconds: number;
-};
-
-export type WidgetUsageRollupRequest = WidgetUsageSummarySaveRequest & {
-  bubbleType?: WidgetBubbleType;
-  confirmedItemCount?: number;
-  sourceEventCount?: number;
 };
 
 export type WidgetUsageRollupResponse = WidgetDailySummaryResponse;

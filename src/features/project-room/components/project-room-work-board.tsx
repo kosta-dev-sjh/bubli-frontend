@@ -30,6 +30,7 @@ type WbsEditDraft = {
 };
 
 type WbsPeriodMode = "day" | "month" | "rows" | "week";
+const wbsPeriodModes: WbsPeriodMode[] = ["rows", "month", "week", "day"];
 
 const columns: KanbanColumn[] = [
   { description: "시작 전", label: "대기", status: "TODO" },
@@ -72,7 +73,7 @@ const viewCopy = {
 const wbsPeriodCopy: Record<WbsPeriodMode, string> = {
   day: "일",
   month: "월",
-  rows: "줄",
+  rows: "목록",
   week: "주",
 };
 
@@ -457,6 +458,9 @@ function ProjectRoomWorkBoardContent({
   const [wbsDropTargetId, setWbsDropTargetId] = useState<string | null>(null);
   const [wbsPeriodMode, setWbsPeriodMode] = useState<WbsPeriodMode>("rows");
   const [wbsDraft, setWbsDraft] = useState({ title: "" });
+  const [taskDraft, setTaskDraft] = useState({ title: "" });
+  const [creatingTask, setCreatingTask] = useState(false);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [wbsAccentById, setWbsAccentById] = useState<Record<string, string>>(() => createInitialWbsAccentMap(board.wbsItems));
   const [wbsEditDraft, setWbsEditDraft] = useState<WbsEditDraft>(() => ({
     title: initialWbs?.title ?? "",
@@ -823,6 +827,53 @@ function ProjectRoomWorkBoardContent({
     void persistTaskStatus(taskId, status);
   };
 
+  const handleCreateTask = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const title = taskDraft.title.trim();
+    if (!title) return;
+
+    setCreatingTask(true);
+    setSaveNotice("할 일 저장 중");
+
+    try {
+      const created = await todoApi.createRoomTask(roomId, {
+        status: "TODO",
+        title,
+        wbsItemId: selectedWbsId ?? undefined,
+      });
+      setTasks((current) => [created, ...current]);
+      setSelectedTaskId(created.id);
+      setTaskDraft({ title: "" });
+      setSaveNotice("할 일 저장됨");
+    } catch {
+      setSaveNotice("할 일 서버 저장 대기");
+    } finally {
+      setCreatingTask(false);
+    }
+  };
+
+  const deleteSelectedTask = async () => {
+    if (!selectedTask) return;
+
+    const previousTasks = tasks;
+    setDeletingTaskId(selectedTask.id);
+    setSaveNotice("할 일 삭제 중");
+    setTasks((current) => current.filter((task) => task.id !== selectedTask.id));
+    setSelectedTaskId(null);
+
+    try {
+      await todoApi.delete(selectedTask.id);
+      setSaveNotice("할 일 삭제됨");
+    } catch {
+      setTasks(previousTasks);
+      setSelectedTaskId(selectedTask.id);
+      setSaveNotice("할 일 서버 삭제 대기");
+    } finally {
+      setDeletingTaskId(null);
+    }
+  };
+
   const handleDragStart = (event: DragEvent<HTMLElement>, task: LocalTask) => {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", task.id);
@@ -937,12 +988,12 @@ function ProjectRoomWorkBoardContent({
               <div className={styles.paneHead}>
                 <div>
                   <h2>WBS 줄 목록</h2>
-                  <p>줄 구조와 월·주·일 기간을 함께 확인합니다.</p>
+                  <p>하위 줄은 색 라인으로 구분하고, 월·주·일 기한 보기로 전환합니다.</p>
                 </div>
                 <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
               </div>
               <div className={styles.wbsPeriodSwitch} aria-label="WBS 보기 방식">
-                {(Object.keys(wbsPeriodCopy) as WbsPeriodMode[]).map((mode) => (
+                {wbsPeriodModes.map((mode) => (
                   <button aria-pressed={wbsPeriodMode === mode} key={mode} onClick={() => setWbsPeriodMode(mode)} type="button">
                     {wbsPeriodCopy[mode]}
                   </button>
@@ -993,7 +1044,7 @@ function ProjectRoomWorkBoardContent({
                 <div className={cn(styles.periodBoard, wbsPeriodMode === "month" ? styles.periodBoardMonth : styles.periodBoardWeek)}>
                   <div className={styles.periodBoardHead}>
                     <strong>{wbsPeriodMode === "month" ? formatMonthTitle(periodAnchor) : `${formatPeriodDate(weekDays[0])} - ${formatPeriodDate(weekDays[6])}`}</strong>
-                    <span>Google Calendar와 같은 기한 기준</span>
+                    <span>일정과 같은 기한 기준</span>
                   </div>
                   <div className={styles.periodGrid}>
                     {periodDays.map((day) => {
@@ -1030,7 +1081,7 @@ function ProjectRoomWorkBoardContent({
                 <div className={styles.periodDayBoard}>
                   <div className={styles.periodBoardHead}>
                     <strong>{formatPeriodDate(periodAnchor)}</strong>
-                    <span>이날 처리할 WBS/TODO</span>
+                    <span>선택 기준일의 WBS/TODO</span>
                   </div>
                   <div className={styles.dayTaskList}>
                     {dayTasks.length > 0 ? (
@@ -1204,6 +1255,22 @@ function ProjectRoomWorkBoardContent({
               <KanbanSquare aria-hidden="true" size={19} strokeWidth={2} />
             </div>
 
+            <form className={styles.taskCreate} onSubmit={handleCreateTask}>
+              <label>
+                <span>{selectedWbs ? "선택 WBS에 할 일 추가" : "룸 할 일 추가"}</span>
+                <input
+                  disabled={creatingTask}
+                  maxLength={200}
+                  onChange={(event) => setTaskDraft({ title: event.target.value })}
+                  placeholder="예: 확인 질문 정리"
+                  value={taskDraft.title}
+                />
+              </label>
+              <button className={styles.primaryAction} disabled={creatingTask} type="submit">
+                {creatingTask ? "추가 중" : "할 일 추가"}
+              </button>
+            </form>
+
             <div className={styles.columns}>
               {columns.map((column) => {
                 const columnTasks = visibleTasks.filter((task) => activeTaskStatus(task.status) === column.status);
@@ -1304,6 +1371,14 @@ function ProjectRoomWorkBoardContent({
                         {column.label}
                       </button>
                     ))}
+                    <button
+                      className={styles.dangerAction}
+                      disabled={deletingTaskId === selectedTask.id}
+                      onClick={() => void deleteSelectedTask()}
+                      type="button"
+                    >
+                      {deletingTaskId === selectedTask.id ? "삭제 중" : "삭제"}
+                    </button>
                   </div>
                 </>
               ) : (

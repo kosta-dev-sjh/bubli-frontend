@@ -13,6 +13,7 @@
 | Google authorize, callback, refresh, logout | `src/features/auth/api/authApi.ts` |
 | 로그인 버튼 | `src/features/auth/components/auth-panel.tsx` |
 | Google callback 라우트 | `src/app/(auth)/auth/callback/page.tsx` |
+| 예전 OAuth 진입 호환 | `src/app/oauth2/authorization/google/page.tsx` |
 | WebSocket/STOMP Bearer CONNECT | `src/lib/realtime/browser-client.ts` |
 
 ## 흐름
@@ -25,6 +26,14 @@
 6. 이후 `apiRequest`는 Bearer 헤더를 붙인다.
 7. API가 401을 반환하면 `POST /api/auth/refresh`를 한 번 호출하고 원 요청을 한 번만 재시도한다.
 8. refresh가 실패하면 저장된 세션을 지운다.
+
+## 배포 확인 메모 2026-07-02
+
+배포 백엔드 `GET /api/auth/google/authorize`는 응답하지만 현재 `authorizeUrl`의 `client_id`가 `CHANGE_ME`로 내려온다. 로컬 백엔드는 같은 API에서 `client_id`가 빈 값으로 내려온다. 따라서 프론트 토큰 저장, Bearer 헤더, callback 라우트는 준비됐지만 실제 Google 로그인 왕복은 백엔드 배포 환경의 `google.oauth.client-id`, `google.oauth.client-secret` 또는 대응 calendar fallback 값이 채워져야 완료된다.
+
+프론트는 잘못된 Google authorize URL을 그대로 열지 않는다. `client_id`가 비어 있거나 `CHANGE_ME`이면 로그인 화면에 안내를 보여주고 멈춘다. 예전 주소 `/oauth2/authorization/google`로 들어온 경우에도 404 대신 새 로그인 흐름으로 연결한다.
+
+백엔드 `GET /api/me`와 로그인 토큰 응답의 `user` 객체는 현재 `id`, `bubliId`, `name`, `avatarUrl`, `locale`, `timezone`을 내려준다. 이메일은 별도 필드로 내려오지 않으므로 프론트 계정 표시는 이메일을 필수로 보지 않고 `bubliId`를 보조 식별자로 사용한다.
 
 ## WebSocket 기준
 
@@ -55,7 +64,8 @@ Tauri WebView에서는 `resolveAuthClientType()`이 `TAURI`를 반환한다. 같
 
 ## 남은 확인
 
-- Google Console redirect URI에 `/auth/callback` 등록.
+- 배포 백엔드에 실제 Google OAuth client id, secret 등록.
+- Google Console redirect URI에 `https://bubli.n-e.kr/auth/callback` 등록.
 - 배포 환경에서 Google callback 후 `/app` 진입 확인.
 - 실제 백엔드 WebSocket에서 CONNECT, SUBSCRIBE, MESSAGE 수신 확인.
 - logout 이후 refresh token 무효화 확인.

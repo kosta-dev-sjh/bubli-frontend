@@ -23,6 +23,13 @@ type GetGoogleAuthorizationInput = {
   state?: string;
 };
 
+export class AuthConfigurationError extends Error {
+  constructor(message = "GOOGLE_AUTH_CONFIGURATION_REQUIRED") {
+    super(message);
+    this.name = "AuthConfigurationError";
+  }
+}
+
 function getAccessTokenExpiresAt(accessToken: string) {
   try {
     const [, payload] = accessToken.split(".");
@@ -37,8 +44,25 @@ function getAccessTokenExpiresAt(accessToken: string) {
   return new Date(Date.now() + 60 * 60 * 1000).toISOString();
 }
 
+function assertValidGoogleAuthorizeUrl(authorizeUrl: string) {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(authorizeUrl);
+  } catch {
+    throw new AuthConfigurationError();
+  }
+
+  const clientId = parsed.searchParams.get("client_id")?.trim();
+  const isGoogleAuthorizeUrl = parsed.hostname === "accounts.google.com" && parsed.pathname === "/o/oauth2/v2/auth";
+
+  if (!isGoogleAuthorizeUrl || !clientId || clientId === "CHANGE_ME") {
+    throw new AuthConfigurationError();
+  }
+}
+
 export const authApi = {
-  getGoogleAuthorizationUrl(input: GetGoogleAuthorizationInput = {}) {
+  async getGoogleAuthorizationUrl(input: GetGoogleAuthorizationInput = {}) {
     const params = new URLSearchParams();
     params.set("clientType", input.clientType ?? getAuthClientType());
     params.set("redirectUri", input.redirectUri ?? getAuthRedirectUri());
@@ -46,11 +70,14 @@ export const authApi = {
       params.set("state", input.state);
     }
 
-    return apiRequest<GoogleAuthorizeResponse>(`/api/auth/google/authorize?${params.toString()}`, {
+    const response = await apiRequest<GoogleAuthorizeResponse>(`/api/auth/google/authorize?${params.toString()}`, {
       method: "GET",
       skipAuth: true,
       skipAuthRefresh: true,
     });
+
+    assertValidGoogleAuthorizeUrl(response.authorizeUrl);
+    return response;
   },
 
   async callbackGoogle(input: GoogleCallbackRequest) {

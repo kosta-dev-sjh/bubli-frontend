@@ -12,7 +12,8 @@ import { TAURI_COMMANDS } from "@/lib/tauri/commands";
 
 /** Concerns that live only on the device. */
 export const LOCAL_ONLY_RESPONSIBILITIES = [
-  "SQLite cache (chat cache, widget usage detail, activity focus, sync outbox)",
+  "Desktop auth session mirror and restore trigger",
+  "SQLite cache (chat cache, widget usage detail, activity focus/buffer, sync outbox)",
   "Personal managed-folder detection and local file index",
   "Activity context capture (app name, window title, dwell time) with consent",
   "Widget window state (mode, position, always-on-top, click-through)",
@@ -39,6 +40,25 @@ export type IpcBoundaryRow = {
 
 /** Per-IPC responsibility and whether/where it reflects to the server. */
 export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
+  // Auth session mirror: local restore only. Server auth stays in authApi/apiRequest.
+  {
+    ipc: TAURI_COMMANDS.storeTauriAuthSession,
+    responsibility: "Mirror the authenticated web session into local SQLite for app restart recovery",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.readTauriAuthSession,
+    responsibility: "Restore the local mirrored auth session before app shell API calls",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.clearTauriAuthSession,
+    responsibility: "Remove the local mirrored auth session on logout or expired refresh token",
+    reflectsToServer: false,
+    serverApi: null,
+  },
   // Widget window state: local only.
   {
     ipc: TAURI_COMMANDS.openWidgetWindow,
@@ -83,10 +103,40 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     reflectsToServer: true,
     serverApi: "/api/widget/usage-summaries",
   },
+  {
+    ipc: TAURI_COMMANDS.storeWidgetSummaryCache,
+    responsibility: "Mirror the server widget summary into the local display cache",
+    reflectsToServer: false,
+    serverApi: "/api/widget/summary",
+  },
+  {
+    ipc: TAURI_COMMANDS.readWidgetSummaryCache,
+    responsibility: "Read the last mirrored widget summary for fast display or server fallback",
+    reflectsToServer: false,
+    serverApi: "/api/widget/summary",
+  },
   // BUBLI-44 activity context: local capture, server reflect of consented data.
   {
     ipc: TAURI_COMMANDS.readActivityContext,
     responsibility: "Read current app/window/dwell (consent-gated)",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.recordActivityContext,
+    responsibility: "Store consent-gated activity capture in local SQLite before server reflection",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.markActivityContextSynced,
+    responsibility: "Mark a local activity capture as reflected or failed after API sync",
+    reflectsToServer: true,
+    serverApi: "/api/activity/current-app",
+  },
+  {
+    ipc: TAURI_COMMANDS.stageActivityContextsForSync,
+    responsibility: "Stage failed or local-only activity captures for API retry",
     reflectsToServer: true,
     serverApi: "/api/activity/current-app",
   },
@@ -104,8 +154,20 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.getIndexProgress,
+    responsibility: "Read local file index progress and pending syncable event count",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.setFolderSync,
+    responsibility: "Toggle whether a personal managed folder can stage detected file events for server reflection",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.watchManagedFolder,
-    responsibility: "Watch folder for changes (native step pending)",
+    responsibility: "Watch folder for changes, update the local index, and emit refresh events",
     reflectsToServer: false,
     serverApi: null,
   },
@@ -116,8 +178,20 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
-    ipc: TAURI_COMMANDS.readLocalFile,
-    responsibility: "Read a limited text preview from a personal local file",
+    ipc: TAURI_COMMANDS.openLocalFile,
+    responsibility: "Open only a locally indexed personal file by id with the OS default app",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.reindexFile,
+    responsibility: "Re-read one locally indexed personal file, refresh FTS, and stage a local UPDATED/DELETED event when needed",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.readLocalFilePreview,
+    responsibility: "Read a bounded preview for a locally indexed personal file",
     reflectsToServer: false,
     serverApi: null,
   },
@@ -131,6 +205,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
   {
     ipc: TAURI_COMMANDS.syncRoomMessages,
     responsibility: "Mirror server chat into the local room cache",
+    reflectsToServer: false,
+    serverApi: "/api/chat/rooms/{id}/messages",
+  },
+  {
+    ipc: TAURI_COMMANDS.readRoomMessages,
+    responsibility: "Read recent mirrored server chat from the local room cache for fast display or fallback",
     reflectsToServer: false,
     serverApi: "/api/chat/rooms/{id}/messages",
   },

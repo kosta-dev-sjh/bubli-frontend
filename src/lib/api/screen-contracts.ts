@@ -100,7 +100,7 @@ export const screenApiContracts = [
     boundary: "personal-resource",
     currentCodeNotes: [
       "Personal resource workspace uses resourcesApi.listPersonal.",
-      "Managed-folder selection, scan, watch, and local search are Tauri IPC/local adapter responsibilities.",
+      "Managed-folder selection, scan, watch, local search, single-file reindex, index progress, and sync toggle are Tauri IPC/local adapter responsibilities.",
     ],
     id: "personal-resources",
     label: "개인 자료",
@@ -270,7 +270,8 @@ export const screenApiContracts = [
     currentCodeNotes: [
       "Settings page currently reads authApi.getMe for account display.",
       "settingsApi contains profile-adjacent preferences, privacy consent, notification preference, and storage calls.",
-      "Managed-folder controls use Tauri IPC/local adapters instead of invented server endpoints.",
+      "Activity logs are consent-gated and surfaced from /api/activity/today with per-log delete.",
+      "Managed-folder controls use Tauri IPC/local adapters for folder selection, scan/watch, index progress, sync toggle, local search, and single-file reindex instead of invented server endpoints.",
     ],
     id: "settings",
     label: "설정",
@@ -289,6 +290,8 @@ export const screenApiContracts = [
       "PATCH /api/me/privacy-consents",
       "GET /api/storage/usage",
       "GET /api/calendar/google/status",
+      "GET /api/activity/today",
+      "DELETE /api/activity/{id}",
     ],
     status: "진행",
     route: "/app/settings",

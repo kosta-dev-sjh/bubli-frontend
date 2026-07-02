@@ -540,6 +540,193 @@
   line-height: 1.5;
 }
 
+.detailPanel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.detailPanel div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid rgba(107, 143, 168, 0.1);
+  border-radius: 16px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.detailPanel span {
+  color: var(--color-muted);
+  font-size: 10.5px;
+  font-weight: 560;
+}
+
+.detailPanel strong {
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 610;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.previewError {
+  margin: 10px 0 0;
+  border-radius: 14px;
+  padding: 9px 11px;
+  color: var(--color-warning);
+  background: rgba(255, 245, 235, 0.74);
+  font-size: 11.5px;
+  font-weight: 560;
+  line-height: 1.45;
+}
+
+.commentPanel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(107, 143, 168, 0.1);
+  border-radius: 20px;
+  padding: 12px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(247, 251, 255, 0.62));
+}
+
+.commentPanelTitle,
+.commentHead,
+.commentActions {
+  display: flex;
+  align-items: center;
+}
+
+.commentPanelTitle,
+.commentHead {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.commentPanelTitle > div,
+.commentHead > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.commentPanelTitle span,
+.commentHead span {
+  color: var(--blue-ink);
+  font-size: 11px;
+  font-weight: 610;
+}
+
+.commentPanelTitle strong,
+.commentHead strong {
+  color: var(--color-muted);
+  font-size: 10.5px;
+  font-weight: 540;
+}
+
+.commentPanelTitle svg {
+  flex: 0 0 auto;
+  color: var(--blue-ink);
+}
+
+.commentForm,
+.commentEditForm {
+  display: grid;
+  gap: 8px;
+}
+
+.commentForm textarea,
+.commentEditForm textarea {
+  width: 100%;
+  min-height: 76px;
+  resize: vertical;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: 16px;
+  padding: 11px 12px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.78);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 520;
+  line-height: 1.5;
+  outline: none;
+}
+
+.commentForm textarea:focus,
+.commentEditForm textarea:focus {
+  border-color: rgba(111, 184, 242, 0.46);
+  box-shadow: 0 0 0 3px rgba(216, 240, 255, 0.62);
+}
+
+.commentForm :global(.bubli-button) {
+  justify-self: end;
+}
+
+.commentList {
+  display: grid;
+  gap: 8px;
+}
+
+.commentEmpty {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 520;
+}
+
+.commentItem {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(107, 143, 168, 0.1);
+  border-radius: 16px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.commentItem p {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 520;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.commentActions {
+  flex: 0 0 auto;
+  gap: 5px;
+}
+
+.commentActions button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: var(--radius-pill);
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+}
+
+.commentActions button:hover {
+  color: var(--blue-ink);
+}
+
+.commentActions button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.commentEditForm div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
 .previewBodyDocument {
   background:
     linear-gradient(90deg, rgba(107, 143, 168, 0.1), transparent 1px) 0 0 / 100% 34px,
