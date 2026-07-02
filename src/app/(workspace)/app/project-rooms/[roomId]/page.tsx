@@ -3,7 +3,6 @@
 import {
   AlertCircle,
   CalendarDays,
-  ChevronRight,
   FileText,
   ListChecks,
   MessageCircle,
@@ -223,8 +222,27 @@ export default function ProjectRoomHomePage() {
       <header className="workspace-route__header">
         <div>
           <h1 id="room-home-title">{state.kind === "ready" ? state.room.name : "프로젝트룸"}</h1>
-          {state.kind === "ready" ? <p className="workspace-route__eyebrow">자료 · 작업 · 소통 · 일정</p> : null}
         </div>
+        {state.kind === "ready" ? (
+          <nav className="room-home__segmented-nav" aria-label="프로젝트룸 메뉴">
+            <Link href={`/app/project-rooms/${roomId}/work`}>
+              <ListChecks aria-hidden size={18} strokeWidth={1.9} />
+              <span>WBS/칸반</span>
+            </Link>
+            <Link href={`/app/project-rooms/${roomId}/resources`}>
+              <FileText aria-hidden size={18} strokeWidth={1.9} />
+              <span>자료</span>
+            </Link>
+            <Link href={`/app/chat?mode=room&roomId=${encodeURIComponent(roomId)}`}>
+              <MessageCircle aria-hidden size={18} strokeWidth={1.9} />
+              <span>소통</span>
+            </Link>
+            <Link href={`/app/calendar?roomId=${roomId}`}>
+              <CalendarDays aria-hidden size={18} strokeWidth={1.9} />
+              <span>일정</span>
+            </Link>
+          </nav>
+        ) : null}
       </header>
 
       {state.kind === "loading" ? (
@@ -274,66 +292,6 @@ export default function ProjectRoomHomePage() {
             {formatDate(state.room.paymentDueDate) ? <span>입금 {formatDate(state.room.paymentDueDate)}</span> : null}
             {paymentLabel(state.room) && !formatMoney(state.room.contractAmount) ? <span>{paymentLabel(state.room)}</span> : null}
           </div>
-
-          <div className="room-home__route-grid" aria-label="프로젝트룸 메뉴">
-            <Link className="room-home__route-card" href={`/app/project-rooms/${roomId}/work`}>
-              <ListChecks aria-hidden size={19} strokeWidth={1.9} />
-              <span>
-                <strong>WBS/칸반</strong>
-                <small>작업 {roomContent.activeTasks.length}개</small>
-              </span>
-              <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
-            </Link>
-            <Link className="room-home__route-card" href={`/app/project-rooms/${roomId}/resources`}>
-              <FileText aria-hidden size={19} strokeWidth={1.9} />
-              <span>
-                <strong>자료</strong>
-                <small>{state.resources.length}개</small>
-              </span>
-              <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
-            </Link>
-            <Link className="room-home__route-card" href={`/app/chat?mode=room&roomId=${encodeURIComponent(roomId)}`}>
-              <MessageCircle aria-hidden size={19} strokeWidth={1.9} />
-              <span>
-                <strong>소통</strong>
-                <small>룸 대화</small>
-              </span>
-              <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
-            </Link>
-            <Link className="room-home__route-card" href={`/app/calendar?roomId=${roomId}`}>
-              <CalendarDays aria-hidden size={19} strokeWidth={1.9} />
-              <span>
-                <strong>일정</strong>
-                <small>{roomContent.nextSchedule ? formatDue(roomContent.nextSchedule.startsAt) : "없음"}</small>
-              </span>
-              <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
-            </Link>
-          </div>
-
-          {roomContent.isInitialEmpty ? (
-            <GlassPanel className="workspace-route__panel">
-              <Sparkles aria-hidden size={20} strokeWidth={2} />
-              <strong>요구사항 후보 생성</strong>
-              <span>
-                {requirementsState.kind === "running"
-                  ? "생성 중"
-                  : requirementsState.kind === "started"
-                    ? `생성 요청됨 · 작업 ID ${requirementsState.jobId.slice(0, 8)}`
-                    : requirementsState.kind === "error"
-                      ? `실패 · ${requirementsState.message}`
-                      : "초기 자료를 바탕으로 확인할 요구사항 후보를 만듭니다."}
-              </span>
-              <Button
-                disabled={requirementsState.kind === "running"}
-                icon={<Sparkles aria-hidden size={15} strokeWidth={1.9} />}
-                loading={requirementsState.kind === "running"}
-                onClick={() => void generateRequirements()}
-                variant="primary"
-              >
-                요구사항 후보 생성
-              </Button>
-            </GlassPanel>
-          ) : null}
         </>
       ) : null}
     </section>

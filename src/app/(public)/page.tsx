@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
-import { PublicDownloadSection } from "@/features/public-site/components/public-download-section";
 import { PublicHero } from "@/features/public-site/components/public-hero";
 import { PublicHomeFlow } from "@/features/public-site/components/public-home-flow";
 import { Reveal } from "@/features/public-site/components/reveal";
@@ -155,7 +154,66 @@ export default function HomePage() {
       </Reveal>
 
       <Reveal>
-        <PublicDownloadSection />
+        <section className="landing-section landing-download" id="download">
+          <div className="landing-download__stage">
+            <header className="landing-download__head">
+              <span className="landing-download__label">Download</span>
+              <div>
+                <strong>앱 다운로드</strong>
+                <h2>
+                  <span>바탕화면에서</span>
+                  <span>오늘 일을 바로 봅니다</span>
+                </h2>
+                <p>작업 중에도 오늘 할 일, 일정, 타이머가 화면 위에 가볍게 남습니다.</p>
+              </div>
+              <div className="landing-download__actions">
+                <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/#download">
+                  앱 다운로드
+                </Link>
+                <Link className="bubli-button bubli-button--lg" href="/login">
+                  로그인
+                </Link>
+              </div>
+            </header>
+
+            <div className="landing-download__scene" aria-label="Bubli 앱 다운로드 미리보기">
+              <article className="landing-download__terminal">
+                <div className="landing-download__terminal-bar" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                  <b>bubli-desktop.app</b>
+                </div>
+                <div className="landing-download__terminal-body">
+                  <div>
+                    <span>오늘 할 일</span>
+                    <b>업무 범위 확인</b>
+                  </div>
+                  <div>
+                    <span>다음 일정</span>
+                    <b>18:00 리뷰 미팅</b>
+                  </div>
+                  <div>
+                    <span>타이머</span>
+                    <b>자료 정리 이어가기</b>
+                  </div>
+                </div>
+              </article>
+              <Link className="landing-download__float landing-download__float--primary" href="/#download">
+                macOS 앱 받기
+              </Link>
+              <Link className="landing-download__float landing-download__float--soft" href="/#download">
+                Windows 앱 받기
+              </Link>
+              <Link className="landing-download__float landing-download__float--login" href="/login">
+                로그인하고 시작
+              </Link>
+              <div className="landing-download__float landing-download__float--bubble" aria-hidden="true">
+                버블 위젯
+              </div>
+            </div>
+          </div>
+        </section>
       </Reveal>
 
       <Reveal>
