@@ -10,32 +10,15 @@
 
 .contextBand {
   align-items: center;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 16px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 12px 30px rgba(107, 143, 168, 0.1);
-  color: #2c3540;
-  display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  justify-content: stretch;
-  padding: 8px 10px;
-}
-
-.contextCopy {
-  align-items: center;
-  display: flex;
-  gap: 9px;
-  min-inline-size: 0;
-}
-
-.contextTools {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-  min-inline-size: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: none;
+  color: var(--color-text);
+  display: inline-flex;
+  inline-size: fit-content;
+  justify-self: end;
+  padding: 0;
 }
 
 .generateButton {
@@ -88,83 +71,56 @@
 }
 
 .viewSwitch {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(210, 225, 238, 0.64);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 12px 28px -24px rgba(107, 143, 168, 0.34);
   display: inline-flex;
-  gap: 5px;
-  padding: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.86);
+  gap: 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.64);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  padding: 4px;
 }
 
 .viewSwitch button {
   display: inline-flex;
   gap: 6px;
   align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 36px;
+  padding: 0 13px;
   border: 0;
   border-radius: 999px;
-  color: #5a6772;
+  color: var(--color-muted);
   background: transparent;
   font: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 850;
   letter-spacing: 0;
   cursor: pointer;
   transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
 .viewSwitch button[aria-pressed="true"] {
-  color: #2c3540;
-  background: rgba(255, 255, 255, 0.94);
+  color: var(--color-brand);
+  background: rgba(215, 234, 244, 0.62);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.94),
-    0 10px 24px -18px rgba(107, 143, 168, 0.5);
+    0 10px 24px -18px rgba(107, 143, 168, 0.38);
   transform: translateY(-1px);
 }
 
-.contextBand h2 {
-  color: #2c3540;
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.25;
-  margin: 0;
-  white-space: nowrap;
-}
-
 .paneHead h2 {
-  color: #2c3540;
+  color: var(--color-text);
   font-size: 17px;
   line-height: 1.35;
   margin: 0 0 4px;
 }
 
-.contextBand p,
 .paneHead p {
-  color: #5a6772;
+  color: var(--color-muted);
   font-size: 13px;
   line-height: 1.55;
   margin: 0;
-}
-
-.contextStats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.contextStats span {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.74);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 999px;
-  color: #5a6772;
-  display: inline-flex;
-  font-size: 12px;
-  gap: 6px;
-  padding: 6px 9px;
 }
 
 .boardGrid {
@@ -174,27 +130,38 @@
 .pane,
 .kanbanPane,
 .wbsDetail,
+.wbsInspector,
+.wbsInspectorPopover,
 .suggestionTray {
-  background: rgba(255, 255, 255, 0.82);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(250, 253, 255, 0.74)),
+    rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 16px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 14px 34px rgba(107, 143, 168, 0.12);
+  border: 1px solid rgba(210, 225, 238, 0.58);
+  border-radius: 22px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 18px 44px -34px rgba(107, 143, 168, 0.34);
   min-inline-size: 0;
-  padding: 14px;
+  padding: 16px;
+}
+
+.kanbanPane {
+  overflow: hidden;
 }
 
 .wbsWorkspace {
   display: grid;
   align-items: start;
-  gap: 12px;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
+  position: relative;
 }
 
 .wbsWorkspace .pane {
   overflow-x: auto;
-  padding: 12px;
+  padding: 18px;
 }
 
 .paneHead {
@@ -203,6 +170,78 @@
   gap: 12px;
   justify-content: space-between;
   margin-block-end: 14px;
+}
+
+.ganttPaneHead {
+  align-items: center;
+  margin-block-end: 10px;
+}
+
+.ganttPaneHead h2 {
+  font-size: 18px;
+  font-weight: 840;
+}
+
+.kanbanPane .paneHead {
+  align-items: center;
+  margin-block-end: 12px;
+}
+
+.kanbanPane .paneHead h2 {
+  font-size: 18px;
+  font-weight: 840;
+}
+
+.wbsWorkspace .pane :global(.gantt) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(247, 249, 250, 0.78)),
+    rgba(215, 234, 244, 0.12);
+  border-color: rgba(229, 231, 235, 0.82);
+  border-radius: 18px;
+  color: #2c3540;
+  font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
+  letter-spacing: 0;
+}
+
+.wbsWorkspace .pane :global(.gantt button) {
+  font-family: inherit;
+  letter-spacing: 0;
+}
+
+.wbsWorkspace .pane :global([data-roadmap-ui="gantt-sidebar"]) {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(229, 231, 235, 0.78);
+}
+
+.wbsWorkspace .pane :global(.gantt .bg-secondary) {
+  background-color: rgba(215, 234, 244, 0.36);
+}
+
+.wbsWorkspace .pane :global(.gantt .bg-background),
+.wbsWorkspace .pane :global(.gantt .bg-card) {
+  background-color: rgba(255, 255, 255, 0.84);
+}
+
+.wbsWorkspace .pane :global(.gantt .border-border\/50) {
+  border-color: rgba(205, 216, 223, 0.58);
+}
+
+.wbsWorkspace .pane :global(.gantt .divide-border\/50 > :not([hidden]) ~ :not([hidden])) {
+  border-color: rgba(205, 216, 223, 0.55);
+}
+
+.wbsWorkspace .pane :global(.gantt .text-muted-foreground) {
+  color: #6b8fa8;
+}
+
+.wbsWorkspace .pane :global(.gantt .text-foreground) {
+  color: #2c3540;
+}
+
+.wbsWorkspace .pane :global(.gantt .shadow-sm) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 12px 26px -24px rgba(107, 143, 168, 0.45);
 }
 
 .wbsList,
@@ -660,6 +699,104 @@
   top: 18px;
 }
 
+.wbsInspector {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.wbsInspectorPopover {
+  display: grid;
+  gap: 12px;
+  inline-size: min(430px, calc(100% - 36px));
+  inset-block-start: 84px;
+  inset-inline-end: 18px;
+  max-block-size: calc(100dvh - 240px);
+  overflow: auto;
+  padding: 14px;
+  position: absolute;
+  z-index: 8;
+}
+
+.inspectorSummary {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 4px minmax(0, 1fr) auto auto auto;
+}
+
+.inspectorRail {
+  align-self: stretch;
+  background: var(--wbs-accent);
+  border-radius: 999px;
+  min-block-size: 42px;
+}
+
+.inspectorTitle {
+  display: grid;
+  gap: 3px;
+  min-inline-size: 0;
+}
+
+.inspectorTitle strong {
+  color: #2c3540;
+  font-size: 16px;
+  font-weight: 840;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspectorTitle small,
+.inspectorMeta {
+  color: #5a6772;
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.35;
+}
+
+.inspectorMeta {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(229, 231, 235, 0.82);
+  border-radius: 999px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.inspectorClose {
+  align-items: center;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  border-radius: 999px;
+  block-size: 32px;
+  color: #5a6772;
+  cursor: pointer;
+  display: inline-flex;
+  inline-size: 32px;
+  justify-content: center;
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.inspectorClose:hover {
+  background: rgba(215, 234, 244, 0.54);
+  color: #3a78b8;
+  transform: translateY(-1px);
+}
+
+.linkedTaskStrip {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.inspectorForms {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(240px, 0.8fr);
+}
+
 .detailMetrics {
   display: grid;
   gap: 8px;
@@ -698,11 +835,11 @@
 
 .wbsEditor,
 .wbsCreate {
-  background: rgba(247, 249, 250, 0.64);
+  background: rgba(255, 255, 255, 0.64);
   border: 1px solid rgba(229, 231, 235, 0.86);
   border-radius: 14px;
   display: grid;
-  gap: 12px;
+  gap: 10px;
   padding: 12px;
 }
 
@@ -765,7 +902,7 @@
 }
 
 .wbsCreate {
-  background: rgba(215, 234, 244, 0.24);
+  background: rgba(215, 234, 244, 0.2);
   border-color: rgba(107, 143, 168, 0.24);
 }
 
@@ -1126,6 +1263,27 @@
   font-weight: 800;
 }
 
+.assigneeControl {
+  color: #5a6772;
+  display: grid;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 6px;
+  margin-block-start: 12px;
+  max-inline-size: 260px;
+}
+
+.assigneeControl select {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(229, 231, 235, 0.95);
+  border-radius: 12px;
+  color: #2c3540;
+  font: inherit;
+  min-block-size: 40px;
+  padding: 0 12px;
+}
+
 .statusActions {
   display: flex;
   flex-wrap: wrap;
@@ -1246,17 +1404,7 @@
 
 @media (max-width: 760px) {
   .contextBand {
-    grid-template-columns: 1fr;
-  }
-
-  .kanbanFooter {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .contextTools,
-  .contextStats {
-    justify-content: flex-start;
+    justify-self: start;
   }
 
   .trashZone {
@@ -1269,6 +1417,11 @@
   .taskCreate,
   .wbsFormGrid {
     grid-template-columns: 1fr;
+  }
+
+  .wbsInspectorPopover {
+    inline-size: 100%;
+    position: static;
   }
 
   .columns {

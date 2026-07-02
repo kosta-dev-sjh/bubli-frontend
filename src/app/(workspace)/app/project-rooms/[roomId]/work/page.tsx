@@ -1,13 +1,12 @@
 "use client";
 
-import { AlertCircle, Clock3, GitBranch, ListTodo } from "lucide-react";
+import { AlertCircle, Clock3 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
-import { agentApi } from "@/features/agent/api/agentApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ProjectRoomWorkBoard } from "@/features/project-room/components/project-room-work-board";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
@@ -15,12 +14,11 @@ import { ApiClientError } from "@/lib/api/errors";
 import { getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
+  workspacePreviewMembers,
   workspacePreviewRoomById,
-  workspacePreviewRoomSuggestions,
   workspacePreviewWbsBoard,
 } from "@/lib/workspace-preview-data";
-import type { AgentSuggestionResponse } from "@/types/api/agent";
-import type { ProjectRoomResponse } from "@/types/api/projectRoom";
+import type { ProjectRoomMemberResponse, ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { WbsBoardResponse } from "@/types/api/work";
 
 type WorkPageState =
@@ -28,35 +26,28 @@ type WorkPageState =
   | {
       kind: "ready";
       board: WbsBoardResponse;
+      members: ProjectRoomMemberResponse[];
       room: ProjectRoomResponse;
-      suggestions: AgentSuggestionResponse[];
     }
   | { kind: "auth" }
   | { kind: "error"; message: string };
-
-type GenerateState =
-  | { kind: "idle" }
-  | { kind: "running"; label: string }
-  | { jobId: string; kind: "started"; label: string }
-  | { kind: "error"; label: string; message: string };
 
 export default function ProjectRoomWorkPage() {
   const params = useParams<{ roomId: string }>();
   const roomId = params.roomId;
   const [state, setState] = useState<WorkPageState>({ kind: "loading" });
-  const [generateState, setGenerateState] = useState<GenerateState>({ kind: "idle" });
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
 
     try {
-      const [room, board, suggestions] = await Promise.all([
+      const [room, board, membersPage] = await Promise.all([
         projectRoomApi.get(roomId),
         wbsApi.getBoard(roomId),
-        agentApi.listRoomSuggestions(roomId, { status: "DRAFT" }),
+        projectRoomApi.getMembers(roomId),
       ]);
       setActiveProjectRoomId(room.id, room.name);
-      setState({ board, kind: "ready", room, suggestions });
+      setState({ board, kind: "ready", members: membersPage.items, room });
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
@@ -69,8 +60,8 @@ export default function ProjectRoomWorkPage() {
         setState({
           board: workspacePreviewWbsBoard(room.id),
           kind: "ready",
+          members: workspacePreviewMembers.map((member) => ({ ...member, roomId: room.id })),
           room,
-          suggestions: workspacePreviewRoomSuggestions(room.id),
         });
         return;
       }
@@ -90,26 +81,6 @@ export default function ProjectRoomWorkPage() {
     return () => window.clearTimeout(timeoutId);
   }, [load]);
 
-  const runGenerator = useCallback(
-    async (label: string, request: () => Promise<{ jobId: string }>) => {
-      setGenerateState({ kind: "running", label });
-
-      try {
-        const job = await request();
-        setGenerateState({ jobId: job.jobId, kind: "started", label });
-      } catch (error) {
-        setGenerateState({
-          kind: "error",
-          label,
-          message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : `${label} 생성에 실패했습니다.`,
-        });
-      }
-    },
-    [],
-  );
-
-  const generating = generateState.kind === "running";
-
   const content = useMemo(() => {
     if (state.kind !== "ready") {
       return null;
@@ -117,7 +88,7 @@ export default function ProjectRoomWorkPage() {
 
     return {
       board: state.board,
-      pendingSuggestions: state.suggestions,
+      members: state.members,
     };
   }, [state]);
 
@@ -127,49 +98,7 @@ export default function ProjectRoomWorkPage() {
         <div>
           <h1 id="work-title">{state.kind === "ready" ? state.room.name : "작업판"}</h1>
         </div>
-        <div className="workspace-route__actions">
-          <Button
-            disabled={state.kind !== "ready" || generating}
-            icon={<ListTodo aria-hidden size={15} strokeWidth={1.9} />}
-            loading={generateState.kind === "running" && generateState.label === "작업 후보"}
-            onClick={() => void runGenerator("작업 후보", () => agentApi.generateTasks({ roomId }))}
-            variant="secondary"
-          >
-            작업 후보 생성
-          </Button>
-          <Button
-            disabled={state.kind !== "ready" || generating}
-            icon={<GitBranch aria-hidden size={15} strokeWidth={1.9} />}
-            loading={generateState.kind === "running" && generateState.label === "WBS 후보"}
-            onClick={() => void runGenerator("WBS 후보", () => agentApi.generateWbs({ roomId }))}
-            variant="primary"
-          >
-            WBS 후보 생성
-          </Button>
-        </div>
       </header>
-
-      {generateState.kind === "running" ? (
-        <GlassPanel className="workspace-route__panel">
-          <Clock3 aria-hidden size={20} strokeWidth={2} />
-          <strong>{generateState.label} 생성 중</strong>
-        </GlassPanel>
-      ) : null}
-
-      {generateState.kind === "started" ? (
-        <GlassPanel className="workspace-route__panel">
-          <strong>{generateState.label} 생성 요청됨</strong>
-          <span>작업 ID: {generateState.jobId.slice(0, 8)}</span>
-        </GlassPanel>
-      ) : null}
-
-      {generateState.kind === "error" ? (
-        <GlassPanel className="workspace-route__panel">
-          <AlertCircle aria-hidden size={20} strokeWidth={2} />
-          <strong>{generateState.label} 생성 실패</strong>
-          <span>{generateState.message}</span>
-        </GlassPanel>
-      ) : null}
 
       {state.kind === "loading" ? (
         <GlassPanel className="workspace-route__panel">
@@ -204,7 +133,7 @@ export default function ProjectRoomWorkPage() {
       ) : null}
 
       {state.kind === "ready" && content ? (
-        <ProjectRoomWorkBoard board={content.board} roomId={roomId} suggestions={content.pendingSuggestions} />
+        <ProjectRoomWorkBoard board={content.board} members={content.members} roomId={roomId} />
       ) : null}
     </section>
   );
