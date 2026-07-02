@@ -79,6 +79,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.setWidgetRoomContext,
+    responsibility: "Propagate selected project room changes to all known desktop widget windows",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.setWidgetAlwaysOnTop,
     responsibility: "Always-on-top toggle",
     reflectsToServer: false,

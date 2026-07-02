@@ -41,6 +41,7 @@ export const TAURI_COMMANDS = {
   setFolderSync: "set_folder_sync",
   setWidgetAlwaysOnTop: "set_widget_always_on_top",
   setWidgetClickThrough: "set_widget_click_through",
+  setWidgetRoomContext: "set_widget_room_context",
   setWidgetWindowMode: "set_widget_window_mode",
   setWidgetWindowPosition: "set_widget_window_position",
   stageActivityContextsForSync: "stage_activity_contexts_for_sync",
@@ -479,6 +480,10 @@ export type WidgetWindowState = {
   windowVisible: boolean;
 };
 
+export type WidgetRoomContextInput = {
+  selectedRoomId?: string | null;
+};
+
 export type AppReadyInput = {
   selectedRoomId?: string | null;
 };
@@ -706,6 +711,10 @@ export type TauriCommandContract = {
     args: WidgetBooleanInput;
     result: WidgetWindowState;
   };
+  set_widget_room_context: {
+    args: WidgetRoomContextInput;
+    result: WidgetWindowState[];
+  };
   set_widget_window_mode: {
     args: WidgetWindowModeInput;
     result: WidgetWindowState;
@@ -901,6 +910,9 @@ export const tauriCommands = {
   },
   setWidgetClickThrough(input: WidgetBooleanInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetClickThrough, { input });
+  },
+  setWidgetRoomContext(input: WidgetRoomContextInput) {
+    return invokeTauri<WidgetWindowState[]>(TAURI_COMMANDS.setWidgetRoomContext, { input });
   },
   setWidgetWindowMode(input: WidgetWindowModeInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetWindowMode, { input });

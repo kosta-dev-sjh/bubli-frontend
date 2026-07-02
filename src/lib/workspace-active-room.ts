@@ -56,11 +56,13 @@ export async function restoreActiveProjectRoomFromTauri(): Promise<ActiveProject
 function mirrorActiveProjectRoomToTauri(roomId: string, roomLabel?: string | null) {
   if (!isTauriRuntime()) return;
   void tauriCommands.storeActiveProjectRoom({ roomId, roomLabel: roomLabel ?? null }).catch(() => undefined);
+  void tauriCommands.setWidgetRoomContext({ selectedRoomId: roomId }).catch(() => undefined);
 }
 
 function clearActiveProjectRoomTauriMirror() {
   if (!isTauriRuntime()) return;
   void tauriCommands.clearActiveProjectRoom().catch(() => undefined);
+  void tauriCommands.setWidgetRoomContext({ selectedRoomId: null }).catch(() => undefined);
 }
 
 export function setActiveProjectRoomId(roomId: string, roomLabel?: string | null) {
