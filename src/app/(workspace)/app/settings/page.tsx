@@ -173,6 +173,10 @@ function userToProfileDraft(user: AuthUser) {
   };
 }
 
+function accountHandle(user: AuthUser) {
+  return user.bubliId ? `@${user.bubliId}` : "Bubli 계정";
+}
+
 function localResultMessage<TData, TSummary>(result: LocalAdapterResult<TData, TSummary>) {
   if (result.status === "ready") return result.message ?? "완료했습니다";
   if (result.status === "pending") return result.message;
@@ -625,7 +629,7 @@ export default function SettingsPage() {
             <GlassPanel className={styles.statusCard}>
               <span>계정</span>
               <strong>{state.kind === "ready" ? state.user.name : "연결 전"}</strong>
-              <small>{state.kind === "ready" ? state.user.email : "서버 연결 후 표시"}</small>
+              <small>{state.kind === "ready" ? accountHandle(state.user) : "서버 연결 후 표시"}</small>
             </GlassPanel>
             <GlassPanel className={styles.statusCard}>
               <span>알림</span>
@@ -658,12 +662,12 @@ export default function SettingsPage() {
                 <strong>{state.kind === "ready" ? state.user.name : "서버 연결 후 표시"}</strong>
               </div>
               <div className={styles.identity}>
-                <span>이메일</span>
-                <strong>{state.kind === "ready" ? state.user.email : "서버 연결 후 표시"}</strong>
+                <span>Bubli ID</span>
+                <strong>{state.kind === "ready" ? accountHandle(state.user) : "서버 연결 후 표시"}</strong>
               </div>
               <div className={styles.identity}>
-                <span>Bubli ID</span>
-                <strong>{state.kind === "ready" ? state.user.bubliId : "현재 데이터가 없습니다"}</strong>
+                <span>시간대</span>
+                <strong>{state.kind === "ready" ? state.user.timezone ?? "Asia/Seoul" : "현재 데이터가 없습니다"}</strong>
               </div>
               <div className={styles.actions}>
                 <Button disabled={state.kind !== "ready"} onClick={() => void logout()} type="button" variant="quiet">

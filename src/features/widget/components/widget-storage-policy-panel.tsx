@@ -124,7 +124,7 @@ const defaultDevices: WidgetRollupDevice[] = [
     deviceLabel: "MacBook Air",
     interactionCount: 18,
     openCount: 9,
-    rollupKey: "2026-06-23:todo:mac",
+    rollupKey: "오늘:todo:mac",
     status: "SYNCED",
     visibleMinutes: 74,
   },
@@ -133,7 +133,7 @@ const defaultDevices: WidgetRollupDevice[] = [
     deviceLabel: "iMac 작업실",
     interactionCount: 6,
     openCount: 4,
-    rollupKey: "2026-06-23:timer:imac",
+    rollupKey: "오늘:timer:imac",
     status: "SYNC_PENDING",
     visibleMinutes: 42,
   },
@@ -142,7 +142,7 @@ const defaultDevices: WidgetRollupDevice[] = [
     deviceLabel: "MacBook Air",
     interactionCount: 5,
     openCount: 3,
-    rollupKey: "2026-06-23:agent:mac",
+    rollupKey: "오늘:agent:mac",
     status: "LOCAL_ONLY",
     visibleMinutes: 16,
   },
@@ -155,7 +155,7 @@ export function WidgetStoragePolicyPanel({
   onOpenSettings,
   onRollupUsage,
   rollupProgress = 72,
-  summaryDateLabel = "2026-06-23",
+  summaryDateLabel = "오늘",
   ...props
 }: WidgetStoragePolicyPanelProps) {
   const pendingCount = devices.filter((device) => device.status === "SYNC_PENDING" || device.status === "FAILED").length;

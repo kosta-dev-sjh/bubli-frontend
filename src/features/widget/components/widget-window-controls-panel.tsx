@@ -153,7 +153,7 @@ export function WidgetWindowControlsPanel({
             </div>
           </div>
           <div className={styles.bubbleBody}>
-            <span>계약서 수정 조항 확인</span>
+            <span>업무 문서 수정 조항 확인</span>
             <b>오늘 18:00</b>
           </div>
           <div className={styles.bubbleFooter}>

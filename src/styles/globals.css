@@ -9648,7 +9648,7 @@ html {
   line-height: 1.65;
 }
 
-.hybrid-frame__mock {
+.hybrid-frame__surface {
   display: grid;
   gap: 8px;
   min-height: 116px;
@@ -9658,7 +9658,7 @@ html {
   background: rgba(255, 255, 255, 0.52);
 }
 
-.hybrid-frame__mock-line {
+.hybrid-frame__surface-line {
   height: 11px;
   border-radius: var(--radius-pill);
   background: rgba(107, 143, 168, 0.12);
