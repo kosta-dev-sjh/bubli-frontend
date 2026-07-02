@@ -658,10 +658,18 @@ pub fn record_timer_state(
     state: tauri::State<'_, Db>,
     input: TimerStateRecordInput,
 ) -> Result<TimerStateRecordResult, String> {
-    let status = normalize_timer_status(&input.status);
     let now = now_ms();
-    let local_time_log_id = format!("timer-{}", input.server_time_log_id);
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    record_timer_state_for_conn(&conn, input, now)
+}
+
+fn record_timer_state_for_conn(
+    conn: &Connection,
+    input: TimerStateRecordInput,
+    now: i64,
+) -> Result<TimerStateRecordResult, String> {
+    let status = normalize_timer_status(&input.status);
+    let local_time_log_id = format!("timer-{}", input.server_time_log_id);
 
     conn.execute(
         "INSERT INTO local_timer_state \
@@ -695,6 +703,10 @@ pub fn record_timer_state(
 #[tauri::command]
 pub fn recover_timer_state(state: tauri::State<'_, Db>) -> Result<TimerRecoveryState, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    recover_timer_state_for_conn(&conn)
+}
+
+fn recover_timer_state_for_conn(conn: &Connection) -> Result<TimerRecoveryState, String> {
     let row: Option<(String, Option<String>, String)> = conn
         .query_row(
             "SELECT id, server_time_log_id, status FROM local_timer_state \
@@ -1189,11 +1201,13 @@ mod tests {
     use super::{
         mark_activity_context_synced_conn, now_ms, read_active_project_room_for_conn,
         read_auth_session_json, read_room_messages_for_conn, read_widget_summary_cache_for_conn,
+        record_timer_state_for_conn, recover_timer_state_for_conn,
         stage_activity_contexts_for_sync_conn, store_active_project_room_for_conn,
         store_auth_session_json, store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
         validate_auth_session_json, validate_widget_summary_json, ActiveProjectRoomStoreInput,
         ActivityContextSyncInput, LocalRoomMessageCacheInput, LocalRoomMessageReadInput,
-        LocalRoomMessageSyncInput, ACTIVITY_SYNC_PENDING_STALE_MS, SCHEMA_SQL,
+        LocalRoomMessageSyncInput, TimerStateRecordInput, ACTIVITY_SYNC_PENDING_STALE_MS,
+        SCHEMA_SQL,
     };
     use rusqlite::{params, Connection};
 
@@ -1276,6 +1290,72 @@ mod tests {
         )
         .expect_err("blank room id should fail");
         assert!(missing_id.contains("roomId"));
+    }
+
+    #[test]
+    fn records_and_recovers_running_timer_state() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+
+        let recorded = record_timer_state_for_conn(
+            &conn,
+            TimerStateRecordInput {
+                room_id: Some("room-1".to_string()),
+                server_time_log_id: "time-log-1".to_string(),
+                started_at: Some("2026-07-02T00:00:00Z".to_string()),
+                status: "RUNNING".to_string(),
+            },
+            100,
+        )
+        .expect("record running timer");
+
+        let recovery = recover_timer_state_for_conn(&conn).expect("recover timer");
+
+        assert_eq!(recorded.local_time_log_id, "timer-time-log-1");
+        assert_eq!(recorded.status, "RUNNING");
+        assert!(recovery.recovery_required);
+        assert_eq!(
+            recovery.local_time_log_id.as_deref(),
+            Some("timer-time-log-1")
+        );
+        assert_eq!(recovery.server_time_log_id.as_deref(), Some("time-log-1"));
+        assert_eq!(recovery.status, "RECOVERY_NEEDED");
+    }
+
+    #[test]
+    fn ended_timer_state_is_not_recovered() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+
+        record_timer_state_for_conn(
+            &conn,
+            TimerStateRecordInput {
+                room_id: Some("room-1".to_string()),
+                server_time_log_id: "time-log-1".to_string(),
+                started_at: Some("2026-07-02T00:00:00Z".to_string()),
+                status: "RUNNING".to_string(),
+            },
+            100,
+        )
+        .expect("record running timer");
+        record_timer_state_for_conn(
+            &conn,
+            TimerStateRecordInput {
+                room_id: Some("room-1".to_string()),
+                server_time_log_id: "time-log-1".to_string(),
+                started_at: None,
+                status: "ENDED".to_string(),
+            },
+            200,
+        )
+        .expect("record ended timer");
+
+        let recovery = recover_timer_state_for_conn(&conn).expect("recover ended timer");
+
+        assert!(!recovery.recovery_required);
+        assert_eq!(recovery.local_time_log_id, None);
+        assert_eq!(recovery.server_time_log_id, None);
+        assert_eq!(recovery.status, "NONE");
     }
 
     #[test]

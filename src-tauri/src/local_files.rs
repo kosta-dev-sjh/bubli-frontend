@@ -41,6 +41,25 @@ pub struct ManagedFolderSelection {
     path: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderListItem {
+    created_at: String,
+    local_folder_id: String,
+    name: String,
+    path: String,
+    status: String,
+    sync_enabled: bool,
+    updated_at: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderListResult {
+    folders: Vec<ManagedFolderListItem>,
+    loaded_at: String,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ManagedFolderCommandInput {
@@ -89,6 +108,23 @@ pub struct ManagedFolderIndexProgressResult {
 pub struct ManagedFolderWatchResult {
     local_folder_id: String,
     watching: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderWatchAllResult {
+    active_folder_count: i64,
+    skipped_count: i64,
+    skipped_folder_ids: Vec<String>,
+    watched_count: i64,
+    watched_folder_ids: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderUnwatchAllResult {
+    stopped_count: i64,
+    stopped_folder_ids: Vec<String>,
 }
 
 #[derive(Clone, Serialize)]
@@ -269,8 +305,8 @@ pub fn select_managed_folder(
     let now = now_ms();
     conn.execute(
         "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, 'ACTIVE', 0, ?4, ?4) \
-         ON CONFLICT(path) DO UPDATE SET status = 'ACTIVE', updated_at = excluded.updated_at",
+         VALUES (?1, ?2, ?3, 'ACTIVE', 1, ?4, ?4) \
+         ON CONFLICT(path) DO UPDATE SET status = 'ACTIVE', sync_enabled = 1, updated_at = excluded.updated_at",
         params![id, name, path, now],
     )
     .map_err(|error| error.to_string())?;
@@ -288,6 +324,47 @@ pub fn select_managed_folder(
         local_folder_id,
         name,
         path,
+    })
+}
+
+/// Read personal managed folders from the local SQLite registry.
+#[tauri::command]
+pub fn list_managed_folders(state: State<'_, Db>) -> Result<ManagedFolderListResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    list_managed_folders_for_conn(&conn, now_ms())
+}
+
+fn list_managed_folders_for_conn(
+    conn: &Connection,
+    loaded_at: i64,
+) -> Result<ManagedFolderListResult, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT id, name, path, status, sync_enabled, created_at, updated_at \
+             FROM managed_folders \
+             WHERE status != 'REMOVED' \
+             ORDER BY updated_at DESC",
+        )
+        .map_err(|error| error.to_string())?;
+    let folders = statement
+        .query_map([], |row| {
+            Ok(ManagedFolderListItem {
+                local_folder_id: row.get(0)?,
+                name: row.get(1)?,
+                path: row.get(2)?,
+                status: row.get(3)?,
+                sync_enabled: row.get::<_, i64>(4)? != 0,
+                created_at: ms_to_iso(row.get(5)?),
+                updated_at: ms_to_iso(row.get(6)?),
+            })
+        })
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+
+    Ok(ManagedFolderListResult {
+        folders,
+        loaded_at: ms_to_iso(loaded_at),
     })
 }
 
@@ -586,13 +663,91 @@ pub fn watch_managed_folder(
         .ok_or_else(|| format!("managed folder not found: {}", input.local_folder_id))?;
     drop(conn);
 
+    start_managed_folder_watcher(&app, &watchers, input.local_folder_id, folder_path)
+}
+
+/// Restore native watching for every registered active managed folder after a
+/// Tauri session starts. Server sync still only stages folders with
+/// sync_enabled=1; watching keeps the local SQLite index fresh.
+#[tauri::command]
+pub fn watch_all_managed_folders(
+    app: AppHandle,
+    state: State<'_, Db>,
+    watchers: State<'_, ManagedFolderWatchers>,
+) -> Result<ManagedFolderWatchAllResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let folders = active_managed_folders_for_conn(&conn)?;
+    drop(conn);
+
+    let active_folder_count = folders.len() as i64;
+    let mut watched_folder_ids = Vec::new();
+    let mut skipped_folder_ids = Vec::new();
+
+    for (local_folder_id, folder_path) in folders {
+        match start_managed_folder_watcher(&app, &watchers, local_folder_id.clone(), folder_path) {
+            Ok(result) if result.watching => watched_folder_ids.push(result.local_folder_id),
+            Ok(_) => skipped_folder_ids.push(local_folder_id),
+            Err(error) => {
+                eprintln!("managed folder auto-watch skipped {local_folder_id}: {error}");
+                skipped_folder_ids.push(local_folder_id);
+            }
+        }
+    }
+
+    Ok(ManagedFolderWatchAllResult {
+        active_folder_count,
+        skipped_count: skipped_folder_ids.len() as i64,
+        skipped_folder_ids,
+        watched_count: watched_folder_ids.len() as i64,
+        watched_folder_ids,
+    })
+}
+
+#[tauri::command]
+pub fn unwatch_all_managed_folders(
+    watchers: State<'_, ManagedFolderWatchers>,
+) -> Result<ManagedFolderUnwatchAllResult, String> {
+    let mut guard = watchers
+        .0
+        .lock()
+        .map_err(|_| "folder watcher state lock failed".to_string())?;
+    let stopped_folder_ids = guard.keys().cloned().collect::<Vec<_>>();
+    let stopped_count = stopped_folder_ids.len() as i64;
+    guard.clear();
+
+    Ok(ManagedFolderUnwatchAllResult {
+        stopped_count,
+        stopped_folder_ids,
+    })
+}
+
+fn active_managed_folders_for_conn(conn: &Connection) -> Result<Vec<(String, String)>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, path FROM managed_folders WHERE status = 'ACTIVE' ORDER BY updated_at DESC",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|error| error.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())
+}
+
+fn start_managed_folder_watcher(
+    app: &AppHandle,
+    watchers: &ManagedFolderWatchers,
+    local_folder_id: String,
+    folder_path: String,
+) -> Result<ManagedFolderWatchResult, String> {
     let folder = PathBuf::from(&folder_path);
     if !folder.is_dir() {
         return Err(format!("not a directory: {folder_path}"));
     }
 
-    let db_path = crate::local_db::database_path(&app)?;
-    let local_folder_id = input.local_folder_id;
+    let db_path = crate::local_db::database_path(app)?;
     let mut guard = watchers
         .0
         .lock()
@@ -1832,6 +1987,38 @@ mod tests {
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'CREATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'UPDATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'DELETED'"));
+    }
+
+    #[test]
+    fn lists_managed_folders_for_settings_restore() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-old', 'Old Docs', '/tmp/old-docs', 'ACTIVE', 0, 10, 20), \
+                    ('folder-new', 'New Docs', '/tmp/new-docs', 'ACTIVE', 1, 30, 50), \
+                    ('folder-paused', 'Paused Docs', '/tmp/paused-docs', 'PAUSED', 1, 25, 40), \
+                    ('folder-removed', 'Removed Docs', '/tmp/removed-docs', 'REMOVED', 1, 35, 60)",
+            [],
+        )
+        .expect("insert managed folders");
+
+        let result = list_managed_folders_for_conn(&conn, 70).expect("list managed folders");
+
+        assert_eq!(result.loaded_at, ms_to_iso(70));
+        assert_eq!(
+            result
+                .folders
+                .iter()
+                .map(|folder| folder.local_folder_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["folder-new", "folder-paused", "folder-old"]
+        );
+        assert!(result.folders[0].sync_enabled);
+        assert!(!result.folders[2].sync_enabled);
+        assert!(result
+            .folders
+            .iter()
+            .all(|folder| folder.status != "REMOVED"));
     }
 
     #[test]

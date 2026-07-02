@@ -79,6 +79,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.setWidgetRoomContext,
+    responsibility: "Propagate selected project room changes to all known desktop widget windows",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.setWidgetAlwaysOnTop,
     responsibility: "Always-on-top toggle",
     reflectsToServer: false,
@@ -168,6 +174,18 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
   {
     ipc: TAURI_COMMANDS.watchManagedFolder,
     responsibility: "Watch folder for changes, update the local index, and emit refresh events",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.watchAllManagedFolders,
+    responsibility: "Restore native watchers for active personal managed folders after Tauri login",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.unwatchAllManagedFolders,
+    responsibility: "Stop active personal managed-folder watchers when the authenticated Tauri surface stops",
     reflectsToServer: false,
     serverApi: null,
   },

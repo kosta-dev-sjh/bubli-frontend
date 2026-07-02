@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardGrid, DashboardPalette, DashboardWidgetTile, WIDGET_CATALOG, sizeToClass, widgetIcon } from "@/components/dashboard";
 import type { DashboardWidgetDef } from "@/components/dashboard";
@@ -692,6 +692,7 @@ export function WorkspaceDashboard() {
   const [widgetIds, setWidgetIds] = useState(() => readStoredWidgetIds());
   const [timerAction, setTimerAction] = useState<DashboardTimerAction>("idle");
   const [timerMessage, setTimerMessage] = useState<string | null>(null);
+  const timerRecoveryAttemptedRef = useRef(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const fetchDashboard = useCallback(async () => {
@@ -805,6 +806,31 @@ export function WorkspaceDashboard() {
   const roomFilteredRunningTimer = activeRoom.roomId && realData.runningTimer && !activeDashboardTimer ? realData.runningTimer : null;
   const timerBusy = timerAction !== "idle";
   const activeHeartbeatTimerId = realData.runningTimer?.status === "RUNNING" ? realData.runningTimer.id : null;
+
+  useEffect(() => {
+    if (timerRecoveryAttemptedRef.current) return;
+    if (state.kind !== "ready" && state.kind !== "empty") return;
+    if (!isTauriRuntime()) return;
+
+    timerRecoveryAttemptedRef.current = true;
+    let cancelled = false;
+
+    async function recoverDashboardTimerFromLocalState() {
+      const recovery = await tauriCommands.recoverTimerState().catch(() => null);
+      if (cancelled || !recovery?.recoveryRequired || !recovery.serverTimeLogId) return;
+
+      const timeLog = await timerApi.heartbeat(recovery.serverTimeLogId).catch(() => null);
+      if (cancelled || !timeLog) return;
+
+      applyDashboardTimerResult(timeLog);
+    }
+
+    void recoverDashboardTimerFromLocalState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyDashboardTimerResult, state.kind]);
 
   useEffect(() => {
     if (!activeHeartbeatTimerId) return;
