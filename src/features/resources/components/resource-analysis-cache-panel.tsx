@@ -1,3 +1,5 @@
+"use client";
+
 import { BrainCircuit, Database, FileSearch, Gauge, RefreshCcw, ShieldCheck } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 
@@ -5,6 +7,7 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./resource-analysis-cache-panel.module.css";
@@ -32,11 +35,11 @@ export type ResourceAnalysisCachePanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const statusMeta: Record<AnalysisCacheStatus, { label: string; tone: StatusTone }> = {
-  hit: { label: "캐시 사용", tone: "success" },
-  miss: { label: "새 분석", tone: "pending" },
-  expired: { label: "재분석 필요", tone: "warning" },
-  failed: { label: "분석 실패", tone: "warning" },
+const statusMeta: Record<AnalysisCacheStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  hit: { labelKey: "resources.cache.status.hit", tone: "success" },
+  miss: { labelKey: "resources.cache.status.miss", tone: "pending" },
+  expired: { labelKey: "resources.cache.status.expired", tone: "warning" },
+  failed: { labelKey: "resources.cache.status.failed", tone: "warning" },
 };
 
 const metricIcon: Record<AnalysisCacheMetric["icon"], ReactNode> = {
@@ -50,28 +53,29 @@ export function ResourceAnalysisCachePanel({
   className,
   entries,
   metrics,
-  title = "자료 분석 캐시",
+  title,
   ...props
 }: ResourceAnalysisCachePanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("resources.cache.defaultTitle");
+
   return (
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<FileSearch size={14} strokeWidth={2.1} />}>자료 분석</Chip>
+          <Chip icon={<FileSearch size={14} strokeWidth={2.1} />}>{t("resources.cache.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              같은 파일인지 먼저 확인해 기존 분석 결과를 다시 쓸 수 있는지 봅니다. 새 분석이 필요할 때만 에이전트 정리 작업을 만들고, 결과는 자료와 분리해 저장합니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("resources.cache.description")}</p>
           </div>
         </div>
         <div className={styles.contractCard}>
-          <span>비용 기준</span>
+          <span>{t("resources.cache.costLabel")}</span>
           <strong>NFR-11</strong>
         </div>
       </header>
 
-      <section className={styles.metricGrid} aria-label="분석 캐시 기준">
+      <section className={styles.metricGrid} aria-label={t("resources.cache.metricAria")}>
         {metrics.map((metric) => (
           <article className={styles.metricCard} key={metric.label}>
             <span className={styles.metricIcon} aria-hidden="true">
@@ -86,14 +90,14 @@ export function ResourceAnalysisCachePanel({
         ))}
       </section>
 
-      <div className={styles.flow} aria-label="분석 처리 흐름">
+      <div className={styles.flow} aria-label={t("resources.cache.flowAria")}>
         <article>
           <span aria-hidden="true">
             <ShieldCheck size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <h3>파일 지문 확인</h3>
-            <p>업로드된 파일이 이전에 분석한 파일과 같은지 비교합니다.</p>
+            <h3>{t("resources.cache.flowFingerprintTitle")}</h3>
+            <p>{t("resources.cache.flowFingerprintDesc")}</p>
           </div>
         </article>
         <article>
@@ -101,8 +105,8 @@ export function ResourceAnalysisCachePanel({
             <Gauge size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <h3>캐시 우선</h3>
-            <p>유효한 결과가 있으면 모델 호출 없이 기존 결과를 보여줍니다.</p>
+            <h3>{t("resources.cache.flowCacheTitle")}</h3>
+            <p>{t("resources.cache.flowCacheDesc")}</p>
           </div>
         </article>
         <article>
@@ -110,8 +114,8 @@ export function ResourceAnalysisCachePanel({
             <BrainCircuit size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <h3>에이전트 정리 작업</h3>
-            <p>새 분석이 필요할 때만 정리 작업을 만들고 상태를 추적합니다.</p>
+            <h3>{t("resources.cache.flowJobTitle")}</h3>
+            <p>{t("resources.cache.flowJobDesc")}</p>
           </div>
         </article>
         <article>
@@ -119,13 +123,13 @@ export function ResourceAnalysisCachePanel({
             <Database size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <h3>결과 분리 저장</h3>
-            <p>사용자가 올린 자료와 에이전트 분석 결과를 분리해 둡니다.</p>
+            <h3>{t("resources.cache.flowResultTitle")}</h3>
+            <p>{t("resources.cache.flowResultDesc")}</p>
           </div>
         </article>
       </div>
 
-      <section className={styles.entryList} aria-label="분석 캐시 항목">
+      <section className={styles.entryList} aria-label={t("resources.cache.entryAria")}>
         {entries.map((entry) => {
           const meta = statusMeta[entry.status];
 
@@ -142,11 +146,11 @@ export function ResourceAnalysisCachePanel({
                 </div>
               </div>
               <div className={styles.entrySide}>
-                <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
+                <StatusBadge tone={meta.tone}>{t(meta.labelKey)}</StatusBadge>
                 {entry.status === "failed" || entry.status === "expired" ? (
                   <button className={styles.retryButton} type="button">
                     <RefreshCcw size={15} strokeWidth={2.1} />
-                    다시 분석
+                    {t("resources.cache.reanalyze")}
                   </button>
                 ) : null}
               </div>

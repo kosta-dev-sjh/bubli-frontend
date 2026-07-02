@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { ResourceResponse, ResourceStatus, ResourceSummaryStatus } from "@/types/api/resource";
 
@@ -16,27 +17,34 @@ import styles from "./resource-board-polish.module.css";
 export type ViewMode = "grid" | "list";
 export type ResourceBoardScope = "personal" | "room";
 
-export const statusCopy: Record<ResourceStatus, string> = {
-  ANALYZED: "정리됨",
-  ANALYZING: "정리 중",
-  ARCHIVED: "보관됨",
-  FAILED: "확인 필요",
-  READY: "준비됨",
-  UPLOADED: "업로드됨",
-  UPLOADING: "업로드 중",
+export const statusCopyKey: Record<ResourceStatus, MessageKey> = {
+  ANALYZED: "resources.status.ANALYZED",
+  ANALYZING: "resources.status.ANALYZING",
+  ARCHIVED: "resources.status.ARCHIVED",
+  FAILED: "resources.status.FAILED",
+  READY: "resources.status.READY",
+  UPLOADED: "resources.status.UPLOADED",
+  UPLOADING: "resources.status.UPLOADING",
 };
 
-export const summaryStatusCopy: Record<ResourceSummaryStatus, string> = {
-  FAILED: "확인 필요",
-  NONE: "정리 전",
-  PENDING: "정리 중",
-  SUCCEEDED: "완료",
+export const summaryStatusCopyKey: Record<ResourceSummaryStatus, MessageKey> = {
+  FAILED: "resources.status.summary.FAILED",
+  NONE: "resources.status.summary.NONE",
+  PENDING: "resources.status.summary.PENDING",
+  SUCCEEDED: "resources.status.summary.SUCCEEDED",
 };
 
-const personalStatusCopy: Partial<Record<ResourceStatus, string>> = {
-  UPLOADED: "동기화됨",
-  UPLOADING: "동기화 중",
+const personalStatusCopyKey: Partial<Record<ResourceStatus, MessageKey>> = {
+  UPLOADED: "resources.status.personalUPLOADED",
+  UPLOADING: "resources.status.personalUPLOADING",
 };
+
+function resolveVisibleStatusKey(scope: ResourceBoardScope, status: ResourceStatus): MessageKey {
+  if (scope === "personal") {
+    return personalStatusCopyKey[status] ?? statusCopyKey[status];
+  }
+  return statusCopyKey[status];
+}
 
 export function getErrorMessage(error: unknown) {
   if (error instanceof ApiClientError && error.status === 401) {
@@ -47,17 +55,25 @@ export function getErrorMessage(error: unknown) {
     return error.message;
   }
 
-  return "자료를 불러오지 못했습니다";
+  return "LOAD_ERROR";
 }
 
-export function formatDate(value?: string | null) {
+/** getErrorMessage가 반환한 값을 사용자에게 보여줄 문구로 변환한다. */
+export function resolveErrorMessage(message: string, t: (key: MessageKey) => string) {
+  if (message === "LOAD_ERROR") {
+    return t("resources.board.loadError");
+  }
+  return message;
+}
+
+export function formatDate(value: string | null | undefined, t: (key: MessageKey) => string) {
   if (!value) {
-    return "날짜 미정";
+    return t("resources.board.dateUnknown");
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "날짜 미정";
+    return t("resources.board.dateUnknown");
   }
 
   return new Intl.DateTimeFormat("ko-KR", {
@@ -163,9 +179,9 @@ function getResourcePreviewKind(resource: ResourceResponse): ResourcePreviewKind
   return "document";
 }
 
-function getKindLabel(kind: ResourcePreviewKind) {
+function getKindLabel(kind: ResourcePreviewKind, t: (key: MessageKey) => string) {
   if (kind === "image") {
-    return "이미지";
+    return t("resources.board.kind.image");
   }
 
   if (kind === "word") {
@@ -177,7 +193,7 @@ function getKindLabel(kind: ResourcePreviewKind) {
   }
 
   if (kind === "sheet") {
-    return "표";
+    return t("resources.board.kind.sheet");
   }
 
   if (kind === "pdf") {
@@ -196,7 +212,7 @@ function getKindLabel(kind: ResourcePreviewKind) {
     return "HWP";
   }
 
-  return "문서";
+  return t("resources.board.kind.document");
 }
 
 function ResourceKindIcon({ kind, size, strokeWidth }: { kind: ResourcePreviewKind; size: number; strokeWidth: number }) {
@@ -222,31 +238,33 @@ function ResourceKindIcon({ kind, size, strokeWidth }: { kind: ResourcePreviewKi
 export function ResourceScopeSwitch({
   activeScope,
   roomHref,
-  roomLabel = "프로젝트룸",
+  roomLabel,
 }: {
   activeScope: ResourceBoardScope;
   roomHref: string;
   roomLabel?: string;
 }) {
+  const { t } = useI18n();
+  const resolvedRoomLabel = roomLabel ?? t("resources.board.scope.room");
   const scopes = [
     {
-      description: "로컬 폴더",
+      description: t("resources.board.scope.personalDesc"),
       href: "/app/resources",
       icon: HardDrive,
       id: "personal" as const,
-      title: "개인",
+      title: t("resources.board.scope.personal"),
     },
     {
-      description: "공용 자료",
+      description: t("resources.board.scope.roomDesc"),
       href: roomHref,
       icon: UsersRound,
       id: "room" as const,
-      title: roomLabel,
+      title: resolvedRoomLabel,
     },
   ];
 
   return (
-    <div className={styles.scopeSwitch} aria-label="자료보드 범위 전환">
+    <div className={styles.scopeSwitch} aria-label={t("resources.board.scopeSwitchAria")}>
       {scopes.map((scope) => {
         const Icon = scope.icon;
 
@@ -296,21 +314,22 @@ export function ResourceToolbar({
   onQuery: (value: string) => void;
   onViewMode: (mode: ViewMode) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="resource-workspace__toolbar">
       <div className="resource-workspace__search">
         <Search aria-hidden size={17} strokeWidth={2} />
-        <input aria-label="자료 검색" onChange={(event) => onQuery(event.target.value)} placeholder="파일명, 상태로 찾기" value={query} />
+        <input aria-label={t("resources.board.searchAria")} onChange={(event) => onQuery(event.target.value)} placeholder={t("resources.board.searchPlaceholder")} value={query} />
       </div>
 
-      <div className={styles.viewToggle} aria-label="보기 방식">
-        <button className={cn(viewMode === "grid" && "is-active")} onClick={() => onViewMode("grid")} title="격자 보기" type="button">
+      <div className={styles.viewToggle} aria-label={t("resources.board.viewAria")}>
+        <button className={cn(viewMode === "grid" && "is-active")} onClick={() => onViewMode("grid")} title={t("resources.board.viewGrid")} type="button">
           <Grid3X3 aria-hidden size={16} strokeWidth={2} />
-          <span>객체</span>
+          <span>{t("resources.board.viewGridLabel")}</span>
         </button>
-        <button className={cn(viewMode === "list" && "is-active")} onClick={() => onViewMode("list")} title="목록 보기" type="button">
+        <button className={cn(viewMode === "list" && "is-active")} onClick={() => onViewMode("list")} title={t("resources.board.viewList")} type="button">
           <List aria-hidden size={16} strokeWidth={2} />
-          <span>목록</span>
+          <span>{t("resources.board.viewListLabel")}</span>
         </button>
       </div>
     </div>
@@ -330,10 +349,11 @@ export function ResourceTile({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const { t } = useI18n();
   const size = formatSize(resource.currentVersion?.sizeBytes);
-  const visibleStatus = scope === "personal" ? personalStatusCopy[resource.status] ?? statusCopy[resource.status] : statusCopy[resource.status];
+  const visibleStatus = t(resolveVisibleStatusKey(scope, resource.status));
   const previewKind = getResourcePreviewKind(resource);
-  const kindLabel = getKindLabel(previewKind);
+  const kindLabel = getKindLabel(previewKind, t);
 
   return (
     <button
@@ -350,7 +370,7 @@ export function ResourceTile({
       <span className="resource-workspace__item-main">
         <b>{resource.title}</b>
         <span>
-          {kindLabel} · {formatDate(resource.updatedAt)}
+          {kindLabel} · {formatDate(resource.updatedAt, t)}
           {size ? ` / ${size}` : ""}
         </span>
       </span>
@@ -371,6 +391,7 @@ export function ResourcePreview({
   onClose?: () => void;
   onError?: (message: string) => void;
 }) {
+  const { t } = useI18n();
   const handleDownload = useCallback(async () => {
     if (!resource) {
       return;
@@ -380,34 +401,30 @@ export function ResourcePreview({
       const response = await resourcesApi.getDownloadUrl(resource.id);
       window.open(response.url, "_blank", "noopener,noreferrer");
     } catch (error) {
-      onError?.(getErrorMessage(error));
+      onError?.(resolveErrorMessage(getErrorMessage(error), t));
     }
-  }, [onError, resource]);
+  }, [onError, resource, t]);
 
   if (!resource) {
     return null;
   }
 
-  const visibleStatus = resource
-    ? scope === "personal"
-      ? personalStatusCopy[resource.status] ?? statusCopy[resource.status]
-      : statusCopy[resource.status]
-    : "선택 전";
+  const visibleStatus = t(resolveVisibleStatusKey(scope, resource.status));
   const previewKind = getResourcePreviewKind(resource);
-  const previewLabel = getKindLabel(previewKind);
+  const previewLabel = getKindLabel(previewKind, t);
   const size = formatSize(resource.currentVersion?.sizeBytes);
   const originalName = resource.currentVersion?.originalName ?? resource.title;
   const versionLabel = resource.currentVersion ? `v${resource.currentVersion.versionNo}` : "v1";
-  const summaryLabel = resource.summaryStatus ? summaryStatusCopy[resource.summaryStatus] : visibleStatus;
+  const summaryLabel = resource.summaryStatus ? t(summaryStatusCopyKey[resource.summaryStatus]) : visibleStatus;
 
   return (
-    <aside className={cn("resource-workspace__preview", styles.previewPanel)} aria-label="자료 미리보기">
+    <aside className={cn("resource-workspace__preview", styles.previewPanel)} aria-label={t("resources.board.previewAria")}>
       <div className={styles.previewTitle}>
         <div>
-          <span>상세 정보</span>
+          <span>{t("resources.board.previewDetail")}</span>
           <strong>{visibleStatus}</strong>
         </div>
-        <button aria-label="미리보기 닫기" className={styles.closePreview} onClick={onClose} type="button">
+        <button aria-label={t("resources.board.previewClose")} className={styles.closePreview} onClick={onClose} type="button">
           <X aria-hidden size={16} strokeWidth={2} />
         </button>
       </div>
@@ -423,7 +440,7 @@ export function ResourcePreview({
               <ResourceKindIcon kind={previewKind} size={20} strokeWidth={1.9} />
             </span>
             <div>
-              <span>{resource.visibility === "PERSONAL" ? "개인 색인" : "프로젝트룸 공용"}</span>
+              <span>{resource.visibility === "PERSONAL" ? t("resources.board.previewIndexPersonal") : t("resources.board.previewIndexRoom")}</span>
               <h2>{resource.title}</h2>
               <p>{originalName}</p>
             </div>
@@ -431,45 +448,45 @@ export function ResourcePreview({
 
           <dl className={styles.fileFacts}>
             <div>
-              <dt>파일 형식</dt>
+              <dt>{t("resources.board.factKind")}</dt>
               <dd>{previewLabel}</dd>
             </div>
             <div>
-              <dt>원본</dt>
+              <dt>{t("resources.board.factOriginal")}</dt>
               <dd>{originalName}</dd>
             </div>
             <div>
-              <dt>정리 상태</dt>
+              <dt>{t("resources.board.factSummary")}</dt>
               <dd>{summaryLabel}</dd>
             </div>
             <div>
-              <dt>버전</dt>
+              <dt>{t("resources.board.factVersion")}</dt>
               <dd>{versionLabel}</dd>
             </div>
           </dl>
 
           <div className={cn(styles.previewBody, styles[`previewBody${previewKind[0].toUpperCase()}${previewKind.slice(1)}`])}>
-            <strong>{previewLabel} 정보</strong>
-            <span>{resource.visibility === "PERSONAL" ? "내 로컬 폴더에서 색인된 개인 자료입니다." : "현재 프로젝트룸 멤버가 함께 확인하는 공용 자료입니다."}</span>
+            <strong>{t("resources.board.previewInfo", { kind: previewLabel })}</strong>
+            <span>{resource.visibility === "PERSONAL" ? t("resources.board.previewBodyPersonal") : t("resources.board.previewBodyRoom")}</span>
           </div>
         </div>
       </div>
 
       <div className="resource-workspace__preview-meta">
         <div>
-          <span>상태</span>
+          <span>{t("resources.board.metaStatus")}</span>
           <StatusBadge tone={toneForStatus(resource.status)}>{visibleStatus}</StatusBadge>
         </div>
         <div>
-          <span>최근 수정</span>
-          <b>{formatDate(resource.updatedAt)}</b>
+          <span>{t("resources.board.metaUpdated")}</span>
+          <b>{formatDate(resource.updatedAt, t)}</b>
         </div>
         <div>
-          <span>위치</span>
-          <b>{resource.visibility === "PERSONAL" ? "개인 자료" : "프로젝트룸 자료"}</b>
+          <span>{t("resources.board.metaLocation")}</span>
+          <b>{resource.visibility === "PERSONAL" ? t("resources.board.metaLocationPersonal") : t("resources.board.metaLocationRoom")}</b>
         </div>
         <div>
-          <span>파일</span>
+          <span>{t("resources.board.metaFile")}</span>
           <b>{size ?? previewLabel}</b>
         </div>
       </div>
@@ -477,7 +494,7 @@ export function ResourcePreview({
       <div className="resource-workspace__preview-actions">
         <Button onClick={handleDownload} variant="primary">
           <Download aria-hidden size={16} strokeWidth={2} />
-          다운로드
+          {t("resources.board.download")}
         </Button>
       </div>
     </aside>

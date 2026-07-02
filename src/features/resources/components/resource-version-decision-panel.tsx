@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   CheckCircle2,
@@ -16,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./resource-version-decision-panel.module.css";
@@ -45,10 +48,10 @@ export type ResourceVersionDecisionPanelProps = {
   visibility?: ResourceVisibility;
 };
 
-const versionStatusCopy: Record<ResourceVersionStatus, string> = {
-  CURRENT: "현재 버전",
-  PENDING_REVIEW: "검토 대기",
-  PREVIOUS: "이전 버전",
+const versionStatusCopy: Record<ResourceVersionStatus, MessageKey> = {
+  CURRENT: "resources.version.status.CURRENT",
+  PENDING_REVIEW: "resources.version.status.PENDING_REVIEW",
+  PREVIOUS: "resources.version.status.PREVIOUS",
 };
 
 const versionStatusTone: Record<ResourceVersionStatus, StatusTone> = {
@@ -57,18 +60,18 @@ const versionStatusTone: Record<ResourceVersionStatus, StatusTone> = {
   PREVIOUS: "neutral",
 };
 
-const decisionCopy: Record<ResourceVersionDecision, { description: string; label: string }> = {
+const decisionCopy: Record<ResourceVersionDecision, { description: MessageKey; label: MessageKey }> = {
   CREATE_VERSION: {
-    description: "새 파일을 다음 버전으로 등록하고 기존 버전 기록을 유지합니다.",
-    label: "새 버전으로 등록",
+    description: "resources.version.decision.CREATE_VERSION.description",
+    label: "resources.version.decision.CREATE_VERSION.label",
   },
   HOLD_UPLOAD: {
-    description: "파일은 대기 상태로 두고 프로젝트룸 자료에는 반영하지 않습니다.",
-    label: "나중에 확인",
+    description: "resources.version.decision.HOLD_UPLOAD.description",
+    label: "resources.version.decision.HOLD_UPLOAD.label",
   },
   KEEP_CURRENT: {
-    description: "현재 등록된 자료를 그대로 두고 새 파일은 반영하지 않습니다.",
-    label: "현재 자료 유지",
+    description: "resources.version.decision.KEEP_CURRENT.description",
+    label: "resources.version.decision.KEEP_CURRENT.label",
   },
 };
 
@@ -112,6 +115,7 @@ export function ResourceVersionDecisionPanel({
   versions = defaultVersions,
   visibility = "ROOM_SHARED",
 }: ResourceVersionDecisionPanelProps) {
+  const { t } = useI18n();
   const VisibilityIcon = visibility === "ROOM_SHARED" ? UsersRound : FolderLock;
   const sortedVersions = versions;
 
@@ -119,30 +123,27 @@ export function ResourceVersionDecisionPanel({
     <GlassPanel className={cn(styles.panel, className)}>
       <header className={styles.header}>
         <div>
-          <Chip icon={<History size={14} />}>자료 버전 확인</Chip>
-          <h2>같은 자료를 다시 올리면 사용자가 반영 방식을 고릅니다</h2>
-          <p>
-            새 파일을 바로 확정하지 않고 현재 자료와 비교해 보여줍니다. 선택한 뒤에만 자료보드의
-            최신 버전과 분석 후보가 바뀝니다.
-          </p>
+          <Chip icon={<History size={14} />}>{t("resources.version.chip")}</Chip>
+          <h2>{t("resources.version.title")}</h2>
+          <p>{t("resources.version.description")}</p>
         </div>
         <StatusBadge tone={visibility === "ROOM_SHARED" ? "room" : "personal"}>
-          {visibility === "ROOM_SHARED" ? "프로젝트룸 자료" : "개인 자료"}
+          {visibility === "ROOM_SHARED" ? t("resources.version.visibilityRoom") : t("resources.version.visibilityPersonal")}
         </StatusBadge>
       </header>
 
-      <section className={styles.compareArea} aria-label="현재 자료와 새 파일 비교">
+      <section className={styles.compareArea} aria-label={t("resources.version.compareAria")}>
         <article className={styles.fileCard}>
           <span className={styles.fileIcon} aria-hidden="true">
             <FileText size={20} strokeWidth={2.1} />
           </span>
           <div>
-            <span>현재 등록된 자료</span>
+            <span>{t("resources.version.currentLabel")}</span>
             <strong>{currentFileName}</strong>
-            <p>자료보드와 에이전트 후보의 기준이 되는 파일입니다.</p>
+            <p>{t("resources.version.currentDesc")}</p>
           </div>
           <Button icon={<FileText size={15} />} onClick={onOpenCurrent} size="sm" variant="ghost">
-            열기
+            {t("resources.version.openCurrent")}
           </Button>
         </article>
 
@@ -155,25 +156,25 @@ export function ResourceVersionDecisionPanel({
             <UploadCloud size={20} strokeWidth={2.1} />
           </span>
           <div>
-            <span>새로 감지된 파일</span>
+            <span>{t("resources.version.incomingLabel")}</span>
             <strong>{incomingFileName}</strong>
-            <p>사용자가 고르기 전까지 현재 자료를 바꾸지 않습니다.</p>
+            <p>{t("resources.version.incomingDesc")}</p>
           </div>
           <Button icon={<FileClock size={15} />} onClick={onOpenIncoming} size="sm" variant="quiet">
-            미리 보기
+            {t("resources.version.previewIncoming")}
           </Button>
         </article>
       </section>
 
       <div className={styles.contentGrid}>
-        <section className={styles.decisionPanel} aria-label="자료 반영 방식 선택">
+        <section className={styles.decisionPanel} aria-label={t("resources.version.decisionAria")}>
           <div className={styles.decisionHeader}>
             <span className={styles.policyIcon} aria-hidden="true">
               <VisibilityIcon size={20} strokeWidth={2.1} />
             </span>
             <div>
-              <h3>반영 방식을 선택하세요</h3>
-              <p>프로젝트룸 자료는 멤버가 보는 기준이므로 선택 전 상태를 유지합니다.</p>
+              <h3>{t("resources.version.decisionHeading")}</h3>
+              <p>{t("resources.version.decisionDesc")}</p>
             </div>
           </div>
 
@@ -198,8 +199,8 @@ export function ResourceVersionDecisionPanel({
                 >
                   <span aria-hidden="true">{icon}</span>
                   <div>
-                    <strong>{decisionCopy[decision].label}</strong>
-                    <p>{decisionCopy[decision].description}</p>
+                    <strong>{t(decisionCopy[decision].label)}</strong>
+                    <p>{t(decisionCopy[decision].description)}</p>
                   </div>
                 </button>
               );
@@ -207,14 +208,14 @@ export function ResourceVersionDecisionPanel({
           </div>
         </section>
 
-        <aside className={styles.historyPanel} aria-label="자료 버전 기록">
+        <aside className={styles.historyPanel} aria-label={t("resources.version.historyAria")}>
           <div className={styles.historyHeader}>
             <span className={styles.policyIcon} aria-hidden="true">
               <ShieldCheck size={20} strokeWidth={2.1} />
             </span>
             <div>
-              <h3>버전 기록은 남깁니다</h3>
-              <p>나중에 어떤 자료로 분석했는지 다시 확인할 수 있어야 합니다.</p>
+              <h3>{t("resources.version.historyHeading")}</h3>
+              <p>{t("resources.version.historyDesc")}</p>
             </div>
           </div>
 
@@ -223,7 +224,7 @@ export function ResourceVersionDecisionPanel({
               <li key={version.id}>
                 <div className={styles.versionTop}>
                   <span>{version.versionLabel}</span>
-                  <StatusBadge tone={versionStatusTone[version.status]}>{versionStatusCopy[version.status]}</StatusBadge>
+                  <StatusBadge tone={versionStatusTone[version.status]}>{t(versionStatusCopy[version.status])}</StatusBadge>
                 </div>
                 <strong>{version.fileName}</strong>
                 <p>{version.note}</p>

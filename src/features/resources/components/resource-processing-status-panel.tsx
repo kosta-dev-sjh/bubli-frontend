@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Bot,
   CheckCircle2,
@@ -20,6 +22,7 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./resource-processing-status-panel.module.css";
@@ -49,12 +52,12 @@ export type ResourceProcessingStatusPanelProps = {
   visibility?: ResourceVisibility;
 };
 
-const statusCopy: Record<ResourceStatus, string> = {
-  ANALYZED: "분석 완료",
-  ANALYZING: "분석 중",
-  FAILED: "처리 실패",
-  READY: "업로드 완료",
-  UPLOADING: "업로드 중",
+const statusCopy: Record<ResourceStatus, MessageKey> = {
+  ANALYZED: "resources.processing.status.ANALYZED",
+  ANALYZING: "resources.processing.status.ANALYZING",
+  FAILED: "resources.processing.status.FAILED",
+  READY: "resources.processing.status.READY",
+  UPLOADING: "resources.processing.status.UPLOADING",
 };
 
 const statusTone: Record<ResourceStatus, StatusTone> = {
@@ -65,12 +68,12 @@ const statusTone: Record<ResourceStatus, StatusTone> = {
   UPLOADING: "pending",
 };
 
-const stepStatusCopy: Record<ProcessingStepStatus, string> = {
-  FAILED: "확인 필요",
-  PENDING: "대기",
-  RUNNING: "진행 중",
-  SKIPPED: "건너뜀",
-  SUCCEEDED: "완료",
+const stepStatusCopy: Record<ProcessingStepStatus, MessageKey> = {
+  FAILED: "resources.processing.step.FAILED",
+  PENDING: "resources.processing.step.PENDING",
+  RUNNING: "resources.processing.step.RUNNING",
+  SKIPPED: "resources.processing.step.SKIPPED",
+  SUCCEEDED: "resources.processing.step.SUCCEEDED",
 };
 
 const stepStatusTone: Record<ProcessingStepStatus, StatusTone> = {
@@ -177,6 +180,7 @@ export function ResourceProcessingStatusPanel({
   steps = defaultSteps,
   visibility = "ROOM_SHARED",
 }: ResourceProcessingStatusPanelProps) {
+  const { t } = useI18n();
   const overallProgress = getOverallProgress(steps);
   const failedStep = steps.find((step) => step.status === "FAILED");
   const runningStep = steps.find((step) => step.status === "RUNNING");
@@ -186,46 +190,47 @@ export function ResourceProcessingStatusPanel({
     <GlassPanel className={cn(styles.panel, className)}>
       <header className={styles.header}>
         <div>
-          <Chip icon={<UploadCloud size={14} />}>자료 처리 상태</Chip>
-          <h2>업로드한 자료가 업무 후보가 되기까지의 흐름을 보여줍니다</h2>
-          <p>
-            원본 저장, 텍스트 추출, 의미 검색 준비, 에이전트 후보 생성을 나눠 표시합니다. 사용자가
-            확인한 후보만 작업과 일정에 반영됩니다.
-          </p>
+          <Chip icon={<UploadCloud size={14} />}>{t("resources.processing.chip")}</Chip>
+          <h2>{t("resources.processing.title")}</h2>
+          <p>{t("resources.processing.desc")}</p>
         </div>
         <div className={styles.headerActions}>
           {failedStep ? (
             <Button icon={<RotateCcw size={15} />} onClick={onRetryFailedStep} size="sm" variant="quiet">
-              실패 단계 재시도
+              {t("resources.processing.retryFailedStep")}
             </Button>
           ) : null}
           <Button icon={<FileText size={15} />} onClick={onOpenResource} size="sm" variant="ghost">
-            자료 열기
+            {t("resources.processing.openResource")}
           </Button>
         </div>
       </header>
 
-      <section className={styles.resourceCard} aria-label="처리 중인 자료">
+      <section className={styles.resourceCard} aria-label={t("resources.processing.resourceAria")}>
         <span className={styles.resourceIcon} aria-hidden="true">
           <VisibilityIcon size={20} strokeWidth={2.1} />
         </span>
         <div className={styles.resourceText}>
-          <span>{visibility === "ROOM_SHARED" ? "프로젝트룸 자료" : "개인 자료"}</span>
+          <span>{visibility === "ROOM_SHARED" ? t("resources.processing.scopeRoom") : t("resources.processing.scopePersonal")}</span>
           <strong>{resourceTitle}</strong>
         </div>
-        <StatusBadge tone={statusTone[status]}>{statusCopy[status]}</StatusBadge>
+        <StatusBadge tone={statusTone[status]}>{t(statusCopy[status])}</StatusBadge>
       </section>
 
-      <section className={styles.progressSummary} aria-label="전체 처리 진행률">
+      <section className={styles.progressSummary} aria-label={t("resources.processing.overallAria")}>
         <div>
           <strong>{overallProgress}%</strong>
-          <span>{runningStep ? `${runningStep.label} 단계 진행 중` : "처리 흐름 대기"}</span>
+          <span>
+            {runningStep
+              ? t("resources.processing.stepRunning", { label: runningStep.label })
+              : t("resources.processing.flowWaiting")}
+          </span>
         </div>
-        <ProgressBar label="자료 처리 전체 진행률" value={overallProgress} />
+        <ProgressBar label={t("resources.processing.overallProgressLabel")} value={overallProgress} />
       </section>
 
       <div className={styles.contentGrid}>
-        <section className={styles.stepList} aria-label="자료 처리 단계">
+        <section className={styles.stepList} aria-label={t("resources.processing.stepListAria")}>
           {steps.map((step) => {
             const StepIcon = stepIconMap[step.kind];
             const isRunning = step.status === "RUNNING";
@@ -242,24 +247,24 @@ export function ResourceProcessingStatusPanel({
                       <span>{step.detailLabel}</span>
                       <h3>{step.label}</h3>
                     </div>
-                    <StatusBadge tone={stepStatusTone[step.status]}>{stepStatusCopy[step.status]}</StatusBadge>
+                    <StatusBadge tone={stepStatusTone[step.status]}>{t(stepStatusCopy[step.status])}</StatusBadge>
                   </div>
                   <p>{step.supportingText}</p>
-                  <ProgressBar label={`${step.label} 진행률`} value={getStepProgress(step)} />
+                  <ProgressBar label={t("resources.processing.stepProgressLabel", { label: step.label })} value={getStepProgress(step)} />
                 </div>
               </article>
             );
           })}
         </section>
 
-        <aside className={styles.policyPanel} aria-label="자료 처리 기준">
+        <aside className={styles.policyPanel} aria-label={t("resources.processing.policyAria")}>
           <div className={styles.policyHeader}>
             <span className={styles.policyIcon} aria-hidden="true">
               <ShieldCheck size={20} strokeWidth={2.1} />
             </span>
             <div>
-              <h3>원본과 후보를 분리합니다</h3>
-              <p>분석 결과는 바로 확정하지 않고 검토 가능한 후보로 둡니다.</p>
+              <h3>{t("resources.processing.policyTitle")}</h3>
+              <p>{t("resources.processing.policyDesc")}</p>
             </div>
           </div>
 
@@ -267,36 +272,36 @@ export function ResourceProcessingStatusPanel({
             <li>
               <CheckCircle2 size={17} strokeWidth={2.1} />
               <div>
-                <strong>서버 기록 기준</strong>
-                <p>자료 파일과 분석 상태는 서버 기록을 기준으로 복구할 수 있게 둡니다.</p>
+                <strong>{t("resources.processing.policyServerTitle")}</strong>
+                <p>{t("resources.processing.policyServerDesc")}</p>
               </div>
             </li>
             <li>
               <CircleDashed size={17} strokeWidth={2.1} />
               <div>
-                <strong>후보 생성까지만</strong>
-                <p>에이전트는 WBS/TODO 후보를 만들고, 확정 반영은 사용자가 승인한 뒤 진행합니다.</p>
+                <strong>{t("resources.processing.policyCandidateTitle")}</strong>
+                <p>{t("resources.processing.policyCandidateDesc")}</p>
               </div>
             </li>
             <li>
               <XCircle size={17} strokeWidth={2.1} />
               <div>
-                <strong>실패 단계 표시</strong>
-                <p>추출이나 분석이 실패하면 어느 단계에서 멈췄는지 보여주고 재시도할 수 있게 합니다.</p>
+                <strong>{t("resources.processing.policyFailedTitle")}</strong>
+                <p>{t("resources.processing.policyFailedDesc")}</p>
               </div>
             </li>
           </ul>
 
           <div className={styles.storageFlow}>
-            <span>원본 저장</span>
+            <span>{t("resources.processing.flowOriginal")}</span>
             <RefreshCw size={15} />
-            <span>분석 후보</span>
+            <span>{t("resources.processing.flowCandidate")}</span>
             <RefreshCw size={15} />
-            <span>사용자 확인</span>
+            <span>{t("resources.processing.flowConfirm")}</span>
           </div>
 
           <Button icon={<Bot size={15} />} onClick={onOpenAnalysis} size="sm" variant="quiet">
-            분석 후보 보기
+            {t("resources.processing.openAnalysis")}
           </Button>
         </aside>
       </div>

@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   BadgeHelp,
@@ -14,6 +16,7 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./document-classification-panel.module.css";
@@ -42,56 +45,58 @@ export type DocumentClassificationPanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const kindMeta: Record<DocumentKind, { icon: ReactNode; label: string; tone: StatusTone }> = {
+const kindMeta: Record<DocumentKind, { icon: ReactNode; labelKey: MessageKey; tone: StatusTone }> = {
   contract: {
     icon: <FileCheck2 size={18} strokeWidth={2.1} />,
-    label: "계약서",
+    labelKey: "resources.classification.kind.contract",
     tone: "success",
   },
   quote: {
     icon: <FileText size={18} strokeWidth={2.1} />,
-    label: "견적서",
+    labelKey: "resources.classification.kind.quote",
     tone: "pending",
   },
   requirements: {
     icon: <ClipboardList size={18} strokeWidth={2.1} />,
-    label: "요구사항 문서",
+    labelKey: "resources.classification.kind.requirements",
     tone: "room",
   },
   meetingNote: {
     icon: <MessageSquareText size={18} strokeWidth={2.1} />,
-    label: "회의록",
+    labelKey: "resources.classification.kind.meetingNote",
     tone: "room",
   },
   reference: {
     icon: <BadgeHelp size={18} strokeWidth={2.1} />,
-    label: "참고자료",
+    labelKey: "resources.classification.kind.reference",
     tone: "pending",
   },
 };
 
-const statusMeta: Record<ClassificationStatus, { label: string; tone: StatusTone }> = {
-  ready: { label: "분류 대기", tone: "pending" },
-  analyzing: { label: "분류 중", tone: "agent" },
-  analyzed: { label: "분류 완료", tone: "success" },
-  failed: { label: "분류 실패", tone: "warning" },
-  needsReview: { label: "확인 필요", tone: "warning" },
+const statusMeta: Record<ClassificationStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  ready: { labelKey: "resources.classification.status.ready", tone: "pending" },
+  analyzing: { labelKey: "resources.classification.status.analyzing", tone: "agent" },
+  analyzed: { labelKey: "resources.classification.status.analyzed", tone: "success" },
+  failed: { labelKey: "resources.classification.status.failed", tone: "warning" },
+  needsReview: { labelKey: "resources.classification.status.needsReview", tone: "warning" },
 };
 
-const flowSteps = [
-  "자료 업로드",
-  "문서 종류 후보",
-  "사용자 확인",
-  "추출과 후보 생성",
-] as const;
+const flowStepKeys: MessageKey[] = [
+  "resources.classification.flowUpload",
+  "resources.classification.flowKindCandidate",
+  "resources.classification.flowUserConfirm",
+  "resources.classification.flowExtract",
+];
 
 export function DocumentClassificationPanel({
   className,
   items,
   rules,
-  title = "문서 종류 분류",
+  title,
   ...props
 }: DocumentClassificationPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("resources.classification.defaultTitle");
   const reviewCount = items.filter((item) => item.status === "needsReview" || item.status === "failed").length;
   const analyzedCount = items.filter((item) => item.status === "analyzed").length;
 
@@ -101,24 +106,26 @@ export function DocumentClassificationPanel({
         <div className={styles.titleBlock}>
           <Chip icon={<SearchCheck size={14} strokeWidth={2.1} />}>contract_documents.doc_type</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              업로드된 자료는 먼저 문서 종류 후보로 분류합니다. 사용자가 확인한 분류값만 추출 항목, 확인 필요 항목, WBS/TODO 후보 생성에 사용합니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("resources.classification.description")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>확인할 분류</span>
-          <strong>{reviewCount > 0 ? `${reviewCount}건` : "없음"}</strong>
-          <small>{analyzedCount}건 분류 완료</small>
+          <span>{t("resources.classification.summaryLabel")}</span>
+          <strong>
+            {reviewCount > 0
+              ? t("resources.classification.summaryCount", { count: reviewCount })
+              : t("resources.classification.summaryNone")}
+          </strong>
+          <small>{t("resources.classification.summaryAnalyzed", { count: analyzedCount })}</small>
         </div>
       </header>
 
-      <section className={styles.flow} aria-label="문서 분류 후속 흐름">
-        {flowSteps.map((step, index) => (
-          <article className={styles.flowStep} key={step}>
-            <span>{step}</span>
-            {index < flowSteps.length - 1 ? (
+      <section className={styles.flow} aria-label={t("resources.classification.flowAria")}>
+        {flowStepKeys.map((stepKey, index) => (
+          <article className={styles.flowStep} key={stepKey}>
+            <span>{t(stepKey)}</span>
+            {index < flowStepKeys.length - 1 ? (
               <ArrowRight className={styles.flowArrow} size={17} strokeWidth={2.1} aria-hidden="true" />
             ) : null}
           </article>
@@ -126,7 +133,7 @@ export function DocumentClassificationPanel({
       </section>
 
       <section className={styles.contentGrid}>
-        <div className={styles.itemList} aria-label="문서 종류 후보 목록">
+        <div className={styles.itemList} aria-label={t("resources.classification.itemListAria")}>
           {items.map((item) => {
             const kind = kindMeta[item.detectedKind];
             const status = statusMeta[item.status];
@@ -140,17 +147,17 @@ export function DocumentClassificationPanel({
                   <div>
                     <div className={styles.itemTitleRow}>
                       <h3>{item.fileName}</h3>
-                      <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                      <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
                     </div>
                     <p>{item.description}</p>
                     <div className={styles.itemMeta}>
-                      <StatusBadge tone={kind.tone}>{kind.label}</StatusBadge>
+                      <StatusBadge tone={kind.tone}>{t(kind.labelKey)}</StatusBadge>
                       <span>{item.confidenceLabel}</span>
                     </div>
                   </div>
                 </div>
                 <div className={styles.nextUse}>
-                  <span>다음 사용처</span>
+                  <span>{t("resources.classification.nextUse")}</span>
                   <strong>{item.nextUse}</strong>
                 </div>
               </article>
@@ -158,14 +165,14 @@ export function DocumentClassificationPanel({
           })}
         </div>
 
-        <aside className={styles.rulePanel} aria-label="문서 분류 기준">
+        <aside className={styles.rulePanel} aria-label={t("resources.classification.ruleAria")}>
           <div className={styles.ruleHeader}>
             <span aria-hidden="true">
               <ShieldCheck size={18} strokeWidth={2.1} />
             </span>
             <div>
-              <h3>분류 기준</h3>
-              <p>값이 낮거나 문서가 섞여 보이면 바로 반영하지 않고 확인 필요로 둡니다.</p>
+              <h3>{t("resources.classification.ruleTitle")}</h3>
+              <p>{t("resources.classification.ruleDesc")}</p>
             </div>
           </div>
           <div className={styles.ruleList}>

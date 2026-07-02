@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   CheckCircle2,
@@ -14,6 +16,7 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./personal-resource-share-boundary-panel.module.css";
@@ -44,10 +47,22 @@ export type PersonalResourceShareBoundaryPanelProps = HTMLAttributes<HTMLElement
   title?: string;
 };
 
-const readinessMeta: Record<ShareReadiness, { actionLabel: string; label: string; tone: StatusTone }> = {
-  NEEDS_REVIEW: { actionLabel: "확인", label: "확인 필요", tone: "warning" },
-  PRIVATE_ONLY: { actionLabel: "제외", label: "개인 보관", tone: "personal" },
-  READY: { actionLabel: "선택", label: "공유 가능", tone: "approved" },
+const readinessMeta: Record<ShareReadiness, { actionLabel: MessageKey; label: MessageKey; tone: StatusTone }> = {
+  NEEDS_REVIEW: {
+    actionLabel: "resources.shareBoundary.readiness.NEEDS_REVIEW.action",
+    label: "resources.shareBoundary.readiness.NEEDS_REVIEW.label",
+    tone: "warning",
+  },
+  PRIVATE_ONLY: {
+    actionLabel: "resources.shareBoundary.readiness.PRIVATE_ONLY.action",
+    label: "resources.shareBoundary.readiness.PRIVATE_ONLY.label",
+    tone: "personal",
+  },
+  READY: {
+    actionLabel: "resources.shareBoundary.readiness.READY.action",
+    label: "resources.shareBoundary.readiness.READY.label",
+    tone: "approved",
+  },
 };
 
 const typeTone: Record<ResourceType, StatusTone> = {
@@ -107,9 +122,11 @@ export function PersonalResourceShareBoundaryPanel({
   selectedCount,
   steps,
   targetProjectRoom,
-  title = "개인 자료 공유 확인",
+  title,
   ...props
 }: PersonalResourceShareBoundaryPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("resources.shareBoundary.defaultTitle");
   const readyCount = resources.filter((resource) => resource.readiness === "READY").length;
   const reviewCount = resources.filter((resource) => resource.readiness === "NEEDS_REVIEW").length;
 
@@ -117,30 +134,27 @@ export function PersonalResourceShareBoundaryPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<FolderLock size={16} strokeWidth={2.1} />}>자료 공유</Chip>
+          <Chip icon={<FolderLock size={16} strokeWidth={2.1} />}>{t("resources.shareBoundary.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              개인 자료함에서 고른 파일을 프로젝트룸 자료로 넘기기 전에 대상, 권한, 연결 방식을 확인합니다.
-              선택하지 않은 개인 자료는 프로젝트룸에 표시되지 않습니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("resources.shareBoundary.description")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>대상 프로젝트룸</span>
+          <span>{t("resources.shareBoundary.targetLabel")}</span>
           <strong>{targetProjectRoom}</strong>
-          <StatusBadge tone="room">선택 {selectedCount}개</StatusBadge>
+          <StatusBadge tone="room">{t("resources.shareBoundary.selectedCount", { count: selectedCount })}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.flowCard} aria-label="개인 자료 공유 흐름">
+      <section className={styles.flowCard} aria-label={t("resources.shareBoundary.flowAria")}>
         <div className={styles.flowNode}>
           <span className={styles.iconTile}>
             <FolderLock size={18} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <strong>개인 자료</strong>
-            <p>본인만 보는 자료</p>
+            <strong>{t("resources.shareBoundary.flowPersonalTitle")}</strong>
+            <p>{t("resources.shareBoundary.flowPersonalDesc")}</p>
           </div>
         </div>
         <ArrowRight size={20} strokeWidth={2.1} aria-hidden="true" />
@@ -149,8 +163,8 @@ export function PersonalResourceShareBoundaryPanel({
             <ShieldCheck size={18} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <strong>사용자 확인</strong>
-            <p>대상과 권한 확인</p>
+            <strong>{t("resources.shareBoundary.flowConfirmTitle")}</strong>
+            <p>{t("resources.shareBoundary.flowConfirmDesc")}</p>
           </div>
         </div>
         <ArrowRight size={20} strokeWidth={2.1} aria-hidden="true" />
@@ -159,31 +173,31 @@ export function PersonalResourceShareBoundaryPanel({
             <FolderOpen size={18} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <strong>프로젝트룸 자료</strong>
-            <p>멤버가 보는 자료</p>
+            <strong>{t("resources.shareBoundary.flowRoomTitle")}</strong>
+            <p>{t("resources.shareBoundary.flowRoomDesc")}</p>
           </div>
         </div>
       </section>
 
-      <section className={styles.metrics} aria-label="공유 전 점검 요약">
+      <section className={styles.metrics} aria-label={t("resources.shareBoundary.metricsAria")}>
         <article>
-          <span>선택됨</span>
+          <span>{t("resources.shareBoundary.metricSelected")}</span>
           <strong>{selectedCount}</strong>
-          <StatusBadge tone="approved">반영 대기</StatusBadge>
+          <StatusBadge tone="approved">{t("resources.shareBoundary.metricSelectedBadge")}</StatusBadge>
         </article>
         <article>
-          <span>공유 가능</span>
+          <span>{t("resources.shareBoundary.metricReady")}</span>
           <strong>{readyCount}</strong>
-          <StatusBadge tone="room">권한 확인</StatusBadge>
+          <StatusBadge tone="room">{t("resources.shareBoundary.metricReadyBadge")}</StatusBadge>
         </article>
         <article>
-          <span>확인 필요</span>
+          <span>{t("resources.shareBoundary.metricReview")}</span>
           <strong>{reviewCount}</strong>
-          <StatusBadge tone="warning">검토 후 선택</StatusBadge>
+          <StatusBadge tone="warning">{t("resources.shareBoundary.metricReviewBadge")}</StatusBadge>
         </article>
       </section>
 
-      <section className={styles.resourceList} aria-label="개인 자료 선택 목록">
+      <section className={styles.resourceList} aria-label={t("resources.shareBoundary.listAria")}>
         {resources.map((resource) => {
           const readiness = readinessMeta[resource.readiness];
 
@@ -205,19 +219,19 @@ export function PersonalResourceShareBoundaryPanel({
               <div className={styles.resourceMeta}>
                 <span>
                   <Link2 size={15} strokeWidth={2.1} aria-hidden="true" />
-                  {resource.linkedProjectRoom ?? "연결할 프로젝트룸 없음"}
+                  {resource.linkedProjectRoom ?? t("resources.shareBoundary.noLinkedRoom")}
                 </span>
-                <StatusBadge tone={readiness.tone}>{readiness.label}</StatusBadge>
+                <StatusBadge tone={readiness.tone}>{t(readiness.label)}</StatusBadge>
               </div>
 
               <footer className={styles.resourceFooter}>
-                <span>{readiness.label}</span>
+                <span>{t(readiness.label)}</span>
                 <Button
                   disabled={resource.readiness === "PRIVATE_ONLY"}
                   size="sm"
                   variant={resource.readiness === "READY" ? "secondary" : "quiet"}
                 >
-                  {readiness.actionLabel}
+                  {t(readiness.actionLabel)}
                 </Button>
               </footer>
             </article>
@@ -225,7 +239,7 @@ export function PersonalResourceShareBoundaryPanel({
         })}
       </section>
 
-      <section className={styles.stepGrid} aria-label="공유 처리 기준">
+      <section className={styles.stepGrid} aria-label={t("resources.shareBoundary.stepAria")}>
         {steps.map((step) => (
           <article key={step.label}>
             <CheckCircle2 size={18} strokeWidth={2.1} aria-hidden="true" />

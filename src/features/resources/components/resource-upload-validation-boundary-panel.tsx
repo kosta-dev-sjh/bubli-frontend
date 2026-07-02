@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AlertTriangle,
   CheckCircle2,
@@ -16,6 +18,7 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./resource-upload-validation-boundary-panel.module.css";
@@ -48,65 +51,73 @@ export type ResourceUploadValidationBoundaryPanelProps = HTMLAttributes<HTMLElem
 
 const statusMeta: Record<
   ResourceUploadValidationStatus,
-  { icon: ReactNode; label: string; tone: StatusTone }
+  { icon: ReactNode; labelKey: MessageKey; tone: StatusTone }
 > = {
   blocked: {
     icon: <AlertTriangle size={15} strokeWidth={2.1} />,
-    label: "업로드 차단",
+    labelKey: "resources.upload.validation.status.blocked",
     tone: "warning",
   },
   checking: {
     icon: <FileClock size={15} strokeWidth={2.1} />,
-    label: "확인 중",
+    labelKey: "resources.upload.validation.status.checking",
     tone: "pending",
   },
   ready: {
     icon: <CheckCircle2 size={15} strokeWidth={2.1} />,
-    label: "업로드 가능",
+    labelKey: "resources.upload.validation.status.ready",
     tone: "success",
   },
   reused: {
     icon: <Fingerprint size={15} strokeWidth={2.1} />,
-    label: "기존 분석 사용",
+    labelKey: "resources.upload.validation.status.reused",
     tone: "agent",
   },
 };
 
 const ruleCards: Array<{
-  description: string;
+  descriptionKey: MessageKey;
   icon: ReactNode;
-  label: string;
+  labelKey: MessageKey;
   value: string;
+  valueKey?: MessageKey;
 }> = [
   {
-    description: "확장자만 믿지 않고 브라우저가 알려준 파일 형식도 함께 확인합니다.",
+    descriptionKey: "resources.upload.validation.ruleFormatDesc",
     icon: <FileCheck2 size={18} strokeWidth={2.1} />,
-    label: "형식 확인",
-    value: "확장자 + 파일 형식",
+    labelKey: "resources.upload.validation.ruleFormatLabel",
+    value: "",
+    valueKey: "resources.upload.validation.ruleFormatValue",
   },
   {
-    description: "단일 파일 제한을 넘으면 서버 저장과 분석 요청을 시작하지 않습니다.",
+    descriptionKey: "resources.upload.validation.ruleSizeDesc",
     icon: <Gauge size={18} strokeWidth={2.1} />,
-    label: "크기 제한",
+    labelKey: "resources.upload.validation.ruleSizeLabel",
     value: "100MB",
   },
   {
-    description: "파일 지문이 같으면 같은 자료를 다시 분석하지 않고 기존 결과를 이어서 보여줍니다.",
+    descriptionKey: "resources.upload.validation.ruleDedupeDesc",
     icon: <Fingerprint size={18} strokeWidth={2.1} />,
-    label: "중복 분석 방지",
-    value: "파일 지문",
+    labelKey: "resources.upload.validation.ruleDedupeLabel",
+    value: "",
+    valueKey: "resources.upload.validation.ruleDedupeValue",
   },
   {
-    description: "성공한 자료만 자료보드에 등록하고, 그 뒤에 에이전트 정리 상태로 넘어갑니다.",
+    descriptionKey: "resources.upload.validation.ruleBoundaryDesc",
     icon: <DatabaseZap size={18} strokeWidth={2.1} />,
-    label: "분석 시작 경계",
-    value: "자료 등록",
+    labelKey: "resources.upload.validation.ruleBoundaryLabel",
+    value: "",
+    valueKey: "resources.upload.validation.ruleBoundaryValue",
   },
 ];
 
 function ValidationItemRow({ item }: { item: ResourceUploadValidationItem }) {
+  const { t } = useI18n();
   const meta = statusMeta[item.status];
   const scopeTone: StatusTone = item.targetLabel === "개인 자료" ? "personal" : "room";
+  const scopeLabel = t(
+    item.targetLabel === "개인 자료" ? "resources.upload.scopePersonal" : "resources.upload.scopeRoom",
+  );
 
   return (
     <article className={styles.itemRow}>
@@ -117,12 +128,12 @@ function ValidationItemRow({ item }: { item: ResourceUploadValidationItem }) {
         <div className={styles.itemText}>
           <div className={styles.itemTitleLine}>
             <h3>{item.fileName}</h3>
-            <StatusBadge tone={scopeTone}>{item.targetLabel}</StatusBadge>
+            <StatusBadge tone={scopeTone}>{scopeLabel}</StatusBadge>
           </div>
           <p>{item.reason}</p>
         </div>
       </div>
-      <div className={styles.itemChecks} aria-label={`${item.fileName} 검증 결과`}>
+      <div className={styles.itemChecks} aria-label={t("resources.upload.validation.itemChecksAria", { fileName: item.fileName })}>
         <span>{item.extensionLabel}</span>
         <span>{item.mimeLabel}</span>
         <span>{item.sizeLabel}</span>
@@ -131,7 +142,7 @@ function ValidationItemRow({ item }: { item: ResourceUploadValidationItem }) {
       <StatusBadge className={styles.statusBadge} tone={meta.tone}>
         <span className={styles.statusContent}>
           {meta.icon}
-          {meta.label}
+          {t(meta.labelKey)}
         </span>
       </StatusBadge>
     </article>
@@ -142,9 +153,10 @@ export function ResourceUploadValidationBoundaryPanel({
   className,
   items,
   summary,
-  title = "자료 업로드 검증 경계",
+  title,
   ...props
 }: ResourceUploadValidationBoundaryPanelProps) {
+  const { t } = useI18n();
   const readyPercent =
     summary.checkedFileCount > 0
       ? Math.round((summary.readyFileCount / summary.checkedFileCount) * 100)
@@ -155,72 +167,69 @@ export function ResourceUploadValidationBoundaryPanel({
       <header className={styles.header}>
         <div className={styles.titleBlock}>
           <Chip icon={<UploadCloud size={14} strokeWidth={2.1} />} selected>
-            자료보드
+            {t("resources.upload.validation.chip")}
           </Chip>
           <div>
-            <h2>{title}</h2>
-            <p>
-              서버에 파일을 보내기 전에 형식, 용량, 파일 지문, 자료 범위를 먼저 확인합니다. 성공한
-              자료만 자료보드에 등록하고 에이전트 정리 작업으로 이어집니다.
-            </p>
+            <h2>{title ?? t("resources.upload.validation.defaultTitle")}</h2>
+            <p>{t("resources.upload.validation.intro")}</p>
           </div>
         </div>
-        <div className={styles.summaryCard} aria-label="업로드 검증 요약">
+        <div className={styles.summaryCard} aria-label={t("resources.upload.validation.summaryAria")}>
           <strong>{readyPercent}%</strong>
-          <span>업로드 가능</span>
-          <ProgressBar label="업로드 가능 파일 비율" value={readyPercent} />
+          <span>{t("resources.upload.validation.summaryReady")}</span>
+          <ProgressBar label={t("resources.upload.validation.summaryProgressLabel")} value={readyPercent} />
         </div>
       </header>
 
-      <div className={styles.metrics} aria-label="업로드 검증 기준">
+      <div className={styles.metrics} aria-label={t("resources.upload.validation.metricsAria")}>
         <div>
-          <span>검사한 파일</span>
-          <strong>{summary.checkedFileCount}개</strong>
+          <span>{t("resources.upload.validation.metricChecked")}</span>
+          <strong>{t("resources.upload.validation.metricCheckedValue", { count: summary.checkedFileCount })}</strong>
         </div>
         <div>
-          <span>허용 형식</span>
-          <strong>{summary.allowedFormatCount}종</strong>
+          <span>{t("resources.upload.validation.metricAllowed")}</span>
+          <strong>{t("resources.upload.validation.metricAllowedValue", { count: summary.allowedFormatCount })}</strong>
         </div>
         <div>
-          <span>단일 파일</span>
+          <span>{t("resources.upload.validation.metricSingle")}</span>
           <strong>{summary.maxFileSizeLabel}</strong>
         </div>
         <div>
-          <span>분석 시작</span>
-          <strong>자료 등록 이후</strong>
+          <span>{t("resources.upload.validation.metricStart")}</span>
+          <strong>{t("resources.upload.validation.metricStartValue")}</strong>
         </div>
       </div>
 
-      <section className={styles.flow} aria-label="업로드 검증 후 처리 흐름">
-        <div>기기 안 확인</div>
+      <section className={styles.flow} aria-label={t("resources.upload.validation.flowAria")}>
+        <div>{t("resources.upload.validation.flowDeviceCheck")}</div>
         <span aria-hidden="true" />
-        <div>서버 업로드</div>
+        <div>{t("resources.upload.validation.flowServerUpload")}</div>
         <span aria-hidden="true" />
-        <div>자료 등록</div>
+        <div>{t("resources.upload.validation.flowRegister")}</div>
         <span aria-hidden="true" />
-        <div>에이전트 정리</div>
+        <div>{t("resources.upload.validation.flowAgent")}</div>
         <span aria-hidden="true" />
-        <div>후보 확인</div>
+        <div>{t("resources.upload.validation.flowCandidate")}</div>
       </section>
 
-      <section className={styles.ruleGrid} aria-label="업로드 검증 규칙">
+      <section className={styles.ruleGrid} aria-label={t("resources.upload.validation.ruleGridAria")}>
         {ruleCards.map((rule) => (
-          <article className={styles.ruleCard} key={rule.label}>
+          <article className={styles.ruleCard} key={rule.labelKey}>
             <span className={styles.ruleIcon} aria-hidden="true">
               {rule.icon}
             </span>
             <div>
               <div className={styles.ruleTop}>
-                <h3>{rule.label}</h3>
-                <code>{rule.value}</code>
+                <h3>{t(rule.labelKey)}</h3>
+                <code>{rule.valueKey ? t(rule.valueKey) : rule.value}</code>
               </div>
-              <p>{rule.description}</p>
+              <p>{t(rule.descriptionKey)}</p>
             </div>
           </article>
         ))}
       </section>
 
-      <section className={styles.itemList} aria-label="파일별 검증 결과">
+      <section className={styles.itemList} aria-label={t("resources.upload.validation.itemListAria")}>
         {items.map((item) => (
           <ValidationItemRow item={item} key={`${item.targetLabel}-${item.fileName}`} />
         ))}
@@ -228,10 +237,7 @@ export function ResourceUploadValidationBoundaryPanel({
 
       <footer className={styles.notice}>
         <LockKeyhole size={18} strokeWidth={2.1} aria-hidden="true" />
-        <p>
-          차단된 파일은 서버 저장과 분석을 시작하지 않습니다. 프로젝트룸 자료로 올리는 경우에도 사용자가
-          선택한 범위와 권한 확인을 먼저 거칩니다.
-        </p>
+        <p>{t("resources.upload.validation.notice")}</p>
       </footer>
     </GlassPanel>
   );
