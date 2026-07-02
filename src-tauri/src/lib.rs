@@ -3,7 +3,7 @@ use std::{collections::HashMap, env, fs, path::PathBuf, sync::Mutex};
 use serde::{Deserialize, Serialize};
 use tauri::utils::config::Color;
 use tauri::{
-    AppHandle, LogicalPosition, LogicalSize, Manager, Monitor, Position, Size, WebviewUrl,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Monitor, Position, Size, WebviewUrl,
     WebviewWindowBuilder,
 };
 
@@ -14,6 +14,7 @@ mod widget_usage;
 
 const WIDGET_WINDOW_LABEL_PREFIX: &str = "bubli-widget";
 const WIDGET_WINDOW_URL: &str = "desktop-widget";
+const WIDGET_ROOM_CONTEXT_CHANGED_EVENT: &str = "bubli-widget-room-context-changed";
 const MAIN_WINDOW_LABEL: &str = "main";
 const MAIN_WINDOW_DEFAULT_WIDTH: i32 = 1280;
 const MAIN_WINDOW_DEFAULT_HEIGHT: i32 = 820;
@@ -30,14 +31,14 @@ const QA_ALL_WIDGET_BUBBLES: [&str; 8] = [
     "todo", "agent", "chat", "timer", "memo", "schedule", "resource", "alert",
 ];
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct WidgetWindowPosition {
     x: i32,
     y: i32,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct WidgetWindowState {
     active_bubble: String,
@@ -82,6 +83,13 @@ impl Default for WidgetWindowStore {
 }
 
 type WidgetState = Mutex<WidgetWindowStore>;
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredWidgetWindowLayout {
+    active_bubble: String,
+    bubbles: Vec<WidgetWindowState>,
+}
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -171,6 +179,18 @@ struct WidgetWindowOpenInput {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct WidgetRoomContextInput {
+    selected_room_id: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WidgetRoomContextChangedPayload {
+    selected_room_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct AppReadyInput {
     selected_room_id: Option<String>,
 }
@@ -232,7 +252,7 @@ fn resolve_target_bubble(store: &WidgetWindowStore, requested: Option<String>) -
 }
 
 fn with_widget_state(
-    state: tauri::State<'_, WidgetState>,
+    state: &WidgetState,
     bubble_type: Option<String>,
     window_id: Option<String>,
     update: impl FnOnce(&mut WidgetWindowState),
@@ -314,6 +334,132 @@ fn append_widget_url_query(url: &mut String, key: &str, value: &str) {
 fn widget_window_label(widget: &WidgetWindowState) -> String {
     let window_key = widget.window_id.as_deref().unwrap_or(&widget.active_bubble);
     format!("{WIDGET_WINDOW_LABEL_PREFIX}-{window_key}")
+}
+
+fn widget_window_layout_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| format!("app_config_dir resolve failed: {error}"))?;
+    Ok(dir.join("widget-window-layout.json"))
+}
+
+fn stored_widget_window_layout(store: &WidgetWindowStore) -> StoredWidgetWindowLayout {
+    let mut bubbles: Vec<WidgetWindowState> = store.bubbles.values().cloned().collect();
+    bubbles.sort_by(|left, right| {
+        let left_key = left.window_id.as_deref().unwrap_or(&left.active_bubble);
+        let right_key = right.window_id.as_deref().unwrap_or(&right.active_bubble);
+        left_key.cmp(right_key)
+    });
+
+    StoredWidgetWindowLayout {
+        active_bubble: store.active_bubble.clone(),
+        bubbles,
+    }
+}
+
+fn widget_window_store_from_layout(layout: StoredWidgetWindowLayout) -> WidgetWindowStore {
+    let mut bubbles = HashMap::new();
+
+    for mut widget in layout.bubbles {
+        widget.active_bubble = normalize_bubble_type(Some(widget.active_bubble));
+        widget.mode = normalize_widget_mode(widget.mode);
+        widget.click_through = widget.click_through || widget.mode == "GHOST";
+        if widget.active_bubble != "bar" && widget.mode == "MINIMIZED" {
+            widget.window_visible = false;
+        }
+        let key = normalize_window_key(&widget.active_bubble, widget.window_id.clone());
+        widget.window_id = Some(key.clone());
+        bubbles.insert(key, widget);
+    }
+
+    let active_bubble = normalize_bubble_type(Some(layout.active_bubble));
+    bubbles.entry(active_bubble.clone()).or_insert_with(|| {
+        default_widget_window_state(&active_bubble, Some(active_bubble.clone()))
+    });
+
+    WidgetWindowStore {
+        active_bubble,
+        bubbles,
+    }
+}
+
+fn load_widget_window_store(app: &AppHandle) -> Result<WidgetWindowStore, String> {
+    let path = widget_window_layout_path(app)?;
+    if !path.exists() {
+        return Ok(WidgetWindowStore::default());
+    }
+
+    let content = fs::read_to_string(path).map_err(|error| error.to_string())?;
+    let stored: StoredWidgetWindowLayout =
+        serde_json::from_str(content.trim_start_matches('\u{feff}').trim())
+            .map_err(|error| error.to_string())?;
+    Ok(widget_window_store_from_layout(stored))
+}
+
+fn save_widget_window_layout(
+    app: &AppHandle,
+    layout: &StoredWidgetWindowLayout,
+) -> Result<(), String> {
+    let path = widget_window_layout_path(app)?;
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir).map_err(|error| error.to_string())?;
+    }
+
+    let content = serde_json::to_string_pretty(layout).map_err(|error| error.to_string())?;
+    fs::write(path, content).map_err(|error| error.to_string())
+}
+
+fn persist_widget_window_state(app: &AppHandle, state: &WidgetState) -> Result<(), String> {
+    let layout = {
+        let guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        stored_widget_window_layout(&guard)
+    };
+    save_widget_window_layout(app, &layout)
+}
+
+fn remember_widget_window_absolute_position(
+    app: &AppHandle,
+    label: &str,
+    absolute_x: i32,
+    absolute_y: i32,
+) -> Result<(), String> {
+    if !is_widget_window_label(label) {
+        return Ok(());
+    }
+
+    let monitor_state = app.state::<AppMonitorState>();
+    let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
+    let monitor = resolve_preferred_monitor(app, &preferred_monitor_id)?;
+    let origin = monitor.as_ref().map(|monitor| monitor.position());
+    let origin_x = origin.map_or(0, |position| position.x);
+    let origin_y = origin.map_or(0, |position| position.y);
+    let relative_x = absolute_x - origin_x;
+    let relative_y = absolute_y - origin_y;
+
+    let state = app.state::<WidgetState>();
+    let layout = {
+        let mut guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        let Some(widget) = guard
+            .bubbles
+            .values_mut()
+            .find(|widget| widget_window_label(widget) == label)
+        else {
+            return Ok(());
+        };
+
+        widget.position = WidgetWindowPosition {
+            x: relative_x,
+            y: relative_y,
+        };
+        stored_widget_window_layout(&guard)
+    };
+
+    save_widget_window_layout(app, &layout)
 }
 
 fn widget_window_title(widget: &WidgetWindowState) -> &'static str {
@@ -540,6 +686,17 @@ fn widget_keeps_webview_when_hidden(widget: &WidgetWindowState) -> bool {
     widget.active_bubble == "bar" || widget.active_bubble == "menu"
 }
 
+fn set_widget_room_context_for_store(
+    store: &mut WidgetWindowStore,
+    selected_room_id: Option<String>,
+) -> Vec<WidgetWindowState> {
+    for widget in store.bubbles.values_mut() {
+        widget.selected_room_id = selected_room_id.clone();
+    }
+
+    store.bubbles.values().cloned().collect()
+}
+
 fn destroy_all_widget_windows(app: &AppHandle) -> usize {
     let mut destroyed_count = 0;
     for (label, window) in app.webview_windows() {
@@ -653,7 +810,7 @@ fn build_widget_window(
     let position = widget_screen_position(app, monitor_state, widget)?;
     let window = WebviewWindowBuilder::new(
         app,
-        label,
+        label.clone(),
         WebviewUrl::App(widget_window_url(widget).into()),
     )
     .title(widget_window_title(widget))
@@ -672,6 +829,21 @@ fn build_widget_window(
     .build()
     .map_err(|error| error.to_string())?;
 
+    let app_for_move_event = app.clone();
+    let label_for_move_event = label.clone();
+    window.on_window_event(move |event| {
+        if let tauri::WindowEvent::Moved(position) = event {
+            if let Err(error) = remember_widget_window_absolute_position(
+                &app_for_move_event,
+                &label_for_move_event,
+                position.x,
+                position.y,
+            ) {
+                eprintln!("failed to persist widget window position: {error}");
+            }
+        }
+    });
+
     window
         .set_ignore_cursor_events(widget.click_through)
         .map_err(|error| error.to_string())?;
@@ -686,7 +858,7 @@ fn get_widget_window_state(
 ) -> Result<WidgetWindowState, String> {
     let bubble_type = input.as_ref().and_then(|value| value.bubble_type.clone());
     let window_id = input.and_then(|value| value.window_id);
-    with_widget_state(state, bubble_type, window_id, |_| {})
+    with_widget_state(&state, bubble_type, window_id, |_| {})
 }
 
 #[tauri::command]
@@ -812,7 +984,7 @@ fn set_widget_window_mode(
         window_id,
     } = input;
     let selected_room_id = normalize_optional_query_value(selected_room_id);
-    let widget = with_widget_state(state, bubble_type, window_id, |widget| {
+    let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
         widget.mode = normalize_widget_mode(mode);
         widget.click_through = widget.mode == "GHOST";
         widget.dock_orb_visible = false;
@@ -821,6 +993,7 @@ fn set_widget_window_mode(
         }
         widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
     })?;
+    persist_widget_window_state(&app, &state)?;
     apply_widget_window_state(&app, &monitor_state, &widget)
 }
 
@@ -831,13 +1004,41 @@ fn set_widget_window_position(
     state: tauri::State<'_, WidgetState>,
     input: WidgetWindowPositionInput,
 ) -> Result<WidgetWindowState, String> {
-    let widget = with_widget_state(state, input.bubble_type, input.window_id, |widget| {
+    let widget = with_widget_state(&state, input.bubble_type, input.window_id, |widget| {
         widget.position = WidgetWindowPosition {
             x: input.x,
             y: input.y,
         };
     })?;
+    persist_widget_window_state(&app, &state)?;
     apply_widget_window_state(&app, &monitor_state, &widget)
+}
+
+#[tauri::command]
+fn set_widget_room_context(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+    state: tauri::State<'_, WidgetState>,
+    input: WidgetRoomContextInput,
+) -> Result<Vec<WidgetWindowState>, String> {
+    let selected_room_id = normalize_optional_query_value(input.selected_room_id);
+    let widgets = {
+        let mut guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        set_widget_room_context_for_store(&mut guard, selected_room_id.clone())
+    };
+    let payload = WidgetRoomContextChangedPayload { selected_room_id };
+
+    for widget in &widgets {
+        apply_widget_window_state(&app, &monitor_state, widget)?;
+        let label = widget_window_label(widget);
+        if app.get_webview_window(&label).is_some() {
+            let _ = app.emit_to(&label, WIDGET_ROOM_CONTEXT_CHANGED_EVENT, payload.clone());
+        }
+    }
+
+    Ok(widgets)
 }
 
 #[tauri::command]
@@ -847,9 +1048,10 @@ fn set_widget_always_on_top(
     state: tauri::State<'_, WidgetState>,
     input: WidgetBooleanInput,
 ) -> Result<WidgetWindowState, String> {
-    let widget = with_widget_state(state, input.bubble_type, input.window_id, |widget| {
+    let widget = with_widget_state(&state, input.bubble_type, input.window_id, |widget| {
         widget.always_on_top = input.enabled;
     })?;
+    persist_widget_window_state(&app, &state)?;
     apply_widget_window_state(&app, &monitor_state, &widget)
 }
 
@@ -860,42 +1062,52 @@ fn set_widget_click_through(
     state: tauri::State<'_, WidgetState>,
     input: WidgetBooleanInput,
 ) -> Result<WidgetWindowState, String> {
-    let widget = with_widget_state(state, input.bubble_type, input.window_id, |widget| {
+    let widget = with_widget_state(&state, input.bubble_type, input.window_id, |widget| {
         widget.click_through = input.enabled;
     })?;
+    persist_widget_window_state(&app, &state)?;
     apply_widget_window_state(&app, &monitor_state, &widget)
 }
 
 #[tauri::command]
 fn toggle_widget_dock_orb(
+    app: AppHandle,
     state: tauri::State<'_, WidgetState>,
     input: Option<WidgetBooleanInput>,
 ) -> Result<WidgetWindowState, String> {
     let bubble_type = input.as_ref().and_then(|value| value.bubble_type.clone());
     let window_id = input.as_ref().and_then(|value| value.window_id.clone());
-    with_widget_state(state, bubble_type, window_id, |widget| {
+    let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
         widget.dock_orb_visible = input.map_or(!widget.dock_orb_visible, |value| value.enabled);
-    })
+    })?;
+    persist_widget_window_state(&app, &state)?;
+    Ok(widget)
 }
 
 #[tauri::command]
 fn update_widget_tray_state(
+    app: AppHandle,
     state: tauri::State<'_, WidgetState>,
     input: WidgetBooleanInput,
 ) -> Result<WidgetWindowState, String> {
-    with_widget_state(state, input.bubble_type, input.window_id, |widget| {
+    let widget = with_widget_state(&state, input.bubble_type, input.window_id, |widget| {
         widget.tray_visible = input.enabled;
-    })
+    })?;
+    persist_widget_window_state(&app, &state)?;
+    Ok(widget)
 }
 
 #[tauri::command]
 fn register_widget_shortcut(
+    app: AppHandle,
     state: tauri::State<'_, WidgetState>,
     input: WidgetShortcutInput,
 ) -> Result<WidgetWindowState, String> {
-    with_widget_state(state, None, None, |widget| {
+    let widget = with_widget_state(&state, None, None, |widget| {
         widget.shortcut = Some(input.shortcut);
-    })
+    })?;
+    persist_widget_window_state(&app, &state)?;
+    Ok(widget)
 }
 
 fn open_login_startup_widget(
@@ -925,6 +1137,7 @@ fn open_login_startup_widget(
         widget.clone()
     };
 
+    persist_widget_window_state(app, state)?;
     build_widget_window(app, monitor_state, &widget)
 }
 
@@ -998,7 +1211,7 @@ fn open_widget_window(
         .and_then(|value| value.mode)
         .map(normalize_widget_mode)
         .unwrap_or_else(|| "DEFAULT".to_string());
-    let widget = with_widget_state(state, Some(bubble_type), window_id, |widget| {
+    let widget = with_widget_state(&state, Some(bubble_type), window_id, |widget| {
         widget.mode = next_mode.clone();
         widget.click_through = widget.mode == "GHOST";
         widget.dock_orb_visible = false;
@@ -1007,6 +1220,7 @@ fn open_widget_window(
         }
         widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
     })?;
+    persist_widget_window_state(&app, &state)?;
     build_widget_window(&app, &monitor_state, &widget)
 }
 
@@ -1019,12 +1233,13 @@ fn close_widget_window(
 ) -> Result<WidgetWindowState, String> {
     let bubble_type = input.as_ref().and_then(|value| value.bubble_type.clone());
     let window_id = input.and_then(|value| value.window_id);
-    let widget = with_widget_state(state, bubble_type, window_id, |widget| {
+    let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
         widget.mode = "MINIMIZED".to_string();
         widget.click_through = false;
         widget.dock_orb_visible = false;
         widget.window_visible = false;
     })?;
+    persist_widget_window_state(&app, &state)?;
     if widget_keeps_webview_when_hidden(&widget) {
         apply_widget_window_state(&app, &monitor_state, &widget)
     } else {
@@ -1045,7 +1260,7 @@ fn toggle_widget_window(
 ) -> Result<WidgetWindowState, String> {
     let bubble_type = input.as_ref().and_then(|value| value.bubble_type.clone());
     let window_id = input.and_then(|value| value.window_id);
-    let widget = with_widget_state(state, bubble_type, window_id, |widget| {
+    let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
         widget.window_visible = !widget.window_visible;
         widget.mode = if widget.window_visible {
             "DEFAULT".to_string()
@@ -1054,11 +1269,72 @@ fn toggle_widget_window(
         };
         widget.dock_orb_visible = false;
     })?;
+    persist_widget_window_state(&app, &state)?;
 
     if widget.window_visible {
         build_widget_window(&app, &monitor_state, &widget)
     } else {
         apply_widget_window_state(&app, &monitor_state, &widget)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        stored_widget_window_layout, widget_window_store_from_layout, StoredWidgetWindowLayout,
+        WidgetWindowPosition, WidgetWindowState, WidgetWindowStore,
+    };
+    use std::collections::HashMap;
+
+    fn widget(active_bubble: &str, window_id: Option<&str>, x: i32, y: i32) -> WidgetWindowState {
+        WidgetWindowState {
+            active_bubble: active_bubble.to_string(),
+            always_on_top: true,
+            click_through: false,
+            dock_orb_visible: false,
+            mode: "DEFAULT".to_string(),
+            position: WidgetWindowPosition { x, y },
+            selected_room_id: None,
+            shortcut: Some("CommandOrControl+Shift+B".to_string()),
+            tray_visible: true,
+            window_id: window_id.map(str::to_string),
+            window_visible: true,
+        }
+    }
+
+    #[test]
+    fn widget_layout_restore_keeps_saved_position_and_normalizes_window_key() {
+        let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
+            active_bubble: "timer".to_string(),
+            bubbles: vec![widget("timer", Some("timer*bad"), 144, 188)],
+        });
+
+        assert_eq!(store.active_bubble, "timer");
+        let restored = store.bubbles.get("timerbad").expect("normalized widget");
+        assert_eq!(restored.active_bubble, "timer");
+        assert_eq!(restored.window_id.as_deref(), Some("timerbad"));
+        assert_eq!(restored.position.x, 144);
+        assert_eq!(restored.position.y, 188);
+    }
+
+    #[test]
+    fn stored_widget_layout_is_sorted_for_stable_config_writes() {
+        let mut bubbles = HashMap::new();
+        bubbles.insert("timer".to_string(), widget("timer", Some("timer"), 10, 10));
+        bubbles.insert("bar".to_string(), widget("bar", Some("bar"), 20, 20));
+        let store = WidgetWindowStore {
+            active_bubble: "timer".to_string(),
+            bubbles,
+        };
+
+        let stored = stored_widget_window_layout(&store);
+
+        let keys: Vec<&str> = stored
+            .bubbles
+            .iter()
+            .map(|widget| widget.window_id.as_deref().unwrap_or(&widget.active_bubble))
+            .collect();
+        assert_eq!(keys, vec!["bar", "timer"]);
     }
 }
 
@@ -1089,6 +1365,18 @@ pub fn run() {
                     eprintln!("failed to load monitor preference: {error}");
                 }
             }
+            match load_widget_window_store(app.handle()) {
+                Ok(store) => {
+                    let state = app.state::<WidgetState>();
+                    let mut guard = state
+                        .lock()
+                        .map_err(|_| "widget state lock failed".to_string())?;
+                    *guard = store;
+                }
+                Err(error) => {
+                    eprintln!("failed to load widget window layout: {error}");
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1104,6 +1392,7 @@ pub fn run() {
             set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,
+            set_widget_room_context,
             set_widget_window_mode,
             set_widget_window_position,
             toggle_widget_window,
@@ -1117,6 +1406,7 @@ pub fn run() {
             widget_usage::sync_widget_usage_summary,
             widget_usage::mark_widget_usage_summary_synced,
             // BUBLI-43 local file index + change events + sync outbox
+            local_files::list_managed_folders,
             local_files::select_managed_folder,
             local_files::get_index_progress,
             local_files::set_folder_sync,
@@ -1129,6 +1419,8 @@ pub fn run() {
             local_files::flush_sync_outbox,
             local_files::stage_local_file_events_for_sync,
             local_files::mark_local_file_events_synced,
+            local_files::unwatch_all_managed_folders,
+            local_files::watch_all_managed_folders,
             // Local SQLite lifecycle + cache recovery commands.
             local_db::backup_local_sqlite,
             local_db::check_local_sqlite_integrity,
@@ -1172,8 +1464,43 @@ pub fn run() {
             app_handle.exit(0);
         }
         tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
+            let state = app_handle.state::<WidgetState>();
+            if let Err(error) = persist_widget_window_state(app_handle, &state) {
+                eprintln!("failed to persist widget window layout on exit: {error}");
+            }
             let _ = destroy_all_widget_windows(app_handle);
         }
         _ => {}
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn widget_room_context_updates_all_known_widgets_and_can_clear_room() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "bar".to_string(),
+            default_widget_window_state("bar", Some("bar".to_string())),
+        );
+        store.bubbles.insert(
+            "chat".to_string(),
+            default_widget_window_state("chat", Some("chat".to_string())),
+        );
+
+        let selected = set_widget_room_context_for_store(&mut store, Some("room-1".to_string()));
+
+        assert_eq!(selected.len(), 3);
+        assert!(selected
+            .iter()
+            .all(|widget| widget.selected_room_id.as_deref() == Some("room-1")));
+
+        let cleared = set_widget_room_context_for_store(&mut store, None);
+
+        assert!(cleared
+            .iter()
+            .all(|widget| widget.selected_room_id.as_deref().is_none()));
+    }
 }

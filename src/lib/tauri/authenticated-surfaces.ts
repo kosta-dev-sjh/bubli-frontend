@@ -1,11 +1,11 @@
 "use client";
 
-import { tauriCommands, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
-import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { startActivityAutoCapture, stopActivityAutoCapture } from "@/lib/local/activity-auto-capture";
 import { startManagedFolderAutoSync, stopManagedFolderAutoSync } from "@/lib/local/managed-folder-auto-sync";
+import { tauriCommands, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { startWidgetUsageAutoSync, stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
+import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 
 let launchRequested = false;
 let launchPromise: Promise<void> | null = null;
@@ -42,6 +42,7 @@ export function launchTauriAuthenticatedSurfaces() {
           await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
           return;
         }
+
         try {
           await tauriCommands.openWidgetWindow({ ...input, selectedRoomId });
         } catch (error) {
@@ -78,13 +79,14 @@ export function launchTauriAuthenticatedSurfaces() {
 }
 
 export async function stopTauriAuthenticatedSurfaces() {
-  if (!isTauriRuntime()) return;
-
   launchGeneration += 1;
   launchRequested = false;
   launchPromise = null;
   stopActivityAutoCapture();
   stopManagedFolderAutoSync();
   stopWidgetUsageAutoSync();
+
+  if (!isTauriRuntime()) return;
+
   await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
 }

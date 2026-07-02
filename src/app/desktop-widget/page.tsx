@@ -31,6 +31,7 @@ import {
 } from "@/features/widget/desktop-widget-preview-data";
 import { timerApi } from "@/features/timer/api/timerApi";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readWidgetSummary } from "@/lib/widget";
 import type { TimeLogResponse } from "@/types/api/timer";
@@ -613,6 +614,31 @@ function DesktopWidgetSurface() {
       cancelled = true;
     };
   }, [isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, windowId]);
+
+  useEffect(() => {
+    if (!isTauri || isWidgetChrome) return;
+
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+
+    void listenWidgetRoomContextChanged((payload) => {
+      setWidgetContext(payload.selectedRoomId ? { mode: "ROOM", selectedRoomId: payload.selectedRoomId } : null);
+      setCommunicationRevision((current) => current + 1);
+      setMemoRevision((current) => current + 1);
+      setTimerRevision((current) => current + 1);
+    }).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten();
+        return;
+      }
+      unlisten = nextUnlisten;
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [isTauri, isWidgetChrome]);
 
   useEffect(() => {
     return () => {

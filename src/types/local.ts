@@ -13,6 +13,7 @@ import type {
   LocalFileReindexResult,
   LocalFileSearchInput,
   LocalFileSearchResult,
+  ManagedFolderListResult,
   ManagedFolderCommandInput,
   ManagedFolderIndexProgressResult,
   ManagedFolderScanResult,
@@ -150,6 +151,7 @@ export type LocalTimerRecoveryResult = LocalAdapterResult<TimerRecoveryState, Lo
 export type LocalBackupRestoreRequest = LocalBackupRestoreInput;
 export type ManagedFolderSelectResult = LocalAdapterResult<ManagedFolderSelection>;
 export type ManagedFolderIndexProgressAdapterResult = LocalAdapterResult<ManagedFolderIndexProgressResult>;
+export type ManagedFolderListAdapterResult = LocalAdapterResult<ManagedFolderListResult>;
 export type ManagedFolderScanAdapterResult = LocalAdapterResult<ManagedFolderScanResult>;
 export type ManagedFolderSyncAdapterInput = ManagedFolderSyncInput & LocalFolderScopeInput;
 export type ManagedFolderSyncAdapterResult = LocalAdapterResult<ManagedFolderSyncResult>;

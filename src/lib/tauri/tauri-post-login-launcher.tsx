@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import { authApi } from "@/features/auth/api/authApi";
 import {
   AUTH_SESSION_CHANGE_EVENT,
   getStoredAuthSession,
@@ -20,6 +21,13 @@ export function TauriPostLoginLauncher() {
       const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
       const hasAuthenticatedSession = Boolean(session);
       if (!hasAuthenticatedSession) {
+        await stopTauriAuthenticatedSurfaces();
+        return;
+      }
+
+      try {
+        await authApi.getMe();
+      } catch {
         await stopTauriAuthenticatedSurfaces();
         return;
       }
