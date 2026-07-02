@@ -1062,31 +1062,9 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
     "--gantt-sidebar-width": `${sidebarWidth}px`,
   } as CSSProperties;
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Re-render when props change
   useEffect(() => {
     const element = scrollRef.current;
-    const timelineStartYear = timelineData[0]?.year;
-
-    if (element && timelineStartYear) {
-      const today = new Date();
-      const timelineStartDate = new Date(timelineStartYear, 0, 1);
-      const todayOffset = getOffset(today, timelineStartDate, {
-        columnWidth,
-        headerHeight,
-        onAddItem,
-        placeholderLength: 2,
-        range,
-        ref: scrollRef,
-        rowHeight,
-        sidebarWidth,
-        timelineData,
-        zoom,
-      });
-      const viewportWidth = Math.max(0, element.clientWidth - sidebarWidth);
-      const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
-      const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, todayOffset - viewportWidth * 0.36));
-
-      element.scrollLeft = nextScrollLeft;
+    if (element) {
       setScrollX(element.scrollLeft);
     }
   }, [range, zoom, setScrollX]);
@@ -1173,6 +1151,7 @@ export const GanttToday: FC<GanttTodayProps> = ({ className }) => {
   return (
     <div
       className="pointer-events-none absolute top-0 left-0 z-20 flex h-full select-none flex-col items-center justify-center overflow-visible"
+      data-roadmap-ui="gantt-today"
       style={{
         width: 0,
         transform: `translateX(calc(var(--gantt-column-width) * ${offset} + ${innerOffset}px))`,

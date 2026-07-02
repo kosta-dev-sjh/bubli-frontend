@@ -108,6 +108,7 @@ export function WbsGanttPanel({
   const [schedules, setSchedules] = useState<ScheduleResponse[]>([]);
   const [localRanges, setLocalRanges] = useState<Record<string, LocalRange>>({});
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(() => new Set());
+  const panelRef = useRef<HTMLDivElement>(null);
   const handledRangeRequestId = useRef<number | null>(null);
   const localIdCounter = useRef(0);
 
@@ -257,6 +258,23 @@ export function WbsGanttPanel({
         behavior: "smooth",
         left: Math.max(0, scroller.scrollLeft + elementCenter - viewportCenter),
       });
+    });
+  };
+
+  const scrollToToday = () => {
+    const root = panelRef.current?.querySelector<HTMLElement>('[data-roadmap-ui="gantt-root"]');
+    const today = root?.querySelector<HTMLElement>('[data-roadmap-ui="gantt-today"]');
+    if (!root || !today) return;
+
+    const rootRect = root.getBoundingClientRect();
+    const todayRect = today.getBoundingClientRect();
+    const sidebarWidth = Number.parseFloat(getComputedStyle(root).getPropertyValue("--gantt-sidebar-width")) || 0;
+    const viewportCenter = rootRect.left + sidebarWidth + (root.clientWidth - sidebarWidth) / 2;
+    const todayCenter = todayRect.left + todayRect.width / 2;
+
+    root.scrollTo({
+      behavior: "smooth",
+      left: Math.max(0, root.scrollLeft + todayCenter - viewportCenter),
     });
   };
 
@@ -451,7 +469,7 @@ export function WbsGanttPanel({
   };
 
   return (
-    <div className={styles.panel}>
+    <div className={styles.panel} ref={panelRef}>
       <div className={styles.toolbar}>
         <div aria-label="간트 기간 단위 전환" className={styles.rangeSwitch} role="tablist">
           {rangeOptions.map((option) => {
@@ -472,6 +490,10 @@ export function WbsGanttPanel({
           })}
         </div>
 
+        <button className={styles.toolButton} onClick={scrollToToday} type="button">
+          <CalendarDays aria-hidden="true" size={13} strokeWidth={2.1} />
+          오늘
+        </button>
         <button className={styles.toolButton} onClick={handleAddGroup} type="button">
           <FolderPlus aria-hidden="true" size={13} strokeWidth={2.1} />
           상위 작업 추가
