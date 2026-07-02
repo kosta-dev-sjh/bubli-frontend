@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Activity,
   ArchiveRestore,
@@ -17,6 +19,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./widget-storage-policy-panel.module.css";
@@ -24,16 +28,16 @@ import styles from "./widget-storage-policy-panel.module.css";
 export type WidgetStorageLayer = "SERVER_ORIGINAL" | "SERVER_STATE" | "LOCAL_CACHE" | "LOCAL_EVENT" | "LOCAL_ROLLUP";
 
 export type WidgetStorageItem = {
-  description: string;
+  description: MessageKey;
   id: string;
-  label: string;
+  label: MessageKey;
   layer: WidgetStorageLayer;
-  tags: string[];
+  tags: MessageKey[];
 };
 
 export type WidgetRollupDevice = {
   bubbleType: string;
-  deviceLabel: string;
+  deviceLabel: MessageKey | string;
   interactionCount: number;
   openCount: number;
   rollupKey: string;
@@ -50,12 +54,13 @@ type WidgetStoragePolicyPanelProps = HTMLAttributes<HTMLElement> & {
   summaryDateLabel?: string;
 };
 
-const layerCopy: Record<WidgetStorageLayer, string> = {
-  LOCAL_CACHE: "기기 안 임시 보관",
-  LOCAL_EVENT: "기기 안 상세 기록",
-  LOCAL_ROLLUP: "기기 안 집계",
-  SERVER_ORIGINAL: "기준 데이터",
-  SERVER_STATE: "저장된 상태",
+// enum→tone 매핑(layerTone/statusTone)은 유지하고, 라벨만 t()로 번역한다.
+const layerCopy: Record<WidgetStorageLayer, MessageKey> = {
+  LOCAL_CACHE: "widget.storage.layer.localCache",
+  LOCAL_EVENT: "widget.storage.layer.localEvent",
+  LOCAL_ROLLUP: "widget.storage.layer.localRollup",
+  SERVER_ORIGINAL: "widget.storage.layer.serverOriginal",
+  SERVER_STATE: "widget.storage.layer.serverState",
 };
 
 const layerTone: Record<WidgetStorageLayer, StatusTone> = {
@@ -66,11 +71,11 @@ const layerTone: Record<WidgetStorageLayer, StatusTone> = {
   SERVER_STATE: "success",
 };
 
-const statusCopy: Record<WidgetRollupDevice["status"], string> = {
-  FAILED: "실패",
-  LOCAL_ONLY: "기기 안 보관",
-  SYNCED: "반영됨",
-  SYNC_PENDING: "반영 대기",
+const statusCopy: Record<WidgetRollupDevice["status"], MessageKey> = {
+  FAILED: "widget.storage.status.failed",
+  LOCAL_ONLY: "widget.storage.status.localOnly",
+  SYNCED: "widget.storage.status.synced",
+  SYNC_PENDING: "widget.storage.status.syncPending",
 };
 
 const statusTone: Record<WidgetRollupDevice["status"], StatusTone> = {
@@ -82,67 +87,67 @@ const statusTone: Record<WidgetRollupDevice["status"], StatusTone> = {
 
 const defaultItems: WidgetStorageItem[] = [
   {
-    description: "켜기, 끄기, 위치, 크기, 고스트 모드처럼 다시 열어도 유지돼야 하는 값입니다.",
+    description: "widget.storage.item.settings.description",
     id: "settings",
-    label: "위젯 설정",
+    label: "widget.storage.item.settings.label",
     layer: "SERVER_STATE",
-    tags: ["켜기/끄기", "위치와 크기", "표시 옵션"],
+    tags: ["widget.storage.item.settings.tag1", "widget.storage.item.settings.tag2", "widget.storage.item.settings.tag3"],
   },
   {
-    description: "TODO, 일정, 채팅, 알림, 에이전트 제안처럼 웹과 앱에서 다시 보여야 하는 값입니다.",
+    description: "widget.storage.item.display.description",
     id: "display",
-    label: "표시 데이터",
+    label: "widget.storage.item.display.label",
     layer: "SERVER_ORIGINAL",
-    tags: ["TODO", "일정", "채팅", "알림"],
+    tags: ["widget.storage.item.display.tag1", "widget.storage.item.display.tag2", "widget.storage.item.display.tag3", "widget.storage.item.display.tag4"],
   },
   {
-    description: "확인, 숨김, 고정, 다시 보기 상태는 같은 항목 row를 갱신합니다.",
+    description: "widget.storage.item.itemState.description",
     id: "item-state",
-    label: "항목 상태",
+    label: "widget.storage.item.itemState.label",
     layer: "SERVER_STATE",
-    tags: ["확인", "숨김", "고정", "나중에 보기"],
+    tags: ["widget.storage.item.itemState.tag1", "widget.storage.item.itemState.tag2", "widget.storage.item.itemState.tag3", "widget.storage.item.itemState.tag4"],
   },
   {
-    description: "열기, 닫기, 클릭, 머문 시간 같은 상세 이벤트는 기기 안에만 둡니다.",
+    description: "widget.storage.item.usageEvent.description",
     id: "usage-event",
-    label: "사용 기록",
+    label: "widget.storage.item.usageEvent.label",
     layer: "LOCAL_EVENT",
-    tags: ["열기", "닫기", "클릭", "머문 시간"],
+    tags: ["widget.storage.item.usageEvent.tag1", "widget.storage.item.usageEvent.tag2", "widget.storage.item.usageEvent.tag3", "widget.storage.item.usageEvent.tag4"],
   },
   {
-    description: "날짜별, 기기별, 버블별 집계만 서버로 보내 하루정리 근거에 씁니다.",
+    description: "widget.storage.item.rollup.description",
     id: "rollup",
-    label: "사용 집계",
+    label: "widget.storage.item.rollup.label",
     layer: "LOCAL_ROLLUP",
-    tags: ["날짜별", "기기별", "버블별", "하루정리 근거"],
+    tags: ["widget.storage.item.rollup.tag1", "widget.storage.item.rollup.tag2", "widget.storage.item.rollup.tag3", "widget.storage.item.rollup.tag4"],
   },
 ];
 
 const defaultDevices: WidgetRollupDevice[] = [
   {
     bubbleType: "TODO",
-    deviceLabel: "MacBook Air",
+    deviceLabel: "widget.storage.device.macbook",
     interactionCount: 18,
     openCount: 9,
-    rollupKey: "오늘:todo:mac",
+    rollupKey: "today:todo:mac",
     status: "SYNCED",
     visibleMinutes: 74,
   },
   {
     bubbleType: "TIMER",
-    deviceLabel: "iMac 작업실",
+    deviceLabel: "widget.storage.device.imac",
     interactionCount: 6,
     openCount: 4,
-    rollupKey: "오늘:timer:imac",
+    rollupKey: "today:timer:imac",
     status: "SYNC_PENDING",
     visibleMinutes: 42,
   },
   {
     bubbleType: "AGENT",
-    deviceLabel: "MacBook Air",
+    deviceLabel: "widget.storage.device.macbook",
     interactionCount: 5,
     openCount: 3,
-    rollupKey: "오늘:agent:mac",
+    rollupKey: "today:agent:mac",
     status: "LOCAL_ONLY",
     visibleMinutes: 16,
   },
@@ -155,9 +160,11 @@ export function WidgetStoragePolicyPanel({
   onOpenSettings,
   onRollupUsage,
   rollupProgress = 72,
-  summaryDateLabel = "오늘",
+  summaryDateLabel,
   ...props
 }: WidgetStoragePolicyPanelProps) {
+  const { t } = useI18n();
+  const resolvedDateLabel = summaryDateLabel ?? t("widget.storage.today");
   const pendingCount = devices.filter((device) => device.status === "SYNC_PENDING" || device.status === "FAILED").length;
   const totalVisibleMinutes = devices.reduce((sum, device) => sum + device.visibleMinutes, 0);
 
@@ -169,41 +176,39 @@ export function WidgetStoragePolicyPanel({
             <Layers3 size={22} />
           </span>
           <div>
-            <StatusBadge tone="timer">버블 저장 정책</StatusBadge>
-            <h2>위젯 데이터는 성격별로 나눠 저장합니다</h2>
-            <p>
-              다시 보여줘야 하는 값은 기준 데이터로 관리하고, 상세 사용 기록은 기기 안에 남긴 뒤 집계만 반영합니다.
-            </p>
+            <StatusBadge tone="timer">{t("widget.storage.badge")}</StatusBadge>
+            <h2>{t("widget.storage.title")}</h2>
+            <p>{t("widget.storage.subtitle")}</p>
           </div>
         </div>
         <div className={styles.actions}>
           <Button icon={<Settings2 size={15} />} onClick={onOpenSettings} size="sm" variant="quiet">
-            버블 설정
+            {t("widget.storage.bubbleSettings")}
           </Button>
           <Button icon={<RefreshCcw size={15} />} onClick={onFlushOutbox} size="sm" variant="primary">
-            대기열 보내기
+            {t("widget.storage.flushOutbox")}
           </Button>
         </div>
       </header>
 
       <div className={styles.summaryGrid}>
-        <SummaryCard icon={<Server size={18} />} label="기준 데이터" value="표시 데이터와 항목 상태" />
-        <SummaryCard icon={<Database size={18} />} label="기기 안 기록" value="임시 보관, 상세 이벤트, 기기별 집계" />
-        <SummaryCard icon={<ArchiveRestore size={18} />} label="중복 방지" value="같은 집계는 한 번만 반영" />
+        <SummaryCard icon={<Server size={18} />} label={t("widget.storage.summaryServerLabel")} value={t("widget.storage.summaryServerValue")} />
+        <SummaryCard icon={<Database size={18} />} label={t("widget.storage.summaryDeviceLabel")} value={t("widget.storage.summaryDeviceValue")} />
+        <SummaryCard icon={<ArchiveRestore size={18} />} label={t("widget.storage.summaryDedupeLabel")} value={t("widget.storage.summaryDedupeValue")} />
       </div>
 
-      <div className={styles.storageGrid} aria-label="위젯 저장 분류">
+      <div className={styles.storageGrid} aria-label={t("widget.storage.gridAria")}>
         {defaultItems.map((item) => (
           <article className={styles.storageCard} key={item.id}>
             <div className={styles.cardHead}>
               <span aria-hidden="true">{itemIcon[item.id] ?? <Database size={17} />}</span>
-              <StatusBadge tone={layerTone[item.layer]}>{layerCopy[item.layer]}</StatusBadge>
+              <StatusBadge tone={layerTone[item.layer]}>{t(layerCopy[item.layer])}</StatusBadge>
             </div>
-            <h3>{item.label}</h3>
-            <p>{item.description}</p>
+            <h3>{t(item.label)}</h3>
+            <p>{t(item.description)}</p>
             <div className={styles.tableList}>
               {item.tags.map((tag) => (
-                <Chip key={tag}>{tag}</Chip>
+                <Chip key={tag}>{t(tag)}</Chip>
               ))}
             </div>
           </article>
@@ -213,29 +218,29 @@ export function WidgetStoragePolicyPanel({
       <div className={styles.rollupPanel}>
         <div className={styles.rollupHeader}>
           <div>
-            <StatusBadge tone={pendingCount > 0 ? "pending" : "success"}>{pendingCount}개 대기</StatusBadge>
-            <h3>{summaryDateLabel} 위젯 집계</h3>
-            <p>여러 기기의 집계를 사용자와 날짜 기준으로 합산해 하루정리 근거로 씁니다.</p>
+            <StatusBadge tone={pendingCount > 0 ? "pending" : "success"}>{t("widget.storage.pendingCount", { count: pendingCount })}</StatusBadge>
+            <h3>{t("widget.storage.rollupTitle", { date: resolvedDateLabel })}</h3>
+            <p>{t("widget.storage.rollupBody")}</p>
           </div>
           <div className={styles.rollupTotal}>
-            <strong>{totalVisibleMinutes}분</strong>
-            <span>표시 시간 합계</span>
+            <strong>{t("widget.storage.totalMinutes", { count: totalVisibleMinutes })}</strong>
+            <span>{t("widget.storage.visibleTotal")}</span>
           </div>
         </div>
-        <ProgressBar label="집계 반영률" value={rollupProgress} />
-        <div className={styles.deviceList} aria-label="기기별 위젯 집계">
+        <ProgressBar label={t("widget.storage.rollupProgress")} value={rollupProgress} />
+        <div className={styles.deviceList} aria-label={t("widget.storage.deviceAria")}>
           {devices.map((device) => (
             <div className={styles.deviceItem} key={device.rollupKey}>
               <div>
-                <strong>{device.bubbleType} 버블</strong>
-                <span>{device.deviceLabel}</span>
+                <strong>{t("widget.storage.deviceBubble", { type: device.bubbleType })}</strong>
+                <span>{t(device.deviceLabel as MessageKey)}</span>
               </div>
               <div className={styles.deviceStats}>
-                <Chip>{device.openCount}회 열림</Chip>
-                <Chip>{device.interactionCount}회 상호작용</Chip>
-                <Chip>{device.visibleMinutes}분</Chip>
+                <Chip>{t("widget.storage.openCount", { count: device.openCount })}</Chip>
+                <Chip>{t("widget.storage.interactionCount", { count: device.interactionCount })}</Chip>
+                <Chip>{t("widget.storage.deviceMinutes", { count: device.visibleMinutes })}</Chip>
               </div>
-              <StatusBadge tone={statusTone[device.status]}>{statusCopy[device.status]}</StatusBadge>
+              <StatusBadge tone={statusTone[device.status]}>{t(statusCopy[device.status])}</StatusBadge>
             </div>
           ))}
         </div>
@@ -244,10 +249,10 @@ export function WidgetStoragePolicyPanel({
       <footer className={styles.footer}>
         <div>
           <CheckCircle2 size={16} />
-          상세 이벤트 원문은 서버에 남기지 않고, 항목 상태와 날짜별 집계만 저장합니다.
+          {t("widget.storage.footerNote")}
         </div>
         <Button icon={<Activity size={14} />} onClick={onRollupUsage} size="sm" variant="ghost">
-          기기 안 집계 만들기
+          {t("widget.storage.makeRollup")}
         </Button>
       </footer>
     </GlassPanel>

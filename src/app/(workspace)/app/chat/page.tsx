@@ -13,6 +13,8 @@ import { friendApi } from "@/features/communication/api/friendApi";
 import { voiceApi } from "@/features/communication/api/voiceApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useI18n } from "@/lib/i18n";
+import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { getActiveProjectRoomId, getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
@@ -134,22 +136,24 @@ const previewFriendRequests: FriendRequestResponse[] = [
   },
 ];
 
-const emoticonTokens = [
-  { label: "좋아요", value: "[좋아요]" },
-  { label: "확인", value: "[확인]" },
-  { label: "웃음", value: "[웃음]" },
-  { label: "응원", value: "[응원]" },
-  { label: "잠시만요", value: "[잠시만요]" },
-];
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
-function roomTypeLabel(room: ChatRoomResponse) {
-  if (room.chatType === "GROUP") return "그룹";
-  return room.chatType === "ROOM" ? "프로젝트룸" : "1:1";
+const emoticonTokens = [
+  { labelKey: "chat.emoticon.like", value: "[좋아요]" },
+  { labelKey: "chat.emoticon.ok", value: "[확인]" },
+  { labelKey: "chat.emoticon.laugh", value: "[웃음]" },
+  { labelKey: "chat.emoticon.cheer", value: "[응원]" },
+  { labelKey: "chat.emoticon.wait", value: "[잠시만요]" },
+] as const;
+
+function roomTypeLabel(t: TranslateFn, room: ChatRoomResponse) {
+  if (room.chatType === "GROUP") return t("chat.roomType.group");
+  return room.chatType === "ROOM" ? t("chat.roomType.room") : t("chat.roomType.direct");
 }
 
-function updatedLabel(room: ChatRoomResponse) {
+function updatedLabel(t: TranslateFn, room: ChatRoomResponse) {
   const updatedAt = new Date(room.updatedAt);
-  if (Number.isNaN(updatedAt.getTime())) return "활동 전";
+  if (Number.isNaN(updatedAt.getTime())) return t("chat.room.beforeActivity");
 
   return new Intl.DateTimeFormat("ko-KR", {
     day: "numeric",
@@ -159,7 +163,7 @@ function updatedLabel(room: ChatRoomResponse) {
   }).format(updatedAt);
 }
 
-function messageText(message: ChatMessageResponse) {
+function messageText(t: TranslateFn, message: ChatMessageResponse) {
   const body = message.body;
   const text =
     message.messageType === "AGENT_COMMAND"
@@ -167,10 +171,10 @@ function messageText(message: ChatMessageResponse) {
       : body.text ?? body.message ?? body.content ?? body.request;
 
   if (typeof text === "string" && text.trim()) return text;
-  if (message.messageType === "AGENT_COMMAND") return "에이전트 명령";
-  if (message.messageType === "AGENT_RESPONSE") return "에이전트 응답";
-  if (message.messageType === "FILE") return "첨부 자료";
-  return "메시지";
+  if (message.messageType === "AGENT_COMMAND") return t("chat.message.agentCommand");
+  if (message.messageType === "AGENT_RESPONSE") return t("chat.message.agentResponse");
+  if (message.messageType === "FILE") return t("chat.message.file");
+  return t("chat.message.default");
 }
 
 const agentSectionLabels = ["TODO", "TASK", "REQUIREMENT", "QUESTION", "REVIEW_ITEM"] as const;
@@ -189,8 +193,8 @@ function formatAgentMessageText(text: string) {
   return formatted;
 }
 
-function displayMessageText(message: ChatMessageResponse) {
-  const text = messageText(message);
+function displayMessageText(t: TranslateFn, message: ChatMessageResponse) {
+  const text = messageText(t, message);
   const isAgentMessage = message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT";
   return isAgentMessage ? formatAgentMessageText(text) : text;
 }
@@ -201,11 +205,11 @@ function commandText(value: unknown) {
   return text.toLowerCase().startsWith("/bubli") ? text : `/bubli ${text}`;
 }
 
-function withAgentCommandMessages(messages: ChatMessageResponse[]) {
+function withAgentCommandMessages(t: TranslateFn, messages: ChatMessageResponse[]) {
   const existingCommandKeys = new Set(
     messages
       .filter((message) => message.messageType === "AGENT_COMMAND")
-      .map((message) => `${message.chatRoomId}:${message.roomSequence}:${messageText(message)}`),
+      .map((message) => `${message.chatRoomId}:${message.roomSequence}:${messageText(t, message)}`),
   );
   const expanded: ChatMessageResponse[] = [];
 
@@ -226,7 +230,7 @@ function withAgentCommandMessages(messages: ChatMessageResponse[]) {
           roomSequence: message.roomSequence - 0.1,
           sender: {
             id: null,
-            name: "나",
+            name: t("chat.senderMe"),
             type: "USER",
           },
         });
@@ -265,17 +269,17 @@ function initialOf(name: string) {
   return name.trim().slice(0, 1).toUpperCase() || "B";
 }
 
-function voiceParticipantStatusLabel(status: VoiceParticipantResponse["status"]) {
-  if (status === "JOINED") return "참여 중";
-  if (status === "LEFT") return "나감";
-  return "연결 끊김";
+function voiceParticipantStatusLabel(t: TranslateFn, status: VoiceParticipantResponse["status"]) {
+  if (status === "JOINED") return t("chat.participant.joined");
+  if (status === "LEFT") return t("chat.participant.left");
+  return t("chat.participant.disconnected");
 }
 
-function parseBubliCommand(text: string): AgentCommandDraft | null {
+function parseBubliCommand(t: TranslateFn, text: string): AgentCommandDraft | null {
   const match = text.trim().match(/^\/bubli(?:\s+(.+))?$/i);
   if (!match) return null;
 
-  const message = match[1]?.trim() || "현재 프로젝트룸 맥락을 기준으로 도와줘";
+  const message = match[1]?.trim() || t("chat.agentDefaultPrompt");
   const normalized = message.toLowerCase();
   const mode: RoomAgentCommandMode =
     /^(정리|요약|summary|summarize)\b/.test(normalized)
@@ -304,6 +308,7 @@ function preferredRoomId(rooms: ChatRoomResponse[], roomId: string | null, mode:
 }
 
 function ChatPageContent() {
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const queryRoomId = searchParams.get("roomId");
   const queryMode = searchParams.get("mode");
@@ -406,21 +411,21 @@ function ChatPageContent() {
   const selectedProjectRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : activeProjectRoomId;
   const selectedAgentRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : null;
   const selectedProjectRoomName =
-    selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? getActiveProjectRoomLabel() ?? "프로젝트룸" : getActiveProjectRoomLabel();
-  const pendingAgentCommand = useMemo(() => parseBubliCommand(draft), [draft]);
-  const inviteTargetLabel = selectedProjectRoomId ? selectedProjectRoomName ?? "현재 프로젝트룸" : "프로젝트룸 선택 필요";
+    selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? getActiveProjectRoomLabel() ?? t("chat.room.fallbackName") : getActiveProjectRoomLabel();
+  const pendingAgentCommand = useMemo(() => parseBubliCommand(t, draft), [draft, t]);
+  const inviteTargetLabel = selectedProjectRoomId ? selectedProjectRoomName ?? t("chat.label.currentRoom") : t("chat.label.selectRoomNeeded");
   const pendingRoomInvitations = roomInvitationsState.kind === "ready" ? roomInvitationsState.invitations.filter((invitation) => invitation.status === "PENDING") : [];
   const activeVoiceRoom = voiceState.kind === "ready" && voiceState.room.status === "OPEN" ? voiceState.room : null;
   const voiceParticipants = useMemo<VoiceParticipantResponse[]>(() => {
     if (voiceState.kind === "ready") {
       return voiceState.room.participants.map((participant) => ({
         ...participant,
-        userName: participant.userName ?? participant.name ?? "참여자",
+        userName: participant.userName ?? participant.name ?? t("chat.participant.fallbackName"),
       }));
     }
 
     return [];
-  }, [voiceState]);
+  }, [voiceState, t]);
 
   const loadRooms = useCallback(async () => {
     setRoomsState({ kind: "loading" });
@@ -450,15 +455,15 @@ function ChatPageContent() {
 
     try {
       const page = await chatApi.getMessages(chatRoomId, { size: 40 });
-      setMessagesState({ kind: "ready", messages: withAgentCommandMessages([...page.items].sort((a, b) => a.roomSequence - b.roomSequence)) });
+      setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, [...page.items].sort((a, b) => a.roomSequence - b.roomSequence)) });
     } catch {
       if (shouldUseWorkspacePreviewData()) {
-        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(workspacePreviewChatMessages(chatRoomId)) });
+        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, workspacePreviewChatMessages(chatRoomId)) });
         return;
       }
       setMessagesState({ kind: "offline" });
     }
-  }, []);
+  }, [t]);
 
   const loadSocial = useCallback(async () => {
     setSocialState({ kind: "loading" });
@@ -568,8 +573,8 @@ function ChatPageContent() {
 
   useEffect(() => {
     if (!selectedRoom?.roomId || selectedRoom.chatType !== "ROOM") return;
-    setActiveProjectRoomId(selectedRoom.roomId, selectedRoom.name?.replace(/\s*대화$/, "") ?? "프로젝트룸");
-  }, [currentUser, selectedRoom]);
+    setActiveProjectRoomId(selectedRoom.roomId, selectedRoom.name?.replace(/\s*대화$/, "") ?? t("chat.room.fallbackName"));
+  }, [currentUser, selectedRoom, t]);
 
   useEffect(() => {
     if (messagesState.kind !== "ready") return;
@@ -586,7 +591,7 @@ function ChatPageContent() {
     setVoiceNotice(null);
     setVoiceTokenInfo(null);
     if (room.chatType === "ROOM" && room.roomId) {
-      setActiveProjectRoomId(room.roomId, room.name?.replace(/\s*대화$/, "") ?? "프로젝트룸");
+      setActiveProjectRoomId(room.roomId, room.name?.replace(/\s*대화$/, "") ?? t("chat.room.fallbackName"));
     }
   }
 
@@ -617,7 +622,7 @@ function ChatPageContent() {
     if (roomsState.kind !== "ready") return;
 
     if (!selectedProjectRoomId) {
-      setRoomCreateNotice("프로젝트룸을 먼저 선택하세요.");
+      setRoomCreateNotice(t("chat.notice.selectRoomFirst"));
       setNewRoomPickerOpen(false);
       return;
     }
@@ -630,8 +635,8 @@ function ChatPageContent() {
       setRoomsState({ kind: "ready", rooms: [room, ...roomsState.rooms.filter((item) => item.id !== room.id)] });
       setSelectedChatRoomId(room.id);
       setNewRoomPickerOpen(false);
-      if (room.roomId) setActiveProjectRoomId(room.roomId, room.name?.replace(/\s*대화$/, "") ?? selectedProjectRoomName ?? "프로젝트룸");
-      setRoomCreateNotice("프로젝트룸 채팅방을 만들었습니다.");
+      if (room.roomId) setActiveProjectRoomId(room.roomId, room.name?.replace(/\s*대화$/, "") ?? selectedProjectRoomName ?? t("chat.room.fallbackName"));
+      setRoomCreateNotice(t("chat.notice.roomChatCreated"));
     } catch {
       if (shouldUseWorkspacePreviewData()) {
         const previewRooms = workspacePreviewChatRoomsFor(selectedProjectRoomId, selectedProjectRoomName);
@@ -639,14 +644,14 @@ function ChatPageContent() {
         setRoomsState({ kind: "ready", rooms: previewRooms });
         if (room) setSelectedChatRoomId(room.id);
         setNewRoomPickerOpen(false);
-        setRoomCreateNotice("프로젝트룸 채팅방을 만들었습니다.");
+        setRoomCreateNotice(t("chat.notice.roomChatCreated"));
         return;
       }
-      setRoomCreateNotice("프로젝트룸 채팅방을 만들지 못했습니다. 프로젝트룸 선택이나 서버 상태를 확인하세요.");
+      setRoomCreateNotice(t("chat.notice.roomChatFailed"));
     } finally {
       setSending(false);
     }
-  }, [roomsState, selectedProjectRoomId, selectedProjectRoomName]);
+  }, [roomsState, selectedProjectRoomId, selectedProjectRoomName, t]);
 
   const toggleGroupMember = useCallback((friendUserId: string) => {
     setSelectedGroupMemberIds((current) =>
@@ -665,7 +670,7 @@ function ChatPageContent() {
             .slice(0, 3)
             .join(", ")
         : "";
-    const name = groupRoomName.trim() || (fallbackName ? `${fallbackName} 그룹` : "새 그룹 채팅");
+    const name = groupRoomName.trim() || (fallbackName ? t("chat.groupNameSuffix", { name: fallbackName }) : t("chat.newGroupFallback"));
 
     setSending(true);
     setChatRoomInviteState({ kind: "idle" });
@@ -681,16 +686,16 @@ function ChatPageContent() {
       setGroupRoomName("");
       setSelectedGroupMemberIds([]);
     } catch {
-      setChatRoomInviteState({ kind: "blocked", message: "그룹 채팅방을 만들지 못했습니다. 친구 선택이나 서버 상태를 확인하세요." });
+      setChatRoomInviteState({ kind: "blocked", message: t("chat.notice.groupCreateFailed") });
     } finally {
       setSending(false);
     }
-  }, [groupRoomName, roomsState, selectedGroupMemberIds, socialState]);
+  }, [groupRoomName, roomsState, selectedGroupMemberIds, socialState, t]);
 
   const inviteFriendToChatRoom = useCallback(
     async (friend: FriendResponse) => {
       if (!selectedRoom || selectedRoom.chatType !== "GROUP") {
-        setChatRoomInviteState({ kind: "blocked", message: "그룹 채팅방에서 친구를 초대할 수 있습니다." });
+        setChatRoomInviteState({ kind: "blocked", message: t("chat.notice.chatInviteOnlyGroup") });
         return;
       }
 
@@ -705,10 +710,10 @@ function ChatPageContent() {
         );
         setChatRoomInviteState({ friendName: friend.name, kind: "sent" });
       } catch {
-        setChatRoomInviteState({ kind: "blocked", message: "채팅방에 초대하지 못했습니다. 서버 상태나 권한을 확인하세요." });
+        setChatRoomInviteState({ kind: "blocked", message: t("chat.notice.chatInviteFailed") });
       }
     },
-    [selectedRoom],
+    [selectedRoom, t],
   );
 
   const deleteFriend = useCallback(
@@ -731,7 +736,7 @@ function ChatPageContent() {
   const inviteFriendToRoom = useCallback(
     async (friend: FriendResponse) => {
       if (!selectedProjectRoomId) {
-        setRoomInviteState({ kind: "blocked", message: "프로젝트룸 대화에서 친구를 초대할 수 있습니다." });
+        setRoomInviteState({ kind: "blocked", message: t("chat.notice.roomInviteOnlyRoom") });
         return;
       }
 
@@ -745,10 +750,10 @@ function ChatPageContent() {
         setRoomInviteState({ friendName: friend.name, kind: "sent" });
         await loadRoomInvitations();
       } catch {
-        setRoomInviteState({ kind: "blocked", message: "초대를 보내지 못했습니다. 멤버 권한이나 서버 상태를 확인하세요." });
+        setRoomInviteState({ kind: "blocked", message: t("chat.notice.roomInviteFailed") });
       }
     },
-    [loadRoomInvitations, selectedProjectRoomId],
+    [loadRoomInvitations, selectedProjectRoomId, t],
   );
 
   const cancelRoomInvitation = useCallback(
@@ -834,7 +839,7 @@ function ChatPageContent() {
     if (!selectedRoom?.roomId) {
       setVoiceState({
         kind: "blocked",
-        message: "보이스는 프로젝트룸에서 사용할 수 있습니다.",
+        message: t("chat.notice.voiceOnlyRoom"),
       });
       return;
     }
@@ -849,11 +854,11 @@ function ChatPageContent() {
       const room = await voiceApi.createRoom({ roomId: selectedRoom.roomId });
       setVoiceState({ kind: "ready", room });
       setVoiceExpanded(true);
-      setVoiceNotice("보이스룸이 열렸습니다. 참여 토큰을 받아 LiveKit 연결을 준비할 수 있습니다.");
+      setVoiceNotice(t("chat.notice.voiceOpened"));
     } catch {
-      setVoiceState({ kind: "blocked", message: "보이스를 시작하지 못했습니다. 서버 상태를 확인하세요." });
+      setVoiceState({ kind: "blocked", message: t("chat.notice.voiceStartFailed") });
     }
-  }, [selectedRoom]);
+  }, [selectedRoom, t]);
 
   const requestVoiceToken = useCallback(async () => {
     if (!activeVoiceRoom || voiceAction) return;
@@ -865,13 +870,13 @@ function ChatPageContent() {
         expiresAt: token.expiresAt,
         serverUrl: token.serverUrl,
       });
-      setVoiceNotice("참여 토큰을 받았습니다. 실제 음성 연결은 LiveKit 클라이언트 연결 단계에서 사용합니다.");
+      setVoiceNotice(t("chat.notice.tokenReceived"));
     } catch {
-      setVoiceNotice("참여 토큰을 받지 못했습니다. 보이스 서버 상태를 확인하세요.");
+      setVoiceNotice(t("chat.notice.tokenFailed"));
     } finally {
       setVoiceAction(null);
     }
-  }, [activeVoiceRoom, voiceAction]);
+  }, [activeVoiceRoom, voiceAction, t]);
 
   const toggleVoiceMic = useCallback(async () => {
     if (!activeVoiceRoom || voiceAction) return;
@@ -896,13 +901,13 @@ function ChatPageContent() {
           },
         };
       });
-      setVoiceNotice(nextMuted ? "내 마이크를 껐습니다." : "내 마이크를 켰습니다.");
+      setVoiceNotice(nextMuted ? t("chat.notice.micOff") : t("chat.notice.micOn"));
     } catch {
-      setVoiceNotice("마이크 상태를 바꾸지 못했습니다.");
+      setVoiceNotice(t("chat.notice.micFailed"));
     } finally {
       setVoiceAction(null);
     }
-  }, [activeVoiceRoom, currentUser, voiceAction, voiceMicMuted]);
+  }, [activeVoiceRoom, currentUser, voiceAction, voiceMicMuted, t]);
 
   const leaveVoice = useCallback(async () => {
     if (!activeVoiceRoom || voiceAction) return;
@@ -911,13 +916,13 @@ function ChatPageContent() {
     try {
       const room = await voiceApi.leave(activeVoiceRoom.id);
       setVoiceState({ kind: "ready", room });
-      setVoiceNotice("보이스룸에서 나갔습니다.");
+      setVoiceNotice(t("chat.notice.voiceLeft"));
     } catch {
-      setVoiceNotice("보이스룸에서 나가지 못했습니다.");
+      setVoiceNotice(t("chat.notice.voiceLeaveFailed"));
     } finally {
       setVoiceAction(null);
     }
-  }, [activeVoiceRoom, voiceAction]);
+  }, [activeVoiceRoom, voiceAction, t]);
 
   const endVoice = useCallback(async () => {
     if (!activeVoiceRoom || voiceAction) return;
@@ -926,23 +931,23 @@ function ChatPageContent() {
     try {
       const room = await voiceApi.end(activeVoiceRoom.id);
       setVoiceState({ kind: "ready", room });
-      setVoiceNotice("보이스룸을 종료했습니다.");
+      setVoiceNotice(t("chat.notice.voiceEnded"));
     } catch {
-      setVoiceNotice("보이스룸을 종료하지 못했습니다.");
+      setVoiceNotice(t("chat.notice.voiceEndFailed"));
     } finally {
       setVoiceAction(null);
     }
-  }, [activeVoiceRoom, voiceAction]);
+  }, [activeVoiceRoom, voiceAction, t]);
 
   const sendMessage = useCallback(async () => {
     const text = draft.trim();
     if (!activeChatRoomId || (!text && !selectedAttachmentName)) return;
-    const agentCommand = parseBubliCommand(text);
+    const agentCommand = parseBubliCommand(t, text);
 
     if (agentCommand) {
       if (!selectedAgentRoomId) {
         setComposerActive(true);
-        setAgentCommandNotice("/bubli는 프로젝트룸 대화에서만 사용할 수 있습니다.");
+        setAgentCommandNotice(t("chat.notice.agentOnlyRoom"));
         return;
       }
 
@@ -958,13 +963,13 @@ function ChatPageContent() {
           messagesState.kind === "ready" ? Math.max(...messagesState.messages.map((message) => message.roomSequence), 0) + 1 : 1,
         sender: {
           id: currentUser?.id ?? null,
-          name: currentUser?.name ?? "나",
+          name: currentUser?.name ?? t("chat.senderMe"),
           type: "USER",
         },
       };
 
       setSending(true);
-      setAgentCommandNotice("에이전트에게 질문을 보내는 중입니다.");
+      setAgentCommandNotice(t("chat.notice.agentSending"));
       appendMessage(optimisticCommandMessage);
 
       try {
@@ -979,9 +984,9 @@ function ChatPageContent() {
         setSelectedAttachmentName(null);
         setEmoticonOpen(false);
         setComposerActive(true);
-        setAgentCommandNotice("에이전트에게 질문을 보냈습니다.");
+        setAgentCommandNotice(t("chat.notice.agentSent"));
       } catch {
-        setAgentCommandNotice("에이전트에게 질문을 보내지 못했습니다. 서버 상태나 프로젝트룸 권한을 확인하세요.");
+        setAgentCommandNotice(t("chat.notice.agentFailed"));
       } finally {
         setSending(false);
       }
@@ -992,7 +997,7 @@ function ChatPageContent() {
     const messageBody = selectedAttachmentName
       ? {
           attachmentName: selectedAttachmentName,
-          text: text || `첨부: ${selectedAttachmentName}`,
+          text: text || t("chat.attachPrefix", { name: selectedAttachmentName }),
         }
       : { text };
 
@@ -1014,77 +1019,77 @@ function ChatPageContent() {
     } finally {
       setSending(false);
     }
-  }, [activeChatRoomId, appendMessage, currentUser, draft, messagesState, selectedAgentRoomId, selectedAttachmentName]);
+  }, [activeChatRoomId, appendMessage, currentUser, draft, messagesState, selectedAgentRoomId, selectedAttachmentName, t]);
 
   return (
     <section className="workspace-route" aria-labelledby="chat-title">
       <header className="workspace-route__header">
         <div>
-          <h1 id="chat-title">소통</h1>
+          <h1 id="chat-title">{t("chat.title")}</h1>
         </div>
-        <nav className="workspace-route__mode-tabs" aria-label="대화 보기">
+        <nav className="workspace-route__mode-tabs" aria-label={t("chat.tabs.aria")}>
           <Link className={queryMode !== "direct" ? "is-active" : ""} href={queryRoomId ? `/app/chat?roomId=${queryRoomId}&mode=room` : "/app/chat?mode=room"}>
-            프로젝트룸
+            {t("chat.tabs.projectRoom")}
           </Link>
           <Link className={queryMode === "direct" ? "is-active" : ""} href="/app/chat?mode=direct">
-            1:1/그룹
+            {t("chat.tabs.direct")}
           </Link>
         </nav>
       </header>
 
-      {roomsState.kind === "loading" ? <GlassPanel className="workspace-route__panel">대화를 불러오는 중</GlassPanel> : null}
+      {roomsState.kind === "loading" ? <GlassPanel className="workspace-route__panel">{t("chat.panel.loading")}</GlassPanel> : null}
       {roomsState.kind === "auth" ? (
         <GlassPanel className="workspace-route__panel">
-          <strong>로그인이 필요합니다</strong>
+          <strong>{t("chat.panel.authTitle")}</strong>
           <Link className="bubli-button bubli-button--primary" href="/login">
-            로그인
+            {t("common.login")}
           </Link>
         </GlassPanel>
       ) : null}
       {roomsState.kind === "offline" ? (
         <GlassPanel className="workspace-route__panel">
-          <strong>대화를 불러오지 못했습니다</strong>
-          <span>서버 연결이 돌아오면 대화 목록을 다시 불러옵니다.</span>
+          <strong>{t("chat.panel.offlineTitle")}</strong>
+          <span>{t("chat.panel.offlineBody")}</span>
         </GlassPanel>
       ) : null}
 
       {roomsState.kind === "ready" && roomsState.rooms.length === 0 ? (
         <GlassPanel className="workspace-route__panel">
-          <strong>대화 시작 전</strong>
+          <strong>{t("chat.panel.emptyTitle")}</strong>
           <Link className="bubli-button bubli-button--primary" href="/app/project-rooms">
-            프로젝트룸 보기
+            {t("chat.panel.viewProjectRooms")}
           </Link>
         </GlassPanel>
       ) : null}
 
       {roomsState.kind === "ready" && roomsState.rooms.length > 0 ? (
-        <section className="workspace-route__chat-overview" aria-label="소통 상태">
+        <section className="workspace-route__chat-overview" aria-label={t("chat.overview.aria")}>
           <article>
             <MessageCircle size={17} strokeWidth={2} aria-hidden="true" />
             <div>
-              <strong>프로젝트룸 대화</strong>
-              <span>{roomConversationCount}개 룸</span>
+              <strong>{t("chat.overview.roomChats")}</strong>
+              <span>{t("chat.overview.roomCount", { count: roomConversationCount })}</span>
             </div>
           </article>
           <article>
             <UsersRound size={17} strokeWidth={2} aria-hidden="true" />
             <div>
-              <strong>1:1</strong>
-              <span>{friendCount}명 · 요청 {pendingFriendRequestCount}</span>
+              <strong>{t("chat.overview.direct")}</strong>
+              <span>{t("chat.overview.directSummary", { count: friendCount, requests: pendingFriendRequestCount })}</span>
             </div>
           </article>
           <article>
             <Phone size={17} strokeWidth={2} aria-hidden="true" />
             <div>
-              <strong>보이스</strong>
-              <span>{selectedRoom?.chatType === "ROOM" ? "프로젝트룸에서 시작" : "프로젝트룸 채팅에서 시작"}</span>
+              <strong>{t("chat.overview.voice")}</strong>
+              <span>{selectedRoom?.chatType === "ROOM" ? t("chat.overview.voiceFromRoom") : t("chat.overview.voicePriority")}</span>
             </div>
           </article>
         </section>
       ) : null}
 
       {roomsState.kind === "ready" ? (
-        <div className="workspace-route__chat-quick-actions" aria-label="친구와 초대 빠른 실행">
+        <div className="workspace-route__chat-quick-actions" aria-label={t("chat.quick.aria")}>
           <button
             className="workspace-route__quick-button"
             onClick={() => {
@@ -1098,12 +1103,12 @@ function ChatPageContent() {
             }}
             type="button"
           >
-            새로 만들기
+            {t("chat.quick.create")}
           </button>
           {roomCreateNotice ? <span className="workspace-route__pending">{roomCreateNotice}</span> : null}
           <button className="workspace-route__quick-button" disabled={!myBubliId} onClick={() => void copyMyBubliId()} type="button">
             <Copy aria-hidden size={15} strokeWidth={2} />
-            {copiedBubliId ? "ID 복사됨" : "내 ID 복사"}
+            {copiedBubliId ? t("chat.quick.idCopied") : t("chat.quick.copyId")}
           </button>
           <button
             className="workspace-route__quick-button"
@@ -1117,7 +1122,7 @@ function ChatPageContent() {
             type="button"
           >
             <UserPlus aria-hidden size={15} strokeWidth={2} />
-            친구 추가
+            {t("chat.quick.addFriend")}
           </button>
           <button
             className="workspace-route__quick-button"
@@ -1128,16 +1133,16 @@ function ChatPageContent() {
             type="button"
           >
             <UsersRound aria-hidden size={15} strokeWidth={2} />
-            현재 룸 초대
+            {t("chat.quick.inviteCurrentRoom")}
           </button>
         </div>
       ) : null}
 
       {roomsState.kind === "ready" ? (
         <div className="workspace-route__chat">
-          <aside className="workspace-route__section workspace-route__chat-list" aria-label="대화방">
+          <aside className="workspace-route__section workspace-route__chat-list" aria-label={t("chat.list.aria")}>
             <div className="workspace-route__chat-list-head">
-              <strong>{roomMode === "direct" ? "친구 대화" : isProjectRoomScoped ? "현재 프로젝트룸 대화" : "프로젝트룸 대화"}</strong>
+              <strong>{roomMode === "direct" ? t("chat.list.friendChats") : isProjectRoomScoped ? t("chat.list.currentRoomChats") : t("chat.list.roomChats")}</strong>
               <span>{visibleRooms.length}</span>
             </div>
             {visibleRooms.map((room) => {
@@ -1153,47 +1158,47 @@ function ChatPageContent() {
                 >
                   <span className="workspace-route__dot" aria-hidden="true" />
                   <span className="workspace-route__main">
-                    <strong>{room.name ?? roomTypeLabel(room)}</strong>
-                    <span>{updatedLabel(room)}</span>
+                    <strong>{room.name ?? roomTypeLabel(t, room)}</strong>
+                    <span>{updatedLabel(t, room)}</span>
                   </span>
-                  <span className="workspace-route__meta">{roomTypeLabel(room)}</span>
+                  <span className="workspace-route__meta">{roomTypeLabel(t, room)}</span>
                 </button>
               );
             })}
             {visibleRooms.length === 0 ? (
-              <span className="workspace-route__empty">{roomMode === "direct" ? "아직 친구 대화가 없습니다" : "프로젝트룸 대화가 없습니다"}</span>
+              <span className="workspace-route__empty">{roomMode === "direct" ? t("chat.list.emptyDirect") : t("chat.list.emptyRoom")}</span>
             ) : null}
           </aside>
 
           <GlassPanel className="workspace-route__section workspace-route__thread">
             <div className="workspace-route__section-head">
               <div>
-                <strong>{selectedRoom?.name ?? "대화"}</strong>
+                <strong>{selectedRoom?.name ?? t("chat.thread.defaultName")}</strong>
                 {selectedRoom ? (
-                  <span>{selectedRoom.chatType === "ROOM" ? "이 프로젝트룸에 묶인 대화" : selectedRoom.chatType === "GROUP" ? "친구들과 함께하는 그룹 대화" : "친구와 1:1 대화"}</span>
+                  <span>{selectedRoom.chatType === "ROOM" ? t("chat.thread.roomDesc") : selectedRoom.chatType === "GROUP" ? t("chat.thread.groupDesc") : t("chat.thread.directDesc")}</span>
                 ) : null}
               </div>
               <div className="workspace-route__thread-actions">
                 {selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? (
                   <Link className="bubli-button" href={`/app/project-rooms/${selectedRoom.roomId}`}>
-                    프로젝트룸
+                    {t("chat.thread.projectRoom")}
                   </Link>
                 ) : null}
                 {selectedRoom?.chatType === "ROOM" ? (
                   <Button disabled={voiceState.kind === "starting"} loading={voiceState.kind === "starting"} onClick={() => void startVoice()} type="button" variant="quiet">
-                    보이스 시작
+                    {t("chat.thread.startVoice")}
                   </Button>
                 ) : null}
               </div>
             </div>
             {newRoomPickerOpen ? (
-              <div className="workspace-route__new-room-panel" aria-label="새 1:1 채팅방 만들기">
+              <div className="workspace-route__new-room-panel" aria-label={t("chat.newRoom.aria")}>
                 <div>
-                  <strong>새 채팅방</strong>
-                  <span>친구 한 명은 1:1로 열고, 여러 명을 선택하면 그룹 채팅방을 만듭니다.</span>
+                  <strong>{t("chat.newRoom.title")}</strong>
+                  <span>{t("chat.newRoom.subtitle")}</span>
                 </div>
-                {socialState.kind === "loading" ? <span className="workspace-route__empty">친구 목록을 불러오는 중</span> : null}
-                {socialState.kind === "offline" ? <span className="workspace-route__empty">친구 목록을 불러오지 못했습니다</span> : null}
+                {socialState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.newRoom.friendsLoading")}</span> : null}
+                {socialState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.newRoom.friendsOffline")}</span> : null}
                 {socialState.kind === "ready" && socialState.friends.length === 0 ? (
                   <button
                     className="workspace-route__quick-button"
@@ -1203,17 +1208,17 @@ function ChatPageContent() {
                     }}
                     type="button"
                   >
-                    친구 추가
+                    {t("chat.newRoom.addFriend")}
                   </button>
                 ) : null}
                 {socialState.kind === "ready" && socialState.friends.length > 0 ? (
                   <>
                     <label className="workspace-route__group-name-field" htmlFor="group-room-name">
-                      <span>그룹 이름</span>
+                      <span>{t("chat.newRoom.groupName")}</span>
                       <input
                         id="group-room-name"
                         onChange={(event) => setGroupRoomName(event.target.value)}
-                        placeholder="비워두면 친구 이름으로 생성"
+                        placeholder={t("chat.newRoom.groupNamePlaceholder")}
                         value={groupRoomName}
                       />
                     </label>
@@ -1232,10 +1237,10 @@ function ChatPageContent() {
                             </div>
                             <div className="workspace-route__friend-actions">
                               <button onClick={() => void openDirectRoom(friend)} type="button">
-                                1:1
+                                {t("chat.newRoom.direct")}
                               </button>
                               <button onClick={() => toggleGroupMember(friend.friendUserId)} type="button">
-                                {selected ? "선택 해제" : "그룹 선택"}
+                                {selected ? t("chat.newRoom.deselect") : t("chat.newRoom.selectForGroup")}
                               </button>
                             </div>
                           </div>
@@ -1243,9 +1248,9 @@ function ChatPageContent() {
                       })}
                     </div>
                     <div className="workspace-route__group-create-actions">
-                      <span>{selectedGroupFriendCount}명 선택</span>
+                      <span>{t("chat.newRoom.selectedCount", { count: selectedGroupFriendCount })}</span>
                       <Button disabled={selectedGroupFriendCount === 0 || sending} loading={sending} onClick={() => void createGroupRoom()} type="button" variant="primary">
-                        그룹 채팅방 만들기
+                        {t("chat.newRoom.createGroup")}
                       </Button>
                     </div>
                   </>
@@ -1260,8 +1265,8 @@ function ChatPageContent() {
                 type="button"
               >
                 <Phone size={15} strokeWidth={2} aria-hidden="true" />
-                <span>{voiceState.kind === "ready" ? "보이스 열림" : "보이스 대기"}</span>
-                <span className="workspace-route__voice-stack" aria-label={`참여자 ${voiceParticipants.length}명`}>
+                <span>{voiceState.kind === "ready" ? t("chat.voice.open") : t("chat.voice.waiting")}</span>
+                <span className="workspace-route__voice-stack" aria-label={t("chat.voice.participantsAria", { count: voiceParticipants.length })}>
                   {voiceParticipants.slice(0, 3).map((participant) => (
                     <i data-status={participant.status.toLowerCase()} key={participant.userId}>
                       {initialOf(participant.userName)}
@@ -1272,10 +1277,10 @@ function ChatPageContent() {
             ) : null}
             {selectedRoom?.chatType === "ROOM" && voiceState.kind === "blocked" ? <div className="workspace-route__voice-status workspace-route__voice-status--blocked">{voiceState.message}</div> : null}
 
-            {messagesState.kind === "loading" ? <span className="workspace-route__empty">메시지를 불러오는 중</span> : null}
-            {messagesState.kind === "offline" ? <span className="workspace-route__empty">메시지를 불러오지 못했습니다</span> : null}
+            {messagesState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.messages.loading")}</span> : null}
+            {messagesState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.messages.offline")}</span> : null}
             {messagesState.kind === "ready" && messagesState.messages.length === 0 ? (
-              <span className="workspace-route__empty">첫 메시지를 남겨보세요</span>
+              <span className="workspace-route__empty">{t("chat.messages.empty")}</span>
             ) : null}
 
             {messagesState.kind === "ready" && messagesState.messages.length > 0 ? (
@@ -1283,7 +1288,7 @@ function ChatPageContent() {
                 {messagesState.messages.map((message) => {
                   const isAgent = message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT";
                   const isMine = message.messageType === "AGENT_COMMAND" || (!isAgent && Boolean(currentUser?.id && message.sender.id === currentUser.id));
-                  const text = displayMessageText(message);
+                  const text = displayMessageText(t, message);
 
                   return (
                     <article
@@ -1300,10 +1305,10 @@ function ChatPageContent() {
                         <strong>{message.sender.name}</strong>
                         <span>{messageTime(message.createdAt)}</span>
                         <span className="workspace-route__message-tools">
-                          <button aria-label="메시지 복사" onClick={() => void navigator.clipboard.writeText(text)} type="button">
+                          <button aria-label={t("chat.messages.copy")} onClick={() => void navigator.clipboard.writeText(text)} type="button">
                             <Copy aria-hidden size={13} strokeWidth={2} />
                           </button>
-                          <button aria-label="메시지 더보기" type="button">
+                          <button aria-label={t("chat.messages.more")} type="button">
                             <MoreHorizontal aria-hidden size={13} strokeWidth={2} />
                           </button>
                         </span>
@@ -1329,10 +1334,10 @@ function ChatPageContent() {
                 }}
               >
                 <div className="workspace-route__composer-main">
-                  <button aria-label="파일 첨부" onClick={() => fileInputRef.current?.click()} type="button">
+                  <button aria-label={t("chat.composer.attach")} onClick={() => fileInputRef.current?.click()} type="button">
                     <Paperclip aria-hidden size={17} strokeWidth={2} />
                   </button>
-                  <button aria-label="보이스 참여자 보기" onClick={() => setVoiceExpanded((open) => !open)} type="button">
+                  <button aria-label={t("chat.composer.voiceParticipants")} onClick={() => setVoiceExpanded((open) => !open)} type="button">
                     <Mic aria-hidden size={17} strokeWidth={2} />
                   </button>
                   <input
@@ -1345,7 +1350,7 @@ function ChatPageContent() {
                     type="file"
                   />
                   <textarea
-                    aria-label="메시지"
+                    aria-label={t("chat.composer.message")}
                     onBlur={() => {
                       if (!draft.trim() && !selectedAttachmentName) setComposerActive(false);
                     }}
@@ -1360,11 +1365,11 @@ function ChatPageContent() {
                         void sendMessage();
                       }
                     }}
-                    placeholder="메시지 쓰기"
+                    placeholder={t("chat.composer.placeholder")}
                     rows={1}
                     value={draft}
                   />
-                  <button aria-expanded={emoticonOpen} aria-label="이모티콘" onClick={() => setEmoticonOpen((open) => !open)} type="button">
+                  <button aria-expanded={emoticonOpen} aria-label={t("chat.composer.emoticon")} onClick={() => setEmoticonOpen((open) => !open)} type="button">
                     <Smile aria-hidden size={17} strokeWidth={2} />
                   </button>
                   <Button disabled={(!draft.trim() && !selectedAttachmentName) || sending} loading={sending} type="submit" variant="primary">
@@ -1375,7 +1380,7 @@ function ChatPageContent() {
                   <div className="workspace-route__composer-tools">
                     {selectedAttachmentName ? (
                       <button className="workspace-route__composer-chip" onClick={() => setSelectedAttachmentName(null)} type="button">
-                        첨부 {selectedAttachmentName}
+                        {t("chat.composer.attachChip", { name: selectedAttachmentName })}
                         <X aria-hidden size={13} strokeWidth={2} />
                       </button>
                     ) : agentCommandNotice ? (
@@ -1384,13 +1389,13 @@ function ChatPageContent() {
                       </span>
                     ) : pendingAgentCommand ? (
                       <span className="workspace-route__agent-command-hint">
-                        에이전트 질문 · {pendingAgentCommand.mode === "SUMMARIZE" ? "정리" : pendingAgentCommand.mode === "SUGGEST" ? "제안" : "답변"}
+                        {t("chat.composer.agentQuestion")} · {pendingAgentCommand.mode === "SUMMARIZE" ? t("chat.composer.agentSummarize") : pendingAgentCommand.mode === "SUGGEST" ? t("chat.composer.agentSuggest") : t("chat.composer.agentAnswer")}
                       </span>
                     ) : (
-                      <span>Shift+Enter 줄바꿈 · /bubli 질문으로 에이전트 호출</span>
+                      <span>{t("chat.composer.hint")}</span>
                     )}
                     {emoticonOpen ? (
-                      <div className="workspace-route__emoticons" aria-label="이모티콘 선택">
+                      <div className="workspace-route__emoticons" aria-label={t("chat.composer.emoticonAria")}>
                         {emoticonTokens.map((token) => (
                           <button
                             key={token.value}
@@ -1401,7 +1406,7 @@ function ChatPageContent() {
                             }}
                             type="button"
                           >
-                            {token.label}
+                            {t(token.labelKey)}
                           </button>
                         ))}
                       </div>
@@ -1412,7 +1417,7 @@ function ChatPageContent() {
             ) : null}
           </GlassPanel>
 
-          <aside className="workspace-route__section workspace-route__chat-social" aria-label="친구">
+          <aside className="workspace-route__section workspace-route__chat-social" aria-label={t("chat.social.aria")}>
             <button
               aria-expanded={friendAddOpen}
               className="bubli-button bubli-button--quiet workspace-route__friend-add-control"
@@ -1422,24 +1427,24 @@ function ChatPageContent() {
               }}
               type="button"
             >
-              친구추가
+              {t("chat.social.addFriend")}
             </button>
 
             {friendAddOpen ? (
-              <div className="workspace-route__social-flow" aria-label="친구 추가">
+              <div className="workspace-route__social-flow" aria-label={t("chat.social.addFlowAria")}>
                 <section className="workspace-route__social-card workspace-route__social-card--code">
                   <span className="workspace-route__social-kicker">
                     <AtSign aria-hidden size={14} strokeWidth={2} />
-                    내 Bubli ID
+                    {t("chat.social.myBubliId")}
                   </span>
                   <div className="workspace-route__my-code">
                     <div>
-                      <small>친구 추가용</small>
-                      <strong>{myBubliId || "로그인 후 표시"}</strong>
+                      <small>{t("chat.social.forAdding")}</small>
+                      <strong>{myBubliId || t("chat.social.loginToShow")}</strong>
                     </div>
-                    <button aria-label="내 Bubli ID 복사" disabled={!myBubliId} onClick={() => void copyMyBubliId()} type="button">
+                    <button aria-label={t("chat.social.copyMyId")} disabled={!myBubliId} onClick={() => void copyMyBubliId()} type="button">
                       {copiedBubliId ? <Check aria-hidden size={15} strokeWidth={2.2} /> : <Copy aria-hidden size={15} strokeWidth={2} />}
-                      {copiedBubliId ? "복사됨" : "복사"}
+                      {copiedBubliId ? t("chat.social.copied") : t("chat.social.copy")}
                     </button>
                   </div>
                 </section>
@@ -1447,7 +1452,7 @@ function ChatPageContent() {
                 <section className="workspace-route__social-card">
                   <span className="workspace-route__social-kicker">
                     <UserPlus aria-hidden size={14} strokeWidth={2} />
-                    친구 추가
+                    {t("chat.social.addFriendKicker")}
                   </span>
                   <form
                     className="workspace-route__friend-search"
@@ -1456,7 +1461,7 @@ function ChatPageContent() {
                       void searchFriend();
                     }}
                   >
-                    <label htmlFor="friend-id-search">Bubli ID를 입력해 요청을 보냅니다</label>
+                    <label htmlFor="friend-id-search">{t("chat.social.searchLabel")}</label>
                     <div>
                       <Search aria-hidden size={16} strokeWidth={2} />
                       <input
@@ -1466,12 +1471,12 @@ function ChatPageContent() {
                           setFriendSearchQuery(event.target.value);
                           if (!event.target.value.trim()) setFriendSearchState({ kind: "idle" });
                         }}
-                        placeholder="예: bubli-id"
+                        placeholder={t("chat.social.searchPlaceholder")}
                         ref={friendSearchInputRef}
                         value={friendSearchQuery}
                       />
-                      <button aria-label="친구 검색" type="submit">
-                        찾기
+                      <button aria-label={t("chat.social.searchAria")} type="submit">
+                        {t("chat.social.searchCta")}
                       </button>
                     </div>
                   </form>
@@ -1479,10 +1484,10 @@ function ChatPageContent() {
               </div>
             ) : null}
 
-            {friendSearchState.kind === "searching" ? <span className="workspace-route__empty">친구를 찾는 중</span> : null}
-            {friendSearchState.kind === "empty" ? <span className="workspace-route__empty">일치하는 Bubli ID가 없습니다</span> : null}
-            {friendSearchState.kind === "offline" ? <span className="workspace-route__empty">친구 요청을 처리하지 못했습니다</span> : null}
-            {friendSearchState.kind === "sent" ? <span className="workspace-route__pending">{friendSearchState.targetName}님에게 요청을 보냈습니다</span> : null}
+            {friendSearchState.kind === "searching" ? <span className="workspace-route__empty">{t("chat.search.searching")}</span> : null}
+            {friendSearchState.kind === "empty" ? <span className="workspace-route__empty">{t("chat.search.empty")}</span> : null}
+            {friendSearchState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.search.offline")}</span> : null}
+            {friendSearchState.kind === "sent" ? <span className="workspace-route__pending">{t("chat.search.sent", { name: friendSearchState.targetName })}</span> : null}
             {friendSearchState.kind === "ready"
               ? friendSearchState.results.slice(0, 3).map((person) => {
                   const alreadyFriend =
@@ -1496,21 +1501,21 @@ function ChatPageContent() {
                         <small>{person.bubliId}</small>
                       </div>
                       <button disabled={alreadyFriend} onClick={() => void sendFriendRequest(person)} type="button">
-                        {alreadyFriend ? "친구" : "친구 요청"}
+                        {alreadyFriend ? t("chat.search.alreadyFriend") : t("chat.search.sendRequest")}
                       </button>
                     </div>
                   );
                 })
               : null}
 
-            <div className="workspace-route__friend-panel" aria-label="친구와 1:1" ref={friendListRef}>
+            <div className="workspace-route__friend-panel" aria-label={t("chat.friends.direct")} ref={friendListRef}>
               <div className="workspace-route__chat-list-head">
-                <strong>친구목록</strong>
+                <strong>{t("chat.friends.title")}</strong>
                 <span>{friendCount}</span>
               </div>
-              {socialState.kind === "loading" ? <span className="workspace-route__empty">친구 목록을 불러오는 중</span> : null}
-              {socialState.kind === "offline" ? <span className="workspace-route__empty">친구 목록을 불러오지 못했습니다</span> : null}
-              {socialState.kind === "ready" && socialState.friends.length === 0 ? <span className="workspace-route__empty">아직 친구가 없습니다</span> : null}
+              {socialState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.friends.loading")}</span> : null}
+              {socialState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.friends.offline")}</span> : null}
+              {socialState.kind === "ready" && socialState.friends.length === 0 ? <span className="workspace-route__empty">{t("chat.friends.empty")}</span> : null}
               {socialState.kind === "ready"
                 ? socialState.friends.slice(0, 5).map((friend) => (
                     <article className="workspace-route__friend-row" key={friend.friendUserId}>
@@ -1521,38 +1526,38 @@ function ChatPageContent() {
                       </div>
                       <div className="workspace-route__friend-actions">
                         <button onClick={() => void openDirectRoom(friend)} type="button">
-                          1:1
+                          {t("chat.friends.direct")}
                         </button>
                         {selectedRoom?.chatType === "GROUP" ? (
                           <button disabled={chatRoomInviteState.kind === "sending"} onClick={() => void inviteFriendToChatRoom(friend)} type="button">
-                            {chatRoomInviteState.kind === "sending" && chatRoomInviteState.friendName === friend.name ? "초대 중" : "채팅 초대"}
+                            {chatRoomInviteState.kind === "sending" && chatRoomInviteState.friendName === friend.name ? t("chat.friends.inviting") : t("chat.friends.chatInvite")}
                           </button>
                         ) : null}
                         <button disabled={!selectedProjectRoomId || roomInviteState.kind === "sending"} onClick={() => void inviteFriendToRoom(friend)} type="button">
-                          {roomInviteState.kind === "sending" && roomInviteState.friendName === friend.name ? "보내는 중" : "룸 초대"}
+                          {roomInviteState.kind === "sending" && roomInviteState.friendName === friend.name ? t("chat.friends.sending") : t("chat.friends.roomInvite")}
                         </button>
                         <button disabled={busyFriendUserId === friend.friendUserId} onClick={() => void deleteFriend(friend)} type="button">
-                          {busyFriendUserId === friend.friendUserId ? "삭제 중" : "삭제"}
+                          {busyFriendUserId === friend.friendUserId ? t("chat.friends.deleting") : t("chat.friends.delete")}
                         </button>
                       </div>
                     </article>
                   ))
                 : null}
-              {roomInviteState.kind === "sending" ? <span className="workspace-route__pending">{roomInviteState.friendName}님에게 초대 보내는 중</span> : null}
+              {roomInviteState.kind === "sending" ? <span className="workspace-route__pending">{t("chat.invite.roomSending", { name: roomInviteState.friendName })}</span> : null}
               {roomInviteState.kind === "sent" ? (
                 <span className="workspace-route__pending">
-                  {roomInviteState.friendName}님을 {selectedProjectRoomName ?? "프로젝트룸"}에 초대했습니다
+                  {t("chat.invite.roomSent", { name: roomInviteState.friendName, room: selectedProjectRoomName ?? t("chat.room.fallbackName") })}
                 </span>
               ) : null}
               {roomInviteState.kind === "blocked" ? <span className="workspace-route__empty">{roomInviteState.message}</span> : null}
-              {chatRoomInviteState.kind === "sending" ? <span className="workspace-route__pending">{chatRoomInviteState.friendName}님을 채팅방에 초대하는 중</span> : null}
-              {chatRoomInviteState.kind === "sent" ? <span className="workspace-route__pending">{chatRoomInviteState.friendName}님을 채팅방에 초대했습니다</span> : null}
+              {chatRoomInviteState.kind === "sending" ? <span className="workspace-route__pending">{t("chat.invite.chatSending", { name: chatRoomInviteState.friendName })}</span> : null}
+              {chatRoomInviteState.kind === "sent" ? <span className="workspace-route__pending">{t("chat.invite.chatSent", { name: chatRoomInviteState.friendName })}</span> : null}
               {chatRoomInviteState.kind === "blocked" ? <span className="workspace-route__empty">{chatRoomInviteState.message}</span> : null}
-              {roomInvitationsState.kind === "loading" ? <span className="workspace-route__empty">초대 목록을 불러오는 중</span> : null}
-              {roomInvitationsState.kind === "offline" ? <span className="workspace-route__empty">초대 목록을 불러오지 못했습니다</span> : null}
+              {roomInvitationsState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.invite.listLoading")}</span> : null}
+              {roomInvitationsState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.invite.listOffline")}</span> : null}
               {pendingRoomInvitations.length > 0 ? (
                 <div className="workspace-route__request-group">
-                  <span>대기 중인 룸 초대 {pendingRoomInvitations.length}</span>
+                  <span>{t("chat.invite.pending", { count: pendingRoomInvitations.length })}</span>
                   {pendingRoomInvitations.slice(0, 3).map((invitation) => (
                     <div className="workspace-route__friend-request workspace-route__friend-request--sent" key={invitation.id}>
                       <div>
@@ -1560,7 +1565,7 @@ function ChatPageContent() {
                         <small>{invitation.inviteeBubliId ?? invitation.role}</small>
                       </div>
                       <button disabled={busyInvitationId === invitation.id} onClick={() => void cancelRoomInvitation(invitation)} type="button">
-                        {busyInvitationId === invitation.id ? "취소 중" : "초대 취소"}
+                        {busyInvitationId === invitation.id ? t("chat.invite.canceling") : t("chat.invite.cancel")}
                       </button>
                     </div>
                   ))}
@@ -1568,17 +1573,17 @@ function ChatPageContent() {
               ) : null}
             </div>
 
-            <div className="workspace-route__friend-panel" aria-label="친구 요청">
+            <div className="workspace-route__friend-panel" aria-label={t("chat.requests.title")}>
               <div className="workspace-route__chat-list-head">
-                <strong>친구 요청</strong>
+                <strong>{t("chat.requests.title")}</strong>
                 <span>{pendingFriendRequestCount}</span>
               </div>
               {socialState.kind === "ready" && pendingFriendRequests.length === 0 ? (
-                <span className="workspace-route__empty">대기 중인 요청이 없습니다</span>
+                <span className="workspace-route__empty">{t("chat.requests.empty")}</span>
               ) : null}
               {receivedFriendRequests.length > 0 ? (
                 <div className="workspace-route__request-group">
-                  <span>받은 요청 {receivedFriendRequests.length}</span>
+                  <span>{t("chat.requests.received", { count: receivedFriendRequests.length })}</span>
                   {receivedFriendRequests.slice(0, 3).map((request) => (
                     <div className="workspace-route__friend-request" key={request.id}>
                       <div>
@@ -1587,10 +1592,10 @@ function ChatPageContent() {
                       </div>
                       <div>
                         <button onClick={() => void respondFriendRequest(request, "accept")} type="button">
-                          수락
+                          {t("chat.requests.accept")}
                         </button>
                         <button onClick={() => void respondFriendRequest(request, "reject")} type="button">
-                          거절
+                          {t("chat.requests.reject")}
                         </button>
                       </div>
                     </div>
@@ -1599,23 +1604,23 @@ function ChatPageContent() {
               ) : null}
               {sentFriendRequests.length > 0 ? (
                 <div className="workspace-route__request-group">
-                  <span>보낸 요청 {sentFriendRequests.length}</span>
+                  <span>{t("chat.requests.sent", { count: sentFriendRequests.length })}</span>
                   {sentFriendRequests.slice(0, 3).map((request) => (
                     <div className="workspace-route__friend-request workspace-route__friend-request--sent" key={request.id}>
                       <div>
                         <strong>{request.receiver.name}</strong>
                         <small>{request.receiver.bubliId}</small>
                       </div>
-                      <span>대기 중</span>
+                      <span>{t("chat.requests.waiting")}</span>
                     </div>
                   ))}
                 </div>
               ) : null}
             </div>
 
-            <div className="workspace-route__voice-card" aria-label="보이스 참여자">
+            <div className="workspace-route__voice-card" aria-label={t("chat.voiceCard.aria")}>
               <div className="workspace-route__chat-list-head">
-                <strong>보이스</strong>
+                <strong>{t("chat.voiceCard.title")}</strong>
                 <span>{voiceParticipants.length}</span>
               </div>
               <button
@@ -1626,32 +1631,32 @@ function ChatPageContent() {
               >
                 <Phone aria-hidden size={17} strokeWidth={2} />
                 <div>
-                  <strong>{selectedRoom?.chatType === "ROOM" ? "프로젝트룸 보이스" : "1:1 보이스"}</strong>
-                  <small>{activeVoiceRoom ? "열림" : voiceState.kind === "ready" ? "종료됨" : selectedRoom?.chatType === "ROOM" ? "시작 가능" : "프로젝트룸 채팅에서 시작"}</small>
+                  <strong>{selectedRoom?.chatType === "ROOM" ? t("chat.voiceCard.roomVoice") : t("chat.voiceCard.directVoice")}</strong>
+                  <small>{activeVoiceRoom ? t("chat.voiceCard.open") : voiceState.kind === "ready" ? t("chat.voiceCard.ended") : selectedRoom?.chatType === "ROOM" ? t("chat.voiceCard.canStart") : t("chat.voiceCard.priority")}</small>
                 </div>
               </button>
-              <div className="workspace-route__voice-controls" aria-label="보이스 액션">
+              <div className="workspace-route__voice-controls" aria-label={t("chat.voiceCard.actionsAria")}>
                 <button disabled={!activeVoiceRoom || voiceAction === "token"} onClick={() => void requestVoiceToken()} type="button">
                   <KeyRound aria-hidden size={14} strokeWidth={2} />
-                  {voiceAction === "token" ? "받는 중" : "참여 토큰"}
+                  {voiceAction === "token" ? t("chat.voiceCard.receiving") : t("chat.voiceCard.joinToken")}
                 </button>
                 <button disabled={!activeVoiceRoom || voiceAction === "mic"} onClick={() => void toggleVoiceMic()} type="button">
                   {voiceMicMuted ? <Mic aria-hidden size={14} strokeWidth={2} /> : <MicOff aria-hidden size={14} strokeWidth={2} />}
-                  {voiceAction === "mic" ? "변경 중" : voiceMicMuted ? "마이크 켜기" : "마이크 끄기"}
+                  {voiceAction === "mic" ? t("chat.voiceCard.changing") : voiceMicMuted ? t("chat.voiceCard.micOn") : t("chat.voiceCard.micOff")}
                 </button>
                 <button disabled={!activeVoiceRoom || voiceAction === "leave"} onClick={() => void leaveVoice()} type="button">
                   <LogOut aria-hidden size={14} strokeWidth={2} />
-                  {voiceAction === "leave" ? "나가는 중" : "나가기"}
+                  {voiceAction === "leave" ? t("chat.voiceCard.leaving") : t("chat.voiceCard.leave")}
                 </button>
                 <button disabled={!activeVoiceRoom || voiceAction === "end"} onClick={() => void endVoice()} type="button">
                   <Square aria-hidden size={14} strokeWidth={2} />
-                  {voiceAction === "end" ? "종료 중" : "종료"}
+                  {voiceAction === "end" ? t("chat.voiceCard.ending") : t("chat.voiceCard.end")}
                 </button>
               </div>
               {voiceTokenInfo ? (
                 <div className="workspace-route__voice-note">
-                  <strong>토큰 준비됨</strong>
-                  <span>{voiceTokenInfo.serverUrl} · {compactDateTime(voiceTokenInfo.expiresAt)}까지</span>
+                  <strong>{t("chat.voiceCard.tokenReady")}</strong>
+                  <span>{t("chat.voiceCard.tokenUntil", { url: voiceTokenInfo.serverUrl, time: compactDateTime(voiceTokenInfo.expiresAt) })}</span>
                 </div>
               ) : null}
               {voiceNotice ? <div className="workspace-route__voice-note">{voiceNotice}</div> : null}
@@ -1662,10 +1667,10 @@ function ChatPageContent() {
                       <span data-status={participant.status.toLowerCase()}>{initialOf(participant.userName)}</span>
                       <div>
                         <strong>{participant.userName}</strong>
-                        <small>{index === 0 && participant.status === "JOINED" ? "말하는 중" : voiceParticipantStatusLabel(participant.status)}</small>
+                        <small>{index === 0 && participant.status === "JOINED" ? t("chat.voiceCard.speaking") : voiceParticipantStatusLabel(t, participant.status)}</small>
                       </div>
                     </div>
-                  )) : <span className="workspace-route__empty">아직 참여자가 없습니다</span>}
+                  )) : <span className="workspace-route__empty">{t("chat.voiceCard.noParticipants")}</span>}
                 </div>
               ) : null}
             </div>
@@ -1676,9 +1681,14 @@ function ChatPageContent() {
   );
 }
 
+function ChatPageFallback() {
+  const { t } = useI18n();
+  return <GlassPanel className="workspace-route__panel">{t("chat.panel.loading")}</GlassPanel>;
+}
+
 export default function ChatPage() {
   return (
-    <Suspense fallback={<GlassPanel className="workspace-route__panel">대화를 불러오는 중</GlassPanel>}>
+    <Suspense fallback={<ChatPageFallback />}>
       <ChatPageContent />
     </Suspense>
   );

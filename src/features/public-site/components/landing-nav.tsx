@@ -4,17 +4,20 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { siteConfig } from "@/config/site";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 // 메뉴는 별도 페이지가 아니라 같은 페이지 섹션으로 가는 앵커.
-const navLinks = [
-  { href: "/#features", id: "features", label: "기능" },
-  { href: "/#desktop", id: "desktop", label: "데스크탑 앱" },
-  { href: "/#download", id: "download", label: "다운로드" },
-  { href: "/#faq", id: "faq", label: "FAQ" },
+const navLinks: { href: string; id: string; labelKey: MessageKey }[] = [
+  { href: "/#features", id: "features", labelKey: "public.nav.features" },
+  { href: "/#desktop", id: "desktop", labelKey: "public.nav.desktop" },
+  { href: "/#download", id: "download", labelKey: "public.nav.download" },
+  { href: "/#faq", id: "faq", labelKey: "public.nav.faq" },
 ];
 
 export function LandingNav() {
+  const { t } = useI18n();
   const [activeSection, setActiveSection] = useState("hero");
   const [scrolled, setScrolled] = useState(false);
 
@@ -57,16 +60,16 @@ export function LandingNav() {
         <Link className="landing-nav__brand bubli-wordmark" href="/">
           {siteConfig.name}
         </Link>
-        <nav aria-label="공개 사이트" className="landing-nav__links">
+        <nav aria-label={t("public.nav.aria")} className="landing-nav__links">
           {navLinks.map((item) => (
             <Link aria-current={activeSection === item.id ? "page" : undefined} className={cn(activeSection === item.id && "is-active")} key={item.href} href={item.href}>
-              {item.label}
+              {t(item.labelKey)}
             </Link>
           ))}
         </nav>
         <div className="landing-nav__cta">
           <Link className="bubli-button bubli-button--primary bubli-button--sm" href="/login">
-            로그인
+            {t("common.login")}
           </Link>
         </div>
       </div>

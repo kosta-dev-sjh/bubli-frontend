@@ -27,18 +27,9 @@ export const DefaultReadability: Story = {
 
 export const NeedsAdjustment: Story = {
   args: {
-    scenarios: [
-      ...defaultReadabilityScenarios.slice(0, 2),
-      {
-        background: "busy",
-        caption: "복잡한 배경에서 글자 크기와 불투명도를 더 올려야 하는 상태",
-        fontScale: 90,
-        ghostMode: true,
-        result: "fail",
-        textMode: "auto",
-        title: "복잡한 배경 조정 필요",
-      },
-    ],
+    scenarios: defaultReadabilityScenarios.map((scenario) =>
+      scenario.background === "busy" ? { ...scenario, fontScale: 90, ghostMode: true, result: "fail" as const } : scenario,
+    ),
     title: "가독성 조정 필요 상태",
   },
 };

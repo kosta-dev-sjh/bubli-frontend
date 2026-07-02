@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Archive,
   CheckCircle2,
@@ -15,6 +17,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./personal-agent-summary-boundary-panel.module.css";
@@ -43,34 +47,35 @@ export type PersonalAgentSummaryBoundaryPanelProps = HTMLAttributes<HTMLElement>
   summaryInputs: SummaryInput[];
 };
 
-const sideMeta: Record<StorageSide, { label: string; tone: StatusTone; icon: typeof HardDrive }> = {
-  LOCAL_ONLY: { icon: HardDrive, label: "기기 안 원문", tone: "personal" },
-  LOCAL_SUMMARY: { icon: Archive, label: "기기 안 요약", tone: "pending" },
-  SERVER_APPROVED: { icon: Cloud, label: "확인 후 저장", tone: "approved" },
+const sideMeta: Record<StorageSide, { labelKey: MessageKey; tone: StatusTone; icon: typeof HardDrive }> = {
+  LOCAL_ONLY: { icon: HardDrive, labelKey: "agent.boundary.sideLocalOnly", tone: "personal" },
+  LOCAL_SUMMARY: { icon: Archive, labelKey: "agent.boundary.sideLocalSummary", tone: "pending" },
+  SERVER_APPROVED: { icon: Cloud, labelKey: "agent.boundary.sideServerApproved", tone: "approved" },
 };
 
-const statusMeta: Record<BoundaryStatus, { label: string; tone: StatusTone }> = {
-  ACTIVE: { label: "사용 중", tone: "todo" },
-  READY: { label: "확인 대기", tone: "pending" },
-  SAVED: { label: "저장됨", tone: "approved" },
+const statusMeta: Record<BoundaryStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  ACTIVE: { labelKey: "agent.boundary.statusActive", tone: "todo" },
+  READY: { labelKey: "agent.boundary.statusReady", tone: "pending" },
+  SAVED: { labelKey: "agent.boundary.statusSaved", tone: "approved" },
 };
 
+// label/description/source は t() キーを保持し、レンダー時に翻訳する(value はそのまま表示)。
 export const defaultBoundaryItems: BoundaryItem[] = [
   {
-    description: "개인 에이전트와 나눈 최근 대화 원문입니다. 서버에 올리지 않고 기기 안에만 둡니다.",
-    label: "최근 대화 원문",
+    description: "agent.boundary.item1Desc",
+    label: "agent.boundary.item1Label",
     side: "LOCAL_ONLY",
     status: "ACTIVE",
   },
   {
-    description: "오래된 원문을 줄이기 위해 기기 안에서 만든 짧은 맥락 요약입니다.",
-    label: "로컬 맥락 요약",
+    description: "agent.boundary.item2Desc",
+    label: "agent.boundary.item2Label",
     side: "LOCAL_SUMMARY",
     status: "READY",
   },
   {
-    description: "사용자가 확인한 하루정리 결과입니다. 대시보드와 기록 조회를 위해 서버에 저장할 수 있습니다.",
-    label: "하루정리 결과",
+    description: "agent.boundary.item3Desc",
+    label: "agent.boundary.item3Label",
     side: "SERVER_APPROVED",
     status: "SAVED",
   },
@@ -78,28 +83,28 @@ export const defaultBoundaryItems: BoundaryItem[] = [
 
 export const defaultSummaryInputs: SummaryInput[] = [
   {
-    label: "완료 TODO",
-    source: "완료한 TODO",
+    label: "agent.boundary.input1Label",
+    source: "agent.boundary.input1Source",
     tone: "todo",
-    value: "4개",
+    value: "agent.boundary.input1Value",
   },
   {
-    label: "총 작업시간",
-    source: "작업 시간 기록",
+    label: "agent.boundary.input2Label",
+    source: "agent.boundary.input2Source",
     tone: "timer",
     value: "3h 42m",
   },
   {
-    label: "위젯 사용 집계",
-    source: "위젯 사용 집계",
+    label: "agent.boundary.input3Label",
+    source: "agent.boundary.input3Source",
     tone: "agent",
-    value: "8회",
+    value: "agent.boundary.input3Value",
   },
   {
-    label: "개인 에이전트 요약",
-    source: "기기 안 저장소",
+    label: "agent.boundary.input4Label",
+    source: "agent.boundary.input4Source",
     tone: "personal",
-    value: "1건",
+    value: "agent.boundary.input4Value",
   },
 ];
 
@@ -108,9 +113,11 @@ export function PersonalAgentSummaryBoundaryPanel({
   items,
   localMessageLimit = 100,
   summaryInputs,
-  title = "개인 에이전트 저장 경계",
+  title,
   ...props
 }: PersonalAgentSummaryBoundaryPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("agent.boundary.defaultTitle");
   const serverSavedCount = items.filter((item) => item.side === "SERVER_APPROVED").length;
   const localOnlyCount = items.filter((item) => item.side !== "SERVER_APPROVED").length;
 
@@ -118,23 +125,20 @@ export function PersonalAgentSummaryBoundaryPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<LockKeyhole size={16} strokeWidth={2.1} />}>개인 에이전트</Chip>
+          <Chip icon={<LockKeyhole size={16} strokeWidth={2.1} />}>{t("agent.boundary.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              개인 에이전트 대화 원문은 기기 안에 둡니다. 하루정리는 확정된 기록과 기기 안 요약을 함께 참고하되,
-              사용자가 확인한 결과만 서버에 저장합니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("agent.boundary.desc")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>기기 안 원문 제한</span>
-          <strong>{localMessageLimit}개</strong>
-          <StatusBadge tone="personal">기기 안 보관</StatusBadge>
+          <span>{t("agent.boundary.localLimit")}</span>
+          <strong>{t("agent.boundary.countItems", { count: localMessageLimit })}</strong>
+          <StatusBadge tone="personal">{t("agent.boundary.localKeep")}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.boundaryGrid} aria-label="저장 위치 경계">
+      <section className={styles.boundaryGrid} aria-label={t("agent.boundary.gridAria")}>
         {items.map((item) => {
           const side = sideMeta[item.side];
           const status = statusMeta[item.status];
@@ -147,11 +151,11 @@ export function PersonalAgentSummaryBoundaryPanel({
               </span>
               <div className={styles.boundaryCopy}>
                 <div className={styles.boundaryTop}>
-                  <strong>{item.label}</strong>
-                  <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                  <strong>{t(item.label as MessageKey)}</strong>
+                  <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
                 </div>
-                <p>{item.description}</p>
-                <StatusBadge tone={side.tone}>{side.label}</StatusBadge>
+                <p>{t(item.description as MessageKey)}</p>
+                <StatusBadge tone={side.tone}>{t(side.labelKey)}</StatusBadge>
               </div>
             </article>
           );
@@ -159,10 +163,10 @@ export function PersonalAgentSummaryBoundaryPanel({
       </section>
 
       <div className={styles.contentGrid}>
-        <section className={styles.policyCard} aria-label="저장 정책 요약">
+        <section className={styles.policyCard} aria-label={t("agent.boundary.policyAria")}>
           <div className={styles.sectionTitle}>
-            <strong>저장 정책</strong>
-            <StatusBadge tone="approved">경계 분리</StatusBadge>
+            <strong>{t("agent.boundary.policyTitle")}</strong>
+            <StatusBadge tone="approved">{t("agent.boundary.boundarySplit")}</StatusBadge>
           </div>
           <div className={styles.policyRows}>
             <div>
@@ -170,38 +174,38 @@ export function PersonalAgentSummaryBoundaryPanel({
                 <HardDrive size={16} strokeWidth={2.1} aria-hidden="true" />
               </span>
               <div>
-                <b>기기 안 보관</b>
-                <p>개인 대화 원문과 상세 맥락은 서버에 남기지 않습니다.</p>
+                <b>{t("agent.boundary.policyLocalLabel")}</b>
+                <p>{t("agent.boundary.policyLocalDesc")}</p>
               </div>
-              <strong>{localOnlyCount}종</strong>
+              <strong>{t("agent.boundary.countKinds", { count: localOnlyCount })}</strong>
             </div>
             <div>
               <span className={styles.policyIcon}>
                 <Cloud size={16} strokeWidth={2.1} aria-hidden="true" />
               </span>
               <div>
-                <b>확인 후 저장</b>
-                <p>사용자가 확인한 하루정리 결과만 서버에서 다시 불러올 수 있습니다.</p>
+                <b>{t("agent.boundary.policyServerLabel")}</b>
+                <p>{t("agent.boundary.policyServerDesc")}</p>
               </div>
-              <strong>{serverSavedCount}종</strong>
+              <strong>{t("agent.boundary.countKinds", { count: serverSavedCount })}</strong>
             </div>
           </div>
           <ProgressBar value={64} />
-          <p className={styles.policyNote}>원문을 무한히 쌓지 않고, 오래된 대화는 기기 안 요약 뒤 정리합니다.</p>
+          <p className={styles.policyNote}>{t("agent.boundary.policyNote")}</p>
         </section>
 
-        <section className={styles.inputCard} aria-label="하루정리 입력값">
+        <section className={styles.inputCard} aria-label={t("agent.boundary.inputAria")}>
           <div className={styles.sectionTitle}>
-            <strong>하루정리 입력값</strong>
-            <span className={styles.sectionMeta}>원본과 집계 우선</span>
+            <strong>{t("agent.boundary.inputTitle")}</strong>
+            <span className={styles.sectionMeta}>{t("agent.boundary.inputMeta")}</span>
           </div>
           <div className={styles.inputGrid}>
             {summaryInputs.map((input) => (
               <article key={input.label}>
-                <span>{input.label}</span>
-                <strong>{input.value}</strong>
-                <small>{input.source}</small>
-                <StatusBadge tone={input.tone}>참고</StatusBadge>
+                <span>{t(input.label as MessageKey)}</span>
+                <strong>{t(input.value as MessageKey)}</strong>
+                <small>{t(input.source as MessageKey)}</small>
+                <StatusBadge tone={input.tone}>{t("agent.boundary.reference")}</StatusBadge>
               </article>
             ))}
           </div>
@@ -211,14 +215,14 @@ export function PersonalAgentSummaryBoundaryPanel({
       <footer className={styles.footer}>
         <div className={styles.notice}>
           <ShieldCheck size={16} strokeWidth={2.1} aria-hidden="true" />
-          <span>개인 원문은 기기 안 백업 없이는 복구할 수 없습니다. 확인한 하루정리만 서버에서 복구됩니다.</span>
+          <span>{t("agent.boundary.footerNotice")}</span>
         </div>
         <div className={styles.actions}>
           <Button icon={<FileClock size={15} strokeWidth={2.1} />} size="sm" variant="quiet">
-            기기 안 요약 보기
+            {t("agent.boundary.viewLocalSummary")}
           </Button>
           <Button icon={<CheckCircle2 size={15} strokeWidth={2.1} />} size="sm" variant="primary">
-            하루정리 저장
+            {t("agent.boundary.saveDaily")}
           </Button>
         </div>
       </footer>

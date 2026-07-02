@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Bell,
   Clock3,
@@ -17,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./realtime-connection-status-panel.module.css";
@@ -50,11 +54,11 @@ type RealtimeConnectionStatusPanelProps = HTMLAttributes<HTMLElement> & {
   topics?: RealtimeTopicHealth[];
 };
 
-const stateCopy: Record<RealtimeConnectionState, string> = {
-  CONNECTED: "연결됨",
-  RECONNECTING: "재연결 중",
-  DEGRADED: "일부 지연",
-  DISCONNECTED: "끊김",
+const stateLabelKey: Record<RealtimeConnectionState, MessageKey> = {
+  CONNECTED: "chat.realtimePanel.stateConnected",
+  RECONNECTING: "chat.realtimePanel.stateReconnecting",
+  DEGRADED: "chat.realtimePanel.stateDegraded",
+  DISCONNECTED: "chat.realtimePanel.stateDisconnected",
 };
 
 const stateTone: Record<RealtimeConnectionState, "success" | "pending" | "warning" | "neutral"> = {
@@ -63,57 +67,6 @@ const stateTone: Record<RealtimeConnectionState, "success" | "pending" | "warnin
   DEGRADED: "warning",
   DISCONNECTED: "neutral",
 };
-
-const defaultTopics: RealtimeTopicHealth[] = [
-  {
-    icon: <MessageCircle size={16} />,
-    id: "chat",
-    label: "채팅 메시지",
-    lastEventLabel: "최근 메시지 129",
-    lagLabel: "방금 전",
-    sourceLabel: "서버 채팅 원본",
-    state: "CONNECTED",
-    topic: "/topic/chat/{chatRoomId}",
-  },
-  {
-    icon: <Radio size={16} />,
-    id: "room-events",
-    label: "프로젝트룸 이벤트",
-    lastEventLabel: "에이전트 정리 완료 대기",
-    lagLabel: "12초 전",
-    sourceLabel: "자료와 에이전트 후보",
-    state: "RECONNECTING",
-    topic: "/topic/project-rooms/{roomId}/events",
-  },
-  {
-    icon: <Bell size={16} />,
-    id: "notifications",
-    label: "개인 알림",
-    lastEventLabel: "읽지 않은 알림 2개",
-    lagLabel: "1분 전",
-    sourceLabel: "알림 원본",
-    state: "DEGRADED",
-    topic: "/user/queue/notifications",
-  },
-];
-
-const defaultRecoverySteps: RealtimeRecoveryStep[] = [
-  {
-    id: "server-source",
-    label: "서버 원본",
-    value: "확정 데이터는 서버 기록에서 다시 불러옵니다.",
-  },
-  {
-    id: "tauri-cache",
-    label: "앱 임시 보관",
-    value: "최근 메시지를 먼저 보여주고 서버 순서값 기준으로 보충합니다.",
-  },
-  {
-    id: "agent-events",
-    label: "에이전트 완료",
-    value: "에이전트 정리 상태 변경은 서버 이벤트와 알림으로 받습니다.",
-  },
-];
 
 function getConnectionIcon(state: RealtimeConnectionState) {
   if (state === "DISCONNECTED") {
@@ -127,14 +80,70 @@ export function RealtimeConnectionStatusPanel({
   appMode = "tauri",
   className,
   connectionState = "CONNECTED",
-  lastSyncedLabel = "최근 동기화 12초 전",
+  lastSyncedLabel,
   onRefreshMissingEvents,
   onReconnect,
-  recoverySteps = defaultRecoverySteps,
-  topics = defaultTopics,
+  recoverySteps,
+  topics,
   ...props
 }: RealtimeConnectionStatusPanelProps) {
-  const connectedTopicCount = topics.filter((topic) => topic.state === "CONNECTED").length;
+  const { t } = useI18n();
+
+  const defaultTopics: RealtimeTopicHealth[] = [
+    {
+      icon: <MessageCircle size={16} />,
+      id: "chat",
+      label: t("chat.realtimePanel.topicChatLabel"),
+      lastEventLabel: t("chat.realtimePanel.topicChatLastEvent"),
+      lagLabel: t("chat.realtimePanel.topicChatLag"),
+      sourceLabel: t("chat.realtimePanel.topicChatSource"),
+      state: "CONNECTED",
+      topic: "/topic/chat/{chatRoomId}",
+    },
+    {
+      icon: <Radio size={16} />,
+      id: "room-events",
+      label: t("chat.realtimePanel.topicRoomLabel"),
+      lastEventLabel: t("chat.realtimePanel.topicRoomLastEvent"),
+      lagLabel: t("chat.realtimePanel.topicRoomLag"),
+      sourceLabel: t("chat.realtimePanel.topicRoomSource"),
+      state: "RECONNECTING",
+      topic: "/topic/project-rooms/{roomId}/events",
+    },
+    {
+      icon: <Bell size={16} />,
+      id: "notifications",
+      label: t("chat.realtimePanel.topicNotifLabel"),
+      lastEventLabel: t("chat.realtimePanel.topicNotifLastEvent"),
+      lagLabel: t("chat.realtimePanel.topicNotifLag"),
+      sourceLabel: t("chat.realtimePanel.topicNotifSource"),
+      state: "DEGRADED",
+      topic: "/user/queue/notifications",
+    },
+  ];
+
+  const defaultRecoverySteps: RealtimeRecoveryStep[] = [
+    {
+      id: "server-source",
+      label: t("chat.realtimePanel.recoveryServerLabel"),
+      value: t("chat.realtimePanel.recoveryServerValue"),
+    },
+    {
+      id: "tauri-cache",
+      label: t("chat.realtimePanel.recoveryCacheLabel"),
+      value: t("chat.realtimePanel.recoveryCacheValue"),
+    },
+    {
+      id: "agent-events",
+      label: t("chat.realtimePanel.recoveryAgentLabel"),
+      value: t("chat.realtimePanel.recoveryAgentValue"),
+    },
+  ];
+
+  const resolvedTopics = topics ?? defaultTopics;
+  const resolvedRecoverySteps = recoverySteps ?? defaultRecoverySteps;
+  const resolvedLastSynced = lastSyncedLabel ?? t("chat.realtimePanel.lastSynced");
+  const connectedTopicCount = resolvedTopics.filter((topic) => topic.state === "CONNECTED").length;
   const isTauri = appMode === "tauri";
 
   return (
@@ -145,30 +154,30 @@ export function RealtimeConnectionStatusPanel({
             {getConnectionIcon(connectionState)}
           </span>
           <div>
-            <StatusBadge tone={stateTone[connectionState]}>{stateCopy[connectionState]}</StatusBadge>
-            <h2>실시간 연결 상태</h2>
-            <p>채팅, 알림, 에이전트 완료 이벤트를 받는 통로입니다.</p>
+            <StatusBadge tone={stateTone[connectionState]}>{t(stateLabelKey[connectionState])}</StatusBadge>
+            <h2>{t("chat.realtimePanel.title")}</h2>
+            <p>{t("chat.realtimePanel.subtitle")}</p>
           </div>
         </div>
         <div className={styles.actions}>
           <Button icon={<RefreshCcw size={15} />} onClick={onRefreshMissingEvents} size="sm" variant="quiet">
-            빠진 이벤트 확인
+            {t("chat.realtimePanel.checkMissing")}
           </Button>
           <Button icon={<PlugZap size={15} />} onClick={onReconnect} size="sm" variant="primary">
-            재연결
+            {t("chat.realtimePanel.reconnect")}
           </Button>
         </div>
       </header>
 
-      <div className={styles.summaryGrid} aria-label="실시간 연결 요약">
-        <SummaryItem icon={<Server size={17} />} label="연결 기준" value="서버 실시간 연결" />
-        <SummaryItem icon={<Radio size={17} />} label="구독 토픽" value={`${connectedTopicCount}/${topics.length} 정상`} />
-        <SummaryItem icon={<Database size={17} />} label="복구 기준" value={isTauri ? "서버 원본 + 기기 안 임시 보관" : "서버 원본"} />
-        <SummaryItem icon={<Clock3 size={17} />} label="동기화" value={lastSyncedLabel} />
+      <div className={styles.summaryGrid} aria-label={t("chat.realtimePanel.summaryAria")}>
+        <SummaryItem icon={<Server size={17} />} label={t("chat.realtimePanel.summaryBasisLabel")} value={t("chat.realtimePanel.summaryBasisValue")} />
+        <SummaryItem icon={<Radio size={17} />} label={t("chat.realtimePanel.summaryTopicLabel")} value={t("chat.realtimePanel.summaryTopicValue", { connected: connectedTopicCount, total: resolvedTopics.length })} />
+        <SummaryItem icon={<Database size={17} />} label={t("chat.realtimePanel.summaryRecoveryLabel")} value={isTauri ? t("chat.realtimePanel.summaryRecoveryTauri") : t("chat.realtimePanel.summaryRecoveryWeb")} />
+        <SummaryItem icon={<Clock3 size={17} />} label={t("chat.realtimePanel.summarySyncLabel")} value={resolvedLastSynced} />
       </div>
 
       <div className={styles.topicList}>
-        {topics.map((topic) => (
+        {resolvedTopics.map((topic) => (
           <article className={styles.topicCard} key={topic.id}>
             <div className={styles.topicIcon} aria-hidden="true">
               {topic.icon ?? <Radio size={16} />}
@@ -176,7 +185,7 @@ export function RealtimeConnectionStatusPanel({
             <div className={styles.topicBody}>
               <div className={styles.topicHead}>
                 <h3>{topic.label}</h3>
-                <StatusBadge tone={stateTone[topic.state]}>{stateCopy[topic.state]}</StatusBadge>
+                <StatusBadge tone={stateTone[topic.state]}>{t(stateLabelKey[topic.state])}</StatusBadge>
               </div>
               <code>{topic.topic}</code>
               <div className={styles.topicMeta}>
@@ -193,12 +202,12 @@ export function RealtimeConnectionStatusPanel({
         <div className={styles.recoveryTitle}>
           <ShieldCheck size={18} />
           <div>
-            <h3>끊겼을 때 기준</h3>
-            <p>화면 연결이 끊겨도 확정 데이터는 서버 원본을 기준으로 다시 맞춥니다.</p>
+            <h3>{t("chat.realtimePanel.recoveryTitle")}</h3>
+            <p>{t("chat.realtimePanel.recoveryBody")}</p>
           </div>
         </div>
         <ul className={styles.recoveryList}>
-          {recoverySteps.map((step) => (
+          {resolvedRecoverySteps.map((step) => (
             <li key={step.id}>
               <strong>{step.label}</strong>
               <span>{step.value}</span>
@@ -208,8 +217,8 @@ export function RealtimeConnectionStatusPanel({
       </div>
 
       <footer className={styles.footer}>
-        <span>웹은 서버 원본과 실시간 연결을 기준으로 다시 불러옵니다.</span>
-        <span>데스크탑 앱은 같은 서버 원본을 쓰고, 기기 안 임시 보관은 빠른 표시와 보충용으로만 씁니다.</span>
+        <span>{t("chat.realtimePanel.footerWeb")}</span>
+        <span>{t("chat.realtimePanel.footerApp")}</span>
       </footer>
     </GlassPanel>
   );

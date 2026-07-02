@@ -4,6 +4,7 @@ import { Check, Pencil, Plus, Trash2, UserRound, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import * as React from "react";
 
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./kanban.module.css";
@@ -58,8 +59,8 @@ type KanbanColumnStyle = CSSProperties & {
   "--kanban-column-color": string;
 };
 
-function getInitial(label?: string) {
-  if (!label) return "미";
+function getInitial(label: string | undefined, fallback: string) {
+  if (!label) return fallback;
 
   return label.trim().slice(0, 1).toUpperCase();
 }
@@ -84,6 +85,7 @@ export function KanbanBoard({
   assigneeOptions = [],
   deletingTaskId,
 }: KanbanBoardProps) {
+  const { t } = useI18n();
   const [columns, setColumns] = React.useState<KanbanColumn[]>(initialColumns);
   const [draggedTask, setDraggedTask] = React.useState<{
     task: KanbanTask;
@@ -231,7 +233,7 @@ export function KanbanBoard({
                       <div className={styles.taskTitleSlot}>
                         {isEditing ? (
                           <input
-                            aria-label="작업명 수정"
+                            aria-label={t("ui.kanban.editTaskName")}
                             className={styles.taskTitleInput}
                             onChange={(event) => setEditingTitle(event.target.value)}
                             onClick={stopInteractive}
@@ -250,7 +252,7 @@ export function KanbanBoard({
                         {isEditing ? (
                           <>
                             <button
-                              aria-label="작업명 저장"
+                              aria-label={t("ui.kanban.saveTaskName")}
                               className={styles.iconButton}
                               onClick={(event) => {
                                 stopInteractive(event);
@@ -262,7 +264,7 @@ export function KanbanBoard({
                               <Check aria-hidden="true" size={15} strokeWidth={2.3} />
                             </button>
                             <button
-                              aria-label="작업명 수정 취소"
+                              aria-label={t("ui.kanban.cancelEditTaskName")}
                               className={styles.iconButton}
                               onClick={(event) => {
                                 stopInteractive(event);
@@ -277,7 +279,7 @@ export function KanbanBoard({
                         ) : (
                           <>
                             <button
-                              aria-label="작업명 수정"
+                              aria-label={t("ui.kanban.editTaskName")}
                               className={styles.iconButton}
                               onClick={(event) => {
                                 stopInteractive(event);
@@ -290,7 +292,7 @@ export function KanbanBoard({
                             </button>
                             {onTaskDelete ? (
                               <button
-                                aria-label="작업 삭제"
+                                aria-label={t("ui.kanban.deleteTask")}
                                 className={cn(styles.iconButton, styles.iconButtonDanger)}
                                 disabled={deletingTaskId === task.id}
                                 onClick={(event) => {
@@ -323,17 +325,17 @@ export function KanbanBoard({
                     <footer className={styles.cardFooter}>
                       <label className={styles.assigneeControl}>
                         <span className={styles.avatar}>
-                          {assigneeLabel ? getInitial(assigneeLabel) : <UserRound aria-hidden="true" size={14} strokeWidth={2.1} />}
+                          {assigneeLabel ? getInitial(assigneeLabel, t("ui.kanban.assigneeInitialFallback")) : <UserRound aria-hidden="true" size={14} strokeWidth={2.1} />}
                         </span>
                         <select
-                          aria-label="담당자 선택"
+                          aria-label={t("ui.kanban.selectAssignee")}
                           className={styles.assigneeSelect}
                           onChange={(event) => onTaskAssigneeChange?.(task.id, event.target.value || null)}
                           onClick={stopInteractive}
                           onPointerDown={stopInteractive}
                           value={task.assigneeId ?? ""}
                         >
-                          <option value="">미지정</option>
+                          <option value="">{t("ui.kanban.unassigned")}</option>
                           {assigneeOptions.map((option) => (
                             <option key={option.id} value={option.id}>
                               {option.shortLabel ?? option.label}
@@ -355,17 +357,17 @@ export function KanbanBoard({
                       onKeyDown={(event) => {
                         if (event.key === "Enter") handleAddCard(column.id);
                       }}
-                      placeholder="작업명 입력"
+                      placeholder={t("ui.kanban.taskNamePlaceholder")}
                       ref={inputRef}
                       type="text"
                       value={newCardTitle}
                     />
                     <div className={styles.addActions}>
                       <button className={styles.addButton} onClick={() => handleAddCard(column.id)} type="button">
-                        추가
+                        {t("ui.kanban.addCard")}
                       </button>
                       <button
-                        aria-label="작업 추가 취소"
+                        aria-label={t("ui.kanban.cancelAddCard")}
                         className={styles.cancelButton}
                         onClick={() => {
                           setAddingCardTo(null);
@@ -380,7 +382,7 @@ export function KanbanBoard({
                 ) : (
                   <button className={styles.addCardButton} onClick={() => setAddingCardTo(column.id)} type="button">
                     <Plus aria-hidden="true" size={15} strokeWidth={2.2} />
-                    작업 추가
+                    {t("ui.kanban.addCardButton")}
                   </button>
                 )
               ) : null}

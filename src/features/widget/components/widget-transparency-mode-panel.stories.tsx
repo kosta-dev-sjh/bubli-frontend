@@ -43,10 +43,9 @@ export const TranslucentMode: Story = {
 export const GhostMode: Story = {
   args: {
     activeMode: "ghost",
-    backgroundChecks: [
-      ...defaultBackgroundChecks.slice(0, 2),
-      { background: "busy", label: "창이 겹친 화면", result: "pass" },
-    ],
+    backgroundChecks: defaultBackgroundChecks.map((check) =>
+      check.background === "busy" ? { ...check, result: "pass" as const } : check,
+    ),
     options: defaultTransparencyOptions,
     title: "고스트 위젯 단계",
   },

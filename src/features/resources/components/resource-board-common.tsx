@@ -26,6 +26,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type {
   ResourceCommentResponse,
@@ -41,29 +43,38 @@ import styles from "./resource-board-polish.module.css";
 export type ViewMode = "grid" | "list";
 export type ResourceBoardScope = "personal" | "room";
 
-export const statusCopy: Record<ResourceStatus, string> = {
-  ANALYZED: "정리됨",
-  ANALYZING: "정리 중",
-  ARCHIVED: "보관됨",
-  FAILED: "확인 필요",
-  READY: "준비됨",
-  UPLOADED: "업로드됨",
-  UPLOADING: "업로드 중",
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
+
+const statusCopyKey: Record<ResourceStatus, MessageKey> = {
+  ANALYZED: "resources.common.statusAnalyzed",
+  ANALYZING: "resources.common.statusAnalyzing",
+  ARCHIVED: "resources.common.statusArchived",
+  FAILED: "resources.common.statusFailed",
+  READY: "resources.common.statusReady",
+  UPLOADED: "resources.common.statusUploaded",
+  UPLOADING: "resources.common.statusUploading",
 };
 
-export const summaryStatusCopy: Record<ResourceSummaryStatus, string> = {
-  FAILED: "확인 필요",
-  NONE: "정리 전",
-  PENDING: "정리 중",
-  SUCCEEDED: "완료",
+const summaryStatusCopyKey: Record<ResourceSummaryStatus, MessageKey> = {
+  FAILED: "resources.common.summaryFailed",
+  NONE: "resources.common.summaryNone",
+  PENDING: "resources.common.summaryPending",
+  SUCCEEDED: "resources.common.summarySucceeded",
 };
 
-const personalStatusCopy: Partial<Record<ResourceStatus, string>> = {
-  UPLOADED: "동기화됨",
-  UPLOADING: "동기화 중",
+const personalStatusCopyKey: Partial<Record<ResourceStatus, MessageKey>> = {
+  UPLOADED: "resources.common.personalUploaded",
+  UPLOADING: "resources.common.personalUploading",
 };
 
-export function getErrorMessage(error: unknown) {
+function statusLabel(t: TranslateFn, scope: ResourceBoardScope, status: ResourceStatus) {
+  const personalKey = scope === "personal" ? personalStatusCopyKey[status] : undefined;
+  return t(personalKey ?? statusCopyKey[status]);
+}
+
+// getErrorMessage returns the "AUTH_REQUIRED" sentinel or a raw error message.
+// When t is provided, the generic fallback is localized; otherwise the sentinel/message passthrough is kept.
+export function getErrorMessage(error: unknown, t?: TranslateFn) {
   if (error instanceof ApiClientError && error.status === 401) {
     return "AUTH_REQUIRED";
   }
@@ -72,17 +83,18 @@ export function getErrorMessage(error: unknown) {
     return error.message;
   }
 
-  return "자료를 불러오지 못했습니다";
+  return t ? t("resources.common.loadError") : "자료를 불러오지 못했습니다";
 }
 
-export function formatDate(value?: string | null) {
+export function formatDate(value?: string | null, t?: TranslateFn) {
+  const unknown = () => (t ? t("resources.common.dateUnknown") : "날짜 미정");
   if (!value) {
-    return "날짜 미정";
+    return unknown();
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "날짜 미정";
+    return unknown();
   }
 
   return new Intl.DateTimeFormat("ko-KR", {
@@ -214,9 +226,9 @@ function getResourcePreviewKind(resource: ResourceResponse): ResourcePreviewKind
   return "document";
 }
 
-function getKindLabel(kind: ResourcePreviewKind) {
+function getKindLabel(kind: ResourcePreviewKind, t: TranslateFn) {
   if (kind === "image") {
-    return "이미지";
+    return t("resources.common.kindImage");
   }
 
   if (kind === "word") {
@@ -228,7 +240,7 @@ function getKindLabel(kind: ResourcePreviewKind) {
   }
 
   if (kind === "sheet") {
-    return "표";
+    return t("resources.common.kindSheet");
   }
 
   if (kind === "pdf") {
@@ -247,7 +259,7 @@ function getKindLabel(kind: ResourcePreviewKind) {
     return "HWP";
   }
 
-  return "문서";
+  return t("resources.common.kindDocument");
 }
 
 function ResourceKindIcon({ kind, size, strokeWidth }: { kind: ResourcePreviewKind; size: number; strokeWidth: number }) {
@@ -273,31 +285,32 @@ function ResourceKindIcon({ kind, size, strokeWidth }: { kind: ResourcePreviewKi
 export function ResourceScopeSwitch({
   activeScope,
   roomHref,
-  roomLabel = "프로젝트룸",
+  roomLabel,
 }: {
   activeScope: ResourceBoardScope;
   roomHref: string;
   roomLabel?: string;
 }) {
+  const { t } = useI18n();
   const scopes = [
     {
-      description: "로컬 폴더",
+      description: t("resources.scope.personalDesc"),
       href: "/app/resources",
       icon: HardDrive,
       id: "personal" as const,
-      title: "개인",
+      title: t("resources.scope.personalTitle"),
     },
     {
-      description: "공용 자료",
+      description: t("resources.scope.roomDesc"),
       href: roomHref,
       icon: UsersRound,
       id: "room" as const,
-      title: roomLabel,
+      title: roomLabel ?? t("resources.common.roomFallback"),
     },
   ];
 
   return (
-    <div className={styles.scopeSwitch} aria-label="자료보드 범위 전환">
+    <div className={styles.scopeSwitch} aria-label={t("resources.scope.switchAria")}>
       {scopes.map((scope) => {
         const Icon = scope.icon;
 
@@ -347,21 +360,22 @@ export function ResourceToolbar({
   onQuery: (value: string) => void;
   onViewMode: (mode: ViewMode) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="resource-workspace__toolbar">
       <div className="resource-workspace__search">
         <Search aria-hidden size={17} strokeWidth={2} />
-        <input aria-label="자료 검색" onChange={(event) => onQuery(event.target.value)} placeholder="파일명, 상태로 찾기" value={query} />
+        <input aria-label={t("resources.common.searchAria")} onChange={(event) => onQuery(event.target.value)} placeholder={t("resources.common.searchPlaceholder")} value={query} />
       </div>
 
-      <div className={styles.viewToggle} aria-label="보기 방식">
-        <button className={cn(viewMode === "grid" && "is-active")} onClick={() => onViewMode("grid")} title="격자 보기" type="button">
+      <div className={styles.viewToggle} aria-label={t("resources.common.viewModeAria")}>
+        <button className={cn(viewMode === "grid" && "is-active")} onClick={() => onViewMode("grid")} title={t("resources.common.viewGridTitle")} type="button">
           <Grid3X3 aria-hidden size={16} strokeWidth={2} />
-          <span>객체</span>
+          <span>{t("resources.common.viewGridLabel")}</span>
         </button>
-        <button className={cn(viewMode === "list" && "is-active")} onClick={() => onViewMode("list")} title="목록 보기" type="button">
+        <button className={cn(viewMode === "list" && "is-active")} onClick={() => onViewMode("list")} title={t("resources.common.viewListTitle")} type="button">
           <List aria-hidden size={16} strokeWidth={2} />
-          <span>목록</span>
+          <span>{t("resources.common.viewListLabel")}</span>
         </button>
       </div>
     </div>
@@ -381,10 +395,11 @@ export function ResourceTile({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const { t } = useI18n();
   const size = formatSize(resource.currentVersion?.sizeBytes);
-  const visibleStatus = scope === "personal" ? personalStatusCopy[resource.status] ?? statusCopy[resource.status] : statusCopy[resource.status];
+  const visibleStatus = statusLabel(t, scope, resource.status);
   const previewKind = getResourcePreviewKind(resource);
-  const kindLabel = getKindLabel(previewKind);
+  const kindLabel = getKindLabel(previewKind, t);
 
   return (
     <button
@@ -401,7 +416,7 @@ export function ResourceTile({
       <span className="resource-workspace__item-main">
         <b>{resource.title}</b>
         <span>
-          {kindLabel} · {formatDate(resource.updatedAt)}
+          {kindLabel} · {formatDate(resource.updatedAt, t)}
           {size ? ` / ${size}` : ""}
         </span>
       </span>
@@ -426,6 +441,7 @@ export function ResourcePreview({
   onDeleted?: () => void;
   onError?: (message: string) => void;
 }) {
+  const { t } = useI18n();
   const [detailResource, setDetailResource] = useState<ResourceResponse | null>(resource);
   const [summary, setSummary] = useState<ResourceSummaryResponse | null>(null);
   const [versions, setVersions] = useState<ResourceVersionResponse[]>([]);
@@ -533,9 +549,9 @@ export function ResourcePreview({
       const response = await resourcesApi.getDownloadUrl(activeResource.id);
       window.open(response.url, "_blank", "noopener,noreferrer");
     } catch (error) {
-      onError?.(getErrorMessage(error));
+      onError?.(getErrorMessage(error, t));
     }
-  }, [activeResource, onError]);
+  }, [activeResource, onError, t]);
 
   const handleAnalyzeResource = useCallback(async () => {
     if (!activeResource || analysisState.kind === "running") {
@@ -553,10 +569,10 @@ export function ResourcePreview({
       setAnalysisState({ jobId: job.jobId, kind: "started" });
       setDetailResource((current) => (current && current.id === activeResource.id ? { ...current, status: "ANALYZING" } : current));
     } catch (error) {
-      const message = getErrorMessage(error);
+      const message = getErrorMessage(error, t);
       setAnalysisState({ kind: "error", message });
     }
-  }, [activeResource, analysisState.kind]);
+  }, [activeResource, analysisState.kind, t]);
 
   const handleGenerateQuestions = useCallback(async () => {
     if (!roomId || questionState.kind === "running") {
@@ -569,9 +585,9 @@ export function ResourcePreview({
       const job = await agentApi.generateQuestions({ roomId });
       setQuestionState({ jobId: job.jobId, kind: "started" });
     } catch (error) {
-      setQuestionState({ kind: "error", message: getErrorMessage(error) });
+      setQuestionState({ kind: "error", message: getErrorMessage(error, t) });
     }
-  }, [questionState.kind, roomId]);
+  }, [questionState.kind, roomId, t]);
 
   const handleDraftDocument = useCallback(async () => {
     if (!activeResource || !roomId || draftState.kind === "running") {
@@ -583,15 +599,15 @@ export function ResourcePreview({
     try {
       const job = await agentApi.draftDocument({
         documentType: "proposal",
-        instruction: "요구사항 문서를 바탕으로 제안서 초안을 작성해줘",
+        instruction: t("resources.common.draftInstruction"),
         roomId,
         sourceResourceIds: [activeResource.id],
       });
       setDraftState({ jobId: job.jobId, kind: "started" });
     } catch (error) {
-      setDraftState({ kind: "error", message: getErrorMessage(error) });
+      setDraftState({ kind: "error", message: getErrorMessage(error, t) });
     }
-  }, [activeResource, draftState.kind, roomId]);
+  }, [activeResource, draftState.kind, roomId, t]);
 
   const handleCreateComment = useCallback(async () => {
     const body = commentBody.trim();
@@ -607,11 +623,11 @@ export function ResourcePreview({
       setComments((current) => sortComments([...current, comment]));
       setCommentBody("");
     } catch (error) {
-      setCommentError(getErrorMessage(error));
+      setCommentError(getErrorMessage(error, t));
     } finally {
       setCommentBusyId(null);
     }
-  }, [activeResource, commentBody]);
+  }, [activeResource, commentBody, t]);
 
   const startEditComment = useCallback((comment: ResourceCommentResponse) => {
     setEditingCommentId(comment.id);
@@ -635,12 +651,12 @@ export function ResourcePreview({
         setEditingCommentId(null);
         setEditingCommentBody("");
       } catch (error) {
-        setCommentError(getErrorMessage(error));
+        setCommentError(getErrorMessage(error, t));
       } finally {
         setCommentBusyId(null);
       }
     },
-    [editingCommentBody],
+    [editingCommentBody, t],
   );
 
   const handleDeleteComment = useCallback(async (commentId: string) => {
@@ -655,11 +671,11 @@ export function ResourcePreview({
         setEditingCommentBody("");
       }
     } catch (error) {
-      setCommentError(getErrorMessage(error));
+      setCommentError(getErrorMessage(error, t));
     } finally {
       setCommentBusyId(null);
     }
-  }, [editingCommentId]);
+  }, [editingCommentId, t]);
 
   const handleDeleteResource = useCallback(async () => {
     if (!activeResource || deleteState.kind === "deleting") {
@@ -673,74 +689,74 @@ export function ResourcePreview({
       onDeleted?.();
       onClose?.();
     } catch (error) {
-      setDeleteState({ kind: "error", message: getErrorMessage(error) });
+      setDeleteState({ kind: "error", message: getErrorMessage(error, t) });
     }
-  }, [activeResource, deleteState.kind, onClose, onDeleted]);
+  }, [activeResource, deleteState.kind, onClose, onDeleted, t]);
 
   if (!activeResource) {
     return null;
   }
 
-  const visibleStatus = activeResource
-    ? scope === "personal"
-      ? personalStatusCopy[activeResource.status] ?? statusCopy[activeResource.status]
-      : statusCopy[activeResource.status]
-    : "선택 전";
+  const visibleStatus = statusLabel(t, scope, activeResource.status);
   const previewKind = getResourcePreviewKind(activeResource);
-  const previewLabel = getKindLabel(previewKind);
+  const previewLabel = getKindLabel(previewKind, t);
   const size = formatSize(latestVersion?.sizeBytes);
   const originalName = latestVersion?.originalName ?? activeResource.title;
   const versionLabel = latestVersion ? `v${latestVersion.versionNo}` : "v1";
-  const summaryLabel = summary?.status ? summaryStatusCopy[summary.status] : activeResource.summaryStatus ? summaryStatusCopy[activeResource.summaryStatus] : visibleStatus;
+  const summaryLabel = summary?.status
+    ? t(summaryStatusCopyKey[summary.status])
+    : activeResource.summaryStatus
+      ? t(summaryStatusCopyKey[activeResource.summaryStatus])
+      : visibleStatus;
 
   return (
-    <aside className={cn("resource-workspace__preview", styles.previewPanel)} aria-label="자료 미리보기">
+    <aside className={cn("resource-workspace__preview", styles.previewPanel)} aria-label={t("resources.common.previewAria")}>
       <div className={styles.previewTitle}>
         <div>
-          <span>상세 정보</span>
+          <span>{t("resources.common.previewDetail")}</span>
           <strong>{visibleStatus}</strong>
         </div>
         <div className={styles.previewTitleActions}>
           <button
-            aria-label="AI 자료 분석 시작"
+            aria-label={t("resources.common.analyzeStartAria")}
             className={styles.analyzeResourceButton}
             disabled={analysisState.kind === "running"}
             onClick={() => void handleAnalyzeResource()}
-            title="AI 자료 분석 시작"
+            title={t("resources.common.analyzeStartAria")}
             type="button"
           >
             <Sparkles aria-hidden size={15} strokeWidth={2} />
-            <span>{analysisState.kind === "running" ? "분석 중" : "AI 분석"}</span>
+            <span>{analysisState.kind === "running" ? t("resources.common.analyzing") : t("resources.common.aiAnalyze")}</span>
           </button>
-          <button aria-label="미리보기 닫기" className={styles.closePreview} onClick={onClose} type="button">
+          <button aria-label={t("resources.common.previewCloseAria")} className={styles.closePreview} onClick={onClose} type="button">
             <X aria-hidden size={16} strokeWidth={2} />
           </button>
         </div>
       </div>
 
       {roomId ? (
-        <div className={styles.previewAiActions} aria-label="자료 AI 생성 액션">
+        <div className={styles.previewAiActions} aria-label={t("resources.common.aiActionsAria")}>
           <button
-            aria-label="질문 후보 생성"
+            aria-label={t("resources.common.generateQuestionsAria")}
             className={styles.analyzeResourceButton}
             disabled={questionState.kind === "running"}
             onClick={() => void handleGenerateQuestions()}
-            title="질문 후보 생성"
+            title={t("resources.common.generateQuestionsAria")}
             type="button"
           >
             <MessageSquareText aria-hidden size={15} strokeWidth={2} />
-            <span>{questionState.kind === "running" ? "질문 생성 중" : "질문 후보"}</span>
+            <span>{questionState.kind === "running" ? t("resources.common.questionRunning") : t("resources.common.questionCandidate")}</span>
           </button>
           <button
-            aria-label="문서 초안 생성"
+            aria-label={t("resources.common.draftDocumentAria")}
             className={styles.analyzeResourceButton}
             disabled={draftState.kind === "running"}
             onClick={() => void handleDraftDocument()}
-            title="문서 초안 생성"
+            title={t("resources.common.draftDocumentAria")}
             type="button"
           >
             <FileText aria-hidden size={15} strokeWidth={2} />
-            <span>{draftState.kind === "running" ? "초안 생성 중" : "문서 초안"}</span>
+            <span>{draftState.kind === "running" ? t("resources.common.draftRunning") : t("resources.common.documentDraft")}</span>
           </button>
         </div>
       ) : null}
@@ -756,7 +772,7 @@ export function ResourcePreview({
               <ResourceKindIcon kind={previewKind} size={20} strokeWidth={1.9} />
             </span>
             <div>
-              <span>{activeResource.visibility === "PERSONAL" ? "개인 색인" : "프로젝트룸 공용"}</span>
+              <span>{activeResource.visibility === "PERSONAL" ? t("resources.common.indexPersonal") : t("resources.common.indexRoom")}</span>
               <h2>{activeResource.title}</h2>
               <p>{originalName}</p>
             </div>
@@ -764,80 +780,80 @@ export function ResourcePreview({
 
           <dl className={styles.fileFacts}>
             <div>
-              <dt>파일 형식</dt>
+              <dt>{t("resources.common.factKind")}</dt>
               <dd>{previewLabel}</dd>
             </div>
             <div>
-              <dt>원본</dt>
+              <dt>{t("resources.common.factOriginal")}</dt>
               <dd>{originalName}</dd>
             </div>
             <div>
-              <dt>정리 상태</dt>
+              <dt>{t("resources.common.factSummary")}</dt>
               <dd>{summaryLabel}</dd>
             </div>
             <div>
-              <dt>버전</dt>
+              <dt>{t("resources.common.factVersion")}</dt>
               <dd>{versionLabel}</dd>
             </div>
           </dl>
 
           <div className={cn(styles.previewBody, styles[`previewBody${previewKind[0].toUpperCase()}${previewKind.slice(1)}`])}>
-            <strong>{summaryText ? "요약" : `${previewLabel} 정보`}</strong>
+            <strong>{summaryText ? t("resources.common.summaryHeading") : t("resources.common.previewInfoSuffix", { label: previewLabel })}</strong>
             <span>
               {summaryText ??
                 (activeResource.visibility === "PERSONAL"
-                  ? "내 로컬 폴더에서 색인된 개인 자료입니다."
-                  : "현재 프로젝트룸 멤버가 함께 확인하는 공용 자료입니다.")}
+                  ? t("resources.common.previewBodyPersonal")
+                  : t("resources.common.previewBodyRoom"))}
             </span>
           </div>
 
-          <section className={styles.detailPanel} aria-label="자료 상세 API 상태">
+          <section className={styles.detailPanel} aria-label={t("resources.common.detailApiAria")}>
             <div>
-              <span>상세 조회</span>
-              <strong>{detailLoading ? "불러오는 중" : detailError ? "일부 대기" : "연결됨"}</strong>
+              <span>{t("resources.common.detailLookup")}</span>
+              <strong>{detailLoading ? t("resources.common.loading") : detailError ? t("resources.common.partialPending") : t("resources.common.connected")}</strong>
             </div>
             <div>
-              <span>요약 모델</span>
-              <strong>{summary?.modelName ?? summary?.promptVersion ?? "대기"}</strong>
+              <span>{t("resources.common.summaryModel")}</span>
+              <strong>{summary?.modelName ?? summary?.promptVersion ?? t("resources.common.pending")}</strong>
             </div>
             <div>
-              <span>댓글</span>
-              <strong>{comments.length}개</strong>
+              <span>{t("resources.common.commentsLabel")}</span>
+              <strong>{t("resources.common.countUnit", { count: comments.length })}</strong>
             </div>
             <div>
-              <span>버전</span>
-              <strong>{versions.length || (activeResource.currentVersion ? 1 : 0)}개</strong>
+              <span>{t("resources.common.factVersion")}</span>
+              <strong>{t("resources.common.countUnit", { count: versions.length || (activeResource.currentVersion ? 1 : 0) })}</strong>
             </div>
           </section>
 
           {detailError ? <p className={styles.previewError}>{detailError}</p> : null}
-          {analysisState.kind === "started" ? <p className={styles.previewNotice}>AI 분석 작업을 시작했습니다. 작업 ID: {analysisState.jobId.slice(0, 8)}</p> : null}
-          {analysisState.kind === "running" ? <p className={styles.previewNotice}>AI 분석 작업을 요청하는 중입니다.</p> : null}
+          {analysisState.kind === "started" ? <p className={styles.previewNotice}>{t("resources.common.analysisStarted", { jobId: analysisState.jobId.slice(0, 8) })}</p> : null}
+          {analysisState.kind === "running" ? <p className={styles.previewNotice}>{t("resources.common.analysisRunning")}</p> : null}
           {analysisState.kind === "error" ? <p className={styles.previewError}>{analysisState.message}</p> : null}
-          {questionState.kind === "started" ? <p className={styles.previewNotice}>질문 후보 생성 요청됨. 작업 ID: {questionState.jobId.slice(0, 8)}</p> : null}
-          {questionState.kind === "running" ? <p className={styles.previewNotice}>질문 후보 생성 중입니다.</p> : null}
-          {questionState.kind === "error" ? <p className={styles.previewError}>질문 후보 생성 실패: {questionState.message}</p> : null}
-          {draftState.kind === "started" ? <p className={styles.previewNotice}>문서 초안 생성 요청됨. 작업 ID: {draftState.jobId.slice(0, 8)}</p> : null}
-          {draftState.kind === "running" ? <p className={styles.previewNotice}>문서 초안 생성 중입니다.</p> : null}
-          {draftState.kind === "error" ? <p className={styles.previewError}>문서 초안 생성 실패: {draftState.message}</p> : null}
+          {questionState.kind === "started" ? <p className={styles.previewNotice}>{t("resources.common.questionStarted", { jobId: questionState.jobId.slice(0, 8) })}</p> : null}
+          {questionState.kind === "running" ? <p className={styles.previewNotice}>{t("resources.common.questionRunningNotice")}</p> : null}
+          {questionState.kind === "error" ? <p className={styles.previewError}>{t("resources.common.questionFailed", { message: questionState.message })}</p> : null}
+          {draftState.kind === "started" ? <p className={styles.previewNotice}>{t("resources.common.draftStarted", { jobId: draftState.jobId.slice(0, 8) })}</p> : null}
+          {draftState.kind === "running" ? <p className={styles.previewNotice}>{t("resources.common.draftRunningNotice")}</p> : null}
+          {draftState.kind === "error" ? <p className={styles.previewError}>{t("resources.common.draftFailed", { message: draftState.message })}</p> : null}
         </div>
       </div>
 
       <div className="resource-workspace__preview-meta">
         <div>
-          <span>상태</span>
+          <span>{t("resources.common.metaStatus")}</span>
           <StatusBadge tone={toneForStatus(activeResource.status)}>{visibleStatus}</StatusBadge>
         </div>
         <div>
-          <span>최근 수정</span>
-          <b>{formatDate(activeResource.updatedAt)}</b>
+          <span>{t("resources.common.metaUpdated")}</span>
+          <b>{formatDate(activeResource.updatedAt, t)}</b>
         </div>
         <div>
-          <span>위치</span>
-          <b>{activeResource.visibility === "PERSONAL" ? "개인 자료" : "프로젝트룸 자료"}</b>
+          <span>{t("resources.common.metaLocation")}</span>
+          <b>{activeResource.visibility === "PERSONAL" ? t("resources.common.metaLocationPersonal") : t("resources.common.metaLocationRoom")}</b>
         </div>
         <div>
-          <span>파일</span>
+          <span>{t("resources.common.metaFile")}</span>
           <b>{size ?? previewLabel}</b>
         </div>
       </div>
@@ -845,15 +861,15 @@ export function ResourcePreview({
       <div className="resource-workspace__preview-actions">
         <Button onClick={handleDownload} variant="primary">
           <Download aria-hidden size={16} strokeWidth={2} />
-          다운로드
+          {t("resources.common.download")}
         </Button>
       </div>
 
-      <section className={styles.commentPanel} aria-label="자료 댓글">
+      <section className={styles.commentPanel} aria-label={t("resources.common.commentsAria")}>
         <div className={styles.commentPanelTitle}>
           <div>
-            <span>댓글</span>
-            <strong>{comments.length ? `${comments.length}개 연결됨` : "첫 댓글 대기"}</strong>
+            <span>{t("resources.common.commentsLabel")}</span>
+            <strong>{comments.length ? t("resources.common.commentsLinked", { count: comments.length }) : t("resources.common.commentsEmptyTitle")}</strong>
           </div>
           <MessageSquareText aria-hidden size={18} strokeWidth={2} />
         </div>
@@ -866,14 +882,14 @@ export function ResourcePreview({
           }}
         >
           <textarea
-            aria-label="자료 댓글 작성"
+            aria-label={t("resources.common.commentComposeAria")}
             onChange={(event) => setCommentBody(event.target.value)}
-            placeholder="이 자료에 남길 확인 사항"
+            placeholder={t("resources.common.commentPlaceholder")}
             rows={3}
             value={commentBody}
           />
           <Button disabled={!commentBody.trim() || commentBusyId === "new"} type="submit" variant="primary">
-            등록
+            {t("resources.common.commentSubmit")}
           </Button>
         </form>
 
@@ -881,20 +897,20 @@ export function ResourcePreview({
 
         <div className={styles.commentList}>
           {comments.length === 0 ? (
-            <p className={styles.commentEmpty}>아직 등록된 댓글이 없습니다.</p>
+            <p className={styles.commentEmpty}>{t("resources.common.commentsEmpty")}</p>
           ) : (
             comments.map((comment) => (
               <article className={styles.commentItem} key={comment.id}>
                 <div className={styles.commentHead}>
                   <div>
                     <span>{comment.authorId.slice(0, 8)}</span>
-                    <strong>{formatDate(comment.updatedAt)}</strong>
+                    <strong>{formatDate(comment.updatedAt, t)}</strong>
                   </div>
                   <div className={styles.commentActions}>
-                    <button aria-label="댓글 수정" onClick={() => startEditComment(comment)} type="button">
+                    <button aria-label={t("resources.common.commentEditAria")} onClick={() => startEditComment(comment)} type="button">
                       <Pencil aria-hidden size={14} strokeWidth={2} />
                     </button>
-                    <button aria-label="댓글 삭제" disabled={commentBusyId === comment.id} onClick={() => void handleDeleteComment(comment.id)} type="button">
+                    <button aria-label={t("resources.common.commentDeleteAria")} disabled={commentBusyId === comment.id} onClick={() => void handleDeleteComment(comment.id)} type="button">
                       <Trash2 aria-hidden size={14} strokeWidth={2} />
                     </button>
                   </div>
@@ -909,7 +925,7 @@ export function ResourcePreview({
                     }}
                   >
                     <textarea
-                      aria-label="자료 댓글 수정"
+                      aria-label={t("resources.common.commentEditComposeAria")}
                       onChange={(event) => setEditingCommentBody(event.target.value)}
                       rows={3}
                       value={editingCommentBody}
@@ -920,7 +936,7 @@ export function ResourcePreview({
                         type="submit"
                         variant="primary"
                       >
-                        저장
+                        {t("resources.common.save")}
                       </Button>
                       <Button
                         onClick={() => {
@@ -930,7 +946,7 @@ export function ResourcePreview({
                         type="button"
                         variant="ghost"
                       >
-                        취소
+                        {t("resources.common.cancel")}
                       </Button>
                     </div>
                   </form>
@@ -946,7 +962,7 @@ export function ResourcePreview({
       <div className={styles.resourceDeleteArea}>
         <button className={styles.resourceDeleteButton} disabled={deleteState.kind === "deleting"} onClick={() => void handleDeleteResource()} type="button">
           <Trash2 aria-hidden size={15} strokeWidth={2} />
-          {deleteState.kind === "deleting" ? "삭제 중" : "파일 삭제"}
+          {deleteState.kind === "deleting" ? t("resources.common.deleting") : t("resources.common.deleteFile")}
         </button>
         {deleteState.kind === "error" ? <p className={styles.previewError}>{deleteState.message}</p> : null}
       </div>

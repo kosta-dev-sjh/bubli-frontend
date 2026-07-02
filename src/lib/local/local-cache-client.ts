@@ -1,6 +1,7 @@
 import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { ready, runTauriAdapter, unavailable } from "@/lib/local/adapter-result";
+import { translate } from "@/lib/i18n/translate";
 import type {
   LocalBackupRestoreRequest,
   LocalCacheReadinessResult,
@@ -37,7 +38,7 @@ export function getLocalCacheReadiness(): LocalCacheReadinessResult {
     return unavailable();
   }
 
-  return ready(summary, undefined, "Tauri 로컬 SQLite 저장소를 쓸 수 있는 환경입니다.");
+  return ready(summary, undefined, translate("local.cache.ready"));
 }
 
 export function checkLocalSqliteIntegrity(): Promise<LocalCacheIntegrityResult> | LocalCacheIntegrityResult {

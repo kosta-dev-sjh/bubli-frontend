@@ -1,3 +1,5 @@
+"use client";
+
 import { Clock3, FileClock, FileText, Link2, MessageSquareText, RotateCcw, ShieldCheck, UploadCloud } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -5,46 +7,49 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
 type VersionItem = {
   version: string;
-  title: string;
-  updatedAt: string;
+  titleKey: MessageKey;
+  updatedAtKey: MessageKey;
   status: "current" | "previous" | "review";
-  note: string;
+  noteKey: MessageKey;
 };
 
 const versions: VersionItem[] = [
   {
-    note: "검수 기준 문구가 추가됨",
+    noteKey: "resources.version.rowCurrentNote",
     status: "current",
-    title: "업무기준문서_최종본_v2.1.pdf",
-    updatedAt: "오늘 14:32",
+    titleKey: "resources.version.rowCurrentTitle",
+    updatedAtKey: "resources.version.rowCurrentUpdated",
     version: "v2.1",
   },
   {
-    note: "납품일 표현이 회의록과 달라 확인 필요",
+    noteKey: "resources.version.rowReviewNote",
     status: "review",
-    title: "업무기준문서_최종본_v2.pdf",
-    updatedAt: "어제 18:10",
+    titleKey: "resources.version.rowReviewTitle",
+    updatedAtKey: "resources.version.rowReviewUpdated",
     version: "v2.0",
   },
   {
-    note: "초안 보관",
+    noteKey: "resources.version.rowDraftNote",
     status: "previous",
-    title: "업무기준문서_초안.pdf",
-    updatedAt: "6월 18일 09:20",
+    titleKey: "resources.version.rowDraftTitle",
+    updatedAtKey: "resources.version.rowDraftUpdated",
     version: "v1.0",
   },
 ];
 
-const statusMeta: Record<VersionItem["status"], { label: string; tone: "success" | "pending" | "neutral" }> = {
-  current: { label: "현재 버전", tone: "success" },
-  previous: { label: "이전 버전", tone: "neutral" },
-  review: { label: "확인 필요", tone: "pending" },
+const statusMeta: Record<VersionItem["status"], { labelKey: MessageKey; tone: "success" | "pending" | "neutral" }> = {
+  current: { labelKey: "resources.version.statusCurrent", tone: "success" },
+  previous: { labelKey: "resources.version.statusPrevious", tone: "neutral" },
+  review: { labelKey: "resources.version.statusReview", tone: "pending" },
 };
 
 function VersionRow({ item }: { item: VersionItem }) {
+  const { t } = useI18n();
   const status = statusMeta[item.status];
 
   return (
@@ -54,39 +59,37 @@ function VersionRow({ item }: { item: VersionItem }) {
       </span>
       <div>
         <div className="resource-version-row__meta">
-          <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+          <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
           <span>{item.version}</span>
-          <span>{item.updatedAt}</span>
+          <span>{t(item.updatedAtKey)}</span>
         </div>
-        <h3>{item.title}</h3>
-        <p>{item.note}</p>
+        <h3>{t(item.titleKey)}</h3>
+        <p>{t(item.noteKey)}</p>
       </div>
       <Button size="sm" variant="quiet">
-        보기
+        {t("resources.version.historyView")}
       </Button>
     </article>
   );
 }
 
 export function ResourceVersionHistoryPanel() {
+  const { t } = useI18n();
   return (
-    <section className="resource-version" aria-label="자료 버전 히스토리">
+    <section className="resource-version" aria-label={t("resources.version.historyPanelAria")}>
       <GlassPanel className="resource-version__hero">
         <div>
           <Chip icon={<FileText size={14} />} selected>
-            자료 상세
+            {t("resources.version.historyChip")}
           </Chip>
-          <h2>같은 파일을 다시 올려도 덮어쓰지 않고 새 버전으로 남깁니다</h2>
-          <p>
-            자료보드는 업무 문서, 요구사항, 회의록처럼 계속 바뀌는 파일의 흐름을 남깁니다. 프로젝트룸 자료는 멤버가
-            같은 이력을 보고, 개인 자료는 공유하기 전까지 본인만 확인합니다.
-          </p>
+          <h2>{t("resources.version.historyHeroTitle")}</h2>
+          <p>{t("resources.version.historyHeroDesc")}</p>
         </div>
         <div className="resource-version__summary">
-          <StatusBadge tone="room">버전 관리</StatusBadge>
+          <StatusBadge tone="room">{t("resources.version.historyBadge")}</StatusBadge>
           <strong>3</strong>
-          <span>보관된 버전</span>
-          <ProgressBar label="현재 자료 검토 진행률" value={66} />
+          <span>{t("resources.version.historyStored")}</span>
+          <ProgressBar label={t("resources.version.historyProgressLabel")} value={66} />
         </div>
       </GlassPanel>
 
@@ -94,45 +97,45 @@ export function ResourceVersionHistoryPanel() {
         <GlassPanel className="resource-version__list">
           <div className="resource-version__list-top">
             <div>
-              <h3>버전 히스토리</h3>
-              <p>새 파일 업로드는 기존 파일을 지우지 않고, 같은 자료의 새 버전으로 남깁니다.</p>
+              <h3>{t("resources.version.historyListTitle")}</h3>
+              <p>{t("resources.version.historyListDesc")}</p>
             </div>
             <Button icon={<UploadCloud size={15} />} size="sm" variant="primary">
-              새 버전 올리기
+              {t("resources.version.historyUploadNew")}
             </Button>
           </div>
           <div className="resource-version__items">
             {versions.map((item) => (
-              <VersionRow item={item} key={`${item.version}-${item.title}`} />
+              <VersionRow item={item} key={`${item.version}-${item.titleKey}`} />
             ))}
           </div>
         </GlassPanel>
 
         <GlassPanel className="resource-version__side">
-          <h3>자료 맥락</h3>
+          <h3>{t("resources.version.contextTitle")}</h3>
           <div>
             <MessageSquareText size={17} strokeWidth={2.1} />
-            <p>댓글은 자료를 기준으로 남기고, 대화와 섞이지 않게 봅니다.</p>
+            <p>{t("resources.version.contextComment")}</p>
           </div>
           <div>
             <Link2 size={17} strokeWidth={2.1} />
-            <p>관련 문서는 업무 문서, 견적서, 요구사항, 회의록을 같은 맥락으로 묶습니다.</p>
+            <p>{t("resources.version.contextRelated")}</p>
           </div>
           <div>
             <ShieldCheck size={17} strokeWidth={2.1} />
-            <p>프로젝트룸 자료는 멤버 권한을 확인하고, 개인 자료는 직접 공유 전까지 숨깁니다.</p>
+            <p>{t("resources.version.contextPermission")}</p>
           </div>
           <div>
             <RotateCcw size={17} strokeWidth={2.1} />
-            <p>이전 버전은 비교와 확인용으로 남기고, 현재 버전을 따로 표시합니다.</p>
+            <p>{t("resources.version.contextPrevious")}</p>
           </div>
         </GlassPanel>
       </div>
 
       <GlassPanel className="resource-version__comment">
         <Clock3 size={18} strokeWidth={2.1} />
-        <p>김민준 님이 “검수 일정은 7월 15일 기준으로 다시 확인 필요” 댓글을 남겼습니다.</p>
-        <Chip>댓글 2개</Chip>
+        <p>{t("resources.version.commentQuote")}</p>
+        <Chip>{t("resources.version.commentCount")}</Chip>
       </GlassPanel>
     </section>
   );

@@ -17,6 +17,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./project-room-document-seed-panel.module.css";
@@ -51,18 +53,22 @@ export type ProjectRoomDocumentSeedPanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const documentMeta: Record<SourceDocumentType, { label: string; tone: StatusTone }> = {
-  CONTRACT: { label: "업무 문서", tone: "room" },
-  ESTIMATE: { label: "견적서", tone: "todo" },
-  MEETING_NOTE: { label: "회의록", tone: "memo" },
-  REQUIREMENTS: { label: "요구사항 문서", tone: "agent" },
+const documentMeta: Record<SourceDocumentType, { labelKey: MessageKey; tone: StatusTone }> = {
+  CONTRACT: { labelKey: "room.seed.docContract", tone: "room" },
+  ESTIMATE: { labelKey: "room.seed.docEstimate", tone: "todo" },
+  MEETING_NOTE: { labelKey: "room.seed.docMinutes", tone: "memo" },
+  REQUIREMENTS: { labelKey: "room.seed.docRequirements", tone: "agent" },
 };
 
-const statusMeta: Record<CandidateStatus, { label: string; tone: StatusTone }> = {
-  APPROVED: { label: "확인됨", tone: "approved" },
-  NEEDS_REVIEW: { label: "확인 필요", tone: "warning" },
-  READY: { label: "후보", tone: "pending" },
+const statusMeta: Record<CandidateStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  APPROVED: { labelKey: "room.seed.statusApproved", tone: "approved" },
+  NEEDS_REVIEW: { labelKey: "room.seed.statusNeedsReview", tone: "warning" },
+  READY: { labelKey: "room.seed.statusReady", tone: "pending" },
 };
+
+// 아이콘 선택용으로 기본 타깃 라벨을 상수로 둔다.
+const SEED_TARGET_ROOM_LABEL = "프로젝트룸 정보";
+const SEED_TARGET_WBS_LABEL = "WBS/TODO 후보";
 
 export const defaultSeedDocuments: SourceDocument[] = [
   {
@@ -139,9 +145,11 @@ export function ProjectRoomDocumentSeedPanel({
   fields,
   progressPercent = 64,
   targets,
-  title = "문서로 프로젝트룸 시작하기",
+  title,
   ...props
 }: ProjectRoomDocumentSeedPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("room.seed.defaultTitle");
   const reviewCount = fields.filter((field) => field.status === "NEEDS_REVIEW").length;
   const approvedCount = fields.filter((field) => field.status === "APPROVED").length;
 
@@ -149,30 +157,27 @@ export function ProjectRoomDocumentSeedPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<FileCheck2 size={16} strokeWidth={2.1} />}>프로젝트룸 생성</Chip>
+          <Chip icon={<FileCheck2 size={16} strokeWidth={2.1} />}>{t("room.seed.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              업무 문서, 견적서, 요구사항 문서를 올리면 에이전트가 프로젝트룸에 필요한 값을 후보로 정리합니다.
-              확인한 값만 프로젝트룸 정보와 WBS/TODO, 일정 후보로 이어집니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("room.seed.description")}</p>
           </div>
         </div>
-        <div className={styles.statusCard} aria-label="초기값 확인 진행률">
-          <span>초기값 확인</span>
+        <div className={styles.statusCard} aria-label={t("room.seed.progressAria")}>
+          <span>{t("room.seed.progressLabel")}</span>
           <strong>{progressPercent}%</strong>
           <ProgressBar value={progressPercent} />
         </div>
       </header>
 
-      <section className={styles.flow} aria-label="문서에서 프로젝트룸으로 이어지는 흐름">
+      <section className={styles.flow} aria-label={t("room.seed.flowAria")}>
         <article className={styles.flowCard}>
           <span className={styles.flowIcon}>
             <FileText size={18} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <strong>문서 업로드</strong>
-            <p>업무 문서, 견적서, 요구사항 문서를 같은 프로젝트 맥락에 둡니다.</p>
+            <strong>{t("room.seed.flowUpload")}</strong>
+            <p>{t("room.seed.flowUploadBody")}</p>
           </div>
         </article>
         <ArrowRight className={styles.flowArrow} size={20} strokeWidth={2.1} aria-hidden="true" />
@@ -181,8 +186,8 @@ export function ProjectRoomDocumentSeedPanel({
             <Sparkles size={18} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <strong>후보 생성</strong>
-            <p>작업 범위, 납품물, 마감, 확인 질문을 후보로 정리합니다.</p>
+            <strong>{t("room.seed.flowGenerate")}</strong>
+            <p>{t("room.seed.flowGenerateBody")}</p>
           </div>
         </article>
         <ArrowRight className={styles.flowArrow} size={20} strokeWidth={2.1} aria-hidden="true" />
@@ -191,17 +196,17 @@ export function ProjectRoomDocumentSeedPanel({
             <ShieldCheck size={18} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <strong>사용자 확인</strong>
-            <p>승인한 값만 프로젝트룸 데이터로 반영합니다.</p>
+            <strong>{t("room.seed.flowConfirm")}</strong>
+            <p>{t("room.seed.flowConfirmBody")}</p>
           </div>
         </article>
       </section>
 
       <div className={styles.contentGrid}>
-        <section className={styles.documentColumn} aria-label="업로드 문서">
+        <section className={styles.documentColumn} aria-label={t("room.seed.docColumnAria")}>
           <div className={styles.sectionTitle}>
-            <strong>업로드 문서</strong>
-            <StatusBadge tone="pending">{documents.length}개</StatusBadge>
+            <strong>{t("room.seed.docColumnTitle")}</strong>
+            <StatusBadge tone="pending">{t("room.seed.docCount", { count: documents.length })}</StatusBadge>
           </div>
           <div className={styles.documentStack}>
             {documents.map((document) => {
@@ -215,20 +220,20 @@ export function ProjectRoomDocumentSeedPanel({
                   </span>
                   <span className={styles.documentCopy}>
                     <b>{document.filename}</b>
-                    <span>{kind.label}</span>
+                    <span>{t(kind.labelKey)}</span>
                   </span>
-                  <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                  <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
                 </article>
               );
             })}
           </div>
         </section>
 
-        <section className={styles.fieldColumn} aria-label="추출 후보">
+        <section className={styles.fieldColumn} aria-label={t("room.seed.fieldColumnAria")}>
           <div className={styles.sectionTitle}>
-            <strong>추출 후보</strong>
+            <strong>{t("room.seed.fieldColumnTitle")}</strong>
             <span className={styles.sectionMeta}>
-              확인됨 {approvedCount} · 확인 필요 {reviewCount}
+              {t("room.seed.fieldColumnMeta", { approved: approvedCount, review: reviewCount })}
             </span>
           </div>
           <div className={styles.fieldStack}>
@@ -242,7 +247,7 @@ export function ProjectRoomDocumentSeedPanel({
                     <strong>{field.value}</strong>
                     <small>{field.sourceLabel}</small>
                   </div>
-                  <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                  <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
                 </article>
               );
             })}
@@ -250,12 +255,12 @@ export function ProjectRoomDocumentSeedPanel({
         </section>
       </div>
 
-      <section className={styles.targetGrid} aria-label="승인 후 반영 위치">
+      <section className={styles.targetGrid} aria-label={t("room.seed.targetAria")}>
         {targets.map((target) => (
           <article key={target.label}>
-            {target.label === "프로젝트룸 정보" ? (
+            {target.label === SEED_TARGET_ROOM_LABEL ? (
               <PenLine size={17} strokeWidth={2.1} aria-hidden="true" />
-            ) : target.label === "WBS/TODO 후보" ? (
+            ) : target.label === SEED_TARGET_WBS_LABEL ? (
               <ListChecks size={17} strokeWidth={2.1} aria-hidden="true" />
             ) : (
               <CalendarDays size={17} strokeWidth={2.1} aria-hidden="true" />
@@ -263,7 +268,7 @@ export function ProjectRoomDocumentSeedPanel({
             <div>
               <strong>{target.label}</strong>
               <p>{target.description}</p>
-              <StatusBadge tone={target.tone}>반영 대상</StatusBadge>
+              <StatusBadge tone={target.tone}>{t("room.seed.applyTarget")}</StatusBadge>
             </div>
           </article>
         ))}
@@ -272,14 +277,14 @@ export function ProjectRoomDocumentSeedPanel({
       <footer className={styles.footer}>
         <div className={styles.notice}>
           <CheckCircle2 size={16} strokeWidth={2.1} aria-hidden="true" />
-          <span>에이전트 결과는 후보입니다. 확정 데이터는 사용자 승인 후 저장합니다.</span>
+          <span>{t("room.seed.notice")}</span>
         </div>
         <div className={styles.actions}>
           <Button icon={<PenLine size={15} strokeWidth={2.1} />} size="sm" variant="quiet">
-            후보 수정
+            {t("room.seed.editCandidate")}
           </Button>
           <Button icon={<ShieldCheck size={15} strokeWidth={2.1} />} size="sm" variant="primary">
-            확인한 값 반영
+            {t("room.seed.applyConfirmed")}
           </Button>
         </div>
       </footer>

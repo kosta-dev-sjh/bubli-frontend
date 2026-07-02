@@ -1,7 +1,11 @@
+"use client";
+
 import { Bot, Database, MessageCircle, Radio, RefreshCcw, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./chat-room-list-panel.module.css";
@@ -12,92 +16,94 @@ type CacheStatus = "SERVER_ONLY" | "CACHE_VALID" | "CACHE_STALE";
 type ChatRoomItem = {
   cacheStatus: CacheStatus;
   id: string;
-  lastMessage: string;
+  lastMessageKey: MessageKey;
   lastSequence?: number;
   memberCount: number;
-  permissionLabel: string;
-  title: string;
+  permissionKey: MessageKey;
+  titleKey: MessageKey;
   type: ChatRoomType;
   unreadCount: number;
-  updatedAt: string;
+  updatedKey: MessageKey;
 };
 
 const chatRooms: ChatRoomItem[] = [
   {
     cacheStatus: "CACHE_VALID",
     id: "room-chat-1",
-    lastMessage: "계약서 납품일과 회의록 일정이 달라요. /bubli 질문으로 정리해볼게요.",
+    lastMessageKey: "chat.roomListPanel.room1LastMessage",
     lastSequence: 128,
     memberCount: 5,
-    permissionLabel: "프로젝트룸 멤버",
-    title: "K-Stay 프로젝트룸 채팅",
+    permissionKey: "chat.roomListPanel.room1Permission",
+    titleKey: "chat.roomListPanel.room1Title",
     type: "PROJECT_ROOM",
     unreadCount: 3,
-    updatedAt: "방금 전",
+    updatedKey: "chat.roomListPanel.room1Updated",
   },
   {
     cacheStatus: "SERVER_ONLY",
     id: "direct-chat-1",
-    lastMessage: "API 계약 문서에서 인증 응답 형태만 더 맞추면 될 것 같아요.",
+    lastMessageKey: "chat.roomListPanel.room2LastMessage",
     memberCount: 2,
-    permissionLabel: "친구",
-    title: "김미연과 1:1 채팅",
+    permissionKey: "chat.roomListPanel.room2Permission",
+    titleKey: "chat.roomListPanel.room2Title",
     type: "DIRECT",
     unreadCount: 0,
-    updatedAt: "12분 전",
+    updatedKey: "chat.roomListPanel.room2Updated",
   },
   {
     cacheStatus: "CACHE_STALE",
     id: "room-chat-2",
-    lastMessage: "보이스 전에 WBS 누락 항목을 먼저 확인할게요.",
+    lastMessageKey: "chat.roomListPanel.room3LastMessage",
     lastSequence: 42,
     memberCount: 3,
-    permissionLabel: "프로젝트룸 멤버",
-    title: "Bubli 제품 고도화 채팅",
+    permissionKey: "chat.roomListPanel.room3Permission",
+    titleKey: "chat.roomListPanel.room3Title",
     type: "PROJECT_ROOM",
     unreadCount: 1,
-    updatedAt: "35분 전",
+    updatedKey: "chat.roomListPanel.room3Updated",
   },
 ];
 
-const roomTypeCopy: Record<ChatRoomType, { icon: ReactNode; label: string; tone: "communication" | "room" }> = {
-  DIRECT: { icon: <UserRound size={16} />, label: "1:1", tone: "communication" },
-  PROJECT_ROOM: { icon: <UsersRound size={16} />, label: "프로젝트룸", tone: "room" },
+const roomTypeCopy: Record<ChatRoomType, { icon: ReactNode; labelKey: MessageKey; tone: "communication" | "room" }> = {
+  DIRECT: { icon: <UserRound size={16} />, labelKey: "chat.roomListPanel.typeDirect", tone: "communication" },
+  PROJECT_ROOM: { icon: <UsersRound size={16} />, labelKey: "chat.roomListPanel.typeRoom", tone: "room" },
 };
 
-const cacheCopy: Record<CacheStatus, { label: string; tone: "neutral" | "pending" | "success" }> = {
-  CACHE_STALE: { label: "최근 메시지 보충 필요", tone: "pending" },
-  CACHE_VALID: { label: "최근 메시지 준비됨", tone: "success" },
-  SERVER_ONLY: { label: "서버 원본", tone: "neutral" },
+const cacheCopy: Record<CacheStatus, { labelKey: MessageKey; tone: "neutral" | "pending" | "success" }> = {
+  CACHE_STALE: { labelKey: "chat.roomListPanel.cacheStale", tone: "pending" },
+  CACHE_VALID: { labelKey: "chat.roomListPanel.cacheValid", tone: "success" },
+  SERVER_ONLY: { labelKey: "chat.roomListPanel.cacheServerOnly", tone: "neutral" },
 };
 
 export function ChatRoomListPanel() {
+  const { t } = useI18n();
+
   return (
     <GlassPanel className={styles.panel}>
       <header className={styles.header}>
         <div>
-          <Chip selected>소통</Chip>
-          <h2 className={styles.title}>채팅방 목록</h2>
+          <Chip selected>{t("chat.roomListPanel.chip")}</Chip>
+          <h2 className={styles.title}>{t("chat.roomListPanel.title")}</h2>
           <p className={styles.description}>
-            1:1 채팅은 친구 관계를, 프로젝트룸 채팅은 멤버 권한을 기준으로 열립니다.
+            {t("chat.roomListPanel.description")}
           </p>
         </div>
         <Button icon={<RefreshCcw size={16} />} size="sm" variant="quiet">
-          최근 메시지 보충
+          {t("chat.roomListPanel.refresh")}
         </Button>
       </header>
 
-      <div className={styles.policyGrid} aria-label="채팅 저장 정책">
-        <PolicyCard icon={<Database size={17} />} label="원본" value="서버 메시지" />
-        <PolicyCard icon={<Radio size={17} />} label="전달" value="실시간 연결" />
-        <PolicyCard icon={<ShieldCheck size={17} />} label="권한" value="친구/멤버" />
-        <PolicyCard icon={<Bot size={17} />} label="에이전트" value="응답 메시지" />
+      <div className={styles.policyGrid} aria-label={t("chat.roomListPanel.policyAria")}>
+        <PolicyCard icon={<Database size={17} />} label={t("chat.roomListPanel.policySourceLabel")} value={t("chat.roomListPanel.policySourceValue")} />
+        <PolicyCard icon={<Radio size={17} />} label={t("chat.roomListPanel.policyDeliverLabel")} value={t("chat.roomListPanel.policyDeliverValue")} />
+        <PolicyCard icon={<ShieldCheck size={17} />} label={t("chat.roomListPanel.policyPermissionLabel")} value={t("chat.roomListPanel.policyPermissionValue")} />
+        <PolicyCard icon={<Bot size={17} />} label={t("chat.roomListPanel.policyAgentLabel")} value={t("chat.roomListPanel.policyAgentValue")} />
       </div>
 
       <section className={styles.roomSection} aria-labelledby="chat-room-list-title">
         <div className={styles.sectionHeader}>
-          <h3 id="chat-room-list-title">참여 중인 채팅</h3>
-          <span>서버에 저장된 메시지만 전송 완료로 봅니다.</span>
+          <h3 id="chat-room-list-title">{t("chat.roomListPanel.sectionTitle")}</h3>
+          <span>{t("chat.roomListPanel.sectionSubtitle")}</span>
         </div>
         <div className={styles.roomList}>
           {chatRooms.map((room) => (
@@ -120,6 +126,7 @@ function PolicyCard({ icon, label, value }: { icon: ReactNode; label: string; va
 }
 
 function ChatRoomRow({ room }: { room: ChatRoomItem }) {
+  const { t } = useI18n();
   const roomType = roomTypeCopy[room.type];
   const cache = cacheCopy[room.cacheStatus];
 
@@ -130,22 +137,22 @@ function ChatRoomRow({ room }: { room: ChatRoomItem }) {
       </span>
       <div className={styles.roomMain}>
         <div className={styles.roomTitleLine}>
-          <strong>{room.title}</strong>
-          <StatusBadge tone={roomType.tone}>{roomType.label}</StatusBadge>
+          <strong>{t(room.titleKey)}</strong>
+          <StatusBadge tone={roomType.tone}>{t(roomType.labelKey)}</StatusBadge>
           {room.unreadCount > 0 ? <span className={styles.unread}>{room.unreadCount}</span> : null}
         </div>
-        <p>{room.lastMessage}</p>
+        <p>{t(room.lastMessageKey)}</p>
         <div className={styles.metaLine}>
-          <span>{room.permissionLabel}</span>
-          <span>{room.memberCount}명</span>
-          <span>{room.updatedAt}</span>
-          {room.lastSequence ? <span>최근 기준 {room.lastSequence}</span> : null}
+          <span>{t(room.permissionKey)}</span>
+          <span>{t("chat.roomListPanel.members", { count: room.memberCount })}</span>
+          <span>{t(room.updatedKey)}</span>
+          {room.lastSequence ? <span>{t("chat.roomListPanel.lastBasis", { sequence: room.lastSequence })}</span> : null}
         </div>
       </div>
       <div className={styles.sideActions}>
-        <StatusBadge tone={cache.tone}>{cache.label}</StatusBadge>
+        <StatusBadge tone={cache.tone}>{t(cache.labelKey)}</StatusBadge>
         <Button icon={<MessageCircle size={15} />} size="sm" variant="primary">
-          열기
+          {t("chat.roomListPanel.open")}
         </Button>
       </div>
     </article>

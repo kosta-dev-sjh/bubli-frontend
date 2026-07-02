@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AlertCircle,
   ArrowRight,
@@ -15,6 +17,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./document-mismatch-review-panel.module.css";
@@ -49,70 +53,72 @@ export type DocumentMismatchReviewPanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const severityMeta: Record<MismatchSeverity, { label: string; tone: StatusTone }> = {
-  HIGH: { label: "우선 확인", tone: "warning" },
-  LOW: { label: "낮음", tone: "personal" },
-  MEDIUM: { label: "확인 권장", tone: "pending" },
+const severityMeta: Record<MismatchSeverity, { labelKey: MessageKey; tone: StatusTone }> = {
+  HIGH: { labelKey: "resources.mismatch.severity.HIGH", tone: "warning" },
+  LOW: { labelKey: "resources.mismatch.severity.LOW", tone: "personal" },
+  MEDIUM: { labelKey: "resources.mismatch.severity.MEDIUM", tone: "pending" },
 };
 
-const statusMeta: Record<MismatchStatus, { label: string; tone: StatusTone }> = {
-  NEEDS_REVIEW: { label: "확인 필요", tone: "warning" },
-  QUESTION_READY: { label: "질문 준비", tone: "agent" },
-  RESOLVED: { label: "정리됨", tone: "approved" },
+const statusMeta: Record<MismatchStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  NEEDS_REVIEW: { labelKey: "resources.mismatch.status.NEEDS_REVIEW", tone: "warning" },
+  QUESTION_READY: { labelKey: "resources.mismatch.status.QUESTION_READY", tone: "agent" },
+  RESOLVED: { labelKey: "resources.mismatch.status.RESOLVED", tone: "approved" },
 };
 
+// NOTE: Storybook-only sample fixtures (imported by the .stories file). Real callers
+// pass already-localized data; the panel renders whatever strings it receives.
 export const defaultMismatchMetrics: ReviewMetric[] = [
-  { label: "비교 문서", tone: "room", value: "3개" },
-  { label: "확인 필요", tone: "warning", value: "4개" },
-  { label: "질문 초안", tone: "agent", value: "2개" },
+  { label: "Compared documents", tone: "room", value: "3" },
+  { label: "Needs review", tone: "warning", value: "4" },
+  { label: "Question drafts", tone: "agent", value: "2" },
 ];
 
 export const defaultMismatchItems: MismatchItem[] = [
   {
-    actionLabel: "납품일 기준 질문 만들기",
+    actionLabel: "Draft a question about the delivery date",
     comparedValues: [
-      { documentLabel: "업무 문서", value: "7월 15일" },
-      { documentLabel: "회의록", value: "2026.07.20" },
+      { documentLabel: "Work document", value: "Jul 15" },
+      { documentLabel: "Meeting notes", value: "2026.07.20" },
     ],
-    fieldLabel: "납품일",
+    fieldLabel: "Delivery date",
     id: "delivery-date",
-    reason: "문서마다 날짜가 달라 WBS와 일정에 바로 반영하기 어렵습니다.",
+    reason: "The dates differ across documents, so it's hard to apply directly to the WBS and schedule.",
     severity: "HIGH",
     status: "QUESTION_READY",
   },
   {
-    actionLabel: "부가세 포함 여부 확인",
+    actionLabel: "Check whether VAT is included",
     comparedValues: [
-      { documentLabel: "견적서", value: "8,000,000원" },
-      { documentLabel: "업무 문서", value: "금액만 기재" },
+      { documentLabel: "Quote", value: "8,000,000 KRW" },
+      { documentLabel: "Work document", value: "Amount only" },
     ],
-    fieldLabel: "금액 참고값",
+    fieldLabel: "Reference amount",
     id: "amount-vat",
-    reason: "부가세 포함 여부가 분명하지 않아 참고값으로만 보관합니다.",
+    reason: "It's unclear whether VAT is included, so it's kept only as a reference value.",
     severity: "MEDIUM",
     status: "NEEDS_REVIEW",
   },
   {
-    actionLabel: "검수 기준 질문 만들기",
+    actionLabel: "Draft a question about the review criteria",
     comparedValues: [
-      { documentLabel: "요구사항 문서", value: "1차 검수" },
-      { documentLabel: "업무 문서", value: "최종 검수 1회" },
+      { documentLabel: "Requirements document", value: "First review" },
+      { documentLabel: "Work document", value: "One final review" },
     ],
-    fieldLabel: "검수 기준",
+    fieldLabel: "Review criteria",
     id: "inspection-rule",
-    reason: "검수 단계가 서로 달라 TODO 완료 기준을 정하기 어렵습니다.",
+    reason: "The review steps differ, so it's hard to set a TODO completion criterion.",
     severity: "HIGH",
     status: "QUESTION_READY",
   },
   {
-    actionLabel: "자료 취급 기준 확인",
+    actionLabel: "Check the resource handling criteria",
     comparedValues: [
-      { documentLabel: "업무 문서", value: "비밀 유지 조항 있음" },
-      { documentLabel: "요구사항 문서", value: "샘플 원문 공유 필요" },
+      { documentLabel: "Work document", value: "Has a confidentiality clause" },
+      { documentLabel: "Requirements document", value: "Needs sharing of the sample source" },
     ],
-    fieldLabel: "개인정보/저작권 조건",
+    fieldLabel: "Privacy / copyright terms",
     id: "privacy-copyright",
-    reason: "자료 공유 방식과 보관 기준을 프로젝트룸 자료 정책과 맞춰야 합니다.",
+    reason: "The resource sharing method and retention criteria need to align with the project room resource policy.",
     severity: "MEDIUM",
     status: "NEEDS_REVIEW",
   },
@@ -122,9 +128,11 @@ export function DocumentMismatchReviewPanel({
   className,
   items,
   metrics,
-  title = "문서 간 차이 확인",
+  title,
   ...props
 }: DocumentMismatchReviewPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("resources.mismatch.defaultTitle");
   const questionReadyCount = items.filter((item) => item.status === "QUESTION_READY").length;
   const needsReviewCount = items.filter((item) => item.status === "NEEDS_REVIEW").length;
 
@@ -132,33 +140,30 @@ export function DocumentMismatchReviewPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<FileDiff size={16} strokeWidth={2.1} />}>자료 분석</Chip>
+          <Chip icon={<FileDiff size={16} strokeWidth={2.1} />}>{t("resources.mismatch.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              업무 문서, 견적서, 요구사항 문서에서 서로 다른 값과 빠진 조건을 모아 보여줍니다. 결과는 확정 값이 아니라
-              사용자가 확인할 항목이며, 승인 전에는 WBS/TODO나 일정에 반영하지 않습니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("resources.mismatch.description")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>검토 대기</span>
-          <strong>{needsReviewCount + questionReadyCount}개</strong>
-          <StatusBadge tone="warning">확인 필요</StatusBadge>
+          <span>{t("resources.mismatch.summaryLabel")}</span>
+          <strong>{t("resources.mismatch.summaryCountUnit", { count: needsReviewCount + questionReadyCount })}</strong>
+          <StatusBadge tone="warning">{t("resources.mismatch.summaryBadge")}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.metricGrid} aria-label="문서 비교 요약">
+      <section className={styles.metricGrid} aria-label={t("resources.mismatch.metricGridAria")}>
         {metrics.map((metric) => (
           <article key={metric.label}>
             <span>{metric.label}</span>
             <strong>{metric.value}</strong>
-            <StatusBadge tone={metric.tone}>상태</StatusBadge>
+            <StatusBadge tone={metric.tone}>{t("resources.mismatch.metricStatus")}</StatusBadge>
           </article>
         ))}
       </section>
 
-      <section className={styles.reviewList} aria-label="문서 간 차이 목록">
+      <section className={styles.reviewList} aria-label={t("resources.mismatch.reviewListAria")}>
         {items.map((item) => {
           const severity = severityMeta[item.severity];
           const status = statusMeta[item.status];
@@ -178,8 +183,8 @@ export function DocumentMismatchReviewPanel({
                   <p>{item.reason}</p>
                 </div>
                 <div className={styles.badges}>
-                  <StatusBadge tone={severity.tone}>{severity.label}</StatusBadge>
-                  <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                  <StatusBadge tone={severity.tone}>{t(severity.labelKey)}</StatusBadge>
+                  <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
                 </div>
               </div>
 
@@ -201,7 +206,7 @@ export function DocumentMismatchReviewPanel({
                   {item.actionLabel}
                 </span>
                 <Button icon={<ArrowRight size={14} strokeWidth={2.1} />} size="sm" variant="quiet">
-                  검토하기
+                  {t("resources.mismatch.reviewAction")}
                 </Button>
               </footer>
             </article>
@@ -212,10 +217,10 @@ export function DocumentMismatchReviewPanel({
       <footer className={styles.footer}>
         <div className={styles.notice}>
           <ShieldCheck size={16} strokeWidth={2.1} aria-hidden="true" />
-          <span>확인한 값만 프로젝트룸 정보, WBS/TODO 후보, 일정 후보로 넘깁니다.</span>
+          <span>{t("resources.mismatch.footerNotice")}</span>
         </div>
         <Button icon={<MessageSquareText size={15} strokeWidth={2.1} />} size="sm" variant="primary">
-          질문 초안 만들기
+          {t("resources.mismatch.footerAction")}
         </Button>
       </footer>
     </GlassPanel>

@@ -1,3 +1,5 @@
+"use client";
+
 import { Bot, CheckCircle2, CirclePause, PencilLine } from "lucide-react";
 import type { HTMLAttributes } from "react";
 
@@ -5,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 type SuggestionStatus = "pending" | "approved" | "held";
@@ -17,10 +21,10 @@ type SuggestionCardProps = HTMLAttributes<HTMLElement> & {
   title: string;
 };
 
-const statusCopy: Record<SuggestionStatus, string> = {
-  pending: "승인 전",
-  approved: "승인됨",
-  held: "보류",
+const statusCopyKey: Record<SuggestionStatus, MessageKey> = {
+  pending: "domain.suggestion.statusPending",
+  approved: "domain.suggestion.statusApproved",
+  held: "domain.suggestion.statusHeld",
 };
 
 export function SuggestionCard({
@@ -32,6 +36,7 @@ export function SuggestionCard({
   title,
   ...props
 }: SuggestionCardProps) {
+  const { t } = useI18n();
   return (
     <GlassPanel as="article" className={cn("bubli-domain-card", className)} {...props}>
       <div className="bubli-card-row">
@@ -43,20 +48,20 @@ export function SuggestionCard({
           <p className="bubli-domain-card__meta">{source}</p>
         </div>
         <StatusBadge tone={status === "approved" ? "approved" : status === "held" ? "warning" : "pending"}>
-          {statusCopy[status]}
+          {t(statusCopyKey[status])}
         </StatusBadge>
       </div>
       <p className="bubli-domain-card__body">{description}</p>
-      {typeof confidence === "number" ? <ProgressBar label="후보 신뢰도" value={confidence} /> : null}
+      {typeof confidence === "number" ? <ProgressBar label={t("domain.suggestion.confidenceLabel")} value={confidence} /> : null}
       <footer className="bubli-domain-card__footer">
         <Button icon={<CheckCircle2 size={15} />} size="sm" variant="primary">
-          승인
+          {t("domain.suggestion.approve")}
         </Button>
         <Button icon={<PencilLine size={15} />} size="sm" variant="quiet">
-          수정
+          {t("domain.suggestion.edit")}
         </Button>
         <Button icon={<CirclePause size={15} />} size="sm" variant="ghost">
-          보류
+          {t("domain.suggestion.hold")}
         </Button>
       </footer>
     </GlassPanel>

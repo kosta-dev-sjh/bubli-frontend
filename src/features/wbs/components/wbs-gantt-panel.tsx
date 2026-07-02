@@ -16,26 +16,33 @@ import {
   GanttTimeline,
   GanttToday,
   type GanttFeature,
-  type GanttStatus,
   type Range,
 } from "@/components/ui/gantt";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { ScheduleResponse, WbsItemResponse, WbsStatus } from "@/types/api/work";
 
 import styles from "./wbs-gantt-panel.module.css";
 
-const rangeOptions: Array<{ icon: typeof CalendarRange; key: Range; label: string }> = [
-  { icon: CalendarRange, key: "monthly", label: "월" },
-  { icon: CalendarRange, key: "weekly", label: "주" },
-  { icon: CalendarDays, key: "daily", label: "일" },
+const rangeOptions: Array<{ icon: typeof CalendarRange; key: Range; labelKey: MessageKey }> = [
+  { icon: CalendarRange, key: "monthly", labelKey: "wbs.gantt.range.monthly" },
+  { icon: CalendarRange, key: "weekly", labelKey: "wbs.gantt.range.weekly" },
+  { icon: CalendarDays, key: "daily", labelKey: "wbs.gantt.range.daily" },
 ];
 
-const wbsGanttStatuses: Record<WbsStatus, GanttStatus> = {
-  DONE: { color: "var(--signal-ok)", id: "DONE", name: "완료" },
-  IN_PROGRESS: { color: "var(--signal-todo)", id: "IN_PROGRESS", name: "진행" },
-  TODO: { color: "var(--ink-faint)", id: "TODO", name: "대기" },
+const wbsGanttStatusColors: Record<WbsStatus, string> = {
+  DONE: "var(--signal-ok)",
+  IN_PROGRESS: "var(--signal-todo)",
+  TODO: "var(--ink-faint)",
+};
+
+const wbsGanttStatusNameKeys: Record<WbsStatus, MessageKey> = {
+  DONE: "wbs.gantt.status.done",
+  IN_PROGRESS: "wbs.gantt.status.inProgress",
+  TODO: "wbs.gantt.status.todo",
 };
 
 const DEFAULT_BAR_DAYS = 6;
@@ -104,6 +111,7 @@ export function WbsGanttPanel({
   wbsAccentById?: Record<string, string>;
   wbsItems: WbsItemResponse[];
 }) {
+  const { t } = useI18n();
   const [range, setRange] = useState<Range>("monthly");
   const [schedules, setSchedules] = useState<ScheduleResponse[]>([]);
   const [localRanges, setLocalRanges] = useState<Record<string, LocalRange>>({});
@@ -194,7 +202,7 @@ export function WbsGanttPanel({
   const resolveAccent = useCallback((item: WbsItemResponse) => {
     if (wbsAccentById?.[item.id]) return wbsAccentById[item.id];
     if (item.parentId && wbsAccentById?.[item.parentId]) return wbsAccentById[item.parentId];
-    return wbsGanttStatuses[item.status].color;
+    return wbsGanttStatusColors[item.status];
   }, [wbsAccentById]);
 
   const featureById = useMemo(() => {
@@ -211,11 +219,15 @@ export function WbsGanttPanel({
         id: item.id,
         name: item.title,
         startAt: resolved.startAt,
-        status: { ...wbsGanttStatuses[item.status], color: resolveAccent(item) },
+        status: {
+          color: resolveAccent(item),
+          id: item.status,
+          name: t(wbsGanttStatusNameKeys[item.status]),
+        },
       });
     }
     return map;
-  }, [localRanges, resolveAccent, scheduleByWbsId, wbsItems]);
+  }, [localRanges, resolveAccent, scheduleByWbsId, t, wbsItems]);
 
   useEffect(() => {
     if (!onRangesResolved) return;
@@ -302,7 +314,7 @@ export function WbsGanttPanel({
 
     if (item.id.startsWith(LOCAL_ID_PREFIX)) {
       // 서버에 없는 로컬 항목은 화면 상태로만 유지한다.
-      onNotice("기간 반영됨");
+      onNotice(t("wbs.gantt.notice.rangeSaved"));
       return;
     }
 
@@ -311,9 +323,9 @@ export function WbsGanttPanel({
         .updateEvent(schedule.id, body)
         .then((updated) => {
           setSchedules((current) => current.map((entry) => (entry.id === updated.id ? updated : entry)));
-          onNotice("기간 반영됨");
+          onNotice(t("wbs.gantt.notice.rangeSaved"));
         })
-        .catch(() => onNotice(shouldUseWorkspacePreviewData() ? "기간 반영됨" : "기간 반영 대기"));
+        .catch(() => onNotice(shouldUseWorkspacePreviewData() ? t("wbs.gantt.notice.rangeSaved") : t("wbs.gantt.notice.rangeServerPending")));
       return;
     }
 
@@ -321,10 +333,10 @@ export function WbsGanttPanel({
       .createEvent({ ...body, roomId, title: item.title, wbsItemId: item.id })
       .then((created) => {
         setSchedules((current) => [...current, created]);
-        onNotice("기간 반영됨");
+        onNotice(t("wbs.gantt.notice.rangeSaved"));
       })
-      .catch(() => onNotice(shouldUseWorkspacePreviewData() ? "기간 반영됨" : "기간 반영 대기"));
-  }, [onNotice, roomId, scheduleByWbsId]);
+      .catch(() => onNotice(shouldUseWorkspacePreviewData() ? t("wbs.gantt.notice.rangeSaved") : t("wbs.gantt.notice.rangeServerPending")));
+  }, [onNotice, roomId, scheduleByWbsId, t]);
 
   const applyRange = useCallback((item: WbsItemResponse, startAt: Date, endAt: Date | null) => {
     const nextRange = normalizeRange(startAt, endAt);
@@ -348,7 +360,7 @@ export function WbsGanttPanel({
     const item = itemById.get(id);
     if (!item) return;
 
-    onNotice("기간 반영 중");
+    onNotice(t("wbs.gantt.notice.rangeSaving"));
     applyRange(item, startAt, endAt);
   };
 
@@ -366,14 +378,14 @@ export function WbsGanttPanel({
       parentId,
       roomId,
       status: "TODO",
-      title: isGroup ? "새 상위 작업" : "새 작업",
+      title: isGroup ? t("wbs.gantt.newGroup") : t("wbs.gantt.newTask"),
       updatedAt: now,
     };
 
     setLocalRanges((current) => ({ ...current, [optimistic.id]: nextRange }));
     onWbsCreated(optimistic);
     onSelectItem(optimistic.id);
-    onNotice(isGroup ? "상위 작업 추가됨" : "작업 추가됨");
+    onNotice(isGroup ? t("wbs.gantt.notice.groupAdded") : t("wbs.gantt.notice.taskAdded"));
 
     void wbsApi
       .createItem(roomId, { orderNo: optimistic.orderNo, parentId, title: optimistic.title })
@@ -390,7 +402,7 @@ export function WbsGanttPanel({
       })
       .catch(() => {
         if (!shouldUseWorkspacePreviewData()) {
-          onNotice("서버 저장 대기 — 화면에는 유지됩니다");
+          onNotice(t("wbs.gantt.notice.serverSavePending"));
         }
       });
   };
@@ -420,12 +432,12 @@ export function WbsGanttPanel({
 
   const handleDeleteItem = async (item: WbsItemResponse) => {
     if (wbsItems.some((entry) => entry.parentId === item.id)) {
-      onNotice("하위 작업이 남아 있습니다 — 작업을 먼저 삭제하세요");
+      onNotice(t("wbs.gantt.notice.groupHasTasks"));
       return;
     }
 
     const schedule = scheduleByWbsId.get(item.id);
-    onNotice("삭제 중");
+    onNotice(t("wbs.gantt.notice.deleting"));
 
     if (item.id.startsWith(LOCAL_ID_PREFIX)) {
       setLocalRanges((current) => {
@@ -437,7 +449,7 @@ export function WbsGanttPanel({
         setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
       }
       onWbsDeleted(item.id);
-      onNotice("삭제됨");
+      onNotice(t("wbs.gantt.notice.deleted"));
       return;
     }
 
@@ -454,24 +466,24 @@ export function WbsGanttPanel({
         return next;
       });
       onWbsDeleted(item.id);
-      onNotice("삭제됨");
+      onNotice(t("wbs.gantt.notice.deleted"));
     } catch {
       if (shouldUseWorkspacePreviewData()) {
         if (schedule) {
           setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
         }
         onWbsDeleted(item.id);
-        onNotice("삭제됨 (로컬)");
+        onNotice(t("wbs.gantt.notice.deletedLocal"));
         return;
       }
-      onNotice("삭제 실패 — 일정과 WBS가 서버에 남아 있습니다");
+      onNotice(t("wbs.gantt.notice.deleteFailed"));
     }
   };
 
   return (
     <div className={styles.panel} ref={panelRef}>
       <div className={styles.toolbar}>
-        <div aria-label="간트 기간 단위 전환" className={styles.rangeSwitch} role="tablist">
+        <div aria-label={t("wbs.gantt.rangeSwitchAria")} className={styles.rangeSwitch} role="tablist">
           {rangeOptions.map((option) => {
             const Icon = option.icon;
             const selected = range === option.key;
@@ -484,7 +496,7 @@ export function WbsGanttPanel({
                 type="button"
               >
                 <Icon aria-hidden="true" size={13} strokeWidth={2.1} />
-                {option.label}
+                {t(option.labelKey)}
               </button>
             );
           })}
@@ -492,11 +504,11 @@ export function WbsGanttPanel({
 
         <button className={styles.toolButton} onClick={scrollToToday} type="button">
           <CalendarDays aria-hidden="true" size={13} strokeWidth={2.1} />
-          오늘
+          {t("wbs.board.due.today")}
         </button>
         <button className={styles.toolButton} onClick={handleAddGroup} type="button">
           <FolderPlus aria-hidden="true" size={13} strokeWidth={2.1} />
-          상위 작업 추가
+          {t("wbs.gantt.addGroup")}
         </button>
         <button
           className={styles.toolButton}
@@ -504,15 +516,15 @@ export function WbsGanttPanel({
           onClick={handleAddTask}
           title={
             orderedGroups.length === 0
-              ? "먼저 상위 작업을 추가하세요"
+              ? t("wbs.gantt.addTaskDisabledTitle")
               : selectedWbsId
-                ? "선택한 줄 아래에 하위 작업을 추가합니다"
-                : "왼쪽 목록에서 작업 줄을 선택하세요"
+                ? t("wbs.gantt.addTaskSelectedTitle")
+                : t("wbs.gantt.addTaskNoSelectionTitle")
           }
           type="button"
         >
           <Plus aria-hidden="true" size={13} strokeWidth={2.1} />
-          선택 줄 하위 추가
+          {t("wbs.gantt.addTask")}
         </button>
       </div>
 
@@ -536,13 +548,17 @@ export function WbsGanttPanel({
                       {childCount > 0 ? (
                         <button
                           aria-expanded={!isCollapsed}
-                          aria-label={`${item.title} 하위 작업 ${isCollapsed ? "펼치기" : "접기"}`}
+                          aria-label={
+                            isCollapsed
+                              ? t("wbs.gantt.row.expandSubtasks", { title: item.title })
+                              : t("wbs.gantt.row.collapseSubtasks", { title: item.title })
+                          }
                           className={styles.rowActionButton}
                           onClick={(event) => {
                             event.stopPropagation();
                             toggleCollapsed(item.id);
                           }}
-                          title={isCollapsed ? "하위 작업 펼치기" : "하위 작업 접기"}
+                          title={isCollapsed ? t("wbs.gantt.row.expandTitle") : t("wbs.gantt.row.collapseTitle")}
                           type="button"
                         >
                           <ChevronRight
@@ -554,19 +570,19 @@ export function WbsGanttPanel({
                         </button>
                       ) : null}
                       <button
-                        aria-label={`${parentTitle} 아래 하위 작업 추가`}
+                        aria-label={t("wbs.gantt.row.addChildAria", { title: parentTitle })}
                         className={styles.rowActionButton}
                         onClick={(event) => {
                           event.stopPropagation();
                           handleAddChildFromRow(item);
                         }}
-                        title="하위 작업 추가"
+                        title={t("wbs.gantt.row.addChildTitle")}
                         type="button"
                       >
                         <Plus aria-hidden="true" size={13} strokeWidth={2.2} />
                       </button>
                       <button
-                        aria-label={`${item.title} 수정`}
+                        aria-label={t("wbs.gantt.row.editAria", { title: item.title })}
                         className={styles.rowActionButton}
                         onClick={(event) => {
                           event.stopPropagation();
@@ -577,7 +593,7 @@ export function WbsGanttPanel({
                         <PencilIcon aria-hidden="true" size={13} strokeWidth={2.2} />
                       </button>
                       <button
-                        aria-label={`${item.title} 삭제`}
+                        aria-label={t("wbs.gantt.row.deleteAria", { title: item.title })}
                         className={styles.rowActionButton}
                         onClick={(event) => {
                           event.stopPropagation();
@@ -593,9 +609,9 @@ export function WbsGanttPanel({
                   feature={feature}
                   indentLevel={item.parentId ? 1 : 0}
                   key={item.id}
-                  kindLabel={item.parentId ? "하위" : "상위"}
+                  kindLabel={item.parentId ? t("wbs.gantt.row.kindChild") : t("wbs.gantt.row.kindParent")}
                   onSelectItem={() => focusItemOnTimeline(item)}
-                  parentLabel={parentItem ? `상위: ${parentItem.title}` : null}
+                  parentLabel={parentItem ? t("wbs.gantt.row.parentPrefix", { title: parentItem.title }) : null}
                 />
               );
             })}

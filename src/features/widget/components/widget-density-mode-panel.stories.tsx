@@ -49,8 +49,8 @@ export const CompactDensity: Story = {
     options: defaultDensityOptions,
     previewItems: [
       ...defaultDensityPreviewItems,
-      { label: "자료 제안", source: "server", value: "4건" },
-      { label: "알림", source: "cache", value: "5건" },
+      { label: "widget.density.item.chat", source: "server", value: "widget.density.item.chatValue" },
+      { label: "widget.kind.notification", source: "cache", value: "widget.density.item.timerValue" },
     ],
     surfaceRules: defaultDensitySurfaceRules,
     title: "컴팩트 표시 모드",

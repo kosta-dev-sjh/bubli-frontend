@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Bell,
   Bot,
@@ -12,7 +14,11 @@ import type { ComponentType, HTMLAttributes, ReactNode } from "react";
 
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 export type BubbleType =
   | "todo"
@@ -32,16 +38,24 @@ type BubbleConfig = {
   status: string;
 };
 
-const bubbleConfig: Record<BubbleType, BubbleConfig> = {
-  todo: { icon: CheckCircle2, label: "TODO 버블", status: "오늘 할 일" },
-  agent: { icon: Bot, label: "에이전트 버블", status: "후보 제안" },
-  communication: { icon: MessageCircle, label: "소통 버블", status: "채팅과 보이스" },
-  timer: { icon: Clock3, label: "타이머 버블", status: "작업 시간" },
-  memo: { icon: NotebookPen, label: "메모 버블", status: "빠른 기록" },
-  schedule: { icon: CalendarDays, label: "일정/WBS 버블", status: "일정과 작업" },
-  resource: { icon: FileSearch, label: "자료 제안 버블", status: "관련 자료" },
-  notification: { icon: Bell, label: "알림 버블", status: "확인 필요" },
+const bubbleIcons: Record<BubbleType, ComponentType<{ size?: number; strokeWidth?: number }>> = {
+  todo: CheckCircle2,
+  agent: Bot,
+  communication: MessageCircle,
+  timer: Clock3,
+  memo: NotebookPen,
+  schedule: CalendarDays,
+  resource: FileSearch,
+  notification: Bell,
 };
+
+function bubbleConfigOf(t: TranslateFn, type: BubbleType): BubbleConfig {
+  return {
+    icon: bubbleIcons[type],
+    label: t(`bubble.${type}.label` as MessageKey),
+    status: t(`bubble.${type}.status` as MessageKey),
+  };
+}
 
 type BubbleCardProps = HTMLAttributes<HTMLElement> & {
   actions?: ReactNode;
@@ -66,7 +80,8 @@ export function BubbleCard({
   type,
   ...props
 }: BubbleCardProps) {
-  const config = bubbleConfig[type];
+  const { t } = useI18n();
+  const config = bubbleConfigOf(t, type);
   const Icon = config.icon;
   const isMinimized = displayMode === "minimized";
 

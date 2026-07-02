@@ -11,6 +11,7 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ProjectRoomWorkBoard } from "@/features/project-room/components/project-room-work-board";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useI18n } from "@/lib/i18n";
 import { getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
@@ -33,6 +34,7 @@ type WorkPageState =
   | { kind: "error"; message: string };
 
 export default function ProjectRoomWorkPage() {
+  const { t } = useI18n();
   const params = useParams<{ roomId: string }>();
   const roomId = params.roomId;
   const [state, setState] = useState<WorkPageState>({ kind: "loading" });
@@ -68,10 +70,10 @@ export default function ProjectRoomWorkPage() {
 
       setState({
         kind: "error",
-        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "작업판을 불러오지 못했습니다",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("room.work.loadFailed"),
       });
     }
-  }, [roomId]);
+  }, [roomId, t]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -96,23 +98,23 @@ export default function ProjectRoomWorkPage() {
     <section className="workspace-route workspace-route--work" aria-labelledby="work-title">
       <header className="workspace-route__header">
         <div>
-          <h1 id="work-title">{state.kind === "ready" ? state.room.name : "작업판"}</h1>
+          <h1 id="work-title">{state.kind === "ready" ? state.room.name : t("room.work.fallbackName")}</h1>
         </div>
       </header>
 
       {state.kind === "loading" ? (
         <GlassPanel className="workspace-route__panel">
           <Clock3 aria-hidden size={20} strokeWidth={2} />
-          <strong>불러오는 중</strong>
+          <strong>{t("room.work.loading")}</strong>
         </GlassPanel>
       ) : null}
 
       {state.kind === "auth" ? (
         <GlassPanel className="workspace-route__panel">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
-          <strong>로그인이 필요합니다</strong>
+          <strong>{t("room.work.authTitle")}</strong>
           <Link className="bubli-button bubli-button--primary" href="/login">
-            로그인
+            {t("room.work.login")}
           </Link>
         </GlassPanel>
       ) : null}
@@ -123,10 +125,10 @@ export default function ProjectRoomWorkPage() {
           <strong>{state.message}</strong>
           <div className="workspace-route__actions">
             <Button onClick={() => void load()} variant="primary">
-              작업판 다시 불러오기
+              {t("room.work.reload")}
             </Button>
             <Link className="bubli-button" href={`/app/project-rooms/${roomId}`}>
-              프로젝트룸
+              {t("room.work.backToRoom")}
             </Link>
           </div>
         </GlassPanel>

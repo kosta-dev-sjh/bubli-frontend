@@ -36,7 +36,7 @@ export const DefaultWorkspace: Story = {
 export const GhostFocusMode: Story = {
   args: {
     controls: defaultWidgetWindowControls.map((control) =>
-      control.label === "고스트 모드" ? { ...control, enabled: true } : control,
+      control.id === "ghost" ? { ...control, enabled: true } : control,
     ),
     density: "focus",
     persistenceRules: defaultWidgetPersistenceRules,
@@ -49,7 +49,7 @@ export const GhostFocusMode: Story = {
 export const CompactDockMode: Story = {
   args: {
     controls: defaultWidgetWindowControls.map((control) =>
-      control.label === "자동 레이아웃" ? { ...control, enabled: false } : control,
+      control.id === "autoLayout" ? { ...control, enabled: false } : control,
     ),
     density: "compact",
     persistenceRules: defaultWidgetPersistenceRules,

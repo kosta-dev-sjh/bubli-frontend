@@ -36,7 +36,7 @@ export const ProjectRoomFiltered: Story = {
       card.kind === "RESOURCE"
         ? {
             ...card,
-            countLabel: "2건",
+            countLabelKey: "dashboard.library.card.agentCount",
             status: "AVAILABLE",
           }
         : card,
