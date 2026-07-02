@@ -605,19 +605,19 @@ function ProjectRoomWorkBoardContent({
     const previous = selectedWbs;
 
     setWbsItems((current) => current.map((item) => (item.id === selectedWbs.id ? { ...item, ...patch } : item)));
-    setSaveNotice("WBS 수정 중");
+    setSaveNotice(t("room.workBoard.noticeWbsUpdating"));
 
     try {
       const updated = await wbsApi.updateItem(selectedWbs.id, patch);
       setWbsItems((current) => current.map((item) => (item.id === selectedWbs.id ? updated : item)));
-      setSaveNotice("WBS 수정됨");
+      setSaveNotice(t("room.workBoard.noticeWbsUpdated"));
     } catch {
       if (selectedWbs.id.startsWith("local-wbs-") || shouldUseWorkspacePreviewData()) {
-        setSaveNotice("WBS 수정됨 (로컬)");
+        setSaveNotice(t("room.workBoard.noticeWbsUpdatedLocal"));
         return;
       }
       setWbsItems((current) => current.map((item) => (item.id === previous.id ? previous : item)));
-      setSaveNotice("WBS 서버 저장 대기");
+      setSaveNotice(t("room.workBoard.noticeWbsServerPending"));
     }
   };
 
@@ -626,21 +626,21 @@ function ProjectRoomWorkBoardContent({
 
     const previous = selectedWbs;
     setWbsItems((current) => current.map((item) => (item.id === selectedWbs.id ? { ...item, status } : item)));
-    setSaveNotice("WBS 상태 저장 중");
+    setSaveNotice(t("room.workBoard.noticeWbsStatusSaving"));
 
     void wbsApi
       .updateItem(selectedWbs.id, { status })
       .then((updated) => {
         setWbsItems((current) => current.map((item) => (item.id === selectedWbs.id ? updated : item)));
-        setSaveNotice("WBS 상태 저장됨");
+        setSaveNotice(t("room.workBoard.noticeWbsStatusSaved"));
       })
       .catch(() => {
         if (selectedWbs.id.startsWith("local-wbs-") || shouldUseWorkspacePreviewData()) {
-          setSaveNotice("WBS 상태 저장됨 (로컬)");
+          setSaveNotice(t("room.workBoard.noticeWbsStatusSavedLocal"));
           return;
         }
         setWbsItems((current) => current.map((item) => (item.id === previous.id ? previous : item)));
-        setSaveNotice("WBS 서버 저장 대기");
+        setSaveNotice(t("room.workBoard.noticeWbsServerPending"));
       });
   };
 

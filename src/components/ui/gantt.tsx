@@ -587,6 +587,7 @@ export type GanttSidebarProps = {
 
 export const GanttSidebar: FC<GanttSidebarProps> = ({ children, className }) => {
   const gantt = useContext(GanttContext);
+  const { t } = useI18n();
 
   const handleResizeStart: PointerEventHandler<HTMLDivElement> = (event) => {
     event.preventDefault();
@@ -621,7 +622,7 @@ export const GanttSidebar: FC<GanttSidebarProps> = ({ children, className }) => 
       <GanttSidebarHeader />
       <div className="space-y-4">{children}</div>
       <div
-        aria-label="WBS 목록 폭 조절"
+        aria-label={t("ui.gantt.sidebarResizeAria")}
         className="absolute top-0 right-0 z-40 h-full w-2 cursor-col-resize touch-none"
         onPointerDown={handleResizeStart}
         role="separator"
