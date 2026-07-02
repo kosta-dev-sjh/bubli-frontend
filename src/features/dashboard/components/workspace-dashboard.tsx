@@ -4,7 +4,7 @@ import { DndContext, DragOverlay, PointerSensor, closestCenter, useDroppable, us
 import type { CollisionDetection, DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AlertCircle, CheckCircle2, Clock3, LayoutDashboard, Play, Square } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, LayoutDashboard, Pause, Play, RotateCcw, Square } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -13,11 +13,16 @@ import type { DashboardWidgetDef } from "@/components/dashboard";
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { activityApi } from "@/features/activity/api/activityApi";
 import { dashboardApi } from "@/features/dashboard/api/dashboardApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
+import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { tauriCommands } from "@/lib/tauri/commands";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { readWidgetSummary } from "@/lib/widget";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -30,8 +35,11 @@ import {
   workspacePreviewRoomResources,
   workspacePreviewRooms,
 } from "@/lib/workspace-preview-data";
+import type { ActivityLogResponse } from "@/types/api/activity";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { ResourceResponse } from "@/types/api/resource";
+import type { TimeLogResponse } from "@/types/api/timer";
+import type { WidgetSummaryResponse, WidgetTodayUsageSummaryResponse } from "@/types/api/widget";
 import type { DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
 
 type DashboardState =
@@ -39,12 +47,6 @@ type DashboardState =
   | { kind: "ready"; data: DashboardWorkResponse }
   | { kind: "empty"; data: DashboardWorkResponse }
   | { kind: "auth" }
-  | { kind: "error"; message: string };
-
-type TimerActionState =
-  | { kind: "idle" }
-  | { kind: "pending"; message: string }
-  | { kind: "success"; message: string }
   | { kind: "error"; message: string };
 
 const emptyDashboard: DashboardWorkResponse = {
@@ -66,7 +68,15 @@ const connectedWidgetIds = [
 const defaultWidgetIds = ["today-summary", "next-focus", "today-todos", "schedule", "project-rooms", "pending-approval", "timer"];
 const dashboardDropzoneId = "dashboard-canvas";
 const dashboardRemoveDropzoneId = "dashboard-remove-card";
+const DASHBOARD_TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
 let dashboardWidgetLayoutSnapshot = [...defaultWidgetIds];
+type DashboardTimerAction = "idle" | "starting" | "pausing" | "resuming" | "stopping";
+type ActivityFocusSummary = {
+  logCount: number;
+  topAppName: string | null;
+  topWindowTitle: string | null;
+  totalSeconds: number;
+};
 
 function normalizeWidgetIds(ids: string[]) {
   const seen = new Set<string>();
@@ -134,6 +144,16 @@ function formatDuration(seconds?: number | null) {
   return `${minutes}분`;
 }
 
+function formatMetricDuration(seconds: number) {
+  if (seconds <= 0) return "0분";
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.max(1, Math.floor((seconds % 3600) / 60));
+  if (hours > 0) return `${hours}시간`;
+
+  return `${minutes}분`;
+}
+
 function getTimerSeconds(timer: DashboardWorkResponse["runningTimer"]) {
   if (!timer) return null;
   if (typeof timer.durationSeconds === "number") return timer.durationSeconds;
@@ -145,13 +165,19 @@ function getTimerSeconds(timer: DashboardWorkResponse["runningTimer"]) {
   return Math.max(0, Math.floor((Date.now() - started) / 1000));
 }
 
-function createTimerIdempotencyKey() {
-  const suffix =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+function makeTimerIdempotencyKey() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `dashboard-timer-${crypto.randomUUID()}`;
+  }
 
-  return `dashboard-${suffix}`;
+  return `dashboard-timer-${Date.now()}`;
+}
+
+function timerActionLabel(timer?: DashboardWorkResponse["runningTimer"]) {
+  if (timer?.status === "RUNNING") return "실행 중";
+  if (timer?.status === "PAUSED") return "일시정지";
+  if (timer?.status === "NEEDS_RECOVERY") return "복구 필요";
+  return "대기";
 }
 
 function hasDashboardItems(data: DashboardWorkResponse) {
@@ -208,6 +234,47 @@ function getMetricProgress(value: number, max: number) {
   return Math.min(100, Math.max(18, Math.round((value / max) * 100)));
 }
 
+function getActivitySeconds(activity: ActivityLogResponse) {
+  if (typeof activity.durationSeconds === "number" && activity.durationSeconds >= 0) {
+    return activity.durationSeconds;
+  }
+
+  const started = new Date(activity.startedAt).getTime();
+  const ended = activity.endedAt ? new Date(activity.endedAt).getTime() : NaN;
+  if (Number.isNaN(started) || Number.isNaN(ended) || ended <= started) return 0;
+
+  return Math.floor((ended - started) / 1000);
+}
+
+function summarizeActivityFocus(logs: ActivityLogResponse[] | null, activeRoomId: string | null): ActivityFocusSummary | null {
+  if (!logs) return null;
+
+  const scopedLogs = activeRoomId ? logs.filter((activity) => activity.roomId === activeRoomId) : logs;
+  const byApp = new Map<string, { seconds: number; title: string | null }>();
+  let totalSeconds = 0;
+
+  for (const activity of scopedLogs) {
+    const seconds = getActivitySeconds(activity);
+    totalSeconds += seconds;
+
+    const appName = activity.appName?.trim() || "앱 이름 없음";
+    const current = byApp.get(appName) ?? { seconds: 0, title: null };
+    current.seconds += seconds;
+    current.title = activity.windowTitle?.trim() || current.title;
+    byApp.set(appName, current);
+  }
+
+  const [topAppName, topApp] =
+    [...byApp.entries()].sort((left, right) => right[1].seconds - left[1].seconds)[0] ?? [null, null];
+
+  return {
+    logCount: scopedLogs.length,
+    topAppName,
+    topWindowTitle: topApp?.title ?? null,
+    totalSeconds,
+  };
+}
+
 function DashboardMetricRing({ label, progress, tone, value }: { label: string; progress: number; tone: string; value: number | string }) {
   return (
     <div className="workspace-dashboard__metric-ring" data-tone={tone}>
@@ -226,38 +293,88 @@ function DashboardMetricRing({ label, progress, tone, value }: { label: string; 
   );
 }
 
-function DashboardSummary({ data, enabledBubbleCount, tasks }: { data: DashboardWorkResponse; enabledBubbleCount: number | null; tasks: TaskResponse[] }) {
+function DashboardSummary({
+  activityFocus,
+  data,
+  enabledBubbleCount,
+  tasks,
+  widgetUsageSummary,
+}: {
+  activityFocus: ActivityFocusSummary | null;
+  data: DashboardWorkResponse;
+  enabledBubbleCount: number | null;
+  tasks: TaskResponse[];
+  widgetUsageSummary: WidgetTodayUsageSummaryResponse | null;
+}) {
   const reviewCount = tasks.filter((task) => task.status === "REVIEW" || task.status === "BLOCKED").length;
   const timerActive = data.runningTimer ? 1 : 0;
+  const bubbleUsageCount = widgetUsageSummary ? widgetUsageSummary.totalOpenCount + widgetUsageSummary.totalInteractionCount : null;
   const metrics = [
     { label: "할 일", progress: getMetricProgress(tasks.length, 8), tone: "task", value: tasks.length },
     { label: "일정", progress: getMetricProgress(data.todaySchedules.length, 6), tone: "schedule", value: data.todaySchedules.length },
     { label: "확인", progress: getMetricProgress(reviewCount, 5), tone: "review", value: reviewCount },
     { label: "타이머", progress: timerActive ? 100 : 0, tone: "timer", value: timerActive ? "ON" : "0" },
-    ...(enabledBubbleCount !== null
-      ? [{ label: "버블", progress: getMetricProgress(enabledBubbleCount, 8), tone: "bubble", value: enabledBubbleCount }]
+    ...(bubbleUsageCount !== null
+      ? [{ label: "버블 사용", progress: getMetricProgress(bubbleUsageCount, 24), tone: "bubble", value: bubbleUsageCount }]
+      : enabledBubbleCount !== null
+        ? [{ label: "활성 버블", progress: getMetricProgress(enabledBubbleCount, 8), tone: "bubble", value: enabledBubbleCount }]
+        : []),
+    ...(activityFocus
+      ? [
+          {
+            label: "집중",
+            progress: getMetricProgress(Math.round(activityFocus.totalSeconds / 60), 240),
+            tone: "focus",
+            value: formatMetricDuration(activityFocus.totalSeconds),
+          },
+        ]
       : []),
   ];
 
   return (
-    <div className="workspace-dashboard__summary">
-      {metrics.map((metric) => (
-        <DashboardMetricRing key={metric.label} {...metric} />
-      ))}
+    <div className="workspace-dashboard__summary-wrap">
+      <div className="workspace-dashboard__summary">
+        {metrics.map((metric) => (
+          <DashboardMetricRing key={metric.label} {...metric} />
+        ))}
+      </div>
+      <div className="workspace-dashboard__summary-insights">
+        {widgetUsageSummary ? (
+          <span>
+            버블 {widgetUsageSummary.totalOpenCount}회 열림 · {widgetUsageSummary.totalInteractionCount}회 상호작용 ·{" "}
+            {formatDuration(widgetUsageSummary.totalVisibleSeconds)} 표시
+          </span>
+        ) : (
+          <span>{enabledBubbleCount !== null ? `활성 버블 ${enabledBubbleCount}개` : "오늘 버블 사용 기록이 없습니다"}</span>
+        )}
+        {activityFocus ? (
+          <span>
+            {activityFocus.totalSeconds > 0
+              ? `${activityFocus.topAppName ?? "작업 앱"} 중심 · ${formatDuration(activityFocus.totalSeconds)} 기록`
+              : activityFocus.logCount > 0
+                ? "활동 기록은 있지만 머문 시간이 아직 없습니다"
+                : "오늘 활동 기록이 없습니다"}
+          </span>
+        ) : (
+          <span>활동 동의 후 집중 시간이 표시됩니다</span>
+        )}
+      </div>
     </div>
   );
 }
 
 function NextFocusWidget({
+  activityFocus,
   nextSchedule,
   nextTask,
   runningTimer,
 }: {
+  activityFocus: ActivityFocusSummary | null;
   nextSchedule: ScheduleResponse | null;
   nextTask: TaskResponse | null;
   runningTimer?: DashboardWorkResponse["runningTimer"];
 }) {
-  if (!nextTask && !nextSchedule && !runningTimer) {
+  if (!nextTask && !nextSchedule && !runningTimer && !activityFocus?.totalSeconds) {
     return <EmptyWidget />;
   }
 
@@ -268,49 +385,17 @@ function NextFocusWidget({
           <b>{formatDuration(getTimerSeconds(runningTimer))}</b>
           <span>{nextTask ? `${nextTask.title} 이어서 진행 중` : "지금 진행 중인 일이 있습니다"}</span>
         </div>
+      ) : activityFocus?.totalSeconds ? (
+        <div className="workspace-dashboard__timer-preview workspace-dashboard__timer-preview--compact">
+          <b>{formatDuration(activityFocus.totalSeconds)}</b>
+          <span>{activityFocus.topAppName ? `${activityFocus.topAppName} 중심으로 작업했습니다` : "오늘 집중 시간이 기록됐습니다"}</span>
+          {activityFocus.topWindowTitle ? <small>{activityFocus.topWindowTitle}</small> : null}
+        </div>
       ) : null}
       <DashboardLineList>
         {nextTask ? <TaskLine task={nextTask} /> : null}
         {nextSchedule ? <ScheduleLine schedule={nextSchedule} /> : null}
       </DashboardLineList>
-    </div>
-  );
-}
-
-function TimerWidget({
-  action,
-  inProgressTask,
-  onStart,
-  onStop,
-  runningTimer,
-}: {
-  action: TimerActionState;
-  inProgressTask: TaskResponse | null;
-  onStart: () => void;
-  onStop: () => void;
-  runningTimer?: DashboardWorkResponse["runningTimer"];
-}) {
-  const isActive = Boolean(runningTimer && runningTimer.status !== "ENDED");
-  const pending = action.kind === "pending";
-
-  return (
-    <div className="workspace-dashboard__timer-preview">
-      <b>{isActive ? formatDuration(getTimerSeconds(runningTimer)) : "00:00"}</b>
-      <span>{inProgressTask ? `${inProgressTask.title} 기준으로 기록합니다` : isActive ? "타이머 실행 중" : "오늘 작업 시간을 바로 남깁니다"}</span>
-      <div className="workspace-dashboard__timer-actions">
-        <Button
-          icon={isActive ? <Square size={14} strokeWidth={2.2} /> : <Play size={14} strokeWidth={2.2} />}
-          loading={pending}
-          onClick={isActive ? onStop : onStart}
-          size="sm"
-          variant={isActive ? "quiet" : "primary"}
-        >
-          {isActive ? "정지" : "시작"}
-        </Button>
-        {action.kind === "error" ? <small role="status">{action.message}</small> : null}
-        {action.kind === "success" ? <small role="status">{action.message}</small> : null}
-        {action.kind === "pending" ? <small role="status">{action.message}</small> : null}
-      </div>
     </div>
   );
 }
@@ -498,80 +583,48 @@ export function WorkspaceDashboard() {
   const [activeRoom, setActiveRoom] = useState<{ label: string | null; roomId: string | null }>({ label: null, roomId: null });
   const [personalTasks, setPersonalTasks] = useState<TaskResponse[]>([]);
   const [rooms, setRooms] = useState<ProjectRoomResponse[]>([]);
-  const [timerAction, setTimerAction] = useState<TimerActionState>({ kind: "idle" });
+  const [todayActivityLogs, setTodayActivityLogs] = useState<ActivityLogResponse[] | null>(null);
+  const [todayWidgetUsageSummary, setTodayWidgetUsageSummary] = useState<WidgetTodayUsageSummaryResponse | null>(null);
+  const [widgetSummary, setWidgetSummary] = useState<WidgetSummaryResponse | null>(null);
   const [widgetIds, setWidgetIds] = useState(() => readStoredWidgetIds());
+  const [timerAction, setTimerAction] = useState<DashboardTimerAction>("idle");
+  const [timerMessage, setTimerMessage] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const fetchDashboard = useCallback(async () => {
-    const [dashboardTaskResult, roomResult, personalTaskResult] = await Promise.allSettled([
-      dashboardApi.getTasks(),
-      projectRoomApi.list(),
-      todoApi.list(),
-    ]);
+    try {
+      const data = await dashboardApi.getWork();
+      setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
+      const [roomResult, personalTaskResult, widgetSummaryResult, widgetUsageResult, activityResult] = await Promise.allSettled([
+        projectRoomApi.list(),
+        todoApi.list(),
+        readWidgetSummary(),
+        widgetApi.getTodayUsageRollups(),
+        activityApi.getToday(),
+      ]);
 
-    const authFailed = [dashboardTaskResult, roomResult, personalTaskResult].some(
-      (result) => result.status === "rejected" && result.reason instanceof ApiClientError && result.reason.status === 401,
-    );
-
-    if (authFailed) {
-      setState({ kind: "auth" });
-      return;
-    }
-
-    setRooms(roomResult.status === "fulfilled" ? roomResult.value.items : []);
-    setPersonalTasks(personalTaskResult.status === "fulfilled" ? personalTaskResult.value.items : []);
-
-    if (dashboardTaskResult.status === "fulfilled") {
-      const tasks = dashboardTaskResult.value.items;
-      const activeTasks = tasks.filter((task) => task.status !== "DONE");
-      setState((current) => {
-        const runningTimer = current.kind === "ready" || current.kind === "empty" ? current.data.runningTimer : null;
-        const data: DashboardWorkResponse = {
-          ...emptyDashboard,
-          runningTimer,
-          todayTasks: activeTasks.slice(0, 4),
-          upcomingDeadlines: activeTasks.filter((task) => task.dueAt).slice(0, 4),
-        };
-
-        return hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" };
+      setRooms(roomResult.status === "fulfilled" ? roomResult.value.items : []);
+      setPersonalTasks(personalTaskResult.status === "fulfilled" ? personalTaskResult.value.items : []);
+      setWidgetSummary(widgetSummaryResult.status === "fulfilled" && widgetSummaryResult.value.status === "ready" ? widgetSummaryResult.value.data : null);
+      setTodayWidgetUsageSummary(widgetUsageResult.status === "fulfilled" ? widgetUsageResult.value : null);
+      setTodayActivityLogs(activityResult.status === "fulfilled" ? activityResult.value : null);
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 401) {
+        setState({ kind: "auth" });
+        return;
+      }
+      if (shouldUseWorkspacePreviewData()) {
+        setState({ data: workspacePreviewDashboard, kind: "ready" });
+        setRooms(workspacePreviewRooms);
+        setTodayActivityLogs([]);
+        setTodayWidgetUsageSummary(null);
+        return;
+      }
+      setState({
+        kind: "error",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "대시보드를 불러오지 못했습니다",
       });
-      return;
     }
-
-    if (shouldUseWorkspacePreviewData()) {
-      setState({ data: workspacePreviewDashboard, kind: "ready" });
-      setRooms(workspacePreviewRooms);
-      return;
-    }
-
-    setState({
-      kind: "error",
-      message:
-        dashboardTaskResult.reason instanceof Error && dashboardTaskResult.reason.message !== "Failed to fetch"
-          ? dashboardTaskResult.reason.message
-          : "대시보드를 불러오지 못했습니다",
-    });
-  }, []);
-
-  const updateRunningTimer = useCallback((runningTimer: DashboardWorkResponse["runningTimer"]) => {
-    setState((current) => {
-      if (current.kind !== "ready" && current.kind !== "empty") return current;
-
-      const data = { ...current.data, runningTimer };
-      return hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" };
-    });
-  }, []);
-
-  const handleTimerError = useCallback((error: unknown) => {
-    if (error instanceof ApiClientError && error.status === 401) {
-      setState({ kind: "auth" });
-      return;
-    }
-
-    setTimerAction({
-      kind: "error",
-      message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "타이머를 서버에 기록하지 못했습니다",
-    });
   }, []);
 
   useEffect(() => {
@@ -603,6 +656,36 @@ export function WorkspaceDashboard() {
     storeWidgetIds(widgetIds);
   }, [widgetIds]);
 
+  const recordDashboardTimerState = useCallback((timeLog: TimeLogResponse) => {
+    if (!isTauriRuntime()) return;
+
+    void tauriCommands
+      .recordTimerState({
+        roomId: timeLog.roomId ?? null,
+        serverTimeLogId: timeLog.id,
+        startedAt: timeLog.startedAt,
+        status: timeLog.status,
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const applyDashboardTimerResult = useCallback(
+    (timeLog: TimeLogResponse) => {
+      setState((current) => {
+        if (current.kind !== "ready" && current.kind !== "empty") return current;
+
+        const nextData = {
+          ...current.data,
+          runningTimer: timeLog.status === "ENDED" ? null : timeLog,
+        };
+
+        return hasDashboardItems(nextData) ? { data: nextData, kind: "ready" } : { data: nextData, kind: "empty" };
+      });
+      recordDashboardTimerState(timeLog);
+    },
+    [recordDashboardTimerState],
+  );
+
   const realData = state.kind === "ready" || state.kind === "empty" ? state.data : emptyDashboard;
   const data = useMemo<DashboardWorkResponse>(() => {
     if (!activeRoom.roomId) return realData;
@@ -615,6 +698,74 @@ export function WorkspaceDashboard() {
       upcomingDeadlines: realData.upcomingDeadlines.filter((task) => task.roomId === activeRoom.roomId),
     };
   }, [activeRoom.roomId, realData]);
+  const activeDashboardTimer = data.runningTimer ?? null;
+  const roomFilteredRunningTimer = activeRoom.roomId && realData.runningTimer && !activeDashboardTimer ? realData.runningTimer : null;
+  const timerBusy = timerAction !== "idle";
+  const activeHeartbeatTimerId = realData.runningTimer?.status === "RUNNING" ? realData.runningTimer.id : null;
+
+  useEffect(() => {
+    if (!activeHeartbeatTimerId) return;
+
+    let cancelled = false;
+    const intervalId = window.setInterval(() => {
+      void timerApi
+        .heartbeat(activeHeartbeatTimerId)
+        .then((timeLog) => {
+          if (!cancelled) {
+            applyDashboardTimerResult(timeLog);
+          }
+        })
+        .catch(() => undefined);
+    }, DASHBOARD_TIMER_HEARTBEAT_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeHeartbeatTimerId, applyDashboardTimerResult]);
+
+  const runDashboardTimerAction = useCallback(
+    async (action: Exclude<DashboardTimerAction, "idle">) => {
+      const currentTimer = data.runningTimer ?? realData.runningTimer ?? null;
+      setTimerAction(action);
+      setTimerMessage(null);
+
+      try {
+        if (action === "starting") {
+          const roomId = activeRoom.roomId ?? null;
+          const timeLog = await timerApi.start({
+            idempotencyKey: makeTimerIdempotencyKey(),
+            roomId,
+            timerType: roomId ? "WORK" : "GENERAL",
+          });
+          applyDashboardTimerResult(timeLog);
+          setTimerMessage("타이머를 시작했습니다");
+          return;
+        }
+
+        if (!currentTimer) {
+          setTimerMessage("실행 중인 타이머가 없습니다");
+          return;
+        }
+
+        const timeLog =
+          action === "pausing"
+            ? await timerApi.pause(currentTimer.id)
+            : action === "resuming"
+              ? await timerApi.resume(currentTimer.id)
+              : await timerApi.stop(currentTimer.id);
+
+        applyDashboardTimerResult(timeLog);
+        setTimerMessage(action === "pausing" ? "타이머를 일시정지했습니다" : action === "resuming" ? "타이머를 재개했습니다" : "타이머를 종료했습니다");
+      } catch (error) {
+        setTimerMessage(error instanceof Error && error.message !== "Failed to fetch" ? error.message : "타이머 요청을 처리하지 못했습니다");
+      } finally {
+        setTimerAction("idle");
+      }
+    },
+    [activeRoom.roomId, applyDashboardTimerResult, data.runningTimer, realData.runningTimer],
+  );
+
   const dashboardTasks = [...data.todayTasks, ...data.upcomingDeadlines, ...(activeRoom.roomId ? [] : personalTasks)].filter(
     (task, index, source) => source.findIndex((item) => item.id === task.id) === index,
   );
@@ -627,10 +778,10 @@ export function WorkspaceDashboard() {
     .slice(0, 4);
   const nextFocusTask = pickNextTask(dashboardTasks);
   const nextFocusSchedule = pickNextSchedule(todaySchedules);
+  const activityFocus = useMemo(() => summarizeActivityFocus(todayActivityLogs, activeRoom.roomId), [activeRoom.roomId, todayActivityLogs]);
   const canShowDashboardGrid = state.kind === "ready" || state.kind === "empty";
   const inProgressTask = dashboardTasks.find((task) => task.status === "IN_PROGRESS") ?? null;
-  const timerStartRoomId = activeRoom.roomId ?? inProgressTask?.roomId ?? null;
-  const enabledBubbleCount = null;
+  const enabledBubbleCount = widgetSummary ? widgetSummary.bubbles.filter((bubble) => bubble.enabled).length : null;
   const recentResources = useMemo(() => {
     if (!shouldUseWorkspacePreviewData()) return [];
     const resources = activeRoom.roomId
@@ -746,50 +897,21 @@ export function WorkspaceDashboard() {
     setActiveBoardWidgetId(null);
   }, []);
 
-  const handleStartTimer = useCallback(() => {
-    void (async () => {
-      setTimerAction({ kind: "pending", message: "타이머 시작 중" });
-
-      try {
-        const roomId = timerStartRoomId;
-        const runningTimer = await timerApi.start({
-          idempotencyKey: createTimerIdempotencyKey(),
-          roomId,
-          timerType: roomId ? "WORK" : "GENERAL",
-        });
-
-        updateRunningTimer(runningTimer);
-        setTimerAction({ kind: "success", message: "타이머가 시작됐습니다" });
-      } catch (error) {
-        handleTimerError(error);
-      }
-    })();
-  }, [handleTimerError, timerStartRoomId, updateRunningTimer]);
-
-  const handleStopTimer = useCallback(() => {
-    void (async () => {
-      const runningTimer = data.runningTimer;
-      if (!runningTimer) return;
-
-      setTimerAction({ kind: "pending", message: "타이머 정지 중" });
-
-      try {
-        await timerApi.stop(runningTimer.id);
-        updateRunningTimer(null);
-        setTimerAction({ kind: "success", message: "타이머 기록을 저장했습니다" });
-      } catch (error) {
-        handleTimerError(error);
-      }
-    })();
-  }, [data.runningTimer, handleTimerError, updateRunningTimer]);
-
   const renderWidgetBody = useCallback(
     (widgetId: string) => {
       switch (widgetId) {
         case "today-summary":
-          return <DashboardSummary data={data} enabledBubbleCount={enabledBubbleCount} tasks={dashboardTasks} />;
+          return (
+            <DashboardSummary
+              activityFocus={activityFocus}
+              data={data}
+              enabledBubbleCount={enabledBubbleCount}
+              tasks={dashboardTasks}
+              widgetUsageSummary={todayWidgetUsageSummary}
+            />
+          );
         case "next-focus":
-          return <NextFocusWidget nextSchedule={nextFocusSchedule} nextTask={nextFocusTask} runningTimer={data.runningTimer} />;
+          return <NextFocusWidget activityFocus={activityFocus} nextSchedule={nextFocusSchedule} nextTask={nextFocusTask} runningTimer={data.runningTimer} />;
         case "today-todos":
           if (taskItems.length === 0) return <EmptyWidget />;
           return (
@@ -830,13 +952,69 @@ export function WorkspaceDashboard() {
           );
         case "timer":
           return (
-            <TimerWidget
-              action={timerAction}
-              inProgressTask={inProgressTask}
-              onStart={handleStartTimer}
-              onStop={handleStopTimer}
-              runningTimer={data.runningTimer}
-            />
+            <div className="workspace-dashboard__timer-preview">
+              <b>{formatDuration(getTimerSeconds(activeDashboardTimer))}</b>
+              <span>
+                {activeDashboardTimer
+                  ? timerActionLabel(activeDashboardTimer)
+                  : roomFilteredRunningTimer
+                    ? "다른 프로젝트룸에서 실행 중"
+                    : inProgressTask
+                      ? `${inProgressTask.title} 진행 중`
+                      : "타이머 대기"}
+              </span>
+              <div className="workspace-dashboard__timer-actions" aria-label="타이머 조작" role="group">
+                <Button
+                  aria-label="타이머 시작"
+                  className="workspace-dashboard__timer-action"
+                  disabled={timerBusy || Boolean(realData.runningTimer)}
+                  icon={<Play size={13} strokeWidth={2.2} />}
+                  loading={timerAction === "starting"}
+                  onClick={() => void runDashboardTimerAction("starting")}
+                  size="sm"
+                  variant="primary"
+                >
+                  시작
+                </Button>
+                <Button
+                  aria-label="타이머 일시정지"
+                  className="workspace-dashboard__timer-action"
+                  disabled={timerBusy || activeDashboardTimer?.status !== "RUNNING"}
+                  icon={<Pause size={13} strokeWidth={2.2} />}
+                  loading={timerAction === "pausing"}
+                  onClick={() => void runDashboardTimerAction("pausing")}
+                  size="sm"
+                  variant="secondary"
+                >
+                  일시정지
+                </Button>
+                <Button
+                  aria-label="타이머 재개"
+                  className="workspace-dashboard__timer-action"
+                  disabled={timerBusy || activeDashboardTimer?.status !== "PAUSED"}
+                  icon={<RotateCcw size={13} strokeWidth={2.2} />}
+                  loading={timerAction === "resuming"}
+                  onClick={() => void runDashboardTimerAction("resuming")}
+                  size="sm"
+                  variant="secondary"
+                >
+                  재개
+                </Button>
+                <Button
+                  aria-label="타이머 종료"
+                  className="workspace-dashboard__timer-action"
+                  disabled={timerBusy || !activeDashboardTimer || activeDashboardTimer.status === "ENDED"}
+                  icon={<Square size={12} strokeWidth={2.4} />}
+                  loading={timerAction === "stopping"}
+                  onClick={() => void runDashboardTimerAction("stopping")}
+                  size="sm"
+                  variant="quiet"
+                >
+                  종료
+                </Button>
+              </div>
+              {timerMessage ? <small aria-live="polite">{timerMessage}</small> : null}
+            </div>
           );
         case "recent-resources":
           if (recentResources.length === 0) return <EmptyWidget />;
@@ -852,20 +1030,26 @@ export function WorkspaceDashboard() {
       }
     },
     [
+      activeDashboardTimer,
       activeRooms,
+      activityFocus,
       dashboardTasks,
       data,
       enabledBubbleCount,
-      handleStartTimer,
-      handleStopTimer,
       inProgressTask,
       nextFocusSchedule,
       nextFocusTask,
+      realData.runningTimer,
       recentResources,
       reviewTasks,
+      roomFilteredRunningTimer,
+      runDashboardTimerAction,
       taskItems,
       timerAction,
+      timerBusy,
+      timerMessage,
       todaySchedules,
+      todayWidgetUsageSummary,
     ],
   );
 

@@ -1,3 +1,5 @@
+import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { managedFolderApi } from "@/features/managed-folder/api/managedFolderApi";
 import {
   blocked,
@@ -9,16 +11,21 @@ import {
   runTauriAdapter,
   unavailable,
 } from "@/lib/local/adapter-result";
-import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
 import type {
   LocalAdapterResult,
-  LocalFileReadAdapterInput,
-  LocalFileReadAdapterResult,
+  LocalFileOpenAdapterInput,
+  LocalFileOpenAdapterResult,
+  LocalFilePreviewAdapterInput,
+  LocalFilePreviewAdapterResult,
+  LocalFileReindexAdapterInput,
+  LocalFileReindexAdapterResult,
   LocalFileSearchAdapterInput,
   LocalFileSearchAdapterResult,
+  ManagedFolderIndexProgressAdapterResult,
   ManagedFolderScanAdapterResult,
   ManagedFolderSelectResult,
+  ManagedFolderSyncAdapterInput,
+  ManagedFolderSyncAdapterResult,
   ManagedFolderWatchAdapterResult,
   PersonalManagedFolderCommandInput,
   PersonalManagedFolderSelectInput,
@@ -46,7 +53,7 @@ export async function selectPersonalManagedFolder(
     return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.selectManagedFolder);
   }
 
-  const tauriInput = input ? { path: input.path } : undefined;
+  const { roomId: _roomId, ...tauriInput } = input ?? {};
 
   return runTauriAdapter(TAURI_COMMANDS.selectManagedFolder, () =>
     tauriCommands.selectManagedFolder(tauriInput),
@@ -64,10 +71,49 @@ export async function scanPersonalManagedFolder(
     return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.scanManagedFolder);
   }
 
-  const tauriInput = { localFolderId: input.localFolderId };
+  const { roomId: _roomId, ...tauriInput } = input;
 
   return runTauriAdapter(TAURI_COMMANDS.scanManagedFolder, () =>
     tauriCommands.scanManagedFolder(tauriInput),
+  );
+}
+
+export async function getPersonalManagedFolderIndexProgress(
+  input: PersonalManagedFolderCommandInput,
+): Promise<ManagedFolderIndexProgressAdapterResult> {
+  if (!isTauriRuntime()) {
+    return unavailable(TAURI_COMMANDS.getIndexProgress);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.getIndexProgress);
+  }
+
+  const tauriInput = { localFolderId: input.localFolderId };
+
+  return runTauriAdapter(TAURI_COMMANDS.getIndexProgress, () =>
+    tauriCommands.getIndexProgress(tauriInput),
+  );
+}
+
+export async function setPersonalManagedFolderSync(
+  input: ManagedFolderSyncAdapterInput,
+): Promise<ManagedFolderSyncAdapterResult> {
+  if (!isTauriRuntime()) {
+    return unavailable(TAURI_COMMANDS.setFolderSync);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.setFolderSync);
+  }
+
+  const tauriInput = {
+    enabled: input.enabled,
+    localFolderId: input.localFolderId,
+  };
+
+  return runTauriAdapter(TAURI_COMMANDS.setFolderSync, () =>
+    tauriCommands.setFolderSync(tauriInput),
   );
 }
 
@@ -82,7 +128,7 @@ export async function watchPersonalManagedFolder(
     return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.watchManagedFolder);
   }
 
-  const tauriInput = { localFolderId: input.localFolderId };
+  const { roomId: _roomId, ...tauriInput } = input;
   const commandName = TAURI_COMMANDS.watchManagedFolder;
 
   const result = await runTauriAdapter(commandName, () => tauriCommands.watchManagedFolder(tauriInput));
@@ -112,28 +158,63 @@ export async function searchPersonalLocalFiles(
     return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.searchLocalFiles);
   }
 
-  const tauriInput = { limit: input.limit, query: input.query };
+  const { roomId: _roomId, ...tauriInput } = input;
 
   return runTauriAdapter(TAURI_COMMANDS.searchLocalFiles, () =>
     tauriCommands.searchLocalFiles(tauriInput),
   );
 }
 
-export async function readPersonalLocalFile(
-  input: LocalFileReadAdapterInput,
-): Promise<LocalFileReadAdapterResult> {
+export async function openPersonalLocalFile(
+  input: LocalFileOpenAdapterInput,
+): Promise<LocalFileOpenAdapterResult> {
   if (!isTauriRuntime()) {
-    return unavailable(TAURI_COMMANDS.readLocalFile);
+    return unavailable(TAURI_COMMANDS.openLocalFile);
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.readLocalFile);
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.openLocalFile);
   }
 
-  const tauriInput = { localFileId: input.localFileId, maxBytes: input.maxBytes };
+  return runTauriAdapter(TAURI_COMMANDS.openLocalFile, () =>
+    tauriCommands.openLocalFile({ localFileId: input.localFileId }),
+  );
+}
 
-  return runTauriAdapter(TAURI_COMMANDS.readLocalFile, () =>
-    tauriCommands.readLocalFile(tauriInput),
+export async function readPersonalLocalFilePreview(
+  input: LocalFilePreviewAdapterInput,
+): Promise<LocalFilePreviewAdapterResult> {
+  if (!isTauriRuntime()) {
+    return unavailable(TAURI_COMMANDS.readLocalFilePreview);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.readLocalFilePreview);
+  }
+
+  const tauriInput = {
+    localFileId: input.localFileId,
+    maxChars: input.maxChars,
+  };
+
+  return runTauriAdapter(TAURI_COMMANDS.readLocalFilePreview, () =>
+    tauriCommands.readLocalFilePreview(tauriInput),
+  );
+}
+
+export async function reindexPersonalLocalFile(
+  input: LocalFileReindexAdapterInput,
+): Promise<LocalFileReindexAdapterResult> {
+  if (!isTauriRuntime()) {
+    return unavailable(TAURI_COMMANDS.reindexFile);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.reindexFile);
+  }
+
+  return runTauriAdapter(TAURI_COMMANDS.reindexFile, () =>
+    tauriCommands.reindexFile({ localFileId: input.localFileId }),
   );
 }
 
@@ -211,6 +292,19 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
       `로컬 파일 변경 ${response.results.length}건을 서버에 반영했습니다.`,
     );
   } catch (error) {
-    return failed(getErrorMessage(error), commandName);
+    const syncErrorMessage = getErrorMessage(error);
+    try {
+      await tauriCommands.markLocalFileEventsSynced({
+        results: staged.data.events.map((event) => ({
+          localEventId: event.localEventId,
+          resourceId: event.resourceId,
+          status: "FAILED",
+        })),
+      });
+    } catch (markError) {
+      return failed(`${syncErrorMessage} / local failure mark failed: ${getErrorMessage(markError)}`, commandName);
+    }
+
+    return failed(syncErrorMessage, commandName);
   }
 }

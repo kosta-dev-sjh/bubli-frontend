@@ -313,14 +313,6 @@ button.row:not(:disabled):hover {
   white-space: nowrap;
 }
 
-.rowActions {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  min-width: 0;
-}
-
 .inlineSelect {
   min-width: 220px;
   max-width: min(340px, 42vw);
@@ -395,62 +387,47 @@ button.row:not(:disabled):hover {
   align-items: end;
 }
 
-.localPreview {
+.activityList {
   display: grid;
+  gap: 8px;
+}
+
+.activityRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
+  align-items: center;
+  min-height: 58px;
   border: 1px solid var(--settings-rim);
-  border-radius: 18px;
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.58);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
 }
 
-.previewHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.previewHeader > span {
+.activityRow > span {
   display: grid;
   gap: 4px;
   min-width: 0;
 }
 
-.previewHeader strong,
-.previewHeader small {
+.activityRow strong,
+.activityRow small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.previewHeader strong {
+.activityRow strong {
   color: var(--ink);
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 740;
 }
 
-.previewHeader small {
+.activityRow small {
   color: var(--color-muted);
   font-size: 12px;
   font-weight: 610;
-}
-
-.previewBody {
-  max-height: 260px;
-  overflow: auto;
-  border: 1px solid rgba(213, 228, 240, 0.74);
-  border-radius: 12px;
-  margin: 0;
-  padding: 12px;
-  color: var(--ink);
-  background: rgba(250, 253, 255, 0.78);
-  font-family: var(--font-mono, "SFMono-Regular", Consolas, "Liberation Mono", monospace);
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .integrationGrid {
@@ -584,6 +561,7 @@ button.row:not(:disabled):hover {
 :global([data-theme="dark"]) .identity strong,
 :global([data-theme="dark"]) .integrationLead strong,
 :global([data-theme="dark"]) .bubbleRow strong,
+:global([data-theme="dark"]) .activityRow strong,
 :global([data-theme="dark"]) .row strong {
   color: rgba(232, 240, 250, 0.94);
 }
@@ -593,6 +571,7 @@ button.row:not(:disabled):hover {
 :global([data-theme="dark"]) .settingBlock,
 :global([data-theme="dark"]) .integrationLead,
 :global([data-theme="dark"]) .bubbleRow,
+:global([data-theme="dark"]) .activityRow,
 :global([data-theme="dark"]) .row,
 :global([data-theme="dark"]) .metrics div,
 :global([data-theme="dark"]) .emptyRow {
@@ -610,6 +589,7 @@ button.row:not(:disabled):hover {
 :global([data-theme="dark"]) .settingBlock > span,
 :global([data-theme="dark"]) .integrationLead span,
 :global([data-theme="dark"]) .bubbleRow small,
+:global([data-theme="dark"]) .activityRow small,
 :global([data-theme="dark"]) .row small,
 :global([data-theme="dark"]) .guard,
 :global([data-theme="dark"]) .emptyRow {
@@ -677,6 +657,14 @@ button.row:not(:disabled):hover {
   }
 
   .row small {
+    white-space: normal;
+  }
+
+  .activityRow {
+    grid-template-columns: 1fr;
+  }
+
+  .activityRow small {
     white-space: normal;
   }
 }

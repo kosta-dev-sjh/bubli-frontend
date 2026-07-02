@@ -1,4 +1,4 @@
-//! BUBLI-43: local file index, change candidates, approval, sync staging.
+﻿//! BUBLI-43: local file index, change candidates, approval, sync staging.
 //!
 //! Personal-only boundary (Data Model 13.2, 09C): managed folders and their
 //! files belong to the user, never to a project room. Nothing here writes a
@@ -7,6 +7,7 @@
 //! /api/local-file-events/sync); this module stages the candidates locally.
 
 use std::collections::{HashMap, HashSet};
+use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -15,14 +16,16 @@ use std::time::UNIX_EPOCH;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
+use serde_json::json;
+use sha2::{Digest, Sha256};
+use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_dialog::DialogExt;
 use uuid::Uuid;
 
 use crate::local_db::{ms_to_iso, now_ms, Db};
 
 const MAX_EXTRACT_BYTES: u64 = 1024 * 1024;
-const DEFAULT_READ_PREVIEW_BYTES: u64 = 128 * 1024;
+const CHECKSUM_HEAD_BYTES: u64 = 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +47,22 @@ pub struct ManagedFolderCommandInput {
     local_folder_id: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderSyncInput {
+    enabled: bool,
+    local_folder_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderSyncResult {
+    local_folder_id: String,
+    pending_event_count: i64,
+    sync_enabled: bool,
+    updated_at: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ManagedFolderScanResult {
@@ -54,10 +73,33 @@ pub struct ManagedFolderScanResult {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ManagedFolderIndexProgressResult {
+    calculated_at: String,
+    indexed_files: i64,
+    local_folder_id: String,
+    pending_event_count: i64,
+    pending_files: i64,
+    progress_percent: i64,
+    sync_enabled: bool,
+    total_files: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ManagedFolderWatchResult {
     local_folder_id: String,
     watching: bool,
 }
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderWatchEvent {
+    changed_count: i64,
+    local_folder_id: String,
+    observed_at: String,
+}
+
+const MANAGED_FOLDER_WATCH_EVENT: &str = "bubli-managed-folder-watch-event";
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -84,24 +126,56 @@ pub struct LocalFileSearchResult {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LocalFileReadInput {
+pub struct LocalFilePreviewInput {
     local_file_id: String,
-    max_bytes: Option<u64>,
+    max_chars: Option<usize>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LocalFileReadResult {
-    content: Option<String>,
+pub struct LocalFilePreviewResult {
     local_file_id: String,
-    modified_at: Option<String>,
+    mime_type: Option<String>,
     name: String,
     path: String,
-    readable: bool,
-    reason: Option<String>,
-    size_bytes: Option<i64>,
+    preview_text: Option<String>,
+    read_at: String,
+    status: String,
     truncated: bool,
-    updated_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileOpenInput {
+    local_file_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileOpenResult {
+    local_file_id: String,
+    name: String,
+    opened_at: String,
+    path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileReindexInput {
+    local_file_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileReindexResult {
+    changed: bool,
+    checksum: Option<String>,
+    local_file_id: String,
+    local_folder_id: String,
+    name: String,
+    path: String,
+    reindexed_at: String,
+    status: String,
 }
 
 #[derive(Serialize)]
@@ -162,6 +236,8 @@ pub struct LocalFileEventsMarkSyncedResult {
 
 /// Keeps native file watchers alive for the lifetime of the app process.
 pub struct ManagedFolderWatchers(pub Mutex<HashMap<String, RecommendedWatcher>>);
+
+const SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL: &str = "'CREATED', 'UPDATED', 'DELETED'";
 
 impl Default for ManagedFolderWatchers {
     fn default() -> Self {
@@ -228,11 +304,61 @@ fn resolve_managed_folder_path(
 
     app.dialog()
         .file()
-        .set_title("관리 폴더 선택")
+        .set_title("Select managed folder")
         .blocking_pick_folder()
         .ok_or_else(|| "folder selection cancelled".to_string())?
         .into_path()
         .map_err(|error| format!("folder path resolve failed: {error}"))
+}
+
+/// Return the current local index progress for one personal managed folder.
+#[tauri::command]
+pub fn get_index_progress(
+    state: State<'_, Db>,
+    input: ManagedFolderCommandInput,
+) -> Result<ManagedFolderIndexProgressResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    get_index_progress_for_conn(&conn, &input.local_folder_id)
+}
+
+/// Toggle whether detected file events from a personal managed folder may be
+/// staged for server reflection. Raw file contents still stay local.
+#[tauri::command]
+pub fn set_folder_sync(
+    state: State<'_, Db>,
+    input: ManagedFolderSyncInput,
+) -> Result<ManagedFolderSyncResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let now = now_ms();
+    set_folder_sync_for_conn(&conn, &input.local_folder_id, input.enabled, now)
+}
+
+fn set_folder_sync_for_conn(
+    conn: &Connection,
+    local_folder_id: &str,
+    enabled: bool,
+    now: i64,
+) -> Result<ManagedFolderSyncResult, String> {
+    let changed = conn
+        .execute(
+            "UPDATE managed_folders SET sync_enabled = ?2, updated_at = ?3 \
+             WHERE id = ?1 AND status != 'REMOVED'",
+            params![local_folder_id, if enabled { 1_i64 } else { 0_i64 }, now],
+        )
+        .map_err(|error| error.to_string())?;
+
+    if changed == 0 {
+        return Err(format!("managed folder not found: {local_folder_id}"));
+    }
+
+    let pending_event_count = pending_syncable_event_count(conn, local_folder_id)?;
+
+    Ok(ManagedFolderSyncResult {
+        local_folder_id: local_folder_id.to_string(),
+        pending_event_count,
+        sync_enabled: enabled,
+        updated_at: ms_to_iso(now),
+    })
 }
 
 /// Re-scan a managed folder, upsert the file index, and record change events.
@@ -280,10 +406,14 @@ pub fn scan_managed_folder(
             .ok()
             .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
             .map(|d| d.as_millis() as i64);
+        let checksum = match sha256_head(&file) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
 
-        let existing: Option<(String, Option<i64>, Option<i64>)> = conn
+        let existing: Option<(String, Option<i64>, Option<i64>, Option<String>)> = conn
             .query_row(
-                "SELECT id, size_bytes, modified_at FROM local_files \
+                "SELECT id, size_bytes, modified_at, checksum FROM local_files \
                  WHERE local_folder_id = ?1 AND local_path = ?2",
                 params![input.local_folder_id, local_path],
                 |row| {
@@ -291,6 +421,7 @@ pub fn scan_managed_folder(
                         row.get::<_, String>(0)?,
                         row.get::<_, Option<i64>>(1)?,
                         row.get::<_, Option<i64>>(2)?,
+                        row.get::<_, Option<String>>(3)?,
                     ))
                 },
             )
@@ -303,8 +434,8 @@ pub fn scan_managed_folder(
                 conn.execute(
                     "INSERT INTO local_files \
                      (id, local_folder_id, file_name, local_path, resource_id, size_bytes, checksum, sync_status, modified_at, updated_at) \
-                     VALUES (?1, ?2, ?3, ?4, NULL, ?5, NULL, 'LOCAL_ONLY', ?6, ?7)",
-                    params![file_id, input.local_folder_id, file_name, local_path, size_bytes, modified_ms, now],
+                     VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6, 'LOCAL_ONLY', ?7, ?8)",
+                    params![file_id, input.local_folder_id, file_name, local_path, size_bytes, checksum, modified_ms, now],
                 )
                 .map_err(|error| error.to_string())?;
                 upsert_file_fts_index(&conn, &file_id, &file_name, &local_path, &file)?;
@@ -315,19 +446,27 @@ pub fn scan_managed_folder(
                     "CREATED",
                     &file_name,
                     &local_path,
+                    Some(&checksum),
                     size_bytes,
                     modified_ms,
                     now,
                 )?;
                 changed_count += 1;
             }
-            Some((file_id, prev_size, prev_modified)) => {
-                let changed = prev_size != Some(size_bytes) || prev_modified != modified_ms;
+            Some((file_id, prev_size, prev_modified, prev_checksum)) => {
+                let changed = local_file_changed(
+                    prev_size,
+                    prev_modified,
+                    prev_checksum.as_deref(),
+                    size_bytes,
+                    modified_ms,
+                    &checksum,
+                );
                 if changed {
                     conn.execute(
-                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, sync_status = 'LOCAL_ONLY', updated_at = ?4 \
+                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, checksum = ?4, sync_status = 'LOCAL_ONLY', updated_at = ?5 \
                          WHERE id = ?1",
-                        params![file_id, size_bytes, modified_ms, now],
+                        params![file_id, size_bytes, modified_ms, checksum, now],
                     )
                     .map_err(|error| error.to_string())?;
                     upsert_file_fts_index(&conn, &file_id, &file_name, &local_path, &file)?;
@@ -338,11 +477,18 @@ pub fn scan_managed_folder(
                         "UPDATED",
                         &file_name,
                         &local_path,
+                        Some(&checksum),
                         size_bytes,
                         modified_ms,
                         now,
                     )?;
                     changed_count += 1;
+                } else if prev_checksum.is_none() {
+                    conn.execute(
+                        "UPDATE local_files SET checksum = ?2, updated_at = ?3 WHERE id = ?1",
+                        params![file_id, checksum, now],
+                    )
+                    .map_err(|error| error.to_string())?;
                 }
             }
         }
@@ -352,7 +498,7 @@ pub fn scan_managed_folder(
     {
         let mut stmt = conn
             .prepare(
-                "SELECT id, file_name, local_path, COALESCE(size_bytes, 0), modified_at \
+                "SELECT id, file_name, local_path, COALESCE(size_bytes, 0), modified_at, checksum \
                  FROM local_files WHERE local_folder_id = ?1",
             )
             .map_err(|error| error.to_string())?;
@@ -364,6 +510,7 @@ pub fn scan_managed_folder(
                     row.get::<_, String>(2)?,
                     row.get::<_, i64>(3)?,
                     row.get::<_, Option<i64>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
                 ))
             })
             .map_err(|error| error.to_string())?;
@@ -372,7 +519,7 @@ pub fn scan_managed_folder(
         }
     }
 
-    for (file_id, file_name, local_path, size_bytes, modified_ms) in known_files {
+    for (file_id, file_name, local_path, size_bytes, modified_ms, checksum) in known_files {
         if current_paths.contains(&local_path) {
             continue;
         }
@@ -396,6 +543,7 @@ pub fn scan_managed_folder(
             "DELETED",
             &file_name,
             &local_path,
+            checksum.as_deref(),
             size_bytes,
             modified_ms,
             now,
@@ -458,6 +606,7 @@ pub fn watch_managed_folder(
 
     let callback_folder_id = local_folder_id.clone();
     let callback_db_path = db_path.clone();
+    let callback_app = app.clone();
     let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
         let event = match result {
             Ok(value) => value,
@@ -479,10 +628,23 @@ pub fn watch_managed_folder(
         };
         crate::local_db::configure_connection(&conn);
         let now = now_ms();
+        let mut changed_count = 0;
 
         for path in event.paths {
-            if let Err(error) = record_watch_path_change(&conn, &callback_folder_id, &path, now) {
-                eprintln!("managed folder watch event failed: {error}");
+            match record_watch_path_change(&conn, &callback_folder_id, &path, now) {
+                Ok(count) => changed_count += count,
+                Err(error) => eprintln!("managed folder watch event failed: {error}"),
+            }
+        }
+
+        if changed_count > 0 {
+            let payload = ManagedFolderWatchEvent {
+                changed_count,
+                local_folder_id: callback_folder_id.clone(),
+                observed_at: ms_to_iso(now),
+            };
+            if let Err(error) = callback_app.emit(MANAGED_FOLDER_WATCH_EVENT, payload) {
+                eprintln!("managed folder watch emit failed: {error}");
             }
         }
     })
@@ -497,6 +659,198 @@ pub fn watch_managed_folder(
     Ok(ManagedFolderWatchResult {
         local_folder_id,
         watching: true,
+    })
+}
+
+fn get_index_progress_for_conn(
+    conn: &Connection,
+    local_folder_id: &str,
+) -> Result<ManagedFolderIndexProgressResult, String> {
+    let sync_enabled: Option<i64> = conn
+        .query_row(
+            "SELECT sync_enabled FROM managed_folders WHERE id = ?1 AND status != 'REMOVED'",
+            params![local_folder_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some(sync_enabled) = sync_enabled else {
+        return Err(format!("managed folder not found: {local_folder_id}"));
+    };
+
+    let total_files: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM local_files WHERE local_folder_id = ?1",
+            params![local_folder_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let indexed_files: i64 = conn
+        .query_row(
+            "SELECT COUNT(DISTINCT f.id) \
+             FROM local_files f \
+             INNER JOIN local_file_fts fts ON fts.local_file_id = f.id \
+             WHERE f.local_folder_id = ?1",
+            params![local_folder_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let pending_event_count = pending_syncable_event_count(conn, local_folder_id)?;
+    let pending_files = (total_files - indexed_files).max(0);
+    let progress_percent = if total_files == 0 {
+        100
+    } else {
+        ((indexed_files * 100) / total_files).clamp(0, 100)
+    };
+
+    Ok(ManagedFolderIndexProgressResult {
+        calculated_at: ms_to_iso(now_ms()),
+        indexed_files,
+        local_folder_id: local_folder_id.to_string(),
+        pending_event_count,
+        pending_files,
+        progress_percent,
+        sync_enabled: sync_enabled == 1,
+        total_files,
+    })
+}
+
+fn pending_syncable_event_count(conn: &Connection, local_folder_id: &str) -> Result<i64, String> {
+    conn.query_row(
+        format!(
+            "SELECT COUNT(*) FROM local_file_events \
+             WHERE local_folder_id = ?1 \
+               AND status IN ('PENDING', 'APPROVED', 'FAILED') \
+               AND event_type IN ({SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL})"
+        )
+        .as_str(),
+        params![local_folder_id],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn reindex_file_for_conn(
+    conn: &Connection,
+    local_file_id: &str,
+    now: i64,
+) -> Result<LocalFileReindexResult, String> {
+    let row: Option<(
+        String,
+        String,
+        String,
+        String,
+        Option<i64>,
+        Option<i64>,
+        Option<String>,
+    )> = conn
+        .query_row(
+            "SELECT id, local_folder_id, file_name, local_path, size_bytes, modified_at, checksum \
+             FROM local_files WHERE id = ?1",
+            params![local_file_id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some((
+        local_file_id,
+        local_folder_id,
+        stored_name,
+        local_path,
+        prev_size,
+        prev_modified,
+        prev_checksum,
+    )) = row
+    else {
+        return Err(format!(
+            "local file not found in managed index: {local_file_id}"
+        ));
+    };
+
+    let path = PathBuf::from(&local_path);
+    if !path.exists() {
+        let changed_count =
+            record_watch_path_delete(conn, &local_folder_id, &stored_name, &local_path, now)?;
+        return Ok(LocalFileReindexResult {
+            changed: changed_count > 0,
+            checksum: prev_checksum,
+            local_file_id,
+            local_folder_id,
+            name: stored_name,
+            path: local_path,
+            reindexed_at: ms_to_iso(now),
+            status: "MISSING".to_string(),
+        });
+    }
+
+    let metadata = std::fs::metadata(&path).map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err(format!("not a file: {local_path}"));
+    }
+
+    let file_name = path
+        .file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or(stored_name);
+    let size_bytes = metadata.len() as i64;
+    let modified_ms = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as i64);
+    let checksum = sha256_head(&path)?;
+    let changed = local_file_changed(
+        prev_size,
+        prev_modified,
+        prev_checksum.as_deref(),
+        size_bytes,
+        modified_ms,
+        &checksum,
+    );
+
+    conn.execute(
+        "UPDATE local_files \
+         SET file_name = ?2, size_bytes = ?3, modified_at = ?4, checksum = ?5, sync_status = 'LOCAL_ONLY', updated_at = ?6 \
+         WHERE id = ?1",
+        params![local_file_id, file_name, size_bytes, modified_ms, checksum, now],
+    )
+    .map_err(|error| error.to_string())?;
+    upsert_file_fts_index(conn, &local_file_id, &file_name, &local_path, &path)?;
+
+    if changed {
+        record_event(
+            conn,
+            &local_folder_id,
+            Some(local_file_id.as_str()),
+            "UPDATED",
+            &file_name,
+            &local_path,
+            Some(&checksum),
+            size_bytes,
+            modified_ms,
+            now,
+        )?;
+    }
+
+    Ok(LocalFileReindexResult {
+        changed,
+        checksum: Some(checksum),
+        local_file_id,
+        local_folder_id,
+        name: file_name,
+        path: local_path,
+        reindexed_at: ms_to_iso(now),
+        status: "REINDEXED".to_string(),
     })
 }
 
@@ -538,10 +892,11 @@ fn record_watch_path_change(
                 .ok()
                 .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as i64);
+            let checksum = sha256_head(path)?;
 
-            let existing: Option<(String, Option<i64>, Option<i64>)> = conn
+            let existing: Option<(String, Option<i64>, Option<i64>, Option<String>)> = conn
                 .query_row(
-                    "SELECT id, size_bytes, modified_at FROM local_files \
+                    "SELECT id, size_bytes, modified_at, checksum FROM local_files \
                      WHERE local_folder_id = ?1 AND local_path = ?2",
                     params![local_folder_id, local_path],
                     |row| {
@@ -549,6 +904,7 @@ fn record_watch_path_change(
                             row.get::<_, String>(0)?,
                             row.get::<_, Option<i64>>(1)?,
                             row.get::<_, Option<i64>>(2)?,
+                            row.get::<_, Option<String>>(3)?,
                         ))
                     },
                 )
@@ -561,8 +917,8 @@ fn record_watch_path_change(
                     conn.execute(
                         "INSERT INTO local_files \
                          (id, local_folder_id, file_name, local_path, resource_id, size_bytes, checksum, sync_status, modified_at, updated_at) \
-                         VALUES (?1, ?2, ?3, ?4, NULL, ?5, NULL, 'LOCAL_ONLY', ?6, ?7)",
-                        params![file_id, local_folder_id, file_name, local_path, size_bytes, modified_ms, now],
+                         VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6, 'LOCAL_ONLY', ?7, ?8)",
+                        params![file_id, local_folder_id, file_name, local_path, size_bytes, checksum, modified_ms, now],
                     )
                     .map_err(|error| error.to_string())?;
                     upsert_file_fts_index(
@@ -579,20 +935,35 @@ fn record_watch_path_change(
                         "CREATED",
                         &file_name,
                         &local_path,
+                        Some(&checksum),
                         size_bytes,
                         modified_ms,
                         now,
                     )?;
                     Ok(1)
                 }
-                Some((file_id, prev_size, prev_modified)) => {
-                    if prev_size == Some(size_bytes) && prev_modified == modified_ms {
+                Some((file_id, prev_size, prev_modified, prev_checksum)) => {
+                    if !local_file_changed(
+                        prev_size,
+                        prev_modified,
+                        prev_checksum.as_deref(),
+                        size_bytes,
+                        modified_ms,
+                        &checksum,
+                    ) {
+                        if prev_checksum.is_none() {
+                            conn.execute(
+                                "UPDATE local_files SET checksum = ?2, updated_at = ?3 WHERE id = ?1",
+                                params![file_id, checksum, now],
+                            )
+                            .map_err(|error| error.to_string())?;
+                        }
                         return Ok(0);
                     }
                     conn.execute(
-                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, sync_status = 'LOCAL_ONLY', updated_at = ?4 \
+                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, checksum = ?4, sync_status = 'LOCAL_ONLY', updated_at = ?5 \
                          WHERE id = ?1",
-                        params![file_id, size_bytes, modified_ms, now],
+                        params![file_id, size_bytes, modified_ms, checksum, now],
                     )
                     .map_err(|error| error.to_string())?;
                     upsert_file_fts_index(
@@ -609,6 +980,7 @@ fn record_watch_path_change(
                         "UPDATED",
                         &file_name,
                         &local_path,
+                        Some(&checksum),
                         size_bytes,
                         modified_ms,
                         now,
@@ -629,16 +1001,16 @@ fn record_watch_path_delete(
     local_path: &str,
     now: i64,
 ) -> Result<i64, String> {
-    let existing: Option<(String, i64, Option<i64>)> = conn
+    let existing: Option<(String, i64, Option<i64>, Option<String>)> = conn
         .query_row(
-            "SELECT id, COALESCE(size_bytes, 0), modified_at FROM local_files \
+            "SELECT id, COALESCE(size_bytes, 0), modified_at, checksum FROM local_files \
              WHERE local_folder_id = ?1 AND local_path = ?2",
             params![local_folder_id, local_path],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
         .optional()
         .map_err(|error| error.to_string())?;
-    let Some((file_id, size_bytes, modified_ms)) = existing else {
+    let Some((file_id, size_bytes, modified_ms, checksum)) = existing else {
         return Ok(0);
     };
 
@@ -661,6 +1033,7 @@ fn record_watch_path_delete(
         "DELETED",
         file_name,
         local_path,
+        checksum.as_deref(),
         size_bytes,
         modified_ms,
         now,
@@ -761,38 +1134,71 @@ fn is_supported_text_file(path: &Path) -> bool {
     )
 }
 
-fn ensure_path_is_inside_folder(path: &Path, folder: &Path) -> Result<(), String> {
-    if path.starts_with(folder) {
-        return Ok(());
-    }
+fn sha256_head(path: &Path) -> Result<String, String> {
+    let mut file = File::open(path).map_err(|error| error.to_string())?;
+    let mut hasher = Sha256::new();
+    let mut remaining = CHECKSUM_HEAD_BYTES;
+    let mut buffer = [0_u8; 8192];
 
-    let canonical_folder = folder
-        .canonicalize()
-        .map_err(|error| format!("managed folder path is not accessible: {error}"))?;
-    if let Ok(canonical_path) = path.canonicalize() {
-        if canonical_path.starts_with(&canonical_folder) {
-            return Ok(());
+    while remaining > 0 {
+        let max_read = buffer.len().min(remaining as usize);
+        let read_len = file
+            .read(&mut buffer[..max_read])
+            .map_err(|error| error.to_string())?;
+        if read_len == 0 {
+            break;
         }
+        hasher.update(&buffer[..read_len]);
+        remaining -= read_len as u64;
     }
 
-    Err("local file path is outside the managed folder".to_string())
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
-fn read_text_preview(path: &Path, max_bytes: u64) -> Result<(String, bool), String> {
-    let file = std::fs::File::open(path).map_err(|error| format!("file read failed: {error}"))?;
-    let mut limited = file.take(max_bytes.saturating_add(1));
-    let mut bytes = Vec::new();
-    limited
-        .read_to_end(&mut bytes)
-        .map_err(|error| format!("file read failed: {error}"))?;
+fn local_file_changed(
+    prev_size: Option<i64>,
+    prev_modified: Option<i64>,
+    prev_checksum: Option<&str>,
+    size_bytes: i64,
+    modified_ms: Option<i64>,
+    checksum: &str,
+) -> bool {
+    match prev_checksum {
+        Some(value) => value != checksum,
+        None => prev_size != Some(size_bytes) || prev_modified != modified_ms,
+    }
+}
 
-    let truncated = bytes.len() as u64 > max_bytes;
-    if truncated {
-        bytes.truncate(max_bytes as usize);
+fn read_local_text_preview(
+    path: &Path,
+    max_chars: usize,
+) -> Result<(Option<String>, String, bool), String> {
+    if !is_supported_text_file(path) {
+        return Ok((None, "UNSUPPORTED".to_string(), false));
     }
 
-    let text = String::from_utf8_lossy(&bytes).replace('\0', " ");
-    Ok((text, truncated))
+    let metadata = match std::fs::metadata(path) {
+        Ok(value) if value.is_file() => value,
+        _ => return Ok((None, "MISSING".to_string(), false)),
+    };
+    if metadata.len() > MAX_EXTRACT_BYTES {
+        return Ok((None, "TOO_LARGE".to_string(), false));
+    }
+
+    let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
+    let text = String::from_utf8_lossy(&bytes)
+        .replace('\0', " ")
+        .trim()
+        .to_string();
+    let total_chars = text.chars().count();
+    let truncated = total_chars > max_chars;
+    let preview_text = if truncated {
+        text.chars().take(max_chars).collect::<String>()
+    } else {
+        text
+    };
+
+    Ok((Some(preview_text), "READY".to_string(), truncated))
 }
 
 fn search_local_files_fts(
@@ -891,135 +1297,95 @@ pub fn search_local_files(
     Ok(LocalFileSearchResult { items })
 }
 
-/// Read a text preview from a personal managed-folder file. This never uploads
-/// raw content; it only returns content to the local WebView caller.
+/// Read a bounded text preview for a file already registered in the personal
+/// managed-folder index. This never uploads raw file content.
 #[tauri::command]
-pub fn read_local_file(
+pub fn read_local_file_preview(
     state: State<'_, Db>,
-    input: LocalFileReadInput,
-) -> Result<LocalFileReadResult, String> {
-    let max_bytes = input
-        .max_bytes
-        .unwrap_or(DEFAULT_READ_PREVIEW_BYTES)
-        .clamp(1, MAX_EXTRACT_BYTES);
+    input: LocalFilePreviewInput,
+) -> Result<LocalFilePreviewResult, String> {
+    let max_chars = input.max_chars.unwrap_or(4_000).clamp(200, 12_000);
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-
-    let row: Option<(String, String, String, Option<i64>, Option<i64>, String)> = conn
+    let row: Option<(String, String)> = conn
         .query_row(
-            "SELECT f.local_folder_id, f.file_name, f.local_path, f.size_bytes, f.modified_at, m.path \
-             FROM local_files f \
-             JOIN managed_folders m ON m.id = f.local_folder_id \
-             WHERE f.id = ?1 AND m.status = 'ACTIVE'",
-            params![&input.local_file_id],
-            |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                    row.get(5)?,
-                ))
-            },
+            "SELECT file_name, local_path FROM local_files WHERE id = ?1",
+            params![input.local_file_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
         .map_err(|error| error.to_string())?;
 
-    let Some((
-        local_folder_id,
-        file_name,
-        local_path,
-        previous_size,
-        previous_modified,
-        folder_path,
-    )) = row
-    else {
-        return Err(format!("local file not found: {}", input.local_file_id));
+    let Some((name, path)) = row else {
+        return Err(format!(
+            "local file not found in managed index: {}",
+            input.local_file_id
+        ));
     };
 
-    let file_path = PathBuf::from(&local_path);
-    ensure_path_is_inside_folder(&file_path, Path::new(&folder_path))?;
+    let path_buf = PathBuf::from(&path);
+    let (preview_text, status, truncated) = read_local_text_preview(&path_buf, max_chars)?;
 
-    let now = now_ms();
-    let metadata = match std::fs::metadata(&file_path) {
-        Ok(value) if value.is_file() => value,
-        _ => {
-            record_watch_path_delete(&conn, &local_folder_id, &file_name, &local_path, now)?;
-            return Ok(LocalFileReadResult {
-                content: None,
-                local_file_id: input.local_file_id,
-                modified_at: previous_modified.map(ms_to_iso),
-                name: file_name,
-                path: local_path,
-                readable: false,
-                reason: Some("missing_or_not_file".to_string()),
-                size_bytes: previous_size,
-                truncated: false,
-                updated_at: ms_to_iso(now),
-            });
-        }
-    };
+    Ok(LocalFilePreviewResult {
+        local_file_id: input.local_file_id,
+        mime_type: guess_mime_type(&name),
+        name,
+        path,
+        preview_text,
+        read_at: crate::local_db::now_iso(),
+        status,
+        truncated,
+    })
+}
 
-    let size_bytes = metadata.len() as i64;
-    let modified_ms = metadata
-        .modified()
-        .ok()
-        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-        .map(|d| d.as_millis() as i64);
-
-    if previous_size != Some(size_bytes) || previous_modified != modified_ms {
-        conn.execute(
-            "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, sync_status = 'LOCAL_ONLY', updated_at = ?4 \
-             WHERE id = ?1",
-            params![&input.local_file_id, size_bytes, modified_ms, now],
+/// Open a file that is already registered in the personal managed-folder index.
+/// The caller passes only the local file id; arbitrary path opening is rejected
+/// by resolving the path from SQLite first.
+#[tauri::command]
+pub fn open_local_file(
+    state: State<'_, Db>,
+    input: LocalFileOpenInput,
+) -> Result<LocalFileOpenResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let row: Option<(String, String)> = conn
+        .query_row(
+            "SELECT file_name, local_path FROM local_files WHERE id = ?1",
+            params![input.local_file_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
+        .optional()
         .map_err(|error| error.to_string())?;
-        upsert_file_fts_index(
-            &conn,
-            &input.local_file_id,
-            &file_name,
-            &local_path,
-            &file_path,
-        )?;
-        record_event(
-            &conn,
-            &local_folder_id,
-            Some(input.local_file_id.as_str()),
-            "UPDATED",
-            &file_name,
-            &local_path,
-            size_bytes,
-            modified_ms,
-            now,
-        )?;
+
+    let Some((name, path)) = row else {
+        return Err(format!(
+            "local file not found in managed index: {}",
+            input.local_file_id
+        ));
+    };
+
+    let path_buf = PathBuf::from(&path);
+    if !path_buf.exists() {
+        return Err(format!("local file is no longer available: {path}"));
     }
 
-    let (content, readable, reason, truncated) = if !is_supported_text_file(&file_path) {
-        (
-            None,
-            false,
-            Some("unsupported_file_type".to_string()),
-            false,
-        )
-    } else {
-        match read_text_preview(&file_path, max_bytes) {
-            Ok((text, truncated)) => (Some(text), true, None, truncated),
-            Err(error) => (None, false, Some(error), false),
-        }
-    };
+    tauri_plugin_opener::open_path(&path_buf, None::<&str>).map_err(|error| error.to_string())?;
 
-    Ok(LocalFileReadResult {
-        content,
+    Ok(LocalFileOpenResult {
         local_file_id: input.local_file_id,
-        modified_at: modified_ms.map(ms_to_iso),
-        name: file_name,
-        path: local_path,
-        readable,
-        reason,
-        size_bytes: Some(size_bytes),
-        truncated,
-        updated_at: ms_to_iso(now),
+        name,
+        opened_at: crate::local_db::now_iso(),
+        path,
     })
+}
+
+/// Re-read a locally indexed file and refresh its FTS row. If the content
+/// changed, record an UPDATED event so sync-enabled folders can reflect it.
+#[tauri::command]
+pub fn reindex_file(
+    state: State<'_, Db>,
+    input: LocalFileReindexInput,
+) -> Result<LocalFileReindexResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    reindex_file_for_conn(&conn, &input.local_file_id, now_ms())
 }
 
 /// Report the sync outbox backlog. Actual transmission is done by the frontend
@@ -1035,12 +1401,72 @@ pub fn flush_sync_outbox(state: State<'_, Db>) -> Result<SyncOutboxFlushResult, 
             |row| row.get(0),
         )
         .unwrap_or(0);
+    let sent_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM local_sync_outbox WHERE status = 'SENT'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
 
     Ok(SyncOutboxFlushResult {
         failed_count,
         flushed_at: crate::local_db::now_iso(),
-        sent_count: 0,
+        sent_count,
     })
+}
+
+fn local_file_event_outbox_key(local_event_id: &str) -> String {
+    format!("local-file-event:{local_event_id}")
+}
+
+fn stage_local_file_event_outbox(
+    conn: &Connection,
+    event: &LocalFileSyncEventCandidate,
+    now: i64,
+) -> Result<(), String> {
+    let idempotency_key = local_file_event_outbox_key(&event.local_event_id);
+    let payload_json = json!(event).to_string();
+
+    conn.execute(
+        "INSERT INTO local_sync_outbox \
+         (id, idempotency_key, operation, payload_json, status, retry_count, created_at, updated_at) \
+         VALUES (?1, ?2, 'local_file_event', ?3, 'PENDING', 0, ?4, ?4) \
+         ON CONFLICT(idempotency_key) DO UPDATE SET \
+           payload_json = excluded.payload_json, status = 'PENDING', updated_at = excluded.updated_at",
+        params![Uuid::new_v4().to_string(), idempotency_key, payload_json, now],
+    )
+    .map_err(|error| error.to_string())?;
+
+    Ok(())
+}
+
+fn mark_local_file_event_outbox(
+    conn: &Connection,
+    local_event_id: &str,
+    status: &str,
+    now: i64,
+) -> Result<(), String> {
+    let idempotency_key = local_file_event_outbox_key(local_event_id);
+    if status == "FAILED" {
+        conn.execute(
+            "UPDATE local_sync_outbox \
+             SET status = 'FAILED', retry_count = retry_count + 1, updated_at = ?2 \
+             WHERE idempotency_key = ?1 AND operation = 'local_file_event'",
+            params![idempotency_key, now],
+        )
+        .map_err(|error| error.to_string())?;
+    } else {
+        conn.execute(
+            "UPDATE local_sync_outbox \
+             SET status = 'SENT', updated_at = ?2 \
+             WHERE idempotency_key = ?1 AND operation = 'local_file_event'",
+            params![idempotency_key, now],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
+    Ok(())
 }
 
 /// Stage local file events for the authenticated frontend to reflect via
@@ -1062,27 +1488,37 @@ pub fn stage_local_file_events_for_sync(
     {
         let (sql, has_filter) = match &folder_filter {
             Some(_) => (
-                "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
+                format!(
+                    "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
                  FROM local_file_events e \
                  LEFT JOIN local_files f ON f.id = e.local_file_id \
+                 INNER JOIN managed_folders m ON m.id = e.local_folder_id \
                  WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
-                   AND e.event_type IN ('CREATED', 'UPDATED', 'DELETED') \
+                   AND e.event_type IN ({SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL}) \
+                   AND m.status = 'ACTIVE' \
+                   AND m.sync_enabled = 1 \
                    AND e.local_folder_id = ?1 \
-                 ORDER BY e.created_at ASC LIMIT ?2",
+                 ORDER BY e.created_at ASC LIMIT ?2"
+                ),
                 true,
             ),
             None => (
-                "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
+                format!(
+                    "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
                  FROM local_file_events e \
                  LEFT JOIN local_files f ON f.id = e.local_file_id \
+                 INNER JOIN managed_folders m ON m.id = e.local_folder_id \
                  WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
-                   AND e.event_type IN ('CREATED', 'UPDATED', 'DELETED') \
-                 ORDER BY e.created_at ASC LIMIT ?1",
+                   AND e.event_type IN ({SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL}) \
+                   AND m.status = 'ACTIVE' \
+                   AND m.sync_enabled = 1 \
+                 ORDER BY e.created_at ASC LIMIT ?1"
+                ),
                 false,
             ),
         };
 
-        let mut stmt = conn.prepare(sql).map_err(|error| error.to_string())?;
+        let mut stmt = conn.prepare(&sql).map_err(|error| error.to_string())?;
         let map_row = |row: &rusqlite::Row<'_>| {
             let file_name = row.get::<_, String>(3)?;
             Ok(LocalFileSyncEventCandidate {
@@ -1109,6 +1545,7 @@ pub fn stage_local_file_events_for_sync(
 
     let now = now_ms();
     for event in &candidates {
+        stage_local_file_event_outbox(&conn, event, now)?;
         conn.execute(
             "UPDATE local_file_events SET status = 'APPROVED' WHERE id = ?1",
             params![event.local_event_id],
@@ -1155,6 +1592,7 @@ pub fn mark_local_file_events_synced(
 
         let failed = result.status.eq_ignore_ascii_case("FAILED");
         let event_status = if failed { "FAILED" } else { "SYNCED" };
+        mark_local_file_event_outbox(&conn, &result.local_event_id, event_status, now)?;
         conn.execute(
             "UPDATE local_file_events SET status = ?2 WHERE id = ?1",
             params![result.local_event_id, event_status],
@@ -1208,6 +1646,7 @@ fn record_event(
     event_type: &str,
     file_name: &str,
     local_path: &str,
+    checksum: Option<&str>,
     size_bytes: i64,
     modified_ms: Option<i64>,
     now: i64,
@@ -1215,7 +1654,7 @@ fn record_event(
     conn.execute(
         "INSERT INTO local_file_events \
          (id, local_file_id, local_folder_id, event_type, file_name, local_path, hash, size_bytes, status, reason, modified_at, created_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, 'PENDING', NULL, ?8, ?9)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'PENDING', NULL, ?9, ?10)",
         params![
             Uuid::new_v4().to_string(),
             local_file_id,
@@ -1223,6 +1662,7 @@ fn record_event(
             event_type,
             file_name,
             local_path,
+            checksum,
             size_bytes,
             modified_ms,
             now,
@@ -1297,12 +1737,45 @@ mod tests {
                 modified_at INTEGER,
                 updated_at INTEGER NOT NULL
             );
+            CREATE TABLE managed_folders (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                path TEXT NOT NULL UNIQUE,
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                sync_enabled INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            CREATE TABLE local_file_events (
+                id TEXT PRIMARY KEY,
+                local_file_id TEXT,
+                local_folder_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                local_path TEXT NOT NULL,
+                hash TEXT,
+                size_bytes INTEGER,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                reason TEXT,
+                modified_at INTEGER,
+                created_at INTEGER NOT NULL
+            );
             CREATE VIRTUAL TABLE local_file_fts USING fts5 (
                 local_file_id UNINDEXED,
                 file_name,
                 content,
                 local_path UNINDEXED,
                 tokenize = 'trigram'
+            );
+            CREATE TABLE local_sync_outbox (
+                id TEXT PRIMARY KEY,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                operation TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
             );
             ",
         )
@@ -1351,17 +1824,220 @@ mod tests {
     }
 
     #[test]
-    fn read_text_preview_limits_bytes() {
-        let path = std::env::temp_dir().join(format!(
-            "bubli-local-read-preview-test-{}.txt",
-            Uuid::new_v4()
-        ));
-        std::fs::write(&path, "abcdef").expect("write temp text file");
+    fn sync_stage_includes_updated_file_events() {
+        assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'CREATED'"));
+        assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'UPDATED'"));
+        assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'DELETED'"));
+    }
 
-        let (content, truncated) = read_text_preview(&path, 3).expect("read text preview");
+    #[test]
+    fn index_progress_reports_fts_and_pending_events() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', '/tmp/docs', 'ACTIVE', 1, 1, 1)",
+            [],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_files (id, local_folder_id, file_name, local_path, updated_at) \
+             VALUES ('file-1', 'folder-1', 'a.txt', '/tmp/docs/a.txt', 1), \
+                    ('file-2', 'folder-1', 'b.txt', '/tmp/docs/b.txt', 1)",
+            [],
+        )
+        .expect("insert local files");
+        conn.execute(
+            "INSERT INTO local_file_fts (local_file_id, file_name, content, local_path) \
+             VALUES ('file-1', 'a.txt', 'alpha', '/tmp/docs/a.txt')",
+            [],
+        )
+        .expect("insert fts row");
+        conn.execute(
+            "INSERT INTO local_file_events \
+             (id, local_file_id, local_folder_id, event_type, file_name, local_path, status, created_at) \
+             VALUES ('event-1', 'file-2', 'folder-1', 'UPDATED', 'b.txt', '/tmp/docs/b.txt', 'PENDING', 1)",
+            [],
+        )
+        .expect("insert event row");
 
-        assert_eq!(content, "abc");
+        let progress = get_index_progress_for_conn(&conn, "folder-1").expect("read progress");
+
+        assert_eq!(progress.total_files, 2);
+        assert_eq!(progress.indexed_files, 1);
+        assert_eq!(progress.pending_files, 1);
+        assert_eq!(progress.pending_event_count, 1);
+        assert_eq!(progress.progress_percent, 50);
+        assert!(progress.sync_enabled);
+    }
+
+    #[test]
+    fn set_folder_sync_updates_flag_and_keeps_pending_count() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', '/tmp/docs', 'ACTIVE', 0, 1, 1)",
+            [],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_file_events \
+             (id, local_file_id, local_folder_id, event_type, file_name, local_path, status, created_at) \
+             VALUES ('event-1', NULL, 'folder-1', 'CREATED', 'a.txt', '/tmp/docs/a.txt', 'PENDING', 1)",
+            [],
+        )
+        .expect("insert pending event");
+
+        let result = set_folder_sync_for_conn(&conn, "folder-1", true, 10).expect("enable sync");
+        let stored: i64 = conn
+            .query_row(
+                "SELECT sync_enabled FROM managed_folders WHERE id = 'folder-1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read sync flag");
+
+        assert_eq!(stored, 1);
+        assert!(result.sync_enabled);
+        assert_eq!(result.pending_event_count, 1);
+    }
+
+    #[test]
+    fn reindex_file_refreshes_fts_and_records_updated_event() {
+        let conn = test_connection();
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-reindex-test-{}.txt", Uuid::new_v4()));
+        std::fs::write(&path, "before text").expect("write first content");
+        let first_checksum = sha256_head(&path).expect("first checksum");
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![path.parent().unwrap().to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, size_bytes, checksum, sync_status, modified_at, updated_at) \
+             VALUES ('file-1', 'folder-1', 'note.txt', ?1, 11, ?2, 'SYNCED', 1, 1)",
+            params![path.to_string_lossy().to_string(), first_checksum],
+        )
+        .expect("insert local file");
+        upsert_file_fts_index(&conn, "file-1", "note.txt", &path.to_string_lossy(), &path)
+            .expect("initial fts");
+
+        std::fs::write(&path, "after searchable text").expect("write changed content");
+        let result = reindex_file_for_conn(&conn, "file-1", 20).expect("reindex file");
+        let items = search_local_files_fts(&conn, "searchable", 10).expect("search changed text");
+        let event_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM local_file_events WHERE local_file_id = 'file-1' AND event_type = 'UPDATED'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read updated event count");
+
+        assert!(result.changed);
+        assert_eq!(result.status, "REINDEXED");
+        assert_eq!(items.len(), 1);
+        assert_eq!(event_count, 1);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn local_file_event_outbox_uses_idempotent_retry_state() {
+        let conn = test_connection();
+        let event = LocalFileSyncEventCandidate {
+            event_type: "UPDATED".to_string(),
+            file_name: "brief.md".to_string(),
+            file_size_bytes: Some(128),
+            local_event_id: "event-1".to_string(),
+            local_file_id: Some("file-1".to_string()),
+            mime_type: Some("text/markdown".to_string()),
+            resource_id: Some("resource-1".to_string()),
+        };
+
+        stage_local_file_event_outbox(&conn, &event, 10).expect("stage local file event");
+        mark_local_file_event_outbox(&conn, &event.local_event_id, "FAILED", 20)
+            .expect("mark failed");
+        stage_local_file_event_outbox(&conn, &event, 30).expect("restage local file event");
+        mark_local_file_event_outbox(&conn, &event.local_event_id, "SYNCED", 40)
+            .expect("mark sent");
+
+        let (row_count, status, retry_count, payload): (i64, String, i64, String) = conn
+            .query_row(
+                "SELECT COUNT(*), MAX(status), MAX(retry_count), MAX(payload_json) \
+                 FROM local_sync_outbox WHERE idempotency_key = 'local-file-event:event-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("read outbox row");
+
+        assert_eq!(row_count, 1);
+        assert_eq!(status, "SENT");
+        assert_eq!(retry_count, 1);
+        assert!(payload.contains("\"eventType\":\"UPDATED\""));
+        assert!(payload.contains("\"resourceId\":\"resource-1\""));
+    }
+
+    #[test]
+    fn reads_bounded_preview_for_registered_text_file() {
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-preview-test-{}.md", Uuid::new_v4()));
+        std::fs::write(&path, "first line\nsecond line\nthird line")
+            .expect("write temp markdown file");
+
+        let (preview, status, truncated) =
+            read_local_text_preview(&path, 7).expect("read local preview");
+
+        assert_eq!(status, "READY");
+        assert_eq!(preview.as_deref(), Some("first l"));
         assert!(truncated);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn reports_unsupported_preview_without_reading_binary() {
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-preview-test-{}.bin", Uuid::new_v4()));
+        std::fs::write(&path, [0_u8, 1, 2, 3]).expect("write temp binary file");
+
+        let (preview, status, truncated) =
+            read_local_text_preview(&path, 100).expect("read unsupported preview state");
+
+        assert_eq!(status, "UNSUPPORTED");
+        assert!(preview.is_none());
+        assert!(!truncated);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn checksum_detects_content_change_when_size_and_modified_match() {
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-checksum-test-{}.txt", Uuid::new_v4()));
+        std::fs::write(&path, "alpha").expect("write first temp text file");
+        let first_checksum = sha256_head(&path).expect("checksum first content");
+        std::fs::write(&path, "bravo").expect("write second temp text file");
+        let second_checksum = sha256_head(&path).expect("checksum second content");
+
+        assert_ne!(first_checksum, second_checksum);
+        assert!(local_file_changed(
+            Some(5),
+            Some(100),
+            Some(&first_checksum),
+            5,
+            Some(100),
+            &second_checksum,
+        ));
+        assert!(!local_file_changed(
+            Some(5),
+            Some(100),
+            None,
+            5,
+            Some(100),
+            &second_checksum,
+        ));
 
         let _ = std::fs::remove_file(path);
     }

@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/theme";
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { activityApi } from "@/features/activity/api/activityApi";
 import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
@@ -22,23 +23,27 @@ import {
   restoreLocalSqliteBackup,
 } from "@/lib/local/local-cache-client";
 import {
-  readPersonalLocalFile,
+  getPersonalManagedFolderIndexProgress,
+  openPersonalLocalFile,
+  reindexPersonalLocalFile,
   scanPersonalManagedFolder,
   searchPersonalLocalFiles,
   selectPersonalManagedFolder,
+  setPersonalManagedFolderSync,
   syncPersonalLocalFileEventsToServer,
   watchPersonalManagedFolder,
 } from "@/lib/local/managed-folder-client";
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
-import { refreshTauriActivityRuntime } from "@/lib/tauri/activity-runtime";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
   tauriCommands,
   type AppMonitorInfo,
   type AppMonitorPreference,
-  type LocalFileReadResult,
+  type ManagedFolderIndexProgressResult,
 } from "@/lib/tauri/commands";
+import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
+import type { ActivityLogResponse } from "@/types/api/activity";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
 import type {
@@ -62,6 +67,7 @@ type SettingsData = {
   privacy: PrivacyConsentsResponse | null;
   storage: StorageUsageResponse | null;
   googleCalendarConnectUrl: string | null;
+  activityLogs: ActivityLogResponse[] | null;
   widgetBubbles: WidgetBubbleSettingResponse[] | null;
   widgetUsage: WidgetTodayUsageSummaryResponse | null;
 };
@@ -93,6 +99,7 @@ const emptySettings: SettingsData = {
   privacy: null,
   storage: null,
   googleCalendarConnectUrl: null,
+  activityLogs: null,
   widgetBubbles: null,
   widgetUsage: null,
 };
@@ -173,10 +180,6 @@ function userToProfileDraft(user: AuthUser) {
   };
 }
 
-function accountHandle(user: AuthUser) {
-  return user.bubliId ? `@${user.bubliId}` : "Bubli 계정";
-}
-
 function localResultMessage<TData, TSummary>(result: LocalAdapterResult<TData, TSummary>) {
   if (result.status === "ready") return result.message ?? "완료했습니다";
   if (result.status === "pending") return result.message;
@@ -188,6 +191,31 @@ function monitorLabel(monitor: AppMonitorInfo, index: number) {
   const name = monitor.name?.trim() || `모니터 ${index + 1}`;
   const primaryLabel = monitor.isPrimary ? " · 기본" : "";
   return `${name}${primaryLabel} - ${monitor.size.width}x${monitor.size.height} @ ${monitor.position.x},${monitor.position.y}`;
+}
+
+function activityDurationLabel(seconds?: number | null) {
+  if (!seconds || seconds < 0) return "방금 기록";
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.max(1, Math.floor((seconds % 3600) / 60));
+
+  if (hours > 0) {
+    return `${hours}시간 ${minutes}분`;
+  }
+
+  return `${minutes}분`;
+}
+
+function activityStartedLabel(value?: string | null) {
+  if (!value) return "시간 미정";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "시간 미정";
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function statusTone(value: string) {
@@ -203,10 +231,11 @@ export default function SettingsPage() {
   const [localActionMessage, setLocalActionMessage] = useState<string | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState("");
   const [localFiles, setLocalFiles] = useState<Array<{ localFileId: string; name: string; path: string }>>([]);
-  const [localFilePreview, setLocalFilePreview] = useState<LocalFileReadResult | null>(null);
+  const [folderProgress, setFolderProgress] = useState<Record<string, ManagedFolderIndexProgressResult>>({});
   const [lastBackupId, setLastBackupId] = useState<string | null>(null);
   const [desktopRuntime, setDesktopRuntime] = useState(false);
   const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
+  const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -215,10 +244,11 @@ export default function SettingsPage() {
 
     try {
       const user = await authApi.getMe();
-      const [notifications, privacy, storage, widgetBubbles, widgetUsage] = await Promise.allSettled([
+      const [notifications, privacy, storage, activityLogs, widgetBubbles, widgetUsage] = await Promise.allSettled([
         settingsApi.getNotificationPreferences(),
         settingsApi.getPrivacyConsents(),
         settingsApi.getStorageUsage(),
+        activityApi.getToday(),
         widgetApi.getBubbles(),
         widgetApi.getTodayUsageRollups(),
       ]);
@@ -232,6 +262,7 @@ export default function SettingsPage() {
           privacy: settledValue(privacy, null),
           storage: settledValue(storage, null),
           googleCalendarConnectUrl: calendarApi.getGoogleConnectUrl(),
+          activityLogs: settledValue(activityLogs, null),
           widgetBubbles: settledValue(widgetBubbles, null),
           widgetUsage: settledValue(widgetUsage, null),
         },
@@ -285,6 +316,21 @@ export default function SettingsPage() {
   const updateReadyState = useCallback((updater: (current: Extract<PageState, { kind: "ready" }>) => Extract<PageState, { kind: "ready" }>) => {
     setState((current) => (current.kind === "ready" ? updater(current) : current));
   }, []);
+
+  const refreshActivityLogs = useCallback(async () => {
+    if (state.kind !== "ready") return;
+
+    try {
+      const activityLogs = await activityApi.getToday();
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: { ...ready.settings, activityLogs },
+      }));
+      setLocalActionMessage(`오늘 활동 ${activityLogs.length}건을 불러왔습니다`);
+    } catch {
+      setLocalActionMessage("활동 기록을 불러오지 못했습니다");
+    }
+  }, [state.kind, updateReadyState]);
 
   const saveProfile = useCallback(async () => {
     if (state.kind !== "ready") return;
@@ -364,9 +410,6 @@ export default function SettingsPage() {
           ...ready,
           settings: { ...ready.settings, privacy: saved },
         }));
-        if (key === "activityDetectionEnabled") {
-          refreshTauriActivityRuntime();
-        }
       } catch {
         if (shouldUseWorkspacePreviewData()) return;
         setSaveMessage("기기 권한 설정을 저장하지 못했습니다");
@@ -423,7 +466,7 @@ export default function SettingsPage() {
       id: folder.localFolderId,
       localPath: folder.path,
       name: folder.name,
-      syncEnabled: true,
+      syncEnabled: false,
       updatedAt: new Date().toISOString(),
     };
 
@@ -467,19 +510,69 @@ export default function SettingsPage() {
     setLocalActionMessage(result.status === "ready" ? "백업 복구를 완료했습니다" : localResultMessage(result));
   }, [lastBackupId]);
 
+  const refreshManagedFolderProgress = useCallback(async (localFolderId: string) => {
+    const result = await getPersonalManagedFolderIndexProgress({ localFolderId });
+    if (result.status === "ready") {
+      setFolderProgress((current) => ({ ...current, [localFolderId]: result.data }));
+      setLocalActionMessage(
+        `색인 ${result.data.indexedFiles}/${result.data.totalFiles} · 동기화 대기 ${result.data.pendingEventCount}건`,
+      );
+      return;
+    }
+
+    setLocalActionMessage(localResultMessage(result));
+  }, []);
+
+  const toggleManagedFolderSync = useCallback(
+    async (folder: ManagedFolderResponse) => {
+      const result = await setPersonalManagedFolderSync({
+        enabled: !folder.syncEnabled,
+        localFolderId: folder.id,
+      });
+      if (result.status !== "ready") {
+        setLocalActionMessage(localResultMessage(result));
+        return;
+      }
+
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: {
+          ...ready.settings,
+          folders: ready.settings.folders.map((item) =>
+            item.id === folder.id
+              ? {
+                  ...item,
+                  syncEnabled: result.data.syncEnabled,
+                  updatedAt: result.data.updatedAt,
+                }
+              : item,
+          ),
+        },
+      }));
+      setLocalActionMessage(
+        result.data.syncEnabled
+          ? `서버 반영 후보를 켰습니다 · 대기 ${result.data.pendingEventCount}건`
+          : "서버 반영 후보를 껐습니다. 로컬 색인은 유지됩니다.",
+      );
+      void refreshManagedFolderProgress(folder.id);
+    },
+    [refreshManagedFolderProgress, updateReadyState],
+  );
+
   const scanManagedFolder = useCallback(async () => {
-    const folderId = state.kind === "ready" ? state.settings.folders.find((folder) => folder.syncEnabled)?.id : undefined;
+    const folderId = state.kind === "ready" ? state.settings.folders[0]?.id : undefined;
     if (!folderId) {
       setLocalActionMessage("먼저 개인 폴더를 선택하세요");
       return;
     }
 
     const result = await scanPersonalManagedFolder({ localFolderId: folderId });
+    if (result.status === "ready") void refreshManagedFolderProgress(folderId);
     setLocalActionMessage(result.status === "ready" ? `폴더 변경 ${result.data.changedCount}건 감지` : localResultMessage(result));
-  }, [state]);
+  }, [refreshManagedFolderProgress, state]);
 
   const watchManagedFolder = useCallback(async () => {
-    const folderId = state.kind === "ready" ? state.settings.folders.find((folder) => folder.syncEnabled)?.id : undefined;
+    const folderId = state.kind === "ready" ? state.settings.folders[0]?.id : undefined;
     if (!folderId) {
       setLocalActionMessage("먼저 개인 폴더를 선택하세요");
       return;
@@ -496,7 +589,6 @@ export default function SettingsPage() {
       return;
     }
 
-    setLocalFilePreview(null);
     const result = await searchPersonalLocalFiles({ limit: 20, query });
     if (result.status === "ready") {
       setLocalFiles(result.data.items.map((item) => ({ localFileId: item.localFileId, name: item.name, path: item.path })));
@@ -508,32 +600,120 @@ export default function SettingsPage() {
     setLocalActionMessage(localResultMessage(result));
   }, [folderSearchQuery]);
 
-  const readLocalFilePreview = useCallback(async (localFileId: string) => {
-    const result = await readPersonalLocalFile({ localFileId, maxBytes: 64 * 1024 });
-    if (result.status === "ready") {
-      setLocalFilePreview(result.data);
-      if (result.data.readable) {
-        setLocalActionMessage(result.data.truncated ? "로컬 파일 프리뷰를 일부만 읽었습니다" : "로컬 파일 프리뷰를 읽었습니다");
+  const openLocalFile = useCallback(async (localFileId: string) => {
+    const result = await openPersonalLocalFile({ localFileId });
+    setLocalActionMessage(result.status === "ready" ? `${result.data.name} 파일을 열었습니다` : localResultMessage(result));
+  }, []);
+
+  const reindexLocalFile = useCallback(
+    async (localFileId: string) => {
+      const result = await reindexPersonalLocalFile({ localFileId });
+      if (result.status !== "ready") {
+        setLocalActionMessage(localResultMessage(result));
         return;
       }
-      setLocalActionMessage(`로컬 파일을 읽을 수 없습니다: ${result.data.reason ?? "지원하지 않는 형식"}`);
-      return;
-    }
 
-    setLocalFilePreview(null);
-    setLocalActionMessage(localResultMessage(result));
-  }, []);
+      const query = folderSearchQuery.trim();
+      if (query) {
+        void searchPersonalLocalFiles({ limit: 20, query }).then((searchResult) => {
+          if (searchResult.status !== "ready") return;
+          setLocalFiles(
+            searchResult.data.items.map((item) => ({
+              localFileId: item.localFileId,
+              name: item.name,
+              path: item.path,
+            })),
+          );
+        });
+      }
+      setLocalActionMessage(
+        result.data.status === "MISSING"
+          ? `${result.data.name} 파일이 사라져 삭제 후보로 표시했습니다`
+          : `${result.data.name} 파일을 다시 색인했습니다${result.data.changed ? " · 변경 후보 생성" : ""}`,
+      );
+    },
+    [folderSearchQuery],
+  );
+
+  useEffect(() => {
+    if (!desktopRuntime) return;
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    void listenManagedFolderWatchEvents((event) => {
+      if (disposed) return;
+
+      setLocalActionMessage(`로컬 폴더 변경 ${event.changedCount}건 감지됨`);
+      const query = folderSearchQuery.trim();
+      if (!query) return;
+
+      void searchPersonalLocalFiles({ limit: 20, query }).then((result) => {
+        if (disposed || result.status !== "ready") return;
+        setLocalFiles(result.data.items.map((item) => ({ localFileId: item.localFileId, name: item.name, path: item.path })));
+      });
+    })
+      .then((cleanup) => {
+        if (disposed) {
+          cleanup();
+          return;
+        }
+        unlisten = cleanup;
+      })
+      .catch(() => undefined);
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [desktopRuntime, folderSearchQuery]);
 
   const readActivity = useCallback(async () => {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
     const result = await recordCurrentActivityContext({ consentGranted });
     if (result.status === "ready") {
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: { ...ready.settings, activityLogs: result.data.todayActivities },
+      }));
       setLocalActionMessage(`활동 감지 · ${result.data.appName}${result.data.windowTitle ? ` · ${result.data.windowTitle}` : ""}`);
       return;
     }
 
     setLocalActionMessage(localResultMessage(result));
-  }, [state]);
+  }, [state, updateReadyState]);
+
+  const deleteActivityLog = useCallback(
+    async (activityLogId: string) => {
+      if (state.kind !== "ready") return;
+
+      setDeletingActivityId(activityLogId);
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: {
+          ...ready.settings,
+          activityLogs: ready.settings.activityLogs?.filter((activity) => activity.id !== activityLogId) ?? null,
+        },
+      }));
+
+      try {
+        await activityApi.delete(activityLogId);
+        setLocalActionMessage("활동 기록을 삭제했습니다");
+      } catch {
+        const activityLogs = await activityApi.getToday().catch(() => null);
+        if (activityLogs) {
+          updateReadyState((ready) => ({
+            ...ready,
+            settings: { ...ready.settings, activityLogs },
+          }));
+        }
+        setLocalActionMessage("활동 기록을 삭제하지 못했습니다");
+      } finally {
+        setDeletingActivityId(null);
+      }
+    },
+    [state.kind, updateReadyState],
+  );
 
   const selectAppMonitor = useCallback(
     async (monitorId: string) => {
@@ -579,10 +759,11 @@ export default function SettingsPage() {
   const readySettings = state.kind === "ready" ? state.settings : emptySettings;
   const notificationSettings = readySettings.notifications ?? defaultNotifications;
   const privacySettings = readySettings.privacy ?? defaultPrivacy;
-  const activeFolders = readySettings.folders.filter((folder) => folder.syncEnabled);
+  const managedFolders = readySettings.folders;
   const widgetBubbles = readySettings.widgetBubbles ?? [];
   const enabledWidgetCount = widgetBubbles.filter((bubble) => bubble.enabled).length;
   const localCacheReadiness = getLocalCacheReadiness();
+  const todayActivityLogs = readySettings.activityLogs ?? [];
 
   return (
     <section className={`workspace-route ${styles.route}`} aria-labelledby="settings-title">
@@ -629,7 +810,7 @@ export default function SettingsPage() {
             <GlassPanel className={styles.statusCard}>
               <span>계정</span>
               <strong>{state.kind === "ready" ? state.user.name : "연결 전"}</strong>
-              <small>{state.kind === "ready" ? accountHandle(state.user) : "서버 연결 후 표시"}</small>
+              <small>{state.kind === "ready" ? state.user.email : "서버 연결 후 표시"}</small>
             </GlassPanel>
             <GlassPanel className={styles.statusCard}>
               <span>알림</span>
@@ -662,12 +843,12 @@ export default function SettingsPage() {
                 <strong>{state.kind === "ready" ? state.user.name : "서버 연결 후 표시"}</strong>
               </div>
               <div className={styles.identity}>
-                <span>Bubli ID</span>
-                <strong>{state.kind === "ready" ? accountHandle(state.user) : "서버 연결 후 표시"}</strong>
+                <span>이메일</span>
+                <strong>{state.kind === "ready" ? state.user.email : "서버 연결 후 표시"}</strong>
               </div>
               <div className={styles.identity}>
-                <span>시간대</span>
-                <strong>{state.kind === "ready" ? state.user.timezone ?? "Asia/Seoul" : "현재 데이터가 없습니다"}</strong>
+                <span>Bubli ID</span>
+                <strong>{state.kind === "ready" ? state.user.bubliId : "현재 데이터가 없습니다"}</strong>
               </div>
               <div className={styles.actions}>
                 <Button disabled={state.kind !== "ready"} onClick={() => void logout()} type="button" variant="quiet">
@@ -845,9 +1026,42 @@ export default function SettingsPage() {
                 ))}
               </div>
               <p className={styles.guard}>화면 전체 내용과 키보드 입력은 수집하지 않습니다.</p>
-              <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void readActivity()} type="button" variant="quiet">
-                현재 활동 기록
-              </Button>
+              <div className={styles.inlineActions}>
+                <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void readActivity()} type="button" variant="quiet">
+                  현재 활동 기록
+                </Button>
+                <Button disabled={state.kind !== "ready" || !privacySettings.activityDetectionEnabled} onClick={() => void refreshActivityLogs()} type="button" variant="secondary">
+                  오늘 기록 새로고침
+                </Button>
+              </div>
+              <div className={styles.activityList} aria-label="오늘 활동 기록">
+                {todayActivityLogs.length > 0 ? (
+                  todayActivityLogs.map((activity) => (
+                    <div className={styles.activityRow} key={activity.id}>
+                      <span>
+                        <strong>{activity.appName || "앱 이름 없음"}</strong>
+                        <small>
+                          {[activity.windowTitle, activityStartedLabel(activity.startedAt), activityDurationLabel(activity.durationSeconds)]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </small>
+                      </span>
+                      <Button
+                        disabled={deletingActivityId === activity.id}
+                        loading={deletingActivityId === activity.id}
+                        onClick={() => void deleteActivityLog(activity.id)}
+                        size="sm"
+                        type="button"
+                        variant="quiet"
+                      >
+                        삭제
+                      </Button>
+                    </div>
+                  ))
+                ) : (
+                  <p className={styles.emptyRow}>오늘 서버에 반영된 활동 기록이 없습니다.</p>
+                )}
+              </div>
             </GlassPanel>
           </div>
 
@@ -889,14 +1103,41 @@ export default function SettingsPage() {
                     ))}
                   </select>
                 </div>
-                {activeFolders.length > 0 ? (
-                  activeFolders.map((folder) => (
+                {managedFolders.length > 0 ? (
+                  managedFolders.map((folder) => (
                     <div className={styles.row} key={folder.id}>
                       <span>
                         <strong>{folder.name}</strong>
-                        <small>{folder.localPath ?? "로컬 경로는 데스크탑 앱에서만 표시됩니다"}</small>
+                        <small>
+                          {folder.localPath ?? "로컬 경로는 데스크탑 앱에서만 표시됩니다"}
+                          {folderProgress[folder.id]
+                            ? ` · 색인 ${folderProgress[folder.id].progressPercent}% · 대기 ${folderProgress[folder.id].pendingEventCount}건`
+                            : ""}
+                        </small>
                       </span>
-                      <StatusBadge tone="approved">동기화</StatusBadge>
+                      <div className={styles.inlineActions}>
+                        <StatusBadge tone={folder.syncEnabled ? "approved" : "neutral"}>
+                          {folder.syncEnabled ? "동기화 켜짐" : "로컬만"}
+                        </StatusBadge>
+                        <Button
+                          disabled={!desktopRuntime}
+                          onClick={() => void refreshManagedFolderProgress(folder.id)}
+                          size="sm"
+                          type="button"
+                          variant="quiet"
+                        >
+                          진행률
+                        </Button>
+                        <Button
+                          disabled={!desktopRuntime}
+                          onClick={() => void toggleManagedFolderSync(folder)}
+                          size="sm"
+                          type="button"
+                          variant="quiet"
+                        >
+                          {folder.syncEnabled ? "동기화 끄기" : "동기화 켜기"}
+                        </Button>
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -936,35 +1177,29 @@ export default function SettingsPage() {
                         <strong>{file.name}</strong>
                         <small>{file.path}</small>
                       </span>
-                      <span className={styles.rowActions}>
-                        <Button disabled={!desktopRuntime} onClick={() => void readLocalFilePreview(file.localFileId)} type="button" variant="quiet">
-                          읽기
-                        </Button>
+                      <div className={styles.inlineActions}>
                         <StatusBadge tone="neutral">로컬</StatusBadge>
-                      </span>
+                        <Button
+                          disabled={!desktopRuntime}
+                          onClick={() => void openLocalFile(file.localFileId)}
+                          size="sm"
+                          type="button"
+                          variant="quiet"
+                        >
+                          열기
+                        </Button>
+                        <Button
+                          disabled={!desktopRuntime}
+                          onClick={() => void reindexLocalFile(file.localFileId)}
+                          size="sm"
+                          type="button"
+                          variant="quiet"
+                        >
+                          재색인
+                        </Button>
+                      </div>
                     </div>
                   ))}
-                </div>
-              ) : null}
-              {localFilePreview ? (
-                <div className={styles.localPreview}>
-                  <div className={styles.previewHeader}>
-                    <span>
-                      <strong>{localFilePreview.name}</strong>
-                      <small>
-                        {localFilePreview.sizeBytes != null ? byteLabel(localFilePreview.sizeBytes) : "크기 확인 대기"}
-                        {localFilePreview.modifiedAt ? ` · 수정 ${localFilePreview.modifiedAt}` : ""}
-                      </small>
-                    </span>
-                    <StatusBadge tone={localFilePreview.readable ? "approved" : "warning"}>
-                      {localFilePreview.readable ? (localFilePreview.truncated ? "일부 읽음" : "읽음") : "읽기 불가"}
-                    </StatusBadge>
-                  </div>
-                  {localFilePreview.readable ? (
-                    <pre className={styles.previewBody}>{localFilePreview.content || "내용이 비어 있습니다."}</pre>
-                  ) : (
-                    <p className={styles.guard}>읽을 수 없는 파일입니다. 사유: {localFilePreview.reason ?? "지원하지 않는 형식"}</p>
-                  )}
                 </div>
               ) : null}
             </GlassPanel>

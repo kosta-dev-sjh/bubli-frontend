@@ -5,13 +5,20 @@ import type {
 import type {
   ActivityContextResult,
   LocalBackupRestoreInput,
-  LocalFileReadInput,
-  LocalFileReadResult,
+  LocalFileOpenInput,
+  LocalFileOpenResult,
+  LocalFilePreviewInput,
+  LocalFilePreviewResult,
+  LocalFileReindexInput,
+  LocalFileReindexResult,
   LocalFileSearchInput,
   LocalFileSearchResult,
   ManagedFolderCommandInput,
+  ManagedFolderIndexProgressResult,
   ManagedFolderScanResult,
   ManagedFolderSelection,
+  ManagedFolderSyncInput,
+  ManagedFolderSyncResult,
   ManagedFolderWatchResult,
   SelectManagedFolderInput,
   SqliteIntegrityResult,
@@ -114,9 +121,18 @@ export type ActivityContextRecordInput = ActivityContextReadInput & {
 export type ActivityContextRecordResult = {
   appName: string;
   context: ActivityContextResult;
+  localActivityId: string;
   recordedActivity: ActivityLogResponse;
+  syncStatus: string;
   todayActivities: ActivityLogsTodayResponse;
   windowTitle?: string;
+};
+
+export type ActivityBufferSyncResult = {
+  failedCount: number;
+  sentCount: number;
+  stagedCount: number;
+  syncedAt: string;
 };
 
 export type LocalFolderScopeInput = {
@@ -131,17 +147,25 @@ export type LocalCacheReadinessResult = LocalAdapterResult<LocalCacheReadinessSu
 export type LocalTimerRecoveryResult = LocalAdapterResult<TimerRecoveryState, LocalCacheReadinessSummary>;
 export type LocalBackupRestoreRequest = LocalBackupRestoreInput;
 export type ManagedFolderSelectResult = LocalAdapterResult<ManagedFolderSelection>;
+export type ManagedFolderIndexProgressAdapterResult = LocalAdapterResult<ManagedFolderIndexProgressResult>;
 export type ManagedFolderScanAdapterResult = LocalAdapterResult<ManagedFolderScanResult>;
+export type ManagedFolderSyncAdapterInput = ManagedFolderSyncInput & LocalFolderScopeInput;
+export type ManagedFolderSyncAdapterResult = LocalAdapterResult<ManagedFolderSyncResult>;
 export type ManagedFolderWatchAdapterResult = LocalAdapterResult<
   ManagedFolderWatchResult,
   { localFolderId: string; watching: false }
 >;
 export type LocalFileSearchAdapterInput = LocalFileSearchInput & LocalFolderScopeInput;
 export type LocalFileSearchAdapterResult = LocalAdapterResult<LocalFileSearchResult>;
-export type LocalFileReadAdapterInput = LocalFileReadInput & LocalFolderScopeInput;
-export type LocalFileReadAdapterResult = LocalAdapterResult<LocalFileReadResult>;
+export type LocalFileOpenAdapterInput = LocalFileOpenInput & LocalFolderScopeInput;
+export type LocalFileOpenAdapterResult = LocalAdapterResult<LocalFileOpenResult>;
+export type LocalFilePreviewAdapterInput = LocalFilePreviewInput & LocalFolderScopeInput;
+export type LocalFilePreviewAdapterResult = LocalAdapterResult<LocalFilePreviewResult>;
+export type LocalFileReindexAdapterInput = LocalFileReindexInput & LocalFolderScopeInput;
+export type LocalFileReindexAdapterResult = LocalAdapterResult<LocalFileReindexResult>;
 export type ActivityContextAdapterResult = LocalAdapterResult<ActivityContextResult>;
 export type ActivityContextRecordAdapterResult = LocalAdapterResult<ActivityContextRecordResult>;
+export type ActivityBufferSyncAdapterResult = LocalAdapterResult<ActivityBufferSyncResult>;
 export type WidgetUsageEventAdapterInput = WidgetUsageEventInput;
 export type WidgetUsageEventAdapterResult = LocalAdapterResult<WidgetUsageEventRecordResult>;
 export type WidgetUsageRollupAdapterInput = WidgetUsageRollupInput;

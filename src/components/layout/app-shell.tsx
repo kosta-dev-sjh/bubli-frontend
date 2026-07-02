@@ -11,13 +11,17 @@ import { siteConfig } from "@/config/site";
 import { authApi } from "@/features/auth/api/authApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
+import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
   getActiveProjectRoomLabel,
+  restoreActiveProjectRoomFromTauri,
+  seedActiveProjectRoomId,
   setActiveProjectRoomId,
 } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewRooms, workspacePreviewUser } from "@/lib/workspace-preview-data";
@@ -105,6 +109,8 @@ export function AppShell({ children }: AppShellProps) {
 
     async function loadShell() {
       try {
+        await restoreStoredAuthSessionFromTauri();
+        await restoreActiveProjectRoomFromTauri();
         const [user, roomPage] = await Promise.all([authApi.getMe(), projectRoomApi.list()]);
         let notificationCount = 0;
 
@@ -113,6 +119,30 @@ export function AppShell({ children }: AppShellProps) {
           notificationCount = notificationPage.items.filter((item) => item.status === "UNREAD").length;
         } catch {
           notificationCount = 0;
+        }
+
+        const restoredRoomId = getActiveProjectRoomId();
+        const restoredRoom = restoredRoomId ? roomPage.items.find((room) => room.id === restoredRoomId) : undefined;
+        if (restoredRoom) {
+          seedActiveProjectRoomId(restoredRoom.id, restoredRoom.name);
+          if (mounted) {
+            setSelectedRoomId(restoredRoom.id);
+            setSelectedRoomLabel(restoredRoom.name);
+          }
+        }
+
+        if (!restoredRoom) {
+          const widgetContext = await widgetApi.getContext().catch(() => null);
+          const contextRoom = widgetContext?.selectedRoomId
+            ? roomPage.items.find((room) => room.id === widgetContext.selectedRoomId)
+            : undefined;
+          if (contextRoom) {
+            seedActiveProjectRoomId(contextRoom.id, contextRoom.name);
+            if (mounted) {
+              setSelectedRoomId(contextRoom.id);
+              setSelectedRoomLabel(contextRoom.name);
+            }
+          }
         }
 
         if (mounted) setState({ kind: "ready", notificationCount, rooms: roomPage.items, user });

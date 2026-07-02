@@ -9,6 +9,7 @@ import { widgetPreviewBubbles } from "@/features/widget/desktop-widget-preview-d
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { recordLocalWidgetUsageEvent, rollupLocalWidgetUsage, syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
+import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 
 import styles from "./page.module.css";
 
@@ -79,10 +80,13 @@ export default function DesktopWidgetsPage() {
         .then(async (widgetWindow) => {
           const requestedBubble = requestedBubbleFromSearch();
           const requestedMode = requestedModeFromSearch();
+          const selectedRoomId = getActiveProjectRoomId();
 
           if (requestedBubble) {
-            const opened = await tauriCommands.openWidgetWindow({ bubbleType: requestedBubble });
-            const nextWindow = requestedMode ? await tauriCommands.setWidgetWindowMode({ bubbleType: requestedBubble, mode: requestedMode }) : opened;
+            const opened = await tauriCommands.openWidgetWindow({ bubbleType: requestedBubble, selectedRoomId });
+            const nextWindow = requestedMode
+              ? await tauriCommands.setWidgetWindowMode({ bubbleType: requestedBubble, mode: requestedMode, selectedRoomId })
+              : opened;
             setRuntime({ isTauri, widgetWindow: nextWindow });
             setPreviewBubble(resolvePreviewBubble(nextWindow.activeBubble, requestedBubble));
             setPreviewMode(nextWindow.mode);
@@ -159,7 +163,11 @@ export default function DesktopWidgetsPage() {
       if (!runtime.isTauri) return;
 
       try {
-        const widgetWindow = await tauriCommands.setWidgetWindowMode({ bubbleType: activeBubble, mode });
+        const widgetWindow = await tauriCommands.setWidgetWindowMode({
+          bubbleType: activeBubble,
+          mode,
+          selectedRoomId: getActiveProjectRoomId(),
+        });
         setRuntime((current) => ({ ...current, widgetWindow }));
         setPreviewMode(widgetWindow.mode);
       } catch {
@@ -179,7 +187,10 @@ export default function DesktopWidgetsPage() {
       if (!runtime.isTauri) return;
 
       try {
-        const widgetWindow = await tauriCommands.openWidgetWindow({ bubbleType });
+        const widgetWindow = await tauriCommands.openWidgetWindow({
+          bubbleType,
+          selectedRoomId: getActiveProjectRoomId(),
+        });
         setRuntime((current) => ({ ...current, widgetWindow }));
         setPreviewBubble(resolvePreviewBubble(widgetWindow.activeBubble, bubbleType));
         setPreviewMode(widgetWindow.mode);

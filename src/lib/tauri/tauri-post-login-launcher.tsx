@@ -2,10 +2,16 @@
 
 import { useEffect } from "react";
 
-import { AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession } from "@/lib/auth/auth-session";
+import {
+  AUTH_SESSION_CHANGE_EVENT,
+  getStoredAuthSession,
+  restoreStoredAuthSessionFromTauri,
+} from "@/lib/auth/auth-session";
+import { stopActivityAutoCapture } from "@/lib/local/activity-auto-capture";
+import { stopManagedFolderAutoSync } from "@/lib/local/managed-folder-auto-sync";
 import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
-import { startTauriActivityRuntime, stopTauriActivityRuntime } from "@/lib/tauri/activity-runtime";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
 
 export function TauriPostLoginLauncher() {
   useEffect(() => {
@@ -13,22 +19,29 @@ export function TauriPostLoginLauncher() {
       return;
     }
 
-    function launchAuthenticatedSurfaces() {
-      const hasAuthenticatedSession = Boolean(getStoredAuthSession());
+    async function launchAuthenticatedSurfaces() {
+      const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
+      const hasAuthenticatedSession = Boolean(session);
       if (!hasAuthenticatedSession) {
-        stopTauriActivityRuntime();
+        stopActivityAutoCapture();
+        stopManagedFolderAutoSync();
+        stopWidgetUsageAutoSync();
         return;
       }
 
-      startTauriActivityRuntime();
       void launchTauriAuthenticatedSurfaces().catch(() => undefined);
     }
 
-    launchAuthenticatedSurfaces();
-    window.addEventListener(AUTH_SESSION_CHANGE_EVENT, launchAuthenticatedSurfaces);
+    const handleAuthSessionChange = () => void launchAuthenticatedSurfaces();
+
+    void launchAuthenticatedSurfaces();
+    window.addEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
 
     return () => {
-      window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, launchAuthenticatedSurfaces);
+      window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
+      stopActivityAutoCapture();
+      stopManagedFolderAutoSync();
+      stopWidgetUsageAutoSync();
     };
   }, []);
 

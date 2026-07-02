@@ -18,6 +18,7 @@ const ROOT = path.resolve(fileURLToPath(import.meta.url), "..", "..");
 const STATIC_DIR = path.join(ROOT, "storybook-static");
 const SHOT_DIR = path.join(ROOT, "docs", "visual-qa", "screenshots");
 const REPORT = path.join(ROOT, "docs", "visual-qa", "visual-qa-report.md");
+const NPX_BIN = "npx";
 
 // ---- 캡처 대상 (title + story 이름). 정확한 id는 index.json에서 조회한다 ----
 const TARGETS = [
@@ -56,7 +57,28 @@ function log(...a) {
 }
 
 function sh(cmd, args, opts = {}) {
+  if (process.platform === "win32" && cmd === "npx") {
+    return spawnSync("cmd.exe", ["/d", "/s", "/c", "npx", ...args], {
+      cwd: ROOT,
+      encoding: "utf8",
+      shell: false,
+      ...opts,
+    });
+  }
+
   return spawnSync(cmd, args, { cwd: ROOT, encoding: "utf8", shell: false, ...opts });
+}
+
+function spawnCli(cmd, args, opts = {}) {
+  if (process.platform === "win32" && cmd === "npx") {
+    return spawn("cmd.exe", ["/d", "/s", "/c", "npx", ...args], {
+      cwd: ROOT,
+      shell: false,
+      ...opts,
+    });
+  }
+
+  return spawn(cmd, args, { cwd: ROOT, shell: false, ...opts });
 }
 
 // ---- 1) Storybook 정적 빌드 ----
@@ -66,7 +88,7 @@ function buildStorybook() {
     return { ok: true, skipped: true };
   }
   log("storybook build 시작 (시간이 걸릴 수 있다)...");
-  const r = sh("npx", ["storybook", "build", "-o", "storybook-static", "--quiet"], { stdio: "inherit" });
+  const r = sh(NPX_BIN, ["storybook", "build", "-o", "storybook-static", "--quiet"], { stdio: "inherit" });
   const ok = r.status === 0 && existsSync(path.join(STATIC_DIR, "index.json"));
   return { ok, status: r.status, error: r.error?.message };
 }
@@ -208,7 +230,7 @@ async function captureRoutes(browser) {
     log("기존 next dev 재사용:", routeBaseUrl);
   } else {
     log("next dev 기동 (NEXT_PUBLIC_BUBLI_NEW_DASHBOARD=true)...");
-    dev = spawn("npx", ["next", "dev", "-p", String(ROUTE_PORT)], {
+    dev = spawnCli(NPX_BIN, ["next", "dev", "-p", String(ROUTE_PORT)], {
       cwd: ROOT,
       env: {
         ...process.env,
@@ -349,7 +371,7 @@ async function main() {
   let tsc = null;
   if (process.env.SKIP_TSC !== "1") {
     log("typecheck...");
-    const r = sh("npx", ["tsc", "--noEmit"]);
+    const r = sh(NPX_BIN, ["tsc", "--noEmit"]);
     tsc = { ok: r.status === 0, status: r.status, out: (r.stdout || "").split("\n").filter((l) => /error TS/.test(l)).slice(0, 10) };
   }
 
