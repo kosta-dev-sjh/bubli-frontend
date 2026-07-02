@@ -17,6 +17,7 @@ import {
   type WidgetResourceResponse,
   type WidgetScheduleResponse,
   type WidgetTaskResponse,
+  type WidgetTimeLogResponse,
   type WidgetVoiceRoomResponse,
 } from "@/features/widget/api/widgetDisplayApi";
 import { widgetApi, type BackendWidgetBubbleType, type WidgetBubbleSettingResponse, type WidgetContextResponse } from "@/features/widget/api/widgetApi";
@@ -33,7 +34,8 @@ import { timerApi } from "@/features/timer/api/timerApi";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { TimeLogResponse } from "@/types/api/timer";
-import type { WidgetBubbleType as ApiWidgetBubbleType } from "@/types/api/widget";
+import type { WidgetBubbleType as ApiWidgetBubbleType, WidgetSummaryResponse } from "@/types/api/widget";
+import type { ScheduleResponse, TaskResponse } from "@/types/api/work";
 
 const apiBubbleTypeMap: Partial<Record<WidgetBubbleType, BackendWidgetBubbleType>> = {
   agent: "AGENT",
@@ -181,6 +183,73 @@ function messageText(message: WidgetChatMessageResponse) {
 
 type TimerDisplay = WidgetDashboardWorkResponse["runningTimer"] | TimeLogResponse | null | undefined;
 
+function toWidgetTask(task: TaskResponse): WidgetTaskResponse {
+  return {
+    assigneeUserId: task.assigneeUserId ?? null,
+    createdAt: task.createdAt,
+    description: task.description ?? null,
+    dueAt: task.dueAt ?? null,
+    id: task.id,
+    ownerUserId: task.ownerUserId ?? null,
+    roomId: task.roomId ?? null,
+    status: task.status,
+    title: task.title,
+    updatedAt: task.updatedAt,
+    wbsItemId: task.wbsItemId ?? null,
+  };
+}
+
+function toWidgetSchedule(schedule: ScheduleResponse): WidgetScheduleResponse {
+  return {
+    allDay: schedule.allDay,
+    createdAt: schedule.createdAt,
+    endsAt: schedule.endsAt ?? null,
+    googleEventId: schedule.googleEventId ?? null,
+    id: schedule.id,
+    lastSyncedAt: schedule.lastSyncedAt ?? null,
+    ownerUserId: schedule.ownerUserId,
+    roomId: schedule.roomId ?? null,
+    startsAt: schedule.startsAt,
+    syncStatus: schedule.syncStatus,
+    taskId: schedule.taskId ?? null,
+    title: schedule.title,
+    updatedAt: schedule.updatedAt,
+    wbsItemId: schedule.wbsItemId ?? null,
+  };
+}
+
+function toWidgetTimeLog(timer: TimeLogResponse | null): WidgetTimeLogResponse | null {
+  if (!timer) return null;
+
+  return {
+    createdAt: timer.createdAt ?? timer.startedAt,
+    durationSeconds: timer.durationSeconds ?? 0,
+    endedAt: timer.endedAt ?? null,
+    id: timer.id,
+    idempotencyKey: timer.idempotencyKey ?? "",
+    lastHeartbeatAt: timer.lastHeartbeatAt ?? null,
+    lastStartedAt: timer.lastStartedAt ?? null,
+    recoveredFromTimeLogId: timer.recoveredFromTimeLogId ?? null,
+    roomId: timer.roomId ?? null,
+    startedAt: timer.startedAt,
+    status: timer.status,
+    timerType: timer.timerType ?? "WORK",
+    updatedAt: timer.updatedAt ?? timer.startedAt,
+    userId: timer.userId ?? "",
+  };
+}
+
+function toWidgetDashboardSnapshot(summary: WidgetSummaryResponse): WidgetDashboardWorkResponse {
+  return {
+    agentSuggestionSummary: summary.agentSuggestionSummary,
+    runningTimer: toWidgetTimeLog(summary.runningTimer),
+    todaySchedules: summary.schedules.map(toWidgetSchedule),
+    todayTasks: summary.tasks.map(toWidgetTask),
+    unreadNotificationCount: summary.unreadNotificationCount,
+    upcomingDeadlines: [],
+  };
+}
+
 function elapsedTimerLabel(timer?: TimerDisplay) {
   if (!timer) return "00:00";
   const startedAt = new Date(timer.lastStartedAt ?? timer.startedAt).getTime();
@@ -238,6 +307,7 @@ function buildNotificationSignal(notifications: WidgetNotificationResponse[]): W
 }
 
 function buildDisplayBubbles(input: {
+  agentSummary?: string[];
   dashboard?: WidgetDashboardWorkResponse | null;
   friends: WidgetFriendResponse[];
   memos: WidgetMemoResponse[];
@@ -251,6 +321,7 @@ function buildDisplayBubbles(input: {
   suggestions: WidgetAgentSuggestionResponse[];
   tasks: WidgetTaskResponse[];
   timer?: TimerDisplay;
+  unreadNotificationCount?: number;
   voiceConnectionLabel?: string | null;
   voiceRoom?: WidgetVoiceRoomResponse | null;
 }): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
@@ -261,23 +332,32 @@ function buildDisplayBubbles(input: {
   const memoItems = input.memos.filter((item) => item.status === "ACTIVE").slice(0, 3);
   const fileItems = input.resources.filter((item) => item.kind !== "MEMO").slice(0, 3);
   const agentItems = input.suggestions.slice(0, 3);
+  const agentSummaryItems = agentItems.length > 0 ? [] : (input.agentSummary ?? []).slice(0, 3);
   const unreadNotifications = input.notifications.filter((item) => item.status === "UNREAD").slice(0, 3);
-  const unreadCount = input.notifications.filter((item) => item.status === "UNREAD").length;
+  const unreadCount = input.notifications.length > 0 ? input.notifications.filter((item) => item.status === "UNREAD").length : (input.unreadNotificationCount ?? 0);
   const voiceParticipants = input.voiceRoom?.participants.filter((item) => item.status === "JOINED") ?? [];
 
   return {
     agent: withBubble("agent", {
-      compactLabel: `후보 ${agentItems.length}`,
-      metric: String(agentItems.length),
-      notificationLabel: agentItems.length > 0 ? "승인 대기 후보" : "대기 후보 없음",
-      panelBody: agentItems.length > 0 ? "승인 전 후보만 표시합니다." : "대기 중인 후보가 없습니다.",
+      compactLabel: `후보 ${agentItems.length || agentSummaryItems.length}`,
+      metric: String(agentItems.length || agentSummaryItems.length),
+      notificationLabel: agentItems.length || agentSummaryItems.length ? "승인 대기 후보" : "대기 후보 없음",
+      panelBody: agentItems.length || agentSummaryItems.length ? "승인 전 후보만 표시합니다." : "대기 중인 후보가 없습니다.",
       roomLabel: label,
-      rows: agentItems.map((item) => ({
-        id: item.suggestionId,
-        kind: "agent",
-        label: suggestionTitle(item),
-        status: suggestionStatusLabel(item.status),
-      })),
+      rows:
+        agentItems.length > 0
+          ? agentItems.map((item) => ({
+              id: item.suggestionId,
+              kind: "agent",
+              label: suggestionTitle(item),
+              status: suggestionStatusLabel(item.status),
+            }))
+          : agentSummaryItems.map((summary, index) => ({
+              id: `summary-${index}`,
+              kind: "agent",
+              label: summary,
+              status: "요약",
+            })),
     }),
     alert: withBubble("alert", {
       actionLabel: "알림 확인",
@@ -613,14 +693,33 @@ function DesktopWidgetSurface() {
 
     async function loadDisplayApiState() {
       let selectedRoomId = widgetContext?.selectedRoomId ?? null;
-      if (!selectedRoomId) {
-        const summary = await widgetApi.getSummary().catch(() => null);
-        if (summary?.context) {
-          selectedRoomId = summary.context.selectedRoomId ?? null;
-          if (!cancelled) {
-            setWidgetContext(summary.context);
-            setServerSettings(summary.bubbles ?? []);
-          }
+      const summary = await widgetApi.getSummary().catch(() => null);
+      const summaryDashboard = summary ? toWidgetDashboardSnapshot(summary) : null;
+      if (summary?.context) {
+        selectedRoomId = summary.context.selectedRoomId ?? null;
+        if (!cancelled) {
+          setWidgetContext(summary.context);
+          setServerSettings(summary.bubbles ?? []);
+          setDisplayBubbles(
+            buildDisplayBubbles({
+              agentSummary: summary.agentSuggestionSummary,
+              dashboard: summaryDashboard,
+              friends: [],
+              memos: [],
+              messages: [],
+              notifications: [],
+              resources: [],
+              room: null,
+              roomId: selectedRoomId,
+              schedules: summaryDashboard?.todaySchedules ?? [],
+              suggestions: [],
+              tasks: [...(summaryDashboard?.todayTasks ?? []), ...(summaryDashboard?.upcomingDeadlines ?? [])],
+              timer: summaryDashboard?.runningTimer,
+              unreadNotificationCount: summary.unreadNotificationCount,
+              voiceConnectionLabel,
+              voiceRoom: null,
+            }),
+          );
         }
       }
 
@@ -650,11 +749,12 @@ function DesktopWidgetSurface() {
       if (cancelled) return;
 
       setNotificationSignal(buildNotificationSignal(notifications));
-      const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
+      const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : summaryDashboard;
       const activeTimer = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
 
       setDisplayBubbles(
         buildDisplayBubbles({
+          agentSummary: summary?.agentSuggestionSummary,
           chatRoom: activeRoom ?? null,
           dashboard,
           friends: friendsResult.status === "fulfilled" ? friendsResult.value : [],
@@ -666,8 +766,9 @@ function DesktopWidgetSurface() {
           roomId: selectedRoomId,
           schedules: schedulesResult.status === "fulfilled" ? schedulesResult.value.items : [],
           suggestions: suggestionsResult.status === "fulfilled" ? suggestionsResult.value : [],
-          tasks: tasksResult.status === "fulfilled" ? tasksResult.value.items : [],
+          tasks: tasksResult.status === "fulfilled" ? tasksResult.value.items : [...(summaryDashboard?.todayTasks ?? []), ...(summaryDashboard?.upcomingDeadlines ?? [])],
           timer: activeTimer,
+          unreadNotificationCount: summary?.unreadNotificationCount,
           voiceConnectionLabel,
           voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
         }),

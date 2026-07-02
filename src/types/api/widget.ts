@@ -1,3 +1,6 @@
+import type { TimeLogResponse } from "@/types/api/timer";
+import type { ScheduleResponse, TaskResponse } from "@/types/api/work";
+
 export type WidgetMode = "PERSONAL" | "ROOM";
 
 export type WidgetBubbleType =
@@ -52,8 +55,13 @@ export type WidgetSettingsResponse = {
 };
 
 export type WidgetSummaryResponse = {
+  agentSuggestionSummary: string[];
   bubbles: WidgetBubbleSettingResponse[];
   context: WidgetContextResponse;
+  runningTimer: TimeLogResponse | null;
+  schedules: ScheduleResponse[];
+  tasks: TaskResponse[];
+  unreadNotificationCount: number;
 };
 
 export type WidgetItemState = "VISIBLE" | "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED" | "UNREAD";
