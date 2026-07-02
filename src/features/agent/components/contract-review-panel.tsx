@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AlertTriangle,
   ArrowRight,
@@ -15,73 +17,77 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 type DocumentSource = {
   name: string;
-  type: string;
+  typeKey: MessageKey;
   status: "analyzed" | "waiting" | "needsReview";
 };
 
 type ExtractedValue = {
-  label: string;
-  value: string;
-  source: string;
+  labelKey: MessageKey;
+  valueKey: MessageKey;
+  sourceKey: MessageKey;
 };
 
 type ReviewItem = {
-  label: string;
-  detail: string;
-  source: string;
+  labelKey: MessageKey;
+  detailKey: MessageKey;
+  sourceKey: MessageKey;
   type: "difference" | "missing" | "question";
 };
 
 const documents: DocumentSource[] = [
-  { name: "업무기준문서_v2.pdf", status: "needsReview", type: "업무 문서" },
-  { name: "견적서_final.pdf", status: "analyzed", type: "견적서" },
-  { name: "요구사항_정리.md", status: "analyzed", type: "요구사항" },
+  { name: "업무기준문서_v2.pdf", status: "needsReview", typeKey: "agent.contract.docTypeWork" },
+  { name: "견적서_final.pdf", status: "analyzed", typeKey: "agent.contract.docTypeEstimate" },
+  { name: "요구사항_정리.md", status: "analyzed", typeKey: "agent.contract.docTypeRequirement" },
 ];
 
 const extractedValues: ExtractedValue[] = [
-  { label: "프로젝트명", source: "업무 문서", value: "서비스 소개 페이지 번역" },
-  { label: "납품일 후보", source: "업무 문서, 견적서", value: "7월 15일" },
-  { label: "금액 참고값", source: "견적서", value: "8,000,000원" },
-  { label: "납품물 후보", source: "요구사항", value: "한영 번역본, 용어집" },
+  { labelKey: "agent.contract.valProjectLabel", sourceKey: "agent.contract.valProjectSource", valueKey: "agent.contract.valProjectValue" },
+  { labelKey: "agent.contract.valDueLabel", sourceKey: "agent.contract.valDueSource", valueKey: "agent.contract.valDueValue" },
+  { labelKey: "agent.contract.valAmountLabel", sourceKey: "agent.contract.valAmountSource", valueKey: "agent.contract.valAmountValue" },
+  { labelKey: "agent.contract.valDeliverLabel", sourceKey: "agent.contract.valDeliverSource", valueKey: "agent.contract.valDeliverValue" },
 ];
 
 const reviewItems: ReviewItem[] = [
   {
-    detail: "업무 문서에는 7월 15일, 회의록에는 7월 20일로 적혀 있습니다.",
-    label: "납품일 값 차이",
-    source: "업무 문서 · 회의록",
+    detailKey: "agent.contract.review1Detail",
+    labelKey: "agent.contract.review1Label",
+    sourceKey: "agent.contract.review1Source",
     type: "difference",
   },
   {
-    detail: "견적서에는 2회 수정이 있으나 업무 문서에는 수정 범위가 비어 있습니다.",
-    label: "수정 범위 확인",
-    source: "업무 문서 · 견적서",
+    detailKey: "agent.contract.review2Detail",
+    labelKey: "agent.contract.review2Label",
+    sourceKey: "agent.contract.review2Source",
     type: "missing",
   },
   {
-    detail: "검수 기준과 최종 승인자가 문서마다 명확하지 않습니다.",
-    label: "검수 기준 질문",
-    source: "요구사항 · 회의록",
+    detailKey: "agent.contract.review3Detail",
+    labelKey: "agent.contract.review3Label",
+    sourceKey: "agent.contract.review3Source",
     type: "question",
   },
 ];
 
-const sourceStatusCopy: Record<DocumentSource["status"], { label: string; tone: "approved" | "pending" | "warning" }> = {
-  analyzed: { label: "분석됨", tone: "approved" },
-  needsReview: { label: "확인 필요", tone: "warning" },
-  waiting: { label: "대기", tone: "pending" },
+const sourceStatusCopy: Record<DocumentSource["status"], { labelKey: MessageKey; tone: "approved" | "pending" | "warning" }> = {
+  analyzed: { labelKey: "agent.contract.statusAnalyzed", tone: "approved" },
+  needsReview: { labelKey: "agent.contract.statusNeedsReview", tone: "warning" },
+  waiting: { labelKey: "agent.contract.statusWaiting", tone: "pending" },
 };
 
-const reviewTypeMeta: Record<ReviewItem["type"], { icon: typeof AlertTriangle; label: string; tone: "warning" | "pending" | "agent" }> = {
-  difference: { icon: AlertTriangle, label: "값 차이", tone: "warning" },
-  missing: { icon: ShieldCheck, label: "빠진 조건", tone: "pending" },
-  question: { icon: HelpCircle, label: "확인 질문", tone: "agent" },
+const reviewTypeMeta: Record<ReviewItem["type"], { icon: typeof AlertTriangle; labelKey: MessageKey; tone: "warning" | "pending" | "agent" }> = {
+  difference: { icon: AlertTriangle, labelKey: "agent.contract.typeDifference", tone: "warning" },
+  missing: { icon: ShieldCheck, labelKey: "agent.contract.typeMissing", tone: "pending" },
+  question: { icon: HelpCircle, labelKey: "agent.contract.typeQuestion", tone: "agent" },
 };
 
-function DocumentPill({ document }: { document: DocumentSource }) {
+function DocumentPill({ document, t }: { document: DocumentSource; t: TranslateFn }) {
   const status = sourceStatusCopy[document.status];
 
   return (
@@ -90,15 +96,15 @@ function DocumentPill({ document }: { document: DocumentSource }) {
         <FileText size={16} strokeWidth={2.1} />
       </span>
       <div>
-        <strong>{document.type}</strong>
+        <strong>{t(document.typeKey)}</strong>
         <span>{document.name}</span>
       </div>
-      <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+      <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
     </article>
   );
 }
 
-function ReviewItemCard({ item }: { item: ReviewItem }) {
+function ReviewItemCard({ item, t }: { item: ReviewItem; t: TranslateFn }) {
   const meta = reviewTypeMeta[item.type];
   const Icon = meta.icon;
 
@@ -109,21 +115,21 @@ function ReviewItemCard({ item }: { item: ReviewItem }) {
           <Icon size={16} strokeWidth={2.1} />
         </span>
         <div>
-          <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
-          <h3>{item.label}</h3>
-          <p>{item.source}</p>
+          <StatusBadge tone={meta.tone}>{t(meta.labelKey)}</StatusBadge>
+          <h3>{t(item.labelKey)}</h3>
+          <p>{t(item.sourceKey)}</p>
         </div>
       </div>
-      <p>{item.detail}</p>
+      <p>{t(item.detailKey)}</p>
       <footer>
         <Button icon={<CheckCircle2 size={15} />} size="sm" variant="primary">
-          확인
+          {t("agent.contract.confirm")}
         </Button>
         <Button icon={<PencilLine size={15} />} size="sm" variant="quiet">
-          수정
+          {t("agent.contract.edit")}
         </Button>
         <Button icon={<CirclePause size={15} />} size="sm" variant="ghost">
-          보류
+          {t("agent.contract.hold")}
         </Button>
       </footer>
     </article>
@@ -131,66 +137,65 @@ function ReviewItemCard({ item }: { item: ReviewItem }) {
 }
 
 export function ContractReviewPanel() {
+  const { t } = useI18n();
+
   return (
-    <section className="contract-review" aria-label="업무 문서 확인 패널">
+    <section className="contract-review" aria-label={t("agent.contract.aria")}>
       <GlassPanel className="contract-review__hero">
         <div>
           <Chip icon={<Bot size={14} />} selected>
-            업무 문서 확인
+            {t("agent.contract.chip")}
           </Chip>
-          <h2>업무 문서, 견적서, 요구사항의 값 차이와 빠진 조건을 확인합니다</h2>
-          <p>
-            에이전트는 문서에서 프로젝트 정보와 확인 필요 항목을 후보로 정리합니다. 사용자가 확인한 값만
-            프로젝트룸, WBS, TODO, 일정에 반영됩니다.
-          </p>
+          <h2>{t("agent.contract.heroTitle")}</h2>
+          <p>{t("agent.contract.heroDesc")}</p>
         </div>
         <div className="contract-review__job">
-          <StatusBadge tone="agent">에이전트 정리</StatusBadge>
+          <StatusBadge tone="agent">{t("agent.contract.jobBadge")}</StatusBadge>
           <strong>92%</strong>
-          <span>문서 추출 후보 생성</span>
-          <ProgressBar label="업무 문서 분석 진행률" value={92} />
+          <span>{t("agent.contract.jobLabel")}</span>
+          <ProgressBar label={t("agent.contract.progress")} value={92} />
         </div>
       </GlassPanel>
 
-      <div className="contract-review__sources" aria-label="업로드된 문서">
+      <div className="contract-review__sources" aria-label={t("agent.contract.sourcesAria")}>
         {documents.map((document) => (
-          <DocumentPill document={document} key={document.name} />
+          <DocumentPill document={document} key={document.name} t={t} />
         ))}
       </div>
 
       <div className="contract-review__grid">
         <GlassPanel className="contract-review__values">
           <div className="contract-review__section-title">
-            <h3>추출 후보</h3>
-            <p>문서에서 뽑은 값은 사용자 확인 전까지 후보로만 둡니다.</p>
+            <h3>{t("agent.contract.extractTitle")}</h3>
+            <p>{t("agent.contract.extractDesc")}</p>
           </div>
           <div className="contract-review__value-grid">
             {extractedValues.map((item) => (
-              <article className="contract-review-value" key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-                <small>{item.source}</small>
+              <article className="contract-review-value" key={item.labelKey}>
+                <span>{t(item.labelKey)}</span>
+                <strong>{t(item.valueKey)}</strong>
+                <small>{t(item.sourceKey)}</small>
               </article>
             ))}
           </div>
           <div className="contract-review__flow">
-            <span>문서 업로드</span>
+            <span>{t("agent.contract.flowUpload")}</span>
             <ArrowRight size={16} strokeWidth={2.1} />
-            <span>후보 생성</span>
+            <span>{t("agent.contract.flowCandidate")}</span>
             <ArrowRight size={16} strokeWidth={2.1} />
-            <span>사용자 확인</span>
+            <span>{t("agent.contract.flowUser")}</span>
             <ArrowRight size={16} strokeWidth={2.1} />
-            <span>작업 반영</span>
+            <span>{t("agent.contract.flowApply")}</span>
           </div>
         </GlassPanel>
 
         <GlassPanel className="contract-review__items">
           <div className="contract-review__section-title">
-            <h3>확인 필요 항목</h3>
-            <p>값이 다르거나 빠진 조건을 먼저 확인할 수 있게 모읍니다.</p>
+            <h3>{t("agent.contract.reviewTitle")}</h3>
+            <p>{t("agent.contract.reviewDesc")}</p>
           </div>
           {reviewItems.map((item) => (
-            <ReviewItemCard item={item} key={item.label} />
+            <ReviewItemCard item={item} key={item.labelKey} t={t} />
           ))}
         </GlassPanel>
       </div>

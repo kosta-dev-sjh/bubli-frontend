@@ -34,25 +34,26 @@ type UploadFile = {
   status: UploadStatus;
 };
 
+// Demo fixture: fileName/meta hold message keys resolved via t() at render.
 const files: UploadFile[] = [
   {
     analysis: 66,
-    fileName: "업무기준문서_v2.pdf",
-    meta: "PDF · 2.4MB · 파일 지문 확인",
+    fileName: "resources.upload.file1Name",
+    meta: "resources.upload.file1Meta",
     scope: "room",
     status: "analyzing",
   },
   {
     analysis: 100,
-    fileName: "요구사항_정리.md",
-    meta: "Markdown · 84KB · 자료 등록 완료",
+    fileName: "resources.upload.file2Name",
+    meta: "resources.upload.file2Meta",
     scope: "room",
     status: "ready",
   },
   {
     analysis: 42,
-    fileName: "개인_참고메모.txt",
-    meta: "TXT · 18KB · 업로드 진행 중",
+    fileName: "resources.upload.file3Name",
+    meta: "resources.upload.file3Meta",
     scope: "personal",
     status: "uploading",
   },
@@ -71,6 +72,7 @@ const scopeLabelKey: Record<UploadScope, MessageKey> = {
 
 function FileCard({ file, t }: { file: UploadFile; t: TranslateFn }) {
   const status = statusMetaKey[file.status];
+  const fileName = t(file.fileName as MessageKey);
 
   return (
     <article className={styles.fileCard}>
@@ -83,12 +85,12 @@ function FileCard({ file, t }: { file: UploadFile; t: TranslateFn }) {
             <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
             <StatusBadge tone={file.scope === "personal" ? "personal" : "room"}>{t(scopeLabelKey[file.scope])}</StatusBadge>
           </div>
-          <h3>{file.fileName}</h3>
-          <p>{file.meta}</p>
+          <h3>{fileName}</h3>
+          <p>{t(file.meta as MessageKey)}</p>
         </div>
         <StatusBadge tone="neutral">{file.analysis}%</StatusBadge>
       </div>
-      <ProgressBar label={t("resources.upload.progressBar", { fileName: file.fileName })} value={file.analysis} />
+      <ProgressBar label={t("resources.upload.progressBar", { fileName })} value={file.analysis} />
       <div className={styles.meta}>
         <span>{t("resources.upload.metaAfterUpload")}</span>
         <span>{t("resources.upload.metaCandidate")}</span>

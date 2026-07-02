@@ -1,3 +1,5 @@
+"use client";
+
 import {
   CheckCircle2,
   Database,
@@ -16,9 +18,13 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./resource-upload-decision-panel.module.css";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 export type ResourceUploadDecision = "PERSONAL_LIBRARY" | "ROOM_RESOURCE" | "TEMP_ANALYSIS";
 
@@ -44,45 +50,52 @@ type ResourceUploadDecisionPanelProps = HTMLAttributes<HTMLElement> & {
   roomLabel?: string;
 };
 
-const defaultOptions: ResourceDecisionOption[] = [
-  {
-    description: "내 자료보드에 저장합니다. 직접 공유하기 전까지 프로젝트룸에는 보이지 않습니다.",
-    icon: <HardDrive size={18} />,
-    id: "PERSONAL_LIBRARY",
-    label: "개인 자료보드 저장",
-    meta: "개인 자료로 보관",
-  },
-  {
-    description: "선택한 프로젝트룸 멤버가 함께 보는 자료로 등록합니다. 프로젝트룸과 멤버 권한을 확인합니다.",
-    icon: <FolderInput size={18} />,
-    id: "ROOM_RESOURCE",
-    label: "프로젝트룸 자료로 등록",
-    meta: "프로젝트룸 자료로 보관",
-  },
-  {
-    description: "원본을 자료보드에 등록하지 않고 요약과 확인할 항목만 이번 대화에서 봅니다.",
-    icon: <MessageSquareText size={18} />,
-    id: "TEMP_ANALYSIS",
-    label: "이번 대화에서만 분석",
-    meta: "저장 없이 분석",
-  },
-];
+function buildDefaultOptions(t: TranslateFn): ResourceDecisionOption[] {
+  return [
+    {
+      description: t("resources.upload.optPersonalDesc"),
+      icon: <HardDrive size={18} />,
+      id: "PERSONAL_LIBRARY",
+      label: t("resources.upload.optPersonalLabel"),
+      meta: t("resources.upload.optPersonalMeta"),
+    },
+    {
+      description: t("resources.upload.optRoomDesc"),
+      icon: <FolderInput size={18} />,
+      id: "ROOM_RESOURCE",
+      label: t("resources.upload.optRoomLabel"),
+      meta: t("resources.upload.optRoomMeta"),
+    },
+    {
+      description: t("resources.upload.optTempDesc"),
+      icon: <MessageSquareText size={18} />,
+      id: "TEMP_ANALYSIS",
+      label: t("resources.upload.optTempLabel"),
+      meta: t("resources.upload.optTempMeta"),
+    },
+  ];
+}
 
 export function ResourceUploadDecisionPanel({
   className,
   currentDecision = "PERSONAL_LIBRARY",
   fileKindLabel = "PDF",
-  fileName = "업무기준문서_v2.pdf",
+  fileName,
   fileSizeLabel = "2.4MB",
   onConfirmDecision,
   onSelectDecision,
-  options = defaultOptions,
-  quotaLabel = "개인 자료함 820MB / 1GB",
+  options,
+  quotaLabel,
   quotaPercent = 82,
-  roomLabel = "토모에 번역 프로젝트룸",
+  roomLabel,
   ...props
 }: ResourceUploadDecisionPanelProps) {
-  const selectedOption = options.find((option) => option.id === currentDecision) ?? options[0];
+  const { t } = useI18n();
+  const resolvedOptions = options ?? buildDefaultOptions(t);
+  const resolvedFileName = fileName ?? t("resources.upload.defaultFileName");
+  const resolvedQuotaLabel = quotaLabel ?? t("resources.upload.defaultQuota");
+  const resolvedRoomLabel = roomLabel ?? t("resources.upload.defaultRoomLabel");
+  const selectedOption = resolvedOptions.find((option) => option.id === currentDecision) ?? resolvedOptions[0];
 
   return (
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
@@ -92,13 +105,13 @@ export function ResourceUploadDecisionPanel({
             <UploadCloud size={22} />
           </span>
           <div>
-            <StatusBadge tone="pending">업로드 판단</StatusBadge>
-            <h2>자료를 어디에 둘까요?</h2>
-            <p>파일을 올리면 바로 저장하지 않고, 사용자가 고른 범위 안에서만 자료와 에이전트 분석을 시작합니다.</p>
+            <StatusBadge tone="pending">{t("resources.upload.panelBadge")}</StatusBadge>
+            <h2>{t("resources.upload.panelTitle")}</h2>
+            <p>{t("resources.upload.panelDesc")}</p>
           </div>
         </div>
         <Button icon={<CheckCircle2 size={15} />} onClick={() => onConfirmDecision?.(currentDecision)} size="sm" variant="primary">
-          선택 적용
+          {t("resources.upload.applySelection")}
         </Button>
       </header>
 
@@ -107,17 +120,17 @@ export function ResourceUploadDecisionPanel({
           <FileText size={20} />
         </div>
         <div className={styles.fileBody}>
-          <strong>{fileName}</strong>
+          <strong>{resolvedFileName}</strong>
           <div className={styles.fileMeta}>
             <Chip>{fileKindLabel}</Chip>
             <Chip>{fileSizeLabel}</Chip>
-            <Chip>{roomLabel}</Chip>
+            <Chip>{resolvedRoomLabel}</Chip>
           </div>
         </div>
       </div>
 
       <div className={styles.optionGrid} role="list">
-        {options.map((option) => {
+        {resolvedOptions.map((option) => {
           const selected = option.id === currentDecision;
 
           return (
@@ -146,37 +159,36 @@ export function ResourceUploadDecisionPanel({
       <div className={styles.policyGrid}>
         <PolicyItem
           icon={<LockKeyhole size={17} />}
-          label="권한 기준"
+          label={t("resources.upload.policyAuthLabel")}
           value={
             currentDecision === "ROOM_RESOURCE"
-              ? "프로젝트룸 멤버 권한을 확인한 뒤 함께 보는 자료로 등록합니다."
-              : "개인 자료는 직접 공유하기 전까지 본인만 봅니다."
+              ? t("resources.upload.policyAuthRoom")
+              : t("resources.upload.policyAuthPersonal")
           }
         />
         <PolicyItem
           icon={<Sparkles size={17} />}
-          label="에이전트 범위"
+          label={t("resources.upload.policyAgentLabel")}
           value={
             currentDecision === "TEMP_ANALYSIS"
-              ? "원본 저장 없이 이번 대화 안에서 요약과 확인 항목만 봅니다."
-              : "저장된 자료의 범위와 접근 권한 안에서만 분석합니다."
+              ? t("resources.upload.policyAgentTemp")
+              : t("resources.upload.policyAgentStored")
           }
         />
-        <PolicyItem icon={<Database size={17} />} label="저장 위치" value={selectedOption.meta} />
+        <PolicyItem icon={<Database size={17} />} label={t("resources.upload.policyStorageLabel")} value={selectedOption.meta} />
       </div>
 
       <footer className={styles.footer}>
         <div className={styles.quota}>
           <div>
-            <strong>{quotaLabel}</strong>
-            <span>용량을 넘으면 서버 업로드는 막고 기기 안 색인은 유지합니다.</span>
+            <strong>{resolvedQuotaLabel}</strong>
+            <span>{t("resources.upload.quotaHint")}</span>
           </div>
           <span>{quotaPercent}%</span>
         </div>
-        <ProgressBar label="개인 자료함 사용량" value={quotaPercent} />
+        <ProgressBar label={t("resources.upload.quotaBar")} value={quotaPercent} />
         <p>
-          개인 관리 폴더의 파일은 사용자가 선택한 범위 안에서만 서버에 반영됩니다. 프로젝트룸 자료가 되려면 사용자가
-          직접 등록하거나 공유해야 합니다.
+          {t("resources.upload.panelFooter")}
         </p>
       </footer>
     </GlassPanel>

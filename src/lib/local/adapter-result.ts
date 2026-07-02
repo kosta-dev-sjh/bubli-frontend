@@ -1,4 +1,5 @@
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { translate } from "@/lib/i18n/translate";
 import type { TauriCommandName } from "@/lib/tauri/commands";
 import type {
   LocalAdapterBlocked,
@@ -25,7 +26,7 @@ export function unavailable(commandName?: TauriCommandName): LocalAdapterUnavail
   return {
     commandName,
     environment: environment === "tauri" ? "browser" : environment,
-    message: "Tauri 앱이 아닐 때는 로컬 SQLite와 개인 폴더 기능을 사용할 수 없습니다.",
+    message: translate("local.adapter.requiresTauri"),
     reason: "requires_tauri",
     status: "unavailable",
   };
@@ -110,7 +111,7 @@ export function getErrorMessage(error: unknown): string {
     return error;
   }
 
-  return "알 수 없는 Tauri 명령 오류가 발생했습니다.";
+  return translate("local.adapter.unknownError");
 }
 
 export function hasProjectRoomScope(input?: { roomId?: string | null }): boolean {

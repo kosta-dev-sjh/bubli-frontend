@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   Bot,
@@ -16,71 +18,76 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 type CandidateType = "wbs" | "todo" | "schedule" | "question";
 type CandidateStatus = "pending" | "edited" | "held";
 
 type Candidate = {
-  assignee: string;
+  assigneeKey: MessageKey;
   confidence: number;
-  description: string;
-  dueLabel: string;
-  source: string;
+  descriptionKey: MessageKey;
+  dueLabelKey: MessageKey;
+  sourceKey: MessageKey;
   status: CandidateStatus;
-  title: string;
+  titleKey: MessageKey;
   type: CandidateType;
 };
 
 const candidates: Candidate[] = [
   {
-    assignee: "나",
+    assigneeKey: "agent.candidate.assigneeMe",
     confidence: 91,
-    description: "번역 범위를 1차 번역, 용어 검수, 최종 납품 단계로 나눈 WBS 후보입니다.",
-    dueLabel: "D-5",
-    source: "업무 문서 · 요구사항 문서",
+    descriptionKey: "agent.candidate.desc1",
+    dueLabelKey: "agent.candidate.due1",
+    sourceKey: "agent.candidate.source1",
     status: "pending",
-    title: "번역 작업 WBS 구조",
+    titleKey: "agent.candidate.title1",
     type: "wbs",
   },
   {
-    assignee: "나",
+    assigneeKey: "agent.candidate.assigneeMe",
     confidence: 87,
-    description: "납품일 차이를 확인한 뒤 클라이언트에게 보낼 질문으로 남길 수 있습니다.",
-    dueLabel: "오늘",
-    source: "업무 문서 · 회의록",
+    descriptionKey: "agent.candidate.desc2",
+    dueLabelKey: "agent.candidate.due2",
+    sourceKey: "agent.candidate.source2",
     status: "edited",
-    title: "납품일 기준 확인 질문",
+    titleKey: "agent.candidate.title2",
     type: "question",
   },
   {
-    assignee: "프로젝트 리더",
+    assigneeKey: "agent.candidate.assigneeLeader",
     confidence: 78,
-    description: "용어집 초안을 검토하고 수정 요청 여부를 정리하는 TODO 후보입니다.",
-    dueLabel: "6.27",
-    source: "요구사항 문서",
+    descriptionKey: "agent.candidate.desc3",
+    dueLabelKey: "agent.candidate.due3",
+    sourceKey: "agent.candidate.source3",
     status: "held",
-    title: "용어집 초안 검토",
+    titleKey: "agent.candidate.title3",
     type: "todo",
   },
 ];
 
-const typeMeta: Record<CandidateType, { icon: typeof GitBranch; label: string; tone: "agent" | "todo" | "timer" | "warning" }> = {
-  question: { icon: ShieldCheck, label: "확인 질문", tone: "warning" },
-  schedule: { icon: CalendarClock, label: "일정 후보", tone: "timer" },
-  todo: { icon: ListChecks, label: "TODO 후보", tone: "todo" },
-  wbs: { icon: GitBranch, label: "WBS 후보", tone: "agent" },
+const typeMeta: Record<CandidateType, { icon: typeof GitBranch; labelKey: MessageKey; tone: "agent" | "todo" | "timer" | "warning" }> = {
+  question: { icon: ShieldCheck, labelKey: "agent.candidate.typeQuestion", tone: "warning" },
+  schedule: { icon: CalendarClock, labelKey: "agent.candidate.typeSchedule", tone: "timer" },
+  todo: { icon: ListChecks, labelKey: "agent.candidate.typeTodo", tone: "todo" },
+  wbs: { icon: GitBranch, labelKey: "agent.candidate.typeWbs", tone: "agent" },
 };
 
-const statusMeta: Record<CandidateStatus, { label: string; tone: "pending" | "warning" | "neutral" }> = {
-  edited: { label: "수정됨", tone: "warning" },
-  held: { label: "보류", tone: "neutral" },
-  pending: { label: "승인 전", tone: "pending" },
+const statusMeta: Record<CandidateStatus, { labelKey: MessageKey; tone: "pending" | "warning" | "neutral" }> = {
+  edited: { labelKey: "agent.candidate.statusEdited", tone: "warning" },
+  held: { labelKey: "agent.candidate.statusHeld", tone: "neutral" },
+  pending: { labelKey: "agent.candidate.statusPending", tone: "pending" },
 };
 
-function CandidateCard({ candidate }: { candidate: Candidate }) {
+function CandidateCard({ candidate, t }: { candidate: Candidate; t: TranslateFn }) {
   const type = typeMeta[candidate.type];
   const status = statusMeta[candidate.status];
   const Icon = type.icon;
+  const title = t(candidate.titleKey);
 
   return (
     <article className="candidate-approval-card">
@@ -90,29 +97,29 @@ function CandidateCard({ candidate }: { candidate: Candidate }) {
         </span>
         <div>
           <div className="candidate-approval-card__meta">
-            <StatusBadge tone={type.tone}>{type.label}</StatusBadge>
-            <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+            <StatusBadge tone={type.tone}>{t(type.labelKey)}</StatusBadge>
+            <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
           </div>
-          <h3>{candidate.title}</h3>
-          <p>{candidate.source}</p>
+          <h3>{title}</h3>
+          <p>{t(candidate.sourceKey)}</p>
         </div>
       </div>
-      <p>{candidate.description}</p>
+      <p>{t(candidate.descriptionKey)}</p>
       <div className="candidate-approval-card__chips">
-        <Chip>{candidate.assignee}</Chip>
-        <Chip>{candidate.dueLabel}</Chip>
-        <Chip>신뢰도 {candidate.confidence}%</Chip>
+        <Chip>{t(candidate.assigneeKey)}</Chip>
+        <Chip>{t(candidate.dueLabelKey)}</Chip>
+        <Chip>{t("agent.candidate.confidenceChip", { value: candidate.confidence })}</Chip>
       </div>
-      <ProgressBar label={`${candidate.title} 후보 신뢰도`} value={candidate.confidence} />
+      <ProgressBar label={t("agent.candidate.confidence", { title })} value={candidate.confidence} />
       <footer>
         <Button icon={<CheckCircle2 size={15} />} size="sm" variant="primary">
-          승인
+          {t("agent.candidate.approve")}
         </Button>
         <Button icon={<PencilLine size={15} />} size="sm" variant="quiet">
-          수정
+          {t("agent.candidate.edit")}
         </Button>
         <Button icon={<CirclePause size={15} />} size="sm" variant="ghost">
-          보류
+          {t("agent.candidate.hold")}
         </Button>
       </footer>
     </article>
@@ -120,67 +127,66 @@ function CandidateCard({ candidate }: { candidate: Candidate }) {
 }
 
 export function CandidateApprovalPanel() {
+  const { t } = useI18n();
+
   return (
-    <section className="candidate-approval" aria-label="에이전트 후보 승인 패널">
+    <section className="candidate-approval" aria-label={t("agent.candidate.aria")}>
       <GlassPanel className="candidate-approval__hero">
         <div>
           <Chip icon={<Bot size={14} />} selected>
-            후보 승인
+            {t("agent.candidate.chip")}
           </Chip>
-          <h2>에이전트가 만든 후보는 사용자가 확인한 뒤 작업으로 반영합니다</h2>
-          <p>
-            WBS, TODO, 일정, 확인 질문은 승인 전까지 후보 상태로 남습니다. 승인한 항목만 서버 확인을 거쳐
-            실제 작업으로 저장됩니다.
-          </p>
+          <h2>{t("agent.candidate.heroTitle")}</h2>
+          <p>{t("agent.candidate.heroDesc")}</p>
         </div>
         <div className="candidate-approval__summary">
-          <StatusBadge tone="agent">정리 후보</StatusBadge>
-          <strong>12개</strong>
-          <span>검토할 후보</span>
-          <ProgressBar label="후보 검토 진행률" value={64} />
+          <StatusBadge tone="agent">{t("agent.candidate.summaryBadge")}</StatusBadge>
+          <strong>{t("agent.candidate.summaryCount")}</strong>
+          <span>{t("agent.candidate.summaryLabel")}</span>
+          <ProgressBar label={t("agent.candidate.reviewProgress")} value={64} />
         </div>
       </GlassPanel>
 
       <div className="candidate-approval__flow">
-        <span>에이전트 정리 완료</span>
+        <span>{t("agent.candidate.flowDone")}</span>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <span>후보 목록</span>
+        <span>{t("agent.candidate.flowList")}</span>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <span>사용자 확인</span>
+        <span>{t("agent.candidate.flowUser")}</span>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <span>WBS/TODO/일정 반영</span>
+        <span>{t("agent.candidate.flowApply")}</span>
       </div>
 
       <div className="candidate-approval__grid">
         <GlassPanel className="candidate-approval__list">
           <div className="candidate-approval__section-title">
-            <h3>검토 대기 후보</h3>
-            <p>같은 자료에서 나온 후보를 한 번에 보되, 확정은 항목별로 처리합니다.</p>
+            <h3>{t("agent.candidate.listTitle")}</h3>
+            <p>{t("agent.candidate.listDesc")}</p>
           </div>
           <div className="candidate-approval__items">
             {candidates.map((candidate) => (
-              <CandidateCard candidate={candidate} key={candidate.title} />
+              <CandidateCard candidate={candidate} key={candidate.titleKey} t={t} />
             ))}
           </div>
         </GlassPanel>
 
         <GlassPanel className="candidate-approval__rules">
-          <h3>반영 기준</h3>
+          <h3>{t("agent.candidate.rulesTitle")}</h3>
           <div>
             <ClipboardCheck size={17} strokeWidth={2.1} />
-            <p>승인한 WBS 후보만 WBS/작업판에 들어갑니다.</p>
+            <p>{t("agent.candidate.ruleWbs")}</p>
           </div>
           <div>
             <ListChecks size={17} strokeWidth={2.1} />
-            <p>담당자가 있는 TODO는 개인 대시보드와 데스크탑 위젯 요약에도 보입니다.</p>
+            <p>{t("agent.candidate.ruleTodo")}</p>
           </div>
           <div>
             <CalendarClock size={17} strokeWidth={2.1} />
-            <p>날짜가 확인된 항목만 일정과 데스크탑 위젯 요약에 연결합니다.</p>
+            <p>{t("agent.candidate.ruleSchedule")}</p>
           </div>
           <div>
             <ShieldCheck size={17} strokeWidth={2.1} />
-            <p>에이전트는 후보를 만들고, 확정 저장은 사용자 확인 후 처리합니다.</p>
+            <p>{t("agent.candidate.ruleBoundary")}</p>
           </div>
         </GlassPanel>
       </div>

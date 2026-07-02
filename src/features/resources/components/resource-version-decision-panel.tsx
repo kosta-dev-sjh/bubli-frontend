@@ -83,7 +83,7 @@ function buildDefaultVersions(t: TranslateFn): ResourceVersionItem[] {
     {
       authorLabel: t("resources.version.authorLeader"),
       changedAtLabel: "2026-06-18 15:20",
-      fileName: "요구사항정의서_v1.3.pdf",
+      fileName: t("resources.version.decisionFileV13"),
       id: "version-current",
       note: t("resources.version.decisionCurrentNote"),
       status: "CURRENT",
@@ -92,7 +92,7 @@ function buildDefaultVersions(t: TranslateFn): ResourceVersionItem[] {
     {
       authorLabel: t("resources.version.authorLeeSeoyeon"),
       changedAtLabel: "2026-06-16 11:42",
-      fileName: "요구사항정의서_v1.2.pdf",
+      fileName: t("resources.version.decisionFileV12"),
       id: "version-previous-2",
       note: t("resources.version.decisionPrev2Note"),
       status: "PREVIOUS",
@@ -101,7 +101,7 @@ function buildDefaultVersions(t: TranslateFn): ResourceVersionItem[] {
     {
       authorLabel: t("resources.version.authorLeader"),
       changedAtLabel: "2026-06-14 09:18",
-      fileName: "요구사항정의서_초안.pdf",
+      fileName: t("resources.version.decisionFileDraft"),
       id: "version-previous-1",
       note: t("resources.version.decisionPrev1Note"),
       status: "PREVIOUS",
@@ -112,8 +112,8 @@ function buildDefaultVersions(t: TranslateFn): ResourceVersionItem[] {
 
 export function ResourceVersionDecisionPanel({
   className,
-  currentFileName = "요구사항정의서_v1.3.pdf",
-  incomingFileName = "요구사항정의서_v1.4.pdf",
+  currentFileName,
+  incomingFileName,
   onChooseDecision,
   onOpenCurrent,
   onOpenIncoming,
@@ -121,6 +121,8 @@ export function ResourceVersionDecisionPanel({
   visibility = "ROOM_SHARED",
 }: ResourceVersionDecisionPanelProps) {
   const { t } = useI18n();
+  const resolvedCurrentFileName = currentFileName ?? t("resources.version.decisionFileV13");
+  const resolvedIncomingFileName = incomingFileName ?? t("resources.version.decisionFileV14");
   const VisibilityIcon = visibility === "ROOM_SHARED" ? UsersRound : FolderLock;
   const sortedVersions = versions ?? buildDefaultVersions(t);
 
@@ -144,7 +146,7 @@ export function ResourceVersionDecisionPanel({
           </span>
           <div>
             <span>{t("resources.version.currentLabel")}</span>
-            <strong>{currentFileName}</strong>
+            <strong>{resolvedCurrentFileName}</strong>
             <p>{t("resources.version.currentDesc")}</p>
           </div>
           <Button icon={<FileText size={15} />} onClick={onOpenCurrent} size="sm" variant="ghost">
@@ -162,7 +164,7 @@ export function ResourceVersionDecisionPanel({
           </span>
           <div>
             <span>{t("resources.version.incomingLabel")}</span>
-            <strong>{incomingFileName}</strong>
+            <strong>{resolvedIncomingFileName}</strong>
             <p>{t("resources.version.incomingDesc")}</p>
           </div>
           <Button icon={<FileClock size={15} />} onClick={onOpenIncoming} size="sm" variant="quiet">

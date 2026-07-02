@@ -61,21 +61,21 @@ const kanbanStatusByColumnId: Record<string, TaskStatus> = {
   todo: "TODO",
 };
 
-const wbsStatusOptions: Array<{ label: string; status: WbsStatus }> = [
-  { label: "대기", status: "TODO" },
-  { label: "진행", status: "IN_PROGRESS" },
-  { label: "완료", status: "DONE" },
+const wbsStatusOptions: Array<{ labelKey: MessageKey; status: WbsStatus }> = [
+  { labelKey: "room.workBoard.wbsStatusTodo", status: "TODO" },
+  { labelKey: "room.workBoard.wbsStatusInProgress", status: "IN_PROGRESS" },
+  { labelKey: "room.workBoard.wbsStatusDone", status: "DONE" },
 ];
 
 const hexPrefix = "#";
 
 const wbsAccentOptions = [
-  { label: "하늘", pickerValue: `${hexPrefix}8ECDF6`, value: "var(--color-todo)" },
-  { label: "물빛", pickerValue: `${hexPrefix}D7EAF4`, value: "var(--color-water-blue)" },
-  { label: "라일락", pickerValue: `${hexPrefix}E6DDF8`, value: "var(--color-lilac)" },
-  { label: "펄", pickerValue: `${hexPrefix}E8C4A0`, value: "var(--color-pearl)" },
-  { label: "회청", pickerValue: `${hexPrefix}CDD8DF`, value: "var(--color-rain-gray)" },
-] as const;
+  { labelKey: "room.workBoard.accentSky", pickerValue: `${hexPrefix}8ECDF6`, value: "var(--color-todo)" },
+  { labelKey: "room.workBoard.accentWater", pickerValue: `${hexPrefix}D7EAF4`, value: "var(--color-water-blue)" },
+  { labelKey: "room.workBoard.accentLilac", pickerValue: `${hexPrefix}E6DDF8`, value: "var(--color-lilac)" },
+  { labelKey: "room.workBoard.accentPearl", pickerValue: `${hexPrefix}E8C4A0`, value: "var(--color-pearl)" },
+  { labelKey: "room.workBoard.accentRainGray", pickerValue: `${hexPrefix}CDD8DF`, value: "var(--color-rain-gray)" },
+] as const satisfies ReadonlyArray<{ labelKey: MessageKey; pickerValue: string; value: string }>;
 
 function formatDue(value?: string | null) {
   if (!value) return null;
@@ -89,12 +89,12 @@ function formatDue(value?: string | null) {
   }).format(date);
 }
 
-function statusLabel(status?: string | null) {
-  if (status === "DONE") return "완료";
-  if (status === "IN_PROGRESS") return "진행";
-  if (status === "REVIEW") return "검토";
-  if (status === "BLOCKED") return "막힘";
-  return "대기";
+function statusLabel(t: TranslateFn, status?: string | null) {
+  if (status === "DONE") return t("room.workBoard.statusDone");
+  if (status === "IN_PROGRESS") return t("room.workBoard.statusInProgress");
+  if (status === "REVIEW") return t("room.workBoard.statusReview");
+  if (status === "BLOCKED") return t("room.workBoard.statusBlocked");
+  return t("room.workBoard.statusWaiting");
 }
 
 function taskTone(status?: string | null) {
@@ -133,10 +133,10 @@ function activeTaskStatus(status: TaskStatus) {
   return status === "BLOCKED" ? "REVIEW" : status;
 }
 
-function sourceLabel(task: TaskResponse, wbsTitle?: string | null) {
-  if (task.wbsItemId && wbsTitle) return `WBS · ${wbsTitle}`;
-  if (task.wbsItemId) return "WBS 연결";
-  return "승인 할 일";
+function sourceLabel(t: TranslateFn, task: TaskResponse, wbsTitle?: string | null) {
+  if (task.wbsItemId && wbsTitle) return t("room.workBoard.sourceWbs", { title: wbsTitle });
+  if (task.wbsItemId) return t("room.workBoard.sourceWbsLinked");
+  return t("room.workBoard.sourceApprovedTodo");
 }
 
 export function ProjectRoomWorkBoard({
@@ -243,9 +243,9 @@ function ProjectRoomWorkBoardContent({
           .map((task) => {
             const wbsTitle = task.wbsItemId ? wbsTitleById[task.wbsItemId] : null;
             return {
-              assignee: task.assigneeUserId ? memberByUserId[task.assigneeUserId]?.name ?? "담당자" : undefined,
+              assignee: task.assigneeUserId ? memberByUserId[task.assigneeUserId]?.name ?? t("room.workBoard.assigneeFallback") : undefined,
               assigneeId: task.assigneeUserId ?? undefined,
-              description: [sourceLabel(task, wbsTitle), formatDue(task.dueAt)].filter(Boolean).join(" · "),
+              description: [sourceLabel(t, task, wbsTitle), formatDue(task.dueAt)].filter(Boolean).join(" · "),
               id: task.id,
               labels: wbsTitle ? [wbsTitle] : [],
               title: task.title,
@@ -296,7 +296,7 @@ function ProjectRoomWorkBoardContent({
     setSelectedWbsId(optimistic.id);
     setIsWbsSettingsOpen(true);
     setWbsDraft({ title: "" });
-    setSaveNotice("WBS 저장 중");
+    setSaveNotice(t("room.workBoard.noticeWbsSaving"));
 
     try {
       const created = await wbsApi.createItem(roomId, {
@@ -316,9 +316,9 @@ function ProjectRoomWorkBoardContent({
       });
       setSelectedWbsId(created.id);
       setIsWbsSettingsOpen(true);
-      setSaveNotice("WBS 저장됨");
+      setSaveNotice(t("room.workBoard.noticeWbsSaved"));
     } catch {
-      setSaveNotice("WBS 서버 저장 대기");
+      setSaveNotice(t("room.workBoard.noticeWbsServerPending"));
     }
   };
 
@@ -336,19 +336,19 @@ function ProjectRoomWorkBoardContent({
     const previous = selectedWbs;
 
     setWbsItems((current) => current.map((item) => (item.id === selectedWbs.id ? { ...item, ...patch } : item)));
-    setSaveNotice("WBS 수정 중");
+    setSaveNotice(t("room.workBoard.noticeWbsUpdating"));
 
     try {
       const updated = await wbsApi.updateItem(selectedWbs.id, patch);
       setWbsItems((current) => current.map((item) => (item.id === selectedWbs.id ? updated : item)));
-      setSaveNotice("WBS 수정됨");
+      setSaveNotice(t("room.workBoard.noticeWbsUpdated"));
     } catch {
       if (selectedWbs.id.startsWith("local-wbs-") || shouldUseWorkspacePreviewData()) {
-        setSaveNotice("WBS 수정됨 (로컬)");
+        setSaveNotice(t("room.workBoard.noticeWbsUpdatedLocal"));
         return;
       }
       setWbsItems((current) => current.map((item) => (item.id === previous.id ? previous : item)));
-      setSaveNotice("WBS 서버 저장 대기");
+      setSaveNotice(t("room.workBoard.noticeWbsServerPending"));
     }
   };
 
@@ -357,21 +357,21 @@ function ProjectRoomWorkBoardContent({
 
     const previous = selectedWbs;
     setWbsItems((current) => current.map((item) => (item.id === selectedWbs.id ? { ...item, status } : item)));
-    setSaveNotice("WBS 상태 저장 중");
+    setSaveNotice(t("room.workBoard.noticeWbsStatusSaving"));
 
     void wbsApi
       .updateItem(selectedWbs.id, { status })
       .then((updated) => {
         setWbsItems((current) => current.map((item) => (item.id === selectedWbs.id ? updated : item)));
-        setSaveNotice("WBS 상태 저장됨");
+        setSaveNotice(t("room.workBoard.noticeWbsStatusSaved"));
       })
       .catch(() => {
         if (selectedWbs.id.startsWith("local-wbs-") || shouldUseWorkspacePreviewData()) {
-          setSaveNotice("WBS 상태 저장됨 (로컬)");
+          setSaveNotice(t("room.workBoard.noticeWbsStatusSavedLocal"));
           return;
         }
         setWbsItems((current) => current.map((item) => (item.id === previous.id ? previous : item)));
-        setSaveNotice("WBS 서버 저장 대기");
+        setSaveNotice(t("room.workBoard.noticeWbsServerPending"));
       });
   };
 
@@ -389,23 +389,23 @@ function ProjectRoomWorkBoardContent({
     });
     setSelectedWbsId(fallbackId);
     setIsWbsSettingsOpen(Boolean(fallbackId));
-    setSaveNotice("WBS 삭제 중");
+    setSaveNotice(t("room.workBoard.noticeWbsDeleting"));
 
     void wbsApi
       .deleteItem(selectedWbs.id)
       .then(() => {
-        setSaveNotice("WBS 삭제됨");
+        setSaveNotice(t("room.workBoard.noticeWbsDeleted"));
       })
       .catch(() => {
         if (selectedWbs.id.startsWith("local-wbs-") || shouldUseWorkspacePreviewData()) {
-          setSaveNotice("WBS 삭제됨 (로컬)");
+          setSaveNotice(t("room.workBoard.noticeWbsDeletedLocal"));
           return;
         }
         setWbsItems(previousItems);
         setWbsAccentById((current) => ({ ...current, [selectedWbs.id]: selectedWbsAccent }));
         setSelectedWbsId(selectedWbs.id);
         setIsWbsSettingsOpen(true);
-        setSaveNotice("WBS 서버 저장 대기");
+        setSaveNotice(t("room.workBoard.noticeWbsServerPending"));
       });
   };
 
@@ -419,13 +419,13 @@ function ProjectRoomWorkBoardContent({
   };
 
   const persistTaskStatus = async (taskId: string, status: TaskStatus) => {
-    setSaveNotice("저장 중");
+    setSaveNotice(t("room.workBoard.noticeSaving"));
 
     try {
       await todoApi.update(taskId, { status });
-      setSaveNotice("저장됨");
+      setSaveNotice(t("room.workBoard.noticeSaved"));
     } catch {
-      setSaveNotice("서버 저장 대기");
+      setSaveNotice(t("room.workBoard.noticeServerPending"));
     }
   };
 
@@ -443,7 +443,7 @@ function ProjectRoomWorkBoardContent({
 
   const handleKanbanTaskAdd = (columnId: string, title: string) => {
     const status = kanbanStatusByColumnId[columnId] ?? "TODO";
-    setSaveNotice("할 일 저장 중");
+    setSaveNotice(t("room.workBoard.noticeTaskSaving"));
 
     void todoApi
       .createRoomTask(roomId, {
@@ -454,26 +454,26 @@ function ProjectRoomWorkBoardContent({
       .then((created) => {
         setTasks((current) => [...current, created]);
         setSelectedTaskId(created.id);
-        setSaveNotice("할 일 저장됨");
+        setSaveNotice(t("room.workBoard.noticeTaskSaved"));
       })
-      .catch(() => setSaveNotice("할 일 서버 저장 대기"));
+      .catch(() => setSaveNotice(t("room.workBoard.noticeTaskServerPending")));
   };
 
   const updateTaskAssignee = (taskId: string, assigneeUserId: string | null) => {
     const previousTasks = tasks;
 
     setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, assigneeUserId } : task)));
-    setSaveNotice("담당자 저장 중");
+    setSaveNotice(t("room.workBoard.noticeAssigneeSaving"));
 
     void todoApi
       .update(taskId, { assigneeUserId })
       .then((updated) => {
         setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, ...updated } : task)));
-        setSaveNotice("담당자 저장됨");
+        setSaveNotice(t("room.workBoard.noticeAssigneeSaved"));
       })
       .catch(() => {
         setTasks(previousTasks);
-        setSaveNotice("담당자 서버 저장 대기");
+        setSaveNotice(t("room.workBoard.noticeAssigneeServerPending"));
       });
   };
 
@@ -481,17 +481,17 @@ function ProjectRoomWorkBoardContent({
     const previousTasks = tasks;
 
     setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, title } : task)));
-    setSaveNotice("작업명 저장 중");
+    setSaveNotice(t("room.workBoard.noticeTitleSaving"));
 
     void todoApi
       .update(taskId, { title })
       .then((updated) => {
         setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, ...updated } : task)));
-        setSaveNotice("작업명 저장됨");
+        setSaveNotice(t("room.workBoard.noticeTitleSaved"));
       })
       .catch(() => {
         setTasks(previousTasks);
-        setSaveNotice("작업명 서버 저장 대기");
+        setSaveNotice(t("room.workBoard.noticeTitleServerPending"));
       });
   };
 
@@ -499,7 +499,7 @@ function ProjectRoomWorkBoardContent({
     const previousTasks = tasks;
 
     setDeletingTaskId(taskId);
-    setSaveNotice("할 일 삭제 중");
+    setSaveNotice(t("room.workBoard.noticeTaskDeleting"));
     setTasks((current) => current.filter((task) => task.id !== taskId));
     if (selectedTaskId === taskId) {
       setSelectedTaskId(null);
@@ -507,10 +507,10 @@ function ProjectRoomWorkBoardContent({
 
     try {
       await todoApi.delete(taskId);
-      setSaveNotice("할 일 삭제됨");
+      setSaveNotice(t("room.workBoard.noticeTaskDeleted"));
     } catch {
       setTasks(previousTasks);
-      setSaveNotice("할 일 서버 삭제 대기");
+      setSaveNotice(t("room.workBoard.noticeTaskDeleteServerPending"));
     } finally {
       setDeletingTaskId(null);
     }
@@ -518,23 +518,23 @@ function ProjectRoomWorkBoardContent({
 
   return (
     <div className={styles.shell}>
-      <section className={styles.contextBand} aria-label="작업판 보기 전환">
-        <div className={styles.viewSwitch} role="group" aria-label="작업판 보기 전환">
+      <section className={styles.contextBand} aria-label={t("room.workBoard.viewSwitchAria")}>
+        <div className={styles.viewSwitch} role="group" aria-label={t("room.workBoard.viewSwitchAria")}>
           <button aria-pressed={viewMode === "wbs"} onClick={() => setViewMode("wbs")} type="button">
             <GitBranch size={15} aria-hidden="true" />
             WBS
           </button>
           <button aria-pressed={viewMode === "kanban"} onClick={() => setViewMode("kanban")} type="button">
             <KanbanSquare size={15} aria-hidden="true" />
-            칸반
+            {t("room.workBoard.kanban")}
           </button>
         </div>
       </section>
 
       <div className={styles.boardGrid} data-view={viewMode}>
         {viewMode === "wbs" ? (
-          <section className={styles.wbsWorkspace} aria-label="WBS 보기">
-            <section className={styles.pane} aria-label="WBS 간트">
+          <section className={styles.wbsWorkspace} aria-label={t("room.workBoard.wbsViewAria")}>
+            <section className={styles.pane} aria-label={t("room.workBoard.ganttAria")}>
               <div className={cn(styles.paneHead, styles.ganttPaneHead)}>
                 <div>
                   <h2>WBS</h2>
@@ -574,18 +574,18 @@ function ProjectRoomWorkBoardContent({
                 <form className={cn(styles.wbsCreate, styles.inlineCreate)} onSubmit={handleCreateWbs}>
                   <div className={styles.wbsFormGrid}>
                     <label>
-                      <span>첫 그룹 추가</span>
+                      <span>{t("room.workBoard.firstGroup")}</span>
                       <input
-                        aria-label="추가할 WBS 이름"
+                        aria-label={t("room.workBoard.wbsNameAria")}
                         onChange={(event) => setWbsDraft((current) => ({ ...current, title: event.target.value }))}
-                        placeholder="예: 1차 시안 정리"
+                        placeholder={t("room.workBoard.wbsNamePlaceholder")}
                         value={wbsDraft.title}
                       />
                     </label>
                   </div>
                   <div className={styles.wbsFormActions}>
                     <button className={styles.primaryAction} type="submit">
-                      추가
+                      {t("room.workBoard.add")}
                     </button>
                   </div>
                 </form>
@@ -593,7 +593,7 @@ function ProjectRoomWorkBoardContent({
             </section>
 
             {isWbsSettingsOpen && selectedWbs ? (
-              <section className={styles.wbsInspectorPopover} aria-label="WBS 설정">
+              <section className={styles.wbsInspectorPopover} aria-label={t("room.workBoard.settingsAria")}>
                 <div className={styles.inspectorSummary}>
                   <span
                     aria-hidden="true"
@@ -601,28 +601,28 @@ function ProjectRoomWorkBoardContent({
                     style={{ "--wbs-accent": selectedWbsAccent } as CSSProperties}
                   />
                   <span className={styles.inspectorTitle}>
-                    <strong>{activeWbsTitle ?? "줄을 선택하세요"}</strong>
-                    <small>{selectedWbs.parentId ? `${wbsTitleById[selectedWbs.parentId] ?? "그룹"} 그룹의 작업` : "그룹"}</small>
+                    <strong>{activeWbsTitle ?? t("room.workBoard.selectRow")}</strong>
+                    <small>{selectedWbs.parentId ? t("room.workBoard.groupSuffix", { name: wbsTitleById[selectedWbs.parentId] ?? t("room.workBoard.groupFallback") }) : t("room.workBoard.group")}</small>
                   </span>
-                  <StatusBadge tone={taskTone(selectedWbs.status)}>{statusLabel(selectedWbs.status)}</StatusBadge>
+                  <StatusBadge tone={taskTone(selectedWbs.status)}>{statusLabel(t, selectedWbs.status)}</StatusBadge>
                   <span className={styles.inspectorMeta}>
-                    할 일 {selectedWbsTasks.length} · 하위 {childCountByWbsId[selectedWbs.id] ?? 0}
+                    {t("room.workBoard.inspectorMeta", { tasks: selectedWbsTasks.length, children: childCountByWbsId[selectedWbs.id] ?? 0 })}
                   </span>
                   <button className={styles.inspectorClose} onClick={() => setIsWbsSettingsOpen(false)} type="button">
                     <X aria-hidden="true" size={15} strokeWidth={2.2} />
-                    <span className="sr-only">WBS 설정 닫기</span>
+                    <span className="sr-only">{t("room.workBoard.closeSettings")}</span>
                   </button>
                 </div>
 
               {selectedWbsTasks.length > 0 ? (
-                <div className={styles.linkedTaskStrip} aria-label="연결된 할 일">
+                <div className={styles.linkedTaskStrip} aria-label={t("room.workBoard.linkedTasksAria")}>
                   {selectedWbsTasks.slice(0, 3).map((task) => (
                     <article className={styles.linkedTask} key={task.id}>
                       <span>
                         <strong>{task.title}</strong>
                         <small>{[task.description, formatDue(task.dueAt)].filter(Boolean).join(" · ")}</small>
                       </span>
-                      <StatusBadge tone={taskTone(task.status)}>{statusLabel(task.status)}</StatusBadge>
+                      <StatusBadge tone={taskTone(task.status)}>{statusLabel(t, task.status)}</StatusBadge>
                     </article>
                   ))}
                 </div>
@@ -634,15 +634,15 @@ function ProjectRoomWorkBoardContent({
                     <>
                       <div className={styles.wbsFormGrid}>
                         <label>
-                          <span>작업명</span>
+                          <span>{t("room.workBoard.taskName")}</span>
                           <input
-                            aria-label="WBS 이름"
+                            aria-label={t("room.workBoard.wbsNameLabel")}
                             onChange={(event) => setWbsEditDraft({ ...activeWbsEditDraft, title: event.target.value })}
                             value={activeWbsEditDraft.title}
                           />
                         </label>
                       </div>
-                      <div className={styles.statusActions} aria-label="WBS 상태 변경">
+                      <div className={styles.statusActions} aria-label={t("room.workBoard.statusChangeAria")}>
                         {wbsStatusOptions.map((column) => (
                           <button
                             aria-pressed={selectedWbs.status === column.status}
@@ -650,16 +650,16 @@ function ProjectRoomWorkBoardContent({
                             onClick={() => updateSelectedWbsStatus(column.status)}
                             type="button"
                           >
-                            {column.label}
+                            {t(column.labelKey)}
                           </button>
                         ))}
                       </div>
                       <div className={styles.colorControl}>
-                        <span>줄 색</span>
-                        <div className={styles.colorSwatches} aria-label="WBS 줄 색 선택" role="group">
+                        <span>{t("room.workBoard.lineColor")}</span>
+                        <div className={styles.colorSwatches} aria-label={t("room.workBoard.lineColorSelectAria")} role="group">
                           {wbsAccentOptions.map((option) => (
                             <button
-                              aria-label={`${option.label} 줄 색`}
+                              aria-label={t("room.workBoard.accentColorLabel", { name: t(option.labelKey) })}
                               aria-pressed={selectedWbsAccent === option.value}
                               className={styles.colorSwatch}
                               key={option.value}
@@ -669,9 +669,9 @@ function ProjectRoomWorkBoardContent({
                             />
                           ))}
                           <label className={styles.customColor}>
-                            <span>직접</span>
+                            <span>{t("room.workBoard.custom")}</span>
                             <input
-                              aria-label="직접 줄 색 선택"
+                              aria-label={t("room.workBoard.customColorAria")}
                               onChange={(event) => updateSelectedWbsAccent(event.target.value)}
                               type="color"
                               value={accentPickerValue(selectedWbsAccent)}
@@ -681,39 +681,39 @@ function ProjectRoomWorkBoardContent({
                       </div>
                       <div className={styles.wbsFormActions}>
                         <button className={styles.primaryAction} type="submit">
-                          저장
+                          {t("room.workBoard.save")}
                         </button>
                         <button
                           className={styles.dangerAction}
                           disabled={!canDeleteSelectedWbs}
                           onClick={deleteSelectedWbs}
-                          title={canDeleteSelectedWbs ? "선택한 WBS 삭제" : "연결된 하위 작업이나 할 일이 있으면 삭제할 수 없습니다"}
+                          title={canDeleteSelectedWbs ? t("room.workBoard.deleteWbsTitle") : t("room.workBoard.deleteWbsDisabledTitle")}
                           type="button"
                         >
-                          삭제
+                          {t("room.workBoard.delete")}
                         </button>
                       </div>
                     </>
                   ) : (
-                    <p className={styles.empty}>간트에서 줄을 선택하세요</p>
+                    <p className={styles.empty}>{t("room.workBoard.selectRowInGantt")}</p>
                   )}
                 </form>
 
                 <form className={styles.wbsCreate} onSubmit={handleCreateWbs}>
                   <div className={styles.wbsFormGrid}>
                     <label>
-                      <span>{selectedWbs ? "이 그룹에 작업 추가" : "그룹 추가"}</span>
+                      <span>{selectedWbs ? t("room.workBoard.addTaskToGroup") : t("room.workBoard.addGroup")}</span>
                       <input
-                        aria-label="추가할 WBS 이름"
+                        aria-label={t("room.workBoard.wbsNameAria")}
                         onChange={(event) => setWbsDraft((current) => ({ ...current, title: event.target.value }))}
-                        placeholder="예: 1차 시안 정리"
+                        placeholder={t("room.workBoard.wbsNamePlaceholder")}
                         value={wbsDraft.title}
                       />
                     </label>
                   </div>
                   <div className={styles.wbsFormActions}>
                     <button className={styles.primaryAction} type="submit">
-                      줄 추가
+                      {t("room.workBoard.addLine")}
                     </button>
                   </div>
                 </form>
@@ -724,10 +724,10 @@ function ProjectRoomWorkBoardContent({
         ) : null}
 
         {viewMode === "kanban" ? (
-          <section className={styles.kanbanPane} aria-label="드래그 가능한 칸반 작업판">
+          <section className={styles.kanbanPane} aria-label={t("room.workBoard.kanbanPaneAria")}>
             <div className={styles.paneHead}>
               <div>
-                <h2>칸반</h2>
+                <h2>{t("room.workBoard.kanban")}</h2>
               </div>
               <KanbanSquare aria-hidden="true" size={19} strokeWidth={2} />
             </div>

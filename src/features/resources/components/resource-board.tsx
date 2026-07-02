@@ -26,50 +26,51 @@ type ResourceBoardItem = {
   title: string;
 };
 
+// Demo/story fixture: text fields hold message keys resolved via t() at render.
 const resourceItems: [ResourceBoardItem, ...ResourceBoardItem[]] = [
   {
-    agentSummary: "검수 기준 문구와 중간보고 일정을 확인해야 합니다. WBS 후보 2개를 만들 수 있습니다.",
-    body: "클라이언트가 올린 회의록입니다. 검수 기준, 중간보고 일정, 보이스 대기방 요구가 함께 들어 있습니다.",
+    agentSummary: "resources.board.item1AgentSummary",
+    body: "resources.board.item1Body",
     id: "meeting-0618",
-    meta: "프로젝트룸 자료 · v3 · 댓글 4",
-    missingItems: ["중간보고 날짜가 업무 문서 납품일과 맞는지 확인", "보이스 대기방을 프로젝트룸 보이스로 처리할지 확인"],
-    relatedDocs: ["업무기준문서_v2.pdf", "요구사항_정리.docx", "견적서_최종.pdf"],
+    meta: "resources.board.item1Meta",
+    missingItems: ["resources.board.item1Missing1", "resources.board.item1Missing2"],
+    relatedDocs: ["resources.board.item1Doc1", "resources.board.item1Doc2", "resources.board.item1Doc3"],
     scope: "room",
     status: "needsReview",
-    title: "회의록_0618.md",
+    title: "resources.board.item1Title",
   },
   {
-    agentSummary: "개인 메모입니다. 프로젝트룸 공유 전까지 멤버와 프로젝트룸 에이전트에게 보이지 않습니다.",
-    body: "발표 전 팀원에게 물어볼 질문과 디자인보드에서 조정할 항목을 적어둔 개인 메모입니다.",
+    agentSummary: "resources.board.item2AgentSummary",
+    body: "resources.board.item2Body",
     id: "personal-note",
-    meta: "개인 자료 · 공유 전 · 버전 1",
-    missingItems: ["프로젝트룸에 공유할지 사용자 확인 필요"],
-    relatedDocs: ["디자인보드_v20.html"],
+    meta: "resources.board.item2Meta",
+    missingItems: ["resources.board.item2Missing1"],
+    relatedDocs: ["resources.board.item2Doc1"],
     scope: "personal",
     status: "candidate",
-    title: "개인_검토메모.txt",
+    title: "resources.board.item2Title",
   },
   {
-    agentSummary: "납품일과 수정 범위가 견적서와 다릅니다. 확인 질문 후보를 만들 수 있습니다.",
-    body: "납품일, 수정 범위, 저작권 조건이 들어 있는 업무 문서입니다.",
+    agentSummary: "resources.board.item3AgentSummary",
+    body: "resources.board.item3Body",
     id: "contract-v2",
-    meta: "프로젝트룸 자료 · v2 · 확인 필요 2",
-    missingItems: ["견적서의 납품일 07.15와 회의록의 07.20이 다름", "수정 횟수 기준 표현이 문서마다 다름"],
-    relatedDocs: ["견적서_최종.pdf", "회의록_0618.md"],
+    meta: "resources.board.item3Meta",
+    missingItems: ["resources.board.item3Missing1", "resources.board.item3Missing2"],
+    relatedDocs: ["resources.board.item3Doc1", "resources.board.item3Doc2"],
     scope: "room",
     status: "needsReview",
-    title: "업무기준문서_v2.pdf",
+    title: "resources.board.item3Title",
   },
   {
-    agentSummary: "개인 관리 폴더에서 감지된 파일입니다. 자료보드에 저장할지 선택해야 합니다.",
-    body: "개인 관리 폴더에서 감지된 정리 메모입니다.",
+    agentSummary: "resources.board.item4AgentSummary",
+    body: "resources.board.item4Body",
     id: "local-folder-note",
-    meta: "개인 자료 · 관리 폴더에서 감지",
-    missingItems: ["서버 업로드 여부 선택", "프로젝트룸 자료로 공유할지 선택"],
-    relatedDocs: ["개인 관리 폴더"],
+    meta: "resources.board.item4Meta",
+    missingItems: ["resources.board.item4Missing1", "resources.board.item4Missing2"],
+    relatedDocs: ["resources.board.item4Doc1"],
     scope: "personal",
     status: "normal",
-    title: "로컬_자료정리.md",
+    title: "resources.board.item4Title",
   },
 ];
 
@@ -192,12 +193,12 @@ export function ResourceBoard() {
               type="button"
             >
               <ResourceCard
-                description={resource.body}
-                meta={resource.meta}
+                description={t(resource.body as MessageKey)}
+                meta={t(resource.meta as MessageKey)}
                 relatedCount={resource.relatedDocs.length}
                 scope={resource.scope}
                 status={resource.status}
-                title={resource.title}
+                title={t(resource.title as MessageKey)}
               />
             </button>
           ))}
@@ -206,8 +207,8 @@ export function ResourceBoard() {
         <section className="resource-board__detail" aria-label={t("resources.board.detailAria")}>
           <div className="resource-board__detail-head">
             <div>
-              <h2>{selectedResource.title}</h2>
-              <p>{selectedResource.meta}</p>
+              <h2>{t(selectedResource.title as MessageKey)}</h2>
+              <p>{t(selectedResource.meta as MessageKey)}</p>
             </div>
             <StatusBadge tone={selectedResource.scope === "room" ? "room" : "personal"}>
               {selectedResource.scope === "room" ? t("resources.board.badgeRoom") : t("resources.board.badgePersonal")}
@@ -221,13 +222,13 @@ export function ResourceBoard() {
           <div className="resource-board__detail-grid">
             <GlassPanel className="resource-board__section">
               <h3>{t("resources.board.agentSummary")}</h3>
-              <p>{selectedResource.agentSummary}</p>
+              <p>{t(selectedResource.agentSummary as MessageKey)}</p>
             </GlassPanel>
             <GlassPanel className="resource-board__section">
               <h3>{t("resources.board.relatedDocs")}</h3>
               <ul>
                 {selectedResource.relatedDocs.map((doc) => (
-                  <li key={doc}>{doc}</li>
+                  <li key={doc}>{t(doc as MessageKey)}</li>
                 ))}
               </ul>
             </GlassPanel>
@@ -237,7 +238,7 @@ export function ResourceBoard() {
             <h3>{t("resources.board.missingItems")}</h3>
             <ul>
               {selectedResource.missingItems.map((item) => (
-                <li key={item}>{item}</li>
+                <li key={item}>{t(item as MessageKey)}</li>
               ))}
             </ul>
           </GlassPanel>
@@ -245,7 +246,7 @@ export function ResourceBoard() {
           <SuggestionCard
             confidence={88}
             description={t("resources.board.suggestionDesc")}
-            source={selectedResource.title}
+            source={t(selectedResource.title as MessageKey)}
             title={t("resources.board.suggestionTitle")}
           />
 

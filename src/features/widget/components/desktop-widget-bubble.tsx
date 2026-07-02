@@ -445,6 +445,7 @@ function TimerBody({
   onPauseTimer?: DesktopWidgetBubbleProps["onPauseTimer"];
   onPrimaryTimerAction?: DesktopWidgetBubbleProps["onPrimaryTimerAction"];
 }) {
+  const { t } = useI18n();
   const timerStatus = bubble.rows[0]?.status;
   const canPause = timerStatus === "RUNNING";
   const PrimaryIcon = timerStatus === "RUNNING" ? Square : Play;
@@ -453,23 +454,23 @@ function TimerBody({
     <div className={styles.body}>
       <div className={styles.timer}>
         <strong>{bubble.metric}</strong>
-        <span>{bubble.metricLabel}</span>
+        <span>{t(bubble.metricLabel as MessageKey)}</span>
       </div>
       <div className={styles.segmented}>
         <button aria-pressed="true" type="button">
-          시계
+          {t("widget.timer.tabClock")}
         </button>
-        <button type="button">작업</button>
-        <button type="button">뽀모도로</button>
+        <button type="button">{t("widget.timer.tabWork")}</button>
+        <button type="button">{t("widget.timer.tabPomodoro")}</button>
       </div>
       <div className={styles.timerActions}>
         <button disabled={!canPause} onClick={() => void onPauseTimer?.(bubble)} type="button">
           <Pause size={13} />
-          {timerStatus === "PAUSED" ? "일시정지됨" : "일시정지"}
+          {timerStatus === "PAUSED" ? t("widget.timer.paused") : t("widget.timer.pause")}
         </button>
         <button onClick={() => void onPrimaryTimerAction?.(bubble)} type="button">
           <PrimaryIcon size={13} />
-          {bubble.actionLabel}
+          {t(bubble.actionLabel as MessageKey)}
         </button>
       </div>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
@@ -478,6 +479,7 @@ function TimerBody({
 }
 
 function MemoBody({ bubble, onCreateMemo }: { bubble: WidgetPreviewBubble; onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"] }) {
+  const { t } = useI18n();
   return (
     <div className={[styles.body, styles.memoGrid].join(" ")}>
       {bubble.rows.length > 0 ? (
@@ -489,30 +491,31 @@ function MemoBody({ bubble, onCreateMemo }: { bubble: WidgetPreviewBubble; onCre
         ))
       ) : (
         <div className={styles.emptyState}>
-          <span>{bubble.notificationLabel}</span>
+          <span>{t(bubble.notificationLabel as MessageKey)}</span>
         </div>
       )}
       <button className={styles.wideAction} onClick={() => void onCreateMemo?.(bubble)} type="button">
         <Plus size={14} strokeWidth={2} />
-        {bubble.actionLabel}
+        {t(bubble.actionLabel as MessageKey)}
       </button>
     </div>
   );
 }
 
 function ScheduleBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+  const { t } = useI18n();
   return (
     <div className={styles.body}>
       <div className={styles.ring}>
         <span>{bubble.metric}</span>
-        <b>{bubble.metricLabel}</b>
+        <b>{t(bubble.metricLabel as MessageKey)}</b>
       </div>
       <div className={styles.segmented}>
         <button aria-pressed="true" type="button">
-          주간
+          {t("widget.schedule.tabWeek")}
         </button>
-        <button type="button">월간</button>
-        <button type="button">WBS</button>
+        <button type="button">{t("widget.schedule.tabMonth")}</button>
+        <button type="button">{t("widget.schedule.tabWbs")}</button>
       </div>
       <div className={styles.timeline}>
         {bubble.rows.length > 0 ? (
@@ -524,7 +527,7 @@ function ScheduleBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubb
           ))
         ) : (
           <div className={styles.emptyState}>
-            <span>{bubble.notificationLabel}</span>
+            <span>{t(bubble.notificationLabel as MessageKey)}</span>
           </div>
         )}
       </div>
@@ -533,11 +536,12 @@ function ScheduleBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubb
 }
 
 function ResourceBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+  const { t } = useI18n();
   return (
     <div className={styles.body}>
       <div className={styles.bubbleNote}>
-        <strong>{bubble.panelLabel}</strong>
-        <span>{bubble.panelBody}</span>
+        <strong>{t(bubble.panelLabel as MessageKey)}</strong>
+        <span>{t(bubble.panelBody as MessageKey)}</span>
       </div>
       {bubble.rows.map((item) => (
         <div className={styles.fileRow} key={item.id}>
@@ -549,7 +553,7 @@ function ResourceBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubb
       ))}
       {bubble.rows.length === 0 ? (
         <div className={styles.emptyState}>
-          <span>{bubble.notificationLabel}</span>
+          <span>{t(bubble.notificationLabel as MessageKey)}</span>
         </div>
       ) : null}
     </div>
@@ -603,11 +607,12 @@ function BubbleBody({
 }
 
 function GhostSignal({ bubble }: { bubble: WidgetPreviewBubble }) {
+  const { t } = useI18n();
   return (
-    <div className={styles.ghostSignal} aria-label={`${bubble.label} 고스트 상태`}>
+    <div className={styles.ghostSignal} aria-label={t("widget.ghostAria", { label: t(bubble.label as MessageKey) })}>
       <span>{bubble.metric}</span>
-      <strong>{bubble.compactLabel}</strong>
-      <small>{bubble.notificationLabel}</small>
+      <strong>{t(bubble.compactLabel as MessageKey)}</strong>
+      <small>{t(bubble.notificationLabel as MessageKey)}</small>
     </div>
   );
 }
@@ -634,30 +639,32 @@ export function DesktopWidgetBubble({
   presentation = "tauri",
   windowVisible = true,
 }: DesktopWidgetBubbleProps) {
+  const { t } = useI18n();
   const active = getBubbleMeta(activeBubble);
   const activeData = bubble ?? getWidgetPreviewBubble(activeBubble);
   const Icon = active.Icon;
   const isPreview = presentation === "preview";
+  const activeLabel = t(active.label);
   const rootClassName = [styles.root, modeClassNames[mode], isPreview ? styles.previewRoot : styles.tauriRoot].filter(Boolean).join(" ");
   const shellClassName = [styles.shell, accentClassNames[active.accent], presentationClassNames[presentation]].join(" ");
 
   return (
     <div className={rootClassName} data-bubli-desktop-widget>
-      <section className={shellClassName} aria-label={`${active.label} 버블`}>
+      <section className={shellClassName} aria-label={t("widget.bubble.suffix", { label: activeLabel })}>
         {!windowVisible ? (
           isPreview ? (
             <button className={styles.hiddenCard} onClick={onRestore ?? (() => onModeChange("DEFAULT"))} type="button">
-              <span>숨김</span>
-              <b>{activeData.label} 버블 복구</b>
-              <small>{activeData.notificationLabel}</small>
+              <span>{t("widget.hidden")}</span>
+              <b>{t("widget.restoreBubble", { label: t(activeData.label as MessageKey) })}</b>
+              <small>{t(activeData.notificationLabel as MessageKey)}</small>
             </button>
           ) : null
         ) : mode === "MINIMIZED" ? (
           <button className={styles.dockOrb} onClick={() => onModeChange("DEFAULT")} type="button">
             <span className={styles.dockBubble} aria-hidden="true" />
             <div className={styles.dockCopy}>
-              <b>{activeData.compactLabel}</b>
-              <small>{activeData.notificationLabel}</small>
+              <b>{t(activeData.compactLabel as MessageKey)}</b>
+              <small>{t(activeData.notificationLabel as MessageKey)}</small>
             </div>
           </button>
         ) : (
@@ -667,8 +674,8 @@ export function DesktopWidgetBubble({
                 <span className={styles.signal} aria-hidden="true" />
                 <Icon size={16} strokeWidth={2} />
                 <div className={styles.titleCopy}>
-                  <strong>{activeData.label} 버블</strong>
-                  <small>{isPreview ? `${modeLabels[mode]} · ${activeData.notificationLabel}` : activeData.roomLabel}</small>
+                  <strong>{t("widget.bubble.suffix", { label: t(activeData.label as MessageKey) })}</strong>
+                  <small>{isPreview ? `${t(modeLabels[mode])} · ${t(activeData.notificationLabel as MessageKey)}` : t(activeData.roomLabel as MessageKey)}</small>
                 </div>
               </div>
               <WidgetControls alwaysOnTop={alwaysOnTop} mode={mode} onClose={onClose} onMode={onModeChange} onPin={onToggleAlwaysOnTop} presentation={presentation} />
@@ -676,9 +683,9 @@ export function DesktopWidgetBubble({
 
             {isPreview ? (
               <div className={styles.dragbar} data-tauri-drag-region>
-                <span>{modeLabels[mode]} · {alwaysOnTop ? "상단 고정" : "일반 창"} · {clickThrough ? "클릭 통과" : "클릭 가능"}</span>
+                <span>{t(modeLabels[mode])} · {alwaysOnTop ? t("widget.pinnedTop") : t("widget.normalWindow")} · {clickThrough ? t("widget.clickThrough") : t("widget.clickable")}</span>
                 <button aria-pressed={mode === "TRANSLUCENT"} onClick={() => onModeChange(mode === "TRANSLUCENT" ? "DEFAULT" : "TRANSLUCENT")} type="button">
-                  반투명
+                  {t("widget.control.translucent")}
                 </button>
               </div>
             ) : null}
@@ -702,8 +709,8 @@ export function DesktopWidgetBubble({
 
             {isPreview ? (
               <div className={styles.bubbleNote}>
-                <strong>{activeData.roomLabel}</strong>
-                <span>{activeData.notificationLabel}</span>
+                <strong>{t(activeData.roomLabel as MessageKey)}</strong>
+                <span>{t(activeData.notificationLabel as MessageKey)}</span>
               </div>
             ) : null}
           </>
@@ -724,21 +731,22 @@ export function DesktopWidgetBubbleBar({
   notificationSignal?: WidgetNotificationSignal;
   onRestoreBubble: (bubbleType: WidgetBubbleType, windowId?: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className={[styles.root, styles.barRoot].join(" ")} data-bubli-desktop-widget>
       <div className={styles.barPreview} aria-hidden="true">
-        <strong>접힌 버블</strong>
+        <strong>{t("widget.bar.folded")}</strong>
         <span>
           {minimizedItems.length > 0
-            ? minimizedItems.map((item) => (bubbleDataByType?.[item.activeBubble as WidgetBubbleType] ?? getWidgetPreviewBubble(item.activeBubble as WidgetBubbleType)).compactLabel).join(" · ")
-            : "접힌 위젯 없음"}
+            ? minimizedItems.map((item) => t((bubbleDataByType?.[item.activeBubble as WidgetBubbleType] ?? getWidgetPreviewBubble(item.activeBubble as WidgetBubbleType)).compactLabel as MessageKey)).join(" · ")
+            : t("widget.bar.noneFolded")}
         </span>
         <small>
-          {notificationSignal.rows[0]?.label ?? notificationSignal.notificationLabel}
+          {notificationSignal.rows[0]?.label ?? t(notificationSignal.notificationLabel as MessageKey)}
         </small>
       </div>
-      <nav className={styles.bubbleBar} aria-label="최소화된 버블">
-        <div className={styles.barBrand} aria-label="Bubli 알림 상태">
+      <nav className={styles.bubbleBar} aria-label={t("widget.bar.minimizedAria")}>
+        <div className={styles.barBrand} aria-label={t("widget.bar.notificationState")}>
           <i aria-hidden="true" />
           <span>Bubli</span>
         </div>
@@ -753,11 +761,11 @@ export function DesktopWidgetBubbleBar({
           return (
             <button className={styles.barItem} key={`${bubbleType}-${item.windowId ?? index}`} onClick={() => onRestoreBubble(bubbleType, item.windowId ?? bubbleType)} type="button">
               <Icon size={12} strokeWidth={2} />
-              <b>{bubble.compactLabel.replace("떠 있는 ", "").replace("타이머 ", "")}</b>
+              <b>{t(bubble.compactLabel as MessageKey)}</b>
             </button>
           );
         })}
-        <button className={styles.barNotice} type="button" aria-label={notificationSignal.notificationLabel}>
+        <button className={styles.barNotice} type="button" aria-label={t(notificationSignal.notificationLabel as MessageKey)}>
           <Bell size={12} strokeWidth={2} />
           <b>{notificationSignal.metric}</b>
         </button>
@@ -767,18 +775,19 @@ export function DesktopWidgetBubbleBar({
 }
 
 export function DesktopWidgetMenuOrb({ onOpenMenu }: { onOpenMenu: () => void }) {
+  const { t } = useI18n();
   return (
     <div className={[styles.root, styles.menuRoot].join(" ")} data-bubli-desktop-widget>
-      <button className={styles.menuOrb} onClick={onOpenMenu} type="button" aria-label="Bubli 메뉴 열기">
+      <button className={styles.menuOrb} onClick={onOpenMenu} type="button" aria-label={t("widget.menu.openAria")}>
         <span />
       </button>
       <div className={styles.menuPanel} aria-hidden="true">
         <strong>Bubli</strong>
-        <span>접힌 버블과 알림을 펼쳐봅니다</span>
+        <span>{t("widget.menu.desc")}</span>
         <div>
-          <span>TODO</span>
-          <span>일정</span>
-          <span>소통</span>
+          <span>{t("widget.kind.todo")}</span>
+          <span>{t("widget.kind.schedule")}</span>
+          <span>{t("widget.kind.chat")}</span>
         </div>
       </div>
     </div>

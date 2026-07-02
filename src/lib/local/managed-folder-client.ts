@@ -11,6 +11,7 @@ import {
   runTauriAdapter,
   unavailable,
 } from "@/lib/local/adapter-result";
+import { translate } from "@/lib/i18n/translate";
 import type {
   LocalAdapterResult,
   LocalFileOpenAdapterInput,
@@ -41,8 +42,8 @@ export type PersonalLocalFileEventsSyncResult = {
   syncedCount: number;
 };
 
-const PERSONAL_SCOPE_MESSAGE =
-  "개인 로컬 폴더는 개인 자료 전용입니다. 프로젝트룸 공용 자료는 서버 업로드 흐름으로 연결해야 합니다.";
+// 호출 시점의 로케일로 번역하기 위해 상수 대신 함수로 둔다(모듈 로드 시점에 고정되지 않도록).
+const personalScopeMessage = () => translate("local.folder.personalOnly");
 
 export async function selectPersonalManagedFolder(
   input?: PersonalManagedFolderSelectInput,
@@ -52,7 +53,7 @@ export async function selectPersonalManagedFolder(
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.selectManagedFolder);
+    return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.selectManagedFolder);
   }
 
   const { roomId: _roomId, ...tauriInput } = input ?? {};
@@ -80,7 +81,7 @@ export async function scanPersonalManagedFolder(
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.scanManagedFolder);
+    return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.scanManagedFolder);
   }
 
   const tauriInput = { localFolderId: input.localFolderId };
@@ -98,7 +99,7 @@ export async function getPersonalManagedFolderIndexProgress(
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.getIndexProgress);
+    return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.getIndexProgress);
   }
 
   const tauriInput = { localFolderId: input.localFolderId };
@@ -116,7 +117,7 @@ export async function setPersonalManagedFolderSync(
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.setFolderSync);
+    return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.setFolderSync);
   }
 
   const tauriInput = {
@@ -137,7 +138,7 @@ export async function removePersonalManagedFolder(
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.removeManagedFolder);
+    return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.removeManagedFolder);
   }
 
   const tauriInput = { localFolderId: input.localFolderId };
@@ -155,7 +156,7 @@ export async function watchPersonalManagedFolder(
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.watchManagedFolder);
+    return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.watchManagedFolder);
   }
 
   const { roomId: _roomId, ...tauriInput } = input;
@@ -169,7 +170,7 @@ export async function watchPersonalManagedFolder(
   if (result.message.includes("not wired yet")) {
     return pending(
       { localFolderId: tauriInput.localFolderId, watching: false },
-      "실시간 폴더 감시는 아직 준비 중입니다. 지금은 수동 스캔 결과를 사용합니다.",
+      translate("local.folder.watchPending"),
       commandName,
     );
   }
@@ -185,7 +186,7 @@ export async function searchPersonalLocalFiles(
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.searchLocalFiles);
+    return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.searchLocalFiles);
   }
 
   const { roomId: _roomId, ...tauriInput } = input;
@@ -203,7 +204,7 @@ export async function openPersonalLocalFile(
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.openLocalFile);
+    return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.openLocalFile);
   }
 
   return runTauriAdapter(TAURI_COMMANDS.openLocalFile, () =>
@@ -219,7 +220,7 @@ export async function readPersonalLocalFilePreview(
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.readLocalFilePreview);
+    return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.readLocalFilePreview);
   }
 
   const tauriInput = {
@@ -240,7 +241,7 @@ export async function reindexPersonalLocalFile(
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.reindexFile);
+    return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.reindexFile);
   }
 
   return runTauriAdapter(TAURI_COMMANDS.reindexFile, () =>
@@ -260,7 +261,7 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
   }
 
   if (hasProjectRoomScope(input)) {
-    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, commandName);
+    return blocked("personal_scope_only", personalScopeMessage(), commandName);
   }
 
   const tauriInput = input
@@ -287,7 +288,7 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
         syncedCount: 0,
       },
       commandName,
-      "서버에 보낼 로컬 파일 변경분이 없습니다.",
+      translate("local.folder.noChanges"),
     );
   }
 
@@ -319,7 +320,7 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
         syncedCount: markResult.syncedCount,
       },
       commandName,
-      `로컬 파일 변경 ${response.results.length}건을 서버에 반영했습니다.`,
+      translate("local.folder.synced", { count: response.results.length }),
     );
   } catch (error) {
     const syncErrorMessage = getErrorMessage(error);

@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   Bot,
@@ -15,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./resource-share-approval-panel.module.css";
@@ -32,7 +36,7 @@ export type ShareAuditItem = {
 export type ShareTargetRoom = {
   memberCountLabel: string;
   name: string;
-  roleLabel: "프로젝트 리더" | "멤버";
+  roleLabel: string;
 };
 
 export type ResourceShareApprovalPanelProps = {
@@ -47,11 +51,11 @@ export type ResourceShareApprovalPanelProps = {
   targetRoom?: ShareTargetRoom;
 };
 
-const readinessCopy: Record<ShareReadiness, string> = {
-  ALREADY_SHARED: "이미 공유됨",
-  NEEDS_ROOM: "프로젝트룸 선택 필요",
-  NO_PERMISSION: "권한 확인 필요",
-  READY: "공유 가능",
+const readinessCopyKey: Record<ShareReadiness, MessageKey> = {
+  ALREADY_SHARED: "resources.share2.readyAlreadyShared",
+  NEEDS_ROOM: "resources.share2.readyNeedsRoom",
+  NO_PERMISSION: "resources.share2.readyNoPermission",
+  READY: "resources.share2.readyReady",
 };
 
 const readinessTone: Record<ShareReadiness, StatusTone> = {
@@ -61,10 +65,10 @@ const readinessTone: Record<ShareReadiness, StatusTone> = {
   READY: "room",
 };
 
-const auditStatusCopy: Record<ShareAuditStatus, string> = {
-  BLOCKED: "막힘",
-  PASSED: "확인됨",
-  PENDING: "대기",
+const auditStatusCopyKey: Record<ShareAuditStatus, MessageKey> = {
+  BLOCKED: "resources.share2.auditBlocked",
+  PASSED: "resources.share2.auditPassed",
+  PENDING: "resources.share2.auditPending",
 };
 
 const auditStatusTone: Record<ShareAuditStatus, StatusTone> = {
@@ -73,51 +77,61 @@ const auditStatusTone: Record<ShareAuditStatus, StatusTone> = {
   PENDING: "pending",
 };
 
-const defaultTargetRoom: ShareTargetRoom = {
-  memberCountLabel: "멤버 4명",
-  name: "신축 홈페이지 리뉴얼",
-  roleLabel: "프로젝트 리더",
-};
+type TranslateFn = (key: MessageKey) => string;
 
-const defaultAuditItems: ShareAuditItem[] = [
-  {
-    description: "현재 자료는 owner 기준으로만 보이는 개인 자료입니다.",
-    id: "personal-visibility",
-    label: "개인 자료 기준 확인",
-    status: "PASSED",
-  },
-  {
-    description: "선택한 프로젝트룸에 ACTIVE 멤버 권한이 있는지 확인합니다.",
-    id: "room-member",
-    label: "프로젝트룸 접근 권한",
-    status: "PASSED",
-  },
-  {
-    description: "공유 이력을 남기고 roomId 기준으로 프로젝트룸 자료에 연결합니다.",
-    id: "share-event",
-    label: "공유 이력 기록",
-    status: "PENDING",
-  },
-  {
-    description: "공유 뒤 프로젝트룸 에이전트가 자료 후보 생성에 사용할 수 있습니다.",
-    id: "agent-scope",
-    label: "에이전트 접근 범위",
-    status: "PENDING",
-  },
-];
+function buildDefaultTargetRoom(t: TranslateFn): ShareTargetRoom {
+  return {
+    memberCountLabel: t("resources.share2.defaultRoomMembers"),
+    name: t("resources.share2.defaultRoomName"),
+    roleLabel: t("resources.share2.roleLeader"),
+  };
+}
+
+function buildDefaultAuditItems(t: TranslateFn): ShareAuditItem[] {
+  return [
+    {
+      description: t("resources.share2.auditPersonalDesc"),
+      id: "personal-visibility",
+      label: t("resources.share2.auditPersonalLabel"),
+      status: "PASSED",
+    },
+    {
+      description: t("resources.share2.auditRoomDesc"),
+      id: "room-member",
+      label: t("resources.share2.auditRoomLabel"),
+      status: "PASSED",
+    },
+    {
+      description: t("resources.share2.auditEventDesc"),
+      id: "share-event",
+      label: t("resources.share2.auditEventLabel"),
+      status: "PENDING",
+    },
+    {
+      description: t("resources.share2.auditAgentDesc"),
+      id: "agent-scope",
+      label: t("resources.share2.auditAgentLabel"),
+      status: "PENDING",
+    },
+  ];
+}
 
 export function ResourceShareApprovalPanel({
-  auditItems = defaultAuditItems,
+  auditItems,
   className,
   onApproveShare,
   onCancel,
   onOpenResource,
   onSelectRoom,
   readiness = "READY",
-  resourceTitle = "개인_자료검토_메모.md",
-  targetRoom = defaultTargetRoom,
+  resourceTitle,
+  targetRoom,
 }: ResourceShareApprovalPanelProps) {
-  const blocked = readiness === "NO_PERMISSION" || auditItems.some((item) => item.status === "BLOCKED");
+  const { t } = useI18n();
+  const resolvedAuditItems = auditItems ?? buildDefaultAuditItems(t);
+  const resolvedResourceTitle = resourceTitle ?? t("resources.share2.defaultResourceTitle");
+  const resolvedTargetRoom = targetRoom ?? buildDefaultTargetRoom(t);
+  const blocked = readiness === "NO_PERMISSION" || resolvedAuditItems.some((item) => item.status === "BLOCKED");
   const needsRoom = readiness === "NEEDS_ROOM";
   const alreadyShared = readiness === "ALREADY_SHARED";
 
@@ -125,28 +139,25 @@ export function ResourceShareApprovalPanel({
     <GlassPanel className={cn(styles.panel, className)}>
       <header className={styles.header}>
         <div>
-          <Chip icon={<ShieldCheck size={14} />}>공유 승인</Chip>
-          <h2>개인 자료는 승인한 뒤에만 프로젝트룸 자료가 됩니다</h2>
-          <p>
-            개인 자료를 선택한 프로젝트룸에 연결하기 전, 대상과 권한을 확인합니다. 공유 전에는
-            멤버와 프로젝트룸 에이전트가 이 자료를 볼 수 없습니다.
-          </p>
+          <Chip icon={<ShieldCheck size={14} />}>{t("resources.share2.chip")}</Chip>
+          <h2>{t("resources.share2.title")}</h2>
+          <p>{t("resources.share2.desc")}</p>
         </div>
-        <StatusBadge tone={readinessTone[readiness]}>{readinessCopy[readiness]}</StatusBadge>
+        <StatusBadge tone={readinessTone[readiness]}>{t(readinessCopyKey[readiness])}</StatusBadge>
       </header>
 
-      <section className={styles.flowCards} aria-label="개인 자료 공유 흐름">
+      <section className={styles.flowCards} aria-label={t("resources.share2.flowAria")}>
         <article className={styles.flowCard}>
           <span className={styles.flowIcon} aria-hidden="true">
             <FolderLock size={20} strokeWidth={2.1} />
           </span>
           <div>
-            <span>현재 상태</span>
-            <strong>개인 자료</strong>
-            <p>{resourceTitle}</p>
+            <span>{t("resources.share2.currentState")}</span>
+            <strong>{t("resources.share2.currentPersonal")}</strong>
+            <p>{resolvedResourceTitle}</p>
           </div>
           <Button icon={<FileText size={15} />} onClick={onOpenResource} size="sm" variant="ghost">
-            자료 보기
+            {t("resources.share2.openResource")}
           </Button>
         </article>
 
@@ -159,51 +170,51 @@ export function ResourceShareApprovalPanel({
             <UsersRound size={20} strokeWidth={2.1} />
           </span>
           <div>
-            <span>공유 대상</span>
-            <strong>{targetRoom.name}</strong>
+            <span>{t("resources.share2.shareTarget")}</span>
+            <strong>{resolvedTargetRoom.name}</strong>
             <p>
-              {targetRoom.roleLabel} · {targetRoom.memberCountLabel}
+              {resolvedTargetRoom.roleLabel} · {resolvedTargetRoom.memberCountLabel}
             </p>
           </div>
           <Button icon={<UserCheck size={15} />} onClick={onSelectRoom} size="sm" variant="quiet">
-            대상 변경
+            {t("resources.share2.changeTarget")}
           </Button>
         </article>
       </section>
 
       <div className={styles.contentGrid}>
-        <section className={styles.auditPanel} aria-label="공유 전 확인 항목">
+        <section className={styles.auditPanel} aria-label={t("resources.share2.auditAria")}>
           <div className={styles.sectionHeader}>
             <span className={styles.sectionIcon} aria-hidden="true">
               <CheckCircle2 size={20} strokeWidth={2.1} />
             </span>
             <div>
-              <h3>공유 전 확인</h3>
-              <p>권한과 기록 기준이 맞아야 공유 버튼을 실행합니다.</p>
+              <h3>{t("resources.share2.auditTitle")}</h3>
+              <p>{t("resources.share2.auditDesc")}</p>
             </div>
           </div>
 
           <ul className={styles.auditList}>
-            {auditItems.map((item) => (
+            {resolvedAuditItems.map((item) => (
               <li key={item.id}>
                 <div>
                   <strong>{item.label}</strong>
                   <p>{item.description}</p>
                 </div>
-                <StatusBadge tone={auditStatusTone[item.status]}>{auditStatusCopy[item.status]}</StatusBadge>
+                <StatusBadge tone={auditStatusTone[item.status]}>{t(auditStatusCopyKey[item.status])}</StatusBadge>
               </li>
             ))}
           </ul>
         </section>
 
-        <aside className={styles.policyPanel} aria-label="공유 뒤 적용 기준">
+        <aside className={styles.policyPanel} aria-label={t("resources.share2.policyAria")}>
           <div className={styles.sectionHeader}>
             <span className={styles.sectionIcon} aria-hidden="true">
               <History size={20} strokeWidth={2.1} />
             </span>
             <div>
-              <h3>공유 뒤 바뀌는 것</h3>
-              <p>자료가 보이는 범위와 에이전트 입력 범위가 달라집니다.</p>
+              <h3>{t("resources.share2.policyTitle")}</h3>
+              <p>{t("resources.share2.policyDesc")}</p>
             </div>
           </div>
 
@@ -211,29 +222,29 @@ export function ResourceShareApprovalPanel({
             <article>
               <UsersRound size={17} strokeWidth={2.1} />
               <div>
-                <strong>프로젝트룸 자료보드에 표시</strong>
-                <p>선택한 프로젝트룸 멤버만 자료를 찾고 열 수 있습니다.</p>
+                <strong>{t("resources.share2.policyBoardTitle")}</strong>
+                <p>{t("resources.share2.policyBoardDesc")}</p>
               </div>
             </article>
             <article>
               <Bot size={17} strokeWidth={2.1} />
               <div>
-                <strong>프로젝트룸 에이전트 범위에 포함</strong>
-                <p>공유 뒤에는 요약, WBS/TODO 후보, 관련 문서 후보의 근거가 될 수 있습니다.</p>
+                <strong>{t("resources.share2.policyAgentTitle")}</strong>
+                <p>{t("resources.share2.policyAgentDesc")}</p>
               </div>
             </article>
             <article>
               <Info size={17} strokeWidth={2.1} />
               <div>
-                <strong>공유 이력 보관</strong>
-                <p>누가 어떤 프로젝트룸에 공유했는지 기록해 나중에 확인할 수 있게 둡니다.</p>
+                <strong>{t("resources.share2.policyHistoryTitle")}</strong>
+                <p>{t("resources.share2.policyHistoryDesc")}</p>
               </div>
             </article>
           </div>
 
           <div className={styles.actions}>
             <Button onClick={onCancel} size="sm" variant="ghost">
-              취소
+              {t("resources.share2.cancel")}
             </Button>
             <Button
               disabled={blocked || needsRoom || alreadyShared}
@@ -242,7 +253,7 @@ export function ResourceShareApprovalPanel({
               size="sm"
               variant="primary"
             >
-              프로젝트룸에 공유
+              {t("resources.share2.approve")}
             </Button>
           </div>
         </aside>

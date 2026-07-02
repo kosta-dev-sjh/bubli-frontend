@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Archive,
   CheckCircle2,
@@ -16,6 +18,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./personal-agent-memory-panel.module.css";
@@ -45,41 +49,42 @@ export type PersonalAgentMemoryPanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const locationMeta: Record<MemoryLocation, { label: string; tone: StatusTone }> = {
-  LOCAL_ONLY: { label: "기기 안 원문", tone: "personal" },
-  LOCAL_SUMMARY: { label: "기기 안 요약", tone: "agent" },
-  SERVER_APPROVED: { label: "확인 후 저장", tone: "approved" },
+const locationMeta: Record<MemoryLocation, { labelKey: MessageKey; tone: StatusTone }> = {
+  LOCAL_ONLY: { labelKey: "agent.mem.locLocalOnly", tone: "personal" },
+  LOCAL_SUMMARY: { labelKey: "agent.mem.locLocalSummary", tone: "agent" },
+  SERVER_APPROVED: { labelKey: "agent.mem.locServerApproved", tone: "approved" },
 };
 
-const statusMeta: Record<MemoryStatus, { actionLabel: string; label: string; tone: StatusTone }> = {
-  ACTIVE: { actionLabel: "보기", label: "단기기억", tone: "personal" },
-  APPROVED: { actionLabel: "열기", label: "승인됨", tone: "approved" },
-  BACKUP_READY: { actionLabel: "백업", label: "백업 가능", tone: "room" },
-  ROLLUP_READY: { actionLabel: "정리", label: "요약 대기", tone: "agent" },
+const statusMeta: Record<MemoryStatus, { actionLabelKey: MessageKey; labelKey: MessageKey; tone: StatusTone }> = {
+  ACTIVE: { actionLabelKey: "agent.mem.statusActiveAction", labelKey: "agent.mem.statusActive", tone: "personal" },
+  APPROVED: { actionLabelKey: "agent.mem.statusApprovedAction", labelKey: "agent.mem.statusApproved", tone: "approved" },
+  BACKUP_READY: { actionLabelKey: "agent.mem.statusBackupAction", labelKey: "agent.mem.statusBackup", tone: "room" },
+  ROLLUP_READY: { actionLabelKey: "agent.mem.statusRollupAction", labelKey: "agent.mem.statusRollup", tone: "agent" },
 };
 
+// label/description は t() キーを保持し、レンダー時に翻訳する。
 export const defaultPersonalAgentMemoryItems: MemoryItem[] = [
   {
-    description: "개인 에이전트 원문 대화는 최근 대화 중심으로 기기 안에 남깁니다.",
-    label: "최근 원문 대화",
+    description: "agent.mem.item1Desc",
+    label: "agent.mem.item1Label",
     location: "LOCAL_ONLY",
     status: "ACTIVE",
   },
   {
-    description: "오래된 원문은 기기 안 요약으로 줄이고, 상세 원문을 서버로 보내지 않습니다.",
-    label: "기기 안 요약",
+    description: "agent.mem.item2Desc",
+    label: "agent.mem.item2Label",
     location: "LOCAL_SUMMARY",
     status: "ROLLUP_READY",
   },
   {
-    description: "사용자가 확인한 하루정리 결과만 다시 볼 수 있게 저장합니다.",
-    label: "확인한 하루정리",
+    description: "agent.mem.item3Desc",
+    label: "agent.mem.item3Label",
     location: "SERVER_APPROVED",
     status: "APPROVED",
   },
   {
-    description: "개인 로컬 데이터는 암호화된 기기 안 백업 목록으로 관리합니다.",
-    label: "기기 안 백업 목록",
+    description: "agent.mem.item4Desc",
+    label: "agent.mem.item4Label",
     location: "LOCAL_ONLY",
     status: "BACKUP_READY",
   },
@@ -87,18 +92,18 @@ export const defaultPersonalAgentMemoryItems: MemoryItem[] = [
 
 export const defaultPersonalAgentMemoryRules: MemoryRule[] = [
   {
-    description: "개인 에이전트 원문은 서버에 저장하지 않고 기기 안에 둡니다.",
-    label: "원문 기기 보관",
+    description: "agent.mem.rule1Desc",
+    label: "agent.mem.rule1Label",
     tone: "personal",
   },
   {
-    description: "최근 대화가 기준을 넘으면 기기 안 요약이나 삭제 후보로 넘겨 단기기억 크기를 관리합니다.",
-    label: "단기기억 제한",
+    description: "agent.mem.rule2Desc",
+    label: "agent.mem.rule2Label",
     tone: "agent",
   },
   {
-    description: "하루정리는 사용자가 확인한 결과만 저장하며, 기기 안 원문 복구와 구분합니다.",
-    label: "승인 요약 저장",
+    description: "agent.mem.rule3Desc",
+    label: "agent.mem.rule3Label",
     tone: "approved",
   },
 ];
@@ -109,10 +114,12 @@ export function PersonalAgentMemoryPanel({
   memoryItems,
   messageLimit,
   rules,
-  title = "개인 에이전트 기억 기준",
+  title,
   usedMessageCount,
   ...props
 }: PersonalAgentMemoryPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("agent.mem.defaultTitle");
   const usagePercent = Math.round((usedMessageCount / messageLimit) * 100);
   const localOnlyCount = memoryItems.filter((item) => item.location === "LOCAL_ONLY").length;
   const serverApprovedCount = memoryItems.filter((item) => item.location === "SERVER_APPROVED").length;
@@ -121,31 +128,28 @@ export function PersonalAgentMemoryPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<Sparkles size={16} strokeWidth={2.1} />}>개인 에이전트</Chip>
+          <Chip icon={<Sparkles size={16} strokeWidth={2.1} />}>{t("agent.mem.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              개인 에이전트 대화 원문은 서버 채팅 기록과 분리합니다. 최근 원문은 기기 안에 두고, 사용자가 확인한
-              하루정리만 서버 요약으로 남깁니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("agent.mem.desc")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>하루정리 후보</span>
+          <span>{t("agent.mem.summaryLabel")}</span>
           <strong>{dailySummaryTitle}</strong>
-          <StatusBadge tone="personal">개인 영역</StatusBadge>
+          <StatusBadge tone="personal">{t("agent.mem.personalArea")}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.memoryGrid} aria-label="개인 에이전트 기억 저장 위치">
+      <section className={styles.memoryGrid} aria-label={t("agent.mem.gridAria")}>
         <article className={styles.memoryCard}>
           <span className={styles.iconTile}>
             <HardDrive size={19} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <StatusBadge tone="personal">기기 안 보관</StatusBadge>
-            <h3>최근 원문 대화</h3>
-            <p>개인 에이전트의 원문 단기기억은 기기 안에서만 유지합니다.</p>
+            <StatusBadge tone="personal">{t("agent.mem.localKeep")}</StatusBadge>
+            <h3>{t("agent.mem.recentTitle")}</h3>
+            <p>{t("agent.mem.recentDesc")}</p>
           </div>
         </article>
 
@@ -154,13 +158,13 @@ export function PersonalAgentMemoryPanel({
             <MessageSquareText size={20} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <Chip selected>
-            {usedMessageCount}/{messageLimit}개
+            {t("agent.mem.usageCount", { limit: messageLimit, used: usedMessageCount })}
           </Chip>
-          <h3>단기기억 사용량</h3>
-          <p>기준을 넘기기 전에 기기 안 요약이나 정리 후보로 넘깁니다.</p>
-          <ProgressBar label="개인 에이전트 단기기억 사용량" value={usagePercent} />
+          <h3>{t("agent.mem.usageTitle")}</h3>
+          <p>{t("agent.mem.usageDesc")}</p>
+          <ProgressBar label={t("agent.mem.usageBar")} value={usagePercent} />
           <Button size="sm" variant="secondary">
-            하루정리 확인
+            {t("agent.mem.checkDaily")}
           </Button>
         </article>
 
@@ -169,32 +173,32 @@ export function PersonalAgentMemoryPanel({
             <Server size={19} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <StatusBadge tone="approved">확인 후 저장</StatusBadge>
-            <h3>승인된 요약</h3>
-            <p>사용자가 확인한 하루정리 결과만 서버에서 다시 조회할 수 있습니다.</p>
+            <StatusBadge tone="approved">{t("agent.mem.saveAfterCheck")}</StatusBadge>
+            <h3>{t("agent.mem.approvedTitle")}</h3>
+            <p>{t("agent.mem.approvedDesc")}</p>
           </div>
         </article>
       </section>
 
-      <section className={styles.metrics} aria-label="개인 에이전트 기억 요약">
+      <section className={styles.metrics} aria-label={t("agent.mem.metricsAria")}>
         <article>
-          <span>로컬 항목</span>
+          <span>{t("agent.mem.localItems")}</span>
           <strong>{localOnlyCount}</strong>
-          <StatusBadge tone="personal">기기 안</StatusBadge>
+          <StatusBadge tone="personal">{t("agent.mem.localBadge")}</StatusBadge>
         </article>
         <article>
-          <span>서버 요약</span>
+          <span>{t("agent.mem.serverSummary")}</span>
           <strong>{serverApprovedCount}</strong>
-          <StatusBadge tone="approved">승인 후</StatusBadge>
+          <StatusBadge tone="approved">{t("agent.mem.afterApproval")}</StatusBadge>
         </article>
         <article>
-          <span>원문 복구</span>
-          <strong>백업</strong>
-          <StatusBadge tone="room">기기 기준</StatusBadge>
+          <span>{t("agent.mem.rawRestore")}</span>
+          <strong>{t("agent.mem.backup")}</strong>
+          <StatusBadge tone="room">{t("agent.mem.deviceBasis")}</StatusBadge>
         </article>
       </section>
 
-      <section className={styles.itemList} aria-label="개인 에이전트 기억 항목">
+      <section className={styles.itemList} aria-label={t("agent.mem.itemListAria")}>
         {memoryItems.map((item) => {
           const location = locationMeta[item.location];
           const status = statusMeta[item.status];
@@ -211,26 +215,26 @@ export function PersonalAgentMemoryPanel({
                 )}
               </span>
               <div className={styles.itemMain}>
-                <strong>{item.label}</strong>
-                <p>{item.description}</p>
+                <strong>{t(item.label as MessageKey)}</strong>
+                <p>{t(item.description as MessageKey)}</p>
               </div>
-              <StatusBadge tone={location.tone}>{location.label}</StatusBadge>
-              <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+              <StatusBadge tone={location.tone}>{t(location.labelKey)}</StatusBadge>
+              <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
               <Button size="sm" variant={item.status === "ROLLUP_READY" ? "secondary" : "quiet"}>
-                {status.actionLabel}
+                {t(status.actionLabelKey)}
               </Button>
             </article>
           );
         })}
       </section>
 
-      <section className={styles.ruleGrid} aria-label="개인 에이전트 기억 정책">
+      <section className={styles.ruleGrid} aria-label={t("agent.mem.ruleGridAria")}>
         {rules.map((rule) => (
           <article key={rule.label}>
             <CheckCircle2 size={18} strokeWidth={2.1} aria-hidden="true" />
             <div>
-              <StatusBadge tone={rule.tone}>{rule.label}</StatusBadge>
-              <p>{rule.description}</p>
+              <StatusBadge tone={rule.tone}>{t(rule.label as MessageKey)}</StatusBadge>
+              <p>{t(rule.description as MessageKey)}</p>
             </div>
           </article>
         ))}

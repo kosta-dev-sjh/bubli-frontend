@@ -228,6 +228,9 @@ const ko = {
   "resources.evidence.itemMeetingSummary": "납품일과 검수 기준을 다시 확인한 회의 기록입니다.",
   "resources.evidence.itemRequirementSummary": "자료 상세 화면과 WBS 후보의 근거가 되는 요구사항 문서입니다.",
   "resources.evidence.itemPrivateSummary": "개인 검토 메모입니다. 사용자가 공유하기 전까지 프로젝트룸에는 보이지 않습니다.",
+  "resources.evidence.itemMeetingFile": "meeting-notes_0618.md",
+  "resources.evidence.itemRequirementFile": "requirements-spec_v1.3.pdf",
+  "resources.evidence.itemPrivateFile": "personal_review-memo.txt",
 
   // resources.classification.*
   "resources.classification.kind.contract": "업무 문서",
@@ -363,6 +366,10 @@ const ko = {
   "resources.version.decisionCurrentNote": "WBS 후보 생성에 사용 중인 현재 자료입니다.",
   "resources.version.decisionPrev2Note": "검수 기준 문장이 추가되기 전 버전입니다.",
   "resources.version.decisionPrev1Note": "프로젝트룸 생성 시 처음 업로드한 자료입니다.",
+  "resources.version.decisionFileV13": "requirements-spec_v1.3.pdf",
+  "resources.version.decisionFileV12": "requirements-spec_v1.2.pdf",
+  "resources.version.decisionFileDraft": "requirements-spec_draft.pdf",
+  "resources.version.decisionFileV14": "requirements-spec_v1.4.pdf",
 
   // resources.version.* (history panel)
   "resources.version.historyPanelAria": "자료 버전 히스토리",
@@ -884,6 +891,9 @@ const en: Record<Key, string> = {
   "resources.evidence.itemMeetingSummary": "A meeting record that re-confirmed the delivery date and review criteria.",
   "resources.evidence.itemRequirementSummary": "A requirements document that serves as evidence for the resource detail screen and WBS candidates.",
   "resources.evidence.itemPrivateSummary": "A personal review memo. It stays invisible in the project room until the user shares it.",
+  "resources.evidence.itemMeetingFile": "meeting-notes_0618.md",
+  "resources.evidence.itemRequirementFile": "requirements-spec_v1.3.pdf",
+  "resources.evidence.itemPrivateFile": "personal_review-memo.txt",
 
   "resources.classification.kind.contract": "Work document",
   "resources.classification.kind.quote": "Quote",
@@ -1015,6 +1025,10 @@ const en: Record<Key, string> = {
   "resources.version.decisionCurrentNote": "The current resource being used to generate WBS candidates.",
   "resources.version.decisionPrev2Note": "The version before the review criteria sentence was added.",
   "resources.version.decisionPrev1Note": "The resource first uploaded when the project room was created.",
+  "resources.version.decisionFileV13": "requirements-spec_v1.3.pdf",
+  "resources.version.decisionFileV12": "requirements-spec_v1.2.pdf",
+  "resources.version.decisionFileDraft": "requirements-spec_draft.pdf",
+  "resources.version.decisionFileV14": "requirements-spec_v1.4.pdf",
 
   "resources.version.historyPanelAria": "Resource version history",
   "resources.version.historyChip": "Resource detail",
@@ -1527,6 +1541,9 @@ const ja: Record<Key, string> = {
   "resources.evidence.itemMeetingSummary": "納品日と検収基準を再確認した会議記録です。",
   "resources.evidence.itemRequirementSummary": "資料詳細画面とWBS候補の根拠となる要件定義書です。",
   "resources.evidence.itemPrivateSummary": "個人レビューメモです。ユーザーが共有するまでプロジェクトルームには表示されません。",
+  "resources.evidence.itemMeetingFile": "meeting-notes_0618.md",
+  "resources.evidence.itemRequirementFile": "requirements-spec_v1.3.pdf",
+  "resources.evidence.itemPrivateFile": "personal_review-memo.txt",
 
   "resources.classification.kind.contract": "業務文書",
   "resources.classification.kind.quote": "見積書",
@@ -1658,6 +1675,10 @@ const ja: Record<Key, string> = {
   "resources.version.decisionCurrentNote": "WBS候補の生成に使用中の現在の資料です。",
   "resources.version.decisionPrev2Note": "検収基準の文が追加される前のバージョンです。",
   "resources.version.decisionPrev1Note": "プロジェクトルーム作成時に最初にアップロードした資料です。",
+  "resources.version.decisionFileV13": "requirements-spec_v1.3.pdf",
+  "resources.version.decisionFileV12": "requirements-spec_v1.2.pdf",
+  "resources.version.decisionFileDraft": "requirements-spec_draft.pdf",
+  "resources.version.decisionFileV14": "requirements-spec_v1.4.pdf",
 
   "resources.version.historyPanelAria": "資料バージョン履歴",
   "resources.version.historyChip": "資料詳細",

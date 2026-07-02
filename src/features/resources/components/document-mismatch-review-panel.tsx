@@ -65,58 +65,60 @@ const statusMeta: Record<MismatchStatus, { labelKey: MessageKey; tone: StatusTon
   RESOLVED: { labelKey: "resources.mismatch.status.RESOLVED", tone: "approved" },
 };
 
+// NOTE: Storybook-only sample fixtures (imported by the .stories file). Real callers
+// pass already-localized data; the panel renders whatever strings it receives.
 export const defaultMismatchMetrics: ReviewMetric[] = [
-  { label: "비교 문서", tone: "room", value: "3개" },
-  { label: "확인 필요", tone: "warning", value: "4개" },
-  { label: "질문 초안", tone: "agent", value: "2개" },
+  { label: "Compared documents", tone: "room", value: "3" },
+  { label: "Needs review", tone: "warning", value: "4" },
+  { label: "Question drafts", tone: "agent", value: "2" },
 ];
 
 export const defaultMismatchItems: MismatchItem[] = [
   {
-    actionLabel: "납품일 기준 질문 만들기",
+    actionLabel: "Draft a question about the delivery date",
     comparedValues: [
-      { documentLabel: "업무 문서", value: "7월 15일" },
-      { documentLabel: "회의록", value: "2026.07.20" },
+      { documentLabel: "Work document", value: "Jul 15" },
+      { documentLabel: "Meeting notes", value: "2026.07.20" },
     ],
-    fieldLabel: "납품일",
+    fieldLabel: "Delivery date",
     id: "delivery-date",
-    reason: "문서마다 날짜가 달라 WBS와 일정에 바로 반영하기 어렵습니다.",
+    reason: "The dates differ across documents, so it's hard to apply directly to the WBS and schedule.",
     severity: "HIGH",
     status: "QUESTION_READY",
   },
   {
-    actionLabel: "부가세 포함 여부 확인",
+    actionLabel: "Check whether VAT is included",
     comparedValues: [
-      { documentLabel: "견적서", value: "8,000,000원" },
-      { documentLabel: "업무 문서", value: "금액만 기재" },
+      { documentLabel: "Quote", value: "8,000,000 KRW" },
+      { documentLabel: "Work document", value: "Amount only" },
     ],
-    fieldLabel: "금액 참고값",
+    fieldLabel: "Reference amount",
     id: "amount-vat",
-    reason: "부가세 포함 여부가 분명하지 않아 참고값으로만 보관합니다.",
+    reason: "It's unclear whether VAT is included, so it's kept only as a reference value.",
     severity: "MEDIUM",
     status: "NEEDS_REVIEW",
   },
   {
-    actionLabel: "검수 기준 질문 만들기",
+    actionLabel: "Draft a question about the review criteria",
     comparedValues: [
-      { documentLabel: "요구사항 문서", value: "1차 검수" },
-      { documentLabel: "업무 문서", value: "최종 검수 1회" },
+      { documentLabel: "Requirements document", value: "First review" },
+      { documentLabel: "Work document", value: "One final review" },
     ],
-    fieldLabel: "검수 기준",
+    fieldLabel: "Review criteria",
     id: "inspection-rule",
-    reason: "검수 단계가 서로 달라 TODO 완료 기준을 정하기 어렵습니다.",
+    reason: "The review steps differ, so it's hard to set a TODO completion criterion.",
     severity: "HIGH",
     status: "QUESTION_READY",
   },
   {
-    actionLabel: "자료 취급 기준 확인",
+    actionLabel: "Check the resource handling criteria",
     comparedValues: [
-      { documentLabel: "업무 문서", value: "비밀 유지 조항 있음" },
-      { documentLabel: "요구사항 문서", value: "샘플 원문 공유 필요" },
+      { documentLabel: "Work document", value: "Has a confidentiality clause" },
+      { documentLabel: "Requirements document", value: "Needs sharing of the sample source" },
     ],
-    fieldLabel: "개인정보/저작권 조건",
+    fieldLabel: "Privacy / copyright terms",
     id: "privacy-copyright",
-    reason: "자료 공유 방식과 보관 기준을 프로젝트룸 자료 정책과 맞춰야 합니다.",
+    reason: "The resource sharing method and retention criteria need to align with the project room resource policy.",
     severity: "MEDIUM",
     status: "NEEDS_REVIEW",
   },

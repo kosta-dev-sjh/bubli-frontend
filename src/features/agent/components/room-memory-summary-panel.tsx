@@ -1,3 +1,5 @@
+"use client";
+
 import { Bot, CheckCircle2, Database, FileText, MessageSquareText, RefreshCw, Server, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -5,42 +7,46 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 type MemoryItem = {
-  title: string;
-  range: string;
+  titleKey: MessageKey;
+  rangeKey: MessageKey;
   status: "ready" | "running" | "review";
-  detail: string;
+  detailKey: MessageKey;
 };
 
 const memoryItems: MemoryItem[] = [
   {
-    detail: "수정 범위 확인, 검수 일정 조율",
-    range: "대화 214-248",
+    detailKey: "agent.room.mem1Detail",
+    rangeKey: "agent.room.mem1Range",
     status: "ready",
-    title: "결정사항 요약",
+    titleKey: "agent.room.mem1Title",
   },
   {
-    detail: "납품 파일명과 검수 기준이 아직 불명확",
-    range: "대화 249-263",
+    detailKey: "agent.room.mem2Detail",
+    rangeKey: "agent.room.mem2Range",
     status: "review",
-    title: "남은 질문",
+    titleKey: "agent.room.mem2Title",
   },
   {
-    detail: "작업판에 올릴 후보 4개 생성",
-    range: "대화 264-281",
+    detailKey: "agent.room.mem3Detail",
+    rangeKey: "agent.room.mem3Range",
     status: "running",
-    title: "TODO 후보",
+    titleKey: "agent.room.mem3Title",
   },
 ];
 
-const statusMeta: Record<MemoryItem["status"], { label: string; tone: "success" | "pending" | "agent" }> = {
-  ready: { label: "요약됨", tone: "success" },
-  review: { label: "확인 필요", tone: "pending" },
-  running: { label: "정리 중", tone: "agent" },
+const statusMeta: Record<MemoryItem["status"], { labelKey: MessageKey; tone: "success" | "pending" | "agent" }> = {
+  ready: { labelKey: "agent.room.statusReady", tone: "success" },
+  review: { labelKey: "agent.room.statusReview", tone: "pending" },
+  running: { labelKey: "agent.room.statusRunning", tone: "agent" },
 };
 
-function MemoryRow({ item }: { item: MemoryItem }) {
+function MemoryRow({ item, t }: { item: MemoryItem; t: TranslateFn }) {
   const status = statusMeta[item.status];
 
   return (
@@ -50,35 +56,34 @@ function MemoryRow({ item }: { item: MemoryItem }) {
       </span>
       <div>
         <div className="room-memory-row__meta">
-          <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-          <span>{item.range}</span>
+          <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
+          <span>{t(item.rangeKey)}</span>
         </div>
-        <h3>{item.title}</h3>
-        <p>{item.detail}</p>
+        <h3>{t(item.titleKey)}</h3>
+        <p>{t(item.detailKey)}</p>
       </div>
     </article>
   );
 }
 
 export function RoomMemorySummaryPanel() {
+  const { t } = useI18n();
+
   return (
-    <section className="room-memory" aria-label="프로젝트룸 대화 기억">
+    <section className="room-memory" aria-label={t("agent.room.aria")}>
       <GlassPanel className="room-memory__hero">
         <div>
           <Chip icon={<Bot size={14} />} selected>
-            프로젝트룸 에이전트
+            {t("agent.room.chip")}
           </Chip>
-          <h2>프로젝트룸 대화는 협업 기록으로 남기고, 필요한 범위만 요약합니다</h2>
-          <p>
-            프로젝트룸 채팅에서 `/bubli 정리`, `/bubli todo`, `/bubli 질문`을 부르면 에이전트가 최근 대화
-            범위를 읽고 요약과 후보를 만듭니다. 확정 데이터는 사용자가 승인한 뒤 반영합니다.
-          </p>
+          <h2>{t("agent.room.heroTitle")}</h2>
+          <p>{t("agent.room.heroDesc")}</p>
         </div>
         <div className="room-memory__summary">
-          <StatusBadge tone="agent">대화 정리</StatusBadge>
+          <StatusBadge tone="agent">{t("agent.room.summaryBadge")}</StatusBadge>
           <strong>68</strong>
-          <span>읽은 메시지</span>
-          <ProgressBar label="요약 진행률" value={72} />
+          <span>{t("agent.room.readMessages")}</span>
+          <ProgressBar label={t("agent.room.summaryProgress")} value={72} />
         </div>
       </GlassPanel>
 
@@ -89,27 +94,27 @@ export function RoomMemorySummaryPanel() {
               <Sparkles size={17} strokeWidth={2.1} />
             </span>
             <div>
-              <h3>채팅에서 부르는 명령어</h3>
-              <p>결과는 채팅 메시지로 남고, 장기 보관이 필요한 내용만 따로 요약합니다.</p>
+              <h3>{t("agent.room.commandTitle")}</h3>
+              <p>{t("agent.room.commandDesc")}</p>
             </div>
           </div>
 
           <div className="room-memory__chat">
-            <span>나</span>
-            <p>/bubli 정리 오늘 회의에서 결정된 것만 정리해줘</p>
+            <span>{t("agent.room.me")}</span>
+            <p>{t("agent.room.chatCommand")}</p>
           </div>
           <div className="room-memory__agent">
-            <StatusBadge tone="agent">에이전트 응답</StatusBadge>
-            <h3>결정사항 3개와 확인 질문 2개를 찾았어요.</h3>
-            <p>WBS/TODO 후보로 만들 항목은 사용자가 검토한 뒤 작업판에 반영합니다.</p>
+            <StatusBadge tone="agent">{t("agent.room.agentResponse")}</StatusBadge>
+            <h3>{t("agent.room.agentReply")}</h3>
+            <p>{t("agent.room.agentReplyDesc")}</p>
           </div>
 
           <div className="room-memory__actions">
             <Button icon={<CheckCircle2 size={15} />} variant="primary">
-              후보 검토
+              {t("agent.room.reviewCandidates")}
             </Button>
             <Button icon={<RefreshCw size={15} />} variant="quiet">
-              다시 정리
+              {t("agent.room.reorganize")}
             </Button>
           </div>
         </GlassPanel>
@@ -117,14 +122,14 @@ export function RoomMemorySummaryPanel() {
         <GlassPanel className="room-memory__list">
           <div className="room-memory__list-top">
             <div>
-              <h3>장기 요약</h3>
-              <p>어떤 대화 범위를 요약했는지 남겨 나중에 다시 확인할 수 있게 합니다.</p>
+              <h3>{t("agent.room.longTermTitle")}</h3>
+              <p>{t("agent.room.longTermDesc")}</p>
             </div>
-            <Chip>범위 기록</Chip>
+            <Chip>{t("agent.room.rangeRecord")}</Chip>
           </div>
           <div className="room-memory__items">
             {memoryItems.map((item) => (
-              <MemoryRow item={item} key={`${item.range}-${item.title}`} />
+              <MemoryRow item={item} key={`${item.rangeKey}-${item.titleKey}`} t={t} />
             ))}
           </div>
         </GlassPanel>
@@ -133,18 +138,18 @@ export function RoomMemorySummaryPanel() {
       <div className="room-memory__policy">
         <GlassPanel>
           <Server size={18} strokeWidth={2.1} />
-          <h3>채팅 원본</h3>
-          <p>프로젝트룸 채팅과 1:1 채팅은 협업 기록이므로 서버 기록을 기준으로 봅니다.</p>
+          <h3>{t("agent.room.chatOriginTitle")}</h3>
+          <p>{t("agent.room.chatOriginDesc")}</p>
         </GlassPanel>
         <GlassPanel>
           <MessageSquareText size={18} strokeWidth={2.1} />
-          <h3>앱 빠른 표시</h3>
-          <p>앱은 최근 메시지를 먼저 보여주고, 빠진 메시지는 서버에서 보충합니다.</p>
+          <h3>{t("agent.room.appQuickTitle")}</h3>
+          <p>{t("agent.room.appQuickDesc")}</p>
         </GlassPanel>
         <GlassPanel>
           <Database size={18} strokeWidth={2.1} />
-          <h3>요약 보관</h3>
-          <p>결정사항, 남은 질문, 후보와 요약 범위만 장기 요약으로 남깁니다.</p>
+          <h3>{t("agent.room.summaryKeepTitle")}</h3>
+          <p>{t("agent.room.summaryKeepDesc")}</p>
         </GlassPanel>
       </div>
     </section>
