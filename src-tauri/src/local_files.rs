@@ -2362,13 +2362,20 @@ pub fn search_local_files(
     state: State<'_, Db>,
     input: LocalFileSearchInput,
 ) -> Result<LocalFileSearchResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    search_local_files_for_conn(&conn, input)
+}
+
+fn search_local_files_for_conn(
+    conn: &Connection,
+    input: LocalFileSearchInput,
+) -> Result<LocalFileSearchResult, String> {
     let limit = input.limit.unwrap_or(50).clamp(1, 500);
     let query = input.query.trim().to_string();
-    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-
     if !query.is_empty() {
         match search_local_files_fts(&conn, &query, limit) {
-            Ok(items) => return Ok(LocalFileSearchResult { items }),
+            Ok(items) if !items.is_empty() => return Ok(LocalFileSearchResult { items }),
+            Ok(_) => {}
             Err(error) => {
                 eprintln!("local file FTS search failed; falling back to LIKE: {error}");
             }
@@ -3108,6 +3115,37 @@ mod tests {
             .contains("[renewal]"));
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn file_name_search_falls_back_when_fts_has_no_match() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO local_files (id, local_folder_id, file_name, local_path, updated_at) \
+             VALUES ('file-ui', 'folder-1', 'UI_contract_notes.bin', '/tmp/UI_contract_notes.bin', 1)",
+            [],
+        )
+        .expect("insert local file row");
+        conn.execute(
+            "INSERT INTO local_file_fts (local_file_id, file_name, content, local_path) \
+             VALUES ('file-ui', 'unrelated.bin', 'no matching content', '/tmp/unrelated.bin')",
+            [],
+        )
+        .expect("insert unrelated fts row");
+
+        let result = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "UI".to_string(),
+            },
+        )
+        .expect("search local files");
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].local_file_id, "file-ui");
+        assert_eq!(result.items[0].name, "UI_contract_notes.bin");
+        assert!(result.items[0].matched_text.is_none());
     }
 
     #[test]
