@@ -171,6 +171,18 @@ const getAddRange = (range: Range) => {
 const weeksInYear = (year: number) =>
   differenceInCalendarWeeks(new Date(year + 1, 0, 1), new Date(year, 0, 1), WEEK_OPTIONS);
 
+const getYearColumnCount = (year: number, range: Range) => {
+  if (range === "daily") {
+    return differenceInDays(new Date(year + 1, 0, 1), new Date(year, 0, 1));
+  }
+
+  if (range === "weekly") {
+    return weeksInYear(year);
+  }
+
+  return 12;
+};
+
 const getDateByMousePosition = (context: GanttContextProps, mouseX: number) => {
   const rawTimelineStartDate = new Date(context.timelineData[0].year, 0, 1);
   const timelineStartDate = getStartOf(context.range)(rawTimelineStartDate);
@@ -1025,9 +1037,30 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: Re-render when props change
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth / 2 - scrollRef.current.clientWidth / 2;
-      setScrollX(scrollRef.current.scrollLeft);
+    const element = scrollRef.current;
+    const timelineStartYear = timelineData[0]?.year;
+
+    if (element && timelineStartYear) {
+      const today = new Date();
+      const timelineStartDate = new Date(timelineStartYear, 0, 1);
+      const todayOffset = getOffset(today, timelineStartDate, {
+        columnWidth,
+        headerHeight,
+        onAddItem,
+        placeholderLength: 2,
+        range,
+        ref: scrollRef,
+        rowHeight,
+        sidebarWidth,
+        timelineData,
+        zoom,
+      });
+      const viewportWidth = Math.max(0, element.clientWidth - sidebarWidth);
+      const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+      const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, todayOffset - viewportWidth * 0.36));
+
+      element.scrollLeft = nextScrollLeft;
+      setScrollX(element.scrollLeft);
     }
   }, [range, zoom, setScrollX]);
 
@@ -1065,8 +1098,8 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
 
         setTimelineData(newTimelineData);
 
-        // Scroll a bit forward so it's not at the very start
-        scrollRef.current.scrollLeft = scrollRef.current.clientWidth;
+        const addedYearWidth = getYearColumnCount(firstYear - 1, range) * ((zoom / 100) * columnWidth);
+        scrollRef.current.scrollLeft = scrollLeft + addedYearWidth;
         setScrollX(scrollRef.current.scrollLeft);
       } else if (scrollLeft + clientWidth >= scrollWidth) {
         // Extend timelineData to the future
@@ -1091,8 +1124,7 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
 
         setTimelineData(newTimelineData);
 
-        // Scroll a bit back so it's not at the very end
-        scrollRef.current.scrollLeft = scrollRef.current.scrollWidth - scrollRef.current.clientWidth;
+        scrollRef.current.scrollLeft = scrollLeft;
         setScrollX(scrollRef.current.scrollLeft);
       }
     }, 100),

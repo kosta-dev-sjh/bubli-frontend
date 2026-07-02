@@ -32,6 +32,11 @@
 - WBS 줄 보기는 카드 묶음이 아니라 표 형태의 행으로 읽혀야 한다. 이동 핸들, WBS 번호, 작업명, 상태, 연결 TODO, 기한, 하위 수를 한 줄에서 비교할 수 있게 한다.
 - 하위 WBS는 들여쓰기와 색 레일을 함께 써서 부모-자식 관계가 바로 보여야 한다.
 - 새 WBS는 선택한 WBS의 하위 항목으로 추가할 수 있어야 한다.
+- WBS 생성 기준은 Jira식 줄 중심으로 둔다. `상위 작업 추가`는 새 최상위 줄을 만들고, `선택 줄 하위 추가` 또는 각 줄의 `+`는 그 줄 아래에 하위 줄을 만든다.
+- 타임라인 빈칸 클릭으로 WBS를 만들지 않는다. 사용자가 어떤 상위 작업 아래에 만드는지 알 수 없어서 UX가 흔들린다.
+- 간트 바는 생성 버튼이 아니라 기간 조절 도구다. 바 드래그는 위치 이동, 양끝 드래그는 시작일/종료일 조정만 맡는다.
+- WBS 간트는 처음 열 때 오늘이 보이는 위치로 시작한다. 연도 확장 때문에 스크롤이 임의로 오른쪽 끝으로 튀면 안 된다.
+- 하위 WBS는 부모 WBS의 색 계열을 기본으로 이어받고, 사용자가 직접 줄 색을 바꾸면 바에도 같은 색을 입힌다.
 - 연결된 하위 WBS나 할 일이 없는 WBS만 삭제할 수 있다.
 - 빈 상태는 "현재 데이터가 없습니다"로만 표시한다.
 
@@ -69,6 +74,7 @@
 - WBS 기간 생성/수정: `POST /api/schedules`, `PATCH /api/schedules/{scheduleId}`
 - WBS 기간 삭제: `DELETE /api/schedules/{scheduleId}`. 백엔드가 Google Calendar 동기화 삭제와 DB 삭제를 함께 처리한다.
 - Google Calendar 연동: WBS 기간은 일정 생성/동기화 API와 같은 날짜 기준을 사용하고, 삭제도 일정 삭제 API 성공 후 화면에서 제거한다.
+- Google Calendar에서 직접 삭제한 일정은 다음 동기화 때 `cancelled` 상태로 들어오며, 같은 `googleEventId`를 가진 로컬 일정을 제거해야 한다.
 - WBS 후보 생성: `POST /api/ai/generate-wbs`
 - 칸반 후보 생성: `POST /api/ai/generate-tasks`
 - 후보 목록: `GET /api/project-rooms/{roomId}/agent/suggestions?status=DRAFT&suggestionType=...`

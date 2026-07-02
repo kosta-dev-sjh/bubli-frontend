@@ -1,7 +1,7 @@
 "use client";
 
 import { addDays, endOfDay, startOfDay } from "date-fns";
-import { CalendarDays, CalendarRange, Eraser, FolderPlus, PencilIcon, Plus, TrashIcon } from "lucide-react";
+import { CalendarDays, CalendarRange, FolderPlus, PencilIcon, Plus, TrashIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -178,7 +178,6 @@ export function WbsGanttPanel({
   }, [localRanges, resolveAccent, scheduleByWbsId, wbsItems]);
 
   const orderedItems = useMemo(() => orderedGroups.flatMap((group) => group.items), [orderedGroups]);
-  const timelineRows = useMemo(() => orderedItems.map((item) => ({ item })), [orderedItems]);
 
   const openItemSettings = (item: WbsItemResponse) => {
     onSelectItem(item.id);
@@ -280,11 +279,10 @@ export function WbsGanttPanel({
 
   const handleAddGroup = () => createItem(null, new Date());
 
-  const getParentIdForNewTask = (rowIndex?: number) => {
+  const getParentIdForNewTask = () => {
     if (orderedGroups.length === 0) return null;
 
-    const row = typeof rowIndex === "number" ? timelineRows[rowIndex] : null;
-    const item = row?.item ?? (selectedWbsId ? itemById.get(selectedWbsId) : null);
+    const item = selectedWbsId ? itemById.get(selectedWbsId) : null;
 
     if (!item) return orderedGroups[0]?.root.id ?? null;
     return getParentIdForChild(item);
@@ -300,51 +298,6 @@ export function WbsGanttPanel({
     const parentId = getParentIdForChild(item);
     const feature = featureById.get(parentId) ?? featureById.get(item.id);
     createItem(parentId, feature?.startAt ?? new Date());
-  };
-
-  // 타임라인 빈 줄 호버 + 버튼: 클릭한 날짜와 같은 상위 작업 아래에 작업을 추가한다.
-  const handleAddItemAtDate = (date: Date, rowIndex?: number) => {
-    const parentId = getParentIdForNewTask(rowIndex);
-    createItem(parentId, date);
-  };
-
-  const handleClearSchedule = async (item: WbsItemResponse) => {
-    const schedule = scheduleByWbsId.get(item.id);
-
-    if (!schedule) {
-      setLocalRanges((current) => {
-        const next = { ...current };
-        delete next[item.id];
-        return next;
-      });
-      onNotice("기간 초기화됨");
-      return;
-    }
-
-    onNotice("기간 초기화 중");
-
-    try {
-      await calendarApi.deleteEvent(schedule.id);
-      setLocalRanges((current) => {
-        const next = { ...current };
-        delete next[item.id];
-        return next;
-      });
-      setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
-      onNotice("기간 초기화됨");
-    } catch {
-      if (shouldUseWorkspacePreviewData()) {
-        setLocalRanges((current) => {
-          const next = { ...current };
-          delete next[item.id];
-          return next;
-        });
-        setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
-        onNotice("기간 초기화됨 (로컬)");
-        return;
-      }
-      onNotice("기간 초기화 실패 — 일정이 서버에 남아 있습니다");
-    }
   };
 
   const handleDeleteItem = async (item: WbsItemResponse) => {
@@ -425,22 +378,23 @@ export function WbsGanttPanel({
         </button>
         <button
           className={styles.toolButton}
-          disabled={orderedGroups.length === 0}
+          disabled={orderedGroups.length === 0 || !selectedWbsId}
           onClick={handleAddTask}
-          title={orderedGroups.length === 0 ? "먼저 상위 작업을 추가하세요" : "선택한 상위 작업 아래에 하위 작업을 추가합니다"}
+          title={
+            orderedGroups.length === 0
+              ? "먼저 상위 작업을 추가하세요"
+              : selectedWbsId
+                ? "선택한 줄 아래에 하위 작업을 추가합니다"
+                : "왼쪽 목록에서 작업 줄을 선택하세요"
+          }
           type="button"
         >
           <Plus aria-hidden="true" size={13} strokeWidth={2.1} />
-          하위 작업 추가
+          선택 줄 하위 추가
         </button>
       </div>
 
-      <GanttProvider
-        className={styles.ganttSurface}
-        onAddItem={handleAddItemAtDate}
-        range={range}
-        zoom={100}
-      >
+      <GanttProvider className={styles.ganttSurface} range={range} zoom={100}>
         <GanttSidebar>
           <GanttSidebarGroup name="">
             {orderedItems.map((item) => {
@@ -477,17 +431,6 @@ export function WbsGanttPanel({
                         type="button"
                       >
                         <PencilIcon aria-hidden="true" size={13} strokeWidth={2.2} />
-                      </button>
-                      <button
-                        aria-label={`${item.title} 기간 초기화`}
-                        className={styles.rowActionButton}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void handleClearSchedule(item);
-                        }}
-                        type="button"
-                      >
-                        <Eraser aria-hidden="true" size={13} strokeWidth={2.2} />
                       </button>
                       <button
                         aria-label={`${item.title} 삭제`}

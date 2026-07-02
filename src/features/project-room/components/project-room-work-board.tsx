@@ -298,8 +298,6 @@ function ProjectRoomWorkBoardContent({
     : selectedWbs;
   const selectedCreateParentId = selectedParentWbs?.id ?? null;
   const selectedCreateParentTitle = selectedParentWbs?.title ?? null;
-  const selectedWbsLinkedCount = selectedWbsId ? selectedWbsTasks.filter((task) => task.wbsItemId === selectedWbsId).length : 0;
-  const selectedWbsChildCount = selectedWbsId ? childCountByWbsId[selectedWbsId] ?? 0 : 0;
   const kanbanColumns = useMemo<KanbanBoardColumn[]>(
     () =>
       columns.map((column) => ({
@@ -331,12 +329,10 @@ function ProjectRoomWorkBoardContent({
           wbsId: selectedWbs?.id ?? null,
         };
 
-  const loadCandidateSuggestions = useCallback(
+  const fetchCandidateSuggestions = useCallback(
     async (kind: CandidateGenerationKind) => {
-      setCandidateLoadingKind(kind);
-
       try {
-        const suggestions = (
+        return (
           await Promise.all(
             candidateSuggestionTypes[kind].map((suggestionType) =>
               agentApi.listRoomSuggestions(roomId, {
@@ -346,20 +342,28 @@ function ProjectRoomWorkBoardContent({
             ),
           )
         ).flat();
+      } catch (error) {
+        if (shouldUseWorkspacePreviewData()) {
+          return candidatePreviewSuggestions(roomId, kind);
+        }
 
+        throw error;
+      }
+    },
+    [roomId],
+  );
+
+  const loadCandidateSuggestions = useCallback(
+    async (kind: CandidateGenerationKind) => {
+      setCandidateLoadingKind(kind);
+
+      try {
+        const suggestions = await fetchCandidateSuggestions(kind);
         setCandidateSuggestions((current) => ({
           ...current,
           [kind]: suggestions,
         }));
       } catch (error) {
-        if (shouldUseWorkspacePreviewData()) {
-          setCandidateSuggestions((current) => ({
-            ...current,
-            [kind]: candidatePreviewSuggestions(roomId, kind),
-          }));
-          return;
-        }
-
         setCandidateGeneration({
           kind,
           message: `${candidateKindLabel(kind)} 목록을 불러오지 못했습니다: ${generationErrorMessage(error)}`,
@@ -369,13 +373,42 @@ function ProjectRoomWorkBoardContent({
         setCandidateLoadingKind(null);
       }
     },
-    [roomId],
+    [fetchCandidateSuggestions],
   );
 
   useEffect(() => {
-    void loadCandidateSuggestions("wbs");
-    void loadCandidateSuggestions("tasks");
-  }, [loadCandidateSuggestions]);
+    let isCancelled = false;
+
+    async function loadInitialCandidateSuggestions() {
+      try {
+        const [wbsSuggestions, taskSuggestions] = await Promise.all([
+          fetchCandidateSuggestions("wbs"),
+          fetchCandidateSuggestions("tasks"),
+        ]);
+
+        if (!isCancelled) {
+          setCandidateSuggestions({
+            tasks: taskSuggestions,
+            wbs: wbsSuggestions,
+          });
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setCandidateGeneration({
+            kind: "wbs",
+            message: `후보 목록을 불러오지 못했습니다: ${generationErrorMessage(error)}`,
+            status: "error",
+          });
+        }
+      }
+    }
+
+    void loadInitialCandidateSuggestions();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [fetchCandidateSuggestions]);
 
   const handleReviewCandidate = async (kind: CandidateGenerationKind, suggestionId: string, action: CandidateReviewAction) => {
     setCandidateReviewingId(suggestionId);
