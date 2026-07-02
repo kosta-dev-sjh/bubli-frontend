@@ -2,6 +2,7 @@
 
 import { syncPersonalLocalFileEventsToServer } from "@/lib/local/managed-folder-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { tauriCommands } from "@/lib/tauri/commands";
 
 const LOCAL_FILE_EVENT_SYNC_INTERVAL_MS = 60_000;
 
@@ -12,6 +13,7 @@ export function startManagedFolderAutoSync() {
   if (!isTauriRuntime()) return;
   if (syncIntervalId !== null) return;
 
+  void tauriCommands.watchAllManagedFolders().catch(() => undefined);
   void syncManagedFolderEventsOnce();
   syncIntervalId = window.setInterval(() => {
     void syncManagedFolderEventsOnce();
@@ -25,6 +27,9 @@ export function stopManagedFolderAutoSync() {
 
   syncIntervalId = null;
   syncInFlight = false;
+  if (isTauriRuntime()) {
+    void tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
+  }
 }
 
 export function isManagedFolderAutoSyncRunning() {

@@ -172,6 +172,18 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.watchAllManagedFolders,
+    responsibility: "Restore native watchers for active personal managed folders after Tauri login",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.unwatchAllManagedFolders,
+    responsibility: "Stop active personal managed-folder watchers when the authenticated Tauri surface stops",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.searchLocalFiles,
     responsibility: "Search the local file index",
     reflectsToServer: false,

@@ -51,7 +51,9 @@ export const TAURI_COMMANDS = {
   syncWidgetUsageSummary: "sync_widget_usage_summary",
   toggleWidgetDockOrb: "toggle_widget_dock_orb",
   toggleWidgetWindow: "toggle_widget_window",
+  unwatchAllManagedFolders: "unwatch_all_managed_folders",
   updateWidgetTrayState: "update_widget_tray_state",
+  watchAllManagedFolders: "watch_all_managed_folders",
   watchManagedFolder: "watch_managed_folder",
 } as const;
 
@@ -111,6 +113,19 @@ export type ManagedFolderIndexProgressResult = {
 export type ManagedFolderWatchResult = {
   localFolderId: string;
   watching: boolean;
+};
+
+export type ManagedFolderWatchAllResult = {
+  activeFolderCount: number;
+  skippedCount: number;
+  skippedFolderIds: string[];
+  watchedCount: number;
+  watchedFolderIds: string[];
+};
+
+export type ManagedFolderUnwatchAllResult = {
+  stoppedCount: number;
+  stoppedFolderIds: string[];
 };
 
 export type LocalFileSearchInput = {
@@ -718,9 +733,17 @@ export type TauriCommandContract = {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
   };
+  unwatch_all_managed_folders: {
+    args: undefined;
+    result: ManagedFolderUnwatchAllResult;
+  };
   update_widget_tray_state: {
     args: WidgetBooleanInput;
     result: WidgetWindowState;
+  };
+  watch_all_managed_folders: {
+    args: undefined;
+    result: ManagedFolderWatchAllResult;
   };
   watch_managed_folder: {
     args: ManagedFolderCommandInput;
@@ -901,8 +924,14 @@ export const tauriCommands = {
   toggleWidgetWindow(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.toggleWidgetWindow, input ? { input } : undefined);
   },
+  unwatchAllManagedFolders() {
+    return invokeTauri<ManagedFolderUnwatchAllResult>(TAURI_COMMANDS.unwatchAllManagedFolders);
+  },
   updateWidgetTrayState(input: WidgetBooleanInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.updateWidgetTrayState, { input });
+  },
+  watchAllManagedFolders() {
+    return invokeTauri<ManagedFolderWatchAllResult>(TAURI_COMMANDS.watchAllManagedFolders);
   },
   watchManagedFolder(input: ManagedFolderCommandInput) {
     return invokeTauri<ManagedFolderWatchResult>(TAURI_COMMANDS.watchManagedFolder, { input });
