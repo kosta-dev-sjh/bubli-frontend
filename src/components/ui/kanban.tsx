@@ -206,7 +206,15 @@ export function KanbanBoard({
 
   const renderAssigneeAvatar = (option: KanbanAssigneeOption | undefined, label?: string) => {
     if (option?.avatarUrl) {
-      return <span aria-hidden="true" className={styles.avatarImage} style={{ backgroundImage: `url("${option.avatarUrl}")` }} />;
+      return (
+        <img
+          alt=""
+          className={styles.avatarImage}
+          decoding="async"
+          referrerPolicy="no-referrer"
+          src={option.avatarUrl}
+        />
+      );
     }
 
     if (label) {
