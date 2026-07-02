@@ -52,13 +52,12 @@ const statusOptions: Array<{ label: string; status: WbsStatus }> = [
   { label: "완료", status: "DONE" },
 ];
 
-// 마일스톤 기준선 팔레트 — roadmap-ui 데모와 같은 톤의 파스텔 배경/진한 글자 조합.
 const markerPalette = [
-  "bg-blue-100 text-blue-900",
-  "bg-green-100 text-green-900",
-  "bg-purple-100 text-purple-900",
-  "bg-orange-100 text-orange-900",
-  "bg-teal-100 text-teal-900",
+  styles.markerTodo,
+  styles.markerPearl,
+  styles.markerLilac,
+  styles.markerRain,
+  styles.markerRose,
 ];
 
 const DEFAULT_BAR_DAYS = 6;

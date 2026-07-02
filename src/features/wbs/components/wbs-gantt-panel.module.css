@@ -225,3 +225,28 @@
   background: rgba(215, 234, 244, 0.5);
   color: #2C3540;
 }
+
+.markerTodo {
+  background-color: color-mix(in srgb, var(--color-todo) 28%, white);
+  color: var(--color-text);
+}
+
+.markerPearl {
+  background-color: color-mix(in srgb, var(--color-pearl) 30%, white);
+  color: var(--color-text);
+}
+
+.markerLilac {
+  background-color: color-mix(in srgb, var(--color-lilac) 34%, white);
+  color: var(--color-text);
+}
+
+.markerRain {
+  background-color: color-mix(in srgb, var(--color-rain-gray) 38%, white);
+  color: var(--color-text);
+}
+
+.markerRose {
+  background-color: color-mix(in srgb, var(--color-dust-rose) 22%, white);
+  color: var(--color-text);
+}

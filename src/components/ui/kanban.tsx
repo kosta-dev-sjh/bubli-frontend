@@ -1,9 +1,12 @@
 "use client";
 
 import { Check, Pencil, Plus, Trash2, UserRound, X } from "lucide-react";
+import type { CSSProperties } from "react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+
+import styles from "./kanban.module.css";
 
 export interface KanbanTask {
   id: string;
@@ -51,13 +54,17 @@ const defaultColumnColors: Record<string, string> = {
   todo: "var(--color-todo)",
 };
 
+type KanbanColumnStyle = CSSProperties & {
+  "--kanban-column-color": string;
+};
+
 function getInitial(label?: string) {
   if (!label) return "미";
 
   return label.trim().slice(0, 1).toUpperCase();
 }
 
-function stopInteractive(event: React.PointerEvent | React.MouseEvent) {
+function stopInteractive(event: React.SyntheticEvent) {
   event.stopPropagation();
 }
 
@@ -180,38 +187,27 @@ export function KanbanBoard({
   const getColumnColor = (columnId: string) => columnColors[columnId] || "var(--color-rain-gray)";
 
   return (
-    <div className={cn("flex gap-4 overflow-x-auto pb-3", className)}>
+    <div className={cn(styles.board, className)}>
       {columns.map((column) => {
         const isDropActive = dropTarget === column.id && draggedTask?.sourceColumnId !== column.id;
         const columnColor = getColumnColor(column.id);
 
         return (
-          <div
-            className={cn(
-              "min-w-[260px] max-w-[292px] rounded-[18px] border p-3 transition-all duration-200",
-              "border-[var(--color-border)] bg-white/58 shadow-[inset_0_1px_0_rgba(255,255,255,.9)] backdrop-blur-md",
-              isDropActive && "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-water-blue)_32%,transparent)]",
-            )}
+          <section
+            className={cn(styles.column, isDropActive && styles.columnActive)}
             key={column.id}
             onDragLeave={() => setDropTarget(null)}
             onDragOver={(event) => handleDragOver(event, column.id)}
             onDrop={() => handleDrop(column.id)}
+            style={{ "--kanban-column-color": columnColor } as KanbanColumnStyle}
           >
-            <div className="mb-3 flex items-center justify-between px-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ background: columnColor }}
-                />
-                <h2 className="truncate text-[15px] font-[850] leading-none text-[var(--color-text)]">{column.title}</h2>
-                <span className="rounded-full bg-white/72 px-2 py-0.5 text-xs font-[760] text-[var(--color-brand)]">
-                  {column.tasks.length}
-                </span>
-              </div>
-            </div>
+            <header className={styles.columnHead}>
+              <span aria-hidden="true" className={styles.statusDot} />
+              <h2 className={styles.columnTitle}>{column.title}</h2>
+              <span className={styles.count}>{column.tasks.length}</span>
+            </header>
 
-            <div className="flex min-h-[160px] flex-col gap-2.5">
+            <div className={styles.taskList}>
               {column.tasks.map((task) => {
                 const isDragging = draggedTask?.task.id === task.id;
                 const isSelected = selectedTaskId === task.id;
@@ -221,10 +217,9 @@ export function KanbanBoard({
                 return (
                   <article
                     className={cn(
-                      "rounded-[14px] border bg-white/86 p-3 text-left shadow-[0_10px_24px_rgba(107,143,168,.12)] transition-all duration-150",
-                      "border-[var(--color-border)] hover:-translate-y-0.5 hover:border-[var(--color-rain-gray)]",
-                      isDragging && "opacity-60",
-                      isSelected && "border-[var(--color-todo)] bg-[var(--color-bg)]",
+                      styles.taskCard,
+                      isDragging && styles.taskCardDragging,
+                      isSelected && styles.taskCardSelected,
                     )}
                     draggable={!isEditing}
                     key={task.id}
@@ -232,12 +227,12 @@ export function KanbanBoard({
                     onDragEnd={() => setDraggedTask(null)}
                     onDragStart={() => handleDragStart(task, column.id)}
                   >
-                    <div className="mb-2 flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
+                    <div className={styles.cardHeader}>
+                      <div className={styles.taskTitleSlot}>
                         {isEditing ? (
                           <input
                             aria-label="작업명 수정"
-                            className="min-h-9 w-full rounded-xl border border-[var(--color-water-blue)] bg-white px-3 text-[14px] font-[850] text-[var(--color-text)] outline-none focus:border-[var(--color-todo)]"
+                            className={styles.taskTitleInput}
                             onChange={(event) => setEditingTitle(event.target.value)}
                             onClick={stopInteractive}
                             onKeyDown={(event) => {
@@ -248,15 +243,15 @@ export function KanbanBoard({
                             value={editingTitle}
                           />
                         ) : (
-                          <h3 className="break-keep text-[14px] font-[850] leading-[1.38] text-[var(--color-text)]">{task.title}</h3>
+                          <h3 className={styles.taskTitle}>{task.title}</h3>
                         )}
                       </div>
-                      <div className="flex shrink-0 items-center gap-1">
+                      <div className={styles.taskActions}>
                         {isEditing ? (
                           <>
                             <button
                               aria-label="작업명 저장"
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-water-blue)] bg-white/90 text-[var(--color-brand)]"
+                              className={styles.iconButton}
                               onClick={(event) => {
                                 stopInteractive(event);
                                 commitEditing(task.id);
@@ -268,7 +263,7 @@ export function KanbanBoard({
                             </button>
                             <button
                               aria-label="작업명 수정 취소"
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/72 text-[var(--color-faint)]"
+                              className={styles.iconButton}
                               onClick={(event) => {
                                 stopInteractive(event);
                                 cancelEditing();
@@ -283,7 +278,7 @@ export function KanbanBoard({
                           <>
                             <button
                               aria-label="작업명 수정"
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent text-[var(--color-brand)] transition-colors hover:border-[var(--color-water-blue)] hover:bg-[color-mix(in_srgb,var(--color-water-blue)_40%,transparent)]"
+                              className={styles.iconButton}
                               onClick={(event) => {
                                 stopInteractive(event);
                                 startEditing(task);
@@ -296,7 +291,7 @@ export function KanbanBoard({
                             {onTaskDelete ? (
                               <button
                                 aria-label="작업 삭제"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent text-[var(--color-faint)] transition-colors hover:border-[color-mix(in_srgb,var(--color-dust-rose)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-dust-rose)_10%,transparent)] hover:text-[var(--color-dust-rose)]"
+                                className={cn(styles.iconButton, styles.iconButtonDanger)}
                                 disabled={deletingTaskId === task.id}
                                 onClick={(event) => {
                                   stopInteractive(event);
@@ -314,30 +309,25 @@ export function KanbanBoard({
                     </div>
 
                     {task.labels && task.labels.length > 0 ? (
-                      <div className="mb-2 flex flex-wrap gap-1">
+                      <div className={styles.labelList}>
                         {task.labels.slice(0, 2).map((label) => (
-                          <span
-                            className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-[11px] font-[780] leading-none text-[var(--color-brand)]"
-                            key={label}
-                          >
+                          <span className={styles.labelChip} key={label}>
                             {label}
                           </span>
                         ))}
                       </div>
                     ) : null}
 
-                    {task.description ? (
-                      <p className="mb-3 break-keep text-[12px] font-[680] leading-[1.45] text-[var(--color-muted)]">{task.description}</p>
-                    ) : null}
+                    {task.description ? <p className={styles.description}>{task.description}</p> : null}
 
-                    <div className="flex items-center justify-between gap-2 border-t border-[var(--color-border)] pt-2.5">
-                      <label className="relative inline-flex min-w-0 items-center gap-2">
-                        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--color-water-blue)] bg-[color-mix(in_srgb,var(--color-water-blue)_50%,transparent)] text-[11px] font-[850] text-[var(--color-brand)]">
+                    <footer className={styles.cardFooter}>
+                      <label className={styles.assigneeControl}>
+                        <span className={styles.avatar}>
                           {assigneeLabel ? getInitial(assigneeLabel) : <UserRound aria-hidden="true" size={14} strokeWidth={2.1} />}
                         </span>
                         <select
                           aria-label="담당자 선택"
-                          className="max-w-[132px] appearance-none truncate rounded-full border border-[var(--color-border)] bg-white/76 px-3 py-1.5 text-[12px] font-[780] text-[var(--color-muted)] outline-none transition-colors hover:border-[var(--color-rain-gray)] focus:border-[var(--color-todo)]"
+                          className={styles.assigneeSelect}
                           onChange={(event) => onTaskAssigneeChange?.(task.id, event.target.value || null)}
                           onClick={stopInteractive}
                           onPointerDown={stopInteractive}
@@ -346,21 +336,21 @@ export function KanbanBoard({
                           <option value="">미지정</option>
                           {assigneeOptions.map((option) => (
                             <option key={option.id} value={option.id}>
-                              {option.label}
+                              {option.shortLabel ?? option.label}
                             </option>
                           ))}
                         </select>
                       </label>
-                    </div>
+                    </footer>
                   </article>
                 );
               })}
 
               {allowAddTask ? (
                 addingCardTo === column.id ? (
-                  <div className="rounded-[14px] border border-[var(--color-water-blue)] bg-white/82 p-3 shadow-[0_10px_24px_rgba(107,143,168,.1)]">
+                  <div className={styles.addEditor}>
                     <input
-                      className="mb-2 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-[13px] font-[760] text-[var(--color-text)] outline-none placeholder:text-[var(--color-faint)] focus:border-[var(--color-todo)]"
+                      className={styles.addInput}
                       onChange={(event) => setNewCardTitle(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter") handleAddCard(column.id);
@@ -370,17 +360,13 @@ export function KanbanBoard({
                       type="text"
                       value={newCardTitle}
                     />
-                    <div className="flex gap-2">
-                      <button
-                        className="inline-flex min-h-9 items-center justify-center rounded-full bg-[var(--color-todo)] px-3 text-xs font-[850] text-[var(--color-text)]"
-                        onClick={() => handleAddCard(column.id)}
-                        type="button"
-                      >
+                    <div className={styles.addActions}>
+                      <button className={styles.addButton} onClick={() => handleAddCard(column.id)} type="button">
                         추가
                       </button>
                       <button
                         aria-label="카드 추가 취소"
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/72 text-[var(--color-faint)]"
+                        className={styles.cancelButton}
                         onClick={() => {
                           setAddingCardTo(null);
                           setNewCardTitle("");
@@ -392,18 +378,14 @@ export function KanbanBoard({
                     </div>
                   </div>
                 ) : (
-                  <button
-                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] border border-dashed border-[var(--color-rain-gray)] bg-white/42 text-sm font-[780] text-[var(--color-brand)] transition-colors hover:border-[var(--color-todo)] hover:bg-[color-mix(in_srgb,var(--color-water-blue)_30%,transparent)]"
-                    onClick={() => setAddingCardTo(column.id)}
-                    type="button"
-                  >
+                  <button className={styles.addCardButton} onClick={() => setAddingCardTo(column.id)} type="button">
                     <Plus aria-hidden="true" size={15} strokeWidth={2.2} />
                     카드 추가
                   </button>
                 )
               ) : null}
             </div>
-          </div>
+          </section>
         );
       })}
     </div>
