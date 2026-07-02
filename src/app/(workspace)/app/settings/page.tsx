@@ -30,6 +30,7 @@ import {
   watchPersonalManagedFolder,
 } from "@/lib/local/managed-folder-client";
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
+import { refreshTauriActivityRuntime } from "@/lib/tauri/activity-runtime";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
   tauriCommands,
@@ -359,6 +360,9 @@ export default function SettingsPage() {
           ...ready,
           settings: { ...ready.settings, privacy: saved },
         }));
+        if (key === "activityDetectionEnabled") {
+          refreshTauriActivityRuntime();
+        }
       } catch {
         if (shouldUseWorkspacePreviewData()) return;
         setSaveMessage("기기 권한 설정을 저장하지 못했습니다");
