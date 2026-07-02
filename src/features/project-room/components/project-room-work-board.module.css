@@ -10,17 +10,15 @@
 
 .contextBand {
   align-items: center;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(215, 234, 244, 0.78);
+  background: transparent;
+  border: 0;
   border-radius: 999px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 12px 28px -24px rgba(107, 143, 168, 0.45);
+  box-shadow: none;
   color: #2c3540;
   display: inline-flex;
   inline-size: fit-content;
   justify-self: end;
-  padding: 4px;
+  padding: 0;
 }
 
 .generateButton {
@@ -73,13 +71,15 @@
 }
 
 .viewSwitch {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(215, 234, 244, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 12px 28px -24px rgba(107, 143, 168, 0.45);
   display: inline-flex;
   gap: 4px;
-  padding: 0;
-  border: 0;
   border-radius: 999px;
-  background: transparent;
-  box-shadow: none;
+  padding: 4px;
 }
 
 .viewSwitch button {

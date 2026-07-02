@@ -479,7 +479,7 @@ function ProjectRoomWorkBoardContent({
   return (
     <div className={styles.shell}>
       <section className={styles.contextBand} aria-label="작업판 보기 전환">
-        <div className={styles.viewSwitch} aria-label="작업판 보기 전환">
+        <div className={styles.viewSwitch} role="group" aria-label="작업판 보기 전환">
           <button aria-pressed={viewMode === "wbs"} onClick={() => setViewMode("wbs")} type="button">
             <GitBranch size={15} aria-hidden="true" />
             WBS
