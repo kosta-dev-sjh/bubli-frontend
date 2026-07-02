@@ -15,6 +15,9 @@
   --color-accent: var(--sky-light);
   --color-accent-foreground: var(--ink);
   --color-destructive: var(--signal-alert);
+  --color-primary: var(--bubble-blue);
+  --color-primary-foreground: var(--surface);
+  --color-ring: var(--bubble-blue);
   --color-backdrop: var(--bg);
   --color-border: var(--line-strong);
 }
