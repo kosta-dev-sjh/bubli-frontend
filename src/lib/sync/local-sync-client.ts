@@ -14,8 +14,10 @@ export async function getLocalSyncOutboxSummary(): Promise<SyncOutboxSummaryResu
   if (result.status === "ready") {
     const summary: LocalSyncSummary = {
       failedCount: result.data.failedCount,
+      pendingCount: result.data.pendingCount,
       serverTransfer: "not_started",
       summarizedAt: result.data.flushedAt,
+      sentCount: result.data.sentCount,
     };
 
     return pending(
