@@ -13,6 +13,7 @@ import {
   Presentation,
   Search,
   Sheet,
+  Sparkles,
   Trash2,
   UsersRound,
   X,
@@ -22,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { agentApi } from "@/features/agent/api/agentApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
@@ -411,13 +413,17 @@ export function ResourceTile({
 export function ResourcePreview({
   resource,
   scope = "room",
+  roomId,
   onClose,
+  onDeleted,
   onError,
 }: {
   resource: ResourceResponse | null;
   emptyHint?: string;
+  roomId?: string;
   scope?: ResourceBoardScope;
   onClose?: () => void;
+  onDeleted?: () => void;
   onError?: (message: string) => void;
 }) {
   const [detailResource, setDetailResource] = useState<ResourceResponse | null>(resource);
@@ -431,6 +437,16 @@ export function ResourcePreview({
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentBody, setEditingCommentBody] = useState("");
   const [commentError, setCommentError] = useState<string | null>(null);
+  const [deleteState, setDeleteState] = useState<{ kind: "idle" } | { kind: "deleting" } | { kind: "error"; message: string }>({ kind: "idle" });
+  const [analysisState, setAnalysisState] = useState<{ kind: "idle" } | { kind: "running" } | { jobId: string; kind: "started" } | { kind: "error"; message: string }>({
+    kind: "idle",
+  });
+  const [questionState, setQuestionState] = useState<{ kind: "idle" } | { kind: "running" } | { jobId: string; kind: "started" } | { kind: "error"; message: string }>({
+    kind: "idle",
+  });
+  const [draftState, setDraftState] = useState<{ kind: "idle" } | { kind: "running" } | { jobId: string; kind: "started" } | { kind: "error"; message: string }>({
+    kind: "idle",
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -445,6 +461,10 @@ export function ResourcePreview({
         setEditingCommentId(null);
         setEditingCommentBody("");
         setCommentError(null);
+        setDeleteState({ kind: "idle" });
+        setAnalysisState({ kind: "idle" });
+        setQuestionState({ kind: "idle" });
+        setDraftState({ kind: "idle" });
         return;
       }
 
@@ -455,6 +475,10 @@ export function ResourcePreview({
       setDetailLoading(true);
       setDetailError(null);
       setCommentError(null);
+      setDeleteState({ kind: "idle" });
+      setAnalysisState({ kind: "idle" });
+      setQuestionState({ kind: "idle" });
+      setDraftState({ kind: "idle" });
       setEditingCommentId(null);
       setEditingCommentBody("");
 
@@ -512,6 +536,62 @@ export function ResourcePreview({
       onError?.(getErrorMessage(error));
     }
   }, [activeResource, onError]);
+
+  const handleAnalyzeResource = useCallback(async () => {
+    if (!activeResource || analysisState.kind === "running") {
+      return;
+    }
+
+    setAnalysisState({ kind: "running" });
+    setDetailError(null);
+
+    try {
+      const job = await agentApi.analyzeResource({
+        idempotencyKey: crypto.randomUUID(),
+        resourceId: activeResource.id,
+      });
+      setAnalysisState({ jobId: job.jobId, kind: "started" });
+      setDetailResource((current) => (current && current.id === activeResource.id ? { ...current, status: "ANALYZING" } : current));
+    } catch (error) {
+      const message = getErrorMessage(error);
+      setAnalysisState({ kind: "error", message });
+    }
+  }, [activeResource, analysisState.kind]);
+
+  const handleGenerateQuestions = useCallback(async () => {
+    if (!roomId || questionState.kind === "running") {
+      return;
+    }
+
+    setQuestionState({ kind: "running" });
+
+    try {
+      const job = await agentApi.generateQuestions({ roomId });
+      setQuestionState({ jobId: job.jobId, kind: "started" });
+    } catch (error) {
+      setQuestionState({ kind: "error", message: getErrorMessage(error) });
+    }
+  }, [questionState.kind, roomId]);
+
+  const handleDraftDocument = useCallback(async () => {
+    if (!activeResource || !roomId || draftState.kind === "running") {
+      return;
+    }
+
+    setDraftState({ kind: "running" });
+
+    try {
+      const job = await agentApi.draftDocument({
+        documentType: "proposal",
+        instruction: "요구사항 문서를 바탕으로 제안서 초안을 작성해줘",
+        roomId,
+        sourceResourceIds: [activeResource.id],
+      });
+      setDraftState({ jobId: job.jobId, kind: "started" });
+    } catch (error) {
+      setDraftState({ kind: "error", message: getErrorMessage(error) });
+    }
+  }, [activeResource, draftState.kind, roomId]);
 
   const handleCreateComment = useCallback(async () => {
     const body = commentBody.trim();
@@ -581,6 +661,22 @@ export function ResourcePreview({
     }
   }, [editingCommentId]);
 
+  const handleDeleteResource = useCallback(async () => {
+    if (!activeResource || deleteState.kind === "deleting") {
+      return;
+    }
+
+    setDeleteState({ kind: "deleting" });
+
+    try {
+      await resourcesApi.delete(activeResource.id);
+      onDeleted?.();
+      onClose?.();
+    } catch (error) {
+      setDeleteState({ kind: "error", message: getErrorMessage(error) });
+    }
+  }, [activeResource, deleteState.kind, onClose, onDeleted]);
+
   if (!activeResource) {
     return null;
   }
@@ -604,10 +700,50 @@ export function ResourcePreview({
           <span>상세 정보</span>
           <strong>{visibleStatus}</strong>
         </div>
-        <button aria-label="미리보기 닫기" className={styles.closePreview} onClick={onClose} type="button">
-          <X aria-hidden size={16} strokeWidth={2} />
-        </button>
+        <div className={styles.previewTitleActions}>
+          <button
+            aria-label="AI 자료 분석 시작"
+            className={styles.analyzeResourceButton}
+            disabled={analysisState.kind === "running"}
+            onClick={() => void handleAnalyzeResource()}
+            title="AI 자료 분석 시작"
+            type="button"
+          >
+            <Sparkles aria-hidden size={15} strokeWidth={2} />
+            <span>{analysisState.kind === "running" ? "분석 중" : "AI 분석"}</span>
+          </button>
+          <button aria-label="미리보기 닫기" className={styles.closePreview} onClick={onClose} type="button">
+            <X aria-hidden size={16} strokeWidth={2} />
+          </button>
+        </div>
       </div>
+
+      {roomId ? (
+        <div className={styles.previewAiActions} aria-label="자료 AI 생성 액션">
+          <button
+            aria-label="질문 후보 생성"
+            className={styles.analyzeResourceButton}
+            disabled={questionState.kind === "running"}
+            onClick={() => void handleGenerateQuestions()}
+            title="질문 후보 생성"
+            type="button"
+          >
+            <MessageSquareText aria-hidden size={15} strokeWidth={2} />
+            <span>{questionState.kind === "running" ? "질문 생성 중" : "질문 후보"}</span>
+          </button>
+          <button
+            aria-label="문서 초안 생성"
+            className={styles.analyzeResourceButton}
+            disabled={draftState.kind === "running"}
+            onClick={() => void handleDraftDocument()}
+            title="문서 초안 생성"
+            type="button"
+          >
+            <FileText aria-hidden size={15} strokeWidth={2} />
+            <span>{draftState.kind === "running" ? "초안 생성 중" : "문서 초안"}</span>
+          </button>
+        </div>
+      ) : null}
 
       <div className="resource-workspace__preview-window">
         <div className={styles.previewChrome}>
@@ -675,6 +811,15 @@ export function ResourcePreview({
           </section>
 
           {detailError ? <p className={styles.previewError}>{detailError}</p> : null}
+          {analysisState.kind === "started" ? <p className={styles.previewNotice}>AI 분석 작업을 시작했습니다. 작업 ID: {analysisState.jobId.slice(0, 8)}</p> : null}
+          {analysisState.kind === "running" ? <p className={styles.previewNotice}>AI 분석 작업을 요청하는 중입니다.</p> : null}
+          {analysisState.kind === "error" ? <p className={styles.previewError}>{analysisState.message}</p> : null}
+          {questionState.kind === "started" ? <p className={styles.previewNotice}>질문 후보 생성 요청됨. 작업 ID: {questionState.jobId.slice(0, 8)}</p> : null}
+          {questionState.kind === "running" ? <p className={styles.previewNotice}>질문 후보 생성 중입니다.</p> : null}
+          {questionState.kind === "error" ? <p className={styles.previewError}>질문 후보 생성 실패: {questionState.message}</p> : null}
+          {draftState.kind === "started" ? <p className={styles.previewNotice}>문서 초안 생성 요청됨. 작업 ID: {draftState.jobId.slice(0, 8)}</p> : null}
+          {draftState.kind === "running" ? <p className={styles.previewNotice}>문서 초안 생성 중입니다.</p> : null}
+          {draftState.kind === "error" ? <p className={styles.previewError}>문서 초안 생성 실패: {draftState.message}</p> : null}
         </div>
       </div>
 
@@ -797,6 +942,14 @@ export function ResourcePreview({
           )}
         </div>
       </section>
+
+      <div className={styles.resourceDeleteArea}>
+        <button className={styles.resourceDeleteButton} disabled={deleteState.kind === "deleting"} onClick={() => void handleDeleteResource()} type="button">
+          <Trash2 aria-hidden size={15} strokeWidth={2} />
+          {deleteState.kind === "deleting" ? "삭제 중" : "파일 삭제"}
+        </button>
+        {deleteState.kind === "error" ? <p className={styles.previewError}>{deleteState.message}</p> : null}
+      </div>
     </aside>
   );
 }
