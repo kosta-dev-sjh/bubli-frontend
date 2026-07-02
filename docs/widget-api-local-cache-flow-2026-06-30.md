@@ -17,11 +17,6 @@
 
 `src/lib/widget/readWidgetSummary`는 UI가 아니라 데이터 연결 준비용 함수다.
 
-`GET /api/widget/summary`는 Tauri 위젯 초기 표시용 스냅샷으로 사용한다. 위젯이 처음 뜰 때
-컨텍스트, 버블 설정, TODO, 일정, 알림 수, 실행 중 타이머, 에이전트 제안 요약을 먼저 받아
-첫 화면을 구성한다. 이후 항목 상세 조회, 수정, 읽음 처리, 타이머 조작 같은 상호작용은 각
-도메인 API를 사용한다.
-
 1. Tauri 런타임이고 로컬 summary reader가 주입되면 로컬 캐시를 먼저 읽는다.
 2. 로컬 캐시가 비어 있거나 reader가 아직 없으면 `/api/widget/summary`로 fallback한다.
 3. 브라우저와 SSR에서는 로컬 SQLite를 직접 읽지 않는다.
