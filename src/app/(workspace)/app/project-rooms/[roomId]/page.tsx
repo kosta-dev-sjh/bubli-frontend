@@ -151,7 +151,7 @@ export default function ProjectRoomHomePage() {
               <FileText aria-hidden size={18} strokeWidth={1.9} />
               <span>자료</span>
             </Link>
-            <Link href={`/app/desktop/widgets?autoOpen=chat&roomId=${encodeURIComponent(roomId)}`}>
+            <Link href={`/app/chat?mode=room&roomId=${encodeURIComponent(roomId)}`}>
               <MessageCircle aria-hidden size={18} strokeWidth={1.9} />
               <span>소통</span>
             </Link>
