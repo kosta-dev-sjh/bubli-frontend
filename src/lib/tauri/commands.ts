@@ -15,6 +15,7 @@ export const TAURI_COMMANDS = {
   getWidgetWindowState: "get_widget_window_state",
   listAppMonitors: "list_app_monitors",
   markActivityContextSynced: "mark_activity_context_synced",
+  listManagedFolders: "list_managed_folders",
   openWidgetWindow: "open_widget_window",
   readActiveProjectRoom: "read_active_project_room",
   readTauriAuthSession: "read_tauri_auth_session",
@@ -69,6 +70,18 @@ export type ManagedFolderSelection = {
   localFolderId: string;
   name: string;
   path: string;
+};
+
+export type ManagedFolderListItem = ManagedFolderSelection & {
+  createdAt: string;
+  status: "ACTIVE" | "PAUSED" | "REMOVED" | string;
+  syncEnabled: boolean;
+  updatedAt: string;
+};
+
+export type ManagedFolderListResult = {
+  folders: ManagedFolderListItem[];
+  loadedAt: string;
 };
 
 // The native folder picker can be wired through the dialog plugin later; until
@@ -589,6 +602,10 @@ export type TauriCommandContract = {
     args: ActivityContextSyncInput;
     result: ActivityContextSyncResult;
   };
+  list_managed_folders: {
+    args: undefined;
+    result: ManagedFolderListResult;
+  };
   open_widget_window: {
     args: WidgetWindowOpenInput | undefined;
     result: WidgetWindowState;
@@ -800,6 +817,9 @@ export const tauriCommands = {
   },
   markActivityContextSynced(input: ActivityContextSyncInput) {
     return invokeTauri<ActivityContextSyncResult>(TAURI_COMMANDS.markActivityContextSynced, { input });
+  },
+  listManagedFolders() {
+    return invokeTauri<ManagedFolderListResult>(TAURI_COMMANDS.listManagedFolders);
   },
   openWidgetWindow(input?: WidgetWindowOpenInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.openWidgetWindow, input ? { input } : undefined);

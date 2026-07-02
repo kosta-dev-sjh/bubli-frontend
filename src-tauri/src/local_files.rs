@@ -41,6 +41,25 @@ pub struct ManagedFolderSelection {
     path: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderListItem {
+    created_at: String,
+    local_folder_id: String,
+    name: String,
+    path: String,
+    status: String,
+    sync_enabled: bool,
+    updated_at: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderListResult {
+    folders: Vec<ManagedFolderListItem>,
+    loaded_at: String,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ManagedFolderCommandInput {
@@ -286,8 +305,8 @@ pub fn select_managed_folder(
     let now = now_ms();
     conn.execute(
         "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, 'ACTIVE', 0, ?4, ?4) \
-         ON CONFLICT(path) DO UPDATE SET status = 'ACTIVE', updated_at = excluded.updated_at",
+         VALUES (?1, ?2, ?3, 'ACTIVE', 1, ?4, ?4) \
+         ON CONFLICT(path) DO UPDATE SET status = 'ACTIVE', sync_enabled = 1, updated_at = excluded.updated_at",
         params![id, name, path, now],
     )
     .map_err(|error| error.to_string())?;
@@ -305,6 +324,47 @@ pub fn select_managed_folder(
         local_folder_id,
         name,
         path,
+    })
+}
+
+/// Read personal managed folders from the local SQLite registry.
+#[tauri::command]
+pub fn list_managed_folders(state: State<'_, Db>) -> Result<ManagedFolderListResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    list_managed_folders_for_conn(&conn, now_ms())
+}
+
+fn list_managed_folders_for_conn(
+    conn: &Connection,
+    loaded_at: i64,
+) -> Result<ManagedFolderListResult, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT id, name, path, status, sync_enabled, created_at, updated_at \
+             FROM managed_folders \
+             WHERE status != 'REMOVED' \
+             ORDER BY updated_at DESC",
+        )
+        .map_err(|error| error.to_string())?;
+    let folders = statement
+        .query_map([], |row| {
+            Ok(ManagedFolderListItem {
+                local_folder_id: row.get(0)?,
+                name: row.get(1)?,
+                path: row.get(2)?,
+                status: row.get(3)?,
+                sync_enabled: row.get::<_, i64>(4)? != 0,
+                created_at: ms_to_iso(row.get(5)?),
+                updated_at: ms_to_iso(row.get(6)?),
+            })
+        })
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+
+    Ok(ManagedFolderListResult {
+        folders,
+        loaded_at: ms_to_iso(loaded_at),
     })
 }
 
@@ -1927,6 +1987,38 @@ mod tests {
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'CREATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'UPDATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'DELETED'"));
+    }
+
+    #[test]
+    fn lists_managed_folders_for_settings_restore() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-old', 'Old Docs', '/tmp/old-docs', 'ACTIVE', 0, 10, 20), \
+                    ('folder-new', 'New Docs', '/tmp/new-docs', 'ACTIVE', 1, 30, 50), \
+                    ('folder-paused', 'Paused Docs', '/tmp/paused-docs', 'PAUSED', 1, 25, 40), \
+                    ('folder-removed', 'Removed Docs', '/tmp/removed-docs', 'REMOVED', 1, 35, 60)",
+            [],
+        )
+        .expect("insert managed folders");
+
+        let result = list_managed_folders_for_conn(&conn, 70).expect("list managed folders");
+
+        assert_eq!(result.loaded_at, ms_to_iso(70));
+        assert_eq!(
+            result
+                .folders
+                .iter()
+                .map(|folder| folder.local_folder_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["folder-new", "folder-paused", "folder-old"]
+        );
+        assert!(result.folders[0].sync_enabled);
+        assert!(!result.folders[2].sync_enabled);
+        assert!(result
+            .folders
+            .iter()
+            .all(|folder| folder.status != "REMOVED"));
     }
 
     #[test]
