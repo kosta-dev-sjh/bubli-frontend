@@ -4,7 +4,7 @@ import { DndContext, DragOverlay, PointerSensor, closestCenter, useDroppable, us
 import type { CollisionDetection, DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AlertCircle, CheckCircle2, Clock3, LayoutDashboard } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, LayoutDashboard, Play, Square } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -15,8 +15,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { dashboardApi } from "@/features/dashboard/api/dashboardApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
+import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
-import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
@@ -32,7 +32,6 @@ import {
 } from "@/lib/workspace-preview-data";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { ResourceResponse } from "@/types/api/resource";
-import type { WidgetSummaryResponse } from "@/types/api/widget";
 import type { DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
 
 type DashboardState =
@@ -40,6 +39,12 @@ type DashboardState =
   | { kind: "ready"; data: DashboardWorkResponse }
   | { kind: "empty"; data: DashboardWorkResponse }
   | { kind: "auth" }
+  | { kind: "error"; message: string };
+
+type TimerActionState =
+  | { kind: "idle" }
+  | { kind: "pending"; message: string }
+  | { kind: "success"; message: string }
   | { kind: "error"; message: string };
 
 const emptyDashboard: DashboardWorkResponse = {
@@ -138,6 +143,15 @@ function getTimerSeconds(timer: DashboardWorkResponse["runningTimer"]) {
   if (timer.status !== "RUNNING" || Number.isNaN(started)) return null;
 
   return Math.max(0, Math.floor((Date.now() - started) / 1000));
+}
+
+function createTimerIdempotencyKey() {
+  const suffix =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return `dashboard-${suffix}`;
 }
 
 function hasDashboardItems(data: DashboardWorkResponse) {
@@ -259,6 +273,44 @@ function NextFocusWidget({
         {nextTask ? <TaskLine task={nextTask} /> : null}
         {nextSchedule ? <ScheduleLine schedule={nextSchedule} /> : null}
       </DashboardLineList>
+    </div>
+  );
+}
+
+function TimerWidget({
+  action,
+  inProgressTask,
+  onStart,
+  onStop,
+  runningTimer,
+}: {
+  action: TimerActionState;
+  inProgressTask: TaskResponse | null;
+  onStart: () => void;
+  onStop: () => void;
+  runningTimer?: DashboardWorkResponse["runningTimer"];
+}) {
+  const isActive = Boolean(runningTimer && runningTimer.status !== "ENDED");
+  const pending = action.kind === "pending";
+
+  return (
+    <div className="workspace-dashboard__timer-preview">
+      <b>{isActive ? formatDuration(getTimerSeconds(runningTimer)) : "00:00"}</b>
+      <span>{inProgressTask ? `${inProgressTask.title} 기준으로 기록합니다` : isActive ? "타이머 실행 중" : "오늘 작업 시간을 바로 남깁니다"}</span>
+      <div className="workspace-dashboard__timer-actions">
+        <Button
+          icon={isActive ? <Square size={14} strokeWidth={2.2} /> : <Play size={14} strokeWidth={2.2} />}
+          loading={pending}
+          onClick={isActive ? onStop : onStart}
+          size="sm"
+          variant={isActive ? "quiet" : "primary"}
+        >
+          {isActive ? "정지" : "시작"}
+        </Button>
+        {action.kind === "error" ? <small role="status">{action.message}</small> : null}
+        {action.kind === "success" ? <small role="status">{action.message}</small> : null}
+        {action.kind === "pending" ? <small role="status">{action.message}</small> : null}
+      </div>
     </div>
   );
 }
@@ -446,38 +498,80 @@ export function WorkspaceDashboard() {
   const [activeRoom, setActiveRoom] = useState<{ label: string | null; roomId: string | null }>({ label: null, roomId: null });
   const [personalTasks, setPersonalTasks] = useState<TaskResponse[]>([]);
   const [rooms, setRooms] = useState<ProjectRoomResponse[]>([]);
-  const [widgetSummary, setWidgetSummary] = useState<WidgetSummaryResponse | null>(null);
+  const [timerAction, setTimerAction] = useState<TimerActionState>({ kind: "idle" });
   const [widgetIds, setWidgetIds] = useState(() => readStoredWidgetIds());
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const fetchDashboard = useCallback(async () => {
-    try {
-      const data = await dashboardApi.getWork();
-      setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
-      const [roomResult, personalTaskResult, widgetSummaryResult] = await Promise.allSettled([
-        projectRoomApi.list(),
-        todoApi.list(),
-        widgetApi.getSummary(),
-      ]);
+    const [dashboardTaskResult, roomResult, personalTaskResult] = await Promise.allSettled([
+      dashboardApi.getTasks(),
+      projectRoomApi.list(),
+      todoApi.list(),
+    ]);
 
-      setRooms(roomResult.status === "fulfilled" ? roomResult.value.items : []);
-      setPersonalTasks(personalTaskResult.status === "fulfilled" ? personalTaskResult.value.items : []);
-      setWidgetSummary(widgetSummaryResult.status === "fulfilled" ? widgetSummaryResult.value : null);
-    } catch (error) {
-      if (error instanceof ApiClientError && error.status === 401) {
-        setState({ kind: "auth" });
-        return;
-      }
-      if (shouldUseWorkspacePreviewData()) {
-        setState({ data: workspacePreviewDashboard, kind: "ready" });
-        setRooms(workspacePreviewRooms);
-        return;
-      }
-      setState({
-        kind: "error",
-        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "대시보드를 불러오지 못했습니다",
-      });
+    const authFailed = [dashboardTaskResult, roomResult, personalTaskResult].some(
+      (result) => result.status === "rejected" && result.reason instanceof ApiClientError && result.reason.status === 401,
+    );
+
+    if (authFailed) {
+      setState({ kind: "auth" });
+      return;
     }
+
+    setRooms(roomResult.status === "fulfilled" ? roomResult.value.items : []);
+    setPersonalTasks(personalTaskResult.status === "fulfilled" ? personalTaskResult.value.items : []);
+
+    if (dashboardTaskResult.status === "fulfilled") {
+      const tasks = dashboardTaskResult.value.items;
+      const activeTasks = tasks.filter((task) => task.status !== "DONE");
+      setState((current) => {
+        const runningTimer = current.kind === "ready" || current.kind === "empty" ? current.data.runningTimer : null;
+        const data: DashboardWorkResponse = {
+          ...emptyDashboard,
+          runningTimer,
+          todayTasks: activeTasks.slice(0, 4),
+          upcomingDeadlines: activeTasks.filter((task) => task.dueAt).slice(0, 4),
+        };
+
+        return hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" };
+      });
+      return;
+    }
+
+    if (shouldUseWorkspacePreviewData()) {
+      setState({ data: workspacePreviewDashboard, kind: "ready" });
+      setRooms(workspacePreviewRooms);
+      return;
+    }
+
+    setState({
+      kind: "error",
+      message:
+        dashboardTaskResult.reason instanceof Error && dashboardTaskResult.reason.message !== "Failed to fetch"
+          ? dashboardTaskResult.reason.message
+          : "대시보드를 불러오지 못했습니다",
+    });
+  }, []);
+
+  const updateRunningTimer = useCallback((runningTimer: DashboardWorkResponse["runningTimer"]) => {
+    setState((current) => {
+      if (current.kind !== "ready" && current.kind !== "empty") return current;
+
+      const data = { ...current.data, runningTimer };
+      return hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" };
+    });
+  }, []);
+
+  const handleTimerError = useCallback((error: unknown) => {
+    if (error instanceof ApiClientError && error.status === 401) {
+      setState({ kind: "auth" });
+      return;
+    }
+
+    setTimerAction({
+      kind: "error",
+      message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "타이머를 서버에 기록하지 못했습니다",
+    });
   }, []);
 
   useEffect(() => {
@@ -535,7 +629,8 @@ export function WorkspaceDashboard() {
   const nextFocusSchedule = pickNextSchedule(todaySchedules);
   const canShowDashboardGrid = state.kind === "ready" || state.kind === "empty";
   const inProgressTask = dashboardTasks.find((task) => task.status === "IN_PROGRESS") ?? null;
-  const enabledBubbleCount = widgetSummary ? widgetSummary.bubbles.filter((bubble) => bubble.enabled).length : null;
+  const timerStartRoomId = activeRoom.roomId ?? inProgressTask?.roomId ?? null;
+  const enabledBubbleCount = null;
   const recentResources = useMemo(() => {
     if (!shouldUseWorkspacePreviewData()) return [];
     const resources = activeRoom.roomId
@@ -651,6 +746,43 @@ export function WorkspaceDashboard() {
     setActiveBoardWidgetId(null);
   }, []);
 
+  const handleStartTimer = useCallback(() => {
+    void (async () => {
+      setTimerAction({ kind: "pending", message: "타이머 시작 중" });
+
+      try {
+        const roomId = timerStartRoomId;
+        const runningTimer = await timerApi.start({
+          idempotencyKey: createTimerIdempotencyKey(),
+          roomId,
+          timerType: roomId ? "WORK" : "GENERAL",
+        });
+
+        updateRunningTimer(runningTimer);
+        setTimerAction({ kind: "success", message: "타이머가 시작됐습니다" });
+      } catch (error) {
+        handleTimerError(error);
+      }
+    })();
+  }, [handleTimerError, timerStartRoomId, updateRunningTimer]);
+
+  const handleStopTimer = useCallback(() => {
+    void (async () => {
+      const runningTimer = data.runningTimer;
+      if (!runningTimer) return;
+
+      setTimerAction({ kind: "pending", message: "타이머 정지 중" });
+
+      try {
+        await timerApi.stop(runningTimer.id);
+        updateRunningTimer(null);
+        setTimerAction({ kind: "success", message: "타이머 기록을 저장했습니다" });
+      } catch (error) {
+        handleTimerError(error);
+      }
+    })();
+  }, [data.runningTimer, handleTimerError, updateRunningTimer]);
+
   const renderWidgetBody = useCallback(
     (widgetId: string) => {
       switch (widgetId) {
@@ -697,12 +829,14 @@ export function WorkspaceDashboard() {
             </DashboardLineList>
           );
         case "timer":
-          if (!data.runningTimer && !inProgressTask) return <EmptyWidget />;
           return (
-            <div className="workspace-dashboard__timer-preview">
-              <b>{formatDuration(getTimerSeconds(data.runningTimer))}</b>
-              <span>{inProgressTask ? `${inProgressTask.title} 진행 중` : "타이머 실행 중"}</span>
-            </div>
+            <TimerWidget
+              action={timerAction}
+              inProgressTask={inProgressTask}
+              onStart={handleStartTimer}
+              onStop={handleStopTimer}
+              runningTimer={data.runningTimer}
+            />
           );
         case "recent-resources":
           if (recentResources.length === 0) return <EmptyWidget />;
@@ -717,7 +851,22 @@ export function WorkspaceDashboard() {
           return null;
       }
     },
-    [activeRooms, dashboardTasks, data, enabledBubbleCount, inProgressTask, nextFocusSchedule, nextFocusTask, recentResources, reviewTasks, taskItems, todaySchedules],
+    [
+      activeRooms,
+      dashboardTasks,
+      data,
+      enabledBubbleCount,
+      handleStartTimer,
+      handleStopTimer,
+      inProgressTask,
+      nextFocusSchedule,
+      nextFocusTask,
+      recentResources,
+      reviewTasks,
+      taskItems,
+      timerAction,
+      todaySchedules,
+    ],
   );
 
   return (

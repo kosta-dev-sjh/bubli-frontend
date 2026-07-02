@@ -7,6 +7,7 @@
 //! /api/local-file-events/sync); this module stages the candidates locally.
 
 use std::collections::{HashMap, HashSet};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
@@ -21,6 +22,7 @@ use uuid::Uuid;
 use crate::local_db::{ms_to_iso, now_ms, Db};
 
 const MAX_EXTRACT_BYTES: u64 = 1024 * 1024;
+const DEFAULT_READ_PREVIEW_BYTES: u64 = 128 * 1024;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -78,6 +80,28 @@ pub struct LocalFileSearchItem {
 #[serde(rename_all = "camelCase")]
 pub struct LocalFileSearchResult {
     items: Vec<LocalFileSearchItem>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileReadInput {
+    local_file_id: String,
+    max_bytes: Option<u64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileReadResult {
+    content: Option<String>,
+    local_file_id: String,
+    modified_at: Option<String>,
+    name: String,
+    path: String,
+    readable: bool,
+    reason: Option<String>,
+    size_bytes: Option<i64>,
+    truncated: bool,
+    updated_at: String,
 }
 
 #[derive(Serialize)]
@@ -737,6 +761,40 @@ fn is_supported_text_file(path: &Path) -> bool {
     )
 }
 
+fn ensure_path_is_inside_folder(path: &Path, folder: &Path) -> Result<(), String> {
+    if path.starts_with(folder) {
+        return Ok(());
+    }
+
+    let canonical_folder = folder
+        .canonicalize()
+        .map_err(|error| format!("managed folder path is not accessible: {error}"))?;
+    if let Ok(canonical_path) = path.canonicalize() {
+        if canonical_path.starts_with(&canonical_folder) {
+            return Ok(());
+        }
+    }
+
+    Err("local file path is outside the managed folder".to_string())
+}
+
+fn read_text_preview(path: &Path, max_bytes: u64) -> Result<(String, bool), String> {
+    let file = std::fs::File::open(path).map_err(|error| format!("file read failed: {error}"))?;
+    let mut limited = file.take(max_bytes.saturating_add(1));
+    let mut bytes = Vec::new();
+    limited
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("file read failed: {error}"))?;
+
+    let truncated = bytes.len() as u64 > max_bytes;
+    if truncated {
+        bytes.truncate(max_bytes as usize);
+    }
+
+    let text = String::from_utf8_lossy(&bytes).replace('\0', " ");
+    Ok((text, truncated))
+}
+
 fn search_local_files_fts(
     conn: &Connection,
     query: &str,
@@ -833,6 +891,137 @@ pub fn search_local_files(
     Ok(LocalFileSearchResult { items })
 }
 
+/// Read a text preview from a personal managed-folder file. This never uploads
+/// raw content; it only returns content to the local WebView caller.
+#[tauri::command]
+pub fn read_local_file(
+    state: State<'_, Db>,
+    input: LocalFileReadInput,
+) -> Result<LocalFileReadResult, String> {
+    let max_bytes = input
+        .max_bytes
+        .unwrap_or(DEFAULT_READ_PREVIEW_BYTES)
+        .clamp(1, MAX_EXTRACT_BYTES);
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+
+    let row: Option<(String, String, String, Option<i64>, Option<i64>, String)> = conn
+        .query_row(
+            "SELECT f.local_folder_id, f.file_name, f.local_path, f.size_bytes, f.modified_at, m.path \
+             FROM local_files f \
+             JOIN managed_folders m ON m.id = f.local_folder_id \
+             WHERE f.id = ?1 AND m.status = 'ACTIVE'",
+            params![&input.local_file_id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+
+    let Some((
+        local_folder_id,
+        file_name,
+        local_path,
+        previous_size,
+        previous_modified,
+        folder_path,
+    )) = row
+    else {
+        return Err(format!("local file not found: {}", input.local_file_id));
+    };
+
+    let file_path = PathBuf::from(&local_path);
+    ensure_path_is_inside_folder(&file_path, Path::new(&folder_path))?;
+
+    let now = now_ms();
+    let metadata = match std::fs::metadata(&file_path) {
+        Ok(value) if value.is_file() => value,
+        _ => {
+            record_watch_path_delete(&conn, &local_folder_id, &file_name, &local_path, now)?;
+            return Ok(LocalFileReadResult {
+                content: None,
+                local_file_id: input.local_file_id,
+                modified_at: previous_modified.map(ms_to_iso),
+                name: file_name,
+                path: local_path,
+                readable: false,
+                reason: Some("missing_or_not_file".to_string()),
+                size_bytes: previous_size,
+                truncated: false,
+                updated_at: ms_to_iso(now),
+            });
+        }
+    };
+
+    let size_bytes = metadata.len() as i64;
+    let modified_ms = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as i64);
+
+    if previous_size != Some(size_bytes) || previous_modified != modified_ms {
+        conn.execute(
+            "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, sync_status = 'LOCAL_ONLY', updated_at = ?4 \
+             WHERE id = ?1",
+            params![&input.local_file_id, size_bytes, modified_ms, now],
+        )
+        .map_err(|error| error.to_string())?;
+        upsert_file_fts_index(
+            &conn,
+            &input.local_file_id,
+            &file_name,
+            &local_path,
+            &file_path,
+        )?;
+        record_event(
+            &conn,
+            &local_folder_id,
+            Some(input.local_file_id.as_str()),
+            "UPDATED",
+            &file_name,
+            &local_path,
+            size_bytes,
+            modified_ms,
+            now,
+        )?;
+    }
+
+    let (content, readable, reason, truncated) = if !is_supported_text_file(&file_path) {
+        (
+            None,
+            false,
+            Some("unsupported_file_type".to_string()),
+            false,
+        )
+    } else {
+        match read_text_preview(&file_path, max_bytes) {
+            Ok((text, truncated)) => (Some(text), true, None, truncated),
+            Err(error) => (None, false, Some(error), false),
+        }
+    };
+
+    Ok(LocalFileReadResult {
+        content,
+        local_file_id: input.local_file_id,
+        modified_at: modified_ms.map(ms_to_iso),
+        name: file_name,
+        path: local_path,
+        readable,
+        reason,
+        size_bytes: Some(size_bytes),
+        truncated,
+        updated_at: ms_to_iso(now),
+    })
+}
+
 /// Report the sync outbox backlog. Actual transmission is done by the frontend
 /// API client (auth tokens live there); this returns current counts so the UI
 /// can show whether anything is waiting.
@@ -877,7 +1066,7 @@ pub fn stage_local_file_events_for_sync(
                  FROM local_file_events e \
                  LEFT JOIN local_files f ON f.id = e.local_file_id \
                  WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
-                   AND e.event_type IN ('CREATED', 'DELETED') \
+                   AND e.event_type IN ('CREATED', 'UPDATED', 'DELETED') \
                    AND e.local_folder_id = ?1 \
                  ORDER BY e.created_at ASC LIMIT ?2",
                 true,
@@ -887,7 +1076,7 @@ pub fn stage_local_file_events_for_sync(
                  FROM local_file_events e \
                  LEFT JOIN local_files f ON f.id = e.local_file_id \
                  WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
-                   AND e.event_type IN ('CREATED', 'DELETED') \
+                   AND e.event_type IN ('CREATED', 'UPDATED', 'DELETED') \
                  ORDER BY e.created_at ASC LIMIT ?1",
                 false,
             ),
@@ -1157,6 +1346,22 @@ mod tests {
             .as_deref()
             .unwrap_or("")
             .contains("[renewal]"));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn read_text_preview_limits_bytes() {
+        let path = std::env::temp_dir().join(format!(
+            "bubli-local-read-preview-test-{}.txt",
+            Uuid::new_v4()
+        ));
+        std::fs::write(&path, "abcdef").expect("write temp text file");
+
+        let (content, truncated) = read_text_preview(&path, 3).expect("read text preview");
+
+        assert_eq!(content, "abc");
+        assert!(truncated);
 
         let _ = std::fs::remove_file(path);
     }

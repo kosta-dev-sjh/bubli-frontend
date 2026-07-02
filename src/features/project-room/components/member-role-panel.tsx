@@ -15,13 +15,13 @@ type MemberItem = {
 
 const members: MemberItem[] = [
   {
-    name: "정현",
+    name: "나",
     role: "leader",
     status: "프로젝트 리더",
     visibleScope: "설정, 초대, 역할 변경 가능",
   },
   {
-    name: "미연",
+    name: "검토 멤버",
     role: "member",
     status: "멤버",
     visibleScope: "자료, WBS, TODO, 일정 확인 가능",
