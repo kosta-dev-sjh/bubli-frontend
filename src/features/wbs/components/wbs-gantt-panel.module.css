@@ -104,6 +104,25 @@
   transform: translateY(-1px);
 }
 
+.selectedRow {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--gantt-row-accent) 26%, rgba(255, 255, 255, 0.92)) 0%,
+      rgba(215, 234, 244, 0.72) 48%,
+      rgba(255, 255, 255, 0.9) 100%
+    ) !important;
+  box-shadow:
+    inset 4px 0 0 var(--gantt-row-accent),
+    inset 0 0 0 1px rgba(107, 143, 168, 0.28),
+    0 10px 22px -20px rgba(44, 53, 64, 0.36);
+  color: #2C3540;
+}
+
+.selectedRow :global(.text-muted-foreground) {
+  color: #6B8FA8;
+}
+
 .ganttSurface {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 250, 0.88)),
@@ -123,6 +142,8 @@
 .ganttSurface :global([data-roadmap-ui="gantt-sidebar"]) {
   background: rgba(255, 255, 255, 0.92);
   border-color: rgba(229, 231, 235, 0.9);
+  left: 0;
+  position: sticky;
 }
 
 .ganttSurface :global(.bg-secondary) {

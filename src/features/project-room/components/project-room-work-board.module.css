@@ -48,13 +48,22 @@
   opacity: 0.68;
 }
 
+.paneActions {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  min-inline-size: 0;
+}
+
 .generateNotice,
 .generateError {
   border-radius: 12px;
   font-size: 12px;
   font-weight: 650;
   line-height: 1.45;
-  margin: 0;
+  margin: -4px 0 12px;
   padding: 9px 11px;
 }
 
@@ -933,6 +942,12 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.wbsDateGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .wbsFormGrid label {
   color: #5a6772;
   display: grid;
@@ -943,6 +958,7 @@
 }
 
 .wbsFormGrid input,
+.wbsDateGrid input,
 .taskCreate input {
   appearance: none;
   background: rgba(255, 255, 255, 0.86);
@@ -960,11 +976,13 @@
 }
 
 .wbsFormGrid input::placeholder,
+.wbsDateGrid input::placeholder,
 .taskCreate input::placeholder {
   color: #8a94a0;
 }
 
 .wbsFormGrid input:focus-visible,
+.wbsDateGrid input:focus-visible,
 .taskCreate input:focus-visible {
   border-color: rgba(107, 143, 168, 0.62);
   box-shadow: 0 0 0 4px rgba(215, 234, 244, 0.58);
@@ -978,8 +996,7 @@
   justify-content: flex-end;
 }
 
-.primaryAction,
-.dangerAction {
+.primaryAction {
   appearance: none;
   border-radius: 999px;
   cursor: pointer;
@@ -997,23 +1014,9 @@
   color: #2c3540;
 }
 
-.dangerAction {
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(232, 152, 152, 0.52);
-  color: #C56B85;
-}
-
-.primaryAction:hover,
-.dangerAction:hover:not(:disabled) {
+.primaryAction:hover {
   box-shadow: 0 12px 24px rgba(107, 143, 168, 0.12);
   transform: translateY(-1px);
-}
-
-.dangerAction:disabled {
-  border-color: rgba(229, 231, 235, 0.9);
-  color: #8a94a0;
-  cursor: not-allowed;
-  opacity: 0.68;
 }
 
 .sectionLabel {
@@ -1314,10 +1317,75 @@
 .suggestionTray {
   display: grid;
   gap: 12px;
+  margin-block: 0 14px;
+  padding: 12px;
 }
 
 .suggestionTray .suggestionList {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.candidateTrayHead {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-inline-size: 0;
+}
+
+.candidateTrayHead strong {
+  color: #2c3540;
+  font-size: 13px;
+  font-weight: 860;
+  line-height: 1.3;
+}
+
+.candidateActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  grid-column: 2;
+}
+
+.candidateActions button {
+  align-items: center;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  border-radius: 999px;
+  color: #5a6772;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 850;
+  gap: 4px;
+  min-block-size: 28px;
+  padding: 0 9px;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.candidateActions button:hover:not(:disabled) {
+  background: rgba(215, 234, 244, 0.58);
+  border-color: rgba(107, 143, 168, 0.34);
+  color: #2c3540;
+  transform: translateY(-1px);
+}
+
+.candidateActions button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.candidateEmpty {
+  border: 1px dashed rgba(205, 216, 223, 0.8);
+  border-radius: 12px;
+  color: #8a94a0;
+  font-size: 12px;
+  margin: 0;
+  padding: 10px;
+  text-align: center;
 }
 
 .trashZone {
@@ -1440,7 +1508,6 @@
   .card,
   .trashZone,
   .primaryAction,
-  .dangerAction,
   .viewSwitch button,
   .wbsFormGrid input {
     transition: none;
@@ -1452,7 +1519,6 @@
   .cardSelected,
   .trashZoneActive,
   .primaryAction:hover,
-  .dangerAction:hover:not(:disabled),
   .viewSwitch button[aria-pressed="true"] {
     transform: none;
   }

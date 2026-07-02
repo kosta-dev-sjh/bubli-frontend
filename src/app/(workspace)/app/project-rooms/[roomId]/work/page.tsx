@@ -133,7 +133,7 @@ export default function ProjectRoomWorkPage() {
       ) : null}
 
       {state.kind === "ready" && content ? (
-        <ProjectRoomWorkBoard board={content.board} members={content.members} roomId={roomId} />
+        <ProjectRoomWorkBoard board={content.board} members={content.members} onBoardReload={load} roomId={roomId} />
       ) : null}
     </section>
   );

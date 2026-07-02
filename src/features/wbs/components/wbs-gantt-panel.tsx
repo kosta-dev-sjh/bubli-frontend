@@ -1,7 +1,7 @@
 "use client";
 
 import { addDays, endOfDay, startOfDay } from "date-fns";
-import { CalendarDays, CalendarRange, Eraser, FolderPlus, PencilIcon, Plus, TrashIcon } from "lucide-react";
+import { CalendarDays, CalendarRange, ChevronRight, FolderPlus, PencilIcon, Plus, TrashIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -41,7 +41,15 @@ const wbsGanttStatuses: Record<WbsStatus, GanttStatus> = {
 const DEFAULT_BAR_DAYS = 6;
 const LOCAL_ID_PREFIX = "local-wbs-";
 
-type LocalRange = { startAt: Date; endAt: Date };
+export type WbsGanttRange = { startAt: Date; endAt: Date };
+export type WbsGanttRangeEditRequest = {
+  endAt: Date;
+  id: string;
+  requestId: number;
+  startAt: Date;
+};
+
+type LocalRange = WbsGanttRange;
 
 function scheduleRangeQuery() {
   const now = new Date();
@@ -74,9 +82,11 @@ function normalizeRange(startAt: Date, endAt: Date | null): LocalRange {
 export function WbsGanttPanel({
   onNotice,
   onOpenSettings,
+  onRangesResolved,
   onSelectItem,
   onWbsCreated,
   onWbsDeleted,
+  rangeEditRequest,
   roomId,
   selectedWbsId,
   wbsAccentById,
@@ -84,9 +94,11 @@ export function WbsGanttPanel({
 }: {
   onNotice: (message: string) => void;
   onOpenSettings: (id: string) => void;
+  onRangesResolved?: (ranges: Record<string, WbsGanttRange>) => void;
   onSelectItem: (id: string) => void;
   onWbsCreated: (item: WbsItemResponse, temporaryId?: string) => void;
   onWbsDeleted: (id: string) => void;
+  rangeEditRequest?: WbsGanttRangeEditRequest | null;
   roomId: string;
   selectedWbsId: string | null;
   wbsAccentById?: Record<string, string>;
@@ -95,6 +107,8 @@ export function WbsGanttPanel({
   const [range, setRange] = useState<Range>("monthly");
   const [schedules, setSchedules] = useState<ScheduleResponse[]>([]);
   const [localRanges, setLocalRanges] = useState<Record<string, LocalRange>>({});
+  const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(() => new Set());
+  const handledRangeRequestId = useRef<number | null>(null);
   const localIdCounter = useRef(0);
 
   useEffect(() => {
@@ -131,17 +145,21 @@ export function WbsGanttPanel({
 
   const itemById = useMemo(() => new Map(wbsItems.map((item) => [item.id, item])), [wbsItems]);
 
-  const orderedGroups = useMemo(() => {
-    const childrenByParent = wbsItems.reduce<Record<string, WbsItemResponse[]>>((acc, item) => {
+  const childrenByParent = useMemo(() => {
+    const groups = wbsItems.reduce<Record<string, WbsItemResponse[]>>((acc, item) => {
       const key = item.parentId && itemById.has(item.parentId) ? item.parentId : "__root__";
       acc[key] = [...(acc[key] ?? []), item];
       return acc;
     }, {});
 
-    Object.values(childrenByParent).forEach((items) => {
+    Object.values(groups).forEach((items) => {
       items.sort((a, b) => a.orderNo - b.orderNo || a.createdAt.localeCompare(b.createdAt));
     });
 
+    return groups;
+  }, [itemById, wbsItems]);
+
+  const orderedGroups = useMemo(() => {
     const collect = (id: string): WbsItemResponse[] =>
       (childrenByParent[id] ?? []).flatMap((child) => [child, ...collect(child.id)]);
 
@@ -149,7 +167,28 @@ export function WbsGanttPanel({
       items: [root, ...collect(root.id)],
       root,
     }));
-  }, [itemById, wbsItems]);
+  }, [childrenByParent]);
+
+  const visibleItems = useMemo(() => {
+    const collectVisible = (item: WbsItemResponse): WbsItemResponse[] => {
+      if (collapsedWbsIds.has(item.id)) {
+        return [item];
+      }
+
+      return [item, ...(childrenByParent[item.id] ?? []).flatMap(collectVisible)];
+    };
+
+    return (childrenByParent.__root__ ?? []).flatMap(collectVisible);
+  }, [childrenByParent, collapsedWbsIds]);
+
+  const childCountById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of wbsItems) {
+      if (!item.parentId) continue;
+      map.set(item.parentId, (map.get(item.parentId) ?? 0) + 1);
+    }
+    return map;
+  }, [wbsItems]);
 
   const resolveAccent = useCallback((item: WbsItemResponse) => {
     if (wbsAccentById?.[item.id]) return wbsAccentById[item.id];
@@ -177,17 +216,65 @@ export function WbsGanttPanel({
     return map;
   }, [localRanges, resolveAccent, scheduleByWbsId, wbsItems]);
 
-  const orderedItems = useMemo(() => orderedGroups.flatMap((group) => group.items), [orderedGroups]);
-  const timelineRows = useMemo(() => orderedItems.map((item) => ({ item })), [orderedItems]);
+  useEffect(() => {
+    if (!onRangesResolved) return;
+
+    onRangesResolved(
+      Object.fromEntries(
+        Array.from(featureById.values()).map((feature) => [
+          feature.id,
+          {
+            endAt: feature.endAt ?? endOfDay(addDays(feature.startAt, DEFAULT_BAR_DAYS)),
+            startAt: feature.startAt,
+          },
+        ]),
+      ),
+    );
+  }, [featureById, onRangesResolved]);
 
   const openItemSettings = (item: WbsItemResponse) => {
     onSelectItem(item.id);
     onOpenSettings(item.id);
   };
 
+  const focusItemOnTimeline = (item: WbsItemResponse) => {
+    onSelectItem(item.id);
+    requestAnimationFrame(() => {
+      const escapedId =
+        typeof CSS !== "undefined" && CSS.escape ? CSS.escape(item.id) : item.id.replace(/["\\]/g, "\\$&");
+      const element = document.querySelector<HTMLElement>(`[data-gantt-feature-id="${escapedId}"]`);
+      const scroller = element?.closest<HTMLElement>('[data-roadmap-ui="gantt-root"]');
+      if (!element || !scroller) return;
+
+      const elementRect = element.getBoundingClientRect();
+      const scrollerRect = scroller.getBoundingClientRect();
+      const sidebarWidth =
+        Number.parseFloat(getComputedStyle(scroller).getPropertyValue("--gantt-sidebar-width")) || 0;
+      const viewportCenter = scrollerRect.left + sidebarWidth + (scroller.clientWidth - sidebarWidth) / 2;
+      const elementCenter = elementRect.left + elementRect.width / 2;
+
+      scroller.scrollTo({
+        behavior: "smooth",
+        left: Math.max(0, scroller.scrollLeft + elementCenter - viewportCenter),
+      });
+    });
+  };
+
+  const toggleCollapsed = (itemId: string) => {
+    setCollapsedWbsIds((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
   const getParentIdForChild = (item: WbsItemResponse) => item.parentId ?? item.id;
 
-  const persistRange = (item: WbsItemResponse, nextRange: LocalRange) => {
+  const persistRange = useCallback((item: WbsItemResponse, nextRange: LocalRange) => {
     const schedule = scheduleByWbsId.get(item.id);
     const body = {
       allDay: true,
@@ -219,13 +306,25 @@ export function WbsGanttPanel({
         onNotice("기간 반영됨");
       })
       .catch(() => onNotice(shouldUseWorkspacePreviewData() ? "기간 반영됨" : "기간 반영 대기"));
-  };
+  }, [onNotice, roomId, scheduleByWbsId]);
 
-  const applyRange = (item: WbsItemResponse, startAt: Date, endAt: Date | null) => {
+  const applyRange = useCallback((item: WbsItemResponse, startAt: Date, endAt: Date | null) => {
     const nextRange = normalizeRange(startAt, endAt);
     setLocalRanges((current) => ({ ...current, [item.id]: nextRange }));
     persistRange(item, nextRange);
-  };
+  }, [persistRange]);
+
+  useEffect(() => {
+    if (!rangeEditRequest || handledRangeRequestId.current === rangeEditRequest.requestId) return;
+
+    const item = itemById.get(rangeEditRequest.id);
+    if (!item) return;
+
+    handledRangeRequestId.current = rangeEditRequest.requestId;
+    queueMicrotask(() => {
+      applyRange(item, rangeEditRequest.startAt, rangeEditRequest.endAt);
+    });
+  }, [applyRange, itemById, rangeEditRequest]);
 
   const handleMoveFeature = (id: string, startAt: Date, endAt: Date | null) => {
     const item = itemById.get(id);
@@ -280,11 +379,10 @@ export function WbsGanttPanel({
 
   const handleAddGroup = () => createItem(null, new Date());
 
-  const getParentIdForNewTask = (rowIndex?: number) => {
+  const getParentIdForNewTask = () => {
     if (orderedGroups.length === 0) return null;
 
-    const row = typeof rowIndex === "number" ? timelineRows[rowIndex] : null;
-    const item = row?.item ?? (selectedWbsId ? itemById.get(selectedWbsId) : null);
+    const item = selectedWbsId ? itemById.get(selectedWbsId) : null;
 
     if (!item) return orderedGroups[0]?.root.id ?? null;
     return getParentIdForChild(item);
@@ -302,72 +400,54 @@ export function WbsGanttPanel({
     createItem(parentId, feature?.startAt ?? new Date());
   };
 
-  // 타임라인 빈 줄 호버 + 버튼: 클릭한 날짜와 같은 상위 작업 아래에 작업을 추가한다.
-  const handleAddItemAtDate = (date: Date, rowIndex?: number) => {
-    const parentId = getParentIdForNewTask(rowIndex);
-    createItem(parentId, date);
-  };
-
-  const handleClearSchedule = (item: WbsItemResponse) => {
-    const schedule = scheduleByWbsId.get(item.id);
-
-    setLocalRanges((current) => {
-      const next = { ...current };
-      delete next[item.id];
-      return next;
-    });
-
-    if (!schedule) return;
-
-    setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
-    onNotice("기간 초기화 중");
-
-    void calendarApi
-      .deleteEvent(schedule.id)
-      .then(() => onNotice("기간 초기화됨"))
-      .catch(() => {
-        if (shouldUseWorkspacePreviewData()) {
-          onNotice("기간 초기화됨 (로컬)");
-          return;
-        }
-        setSchedules((current) => [...current, schedule]);
-        onNotice("기간 반영 대기");
-      });
-  };
-
-  const handleDeleteItem = (item: WbsItemResponse) => {
+  const handleDeleteItem = async (item: WbsItemResponse) => {
     if (wbsItems.some((entry) => entry.parentId === item.id)) {
       onNotice("하위 작업이 남아 있습니다 — 작업을 먼저 삭제하세요");
       return;
     }
 
     const schedule = scheduleByWbsId.get(item.id);
-    onWbsDeleted(item.id);
     onNotice("삭제 중");
 
-    if (schedule) {
-      setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
-      void calendarApi.deleteEvent(schedule.id).catch(() => {
-        // 일정 삭제 실패는 무시한다. WBS 삭제 결과를 우선한다.
-      });
-    }
-
     if (item.id.startsWith(LOCAL_ID_PREFIX)) {
+      setLocalRanges((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      if (schedule) {
+        setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
+      }
+      onWbsDeleted(item.id);
       onNotice("삭제됨");
       return;
     }
 
-    void wbsApi
-      .deleteItem(item.id)
-      .then(() => onNotice("삭제됨"))
-      .catch(() => {
-        if (shouldUseWorkspacePreviewData()) {
-          onNotice("삭제됨 (로컬)");
-          return;
-        }
-        onWbsCreated(item);
-        onNotice("삭제 실패 — 항목을 되돌렸습니다");
+    try {
+      if (schedule) {
+        await calendarApi.deleteEvent(schedule.id);
+        setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
+      }
+
+      await wbsApi.deleteItem(item.id);
+      setLocalRanges((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
       });
+      onWbsDeleted(item.id);
+      onNotice("삭제됨");
+    } catch {
+      if (shouldUseWorkspacePreviewData()) {
+        if (schedule) {
+          setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
+        }
+        onWbsDeleted(item.id);
+        onNotice("삭제됨 (로컬)");
+        return;
+      }
+      onNotice("삭제 실패 — 일정과 WBS가 서버에 남아 있습니다");
+    }
   };
 
   return (
@@ -398,36 +478,59 @@ export function WbsGanttPanel({
         </button>
         <button
           className={styles.toolButton}
-          disabled={orderedGroups.length === 0}
+          disabled={orderedGroups.length === 0 || !selectedWbsId}
           onClick={handleAddTask}
-          title={orderedGroups.length === 0 ? "먼저 상위 작업을 추가하세요" : "선택한 상위 작업 아래에 하위 작업을 추가합니다"}
+          title={
+            orderedGroups.length === 0
+              ? "먼저 상위 작업을 추가하세요"
+              : selectedWbsId
+                ? "선택한 줄 아래에 하위 작업을 추가합니다"
+                : "왼쪽 목록에서 작업 줄을 선택하세요"
+          }
           type="button"
         >
           <Plus aria-hidden="true" size={13} strokeWidth={2.1} />
-          하위 작업 추가
+          선택 줄 하위 추가
         </button>
       </div>
 
-      <GanttProvider
-        className={styles.ganttSurface}
-        onAddItem={handleAddItemAtDate}
-        range={range}
-        zoom={100}
-      >
+      <GanttProvider className={styles.ganttSurface} range={range} zoom={100}>
         <GanttSidebar>
           <GanttSidebarGroup name="">
-            {orderedItems.map((item) => {
+            {visibleItems.map((item) => {
               const feature = featureById.get(item.id);
               if (!feature) return null;
               const parentItem = item.parentId ? itemById.get(item.parentId) : null;
               const parentIdForChild = getParentIdForChild(item);
               const parentTitle = itemById.get(parentIdForChild)?.title ?? item.title;
               const accent = resolveAccent(item);
+              const childCount = childCountById.get(item.id) ?? 0;
+              const isCollapsed = collapsedWbsIds.has(item.id);
               return (
                 <GanttSidebarItem
                   accentColor={accent}
                   actions={
                     <>
+                      {childCount > 0 ? (
+                        <button
+                          aria-expanded={!isCollapsed}
+                          aria-label={`${item.title} 하위 작업 ${isCollapsed ? "펼치기" : "접기"}`}
+                          className={styles.rowActionButton}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleCollapsed(item.id);
+                          }}
+                          title={isCollapsed ? "하위 작업 펼치기" : "하위 작업 접기"}
+                          type="button"
+                        >
+                          <ChevronRight
+                            aria-hidden="true"
+                            size={13}
+                            strokeWidth={2.2}
+                            style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)" }}
+                          />
+                        </button>
+                      ) : null}
                       <button
                         aria-label={`${parentTitle} 아래 하위 작업 추가`}
                         className={styles.rowActionButton}
@@ -452,22 +555,11 @@ export function WbsGanttPanel({
                         <PencilIcon aria-hidden="true" size={13} strokeWidth={2.2} />
                       </button>
                       <button
-                        aria-label={`${item.title} 기간 초기화`}
-                        className={styles.rowActionButton}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleClearSchedule(item);
-                        }}
-                        type="button"
-                      >
-                        <Eraser aria-hidden="true" size={13} strokeWidth={2.2} />
-                      </button>
-                      <button
                         aria-label={`${item.title} 삭제`}
                         className={styles.rowActionButton}
                         onClick={(event) => {
                           event.stopPropagation();
-                          handleDeleteItem(item);
+                          void handleDeleteItem(item);
                         }}
                         type="button"
                       >
@@ -475,12 +567,12 @@ export function WbsGanttPanel({
                       </button>
                     </>
                   }
-                  className={selectedWbsId === item.id ? "bg-secondary" : undefined}
+                  className={selectedWbsId === item.id ? styles.selectedRow : undefined}
                   feature={feature}
                   indentLevel={item.parentId ? 1 : 0}
                   key={item.id}
                   kindLabel={item.parentId ? "하위" : "상위"}
-                  onSelectItem={() => openItemSettings(item)}
+                  onSelectItem={() => focusItemOnTimeline(item)}
                   parentLabel={parentItem ? `상위: ${parentItem.title}` : null}
                 />
               );
@@ -491,7 +583,7 @@ export function WbsGanttPanel({
           <GanttHeader />
           <GanttFeatureList>
             <GanttFeatureListGroup hasHeader={false}>
-              {orderedItems.map((item) => {
+              {visibleItems.map((item) => {
                 const feature = featureById.get(item.id);
                 if (!feature) return null;
                 // 일정 로드/저장으로 기간이 바뀌면 바 내부 상태를 다시 맞추기 위해 key에 기간을 포함한다.
