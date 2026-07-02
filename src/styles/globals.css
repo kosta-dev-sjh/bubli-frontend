@@ -17507,7 +17507,7 @@ html {
 
 .landing-download__float--soft .landing-download__float-os,
 .landing-download__float--soft .landing-download__float-download {
-  color: #31526e;
+  color: var(--blue-ink);
   background: rgba(255, 255, 255, 0.68);
 }
 
