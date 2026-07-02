@@ -13,7 +13,11 @@ import { notificationApi } from "@/features/notification/api/notificationApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
-import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
+import {
+  AUTH_SESSION_CHANGE_EVENT,
+  getStoredAuthSession,
+  restoreStoredAuthSessionFromTauri,
+} from "@/lib/auth/auth-session";
 import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
@@ -183,6 +187,7 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     if (state.kind !== "ready") return;
+    if (isTauriRuntime() && !getStoredAuthSession()) return;
     void launchTauriAuthenticatedSurfaces().catch(() => undefined);
   }, [state.kind]);
 

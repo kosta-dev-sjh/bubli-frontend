@@ -548,11 +548,17 @@ fn destroy_all_widget_windows(app: &AppHandle) {
     }
 }
 
+#[cfg(debug_assertions)]
 fn qa_all_widget_windows_enabled() -> bool {
     matches!(
         env::var("BUBLI_TAURI_WIDGET_QA_ALL"),
         Ok(value) if matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES")
     )
+}
+
+#[cfg(not(debug_assertions))]
+fn qa_all_widget_windows_enabled() -> bool {
+    false
 }
 
 fn build_widget_qa_windows(app: &AppHandle) -> Result<(), String> {
@@ -1005,6 +1011,26 @@ fn close_widget_window(
 }
 
 #[tauri::command]
+fn close_all_widget_windows(
+    app: AppHandle,
+    state: tauri::State<'_, WidgetState>,
+) -> Result<&'static str, String> {
+    destroy_all_widget_windows(&app);
+
+    let mut guard = state
+        .lock()
+        .map_err(|_| "widget state lock failed".to_string())?;
+    for widget in guard.bubbles.values_mut() {
+        widget.mode = "MINIMIZED".to_string();
+        widget.click_through = false;
+        widget.dock_orb_visible = false;
+        widget.window_visible = false;
+    }
+
+    Ok("bubli-widgets-closed")
+}
+
+#[tauri::command]
 fn toggle_widget_window(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
@@ -1061,6 +1087,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             app_ready,
+            close_all_widget_windows,
             close_widget_window,
             get_widget_bar_items,
             get_preferred_app_monitor,
