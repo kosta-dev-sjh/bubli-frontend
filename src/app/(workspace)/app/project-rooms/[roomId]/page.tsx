@@ -3,6 +3,7 @@
 import {
   AlertCircle,
   CalendarDays,
+  ChevronRight,
   FileText,
   ListChecks,
   MessageCircle,
@@ -11,25 +12,40 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
+import { agentApi } from "@/features/agent/api/agentApi";
+import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
+import { resourcesApi } from "@/features/resources/api/resourcesApi";
+import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
   workspacePreviewMembers,
   workspacePreviewRoomById,
+  workspacePreviewRoomResources,
+  workspacePreviewRoomSuggestions,
+  workspacePreviewSchedules,
+  workspacePreviewWbsBoard,
 } from "@/lib/workspace-preview-data";
+import type { AgentSuggestionResponse } from "@/types/api/agent";
 import type { ProjectRoomMemberResponse, ProjectRoomResponse } from "@/types/api/projectRoom";
+import type { ResourceResponse } from "@/types/api/resource";
+import type { ScheduleResponse, WbsBoardResponse } from "@/types/api/work";
 
 type RoomHomeState =
   | { kind: "loading" }
   | {
+      board: WbsBoardResponse;
       members: ProjectRoomMemberResponse[];
+      resources: ResourceResponse[];
       room: ProjectRoomResponse;
+      schedules: ScheduleResponse[];
+      suggestions: AgentSuggestionResponse[];
       kind: "ready";
     }
   | { kind: "auth" }
@@ -73,6 +89,17 @@ function formatDate(value?: string | null) {
   }).format(date);
 }
 
+function formatDue(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    day: "numeric",
+    month: "short",
+  }).format(date);
+}
+
 export default function ProjectRoomHomePage() {
   const params = useParams<{ roomId: string }>();
   const roomId = params.roomId;
@@ -82,9 +109,13 @@ export default function ProjectRoomHomePage() {
     setState({ kind: "loading" });
 
     try {
-      const [room, members] = await Promise.allSettled([
+      const [room, members, board, suggestions, resources, schedules] = await Promise.allSettled([
         projectRoomApi.get(roomId),
         projectRoomApi.getMembers(roomId),
+        wbsApi.getBoard(roomId),
+        agentApi.listRoomSuggestions(roomId, { status: "DRAFT" }),
+        resourcesApi.listRoomResources(roomId),
+        calendarApi.getEvents({ roomId, size: 5 }),
       ]);
 
       const roomData = settledOr(room, null);
@@ -99,9 +130,13 @@ export default function ProjectRoomHomePage() {
 
       setActiveProjectRoomId(roomData.id, roomData.name);
       setState({
+        board: settledOr(board, { roomId, tasks: [], wbsItems: [] }),
         kind: "ready",
         members: settledOr(members, { hasNext: false, items: [], page: 0, size: 0, totalElements: 0, totalPages: 0 }).items,
+        resources: settledOr(resources, { hasNext: false, items: [], page: 0, size: 0, totalElements: 0, totalPages: 0 }).items,
         room: roomData,
+        schedules: settledOr(schedules, { hasNext: false, items: [], page: 0, size: 0, totalElements: 0, totalPages: 0 }).items,
+        suggestions: settledOr(suggestions, []),
       });
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
@@ -113,9 +148,13 @@ export default function ProjectRoomHomePage() {
         const room = workspacePreviewRoomById(roomId, getActiveProjectRoomLabel());
         setActiveProjectRoomId(room.id, room.name);
         setState({
+          board: workspacePreviewWbsBoard(room.id),
           kind: "ready",
           members: workspacePreviewMembers,
+          resources: workspacePreviewRoomResources.filter((resource) => resource.roomId === room.id),
           room,
+          schedules: workspacePreviewSchedules(room.id),
+          suggestions: workspacePreviewRoomSuggestions(room.id),
         });
         return;
       }
@@ -135,32 +174,29 @@ export default function ProjectRoomHomePage() {
     return () => window.clearTimeout(timeoutId);
   }, [load]);
 
+  const roomContent = useMemo(() => {
+    if (state.kind !== "ready") return null;
+
+    const activeTasks = state.board.tasks.filter((task) => task.status !== "DONE");
+    const blockedTasks = activeTasks.filter((task) => task.status === "BLOCKED");
+    const reviewTasks = activeTasks.filter((task) => task.status === "REVIEW");
+    const reviewCount = reviewTasks.length + blockedTasks.length + state.suggestions.length;
+    const nextSchedule = state.schedules[0] ?? null;
+
+    return {
+      activeTasks,
+      nextSchedule,
+      reviewCount,
+      wbsItems: state.board.wbsItems,
+    };
+  }, [state]);
+
   return (
     <section className="workspace-route workspace-route--room-home" aria-labelledby="room-home-title">
       <header className="workspace-route__header">
         <div>
           <h1 id="room-home-title">{state.kind === "ready" ? state.room.name : "프로젝트룸"}</h1>
         </div>
-        {state.kind === "ready" ? (
-          <nav className="room-home__segmented-nav" aria-label="프로젝트룸 메뉴">
-            <Link href={`/app/project-rooms/${roomId}/work`}>
-              <ListChecks aria-hidden size={18} strokeWidth={1.9} />
-              <span>WBS/칸반</span>
-            </Link>
-            <Link href={`/app/project-rooms/${roomId}/resources`}>
-              <FileText aria-hidden size={18} strokeWidth={1.9} />
-              <span>자료</span>
-            </Link>
-            <Link href={`/app/chat?mode=room&roomId=${encodeURIComponent(roomId)}`}>
-              <MessageCircle aria-hidden size={18} strokeWidth={1.9} />
-              <span>소통</span>
-            </Link>
-            <Link href={`/app/calendar?roomId=${roomId}`}>
-              <CalendarDays aria-hidden size={18} strokeWidth={1.9} />
-              <span>일정</span>
-            </Link>
-          </nav>
-        ) : null}
       </header>
 
       {state.kind === "loading" ? (
@@ -193,7 +229,7 @@ export default function ProjectRoomHomePage() {
         </GlassPanel>
       ) : null}
 
-      {state.kind === "ready" ? (
+      {state.kind === "ready" && roomContent ? (
         <>
           <div className="workspace-route__summary" aria-label="프로젝트룸 상태">
             <span className={`workspace-route__status-chip ${state.room.status === "CLOSED" ? "is-closed" : "is-active"}`}>
