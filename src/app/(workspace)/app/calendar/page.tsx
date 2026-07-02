@@ -352,13 +352,13 @@ function CalendarPageContent() {
     setSelectedDate(toDateValue(nextMonth));
   };
 
-  const selectCalendarDate = (date: Date) => {
+  const selectCalendarDate = (date: Date, hasEvents: boolean) => {
     setSelectedDate(toDateValue(date));
     setEditingEventId(null);
     setDraftTitle("");
     setDraftStartTime("10:30");
     setDraftEndTime("11:00");
-    setComposerOpen(true);
+    setComposerOpen(!hasEvents);
   };
 
   const openCreateComposer = () => {
@@ -681,7 +681,7 @@ function CalendarPageContent() {
                     .join(" ");
 
                   return (
-                    <button aria-pressed={selected} className={className} key={dateValue} onClick={() => selectCalendarDate(date)} type="button">
+                    <button aria-pressed={selected} className={className} key={dateValue} onClick={() => selectCalendarDate(date, count > 0)} type="button">
                       <span>{new Intl.DateTimeFormat("ko-KR", { weekday: "short" }).format(date)}</span>
                       <strong>{date.getDate()}</strong>
                       <small>{count > 0 ? `${count}건` : "비어 있음"}</small>

@@ -339,6 +339,7 @@ function ChatPageContent() {
   const [roomCreateNotice, setRoomCreateNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const friendSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const friendListRef = useRef<HTMLDivElement | null>(null);
   const messagesViewportRef = useRef<HTMLDivElement | null>(null);
 
   const appendMessage = useCallback((message: ChatMessageResponse) => {
@@ -1076,7 +1077,7 @@ function ChatPageContent() {
             <Phone size={17} strokeWidth={2} aria-hidden="true" />
             <div>
               <strong>보이스</strong>
-              <span>{selectedRoom?.chatType === "ROOM" ? "프로젝트룸에서 시작" : "프로젝트룸 보이스 우선"}</span>
+              <span>{selectedRoom?.chatType === "ROOM" ? "프로젝트룸에서 시작" : "프로젝트룸 채팅에서 시작"}</span>
             </div>
           </article>
         </section>
@@ -1107,8 +1108,11 @@ function ChatPageContent() {
           <button
             className="workspace-route__quick-button"
             onClick={() => {
-              friendSearchInputRef.current?.focus();
-              friendSearchInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+              setFriendAddOpen(true);
+              window.setTimeout(() => {
+                friendSearchInputRef.current?.focus();
+                friendSearchInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }, 0);
             }}
             type="button"
           >
@@ -1119,7 +1123,7 @@ function ChatPageContent() {
             className="workspace-route__quick-button"
             disabled={!selectedProjectRoomId}
             onClick={() => {
-              friendSearchInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+              friendListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
             type="button"
           >
@@ -1499,7 +1503,7 @@ function ChatPageContent() {
                 })
               : null}
 
-            <div className="workspace-route__friend-panel" aria-label="친구와 1:1">
+            <div className="workspace-route__friend-panel" aria-label="친구와 1:1" ref={friendListRef}>
               <div className="workspace-route__chat-list-head">
                 <strong>친구목록</strong>
                 <span>{friendCount}</span>
@@ -1623,7 +1627,7 @@ function ChatPageContent() {
                 <Phone aria-hidden size={17} strokeWidth={2} />
                 <div>
                   <strong>{selectedRoom?.chatType === "ROOM" ? "프로젝트룸 보이스" : "1:1 보이스"}</strong>
-                  <small>{activeVoiceRoom ? "열림" : voiceState.kind === "ready" ? "종료됨" : selectedRoom?.chatType === "ROOM" ? "시작 가능" : "프로젝트룸 보이스 우선"}</small>
+                  <small>{activeVoiceRoom ? "열림" : voiceState.kind === "ready" ? "종료됨" : selectedRoom?.chatType === "ROOM" ? "시작 가능" : "프로젝트룸 채팅에서 시작"}</small>
                 </div>
               </button>
               <div className="workspace-route__voice-controls" aria-label="보이스 액션">
