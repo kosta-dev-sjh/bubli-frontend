@@ -1,8 +1,10 @@
 name: CD
 
 on:
-  push:
-    branches: [ develop ]
+  workflow_run:
+    workflows: ["CI"]
+    branches: [develop]
+    types: [completed]
 
 permissions:
   contents: read
@@ -10,6 +12,7 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout
@@ -29,7 +32,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/bubli-frontend:latest
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/bubli-frontend:latest
+            ${{ secrets.DOCKER_USERNAME }}/bubli-frontend:${{ github.sha }}
           # NEXT_PUBLIC_* 변수는 빌드 타임에 번들에 포함됨
           # GitHub Repository Variables (Settings → Variables → Actions)에 추가 필요
           build-args: |
@@ -48,10 +53,11 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
+          username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/bubli
+            cd ~/bubli-backend
+            git pull origin develop
             docker compose -f docker-compose.prod.yml pull frontend
             docker compose -f docker-compose.prod.yml up -d --no-deps --no-build frontend
             docker image prune -f
