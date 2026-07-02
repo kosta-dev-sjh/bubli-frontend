@@ -365,7 +365,7 @@ export function KanbanBoard({
                         추가
                       </button>
                       <button
-                        aria-label="카드 추가 취소"
+                        aria-label="작업 추가 취소"
                         className={styles.cancelButton}
                         onClick={() => {
                           setAddingCardTo(null);
@@ -380,7 +380,7 @@ export function KanbanBoard({
                 ) : (
                   <button className={styles.addCardButton} onClick={() => setAddingCardTo(column.id)} type="button">
                     <Plus aria-hidden="true" size={15} strokeWidth={2.2} />
-                    카드 추가
+                    작업 추가
                   </button>
                 )
               ) : null}

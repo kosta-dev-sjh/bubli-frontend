@@ -1,4 +1,4 @@
-/* WBS 간트 패널 크롬(툴바·편집 카드) — Sky Opal 글래스 톤/워크스페이스 폰트 정합 */
+/* WBS 간트 패널 크롬 — Sky Opal 글래스 톤/워크스페이스 폰트 정합 */
 
 .panel {
   display: flex;
@@ -14,6 +14,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-block-end: 2px;
 }
 
 .rangeSwitch {
@@ -77,176 +78,90 @@
   opacity: 0.45;
 }
 
-.hint {
-  color: #8A94A0;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.editor {
-  align-items: flex-end;
-  backdrop-filter: blur(18px);
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(248, 252, 255, 0.72)),
-    rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 18px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.85),
-    0 6px 16px rgba(80, 110, 130, 0.08),
-    0 16px 36px rgba(80, 110, 130, 0.08);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 14px 16px;
-}
-
-.field {
-  color: #5A6772;
-  display: grid;
-  font-size: 12px;
-  font-weight: 900;
-  gap: 6px;
-  min-inline-size: 0;
-}
-
-.field input {
-  appearance: none;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(229, 231, 235, 0.95);
-  border-radius: 12px;
-  color: #2C3540;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 760;
-  min-block-size: 38px;
-  min-inline-size: 0;
-  outline: none;
-  padding: 0 12px;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
-}
-
-.field input::placeholder {
-  color: #8A94A0;
-}
-
-.field input:focus-visible {
-  border-color: rgba(107, 143, 168, 0.62);
-  box-shadow: 0 0 0 4px rgba(215, 234, 244, 0.58);
-}
-
-.statusRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-
-.statusRow button {
-  appearance: none;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(229, 231, 235, 0.9);
-  border-radius: 999px;
-  color: #5A6772;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 900;
-  min-block-size: 34px;
-  padding: 0 12px;
-}
-
-.statusRow button[aria-pressed="true"] {
-  background: rgba(215, 234, 244, 0.64);
-  border-color: rgba(107, 143, 168, 0.46);
-  color: #2C3540;
-}
-
-.editorNote {
-  color: #8A94A0;
-  font-size: 12px;
-  font-weight: 700;
-  padding-block-end: 10px;
-}
-
-.editorActions {
+.rowActionButton {
   align-items: center;
-  display: flex;
-  gap: 8px;
-  margin-inline-start: auto;
-}
-
-.primaryAction,
-.dangerAction {
   appearance: none;
-  border-radius: 999px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 900;
-  min-block-size: 36px;
-  padding: 0 14px;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
-
-.primaryAction {
-  background: rgba(215, 234, 244, 0.78);
-  border: 1px solid rgba(107, 143, 168, 0.45);
-  color: #2C3540;
-}
-
-.dangerAction {
   background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(232, 152, 152, 0.52);
-  color: #C56B85;
+  border: 1px solid rgba(229, 231, 235, 0.88);
+  border-radius: 999px;
+  color: #6B8FA8;
+  cursor: pointer;
+  display: inline-flex;
+  inline-size: 24px;
+  block-size: 24px;
+  justify-content: center;
+  opacity: 0.72;
+  padding: 0;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 160ms ease;
 }
 
-.primaryAction:hover,
-.dangerAction:hover {
-  box-shadow: 0 12px 24px rgba(107, 143, 168, 0.12);
+.rowActionButton:hover,
+.rowActionButton:focus-visible {
+  background: rgba(215, 234, 244, 0.72);
+  border-color: rgba(107, 143, 168, 0.38);
+  color: #2C3540;
+  opacity: 1;
   transform: translateY(-1px);
 }
 
-.closeButton {
-  align-items: center;
-  appearance: none;
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  color: #8A94A0;
-  cursor: pointer;
-  display: flex;
-  justify-content: center;
-  min-block-size: 32px;
-  min-inline-size: 32px;
-  transition: background-color 160ms ease, color 160ms ease;
+.ganttSurface {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 250, 0.88)),
+    rgba(255, 255, 255, 0.9);
+  block-size: min(500px, calc(100dvh - 260px));
+  border: 1px solid rgba(229, 231, 235, 0.92);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 12px 30px -28px rgba(107, 143, 168, 0.38);
+  color: #2C3540;
+  font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
+  letter-spacing: 0;
+  min-block-size: 420px;
 }
 
-.closeButton:hover {
-  background: rgba(215, 234, 244, 0.5);
+.ganttSurface :global([data-roadmap-ui="gantt-sidebar"]) {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(229, 231, 235, 0.9);
+}
+
+.ganttSurface :global(.bg-secondary) {
+  background-color: rgba(215, 234, 244, 0.24);
+}
+
+.ganttSurface :global(.bg-background),
+.ganttSurface :global(.bg-card) {
+  background-color: rgba(255, 255, 255, 0.94);
+}
+
+.ganttSurface :global([data-roadmap-ui="gantt-feature-card"]) {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--gantt-feature-color) 26%, rgba(255, 255, 255, 0.86)) 0%,
+      rgba(255, 255, 255, 0.92) 68%
+    );
+  border: 1px solid color-mix(in srgb, var(--gantt-feature-color) 42%, rgba(229, 231, 235, 0.92));
+  box-shadow:
+    inset 4px 0 0 var(--gantt-feature-color),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 10px 22px -20px rgba(107, 143, 168, 0.48);
+}
+
+.ganttSurface :global(.border-border\/50) {
+  border-color: rgba(229, 231, 235, 0.9);
+}
+
+.ganttSurface :global(.text-muted-foreground) {
+  color: #6B8FA8;
+}
+
+.ganttSurface :global(.text-foreground) {
   color: #2C3540;
 }
 
-.markerTodo {
-  background-color: color-mix(in srgb, var(--color-todo) 28%, white);
-  color: var(--color-text);
-}
-
-.markerPearl {
-  background-color: color-mix(in srgb, var(--color-pearl) 30%, white);
-  color: var(--color-text);
-}
-
-.markerLilac {
-  background-color: color-mix(in srgb, var(--color-lilac) 34%, white);
-  color: var(--color-text);
-}
-
-.markerRain {
-  background-color: color-mix(in srgb, var(--color-rain-gray) 38%, white);
-  color: var(--color-text);
-}
-
-.markerRose {
-  background-color: color-mix(in srgb, var(--color-dust-rose) 22%, white);
-  color: var(--color-text);
+.ganttSurface :global(.shadow-sm) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 10px 22px -22px rgba(107, 143, 168, 0.45);
 }
