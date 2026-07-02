@@ -28,6 +28,7 @@ export const TAURI_COMMANDS = {
   recordActivityContext: "record_activity_context",
   recordTimerState: "record_timer_state",
   recordWidgetUsageEvent: "record_widget_usage_event",
+  removeManagedFolder: "remove_managed_folder",
   markLocalFileEventsSynced: "mark_local_file_events_synced",
   markWidgetUsageSummarySynced: "mark_widget_usage_summary_synced",
   openLocalFile: "open_local_file",
@@ -111,6 +112,12 @@ export type ManagedFolderSyncResult = {
   pendingEventCount: number;
   syncEnabled: boolean;
   updatedAt: string;
+};
+
+export type ManagedFolderRemoveResult = {
+  localFolderId: string;
+  removedAt: string;
+  status: "REMOVED";
 };
 
 export type ManagedFolderIndexProgressResult = {
@@ -659,6 +666,10 @@ export type TauriCommandContract = {
     args: WidgetUsageEventInput;
     result: WidgetUsageEventRecordResult;
   };
+  remove_managed_folder: {
+    args: ManagedFolderCommandInput;
+    result: ManagedFolderRemoveResult;
+  };
   mark_local_file_events_synced: {
     args: LocalFileEventsMarkSyncedInput;
     result: LocalFileEventsMarkSyncedResult;
@@ -865,6 +876,9 @@ export const tauriCommands = {
   },
   recordWidgetUsageEvent(input: WidgetUsageEventInput) {
     return invokeTauri<WidgetUsageEventRecordResult>(TAURI_COMMANDS.recordWidgetUsageEvent, { input });
+  },
+  removeManagedFolder(input: ManagedFolderCommandInput) {
+    return invokeTauri<ManagedFolderRemoveResult>(TAURI_COMMANDS.removeManagedFolder, { input });
   },
   markLocalFileEventsSynced(input: LocalFileEventsMarkSyncedInput) {
     return invokeTauri<LocalFileEventsMarkSyncedResult>(TAURI_COMMANDS.markLocalFileEventsSynced, { input });

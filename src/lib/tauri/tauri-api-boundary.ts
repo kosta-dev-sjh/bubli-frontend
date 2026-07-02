@@ -172,6 +172,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.removeManagedFolder,
+    responsibility: "Stop tracking a personal managed folder while preserving local index and event history",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.watchManagedFolder,
     responsibility: "Watch folder for changes, update the local index, and emit refresh events",
     reflectsToServer: false,
