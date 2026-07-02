@@ -290,8 +290,9 @@ export function AppShell({ children }: AppShellProps) {
     }
 
     return {
+      avatarUrl: state.user.avatarUrl,
       displayName: state.user.name,
-      email: state.user.email ?? "로그인 정보 없음",
+      email: state.user.bubliId ? `@${state.user.bubliId}` : "계정 확인됨",
       initials: initialsFromName(state.user.name),
     };
   }, [state]);
@@ -452,7 +453,7 @@ export function AppShell({ children }: AppShellProps) {
                     />
                   </label>
                   <div className="workspace-switcher__file-hint">
-                    {newRoomFiles.length ? `${newRoomFiles.length}개 선택됨` : "계약서나 요구사항을 같이 올리면 분석 요청까지 이어집니다."}
+                    {newRoomFiles.length ? `${newRoomFiles.length}개 선택됨` : "업무 문서나 요구사항을 같이 올리면 분석 요청까지 이어집니다."}
                   </div>
                   {newRoomFiles.length ? (
                     <div className="workspace-switcher__files">
