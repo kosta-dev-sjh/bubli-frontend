@@ -14,6 +14,7 @@ export const TAURI_COMMANDS = {
   getWidgetBarItems: "get_widget_bar_items",
   getWidgetWindowState: "get_widget_window_state",
   listAppMonitors: "list_app_monitors",
+  listLocalSqliteBackups: "list_local_sqlite_backups",
   markActivityContextSynced: "mark_activity_context_synced",
   listManagedFolders: "list_managed_folders",
   openWidgetWindow: "open_widget_window",
@@ -323,6 +324,14 @@ export type LocalBackupResult = {
   sizeBytes: number;
 };
 
+export type LocalBackupManifestEntry = LocalBackupResult;
+
+export type LocalBackupManifestResult = {
+  backups: LocalBackupManifestEntry[];
+  latestBackupId?: string | null;
+  readAt: string;
+};
+
 export type LocalBackupRestoreInput = {
   backupId: string;
 };
@@ -610,6 +619,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: AppMonitorPreference;
   };
+  list_local_sqlite_backups: {
+    args: undefined;
+    result: LocalBackupManifestResult;
+  };
   mark_activity_context_synced: {
     args: ActivityContextSyncInput;
     result: ActivityContextSyncResult;
@@ -834,6 +847,9 @@ export const tauriCommands = {
   },
   listAppMonitors() {
     return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.listAppMonitors);
+  },
+  listLocalSqliteBackups() {
+    return invokeTauri<LocalBackupManifestResult>(TAURI_COMMANDS.listLocalSqliteBackups);
   },
   markActivityContextSynced(input: ActivityContextSyncInput) {
     return invokeTauri<ActivityContextSyncResult>(TAURI_COMMANDS.markActivityContextSynced, { input });
