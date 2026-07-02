@@ -13,7 +13,7 @@ import { notificationApi } from "@/features/notification/api/notificationApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
-import { restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
+import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
@@ -162,10 +162,16 @@ export function AppShell({ children }: AppShellProps) {
       }
     }
 
+    function reloadShell() {
+      void loadShell();
+    }
+
     void loadShell();
+    window.addEventListener(AUTH_SESSION_CHANGE_EVENT, reloadShell);
 
     return () => {
       mounted = false;
+      window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, reloadShell);
     };
   }, []);
 
@@ -292,7 +298,7 @@ export function AppShell({ children }: AppShellProps) {
     return {
       avatarUrl: state.user.avatarUrl,
       displayName: state.user.name,
-      email: state.user.bubliId ? `@${state.user.bubliId}` : "계정 확인됨",
+      email: state.user.email ?? (state.user.bubliId ? `@${state.user.bubliId}` : "로그인됨"),
       initials: initialsFromName(state.user.name),
     };
   }, [state]);

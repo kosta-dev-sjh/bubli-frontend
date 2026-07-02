@@ -6,7 +6,7 @@ import { useState, type CSSProperties, type PointerEvent } from "react";
 
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { siteConfig } from "@/config/site";
-import { authApi } from "@/features/auth/api/authApi";
+import { AuthConfigurationError, authApi } from "@/features/auth/api/authApi";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 function GoogleIcon() {
@@ -93,8 +93,12 @@ export function AuthPanel() {
         state: "login",
       });
       window.location.assign(authorizeUrl);
-    } catch {
-      setLoginError("로그인 시작에 실패했습니다. 잠시 뒤 다시 시도하세요.");
+    } catch (error) {
+      setLoginError(
+        error instanceof AuthConfigurationError
+          ? "구글 로그인 설정을 확인하고 있습니다. 잠시 뒤 다시 시도해 주세요."
+          : "로그인 시작에 실패했습니다. 잠시 뒤 다시 시도하세요.",
+      );
       setIsStartingLogin(false);
     }
   }
