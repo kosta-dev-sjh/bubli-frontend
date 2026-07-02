@@ -37,6 +37,9 @@ jobs:
       - name: Tauri boundaries
         run: npm run check:tauri-boundaries
 
+      - name: i18n messages
+        run: npm run check:i18n
+
       - name: Typecheck
         run: npm run typecheck
 
