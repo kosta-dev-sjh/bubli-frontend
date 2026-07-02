@@ -43,6 +43,25 @@ pub struct ManagedFolderSelection {
     path: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderListItem {
+    created_at: String,
+    local_folder_id: String,
+    name: String,
+    path: String,
+    status: String,
+    sync_enabled: bool,
+    updated_at: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderListResult {
+    folders: Vec<ManagedFolderListItem>,
+    loaded_at: String,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ManagedFolderCommandInput {
@@ -63,6 +82,14 @@ pub struct ManagedFolderSyncResult {
     pending_event_count: i64,
     sync_enabled: bool,
     updated_at: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderRemoveResult {
+    local_folder_id: String,
+    removed_at: String,
+    status: String,
 }
 
 #[derive(Serialize)]
@@ -91,6 +118,23 @@ pub struct ManagedFolderIndexProgressResult {
 pub struct ManagedFolderWatchResult {
     local_folder_id: String,
     watching: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderWatchAllResult {
+    active_folder_count: i64,
+    skipped_count: i64,
+    skipped_folder_ids: Vec<String>,
+    watched_count: i64,
+    watched_folder_ids: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFolderUnwatchAllResult {
+    stopped_count: i64,
+    stopped_folder_ids: Vec<String>,
 }
 
 #[derive(Clone, Serialize)]
@@ -222,6 +266,7 @@ pub struct LocalFileReindexResult {
 pub struct SyncOutboxFlushResult {
     failed_count: i64,
     flushed_at: String,
+    pending_count: i64,
     sent_count: i64,
 }
 
@@ -307,8 +352,8 @@ pub fn select_managed_folder(
     let now = now_ms();
     conn.execute(
         "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, 'ACTIVE', 0, ?4, ?4) \
-         ON CONFLICT(path) DO UPDATE SET status = 'ACTIVE', updated_at = excluded.updated_at",
+         VALUES (?1, ?2, ?3, 'ACTIVE', 1, ?4, ?4) \
+         ON CONFLICT(path) DO UPDATE SET status = 'ACTIVE', sync_enabled = 1, updated_at = excluded.updated_at",
         params![id, name, path, now],
     )
     .map_err(|error| error.to_string())?;
@@ -326,6 +371,47 @@ pub fn select_managed_folder(
         local_folder_id,
         name,
         path,
+    })
+}
+
+/// Read personal managed folders from the local SQLite registry.
+#[tauri::command]
+pub fn list_managed_folders(state: State<'_, Db>) -> Result<ManagedFolderListResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    list_managed_folders_for_conn(&conn, now_ms())
+}
+
+fn list_managed_folders_for_conn(
+    conn: &Connection,
+    loaded_at: i64,
+) -> Result<ManagedFolderListResult, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT id, name, path, status, sync_enabled, created_at, updated_at \
+             FROM managed_folders \
+             WHERE status != 'REMOVED' \
+             ORDER BY updated_at DESC",
+        )
+        .map_err(|error| error.to_string())?;
+    let folders = statement
+        .query_map([], |row| {
+            Ok(ManagedFolderListItem {
+                local_folder_id: row.get(0)?,
+                name: row.get(1)?,
+                path: row.get(2)?,
+                status: row.get(3)?,
+                sync_enabled: row.get::<_, i64>(4)? != 0,
+                created_at: ms_to_iso(row.get(5)?),
+                updated_at: ms_to_iso(row.get(6)?),
+            })
+        })
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+
+    Ok(ManagedFolderListResult {
+        folders,
+        loaded_at: ms_to_iso(loaded_at),
     })
 }
 
@@ -397,6 +483,53 @@ fn set_folder_sync_for_conn(
         pending_event_count,
         sync_enabled: enabled,
         updated_at: ms_to_iso(now),
+    })
+}
+
+/// Stop using a personal managed folder. The local index/event history is kept
+/// for audit/retry safety, but the folder no longer watches or stages events.
+#[tauri::command]
+pub fn remove_managed_folder(
+    state: State<'_, Db>,
+    watchers: State<'_, ManagedFolderWatchers>,
+    input: ManagedFolderCommandInput,
+) -> Result<ManagedFolderRemoveResult, String> {
+    let now = now_ms();
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let result = remove_managed_folder_for_conn(&conn, &input.local_folder_id, now)?;
+    drop(conn);
+
+    let mut guard = watchers
+        .0
+        .lock()
+        .map_err(|_| "folder watcher state lock failed".to_string())?;
+    guard.remove(&input.local_folder_id);
+
+    Ok(result)
+}
+
+fn remove_managed_folder_for_conn(
+    conn: &Connection,
+    local_folder_id: &str,
+    now: i64,
+) -> Result<ManagedFolderRemoveResult, String> {
+    let changed = conn
+        .execute(
+            "UPDATE managed_folders \
+             SET status = 'REMOVED', sync_enabled = 0, updated_at = ?2 \
+             WHERE id = ?1 AND status != 'REMOVED'",
+            params![local_folder_id, now],
+        )
+        .map_err(|error| error.to_string())?;
+
+    if changed == 0 {
+        return Err(format!("managed folder not found: {local_folder_id}"));
+    }
+
+    Ok(ManagedFolderRemoveResult {
+        local_folder_id: local_folder_id.to_string(),
+        removed_at: ms_to_iso(now),
+        status: "REMOVED".to_string(),
     })
 }
 
@@ -624,13 +757,91 @@ pub fn watch_managed_folder(
         .ok_or_else(|| format!("managed folder not found: {}", input.local_folder_id))?;
     drop(conn);
 
+    start_managed_folder_watcher(&app, &watchers, input.local_folder_id, folder_path)
+}
+
+/// Restore native watching for every registered active managed folder after a
+/// Tauri session starts. Server sync still only stages folders with
+/// sync_enabled=1; watching keeps the local SQLite index fresh.
+#[tauri::command]
+pub fn watch_all_managed_folders(
+    app: AppHandle,
+    state: State<'_, Db>,
+    watchers: State<'_, ManagedFolderWatchers>,
+) -> Result<ManagedFolderWatchAllResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let folders = active_managed_folders_for_conn(&conn)?;
+    drop(conn);
+
+    let active_folder_count = folders.len() as i64;
+    let mut watched_folder_ids = Vec::new();
+    let mut skipped_folder_ids = Vec::new();
+
+    for (local_folder_id, folder_path) in folders {
+        match start_managed_folder_watcher(&app, &watchers, local_folder_id.clone(), folder_path) {
+            Ok(result) if result.watching => watched_folder_ids.push(result.local_folder_id),
+            Ok(_) => skipped_folder_ids.push(local_folder_id),
+            Err(error) => {
+                eprintln!("managed folder auto-watch skipped {local_folder_id}: {error}");
+                skipped_folder_ids.push(local_folder_id);
+            }
+        }
+    }
+
+    Ok(ManagedFolderWatchAllResult {
+        active_folder_count,
+        skipped_count: skipped_folder_ids.len() as i64,
+        skipped_folder_ids,
+        watched_count: watched_folder_ids.len() as i64,
+        watched_folder_ids,
+    })
+}
+
+#[tauri::command]
+pub fn unwatch_all_managed_folders(
+    watchers: State<'_, ManagedFolderWatchers>,
+) -> Result<ManagedFolderUnwatchAllResult, String> {
+    let mut guard = watchers
+        .0
+        .lock()
+        .map_err(|_| "folder watcher state lock failed".to_string())?;
+    let stopped_folder_ids = guard.keys().cloned().collect::<Vec<_>>();
+    let stopped_count = stopped_folder_ids.len() as i64;
+    guard.clear();
+
+    Ok(ManagedFolderUnwatchAllResult {
+        stopped_count,
+        stopped_folder_ids,
+    })
+}
+
+fn active_managed_folders_for_conn(conn: &Connection) -> Result<Vec<(String, String)>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, path FROM managed_folders WHERE status = 'ACTIVE' ORDER BY updated_at DESC",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|error| error.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())
+}
+
+fn start_managed_folder_watcher(
+    app: &AppHandle,
+    watchers: &ManagedFolderWatchers,
+    local_folder_id: String,
+    folder_path: String,
+) -> Result<ManagedFolderWatchResult, String> {
     let folder = PathBuf::from(&folder_path);
     if !folder.is_dir() {
         return Err(format!("not a directory: {folder_path}"));
     }
 
-    let db_path = crate::local_db::database_path(&app)?;
-    let local_folder_id = input.local_folder_id;
+    let db_path = crate::local_db::database_path(app)?;
     let mut guard = watchers
         .0
         .lock()
@@ -2374,24 +2585,27 @@ pub fn reindex_file(
 #[tauri::command]
 pub fn flush_sync_outbox(state: State<'_, Db>) -> Result<SyncOutboxFlushResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-    let failed_count: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM local_sync_outbox WHERE status = 'FAILED'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
-    let sent_count: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM local_sync_outbox WHERE status = 'SENT'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
+    sync_outbox_summary_for_conn(&conn)
+}
+
+fn sync_outbox_count_for_conn(conn: &Connection, status: &str) -> Result<i64, String> {
+    conn.query_row(
+        "SELECT COUNT(*) FROM local_sync_outbox WHERE status = ?1",
+        params![status],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn sync_outbox_summary_for_conn(conn: &Connection) -> Result<SyncOutboxFlushResult, String> {
+    let pending_count = sync_outbox_count_for_conn(conn, "PENDING")?;
+    let failed_count = sync_outbox_count_for_conn(conn, "FAILED")?;
+    let sent_count = sync_outbox_count_for_conn(conn, "SENT")?;
 
     Ok(SyncOutboxFlushResult {
         failed_count,
         flushed_at: crate::local_db::now_iso(),
+        pending_count,
         sent_count,
     })
 }
@@ -2896,6 +3110,38 @@ mod tests {
     }
 
     #[test]
+    fn lists_managed_folders_for_settings_restore() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-old', 'Old Docs', '/tmp/old-docs', 'ACTIVE', 0, 10, 20), \
+                    ('folder-new', 'New Docs', '/tmp/new-docs', 'ACTIVE', 1, 30, 50), \
+                    ('folder-paused', 'Paused Docs', '/tmp/paused-docs', 'PAUSED', 1, 25, 40), \
+                    ('folder-removed', 'Removed Docs', '/tmp/removed-docs', 'REMOVED', 1, 35, 60)",
+            [],
+        )
+        .expect("insert managed folders");
+
+        let result = list_managed_folders_for_conn(&conn, 70).expect("list managed folders");
+
+        assert_eq!(result.loaded_at, ms_to_iso(70));
+        assert_eq!(
+            result
+                .folders
+                .iter()
+                .map(|folder| folder.local_folder_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["folder-new", "folder-paused", "folder-old"]
+        );
+        assert!(result.folders[0].sync_enabled);
+        assert!(!result.folders[2].sync_enabled);
+        assert!(result
+            .folders
+            .iter()
+            .all(|folder| folder.status != "REMOVED"));
+    }
+
+    #[test]
     fn index_progress_reports_fts_and_pending_events() {
         let conn = test_connection();
         conn.execute(
@@ -2964,6 +3210,52 @@ mod tests {
         assert_eq!(stored, 1);
         assert!(result.sync_enabled);
         assert_eq!(result.pending_event_count, 1);
+    }
+
+    #[test]
+    fn remove_managed_folder_excludes_future_sync_stage() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', '/tmp/docs', 'ACTIVE', 1, 1, 1)",
+            [],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_file_events \
+             (id, local_file_id, local_folder_id, event_type, file_name, local_path, status, created_at) \
+             VALUES ('event-1', NULL, 'folder-1', 'CREATED', 'a.txt', '/tmp/docs/a.txt', 'PENDING', 1)",
+            [],
+        )
+        .expect("insert pending event");
+
+        let result =
+            remove_managed_folder_for_conn(&conn, "folder-1", 20).expect("remove managed folder");
+        let stored: (String, i64) = conn
+            .query_row(
+                "SELECT status, sync_enabled FROM managed_folders WHERE id = 'folder-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read removed folder");
+        let stageable_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) \
+                 FROM local_file_events e \
+                 INNER JOIN managed_folders m ON m.id = e.local_folder_id \
+                 WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
+                   AND e.event_type = 'CREATED' \
+                   AND m.status = 'ACTIVE' \
+                   AND m.sync_enabled = 1",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count stageable events");
+
+        assert_eq!(result.status, "REMOVED");
+        assert_eq!(result.removed_at, ms_to_iso(20));
+        assert_eq!(stored, ("REMOVED".to_string(), 0));
+        assert_eq!(stageable_count, 0);
     }
 
     #[test]
@@ -3042,6 +3334,28 @@ mod tests {
         assert_eq!(retry_count, 1);
         assert!(payload.contains("\"eventType\":\"UPDATED\""));
         assert!(payload.contains("\"resourceId\":\"resource-1\""));
+    }
+
+    #[test]
+    fn sync_outbox_summary_reports_pending_failed_and_sent_counts() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO local_sync_outbox \
+             (id, idempotency_key, operation, payload_json, status, retry_count, created_at, updated_at) \
+             VALUES \
+             ('outbox-1', 'key-1', 'local_file_event', '{}', 'PENDING', 0, 1, 1), \
+             ('outbox-2', 'key-2', 'local_file_event', '{}', 'PENDING', 0, 1, 1), \
+             ('outbox-3', 'key-3', 'local_file_event', '{}', 'FAILED', 1, 1, 1), \
+             ('outbox-4', 'key-4', 'local_file_event', '{}', 'SENT', 0, 1, 1)",
+            [],
+        )
+        .expect("insert outbox rows");
+
+        let summary = sync_outbox_summary_for_conn(&conn).expect("read outbox summary");
+
+        assert_eq!(summary.pending_count, 2);
+        assert_eq!(summary.failed_count, 1);
+        assert_eq!(summary.sent_count, 1);
     }
 
     #[test]

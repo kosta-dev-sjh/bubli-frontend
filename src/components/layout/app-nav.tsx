@@ -5,6 +5,7 @@ import {
   Files,
   FolderKanban,
   LayoutDashboard,
+  MessageCircle,
   Settings,
   Sparkles,
   type LucideIcon,
@@ -12,14 +13,17 @@ import {
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSyncExternalStore } from "react";
 
 import { siteConfig } from "@/config/site";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
 
 const navIcons: Record<(typeof siteConfig.appNav)[number]["href"], LucideIcon> = {
   "/app": LayoutDashboard,
   "/app/agent": Sparkles,
   "/app/calendar": CalendarDays,
+  "/app/chat": MessageCircle,
   "/app/project-rooms": FolderKanban,
   "/app/resources": Files,
   "/app/settings": Settings,
@@ -41,6 +45,10 @@ type AppNavProps = {
   activeRoomId?: string | null;
 };
 
+function subscribeToTauriRuntime() {
+  return () => undefined;
+}
+
 function navHref(href: (typeof siteConfig.appNav)[number]["href"], activeRoomId?: string | null) {
   if (!activeRoomId) return href;
 
@@ -52,16 +60,23 @@ function navHref(href: (typeof siteConfig.appNav)[number]["href"], activeRoomId?
     return `${href}?roomId=${encodeURIComponent(activeRoomId)}`;
   }
 
+  if (href === "/app/chat") {
+    return `${href}?roomId=${encodeURIComponent(activeRoomId)}&mode=room`;
+  }
+
   return href;
 }
 
 export function AppNav({ activeRoomId }: AppNavProps) {
   const pathname = usePathname();
   const reduceMotion = useReducedMotion();
+  const isTauri = useSyncExternalStore(subscribeToTauriRuntime, isTauriRuntime, () => false);
+
+  const navItems = isTauri ? siteConfig.appNav.filter((item) => item.href !== "/app/chat") : siteConfig.appNav;
 
   return (
     <nav aria-label="회원 앱" className="bubli-nav">
-      {siteConfig.appNav.map((item) => {
+      {navItems.map((item) => {
         const Icon = navIcons[item.href];
         const isActive = isActiveNavItem(item.href, pathname);
         const href = navHref(item.href, activeRoomId);

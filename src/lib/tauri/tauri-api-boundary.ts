@@ -79,6 +79,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.setWidgetRoomContext,
+    responsibility: "Propagate selected project room changes to all known desktop widget windows",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.setWidgetAlwaysOnTop,
     responsibility: "Always-on-top toggle",
     reflectsToServer: false,
@@ -166,8 +172,26 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.removeManagedFolder,
+    responsibility: "Stop tracking a personal managed folder while preserving local index and event history",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.watchManagedFolder,
     responsibility: "Watch folder for changes, update the local index, and emit refresh events",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.watchAllManagedFolders,
+    responsibility: "Restore native watchers for active personal managed folders after Tauri login",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.unwatchAllManagedFolders,
+    responsibility: "Stop active personal managed-folder watchers when the authenticated Tauri surface stops",
     reflectsToServer: false,
     serverApi: null,
   },
@@ -219,6 +243,31 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     responsibility: "Read recent mirrored server chat from the local room cache for fast display or fallback",
     reflectsToServer: false,
     serverApi: "/api/chat/rooms/{id}/messages",
+  },
+  // Local SQLite lifecycle and backup metadata.
+  {
+    ipc: TAURI_COMMANDS.checkLocalSqliteIntegrity,
+    responsibility: "Run SQLite quick_check before local recovery decisions",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.backupLocalSqlite,
+    responsibility: "Create a local SQLite backup and write its manifest row",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.listLocalSqliteBackups,
+    responsibility: "Read local SQLite backup manifest entries after app restart",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
+    ipc: TAURI_COMMANDS.restoreLocalSqliteBackup,
+    responsibility: "Prepare local SQLite backup restore flow that requires restart before file replacement",
+    reflectsToServer: false,
+    serverApi: null,
   },
   // Timer recovery: compares against server time_logs.
   {

@@ -16,7 +16,6 @@ const ROUTES = [
   "/app/agent-suggestions",
   "/app/settings",
   "/app/desktop/communication",
-  "/app/desktop/widgets",
 ];
 
 const STORIES = [
@@ -27,7 +26,6 @@ const STORIES = [
   "features-wbs-wbstodolinkagepanel--link-one-task-across-surfaces",
   "features-agent-candidateapprovalpanel--default",
   "features-communication-tauricommunicationmodepanel--web-chat-tab",
-  "features-widget-widgetdesktoppreview--default",
   "features-timer-timerrecoveryboundarypanel--running",
   "features-managedfolder-managedfoldersyncpanel--default",
   "features-dashboard-dashboardfivecardpanel--ready",

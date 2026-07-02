@@ -25,6 +25,8 @@ import type {
   LocalFileSearchAdapterInput,
   LocalFileSearchAdapterResult,
   ManagedFolderIndexProgressAdapterResult,
+  ManagedFolderListAdapterResult,
+  ManagedFolderRemoveAdapterResult,
   ManagedFolderScanAdapterResult,
   ManagedFolderSelectResult,
   ManagedFolderSyncAdapterInput,
@@ -70,6 +72,16 @@ export async function selectPersonalManagedFolder(
   );
 }
 
+export async function listPersonalManagedFolders(): Promise<ManagedFolderListAdapterResult> {
+  const commandName = TAURI_COMMANDS.listManagedFolders;
+
+  if (!isTauriRuntime()) {
+    return unavailable(commandName);
+  }
+
+  return runTauriAdapter(commandName, () => tauriCommands.listManagedFolders());
+}
+
 export async function scanPersonalManagedFolder(
   input: PersonalManagedFolderCommandInput,
 ): Promise<ManagedFolderScanAdapterResult> {
@@ -81,7 +93,7 @@ export async function scanPersonalManagedFolder(
     return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.scanManagedFolder);
   }
 
-  const { roomId: _roomId, ...tauriInput } = input;
+  const tauriInput = { localFolderId: input.localFolderId };
 
   return runTauriAdapter(TAURI_COMMANDS.scanManagedFolder, () =>
     tauriCommands.scanManagedFolder(tauriInput),
@@ -124,6 +136,24 @@ export async function setPersonalManagedFolderSync(
 
   return runTauriAdapter(TAURI_COMMANDS.setFolderSync, () =>
     tauriCommands.setFolderSync(tauriInput),
+  );
+}
+
+export async function removePersonalManagedFolder(
+  input: PersonalManagedFolderCommandInput,
+): Promise<ManagedFolderRemoveAdapterResult> {
+  if (!isTauriRuntime()) {
+    return unavailable(TAURI_COMMANDS.removeManagedFolder);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, TAURI_COMMANDS.removeManagedFolder);
+  }
+
+  const tauriInput = { localFolderId: input.localFolderId };
+
+  return runTauriAdapter(TAURI_COMMANDS.removeManagedFolder, () =>
+    tauriCommands.removeManagedFolder(tauriInput),
   );
 }
 

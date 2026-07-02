@@ -4,7 +4,6 @@ export * from "./resource-suggestion-bubble-panel";
 export * from "./tauri-widget-layer";
 export * from "./widget-background-readability-panel";
 export * from "./widget-density-mode-panel";
-export * from "./widget-desktop-preview";
 export * from "./widget-eight-bubble-set-panel";
 export * from "./widget-font-scale-panel";
 export * from "./widget-item-state-panel";

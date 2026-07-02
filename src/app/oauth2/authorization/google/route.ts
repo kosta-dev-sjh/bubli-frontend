@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const DEFAULT_LOCAL_API_BASE_URL = "http://localhost:8080";
+const DEFAULT_PRODUCTION_APP_BASE_URL = "https://bubli.n-e.kr";
 
 function getApiBaseUrl(origin: string) {
   const configured = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
@@ -15,10 +16,16 @@ function loginFallback(origin: string) {
   return NextResponse.redirect(new URL("/login?authError=oauth-start", origin));
 }
 
+function getAuthRedirectUri(origin: string) {
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL?.trim().replace(/\/$/, "");
+  const appBaseUrl = configuredBaseUrl || (process.env.NODE_ENV === "production" ? DEFAULT_PRODUCTION_APP_BASE_URL : origin);
+  return `${appBaseUrl}/auth/callback`;
+}
+
 export async function GET(request: NextRequest) {
   const currentUrl = new URL(request.url);
   const origin = currentUrl.origin;
-  const redirectUri = currentUrl.searchParams.get("redirectUri") ?? currentUrl.searchParams.get("redirect_uri") ?? `${origin}/auth/callback`;
+  const redirectUri = currentUrl.searchParams.get("redirectUri") ?? currentUrl.searchParams.get("redirect_uri") ?? getAuthRedirectUri(origin);
   const clientType = currentUrl.searchParams.get("clientType") ?? "WEB";
   const state = currentUrl.searchParams.get("state") ?? "login";
   const params = new URLSearchParams({ clientType, redirectUri, state });

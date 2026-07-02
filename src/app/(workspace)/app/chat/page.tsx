@@ -161,13 +161,82 @@ function updatedLabel(room: ChatRoomResponse) {
 
 function messageText(message: ChatMessageResponse) {
   const body = message.body;
-  const text = body.text ?? body.message ?? body.content;
+  const text =
+    message.messageType === "AGENT_COMMAND"
+      ? body.text ?? body.message ?? body.request ?? body.command ?? body.query ?? body.prompt ?? body.content
+      : body.text ?? body.message ?? body.content ?? body.request;
 
   if (typeof text === "string" && text.trim()) return text;
   if (message.messageType === "AGENT_COMMAND") return "에이전트 명령";
   if (message.messageType === "AGENT_RESPONSE") return "에이전트 응답";
   if (message.messageType === "FILE") return "첨부 자료";
   return "메시지";
+}
+
+const agentSectionLabels = ["TODO", "TASK", "REQUIREMENT", "QUESTION", "REVIEW_ITEM"] as const;
+
+function formatAgentMessageText(text: string) {
+  let formatted = text.replace(/\r\n/g, "\n").trim();
+
+  for (const label of agentSectionLabels) {
+    formatted = formatted.replace(new RegExp(`\\s*${label}:`, "g"), (match, offset) => `${offset === 0 ? "" : "\n\n"}${label}:`);
+  }
+
+  formatted = formatted.replace(/:\s*-\s*/g, ":\n- ");
+  formatted = formatted.replace(/\s+-\s+/g, "\n- ");
+  formatted = formatted.replace(/\n{3,}/g, "\n\n");
+
+  return formatted;
+}
+
+function displayMessageText(message: ChatMessageResponse) {
+  const text = messageText(message);
+  const isAgentMessage = message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT";
+  return isAgentMessage ? formatAgentMessageText(text) : text;
+}
+
+function commandText(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const text = value.trim();
+  return text.toLowerCase().startsWith("/bubli") ? text : `/bubli ${text}`;
+}
+
+function withAgentCommandMessages(messages: ChatMessageResponse[]) {
+  const existingCommandKeys = new Set(
+    messages
+      .filter((message) => message.messageType === "AGENT_COMMAND")
+      .map((message) => `${message.chatRoomId}:${message.roomSequence}:${messageText(message)}`),
+  );
+  const expanded: ChatMessageResponse[] = [];
+
+  for (const message of messages) {
+    const requestText = message.messageType === "AGENT_RESPONSE" ? commandText(message.body.request) : null;
+
+    if (requestText) {
+      const commandKey = `${message.chatRoomId}:${message.roomSequence - 1}:${requestText}`;
+
+      if (!existingCommandKeys.has(commandKey)) {
+        expanded.push({
+          body: { text: requestText },
+          chatRoomId: message.chatRoomId,
+          createdAt: message.createdAt,
+          id: `agent-command-${message.id}`,
+          messageType: "AGENT_COMMAND",
+          resourceId: message.resourceId,
+          roomSequence: message.roomSequence - 0.1,
+          sender: {
+            id: null,
+            name: "나",
+            type: "USER",
+          },
+        });
+      }
+    }
+
+    expanded.push(message);
+  }
+
+  return expanded.sort((a, b) => a.roomSequence - b.roomSequence);
 }
 
 function messageTime(value: string) {
@@ -270,6 +339,28 @@ function ChatPageContent() {
   const [roomCreateNotice, setRoomCreateNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const friendSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const messagesViewportRef = useRef<HTMLDivElement | null>(null);
+
+  const appendMessage = useCallback((message: ChatMessageResponse) => {
+    setMessagesState((current) => {
+      if (current.kind !== "ready") {
+        return { kind: "ready", messages: [message] };
+      }
+
+      if (
+        current.messages.some(
+          (item) => item.id === message.id || (Boolean(message.clientMessageId) && item.clientMessageId === message.clientMessageId),
+        )
+      ) {
+        return current;
+      }
+
+      return {
+        kind: "ready",
+        messages: [...current.messages, message].sort((a, b) => a.roomSequence - b.roomSequence),
+      };
+    });
+  }, []);
 
   const activeChatRoomId = useMemo(() => {
     if (roomsState.kind !== "ready") return null;
@@ -358,10 +449,10 @@ function ChatPageContent() {
 
     try {
       const page = await chatApi.getMessages(chatRoomId, { size: 40 });
-      setMessagesState({ kind: "ready", messages: [...page.items].sort((a, b) => a.roomSequence - b.roomSequence) });
+      setMessagesState({ kind: "ready", messages: withAgentCommandMessages([...page.items].sort((a, b) => a.roomSequence - b.roomSequence)) });
     } catch {
       if (shouldUseWorkspacePreviewData()) {
-        setMessagesState({ kind: "ready", messages: workspacePreviewChatMessages(chatRoomId) });
+        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(workspacePreviewChatMessages(chatRoomId)) });
         return;
       }
       setMessagesState({ kind: "offline" });
@@ -478,6 +569,13 @@ function ChatPageContent() {
     if (!selectedRoom?.roomId || selectedRoom.chatType !== "ROOM") return;
     setActiveProjectRoomId(selectedRoom.roomId, selectedRoom.name?.replace(/\s*대화$/, "") ?? "프로젝트룸");
   }, [currentUser, selectedRoom]);
+
+  useEffect(() => {
+    if (messagesState.kind !== "ready") return;
+    const viewport = messagesViewportRef.current;
+    if (!viewport) return;
+    viewport.scrollTop = viewport.scrollHeight;
+  }, [activeChatRoomId, messagesState]);
 
   function selectChatRoom(room: ChatRoomResponse) {
     setSelectedChatRoomId(room.id);
@@ -847,20 +945,38 @@ function ChatPageContent() {
         return;
       }
 
+      const clientMessageId = crypto.randomUUID();
+      const optimisticCommandMessage: ChatMessageResponse = {
+        body: { text },
+        chatRoomId: activeChatRoomId,
+        clientMessageId,
+        createdAt: new Date().toISOString(),
+        id: `local-agent-command-${clientMessageId}`,
+        messageType: "AGENT_COMMAND",
+        roomSequence:
+          messagesState.kind === "ready" ? Math.max(...messagesState.messages.map((message) => message.roomSequence), 0) + 1 : 1,
+        sender: {
+          id: currentUser?.id ?? null,
+          name: currentUser?.name ?? "나",
+          type: "USER",
+        },
+      };
+
       setSending(true);
       setAgentCommandNotice("에이전트에게 질문을 보내는 중입니다.");
+      appendMessage(optimisticCommandMessage);
 
       try {
-        await chatApi.runRoomAgentCommand(selectedAgentRoomId, {
-          clientMessageId: crypto.randomUUID(),
+        const response = await chatApi.runRoomAgentCommand(selectedAgentRoomId, {
+          clientMessageId,
           message: agentCommand.message,
           mode: agentCommand.mode,
           resourceIds: [],
         });
+        appendMessage(response.message);
         setDraft("");
         setSelectedAttachmentName(null);
         setEmoticonOpen(false);
-        await loadMessages(activeChatRoomId);
         setComposerActive(true);
         setAgentCommandNotice("에이전트에게 질문을 보냈습니다.");
       } catch {
@@ -883,21 +999,21 @@ function ChatPageContent() {
     setAgentCommandNotice(null);
 
     try {
-      await chatApi.sendMessage(activeChatRoomId, {
+      const response = await chatApi.sendMessage(activeChatRoomId, {
         body: messageBody,
         clientMessageId: crypto.randomUUID(),
         messageType,
       });
+      appendMessage(response);
       setDraft("");
       setSelectedAttachmentName(null);
       setEmoticonOpen(false);
-      await loadMessages(activeChatRoomId);
     } catch {
       setMessagesState({ kind: "offline" });
     } finally {
       setSending(false);
     }
-  }, [activeChatRoomId, draft, loadMessages, selectedAgentRoomId, selectedAttachmentName]);
+  }, [activeChatRoomId, appendMessage, currentUser, draft, messagesState, selectedAgentRoomId, selectedAttachmentName]);
 
   return (
     <section className="workspace-route" aria-labelledby="chat-title">
@@ -1159,10 +1275,11 @@ function ChatPageContent() {
             ) : null}
 
             {messagesState.kind === "ready" && messagesState.messages.length > 0 ? (
-              <div className="workspace-route__messages">
+              <div className="workspace-route__messages" ref={messagesViewportRef}>
                 {messagesState.messages.map((message) => {
-                  const isMine = Boolean(currentUser?.id && message.sender.id === currentUser.id);
-                  const isAgent = message.sender.type === "AGENT";
+                  const isAgent = message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT";
+                  const isMine = message.messageType === "AGENT_COMMAND" || (!isAgent && Boolean(currentUser?.id && message.sender.id === currentUser.id));
+                  const text = displayMessageText(message);
 
                   return (
                     <article
@@ -1179,7 +1296,7 @@ function ChatPageContent() {
                         <strong>{message.sender.name}</strong>
                         <span>{messageTime(message.createdAt)}</span>
                         <span className="workspace-route__message-tools">
-                          <button aria-label="메시지 복사" onClick={() => void navigator.clipboard.writeText(messageText(message))} type="button">
+                          <button aria-label="메시지 복사" onClick={() => void navigator.clipboard.writeText(text)} type="button">
                             <Copy aria-hidden size={13} strokeWidth={2} />
                           </button>
                           <button aria-label="메시지 더보기" type="button">
@@ -1187,7 +1304,7 @@ function ChatPageContent() {
                           </button>
                         </span>
                       </div>
-                      <p>{messageText(message)}</p>
+                      <p>{text}</p>
                     </article>
                   );
                 })}

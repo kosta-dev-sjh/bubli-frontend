@@ -6,6 +6,7 @@ export const TAURI_COMMANDS = {
   checkLocalSqliteIntegrity: "check_local_sqlite_integrity",
   clearActiveProjectRoom: "clear_active_project_room",
   clearTauriAuthSession: "clear_tauri_auth_session",
+  closeAllWidgetWindows: "close_all_widget_windows",
   closeWidgetWindow: "close_widget_window",
   extractLocalFileKeySentences: "extract_local_file_key_sentences",
   flushSyncOutbox: "flush_sync_outbox",
@@ -14,7 +15,9 @@ export const TAURI_COMMANDS = {
   getWidgetBarItems: "get_widget_bar_items",
   getWidgetWindowState: "get_widget_window_state",
   listAppMonitors: "list_app_monitors",
+  listLocalSqliteBackups: "list_local_sqlite_backups",
   markActivityContextSynced: "mark_activity_context_synced",
+  listManagedFolders: "list_managed_folders",
   openWidgetWindow: "open_widget_window",
   readActiveProjectRoom: "read_active_project_room",
   readTauriAuthSession: "read_tauri_auth_session",
@@ -27,6 +30,7 @@ export const TAURI_COMMANDS = {
   recordActivityContext: "record_activity_context",
   recordTimerState: "record_timer_state",
   recordWidgetUsageEvent: "record_widget_usage_event",
+  removeManagedFolder: "remove_managed_folder",
   markLocalFileEventsSynced: "mark_local_file_events_synced",
   markWidgetUsageSummarySynced: "mark_widget_usage_summary_synced",
   openLocalFile: "open_local_file",
@@ -40,6 +44,7 @@ export const TAURI_COMMANDS = {
   setFolderSync: "set_folder_sync",
   setWidgetAlwaysOnTop: "set_widget_always_on_top",
   setWidgetClickThrough: "set_widget_click_through",
+  setWidgetRoomContext: "set_widget_room_context",
   setWidgetWindowMode: "set_widget_window_mode",
   setWidgetWindowPosition: "set_widget_window_position",
   stageActivityContextsForSync: "stage_activity_contexts_for_sync",
@@ -51,7 +56,9 @@ export const TAURI_COMMANDS = {
   syncWidgetUsageSummary: "sync_widget_usage_summary",
   toggleWidgetDockOrb: "toggle_widget_dock_orb",
   toggleWidgetWindow: "toggle_widget_window",
+  unwatchAllManagedFolders: "unwatch_all_managed_folders",
   updateWidgetTrayState: "update_widget_tray_state",
+  watchAllManagedFolders: "watch_all_managed_folders",
   watchManagedFolder: "watch_managed_folder",
 } as const;
 
@@ -67,6 +74,18 @@ export type ManagedFolderSelection = {
   localFolderId: string;
   name: string;
   path: string;
+};
+
+export type ManagedFolderListItem = ManagedFolderSelection & {
+  createdAt: string;
+  status: "ACTIVE" | "PAUSED" | "REMOVED" | string;
+  syncEnabled: boolean;
+  updatedAt: string;
+};
+
+export type ManagedFolderListResult = {
+  folders: ManagedFolderListItem[];
+  loadedAt: string;
 };
 
 // The native folder picker can be wired through the dialog plugin later; until
@@ -97,6 +116,12 @@ export type ManagedFolderSyncResult = {
   updatedAt: string;
 };
 
+export type ManagedFolderRemoveResult = {
+  localFolderId: string;
+  removedAt: string;
+  status: "REMOVED";
+};
+
 export type ManagedFolderIndexProgressResult = {
   calculatedAt: string;
   indexedFiles: number;
@@ -111,6 +136,19 @@ export type ManagedFolderIndexProgressResult = {
 export type ManagedFolderWatchResult = {
   localFolderId: string;
   watching: boolean;
+};
+
+export type ManagedFolderWatchAllResult = {
+  activeFolderCount: number;
+  skippedCount: number;
+  skippedFolderIds: string[];
+  watchedCount: number;
+  watchedFolderIds: string[];
+};
+
+export type ManagedFolderUnwatchAllResult = {
+  stoppedCount: number;
+  stoppedFolderIds: string[];
 };
 
 export type LocalFileSearchInput = {
@@ -318,6 +356,14 @@ export type LocalBackupResult = {
   sizeBytes: number;
 };
 
+export type LocalBackupManifestEntry = LocalBackupResult;
+
+export type LocalBackupManifestResult = {
+  backups: LocalBackupManifestEntry[];
+  latestBackupId?: string | null;
+  readAt: string;
+};
+
 export type LocalBackupRestoreInput = {
   backupId: string;
 };
@@ -482,6 +528,10 @@ export type WidgetWindowState = {
   windowVisible: boolean;
 };
 
+export type WidgetRoomContextInput = {
+  selectedRoomId?: string | null;
+};
+
 export type AppReadyInput = {
   selectedRoomId?: string | null;
 };
@@ -523,6 +573,7 @@ export type WidgetShortcutInput = {
 export type SyncOutboxFlushResult = {
   failedCount: number;
   flushedAt: string;
+  pendingCount: number;
   sentCount: number;
 };
 
@@ -568,6 +619,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: null;
   };
+  close_all_widget_windows: {
+    args: undefined;
+    result: number;
+  };
   close_widget_window: {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
@@ -600,9 +655,17 @@ export type TauriCommandContract = {
     args: undefined;
     result: AppMonitorPreference;
   };
+  list_local_sqlite_backups: {
+    args: undefined;
+    result: LocalBackupManifestResult;
+  };
   mark_activity_context_synced: {
     args: ActivityContextSyncInput;
     result: ActivityContextSyncResult;
+  };
+  list_managed_folders: {
+    args: undefined;
+    result: ManagedFolderListResult;
   };
   open_widget_window: {
     args: WidgetWindowOpenInput | undefined;
@@ -651,6 +714,10 @@ export type TauriCommandContract = {
   record_widget_usage_event: {
     args: WidgetUsageEventInput;
     result: WidgetUsageEventRecordResult;
+  };
+  remove_managed_folder: {
+    args: ManagedFolderCommandInput;
+    result: ManagedFolderRemoveResult;
   };
   mark_local_file_events_synced: {
     args: LocalFileEventsMarkSyncedInput;
@@ -704,6 +771,10 @@ export type TauriCommandContract = {
     args: WidgetBooleanInput;
     result: WidgetWindowState;
   };
+  set_widget_room_context: {
+    args: WidgetRoomContextInput;
+    result: WidgetWindowState[];
+  };
   set_widget_window_mode: {
     args: WidgetWindowModeInput;
     result: WidgetWindowState;
@@ -748,9 +819,17 @@ export type TauriCommandContract = {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
   };
+  unwatch_all_managed_folders: {
+    args: undefined;
+    result: ManagedFolderUnwatchAllResult;
+  };
   update_widget_tray_state: {
     args: WidgetBooleanInput;
     result: WidgetWindowState;
+  };
+  watch_all_managed_folders: {
+    args: undefined;
+    result: ManagedFolderWatchAllResult;
   };
   watch_managed_folder: {
     args: ManagedFolderCommandInput;
@@ -781,6 +860,9 @@ export const tauriCommands = {
   clearTauriAuthSession() {
     return invokeTauri<null>(TAURI_COMMANDS.clearTauriAuthSession);
   },
+  closeAllWidgetWindows() {
+    return invokeTauri<number>(TAURI_COMMANDS.closeAllWidgetWindows);
+  },
   closeWidgetWindow(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.closeWidgetWindow, input ? { input } : undefined);
   },
@@ -805,8 +887,14 @@ export const tauriCommands = {
   listAppMonitors() {
     return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.listAppMonitors);
   },
+  listLocalSqliteBackups() {
+    return invokeTauri<LocalBackupManifestResult>(TAURI_COMMANDS.listLocalSqliteBackups);
+  },
   markActivityContextSynced(input: ActivityContextSyncInput) {
     return invokeTauri<ActivityContextSyncResult>(TAURI_COMMANDS.markActivityContextSynced, { input });
+  },
+  listManagedFolders() {
+    return invokeTauri<ManagedFolderListResult>(TAURI_COMMANDS.listManagedFolders);
   },
   openWidgetWindow(input?: WidgetWindowOpenInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.openWidgetWindow, input ? { input } : undefined);
@@ -843,6 +931,9 @@ export const tauriCommands = {
   },
   recordWidgetUsageEvent(input: WidgetUsageEventInput) {
     return invokeTauri<WidgetUsageEventRecordResult>(TAURI_COMMANDS.recordWidgetUsageEvent, { input });
+  },
+  removeManagedFolder(input: ManagedFolderCommandInput) {
+    return invokeTauri<ManagedFolderRemoveResult>(TAURI_COMMANDS.removeManagedFolder, { input });
   },
   markLocalFileEventsSynced(input: LocalFileEventsMarkSyncedInput) {
     return invokeTauri<LocalFileEventsMarkSyncedResult>(TAURI_COMMANDS.markLocalFileEventsSynced, { input });
@@ -889,6 +980,9 @@ export const tauriCommands = {
   setWidgetClickThrough(input: WidgetBooleanInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetClickThrough, { input });
   },
+  setWidgetRoomContext(input: WidgetRoomContextInput) {
+    return invokeTauri<WidgetWindowState[]>(TAURI_COMMANDS.setWidgetRoomContext, { input });
+  },
   setWidgetWindowMode(input: WidgetWindowModeInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetWindowMode, { input });
   },
@@ -931,8 +1025,14 @@ export const tauriCommands = {
   toggleWidgetWindow(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.toggleWidgetWindow, input ? { input } : undefined);
   },
+  unwatchAllManagedFolders() {
+    return invokeTauri<ManagedFolderUnwatchAllResult>(TAURI_COMMANDS.unwatchAllManagedFolders);
+  },
   updateWidgetTrayState(input: WidgetBooleanInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.updateWidgetTrayState, { input });
+  },
+  watchAllManagedFolders() {
+    return invokeTauri<ManagedFolderWatchAllResult>(TAURI_COMMANDS.watchAllManagedFolders);
   },
   watchManagedFolder(input: ManagedFolderCommandInput) {
     return invokeTauri<ManagedFolderWatchResult>(TAURI_COMMANDS.watchManagedFolder, { input });

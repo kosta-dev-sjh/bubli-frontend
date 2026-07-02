@@ -1,7 +1,7 @@
 "use client";
 
 import { settingsApi } from "@/features/settings/api/settingsApi";
-import { recordCurrentActivityContext } from "@/lib/local/activity-client";
+import { recordCurrentActivityContext, resetIncrementalActivityCheckpoint } from "@/lib/local/activity-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 
@@ -32,6 +32,7 @@ export function stopActivityAutoCapture() {
   captureInFlight = false;
   cachedConsent = null;
   cachedConsentCheckedAt = 0;
+  resetIncrementalActivityCheckpoint();
 }
 
 export function isActivityAutoCaptureRunning() {
@@ -48,6 +49,7 @@ async function captureActivityOnce() {
 
     await recordCurrentActivityContext({
       consentGranted,
+      recordMode: "incremental",
       roomId: getActiveProjectRoomId(),
     });
   } catch {

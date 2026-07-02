@@ -17,6 +17,19 @@ import type {
   ActivityContextRecordInput,
 } from "@/types/local";
 
+type IncrementalActivityCheckpoint = {
+  focusKey: string;
+  recordedDurationSeconds: number;
+};
+
+type ActivityRecordSegment = {
+  durationSeconds: number;
+  endedAt: string;
+  startedAt: string;
+};
+
+let incrementalActivityCheckpoint: IncrementalActivityCheckpoint | null = null;
+
 export async function readCurrentActivityContext(
   input: ActivityContextReadInput,
 ): Promise<ActivityContextAdapterResult> {
@@ -51,16 +64,31 @@ export async function recordCurrentActivityContext(
 
   const capturedAt = parseIsoDate(context.data.capturedAt);
   const durationSeconds = Math.max(0, Math.trunc(context.data.durationSeconds ?? 0));
-  const startedAt = new Date(capturedAt.getTime() - durationSeconds * 1000).toISOString();
-  const endedAt = capturedAt.toISOString();
+  const segment =
+    input.recordMode === "incremental"
+      ? resolveIncrementalActivitySegment(context.data.appName, context.data.windowTitle, durationSeconds, capturedAt)
+      : {
+          durationSeconds,
+          endedAt: capturedAt.toISOString(),
+          startedAt: new Date(capturedAt.getTime() - durationSeconds * 1000).toISOString(),
+        };
+
+  if (!segment) {
+    return blocked(
+      "activity_no_new_duration",
+      "활동 감지는 켜져 있지만 이번 주기에 새로 기록할 체류 시간이 없습니다.",
+      commandName,
+    );
+  }
+
   const localActivity = await runTauriAdapter(TAURI_COMMANDS.recordActivityContext, () =>
     tauriCommands.recordActivityContext({
       appName: context.data.appName,
       capturedAt: context.data.capturedAt,
-      durationSeconds,
-      endedAt,
+      durationSeconds: segment.durationSeconds,
+      endedAt: segment.endedAt,
       roomId: input.roomId ?? null,
-      startedAt,
+      startedAt: segment.startedAt,
       windowTitle: context.data.windowTitle ?? null,
     }),
   );
@@ -68,14 +96,17 @@ export async function recordCurrentActivityContext(
   if (localActivity.status !== "ready") {
     return localActivity;
   }
+  if (input.recordMode !== "incremental") {
+    rememberIncrementalActivityCheckpoint(context.data.appName, context.data.windowTitle, durationSeconds);
+  }
 
   try {
     const recordedActivity = await activityApi.recordCurrentApp({
       appName: context.data.appName,
-      durationSeconds,
-      endedAt,
+      durationSeconds: segment.durationSeconds,
+      endedAt: segment.endedAt,
       roomId: input.roomId ?? null,
-      startedAt,
+      startedAt: segment.startedAt,
       windowTitle: context.data.windowTitle ?? null,
     });
     await tauriCommands
@@ -184,4 +215,45 @@ function parseIsoDate(value: string) {
     return new Date();
   }
   return date;
+}
+
+function resolveIncrementalActivitySegment(
+  appName: string,
+  windowTitle: string | undefined,
+  durationSeconds: number,
+  capturedAt: Date,
+): ActivityRecordSegment | null {
+  const focusKey = `${appName}\u0000${windowTitle ?? ""}`;
+  const previousDuration =
+    incrementalActivityCheckpoint?.focusKey === focusKey
+      ? Math.min(incrementalActivityCheckpoint.recordedDurationSeconds, durationSeconds)
+      : 0;
+  const nextDuration = Math.max(0, durationSeconds - previousDuration);
+
+  rememberIncrementalActivityCheckpoint(appName, windowTitle, durationSeconds);
+
+  if (nextDuration <= 0) {
+    return null;
+  }
+
+  return {
+    durationSeconds: nextDuration,
+    endedAt: capturedAt.toISOString(),
+    startedAt: new Date(capturedAt.getTime() - nextDuration * 1000).toISOString(),
+  };
+}
+
+function rememberIncrementalActivityCheckpoint(
+  appName: string,
+  windowTitle: string | undefined,
+  durationSeconds: number,
+) {
+  incrementalActivityCheckpoint = {
+    focusKey: `${appName}\u0000${windowTitle ?? ""}`,
+    recordedDurationSeconds: durationSeconds,
+  };
+}
+
+export function resetIncrementalActivityCheckpoint() {
+  incrementalActivityCheckpoint = null;
 }

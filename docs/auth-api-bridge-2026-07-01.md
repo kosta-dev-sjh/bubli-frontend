@@ -51,12 +51,14 @@
 
 ```env
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
-NEXT_PUBLIC_APP_BASE_URL=http://localhost:3000
+NEXT_PUBLIC_APP_BASE_URL=http://localhost:3791
 NEXT_PUBLIC_WS_URL=ws://localhost:8080/ws
 NEXT_PUBLIC_BUBLI_PREVIEW_DATA=false
 ```
 
-배포에서는 `NEXT_PUBLIC_API_BASE_URL=https://bubli.n-e.kr`, `NEXT_PUBLIC_WS_URL=wss://bubli.n-e.kr/ws`처럼 같은 배포 도메인 기준으로 맞춘다. `NEXT_PUBLIC_*` 값은 Next 빌드 시점에 번들에 들어가므로 주소를 바꾸면 프론트 이미지를 다시 빌드해야 한다.
+배포에서는 `NEXT_PUBLIC_APP_BASE_URL=https://bubli.n-e.kr`, `NEXT_PUBLIC_API_BASE_URL=https://bubli.n-e.kr`, `NEXT_PUBLIC_WS_URL=wss://bubli.n-e.kr/ws`처럼 같은 배포 도메인 기준으로 맞춘다. `NEXT_PUBLIC_*` 값은 Next 빌드 시점에 번들에 들어가므로 주소를 바꾸면 프론트 이미지를 다시 빌드해야 한다.
+
+Google Cloud Console의 OAuth 클라이언트에는 프론트가 실제로 보내는 redirect URI를 글자 단위로 똑같이 등록해야 한다. 로컬 개발 기준은 `http://localhost:3791/auth/callback`, 배포 기준은 `https://bubli.n-e.kr/auth/callback`이다. `NEXT_PUBLIC_APP_BASE_URL`과 Google Console 값이 다르면 Google이 `redirect_uri_mismatch`를 반환한다.
 
 ## Tauri 기준
 
@@ -65,7 +67,7 @@ Tauri WebView에서는 `resolveAuthClientType()`이 `TAURI`를 반환한다. 같
 ## 남은 확인
 
 - 배포 백엔드에 실제 Google OAuth client id, secret 등록.
-- Google Console redirect URI에 `https://bubli.n-e.kr/auth/callback` 등록.
+- Google Console redirect URI에 `http://localhost:3791/auth/callback`, `https://bubli.n-e.kr/auth/callback` 등록.
 - 배포 환경에서 Google callback 후 `/app` 진입 확인.
 - 실제 백엔드 WebSocket에서 CONNECT, SUBSCRIBE, MESSAGE 수신 확인.
 - logout 이후 refresh token 무효화 확인.

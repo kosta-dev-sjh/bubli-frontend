@@ -236,7 +236,6 @@ async function captureRoutes(browser) {
         ...process.env,
         NEXT_PUBLIC_BUBLI_NEW_DASHBOARD: "true",
         NEXT_PUBLIC_BUBLI_NEW_RESOURCES: "true",
-        NEXT_PUBLIC_BUBLI_NEW_WIDGET_PREVIEW: "true",
         BROWSER: "none",
       },
       stdio: "ignore",
