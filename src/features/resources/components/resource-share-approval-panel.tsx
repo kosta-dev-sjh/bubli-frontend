@@ -114,7 +114,7 @@ export function ResourceShareApprovalPanel({
   onOpenResource,
   onSelectRoom,
   readiness = "READY",
-  resourceTitle = "개인_계약검토_메모.md",
+  resourceTitle = "개인_자료검토_메모.md",
   targetRoom = defaultTargetRoom,
 }: ResourceShareApprovalPanelProps) {
   const blocked = readiness === "NO_PERMISSION" || auditItems.some((item) => item.status === "BLOCKED");

@@ -26,7 +26,7 @@ const preferenceRows = [
   {
     title: "자료 원문",
     value: "원문 유지",
-    body: "계약서와 요구사항 문서는 원문을 보존하고, 필요한 경우 번역 참고만 함께 봅니다.",
+    body: "업무 문서와 요구사항 문서는 원문을 보존하고, 필요한 경우 번역 참고만 함께 봅니다.",
     icon: FileText,
   },
 ];
@@ -99,7 +99,7 @@ export function LanguagePreferencesPanel() {
           <StatusBadge tone="agent">에이전트 후보</StatusBadge>
           <h3>번역 결과는 사용자가 확인한 뒤 업무에 반영합니다</h3>
           <p>
-            일본어 계약서나 영어 요구사항을 분석하더라도, 에이전트는 요약과 확인 질문을 제안합니다. 사용자가 확인한 값만
+            일본어 업무 문서나 영어 요구사항을 분석하더라도, 에이전트는 요약과 확인 질문을 제안합니다. 사용자가 확인한 값만
             WBS/TODO와 일정에 반영됩니다.
           </p>
         </div>
