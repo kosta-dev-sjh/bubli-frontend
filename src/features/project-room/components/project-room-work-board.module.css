@@ -651,6 +651,27 @@
   border-color: rgba(107, 143, 168, 0.24);
 }
 
+.taskCreate {
+  align-items: end;
+  background: rgba(215, 234, 244, 0.24);
+  border: 1px solid rgba(107, 143, 168, 0.24);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-block-end: 12px;
+  padding: 12px;
+}
+
+.taskCreate label {
+  color: #5a6772;
+  display: grid;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
 .wbsFormGrid {
   display: grid;
   gap: 10px;
@@ -666,7 +687,8 @@
   min-inline-size: 0;
 }
 
-.wbsFormGrid input {
+.wbsFormGrid input,
+.taskCreate input {
   appearance: none;
   background: rgba(255, 255, 255, 0.86);
   border: 1px solid rgba(229, 231, 235, 0.95);
@@ -682,11 +704,13 @@
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
-.wbsFormGrid input::placeholder {
+.wbsFormGrid input::placeholder,
+.taskCreate input::placeholder {
   color: #8a94a0;
 }
 
-.wbsFormGrid input:focus-visible {
+.wbsFormGrid input:focus-visible,
+.taskCreate input:focus-visible {
   border-color: rgba(107, 143, 168, 0.62);
   box-shadow: 0 0 0 4px rgba(215, 234, 244, 0.58);
 }
@@ -1118,9 +1142,10 @@
   .detailMetrics,
   .suggestionTray .suggestionList,
   .taskInspector,
-  .wbsFormGrid {
-    grid-template-columns: 1fr;
-  }
+    .taskCreate,
+    .wbsFormGrid {
+      grid-template-columns: 1fr;
+    }
 
   .columns {
     grid-auto-columns: minmax(310px, 86vw);

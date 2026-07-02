@@ -4,8 +4,20 @@ import { DndContext, DragOverlay, PointerSensor, closestCenter, useDroppable, us
 import type { CollisionDetection, DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AlertCircle, CheckCircle2, Clock3, LayoutDashboard, Pause, Play, RotateCcw, Square } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Clock3,
+  LayoutDashboard,
+  Pause,
+  Play,
+  Plus,
+  RotateCcw,
+  Square,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
+import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DashboardGrid, DashboardPalette, DashboardWidgetTile, WIDGET_CATALOG, sizeToClass, widgetIcon } from "@/components/dashboard";
@@ -200,8 +212,35 @@ function StatusLine({ children, meta }: { children: string; meta?: string }) {
   );
 }
 
-function TaskLine({ task }: { task: TaskResponse }) {
-  return <StatusLine meta={formatDue(task.dueAt)}>{task.title}</StatusLine>;
+function TaskLine({
+  deleting = false,
+  onDelete,
+  task,
+}: {
+  deleting?: boolean;
+  onDelete?: (task: TaskResponse) => void;
+  task: TaskResponse;
+}) {
+  return (
+    <li className="workspace-dashboard__line">
+      <span>{task.title}</span>
+      <span className="workspace-dashboard__line-actions">
+        <b>{formatDue(task.dueAt)}</b>
+        {onDelete ? (
+          <button
+            aria-label={`${task.title} 삭제`}
+            className="workspace-dashboard__task-delete"
+            disabled={deleting}
+            onClick={() => onDelete(task)}
+            type="button"
+          >
+            <Trash2 aria-hidden size={13} strokeWidth={2.1} />
+            <span>{deleting ? "삭제 중" : "삭제"}</span>
+          </button>
+        ) : null}
+      </span>
+    </li>
+  );
 }
 
 function ScheduleLine({ schedule }: { schedule: ScheduleResponse }) {
@@ -479,6 +518,67 @@ function DashboardLineList({ children }: { children: React.ReactNode }) {
   return <ul className="workspace-dashboard__list workspace-dashboard__list--compact">{children}</ul>;
 }
 
+function TodoWidget({
+  canCreate,
+  creating,
+  deletingTaskId,
+  notice,
+  onCreate,
+  onDelete,
+  roomLabel,
+  tasks,
+}: {
+  canCreate: boolean;
+  creating: boolean;
+  deletingTaskId: string | null;
+  notice: string | null;
+  onCreate: (title: string) => Promise<boolean>;
+  onDelete: (task: TaskResponse) => void;
+  roomLabel: string | null;
+  tasks: TaskResponse[];
+}) {
+  const [title, setTitle] = useState("");
+
+  const submitTodo = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const saved = await onCreate(title);
+    if (saved) {
+      setTitle("");
+    }
+  };
+
+  return (
+    <div className="workspace-dashboard__todo-widget">
+      <form className="workspace-dashboard__todo-form" onSubmit={submitTodo}>
+        <label>
+          <span>{roomLabel ? `${roomLabel} 할 일` : "개인 할 일"}</span>
+          <input
+            disabled={!canCreate || creating}
+            maxLength={200}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="예: 오늘 확인할 자료 정리"
+            value={title}
+          />
+        </label>
+        <button disabled={!canCreate || creating} type="submit">
+          <Plus aria-hidden size={14} strokeWidth={2.1} />
+          <span>{creating ? "추가 중" : "추가"}</span>
+        </button>
+      </form>
+      {notice ? <p className="workspace-dashboard__todo-notice">{notice}</p> : null}
+      {tasks.length > 0 ? (
+        <DashboardLineList>
+          {tasks.map((task) => (
+            <TaskLine deleting={deletingTaskId === task.id} key={task.id} onDelete={onDelete} task={task} />
+          ))}
+        </DashboardLineList>
+      ) : (
+        <EmptyWidget />
+      )}
+    </div>
+  );
+}
+
 function ResourceLine({ resource }: { resource: ResourceResponse }) {
   return <StatusLine meta={resource.visibility === "ROOM_SHARED" ? "프로젝트룸" : "개인"}>{resource.title}</StatusLine>;
 }
@@ -582,6 +682,9 @@ export function WorkspaceDashboard() {
   const [activePaletteWidgetId, setActivePaletteWidgetId] = useState<string | null>(null);
   const [activeRoom, setActiveRoom] = useState<{ label: string | null; roomId: string | null }>({ label: null, roomId: null });
   const [personalTasks, setPersonalTasks] = useState<TaskResponse[]>([]);
+  const [creatingTodo, setCreatingTodo] = useState(false);
+  const [deletingTodoId, setDeletingTodoId] = useState<string | null>(null);
+  const [todoNotice, setTodoNotice] = useState<string | null>(null);
   const [rooms, setRooms] = useState<ProjectRoomResponse[]>([]);
   const [todayActivityLogs, setTodayActivityLogs] = useState<ActivityLogResponse[] | null>(null);
   const [todayWidgetUsageSummary, setTodayWidgetUsageSummary] = useState<WidgetTodayUsageSummaryResponse | null>(null);
@@ -823,6 +926,83 @@ export function WorkspaceDashboard() {
     return closestCenter({ ...args, droppableContainers });
   }, []);
 
+  const upsertTask = useCallback((task: TaskResponse) => {
+    if (!task.roomId) {
+      setPersonalTasks((current) => [task, ...current.filter((item) => item.id !== task.id)]);
+    }
+    setState((current) => {
+      if (current.kind !== "ready" && current.kind !== "empty") return current;
+      return {
+        data: {
+          ...current.data,
+          todayTasks: [task, ...current.data.todayTasks.filter((item) => item.id !== task.id)],
+        },
+        kind: "ready",
+      };
+    });
+  }, []);
+
+  const removeTask = useCallback((taskId: string) => {
+    setPersonalTasks((current) => current.filter((task) => task.id !== taskId));
+    setState((current) => {
+      if (current.kind !== "ready" && current.kind !== "empty") return current;
+      return {
+        ...current,
+        data: {
+          ...current.data,
+          todayTasks: current.data.todayTasks.filter((task) => task.id !== taskId),
+          upcomingDeadlines: current.data.upcomingDeadlines.filter((task) => task.id !== taskId),
+        },
+      };
+    });
+  }, []);
+
+  const createTodo = useCallback(
+    async (title: string) => {
+      const trimmed = title.trim();
+      if (!trimmed) {
+        setTodoNotice("할 일 제목을 먼저 적어주세요.");
+        return false;
+      }
+
+      setCreatingTodo(true);
+      setTodoNotice(null);
+
+      try {
+        const created = activeRoom.roomId
+          ? await todoApi.createRoomTask(activeRoom.roomId, { status: "TODO", title: trimmed })
+          : await todoApi.create({ status: "TODO", title: trimmed });
+        upsertTask(created);
+        setTodoNotice(activeRoom.roomId ? "프로젝트룸 할 일을 만들었습니다." : "개인 할 일을 만들었습니다.");
+        return true;
+      } catch (error) {
+        setTodoNotice(error instanceof ApiClientError && error.status === 401 ? "로그인이 필요합니다." : "할 일을 저장하지 못했습니다.");
+        return false;
+      } finally {
+        setCreatingTodo(false);
+      }
+    },
+    [activeRoom.roomId, upsertTask],
+  );
+
+  const deleteTodo = useCallback(
+    async (task: TaskResponse) => {
+      setDeletingTodoId(task.id);
+      setTodoNotice(null);
+
+      try {
+        await todoApi.delete(task.id);
+        removeTask(task.id);
+        setTodoNotice("할 일을 삭제했습니다.");
+      } catch (error) {
+        setTodoNotice(error instanceof ApiClientError && error.status === 401 ? "로그인이 필요합니다." : "할 일을 삭제하지 못했습니다.");
+      } finally {
+        setDeletingTodoId(null);
+      }
+    },
+    [removeTask],
+  );
+
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const activeId = String(event.active.id);
     if (activeId.startsWith("palette:")) {
@@ -913,13 +1093,17 @@ export function WorkspaceDashboard() {
         case "next-focus":
           return <NextFocusWidget activityFocus={activityFocus} nextSchedule={nextFocusSchedule} nextTask={nextFocusTask} runningTimer={data.runningTimer} />;
         case "today-todos":
-          if (taskItems.length === 0) return <EmptyWidget />;
           return (
-            <DashboardLineList>
-              {taskItems.map((task) => (
-                <TaskLine key={task.id} task={task} />
-              ))}
-            </DashboardLineList>
+            <TodoWidget
+              canCreate={state.kind === "ready" || state.kind === "empty"}
+              creating={creatingTodo}
+              deletingTaskId={deletingTodoId}
+              notice={todoNotice}
+              onCreate={createTodo}
+              onDelete={(task) => void deleteTodo(task)}
+              roomLabel={activeRoom.label}
+              tasks={taskItems}
+            />
           );
         case "pending-approval":
           if (reviewTasks.length === 0) return <EmptyWidget />;
@@ -1030,11 +1214,16 @@ export function WorkspaceDashboard() {
       }
     },
     [
+      activeRoom.label,
       activeDashboardTimer,
       activeRooms,
       activityFocus,
+      createTodo,
+      creatingTodo,
       dashboardTasks,
       data,
+      deleteTodo,
+      deletingTodoId,
       enabledBubbleCount,
       inProgressTask,
       nextFocusSchedule,
@@ -1044,12 +1233,14 @@ export function WorkspaceDashboard() {
       reviewTasks,
       roomFilteredRunningTimer,
       runDashboardTimerAction,
+      state.kind,
       taskItems,
       timerAction,
       timerBusy,
       timerMessage,
       todaySchedules,
       todayWidgetUsageSummary,
+      todoNotice,
     ],
   );
 
