@@ -279,6 +279,13 @@ function ProjectRoomWorkBoardContent({
   });
 
   const wbsTitleById = useMemo(() => Object.fromEntries(wbsItems.map((item) => [item.id, item.title])), [wbsItems]);
+  const wbsParentTitleById = useMemo(
+    () =>
+      Object.fromEntries(
+        wbsItems.map((item) => [item.id, item.parentId ? wbsTitleById[item.parentId] ?? null : null]),
+      ),
+    [wbsItems, wbsTitleById],
+  );
   const childCountByWbsId = useMemo(() => {
     return wbsItems.reduce<Record<string, number>>((acc, item) => {
       if (item.parentId) {
@@ -359,12 +366,13 @@ function ProjectRoomWorkBoardContent({
               labels: wbsTitle ? [wbsTitle] : [],
               title: task.title,
               wbsItemId: task.wbsItemId ?? null,
+              wbsParentTitle: task.wbsItemId ? wbsParentTitleById[task.wbsItemId] ?? null : null,
               wbsTitle: wbsTitle ?? null,
             };
           }),
         title: t(column.labelKey),
       })),
-    [memberByUserId, t, visibleTasks, wbsTitleById],
+    [memberByUserId, t, visibleTasks, wbsParentTitleById, wbsTitleById],
   );
   const wbsGeneration = candidateGeneration?.kind === "wbs" ? candidateGeneration : null;
   const taskGeneration = candidateGeneration?.kind === "tasks" ? candidateGeneration : null;

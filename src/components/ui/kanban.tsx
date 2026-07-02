@@ -17,6 +17,7 @@ export interface KanbanTask {
   assignee?: string;
   assigneeId?: string;
   wbsItemId?: string | null;
+  wbsParentTitle?: string | null;
   wbsTitle?: string | null;
 }
 
@@ -264,6 +265,8 @@ export function KanbanBoard({
                 const selectedWbs = wbsOptions.find((option) => option.id === task.wbsItemId);
                 const assigneeLabel = task.assignee ?? selectedAssignee?.label;
                 const wbsLabel = task.wbsTitle ?? selectedWbs?.title ?? task.labels?.[0] ?? null;
+                const wbsParentLabel = task.wbsParentTitle ?? selectedWbs?.parentTitle ?? null;
+                const wbsPathLabel = wbsLabel && wbsParentLabel ? `${wbsParentLabel} / ${wbsLabel}` : wbsLabel;
                 const isAssigneeMenuOpen = assigneeMenuTaskId === task.id;
                 const isWbsMenuOpen = wbsMenuTaskId === task.id;
 
@@ -271,6 +274,7 @@ export function KanbanBoard({
                   <article
                     className={cn(
                       styles.taskCard,
+                      task.wbsItemId && styles.taskCardLinked,
                       isDragging && styles.taskCardDragging,
                       isSelected && styles.taskCardSelected,
                     )}
@@ -387,8 +391,8 @@ export function KanbanBoard({
                           type="button"
                         >
                           <GitBranch aria-hidden="true" size={14} strokeWidth={2.2} />
-                          <span className={wbsLabel ? styles.wbsTriggerText : styles.wbsTriggerTextMuted}>
-                            {wbsLabel ?? t("ui.kanban.wbsUnlinked")}
+                          <span className={wbsPathLabel ? styles.wbsTriggerText : styles.wbsTriggerTextMuted}>
+                            {wbsPathLabel ?? t("ui.kanban.wbsUnlinked")}
                           </span>
                         </button>
 

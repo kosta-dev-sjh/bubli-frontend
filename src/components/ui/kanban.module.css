@@ -124,6 +124,13 @@
   border-color: color-mix(in srgb, var(--color-todo) 58%, var(--color-border));
 }
 
+.taskCardLinked {
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--color-todo) 68%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 12px 30px -26px rgba(66, 110, 150, 0.42);
+}
+
 .cardHeader {
   align-items: start;
   display: grid;
@@ -263,6 +270,10 @@
   position: relative;
 }
 
+.wbsPicker {
+  flex: 1 1 100%;
+}
+
 .avatar {
   align-items: center;
   background: color-mix(in srgb, var(--color-water-blue) 52%, transparent);
@@ -309,7 +320,8 @@
 .wbsTrigger {
   background: rgba(247, 249, 250, 0.84);
   color: var(--color-brand);
-  max-inline-size: 150px;
+  inline-size: 100%;
+  max-inline-size: 100%;
   padding: 2px 10px;
 }
 
