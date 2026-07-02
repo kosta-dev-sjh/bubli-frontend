@@ -24,6 +24,7 @@ notify = "6"
 rusqlite = { version = "0.31", features = ["bundled"] }
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+tauri-plugin-dialog = "2.7.1"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52", features = [
