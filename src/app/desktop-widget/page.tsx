@@ -30,7 +30,8 @@ import {
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
 import { timerApi } from "@/features/timer/api/timerApi";
-import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
+import { tauriCommands, type WidgetBubbleType, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readWidgetSummary } from "@/lib/widget";
@@ -121,30 +122,30 @@ function formatDue(value?: string | null) {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const target = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
   const diff = Math.round((target - start) / dayMs);
-  if (diff === 0) return formatShortTime(value) || "오늘";
-  if (diff === 1) return "내일";
+  if (diff === 0) return formatShortTime(value) || "?ㅻ뒛";
+  if (diff === 1) return "?댁씪";
   if (diff > 1) return `D-${diff}`;
-  return "지난 일정";
+  return "吏???쇱젙";
 }
 
 function taskStatusLabel(status: WidgetTaskResponse["status"]) {
   const labels: Record<WidgetTaskResponse["status"], string> = {
-    BLOCKED: "막힘",
-    DONE: "완료",
-    IN_PROGRESS: "진행",
-    REVIEW: "검토",
-    TODO: "대기",
+    BLOCKED: "留됲옒",
+    DONE: "?꾨즺",
+    IN_PROGRESS: "吏꾪뻾",
+    REVIEW: "寃??,
+    TODO: "?湲?,
   };
   return labels[status];
 }
 
 function resourceStatusLabel(status: WidgetResourceResponse["status"]) {
   const labels: Record<WidgetResourceResponse["status"], string> = {
-    ANALYZED: "분석됨",
-    ANALYZING: "분석 중",
-    FAILED: "실패",
-    READY: "준비됨",
-    UPLOADING: "업로드",
+    ANALYZED: "遺꾩꽍??,
+    ANALYZING: "遺꾩꽍 以?,
+    FAILED: "?ㅽ뙣",
+    READY: "以鍮꾨맖",
+    UPLOADING: "?낅줈??,
   };
   return labels[status];
 }
@@ -155,16 +156,16 @@ function memoTitle(memo: WidgetMemoResponse) {
     .map((line) => line.trim())
     .find(Boolean);
 
-  if (!firstLine) return "빈 메모";
+  if (!firstLine) return "鍮?硫붾え";
   return firstLine.length > 36 ? `${firstLine.slice(0, 36)}...` : firstLine;
 }
 
 function suggestionStatusLabel(status: WidgetAgentSuggestionResponse["status"]) {
   const labels: Record<WidgetAgentSuggestionResponse["status"], string> = {
-    APPROVED: "승인됨",
-    DRAFT: "대기",
-    HELD: "보류",
-    REJECTED: "제외",
+    APPROVED: "?뱀씤??,
+    DRAFT: "?湲?,
+    HELD: "蹂대쪟",
+    REJECTED: "?쒖쇅",
   };
   return labels[status];
 }
@@ -225,24 +226,24 @@ function elapsedTimerLabel(timer?: TimerDisplay) {
 
 function timerStatusLabel(status: NonNullable<TimerDisplay>["status"]) {
   const labels: Record<NonNullable<TimerDisplay>["status"], string> = {
-    ENDED: "종료",
-    NEEDS_RECOVERY: "복구 필요",
-    PAUSED: "일시정지",
-    RUNNING: "실행 중",
+    ENDED: "醫낅즺",
+    NEEDS_RECOVERY: "蹂듦뎄 ?꾩슂",
+    PAUSED: "?쇱떆?뺤?",
+    RUNNING: "?ㅽ뻾 以?,
   };
   return labels[status] ?? status;
 }
 
 function timerActionLabel(timer?: TimerDisplay) {
-  if (!timer) return "시작";
-  if (timer.status === "PAUSED") return "재개";
-  if (timer.status === "RUNNING") return "종료";
-  return "시작";
+  if (!timer) return "?쒖옉";
+  if (timer.status === "PAUSED") return "?ш컻";
+  if (timer.status === "RUNNING") return "醫낅즺";
+  return "?쒖옉";
 }
 
 function roomLabel(room?: WidgetProjectRoomResponse | null, fallbackRoomId?: string | null) {
   if (room?.name) return room.name;
-  return fallbackRoomId ? "선택한 프로젝트룸" : "개인 작업";
+  return fallbackRoomId ? "?좏깮???꾨줈?앺듃猷? : "媛쒖씤 ?묒뾽";
 }
 
 function withBubble(id: WidgetBubbleType, patch: Partial<WidgetPreviewBubble>): WidgetPreviewBubble {
@@ -257,9 +258,9 @@ function withBubble(id: WidgetBubbleType, patch: Partial<WidgetPreviewBubble>): 
 function buildNotificationSignal(notifications: WidgetNotificationResponse[]): WidgetNotificationSignal {
   const unread = notifications.filter((item) => item.status === "UNREAD");
   return {
-    compactLabel: `알림 ${unread.length}`,
+    compactLabel: `?뚮┝ ${unread.length}`,
     metric: String(unread.length),
-    notificationLabel: unread.length > 0 ? `새 알림 ${unread.length}` : "새 알림 없음",
+    notificationLabel: unread.length > 0 ? `???뚮┝ ${unread.length}` : "???뚮┝ ?놁쓬",
     rows: unread.slice(0, 3).map((item) => ({
       id: item.id,
       kind: item.sourceType === "MESSAGE" ? "message" : item.sourceType === "RESOURCE" ? "resource" : "agent",
@@ -299,10 +300,10 @@ function buildDisplayBubbles(input: {
 
   return {
     agent: withBubble("agent", {
-      compactLabel: `후보 ${agentItems.length}`,
+      compactLabel: `?꾨낫 ${agentItems.length}`,
       metric: String(agentItems.length),
-      notificationLabel: agentItems.length > 0 ? "승인 대기 후보" : "대기 후보 없음",
-      panelBody: agentItems.length > 0 ? "승인 전 후보만 표시합니다." : "대기 중인 후보가 없습니다.",
+      notificationLabel: agentItems.length > 0 ? "?뱀씤 ?湲??꾨낫" : "?湲??꾨낫 ?놁쓬",
+      panelBody: agentItems.length > 0 ? "?뱀씤 ???꾨낫留??쒖떆?⑸땲??" : "?湲?以묒씤 ?꾨낫媛 ?놁뒿?덈떎.",
       roomLabel: label,
       rows: agentItems.map((item) => ({
         id: item.suggestionId,
@@ -312,13 +313,13 @@ function buildDisplayBubbles(input: {
       })),
     }),
     alert: withBubble("alert", {
-      actionLabel: "알림 확인",
-      compactLabel: `알림 ${unreadCount}`,
+      actionLabel: "?뚮┝ ?뺤씤",
+      compactLabel: `?뚮┝ ${unreadCount}`,
       metric: String(unreadCount),
-      metricLabel: "읽지 않음",
-      notificationLabel: unreadCount > 0 ? `새 알림 ${unreadCount}` : "새 알림 없음",
-      panelBody: unreadCount > 0 ? "확인이 필요한 알림만 모읍니다." : "지금 확인할 알림이 없습니다.",
-      panelLabel: "알림",
+      metricLabel: "?쎌? ?딆쓬",
+      notificationLabel: unreadCount > 0 ? `???뚮┝ ${unreadCount}` : "???뚮┝ ?놁쓬",
+      panelBody: unreadCount > 0 ? "?뺤씤???꾩슂???뚮┝留?紐⑥쓭?덈떎." : "吏湲??뺤씤???뚮┝???놁뒿?덈떎.",
+      panelLabel: "?뚮┝",
       roomLabel: label,
       rows: unreadNotifications.map((item) => ({
         id: item.id,
@@ -329,32 +330,32 @@ function buildDisplayBubbles(input: {
     }),
     chat: withBubble("chat", {
       chatRoomId: input.chatRoom?.id,
-      compactLabel: `소통 ${input.messages.length + voiceParticipants.length}`,
+      compactLabel: `?뚰넻 ${input.messages.length + voiceParticipants.length}`,
       lastMessageSequence: input.messages.reduce((max, item) => Math.max(max, item.roomSequence), 0),
       metric: String(input.messages.length),
-      notificationLabel: unreadCount > 0 ? `읽지 않은 알림 ${unreadCount}` : "새 소통 없음",
-      panelBody: "친구, 메시지, 보이스 상태를 함께 표시합니다.",
-      panelLabel: `소통 · ${label}`,
+      notificationLabel: unreadCount > 0 ? `?쎌? ?딆? ?뚮┝ ${unreadCount}` : "???뚰넻 ?놁쓬",
+      panelBody: "移쒓뎄, 硫붿떆吏, 蹂댁씠???곹깭瑜??④퍡 ?쒖떆?⑸땲??",
+      panelLabel: `?뚰넻 쨌 ${label}`,
       participantLabels: input.friends.slice(0, 3).map((item) => item.name),
       roomId: input.roomId,
       roomLabel: label,
-      voiceLabel: input.voiceConnectionLabel ?? (input.voiceRoom?.status === "OPEN" ? "보이스 진행 중" : "보이스 대기"),
-      voiceParticipants: voiceParticipants.map((item) => item.userName).filter(Boolean).join(" · ") || "참여자 없음",
+      voiceLabel: input.voiceConnectionLabel ?? (input.voiceRoom?.status === "OPEN" ? "蹂댁씠??吏꾪뻾 以? : "蹂댁씠???湲?),
+      voiceParticipants: voiceParticipants.map((item) => item.userName).filter(Boolean).join(" 쨌 ") || "李몄뿬???놁쓬",
       voiceRoomId: input.voiceRoom?.id,
       rows: [
         ...input.friends.slice(0, 1).map((item) => ({
           id: item.userId ?? item.friendUserId ?? item.bubliId,
           kind: "friend" as const,
           label: item.name,
-          status: "친구",
+          status: "移쒓뎄",
         })),
         ...(input.voiceRoom
           ? [
               {
                 id: input.voiceRoom.id,
                 kind: "voice" as const,
-                label: input.voiceRoom.status === "OPEN" ? "보이스 진행 중" : "보이스 종료",
-                status: `${voiceParticipants.length}명`,
+                label: input.voiceRoom.status === "OPEN" ? "蹂댁씠??吏꾪뻾 以? : "蹂댁씠??醫낅즺",
+                status: `${voiceParticipants.length}紐?,
               },
             ]
           : []),
@@ -368,10 +369,10 @@ function buildDisplayBubbles(input: {
       ],
     }),
     memo: withBubble("memo", {
-      compactLabel: `메모 ${memoItems.length}`,
+      compactLabel: `硫붾え ${memoItems.length}`,
       metric: String(memoItems.length),
-      notificationLabel: memoItems.length > 0 ? "저장된 메모" : "저장된 메모 없음",
-      panelBody: input.roomId ? "프로젝트룸 메모를 표시합니다." : "개인 메모를 표시합니다.",
+      notificationLabel: memoItems.length > 0 ? "??λ맂 硫붾え" : "??λ맂 硫붾え ?놁쓬",
+      panelBody: input.roomId ? "?꾨줈?앺듃猷?硫붾え瑜??쒖떆?⑸땲??" : "媛쒖씤 硫붾え瑜??쒖떆?⑸땲??",
       roomId: input.roomId,
       roomLabel: label,
       rows: memoItems.map((item) => ({
@@ -382,10 +383,10 @@ function buildDisplayBubbles(input: {
       })),
     }),
     resource: withBubble("resource", {
-      compactLabel: `자료 ${fileItems.length}`,
+      compactLabel: `?먮즺 ${fileItems.length}`,
       metric: String(fileItems.length),
-      notificationLabel: fileItems.length > 0 ? "확인할 자료" : "확인할 자료 없음",
-      panelBody: fileItems.length > 0 ? "프로젝트룸 자료를 표시합니다." : "표시할 자료가 없습니다.",
+      notificationLabel: fileItems.length > 0 ? "?뺤씤???먮즺" : "?뺤씤???먮즺 ?놁쓬",
+      panelBody: fileItems.length > 0 ? "?꾨줈?앺듃猷??먮즺瑜??쒖떆?⑸땲??" : "?쒖떆???먮즺媛 ?놁뒿?덈떎.",
       roomLabel: label,
       rows: fileItems.map((item) => ({
         id: item.id,
@@ -395,10 +396,10 @@ function buildDisplayBubbles(input: {
       })),
     }),
     schedule: withBubble("schedule", {
-      compactLabel: `일정 ${scheduleItems.length}`,
+      compactLabel: `?쇱젙 ${scheduleItems.length}`,
       metric: scheduleItems[0] ? formatShortTime(scheduleItems[0].startsAt) : "0",
-      notificationLabel: scheduleItems[0]?.title ?? "오늘 일정 없음",
-      panelBody: "오늘 일정과 다가오는 일정을 표시합니다.",
+      notificationLabel: scheduleItems[0]?.title ?? "?ㅻ뒛 ?쇱젙 ?놁쓬",
+      panelBody: "?ㅻ뒛 ?쇱젙怨??ㅺ??ㅻ뒗 ?쇱젙???쒖떆?⑸땲??",
       roomLabel: label,
       rows: scheduleItems.map((item) => ({
         id: item.id,
@@ -409,11 +410,11 @@ function buildDisplayBubbles(input: {
     }),
     timer: withBubble("timer", {
       actionLabel: timerActionLabel(activeTimer),
-      compactLabel: `타이머 ${elapsedTimerLabel(activeTimer ?? undefined)}`,
+      compactLabel: `??대㉧ ${elapsedTimerLabel(activeTimer ?? undefined)}`,
       metric: elapsedTimerLabel(activeTimer ?? undefined),
-      metricLabel: activeTimer ? timerStatusLabel(activeTimer.status) : "대기",
-      notificationLabel: activeTimer ? "작업 시간 기록 중" : "진행 중인 타이머 없음",
-      panelBody: "time_logs API의 타이머 상태를 표시합니다.",
+      metricLabel: activeTimer ? timerStatusLabel(activeTimer.status) : "?湲?,
+      notificationLabel: activeTimer ? "?묒뾽 ?쒓컙 湲곕줉 以? : "吏꾪뻾 以묒씤 ??대㉧ ?놁쓬",
+      panelBody: "time_logs API????대㉧ ?곹깭瑜??쒖떆?⑸땲??",
       roomId: input.roomId,
       roomLabel: label,
       rows: activeTimer
@@ -421,7 +422,7 @@ function buildDisplayBubbles(input: {
             {
               id: activeTimer.id,
               kind: "time",
-              label: activeTimer.timerType === "WORK" ? "작업 타이머" : "일반 타이머",
+              label: activeTimer.timerType === "WORK" ? "?묒뾽 ??대㉧" : "?쇰컲 ??대㉧",
               status: activeTimer.status,
             },
           ]
@@ -430,8 +431,8 @@ function buildDisplayBubbles(input: {
     todo: withBubble("todo", {
       compactLabel: `TODO ${todoItems.length}`,
       metric: String(todoItems.length),
-      notificationLabel: todoItems[0] ? todoItems[0].title : "오늘 할 일 없음",
-      panelBody: "오늘 할 일과 다가오는 작업을 표시합니다.",
+      notificationLabel: todoItems[0] ? todoItems[0].title : "?ㅻ뒛 ?????놁쓬",
+      panelBody: "?ㅻ뒛 ???쇨낵 ?ㅺ??ㅻ뒗 ?묒뾽???쒖떆?⑸땲??",
       roomLabel: label,
       rows: todoItems.map((item) => ({
         checked: item.status === "DONE",
@@ -452,9 +453,12 @@ function DesktopWidgetSurface() {
   const isMenuOrb = requestedSurface === "menu";
   const isWidgetChrome = isBubbleBar || isMenuOrb;
   const requestedBubble = getRequestedBubble(requestedSurface);
+  const currentWindowBubble: WidgetWindowBubbleType = isBubbleBar ? "bar" : isMenuOrb ? "menu" : requestedBubble;
   const requestedMode = getRequestedMode(searchParams.get("mode"));
   const requestedRoomId = searchParams.get("roomId") ?? null;
   const windowId = searchParams.get("windowId") ?? undefined;
+  const [authReady, setAuthReady] = useState(!isTauri);
+  const [hasAuthSession, setHasAuthSession] = useState(!isTauri);
   const [activeBubble, setActiveBubble] = useState<WidgetBubbleType>(requestedBubble);
   const [mode, setMode] = useState<WidgetWindowMode>(requestedMode);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
@@ -477,6 +481,7 @@ function DesktopWidgetSurface() {
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(widgetNotificationSignal);
   const liveKitRoomRef = useRef<Room | null>(null);
   const selectedWidgetRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
+  const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
 
   useEffect(() => {
     const htmlStyle = document.documentElement.style;
@@ -524,6 +529,32 @@ function DesktopWidgetSurface() {
   }, []);
 
   useEffect(() => {
+    if (!isTauri) return;
+
+    let cancelled = false;
+
+    async function restoreWidgetAuthSession() {
+      const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
+      if (cancelled) return;
+      setHasAuthSession(Boolean(session));
+      setAuthReady(true);
+    }
+
+    void restoreWidgetAuthSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isTauri]);
+
+  useEffect(() => {
+    if (!isTauri || !authReady || hasAuthSession) return;
+
+    void tauriCommands.closeWidgetWindow({ bubbleType: currentWindowBubble, windowId }).catch(() => undefined);
+  }, [authReady, currentWindowBubble, hasAuthSession, isTauri, windowId]);
+
+  useEffect(() => {
+    if (!widgetSessionReady) return;
     if (isWidgetChrome) return;
 
     const timeoutId = window.setTimeout(() => {
@@ -532,9 +563,10 @@ function DesktopWidgetSurface() {
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [isTauri, isWidgetChrome, requestedBubble, requestedMode]);
+  }, [isTauri, isWidgetChrome, requestedBubble, requestedMode, widgetSessionReady]);
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (isWidgetChrome) return;
     if (!isTauri) return;
 
@@ -559,9 +591,10 @@ function DesktopWidgetSurface() {
       .catch(() => {
         // Browser previews and incomplete Tauri permissions should not break the widget surface.
       });
-  }, [isTauri, isWidgetChrome, requestedBubble, requestedMode, selectedWidgetRoomId, windowId]);
+  }, [isTauri, isWidgetChrome, requestedBubble, requestedMode, selectedWidgetRoomId, widgetSessionReady, windowId]);
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (isWidgetChrome) return;
 
     let cancelled = false;
@@ -604,7 +637,7 @@ function DesktopWidgetSurface() {
           }).catch(() => undefined);
         }
       } catch {
-        // 인증 전이거나 서버가 없으면 기본 버블 데이터로 유지한다.
+        // ?몄쬆 ?꾩씠嫄곕굹 ?쒕쾭媛 ?놁쑝硫?湲곕낯 踰꾨툝 ?곗씠?곕줈 ?좎??쒕떎.
       }
     }
 
@@ -613,7 +646,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, windowId]);
+  }, [isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, widgetSessionReady, windowId]);
 
   useEffect(() => {
     if (!isTauri || isWidgetChrome) return;
@@ -648,6 +681,7 @@ function DesktopWidgetSurface() {
   }, []);
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (isWidgetChrome) return;
 
     let cancelled = false;
@@ -678,9 +712,10 @@ function DesktopWidgetSurface() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [isWidgetChrome, requestedRoomId]);
+  }, [isWidgetChrome, requestedRoomId, widgetSessionReady]);
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (isMenuOrb) return;
 
     let cancelled = false;
@@ -785,9 +820,10 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, memoRevision, requestedRoomId, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId]);
+  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, memoRevision, requestedRoomId, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (!isBubbleBar) return;
 
     let cancelled = false;
@@ -825,7 +861,7 @@ function DesktopWidgetSurface() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [isBubbleBar, isTauri]);
+  }, [isBubbleBar, isTauri, widgetSessionReady]);
 
   const setWindowMode = useCallback(
     async (nextMode: WidgetWindowMode) => {
@@ -1101,7 +1137,7 @@ function DesktopWidgetSurface() {
 
   const createWidgetMemo = useCallback(
     async (bubble: WidgetPreviewBubble) => {
-      const body = window.prompt("메모 내용을 입력하세요.")?.trim();
+      const body = window.prompt("硫붾え ?댁슜???낅젰?섏꽭??")?.trim();
       if (!body) return;
 
       const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
@@ -1168,6 +1204,7 @@ function DesktopWidgetSurface() {
   );
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (!isTauri || isWidgetChrome) return;
 
     let cancelled = false;
@@ -1188,9 +1225,10 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [applyTimerResult, isTauri, isWidgetChrome, recordTimerUsage]);
+  }, [applyTimerResult, isTauri, isWidgetChrome, recordTimerUsage, widgetSessionReady]);
 
   useEffect(() => {
+    if (!widgetSessionReady) return;
     if (!activeTimerHeartbeatId) return;
 
     let cancelled = false;
@@ -1209,7 +1247,7 @@ function DesktopWidgetSurface() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [activeTimerHeartbeatId, applyTimerResult, recordTimerUsage]);
+  }, [activeTimerHeartbeatId, applyTimerResult, recordTimerUsage, widgetSessionReady]);
 
   const pauseWidgetTimer = useCallback(
     async (bubble: WidgetPreviewBubble) => {
@@ -1380,6 +1418,10 @@ function DesktopWidgetSurface() {
       // Browser preview fallback.
     }
   }, [isTauri, selectedWidgetRoomId]);
+
+  if (!widgetSessionReady) {
+    return null;
+  }
 
   if (isMenuOrb) {
     return <DesktopWidgetMenuOrb onOpenMenu={() => void openBubbleBar()} />;
