@@ -38,6 +38,55 @@
   min-inline-size: 0;
 }
 
+.generateButton {
+  align-items: center;
+  background: rgba(231, 246, 255, 0.78);
+  border: 1px solid rgba(111, 184, 242, 0.28);
+  border-radius: 999px;
+  color: var(--blue-ink);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.generateButton:hover:not(:disabled) {
+  background: rgba(216, 240, 255, 0.9);
+  border-color: rgba(111, 184, 242, 0.48);
+}
+
+.generateButton:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.generateNotice,
+.generateError {
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+  margin: 0;
+  padding: 9px 11px;
+}
+
+.generateNotice {
+  background: rgba(231, 246, 255, 0.72);
+  border: 1px solid rgba(111, 184, 242, 0.2);
+  color: var(--blue-ink);
+}
+
+.generateError {
+  background: rgba(255, 245, 235, 0.82);
+  border: 1px solid rgba(232, 196, 160, 0.3);
+  color: color-mix(in srgb, var(--color-warning) 42%, var(--ink) 58%);
+}
+
 .viewSwitch {
   display: inline-flex;
   gap: 5px;

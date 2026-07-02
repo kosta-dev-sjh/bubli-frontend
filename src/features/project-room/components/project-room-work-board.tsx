@@ -6,6 +6,7 @@ import type { CSSProperties, DragEvent, FormEvent } from "react";
 import { useMemo, useState } from "react";
 
 import { StatusBadge } from "@/components/ui/status-badge";
+import { agentApi } from "@/features/agent/api/agentApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,12 @@ type WbsEditDraft = {
 
 type WbsPeriodMode = "day" | "month" | "rows" | "week";
 const wbsPeriodModes: WbsPeriodMode[] = ["rows", "month", "week", "day"];
+
+type GenerateWbsState =
+  | { kind: "idle" }
+  | { kind: "running" }
+  | { jobId: string; kind: "started" }
+  | { kind: "error"; message: string };
 
 const columns: KanbanColumn[] = [
   { description: "시작 전", label: "대기", status: "TODO" },
@@ -472,6 +479,7 @@ function ProjectRoomWorkBoardContent({
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(board.tasks[0]?.id ?? null);
   const [trashActive, setTrashActive] = useState(false);
   const [viewMode, setViewMode] = useState<"kanban" | "suggestions" | "wbs">("wbs");
+  const [generateWbsState, setGenerateWbsState] = useState<GenerateWbsState>({ kind: "idle" });
   const [draggedWbsId, setDraggedWbsId] = useState<string | null>(null);
   const [wbsDropTargetId, setWbsDropTargetId] = useState<string | null>(null);
   const [wbsPeriodMode, setWbsPeriodMode] = useState<WbsPeriodMode>("rows");
@@ -978,6 +986,24 @@ function ProjectRoomWorkBoardContent({
     );
   };
 
+  const handleGenerateWbs = async () => {
+    if (generateWbsState.kind === "running") {
+      return;
+    }
+
+    setGenerateWbsState({ kind: "running" });
+
+    try {
+      const job = await agentApi.generateWbs({ roomId });
+      setGenerateWbsState({ jobId: job.jobId, kind: "started" });
+    } catch (error) {
+      setGenerateWbsState({
+        kind: "error",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "WBS 후보 생성에 실패했습니다.",
+      });
+    }
+  };
+
   return (
     <div className={styles.shell}>
       <section className={styles.contextBand} aria-label="WBS와 작업판 연결 상태">
@@ -986,6 +1012,15 @@ function ProjectRoomWorkBoardContent({
           <h2>{currentViewCopy.title}</h2>
         </div>
         <div className={styles.contextTools}>
+          <button
+            className={styles.generateButton}
+            disabled={generateWbsState.kind === "running"}
+            onClick={() => void handleGenerateWbs()}
+            type="button"
+          >
+            <GitBranch size={15} aria-hidden="true" />
+            {generateWbsState.kind === "running" ? "WBS 생성 중" : "WBS 후보 생성"}
+          </button>
           <div className={styles.viewSwitch} aria-label="작업판 보기 전환">
             <button aria-pressed={viewMode === "wbs"} onClick={() => setViewMode("wbs")} type="button">
               <GitBranch size={15} aria-hidden="true" />
@@ -1013,6 +1048,12 @@ function ProjectRoomWorkBoardContent({
           </div>
         </div>
       </section>
+
+      {generateWbsState.kind === "started" ? (
+        <p className={styles.generateNotice}>WBS 후보 생성 요청됨. 작업 ID: {generateWbsState.jobId.slice(0, 8)}</p>
+      ) : null}
+      {generateWbsState.kind === "running" ? <p className={styles.generateNotice}>WBS 후보 생성 중입니다.</p> : null}
+      {generateWbsState.kind === "error" ? <p className={styles.generateError}>WBS 후보 생성 실패: {generateWbsState.message}</p> : null}
 
       <div className={styles.boardGrid} data-view={viewMode}>
         {viewMode === "wbs" ? (
