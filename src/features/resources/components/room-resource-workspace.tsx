@@ -237,23 +237,25 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                 type="file"
               />
 
-              <div className={cn("resource-workspace__items", styles.fileGrid, viewMode === "list" && "resource-workspace__items--list", viewMode === "list" && styles.fileList)}>
-                {state.kind === "loading" ? (
+              {state.kind === "loading" ? (
+                <div className={cn("resource-workspace__items", styles.fileGrid, viewMode === "list" && "resource-workspace__items--list", viewMode === "list" && styles.fileList)}>
                   <>
                     <GlassPanel loading />
                     <GlassPanel loading />
                     <GlassPanel loading />
                   </>
-                ) : filteredResources.length === 0 ? (
-                  <GlassPanel className="resource-workspace__empty">
-                    <UploadCloud aria-hidden size={22} strokeWidth={2} />
-                    <div>
-                      <h2>현재 데이터가 없습니다</h2>
-                      <p>파일을 추가하면 이 룸의 자료 목록에 표시됩니다.</p>
-                    </div>
-                  </GlassPanel>
-                ) : (
-                  filteredResources.map((resource) => (
+                </div>
+              ) : filteredResources.length === 0 ? (
+                <div className={styles.emptyCanvas} role="status">
+                  <div className={styles.emptyCanvasInner}>
+                    <UploadCloud aria-hidden size={24} strokeWidth={1.8} />
+                    <strong>아직 올린 자료가 없습니다</strong>
+                    <p>파일을 끌어다 놓거나 선택하면 이 룸 자료에 추가됩니다.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className={cn("resource-workspace__items", styles.fileGrid, viewMode === "list" && "resource-workspace__items--list", viewMode === "list" && styles.fileList)}>
+                  {filteredResources.map((resource) => (
                     <ResourceTile
                       key={resource.id}
                       mode={viewMode}
@@ -262,9 +264,9 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                       scope="room"
                       selected={selectedResource?.id === resource.id}
                     />
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <ResourcePreview

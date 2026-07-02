@@ -90,7 +90,6 @@ export default function ProjectRoomWorkPage() {
 
     return {
       board: state.board,
-      hasBoardItems: state.board.wbsItems.length > 0 || state.board.tasks.length > 0,
       pendingSuggestions: state.suggestions,
     };
   }, [state]);
@@ -136,19 +135,7 @@ export default function ProjectRoomWorkPage() {
       ) : null}
 
       {state.kind === "ready" && content ? (
-        <>
-          {content.board.wbsItems.length + content.board.tasks.length + content.pendingSuggestions.length === 0 ? (
-            <GlassPanel className="workspace-route__panel">
-              <strong>현재 데이터가 없습니다</strong>
-            </GlassPanel>
-          ) : (
-            <>
-              {content.hasBoardItems || content.pendingSuggestions.length > 0 ? (
-                <ProjectRoomWorkBoard board={content.board} roomId={roomId} suggestions={content.pendingSuggestions} />
-              ) : null}
-            </>
-          )}
-        </>
+        <ProjectRoomWorkBoard board={content.board} roomId={roomId} suggestions={content.pendingSuggestions} />
       ) : null}
     </section>
   );

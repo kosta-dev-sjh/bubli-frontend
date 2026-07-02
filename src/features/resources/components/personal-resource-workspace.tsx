@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, FolderOpen, HardDrive, Laptop, RefreshCw } from "lucide-react";
+import { AlertCircle, FolderOpen, HardDrive } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -157,47 +157,35 @@ export function PersonalResourceWorkspace() {
               <GlassPanel className={cn("resource-workspace__dropzone resource-workspace__dropzone--local", styles.syncStrip)}>
                 <HardDrive aria-hidden size={22} strokeWidth={2} />
                 <div>
-                  <strong>{isTauri ? "로컬 폴더 동기화" : "데스크탑 앱 연결 필요"}</strong>
+                  <strong>{isTauri ? "개인 폴더 동기화" : "개인 폴더 연결"}</strong>
                   <p>
                     {isTauri
-                      ? "앱에서 지정한 폴더만 개인 자료로 읽습니다."
-                      : "브라우저에서는 개인 파일을 받지 않습니다."}
+                      ? "연결한 폴더의 파일명과 상태만 모아봅니다."
+                      : "데스크탑 앱에서 폴더를 연결하면 개인 자료가 모입니다."}
                   </p>
                 </div>
-                <span className={styles.syncBadge}>{isTauri ? "연결됨" : "앱 필요"}</span>
               </GlassPanel>
 
-              <div className={cn("resource-workspace__items", styles.fileGrid, viewMode === "list" && "resource-workspace__items--list", viewMode === "list" && styles.fileList)}>
-                {state.kind === "loading" ? (
+              {state.kind === "loading" ? (
+                <div className={cn("resource-workspace__items", styles.fileGrid, viewMode === "list" && "resource-workspace__items--list", viewMode === "list" && styles.fileList)}>
                   <>
                     <GlassPanel loading />
                     <GlassPanel loading />
                     <GlassPanel loading />
                   </>
-                ) : filteredResources.length === 0 ? (
-                  <GlassPanel className="resource-workspace__empty">
-                    <FolderOpen aria-hidden size={22} strokeWidth={2} />
-                    <div>
-                      <h2>현재 데이터가 없습니다</h2>
-                      <p>{isTauri ? "연결한 폴더의 스캔이 끝나면 여기에 표시됩니다." : "데스크탑 앱에서 폴더를 연결하면 여기에 표시됩니다."}</p>
-                      <div className="resource-workspace__local-steps">
-                        <span>
-                          <Laptop aria-hidden size={14} strokeWidth={2} />
-                          데스크탑 앱 열기
-                        </span>
-                        <span>
-                          <FolderOpen aria-hidden size={14} strokeWidth={2} />
-                          폴더 선택
-                        </span>
-                        <span>
-                          <RefreshCw aria-hidden size={14} strokeWidth={2} />
-                          자동 동기화
-                        </span>
-                      </div>
-                    </div>
-                  </GlassPanel>
-                ) : (
-                  filteredResources.map((resource) => (
+                </div>
+              ) : filteredResources.length === 0 ? (
+                <div className={styles.emptyCanvas} role="status">
+                  <div className={styles.emptyCanvasInner}>
+                    <FolderOpen aria-hidden size={24} strokeWidth={1.8} />
+                    <strong>{isTauri ? "아직 색인된 자료가 없습니다" : "아직 연결된 개인 자료가 없습니다"}</strong>
+                    <p>{isTauri ? "폴더 스캔이 끝나면 이곳에 표시됩니다." : "데스크탑 앱에서 개인 폴더를 연결하면 이곳에 표시됩니다."}</p>
+                    {!isTauri ? <span>데스크탑 앱 열기 · 폴더 선택 · 자동 동기화</span> : null}
+                  </div>
+                </div>
+              ) : (
+                <div className={cn("resource-workspace__items", styles.fileGrid, viewMode === "list" && "resource-workspace__items--list", viewMode === "list" && styles.fileList)}>
+                  {filteredResources.map((resource) => (
                     <ResourceTile
                       key={resource.id}
                       mode={viewMode}
@@ -206,9 +194,9 @@ export function PersonalResourceWorkspace() {
                       scope="personal"
                       selected={selectedResource?.id === resource.id}
                     />
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <ResourcePreview
