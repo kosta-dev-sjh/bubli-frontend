@@ -417,3 +417,328 @@ CREATE TABLE IF NOT EXISTS local_activity_focus (
     last_seen_ms    INTEGER NOT NULL
 );
 "#;
+
+#[cfg(test)]
+mod tests {
+    //! On-device SQLite verification against the *bundled* rusqlite engine the
+    //! app actually ships (Cargo.toml: rusqlite features = ["bundled"]). These
+    //! tests open real files under the temp dir so they also prove durability
+    //! across a fresh connection, i.e. app restart.
+    use super::*;
+    use rusqlite::Connection;
+
+    struct TempDb {
+        path: PathBuf,
+    }
+
+    impl TempDb {
+        fn new(tag: &str) -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "bubli-localdb-test-{tag}-{}.sqlite3",
+                Uuid::new_v4()
+            ));
+            Self { path }
+        }
+
+        fn open(&self) -> Connection {
+            let conn = Connection::open(&self.path).expect("open temp sqlite file");
+            configure_connection(&conn);
+            conn
+        }
+    }
+
+    impl Drop for TempDb {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.path);
+            // WAL sidecar files.
+            let _ = std::fs::remove_file(self.path.with_extension("sqlite3-wal"));
+            let _ = std::fs::remove_file(self.path.with_extension("sqlite3-shm"));
+        }
+    }
+
+    fn migrate(conn: &Connection) {
+        conn.execute_batch(SCHEMA_SQL)
+            .expect("apply on-device schema");
+    }
+
+    #[test]
+    fn schema_applies_and_persists_across_reopen() {
+        let db = TempDb::new("persist");
+
+        // First "session": migrate + write a managed folder and one file row.
+        {
+            let conn = db.open();
+            migrate(&conn);
+
+            let journal_mode: String = conn
+                .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+                .expect("read journal_mode");
+            assert_eq!(
+                journal_mode.to_lowercase(),
+                "wal",
+                "WAL keeps widget reads fast"
+            );
+
+            conn.execute(
+                "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+                 VALUES ('folder-1', 'Contracts', '/tmp/contracts', 'ACTIVE', 0, 1, 1)",
+                [],
+            )
+            .expect("insert managed folder");
+            conn.execute(
+                "INSERT INTO local_files (id, local_folder_id, file_name, local_path, sync_status, updated_at) \
+                 VALUES ('file-1', 'folder-1', 'a.txt', '/tmp/contracts/a.txt', 'LOCAL_ONLY', 1)",
+                [],
+            )
+            .expect("insert local file");
+        }
+
+        // Second "session": a brand new connection to the same file (app restart).
+        {
+            let conn = db.open();
+            let folder_count: i64 = conn
+                .query_row("SELECT COUNT(*) FROM managed_folders", [], |row| row.get(0))
+                .expect("count folders after reopen");
+            let file_name: String = conn
+                .query_row(
+                    "SELECT file_name FROM local_files WHERE id = 'file-1'",
+                    [],
+                    |row| row.get(0),
+                )
+                .expect("read file after reopen");
+            assert_eq!(folder_count, 1);
+            assert_eq!(file_name, "a.txt");
+        }
+    }
+
+    #[test]
+    fn fts5_trigram_substring_search_is_available() {
+        let db = TempDb::new("fts");
+        let conn = db.open();
+        // If FTS5 or the trigram tokenizer were missing, migrate() would panic
+        // here: the CREATE VIRTUAL TABLE ... USING fts5(tokenize='trigram')
+        // statement fails at parse time on an engine without them.
+        migrate(&conn);
+
+        conn.execute(
+            "INSERT INTO local_file_fts (local_file_id, file_name, content, local_path) \
+             VALUES ('file-1', 'contract.txt', 'Local contract renewal note for 2026', '/tmp/contract.txt')",
+            [],
+        )
+        .expect("insert fts row");
+
+        // Trigram matches interior substrings (>= 3 chars), which is why partial
+        // file-content search works without word boundaries.
+        let hits: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM local_file_fts WHERE local_file_fts MATCH '\"enewal\"'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("run trigram MATCH");
+        assert_eq!(
+            hits, 1,
+            "trigram substring search should find 'enewal' in 'renewal'"
+        );
+    }
+
+    #[test]
+    fn vacuum_into_backup_is_valid_and_readable() {
+        let source = TempDb::new("backup-src");
+        let backup = TempDb::new("backup-dst");
+
+        {
+            let conn = source.open();
+            migrate(&conn);
+            conn.execute(
+                "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+                 VALUES ('folder-1', 'Backup', '/tmp/backup', 'ACTIVE', 1, 1, 1)",
+                [],
+            )
+            .expect("seed source row");
+
+            // Exactly the operation backup_local_sqlite() runs.
+            let backup_sql = backup.path.to_string_lossy().replace('\'', "''");
+            conn.execute_batch(&format!("VACUUM main INTO '{backup_sql}'"))
+                .expect("VACUUM INTO backup");
+        }
+
+        // Backup file must exist and be an independently-openable, intact DB.
+        assert!(backup.path.exists(), "backup file should be written");
+        let restored = Connection::open(&backup.path).expect("open backup as a real db");
+        let quick_check: String = restored
+            .query_row("PRAGMA quick_check", [], |row| row.get(0))
+            .expect("quick_check on backup");
+        assert_eq!(
+            quick_check, "ok",
+            "restored backup must pass integrity check"
+        );
+        let name: String = restored
+            .query_row(
+                "SELECT name FROM managed_folders WHERE id = 'folder-1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read row from backup");
+        assert_eq!(name, "Backup");
+    }
+
+    #[test]
+    fn quick_check_reports_ok_on_healthy_db() {
+        let db = TempDb::new("integrity");
+        let conn = db.open();
+        migrate(&conn);
+        let result: String = conn
+            .query_row("PRAGMA quick_check", [], |row| row.get(0))
+            .expect("quick_check");
+        assert_eq!(result, "ok");
+    }
+
+    #[test]
+    fn sync_status_lifecycle_flows_local_to_synced() {
+        let db = TempDb::new("syncflow");
+        let conn = db.open();
+        migrate(&conn);
+
+        conn.execute(
+            "INSERT INTO local_files (id, local_folder_id, file_name, local_path, sync_status, updated_at) \
+             VALUES ('file-1', 'folder-1', 'a.txt', '/tmp/a.txt', 'LOCAL_ONLY', 1)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO local_file_events (id, local_file_id, local_folder_id, event_type, file_name, local_path, status, created_at) \
+             VALUES ('event-1', 'file-1', 'folder-1', 'CREATED', 'a.txt', '/tmp/a.txt', 'PENDING', 1)",
+            [],
+        )
+        .unwrap();
+
+        // Staged for sync.
+        conn.execute(
+            "UPDATE local_files SET sync_status = 'SYNC_PENDING' WHERE id = 'file-1'",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE local_file_events SET status = 'APPROVED' WHERE id = 'event-1'",
+            [],
+        )
+        .unwrap();
+
+        // Server reflected it back.
+        conn.execute(
+            "UPDATE local_files SET sync_status = 'SYNCED', resource_id = 'server-res-1' WHERE id = 'file-1'",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE local_file_events SET status = 'SYNCED' WHERE id = 'event-1'",
+            [],
+        )
+        .unwrap();
+
+        let (sync_status, resource_id): (String, String) = conn
+            .query_row(
+                "SELECT sync_status, resource_id FROM local_files WHERE id = 'file-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        let event_status: String = conn
+            .query_row(
+                "SELECT status FROM local_file_events WHERE id = 'event-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(sync_status, "SYNCED");
+        assert_eq!(resource_id, "server-res-1");
+        assert_eq!(event_status, "SYNCED");
+    }
+
+    #[test]
+    fn managed_folders_is_personal_only_without_room_id() {
+        // Personal-only boundary (Data Model 13.2, 09C): a managed folder never
+        // carries a roomId. Guard the schema so a future migration cannot quietly
+        // mix personal folders with project-room resources.
+        let db = TempDb::new("boundary");
+        let conn = db.open();
+        migrate(&conn);
+
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(managed_folders)")
+            .expect("read managed_folders columns");
+        let columns: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .expect("map columns")
+            .map(|value| value.expect("column name"))
+            .collect();
+
+        assert!(
+            !columns.iter().any(|name| name == "room_id"),
+            "managed_folders must stay personal-only (no room_id); found: {columns:?}"
+        );
+    }
+
+    /// Prove the macOS native file-event backend the watcher relies on actually
+    /// fires. The desktop watcher (local_files::watch_managed_folder) uses the
+    /// same `notify` recommended watcher, which resolves to FSEvents on macOS
+    /// (fsevent-sys). This exercises that real backend end to end: create a file
+    /// in a watched dir and confirm an event is delivered.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_native_file_watch_delivers_create_event() {
+        use notify::{RecursiveMode, Watcher};
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let dir = std::env::temp_dir().join(format!("bubli-watch-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("create watched dir");
+
+        let (tx, rx) = mpsc::channel();
+        let mut watcher =
+            notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
+                if let Ok(event) = result {
+                    let _ = tx.send(event);
+                }
+            })
+            .expect("build FSEvents watcher");
+        watcher
+            .watch(&dir, RecursiveMode::Recursive)
+            .expect("watch dir");
+
+        let target = dir.join("contract.txt");
+        std::fs::write(&target, b"local file change").expect("write watched file");
+
+        // FSEvents coalesces with some latency; poll generously.
+        let mut saw_target = false;
+        let deadline = std::time::Instant::now() + Duration::from_secs(15);
+        while std::time::Instant::now() < deadline {
+            match rx.recv_timeout(Duration::from_secs(1)) {
+                Ok(event) => {
+                    if event
+                        .paths
+                        .iter()
+                        .any(|path| path.ends_with("contract.txt"))
+                    {
+                        saw_target = true;
+                        break;
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    // Nudge the filesystem again in case the first event was
+                    // delivered before the watcher finished registering.
+                    let _ = std::fs::write(&target, b"local file change again");
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+        }
+
+        drop(watcher);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            saw_target,
+            "macOS FSEvents watcher should deliver an event for the created file"
+        );
+    }
+}

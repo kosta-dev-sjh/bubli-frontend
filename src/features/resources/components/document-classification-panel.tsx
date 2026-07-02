@@ -45,7 +45,7 @@ export type DocumentClassificationPanelProps = HTMLAttributes<HTMLElement> & {
 const kindMeta: Record<DocumentKind, { icon: ReactNode; label: string; tone: StatusTone }> = {
   contract: {
     icon: <FileCheck2 size={18} strokeWidth={2.1} />,
-    label: "계약서",
+    label: "업무 문서",
     tone: "success",
   },
   quote: {
