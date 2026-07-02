@@ -19,14 +19,13 @@ const loginStartupWindows: WidgetWindowOpenInput[] = [
 export function launchTauriAuthenticatedSurfaces() {
   if (!isTauriRuntime()) return Promise.resolve();
   if (launchRequested && launchPromise) return launchPromise;
-  if (launchRequested) return Promise.resolve();
 
   launchRequested = true;
   const generation = ++launchGeneration;
   launchPromise = (async () => {
     const selectedRoomId = getActiveProjectRoomId();
     const appReadyOpenedWidgets = await tauriCommands
-      .appReady({ selectedRoomId })
+      .appReady({ qaAllWidgets: false, selectedRoomId })
       .then(() => true)
       .catch(() => false);
 
