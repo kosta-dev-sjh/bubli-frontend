@@ -265,7 +265,7 @@ export default function ProjectRoomHomePage() {
               </span>
               <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
             </Link>
-            <Link className="room-home__route-card" href={`/app/desktop/widgets?autoOpen=chat&roomId=${encodeURIComponent(roomId)}`}>
+            <Link className="room-home__route-card" href={`/app/chat?mode=room&roomId=${encodeURIComponent(roomId)}`}>
               <MessageCircle aria-hidden size={19} strokeWidth={1.9} />
               <span>
                 <strong>소통</strong>
