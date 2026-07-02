@@ -245,16 +245,12 @@ export default function ProjectRoomHomePage() {
     ].slice(0, 4);
     const reviewCount = reviewTasks.length + blockedTasks.length + state.suggestions.length;
     const nextSchedule = state.schedules[0] ?? null;
-    const recentResources = state.resources.slice(0, 3);
-    const readySuggestions = state.suggestions.slice(0, 3);
     const wbsTitleById = Object.fromEntries(state.board.wbsItems.map((item) => [item.id, item.title]));
 
     return {
       activeTasks,
       checkItems,
       nextSchedule,
-      readySuggestions,
-      recentResources,
       reviewCount,
       urgentTasks,
       wbsTitleById,
@@ -319,68 +315,10 @@ export default function ProjectRoomHomePage() {
           <div className="workspace-route__summary" aria-label="프로젝트룸 상태">
             <span>{state.room.status === "CLOSED" ? "종료" : "진행 중"}</span>
             <span>멤버 {state.members.length}</span>
-            {state.room.clientName ? <span>{state.room.clientName}</span> : null}
             {formatMoney(state.room.contractAmount) ? <span>{formatMoney(state.room.contractAmount)}</span> : null}
             {formatDate(state.room.paymentDueDate) ? <span>입금 {formatDate(state.room.paymentDueDate)}</span> : null}
             {paymentLabel(state.room) && !formatMoney(state.room.contractAmount) ? <span>{paymentLabel(state.room)}</span> : null}
           </div>
-
-          <GlassPanel className="workspace-route__section">
-            <div className="workspace-route__section-head">
-              <div>
-                <strong>현재 작업 맥락</strong>
-                <span>이 프로젝트룸에서 승인한 내용만 작업판, 일정, 대시보드와 버블 표시로 이어집니다</span>
-              </div>
-              <Sparkles aria-hidden size={18} strokeWidth={1.9} />
-            </div>
-            <div className="workspace-route__split">
-              <div className="workspace-route__list">
-                <article className="workspace-route__row">
-                  <FileText aria-hidden size={18} strokeWidth={1.9} />
-                  <span className="workspace-route__main">
-                    <strong>프로젝트룸 자료</strong>
-                    <span>
-                      {roomContent.recentResources.length > 0
-                        ? roomContent.recentResources.map((resource) => resource.title).join(" · ")
-                        : "업무 문서, 요구사항, 회의록을 먼저 올립니다"}
-                    </span>
-                  </span>
-                  <span className="workspace-route__status">{state.resources.length}개</span>
-                </article>
-                <article className="workspace-route__row">
-                  <Sparkles aria-hidden size={18} strokeWidth={1.9} />
-                  <span className="workspace-route__main">
-                    <strong>에이전트 후보</strong>
-                    <span>
-                      {roomContent.readySuggestions.length > 0
-                        ? roomContent.readySuggestions.map((suggestion) => suggestionTypeLabel(suggestion.suggestionType)).join(" · ")
-                        : "확인 질문, WBS, TODO 후보가 여기에 모입니다"}
-                    </span>
-                  </span>
-                  <span className="workspace-route__status">{state.suggestions.length}개</span>
-                </article>
-              </div>
-
-              <div className="workspace-route__list">
-                <Link className="room-home__quick-link" href={`/app/project-rooms/${roomId}/work`}>
-                  <ListChecks aria-hidden size={18} strokeWidth={1.9} />
-                  <span>
-                    <strong>WBS와 칸반 작업판</strong>
-                    <span>승인한 요구사항과 TODO를 이 룸 기준으로 정리</span>
-                  </span>
-                  <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
-                </Link>
-                <Link className="room-home__quick-link" href={`/app/calendar?roomId=${roomId}`}>
-                  <CalendarDays aria-hidden size={18} strokeWidth={1.9} />
-                  <span>
-                    <strong>일정</strong>
-                    <span>{roomContent.nextSchedule ? `${roomContent.nextSchedule.title} · ${formatDue(roomContent.nextSchedule.startsAt)}` : "납품일과 회의 일정을 연결"}</span>
-                  </span>
-                  <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
-                </Link>
-              </div>
-            </div>
-          </GlassPanel>
 
           <div className="room-home__metrics" aria-label="프로젝트룸 작업 요약">
             <GlassPanel className="room-home__metric">
