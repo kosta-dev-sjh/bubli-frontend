@@ -13,6 +13,8 @@ import { notificationApi } from "@/features/notification/api/notificationApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useI18n } from "@/lib/i18n";
+import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -53,18 +55,20 @@ function isActiveRoom(pathname: string, roomId: string) {
   return pathname.startsWith(`/app/project-rooms/${roomId}`);
 }
 
-function routeFallbackProject(activeRoom?: ProjectRoomResponse) {
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
+
+function routeFallbackProject(t: TranslateFn, activeRoom?: ProjectRoomResponse) {
   if (activeRoom) {
     return {
-      description: "현재 룸",
+      description: t("layout.project.currentRoom"),
       name: activeRoom.name,
-      statusLabel: activeRoom.status === "ACTIVE" ? "진행 중" : "대기",
+      statusLabel: activeRoom.status === "ACTIVE" ? t("layout.project.inProgress") : t("layout.project.waiting"),
     };
   }
 
   return {
-    description: "선택 안 함",
-    name: "프로젝트룸 선택",
+    description: t("layout.project.notSelected"),
+    name: t("layout.project.selectRoom"),
     statusLabel: "",
   };
 }
@@ -75,6 +79,7 @@ function inferContractDocumentType(file: File): ContractDocumentType {
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const { t } = useI18n();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -247,29 +252,29 @@ export function AppShell({ children }: AppShellProps) {
   const topbarProject = useMemo(() => {
     if (state.kind === "loading") {
       return {
-        description: "확인 중",
-        name: "프로젝트룸 선택",
+        description: t("layout.project.checking"),
+        name: t("layout.project.selectRoom"),
         statusLabel: "",
       };
     }
 
     if (state.kind === "auth") {
       return {
-        description: "로그인 후 시작",
-        name: "로그인 필요",
-        statusLabel: "대기",
+        description: t("layout.project.loginToStart"),
+        name: t("layout.project.loginRequired"),
+        statusLabel: t("layout.project.waiting"),
       };
     }
 
     if (state.kind === "offline") {
-      return routeFallbackProject(activeRoom);
+      return routeFallbackProject(t, activeRoom);
     }
 
     if (activeRoom) {
       return {
-        description: "현재 룸",
+        description: t("layout.project.currentRoom"),
         name: activeRoom.name,
-        statusLabel: activeRoom.status === "ACTIVE" ? "진행 중" : "대기",
+        statusLabel: activeRoom.status === "ACTIVE" ? t("layout.project.inProgress") : t("layout.project.waiting"),
       };
     }
 
@@ -277,20 +282,20 @@ export function AppShell({ children }: AppShellProps) {
 
     if (selectedRoomLabel && !staleSelectedRoom) {
       return {
-        description: "현재 룸",
+        description: t("layout.project.currentRoom"),
         name: selectedRoomLabel,
-        statusLabel: "진행 중",
+        statusLabel: t("layout.project.inProgress"),
       };
     }
 
-    return routeFallbackProject();
-  }, [activeRoom, selectedRoom, selectedRoomId, selectedRoomLabel, state]);
+    return routeFallbackProject(t);
+  }, [activeRoom, selectedRoom, selectedRoomId, selectedRoomLabel, state, t]);
 
   const topbarUser = useMemo(() => {
     if (state.kind !== "ready") {
       return {
-        displayName: state.kind === "auth" ? "로그인" : "Bubli",
-        email: state.kind === "offline" ? "서버 연결 대기" : "확인 중",
+        displayName: state.kind === "auth" ? t("common.login") : "Bubli",
+        email: state.kind === "offline" ? t("layout.user.serverWaiting") : t("layout.user.checking"),
         initials: "B",
       };
     }
@@ -298,10 +303,10 @@ export function AppShell({ children }: AppShellProps) {
     return {
       avatarUrl: state.user.avatarUrl,
       displayName: state.user.name,
-      email: state.user.email ?? (state.user.bubliId ? `@${state.user.bubliId}` : "로그인됨"),
+      email: state.user.email ?? (state.user.bubliId ? `@${state.user.bubliId}` : t("layout.user.loggedIn")),
       initials: initialsFromName(state.user.name),
     };
-  }, [state]);
+  }, [state, t]);
 
   function resetCreateForm() {
     setNewRoomClient("");
@@ -371,7 +376,7 @@ export function AppShell({ children }: AppShellProps) {
           {siteConfig.name}
         </Link>
         <div className="bubli-nav-wrap">
-          <div className="bubli-nav-section-label">개인</div>
+          <div className="bubli-nav-section-label">{t("layout.sidebar.personal")}</div>
           <AppNav activeRoomId={activeRoom?.id ?? null} />
         </div>
       </aside>
@@ -387,7 +392,7 @@ export function AppShell({ children }: AppShellProps) {
         {projectSwitcherOpen ? (
           <>
             <button
-              aria-label="프로젝트룸 전환 닫기"
+              aria-label={t("layout.switcher.closeAria")}
               className="workspace-switcher-backdrop"
               onClick={() => {
                 setCreatePanelOpen(false);
@@ -395,14 +400,14 @@ export function AppShell({ children }: AppShellProps) {
               }}
               type="button"
             />
-            <section className="workspace-switcher" aria-label="프로젝트룸 전환">
+            <section className="workspace-switcher" aria-label={t("layout.switcher.aria")}>
               <div className="workspace-switcher__head">
                 <div>
-                  <strong>프로젝트룸</strong>
-                  <span>룸을 고르면 작업 기준이 유지됩니다</span>
+                  <strong>{t("layout.switcher.title")}</strong>
+                  <span>{t("layout.switcher.subtitle")}</span>
                 </div>
                 <button
-                  aria-label="프로젝트룸 만들기"
+                  aria-label={t("layout.switcher.createAria")}
                   className="workspace-switcher__add"
                   onClick={() => setCreatePanelOpen((current) => !current)}
                   type="button"
@@ -412,7 +417,7 @@ export function AppShell({ children }: AppShellProps) {
               </div>
 
               <div className="workspace-switcher__section">
-                <span className="workspace-switcher__label">현재 참여 중인 룸</span>
+                <span className="workspace-switcher__label">{t("layout.switcher.currentRooms")}</span>
                 {rooms.length ? (
                   rooms.map((room) => (
                     <button
@@ -425,32 +430,32 @@ export function AppShell({ children }: AppShellProps) {
                       <span className="workspace-switcher__avatar">{room.name.slice(0, 1)}</span>
                       <span>
                         <strong>{room.name}</strong>
-                        <small>{room.clientName || "프로젝트룸"}</small>
+                        <small>{room.clientName || t("layout.switcher.roomFallback")}</small>
                       </span>
                     </button>
                   ))
                 ) : (
-                  <p className="workspace-switcher__empty">아직 프로젝트룸이 없습니다.</p>
+                  <p className="workspace-switcher__empty">{t("layout.switcher.empty")}</p>
                 )}
               </div>
 
               {createPanelOpen ? (
                 <form className="workspace-switcher__create" onSubmit={handleCreateRoom}>
                   <label>
-                    <span>프로젝트룸 이름</span>
+                    <span>{t("layout.switcher.nameLabel")}</span>
                     <input
                       autoFocus
                       onChange={(event) => setNewRoomName(event.target.value)}
-                      placeholder="예: 브랜드 리뉴얼"
+                      placeholder={t("layout.switcher.namePlaceholder")}
                       value={newRoomName}
                     />
                   </label>
                   <label>
-                    <span>의뢰처</span>
-                    <input onChange={(event) => setNewRoomClient(event.target.value)} placeholder="선택 입력" value={newRoomClient} />
+                    <span>{t("layout.switcher.clientLabel")}</span>
+                    <input onChange={(event) => setNewRoomClient(event.target.value)} placeholder={t("layout.switcher.clientPlaceholder")} value={newRoomClient} />
                   </label>
                   <label>
-                    <span>첨부 자료</span>
+                    <span>{t("layout.switcher.filesLabel")}</span>
                     <input
                       accept=".pdf,.txt,.md,.doc,.docx"
                       multiple
@@ -459,7 +464,9 @@ export function AppShell({ children }: AppShellProps) {
                     />
                   </label>
                   <div className="workspace-switcher__file-hint">
-                    {newRoomFiles.length ? `${newRoomFiles.length}개 선택됨` : "업무 문서나 요구사항을 같이 올리면 분석 요청까지 이어집니다."}
+                    {newRoomFiles.length
+                      ? t("layout.switcher.filesSelected", { count: newRoomFiles.length })
+                      : t("layout.switcher.filesHint")}
                   </div>
                   {newRoomFiles.length ? (
                     <div className="workspace-switcher__files">
@@ -469,7 +476,11 @@ export function AppShell({ children }: AppShellProps) {
                     </div>
                   ) : null}
                   <button disabled={!newRoomName.trim() || isCreatingRoom} type="submit">
-                    {isCreatingRoom ? "만드는 중" : newRoomFiles.length ? "만들고 자료 분석" : "프로젝트룸 만들기"}
+                    {isCreatingRoom
+                      ? t("layout.switcher.creating")
+                      : newRoomFiles.length
+                        ? t("layout.switcher.createWithAnalysis")
+                        : t("layout.switcher.create")}
                   </button>
                 </form>
               ) : null}
