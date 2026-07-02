@@ -118,21 +118,22 @@ function accentPickerValue(value: string) {
 }
 
 function createInitialWbsAccentMap(items: WbsItemResponse[]) {
-  return Object.fromEntries(
-    items
-      .filter((item) => item.parentId)
-      .map((item, index) => [item.id, wbsAccentOptions[index % wbsAccentOptions.length].value]),
-  );
+  const next: Record<string, string> = {};
+
+  items.forEach((item, index) => {
+    if (item.parentId && next[item.parentId]) {
+      next[item.id] = next[item.parentId];
+      return;
+    }
+
+    next[item.id] = wbsAccentOptions[index % wbsAccentOptions.length].value;
+  });
+
+  return next;
 }
 
 function activeTaskStatus(status: TaskStatus) {
   return status === "BLOCKED" ? "REVIEW" : status;
-}
-
-function sourceLabel(task: TaskResponse, wbsTitle?: string | null) {
-  if (task.wbsItemId && wbsTitle) return `WBS · ${wbsTitle}`;
-  if (task.wbsItemId) return "WBS 연결";
-  return "승인 할 일";
 }
 
 export function ProjectRoomWorkBoard({
@@ -226,6 +227,11 @@ function ProjectRoomWorkBoardContent({
       })
     : [];
   const activeWbsTitle = selectedWbsId ? wbsTitleById[selectedWbsId] : null;
+  const selectedParentWbs = selectedWbs?.parentId
+    ? wbsItems.find((item) => item.id === selectedWbs.parentId) ?? null
+    : selectedWbs;
+  const selectedCreateParentId = selectedParentWbs?.id ?? null;
+  const selectedCreateParentTitle = selectedParentWbs?.title ?? null;
   const selectedWbsLinkedCount = selectedWbsId ? selectedWbsTasks.filter((task) => task.wbsItemId === selectedWbsId).length : 0;
   const selectedWbsChildCount = selectedWbsId ? childCountByWbsId[selectedWbsId] ?? 0 : 0;
   const canDeleteSelectedWbs = Boolean(selectedWbs && selectedWbsChildCount === 0 && selectedWbsLinkedCount === 0);
@@ -240,7 +246,7 @@ function ProjectRoomWorkBoardContent({
             return {
               assignee: task.assigneeUserId ? memberByUserId[task.assigneeUserId]?.name ?? "담당자" : undefined,
               assigneeId: task.assigneeUserId ?? undefined,
-              description: [sourceLabel(task, wbsTitle), formatDue(task.dueAt)].filter(Boolean).join(" · "),
+              description: formatDue(task.dueAt) ?? undefined,
               id: task.id,
               labels: wbsTitle ? [wbsTitle] : [],
               title: task.title,
@@ -270,11 +276,13 @@ function ProjectRoomWorkBoardContent({
     if (!title) return;
 
     const now = new Date().toISOString();
+    const parentId = selectedCreateParentId;
+    const orderNo = wbsItems.filter((item) => (item.parentId ?? null) === parentId).length + 1;
     const optimistic: WbsItemResponse = {
       createdAt: now,
-      id: `local-wbs-${Date.now()}`,
-      orderNo: wbsItems.length + 1,
-      parentId: selectedWbsId,
+      id: `local-wbs-${now}`,
+      orderNo,
+      parentId,
       roomId,
       status: "TODO",
       title,
@@ -549,6 +557,22 @@ function ProjectRoomWorkBoardContent({
                       if (current.some((entry) => entry.id === item.id)) return current;
                       return [...current, item];
                     });
+                    setWbsAccentById((current) => {
+                      if (temporaryId) {
+                        const next = { ...current };
+                        const color = next[temporaryId];
+                        delete next[temporaryId];
+                        next[item.id] = color ?? (item.parentId ? next[item.parentId] : undefined) ?? wbsAccentOptions[0].value;
+                        return next;
+                      }
+
+                      if (current[item.id]) return current;
+
+                      return {
+                        ...current,
+                        [item.id]: (item.parentId ? current[item.parentId] : undefined) ?? wbsAccentOptions[wbsItems.length % wbsAccentOptions.length].value,
+                      };
+                    });
                     setSelectedWbsId(item.id);
                   }}
                   onWbsDeleted={(id) => {
@@ -558,18 +582,16 @@ function ProjectRoomWorkBoardContent({
                       setIsWbsSettingsOpen(false);
                     }
                   }}
-                  onWbsUpdated={(item) => {
-                    setWbsItems((current) => current.map((entry) => (entry.id === item.id ? item : entry)));
-                  }}
                   roomId={roomId}
                   selectedWbsId={selectedWbsId}
+                  wbsAccentById={wbsAccentById}
                   wbsItems={wbsItems}
                 />
               ) : (
                 <form className={cn(styles.wbsCreate, styles.inlineCreate)} onSubmit={handleCreateWbs}>
                   <div className={styles.wbsFormGrid}>
                     <label>
-                      <span>첫 그룹 추가</span>
+                      <span>첫 상위 작업 추가</span>
                       <input
                         aria-label="추가할 WBS 이름"
                         onChange={(event) => setWbsDraft((current) => ({ ...current, title: event.target.value }))}
@@ -597,7 +619,7 @@ function ProjectRoomWorkBoardContent({
                   />
                   <span className={styles.inspectorTitle}>
                     <strong>{activeWbsTitle ?? "줄을 선택하세요"}</strong>
-                    <small>{selectedWbs.parentId ? `${wbsTitleById[selectedWbs.parentId] ?? "그룹"} 그룹의 작업` : "그룹"}</small>
+                    <small>{selectedWbs.parentId ? `${wbsTitleById[selectedWbs.parentId] ?? "상위 작업"} 아래 하위 작업` : "상위 작업"}</small>
                   </span>
                   <StatusBadge tone={taskTone(selectedWbs.status)}>{statusLabel(selectedWbs.status)}</StatusBadge>
                   <span className={styles.inspectorMeta}>
@@ -697,7 +719,7 @@ function ProjectRoomWorkBoardContent({
                 <form className={styles.wbsCreate} onSubmit={handleCreateWbs}>
                   <div className={styles.wbsFormGrid}>
                     <label>
-                      <span>{selectedWbs ? "이 그룹에 작업 추가" : "그룹 추가"}</span>
+                      <span>{selectedCreateParentTitle ? `${selectedCreateParentTitle} 아래 하위 작업 추가` : "상위 작업 추가"}</span>
                       <input
                         aria-label="추가할 WBS 이름"
                         onChange={(event) => setWbsDraft((current) => ({ ...current, title: event.target.value }))}
