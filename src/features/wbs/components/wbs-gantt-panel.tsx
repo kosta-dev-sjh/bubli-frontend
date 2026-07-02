@@ -41,7 +41,15 @@ const wbsGanttStatuses: Record<WbsStatus, GanttStatus> = {
 const DEFAULT_BAR_DAYS = 6;
 const LOCAL_ID_PREFIX = "local-wbs-";
 
-type LocalRange = { startAt: Date; endAt: Date };
+export type WbsGanttRange = { startAt: Date; endAt: Date };
+export type WbsGanttRangeEditRequest = {
+  endAt: Date;
+  id: string;
+  requestId: number;
+  startAt: Date;
+};
+
+type LocalRange = WbsGanttRange;
 
 function scheduleRangeQuery() {
   const now = new Date();
@@ -74,9 +82,11 @@ function normalizeRange(startAt: Date, endAt: Date | null): LocalRange {
 export function WbsGanttPanel({
   onNotice,
   onOpenSettings,
+  onRangesResolved,
   onSelectItem,
   onWbsCreated,
   onWbsDeleted,
+  rangeEditRequest,
   roomId,
   selectedWbsId,
   wbsAccentById,
@@ -84,9 +94,11 @@ export function WbsGanttPanel({
 }: {
   onNotice: (message: string) => void;
   onOpenSettings: (id: string) => void;
+  onRangesResolved?: (ranges: Record<string, WbsGanttRange>) => void;
   onSelectItem: (id: string) => void;
   onWbsCreated: (item: WbsItemResponse, temporaryId?: string) => void;
   onWbsDeleted: (id: string) => void;
+  rangeEditRequest?: WbsGanttRangeEditRequest | null;
   roomId: string;
   selectedWbsId: string | null;
   wbsAccentById?: Record<string, string>;
@@ -96,6 +108,7 @@ export function WbsGanttPanel({
   const [schedules, setSchedules] = useState<ScheduleResponse[]>([]);
   const [localRanges, setLocalRanges] = useState<Record<string, LocalRange>>({});
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(() => new Set());
+  const handledRangeRequestId = useRef<number | null>(null);
   const localIdCounter = useRef(0);
 
   useEffect(() => {
@@ -203,6 +216,22 @@ export function WbsGanttPanel({
     return map;
   }, [localRanges, resolveAccent, scheduleByWbsId, wbsItems]);
 
+  useEffect(() => {
+    if (!onRangesResolved) return;
+
+    onRangesResolved(
+      Object.fromEntries(
+        Array.from(featureById.values()).map((feature) => [
+          feature.id,
+          {
+            endAt: feature.endAt ?? endOfDay(addDays(feature.startAt, DEFAULT_BAR_DAYS)),
+            startAt: feature.startAt,
+          },
+        ]),
+      ),
+    );
+  }, [featureById, onRangesResolved]);
+
   const openItemSettings = (item: WbsItemResponse) => {
     onSelectItem(item.id);
     onOpenSettings(item.id);
@@ -214,7 +243,20 @@ export function WbsGanttPanel({
       const escapedId =
         typeof CSS !== "undefined" && CSS.escape ? CSS.escape(item.id) : item.id.replace(/["\\]/g, "\\$&");
       const element = document.querySelector<HTMLElement>(`[data-gantt-feature-id="${escapedId}"]`);
-      element?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      const scroller = element?.closest<HTMLElement>('[data-roadmap-ui="gantt-root"]');
+      if (!element || !scroller) return;
+
+      const elementRect = element.getBoundingClientRect();
+      const scrollerRect = scroller.getBoundingClientRect();
+      const sidebarWidth =
+        Number.parseFloat(getComputedStyle(scroller).getPropertyValue("--gantt-sidebar-width")) || 0;
+      const viewportCenter = scrollerRect.left + sidebarWidth + (scroller.clientWidth - sidebarWidth) / 2;
+      const elementCenter = elementRect.left + elementRect.width / 2;
+
+      scroller.scrollTo({
+        behavior: "smooth",
+        left: Math.max(0, scroller.scrollLeft + elementCenter - viewportCenter),
+      });
     });
   };
 
@@ -232,7 +274,7 @@ export function WbsGanttPanel({
 
   const getParentIdForChild = (item: WbsItemResponse) => item.parentId ?? item.id;
 
-  const persistRange = (item: WbsItemResponse, nextRange: LocalRange) => {
+  const persistRange = useCallback((item: WbsItemResponse, nextRange: LocalRange) => {
     const schedule = scheduleByWbsId.get(item.id);
     const body = {
       allDay: true,
@@ -264,13 +306,25 @@ export function WbsGanttPanel({
         onNotice("기간 반영됨");
       })
       .catch(() => onNotice(shouldUseWorkspacePreviewData() ? "기간 반영됨" : "기간 반영 대기"));
-  };
+  }, [onNotice, roomId, scheduleByWbsId]);
 
-  const applyRange = (item: WbsItemResponse, startAt: Date, endAt: Date | null) => {
+  const applyRange = useCallback((item: WbsItemResponse, startAt: Date, endAt: Date | null) => {
     const nextRange = normalizeRange(startAt, endAt);
     setLocalRanges((current) => ({ ...current, [item.id]: nextRange }));
     persistRange(item, nextRange);
-  };
+  }, [persistRange]);
+
+  useEffect(() => {
+    if (!rangeEditRequest || handledRangeRequestId.current === rangeEditRequest.requestId) return;
+
+    const item = itemById.get(rangeEditRequest.id);
+    if (!item) return;
+
+    handledRangeRequestId.current = rangeEditRequest.requestId;
+    queueMicrotask(() => {
+      applyRange(item, rangeEditRequest.startAt, rangeEditRequest.endAt);
+    });
+  }, [applyRange, itemById, rangeEditRequest]);
 
   const handleMoveFeature = (id: string, startAt: Date, endAt: Date | null) => {
     const item = itemById.get(id);

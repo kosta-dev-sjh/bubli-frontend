@@ -942,6 +942,12 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.wbsDateGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .wbsFormGrid label {
   color: #5a6772;
   display: grid;
@@ -952,6 +958,7 @@
 }
 
 .wbsFormGrid input,
+.wbsDateGrid input,
 .taskCreate input {
   appearance: none;
   background: rgba(255, 255, 255, 0.86);
@@ -969,11 +976,13 @@
 }
 
 .wbsFormGrid input::placeholder,
+.wbsDateGrid input::placeholder,
 .taskCreate input::placeholder {
   color: #8a94a0;
 }
 
 .wbsFormGrid input:focus-visible,
+.wbsDateGrid input:focus-visible,
 .taskCreate input:focus-visible {
   border-color: rgba(107, 143, 168, 0.62);
   box-shadow: 0 0 0 4px rgba(215, 234, 244, 0.58);

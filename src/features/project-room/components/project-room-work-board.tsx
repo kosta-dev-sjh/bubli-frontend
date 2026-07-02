@@ -13,7 +13,11 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
-import { WbsGanttPanel } from "@/features/wbs/components/wbs-gantt-panel";
+import {
+  WbsGanttPanel,
+  type WbsGanttRange,
+  type WbsGanttRangeEditRequest,
+} from "@/features/wbs/components/wbs-gantt-panel";
 import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewRoomSuggestions } from "@/lib/workspace-preview-data";
 import type { AgentSuggestionResponse, AgentSuggestionReviewAction, AgentSuggestionType } from "@/types/api/agent";
@@ -97,6 +101,26 @@ function formatDue(value?: string | null) {
     day: "numeric",
     month: "short",
   }).format(date);
+}
+
+function toDateInputValue(date?: Date | null) {
+  if (!date || Number.isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateInputValue(value: string) {
+  if (!value) return null;
+
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function statusLabel(status?: string | null) {
@@ -233,6 +257,9 @@ function ProjectRoomWorkBoardContent({
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [isWbsSettingsOpen, setIsWbsSettingsOpen] = useState(false);
   const [wbsAccentById, setWbsAccentById] = useState<Record<string, string>>(() => createInitialWbsAccentMap(board.wbsItems));
+  const [wbsRangeById, setWbsRangeById] = useState<Record<string, WbsGanttRange>>({});
+  const [wbsRangeEditRequest, setWbsRangeEditRequest] = useState<WbsGanttRangeEditRequest | null>(null);
+  const [wbsRangeRequestId, setWbsRangeRequestId] = useState(0);
   const [wbsEditDraft, setWbsEditDraft] = useState<WbsEditDraft>(() => ({
     title: initialWbs?.title ?? "",
     wbsId: initialWbs?.id ?? null,
@@ -286,6 +313,7 @@ function ProjectRoomWorkBoardContent({
   );
   const selectedWbs = selectedWbsId ? wbsItems.find((item) => item.id === selectedWbsId) : null;
   const selectedWbsAccent = selectedWbsId ? wbsAccentById[selectedWbsId] ?? wbsAccentOptions[0].value : wbsAccentOptions[0].value;
+  const selectedWbsRange = selectedWbsId ? wbsRangeById[selectedWbsId] ?? null : null;
   const selectedWbsTasks = selectedWbsId
     ? visibleTasks.filter((task) => {
         if (task.wbsItemId === selectedWbsId) return true;
@@ -437,6 +465,63 @@ function ProjectRoomWorkBoardContent({
   const openWbsSettings = (id: string) => {
     setSelectedWbsId(id);
     setIsWbsSettingsOpen(true);
+  };
+
+  const handleWbsRangesResolved = useCallback((ranges: Record<string, WbsGanttRange>) => {
+    setWbsRangeById((current) => {
+      let changed = false;
+      const next = { ...current };
+
+      for (const [id, range] of Object.entries(ranges)) {
+        const existing = current[id];
+        if (
+          !existing ||
+          existing.startAt.getTime() !== range.startAt.getTime() ||
+          existing.endAt.getTime() !== range.endAt.getTime()
+        ) {
+          next[id] = range;
+          changed = true;
+        }
+      }
+
+      return changed ? next : current;
+    });
+  }, []);
+
+  const requestSelectedWbsRangeUpdate = (field: "startAt" | "endAt", value: string) => {
+    if (!selectedWbsId) return;
+
+    const parsed = parseDateInputValue(value);
+    if (!parsed) return;
+
+    const currentRange = selectedWbsRange ?? {
+      endAt: parsed,
+      startAt: parsed,
+    };
+    let startAt = field === "startAt" ? parsed : currentRange.startAt;
+    let endAt = field === "endAt" ? parsed : currentRange.endAt;
+
+    if (startAt.getTime() > endAt.getTime()) {
+      if (field === "startAt") {
+        endAt = startAt;
+      } else {
+        startAt = endAt;
+      }
+    }
+
+    const requestId = wbsRangeRequestId + 1;
+
+    setWbsRangeById((current) => ({
+      ...current,
+      [selectedWbsId]: { endAt, startAt },
+    }));
+    setWbsRangeRequestId(requestId);
+    setWbsRangeEditRequest({
+      endAt,
+      id: selectedWbsId,
+      requestId,
+      startAt,
+    });
   };
 
   const handleCreateWbs = async (event: FormEvent<HTMLFormElement>) => {
@@ -796,6 +881,7 @@ function ProjectRoomWorkBoardContent({
                 <WbsGanttPanel
                   onNotice={setSaveNotice}
                   onOpenSettings={openWbsSettings}
+                  onRangesResolved={handleWbsRangesResolved}
                   onSelectItem={setSelectedWbsId}
                   onWbsCreated={(item, temporaryId) => {
                     setWbsItems((current) => {
@@ -830,6 +916,7 @@ function ProjectRoomWorkBoardContent({
                       setIsWbsSettingsOpen(false);
                     }
                   }}
+                  rangeEditRequest={wbsRangeEditRequest}
                   roomId={roomId}
                   selectedWbsId={selectedWbsId}
                   wbsAccentById={wbsAccentById}
@@ -906,6 +993,26 @@ function ProjectRoomWorkBoardContent({
                             value={activeWbsEditDraft.title}
                           />
                         </label>
+                        <div className={styles.wbsDateGrid}>
+                          <label>
+                            <span>시작일</span>
+                            <input
+                              aria-label="WBS 시작일"
+                              onChange={(event) => requestSelectedWbsRangeUpdate("startAt", event.target.value)}
+                              type="date"
+                              value={toDateInputValue(selectedWbsRange?.startAt)}
+                            />
+                          </label>
+                          <label>
+                            <span>종료일</span>
+                            <input
+                              aria-label="WBS 종료일"
+                              onChange={(event) => requestSelectedWbsRangeUpdate("endAt", event.target.value)}
+                              type="date"
+                              value={toDateInputValue(selectedWbsRange?.endAt)}
+                            />
+                          </label>
+                        </div>
                       </div>
                       <div className={styles.statusActions} aria-label="WBS 상태 변경">
                         {wbsStatusOptions.map((column) => (

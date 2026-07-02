@@ -31,7 +31,7 @@ import { atom, useAtom } from "jotai";
 import throttle from "lodash.throttle";
 import { PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
-import type { CSSProperties, FC, KeyboardEventHandler, MouseEventHandler, ReactNode, RefObject } from "react";
+import type { CSSProperties, FC, KeyboardEventHandler, MouseEventHandler, PointerEventHandler, ReactNode, RefObject } from "react";
 
 import { Card } from "@/components/ui/card";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
@@ -92,6 +92,7 @@ export type GanttContextProps = {
   headerHeight: number;
   rowHeight: number;
   onAddItem: ((date: Date, rowIndex?: number) => void) | undefined;
+  setSidebarWidth?: (width: number) => void;
   placeholderLength: number;
   timelineData: TimelineData;
   ref: RefObject<HTMLDivElement | null> | null;
@@ -305,6 +306,7 @@ const GanttContext = createContext<GanttContextProps>({
   sidebarWidth: 350,
   rowHeight: 44,
   onAddItem: undefined,
+  setSidebarWidth: undefined,
   placeholderLength: 2,
   timelineData: [],
   ref: null,
@@ -563,18 +565,50 @@ export type GanttSidebarProps = {
   className?: string;
 };
 
-export const GanttSidebar: FC<GanttSidebarProps> = ({ children, className }) => (
-  <div
-    className={cn(
-      "sticky left-0 z-30 h-max min-h-full overflow-clip border-border/50 border-r bg-background/90 backdrop-blur-md",
-      className,
-    )}
-    data-roadmap-ui="gantt-sidebar"
-  >
-    <GanttSidebarHeader />
-    <div className="space-y-4">{children}</div>
-  </div>
-);
+export const GanttSidebar: FC<GanttSidebarProps> = ({ children, className }) => {
+  const gantt = useContext(GanttContext);
+
+  const handleResizeStart: PointerEventHandler<HTMLDivElement> = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const startX = event.clientX;
+    const startWidth = gantt.sidebarWidth;
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      const nextWidth = Math.min(560, Math.max(280, startWidth + moveEvent.clientX - startX));
+      gantt.setSidebarWidth?.(nextWidth);
+    };
+
+    const handleEnd = () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleEnd);
+    };
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleEnd, { once: true });
+  };
+
+  return (
+    <div
+      className={cn(
+        "sticky left-0 z-30 h-max min-h-full overflow-clip border-border/50 border-r bg-background/90 backdrop-blur-md relative",
+        className,
+      )}
+      data-roadmap-ui="gantt-sidebar"
+      style={{ width: "var(--gantt-sidebar-width)" }}
+    >
+      <GanttSidebarHeader />
+      <div className="space-y-4">{children}</div>
+      <div
+        aria-label="WBS 목록 폭 조절"
+        className="absolute top-0 right-0 z-40 h-full w-2 cursor-col-resize touch-none"
+        onPointerDown={handleResizeStart}
+        role="separator"
+      />
+    </div>
+  );
+};
 
 export type GanttAddFeatureHelperProps = {
   top: number;
@@ -818,14 +852,19 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
     },
   });
 
+  const getTimelineMouseX = () => {
+    const ganttRect = gantt.ref?.current?.getBoundingClientRect();
+    return mousePosition.x - (ganttRect?.left ?? 0) + scrollX - gantt.sidebarWidth;
+  };
+
   const handleItemDragStart = () => {
-    setPreviousMouseX(mousePosition.x);
+    setPreviousMouseX(getTimelineMouseX());
     setPreviousStartAt(startAt);
     setPreviousEndAt(endAt);
   };
 
   const handleItemDragMove = () => {
-    const currentDate = getDateByMousePosition(gantt, mousePosition.x);
+    const currentDate = getDateByMousePosition(gantt, getTimelineMouseX());
     const originalDate = getDateByMousePosition(gantt, previousMouseX);
     const delta =
       gantt.range === "daily"
@@ -841,17 +880,13 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
   const onDragEnd = () => onMove?.(feature.id, startAt, endAt);
 
   const handleLeftDragMove = () => {
-    const ganttRect = gantt.ref?.current?.getBoundingClientRect();
-    const x = mousePosition.x - (ganttRect?.left ?? 0) + scrollX - gantt.sidebarWidth;
-    const newStartAt = getDateByMousePosition(gantt, x);
+    const newStartAt = getDateByMousePosition(gantt, getTimelineMouseX());
 
     setStartAt(newStartAt);
   };
 
   const handleRightDragMove = () => {
-    const ganttRect = gantt.ref?.current?.getBoundingClientRect();
-    const x = mousePosition.x - (ganttRect?.left ?? 0) + scrollX - gantt.sidebarWidth;
-    const newEndAt = getDateByMousePosition(gantt, x);
+    const newEndAt = getDateByMousePosition(gantt, getTimelineMouseX());
 
     setEndAt(newEndAt);
   };
@@ -859,11 +894,11 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
   return (
     <div
       className={cn("relative flex w-max min-w-full py-0.5", className)}
-      data-gantt-feature-id={feature.id}
       style={{ height: "var(--gantt-row-height)" }}
     >
       <div
         className="pointer-events-auto absolute top-0.5"
+        data-gantt-feature-id={feature.id}
         style={{
           height: "calc(var(--gantt-row-height) - 4px)",
           width: Math.round(width),
@@ -872,6 +907,7 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
       >
         {onMove && (
           <DndContext
+            autoScroll={false}
             modifiers={[restrictToHorizontalAxis]}
             onDragEnd={onDragEnd}
             onDragMove={handleLeftDragMove}
@@ -881,6 +917,7 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
           </DndContext>
         )}
         <DndContext
+          autoScroll={false}
           modifiers={[restrictToHorizontalAxis]}
           onDragEnd={onDragEnd}
           onDragMove={handleItemDragMove}
@@ -893,6 +930,7 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
         </DndContext>
         {onMove && (
           <DndContext
+            autoScroll={false}
             modifiers={[restrictToHorizontalAxis]}
             onDragEnd={onDragEnd}
             onDragMove={handleRightDragMove}
@@ -1000,11 +1038,10 @@ export type GanttProviderProps = {
 export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "monthly", onAddItem, children, className }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [timelineData] = useState<TimelineData>(createInitialTimelineData(new Date()));
+  const [sidebarWidth, setSidebarWidth] = useState(350);
   const [, setScrollX] = useGanttScrollX();
-  const sidebarElement = scrollRef.current?.querySelector('[data-roadmap-ui="gantt-sidebar"]');
 
   const headerHeight = 60;
-  const sidebarWidth = sidebarElement ? 350 : 0;
   const rowHeight = 44;
 
   let columnWidth = 50;
@@ -1090,6 +1127,7 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
         sidebarWidth,
         rowHeight,
         onAddItem,
+        setSidebarWidth,
         timelineData,
         placeholderLength: 2,
         ref: scrollRef,
@@ -1097,6 +1135,7 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
     >
       <div
         className={cn("gantt relative grid h-full w-full flex-none select-none overflow-auto rounded-sm bg-secondary", range, className)}
+        data-roadmap-ui="gantt-root"
         ref={scrollRef}
         style={{
           ...cssVariables,

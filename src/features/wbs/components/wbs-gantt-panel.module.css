@@ -120,7 +120,7 @@
 }
 
 .selectedRow :global(.text-muted-foreground) {
-  color: #4F728C;
+  color: #6B8FA8;
 }
 
 .ganttSurface {
