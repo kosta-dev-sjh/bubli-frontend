@@ -1340,9 +1340,6 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className={styles.inlineActions}>
-                <Link className="bubli-button" href="/app/desktop/widgets">
-                  버블 화면
-                </Link>
                 <Button disabled={!desktopRuntime} onClick={() => void syncWidgetUsage()} type="button" variant="quiet">
                   사용량 동기화
                 </Button>

@@ -195,16 +195,6 @@ export const screenApiContract: readonly ScreenApiBinding[] = [
     fallback: WIDGET_PREVIEW,
     notes: "Server summary combined with local widget cache; usage rollups stay on device.",
   },
-  {
-    screen: "Widget preview (in-app)",
-    surface: "WEB_APP",
-    route: "/app/desktop/widgets",
-    apis: ["/api/widget/summary"],
-    state: "PREVIEW_FALLBACK",
-    refresh: "AUTO_REVALIDATE",
-    fallback: WIDGET_PREVIEW,
-    notes: "Verification view only; real widget runs as a Tauri window.",
-  },
 ] as const;
 
 export type ScreenName = (typeof screenApiContract)[number]["screen"];
