@@ -946,6 +946,7 @@ pub fn run() {
             local_files::flush_sync_outbox,
             local_files::stage_local_file_events_for_sync,
             local_files::mark_local_file_events_synced,
+            local_files::enable_folder_sync,
             // Local SQLite lifecycle + cache recovery commands.
             local_db::backup_local_sqlite,
             local_db::check_local_sqlite_integrity,

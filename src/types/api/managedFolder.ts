@@ -18,14 +18,12 @@ export type LocalFileResponse = {
   updatedAt: string;
 };
 
-export type LocalFileEventStatus = "PENDING" | "APPROVED" | "REJECTED" | "SYNCED" | "FAILED";
-
 export type LocalFileEventResponse = {
   eventType: "CREATED" | "UPDATED" | "DELETED" | "MOVED";
   id: string;
   localFileId?: string | null;
   reason?: string | null;
-  status: LocalFileEventStatus;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "SYNCED" | "FAILED";
 };
 
 export type LocalFileEventSyncRequest = {

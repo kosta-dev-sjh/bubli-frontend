@@ -1022,6 +1022,27 @@ pub fn read_local_file(
     })
 }
 
+/// Enable sync for a managed folder after the user grants folder-level permission.
+/// Called once per folder; after this `sync_enabled = 1` the auto-sync loop will
+/// pick up PENDING events via stage_local_file_events_for_sync without further approval.
+#[tauri::command]
+pub fn enable_folder_sync(
+    state: State<'_, Db>,
+    input: ManagedFolderCommandInput,
+) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let rows = conn
+        .execute(
+            "UPDATE managed_folders SET sync_enabled = 1, updated_at = ?2 WHERE id = ?1",
+            params![input.local_folder_id, now_ms()],
+        )
+        .map_err(|error| error.to_string())?;
+    if rows == 0 {
+        return Err(format!("managed folder not found: {}", input.local_folder_id));
+    }
+    Ok(())
+}
+
 /// Report the sync outbox backlog. Actual transmission is done by the frontend
 /// API client (auth tokens live there); this returns current counts so the UI
 /// can show whether anything is waiting.

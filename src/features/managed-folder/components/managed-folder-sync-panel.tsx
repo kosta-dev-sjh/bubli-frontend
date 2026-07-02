@@ -1,102 +1,154 @@
-import { CheckCircle2, Database, FileSearch, FolderOpen, HardDrive, RefreshCw, ShieldCheck, UploadCloud } from "lucide-react";
+"use client";
+
+import { CheckCircle2, FolderOpen, HardDrive, Loader2, RefreshCw, ShieldCheck, UploadCloud, X } from "lucide-react";
+import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
-import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import {
+  enablePersonalFolderSync,
+  scanPersonalManagedFolder,
+  selectPersonalManagedFolder,
+  syncPersonalLocalFileEventsToServer,
+} from "@/lib/local/managed-folder-client";
 
-type LocalFileEventStatus = "suggested" | "approved" | "queued" | "synced";
+type FolderState = {
+  localFolderId: string;
+  name: string;
+  path: string;
+  syncEnabled: boolean;
+};
 
-type LocalFileEvent = {
-  fileName: string;
+type SyncStatus = "idle" | "scanning" | "syncing" | "done" | "error";
+
+type SyncLog = {
+  count: number;
+  at: string;
+  status: "success" | "error";
+  message?: string;
+};
+
+function FolderPermissionDialog({
+  folderName,
+  onAllow,
+  onDeny,
+}: {
   folderName: string;
-  modifiedAt: string;
-  projectHint: string;
-  status: LocalFileEventStatus;
-  type: "new" | "changed" | "deleted";
-};
-
-const localEvents: LocalFileEvent[] = [
-  {
-    fileName: "업무기준문서_v3.pdf",
-    folderName: "Bubli/업무 기준 문서 정리",
-    modifiedAt: "방금 전",
-    projectHint: "업무 기준 문서 정리",
-    status: "suggested",
-    type: "changed",
-  },
-  {
-    fileName: "회의록_0622.md",
-    folderName: "Bubli/웹사이트 리뉴얼",
-    modifiedAt: "12분 전",
-    projectHint: "웹사이트 리뉴얼",
-    status: "approved",
-    type: "new",
-  },
-  {
-    fileName: "요구사항_정리.docx",
-    folderName: "Bubli/브랜드 소개서",
-    modifiedAt: "35분 전",
-    projectHint: "브랜드 소개서",
-    status: "queued",
-    type: "changed",
-  },
-  {
-    fileName: "이전_견적서.xlsx",
-    folderName: "Bubli/정기 운영 업무",
-    modifiedAt: "1시간 전",
-    projectHint: "정기 운영 업무",
-    status: "synced",
-    type: "deleted",
-  },
-];
-
-const statusMeta: Record<LocalFileEventStatus, { label: string; tone: "pending" | "approved" | "warning" | "success" }> = {
-  approved: { label: "승인됨", tone: "approved" },
-  queued: { label: "대기열", tone: "warning" },
-  suggested: { label: "승인 필요", tone: "pending" },
-  synced: { label: "반영 완료", tone: "success" },
-};
-
-const eventTypeCopy: Record<LocalFileEvent["type"], string> = {
-  changed: "수정 감지",
-  deleted: "삭제 감지",
-  new: "새 파일",
-};
-
-function LocalFileEventRow({ event }: { event: LocalFileEvent }) {
-  const status = statusMeta[event.status];
-
+  onAllow: () => void;
+  onDeny: () => void;
+}) {
   return (
-    <article className="managed-folder-row">
-      <span className="bubli-icon-tile" aria-hidden="true">
-        <FileSearch size={17} strokeWidth={2.1} />
-      </span>
-      <div className="managed-folder-row__body">
-        <div className="managed-folder-row__meta">
-          <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-          <span>{eventTypeCopy[event.type]}</span>
-          <span>{event.modifiedAt}</span>
+    <div className="managed-folder-permission-overlay">
+      <div className="managed-folder-permission-dialog" role="dialog" aria-modal="true">
+        <span className="bubli-icon-tile managed-folder-permission-dialog__icon" aria-hidden="true">
+          <ShieldCheck size={24} strokeWidth={2} />
+        </span>
+        <h2 className="managed-folder-permission-dialog__title">폴더 자동 동기화 허가</h2>
+        <p className="managed-folder-permission-dialog__desc">
+          <strong>{folderName}</strong> 폴더의 파일 변경을 자동으로 서버에 반영합니다.
+          <br />
+          허가하면 이후 변경 사항은 별도 승인 없이 자동으로 동기화됩니다.
+        </p>
+        <div className="managed-folder-permission-dialog__actions">
+          <Button variant="quiet" size="sm" icon={<X size={14} />} onClick={onDeny}>
+            거절
+          </Button>
+          <Button variant="primary" size="sm" icon={<CheckCircle2 size={14} />} onClick={onAllow}>
+            허가
+          </Button>
         </div>
-        <h3>{event.fileName}</h3>
-        <p>{event.folderName}</p>
-        <footer>
-          <Chip icon={<FolderOpen size={14} />}>{event.projectHint}</Chip>
-          {event.status === "suggested" ? (
-            <Button icon={<CheckCircle2 size={14} />} size="sm" variant="primary">
-              서버 반영 승인
-            </Button>
-          ) : null}
-        </footer>
       </div>
-    </article>
+    </div>
   );
 }
 
 export function ManagedFolderSyncPanel() {
+  const [folder, setFolder] = useState<FolderState | null>(null);
+  const [showPermission, setShowPermission] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
+  const [syncLog, setSyncLog] = useState<SyncLog | null>(null);
+
+  const handleSelectFolder = useCallback(async () => {
+    const result = await selectPersonalManagedFolder();
+    if (result.status !== "ready") return;
+
+    const { localFolderId, name, path } = result.data;
+    setFolder({ localFolderId, name, path, syncEnabled: false });
+    setShowPermission(true);
+  }, []);
+
+  const runAutoSync = useCallback(async (localFolderId: string) => {
+    setSyncStatus("scanning");
+
+    const scanResult = await scanPersonalManagedFolder({ localFolderId });
+    if (scanResult.status !== "ready") {
+      setSyncStatus("error");
+      setSyncLog({ count: 0, at: new Date().toLocaleTimeString(), status: "error", message: "스캔 실패" });
+      return;
+    }
+
+    if (scanResult.data.changedCount === 0) {
+      setSyncStatus("done");
+      setSyncLog({ count: 0, at: new Date().toLocaleTimeString(), status: "success" });
+      return;
+    }
+
+    setSyncStatus("syncing");
+
+    const syncResult = await syncPersonalLocalFileEventsToServer({ localFolderId });
+    if (syncResult.status !== "ready") {
+      setSyncStatus("error");
+      setSyncLog({
+        count: 0,
+        at: new Date().toLocaleTimeString(),
+        status: "error",
+        message: syncResult.status === "failed" ? syncResult.message : "동기화 실패",
+      });
+      return;
+    }
+
+    setSyncLog({
+      count: syncResult.data.syncedCount,
+      at: new Date().toLocaleTimeString(),
+      status: "success",
+    });
+    setSyncStatus("done");
+  }, []);
+
+  const handleAllowSync = useCallback(async () => {
+    if (!folder) return;
+    setShowPermission(false);
+
+    await enablePersonalFolderSync(folder.localFolderId);
+    setFolder((prev) => prev && { ...prev, syncEnabled: true });
+
+    await runAutoSync(folder.localFolderId);
+  }, [folder, runAutoSync]);
+
+  const handleDenySync = useCallback(() => {
+    setShowPermission(false);
+    setFolder(null);
+  }, []);
+
+  const handleRescan = useCallback(() => {
+    if (!folder?.syncEnabled) return;
+    runAutoSync(folder.localFolderId);
+  }, [folder, runAutoSync]);
+
+  const isRunning = syncStatus === "scanning" || syncStatus === "syncing";
+
   return (
     <section className="managed-folder-sync" aria-label="개인 관리 폴더 동기화">
+      {showPermission && folder && (
+        <FolderPermissionDialog
+          folderName={folder.name}
+          onAllow={handleAllowSync}
+          onDeny={handleDenySync}
+        />
+      )}
+
       <GlassPanel className="managed-folder-sync__hero">
         <div className="managed-folder-sync__title">
           <span className="bubli-icon-tile" aria-hidden="true">
@@ -104,35 +156,64 @@ export function ManagedFolderSyncPanel() {
           </span>
           <div>
             <Chip selected>개인 관리 폴더</Chip>
-            <h2>로컬 폴더 변화는 먼저 감지하고, 사용자가 승인한 것만 서버에 반영합니다</h2>
-            <p>앱이 선택한 폴더를 감시하고, 변경 후보는 전송 대기 목록에 남긴 뒤 중복 없이 반영합니다.</p>
+            <h2>한 번 허가하면 폴더 변경이 자동으로 서버에 반영됩니다</h2>
+            <p>폴더를 선택하고 최초 허가하면 이후 모든 변경은 자동으로 동기화됩니다.</p>
           </div>
         </div>
-        <div className="managed-folder-sync__summary">
-          <strong>342</strong>
-          <span>색인된 파일</span>
-          <ProgressBar label="저장 용량" value={68} />
-        </div>
+
+        {folder ? (
+          <div className="managed-folder-sync__folder-info">
+            <Chip icon={<FolderOpen size={13} />}>{folder.name}</Chip>
+            {folder.syncEnabled ? (
+              <StatusBadge tone="success">자동 동기화 활성</StatusBadge>
+            ) : (
+              <StatusBadge tone="pending">허가 대기</StatusBadge>
+            )}
+          </div>
+        ) : (
+          <Button icon={<FolderOpen size={15} />} size="sm" variant="primary" onClick={handleSelectFolder}>
+            폴더 선택
+          </Button>
+        )}
       </GlassPanel>
 
       <div className="managed-folder-sync__grid">
         <GlassPanel className="managed-folder-sync__panel">
           <div className="managed-folder-sync__toolbar">
-            <h3>감지된 변경</h3>
-            <div>
-              <Button icon={<RefreshCw size={15} />} size="sm" variant="quiet">
-                다시 스캔
+            <h3>동기화 상태</h3>
+            {folder?.syncEnabled && (
+              <Button
+                icon={isRunning ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                size="sm"
+                variant="quiet"
+                onClick={handleRescan}
+                disabled={isRunning}
+              >
+                {syncStatus === "scanning" ? "스캔 중..." : syncStatus === "syncing" ? "전송 중..." : "다시 스캔"}
               </Button>
-              <Button icon={<UploadCloud size={15} />} size="sm" variant="primary">
-                승인 항목 반영
-              </Button>
+            )}
+          </div>
+
+          {syncLog && (
+            <div className={`managed-folder-sync__log ${syncLog.status === "error" ? "managed-folder-sync__log--error" : ""}`}>
+              <CheckCircle2 size={14} />
+              <span>
+                {syncLog.status === "success"
+                  ? syncLog.count > 0
+                    ? `${syncLog.count}개 파일 동기화 완료 · ${syncLog.at}`
+                    : `변경된 파일 없음 · ${syncLog.at}`
+                  : `동기화 실패: ${syncLog.message} · ${syncLog.at}`}
+              </span>
             </div>
-          </div>
-          <div className="managed-folder-sync__list">
-            {localEvents.map((event) => (
-              <LocalFileEventRow event={event} key={`${event.folderName}-${event.fileName}`} />
-            ))}
-          </div>
+          )}
+
+          {!folder ? (
+            <p className="managed-folder-sync__empty">폴더를 선택하면 자동으로 동기화가 시작됩니다.</p>
+          ) : isRunning ? (
+            <p className="managed-folder-sync__empty">
+              {syncStatus === "scanning" ? "폴더를 스캔하고 있습니다..." : "서버에 변경 사항을 전송 중입니다..."}
+            </p>
+          ) : null}
         </GlassPanel>
 
         <GlassPanel className="managed-folder-sync__policy">
@@ -147,11 +228,11 @@ export function ManagedFolderSyncPanel() {
             <span className="bubli-icon-tile" aria-hidden="true">
               <ShieldCheck size={16} strokeWidth={2.1} />
             </span>
-            <p>사용자가 승인하지 않은 로컬 파일은 서버 자료로 등록하지 않습니다.</p>
+            <p>폴더 허가는 처음 한 번만 확인합니다. 이후 변경은 자동으로 반영됩니다.</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
-              <Database size={16} strokeWidth={2.1} />
+              <UploadCloud size={16} strokeWidth={2.1} />
             </span>
             <p>전송 실패 작업은 대기 목록에 남기고 같은 작업이 두 번 반영되지 않게 재시도합니다.</p>
           </div>

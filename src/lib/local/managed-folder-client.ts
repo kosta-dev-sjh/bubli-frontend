@@ -214,3 +214,12 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
     return failed(getErrorMessage(error), commandName);
   }
 }
+
+export async function enablePersonalFolderSync(localFolderId: string) {
+  if (!isTauriRuntime()) {
+    return unavailable(TAURI_COMMANDS.enableFolderSync);
+  }
+  return runTauriAdapter(TAURI_COMMANDS.enableFolderSync, () =>
+    tauriCommands.enableFolderSync({ localFolderId }),
+  );
+}

@@ -5,6 +5,7 @@ export const TAURI_COMMANDS = {
   backupLocalSqlite: "backup_local_sqlite",
   checkLocalSqliteIntegrity: "check_local_sqlite_integrity",
   closeWidgetWindow: "close_widget_window",
+  enableFolderSync: "enable_folder_sync",
   flushSyncOutbox: "flush_sync_outbox",
   getPreferredAppMonitor: "get_preferred_app_monitor",
   getWidgetBarItems: "get_widget_bar_items",
@@ -344,6 +345,10 @@ export type TauriCommandContract = {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
   };
+  enable_folder_sync: {
+    args: ManagedFolderCommandInput;
+    result: void;
+  };
   flush_sync_outbox: {
     args: undefined;
     result: SyncOutboxFlushResult;
@@ -587,6 +592,9 @@ export const tauriCommands = {
   },
   watchManagedFolder(input: ManagedFolderCommandInput) {
     return invokeTauri<ManagedFolderWatchResult>(TAURI_COMMANDS.watchManagedFolder, { input });
+  },
+  enableFolderSync(input: ManagedFolderCommandInput) {
+    return invokeTauri<void>(TAURI_COMMANDS.enableFolderSync, { input });
   },
 } as const;
 
