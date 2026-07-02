@@ -17,6 +17,7 @@ export type LocalFileAnalysisRequest = {
   keySentences: LocalFileAnalysisKeySentence[];
   localFileId: string;
   mimeType?: string | null;
+  resourceId: string;
   sourceCharCount: number;
   textTruncated: boolean;
 };

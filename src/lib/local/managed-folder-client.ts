@@ -38,6 +38,9 @@ import type {
 import type { LocalFileAnalysisResponse } from "@/types/api/localFileAnalysis";
 
 export type PersonalLocalFileEventsSyncResult = {
+  analysisFailedCount: number;
+  analysisRequestedCount: number;
+  analysisSkippedCount: number;
   failedCount: number;
   sentCount: number;
   skippedCount: number;
@@ -51,8 +54,15 @@ export type PersonalLocalFileAnalysisResult = {
   sentAt: string;
 };
 
+type PersonalLocalFileAnalysisInput = LocalFileKeySentenceAdapterInput & {
+  resourceId: string;
+};
+
+export const PERSONAL_RESOURCES_CHANGED_EVENT = "bubli-personal-resources-changed";
+
 const PERSONAL_SCOPE_MESSAGE =
   "개인 로컬 폴더는 개인 자료 전용입니다. 프로젝트룸 공용 자료는 서버 업로드 흐름으로 연결해야 합니다.";
+const ANALYZABLE_LOCAL_FILE_EXTENSIONS = new Set(["docx", "markdown", "md", "pdf", "txt"]);
 
 export async function selectPersonalManagedFolder(
   input?: PersonalManagedFolderSelectInput,
@@ -243,7 +253,7 @@ export async function readPersonalLocalFilePreview(
 }
 
 export async function analyzePersonalLocalFileWithKeySentences(
-  input: LocalFileKeySentenceAdapterInput,
+  input: PersonalLocalFileAnalysisInput,
 ): Promise<LocalAdapterResult<PersonalLocalFileAnalysisResult>> {
   const commandName = TAURI_COMMANDS.extractLocalFileKeySentences;
 
@@ -283,6 +293,7 @@ export async function analyzePersonalLocalFileWithKeySentences(
       keySentences: extraction.keySentences,
       localFileId: extraction.localFileId,
       mimeType: extraction.mimeType,
+      resourceId: input.resourceId,
       sourceCharCount: extraction.sourceCharCount,
       textTruncated: extraction.truncated,
     });
@@ -350,6 +361,9 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
     return ready(
       {
         failedCount: 0,
+        analysisFailedCount: 0,
+        analysisRequestedCount: 0,
+        analysisSkippedCount: 0,
         sentCount: 0,
         skippedCount: 0,
         syncedAt: staged.data.stagedAt,
@@ -378,17 +392,57 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
       })),
     });
     const skippedCount = response.results.filter((result) => result.status === "SKIPPED").length;
+    const syncedAnalysisEvents = response.results
+      .map((result, index) => ({
+        localEvent: staged.data.events[index],
+        syncResult: result,
+      }))
+      .filter(({ localEvent, syncResult }) => {
+        return (
+          localEvent !== undefined &&
+          localEvent.eventType !== "DELETED" &&
+          localEvent.localFileId !== null &&
+          localEvent.localFileId !== undefined &&
+          syncResult.resourceId !== null &&
+          syncResult.resourceId !== undefined &&
+          syncResult.status === "SYNCED"
+        );
+      });
+    const analysisCandidates = syncedAnalysisEvents.filter(({ localEvent }) =>
+      isAnalyzableLocalFileName(localEvent?.fileName),
+    );
+    const analysisSkippedCount = syncedAnalysisEvents.length - analysisCandidates.length;
+    const analysisResults = await Promise.allSettled(
+      analysisCandidates.map(({ localEvent, syncResult }) =>
+        analyzePersonalLocalFileWithKeySentences({
+          localFileId: localEvent.localFileId ?? "",
+          resourceId: syncResult.resourceId ?? "",
+        }),
+      ),
+    );
+    const analysisRequestedCount = analysisResults.filter(
+      (result) => result.status === "fulfilled" && result.value.status === "ready",
+    ).length;
+    const analysisFailedCount = analysisResults.length - analysisRequestedCount;
+
+    const syncResult = {
+      analysisFailedCount,
+      analysisRequestedCount,
+      analysisSkippedCount,
+      failedCount: markResult.failedCount,
+      sentCount: response.results.length,
+      skippedCount,
+      syncedAt: markResult.completedAt,
+      syncedCount: markResult.syncedCount,
+    };
+    notifyPersonalResourcesChanged(syncResult);
 
     return ready(
-      {
-        failedCount: markResult.failedCount,
-        sentCount: response.results.length,
-        skippedCount,
-        syncedAt: markResult.completedAt,
-        syncedCount: markResult.syncedCount,
-      },
+      syncResult,
       commandName,
-      `로컬 파일 변경 ${response.results.length}건을 서버에 반영했습니다.`,
+      analysisFailedCount > 0
+        ? `로컬 파일 변경 ${response.results.length}건을 서버에 반영했고, 중요 문장 분석 요청 ${analysisRequestedCount}건을 전달했습니다. ${analysisSkippedCount}건은 지원하지 않는 파일이라 건너뛰었고, ${analysisFailedCount}건은 실패했습니다.`
+        : `로컬 파일 변경 ${response.results.length}건을 서버에 반영했고, 중요 문장 분석 요청 ${analysisRequestedCount}건을 전달했습니다. ${analysisSkippedCount}건은 지원하지 않는 파일이라 건너뛰었습니다.`,
     );
   } catch (error) {
     const syncErrorMessage = getErrorMessage(error);
@@ -406,4 +460,25 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
 
     return failed(syncErrorMessage, commandName);
   }
+}
+
+function isAnalyzableLocalFileName(fileName?: string | null) {
+  const extension = fileName?.split(".").pop()?.toLowerCase();
+  return extension !== undefined && ANALYZABLE_LOCAL_FILE_EXTENSIONS.has(extension);
+}
+
+function notifyPersonalResourcesChanged(result: PersonalLocalFileEventsSyncResult) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (result.syncedCount === 0 && result.analysisRequestedCount === 0) {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent<PersonalLocalFileEventsSyncResult>(PERSONAL_RESOURCES_CHANGED_EVENT, {
+      detail: result,
+    }),
+  );
 }

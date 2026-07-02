@@ -548,7 +548,13 @@ pub fn scan_managed_folder(
     input: ManagedFolderCommandInput,
 ) -> Result<ManagedFolderScanResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    scan_managed_folder_for_conn(&conn, input)
+}
 
+fn scan_managed_folder_for_conn(
+    conn: &Connection,
+    input: ManagedFolderCommandInput,
+) -> Result<ManagedFolderScanResult, String> {
     let folder_path: String = conn
         .query_row(
             "SELECT path FROM managed_folders WHERE id = ?1",
@@ -1129,7 +1135,17 @@ fn record_watch_path_change(
     path: &Path,
     now: i64,
 ) -> Result<i64, String> {
-    if is_ignored_path(path) {
+    if should_skip_managed_file(path) {
+        if !path.exists() {
+            let local_path = path.to_string_lossy().to_string();
+            let file_name = path
+                .file_name()
+                .map(|value| value.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if !file_name.is_empty() {
+                return record_watch_path_delete(conn, local_folder_id, &file_name, &local_path, now);
+            }
+        }
         return Ok(0);
     }
 
@@ -1309,8 +1325,16 @@ fn record_watch_path_delete(
 fn is_ignored_path(path: &Path) -> bool {
     path.components().any(|component| {
         let name = component.as_os_str().to_string_lossy();
-        name.starts_with('.') || name == "node_modules"
+        name.starts_with('.') || name == "node_modules" || is_temporary_office_file_name(&name)
     })
+}
+
+fn should_skip_managed_file(path: &Path) -> bool {
+    is_ignored_path(path)
+}
+
+fn is_temporary_office_file_name(name: &str) -> bool {
+    name.starts_with("~$") || name.ends_with(".tmp") || name.ends_with(".temp")
 }
 
 fn upsert_file_fts_index(
@@ -2896,14 +2920,14 @@ fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
         let name = entry.file_name();
         let name = name.to_string_lossy();
         // Skip hidden files and common noise directories.
-        if name.starts_with('.') || name == "node_modules" {
+        if name.starts_with('.') || name == "node_modules" || is_temporary_office_file_name(&name) {
             continue;
         }
         let file_type = entry.file_type()?;
         let path = entry.path();
         if file_type.is_dir() {
             collect_files(&path, out)?;
-        } else if file_type.is_file() {
+        } else if file_type.is_file() && !should_skip_managed_file(&path) {
             out.push(path);
         }
     }
@@ -3202,6 +3226,95 @@ mod tests {
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'CREATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'UPDATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'DELETED'"));
+    }
+
+    #[test]
+    fn managed_folder_scan_ignores_office_lock_but_indexes_unsupported_files() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-managed-ignore-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        let supported_path = folder_path.join("contract.md");
+        let office_lock_path = folder_path.join("~$contract.docx");
+        let unsupported_path = folder_path.join("draft.pages");
+        std::fs::write(&supported_path, "계약 기간과 지급 조건을 확인합니다.").expect("write supported file");
+        std::fs::write(&office_lock_path, "temporary lock").expect("write office lock file");
+        std::fs::write(&unsupported_path, "unsupported pages").expect("write unsupported file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let result = scan_managed_folder_for_conn(
+            &conn,
+            ManagedFolderCommandInput {
+                local_folder_id: "folder-1".to_string(),
+            },
+        )
+        .expect("scan managed folder");
+
+        let indexed_names: Vec<String> = {
+            let mut stmt = conn
+                .prepare("SELECT file_name FROM local_files ORDER BY file_name")
+                .expect("prepare local files query");
+            stmt.query_map([], |row| row.get::<_, String>(0))
+                .expect("query local files")
+                .collect::<Result<Vec<_>, _>>()
+                .expect("collect local files")
+        };
+
+        assert_eq!(result.changed_count, 2);
+        assert_eq!(
+            indexed_names,
+            vec!["contract.md".to_string(), "draft.pages".to_string()]
+        );
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
+    fn managed_folder_scan_records_delete_for_previously_indexed_unsupported_file() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-managed-delete-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_files (id, local_folder_id, file_name, local_path, sync_status, updated_at) \
+             VALUES ('file-pages', 'folder-1', 'draft.pages', ?1, 'SYNCED', 1)",
+            params![folder_path.join("draft.pages").to_string_lossy().to_string()],
+        )
+        .expect("insert stale pages file");
+
+        let result = scan_managed_folder_for_conn(
+            &conn,
+            ManagedFolderCommandInput {
+                local_folder_id: "folder-1".to_string(),
+            },
+        )
+        .expect("scan managed folder");
+
+        let delete_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM local_file_events WHERE local_file_id = 'file-pages' AND event_type = 'DELETED'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read delete events");
+
+        assert_eq!(result.changed_count, 1);
+        assert_eq!(delete_count, 1);
+
+        let _ = std::fs::remove_dir_all(folder_path);
     }
 
     #[test]
