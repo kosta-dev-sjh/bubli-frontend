@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Activity,
   ArchiveRestore,
@@ -11,8 +13,6 @@ import {
   Settings2,
 } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
-
-"use client";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";

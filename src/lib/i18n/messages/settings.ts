@@ -1577,7 +1577,7 @@ const en: Record<Key, string> = {
   "settings.font.scale.present": "Presentation",
   "settings.font.scale.large": "Large text",
   "settings.font.card.fontTitle": "Font in use",
-  "settings.font.card.fontBody": "Based on LINE Seed Sans KR, confirmed on the guest landing and login, we align Korean screens, numbers, buttons, and widgets.",
+  "settings.font.card.fontBody": "Based on LINE Seed Sans KR, confirmed on the public landing and login, we align Korean screens, numbers, buttons, and widgets.",
   "settings.font.card.bodyTitle": "Body standard",
   "settings.font.card.bodyBody": "Reflecting small-text feedback, general body text uses a 15px baseline.",
   "settings.font.card.widgetTitle": "Widget minimum body",

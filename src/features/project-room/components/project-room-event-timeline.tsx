@@ -1,3 +1,5 @@
+"use client";
+
 import {
   BellRing,
   Bot,
@@ -8,8 +10,6 @@ import {
   ShieldCheck,
   UserRoundPlus,
 } from "lucide-react";
-
-"use client";
 
 import { Chip, GlassPanel, StatusBadge } from "@/components/ui";
 import { useI18n } from "@/lib/i18n";
