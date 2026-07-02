@@ -501,22 +501,26 @@ function DesktopWidgetSurface() {
     if (isWidgetChrome) return;
     if (!isTauri) return;
 
-    void tauriCommands
-      .getWidgetWindowState({ bubbleType: requestedBubble, windowId })
-      .then(async (state) => {
-        const nextState = requestedMode !== state.mode
-          ? await tauriCommands.setWidgetWindowMode({ bubbleType: requestedBubble, mode: requestedMode, windowId })
-          : state;
+    const timeoutId = window.setTimeout(() => {
+      void tauriCommands
+        .getWidgetWindowState({ bubbleType: requestedBubble, windowId })
+        .then(async (state) => {
+          const nextState = requestedMode !== state.mode
+            ? await tauriCommands.setWidgetWindowMode({ bubbleType: requestedBubble, mode: requestedMode, windowId })
+            : state;
 
-        setActiveBubble(resolveWidgetBubble(nextState.activeBubble, requestedBubble));
-        setMode(nextState.mode);
-        setAlwaysOnTop(nextState.alwaysOnTop);
-        setClickThrough(nextState.clickThrough);
-        setWindowVisible(nextState.windowVisible);
-      })
-      .catch(() => {
-        // Browser previews and incomplete Tauri permissions should not break the widget surface.
-      });
+          setActiveBubble(resolveWidgetBubble(nextState.activeBubble, requestedBubble));
+          setMode(nextState.mode);
+          setAlwaysOnTop(nextState.alwaysOnTop);
+          setClickThrough(nextState.clickThrough);
+          setWindowVisible(nextState.windowVisible);
+        })
+        .catch(() => {
+          // Browser previews and incomplete Tauri permissions should not break the widget surface.
+        });
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
   }, [isTauri, isWidgetChrome, requestedBubble, requestedMode, windowId]);
 
   useEffect(() => {
@@ -709,12 +713,16 @@ function DesktopWidgetSurface() {
         return;
       }
 
-      try {
-        const items = await tauriCommands.getWidgetBarItems();
-        if (!cancelled) setBarItems(items.filter((item) => isDesktopWidgetBubble(item.activeBubble)));
-      } catch {
-        if (!cancelled) setBarItems([]);
-      }
+      window.setTimeout(() => {
+        void tauriCommands
+          .getWidgetBarItems()
+          .then((items) => {
+            if (!cancelled) setBarItems(items.filter((item) => isDesktopWidgetBubble(item.activeBubble)));
+          })
+          .catch(() => {
+            if (!cancelled) setBarItems([]);
+          });
+      }, 250);
     }
 
     void loadBarItems();
