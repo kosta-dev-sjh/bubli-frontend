@@ -8,7 +8,6 @@ import {
   ListChecks,
   MessageCircle,
   RefreshCw,
-  Sparkles,
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
@@ -17,7 +16,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
@@ -37,7 +35,7 @@ import {
 import type { AgentSuggestionResponse } from "@/types/api/agent";
 import type { ProjectRoomMemberResponse, ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { ResourceResponse } from "@/types/api/resource";
-import type { ScheduleResponse, TaskResponse, WbsBoardResponse, WbsItemResponse } from "@/types/api/work";
+import type { ScheduleResponse, WbsBoardResponse } from "@/types/api/work";
 
 type RoomHomeState =
   | { kind: "loading" }
@@ -100,61 +98,6 @@ function formatDue(value?: string | null) {
     day: "numeric",
     month: "short",
   }).format(date);
-}
-
-function statusLabel(status?: string | null) {
-  if (status === "DONE") return "완료";
-  if (status === "IN_PROGRESS") return "진행";
-  if (status === "REVIEW") return "검토";
-  if (status === "BLOCKED") return "막힘";
-  return "대기";
-}
-
-function taskTone(status?: string | null) {
-  if (status === "DONE") return "success";
-  if (status === "REVIEW") return "agent";
-  if (status === "BLOCKED") return "warning";
-  return "neutral";
-}
-
-function suggestionTypeLabel(type: AgentSuggestionResponse["suggestionType"]) {
-  if (type === "WBS") return "작업 구조";
-  if (type === "TODO" || type === "TASK") return "할 일";
-  if (type === "SCHEDULE") return "일정";
-  if (type === "QUESTION") return "확인 질문";
-  if (type === "REQUIREMENT") return "요구사항";
-  if (type === "CONTRACT_FIELD" || type === "CONTRACT_REVIEW") return "범위 확인";
-  if (type === "REVIEW_ITEM") return "확인 항목";
-  if (type === "DOCUMENT_DRAFT") return "문서 초안";
-  if (type === "DAILY_SUMMARY") return "하루정리";
-  return "후보";
-}
-
-function suggestionText(suggestion: AgentSuggestionResponse) {
-  const preferred = ["title", "name", "label", "summary", "question", "description", "content"]
-    .map((key) => suggestion.payloadJson[key])
-    .find((value): value is string => typeof value === "string" && value.trim().length > 0);
-
-  return preferred ?? suggestionTypeLabel(suggestion.suggestionType);
-}
-
-function boardItemDue(item: TaskResponse | WbsItemResponse) {
-  return "orderNo" in item ? null : item.dueAt;
-}
-
-function BoardMiniRow({ item, meta }: { item: TaskResponse | WbsItemResponse; meta?: string | null }) {
-  const due = formatDue(boardItemDue(item));
-
-  return (
-    <article className="room-home__mini-row">
-      <span className="workspace-route__dot" aria-hidden="true" />
-      <span className="workspace-route__main">
-        <strong>{item.title}</strong>
-        {meta || due ? <span>{[meta, due].filter(Boolean).join(" · ")}</span> : null}
-      </span>
-      <StatusBadge tone={taskTone(item.status)}>{statusLabel(item.status)}</StatusBadge>
-    </article>
-  );
 }
 
 export default function ProjectRoomHomePage() {
@@ -237,32 +180,13 @@ export default function ProjectRoomHomePage() {
     const activeTasks = state.board.tasks.filter((task) => task.status !== "DONE");
     const blockedTasks = activeTasks.filter((task) => task.status === "BLOCKED");
     const reviewTasks = activeTasks.filter((task) => task.status === "REVIEW");
-    const urgentTasks = [...blockedTasks, ...reviewTasks, ...activeTasks.filter((task) => task.status === "IN_PROGRESS")].slice(0, 3);
-    const checkItems = [
-      ...state.suggestions.slice(0, 3).map((suggestion) => ({
-        id: suggestion.suggestionId,
-        label: suggestionText(suggestion),
-        meta: suggestionTypeLabel(suggestion.suggestionType),
-        tone: "agent" as const,
-      })),
-      ...blockedTasks.slice(0, 2).map((task) => ({
-        id: task.id,
-        label: task.title,
-        meta: "막힌 작업",
-        tone: "warning" as const,
-      })),
-    ].slice(0, 4);
     const reviewCount = reviewTasks.length + blockedTasks.length + state.suggestions.length;
     const nextSchedule = state.schedules[0] ?? null;
-    const wbsTitleById = Object.fromEntries(state.board.wbsItems.map((item) => [item.id, item.title]));
 
     return {
       activeTasks,
-      checkItems,
       nextSchedule,
       reviewCount,
-      urgentTasks,
-      wbsTitleById,
       wbsItems: state.board.wbsItems,
     };
   }, [state]);
@@ -272,21 +196,8 @@ export default function ProjectRoomHomePage() {
       <header className="workspace-route__header">
         <div>
           <h1 id="room-home-title">{state.kind === "ready" ? state.room.name : "프로젝트룸"}</h1>
-          {state.kind === "ready" ? <p className="workspace-route__eyebrow">이 룸에서 자료, 작업, 소통, 일정을 이어서 봅니다</p> : null}
+          {state.kind === "ready" ? <p className="workspace-route__eyebrow">자료 · 작업 · 소통 · 일정</p> : null}
         </div>
-        {state.kind === "ready" ? (
-          <div className="workspace-route__actions">
-            <Link className="bubli-button" href={`/app/project-rooms/${roomId}/work`}>
-              WBS/칸반
-            </Link>
-            <Link className="bubli-button" href={`/app/project-rooms/${roomId}/resources`}>
-              자료
-            </Link>
-            <Link className="bubli-button" href={`/app/desktop/widgets?autoOpen=chat&roomId=${encodeURIComponent(roomId)}`}>
-              소통
-            </Link>
-          </div>
-        ) : null}
       </header>
 
       {state.kind === "loading" ? (
@@ -327,129 +238,50 @@ export default function ProjectRoomHomePage() {
               <strong>{roomLifecycleLabel(state.room)}</strong>
               <small>{roomLifecycleDetail(state.room)}</small>
             </span>
-            <span>멤버 {state.members.length}</span>
+            <span className="workspace-route__members-chip">
+              <UsersRound aria-hidden size={15} strokeWidth={2} />
+              <strong>멤버 {state.members.length}</strong>
+              {state.members.length > 0 ? <small>{state.members.slice(0, 2).map((member) => member.name).join(", ")}</small> : null}
+            </span>
             {formatMoney(state.room.contractAmount) ? <span>{formatMoney(state.room.contractAmount)}</span> : null}
             {formatDate(state.room.paymentDueDate) ? <span>입금 {formatDate(state.room.paymentDueDate)}</span> : null}
             {paymentLabel(state.room) && !formatMoney(state.room.contractAmount) ? <span>{paymentLabel(state.room)}</span> : null}
           </div>
 
-          <div className="room-home__metrics" aria-label="프로젝트룸 작업 요약">
-            <GlassPanel className="room-home__metric">
-              <ListChecks aria-hidden size={18} strokeWidth={1.9} />
-              <span>WBS</span>
-              <strong>{roomContent.wbsItems.length}</strong>
-            </GlassPanel>
-            <GlassPanel className="room-home__metric">
-              <span>진행 작업</span>
-              <strong>{roomContent.activeTasks.length}</strong>
-            </GlassPanel>
-            <GlassPanel className="room-home__metric">
-              <Sparkles aria-hidden size={18} strokeWidth={1.9} />
-              <span>확인</span>
-              <strong>{roomContent.reviewCount}</strong>
-            </GlassPanel>
-            <GlassPanel className="room-home__metric">
-              <FileText aria-hidden size={18} strokeWidth={1.9} />
-              <span>자료</span>
-              <strong>{state.resources.length}</strong>
-            </GlassPanel>
+          <div className="room-home__route-grid" aria-label="프로젝트룸 메뉴">
+            <Link className="room-home__route-card" href={`/app/project-rooms/${roomId}/work`}>
+              <ListChecks aria-hidden size={19} strokeWidth={1.9} />
+              <span>
+                <strong>WBS/칸반</strong>
+                <small>작업 {roomContent.activeTasks.length}개</small>
+              </span>
+              <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
+            </Link>
+            <Link className="room-home__route-card" href={`/app/project-rooms/${roomId}/resources`}>
+              <FileText aria-hidden size={19} strokeWidth={1.9} />
+              <span>
+                <strong>자료</strong>
+                <small>{state.resources.length}개</small>
+              </span>
+              <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
+            </Link>
+            <Link className="room-home__route-card" href={`/app/desktop/widgets?autoOpen=chat&roomId=${encodeURIComponent(roomId)}`}>
+              <MessageCircle aria-hidden size={19} strokeWidth={1.9} />
+              <span>
+                <strong>소통</strong>
+                <small>룸 대화</small>
+              </span>
+              <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
+            </Link>
+            <Link className="room-home__route-card" href={`/app/calendar?roomId=${roomId}`}>
+              <CalendarDays aria-hidden size={19} strokeWidth={1.9} />
+              <span>
+                <strong>일정</strong>
+                <small>{roomContent.nextSchedule ? formatDue(roomContent.nextSchedule.startsAt) : "없음"}</small>
+              </span>
+              <ChevronRight aria-hidden size={17} strokeWidth={1.9} />
+            </Link>
           </div>
-
-          <div className="room-home__resource-grid">
-            <GlassPanel className="workspace-route__section">
-              <div className="workspace-route__section-head">
-                <div>
-                  <strong>다음에 볼 것</strong>
-                  <span>확인 후보와 진행 중 작업</span>
-                </div>
-              </div>
-              <div className="workspace-route__list">
-                {roomContent.checkItems.length > 0 ? (
-                  roomContent.checkItems.map((item) => (
-                    <article className="room-home__mini-row" key={item.id}>
-                      <span className="workspace-route__dot" aria-hidden="true" />
-                      <span className="workspace-route__main">
-                        <strong>{item.label}</strong>
-                        <span>{item.meta}</span>
-                      </span>
-                      <StatusBadge tone={item.tone}>확인</StatusBadge>
-                    </article>
-                  ))
-                ) : roomContent.urgentTasks.length > 0 ? (
-                  roomContent.urgentTasks.map((task) => (
-                    <BoardMiniRow item={task} key={task.id} meta={task.wbsItemId ? roomContent.wbsTitleById[task.wbsItemId] : null} />
-                  ))
-                ) : (
-                  <p className="workspace-route__empty">현재 데이터가 없습니다</p>
-                )}
-              </div>
-            </GlassPanel>
-
-            <GlassPanel className="workspace-route__section">
-              <div className="workspace-route__section-head">
-                <div>
-                  <strong>다음 행동</strong>
-                  <span>상세 화면으로 이동</span>
-                </div>
-              </div>
-              <div className="room-home__quick-stack">
-                <Link className="room-home__quick-link" href={`/app/project-rooms/${roomId}/work`}>
-                  <ListChecks aria-hidden size={18} strokeWidth={1.9} />
-                  <span>
-                    <strong>WBS/칸반</strong>
-                    <span>WBS {roomContent.wbsItems.length}개, 진행 작업 {roomContent.activeTasks.length}개</span>
-                  </span>
-                  <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
-                </Link>
-                <Link className="room-home__quick-link" href={`/app/project-rooms/${roomId}/resources`}>
-                  <FileText aria-hidden size={18} strokeWidth={1.9} />
-                  <span>
-                    <strong>자료</strong>
-                    <span>프로젝트룸 자료 {state.resources.length}개</span>
-                  </span>
-                  <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
-                </Link>
-                <Link className="room-home__quick-link" href={`/app/desktop/widgets?autoOpen=chat&roomId=${encodeURIComponent(roomId)}`}>
-                  <MessageCircle aria-hidden size={18} strokeWidth={1.9} />
-                  <span>
-                    <strong>소통</strong>
-                    <span>자료와 작업 맥락을 유지한 룸 대화</span>
-                  </span>
-                  <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
-                </Link>
-                <Link className="room-home__quick-link" href={`/app/calendar?roomId=${roomId}`}>
-                  <CalendarDays aria-hidden size={18} strokeWidth={1.9} />
-                  <span>
-                    <strong>{roomContent.nextSchedule?.title ?? "일정"}</strong>
-                    <span>{roomContent.nextSchedule ? formatDue(roomContent.nextSchedule.startsAt) : "현재 데이터가 없습니다"}</span>
-                  </span>
-                  <ChevronRight aria-hidden size={18} strokeWidth={1.9} />
-                </Link>
-              </div>
-            </GlassPanel>
-          </div>
-
-          {state.members.length > 0 ? (
-            <GlassPanel className="workspace-route__section">
-              <div className="workspace-route__section-head">
-                <UsersRound aria-hidden size={18} strokeWidth={2} />
-                <strong>멤버</strong>
-              </div>
-              <div className="workspace-route__summary" aria-label="멤버 요약">
-                {state.members.slice(0, 4).map((member) => (
-                  <article className="workspace-route__row" key={member.userId}>
-                    <span className="workspace-route__dot" aria-hidden="true" />
-                    <span className="workspace-route__main">
-                      <strong>{member.name}</strong>
-                      <span>{member.bubliId ?? "참여 중"}</span>
-                    </span>
-                    <span className="workspace-route__status">{member.role === "PROJECT_LEADER" ? "리더" : "멤버"}</span>
-                  </article>
-                ))}
-                {state.members.length > 4 ? <span>외 {state.members.length - 4}명</span> : null}
-              </div>
-            </GlassPanel>
-          ) : null}
         </>
       ) : null}
     </section>
