@@ -1256,12 +1256,12 @@ CREATE INDEX IF NOT EXISTS idx_local_activity_buffer_status ON local_activity_bu
 #[cfg(test)]
 mod tests {
     use super::{
-        list_local_sqlite_backups_for_conn,
-        mark_activity_context_synced_conn, now_ms, read_active_project_room_for_conn,
-        read_auth_session_json, read_room_messages_for_conn, read_widget_summary_cache_for_conn,
-        record_timer_state_for_conn, recover_timer_state_for_conn,
-        stage_activity_contexts_for_sync_conn, store_active_project_room_for_conn,
-        store_auth_session_json, store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
+        list_local_sqlite_backups_for_conn, mark_activity_context_synced_conn, now_ms,
+        read_active_project_room_for_conn, read_auth_session_json, read_room_messages_for_conn,
+        read_widget_summary_cache_for_conn, record_timer_state_for_conn,
+        recover_timer_state_for_conn, stage_activity_contexts_for_sync_conn,
+        store_active_project_room_for_conn, store_auth_session_json,
+        store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
         validate_auth_session_json, validate_widget_summary_json, ActiveProjectRoomStoreInput,
         ActivityContextSyncInput, LocalRoomMessageCacheInput, LocalRoomMessageReadInput,
         LocalRoomMessageSyncInput, TimerStateRecordInput, ACTIVITY_SYNC_PENDING_STALE_MS,

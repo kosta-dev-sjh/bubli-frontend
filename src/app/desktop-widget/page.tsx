@@ -2,7 +2,7 @@
 
 import { Room } from "livekit-client";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   widgetDisplayApi,
@@ -63,6 +63,19 @@ const apiItemBubbleTypeMap: Record<WidgetBubbleType, ApiWidgetBubbleType> = {
 };
 
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
+
+function subscribeToClientMount(onStoreChange: () => void) {
+  const timeoutId = window.setTimeout(onStoreChange, 0);
+  return () => window.clearTimeout(timeoutId);
+}
+
+function getClientMountSnapshot() {
+  return true;
+}
+
+function getServerMountSnapshot() {
+  return false;
+}
 
 function getRequestedBubble(value: string | null): WidgetBubbleType {
   return desktopWidgetBubbleTypes.includes(value as WidgetBubbleType) ? (value as WidgetBubbleType) : "todo";
@@ -453,6 +466,7 @@ function DesktopWidgetSurface() {
   const { t } = useI18n();
   const isTauri = isTauriRuntime();
   const searchParams = useSearchParams();
+  const mounted = useSyncExternalStore(subscribeToClientMount, getClientMountSnapshot, getServerMountSnapshot);
   const requestedSurface = searchParams.get("bubble");
   const isBubbleBar = requestedSurface === "bar";
   const isMenuOrb = requestedSurface === "menu";
@@ -497,11 +511,14 @@ function DesktopWidgetSurface() {
       bodyMinHeight: bodyStyle.minHeight,
       bodyOverflow: bodyStyle.overflow,
       bodyWidth: bodyStyle.width,
+      bodyHeight: bodyStyle.height,
+      bodyDisplay: bodyStyle.display,
       htmlBackground: htmlStyle.background,
       htmlMargin: htmlStyle.margin,
       htmlMinHeight: htmlStyle.minHeight,
       htmlOverflow: htmlStyle.overflow,
       htmlWidth: htmlStyle.width,
+      htmlHeight: htmlStyle.height,
     };
 
     document.documentElement.dataset.bubliSurface = "desktop-widget";
@@ -510,12 +527,15 @@ function DesktopWidgetSurface() {
     htmlStyle.margin = "0";
     htmlStyle.minHeight = "0";
     htmlStyle.overflow = "hidden";
-    htmlStyle.width = "fit-content";
+    htmlStyle.width = "100%";
+    htmlStyle.height = "100%";
     bodyStyle.background = "transparent";
     bodyStyle.margin = "0";
     bodyStyle.minHeight = "0";
     bodyStyle.overflow = "hidden";
-    bodyStyle.width = "fit-content";
+    bodyStyle.width = "100%";
+    bodyStyle.height = "100%";
+    bodyStyle.display = "grid";
 
     return () => {
       delete document.documentElement.dataset.bubliSurface;
@@ -525,11 +545,14 @@ function DesktopWidgetSurface() {
       htmlStyle.minHeight = previous.htmlMinHeight;
       htmlStyle.overflow = previous.htmlOverflow;
       htmlStyle.width = previous.htmlWidth;
+      htmlStyle.height = previous.htmlHeight;
       bodyStyle.background = previous.bodyBackground;
       bodyStyle.margin = previous.bodyMargin;
       bodyStyle.minHeight = previous.bodyMinHeight;
       bodyStyle.overflow = previous.bodyOverflow;
       bodyStyle.width = previous.bodyWidth;
+      bodyStyle.height = previous.bodyHeight;
+      bodyStyle.display = previous.bodyDisplay;
     };
   }, []);
 
@@ -1424,7 +1447,7 @@ function DesktopWidgetSurface() {
     }
   }, [isTauri, selectedWidgetRoomId]);
 
-  if (!widgetSessionReady) {
+  if (!mounted || !widgetSessionReady) {
     return null;
   }
 

@@ -10,45 +10,46 @@ import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 let launchRequested = false;
 let launchPromise: Promise<void> | null = null;
 let launchGeneration = 0;
+let launchedAuthenticatedSurfaces = false;
 
 const loginStartupWindows: WidgetWindowOpenInput[] = [
   { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" },
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
 ];
 
+const widgetOpenCommandTimeoutMs = 8_000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error("Tauri widget open timed out")), timeoutMs)),
+  ]);
+}
+
 export function launchTauriAuthenticatedSurfaces() {
   if (!isTauriRuntime()) return Promise.resolve();
+  if (launchedAuthenticatedSurfaces) return Promise.resolve();
   if (launchRequested && launchPromise) return launchPromise;
 
   launchRequested = true;
   const generation = ++launchGeneration;
   launchPromise = (async () => {
     const selectedRoomId = getActiveProjectRoomId();
-    const appReadyOpenedWidgets = await tauriCommands
-      .appReady({ qaAllWidgets: false, selectedRoomId })
-      .then(() => true)
-      .catch(() => false);
-
     if (generation !== launchGeneration) {
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
       return;
     }
 
-    const errors: unknown[] = [];
-    if (!appReadyOpenedWidgets) {
-      for (const input of loginStartupWindows) {
+    const results = await Promise.allSettled(
+      loginStartupWindows.map(async (input) => {
         if (generation !== launchGeneration) {
           await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
           return;
         }
 
-        try {
-          await tauriCommands.openWidgetWindow({ ...input, selectedRoomId });
-        } catch (error) {
-          errors.push(error);
-        }
-      }
-    }
+        await withTimeout(tauriCommands.openWidgetWindow({ ...input, selectedRoomId }), widgetOpenCommandTimeoutMs);
+      }),
+    );
 
     void tauriCommands
       .recordWidgetUsageEvent({
@@ -61,9 +62,10 @@ export function launchTauriAuthenticatedSurfaces() {
     startActivityAutoCapture();
     startManagedFolderAutoSync();
     startWidgetUsageAutoSync();
+    launchedAuthenticatedSurfaces = true;
 
-    if (!appReadyOpenedWidgets && errors.length === loginStartupWindows.length) {
-      throw errors[0];
+    if (results.every((result) => result.status === "rejected")) {
+      throw results[0].status === "rejected" ? results[0].reason : new Error("No Tauri widgets opened");
     }
   })()
     .catch((error) => {
@@ -81,6 +83,7 @@ export async function stopTauriAuthenticatedSurfaces() {
   launchGeneration += 1;
   launchRequested = false;
   launchPromise = null;
+  launchedAuthenticatedSurfaces = false;
   stopActivityAutoCapture();
   stopManagedFolderAutoSync();
   stopWidgetUsageAutoSync();

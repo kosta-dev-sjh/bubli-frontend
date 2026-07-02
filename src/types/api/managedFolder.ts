@@ -33,6 +33,7 @@ export type LocalFileEventSyncRequest = {
     eventType: LocalFileEventResponse["eventType"];
     fileName: string;
     fileSizeBytes?: number | null;
+    localEventId: string;
     mimeType?: string | null;
     resourceId?: string | null;
   }>;
