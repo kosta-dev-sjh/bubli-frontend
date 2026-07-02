@@ -1,5 +1,7 @@
 import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
+import type { LocalFileKeySentenceResult } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { localFileAnalysisApi } from "@/features/managed-folder/api/localFileAnalysisApi";
 import { managedFolderApi } from "@/features/managed-folder/api/managedFolderApi";
 import {
   blocked,
@@ -13,6 +15,7 @@ import {
 } from "@/lib/local/adapter-result";
 import type {
   LocalAdapterResult,
+  LocalFileKeySentenceAdapterInput,
   LocalFileOpenAdapterInput,
   LocalFileOpenAdapterResult,
   LocalFilePreviewAdapterInput,
@@ -30,6 +33,7 @@ import type {
   PersonalManagedFolderCommandInput,
   PersonalManagedFolderSelectInput,
 } from "@/types/local";
+import type { LocalFileAnalysisResponse } from "@/types/api/localFileAnalysis";
 
 export type PersonalLocalFileEventsSyncResult = {
   failedCount: number;
@@ -37,6 +41,12 @@ export type PersonalLocalFileEventsSyncResult = {
   skippedCount: number;
   syncedAt: string;
   syncedCount: number;
+};
+
+export type PersonalLocalFileAnalysisResult = {
+  extraction: LocalFileKeySentenceResult;
+  job: LocalFileAnalysisResponse;
+  sentAt: string;
 };
 
 const PERSONAL_SCOPE_MESSAGE =
@@ -200,6 +210,65 @@ export async function readPersonalLocalFilePreview(
   return runTauriAdapter(TAURI_COMMANDS.readLocalFilePreview, () =>
     tauriCommands.readLocalFilePreview(tauriInput),
   );
+}
+
+export async function analyzePersonalLocalFileWithKeySentences(
+  input: LocalFileKeySentenceAdapterInput,
+): Promise<LocalAdapterResult<PersonalLocalFileAnalysisResult>> {
+  const commandName = TAURI_COMMANDS.extractLocalFileKeySentences;
+
+  if (!isTauriRuntime()) {
+    return unavailable(commandName);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, commandName);
+  }
+
+  const extractionResult = await runTauriAdapter(commandName, () =>
+    tauriCommands.extractLocalFileKeySentences({
+      localFileId: input.localFileId,
+      maxChars: input.maxChars,
+      maxSentenceChars: input.maxSentenceChars,
+      maxSentences: input.maxSentences,
+    }),
+  );
+
+  if (extractionResult.status !== "ready") {
+    return failed(extractionResult.message, commandName);
+  }
+
+  const extraction = extractionResult.data;
+  if (extraction.status !== "READY") {
+    return failed(`로컬 파일 중요 문장 추출 상태가 ${extraction.status}입니다.`, commandName);
+  }
+
+  try {
+    const job = await localFileAnalysisApi.create({
+      analyzedCharCount: extraction.analyzedCharCount,
+      checksum: extraction.checksum,
+      combinedText: extraction.combinedText,
+      extractionMethod: extraction.extractionMethod,
+      fileName: extraction.fileName,
+      keySentences: extraction.keySentences,
+      localFileId: extraction.localFileId,
+      mimeType: extraction.mimeType,
+      sourceCharCount: extraction.sourceCharCount,
+      textTruncated: extraction.truncated,
+    });
+
+    return ready(
+      {
+        extraction,
+        job,
+        sentAt: new Date().toISOString(),
+      },
+      commandName,
+      "로컬 파일 중요 문장을 서버 분석 요청으로 전달했습니다.",
+    );
+  } catch (error) {
+    return failed(getErrorMessage(error), commandName);
+  }
 }
 
 export async function reindexPersonalLocalFile(

@@ -5,6 +5,8 @@ import type {
 import type {
   ActivityContextResult,
   LocalBackupRestoreInput,
+  LocalFileKeySentenceInput,
+  LocalFileKeySentenceResult,
   LocalFileOpenInput,
   LocalFileOpenResult,
   LocalFilePreviewInput,
@@ -161,6 +163,8 @@ export type LocalFileOpenAdapterInput = LocalFileOpenInput & LocalFolderScopeInp
 export type LocalFileOpenAdapterResult = LocalAdapterResult<LocalFileOpenResult>;
 export type LocalFilePreviewAdapterInput = LocalFilePreviewInput & LocalFolderScopeInput;
 export type LocalFilePreviewAdapterResult = LocalAdapterResult<LocalFilePreviewResult>;
+export type LocalFileKeySentenceAdapterInput = LocalFileKeySentenceInput & LocalFolderScopeInput;
+export type LocalFileKeySentenceAdapterResult = LocalAdapterResult<LocalFileKeySentenceResult>;
 export type LocalFileReindexAdapterInput = LocalFileReindexInput & LocalFolderScopeInput;
 export type LocalFileReindexAdapterResult = LocalAdapterResult<LocalFileReindexResult>;
 export type ActivityContextAdapterResult = LocalAdapterResult<ActivityContextResult>;

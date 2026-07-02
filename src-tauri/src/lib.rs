@@ -1091,6 +1091,7 @@ pub fn run() {
             local_files::watch_managed_folder,
             local_files::search_local_files,
             local_files::read_local_file_preview,
+            local_files::extract_local_file_key_sentences,
             local_files::open_local_file,
             local_files::reindex_file,
             local_files::flush_sync_outbox,

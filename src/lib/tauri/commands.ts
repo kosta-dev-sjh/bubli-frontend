@@ -7,6 +7,7 @@ export const TAURI_COMMANDS = {
   clearActiveProjectRoom: "clear_active_project_room",
   clearTauriAuthSession: "clear_tauri_auth_session",
   closeWidgetWindow: "close_widget_window",
+  extractLocalFileKeySentences: "extract_local_file_key_sentences",
   flushSyncOutbox: "flush_sync_outbox",
   getIndexProgress: "get_index_progress",
   getPreferredAppMonitor: "get_preferred_app_monitor",
@@ -139,7 +140,38 @@ export type LocalFilePreviewResult = {
   path: string;
   previewText?: string | null;
   readAt: string;
-  status: "READY" | "UNSUPPORTED" | "MISSING" | "TOO_LARGE";
+  status: "READY" | "UNSUPPORTED" | "MISSING" | "TOO_LARGE" | "EMPTY";
+  truncated: boolean;
+};
+
+export type LocalFileKeySentenceInput = {
+  localFileId: string;
+  maxChars?: number;
+  maxSentenceChars?: number;
+  maxSentences?: number;
+};
+
+export type LocalFileKeySentenceItem = {
+  endOffset: number;
+  index: number;
+  score: number;
+  startOffset: number;
+  text: string;
+};
+
+export type LocalFileKeySentenceResult = {
+  analyzedCharCount: number;
+  checksum?: string | null;
+  combinedText: string;
+  extractedAt: string;
+  extractionMethod: "BM25_MMR_KEY_SENTENCE_V1" | string;
+  fileName: string;
+  keySentences: LocalFileKeySentenceItem[];
+  localFileId: string;
+  mimeType?: string | null;
+  path: string;
+  sourceCharCount: number;
+  status: "READY" | "UNSUPPORTED" | "MISSING" | "TOO_LARGE" | "EMPTY";
   truncated: boolean;
 };
 
@@ -540,6 +572,10 @@ export type TauriCommandContract = {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
   };
+  extract_local_file_key_sentences: {
+    args: LocalFileKeySentenceInput;
+    result: LocalFileKeySentenceResult;
+  };
   flush_sync_outbox: {
     args: undefined;
     result: SyncOutboxFlushResult;
@@ -747,6 +783,9 @@ export const tauriCommands = {
   },
   closeWidgetWindow(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.closeWidgetWindow, input ? { input } : undefined);
+  },
+  extractLocalFileKeySentences(input: LocalFileKeySentenceInput) {
+    return invokeTauri<LocalFileKeySentenceResult>(TAURI_COMMANDS.extractLocalFileKeySentences, { input });
   },
   flushSyncOutbox() {
     return invokeTauri<SyncOutboxFlushResult>(TAURI_COMMANDS.flushSyncOutbox);

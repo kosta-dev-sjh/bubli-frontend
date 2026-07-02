@@ -196,6 +196,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.extractLocalFileKeySentences,
+    responsibility: "Extract important sentences from a locally indexed personal file before API agent analysis",
+    reflectsToServer: true,
+    serverApi: "/api/local-file-analyses",
+  },
+  {
     ipc: TAURI_COMMANDS.flushSyncOutbox,
     responsibility: "Report/flush server-reflect backlog",
     reflectsToServer: true,
