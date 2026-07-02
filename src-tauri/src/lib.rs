@@ -228,14 +228,15 @@ fn with_widget_state(
         .lock()
         .map_err(|_| "widget state lock failed".to_string())?;
     let target = normalize_bubble_type(Some(resolve_target_bubble(&guard, bubble_type)));
-    let window_key = normalize_window_key(&target, window_id.clone());
+    let requested_window_id = window_id.is_some();
+    let window_key = normalize_window_key(&target, window_id);
     guard.active_bubble = target.clone();
     let widget = guard
         .bubbles
         .entry(window_key.clone())
-        .or_insert_with(|| default_widget_window_state(&target, Some(window_key)));
-    if widget.window_id.is_none() {
-        widget.window_id = window_id.or_else(|| Some(target.clone()));
+        .or_insert_with(|| default_widget_window_state(&target, Some(window_key.clone())));
+    if requested_window_id && widget.window_id.is_none() {
+        widget.window_id = Some(window_key.clone());
     }
     update(widget);
     Ok(widget.clone())
@@ -803,65 +804,14 @@ fn register_widget_shortcut(
     })
 }
 
-fn open_login_startup_widget(
-    state: &WidgetState,
-    bubble_type: &str,
-    window_id: &str,
-) -> Result<WidgetWindowState, String> {
-    let widget = {
-        let mut guard = state
-            .lock()
-            .map_err(|_| "widget state lock failed".to_string())?;
-        let target = normalize_bubble_type(Some(bubble_type.to_string()));
-        let window_key = normalize_window_key(&target, Some(window_id.to_string()));
-        guard.active_bubble = target.clone();
-        let widget = guard
-            .bubbles
-            .entry(window_key.clone())
-            .or_insert_with(|| default_widget_window_state(&target, Some(window_key)));
-        if widget.window_id.is_none() {
-            widget.window_id = Some(window_id.to_string());
-        }
-        widget.mode = "DEFAULT".to_string();
-        widget.click_through = false;
-        widget.dock_orb_visible = false;
-        widget.window_visible = true;
-        widget.clone()
-    };
-
-    Ok(widget)
-}
-
 #[tauri::command]
-fn app_ready(app: AppHandle, state: tauri::State<'_, WidgetState>) -> Result<&'static str, String> {
-    let bar_result = open_login_startup_widget(&state, "bar", "bar");
-    let default_result = open_login_startup_widget(
-        &state,
-        DEFAULT_WIDGET_BUBBLE_TYPE,
-        DEFAULT_WIDGET_BUBBLE_TYPE,
-    );
-
-    match &bar_result {
-        Ok(widget) => spawn_widget_window_build(app.clone(), widget.clone()),
-        Err(error) => eprintln!("failed to prepare login startup widget bar: {error}"),
-    }
-    match &default_result {
-        Ok(widget) => spawn_widget_window_build(app.clone(), widget.clone()),
-        Err(error) => eprintln!("failed to prepare login startup default widget: {error}"),
-    }
-    if let (Err(bar_error), Err(default_error)) = (bar_result, default_result) {
-        return Err(format!(
-            "failed to open login startup widgets: bar={bar_error}; default={default_error}"
-        ));
-    }
-
-    Ok("bubli-tauri-ready")
+fn app_ready() -> &'static str {
+    "bubli-tauri-ready"
 }
 
 #[tauri::command]
 fn open_widget_window(
     app: AppHandle,
-    monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
     input: Option<WidgetWindowOpenInput>,
 ) -> Result<WidgetWindowState, String> {
@@ -878,7 +828,8 @@ fn open_widget_window(
         widget.dock_orb_visible = false;
         widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
     })?;
-    build_widget_window(&app, &monitor_state, &widget)
+    spawn_widget_window_build(app, widget.clone());
+    Ok(widget)
 }
 
 #[tauri::command]
@@ -989,6 +940,7 @@ pub fn run() {
             local_files::select_managed_folder,
             local_files::scan_managed_folder,
             local_files::watch_managed_folder,
+            local_files::read_local_file,
             local_files::search_local_files,
             local_files::flush_sync_outbox,
             local_files::stage_local_file_events_for_sync,
