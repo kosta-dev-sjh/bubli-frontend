@@ -20,11 +20,18 @@ export function launchTauriAuthenticatedSurfaces() {
   launchPromise = (async () => {
     await tauriCommands.appReady().catch(() => undefined);
 
-    loginStartupWindows.forEach((input, index) => {
-      window.setTimeout(() => {
-        void tauriCommands.openWidgetWindow(input).catch(() => undefined);
-      }, index * 250);
-    });
+    const launches = loginStartupWindows.map(
+      (input, index) =>
+        new Promise<boolean>((resolve) => {
+          window.setTimeout(() => {
+            void tauriCommands.openWidgetWindow(input).then(
+              () => resolve(true),
+              () => resolve(false),
+            );
+          }, index * 250);
+        }),
+    );
+    const results = await Promise.all(launches);
 
     void tauriCommands
       .recordWidgetUsageEvent({
@@ -33,6 +40,10 @@ export function launchTauriAuthenticatedSurfaces() {
         occurredAt: new Date().toISOString(),
       })
       .catch(() => undefined);
+
+    if (results.every((result) => !result)) {
+      throw new Error("failed to open login startup widgets");
+    }
   })()
     .catch((error) => {
       launchRequested = false;
