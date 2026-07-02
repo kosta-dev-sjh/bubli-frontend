@@ -22,6 +22,7 @@ import {
   restoreLocalSqliteBackup,
 } from "@/lib/local/local-cache-client";
 import {
+  readPersonalLocalFile,
   scanPersonalManagedFolder,
   searchPersonalLocalFiles,
   selectPersonalManagedFolder,
@@ -31,7 +32,12 @@ import {
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 import { refreshTauriActivityRuntime } from "@/lib/tauri/activity-runtime";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { tauriCommands, type AppMonitorInfo, type AppMonitorPreference } from "@/lib/tauri/commands";
+import {
+  tauriCommands,
+  type AppMonitorInfo,
+  type AppMonitorPreference,
+  type LocalFileReadResult,
+} from "@/lib/tauri/commands";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
@@ -193,6 +199,7 @@ export default function SettingsPage() {
   const [localActionMessage, setLocalActionMessage] = useState<string | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState("");
   const [localFiles, setLocalFiles] = useState<Array<{ localFileId: string; name: string; path: string }>>([]);
+  const [localFilePreview, setLocalFilePreview] = useState<LocalFileReadResult | null>(null);
   const [lastBackupId, setLastBackupId] = useState<string | null>(null);
   const [desktopRuntime, setDesktopRuntime] = useState(false);
   const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
@@ -485,6 +492,7 @@ export default function SettingsPage() {
       return;
     }
 
+    setLocalFilePreview(null);
     const result = await searchPersonalLocalFiles({ limit: 20, query });
     if (result.status === "ready") {
       setLocalFiles(result.data.items.map((item) => ({ localFileId: item.localFileId, name: item.name, path: item.path })));
@@ -495,6 +503,22 @@ export default function SettingsPage() {
     setLocalFiles([]);
     setLocalActionMessage(localResultMessage(result));
   }, [folderSearchQuery]);
+
+  const readLocalFilePreview = useCallback(async (localFileId: string) => {
+    const result = await readPersonalLocalFile({ localFileId, maxBytes: 64 * 1024 });
+    if (result.status === "ready") {
+      setLocalFilePreview(result.data);
+      if (result.data.readable) {
+        setLocalActionMessage(result.data.truncated ? "로컬 파일 프리뷰를 일부만 읽었습니다" : "로컬 파일 프리뷰를 읽었습니다");
+        return;
+      }
+      setLocalActionMessage(`로컬 파일을 읽을 수 없습니다: ${result.data.reason ?? "지원하지 않는 형식"}`);
+      return;
+    }
+
+    setLocalFilePreview(null);
+    setLocalActionMessage(localResultMessage(result));
+  }, []);
 
   const readActivity = useCallback(async () => {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
@@ -908,9 +932,35 @@ export default function SettingsPage() {
                         <strong>{file.name}</strong>
                         <small>{file.path}</small>
                       </span>
-                      <StatusBadge tone="neutral">로컬</StatusBadge>
+                      <span className={styles.rowActions}>
+                        <Button disabled={!desktopRuntime} onClick={() => void readLocalFilePreview(file.localFileId)} type="button" variant="quiet">
+                          읽기
+                        </Button>
+                        <StatusBadge tone="neutral">로컬</StatusBadge>
+                      </span>
                     </div>
                   ))}
+                </div>
+              ) : null}
+              {localFilePreview ? (
+                <div className={styles.localPreview}>
+                  <div className={styles.previewHeader}>
+                    <span>
+                      <strong>{localFilePreview.name}</strong>
+                      <small>
+                        {localFilePreview.sizeBytes != null ? byteLabel(localFilePreview.sizeBytes) : "크기 확인 대기"}
+                        {localFilePreview.modifiedAt ? ` · 수정 ${localFilePreview.modifiedAt}` : ""}
+                      </small>
+                    </span>
+                    <StatusBadge tone={localFilePreview.readable ? "approved" : "warning"}>
+                      {localFilePreview.readable ? (localFilePreview.truncated ? "일부 읽음" : "읽음") : "읽기 불가"}
+                    </StatusBadge>
+                  </div>
+                  {localFilePreview.readable ? (
+                    <pre className={styles.previewBody}>{localFilePreview.content || "내용이 비어 있습니다."}</pre>
+                  ) : (
+                    <p className={styles.guard}>읽을 수 없는 파일입니다. 사유: {localFilePreview.reason ?? "지원하지 않는 형식"}</p>
+                  )}
                 </div>
               ) : null}
             </GlassPanel>
