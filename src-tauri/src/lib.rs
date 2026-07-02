@@ -540,12 +540,15 @@ fn widget_keeps_webview_when_hidden(widget: &WidgetWindowState) -> bool {
     widget.active_bubble == "bar" || widget.active_bubble == "menu"
 }
 
-fn destroy_all_widget_windows(app: &AppHandle) {
+fn destroy_all_widget_windows(app: &AppHandle) -> usize {
+    let mut destroyed_count = 0;
     for (label, window) in app.webview_windows() {
         if is_widget_window_label(&label) {
             let _ = window.destroy();
+            destroyed_count += 1;
         }
     }
+    destroyed_count
 }
 
 fn qa_all_widget_windows_enabled() -> bool {
@@ -555,7 +558,10 @@ fn qa_all_widget_windows_enabled() -> bool {
     )
 }
 
-fn build_widget_qa_windows(app: &AppHandle) -> Result<(), String> {
+fn build_widget_qa_windows(
+    app: &AppHandle,
+    selected_room_id: Option<String>,
+) -> Result<(), String> {
     let state = app.state::<WidgetState>();
     let monitor_state = app.state::<AppMonitorState>();
 
@@ -574,6 +580,7 @@ fn build_widget_qa_windows(app: &AppHandle) -> Result<(), String> {
             widget.mode = "DEFAULT".to_string();
             widget.click_through = false;
             widget.dock_orb_visible = false;
+            widget.selected_room_id = selected_room_id.clone();
             widget.window_visible = true;
             widget.clone()
         };
@@ -705,6 +712,26 @@ fn get_widget_bar_items(
     });
 
     Ok(items)
+}
+
+#[tauri::command]
+fn close_all_widget_windows(
+    app: AppHandle,
+    state: tauri::State<'_, WidgetState>,
+) -> Result<usize, String> {
+    {
+        let mut guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        for widget in guard.bubbles.values_mut() {
+            widget.mode = "MINIMIZED".to_string();
+            widget.click_through = false;
+            widget.dock_orb_visible = false;
+            widget.window_visible = false;
+        }
+    }
+
+    Ok(destroy_all_widget_windows(&app))
 }
 
 #[tauri::command]
@@ -910,6 +937,11 @@ fn app_ready(
 ) -> Result<&'static str, String> {
     let selected_room_id =
         input.and_then(|value| normalize_optional_query_value(value.selected_room_id));
+    if qa_all_widget_windows_enabled() {
+        build_widget_qa_windows(&app, selected_room_id)?;
+        return Ok("bubli-tauri-ready");
+    }
+
     let bar_result = open_login_startup_widget(
         &app,
         &monitor_state,
@@ -1061,6 +1093,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             app_ready,
+            close_all_widget_windows,
             close_widget_window,
             get_widget_bar_items,
             get_preferred_app_monitor,
@@ -1127,11 +1160,6 @@ pub fn run() {
             {
                 eprintln!("failed to position main window on preferred monitor: {error}");
             }
-            if qa_all_widget_windows_enabled() {
-                if let Err(error) = build_widget_qa_windows(app_handle) {
-                    eprintln!("failed to open QA widget windows: {error}");
-                }
-            }
         }
         tauri::RunEvent::WindowEvent { label, event, .. }
             if label == MAIN_WINDOW_LABEL
@@ -1144,7 +1172,7 @@ pub fn run() {
             app_handle.exit(0);
         }
         tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
-            destroy_all_widget_windows(app_handle);
+            let _ = destroy_all_widget_windows(app_handle);
         }
         _ => {}
     });

@@ -6,6 +6,7 @@ export const TAURI_COMMANDS = {
   checkLocalSqliteIntegrity: "check_local_sqlite_integrity",
   clearActiveProjectRoom: "clear_active_project_room",
   clearTauriAuthSession: "clear_tauri_auth_session",
+  closeAllWidgetWindows: "close_all_widget_windows",
   closeWidgetWindow: "close_widget_window",
   flushSyncOutbox: "flush_sync_outbox",
   getIndexProgress: "get_index_progress",
@@ -537,6 +538,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: null;
   };
+  close_all_widget_windows: {
+    args: undefined;
+    result: number;
+  };
   close_widget_window: {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
@@ -745,6 +750,9 @@ export const tauriCommands = {
   },
   clearTauriAuthSession() {
     return invokeTauri<null>(TAURI_COMMANDS.clearTauriAuthSession);
+  },
+  closeAllWidgetWindows() {
+    return invokeTauri<number>(TAURI_COMMANDS.closeAllWidgetWindows);
   },
   closeWidgetWindow(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.closeWidgetWindow, input ? { input } : undefined);
