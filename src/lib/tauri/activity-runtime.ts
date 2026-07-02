@@ -2,7 +2,7 @@
 
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { getStoredAuthSession } from "@/lib/auth/auth-session";
-import { recordCurrentActivityContext } from "@/lib/local/activity-client";
+import { recordCurrentActivityContext, resetIncrementalActivityCheckpoint } from "@/lib/local/activity-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 const ACTIVITY_CAPTURE_INTERVAL_MS = 30_000;
@@ -25,6 +25,7 @@ export function stopTauriActivityRuntime() {
 
   window.clearInterval(activityTimer);
   activityTimer = null;
+  resetIncrementalActivityCheckpoint();
 }
 
 export function refreshTauriActivityRuntime() {
@@ -49,7 +50,7 @@ async function recordConsentedActivityTick() {
       return;
     }
 
-    await recordCurrentActivityContext({ consentGranted: true });
+    await recordCurrentActivityContext({ consentGranted: true, recordMode: "incremental" });
   } catch {
     // Keep this runtime quiet: settings UI exposes manual activity failures.
   } finally {

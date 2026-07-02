@@ -39,6 +39,7 @@ export type LocalAdapterUnavailableReason = "requires_tauri";
 
 export type LocalAdapterBlockedReason =
   | "activity_consent_required"
+  | "activity_no_new_duration"
   | "native_command_pending"
   | "personal_scope_only"
   | "server_transfer_not_allowed";
@@ -115,6 +116,7 @@ export type ActivityContextReadInput = {
 };
 
 export type ActivityContextRecordInput = ActivityContextReadInput & {
+  recordMode?: "incremental" | "snapshot";
   roomId?: string | null;
 };
 
