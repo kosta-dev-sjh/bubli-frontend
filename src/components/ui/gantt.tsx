@@ -592,7 +592,7 @@ export const GanttSidebar: FC<GanttSidebarProps> = ({ children, className }) => 
   return (
     <div
       className={cn(
-        "sticky left-0 z-30 h-max min-h-full overflow-clip border-border/50 border-r bg-background/90 backdrop-blur-md relative",
+        "sticky left-0 z-30 h-max min-h-full overflow-clip border-border/50 border-r bg-background/90 backdrop-blur-md",
         className,
       )}
       data-roadmap-ui="gantt-sidebar"

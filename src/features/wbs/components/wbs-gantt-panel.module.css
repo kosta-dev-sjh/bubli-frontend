@@ -142,6 +142,8 @@
 .ganttSurface :global([data-roadmap-ui="gantt-sidebar"]) {
   background: rgba(255, 255, 255, 0.92);
   border-color: rgba(229, 231, 235, 0.9);
+  left: 0;
+  position: sticky;
 }
 
 .ganttSurface :global(.bg-secondary) {
