@@ -1133,6 +1133,16 @@ pub fn run() {
                 }
             }
         }
+        tauri::RunEvent::WindowEvent { label, event, .. }
+            if label == MAIN_WINDOW_LABEL
+                && matches!(
+                    event,
+                    tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed
+                ) =>
+        {
+            destroy_all_widget_windows(app_handle);
+            app_handle.exit(0);
+        }
         tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
             destroy_all_widget_windows(app_handle);
         }
