@@ -491,6 +491,7 @@ export type WidgetShortcutInput = {
 export type SyncOutboxFlushResult = {
   failedCount: number;
   flushedAt: string;
+  pendingCount: number;
   sentCount: number;
 };
 
