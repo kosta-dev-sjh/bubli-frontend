@@ -6,7 +6,6 @@ import { tauriCommands } from "@/lib/tauri/commands";
 
 const AUTH_SESSION_STORAGE_KEY = "bubli-auth-session";
 const ACCESS_TOKEN_EXPIRY_BUFFER_MS = 30_000;
-const DEFAULT_PRODUCTION_APP_BASE_URL = "https://bubli.n-e.kr";
 
 export const AUTH_SESSION_CHANGE_EVENT = "bubli:auth-session-change";
 
@@ -185,10 +184,6 @@ export function getAuthRedirectUri() {
   const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL?.trim().replace(/\/$/, "");
   if (configuredBaseUrl) {
     return `${configuredBaseUrl}/auth/callback`;
-  }
-
-  if (process.env.NODE_ENV === "production") {
-    return `${DEFAULT_PRODUCTION_APP_BASE_URL}/auth/callback`;
   }
 
   if (typeof window === "undefined") {

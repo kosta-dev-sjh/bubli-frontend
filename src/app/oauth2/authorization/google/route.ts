@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const DEFAULT_LOCAL_API_BASE_URL = "http://localhost:8080";
-const DEFAULT_PRODUCTION_APP_BASE_URL = "https://bubli.n-e.kr";
 
 function getApiBaseUrl(origin: string) {
   const configured = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
@@ -18,8 +17,7 @@ function loginFallback(origin: string) {
 
 function getAuthRedirectUri(origin: string) {
   const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL?.trim().replace(/\/$/, "");
-  const appBaseUrl = configuredBaseUrl || (process.env.NODE_ENV === "production" ? DEFAULT_PRODUCTION_APP_BASE_URL : origin);
-  return `${appBaseUrl}/auth/callback`;
+  return `${configuredBaseUrl || origin}/auth/callback`;
 }
 
 export async function GET(request: NextRequest) {

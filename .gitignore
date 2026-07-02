@@ -25,6 +25,7 @@ src-tauri/target/
 .vscode/
 
 # 내부 작업 문서는 추적하되, 로컬 편집기 상태와 대량 캡처 산출물은 제외한다.
+*.csv
 docs/.obsidian/
 docs/visual-qa/screenshots/*
 !docs/visual-qa/screenshots/.gitkeep
