@@ -288,6 +288,13 @@ async function smokeBackend(accessToken) {
     "today activities did not include the saved smoke activity",
   );
 
+  await apiDelete(`/api/activity/${activitySmoke.id}`, headers);
+  const todayActivitiesAfterDelete = await apiGet("/api/activity/today", headers);
+  assert(
+    !todayActivitiesAfterDelete.some((activity) => activity.id === activitySmoke.id),
+    "today activities still included the deleted smoke activity",
+  );
+
   const [dailySummaries, generatedDocuments, roomMemorySummaries] = await Promise.all([
     apiGet("/api/daily-summaries", headers),
     apiGet(`/api/project-rooms/${SEED_ROOM_ID}/generated-documents`, headers),
@@ -320,7 +327,7 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 
@@ -413,6 +420,20 @@ async function apiPatch(path, headers, body) {
       "Content-Type": "application/json",
     },
     method: "PATCH",
+  });
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || !payload?.success) {
+    throw new Error(`${path} returned HTTP ${response.status}: ${JSON.stringify(payload)}`);
+  }
+
+  return payload.data;
+}
+
+async function apiDelete(path, headers) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers,
+    method: "DELETE",
   });
   const payload = await response.json().catch(() => null);
 
