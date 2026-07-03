@@ -1109,6 +1109,7 @@ export type GanttProviderProps = {
 
 export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "monthly", onAddItem, children, className }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dragScrollLeftRef = useRef<number | null>(null);
   const centeredRangeRef = useRef<string | null>(null);
   const [timelineData] = useState<TimelineData>(createInitialTimelineData(new Date()));
   const [sidebarWidth, setSidebarWidth] = useState(350);
@@ -1145,6 +1146,20 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
 
   useEffect(() => {
     const element = scrollRef.current;
+    if (!element) return;
+
+    if (isDragging) {
+      dragScrollLeftRef.current = element.scrollLeft;
+      setScrollX(element.scrollLeft);
+      return;
+    }
+
+    dragScrollLeftRef.current = null;
+    setScrollX(element.scrollLeft);
+  }, [isDragging, setScrollX]);
+
+  useEffect(() => {
+    const element = scrollRef.current;
     const rangeKey = `${range}:${zoom}`;
     if (!element || centeredRangeRef.current === rangeKey) return;
 
@@ -1169,16 +1184,26 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
   // biome-ignore lint/correctness/useExhaustiveDependencies: "Throttled"
   const handleScroll = useCallback(
     throttle(() => {
-      if (!scrollRef.current) {
+      const element = scrollRef.current;
+
+      if (!element) {
         return;
       }
 
       if (isDragging) {
+        const lockedScrollLeft = dragScrollLeftRef.current ?? element.scrollLeft;
+        dragScrollLeftRef.current = lockedScrollLeft;
+
+        if (element.scrollLeft !== lockedScrollLeft) {
+          element.scrollTo({ behavior: "auto", left: lockedScrollLeft, top: element.scrollTop });
+        }
+
+        setScrollX(lockedScrollLeft);
         return;
       }
 
-      setScrollX(scrollRef.current.scrollLeft);
-    }, 100),
+      setScrollX(element.scrollLeft);
+    }, 16),
     [isDragging, setScrollX],
   );
 
