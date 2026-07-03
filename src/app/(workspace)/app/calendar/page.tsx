@@ -27,7 +27,7 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
-import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
+import { useActiveProjectRoom } from "@/lib/use-active-project-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewSchedules } from "@/lib/workspace-preview-data";
 import type { GoogleCalendarConnectionResponse, ProjectRoomEventEnvelope, ProjectRoomEventType } from "@/types/api/calendar";
 import type { ScheduleResponse } from "@/types/api/work";
@@ -194,7 +194,8 @@ function buildPreviewRoomEvents(roomId: string | null, schedules: ScheduleRespon
 function CalendarPageContent() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
-  const selectedRoomId = searchParams.get("roomId") ?? getActiveProjectRoomId();
+  const { roomId: activeRoomId } = useActiveProjectRoom();
+  const selectedRoomId = searchParams.get("roomId") ?? activeRoomId;
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [selectedDate, setSelectedDate] = useState(() => toDateValue(new Date()));
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
