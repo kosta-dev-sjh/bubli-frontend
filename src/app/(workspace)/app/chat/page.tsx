@@ -1015,7 +1015,7 @@ function ChatPageContent() {
       setSelectedAttachmentName(null);
       setEmoticonOpen(false);
     } catch {
-      setMessagesState({ kind: "offline" });
+      setAgentCommandNotice(t("chat.notice.sendFailed"));
     } finally {
       setSending(false);
     }
@@ -1362,7 +1362,7 @@ function ChatPageContent() {
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
-                        void sendMessage();
+                        if (!sending) void sendMessage();
                       }
                     }}
                     placeholder={t("chat.composer.placeholder")}

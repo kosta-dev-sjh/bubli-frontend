@@ -221,6 +221,7 @@ const ko = {
   "chat.notice.agentSending": "에이전트에게 질문을 보내는 중입니다.",
   "chat.notice.agentSent": "에이전트에게 질문을 보냈습니다.",
   "chat.notice.agentFailed": "에이전트에게 질문을 보내지 못했습니다. 서버 상태나 프로젝트룸 권한을 확인하세요.",
+  "chat.notice.sendFailed": "메시지를 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
 
   // 라벨/기타
   "chat.label.selectRoomNeeded": "프로젝트룸 선택 필요",
@@ -931,6 +932,7 @@ const en: Record<Key, string> = {
   "chat.notice.agentSending": "Sending your question to the agent.",
   "chat.notice.agentSent": "Sent your question to the agent.",
   "chat.notice.agentFailed": "Couldn't send your question to the agent. Check the server status or project room permissions.",
+  "chat.notice.sendFailed": "Couldn't send the message. Please try again in a moment.",
 
   "chat.label.selectRoomNeeded": "Project room selection needed",
   "chat.label.currentRoom": "Current project room",
@@ -1624,6 +1626,7 @@ const ja: Record<Key, string> = {
   "chat.notice.agentSending": "エージェントに質問を送信中です。",
   "chat.notice.agentSent": "エージェントに質問を送りました。",
   "chat.notice.agentFailed": "エージェントに質問を送れませんでした。サーバー状態やプロジェクトルームの権限を確認してください。",
+  "chat.notice.sendFailed": "メッセージを送れませんでした。しばらくしてから再試行してください。",
 
   "chat.label.selectRoomNeeded": "プロジェクトルームの選択が必要",
   "chat.label.currentRoom": "現在のプロジェクトルーム",
