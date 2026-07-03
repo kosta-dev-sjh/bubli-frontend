@@ -217,3 +217,19 @@ fn capture_foreground() -> Result<(String, Option<String>), String> {
 fn capture_foreground() -> Result<(String, Option<String>), String> {
     Err("activity context capture is not implemented on this platform yet".to_string())
 }
+
+#[cfg(all(test, target_os = "windows"))]
+mod tests {
+    use super::capture_foreground;
+
+    #[test]
+    fn windows_foreground_capture_returns_app_name() {
+        let (app_name, _window_title) =
+            capture_foreground().expect("foreground app should be readable on Windows");
+
+        assert!(
+            !app_name.trim().is_empty(),
+            "foreground app name should not be empty"
+        );
+    }
+}
