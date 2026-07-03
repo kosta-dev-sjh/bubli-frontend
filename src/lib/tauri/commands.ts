@@ -943,6 +943,14 @@ export type TauriCommandResult<TCommand extends TauriCommandName> = TauriCommand
 export type PlannedTauriCommandArgs<TCommand extends PlannedTauriCommandName> = never;
 export type PlannedTauriCommandResult<TCommand extends PlannedTauriCommandName> = never;
 
+const pendingWidgetUsageEventRecords = new Set<Promise<WidgetUsageEventRecordResult>>();
+
+export async function waitForPendingWidgetUsageEventRecords() {
+  while (pendingWidgetUsageEventRecords.size > 0) {
+    await Promise.allSettled([...pendingWidgetUsageEventRecords]);
+  }
+}
+
 export const tauriCommands = {
   appReady(input?: AppReadyInput) {
     return invokeTauri<string>(TAURI_COMMANDS.appReady, input ? { input } : undefined);
@@ -1038,7 +1046,13 @@ export const tauriCommands = {
     return invokeTauri<TimerStateRecordResult>(TAURI_COMMANDS.recordTimerState, { input });
   },
   recordWidgetUsageEvent(input: WidgetUsageEventInput) {
-    return invokeTauri<WidgetUsageEventRecordResult>(TAURI_COMMANDS.recordWidgetUsageEvent, { input });
+    const promise = invokeTauri<WidgetUsageEventRecordResult>(TAURI_COMMANDS.recordWidgetUsageEvent, { input });
+    pendingWidgetUsageEventRecords.add(promise);
+    promise.then(
+      () => pendingWidgetUsageEventRecords.delete(promise),
+      () => pendingWidgetUsageEventRecords.delete(promise),
+    );
+    return promise;
   },
   removeManagedFolder(input: ManagedFolderCommandInput) {
     return invokeTauri<ManagedFolderRemoveResult>(TAURI_COMMANDS.removeManagedFolder, { input });
