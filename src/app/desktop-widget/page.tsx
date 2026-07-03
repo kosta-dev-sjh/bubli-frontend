@@ -375,9 +375,12 @@ function buildDisplayBubbles(input: {
   voiceRoom?: WidgetVoiceRoomResponse | null;
 }, t: TranslateFn): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
   const label = roomLabel(t, input.room, input.roomId);
-  const activeTimer = input.timer ?? input.dashboard?.runningTimer ?? null;
-  const todoItems = (input.dashboard?.todayTasks.length ? input.dashboard.todayTasks : input.tasks).slice(0, 3);
-  const scheduleItems = (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules).slice(0, 3);
+  const isRoomScoped = Boolean(input.roomId);
+  const activeTimer = input.timer ?? (!isRoomScoped ? input.dashboard?.runningTimer ?? null : null);
+  const todoSource = isRoomScoped ? input.tasks : (input.dashboard?.todayTasks.length ? input.dashboard.todayTasks : input.tasks);
+  const scheduleSource = isRoomScoped ? input.schedules : (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules);
+  const todoItems = todoSource.slice(0, 3);
+  const scheduleItems = scheduleSource.slice(0, 3);
   const memoItems = input.memos.filter((item) => item.status === "ACTIVE").slice(0, 3);
   const fileItems = input.resources.filter((item) => item.kind !== "MEMO").slice(0, 3);
   const agentRows =
@@ -407,6 +410,7 @@ function buildDisplayBubbles(input: {
       metric: String(agentRows.length),
       notificationLabel: agentRows.length > 0 ? t("widget.agent.waitingCandidates") : t("widget.agent.noWaitingCandidates"),
       panelBody: agentRows.length > 0 ? t("widget.agent.onlyBeforeApproval") : t("widget.agent.noWaiting"),
+      roomId: input.roomId,
       roomLabel: label,
       rows: agentRows,
     }),
@@ -418,6 +422,7 @@ function buildDisplayBubbles(input: {
       notificationLabel: unreadCount > 0 ? t("widget.signal.newAlertCount", { count: unreadCount }) : t("widget.signal.noNewAlert"),
       panelBody: unreadCount > 0 ? t("widget.alert.needCheck") : t("widget.alert.noneNow"),
       panelLabel: t("widget.alert.panelLabel"),
+      roomId: input.roomId,
       roomLabel: label,
       rows: unreadNotifications.map((item) => ({
         id: item.id,
@@ -485,6 +490,7 @@ function buildDisplayBubbles(input: {
       metric: String(fileItems.length),
       notificationLabel: fileItems.length > 0 ? t("widget.resource.toCheck") : t("widget.resource.noneToCheck"),
       panelBody: fileItems.length > 0 ? t("widget.resource.roomBody") : t("widget.resource.noneBody"),
+      roomId: input.roomId,
       roomLabel: label,
       rows: fileItems.map((item) => ({
         id: item.id,
@@ -498,6 +504,7 @@ function buildDisplayBubbles(input: {
       metric: scheduleItems[0] ? formatShortTime(scheduleItems[0].startsAt) : "0",
       notificationLabel: scheduleItems[0]?.title ?? t("widget.schedule.none"),
       panelBody: t("widget.schedule.body"),
+      roomId: input.roomId,
       roomLabel: label,
       rows: scheduleItems.map((item) => ({
         id: item.id,
@@ -531,6 +538,7 @@ function buildDisplayBubbles(input: {
       metric: String(todoItems.length),
       notificationLabel: todoItems[0] ? todoItems[0].title : t("widget.todo.none"),
       panelBody: t("widget.todo.body"),
+      roomId: input.roomId,
       roomLabel: label,
       rows: todoItems.map((item) => ({
         checked: item.status === "DONE",
@@ -928,7 +936,7 @@ function DesktopWidgetSurface() {
       const [dashboardResult, tasksResult, schedulesResult, resourcesResult, memosResult, suggestionsResult, notificationsResult, chatRoomsResult, friendsResult, roomResult, voiceResult] =
         await Promise.allSettled([
           widgetDisplayApi.getDashboardWork(),
-          widgetDisplayApi.listDashboardTasks(6),
+          widgetDisplayApi.listTasks(selectedRoomId, 6),
           widgetDisplayApi.listSchedules(selectedRoomId, 6),
           widgetDisplayApi.listResources(selectedRoomId, 6),
           widgetDisplayApi.listMemos(selectedRoomId, 6),
@@ -973,7 +981,8 @@ function DesktopWidgetSurface() {
       setNotificationSignal(buildNotificationSignal(t, notifications));
       const summaryDashboard = dashboardFromWidgetSummary(summary);
       const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : summaryDashboard;
-      const activeTimer = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
+      const activeTimerCandidate = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
+      const activeTimer = selectedRoomId && activeTimerCandidate?.roomId !== selectedRoomId ? null : activeTimerCandidate;
       const messageItems = messages?.items ?? cachedMessages;
       setActiveTimerHeartbeatId(activeTimer?.status === "RUNNING" ? activeTimer.id : null);
 

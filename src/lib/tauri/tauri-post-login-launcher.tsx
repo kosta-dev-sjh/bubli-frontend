@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 
 import {
   AUTH_SESSION_CHANGE_EVENT,
@@ -11,8 +12,11 @@ import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 export function TauriPostLoginLauncher() {
+  const pathname = usePathname();
+  const isDesktopWidgetSurface = pathname === "/desktop-widget" || pathname.startsWith("/desktop-widget/");
+
   useEffect(() => {
-    if (!isTauriRuntime()) {
+    if (!isTauriRuntime() || isDesktopWidgetSurface) {
       return;
     }
 
@@ -35,7 +39,7 @@ export function TauriPostLoginLauncher() {
     return () => {
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
     };
-  }, []);
+  }, [isDesktopWidgetSurface]);
 
   return null;
 }
