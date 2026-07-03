@@ -6,135 +6,65 @@ import {
   CheckCircle2,
   Clock3,
   Database,
-  FileClock,
-  KeyRound,
   RefreshCw,
   RotateCcw,
-  Timer,
   UploadCloud,
   WifiOff,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
 import { useI18n } from "@/lib/i18n";
+import { getLocalSyncOutboxSummary } from "@/lib/sync/local-sync-client";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import type { LocalSyncSummary, SyncOutboxSummaryResult } from "@/types/local";
 
 import styles from "./local-sync-outbox-panel.module.css";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
-type OutboxStatus = "PENDING" | "SENDING" | "SENT" | "FAILED";
-type OperationType = "TIME_LOG" | "WIDGET_ROLLUP" | "LOCAL_FILE_EVENT";
-
 type OutboxItem = {
-  createdAt: string;
-  dedupeKey: MessageKey;
-  idempotencyKey: string;
-  lastErrorKey?: MessageKey;
-  nextRetryAt?: string;
-  nextRetryKey?: MessageKey;
-  operationKey: MessageKey;
-  operationType: OperationType;
+  count: number;
+  id: string;
+  message?: string;
   retryCount: number;
-  status: OutboxStatus;
-  targetKey: MessageKey;
+  status: "PENDING" | "FAILED" | "SENT";
   titleKey: MessageKey;
 };
 
-const outboxItems: OutboxItem[] = [
-  {
-    createdAt: "10:21",
-    dedupeKey: "settings.lso.timerRun.dedupe",
-    idempotencyKey: "time-20260622-1021-run",
-    nextRetryKey: "settings.lso.timerRun.retry",
-    operationKey: "settings.lso.timerRun.opLabel",
-    operationType: "TIME_LOG",
-    retryCount: 0,
-    status: "PENDING",
-    targetKey: "settings.lso.timerRun.target",
-    titleKey: "settings.lso.timerRun.title",
-  },
-  {
-    createdAt: "10:18",
-    dedupeKey: "settings.lso.widget.dedupe",
-    idempotencyKey: "widget-rollup-20260622-device-a",
-    lastErrorKey: "settings.lso.widget.lastError",
-    nextRetryAt: "10:25",
-    operationKey: "settings.lso.widget.opLabel",
-    operationType: "WIDGET_ROLLUP",
-    retryCount: 2,
-    status: "FAILED",
-    targetKey: "settings.lso.widget.target",
-    titleKey: "settings.lso.widget.title",
-  },
-  {
-    createdAt: "10:14",
-    dedupeKey: "settings.lso.folder.dedupe",
-    idempotencyKey: "local-file-evt-9f2a",
-    operationKey: "settings.lso.folder.opLabel",
-    operationType: "LOCAL_FILE_EVENT",
-    retryCount: 1,
-    status: "SENDING",
-    targetKey: "settings.lso.folder.target",
-    titleKey: "settings.lso.folder.title",
-  },
-  {
-    createdAt: "10:02",
-    dedupeKey: "settings.lso.timerStop.dedupe",
-    idempotencyKey: "time-20260622-1002-stop",
-    operationKey: "settings.lso.timerStop.opLabel",
-    operationType: "TIME_LOG",
-    retryCount: 0,
-    status: "SENT",
-    targetKey: "settings.lso.timerStop.target",
-    titleKey: "settings.lso.timerStop.title",
-  },
-];
-
-const statusMeta: Record<OutboxStatus, { labelKey: MessageKey; tone: "pending" | "warning" | "success" | "todo" }> = {
-  FAILED: { labelKey: "settings.lso.status.failed", tone: "warning" },
-  PENDING: { labelKey: "settings.lso.status.pending", tone: "pending" },
-  SENDING: { labelKey: "settings.lso.status.sending", tone: "todo" },
-  SENT: { labelKey: "settings.lso.status.sent", tone: "success" },
+const emptySummary: LocalSyncSummary = {
+  failedCount: 0,
+  pendingCount: 0,
+  sentCount: 0,
+  serverTransfer: "not_started",
+  summarizedAt: "",
 };
 
-const operationIcon: Record<OperationType, React.ReactNode> = {
-  LOCAL_FILE_EVENT: <FileClock size={17} strokeWidth={2.1} />,
-  TIME_LOG: <Timer size={17} strokeWidth={2.1} />,
-  WIDGET_ROLLUP: <Database size={17} strokeWidth={2.1} />,
+const statusMeta: Record<OutboxItem["status"], { labelKey: MessageKey; tone: "pending" | "warning" | "success" }> = {
+  FAILED: { labelKey: "settings.lso.status.failed", tone: "warning" },
+  PENDING: { labelKey: "settings.lso.status.pending", tone: "pending" },
+  SENT: { labelKey: "settings.lso.status.sent", tone: "success" },
 };
 
 function OutboxRow({ item, t }: { item: OutboxItem; t: TranslateFn }) {
   const status = statusMeta[item.status];
-  const nextRetry = item.nextRetryKey ? t(item.nextRetryKey) : item.nextRetryAt;
 
   return (
     <article className={styles.outboxRow}>
       <span className="bubli-icon-tile" aria-hidden="true">
-        {operationIcon[item.operationType]}
+        <Database size={17} strokeWidth={2.1} />
       </span>
       <div className={styles.rowBody}>
         <div className={styles.meta}>
           <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
-          <span>{t(item.operationKey)}</span>
-          <span>{item.createdAt}</span>
+          <span>{t("settings.lso.queueTitle")}</span>
         </div>
         <h3>{t(item.titleKey)}</h3>
-        <p>{t(item.targetKey)}</p>
-        <div className={styles.keyLine}>
-          <KeyRound size={13} strokeWidth={2.1} aria-hidden="true" />
-          <code>{t(item.dedupeKey)}</code>
-        </div>
-        {item.lastErrorKey || nextRetry ? (
-          <div className={styles.retryLine}>
-            {item.lastErrorKey ? <span>{t(item.lastErrorKey)}</span> : null}
-            {nextRetry ? <span>{t("settings.lso.nextRetry", { time: nextRetry })}</span> : null}
-          </div>
-        ) : null}
+        {item.message ? <p>{item.message}</p> : null}
       </div>
       <div className={styles.rowSide}>
-        <strong>{item.retryCount}</strong>
-        <span>{t("settings.lso.retry")}</span>
+        <strong>{item.count}</strong>
+        <span>{item.status === "FAILED" ? t("settings.lso.retry") : t(status.labelKey)}</span>
       </div>
     </article>
   );
@@ -142,6 +72,56 @@ function OutboxRow({ item, t }: { item: OutboxItem; t: TranslateFn }) {
 
 export function LocalSyncOutboxPanel() {
   const { t } = useI18n();
+  const [result, setResult] = useState<SyncOutboxSummaryResult | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refreshOutbox = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      setResult(await getLocalSyncOutboxSummary());
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      void refreshOutbox();
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
+  }, [refreshOutbox]);
+
+  const summary = result?.status === "pending" ? result.summary : result?.status === "ready" ? result.data : emptySummary;
+  const pendingOrFailed = (summary.pendingCount ?? 0) + summary.failedCount;
+  const items = useMemo<OutboxItem[]>(
+    () => [
+      {
+        count: summary.pendingCount ?? 0,
+        id: "pending",
+        message: result?.message,
+        retryCount: 0,
+        status: "PENDING",
+        titleKey: "settings.lso.status.pending",
+      },
+      {
+        count: summary.failedCount,
+        id: "failed",
+        message: result?.status === "failed" ? result.message : undefined,
+        retryCount: summary.failedCount,
+        status: "FAILED",
+        titleKey: "settings.lso.status.failed",
+      },
+      {
+        count: summary.sentCount ?? 0,
+        id: "sent",
+        retryCount: 0,
+        status: "SENT",
+        titleKey: "settings.lso.status.sent",
+      },
+    ],
+    [result, summary.failedCount, summary.pendingCount, summary.sentCount],
+  );
 
   return (
     <section className={styles.panel} aria-label={t("settings.lso.panelAria")}>
@@ -154,8 +134,8 @@ export function LocalSyncOutboxPanel() {
           <p>{t("settings.lso.heroBody")}</p>
         </div>
         <div className={styles.heroState}>
-          <StatusBadge tone="warning">{t("settings.lso.unsent")}</StatusBadge>
-          <strong>3</strong>
+          <StatusBadge tone={pendingOrFailed > 0 ? "warning" : "success"}>{t("settings.lso.unsent")}</StatusBadge>
+          <strong>{pendingOrFailed}</strong>
           <span>{t("settings.lso.pendingOrFailed")}</span>
         </div>
       </GlassPanel>
@@ -175,15 +155,15 @@ export function LocalSyncOutboxPanel() {
           <div className={styles.toolbar}>
             <div>
               <h3>{t("settings.lso.queueTitle")}</h3>
-              <p>{t("settings.lso.queueDesc")}</p>
+              <p>{result?.message ?? t("settings.lso.queueDesc")}</p>
             </div>
-            <Button icon={<RefreshCw size={15} />} size="sm" variant="primary">
-              {t("settings.lso.sendQueue")}
+            <Button disabled={refreshing} icon={<RefreshCw size={15} />} onClick={() => void refreshOutbox()} size="sm" type="button" variant="primary">
+              {t("settings.lso.checkServer")}
             </Button>
           </div>
           <div className={styles.list}>
-            {outboxItems.map((item) => (
-              <OutboxRow item={item} key={item.idempotencyKey} t={t} />
+            {items.map((item) => (
+              <OutboxRow item={item} key={item.id} t={t} />
             ))}
           </div>
         </GlassPanel>
