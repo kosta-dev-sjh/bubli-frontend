@@ -29,7 +29,7 @@
 .timelineBody p {
   margin: 5px 0 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 620;
   line-height: 1.62;
 }
@@ -95,7 +95,7 @@
 }
 
 .sourceButton span {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -105,7 +105,7 @@
   padding: 3px 8px;
   color: var(--color-brand);
   background: rgba(215, 234, 244, 0.5);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
 }
 
@@ -126,13 +126,13 @@
 .syncCompact strong {
   display: block;
   color: var(--color-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
 }
 
 .syncCompact span {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -157,7 +157,7 @@
   background: rgba(255, 255, 255, 0.72);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   cursor: pointer;
   transition:
@@ -190,7 +190,7 @@
   margin: 0;
   padding-inline: 4px;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 820;
 }
 
@@ -270,7 +270,7 @@
   color: var(--color-muted);
   background: transparent;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   cursor: pointer;
 }
@@ -317,7 +317,7 @@
   align-items: center;
   border-radius: 999px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   line-height: 1;
 }
@@ -340,7 +340,7 @@
   padding: 10px 12px;
   color: var(--color-muted);
   background: color-mix(in srgb, var(--color-pearl) 18%, rgba(255, 255, 255, 0.72));
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 820;
   line-height: 1.45;
 }
@@ -383,7 +383,7 @@
   padding: 0 14px;
   color: var(--color-text);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
 }
 
@@ -419,7 +419,7 @@
 
 .weekLabelGrid span {
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   text-align: center;
 }
@@ -503,7 +503,7 @@
 
 .dayButton span,
 .dayButton small {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -542,7 +542,7 @@
 .dayEventItem b,
 .dayEventMore {
   overflow: hidden;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   line-height: 1;
   text-overflow: ellipsis;
@@ -609,7 +609,7 @@
   padding: 0 10px;
   color: var(--color-brand);
   background: rgba(215, 234, 244, 0.5);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
 }
 
@@ -659,14 +659,14 @@
 .selectedEventEdit span,
 .selectedEventEdit small {
   color: var(--color-brand);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
 }
 
 .selectedEventEdit strong {
   overflow: hidden;
   color: var(--color-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 920;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -690,7 +690,7 @@
   min-height: 42px;
   padding: 0 14px;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   text-align: left;
 }
@@ -805,14 +805,14 @@
 
 .roomEventRail span {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 850;
 }
 
 .roomEventRail strong {
   margin-top: 5px;
   color: var(--color-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -822,7 +822,7 @@
   gap: 8px;
   align-items: center;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -857,7 +857,7 @@
 
 .emptyTimeline p {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
 }
 
@@ -870,7 +870,7 @@
 
 .field span {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 850;
 }
 
@@ -885,7 +885,7 @@
   color: var(--color-text);
   background: rgba(255, 255, 255, 0.78);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
   outline: none;
 }
@@ -963,7 +963,7 @@
   color: var(--color-text);
   background: transparent;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   cursor: pointer;
 }
@@ -1022,7 +1022,7 @@
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.62);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   cursor: pointer;
 }
@@ -1044,7 +1044,7 @@
   border-radius: 12px;
   color: var(--color-brand);
   background: rgba(215, 234, 244, 0.52);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 760;
   line-height: 1.5;
 }

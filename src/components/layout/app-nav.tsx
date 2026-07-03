@@ -4,7 +4,6 @@ import {
   CalendarDays,
   Files,
   FolderKanban,
-  LayoutDashboard,
   MessageCircle,
   Settings,
   Sparkles,
@@ -22,7 +21,6 @@ import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
 
 const navIcons: Record<(typeof siteConfig.appNav)[number]["href"], LucideIcon> = {
-  "/app": LayoutDashboard,
   "/app/agent": Sparkles,
   "/app/calendar": CalendarDays,
   "/app/chat": MessageCircle,
@@ -33,7 +31,6 @@ const navIcons: Record<(typeof siteConfig.appNav)[number]["href"], LucideIcon> =
 
 // 네비 라벨은 siteConfig(단일 언어)에 있으므로 href → 번역 키로 매핑해 t()로 표시한다.
 const navLabelKeys: Record<(typeof siteConfig.appNav)[number]["href"], MessageKey> = {
-  "/app": "nav.dashboard",
   "/app/agent": "nav.candidates",
   "/app/calendar": "nav.calendar",
   "/app/chat": "nav.chat",

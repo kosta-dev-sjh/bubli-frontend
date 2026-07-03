@@ -128,7 +128,7 @@ export function ResourceUploadQueuePanel({
             </span>
             <div>
               <p className="m-0 text-[14px] font-[820] text-[var(--color-text)]">{t("resources.upload.queueStorageTitle")}</p>
-              <p className="m-0 text-[12.5px] text-[var(--color-muted)]">{storageUsageLabel}</p>
+              <p className="m-0 text-[13.5px] text-[var(--color-muted)]">{storageUsageLabel}</p>
             </div>
           </div>
           <Chip>{limitLabel}</Chip>
@@ -156,21 +156,21 @@ export function ResourceUploadQueuePanel({
                       </span>
                     </StatusBadge>
                   </div>
-                  <p className="m-0 mt-1 text-[12.5px] text-[var(--color-muted)]">
+                  <p className="m-0 mt-1 text-[13.5px] text-[var(--color-muted)]">
                     {t(scopeLabelKey[item.scope])} · {item.sizeLabel}
                   </p>
                 </div>
-                <span className="text-[13px] font-[800] text-[var(--color-blue-deep)]">{Math.round(item.progress)}%</span>
+                <span className="text-[14px] font-[800] text-[var(--color-blue-deep)]">{Math.round(item.progress)}%</span>
               </div>
               <ProgressBar label={t("resources.upload.queueItemBar", { fileName: item.fileName })} value={item.progress} />
-              {item.message ? <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">{item.message}</p> : null}
+              {item.message ? <p className="m-0 text-[14px] leading-5 text-[var(--color-muted)]">{item.message}</p> : null}
             </li>
           );
         })}
       </ul>
 
       <footer className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-[var(--glass-border)] bg-[rgba(215,234,244,0.42)] p-4">
-        <p className="m-0 max-w-[620px] text-[13px] leading-5 text-[var(--color-muted)]">
+        <p className="m-0 max-w-[620px] text-[14px] leading-5 text-[var(--color-muted)]">
           {t("resources.upload.queueFooter")}
         </p>
         <div className="flex flex-wrap gap-2">

@@ -46,7 +46,7 @@
 
 .summaryCard span {
   color: var(--color-faint);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -93,7 +93,7 @@
   padding: 7px 10px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.48);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 820;
   line-height: 1;
 }
@@ -198,7 +198,7 @@
 .bubbleHeader p {
   margin: 2px 0 0;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
   line-height: 1.35;
 }
@@ -223,7 +223,7 @@
 
 .taskLine b {
   color: var(--color-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
   line-height: 1.2;
 }
@@ -238,7 +238,7 @@
 
 .bubbleFooter > span:last-child {
   color: var(--color-faint);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 820;
   line-height: 1;
 }
@@ -309,7 +309,7 @@
 
 .scenarioCopy span {
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 13.5px;
   line-height: 1.5;
 }
 
@@ -340,7 +340,7 @@
 
 .ruleTop > span {
   color: var(--color-blue-deep);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 860;
   line-height: 1;
 }
@@ -379,7 +379,7 @@
 .boundaryGrid strong {
   display: block;
   color: var(--color-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 860;
   line-height: 1.25;
 }
@@ -387,7 +387,7 @@
 .boundaryGrid p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 13.5px;
   line-height: 1.5;
 }
 

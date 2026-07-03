@@ -44,7 +44,7 @@
   cursor: pointer;
   display: flex;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 780;
   gap: 5px;
   min-block-size: 30px;
@@ -67,7 +67,7 @@
   cursor: pointer;
   display: flex;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 780;
   gap: 6px;
   min-block-size: 34px;
@@ -103,7 +103,7 @@
 
 .createInlineMeta {
   color: #6B8FA8;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
   max-inline-size: 220px;
   overflow: hidden;
@@ -118,7 +118,7 @@
   border-radius: 12px;
   color: #2C3540;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 740;
   min-block-size: 36px;
   min-inline-size: 0;
@@ -140,7 +140,7 @@
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 780;
   justify-content: center;
   min-block-size: 34px;

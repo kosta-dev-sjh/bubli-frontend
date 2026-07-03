@@ -15,7 +15,7 @@
   align-items: center;
   gap: 8px;
   color: var(--color-blue-deep);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 820;
 }
 
@@ -103,7 +103,7 @@
 .windowBar strong {
   margin-left: 6px;
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 780;
 }
 
@@ -133,7 +133,7 @@
   border-radius: 14px;
   padding: 9px 10px;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -168,7 +168,7 @@
 .webHeader p {
   margin: 5px 0 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .cardGrid {
@@ -202,7 +202,7 @@
 .connectionCard p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.58;
 }
 
@@ -276,7 +276,7 @@
   overflow: hidden;
   color: var(--color-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 12.5px;
+  font-size: 13.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -288,7 +288,7 @@
   justify-content: space-between;
   padding: 14px 16px;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .statusStrip span {

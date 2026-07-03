@@ -38,6 +38,21 @@ const ko = {
   "layout.topbar.notificationsAria": "알림 {count}개 열기",
   "layout.topbar.profileAria": "{name} 프로필 열기",
 
+  // 상단바 프로필 메뉴
+  "layout.profileMenu.aria": "프로필 메뉴",
+  "layout.profileMenu.settings": "설정",
+  "layout.profileMenu.language": "언어",
+  "layout.profileMenu.logout": "로그아웃",
+  "layout.profileMenu.loggingOut": "로그아웃 중",
+
+  // 상단바 알림 패널
+  "layout.notifications.aria": "알림 패널",
+  "layout.notifications.title": "알림",
+  "layout.notifications.unreadCount": "안 읽음 {count}개",
+  "layout.notifications.empty": "알림이 없습니다",
+  "layout.notifications.markRead": "읽음 처리",
+  "layout.notifications.markReadAria": "{title} 알림 읽음 처리",
+
   // 프로젝트룸 전환 패널
   "layout.switcher.closeAria": "프로젝트룸 전환 닫기",
   "layout.switcher.aria": "프로젝트룸 전환",
@@ -97,6 +112,19 @@ const en: Record<Key, string> = {
   "layout.topbar.notificationsAria": "Open {count} notifications",
   "layout.topbar.profileAria": "Open {name} profile",
 
+  "layout.profileMenu.aria": "Profile menu",
+  "layout.profileMenu.settings": "Settings",
+  "layout.profileMenu.language": "Language",
+  "layout.profileMenu.logout": "Log out",
+  "layout.profileMenu.loggingOut": "Logging out",
+
+  "layout.notifications.aria": "Notifications panel",
+  "layout.notifications.title": "Notifications",
+  "layout.notifications.unreadCount": "{count} unread",
+  "layout.notifications.empty": "No notifications",
+  "layout.notifications.markRead": "Mark as read",
+  "layout.notifications.markReadAria": "Mark notification {title} as read",
+
   "layout.switcher.closeAria": "Close project room switcher",
   "layout.switcher.aria": "Switch project room",
   "layout.switcher.title": "Project rooms",
@@ -152,6 +180,19 @@ const ja: Record<Key, string> = {
   "layout.topbar.projectCurrentAria": "{name} 現在の位置",
   "layout.topbar.notificationsAria": "通知{count}件を開く",
   "layout.topbar.profileAria": "{name} プロフィールを開く",
+
+  "layout.profileMenu.aria": "プロフィールメニュー",
+  "layout.profileMenu.settings": "設定",
+  "layout.profileMenu.language": "言語",
+  "layout.profileMenu.logout": "ログアウト",
+  "layout.profileMenu.loggingOut": "ログアウト中",
+
+  "layout.notifications.aria": "通知パネル",
+  "layout.notifications.title": "通知",
+  "layout.notifications.unreadCount": "未読{count}件",
+  "layout.notifications.empty": "通知はありません",
+  "layout.notifications.markRead": "既読にする",
+  "layout.notifications.markReadAria": "通知「{title}」を既読にする",
 
   "layout.switcher.closeAria": "プロジェクトルーム切替を閉じる",
   "layout.switcher.aria": "プロジェクトルーム切替",

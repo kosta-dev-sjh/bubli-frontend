@@ -83,7 +83,7 @@
 
 .summaryCard span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .evidenceGrid {
@@ -130,7 +130,7 @@
 .evidenceCard p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -155,7 +155,7 @@
 .boundaryItem p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -172,7 +172,7 @@
   align-items: center;
   gap: 8px;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .footer svg {

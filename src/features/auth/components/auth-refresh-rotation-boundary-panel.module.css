@@ -85,7 +85,7 @@
 }
 
 .sectionTitle p {
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .rotationGrid {
@@ -150,7 +150,7 @@
 
 .rotationCard p {
   margin-top: 6px;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .columns {
@@ -193,13 +193,13 @@
   padding: 5px 8px;
   background: rgba(215, 234, 244, 0.58);
   color: var(--color-blue-deep);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 780;
 }
 
 .caseCard p,
 .deviceRow p {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .actionRow {
@@ -213,13 +213,13 @@
 
 .actionRow span {
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
 }
 
 .actionRow strong {
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 840;
   text-align: right;
 }
@@ -260,7 +260,7 @@
 
 .notice p,
 .footerPanel p {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .footerPanel {

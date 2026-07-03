@@ -82,20 +82,20 @@ export function VoiceTokenSafetyPanel({
 
       <section className="grid gap-3 rounded-[var(--radius-card)] border border-[var(--glass-border)] bg-white/70 p-4 shadow-[var(--shadow-soft)] md:grid-cols-[0.8fr_1.2fr]">
         <div className="grid gap-2 rounded-[var(--radius-input)] bg-[rgba(215,234,244,0.42)] p-3">
-          <div className="flex items-center gap-2 text-[12.5px] font-[820] text-[var(--color-blue-deep)]">
+          <div className="flex items-center gap-2 text-[13.5px] font-[820] text-[var(--color-blue-deep)]">
             <Radio size={15} strokeWidth={2.1} />
             {roomLabel}
           </div>
-          <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">
+          <p className="m-0 text-[14px] leading-5 text-[var(--color-muted)]">
             {t("chat.voiceSafety.roomDesc")}
           </p>
         </div>
         <div className="grid gap-2 rounded-[var(--radius-input)] border border-[var(--glass-border)] bg-[rgba(255,255,255,0.62)] p-3">
-          <div className="flex items-center gap-2 text-[12.5px] font-[820] text-[var(--color-text)]">
+          <div className="flex items-center gap-2 text-[13.5px] font-[820] text-[var(--color-text)]">
             <KeyRound size={15} strokeWidth={2.1} />
             {t("chat.voiceSafety.tokenIssue")}
           </div>
-          <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">{tokenEndpointLabel}</p>
+          <p className="m-0 text-[14px] leading-5 text-[var(--color-muted)]">{tokenEndpointLabel}</p>
         </div>
       </section>
 
@@ -115,7 +115,7 @@ export function VoiceTokenSafetyPanel({
                 <StatusBadge tone={meta.tone}>{t(meta.labelKey)}</StatusBadge>
               </div>
               <h3 className="m-0 text-[15px] font-[840] leading-tight text-[var(--color-text)]">{rule.label}</h3>
-              <p className="m-0 mt-2 text-[13px] leading-5 text-[var(--color-muted)]">{rule.description}</p>
+              <p className="m-0 mt-2 text-[14px] leading-5 text-[var(--color-muted)]">{rule.description}</p>
             </article>
           );
         })}
@@ -137,8 +137,8 @@ export function VoiceTokenSafetyPanel({
                   {participant.canJoinVoice ? <UserCheck size={17} strokeWidth={2.1} /> : <UserRoundX size={17} strokeWidth={2.1} />}
                 </span>
                 <div className="min-w-0">
-                  <p className="m-0 text-[13.5px] font-[820] text-[var(--color-text)]">{participant.label}</p>
-                  <p className="m-0 text-[12.5px] text-[var(--color-muted)]">{participant.roleLabel}</p>
+                  <p className="m-0 text-[14px] font-[820] text-[var(--color-text)]">{participant.label}</p>
+                  <p className="m-0 text-[13.5px] text-[var(--color-muted)]">{participant.roleLabel}</p>
                 </div>
               </div>
               <StatusBadge tone={participant.canJoinVoice ? "success" : "warning"}>{participant.stateLabel}</StatusBadge>

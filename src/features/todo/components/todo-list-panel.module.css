@@ -59,7 +59,7 @@
 
 .summaryGrid span {
   color: var(--color-faint);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 800;
   line-height: 1.35;
 }
@@ -182,7 +182,7 @@
   padding: 5px 8px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.55);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 780;
   line-height: 1.2;
   white-space: normal;
@@ -204,7 +204,7 @@
   padding: 6px 9px;
   color: var(--color-blue-deep);
   background: rgba(215, 234, 244, 0.4);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 820;
   line-height: 1.2;
 }

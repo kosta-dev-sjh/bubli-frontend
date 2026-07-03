@@ -55,7 +55,7 @@
 .fieldBlock small,
 .documentValue span {
   color: var(--color-faint);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -190,7 +190,7 @@
 
 .documentValue strong {
   color: var(--color-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
   line-height: 1.45;
   overflow-wrap: anywhere;

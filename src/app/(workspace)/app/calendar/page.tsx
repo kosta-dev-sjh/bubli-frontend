@@ -10,7 +10,6 @@ import {
   ExternalLink,
   Pencil,
   Plus,
-  Repeat2,
   Trash2,
   Unplug,
   X,
@@ -40,7 +39,6 @@ type PageState =
   | { kind: "auth" }
   | { kind: "offline" };
 
-type RepeatInterval = "DAILY" | "WEEKLY" | "MONTHLY";
 type CalendarSourceFilter = "all" | "external" | "personal" | "room";
 type GoogleConnectionState =
   | { kind: "connected"; value: GoogleCalendarConnectionResponse }
@@ -60,12 +58,6 @@ const dayLabels = [
   { labelKey: "calendar.day.sat", value: "SA" },
   { labelKey: "calendar.day.sun", value: "SU" },
 ] as const satisfies ReadonlyArray<{ labelKey: MessageKey; value: string }>;
-
-const repeatLabelKeys: Record<RepeatInterval, MessageKey> = {
-  DAILY: "calendar.repeat.daily",
-  MONTHLY: "calendar.repeat.monthly",
-  WEEKLY: "calendar.repeat.weekly",
-};
 
 const sourceFilters: Array<{ key: CalendarSourceFilter; labelKey: MessageKey }> = [
   { key: "all", labelKey: "calendar.source.all" },
@@ -203,13 +195,9 @@ function CalendarPageContent() {
   const [draftEndTime, setDraftEndTime] = useState("11:00");
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
-  const [repeatEnabled, setRepeatEnabled] = useState(false);
-  const [repeatInterval, setRepeatInterval] = useState<RepeatInterval>("WEEKLY");
-  const [repeatDays, setRepeatDays] = useState<string[]>(["MO", "WE", "FR"]);
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
   const [sourceFilter, setSourceFilter] = useState<CalendarSourceFilter>("all");
   const [composerOpen, setComposerOpen] = useState(false);
-  const [detailPanelOpen, setDetailPanelOpen] = useState(false);
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
@@ -366,13 +354,8 @@ function CalendarPageContent() {
     setDraftTitle("");
     setDraftStartTime("10:30");
     setDraftEndTime("11:00");
-    if (hasEvents) {
-      setDetailPanelOpen(true);
-      setComposerOpen(false);
-    } else {
-      setComposerOpen(true);
-      setDetailPanelOpen(false);
-    }
+    // 일정이 있는 날짜는 하단 선택 일정 패널에서 바로 확인/수정하고, 빈 날짜는 새 일정 작성기를 연다.
+    setComposerOpen(!hasEvents);
   };
 
   const openCreateComposer = () => {
@@ -394,7 +377,6 @@ function CalendarPageContent() {
     setDraftStartTime(toTimeValue(event.startsAt));
     setDraftEndTime(event.endsAt && endDate && !Number.isNaN(endDate.getTime()) ? toTimeValue(event.endsAt) : toTimeValue(event.startsAt));
     setDraftNotice(null);
-    setDetailPanelOpen(false);
     setComposerOpen(true);
   };
 
@@ -423,10 +405,6 @@ function CalendarPageContent() {
 
       return { ...current, events: Array.from(byId.values()) };
     });
-  };
-
-  const toggleRepeatDay = (day: string) => {
-    setRepeatDays((current) => (current.includes(day) ? current.filter((value) => value !== day) : [...current, day]));
   };
 
   const runGoogleAction = async (action: SyncAction) => {
@@ -541,16 +519,8 @@ function CalendarPageContent() {
       if (editingEventId === event.id) {
         closeComposer();
       }
-      const isLastEvent = selectedEvents.length === 1 && selectedEvents[0].id === event.id;
       setDeleteNotice(t("calendar.draft.deleted"));
-      const noticeTimer = window.setTimeout(() => setDeleteNotice(null), 3000);
-      if (isLastEvent) {
-        window.setTimeout(() => {
-          setDetailPanelOpen(false);
-          window.clearTimeout(noticeTimer);
-          setDeleteNotice(null);
-        }, 1600);
-      }
+      window.setTimeout(() => setDeleteNotice(null), 3000);
     } catch (error) {
       setDraftNotice(error instanceof ApiClientError && error.status === 401 ? t("calendar.draft.authRequired") : t("calendar.draft.deleteFailed"));
     } finally {
@@ -739,65 +709,6 @@ function CalendarPageContent() {
                   <strong>{selectedDayLabel}</strong>
                   <span>{selectedEvents.length > 0 ? t("calendar.selected.count", { count: selectedEvents.length }) : t("calendar.summary.noEvent")}</span>
                 </div>
-                {deleteNotice && !detailPanelOpen ? <p className={styles.notice}>{deleteNotice}</p> : null}
-                {selectedEvents.length > 0 ? (
-                  <ul className={styles.selectedEventList}>
-                    {selectedEvents.map((event) => {
-                      const source = event.roomId
-                        ? t("calendar.source.room")
-                        : event.googleEventId || event.syncStatus === "SYNCED"
-                          ? t("calendar.source.external")
-                          : t("calendar.source.personal");
-                      return (
-                        <li key={event.id}>
-                          <button className={styles.selectedEventEdit} onClick={() => openEditComposer(event)} type="button">
-                            <span>{formatTime(t, event)}</span>
-                            <strong>{event.title}</strong>
-                            <small>{source}</small>
-                          </button>
-                          <button
-                            aria-label={t("calendar.selected.deleteAria", { title: event.title })}
-                            className={styles.selectedEventDelete}
-                            disabled={deletingEventId === event.id}
-                            onClick={() => void handleDeleteEvent(event)}
-                            type="button"
-                          >
-                            <Trash2 size={15} strokeWidth={2.1} />
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <button className={styles.emptySelectedEvent} onClick={openCreateComposer} type="button">
-                    {t("calendar.selected.addForDate")}
-                  </button>
-                )}
-              </section>
-            </GlassPanel>
-          </div>
-
-          {detailPanelOpen ? (
-            <div className={styles.composerLayer} role="presentation" onMouseDown={() => setDetailPanelOpen(false)}>
-              <GlassPanel
-                aria-labelledby="calendar-detail-title"
-                className={`${styles.createPanel} ${styles.composerPanel}`}
-                role="dialog"
-                onMouseDown={(e) => e.stopPropagation()}
-              >
-                <div className={styles.panelHeader}>
-                  <div>
-                    <h2 id="calendar-detail-title">{selectedDayLabel}</h2>
-                    <p>
-                      {selectedEvents.length > 0
-                        ? t("calendar.summary.eventCount", { count: selectedEvents.length })
-                        : t("calendar.summary.noEvent")}
-                    </p>
-                  </div>
-                  <button aria-label={t("calendar.composer.close")} className={styles.composerClose} onClick={() => setDetailPanelOpen(false)} type="button">
-                    <X size={16} strokeWidth={2.2} />
-                  </button>
-                </div>
                 {deleteNotice ? <p className={styles.notice}>{deleteNotice}</p> : null}
                 {selectedEvents.length > 0 ? (
                   <ul className={styles.selectedEventList}>
@@ -828,16 +739,12 @@ function CalendarPageContent() {
                     })}
                   </ul>
                 ) : null}
-                <Button
-                  icon={<Plus size={15} strokeWidth={2.1} />}
-                  onClick={() => { setDetailPanelOpen(false); openCreateComposer(); }}
-                  variant="quiet"
-                >
-                  {t("calendar.composer.submit")}
-                </Button>
-              </GlassPanel>
-            </div>
-          ) : null}
+                <button className={styles.emptySelectedEvent} onClick={openCreateComposer} type="button">
+                  {t("calendar.selected.addForDate")}
+                </button>
+              </section>
+            </GlassPanel>
+          </div>
 
           {composerOpen ? (
             <div className={styles.composerLayer} role="presentation" onMouseDown={closeComposer}>
@@ -875,54 +782,6 @@ function CalendarPageContent() {
                     <input type="time" value={draftEndTime} onChange={(event) => setDraftEndTime(event.target.value)} />
                   </label>
                 </div>
-
-                <section className={styles.repeatBox} aria-label={t("calendar.composer.repeatAria")}>
-                  <button
-                    aria-pressed={repeatEnabled}
-                    className={repeatEnabled ? `${styles.repeatToggle} ${styles.repeatToggleOn}` : styles.repeatToggle}
-                    onClick={() => setRepeatEnabled((current) => !current)}
-                    type="button"
-                  >
-                    <span>
-                      <Repeat2 size={15} strokeWidth={2.1} aria-hidden="true" />
-                      {t("calendar.composer.repeat")}
-                    </span>
-                    <i aria-hidden="true" />
-                  </button>
-                  <div className={repeatEnabled ? styles.repeatControls : `${styles.repeatControls} ${styles.repeatControlsDisabled}`}>
-                    <label className={styles.field}>
-                      <span>{t("calendar.composer.intervalLabel")}</span>
-                      <select
-                        disabled={!repeatEnabled}
-                        value={repeatInterval}
-                        onChange={(event) => setRepeatInterval(event.target.value as RepeatInterval)}
-                      >
-                        {Object.entries(repeatLabelKeys).map(([value, labelKey]) => (
-                          <option key={value} value={value}>
-                            {t(labelKey)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <div className={styles.dayChips} aria-label={t("calendar.composer.repeatDaysAria")}>
-                      {dayLabels.map((day) => {
-                        const selected = repeatDays.includes(day.value);
-                        return (
-                          <button
-                            aria-pressed={selected}
-                            className={selected ? `${styles.repeatDay} ${styles.repeatDaySelected}` : styles.repeatDay}
-                            disabled={!repeatEnabled}
-                            key={day.value}
-                            onClick={() => toggleRepeatDay(day.value)}
-                            type="button"
-                          >
-                            {t(day.labelKey)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </section>
 
                 {draftNotice ? <p className={styles.notice}>{draftNotice}</p> : null}
                 <Button icon={editingEventId ? <Pencil size={15} strokeWidth={2.1} /> : <Plus size={15} strokeWidth={2.1} />} loading={saving} onClick={handleSaveEvent} variant="primary">

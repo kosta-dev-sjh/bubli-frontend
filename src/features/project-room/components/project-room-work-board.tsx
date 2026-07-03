@@ -321,10 +321,10 @@ function ProjectRoomWorkBoardContent({
         avatarUrl: member.avatarUrl || null,
         id: member.userId,
         label: member.name,
-        meta: member.bubliId ? `@${member.bubliId}` : member.role === "PROJECT_LEADER" ? "리더" : "멤버",
-        shortLabel: member.name.trim().slice(0, 1).toUpperCase() || "멤",
+        meta: member.bubliId ? `@${member.bubliId}` : member.role === "PROJECT_LEADER" ? t("room.board.roleLeader") : t("room.board.roleMember"),
+        shortLabel: member.name.trim().slice(0, 1).toUpperCase() || t("room.board.roleMember").slice(0, 1),
       })),
-    [activeMembers],
+    [activeMembers, t],
   );
   const kanbanWbsOptions = useMemo<KanbanWbsOption[]>(
     () =>

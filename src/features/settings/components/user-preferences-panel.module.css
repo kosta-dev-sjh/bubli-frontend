@@ -15,7 +15,7 @@
   align-items: center;
   gap: 8px;
   color: var(--color-blue-deep);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 820;
 }
 
@@ -108,7 +108,7 @@
 .preferenceCopy p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .profileFields {
@@ -123,7 +123,7 @@
 
 .field span {
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
 }
 
@@ -135,7 +135,7 @@
   color: var(--color-text);
   background: rgba(255, 255, 255, 0.72);
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 720;
 }
 
@@ -202,7 +202,7 @@
   align-items: flex-start;
   gap: 9px;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .checkItem svg {
@@ -230,12 +230,12 @@
 .apiRow strong {
   color: var(--color-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .apiRow span {
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 @media (max-width: 1020px) {

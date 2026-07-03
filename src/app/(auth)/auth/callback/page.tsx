@@ -78,18 +78,16 @@ export default function AuthCallbackPage() {
 
   return (
     <main className="auth-page" aria-label={t("auth.callback.pageAria")}>
-      <section className="auth-page__intro">
-        <Link className="auth-page__brand bubli-wordmark" href="/">
-          Bubli
-        </Link>
-        <p className="auth-page__welcome">Welcome!</p>
-        <h1>
-          <span>{t("auth.callback.headingLine1")}</span>
-          <span>{t("auth.callback.headingLine2")}</span>
-        </h1>
-      </section>
-
       <GlassPanel as="section" className="auth-card">
+        <div className="auth-card__head">
+          <Link className="auth-card__brand bubli-wordmark" href="/">
+            Bubli
+          </Link>
+          <h1 className="auth-card__heading">
+            <span>{t("auth.callback.headingLine1")}</span>
+            <span>{t("auth.callback.headingLine2")}</span>
+          </h1>
+        </div>
         <div className="auth-form" aria-live="polite">
           <p className="auth-card__helper">{statusText}</p>
           {errorText ? <p className="auth-card__error">{errorText}</p> : null}

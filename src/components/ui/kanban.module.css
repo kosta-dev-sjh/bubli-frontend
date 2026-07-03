@@ -82,7 +82,7 @@
   border-radius: 999px;
   color: var(--color-brand);
   display: inline-flex;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 740;
   justify-content: center;
   min-block-size: 24px;
@@ -156,7 +156,7 @@
 
 .taskTitle {
   color: var(--color-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.42;
   margin: 0;
@@ -171,7 +171,7 @@
   border-radius: 12px;
   color: var(--color-text);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 740;
   inline-size: 100%;
   min-block-size: 36px;
@@ -249,7 +249,7 @@
   border: 1px solid rgba(229, 231, 235, 0.72);
   border-radius: 999px;
   color: var(--color-brand);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 720;
   line-height: 1;
   padding: 5px 8px;
@@ -257,7 +257,7 @@
 
 .description {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 620;
   line-height: 1.45;
   margin: 8px 0 0;
@@ -295,7 +295,7 @@
   color: var(--color-brand);
   display: inline-flex;
   flex: 0 0 auto;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 740;
   inline-size: 27px;
   justify-content: center;
@@ -319,7 +319,7 @@
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 740;
   gap: 7px;
   max-inline-size: 132px;
@@ -433,7 +433,7 @@
 .assigneeCopy strong,
 .wbsCopy strong {
   color: var(--color-text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
   line-height: 1.2;
 }
@@ -441,7 +441,7 @@
 .assigneeCopy small,
 .wbsCopy small {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 640;
 }
 
@@ -472,7 +472,7 @@
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 780;
   justify-content: center;
   min-block-size: 34px;
@@ -488,7 +488,7 @@
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 740;
   gap: 7px;
   justify-content: center;

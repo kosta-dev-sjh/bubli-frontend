@@ -46,7 +46,7 @@
 
 .resultCard span {
   color: var(--color-faint);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -99,7 +99,7 @@
 .metricCard p {
   margin: 0;
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -188,7 +188,7 @@
   display: inline-block;
   margin-top: 7px;
   color: var(--color-faint);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 760;
   line-height: 1.35;
   overflow-wrap: anywhere;

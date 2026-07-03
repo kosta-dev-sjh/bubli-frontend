@@ -83,7 +83,7 @@
 }
 
 .sectionTitle p {
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .shapeFlow {
@@ -105,7 +105,7 @@
   padding: 5px 8px;
   background: rgba(215, 234, 244, 0.6);
   color: var(--color-blue-deep);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 780;
 }
 
@@ -157,7 +157,7 @@
 
 .errorCard p {
   margin-top: 6px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .fieldList {
@@ -177,13 +177,13 @@
 
 .actionRow span {
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
 }
 
 .actionRow strong {
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 840;
   text-align: right;
 }
@@ -211,7 +211,7 @@
 
 .ruleCard p {
   margin-top: 4px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .notice {
@@ -231,7 +231,7 @@
 }
 
 .notice p {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 @media (max-width: 1080px) {

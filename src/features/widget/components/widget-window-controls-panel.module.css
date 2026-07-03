@@ -46,7 +46,7 @@
 
 .summaryCard span {
   color: var(--color-faint);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -80,7 +80,7 @@
   padding: 8px 11px;
   background: rgba(255, 255, 255, 0.58);
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 780;
   line-height: 1;
 }
@@ -148,7 +148,7 @@
 
 .bubbleBody span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
   line-height: 1.35;
 }
@@ -169,7 +169,7 @@
   align-items: center;
   gap: 5px;
   color: var(--color-faint);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 760;
   line-height: 1;
 }
@@ -211,7 +211,7 @@
 .persistenceItem strong {
   display: block;
   color: var(--color-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 840;
   line-height: 1.25;
 }
@@ -220,7 +220,7 @@
 .persistenceItem p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 13.5px;
   line-height: 1.5;
 }
 

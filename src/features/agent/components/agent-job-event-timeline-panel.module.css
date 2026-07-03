@@ -64,7 +64,7 @@
 .summaryGrid span,
 .eventMeta span:not(:global(.bubli-status)) {
   color: var(--color-faint);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -120,7 +120,7 @@
 
 .errorBox strong {
   color: var(--color-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 840;
   line-height: 1.25;
 }

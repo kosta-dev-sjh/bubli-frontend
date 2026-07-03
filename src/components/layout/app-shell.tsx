@@ -3,10 +3,17 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { DecorBubble } from "@/components/bubbles";
 import { AppNav } from "@/components/layout/app-nav";
-import { WorkspaceTopbar } from "@/components/layout/workspace-topbar";
+import { TopbarNotificationsPanel } from "@/components/layout/topbar-notifications-panel";
+import { TopbarProfileMenu } from "@/components/layout/topbar-profile-menu";
+import {
+  TOPBAR_NOTIFICATIONS_PANEL_ID,
+  TOPBAR_PROFILE_MENU_ID,
+  WorkspaceTopbar,
+} from "@/components/layout/workspace-topbar";
 import { siteConfig } from "@/config/site";
 import { authApi } from "@/features/auth/api/authApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
@@ -28,6 +35,7 @@ import {
 } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewRooms, workspacePreviewUser } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
+import type { NotificationResponse } from "@/types/api/notification";
 import type { ContractDocumentType, ProjectRoomResponse } from "@/types/api/projectRoom";
 
 type AppShellProps = {
@@ -36,9 +44,11 @@ type AppShellProps = {
 
 type ShellState =
   | { kind: "loading" }
-  | { kind: "ready"; notificationCount: number; rooms: ProjectRoomResponse[]; user: AuthUser }
+  | { kind: "ready"; notifications: NotificationResponse[]; rooms: ProjectRoomResponse[]; user: AuthUser }
   | { kind: "auth" }
   | { kind: "offline" };
+
+type TopbarMenu = "notifications" | "profile" | null;
 
 function initialsFromName(name?: string | null) {
   const cleanName = name?.trim();
@@ -92,6 +102,7 @@ export function AppShell({ children }: AppShellProps) {
   const [newRoomFiles, setNewRoomFiles] = useState<File[]>([]);
   const [newRoomName, setNewRoomName] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [topbarMenu, setTopbarMenu] = useState<TopbarMenu>(null);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -116,13 +127,13 @@ export function AppShell({ children }: AppShellProps) {
       try {
         await restoreStoredAuthSessionFromTauri();
         const [user, roomPage] = await Promise.all([authApi.getMe(), projectRoomApi.list()]);
-        let notificationCount = 0;
+        let notifications: NotificationResponse[] = [];
 
         try {
           const notificationPage = await notificationApi.list();
-          notificationCount = notificationPage.items.filter((item) => item.status === "UNREAD").length;
+          notifications = notificationPage.items;
         } catch {
-          notificationCount = 0;
+          notifications = [];
         }
 
         const widgetContext = await widgetApi.getContext().catch(() => null);
@@ -150,7 +161,7 @@ export function AppShell({ children }: AppShellProps) {
           }
         }
 
-        if (mounted) setState({ kind: "ready", notificationCount, rooms: roomPage.items, user });
+        if (mounted) setState({ kind: "ready", notifications, rooms: roomPage.items, user });
       } catch (error) {
         if (!mounted) return;
         if (error instanceof ApiClientError && error.status === 401) {
@@ -159,7 +170,7 @@ export function AppShell({ children }: AppShellProps) {
         }
 
         if (shouldUseWorkspacePreviewData()) {
-          setState({ kind: "ready", notificationCount: 0, rooms: workspacePreviewRooms, user: workspacePreviewUser });
+          setState({ kind: "ready", notifications: [], rooms: workspacePreviewRooms, user: workspacePreviewUser });
           return;
         }
 
@@ -226,6 +237,8 @@ export function AppShell({ children }: AppShellProps) {
   }, []);
 
   const rooms = state.kind === "ready" ? state.rooms : [];
+  const notifications = state.kind === "ready" ? state.notifications : [];
+  const unreadNotificationCount = notifications.filter((item) => item.status === "UNREAD").length;
   const roomFromPath = rooms.find((room) => isActiveRoom(pathname, room.id));
   const roomIdFromQuery = searchParams.get("roomId");
   const roomFromQuery = roomIdFromQuery ? rooms.find((room) => room.id === roomIdFromQuery) : undefined;
@@ -308,6 +321,42 @@ export function AppShell({ children }: AppShellProps) {
     };
   }, [state, t]);
 
+  const closeTopbarMenus = useCallback(() => {
+    setTopbarMenu(null);
+  }, []);
+
+  function toggleTopbarMenu(menu: Exclude<TopbarMenu, null>) {
+    setTopbarMenu((current) => (current === menu ? null : menu));
+  }
+
+  function handleMarkNotificationRead(notificationId: string) {
+    // 낙관적으로 상태를 갱신해 배지 수를 바로 줄이고, 서버 반영 실패는 다음 로드에서 복구된다.
+    setState((current) =>
+      current.kind === "ready"
+        ? {
+            ...current,
+            notifications: current.notifications.map((item) =>
+              item.id === notificationId && item.status === "UNREAD"
+                ? { ...item, readAt: new Date().toISOString(), status: "READ" as const }
+                : item,
+            ),
+          }
+        : current,
+    );
+    void notificationApi.markRead(notificationId).catch(() => undefined);
+  }
+
+  async function handleLogout() {
+    try {
+      await authApi.logout();
+    } catch {
+      // authApi.logout()이 finally에서 세션을 정리하므로 실패해도 로그인 화면으로 이동한다.
+    }
+
+    setTopbarMenu(null);
+    router.replace("/login");
+  }
+
   function resetCreateForm() {
     setNewRoomClient("");
     setNewRoomFiles([]);
@@ -371,6 +420,12 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="bubli-app-layout">
+      <div aria-hidden="true" className="bubli-app-decor">
+        <DecorBubble floating size="lg" style={{ top: "8%", right: "4%" }} />
+        <DecorBubble floating size="sm" style={{ top: "42%", right: "12%" }} />
+        <DecorBubble floating size="md" style={{ bottom: "10%", left: "16%" }} />
+        <DecorBubble size="sm" style={{ bottom: "28%", right: "38%" }} />
+      </div>
       <aside className="bubli-sidebar">
         <Link className="bubli-brand" href="/app">
           {siteConfig.name}
@@ -382,8 +437,27 @@ export function AppShell({ children }: AppShellProps) {
       </aside>
       <main className="shell bubli-main">
         <WorkspaceTopbar
-          notificationCount={state.kind === "ready" ? state.notificationCount : 0}
+          notificationCount={unreadNotificationCount}
+          notificationsOpen={topbarMenu === "notifications"}
+          notificationsPanel={
+            topbarMenu === "notifications" ? (
+              <TopbarNotificationsPanel
+                id={TOPBAR_NOTIFICATIONS_PANEL_ID}
+                items={notifications}
+                onMarkRead={handleMarkNotificationRead}
+              />
+            ) : null
+          }
+          onCloseMenus={closeTopbarMenus}
+          onOpenNotifications={() => toggleTopbarMenu("notifications")}
+          onOpenProfile={() => toggleTopbarMenu("profile")}
           onOpenProjectSwitcher={() => setProjectSwitcherOpen((current) => !current)}
+          profileMenu={
+            topbarMenu === "profile" ? (
+              <TopbarProfileMenu id={TOPBAR_PROFILE_MENU_ID} onClose={closeTopbarMenus} onLogout={handleLogout} user={topbarUser} />
+            ) : null
+          }
+          profileOpen={topbarMenu === "profile"}
           project={topbarProject}
           searchEnabled={false}
           surfaceLabel=""

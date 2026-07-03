@@ -84,7 +84,7 @@
 }
 
 .sectionTitle p {
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .stepGrid {
@@ -148,7 +148,7 @@
 
 .stepCard p {
   margin-top: 6px;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .columns {
@@ -183,13 +183,13 @@
   border-radius: 15px;
   background: rgba(215, 234, 244, 0.62);
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 860;
 }
 
 .traceMeta strong {
   color: var(--color-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 850;
 }
 
@@ -200,13 +200,13 @@
   padding: 5px 8px;
   background: rgba(215, 234, 244, 0.58);
   color: var(--color-blue-deep);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 780;
 }
 
 .traceRow p {
   margin-top: 7px;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .ruleCard {
@@ -224,7 +224,7 @@
 }
 
 .ruleCard p {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .topicBox {
@@ -237,7 +237,7 @@
   padding: 13px;
   color: var(--color-blue-deep);
   background: rgba(215, 234, 244, 0.38);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 800;
 }
 
@@ -258,7 +258,7 @@
 }
 
 .notice p {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 @media (max-width: 1080px) {

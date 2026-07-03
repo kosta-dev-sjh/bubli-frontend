@@ -67,7 +67,7 @@
 .fileText span {
   display: block;
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
 }
 
@@ -84,7 +84,7 @@
 
 .fileText p {
   margin-top: 4px;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .contentGrid {
@@ -154,14 +154,14 @@
 .policyStack strong {
   display: block;
   color: var(--color-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 840;
 }
 
 .checkList p,
 .policyStack p {
   margin-top: 3px;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .policyStack {

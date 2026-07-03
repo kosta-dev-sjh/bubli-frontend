@@ -125,19 +125,17 @@ export function AuthPanel() {
         <span />
         <span />
       </div>
-      <section className="auth-page__intro">
-        <Link className="auth-page__brand bubli-wordmark" href="/">
-          {siteConfig.name}
-        </Link>
-        <p className="auth-page__welcome">Welcome!</p>
-        <h1>
-          <span>{t("auth.panel.headingLine1")}</span>
-          <span>{t("auth.panel.headingLine2")}</span>
-        </h1>
-        <p>{t("auth.panel.tagline")}</p>
-      </section>
-
       <GlassPanel as="section" className="auth-card">
+        <div className="auth-card__head">
+          <Link className="auth-card__brand bubli-wordmark" href="/">
+            {siteConfig.name}
+          </Link>
+          <h1 className="auth-card__heading">
+            <span>{t("auth.panel.headingLine1")}</span>
+            <span>{t("auth.panel.headingLine2")}</span>
+          </h1>
+          <p className="auth-card__tagline">{t("auth.panel.tagline")}</p>
+        </div>
         <div className="auth-form" aria-label={t("auth.panel.formAria")}>
           <button
             className="bubli-button bubli-button--primary bubli-button--lg auth-card__submit"

@@ -32,7 +32,7 @@
 .kicker,
 .sectionLabel {
   color: var(--blue-ink);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
   letter-spacing: 0;
 }
@@ -65,7 +65,7 @@
 
 .notice span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 620;
   line-height: 1.5;
 }
@@ -90,7 +90,7 @@
 
 .statusCard span {
   color: var(--blue-ink);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 740;
 }
 
@@ -107,7 +107,7 @@
 .statusCard small {
   overflow: hidden;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 620;
   line-height: 1.45;
   text-overflow: ellipsis;
@@ -150,7 +150,7 @@
 .mutedText {
   margin: 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 620;
   line-height: 1.5;
   word-break: keep-all;
@@ -194,7 +194,7 @@
 .identity span,
 .settingBlock > span {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 680;
 }
 
@@ -234,7 +234,7 @@
   background: transparent;
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 720;
   transition:
     background 160ms var(--ease-out),
@@ -315,7 +315,7 @@ button.row:not(:disabled):hover {
 .row small {
   overflow: hidden;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.45;
   text-overflow: ellipsis;
@@ -369,7 +369,7 @@ button.row:not(:disabled):hover {
 .emptyRow {
   margin: 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 620;
   line-height: 1.65;
   word-break: keep-all;
@@ -429,13 +429,13 @@ button.row:not(:disabled):hover {
 
 .activityRow strong {
   color: var(--ink);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 740;
 }
 
 .activityRow small {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 610;
 }
 
@@ -469,7 +469,7 @@ button.row:not(:disabled):hover {
 
 .integrationLead span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 610;
   line-height: 1.55;
   word-break: keep-all;
@@ -530,7 +530,7 @@ button.row:not(:disabled):hover {
 .bubbleRow small {
   overflow: hidden;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -553,7 +553,7 @@ button.row:not(:disabled):hover {
 
 .metrics span {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 660;
 }
 

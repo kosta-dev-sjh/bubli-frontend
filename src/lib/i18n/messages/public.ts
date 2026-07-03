@@ -163,6 +163,23 @@ const ko = {
   "public.flow.outputTitleReady": "오늘 할 일",
   "public.flow.outputSubPending": "아직 확정하지 않은 후보",
   "public.flow.outputSubReady": "확정된 일만 표시",
+  "public.flow.jumpAria": "{step} 단계로 이동",
+
+  // 다운로드 페이지
+  "public.download.title": "다운로드",
+  "public.download.description": "Bubli 데스크탑 앱(macOS·Windows) 안내와 시작 방법을 정리합니다.",
+  "public.download.sectionAria": "데스크탑 앱 다운로드",
+  "public.download.introChip": "데스크탑 앱",
+  "public.download.introTitle": "회원 웹 앱 그대로, 바탕화면 버블까지",
+  "public.download.introBody":
+    "데스크탑 앱은 회원 웹 앱을 그대로 열고 바탕화면 버블 위젯, 기기 폴더 감지, 빠른 캐시를 더합니다. 설치 파일은 준비 중이며, 지금은 로그인 후 웹에서 같은 작업 화면을 바로 사용할 수 있습니다.",
+  "public.download.ctaLogin": "로그인하고 웹에서 시작",
+  "public.download.ctaFeatures": "기능 살펴보기",
+  "public.download.macTitle": "macOS 앱",
+  "public.download.macBody": "바탕화면 버블 위젯과 기기 폴더 감지를 포함한 macOS용 데스크탑 앱입니다.",
+  "public.download.winTitle": "Windows 앱",
+  "public.download.winBody": "같은 회원 웹 앱과 버블 위젯을 여는 Windows용 데스크탑 앱입니다.",
+  "public.download.statusPreparing": "설치 파일 준비 중",
 
   // 기능 페이지
   "public.features.title": "기능",
@@ -395,6 +412,22 @@ const en: Record<Key, string> = {
   "public.flow.outputTitleReady": "Today's tasks",
   "public.flow.outputSubPending": "Candidates not yet confirmed",
   "public.flow.outputSubReady": "Showing only confirmed work",
+  "public.flow.jumpAria": "Jump to step: {step}",
+
+  "public.download.title": "Download",
+  "public.download.description": "How to get and start with the Bubli desktop app (macOS, Windows).",
+  "public.download.sectionAria": "Desktop app download",
+  "public.download.introChip": "Desktop app",
+  "public.download.introTitle": "The member web app as-is, all the way to desktop bubbles",
+  "public.download.introBody":
+    "The desktop app opens the member web app as-is and adds the desktop bubble widget, device folder detection, and a fast cache. Installers are being prepared — for now, log in and use the same workspace right on the web.",
+  "public.download.ctaLogin": "Log in and start on the web",
+  "public.download.ctaFeatures": "Explore the features",
+  "public.download.macTitle": "macOS app",
+  "public.download.macBody": "The macOS desktop app with the desktop bubble widget and device folder detection.",
+  "public.download.winTitle": "Windows app",
+  "public.download.winBody": "The Windows desktop app that opens the same member web app and bubble widget.",
+  "public.download.statusPreparing": "Installer coming soon",
 
   "public.features.title": "Features",
   "public.features.description":
@@ -620,6 +653,22 @@ const ja: Record<Key, string> = {
   "public.flow.outputTitleReady": "今日やること",
   "public.flow.outputSubPending": "まだ確定していない候補",
   "public.flow.outputSubReady": "確定した仕事だけ表示",
+  "public.flow.jumpAria": "{step}のステップへ移動",
+
+  "public.download.title": "ダウンロード",
+  "public.download.description": "Bubli デスクトップアプリ（macOS・Windows）の案内と始め方をまとめます。",
+  "public.download.sectionAria": "デスクトップアプリのダウンロード",
+  "public.download.introChip": "デスクトップアプリ",
+  "public.download.introTitle": "会員ウェブアプリをそのまま、デスクトップバブルまで",
+  "public.download.introBody":
+    "デスクトップアプリは会員ウェブアプリをそのまま開き、デスクトップバブルウィジェット・端末フォルダ検知・高速キャッシュを加えます。インストーラーは準備中です。今はログイン後、ウェブで同じ作業画面をすぐに使えます。",
+  "public.download.ctaLogin": "ログインしてウェブで開始",
+  "public.download.ctaFeatures": "機能を見る",
+  "public.download.macTitle": "macOS アプリ",
+  "public.download.macBody": "デスクトップバブルウィジェットと端末フォルダ検知を備えた macOS 用デスクトップアプリです。",
+  "public.download.winTitle": "Windows アプリ",
+  "public.download.winBody": "同じ会員ウェブアプリとバブルウィジェットを開く Windows 用デスクトップアプリです。",
+  "public.download.statusPreparing": "インストーラー準備中",
 
   "public.features.title": "機能",
   "public.features.description":

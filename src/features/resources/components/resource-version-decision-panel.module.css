@@ -82,7 +82,7 @@
 .fileCard span:not(:global(.bubli-status)) {
   display: block;
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
 }
 
@@ -99,7 +99,7 @@
 
 .fileCard p {
   margin-top: 4px;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .compareArrow {
@@ -217,7 +217,7 @@
 
 .decisionButton p {
   margin-top: 3px;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .versionList {
@@ -246,7 +246,7 @@
 
 .versionTop > span {
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 860;
 }
 
@@ -260,12 +260,12 @@
 }
 
 .versionList p {
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .versionList small {
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
 }
 

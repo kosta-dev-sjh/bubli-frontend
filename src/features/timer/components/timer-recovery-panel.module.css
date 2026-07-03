@@ -127,7 +127,7 @@
   position: relative;
   z-index: 1;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .heartbeatCard {
@@ -173,7 +173,7 @@
   color: var(--color-blue-deep);
   background: rgba(215, 234, 244, 0.72);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .metricGrid {
@@ -212,7 +212,7 @@
 .metricCard p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -287,7 +287,7 @@
 
 .eventItem span:last-child {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   text-align: right;
 }
 

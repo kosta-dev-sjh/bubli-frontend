@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Check, Copy, Download, Inbox, KeyRound, LogOut, MessageCircle, Mic, MicOff, MoreHorizontal, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
+import { AtSign, Check, Copy, Download, Inbox, KeyRound, LogOut, MessageCircle, Mic, MicOff, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -483,7 +483,14 @@ function ChatPageContent() {
 
     try {
       const page = await chatApi.getMessages(chatRoomId, { size: 40 });
-      setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, [...page.items].sort((a, b) => a.roomSequence - b.roomSequence)) });
+      const sortedMessages = [...page.items].sort((a, b) => a.roomSequence - b.roomSequence);
+      setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, sortedMessages) });
+      const lastReadSequence = sortedMessages.at(-1)?.roomSequence;
+      if (lastReadSequence !== undefined) {
+        void chatApi.markRead(chatRoomId, lastReadSequence).catch(() => {
+          // 읽음 처리 실패는 조용히 무시 (다음 로드에서 재시도)
+        });
+      }
     } catch {
       if (shouldUseWorkspacePreviewData()) {
         setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, workspacePreviewChatMessages(chatRoomId)) });
@@ -1444,9 +1451,6 @@ function ChatPageContent() {
                           <button aria-label={t("chat.messages.copy")} onClick={() => void navigator.clipboard.writeText(text)} type="button">
                             <Copy aria-hidden size={13} strokeWidth={2} />
                           </button>
-                          <button aria-label={t("chat.messages.more")} type="button">
-                            <MoreHorizontal aria-hidden size={13} strokeWidth={2} />
-                          </button>
                         </span>
                       </div>
                       {message.messageType === "FILE" && message.resourceId ? (
@@ -1806,9 +1810,6 @@ function ChatPageContent() {
                         <div className="workspace-route__friend-actions">
                           <button onClick={() => { void openDirectRoom(friend); setNewRoomPickerOpen(false); }} type="button">
                             {t("chat.newRoom.direct")}
-                          </button>
-                          <button onClick={() => toggleGroupMember(friend.friendUserId)} type="button">
-                            {selected ? t("chat.newRoom.deselect") : t("chat.newRoom.selectForGroup")}
                           </button>
                         </div>
                       </div>

@@ -3,6 +3,7 @@
 import { Apple, Download, MonitorDown } from "lucide-react";
 import Link from "next/link";
 
+import { DecorBubble } from "@/components/bubbles";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { PublicHero } from "@/features/public-site/components/public-hero";
@@ -57,6 +58,8 @@ export default function HomePage() {
 
       <Reveal>
         <section className="landing-section" id="why">
+          <DecorBubble floating size="lg" style={{ top: "6%", right: "3%" }} />
+          <DecorBubble floating size="sm" style={{ bottom: "10%", left: "2%" }} />
           <header className="landing-section__head landing-section__head--left">
             <Chip>{t("public.home.whyChip")}</Chip>
             <h2>{t("public.home.whyTitle")}</h2>
@@ -66,6 +69,7 @@ export default function HomePage() {
             {featureCards.map((card) => {
               return (
                 <GlassPanel className="landing-feature-card" key={card.titleKey}>
+                  <DecorBubble size="md" />
                   <span className="landing-feature-card__kicker">{t(card.kickerKey)}</span>
                   <h3>{t(card.titleKey)}</h3>
                   <p>{t(card.bodyKey)}</p>
@@ -78,6 +82,7 @@ export default function HomePage() {
 
       <Reveal>
         <section className="landing-section landing-desktop" id="desktop">
+          <DecorBubble floating size="md" style={{ top: "4%", left: "40%" }} />
           <div className="landing-desktop__copy">
             <Chip>{t("public.home.desktopChip")}</Chip>
             <h2>{t("public.home.desktopTitle")}</h2>
@@ -102,10 +107,11 @@ export default function HomePage() {
           </div>
           <GlassPanel className="landing-desktop__visual" padded={false}>
             <div className="landing-app-preview" aria-label={t("public.home.previewAria")}>
-              <div className="landing-app-preview__tabs">
-                <button className="is-active" type="button">{t("public.home.previewTabMac")}</button>
-                <button type="button">{t("public.home.previewTabWin")}</button>
-                <button type="button">{t("public.home.previewTabWeb")}</button>
+              {/* 실제 전환 기능이 없는 장식용 탭 — 버튼처럼 보이지 않게 정적 요소로 둔다. */}
+              <div aria-hidden="true" className="landing-app-preview__tabs">
+                <span className="is-active">{t("public.home.previewTabMac")}</span>
+                <span>{t("public.home.previewTabWin")}</span>
+                <span>{t("public.home.previewTabWeb")}</span>
               </div>
               <div className="landing-app-preview__stage">
                 <div className="landing-app-preview__chrome" aria-hidden="true">
@@ -160,6 +166,8 @@ export default function HomePage() {
       <Reveal>
         <section className="landing-section landing-download" id="download">
           <div className="landing-download__stage">
+            <DecorBubble floating size="lg" style={{ top: "10%", right: "6%" }} />
+            <DecorBubble floating size="sm" style={{ bottom: "14%", left: "4%" }} />
             <header className="landing-download__head">
               <span className="landing-download__label">{t("public.home.downloadLabel")}</span>
               <div>
@@ -195,7 +203,7 @@ export default function HomePage() {
                   </div>
                 </div>
               </article>
-              <Link aria-label={t("public.home.downloadMacAria")} className="landing-download__float landing-download__float--primary" href="/#download">
+              <Link aria-label={t("public.home.downloadMacAria")} className="landing-download__float landing-download__float--primary" href="/download">
                 <span className="landing-download__float-os" aria-hidden="true">
                   <Apple size={24} strokeWidth={2.15} />
                 </span>
@@ -204,7 +212,7 @@ export default function HomePage() {
                   <Download size={20} strokeWidth={2.2} />
                 </span>
               </Link>
-              <Link aria-label={t("public.home.downloadWinAria")} className="landing-download__float landing-download__float--soft" href="/#download">
+              <Link aria-label={t("public.home.downloadWinAria")} className="landing-download__float landing-download__float--soft" href="/download">
                 <span className="landing-download__float-os" aria-hidden="true">
                   <MonitorDown size={23} strokeWidth={2.1} />
                 </span>
@@ -226,6 +234,7 @@ export default function HomePage() {
 
       <Reveal>
         <section className="landing-section landing-faq" id="faq">
+          <DecorBubble floating size="md" style={{ top: "10%", right: "5%" }} />
           <header className="landing-section__head">
             <Chip>{t("public.home.faqChip")}</Chip>
             <h2>{t("public.home.faqTitle")}</h2>
