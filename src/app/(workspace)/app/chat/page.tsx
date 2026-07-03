@@ -416,6 +416,10 @@ function ChatPageContent() {
   const inviteTargetLabel = selectedProjectRoomId ? selectedProjectRoomName ?? t("chat.label.currentRoom") : t("chat.label.selectRoomNeeded");
   const pendingRoomInvitations = roomInvitationsState.kind === "ready" ? roomInvitationsState.invitations.filter((invitation) => invitation.status === "PENDING") : [];
   const activeVoiceRoom = voiceState.kind === "ready" && voiceState.room.status === "OPEN" ? voiceState.room : null;
+  const isInVoice = activeVoiceRoom !== null && activeVoiceRoom.participants.some(
+    (p) => p.userId === currentUser?.id && p.status === "JOINED"
+  );
+  const isVoiceCreator = activeVoiceRoom !== null && activeVoiceRoom.createdByUserId === currentUser?.id;
   const voiceParticipants = useMemo<VoiceParticipantResponse[]>(() => {
     if (voiceState.kind === "ready") {
       return voiceState.room.participants.map((participant) => ({
@@ -1640,18 +1644,24 @@ function ChatPageContent() {
                   <KeyRound aria-hidden size={14} strokeWidth={2} />
                   {voiceAction === "token" ? t("chat.voiceCard.receiving") : t("chat.voiceCard.joinToken")}
                 </button>
-                <button disabled={!activeVoiceRoom || voiceAction === "mic"} onClick={() => void toggleVoiceMic()} type="button">
-                  {voiceMicMuted ? <Mic aria-hidden size={14} strokeWidth={2} /> : <MicOff aria-hidden size={14} strokeWidth={2} />}
-                  {voiceAction === "mic" ? t("chat.voiceCard.changing") : voiceMicMuted ? t("chat.voiceCard.micOn") : t("chat.voiceCard.micOff")}
-                </button>
-                <button disabled={!activeVoiceRoom || voiceAction === "leave"} onClick={() => void leaveVoice()} type="button">
-                  <LogOut aria-hidden size={14} strokeWidth={2} />
-                  {voiceAction === "leave" ? t("chat.voiceCard.leaving") : t("chat.voiceCard.leave")}
-                </button>
-                <button disabled={!activeVoiceRoom || voiceAction === "end"} onClick={() => void endVoice()} type="button">
-                  <Square aria-hidden size={14} strokeWidth={2} />
-                  {voiceAction === "end" ? t("chat.voiceCard.ending") : t("chat.voiceCard.end")}
-                </button>
+                {isInVoice ? (
+                  <button disabled={voiceAction === "mic"} onClick={() => void toggleVoiceMic()} type="button">
+                    {voiceMicMuted ? <Mic aria-hidden size={14} strokeWidth={2} /> : <MicOff aria-hidden size={14} strokeWidth={2} />}
+                    {voiceAction === "mic" ? t("chat.voiceCard.changing") : voiceMicMuted ? t("chat.voiceCard.micOn") : t("chat.voiceCard.micOff")}
+                  </button>
+                ) : null}
+                {isInVoice ? (
+                  <button disabled={voiceAction === "leave"} onClick={() => void leaveVoice()} type="button">
+                    <LogOut aria-hidden size={14} strokeWidth={2} />
+                    {voiceAction === "leave" ? t("chat.voiceCard.leaving") : t("chat.voiceCard.leave")}
+                  </button>
+                ) : null}
+                {isVoiceCreator ? (
+                  <button disabled={voiceAction === "end"} onClick={() => void endVoice()} type="button">
+                    <Square aria-hidden size={14} strokeWidth={2} />
+                    {voiceAction === "end" ? t("chat.voiceCard.ending") : t("chat.voiceCard.end")}
+                  </button>
+                ) : null}
               </div>
               {voiceTokenInfo ? (
                 <div className="workspace-route__voice-note">
