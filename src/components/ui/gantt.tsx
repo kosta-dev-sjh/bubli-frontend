@@ -781,7 +781,10 @@ export const GanttFeatureDragHelper: FC<GanttFeatureDragHelperProps> = ({ direct
 
   const isPressed = Boolean(attributes["aria-pressed"]);
 
-  useEffect(() => setDragging(isPressed), [isPressed, setDragging]);
+  useEffect(() => {
+    setDragging(isPressed);
+    return () => setDragging(false);
+  }, [isPressed, setDragging]);
 
   return (
     <div
@@ -827,7 +830,10 @@ export const GanttFeatureItemCard: FC<GanttFeatureItemCardProps> = ({ color, id,
   const { attributes, listeners, setNodeRef } = useDraggable({ id });
   const isPressed = Boolean(attributes["aria-pressed"]);
 
-  useEffect(() => setDragging(isPressed), [isPressed, setDragging]);
+  useEffect(() => {
+    setDragging(isPressed);
+    return () => setDragging(false);
+  }, [isPressed, setDragging]);
 
   return (
     <Card
@@ -854,7 +860,7 @@ export type GanttFeatureItemProps = GanttFeature & {
 };
 
 export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, className, ...feature }) => {
-  const [scrollX] = useGanttScrollX();
+  const [scrollX, setScrollX] = useGanttScrollX();
   const gantt = useContext(GanttContext);
   const timelineStartDate = new Date(gantt.timelineData.at(0)?.year ?? 0, 0, 1);
   const [startAt, setStartAt] = useState<Date>(feature.startAt);
@@ -887,15 +893,24 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
     }
   };
 
-  const restoreScrollLeft = () => {
+  const restoreScrollLeftNow = () => {
     const lockedScrollLeft = lockedScrollLeftRef.current;
     const root = gantt.ref?.current;
     if (root && lockedScrollLeft !== null && root.scrollLeft !== lockedScrollLeft) {
       root.scrollTo({ behavior: "auto", left: lockedScrollLeft, top: root.scrollTop });
     }
+    if (lockedScrollLeft !== null) {
+      setScrollX(lockedScrollLeft);
+    }
+  };
+
+  const restoreScrollLeft = () => {
+    restoreScrollLeftNow();
+    window.requestAnimationFrame(restoreScrollLeftNow);
   };
 
   const releaseScrollLeft = () => {
+    restoreScrollLeftNow();
     lockedScrollLeftRef.current = null;
   };
 
