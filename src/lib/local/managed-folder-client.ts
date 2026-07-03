@@ -335,6 +335,13 @@ export async function analyzePersonalLocalFileWithKeySentences(
 
   const extraction = extractionResult.data;
   if (extraction.status !== "READY") {
+    await markPersonalLocalFileAnalysis({
+      checksum: extraction.checksum,
+      errorMessage: `local key sentence extraction status: ${extraction.status}`,
+      localFileId: extraction.localFileId,
+      resourceId: input.resourceId,
+      status: "FAILED",
+    });
     return failed(`로컬 파일 중요 문장 추출 상태가 ${extraction.status}입니다.`, commandName);
   }
 
@@ -352,6 +359,13 @@ export async function analyzePersonalLocalFileWithKeySentences(
       sourceCharCount: extraction.sourceCharCount,
       textTruncated: extraction.truncated,
     });
+    const markResult = await markPersonalLocalFileAnalysis({
+      checksum: extraction.checksum,
+      errorMessage: null,
+      localFileId: extraction.localFileId,
+      resourceId: input.resourceId,
+      status: "SYNCED",
+    });
 
     return ready(
       {
@@ -360,10 +374,45 @@ export async function analyzePersonalLocalFileWithKeySentences(
         sentAt: new Date().toISOString(),
       },
       commandName,
-      "로컬 파일 중요 문장을 서버 분석 요청으로 전달했습니다.",
+      markResult.status === "ready" && markResult.data.syncedCount > 0
+        ? "로컬 파일 중요 문장을 서버 분석 요청으로 전달했습니다."
+        : "로컬 파일 분석은 전달했지만 로컬 분석 전송 상태를 동기화로 표시하지 못했습니다.",
     );
   } catch (error) {
-    return failed(getErrorMessage(error), commandName);
+    const message = getErrorMessage(error);
+    await markPersonalLocalFileAnalysis({
+      checksum: extraction.checksum,
+      errorMessage: message,
+      localFileId: extraction.localFileId,
+      resourceId: input.resourceId,
+      status: "FAILED",
+    });
+    return failed(message, commandName);
+  }
+}
+
+async function markPersonalLocalFileAnalysis(input: {
+  checksum?: string | null;
+  errorMessage?: string | null;
+  localFileId: string;
+  resourceId: string;
+  status: "FAILED" | "SYNCED";
+}) {
+  try {
+    const data = await tauriCommands.markLocalFileAnalysesSent({
+      results: [
+        {
+          checksum: input.checksum,
+          errorMessage: input.errorMessage,
+          localFileId: input.localFileId,
+          resourceId: input.resourceId,
+          status: input.status,
+        },
+      ],
+    });
+    return { data, status: "ready" as const };
+  } catch (error) {
+    return { message: getErrorMessage(error), status: "failed" as const };
   }
 }
 

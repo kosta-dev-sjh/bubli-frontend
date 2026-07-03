@@ -16,6 +16,8 @@ import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { Locale, MessageKey, TranslateVars } from "@/lib/i18n";
+import { notifyActivityConsentChanged } from "@/lib/local/activity-auto-capture";
+import { notifyManagedFolderConsentChanged } from "@/lib/local/managed-folder-auto-sync";
 import {
   backupLocalSqlite,
   checkLocalSqliteIntegrity,
@@ -423,8 +425,15 @@ export default function SettingsPage() {
           ...ready,
           settings: { ...ready.settings, privacy: saved },
         }));
-        if (key === "localFolderEnabled" && saved.localFolderEnabled) {
-          void restoreManagedFolderWatchers();
+        // 동의 변경 즉시 반영(#167, #170): 자동 캡처/폴더 감시 루프에 알려 곧바로 반영한다.
+        if (key === "activityDetectionEnabled") {
+          notifyActivityConsentChanged(saved.activityDetectionEnabled);
+        }
+        if (key === "localFolderEnabled") {
+          notifyManagedFolderConsentChanged(saved.localFolderEnabled);
+          if (saved.localFolderEnabled) {
+            void restoreManagedFolderWatchers();
+          }
         }
       } catch {
         if (shouldUseWorkspacePreviewData()) return;

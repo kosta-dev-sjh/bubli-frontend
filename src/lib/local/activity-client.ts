@@ -54,7 +54,7 @@ export async function readCurrentActivityContext(
 export async function recordCurrentActivityContext(
   input: ActivityContextRecordInput,
 ): Promise<ActivityContextRecordAdapterResult> {
-  const commandName = TAURI_COMMANDS.readActivityContext;
+  const commandName = TAURI_COMMANDS.recordActivityContext;
   await syncLocalActivityBufferToServer({ consentGranted: input.consentGranted, limit: 10 }).catch(() => undefined);
 
   const context = await readCurrentActivityContext(input);
