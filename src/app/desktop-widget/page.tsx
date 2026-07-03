@@ -707,6 +707,10 @@ function DesktopWidgetSurface() {
     bodyStyle.height = "100%";
     bodyStyle.display = "grid";
 
+    if (isTauri) {
+      void tauriCommands.appReady().catch(() => undefined);
+    }
+
     return () => {
       delete document.documentElement.dataset.bubliSurface;
       delete document.body.dataset.bubliSurface;
@@ -724,7 +728,7 @@ function DesktopWidgetSurface() {
       bodyStyle.height = previous.bodyHeight;
       bodyStyle.display = previous.bodyDisplay;
     };
-  }, []);
+  }, [isTauri]);
 
   useEffect(() => {
     if (!isTauri) return;
