@@ -462,6 +462,23 @@ function buildDisplayBubbles(input: {
   };
 }
 
+function buildEmptyDisplayBubbles(t: TranslateFn, roomId?: string | null) {
+  return buildDisplayBubbles({
+    chatRoom: null,
+    dashboard: null,
+    friends: [],
+    memos: [],
+    messages: [],
+    notifications: [],
+    resources: [],
+    room: null,
+    roomId,
+    schedules: [],
+    suggestions: [],
+    tasks: [],
+  }, t);
+}
+
 function DesktopWidgetSurface() {
   const { t } = useI18n();
   const isTauri = isTauriRuntime();
@@ -488,7 +505,7 @@ function DesktopWidgetSurface() {
   );
   const [serverSettings, setServerSettings] = useState<WidgetBubbleSettingResponse[]>([]);
   const [barItems, setBarItems] = useState<WidgetWindowState[]>([]);
-  const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>({});
+  const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>(() => buildEmptyDisplayBubbles(t, requestedRoomId));
   const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID ?? null);
   const [communicationRevision, setCommunicationRevision] = useState(0);
   const [memoRevision, setMemoRevision] = useState(0);
@@ -840,7 +857,7 @@ function DesktopWidgetSurface() {
 
     void loadDisplayApiState().catch(() => {
       if (!cancelled) {
-        setDisplayBubbles({});
+        setDisplayBubbles(buildEmptyDisplayBubbles(t, widgetContext?.selectedRoomId ?? requestedRoomId));
         setNotificationSignal(widgetNotificationSignal);
       }
     });
