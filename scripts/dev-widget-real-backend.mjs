@@ -146,12 +146,14 @@ async function smokeBackend(accessToken) {
     "today usage summary did not include the saved smoke rollup",
   );
 
+  const createdLocalEventId = `codex-local-sync-created-${Date.now()}`;
   const localFileSync = await apiPost("/api/local-file-events/sync", headers, {
     events: [
       {
         eventType: "CREATED",
         fileName: "codex-local-sync-smoke.txt",
         fileSizeBytes: 42,
+        localEventId: createdLocalEventId,
         mimeType: "text/plain",
         resourceId: null,
       },
@@ -162,15 +164,18 @@ async function smokeBackend(accessToken) {
     localFileSync.results?.[0]?.status === "SYNCED",
     "local file event sync did not return a SYNCED result",
   );
+  assertOptionalLocalEventId(localFileSync.results?.[0], createdLocalEventId, "local file event sync");
   const syncedResourceId = localFileSync.results[0].resourceId;
   assert(syncedResourceId, "local file event sync did not return a resource id");
 
+  const deletedLocalEventId = `codex-local-sync-deleted-${Date.now()}`;
   const localFileDelete = await apiPost("/api/local-file-events/sync", headers, {
     events: [
       {
         eventType: "DELETED",
         fileName: "codex-local-sync-smoke.txt",
         fileSizeBytes: 42,
+        localEventId: deletedLocalEventId,
         mimeType: "text/plain",
         resourceId: syncedResourceId,
       },
@@ -180,6 +185,7 @@ async function smokeBackend(accessToken) {
     localFileDelete.results?.[0]?.status === "SYNCED",
     "local file event delete sync did not return a SYNCED result",
   );
+  assertOptionalLocalEventId(localFileDelete.results?.[0], deletedLocalEventId, "local file event delete sync");
 
   const [dailySummaries, generatedDocuments, roomMemorySummaries] = await Promise.all([
     apiGet("/api/daily-summaries", headers),
@@ -434,6 +440,17 @@ function base64UrlJson(value) {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function assertOptionalLocalEventId(result, expectedLocalEventId, label) {
+  if (!result || !Object.hasOwn(result, "localEventId")) {
+    return;
+  }
+
+  assert(
+    result.localEventId === expectedLocalEventId,
+    `${label} did not echo the local event id`,
+  );
 }
 
 function stripTrailingSlash(value) {
