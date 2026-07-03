@@ -21,8 +21,8 @@ const ko = {
   "chat.overview.direct": "1:1",
   "chat.overview.directSummary": "{count}명 · 요청 {requests}",
   "chat.overview.voice": "보이스",
-  "chat.overview.voiceFromRoom": "프로젝트룸에서 시작",
-  "chat.overview.voicePriority": "프로젝트룸 채팅에서 시작",
+  "chat.overview.voiceFromRoom": "프로젝트룸 채팅에서 시작",
+  "chat.overview.voicePriority": "1:1/그룹 채팅에서 시작",
 
   // 빠른 실행
   "chat.quick.aria": "친구와 초대 빠른 실행",
@@ -31,6 +31,7 @@ const ko = {
   "chat.quick.copyId": "내 ID 복사",
   "chat.quick.addFriend": "친구 추가",
   "chat.quick.inviteCurrentRoom": "현재 룸 초대",
+  "chat.quick.manageFriends": "친구 관리",
 
   // 대화방 목록
   "chat.list.aria": "대화방",
@@ -111,6 +112,7 @@ const ko = {
 
   // 친구 사이드바
   "chat.social.aria": "친구",
+  "chat.social.subtitle": "친구를 추가하고 프로젝트룸에 초대하세요.",
   "chat.social.addFriend": "친구추가",
   "chat.social.addFlowAria": "친구 추가",
   "chat.social.myBubliId": "내 Bubli ID",
@@ -181,6 +183,8 @@ const ko = {
   "chat.voiceCard.changing": "변경 중",
   "chat.voiceCard.micOn": "마이크 켜기",
   "chat.voiceCard.micOff": "마이크 끄기",
+  "chat.voiceCard.micOnState": "마이크 켜짐",
+  "chat.voiceCard.micOffState": "마이크 꺼짐",
   "chat.voiceCard.leaving": "나가는 중",
   "chat.voiceCard.leave": "나가기",
   "chat.voiceCard.ending": "종료 중",
@@ -217,6 +221,7 @@ const ko = {
   "chat.notice.voiceLeaveFailed": "보이스룸에서 나가지 못했습니다.",
   "chat.notice.voiceEnded": "보이스룸을 종료했습니다.",
   "chat.notice.voiceEndFailed": "보이스룸을 종료하지 못했습니다.",
+  "chat.notice.sendFailed": "메시지를 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
   "chat.notice.agentOnlyRoom": "/bubli는 프로젝트룸 대화에서만 사용할 수 있습니다.",
   "chat.notice.agentSending": "에이전트에게 질문을 보내는 중입니다.",
   "chat.notice.agentSent": "에이전트에게 질문을 보냈습니다.",
@@ -749,8 +754,8 @@ const en: Record<Key, string> = {
   "chat.overview.direct": "1:1",
   "chat.overview.directSummary": "{count} people · {requests} requests",
   "chat.overview.voice": "Voice",
-  "chat.overview.voiceFromRoom": "Start from a project room",
-  "chat.overview.voicePriority": "Start from a project room chat",
+  "chat.overview.voiceFromRoom": "Start from project room chat",
+  "chat.overview.voicePriority": "Start from 1:1/group chat",
 
   "chat.quick.aria": "Friend and invite shortcuts",
   "chat.quick.create": "Create new",
@@ -758,6 +763,7 @@ const en: Record<Key, string> = {
   "chat.quick.copyId": "Copy my ID",
   "chat.quick.addFriend": "Add friend",
   "chat.quick.inviteCurrentRoom": "Invite to current room",
+  "chat.quick.manageFriends": "Friends",
 
   "chat.list.aria": "Conversations",
   "chat.list.friendChats": "Friend chats",
@@ -828,6 +834,7 @@ const en: Record<Key, string> = {
   "chat.emoticon.wait": "One moment",
 
   "chat.social.aria": "Friends",
+  "chat.social.subtitle": "Add friends and invite them to your project rooms.",
   "chat.social.addFriend": "Add friend",
   "chat.social.addFlowAria": "Add friend",
   "chat.social.myBubliId": "My Bubli ID",
@@ -893,6 +900,8 @@ const en: Record<Key, string> = {
   "chat.voiceCard.changing": "Changing",
   "chat.voiceCard.micOn": "Turn mic on",
   "chat.voiceCard.micOff": "Turn mic off",
+  "chat.voiceCard.micOnState": "Mic on",
+  "chat.voiceCard.micOffState": "Mic off",
   "chat.voiceCard.leaving": "Leaving",
   "chat.voiceCard.leave": "Leave",
   "chat.voiceCard.ending": "Ending",
@@ -927,6 +936,7 @@ const en: Record<Key, string> = {
   "chat.notice.voiceLeaveFailed": "Couldn't leave the voice room.",
   "chat.notice.voiceEnded": "Ended the voice room.",
   "chat.notice.voiceEndFailed": "Couldn't end the voice room.",
+  "chat.notice.sendFailed": "Couldn't send the message. Please try again in a moment.",
   "chat.notice.agentOnlyRoom": "/bubli can be used only in project room conversations.",
   "chat.notice.agentSending": "Sending your question to the agent.",
   "chat.notice.agentSent": "Sent your question to the agent.",
@@ -1442,8 +1452,8 @@ const ja: Record<Key, string> = {
   "chat.overview.direct": "1:1",
   "chat.overview.directSummary": "{count}名 · リクエスト {requests}",
   "chat.overview.voice": "ボイス",
-  "chat.overview.voiceFromRoom": "プロジェクトルームで開始",
-  "chat.overview.voicePriority": "プロジェクトルームチャットで開始",
+  "chat.overview.voiceFromRoom": "プロジェクトルームチャットで開始",
+  "chat.overview.voicePriority": "1:1/グループチャットで開始",
 
   "chat.quick.aria": "友だちと招待のクイック操作",
   "chat.quick.create": "新規作成",
@@ -1451,6 +1461,7 @@ const ja: Record<Key, string> = {
   "chat.quick.copyId": "自分のIDをコピー",
   "chat.quick.addFriend": "友だち追加",
   "chat.quick.inviteCurrentRoom": "現在のルームに招待",
+  "chat.quick.manageFriends": "友だち管理",
 
   "chat.list.aria": "会話ルーム",
   "chat.list.friendChats": "友だちとの会話",
@@ -1521,6 +1532,7 @@ const ja: Record<Key, string> = {
   "chat.emoticon.wait": "少々お待ちを",
 
   "chat.social.aria": "友だち",
+  "chat.social.subtitle": "友だちを追加してプロジェクトルームに招待しましょう。",
   "chat.social.addFriend": "友だち追加",
   "chat.social.addFlowAria": "友だち追加",
   "chat.social.myBubliId": "自分のBubli ID",
@@ -1586,6 +1598,8 @@ const ja: Record<Key, string> = {
   "chat.voiceCard.changing": "変更中",
   "chat.voiceCard.micOn": "マイクをオン",
   "chat.voiceCard.micOff": "マイクをオフ",
+  "chat.voiceCard.micOnState": "マイクオン",
+  "chat.voiceCard.micOffState": "マイクオフ",
   "chat.voiceCard.leaving": "退出中",
   "chat.voiceCard.leave": "退出",
   "chat.voiceCard.ending": "終了中",
@@ -1620,6 +1634,7 @@ const ja: Record<Key, string> = {
   "chat.notice.voiceLeaveFailed": "ボイスルームから退出できませんでした。",
   "chat.notice.voiceEnded": "ボイスルームを終了しました。",
   "chat.notice.voiceEndFailed": "ボイスルームを終了できませんでした。",
+  "chat.notice.sendFailed": "メッセージを送れませんでした。しばらくしてから再試行してください。",
   "chat.notice.agentOnlyRoom": "/bubli はプロジェクトルームの会話でのみ使用できます。",
   "chat.notice.agentSending": "エージェントに質問を送信中です。",
   "chat.notice.agentSent": "エージェントに質問を送りました。",

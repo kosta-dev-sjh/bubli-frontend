@@ -27,6 +27,7 @@ export type VoiceParticipantResponse = {
 
 export type VoiceRoomResponse = {
   createdAt?: string;
+  createdByUserId?: string;
   id: string;
   livekitRoomName: string;
   participants: VoiceParticipantResponse[];
