@@ -305,7 +305,7 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
     });
     const markResult = await tauriCommands.markLocalFileEventsSynced({
       results: response.results.map((result, index) => ({
-        localEventId: staged.data.events[index]?.localEventId ?? "",
+        localEventId: result.localEventId || staged.data.events[index]?.localEventId || "",
         resourceId: result.resourceId,
         status: result.status,
       })),
