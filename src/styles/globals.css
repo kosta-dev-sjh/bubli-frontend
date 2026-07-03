@@ -14053,14 +14053,14 @@ html {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
+  min-height: 34px;
+  padding: 0 12px;
   border: 1px solid transparent;
   border-radius: 100px;
   background: transparent;
   color: var(--text-soft, #586978);
   font-size: 13px;
   font-weight: 500;
-  line-height: 1.2;
   cursor: pointer;
   transition:
     color var(--motion-hover, 160ms) var(--ease-in, ease),
