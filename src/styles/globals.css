@@ -14077,6 +14077,10 @@ html {
   color: currentColor;
 }
 
+.bubli-seg__item span {
+  white-space: nowrap;
+}
+
 .bubli-seg__item.is-active {
   color: var(--blue-ink, #3a78b8);
   border-color: var(--sky, #9ed8ff);
