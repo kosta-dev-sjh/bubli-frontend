@@ -57,6 +57,11 @@ export type WbsGanttRangeEditRequest = {
 };
 
 type LocalRange = WbsGanttRange;
+type CreateDraft = {
+  parentId: string | null;
+  startAt: Date;
+  title: string;
+};
 
 function scheduleRangeQuery() {
   const now = new Date();
@@ -116,7 +121,9 @@ export function WbsGanttPanel({
   const [schedules, setSchedules] = useState<ScheduleResponse[]>([]);
   const [localRanges, setLocalRanges] = useState<Record<string, LocalRange>>({});
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(() => new Set());
+  const [createDraft, setCreateDraft] = useState<CreateDraft | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const createInputRef = useRef<HTMLInputElement>(null);
   const handledRangeRequestId = useRef<number | null>(null);
   const localIdCounter = useRef(0);
 
@@ -138,6 +145,12 @@ export function WbsGanttPanel({
       cancelled = true;
     };
   }, [roomId]);
+
+  useEffect(() => {
+    if (createDraft) {
+      createInputRef.current?.focus();
+    }
+  }, [createDraft]);
 
   const scheduleByWbsId = useMemo(() => {
     const map = new Map<string, ScheduleResponse>();
@@ -302,7 +315,7 @@ export function WbsGanttPanel({
     });
   };
 
-  const getParentIdForChild = (item: WbsItemResponse) => item.parentId ?? item.id;
+  const getParentIdForChild = (item: WbsItemResponse) => item.id;
 
   const persistRange = useCallback((item: WbsItemResponse, nextRange: LocalRange) => {
     const schedule = scheduleByWbsId.get(item.id);
@@ -364,7 +377,7 @@ export function WbsGanttPanel({
     applyRange(item, startAt, endAt);
   };
 
-  const createItem = (parentId: string | null, date: Date) => {
+  const createItem = (parentId: string | null, date: Date, title: string) => {
     const startAt = startOfDay(date);
     const nextRange = normalizeRange(startAt, addDays(startAt, DEFAULT_BAR_DAYS));
     const now = new Date().toISOString();
@@ -378,7 +391,7 @@ export function WbsGanttPanel({
       parentId,
       roomId,
       status: "TODO",
-      title: isGroup ? t("wbs.gantt.newGroup") : t("wbs.gantt.newTask"),
+      title,
       updatedAt: now,
     };
 
@@ -407,7 +420,28 @@ export function WbsGanttPanel({
       });
   };
 
-  const handleAddGroup = () => createItem(null, new Date());
+  const openCreateDraft = (parentId: string | null, date: Date) => {
+    setCreateDraft({
+      parentId,
+      startAt: startOfDay(date),
+      title: "",
+    });
+  };
+
+  const commitCreateDraft = () => {
+    if (!createDraft) return;
+
+    const title = createDraft.title.trim();
+    if (!title) {
+      onNotice(t("wbs.gantt.notice.nameRequired"));
+      return;
+    }
+
+    createItem(createDraft.parentId, createDraft.startAt, title);
+    setCreateDraft(null);
+  };
+
+  const handleAddGroup = () => openCreateDraft(null, new Date());
 
   const getParentIdForNewTask = () => {
     if (orderedGroups.length === 0) return null;
@@ -421,13 +455,13 @@ export function WbsGanttPanel({
   const handleAddTask = () => {
     const parentId = getParentIdForNewTask();
     const selectedFeature = selectedWbsId ? featureById.get(selectedWbsId) : null;
-    createItem(parentId, selectedFeature?.startAt ?? new Date());
+    openCreateDraft(parentId, selectedFeature?.startAt ?? new Date());
   };
 
   const handleAddChildFromRow = (item: WbsItemResponse) => {
     const parentId = getParentIdForChild(item);
     const feature = featureById.get(parentId) ?? featureById.get(item.id);
-    createItem(parentId, feature?.startAt ?? new Date());
+    openCreateDraft(parentId, feature?.startAt ?? new Date());
   };
 
   const handleDeleteItem = async (item: WbsItemResponse) => {
@@ -453,32 +487,47 @@ export function WbsGanttPanel({
       return;
     }
 
-    try {
-      if (schedule) {
+    let calendarDeleteFailed = false;
+
+    if (schedule) {
+      try {
         await calendarApi.deleteEvent(schedule.id);
+      } catch {
+        calendarDeleteFailed = true;
+      } finally {
         setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
       }
+    }
 
+    try {
       await wbsApi.deleteItem(item.id);
-      setLocalRanges((current) => {
-        const next = { ...current };
-        delete next[item.id];
-        return next;
-      });
-      onWbsDeleted(item.id);
-      onNotice(t("wbs.gantt.notice.deleted"));
     } catch {
       if (shouldUseWorkspacePreviewData()) {
-        if (schedule) {
-          setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
-        }
         onWbsDeleted(item.id);
         onNotice(t("wbs.gantt.notice.deletedLocal"));
         return;
       }
-      onNotice(t("wbs.gantt.notice.deleteFailed"));
+      if (schedule) {
+        setSchedules((current) => {
+          if (current.some((entry) => entry.id === schedule.id)) return current;
+          return [...current, schedule];
+        });
+      }
+
+      onNotice(t("wbs.gantt.notice.deleteFailedWbsOnly"));
+      return;
     }
+
+    setLocalRanges((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    onWbsDeleted(item.id);
+    onNotice(calendarDeleteFailed ? t("wbs.gantt.notice.deletedCalendarPending") : t("wbs.gantt.notice.deleted"));
   };
+
+  const draftParentTitle = createDraft?.parentId ? itemById.get(createDraft.parentId)?.title ?? null : null;
 
   return (
     <div className={styles.panel} ref={panelRef}>
@@ -527,6 +576,41 @@ export function WbsGanttPanel({
           {t("wbs.gantt.addTask")}
         </button>
       </div>
+
+      {createDraft ? (
+        <div className={styles.createInline}>
+          <span className={styles.createInlineMeta}>
+            {createDraft.parentId
+              ? draftParentTitle
+                ? t("wbs.gantt.createChildUnder", { title: draftParentTitle })
+                : t("wbs.gantt.createChild")
+              : t("wbs.gantt.createParent")}
+          </span>
+          <input
+            aria-label={createDraft.parentId ? t("wbs.gantt.createChild") : t("wbs.gantt.createParent")}
+            className={styles.createInlineInput}
+            onChange={(event) => setCreateDraft((current) => (current ? { ...current, title: event.target.value } : current))}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                commitCreateDraft();
+              }
+              if (event.key === "Escape") {
+                setCreateDraft(null);
+              }
+            }}
+            placeholder={createDraft.parentId ? t("wbs.gantt.createChildPlaceholder") : t("wbs.gantt.createParentPlaceholder")}
+            ref={createInputRef}
+            type="text"
+            value={createDraft.title}
+          />
+          <button className={styles.createInlineButton} onClick={commitCreateDraft} type="button">
+            {t("wbs.gantt.createCommit")}
+          </button>
+          <button className={styles.createInlineButtonSecondary} onClick={() => setCreateDraft(null)} type="button">
+            {t("wbs.gantt.createCancel")}
+          </button>
+        </div>
+      ) : null}
 
       <GanttProvider className={styles.ganttSurface} range={range} zoom={100}>
         <GanttSidebar>

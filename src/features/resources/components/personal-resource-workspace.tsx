@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, FolderOpen, HardDrive } from "lucide-react";
+import { AlertCircle, HardDrive } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -179,10 +179,8 @@ export function PersonalResourceWorkspace() {
               ) : filteredResources.length === 0 ? (
                 <div className={styles.emptyCanvas} role="status">
                   <div className={styles.emptyCanvasInner}>
-                    <FolderOpen aria-hidden size={24} strokeWidth={1.8} />
                     <strong>{isTauri ? t("resources.workspace.emptyPersonalTitleTauri") : t("resources.workspace.emptyPersonalTitleWeb")}</strong>
                     <p>{isTauri ? t("resources.workspace.emptyPersonalDescTauri") : t("resources.workspace.emptyPersonalDescWeb")}</p>
-                    {!isTauri ? <span>{t("resources.workspace.emptyPersonalSteps")}</span> : null}
                   </div>
                 </div>
               ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, UploadCloud } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -250,7 +250,6 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
               ) : filteredResources.length === 0 ? (
                 <div className={styles.emptyCanvas} role="status">
                   <div className={styles.emptyCanvasInner}>
-                    <UploadCloud aria-hidden size={24} strokeWidth={1.8} />
                     <strong>{t("resources.workspace.emptyRoomTitle")}</strong>
                     <p>{t("resources.workspace.emptyRoomDesc")}</p>
                   </div>
