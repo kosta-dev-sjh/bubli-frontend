@@ -44,6 +44,11 @@ export type PersonalLocalFileEventsSyncResult = {
 
 // 호출 시점의 로케일로 번역하기 위해 상수 대신 함수로 둔다(모듈 로드 시점에 고정되지 않도록).
 const personalScopeMessage = () => translate("local.folder.personalOnly");
+const folderConsentMessage = () => translate("local.folder.consentRequired");
+
+function localFolderConsentBlocked(commandName: typeof TAURI_COMMANDS[keyof typeof TAURI_COMMANDS]) {
+  return blocked("local_folder_consent_required", folderConsentMessage(), commandName);
+}
 
 export async function selectPersonalManagedFolder(
   input?: PersonalManagedFolderSelectInput,
@@ -52,11 +57,15 @@ export async function selectPersonalManagedFolder(
     return unavailable(TAURI_COMMANDS.selectManagedFolder);
   }
 
+  if (!input?.consentGranted) {
+    return localFolderConsentBlocked(TAURI_COMMANDS.selectManagedFolder);
+  }
+
   if (hasProjectRoomScope(input)) {
     return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.selectManagedFolder);
   }
 
-  const { roomId: _roomId, ...tauriInput } = input ?? {};
+  const tauriInput = input?.path ? { path: input.path } : undefined;
 
   return runTauriAdapter(TAURI_COMMANDS.selectManagedFolder, () =>
     tauriCommands.selectManagedFolder(tauriInput),
@@ -80,6 +89,10 @@ export async function scanPersonalManagedFolder(
     return unavailable(TAURI_COMMANDS.scanManagedFolder);
   }
 
+  if (!input.consentGranted) {
+    return localFolderConsentBlocked(TAURI_COMMANDS.scanManagedFolder);
+  }
+
   if (hasProjectRoomScope(input)) {
     return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.scanManagedFolder);
   }
@@ -98,6 +111,10 @@ export async function getPersonalManagedFolderIndexProgress(
     return unavailable(TAURI_COMMANDS.getIndexProgress);
   }
 
+  if (!input.consentGranted) {
+    return localFolderConsentBlocked(TAURI_COMMANDS.getIndexProgress);
+  }
+
   if (hasProjectRoomScope(input)) {
     return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.getIndexProgress);
   }
@@ -114,6 +131,10 @@ export async function setPersonalManagedFolderSync(
 ): Promise<ManagedFolderSyncAdapterResult> {
   if (!isTauriRuntime()) {
     return unavailable(TAURI_COMMANDS.setFolderSync);
+  }
+
+  if (input.enabled && !input.consentGranted) {
+    return localFolderConsentBlocked(TAURI_COMMANDS.setFolderSync);
   }
 
   if (hasProjectRoomScope(input)) {
@@ -156,11 +177,7 @@ export async function watchPersonalManagedFolder(
   }
 
   if (!input.consentGranted) {
-    return blocked(
-      "local_folder_consent_required",
-      translate("local.folder.consentRequired"),
-      TAURI_COMMANDS.watchManagedFolder,
-    );
+    return localFolderConsentBlocked(TAURI_COMMANDS.watchManagedFolder);
   }
 
   if (hasProjectRoomScope(input)) {
@@ -193,11 +210,18 @@ export async function searchPersonalLocalFiles(
     return unavailable(TAURI_COMMANDS.searchLocalFiles);
   }
 
+  if (!input.consentGranted) {
+    return localFolderConsentBlocked(TAURI_COMMANDS.searchLocalFiles);
+  }
+
   if (hasProjectRoomScope(input)) {
     return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.searchLocalFiles);
   }
 
-  const { roomId: _roomId, ...tauriInput } = input;
+  const tauriInput = {
+    limit: input.limit,
+    query: input.query,
+  };
 
   return runTauriAdapter(TAURI_COMMANDS.searchLocalFiles, () =>
     tauriCommands.searchLocalFiles(tauriInput),
@@ -209,6 +233,10 @@ export async function openPersonalLocalFile(
 ): Promise<LocalFileOpenAdapterResult> {
   if (!isTauriRuntime()) {
     return unavailable(TAURI_COMMANDS.openLocalFile);
+  }
+
+  if (!input.consentGranted) {
+    return localFolderConsentBlocked(TAURI_COMMANDS.openLocalFile);
   }
 
   if (hasProjectRoomScope(input)) {
@@ -225,6 +253,10 @@ export async function readPersonalLocalFilePreview(
 ): Promise<LocalFilePreviewAdapterResult> {
   if (!isTauriRuntime()) {
     return unavailable(TAURI_COMMANDS.readLocalFilePreview);
+  }
+
+  if (!input.consentGranted) {
+    return localFolderConsentBlocked(TAURI_COMMANDS.readLocalFilePreview);
   }
 
   if (hasProjectRoomScope(input)) {
@@ -246,6 +278,10 @@ export async function reindexPersonalLocalFile(
 ): Promise<LocalFileReindexAdapterResult> {
   if (!isTauriRuntime()) {
     return unavailable(TAURI_COMMANDS.reindexFile);
+  }
+
+  if (!input.consentGranted) {
+    return localFolderConsentBlocked(TAURI_COMMANDS.reindexFile);
   }
 
   if (hasProjectRoomScope(input)) {
@@ -274,7 +310,7 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
   }
 
   if (!input?.consentGranted) {
-    return blocked("local_folder_consent_required", translate("local.folder.consentRequired"), commandName);
+    return localFolderConsentBlocked(commandName);
   }
 
   const tauriInput = input

@@ -495,7 +495,8 @@ export default function SettingsPage() {
   const selectManagedFolder = useCallback(async () => {
     if (state.kind !== "ready") return;
 
-    const result = await selectPersonalManagedFolder();
+    const consentGranted = Boolean(state.settings.privacy?.localFolderEnabled);
+    const result = await selectPersonalManagedFolder({ consentGranted });
     setLocalActionMessage({ text: localResultMessage(t, result), tone: result.status === "ready" ? "approved" : "warning" });
     if (result.status !== "ready") return;
 
@@ -518,7 +519,7 @@ export default function SettingsPage() {
     }));
 
     setLocalActionMessage({ text: t("settings.msg.folderConnected"), tone: "approved" });
-  }, [state.kind, t, updateReadyState]);
+  }, [state, t, updateReadyState]);
 
   const checkLocalCache = useCallback(async () => {
     const result = await Promise.resolve(checkLocalSqliteIntegrity());
@@ -583,7 +584,8 @@ export default function SettingsPage() {
   }, [desktopRuntime]);
 
   const refreshManagedFolderProgress = useCallback(async (localFolderId: string) => {
-    const result = await getPersonalManagedFolderIndexProgress({ localFolderId });
+    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+    const result = await getPersonalManagedFolderIndexProgress({ consentGranted, localFolderId });
     if (result.status === "ready") {
       setFolderProgress((current) => ({ ...current, [localFolderId]: result.data }));
       setLocalActionMessage({
@@ -598,11 +600,12 @@ export default function SettingsPage() {
     }
 
     setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
-  }, [t]);
+  }, [state, t]);
 
   const toggleManagedFolderSync = useCallback(
     async (folder: ManagedFolderResponse) => {
       const result = await setPersonalManagedFolderSync({
+        consentGranted: Boolean(state.kind === "ready" && state.settings.privacy?.localFolderEnabled),
         enabled: !folder.syncEnabled,
         localFolderId: folder.id,
       });
@@ -633,12 +636,13 @@ export default function SettingsPage() {
       );
       void refreshManagedFolderProgress(folder.id);
     },
-    [refreshManagedFolderProgress, t, updateReadyState],
+    [refreshManagedFolderProgress, state, t, updateReadyState],
   );
 
   const removeManagedFolder = useCallback(
     async (folder: ManagedFolderResponse) => {
-      const result = await removePersonalManagedFolder({ localFolderId: folder.id });
+      const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+      const result = await removePersonalManagedFolder({ consentGranted, localFolderId: folder.id });
       if (result.status !== "ready") {
         setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
         return;
@@ -659,7 +663,7 @@ export default function SettingsPage() {
       setLocalFiles([]);
       setLocalActionMessage({ text: t("settings.msg.folderRemoved"), tone: "approved" });
     },
-    [t, updateReadyState],
+    [state, t, updateReadyState],
   );
 
   const scanManagedFolder = useCallback(async () => {
@@ -669,7 +673,8 @@ export default function SettingsPage() {
       return;
     }
 
-    const result = await scanPersonalManagedFolder({ localFolderId: folderId });
+    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+    const result = await scanPersonalManagedFolder({ consentGranted, localFolderId: folderId });
     if (result.status === "ready") void refreshManagedFolderProgress(folderId);
     setLocalActionMessage(
       result.status === "ready"
@@ -701,7 +706,8 @@ export default function SettingsPage() {
       return;
     }
 
-    const result = await searchPersonalLocalFiles({ limit: 20, query });
+    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+    const result = await searchPersonalLocalFiles({ consentGranted, limit: 20, query });
     if (result.status === "ready") {
       setLocalFiles(result.data.items.map((item) => ({ localFileId: item.localFileId, name: item.name, path: item.path })));
       setLocalActionMessage({ text: t("settings.msg.localFilesFound", { count: result.data.items.length }), tone: "approved" });
@@ -710,20 +716,22 @@ export default function SettingsPage() {
 
     setLocalFiles([]);
     setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
-  }, [folderSearchQuery, t]);
+  }, [folderSearchQuery, state, t]);
 
   const openLocalFile = useCallback(async (localFileId: string) => {
-    const result = await openPersonalLocalFile({ localFileId });
+    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+    const result = await openPersonalLocalFile({ consentGranted, localFileId });
     setLocalActionMessage(
       result.status === "ready"
         ? { text: t("settings.msg.fileOpened", { name: result.data.name }), tone: "approved" }
         : { text: localResultMessage(t, result), tone: "warning" },
     );
-  }, [t]);
+  }, [state, t]);
 
   const reindexLocalFile = useCallback(
     async (localFileId: string) => {
-      const result = await reindexPersonalLocalFile({ localFileId });
+      const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+      const result = await reindexPersonalLocalFile({ consentGranted, localFileId });
       if (result.status !== "ready") {
         setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
         return;
@@ -731,7 +739,7 @@ export default function SettingsPage() {
 
       const query = folderSearchQuery.trim();
       if (query) {
-        void searchPersonalLocalFiles({ limit: 20, query }).then((searchResult) => {
+        void searchPersonalLocalFiles({ consentGranted, limit: 20, query }).then((searchResult) => {
           if (searchResult.status !== "ready") return;
           setLocalFiles(
             searchResult.data.items.map((item) => ({
@@ -753,7 +761,7 @@ export default function SettingsPage() {
             },
       );
     },
-    [folderSearchQuery, t],
+    [folderSearchQuery, state, t],
   );
 
   useEffect(() => {
@@ -769,7 +777,8 @@ export default function SettingsPage() {
       const query = folderSearchQuery.trim();
       if (!query) return;
 
-      void searchPersonalLocalFiles({ limit: 20, query }).then((result) => {
+      const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+      void searchPersonalLocalFiles({ consentGranted, limit: 20, query }).then((result) => {
         if (disposed || result.status !== "ready") return;
         setLocalFiles(result.data.items.map((item) => ({ localFileId: item.localFileId, name: item.name, path: item.path })));
       });
@@ -787,7 +796,7 @@ export default function SettingsPage() {
       disposed = true;
       unlisten?.();
     };
-  }, [desktopRuntime, folderSearchQuery]);
+  }, [desktopRuntime, folderSearchQuery, state]);
 
   const readActivity = useCallback(async () => {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
