@@ -6,7 +6,7 @@ import type { LocalAdapterSmokeResult } from "@/types/local";
 
 export async function smokeLocalAdapterContracts(): Promise<LocalAdapterSmokeResult> {
   const [folderSearch, outbox] = await Promise.all([
-    searchPersonalLocalFiles({ limit: 1, query: "" }),
+    searchPersonalLocalFiles({ consentGranted: false, limit: 1, query: "" }),
     getLocalSyncOutboxSummary(),
   ]);
 
