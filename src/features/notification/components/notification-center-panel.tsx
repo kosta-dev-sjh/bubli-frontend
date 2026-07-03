@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, BellRing, CalendarClock, CheckCircle2, EyeOff, MessageCircle, Pin, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Bell, BellRing, CheckCircle2, EyeOff, FileText, MessageCircle, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -8,14 +9,17 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import { notificationApi } from "../api/notificationApi";
+import type { NotificationResponse, NotificationStatus } from "@/types/api/notification";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
-type NotificationKind = "todo" | "agent" | "communication" | "schedule";
+type NotificationKind = "agent" | "communication" | "resource" | "system";
 type NotificationState = "unread" | "read" | "dismissed";
 
 type NotificationItem = {
   description: string;
+  id: string;
   kind: NotificationKind;
   originLabel: string;
   projectRoom: string;
@@ -24,52 +28,11 @@ type NotificationItem = {
   time: string;
 };
 
-function buildNotifications(t: TranslateFn): NotificationItem[] {
-  return [
-    {
-      description: t("notification.center.sample.agent.desc"),
-      kind: "agent",
-      originLabel: t("notification.center.sample.agent.origin"),
-      projectRoom: t("notification.center.sample.agent.room"),
-      state: "unread",
-      time: t("notification.center.sample.agent.time"),
-      title: t("notification.center.sample.agent.title"),
-    },
-    {
-      description: t("notification.center.sample.todo.desc"),
-      kind: "todo",
-      originLabel: t("notification.center.sample.todo.origin"),
-      projectRoom: t("notification.center.sample.todo.room"),
-      state: "unread",
-      time: t("notification.center.sample.todo.time"),
-      title: t("notification.center.sample.todo.title"),
-    },
-    {
-      description: t("notification.center.sample.mention.desc"),
-      kind: "communication",
-      originLabel: t("notification.center.sample.mention.origin"),
-      projectRoom: t("notification.center.sample.mention.room"),
-      state: "read",
-      time: t("notification.center.sample.mention.time"),
-      title: t("notification.center.sample.mention.title"),
-    },
-    {
-      description: t("notification.center.sample.schedule.desc"),
-      kind: "schedule",
-      originLabel: t("notification.center.sample.schedule.origin"),
-      projectRoom: t("notification.center.sample.schedule.room"),
-      state: "dismissed",
-      time: t("notification.center.sample.schedule.time"),
-      title: t("notification.center.sample.schedule.title"),
-    },
-  ];
-}
-
-const kindMeta: Record<NotificationKind, { icon: typeof Bell; labelKey: MessageKey; tone: "todo" | "agent" | "communication" | "warning" }> = {
+const kindMeta: Record<NotificationKind, { icon: typeof Bell; labelKey: MessageKey; tone: "agent" | "communication" | "memo" | "warning" }> = {
   agent: { icon: Sparkles, labelKey: "notification.kind.agent", tone: "agent" },
   communication: { icon: MessageCircle, labelKey: "notification.kind.communication", tone: "communication" },
-  schedule: { icon: CalendarClock, labelKey: "notification.kind.schedule", tone: "warning" },
-  todo: { icon: CheckCircle2, labelKey: "notification.kind.todo", tone: "todo" },
+  resource: { icon: FileText, labelKey: "notification.kind.resource", tone: "memo" },
+  system: { icon: Bell, labelKey: "notification.kind.system", tone: "warning" },
 };
 
 const stateCopy: Record<NotificationState, { labelKey: MessageKey; tone: "neutral" | "pending" | "success" }> = {
@@ -78,11 +41,58 @@ const stateCopy: Record<NotificationState, { labelKey: MessageKey; tone: "neutra
   unread: { labelKey: "notification.state.unread", tone: "pending" },
 };
 
-function NotificationRow({ item }: { item: NotificationItem }) {
+type NotificationCenterPanelProps = {
+  autoLoad?: boolean;
+  initialNotifications?: NotificationResponse[];
+};
+
+function toNotificationKind(sourceType: NotificationResponse["sourceType"]): NotificationKind {
+  if (sourceType === "AGENT") return "agent";
+  if (sourceType === "MESSAGE" || sourceType === "COMMENT") return "communication";
+  if (sourceType === "RESOURCE") return "resource";
+  return "system";
+}
+
+function toNotificationState(status: NotificationStatus): NotificationState {
+  if (status === "READ") return "read";
+  if (status === "ARCHIVED") return "dismissed";
+  return "unread";
+}
+
+function toNotificationItem(t: TranslateFn, notification: NotificationResponse): NotificationItem {
+  const createdAt = new Date(notification.createdAt);
+  const time = Number.isNaN(createdAt.getTime()) ? t("notification.center.timeFallback") : createdAt.toLocaleString();
+  const sourceType = notification.sourceType ?? "SYSTEM";
+
+  return {
+    description: notification.body?.trim() || t("notification.center.bodyFallback"),
+    id: notification.id,
+    kind: toNotificationKind(notification.sourceType),
+    originLabel: notification.sourceId?.trim() || t("notification.center.sourceType", { type: sourceType }),
+    projectRoom: t("notification.center.serverQueue"),
+    state: toNotificationState(notification.status),
+    time,
+    title: notification.title.trim() || t("notification.center.titleFallback"),
+  };
+}
+
+function NotificationRow({
+  item,
+  onArchive,
+  onMarkRead,
+  pendingAction,
+}: {
+  item: NotificationItem;
+  onArchive: (item: NotificationItem) => void;
+  onMarkRead: (item: NotificationItem) => void;
+  pendingAction: "archive" | "read" | null;
+}) {
   const { t } = useI18n();
   const meta = kindMeta[item.kind];
   const state = stateCopy[item.state];
   const Icon = meta.icon;
+  const archived = item.state === "dismissed";
+  const read = item.state === "read" || archived;
 
   return (
     <article className="notification-row">
@@ -105,11 +115,25 @@ function NotificationRow({ item }: { item: NotificationItem }) {
         <footer className="notification-row__footer">
           <span>{t("notification.center.linkedItem", { label: item.originLabel })}</span>
           <div>
-            <Button icon={<Pin size={14} />} size="sm" variant="ghost">
-              {t("notification.center.pin")}
+            <Button
+              disabled={read}
+              icon={<CheckCircle2 size={14} />}
+              loading={pendingAction === "read"}
+              onClick={() => onMarkRead(item)}
+              size="sm"
+              variant="ghost"
+            >
+              {t("notification.center.markRead")}
             </Button>
-            <Button icon={<EyeOff size={14} />} size="sm" variant="quiet">
-              {t("notification.center.hide")}
+            <Button
+              disabled={archived}
+              icon={<EyeOff size={14} />}
+              loading={pendingAction === "archive"}
+              onClick={() => onArchive(item)}
+              size="sm"
+              variant="quiet"
+            >
+              {t("notification.center.archive")}
             </Button>
           </div>
         </footer>
@@ -118,10 +142,106 @@ function NotificationRow({ item }: { item: NotificationItem }) {
   );
 }
 
-export function NotificationCenterPanel() {
+export function NotificationCenterPanel({ autoLoad = true, initialNotifications = [] }: NotificationCenterPanelProps = {}) {
   const { t } = useI18n();
-  const notifications = buildNotifications(t);
-  const unreadCount = notifications.filter((item) => item.state === "unread").length;
+  const [notifications, setNotifications] = useState<NotificationResponse[]>(() => initialNotifications);
+  const [isLoading, setIsLoading] = useState(autoLoad);
+  const [hasLoadError, setHasLoadError] = useState(false);
+  const [pendingItem, setPendingItem] = useState<{ action: "archive" | "read"; id: string } | null>(null);
+
+  useEffect(() => {
+    if (!autoLoad) return;
+
+    let active = true;
+
+    notificationApi
+      .list({ size: 20 })
+      .then((response) => {
+        if (!active) return;
+        setNotifications(response.items);
+      })
+      .catch(() => {
+        if (!active) return;
+        setHasLoadError(true);
+        setNotifications([]);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [autoLoad]);
+
+  const notificationItems = useMemo(
+    () =>
+      [...notifications]
+        .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+        .map((notification) => toNotificationItem(t, notification)),
+    [notifications, t],
+  );
+  const unreadCount = notifications.filter((item) => item.status === "UNREAD").length;
+  const replaceNotification = useCallback((id: string, nextStatus: NotificationStatus) => {
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.id === id
+          ? {
+              ...notification,
+              readAt: nextStatus === "READ" ? new Date().toISOString() : notification.readAt,
+              status: nextStatus,
+            }
+          : notification,
+      ),
+    );
+  }, []);
+
+  const handleMarkRead = useCallback(
+    async (item: NotificationItem) => {
+      if (item.state !== "unread") return;
+
+      setPendingItem({ action: "read", id: item.id });
+      replaceNotification(item.id, "READ");
+
+      if (!autoLoad) {
+        setPendingItem(null);
+        return;
+      }
+
+      try {
+        await notificationApi.markRead(item.id);
+      } catch {
+        replaceNotification(item.id, "UNREAD");
+      } finally {
+        setPendingItem(null);
+      }
+    },
+    [autoLoad, replaceNotification],
+  );
+
+  const handleArchive = useCallback(
+    async (item: NotificationItem) => {
+      if (item.state === "dismissed") return;
+
+      const previous = notifications.find((notification) => notification.id === item.id)?.status ?? "UNREAD";
+      setPendingItem({ action: "archive", id: item.id });
+      replaceNotification(item.id, "ARCHIVED");
+
+      if (!autoLoad) {
+        setPendingItem(null);
+        return;
+      }
+
+      try {
+        await notificationApi.archive(item.id);
+      } catch {
+        replaceNotification(item.id, previous);
+      } finally {
+        setPendingItem(null);
+      }
+    },
+    [autoLoad, notifications, replaceNotification],
+  );
 
   return (
     <section className="notification-center" aria-label={t("notification.center.sectionAria")}>
@@ -139,7 +259,7 @@ export function NotificationCenterPanel() {
         <div className="notification-center__summary" aria-label={t("notification.center.summaryAria")}>
           <strong>{unreadCount}</strong>
           <span>{t("notification.center.newToCheck")}</span>
-          <p>{t("notification.center.summaryDesc")}</p>
+          <p>{hasLoadError ? t("notification.center.loadFailed") : t("notification.center.summaryDesc")}</p>
         </div>
       </GlassPanel>
 
@@ -150,13 +270,23 @@ export function NotificationCenterPanel() {
             <div>
               <Chip selected>{t("notification.center.filterAll")}</Chip>
               <Chip>{t("notification.center.filterUnread")}</Chip>
-              <Chip>{t("notification.center.filterPinned")}</Chip>
+              <Chip>{t("notification.center.filterArchived")}</Chip>
             </div>
           </div>
           <div className="notification-center__items">
-            {notifications.map((item) => (
-              <NotificationRow item={item} key={`${item.originLabel}-${item.title}`} />
-            ))}
+            {notificationItems.length > 0 ? (
+              notificationItems.map((item) => (
+                <NotificationRow
+                  item={item}
+                  key={item.id}
+                  onArchive={handleArchive}
+                  onMarkRead={handleMarkRead}
+                  pendingAction={pendingItem?.id === item.id ? pendingItem.action : null}
+                />
+              ))
+            ) : (
+              <p>{isLoading ? t("notification.center.loading") : t("notification.center.empty")}</p>
+            )}
           </div>
         </GlassPanel>
 
