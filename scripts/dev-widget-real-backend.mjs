@@ -161,6 +161,34 @@ async function smokeBackend(accessToken) {
   const voiceRoomLeft = await apiPatch(`/api/voice/rooms/${voiceRoom.id}/leave`, headers, {});
   assert(voiceRoomLeft.id === voiceRoom.id, "voice leave did not return the same voice room");
 
+  const timeLog = await apiPost("/api/time-logs/start", headers, {
+    idempotencyKey: `codex-tauri-timer-smoke-${Date.now()}`,
+    roomId: SEED_ROOM_ID,
+    timerType: "WORK",
+  });
+  assert(timeLog.status === "RUNNING", "timer start did not return RUNNING status");
+  assert(timeLog.roomId === SEED_ROOM_ID, "timer start did not return the seeded room id");
+  assert(timeLog.timerType === "WORK", "timer start did not return WORK timer type");
+
+  const timerDashboard = await apiGet("/api/dashboard/work", headers);
+  assert(timerDashboard.runningTimer?.id === timeLog.id, "dashboard work did not include the running smoke timer");
+  const timerWidgetSummary = await apiGet("/api/widget/summary", headers);
+  assert(timerWidgetSummary.runningTimer?.id === timeLog.id, "widget summary did not include the running smoke timer");
+
+  const heartbeatTimer = await apiPatch(`/api/time-logs/${timeLog.id}/heartbeat`, headers, {});
+  assert(heartbeatTimer.status === "RUNNING", "timer heartbeat did not keep the timer RUNNING");
+  assert(heartbeatTimer.lastHeartbeatAt, "timer heartbeat did not return lastHeartbeatAt");
+
+  const pausedTimer = await apiPatch(`/api/time-logs/${timeLog.id}/pause`, headers, {});
+  assert(pausedTimer.status === "PAUSED", "timer pause did not return PAUSED status");
+
+  const resumedTimer = await apiPatch(`/api/time-logs/${timeLog.id}/resume`, headers, {});
+  assert(resumedTimer.status === "RUNNING", "timer resume did not return RUNNING status");
+
+  const stoppedTimer = await apiPatch(`/api/time-logs/${timeLog.id}/stop`, headers, {});
+  assert(stoppedTimer.status === "ENDED", "timer stop did not return ENDED status");
+  assert(stoppedTimer.endedAt, "timer stop did not return endedAt");
+
   const todoSetting = settings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
   assert(todoSetting?.id, "widget settings did not include a TODO bubble setting id");
 
@@ -341,7 +369,7 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 
@@ -493,6 +521,13 @@ VALUES
 ('${SEED_USER_ID}', 'ACTIVITY_CONTEXT', true, now()),
 ('${SEED_USER_ID}', 'MANAGED_FOLDER', true, now())
 ON CONFLICT (user_id, consent_type) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now();
+
+UPDATE time_logs
+SET status = 'ENDED',
+    ended_at = COALESCE(ended_at, now()),
+    updated_at = now()
+WHERE user_id = '${SEED_USER_ID}'
+  AND status IN ('RUNNING', 'PAUSED', 'NEEDS_RECOVERY');
 
 DELETE FROM voice_participants
 WHERE voice_room_id IN (SELECT id FROM voice_rooms WHERE room_id = '${SEED_ROOM_ID}');
