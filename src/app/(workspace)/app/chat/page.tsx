@@ -336,6 +336,7 @@ function ChatPageContent() {
   const [selectedAttachmentName, setSelectedAttachmentName] = useState<string | null>(null);
   const [emoticonOpen, setEmoticonOpen] = useState(false);
   const [friendAddOpen, setFriendAddOpen] = useState(false);
+  const [friendsOpen, setFriendsOpen] = useState(false);
   const [newRoomPickerOpen, setNewRoomPickerOpen] = useState(false);
   const [groupRoomName, setGroupRoomName] = useState("");
   const [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState<string[]>([]);
@@ -540,6 +541,16 @@ function ChatPageContent() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadSocial]);
+
+  useEffect(() => {
+    if (roomsState.kind !== "ready" || !queryRoomId) return;
+    const hasChat = roomsState.rooms.some((r) => r.chatType === "ROOM" && r.roomId === queryRoomId);
+    if (hasChat) return;
+    void chatApi.createProjectRoomChatRoom({ roomId: queryRoomId }).then((room) => {
+      setRoomsState({ kind: "ready", rooms: [room, ...roomsState.rooms.filter((r) => r.id !== room.id)] });
+      setSelectedChatRoomId(room.id);
+    });
+  }, [roomsState, queryRoomId]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -1019,7 +1030,7 @@ function ChatPageContent() {
       setSelectedAttachmentName(null);
       setEmoticonOpen(false);
     } catch {
-      setMessagesState({ kind: "offline" });
+      setAgentCommandNotice(t("chat.notice.sendFailed"));
     } finally {
       setSending(false);
     }
@@ -1031,14 +1042,6 @@ function ChatPageContent() {
         <div>
           <h1 id="chat-title">{t("chat.title")}</h1>
         </div>
-        <nav className="workspace-route__mode-tabs" aria-label={t("chat.tabs.aria")}>
-          <Link className={queryMode !== "direct" ? "is-active" : ""} href={queryRoomId ? `/app/chat?roomId=${queryRoomId}&mode=room` : "/app/chat?mode=room"}>
-            {t("chat.tabs.projectRoom")}
-          </Link>
-          <Link className={queryMode === "direct" ? "is-active" : ""} href="/app/chat?mode=direct">
-            {t("chat.tabs.direct")}
-          </Link>
-        </nav>
       </header>
 
       {roomsState.kind === "loading" ? <GlassPanel className="workspace-route__panel">{t("chat.panel.loading")}</GlassPanel> : null}
@@ -1092,52 +1095,34 @@ function ChatPageContent() {
         </section>
       ) : null}
 
+      <nav className="workspace-route__chat-mode-tabs" aria-label={t("chat.tabs.aria")}>
+        <Link className={queryMode !== "direct" ? "is-active" : ""} href={queryRoomId ? `/app/chat?roomId=${queryRoomId}&mode=room` : "/app/chat?mode=room"}>
+          {t("chat.tabs.projectRoom")}
+        </Link>
+        <Link className={queryMode === "direct" ? "is-active" : ""} href="/app/chat?mode=direct">
+          {t("chat.tabs.direct")}
+        </Link>
+      </nav>
+
       {roomsState.kind === "ready" ? (
         <div className="workspace-route__chat-quick-actions" aria-label={t("chat.quick.aria")}>
-          <button
-            className="workspace-route__quick-button"
-            onClick={() => {
-              if (isProjectRoomMode) {
-                void createProjectChatRoom();
-                return;
-              }
-              setRoomCreateNotice(null);
-              setNewRoomPickerOpen((open) => !open);
-              setFriendAddOpen(false);
-            }}
-            type="button"
-          >
-            {t("chat.quick.create")}
-          </button>
+          {!isProjectRoomMode ? (
+            <button
+              className="workspace-route__quick-button"
+              onClick={() => { setRoomCreateNotice(null); setNewRoomPickerOpen((open) => !open); }}
+              type="button"
+            >
+              {t("chat.quick.create")}
+            </button>
+          ) : null}
           {roomCreateNotice ? <span className="workspace-route__pending">{roomCreateNotice}</span> : null}
-          <button className="workspace-route__quick-button" disabled={!myBubliId} onClick={() => void copyMyBubliId()} type="button">
-            <Copy aria-hidden size={15} strokeWidth={2} />
-            {copiedBubliId ? t("chat.quick.idCopied") : t("chat.quick.copyId")}
-          </button>
           <button
             className="workspace-route__quick-button"
-            onClick={() => {
-              setFriendAddOpen(true);
-              window.setTimeout(() => {
-                friendSearchInputRef.current?.focus();
-                friendSearchInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-              }, 0);
-            }}
-            type="button"
-          >
-            <UserPlus aria-hidden size={15} strokeWidth={2} />
-            {t("chat.quick.addFriend")}
-          </button>
-          <button
-            className="workspace-route__quick-button"
-            disabled={!selectedProjectRoomId}
-            onClick={() => {
-              friendListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
+            onClick={() => { setFriendsOpen(true); setFriendAddOpen(false); }}
             type="button"
           >
             <UsersRound aria-hidden size={15} strokeWidth={2} />
-            {t("chat.quick.inviteCurrentRoom")}
+            {t("chat.quick.manageFriends")}
           </button>
         </div>
       ) : null}
@@ -1195,72 +1180,6 @@ function ChatPageContent() {
                 ) : null}
               </div>
             </div>
-            {newRoomPickerOpen ? (
-              <div className="workspace-route__new-room-panel" aria-label={t("chat.newRoom.aria")}>
-                <div>
-                  <strong>{t("chat.newRoom.title")}</strong>
-                  <span>{t("chat.newRoom.subtitle")}</span>
-                </div>
-                {socialState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.newRoom.friendsLoading")}</span> : null}
-                {socialState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.newRoom.friendsOffline")}</span> : null}
-                {socialState.kind === "ready" && socialState.friends.length === 0 ? (
-                  <button
-                    className="workspace-route__quick-button"
-                    onClick={() => {
-                      setFriendAddOpen(true);
-                      window.setTimeout(() => friendSearchInputRef.current?.focus(), 0);
-                    }}
-                    type="button"
-                  >
-                    {t("chat.newRoom.addFriend")}
-                  </button>
-                ) : null}
-                {socialState.kind === "ready" && socialState.friends.length > 0 ? (
-                  <>
-                    <label className="workspace-route__group-name-field" htmlFor="group-room-name">
-                      <span>{t("chat.newRoom.groupName")}</span>
-                      <input
-                        id="group-room-name"
-                        onChange={(event) => setGroupRoomName(event.target.value)}
-                        placeholder={t("chat.newRoom.groupNamePlaceholder")}
-                        value={groupRoomName}
-                      />
-                    </label>
-                    <div className="workspace-route__new-room-friends">
-                      {socialState.friends.map((friend) => {
-                        const selected = selectedGroupMemberIds.includes(friend.friendUserId);
-
-                        return (
-                          <div className="workspace-route__friend-row workspace-route__group-friend-row" key={friend.friendUserId}>
-                            <button aria-pressed={selected} className="workspace-route__group-select" onClick={() => toggleGroupMember(friend.friendUserId)} type="button">
-                              {selected ? <Check aria-hidden size={14} strokeWidth={2.2} /> : initialOf(friend.name)}
-                            </button>
-                            <div>
-                              <strong>{friend.name}</strong>
-                              <small>{friend.bubliId}</small>
-                            </div>
-                            <div className="workspace-route__friend-actions">
-                              <button onClick={() => void openDirectRoom(friend)} type="button">
-                                {t("chat.newRoom.direct")}
-                              </button>
-                              <button onClick={() => toggleGroupMember(friend.friendUserId)} type="button">
-                                {selected ? t("chat.newRoom.deselect") : t("chat.newRoom.selectForGroup")}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="workspace-route__group-create-actions">
-                      <span>{t("chat.newRoom.selectedCount", { count: selectedGroupFriendCount })}</span>
-                      <Button disabled={selectedGroupFriendCount === 0 || sending} loading={sending} onClick={() => void createGroupRoom()} type="button" variant="primary">
-                        {t("chat.newRoom.createGroup")}
-                      </Button>
-                    </div>
-                  </>
-                ) : null}
-              </div>
-            ) : null}
             {selectedRoom?.chatType === "ROOM" ? (
               <button
                 aria-expanded={voiceExpanded}
@@ -1269,7 +1188,7 @@ function ChatPageContent() {
                 type="button"
               >
                 <Phone size={15} strokeWidth={2} aria-hidden="true" />
-                <span>{voiceState.kind === "ready" ? t("chat.voice.open") : t("chat.voice.waiting")}</span>
+                <span>{activeVoiceRoom ? t("chat.voice.open") : t("chat.voice.waiting")}</span>
                 <span className="workspace-route__voice-stack" aria-label={t("chat.voice.participantsAria", { count: voiceParticipants.length })}>
                   {voiceParticipants.slice(0, 3).map((participant) => (
                     <i data-status={participant.status.toLowerCase()} key={participant.userId}>
@@ -1280,6 +1199,54 @@ function ChatPageContent() {
               </button>
             ) : null}
             {selectedRoom?.chatType === "ROOM" && voiceState.kind === "blocked" ? <div className="workspace-route__voice-status workspace-route__voice-status--blocked">{voiceState.message}</div> : null}
+            {selectedRoom?.chatType === "ROOM" && (voiceExpanded || activeVoiceRoom) ? (
+              <div className="workspace-route__voice-inline">
+                <div className="workspace-route__voice-controls" aria-label={t("chat.voiceCard.actionsAria")}>
+                  <button disabled={!activeVoiceRoom || voiceAction === "token"} onClick={() => void requestVoiceToken()} type="button">
+                    <KeyRound aria-hidden size={14} strokeWidth={2} />
+                    {voiceAction === "token" ? t("chat.voiceCard.receiving") : t("chat.voiceCard.joinToken")}
+                  </button>
+                  {isInVoice ? (
+                    <button disabled={voiceAction === "mic"} onClick={() => void toggleVoiceMic()} type="button">
+                      {voiceMicMuted ? <Mic aria-hidden size={14} strokeWidth={2} /> : <MicOff aria-hidden size={14} strokeWidth={2} />}
+                      {voiceAction === "mic" ? t("chat.voiceCard.changing") : voiceMicMuted ? t("chat.voiceCard.micOn") : t("chat.voiceCard.micOff")}
+                    </button>
+                  ) : null}
+                  {isInVoice ? (
+                    <button disabled={voiceAction === "leave"} onClick={() => void leaveVoice()} type="button">
+                      <LogOut aria-hidden size={14} strokeWidth={2} />
+                      {voiceAction === "leave" ? t("chat.voiceCard.leaving") : t("chat.voiceCard.leave")}
+                    </button>
+                  ) : null}
+                  {isVoiceCreator ? (
+                    <button disabled={voiceAction === "end"} onClick={() => void endVoice()} type="button">
+                      <Square aria-hidden size={14} strokeWidth={2} />
+                      {voiceAction === "end" ? t("chat.voiceCard.ending") : t("chat.voiceCard.end")}
+                    </button>
+                  ) : null}
+                </div>
+                {voiceTokenInfo ? (
+                  <div className="workspace-route__voice-note">
+                    <strong>{t("chat.voiceCard.tokenReady")}</strong>
+                    <span>{t("chat.voiceCard.tokenUntil", { url: voiceTokenInfo.serverUrl, time: compactDateTime(voiceTokenInfo.expiresAt) })}</span>
+                  </div>
+                ) : null}
+                {voiceNotice ? <div className="workspace-route__voice-note">{voiceNotice}</div> : null}
+                {voiceParticipants.length > 0 ? (
+                  <div className="workspace-route__voice-people">
+                    {voiceParticipants.map((participant, index) => (
+                      <div className="workspace-route__voice-person" key={participant.userId}>
+                        <span data-status={participant.status.toLowerCase()}>{initialOf(participant.userName)}</span>
+                        <div>
+                          <strong>{participant.userName}</strong>
+                          <small>{index === 0 && participant.status === "JOINED" ? t("chat.voiceCard.speaking") : voiceParticipantStatusLabel(t, participant.status)}</small>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {messagesState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.messages.loading")}</span> : null}
             {messagesState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.messages.offline")}</span> : null}
@@ -1366,7 +1333,7 @@ function ChatPageContent() {
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
-                        void sendMessage();
+                        if (!sending) void sendMessage();
                       }
                     }}
                     placeholder={t("chat.composer.placeholder")}
@@ -1421,117 +1388,103 @@ function ChatPageContent() {
             ) : null}
           </GlassPanel>
 
-          <aside className="workspace-route__section workspace-route__chat-social" aria-label={t("chat.social.aria")}>
-            <button
-              aria-expanded={friendAddOpen}
-              className="bubli-button bubli-button--quiet workspace-route__friend-add-control"
-              onClick={() => {
-                setFriendAddOpen((open) => !open);
-                window.setTimeout(() => friendSearchInputRef.current?.focus(), 0);
-              }}
-              type="button"
-            >
-              {t("chat.social.addFriend")}
-            </button>
+        </div>
+      ) : null}
 
-            {friendAddOpen ? (
-              <div className="workspace-route__social-flow" aria-label={t("chat.social.addFlowAria")}>
-                <section className="workspace-route__social-card workspace-route__social-card--code">
-                  <span className="workspace-route__social-kicker">
-                    <AtSign aria-hidden size={14} strokeWidth={2} />
-                    {t("chat.social.myBubliId")}
-                  </span>
-                  <div className="workspace-route__my-code">
-                    <div>
-                      <small>{t("chat.social.forAdding")}</small>
-                      <strong>{myBubliId || t("chat.social.loginToShow")}</strong>
-                    </div>
-                    <button aria-label={t("chat.social.copyMyId")} disabled={!myBubliId} onClick={() => void copyMyBubliId()} type="button">
-                      {copiedBubliId ? <Check aria-hidden size={15} strokeWidth={2.2} /> : <Copy aria-hidden size={15} strokeWidth={2} />}
-                      {copiedBubliId ? t("chat.social.copied") : t("chat.social.copy")}
-                    </button>
-                  </div>
-                </section>
+      {friendsOpen ? (
+        <div className="workspace-route__new-room-overlay" role="dialog" aria-modal="true" aria-label={t("chat.social.aria")}>
+          <button className="workspace-route__new-room-backdrop" onClick={() => setFriendsOpen(false)} type="button" aria-label={t("common.close")} />
+          <div className="workspace-route__new-room-modal workspace-route__friends-modal">
+            <div className="workspace-route__new-room-modal-head">
+              <div>
+                <strong>{t("chat.quick.manageFriends")}</strong>
+                <span>{t("chat.social.subtitle")}</span>
+              </div>
+              <button className="workspace-route__new-room-close" onClick={() => setFriendsOpen(false)} type="button" aria-label={t("common.close")}>
+                <X aria-hidden size={16} strokeWidth={2} />
+              </button>
+            </div>
 
-                <section className="workspace-route__social-card">
-                  <span className="workspace-route__social-kicker">
-                    <UserPlus aria-hidden size={14} strokeWidth={2} />
-                    {t("chat.social.addFriendKicker")}
-                  </span>
-                  <form
-                    className="workspace-route__friend-search"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void searchFriend();
+            {/* 내 ID */}
+            <section className="workspace-route__social-card workspace-route__social-card--code">
+              <span className="workspace-route__social-kicker">
+                <AtSign aria-hidden size={14} strokeWidth={2} />
+                {t("chat.social.myBubliId")}
+              </span>
+              <div className="workspace-route__my-code">
+                <div>
+                  <small>{t("chat.social.forAdding")}</small>
+                  <strong>{myBubliId || t("chat.social.loginToShow")}</strong>
+                </div>
+                <button aria-label={t("chat.social.copyMyId")} disabled={!myBubliId} onClick={() => void copyMyBubliId()} type="button">
+                  {copiedBubliId ? <Check aria-hidden size={15} strokeWidth={2.2} /> : <Copy aria-hidden size={15} strokeWidth={2} />}
+                  {copiedBubliId ? t("chat.social.copied") : t("chat.social.copy")}
+                </button>
+              </div>
+            </section>
+
+            {/* 친구 검색/추가 */}
+            <section className="workspace-route__social-card">
+              <span className="workspace-route__social-kicker">
+                <UserPlus aria-hidden size={14} strokeWidth={2} />
+                {t("chat.social.addFriendKicker")}
+              </span>
+              <form
+                className="workspace-route__friend-search"
+                onSubmit={(event) => { event.preventDefault(); void searchFriend(); }}
+              >
+                <label htmlFor="friend-id-search-modal">{t("chat.social.searchLabel")}</label>
+                <div>
+                  <Search aria-hidden size={16} strokeWidth={2} />
+                  <input
+                    autoComplete="off"
+                    id="friend-id-search-modal"
+                    onChange={(event) => {
+                      setFriendSearchQuery(event.target.value);
+                      if (!event.target.value.trim()) setFriendSearchState({ kind: "idle" });
                     }}
-                  >
-                    <label htmlFor="friend-id-search">{t("chat.social.searchLabel")}</label>
-                    <div>
-                      <Search aria-hidden size={16} strokeWidth={2} />
-                      <input
-                        autoComplete="off"
-                        id="friend-id-search"
-                        onChange={(event) => {
-                          setFriendSearchQuery(event.target.value);
-                          if (!event.target.value.trim()) setFriendSearchState({ kind: "idle" });
-                        }}
-                        placeholder={t("chat.social.searchPlaceholder")}
-                        ref={friendSearchInputRef}
-                        value={friendSearchQuery}
-                      />
-                      <button aria-label={t("chat.social.searchAria")} type="submit">
-                        {t("chat.social.searchCta")}
-                      </button>
-                    </div>
-                  </form>
-                </section>
-              </div>
-            ) : null}
-
-            {friendSearchState.kind === "searching" ? <span className="workspace-route__empty">{t("chat.search.searching")}</span> : null}
-            {friendSearchState.kind === "empty" ? <span className="workspace-route__empty">{t("chat.search.empty")}</span> : null}
-            {friendSearchState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.search.offline")}</span> : null}
-            {friendSearchState.kind === "sent" ? <span className="workspace-route__pending">{t("chat.search.sent", { name: friendSearchState.targetName })}</span> : null}
-            {friendSearchState.kind === "ready"
-              ? friendSearchState.results.slice(0, 3).map((person) => {
-                  const alreadyFriend =
-                    socialState.kind === "ready" && socialState.friends.some((friend) => friend.friendUserId === person.userId || friend.bubliId === person.bubliId);
-
-                  return (
-                    <div className="workspace-route__friend-result" key={person.userId}>
-                      <span aria-hidden="true">{initialOf(person.name)}</span>
-                      <div>
-                        <strong>{person.name}</strong>
-                        <small>{person.bubliId}</small>
+                    placeholder={t("chat.social.searchPlaceholder")}
+                    ref={friendSearchInputRef}
+                    value={friendSearchQuery}
+                  />
+                  <button aria-label={t("chat.social.searchAria")} type="submit">{t("chat.social.searchCta")}</button>
+                </div>
+              </form>
+              {friendSearchState.kind === "searching" ? <span className="workspace-route__empty">{t("chat.search.searching")}</span> : null}
+              {friendSearchState.kind === "empty" ? <span className="workspace-route__empty">{t("chat.search.empty")}</span> : null}
+              {friendSearchState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.search.offline")}</span> : null}
+              {friendSearchState.kind === "sent" ? <span className="workspace-route__pending">{t("chat.search.sent", { name: friendSearchState.targetName })}</span> : null}
+              {friendSearchState.kind === "ready"
+                ? friendSearchState.results.slice(0, 3).map((person) => {
+                    const alreadyFriend = socialState.kind === "ready" && socialState.friends.some((f) => f.friendUserId === person.userId || f.bubliId === person.bubliId);
+                    return (
+                      <div className="workspace-route__friend-result" key={person.userId}>
+                        <span aria-hidden="true">{initialOf(person.name)}</span>
+                        <div><strong>{person.name}</strong><small>{person.bubliId}</small></div>
+                        <button disabled={alreadyFriend} onClick={() => void sendFriendRequest(person)} type="button">
+                          {alreadyFriend ? t("chat.search.alreadyFriend") : t("chat.search.sendRequest")}
+                        </button>
                       </div>
-                      <button disabled={alreadyFriend} onClick={() => void sendFriendRequest(person)} type="button">
-                        {alreadyFriend ? t("chat.search.alreadyFriend") : t("chat.search.sendRequest")}
-                      </button>
-                    </div>
-                  );
-                })
-              : null}
+                    );
+                  })
+                : null}
+            </section>
 
-            <div className="workspace-route__friend-panel" aria-label={t("chat.friends.direct")} ref={friendListRef}>
-              <div className="workspace-route__chat-list-head">
-                <strong>{t("chat.friends.title")}</strong>
-                <span>{friendCount}</span>
-              </div>
+            {/* 친구 목록 */}
+            <section className="workspace-route__social-card">
+              <span className="workspace-route__social-kicker">
+                <UsersRound aria-hidden size={14} strokeWidth={2} />
+                {t("chat.friends.title")} {friendCount > 0 ? `(${friendCount})` : ""}
+              </span>
               {socialState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.friends.loading")}</span> : null}
-              {socialState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.friends.offline")}</span> : null}
               {socialState.kind === "ready" && socialState.friends.length === 0 ? <span className="workspace-route__empty">{t("chat.friends.empty")}</span> : null}
               {socialState.kind === "ready"
-                ? socialState.friends.slice(0, 5).map((friend) => (
+                ? socialState.friends.map((friend) => (
                     <article className="workspace-route__friend-row" key={friend.friendUserId}>
                       <span aria-hidden="true">{initialOf(friend.name)}</span>
-                      <div>
-                        <strong>{friend.name}</strong>
-                        <small>{friend.bubliId}</small>
-                      </div>
+                      <div><strong>{friend.name}</strong><small>{friend.bubliId}</small></div>
                       <div className="workspace-route__friend-actions">
-                        <button onClick={() => void openDirectRoom(friend)} type="button">
-                          {t("chat.friends.direct")}
-                        </button>
+                        <button onClick={() => { void openDirectRoom(friend); setFriendsOpen(false); }} type="button">{t("chat.friends.direct")}</button>
                         {selectedRoom?.chatType === "GROUP" ? (
                           <button disabled={chatRoomInviteState.kind === "sending"} onClick={() => void inviteFriendToChatRoom(friend)} type="button">
                             {chatRoomInviteState.kind === "sending" && chatRoomInviteState.friendName === friend.name ? t("chat.friends.inviting") : t("chat.friends.chatInvite")}
@@ -1547,144 +1500,140 @@ function ChatPageContent() {
                     </article>
                   ))
                 : null}
-              {roomInviteState.kind === "sending" ? <span className="workspace-route__pending">{t("chat.invite.roomSending", { name: roomInviteState.friendName })}</span> : null}
-              {roomInviteState.kind === "sent" ? (
-                <span className="workspace-route__pending">
-                  {t("chat.invite.roomSent", { name: roomInviteState.friendName, room: selectedProjectRoomName ?? t("chat.room.fallbackName") })}
-                </span>
-              ) : null}
-              {roomInviteState.kind === "blocked" ? <span className="workspace-route__empty">{roomInviteState.message}</span> : null}
-              {chatRoomInviteState.kind === "sending" ? <span className="workspace-route__pending">{t("chat.invite.chatSending", { name: chatRoomInviteState.friendName })}</span> : null}
+              {roomInviteState.kind === "sent" ? <span className="workspace-route__pending">{t("chat.invite.roomSent", { name: roomInviteState.friendName, room: selectedProjectRoomName ?? t("chat.room.fallbackName") })}</span> : null}
               {chatRoomInviteState.kind === "sent" ? <span className="workspace-route__pending">{t("chat.invite.chatSent", { name: chatRoomInviteState.friendName })}</span> : null}
-              {chatRoomInviteState.kind === "blocked" ? <span className="workspace-route__empty">{chatRoomInviteState.message}</span> : null}
-              {roomInvitationsState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.invite.listLoading")}</span> : null}
-              {roomInvitationsState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.invite.listOffline")}</span> : null}
-              {pendingRoomInvitations.length > 0 ? (
-                <div className="workspace-route__request-group">
-                  <span>{t("chat.invite.pending", { count: pendingRoomInvitations.length })}</span>
-                  {pendingRoomInvitations.slice(0, 3).map((invitation) => (
-                    <div className="workspace-route__friend-request workspace-route__friend-request--sent" key={invitation.id}>
-                      <div>
-                        <strong>{invitation.inviteeName ?? invitation.inviteeBubliId ?? invitation.inviteeUserId}</strong>
-                        <small>{invitation.inviteeBubliId ?? invitation.role}</small>
-                      </div>
-                      <button disabled={busyInvitationId === invitation.id} onClick={() => void cancelRoomInvitation(invitation)} type="button">
-                        {busyInvitationId === invitation.id ? t("chat.invite.canceling") : t("chat.invite.cancel")}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+            </section>
 
-            <div className="workspace-route__friend-panel" aria-label={t("chat.requests.title")}>
-              <div className="workspace-route__chat-list-head">
-                <strong>{t("chat.requests.title")}</strong>
-                <span>{pendingFriendRequestCount}</span>
-              </div>
-              {socialState.kind === "ready" && pendingFriendRequests.length === 0 ? (
-                <span className="workspace-route__empty">{t("chat.requests.empty")}</span>
-              ) : null}
-              {receivedFriendRequests.length > 0 ? (
-                <div className="workspace-route__request-group">
-                  <span>{t("chat.requests.received", { count: receivedFriendRequests.length })}</span>
-                  {receivedFriendRequests.slice(0, 3).map((request) => (
-                    <div className="workspace-route__friend-request" key={request.id}>
-                      <div>
-                        <strong>{request.requester.name}</strong>
-                        <small>{request.requester.bubliId}</small>
+            {/* 친구 요청 */}
+            {pendingFriendRequestCount > 0 ? (
+              <section className="workspace-route__social-card">
+                <span className="workspace-route__social-kicker">
+                  <Inbox aria-hidden size={14} strokeWidth={2} />
+                  {t("chat.requests.title")} ({pendingFriendRequestCount})
+                </span>
+                {receivedFriendRequests.length > 0 ? (
+                  <div className="workspace-route__request-group">
+                    <span>{t("chat.requests.received", { count: receivedFriendRequests.length })}</span>
+                    {receivedFriendRequests.map((request) => (
+                      <div className="workspace-route__friend-request" key={request.id}>
+                        <div><strong>{request.requester.name}</strong><small>{request.requester.bubliId}</small></div>
+                        <div>
+                          <button onClick={() => void respondFriendRequest(request, "accept")} type="button">{t("chat.requests.accept")}</button>
+                          <button onClick={() => void respondFriendRequest(request, "reject")} type="button">{t("chat.requests.reject")}</button>
+                        </div>
                       </div>
-                      <div>
-                        <button onClick={() => void respondFriendRequest(request, "accept")} type="button">
-                          {t("chat.requests.accept")}
-                        </button>
-                        <button onClick={() => void respondFriendRequest(request, "reject")} type="button">
-                          {t("chat.requests.reject")}
-                        </button>
+                    ))}
+                  </div>
+                ) : null}
+                {sentFriendRequests.length > 0 ? (
+                  <div className="workspace-route__request-group">
+                    <span>{t("chat.requests.sent", { count: sentFriendRequests.length })}</span>
+                    {sentFriendRequests.map((request) => (
+                      <div className="workspace-route__friend-request workspace-route__friend-request--sent" key={request.id}>
+                        <div><strong>{request.receiver.name}</strong><small>{request.receiver.bubliId}</small></div>
+                        <span>{t("chat.requests.waiting")}</span>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              {sentFriendRequests.length > 0 ? (
-                <div className="workspace-route__request-group">
-                  <span>{t("chat.requests.sent", { count: sentFriendRequests.length })}</span>
-                  {sentFriendRequests.slice(0, 3).map((request) => (
-                    <div className="workspace-route__friend-request workspace-route__friend-request--sent" key={request.id}>
-                      <div>
-                        <strong>{request.receiver.name}</strong>
-                        <small>{request.receiver.bubliId}</small>
-                      </div>
-                      <span>{t("chat.requests.waiting")}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
 
-            <div className="workspace-route__voice-card" aria-label={t("chat.voiceCard.aria")}>
-              <div className="workspace-route__chat-list-head">
-                <strong>{t("chat.voiceCard.title")}</strong>
-                <span>{voiceParticipants.length}</span>
+            {/* 프로젝트룸 초대 현황 */}
+            {pendingRoomInvitations.length > 0 ? (
+              <section className="workspace-route__social-card">
+                <span className="workspace-route__social-kicker">
+                  {t("chat.invite.pending", { count: pendingRoomInvitations.length })}
+                </span>
+                {pendingRoomInvitations.map((invitation) => (
+                  <div className="workspace-route__friend-request workspace-route__friend-request--sent" key={invitation.id}>
+                    <div>
+                      <strong>{invitation.inviteeName ?? invitation.inviteeBubliId ?? invitation.inviteeUserId}</strong>
+                      <small>{invitation.inviteeBubliId ?? invitation.role}</small>
+                    </div>
+                    <button disabled={busyInvitationId === invitation.id} onClick={() => void cancelRoomInvitation(invitation)} type="button">
+                      {busyInvitationId === invitation.id ? t("chat.invite.canceling") : t("chat.invite.cancel")}
+                    </button>
+                  </div>
+                ))}
+              </section>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {newRoomPickerOpen ? (
+        <div className="workspace-route__new-room-overlay" role="dialog" aria-modal="true" aria-label={t("chat.newRoom.aria")}>
+          <button className="workspace-route__new-room-backdrop" onClick={() => setNewRoomPickerOpen(false)} type="button" aria-label={t("common.close")} />
+          <div className="workspace-route__new-room-modal">
+            <div className="workspace-route__new-room-modal-head">
+              <div>
+                <strong>{t("chat.newRoom.title")}</strong>
+                <span>{t("chat.newRoom.subtitle")}</span>
               </div>
+              <button className="workspace-route__new-room-close" onClick={() => setNewRoomPickerOpen(false)} type="button" aria-label={t("common.close")}>
+                <X aria-hidden size={16} strokeWidth={2} />
+              </button>
+            </div>
+            {socialState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.newRoom.friendsLoading")}</span> : null}
+            {socialState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.newRoom.friendsOffline")}</span> : null}
+            {socialState.kind === "ready" && socialState.friends.length === 0 ? (
               <button
-                className="workspace-route__voice-card-main"
-                disabled={voiceState.kind === "starting" || Boolean(activeVoiceRoom) || selectedRoom?.chatType !== "ROOM"}
-                onClick={() => void startVoice()}
+                className="workspace-route__quick-button"
+                onClick={() => {
+                  setNewRoomPickerOpen(false);
+                  setFriendAddOpen(true);
+                  window.setTimeout(() => friendSearchInputRef.current?.focus(), 0);
+                }}
                 type="button"
               >
-                <Phone aria-hidden size={17} strokeWidth={2} />
-                <div>
-                  <strong>{selectedRoom?.chatType === "ROOM" ? t("chat.voiceCard.roomVoice") : t("chat.voiceCard.directVoice")}</strong>
-                  <small>{activeVoiceRoom ? t("chat.voiceCard.open") : voiceState.kind === "ready" ? t("chat.voiceCard.ended") : selectedRoom?.chatType === "ROOM" ? t("chat.voiceCard.canStart") : t("chat.voiceCard.priority")}</small>
-                </div>
+                {t("chat.newRoom.addFriend")}
               </button>
-              <div className="workspace-route__voice-controls" aria-label={t("chat.voiceCard.actionsAria")}>
-                <button disabled={!activeVoiceRoom || voiceAction === "token"} onClick={() => void requestVoiceToken()} type="button">
-                  <KeyRound aria-hidden size={14} strokeWidth={2} />
-                  {voiceAction === "token" ? t("chat.voiceCard.receiving") : t("chat.voiceCard.joinToken")}
-                </button>
-                {isInVoice ? (
-                  <button disabled={voiceAction === "mic"} onClick={() => void toggleVoiceMic()} type="button">
-                    {voiceMicMuted ? <Mic aria-hidden size={14} strokeWidth={2} /> : <MicOff aria-hidden size={14} strokeWidth={2} />}
-                    {voiceAction === "mic" ? t("chat.voiceCard.changing") : voiceMicMuted ? t("chat.voiceCard.micOn") : t("chat.voiceCard.micOff")}
-                  </button>
-                ) : null}
-                {isInVoice ? (
-                  <button disabled={voiceAction === "leave"} onClick={() => void leaveVoice()} type="button">
-                    <LogOut aria-hidden size={14} strokeWidth={2} />
-                    {voiceAction === "leave" ? t("chat.voiceCard.leaving") : t("chat.voiceCard.leave")}
-                  </button>
-                ) : null}
-                {isVoiceCreator ? (
-                  <button disabled={voiceAction === "end"} onClick={() => void endVoice()} type="button">
-                    <Square aria-hidden size={14} strokeWidth={2} />
-                    {voiceAction === "end" ? t("chat.voiceCard.ending") : t("chat.voiceCard.end")}
-                  </button>
-                ) : null}
-              </div>
-              {voiceTokenInfo ? (
-                <div className="workspace-route__voice-note">
-                  <strong>{t("chat.voiceCard.tokenReady")}</strong>
-                  <span>{t("chat.voiceCard.tokenUntil", { url: voiceTokenInfo.serverUrl, time: compactDateTime(voiceTokenInfo.expiresAt) })}</span>
-                </div>
-              ) : null}
-              {voiceNotice ? <div className="workspace-route__voice-note">{voiceNotice}</div> : null}
-              {voiceExpanded || voiceState.kind === "ready" ? (
-                <div className="workspace-route__voice-people">
-                  {voiceParticipants.length > 0 ? voiceParticipants.map((participant, index) => (
-                    <div className="workspace-route__voice-person" key={participant.userId}>
-                      <span data-status={participant.status.toLowerCase()}>{initialOf(participant.userName)}</span>
-                      <div>
-                        <strong>{participant.userName}</strong>
-                        <small>{index === 0 && participant.status === "JOINED" ? t("chat.voiceCard.speaking") : voiceParticipantStatusLabel(t, participant.status)}</small>
+            ) : null}
+            {socialState.kind === "ready" && socialState.friends.length > 0 ? (
+              <>
+                <label className="workspace-route__group-name-field" htmlFor="group-room-name">
+                  <span>{t("chat.newRoom.groupName")}</span>
+                  <input
+                    id="group-room-name"
+                    onChange={(event) => setGroupRoomName(event.target.value)}
+                    placeholder={t("chat.newRoom.groupNamePlaceholder")}
+                    value={groupRoomName}
+                  />
+                </label>
+                <div className="workspace-route__new-room-friends">
+                  {socialState.friends.map((friend) => {
+                    const selected = selectedGroupMemberIds.includes(friend.friendUserId);
+                    return (
+                      <div className="workspace-route__friend-row workspace-route__group-friend-row" key={friend.friendUserId}>
+                        <button aria-pressed={selected} className="workspace-route__group-select" onClick={() => toggleGroupMember(friend.friendUserId)} type="button">
+                          {selected ? <Check aria-hidden size={14} strokeWidth={2.2} /> : initialOf(friend.name)}
+                        </button>
+                        <div>
+                          <strong>{friend.name}</strong>
+                          <small>{friend.bubliId}</small>
+                        </div>
+                        <div className="workspace-route__friend-actions">
+                          <button onClick={() => { void openDirectRoom(friend); setNewRoomPickerOpen(false); }} type="button">
+                            {t("chat.newRoom.direct")}
+                          </button>
+                          <button onClick={() => toggleGroupMember(friend.friendUserId)} type="button">
+                            {selected ? t("chat.newRoom.deselect") : t("chat.newRoom.selectForGroup")}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  )) : <span className="workspace-route__empty">{t("chat.voiceCard.noParticipants")}</span>}
+                    );
+                  })}
                 </div>
-              ) : null}
-            </div>
-          </aside>
+                <div className="workspace-route__group-create-actions">
+                  <span>{t("chat.newRoom.selectedCount", { count: selectedGroupFriendCount })}</span>
+                  <Button disabled={selectedGroupFriendCount === 0 || sending} loading={sending} onClick={() => void createGroupRoom()} type="button" variant="primary">
+                    {t("chat.newRoom.createGroup")}
+                  </Button>
+                </div>
+              </>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </section>

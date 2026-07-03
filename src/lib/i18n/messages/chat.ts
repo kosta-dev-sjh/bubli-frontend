@@ -31,6 +31,7 @@ const ko = {
   "chat.quick.copyId": "내 ID 복사",
   "chat.quick.addFriend": "친구 추가",
   "chat.quick.inviteCurrentRoom": "현재 룸 초대",
+  "chat.quick.manageFriends": "친구 관리",
 
   // 대화방 목록
   "chat.list.aria": "대화방",
@@ -111,6 +112,7 @@ const ko = {
 
   // 친구 사이드바
   "chat.social.aria": "친구",
+  "chat.social.subtitle": "친구를 추가하고 프로젝트룸에 초대하세요.",
   "chat.social.addFriend": "친구추가",
   "chat.social.addFlowAria": "친구 추가",
   "chat.social.myBubliId": "내 Bubli ID",
@@ -217,6 +219,7 @@ const ko = {
   "chat.notice.voiceLeaveFailed": "보이스룸에서 나가지 못했습니다.",
   "chat.notice.voiceEnded": "보이스룸을 종료했습니다.",
   "chat.notice.voiceEndFailed": "보이스룸을 종료하지 못했습니다.",
+  "chat.notice.sendFailed": "메시지를 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
   "chat.notice.agentOnlyRoom": "/bubli는 프로젝트룸 대화에서만 사용할 수 있습니다.",
   "chat.notice.agentSending": "에이전트에게 질문을 보내는 중입니다.",
   "chat.notice.agentSent": "에이전트에게 질문을 보냈습니다.",
@@ -758,6 +761,7 @@ const en: Record<Key, string> = {
   "chat.quick.copyId": "Copy my ID",
   "chat.quick.addFriend": "Add friend",
   "chat.quick.inviteCurrentRoom": "Invite to current room",
+  "chat.quick.manageFriends": "Friends",
 
   "chat.list.aria": "Conversations",
   "chat.list.friendChats": "Friend chats",
@@ -828,6 +832,7 @@ const en: Record<Key, string> = {
   "chat.emoticon.wait": "One moment",
 
   "chat.social.aria": "Friends",
+  "chat.social.subtitle": "Add friends and invite them to your project rooms.",
   "chat.social.addFriend": "Add friend",
   "chat.social.addFlowAria": "Add friend",
   "chat.social.myBubliId": "My Bubli ID",
@@ -927,6 +932,7 @@ const en: Record<Key, string> = {
   "chat.notice.voiceLeaveFailed": "Couldn't leave the voice room.",
   "chat.notice.voiceEnded": "Ended the voice room.",
   "chat.notice.voiceEndFailed": "Couldn't end the voice room.",
+  "chat.notice.sendFailed": "Couldn't send the message. Please try again in a moment.",
   "chat.notice.agentOnlyRoom": "/bubli can be used only in project room conversations.",
   "chat.notice.agentSending": "Sending your question to the agent.",
   "chat.notice.agentSent": "Sent your question to the agent.",
@@ -1451,6 +1457,7 @@ const ja: Record<Key, string> = {
   "chat.quick.copyId": "自分のIDをコピー",
   "chat.quick.addFriend": "友だち追加",
   "chat.quick.inviteCurrentRoom": "現在のルームに招待",
+  "chat.quick.manageFriends": "友だち管理",
 
   "chat.list.aria": "会話ルーム",
   "chat.list.friendChats": "友だちとの会話",
@@ -1521,6 +1528,7 @@ const ja: Record<Key, string> = {
   "chat.emoticon.wait": "少々お待ちを",
 
   "chat.social.aria": "友だち",
+  "chat.social.subtitle": "友だちを追加してプロジェクトルームに招待しましょう。",
   "chat.social.addFriend": "友だち追加",
   "chat.social.addFlowAria": "友だち追加",
   "chat.social.myBubliId": "自分のBubli ID",
@@ -1620,6 +1628,7 @@ const ja: Record<Key, string> = {
   "chat.notice.voiceLeaveFailed": "ボイスルームから退出できませんでした。",
   "chat.notice.voiceEnded": "ボイスルームを終了しました。",
   "chat.notice.voiceEndFailed": "ボイスルームを終了できませんでした。",
+  "chat.notice.sendFailed": "メッセージを送れませんでした。しばらくしてから再試行してください。",
   "chat.notice.agentOnlyRoom": "/bubli はプロジェクトルームの会話でのみ使用できます。",
   "chat.notice.agentSending": "エージェントに質問を送信中です。",
   "chat.notice.agentSent": "エージェントに質問を送りました。",
