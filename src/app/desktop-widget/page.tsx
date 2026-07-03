@@ -38,7 +38,7 @@ import { readWidgetSummary } from "@/lib/widget";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import type { TimeLogResponse } from "@/types/api/timer";
-import type { WidgetBubbleType as ApiWidgetBubbleType, WidgetSummaryResponse } from "@/types/api/widget";
+import type { WidgetSummaryResponse } from "@/types/api/widget";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
@@ -51,12 +51,10 @@ const apiBubbleTypeMap: Partial<Record<WidgetBubbleType, BackendWidgetBubbleType
   todo: "TODO",
 };
 
-const apiItemBubbleTypeMap: Record<WidgetBubbleType, ApiWidgetBubbleType> = {
+const apiItemBubbleTypeMap: Partial<Record<WidgetBubbleType, BackendWidgetBubbleType>> = {
   agent: "AGENT",
-  alert: "ALERT",
   chat: "CHAT",
   memo: "MEMO",
-  resource: "RESOURCE",
   schedule: "SCHEDULE",
   timer: "TIMER",
   todo: "TODO",
@@ -1280,18 +1278,28 @@ function DesktopWidgetSurface() {
       }
 
       const itemStateId = item.stateId ?? (isUuid(item.id) ? item.id : null);
-      if (itemStateId) {
-        await widgetApi.updateItemState(itemStateId, {
-          bubbleType: apiItemBubbleTypeMap[activeBubble],
-          itemId: item.id,
-          itemType,
-          state,
-        });
+      const applyLocalState = () => {
         setDisplayBubbles((current) => ({
           ...current,
           [activeBubble]: applyItemStateActionToBubble(current[activeBubble], item.id, state),
         }));
         setItemStateOverrides((current) => ({ ...current, [item.id]: state }));
+      };
+      const backendBubbleType = apiItemBubbleTypeMap[activeBubble];
+
+      if (!backendBubbleType) {
+        applyLocalState();
+        return;
+      }
+
+      if (itemStateId) {
+        await widgetApi.updateItemState(itemStateId, {
+          bubbleType: backendBubbleType,
+          itemId: item.id,
+          itemType,
+          state,
+        });
+        applyLocalState();
       }
     },
     [activeBubble, isTauri],
