@@ -689,9 +689,20 @@ fn position_main_window_on_preferred_monitor(
     let x = origin.x + ((monitor_size.width as i32 - window_width).max(0) / 2);
     let y = origin.y + ((monitor_size.height as i32 - window_height).max(0) / 2);
 
+    #[cfg(target_os = "macos")]
+    let position = Position::Physical(tauri::PhysicalPosition::new(x, y));
+    #[cfg(not(target_os = "macos"))]
+    let position = Position::Logical(LogicalPosition::new(x as f64, y as f64));
+
     window
-        .set_position(Position::Logical(LogicalPosition::new(x as f64, y as f64)))
-        .map_err(|error| error.to_string())
+        .set_position(position)
+        .map_err(|error| error.to_string())?;
+
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+
+    Ok(())
 }
 
 fn widget_keeps_webview_when_hidden(widget: &WidgetWindowState) -> bool {
