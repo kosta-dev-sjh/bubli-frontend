@@ -93,7 +93,7 @@ for (const route of DISALLOWED_ROUTES) {
 
 if (isGitTracked(generatedApiCsvPath)) {
   failures.push(
-    `${generatedApiCsvPath}: generated CSV views must stay untracked. Keep the xlsx/source docs in Git and regenerate CSV locally when needed.`,
+    `${generatedApiCsvPath}: generated CSV views must stay untracked. Keep binary workbook exports local-only and regenerate CSV locally when needed.`,
   );
 }
 
