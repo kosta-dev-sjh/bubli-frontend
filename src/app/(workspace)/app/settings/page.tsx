@@ -16,6 +16,7 @@ import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey, Locale } from "@/lib/i18n";
+import { notifyActivityConsentChanged } from "@/lib/local/activity-auto-capture";
 import { recordCurrentActivityContext } from "@/lib/local/activity-client";
 import {
   backupLocalSqlite,
@@ -466,6 +467,9 @@ export default function SettingsPage() {
           ...ready,
           settings: { ...ready.settings, privacy: saved },
         }));
+        if (key === "activityDetectionEnabled") {
+          notifyActivityConsentChanged(saved.activityDetectionEnabled);
+        }
         if (key === "localFolderEnabled" && saved.localFolderEnabled) {
           void restoreManagedFolderWatchers();
         }
