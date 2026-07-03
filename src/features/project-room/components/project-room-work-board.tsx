@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, GitBranch, KanbanSquare, Pause, X } from "lucide-react";
-import type { CSSProperties, FormEvent } from "react";
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -259,7 +259,6 @@ function ProjectRoomWorkBoardContent({
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(board.tasks[0]?.id ?? null);
   const [viewMode, setViewMode] = useState<"kanban" | "wbs">("wbs");
-  const [wbsDraft, setWbsDraft] = useState({ title: "" });
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [isWbsSettingsOpen, setIsWbsSettingsOpen] = useState(false);
   const [wbsAccentById, setWbsAccentById] = useState<Record<string, string>>(() => createInitialWbsAccentMap(board.wbsItems));
@@ -353,10 +352,6 @@ function ProjectRoomWorkBoardContent({
       })
     : [];
   const activeWbsTitle = selectedWbsId ? wbsTitleById[selectedWbsId] : null;
-  const selectedParentWbs = selectedWbs?.parentId
-    ? wbsItems.find((item) => item.id === selectedWbs.parentId) ?? null
-    : selectedWbs;
-  const selectedCreateParentId = selectedParentWbs?.id ?? null;
   const kanbanColumns = useMemo<KanbanBoardColumn[]>(
     () =>
       columns.map((column) => ({
@@ -564,69 +559,13 @@ function ProjectRoomWorkBoardContent({
     });
   };
 
-  const handleCreateWbs = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const title = wbsDraft.title.trim();
-    if (!title) return;
-
-    const now = new Date().toISOString();
-    const parentId = selectedCreateParentId;
-    const orderNo = wbsItems.filter((item) => (item.parentId ?? null) === parentId).length + 1;
-    const optimistic: WbsItemResponse = {
-      createdAt: now,
-      id: `local-wbs-${now}`,
-      orderNo,
-      parentId,
-      roomId,
-      status: "TODO",
-      title,
-      updatedAt: now,
-    };
-
-    setWbsItems((current) => [...current, optimistic]);
-    if (optimistic.parentId) {
-      setWbsAccentById((current) => ({
-        ...current,
-        [optimistic.id]: current[optimistic.parentId ?? ""] ?? wbsAccentOptions[wbsItems.length % wbsAccentOptions.length].value,
-      }));
-    }
-    setSelectedWbsId(optimistic.id);
-    setIsWbsSettingsOpen(true);
-    setWbsDraft({ title: "" });
-    setSaveNotice(t("room.workBoard.noticeWbsSaving"));
-
-    try {
-      const created = await wbsApi.createItem(roomId, {
-        orderNo: optimistic.orderNo,
-        parentId: optimistic.parentId,
-        title,
-      });
-      setWbsItems((current) => current.map((item) => (item.id === optimistic.id ? created : item)));
-      setWbsAccentById((current) => {
-        const next = { ...current };
-        const color = next[optimistic.id];
-        delete next[optimistic.id];
-        if (created.parentId) {
-          next[created.id] = color ?? next[created.parentId] ?? wbsAccentOptions[0].value;
-        }
-        return next;
-      });
-      setSelectedWbsId(created.id);
-      setIsWbsSettingsOpen(true);
-      setSaveNotice(t("room.workBoard.noticeWbsSaved"));
-    } catch {
-      setSaveNotice(t("room.workBoard.noticeWbsServerPending"));
-    }
-  };
-
-  const handleUpdateWbs = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  // 이름 입력을 벗어나거나 Enter를 누르면 바로 저장한다(별도 저장 버튼 없음).
+  const updateSelectedWbsTitle = async () => {
     if (!selectedWbs) return;
 
     const title = activeWbsEditDraft.title.trim();
     if (!title) return;
+    if (title === selectedWbs.title) return;
 
     const patch = {
       title,
@@ -960,72 +899,51 @@ function ProjectRoomWorkBoardContent({
                 </p>
               ) : null}
               {renderCandidateTray("wbs")}
-              {wbsItems.length > 0 ? (
-                <WbsGanttPanel
-                  onNotice={setSaveNotice}
-                  onOpenSettings={openWbsSettings}
-                  onRangesResolved={handleWbsRangesResolved}
-                  onSelectItem={setSelectedWbsId}
-                  onWbsCreated={(item, temporaryId) => {
-                    setWbsItems((current) => {
-                      if (temporaryId) {
-                        return current.map((entry) => (entry.id === temporaryId ? item : entry));
-                      }
-                      if (current.some((entry) => entry.id === item.id)) return current;
-                      return [...current, item];
-                    });
-                    setWbsAccentById((current) => {
-                      if (temporaryId) {
-                        const next = { ...current };
-                        const color = next[temporaryId];
-                        delete next[temporaryId];
-                        next[item.id] = color ?? (item.parentId ? next[item.parentId] : undefined) ?? wbsAccentOptions[0].value;
-                        return next;
-                      }
-
-                      if (current[item.id]) return current;
-
-                      return {
-                        ...current,
-                        [item.id]: (item.parentId ? current[item.parentId] : undefined) ?? wbsAccentOptions[wbsItems.length % wbsAccentOptions.length].value,
-                      };
-                    });
-                    setSelectedWbsId(item.id);
-                  }}
-                  onWbsDeleted={(id) => {
-                    setWbsItems((current) => current.filter((entry) => entry.id !== id));
-                    if (selectedWbsId === id) {
-                      setSelectedWbsId(null);
-                      setIsWbsSettingsOpen(false);
+              <WbsGanttPanel
+                onNotice={setSaveNotice}
+                onOpenSettings={openWbsSettings}
+                onRangesResolved={handleWbsRangesResolved}
+                onSelectItem={setSelectedWbsId}
+                onWbsCreated={(item, temporaryId) => {
+                  setWbsItems((current) => {
+                    if (temporaryId) {
+                      return current.map((entry) => (entry.id === temporaryId ? item : entry));
                     }
-                  }}
-                  onWbsReordered={setWbsItems}
-                  rangeEditRequest={wbsRangeEditRequest}
-                  roomId={roomId}
-                  selectedWbsId={selectedWbsId}
-                  wbsAccentById={wbsAccentById}
-                  wbsItems={wbsItems}
-                />
-              ) : (
-                <form className={cn(styles.wbsCreate, styles.inlineCreate)} onSubmit={handleCreateWbs}>
-                  <div className={styles.wbsFormGrid}>
-                    <label>
-                      <span>{t("room.workBoard.firstParentTask")}</span>
-                      <input
-                        aria-label={t("room.workBoard.wbsNameAria")}
-                        onChange={(event) => setWbsDraft((current) => ({ ...current, title: event.target.value }))}
-                        placeholder={t("room.workBoard.wbsNamePlaceholder")}
-                        value={wbsDraft.title}
-                      />
-                    </label>
-                  </div>
-                  <div className={styles.wbsFormActions}>
-                    <button className={styles.primaryAction} type="submit">
-                      {t("room.workBoard.add")}
-                    </button>
-                  </div>
-                </form>
-              )}
+                    if (current.some((entry) => entry.id === item.id)) return current;
+                    return [...current, item];
+                  });
+                  setWbsAccentById((current) => {
+                    if (temporaryId) {
+                      const next = { ...current };
+                      const color = next[temporaryId];
+                      delete next[temporaryId];
+                      next[item.id] = color ?? (item.parentId ? next[item.parentId] : undefined) ?? wbsAccentOptions[0].value;
+                      return next;
+                    }
+
+                    if (current[item.id]) return current;
+
+                    return {
+                      ...current,
+                      [item.id]: (item.parentId ? current[item.parentId] : undefined) ?? wbsAccentOptions[wbsItems.length % wbsAccentOptions.length].value,
+                    };
+                  });
+                  setSelectedWbsId(item.id);
+                }}
+                onWbsDeleted={(id) => {
+                  setWbsItems((current) => current.filter((entry) => entry.id !== id));
+                  if (selectedWbsId === id) {
+                    setSelectedWbsId(null);
+                    setIsWbsSettingsOpen(false);
+                  }
+                }}
+                onWbsReordered={setWbsItems}
+                rangeEditRequest={wbsRangeEditRequest}
+                roomId={roomId}
+                selectedWbsId={selectedWbsId}
+                wbsAccentById={wbsAccentById}
+                wbsItems={wbsItems}
+              />
             </section>
 
             {isWbsSettingsOpen && selectedWbs ? (
@@ -1074,7 +992,7 @@ function ProjectRoomWorkBoardContent({
               ) : null}
 
               <div className={styles.inspectorForms}>
-                <form className={styles.wbsEditor} onSubmit={handleUpdateWbs}>
+                <div className={styles.wbsEditor}>
                   {selectedWbs ? (
                     <>
                       <div className={styles.wbsFormGrid}>
@@ -1082,7 +1000,16 @@ function ProjectRoomWorkBoardContent({
                           <span>{t("room.workBoard.taskName")}</span>
                           <input
                             aria-label={t("room.workBoard.wbsNameLabel")}
+                            onBlur={() => {
+                              void updateSelectedWbsTitle();
+                            }}
                             onChange={(event) => setWbsEditDraft({ ...activeWbsEditDraft, title: event.target.value })}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                event.currentTarget.blur();
+                              }
+                            }}
                             value={activeWbsEditDraft.title}
                           />
                         </label>
@@ -1144,16 +1071,11 @@ function ProjectRoomWorkBoardContent({
                           </label>
                         </div>
                       </div>
-                      <div className={styles.wbsFormActions}>
-                        <button className={styles.primaryAction} type="submit">
-                          {t("room.workBoard.save")}
-                        </button>
-                      </div>
                     </>
                   ) : (
                     <p className={styles.empty}>{t("room.workBoard.selectRowInGantt")}</p>
                   )}
-                </form>
+                </div>
 
               </div>
             </section>

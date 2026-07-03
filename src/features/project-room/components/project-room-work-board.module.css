@@ -35,7 +35,7 @@
 
 .saveNotice {
   color: var(--work-muted);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 650;
   line-height: 1.4;
   margin-inline-end: 10px;
@@ -76,7 +76,7 @@
   border-radius: 999px;
   color: var(--work-muted);
   display: inline-flex;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 740;
   gap: 8px;
   min-block-size: 30px;
@@ -410,7 +410,7 @@
   color: #5a6772;
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 740;
   min-block-size: 28px;
   padding: 0 10px;
@@ -459,7 +459,7 @@
 
 .periodCell header span {
   color: #8a94a0;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 680;
 }
 
@@ -477,7 +477,7 @@
 
 .periodItems small {
   color: #8a94a0;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
 }
 
@@ -503,7 +503,7 @@
 
 .periodPill small {
   color: #5a6772;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 740;
   line-height: 1.35;
 }
@@ -515,7 +515,7 @@
   border-radius: 14px;
   color: #5a6772;
   display: grid;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   gap: 8px;
   grid-template-columns: 42px 56px minmax(240px, 1.7fr) 82px 54px 76px 50px;
@@ -734,7 +734,7 @@
 .selectedWbs small,
 .trashZone small {
   color: #5a6772;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.4;
   overflow-wrap: normal;
   word-break: keep-all;
@@ -947,7 +947,7 @@
   border-radius: 999px;
   color: #5a6772;
   display: inline-flex;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 740;
   gap: 7px;
   min-block-size: 28px;
@@ -1177,7 +1177,7 @@
 
 .columnHead small {
   color: #8a94a0;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.35;
 }
@@ -1270,7 +1270,7 @@
 
 .cardTop :global(.bubli-status) {
   flex: 0 0 auto;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   min-block-size: 22px;
   padding-inline: 7px;
@@ -1415,7 +1415,7 @@
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
   gap: 4px;
   min-block-size: 28px;

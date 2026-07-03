@@ -476,15 +476,20 @@ export type GanttSidebarItemProgress = {
   total: number;
 };
 
+// 말단 행의 완료 표시 — 체크박스형 상태 인디케이터.
+export type GanttSidebarItemStatusIndicator = {
+  label?: string;
+  state: "done" | "inProgress" | "todo";
+};
+
 export type GanttSidebarItemProps = {
   actions?: ReactNode;
   accentColor?: string;
   feature: GanttFeature;
   indentLevel?: number;
-  kindLabel?: string;
   onSelectItem?: (id: string) => void;
-  parentLabel?: string | null;
   progress?: GanttSidebarItemProgress | null;
+  statusIndicator?: GanttSidebarItemStatusIndicator | null;
   className?: string;
 };
 
@@ -494,10 +499,9 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
   className,
   feature,
   indentLevel = 0,
-  kindLabel,
   onSelectItem,
-  parentLabel,
   progress,
+  statusIndicator,
 }) => {
   const { t } = useI18n();
   const tempEndAt = feature.endAt && isSameDay(feature.startAt, feature.endAt) ? addDays(feature.endAt, 1) : feature.endAt;
@@ -540,9 +544,25 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
         style={{ paddingLeft: "var(--gantt-row-indent)" }}
       >
         <span className="flex min-w-0 items-center gap-1.5">
-          {kindLabel ? (
-            <span className="shrink-0 rounded-full border border-border/50 bg-background/80 px-1.5 py-0.5 text-[12px] font-semibold text-muted-foreground">
-              {kindLabel}
+          {statusIndicator ? (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-200",
+                statusIndicator.state === "done" ? "border-transparent" : "border-border bg-background/80",
+              )}
+              data-roadmap-ui="gantt-status-indicator"
+              data-state={statusIndicator.state}
+              style={statusIndicator.state === "done" ? { backgroundColor: color } : undefined}
+              title={statusIndicator.label}
+            >
+              {statusIndicator.state === "done" ? (
+                <svg fill="none" height="10" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" viewBox="0 0 24 24" width="10">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              ) : statusIndicator.state === "inProgress" ? (
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+              ) : null}
             </span>
           ) : null}
           <span className="truncate font-medium">{feature.name}</span>
@@ -561,13 +581,12 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
                   }}
                 />
               </span>
-              <span className="text-[11px] text-muted-foreground tabular-nums">
+              <span className="text-[13px] text-muted-foreground tabular-nums">
                 {`${progress.done}/${progress.total}`}
               </span>
             </span>
           ) : null}
         </span>
-        {parentLabel ? <span className="truncate text-[12px] text-muted-foreground">{parentLabel}</span> : null}
       </span>
       <p className="pointer-events-none text-muted-foreground">{duration}</p>
       {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}

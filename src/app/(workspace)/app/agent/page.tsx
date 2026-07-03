@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, Download, Eye, Pause, RefreshCw, Sparkles, Wand2, X } from "lucide-react";
+import { Check, ChevronDown, Download, Eye, Pause, RefreshCw, Sparkles, Wand2, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
@@ -86,7 +86,6 @@ const jobStatusLabelKeys: Record<AgentJobStatus, MessageKey> = {
 
 function statusTone(status: AgentSuggestionStatus) {
   if (status === "APPROVED") return "success";
-  if (status === "DRAFT") return "agent";
   if (status === "HELD") return "warning";
   return "neutral";
 }
@@ -100,6 +99,18 @@ function displayText(payload: Record<string, unknown>, fallback: string) {
 
   const firstString = Object.values(payload).find((value): value is string => typeof value === "string" && value.trim().length > 0);
   return firstString ?? fallback;
+}
+
+// 제목과 겹치지 않는 두 번째 설명 문자열(내용 요약)을 찾는다.
+function displaySecondaryText(payload: Record<string, unknown>, title: string) {
+  const secondary = ["summary", "description", "content", "detail", "body", "text"]
+    .map((key) => payload[key])
+    .find(
+      (value): value is string =>
+        typeof value === "string" && value.trim().length > 0 && value.trim() !== title.trim(),
+    );
+
+  return secondary ?? null;
 }
 
 function displayJsonText(value: string, fallback: string) {
@@ -127,18 +138,6 @@ function displayJsonText(value: string, fallback: string) {
   return fallback;
 }
 
-function formatDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-  }).format(date);
-}
-
 function todayDateKey() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -159,6 +158,27 @@ function AgentPageContent() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const selectedRoomId = state.kind === "ready" ? state.selectedRoomId : null;
+
+  // 절대 타임스탬프 대신 상대 날짜 하나만 보여준다(7일 이후는 월·일).
+  const relativeDate = useCallback(
+    (value: string) => {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+
+      const minutes = Math.round((Date.now() - date.getTime()) / 60000);
+      if (minutes < 1) return t("agent.page.dateJustNow");
+      if (minutes < 60) return t("agent.page.dateMinutesAgo", { count: minutes });
+
+      const hours = Math.round(minutes / 60);
+      if (hours < 24) return t("agent.page.dateHoursAgo", { count: hours });
+
+      const days = Math.round(hours / 24);
+      if (days <= 7) return t("agent.page.dateDaysAgo", { count: days });
+
+      return new Intl.DateTimeFormat("ko-KR", { day: "numeric", month: "short" }).format(date);
+    },
+    [t],
+  );
 
   const load = useCallback(async (roomId: string | null) => {
     setNotice(null);
@@ -248,6 +268,7 @@ function AgentPageContent() {
     return () => window.clearTimeout(timeoutId);
   }, [load, searchParams]);
 
+  // 숫자는 최대 3개만 — 후보 수, 하루 정리, 생성 문서.
   const counts = useMemo(() => {
     if (state.kind !== "ready") return null;
 
@@ -255,12 +276,6 @@ function AgentPageContent() {
       { label: state.selectedRoomId ? t("agent.page.countRoomCandidates") : t("agent.page.countPersonalCandidates"), value: state.suggestions.length },
       { label: t("agent.page.countDailySummary"), value: state.dailySummaries.length },
       { label: t("agent.page.countGeneratedDocuments"), value: state.generatedDocuments.length },
-      ...(state.selectedRoomId
-        ? [
-            { label: t("agent.page.confirmedTitle"), value: state.confirmedRequirements.length },
-            { label: t("agent.page.countRoomMemory"), value: state.roomMemorySummaries.length },
-          ]
-        : []),
     ];
   }, [state, t]);
 
@@ -510,9 +525,9 @@ function AgentPageContent() {
           ) : null}
 
           {counts ? (
-            <div className="workspace-route__summary" aria-label={t("agent.page.summaryAria")}>
+            <div className={styles.counts} aria-label={t("agent.page.summaryAria")}>
               {counts.map((item) => (
-                <div key={item.label}>
+                <div className={styles.countChip} key={item.label}>
                   <span>{item.label}</span>
                   <strong>{item.value}</strong>
                 </div>
@@ -560,50 +575,87 @@ function AgentPageContent() {
                 </div>
               </GlassPanel>
             ) : (
-              <div className="workspace-route__list">
+              <div className={styles.groupList}>
                 {suggestionGroups.map((group) => (
-                  <Fragment key={group.key}>
+                  <div className={styles.group} key={group.key}>
                     <div className={styles.groupHead}>
                       <span>{group.label}</span>
                       <span className={styles.groupCount}>{t("agent.page.suggestionsCount", { count: group.items.length })}</span>
                     </div>
-                    {group.items.map((item) => {
-                      const typeLabel = t(typeLabelKeys[item.suggestionType]);
-                      const title = displayText(item.payloadJson, typeLabel);
-                      const evidence = displayText(item.evidenceJson, "");
-                      const disabled = updatingId === item.suggestionId || item.status !== "DRAFT";
-                      const dateLabel = formatDate(item.createdAt);
+                    <div className={styles.cardList}>
+                      {group.items.map((item) => {
+                        const typeLabel = t(typeLabelKeys[item.suggestionType]);
+                        const title = displayText(item.payloadJson, typeLabel);
+                        const summary = displaySecondaryText(item.payloadJson, title);
+                        const evidence = displayText(item.evidenceJson, "");
+                        const disabled = updatingId === item.suggestionId || item.status !== "DRAFT";
+                        const dateLabel = relativeDate(item.createdAt);
+                        const sourceChip = item.resourceId
+                          ? t("agent.page.sourceFile")
+                          : item.roomId
+                            ? t("agent.page.sourceRoom")
+                            : t("agent.page.scopePersonal");
 
-                      return (
-                        <article className="workspace-route__row workspace-route__row--actions" key={item.suggestionId}>
-                          <span className="workspace-route__dot" aria-hidden="true" />
-                          <span className="workspace-route__main">
-                            <strong>{title}</strong>
-                            <span>
-                              {dateLabel ? t("agent.page.typeDateSeparator", { type: typeLabel, date: dateLabel }) : typeLabel}
-                              {item.resourceId ? <span className={styles.sourceChip}>{t("agent.page.sourceResource")}</span> : null}
-                            </span>
-                            {evidence ? <span className={styles.evidence}>{t("agent.page.evidence", { text: evidence })}</span> : null}
-                          </span>
-                          <StatusBadge tone={statusTone(item.status)}>{t(statusLabelKeys[item.status])}</StatusBadge>
-                          <span className="workspace-route__actions workspace-route__actions--compact">
-                            <button disabled={disabled} onClick={() => void review(item.suggestionId, "APPROVE")} title={t("agent.page.approveHint")} type="button">
-                              <Check aria-hidden size={14} />
-                              {t("agent.page.approve")}
-                            </button>
-                            <button disabled={disabled} onClick={() => void review(item.suggestionId, "HOLD")} title={t("agent.page.holdHint")} type="button">
-                              <Pause aria-hidden size={14} />
-                              {t("agent.page.hold")}
-                            </button>
-                            <button disabled={disabled} onClick={() => void review(item.suggestionId, "REJECT")} title={t("agent.page.rejectHint")} type="button">
-                              <X aria-hidden size={14} />
-                              {t("agent.page.reject")}
-                            </button>
-                          </span>
-                        </article>
-                      );
-                    })}
-                  </Fragment>
+                        return (
+                          <article className={styles.card} key={item.suggestionId}>
+                            <div className={styles.cardTop}>
+                              <strong className={styles.cardTitle}>{title}</strong>
+                              <span className={styles.cardChip}>{sourceChip}</span>
+                              {item.status !== "DRAFT" ? (
+                                <StatusBadge tone={statusTone(item.status)}>{t(statusLabelKeys[item.status])}</StatusBadge>
+                              ) : null}
+                            </div>
+                            {summary ? <p className={styles.cardSummary}>{summary}</p> : null}
+                            {evidence ? (
+                              <details className={styles.cardEvidence}>
+                                <summary>
+                                  <ChevronDown aria-hidden className={styles.cardEvidenceIcon} size={13} strokeWidth={2.1} />
+                                  <span className={styles.cardEvidenceLine}>{t("agent.page.evidence", { text: evidence })}</span>
+                                </summary>
+                                <p>{evidence}</p>
+                                <span className={styles.cardMeta}>{typeLabel}</span>
+                              </details>
+                            ) : null}
+                            <div className={styles.cardFoot}>
+                              <span className={styles.cardDate}>{dateLabel ?? typeLabel}</span>
+                              <span className={styles.cardButtons}>
+                                <Button
+                                  disabled={disabled}
+                                  icon={<Check aria-hidden size={14} strokeWidth={2} />}
+                                  onClick={() => void review(item.suggestionId, "APPROVE")}
+                                  size="sm"
+                                  title={t("agent.page.approveHint")}
+                                  variant="primary"
+                                >
+                                  {t("agent.page.approve")}
+                                </Button>
+                                <Button
+                                  disabled={disabled}
+                                  icon={<Pause aria-hidden size={14} strokeWidth={2} />}
+                                  onClick={() => void review(item.suggestionId, "HOLD")}
+                                  size="sm"
+                                  title={t("agent.page.holdHint")}
+                                  variant="quiet"
+                                >
+                                  {t("agent.page.hold")}
+                                </Button>
+                                <Button
+                                  disabled={disabled}
+                                  icon={<X aria-hidden size={14} strokeWidth={2} />}
+                                  onClick={() => void review(item.suggestionId, "REJECT")}
+                                  size="sm"
+                                  title={t("agent.page.rejectHint")}
+                                  variant="quiet"
+                                >
+                                  {t("agent.page.reject")}
+                                </Button>
+                              </span>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -615,196 +667,202 @@ function AgentPageContent() {
           </div>
 
           <section className="workspace-route__section" aria-labelledby="daily-summary-title">
-            <div className="workspace-route__section-head">
-              <div>
-                <h2 id="daily-summary-title">{t("agent.page.dailyTitle")}</h2>
+            <details className={styles.archive}>
+              <summary className={styles.archiveHead}>
+                <h2 className={styles.archiveTitle} id="daily-summary-title">{t("agent.page.dailyTitle")}</h2>
+                <span className={styles.archiveCount}>{t("agent.page.suggestionsCount", { count: state.dailySummaries.length })}</span>
+                <ChevronDown aria-hidden className={styles.archiveChevron} size={16} strokeWidth={2} />
+              </summary>
+              <div className={styles.archiveBody}>
+                <p className={styles.sectionDesc}>{t("agent.page.dailyDesc")}</p>
+                <div className={styles.archiveActions}>
+                  <Button
+                    icon={<Sparkles size={14} strokeWidth={1.9} />}
+                    loading={startingSummaryJob}
+                    onClick={() => void startDailySummary()}
+                    size="sm"
+                    variant="primary"
+                  >
+                    {t("agent.page.createTodaySummary")}
+                  </Button>
+                </div>
+                {state.dailySummaries.length === 0 ? (
+                  <p className={styles.archiveEmpty}>{t("agent.page.dailyEmpty")}</p>
+                ) : (
+                  <div className="workspace-route__list">
+                    {state.dailySummaries.map((summary) => (
+                      <article className="workspace-route__row" key={summary.id}>
+                        <span className="workspace-route__dot" aria-hidden="true" />
+                        <span className="workspace-route__main">
+                          <strong>{summary.summaryDate}</strong>
+                          <span>{displayJsonText(summary.summaryJson, t("agent.page.dailyContentFallback"))}</span>
+                        </span>
+                        <StatusBadge tone={summary.status === "APPROVED" ? "approved" : "pending"}>
+                          {summary.status === "APPROVED" ? t("agent.page.statusApproved") : t("agent.page.statusDraft")}
+                        </StatusBadge>
+                        <Button
+                          disabled={summary.status === "APPROVED"}
+                          loading={dailyUpdatingId === summary.id}
+                          onClick={() => void approveDailySummary(summary.id)}
+                          size="sm"
+                          variant="quiet"
+                        >
+                          {t("agent.page.approve")}
+                        </Button>
+                      </article>
+                    ))}
+                  </div>
+                )}
               </div>
-              <span className={styles.headActions}>
-                <StatusBadge tone={state.dailySummaries.length > 0 ? "personal" : "neutral"}>{t("agent.page.suggestionsCount", { count: state.dailySummaries.length })}</StatusBadge>
-                <Button
-                  icon={<Sparkles size={14} strokeWidth={1.9} />}
-                  loading={startingSummaryJob}
-                  onClick={() => void startDailySummary()}
-                  size="sm"
-                  variant="primary"
-                >
-                  {t("agent.page.createTodaySummary")}
-                </Button>
-              </span>
-            </div>
-            <p className={styles.sectionDesc}>{t("agent.page.dailyDesc")}</p>
-            {state.dailySummaries.length === 0 ? (
-              <GlassPanel className="workspace-route__panel">
-                <strong>{t("agent.page.dailyEmpty")}</strong>
-              </GlassPanel>
-            ) : (
-              <div className="workspace-route__list">
-                {state.dailySummaries.map((summary) => (
-                  <article className="workspace-route__row workspace-route__row--actions" key={summary.id}>
-                    <span className="workspace-route__dot" aria-hidden="true" />
-                    <span className="workspace-route__main">
-                      <strong>{summary.summaryDate}</strong>
-                      <span>{displayJsonText(summary.summaryJson, t("agent.page.dailyContentFallback"))}</span>
-                    </span>
-                    <StatusBadge tone={summary.status === "APPROVED" ? "approved" : "pending"}>
-                      {summary.status === "APPROVED" ? t("agent.page.statusApproved") : t("agent.page.statusDraft")}
-                    </StatusBadge>
-                    <Button
-                      disabled={summary.status === "APPROVED"}
-                      loading={dailyUpdatingId === summary.id}
-                      onClick={() => void approveDailySummary(summary.id)}
-                      size="sm"
-                      variant="quiet"
-                    >
-                      {t("agent.page.approve")}
-                    </Button>
-                  </article>
-                ))}
-              </div>
-            )}
+            </details>
           </section>
 
           <section className="workspace-route__section" aria-labelledby="generated-documents-title">
-            <div className="workspace-route__section-head">
-              <h2 id="generated-documents-title">{t("agent.page.generatedTitle")}</h2>
-              <StatusBadge tone={state.generatedDocuments.length > 0 ? "room" : "neutral"}>{t("agent.page.suggestionsCount", { count: state.generatedDocuments.length })}</StatusBadge>
-            </div>
-            <p className={styles.sectionDesc}>{t("agent.page.generatedDesc")}</p>
-            {state.generatedDocuments.length === 0 ? (
-              <GlassPanel className="workspace-route__panel">
-                <strong>{t("agent.page.generatedEmpty")}</strong>
-              </GlassPanel>
-            ) : (
-              <div className="workspace-route__list">
-                {state.generatedDocuments.map((item) => (
-                  <article className="workspace-route__row workspace-route__row--actions" key={item.id}>
-                    <span className="workspace-route__dot" aria-hidden="true" />
-                    <span className="workspace-route__main">
-                      <strong>{item.title}</strong>
-                      <span>{item.documentType}</span>
-                    </span>
-                    <span className="workspace-route__actions workspace-route__actions--compact">
-                      <button disabled={openingDocumentId === item.id} onClick={() => void openDocument(item.id)} type="button">
-                        <Eye aria-hidden size={14} />
-                        {openingDocumentId === item.id ? t("agent.page.opening") : t("agent.page.open")}
-                      </button>
-                      <button disabled={exportingDocumentId === item.id} onClick={() => void exportDocument(item.id)} type="button">
-                        <Download aria-hidden size={14} />
-                        {exportingDocumentId === item.id ? t("agent.page.exporting") : t("agent.page.export")}
-                      </button>
-                    </span>
-                  </article>
-                ))}
-              </div>
-            )}
-            {selectedDocument ? (
-              <GlassPanel className="workspace-route__panel workspace-route__panel--document">
-                <div className="workspace-route__section-head">
-                  <div>
-                    <h3>{selectedDocument.title}</h3>
-                    <span>{selectedDocument.documentType}</span>
+            <details className={styles.archive}>
+              <summary className={styles.archiveHead}>
+                <h2 className={styles.archiveTitle} id="generated-documents-title">{t("agent.page.generatedTitle")}</h2>
+                <span className={styles.archiveCount}>{t("agent.page.suggestionsCount", { count: state.generatedDocuments.length })}</span>
+                <ChevronDown aria-hidden className={styles.archiveChevron} size={16} strokeWidth={2} />
+              </summary>
+              <div className={styles.archiveBody}>
+                <p className={styles.sectionDesc}>{t("agent.page.generatedDesc")}</p>
+                {state.generatedDocuments.length === 0 ? (
+                  <p className={styles.archiveEmpty}>{t("agent.page.generatedEmpty")}</p>
+                ) : (
+                  <div className="workspace-route__list">
+                    {state.generatedDocuments.map((item) => (
+                      <article className="workspace-route__row" key={item.id}>
+                        <span className="workspace-route__dot" aria-hidden="true" />
+                        <span className="workspace-route__main">
+                          <strong>{item.title}</strong>
+                          <span>{item.documentType}</span>
+                        </span>
+                        <span className="workspace-route__actions workspace-route__actions--compact">
+                          <button disabled={openingDocumentId === item.id} onClick={() => void openDocument(item.id)} type="button">
+                            <Eye aria-hidden size={14} />
+                            {openingDocumentId === item.id ? t("agent.page.opening") : t("agent.page.open")}
+                          </button>
+                          <button disabled={exportingDocumentId === item.id} onClick={() => void exportDocument(item.id)} type="button">
+                            <Download aria-hidden size={14} />
+                            {exportingDocumentId === item.id ? t("agent.page.exporting") : t("agent.page.export")}
+                          </button>
+                        </span>
+                      </article>
+                    ))}
                   </div>
-                  <button
-                    aria-label={t("agent.page.documentPreviewCloseAria")}
-                    className="workspace-route__icon-button"
-                    onClick={() => setSelectedDocument(null)}
-                    type="button"
-                  >
-                    <X aria-hidden size={16} />
-                  </button>
-                </div>
-                <pre className="workspace-route__document-body">
-                  {selectedDocument.contentMarkdown.trim().length > 0 ? selectedDocument.contentMarkdown : t("agent.page.documentEmptyBody")}
-                </pre>
-                <div className="workspace-route__actions">
-                  <Button
-                    icon={<Download size={14} strokeWidth={1.9} />}
-                    loading={exportingDocumentId === selectedDocument.id}
-                    onClick={() => void exportDocument(selectedDocument.id)}
-                    size="sm"
-                    variant="quiet"
-                  >
-                    {t("agent.page.exportDocument")}
-                  </Button>
-                </div>
-              </GlassPanel>
-            ) : null}
+                )}
+                {selectedDocument ? (
+                  <GlassPanel className="workspace-route__panel workspace-route__panel--document">
+                    <div className="workspace-route__section-head">
+                      <div>
+                        <h3>{selectedDocument.title}</h3>
+                        <span>{selectedDocument.documentType}</span>
+                      </div>
+                      <button
+                        aria-label={t("agent.page.documentPreviewCloseAria")}
+                        className="workspace-route__icon-button"
+                        onClick={() => setSelectedDocument(null)}
+                        type="button"
+                      >
+                        <X aria-hidden size={16} />
+                      </button>
+                    </div>
+                    <pre className="workspace-route__document-body">
+                      {selectedDocument.contentMarkdown.trim().length > 0 ? selectedDocument.contentMarkdown : t("agent.page.documentEmptyBody")}
+                    </pre>
+                    <div className="workspace-route__actions">
+                      <Button
+                        icon={<Download size={14} strokeWidth={1.9} />}
+                        loading={exportingDocumentId === selectedDocument.id}
+                        onClick={() => void exportDocument(selectedDocument.id)}
+                        size="sm"
+                        variant="quiet"
+                      >
+                        {t("agent.page.exportDocument")}
+                      </Button>
+                    </div>
+                  </GlassPanel>
+                ) : null}
+              </div>
+            </details>
           </section>
 
           {state.selectedRoomId ? (
             <section className="workspace-route__section" aria-labelledby="confirmed-requirements-title">
-              <div className="workspace-route__section-head">
-                <h2 id="confirmed-requirements-title">{t("agent.page.confirmedTitle")}</h2>
-                <StatusBadge tone={state.confirmedRequirements.length > 0 ? "success" : "neutral"}>
-                  {t("agent.page.suggestionsCount", { count: state.confirmedRequirements.length })}
-                </StatusBadge>
-              </div>
-              <p className={styles.sectionDesc}>{t("agent.page.confirmedDesc")}</p>
-              {state.confirmedRequirements.length === 0 ? (
-                <GlassPanel className="workspace-route__panel">
-                  <strong>{t("agent.page.confirmedEmpty")}</strong>
-                </GlassPanel>
-              ) : (
-                <div className="workspace-route__list">
-                  {state.confirmedRequirements.map((item) => {
-                    const typeLabel = t(typeLabelKeys[item.suggestionType]);
-                    const dateLabel = formatDate(item.reviewedAt ?? item.updatedAt);
+              <details className={styles.archive}>
+                <summary className={styles.archiveHead}>
+                  <h2 className={styles.archiveTitle} id="confirmed-requirements-title">{t("agent.page.confirmedTitle")}</h2>
+                  <span className={styles.archiveCount}>{t("agent.page.suggestionsCount", { count: state.confirmedRequirements.length })}</span>
+                  <ChevronDown aria-hidden className={styles.archiveChevron} size={16} strokeWidth={2} />
+                </summary>
+                <div className={styles.archiveBody}>
+                  <p className={styles.sectionDesc}>{t("agent.page.confirmedDesc")}</p>
+                  {state.confirmedRequirements.length === 0 ? (
+                    <p className={styles.archiveEmpty}>{t("agent.page.confirmedEmpty")}</p>
+                  ) : (
+                    <div className="workspace-route__list">
+                      {state.confirmedRequirements.map((item) => {
+                        const typeLabel = t(typeLabelKeys[item.suggestionType]);
+                        const dateLabel = relativeDate(item.reviewedAt ?? item.updatedAt);
 
-                    return (
-                      <article className="workspace-route__row" key={item.suggestionId}>
-                        <span className="workspace-route__dot" aria-hidden="true" />
-                        <span className="workspace-route__main">
-                          <strong>{displayText(item.payloadJson, typeLabel)}</strong>
-                          <span>{dateLabel ? t("agent.page.typeDateSeparator", { type: typeLabel, date: dateLabel }) : typeLabel}</span>
-                        </span>
-                        <StatusBadge tone="success">{t("agent.page.statusApprovedLabel")}</StatusBadge>
-                      </article>
-                    );
-                  })}
+                        return (
+                          <article className="workspace-route__row" key={item.suggestionId}>
+                            <span className="workspace-route__dot" aria-hidden="true" />
+                            <span className="workspace-route__main">
+                              <strong>{displayText(item.payloadJson, typeLabel)}</strong>
+                              <span>{dateLabel ? t("agent.page.typeDateSeparator", { date: dateLabel, type: typeLabel }) : typeLabel}</span>
+                            </span>
+                            <StatusBadge tone="success">{t("agent.page.statusApprovedLabel")}</StatusBadge>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
+              </details>
             </section>
           ) : null}
 
           {state.selectedRoomId ? (
             <section className="workspace-route__section" aria-labelledby="room-memory-title">
-              <div className="workspace-route__section-head">
-                <h2 id="room-memory-title">{t("agent.page.roomMemoryTitle")}</h2>
-                <StatusBadge tone={state.roomMemorySummaries.length > 0 ? "agent" : "neutral"}>
-                  {t("agent.page.suggestionsCount", { count: state.roomMemorySummaries.length })}
-                </StatusBadge>
-              </div>
-              <p className={styles.sectionDesc}>{t("agent.page.roomMemoryDesc")}</p>
-              {state.roomMemorySummaries.length === 0 ? (
-                <GlassPanel className="workspace-route__panel">
-                  <strong>{t("agent.page.roomMemoryEmpty")}</strong>
-                </GlassPanel>
-              ) : (
-                <div className="workspace-route__list">
-                  {state.roomMemorySummaries.map((item) => {
-                    // 원시 시퀀스 번호 대신 요약 생성 시점과 대화 건수로 표시한다.
-                    const memoryDateLabel = formatDate(item.createdAt);
-                    const rangeLabel = t("agent.page.memoryRangeSummary", {
-                      count: Math.max(item.toSequence - item.fromSequence + 1, 1),
-                    });
+              <details className={styles.archive}>
+                <summary className={styles.archiveHead}>
+                  <h2 className={styles.archiveTitle} id="room-memory-title">{t("agent.page.roomMemoryTitle")}</h2>
+                  <span className={styles.archiveCount}>{t("agent.page.suggestionsCount", { count: state.roomMemorySummaries.length })}</span>
+                  <ChevronDown aria-hidden className={styles.archiveChevron} size={16} strokeWidth={2} />
+                </summary>
+                <div className={styles.archiveBody}>
+                  <p className={styles.sectionDesc}>{t("agent.page.roomMemoryDesc")}</p>
+                  {state.roomMemorySummaries.length === 0 ? (
+                    <p className={styles.archiveEmpty}>{t("agent.page.roomMemoryEmpty")}</p>
+                  ) : (
+                    <div className="workspace-route__list">
+                      {state.roomMemorySummaries.map((item) => {
+                        // 원시 시퀀스 번호 대신 요약 생성 시점과 대화 건수로 표시한다.
+                        const memoryDateLabel = relativeDate(item.createdAt);
+                        const rangeLabel = t("agent.page.memoryRangeSummary", {
+                          count: Math.max(item.toSequence - item.fromSequence + 1, 1),
+                        });
 
-                    return (
-                    <article className="workspace-route__row" key={item.id}>
-                      <span className="workspace-route__dot" aria-hidden="true" />
-                      <span className="workspace-route__main">
-                        <strong>
-                          {memoryDateLabel ? t("agent.page.typeDateSeparator", { type: rangeLabel, date: memoryDateLabel }) : rangeLabel}
-                        </strong>
-                        <span>{displayJsonText(item.summaryJson, t("agent.page.roomMemoryContentFallback"))}</span>
-                      </span>
-                      <StatusBadge tone={item.status === "APPROVED" ? "approved" : "pending"}>
-                        {item.status === "APPROVED" ? t("agent.page.statusApproved") : t("agent.page.statusDraft")}
-                      </StatusBadge>
-                    </article>
-                    );
-                  })}
+                        return (
+                          <article className="workspace-route__row" key={item.id}>
+                            <span className="workspace-route__dot" aria-hidden="true" />
+                            <span className="workspace-route__main">
+                              <strong>
+                                {memoryDateLabel ? t("agent.page.typeDateSeparator", { date: memoryDateLabel, type: rangeLabel }) : rangeLabel}
+                              </strong>
+                              <span>{displayJsonText(item.summaryJson, t("agent.page.roomMemoryContentFallback"))}</span>
+                            </span>
+                            <StatusBadge tone={item.status === "APPROVED" ? "approved" : "pending"}>
+                              {item.status === "APPROVED" ? t("agent.page.statusApproved") : t("agent.page.statusDraft")}
+                            </StatusBadge>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
+              </details>
             </section>
           ) : null}
         </>

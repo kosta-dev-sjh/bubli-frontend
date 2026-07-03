@@ -93,6 +93,12 @@ const ko = {
   "agent.page.jobDone": "AI 작업이 끝났어요. 목록을 새로 불러왔습니다.",
   "agent.page.jobFailed": "AI 작업이 실패했습니다.",
   "agent.page.errorJobCheck": "작업 상태를 확인하지 못했습니다.",
+  "agent.page.sourceFile": "자료",
+  "agent.page.sourceRoom": "룸 대화",
+  "agent.page.dateJustNow": "방금 전",
+  "agent.page.dateMinutesAgo": "{count}분 전",
+  "agent.page.dateHoursAgo": "{count}시간 전",
+  "agent.page.dateDaysAgo": "{count}일 전",
 
   // agent-draft-suggestion-panel
   "agent.draft.aria": "에이전트 초안 제안",
@@ -932,6 +938,12 @@ const en: Record<Key, string> = {
   "agent.page.jobDone": "The AI job finished. The lists have been refreshed.",
   "agent.page.jobFailed": "The AI job failed.",
   "agent.page.errorJobCheck": "Failed to check the job status.",
+  "agent.page.sourceFile": "File",
+  "agent.page.sourceRoom": "Room chat",
+  "agent.page.dateJustNow": "Just now",
+  "agent.page.dateMinutesAgo": "{count} min ago",
+  "agent.page.dateHoursAgo": "{count} hr ago",
+  "agent.page.dateDaysAgo": "{count} days ago",
 
   "agent.draft.aria": "Agent draft suggestions",
   "agent.draft.chip": "Draft suggestion",
@@ -1751,6 +1763,12 @@ const ja: Record<Key, string> = {
   "agent.page.jobDone": "AI作業が完了しました。リストを再読み込みしました。",
   "agent.page.jobFailed": "AI作業が失敗しました。",
   "agent.page.errorJobCheck": "作業状態を確認できませんでした。",
+  "agent.page.sourceFile": "資料",
+  "agent.page.sourceRoom": "ルームの会話",
+  "agent.page.dateJustNow": "たった今",
+  "agent.page.dateMinutesAgo": "{count}分前",
+  "agent.page.dateHoursAgo": "{count}時間前",
+  "agent.page.dateDaysAgo": "{count}日前",
 
   "agent.draft.aria": "エージェントのドラフト提案",
   "agent.draft.chip": "ドラフト提案",

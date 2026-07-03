@@ -1070,7 +1070,7 @@ select {
 .bubli-app-layout {
   position: relative;
   display: grid;
-  grid-template-columns: 118px minmax(0, 1fr);
+  grid-template-columns: 94px minmax(0, 1fr);
   width: 100%;
   min-width: 0;
   min-height: 100vh;
@@ -1134,7 +1134,7 @@ select {
 
 .bubli-nav {
   display: grid;
-  gap: 13px;
+  gap: 10px;
   margin-top: 10px;
   min-width: 0;
 }
@@ -1174,10 +1174,10 @@ select {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  min-height: 62px;
+  gap: 3px;
+  min-height: 54px;
   border: 1px solid transparent;
-  border-radius: 22px;
+  border-radius: 18px;
   padding: 0;
   color: rgba(48, 91, 132, 0.7);
   font-size: 16px;
@@ -1199,10 +1199,10 @@ select {
   overflow: hidden;
   padding: 0 2px;
   color: currentColor;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 650;
   letter-spacing: 0.01em;
-  line-height: 1.15;
+  line-height: 1.1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2801,10 +2801,26 @@ select {
   align-items: start;
 }
 
+/* 룸 모드: 활성 프로젝트룸 대화 하나만 — 목록 없이 스레드가 전체 폭을 쓴다 */
+.workspace-route__chat--room-scope {
+  grid-template-columns: minmax(0, 1fr);
+}
 
+/* 활성 프로젝트룸이 없을 때의 빈 상태 패널 */
+.workspace-route__chat-scope-empty {
+  flex-direction: column;
+  gap: 10px;
+}
 
+/* 스레드 내부는 위→아래 플렉스 — grid 자동 행 늘어남으로 생기는 어색한 간격과 컴포저 밀림 방지 */
+.workspace-route__chat .workspace-route__thread {
+  display: flex;
+  flex-direction: column;
+}
 
-
+.workspace-route__chat .workspace-route__messages {
+  flex: 1 1 auto;
+}
 
 
 .workspace-route__chat-toolbar {
@@ -3133,9 +3149,7 @@ select {
 .workspace-route__my-code,
 .workspace-route__friend-search,
 .workspace-route__friend-result,
-.workspace-route__social-card,
-.workspace-route__voice-card,
-.workspace-route__voice-card-main {
+.workspace-route__social-card {
   border: 1px solid rgba(213, 228, 240, 0.72);
   border-radius: 20px;
   background:
@@ -3214,7 +3228,6 @@ select {
 
 .workspace-route__my-code div,
 .workspace-route__friend-result div,
-.workspace-route__voice-card-main div,
 .workspace-route__voice-person div {
   display: grid;
   gap: 2px;
@@ -3224,7 +3237,6 @@ select {
 .workspace-route__my-code small,
 .workspace-route__friend-search label,
 .workspace-route__friend-result small,
-.workspace-route__voice-card-main small,
 .workspace-route__voice-person small {
   color: var(--color-muted);
   font-size: 12px;
@@ -3233,7 +3245,6 @@ select {
 
 .workspace-route__my-code strong,
 .workspace-route__friend-result strong,
-.workspace-route__voice-card-main strong,
 .workspace-route__voice-person strong {
   overflow: hidden;
   color: var(--ink);
@@ -3735,46 +3746,6 @@ button.workspace-route__friend-row:hover {
   color: var(--blue-ink);
 }
 
-/* 헤더 내 보이스 액션 버튼 그룹 */
-.workspace-route__voice-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px;
-  border: 1px solid rgba(190, 220, 245, 0.7);
-  border-radius: 999px;
-  background: rgba(240, 250, 255, 0.7);
-}
-
-.workspace-route__voice-actions button {
-  display: inline-flex;
-  width: 30px;
-  height: 30px;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-  transition: background 140ms, color 140ms;
-}
-
-.workspace-route__voice-actions button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--blue-ink);
-}
-
-.workspace-route__voice-actions button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.workspace-route__voice-actions button.workspace-route__voice-end:hover:not(:disabled) {
-  background: rgba(255, 235, 235, 0.9);
-  color: var(--color-destructive);
-}
-
 .workspace-route__action-note {
   display: inline-flex;
   min-height: 36px;
@@ -3817,16 +3788,19 @@ button.workspace-route__friend-row:hover {
   margin-top: -8px;
 }
 
-/* 배지 + pill 가로 한 줄 */
+/* 배지 + pill 가로 한 줄 — 좁은 폭에서는 줄바꿈 허용 */
 .workspace-route__voice-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  row-gap: 6px;
 }
 
 /* pill들 컨테이너 — 보이스 활성 시 항상 보임 */
 .workspace-route__voice-pills {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   padding-left: 8px;
 }
@@ -3969,119 +3943,8 @@ button.workspace-route__friend-row:hover {
   white-space: nowrap;
 }
 
-.workspace-route__voice-card {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-}
-
-.workspace-route__voice-inline {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid rgba(190, 220, 240, 0.5);
-  border-radius: 14px;
-  background: rgba(240, 248, 255, 0.5);
-}
-
-.workspace-route__voice-inline__notice {
-  font-size: 13px;
-  color: var(--ink-soft);
-}
-
-.workspace-route__voice-inline__end:hover:not(:disabled) {
-  background: rgba(255, 238, 238, 0.9) !important;
-  border-color: rgba(210, 80, 80, 0.4) !important;
-  color: var(--color-destructive) !important;
-}
-
-.workspace-route__voice-inline .workspace-route__voice-people {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .workspace-route__friends-modal {
   max-width: 480px;
-}
-
-.workspace-route__voice-card-main {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  width: 100%;
-  padding: 10px;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.workspace-route__voice-card-main svg {
-  width: 36px;
-  height: 36px;
-  border-radius: 15px;
-  padding: 10px;
-  color: var(--blue-ink);
-  background: rgba(216, 240, 255, 0.58);
-}
-
-.workspace-route__voice-card-main:disabled {
-  cursor: not-allowed;
-  opacity: 0.66;
-}
-
-.workspace-route__voice-controls {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-}
-
-.workspace-route__voice-controls button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 34px;
-  border: 1px solid rgba(213, 228, 240, 0.72);
-  border-radius: 999px;
-  padding: 7px 10px;
-  color: var(--ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  background: rgba(255, 255, 255, 0.68);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  cursor: pointer;
-}
-
-.workspace-route__voice-controls button:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-}
-
-.workspace-route__voice-note {
-  display: grid;
-  gap: 2px;
-  border: 1px solid rgba(142, 205, 246, 0.35);
-  border-radius: 14px;
-  padding: 9px 10px;
-  color: var(--slate);
-  font-size: 13px;
-  line-height: 1.45;
-  background: rgba(247, 252, 255, 0.62);
-}
-
-.workspace-route__voice-note strong {
-  color: var(--blue-ink);
-  font-size: 13px;
-}
-
-.workspace-route__voice-people {
-  display: grid;
-  gap: 7px;
 }
 
 .workspace-route__voice-person {
@@ -19643,15 +19506,15 @@ html {
    작업공간 도크는 얇고 또렷해야 한다.
    ============================================================ */
 .bubli-app-layout {
-  grid-template-columns: 118px minmax(0, 1fr);
+  grid-template-columns: 94px minmax(0, 1fr);
 }
 
 .bubli-app-layout .bubli-sidebar {
-  width: 98px;
-  margin-left: 16px;
-  padding: 16px 8px;
+  width: 82px;
+  margin-left: 10px;
+  padding: 12px 6px;
   border-color: rgba(255, 255, 255, 0.78);
-  border-radius: 32px;
+  border-radius: 26px;
   background:
     radial-gradient(ellipse 90% 34% at 28% 0%, rgba(216, 240, 255, 0.42), transparent 68%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(249, 252, 255, 0.5));
@@ -19661,14 +19524,14 @@ html {
 }
 
 .bubli-app-layout .bubli-brand {
-  width: 56px;
-  height: 32px;
-  margin: 0 auto 14px;
+  width: 50px;
+  height: 28px;
+  margin: 0 auto 10px;
   place-items: center;
 }
 
 .bubli-app-layout .bubli-brand::after {
-  font-size: 19px;
+  font-size: 17px;
   filter: drop-shadow(0 8px 14px rgba(47, 124, 193, 0.1));
 }
 
@@ -19833,25 +19696,25 @@ html {
    라벨 상시 노출(C2)로 도크 폭을 아이콘+라벨 기준으로 잡는다.
    ============================================================ */
 .bubli-app-layout {
-  grid-template-columns: 118px minmax(0, 1fr);
+  grid-template-columns: 94px minmax(0, 1fr);
 }
 
 .bubli-app-layout .bubli-sidebar {
-  width: 98px;
-  margin-left: 14px;
-  padding: 12px 7px;
-  border-radius: 30px;
+  width: 82px;
+  margin-left: 10px;
+  padding: 10px 5px;
+  border-radius: 26px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(249, 252, 255, 0.54)),
     rgba(255, 255, 255, 0.58);
 }
 
 .bubli-app-layout .bubli-brand {
-  width: 48px;
-  height: 48px;
-  margin: 0 auto 12px;
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 10px;
   border: 1px solid rgba(255, 255, 255, 0.82);
-  border-radius: 19px;
+  border-radius: 16px;
   background:
     radial-gradient(circle at 30% 16%, rgba(255, 255, 255, 0.92), transparent 36%),
     linear-gradient(145deg, rgba(216, 240, 255, 0.68), rgba(255, 255, 255, 0.72) 54%, rgba(230, 221, 248, 0.42));
@@ -19862,8 +19725,8 @@ html {
 
 .bubli-app-layout .bubli-brand::after {
   content: "";
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   background: url("/brand/icon-app-512.png") center / contain no-repeat;
   filter: saturate(1.08) contrast(1.03) drop-shadow(0 8px 14px rgba(47, 124, 193, 0.12));
   -webkit-text-fill-color: initial;
@@ -19874,16 +19737,16 @@ html {
 }
 
 .bubli-app-layout .bubli-nav__item {
-  min-height: 58px;
-  border-radius: 17px;
-  padding: 6px 3px 7px;
+  min-height: 52px;
+  border-radius: 14px;
+  padding: 4px 2px 5px;
 }
 
 .bubli-app-layout .bubli-nav__icon {
-  width: 34px;
-  height: 34px;
+  width: 31px;
+  height: 31px;
   border: 1px solid transparent;
-  border-radius: 14px;
+  border-radius: 12px;
   background: transparent;
   box-shadow: none;
 }
@@ -20101,16 +19964,16 @@ html {
 .bubli-app-layout .bubli-nav {
   width: 100%;
   align-content: start;
-  gap: clamp(2px, 0.75dvh, 5px);
+  gap: clamp(4px, 1dvh, 9px);
 }
 
 .bubli-app-layout .bubli-nav__item {
-  min-height: clamp(36px, 6.4dvh, 44px);
+  min-height: clamp(42px, 6.2dvh, 52px);
 }
 
 .bubli-app-layout .bubli-nav__icon {
-  width: clamp(30px, 5.1dvh, 34px);
-  height: clamp(30px, 5.1dvh, 34px);
+  width: clamp(28px, 4.7dvh, 31px);
+  height: clamp(28px, 4.7dvh, 31px);
 }
 
 @media (max-height: 560px) and (min-width: 901px) {
@@ -20124,15 +19987,15 @@ html {
   }
 
   .bubli-app-layout .bubli-brand {
-    width: 42px;
-    height: 42px;
+    width: 38px;
+    height: 38px;
     margin-bottom: 7px;
-    border-radius: 17px;
+    border-radius: 14px;
   }
 
   .bubli-app-layout .bubli-brand::after {
-    width: 38px;
-    height: 38px;
+    width: 32px;
+    height: 32px;
   }
 }
 
@@ -22440,9 +22303,7 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
 [data-theme="dark"] .workspace-route__my-code,
 [data-theme="dark"] .workspace-route__friend-search,
 [data-theme="dark"] .workspace-route__friend-result,
-[data-theme="dark"] .workspace-route__social-card,
-[data-theme="dark"] .workspace-route__voice-card,
-[data-theme="dark"] .workspace-route__voice-card-main {
+[data-theme="dark"] .workspace-route__social-card {
   border-color: rgba(150, 170, 215, 0.16);
   background: rgba(34, 46, 72, 0.42);
   box-shadow: var(--inner-highlight-dark);
@@ -22467,7 +22328,6 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
 [data-theme="dark"] .workspace-route__social-card--invite > strong,
 [data-theme="dark"] .workspace-route__my-code strong,
 [data-theme="dark"] .workspace-route__friend-result strong,
-[data-theme="dark"] .workspace-route__voice-card-main strong,
 [data-theme="dark"] .workspace-route__voice-person strong,
 [data-theme="dark"] .workspace-route__friend-row strong {
   color: #EAF0F8;
@@ -22477,7 +22337,6 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
 [data-theme="dark"] .workspace-route__my-code small,
 [data-theme="dark"] .workspace-route__friend-search label,
 [data-theme="dark"] .workspace-route__friend-result small,
-[data-theme="dark"] .workspace-route__voice-card-main small,
 [data-theme="dark"] .workspace-route__voice-person small,
 [data-theme="dark"] .workspace-route__friend-row small,
 [data-theme="dark"] .workspace-route__social-note,
@@ -22603,20 +22462,6 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   box-shadow: 0 2px 8px -3px rgba(0, 0, 0, 0.5);
 }
 
-[data-theme="dark"] .workspace-route__voice-actions {
-  border-color: rgba(150, 170, 215, 0.22);
-  background: rgba(34, 46, 72, 0.5);
-}
-
-[data-theme="dark"] .workspace-route__voice-actions button {
-  color: #A7B6CC;
-}
-
-[data-theme="dark"] .workspace-route__voice-actions button:hover:not(:disabled) {
-  color: #BFD6F5;
-  background: rgba(70, 92, 140, 0.55);
-}
-
 [data-theme="dark"] .workspace-route__voice-pill {
   border-color: rgba(150, 170, 215, 0.22);
   color: #EAF0F8;
@@ -22654,43 +22499,6 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
 [data-theme="dark"] .workspace-route__voice-person > span {
   color: #BFD6F5;
   background: rgba(70, 110, 165, 0.42);
-}
-
-[data-theme="dark"] .workspace-route__voice-inline {
-  border-color: rgba(150, 170, 215, 0.2);
-  background: rgba(34, 46, 72, 0.4);
-}
-
-[data-theme="dark"] .workspace-route__voice-inline__notice {
-  color: #A7B6CC;
-}
-
-[data-theme="dark"] .workspace-route__voice-inline__end:hover:not(:disabled) {
-  background: rgba(231, 155, 176, 0.14) !important;
-  border-color: rgba(231, 155, 176, 0.4) !important;
-  color: var(--signal-alert) !important;
-}
-
-[data-theme="dark"] .workspace-route__voice-card-main svg {
-  color: #BFD6F5;
-  background: rgba(70, 110, 165, 0.4);
-}
-
-[data-theme="dark"] .workspace-route__voice-controls button {
-  border-color: rgba(150, 170, 215, 0.2);
-  color: #EAF0F8;
-  background: rgba(34, 46, 72, 0.5);
-  box-shadow: var(--inner-highlight-dark);
-}
-
-[data-theme="dark"] .workspace-route__voice-note {
-  border-color: rgba(158, 216, 255, 0.24);
-  color: #A7B6CC;
-  background: rgba(34, 46, 72, 0.42);
-}
-
-[data-theme="dark"] .workspace-route__voice-note strong {
-  color: #BFD6F5;
 }
 
 /* 메시지/컴포저 — 내 말풍선만 옅은 파란 유리, 상대는 중립 유리 */

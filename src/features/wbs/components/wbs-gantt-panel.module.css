@@ -85,20 +85,73 @@
   opacity: 0.45;
 }
 
-.syncChip {
+/* 구글 캘린더 연동 상태 블록 — 연결 여부가 한눈에 보이도록 상태·계정·룸 그룹 건수를 함께 표시 */
+.syncBlock {
   align-items: center;
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(229, 231, 235, 0.9);
-  border-radius: 999px;
+  border-radius: 14px;
   color: #5A6772;
   display: inline-flex;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 740;
-  gap: 7px;
+  gap: 9px;
   margin-inline-start: auto;
-  min-block-size: 30px;
-  padding: 0 12px;
+  min-block-size: 34px;
+  padding: 4px 12px;
+}
+
+.syncCopy {
+  display: grid;
+  gap: 1px;
+  min-inline-size: 0;
+}
+
+.syncCopy strong {
+  font-size: 13px;
+  font-weight: 780;
+  line-height: 1.3;
   white-space: nowrap;
+}
+
+.syncCopy small {
+  color: #6B8FA8;
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 1.3;
+  max-inline-size: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.syncConnectButton {
+  align-items: center;
+  appearance: none;
+  background: rgba(215, 234, 244, 0.78);
+  border: 1px solid rgba(142, 205, 246, 0.52);
+  border-radius: 999px;
+  color: #2C3540;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 780;
+  min-block-size: 28px;
+  padding: 0 12px;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+  white-space: nowrap;
+}
+
+.syncConnectButton:hover:not(:disabled) {
+  background: rgba(215, 234, 244, 0.96);
+  border-color: rgba(111, 184, 242, 0.6);
+  transform: translateY(-1px);
+}
+
+.syncConnectButton:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 
 .syncDot {
@@ -110,26 +163,31 @@
   inline-size: 8px;
 }
 
-.syncChip[data-state="checking"] .syncDot {
+.syncBlock[data-state="checking"] .syncDot {
   background: rgba(205, 216, 223, 0.9);
 }
 
-.syncChip[data-state="recording"] {
+.syncBlock[data-state="recording"] {
   border-color: color-mix(in srgb, var(--signal-ok, #93CFA8) 42%, rgba(229, 231, 235, 0.9));
   color: #2C3540;
 }
 
-.syncChip[data-state="recording"] .syncDot {
+.syncBlock[data-state="recording"] .syncDot {
   background: var(--signal-ok, #93CFA8);
 }
 
-.syncChip[data-state="pending"] {
+.syncBlock[data-state="pending"] {
   border-color: color-mix(in srgb, var(--color-warning, #F1D7B8) 62%, rgba(229, 231, 235, 0.9));
   color: #2C3540;
 }
 
-.syncChip[data-state="pending"] .syncDot {
+.syncBlock[data-state="pending"] .syncDot {
   background: var(--color-warning, #F1D7B8);
+}
+
+.syncBlock[data-state="off"] {
+  border-color: rgba(107, 143, 168, 0.34);
+  border-style: dashed;
 }
 
 .createInline {
@@ -360,7 +418,7 @@
    ============================================================ */
 [data-theme="dark"] .rangeSwitch,
 [data-theme="dark"] .toolButton,
-[data-theme="dark"] .syncChip {
+[data-theme="dark"] .syncBlock {
   background: rgba(34, 46, 72, 0.5);
   border-color: rgba(150, 170, 215, 0.2);
   color: #A7B6CC;
@@ -379,9 +437,24 @@
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
 }
 
-[data-theme="dark"] .syncChip[data-state="recording"],
-[data-theme="dark"] .syncChip[data-state="pending"] {
+[data-theme="dark"] .syncBlock[data-state="recording"],
+[data-theme="dark"] .syncBlock[data-state="pending"] {
   color: #EAF0F8;
+}
+
+[data-theme="dark"] .syncCopy small {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .syncConnectButton {
+  background: rgba(70, 110, 165, 0.4);
+  border-color: rgba(158, 216, 255, 0.34);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .syncConnectButton:hover:not(:disabled) {
+  background: rgba(70, 110, 165, 0.56);
+  border-color: rgba(158, 216, 255, 0.5);
 }
 
 [data-theme="dark"] .createInline {

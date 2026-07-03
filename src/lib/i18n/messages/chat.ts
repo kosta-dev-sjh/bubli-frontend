@@ -56,11 +56,17 @@ const ko = {
 
   // 대화 스레드
   "chat.thread.defaultName": "대화",
-  "chat.thread.roomDesc": "이 프로젝트룸에 묶인 대화",
+  "chat.thread.roomDesc": "룸 멤버 모두가 참여하는 대화",
   "chat.thread.groupDesc": "친구들과 함께하는 그룹 대화",
   "chat.thread.directDesc": "친구와 1:1 대화",
   "chat.thread.projectRoom": "프로젝트룸",
   "chat.thread.startVoice": "보이스 시작",
+
+  // 룸 모드 스코프(활성 프로젝트룸 하나만 열림)
+  "chat.roomScope.emptyTitle": "선택된 프로젝트룸이 없습니다",
+  "chat.roomScope.emptyBody": "프로젝트룸을 선택하면 그 룸의 대화가 열립니다.",
+  "chat.roomScope.pickRoom": "프로젝트룸 선택",
+  "chat.roomScope.opening": "프로젝트룸 대화를 여는 중",
 
   // 새 채팅방
   "chat.newRoom.aria": "새 1:1 채팅방 만들기",
@@ -778,11 +784,16 @@ const en: Record<Key, string> = {
   "chat.message.default": "Message",
 
   "chat.thread.defaultName": "Conversation",
-  "chat.thread.roomDesc": "Conversation tied to this project room",
+  "chat.thread.roomDesc": "Shared conversation for everyone in the room",
   "chat.thread.groupDesc": "Group conversation with friends",
   "chat.thread.directDesc": "1:1 conversation with a friend",
   "chat.thread.projectRoom": "Project room",
   "chat.thread.startVoice": "Start voice",
+
+  "chat.roomScope.emptyTitle": "No project room selected",
+  "chat.roomScope.emptyBody": "Pick a project room to open its conversation.",
+  "chat.roomScope.pickRoom": "Choose a project room",
+  "chat.roomScope.opening": "Opening the project room conversation",
 
   "chat.newRoom.aria": "Create a new 1:1 chat room",
   "chat.newRoom.title": "New chat room",
@@ -1471,11 +1482,16 @@ const ja: Record<Key, string> = {
   "chat.message.default": "メッセージ",
 
   "chat.thread.defaultName": "会話",
-  "chat.thread.roomDesc": "このプロジェクトルームに紐づく会話",
+  "chat.thread.roomDesc": "ルームメンバー全員が参加する会話",
   "chat.thread.groupDesc": "友だちと一緒のグループ会話",
   "chat.thread.directDesc": "友だちとの1:1会話",
   "chat.thread.projectRoom": "プロジェクトルーム",
   "chat.thread.startVoice": "ボイス開始",
+
+  "chat.roomScope.emptyTitle": "選択中のプロジェクトルームがありません",
+  "chat.roomScope.emptyBody": "プロジェクトルームを選ぶと、そのルームの会話が開きます。",
+  "chat.roomScope.pickRoom": "プロジェクトルームを選択",
+  "chat.roomScope.opening": "プロジェクトルームの会話を開いています",
 
   "chat.newRoom.aria": "新しい1:1チャットルームを作成",
   "chat.newRoom.title": "新しいチャットルーム",

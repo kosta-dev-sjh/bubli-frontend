@@ -1,9 +1,12 @@
 import { apiRequest, getApiBaseUrl } from "@/lib/api/client";
 import type {
+  CalendarEventGroupParams,
+  CalendarEventGroupResponse,
   CalendarEventResponse,
   GoogleCalendarCallbackRequest,
   GoogleCalendarConnectResponse,
   GoogleCalendarConnectionResponse,
+  GoogleCalendarListEntry,
   GoogleCalendarSyncParams,
   ProjectRoomEventListParams,
   ProjectRoomEventListResponse,
@@ -42,6 +45,21 @@ function requiredCalendarRangeQuery(params: GoogleCalendarSyncParams) {
   const searchParams = new URLSearchParams();
   searchParams.set("from", params.from);
   searchParams.set("to", params.to);
+  for (const calendarId of params.calendarIds ?? []) {
+    searchParams.append("calendarIds", calendarId);
+  }
+  return `?${searchParams.toString()}`;
+}
+
+function calendarGroupQuery(params: CalendarEventGroupParams) {
+  const searchParams = new URLSearchParams();
+  searchParams.set("from", params.from);
+  searchParams.set("to", params.to);
+  if (params.roomId) searchParams.set("roomId", params.roomId);
+  if (params.localLimit !== undefined) searchParams.set("localLimit", String(params.localLimit));
+  for (const calendarId of params.googleCalendarIds ?? []) {
+    searchParams.append("googleCalendarIds", calendarId);
+  }
   return `?${searchParams.toString()}`;
 }
 
@@ -70,6 +88,16 @@ export const calendarApi = {
     return apiRequest<null>("/api/calendar/google/connection", {
       method: "DELETE",
     });
+  },
+
+  // 연결된 구글 계정의 캘린더 목록.
+  getGoogleCalendars() {
+    return apiRequest<GoogleCalendarListEntry[]>("/api/calendar/google/calendars");
+  },
+
+  // 로컬 일정(프로젝트룸 단위 그룹) + 구글 캘린더 일정 그룹 조회.
+  getGroupedEvents(params: CalendarEventGroupParams) {
+    return apiRequest<CalendarEventGroupResponse[]>(`/api/calendar/groups${calendarGroupQuery(params)}`);
   },
 
   syncGoogleEvents(params: GoogleCalendarSyncParams) {

@@ -175,7 +175,7 @@ export default function ProjectRoomWorkPage() {
             <Button onClick={() => void load()} variant="primary">
               {t("room.work.reload")}
             </Button>
-            <Link className="bubli-button" href={`/app/project-rooms/${roomId}`}>
+            <Link className="bubli-button" href="/app/project-rooms">
               {t("room.work.backToRoom")}
             </Link>
           </div>

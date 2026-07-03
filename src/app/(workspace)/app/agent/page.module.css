@@ -1,4 +1,6 @@
-/* /app/agent(AI 후보함) 전용 스타일. 공용 workspace-route 스타일 위에 설명·그룹 표시만 얹는다. */
+/* /app/agent(AI 후보함) 전용 스타일.
+   후보는 룸 그룹별 1열 글라스 카드(제목·요약·출처 칩 1개·근거 1줄 접기·승인/보류/제외)로만 보여주고,
+   생성물 보관함은 섹션별 토글(details) 뒤로 접어 첫 화면을 가볍게 유지한다. */
 
 .subtitle {
   margin: 8px 0 0;
@@ -17,6 +19,244 @@
   line-height: 1.55;
 }
 
+/* ── 숫자 스트립: 최대 3개, 유리 칩 하나에 라벨+숫자를 함께 담는다 ── */
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.countChip {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(210, 225, 238, 0.76);
+  border-radius: 999px;
+  padding: 0 6px 0 13px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.countChip span {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 780;
+  line-height: 1;
+}
+
+.countChip strong {
+  display: inline-grid;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 7px;
+  color: var(--blue-ink);
+  background: rgba(216, 240, 255, 0.66);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* ── 후보: 룸 그룹 + 1열 카드 리스트 ── */
+.groupList {
+  display: grid;
+  gap: 16px;
+}
+
+.group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 2px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.groupCount {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cardList {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 20px;
+  padding: 14px 16px;
+  background:
+    radial-gradient(ellipse 76% 46% at 18% 0%, rgba(255, 255, 255, 0.86), transparent 70%),
+    radial-gradient(ellipse 54% 42% at 100% 6%, rgba(216, 240, 255, 0.16), transparent 72%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.76), rgba(250, 253, 255, 0.58));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(111, 184, 242, 0.08),
+    0 18px 44px -36px rgba(47, 124, 193, 0.32);
+  -webkit-backdrop-filter: blur(18px) saturate(1.18);
+  backdrop-filter: blur(18px) saturate(1.18);
+  transition:
+    border-color 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out);
+}
+
+.card:hover {
+  border-color: rgba(111, 184, 242, 0.34);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    0 20px 44px -34px rgba(58, 120, 184, 0.42);
+}
+
+.cardTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cardTitle {
+  flex: 1 1 240px;
+  min-width: 0;
+  color: var(--ink);
+  font-size: 15.5px;
+  font-weight: 880;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.cardChip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(111, 184, 242, 0.3);
+  border-radius: 999px;
+  padding: 3px 10px;
+  color: var(--blue-ink);
+  background: rgba(216, 240, 255, 0.44);
+  font-size: 11.5px;
+  font-weight: 820;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.cardSummary {
+  margin: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+/* 근거: 접힌 상태에서는 한 줄만, 펼치면 전체 문장과 후보 종류를 보여준다 */
+.cardEvidence {
+  min-width: 0;
+  border-top: 1px dashed rgba(107, 143, 168, 0.24);
+  padding-top: 8px;
+}
+
+.cardEvidence summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  cursor: pointer;
+  list-style: none;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 740;
+  line-height: 1.4;
+}
+
+.cardEvidence summary::-webkit-details-marker {
+  display: none;
+}
+
+.cardEvidence summary:hover {
+  color: var(--blue-ink);
+}
+
+.cardEvidenceIcon {
+  flex: 0 0 auto;
+  transition: transform 160ms var(--ease-out);
+}
+
+.cardEvidence[open] .cardEvidenceIcon {
+  transform: rotate(180deg);
+}
+
+.cardEvidenceLine {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardEvidence[open] .cardEvidenceLine {
+  /* 펼치면 요약 줄은 잘린 문장 대신 본문으로 대체되므로 흐리게 둔다 */
+  opacity: 0.62;
+}
+
+.cardEvidence p {
+  margin: 8px 0 0;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.cardMeta {
+  display: inline-flex;
+  margin-top: 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.cardFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cardDate {
+  color: var(--color-muted);
+  font-size: 12.5px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.cardButtons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+/* ── AI 생성물 보관함: 섹션별 접기 ── */
 .zoneHead {
   display: grid;
   gap: 4px;
@@ -40,46 +280,98 @@
   line-height: 1.5;
 }
 
-.groupHead {
+.archive {
+  min-width: 0;
+}
+
+.archiveHead {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 6px 2px 0;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 900;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+  border: 1px solid rgba(210, 225, 238, 0.58);
+  border-radius: 18px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  transition:
+    border-color 160ms var(--ease-out),
+    background 160ms var(--ease-out);
 }
 
-.groupCount {
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 800;
+.archiveHead::-webkit-details-marker {
+  display: none;
 }
 
-.sourceChip {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 6px;
-  padding: 1px 8px;
-  border: 1px solid rgba(107, 143, 168, 0.28);
-  border-radius: 999px;
-  color: var(--color-muted);
-  font-size: 11px;
-  font-weight: 800;
-  white-space: nowrap;
+.archiveHead:hover {
+  border-color: rgba(111, 184, 242, 0.4);
+  background: rgba(255, 255, 255, 0.66);
 }
 
-.evidence {
-  display: block;
+.archiveTitle {
   overflow: hidden;
-  max-width: 560px;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 700;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.archiveCount {
+  flex: 0 0 auto;
+  border: 1px solid rgba(107, 143, 168, 0.22);
+  border-radius: 999px;
+  padding: 3px 10px;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.56);
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1;
+}
+
+.archiveChevron {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  transition: transform 160ms var(--ease-out);
+}
+
+.archive[open] .archiveChevron {
+  transform: rotate(180deg);
+}
+
+.archiveBody {
+  display: grid;
+  gap: 12px;
+  padding: 12px 2px 0;
+}
+
+.archiveActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.archiveEmpty {
+  display: grid;
+  min-height: 56px;
+  place-items: center;
+  margin: 0;
+  border: 1px dashed rgba(107, 143, 168, 0.28);
+  border-radius: 16px;
+  padding: 12px;
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 760;
+  text-align: center;
+  word-break: keep-all;
+}
+
+/* ── 빈 상태/안내 ── */
 .emptyDesc {
   margin: 0;
   color: var(--color-muted);
@@ -114,10 +406,13 @@
   gap: 10px;
 }
 
-/* Night Bubble — 다크 정합화: 잉크는 #EAF0F8/#A7B6CC 위계, hairline은 150,170,215 계열 */
+/* ── Night Bubble — 다크 정합화 ─────────────────────────────
+   잉크는 #EAF0F8(주) / #A7B6CC(보조), hairline·면은 150,170,215 / 34,46,72 계열 */
 [data-theme="dark"] .zoneTitle,
 [data-theme="dark"] .groupHead,
-[data-theme="dark"] .howList {
+[data-theme="dark"] .howList,
+[data-theme="dark"] .cardTitle,
+[data-theme="dark"] .archiveTitle {
   color: #EAF0F8;
 }
 
@@ -125,9 +420,10 @@
 [data-theme="dark"] .sectionDesc,
 [data-theme="dark"] .zoneDesc,
 [data-theme="dark"] .groupCount,
-[data-theme="dark"] .sourceChip,
-[data-theme="dark"] .evidence,
-[data-theme="dark"] .emptyDesc {
+[data-theme="dark"] .emptyDesc,
+[data-theme="dark"] .cardDate,
+[data-theme="dark"] .cardMeta,
+[data-theme="dark"] .archiveChevron {
   color: #A7B6CC;
 }
 
@@ -135,6 +431,79 @@
   border-top-color: rgba(150, 170, 215, 0.3);
 }
 
-[data-theme="dark"] .sourceChip {
+[data-theme="dark"] .countChip {
+  border-color: rgba(150, 170, 215, 0.18);
+  background: rgba(34, 46, 72, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .countChip span {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .countChip strong {
+  color: #BFD6F5;
+  background: rgba(70, 110, 165, 0.42);
+}
+
+[data-theme="dark"] .card {
+  border-color: rgba(150, 170, 215, 0.14);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(158, 216, 255, 0.06), transparent 34%),
+    rgba(34, 46, 72, 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 16px 38px -32px rgba(0, 0, 0, 0.66);
+}
+
+[data-theme="dark"] .card:hover {
+  border-color: rgba(158, 216, 255, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 38px -30px rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="dark"] .cardChip {
+  border-color: rgba(158, 216, 255, 0.26);
+  color: #BFD6F5;
+  background: rgba(158, 216, 255, 0.12);
+}
+
+[data-theme="dark"] .cardSummary,
+[data-theme="dark"] .cardEvidence p {
+  color: #C2CFE6;
+}
+
+[data-theme="dark"] .cardEvidence {
+  border-top-color: rgba(150, 170, 215, 0.22);
+}
+
+[data-theme="dark"] .cardEvidence summary {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .cardEvidence summary:hover {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .archiveHead {
+  border-color: rgba(150, 170, 215, 0.16);
+  background: rgba(34, 46, 72, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+[data-theme="dark"] .archiveHead:hover {
+  border-color: rgba(158, 216, 255, 0.34);
+  background: rgba(60, 80, 125, 0.4);
+}
+
+[data-theme="dark"] .archiveCount {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+  background: rgba(28, 39, 61, 0.5);
+}
+
+[data-theme="dark"] .archiveEmpty {
   border-color: rgba(150, 170, 215, 0.24);
+  color: #A7B6CC;
 }

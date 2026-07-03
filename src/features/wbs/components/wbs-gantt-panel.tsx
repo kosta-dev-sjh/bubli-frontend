@@ -131,6 +131,9 @@ export function WbsGanttPanel({
   const [localRanges, setLocalRanges] = useState<Record<string, LocalRange>>({});
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(() => new Set());
   const [calendarSync, setCalendarSync] = useState<CalendarSyncState>("checking");
+  const [googleAccountEmail, setGoogleAccountEmail] = useState<string | null>(null);
+  const [roomGroupEventCount, setRoomGroupEventCount] = useState<number | null>(null);
+  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const [createDraft, setCreateDraft] = useState<CreateDraft | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
@@ -167,10 +170,11 @@ export function WbsGanttPanel({
 
     void calendarApi
       .getGoogleConnection()
-      .then((connection: GoogleCalendarConnectionResponse) => {
-        if (!cancelled) {
-          setCalendarSync(connection.status === "ACTIVE" ? "recording" : "off");
-        }
+      .then((connection: GoogleCalendarConnectionResponse | null) => {
+        if (cancelled) return;
+        const isActive = connection?.status === "ACTIVE";
+        setCalendarSync(isActive ? "recording" : "off");
+        setGoogleAccountEmail(isActive ? connection?.googleAccountEmail ?? null : null);
       })
       .catch(() => {
         if (cancelled) return;
@@ -183,6 +187,42 @@ export function WbsGanttPanel({
       cancelled = true;
     };
   }, []);
+
+  // 연결 상태일 때 이 룸의 캘린더 그룹(로컬 일정 묶음) 건수를 함께 보여준다.
+  useEffect(() => {
+    // 미연결이면 조회하지 않는다. 건수 표시는 recording 상태에서만 렌더되므로 리셋은 불필요.
+    if (calendarSync !== "recording") return;
+
+    let cancelled = false;
+    const { from, to } = scheduleRangeQuery();
+
+    void calendarApi
+      .getGroupedEvents({ from, roomId, to })
+      .then((groups) => {
+        if (cancelled) return;
+        const roomGroup = groups.find((group) => group.groupType === "PROJECT_ROOM" && group.roomId === roomId);
+        setRoomGroupEventCount(roomGroup?.eventCount ?? 0);
+      })
+      .catch(() => {
+        // 그룹 조회 실패는 건수 표시만 생략한다(연결 상태 표시는 유지).
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [calendarSync, roomId]);
+
+  const handleConnectGoogle = async () => {
+    setIsConnectingGoogle(true);
+
+    try {
+      const response = await calendarApi.requestGoogleConnectUrl();
+      window.location.href = response.authorizeUrl;
+    } catch {
+      setIsConnectingGoogle(false);
+      onNotice(t("wbs.gantt.sync.connectFailed"));
+    }
+  };
 
   const scheduleByWbsId = useMemo(() => {
     const map = new Map<string, ScheduleResponse>();
@@ -342,6 +382,14 @@ export function WbsGanttPanel({
       const scrollerRect = scroller.getBoundingClientRect();
       const sidebarWidth =
         Number.parseFloat(getComputedStyle(scroller).getPropertyValue("--gantt-sidebar-width")) || 0;
+      // 바가 이미 화면 안에 온전히 보이면 스크롤을 건드리지 않는다(선택할 때마다 튀는 것 방지).
+      const visibleLeft = scrollerRect.left + sidebarWidth + 18;
+      const visibleRight = scrollerRect.right - 18;
+
+      if (elementRect.left >= visibleLeft && elementRect.right <= visibleRight) {
+        return;
+      }
+
       const viewportCenter = scrollerRect.left + sidebarWidth + (scroller.clientWidth - sidebarWidth) / 2;
       const elementCenter = elementRect.left + elementRect.width / 2;
 
@@ -717,21 +765,45 @@ export function WbsGanttPanel({
           {t("wbs.gantt.addTask")}
         </button>
 
-        <span
+        <div
           aria-live="polite"
-          className={styles.syncChip}
+          className={styles.syncBlock}
           data-state={calendarSync === "recording" && pendingSyncCount > 0 ? "pending" : calendarSync}
           title={calendarSync === "recording" ? t("wbs.gantt.sync.titleRecording") : t("wbs.gantt.sync.titleOff")}
         >
           <span aria-hidden="true" className={styles.syncDot} />
-          {calendarSync === "checking"
-            ? t("wbs.gantt.sync.checking")
-            : calendarSync === "off"
-              ? t("wbs.gantt.sync.off")
-              : pendingSyncCount > 0
-                ? t("wbs.gantt.sync.pending", { count: pendingSyncCount })
-                : t("wbs.gantt.sync.recording")}
-        </span>
+          <span className={styles.syncCopy}>
+            <strong>
+              {calendarSync === "checking"
+                ? t("wbs.gantt.sync.checking")
+                : calendarSync === "off"
+                  ? t("wbs.gantt.sync.off")
+                  : pendingSyncCount > 0
+                    ? t("wbs.gantt.sync.pending", { count: pendingSyncCount })
+                    : t("wbs.gantt.sync.recording")}
+            </strong>
+            {calendarSync === "recording" && (googleAccountEmail || roomGroupEventCount !== null) ? (
+              <small>
+                {[
+                  googleAccountEmail,
+                  roomGroupEventCount !== null ? t("wbs.gantt.sync.roomGroup", { count: roomGroupEventCount }) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </small>
+            ) : null}
+          </span>
+          {calendarSync === "off" ? (
+            <button
+              className={styles.syncConnectButton}
+              disabled={isConnectingGoogle}
+              onClick={() => void handleConnectGoogle()}
+              type="button"
+            >
+              {isConnectingGoogle ? t("wbs.gantt.sync.connecting") : t("wbs.gantt.sync.connect")}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {createDraft ? (
@@ -775,7 +847,6 @@ export function WbsGanttPanel({
             {visibleItems.map((item) => {
               const feature = featureById.get(item.id);
               if (!feature) return null;
-              const parentItem = item.parentId ? itemById.get(item.parentId) : null;
               const accent = resolveAccent(item);
               const childCount = childCountById.get(item.id) ?? 0;
               const progress = childCount > 0 ? progressById.get(item.id) ?? null : null;
@@ -879,15 +950,21 @@ export function WbsGanttPanel({
                   feature={feature}
                   indentLevel={item.parentId ? 1 : 0}
                   key={item.id}
-                  kindLabel={item.parentId ? t("wbs.gantt.row.kindChild") : t("wbs.gantt.row.kindParent")}
                   onSelectItem={() => focusItemOnTimeline(item)}
-                  parentLabel={parentItem ? t("wbs.gantt.row.parentPrefix", { title: parentItem.title }) : null}
                   progress={
                     progress && progress.total > 0
                       ? {
                           done: progress.done,
                           label: t("wbs.gantt.row.progressLabel", { done: progress.done, total: progress.total }),
                           total: progress.total,
+                        }
+                      : null
+                  }
+                  statusIndicator={
+                    childCount === 0
+                      ? {
+                          label: t(wbsGanttStatusNameKeys[item.status]),
+                          state: item.status === "DONE" ? "done" : item.status === "IN_PROGRESS" ? "inProgress" : "todo",
                         }
                       : null
                   }

@@ -249,7 +249,7 @@
   border: 1px solid rgba(229, 231, 235, 0.72);
   border-radius: 999px;
   color: var(--color-brand);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 720;
   line-height: 1;
   padding: 5px 8px;
@@ -295,7 +295,7 @@
   color: var(--color-brand);
   display: inline-flex;
   flex: 0 0 auto;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 740;
   inline-size: 27px;
   justify-content: center;
@@ -441,7 +441,7 @@
 .assigneeCopy small,
 .wbsCopy small {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 640;
 }
 
