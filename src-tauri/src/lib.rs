@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, fs, path::PathBuf, sync::Mutex, thread};
+use std::{collections::HashMap, env, fs, path::PathBuf, sync::Mutex};
 
 use serde::{Deserialize, Serialize};
 use tauri::utils::config::Color;
@@ -774,7 +774,7 @@ fn build_widget_qa_windows(
 
 fn apply_widget_window_state(
     app: &AppHandle,
-    _monitor_state: &AppMonitorState,
+    monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
     let label = widget_window_label(widget);
@@ -793,6 +793,13 @@ fn apply_widget_window_state(
             .map_err(|error| error.to_string())?;
         window
             .set_size(Size::Logical(widget_window_size(widget)))
+            .map_err(|error| error.to_string())?;
+        window
+            .set_position(Position::Logical(widget_screen_position(
+                app,
+                monitor_state,
+                widget,
+            )?))
             .map_err(|error| error.to_string())?;
         window
             .set_background_color(Some(Color(0, 0, 0, 0)))
@@ -869,24 +876,10 @@ fn build_widget_window(
 
 fn schedule_widget_window_build(
     app: &AppHandle,
+    monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
-    let app_for_build = app.clone();
-    let widget_for_build = widget.clone();
-    let label = widget_window_label(widget);
-    thread::Builder::new()
-        .name(format!("bubli-widget-build-{label}"))
-        .spawn(move || {
-            let monitor_state = app_for_build.state::<AppMonitorState>();
-            if let Err(error) =
-                build_widget_window(&app_for_build, &monitor_state, &widget_for_build)
-            {
-                eprintln!("failed to build widget window {label}: {error}");
-            }
-        })
-        .map_err(|error| error.to_string())?;
-
-    Ok(widget.clone())
+    build_widget_window(app, monitor_state, widget)
 }
 
 #[tauri::command]
@@ -984,6 +977,7 @@ fn close_all_widget_windows(
             widget.window_visible = false;
         }
     }
+    persist_widget_window_state(&app, &state)?;
 
     Ok(destroy_all_widget_windows(&app))
 }
@@ -1108,6 +1102,7 @@ fn set_widget_room_context(
             .map_err(|_| "widget state lock failed".to_string())?;
         set_widget_room_context_for_store(&mut guard, selected_room_id.clone())
     };
+    persist_widget_window_state(&app, &state)?;
     let payload = WidgetRoomContextChangedPayload { selected_room_id };
 
     for widget in &widgets {
@@ -1218,7 +1213,7 @@ fn app_ready(
 #[tauri::command]
 fn open_widget_window(
     app: AppHandle,
-    _monitor_state: tauri::State<'_, AppMonitorState>,
+    monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
     input: Option<WidgetWindowOpenInput>,
 ) -> Result<WidgetWindowState, String> {
@@ -1242,7 +1237,7 @@ fn open_widget_window(
         widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
     })?;
     persist_widget_window_state(&app, &state)?;
-    schedule_widget_window_build(&app, &widget)
+    schedule_widget_window_build(&app, &monitor_state, &widget)
 }
 
 #[tauri::command]
