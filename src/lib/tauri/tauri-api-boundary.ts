@@ -238,6 +238,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.getLocalFileAnalysisStatus,
+    responsibility: "Report local key-sentence analysis retry ledger status from SQLite",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.flushSyncOutbox,
     responsibility: "Report/flush server-reflect backlog",
     reflectsToServer: true,

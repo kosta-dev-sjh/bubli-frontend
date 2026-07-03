@@ -367,6 +367,23 @@ pub struct LocalFileAnalysesMarkResult {
     synced_count: i64,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileAnalysisStatusInput {
+    max_attempts: Option<i64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileAnalysisStatusResult {
+    failed_count: i64,
+    latest_error_message: Option<String>,
+    pending_count: i64,
+    read_at: String,
+    retryable_failed_count: i64,
+    synced_count: i64,
+}
+
 /// Keeps native file watchers alive for the lifetime of the app process.
 pub struct ManagedFolderWatchers(pub Mutex<HashMap<String, RecommendedWatcher>>);
 
@@ -3139,6 +3156,65 @@ pub fn mark_local_file_analyses_sent(
     mark_local_file_analyses_sent_for_conn(&conn, input)
 }
 
+#[tauri::command]
+pub fn get_local_file_analysis_status(
+    state: State<'_, Db>,
+    input: Option<LocalFileAnalysisStatusInput>,
+) -> Result<LocalFileAnalysisStatusResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let max_attempts = input
+        .and_then(|value| value.max_attempts)
+        .unwrap_or(3)
+        .max(1);
+    get_local_file_analysis_status_for_conn(&conn, max_attempts)
+}
+
+fn get_local_file_analysis_status_for_conn(
+    conn: &Connection,
+    max_attempts: i64,
+) -> Result<LocalFileAnalysisStatusResult, String> {
+    let (pending_count, failed_count, synced_count, retryable_failed_count) = conn
+        .query_row(
+            "SELECT \
+                COALESCE(SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END), 0), \
+                COALESCE(SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END), 0), \
+                COALESCE(SUM(CASE WHEN status = 'SYNCED' THEN 1 ELSE 0 END), 0), \
+                COALESCE(SUM(CASE WHEN status = 'FAILED' AND attempt_count < ?1 THEN 1 ELSE 0 END), 0) \
+             FROM local_file_analysis_requests",
+            params![max_attempts],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                ))
+            },
+        )
+        .map_err(|error| error.to_string())?;
+
+    let latest_error_message = conn
+        .query_row(
+            "SELECT error_message \
+             FROM local_file_analysis_requests \
+             WHERE status = 'FAILED' AND error_message IS NOT NULL AND error_message <> '' \
+             ORDER BY updated_at DESC LIMIT 1",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+
+    Ok(LocalFileAnalysisStatusResult {
+        failed_count,
+        latest_error_message,
+        pending_count,
+        read_at: ms_to_iso(now_ms()),
+        retryable_failed_count,
+        synced_count,
+    })
+}
+
 fn mark_local_file_analyses_sent_for_conn(
     conn: &Connection,
     input: LocalFileAnalysesMarkInput,
@@ -4156,6 +4232,31 @@ mod tests {
         assert!(restaged.candidates.is_empty());
 
         let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
+    fn local_file_analysis_status_summarizes_retry_ledger() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO local_file_analysis_requests \
+             (id, local_file_id, resource_id, checksum, status, attempt_count, error_message, created_at, updated_at) \
+             VALUES \
+             ('pending-1', 'file-1', 'resource-1', 'checksum-1', 'PENDING', 1, NULL, 1, 1), \
+             ('failed-1', 'file-2', 'resource-2', 'checksum-2', 'FAILED', 2, 'backend unavailable', 2, 20), \
+             ('failed-2', 'file-3', 'resource-3', 'checksum-3', 'FAILED', 3, 'max attempts', 3, 30), \
+             ('synced-1', 'file-4', 'resource-4', 'checksum-4', 'SYNCED', 1, NULL, 4, 4)",
+            [],
+        )
+        .expect("insert analysis rows");
+
+        let status =
+            get_local_file_analysis_status_for_conn(&conn, 3).expect("read analysis status");
+
+        assert_eq!(status.pending_count, 1);
+        assert_eq!(status.failed_count, 2);
+        assert_eq!(status.retryable_failed_count, 1);
+        assert_eq!(status.synced_count, 1);
+        assert_eq!(status.latest_error_message.as_deref(), Some("max attempts"));
     }
 
     #[test]
