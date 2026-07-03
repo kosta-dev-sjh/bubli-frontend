@@ -669,8 +669,8 @@ export function DesktopWidgetBubble({
           </button>
         ) : (
           <>
-            <header className={styles.head} data-tauri-drag-region>
-              <div className={styles.title}>
+            <header className={styles.head}>
+              <div className={styles.title} data-tauri-drag-region>
                 <span className={styles.signal} aria-hidden="true" />
                 <Icon size={16} strokeWidth={2} />
                 <div className={styles.titleCopy}>

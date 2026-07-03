@@ -21970,6 +21970,7 @@ body[data-bubli-surface="desktop-widget"] {
   background: transparent !important;
   background-image: none !important;
   -ms-overflow-style: none;
+  overscroll-behavior: none;
   scrollbar-width: none;
 }
 
@@ -21977,6 +21978,7 @@ body[data-bubli-surface="desktop-widget"] {
   display: grid;
 }
 
+html[data-bubli-surface="desktop-widget"]::-webkit-scrollbar,
 body[data-bubli-surface="desktop-widget"]::-webkit-scrollbar {
   display: none;
   width: 0;

@@ -1,12 +1,17 @@
 #[cfg(target_os = "macos")]
 use std::thread;
-use std::{collections::HashMap, env, fs, path::PathBuf, sync::Mutex};
+use std::{
+    collections::{HashMap, HashSet},
+    env, fs,
+    path::PathBuf,
+    sync::{LazyLock, Mutex},
+};
 
 use serde::{Deserialize, Serialize};
 use tauri::utils::config::Color;
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Monitor, Position, Size, WebviewUrl,
-    WebviewWindowBuilder,
+    WebviewWindow, WebviewWindowBuilder,
 };
 
 mod activity;
@@ -23,7 +28,7 @@ const MAIN_WINDOW_DEFAULT_HEIGHT: i32 = 820;
 const DEFAULT_WIDGET_BUBBLE_TYPE: &str = "todo";
 const WIDGET_DEFAULT_WIDTH: f64 = 324.0;
 const WIDGET_DEFAULT_HEIGHT: f64 = 392.0;
-const WIDGET_WINDOW_GUTTER: f64 = 36.0;
+const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 const WIDGET_BAR_WIDTH: f64 = 360.0;
 const WIDGET_BAR_HEIGHT: f64 = 168.0;
 const WIDGET_MENU_SIZE: f64 = 192.0;
@@ -86,6 +91,44 @@ impl Default for WidgetWindowStore {
 }
 
 type WidgetState = Mutex<WidgetWindowStore>;
+static WIDGET_READY_WINDOW_LABELS: LazyLock<Mutex<HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
+fn widget_native_shadow_enabled() -> bool {
+    !cfg!(target_os = "windows")
+}
+
+fn widget_waits_for_dom_ready_before_show() -> bool {
+    cfg!(target_os = "windows")
+}
+
+fn reset_widget_window_dom_ready(label: &str) {
+    if !widget_waits_for_dom_ready_before_show() {
+        return;
+    }
+    if let Ok(mut labels) = WIDGET_READY_WINDOW_LABELS.lock() {
+        labels.remove(label);
+    }
+}
+
+fn mark_widget_window_dom_ready(label: &str) {
+    if !widget_waits_for_dom_ready_before_show() {
+        return;
+    }
+    if let Ok(mut labels) = WIDGET_READY_WINDOW_LABELS.lock() {
+        labels.insert(label.to_string());
+    }
+}
+
+fn widget_window_dom_ready(label: &str) -> bool {
+    if !widget_waits_for_dom_ready_before_show() {
+        return true;
+    }
+    WIDGET_READY_WINDOW_LABELS
+        .lock()
+        .map(|labels| labels.contains(label))
+        .unwrap_or(false)
+}
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -726,6 +769,7 @@ fn destroy_all_widget_windows(app: &AppHandle) -> usize {
     let mut destroyed_count = 0;
     for (label, window) in app.webview_windows() {
         if is_widget_window_label(&label) {
+            reset_widget_window_dom_ready(&label);
             let _ = window.destroy();
             destroyed_count += 1;
         }
@@ -783,6 +827,7 @@ fn apply_widget_window_state(
 
     if let Some(window) = app.get_webview_window(&label) {
         if !widget.window_visible && !widget_keeps_webview_when_hidden(widget) {
+            reset_widget_window_dom_ready(&label);
             window.destroy().map_err(|error| error.to_string())?;
             return Ok(widget.clone());
         }
@@ -810,7 +855,7 @@ fn apply_widget_window_state(
 
         let is_visible = window.is_visible().unwrap_or(false);
         if widget.window_visible {
-            if !is_visible {
+            if !is_visible && widget_window_dom_ready(&label) {
                 window.show().map_err(|error| error.to_string())?;
             }
         } else {
@@ -834,6 +879,7 @@ fn build_widget_window(
 
     let size = widget_window_size(widget);
     let position = widget_screen_position(app, monitor_state, widget)?;
+    reset_widget_window_dom_ready(&label);
     let window = WebviewWindowBuilder::new(
         app,
         label.clone(),
@@ -847,7 +893,7 @@ fn build_widget_window(
     .decorations(false)
     .transparent(true)
     .background_color(Color(0, 0, 0, 0))
-    .shadow(true)
+    .shadow(widget_native_shadow_enabled())
     .resizable(false)
     .always_on_top(widget.always_on_top)
     .skip_taskbar(true)
@@ -1219,6 +1265,7 @@ fn app_ready_qa_all_widgets_requested(input: &Option<AppReadyInput>) -> bool {
 #[tauri::command]
 fn app_ready(
     app: AppHandle,
+    window: WebviewWindow,
     _monitor_state: tauri::State<'_, AppMonitorState>,
     _state: tauri::State<'_, WidgetState>,
     input: Option<AppReadyInput>,
@@ -1229,6 +1276,17 @@ fn app_ready(
     if qa_all_widgets && qa_all_widget_windows_enabled() {
         build_widget_qa_windows(&app, selected_room_id)?;
         return Ok("bubli-tauri-ready");
+    }
+
+    let label = window.label().to_string();
+    if is_widget_window_label(&label) {
+        mark_widget_window_dom_ready(&label);
+        window
+            .set_background_color(Some(Color(0, 0, 0, 0)))
+            .map_err(|error| error.to_string())?;
+        if !window.is_visible().unwrap_or(false) {
+            window.show().map_err(|error| error.to_string())?;
+        }
     }
 
     Ok("bubli-tauri-ready")
@@ -1285,6 +1343,7 @@ fn close_widget_window(
     } else {
         let label = widget_window_label(&widget);
         if let Some(window) = app.get_webview_window(&label) {
+            reset_widget_window_dom_ready(&label);
             window.destroy().map_err(|error| error.to_string())?;
         }
         Ok(widget)
@@ -1372,6 +1431,25 @@ mod tests {
             .map(|widget| widget.window_id.as_deref().unwrap_or(&widget.active_bubble))
             .collect();
         assert_eq!(keys, vec!["bar", "timer"]);
+    }
+
+    #[test]
+    fn windows_widget_uses_component_shadow_instead_of_native_shadow() {
+        assert_eq!(widget_native_shadow_enabled(), !cfg!(target_os = "windows"));
+    }
+
+    #[test]
+    fn windows_widget_waits_for_dom_ready_before_first_show() {
+        let label = "bubli-widget-ready-test";
+        reset_widget_window_dom_ready(label);
+        assert_eq!(
+            widget_window_dom_ready(label),
+            !widget_waits_for_dom_ready_before_show()
+        );
+
+        mark_widget_window_dom_ready(label);
+        assert!(widget_window_dom_ready(label));
+        reset_widget_window_dom_ready(label);
     }
 
     #[test]
