@@ -318,8 +318,15 @@ export type LocalFileAnalysesMarkResult = {
 
 export type SqliteIntegrityResult = {
   checkedAt: string;
+  databaseSizeBytes: number;
+  freelistCount: number;
+  journalMode: string;
   ok: boolean;
+  pageCount: number;
+  pageSize: number;
+  quickCheck: string;
   recoveryRequired: boolean;
+  walSizeBytes: number;
 };
 
 export type TauriAuthSessionStoreInput = {

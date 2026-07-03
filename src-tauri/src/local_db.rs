@@ -87,8 +87,15 @@ pub fn configure_connection(conn: &Connection) {
 #[serde(rename_all = "camelCase")]
 pub struct SqliteIntegrityResult {
     checked_at: String,
+    database_size_bytes: u64,
+    freelist_count: i64,
+    journal_mode: String,
     ok: bool,
+    page_count: i64,
+    page_size: i64,
+    quick_check: String,
     recovery_required: bool,
+    wal_size_bytes: u64,
 }
 
 #[derive(Serialize)]
@@ -326,16 +333,74 @@ pub fn check_local_sqlite_integrity(
     state: tauri::State<'_, Db>,
 ) -> Result<SqliteIntegrityResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    check_local_sqlite_integrity_for_conn(&conn)
+}
+
+fn check_local_sqlite_integrity_for_conn(
+    conn: &Connection,
+) -> Result<SqliteIntegrityResult, String> {
     let quick_check: String = conn
         .query_row("PRAGMA quick_check", [], |row| row.get(0))
         .map_err(|error| error.to_string())?;
+    let journal_mode: String = conn
+        .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    let page_count: i64 = conn
+        .query_row("PRAGMA page_count", [], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    let freelist_count: i64 = conn
+        .query_row("PRAGMA freelist_count", [], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    let page_size: i64 = conn
+        .query_row("PRAGMA page_size", [], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    let db_path = main_database_path_for_conn(conn)?;
+    let database_size_bytes = db_path
+        .as_deref()
+        .map(metadata_len)
+        .transpose()?
+        .unwrap_or(0);
+    let wal_size_bytes = db_path
+        .as_ref()
+        .map(|path| PathBuf::from(format!("{}-wal", path.to_string_lossy())))
+        .as_deref()
+        .map(metadata_len)
+        .transpose()?
+        .unwrap_or(0);
     let ok = quick_check == "ok";
 
     Ok(SqliteIntegrityResult {
         checked_at: now_iso(),
+        database_size_bytes,
+        freelist_count,
+        journal_mode,
         ok,
+        page_count,
+        page_size,
+        quick_check,
         recovery_required: !ok,
+        wal_size_bytes,
     })
+}
+
+fn main_database_path_for_conn(conn: &Connection) -> Result<Option<PathBuf>, String> {
+    let path: String = conn
+        .query_row("PRAGMA database_list", [], |row| row.get(2))
+        .map_err(|error| error.to_string())?;
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(PathBuf::from(trimmed)))
+    }
+}
+
+fn metadata_len(path: &Path) -> Result<u64, String> {
+    match std::fs::metadata(path) {
+        Ok(metadata) => Ok(metadata.len()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(0),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 #[tauri::command]
@@ -1427,12 +1492,13 @@ CREATE INDEX IF NOT EXISTS idx_local_activity_buffer_status ON local_activity_bu
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_pending_sqlite_restore, list_local_sqlite_backups_for_conn,
-        mark_activity_context_synced_conn, now_ms, read_active_project_room_for_conn,
-        read_auth_session_json, read_room_messages_for_conn, read_widget_summary_cache_for_conn,
-        record_timer_state_for_conn, recover_timer_state_for_conn, restore_request_path,
-        stage_activity_contexts_for_sync_conn, store_active_project_room_for_conn,
-        store_auth_session_json, store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
+        apply_pending_sqlite_restore, check_local_sqlite_integrity_for_conn,
+        list_local_sqlite_backups_for_conn, mark_activity_context_synced_conn, now_ms,
+        read_active_project_room_for_conn, read_auth_session_json, read_room_messages_for_conn,
+        read_widget_summary_cache_for_conn, record_timer_state_for_conn,
+        recover_timer_state_for_conn, restore_request_path, stage_activity_contexts_for_sync_conn,
+        store_active_project_room_for_conn, store_auth_session_json,
+        store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
         validate_auth_session_json, validate_widget_summary_json,
         write_pending_sqlite_restore_to_path, ActiveProjectRoomStoreInput,
         ActivityContextSyncInput, LocalRoomMessageCacheInput, LocalRoomMessageReadInput,
@@ -1498,6 +1564,32 @@ mod tests {
         assert_eq!(manifest.backups[0].file_name, "new.sqlite3");
         assert_eq!(manifest.backups[0].size_bytes, 20);
         assert!(!manifest.read_at.is_empty());
+    }
+
+    #[test]
+    fn sqlite_integrity_result_includes_storage_diagnostics() {
+        let test_dir =
+            std::env::temp_dir().join(format!("bubli-sqlite-diagnostics-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&test_dir).expect("create test dir");
+        let db_path = test_dir.join("bubli-local.sqlite3");
+        let conn = Connection::open(&db_path).expect("open file db");
+        super::configure_connection(&conn);
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+
+        let result =
+            check_local_sqlite_integrity_for_conn(&conn).expect("check sqlite diagnostics");
+
+        assert!(result.ok);
+        assert_eq!(result.quick_check, "ok");
+        assert!(!result.checked_at.is_empty());
+        assert!(!result.journal_mode.is_empty());
+        assert!(result.page_count > 0);
+        assert!(result.page_size > 0);
+        assert!(result.freelist_count >= 0);
+        assert!(result.database_size_bytes > 0);
+
+        drop(conn);
+        std::fs::remove_dir_all(&test_dir).expect("remove test dir");
     }
 
     #[test]
