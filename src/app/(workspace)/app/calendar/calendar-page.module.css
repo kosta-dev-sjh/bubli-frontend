@@ -1383,6 +1383,466 @@
   }
 }
 
+/* ============================================================
+   Night Bubble — 일정(캘린더) 다크 정합화
+   날짜 셀은 어두운 유리, 오늘/선택은 Sky rim + 옅은 채움. 색은 빛에만.
+   ============================================================ */
+[data-theme="dark"] .header h1,
+[data-theme="dark"] .syncCompact strong,
+[data-theme="dark"] .panelHeader h2,
+[data-theme="dark"] .monthHeader strong,
+[data-theme="dark"] .selectedEventPanel > div strong,
+[data-theme="dark"] .selectedEventEdit strong,
+[data-theme="dark"] .timelineMeta b,
+[data-theme="dark"] .timelineBody h3,
+[data-theme="dark"] .roomEventRail strong,
+[data-theme="dark"] .repeatToggle,
+[data-theme="dark"] .deleteConfirm p,
+[data-theme="dark"] .dayButton strong {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .header p,
+[data-theme="dark"] .panelHeader p,
+[data-theme="dark"] .timelineBody p,
+[data-theme="dark"] .syncCompact span,
+[data-theme="dark"] .syncNotice,
+[data-theme="dark"] .timelineMeta,
+[data-theme="dark"] .roomEventRail span,
+[data-theme="dark"] .emptyTimeline,
+[data-theme="dark"] .field span,
+[data-theme="dark"] .loadWarning,
+[data-theme="dark"] .dayEventMore {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .syncStatusLine {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .sourcePanel {
+  border-color: rgba(150, 170, 215, 0.16);
+  background: rgba(34, 46, 72, 0.46);
+}
+
+[data-theme="dark"] .sourceButton {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+  background: rgba(28, 39, 61, 0.5);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .sourceButton:hover {
+  border-color: rgba(150, 170, 215, 0.32);
+  background: rgba(54, 72, 110, 0.5);
+}
+
+[data-theme="dark"] .sourceButton[aria-pressed="true"] {
+  color: #EAF0F8;
+  border-color: rgba(158, 216, 255, 0.42);
+  background: rgba(60, 80, 125, 0.55);
+  box-shadow:
+    0 14px 34px -26px rgba(0, 0, 0, 0.66),
+    var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .sourceButton strong {
+  color: #BFD6F5;
+  background: rgba(158, 216, 255, 0.14);
+}
+
+[data-theme="dark"] .syncCompact {
+  border-left-color: rgba(150, 170, 215, 0.18);
+}
+
+[data-theme="dark"] .syncPrimaryButton {
+  border-color: rgba(158, 216, 255, 0.4);
+  color: #EAF0F8;
+  background: rgba(70, 110, 165, 0.42);
+  box-shadow:
+    0 12px 28px -22px rgba(0, 0, 0, 0.66),
+    var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .syncIconButton {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+  background: rgba(34, 46, 72, 0.5);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .syncPrimaryButton:hover,
+[data-theme="dark"] .syncIconButton:hover {
+  border-color: rgba(158, 216, 255, 0.5);
+  background: rgba(70, 110, 165, 0.55);
+}
+
+[data-theme="dark"] .syncMenu {
+  border-color: rgba(150, 170, 215, 0.2);
+  background: rgba(28, 38, 60, 0.96);
+  box-shadow: 0 22px 48px -26px rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="dark"] .syncMenuItem {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .syncMenuItem:hover {
+  background: rgba(60, 80, 125, 0.5);
+}
+
+[data-theme="dark"] .syncMenuItem:last-child {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .loadWarning {
+  border-color: rgba(230, 196, 156, 0.3);
+  background: rgba(230, 196, 156, 0.1);
+}
+
+[data-theme="dark"] .calendarPanel {
+  border-color: rgba(150, 170, 215, 0.16);
+  background:
+    radial-gradient(circle at 18% 10%, rgba(110, 160, 210, 0.14), transparent 34%),
+    radial-gradient(circle at 88% 18%, rgba(140, 120, 200, 0.12), transparent 30%),
+    rgba(34, 46, 72, 0.44);
+}
+
+[data-theme="dark"] .calendarPanel::before {
+  border-color: rgba(150, 170, 215, 0.12);
+  box-shadow:
+    var(--inner-highlight-dark),
+    inset 0 -18px 32px rgba(0, 0, 0, 0.14);
+}
+
+[data-theme="dark"] .viewSwitch {
+  border-color: rgba(150, 170, 215, 0.16);
+  background: rgba(28, 39, 61, 0.5);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .viewSwitch button {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .viewSwitch button[aria-pressed="true"] {
+  color: #EAF0F8;
+  background: rgba(60, 80, 125, 0.55);
+  box-shadow: 0 8px 20px -16px rgba(0, 0, 0, 0.66);
+}
+
+[data-theme="dark"] .monthHeader {
+  border-color: rgba(150, 170, 215, 0.16);
+  background: rgba(28, 39, 61, 0.5);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .monthNavButton,
+[data-theme="dark"] .todayButton {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #BFD6F5;
+  background: rgba(34, 46, 72, 0.5);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .todayButton {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .monthNavButton:hover,
+[data-theme="dark"] .todayButton:hover {
+  border-color: rgba(158, 216, 255, 0.4);
+  background: rgba(60, 80, 125, 0.5);
+  box-shadow: var(--shadow-floating-dark);
+}
+
+[data-theme="dark"] .weekLabelGrid span {
+  color: #A7B6CC;
+  background: rgba(28, 39, 61, 0.5);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .weekLabelGrid span:nth-child(n + 6) {
+  color: #BFD6F5;
+  background: rgba(158, 216, 255, 0.1);
+}
+
+[data-theme="dark"] .dayButton {
+  border-color: rgba(150, 170, 215, 0.14);
+  color: #A7B6CC;
+  background: rgba(34, 46, 72, 0.42);
+  box-shadow:
+    var(--inner-highlight-dark),
+    0 12px 26px -24px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .dayButton:hover {
+  border-color: rgba(150, 170, 215, 0.28);
+  box-shadow: var(--shadow-floating-dark);
+}
+
+[data-theme="dark"] .dayButtonWeekend {
+  background: rgba(40, 52, 82, 0.46);
+}
+
+[data-theme="dark"] .dayButtonSelected {
+  border-color: rgba(158, 216, 255, 0.4);
+  color: #EAF0F8;
+  background: rgba(60, 80, 125, 0.5);
+  box-shadow:
+    0 16px 38px -24px rgba(0, 0, 0, 0.66),
+    var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .dayButtonToday {
+  border-color: rgba(158, 216, 255, 0.5);
+  background: rgba(54, 72, 110, 0.5);
+}
+
+[data-theme="dark"] .dayButtonToday strong {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .dayButtonToday::after {
+  box-shadow: 0 0 0 4px rgba(158, 216, 255, 0.14);
+}
+
+[data-theme="dark"] .dayButtonHasRoomEvent i {
+  box-shadow: 0 0 0 3px rgba(28, 39, 61, 0.6);
+}
+
+[data-theme="dark"] .daySpacer {
+  background: rgba(34, 46, 72, 0.2);
+}
+
+[data-theme="dark"] .dayNumberRow small {
+  color: #BFD6F5;
+  background: rgba(158, 216, 255, 0.14);
+}
+
+[data-theme="dark"] .dayEventItem,
+[data-theme="dark"] .dayEventMore {
+  border-color: rgba(150, 170, 215, 0.16);
+  color: #EAF0F8;
+  background: rgba(28, 39, 61, 0.55);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .dayEventItem span {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .dayEventItem_personal {
+  background: rgba(28, 39, 61, 0.6);
+}
+
+[data-theme="dark"] .dayEventItem_room {
+  border-color: rgba(158, 216, 255, 0.3);
+  background: rgba(70, 110, 165, 0.34);
+}
+
+[data-theme="dark"] .dayEventItem_external {
+  border-color: rgba(176, 168, 224, 0.36);
+  background: rgba(140, 120, 200, 0.24);
+}
+
+[data-theme="dark"] .selectedEventPanel {
+  border-color: rgba(150, 170, 215, 0.16);
+  background: rgba(28, 39, 61, 0.42);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .selectedEventPanel > div span {
+  color: #BFD6F5;
+  background: rgba(158, 216, 255, 0.14);
+}
+
+[data-theme="dark"] .selectedEventEdit,
+[data-theme="dark"] .emptySelectedEvent,
+[data-theme="dark"] .selectedEventDelete {
+  border-color: rgba(150, 170, 215, 0.18);
+  color: #EAF0F8;
+  background: rgba(34, 46, 72, 0.5);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .selectedEventEdit span,
+[data-theme="dark"] .selectedEventEdit small {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .selectedEventEdit small {
+  background: rgba(158, 216, 255, 0.12);
+}
+
+[data-theme="dark"] .selectedEventDelete,
+[data-theme="dark"] .emptySelectedEvent {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .selectedEventEdit:hover,
+[data-theme="dark"] .emptySelectedEvent:hover,
+[data-theme="dark"] .selectedEventDelete:hover {
+  border-color: rgba(158, 216, 255, 0.4);
+  background: rgba(60, 80, 125, 0.5);
+}
+
+[data-theme="dark"] .deleteConfirm {
+  border-color: rgba(150, 170, 215, 0.24);
+  background: rgba(28, 39, 61, 0.66);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .timelineLine {
+  background: rgba(150, 170, 215, 0.2);
+}
+
+[data-theme="dark"] .timelineIcon {
+  border-color: rgba(150, 170, 215, 0.26);
+  color: #A7B6CC;
+  background: rgba(34, 46, 72, 0.9);
+}
+
+[data-theme="dark"] .timelineIcon_completed {
+  border-color: rgba(147, 207, 168, 0.6);
+  color: #EAF0F8;
+  background: rgba(147, 207, 168, 0.16);
+}
+
+[data-theme="dark"] .timelineIcon_active {
+  border-color: rgba(158, 216, 255, 0.7);
+  color: #BFD6F5;
+  background: rgba(158, 216, 255, 0.14);
+}
+
+[data-theme="dark"] .timelineIcon_pending {
+  border-color: rgba(150, 170, 215, 0.3);
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .timelineIcon_error {
+  border-color: rgba(231, 155, 176, 0.6);
+  color: #EAF0F8;
+  background: rgba(231, 155, 176, 0.16);
+}
+
+[data-theme="dark"] .timelineBody {
+  border-color: rgba(150, 170, 215, 0.16);
+  background: rgba(34, 46, 72, 0.42);
+}
+
+[data-theme="dark"] .roomEventRail article {
+  border-color: rgba(150, 170, 215, 0.16);
+  background: rgba(34, 46, 72, 0.42);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .emptyTimeline {
+  border-color: rgba(150, 170, 215, 0.3);
+  background: rgba(28, 39, 61, 0.32);
+}
+
+[data-theme="dark"] .field input,
+[data-theme="dark"] .field select {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #EAF0F8;
+  background: rgba(28, 39, 61, 0.66);
+}
+
+[data-theme="dark"] .field input:focus,
+[data-theme="dark"] .field select:focus {
+  border-color: rgba(158, 216, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(158, 216, 255, 0.16);
+}
+
+[data-theme="dark"] .composerLayer {
+  background: rgba(10, 16, 28, 0.5);
+}
+
+[data-theme="dark"] .composerPanel {
+  border-color: rgba(150, 170, 215, 0.2);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(158, 216, 255, 0.06), transparent 36%),
+    rgba(28, 38, 60, 0.96);
+  box-shadow:
+    0 34px 80px -48px rgba(0, 0, 0, 0.8),
+    var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .composerClose {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+  background: rgba(54, 72, 110, 0.45);
+}
+
+[data-theme="dark"] .repeatBox {
+  border-color: rgba(150, 170, 215, 0.18);
+  background: rgba(34, 46, 72, 0.45);
+}
+
+[data-theme="dark"] .repeatToggle i {
+  background: rgba(150, 170, 215, 0.26);
+}
+
+[data-theme="dark"] .repeatToggle i::after {
+  background: #CDD9F0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .repeatToggleOn i {
+  background: rgba(111, 184, 242, 0.5);
+}
+
+[data-theme="dark"] .repeatDay {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+  background: rgba(28, 39, 61, 0.5);
+}
+
+[data-theme="dark"] .repeatDaySelected {
+  border-color: rgba(158, 216, 255, 0.42);
+  color: #EAF0F8;
+  background: rgba(60, 80, 125, 0.55);
+  box-shadow: var(--shadow-surface-dark);
+}
+
+[data-theme="dark"] .notice {
+  color: #BFD6F5;
+  background: rgba(158, 216, 255, 0.12);
+}
+
+@media (max-width: 980px) {
+  [data-theme="dark"] .syncCompact {
+    border-top-color: rgba(150, 170, 215, 0.18);
+  }
+}
+
+@media (max-width: 640px) {
+  [data-theme="dark"] .syncCompact {
+    border-top-color: rgba(150, 170, 215, 0.18);
+  }
+
+  [data-theme="dark"] .dayEventItem {
+    background: rgba(150, 170, 215, 0.5);
+    border: 0;
+    box-shadow: none;
+  }
+
+  [data-theme="dark"] .dayEventItem_room {
+    background: var(--bubble-blue);
+  }
+
+  [data-theme="dark"] .dayEventItem_external {
+    background: var(--opal-lilac);
+  }
+
+  [data-theme="dark"] .dayEventMore {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dayButton,
   .monthHeader strong,

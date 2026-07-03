@@ -353,3 +353,174 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
     0 10px 22px -22px rgba(107, 143, 168, 0.45);
 }
+
+/* ============================================================
+   Night Bubble — WBS 간트 다크 정합화
+   간트 표면은 어두운 유리, accent 색은 rim·rail에만 유지.
+   ============================================================ */
+[data-theme="dark"] .rangeSwitch,
+[data-theme="dark"] .toolButton,
+[data-theme="dark"] .syncChip {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .rangeSwitch button {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .rangeSwitch button[aria-selected="true"] {
+  background: rgba(60, 80, 125, 0.55);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .toolButton:hover:not(:disabled) {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .syncChip[data-state="recording"],
+[data-theme="dark"] .syncChip[data-state="pending"] {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .createInline {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.18);
+  box-shadow:
+    var(--inner-highlight-dark),
+    0 14px 30px -26px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .createInlineMeta {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .createInlineInput {
+  background: rgba(28, 39, 61, 0.66);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .createInlineInput:focus {
+  border-color: rgba(158, 216, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(158, 216, 255, 0.16);
+}
+
+[data-theme="dark"] .createInlineButton {
+  background: rgba(70, 110, 165, 0.4);
+  border-color: rgba(158, 216, 255, 0.34);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .createInlineButtonSecondary {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .rowActionButton {
+  background: rgba(54, 72, 110, 0.45);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .rowActionButton:hover,
+[data-theme="dark"] .rowActionButton:focus-visible {
+  background: rgba(70, 92, 140, 0.55);
+  border-color: rgba(158, 216, 255, 0.4);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .selectedRow {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--gantt-row-accent) 34%, rgba(34, 46, 72, 0.72)) 0%,
+      rgba(54, 72, 110, 0.66) 44%,
+      rgba(34, 46, 72, 0.6) 100%
+    ) !important;
+  box-shadow:
+    inset 12px 0 0 var(--gantt-row-accent),
+    inset 0 0 0 2px color-mix(in srgb, var(--gantt-row-accent) 62%, rgba(150, 170, 215, 0.3)),
+    0 16px 30px -18px rgba(0, 0, 0, 0.66);
+  color: #EAF0F8;
+  outline-color: color-mix(in srgb, var(--gantt-row-accent) 56%, rgba(150, 170, 215, 0.4));
+}
+
+[data-theme="dark"] .selectedRow :global(.text-muted-foreground) {
+  color: #C2CFE6;
+}
+
+[data-theme="dark"] .ganttSurface {
+  background: rgba(24, 33, 52, 0.6);
+  border-color: rgba(150, 170, 215, 0.16);
+  box-shadow:
+    var(--inner-highlight-dark),
+    0 12px 30px -28px rgba(0, 0, 0, 0.6);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .ganttSurface :global([data-roadmap-ui="gantt-sidebar"]) {
+  background: rgba(24, 33, 52, 0.94);
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .ganttSurface :global([data-gantt-item-kind="child"]) {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--gantt-row-accent) 26%, rgba(34, 46, 72, 0.6)) 0%,
+      rgba(34, 46, 72, 0.55) 42%,
+      rgba(28, 39, 61, 0.5) 100%
+    );
+  box-shadow:
+    inset 7px 0 0 color-mix(in srgb, var(--gantt-row-accent) 76%, rgba(150, 170, 215, 0.24)),
+    inset 23px 0 0 rgba(28, 39, 61, 0.5);
+}
+
+[data-theme="dark"] .ganttSurface :global(.bg-secondary) {
+  background-color: rgba(60, 80, 125, 0.2);
+}
+
+[data-theme="dark"] .ganttSurface :global(.bg-background),
+[data-theme="dark"] .ganttSurface :global(.bg-card) {
+  background-color: rgba(24, 33, 52, 0.92);
+}
+
+[data-theme="dark"] .ganttSurface :global([data-roadmap-ui="gantt-feature-card"]) {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--gantt-feature-color) 28%, rgba(34, 46, 72, 0.7)) 0%,
+      rgba(34, 46, 72, 0.66) 68%
+    );
+  border: 1px solid color-mix(in srgb, var(--gantt-feature-color) 42%, rgba(150, 170, 215, 0.2));
+  box-shadow:
+    inset 4px 0 0 var(--gantt-feature-color),
+    var(--inner-highlight-dark),
+    0 10px 22px -20px rgba(0, 0, 0, 0.66);
+}
+
+[data-theme="dark"] .ganttSurface :global([data-roadmap-ui="gantt-progress-track"]) {
+  background-color: rgba(150, 170, 215, 0.22);
+  box-shadow: inset 0 1px 0 rgba(180, 205, 240, 0.1);
+}
+
+[data-theme="dark"] .ganttSurface :global(.border-border\/50) {
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .ganttSurface :global(.text-muted-foreground) {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .ganttSurface :global(.text-foreground) {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .ganttSurface :global(.shadow-sm) {
+  box-shadow:
+    var(--inner-highlight-dark),
+    0 10px 22px -22px rgba(0, 0, 0, 0.6);
+}

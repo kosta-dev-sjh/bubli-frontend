@@ -113,3 +113,28 @@
   align-items: center;
   gap: 10px;
 }
+
+/* Night Bubble — 다크 정합화: 잉크는 #EAF0F8/#A7B6CC 위계, hairline은 150,170,215 계열 */
+[data-theme="dark"] .zoneTitle,
+[data-theme="dark"] .groupHead,
+[data-theme="dark"] .howList {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .subtitle,
+[data-theme="dark"] .sectionDesc,
+[data-theme="dark"] .zoneDesc,
+[data-theme="dark"] .groupCount,
+[data-theme="dark"] .sourceChip,
+[data-theme="dark"] .evidence,
+[data-theme="dark"] .emptyDesc {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .zoneHead {
+  border-top-color: rgba(150, 170, 215, 0.3);
+}
+
+[data-theme="dark"] .sourceChip {
+  border-color: rgba(150, 170, 215, 0.24);
+}

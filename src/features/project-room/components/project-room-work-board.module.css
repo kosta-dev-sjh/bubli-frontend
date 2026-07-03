@@ -1567,6 +1567,501 @@
   }
 }
 
+/* ============================================================
+   Night Bubble — 워크보드 다크 정합화
+   로컬 토큰(--work-*)을 뒤집고, 하드코딩 잉크(#2c3540/#5a6772/#8a94a0)를
+   #EAF0F8/#A7B6CC/희미(176,190,208) 위계로 정렬. 면은 어두운 유리.
+   ============================================================ */
+[data-theme="dark"] .shell {
+  --work-border: rgba(150, 170, 215, 0.16);
+  --work-ink: #EAF0F8;
+  --work-muted: #A7B6CC;
+  --work-surface: rgba(34, 46, 72, 0.5);
+}
+
+[data-theme="dark"] .generateButton {
+  background: rgba(70, 110, 165, 0.4);
+  border-color: rgba(158, 216, 255, 0.34);
+}
+
+[data-theme="dark"] .generateButton:hover:not(:disabled) {
+  background: rgba(70, 110, 165, 0.55);
+  border-color: rgba(158, 216, 255, 0.46);
+}
+
+[data-theme="dark"] .progressChip {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.2);
+}
+
+[data-theme="dark"] .progressTrack {
+  background: rgba(150, 170, 215, 0.24);
+  box-shadow: inset 0 1px 0 rgba(180, 205, 240, 0.1);
+}
+
+[data-theme="dark"] .generateNotice {
+  background: rgba(158, 216, 255, 0.1);
+  border-color: rgba(158, 216, 255, 0.24);
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .generateError {
+  background: rgba(230, 196, 156, 0.1);
+  border-color: rgba(230, 196, 156, 0.3);
+  color: var(--signal-memo, #E6C49C);
+}
+
+[data-theme="dark"] .viewSwitch {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.16);
+  box-shadow:
+    var(--inner-highlight-dark),
+    0 12px 28px -24px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .viewSwitch button {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .viewSwitch button[aria-pressed="true"] {
+  background: rgba(60, 80, 125, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(180, 205, 240, 0.1),
+    0 10px 24px -18px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .pane,
+[data-theme="dark"] .kanbanPane,
+[data-theme="dark"] .wbsDetail,
+[data-theme="dark"] .wbsInspector,
+[data-theme="dark"] .wbsInspectorPopover,
+[data-theme="dark"] .suggestionTray {
+  background: rgba(34, 46, 72, 0.5);
+  box-shadow:
+    var(--inner-highlight-dark),
+    0 18px 44px -34px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .wbsWorkspace .pane :global(.gantt) {
+  background: rgba(24, 33, 52, 0.6);
+  border-color: rgba(150, 170, 215, 0.16);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .wbsWorkspace .pane :global([data-roadmap-ui="gantt-sidebar"]) {
+  background: rgba(24, 33, 52, 0.9);
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .bg-secondary) {
+  background-color: rgba(60, 80, 125, 0.2);
+}
+
+[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .bg-background),
+[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .bg-card) {
+  background-color: rgba(24, 33, 52, 0.88);
+}
+
+[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .border-border\/50) {
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .divide-border\/50 > :not([hidden]) ~ :not([hidden])) {
+  border-color: rgba(150, 170, 215, 0.14);
+}
+
+[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .text-muted-foreground) {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .text-foreground) {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .shadow-sm) {
+  box-shadow:
+    var(--inner-highlight-dark),
+    0 12px 26px -24px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .wbsList {
+  background: rgba(28, 39, 61, 0.5);
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .wbsPeriodSwitch {
+  background: rgba(28, 39, 61, 0.5);
+  border-color: rgba(150, 170, 215, 0.18);
+}
+
+[data-theme="dark"] .wbsPeriodSwitch button {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .wbsPeriodSwitch button[aria-pressed="true"] {
+  background: rgba(60, 80, 125, 0.55);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(180, 205, 240, 0.1);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .periodBoard,
+[data-theme="dark"] .periodDayBoard {
+  background: rgba(28, 39, 61, 0.42);
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .periodBoardHead strong {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .periodBoardHead span {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .periodNav {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.18);
+}
+
+[data-theme="dark"] .periodNav button {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .periodNav button:hover {
+  background: rgba(60, 80, 125, 0.5);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .periodCell {
+  background: rgba(34, 46, 72, 0.4);
+  border-color: rgba(150, 170, 215, 0.14);
+}
+
+[data-theme="dark"] .periodCell header span,
+[data-theme="dark"] .periodItems small {
+  color: rgba(176, 190, 208, 0.62);
+}
+
+[data-theme="dark"] .periodCell header strong {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .periodPill {
+  background: linear-gradient(90deg, var(--wbs-accent-soft), rgba(34, 46, 72, 0.55));
+  border-color: rgba(150, 170, 215, 0.18);
+}
+
+[data-theme="dark"] .periodPill strong {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .periodPill small {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .wbsTableHead {
+  background: rgba(28, 39, 61, 0.6);
+  border-color: rgba(150, 170, 215, 0.16);
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .wbsRow {
+  border-block-end-color: rgba(150, 170, 215, 0.12);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .wbsRow:hover,
+[data-theme="dark"] .wbsRowSelected {
+  background: rgba(60, 80, 125, 0.34);
+  border-color: rgba(150, 170, 215, 0.2);
+  box-shadow: inset 3px 0 0 rgba(158, 216, 255, 0.5);
+}
+
+[data-theme="dark"] .wbsRowTinted:hover,
+[data-theme="dark"] .wbsRowTinted.wbsRowSelected {
+  background: linear-gradient(90deg, var(--wbs-accent-soft, rgba(60, 80, 125, 0.34)) 0%, rgba(60, 80, 125, 0.34) 62%);
+  box-shadow: inset 3px 0 0 var(--wbs-accent, rgba(158, 216, 255, 0.5));
+}
+
+[data-theme="dark"] .wbsRowDropTarget {
+  background: rgba(158, 216, 255, 0.16);
+  box-shadow: inset 0 2px 0 rgba(158, 216, 255, 0.6), inset 3px 0 0 rgba(158, 216, 255, 0.4);
+}
+
+[data-theme="dark"] .wbsHandle {
+  color: rgba(176, 190, 208, 0.6);
+}
+
+[data-theme="dark"] .wbsRail {
+  background: rgba(150, 170, 215, 0.34);
+  box-shadow: inset 0 1px 0 rgba(180, 205, 240, 0.16);
+}
+
+[data-theme="dark"] .wbsRowTinted .wbsRail {
+  background: var(--wbs-accent, var(--color-todo));
+}
+
+[data-theme="dark"] .wbsRow:hover .wbsHandle,
+[data-theme="dark"] .wbsRowSelected .wbsHandle {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .wbsCode {
+  background: rgba(54, 72, 110, 0.45);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .wbsRowChild .wbsCode {
+  border-color: color-mix(in srgb, var(--wbs-accent, var(--color-todo)) 36%, rgba(150, 170, 215, 0.2));
+  color: color-mix(in srgb, var(--wbs-accent, var(--color-todo)) 58%, #EAF0F8);
+}
+
+[data-theme="dark"] .wbsMain strong,
+[data-theme="dark"] .suggestion strong,
+[data-theme="dark"] .cardTop strong,
+[data-theme="dark"] .selectedWbs strong,
+[data-theme="dark"] .trashZone strong,
+[data-theme="dark"] .inspectorTitle strong,
+[data-theme="dark"] .detailMetrics strong,
+[data-theme="dark"] .sectionLabel,
+[data-theme="dark"] .linkedTask strong,
+[data-theme="dark"] .columnHead strong {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .wbsMetric,
+[data-theme="dark"] .wbsDate,
+[data-theme="dark"] .wbsMain small,
+[data-theme="dark"] .suggestion small,
+[data-theme="dark"] .cardBody p,
+[data-theme="dark"] .selectedWbs small,
+[data-theme="dark"] .trashZone small,
+[data-theme="dark"] .inspectorTitle small,
+[data-theme="dark"] .inspectorMeta,
+[data-theme="dark"] .detailMetrics small,
+[data-theme="dark"] .linkedTask small,
+[data-theme="dark"] .taskInspector p,
+[data-theme="dark"] .colorControl > span,
+[data-theme="dark"] .taskCreate label,
+[data-theme="dark"] .wbsFormGrid label,
+[data-theme="dark"] .assigneeControl,
+[data-theme="dark"] .notice,
+[data-theme="dark"] .customColor {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .taskInspector small,
+[data-theme="dark"] .columnHead small,
+[data-theme="dark"] .grip,
+[data-theme="dark"] .candidateEmpty,
+[data-theme="dark"] .empty {
+  color: rgba(176, 190, 208, 0.62);
+}
+
+[data-theme="dark"] .selectedWbs {
+  background: rgba(60, 80, 125, 0.3);
+  border-color: rgba(150, 170, 215, 0.3);
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .inspectorMeta {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.18);
+}
+
+[data-theme="dark"] .inspectorClose {
+  background: rgba(54, 72, 110, 0.45);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .inspectorClose:hover {
+  background: rgba(70, 92, 140, 0.55);
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .detailMetrics span {
+  background: rgba(28, 39, 61, 0.5);
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .wbsEditor,
+[data-theme="dark"] .wbsCreate {
+  background: rgba(28, 39, 61, 0.5);
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .wbsCreate {
+  background: rgba(60, 80, 125, 0.22);
+  border-color: rgba(150, 170, 215, 0.24);
+}
+
+[data-theme="dark"] .colorSwatch {
+  border-color: rgba(28, 39, 61, 0.9);
+  box-shadow: 0 0 0 1px rgba(150, 170, 215, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .colorSwatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px rgba(158, 216, 255, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+[data-theme="dark"] .customColor {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.2);
+}
+
+[data-theme="dark"] .taskCreate {
+  background: rgba(60, 80, 125, 0.22);
+  border-color: rgba(150, 170, 215, 0.24);
+}
+
+[data-theme="dark"] .wbsFormGrid input,
+[data-theme="dark"] .wbsDateGrid input,
+[data-theme="dark"] .taskCreate input,
+[data-theme="dark"] .assigneeControl select {
+  background: rgba(28, 39, 61, 0.66);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .wbsFormGrid input::placeholder,
+[data-theme="dark"] .wbsDateGrid input::placeholder,
+[data-theme="dark"] .taskCreate input::placeholder {
+  color: rgba(176, 190, 208, 0.55);
+}
+
+[data-theme="dark"] .wbsFormGrid input:focus-visible,
+[data-theme="dark"] .wbsDateGrid input:focus-visible,
+[data-theme="dark"] .taskCreate input:focus-visible {
+  border-color: rgba(158, 216, 255, 0.5);
+  box-shadow: 0 0 0 4px rgba(158, 216, 255, 0.16);
+}
+
+[data-theme="dark"] .primaryAction {
+  background: rgba(70, 110, 165, 0.4);
+  border-color: rgba(158, 216, 255, 0.4);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .primaryAction:hover {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .linkedTask {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .columns {
+  scrollbar-color: rgba(150, 170, 215, 0.34) transparent;
+}
+
+[data-theme="dark"] .columns::-webkit-scrollbar-thumb {
+  background: rgba(150, 170, 215, 0.28);
+}
+
+[data-theme="dark"] .column {
+  background: rgba(28, 39, 61, 0.5);
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .columnActive {
+  background: rgba(60, 80, 125, 0.4);
+  border-color: rgba(158, 216, 255, 0.4);
+  box-shadow: inset 0 0 0 1px rgba(180, 205, 240, 0.12);
+}
+
+[data-theme="dark"] .columnHead b {
+  background: rgba(54, 72, 110, 0.5);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .dropIndicator {
+  background: var(--sky, #9ED8FF);
+}
+
+[data-theme="dark"] .card {
+  background: rgba(60, 80, 125, 0.38);
+  border-color: rgba(150, 170, 215, 0.16);
+  box-shadow:
+    0 7px 18px rgba(0, 0, 0, 0.34),
+    var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .card:hover,
+[data-theme="dark"] .cardSelected {
+  border-color: rgba(158, 216, 255, 0.4);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.44),
+    var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .taskInspector {
+  background: rgba(28, 39, 61, 0.5);
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .statusActions button {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .statusActions button[aria-pressed="true"] {
+  background: rgba(70, 110, 165, 0.4);
+  border-color: rgba(158, 216, 255, 0.4);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .candidateActions button {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .candidateActions button:hover:not(:disabled) {
+  background: rgba(60, 80, 125, 0.5);
+  border-color: rgba(158, 216, 255, 0.36);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .candidateEmpty {
+  border-color: rgba(150, 170, 215, 0.3);
+}
+
+[data-theme="dark"] .trashZone {
+  background: rgba(231, 155, 176, 0.1);
+  border-color: rgba(231, 155, 176, 0.44);
+  color: var(--signal-alert);
+}
+
+[data-theme="dark"] .trashZoneActive {
+  background: rgba(231, 155, 176, 0.18);
+  border-color: rgba(231, 155, 176, 0.66);
+}
+
+[data-theme="dark"] .suggestion {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.16);
+  box-shadow:
+    var(--inner-highlight-dark),
+    0 14px 30px -28px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .suggestionIcon {
+  background: rgba(70, 110, 165, 0.36);
+  border-color: rgba(158, 216, 255, 0.3);
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .empty {
+  border-color: rgba(150, 170, 215, 0.3);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wbsRow,
   .column,

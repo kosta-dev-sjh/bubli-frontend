@@ -252,3 +252,57 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* Night Bubble — 다크 정합화: 로컬 토큰(--settings-*)만 뒤집고 면은 어두운 유리로 */
+[data-theme="dark"] .panel {
+  --settings-border: rgba(150, 170, 215, 0.16);
+  --settings-ink: #EAF0F8;
+  --settings-muted: #A7B6CC;
+
+  background: rgba(34, 46, 72, 0.5);
+  box-shadow:
+    var(--inner-highlight-dark),
+    0 18px 44px -34px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .closeButton {
+  background: rgba(54, 72, 110, 0.45);
+}
+
+[data-theme="dark"] .closeButton:hover {
+  background: rgba(70, 92, 140, 0.55);
+}
+
+[data-theme="dark"] .notice {
+  border-color: rgba(158, 216, 255, 0.24);
+  color: #BFD6F5;
+  background: rgba(158, 216, 255, 0.1);
+}
+
+[data-theme="dark"] .noticeError {
+  border-color: rgba(230, 196, 156, 0.3);
+  color: var(--signal-memo, #E6C49C);
+  background: rgba(230, 196, 156, 0.1);
+}
+
+[data-theme="dark"] .section {
+  border-color: rgba(150, 170, 215, 0.14);
+  background: rgba(28, 39, 61, 0.42);
+}
+
+[data-theme="dark"] .field input,
+[data-theme="dark"] .field select,
+[data-theme="dark"] .memberActions select {
+  border-color: rgba(150, 170, 215, 0.2);
+  background: rgba(28, 39, 61, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .memberRow {
+  border-color: rgba(150, 170, 215, 0.14);
+}
+
+[data-theme="dark"] .memberIcon {
+  color: #BFD6F5;
+  background: rgba(70, 110, 165, 0.4);
+}

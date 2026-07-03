@@ -425,7 +425,7 @@ export default function SettingsPage() {
           ...ready,
           settings: { ...ready.settings, privacy: saved },
         }));
-        // 동의 변경 즉시 반영(#167, #170): 자동 캡처/폴더 감시 루프에 알려 곧바로 반영한다.
+        // 동의 변경 즉시 반영: 자동 캡처/폴더 감시 루프에 알려 곧바로 반영한다. (dev PR 167/170 이식)
         if (key === "activityDetectionEnabled") {
           notifyActivityConsentChanged(saved.activityDetectionEnabled);
         }

@@ -1165,3 +1165,337 @@
   line-height: 1.5;
   word-break: keep-all;
 }
+
+/* ============================================================
+   Night Bubble — 자료보드 폴리시 다크 정합화
+   면은 어두운 유리, 파일 글리프 색은 유지하되 받침만 어둡게.
+   ============================================================ */
+[data-theme="dark"] .boardHeader h1 {
+  background: linear-gradient(92deg, var(--sky), var(--bubble-blue) 52%, var(--opal-lilac));
+  background-clip: text;
+}
+
+[data-theme="dark"] .kicker {
+  border-color: rgba(158, 216, 255, 0.24);
+  color: #BFD6F5;
+  background: rgba(34, 46, 72, 0.5);
+}
+
+[data-theme="dark"] .scopeSwitch {
+  border-color: rgba(150, 170, 215, 0.18);
+  background: rgba(34, 46, 72, 0.5);
+  box-shadow:
+    var(--inner-highlight-dark),
+    0 16px 36px -30px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .scopeSwitch a {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .scopeSwitch a b {
+  color: rgba(176, 190, 208, 0.62);
+}
+
+[data-theme="dark"] .scopeSwitch a:hover {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .scopeSwitch .activeScope {
+  color: #BFD6F5;
+  background: rgba(60, 80, 125, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(180, 205, 240, 0.1),
+    0 10px 24px -20px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .scopeSwitch .activeScope b {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .viewToggle {
+  border-color: rgba(150, 170, 215, 0.18);
+  background: rgba(34, 46, 72, 0.5);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .viewToggle button {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .viewToggle button:hover {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .viewToggle button:global(.is-active) {
+  color: #BFD6F5;
+  background: rgba(158, 216, 255, 0.14);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .syncBadge {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #BFD6F5;
+  background: rgba(34, 46, 72, 0.5);
+}
+
+[data-theme="dark"] .boardDropActive {
+  border-color: rgba(158, 216, 255, 0.44);
+  background: rgba(60, 80, 125, 0.4);
+}
+
+[data-theme="dark"] .listHeader span {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .listHeader strong {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .listHeader p,
+[data-theme="dark"] .emptyCanvasInner,
+[data-theme="dark"] .emptyCanvasInner p,
+[data-theme="dark"] .commentEmpty,
+[data-theme="dark"] .aiDocEmpty {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .emptyCanvasInner strong {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .emptyCanvasInner span {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .fileGlyph {
+  background:
+    linear-gradient(145deg, rgba(54, 72, 110, 0.6), var(--file-glyph-bg, rgba(70, 110, 165, 0.4)));
+}
+
+[data-theme="dark"] .fileGlyph em {
+  color: var(--file-glyph-color, #BFD6F5);
+  background: rgba(28, 39, 61, 0.72);
+}
+
+[data-theme="dark"] .previewTitle {
+  border-bottom-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .previewTitle span {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .previewTitle strong,
+[data-theme="dark"] .previewChrome {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .previewChrome {
+  border-bottom-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .previewChrome strong {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .analyzeResourceButton {
+  border-color: rgba(158, 216, 255, 0.26);
+  color: #BFD6F5;
+  background: rgba(158, 216, 255, 0.12);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .analyzeResourceButton:hover:not(:disabled) {
+  border-color: rgba(158, 216, 255, 0.44);
+  background: rgba(158, 216, 255, 0.18);
+}
+
+[data-theme="dark"] .closePreview {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+  background: rgba(54, 72, 110, 0.45);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .closePreview:hover {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .previewHeader span:not(.previewFileIcon) {
+  color: #BFD6F5;
+  background: rgba(158, 216, 255, 0.14);
+}
+
+[data-theme="dark"] .previewFileIcon {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #BFD6F5;
+  background: rgba(54, 72, 110, 0.5);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .fileFacts div,
+[data-theme="dark"] .detailPanel div,
+[data-theme="dark"] .aiDocPanel dl div {
+  border-color: rgba(150, 170, 215, 0.14);
+  background: rgba(28, 39, 61, 0.42);
+}
+
+[data-theme="dark"] .fileFacts dt,
+[data-theme="dark"] .detailPanel span,
+[data-theme="dark"] .aiDocPanel dt,
+[data-theme="dark"] .previewBody span,
+[data-theme="dark"] .commentPanelTitle strong,
+[data-theme="dark"] .commentHead strong {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .fileFacts dd,
+[data-theme="dark"] .detailPanel strong,
+[data-theme="dark"] .aiDocPanel dd,
+[data-theme="dark"] .previewBody strong,
+[data-theme="dark"] .commentItem p,
+[data-theme="dark"] .relatedList b {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .previewBody {
+  border-color: rgba(150, 170, 215, 0.14);
+  background: rgba(28, 39, 61, 0.42);
+}
+
+[data-theme="dark"] .previewError {
+  color: var(--signal-memo, #E6C49C);
+  background: rgba(230, 196, 156, 0.1);
+}
+
+[data-theme="dark"] .previewNotice {
+  border-color: rgba(158, 216, 255, 0.24);
+  color: #BFD6F5;
+  background: rgba(158, 216, 255, 0.1);
+}
+
+[data-theme="dark"] .commentPanel,
+[data-theme="dark"] .relatedPanel,
+[data-theme="dark"] .aiDocPanel {
+  border-color: rgba(150, 170, 215, 0.14);
+  background: rgba(34, 46, 72, 0.42);
+}
+
+[data-theme="dark"] .commentPanelTitle span,
+[data-theme="dark"] .commentHead span,
+[data-theme="dark"] .commentPanelTitle svg,
+[data-theme="dark"] .relatedTitle span,
+[data-theme="dark"] .relatedTitle svg,
+[data-theme="dark"] .aiDocHead span {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .relatedTitle strong {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .commentForm textarea,
+[data-theme="dark"] .commentEditForm textarea,
+[data-theme="dark"] .renameForm input {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #EAF0F8;
+  background: rgba(28, 39, 61, 0.6);
+}
+
+[data-theme="dark"] .commentForm textarea:focus,
+[data-theme="dark"] .commentEditForm textarea:focus {
+  border-color: rgba(158, 216, 255, 0.44);
+  box-shadow: 0 0 0 3px rgba(158, 216, 255, 0.14);
+}
+
+[data-theme="dark"] .renameForm input:focus-visible {
+  border-color: rgba(158, 216, 255, 0.5);
+}
+
+[data-theme="dark"] .commentItem {
+  border-color: rgba(150, 170, 215, 0.14);
+  background: rgba(28, 39, 61, 0.42);
+}
+
+[data-theme="dark"] .commentActions button {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+  background: rgba(54, 72, 110, 0.45);
+}
+
+[data-theme="dark"] .commentActions button:hover {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .relatedList button {
+  border-color: rgba(150, 170, 215, 0.16);
+  background: rgba(28, 39, 61, 0.42);
+}
+
+[data-theme="dark"] .relatedList button:hover:not(:disabled) {
+  border-color: rgba(158, 216, 255, 0.4);
+  background: rgba(60, 80, 125, 0.45);
+}
+
+[data-theme="dark"] .relatedList span {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .resourceDeleteButton {
+  border-color: rgba(231, 155, 176, 0.4);
+  color: var(--signal-alert);
+  background: rgba(231, 155, 176, 0.12);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .resourceDeleteButton:hover:not(:disabled) {
+  border-color: rgba(231, 155, 176, 0.6);
+  background: rgba(231, 155, 176, 0.2);
+}
+
+[data-theme="dark"] .previewBodyDocument {
+  background:
+    linear-gradient(90deg, rgba(150, 170, 215, 0.14), transparent 1px) 0 0 / 100% 34px,
+    linear-gradient(135deg, rgba(34, 46, 72, 0.5), rgba(28, 39, 61, 0.42));
+}
+
+[data-theme="dark"] .previewBodyWord,
+[data-theme="dark"] .previewBodyHwp {
+  background:
+    linear-gradient(90deg, rgba(150, 170, 215, 0.14), transparent 1px) 0 0 / 100% 34px,
+    linear-gradient(135deg, rgba(34, 46, 72, 0.5), rgba(70, 110, 165, 0.2));
+}
+
+[data-theme="dark"] .previewBodyPdf {
+  background:
+    linear-gradient(90deg, rgba(231, 155, 176, 0.14), transparent 1px) 0 0 / 100% 34px,
+    linear-gradient(135deg, rgba(34, 46, 72, 0.5), rgba(231, 155, 176, 0.1));
+}
+
+[data-theme="dark"] .previewBodySlide {
+  background:
+    linear-gradient(90deg, rgba(176, 168, 224, 0.18), transparent 1px) 0 0 / 100% 40px,
+    linear-gradient(135deg, rgba(34, 46, 72, 0.5), rgba(140, 120, 200, 0.16));
+}
+
+[data-theme="dark"] .previewBodyImage {
+  background:
+    radial-gradient(circle at 28% 28%, rgba(158, 216, 255, 0.12), transparent 34%),
+    radial-gradient(circle at 72% 62%, rgba(140, 120, 200, 0.16), transparent 36%),
+    linear-gradient(135deg, rgba(34, 46, 72, 0.5), rgba(28, 39, 61, 0.42));
+}
+
+[data-theme="dark"] .previewBodySheet {
+  background:
+    linear-gradient(rgba(150, 170, 215, 0.12) 1px, transparent 1px) 0 0 / 100% 28px,
+    linear-gradient(90deg, rgba(150, 170, 215, 0.12) 1px, transparent 1px) 0 0 / 33.33% 100%,
+    linear-gradient(135deg, rgba(34, 46, 72, 0.5), rgba(28, 39, 61, 0.42));
+}
+
+[data-theme="dark"] .previewBodyMarkdown,
+[data-theme="dark"] .previewBodyText {
+  background:
+    linear-gradient(90deg, rgba(150, 170, 215, 0.16), transparent 1px) 0 0 / 100% 30px,
+    linear-gradient(135deg, rgba(34, 46, 72, 0.5), rgba(28, 39, 61, 0.44));
+}

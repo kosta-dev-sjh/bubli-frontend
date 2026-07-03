@@ -430,6 +430,10 @@
   background: rgba(70, 110, 165, 0.36);
 }
 
+:global([data-theme="dark"]) .kicker {
+  color: #BFD6F5;
+}
+
 @media (max-width: 960px) {
   .page {
     grid-template-columns: 1fr;
