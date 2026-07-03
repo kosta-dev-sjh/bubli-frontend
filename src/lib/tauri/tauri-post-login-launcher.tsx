@@ -3,8 +3,10 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
+import { authApi } from "@/features/auth/api/authApi";
 import {
   AUTH_SESSION_CHANGE_EVENT,
+  clearStoredAuthSession,
   getStoredAuthSession,
   restoreStoredAuthSessionFromTauri,
 } from "@/lib/auth/auth-session";
@@ -20,11 +22,25 @@ export function TauriPostLoginLauncher() {
       return;
     }
 
+    let disposed = false;
+
     async function launchAuthenticatedSurfaces() {
       const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
       const hasAuthenticatedSession = Boolean(session);
       if (!hasAuthenticatedSession) {
         await stopTauriAuthenticatedSurfaces();
+        return;
+      }
+
+      try {
+        await authApi.getMe();
+      } catch {
+        await stopTauriAuthenticatedSurfaces();
+        clearStoredAuthSession();
+        return;
+      }
+
+      if (disposed) {
         return;
       }
 
@@ -37,6 +53,7 @@ export function TauriPostLoginLauncher() {
     window.addEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
 
     return () => {
+      disposed = true;
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
     };
   }, [isDesktopWidgetSurface]);
