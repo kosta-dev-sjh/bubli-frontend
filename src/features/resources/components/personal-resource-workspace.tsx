@@ -12,7 +12,9 @@ import {
   openPersonalLocalFile,
   PERSONAL_RESOURCES_CHANGED_EVENT,
   readPersonalLocalFilePreview,
+  reindexPersonalLocalFile,
   searchPersonalLocalFiles,
+  syncPersonalLocalFileEventsToServer,
 } from "@/lib/local/managed-folder-client";
 import { ACTIVE_PROJECT_ROOM_CHANGE_EVENT, getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -207,6 +209,76 @@ export function PersonalResourceWorkspace() {
     [localFolderConsent],
   );
 
+  const reindexLocalIndexedFile = useCallback(
+    async (localFileId: string) => {
+      if (!localFolderConsent) return;
+
+      setLocalFilePreviews((current) => {
+        const next = { ...current };
+        delete next[localFileId];
+        return next;
+      });
+      setLocalSearchState("loading");
+
+      const result = await reindexPersonalLocalFile({ consentGranted: true, localFileId });
+      if (result.status !== "ready") {
+        setLocalSearchState(result.status === "blocked" ? "blocked" : "error");
+        setLocalSearchMessage(result.message);
+        return;
+      }
+
+      const term = query.trim();
+      if (term) {
+        const searchResult = await searchPersonalLocalFiles({ consentGranted: true, limit: 6, query: term });
+        if (searchResult.status === "ready") {
+          setLocalMatches(searchResult.data.items);
+          setLocalSearchState("ready");
+        } else {
+          setLocalSearchState(searchResult.status === "blocked" ? "blocked" : "error");
+          setLocalSearchMessage(searchResult.message);
+          return;
+        }
+      } else {
+        setLocalSearchState("idle");
+      }
+
+      setLocalSearchMessage(
+        result.data.status === "MISSING"
+          ? t("settings.msg.fileMissing", { name: result.data.name })
+          : result.data.changed
+            ? t("settings.msg.fileReindexedChanged", { name: result.data.name })
+            : t("settings.msg.fileReindexed", { name: result.data.name }),
+      );
+    },
+    [localFolderConsent, query, t],
+  );
+
+  const syncLocalIndexedChanges = useCallback(async () => {
+    if (!localFolderConsent) {
+      setLocalSearchState("blocked");
+      setLocalSearchMessage(t("local.folder.consentRequired"));
+      return;
+    }
+
+    setLocalSearchState("loading");
+    setLocalSearchMessage(t("common.loading"));
+
+    const result = await syncPersonalLocalFileEventsToServer({ consentGranted: true, limit: 20 });
+    if (result.status !== "ready") {
+      setLocalSearchState(result.status === "blocked" ? "blocked" : "error");
+      setLocalSearchMessage(result.message);
+      return;
+    }
+
+    await loadResources();
+    setLocalSearchState("ready");
+    setLocalSearchMessage(
+      result.data.syncedCount > 0 || result.data.sentCount > 0
+        ? t("local.folder.synced", { count: result.data.syncedCount })
+        : t("local.folder.noChanges"),
+    );
+  }, [loadResources, localFolderConsent, t]);
+
   const selectedResource = selectedResourceId ? filteredResources.find((resource) => resource.id === selectedResourceId) ?? null : null;
   const canShowBoard = state.kind !== "auth" && state.kind !== "error";
   const latestScannedAt = resources.reduce<string | null>((latest, resource) => {
@@ -285,6 +357,11 @@ export function PersonalResourceWorkspace() {
                       : t("resources.workspace.syncDescWeb")}
                   </p>
                 </div>
+                {isTauri ? (
+                  <Button disabled={!localFolderConsent || localSearchState === "loading"} onClick={() => void syncLocalIndexedChanges()} type="button" variant="quiet">
+                    {t("settings.lso.folder.target")}
+                  </Button>
+                ) : null}
               </GlassPanel>
 
               {isTauri && query.trim() ? (
@@ -320,6 +397,9 @@ export function PersonalResourceWorkspace() {
                               </Button>
                               <Button onClick={() => void openLocalIndexedFile(file.localFileId)} size="sm" type="button" variant="quiet">
                                 {t("common.open")}
+                              </Button>
+                              <Button onClick={() => void reindexLocalIndexedFile(file.localFileId)} size="sm" type="button" variant="quiet">
+                                {t("settings.folders.reindex")}
                               </Button>
                             </div>
                             {preview ? (
