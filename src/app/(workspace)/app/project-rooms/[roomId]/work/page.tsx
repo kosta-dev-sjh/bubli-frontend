@@ -50,16 +50,20 @@ export default function ProjectRoomWorkPage() {
         wbsApi.getBoard(roomId),
         projectRoomApi.getMembers(roomId),
       ]);
-      const members = membersPage.items.map((member) =>
-        member.userId === currentUser.id
+      const members = membersPage.items.map((member) => {
+        const isCurrentUser =
+          member.userId === currentUser.id ||
+          (Boolean(member.bubliId) && member.bubliId?.toLowerCase() === currentUser.bubliId.toLowerCase());
+
+        return isCurrentUser
           ? {
               ...member,
               avatarUrl: member.avatarUrl || currentUser.avatarUrl || null,
               bubliId: member.bubliId || currentUser.bubliId || null,
               name: member.name || currentUser.name,
             }
-          : member,
-      );
+          : member;
+      });
       setActiveProjectRoomId(room.id, room.name);
       setState({ board, kind: "ready", members, room });
     } catch (error) {

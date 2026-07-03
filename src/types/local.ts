@@ -5,6 +5,8 @@ import type {
 import type {
   ActivityContextResult,
   LocalBackupRestoreInput,
+  LocalFileKeySentenceInput,
+  LocalFileKeySentenceResult,
   LocalFileOpenInput,
   LocalFileOpenResult,
   LocalFilePreviewInput,
@@ -42,6 +44,7 @@ export type LocalAdapterUnavailableReason = "requires_tauri";
 export type LocalAdapterBlockedReason =
   | "activity_consent_required"
   | "activity_no_new_duration"
+  | "local_folder_consent_required"
   | "native_command_pending"
   | "personal_scope_only"
   | "server_transfer_not_allowed";
@@ -143,8 +146,12 @@ export type LocalFolderScopeInput = {
   roomId?: string | null;
 };
 
-export type PersonalManagedFolderSelectInput = SelectManagedFolderInput & LocalFolderScopeInput;
-export type PersonalManagedFolderCommandInput = ManagedFolderCommandInput & LocalFolderScopeInput;
+export type LocalFolderConsentInput = {
+  consentGranted?: boolean;
+};
+
+export type PersonalManagedFolderSelectInput = SelectManagedFolderInput & LocalFolderScopeInput & LocalFolderConsentInput;
+export type PersonalManagedFolderCommandInput = ManagedFolderCommandInput & LocalFolderScopeInput & LocalFolderConsentInput;
 
 export type LocalCacheIntegrityResult = LocalAdapterResult<SqliteIntegrityResult, LocalCacheReadinessSummary>;
 export type LocalCacheReadinessResult = LocalAdapterResult<LocalCacheReadinessSummary, LocalCacheReadinessSummary>;
@@ -155,19 +162,21 @@ export type ManagedFolderIndexProgressAdapterResult = LocalAdapterResult<Managed
 export type ManagedFolderListAdapterResult = LocalAdapterResult<ManagedFolderListResult>;
 export type ManagedFolderRemoveAdapterResult = LocalAdapterResult<ManagedFolderRemoveResult>;
 export type ManagedFolderScanAdapterResult = LocalAdapterResult<ManagedFolderScanResult>;
-export type ManagedFolderSyncAdapterInput = ManagedFolderSyncInput & LocalFolderScopeInput;
+export type ManagedFolderSyncAdapterInput = ManagedFolderSyncInput & LocalFolderScopeInput & LocalFolderConsentInput;
 export type ManagedFolderSyncAdapterResult = LocalAdapterResult<ManagedFolderSyncResult>;
 export type ManagedFolderWatchAdapterResult = LocalAdapterResult<
   ManagedFolderWatchResult,
   { localFolderId: string; watching: false }
 >;
-export type LocalFileSearchAdapterInput = LocalFileSearchInput & LocalFolderScopeInput;
+export type LocalFileSearchAdapterInput = LocalFileSearchInput & LocalFolderScopeInput & LocalFolderConsentInput;
 export type LocalFileSearchAdapterResult = LocalAdapterResult<LocalFileSearchResult>;
-export type LocalFileOpenAdapterInput = LocalFileOpenInput & LocalFolderScopeInput;
+export type LocalFileOpenAdapterInput = LocalFileOpenInput & LocalFolderScopeInput & LocalFolderConsentInput;
 export type LocalFileOpenAdapterResult = LocalAdapterResult<LocalFileOpenResult>;
-export type LocalFilePreviewAdapterInput = LocalFilePreviewInput & LocalFolderScopeInput;
+export type LocalFilePreviewAdapterInput = LocalFilePreviewInput & LocalFolderScopeInput & LocalFolderConsentInput;
 export type LocalFilePreviewAdapterResult = LocalAdapterResult<LocalFilePreviewResult>;
-export type LocalFileReindexAdapterInput = LocalFileReindexInput & LocalFolderScopeInput;
+export type LocalFileKeySentenceAdapterInput = LocalFileKeySentenceInput & LocalFolderScopeInput & LocalFolderConsentInput;
+export type LocalFileKeySentenceAdapterResult = LocalAdapterResult<LocalFileKeySentenceResult>;
+export type LocalFileReindexAdapterInput = LocalFileReindexInput & LocalFolderScopeInput & LocalFolderConsentInput;
 export type LocalFileReindexAdapterResult = LocalAdapterResult<LocalFileReindexResult>;
 export type ActivityContextAdapterResult = LocalAdapterResult<ActivityContextResult>;
 export type ActivityContextRecordAdapterResult = LocalAdapterResult<ActivityContextRecordResult>;

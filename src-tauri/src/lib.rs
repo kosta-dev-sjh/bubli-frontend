@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, fs, path::PathBuf, sync::Mutex};
+use std::{collections::HashMap, env, fs, path::PathBuf, sync::Mutex, thread};
 
 use serde::{Deserialize, Serialize};
 use tauri::utils::config::Color;
@@ -21,6 +21,7 @@ const MAIN_WINDOW_DEFAULT_HEIGHT: i32 = 820;
 const DEFAULT_WIDGET_BUBBLE_TYPE: &str = "todo";
 const WIDGET_DEFAULT_WIDTH: f64 = 324.0;
 const WIDGET_DEFAULT_HEIGHT: f64 = 392.0;
+const WIDGET_WINDOW_GUTTER: f64 = 36.0;
 const WIDGET_BAR_WIDTH: f64 = 360.0;
 const WIDGET_BAR_HEIGHT: f64 = 168.0;
 const WIDGET_MENU_SIZE: f64 = 192.0;
@@ -501,16 +502,26 @@ fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
     }
 
     match widget.mode.as_str() {
-        "MINIMIZED" => LogicalSize::new(WIDGET_MINIMIZED_WIDTH, WIDGET_MINIMIZED_HEIGHT),
-        "GHOST" => LogicalSize::new(188.0, 188.0),
+        "MINIMIZED" => LogicalSize::new(
+            WIDGET_MINIMIZED_WIDTH + 20.0,
+            WIDGET_MINIMIZED_HEIGHT + 20.0,
+        ),
+        "GHOST" => LogicalSize::new(188.0 + 24.0, 188.0 + 24.0),
         _ => match widget.active_bubble.as_str() {
-            "chat" => LogicalSize::new(336.0, 476.0),
-            "agent" => LogicalSize::new(332.0, 444.0),
-            "timer" => LogicalSize::new(324.0, 420.0),
-            "resource" => LogicalSize::new(324.0, 340.0),
-            "memo" => LogicalSize::new(308.0, 304.0),
-            "schedule" => LogicalSize::new(324.0, 340.0),
-            _ => LogicalSize::new(WIDGET_DEFAULT_WIDTH, WIDGET_DEFAULT_HEIGHT),
+            "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 476.0 + WIDGET_WINDOW_GUTTER),
+            "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 444.0 + WIDGET_WINDOW_GUTTER),
+            "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
+            "resource" => {
+                LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER)
+            }
+            "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 304.0 + WIDGET_WINDOW_GUTTER),
+            "schedule" => {
+                LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER)
+            }
+            _ => LogicalSize::new(
+                WIDGET_DEFAULT_WIDTH + WIDGET_WINDOW_GUTTER,
+                WIDGET_DEFAULT_HEIGHT + WIDGET_WINDOW_GUTTER,
+            ),
         },
     }
 }
@@ -678,9 +689,20 @@ fn position_main_window_on_preferred_monitor(
     let x = origin.x + ((monitor_size.width as i32 - window_width).max(0) / 2);
     let y = origin.y + ((monitor_size.height as i32 - window_height).max(0) / 2);
 
+    #[cfg(target_os = "macos")]
+    let position = Position::Physical(tauri::PhysicalPosition::new(x, y));
+    #[cfg(not(target_os = "macos"))]
+    let position = Position::Logical(LogicalPosition::new(x as f64, y as f64));
+
     window
-        .set_position(Position::Logical(LogicalPosition::new(x as f64, y as f64)))
-        .map_err(|error| error.to_string())
+        .set_position(position)
+        .map_err(|error| error.to_string())?;
+
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+
+    Ok(())
 }
 
 fn widget_keeps_webview_when_hidden(widget: &WidgetWindowState) -> bool {
@@ -752,7 +774,7 @@ fn build_widget_qa_windows(
 
 fn apply_widget_window_state(
     app: &AppHandle,
-    monitor_state: &AppMonitorState,
+    _monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
     let label = widget_window_label(widget);
@@ -770,22 +792,17 @@ fn apply_widget_window_state(
             .set_ignore_cursor_events(widget.click_through)
             .map_err(|error| error.to_string())?;
         window
-            .set_position(Position::Logical(widget_screen_position(
-                app,
-                monitor_state,
-                widget,
-            )?))
-            .map_err(|error| error.to_string())?;
-
-        window
             .set_size(Size::Logical(widget_window_size(widget)))
             .map_err(|error| error.to_string())?;
         window
             .set_background_color(Some(Color(0, 0, 0, 0)))
             .map_err(|error| error.to_string())?;
 
+        let is_visible = window.is_visible().unwrap_or(false);
         if widget.window_visible {
-            window.show().map_err(|error| error.to_string())?;
+            if !is_visible {
+                window.show().map_err(|error| error.to_string())?;
+            }
         } else {
             window.hide().map_err(|error| error.to_string())?;
         }
@@ -801,9 +818,7 @@ fn build_widget_window(
 ) -> Result<WidgetWindowState, String> {
     let label = widget_window_label(widget);
 
-    if let Some(window) = app.get_webview_window(&label) {
-        window.show().map_err(|error| error.to_string())?;
-        window.set_focus().map_err(|error| error.to_string())?;
+    if app.get_webview_window(&label).is_some() {
         return apply_widget_window_state(app, monitor_state, widget);
     }
 
@@ -827,6 +842,7 @@ fn build_widget_window(
     .always_on_top(widget.always_on_top)
     .skip_taskbar(true)
     .focused(false)
+    .visible(false)
     .build()
     .map_err(|error| error.to_string())?;
 
@@ -848,8 +864,29 @@ fn build_widget_window(
     window
         .set_ignore_cursor_events(widget.click_through)
         .map_err(|error| error.to_string())?;
-    window.show().map_err(|error| error.to_string())?;
     apply_widget_window_state(app, monitor_state, widget)
+}
+
+fn schedule_widget_window_build(
+    app: &AppHandle,
+    widget: &WidgetWindowState,
+) -> Result<WidgetWindowState, String> {
+    let app_for_build = app.clone();
+    let widget_for_build = widget.clone();
+    let label = widget_window_label(widget);
+    thread::Builder::new()
+        .name(format!("bubli-widget-build-{label}"))
+        .spawn(move || {
+            let monitor_state = app_for_build.state::<AppMonitorState>();
+            if let Err(error) =
+                build_widget_window(&app_for_build, &monitor_state, &widget_for_build)
+            {
+                eprintln!("failed to build widget window {label}: {error}");
+            }
+        })
+        .map_err(|error| error.to_string())?;
+
+    Ok(widget.clone())
 }
 
 #[tauri::command]
@@ -869,7 +906,11 @@ fn get_widget_bar_items(
     let guard = state
         .lock()
         .map_err(|_| "widget state lock failed".to_string())?;
-    let mut items: Vec<WidgetWindowState> = guard
+    Ok(widget_bar_items_from_store(&guard))
+}
+
+fn widget_bar_items_from_store(store: &WidgetWindowStore) -> Vec<WidgetWindowState> {
+    let mut items: Vec<WidgetWindowState> = store
         .bubbles
         .values()
         .filter(|widget| {
@@ -884,6 +925,48 @@ fn get_widget_bar_items(
         left_key.cmp(right_key)
     });
 
+    items
+}
+
+fn seed_widget_bar_items_for_store(
+    store: &mut WidgetWindowStore,
+    selected_room_id: Option<String>,
+) -> Vec<WidgetWindowState> {
+    for bubble_type in QA_ALL_WIDGET_BUBBLES {
+        let widget = store
+            .bubbles
+            .entry(bubble_type.to_string())
+            .or_insert_with(|| {
+                default_widget_window_state(bubble_type, Some(bubble_type.to_string()))
+            });
+        if selected_room_id.is_some() {
+            widget.selected_room_id = selected_room_id.clone();
+        }
+        if !widget.window_visible {
+            widget.mode = "MINIMIZED".to_string();
+            widget.click_through = false;
+            widget.dock_orb_visible = false;
+        }
+    }
+
+    widget_bar_items_from_store(store)
+}
+
+#[tauri::command]
+fn seed_widget_bar_items(
+    app: AppHandle,
+    state: tauri::State<'_, WidgetState>,
+    input: Option<WidgetRoomContextInput>,
+) -> Result<Vec<WidgetWindowState>, String> {
+    let selected_room_id =
+        normalize_optional_query_value(input.and_then(|value| value.selected_room_id));
+    let items = {
+        let mut guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        seed_widget_bar_items_for_store(&mut guard, selected_room_id)
+    };
+    persist_widget_window_state(&app, &state)?;
     Ok(items)
 }
 
@@ -1111,37 +1194,6 @@ fn register_widget_shortcut(
     Ok(widget)
 }
 
-fn open_login_startup_widget(
-    app: &AppHandle,
-    monitor_state: &AppMonitorState,
-    state: &WidgetState,
-    bubble_type: &str,
-    window_id: &str,
-    selected_room_id: Option<String>,
-) -> Result<WidgetWindowState, String> {
-    let widget = {
-        let mut guard = state
-            .lock()
-            .map_err(|_| "widget state lock failed".to_string())?;
-        let target = normalize_bubble_type(Some(bubble_type.to_string()));
-        let window_key = normalize_window_key(&target, Some(window_id.to_string()));
-        guard.active_bubble = target.clone();
-        let widget = guard
-            .bubbles
-            .entry(window_key.clone())
-            .or_insert_with(|| default_widget_window_state(&target, Some(window_key)));
-        widget.mode = "DEFAULT".to_string();
-        widget.click_through = false;
-        widget.dock_orb_visible = false;
-        widget.selected_room_id = selected_room_id;
-        widget.window_visible = true;
-        widget.clone()
-    };
-
-    persist_widget_window_state(app, state)?;
-    build_widget_window(app, monitor_state, &widget)
-}
-
 fn app_ready_qa_all_widgets_requested(input: &Option<AppReadyInput>) -> bool {
     input
         .as_ref()
@@ -1152,8 +1204,8 @@ fn app_ready_qa_all_widgets_requested(input: &Option<AppReadyInput>) -> bool {
 #[tauri::command]
 fn app_ready(
     app: AppHandle,
-    monitor_state: tauri::State<'_, AppMonitorState>,
-    state: tauri::State<'_, WidgetState>,
+    _monitor_state: tauri::State<'_, AppMonitorState>,
+    _state: tauri::State<'_, WidgetState>,
     input: Option<AppReadyInput>,
 ) -> Result<&'static str, String> {
     let qa_all_widgets = app_ready_qa_all_widgets_requested(&input);
@@ -1164,47 +1216,13 @@ fn app_ready(
         return Ok("bubli-tauri-ready");
     }
 
-    let bar_result = open_login_startup_widget(
-        &app,
-        &monitor_state,
-        &state,
-        "bar",
-        "bar",
-        selected_room_id.clone(),
-    );
-    let default_result = open_login_startup_widget(
-        &app,
-        &monitor_state,
-        &state,
-        DEFAULT_WIDGET_BUBBLE_TYPE,
-        DEFAULT_WIDGET_BUBBLE_TYPE,
-        selected_room_id,
-    );
-
-    let bar_error = bar_result.as_ref().err().map(ToString::to_string);
-    let default_error = default_result.as_ref().err().map(ToString::to_string);
-
-    if let Some(error) = &bar_error {
-        eprintln!("failed to open login startup widget bar: {error}");
-    }
-    if let Some(error) = &default_error {
-        eprintln!("failed to open login startup default widget: {error}");
-    }
-    if bar_error.is_some() || default_error.is_some() {
-        return Err(format!(
-            "failed to open login startup widgets: bar={}; default={}",
-            bar_error.unwrap_or_else(|| "ok".to_string()),
-            default_error.unwrap_or_else(|| "ok".to_string())
-        ));
-    }
-
     Ok("bubli-tauri-ready")
 }
 
 #[tauri::command]
 fn open_widget_window(
     app: AppHandle,
-    monitor_state: tauri::State<'_, AppMonitorState>,
+    _monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
     input: Option<WidgetWindowOpenInput>,
 ) -> Result<WidgetWindowState, String> {
@@ -1230,7 +1248,7 @@ fn open_widget_window(
         widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
     })?;
     persist_widget_window_state(&app, &state)?;
-    build_widget_window(&app, &monitor_state, &widget)
+    schedule_widget_window_build(&app, &widget)
 }
 
 #[tauri::command]
@@ -1289,10 +1307,7 @@ fn toggle_widget_window(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        stored_widget_window_layout, widget_window_store_from_layout, StoredWidgetWindowLayout,
-        WidgetWindowPosition, WidgetWindowState, WidgetWindowStore,
-    };
+    use super::*;
     use std::collections::HashMap;
 
     fn widget(active_bubble: &str, window_id: Option<&str>, x: i32, y: i32) -> WidgetWindowState {
@@ -1344,6 +1359,32 @@ mod tests {
             .map(|widget| widget.window_id.as_deref().unwrap_or(&widget.active_bubble))
             .collect();
         assert_eq!(keys, vec!["bar", "timer"]);
+    }
+
+    #[test]
+    fn widget_room_context_updates_all_known_widgets_and_can_clear_room() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "bar".to_string(),
+            default_widget_window_state("bar", Some("bar".to_string())),
+        );
+        store.bubbles.insert(
+            "chat".to_string(),
+            default_widget_window_state("chat", Some("chat".to_string())),
+        );
+
+        let selected = set_widget_room_context_for_store(&mut store, Some("room-1".to_string()));
+
+        assert_eq!(selected.len(), 3);
+        assert!(selected
+            .iter()
+            .all(|widget| widget.selected_room_id.as_deref() == Some("room-1")));
+
+        let cleared = set_widget_room_context_for_store(&mut store, None);
+
+        assert!(cleared
+            .iter()
+            .all(|widget| widget.selected_room_id.as_deref().is_none()));
     }
 }
 
@@ -1398,6 +1439,7 @@ pub fn run() {
             list_app_monitors,
             open_widget_window,
             register_widget_shortcut,
+            seed_widget_bar_items,
             set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,
@@ -1424,11 +1466,14 @@ pub fn run() {
             local_files::watch_managed_folder,
             local_files::search_local_files,
             local_files::read_local_file_preview,
+            local_files::extract_local_file_key_sentences,
             local_files::open_local_file,
             local_files::reindex_file,
             local_files::flush_sync_outbox,
             local_files::stage_local_file_events_for_sync,
             local_files::mark_local_file_events_synced,
+            local_files::stage_local_file_analysis_backfill,
+            local_files::mark_local_file_analyses_sent,
             local_files::unwatch_all_managed_folders,
             local_files::watch_all_managed_folders,
             // Local SQLite lifecycle + cache recovery commands.
@@ -1530,5 +1575,38 @@ mod widget_runtime_tests {
             qa_all_widgets: Some(true),
             selected_room_id: None,
         })));
+    }
+
+    #[test]
+    fn seed_widget_bar_items_creates_hidden_minimized_widgets_without_hiding_visible_one() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "todo".to_string(),
+            WidgetWindowState {
+                window_visible: true,
+                ..default_widget_window_state("todo", Some("todo".to_string()))
+            },
+        );
+
+        let seeded = seed_widget_bar_items_for_store(&mut store, Some("room-1".to_string()));
+
+        assert_eq!(store.bubbles.len(), QA_ALL_WIDGET_BUBBLES.len());
+        assert_eq!(
+            store
+                .bubbles
+                .get("todo")
+                .and_then(|widget| widget.selected_room_id.as_deref()),
+            Some("room-1")
+        );
+        assert!(store
+            .bubbles
+            .get("todo")
+            .is_some_and(|widget| widget.window_visible));
+        assert_eq!(seeded.len(), QA_ALL_WIDGET_BUBBLES.len() - 1);
+        assert!(seeded.iter().all(|widget| {
+            widget.mode == "MINIMIZED"
+                && !widget.window_visible
+                && widget.selected_room_id.as_deref() == Some("room-1")
+        }));
     }
 }

@@ -33,6 +33,7 @@ export type LocalFileEventSyncRequest = {
     eventType: LocalFileEventResponse["eventType"];
     fileName: string;
     fileSizeBytes?: number | null;
+    localEventId: string;
     mimeType?: string | null;
     resourceId?: string | null;
   }>;
@@ -45,6 +46,7 @@ export type LocalFileEventUpdateRequest = {
 export type LocalFileSyncResponse = {
   results: Array<{
     eventType: LocalFileEventResponse["eventType"] | string;
+    localEventId?: string | null;
     resourceId?: string | null;
     status: "SYNCED" | "SKIPPED" | "FAILED" | string;
   }>;

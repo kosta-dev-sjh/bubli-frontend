@@ -12,6 +12,7 @@ export const AUTH_SESSION_CHANGE_EVENT = "bubli:auth-session-change";
 export type StoredAuthSession = AuthTokenResponse & {
   clientType: AuthClientType;
   savedAt: string;
+  savedAtMs?: number;
 };
 
 export type AuthSessionInput = AuthTokenResponse & {
@@ -34,6 +35,15 @@ function isExpired(isoValue?: string | null) {
   if (!isoValue) return false;
   const timestamp = new Date(isoValue).getTime();
   return Number.isFinite(timestamp) && timestamp <= Date.now();
+}
+
+function sessionSavedAtMs(session: StoredAuthSession) {
+  if (typeof session.savedAtMs === "number" && Number.isFinite(session.savedAtMs)) {
+    return session.savedAtMs;
+  }
+
+  const savedAt = new Date(session.savedAt).getTime();
+  return Number.isFinite(savedAt) ? savedAt : 0;
 }
 
 function parseStoredAuthSession(raw: string): StoredAuthSession | null {
@@ -100,6 +110,7 @@ export function setStoredAuthSession(session: AuthSessionInput) {
   const next: StoredAuthSession = {
     ...session,
     savedAt: new Date().toISOString(),
+    savedAtMs: Date.now(),
   };
 
   window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(next));
@@ -123,27 +134,38 @@ export async function restoreStoredAuthSessionFromTauri() {
   }
 
   const current = getStoredAuthSession();
-  if (current) {
-    return current;
-  }
 
   try {
     const restored = await tauriCommands.readTauriAuthSession();
     if (!restored?.sessionJson) {
-      return null;
+      return current;
     }
 
     const parsed = parseStoredAuthSession(restored.sessionJson);
     if (!parsed || isExpired(parsed.refreshTokenExpiresAt)) {
-      clearStoredAuthSession();
-      return null;
+      if (!current) clearStoredAuthSession();
+      return current;
     }
 
-    window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(parsed));
-    emitAuthSessionChange();
-    return parsed;
+    const shouldUseRestored =
+      !current ||
+      isExpired(current.refreshTokenExpiresAt) ||
+      isAccessTokenExpiringSoon(current) ||
+      sessionSavedAtMs(parsed) > sessionSavedAtMs(current);
+
+    if (shouldUseRestored) {
+      const restoredRaw = JSON.stringify(parsed);
+      const currentRaw = window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY);
+      window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, restoredRaw);
+      if (currentRaw !== restoredRaw) {
+        emitAuthSessionChange();
+      }
+      return parsed;
+    }
+
+    return current;
   } catch {
-    return null;
+    return current;
   }
 }
 

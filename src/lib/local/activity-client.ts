@@ -55,13 +55,15 @@ export async function recordCurrentActivityContext(
   input: ActivityContextRecordInput,
 ): Promise<ActivityContextRecordAdapterResult> {
   const commandName = TAURI_COMMANDS.readActivityContext;
-  await syncLocalActivityBufferToServer({ limit: 10 }).catch(() => undefined);
+  await syncLocalActivityBufferToServer({ consentGranted: input.consentGranted, limit: 10 }).catch(() => undefined);
 
   const context = await readCurrentActivityContext(input);
 
   if (context.status !== "ready") {
     return context;
   }
+
+  await syncLocalActivityBufferToServer({ limit: 10 }).catch(() => undefined);
 
   const capturedAt = parseIsoDate(context.data.capturedAt);
   const durationSeconds = Math.max(0, Math.trunc(context.data.durationSeconds ?? 0));
@@ -101,8 +103,9 @@ export async function recordCurrentActivityContext(
     rememberIncrementalActivityCheckpoint(context.data.appName, context.data.windowTitle, durationSeconds);
   }
 
+  let recordedActivity;
   try {
-    const recordedActivity = await activityApi.recordCurrentApp({
+    recordedActivity = await activityApi.recordCurrentApp({
       appName: context.data.appName,
       durationSeconds: segment.durationSeconds,
       endedAt: segment.endedAt,
@@ -110,28 +113,6 @@ export async function recordCurrentActivityContext(
       startedAt: segment.startedAt,
       windowTitle: context.data.windowTitle ?? null,
     });
-    await tauriCommands
-      .markActivityContextSynced({
-        localActivityId: localActivity.data.localActivityId,
-        serverActivityLogId: recordedActivity.id,
-        status: "SYNCED",
-      })
-      .catch(() => undefined);
-    const todayActivities = await activityApi.getToday();
-
-    return ready(
-      {
-        appName: context.data.appName,
-        context: context.data,
-        localActivityId: localActivity.data.localActivityId,
-        recordedActivity,
-        syncStatus: "SYNCED",
-        todayActivities,
-        windowTitle: context.data.windowTitle,
-      },
-      commandName,
-      translate("local.activity.recorded"),
-    );
   } catch (error) {
     await tauriCommands
       .markActivityContextSynced({
@@ -141,14 +122,47 @@ export async function recordCurrentActivityContext(
       .catch(() => undefined);
     return failed(getErrorMessage(error), commandName);
   }
+
+  await tauriCommands
+    .markActivityContextSynced({
+      localActivityId: localActivity.data.localActivityId,
+      serverActivityLogId: recordedActivity.id,
+      status: "SYNCED",
+    })
+    .catch(() => undefined);
+
+  const todayActivities = await activityApi.getToday().catch(() => []);
+
+  return ready(
+    {
+      appName: context.data.appName,
+      context: context.data,
+      localActivityId: localActivity.data.localActivityId,
+      recordedActivity,
+      syncStatus: "SYNCED",
+      todayActivities,
+      windowTitle: context.data.windowTitle,
+    },
+    commandName,
+    translate("local.activity.recorded"),
+  );
 }
 
 export async function syncLocalActivityBufferToServer(input?: {
+  consentGranted?: boolean;
   limit?: number;
 }): Promise<ActivityBufferSyncAdapterResult> {
   const commandName = TAURI_COMMANDS.stageActivityContextsForSync;
+  if (input?.consentGranted !== true) {
+    return blocked(
+      "activity_consent_required",
+      translate("local.activity.consentRequired"),
+      commandName,
+    );
+  }
+
   const staged = await runTauriAdapter(commandName, () =>
-    tauriCommands.stageActivityContextsForSync(input),
+    tauriCommands.stageActivityContextsForSync({ limit: input.limit }),
   );
 
   if (staged.status !== "ready") {

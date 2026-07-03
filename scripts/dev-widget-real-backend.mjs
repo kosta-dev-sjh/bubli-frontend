@@ -1,5 +1,8 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve as resolvePath } from "node:path";
 
 const COMMAND = process.argv[2] ?? "seed";
 const API_BASE_URL = stripTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080");
@@ -143,12 +146,14 @@ async function smokeBackend(accessToken) {
     "today usage summary did not include the saved smoke rollup",
   );
 
+  const createdLocalEventId = `codex-local-sync-created-${Date.now()}`;
   const localFileSync = await apiPost("/api/local-file-events/sync", headers, {
     events: [
       {
         eventType: "CREATED",
         fileName: "codex-local-sync-smoke.txt",
         fileSizeBytes: 42,
+        localEventId: createdLocalEventId,
         mimeType: "text/plain",
         resourceId: null,
       },
@@ -159,15 +164,18 @@ async function smokeBackend(accessToken) {
     localFileSync.results?.[0]?.status === "SYNCED",
     "local file event sync did not return a SYNCED result",
   );
+  assertOptionalLocalEventId(localFileSync.results?.[0], createdLocalEventId, "local file event sync");
   const syncedResourceId = localFileSync.results[0].resourceId;
   assert(syncedResourceId, "local file event sync did not return a resource id");
 
+  const deletedLocalEventId = `codex-local-sync-deleted-${Date.now()}`;
   const localFileDelete = await apiPost("/api/local-file-events/sync", headers, {
     events: [
       {
         eventType: "DELETED",
         fileName: "codex-local-sync-smoke.txt",
         fileSizeBytes: 42,
+        localEventId: deletedLocalEventId,
         mimeType: "text/plain",
         resourceId: syncedResourceId,
       },
@@ -177,6 +185,7 @@ async function smokeBackend(accessToken) {
     localFileDelete.results?.[0]?.status === "SYNCED",
     "local file event delete sync did not return a SYNCED result",
   );
+  assertOptionalLocalEventId(localFileDelete.results?.[0], deletedLocalEventId, "local file event delete sync");
 
   const [dailySummaries, generatedDocuments, roomMemorySummaries] = await Promise.all([
     apiGet("/api/daily-summaries", headers),
@@ -216,7 +225,14 @@ async function smokeBackend(accessToken) {
 
 async function runTauriDev(accessToken) {
   console.log("\nStarting Tauri dev with real backend widget token...");
-  const command = tauriDevCommand();
+  const existingDevUrl = await findExistingNextDevUrl();
+  const command = tauriDevCommand(existingDevUrl);
+
+  if (existingDevUrl) {
+    console.log(`Reusing existing Next dev server at ${existingDevUrl}.`);
+  } else {
+    console.log("No existing Next dev server found. Tauri will start the default dev server.");
+  }
 
   const child = spawn(command.file, command.args, {
     env: {
@@ -306,6 +322,12 @@ function buildSeedSql() {
 INSERT INTO users (id, google_sub, bubli_id, name, avatar_url, locale, timezone, status, deleted_at, created_at, updated_at)
 VALUES ('${SEED_USER_ID}', 'codex-local-widget-user', 'codex-widget', 'Codex Widget User', NULL, 'ko-KR', 'Asia/Seoul', 'ACTIVE', NULL, now(), now())
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, updated_at = now();
+
+INSERT INTO user_privacy_consents (user_id, consent_type, enabled, updated_at)
+VALUES
+('${SEED_USER_ID}', 'ACTIVITY_CONTEXT', true, now()),
+('${SEED_USER_ID}', 'MANAGED_FOLDER', true, now())
+ON CONFLICT (user_id, consent_type) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now();
 
 INSERT INTO project_rooms (id, created_by_user_id, name, client_name, contract_amount, payment_status, payment_due_date, paid_at, status, closed_at, created_at, updated_at)
 VALUES ('${SEED_ROOM_ID}', '${SEED_USER_ID}', 'Codex Local Room', 'Bubli QA', 1200000.00, 'PENDING', current_date + 7, NULL, 'ACTIVE', NULL, now(), now())
@@ -426,6 +448,17 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function assertOptionalLocalEventId(result, expectedLocalEventId, label) {
+  if (!result || !Object.hasOwn(result, "localEventId")) {
+    return;
+  }
+
+  assert(
+    result.localEventId === expectedLocalEventId,
+    `${label} did not echo the local event id`,
+  );
+}
+
 function stripTrailingSlash(value) {
   return value.replace(/\/$/, "");
 }
@@ -439,12 +472,64 @@ function withDockerPath(env) {
   };
 }
 
-function tauriDevCommand() {
-  if (process.platform === "win32") {
-    return { args: ["/d", "/s", "/c", "npm run tauri:dev"], file: "cmd.exe" };
+async function findExistingNextDevUrl() {
+  const candidates = [
+    process.env.BUBLI_TAURI_DEV_URL,
+    process.env.NEXT_PUBLIC_APP_BASE_URL,
+    process.env.NEXT_BASE_URL,
+    "http://localhost:3791",
+    "http://localhost:3000",
+  ]
+    .filter(Boolean)
+    .map(stripTrailingSlash);
+
+  for (const candidate of [...new Set(candidates)]) {
+    if (await isReachableDevUrl(candidate)) {
+      return candidate;
+    }
   }
 
-  return { args: ["run", "tauri:dev"], file: "npm" };
+  return null;
+}
+
+async function isReachableDevUrl(url) {
+  try {
+    const response = await fetch(url, { method: "GET", signal: AbortSignal.timeout(1200) });
+    return response.ok || response.status < 500;
+  } catch {
+    return false;
+  }
+}
+
+function tauriDevCommand(existingDevUrl) {
+  if (!existingDevUrl) {
+    return { args: ["run", "tauri:dev"], file: "npm" };
+  }
+
+  const configPath = writeTauriDevConfig(existingDevUrl);
+  return {
+    args: ["dev", "--no-watch", "--config", configPath],
+    file: resolvePath(
+      "node_modules",
+      ".bin",
+      process.platform === "win32" ? "tauri.cmd" : "tauri",
+    ),
+  };
+}
+
+function writeTauriDevConfig(devUrl) {
+  const configDir = mkdtempSync(join(tmpdir(), "bubli-tauri-dev-"));
+  const configPath = join(configDir, "tauri-dev-server.json");
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      build: {
+        beforeDevCommand: "",
+        devUrl,
+      },
+    }),
+  );
+  return configPath;
 }
 
 function maskToken(value) {
