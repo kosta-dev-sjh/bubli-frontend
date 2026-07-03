@@ -8,6 +8,10 @@ const WIDGET_USAGE_SYNC_INTERVAL_MS = 60_000;
 let syncIntervalId: number | null = null;
 let syncInFlight = false;
 
+type WidgetUsageAutoSyncStopInput = {
+  flush?: boolean;
+};
+
 export function startWidgetUsageAutoSync() {
   if (!isTauriRuntime()) return;
   if (syncIntervalId !== null) return;
@@ -18,13 +22,22 @@ export function startWidgetUsageAutoSync() {
   }, WIDGET_USAGE_SYNC_INTERVAL_MS);
 }
 
-export function stopWidgetUsageAutoSync() {
+export async function stopWidgetUsageAutoSync(input?: WidgetUsageAutoSyncStopInput) {
+  if (input?.flush) {
+    await flushWidgetUsageAutoSync();
+  }
+
   if (syncIntervalId !== null) {
     window.clearInterval(syncIntervalId);
   }
 
   syncIntervalId = null;
   syncInFlight = false;
+}
+
+export async function flushWidgetUsageAutoSync() {
+  if (!isTauriRuntime()) return;
+  await syncWidgetUsageOnce();
 }
 
 export function isWidgetUsageAutoSyncRunning() {

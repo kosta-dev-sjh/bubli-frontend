@@ -23,6 +23,10 @@ let watchListenerGeneration = 0;
 let cachedConsent: boolean | null = null;
 let cachedConsentCheckedAt = 0;
 
+type ManagedFolderAutoSyncStopInput = {
+  flush?: boolean;
+};
+
 export function startManagedFolderAutoSync() {
   if (!isTauriRuntime()) return;
   if (syncIntervalId !== null) return;
@@ -33,7 +37,11 @@ export function startManagedFolderAutoSync() {
   }, LOCAL_FILE_EVENT_SYNC_INTERVAL_MS);
 }
 
-export function stopManagedFolderAutoSync() {
+export async function stopManagedFolderAutoSync(input?: ManagedFolderAutoSyncStopInput) {
+  if (input?.flush) {
+    await flushManagedFolderAutoSync();
+  }
+
   if (syncIntervalId !== null) {
     window.clearInterval(syncIntervalId);
   }
@@ -49,6 +57,11 @@ export function stopManagedFolderAutoSync() {
   if (isTauriRuntime()) {
     void tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
   }
+}
+
+export async function flushManagedFolderAutoSync() {
+  if (!isTauriRuntime()) return;
+  await syncManagedFolderEventsOnce().catch(() => undefined);
 }
 
 export function isManagedFolderAutoSyncRunning() {
