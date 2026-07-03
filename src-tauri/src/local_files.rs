@@ -1787,6 +1787,13 @@ pub fn mark_local_file_events_synced(
     input: LocalFileEventsMarkSyncedInput,
 ) -> Result<LocalFileEventsMarkSyncedResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    mark_local_file_events_synced_for_conn(&conn, input)
+}
+
+fn mark_local_file_events_synced_for_conn(
+    conn: &Connection,
+    input: LocalFileEventsMarkSyncedInput,
+) -> Result<LocalFileEventsMarkSyncedResult, String> {
     let now = now_ms();
     let mut synced_count = 0i64;
     let mut failed_count = 0i64;
@@ -1805,6 +1812,7 @@ pub fn mark_local_file_events_synced(
         };
 
         let failed = result.status.eq_ignore_ascii_case("FAILED");
+        let skipped = result.status.eq_ignore_ascii_case("SKIPPED");
         let event_status = if failed { "FAILED" } else { "SYNCED" };
         mark_local_file_event_outbox(&conn, &result.local_event_id, event_status, now)?;
         conn.execute(
@@ -1825,16 +1833,23 @@ pub fn mark_local_file_events_synced(
             continue;
         }
 
-        synced_count += 1;
         if let Some(local_file_id) = local_file_id {
             if event_type == "DELETED" {
+                synced_count += 1;
                 delete_file_fts_index(&conn, &local_file_id)?;
                 conn.execute(
                     "DELETE FROM local_files WHERE id = ?1",
                     params![local_file_id],
                 )
                 .map_err(|error| error.to_string())?;
+            } else if skipped {
+                conn.execute(
+                    "UPDATE local_files SET sync_status = 'LOCAL_ONLY', updated_at = ?2 WHERE id = ?1",
+                    params![local_file_id, now],
+                )
+                .map_err(|error| error.to_string())?;
             } else {
+                synced_count += 1;
                 conn.execute(
                     "UPDATE local_files SET resource_id = COALESCE(?2, resource_id), sync_status = 'SYNCED', updated_at = ?3 \
                      WHERE id = ?1",
@@ -1842,6 +1857,8 @@ pub fn mark_local_file_events_synced(
                 )
                 .map_err(|error| error.to_string())?;
             }
+        } else if !skipped {
+            synced_count += 1;
         }
     }
 
@@ -2145,6 +2162,57 @@ mod tests {
         assert_eq!(stored, 1);
         assert!(result.sync_enabled);
         assert_eq!(result.pending_event_count, 1);
+    }
+
+    #[test]
+    fn skipped_updated_sync_keeps_file_local_only() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', '/tmp/docs', 'ACTIVE', 1, 1, 1)",
+            [],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, sync_status, updated_at) \
+             VALUES ('file-1', 'folder-1', 'draft.md', '/tmp/docs/draft.md', 'SYNC_PENDING', 1)",
+            [],
+        )
+        .expect("insert pending local file");
+        conn.execute(
+            "INSERT INTO local_file_events \
+             (id, local_file_id, local_folder_id, event_type, file_name, local_path, status, created_at) \
+             VALUES ('event-1', 'file-1', 'folder-1', 'UPDATED', 'draft.md', '/tmp/docs/draft.md', 'APPROVED', 1)",
+            [],
+        )
+        .expect("insert approved update event");
+
+        let result = mark_local_file_events_synced_for_conn(
+            &conn,
+            LocalFileEventsMarkSyncedInput {
+                results: vec![LocalFileEventSyncResultInput {
+                    local_event_id: "event-1".to_string(),
+                    resource_id: None,
+                    status: "SKIPPED".to_string(),
+                }],
+            },
+        )
+        .expect("mark skipped update");
+        let stored: (String, String) = conn
+            .query_row(
+                "SELECT f.sync_status, e.status \
+                 FROM local_files f \
+                 INNER JOIN local_file_events e ON e.local_file_id = f.id \
+                 WHERE f.id = 'file-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read stored statuses");
+
+        assert_eq!(result.synced_count, 0);
+        assert_eq!(result.failed_count, 0);
+        assert_eq!(stored, ("LOCAL_ONLY".to_string(), "SYNCED".to_string()));
     }
 
     #[test]

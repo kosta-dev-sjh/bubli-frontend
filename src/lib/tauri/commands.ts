@@ -338,6 +338,7 @@ export type LocalBackupRestoreInput = {
 
 export type LocalBackupRestoreResult = {
   backupId: string;
+  requiresRestart: boolean;
   restoredAt: string;
 };
 
