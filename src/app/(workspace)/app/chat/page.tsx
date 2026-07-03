@@ -679,7 +679,9 @@ function ChatPageContent() {
     const roomChats = roomsState.rooms.filter((r) => r.chatType === "ROOM");
     const voiceMatch = voiceRoomId ? roomChats.find((r) => r.roomId === voiceRoomId) : null;
     const best = voiceMatch ?? roomChats[0] ?? null;
-    if (best) setSelectedChatRoomId(best.id);
+    if (!best) return;
+    const id = window.setTimeout(() => { setSelectedChatRoomId(best.id); }, 0);
+    return () => window.clearTimeout(id);
   }, [queryMode, roomsState, selectedChatRoomId, voiceState]);
 
   useEffect(() => {
