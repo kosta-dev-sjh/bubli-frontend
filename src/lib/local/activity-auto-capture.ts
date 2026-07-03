@@ -14,6 +14,7 @@ const CONSENT_REFRESH_INTERVAL_MS = 60_000;
 
 let captureIntervalId: number | null = null;
 let captureInFlight = false;
+let captureInFlightPromise: Promise<void> | null = null;
 let cachedConsent: boolean | null = null;
 let cachedConsentCheckedAt = 0;
 let activityConsentRevision = 0;
@@ -44,6 +45,7 @@ export async function stopActivityAutoCapture(input?: ActivityAutoCaptureStopInp
   }
 
   captureInFlight = false;
+  captureInFlightPromise = null;
   cachedConsent = null;
   cachedConsentCheckedAt = 0;
   resetIncrementalActivityCheckpoint();
@@ -71,47 +73,63 @@ export function notifyActivityConsentChanged(enabled: boolean) {
 }
 
 async function captureActivityOnce() {
-  if (captureInFlight) return;
+  if (captureInFlight) {
+    return captureInFlightPromise ?? Promise.resolve();
+  }
 
   captureInFlight = true;
-  try {
-    const revision = activityConsentRevision;
-    const consentGranted = await readActivityConsent();
-    if (!consentGranted || revision !== activityConsentRevision) return;
+  captureInFlightPromise = (async () => {
+    try {
+      const revision = activityConsentRevision;
+      const consentGranted = await readActivityConsent();
+      if (!consentGranted || revision !== activityConsentRevision) return;
 
-    await recordCurrentActivityContext({
-      consentGranted,
-      recordMode: "incremental",
-      roomId: getActiveProjectRoomId(),
-    });
-  } catch {
-    cachedConsent = null;
-    cachedConsentCheckedAt = 0;
-  } finally {
-    captureInFlight = false;
-  }
+      await recordCurrentActivityContext({
+        consentGranted,
+        recordMode: "incremental",
+        roomId: getActiveProjectRoomId(),
+      });
+    } catch {
+      cachedConsent = null;
+      cachedConsentCheckedAt = 0;
+    } finally {
+      captureInFlight = false;
+      captureInFlightPromise = null;
+    }
+  })();
+
+  return captureInFlightPromise;
 }
 
 export async function flushActivityAutoCapture() {
-  if (!isTauriRuntime() || captureInFlight) return;
+  if (!isTauriRuntime()) return;
+  if (captureInFlightPromise) {
+    await captureInFlightPromise.catch(() => undefined);
+  }
+  if (captureInFlight) return;
 
   captureInFlight = true;
-  try {
-    const consentGranted = await readActivityConsent();
-    if (!consentGranted) return;
+  captureInFlightPromise = (async () => {
+    try {
+      const consentGranted = await readActivityConsent();
+      if (!consentGranted) return;
 
-    await recordCurrentActivityContext({
-      consentGranted,
-      recordMode: "incremental",
-      roomId: getActiveProjectRoomId(),
-    }).catch(() => undefined);
-    await syncLocalActivityBufferToServer({ consentGranted, limit: 20 }).catch(() => undefined);
-  } catch {
-    cachedConsent = null;
-    cachedConsentCheckedAt = 0;
-  } finally {
-    captureInFlight = false;
-  }
+      await recordCurrentActivityContext({
+        consentGranted,
+        recordMode: "incremental",
+        roomId: getActiveProjectRoomId(),
+      }).catch(() => undefined);
+      await syncLocalActivityBufferToServer({ consentGranted, limit: 20 }).catch(() => undefined);
+    } catch {
+      cachedConsent = null;
+      cachedConsentCheckedAt = 0;
+    } finally {
+      captureInFlight = false;
+      captureInFlightPromise = null;
+    }
+  })();
+
+  return captureInFlightPromise;
 }
 
 async function readActivityConsent() {
