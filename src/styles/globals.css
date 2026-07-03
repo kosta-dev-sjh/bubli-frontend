@@ -12928,6 +12928,24 @@ html {
   margin-top: 14px;
 }
 
+.local-backup__notice,
+.local-backup__empty {
+  margin: 12px 0 0;
+  border: 1px dashed rgba(107, 143, 168, 0.18);
+  border-radius: 16px;
+  padding: 12px 14px;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1.55;
+}
+
+.local-backup__empty {
+  margin-top: 0;
+  text-align: center;
+}
+
 .local-backup-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
