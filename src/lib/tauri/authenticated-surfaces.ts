@@ -48,7 +48,7 @@ function getStartupModeFromSetting(setting: WidgetBubbleSettingResponse): Widget
   return "DEFAULT";
 }
 
-function getPrimaryStartupBubble(settings: WidgetBubbleSettingResponse[]): WidgetWindowOpenInput | null {
+function getStartupBubbleWindows(settings: WidgetBubbleSettingResponse[]): WidgetWindowOpenInput[] {
   const enabledByBubble = new Map<WidgetBubbleType, WidgetBubbleSettingResponse>();
 
   for (const setting of settings) {
@@ -56,29 +56,29 @@ function getPrimaryStartupBubble(settings: WidgetBubbleSettingResponse[]): Widge
     enabledByBubble.set(backendBubbleToLocal[setting.bubbleType], setting);
   }
 
+  const windows: WidgetWindowOpenInput[] = [];
   for (const bubbleType of startupBubblePriority) {
     const setting = enabledByBubble.get(bubbleType);
     if (!setting) continue;
 
-    return {
+    windows.push({
       bubbleType,
       mode: getStartupModeFromSetting(setting),
       windowId: bubbleType,
-    };
+    });
   }
 
-  return null;
+  return windows;
 }
 
 export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInput[]> {
   const settings = await widgetApi.getSettings().catch(() => null);
-  const primaryBubble = settings ? getPrimaryStartupBubble(settings.bubbles) : null;
-
-  if (!primaryBubble) {
+  if (!settings) {
     return loginStartupWindows;
   }
 
-  return [{ bubbleType: "bar", mode: "DEFAULT", windowId: "bar" }, primaryBubble];
+  const startupBubbles = getStartupBubbleWindows(settings.bubbles);
+  return [{ bubbleType: "bar", mode: "DEFAULT", windowId: "bar" }, ...startupBubbles];
 }
 
 async function resolveLaunchSelectedRoomId() {
