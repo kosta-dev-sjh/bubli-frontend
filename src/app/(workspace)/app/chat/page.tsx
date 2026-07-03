@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Check, Copy, Download, Inbox, KeyRound, LogOut, Mic, MicOff, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
+import { AtSign, Check, Copy, Download, Inbox, LogOut, Mic, MicOff, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -29,7 +29,7 @@ import type { AuthUser } from "@/types/api/auth";
 import type { ChatMessageResponse, ChatRoomResponse, RoomAgentCommandMode } from "@/types/api/chat";
 import type { FriendRequestResponse, FriendResponse, FriendSearchResponse } from "@/types/api/friend";
 import type { ProjectRoomInvitationResponse } from "@/types/api/projectRoom";
-import type { VoiceParticipantResponse, VoiceRoomResponse, VoiceTokenResponse } from "@/types/api/voice";
+import type { VoiceParticipantResponse, VoiceRoomResponse } from "@/types/api/voice";
 
 type RoomsState =
   | { kind: "loading" }
@@ -64,9 +64,7 @@ type VoiceState =
   | { kind: "ready"; room: VoiceRoomResponse }
   | { kind: "blocked"; message: string };
 
-type VoiceAction = "token" | "mic" | "leave" | "end";
-
-type VoiceTokenInfo = Pick<VoiceTokenResponse, "expiresAt" | "serverUrl">;
+type VoiceAction = "join" | "mic" | "leave" | "end";
 
 type RoomInviteState =
   | { kind: "idle" }
@@ -141,12 +139,14 @@ const previewFriendRequests: FriendRequestResponse[] = [
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
-const emoticonTokens = [
-  { labelKey: "chat.emoticon.like", value: "[좋아요]" },
-  { labelKey: "chat.emoticon.ok", value: "[확인]" },
-  { labelKey: "chat.emoticon.laugh", value: "[웃음]" },
-  { labelKey: "chat.emoticon.cheer", value: "[응원]" },
-  { labelKey: "chat.emoticon.wait", value: "[잠시만요]" },
+// 컴포저 이모지 피커에 노출하는 기본 이모지 세트(외부 의존성 없이 하드코딩).
+const composerEmojis = [
+  "😀", "😄", "😆", "😂", "🤣", "😊", "🙂", "😉",
+  "😍", "😘", "😎", "🤔", "😅", "😭", "😢", "😡",
+  "😱", "🥳", "🤗", "😴", "🙃", "😇", "🤩", "😋",
+  "👍", "👎", "👏", "🙏", "💪", "🤝", "👌", "✌️",
+  "🙌", "❤️", "💙", "💛", "💚", "🔥", "⭐", "✨",
+  "🎉", "🎊", "✅", "❌", "⚡", "☕", "🍀", "💡",
 ] as const;
 
 function roomTypeLabel(t: TranslateFn, room: ChatRoomResponse) {
@@ -337,7 +337,6 @@ function ChatPageContent() {
   const [voiceExpanded, setVoiceExpanded] = useState(() => _voiceCache?.expanded ?? false);
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
-  const [voiceTokenInfo, setVoiceTokenInfo] = useState<VoiceTokenInfo | null>(null);
   const [roomInviteState, setRoomInviteState] = useState<RoomInviteState>({ kind: "idle" });
   const [chatRoomInviteState, setChatRoomInviteState] = useState<ChatRoomInviteState>({ kind: "idle" });
   const [roomInvitationsState, setRoomInvitationsState] = useState<RoomInvitationsState>({ kind: "idle" });
@@ -347,7 +346,6 @@ function ChatPageContent() {
   const [selectedAttachment, setSelectedAttachment] = useState<File | null>(null);
   const [downloadingResourceId, setDownloadingResourceId] = useState<string | null>(null);
   const [emoticonOpen, setEmoticonOpen] = useState(false);
-  const [friendAddOpen, setFriendAddOpen] = useState(false);
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [newRoomPickerOpen, setNewRoomPickerOpen] = useState(false);
   const [groupRoomName, setGroupRoomName] = useState("");
@@ -357,6 +355,9 @@ function ChatPageContent() {
   const [roomCreateNotice, setRoomCreateNotice] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement | null>(null);
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null);
   const friendSearchInputRef = useRef<HTMLInputElement | null>(null);
   const friendListRef = useRef<HTMLDivElement | null>(null);
   const messagesViewportRef = useRef<HTMLDivElement | null>(null);
@@ -453,6 +454,10 @@ function ChatPageContent() {
 
     return [];
   }, [voiceState, t]);
+  const joinedVoiceParticipants = useMemo(
+    () => (activeVoiceRoom ? voiceParticipants.filter((participant) => participant.status === "JOINED") : []),
+    [activeVoiceRoom, voiceParticipants],
+  );
 
   const loadRooms = useCallback(async () => {
     setRoomsState({ kind: "loading" });
@@ -605,6 +610,23 @@ function ChatPageContent() {
   useEffect(() => {
     _voiceCache = { expanded: voiceExpanded, state: voiceState };
   }, [voiceState, voiceExpanded]);
+
+  // 열린 보이스룸의 참여자 상태를 주기적으로 갱신 (다른 멤버의 참여/퇴장 반영)
+  const openVoiceRoomDbId = voiceState.kind === "ready" && voiceState.room.status === "OPEN" ? voiceState.room.id : null;
+  useEffect(() => {
+    if (!openVoiceRoomDbId) return;
+
+    const interval = window.setInterval(() => {
+      void voiceApi
+        .getRoom(openVoiceRoomDbId)
+        .then((room) => setVoiceState({ kind: "ready", room }))
+        .catch(() => {
+          // 폴링 실패는 조용히 무시 (다음 주기에 재시도)
+        });
+    }, 12000);
+
+    return () => window.clearInterval(interval);
+  }, [openVoiceRoomDbId]);
 
   // 소셜/채팅룸/초대 상태 백그라운드 폴링 (친구 요청·초대 수락이 자동 반영)
   useEffect(() => {
@@ -971,31 +993,44 @@ function ChatPageContent() {
     setVoiceAction(null);
     setVoiceMicMuted(false);
     setVoiceNotice(null);
-    setVoiceTokenInfo(null);
 
     try {
       const room = await voiceApi.createRoom({ roomId: voiceRoomId });
       setVoiceState({ kind: "ready", room });
       setVoiceExpanded(true);
       setVoiceNotice(t("chat.notice.voiceOpened"));
+
+      // 개설자는 곧바로 참여 처리 — 참여 토큰은 내부에서만 발급/사용하고 화면에 노출하지 않는다.
+      try {
+        await voiceApi.getToken(room.id);
+        const refreshed = await voiceApi.getRoom(room.id);
+        setVoiceState({ kind: "ready", room: refreshed });
+      } catch {
+        // 자동 참여 실패 시 룸은 열린 상태 유지 — "보이스 참여" 버튼으로 재시도 가능
+      }
     } catch {
       setVoiceState({ kind: "blocked", message: t("chat.notice.voiceStartFailed") });
     }
   }, [selectedRoom, t]);
 
-  const requestVoiceToken = useCallback(async () => {
+  // 보이스 참여: 참여 토큰 발급은 join 흐름 내부에서 자동 수행하고 토큰 자체는 사용자에게 보여주지 않는다.
+  const joinVoice = useCallback(async () => {
     if (!activeVoiceRoom || voiceAction) return;
 
-    setVoiceAction("token");
+    setVoiceAction("join");
     try {
-      const token = await voiceApi.getToken(activeVoiceRoom.id);
-      setVoiceTokenInfo({
-        expiresAt: token.expiresAt,
-        serverUrl: token.serverUrl,
-      });
-      setVoiceNotice(t("chat.notice.tokenReceived"));
-    } catch {
-      setVoiceNotice(t("chat.notice.tokenFailed"));
+      await voiceApi.getToken(activeVoiceRoom.id);
+      const room = await voiceApi.getRoom(activeVoiceRoom.id);
+      setVoiceState({ kind: "ready", room });
+      setVoiceMicMuted(false);
+      setVoiceExpanded(true);
+      setVoiceNotice(t("chat.notice.voiceJoined"));
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 403) {
+        setVoiceNotice(t("chat.notice.voiceJoinDenied"));
+      } else {
+        setVoiceNotice(t("chat.notice.voiceJoinFailed"));
+      }
     } finally {
       setVoiceAction(null);
     }
@@ -1063,6 +1098,47 @@ function ChatPageContent() {
       setVoiceAction(null);
     }
   }, [activeVoiceRoom, voiceAction, t]);
+
+  // 이모지 피커: Escape 또는 바깥 클릭으로 닫기
+  useEffect(() => {
+    if (!emoticonOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (emojiPickerRef.current?.contains(target) || emojiButtonRef.current?.contains(target)) return;
+      setEmoticonOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setEmoticonOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [emoticonOpen]);
+
+  // 선택한 이모지를 입력창 커서 위치에 삽입
+  const insertEmoji = useCallback((emoji: string) => {
+    setComposerActive(true);
+    const input = composerInputRef.current;
+
+    if (!input) {
+      setDraft((current) => `${current}${emoji}`);
+      return;
+    }
+
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? start;
+    setDraft((current) => `${current.slice(0, start)}${emoji}${current.slice(end)}`);
+    window.requestAnimationFrame(() => {
+      input.focus();
+      const caret = start + emoji.length;
+      input.setSelectionRange(caret, caret);
+    });
+  }, []);
 
   const sendMessage = useCallback(async () => {
     const text = draft.trim();
@@ -1142,6 +1218,9 @@ function ChatPageContent() {
         ? { attachmentName: selectedAttachment.name, text: text || selectedAttachment.name }
         : { text };
 
+      // TODO(widget): 이모지 전송 시 데스크톱 오버레이 이벤트 발행 지점.
+      // 추후 Tauri 위젯 레이어가 붙으면, text에 포함된 이모지를 감지해
+      // 데스크톱 위로 떠오르는 오버레이(스트리밍 오버레이 스타일) 이벤트를 여기서 emit한다.
       const response = await chatApi.sendMessage(activeChatRoomId, {
         body: messageBody,
         clientMessageId: crypto.randomUUID(),
@@ -1242,7 +1321,7 @@ function ChatPageContent() {
             {roomCreateNotice ? <span className="workspace-route__pending">{roomCreateNotice}</span> : null}
             <button
               className="workspace-route__quick-button"
-              onClick={() => { setFriendsOpen(true); setFriendAddOpen(false); }}
+              onClick={() => setFriendsOpen(true)}
               type="button"
             >
               <UsersRound aria-hidden size={15} strokeWidth={2} />
@@ -1325,25 +1404,31 @@ function ChatPageContent() {
                     type="button"
                   >
                     <Phone size={15} strokeWidth={2} aria-hidden="true" />
-                    <span>{activeVoiceRoom ? t("chat.voice.open") : t("chat.voice.waiting")}</span>
-                    {voiceParticipants.filter((p) => p.status === "JOINED").length > 0 ? (
-                      <span className="workspace-route__voice-stack" aria-label={t("chat.voice.participantsAria", { count: voiceParticipants.length })}>
-                        {voiceParticipants.filter((p) => p.status === "JOINED").slice(0, 3).map((participant) => (
-                          <i data-status="joined" key={participant.userId}>
-                            {initialOf(participant.userName)}
-                          </i>
-                        ))}
-                      </span>
-                    ) : null}
+                    <span>
+                      {activeVoiceRoom
+                        ? joinedVoiceParticipants.length > 0
+                          ? t("chat.voice.live", { count: joinedVoiceParticipants.length })
+                          : t("chat.voice.open")
+                        : t("chat.voice.waiting")}
+                    </span>
                   </button>
                   {activeVoiceRoom ? (
                     <div className="workspace-route__voice-pills">
-                      <button className="workspace-route__voice-pill" data-voice-pill="0" disabled={voiceAction === "token"} onClick={() => void requestVoiceToken()} type="button">
-                        <KeyRound aria-hidden size={13} strokeWidth={2} />
-                        {voiceAction === "token" ? t("chat.voiceCard.receiving") : t("chat.voiceCard.joinToken")}
-                      </button>
+                      {!isInVoice ? (
+                        <button className="workspace-route__voice-pill" data-voice-pill="0" disabled={voiceAction === "join"} onClick={() => void joinVoice()} type="button">
+                          <Phone aria-hidden size={13} strokeWidth={2} />
+                          {voiceAction === "join" ? t("chat.voice.joining") : t("chat.voice.join")}
+                        </button>
+                      ) : null}
                       {isInVoice ? (
-                        <button className="workspace-route__voice-pill" data-voice-pill="1" disabled={voiceAction === "mic"} onClick={() => void toggleVoiceMic()} type="button">
+                        <button
+                          aria-pressed={voiceMicMuted}
+                          className="workspace-route__voice-pill"
+                          data-voice-pill="1"
+                          disabled={voiceAction === "mic"}
+                          onClick={() => void toggleVoiceMic()}
+                          type="button"
+                        >
                           {voiceMicMuted ? <Mic aria-hidden size={13} strokeWidth={2} /> : <MicOff aria-hidden size={13} strokeWidth={2} />}
                           {voiceAction === "mic" ? t("chat.voiceCard.changing") : voiceMicMuted ? t("chat.voiceCard.micOn") : t("chat.voiceCard.micOff")}
                         </button>
@@ -1365,7 +1450,7 @@ function ChatPageContent() {
                 </div>
                 {activeVoiceRoom && voiceExpanded ? (
                   <div className="workspace-route__voice-people workspace-route__voice-people--inline">
-                    {voiceParticipants.filter((p) => p.status === "JOINED").map((participant) => {
+                    {joinedVoiceParticipants.map((participant) => {
                       const isMe = participant.userId === currentUser?.id;
                       return (
                         <div className="workspace-route__voice-person" key={participant.userId}>
@@ -1462,22 +1547,6 @@ function ChatPageContent() {
                   <button aria-label={t("chat.composer.attach")} onClick={() => fileInputRef.current?.click()} type="button">
                     <Paperclip aria-hidden size={17} strokeWidth={2} />
                   </button>
-                  {selectedRoom ? (
-                    <button
-                      aria-label={activeVoiceRoom ? t("chat.voice.open") : t("chat.composer.voiceParticipants")}
-                      disabled={voiceState.kind === "starting"}
-                      onClick={() => {
-                        if (activeVoiceRoom) {
-                          setVoiceExpanded((v) => !v);
-                        } else {
-                          void startVoice();
-                        }
-                      }}
-                      type="button"
-                    >
-                      <Phone aria-hidden size={17} strokeWidth={2} />
-                    </button>
-                  ) : null}
                   <input
                     ref={fileInputRef}
                     className="workspace-route__composer-file"
@@ -1488,6 +1557,7 @@ function ChatPageContent() {
                     type="file"
                   />
                   <textarea
+                    ref={composerInputRef}
                     aria-label={t("chat.composer.message")}
                     onBlur={() => {
                       if (!draft.trim() && !selectedAttachment) setComposerActive(false);
@@ -1507,13 +1577,29 @@ function ChatPageContent() {
                     rows={1}
                     value={draft}
                   />
-                  <button aria-expanded={emoticonOpen} aria-label={t("chat.composer.emoticon")} onClick={() => { setEmoticonOpen((open) => !open); setComposerActive(true); }} type="button">
+                  <button
+                    ref={emojiButtonRef}
+                    aria-expanded={emoticonOpen}
+                    aria-haspopup="true"
+                    aria-label={t("chat.composer.emoticon")}
+                    onClick={() => { setEmoticonOpen((open) => !open); setComposerActive(true); }}
+                    type="button"
+                  >
                     <Smile aria-hidden size={17} strokeWidth={2} />
                   </button>
                   <Button disabled={(!draft.trim() && !selectedAttachment) || sending} loading={sending} type="submit" variant="primary">
                     <Send aria-hidden size={15} strokeWidth={1.9} />
                   </Button>
                 </div>
+                {emoticonOpen ? (
+                  <div ref={emojiPickerRef} aria-label={t("chat.composer.emojiPickerAria")} className="workspace-route__composer-emoji-picker" role="group">
+                    {composerEmojis.map((emoji) => (
+                      <button key={emoji} onClick={() => insertEmoji(emoji)} type="button">
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 {composerActive || draft || selectedAttachment ? (
                   <div className="workspace-route__composer-tools">
                     {selectedAttachment ? (
@@ -1532,23 +1618,6 @@ function ChatPageContent() {
                     ) : (
                       <span>{t("chat.composer.hint")}</span>
                     )}
-                    {emoticonOpen ? (
-                      <div className="workspace-route__emoticons" aria-label={t("chat.composer.emoticonAria")}>
-                        {emoticonTokens.map((token) => (
-                          <button
-                            key={token.value}
-                            onClick={() => {
-                              setDraft((current) => `${current}${current ? " " : ""}${token.value}`);
-                              setEmoticonOpen(false);
-                              setComposerActive(true);
-                            }}
-                            type="button"
-                          >
-                            {t(token.labelKey)}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
                   </div>
                 ) : null}
               </form>
@@ -1749,7 +1818,8 @@ function ChatPageContent() {
                 className="workspace-route__quick-button"
                 onClick={() => {
                   setNewRoomPickerOpen(false);
-                  setFriendAddOpen(true);
+                  // 친구 검색 입력은 친구 관리 모달 안에 있으므로 해당 모달을 연다
+                  setFriendsOpen(true);
                   window.setTimeout(() => friendSearchInputRef.current?.focus(), 0);
                 }}
                 type="button"

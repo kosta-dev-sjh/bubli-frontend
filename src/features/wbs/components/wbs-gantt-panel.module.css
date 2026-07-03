@@ -85,6 +85,53 @@
   opacity: 0.45;
 }
 
+.syncChip {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  border-radius: 999px;
+  color: #5A6772;
+  display: inline-flex;
+  font-size: 12.5px;
+  font-weight: 740;
+  gap: 7px;
+  margin-inline-start: auto;
+  min-block-size: 30px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.syncDot {
+  background: var(--ink-faint, #98A5AF);
+  block-size: 8px;
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  display: inline-block;
+  inline-size: 8px;
+}
+
+.syncChip[data-state="checking"] .syncDot {
+  background: rgba(205, 216, 223, 0.9);
+}
+
+.syncChip[data-state="recording"] {
+  border-color: color-mix(in srgb, var(--signal-ok, #93CFA8) 42%, rgba(229, 231, 235, 0.9));
+  color: #2C3540;
+}
+
+.syncChip[data-state="recording"] .syncDot {
+  background: var(--signal-ok, #93CFA8);
+}
+
+.syncChip[data-state="pending"] {
+  border-color: color-mix(in srgb, var(--color-warning, #F1D7B8) 62%, rgba(229, 231, 235, 0.9));
+  color: #2C3540;
+}
+
+.syncChip[data-state="pending"] .syncDot {
+  background: var(--color-warning, #F1D7B8);
+}
+
 .createInline {
   align-items: center;
   background:
@@ -282,6 +329,11 @@
     inset 4px 0 0 var(--gantt-feature-color),
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
     0 10px 22px -20px rgba(107, 143, 168, 0.48);
+}
+
+.ganttSurface :global([data-roadmap-ui="gantt-progress-track"]) {
+  background-color: rgba(205, 216, 223, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 .ganttSurface :global(.border-border\/50) {

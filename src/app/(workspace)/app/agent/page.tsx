@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, Download, Eye, Pause, RefreshCw, Sparkles, X } from "lucide-react";
+import { Check, Download, Eye, Pause, RefreshCw, Sparkles, Wand2, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
@@ -13,7 +13,7 @@ import { chatApi } from "@/features/communication/api/chatApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
-import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { getActiveProjectRoomId, setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
@@ -22,6 +22,7 @@ import {
   workspacePreviewRooms,
 } from "@/lib/workspace-preview-data";
 import type {
+  AgentJobStatus,
   AgentSuggestionResponse,
   AgentSuggestionStatus,
   AgentSuggestionType,
@@ -31,9 +32,12 @@ import type {
 import type { RoomMemorySummaryResponse } from "@/types/api/chat";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 
+import styles from "./page.module.css";
+
 type AgentPageState =
   | { kind: "loading" }
   | {
+      confirmedRequirements: AgentSuggestionResponse[];
       dailySummaries: DailySummaryResponse[];
       generatedDocuments: GeneratedDocumentResponse[];
       kind: "ready";
@@ -45,7 +49,10 @@ type AgentPageState =
   | { kind: "auth" }
   | { kind: "offline"; message: string };
 
-type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
+type ActiveJobState = {
+  jobId: string;
+  status: AgentJobStatus;
+};
 
 const typeLabelKeys: Record<AgentSuggestionType, MessageKey> = {
   CONTRACT_FIELD: "agent.page.typeContractField",
@@ -67,6 +74,14 @@ const statusLabelKeys: Record<AgentSuggestionStatus, MessageKey> = {
   DRAFT: "agent.page.statusDraftLabel",
   HELD: "agent.page.statusHeldLabel",
   REJECTED: "agent.page.statusRejectedLabel",
+};
+
+const jobStatusLabelKeys: Record<AgentJobStatus, MessageKey> = {
+  CANCELED: "agent.timeline.statusCanceled",
+  FAILED: "agent.timeline.statusFailed",
+  PENDING: "agent.timeline.statusPending",
+  RUNNING: "agent.timeline.statusRunning",
+  SUCCEEDED: "agent.timeline.statusSucceeded",
 };
 
 function statusTone(status: AgentSuggestionStatus) {
@@ -138,6 +153,9 @@ function AgentPageContent() {
   const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<GeneratedDocumentResponse | null>(null);
   const [startingSummaryJob, setStartingSummaryJob] = useState(false);
+  const [generatingRequirements, setGeneratingRequirements] = useState(false);
+  const [checkingJob, setCheckingJob] = useState(false);
+  const [activeJob, setActiveJob] = useState<ActiveJobState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const selectedRoomId = state.kind === "ready" ? state.selectedRoomId : null;
@@ -149,6 +167,7 @@ function AgentPageContent() {
       if (current.kind === "ready") {
         return {
           ...current,
+          confirmedRequirements: [],
           dailySummaries: [],
           generatedDocuments: [],
           roomMemorySummaries: [],
@@ -160,12 +179,18 @@ function AgentPageContent() {
     });
 
     try {
-      const [roomPage, suggestions, dailySummaryPage, generatedDocumentPage, roomMemorySummaries] = await Promise.all([
+      const [roomPage, suggestions, dailySummaryPage, generatedDocumentPage, roomMemorySummaries, confirmedRequirements] = await Promise.all([
         projectRoomApi.list(),
         roomId ? agentApi.listRoomSuggestions(roomId, { status: "DRAFT" }) : agentApi.listPersonalSuggestions({ status: "DRAFT" }),
         agentApi.listDailySummaries(),
         roomId ? agentApi.listRoomGeneratedDocuments(roomId) : agentApi.listGeneratedDocuments(),
         roomId ? chatApi.listRoomMemorySummaries(roomId) : Promise.resolve([]),
+        roomId
+          ? agentApi.listRoomConfirmedRequirements(roomId).catch((error: unknown) => {
+              if (error instanceof ApiClientError && error.status === 401) throw error;
+              return [] as AgentSuggestionResponse[];
+            })
+          : Promise.resolve([] as AgentSuggestionResponse[]),
       ]);
       const selectedRoom = roomId ? roomPage.items.find((room) => room.id === roomId) : null;
       if (selectedRoom) {
@@ -173,6 +198,7 @@ function AgentPageContent() {
       }
 
       setState({
+        confirmedRequirements,
         dailySummaries: dailySummaryPage.items,
         generatedDocuments: generatedDocumentPage.items,
         kind: "ready",
@@ -194,6 +220,7 @@ function AgentPageContent() {
         }
 
         setState({
+          confirmedRequirements: [],
           dailySummaries: [],
           generatedDocuments: [],
           kind: "ready",
@@ -228,8 +255,35 @@ function AgentPageContent() {
       { label: state.selectedRoomId ? t("agent.page.countRoomCandidates") : t("agent.page.countPersonalCandidates"), value: state.suggestions.length },
       { label: t("agent.page.countDailySummary"), value: state.dailySummaries.length },
       { label: t("agent.page.countGeneratedDocuments"), value: state.generatedDocuments.length },
-      { label: t("agent.page.countRoomMemory"), value: state.roomMemorySummaries.length },
+      ...(state.selectedRoomId
+        ? [
+            { label: t("agent.page.confirmedTitle"), value: state.confirmedRequirements.length },
+            { label: t("agent.page.countRoomMemory"), value: state.roomMemorySummaries.length },
+          ]
+        : []),
     ];
+  }, [state, t]);
+
+  const suggestionGroups = useMemo(() => {
+    if (state.kind !== "ready") return [];
+
+    const groups = new Map<string, { items: AgentSuggestionResponse[]; label: string }>();
+    for (const suggestion of state.suggestions) {
+      const key = suggestion.roomId ?? "personal";
+      const existing = groups.get(key);
+      if (existing) {
+        existing.items.push(suggestion);
+        continue;
+      }
+
+      const room = suggestion.roomId ? state.rooms.find((entry) => entry.id === suggestion.roomId) : null;
+      const label = suggestion.roomId
+        ? room?.name ?? t("agent.page.groupUnknownRoom")
+        : t("agent.page.groupPersonal");
+      groups.set(key, { items: [suggestion], label });
+    }
+
+    return [...groups.entries()].map(([key, group]) => ({ key, ...group }));
   }, [state, t]);
 
   const review = useCallback(async (suggestionId: string, action: "APPROVE" | "HOLD" | "REJECT") => {
@@ -289,6 +343,7 @@ function AgentPageContent() {
     setStartingSummaryJob(true);
     try {
       const job = await agentApi.summarizeDay({ summaryDate: todayDateKey() });
+      setActiveJob({ jobId: job.jobId, status: job.status });
       setNotice(t("agent.page.summaryStarted", { jobId: job.jobId }));
     } catch (error) {
       setState({
@@ -299,6 +354,51 @@ function AgentPageContent() {
       setStartingSummaryJob(false);
     }
   }, [t]);
+
+  const startGenerateRequirements = useCallback(async () => {
+    if (!selectedRoomId) return;
+
+    setGeneratingRequirements(true);
+    try {
+      const job = await agentApi.generateRequirements({ roomId: selectedRoomId });
+      setActiveJob({ jobId: job.jobId, status: job.status });
+      setNotice(t("agent.page.generateStarted"));
+    } catch (error) {
+      setState({
+        kind: "offline",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("agent.page.errorGenerate"),
+      });
+    } finally {
+      setGeneratingRequirements(false);
+    }
+  }, [selectedRoomId, t]);
+
+  const checkActiveJob = useCallback(async () => {
+    if (!activeJob) return;
+
+    setCheckingJob(true);
+    try {
+      const job = await agentApi.getJob(activeJob.jobId);
+      if (job.status === "SUCCEEDED") {
+        setActiveJob(null);
+        await load(selectedRoomId);
+        setNotice(t("agent.page.jobDone"));
+        return;
+      }
+
+      if (job.status === "FAILED" || job.status === "CANCELED") {
+        setActiveJob(null);
+        setNotice(job.errorMessage && job.errorMessage.trim().length > 0 ? job.errorMessage : t("agent.page.jobFailed"));
+        return;
+      }
+
+      setActiveJob({ jobId: job.jobId, status: job.status });
+    } catch {
+      setNotice(t("agent.page.errorJobCheck"));
+    } finally {
+      setCheckingJob(false);
+    }
+  }, [activeJob, load, selectedRoomId, t]);
 
   const openDocument = useCallback(async (documentId: string) => {
     setOpeningDocumentId(documentId);
@@ -342,32 +442,23 @@ function AgentPageContent() {
       <header className="workspace-route__header">
         <div>
           <h1 id="agent-title">{t("agent.page.title")}</h1>
+          <p className={styles.subtitle}>{t("agent.page.subtitle")}</p>
         </div>
         <div className="workspace-route__actions">
           {state.kind === "ready" ? (
-            <>
-              <select
-                aria-label={t("agent.page.scopeAria")}
-                className="workspace-route__select"
-                onChange={(event) => void load(event.target.value || null)}
-                value={state.selectedRoomId ?? ""}
-              >
-                <option value="">{t("agent.page.scopePersonal")}</option>
-                {state.rooms.map((room) => (
-                  <option key={room.id} value={room.id}>
-                    {room.name}
-                  </option>
-                ))}
-              </select>
-              <Button
-                icon={<Sparkles size={15} strokeWidth={1.9} />}
-                loading={startingSummaryJob}
-                onClick={() => void startDailySummary()}
-                variant="primary"
-              >
-                {t("agent.page.createTodaySummary")}
-              </Button>
-            </>
+            <select
+              aria-label={t("agent.page.scopeAria")}
+              className="workspace-route__select"
+              onChange={(event) => void load(event.target.value || null)}
+              value={state.selectedRoomId ?? ""}
+            >
+              <option value="">{t("agent.page.scopePersonal")}</option>
+              {state.rooms.map((room) => (
+                <option key={room.id} value={room.id}>
+                  {room.name}
+                </option>
+              ))}
+            </select>
           ) : null}
         </div>
       </header>
@@ -400,9 +491,21 @@ function AgentPageContent() {
 
       {state.kind === "ready" ? (
         <>
-          {notice ? (
+          {notice || activeJob ? (
             <GlassPanel className="workspace-route__panel">
-              <strong>{notice}</strong>
+              <div className={styles.jobNotice}>
+                {notice ? <strong>{notice}</strong> : null}
+                {activeJob ? (
+                  <>
+                    <StatusBadge tone={activeJob.status === "RUNNING" ? "agent" : "pending"}>
+                      {t("agent.page.jobStatusLabel", { status: t(jobStatusLabelKeys[activeJob.status]) })}
+                    </StatusBadge>
+                    <Button loading={checkingJob} onClick={() => void checkActiveJob()} size="sm" variant="quiet">
+                      {t("agent.page.jobCheck")}
+                    </Button>
+                  </>
+                ) : null}
+              </div>
             </GlassPanel>
           ) : null}
 
@@ -419,12 +522,34 @@ function AgentPageContent() {
 
           <section className="workspace-route__section" aria-labelledby="agent-suggestions-title">
             <div className="workspace-route__section-head">
-              <h2 id="agent-suggestions-title">{t("agent.page.suggestionsTitle")}</h2>
-              <StatusBadge tone={state.suggestions.length > 0 ? "agent" : "neutral"}>{t("agent.page.suggestionsCount", { count: state.suggestions.length })}</StatusBadge>
+              <div>
+                <h2 id="agent-suggestions-title">{t("agent.page.suggestionsTitle")}</h2>
+              </div>
+              <span className={styles.headActions}>
+                {state.selectedRoomId ? (
+                  <Button
+                    icon={<Wand2 size={14} strokeWidth={1.9} />}
+                    loading={generatingRequirements}
+                    onClick={() => void startGenerateRequirements()}
+                    size="sm"
+                    variant="quiet"
+                  >
+                    {t("agent.page.generateRequirements")}
+                  </Button>
+                ) : null}
+                <StatusBadge tone={state.suggestions.length > 0 ? "agent" : "neutral"}>{t("agent.page.suggestionsCount", { count: state.suggestions.length })}</StatusBadge>
+              </span>
             </div>
+            <p className={styles.sectionDesc}>{t("agent.page.suggestionsDesc")}</p>
             {state.suggestions.length === 0 ? (
               <GlassPanel className="workspace-route__panel">
                 <strong>{t("agent.page.suggestionsEmpty")}</strong>
+                <p className={styles.emptyDesc}>{t("agent.page.suggestionsEmptyDesc")}</p>
+                <ol className={styles.howList}>
+                  <li>{t("agent.page.howStep1")}</li>
+                  <li>{t("agent.page.howStep2")}</li>
+                  <li>{t("agent.page.howStep3")}</li>
+                </ol>
                 <div className="workspace-route__actions">
                   <Link className="bubli-button bubli-button--primary" href="/app/resources">
                     {t("agent.page.resources")}
@@ -436,46 +561,78 @@ function AgentPageContent() {
               </GlassPanel>
             ) : (
               <div className="workspace-route__list">
-                {state.suggestions.map((item) => {
-                  const typeLabel = t(typeLabelKeys[item.suggestionType]);
-                  const title = displayText(item.payloadJson, typeLabel);
-                  const disabled = updatingId === item.suggestionId || item.status !== "DRAFT";
-                  const dateLabel = formatDate(item.createdAt);
+                {suggestionGroups.map((group) => (
+                  <Fragment key={group.key}>
+                    <div className={styles.groupHead}>
+                      <span>{group.label}</span>
+                      <span className={styles.groupCount}>{t("agent.page.suggestionsCount", { count: group.items.length })}</span>
+                    </div>
+                    {group.items.map((item) => {
+                      const typeLabel = t(typeLabelKeys[item.suggestionType]);
+                      const title = displayText(item.payloadJson, typeLabel);
+                      const evidence = displayText(item.evidenceJson, "");
+                      const disabled = updatingId === item.suggestionId || item.status !== "DRAFT";
+                      const dateLabel = formatDate(item.createdAt);
 
-                  return (
-                    <article className="workspace-route__row workspace-route__row--actions" key={item.suggestionId}>
-                      <span className="workspace-route__dot" aria-hidden="true" />
-                      <span className="workspace-route__main">
-                        <strong>{title}</strong>
-                        <span>{dateLabel ? t("agent.page.typeDateSeparator", { type: typeLabel, date: dateLabel }) : typeLabel}</span>
-                      </span>
-                      <StatusBadge tone={statusTone(item.status)}>{t(statusLabelKeys[item.status])}</StatusBadge>
-                      <span className="workspace-route__actions workspace-route__actions--compact">
-                        <button disabled={disabled} onClick={() => void review(item.suggestionId, "APPROVE")} type="button">
-                          <Check aria-hidden size={14} />
-                          {t("agent.page.approve")}
-                        </button>
-                        <button disabled={disabled} onClick={() => void review(item.suggestionId, "HOLD")} type="button">
-                          <Pause aria-hidden size={14} />
-                          {t("agent.page.hold")}
-                        </button>
-                        <button disabled={disabled} onClick={() => void review(item.suggestionId, "REJECT")} type="button">
-                          <X aria-hidden size={14} />
-                          {t("agent.page.reject")}
-                        </button>
-                      </span>
-                    </article>
-                  );
-                })}
+                      return (
+                        <article className="workspace-route__row workspace-route__row--actions" key={item.suggestionId}>
+                          <span className="workspace-route__dot" aria-hidden="true" />
+                          <span className="workspace-route__main">
+                            <strong>{title}</strong>
+                            <span>
+                              {dateLabel ? t("agent.page.typeDateSeparator", { type: typeLabel, date: dateLabel }) : typeLabel}
+                              {item.resourceId ? <span className={styles.sourceChip}>{t("agent.page.sourceResource")}</span> : null}
+                            </span>
+                            {evidence ? <span className={styles.evidence}>{t("agent.page.evidence", { text: evidence })}</span> : null}
+                          </span>
+                          <StatusBadge tone={statusTone(item.status)}>{t(statusLabelKeys[item.status])}</StatusBadge>
+                          <span className="workspace-route__actions workspace-route__actions--compact">
+                            <button disabled={disabled} onClick={() => void review(item.suggestionId, "APPROVE")} title={t("agent.page.approveHint")} type="button">
+                              <Check aria-hidden size={14} />
+                              {t("agent.page.approve")}
+                            </button>
+                            <button disabled={disabled} onClick={() => void review(item.suggestionId, "HOLD")} title={t("agent.page.holdHint")} type="button">
+                              <Pause aria-hidden size={14} />
+                              {t("agent.page.hold")}
+                            </button>
+                            <button disabled={disabled} onClick={() => void review(item.suggestionId, "REJECT")} title={t("agent.page.rejectHint")} type="button">
+                              <X aria-hidden size={14} />
+                              {t("agent.page.reject")}
+                            </button>
+                          </span>
+                        </article>
+                      );
+                    })}
+                  </Fragment>
+                ))}
               </div>
             )}
           </section>
 
+          <div className={styles.zoneHead}>
+            <h2 className={styles.zoneTitle} id="agent-outputs-title">{t("agent.page.outputsTitle")}</h2>
+            <p className={styles.zoneDesc}>{t("agent.page.outputsDesc")}</p>
+          </div>
+
           <section className="workspace-route__section" aria-labelledby="daily-summary-title">
             <div className="workspace-route__section-head">
-              <h2 id="daily-summary-title">{t("agent.page.dailyTitle")}</h2>
-              <StatusBadge tone={state.dailySummaries.length > 0 ? "personal" : "neutral"}>{t("agent.page.suggestionsCount", { count: state.dailySummaries.length })}</StatusBadge>
+              <div>
+                <h2 id="daily-summary-title">{t("agent.page.dailyTitle")}</h2>
+              </div>
+              <span className={styles.headActions}>
+                <StatusBadge tone={state.dailySummaries.length > 0 ? "personal" : "neutral"}>{t("agent.page.suggestionsCount", { count: state.dailySummaries.length })}</StatusBadge>
+                <Button
+                  icon={<Sparkles size={14} strokeWidth={1.9} />}
+                  loading={startingSummaryJob}
+                  onClick={() => void startDailySummary()}
+                  size="sm"
+                  variant="quiet"
+                >
+                  {t("agent.page.createTodaySummary")}
+                </Button>
+              </span>
             </div>
+            <p className={styles.sectionDesc}>{t("agent.page.dailyDesc")}</p>
             {state.dailySummaries.length === 0 ? (
               <GlassPanel className="workspace-route__panel">
                 <strong>{t("agent.page.dailyEmpty")}</strong>
@@ -512,6 +669,7 @@ function AgentPageContent() {
               <h2 id="generated-documents-title">{t("agent.page.generatedTitle")}</h2>
               <StatusBadge tone={state.generatedDocuments.length > 0 ? "room" : "neutral"}>{t("agent.page.suggestionsCount", { count: state.generatedDocuments.length })}</StatusBadge>
             </div>
+            <p className={styles.sectionDesc}>{t("agent.page.generatedDesc")}</p>
             {state.generatedDocuments.length === 0 ? (
               <GlassPanel className="workspace-route__panel">
                 <strong>{t("agent.page.generatedEmpty")}</strong>
@@ -574,6 +732,41 @@ function AgentPageContent() {
           </section>
 
           {state.selectedRoomId ? (
+            <section className="workspace-route__section" aria-labelledby="confirmed-requirements-title">
+              <div className="workspace-route__section-head">
+                <h2 id="confirmed-requirements-title">{t("agent.page.confirmedTitle")}</h2>
+                <StatusBadge tone={state.confirmedRequirements.length > 0 ? "success" : "neutral"}>
+                  {t("agent.page.suggestionsCount", { count: state.confirmedRequirements.length })}
+                </StatusBadge>
+              </div>
+              <p className={styles.sectionDesc}>{t("agent.page.confirmedDesc")}</p>
+              {state.confirmedRequirements.length === 0 ? (
+                <GlassPanel className="workspace-route__panel">
+                  <strong>{t("agent.page.confirmedEmpty")}</strong>
+                </GlassPanel>
+              ) : (
+                <div className="workspace-route__list">
+                  {state.confirmedRequirements.map((item) => {
+                    const typeLabel = t(typeLabelKeys[item.suggestionType]);
+                    const dateLabel = formatDate(item.reviewedAt ?? item.updatedAt);
+
+                    return (
+                      <article className="workspace-route__row" key={item.suggestionId}>
+                        <span className="workspace-route__dot" aria-hidden="true" />
+                        <span className="workspace-route__main">
+                          <strong>{displayText(item.payloadJson, typeLabel)}</strong>
+                          <span>{dateLabel ? t("agent.page.typeDateSeparator", { type: typeLabel, date: dateLabel }) : typeLabel}</span>
+                        </span>
+                        <StatusBadge tone="success">{t("agent.page.statusApprovedLabel")}</StatusBadge>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          ) : null}
+
+          {state.selectedRoomId ? (
             <section className="workspace-route__section" aria-labelledby="room-memory-title">
               <div className="workspace-route__section-head">
                 <h2 id="room-memory-title">{t("agent.page.roomMemoryTitle")}</h2>
@@ -581,6 +774,7 @@ function AgentPageContent() {
                   {t("agent.page.suggestionsCount", { count: state.roomMemorySummaries.length })}
                 </StatusBadge>
               </div>
+              <p className={styles.sectionDesc}>{t("agent.page.roomMemoryDesc")}</p>
               {state.roomMemorySummaries.length === 0 ? (
                 <GlassPanel className="workspace-route__panel">
                   <strong>{t("agent.page.roomMemoryEmpty")}</strong>

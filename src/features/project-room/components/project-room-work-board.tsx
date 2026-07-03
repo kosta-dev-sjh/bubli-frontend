@@ -309,6 +309,14 @@ function ProjectRoomWorkBoardContent({
 
     return Object.fromEntries(wbsItems.map((item) => [item.id, collect(item.id)]));
   }, [wbsItems]);
+  // 프로젝트 전체 진행률: 하위가 없는 말단 WBS 작업 기준 DONE 비율.
+  const wbsProgress = useMemo(() => {
+    const parentIds = new Set(wbsItems.filter((item) => item.parentId).map((item) => item.parentId as string));
+    const leaves = wbsItems.filter((item) => !parentIds.has(item.id));
+    const done = leaves.filter((item) => item.status === "DONE").length;
+    return { done, total: leaves.length };
+  }, [wbsItems]);
+  const wbsProgressPercent = wbsProgress.total > 0 ? Math.round((wbsProgress.done / wbsProgress.total) * 100) : 0;
   const visibleTasks = useMemo(() => tasks.filter((task) => !task.localRemoved), [tasks]);
   const activeMembers = useMemo(() => members.filter((member) => member.status === "ACTIVE"), [members]);
   const memberByUserId = useMemo(
@@ -914,6 +922,26 @@ function ProjectRoomWorkBoardContent({
                   <h2>WBS</h2>
                 </div>
                 <div className={styles.paneActions}>
+                  {wbsProgress.total > 0 ? (
+                    <span
+                      aria-label={t("room.workBoard.progressAria")}
+                      className={styles.progressChip}
+                      title={t("room.workBoard.progressCount", {
+                        done: wbsProgress.done,
+                        percent: wbsProgressPercent,
+                        total: wbsProgress.total,
+                      })}
+                    >
+                      <span aria-hidden="true" className={styles.progressTrack}>
+                        <span className={styles.progressFill} style={{ inlineSize: `${wbsProgressPercent}%` }} />
+                      </span>
+                      {t("room.workBoard.progressCount", {
+                        done: wbsProgress.done,
+                        percent: wbsProgressPercent,
+                        total: wbsProgress.total,
+                      })}
+                    </span>
+                  ) : null}
                   <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
                   <button
                     className={styles.generateButton}

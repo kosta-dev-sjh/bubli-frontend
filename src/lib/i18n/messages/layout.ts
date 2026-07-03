@@ -3,7 +3,7 @@ const ko = {
   // 네비게이션
   "nav.appLabel": "회원 앱",
   "nav.publicLabel": "공개 사이트",
-  "nav.dashboard": "대시보드",
+  "nav.dashboard": "홈",
   "nav.projectRooms": "프로젝트룸",
   "nav.resources": "자료보드",
   "nav.chat": "소통",
@@ -79,7 +79,7 @@ type Key = keyof typeof ko;
 const en: Record<Key, string> = {
   "nav.appLabel": "Member app",
   "nav.publicLabel": "Public site",
-  "nav.dashboard": "Dashboard",
+  "nav.dashboard": "Home",
   "nav.projectRooms": "Project rooms",
   "nav.resources": "Resources",
   "nav.chat": "Chat",
@@ -148,7 +148,7 @@ const en: Record<Key, string> = {
 const ja: Record<Key, string> = {
   "nav.appLabel": "会員アプリ",
   "nav.publicLabel": "公開サイト",
-  "nav.dashboard": "ダッシュボード",
+  "nav.dashboard": "ホーム",
   "nav.projectRooms": "プロジェクトルーム",
   "nav.resources": "資料ボード",
   "nav.chat": "コミュニケーション",

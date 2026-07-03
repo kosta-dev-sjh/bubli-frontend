@@ -470,6 +470,12 @@ export const GanttHeader: FC<GanttHeaderProps> = ({ className }) => {
   );
 };
 
+export type GanttSidebarItemProgress = {
+  done: number;
+  label?: string;
+  total: number;
+};
+
 export type GanttSidebarItemProps = {
   actions?: ReactNode;
   accentColor?: string;
@@ -478,6 +484,7 @@ export type GanttSidebarItemProps = {
   kindLabel?: string;
   onSelectItem?: (id: string) => void;
   parentLabel?: string | null;
+  progress?: GanttSidebarItemProgress | null;
   className?: string;
 };
 
@@ -490,6 +497,7 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
   kindLabel,
   onSelectItem,
   parentLabel,
+  progress,
 }) => {
   const { t } = useI18n();
   const tempEndAt = feature.endAt && isSameDay(feature.startAt, feature.endAt) ? addDays(feature.endAt, 1) : feature.endAt;
@@ -538,6 +546,26 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
             </span>
           ) : null}
           <span className="truncate font-medium">{feature.name}</span>
+          {progress && progress.total > 0 ? (
+            <span className="flex shrink-0 items-center gap-1.5" title={progress.label}>
+              <span
+                aria-hidden="true"
+                className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"
+                data-roadmap-ui="gantt-progress-track"
+              >
+                <span
+                  className="block h-full rounded-full transition-[width] duration-200"
+                  style={{
+                    backgroundColor: color,
+                    width: `${Math.round((Math.min(progress.done, progress.total) / progress.total) * 100)}%`,
+                  }}
+                />
+              </span>
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                {`${progress.done}/${progress.total}`}
+              </span>
+            </span>
+          ) : null}
         </span>
         {parentLabel ? <span className="truncate text-[12px] text-muted-foreground">{parentLabel}</span> : null}
       </span>

@@ -3,6 +3,8 @@
   gap: 14px;
   min-height: calc(100vh - 48px);
   min-width: 0;
+  /* 한국어 문장이 조사 중간에서 끊기지 않도록 페이지 전체에 keep-all을 적용한다. */
+  word-break: keep-all;
 }
 
 .header {
@@ -32,10 +34,6 @@
   font-size: 14px;
   font-weight: 620;
   line-height: 1.62;
-}
-
-.panelHeader p {
-  display: none;
 }
 
 .sourcePanel {
@@ -136,6 +134,12 @@
   font-weight: 800;
 }
 
+.syncStatusLine {
+  color: var(--color-brand);
+  font-size: 12.5px;
+  font-weight: 850;
+}
+
 .syncActions {
   display: inline-flex;
   flex-wrap: wrap;
@@ -143,19 +147,23 @@
   justify-content: flex-end;
 }
 
-.syncActionButton,
+.syncPrimaryButton,
 .syncIconButton {
   display: inline-flex;
-  min-height: 32px;
+  min-height: 34px;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 1px solid rgba(107, 143, 168, 0.14);
+  border: 1px solid rgba(142, 205, 246, 0.52);
   border-radius: 999px;
-  padding: 0 11px;
+  padding: 0 13px;
   color: var(--color-text);
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  background:
+    linear-gradient(135deg, rgba(215, 234, 244, 0.88), rgba(255, 255, 255, 0.86)),
+    rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 12px 28px -22px rgba(107, 143, 168, 0.62),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   font: inherit;
   font-size: 13px;
   font-weight: 900;
@@ -168,21 +176,74 @@
 
 .syncIconButton {
   padding-inline: 10px;
+  border-color: rgba(107, 143, 168, 0.14);
   color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
 
-.syncActionButton:hover,
+.syncPrimaryButton:hover,
 .syncIconButton:hover {
   transform: translateY(-1px);
-  border-color: rgba(142, 205, 246, 0.5);
-  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(142, 205, 246, 0.72);
+  background: rgba(255, 255, 255, 0.94);
 }
 
-.syncActionButton:disabled,
+.syncPrimaryButton:disabled,
 .syncIconButton:disabled {
   cursor: wait;
   opacity: 0.58;
   transform: none;
+}
+
+.syncSpinner {
+  animation: calendarSpin 900ms linear infinite;
+}
+
+.syncMenuWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.syncMenu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  gap: 2px;
+  min-width: 224px;
+  padding: 6px;
+  border: 1px solid rgba(107, 143, 168, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 22px 48px -26px rgba(44, 53, 64, 0.5);
+}
+
+.syncMenuItem {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  gap: 8px;
+  align-items: center;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 10px;
+  color: var(--color-text);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  text-align: left;
+  cursor: pointer;
+}
+
+.syncMenuItem:hover {
+  background: rgba(215, 234, 244, 0.5);
+}
+
+.syncMenuItem:last-child {
+  color: var(--color-muted);
 }
 
 .syncNotice {
@@ -301,38 +362,6 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
 }
 
-.selectedSummary {
-  display: none;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  min-width: 0;
-  margin-top: -4px;
-}
-
-.selectedSummary strong,
-.selectedSummary span {
-  display: inline-flex;
-  min-height: 30px;
-  align-items: center;
-  border-radius: 999px;
-  padding: 0 12px;
-  font-size: 13px;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.selectedSummary strong {
-  color: var(--color-text);
-  background: rgba(255, 255, 255, 0.76);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-.selectedSummary span {
-  color: var(--color-brand);
-  background: rgba(215, 234, 244, 0.46);
-}
-
 .loadWarning {
   margin: -4px 0 0;
   border: 1px solid rgba(232, 196, 160, 0.36);
@@ -408,20 +437,31 @@
 }
 
 .weekGrid {
-  grid-template-columns: repeat(7, minmax(86px, 1fr));
-  overflow-x: auto;
-  padding-bottom: 4px;
+  /* 주 보기도 요일 헤더와 같은 7열을 유지해 가로 스크롤로 어긋나지 않게 한다. */
+  min-height: auto;
+  grid-auto-rows: minmax(148px, 1fr);
 }
 
 .weekLabelGrid {
-  margin-bottom: -8px;
+  margin-bottom: -6px;
 }
 
 .weekLabelGrid span {
-  color: var(--color-faint);
-  font-size: 13px;
+  border-radius: 10px;
+  padding: 6px 0;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  font-size: 12.5px;
   font-weight: 900;
+  letter-spacing: 0.02em;
   text-align: center;
+}
+
+/* 월요일 시작 그리드에서 6·7번째 열이 주말이다. */
+.weekLabelGrid span:nth-child(n + 6) {
+  color: var(--color-brand);
+  background: rgba(215, 234, 244, 0.44);
 }
 
 .dayButton {
@@ -455,6 +495,12 @@
   box-shadow: var(--shadow-soft);
 }
 
+.dayButtonWeekend {
+  background:
+    linear-gradient(180deg, rgba(247, 249, 250, 0.9), rgba(215, 234, 244, 0.3)),
+    rgba(247, 249, 250, 0.62);
+}
+
 .dayButtonSelected {
   border-color: rgba(107, 143, 168, 0.34);
   background:
@@ -469,6 +515,13 @@
 
 .dayButtonToday {
   border-color: rgba(142, 205, 246, 0.82);
+  background:
+    linear-gradient(180deg, rgba(215, 234, 244, 0.72), rgba(255, 255, 255, 0.72)),
+    rgba(255, 255, 255, 0.7);
+}
+
+.dayButtonToday strong {
+  color: var(--color-brand);
 }
 
 .dayButtonToday::after {
@@ -496,20 +549,34 @@
 }
 
 .daySpacer {
-  min-height: 118px;
+  min-height: 0;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.26);
 }
 
-.dayButton span,
-.dayButton small {
-  font-size: 13px;
-  font-weight: 800;
+.dayNumberRow {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.dayNumberRow small {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: var(--color-brand);
+  background: rgba(215, 234, 244, 0.52);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .dayButton strong {
   color: var(--color-text);
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 900;
   letter-spacing: 0;
 }
@@ -1059,6 +1126,15 @@
   }
 }
 
+@keyframes calendarSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes calendarMonthLift {
   from {
     opacity: 0;
@@ -1126,15 +1202,15 @@
   }
 
   .sourcePanel {
-    flex-direction: row;
-    align-items: center;
-    overflow-x: auto;
-    padding: 8px;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px;
   }
 
   .sourceTabs {
-    flex: 0 0 auto;
     flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
   }
 
   .sourceButton {
@@ -1143,15 +1219,20 @@
   }
 
   .syncCompact {
-    width: auto;
-    flex: 0 0 auto;
-    border-top: 0;
-    border-left: 1px solid rgba(107, 143, 168, 0.12);
-    padding: 0 0 0 10px;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    border-left: 0;
+    border-top: 1px solid rgba(107, 143, 168, 0.12);
+    padding: 10px 0 0;
   }
 
-  .syncCompact > div {
-    display: none;
+  .syncActions {
+    width: 100%;
+  }
+
+  .syncPrimaryButton {
+    flex: 1 1 auto;
   }
 
   .monthHeader {
@@ -1173,30 +1254,73 @@
 
   .monthGrid {
     min-height: auto;
-    grid-auto-rows: minmax(88px, auto);
+    grid-auto-rows: minmax(68px, auto);
   }
 
   .dayButton {
     min-width: 0;
-    min-height: 88px;
+    min-height: 68px;
     gap: 4px;
-    padding: 8px 5px;
+    padding: 7px 6px;
     border-radius: 14px;
   }
 
-  .dayButton span,
-  .dayButton small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .dayButton strong {
-    font-size: 20px;
+    font-size: 17px;
   }
 
+  .dayNumberRow {
+    flex-direction: column;
+    gap: 3px;
+    align-items: flex-start;
+  }
+
+  .dayNumberRow small {
+    padding: 1px 6px;
+    font-size: 10px;
+  }
+
+  /* 좁은 화면에서는 제목 칩 대신 출처 색 점으로 밀도만 보여준다. 상세는 아래 선택 일정 패널에서 확인. */
   .dayEventList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    align-content: flex-start;
+  }
+
+  .dayEventItem {
+    width: 7px;
+    height: 7px;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(107, 143, 168, 0.55);
+    box-shadow: none;
+  }
+
+  .dayEventItem span,
+  .dayEventItem b {
     display: none;
+  }
+
+  .dayEventItem_room {
+    background: var(--color-water-blue);
+  }
+
+  .dayEventItem_external {
+    background: var(--color-lilac);
+  }
+
+  .dayEventMore {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    color: var(--color-muted);
+    background: transparent;
+    box-shadow: none;
+    font-size: 10px;
+    line-height: 8px;
   }
 
   .selectedEventEdit {
@@ -1238,7 +1362,8 @@
   .monthNavButton,
   .todayButton,
   .repeatToggle i,
-  .repeatToggle i::after {
+  .repeatToggle i::after,
+  .syncSpinner {
     animation: none;
     transition: none;
   }

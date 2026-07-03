@@ -1,5 +1,4 @@
 "use client";
-// test
 
 import {
   ArrowDownToLine,
@@ -8,8 +7,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  MoreHorizontal,
   Pencil,
   Plus,
+  RefreshCw,
   Trash2,
   Unplug,
   X,
@@ -45,7 +46,9 @@ type GoogleConnectionState =
   | { kind: "disconnected" }
   | { kind: "error" }
   | { kind: "loading" };
-type SyncAction = "connect" | "disconnect" | "pull" | "push";
+type SyncAction = "connect" | "disconnect" | "pull" | "push" | "sync";
+
+type LastSyncSummary = { at: Date; pulled: number; pushed: number };
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
@@ -105,6 +108,10 @@ function endOfMonth(date: Date) {
 
 function toSelectedDay(value: string) {
   return new Date(`${value}T00:00:00`);
+}
+
+function formatClockTime(date: Date) {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 function formatTime(t: TranslateFn, event: ScheduleResponse) {
@@ -204,6 +211,8 @@ function CalendarPageContent() {
   const [googleConnection, setGoogleConnection] = useState<GoogleConnectionState>({ kind: "loading" });
   const [googleNotice, setGoogleNotice] = useState<string | null>(null);
   const [syncAction, setSyncAction] = useState<SyncAction | null>(null);
+  const [lastSync, setLastSync] = useState<LastSyncSummary | null>(null);
+  const [syncMenuOpen, setSyncMenuOpen] = useState(false);
   const range = useMemo(() => {
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
@@ -260,6 +269,13 @@ function CalendarPageContent() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadEvents]);
+
+  useEffect(() => {
+    if (!syncMenuOpen) return;
+    const close = () => setSyncMenuOpen(false);
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [syncMenuOpen]);
 
   const events = useMemo(() => (state.kind === "ready" ? state.events : []), [state]);
   const roomEvents = useMemo(() => (state.kind === "ready" ? state.roomEvents : []), [state]);
@@ -324,17 +340,6 @@ function CalendarPageContent() {
         : googleConnection.kind === "error"
           ? t("calendar.google.needsCheck")
           : t("calendar.google.beforeConnect");
-
-  const roomEventsForSelectedDate = useMemo(
-    () => {
-      const selectedDay = toSelectedDay(selectedDate);
-      return roomEvents
-        .filter((event) => sameDate(new Date(event.occurredAt), selectedDay))
-        .sort((left, right) => right.sequence - left.sequence)
-        .slice(0, 4);
-    },
-    [roomEvents, selectedDate],
-  );
 
   const goToToday = () => {
     const today = new Date();
@@ -426,11 +431,28 @@ function CalendarPageContent() {
       }
 
       const syncRange = { from: range.start, to: range.end };
+
+      if (action === "sync") {
+        // 한 버튼으로 가져오기(구글 → Bubli) 후 보내기(Bubli → 구글)를 순서대로 실행한다.
+        const pulledEvents = await calendarApi.syncGoogleEvents(syncRange);
+        mergeSyncedEvents(pulledEvents);
+        const pushedEvents = await calendarApi.pushUnsyncedGoogleEvents(syncRange);
+        mergeSyncedEvents(pushedEvents);
+        setLastSync({ at: new Date(), pulled: pulledEvents.length, pushed: pushedEvents.length });
+        setGoogleNotice(t("calendar.notice.syncDone", { pulled: pulledEvents.length, pushed: pushedEvents.length }));
+        return;
+      }
+
       const syncedEvents =
         action === "pull"
           ? await calendarApi.syncGoogleEvents(syncRange)
           : await calendarApi.pushUnsyncedGoogleEvents(syncRange);
       mergeSyncedEvents(syncedEvents);
+      setLastSync((current) => ({
+        at: new Date(),
+        pulled: action === "pull" ? syncedEvents.length : current?.pulled ?? 0,
+        pushed: action === "push" ? syncedEvents.length : current?.pushed ?? 0,
+      }));
       setGoogleNotice(
         action === "pull"
           ? t("calendar.notice.pullDone", { count: syncedEvents.length })
@@ -579,27 +601,83 @@ function CalendarPageContent() {
               <div>
                 <strong>Google Calendar</strong>
                 <span>{googleConnectionLabel}</span>
+                {googleConnected && lastSync ? (
+                  <span className={styles.syncStatusLine}>
+                    {t("calendar.google.lastSync", { pulled: lastSync.pulled, pushed: lastSync.pushed, time: formatClockTime(lastSync.at) })}
+                  </span>
+                ) : null}
               </div>
               <div className={styles.syncActions} aria-label={t("calendar.google.syncAria")}>
                 {!googleConnected ? (
-                  <button className={styles.syncActionButton} disabled={syncAction === "connect"} onClick={() => void runGoogleAction("connect")} type="button">
+                  <button className={styles.syncPrimaryButton} disabled={syncAction === "connect"} onClick={() => void runGoogleAction("connect")} type="button">
                     <ExternalLink size={14} strokeWidth={2.1} />
                     <span>{syncAction === "connect" ? t("calendar.google.moving") : t("calendar.google.connect")}</span>
                   </button>
                 ) : (
                   <>
-                    <button className={styles.syncActionButton} disabled={syncAction !== null} onClick={() => void runGoogleAction("pull")} type="button">
-                      <ArrowDownToLine size={14} strokeWidth={2.1} />
-                      <span>{syncAction === "pull" ? t("calendar.google.pulling") : t("calendar.google.pull")}</span>
+                    <button className={styles.syncPrimaryButton} disabled={syncAction !== null} onClick={() => void runGoogleAction("sync")} type="button">
+                      <RefreshCw className={syncAction === "sync" ? styles.syncSpinner : undefined} size={14} strokeWidth={2.1} />
+                      <span>{syncAction === "sync" ? t("calendar.google.syncing") : t("calendar.google.sync")}</span>
                     </button>
-                    <button className={styles.syncActionButton} disabled={syncAction !== null} onClick={() => void runGoogleAction("push")} type="button">
-                      <ArrowUpToLine size={14} strokeWidth={2.1} />
-                      <span>{syncAction === "push" ? t("calendar.google.pushing") : t("calendar.google.push")}</span>
-                    </button>
-                    <button className={styles.syncIconButton} disabled={syncAction !== null} onClick={() => void runGoogleAction("disconnect")} type="button">
-                      <Unplug size={14} strokeWidth={2.1} />
-                      <span>{t("calendar.google.disconnect")}</span>
-                    </button>
+                    <div
+                      className={styles.syncMenuWrap}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") setSyncMenuOpen(false);
+                      }}
+                      onPointerDown={(event) => event.stopPropagation()}
+                    >
+                      <button
+                        aria-expanded={syncMenuOpen}
+                        aria-haspopup="menu"
+                        aria-label={t("calendar.google.more")}
+                        className={styles.syncIconButton}
+                        disabled={syncAction !== null}
+                        onClick={() => setSyncMenuOpen((open) => !open)}
+                        type="button"
+                      >
+                        <MoreHorizontal size={14} strokeWidth={2.1} />
+                      </button>
+                      {syncMenuOpen ? (
+                        <div className={styles.syncMenu} role="menu">
+                          <button
+                            className={styles.syncMenuItem}
+                            onClick={() => {
+                              setSyncMenuOpen(false);
+                              void runGoogleAction("pull");
+                            }}
+                            role="menuitem"
+                            type="button"
+                          >
+                            <ArrowDownToLine size={14} strokeWidth={2.1} />
+                            <span>{t("calendar.google.pullOnly")}</span>
+                          </button>
+                          <button
+                            className={styles.syncMenuItem}
+                            onClick={() => {
+                              setSyncMenuOpen(false);
+                              void runGoogleAction("push");
+                            }}
+                            role="menuitem"
+                            type="button"
+                          >
+                            <ArrowUpToLine size={14} strokeWidth={2.1} />
+                            <span>{t("calendar.google.pushOnly")}</span>
+                          </button>
+                          <button
+                            className={styles.syncMenuItem}
+                            onClick={() => {
+                              setSyncMenuOpen(false);
+                              void runGoogleAction("disconnect");
+                            }}
+                            role="menuitem"
+                            type="button"
+                          >
+                            <Unplug size={14} strokeWidth={2.1} />
+                            <span>{t("calendar.google.disconnect")}</span>
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                   </>
                 )}
               </div>
@@ -612,7 +690,6 @@ function CalendarPageContent() {
               <div className={styles.panelHeader}>
                 <div>
                   <h2>{viewMode === "month" ? t("calendar.view.monthTitle") : t("calendar.view.weekTitle")}</h2>
-                  <p>{t("calendar.view.helper")}</p>
                 </div>
                 <div className={styles.panelTools}>
                   <div className={styles.viewSwitch} aria-label={t("calendar.view.aria")}>
@@ -645,11 +722,6 @@ function CalendarPageContent() {
                 </button>
               </div>
 
-              <div className={styles.selectedSummary} aria-live="polite">
-                <strong>{selectedDayLabel}</strong>
-                <span>{selectedEvents.length > 0 ? t("calendar.summary.eventCount", { count: selectedEvents.length }) : t("calendar.summary.noEvent")}</span>
-                {roomEventsForSelectedDate.length > 0 ? <span>{t("calendar.summary.roomChange", { count: roomEventsForSelectedDate.length })}</span> : null}
-              </div>
               {state.loadWarning ? <p className={styles.loadWarning}>{state.loadWarning}</p> : null}
 
               <div className={styles.weekLabelGrid} aria-hidden="true">
@@ -670,10 +742,12 @@ function CalendarPageContent() {
                   const roomEventCount = roomEvents.filter((event) => sameDate(new Date(event.occurredAt), date)).length;
                   const selected = dateValue === selectedDate;
                   const today = sameDate(date, now);
+                  const weekend = date.getDay() === 0 || date.getDay() === 6;
                   const className = [
                     styles.dayButton,
                     selected ? styles.dayButtonSelected : "",
                     today ? styles.dayButtonToday : "",
+                    weekend ? styles.dayButtonWeekend : "",
                     roomEventCount > 0 ? styles.dayButtonHasRoomEvent : "",
                   ]
                     .filter(Boolean)
@@ -681,12 +755,13 @@ function CalendarPageContent() {
 
                   return (
                     <button aria-pressed={selected} className={className} key={dateValue} onClick={() => selectCalendarDate(date, count > 0)} type="button">
-                      <span>{new Intl.DateTimeFormat("ko-KR", { weekday: "short" }).format(date)}</span>
-                      <strong>{date.getDate()}</strong>
-                      <small>{count > 0 ? t("calendar.grid.countUnit", { count }) : t("calendar.grid.empty")}</small>
+                      <span className={styles.dayNumberRow}>
+                        <strong>{date.getDate()}</strong>
+                        {count > 0 ? <small>{t("calendar.grid.countUnit", { count })}</small> : null}
+                      </span>
                       {count > 0 ? (
                         <ul className={styles.dayEventList} aria-label={t("calendar.grid.dayEventsAria", { day: date.getDate() })}>
-                          {dayEvents.slice(0, 3).map((event) => {
+                          {dayEvents.slice(0, 2).map((event) => {
                             const source = event.roomId ? "room" : event.googleEventId || event.syncStatus === "SYNCED" ? "external" : "personal";
                             return (
                               <li className={`${styles.dayEventItem} ${styles[`dayEventItem_${source}`]}`} key={event.id}>
@@ -695,7 +770,7 @@ function CalendarPageContent() {
                               </li>
                             );
                           })}
-                          {count > 3 ? <li className={styles.dayEventMore}>+{count - 3}</li> : null}
+                          {count > 2 ? <li className={styles.dayEventMore}>{t("calendar.grid.moreCount", { count: count - 2 })}</li> : null}
                         </ul>
                       ) : null}
                       {roomEventCount > 0 ? <i aria-label={t("calendar.grid.roomEventsAria", { count: roomEventCount })} /> : null}

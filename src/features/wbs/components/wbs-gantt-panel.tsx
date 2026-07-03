@@ -24,6 +24,7 @@ import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
+import type { GoogleCalendarConnectionResponse } from "@/types/api/calendar";
 import type { ScheduleResponse, WbsItemResponse, WbsStatus } from "@/types/api/work";
 
 import styles from "./wbs-gantt-panel.module.css";
@@ -63,6 +64,11 @@ type CreateDraft = {
   startAt: Date;
   title: string;
 };
+
+type CalendarSyncState = "checking" | "off" | "recording";
+
+const pad2 = (value: number) => String(value).padStart(2, "0");
+const formatBarDate = (date: Date) => `${date.getFullYear()}.${pad2(date.getMonth() + 1)}.${pad2(date.getDate())}`;
 
 function scheduleRangeQuery() {
   const now = new Date();
@@ -124,6 +130,7 @@ export function WbsGanttPanel({
   const [schedules, setSchedules] = useState<ScheduleResponse[]>([]);
   const [localRanges, setLocalRanges] = useState<Record<string, LocalRange>>({});
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(() => new Set());
+  const [calendarSync, setCalendarSync] = useState<CalendarSyncState>("checking");
   const [createDraft, setCreateDraft] = useState<CreateDraft | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
@@ -154,6 +161,28 @@ export function WbsGanttPanel({
       createInputRef.current?.focus();
     }
   }, [createDraft]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void calendarApi
+      .getGoogleConnection()
+      .then((connection: GoogleCalendarConnectionResponse) => {
+        if (!cancelled) {
+          setCalendarSync(connection.status === "ACTIVE" ? "recording" : "off");
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // ApiClientError 404 = 연결 이력 없음. 그 외 오류도 표시상 '미연동'으로 둔다
+        // (일정 저장 자체는 roomId 기준 /api/schedules로 계속 동작).
+        setCalendarSync("off");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const scheduleByWbsId = useMemo(() => {
     const map = new Map<string, ScheduleResponse>();
@@ -214,6 +243,40 @@ export function WbsGanttPanel({
     }
     return map;
   }, [wbsItems]);
+
+  // 상위 작업 진행률: 모든 하위(자손) 작업 중 DONE 개수. Jira 타임라인의 진행 표시와 같은 기준.
+  const progressById = useMemo(() => {
+    const cache = new Map<string, { done: number; total: number }>();
+
+    const collect = (id: string): { done: number; total: number } => {
+      const cached = cache.get(id);
+      if (cached) return cached;
+
+      let done = 0;
+      let total = 0;
+      for (const child of childrenByParent[id] ?? []) {
+        total += 1;
+        if (child.status === "DONE") done += 1;
+        const nested = collect(child.id);
+        done += nested.done;
+        total += nested.total;
+      }
+
+      const result = { done, total };
+      cache.set(id, result);
+      return result;
+    };
+
+    for (const item of wbsItems) {
+      collect(item.id);
+    }
+    return cache;
+  }, [childrenByParent, wbsItems]);
+
+  const pendingSyncCount = useMemo(
+    () => schedules.filter((schedule) => schedule.wbsItemId && schedule.syncStatus === "SYNC_FAILED").length,
+    [schedules],
+  );
 
   const resolveAccent = useCallback((item: WbsItemResponse) => {
     if (wbsAccentById?.[item.id]) return wbsAccentById[item.id];
@@ -653,6 +716,22 @@ export function WbsGanttPanel({
           <Plus aria-hidden="true" size={13} strokeWidth={1.9} />
           {t("wbs.gantt.addTask")}
         </button>
+
+        <span
+          aria-live="polite"
+          className={styles.syncChip}
+          data-state={calendarSync === "recording" && pendingSyncCount > 0 ? "pending" : calendarSync}
+          title={calendarSync === "recording" ? t("wbs.gantt.sync.titleRecording") : t("wbs.gantt.sync.titleOff")}
+        >
+          <span aria-hidden="true" className={styles.syncDot} />
+          {calendarSync === "checking"
+            ? t("wbs.gantt.sync.checking")
+            : calendarSync === "off"
+              ? t("wbs.gantt.sync.off")
+              : pendingSyncCount > 0
+                ? t("wbs.gantt.sync.pending", { count: pendingSyncCount })
+                : t("wbs.gantt.sync.recording")}
+        </span>
       </div>
 
       {createDraft ? (
@@ -699,6 +778,7 @@ export function WbsGanttPanel({
               const parentItem = item.parentId ? itemById.get(item.parentId) : null;
               const accent = resolveAccent(item);
               const childCount = childCountById.get(item.id) ?? 0;
+              const progress = childCount > 0 ? progressById.get(item.id) ?? null : null;
               const isCollapsed = collapsedWbsIds.has(item.id);
               const siblings = siblingsOf(item);
               const siblingIndex = siblings.findIndex((entry) => entry.id === item.id);
@@ -802,6 +882,15 @@ export function WbsGanttPanel({
                   kindLabel={item.parentId ? t("wbs.gantt.row.kindChild") : t("wbs.gantt.row.kindParent")}
                   onSelectItem={() => focusItemOnTimeline(item)}
                   parentLabel={parentItem ? t("wbs.gantt.row.parentPrefix", { title: parentItem.title }) : null}
+                  progress={
+                    progress && progress.total > 0
+                      ? {
+                          done: progress.done,
+                          label: t("wbs.gantt.row.progressLabel", { done: progress.done, total: progress.total }),
+                          total: progress.total,
+                        }
+                      : null
+                  }
                 />
               );
             })}
@@ -816,9 +905,18 @@ export function WbsGanttPanel({
                 if (!feature) return null;
                 // 일정 로드/저장으로 기간이 바뀌면 바 내부 상태를 다시 맞추기 위해 key에 기간을 포함한다.
                 const featureKey = `${item.id}:${feature.startAt.getTime()}:${feature.endAt.getTime()}`;
+                const barTitle = t("wbs.gantt.bar.range", {
+                  end: formatBarDate(feature.endAt),
+                  name: feature.name,
+                  start: formatBarDate(feature.startAt),
+                });
                 return (
                   <div className="flex" key={item.id}>
-                    <GanttFeatureItem key={featureKey} onMove={handleMoveFeature} {...feature} />
+                    <GanttFeatureItem key={featureKey} onMove={handleMoveFeature} {...feature}>
+                      <p className="flex-1 truncate text-[13px]" title={barTitle}>
+                        {feature.name}
+                      </p>
+                    </GanttFeatureItem>
                   </div>
                 );
               })}

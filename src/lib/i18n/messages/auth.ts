@@ -21,6 +21,8 @@ const ko = {
   "auth.panel.googleLogin": "구글로 로그인",
   "auth.panel.errorConfig": "구글 로그인 설정을 확인하고 있습니다. 잠시 뒤 다시 시도해 주세요.",
   "auth.panel.errorStart": "로그인 시작에 실패했습니다. 잠시 뒤 다시 시도하세요.",
+  "auth.panel.sessionNotice": "이미 {name}님으로 로그인되어 있어요",
+  "auth.panel.sessionOpenApp": "앱으로 이동",
 
   // 세션 갱신 경계 패널
   "auth.rotation.panelAria": "인증 세션 갱신 경계 패널",
@@ -165,6 +167,8 @@ const en: Record<Key, string> = {
   "auth.panel.googleLogin": "Log in with Google",
   "auth.panel.errorConfig": "We're checking the Google sign-in settings. Please try again shortly.",
   "auth.panel.errorStart": "Failed to start sign-in. Please try again shortly.",
+  "auth.panel.sessionNotice": "You're already signed in as {name}",
+  "auth.panel.sessionOpenApp": "Open the app",
 
   "auth.rotation.panelAria": "Authentication session rotation boundary panel",
   "auth.rotation.chip": "Sign-in session",
@@ -305,6 +309,8 @@ const ja: Record<Key, string> = {
   "auth.panel.googleLogin": "Googleでログイン",
   "auth.panel.errorConfig": "Googleログイン設定を確認しています。しばらくしてからもう一度お試しください。",
   "auth.panel.errorStart": "ログインの開始に失敗しました。しばらくしてからもう一度お試しください。",
+  "auth.panel.sessionNotice": "すでに{name}さんでログインしています",
+  "auth.panel.sessionOpenApp": "アプリへ移動",
 
   "auth.rotation.panelAria": "認証セッション更新境界パネル",
   "auth.rotation.chip": "ログインセッション",

@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 
+import { useLiveAuthUser } from "@/features/auth/hooks/use-live-auth-user";
 import { PublicOrbitPreview } from "@/features/public-site/components/public-orbit-preview";
 import { useI18n } from "@/lib/i18n";
 
 export function PublicHero() {
   const { t } = useI18n();
+  const authUser = useLiveAuthUser();
   const headline = (
     <>
       <span>{t("public.hero.taglineLead")},</span>
@@ -27,12 +29,25 @@ export function PublicHero() {
           {t("public.hero.descLine2")}
         </p>
         <div className="public-hero__actions">
-          <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/#download">
-            {t("public.hero.download")}
-          </Link>
-          <Link className="bubli-button bubli-button--lg" href="/login">
-            {t("common.login")}
-          </Link>
+          {authUser ? (
+            <>
+              <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/app">
+                {t("public.session.openApp")}
+              </Link>
+              <Link className="bubli-button bubli-button--lg" href="/#download">
+                {t("public.hero.download")}
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/#download">
+                {t("public.hero.download")}
+              </Link>
+              <Link className="bubli-button bubli-button--lg" href="/login">
+                {t("common.login")}
+              </Link>
+            </>
+          )}
         </div>
       </div>
 

@@ -8,48 +8,34 @@ import { ThemeToggle } from "@/components/theme";
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { activityApi } from "@/features/activity/api/activityApi";
 import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
-import type { TranslateVars, MessageKey, Locale } from "@/lib/i18n";
-import { recordCurrentActivityContext } from "@/lib/local/activity-client";
+import type { Locale, MessageKey, TranslateVars } from "@/lib/i18n";
 import {
   backupLocalSqlite,
   checkLocalSqliteIntegrity,
-  getLocalCacheReadiness,
   listLocalSqliteBackups,
-  recoverLocalTimerState,
   restoreLocalSqliteBackup,
 } from "@/lib/local/local-cache-client";
 import {
-  getPersonalManagedFolderIndexProgress,
   listPersonalManagedFolders,
-  openPersonalLocalFile,
-  reindexPersonalLocalFile,
   removePersonalManagedFolder,
-  scanPersonalManagedFolder,
-  searchPersonalLocalFiles,
   selectPersonalManagedFolder,
   setPersonalManagedFolderSync,
   syncPersonalLocalFileEventsToServer,
-  watchPersonalManagedFolder,
 } from "@/lib/local/managed-folder-client";
-import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
   tauriCommands,
   type AppMonitorInfo,
   type AppMonitorPreference,
-  type ManagedFolderIndexProgressResult,
   type SqliteIntegrityResult,
 } from "@/lib/tauri/commands";
-import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
-import type { ActivityLogResponse } from "@/types/api/activity";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
 import type {
@@ -58,25 +44,19 @@ import type {
   PrivacyConsentsUpdateRequest,
   StorageUsageResponse,
 } from "@/types/api/settings";
-import type {
-  WidgetBubbleSettingResponse,
-  WidgetBubbleType,
-  WidgetTodayUsageSummaryResponse,
-} from "@/types/api/widget";
+import type { WidgetBubbleSettingResponse, WidgetBubbleType } from "@/types/api/widget";
 import type { LocalAdapterResult } from "@/types/local";
 
 import styles from "./settings-page.module.css";
 
 type SettingsData = {
   folders: ManagedFolderResponse[];
+  googleCalendarConnectUrl: string | null;
+  googleCalendarConnected: boolean;
   notifications: NotificationPreferencesResponse | null;
   privacy: PrivacyConsentsResponse | null;
   storage: StorageUsageResponse | null;
-  googleCalendarConnected: boolean;
-  googleCalendarConnectUrl: string | null;
-  activityLogs: ActivityLogResponse[] | null;
   widgetBubbles: WidgetBubbleSettingResponse[] | null;
-  widgetUsage: WidgetTodayUsageSummaryResponse | null;
 };
 
 type PageState =
@@ -102,14 +82,12 @@ const defaultPrivacy: PrivacyConsentsResponse = {
 
 const emptySettings: SettingsData = {
   folders: [],
+  googleCalendarConnectUrl: null,
+  googleCalendarConnected: false,
   notifications: null,
   privacy: null,
   storage: null,
-  googleCalendarConnected: false,
-  googleCalendarConnectUrl: null,
-  activityLogs: null,
   widgetBubbles: null,
-  widgetUsage: null,
 };
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
@@ -158,15 +136,8 @@ const timezoneOptions: Array<{ labelKey: MessageKey; value: string }> = [
   { labelKey: "settings.tz.tokyo", value: "Asia/Tokyo" },
 ];
 
-const defaultProfileDraft = { locale: "ko", name: "", timezone: "Asia/Seoul" };
-
 function settledValue<T>(result: PromiseSettledResult<T>, fallback: T) {
   return result.status === "fulfilled" ? result.value : fallback;
-}
-
-function enabledCount(record: object | null) {
-  if (!record) return 0;
-  return Object.values(record).filter((value) => value === true).length;
 }
 
 function byteLabel(value: number) {
@@ -183,14 +154,6 @@ function storageLabel(t: TranslateFn, storage: StorageUsageResponse | null) {
 function localSqliteDiagnosticsLabel(result: SqliteIntegrityResult) {
   const freePages = Math.max(0, result.freelistCount);
   return `DB ${byteLabel(result.databaseSizeBytes)} · WAL ${byteLabel(result.walSizeBytes)} · ${result.pageCount} pages · free ${freePages} · ${result.journalMode}`;
-}
-
-function userToProfileDraft(user: AuthUser) {
-  return {
-    locale: user.locale ?? "ko",
-    name: user.name,
-    timezone: user.timezone ?? "Asia/Seoul",
-  };
 }
 
 function userContactLabel(t: TranslateFn, user: AuthUser) {
@@ -228,70 +191,38 @@ function monitorLabel(t: TranslateFn, monitor: AppMonitorInfo, index: number) {
   return `${name}${primaryLabel} - ${monitor.size.width}x${monitor.size.height} @ ${monitor.position.x},${monitor.position.y}`;
 }
 
-function activityDurationLabel(t: TranslateFn, seconds?: number | null) {
-  if (!seconds || seconds < 0) return t("settings.activity.justRecorded");
-
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.max(1, Math.floor((seconds % 3600) / 60));
-
-  if (hours > 0) {
-    return t("settings.activity.hourMinute", { hours, minutes });
-  }
-
-  return t("settings.activity.minute", { minutes });
-}
-
-function activityStartedLabel(t: TranslateFn, value?: string | null) {
-  if (!value) return t("settings.activity.timeUnknown");
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return t("settings.activity.timeUnknown");
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 type StatusMessage = { text: string; tone: "approved" | "warning" };
+
+type NavItem = { id: string; labelKey: MessageKey };
 
 export default function SettingsPage() {
   const { t, setLocale } = useI18n();
   const router = useRouter();
   const [state, setState] = useState<PageState>({ kind: "loading" });
-  const [profileDraft, setProfileDraft] = useState(defaultProfileDraft);
-  const [saveMessage, setSaveMessage] = useState<StatusMessage | null>(null);
-  const [localActionMessage, setLocalActionMessage] = useState<StatusMessage | null>(null);
-  const [folderSearchQuery, setFolderSearchQuery] = useState("");
-  const [localFiles, setLocalFiles] = useState<Array<{ localFileId: string; name: string; path: string }>>([]);
-  const [folderProgress, setFolderProgress] = useState<Record<string, ManagedFolderIndexProgressResult>>({});
+  const [nameDraft, setNameDraft] = useState("");
+  const [message, setMessage] = useState<StatusMessage | null>(null);
   const [lastBackupId, setLastBackupId] = useState<string | null>(null);
-  const [backupListLabel, setBackupListLabel] = useState(() => t("settings.msg.backupNotLoaded"));
+  const [backupListLabel, setBackupListLabel] = useState<string | null>(null);
   const [desktopRuntime, setDesktopRuntime] = useState(false);
   const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
-  const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
-    setSaveMessage(null);
-    setLocalActionMessage(null);
+    setMessage(null);
 
     try {
       const user = await authApi.getMe();
-      const [notifications, privacy, storage, activityLogs, widgetBubbles, widgetUsage, localFolders, googleConnection] =
-        await Promise.allSettled([
-          settingsApi.getNotificationPreferences(),
-          settingsApi.getPrivacyConsents(),
-          settingsApi.getStorageUsage(),
-          activityApi.getToday(),
-          widgetApi.getBubbles(),
-          widgetApi.getTodayUsageRollups(),
-          listPersonalManagedFolders(),
-          calendarApi.getGoogleConnection(),
-        ]);
+      const [notifications, privacy, storage, widgetBubbles, localFolders, googleConnection] = await Promise.allSettled([
+        settingsApi.getNotificationPreferences(),
+        settingsApi.getPrivacyConsents(),
+        settingsApi.getStorageUsage(),
+        widgetApi.getBubbles(),
+        listPersonalManagedFolders(),
+        calendarApi.getGoogleConnection(),
+      ]);
       const folderResult = settledValue(localFolders, null);
 
-      setProfileDraft(userToProfileDraft(user));
+      setNameDraft(user.name);
       setState({
         kind: "ready",
         settings: {
@@ -299,14 +230,12 @@ export default function SettingsPage() {
             folderResult?.status === "ready"
               ? folderResult.data.folders.map(localManagedFolderToSettingsFolder)
               : [],
+          googleCalendarConnectUrl: calendarApi.getGoogleConnectUrl(),
+          googleCalendarConnected: googleConnection.status === "fulfilled" && googleConnection.value?.status === "ACTIVE",
           notifications: settledValue(notifications, null),
           privacy: settledValue(privacy, null),
           storage: settledValue(storage, null),
-          googleCalendarConnected: googleConnection.status === "fulfilled" && googleConnection.value?.status === "ACTIVE",
-          googleCalendarConnectUrl: calendarApi.getGoogleConnectUrl(),
-          activityLogs: settledValue(activityLogs, null),
           widgetBubbles: settledValue(widgetBubbles, null),
-          widgetUsage: settledValue(widgetUsage, null),
         },
         user,
       });
@@ -316,7 +245,7 @@ export default function SettingsPage() {
         return;
       }
 
-      setProfileDraft(defaultProfileDraft);
+      setNameDraft("");
       setState({ kind: "offline" });
     }
   }, []);
@@ -347,13 +276,13 @@ export default function SettingsPage() {
         if (!cancelled) setMonitorPreference(preference);
       })
       .catch(() => {
-        if (!cancelled) setLocalActionMessage({ text: t("settings.msg.monitorLoadFailed"), tone: "warning" });
+        if (!cancelled) setMessage({ text: t("settings.msg.monitorLoadFailed"), tone: "warning" });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [desktopRuntime]);
+  }, [desktopRuntime, t]);
 
   const updateReadyState = useCallback((updater: (current: Extract<PageState, { kind: "ready" }>) => Extract<PageState, { kind: "ready" }>) => {
     setState((current) => (current.kind === "ready" ? updater(current) : current));
@@ -371,218 +300,6 @@ export default function SettingsPage() {
 
     void restoreManagedFolderWatchers();
   }, [restoreManagedFolderWatchers, state]);
-
-  const refreshActivityLogs = useCallback(async () => {
-    if (state.kind !== "ready") return;
-
-    try {
-      const activityLogs = await activityApi.getToday();
-      updateReadyState((ready) => ({
-        ...ready,
-        settings: { ...ready.settings, activityLogs },
-      }));
-      setLocalActionMessage({ text: t("settings.msg.todayActivityLoaded", { count: activityLogs.length }), tone: "approved" });
-    } catch {
-      setLocalActionMessage({ text: t("settings.msg.activityLoadFailed"), tone: "warning" });
-    }
-  }, [state.kind, updateReadyState]);
-
-  const saveProfile = useCallback(async () => {
-    if (state.kind !== "ready") return;
-
-    const nextUser = {
-      ...state.user,
-      locale: profileDraft.locale,
-      name: profileDraft.name.trim() || state.user.name,
-      timezone: profileDraft.timezone,
-    };
-
-    updateReadyState((current) => ({ ...current, user: nextUser }));
-    setLocale(nextUser.locale as Locale);
-    setSaveMessage({ text: t("settings.msg.displaySaved"), tone: "approved" });
-
-    try {
-      const saved = await authApi.updateMe({
-        locale: nextUser.locale,
-        name: nextUser.name,
-        timezone: nextUser.timezone,
-      });
-      updateReadyState((current) => ({ ...current, user: saved }));
-    } catch {
-      if (shouldUseWorkspacePreviewData()) return;
-      setSaveMessage({ text: t("settings.msg.saveFailed"), tone: "warning" });
-    }
-  }, [profileDraft, state, updateReadyState]);
-
-  const logout = useCallback(async () => {
-    await authApi.logout();
-    router.push("/login");
-    router.refresh();
-  }, [router]);
-
-  const toggleNotification = useCallback(
-    async (key: keyof NotificationPreferencesResponse) => {
-      if (state.kind !== "ready") return;
-      const current = state.settings.notifications ?? defaultNotifications;
-      const next: NotificationPreferencesResponse = { ...current, [key]: !current[key] };
-
-      updateReadyState((ready) => ({
-        ...ready,
-        settings: { ...ready.settings, notifications: next },
-      }));
-      setSaveMessage({ text: t("settings.msg.notifSaved"), tone: "approved" });
-
-      try {
-        const patch: NotificationPreferencesUpdateRequest = { [key]: next[key] };
-        const saved = await settingsApi.updateNotificationPreferences(patch);
-        updateReadyState((ready) => ({
-          ...ready,
-          settings: { ...ready.settings, notifications: saved },
-        }));
-      } catch {
-        if (shouldUseWorkspacePreviewData()) return;
-        setSaveMessage({ text: t("settings.msg.notifSaveFailed"), tone: "warning" });
-      }
-    },
-    [state, updateReadyState],
-  );
-
-  const togglePrivacy = useCallback(
-    async (key: keyof PrivacyConsentsResponse) => {
-      if (state.kind !== "ready") return;
-      const current = state.settings.privacy ?? defaultPrivacy;
-      const next: PrivacyConsentsResponse = { ...current, [key]: !current[key] };
-
-      updateReadyState((ready) => ({
-        ...ready,
-        settings: { ...ready.settings, privacy: next },
-      }));
-      setSaveMessage({ text: t("settings.msg.privacySaved"), tone: "approved" });
-
-      try {
-        const patch: PrivacyConsentsUpdateRequest = { [key]: next[key] };
-        const saved = await settingsApi.updatePrivacyConsents(patch);
-        updateReadyState((ready) => ({
-          ...ready,
-          settings: { ...ready.settings, privacy: saved },
-        }));
-        if (key === "localFolderEnabled" && saved.localFolderEnabled) {
-          void restoreManagedFolderWatchers();
-        }
-      } catch {
-        if (shouldUseWorkspacePreviewData()) return;
-        setSaveMessage({ text: t("settings.msg.privacySaveFailed"), tone: "warning" });
-      }
-    },
-    [restoreManagedFolderWatchers, state, t, updateReadyState],
-  );
-
-  const toggleWidgetBubble = useCallback(
-    async (bubble: WidgetBubbleSettingResponse) => {
-      if (state.kind !== "ready") return;
-      const current = state.settings.widgetBubbles ?? [];
-      const nextBubble = { ...bubble, enabled: !bubble.enabled };
-      const next = current.map((item) => (item.id === bubble.id ? nextBubble : item));
-
-      updateReadyState((ready) => ({
-        ...ready,
-        settings: { ...ready.settings, widgetBubbles: next },
-      }));
-      setSaveMessage({ text: t("settings.msg.bubbleSaved"), tone: "approved" });
-
-      try {
-        const saved = await widgetApi.updateBubbles({
-          bubbles: [
-            {
-              bubbleType: nextBubble.bubbleType,
-              enabled: nextBubble.enabled,
-              id: nextBubble.id,
-            },
-          ],
-        });
-        updateReadyState((ready) => ({
-          ...ready,
-          settings: { ...ready.settings, widgetBubbles: saved },
-        }));
-      } catch {
-        if (shouldUseWorkspacePreviewData()) return;
-        setSaveMessage({ text: t("settings.msg.bubbleSaveFailed"), tone: "warning" });
-      }
-    },
-    [state, updateReadyState],
-  );
-
-  const selectManagedFolder = useCallback(async () => {
-    if (state.kind !== "ready") return;
-
-    const consentGranted = Boolean(state.settings.privacy?.localFolderEnabled);
-    const result = await selectPersonalManagedFolder({ consentGranted });
-    setLocalActionMessage({ text: localResultMessage(t, result), tone: result.status === "ready" ? "approved" : "warning" });
-    if (result.status !== "ready") return;
-
-    const folder = result.data;
-    const fallbackFolder: ManagedFolderResponse = {
-      createdAt: new Date().toISOString(),
-      id: folder.localFolderId,
-      localPath: folder.path,
-      name: folder.name,
-      syncEnabled: true,
-      updatedAt: new Date().toISOString(),
-    };
-
-    updateReadyState((ready) => ({
-      ...ready,
-      settings: {
-        ...ready.settings,
-        folders: [fallbackFolder, ...ready.settings.folders.filter((item) => item.id !== fallbackFolder.id)],
-      },
-    }));
-
-    setLocalActionMessage({ text: t("settings.msg.folderConnected"), tone: "approved" });
-    void restoreManagedFolderWatchers();
-  }, [restoreManagedFolderWatchers, state.kind, t, updateReadyState]);
-
-  const checkLocalCache = useCallback(async () => {
-    const result = await Promise.resolve(checkLocalSqliteIntegrity());
-    if (result.status === "ready") {
-      const detail = localSqliteDiagnosticsLabel(result.data);
-      setLocalActionMessage(
-        result.data.ok
-          ? { text: `${t("settings.msg.cacheHealthy")} · ${detail}`, tone: "approved" }
-          : { text: `${t("settings.msg.cacheNeedsRecovery")} · ${result.data.quickCheck} · ${detail}`, tone: "warning" },
-      );
-      return;
-    }
-    setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
-  }, [t]);
-
-  const backupLocalCache = useCallback(async () => {
-    const result = await Promise.resolve(backupLocalSqlite());
-    if (result.status === "ready") {
-      setLastBackupId(result.data.backupId);
-      setBackupListLabel(t("settings.msg.backupRecent", { fileName: result.data.fileName }));
-      setLocalActionMessage({ text: t("settings.msg.backupCreated", { fileName: result.data.fileName }), tone: "approved" });
-      return;
-    }
-    setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
-  }, [t]);
-
-  const restoreLocalCache = useCallback(async () => {
-    if (!lastBackupId) {
-      setLocalActionMessage({ text: t("settings.msg.backupNeeded"), tone: "warning" });
-      return;
-    }
-
-    const result = await Promise.resolve(restoreLocalSqliteBackup({ backupId: lastBackupId }));
-    setLocalActionMessage(
-      result.status === "ready"
-        ? {
-            text: result.data.requiresRestart ? t("settings.msg.restoreQueued") : t("settings.msg.restoreDone"),
-            tone: "approved",
-          }
-        : { text: localResultMessage(t, result), tone: "warning" },
-    );
-  }, [lastBackupId, t]);
 
   useEffect(() => {
     if (!desktopRuntime) return;
@@ -606,26 +323,192 @@ export default function SettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [desktopRuntime]);
+  }, [desktopRuntime, t]);
 
-  const refreshManagedFolderProgress = useCallback(async (localFolderId: string) => {
-    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
-    const result = await getPersonalManagedFolderIndexProgress({ consentGranted, localFolderId });
-    if (result.status === "ready") {
-      setFolderProgress((current) => ({ ...current, [localFolderId]: result.data }));
-      setLocalActionMessage({
-        text: t("settings.msg.indexProgress", {
-          indexed: result.data.indexedFiles,
-          total: result.data.totalFiles,
-          pending: result.data.pendingEventCount,
-        }),
-        tone: "approved",
-      });
+  const saveProfile = useCallback(
+    async (patch: Partial<Pick<AuthUser, "locale" | "name" | "timezone">>) => {
+      if (state.kind !== "ready") return;
+
+      const nextUser: AuthUser = { ...state.user, ...patch };
+      updateReadyState((current) => ({ ...current, user: nextUser }));
+      if (patch.locale) setLocale(patch.locale as Locale);
+      setMessage({ text: t("settings.msg.displaySaved"), tone: "approved" });
+
+      try {
+        const saved = await authApi.updateMe({
+          locale: nextUser.locale ?? "ko",
+          name: nextUser.name,
+          timezone: nextUser.timezone ?? "Asia/Seoul",
+        });
+        updateReadyState((current) => ({ ...current, user: saved }));
+      } catch {
+        if (shouldUseWorkspacePreviewData()) return;
+        setMessage({ text: t("settings.msg.saveFailed"), tone: "warning" });
+      }
+    },
+    [setLocale, state, t, updateReadyState],
+  );
+
+  const saveName = useCallback(() => {
+    if (state.kind !== "ready") return;
+    const trimmed = nameDraft.trim();
+    if (!trimmed || trimmed === state.user.name) return;
+    void saveProfile({ name: trimmed });
+  }, [nameDraft, saveProfile, state]);
+
+  const logout = useCallback(async () => {
+    await authApi.logout();
+    router.push("/login");
+    router.refresh();
+  }, [router]);
+
+  const toggleNotification = useCallback(
+    async (key: keyof NotificationPreferencesResponse) => {
+      if (state.kind !== "ready") return;
+      const current = state.settings.notifications ?? defaultNotifications;
+      const next: NotificationPreferencesResponse = { ...current, [key]: !current[key] };
+
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: { ...ready.settings, notifications: next },
+      }));
+      setMessage({ text: t("settings.msg.notifSaved"), tone: "approved" });
+
+      try {
+        const patch: NotificationPreferencesUpdateRequest = { [key]: next[key] };
+        const saved = await settingsApi.updateNotificationPreferences(patch);
+        updateReadyState((ready) => ({
+          ...ready,
+          settings: { ...ready.settings, notifications: saved },
+        }));
+      } catch {
+        if (shouldUseWorkspacePreviewData()) return;
+        setMessage({ text: t("settings.msg.notifSaveFailed"), tone: "warning" });
+      }
+    },
+    [state, t, updateReadyState],
+  );
+
+  const togglePrivacy = useCallback(
+    async (key: keyof PrivacyConsentsResponse) => {
+      if (state.kind !== "ready") return;
+      const current = state.settings.privacy ?? defaultPrivacy;
+      const next: PrivacyConsentsResponse = { ...current, [key]: !current[key] };
+
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: { ...ready.settings, privacy: next },
+      }));
+      setMessage({ text: t("settings.msg.privacySaved"), tone: "approved" });
+
+      try {
+        const patch: PrivacyConsentsUpdateRequest = { [key]: next[key] };
+        const saved = await settingsApi.updatePrivacyConsents(patch);
+        updateReadyState((ready) => ({
+          ...ready,
+          settings: { ...ready.settings, privacy: saved },
+        }));
+        if (key === "localFolderEnabled" && saved.localFolderEnabled) {
+          void restoreManagedFolderWatchers();
+        }
+      } catch {
+        if (shouldUseWorkspacePreviewData()) return;
+        setMessage({ text: t("settings.msg.privacySaveFailed"), tone: "warning" });
+      }
+    },
+    [restoreManagedFolderWatchers, state, t, updateReadyState],
+  );
+
+  const toggleWidgetBubble = useCallback(
+    async (bubble: WidgetBubbleSettingResponse) => {
+      if (state.kind !== "ready") return;
+      const current = state.settings.widgetBubbles ?? [];
+      const nextBubble = { ...bubble, enabled: !bubble.enabled };
+      const next = current.map((item) => (item.id === bubble.id ? nextBubble : item));
+
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: { ...ready.settings, widgetBubbles: next },
+      }));
+      setMessage({ text: t("settings.msg.bubbleSaved"), tone: "approved" });
+
+      try {
+        const saved = await widgetApi.updateBubbles({
+          bubbles: [
+            {
+              bubbleType: nextBubble.bubbleType,
+              enabled: nextBubble.enabled,
+              id: nextBubble.id,
+            },
+          ],
+        });
+        updateReadyState((ready) => ({
+          ...ready,
+          settings: { ...ready.settings, widgetBubbles: saved },
+        }));
+      } catch {
+        if (shouldUseWorkspacePreviewData()) return;
+        setMessage({ text: t("settings.msg.bubbleSaveFailed"), tone: "warning" });
+      }
+    },
+    [state, t, updateReadyState],
+  );
+
+  const openGoogleCalendarConnect = useCallback(() => {
+    if (state.kind !== "ready" || !state.settings.googleCalendarConnectUrl) return;
+    window.location.assign(state.settings.googleCalendarConnectUrl);
+  }, [state]);
+
+  const disconnectGoogleCalendar = useCallback(async () => {
+    if (state.kind !== "ready") return;
+
+    try {
+      await calendarApi.disconnectGoogleConnection();
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: { ...ready.settings, googleCalendarConnected: false },
+      }));
+      setMessage({ text: t("settings.msg.gcalDisconnected"), tone: "approved" });
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 401) {
+        setState({ kind: "auth" });
+        return;
+      }
+      setMessage({ text: t("settings.msg.gcalDisconnectFailed"), tone: "warning" });
+    }
+  }, [state.kind, t, updateReadyState]);
+
+  const selectManagedFolder = useCallback(async () => {
+    if (state.kind !== "ready") return;
+
+    const consentGranted = Boolean(state.settings.privacy?.localFolderEnabled);
+    const result = await selectPersonalManagedFolder({ consentGranted });
+    if (result.status !== "ready") {
+      setMessage({ text: localResultMessage(t, result), tone: "warning" });
       return;
     }
 
-    setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
-  }, [state, t]);
+    const folder = result.data;
+    const fallbackFolder: ManagedFolderResponse = {
+      createdAt: new Date().toISOString(),
+      id: folder.localFolderId,
+      localPath: folder.path,
+      name: folder.name,
+      syncEnabled: true,
+      updatedAt: new Date().toISOString(),
+    };
+
+    updateReadyState((ready) => ({
+      ...ready,
+      settings: {
+        ...ready.settings,
+        folders: [fallbackFolder, ...ready.settings.folders.filter((item) => item.id !== fallbackFolder.id)],
+      },
+    }));
+
+    setMessage({ text: t("settings.msg.folderConnected"), tone: "approved" });
+    void restoreManagedFolderWatchers();
+  }, [restoreManagedFolderWatchers, state, t, updateReadyState]);
 
   const toggleManagedFolderSync = useCallback(
     async (folder: ManagedFolderResponse) => {
@@ -635,7 +518,7 @@ export default function SettingsPage() {
         localFolderId: folder.id,
       });
       if (result.status !== "ready") {
-        setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
+        setMessage({ text: localResultMessage(t, result), tone: "warning" });
         return;
       }
 
@@ -654,7 +537,7 @@ export default function SettingsPage() {
           ),
         },
       }));
-      setLocalActionMessage(
+      setMessage(
         result.data.syncEnabled
           ? { text: t("settings.msg.syncOn", { pending: result.data.pendingEventCount }), tone: "approved" }
           : { text: t("settings.msg.syncOff"), tone: "approved" },
@@ -662,9 +545,8 @@ export default function SettingsPage() {
       if (result.data.syncEnabled) {
         void restoreManagedFolderWatchers();
       }
-      void refreshManagedFolderProgress(folder.id);
     },
-    [refreshManagedFolderProgress, restoreManagedFolderWatchers, state, t, updateReadyState],
+    [restoreManagedFolderWatchers, state, t, updateReadyState],
   );
 
   const removeManagedFolder = useCallback(
@@ -672,7 +554,7 @@ export default function SettingsPage() {
       const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
       const result = await removePersonalManagedFolder({ consentGranted, localFolderId: folder.id });
       if (result.status !== "ready") {
-        setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
+        setMessage({ text: localResultMessage(t, result), tone: "warning" });
         return;
       }
 
@@ -683,200 +565,9 @@ export default function SettingsPage() {
           folders: ready.settings.folders.filter((item) => item.id !== folder.id),
         },
       }));
-      setFolderProgress((current) => {
-        const next = { ...current };
-        delete next[folder.id];
-        return next;
-      });
-      setLocalFiles([]);
-      setLocalActionMessage({ text: t("settings.msg.folderRemoved"), tone: "approved" });
+      setMessage({ text: t("settings.msg.folderRemoved"), tone: "approved" });
     },
     [state, t, updateReadyState],
-  );
-
-  const scanManagedFolder = useCallback(async () => {
-    const folderId = state.kind === "ready" ? state.settings.folders[0]?.id : undefined;
-    if (!folderId) {
-      setLocalActionMessage({ text: t("settings.msg.selectFolderFirst"), tone: "warning" });
-      return;
-    }
-
-    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
-    const result = await scanPersonalManagedFolder({ consentGranted, localFolderId: folderId });
-    if (result.status === "ready") void refreshManagedFolderProgress(folderId);
-    setLocalActionMessage(
-      result.status === "ready"
-        ? { text: t("settings.msg.folderChanges", { count: result.data.changedCount }), tone: "approved" }
-        : { text: localResultMessage(t, result), tone: "warning" },
-    );
-  }, [refreshManagedFolderProgress, state, t]);
-
-  const watchManagedFolder = useCallback(async () => {
-    const folderId = state.kind === "ready" ? state.settings.folders[0]?.id : undefined;
-    if (!folderId) {
-      setLocalActionMessage({ text: t("settings.msg.selectFolderFirst"), tone: "warning" });
-      return;
-    }
-
-    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
-    const result = await watchPersonalManagedFolder({ consentGranted, localFolderId: folderId });
-    setLocalActionMessage(
-      result.status === "ready"
-        ? { text: t("settings.msg.watchOn"), tone: "approved" }
-        : { text: localResultMessage(t, result), tone: "warning" },
-    );
-  }, [state, t]);
-
-  const searchLocalFiles = useCallback(async () => {
-    const query = folderSearchQuery.trim();
-    if (!query) {
-      setLocalFiles([]);
-      setLocalActionMessage({ text: t("settings.msg.enterQuery"), tone: "warning" });
-      return;
-    }
-
-    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
-    const result = await searchPersonalLocalFiles({ consentGranted, limit: 20, query });
-    if (result.status === "ready") {
-      setLocalFiles(result.data.items.map((item) => ({ localFileId: item.localFileId, name: item.name, path: item.path })));
-      setLocalActionMessage({ text: t("settings.msg.localFilesFound", { count: result.data.items.length }), tone: "approved" });
-      return;
-    }
-
-    setLocalFiles([]);
-    setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
-  }, [folderSearchQuery, state, t]);
-
-  const openLocalFile = useCallback(async (localFileId: string) => {
-    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
-    const result = await openPersonalLocalFile({ consentGranted, localFileId });
-    setLocalActionMessage(
-      result.status === "ready"
-        ? { text: t("settings.msg.fileOpened", { name: result.data.name }), tone: "approved" }
-        : { text: localResultMessage(t, result), tone: "warning" },
-    );
-  }, [state, t]);
-
-  const reindexLocalFile = useCallback(
-    async (localFileId: string) => {
-      const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
-      const result = await reindexPersonalLocalFile({ consentGranted, localFileId });
-      if (result.status !== "ready") {
-        setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
-        return;
-      }
-
-      const query = folderSearchQuery.trim();
-      if (query) {
-        void searchPersonalLocalFiles({ consentGranted, limit: 20, query }).then((searchResult) => {
-          if (searchResult.status !== "ready") return;
-          setLocalFiles(
-            searchResult.data.items.map((item) => ({
-              localFileId: item.localFileId,
-              name: item.name,
-              path: item.path,
-            })),
-          );
-        });
-      }
-      setLocalActionMessage(
-        result.data.status === "MISSING"
-          ? { text: t("settings.msg.fileMissing", { name: result.data.name }), tone: "warning" }
-          : {
-              text: result.data.changed
-                ? t("settings.msg.fileReindexedChanged", { name: result.data.name })
-                : t("settings.msg.fileReindexed", { name: result.data.name }),
-              tone: "approved",
-            },
-      );
-    },
-    [folderSearchQuery, state, t],
-  );
-
-  useEffect(() => {
-    if (!desktopRuntime) return;
-
-    let disposed = false;
-    let unlisten: (() => void) | undefined;
-
-    void listenManagedFolderWatchEvents((event) => {
-      if (disposed) return;
-
-      setLocalActionMessage({ text: t("settings.msg.folderWatchDetected", { count: event.changedCount }), tone: "approved" });
-      const query = folderSearchQuery.trim();
-      if (!query) return;
-
-      const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
-      void searchPersonalLocalFiles({ consentGranted, limit: 20, query }).then((result) => {
-        if (disposed || result.status !== "ready") return;
-        setLocalFiles(result.data.items.map((item) => ({ localFileId: item.localFileId, name: item.name, path: item.path })));
-      });
-    })
-      .then((cleanup) => {
-        if (disposed) {
-          cleanup();
-          return;
-        }
-        unlisten = cleanup;
-      })
-      .catch(() => undefined);
-
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, [desktopRuntime, folderSearchQuery, state]);
-
-  const readActivity = useCallback(async () => {
-    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
-    const result = await recordCurrentActivityContext({ consentGranted });
-    if (result.status === "ready") {
-      updateReadyState((ready) => ({
-        ...ready,
-        settings: { ...ready.settings, activityLogs: result.data.todayActivities },
-      }));
-      setLocalActionMessage({
-        text: result.data.windowTitle
-          ? t("settings.msg.activityDetectedWindow", { app: result.data.appName, window: result.data.windowTitle })
-          : t("settings.msg.activityDetected", { app: result.data.appName }),
-        tone: "approved",
-      });
-      return;
-    }
-
-    setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
-  }, [state, t, updateReadyState]);
-
-  const deleteActivityLog = useCallback(
-    async (activityLogId: string) => {
-      if (state.kind !== "ready") return;
-
-      setDeletingActivityId(activityLogId);
-      updateReadyState((ready) => ({
-        ...ready,
-        settings: {
-          ...ready.settings,
-          activityLogs: ready.settings.activityLogs?.filter((activity) => activity.id !== activityLogId) ?? null,
-        },
-      }));
-
-      try {
-        await activityApi.delete(activityLogId);
-        setLocalActionMessage({ text: t("settings.msg.activityDeleted"), tone: "approved" });
-      } catch {
-        const activityLogs = await activityApi.getToday().catch(() => null);
-        if (activityLogs) {
-          updateReadyState((ready) => ({
-            ...ready,
-            settings: { ...ready.settings, activityLogs },
-          }));
-        }
-        setLocalActionMessage({ text: t("settings.msg.activityDeleteFailed"), tone: "warning" });
-      } finally {
-        setDeletingActivityId(null);
-      }
-    },
-    [state.kind, t, updateReadyState],
   );
 
   const selectAppMonitor = useCallback(
@@ -886,18 +577,55 @@ export default function SettingsPage() {
       try {
         const preference = await tauriCommands.setPreferredAppMonitor({ monitorId });
         setMonitorPreference(preference);
-        setLocalActionMessage({ text: t("settings.msg.monitorSaved"), tone: "approved" });
+        setMessage({ text: t("settings.msg.monitorSaved"), tone: "approved" });
       } catch {
-        setLocalActionMessage({ text: t("settings.msg.monitorSaveFailed"), tone: "warning" });
+        setMessage({ text: t("settings.msg.monitorSaveFailed"), tone: "warning" });
       }
     },
     [desktopRuntime, t],
   );
 
-  const openGoogleCalendarConnect = useCallback(() => {
-    if (state.kind !== "ready" || !state.settings.googleCalendarConnectUrl) return;
-    window.location.assign(state.settings.googleCalendarConnectUrl);
-  }, [state]);
+  const checkLocalCache = useCallback(async () => {
+    const result = await Promise.resolve(checkLocalSqliteIntegrity());
+    if (result.status === "ready") {
+      const detail = localSqliteDiagnosticsLabel(result.data);
+      setMessage(
+        result.data.ok
+          ? { text: `${t("settings.msg.cacheHealthy")} · ${detail}`, tone: "approved" }
+          : { text: `${t("settings.msg.cacheNeedsRecovery")} · ${result.data.quickCheck} · ${detail}`, tone: "warning" },
+      );
+      return;
+    }
+    setMessage({ text: localResultMessage(t, result), tone: "warning" });
+  }, [t]);
+
+  const backupLocalCache = useCallback(async () => {
+    const result = await Promise.resolve(backupLocalSqlite());
+    if (result.status === "ready") {
+      setLastBackupId(result.data.backupId);
+      setBackupListLabel(t("settings.msg.backupRecent", { fileName: result.data.fileName }));
+      setMessage({ text: t("settings.msg.backupCreated", { fileName: result.data.fileName }), tone: "approved" });
+      return;
+    }
+    setMessage({ text: localResultMessage(t, result), tone: "warning" });
+  }, [t]);
+
+  const restoreLocalCache = useCallback(async () => {
+    if (!lastBackupId) {
+      setMessage({ text: t("settings.msg.backupNeeded"), tone: "warning" });
+      return;
+    }
+
+    const result = await Promise.resolve(restoreLocalSqliteBackup({ backupId: lastBackupId }));
+    setMessage(
+      result.status === "ready"
+        ? {
+            text: result.data.requiresRestart ? t("settings.msg.restoreQueued") : t("settings.msg.restoreDone"),
+            tone: "approved",
+          }
+        : { text: localResultMessage(t, result), tone: "warning" },
+    );
+  }, [lastBackupId, t]);
 
   const checkSyncOutbox = useCallback(async () => {
     const folderId = state.kind === "ready" ? state.settings.folders[0]?.id : undefined;
@@ -905,36 +633,29 @@ export default function SettingsPage() {
     const result = await syncPersonalLocalFileEventsToServer(
       folderId ? { consentGranted, localFolderId: folderId } : { consentGranted },
     );
-    setLocalActionMessage({ text: localResultMessage(t, result), tone: result.status === "ready" ? "approved" : "warning" });
+    setMessage({ text: localResultMessage(t, result), tone: result.status === "ready" ? "approved" : "warning" });
   }, [state, t]);
 
-  const syncWidgetUsage = useCallback(async () => {
-    const result = await syncLocalWidgetUsageSummaryToServer();
-    setLocalActionMessage({ text: localResultMessage(t, result), tone: result.status === "ready" ? "approved" : "warning" });
-  }, [t]);
-
-  const recoverTimer = useCallback(async () => {
-    const result = await Promise.resolve(recoverLocalTimerState());
-    if (result.status === "ready") {
-      setLocalActionMessage(
-        result.data.recoveryRequired
-          ? { text: t("settings.msg.timerRecoveryNeeded"), tone: "warning" }
-          : { text: t("settings.msg.timerHealthy"), tone: "approved" },
-      );
-      return;
-    }
-
-    setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
-  }, [t]);
-
-  const readySettings = state.kind === "ready" ? state.settings : emptySettings;
+  const ready = state.kind === "ready";
+  const readySettings = ready ? state.settings : emptySettings;
   const notificationSettings = readySettings.notifications ?? defaultNotifications;
   const privacySettings = readySettings.privacy ?? defaultPrivacy;
   const managedFolders = readySettings.folders;
   const widgetBubbles = readySettings.widgetBubbles ?? [];
-  const enabledWidgetCount = widgetBubbles.filter((bubble) => bubble.enabled).length;
-  const localCacheReadiness = getLocalCacheReadiness();
-  const todayActivityLogs = readySettings.activityLogs ?? [];
+  const currentLocale = ready ? (state.user.locale ?? "ko") : "ko";
+  const currentTimezone = ready ? (state.user.timezone ?? "Asia/Seoul") : "Asia/Seoul";
+  const googleConnected = ready && state.settings.googleCalendarConnected;
+  const nameDirty = ready && nameDraft.trim().length > 0 && nameDraft.trim() !== state.user.name;
+
+  const navItems: NavItem[] = [
+    { id: "settings-account", labelKey: "settings.nav.account" },
+    { id: "settings-preferences", labelKey: "settings.nav.preferences" },
+    { id: "settings-notifications", labelKey: "settings.nav.notifications" },
+    { id: "settings-integrations", labelKey: "settings.nav.integrations" },
+    { id: "settings-privacy", labelKey: "settings.nav.privacy" },
+    { id: "settings-widget", labelKey: "settings.nav.widget" },
+    ...(desktopRuntime ? [{ id: "settings-desktop", labelKey: "settings.nav.desktop" } satisfies NavItem] : []),
+  ];
 
   return (
     <section className={`workspace-route ${styles.route}`} aria-labelledby="settings-title">
@@ -944,20 +665,11 @@ export default function SettingsPage() {
           <h1 id="settings-title">{t("settings.title")}</h1>
           <p>{t("settings.subtitle")}</p>
         </div>
-        <div className={styles.headerStatus}>
-          <StatusBadge tone={state.kind === "ready" ? "approved" : state.kind === "auth" ? "warning" : "neutral"}>
-            {state.kind === "ready"
-              ? t("settings.status.connected")
-              : state.kind === "auth"
-                ? t("settings.status.loginRequired")
-                : t("settings.status.waiting")}
-          </StatusBadge>
-          <StatusBadge tone={desktopRuntime ? "personal" : "neutral"}>
-            {desktopRuntime ? t("settings.status.desktopApp") : t("settings.status.browser")}
-          </StatusBadge>
-          {localActionMessage ? <StatusBadge tone={localActionMessage.tone}>{localActionMessage.text}</StatusBadge> : null}
-          {saveMessage ? <StatusBadge tone={saveMessage.tone}>{saveMessage.text}</StatusBadge> : null}
-        </div>
+        {message ? (
+          <div aria-live="polite" className={styles.messageLine}>
+            <StatusBadge tone={message.tone}>{message.text}</StatusBadge>
+          </div>
+        ) : null}
       </header>
 
       {state.kind === "loading" && <GlassPanel className={styles.notice}>{t("settings.notice.loading")}</GlassPanel>}
@@ -983,523 +695,352 @@ export default function SettingsPage() {
 
       {(state.kind === "ready" || state.kind === "offline") && (
         <div className={styles.page}>
-          <div className={styles.statusGrid}>
-            <GlassPanel className={styles.statusCard}>
-              <span>{t("settings.card.account")}</span>
-              <strong>{state.kind === "ready" ? state.user.name : t("settings.value.beforeConnect")}</strong>
-              <small>{state.kind === "ready" ? userContactLabel(t, state.user) : t("settings.value.shownAfterConnect")}</small>
-            </GlassPanel>
-            <GlassPanel className={styles.statusCard}>
-              <span>{t("settings.card.notifications")}</span>
-              <strong>{state.kind === "ready" ? t("settings.value.enabledCount", { count: enabledCount(notificationSettings) }) : t("settings.value.beforeCheck")}</strong>
-              <small>{readySettings.notifications ? t("settings.value.serverSetting") : t("settings.status.waiting")}</small>
-            </GlassPanel>
-            <GlassPanel className={styles.statusCard}>
-              <span>{t("settings.card.desktopApp")}</span>
-              <strong>{desktopRuntime ? t("settings.value.running") : t("settings.value.appOnly")}</strong>
-              <small>{desktopRuntime ? t("settings.value.tauriRunning") : t("settings.value.browserReadonly")}</small>
-            </GlassPanel>
-            <GlassPanel className={styles.statusCard}>
-              <span>{t("settings.card.storage")}</span>
-              <strong>{storageLabel(t, readySettings.storage)}</strong>
-              <small>{readySettings.storage ? t("settings.value.serverUsage") : t("settings.value.noData")}</small>
-            </GlassPanel>
-          </div>
+          <nav aria-label={t("settings.nav.aria")} className={styles.nav}>
+            {navItems.map((item) => (
+              <a className={styles.navLink} href={`#${item.id}`} key={item.id}>
+                {t(item.labelKey)}
+              </a>
+            ))}
+          </nav>
 
-          <GlassPanel className={styles.section}>
-            <div className={styles.sectionHead}>
-              <div>
-                <span className={styles.sectionLabel}>{t("settings.card.account")}</span>
-                <h2>{t("settings.account.title")}</h2>
-              </div>
-              <StatusBadge tone={state.kind === "ready" ? "approved" : "neutral"}>{state.kind === "ready" ? t("settings.value.connected") : t("settings.value.beforeConnect")}</StatusBadge>
-            </div>
-            <div className={styles.accountGrid}>
-              <div className={styles.identity}>
-                <span>{t("settings.account.name")}</span>
-                <strong>{state.kind === "ready" ? state.user.name : t("settings.value.shownAfterConnect")}</strong>
-              </div>
-              <div className={styles.identity}>
-                <span>{t("settings.account.identifier")}</span>
-                <strong>{state.kind === "ready" ? userContactLabel(t, state.user) : t("settings.value.shownAfterConnect")}</strong>
-              </div>
-              <div className={styles.identity}>
-                <span>{t("settings.account.bubliId")}</span>
-                <strong>{state.kind === "ready" ? state.user.bubliId : t("settings.value.noData")}</strong>
-              </div>
-              <div className={styles.actions}>
-                <Button disabled={state.kind !== "ready"} onClick={() => void logout()} type="button" variant="quiet">
-                  {t("common.logout")}
-                </Button>
-              </div>
-            </div>
-          </GlassPanel>
-
-          <GlassPanel className={styles.section}>
-            <div className={styles.sectionHead}>
-              <div>
-                <span className={styles.sectionLabel}>{t("settings.display")}</span>
-                <h2>{t("settings.languageScreen")}</h2>
-              </div>
-              <Button disabled={state.kind !== "ready"} onClick={() => void saveProfile()} type="button" variant="primary">
-                {t("common.save")}
-              </Button>
-            </div>
-            <div className={styles.profileGrid}>
-              <label className="workspace-route__field">
-                <span>{t("settings.display.name")}</span>
-                <input
-                  disabled={state.kind !== "ready"}
-                  onChange={(event) => setProfileDraft((draft) => ({ ...draft, name: event.target.value }))}
-                  value={profileDraft.name}
-                />
-              </label>
-              <div className={styles.settingBlock}>
-                <span>{t("settings.language")}</span>
-                <div aria-label={t("settings.display.languageAria")} className={styles.segmented} role="radiogroup">
-                  {localeOptions.map((option) => (
-                    <button
-                      aria-checked={profileDraft.locale === option.value}
-                      className={profileDraft.locale === option.value ? styles.segmentedActive : ""}
-                      disabled={state.kind !== "ready"}
-                      key={option.value}
-                      onClick={() => setProfileDraft((draft) => ({ ...draft, locale: option.value }))}
-                      role="radio"
-                      type="button"
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <label className="workspace-route__field">
-                <span>{t("settings.display.timezone")}</span>
-                <select
-                  disabled={state.kind !== "ready"}
-                  onChange={(event) => setProfileDraft((draft) => ({ ...draft, timezone: event.target.value }))}
-                  value={profileDraft.timezone}
-                >
-                  {timezoneOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {t(option.labelKey)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className={styles.settingBlock}>
-                <span>{t("settings.display.theme")}</span>
-                <ThemeToggle />
-              </div>
-            </div>
-          </GlassPanel>
-
-          <GlassPanel className={styles.section}>
-            <div className={styles.sectionHead}>
-              <div>
-                <span className={styles.sectionLabel}>{t("settings.section.integration")}</span>
-                <h2>Google Calendar</h2>
-              </div>
-              <StatusBadge tone={state.kind === "ready" && state.settings.googleCalendarConnected ? "approved" : state.kind === "ready" ? "neutral" : "neutral"}>
-                {state.kind === "ready" && state.settings.googleCalendarConnected
-                  ? t("settings.gcal.connected")
-                  : state.kind === "ready"
-                    ? t("settings.gcal.ready")
-                    : t("settings.status.waiting")}
-              </StatusBadge>
-            </div>
-            <div className={styles.integrationGrid}>
-              <div className={styles.integrationLead}>
-                <strong>{t("settings.gcal.lead")}</strong>
-                <span>{t("settings.gcal.leadSub")}</span>
-              </div>
+          <div className={styles.sections}>
+            <GlassPanel className={styles.section} id="settings-account">
+              <h2>{t("settings.nav.account")}</h2>
+              <p className={styles.sectionDesc}>{t("settings.account.desc")}</p>
               <div className={styles.rows}>
                 <div className={styles.row}>
-                  <span>
-                    <strong>{t("settings.gcal.connectionStatus")}</strong>
-                    <small>
-                      {state.kind === "ready" && state.settings.googleCalendarConnected
-                        ? t("settings.gcal.connectedDesc")
-                        : state.kind === "ready"
-                          ? t("settings.gcal.canConnect")
-                          : t("settings.gcal.afterLogin")}
-                    </small>
-                  </span>
-                  <StatusBadge tone={state.kind === "ready" && state.settings.googleCalendarConnected ? "approved" : "neutral"}>
-                    {state.kind === "ready" && state.settings.googleCalendarConnected
-                      ? t("settings.gcal.connected")
-                      : state.kind === "ready"
-                        ? t("settings.value.prepared")
-                        : t("settings.value.waiting")}
-                  </StatusBadge>
+                  <div className={styles.rowText}>
+                    <strong>{t("settings.account.name")}</strong>
+                    <p>{t("settings.account.nameDesc")}</p>
+                  </div>
+                  <div className={styles.rowControl}>
+                    <input
+                      aria-label={t("settings.account.name")}
+                      className={styles.textInput}
+                      disabled={!ready}
+                      onChange={(event) => setNameDraft(event.target.value)}
+                      value={nameDraft}
+                    />
+                    <Button disabled={!nameDirty} onClick={saveName} size="sm" type="button" variant="primary">
+                      {t("common.save")}
+                    </Button>
+                  </div>
                 </div>
                 <div className={styles.row}>
-                  <span>
-                    <strong>{t("settings.gcal.scope")}</strong>
-                    <small>{t("settings.gcal.scopeDesc")}</small>
+                  <div className={styles.rowText}>
+                    <strong>{t("settings.account.identifier")}</strong>
+                  </div>
+                  <span className={styles.rowValue}>
+                    {ready ? userContactLabel(t, state.user) : t("settings.value.shownAfterConnect")}
                   </span>
-                  <StatusBadge tone="personal">{t("settings.value.schedule")}</StatusBadge>
                 </div>
-              </div>
-            </div>
-            <div className={styles.inlineActions}>
-              <Button disabled={state.kind !== "ready"} onClick={openGoogleCalendarConnect} type="button" variant="primary">
-                {state.kind === "ready" && state.settings.googleCalendarConnected
-                  ? t("settings.gcal.reconnectCta")
-                  : t("settings.gcal.connectCta")}
-              </Button>
-              <Link className="bubli-button" href="/app/calendar">
-                {t("settings.gcal.viewCalendar")}
-              </Link>
-            </div>
-          </GlassPanel>
-
-          <div className={styles.grid}>
-            <GlassPanel className={styles.section}>
-              <div className={styles.sectionHead}>
-                <div>
-                  <span className={styles.sectionLabel}>{t("settings.card.notifications")}</span>
-                  <h2>{t("settings.notifications.title")}</h2>
+                <div className={styles.row}>
+                  <div className={styles.rowText}>
+                    <strong>{t("settings.account.bubliId")}</strong>
+                  </div>
+                  <span className={styles.rowValue}>{ready ? state.user.bubliId : t("settings.value.noData")}</span>
                 </div>
-                <StatusBadge tone={readySettings.notifications ? "approved" : "neutral"}>
-                  {readySettings.notifications ? t("settings.value.enabledCount", { count: enabledCount(notificationSettings) }) : t("settings.status.waiting")}
-                </StatusBadge>
-              </div>
-              <div className={styles.rows}>
-                {notificationRows.map((row) => (
-                  <button
-                    className={styles.row}
-                    disabled={state.kind !== "ready" || !readySettings.notifications}
-                    key={row.key}
-                    onClick={() => void toggleNotification(row.key)}
-                    type="button"
-                  >
-                    <span>
-                      <strong>{t(row.titleKey)}</strong>
-                      <small>{t(row.descriptionKey)}</small>
-                    </span>
-                    <span
-                      aria-checked={notificationSettings[row.key]}
-                      className={`${styles.toggle}${notificationSettings[row.key] ? ` ${styles.toggleOn}` : ""}`}
-                      role="switch"
-                    >
-                      <span />
-                    </span>
-                  </button>
-                ))}
+                <div className={styles.row}>
+                  <div className={styles.rowText}>
+                    <strong>{t("settings.card.storage")}</strong>
+                    <p>{t("settings.value.serverUsage")}</p>
+                  </div>
+                  <span className={styles.rowValue}>{storageLabel(t, readySettings.storage)}</span>
+                </div>
+                <div className={styles.row}>
+                  <div className={styles.rowText}>
+                    <strong>{t("common.logout")}</strong>
+                    <p>{t("settings.account.logoutDesc")}</p>
+                  </div>
+                  <Button disabled={!ready} onClick={() => void logout()} size="sm" type="button" variant="quiet">
+                    {t("common.logout")}
+                  </Button>
+                </div>
               </div>
             </GlassPanel>
 
-            <GlassPanel className={styles.section}>
-              <div className={styles.sectionHead}>
-                <div>
-                  <span className={styles.sectionLabel}>{t("settings.section.privacy")}</span>
-                  <h2>{t("settings.privacy.title")}</h2>
-                </div>
-                <StatusBadge tone={readySettings.privacy ? "personal" : "neutral"}>
-                  {readySettings.privacy ? t("settings.value.consentCount", { count: enabledCount(privacySettings) }) : t("settings.status.waiting")}
-                </StatusBadge>
-              </div>
+            <GlassPanel className={styles.section} id="settings-preferences">
+              <h2>{t("settings.nav.preferences")}</h2>
+              <p className={styles.sectionDesc}>{t("settings.pref.desc")}</p>
               <div className={styles.rows}>
-                {privacyRows.map((row) => (
-                  <button
-                    className={styles.row}
-                    disabled={state.kind !== "ready" || !readySettings.privacy}
-                    key={row.key}
-                    onClick={() => void togglePrivacy(row.key)}
-                    type="button"
-                  >
-                    <span>
-                      <strong>{t(row.titleKey)}</strong>
-                      <small>{t(row.descriptionKey)}</small>
-                    </span>
-                    <span aria-checked={privacySettings[row.key]} className={`${styles.toggle}${privacySettings[row.key] ? ` ${styles.toggleOn}` : ""}`} role="switch">
-                      <span />
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <p className={styles.guard}>{t("settings.privacy.guard")}</p>
-              <div className={styles.inlineActions}>
-                <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void readActivity()} type="button" variant="quiet">
-                  {t("settings.privacy.recordActivity")}
-                </Button>
-                <Button disabled={state.kind !== "ready" || !privacySettings.activityDetectionEnabled} onClick={() => void refreshActivityLogs()} type="button" variant="secondary">
-                  {t("settings.privacy.refreshToday")}
-                </Button>
-              </div>
-              <div className={styles.activityList} aria-label={t("settings.privacy.activityListAria")}>
-                {todayActivityLogs.length > 0 ? (
-                  todayActivityLogs.map((activity) => (
-                    <div className={styles.activityRow} key={activity.id}>
-                      <span>
-                        <strong>{activity.appName || t("settings.privacy.noAppName")}</strong>
-                        <small>
-                          {[activity.windowTitle, activityStartedLabel(t, activity.startedAt), activityDurationLabel(t, activity.durationSeconds)]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </small>
-                      </span>
-                      <Button
-                        disabled={deletingActivityId === activity.id}
-                        loading={deletingActivityId === activity.id}
-                        onClick={() => void deleteActivityLog(activity.id)}
-                        size="sm"
+                <div className={styles.row}>
+                  <div className={styles.rowText}>
+                    <strong>{t("settings.language")}</strong>
+                    <p>{t("settings.pref.languageDesc")}</p>
+                  </div>
+                  <div aria-label={t("settings.display.languageAria")} className={styles.segmented} role="radiogroup">
+                    {localeOptions.map((option) => (
+                      <button
+                        aria-checked={currentLocale === option.value}
+                        className={currentLocale === option.value ? styles.segmentedActive : ""}
+                        disabled={!ready}
+                        key={option.value}
+                        onClick={() => void saveProfile({ locale: option.value })}
+                        role="radio"
                         type="button"
-                        variant="quiet"
                       >
-                        {t("common.delete")}
-                      </Button>
-                    </div>
-                  ))
-                ) : (
-                  <p className={styles.emptyRow}>{t("settings.privacy.noActivity")}</p>
-                )}
-              </div>
-            </GlassPanel>
-          </div>
-
-          <div className={styles.grid}>
-            <GlassPanel className={styles.section}>
-              <div className={styles.sectionHead}>
-                <div>
-                  <span className={styles.sectionLabel}>{t("settings.card.desktopApp")}</span>
-                  <h2>{t("settings.folders.title")}</h2>
-                </div>
-                <StatusBadge tone={desktopRuntime ? "personal" : "neutral"}>{desktopRuntime ? t("settings.value.appRunning") : t("settings.value.availableInApp")}</StatusBadge>
-              </div>
-              <div className={styles.rows}>
-                <div className={styles.row}>
-                  <span>
-                    <strong>{t("settings.folders.localSqlite")}</strong>
-                    <small>{localCacheReadiness.status === "ready" ? t("settings.folders.cacheAvailable") : t("settings.folders.cacheUnavailable")}</small>
-                  </span>
-                  <StatusBadge tone={localCacheReadiness.status === "ready" ? "approved" : "neutral"}>
-                    {localCacheReadiness.status === "ready" ? t("settings.value.prepared") : t("settings.value.appRequired")}
-                  </StatusBadge>
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className={styles.row}>
-                  <span>
-                    <strong>{t("settings.folders.appMonitor")}</strong>
-                    <small>{t("settings.folders.appMonitorDesc")}</small>
-                  </span>
+                  <div className={styles.rowText}>
+                    <strong>{t("settings.display.timezone")}</strong>
+                    <p>{t("settings.pref.timezoneDesc")}</p>
+                  </div>
                   <select
-                    className={styles.inlineSelect}
-                    disabled={!desktopRuntime || !monitorPreference}
-                    onChange={(event) => void selectAppMonitor(event.target.value)}
-                    value={monitorPreference?.preferredMonitorId ?? "primary"}
+                    aria-label={t("settings.display.timezone")}
+                    className={styles.selectControl}
+                    disabled={!ready}
+                    onChange={(event) => void saveProfile({ timezone: event.target.value })}
+                    value={currentTimezone}
                   >
-                    <option value="primary">{t("settings.folders.primaryMonitor")}</option>
-                    {monitorPreference?.monitors.map((monitor, index) => (
-                      <option key={monitor.id} value={monitor.id}>
-                        {monitorLabel(t, monitor, index)}
+                    {timezoneOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {t(option.labelKey)}
                       </option>
                     ))}
                   </select>
                 </div>
-                {managedFolders.length > 0 ? (
-                  managedFolders.map((folder) => (
-                    <div className={styles.row} key={folder.id}>
-                      <span>
-                        <strong>{folder.name}</strong>
-                        <small>
-                          {folder.localPath ?? t("settings.folders.localPathAppOnly")}
-                          {folderProgress[folder.id]
-                            ? ` · ${t("settings.folders.inlineProgress", { percent: folderProgress[folder.id].progressPercent, pending: folderProgress[folder.id].pendingEventCount })}`
-                            : ""}
-                        </small>
-                      </span>
-                      <div className={styles.inlineActions}>
-                        <StatusBadge tone={folder.syncEnabled ? "approved" : "neutral"}>
-                          {folder.syncEnabled ? t("settings.folders.syncOn") : t("settings.folders.localOnly")}
-                        </StatusBadge>
-                        <Button
-                          disabled={!desktopRuntime}
-                          onClick={() => void refreshManagedFolderProgress(folder.id)}
-                          size="sm"
-                          type="button"
-                          variant="quiet"
-                        >
-                          {t("settings.folders.progress")}
-                        </Button>
-                        <Button
-                          disabled={!desktopRuntime}
-                          onClick={() => void toggleManagedFolderSync(folder)}
-                          size="sm"
-                          type="button"
-                          variant="quiet"
-                        >
-                          {folder.syncEnabled ? t("settings.folders.syncDisable") : t("settings.folders.syncEnable")}
-                        </Button>
-                        <Button
-                          disabled={!desktopRuntime}
-                          onClick={() => void removeManagedFolder(folder)}
-                          size="sm"
-                          type="button"
-                          variant="quiet"
-                        >
-                          {t("settings.folders.disconnect")}
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className={styles.emptyRow}>{t("settings.folders.noFolder")}</div>
-                )}
-              </div>
-              <div className={styles.inlineActions}>
-                <Button disabled={state.kind !== "ready" || !desktopRuntime} onClick={() => void selectManagedFolder()} type="button" variant="primary">
-                  {t("settings.folders.selectFolder")}
-                </Button>
-                <Button disabled={state.kind !== "ready" || !desktopRuntime} onClick={() => void scanManagedFolder()} type="button" variant="quiet">
-                  {t("settings.folders.scan")}
-                </Button>
-                <Button disabled={state.kind !== "ready" || !desktopRuntime} onClick={() => void watchManagedFolder()} type="button" variant="quiet">
-                  {t("settings.folders.watch")}
-                </Button>
-              </div>
-              <div className={styles.searchLine}>
-                <label className="workspace-route__field">
-                  <span>{t("settings.folders.searchLocal")}</span>
-                  <input
-                    disabled={!desktopRuntime}
-                    onChange={(event) => setFolderSearchQuery(event.target.value)}
-                    placeholder={t("settings.folders.searchPlaceholder")}
-                    value={folderSearchQuery}
-                  />
-                </label>
-                <Button disabled={!desktopRuntime} onClick={() => void searchLocalFiles()} type="button" variant="quiet">
-                  {t("common.search")}
-                </Button>
-              </div>
-              {localFiles.length > 0 ? (
-                <div className={styles.rows}>
-                  {localFiles.map((file) => (
-                    <div className={styles.row} key={file.localFileId}>
-                      <span>
-                        <strong>{file.name}</strong>
-                        <small>{file.path}</small>
-                      </span>
-                      <div className={styles.inlineActions}>
-                        <StatusBadge tone="neutral">{t("settings.value.local")}</StatusBadge>
-                        <Button
-                          disabled={!desktopRuntime}
-                          onClick={() => void openLocalFile(file.localFileId)}
-                          size="sm"
-                          type="button"
-                          variant="quiet"
-                        >
-                          {t("common.open")}
-                        </Button>
-                        <Button
-                          disabled={!desktopRuntime}
-                          onClick={() => void reindexLocalFile(file.localFileId)}
-                          size="sm"
-                          type="button"
-                          variant="quiet"
-                        >
-                          {t("settings.folders.reindex")}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                <div className={styles.row}>
+                  <div className={styles.rowText}>
+                    <strong>{t("settings.display.theme")}</strong>
+                    <p>{t("settings.pref.themeDesc")}</p>
+                  </div>
+                  <ThemeToggle />
                 </div>
-              ) : null}
+              </div>
             </GlassPanel>
 
-            <GlassPanel className={styles.section}>
-              <div className={styles.sectionHead}>
-                <div>
-                  <span className={styles.sectionLabel}>{t("settings.section.bubble")}</span>
-                  <h2>{t("settings.bubble.title")}</h2>
-                </div>
-                <StatusBadge tone={enabledWidgetCount > 0 ? "personal" : "neutral"}>
-                  {widgetBubbles.length > 0 ? t("settings.value.enabledCount", { count: enabledWidgetCount }) : t("settings.value.noData")}
-                </StatusBadge>
-              </div>
-              {widgetBubbles.length > 0 ? (
-                <div className={styles.bubbleGrid}>
-                  {widgetBubbles.map((bubble) => (
-                    <button className={styles.bubbleRow} key={bubble.id} onClick={() => void toggleWidgetBubble(bubble)} type="button">
-                      <span>
-                        <strong>{t(widgetBubbleLabels[bubble.bubbleType])}</strong>
-                        <small>
-                          {bubble.minimized ? t("settings.bubble.stateMinimized") : bubble.ghostMode ? t("settings.bubble.stateGhost") : t("settings.bubble.stateDefault")} · {bubble.alertEnabled ? t("settings.bubble.alertOn") : t("settings.bubble.alertOff")}
-                        </small>
-                      </span>
-                      <span aria-checked={bubble.enabled} className={`${styles.toggle}${bubble.enabled ? ` ${styles.toggleOn}` : ""}`} role="switch">
-                        <span />
-                      </span>
+            <GlassPanel className={styles.section} id="settings-notifications">
+              <h2>{t("settings.nav.notifications")}</h2>
+              <p className={styles.sectionDesc}>{t("settings.notif.sectionDesc")}</p>
+              <div className={styles.rows}>
+                {notificationRows.map((row) => (
+                  <div className={styles.row} key={row.key}>
+                    <div className={styles.rowText}>
+                      <strong>{t(row.titleKey)}</strong>
+                      <p>{t(row.descriptionKey)}</p>
+                    </div>
+                    <button
+                      aria-checked={notificationSettings[row.key]}
+                      aria-label={t(row.titleKey)}
+                      className={`${styles.toggle}${notificationSettings[row.key] ? ` ${styles.toggleOn}` : ""}`}
+                      disabled={!ready || !readySettings.notifications}
+                      onClick={() => void toggleNotification(row.key)}
+                      role="switch"
+                      type="button"
+                    >
+                      <span />
                     </button>
+                  </div>
+                ))}
+              </div>
+            </GlassPanel>
+
+            <GlassPanel className={styles.section} id="settings-integrations">
+              <h2>{t("settings.nav.integrations")}</h2>
+              <p className={styles.sectionDesc}>{t("settings.integration.desc")}</p>
+              <div className={styles.rows}>
+                <div className={styles.row}>
+                  <div className={styles.rowText}>
+                    <strong>Google Calendar</strong>
+                    <p>
+                      {googleConnected
+                        ? t("settings.gcal.connectedDesc")
+                        : ready
+                          ? t("settings.gcal.canConnect")
+                          : t("settings.gcal.afterLogin")}
+                    </p>
+                  </div>
+                  <div className={styles.rowControl}>
+                    {googleConnected ? (
+                      <>
+                        <StatusBadge tone="approved">{t("settings.gcal.connected")}</StatusBadge>
+                        <Button onClick={openGoogleCalendarConnect} size="sm" type="button" variant="secondary">
+                          {t("settings.gcal.reconnectCta")}
+                        </Button>
+                        <Button onClick={() => void disconnectGoogleCalendar()} size="sm" type="button" variant="quiet">
+                          {t("settings.gcal.disconnectCta")}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button disabled={!ready} onClick={openGoogleCalendarConnect} size="sm" type="button" variant="primary">
+                        {t("settings.gcal.connectCta")}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className={styles.sectionFoot}>
+                <Link className="bubli-button bubli-button--sm" href="/app/calendar">
+                  {t("settings.gcal.viewCalendar")}
+                </Link>
+              </div>
+            </GlassPanel>
+
+            <GlassPanel className={styles.section} id="settings-privacy">
+              <h2>{t("settings.nav.privacy")}</h2>
+              <p className={styles.sectionDesc}>{t("settings.privacy.desc")}</p>
+              <div className={styles.rows}>
+                {privacyRows.map((row) => (
+                  <div className={styles.row} key={row.key}>
+                    <div className={styles.rowText}>
+                      <strong>{t(row.titleKey)}</strong>
+                      <p>{t(row.descriptionKey)}</p>
+                    </div>
+                    <button
+                      aria-checked={privacySettings[row.key]}
+                      aria-label={t(row.titleKey)}
+                      className={`${styles.toggle}${privacySettings[row.key] ? ` ${styles.toggleOn}` : ""}`}
+                      disabled={!ready || !readySettings.privacy}
+                      onClick={() => void togglePrivacy(row.key)}
+                      role="switch"
+                      type="button"
+                    >
+                      <span />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className={styles.guard}>{t("settings.privacy.guard")}</p>
+            </GlassPanel>
+
+            <GlassPanel className={styles.section} id="settings-widget">
+              <h2>{t("settings.widget.title")}</h2>
+              <p className={styles.sectionDesc}>{t("settings.widget.desc")}</p>
+              {widgetBubbles.length > 0 ? (
+                <div className={styles.rows}>
+                  {widgetBubbles.map((bubble) => (
+                    <div className={styles.row} key={bubble.id}>
+                      <div className={styles.rowText}>
+                        <strong>{t(widgetBubbleLabels[bubble.bubbleType])}</strong>
+                      </div>
+                      <button
+                        aria-checked={bubble.enabled}
+                        aria-label={t(widgetBubbleLabels[bubble.bubbleType])}
+                        className={`${styles.toggle}${bubble.enabled ? ` ${styles.toggleOn}` : ""}`}
+                        disabled={!ready}
+                        onClick={() => void toggleWidgetBubble(bubble)}
+                        role="switch"
+                        type="button"
+                      >
+                        <span />
+                      </button>
+                    </div>
                   ))}
                 </div>
               ) : (
-                <div className={styles.emptyRow}>{t("settings.value.noData")}</div>
+                <p className={styles.emptyRow}>{t("settings.value.noData")}</p>
               )}
-              <div className={styles.metrics}>
-                <div>
-                  <span>{t("settings.bubble.todayOpen")}</span>
-                  <strong>{readySettings.widgetUsage ? readySettings.widgetUsage.totalOpenCount : "-"}</strong>
-                </div>
-                <div>
-                  <span>{t("settings.bubble.todayInteraction")}</span>
-                  <strong>{readySettings.widgetUsage ? readySettings.widgetUsage.totalInteractionCount : "-"}</strong>
-                </div>
-                <div>
-                  <span>{t("settings.bubble.visibleTime")}</span>
-                  <strong>{readySettings.widgetUsage ? t("settings.value.minutes", { count: Math.round(readySettings.widgetUsage.totalVisibleSeconds / 60) }) : "-"}</strong>
-                </div>
-              </div>
-              <div className={styles.inlineActions}>
-                <Button disabled={!desktopRuntime} onClick={() => void syncWidgetUsage()} type="button" variant="quiet">
-                  {t("settings.bubble.syncUsage")}
-                </Button>
-                <Button disabled={!desktopRuntime} onClick={() => void recoverTimer()} type="button" variant="quiet">
-                  {t("settings.bubble.recoverTimer")}
-                </Button>
-              </div>
             </GlassPanel>
-          </div>
 
-          <GlassPanel className={styles.section}>
-            <div className={styles.sectionHead}>
-              <div>
-                <span className={styles.sectionLabel}>{t("settings.section.backup")}</span>
-                <h2>{t("settings.backup.title")}</h2>
-              </div>
-              <StatusBadge tone={desktopRuntime ? "personal" : "neutral"}>{desktopRuntime ? t("settings.value.localRun") : t("settings.value.appRequired")}</StatusBadge>
-            </div>
-            <p className={styles.mutedText}>{backupListLabel}</p>
-            <div className={styles.recoveryGrid}>
-              <button className={styles.row} disabled={!desktopRuntime} onClick={() => void checkLocalCache()} type="button">
-                <span>
-                  <strong>{t("settings.backup.checkCache")}</strong>
-                  <small>{t("settings.backup.checkCacheDesc")}</small>
-                </span>
-                <StatusBadge tone="neutral">{t("settings.value.check")}</StatusBadge>
-              </button>
-              <button className={styles.row} disabled={!desktopRuntime} onClick={() => void backupLocalCache()} type="button">
-                <span>
-                  <strong>{t("settings.backup.create")}</strong>
-                  <small>{t("settings.backup.createDesc")}</small>
-                </span>
-                <StatusBadge tone="neutral">{t("settings.value.backup")}</StatusBadge>
-              </button>
-              <button className={styles.row} disabled={!desktopRuntime || !lastBackupId} onClick={() => void restoreLocalCache()} type="button">
-                <span>
-                  <strong>{t("settings.backup.restore")}</strong>
-                  <small>{lastBackupId ? t("settings.backup.restoreReady") : t("settings.backup.restoreNeed")}</small>
-                </span>
-                <StatusBadge tone="neutral">{t("settings.value.restore")}</StatusBadge>
-              </button>
-              <button className={styles.row} disabled={!desktopRuntime} onClick={() => void checkSyncOutbox()} type="button">
-                <span>
-                  <strong>{t("settings.backup.outbox")}</strong>
-                  <small>{t("settings.backup.outboxDesc")}</small>
-                </span>
-                <StatusBadge tone="neutral">{t("settings.value.confirm")}</StatusBadge>
-              </button>
-            </div>
-          </GlassPanel>
+            {desktopRuntime ? (
+              <GlassPanel className={styles.section} id="settings-desktop">
+                <h2>{t("settings.nav.desktop")}</h2>
+                <p className={styles.sectionDesc}>{t("settings.desktop.desc")}</p>
+                <div className={styles.rows}>
+                  <div className={styles.row}>
+                    <div className={styles.rowText}>
+                      <strong>{t("settings.folders.appMonitor")}</strong>
+                      <p>{t("settings.folders.appMonitorDesc")}</p>
+                    </div>
+                    <select
+                      aria-label={t("settings.folders.appMonitor")}
+                      className={styles.selectControl}
+                      disabled={!monitorPreference}
+                      onChange={(event) => void selectAppMonitor(event.target.value)}
+                      value={monitorPreference?.preferredMonitorId ?? "primary"}
+                    >
+                      <option value="primary">{t("settings.folders.primaryMonitor")}</option>
+                      {monitorPreference?.monitors.map((monitor, index) => (
+                        <option key={monitor.id} value={monitor.id}>
+                          {monitorLabel(t, monitor, index)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <h3 className={styles.subhead}>{t("settings.desktop.folders")}</h3>
+                <div className={styles.rows}>
+                  {managedFolders.length > 0 ? (
+                    managedFolders.map((folder) => (
+                      <div className={styles.row} key={folder.id}>
+                        <div className={styles.rowText}>
+                          <strong>{folder.name}</strong>
+                          <p>{folder.localPath ?? t("settings.folders.localPathAppOnly")}</p>
+                        </div>
+                        <div className={styles.rowControl}>
+                          <button
+                            aria-checked={folder.syncEnabled}
+                            aria-label={folder.syncEnabled ? t("settings.folders.syncDisable") : t("settings.folders.syncEnable")}
+                            className={`${styles.toggle}${folder.syncEnabled ? ` ${styles.toggleOn}` : ""}`}
+                            onClick={() => void toggleManagedFolderSync(folder)}
+                            role="switch"
+                            type="button"
+                          >
+                            <span />
+                          </button>
+                          <Button onClick={() => void removeManagedFolder(folder)} size="sm" type="button" variant="quiet">
+                            {t("settings.folders.disconnect")}
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className={styles.emptyRow}>{t("settings.folders.noFolder")}</p>
+                  )}
+                </div>
+                <div className={styles.sectionFoot}>
+                  <Button disabled={!ready} onClick={() => void selectManagedFolder()} size="sm" type="button" variant="primary">
+                    {t("settings.folders.selectFolder")}
+                  </Button>
+                </div>
+
+                <h3 className={styles.subhead}>{t("settings.backup.title")}</h3>
+                <div className={styles.rows}>
+                  <div className={styles.row}>
+                    <div className={styles.rowText}>
+                      <strong>{t("settings.backup.checkCache")}</strong>
+                      <p>{t("settings.backup.checkCacheDesc")}</p>
+                    </div>
+                    <Button onClick={() => void checkLocalCache()} size="sm" type="button" variant="secondary">
+                      {t("settings.value.check")}
+                    </Button>
+                  </div>
+                  <div className={styles.row}>
+                    <div className={styles.rowText}>
+                      <strong>{t("settings.backup.create")}</strong>
+                      <p>{t("settings.backup.createDesc")}</p>
+                    </div>
+                    <Button onClick={() => void backupLocalCache()} size="sm" type="button" variant="secondary">
+                      {t("settings.value.backup")}
+                    </Button>
+                  </div>
+                  <div className={styles.row}>
+                    <div className={styles.rowText}>
+                      <strong>{t("settings.backup.restore")}</strong>
+                      <p>{backupListLabel ?? (lastBackupId ? t("settings.backup.restoreReady") : t("settings.backup.restoreNeed"))}</p>
+                    </div>
+                    <Button disabled={!lastBackupId} onClick={() => void restoreLocalCache()} size="sm" type="button" variant="secondary">
+                      {t("settings.value.restore")}
+                    </Button>
+                  </div>
+                  <div className={styles.row}>
+                    <div className={styles.rowText}>
+                      <strong>{t("settings.backup.outbox")}</strong>
+                      <p>{t("settings.backup.outboxDesc")}</p>
+                    </div>
+                    <Button onClick={() => void checkSyncOutbox()} size="sm" type="button" variant="secondary">
+                      {t("settings.value.confirm")}
+                    </Button>
+                  </div>
+                </div>
+              </GlassPanel>
+            ) : null}
+          </div>
         </div>
       )}
     </section>

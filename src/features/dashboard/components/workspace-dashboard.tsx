@@ -1,44 +1,20 @@
 "use client";
 
-import { DndContext, DragOverlay, PointerSensor, closestCenter, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
-import type { CollisionDetection, DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
-import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Clock3,
-  LayoutDashboard,
-  Pause,
-  Play,
-  Plus,
-  RotateCcw,
-  Square,
-  Trash2,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { DashboardGrid, DashboardPalette, DashboardWidgetTile, WIDGET_CATALOG, sizeToClass, widgetIcon } from "@/components/dashboard";
-import type { DashboardWidgetDef } from "@/components/dashboard";
-import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { activityApi } from "@/features/activity/api/activityApi";
 import { dashboardApi } from "@/features/dashboard/api/dashboardApi";
 import { MemoDashboardCard } from "@/features/memo/components";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
-import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
-import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
-import { tauriCommands } from "@/lib/tauri/commands";
-import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { readWidgetSummary } from "@/lib/widget";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -54,8 +30,6 @@ import {
 import type { ActivityLogResponse } from "@/types/api/activity";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { ResourceResponse } from "@/types/api/resource";
-import type { TimeLogResponse } from "@/types/api/timer";
-import type { WidgetSummaryResponse, WidgetTodayUsageSummaryResponse } from "@/types/api/widget";
 import type { DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
 
 type DashboardState =
@@ -71,23 +45,6 @@ const emptyDashboard: DashboardWorkResponse = {
   upcomingDeadlines: [],
 };
 
-const connectedWidgetIds = [
-  "today-summary",
-  "next-focus",
-  "today-todos",
-  "schedule",
-  "project-rooms",
-  "pending-approval",
-  "timer",
-  "recent-resources",
-  "quick-memo",
-];
-const defaultWidgetIds = ["today-summary", "next-focus", "today-todos", "schedule", "project-rooms", "pending-approval", "timer", "quick-memo"];
-const dashboardDropzoneId = "dashboard-canvas";
-const dashboardRemoveDropzoneId = "dashboard-remove-card";
-const DASHBOARD_TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
-let dashboardWidgetLayoutSnapshot = [...defaultWidgetIds];
-type DashboardTimerAction = "idle" | "starting" | "pausing" | "resuming" | "stopping";
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 type ActivityFocusSummary = {
   logCount: number;
@@ -96,40 +53,11 @@ type ActivityFocusSummary = {
   totalSeconds: number;
 };
 
-function normalizeWidgetIds(ids: string[]) {
-  const seen = new Set<string>();
-  const normalized = ids.filter((id) => {
-    if (!connectedWidgetIds.includes(id) || seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-
-  return normalized.length > 0 ? normalized : [...defaultWidgetIds];
-}
-
-function readStoredWidgetIds() {
-  return normalizeWidgetIds(dashboardWidgetLayoutSnapshot);
-}
-
-function storeWidgetIds(ids: string[]) {
-  dashboardWidgetLayoutSnapshot = normalizeWidgetIds(ids);
-}
-
-function formatTime(t: TranslateFn, value?: string | null) {
-  if (!value) {
-    return t("dashboard.common.timeUndecided");
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return t("dashboard.common.timeUndecided");
-  }
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
+const LOCALE_TAGS: Record<string, string> = {
+  en: "en-US",
+  ja: "ja-JP",
+  ko: "ko-KR",
+};
 
 function formatDue(t: TranslateFn, value?: string | null) {
   if (!value) {
@@ -162,50 +90,15 @@ function formatDuration(t: TranslateFn, seconds?: number | null) {
   return t("dashboard.common.minute", { minutes });
 }
 
-function formatMetricDuration(t: TranslateFn, seconds: number) {
-  if (seconds <= 0) return t("dashboard.metricDuration.zero");
-
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.max(1, Math.floor((seconds % 3600) / 60));
-  if (hours > 0) return t("dashboard.metricDuration.hour", { hours });
-
-  return t("dashboard.metricDuration.minute", { minutes });
-}
-
-function getTimerSeconds(timer: DashboardWorkResponse["runningTimer"]) {
-  if (!timer) return null;
-  if (typeof timer.durationSeconds === "number") return timer.durationSeconds;
-
-  const startedAt = timer.lastStartedAt ?? timer.startedAt;
-  const started = startedAt ? new Date(startedAt).getTime() : NaN;
-  if (timer.status !== "RUNNING" || Number.isNaN(started)) return null;
-
-  return Math.max(0, Math.floor((Date.now() - started) / 1000));
-}
-
-function makeTimerIdempotencyKey() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `dashboard-timer-${crypto.randomUUID()}`;
-  }
-
-  return `dashboard-timer-${Date.now()}`;
-}
-
-function timerActionLabel(t: TranslateFn, timer?: DashboardWorkResponse["runningTimer"]) {
-  if (timer?.status === "RUNNING") return t("dashboard.timer.statusRunning");
-  if (timer?.status === "PAUSED") return t("dashboard.timer.statusPaused");
-  if (timer?.status === "NEEDS_RECOVERY") return t("dashboard.timer.statusRecovery");
-  return t("dashboard.timer.statusWaiting");
+function greetingKey(hour: number): MessageKey {
+  if (hour >= 5 && hour < 12) return "dashboard.home.greetingMorning";
+  if (hour >= 12 && hour < 18) return "dashboard.home.greetingAfternoon";
+  return "dashboard.home.greetingEvening";
 }
 
 function hasDashboardItems(data: DashboardWorkResponse) {
   return (
-    data.todayTasks.length +
-      data.upcomingDeadlines.length +
-      data.todaySchedules.length +
-      (data.runningTimer ? 1 : 0) +
-      (data.unreadNotificationCount ?? 0) >
-    0
+    data.todayTasks.length + data.upcomingDeadlines.length + data.todaySchedules.length + (data.unreadNotificationCount ?? 0) > 0
   );
 }
 
@@ -251,37 +144,6 @@ function TaskLine({
   );
 }
 
-function ScheduleLine({ schedule }: { schedule: ScheduleResponse }) {
-  const { t } = useI18n();
-  return <StatusLine meta={formatTime(t, schedule.startsAt)}>{schedule.title}</StatusLine>;
-}
-
-function pickNextTask(tasks: TaskResponse[]) {
-  const inProgressTask = tasks.find((task) => task.status === "IN_PROGRESS");
-  if (inProgressTask) return inProgressTask;
-
-  const withDueDate = tasks
-    .filter((task) => task.status !== "DONE" && task.dueAt)
-    .sort((left, right) => new Date(left.dueAt ?? "").getTime() - new Date(right.dueAt ?? "").getTime());
-  if (withDueDate[0]) return withDueDate[0];
-
-  return tasks.find((task) => task.status !== "DONE") ?? null;
-}
-
-function pickNextSchedule(schedules: ScheduleResponse[]) {
-  const now = Date.now();
-  const sorted = schedules
-    .filter((schedule) => schedule.startsAt)
-    .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
-
-  return sorted.find((schedule) => new Date(schedule.startsAt).getTime() >= now) ?? sorted[0] ?? null;
-}
-
-function getMetricProgress(value: number, max: number) {
-  if (value <= 0) return 0;
-  return Math.min(100, Math.max(18, Math.round((value / max) * 100)));
-}
-
 function getActivitySeconds(activity: ActivityLogResponse) {
   if (typeof activity.durationSeconds === "number" && activity.durationSeconds >= 0) {
     return activity.durationSeconds;
@@ -294,6 +156,7 @@ function getActivitySeconds(activity: ActivityLogResponse) {
   return Math.floor((ended - started) / 1000);
 }
 
+// 데스크톱 앱이 자동으로 수집한 활동 기록만 요약한다(수동 기록 없음).
 function summarizeActivityFocus(t: TranslateFn, logs: ActivityLogResponse[] | null, activeRoomId: string | null): ActivityFocusSummary | null {
   if (!logs) return null;
 
@@ -321,140 +184,6 @@ function summarizeActivityFocus(t: TranslateFn, logs: ActivityLogResponse[] | nu
     topWindowTitle: topApp?.title ?? null,
     totalSeconds,
   };
-}
-
-function DashboardMetricRing({ label, progress, tone, value }: { label: string; progress: number; tone: string; value: number | string }) {
-  return (
-    <div className="workspace-dashboard__metric-ring" data-tone={tone}>
-      <span className="workspace-dashboard__metric-ring-graph" aria-hidden="true">
-        <svg viewBox="0 0 36 36">
-          <path d="M18 2.0845a15.9155 15.9155 0 0 1 0 31.831a15.9155 15.9155 0 0 1 0-31.831" />
-          <path
-            d="M18 2.0845a15.9155 15.9155 0 0 1 0 31.831a15.9155 15.9155 0 0 1 0-31.831"
-            style={{ strokeDasharray: `${progress}, 100` }}
-          />
-        </svg>
-        <b>{value}</b>
-      </span>
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function DashboardSummary({
-  activityFocus,
-  data,
-  enabledBubbleCount,
-  tasks,
-  widgetUsageSummary,
-}: {
-  activityFocus: ActivityFocusSummary | null;
-  data: DashboardWorkResponse;
-  enabledBubbleCount: number | null;
-  tasks: TaskResponse[];
-  widgetUsageSummary: WidgetTodayUsageSummaryResponse | null;
-}) {
-  const { t } = useI18n();
-  const reviewCount = tasks.filter((task) => task.status === "REVIEW" || task.status === "BLOCKED").length;
-  const timerActive = data.runningTimer ? 1 : 0;
-  const bubbleUsageCount = widgetUsageSummary ? widgetUsageSummary.totalOpenCount + widgetUsageSummary.totalInteractionCount : null;
-  const metrics = [
-    { label: t("dashboard.metric.todos"), progress: getMetricProgress(tasks.length, 8), tone: "task", value: tasks.length },
-    { label: t("dashboard.metric.schedule"), progress: getMetricProgress(data.todaySchedules.length, 6), tone: "schedule", value: data.todaySchedules.length },
-    { label: t("dashboard.metric.review"), progress: getMetricProgress(reviewCount, 5), tone: "review", value: reviewCount },
-    { label: t("dashboard.metric.timer"), progress: timerActive ? 100 : 0, tone: "timer", value: timerActive ? t("dashboard.metric.timerOn") : "0" },
-    ...(bubbleUsageCount !== null
-      ? [{ label: t("dashboard.metric.bubbleUsage"), progress: getMetricProgress(bubbleUsageCount, 24), tone: "bubble", value: bubbleUsageCount }]
-      : enabledBubbleCount !== null
-        ? [{ label: t("dashboard.metric.bubbleActive"), progress: getMetricProgress(enabledBubbleCount, 8), tone: "bubble", value: enabledBubbleCount }]
-        : []),
-    ...(activityFocus
-      ? [
-          {
-            label: t("dashboard.metric.focus"),
-            progress: getMetricProgress(Math.round(activityFocus.totalSeconds / 60), 240),
-            tone: "focus",
-            value: formatMetricDuration(t, activityFocus.totalSeconds),
-          },
-        ]
-      : []),
-  ];
-
-  return (
-    <div className="workspace-dashboard__summary-wrap">
-      <div className="workspace-dashboard__summary">
-        {metrics.map((metric) => (
-          <DashboardMetricRing key={metric.label} {...metric} />
-        ))}
-      </div>
-      <div className="workspace-dashboard__summary-insights">
-        {widgetUsageSummary ? (
-          <span>
-            {t("dashboard.insight.bubbleUsage", {
-              open: widgetUsageSummary.totalOpenCount,
-              interaction: widgetUsageSummary.totalInteractionCount,
-              visible: formatDuration(t, widgetUsageSummary.totalVisibleSeconds),
-            })}
-          </span>
-        ) : (
-          <span>{enabledBubbleCount !== null ? t("dashboard.insight.bubbleActive", { count: enabledBubbleCount }) : t("dashboard.insight.bubbleNone")}</span>
-        )}
-        {activityFocus ? (
-          <span>
-            {activityFocus.totalSeconds > 0
-              ? t("dashboard.insight.focusApp", {
-                  app: activityFocus.topAppName ?? t("dashboard.insight.focusAppFallback"),
-                  duration: formatDuration(t, activityFocus.totalSeconds),
-                })
-              : activityFocus.logCount > 0
-                ? t("dashboard.insight.focusNoTime")
-                : t("dashboard.insight.focusNone")}
-          </span>
-        ) : (
-          <span>{t("dashboard.insight.focusConsent")}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function NextFocusWidget({
-  activityFocus,
-  nextSchedule,
-  nextTask,
-  runningTimer,
-}: {
-  activityFocus: ActivityFocusSummary | null;
-  nextSchedule: ScheduleResponse | null;
-  nextTask: TaskResponse | null;
-  runningTimer?: DashboardWorkResponse["runningTimer"];
-}) {
-  const { t } = useI18n();
-
-  if (!nextTask && !nextSchedule && !runningTimer && !activityFocus?.totalSeconds) {
-    return <EmptyWidget />;
-  }
-
-  return (
-    <div style={{ display: "grid", gap: 10 }}>
-      {runningTimer ? (
-        <div className="workspace-dashboard__timer-preview">
-          <b>{formatDuration(t, getTimerSeconds(runningTimer))}</b>
-          <span>{nextTask ? t("dashboard.nextFocus.continueTask", { title: nextTask.title }) : t("dashboard.nextFocus.hasOngoing")}</span>
-        </div>
-      ) : activityFocus?.totalSeconds ? (
-        <div className="workspace-dashboard__timer-preview workspace-dashboard__timer-preview--compact">
-          <b>{formatDuration(t, activityFocus.totalSeconds)}</b>
-          <span>{activityFocus.topAppName ? t("dashboard.nextFocus.focusApp", { app: activityFocus.topAppName }) : t("dashboard.nextFocus.focusRecorded")}</span>
-          {activityFocus.topWindowTitle ? <small>{activityFocus.topWindowTitle}</small> : null}
-        </div>
-      ) : null}
-      <DashboardLineList>
-        {nextTask ? <TaskLine task={nextTask} /> : null}
-        {nextSchedule ? <ScheduleLine schedule={nextSchedule} /> : null}
-      </DashboardLineList>
-    </div>
-  );
 }
 
 function ProjectRoomScopeSelector({
@@ -607,108 +336,49 @@ function ResourceLine({ resource }: { resource: ResourceResponse }) {
   return <StatusLine meta={resource.visibility === "ROOM_SHARED" ? t("dashboard.resource.room") : t("dashboard.resource.personal")}>{resource.title}</StatusLine>;
 }
 
+function RoomLine({ room }: { room: ProjectRoomResponse }) {
+  return (
+    <li className="workspace-dashboard__line">
+      <Link href={`/app/project-rooms/${room.id}`}>{room.name}</Link>
+      {room.clientName ? <b>{room.clientName}</b> : null}
+    </li>
+  );
+}
+
 function EmptyWidget() {
   const { t } = useI18n();
   return <div className="workspace-dashboard__empty-widget">{t("dashboard.common.noData")}</div>;
 }
 
-function SortableDashboardTile({
+function HomeCard({
   children,
-  def,
-  editMode,
-  onRemove,
+  moreHref,
+  title,
 }: {
   children: React.ReactNode;
-  def: DashboardWidgetDef;
-  editMode: boolean;
-  onRemove: () => void;
+  moreHref?: string;
+  title: string;
 }) {
   const { t } = useI18n();
-  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({ id: def.widgetId });
-  const dragHandleProps = { ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>;
 
   return (
-    <div
-      ref={setNodeRef}
-      className={sizeToClass[def.size]}
-      style={{
-        minWidth: 0,
-        transform: CSS.Transform.toString(transform),
-        transition,
-      }}
-    >
-      <DashboardWidgetTile
-        dragHandleProps={dragHandleProps}
-        dragging={isDragging}
-        editMode={editMode}
-        icon={widgetIcon(def.widgetId)}
-        interactive
-        onRemove={onRemove}
-        size={def.size}
-        title={t(def.titleKey)}
-      >
-        {children}
-      </DashboardWidgetTile>
-    </div>
-  );
-}
-
-function DashboardCanvas({
-  boardDragging,
-  children,
-  editMode,
-  sorting,
-}: {
-  boardDragging: boolean;
-  children: React.ReactNode;
-  editMode: boolean;
-  sorting: boolean;
-}) {
-  const { t } = useI18n();
-  const { isOver, setNodeRef } = useDroppable({
-    disabled: !editMode,
-    id: dashboardDropzoneId,
-  });
-
-  return (
-    <section
-      className="workspace-dashboard__canvas"
-      data-drop-active={isOver ? "true" : undefined}
-      data-sorting={sorting ? "true" : undefined}
-      ref={setNodeRef}
-      aria-label={t("dashboard.canvas.placeAria")}
-    >
-      {children}
-      {editMode ? <DashboardCanvasRemoveDropzone active={boardDragging} /> : null}
-    </section>
-  );
-}
-
-function DashboardCanvasRemoveDropzone({ active }: { active: boolean }) {
-  const { t } = useI18n();
-  const { isOver, setNodeRef } = useDroppable({
-    disabled: !active,
-    id: dashboardRemoveDropzoneId,
-  });
-
-  return (
-    <div
-      className="workspace-dashboard__remove-drop"
-      data-drop-active={isOver ? "true" : undefined}
-      data-visible={active ? "true" : undefined}
-      ref={setNodeRef}
-    >
-      <span>{t("dashboard.canvas.removeHint")}</span>
-    </div>
+    <GlassPanel className="workspace-dashboard__home-card">
+      <div className="workspace-dashboard__home-card-head">
+        <h2>{title}</h2>
+        {moreHref ? (
+          <Link className="workspace-dashboard__home-more" href={moreHref}>
+            {t("dashboard.home.more")} <span aria-hidden>→</span>
+          </Link>
+        ) : null}
+      </div>
+      <div className="workspace-dashboard__home-card-body">{children}</div>
+    </GlassPanel>
   );
 }
 
 export function WorkspaceDashboard() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [state, setState] = useState<DashboardState>({ kind: "loading" });
-  const [editMode, setEditMode] = useState(false);
-  const [activeBoardWidgetId, setActiveBoardWidgetId] = useState<string | null>(null);
-  const [activePaletteWidgetId, setActivePaletteWidgetId] = useState<string | null>(null);
   const [activeRoom, setActiveRoom] = useState<{ label: string | null; roomId: string | null }>({ label: null, roomId: null });
   const [personalTasks, setPersonalTasks] = useState<TaskResponse[]>([]);
   const [dashboardFeedTasks, setDashboardFeedTasks] = useState<TaskResponse[]>([]);
@@ -718,35 +388,25 @@ export function WorkspaceDashboard() {
   const [todoNotice, setTodoNotice] = useState<string | null>(null);
   const [rooms, setRooms] = useState<ProjectRoomResponse[]>([]);
   const [todayActivityLogs, setTodayActivityLogs] = useState<ActivityLogResponse[] | null>(null);
-  const [todayWidgetUsageSummary, setTodayWidgetUsageSummary] = useState<WidgetTodayUsageSummaryResponse | null>(null);
-  const [widgetSummary, setWidgetSummary] = useState<WidgetSummaryResponse | null>(null);
-  const [widgetIds, setWidgetIds] = useState(() => readStoredWidgetIds());
-  const [timerAction, setTimerAction] = useState<DashboardTimerAction>("idle");
-  const [timerMessage, setTimerMessage] = useState<string | null>(null);
-  const timerRecoveryAttemptedRef = useRef(false);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  // 인사말/날짜는 마운트 후에만 계산해 SSR-클라이언트 하이드레이션 불일치를 피한다.
+  const [now, setNow] = useState<Date | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
       const data = await dashboardApi.getWork();
       setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
-      const [roomResult, personalTaskResult, dashboardTaskResult, personalResourceResult, widgetSummaryResult, widgetUsageResult, activityResult] =
-        await Promise.allSettled([
-          projectRoomApi.list(),
-          todoApi.list(),
-          dashboardApi.getTasks(),
-          resourcesApi.listPersonal(),
-          readWidgetSummary(),
-          widgetApi.getTodayUsageRollups(),
-          activityApi.getToday(),
-        ]);
+      const [roomResult, personalTaskResult, dashboardTaskResult, personalResourceResult, activityResult] = await Promise.allSettled([
+        projectRoomApi.list(),
+        todoApi.list(),
+        dashboardApi.getTasks(),
+        resourcesApi.listPersonal(),
+        activityApi.getToday(),
+      ]);
 
       setRooms(roomResult.status === "fulfilled" ? roomResult.value.items : []);
       setPersonalTasks(personalTaskResult.status === "fulfilled" ? personalTaskResult.value.items : []);
       setDashboardFeedTasks(dashboardTaskResult.status === "fulfilled" ? dashboardTaskResult.value.items : []);
       setPersonalResources(personalResourceResult.status === "fulfilled" ? personalResourceResult.value.items : []);
-      setWidgetSummary(widgetSummaryResult.status === "fulfilled" && widgetSummaryResult.value.status === "ready" ? widgetSummaryResult.value.data : null);
-      setTodayWidgetUsageSummary(widgetUsageResult.status === "fulfilled" ? widgetUsageResult.value : null);
       setTodayActivityLogs(activityResult.status === "fulfilled" ? activityResult.value : null);
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
@@ -757,7 +417,6 @@ export function WorkspaceDashboard() {
         setState({ data: workspacePreviewDashboard, kind: "ready" });
         setRooms(workspacePreviewRooms);
         setTodayActivityLogs([]);
-        setTodayWidgetUsageSummary(null);
         return;
       }
       setState({
@@ -769,6 +428,7 @@ export function WorkspaceDashboard() {
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
+      setNow(new Date());
       void fetchDashboard();
     }, 0);
 
@@ -792,166 +452,30 @@ export function WorkspaceDashboard() {
     };
   }, []);
 
-  useEffect(() => {
-    storeWidgetIds(widgetIds);
-  }, [widgetIds]);
-
-  const recordDashboardTimerState = useCallback((timeLog: TimeLogResponse) => {
-    if (!isTauriRuntime()) return;
-
-    void tauriCommands
-      .recordTimerState({
-        roomId: timeLog.roomId ?? null,
-        serverTimeLogId: timeLog.id,
-        startedAt: timeLog.startedAt,
-        status: timeLog.status,
-      })
-      .catch(() => undefined);
-  }, []);
-
-  const applyDashboardTimerResult = useCallback(
-    (timeLog: TimeLogResponse) => {
-      setState((current) => {
-        if (current.kind !== "ready" && current.kind !== "empty") return current;
-
-        const nextData = {
-          ...current.data,
-          runningTimer: timeLog.status === "ENDED" ? null : timeLog,
-        };
-
-        return hasDashboardItems(nextData) ? { data: nextData, kind: "ready" } : { data: nextData, kind: "empty" };
-      });
-      recordDashboardTimerState(timeLog);
-    },
-    [recordDashboardTimerState],
-  );
-
   const realData = state.kind === "ready" || state.kind === "empty" ? state.data : emptyDashboard;
   const data = useMemo<DashboardWorkResponse>(() => {
     if (!activeRoom.roomId) return realData;
 
     return {
       ...realData,
-      runningTimer: realData.runningTimer?.roomId === activeRoom.roomId ? realData.runningTimer : null,
       todaySchedules: realData.todaySchedules.filter((schedule) => schedule.roomId === activeRoom.roomId),
       todayTasks: realData.todayTasks.filter((task) => task.roomId === activeRoom.roomId),
       upcomingDeadlines: realData.upcomingDeadlines.filter((task) => task.roomId === activeRoom.roomId),
     };
   }, [activeRoom.roomId, realData]);
-  const activeDashboardTimer = data.runningTimer ?? null;
-  const roomFilteredRunningTimer = activeRoom.roomId && realData.runningTimer && !activeDashboardTimer ? realData.runningTimer : null;
-  const timerBusy = timerAction !== "idle";
-  const activeHeartbeatTimerId = realData.runningTimer?.status === "RUNNING" ? realData.runningTimer.id : null;
-
-  useEffect(() => {
-    if (timerRecoveryAttemptedRef.current) return;
-    if (state.kind !== "ready" && state.kind !== "empty") return;
-    if (!isTauriRuntime()) return;
-
-    timerRecoveryAttemptedRef.current = true;
-    let cancelled = false;
-
-    async function recoverDashboardTimerFromLocalState() {
-      const recovery = await tauriCommands.recoverTimerState().catch(() => null);
-      if (cancelled || !recovery?.recoveryRequired || !recovery.serverTimeLogId) return;
-
-      const timeLog = await timerApi.heartbeat(recovery.serverTimeLogId).catch(() => null);
-      if (cancelled || !timeLog) return;
-
-      applyDashboardTimerResult(timeLog);
-    }
-
-    void recoverDashboardTimerFromLocalState();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [applyDashboardTimerResult, state.kind]);
-
-  useEffect(() => {
-    if (!activeHeartbeatTimerId) return;
-
-    let cancelled = false;
-    const intervalId = window.setInterval(() => {
-      void timerApi
-        .heartbeat(activeHeartbeatTimerId)
-        .then((timeLog) => {
-          if (!cancelled) {
-            applyDashboardTimerResult(timeLog);
-          }
-        })
-        .catch(() => undefined);
-    }, DASHBOARD_TIMER_HEARTBEAT_INTERVAL_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [activeHeartbeatTimerId, applyDashboardTimerResult]);
-
-  const runDashboardTimerAction = useCallback(
-    async (action: Exclude<DashboardTimerAction, "idle">) => {
-      const currentTimer = data.runningTimer ?? realData.runningTimer ?? null;
-      setTimerAction(action);
-      setTimerMessage(null);
-
-      try {
-        if (action === "starting") {
-          const roomId = activeRoom.roomId ?? null;
-          const timeLog = await timerApi.start({
-            idempotencyKey: makeTimerIdempotencyKey(),
-            roomId,
-            timerType: roomId ? "WORK" : "GENERAL",
-          });
-          applyDashboardTimerResult(timeLog);
-          setTimerMessage(t("dashboard.timer.started"));
-          return;
-        }
-
-        if (!currentTimer) {
-          setTimerMessage(t("dashboard.timer.noRunning"));
-          return;
-        }
-
-        const timeLog =
-          action === "pausing"
-            ? await timerApi.pause(currentTimer.id)
-            : action === "resuming"
-              ? await timerApi.resume(currentTimer.id)
-              : await timerApi.stop(currentTimer.id);
-
-        applyDashboardTimerResult(timeLog);
-        setTimerMessage(action === "pausing" ? t("dashboard.timer.paused") : action === "resuming" ? t("dashboard.timer.resumed") : t("dashboard.timer.stopped"));
-      } catch (error) {
-        setTimerMessage(error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("dashboard.timer.requestFailed"));
-      } finally {
-        setTimerAction("idle");
-      }
-    },
-    [activeRoom.roomId, applyDashboardTimerResult, data.runningTimer, realData.runningTimer, t],
-  );
 
   const scopedFeedTasks = activeRoom.roomId ? dashboardFeedTasks.filter((task) => task.roomId === activeRoom.roomId) : dashboardFeedTasks;
   const dashboardTasks = [...data.todayTasks, ...data.upcomingDeadlines, ...(activeRoom.roomId ? [] : personalTasks), ...scopedFeedTasks].filter(
     (task, index, source) => source.findIndex((item) => item.id === task.id) === index,
   );
-  const taskItems = dashboardTasks
-    .filter((task, index, source) => source.findIndex((item) => item.id === task.id) === index)
-    .slice(0, 4);
+  const taskItems = dashboardTasks.slice(0, 6);
   const todaySchedules = data.todaySchedules.slice(0, 4);
-  const reviewTasks = dashboardTasks
-    .filter((task, index, source) => (task.status === "REVIEW" || task.status === "BLOCKED") && source.findIndex((item) => item.id === task.id) === index)
-    .slice(0, 4);
-  const nextFocusTask = pickNextTask(dashboardTasks);
-  const nextFocusSchedule = pickNextSchedule(todaySchedules);
   const activityFocus = useMemo(() => summarizeActivityFocus(t, todayActivityLogs, activeRoom.roomId), [activeRoom.roomId, t, todayActivityLogs]);
-  const canShowDashboardGrid = state.kind === "ready" || state.kind === "empty";
-  const inProgressTask = dashboardTasks.find((task) => task.status === "IN_PROGRESS") ?? null;
-  const enabledBubbleCount = widgetSummary ? widgetSummary.bubbles.filter((bubble) => bubble.enabled).length : null;
+  const canShowCards = state.kind === "ready" || state.kind === "empty";
   const recentResources = useMemo(() => {
     if (personalResources.length > 0) {
       const scoped = activeRoom.roomId ? personalResources.filter((resource) => resource.roomId === activeRoom.roomId) : personalResources;
-      return scoped.slice().sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 3);
+      return scoped.slice().sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 4);
     }
 
     if (!shouldUseWorkspacePreviewData()) return [];
@@ -959,7 +483,7 @@ export function WorkspaceDashboard() {
       ? workspacePreviewRoomResources.filter((resource) => resource.roomId === activeRoom.roomId)
       : [...workspacePreviewPersonalResources, ...workspacePreviewRoomResources];
 
-    return resources.slice().sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 3);
+    return resources.slice().sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 4);
   }, [activeRoom.roomId, personalResources]);
   const activeRooms = useMemo(() => {
     const filtered = rooms.filter((room) => room.status === "ACTIVE");
@@ -971,28 +495,6 @@ export function WorkspaceDashboard() {
     () => (activeRoom.roomId ? rooms.find((room) => room.id === activeRoom.roomId) ?? null : null),
     [activeRoom.roomId, rooms],
   );
-  const visibleWidgets = useMemo(
-    () =>
-      widgetIds
-        .filter((id) => connectedWidgetIds.includes(id))
-        .map((id) => WIDGET_CATALOG.find((widget) => widget.widgetId === id))
-        .filter((widget): widget is DashboardWidgetDef => Boolean(widget)),
-    [widgetIds],
-  );
-  const availableWidgets = WIDGET_CATALOG.filter(
-    (widget) => connectedWidgetIds.includes(widget.widgetId) && !widgetIds.includes(widget.widgetId),
-  );
-
-  const activePaletteWidget = activePaletteWidgetId ? WIDGET_CATALOG.find((widget) => widget.widgetId === activePaletteWidgetId) ?? null : null;
-  const activeBoardWidget = activeBoardWidgetId ? WIDGET_CATALOG.find((widget) => widget.widgetId === activeBoardWidgetId) ?? null : null;
-  const dashboardCollisionDetection = useCallback<CollisionDetection>((args) => {
-    const activeId = String(args.active.id);
-    const droppableContainers = activeId.startsWith("palette:")
-      ? args.droppableContainers
-      : args.droppableContainers.filter((container) => container.id !== dashboardDropzoneId);
-
-    return closestCenter({ ...args, droppableContainers });
-  }, []);
 
   const upsertTask = useCallback((task: TaskResponse) => {
     if (!task.roomId) {
@@ -1072,249 +574,10 @@ export function WorkspaceDashboard() {
     [removeTask, t],
   );
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    const activeId = String(event.active.id);
-    if (activeId.startsWith("palette:")) {
-      setActivePaletteWidgetId(activeId.replace("palette:", ""));
-      setActiveBoardWidgetId(null);
-      return;
-    }
-
-    setActiveBoardWidgetId(activeId);
-    setActivePaletteWidgetId(null);
-  }, []);
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    const activeId = String(active.id);
-    const overId = over ? String(over.id) : null;
-
-    setActivePaletteWidgetId(null);
-    setActiveBoardWidgetId(null);
-
-    if (!overId || activeId === overId) {
-      return;
-    }
-
-    if (activeId.startsWith("palette:")) {
-      const widgetId = activeId.replace("palette:", "");
-      setWidgetIds((current) => {
-        if (current.includes(widgetId)) return current;
-        if (overId === dashboardRemoveDropzoneId) return current;
-        if (overId === dashboardDropzoneId || overId.startsWith("palette:")) return [...current, widgetId];
-
-        const overIndex = current.indexOf(overId);
-        if (overIndex < 0) return [...current, widgetId];
-
-        const next = [...current];
-        next.splice(overIndex, 0, widgetId);
-        return next;
-      });
-      return;
-    }
-
-    setWidgetIds((current) => {
-      if (overId === dashboardRemoveDropzoneId) {
-        return current.filter((id) => id !== activeId);
-      }
-
-      const activeIndex = current.indexOf(activeId);
-      const overIndex = current.indexOf(overId);
-      if (activeIndex < 0 || overIndex < 0) return current;
-      return arrayMove(current, activeIndex, overIndex);
-    });
-  }, []);
-
-  const handleDragOver = useCallback((event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeId = String(active.id);
-    const overId = String(over.id);
-    if (activeId.startsWith("palette:") || activeId === overId || overId === dashboardDropzoneId || overId === dashboardRemoveDropzoneId) return;
-
-    setWidgetIds((current) => {
-      const activeIndex = current.indexOf(activeId);
-      const overIndex = current.indexOf(overId);
-      if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) return current;
-      return arrayMove(current, activeIndex, overIndex);
-    });
-  }, []);
-
-  const handleDragCancel = useCallback(() => {
-    setActivePaletteWidgetId(null);
-    setActiveBoardWidgetId(null);
-  }, []);
-
-  const renderWidgetBody = useCallback(
-    (widgetId: string) => {
-      switch (widgetId) {
-        case "today-summary":
-          return (
-            <DashboardSummary
-              activityFocus={activityFocus}
-              data={data}
-              enabledBubbleCount={enabledBubbleCount}
-              tasks={dashboardTasks}
-              widgetUsageSummary={todayWidgetUsageSummary}
-            />
-          );
-        case "next-focus":
-          return <NextFocusWidget activityFocus={activityFocus} nextSchedule={nextFocusSchedule} nextTask={nextFocusTask} runningTimer={data.runningTimer} />;
-        case "today-todos":
-          return (
-            <TodoWidget
-              canCreate={state.kind === "ready" || state.kind === "empty"}
-              creating={creatingTodo}
-              deletingTaskId={deletingTodoId}
-              notice={todoNotice}
-              onCreate={createTodo}
-              onDelete={(task) => void deleteTodo(task)}
-              roomLabel={activeRoom.label}
-              tasks={taskItems}
-            />
-          );
-        case "pending-approval":
-          if (reviewTasks.length === 0) return <EmptyWidget />;
-          return (
-            <DashboardLineList>
-              {reviewTasks.map((task) => (
-                <TaskLine key={task.id} task={task} />
-              ))}
-            </DashboardLineList>
-          );
-        case "schedule":
-          if (todaySchedules.length === 0) return <EmptyWidget />;
-          return (
-            <DashboardLineList>
-              {todaySchedules.map((schedule) => (
-                <ScheduleLine key={schedule.id} schedule={schedule} />
-              ))}
-            </DashboardLineList>
-          );
-        case "project-rooms":
-          if (activeRooms.length === 0) return <EmptyWidget />;
-          return (
-            <DashboardLineList>
-              {activeRooms.slice(0, 4).map((room) => (
-                <StatusLine key={room.id} meta={room.clientName ?? undefined}>
-                  {room.name}
-                </StatusLine>
-              ))}
-            </DashboardLineList>
-          );
-        case "timer":
-          return (
-            <div className="workspace-dashboard__timer-preview">
-              <b>{formatDuration(t, getTimerSeconds(activeDashboardTimer))}</b>
-              <span>
-                {activeDashboardTimer
-                  ? timerActionLabel(t, activeDashboardTimer)
-                  : roomFilteredRunningTimer
-                    ? t("dashboard.timer.otherRoom")
-                    : inProgressTask
-                      ? t("dashboard.timer.taskRunning", { title: inProgressTask.title })
-                      : t("dashboard.timer.idle")}
-              </span>
-              <div className="workspace-dashboard__timer-actions" aria-label={t("dashboard.timer.actionsAria")} role="group">
-                <Button
-                  aria-label={t("dashboard.timer.startAria")}
-                  className="workspace-dashboard__timer-action"
-                  disabled={timerBusy || Boolean(realData.runningTimer)}
-                  icon={<Play size={13} strokeWidth={2.2} />}
-                  loading={timerAction === "starting"}
-                  onClick={() => void runDashboardTimerAction("starting")}
-                  size="sm"
-                  variant="primary"
-                >
-                  {t("dashboard.timer.start")}
-                </Button>
-                <Button
-                  aria-label={t("dashboard.timer.pauseAria")}
-                  className="workspace-dashboard__timer-action"
-                  disabled={timerBusy || activeDashboardTimer?.status !== "RUNNING"}
-                  icon={<Pause size={13} strokeWidth={2.2} />}
-                  loading={timerAction === "pausing"}
-                  onClick={() => void runDashboardTimerAction("pausing")}
-                  size="sm"
-                  variant="secondary"
-                >
-                  {t("dashboard.timer.pause")}
-                </Button>
-                <Button
-                  aria-label={t("dashboard.timer.resumeAria")}
-                  className="workspace-dashboard__timer-action"
-                  disabled={timerBusy || activeDashboardTimer?.status !== "PAUSED"}
-                  icon={<RotateCcw size={13} strokeWidth={2.2} />}
-                  loading={timerAction === "resuming"}
-                  onClick={() => void runDashboardTimerAction("resuming")}
-                  size="sm"
-                  variant="secondary"
-                >
-                  {t("dashboard.timer.resume")}
-                </Button>
-                <Button
-                  aria-label={t("dashboard.timer.stopAria")}
-                  className="workspace-dashboard__timer-action"
-                  disabled={timerBusy || !activeDashboardTimer || activeDashboardTimer.status === "ENDED"}
-                  icon={<Square size={12} strokeWidth={2.4} />}
-                  loading={timerAction === "stopping"}
-                  onClick={() => void runDashboardTimerAction("stopping")}
-                  size="sm"
-                  variant="quiet"
-                >
-                  {t("dashboard.timer.stop")}
-                </Button>
-              </div>
-              {timerMessage ? <small aria-live="polite">{timerMessage}</small> : null}
-            </div>
-          );
-        case "quick-memo":
-          return <MemoDashboardCard />;
-        case "recent-resources":
-          if (recentResources.length === 0) return <EmptyWidget />;
-          return (
-            <DashboardLineList>
-              {recentResources.map((resource) => (
-                <ResourceLine key={resource.id} resource={resource} />
-              ))}
-            </DashboardLineList>
-          );
-        default:
-          return null;
-      }
-    },
-    [
-      activeRoom.label,
-      activeDashboardTimer,
-      activeRooms,
-      activityFocus,
-      createTodo,
-      creatingTodo,
-      dashboardTasks,
-      data,
-      deleteTodo,
-      deletingTodoId,
-      enabledBubbleCount,
-      inProgressTask,
-      nextFocusSchedule,
-      nextFocusTask,
-      realData.runningTimer,
-      recentResources,
-      reviewTasks,
-      roomFilteredRunningTimer,
-      runDashboardTimerAction,
-      state.kind,
-      t,
-      taskItems,
-      timerAction,
-      timerBusy,
-      timerMessage,
-      todaySchedules,
-      todayWidgetUsageSummary,
-      todoNotice,
-    ],
-  );
+  const todayLabel = now
+    ? new Intl.DateTimeFormat(LOCALE_TAGS[locale] ?? "ko-KR", { day: "numeric", month: "long", weekday: "short" }).format(now)
+    : null;
+  const unreadCount = typeof realData.unreadNotificationCount === "number" ? realData.unreadNotificationCount : null;
 
   return (
     <section className="workspace-dashboard" aria-label={t("dashboard.aria")}>
@@ -1322,23 +585,41 @@ export function WorkspaceDashboard() {
         <div className="workspace-dashboard__copy">
           <div className="workspace-dashboard__titlebar">
             <h1>{t("dashboard.title")}</h1>
-            <span>{t("dashboard.personalHome")}</span>
+            {now ? <span>{t(greetingKey(now.getHours()))}</span> : null}
+          </div>
+          <div className="workspace-dashboard__today-strip" aria-label={t("dashboard.home.summaryAria")}>
+            {todayLabel ? (
+              <span className="workspace-dashboard__today-item">
+                <b>{todayLabel}</b>
+              </span>
+            ) : null}
+            <span className="workspace-dashboard__today-item">
+              <em>{t("dashboard.home.activeRoom")}</em>
+              <b>{activeRoom.label ?? t("dashboard.scope.all")}</b>
+            </span>
+            <span className="workspace-dashboard__today-item">
+              <em>{t("dashboard.metric.todos")}</em>
+              <b>{dashboardTasks.length}</b>
+            </span>
+            <span className="workspace-dashboard__today-item">
+              <em>{t("dashboard.metric.schedule")}</em>
+              <b>{data.todaySchedules.length}</b>
+            </span>
+            {unreadCount !== null ? (
+              <span className="workspace-dashboard__today-item">
+                <em>{t("dashboard.home.unread")}</em>
+                <b>{unreadCount}</b>
+              </span>
+            ) : null}
+            {activityFocus && activityFocus.totalSeconds > 0 ? (
+              <span className="workspace-dashboard__today-item">
+                <em>{t("dashboard.metric.focus")}</em>
+                <b>{formatDuration(t, activityFocus.totalSeconds)}</b>
+              </span>
+            ) : null}
           </div>
           <ProjectRoomScopeSelector activeRoomId={activeRoom.roomId} onSelect={setActiveRoom} rooms={selectableRooms} />
         </div>
-        {canShowDashboardGrid ? (
-          <div className="workspace-dashboard__actions">
-            {editMode ? (
-              <Button onClick={() => setWidgetIds([...defaultWidgetIds])} variant="secondary">
-                {t("dashboard.action.default")}
-              </Button>
-            ) : null}
-            <Button onClick={() => setEditMode((current) => !current)} variant={editMode ? "primary" : "secondary"}>
-              <LayoutDashboard aria-hidden size={15} strokeWidth={1.9} />
-              {editMode ? t("dashboard.action.done") : t("dashboard.action.edit")}
-            </Button>
-          </div>
-        ) : null}
       </GlassPanel>
 
       {state.kind === "loading" ? (
@@ -1381,76 +662,49 @@ export function WorkspaceDashboard() {
         </GlassPanel>
       ) : null}
 
-      {canShowDashboardGrid ? (
-        <DndContext
-          collisionDetection={dashboardCollisionDetection}
-          onDragCancel={handleDragCancel}
-          onDragEnd={handleDragEnd}
-          onDragOver={handleDragOver}
-          onDragStart={handleDragStart}
-          sensors={sensors}
-        >
+      {canShowCards ? (
+        <>
           <SelectedProjectRoomSummary room={selectedRoom} schedules={todaySchedules} tasks={dashboardTasks} />
-          <div className={`workspace-dashboard__stage${editMode ? " workspace-dashboard__stage--editing" : ""}`}>
-            <DashboardCanvas boardDragging={Boolean(activeBoardWidgetId)} editMode={editMode} sorting={Boolean(activeBoardWidgetId)}>
-              <div className="workspace-dashboard__canvas-head">
-                <div>
-                  <strong>{t("dashboard.board.title")}</strong>
-                  <span>
-                    {editMode
-                      ? t("dashboard.board.editing")
-                      : activeRoom.roomId
-                        ? t("dashboard.board.roomItems", { room: activeRoom.label ?? t("dashboard.board.roomFallback") })
-                        : t("dashboard.board.cardCount", { count: visibleWidgets.length })}
-                  </span>
-                </div>
-                {editMode ? <StatusBadge tone="agent">{t("dashboard.board.autoSave")}</StatusBadge> : null}
-              </div>
-              <SortableContext items={visibleWidgets.map((widget) => widget.widgetId)} strategy={rectSortingStrategy}>
-                <DashboardGrid mode={editMode ? "edit" : "view"}>
-                  {visibleWidgets.map((widget) => (
-                    <SortableDashboardTile
-                      def={widget}
-                      editMode={editMode}
-                      key={widget.widgetId}
-                      onRemove={() => setWidgetIds((current) => current.filter((id) => id !== widget.widgetId))}
-                    >
-                      {renderWidgetBody(widget.widgetId)}
-                    </SortableDashboardTile>
+          <div className="workspace-dashboard__home-grid">
+            <HomeCard moreHref="/app/calendar" title={t("dashboard.catalog.todayTodos.title")}>
+              <TodoWidget
+                canCreate={canShowCards}
+                creating={creatingTodo}
+                deletingTaskId={deletingTodoId}
+                notice={todoNotice}
+                onCreate={createTodo}
+                onDelete={(task) => void deleteTodo(task)}
+                roomLabel={activeRoom.label}
+                tasks={taskItems}
+              />
+            </HomeCard>
+            <HomeCard moreHref="/app/project-rooms" title={t("dashboard.catalog.projectRooms.title")}>
+              {activeRooms.length > 0 ? (
+                <DashboardLineList>
+                  {activeRooms.slice(0, 4).map((room) => (
+                    <RoomLine key={room.id} room={room} />
                   ))}
-                </DashboardGrid>
-              </SortableContext>
-            </DashboardCanvas>
-
-            {editMode ? (
-              <aside className="workspace-dashboard__palette" aria-label={t("dashboard.board.addAria")}>
-                <DashboardPalette
-                  draggable
-                  items={availableWidgets}
-                  onAdd={(widgetId) => setWidgetIds((current) => (current.includes(widgetId) ? current : [...current, widgetId]))}
-                />
-              </aside>
-            ) : null}
+                </DashboardLineList>
+              ) : (
+                <EmptyWidget />
+              )}
+            </HomeCard>
+            <HomeCard moreHref="/app/resources" title={t("dashboard.catalog.recentResources.title")}>
+              {recentResources.length > 0 ? (
+                <DashboardLineList>
+                  {recentResources.map((resource) => (
+                    <ResourceLine key={resource.id} resource={resource} />
+                  ))}
+                </DashboardLineList>
+              ) : (
+                <EmptyWidget />
+              )}
+            </HomeCard>
+            <HomeCard title={t("dashboard.home.memoTitle")}>
+              <MemoDashboardCard />
+            </HomeCard>
           </div>
-          <DragOverlay>
-            {activePaletteWidget ? (
-              <div className="bubli-dash-palette__drag-preview">
-                <span className="bubli-dash-tile__icon">{widgetIcon(activePaletteWidget.widgetId)}</span>
-                <strong>{t(activePaletteWidget.titleKey)}</strong>
-              </div>
-            ) : activeBoardWidget ? (
-              <div className={`bubli-dash-tile ${sizeToClass[activeBoardWidget.size]} bubli-dash-tile--overlay`}>
-                <div className="bubli-dash-tile__head">
-                  <span className="bubli-dash-tile__title">
-                    <span className="bubli-dash-tile__icon">{widgetIcon(activeBoardWidget.widgetId)}</span>
-                    {t(activeBoardWidget.titleKey)}
-                  </span>
-                </div>
-                <div className="bubli-dash-tile__body">{t(activeBoardWidget.descriptionKey)}</div>
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+        </>
       ) : null}
     </section>
   );

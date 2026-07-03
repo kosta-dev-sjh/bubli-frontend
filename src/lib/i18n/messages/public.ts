@@ -19,6 +19,10 @@ const ko = {
   "public.nav.download": "다운로드",
   "public.nav.faq": "FAQ",
 
+  // 로그인 세션 감지(랜딩 공통)
+  "public.session.openApp": "앱으로 이동",
+  "public.session.userAria": "{name}님으로 로그인됨",
+
   // 홈 - 흐름 섹션 헤더
   "public.home.flowHeadTitle": "받은 자료가 오늘 할 일이 되기까지",
   "public.home.flowHeadSub": "올린 자료가 후보가 되고, 확인한 항목만 오늘 할 일로 이어집니다.",
@@ -278,6 +282,9 @@ const en: Record<Key, string> = {
   "public.nav.download": "Download",
   "public.nav.faq": "FAQ",
 
+  "public.session.openApp": "Open the app",
+  "public.session.userAria": "Signed in as {name}",
+
   "public.home.flowHeadTitle": "From what you receive to what you do today",
   "public.home.flowHeadSub": "Uploaded files become candidates, and only what you confirm becomes today's work.",
 
@@ -518,6 +525,9 @@ const ja: Record<Key, string> = {
   "public.nav.desktop": "デスクトップアプリ",
   "public.nav.download": "ダウンロード",
   "public.nav.faq": "FAQ",
+
+  "public.session.openApp": "アプリへ移動",
+  "public.session.userAria": "{name}さんでログイン中",
 
   "public.home.flowHeadTitle": "受け取った資料が今日やることになるまで",
   "public.home.flowHeadSub": "アップした資料が候補になり、確認した項目だけが今日やることにつながります。",
