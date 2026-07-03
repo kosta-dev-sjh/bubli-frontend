@@ -198,6 +198,29 @@ async function smokeBackend(accessToken) {
   const syncedResourceId = localFileSync.results[0].resourceId;
   assert(syncedResourceId, "local file event sync did not return a resource id");
 
+  const updatedLocalEventId = `codex-local-sync-updated-${Date.now()}`;
+  const localFileUpdate = await apiPost("/api/local-file-events/sync", headers, {
+    events: [
+      {
+        eventType: "UPDATED",
+        fileName: "codex-local-sync-smoke-updated.txt",
+        fileSizeBytes: 112,
+        localEventId: updatedLocalEventId,
+        mimeType: "text/plain",
+        resourceId: syncedResourceId,
+      },
+    ],
+  });
+  assert(
+    localFileUpdate.results?.[0]?.status === "SYNCED",
+    "local file event update sync did not return a SYNCED result",
+  );
+  assertOptionalLocalEventId(localFileUpdate.results?.[0], updatedLocalEventId, "local file event update sync");
+  assert(
+    localFileUpdate.results?.[0]?.resourceId === syncedResourceId,
+    "local file event update sync did not preserve the synced resource id",
+  );
+
   const localFileAnalysis = await apiPost("/api/local-file-analyses", headers, {
     analyzedCharCount: 112,
     checksum: "codex-local-analysis-smoke-checksum",
@@ -297,7 +320,7 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 
