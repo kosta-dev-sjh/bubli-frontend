@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/gantt";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
+import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
@@ -279,9 +280,12 @@ export function WbsGanttPanel({
       const viewportCenter = scrollerRect.left + sidebarWidth + (scroller.clientWidth - sidebarWidth) / 2;
       const elementCenter = elementRect.left + elementRect.width / 2;
 
+      const maxScrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+      const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, scroller.scrollLeft + elementCenter - viewportCenter));
+
       scroller.scrollTo({
         behavior: "auto",
-        left: Math.max(0, scroller.scrollLeft + elementCenter - viewportCenter),
+        left: nextScrollLeft,
         top: scroller.scrollTop,
       });
     };
@@ -303,9 +307,12 @@ export function WbsGanttPanel({
     const viewportCenter = rootRect.left + sidebarWidth + (root.clientWidth - sidebarWidth) / 2;
     const todayCenter = todayRect.left + todayRect.width / 2;
 
+    const maxScrollLeft = Math.max(0, root.scrollWidth - root.clientWidth);
+    const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, root.scrollLeft + todayCenter - viewportCenter));
+
     root.scrollTo({
       behavior: "smooth",
-      left: Math.max(0, root.scrollLeft + todayCenter - viewportCenter),
+      left: nextScrollLeft,
     });
   };
 
@@ -321,9 +328,10 @@ export function WbsGanttPanel({
     });
   };
 
-  const getParentIdForNewTaskFromRow = (item: WbsItemResponse) => (item.parentId ? null : item.id);
+  const getParentIdForNewTaskFromRow = (item: WbsItemResponse) => item.parentId ?? item.id;
 
-  const getFeatureForNewTaskFromRow = (item: WbsItemResponse) => (item.parentId ? undefined : featureById.get(item.id));
+  const getFeatureForNewTaskFromRow = (item: WbsItemResponse) =>
+    featureById.get(item.id) ?? (item.parentId ? featureById.get(item.parentId) : undefined);
 
   const persistRange = useCallback((item: WbsItemResponse, nextRange: LocalRange) => {
     const schedule = scheduleByWbsId.get(item.id);
@@ -456,7 +464,7 @@ export function WbsGanttPanel({
 
     const item = selectedWbsId ? itemById.get(selectedWbsId) : null;
 
-    if (!item || item.parentId) return null;
+    if (!item) return null;
     return getParentIdForNewTaskFromRow(item);
   };
 
@@ -504,8 +512,8 @@ export function WbsGanttPanel({
     if (schedule) {
       try {
         await calendarApi.deleteEvent(schedule.id);
-      } catch {
-        calendarDeleteFailed = true;
+      } catch (error) {
+        calendarDeleteFailed = !(error instanceof ApiClientError && error.status === 404);
       } finally {
         setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
       }
@@ -541,7 +549,7 @@ export function WbsGanttPanel({
 
   const draftParentTitle = createDraft?.parentId ? itemById.get(createDraft.parentId)?.title ?? null : null;
   const selectedItemForTask = selectedWbsId ? itemById.get(selectedWbsId) ?? null : null;
-  const canAddTaskToSelection = Boolean(selectedItemForTask && !selectedItemForTask.parentId);
+  const canAddTaskToSelection = Boolean(selectedItemForTask);
 
   return (
     <div className={styles.panel} ref={panelRef}>
@@ -558,7 +566,7 @@ export function WbsGanttPanel({
                 role="tab"
                 type="button"
               >
-                <Icon aria-hidden="true" size={13} strokeWidth={2.1} />
+                <Icon aria-hidden="true" size={13} strokeWidth={1.9} />
                 {t(option.labelKey)}
               </button>
             );
@@ -566,11 +574,11 @@ export function WbsGanttPanel({
         </div>
 
         <button className={styles.toolButton} onClick={scrollToToday} type="button">
-          <CalendarDays aria-hidden="true" size={13} strokeWidth={2.1} />
+          <CalendarDays aria-hidden="true" size={13} strokeWidth={1.9} />
           {t("wbs.board.due.today")}
         </button>
         <button className={styles.toolButton} onClick={handleAddGroup} type="button">
-          <FolderPlus aria-hidden="true" size={13} strokeWidth={2.1} />
+          <FolderPlus aria-hidden="true" size={13} strokeWidth={1.9} />
           {t("wbs.gantt.addGroup")}
         </button>
         <button
@@ -586,7 +594,7 @@ export function WbsGanttPanel({
           }
           type="button"
         >
-          <Plus aria-hidden="true" size={13} strokeWidth={2.1} />
+          <Plus aria-hidden="true" size={13} strokeWidth={1.9} />
           {t("wbs.gantt.addTask")}
         </button>
       </div>
@@ -660,7 +668,7 @@ export function WbsGanttPanel({
                           <ChevronRight
                             aria-hidden="true"
                             size={13}
-                            strokeWidth={2.2}
+                            strokeWidth={1.9}
                             style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)" }}
                           />
                         </button>
@@ -676,7 +684,7 @@ export function WbsGanttPanel({
                           title={t("wbs.gantt.row.addChildTitle")}
                           type="button"
                         >
-                          <Plus aria-hidden="true" size={13} strokeWidth={2.2} />
+                          <Plus aria-hidden="true" size={13} strokeWidth={1.9} />
                         </button>
                       ) : null}
                       <button
@@ -688,7 +696,7 @@ export function WbsGanttPanel({
                         }}
                         type="button"
                       >
-                        <PencilIcon aria-hidden="true" size={13} strokeWidth={2.2} />
+                        <PencilIcon aria-hidden="true" size={13} strokeWidth={1.9} />
                       </button>
                       <button
                         aria-label={t("wbs.gantt.row.deleteAria", { title: item.title })}
@@ -699,7 +707,7 @@ export function WbsGanttPanel({
                         }}
                         type="button"
                       >
-                        <TrashIcon aria-hidden="true" size={13} strokeWidth={2.2} />
+                        <TrashIcon aria-hidden="true" size={13} strokeWidth={1.9} />
                       </button>
                     </>
                   }

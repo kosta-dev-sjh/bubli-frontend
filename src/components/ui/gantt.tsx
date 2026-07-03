@@ -31,7 +31,7 @@ import { atom, useAtom } from "jotai";
 import throttle from "lodash.throttle";
 import { PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
-import type { CSSProperties, FC, KeyboardEventHandler, MouseEventHandler, PointerEventHandler, ReactNode, RefObject } from "react";
+import type { CSSProperties, FC, KeyboardEventHandler, MouseEventHandler, PointerEventHandler, ReactNode, RefObject, UIEvent } from "react";
 
 import { Card } from "@/components/ui/card";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
@@ -1155,6 +1155,26 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
     "--gantt-sidebar-width": `${sidebarWidth}px`,
   } as CSSProperties;
 
+  const lockRootScrollLeft = useCallback((element: HTMLDivElement) => {
+    const lockedScrollLeft = dragScrollLeftRef.current ?? element.scrollLeft;
+    dragScrollLeftRef.current = lockedScrollLeft;
+
+    if (element.scrollLeft !== lockedScrollLeft) {
+      element.scrollTo({ behavior: "auto", left: lockedScrollLeft, top: element.scrollTop });
+    }
+
+    setScrollX(lockedScrollLeft);
+  }, [setScrollX]);
+
+  const handleRootScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    if (isDragging) {
+      lockRootScrollLeft(event.currentTarget);
+      return;
+    }
+
+    setScrollX(event.currentTarget.scrollLeft);
+  }, [isDragging, lockRootScrollLeft, setScrollX]);
+
   useEffect(() => {
     const element = scrollRef.current;
     if (element) {
@@ -1190,7 +1210,8 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
       const todayRect = today.getBoundingClientRect();
       const viewportCenter = elementRect.left + sidebarWidth + (element.clientWidth - sidebarWidth) / 2;
       const todayCenter = todayRect.left + todayRect.width / 2;
-      const nextScrollLeft = Math.max(0, element.scrollLeft + todayCenter - viewportCenter);
+      const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+      const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, element.scrollLeft + todayCenter - viewportCenter));
 
       element.scrollTo({ behavior: "auto", left: nextScrollLeft, top: element.scrollTop });
       setScrollX(nextScrollLeft);
@@ -1209,20 +1230,13 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
       }
 
       if (isDragging) {
-        const lockedScrollLeft = dragScrollLeftRef.current ?? element.scrollLeft;
-        dragScrollLeftRef.current = lockedScrollLeft;
-
-        if (element.scrollLeft !== lockedScrollLeft) {
-          element.scrollTo({ behavior: "auto", left: lockedScrollLeft, top: element.scrollTop });
-        }
-
-        setScrollX(lockedScrollLeft);
+        lockRootScrollLeft(element);
         return;
       }
 
       setScrollX(element.scrollLeft);
     }, 16),
-    [isDragging, setScrollX],
+    [isDragging, lockRootScrollLeft, setScrollX],
   );
 
   useEffect(() => {
@@ -1257,7 +1271,9 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
     >
       <div
         className={cn("gantt relative grid h-full w-full flex-none select-none overflow-auto rounded-sm bg-secondary", range, className)}
+        data-gantt-dragging={isDragging ? "true" : undefined}
         data-roadmap-ui="gantt-root"
+        onScroll={handleRootScroll}
         ref={scrollRef}
         style={{
           ...cssVariables,
