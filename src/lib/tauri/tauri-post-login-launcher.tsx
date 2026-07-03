@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 
-import { authApi } from "@/features/auth/api/authApi";
 import {
   AUTH_SESSION_CHANGE_EVENT,
   getStoredAuthSession,
@@ -25,13 +24,6 @@ export function TauriPostLoginLauncher() {
         return;
       }
 
-      try {
-        await authApi.getMe();
-      } catch {
-        await stopTauriAuthenticatedSurfaces();
-        return;
-      }
-
       void launchTauriAuthenticatedSurfaces().catch(() => undefined);
     }
 
@@ -42,7 +34,6 @@ export function TauriPostLoginLauncher() {
 
     return () => {
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
-      void stopTauriAuthenticatedSurfaces();
     };
   }, []);
 

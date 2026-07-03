@@ -349,7 +349,6 @@ function ProjectRoomWorkBoardContent({
     ? wbsItems.find((item) => item.id === selectedWbs.parentId) ?? null
     : selectedWbs;
   const selectedCreateParentId = selectedParentWbs?.id ?? null;
-  const selectedCreateParentTitle = selectedParentWbs?.title ?? null;
   const kanbanColumns = useMemo<KanbanBoardColumn[]>(
     () =>
       columns.map((column) => ({
@@ -1122,28 +1121,6 @@ function ProjectRoomWorkBoardContent({
                   )}
                 </form>
 
-                <form className={styles.wbsCreate} onSubmit={handleCreateWbs}>
-                  <div className={styles.wbsFormGrid}>
-                    <label>
-                      <span>
-                        {selectedCreateParentTitle
-                          ? t("room.workBoard.addChildUnder", { parent: selectedCreateParentTitle })
-                          : t("room.workBoard.addParentTask")}
-                      </span>
-                      <input
-                        aria-label={t("room.workBoard.wbsNameAria")}
-                        onChange={(event) => setWbsDraft((current) => ({ ...current, title: event.target.value }))}
-                        placeholder={t("room.workBoard.wbsNamePlaceholder")}
-                        value={wbsDraft.title}
-                      />
-                    </label>
-                  </div>
-                  <div className={styles.wbsFormActions}>
-                    <button className={styles.primaryAction} type="submit">
-                      {t("room.workBoard.addLine")}
-                    </button>
-                  </div>
-                </form>
               </div>
             </section>
             ) : null}

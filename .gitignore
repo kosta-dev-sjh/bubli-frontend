@@ -7,12 +7,12 @@ out/
 storybook-static/
 *.tsbuildinfo
 
-# 환경 변수
+# Environment
 .env
 .env.local
 .env.*.local
 
-# Tauri 빌드 산출물
+# Tauri build output
 src-tauri/target/
 
 # SQLite
@@ -24,8 +24,12 @@ src-tauri/target/
 *.iml
 .vscode/
 
-# 내부 작업 문서는 추적하되, 로컬 편집기 상태와 대량 캡처 산출물은 제외한다.
+# Generated CSV exports are local-only. Keep source docs in Git instead.
 *.csv
+docs/**/*.csv
+
+# Local planning/status workbooks are too conflict-prone to track.
+docs/기능_API연결_색상표_*.xlsx
 docs/.obsidian/
 docs/visual-qa/screenshots/*
 !docs/visual-qa/screenshots/.gitkeep
@@ -34,16 +38,16 @@ docs/visual-qa/screenshots/*
 .DS_Store
 Thumbs.db
 
-# 로그
+# Logs
 *.log
 *.base
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# 로컬 검증 산출물
+# Local verification output
 .playwright-cli/
 output/
 
-# 로컬 에이전트/스킬 캐시 (린트 대상 아님)
+# Local assistant/cache state
 .claude/
