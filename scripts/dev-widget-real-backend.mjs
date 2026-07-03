@@ -214,14 +214,12 @@ async function smokeBackend(accessToken) {
   });
   assert(voiceParticipant.userId === SEED_USER_ID, "voice mic update did not return the seed user participant");
 
-  const maybeVoiceToken = await apiPostOptional(`/api/voice/rooms/${voiceRoom.id}/token`, headers, {});
-  if (maybeVoiceToken.ok) {
-    assert(maybeVoiceToken.data.voiceRoomId === voiceRoom.id, "voice token did not return the voice room id");
-    assert(maybeVoiceToken.data.participantId, "voice token did not return a participant id");
-    assert(maybeVoiceToken.data.serverUrl !== undefined, "voice token did not include serverUrl");
-  } else {
-    console.warn(`Voice token smoke skipped: ${maybeVoiceToken.message}`);
-  }
+  const voiceToken = await apiPost(`/api/voice/rooms/${voiceRoom.id}/token`, headers, {});
+  assert(voiceToken.voiceRoomId === voiceRoom.id, "voice token did not return the voice room id");
+  assert(voiceToken.participantId, "voice token did not return a participant id");
+  assert(voiceToken.serverUrl, "voice token did not include serverUrl");
+  assert(voiceToken.token, "voice token did not include token");
+  assert(voiceToken.expiresAt, "voice token did not include expiresAt");
 
   const voiceRoomLeft = await apiPatch(`/api/voice/rooms/${voiceRoom.id}/leave`, headers, {});
   assert(voiceRoomLeft.id === voiceRoom.id, "voice leave did not return the same voice room");
@@ -434,7 +432,7 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/widget/items/{id}/state, /api/widget/items/states, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/widget/items/{id}/state, /api/widget/items/states, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/token, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 
@@ -501,28 +499,6 @@ async function apiPost(path, headers, body) {
   }
 
   return payload.data;
-}
-
-async function apiPostOptional(path, headers, body) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    body: JSON.stringify(body),
-    headers: {
-      ...headers,
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-  const payload = await response.json().catch(() => null);
-
-  if (!response.ok || !payload?.success) {
-    return {
-      data: null,
-      message: `${path} returned HTTP ${response.status}: ${JSON.stringify(payload)}`,
-      ok: false,
-    };
-  }
-
-  return { data: payload.data, message: "ok", ok: true };
 }
 
 async function apiPatch(path, headers, body) {
