@@ -2,7 +2,7 @@
 
 import { Room } from "livekit-client";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   widgetDisplayApi,
@@ -664,7 +664,7 @@ function DesktopWidgetSurface() {
   const selectedWidgetRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
   const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const htmlStyle = document.documentElement.style;
     const bodyStyle = document.body.style;
     const previous = {
