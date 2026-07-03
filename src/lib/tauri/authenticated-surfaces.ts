@@ -126,6 +126,13 @@ export function launchTauriAuthenticatedSurfaces() {
       }
     }
 
+    if (results.every((result) => result.status === "rejected")) {
+      launchRequested = false;
+      launchedAuthenticatedSurfaces = false;
+      await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
+      throw results[0].status === "rejected" ? results[0].reason : new Error("No Tauri widgets opened");
+    }
+
     void tauriCommands
       .seedWidgetBarItems({ selectedRoomId })
       .catch(() => undefined);
@@ -142,10 +149,6 @@ export function launchTauriAuthenticatedSurfaces() {
     startManagedFolderAutoSync();
     startWidgetUsageAutoSync();
     launchedAuthenticatedSurfaces = true;
-
-    if (results.every((result) => result.status === "rejected")) {
-      throw results[0].status === "rejected" ? results[0].reason : new Error("No Tauri widgets opened");
-    }
   })()
     .catch((error) => {
       launchRequested = false;
