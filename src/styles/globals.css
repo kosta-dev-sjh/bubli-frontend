@@ -14060,8 +14060,7 @@ html {
   color: var(--text-soft, #586978);
   font-size: 13px;
   font-weight: 500;
-  line-height: 1;
-  white-space: nowrap;
+  line-height: 1.2;
   cursor: pointer;
   transition:
     color var(--motion-hover, 160ms) var(--ease-in, ease),
