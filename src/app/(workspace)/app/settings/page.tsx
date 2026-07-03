@@ -15,7 +15,7 @@ import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
-import type { TranslateVars, MessageKey } from "@/lib/i18n";
+import type { TranslateVars, MessageKey, Locale } from "@/lib/i18n";
 import { recordCurrentActivityContext } from "@/lib/local/activity-client";
 import {
   backupLocalSqlite,
@@ -71,6 +71,7 @@ type SettingsData = {
   notifications: NotificationPreferencesResponse | null;
   privacy: PrivacyConsentsResponse | null;
   storage: StorageUsageResponse | null;
+  googleCalendarConnected: boolean;
   googleCalendarConnectUrl: string | null;
   activityLogs: ActivityLogResponse[] | null;
   widgetBubbles: WidgetBubbleSettingResponse[] | null;
@@ -103,6 +104,7 @@ const emptySettings: SettingsData = {
   notifications: null,
   privacy: null,
   storage: null,
+  googleCalendarConnected: false,
   googleCalendarConnectUrl: null,
   activityLogs: null,
   widgetBubbles: null,
@@ -250,7 +252,7 @@ function activityStartedLabel(t: TranslateFn, value?: string | null) {
 type StatusMessage = { text: string; tone: "approved" | "warning" };
 
 export default function SettingsPage() {
-  const { t } = useI18n();
+  const { t, setLocale } = useI18n();
   const router = useRouter();
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [profileDraft, setProfileDraft] = useState(defaultProfileDraft);
@@ -272,7 +274,7 @@ export default function SettingsPage() {
 
     try {
       const user = await authApi.getMe();
-      const [notifications, privacy, storage, activityLogs, widgetBubbles, widgetUsage, localFolders] =
+      const [notifications, privacy, storage, activityLogs, widgetBubbles, widgetUsage, localFolders, googleConnection] =
         await Promise.allSettled([
           settingsApi.getNotificationPreferences(),
           settingsApi.getPrivacyConsents(),
@@ -281,6 +283,7 @@ export default function SettingsPage() {
           widgetApi.getBubbles(),
           widgetApi.getTodayUsageRollups(),
           listPersonalManagedFolders(),
+          calendarApi.getGoogleConnection(),
         ]);
       const folderResult = settledValue(localFolders, null);
 
@@ -295,6 +298,7 @@ export default function SettingsPage() {
           notifications: settledValue(notifications, null),
           privacy: settledValue(privacy, null),
           storage: settledValue(storage, null),
+          googleCalendarConnected: googleConnection.status === "fulfilled" && googleConnection.value?.status === "ACTIVE",
           googleCalendarConnectUrl: calendarApi.getGoogleConnectUrl(),
           activityLogs: settledValue(activityLogs, null),
           widgetBubbles: settledValue(widgetBubbles, null),
@@ -377,6 +381,7 @@ export default function SettingsPage() {
     };
 
     updateReadyState((current) => ({ ...current, user: nextUser }));
+    setLocale(nextUser.locale as Locale);
     setSaveMessage({ text: t("settings.msg.displaySaved"), tone: "approved" });
 
     try {
@@ -1052,8 +1057,12 @@ export default function SettingsPage() {
                 <span className={styles.sectionLabel}>{t("settings.section.integration")}</span>
                 <h2>Google Calendar</h2>
               </div>
-              <StatusBadge tone={state.kind === "ready" ? "approved" : "neutral"}>
-                {state.kind === "ready" ? t("settings.gcal.ready") : t("settings.status.waiting")}
+              <StatusBadge tone={state.kind === "ready" && state.settings.googleCalendarConnected ? "approved" : state.kind === "ready" ? "neutral" : "neutral"}>
+                {state.kind === "ready" && state.settings.googleCalendarConnected
+                  ? t("settings.gcal.connected")
+                  : state.kind === "ready"
+                    ? t("settings.gcal.ready")
+                    : t("settings.status.waiting")}
               </StatusBadge>
             </div>
             <div className={styles.integrationGrid}>
@@ -1065,10 +1074,20 @@ export default function SettingsPage() {
                 <div className={styles.row}>
                   <span>
                     <strong>{t("settings.gcal.connectionStatus")}</strong>
-                    <small>{state.kind === "ready" ? t("settings.gcal.canConnect") : t("settings.gcal.afterLogin")}</small>
+                    <small>
+                      {state.kind === "ready" && state.settings.googleCalendarConnected
+                        ? t("settings.gcal.connectedDesc")
+                        : state.kind === "ready"
+                          ? t("settings.gcal.canConnect")
+                          : t("settings.gcal.afterLogin")}
+                    </small>
                   </span>
-                  <StatusBadge tone={state.kind === "ready" ? "approved" : "neutral"}>
-                    {state.kind === "ready" ? t("settings.value.prepared") : t("settings.value.waiting")}
+                  <StatusBadge tone={state.kind === "ready" && state.settings.googleCalendarConnected ? "approved" : "neutral"}>
+                    {state.kind === "ready" && state.settings.googleCalendarConnected
+                      ? t("settings.gcal.connected")
+                      : state.kind === "ready"
+                        ? t("settings.value.prepared")
+                        : t("settings.value.waiting")}
                   </StatusBadge>
                 </div>
                 <div className={styles.row}>
@@ -1082,7 +1101,9 @@ export default function SettingsPage() {
             </div>
             <div className={styles.inlineActions}>
               <Button disabled={state.kind !== "ready"} onClick={openGoogleCalendarConnect} type="button" variant="primary">
-                {t("settings.gcal.connectCta")}
+                {state.kind === "ready" && state.settings.googleCalendarConnected
+                  ? t("settings.gcal.reconnectCta")
+                  : t("settings.gcal.connectCta")}
               </Button>
               <Link className="bubli-button" href="/app/calendar">
                 {t("settings.gcal.viewCalendar")}
