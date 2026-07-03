@@ -1,6 +1,9 @@
+"use client";
+
 import { Eye, EyeOff, GripVertical, X } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import { sizeToClass } from "./widget-catalog";
@@ -40,6 +43,8 @@ export function DashboardWidgetTile({
   title,
   ...props
 }: DashboardWidgetTileProps) {
+  const { t } = useI18n();
+
   return (
     <div
       className={cn(
@@ -62,15 +67,15 @@ export function DashboardWidgetTile({
         </span>
         {editMode ? (
           <span className="bubli-dash-tile__actions">
-            <button aria-label="이동" className="bubli-dash-tile__act bubli-dash-tile__handle" type="button" {...dragHandleProps}>
+            <button aria-label={t("dashboard.tile.move")} className="bubli-dash-tile__act bubli-dash-tile__handle" type="button" {...dragHandleProps}>
               <GripVertical />
             </button>
             {onToggleHide ? (
-              <button aria-label={hidden ? "보이기" : "숨기기"} className="bubli-dash-tile__act" onClick={onToggleHide} type="button">
+              <button aria-label={hidden ? t("dashboard.tile.show") : t("dashboard.tile.hide")} className="bubli-dash-tile__act" onClick={onToggleHide} type="button">
                 {hidden ? <Eye /> : <EyeOff />}
               </button>
             ) : null}
-            <button aria-label="삭제" className="bubli-dash-tile__act" onClick={onRemove} type="button">
+            <button aria-label={t("dashboard.tile.remove")} className="bubli-dash-tile__act" onClick={onRemove} type="button">
               <X />
             </button>
           </span>

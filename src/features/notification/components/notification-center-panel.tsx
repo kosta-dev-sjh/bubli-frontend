@@ -1,9 +1,15 @@
+"use client";
+
 import { Bell, BellRing, CalendarClock, CheckCircle2, EyeOff, MessageCircle, Pin, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 type NotificationKind = "todo" | "agent" | "communication" | "schedule";
 type NotificationState = "unread" | "read" | "dismissed";
@@ -18,59 +24,62 @@ type NotificationItem = {
   time: string;
 };
 
-const notifications: NotificationItem[] = [
-  {
-    description: "검수 기준 확인 요청이 생겼습니다. 승인 전 후보라서 작업판에는 아직 반영되지 않았습니다.",
-    kind: "agent",
-    originLabel: "에이전트 후보",
-    projectRoom: "업무 기준 문서 정리",
-    state: "unread",
-    time: "방금 전",
-    title: "확인 질문 후보 2건",
-  },
-  {
-    description: "오늘 마감인 TODO입니다. 담당자가 나로 지정되어 대시보드와 TODO 버블에 함께 보입니다.",
-    kind: "todo",
-    originLabel: "내 TODO",
-    projectRoom: "브랜드 소개서",
-    state: "unread",
-    time: "12분 전",
-    title: "1차 번역 검토",
-  },
-  {
-    description: "프로젝트룸 채팅에서 나를 언급했습니다. 데스크톱 앱에서는 소통 버블에서 바로 열 수 있습니다.",
-    kind: "communication",
-    originLabel: "프로젝트룸 채팅",
-    projectRoom: "웹사이트 리뉴얼",
-    state: "read",
-    time: "35분 전",
-    title: "새 멘션",
-  },
-  {
-    description: "오후 일정이 30분 앞으로 다가왔습니다. Google Calendar와 연결된 일정은 같은 일정 기준으로 표시합니다.",
-    kind: "schedule",
-    originLabel: "일정",
-    projectRoom: "정기 운영 업무",
-    state: "dismissed",
-    time: "1시간 전",
-    title: "회의 준비 알림",
-  },
-];
+function buildNotifications(t: TranslateFn): NotificationItem[] {
+  return [
+    {
+      description: t("notification.center.sample.agent.desc"),
+      kind: "agent",
+      originLabel: t("notification.center.sample.agent.origin"),
+      projectRoom: t("notification.center.sample.agent.room"),
+      state: "unread",
+      time: t("notification.center.sample.agent.time"),
+      title: t("notification.center.sample.agent.title"),
+    },
+    {
+      description: t("notification.center.sample.todo.desc"),
+      kind: "todo",
+      originLabel: t("notification.center.sample.todo.origin"),
+      projectRoom: t("notification.center.sample.todo.room"),
+      state: "unread",
+      time: t("notification.center.sample.todo.time"),
+      title: t("notification.center.sample.todo.title"),
+    },
+    {
+      description: t("notification.center.sample.mention.desc"),
+      kind: "communication",
+      originLabel: t("notification.center.sample.mention.origin"),
+      projectRoom: t("notification.center.sample.mention.room"),
+      state: "read",
+      time: t("notification.center.sample.mention.time"),
+      title: t("notification.center.sample.mention.title"),
+    },
+    {
+      description: t("notification.center.sample.schedule.desc"),
+      kind: "schedule",
+      originLabel: t("notification.center.sample.schedule.origin"),
+      projectRoom: t("notification.center.sample.schedule.room"),
+      state: "dismissed",
+      time: t("notification.center.sample.schedule.time"),
+      title: t("notification.center.sample.schedule.title"),
+    },
+  ];
+}
 
-const kindMeta: Record<NotificationKind, { icon: typeof Bell; label: string; tone: "todo" | "agent" | "communication" | "warning" }> = {
-  agent: { icon: Sparkles, label: "에이전트", tone: "agent" },
-  communication: { icon: MessageCircle, label: "소통", tone: "communication" },
-  schedule: { icon: CalendarClock, label: "일정", tone: "warning" },
-  todo: { icon: CheckCircle2, label: "TODO", tone: "todo" },
+const kindMeta: Record<NotificationKind, { icon: typeof Bell; labelKey: MessageKey; tone: "todo" | "agent" | "communication" | "warning" }> = {
+  agent: { icon: Sparkles, labelKey: "notification.kind.agent", tone: "agent" },
+  communication: { icon: MessageCircle, labelKey: "notification.kind.communication", tone: "communication" },
+  schedule: { icon: CalendarClock, labelKey: "notification.kind.schedule", tone: "warning" },
+  todo: { icon: CheckCircle2, labelKey: "notification.kind.todo", tone: "todo" },
 };
 
-const stateCopy: Record<NotificationState, { label: string; tone: "neutral" | "pending" | "success" }> = {
-  dismissed: { label: "닫음", tone: "neutral" },
-  read: { label: "읽음", tone: "success" },
-  unread: { label: "새 알림", tone: "pending" },
+const stateCopy: Record<NotificationState, { labelKey: MessageKey; tone: "neutral" | "pending" | "success" }> = {
+  dismissed: { labelKey: "notification.state.dismissed", tone: "neutral" },
+  read: { labelKey: "notification.state.read", tone: "success" },
+  unread: { labelKey: "notification.state.unread", tone: "pending" },
 };
 
 function NotificationRow({ item }: { item: NotificationItem }) {
+  const { t } = useI18n();
   const meta = kindMeta[item.kind];
   const state = stateCopy[item.state];
   const Icon = meta.icon;
@@ -84,23 +93,23 @@ function NotificationRow({ item }: { item: NotificationItem }) {
         <div className="notification-row__head">
           <div>
             <div className="notification-row__meta">
-              <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
+              <StatusBadge tone={meta.tone}>{t(meta.labelKey)}</StatusBadge>
               <span>{item.projectRoom}</span>
               <span>{item.time}</span>
             </div>
             <h3>{item.title}</h3>
           </div>
-          <StatusBadge tone={state.tone}>{state.label}</StatusBadge>
+          <StatusBadge tone={state.tone}>{t(state.labelKey)}</StatusBadge>
         </div>
         <p>{item.description}</p>
         <footer className="notification-row__footer">
-          <span>연결 항목: {item.originLabel}</span>
+          <span>{t("notification.center.linkedItem", { label: item.originLabel })}</span>
           <div>
             <Button icon={<Pin size={14} />} size="sm" variant="ghost">
-              고정
+              {t("notification.center.pin")}
             </Button>
             <Button icon={<EyeOff size={14} />} size="sm" variant="quiet">
-              숨김
+              {t("notification.center.hide")}
             </Button>
           </div>
         </footer>
@@ -110,38 +119,38 @@ function NotificationRow({ item }: { item: NotificationItem }) {
 }
 
 export function NotificationCenterPanel() {
+  const { t } = useI18n();
+  const notifications = buildNotifications(t);
   const unreadCount = notifications.filter((item) => item.state === "unread").length;
 
   return (
-    <section className="notification-center" aria-label="알림 센터">
+    <section className="notification-center" aria-label={t("notification.center.sectionAria")}>
       <GlassPanel className="notification-center__hero">
         <div className="notification-center__title">
           <span className="bubli-icon-tile" aria-hidden="true">
             <BellRing size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <Chip selected>알림 버블</Chip>
-            <h2>알림을 모아 보고, 버블에서는 필요한 것만 띄웁니다</h2>
-            <p>
-              알림은 웹과 데스크톱 버블에서 같은 기준으로 보입니다. 읽음, 숨김, 고정 같은 선택은 사용자별로 저장합니다.
-            </p>
+            <Chip selected>{t("notification.center.chip")}</Chip>
+            <h2>{t("notification.center.heroTitle")}</h2>
+            <p>{t("notification.center.heroDesc")}</p>
           </div>
         </div>
-        <div className="notification-center__summary" aria-label="알림 요약">
+        <div className="notification-center__summary" aria-label={t("notification.center.summaryAria")}>
           <strong>{unreadCount}</strong>
-          <span>확인할 새 알림</span>
-          <p>프로젝트룸, TODO, 일정, 에이전트 후보에서 온 알림을 사용자 기준으로 정리합니다.</p>
+          <span>{t("notification.center.newToCheck")}</span>
+          <p>{t("notification.center.summaryDesc")}</p>
         </div>
       </GlassPanel>
 
       <div className="notification-center__grid">
         <GlassPanel className="notification-center__list">
           <div className="notification-center__toolbar">
-            <h3>오늘 알림</h3>
+            <h3>{t("notification.center.today")}</h3>
             <div>
-              <Chip selected>전체</Chip>
-              <Chip>읽지 않음</Chip>
-              <Chip>고정</Chip>
+              <Chip selected>{t("notification.center.filterAll")}</Chip>
+              <Chip>{t("notification.center.filterUnread")}</Chip>
+              <Chip>{t("notification.center.filterPinned")}</Chip>
             </div>
           </div>
           <div className="notification-center__items">
@@ -152,19 +161,19 @@ export function NotificationCenterPanel() {
         </GlassPanel>
 
         <GlassPanel className="notification-center__policy">
-          <h3>저장 기준</h3>
+          <h3>{t("notification.center.policyTitle")}</h3>
           <dl>
             <div>
-              <dt>원본</dt>
-              <dd>TODO, 일정, 채팅, 에이전트 후보처럼 실제 항목이 있는 곳을 기준으로 다시 불러옵니다.</dd>
+              <dt>{t("notification.center.policy.origin")}</dt>
+              <dd>{t("notification.center.policy.originDesc")}</dd>
             </div>
             <div>
-              <dt>사용자 상태</dt>
-              <dd>읽음, 숨김, 고정, 다시 보기는 사용자별 상태로 남깁니다.</dd>
+              <dt>{t("notification.center.policy.userState")}</dt>
+              <dd>{t("notification.center.policy.userStateDesc")}</dd>
             </div>
             <div>
-              <dt>데스크톱 표시</dt>
-              <dd>알림 버블은 최근 표시만 빠르게 보여주고, 자세한 사용 기록은 기기 안에 남깁니다.</dd>
+              <dt>{t("notification.center.policy.desktop")}</dt>
+              <dd>{t("notification.center.policy.desktopDesc")}</dd>
             </div>
           </dl>
         </GlassPanel>

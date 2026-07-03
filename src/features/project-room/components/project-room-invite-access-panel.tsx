@@ -11,6 +11,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./project-room-invite-access-panel.module.css";
@@ -37,10 +39,10 @@ export type ProjectRoomInviteAccessPanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const friendStatusMeta: Record<FriendInviteStatus, { actionLabel: string; label: string; tone: StatusTone }> = {
-  FRIEND: { actionLabel: "초대", label: "친구", tone: "personal" },
-  INVITED: { actionLabel: "대기", label: "초대 보냄", tone: "pending" },
-  JOINED: { actionLabel: "보기", label: "참여 중", tone: "approved" },
+const friendStatusMeta: Record<FriendInviteStatus, { actionLabelKey: MessageKey; labelKey: MessageKey; tone: StatusTone }> = {
+  FRIEND: { actionLabelKey: "room.inviteAccess.statusFriendAction", labelKey: "room.inviteAccess.statusFriendLabel", tone: "personal" },
+  INVITED: { actionLabelKey: "room.inviteAccess.statusInvitedAction", labelKey: "room.inviteAccess.statusInvitedLabel", tone: "pending" },
+  JOINED: { actionLabelKey: "room.inviteAccess.statusJoinedAction", labelKey: "room.inviteAccess.statusJoinedLabel", tone: "approved" },
 };
 
 export const defaultInviteFriends: FriendInvite[] = [
@@ -87,9 +89,11 @@ export function ProjectRoomInviteAccessPanel({
   friends,
   roomName,
   rules,
-  title = "프로젝트룸 초대",
+  title,
   ...props
 }: ProjectRoomInviteAccessPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("room.inviteAccess.defaultTitle");
   const invitedCount = friends.filter((friend) => friend.status === "INVITED").length;
   const joinedCount = friends.filter((friend) => friend.status === "JOINED").length;
 
@@ -97,32 +101,30 @@ export function ProjectRoomInviteAccessPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<UserPlus size={16} strokeWidth={2.1} />}>친구 초대</Chip>
+          <Chip icon={<UserPlus size={16} strokeWidth={2.1} />}>{t("room.inviteAccess.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              프로젝트룸에는 수락된 친구 목록에서 기존 회원을 불러옵니다. 수락 뒤에만 멤버 권한이 생깁니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("room.inviteAccess.description")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>대상 프로젝트룸</span>
+          <span>{t("room.inviteAccess.targetRoom")}</span>
           <strong>{roomName}</strong>
-          <StatusBadge tone="approved">참여 {joinedCount}명</StatusBadge>
+          <StatusBadge tone="approved">{t("room.inviteAccess.joinedCount", { count: joinedCount })}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.inviteGrid} aria-label="프로젝트룸 초대 방식">
+      <section className={styles.inviteGrid} aria-label={t("room.inviteAccess.gridAria")}>
         <article className={styles.inviteCard}>
           <div className={styles.cardTop}>
             <span className={styles.iconTile}>
               <UsersRound size={18} strokeWidth={2.1} aria-hidden="true" />
             </span>
             <div>
-              <strong>친구 목록에서 초대</strong>
-              <p>아이디로 추가한 친구를 프로젝트룸으로 불러옵니다.</p>
+              <strong>{t("room.inviteAccess.fromFriendsTitle")}</strong>
+              <p>{t("room.inviteAccess.fromFriendsBody")}</p>
             </div>
-            <StatusBadge tone="personal">기본 방식</StatusBadge>
+            <StatusBadge tone="personal">{t("room.inviteAccess.defaultMethod")}</StatusBadge>
           </div>
           <div className={styles.friendList}>
             {friends.map((friend) => {
@@ -136,9 +138,9 @@ export function ProjectRoomInviteAccessPanel({
                       @{friend.handle} · {friend.lastSeenLabel}
                     </span>
                   </div>
-                  <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                  <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
                   <Button disabled={friend.status === "INVITED"} size="sm" variant="quiet">
-                    {status.actionLabel}
+                    {t(status.actionLabelKey)}
                   </Button>
                 </div>
               );
@@ -152,26 +154,26 @@ export function ProjectRoomInviteAccessPanel({
               <ShieldCheck size={18} strokeWidth={2.1} aria-hidden="true" />
             </span>
             <div>
-              <strong>초대 제한</strong>
-              <p>친구가 아닌 사용자, 직접 주소 입력, 임시 참여는 프로젝트룸 초대에서 제외합니다.</p>
+              <strong>{t("room.inviteAccess.limitTitle")}</strong>
+              <p>{t("room.inviteAccess.limitBody")}</p>
             </div>
-            <StatusBadge tone="warning">제외 기준</StatusBadge>
+            <StatusBadge tone="warning">{t("room.inviteAccess.exclusionBadge")}</StatusBadge>
           </div>
           <div className={styles.linkBox}>
-            <span>친구 관계 확인 후 초대 요청 생성</span>
+            <span>{t("room.inviteAccess.checkFriend")}</span>
             <Button icon={<UserPlus size={15} strokeWidth={2.1} />} size="sm" variant="secondary">
-              친구 선택
+              {t("room.inviteAccess.selectFriend")}
             </Button>
           </div>
           <div className={styles.statRow}>
-            <span>초대 대기 {invitedCount}명</span>
-            <span>참여 중 {joinedCount}명</span>
+            <span>{t("room.inviteAccess.invitedCount", { count: invitedCount })}</span>
+            <span>{t("room.inviteAccess.joinedStat", { count: joinedCount })}</span>
           </div>
         </article>
 
       </section>
 
-      <section className={styles.ruleGrid} aria-label="초대와 접근 기준">
+      <section className={styles.ruleGrid} aria-label={t("room.inviteAccess.ruleAria")}>
         {rules.map((rule) => (
           <article key={rule.label}>
             <CheckCircle2 size={18} strokeWidth={2.1} aria-hidden="true" />

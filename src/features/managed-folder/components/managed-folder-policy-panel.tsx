@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AlertTriangle,
   CheckCircle2,
@@ -16,6 +18,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./managed-folder-policy-panel.module.css";
@@ -31,7 +35,8 @@ export type LocalFileSyncStatus =
 export type ManagedFolderMetric = {
   count: number;
   id: string;
-  label: string;
+  label?: string;
+  labelKey?: MessageKey;
   status: LocalFileSyncStatus;
 };
 
@@ -47,13 +52,13 @@ type ManagedFolderPolicyPanelProps = HTMLAttributes<HTMLElement> & {
   syncEnabled?: boolean;
 };
 
-const statusCopy: Record<LocalFileSyncStatus, string> = {
-  LOCAL_ONLY: "로컬",
-  SYNC_PENDING: "동기화 대기",
-  SYNCED: "반영됨",
-  CONFLICT: "충돌",
-  DELETE_CANDIDATE: "삭제 후보",
-  STORAGE_LIMIT_EXCEEDED: "용량 초과",
+const statusCopy: Record<LocalFileSyncStatus, MessageKey> = {
+  LOCAL_ONLY: "folder.policy.statusLocalOnly",
+  SYNC_PENDING: "folder.policy.statusSyncPending",
+  SYNCED: "folder.policy.statusSynced",
+  CONFLICT: "folder.policy.statusConflict",
+  DELETE_CANDIDATE: "folder.policy.statusDeleteCandidate",
+  STORAGE_LIMIT_EXCEEDED: "folder.policy.statusStorageLimit",
 };
 
 const statusTone: Record<LocalFileSyncStatus, "neutral" | "pending" | "success" | "warning"> = {
@@ -69,42 +74,45 @@ const defaultMetrics: ManagedFolderMetric[] = [
   {
     count: 24,
     id: "local",
-    label: "로컬 색인",
+    labelKey: "folder.policy.metricLocal",
     status: "LOCAL_ONLY",
   },
   {
     count: 3,
     id: "pending",
-    label: "서버 반영 대기",
+    labelKey: "folder.policy.metricPending",
     status: "SYNC_PENDING",
   },
   {
     count: 18,
     id: "synced",
-    label: "개인 자료함 반영",
+    labelKey: "folder.policy.metricSynced",
     status: "SYNCED",
   },
   {
     count: 1,
     id: "conflict",
-    label: "확인 필요",
+    labelKey: "folder.policy.metricConflict",
     status: "CONFLICT",
   },
 ];
 
 export function ManagedFolderPolicyPanel({
-  backupLabel = "마지막 로컬 백업 09:42",
+  backupLabel,
   className,
   folderAlias = "~/Documents/Bubli",
   metrics = defaultMetrics,
   onBackupNow,
   onSelectFolder,
   onSyncNow,
-  quotaLabel = "개인 자료함 820MB / 1GB",
+  quotaLabel,
   quotaPercent = 82,
   syncEnabled = true,
   ...props
 }: ManagedFolderPolicyPanelProps) {
+  const { t } = useI18n();
+  const resolvedBackupLabel = backupLabel ?? t("folder.policy.backupLabel");
+  const resolvedQuotaLabel = quotaLabel ?? t("folder.policy.quotaLabel");
   const pendingCount = metrics
     .filter((metric) => metric.status === "SYNC_PENDING" || metric.status === "CONFLICT")
     .reduce((sum, metric) => sum + metric.count, 0);
@@ -117,17 +125,17 @@ export function ManagedFolderPolicyPanel({
             <FolderCheck size={22} />
           </span>
           <div>
-            <StatusBadge tone={syncEnabled ? "success" : "neutral"}>{syncEnabled ? "동기화 켜짐" : "로컬만 사용"}</StatusBadge>
-            <h2>개인 관리 폴더</h2>
-            <p>사용자가 지정한 폴더만 감지하고, 서버 반영과 프로젝트룸 공유는 각각 확인한 뒤 진행합니다.</p>
+            <StatusBadge tone={syncEnabled ? "success" : "neutral"}>{syncEnabled ? t("folder.policy.syncOn") : t("folder.policy.localOnly")}</StatusBadge>
+            <h2>{t("folder.policy.title")}</h2>
+            <p>{t("folder.policy.desc")}</p>
           </div>
         </div>
         <div className={styles.actions}>
           <Button icon={<FolderOpen size={15} />} onClick={onSelectFolder} size="sm" variant="quiet">
-            폴더 선택
+            {t("folder.policy.selectFolder")}
           </Button>
           <Button icon={<UploadCloud size={15} />} onClick={onSyncNow} size="sm" variant="primary">
-            대기 항목 반영
+            {t("folder.policy.applyPending")}
           </Button>
         </div>
       </header>
@@ -138,19 +146,19 @@ export function ManagedFolderPolicyPanel({
         </div>
         <div className={styles.folderBody}>
           <strong>{folderAlias}</strong>
-          <span>폴더 선택과 변경 감지는 이 폴더 안에서만 동작합니다.</span>
+          <span>{t("folder.policy.folderScope")}</span>
         </div>
-        <Chip>{pendingCount}개 확인 필요</Chip>
+        <Chip>{t("folder.policy.needsCheck", { count: pendingCount })}</Chip>
       </div>
 
-      <div className={styles.metricGrid} aria-label="개인 관리 폴더 동기화 상태">
+      <div className={styles.metricGrid} aria-label={t("folder.policy.metricGridAria")}>
         {metrics.map((metric) => (
           <article className={styles.metricCard} key={metric.id}>
             <div>
               <strong>{metric.count}</strong>
-              <span>{metric.label}</span>
+              <span>{metric.labelKey ? t(metric.labelKey) : metric.label}</span>
             </div>
-            <StatusBadge tone={statusTone[metric.status]}>{statusCopy[metric.status]}</StatusBadge>
+            <StatusBadge tone={statusTone[metric.status]}>{t(statusCopy[metric.status])}</StatusBadge>
           </article>
         ))}
       </div>
@@ -158,37 +166,37 @@ export function ManagedFolderPolicyPanel({
       <div className={styles.policyGrid}>
         <PolicyItem
           icon={<ShieldCheck size={17} />}
-          label="접근 범위"
-          value="전체 PC가 아니라 사용자가 선택한 개인 관리 폴더만 색인합니다."
+          label={t("folder.policy.accessLabel")}
+          value={t("folder.policy.accessValue")}
         />
         <PolicyItem
           icon={<Database size={17} />}
-          label="저장 기준"
-          value="파일 색인과 변경 이벤트는 먼저 기기 안 임시 저장소에 저장합니다."
+          label={t("folder.policy.storageLabel")}
+          value={t("folder.policy.storageValue")}
         />
         <PolicyItem
           icon={<AlertTriangle size={17} />}
-          label="공유 기준"
-          value="개인 자료함 동기화와 프로젝트룸 공유 승인은 서로 다른 단계입니다."
+          label={t("folder.policy.shareLabel")}
+          value={t("folder.policy.shareValue")}
         />
       </div>
 
       <footer className={styles.footer}>
         <div className={styles.quota}>
           <div>
-            <strong>{quotaLabel}</strong>
-            <span>용량을 넘으면 서버 업로드는 막고 로컬 색인은 유지합니다.</span>
+            <strong>{resolvedQuotaLabel}</strong>
+            <span>{t("folder.policy.quotaOverDesc")}</span>
           </div>
           <span>{quotaPercent}%</span>
         </div>
-        <ProgressBar label="개인 자료함 사용량" value={quotaPercent} />
+        <ProgressBar label={t("folder.policy.usageLabel")} value={quotaPercent} />
         <div className={styles.backupRow}>
           <span>
             <CheckCircle2 size={15} />
-            {backupLabel}
+            {resolvedBackupLabel}
           </span>
           <Button icon={<RefreshCcw size={14} />} onClick={onBackupNow} size="sm" variant="ghost">
-            백업 만들기
+            {t("folder.policy.createBackup")}
           </Button>
         </div>
       </footer>

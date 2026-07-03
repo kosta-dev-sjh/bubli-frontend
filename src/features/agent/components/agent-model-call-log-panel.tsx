@@ -1,3 +1,5 @@
+"use client";
+
 import type { ReactNode } from "react";
 
 import {
@@ -16,100 +18,104 @@ import {
 } from "lucide-react";
 
 import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 
 import styles from "./agent-model-call-log-panel.module.css";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 type CallStatus = "SUCCEEDED" | "FAILED" | "RETRIED";
 
 type ModelCallLog = {
-  errorCode?: string;
+  errorCodeKey?: MessageKey;
   inputTokens: number;
-  jobId: string;
+  jobIdKey: MessageKey;
   latencyMs?: number;
   modelName: string;
   outputTokens: number;
   promptVersion: string;
   schemaVersion: string;
   status: CallStatus;
-  target: string;
-  title: string;
+  targetKey: MessageKey;
+  titleKey: MessageKey;
 };
 
 type TraceItem = {
   icon: ReactNode;
-  label: string;
-  text: string;
+  labelKey: MessageKey;
+  textKey: MessageKey;
 };
 
 const logs: ModelCallLog[] = [
   {
     inputTokens: 4820,
-    jobId: "정리 작업 20260622-001",
+    jobIdKey: "agent.log.log1Job",
     latencyMs: 1840,
     modelName: "bedrock-claude-haiku",
     outputTokens: 924,
     promptVersion: "resource-analysis-v3",
     schemaVersion: "resource-analysis-json-v2",
     status: "SUCCEEDED",
-    target: "자료 분석 후보",
-    title: "업무기준문서_v2.pdf 분석",
+    targetKey: "agent.log.log1Target",
+    titleKey: "agent.log.log1Title",
   },
   {
     inputTokens: 2650,
-    jobId: "정리 작업 20260622-002",
+    jobIdKey: "agent.log.log2Job",
     latencyMs: 1120,
     modelName: "bedrock-claude-haiku",
     outputTokens: 618,
     promptVersion: "wbs-todo-candidate-v2",
     schemaVersion: "agent-suggestion-json-v2",
     status: "SUCCEEDED",
-    target: "작업 후보",
-    title: "회의록 WBS/TODO 후보",
+    targetKey: "agent.log.log2Target",
+    titleKey: "agent.log.log2Title",
   },
   {
-    errorCode: "결과 형식 확인 실패",
+    errorCodeKey: "agent.log.log3ErrorCode",
     inputTokens: 3912,
-    jobId: "정리 작업 20260621-014",
+    jobIdKey: "agent.log.log3Job",
     modelName: "bedrock-claude-haiku",
     outputTokens: 204,
     promptVersion: "requirement-extract-v2",
     schemaVersion: "requirement-json-v2",
     status: "RETRIED",
-    target: "다시 확인",
-    title: "요구사항_정리.docx 재검증",
+    targetKey: "agent.log.log3Target",
+    titleKey: "agent.log.log3Title",
   },
 ];
 
-const statusMeta: Record<CallStatus, { label: string; tone: "success" | "warning" | "pending"; icon: ReactNode }> = {
-  FAILED: { icon: <TriangleAlert size={15} strokeWidth={2.1} />, label: "실패", tone: "warning" },
-  RETRIED: { icon: <RotateCcw size={15} strokeWidth={2.1} />, label: "재검증", tone: "pending" },
-  SUCCEEDED: { icon: <CheckCircle2 size={15} strokeWidth={2.1} />, label: "기록됨", tone: "success" },
+const statusMeta: Record<CallStatus, { labelKey: MessageKey; tone: "success" | "warning" | "pending"; icon: ReactNode }> = {
+  FAILED: { icon: <TriangleAlert size={15} strokeWidth={2.1} />, labelKey: "agent.log.statusFailed", tone: "warning" },
+  RETRIED: { icon: <RotateCcw size={15} strokeWidth={2.1} />, labelKey: "agent.log.statusRetried", tone: "pending" },
+  SUCCEEDED: { icon: <CheckCircle2 size={15} strokeWidth={2.1} />, labelKey: "agent.log.statusSucceeded", tone: "success" },
 };
 
 const traceItems: TraceItem[] = [
   {
     icon: <Bot size={16} strokeWidth={2.1} />,
-    label: "에이전트 역할",
-    text: "문서 분석과 후보 정리를 맡고 확정 데이터는 만들지 않습니다.",
+    labelKey: "agent.log.traceRoleLabel",
+    textKey: "agent.log.traceRoleText",
   },
   {
     icon: <FileJson size={16} strokeWidth={2.1} />,
-    label: "결과 형식 확인",
-    text: "에이전트 결과가 정해진 항목과 상태값에 맞는지 확인합니다.",
+    labelKey: "agent.log.traceSchemaLabel",
+    textKey: "agent.log.traceSchemaText",
   },
   {
     icon: <Database size={16} strokeWidth={2.1} />,
-    label: "저장 위치",
-    text: "결과는 자료 분석 후보, 작업 후보, 처리 기록으로 나누어 남깁니다.",
+    labelKey: "agent.log.traceStoreLabel",
+    textKey: "agent.log.traceStoreText",
   },
   {
     icon: <ShieldCheck size={16} strokeWidth={2.1} />,
-    label: "권한 경계",
-    text: "웹과 앱은 사용자가 볼 수 있는 상태와 결과만 보여줍니다.",
+    labelKey: "agent.log.traceScopeLabel",
+    textKey: "agent.log.traceScopeText",
   },
 ];
 
-function LogRow({ log }: { log: ModelCallLog }) {
+function LogRow({ log, t }: { log: ModelCallLog; t: TranslateFn }) {
   const status = statusMeta[log.status];
   const totalTokens = log.inputTokens + log.outputTokens;
 
@@ -120,34 +126,34 @@ function LogRow({ log }: { log: ModelCallLog }) {
       </span>
       <div className={styles.logBody}>
         <div className={styles.meta}>
-          <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+          <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
           <span>{log.modelName}</span>
-          <span>{log.target}</span>
+          <span>{t(log.targetKey)}</span>
         </div>
-        <h3>{log.title}</h3>
-        <p>{log.jobId}</p>
+        <h3>{t(log.titleKey)}</h3>
+        <p>{t(log.jobIdKey)}</p>
         <div className={styles.versionGrid}>
           <span>
-            <b>질문 방식</b>
+            <b>{t("agent.log.promptVersion")}</b>
             {log.promptVersion}
           </span>
           <span>
-            <b>결과 형식</b>
+            <b>{t("agent.log.schemaVersion")}</b>
             {log.schemaVersion}
           </span>
           <span>
-            <b>사용량</b>
+            <b>{t("agent.log.usage")}</b>
             {totalTokens.toLocaleString("ko-KR")}
           </span>
           <span>
-            <b>응답 시간</b>
-            {log.latencyMs ? `${log.latencyMs.toLocaleString("ko-KR")}ms` : "검증 실패"}
+            <b>{t("agent.log.latency")}</b>
+            {log.latencyMs ? `${log.latencyMs.toLocaleString("ko-KR")}ms` : t("agent.log.validationFailed")}
           </span>
         </div>
-        {log.errorCode ? (
+        {log.errorCodeKey ? (
           <div className={styles.errorLine}>
             <TriangleAlert size={14} strokeWidth={2.1} aria-hidden="true" />
-            <span>{log.errorCode}</span>
+            <span>{t(log.errorCodeKey)}</span>
           </div>
         ) : null}
       </div>
@@ -156,62 +162,61 @@ function LogRow({ log }: { log: ModelCallLog }) {
 }
 
 export function AgentModelCallLogPanel() {
+  const { t } = useI18n();
+
   return (
-    <section className={styles.panel} aria-label="에이전트 모델 호출 로그">
+    <section className={styles.panel} aria-label={t("agent.log.aria")}>
       <GlassPanel className={styles.hero}>
         <div>
           <Chip icon={<Activity size={14} />} selected>
-            에이전트 처리 기록
+            {t("agent.log.chip")}
           </Chip>
-          <h2>에이전트 결과는 작업, 질문 방식, 결과 형식, 정리 모델 기준으로 추적합니다</h2>
-          <p>
-            문서 분석 결과가 달라졌을 때 어떤 질문 방식과 결과 형식, 정리 모델 기준으로 만들어졌는지 확인할 수 있어야
-            합니다. 이 로그는 결과 품질과 호출량을 관리하기 위한 근거입니다.
-          </p>
+          <h2>{t("agent.log.heroTitle")}</h2>
+          <p>{t("agent.log.heroDesc")}</p>
         </div>
         <div className={styles.summary}>
-          <StatusBadge tone="agent">처리 기록</StatusBadge>
+          <StatusBadge tone="agent">{t("agent.log.summaryBadge")}</StatusBadge>
           <strong>3</strong>
-          <span>최근 호출</span>
+          <span>{t("agent.log.summaryLabel")}</span>
         </div>
       </GlassPanel>
 
-      <div className={styles.flow} aria-label="모델 호출 추적 흐름">
-        <span>정리 작업</span>
+      <div className={styles.flow} aria-label={t("agent.log.flowAria")}>
+        <span>{t("agent.log.flowJob")}</span>
         <ArrowRight size={15} strokeWidth={2.1} />
-        <span>정리 모델</span>
+        <span>{t("agent.log.flowModel")}</span>
         <ArrowRight size={15} strokeWidth={2.1} />
-        <span>결과 형식 확인</span>
+        <span>{t("agent.log.flowSchema")}</span>
         <ArrowRight size={15} strokeWidth={2.1} />
-        <span>후보 저장</span>
+        <span>{t("agent.log.flowSave")}</span>
       </div>
 
       <div className={styles.grid}>
         <GlassPanel className={styles.logPanel}>
           <div className={styles.toolbar}>
             <div>
-              <h3>최근 호출 기록</h3>
-              <p>사용량, 응답 시간, 실패 사유는 에이전트 처리 기록에 남깁니다.</p>
+              <h3>{t("agent.log.recentTitle")}</h3>
+              <p>{t("agent.log.recentDesc")}</p>
             </div>
             <Button icon={<RotateCcw size={15} />} size="sm" variant="quiet">
-              기록 새로고침
+              {t("agent.log.refresh")}
             </Button>
           </div>
           <div className={styles.list}>
             {logs.map((log) => (
-              <LogRow key={`${log.jobId}-${log.promptVersion}`} log={log} />
+              <LogRow key={`${log.jobIdKey}-${log.promptVersion}`} log={log} t={t} />
             ))}
           </div>
         </GlassPanel>
 
         <GlassPanel className={styles.tracePanel}>
-          <h3>처리 경계</h3>
+          <h3>{t("agent.log.boundaryTitle")}</h3>
           {traceItems.map((item) => (
-            <article key={item.label}>
+            <article key={item.labelKey}>
               <span aria-hidden="true">{item.icon}</span>
               <div>
-                <strong>{item.label}</strong>
-                <p>{item.text}</p>
+                <strong>{t(item.labelKey)}</strong>
+                <p>{t(item.textKey)}</p>
               </div>
             </article>
           ))}
@@ -220,11 +225,9 @@ export function AgentModelCallLogPanel() {
 
       <GlassPanel className={styles.footer}>
         <Gauge size={17} strokeWidth={2.1} aria-hidden="true" />
-        <p>
-          같은 샘플 문서를 다시 분석할 때는 질문 방식, 결과 형식, 사용 모델을 함께 비교합니다.
-        </p>
-        <Chip icon={<Braces size={14} />}>결과 형식</Chip>
-        <Chip icon={<Clock3 size={14} />}>응답 시간</Chip>
+        <p>{t("agent.log.footerDesc")}</p>
+        <Chip icon={<Braces size={14} />}>{t("agent.log.chipSchema")}</Chip>
+        <Chip icon={<Clock3 size={14} />}>{t("agent.log.chipLatency")}</Chip>
       </GlassPanel>
     </section>
   );

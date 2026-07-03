@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Bell,
   DatabaseZap,
@@ -16,123 +18,70 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
+
+type TranslateFn = (key: MessageKey) => string;
 
 type SettingRow = {
-  description: string;
-  label: string;
+  descriptionKey: MessageKey;
+  labelKey: MessageKey;
   state: "on" | "off" | "ready" | "device" | "shared";
 };
 
 const preferenceRows: SettingRow[] = [
-  {
-    description: "한국어 화면, 서울 시간대 기준으로 표시합니다.",
-    label: "언어와 시간대",
-    state: "ready",
-  },
-  {
-    description: "밝은 기본 화면과 블랙화이트 다크 테마를 전환합니다.",
-    label: "테마",
-    state: "ready",
-  },
-  {
-    description: "버블과 대시보드 글자 크기를 함께 조정합니다.",
-    label: "글자 크기",
-    state: "ready",
-  },
+  { descriptionKey: "settings.sl.pref.langDesc", labelKey: "settings.sl.pref.langTitle", state: "ready" },
+  { descriptionKey: "settings.sl.pref.themeDesc", labelKey: "settings.sl.pref.themeTitle", state: "ready" },
+  { descriptionKey: "settings.sl.pref.fontDesc", labelKey: "settings.sl.pref.fontTitle", state: "ready" },
 ];
 
 const notificationRows: SettingRow[] = [
-  {
-    description: "프로젝트룸 자료 댓글과 멘션을 알려줍니다.",
-    label: "소통 알림",
-    state: "on",
-  },
-  {
-    description: "에이전트가 후보 생성을 마치면 알려줍니다.",
-    label: "에이전트 제안 알림",
-    state: "on",
-  },
-  {
-    description: "하루정리 시간은 사용자가 직접 켤 수 있습니다.",
-    label: "하루정리 알림",
-    state: "off",
-  },
+  { descriptionKey: "settings.sl.notif.commDesc", labelKey: "settings.sl.notif.commTitle", state: "on" },
+  { descriptionKey: "settings.sl.notif.agentDesc", labelKey: "settings.sl.notif.agentTitle", state: "on" },
+  { descriptionKey: "settings.sl.notif.dailyDesc", labelKey: "settings.sl.notif.dailyTitle", state: "off" },
 ];
 
 const widgetRows: SettingRow[] = [
-  {
-    description: "TODO, 에이전트, 소통, 타이머, 메모 버블을 켭니다.",
-    label: "버블 표시",
-    state: "shared",
-  },
-  {
-    description: "위치, 크기, 최소화, 고스트 모드를 저장합니다.",
-    label: "버블 배치",
-    state: "shared",
-  },
-  {
-    description: "열기, 닫기, 클릭 같은 상세 이벤트는 기기 안에 둡니다.",
-    label: "버블 사용 기록",
-    state: "device",
-  },
+  { descriptionKey: "settings.sl.widget.showDesc", labelKey: "settings.sl.widget.showTitle", state: "shared" },
+  { descriptionKey: "settings.sl.widget.layoutDesc", labelKey: "settings.sl.widget.layoutTitle", state: "shared" },
+  { descriptionKey: "settings.sl.widget.usageDesc", labelKey: "settings.sl.widget.usageTitle", state: "device" },
 ];
 
 const localRows: SettingRow[] = [
-  {
-    description: "사용자가 직접 고른 폴더만 살펴보고 변경을 감지합니다.",
-    label: "개인 관리 폴더",
-    state: "device",
-  },
-  {
-    description: "개인 에이전트 대화와 버블 상세 사용 기록은 기기 안에 보관합니다.",
-    label: "기기 안 보관",
-    state: "device",
-  },
-  {
-    description: "네트워크가 끊겼을 때 남은 타이머와 버블 집계를 나중에 다시 반영합니다.",
-    label: "반영 대기 작업",
-    state: "ready",
-  },
+  { descriptionKey: "settings.sl.local.folderDesc", labelKey: "settings.sl.local.folderTitle", state: "device" },
+  { descriptionKey: "settings.sl.local.keepDesc", labelKey: "settings.sl.local.keepTitle", state: "device" },
+  { descriptionKey: "settings.sl.local.pendingDesc", labelKey: "settings.sl.local.pendingTitle", state: "ready" },
 ];
 
 const privacyRows: SettingRow[] = [
-  {
-    description: "앱 이름, 창 제목, 머문 시간만 다룹니다.",
-    label: "활동 감지 동의",
-    state: "off",
-  },
-  {
-    description: "화면 전체 내용과 키보드 입력은 수집하지 않습니다.",
-    label: "수집 제한",
-    state: "ready",
-  },
-  {
-    description: "개인 관리 폴더의 파일은 사용자가 직접 공유할 때만 프로젝트룸에 보입니다.",
-    label: "공유 승인",
-    state: "ready",
-  },
+  { descriptionKey: "settings.sl.privacy.activityDesc", labelKey: "settings.sl.privacy.activityTitle", state: "off" },
+  { descriptionKey: "settings.sl.privacy.limitDesc", labelKey: "settings.sl.privacy.limitTitle", state: "ready" },
+  { descriptionKey: "settings.sl.privacy.shareDesc", labelKey: "settings.sl.privacy.shareTitle", state: "ready" },
 ];
 
-function stateBadge(state: SettingRow["state"]) {
-  const map = {
-    device: { label: "기기 안", tone: "memo" },
-    off: { label: "꺼짐", tone: "neutral" },
-    on: { label: "켜짐", tone: "success" },
-    ready: { label: "준비됨", tone: "approved" },
-    shared: { label: "웹과 앱", tone: "todo" },
-  } as const;
-  const item = map[state];
-  return <StatusBadge tone={item.tone}>{item.label}</StatusBadge>;
+const stateMeta: Record<SettingRow["state"], { labelKey: MessageKey; tone: "memo" | "neutral" | "success" | "approved" | "todo" }> = {
+  device: { labelKey: "settings.sl.state.device", tone: "memo" },
+  off: { labelKey: "settings.sl.state.off", tone: "neutral" },
+  on: { labelKey: "settings.sl.state.on", tone: "success" },
+  ready: { labelKey: "settings.sl.state.ready", tone: "approved" },
+  shared: { labelKey: "settings.sl.state.shared", tone: "todo" },
+};
+
+function stateBadge(state: SettingRow["state"], t: TranslateFn) {
+  const item = stateMeta[state];
+  return <StatusBadge tone={item.tone}>{t(item.labelKey)}</StatusBadge>;
 }
 
 function SettingGroup({
   icon: Icon,
   rows,
   title,
+  t,
 }: {
   icon: typeof SlidersHorizontal;
   rows: SettingRow[];
   title: string;
+  t: TranslateFn;
 }) {
   return (
     <GlassPanel className="settings-group">
@@ -144,12 +93,12 @@ function SettingGroup({
       </div>
       <div className="settings-group__rows">
         {rows.map((row) => (
-          <div className="settings-row" key={row.label}>
+          <div className="settings-row" key={row.labelKey}>
             <div>
-              <b>{row.label}</b>
-              <span>{row.description}</span>
+              <b>{t(row.labelKey)}</b>
+              <span>{t(row.descriptionKey)}</span>
             </div>
-            {stateBadge(row.state)}
+            {stateBadge(row.state, t)}
           </div>
         ))}
       </div>
@@ -157,37 +106,37 @@ function SettingGroup({
   );
 }
 
-const summaryItems = [
+const summaryItems: Array<{ descriptionKey: MessageKey; icon: typeof SlidersHorizontal; titleKey: MessageKey }> = [
   {
-    description: "알림, 버블 배치, 글자 크기처럼 사용자가 직접 고르는 값입니다.",
+    descriptionKey: "settings.sl.summary.chooseDesc",
     icon: SlidersHorizontal,
-    title: "내가 고르는 설정",
+    titleKey: "settings.sl.summary.chooseTitle",
   },
   {
-    description: "TODO, 일정, 채팅, 타이머처럼 웹과 데스크톱 앱에서 함께 보는 값입니다.",
+    descriptionKey: "settings.sl.summary.sharedDesc",
     icon: DatabaseZap,
-    title: "함께 쓰는 작업값",
+    titleKey: "settings.sl.summary.sharedTitle",
   },
   {
-    description: "개인 에이전트 대화, 상세 사용 기록, 복구 대기 작업처럼 기기 안에 남는 값입니다.",
+    descriptionKey: "settings.sl.summary.deviceDesc",
     icon: HardDriveDownload,
-    title: "기기 안에 두는 값",
+    titleKey: "settings.sl.summary.deviceTitle",
   },
 ];
 
-function SettingsSummaryStrip() {
+function SettingsSummaryStrip({ t }: { t: TranslateFn }) {
   return (
     <GlassPanel className="settings-summary" padded={false}>
       {summaryItems.map((item) => {
         const Icon = item.icon;
         return (
-          <div className="settings-summary__item" key={item.title}>
+          <div className="settings-summary__item" key={item.titleKey}>
             <span className="bubli-icon-tile" aria-hidden="true">
               <Icon size={17} strokeWidth={2.1} />
             </span>
             <div>
-              <h3>{item.title}</h3>
-              <p>{item.description}</p>
+              <h3>{t(item.titleKey)}</h3>
+              <p>{t(item.descriptionKey)}</p>
             </div>
           </div>
         );
@@ -196,25 +145,22 @@ function SettingsSummaryStrip() {
   );
 }
 
-function LocalRecoveryPanel() {
+function LocalRecoveryPanel({ t }: { t: TranslateFn }) {
   return (
     <GlassPanel className="settings-recovery">
       <div>
         <Chip selected icon={<HardDriveDownload size={14} strokeWidth={2.1} />}>
-          기기 안 복구
+          {t("settings.sl.recovery.chip")}
         </Chip>
-        <h3>개인 보관함 백업과 복구</h3>
-        <p>
-          개인 에이전트 원문은 Bubli 계정에 그대로 올리지 않으므로, 앱 종료 전과 하루정리 후 기기 안에 백업을 남깁니다.
-          백업이 없으면 원문 대화는 복구할 수 없고, 사용자가 확인한 하루정리만 다시 볼 수 있습니다.
-        </p>
+        <h3>{t("settings.sl.recovery.title")}</h3>
+        <p>{t("settings.sl.recovery.body")}</p>
       </div>
       <div className="settings-recovery__actions">
         <Button icon={<RotateCcw size={16} />} variant="quiet">
-          백업 점검
+          {t("settings.sl.recovery.check")}
         </Button>
         <Button icon={<DatabaseZap size={16} />} variant="primary">
-          지금 백업
+          {t("settings.sl.recovery.now")}
         </Button>
       </div>
     </GlassPanel>
@@ -222,22 +168,24 @@ function LocalRecoveryPanel() {
 }
 
 export function SettingsLocalPanel() {
+  const { t } = useI18n();
+
   return (
-    <section className="settings-local-panel" aria-label="사용자 설정과 기기 안 기능">
+    <section className="settings-local-panel" aria-label={t("settings.sl.panelAria")}>
       <SectionHeading
-        eyebrow="설정"
-        title="내 설정과 기기 안 기록을 한곳에서 관리합니다"
-        description="알림, 버블, 폴더, 활동 감지 동의는 사용자별로 저장됩니다. 웹과 함께 보는 작업값은 같은 기준을 쓰고, 개인 대화와 상세 사용 기록은 기기 안에서 복구와 대기 작업을 맡습니다."
+        eyebrow={t("settings.sl.headEyebrow")}
+        title={t("settings.sl.headTitle")}
+        description={t("settings.sl.headDesc")}
       />
 
-      <SettingsSummaryStrip />
+      <SettingsSummaryStrip t={t} />
 
       <div className="settings-local-panel__grid">
-        <SettingGroup icon={Languages} rows={preferenceRows} title="프로필과 표시" />
-        <SettingGroup icon={Bell} rows={notificationRows} title="알림" />
-        <SettingGroup icon={MonitorCog} rows={widgetRows} title="버블 설정" />
-        <SettingGroup icon={FolderSearch} rows={localRows} title="개인 관리 폴더와 기기 안 보관" />
-        <SettingGroup icon={ShieldCheck} rows={privacyRows} title="개인정보 동의" />
+        <SettingGroup icon={Languages} rows={preferenceRows} title={t("settings.sl.group.profile")} t={t} />
+        <SettingGroup icon={Bell} rows={notificationRows} title={t("settings.sl.group.notif")} t={t} />
+        <SettingGroup icon={MonitorCog} rows={widgetRows} title={t("settings.sl.group.widget")} t={t} />
+        <SettingGroup icon={FolderSearch} rows={localRows} title={t("settings.sl.group.local")} t={t} />
+        <SettingGroup icon={ShieldCheck} rows={privacyRows} title={t("settings.sl.group.privacy")} t={t} />
       </div>
 
       <div className="settings-local-panel__safety">
@@ -246,17 +194,17 @@ export function SettingsLocalPanel() {
             <EyeOff size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <h3>접근하지 않는 것</h3>
-            <p>PC 전체 자동 검색, 화면 전체 내용, 키보드 입력은 다루지 않습니다.</p>
+            <h3>{t("settings.sl.permTitle")}</h3>
+            <p>{t("settings.sl.permBody")}</p>
             <div className="settings-permission__chips">
-              <Chip>사용자 선택 폴더만</Chip>
-              <Chip>공유 전 개인 자료</Chip>
-              <Chip>개인 원문은 기기 안에</Chip>
+              <Chip>{t("settings.sl.permChip1")}</Chip>
+              <Chip>{t("settings.sl.permChip2")}</Chip>
+              <Chip>{t("settings.sl.permChip3")}</Chip>
             </div>
           </div>
         </GlassPanel>
 
-        <LocalRecoveryPanel />
+        <LocalRecoveryPanel t={t} />
       </div>
     </section>
   );

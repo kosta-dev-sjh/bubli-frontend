@@ -7,20 +7,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
-import { agentApi } from "@/features/agent/api/agentApi";
+import { authApi } from "@/features/auth/api/authApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ProjectRoomWorkBoard } from "@/features/project-room/components/project-room-work-board";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useI18n } from "@/lib/i18n";
 import { getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
+  workspacePreviewMembers,
   workspacePreviewRoomById,
-  workspacePreviewRoomSuggestions,
   workspacePreviewWbsBoard,
 } from "@/lib/workspace-preview-data";
-import type { AgentSuggestionResponse } from "@/types/api/agent";
-import type { ProjectRoomResponse } from "@/types/api/projectRoom";
+import type { ProjectRoomMemberResponse, ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { WbsBoardResponse } from "@/types/api/work";
 
 type WorkPageState =
@@ -28,13 +28,14 @@ type WorkPageState =
   | {
       kind: "ready";
       board: WbsBoardResponse;
+      members: ProjectRoomMemberResponse[];
       room: ProjectRoomResponse;
-      suggestions: AgentSuggestionResponse[];
     }
   | { kind: "auth" }
   | { kind: "error"; message: string };
 
 export default function ProjectRoomWorkPage() {
+  const { t } = useI18n();
   const params = useParams<{ roomId: string }>();
   const roomId = params.roomId;
   const [state, setState] = useState<WorkPageState>({ kind: "loading" });
@@ -43,13 +44,24 @@ export default function ProjectRoomWorkPage() {
     setState({ kind: "loading" });
 
     try {
-      const [room, board, suggestions] = await Promise.all([
+      const [currentUser, room, board, membersPage] = await Promise.all([
+        authApi.getMe(),
         projectRoomApi.get(roomId),
         wbsApi.getBoard(roomId),
-        agentApi.listRoomSuggestions(roomId, { status: "DRAFT" }),
+        projectRoomApi.getMembers(roomId),
       ]);
+      const members = membersPage.items.map((member) =>
+        member.userId === currentUser.id
+          ? {
+              ...member,
+              avatarUrl: member.avatarUrl || currentUser.avatarUrl || null,
+              bubliId: member.bubliId || currentUser.bubliId || null,
+              name: member.name || currentUser.name,
+            }
+          : member,
+      );
       setActiveProjectRoomId(room.id, room.name);
-      setState({ board, kind: "ready", room, suggestions });
+      setState({ board, kind: "ready", members, room });
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
@@ -62,18 +74,18 @@ export default function ProjectRoomWorkPage() {
         setState({
           board: workspacePreviewWbsBoard(room.id),
           kind: "ready",
+          members: workspacePreviewMembers.map((member) => ({ ...member, roomId: room.id })),
           room,
-          suggestions: workspacePreviewRoomSuggestions(room.id),
         });
         return;
       }
 
       setState({
         kind: "error",
-        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "작업판을 불러오지 못했습니다",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("room.work.loadFailed"),
       });
     }
-  }, [roomId]);
+  }, [roomId, t]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -90,8 +102,7 @@ export default function ProjectRoomWorkPage() {
 
     return {
       board: state.board,
-      hasBoardItems: state.board.wbsItems.length > 0 || state.board.tasks.length > 0,
-      pendingSuggestions: state.suggestions,
+      members: state.members,
     };
   }, [state]);
 
@@ -99,23 +110,23 @@ export default function ProjectRoomWorkPage() {
     <section className="workspace-route workspace-route--work" aria-labelledby="work-title">
       <header className="workspace-route__header">
         <div>
-          <h1 id="work-title">{state.kind === "ready" ? state.room.name : "작업판"}</h1>
+          <h1 id="work-title">{state.kind === "ready" ? state.room.name : t("room.work.fallbackName")}</h1>
         </div>
       </header>
 
       {state.kind === "loading" ? (
         <GlassPanel className="workspace-route__panel">
           <Clock3 aria-hidden size={20} strokeWidth={2} />
-          <strong>불러오는 중</strong>
+          <strong>{t("room.work.loading")}</strong>
         </GlassPanel>
       ) : null}
 
       {state.kind === "auth" ? (
         <GlassPanel className="workspace-route__panel">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
-          <strong>로그인이 필요합니다</strong>
+          <strong>{t("room.work.authTitle")}</strong>
           <Link className="bubli-button bubli-button--primary" href="/login">
-            로그인
+            {t("room.work.login")}
           </Link>
         </GlassPanel>
       ) : null}
@@ -126,29 +137,17 @@ export default function ProjectRoomWorkPage() {
           <strong>{state.message}</strong>
           <div className="workspace-route__actions">
             <Button onClick={() => void load()} variant="primary">
-              작업판 다시 불러오기
+              {t("room.work.reload")}
             </Button>
             <Link className="bubli-button" href={`/app/project-rooms/${roomId}`}>
-              프로젝트룸
+              {t("room.work.backToRoom")}
             </Link>
           </div>
         </GlassPanel>
       ) : null}
 
       {state.kind === "ready" && content ? (
-        <>
-          {content.board.wbsItems.length + content.board.tasks.length + content.pendingSuggestions.length === 0 ? (
-            <GlassPanel className="workspace-route__panel">
-              <strong>현재 데이터가 없습니다</strong>
-            </GlassPanel>
-          ) : (
-            <>
-              {content.hasBoardItems || content.pendingSuggestions.length > 0 ? (
-                <ProjectRoomWorkBoard board={content.board} roomId={roomId} suggestions={content.pendingSuggestions} />
-              ) : null}
-            </>
-          )}
-        </>
+        <ProjectRoomWorkBoard board={content.board} members={content.members} onBoardReload={load} roomId={roomId} />
       ) : null}
     </section>
   );

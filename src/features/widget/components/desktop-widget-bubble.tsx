@@ -36,6 +36,8 @@ import {
   type WidgetPreviewBubble,
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import type { WidgetBubbleType, WidgetWindowMode, WidgetWindowState } from "@/lib/tauri/commands";
 
 import styles from "./desktop-widget-bubble.module.css";
@@ -43,26 +45,26 @@ import styles from "./desktop-widget-bubble.module.css";
 type BubbleMeta = {
   accent: "blue" | "lilac" | "rose" | "pearl";
   id: WidgetBubbleType;
-  label: string;
+  label: MessageKey;
   Icon: typeof CheckCircle2;
 };
 
 const bubbleMeta: BubbleMeta[] = [
-  { Icon: CheckCircle2, accent: "blue", id: "todo", label: "TODO" },
-  { Icon: Sparkles, accent: "lilac", id: "agent", label: "에이전트" },
-  { Icon: MessageSquare, accent: "rose", id: "chat", label: "소통" },
-  { Icon: Timer, accent: "pearl", id: "timer", label: "타이머" },
-  { Icon: StickyNote, accent: "pearl", id: "memo", label: "메모" },
-  { Icon: Clock3, accent: "blue", id: "schedule", label: "일정" },
-  { Icon: FileText, accent: "lilac", id: "resource", label: "자료" },
-  { Icon: Bell, accent: "blue", id: "alert", label: "알림" },
+  { Icon: CheckCircle2, accent: "blue", id: "todo", label: "widget.kind.todo" },
+  { Icon: Sparkles, accent: "lilac", id: "agent", label: "widget.kind.agent" },
+  { Icon: MessageSquare, accent: "rose", id: "chat", label: "widget.kind.chat" },
+  { Icon: Timer, accent: "pearl", id: "timer", label: "widget.kind.timer" },
+  { Icon: StickyNote, accent: "pearl", id: "memo", label: "widget.kind.memo" },
+  { Icon: Clock3, accent: "blue", id: "schedule", label: "widget.kind.schedule" },
+  { Icon: FileText, accent: "lilac", id: "resource", label: "widget.kind.resource" },
+  { Icon: Bell, accent: "blue", id: "alert", label: "widget.kind.notification" },
 ];
 
-const modeLabels: Record<WidgetWindowMode, string> = {
-  DEFAULT: "기본",
-  GHOST: "고스트",
-  MINIMIZED: "최소화",
-  TRANSLUCENT: "반투명",
+const modeLabels: Record<WidgetWindowMode, MessageKey> = {
+  DEFAULT: "widget.mode.default",
+  GHOST: "widget.mode.ghost",
+  MINIMIZED: "widget.mode.minimized",
+  TRANSLUCENT: "widget.mode.translucent",
 };
 
 const modeClassNames: Record<WidgetWindowMode, string> = {
@@ -129,23 +131,24 @@ function WidgetControls({
   onPin: () => void;
   presentation: "preview" | "tauri";
 }) {
+  const { t } = useI18n();
   return (
-    <div className={[styles.controls, presentation === "tauri" ? styles.controlsTauri : styles.controlsPreview].join(" ")} aria-label="위젯 조작">
-      <button aria-pressed={alwaysOnTop} aria-label="상단 고정" onClick={onPin} type="button">
+    <div className={[styles.controls, presentation === "tauri" ? styles.controlsTauri : styles.controlsPreview].join(" ")} aria-label={t("widget.control.aria")}>
+      <button aria-pressed={alwaysOnTop} aria-label={t("widget.control.pin")} onClick={onPin} type="button">
         <Pin size={12} strokeWidth={2} />
       </button>
-      <button aria-label="최소화" onClick={() => onMode("MINIMIZED")} type="button">
+      <button aria-label={t("widget.control.minimize")} onClick={() => onMode("MINIMIZED")} type="button">
         <Minus size={13} strokeWidth={2} />
       </button>
-      <button aria-pressed={mode === "GHOST"} aria-label="고스트" onClick={() => onMode(mode === "GHOST" ? "DEFAULT" : "GHOST")} type="button">
+      <button aria-pressed={mode === "GHOST"} aria-label={t("widget.control.ghost")} onClick={() => onMode(mode === "GHOST" ? "DEFAULT" : "GHOST")} type="button">
         <Ghost size={13} strokeWidth={2} />
       </button>
       {presentation === "preview" ? (
-        <button aria-pressed={mode === "TRANSLUCENT"} aria-label="반투명" onClick={() => onMode(mode === "TRANSLUCENT" ? "DEFAULT" : "TRANSLUCENT")} type="button">
+        <button aria-pressed={mode === "TRANSLUCENT"} aria-label={t("widget.control.translucent")} onClick={() => onMode(mode === "TRANSLUCENT" ? "DEFAULT" : "TRANSLUCENT")} type="button">
           <CircleDashed size={13} strokeWidth={2} />
         </button>
       ) : null}
-      <button aria-label="닫기" onClick={onClose} type="button">
+      <button aria-label={t("widget.control.close")} onClick={onClose} type="button">
         <X size={13} strokeWidth={2} />
       </button>
     </div>
@@ -159,17 +162,18 @@ function ItemActions({
   item: WidgetPreviewItem;
   onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
 }) {
+  const { t } = useI18n();
   if (!onItemStateChange) return null;
 
   return (
     <span className={styles.itemActions}>
-      <button aria-label="확인" onClick={() => onItemStateChange(item, "CONFIRMED")} type="button">
+      <button aria-label={t("widget.item.confirm")} onClick={() => onItemStateChange(item, "CONFIRMED")} type="button">
         <CheckCircle2 size={12} strokeWidth={2} />
       </button>
-      <button aria-label="고정" onClick={() => onItemStateChange(item, "PINNED")} type="button">
+      <button aria-label={t("widget.item.pin")} onClick={() => onItemStateChange(item, "PINNED")} type="button">
         <Pin size={12} strokeWidth={2} />
       </button>
-      <button aria-label="숨김" onClick={() => onItemStateChange(item, "HIDDEN")} type="button">
+      <button aria-label={t("widget.item.hide")} onClick={() => onItemStateChange(item, "HIDDEN")} type="button">
         <X size={12} strokeWidth={2} />
       </button>
     </span>
@@ -183,10 +187,11 @@ function ItemRows({
   bubble: WidgetPreviewBubble;
   onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
 }) {
+  const { t } = useI18n();
   if (bubble.rows.length === 0) {
     return (
       <div className={styles.emptyState}>
-        <span>{bubble.notificationLabel}</span>
+        <span>{t(bubble.notificationLabel as MessageKey)}</span>
       </div>
     );
   }
@@ -206,40 +211,42 @@ function ItemRows({
 }
 
 function TodoBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+  const { t } = useI18n();
   return (
     <div className={styles.body}>
       <div className={styles.progress}>
         <span>{bubble.metric}</span>
-        <b>{bubble.metricLabel}</b>
+        <b>{t(bubble.metricLabel as MessageKey)}</b>
       </div>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
       <button className={styles.wideAction} type="button">
         <Plus size={14} strokeWidth={2} />
-        {bubble.actionLabel}
+        {t(bubble.actionLabel as MessageKey)}
       </button>
     </div>
   );
 }
 
 function AgentBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+  const { t } = useI18n();
   return (
     <div className={styles.body}>
-      <div className={styles.agentHalo} aria-label="에이전트 신호">
+      <div className={styles.agentHalo} aria-label={t("widget.agentSignal")}>
         <span className={styles.agentHaloCore} />
         <span className={styles.agentHaloRing} />
       </div>
       <div className={styles.bubbleNote}>
-        <strong>{bubble.panelLabel}</strong>
-        <span>{bubble.panelBody}</span>
+        <strong>{t(bubble.panelLabel as MessageKey)}</strong>
+        <span>{t(bubble.panelBody as MessageKey)}</span>
       </div>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
       <div className={styles.dropPanel}>
         <FileText size={16} strokeWidth={2} />
-        <span>{bubble.notificationLabel}</span>
+        <span>{t(bubble.notificationLabel as MessageKey)}</span>
       </div>
       <label className={styles.input}>
         <Search size={14} strokeWidth={2} />
-        <input placeholder={bubble.inputPlaceholder} />
+        <input placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : undefined} />
       </label>
     </div>
   );
@@ -262,6 +269,7 @@ function ChatBody({
   onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
   onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
 }) {
+  const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [statusText, setStatusText] = useState<string | null>(null);
@@ -296,9 +304,9 @@ function ChatBody({
     try {
       await onSendChatMessage(bubble, text);
       setDraft("");
-      setStatusText("전송됨");
+      setStatusText(t("widget.chat.sent"));
     } catch {
-      setStatusText("전송 실패");
+      setStatusText(t("widget.chat.sendFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -310,9 +318,9 @@ function ChatBody({
     setStatusText(null);
     try {
       await onMarkChatRead(bubble);
-      setStatusText("읽음 처리됨");
+      setStatusText(t("widget.chat.markedRead"));
     } catch {
-      setStatusText("읽음 처리 실패");
+      setStatusText(t("widget.chat.markReadFailed"));
     }
   };
 
@@ -335,27 +343,27 @@ function ChatBody({
   return (
     <div className={styles.body}>
       <div className={styles.chatHead}>
-        <span>{bubble.panelLabel}</span>
+        <span>{t(bubble.panelLabel as MessageKey)}</span>
         <b>{visibleRows.length}</b>
       </div>
       <div className={styles.chatPeople}>
         <Users size={14} strokeWidth={2} />
-        <span>{friendRows[0]?.label ?? bubble.participantLabels?.join(" · ") ?? bubble.roomLabel}</span>
-        <b>{friendRows[0]?.status ?? "친구"}</b>
+        <span>{friendRows[0]?.label ?? bubble.participantLabels?.join(" · ") ?? t(bubble.roomLabel as MessageKey)}</span>
+        <b>{friendRows[0]?.status ?? t("widget.chat.people")}</b>
       </div>
       <div className={styles.voiceStrip}>
         <div>
           <Mic size={14} strokeWidth={2} />
-          <span>{voiceRows[0]?.label ?? bubble.voiceLabel ?? "보이스 대기"}</span>
-          <small>{bubble.voiceParticipants ?? "참여자 없음"}</small>
+          <span>{voiceRows[0]?.label ?? bubble.voiceLabel ?? t("widget.chat.voiceWaiting")}</span>
+          <small>{bubble.voiceParticipants ?? t("widget.chat.noParticipants")}</small>
         </div>
-        <button aria-label="마이크 상태" disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("mic")} type="button">
+        <button aria-label={t("widget.chat.micStatus")} disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("mic")} type="button">
           <Mic size={13} strokeWidth={2} />
         </button>
-        <button aria-label="보이스 시작" disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
+        <button aria-label={t("widget.chat.startVoice")} disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
           <Headphones size={13} strokeWidth={2} />
         </button>
-        <button aria-label="보이스 나가기" disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("leave")} type="button">
+        <button aria-label={t("widget.chat.leaveVoice")} disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("leave")} type="button">
           <PhoneOff size={13} strokeWidth={2} />
         </button>
       </div>
@@ -367,7 +375,7 @@ function ChatBody({
         </a>
       ) : (
         <div className={styles.handoffDone}>
-          <span>소통 링크 공유됨 · 버블에서 숨김</span>
+          <span>{t("widget.chat.linkShared")}</span>
         </div>
       )}
       {first ? <p className={styles.message}>{first.label}</p> : null}
@@ -387,11 +395,11 @@ function ChatBody({
           <ItemActions item={item} onItemStateChange={onItemStateChange} />
         </div>
       ))}
-      <div className={styles.reactionDock} aria-label="빠른 반응">
+      <div className={styles.reactionDock} aria-label={t("widget.chat.quickReaction")}>
         <SmilePlus size={14} strokeWidth={2} />
-        {(bubble.reactionLabels ?? ["확인", "좋아요", "잠시 후"]).map((label) => (
+        {(bubble.reactionLabels ?? ["widget.data.reaction.confirm", "widget.data.reaction.like", "widget.data.reaction.later"]).map((label) => (
           <button key={label} onClick={() => void markRead()} type="button">
-            {label}
+            {t(label as MessageKey)}
           </button>
         ))}
         {statusText ? <span>{statusText}</span> : null}
@@ -407,14 +415,14 @@ function ChatBody({
               void sendDraftMessage();
             }
           }}
-          placeholder={bubble.chatRoomId ? bubble.inputPlaceholder : "채팅방을 먼저 선택하세요"}
+          placeholder={bubble.chatRoomId ? (bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : undefined) : t("widget.chat.selectRoomFirst")}
           value={draft}
         />
-        <button aria-label="보이스 시작" disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
+        <button aria-label={t("widget.chat.startVoice")} disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
           <Mic size={13} strokeWidth={2} />
         </button>
         <button
-          aria-label="메시지 전송"
+          aria-label={t("widget.chat.sendMessage")}
           disabled={!draft.trim() || !bubble.chatRoomId || submitting}
           onClick={() => void sendDraftMessage()}
           type="button"
@@ -437,6 +445,7 @@ function TimerBody({
   onPauseTimer?: DesktopWidgetBubbleProps["onPauseTimer"];
   onPrimaryTimerAction?: DesktopWidgetBubbleProps["onPrimaryTimerAction"];
 }) {
+  const { t } = useI18n();
   const timerStatus = bubble.rows[0]?.status;
   const canPause = timerStatus === "RUNNING";
   const PrimaryIcon = timerStatus === "RUNNING" ? Square : Play;
@@ -445,23 +454,23 @@ function TimerBody({
     <div className={styles.body}>
       <div className={styles.timer}>
         <strong>{bubble.metric}</strong>
-        <span>{bubble.metricLabel}</span>
+        <span>{t(bubble.metricLabel as MessageKey)}</span>
       </div>
       <div className={styles.segmented}>
         <button aria-pressed="true" type="button">
-          시계
+          {t("widget.timer.tabClock")}
         </button>
-        <button type="button">작업</button>
-        <button type="button">뽀모도로</button>
+        <button type="button">{t("widget.timer.tabWork")}</button>
+        <button type="button">{t("widget.timer.tabPomodoro")}</button>
       </div>
       <div className={styles.timerActions}>
         <button disabled={!canPause} onClick={() => void onPauseTimer?.(bubble)} type="button">
           <Pause size={13} />
-          {timerStatus === "PAUSED" ? "일시정지됨" : "일시정지"}
+          {timerStatus === "PAUSED" ? t("widget.timer.paused") : t("widget.timer.pause")}
         </button>
         <button onClick={() => void onPrimaryTimerAction?.(bubble)} type="button">
           <PrimaryIcon size={13} />
-          {bubble.actionLabel}
+          {t(bubble.actionLabel as MessageKey)}
         </button>
       </div>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
@@ -470,6 +479,7 @@ function TimerBody({
 }
 
 function MemoBody({ bubble, onCreateMemo }: { bubble: WidgetPreviewBubble; onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"] }) {
+  const { t } = useI18n();
   return (
     <div className={[styles.body, styles.memoGrid].join(" ")}>
       {bubble.rows.length > 0 ? (
@@ -481,30 +491,31 @@ function MemoBody({ bubble, onCreateMemo }: { bubble: WidgetPreviewBubble; onCre
         ))
       ) : (
         <div className={styles.emptyState}>
-          <span>{bubble.notificationLabel}</span>
+          <span>{t(bubble.notificationLabel as MessageKey)}</span>
         </div>
       )}
       <button className={styles.wideAction} onClick={() => void onCreateMemo?.(bubble)} type="button">
         <Plus size={14} strokeWidth={2} />
-        {bubble.actionLabel}
+        {t(bubble.actionLabel as MessageKey)}
       </button>
     </div>
   );
 }
 
 function ScheduleBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+  const { t } = useI18n();
   return (
     <div className={styles.body}>
       <div className={styles.ring}>
         <span>{bubble.metric}</span>
-        <b>{bubble.metricLabel}</b>
+        <b>{t(bubble.metricLabel as MessageKey)}</b>
       </div>
       <div className={styles.segmented}>
         <button aria-pressed="true" type="button">
-          주간
+          {t("widget.schedule.tabWeek")}
         </button>
-        <button type="button">월간</button>
-        <button type="button">WBS</button>
+        <button type="button">{t("widget.schedule.tabMonth")}</button>
+        <button type="button">{t("widget.schedule.tabWbs")}</button>
       </div>
       <div className={styles.timeline}>
         {bubble.rows.length > 0 ? (
@@ -516,7 +527,7 @@ function ScheduleBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubb
           ))
         ) : (
           <div className={styles.emptyState}>
-            <span>{bubble.notificationLabel}</span>
+            <span>{t(bubble.notificationLabel as MessageKey)}</span>
           </div>
         )}
       </div>
@@ -525,11 +536,12 @@ function ScheduleBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubb
 }
 
 function ResourceBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+  const { t } = useI18n();
   return (
     <div className={styles.body}>
       <div className={styles.bubbleNote}>
-        <strong>{bubble.panelLabel}</strong>
-        <span>{bubble.panelBody}</span>
+        <strong>{t(bubble.panelLabel as MessageKey)}</strong>
+        <span>{t(bubble.panelBody as MessageKey)}</span>
       </div>
       {bubble.rows.map((item) => (
         <div className={styles.fileRow} key={item.id}>
@@ -541,7 +553,7 @@ function ResourceBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubb
       ))}
       {bubble.rows.length === 0 ? (
         <div className={styles.emptyState}>
-          <span>{bubble.notificationLabel}</span>
+          <span>{t(bubble.notificationLabel as MessageKey)}</span>
         </div>
       ) : null}
     </div>
@@ -595,11 +607,12 @@ function BubbleBody({
 }
 
 function GhostSignal({ bubble }: { bubble: WidgetPreviewBubble }) {
+  const { t } = useI18n();
   return (
-    <div className={styles.ghostSignal} aria-label={`${bubble.label} 고스트 상태`}>
+    <div className={styles.ghostSignal} aria-label={t("widget.ghostAria", { label: t(bubble.label as MessageKey) })}>
       <span>{bubble.metric}</span>
-      <strong>{bubble.compactLabel}</strong>
-      <small>{bubble.notificationLabel}</small>
+      <strong>{t(bubble.compactLabel as MessageKey)}</strong>
+      <small>{t(bubble.notificationLabel as MessageKey)}</small>
     </div>
   );
 }
@@ -626,30 +639,32 @@ export function DesktopWidgetBubble({
   presentation = "tauri",
   windowVisible = true,
 }: DesktopWidgetBubbleProps) {
+  const { t } = useI18n();
   const active = getBubbleMeta(activeBubble);
   const activeData = bubble ?? getWidgetPreviewBubble(activeBubble);
   const Icon = active.Icon;
   const isPreview = presentation === "preview";
+  const activeLabel = t(active.label);
   const rootClassName = [styles.root, modeClassNames[mode], isPreview ? styles.previewRoot : styles.tauriRoot].filter(Boolean).join(" ");
   const shellClassName = [styles.shell, accentClassNames[active.accent], presentationClassNames[presentation]].join(" ");
 
   return (
     <div className={rootClassName} data-bubli-desktop-widget>
-      <section className={shellClassName} aria-label={`${active.label} 버블`}>
+      <section className={shellClassName} aria-label={t("widget.bubble.suffix", { label: activeLabel })}>
         {!windowVisible ? (
           isPreview ? (
             <button className={styles.hiddenCard} onClick={onRestore ?? (() => onModeChange("DEFAULT"))} type="button">
-              <span>숨김</span>
-              <b>{activeData.label} 버블 복구</b>
-              <small>{activeData.notificationLabel}</small>
+              <span>{t("widget.hidden")}</span>
+              <b>{t("widget.restoreBubble", { label: t(activeData.label as MessageKey) })}</b>
+              <small>{t(activeData.notificationLabel as MessageKey)}</small>
             </button>
           ) : null
         ) : mode === "MINIMIZED" ? (
           <button className={styles.dockOrb} onClick={() => onModeChange("DEFAULT")} type="button">
             <span className={styles.dockBubble} aria-hidden="true" />
             <div className={styles.dockCopy}>
-              <b>{activeData.compactLabel}</b>
-              <small>{activeData.notificationLabel}</small>
+              <b>{t(activeData.compactLabel as MessageKey)}</b>
+              <small>{t(activeData.notificationLabel as MessageKey)}</small>
             </div>
           </button>
         ) : (
@@ -659,8 +674,8 @@ export function DesktopWidgetBubble({
                 <span className={styles.signal} aria-hidden="true" />
                 <Icon size={16} strokeWidth={2} />
                 <div className={styles.titleCopy}>
-                  <strong>{activeData.label} 버블</strong>
-                  <small>{isPreview ? `${modeLabels[mode]} · ${activeData.notificationLabel}` : activeData.roomLabel}</small>
+                  <strong>{t("widget.bubble.suffix", { label: t(activeData.label as MessageKey) })}</strong>
+                  <small>{isPreview ? `${t(modeLabels[mode])} · ${t(activeData.notificationLabel as MessageKey)}` : t(activeData.roomLabel as MessageKey)}</small>
                 </div>
               </div>
               <WidgetControls alwaysOnTop={alwaysOnTop} mode={mode} onClose={onClose} onMode={onModeChange} onPin={onToggleAlwaysOnTop} presentation={presentation} />
@@ -668,9 +683,9 @@ export function DesktopWidgetBubble({
 
             {isPreview ? (
               <div className={styles.dragbar} data-tauri-drag-region>
-                <span>{modeLabels[mode]} · {alwaysOnTop ? "상단 고정" : "일반 창"} · {clickThrough ? "클릭 통과" : "클릭 가능"}</span>
+                <span>{t(modeLabels[mode])} · {alwaysOnTop ? t("widget.pinnedTop") : t("widget.normalWindow")} · {clickThrough ? t("widget.clickThrough") : t("widget.clickable")}</span>
                 <button aria-pressed={mode === "TRANSLUCENT"} onClick={() => onModeChange(mode === "TRANSLUCENT" ? "DEFAULT" : "TRANSLUCENT")} type="button">
-                  반투명
+                  {t("widget.control.translucent")}
                 </button>
               </div>
             ) : null}
@@ -694,8 +709,8 @@ export function DesktopWidgetBubble({
 
             {isPreview ? (
               <div className={styles.bubbleNote}>
-                <strong>{activeData.roomLabel}</strong>
-                <span>{activeData.notificationLabel}</span>
+                <strong>{t(activeData.roomLabel as MessageKey)}</strong>
+                <span>{t(activeData.notificationLabel as MessageKey)}</span>
               </div>
             ) : null}
           </>
@@ -716,21 +731,22 @@ export function DesktopWidgetBubbleBar({
   notificationSignal?: WidgetNotificationSignal;
   onRestoreBubble: (bubbleType: WidgetBubbleType, windowId?: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className={[styles.root, styles.barRoot].join(" ")} data-bubli-desktop-widget>
       <div className={styles.barPreview} aria-hidden="true">
-        <strong>접힌 버블</strong>
+        <strong>{t("widget.bar.folded")}</strong>
         <span>
           {minimizedItems.length > 0
-            ? minimizedItems.map((item) => (bubbleDataByType?.[item.activeBubble as WidgetBubbleType] ?? getWidgetPreviewBubble(item.activeBubble as WidgetBubbleType)).compactLabel).join(" · ")
-            : "접힌 위젯 없음"}
+            ? minimizedItems.map((item) => t((bubbleDataByType?.[item.activeBubble as WidgetBubbleType] ?? getWidgetPreviewBubble(item.activeBubble as WidgetBubbleType)).compactLabel as MessageKey)).join(" · ")
+            : t("widget.bar.noneFolded")}
         </span>
         <small>
-          {notificationSignal.rows[0]?.label ?? notificationSignal.notificationLabel}
+          {notificationSignal.rows[0]?.label ?? t(notificationSignal.notificationLabel as MessageKey)}
         </small>
       </div>
-      <nav className={styles.bubbleBar} aria-label="최소화된 버블">
-        <div className={styles.barBrand} aria-label="Bubli 알림 상태">
+      <nav className={styles.bubbleBar} aria-label={t("widget.bar.minimizedAria")}>
+        <div className={styles.barBrand} aria-label={t("widget.bar.notificationState")}>
           <i aria-hidden="true" />
           <span>Bubli</span>
         </div>
@@ -745,11 +761,11 @@ export function DesktopWidgetBubbleBar({
           return (
             <button className={styles.barItem} key={`${bubbleType}-${item.windowId ?? index}`} onClick={() => onRestoreBubble(bubbleType, item.windowId ?? bubbleType)} type="button">
               <Icon size={12} strokeWidth={2} />
-              <b>{bubble.compactLabel.replace("떠 있는 ", "").replace("타이머 ", "")}</b>
+              <b>{t(bubble.compactLabel as MessageKey)}</b>
             </button>
           );
         })}
-        <button className={styles.barNotice} type="button" aria-label={notificationSignal.notificationLabel}>
+        <button className={styles.barNotice} type="button" aria-label={t(notificationSignal.notificationLabel as MessageKey)}>
           <Bell size={12} strokeWidth={2} />
           <b>{notificationSignal.metric}</b>
         </button>
@@ -759,18 +775,19 @@ export function DesktopWidgetBubbleBar({
 }
 
 export function DesktopWidgetMenuOrb({ onOpenMenu }: { onOpenMenu: () => void }) {
+  const { t } = useI18n();
   return (
     <div className={[styles.root, styles.menuRoot].join(" ")} data-bubli-desktop-widget>
-      <button className={styles.menuOrb} onClick={onOpenMenu} type="button" aria-label="Bubli 메뉴 열기">
+      <button className={styles.menuOrb} onClick={onOpenMenu} type="button" aria-label={t("widget.menu.openAria")}>
         <span />
       </button>
       <div className={styles.menuPanel} aria-hidden="true">
         <strong>Bubli</strong>
-        <span>접힌 버블과 알림을 펼쳐봅니다</span>
+        <span>{t("widget.menu.desc")}</span>
         <div>
-          <span>TODO</span>
-          <span>일정</span>
-          <span>소통</span>
+          <span>{t("widget.kind.todo")}</span>
+          <span>{t("widget.kind.schedule")}</span>
+          <span>{t("widget.kind.chat")}</span>
         </div>
       </div>
     </div>

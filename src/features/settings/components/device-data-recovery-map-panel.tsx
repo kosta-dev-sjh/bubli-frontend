@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArchiveRestore,
   CheckCircle2,
@@ -16,24 +18,28 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./device-data-recovery-map-panel.module.css";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 type RecoverySource = "SERVER" | "LOCAL_BACKUP" | "CACHE_REBUILD" | "NOT_RECOVERABLE";
 type RecoveryHealth = "SAFE" | "ATTENTION" | "RISK";
 
 type RecoveryItem = {
-  description: string;
-  label: string;
+  descriptionKey: MessageKey;
+  labelKey: MessageKey;
   source: RecoverySource;
   health: RecoveryHealth;
-  lastCheckedLabel: string;
+  lastCheckedKey: MessageKey;
 };
 
 type BackupSnapshot = {
-  label: string;
-  value: string;
+  labelKey: MessageKey;
+  valueKey: MessageKey;
   tone: StatusTone;
 };
 
@@ -43,64 +49,66 @@ export type DeviceDataRecoveryMapPanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const sourceMeta: Record<RecoverySource, { label: string; tone: StatusTone; icon: typeof Cloud }> = {
-  CACHE_REBUILD: { icon: RefreshCcw, label: "서버에서 재구성", tone: "pending" },
-  LOCAL_BACKUP: { icon: DatabaseBackup, label: "기기 안 백업 필요", tone: "personal" },
-  NOT_RECOVERABLE: { icon: ShieldAlert, label: "복구 제한", tone: "warning" },
-  SERVER: { icon: Cloud, label: "서버 기록", tone: "approved" },
+const sourceMeta: Record<RecoverySource, { labelKey: MessageKey; tone: StatusTone; icon: typeof Cloud }> = {
+  CACHE_REBUILD: { icon: RefreshCcw, labelKey: "settings.dr.source.cacheRebuild", tone: "pending" },
+  LOCAL_BACKUP: { icon: DatabaseBackup, labelKey: "settings.dr.source.localBackup", tone: "personal" },
+  NOT_RECOVERABLE: { icon: ShieldAlert, labelKey: "settings.dr.source.notRecoverable", tone: "warning" },
+  SERVER: { icon: Cloud, labelKey: "settings.dr.source.server", tone: "approved" },
 };
 
-const healthMeta: Record<RecoveryHealth, { label: string; tone: StatusTone }> = {
-  ATTENTION: { label: "확인 필요", tone: "pending" },
-  RISK: { label: "주의", tone: "warning" },
-  SAFE: { label: "안전", tone: "success" },
+const healthMeta: Record<RecoveryHealth, { labelKey: MessageKey; tone: StatusTone }> = {
+  ATTENTION: { labelKey: "settings.dr.health.attention", tone: "pending" },
+  RISK: { labelKey: "settings.dr.health.risk", tone: "warning" },
+  SAFE: { labelKey: "settings.dr.health.safe", tone: "success" },
 };
 
 export const defaultRecoveryItems: RecoveryItem[] = [
   {
-    description: "프로젝트룸 채팅, TODO, 일정, 자료 정보는 서버 기록에서 다시 내려받습니다.",
+    descriptionKey: "settings.dr.item.room.desc",
     health: "SAFE",
-    label: "프로젝트룸 데이터",
-    lastCheckedLabel: "방금 확인",
+    labelKey: "settings.dr.item.room.label",
+    lastCheckedKey: "settings.dr.item.room.checked",
     source: "SERVER",
   },
   {
-    description: "앱의 프로젝트룸 최근 대화가 비어도 서버의 최근 메시지 기준으로 다시 채웁니다.",
+    descriptionKey: "settings.dr.item.recent.desc",
     health: "SAFE",
-    label: "최근 대화",
-    lastCheckedLabel: "5분 전",
+    labelKey: "settings.dr.item.recent.label",
+    lastCheckedKey: "settings.dr.item.recent.checked",
     source: "CACHE_REBUILD",
   },
   {
-    description: "개인 에이전트 원문, 기기 안 요약, 앱 설정은 암호화된 기기 안 백업이 있을 때만 복구합니다.",
+    descriptionKey: "settings.dr.item.personal.desc",
     health: "ATTENTION",
-    label: "개인 기기 데이터",
-    lastCheckedLabel: "오늘 09:10",
+    labelKey: "settings.dr.item.personal.label",
+    lastCheckedKey: "settings.dr.item.personal.checked",
     source: "LOCAL_BACKUP",
   },
   {
-    description: "위젯 상세 사용 이벤트 원문은 서버에 저장하지 않습니다. 로컬 백업이 없으면 일부 기록은 복구하지 못합니다.",
+    descriptionKey: "settings.dr.item.widget.desc",
     health: "RISK",
-    label: "위젯 상세 이벤트",
-    lastCheckedLabel: "백업 전",
+    labelKey: "settings.dr.item.widget.label",
+    lastCheckedKey: "settings.dr.item.widget.checked",
     source: "NOT_RECOVERABLE",
   },
 ];
 
 export const defaultBackupSnapshots: BackupSnapshot[] = [
-  { label: "최근 백업", tone: "approved", value: "오늘 09:10" },
-  { label: "보관 파일", tone: "personal", value: "7개" },
-  { label: "대기열", tone: "pending", value: "2건" },
-  { label: "무결성", tone: "success", value: "정상" },
+  { labelKey: "settings.dr.snap.recent.label", tone: "approved", valueKey: "settings.dr.snap.recent.value" },
+  { labelKey: "settings.dr.snap.stored.label", tone: "personal", valueKey: "settings.dr.snap.stored.value" },
+  { labelKey: "settings.dr.snap.queue.label", tone: "pending", valueKey: "settings.dr.snap.queue.value" },
+  { labelKey: "settings.dr.snap.integrity.label", tone: "success", valueKey: "settings.dr.snap.integrity.value" },
 ];
 
 export function DeviceDataRecoveryMapPanel({
   backupSnapshots,
   className,
   items,
-  title = "데이터 복구 출처",
+  title,
   ...props
 }: DeviceDataRecoveryMapPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("settings.dr.title");
   const safeCount = items.filter((item) => item.health === "SAFE").length;
   const riskCount = items.filter((item) => item.health === "RISK").length;
   const safePercent = Math.round((safeCount / items.length) * 100);
@@ -109,79 +117,76 @@ export function DeviceDataRecoveryMapPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<ArchiveRestore size={16} strokeWidth={2.1} />}>기기 복구</Chip>
+          <Chip icon={<ArchiveRestore size={16} strokeWidth={2.1} />}>{t("settings.dr.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              기기 안 저장소가 비거나 손상될 때 어떤 데이터가 서버에서 복구되고, 어떤 데이터가 기기 안 백업을 필요로
-              하는지 구분합니다. 프로젝트룸 기록과 개인 기기 데이터의 복구 기준은 다릅니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("settings.dr.desc")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>복구 안전도</span>
+          <span>{t("settings.dr.safety")}</span>
           <strong>{safePercent}%</strong>
-          <StatusBadge tone={riskCount > 0 ? "warning" : "success"}>주의 {riskCount}개</StatusBadge>
+          <StatusBadge tone={riskCount > 0 ? "warning" : "success"}>{t("settings.dr.riskCount", { count: riskCount })}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.snapshotGrid} aria-label="로컬 백업 상태">
+      <section className={styles.snapshotGrid} aria-label={t("settings.dr.snapshotAria")}>
         {backupSnapshots.map((snapshot) => (
-          <article key={snapshot.label}>
-            <span>{snapshot.label}</span>
-            <strong>{snapshot.value}</strong>
-            <StatusBadge tone={snapshot.tone}>상태</StatusBadge>
+          <article key={snapshot.labelKey}>
+            <span>{t(snapshot.labelKey)}</span>
+            <strong>{t(snapshot.valueKey)}</strong>
+            <StatusBadge tone={snapshot.tone}>{t("settings.dr.snapshotBadge")}</StatusBadge>
           </article>
         ))}
       </section>
 
-      <section className={styles.recoveryList} aria-label="데이터별 복구 출처">
+      <section className={styles.recoveryList} aria-label={t("settings.dr.listAria")}>
         {items.map((item) => {
           const source = sourceMeta[item.source];
           const health = healthMeta[item.health];
           const Icon = source.icon;
 
           return (
-            <article className={cn(styles.recoveryItem, item.health === "RISK" && styles.riskyItem)} key={item.label}>
+            <article className={cn(styles.recoveryItem, item.health === "RISK" && styles.riskyItem)} key={item.labelKey}>
               <span className={styles.iconTile}>
                 <Icon size={18} strokeWidth={2.1} aria-hidden="true" />
               </span>
               <div className={styles.itemCopy}>
                 <div className={styles.itemTop}>
-                  <strong>{item.label}</strong>
+                  <strong>{t(item.labelKey)}</strong>
                   <div className={styles.badges}>
-                    <StatusBadge tone={source.tone}>{source.label}</StatusBadge>
-                    <StatusBadge tone={health.tone}>{health.label}</StatusBadge>
+                    <StatusBadge tone={source.tone}>{t(source.labelKey)}</StatusBadge>
+                    <StatusBadge tone={health.tone}>{t(health.labelKey)}</StatusBadge>
                   </div>
                 </div>
-                <p>{item.description}</p>
-                <small>{item.lastCheckedLabel}</small>
+                <p>{t(item.descriptionKey)}</p>
+                <small>{t(item.lastCheckedKey)}</small>
               </div>
             </article>
           );
         })}
       </section>
 
-      <section className={styles.policyGrid} aria-label="복구 정책">
+      <section className={styles.policyGrid} aria-label={t("settings.dr.policyAria")}>
         <article>
           <Cloud size={18} strokeWidth={2.1} aria-hidden="true" />
           <div>
-            <strong>서버 기록 우선</strong>
-            <p>프로젝트룸 채팅, TODO, 일정, 자료 정보는 서버 기록을 다시 불러옵니다.</p>
+            <strong>{t("settings.dr.policy.server.title")}</strong>
+            <p>{t("settings.dr.policy.server.body")}</p>
           </div>
         </article>
         <article>
           <HardDrive size={18} strokeWidth={2.1} aria-hidden="true" />
           <div>
-            <strong>기기 안 백업 필요</strong>
-            <p>개인 에이전트 원문과 기기 설정은 기기 안의 백업이 있을 때만 되살립니다.</p>
+            <strong>{t("settings.dr.policy.local.title")}</strong>
+            <p>{t("settings.dr.policy.local.body")}</p>
           </div>
         </article>
         <article>
           <LockKeyhole size={18} strokeWidth={2.1} aria-hidden="true" />
           <div>
-            <strong>서버 미보관</strong>
-            <p>상세 위젯 이벤트 원문은 서버에 남기지 않고, 집계와 항목 상태만 서버에 보관합니다.</p>
+            <strong>{t("settings.dr.policy.none.title")}</strong>
+            <p>{t("settings.dr.policy.none.body")}</p>
           </div>
         </article>
       </section>
@@ -189,14 +194,14 @@ export function DeviceDataRecoveryMapPanel({
       <footer className={styles.footer}>
         <div className={styles.notice}>
           <ShieldCheck size={16} strokeWidth={2.1} aria-hidden="true" />
-          <span>복구 전에 손상된 기기 안 저장 파일은 따로 보관하고, 서버 기록과 기기 안 백업을 순서대로 확인합니다.</span>
+          <span>{t("settings.dr.footerNote")}</span>
         </div>
         <div className={styles.actions}>
           <Button icon={<RefreshCcw size={15} strokeWidth={2.1} />} size="sm" variant="quiet">
-            무결성 확인
+            {t("settings.dr.checkIntegrity")}
           </Button>
           <Button icon={<CheckCircle2 size={15} strokeWidth={2.1} />} size="sm" variant="primary">
-            백업 만들기
+            {t("settings.dr.createBackup")}
           </Button>
         </div>
       </footer>

@@ -1,12 +1,13 @@
 "use client";
 
-import { AlertCircle, UploadCloud } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewRoomResources } from "@/lib/workspace-preview-data";
 import type { ResourceResponse } from "@/types/api/resource";
@@ -48,6 +49,7 @@ function createUploadBody(file: File, roomId: string) {
 }
 
 export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
+  const { t } = useI18n();
   const [state, setState] = useState<RoomState>({ kind: "loading" });
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -62,7 +64,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
       setState({ kind: "ready", resources: page.items });
       setSelectedResourceId((current) => (current && page.items.some((resource) => resource.id === current) ? current : null));
     } catch (error) {
-      const message = getErrorMessage(error);
+      const message = getErrorMessage(error, t);
       if (message !== "AUTH_REQUIRED" && shouldUseWorkspacePreviewData()) {
         const matched = workspacePreviewRoomResources.filter((resource) => resource.roomId === roomId);
         const resources = matched.length ? matched : workspacePreviewRoomResources;
@@ -72,7 +74,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
       }
       setState(message === "AUTH_REQUIRED" ? { kind: "auth" } : { kind: "error", message });
     }
-  }, [roomId]);
+  }, [roomId, t]);
 
   const refreshResources = useCallback(() => {
     setState({ kind: "loading" });
@@ -128,22 +130,22 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
         await loadResources();
         setSelectedResourceId(firstUploadedResource?.id ?? null);
       } catch (error) {
-        setUploadState({ kind: "error", message: getErrorMessage(error) });
+        setUploadState({ kind: "error", message: getErrorMessage(error, t) });
       }
     },
-    [loadResources, roomId],
+    [loadResources, roomId, t],
   );
 
   return (
-    <section className={cn("resource-workspace", styles.workspace)} aria-label="자료보드">
+    <section className={cn("resource-workspace", styles.workspace)} aria-label={t("resources.workspace.aria")}>
       <GlassPanel className={cn("resource-workspace__hero", styles.boardHeader)}>
         <div className="resource-workspace__copy">
-          <span className={styles.kicker}>프로젝트룸 자료</span>
-          <h1>자료보드</h1>
-          <p>현재 룸의 공용 파일만 올리고 확인합니다.</p>
+          <span className={styles.kicker}>{t("resources.workspace.kickerRoom")}</span>
+          <h1>{t("resources.workspace.title")}</h1>
+          <p>{t("resources.workspace.roomHint")}</p>
         </div>
         <div className={styles.headerActions}>
-          <ResourceScopeSwitch activeScope="room" roomHref={`/app/project-rooms/${roomId}/resources`} roomLabel="프로젝트룸" />
+          <ResourceScopeSwitch activeScope="room" roomHref={`/app/project-rooms/${roomId}/resources`} roomLabel={t("resources.common.roomFallback")} />
         </div>
       </GlassPanel>
 
@@ -151,9 +153,9 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
         <GlassPanel className="resource-workspace__notice">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>로그인이 필요합니다</h2>
+            <h2>{t("resources.workspace.loginRequired")}</h2>
             <Link className="bubli-button bubli-button--primary" href="/login">
-              로그인
+              {t("resources.workspace.login")}
             </Link>
           </div>
         </GlassPanel>
@@ -163,11 +165,11 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
         <GlassPanel className="resource-workspace__notice">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>서버 연결 대기</h2>
+            <h2>{t("resources.workspace.serverWaiting")}</h2>
             <p>{state.message}</p>
-            <div className="resource-workspace__notice-actions" aria-label="자료보드 상태 액션">
+            <div className="resource-workspace__notice-actions" aria-label={t("resources.workspace.statusActionAria")}>
               <Button onClick={refreshResources} variant="primary">
-                다시 연결
+                {t("resources.workspace.reconnect")}
               </Button>
             </div>
           </div>
@@ -205,18 +207,18 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
               }
             }}
           >
-            <section className="resource-workspace__browser" aria-label="자료 탐색">
+            <section className="resource-workspace__browser" aria-label={t("resources.workspace.browseAria")}>
               <div className={styles.listHeader}>
                 <div>
-                  <span>프로젝트룸 자료</span>
-                  <strong>총 {state.kind === "loading" ? "-" : resources.length}개</strong>
+                  <span>{t("resources.workspace.kickerRoom")}</span>
+                  <strong>{state.kind === "loading" ? t("resources.workspace.totalUnknown") : t("resources.workspace.totalCount", { count: resources.length })}</strong>
                 </div>
-                <p>{uploadState.kind === "idle" ? "파일을 끌어다 놓거나 선택해 추가합니다" : null}</p>
-                {uploadState.kind === "uploading" ? <p>{uploadState.fileName} 업로드 중</p> : null}
-                {uploadState.kind === "success" ? <p>{uploadState.fileName} 업로드 완료</p> : null}
+                <p>{uploadState.kind === "idle" ? t("resources.workspace.dropHint") : null}</p>
+                {uploadState.kind === "uploading" ? <p>{t("resources.workspace.uploading", { fileName: uploadState.fileName })}</p> : null}
+                {uploadState.kind === "success" ? <p>{t("resources.workspace.uploadDone", { fileName: uploadState.fileName })}</p> : null}
                 {uploadState.kind === "error" ? <p>{uploadState.message}</p> : null}
                 <Button disabled={uploadDisabled} onClick={() => fileInputRef.current?.click()} variant="primary">
-                  파일 선택
+                  {t("resources.workspace.selectFile")}
                 </Button>
               </div>
 
@@ -237,23 +239,24 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                 type="file"
               />
 
-              <div className={cn("resource-workspace__items", styles.fileGrid, viewMode === "list" && "resource-workspace__items--list", viewMode === "list" && styles.fileList)}>
-                {state.kind === "loading" ? (
+              {state.kind === "loading" ? (
+                <div className={cn("resource-workspace__items", styles.fileGrid, viewMode === "list" && "resource-workspace__items--list", viewMode === "list" && styles.fileList)}>
                   <>
                     <GlassPanel loading />
                     <GlassPanel loading />
                     <GlassPanel loading />
                   </>
-                ) : filteredResources.length === 0 ? (
-                  <GlassPanel className="resource-workspace__empty">
-                    <UploadCloud aria-hidden size={22} strokeWidth={2} />
-                    <div>
-                      <h2>현재 데이터가 없습니다</h2>
-                      <p>파일을 추가하면 이 룸의 자료 목록에 표시됩니다.</p>
-                    </div>
-                  </GlassPanel>
-                ) : (
-                  filteredResources.map((resource) => (
+                </div>
+              ) : filteredResources.length === 0 ? (
+                <div className={styles.emptyCanvas} role="status">
+                  <div className={styles.emptyCanvasInner}>
+                    <strong>{t("resources.workspace.emptyRoomTitle")}</strong>
+                    <p>{t("resources.workspace.emptyRoomDesc")}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className={cn("resource-workspace__items", styles.fileGrid, viewMode === "list" && "resource-workspace__items--list", viewMode === "list" && styles.fileList)}>
+                  {filteredResources.map((resource) => (
                     <ResourceTile
                       key={resource.id}
                       mode={viewMode}
@@ -262,16 +265,21 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                       scope="room"
                       selected={selectedResource?.id === resource.id}
                     />
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <ResourcePreview
-              emptyHint="자료를 선택하면 파일 정보와 정리 상태를 확인합니다."
+              emptyHint={t("resources.workspace.previewEmptyHint")}
               onClose={() => setSelectedResourceId(null)}
+              onDeleted={() => {
+                setSelectedResourceId(null);
+                void loadResources();
+              }}
               onError={(message) => setUploadState({ kind: "error", message })}
               resource={selectedResource}
+              roomId={roomId}
               scope="room"
             />
           </GlassPanel>

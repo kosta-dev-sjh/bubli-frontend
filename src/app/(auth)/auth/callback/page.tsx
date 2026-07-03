@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { authApi } from "@/features/auth/api/authApi";
 import { getAuthRedirectUri, resolveAuthClientType } from "@/lib/auth/auth-session";
+import { useI18n } from "@/lib/i18n";
 
 function resolveReturnPath(state: string | null) {
   if (!state || state === "login") {
@@ -26,8 +27,9 @@ function resolveReturnPath(state: string | null) {
 }
 
 export default function AuthCallbackPage() {
+  const { t } = useI18n();
   const router = useRouter();
-  const [statusText, setStatusText] = useState("로그인을 확인하고 있습니다.");
+  const [statusText, setStatusText] = useState(t("auth.callback.checking"));
   const [errorText, setErrorText] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,8 +41,8 @@ export default function AuthCallbackPage() {
       const state = params.get("state");
 
       if (!code) {
-        setErrorText("Google에서 받은 로그인 코드가 없습니다.");
-        setStatusText("로그인을 완료하지 못했습니다.");
+        setErrorText(t("auth.callback.noCode"));
+        setStatusText(t("auth.callback.failedStatus"));
         return;
       }
 
@@ -55,15 +57,15 @@ export default function AuthCallbackPage() {
           return;
         }
 
-        setStatusText("업무 화면으로 이동합니다.");
+        setStatusText(t("auth.callback.redirecting"));
         router.replace(resolveReturnPath(state));
       } catch {
         if (cancelled) {
           return;
         }
 
-        setErrorText("로그인을 완료하지 못했습니다. 다시 시도하세요.");
-        setStatusText("로그인을 완료하지 못했습니다.");
+        setErrorText(t("auth.callback.failedRetry"));
+        setStatusText(t("auth.callback.failedStatus"));
       }
     }
 
@@ -72,18 +74,18 @@ export default function AuthCallbackPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, t]);
 
   return (
-    <main className="auth-page" aria-label="로그인 확인">
+    <main className="auth-page" aria-label={t("auth.callback.pageAria")}>
       <section className="auth-page__intro">
         <Link className="auth-page__brand bubli-wordmark" href="/">
           Bubli
         </Link>
         <p className="auth-page__welcome">Welcome!</p>
         <h1>
-          <span>로그인을 확인하고,</span>
-          <span>오늘 일을 이어갑니다.</span>
+          <span>{t("auth.callback.headingLine1")}</span>
+          <span>{t("auth.callback.headingLine2")}</span>
         </h1>
       </section>
 
@@ -93,7 +95,7 @@ export default function AuthCallbackPage() {
           {errorText ? <p className="auth-card__error">{errorText}</p> : null}
           {errorText ? (
             <Link className="bubli-button bubli-button--primary bubli-button--lg auth-card__submit" href="/login">
-              다시 로그인
+              {t("auth.callback.retryLogin")}
             </Link>
           ) : null}
         </div>

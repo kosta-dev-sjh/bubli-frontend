@@ -1,3 +1,5 @@
+"use client";
+
 import {
   CheckCircle2,
   Cloud,
@@ -11,61 +13,63 @@ import {
 } from "lucide-react";
 
 import { Chip, GlassPanel, StatusBadge } from "@/components/ui";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
 import styles from "./resource-access-download-panel.module.css";
 
 const accessCards = [
   {
-    title: "개인 자료",
-    caption: "사용자가 직접 공유하기 전까지 본인만 보는 자료",
-    status: "개인 자료",
+    titleKey: "resources.access.personalTitle" as MessageKey,
+    captionKey: "resources.access.personalCaption" as MessageKey,
+    statusKey: "resources.access.personalStatus" as MessageKey,
     tone: "personal" as const,
     icon: UserRound,
     rules: [
-      ["접근 기준", "자료를 올린 본인만 열람"],
-      ["다운로드", "서버 권한 확인 후 다운로드 주소 발급"],
-      ["프로젝트룸", "해당 룸 자료보드에서 별도 업로드"],
-    ],
+      ["resources.access.personalRule1Label", "resources.access.personalRule1Value"],
+      ["resources.access.personalRule2Label", "resources.access.personalRule2Value"],
+      ["resources.access.personalRule3Label", "resources.access.personalRule3Value"],
+    ] as [MessageKey, MessageKey][],
   },
   {
-    title: "프로젝트룸 자료",
-    caption: "프로젝트룸 멤버가 같은 맥락에서 보는 자료",
-    status: "프로젝트룸 자료",
+    titleKey: "resources.access.roomTitle" as MessageKey,
+    captionKey: "resources.access.roomCaption" as MessageKey,
+    statusKey: "resources.access.roomStatus" as MessageKey,
     tone: "room" as const,
     icon: UsersRound,
     rules: [
-      ["접근 기준", "프로젝트룸과 활성 멤버 권한을 함께 확인"],
-      ["다운로드", "멤버 권한 확인 후 다운로드 주소 발급"],
-      ["이벤트", "댓글, 버전, 에이전트 제안은 프로젝트룸 이벤트로 표시"],
-    ],
+      ["resources.access.roomRule1Label", "resources.access.roomRule1Value"],
+      ["resources.access.roomRule2Label", "resources.access.roomRule2Value"],
+      ["resources.access.roomRule3Label", "resources.access.roomRule3Value"],
+    ] as [MessageKey, MessageKey][],
   },
   {
-    title: "비멤버 접근",
-    caption: "프로젝트룸 멤버가 아니면 자료 다운로드 차단",
-    status: "다운로드 차단",
+    titleKey: "resources.access.nonMemberTitle" as MessageKey,
+    captionKey: "resources.access.nonMemberCaption" as MessageKey,
+    statusKey: "resources.access.nonMemberStatus" as MessageKey,
     tone: "warning" as const,
     icon: MessageCircle,
     rules: [
-      ["허용 범위", "권한 없음"],
-      ["차단 범위", "자료, WBS, 일정, 멤버 목록, 다운로드"],
-      ["근거", "프로젝트룸 멤버 권한 없음"],
-    ],
+      ["resources.access.nonMemberRule1Label", "resources.access.nonMemberRule1Value"],
+      ["resources.access.nonMemberRule2Label", "resources.access.nonMemberRule2Value"],
+      ["resources.access.nonMemberRule3Label", "resources.access.nonMemberRule3Value"],
+    ] as [MessageKey, MessageKey][],
   },
 ];
 
-const flowSteps = [
-  ["자료 선택", "자료보드에서 개인 자료 또는 프로젝트룸 자료를 선택"],
-  ["자료 범위 확인", "개인 자료와 프로젝트룸 자료 기준을 먼저 판별"],
-  ["권한 확인", "소유자 또는 프로젝트룸 멤버 상태를 서버에서 확인"],
-  ["다운로드 주소 발급", "권한이 맞을 때만 짧게 쓰는 주소를 반환"],
-  ["원본 접근", "스토리지 원본은 서버 권한 흐름 밖에서 열지 않음"],
+const flowSteps: [MessageKey, MessageKey][] = [
+  ["resources.access.flowStep1Title", "resources.access.flowStep1Body"],
+  ["resources.access.flowStep2Title", "resources.access.flowStep2Body"],
+  ["resources.access.flowStep3Title", "resources.access.flowStep3Body"],
+  ["resources.access.flowStep4Title", "resources.access.flowStep4Body"],
+  ["resources.access.flowStep5Title", "resources.access.flowStep5Body"],
 ];
 
-const policyChecks = [
-  "개인 자료함 동기화는 프로젝트룸 공유와 분리합니다.",
-  "프로젝트룸 자료는 해당 룸 자료보드에서 직접 업로드합니다.",
-  "기기 안 임시 보관은 빠른 표시와 복구용이며 권한 기준이 아닙니다.",
-  "자료 다운로드는 클라이언트가 스토리지 원본을 직접 여는 흐름으로 만들지 않습니다.",
+const policyChecks: MessageKey[] = [
+  "resources.access.policyCheck1",
+  "resources.access.policyCheck2",
+  "resources.access.policyCheck3",
+  "resources.access.policyCheck4",
 ];
 
 const apiRows = [
@@ -76,55 +80,53 @@ const apiRows = [
 ];
 
 export function ResourceAccessDownloadPanel() {
+  const { t } = useI18n();
   return (
     <GlassPanel className={styles.panel}>
       <header className={styles.header}>
         <div className={styles.eyebrow}>
           <ShieldCheck size={16} aria-hidden="true" />
-          자료 권한과 다운로드 정책
+          {t("resources.access.eyebrow")}
         </div>
         <div className={styles.titleRow}>
           <div>
-            <h2 className={styles.title}>자료 접근은 자료 범위와 서버 권한 확인으로 나눕니다</h2>
-            <p className={styles.summary}>
-              개인 자료는 소유자 기준으로 보호하고, 프로젝트룸 자료는 멤버 권한을 확인합니다. 다운로드는 서버가 권한을 확인한 뒤에만
-              사용할 주소를 내려주는 흐름으로 처리합니다.
-            </p>
+            <h2 className={styles.title}>{t("resources.access.title")}</h2>
+            <p className={styles.summary}>{t("resources.access.summary")}</p>
           </div>
-          <StatusBadge tone="approved">권한 확인 기준</StatusBadge>
+          <StatusBadge tone="approved">{t("resources.access.badge")}</StatusBadge>
         </div>
-        <div className={styles.chips} aria-label="자료 권한 핵심 기준">
+        <div className={styles.chips} aria-label={t("resources.access.chipsAria")}>
           <Chip selected icon={<LockKeyhole size={14} aria-hidden="true" />}>
-            개인 자료 자동 공유 없음
+            {t("resources.access.chipNoAutoShare")}
           </Chip>
-          <Chip icon={<Download size={14} aria-hidden="true" />}>권한 확인 후 다운로드</Chip>
-          <Chip icon={<Cloud size={14} aria-hidden="true" />}>스토리지 원본 보호</Chip>
+          <Chip icon={<Download size={14} aria-hidden="true" />}>{t("resources.access.chipDownload")}</Chip>
+          <Chip icon={<Cloud size={14} aria-hidden="true" />}>{t("resources.access.chipStorage")}</Chip>
         </div>
       </header>
 
-      <section className={styles.grid} aria-label="자료 접근 유형">
+      <section className={styles.grid} aria-label={t("resources.access.gridAria")}>
         {accessCards.map((card) => {
           const Icon = card.icon;
 
           return (
-            <article className={styles.card} key={card.title}>
+            <article className={styles.card} key={card.titleKey}>
               <div className={styles.cardTop}>
                 <div className={styles.cardTitle}>
                   <span className={styles.iconBubble}>
                     <Icon size={21} aria-hidden="true" />
                   </span>
-                  <StatusBadge tone={card.tone}>{card.status}</StatusBadge>
+                  <StatusBadge tone={card.tone}>{t(card.statusKey)}</StatusBadge>
                 </div>
                 <div className={styles.cardHeading}>
-                  <h3>{card.title}</h3>
-                  <p>{card.caption}</p>
+                  <h3>{t(card.titleKey)}</h3>
+                  <p>{t(card.captionKey)}</p>
                 </div>
               </div>
               <ul className={styles.ruleList}>
-                {card.rules.map(([label, value]) => (
-                  <li className={styles.ruleItem} key={label}>
-                    <span className={styles.ruleLabel}>{label}</span>
-                    <span>{value}</span>
+                {card.rules.map(([labelKey, valueKey]) => (
+                  <li className={styles.ruleItem} key={labelKey}>
+                    <span className={styles.ruleLabel}>{t(labelKey)}</span>
+                    <span>{t(valueKey)}</span>
                   </li>
                 ))}
               </ul>
@@ -133,50 +135,50 @@ export function ResourceAccessDownloadPanel() {
         })}
       </section>
 
-      <section className={styles.flowPanel} aria-label="다운로드 권한 확인 흐름">
+      <section className={styles.flowPanel} aria-label={t("resources.access.flowAria")}>
         <div className={styles.flowTitle}>
           <div>
-            <h3>다운로드 흐름</h3>
-            <p>화면은 자료 원본 위치를 직접 판단하지 않고, 서버의 권한 확인 결과만 사용합니다.</p>
+            <h3>{t("resources.access.flowTitle")}</h3>
+            <p>{t("resources.access.flowDesc")}</p>
           </div>
-          <StatusBadge tone="pending">다운로드 주소</StatusBadge>
+          <StatusBadge tone="pending">{t("resources.access.flowBadge")}</StatusBadge>
         </div>
         <div className={styles.flow}>
-          {flowSteps.map(([title, body], index) => (
-            <div className={styles.flowStep} key={title}>
+          {flowSteps.map(([titleKey, bodyKey], index) => (
+            <div className={styles.flowStep} key={titleKey}>
               <span className={styles.flowIndex}>{index + 1}</span>
-              <strong>{title}</strong>
-              <span>{body}</span>
+              <strong>{t(titleKey)}</strong>
+              <span>{t(bodyKey)}</span>
             </div>
           ))}
         </div>
       </section>
 
-      <section className={styles.policyGrid} aria-label="자료 권한 구현 기준">
+      <section className={styles.policyGrid} aria-label={t("resources.access.policyGridAria")}>
         <div className={styles.policyCard}>
-          <h3>구현 시 지켜야 할 기준</h3>
+          <h3>{t("resources.access.policyImplTitle")}</h3>
           <ul className={styles.checks}>
             {policyChecks.map((item) => (
               <li className={styles.checkItem} key={item}>
                 <CheckCircle2 size={16} aria-hidden="true" />
-                <span>{item}</span>
+                <span>{t(item)}</span>
               </li>
             ))}
           </ul>
         </div>
         <div className={styles.policyCard}>
-          <h3>연결 방식 후보</h3>
+          <h3>{t("resources.access.apiTitle")}</h3>
           <div className={styles.apiList}>
             {apiRows.map(([method, path]) => (
               <div className={styles.apiRow} key={path}>
-                <StatusBadge tone={method === "GET" ? "success" : "pending"}>{method === "GET" ? "조회" : "변경"}</StatusBadge>
+                <StatusBadge tone={method === "GET" ? "success" : "pending"}>{method === "GET" ? t("resources.access.apiGet") : t("resources.access.apiChange")}</StatusBadge>
                 <span className={styles.apiPath}>{path}</span>
               </div>
             ))}
           </div>
           <div className={styles.checkItem}>
             <FileCheck2 size={16} aria-hidden="true" />
-            <span>최종 연결 방식이 바뀌면 화면이 아니라 연결부에서만 맞춥니다.</span>
+            <span>{t("resources.access.apiNote")}</span>
           </div>
         </div>
       </section>

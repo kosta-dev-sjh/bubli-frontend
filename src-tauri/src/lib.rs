@@ -192,6 +192,7 @@ struct WidgetRoomContextChangedPayload {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AppReadyInput {
+    qa_all_widgets: Option<bool>,
     selected_room_id: Option<String>,
 }
 
@@ -1141,6 +1142,13 @@ fn open_login_startup_widget(
     build_widget_window(app, monitor_state, &widget)
 }
 
+fn app_ready_qa_all_widgets_requested(input: &Option<AppReadyInput>) -> bool {
+    input
+        .as_ref()
+        .and_then(|value| value.qa_all_widgets)
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 fn app_ready(
     app: AppHandle,
@@ -1148,9 +1156,10 @@ fn app_ready(
     state: tauri::State<'_, WidgetState>,
     input: Option<AppReadyInput>,
 ) -> Result<&'static str, String> {
+    let qa_all_widgets = app_ready_qa_all_widgets_requested(&input);
     let selected_room_id =
         input.and_then(|value| normalize_optional_query_value(value.selected_room_id));
-    if qa_all_widget_windows_enabled() {
+    if qa_all_widgets && qa_all_widget_windows_enabled() {
         build_widget_qa_windows(&app, selected_room_id)?;
         return Ok("bubli-tauri-ready");
     }
@@ -1500,4 +1509,52 @@ pub fn run() {
         }
         _ => {}
     });
+}
+
+#[cfg(test)]
+mod widget_runtime_tests {
+    use super::*;
+
+    #[test]
+    fn widget_room_context_updates_all_known_widgets_and_can_clear_room() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "bar".to_string(),
+            default_widget_window_state("bar", Some("bar".to_string())),
+        );
+        store.bubbles.insert(
+            "chat".to_string(),
+            default_widget_window_state("chat", Some("chat".to_string())),
+        );
+
+        let selected = set_widget_room_context_for_store(&mut store, Some("room-1".to_string()));
+
+        assert_eq!(selected.len(), 3);
+        assert!(selected
+            .iter()
+            .all(|widget| widget.selected_room_id.as_deref() == Some("room-1")));
+
+        let cleared = set_widget_room_context_for_store(&mut store, None);
+
+        assert!(cleared
+            .iter()
+            .all(|widget| widget.selected_room_id.as_deref().is_none()));
+    }
+
+    #[test]
+    fn app_ready_keeps_qa_all_widgets_off_unless_explicitly_requested() {
+        assert!(!app_ready_qa_all_widgets_requested(&None));
+        assert!(!app_ready_qa_all_widgets_requested(&Some(AppReadyInput {
+            qa_all_widgets: None,
+            selected_room_id: Some("room-1".to_string()),
+        })));
+        assert!(!app_ready_qa_all_widgets_requested(&Some(AppReadyInput {
+            qa_all_widgets: Some(false),
+            selected_room_id: None,
+        })));
+        assert!(app_ready_qa_all_widgets_requested(&Some(AppReadyInput {
+            qa_all_widgets: Some(true),
+            selected_room_id: None,
+        })));
+    }
 }

@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowDownToLine,
   ArrowLeftRight,
@@ -16,121 +18,124 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
 import styles from "./chat-sequence-loading-boundary-panel.module.css";
 
 type SequenceStep = {
-  description: string;
+  descriptionKey: MessageKey;
   icon: typeof Server;
-  label: string;
-  metric: string;
-  owner: string;
+  labelKey: MessageKey;
+  metricKey: MessageKey;
+  ownerKey: MessageKey;
   tone: "room" | "personal" | "approved" | "pending";
 };
 
 type MessageTrace = {
-  body: string;
-  clientMessageId: string;
+  bodyKey: MessageKey;
+  clientMessageIdKey: MessageKey;
   roomSequence: number;
   state: "serverSaved" | "cached" | "read";
-  writer: string;
+  writerKey: MessageKey;
 };
 
 type SyncRule = {
-  detail: string;
-  label: string;
-  token: string;
+  detailKey: MessageKey;
+  labelKey: MessageKey;
+  tokenKey: MessageKey;
 };
 
 const sequenceSteps: SequenceStep[] = [
   {
-    description: "웹은 채팅방에 들어갈 때 서버에서 최근 메시지를 받습니다.",
+    descriptionKey: "chat.sequencePanel.step1Desc",
     icon: Server,
-    label: "서버 최근 메시지",
-    metric: "최근 메시지 기준",
-    owner: "서버 채팅 원본",
+    labelKey: "chat.sequencePanel.step1Label",
+    metricKey: "chat.sequencePanel.step1Metric",
+    ownerKey: "chat.sequencePanel.step1Owner",
     tone: "room",
   },
   {
-    description: "앱은 기기 안 최근 대화를 먼저 보여주고 누락 메시지를 서버에서 보충합니다.",
+    descriptionKey: "chat.sequencePanel.step2Desc",
     icon: Laptop,
-    label: "앱 빠른 표시",
-    metric: "최근 대화 임시 보관",
-    owner: "기기 안 저장소",
+    labelKey: "chat.sequencePanel.step2Label",
+    metricKey: "chat.sequencePanel.step2Metric",
+    ownerKey: "chat.sequencePanel.step2Owner",
     tone: "personal",
   },
   {
-    description: "누락분은 마지막으로 받은 순서값 다음부터 요청합니다.",
+    descriptionKey: "chat.sequencePanel.step3Desc",
     icon: ArrowDownToLine,
-    label: "누락 보충",
-    metric: "빠진 구간 요청",
-    owner: "서버 메시지 조회",
+    labelKey: "chat.sequencePanel.step3Label",
+    metricKey: "chat.sequencePanel.step3Metric",
+    ownerKey: "chat.sequencePanel.step3Owner",
     tone: "pending",
   },
   {
-    description: "읽음 위치는 사용자가 확인한 마지막 순서값으로 저장합니다.",
+    descriptionKey: "chat.sequencePanel.step4Desc",
     icon: CheckCircle2,
-    label: "읽음 반영",
-    metric: "마지막 읽음 기준",
-    owner: "읽음 상태 저장",
+    labelKey: "chat.sequencePanel.step4Label",
+    metricKey: "chat.sequencePanel.step4Metric",
+    ownerKey: "chat.sequencePanel.step4Owner",
     tone: "approved",
   },
 ];
 
 const messageTrace: MessageTrace[] = [
   {
-    body: "계약서 기준으로 납품일 확인 부탁드려요.",
-    clientMessageId: "전송 ID A",
+    bodyKey: "chat.sequencePanel.trace1Body",
+    clientMessageIdKey: "chat.sequencePanel.trace1Id",
     roomSequence: 128,
     state: "read",
-    writer: "정현",
+    writerKey: "chat.sequencePanel.trace1Writer",
   },
   {
-    body: "/bubli 질문 후보 정리",
-    clientMessageId: "전송 ID B",
+    bodyKey: "chat.sequencePanel.trace2Body",
+    clientMessageIdKey: "chat.sequencePanel.trace2Id",
     roomSequence: 129,
     state: "serverSaved",
-    writer: "민준",
+    writerKey: "chat.sequencePanel.trace2Writer",
   },
   {
-    body: "에이전트가 확인 질문 3개를 제안했어요.",
-    clientMessageId: "에이전트 응답 ID",
+    bodyKey: "chat.sequencePanel.trace3Body",
+    clientMessageIdKey: "chat.sequencePanel.trace3Id",
     roomSequence: 130,
     state: "cached",
-    writer: "Bubli",
+    writerKey: "chat.sequencePanel.trace3Writer",
   },
 ];
 
 const syncRules: SyncRule[] = [
   {
-    detail: "전송 완료는 임시 표시가 아니라 서버가 확인한 메시지 ID와 순서값을 기준으로 봅니다.",
-    label: "전송 기준",
-    token: "메시지 ID",
+    detailKey: "chat.sequencePanel.rule1Detail",
+    labelKey: "chat.sequencePanel.rule1Label",
+    tokenKey: "chat.sequencePanel.rule1Token",
   },
   {
-    detail: "이전 메시지는 현재 위치 앞쪽으로 불러오고, 새 메시지는 실시간 이벤트를 먼저 받습니다.",
-    label: "양방향 로딩",
-    token: "이전 메시지",
+    detailKey: "chat.sequencePanel.rule2Detail",
+    labelKey: "chat.sequencePanel.rule2Label",
+    tokenKey: "chat.sequencePanel.rule2Token",
   },
   {
-    detail: "캐시가 비었거나 손상되면 서버 최근 메시지로 다시 채웁니다.",
-    label: "캐시 복구",
-    token: "최근 메시지",
+    detailKey: "chat.sequencePanel.rule3Detail",
+    labelKey: "chat.sequencePanel.rule3Label",
+    tokenKey: "chat.sequencePanel.rule3Token",
   },
   {
-    detail: "프로젝트룸 이벤트와 채팅 본문은 서로 다른 실시간 통로로 받습니다.",
-    label: "실시간 통로 분리",
-    token: "연결 이벤트",
+    detailKey: "chat.sequencePanel.rule4Detail",
+    labelKey: "chat.sequencePanel.rule4Label",
+    tokenKey: "chat.sequencePanel.rule4Token",
   },
 ];
 
-const stateMeta: Record<MessageTrace["state"], { label: string; tone: "approved" | "pending" | "personal" }> = {
-  cached: { label: "기기 안 반영", tone: "personal" },
-  read: { label: "읽음", tone: "approved" },
-  serverSaved: { label: "서버 저장", tone: "pending" },
+const stateMeta: Record<MessageTrace["state"], { labelKey: MessageKey; tone: "approved" | "pending" | "personal" }> = {
+  cached: { labelKey: "chat.sequencePanel.state.cached", tone: "personal" },
+  read: { labelKey: "chat.sequencePanel.state.read", tone: "approved" },
+  serverSaved: { labelKey: "chat.sequencePanel.state.serverSaved", tone: "pending" },
 };
 
 function SequenceStepCard({ step }: { step: SequenceStep }) {
+  const { t } = useI18n();
   const Icon = step.icon;
 
   return (
@@ -140,17 +145,18 @@ function SequenceStepCard({ step }: { step: SequenceStep }) {
       </span>
       <div>
         <div className={styles.badges}>
-          <StatusBadge tone={step.tone}>{step.owner}</StatusBadge>
-          <StatusBadge tone="neutral">{step.metric}</StatusBadge>
+          <StatusBadge tone={step.tone}>{t(step.ownerKey)}</StatusBadge>
+          <StatusBadge tone="neutral">{t(step.metricKey)}</StatusBadge>
         </div>
-        <h3>{step.label}</h3>
-        <p>{step.description}</p>
+        <h3>{t(step.labelKey)}</h3>
+        <p>{t(step.descriptionKey)}</p>
       </div>
     </article>
   );
 }
 
 function TraceRow({ item }: { item: MessageTrace }) {
+  const { t } = useI18n();
   const meta = stateMeta[item.state];
 
   return (
@@ -160,56 +166,59 @@ function TraceRow({ item }: { item: MessageTrace }) {
       </div>
       <div>
         <div className={styles.traceMeta}>
-          <strong>{item.writer}</strong>
-          <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
-          <code>{item.clientMessageId}</code>
+          <strong>{t(item.writerKey)}</strong>
+          <StatusBadge tone={meta.tone}>{t(meta.labelKey)}</StatusBadge>
+          <code>{t(item.clientMessageIdKey)}</code>
         </div>
-        <p>{item.body}</p>
+        <p>{t(item.bodyKey)}</p>
       </div>
     </article>
   );
 }
 
 function RuleCard({ rule }: { rule: SyncRule }) {
+  const { t } = useI18n();
+
   return (
     <article className={styles.ruleCard}>
-      <code>{rule.token}</code>
-      <h4>{rule.label}</h4>
-      <p>{rule.detail}</p>
+      <code>{t(rule.tokenKey)}</code>
+      <h4>{t(rule.labelKey)}</h4>
+      <p>{t(rule.detailKey)}</p>
     </article>
   );
 }
 
 export function ChatSequenceLoadingBoundaryPanel() {
+  const { t } = useI18n();
+
   return (
-    <section className={styles.panel} aria-label="채팅 sequence 로딩 경계 패널">
+    <section className={styles.panel} aria-label={t("chat.sequencePanel.aria")}>
       <GlassPanel className={styles.hero}>
         <div className={styles.heroCopy}>
           <Chip icon={<MessageSquareText size={14} />} selected>
-            채팅 로딩 기준
+            {t("chat.sequencePanel.heroChip")}
           </Chip>
-          <h2>채팅은 메시지 순서값으로 이어 붙입니다</h2>
+          <h2>{t("chat.sequencePanel.heroTitle")}</h2>
           <p>
-            프로젝트룸 채팅과 1:1 채팅은 서버에 남은 메시지를 기준으로 봅니다. 웹은 서버에서 바로 읽고,
-            데스크탑 앱은 기기 안 최근 대화를 먼저 보여준 뒤 빠진 메시지를 서버 순서값 기준으로 보충합니다.
+            {t("chat.sequencePanel.heroBody")}
           </p>
         </div>
         <div className={styles.heroMetric}>
-          <StatusBadge tone="approved">서버 원본</StatusBadge>
+          <StatusBadge tone="approved">{t("chat.sequencePanel.heroBadge")}</StatusBadge>
           <strong>130</strong>
-          <span>최근 메시지 기준</span>
-          <ProgressBar label="현재 채팅 동기화율" value={92} />
+          <span>{t("chat.sequencePanel.heroMetric")}</span>
+          <ProgressBar label={t("chat.sequencePanel.heroProgress")} value={92} />
         </div>
       </GlassPanel>
 
       <GlassPanel className={styles.flowPanel}>
         <div className={styles.sectionTitle}>
-          <h3>조회와 보충 흐름</h3>
-          <p>화면은 순서값을 기준으로 메시지를 이어 붙이고 중복 수신을 피합니다.</p>
+          <h3>{t("chat.sequencePanel.flowTitle")}</h3>
+          <p>{t("chat.sequencePanel.flowBody")}</p>
         </div>
         <div className={styles.stepGrid}>
           {sequenceSteps.map((step, index) => (
-            <div className={styles.stepSlot} key={step.label}>
+            <div className={styles.stepSlot} key={step.labelKey}>
               <SequenceStepCard step={step} />
               {index < sequenceSteps.length - 1 ? (
                 <span className={styles.connector} aria-hidden="true">
@@ -224,8 +233,8 @@ export function ChatSequenceLoadingBoundaryPanel() {
       <div className={styles.columns}>
         <GlassPanel className={styles.tracePanel}>
           <div className={styles.sectionTitle}>
-            <h3>메시지 순서 예시</h3>
-            <p>전송 ID는 중복 전송을 막고, 메시지 순서값은 화면 정렬 기준이 됩니다.</p>
+            <h3>{t("chat.sequencePanel.traceTitle")}</h3>
+            <p>{t("chat.sequencePanel.traceBody")}</p>
           </div>
           <div className={styles.traceList}>
             {messageTrace.map((item) => (
@@ -236,29 +245,29 @@ export function ChatSequenceLoadingBoundaryPanel() {
 
         <GlassPanel className={styles.rulePanel}>
           <div className={styles.sectionTitle}>
-            <h3>구현 규칙</h3>
-            <p>웹, 데스크탑 앱, 실시간 연결이 같은 메시지를 다룰 때 지켜야 하는 기준입니다.</p>
+            <h3>{t("chat.sequencePanel.ruleTitle")}</h3>
+            <p>{t("chat.sequencePanel.ruleBody")}</p>
           </div>
           <div className={styles.ruleList}>
             {syncRules.map((rule) => (
-              <RuleCard key={rule.label} rule={rule} />
+              <RuleCard key={rule.labelKey} rule={rule} />
             ))}
           </div>
           <div className={styles.topicBox}>
             <RadioTower size={16} strokeWidth={2.1} />
-            <span>채팅 실시간 연결</span>
+            <span>{t("chat.sequencePanel.topicChat")}</span>
             <ArrowLeftRight size={14} strokeWidth={2.1} />
-            <span>프로젝트룸 이벤트 연결</span>
+            <span>{t("chat.sequencePanel.topicRoom")}</span>
           </div>
           <div className={styles.notice}>
             <BellRing size={16} strokeWidth={2.1} />
-            <p>채팅 본문과 프로젝트룸 상태 이벤트를 분리하면 화면 갱신 범위를 좁게 유지할 수 있습니다.</p>
+            <p>{t("chat.sequencePanel.noticeSplit")}</p>
           </div>
           <div className={styles.notice}>
             <History size={16} strokeWidth={2.1} />
-            <p>기기 안 임시 보관은 빠른 표시용입니다. 비어 있으면 서버 최근 메시지로 다시 채웁니다.</p>
+            <p>{t("chat.sequencePanel.noticeCache")}</p>
           </div>
-          <Chip icon={<Database size={14} />}>원본은 서버 채팅, 기기 안 기록은 빠른 표시용</Chip>
+          <Chip icon={<Database size={14} />}>{t("chat.sequencePanel.originChip")}</Chip>
         </GlassPanel>
       </div>
     </section>

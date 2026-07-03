@@ -32,6 +32,8 @@ import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readWidgetSummary } from "@/lib/widget";
@@ -83,6 +85,7 @@ const dashboardRemoveDropzoneId = "dashboard-remove-card";
 const DASHBOARD_TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
 let dashboardWidgetLayoutSnapshot = [...defaultWidgetIds];
 type DashboardTimerAction = "idle" | "starting" | "pausing" | "resuming" | "stopping";
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 type ActivityFocusSummary = {
   logCount: number;
   topAppName: string | null;
@@ -109,14 +112,14 @@ function storeWidgetIds(ids: string[]) {
   dashboardWidgetLayoutSnapshot = normalizeWidgetIds(ids);
 }
 
-function formatTime(value?: string | null) {
+function formatTime(t: TranslateFn, value?: string | null) {
   if (!value) {
-    return "시간 미정";
+    return t("dashboard.common.timeUndecided");
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "시간 미정";
+    return t("dashboard.common.timeUndecided");
   }
 
   return new Intl.DateTimeFormat("ko-KR", {
@@ -125,14 +128,14 @@ function formatTime(value?: string | null) {
   }).format(date);
 }
 
-function formatDue(value?: string | null) {
+function formatDue(t: TranslateFn, value?: string | null) {
   if (!value) {
-    return "마감 미정";
+    return t("dashboard.common.dueUndecided");
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "마감 미정";
+    return t("dashboard.common.dueUndecided");
   }
 
   return new Intl.DateTimeFormat("ko-KR", {
@@ -141,29 +144,29 @@ function formatDue(value?: string | null) {
   }).format(date);
 }
 
-function formatDuration(seconds?: number | null) {
+function formatDuration(t: TranslateFn, seconds?: number | null) {
   if (!seconds || seconds < 0) {
-    return "기록 중";
+    return t("dashboard.common.recording");
   }
 
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.max(1, Math.floor((seconds % 3600) / 60));
 
   if (hours > 0) {
-    return `${hours}시간 ${minutes}분`;
+    return t("dashboard.common.hourMinute", { hours, minutes });
   }
 
-  return `${minutes}분`;
+  return t("dashboard.common.minute", { minutes });
 }
 
-function formatMetricDuration(seconds: number) {
-  if (seconds <= 0) return "0분";
+function formatMetricDuration(t: TranslateFn, seconds: number) {
+  if (seconds <= 0) return t("dashboard.metricDuration.zero");
 
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.max(1, Math.floor((seconds % 3600) / 60));
-  if (hours > 0) return `${hours}시간`;
+  if (hours > 0) return t("dashboard.metricDuration.hour", { hours });
 
-  return `${minutes}분`;
+  return t("dashboard.metricDuration.minute", { minutes });
 }
 
 function getTimerSeconds(timer: DashboardWorkResponse["runningTimer"]) {
@@ -185,11 +188,11 @@ function makeTimerIdempotencyKey() {
   return `dashboard-timer-${Date.now()}`;
 }
 
-function timerActionLabel(timer?: DashboardWorkResponse["runningTimer"]) {
-  if (timer?.status === "RUNNING") return "실행 중";
-  if (timer?.status === "PAUSED") return "일시정지";
-  if (timer?.status === "NEEDS_RECOVERY") return "복구 필요";
-  return "대기";
+function timerActionLabel(t: TranslateFn, timer?: DashboardWorkResponse["runningTimer"]) {
+  if (timer?.status === "RUNNING") return t("dashboard.timer.statusRunning");
+  if (timer?.status === "PAUSED") return t("dashboard.timer.statusPaused");
+  if (timer?.status === "NEEDS_RECOVERY") return t("dashboard.timer.statusRecovery");
+  return t("dashboard.timer.statusWaiting");
 }
 
 function hasDashboardItems(data: DashboardWorkResponse) {
@@ -221,21 +224,23 @@ function TaskLine({
   onDelete?: (task: TaskResponse) => void;
   task: TaskResponse;
 }) {
+  const { t } = useI18n();
+
   return (
     <li className="workspace-dashboard__line">
       <span>{task.title}</span>
       <span className="workspace-dashboard__line-actions">
-        <b>{formatDue(task.dueAt)}</b>
+        <b>{formatDue(t, task.dueAt)}</b>
         {onDelete ? (
           <button
-            aria-label={`${task.title} 삭제`}
+            aria-label={t("dashboard.task.deleteAria", { title: task.title })}
             className="workspace-dashboard__task-delete"
             disabled={deleting}
             onClick={() => onDelete(task)}
             type="button"
           >
             <Trash2 aria-hidden size={13} strokeWidth={2.1} />
-            <span>{deleting ? "삭제 중" : "삭제"}</span>
+            <span>{deleting ? t("dashboard.task.deleting") : t("dashboard.task.delete")}</span>
           </button>
         ) : null}
       </span>
@@ -244,7 +249,8 @@ function TaskLine({
 }
 
 function ScheduleLine({ schedule }: { schedule: ScheduleResponse }) {
-  return <StatusLine meta={formatTime(schedule.startsAt)}>{schedule.title}</StatusLine>;
+  const { t } = useI18n();
+  return <StatusLine meta={formatTime(t, schedule.startsAt)}>{schedule.title}</StatusLine>;
 }
 
 function pickNextTask(tasks: TaskResponse[]) {
@@ -285,7 +291,7 @@ function getActivitySeconds(activity: ActivityLogResponse) {
   return Math.floor((ended - started) / 1000);
 }
 
-function summarizeActivityFocus(logs: ActivityLogResponse[] | null, activeRoomId: string | null): ActivityFocusSummary | null {
+function summarizeActivityFocus(t: TranslateFn, logs: ActivityLogResponse[] | null, activeRoomId: string | null): ActivityFocusSummary | null {
   if (!logs) return null;
 
   const scopedLogs = activeRoomId ? logs.filter((activity) => activity.roomId === activeRoomId) : logs;
@@ -296,7 +302,7 @@ function summarizeActivityFocus(logs: ActivityLogResponse[] | null, activeRoomId
     const seconds = getActivitySeconds(activity);
     totalSeconds += seconds;
 
-    const appName = activity.appName?.trim() || "앱 이름 없음";
+    const appName = activity.appName?.trim() || t("dashboard.activity.appFallback");
     const current = byApp.get(appName) ?? { seconds: 0, title: null };
     current.seconds += seconds;
     current.title = activity.windowTitle?.trim() || current.title;
@@ -345,26 +351,27 @@ function DashboardSummary({
   tasks: TaskResponse[];
   widgetUsageSummary: WidgetTodayUsageSummaryResponse | null;
 }) {
+  const { t } = useI18n();
   const reviewCount = tasks.filter((task) => task.status === "REVIEW" || task.status === "BLOCKED").length;
   const timerActive = data.runningTimer ? 1 : 0;
   const bubbleUsageCount = widgetUsageSummary ? widgetUsageSummary.totalOpenCount + widgetUsageSummary.totalInteractionCount : null;
   const metrics = [
-    { label: "할 일", progress: getMetricProgress(tasks.length, 8), tone: "task", value: tasks.length },
-    { label: "일정", progress: getMetricProgress(data.todaySchedules.length, 6), tone: "schedule", value: data.todaySchedules.length },
-    { label: "확인", progress: getMetricProgress(reviewCount, 5), tone: "review", value: reviewCount },
-    { label: "타이머", progress: timerActive ? 100 : 0, tone: "timer", value: timerActive ? "ON" : "0" },
+    { label: t("dashboard.metric.todos"), progress: getMetricProgress(tasks.length, 8), tone: "task", value: tasks.length },
+    { label: t("dashboard.metric.schedule"), progress: getMetricProgress(data.todaySchedules.length, 6), tone: "schedule", value: data.todaySchedules.length },
+    { label: t("dashboard.metric.review"), progress: getMetricProgress(reviewCount, 5), tone: "review", value: reviewCount },
+    { label: t("dashboard.metric.timer"), progress: timerActive ? 100 : 0, tone: "timer", value: timerActive ? t("dashboard.metric.timerOn") : "0" },
     ...(bubbleUsageCount !== null
-      ? [{ label: "버블 사용", progress: getMetricProgress(bubbleUsageCount, 24), tone: "bubble", value: bubbleUsageCount }]
+      ? [{ label: t("dashboard.metric.bubbleUsage"), progress: getMetricProgress(bubbleUsageCount, 24), tone: "bubble", value: bubbleUsageCount }]
       : enabledBubbleCount !== null
-        ? [{ label: "활성 버블", progress: getMetricProgress(enabledBubbleCount, 8), tone: "bubble", value: enabledBubbleCount }]
+        ? [{ label: t("dashboard.metric.bubbleActive"), progress: getMetricProgress(enabledBubbleCount, 8), tone: "bubble", value: enabledBubbleCount }]
         : []),
     ...(activityFocus
       ? [
           {
-            label: "집중",
+            label: t("dashboard.metric.focus"),
             progress: getMetricProgress(Math.round(activityFocus.totalSeconds / 60), 240),
             tone: "focus",
-            value: formatMetricDuration(activityFocus.totalSeconds),
+            value: formatMetricDuration(t, activityFocus.totalSeconds),
           },
         ]
       : []),
@@ -380,22 +387,28 @@ function DashboardSummary({
       <div className="workspace-dashboard__summary-insights">
         {widgetUsageSummary ? (
           <span>
-            버블 {widgetUsageSummary.totalOpenCount}회 열림 · {widgetUsageSummary.totalInteractionCount}회 상호작용 ·{" "}
-            {formatDuration(widgetUsageSummary.totalVisibleSeconds)} 표시
+            {t("dashboard.insight.bubbleUsage", {
+              open: widgetUsageSummary.totalOpenCount,
+              interaction: widgetUsageSummary.totalInteractionCount,
+              visible: formatDuration(t, widgetUsageSummary.totalVisibleSeconds),
+            })}
           </span>
         ) : (
-          <span>{enabledBubbleCount !== null ? `활성 버블 ${enabledBubbleCount}개` : "오늘 버블 사용 기록이 없습니다"}</span>
+          <span>{enabledBubbleCount !== null ? t("dashboard.insight.bubbleActive", { count: enabledBubbleCount }) : t("dashboard.insight.bubbleNone")}</span>
         )}
         {activityFocus ? (
           <span>
             {activityFocus.totalSeconds > 0
-              ? `${activityFocus.topAppName ?? "작업 앱"} 중심 · ${formatDuration(activityFocus.totalSeconds)} 기록`
+              ? t("dashboard.insight.focusApp", {
+                  app: activityFocus.topAppName ?? t("dashboard.insight.focusAppFallback"),
+                  duration: formatDuration(t, activityFocus.totalSeconds),
+                })
               : activityFocus.logCount > 0
-                ? "활동 기록은 있지만 머문 시간이 아직 없습니다"
-                : "오늘 활동 기록이 없습니다"}
+                ? t("dashboard.insight.focusNoTime")
+                : t("dashboard.insight.focusNone")}
           </span>
         ) : (
-          <span>활동 동의 후 집중 시간이 표시됩니다</span>
+          <span>{t("dashboard.insight.focusConsent")}</span>
         )}
       </div>
     </div>
@@ -413,6 +426,8 @@ function NextFocusWidget({
   nextTask: TaskResponse | null;
   runningTimer?: DashboardWorkResponse["runningTimer"];
 }) {
+  const { t } = useI18n();
+
   if (!nextTask && !nextSchedule && !runningTimer && !activityFocus?.totalSeconds) {
     return <EmptyWidget />;
   }
@@ -421,13 +436,13 @@ function NextFocusWidget({
     <div style={{ display: "grid", gap: 10 }}>
       {runningTimer ? (
         <div className="workspace-dashboard__timer-preview">
-          <b>{formatDuration(getTimerSeconds(runningTimer))}</b>
-          <span>{nextTask ? `${nextTask.title} 이어서 진행 중` : "지금 진행 중인 일이 있습니다"}</span>
+          <b>{formatDuration(t, getTimerSeconds(runningTimer))}</b>
+          <span>{nextTask ? t("dashboard.nextFocus.continueTask", { title: nextTask.title }) : t("dashboard.nextFocus.hasOngoing")}</span>
         </div>
       ) : activityFocus?.totalSeconds ? (
         <div className="workspace-dashboard__timer-preview workspace-dashboard__timer-preview--compact">
-          <b>{formatDuration(activityFocus.totalSeconds)}</b>
-          <span>{activityFocus.topAppName ? `${activityFocus.topAppName} 중심으로 작업했습니다` : "오늘 집중 시간이 기록됐습니다"}</span>
+          <b>{formatDuration(t, activityFocus.totalSeconds)}</b>
+          <span>{activityFocus.topAppName ? t("dashboard.nextFocus.focusApp", { app: activityFocus.topAppName }) : t("dashboard.nextFocus.focusRecorded")}</span>
           {activityFocus.topWindowTitle ? <small>{activityFocus.topWindowTitle}</small> : null}
         </div>
       ) : null}
@@ -448,12 +463,14 @@ function ProjectRoomScopeSelector({
   onSelect: (room: { label: string | null; roomId: string | null }) => void;
   rooms: ProjectRoomResponse[];
 }) {
+  const { t } = useI18n();
+
   if (rooms.length === 0) return null;
 
   return (
-    <div className="workspace-dashboard__scope-strip" aria-label="대시보드 프로젝트룸 범위">
+    <div className="workspace-dashboard__scope-strip" aria-label={t("dashboard.scope.aria")}>
       <button data-active={!activeRoomId ? "true" : undefined} onClick={() => onSelect({ label: null, roomId: null })} type="button">
-        전체
+        {t("dashboard.scope.all")}
       </button>
       {rooms.slice(0, 5).map((room) => (
         <button
@@ -478,6 +495,8 @@ function SelectedProjectRoomSummary({
   schedules: ScheduleResponse[];
   tasks: TaskResponse[];
 }) {
+  const { t } = useI18n();
+
   if (!room) return null;
 
   const reviewCount = tasks.filter((task) => task.status === "REVIEW" || task.status === "BLOCKED").length;
@@ -486,29 +505,29 @@ function SelectedProjectRoomSummary({
   return (
     <GlassPanel className="workspace-dashboard__room-summary">
       <div>
-        <span>선택한 프로젝트룸</span>
+        <span>{t("dashboard.roomSummary.selected")}</span>
         <strong>{room.name}</strong>
       </div>
       <dl>
         <div>
-          <dt>할 일</dt>
+          <dt>{t("dashboard.roomSummary.todos")}</dt>
           <dd>{tasks.length}</dd>
         </div>
         <div>
-          <dt>진행</dt>
+          <dt>{t("dashboard.roomSummary.inProgress")}</dt>
           <dd>{inProgressCount}</dd>
         </div>
         <div>
-          <dt>일정</dt>
+          <dt>{t("dashboard.roomSummary.schedule")}</dt>
           <dd>{schedules.length}</dd>
         </div>
         <div>
-          <dt>확인</dt>
+          <dt>{t("dashboard.roomSummary.review")}</dt>
           <dd>{reviewCount}</dd>
         </div>
       </dl>
       <Link className="bubli-button bubli-button--quiet" href={`/app/project-rooms/${room.id}`}>
-        룸 보기
+        {t("dashboard.common.viewRoom")}
       </Link>
     </GlassPanel>
   );
@@ -537,6 +556,7 @@ function TodoWidget({
   roomLabel: string | null;
   tasks: TaskResponse[];
 }) {
+  const { t } = useI18n();
   const [title, setTitle] = useState("");
 
   const submitTodo = async (event: FormEvent<HTMLFormElement>) => {
@@ -551,18 +571,18 @@ function TodoWidget({
     <div className="workspace-dashboard__todo-widget">
       <form className="workspace-dashboard__todo-form" onSubmit={submitTodo}>
         <label>
-          <span>{roomLabel ? `${roomLabel} 할 일` : "개인 할 일"}</span>
+          <span>{roomLabel ? t("dashboard.todo.roomLabel", { room: roomLabel }) : t("dashboard.todo.personalLabel")}</span>
           <input
             disabled={!canCreate || creating}
             maxLength={200}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="예: 오늘 확인할 자료 정리"
+            placeholder={t("dashboard.todo.placeholder")}
             value={title}
           />
         </label>
         <button disabled={!canCreate || creating} type="submit">
           <Plus aria-hidden size={14} strokeWidth={2.1} />
-          <span>{creating ? "추가 중" : "추가"}</span>
+          <span>{creating ? t("dashboard.todo.adding") : t("dashboard.todo.add")}</span>
         </button>
       </form>
       {notice ? <p className="workspace-dashboard__todo-notice">{notice}</p> : null}
@@ -580,11 +600,13 @@ function TodoWidget({
 }
 
 function ResourceLine({ resource }: { resource: ResourceResponse }) {
-  return <StatusLine meta={resource.visibility === "ROOM_SHARED" ? "프로젝트룸" : "개인"}>{resource.title}</StatusLine>;
+  const { t } = useI18n();
+  return <StatusLine meta={resource.visibility === "ROOM_SHARED" ? t("dashboard.resource.room") : t("dashboard.resource.personal")}>{resource.title}</StatusLine>;
 }
 
 function EmptyWidget() {
-  return <div className="workspace-dashboard__empty-widget">현재 데이터가 없습니다</div>;
+  const { t } = useI18n();
+  return <div className="workspace-dashboard__empty-widget">{t("dashboard.common.noData")}</div>;
 }
 
 function SortableDashboardTile({
@@ -598,6 +620,7 @@ function SortableDashboardTile({
   editMode: boolean;
   onRemove: () => void;
 }) {
+  const { t } = useI18n();
   const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({ id: def.widgetId });
   const dragHandleProps = { ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>;
 
@@ -619,7 +642,7 @@ function SortableDashboardTile({
         interactive
         onRemove={onRemove}
         size={def.size}
-        title={def.title}
+        title={t(def.titleKey)}
       >
         {children}
       </DashboardWidgetTile>
@@ -638,6 +661,7 @@ function DashboardCanvas({
   editMode: boolean;
   sorting: boolean;
 }) {
+  const { t } = useI18n();
   const { isOver, setNodeRef } = useDroppable({
     disabled: !editMode,
     id: dashboardDropzoneId,
@@ -649,7 +673,7 @@ function DashboardCanvas({
       data-drop-active={isOver ? "true" : undefined}
       data-sorting={sorting ? "true" : undefined}
       ref={setNodeRef}
-      aria-label="대시보드 카드 배치"
+      aria-label={t("dashboard.canvas.placeAria")}
     >
       {children}
       {editMode ? <DashboardCanvasRemoveDropzone active={boardDragging} /> : null}
@@ -658,6 +682,7 @@ function DashboardCanvas({
 }
 
 function DashboardCanvasRemoveDropzone({ active }: { active: boolean }) {
+  const { t } = useI18n();
   const { isOver, setNodeRef } = useDroppable({
     disabled: !active,
     id: dashboardRemoveDropzoneId,
@@ -670,12 +695,13 @@ function DashboardCanvasRemoveDropzone({ active }: { active: boolean }) {
       data-visible={active ? "true" : undefined}
       ref={setNodeRef}
     >
-      <span>카드를 여기로 끌어 빼기</span>
+      <span>{t("dashboard.canvas.removeHint")}</span>
     </div>
   );
 }
 
 export function WorkspaceDashboard() {
+  const { t } = useI18n();
   const [state, setState] = useState<DashboardState>({ kind: "loading" });
   const [editMode, setEditMode] = useState(false);
   const [activeBoardWidgetId, setActiveBoardWidgetId] = useState<string | null>(null);
@@ -726,10 +752,10 @@ export function WorkspaceDashboard() {
       }
       setState({
         kind: "error",
-        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "대시보드를 불러오지 못했습니다",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("dashboard.state.loadFailed"),
       });
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -868,12 +894,12 @@ export function WorkspaceDashboard() {
             timerType: roomId ? "WORK" : "GENERAL",
           });
           applyDashboardTimerResult(timeLog);
-          setTimerMessage("타이머를 시작했습니다");
+          setTimerMessage(t("dashboard.timer.started"));
           return;
         }
 
         if (!currentTimer) {
-          setTimerMessage("실행 중인 타이머가 없습니다");
+          setTimerMessage(t("dashboard.timer.noRunning"));
           return;
         }
 
@@ -885,14 +911,14 @@ export function WorkspaceDashboard() {
               : await timerApi.stop(currentTimer.id);
 
         applyDashboardTimerResult(timeLog);
-        setTimerMessage(action === "pausing" ? "타이머를 일시정지했습니다" : action === "resuming" ? "타이머를 재개했습니다" : "타이머를 종료했습니다");
+        setTimerMessage(action === "pausing" ? t("dashboard.timer.paused") : action === "resuming" ? t("dashboard.timer.resumed") : t("dashboard.timer.stopped"));
       } catch (error) {
-        setTimerMessage(error instanceof Error && error.message !== "Failed to fetch" ? error.message : "타이머 요청을 처리하지 못했습니다");
+        setTimerMessage(error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("dashboard.timer.requestFailed"));
       } finally {
         setTimerAction("idle");
       }
     },
-    [activeRoom.roomId, applyDashboardTimerResult, data.runningTimer, realData.runningTimer],
+    [activeRoom.roomId, applyDashboardTimerResult, data.runningTimer, realData.runningTimer, t],
   );
 
   const dashboardTasks = [...data.todayTasks, ...data.upcomingDeadlines, ...(activeRoom.roomId ? [] : personalTasks)].filter(
@@ -907,7 +933,7 @@ export function WorkspaceDashboard() {
     .slice(0, 4);
   const nextFocusTask = pickNextTask(dashboardTasks);
   const nextFocusSchedule = pickNextSchedule(todaySchedules);
-  const activityFocus = useMemo(() => summarizeActivityFocus(todayActivityLogs, activeRoom.roomId), [activeRoom.roomId, todayActivityLogs]);
+  const activityFocus = useMemo(() => summarizeActivityFocus(t, todayActivityLogs, activeRoom.roomId), [activeRoom.roomId, t, todayActivityLogs]);
   const canShowDashboardGrid = state.kind === "ready" || state.kind === "empty";
   const inProgressTask = dashboardTasks.find((task) => task.status === "IN_PROGRESS") ?? null;
   const enabledBubbleCount = widgetSummary ? widgetSummary.bubbles.filter((bubble) => bubble.enabled).length : null;
@@ -987,7 +1013,7 @@ export function WorkspaceDashboard() {
     async (title: string) => {
       const trimmed = title.trim();
       if (!trimmed) {
-        setTodoNotice("할 일 제목을 먼저 적어주세요.");
+        setTodoNotice(t("dashboard.todo.needTitle"));
         return false;
       }
 
@@ -999,16 +1025,16 @@ export function WorkspaceDashboard() {
           ? await todoApi.createRoomTask(activeRoom.roomId, { status: "TODO", title: trimmed })
           : await todoApi.create({ status: "TODO", title: trimmed });
         upsertTask(created);
-        setTodoNotice(activeRoom.roomId ? "프로젝트룸 할 일을 만들었습니다." : "개인 할 일을 만들었습니다.");
+        setTodoNotice(activeRoom.roomId ? t("dashboard.todo.createdRoom") : t("dashboard.todo.createdPersonal"));
         return true;
       } catch (error) {
-        setTodoNotice(error instanceof ApiClientError && error.status === 401 ? "로그인이 필요합니다." : "할 일을 저장하지 못했습니다.");
+        setTodoNotice(error instanceof ApiClientError && error.status === 401 ? t("dashboard.todo.loginRequired") : t("dashboard.todo.saveFailed"));
         return false;
       } finally {
         setCreatingTodo(false);
       }
     },
-    [activeRoom.roomId, upsertTask],
+    [activeRoom.roomId, t, upsertTask],
   );
 
   const deleteTodo = useCallback(
@@ -1019,14 +1045,14 @@ export function WorkspaceDashboard() {
       try {
         await todoApi.delete(task.id);
         removeTask(task.id);
-        setTodoNotice("할 일을 삭제했습니다.");
+        setTodoNotice(t("dashboard.todo.deleted"));
       } catch (error) {
-        setTodoNotice(error instanceof ApiClientError && error.status === 401 ? "로그인이 필요합니다." : "할 일을 삭제하지 못했습니다.");
+        setTodoNotice(error instanceof ApiClientError && error.status === 401 ? t("dashboard.todo.loginRequired") : t("dashboard.todo.deleteFailed"));
       } finally {
         setDeletingTodoId(null);
       }
     },
-    [removeTask],
+    [removeTask, t],
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -1163,19 +1189,19 @@ export function WorkspaceDashboard() {
         case "timer":
           return (
             <div className="workspace-dashboard__timer-preview">
-              <b>{formatDuration(getTimerSeconds(activeDashboardTimer))}</b>
+              <b>{formatDuration(t, getTimerSeconds(activeDashboardTimer))}</b>
               <span>
                 {activeDashboardTimer
-                  ? timerActionLabel(activeDashboardTimer)
+                  ? timerActionLabel(t, activeDashboardTimer)
                   : roomFilteredRunningTimer
-                    ? "다른 프로젝트룸에서 실행 중"
+                    ? t("dashboard.timer.otherRoom")
                     : inProgressTask
-                      ? `${inProgressTask.title} 진행 중`
-                      : "타이머 대기"}
+                      ? t("dashboard.timer.taskRunning", { title: inProgressTask.title })
+                      : t("dashboard.timer.idle")}
               </span>
-              <div className="workspace-dashboard__timer-actions" aria-label="타이머 조작" role="group">
+              <div className="workspace-dashboard__timer-actions" aria-label={t("dashboard.timer.actionsAria")} role="group">
                 <Button
-                  aria-label="타이머 시작"
+                  aria-label={t("dashboard.timer.startAria")}
                   className="workspace-dashboard__timer-action"
                   disabled={timerBusy || Boolean(realData.runningTimer)}
                   icon={<Play size={13} strokeWidth={2.2} />}
@@ -1184,10 +1210,10 @@ export function WorkspaceDashboard() {
                   size="sm"
                   variant="primary"
                 >
-                  시작
+                  {t("dashboard.timer.start")}
                 </Button>
                 <Button
-                  aria-label="타이머 일시정지"
+                  aria-label={t("dashboard.timer.pauseAria")}
                   className="workspace-dashboard__timer-action"
                   disabled={timerBusy || activeDashboardTimer?.status !== "RUNNING"}
                   icon={<Pause size={13} strokeWidth={2.2} />}
@@ -1196,10 +1222,10 @@ export function WorkspaceDashboard() {
                   size="sm"
                   variant="secondary"
                 >
-                  일시정지
+                  {t("dashboard.timer.pause")}
                 </Button>
                 <Button
-                  aria-label="타이머 재개"
+                  aria-label={t("dashboard.timer.resumeAria")}
                   className="workspace-dashboard__timer-action"
                   disabled={timerBusy || activeDashboardTimer?.status !== "PAUSED"}
                   icon={<RotateCcw size={13} strokeWidth={2.2} />}
@@ -1208,10 +1234,10 @@ export function WorkspaceDashboard() {
                   size="sm"
                   variant="secondary"
                 >
-                  재개
+                  {t("dashboard.timer.resume")}
                 </Button>
                 <Button
-                  aria-label="타이머 종료"
+                  aria-label={t("dashboard.timer.stopAria")}
                   className="workspace-dashboard__timer-action"
                   disabled={timerBusy || !activeDashboardTimer || activeDashboardTimer.status === "ENDED"}
                   icon={<Square size={12} strokeWidth={2.4} />}
@@ -1220,7 +1246,7 @@ export function WorkspaceDashboard() {
                   size="sm"
                   variant="quiet"
                 >
-                  종료
+                  {t("dashboard.timer.stop")}
                 </Button>
               </div>
               {timerMessage ? <small aria-live="polite">{timerMessage}</small> : null}
@@ -1260,6 +1286,7 @@ export function WorkspaceDashboard() {
       roomFilteredRunningTimer,
       runDashboardTimerAction,
       state.kind,
+      t,
       taskItems,
       timerAction,
       timerBusy,
@@ -1271,12 +1298,12 @@ export function WorkspaceDashboard() {
   );
 
   return (
-    <section className="workspace-dashboard" aria-label="회원 앱 대시보드">
+    <section className="workspace-dashboard" aria-label={t("dashboard.aria")}>
       <GlassPanel className="workspace-dashboard__hero">
         <div className="workspace-dashboard__copy">
           <div className="workspace-dashboard__titlebar">
-            <h1>대시보드</h1>
-            <span>개인 홈</span>
+            <h1>{t("dashboard.title")}</h1>
+            <span>{t("dashboard.personalHome")}</span>
           </div>
           <ProjectRoomScopeSelector activeRoomId={activeRoom.roomId} onSelect={setActiveRoom} rooms={selectableRooms} />
         </div>
@@ -1284,12 +1311,12 @@ export function WorkspaceDashboard() {
           <div className="workspace-dashboard__actions">
             {editMode ? (
               <Button onClick={() => setWidgetIds([...defaultWidgetIds])} variant="secondary">
-                기본값
+                {t("dashboard.action.default")}
               </Button>
             ) : null}
             <Button onClick={() => setEditMode((current) => !current)} variant={editMode ? "primary" : "secondary"}>
               <LayoutDashboard aria-hidden size={15} strokeWidth={1.9} />
-              {editMode ? "완료" : "편집"}
+              {editMode ? t("dashboard.action.done") : t("dashboard.action.edit")}
             </Button>
           </div>
         ) : null}
@@ -1299,7 +1326,7 @@ export function WorkspaceDashboard() {
         <GlassPanel className="workspace-dashboard__state">
           <Clock3 aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>불러오는 중</h2>
+            <h2>{t("dashboard.state.loading")}</h2>
           </div>
         </GlassPanel>
       ) : null}
@@ -1308,9 +1335,9 @@ export function WorkspaceDashboard() {
         <GlassPanel className="workspace-dashboard__state">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>로그인이 필요합니다</h2>
+            <h2>{t("dashboard.state.authTitle")}</h2>
             <Link className="bubli-button bubli-button--primary" href="/login">
-              로그인
+              {t("common.login")}
             </Link>
           </div>
         </GlassPanel>
@@ -1320,7 +1347,7 @@ export function WorkspaceDashboard() {
         <GlassPanel className="workspace-dashboard__state">
           <AlertCircle aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>서버 연결 대기</h2>
+            <h2>{t("dashboard.state.errorTitle")}</h2>
             <p>{state.message}</p>
           </div>
         </GlassPanel>
@@ -1330,7 +1357,7 @@ export function WorkspaceDashboard() {
         <GlassPanel className="workspace-dashboard__state">
           <CheckCircle2 aria-hidden size={20} strokeWidth={2} />
           <div>
-            <h2>아직 표시할 항목이 없습니다</h2>
+            <h2>{t("dashboard.state.emptyTitle")}</h2>
           </div>
         </GlassPanel>
       ) : null}
@@ -1349,10 +1376,16 @@ export function WorkspaceDashboard() {
             <DashboardCanvas boardDragging={Boolean(activeBoardWidgetId)} editMode={editMode} sorting={Boolean(activeBoardWidgetId)}>
               <div className="workspace-dashboard__canvas-head">
                 <div>
-                  <strong>내 보드</strong>
-                  <span>{editMode ? "편집 중" : activeRoom.roomId ? `${activeRoom.label ?? "프로젝트룸"} 항목 포함` : `카드 ${visibleWidgets.length}개`}</span>
+                  <strong>{t("dashboard.board.title")}</strong>
+                  <span>
+                    {editMode
+                      ? t("dashboard.board.editing")
+                      : activeRoom.roomId
+                        ? t("dashboard.board.roomItems", { room: activeRoom.label ?? t("dashboard.board.roomFallback") })
+                        : t("dashboard.board.cardCount", { count: visibleWidgets.length })}
+                  </span>
                 </div>
-                {editMode ? <StatusBadge tone="agent">자동 저장</StatusBadge> : null}
+                {editMode ? <StatusBadge tone="agent">{t("dashboard.board.autoSave")}</StatusBadge> : null}
               </div>
               <SortableContext items={visibleWidgets.map((widget) => widget.widgetId)} strategy={rectSortingStrategy}>
                 <DashboardGrid mode={editMode ? "edit" : "view"}>
@@ -1371,7 +1404,7 @@ export function WorkspaceDashboard() {
             </DashboardCanvas>
 
             {editMode ? (
-              <aside className="workspace-dashboard__palette" aria-label="대시보드 항목 추가">
+              <aside className="workspace-dashboard__palette" aria-label={t("dashboard.board.addAria")}>
                 <DashboardPalette
                   draggable
                   items={availableWidgets}
@@ -1384,17 +1417,17 @@ export function WorkspaceDashboard() {
             {activePaletteWidget ? (
               <div className="bubli-dash-palette__drag-preview">
                 <span className="bubli-dash-tile__icon">{widgetIcon(activePaletteWidget.widgetId)}</span>
-                <strong>{activePaletteWidget.title}</strong>
+                <strong>{t(activePaletteWidget.titleKey)}</strong>
               </div>
             ) : activeBoardWidget ? (
               <div className={`bubli-dash-tile ${sizeToClass[activeBoardWidget.size]} bubli-dash-tile--overlay`}>
                 <div className="bubli-dash-tile__head">
                   <span className="bubli-dash-tile__title">
                     <span className="bubli-dash-tile__icon">{widgetIcon(activeBoardWidget.widgetId)}</span>
-                    {activeBoardWidget.title}
+                    {t(activeBoardWidget.titleKey)}
                   </span>
                 </div>
-                <div className="bubli-dash-tile__body">{activeBoardWidget.description}</div>
+                <div className="bubli-dash-tile__body">{t(activeBoardWidget.descriptionKey)}</div>
               </div>
             ) : null}
           </DragOverlay>

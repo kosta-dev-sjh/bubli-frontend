@@ -12,6 +12,7 @@ import { DashboardPalette, widgetIcon } from "@/components/dashboard/dashboard-p
 import { DashboardWidgetTile } from "@/components/dashboard/dashboard-widget-tile";
 import { WIDGET_CATALOG } from "@/components/dashboard/widget-catalog";
 import type { DashboardWidgetDef } from "@/components/dashboard/widget-catalog";
+import { useI18n } from "@/lib/i18n";
 
 const meta = {
   tags: ["uikit", "dashboard"],
@@ -48,6 +49,7 @@ function SortableTile({
   onToggleHide: () => void;
   selected: boolean;
 }) {
+  const { t } = useI18n();
   const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({ id: def.widgetId });
   const sizeClass = def.size === "S" ? "bubli-dash-tile--s" : def.size === "L" ? "bubli-dash-tile--l" : "bubli-dash-tile--m";
   const handleProps = { ...attributes, ...listeners } as unknown as HTMLAttributes<HTMLButtonElement>;
@@ -66,9 +68,9 @@ function SortableTile({
         onToggleHide={onToggleHide}
         selected={selected}
         size={def.size}
-        title={def.title}
+        title={t(def.titleKey)}
       >
-        {def.description}
+        {t(def.descriptionKey)}
       </DashboardWidgetTile>
     </div>
   );

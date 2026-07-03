@@ -1,198 +1,202 @@
+"use client";
+
 import { CalendarDays, KanbanSquare, LayoutDashboard, MonitorUp } from "lucide-react";
 
 import { SuggestionCard } from "@/components/domain/suggestion-card";
 import { WorkItemCard } from "@/components/domain/work-item-card";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
-const flowSteps = [
-  {
-    body: "자료에서 큰 작업과 하위 작업을 후보로 나눕니다.",
-    title: "WBS 후보",
-  },
-  {
-    body: "사용자가 후보를 검토하고 승인해야 업무에 반영됩니다.",
-    title: "사용자 확정",
-  },
-  {
-    body: "확정된 작업은 복사하지 않고 하나의 TODO로 관리합니다.",
-    title: "하나의 TODO",
-  },
-  {
-    body: "같은 TODO가 작업판, 대시보드, 버블, 일정에 표시됩니다.",
-    title: "실행 화면 연결",
-  },
+const flowSteps: Array<{ bodyKey: MessageKey; titleKey: MessageKey }> = [
+  { bodyKey: "wbs.board.flow.candidateBody", titleKey: "wbs.board.flow.candidateTitle" },
+  { bodyKey: "wbs.board.flow.confirmBody", titleKey: "wbs.board.flow.confirmTitle" },
+  { bodyKey: "wbs.board.flow.singleBody", titleKey: "wbs.board.flow.singleTitle" },
+  { bodyKey: "wbs.board.flow.linkBody", titleKey: "wbs.board.flow.linkTitle" },
 ];
 
-const treeItems = [
-  { code: "1", title: "번역 작업 구조", count: "8개 작업" },
-  { code: "1.1", title: "착수와 계획 수립", count: "4개 작업" },
-  { code: "1.2", title: "번역본 작성", count: "6개 작업" },
-  { code: "1.3", title: "검수와 납품", count: "5개 작업" },
-  { code: "2", title: "요구사항 확인", count: "3개 후보" },
+const treeItems: Array<{ code: string; titleKey: MessageKey; countKey: MessageKey }> = [
+  { code: "1", titleKey: "wbs.board.tree1.title", countKey: "wbs.board.tree1.count" },
+  { code: "1.1", titleKey: "wbs.board.tree11.title", countKey: "wbs.board.tree11.count" },
+  { code: "1.2", titleKey: "wbs.board.tree12.title", countKey: "wbs.board.tree12.count" },
+  { code: "1.3", titleKey: "wbs.board.tree13.title", countKey: "wbs.board.tree13.count" },
+  { code: "2", titleKey: "wbs.board.tree2.title", countKey: "wbs.board.tree2.count" },
 ];
 
-const columns = [
+type BoardCard = { code: string; dueKey: MessageKey; sourceKey: MessageKey; status: "waiting" | "doing" | "review" | "done"; titleKey: MessageKey };
+
+const columns: Array<{ items: BoardCard[]; titleKey: MessageKey }> = [
   {
     items: [
       {
         code: "1.2.1",
-        dueLabel: "D-2",
-        sourceLabel: "회의록_0618.md에서 승인",
-        status: "waiting" as const,
-        title: "검수 기준 질문 정리",
+        dueKey: "wbs.board.due.dMinus2",
+        sourceKey: "wbs.board.card.reviewQuestions.source",
+        status: "waiting",
+        titleKey: "wbs.board.card.reviewQuestions.title",
       },
     ],
-    title: "대기",
+    titleKey: "wbs.board.column.waiting",
   },
   {
     items: [
       {
         code: "1.2.2",
-        dueLabel: "오늘",
-        sourceLabel: "업무기준문서_v2.pdf에서 승인",
-        status: "doing" as const,
-        title: "1차 번역본 검토",
+        dueKey: "wbs.board.due.today",
+        sourceKey: "wbs.board.card.firstDraft.source",
+        status: "doing",
+        titleKey: "wbs.board.card.firstDraft.title",
       },
       {
         code: "1.2.3",
-        dueLabel: "오늘",
-        sourceLabel: "요구사항_정리.docx에서 승인",
-        status: "doing" as const,
-        title: "용어집 초안 정리",
+        dueKey: "wbs.board.due.today",
+        sourceKey: "wbs.board.card.glossary.source",
+        status: "doing",
+        titleKey: "wbs.board.card.glossary.title",
       },
     ],
-    title: "진행 중",
+    titleKey: "wbs.board.column.doing",
   },
   {
     items: [
       {
         code: "1.3.1",
-        dueLabel: "6월 24일",
-        sourceLabel: "회의록_0618.md에서 승인",
-        status: "review" as const,
-        title: "중간보고 일정 확인",
+        dueKey: "wbs.board.due.jun24",
+        sourceKey: "wbs.board.card.interimReport.source",
+        status: "review",
+        titleKey: "wbs.board.card.interimReport.title",
       },
     ],
-    title: "검토",
+    titleKey: "wbs.board.column.review",
   },
   {
     items: [
       {
         code: "1.1.1",
-        dueLabel: "완료",
-        sourceLabel: "프로젝트룸 생성 시 승인",
-        status: "done" as const,
-        title: "프로젝트 자료 구조 만들기",
+        dueKey: "wbs.board.due.done",
+        sourceKey: "wbs.board.card.structure.source",
+        status: "done",
+        titleKey: "wbs.board.card.structure.title",
       },
     ],
-    title: "완료",
+    titleKey: "wbs.board.column.done",
   },
 ];
 
-const targets = [
-  { icon: KanbanSquare, text: "상태 변경과 담당 작업 확인", title: "작업판" },
-  { icon: LayoutDashboard, text: "내 TODO와 확인 필요 항목 표시", title: "대시보드" },
-  { icon: MonitorUp, text: "작업 중 TODO 버블로 빠르게 확인", title: "버블" },
-  { icon: CalendarDays, text: "마감과 일정 후보 연결", title: "일정" },
+const targets: Array<{ icon: typeof KanbanSquare; textKey: MessageKey; titleKey: MessageKey }> = [
+  { icon: KanbanSquare, textKey: "wbs.board.target.board.text", titleKey: "wbs.board.target.board.title" },
+  { icon: LayoutDashboard, textKey: "wbs.board.target.dashboard.text", titleKey: "wbs.board.target.dashboard.title" },
+  { icon: MonitorUp, textKey: "wbs.board.target.bubble.text", titleKey: "wbs.board.target.bubble.title" },
+  { icon: CalendarDays, textKey: "wbs.board.target.schedule.text", titleKey: "wbs.board.target.schedule.title" },
 ];
 
 export function WbsTodoBoard() {
+  const { t } = useI18n();
+
   return (
-    <section className="work-board" aria-label="WBS와 TODO 작업판">
+    <section className="work-board" aria-label={t("wbs.board.regionAria")}>
       <div className="work-board__focus">
         <GlassPanel className="work-board__todo">
-          <StatusBadge tone="todo">하나의 TODO</StatusBadge>
-          <h2>1차 번역본 검토</h2>
-          <p>담당자 나 · D-2 · 업무기준문서_v2.pdf에서 승인된 작업</p>
+          <StatusBadge tone="todo">{t("wbs.board.focusBadge")}</StatusBadge>
+          <h2>{t("wbs.board.focusTitle")}</h2>
+          <p>{t("wbs.board.focusMeta")}</p>
         </GlassPanel>
         <div className="work-board__targets">
           {targets.map((target) => {
             const Icon = target.icon;
             return (
-              <div className="work-board__target" key={target.title}>
+              <div className="work-board__target" key={target.titleKey}>
                 <span className="bubli-icon-tile" aria-hidden="true">
                   <Icon size={17} strokeWidth={2.1} />
                 </span>
-                <b>{target.title}</b>
-                <span>{target.text}</span>
+                <b>{t(target.titleKey)}</b>
+                <span>{t(target.textKey)}</span>
               </div>
             );
           })}
         </div>
       </div>
 
-      <div className="work-board__flow" aria-label="WBS 후보에서 실행 화면까지의 흐름">
+      <div className="work-board__flow" aria-label={t("wbs.board.flowAria")}>
         {flowSteps.map((step, index) => (
-          <GlassPanel className="work-board__flow-step" key={step.title}>
+          <GlassPanel className="work-board__flow-step" key={step.titleKey}>
             <StatusBadge tone={index === 2 ? "todo" : "personal"}>{String(index + 1).padStart(2, "0")}</StatusBadge>
             <div>
-              <b>{step.title}</b>
-              <span>{step.body}</span>
+              <b>{t(step.titleKey)}</b>
+              <span>{t(step.bodyKey)}</span>
             </div>
           </GlassPanel>
         ))}
       </div>
 
       <div className="work-board__grid">
-        <aside className="work-board__pane" aria-label="WBS 트리">
+        <aside className="work-board__pane" aria-label={t("wbs.board.treeAria")}>
           <div className="work-board__pane-head">
             <div>
-              <h2>WBS 트리</h2>
-              <p>작업 범위를 큰 단위와 하위 작업으로 봅니다.</p>
+              <h2>{t("wbs.board.treeTitle")}</h2>
+              <p>{t("wbs.board.treeDesc")}</p>
             </div>
           </div>
           <ul className="work-board__tree">
             {treeItems.map((item) => (
               <li key={item.code}>
                 <b>
-                  {item.code}. {item.title}
+                  {item.code}. {t(item.titleKey)}
                 </b>
-                {item.count}
+                {t(item.countKey)}
               </li>
             ))}
           </ul>
         </aside>
 
-        <section className="work-board__pane" aria-label="작업판">
+        <section className="work-board__pane" aria-label={t("wbs.board.boardAria")}>
           <div className="work-board__pane-head">
             <div>
-              <h2>작업판</h2>
-              <p>승인된 TODO의 상태를 칸반 기준으로 확인합니다.</p>
+              <h2>{t("wbs.board.boardTitle")}</h2>
+              <p>{t("wbs.board.boardDesc")}</p>
             </div>
-            <StatusBadge tone="approved">승인된 작업</StatusBadge>
+            <StatusBadge tone="approved">{t("wbs.board.approvedBadge")}</StatusBadge>
           </div>
           <div className="work-board__kanban">
             {columns.map((column) => (
-              <div className="work-board__column" key={column.title}>
-                <h3>{column.title}</h3>
+              <div className="work-board__column" key={column.titleKey}>
+                <h3>{t(column.titleKey)}</h3>
                 {column.items.map((item) => (
-                  <WorkItemCard assignee="나" key={item.code} {...item} />
+                  <WorkItemCard
+                    assignee={t("wbs.board.assigneeMe")}
+                    code={item.code}
+                    dueLabel={t(item.dueKey)}
+                    key={item.code}
+                    sourceLabel={t(item.sourceKey)}
+                    status={item.status}
+                    title={t(item.titleKey)}
+                  />
                 ))}
               </div>
             ))}
           </div>
         </section>
 
-        <aside className="work-board__pane" aria-label="에이전트 후보">
+        <aside className="work-board__pane" aria-label={t("wbs.board.candidateAria")}>
           <div className="work-board__pane-head">
             <div>
-              <h2>에이전트 후보</h2>
-              <p>승인 전에는 작업판에 반영하지 않습니다.</p>
+              <h2>{t("wbs.board.candidateTitle")}</h2>
+              <p>{t("wbs.board.candidateDesc")}</p>
             </div>
           </div>
-          <div className="work-board__candidate-note">후보는 사용자가 승인한 뒤에만 WBS/작업판, 일정, 대시보드와 버블에 연결됩니다.</div>
+          <div className="work-board__candidate-note">{t("wbs.board.candidateNote")}</div>
           <SuggestionCard
             confidence={92}
-            description="회의록에서 검수 기준 확인 작업을 하위 TODO 후보로 제안합니다."
+            description={t("wbs.board.suggestion1.description")}
             source="회의록_0618.md"
-            title="검수 기준 확인"
+            title={t("wbs.board.suggestion1.title")}
           />
           <SuggestionCard
             confidence={86}
-            description="요구사항 문서의 용어집 정리를 WBS 하위 작업 후보로 제안합니다."
+            description={t("wbs.board.suggestion2.description")}
             source="요구사항_정리.docx"
-            title="용어집 정리"
+            title={t("wbs.board.suggestion2.title")}
           />
         </aside>
       </div>

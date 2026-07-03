@@ -1,3 +1,5 @@
+"use client";
+
 import { Check, FileSearch, MessageSquareText, PenLine, Send, ShieldCheck, Sparkles, TriangleAlert } from "lucide-react";
 import type { HTMLAttributes } from "react";
 
@@ -6,6 +8,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./clarification-question-compose-panel.module.css";
@@ -40,36 +44,37 @@ export type ClarificationQuestionComposePanelProps = HTMLAttributes<HTMLElement>
   title?: string;
 };
 
-const priorityMeta: Record<ReviewPriority, { label: string; tone: StatusTone }> = {
-  HIGH: { label: "높음", tone: "warning" },
-  LOW: { label: "낮음", tone: "personal" },
-  MEDIUM: { label: "보통", tone: "pending" },
+const priorityMeta: Record<ReviewPriority, { labelKey: MessageKey; tone: StatusTone }> = {
+  HIGH: { labelKey: "agent.compose.priorityHigh", tone: "warning" },
+  LOW: { labelKey: "agent.compose.priorityLow", tone: "personal" },
+  MEDIUM: { labelKey: "agent.compose.priorityMedium", tone: "pending" },
 };
 
-const questionStatusMeta: Record<QuestionStatus, { label: string; tone: StatusTone }> = {
-  EDITING: { label: "수정 중", tone: "pending" },
-  SELECTED: { label: "선택됨", tone: "approved" },
-  WAITING: { label: "대기", tone: "personal" },
+const questionStatusMeta: Record<QuestionStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  EDITING: { labelKey: "agent.compose.qStatusEditing", tone: "pending" },
+  SELECTED: { labelKey: "agent.compose.qStatusSelected", tone: "approved" },
+  WAITING: { labelKey: "agent.compose.qStatusWaiting", tone: "personal" },
 };
 
+// title/evidenceLabel/message/label/description は t() キーを保持し、レンダー時に翻訳する。
 export const defaultReviewItems: ReviewItem[] = [
   {
-    evidenceLabel: "업무 문서 4p, 요구사항 문서 2p",
+    evidenceLabel: "agent.compose.review1Evidence",
     id: "delivery-date",
     priority: "HIGH",
-    title: "납품일이 문서마다 다릅니다.",
+    title: "agent.compose.review1Title",
   },
   {
-    evidenceLabel: "견적서 1p",
+    evidenceLabel: "agent.compose.review2Evidence",
     id: "vat-condition",
     priority: "MEDIUM",
-    title: "금액에 부가세 포함 여부가 분명하지 않습니다.",
+    title: "agent.compose.review2Title",
   },
   {
-    evidenceLabel: "회의록 2026-06-18",
+    evidenceLabel: "agent.compose.review3Evidence",
     id: "revision-count",
     priority: "MEDIUM",
-    title: "수정 횟수와 검수 기준을 확인해야 합니다.",
+    title: "agent.compose.review3Title",
   },
 ];
 
@@ -77,37 +82,37 @@ export const defaultQuestionDrafts: QuestionDraft[] = [
   {
     id: "question-delivery-date",
     linkedReviewItemId: "delivery-date",
-    message: "납품일은 2026년 7월 15일과 7월 20일 중 어떤 날짜를 기준으로 진행하면 될까요?",
+    message: "agent.compose.draft1Message",
     status: "SELECTED",
   },
   {
     id: "question-vat",
     linkedReviewItemId: "vat-condition",
-    message: "견적 금액에 부가세가 포함된 금액인지, 별도인지 확인 부탁드립니다.",
+    message: "agent.compose.draft2Message",
     status: "EDITING",
   },
   {
     id: "question-revision",
     linkedReviewItemId: "revision-count",
-    message: "수정 가능 횟수와 최종 검수 기준을 문서에 남길 수 있을까요?",
+    message: "agent.compose.draft3Message",
     status: "WAITING",
   },
 ];
 
 export const defaultComposeRules: ComposeRule[] = [
   {
-    description: "질문은 바로 전송하지 않고 사용자가 선택한 뒤 수정할 수 있게 둡니다.",
-    label: "사용자 확인",
+    description: "agent.compose.rule1Desc",
+    label: "agent.compose.rule1Label",
     tone: "approved",
   },
   {
-    description: "각 질문은 어떤 문서에서 나온 확인 필요 항목인지 함께 보여줍니다.",
-    label: "근거 연결",
+    description: "agent.compose.rule2Desc",
+    label: "agent.compose.rule2Label",
     tone: "room",
   },
   {
-    description: "법률 판단처럼 보이는 표현 대신 확인이 필요한 값만 묻습니다.",
-    label: "표현 제한",
+    description: "agent.compose.rule3Desc",
+    label: "agent.compose.rule3Label",
     tone: "warning",
   },
 ];
@@ -117,9 +122,11 @@ export function ClarificationQuestionComposePanel({
   drafts,
   reviewItems,
   rules,
-  title = "확인 질문 초안",
+  title,
   ...props
 }: ClarificationQuestionComposePanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("agent.compose.defaultTitle");
   const selectedCount = drafts.filter((draft) => draft.status === "SELECTED").length;
   const reviewItemById = new Map(reviewItems.map((item) => [item.id, item]));
 
@@ -127,27 +134,24 @@ export function ClarificationQuestionComposePanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<MessageSquareText size={16} strokeWidth={2.1} />}>문서 확인 보조</Chip>
+          <Chip icon={<MessageSquareText size={16} strokeWidth={2.1} />}>{t("agent.compose.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              에이전트가 문서의 빠진 값과 서로 다른 값을 질문 후보로 바꿉니다. 사용자는 필요한 질문만 고르고
-              문장을 다듬어 클라이언트에게 보냅니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("agent.compose.desc")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>보낼 질문</span>
-          <strong>{selectedCount}개</strong>
-          <StatusBadge tone="approved">선택됨</StatusBadge>
+          <span>{t("agent.compose.toSend")}</span>
+          <strong>{t("agent.compose.countItems", { count: selectedCount })}</strong>
+          <StatusBadge tone="approved">{t("agent.compose.selected")}</StatusBadge>
         </div>
       </header>
 
       <div className={styles.contentGrid}>
-        <section className={styles.reviewColumn} aria-label="확인 필요 항목">
+        <section className={styles.reviewColumn} aria-label={t("agent.compose.reviewAria")}>
           <div className={styles.sectionTitle}>
-            <strong>확인 필요 항목</strong>
-            <StatusBadge tone="warning">{reviewItems.length}개</StatusBadge>
+            <strong>{t("agent.compose.reviewTitle")}</strong>
+            <StatusBadge tone="warning">{t("agent.compose.countItems", { count: reviewItems.length })}</StatusBadge>
           </div>
           <div className={styles.reviewStack}>
             {reviewItems.map((item) => {
@@ -159,20 +163,20 @@ export function ClarificationQuestionComposePanel({
                     <TriangleAlert size={16} strokeWidth={2.1} aria-hidden="true" />
                   </span>
                   <div className={styles.reviewCopy}>
-                    <b>{item.title}</b>
-                    <span>{item.evidenceLabel}</span>
+                    <b>{t(item.title as MessageKey)}</b>
+                    <span>{t(item.evidenceLabel as MessageKey)}</span>
                   </div>
-                  <StatusBadge tone={priority.tone}>{priority.label}</StatusBadge>
+                  <StatusBadge tone={priority.tone}>{t(priority.labelKey)}</StatusBadge>
                 </article>
               );
             })}
           </div>
         </section>
 
-        <section className={styles.draftColumn} aria-label="질문 초안">
+        <section className={styles.draftColumn} aria-label={t("agent.compose.draftAria")}>
           <div className={styles.sectionTitle}>
-            <strong>질문 초안</strong>
-            <span className={styles.sectionMeta}>전송 전 확인 필요</span>
+            <strong>{t("agent.compose.draftTitle")}</strong>
+            <span className={styles.sectionMeta}>{t("agent.compose.beforeSend")}</span>
           </div>
           <div className={styles.draftStack}>
             {drafts.map((draft) => {
@@ -186,18 +190,18 @@ export function ClarificationQuestionComposePanel({
                       <Sparkles size={16} strokeWidth={2.1} aria-hidden="true" />
                     </span>
                     <div className={styles.draftCopy}>
-                      <b>{reviewItem?.title ?? "확인 항목"}</b>
-                      <p>{draft.message}</p>
-                      <small>{reviewItem?.evidenceLabel ?? "근거 문서 확인 필요"}</small>
+                      <b>{reviewItem ? t(reviewItem.title as MessageKey) : t("agent.compose.checkItemFallback")}</b>
+                      <p>{t(draft.message as MessageKey)}</p>
+                      <small>{reviewItem ? t(reviewItem.evidenceLabel as MessageKey) : t("agent.compose.evidenceFallback")}</small>
                     </div>
-                    <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                    <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
                   </div>
                   <div className={styles.draftActions}>
                     <Button icon={<PenLine size={14} strokeWidth={2.1} />} size="sm" variant="quiet">
-                      문장 수정
+                      {t("agent.compose.editSentence")}
                     </Button>
                     <Button icon={<Check size={14} strokeWidth={2.1} />} size="sm" variant="ghost">
-                      선택 전환
+                      {t("agent.compose.toggleSelect")}
                     </Button>
                   </div>
                 </article>
@@ -207,20 +211,20 @@ export function ClarificationQuestionComposePanel({
         </section>
       </div>
 
-      <section className={styles.ruleGrid} aria-label="질문 초안 생성 기준">
+      <section className={styles.ruleGrid} aria-label={t("agent.compose.ruleAria")}>
         {rules.map((rule) => (
           <article key={rule.label}>
-            {rule.label === "근거 연결" ? (
+            {rule.label === "agent.compose.rule2Label" ? (
               <FileSearch size={17} strokeWidth={2.1} aria-hidden="true" />
-            ) : rule.label === "표현 제한" ? (
+            ) : rule.label === "agent.compose.rule3Label" ? (
               <ShieldCheck size={17} strokeWidth={2.1} aria-hidden="true" />
             ) : (
               <Check size={17} strokeWidth={2.1} aria-hidden="true" />
             )}
             <div>
-              <strong>{rule.label}</strong>
-              <p>{rule.description}</p>
-              <StatusBadge tone={rule.tone}>기준</StatusBadge>
+              <strong>{t(rule.label as MessageKey)}</strong>
+              <p>{t(rule.description as MessageKey)}</p>
+              <StatusBadge tone={rule.tone}>{t("agent.compose.criterion")}</StatusBadge>
             </div>
           </article>
         ))}
@@ -229,10 +233,10 @@ export function ClarificationQuestionComposePanel({
       <footer className={styles.footer}>
         <div className={styles.notice}>
           <ShieldCheck size={16} strokeWidth={2.1} aria-hidden="true" />
-          <span>초안은 확인 보조입니다. 사용자가 고른 문장만 채팅이나 메일 작성 화면으로 넘깁니다.</span>
+          <span>{t("agent.compose.footerNotice")}</span>
         </div>
         <Button icon={<Send size={15} strokeWidth={2.1} />} size="sm" variant="primary">
-          선택한 질문 넘기기
+          {t("agent.compose.passSelected")}
         </Button>
       </footer>
     </GlassPanel>

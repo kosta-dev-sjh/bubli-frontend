@@ -1,0 +1,275 @@
+/* WBS 간트 패널 크롬 — Sky Opal 글래스 톤/워크스페이스 폰트 정합 */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
+  gap: 12px;
+  letter-spacing: 0;
+  min-block-size: 0;
+}
+
+.toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-end: 2px;
+}
+
+.rangeSwitch {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  border-radius: 999px;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+}
+
+.rangeSwitch button {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: #5A6772;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 5px;
+  min-block-size: 30px;
+  padding: 0 12px;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.rangeSwitch button[aria-selected="true"] {
+  background: rgba(215, 234, 244, 0.64);
+  color: #2C3540;
+}
+
+.toolButton {
+  align-items: center;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  border-radius: 999px;
+  color: #5A6772;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 6px;
+  min-block-size: 34px;
+  padding: 0 13px;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.toolButton:hover:not(:disabled) {
+  box-shadow: 0 12px 24px rgba(107, 143, 168, 0.12);
+  transform: translateY(-1px);
+}
+
+.toolButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.createInline {
+  align-items: center;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 250, 0.9)),
+    rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(210, 225, 238, 0.82);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 14px 30px -26px rgba(107, 143, 168, 0.46);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(180px, 1fr) auto auto;
+  padding: 10px;
+}
+
+.createInlineMeta {
+  color: #6B8FA8;
+  font-size: 12px;
+  font-weight: 900;
+  max-inline-size: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.createInlineInput {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(210, 225, 238, 0.86);
+  border-radius: 12px;
+  color: #2C3540;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  min-block-size: 36px;
+  min-inline-size: 0;
+  outline: none;
+  padding: 0 12px;
+}
+
+.createInlineInput:focus {
+  border-color: rgba(142, 205, 246, 0.72);
+  box-shadow: 0 0 0 3px rgba(215, 234, 244, 0.48);
+}
+
+.createInlineButton,
+.createInlineButtonSecondary {
+  align-items: center;
+  appearance: none;
+  border: 1px solid rgba(210, 225, 238, 0.86);
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  justify-content: center;
+  min-block-size: 34px;
+  padding: 0 13px;
+}
+
+.createInlineButton {
+  background: rgba(215, 234, 244, 0.78);
+  color: #2C3540;
+}
+
+.createInlineButtonSecondary {
+  background: rgba(255, 255, 255, 0.72);
+  color: #6B8FA8;
+}
+
+.rowActionButton {
+  align-items: center;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(229, 231, 235, 0.88);
+  border-radius: 999px;
+  color: #6B8FA8;
+  cursor: pointer;
+  display: inline-flex;
+  inline-size: 24px;
+  block-size: 24px;
+  justify-content: center;
+  opacity: 0.72;
+  padding: 0;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 160ms ease;
+}
+
+.rowActionButton:hover,
+.rowActionButton:focus-visible {
+  background: rgba(215, 234, 244, 0.72);
+  border-color: rgba(107, 143, 168, 0.38);
+  color: #2C3540;
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.selectedRow {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--gantt-row-accent) 42%, rgba(255, 255, 255, 0.9)) 0%,
+      rgba(215, 234, 244, 0.92) 46%,
+      rgba(255, 255, 255, 0.96) 100%
+    ) !important;
+  box-shadow:
+    inset 6px 0 0 var(--gantt-row-accent),
+    inset 0 0 0 1px color-mix(in srgb, var(--gantt-row-accent) 52%, rgba(107, 143, 168, 0.38)),
+    0 12px 24px -18px rgba(44, 53, 64, 0.42);
+  color: #2C3540;
+  outline: 1px solid color-mix(in srgb, var(--gantt-row-accent) 38%, rgba(107, 143, 168, 0.28));
+  outline-offset: -1px;
+}
+
+.selectedRow :global(.text-muted-foreground) {
+  color: #6B8FA8;
+}
+
+.ganttSurface {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 250, 0.88)),
+    rgba(255, 255, 255, 0.9);
+  block-size: min(500px, calc(100dvh - 260px));
+  border: 1px solid rgba(229, 231, 235, 0.92);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 12px 30px -28px rgba(107, 143, 168, 0.38);
+  color: #2C3540;
+  font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
+  letter-spacing: 0;
+  min-block-size: 420px;
+}
+
+.ganttSurface :global([data-roadmap-ui="gantt-sidebar"]) {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(229, 231, 235, 0.9);
+  inline-size: var(--gantt-sidebar-width);
+  left: 0;
+  position: sticky;
+  z-index: 48;
+}
+
+.ganttSurface :global([data-gantt-item-kind="child"]) {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--gantt-row-accent) 24%, rgba(255, 255, 255, 0.94)) 0%,
+      rgba(255, 255, 255, 0.94) 58%,
+      rgba(255, 255, 255, 0.9) 100%
+    );
+  box-shadow: inset 4px 0 0 color-mix(in srgb, var(--gantt-row-accent) 62%, rgba(107, 143, 168, 0.3));
+}
+
+.ganttSurface :global(.bg-secondary) {
+  background-color: rgba(215, 234, 244, 0.24);
+}
+
+.ganttSurface :global(.bg-background),
+.ganttSurface :global(.bg-card) {
+  background-color: rgba(255, 255, 255, 0.94);
+}
+
+.ganttSurface :global([data-roadmap-ui="gantt-feature-card"]) {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--gantt-feature-color) 26%, rgba(255, 255, 255, 0.86)) 0%,
+      rgba(255, 255, 255, 0.92) 68%
+    );
+  border: 1px solid color-mix(in srgb, var(--gantt-feature-color) 42%, rgba(229, 231, 235, 0.92));
+  box-shadow:
+    inset 4px 0 0 var(--gantt-feature-color),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 10px 22px -20px rgba(107, 143, 168, 0.48);
+}
+
+.ganttSurface :global(.border-border\/50) {
+  border-color: rgba(229, 231, 235, 0.9);
+}
+
+.ganttSurface :global(.text-muted-foreground) {
+  color: #6B8FA8;
+}
+
+.ganttSurface :global(.text-foreground) {
+  color: #2C3540;
+}
+
+.ganttSurface :global(.shadow-sm) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 10px 22px -22px rgba(107, 143, 168, 0.45);
+}

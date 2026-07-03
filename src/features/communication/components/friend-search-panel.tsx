@@ -1,7 +1,11 @@
+"use client";
+
 import { CheckCircle2, Clock3, MessageCircle, Search, ShieldAlert, UserPlus, UsersRound } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./friend-search-panel.module.css";
@@ -10,88 +14,90 @@ type SearchResultStatus = "NONE" | "PENDING_SENT" | "PENDING_RECEIVED" | "FRIEND
 
 type FriendSearchResult = {
   bubliId: string;
-  displayName: string;
+  displayNameKey: MessageKey;
   id: string;
-  lastProjectLabel?: string;
+  lastProjectKey?: MessageKey;
   status: SearchResultStatus;
 };
 
 const searchResults: FriendSearchResult[] = [
   {
     bubliId: "miyeon",
-    displayName: "김미연",
+    displayNameKey: "chat.friendSearchPanel.result1Name",
     id: "user-1",
-    lastProjectLabel: "신규 홈페이지 리뉴얼",
+    lastProjectKey: "chat.friendSearchPanel.result1Project",
     status: "NONE",
   },
   {
     bubliId: "junhwa",
-    displayName: "홍준화",
+    displayNameKey: "chat.friendSearchPanel.result2Name",
     id: "user-2",
-    lastProjectLabel: "API 계약 정리",
+    lastProjectKey: "chat.friendSearchPanel.result2Project",
     status: "PENDING_SENT",
   },
   {
     bubliId: "damin",
-    displayName: "정다민",
+    displayNameKey: "chat.friendSearchPanel.result3Name",
     id: "user-3",
-    lastProjectLabel: "Bubli 발표 자료",
+    lastProjectKey: "chat.friendSearchPanel.result3Project",
     status: "FRIEND",
   },
   {
     bubliId: "blocked-user",
-    displayName: "차단된 사용자",
+    displayNameKey: "chat.friendSearchPanel.result4Name",
     id: "user-4",
     status: "BLOCKED",
   },
 ];
 
-const statusCopy: Record<SearchResultStatus, { label: string; tone: "neutral" | "pending" | "success" | "warning" }> = {
-  BLOCKED: { label: "차단됨", tone: "warning" },
-  FRIEND: { label: "친구", tone: "success" },
-  NONE: { label: "요청 가능", tone: "neutral" },
-  PENDING_RECEIVED: { label: "받은 요청", tone: "pending" },
-  PENDING_SENT: { label: "요청 대기", tone: "pending" },
+const statusCopy: Record<SearchResultStatus, { labelKey: MessageKey; tone: "neutral" | "pending" | "success" | "warning" }> = {
+  BLOCKED: { labelKey: "chat.friendSearchPanel.statusBlocked", tone: "warning" },
+  FRIEND: { labelKey: "chat.friendSearchPanel.statusFriend", tone: "success" },
+  NONE: { labelKey: "chat.friendSearchPanel.statusNone", tone: "neutral" },
+  PENDING_RECEIVED: { labelKey: "chat.friendSearchPanel.statusPendingReceived", tone: "pending" },
+  PENDING_SENT: { labelKey: "chat.friendSearchPanel.statusPendingSent", tone: "pending" },
 };
 
 export function FriendSearchPanel() {
+  const { t } = useI18n();
+
   return (
     <GlassPanel className={styles.panel}>
       <header className={styles.header}>
         <div>
-          <Chip selected>친구 추가</Chip>
-          <h2 className={styles.title}>Bubli ID로 찾기</h2>
+          <Chip selected>{t("chat.friendSearchPanel.chip")}</Chip>
+          <h2 className={styles.title}>{t("chat.friendSearchPanel.title")}</h2>
           <p className={styles.description}>
-            사용자를 검색해 친구 요청을 보냅니다. 상대가 수락한 뒤에 1:1 채팅과 프로젝트룸 친구 초대가 열립니다.
+            {t("chat.friendSearchPanel.description")}
           </p>
         </div>
-        <StatusBadge tone="room">서버 상태 기준</StatusBadge>
+        <StatusBadge tone="room">{t("chat.friendSearchPanel.badge")}</StatusBadge>
       </header>
 
-      <form className={styles.searchBox} aria-label="Bubli ID 검색">
+      <form className={styles.searchBox} aria-label={t("chat.friendSearchPanel.searchAria")}>
         <label className={styles.inputLabel} htmlFor="bubli-id-search">
           Bubli ID
         </label>
         <div className={styles.inputWrap}>
           <Search aria-hidden="true" size={18} />
-          <input id="bubli-id-search" placeholder="예: miyeon" type="search" />
+          <input id="bubli-id-search" placeholder={t("chat.friendSearchPanel.placeholder")} type="search" />
         </div>
         <Button icon={<Search size={16} />} variant="primary">
-          검색
+          {t("chat.friendSearchPanel.search")}
         </Button>
       </form>
 
-      <div className={styles.flowLine} aria-label="친구 추가 흐름">
-        <FlowStep icon={<Search size={16} />} label="ID 검색" />
-        <FlowStep icon={<UserPlus size={16} />} label="요청 전송" />
-        <FlowStep icon={<CheckCircle2 size={16} />} label="상대 수락" />
-        <FlowStep icon={<MessageCircle size={16} />} label="1:1 채팅" />
+      <div className={styles.flowLine} aria-label={t("chat.friendSearchPanel.flowAria")}>
+        <FlowStep icon={<Search size={16} />} label={t("chat.friendSearchPanel.flowSearch")} />
+        <FlowStep icon={<UserPlus size={16} />} label={t("chat.friendSearchPanel.flowRequest")} />
+        <FlowStep icon={<CheckCircle2 size={16} />} label={t("chat.friendSearchPanel.flowAccept")} />
+        <FlowStep icon={<MessageCircle size={16} />} label={t("chat.friendSearchPanel.flowDirect")} />
       </div>
 
       <section className={styles.resultSection} aria-labelledby="friend-search-result-title">
         <div className={styles.sectionHeader}>
-          <h3 id="friend-search-result-title">검색 결과</h3>
-          <span>중복 요청과 차단 상태는 서버 상태를 기준으로 막습니다.</span>
+          <h3 id="friend-search-result-title">{t("chat.friendSearchPanel.resultTitle")}</h3>
+          <span>{t("chat.friendSearchPanel.resultSubtitle")}</span>
         </div>
         <div className={styles.resultList}>
           {searchResults.map((result) => (
@@ -113,29 +119,32 @@ function FlowStep({ icon, label }: { icon: ReactNode; label: string }) {
 }
 
 function FriendSearchResultRow({ result }: { result: FriendSearchResult }) {
+  const { t } = useI18n();
   const status = statusCopy[result.status];
 
   return (
     <article className={cn(styles.resultRow, result.status === "BLOCKED" && styles.resultRowMuted)}>
-      <Avatar name={result.displayName} muted={result.status === "BLOCKED"} />
+      <Avatar name={t(result.displayNameKey)} muted={result.status === "BLOCKED"} />
       <div className={styles.resultMain}>
-        <strong>{result.displayName}</strong>
+        <strong>{t(result.displayNameKey)}</strong>
         <span>
           @{result.bubliId}
-          {result.lastProjectLabel ? ` · ${result.lastProjectLabel}` : ""}
+          {result.lastProjectKey ? ` · ${t(result.lastProjectKey)}` : ""}
         </span>
       </div>
-      <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+      <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
       <ResultAction status={result.status} />
     </article>
   );
 }
 
 function ResultAction({ status }: { status: SearchResultStatus }) {
+  const { t } = useI18n();
+
   if (status === "NONE") {
     return (
       <Button icon={<UserPlus size={15} />} size="sm" variant="primary">
-        친구 요청
+        {t("chat.friendSearchPanel.actionRequest")}
       </Button>
     );
   }
@@ -143,7 +152,7 @@ function ResultAction({ status }: { status: SearchResultStatus }) {
   if (status === "PENDING_SENT") {
     return (
       <Button icon={<Clock3 size={15} />} size="sm" variant="quiet">
-        요청 확인
+        {t("chat.friendSearchPanel.actionCheckSent")}
       </Button>
     );
   }
@@ -151,7 +160,7 @@ function ResultAction({ status }: { status: SearchResultStatus }) {
   if (status === "PENDING_RECEIVED") {
     return (
       <Button icon={<CheckCircle2 size={15} />} size="sm" variant="primary">
-        요청 수락
+        {t("chat.friendSearchPanel.actionAccept")}
       </Button>
     );
   }
@@ -160,10 +169,10 @@ function ResultAction({ status }: { status: SearchResultStatus }) {
     return (
       <div className={styles.actionPair}>
         <Button icon={<MessageCircle size={15} />} size="sm" variant="quiet">
-          1:1 채팅
+          {t("chat.friendSearchPanel.actionDirect")}
         </Button>
         <Button icon={<UsersRound size={15} />} size="sm" variant="secondary">
-          초대 대상
+          {t("chat.friendSearchPanel.actionInviteTarget")}
         </Button>
       </div>
     );
@@ -171,7 +180,7 @@ function ResultAction({ status }: { status: SearchResultStatus }) {
 
   return (
     <Button disabled icon={<ShieldAlert size={15} />} size="sm" variant="ghost">
-      요청 차단
+      {t("chat.friendSearchPanel.actionBlocked")}
     </Button>
   );
 }

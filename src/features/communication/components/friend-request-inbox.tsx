@@ -1,7 +1,11 @@
+"use client";
+
 import { Ban, Clock3, MessageCircle, Search, ShieldCheck, UserCheck, UserPlus, UserX } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./friend-request-inbox.module.css";
@@ -11,20 +15,20 @@ type FriendshipStatus = "ACCEPTED" | "BLOCKED";
 
 type FriendRequest = {
   bubliId: string;
-  displayName: string;
+  displayNameKey: MessageKey;
   direction: "incoming" | "outgoing";
   id: string;
-  message: string;
-  projectHint?: string;
-  requestedAt: string;
+  messageKey: MessageKey;
+  projectHintKey?: MessageKey;
+  requestedAtKey: MessageKey;
   status: FriendRequestStatus;
 };
 
 type Friend = {
   bubliId: string;
-  displayName: string;
-  lastSeenLabel: string;
-  projectHint: string;
+  displayNameKey: MessageKey;
+  lastSeenKey: MessageKey;
+  projectHintKey: MessageKey;
   status: FriendshipStatus;
 };
 
@@ -32,21 +36,21 @@ const incomingRequests: FriendRequest[] = [
   {
     bubliId: "miyeon",
     direction: "incoming",
-    displayName: "김미연",
+    displayNameKey: "chat.requestInbox.in1Name",
     id: "request-1",
-    message: "신규 홈페이지 프로젝트룸에 초대하려고 친구 요청을 보냈어요.",
-    projectHint: "신규 홈페이지 리뉴얼",
-    requestedAt: "10분 전",
+    messageKey: "chat.requestInbox.in1Message",
+    projectHintKey: "chat.requestInbox.in1Project",
+    requestedAtKey: "chat.requestInbox.in1RequestedAt",
     status: "PENDING",
   },
   {
     bubliId: "junhwa",
     direction: "incoming",
-    displayName: "홍준화",
+    displayNameKey: "chat.requestInbox.in2Name",
     id: "request-2",
-    message: "1:1 채팅으로 API 계약을 맞춰보고 싶어요.",
-    projectHint: "API 계약 정리",
-    requestedAt: "35분 전",
+    messageKey: "chat.requestInbox.in2Message",
+    projectHintKey: "chat.requestInbox.in2Project",
+    requestedAtKey: "chat.requestInbox.in2RequestedAt",
     status: "PENDING",
   },
 ];
@@ -55,19 +59,19 @@ const outgoingRequests: FriendRequest[] = [
   {
     bubliId: "jihyun",
     direction: "outgoing",
-    displayName: "박지현",
+    displayNameKey: "chat.requestInbox.out1Name",
     id: "request-3",
-    message: "디자인 보드 피드백을 같이 보려고 요청을 보냈습니다.",
-    requestedAt: "오늘 09:42",
+    messageKey: "chat.requestInbox.out1Message",
+    requestedAtKey: "chat.requestInbox.out1RequestedAt",
     status: "PENDING",
   },
   {
     bubliId: "seoyeon",
     direction: "outgoing",
-    displayName: "이서연",
+    displayNameKey: "chat.requestInbox.out2Name",
     id: "request-4",
-    message: "이미 처리된 요청입니다.",
-    requestedAt: "어제",
+    messageKey: "chat.requestInbox.out2Message",
+    requestedAtKey: "chat.requestInbox.out2RequestedAt",
     status: "ACCEPTED",
   },
 ];
@@ -75,35 +79,36 @@ const outgoingRequests: FriendRequest[] = [
 const acceptedFriends: Friend[] = [
   {
     bubliId: "damin",
-    displayName: "정다민",
-    lastSeenLabel: "방금 전",
-    projectHint: "Bubli 발표 자료",
+    displayNameKey: "chat.requestInbox.friend1Name",
+    lastSeenKey: "chat.requestInbox.friend1Seen",
+    projectHintKey: "chat.requestInbox.friend1Project",
     status: "ACCEPTED",
   },
   {
     bubliId: "taewoo",
-    displayName: "김태우",
-    lastSeenLabel: "1시간 전",
-    projectHint: "LiveKit 테스트",
+    displayNameKey: "chat.requestInbox.friend2Name",
+    lastSeenKey: "chat.requestInbox.friend2Seen",
+    projectHintKey: "chat.requestInbox.friend2Project",
     status: "ACCEPTED",
   },
   {
     bubliId: "blocked-user",
-    displayName: "차단된 사용자",
-    lastSeenLabel: "숨김",
-    projectHint: "초대 대상 제외",
+    displayNameKey: "chat.requestInbox.friend3Name",
+    lastSeenKey: "chat.requestInbox.friend3Seen",
+    projectHintKey: "chat.requestInbox.friend3Project",
     status: "BLOCKED",
   },
 ];
 
-const statusLabel: Record<FriendRequestStatus, string> = {
-  ACCEPTED: "수락됨",
-  CANCELED: "취소됨",
-  PENDING: "대기 중",
-  REJECTED: "거절됨",
+const statusLabelKey: Record<FriendRequestStatus, MessageKey> = {
+  ACCEPTED: "chat.requestInbox.statusAccepted",
+  CANCELED: "chat.requestInbox.statusCanceled",
+  PENDING: "chat.requestInbox.statusPending",
+  REJECTED: "chat.requestInbox.statusRejected",
 };
 
 export function FriendRequestInbox() {
+  const { t } = useI18n();
   const pendingIncomingCount = incomingRequests.filter((request) => request.status === "PENDING").length;
   const inviteReadyCount = acceptedFriends.filter((friend) => friend.status === "ACCEPTED").length;
 
@@ -111,28 +116,28 @@ export function FriendRequestInbox() {
     <GlassPanel className={styles.panel}>
       <header className={styles.header}>
         <div>
-          <Chip selected>소통</Chip>
-          <h2 className={styles.title}>친구 요청함</h2>
+          <Chip selected>{t("chat.requestInbox.chip")}</Chip>
+          <h2 className={styles.title}>{t("chat.requestInbox.title")}</h2>
           <p className={styles.description}>
-            Bubli ID로 받은 친구 요청을 확인하고, 수락된 친구만 1:1 채팅과 프로젝트룸 초대 대상에 표시합니다.
+            {t("chat.requestInbox.description")}
           </p>
         </div>
         <Button icon={<Search size={16} />} size="sm" variant="quiet">
-          Bubli ID 검색
+          {t("chat.requestInbox.search")}
         </Button>
       </header>
 
-      <div className={styles.summaryGrid} aria-label="친구 요청 요약">
-        <SummaryCard icon={<Clock3 size={18} />} label="받은 요청" value={`${pendingIncomingCount}건`} />
-        <SummaryCard icon={<UserCheck size={18} />} label="초대 가능 친구" value={`${inviteReadyCount}명`} />
-        <SummaryCard icon={<ShieldCheck size={18} />} label="권한 기준" value="친구 수락 후" />
+      <div className={styles.summaryGrid} aria-label={t("chat.requestInbox.summaryAria")}>
+        <SummaryCard icon={<Clock3 size={18} />} label={t("chat.requestInbox.summaryReceived")} value={t("chat.requestInbox.summaryReceivedValue", { count: pendingIncomingCount })} />
+        <SummaryCard icon={<UserCheck size={18} />} label={t("chat.requestInbox.summaryInvitable")} value={t("chat.requestInbox.summaryInvitableValue", { count: inviteReadyCount })} />
+        <SummaryCard icon={<ShieldCheck size={18} />} label={t("chat.requestInbox.summaryPermission")} value={t("chat.requestInbox.summaryPermissionValue")} />
       </div>
 
       <div className={styles.contentGrid}>
         <section className={styles.section} aria-labelledby="incoming-friend-requests">
           <div className={styles.sectionHeader}>
-            <h3 id="incoming-friend-requests">받은 요청</h3>
-            <StatusBadge tone="pending">검토 필요</StatusBadge>
+            <h3 id="incoming-friend-requests">{t("chat.requestInbox.incomingTitle")}</h3>
+            <StatusBadge tone="pending">{t("chat.requestInbox.incomingBadge")}</StatusBadge>
           </div>
           <div className={styles.requestList}>
             {incomingRequests.map((request) => (
@@ -143,8 +148,8 @@ export function FriendRequestInbox() {
 
         <section className={styles.section} aria-labelledby="accepted-friends">
           <div className={styles.sectionHeader}>
-            <h3 id="accepted-friends">친구 목록</h3>
-            <StatusBadge tone="success">초대 가능</StatusBadge>
+            <h3 id="accepted-friends">{t("chat.requestInbox.friendsTitle")}</h3>
+            <StatusBadge tone="success">{t("chat.requestInbox.friendsBadge")}</StatusBadge>
           </div>
           <div className={styles.friendList}>
             {acceptedFriends.map((friend) => (
@@ -156,8 +161,8 @@ export function FriendRequestInbox() {
 
       <section className={styles.outgoingSection} aria-labelledby="outgoing-friend-requests">
         <div className={styles.sectionHeader}>
-          <h3 id="outgoing-friend-requests">보낸 요청</h3>
-          <span className={styles.helperText}>상대가 수락하면 친구 목록에 표시됩니다.</span>
+          <h3 id="outgoing-friend-requests">{t("chat.requestInbox.outgoingTitle")}</h3>
+          <span className={styles.helperText}>{t("chat.requestInbox.outgoingHelper")}</span>
         </div>
         <div className={styles.outgoingList}>
           {outgoingRequests.map((request) => (
@@ -182,30 +187,32 @@ function SummaryCard({ icon, label, value }: { icon: ReactNode; label: string; v
 }
 
 function RequestCard({ request }: { request: FriendRequest }) {
+  const { t } = useI18n();
+
   return (
     <article className={styles.requestCard}>
       <div className={styles.personLine}>
-        <Avatar name={request.displayName} />
+        <Avatar name={t(request.displayNameKey)} />
         <div>
-          <strong>{request.displayName}</strong>
+          <strong>{t(request.displayNameKey)}</strong>
           <span>@{request.bubliId}</span>
         </div>
-        <StatusBadge tone="pending">{statusLabel[request.status]}</StatusBadge>
+        <StatusBadge tone="pending">{t(statusLabelKey[request.status])}</StatusBadge>
       </div>
-      <p className={styles.message}>{request.message}</p>
+      <p className={styles.message}>{t(request.messageKey)}</p>
       <div className={styles.metaLine}>
-        <span>{request.requestedAt}</span>
-        {request.projectHint ? <span>{request.projectHint}</span> : null}
+        <span>{t(request.requestedAtKey)}</span>
+        {request.projectHintKey ? <span>{t(request.projectHintKey)}</span> : null}
       </div>
       <div className={styles.actionRow}>
         <Button icon={<UserCheck size={15} />} size="sm" variant="primary">
-          수락
+          {t("chat.requestInbox.accept")}
         </Button>
         <Button icon={<UserX size={15} />} size="sm" variant="quiet">
-          거절
+          {t("chat.requestInbox.reject")}
         </Button>
         <Button icon={<Ban size={15} />} size="sm" variant="ghost">
-          차단
+          {t("chat.requestInbox.block")}
         </Button>
       </div>
     </article>
@@ -213,27 +220,28 @@ function RequestCard({ request }: { request: FriendRequest }) {
 }
 
 function FriendRow({ friend }: { friend: Friend }) {
+  const { t } = useI18n();
   const isBlocked = friend.status === "BLOCKED";
 
   return (
     <article className={cn(styles.friendRow, isBlocked && styles.friendRowBlocked)}>
-      <Avatar name={friend.displayName} muted={isBlocked} />
+      <Avatar name={t(friend.displayNameKey)} muted={isBlocked} />
       <div className={styles.friendInfo}>
-        <strong>{friend.displayName}</strong>
+        <strong>{t(friend.displayNameKey)}</strong>
         <span>
-          @{friend.bubliId} · {friend.projectHint}
+          @{friend.bubliId} · {t(friend.projectHintKey)}
         </span>
       </div>
-      <span className={styles.friendSeen}>{friend.lastSeenLabel}</span>
+      <span className={styles.friendSeen}>{t(friend.lastSeenKey)}</span>
       {isBlocked ? (
-        <StatusBadge tone="warning">초대 제외</StatusBadge>
+        <StatusBadge tone="warning">{t("chat.requestInbox.inviteExcluded")}</StatusBadge>
       ) : (
         <div className={styles.friendActions}>
           <Button icon={<MessageCircle size={15} />} size="sm" variant="quiet">
-            1:1 채팅
+            {t("chat.requestInbox.directChat")}
           </Button>
           <Button icon={<UserPlus size={15} />} size="sm" variant="secondary">
-            프로젝트룸 초대
+            {t("chat.requestInbox.roomInvite")}
           </Button>
         </div>
       )}
@@ -242,24 +250,25 @@ function FriendRow({ friend }: { friend: Friend }) {
 }
 
 function OutgoingRequestRow({ request }: { request: FriendRequest }) {
+  const { t } = useI18n();
   const pending = request.status === "PENDING";
 
   return (
     <article className={styles.outgoingRow}>
       <div>
-        <strong>{request.displayName}</strong>
+        <strong>{t(request.displayNameKey)}</strong>
         <span>
-          @{request.bubliId} · {request.requestedAt}
+          @{request.bubliId} · {t(request.requestedAtKey)}
         </span>
       </div>
-      <StatusBadge tone={pending ? "pending" : "success"}>{statusLabel[request.status]}</StatusBadge>
+      <StatusBadge tone={pending ? "pending" : "success"}>{t(statusLabelKey[request.status])}</StatusBadge>
       {pending ? (
         <Button size="sm" variant="ghost">
-          요청 취소
+          {t("chat.requestInbox.cancelRequest")}
         </Button>
       ) : (
         <Button icon={<MessageCircle size={15} />} size="sm" variant="quiet">
-          1:1 채팅
+          {t("chat.requestInbox.directChat")}
         </Button>
       )}
     </article>

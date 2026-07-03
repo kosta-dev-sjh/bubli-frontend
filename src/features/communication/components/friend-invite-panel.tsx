@@ -1,89 +1,96 @@
+"use client";
+
 import { MessageCircle, ShieldCheck, UserCheck, UserPlus, UsersRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
 type FriendItem = {
-  name: string;
+  nameKey: MessageKey;
   handle: string;
-  roleHint: string;
+  roleHintKey: MessageKey;
   status: "friend" | "pending" | "invited";
 };
 
 const friends: FriendItem[] = [
   {
     handle: "jihyun.kim",
-    name: "김지현",
-    roleHint: "UI 디자인",
+    nameKey: "chat.friendInvite.friend1Name",
+    roleHintKey: "chat.friendInvite.friend1Role",
     status: "friend",
   },
   {
     handle: "minsu.park",
-    name: "박민수",
-    roleHint: "프론트 개발",
+    nameKey: "chat.friendInvite.friend2Name",
+    roleHintKey: "chat.friendInvite.friend2Role",
     status: "invited",
   },
   {
     handle: "seoyeon.lee",
-    name: "이서연",
-    roleHint: "자료 검토",
+    nameKey: "chat.friendInvite.friend3Name",
+    roleHintKey: "chat.friendInvite.friend3Role",
     status: "pending",
   },
 ];
 
-const friendStatus: Record<FriendItem["status"], { label: string; tone: "success" | "pending" | "room" }> = {
-  friend: { label: "친구", tone: "success" },
-  invited: { label: "초대됨", tone: "room" },
-  pending: { label: "요청 대기", tone: "pending" },
+const friendStatus: Record<FriendItem["status"], { labelKey: MessageKey; tone: "success" | "pending" | "room" }> = {
+  friend: { labelKey: "chat.friendInvite.statusFriend", tone: "success" },
+  invited: { labelKey: "chat.friendInvite.statusInvited", tone: "room" },
+  pending: { labelKey: "chat.friendInvite.statusPending", tone: "pending" },
 };
 
 function FriendRow({ friend }: { friend: FriendItem }) {
+  const { t } = useI18n();
   const status = friendStatus[friend.status];
+  const name = t(friend.nameKey);
 
   return (
     <article className="friend-invite-row">
       <span className="friend-invite-row__avatar" aria-hidden="true">
-        {friend.name.slice(0, 1)}
+        {name.slice(0, 1)}
       </span>
       <div>
         <div className="friend-invite-row__meta">
-          <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+          <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
           <span>@{friend.handle}</span>
         </div>
-        <h3>{friend.name}</h3>
-        <p>{friend.roleHint}</p>
+        <h3>{name}</h3>
+        <p>{t(friend.roleHintKey)}</p>
       </div>
       <Button size="sm" variant={friend.status === "friend" ? "primary" : "quiet"}>
-        {friend.status === "friend" ? "프로젝트룸 초대" : "상태 보기"}
+        {friend.status === "friend" ? t("chat.friendInvite.inviteAction") : t("chat.friendInvite.statusAction")}
       </Button>
     </article>
   );
 }
 
 export function FriendInvitePanel() {
+  const { t } = useI18n();
+
   return (
-    <section className="friend-invite" aria-label="친구와 프로젝트룸 초대">
+    <section className="friend-invite" aria-label={t("chat.friendInvite.aria")}>
       <GlassPanel className="friend-invite__hero">
         <div className="friend-invite__title">
           <span className="bubli-icon-tile" aria-hidden="true">
             <UserPlus size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <Chip selected>소통</Chip>
-            <h2>친구를 추가하고, 프로젝트룸에는 친구를 초대합니다</h2>
+            <Chip selected>{t("chat.friendInvite.chip")}</Chip>
+            <h2>{t("chat.friendInvite.heroTitle")}</h2>
             <p>
-              친구는 1:1 채팅과 프로젝트룸 초대의 기준이 됩니다. 프로젝트룸에는 수락된 친구 목록에서 기존 회원을
-              초대합니다.
+              {t("chat.friendInvite.heroBody")}
             </p>
           </div>
         </div>
         <div className="friend-invite__search">
-          <span>아이디로 친구 추가</span>
+          <span>{t("chat.friendInvite.searchHint")}</span>
           <strong>@bubli.user</strong>
           <Button icon={<UserPlus size={15} />} size="sm" variant="primary">
-            요청 보내기
+            {t("chat.friendInvite.sendRequest")}
           </Button>
         </div>
       </GlassPanel>
@@ -92,10 +99,10 @@ export function FriendInvitePanel() {
         <GlassPanel className="friend-invite__panel">
           <div className="friend-invite__panel-header">
             <div>
-              <h3>친구 목록</h3>
-              <p>친구를 선택해 1:1 채팅을 시작하거나 프로젝트룸에 초대합니다.</p>
+              <h3>{t("chat.friendInvite.listTitle")}</h3>
+              <p>{t("chat.friendInvite.listBody")}</p>
             </div>
-            <Chip icon={<MessageCircle size={14} />}>1:1 채팅 가능</Chip>
+            <Chip icon={<MessageCircle size={14} />}>{t("chat.friendInvite.directChip")}</Chip>
           </div>
 
           <div className="friend-invite__list">
@@ -106,24 +113,24 @@ export function FriendInvitePanel() {
         </GlassPanel>
 
         <GlassPanel className="friend-invite__policy">
-          <h3>초대 기준</h3>
+          <h3>{t("chat.friendInvite.policyTitle")}</h3>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <UsersRound size={16} strokeWidth={2.1} />
             </span>
-            <p>프로젝트룸 멤버는 프로젝트 리더가 친구 목록에서 초대합니다.</p>
+            <p>{t("chat.friendInvite.policy1")}</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <UserCheck size={16} strokeWidth={2.1} />
             </span>
-            <p>초대받은 친구가 수락한 뒤에만 프로젝트룸 멤버 권한이 생깁니다.</p>
+            <p>{t("chat.friendInvite.policy2")}</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <ShieldCheck size={16} strokeWidth={2.1} />
             </span>
-            <p>수락된 멤버만 자료, WBS, 일정, 멤버 목록, 다운로드에 접근합니다.</p>
+            <p>{t("chat.friendInvite.policy3")}</p>
           </div>
         </GlassPanel>
       </div>

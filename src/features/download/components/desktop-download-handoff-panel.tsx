@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AppWindow,
   CheckCircle2,
@@ -16,6 +18,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./desktop-download-handoff-panel.module.css";
@@ -128,40 +132,72 @@ export const defaultDownloadRules: SafetyRule[] = [
   },
 ];
 
+const surfaceCopyKeys: Record<SurfaceKind, { titleKey: MessageKey; labelKey: MessageKey; descKey: MessageKey }> = {
+  PUBLIC_SITE: {
+    titleKey: "download.handoff.surface.public.title",
+    labelKey: "download.handoff.surface.public.label",
+    descKey: "download.handoff.surface.public.desc",
+  },
+  MEMBER_WEB: {
+    titleKey: "download.handoff.surface.member.title",
+    labelKey: "download.handoff.surface.member.label",
+    descKey: "download.handoff.surface.member.desc",
+  },
+  DESKTOP_APP: {
+    titleKey: "download.handoff.surface.desktop.title",
+    labelKey: "download.handoff.surface.desktop.label",
+    descKey: "download.handoff.surface.desktop.desc",
+  },
+};
+
+const capabilityCopyKeys: Record<CapabilityKind, { titleKey: MessageKey; descKey: MessageKey }> = {
+  MEMBER_WEB_WINDOW: { titleKey: "download.handoff.capability.web.title", descKey: "download.handoff.capability.web.desc" },
+  BUBBLE: { titleKey: "download.handoff.capability.bubble.title", descKey: "download.handoff.capability.bubble.desc" },
+  DEVICE_FOLDER: { titleKey: "download.handoff.capability.device.title", descKey: "download.handoff.capability.device.desc" },
+  COMMUNICATION: { titleKey: "download.handoff.capability.comm.title", descKey: "download.handoff.capability.comm.desc" },
+};
+
+const ruleCopyKeys: Record<string, { labelKey: MessageKey; descKey: MessageKey }> = {
+  "공개 화면": { labelKey: "download.handoff.rule.public.label", descKey: "download.handoff.rule.public.desc" },
+  "서버 기준": { labelKey: "download.handoff.rule.server.label", descKey: "download.handoff.rule.server.desc" },
+  "보이스 연결": { labelKey: "download.handoff.rule.voice.label", descKey: "download.handoff.rule.voice.desc" },
+};
+
 export function DesktopDownloadHandoffPanel({
   capabilities,
   className,
   rules,
   surfaces,
-  title = "데스크탑 앱 다운로드",
+  title,
   ...props
 }: DesktopDownloadHandoffPanelProps) {
+  const { t } = useI18n();
+  const panelTitle = title ?? t("download.handoff.defaultTitle");
+
   return (
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<Download size={16} strokeWidth={2.1} />}>공개 사이트</Chip>
+          <Chip icon={<Download size={16} strokeWidth={2.1} />}>{t("download.handoff.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              공개 사이트는 앱을 내려받는 입구이고, 실제 업무는 로그인 후 회원 작업 화면에서 이어집니다. 데스크탑 앱은 같은
-              웹 화면을 열면서 버블, 기기 폴더, 기기 안 임시 저장 같은 앱 기능을 더합니다.
-            </p>
+            <h2 className={styles.title}>{panelTitle}</h2>
+            <p className={styles.description}>{t("download.handoff.description")}</p>
           </div>
         </div>
         <div className={styles.actions}>
           <Button icon={<MonitorDown size={16} strokeWidth={2.1} />} variant="primary">
-            앱 다운로드
+            {t("download.handoff.downloadApp")}
           </Button>
           <Button icon={<ExternalLink size={16} strokeWidth={2.1} />} variant="quiet">
-            웹에서 로그인
+            {t("download.handoff.loginWeb")}
           </Button>
         </div>
       </header>
 
-      <section className={styles.surfaceRow} aria-label="서비스 진입 화면">
+      <section className={styles.surfaceRow} aria-label={t("download.handoff.surfaceAria")}>
         {surfaces.map((surface) => {
           const SurfaceIcon = surfaceIcons[surface.kind];
+          const copy = surfaceCopyKeys[surface.kind];
 
           return (
             <article className={styles.surfaceCard} key={surface.kind}>
@@ -170,17 +206,17 @@ export function DesktopDownloadHandoffPanel({
               </span>
               <div>
                 <div className={styles.surfaceTitle}>
-                  <strong>{surface.title}</strong>
-                  <StatusBadge tone={surface.tone}>{surface.label}</StatusBadge>
+                  <strong>{copy ? t(copy.titleKey) : surface.title}</strong>
+                  <StatusBadge tone={surface.tone}>{copy ? t(copy.labelKey) : surface.label}</StatusBadge>
                 </div>
-                <p>{surface.description}</p>
+                <p>{copy ? t(copy.descKey) : surface.description}</p>
               </div>
             </article>
           );
         })}
       </section>
 
-      <section className={styles.handoff} aria-label="데스크탑 앱 기능 연결">
+      <section className={styles.handoff} aria-label={t("download.handoff.handoffAria")}>
         <div className={styles.devicePreview}>
           <div className={styles.windowBar}>
             <span />
@@ -194,14 +230,15 @@ export function DesktopDownloadHandoffPanel({
               <span />
               <span />
             </div>
-            <div className={styles.bubblePreview}>TODO 버블</div>
-            <div className={styles.bubblePreview}>소통 버블</div>
+            <div className={styles.bubblePreview}>{t("download.handoff.todoBubble")}</div>
+            <div className={styles.bubblePreview}>{t("download.handoff.commBubble")}</div>
           </div>
         </div>
 
         <div className={styles.capabilityList}>
           {capabilities.map((capability) => {
             const CapabilityIcon = capabilityIcons[capability.kind];
+            const copy = capabilityCopyKeys[capability.kind];
 
             return (
               <article key={capability.kind}>
@@ -209,8 +246,8 @@ export function DesktopDownloadHandoffPanel({
                   <CapabilityIcon size={18} strokeWidth={2.1} aria-hidden="true" />
                 </span>
                 <div>
-                  <strong>{capability.title}</strong>
-                  <p>{capability.description}</p>
+                  <strong>{copy ? t(copy.titleKey) : capability.title}</strong>
+                  <p>{copy ? t(copy.descKey) : capability.description}</p>
                 </div>
               </article>
             );
@@ -218,16 +255,20 @@ export function DesktopDownloadHandoffPanel({
         </div>
       </section>
 
-      <section className={styles.ruleGrid} aria-label="다운로드 화면 구현 기준">
-        {rules.map((rule) => (
-          <article key={rule.label}>
-            <CheckCircle2 size={18} strokeWidth={2.1} aria-hidden="true" />
-            <div>
-              <StatusBadge tone={rule.tone}>{rule.label}</StatusBadge>
-              <p>{rule.description}</p>
-            </div>
-          </article>
-        ))}
+      <section className={styles.ruleGrid} aria-label={t("download.handoff.ruleAria")}>
+        {rules.map((rule) => {
+          const copy = ruleCopyKeys[rule.label];
+
+          return (
+            <article key={rule.label}>
+              <CheckCircle2 size={18} strokeWidth={2.1} aria-hidden="true" />
+              <div>
+                <StatusBadge tone={rule.tone}>{copy ? t(copy.labelKey) : rule.label}</StatusBadge>
+                <p>{copy ? t(copy.descKey) : rule.description}</p>
+              </div>
+            </article>
+          );
+        })}
       </section>
     </GlassPanel>
   );

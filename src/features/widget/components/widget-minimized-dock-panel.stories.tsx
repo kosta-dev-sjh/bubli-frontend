@@ -28,25 +28,9 @@ export const DefaultDock: Story = {
 
 export const CommunicationHeavyDock: Story = {
   args: {
-    dockItems: [
-      ...defaultDockItems,
-      {
-        badge: "2건",
-        description: "새 댓글과 검토 요청 알림",
-        label: "알림 버블",
-        source: "server",
-        tone: "notification",
-        value: "확인 필요 항목",
-      },
-      {
-        badge: "로컬",
-        description: "작성 중인 개인 메모 초안",
-        label: "메모 버블",
-        source: "local",
-        tone: "memo",
-        value: "공유 전 문장 정리",
-      },
-    ],
+    dockItems: defaultDockItems.map((item) =>
+      item.tone === "communication" || item.tone === "notification" ? { ...item, source: "server" as const } : item,
+    ),
     lastSyncedLabel: "1분 전",
     title: "소통과 알림 중심 도크",
   },

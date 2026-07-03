@@ -7,6 +7,7 @@ import { BubbleBar } from "@/components/bubbles/bubble-bar";
 import { DockOrb } from "@/components/bubbles/bubble-orb";
 import { WidgetShell } from "@/components/widget/widget-shell";
 import type { WidgetMode } from "@/components/widget/widget-shell";
+import { useI18n } from "@/lib/i18n";
 
 /** 데스크탑 위에 위젯이 떠 있는 모습을 시뮬레이션하는 프리뷰. 실제 Tauri IPC·click-through는 없다. */
 type WidgetNotification = { id: string; tone: "todo" | "agent" | "comment" | "schedule"; text: string };
@@ -26,6 +27,7 @@ type WidgetPreviewProps = {
 };
 
 export function WidgetPreview({ mode = "default", minimized = false, notification = null }: WidgetPreviewProps) {
+  const { t } = useI18n();
   return (
     <div className="bubli-widget-stage" data-mode={mode}>
       <div className="bubli-widget-stage__inner">
@@ -33,7 +35,7 @@ export function WidgetPreview({ mode = "default", minimized = false, notificatio
           <div className="bubli-widget-notif" role="status">
             <span aria-hidden className="bubli-widget-notif__dot" style={{ background: DOT_COLOR[notification.tone] }} />
             <span className="bubli-widget-notif__text">{notification.text}</span>
-            {notification.tone === "agent" ? <AgentBubble label="에이전트 알림" size={20} state="suggesting" /> : null}
+            {notification.tone === "agent" ? <AgentBubble label={t("widget.preview.agentAlert")} size={20} state="suggesting" /> : null}
           </div>
         ) : null}
 
@@ -43,9 +45,9 @@ export function WidgetPreview({ mode = "default", minimized = false, notificatio
           ) : (
             <WidgetShell
               agentCount={1}
-              agentMessage="요구사항 후보 6개를 정리해 둘까요?"
+              agentMessage={t("widget.preview.agentMessage")}
               mode={mode}
-              projectLabel="A사 리뉴얼"
+              projectLabel={t("widget.preview.projectLabel")}
               scheduleCount={2}
               timerText="25:00"
               todoCount={4}
@@ -54,7 +56,7 @@ export function WidgetPreview({ mode = "default", minimized = false, notificatio
         </div>
       </div>
 
-      <DockOrb className="bubli-widget-stage__orb" count={4} label="위젯 메뉴" />
+      <DockOrb className="bubli-widget-stage__orb" count={4} label={t("widget.preview.menu")} />
     </div>
   );
 }

@@ -1,3 +1,5 @@
+"use client";
+
 import { ArrowRight, CheckCircle2, FileLock2, FolderOpen, History, ShieldCheck, UploadCloud, UsersRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -5,42 +7,45 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
 type ResourceShareItem = {
-  name: string;
-  currentScope: "개인 자료" | "프로젝트룸 자료";
-  nextAction: string;
+  nameKey: MessageKey;
+  currentScopeKey: MessageKey;
+  nextActionKey: MessageKey;
   status: "private" | "review" | "shared";
 };
 
 const shareItems: ResourceShareItem[] = [
   {
-    currentScope: "개인 자료",
-    name: "개인 메모_자료 검토.md",
-    nextAction: "공유 전 검토",
+    currentScopeKey: "resources.share2.scopePersonal",
+    nameKey: "resources.share2.itemPrivateName",
+    nextActionKey: "resources.share2.itemPrivateNext",
     status: "private",
   },
   {
-    currentScope: "개인 자료",
-    name: "회의 질문 후보.md",
-    nextAction: "프로젝트룸 자료로 공유",
+    currentScopeKey: "resources.share2.scopePersonal",
+    nameKey: "resources.share2.itemReviewName",
+    nextActionKey: "resources.share2.itemReviewNext",
     status: "review",
   },
   {
-    currentScope: "프로젝트룸 자료",
-    name: "업무기준문서_v2.pdf",
-    nextAction: "버전 히스토리 확인",
+    currentScopeKey: "resources.share2.scopeRoom",
+    nameKey: "resources.share2.itemSharedName",
+    nextActionKey: "resources.share2.itemSharedNext",
     status: "shared",
   },
 ];
 
-const statusMeta: Record<ResourceShareItem["status"], { label: string; tone: "personal" | "pending" | "room" }> = {
-  private: { label: "본인만 보기", tone: "personal" },
-  review: { label: "공유 검토", tone: "pending" },
-  shared: { label: "멤버와 공유", tone: "room" },
+const statusMeta: Record<ResourceShareItem["status"], { labelKey: MessageKey; tone: "personal" | "pending" | "room" }> = {
+  private: { labelKey: "resources.share2.statusPrivate", tone: "personal" },
+  review: { labelKey: "resources.share2.statusReview", tone: "pending" },
+  shared: { labelKey: "resources.share2.statusShared", tone: "room" },
 };
 
 function ResourceShareRow({ item }: { item: ResourceShareItem }) {
+  const { t } = useI18n();
   const status = statusMeta[item.status];
 
   return (
@@ -50,41 +55,39 @@ function ResourceShareRow({ item }: { item: ResourceShareItem }) {
       </span>
       <div>
         <div className="resource-sharing-row__meta">
-          <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-          <span>{item.currentScope}</span>
+          <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
+          <span>{t(item.currentScopeKey)}</span>
         </div>
-        <h3>{item.name}</h3>
-        <p>{item.nextAction}</p>
+        <h3>{t(item.nameKey)}</h3>
+        <p>{t(item.nextActionKey)}</p>
       </div>
       <Button size="sm" variant={item.status === "review" ? "primary" : "quiet"}>
-        {item.status === "review" ? "공유 승인" : "열기"}
+        {item.status === "review" ? t("resources.share2.rowApprove") : t("resources.share2.rowOpen")}
       </Button>
     </article>
   );
 }
 
 export function ResourceSharingPermissionPanel() {
+  const { t } = useI18n();
   return (
-    <section className="resource-sharing" aria-label="자료보드 권한과 공유">
+    <section className="resource-sharing" aria-label={t("resources.share2.permAria")}>
       <GlassPanel className="resource-sharing__hero">
         <div className="resource-sharing__title">
           <span className="bubli-icon-tile" aria-hidden="true">
             <FolderOpen size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <Chip selected>자료보드</Chip>
-            <h2>개인 자료는 직접 공유하기 전까지 프로젝트룸에 보이지 않습니다</h2>
-            <p>
-              자료보드는 개인 자료와 프로젝트룸 자료를 함께 찾는 화면입니다. 개인 자료는 사용자에게 귀속되고,
-              프로젝트룸 자료는 해당 프로젝트룸 멤버가 함께 보는 자료입니다.
-            </p>
+            <Chip selected>{t("resources.share2.permChip")}</Chip>
+            <h2>{t("resources.share2.permHeroTitle")}</h2>
+            <p>{t("resources.share2.permHeroDesc")}</p>
           </div>
         </div>
         <div className="resource-sharing__summary">
-          <StatusBadge tone="personal">권한 분리</StatusBadge>
-          <strong>2단계</strong>
-          <span>검토 후 공유</span>
-          <ProgressBar label="자료 공유 준비도" value={62} />
+          <StatusBadge tone="personal">{t("resources.share2.permBadge")}</StatusBadge>
+          <strong>{t("resources.share2.permStep2")}</strong>
+          <span>{t("resources.share2.permReviewThenShare")}</span>
+          <ProgressBar label={t("resources.share2.permProgressLabel")} value={62} />
         </div>
       </GlassPanel>
 
@@ -92,54 +95,54 @@ export function ResourceSharingPermissionPanel() {
         <GlassPanel className="resource-sharing__panel">
           <div className="resource-sharing__panel-header">
             <div>
-              <h3>공유 후보</h3>
-              <p>개인 자료를 프로젝트룸 자료로 바꿀 때는 사용자의 명시적인 승인이 필요합니다.</p>
+              <h3>{t("resources.share2.permCandidateTitle")}</h3>
+              <p>{t("resources.share2.permCandidateDesc")}</p>
             </div>
-            <Chip icon={<UploadCloud size={14} />}>자료 범위</Chip>
+            <Chip icon={<UploadCloud size={14} />}>{t("resources.share2.permScopeChip")}</Chip>
           </div>
 
           <div className="resource-sharing__list">
             {shareItems.map((item) => (
-              <ResourceShareRow item={item} key={item.name} />
+              <ResourceShareRow item={item} key={item.nameKey} />
             ))}
           </div>
         </GlassPanel>
 
         <GlassPanel className="resource-sharing__policy">
-          <h3>권한 기준</h3>
+          <h3>{t("resources.share2.permPolicyTitle")}</h3>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <ShieldCheck size={16} strokeWidth={2.1} />
             </span>
-            <p>개인 자료는 본인만 볼 수 있는 자료로 저장합니다.</p>
+            <p>{t("resources.share2.permPolicyPersonal")}</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <UsersRound size={16} strokeWidth={2.1} />
             </span>
-            <p>프로젝트룸 자료는 프로젝트룸 멤버 권한을 확인한 뒤 함께 볼 수 있습니다.</p>
+            <p>{t("resources.share2.permPolicyRoom")}</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <History size={16} strokeWidth={2.1} />
             </span>
-            <p>같은 파일을 다시 올리면 덮어쓰지 않고 새 버전으로 남깁니다.</p>
+            <p>{t("resources.share2.permPolicyVersion")}</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <CheckCircle2 size={16} strokeWidth={2.1} />
             </span>
-            <p>에이전트가 만든 자료 제안은 후보이며, 공유 상태 변경은 사용자 승인 후 반영합니다.</p>
+            <p>{t("resources.share2.permPolicyAgent")}</p>
           </div>
         </GlassPanel>
       </div>
 
       <GlassPanel className="resource-sharing__flow">
-        <Chip selected>개인 자료</Chip>
+        <Chip selected>{t("resources.share2.permFlowPersonal")}</Chip>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <Chip>사용자 승인</Chip>
+        <Chip>{t("resources.share2.permFlowApproval")}</Chip>
         <ArrowRight size={16} strokeWidth={2.1} />
-        <Chip selected>프로젝트룸 자료</Chip>
+        <Chip selected>{t("resources.share2.permFlowRoom")}</Chip>
       </GlassPanel>
     </section>
   );

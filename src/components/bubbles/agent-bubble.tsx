@@ -1,5 +1,8 @@
+"use client";
+
 import type { CSSProperties, HTMLAttributes } from "react";
 
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import { BUBBLE_ASSET } from "./bubble-mark";
@@ -29,13 +32,14 @@ function Face({ smiling }: { smiling: boolean }) {
 }
 
 export function AgentBubble({ className, label, size = 32, state = "idle", ...props }: AgentBubbleProps) {
+  const { t } = useI18n();
   const isThinking = state === "thinking";
   const isWaiting = state === "waiting";
   const smiling = state === "idle" || state === "suggesting";
 
   return (
     <span
-      aria-label={label ?? `에이전트 ${state}`}
+      aria-label={label ?? t("bubble.agentAria", { state })}
       className={cn("bubli-agent", `bubli-agent--${state}`, className)}
       role="img"
       style={{ width: size, height: size } as CSSProperties}

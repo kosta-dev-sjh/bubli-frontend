@@ -12,6 +12,8 @@ import { agentApi } from "@/features/agent/api/agentApi";
 import { chatApi } from "@/features/communication/api/chatApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { getActiveProjectRoomId, setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
@@ -43,26 +45,28 @@ type AgentPageState =
   | { kind: "auth" }
   | { kind: "offline"; message: string };
 
-const typeLabels: Record<AgentSuggestionType, string> = {
-  CONTRACT_FIELD: "자료 참고값",
-  CONTRACT_REVIEW: "자료 검토",
-  DAILY_SUMMARY: "하루 정리",
-  DOCUMENT_DRAFT: "문서 초안",
-  MEMO: "메모",
-  QUESTION: "확인 질문",
-  REQUIREMENT: "요구사항",
-  REVIEW_ITEM: "검토 항목",
-  SCHEDULE: "일정",
-  TASK: "작업",
-  TODO: "TODO",
-  WBS: "작업 구조",
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
+
+const typeLabelKeys: Record<AgentSuggestionType, MessageKey> = {
+  CONTRACT_FIELD: "agent.page.typeContractField",
+  CONTRACT_REVIEW: "agent.page.typeContractReview",
+  DAILY_SUMMARY: "agent.page.typeDailySummary",
+  DOCUMENT_DRAFT: "agent.page.typeDocumentDraft",
+  MEMO: "agent.page.typeMemo",
+  QUESTION: "agent.page.typeQuestion",
+  REQUIREMENT: "agent.page.typeRequirement",
+  REVIEW_ITEM: "agent.page.typeReviewItem",
+  SCHEDULE: "agent.page.typeSchedule",
+  TASK: "agent.page.typeTask",
+  TODO: "agent.page.typeTodo",
+  WBS: "agent.page.typeWbs",
 };
 
-const statusLabels: Record<AgentSuggestionStatus, string> = {
-  APPROVED: "반영됨",
-  DRAFT: "확인 필요",
-  HELD: "보류",
-  REJECTED: "제외됨",
+const statusLabelKeys: Record<AgentSuggestionStatus, MessageKey> = {
+  APPROVED: "agent.page.statusApprovedLabel",
+  DRAFT: "agent.page.statusDraftLabel",
+  HELD: "agent.page.statusHeldLabel",
+  REJECTED: "agent.page.statusRejectedLabel",
 };
 
 function statusTone(status: AgentSuggestionStatus) {
@@ -125,6 +129,7 @@ function todayDateKey() {
 }
 
 function AgentPageContent() {
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const [state, setState] = useState<AgentPageState>({ kind: "loading" });
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -202,10 +207,10 @@ function AgentPageContent() {
 
       setState({
         kind: "offline",
-        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "후보 데이터를 불러오지 못했습니다.",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("agent.page.errorLoad"),
       });
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const initialRoomId = searchParams.get("roomId") ?? getActiveProjectRoomId();
@@ -220,12 +225,12 @@ function AgentPageContent() {
     if (state.kind !== "ready") return null;
 
     return [
-      { label: state.selectedRoomId ? "룸 후보" : "개인 후보", value: state.suggestions.length },
-      { label: "하루 정리", value: state.dailySummaries.length },
-      { label: "생성 문서", value: state.generatedDocuments.length },
-      { label: "룸 메모리", value: state.roomMemorySummaries.length },
+      { label: state.selectedRoomId ? t("agent.page.countRoomCandidates") : t("agent.page.countPersonalCandidates"), value: state.suggestions.length },
+      { label: t("agent.page.countDailySummary"), value: state.dailySummaries.length },
+      { label: t("agent.page.countGeneratedDocuments"), value: state.generatedDocuments.length },
+      { label: t("agent.page.countRoomMemory"), value: state.roomMemorySummaries.length },
     ];
-  }, [state]);
+  }, [state, t]);
 
   const review = useCallback(async (suggestionId: string, action: "APPROVE" | "HOLD" | "REJECT") => {
     setUpdatingId(suggestionId);
@@ -237,7 +242,7 @@ function AgentPageContent() {
       if (!shouldUseWorkspacePreviewData()) {
         setState({
           kind: "offline",
-          message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "후보 상태를 바꾸지 못했습니다.",
+          message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("agent.page.errorReview"),
         });
         return;
       }
@@ -263,7 +268,7 @@ function AgentPageContent() {
     } finally {
       setUpdatingId(null);
     }
-  }, [load, selectedRoomId]);
+  }, [load, selectedRoomId, t]);
 
   const approveDailySummary = useCallback(async (summaryId: string) => {
     setDailyUpdatingId(summaryId);
@@ -273,27 +278,27 @@ function AgentPageContent() {
     } catch (error) {
       setState({
         kind: "offline",
-        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "하루 정리를 승인하지 못했습니다.",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("agent.page.errorApproveDaily"),
       });
     } finally {
       setDailyUpdatingId(null);
     }
-  }, [load, selectedRoomId]);
+  }, [load, selectedRoomId, t]);
 
   const startDailySummary = useCallback(async () => {
     setStartingSummaryJob(true);
     try {
       const job = await agentApi.summarizeDay({ summaryDate: todayDateKey() });
-      setNotice(`하루 정리 작업을 시작했습니다. 작업 ID: ${job.jobId}`);
+      setNotice(t("agent.page.summaryStarted", { jobId: job.jobId }));
     } catch (error) {
       setState({
         kind: "offline",
-        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "하루 정리 생성을 시작하지 못했습니다.",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("agent.page.errorStartSummary"),
       });
     } finally {
       setStartingSummaryJob(false);
     }
-  }, []);
+  }, [t]);
 
   const openDocument = useCallback(async (documentId: string) => {
     setOpeningDocumentId(documentId);
@@ -303,12 +308,12 @@ function AgentPageContent() {
     } catch (error) {
       setState({
         kind: "offline",
-        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "생성 문서를 열지 못했습니다.",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("agent.page.errorOpenDocument"),
       });
     } finally {
       setOpeningDocumentId(null);
     }
-  }, []);
+  }, [t]);
 
   const exportDocument = useCallback(async (documentId: string) => {
     setExportingDocumentId(documentId);
@@ -325,29 +330,29 @@ function AgentPageContent() {
     } catch (error) {
       setState({
         kind: "offline",
-        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "생성 문서를 내려받지 못했습니다.",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("agent.page.errorExportDocument"),
       });
     } finally {
       setExportingDocumentId(null);
     }
-  }, []);
+  }, [t]);
 
   return (
     <section className="workspace-route" aria-labelledby="agent-title">
       <header className="workspace-route__header">
         <div>
-          <h1 id="agent-title">후보와 생성물</h1>
+          <h1 id="agent-title">{t("agent.page.title")}</h1>
         </div>
         <div className="workspace-route__actions">
           {state.kind === "ready" ? (
             <>
               <select
-                aria-label="후보 범위"
+                aria-label={t("agent.page.scopeAria")}
                 className="workspace-route__select"
                 onChange={(event) => void load(event.target.value || null)}
                 value={state.selectedRoomId ?? ""}
               >
-                <option value="">개인</option>
+                <option value="">{t("agent.page.scopePersonal")}</option>
                 {state.rooms.map((room) => (
                   <option key={room.id} value={room.id}>
                     {room.name}
@@ -360,20 +365,20 @@ function AgentPageContent() {
                 onClick={() => void startDailySummary()}
                 variant="primary"
               >
-                오늘 정리 생성
+                {t("agent.page.createTodaySummary")}
               </Button>
             </>
           ) : null}
         </div>
       </header>
 
-      {state.kind === "loading" ? <GlassPanel className="workspace-route__panel">후보 데이터를 불러오는 중</GlassPanel> : null}
+      {state.kind === "loading" ? <GlassPanel className="workspace-route__panel">{t("agent.page.loadingData")}</GlassPanel> : null}
 
       {state.kind === "auth" ? (
         <GlassPanel className="workspace-route__panel">
-          <strong>로그인이 필요합니다</strong>
+          <strong>{t("agent.page.authTitle")}</strong>
           <Link className="bubli-button bubli-button--primary" href="/login">
-            로그인
+            {t("common.login")}
           </Link>
         </GlassPanel>
       ) : null}
@@ -384,10 +389,10 @@ function AgentPageContent() {
           <div className="workspace-route__actions">
             <Button onClick={() => void load(selectedRoomId)} variant="primary">
               <RefreshCw aria-hidden size={15} strokeWidth={1.9} />
-              다시 연결
+              {t("agent.page.reconnect")}
             </Button>
             <Link className="bubli-button" href="/app/resources">
-              자료보드
+              {t("agent.page.resources")}
             </Link>
           </div>
         </GlassPanel>
@@ -402,7 +407,7 @@ function AgentPageContent() {
           ) : null}
 
           {counts ? (
-            <div className="workspace-route__summary" aria-label="후보와 생성물 요약">
+            <div className="workspace-route__summary" aria-label={t("agent.page.summaryAria")}>
               {counts.map((item) => (
                 <div key={item.label}>
                   <span>{item.label}</span>
@@ -414,25 +419,26 @@ function AgentPageContent() {
 
           <section className="workspace-route__section" aria-labelledby="agent-suggestions-title">
             <div className="workspace-route__section-head">
-              <h2 id="agent-suggestions-title">확인할 후보</h2>
-              <StatusBadge tone={state.suggestions.length > 0 ? "agent" : "neutral"}>{state.suggestions.length}개</StatusBadge>
+              <h2 id="agent-suggestions-title">{t("agent.page.suggestionsTitle")}</h2>
+              <StatusBadge tone={state.suggestions.length > 0 ? "agent" : "neutral"}>{t("agent.page.suggestionsCount", { count: state.suggestions.length })}</StatusBadge>
             </div>
             {state.suggestions.length === 0 ? (
               <GlassPanel className="workspace-route__panel">
-                <strong>확인할 후보가 없습니다</strong>
+                <strong>{t("agent.page.suggestionsEmpty")}</strong>
                 <div className="workspace-route__actions">
                   <Link className="bubli-button bubli-button--primary" href="/app/resources">
-                    자료보드
+                    {t("agent.page.resources")}
                   </Link>
                   <Link className="bubli-button" href="/app/project-rooms">
-                    프로젝트룸
+                    {t("agent.page.projectRooms")}
                   </Link>
                 </div>
               </GlassPanel>
             ) : (
               <div className="workspace-route__list">
                 {state.suggestions.map((item) => {
-                  const title = displayText(item.payloadJson, typeLabels[item.suggestionType]);
+                  const typeLabel = t(typeLabelKeys[item.suggestionType]);
+                  const title = displayText(item.payloadJson, typeLabel);
                   const disabled = updatingId === item.suggestionId || item.status !== "DRAFT";
                   const dateLabel = formatDate(item.createdAt);
 
@@ -441,21 +447,21 @@ function AgentPageContent() {
                       <span className="workspace-route__dot" aria-hidden="true" />
                       <span className="workspace-route__main">
                         <strong>{title}</strong>
-                        <span>{dateLabel ? `${typeLabels[item.suggestionType]} · ${dateLabel}` : typeLabels[item.suggestionType]}</span>
+                        <span>{dateLabel ? t("agent.page.typeDateSeparator", { type: typeLabel, date: dateLabel }) : typeLabel}</span>
                       </span>
-                      <StatusBadge tone={statusTone(item.status)}>{statusLabels[item.status]}</StatusBadge>
+                      <StatusBadge tone={statusTone(item.status)}>{t(statusLabelKeys[item.status])}</StatusBadge>
                       <span className="workspace-route__actions workspace-route__actions--compact">
                         <button disabled={disabled} onClick={() => void review(item.suggestionId, "APPROVE")} type="button">
                           <Check aria-hidden size={14} />
-                          승인
+                          {t("agent.page.approve")}
                         </button>
                         <button disabled={disabled} onClick={() => void review(item.suggestionId, "HOLD")} type="button">
                           <Pause aria-hidden size={14} />
-                          보류
+                          {t("agent.page.hold")}
                         </button>
                         <button disabled={disabled} onClick={() => void review(item.suggestionId, "REJECT")} type="button">
                           <X aria-hidden size={14} />
-                          제외
+                          {t("agent.page.reject")}
                         </button>
                       </span>
                     </article>
@@ -467,12 +473,12 @@ function AgentPageContent() {
 
           <section className="workspace-route__section" aria-labelledby="daily-summary-title">
             <div className="workspace-route__section-head">
-              <h2 id="daily-summary-title">하루 정리</h2>
-              <StatusBadge tone={state.dailySummaries.length > 0 ? "personal" : "neutral"}>{state.dailySummaries.length}개</StatusBadge>
+              <h2 id="daily-summary-title">{t("agent.page.dailyTitle")}</h2>
+              <StatusBadge tone={state.dailySummaries.length > 0 ? "personal" : "neutral"}>{t("agent.page.suggestionsCount", { count: state.dailySummaries.length })}</StatusBadge>
             </div>
             {state.dailySummaries.length === 0 ? (
               <GlassPanel className="workspace-route__panel">
-                <strong>저장된 하루 정리가 없습니다</strong>
+                <strong>{t("agent.page.dailyEmpty")}</strong>
               </GlassPanel>
             ) : (
               <div className="workspace-route__list">
@@ -481,10 +487,10 @@ function AgentPageContent() {
                     <span className="workspace-route__dot" aria-hidden="true" />
                     <span className="workspace-route__main">
                       <strong>{summary.summaryDate}</strong>
-                      <span>{displayJsonText(summary.summaryJson, "하루 정리 내용")}</span>
+                      <span>{displayJsonText(summary.summaryJson, t("agent.page.dailyContentFallback"))}</span>
                     </span>
                     <StatusBadge tone={summary.status === "APPROVED" ? "approved" : "pending"}>
-                      {summary.status === "APPROVED" ? "승인됨" : "초안"}
+                      {summary.status === "APPROVED" ? t("agent.page.statusApproved") : t("agent.page.statusDraft")}
                     </StatusBadge>
                     <Button
                       disabled={summary.status === "APPROVED"}
@@ -493,7 +499,7 @@ function AgentPageContent() {
                       size="sm"
                       variant="quiet"
                     >
-                      승인
+                      {t("agent.page.approve")}
                     </Button>
                   </article>
                 ))}
@@ -503,12 +509,12 @@ function AgentPageContent() {
 
           <section className="workspace-route__section" aria-labelledby="generated-documents-title">
             <div className="workspace-route__section-head">
-              <h2 id="generated-documents-title">생성 문서</h2>
-              <StatusBadge tone={state.generatedDocuments.length > 0 ? "room" : "neutral"}>{state.generatedDocuments.length}개</StatusBadge>
+              <h2 id="generated-documents-title">{t("agent.page.generatedTitle")}</h2>
+              <StatusBadge tone={state.generatedDocuments.length > 0 ? "room" : "neutral"}>{t("agent.page.suggestionsCount", { count: state.generatedDocuments.length })}</StatusBadge>
             </div>
             {state.generatedDocuments.length === 0 ? (
               <GlassPanel className="workspace-route__panel">
-                <strong>생성된 문서가 없습니다</strong>
+                <strong>{t("agent.page.generatedEmpty")}</strong>
               </GlassPanel>
             ) : (
               <div className="workspace-route__list">
@@ -522,11 +528,11 @@ function AgentPageContent() {
                     <span className="workspace-route__actions workspace-route__actions--compact">
                       <button disabled={openingDocumentId === item.id} onClick={() => void openDocument(item.id)} type="button">
                         <Eye aria-hidden size={14} />
-                        {openingDocumentId === item.id ? "여는 중" : "열기"}
+                        {openingDocumentId === item.id ? t("agent.page.opening") : t("agent.page.open")}
                       </button>
                       <button disabled={exportingDocumentId === item.id} onClick={() => void exportDocument(item.id)} type="button">
                         <Download aria-hidden size={14} />
-                        {exportingDocumentId === item.id ? "내려받는 중" : "내려받기"}
+                        {exportingDocumentId === item.id ? t("agent.page.exporting") : t("agent.page.export")}
                       </button>
                     </span>
                   </article>
@@ -541,7 +547,7 @@ function AgentPageContent() {
                     <span>{selectedDocument.documentType}</span>
                   </div>
                   <button
-                    aria-label="문서 미리보기 닫기"
+                    aria-label={t("agent.page.documentPreviewCloseAria")}
                     className="workspace-route__icon-button"
                     onClick={() => setSelectedDocument(null)}
                     type="button"
@@ -550,7 +556,7 @@ function AgentPageContent() {
                   </button>
                 </div>
                 <pre className="workspace-route__document-body">
-                  {selectedDocument.contentMarkdown.trim().length > 0 ? selectedDocument.contentMarkdown : "문서 본문이 비어 있습니다."}
+                  {selectedDocument.contentMarkdown.trim().length > 0 ? selectedDocument.contentMarkdown : t("agent.page.documentEmptyBody")}
                 </pre>
                 <div className="workspace-route__actions">
                   <Button
@@ -560,7 +566,7 @@ function AgentPageContent() {
                     size="sm"
                     variant="quiet"
                   >
-                    문서 내려받기
+                    {t("agent.page.exportDocument")}
                   </Button>
                 </div>
               </GlassPanel>
@@ -570,14 +576,14 @@ function AgentPageContent() {
           {state.selectedRoomId ? (
             <section className="workspace-route__section" aria-labelledby="room-memory-title">
               <div className="workspace-route__section-head">
-                <h2 id="room-memory-title">룸 메모리 요약</h2>
+                <h2 id="room-memory-title">{t("agent.page.roomMemoryTitle")}</h2>
                 <StatusBadge tone={state.roomMemorySummaries.length > 0 ? "agent" : "neutral"}>
-                  {state.roomMemorySummaries.length}개
+                  {t("agent.page.suggestionsCount", { count: state.roomMemorySummaries.length })}
                 </StatusBadge>
               </div>
               {state.roomMemorySummaries.length === 0 ? (
                 <GlassPanel className="workspace-route__panel">
-                  <strong>저장된 룸 메모리 요약이 없습니다</strong>
+                  <strong>{t("agent.page.roomMemoryEmpty")}</strong>
                 </GlassPanel>
               ) : (
                 <div className="workspace-route__list">
@@ -586,12 +592,12 @@ function AgentPageContent() {
                       <span className="workspace-route__dot" aria-hidden="true" />
                       <span className="workspace-route__main">
                         <strong>
-                          메시지 {item.fromSequence}-{item.toSequence}
+                          {t("agent.page.messageRange", { from: item.fromSequence, to: item.toSequence })}
                         </strong>
-                        <span>{displayJsonText(item.summaryJson, "룸 메모리 요약")}</span>
+                        <span>{displayJsonText(item.summaryJson, t("agent.page.roomMemoryContentFallback"))}</span>
                       </span>
                       <StatusBadge tone={item.status === "APPROVED" ? "approved" : "pending"}>
-                        {item.status === "APPROVED" ? "승인됨" : "초안"}
+                        {item.status === "APPROVED" ? t("agent.page.statusApproved") : t("agent.page.statusDraft")}
                       </StatusBadge>
                     </article>
                   ))}
@@ -606,8 +612,10 @@ function AgentPageContent() {
 }
 
 export default function AgentPage() {
+  const { t } = useI18n();
+
   return (
-    <Suspense fallback={<GlassPanel className="workspace-route__panel">후보 데이터를 불러오는 중</GlassPanel>}>
+    <Suspense fallback={<GlassPanel className="workspace-route__panel">{t("agent.page.loadingData")}</GlassPanel>}>
       <AgentPageContent />
     </Suspense>
   );

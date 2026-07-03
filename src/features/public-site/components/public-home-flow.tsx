@@ -3,42 +3,51 @@
 import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const flowSteps = [
+const flowSteps: {
+  bodyKey: MessageKey;
+  headlineKey: MessageKey;
+  labelKey: MessageKey;
+  shortKey: MessageKey;
+  titleKey: MessageKey;
+}[] = [
   {
-    body: "요구사항과 회의록을 프로젝트룸에 넣으면, 자료가 흩어진 파일이 아니라 오늘 일을 만드는 출발점이 됩니다.",
-    headline: "자료가 한곳에 모입니다",
-    label: "들어온 자료",
-    short: "자료",
-    title: "받은 자료를 올리면",
+    bodyKey: "public.flow.step1Body",
+    headlineKey: "public.flow.step1Headline",
+    labelKey: "public.flow.step1Label",
+    shortKey: "public.flow.step1Short",
+    titleKey: "public.flow.step1Title",
   },
   {
-    body: "Bubli는 납품일, 확인 질문, 작업 범위처럼 다시 봐야 할 부분만 후보로 꺼냅니다.",
-    headline: "확인할 일만 남깁니다",
-    label: "정리 후보",
-    short: "후보",
-    title: "필요한 것만 골라",
+    bodyKey: "public.flow.step2Body",
+    headlineKey: "public.flow.step2Headline",
+    labelKey: "public.flow.step2Label",
+    shortKey: "public.flow.step2Short",
+    titleKey: "public.flow.step2Title",
   },
   {
-    body: "사용자가 승인한 후보만 실제 TODO와 일정으로 이어집니다. 에이전트가 임의로 일을 바꾸지 않습니다.",
-    headline: "내가 확인하면 일이 됩니다",
-    label: "사용자 확인",
-    short: "승인",
-    title: "확정하면",
+    bodyKey: "public.flow.step3Body",
+    headlineKey: "public.flow.step3Headline",
+    labelKey: "public.flow.step3Label",
+    shortKey: "public.flow.step3Short",
+    titleKey: "public.flow.step3Title",
   },
   {
-    body: "확정된 일은 작업판, 대시보드, 데스크탑 버블에서 같은 기준으로 다시 보입니다.",
-    headline: "오늘 할 일로 이어집니다",
-    label: "실행 화면",
-    short: "실행",
-    title: "작업 중에도",
+    bodyKey: "public.flow.step4Body",
+    headlineKey: "public.flow.step4Headline",
+    labelKey: "public.flow.step4Label",
+    shortKey: "public.flow.step4Short",
+    titleKey: "public.flow.step4Title",
   },
 ];
 
 type StickyMode = "before" | "fixed" | "after";
 
 export function PublicHomeFlow() {
+  const { t } = useI18n();
   const sectionRef = useRef<HTMLElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [progress, setProgress] = useState(0);
@@ -103,20 +112,20 @@ export function PublicHomeFlow() {
   const flowStyle = { "--flow-progress": progress, ...stickyFrame } as CSSProperties;
 
   return (
-    <section className="public-home-flow public-home-flow--story" aria-label="Bubli 핵심 업무 흐름" ref={sectionRef}>
+    <section className="public-home-flow public-home-flow--story" aria-label={t("public.flow.aria")} ref={sectionRef}>
       <div className={cn("public-home-flow__sticky", `is-${stickyMode}`)} style={flowStyle}>
         <video aria-hidden="true" autoPlay className="public-home-flow__video" loop muted playsInline poster="/landing/hero-bg.png">
           <source src="/landing/slow-bubble-flow.mp4" type="video/mp4" />
         </video>
         <span aria-hidden="true" className="public-home-flow__veil" />
         <div className="public-home-flow__copy">
-          <span className="public-home-flow__eyebrow">받은 자료가 오늘 할 일이 되기까지</span>
+          <span className="public-home-flow__eyebrow">{t("public.flow.eyebrow")}</span>
           <h2>
-            {activeStep.title}
+            {t(activeStep.titleKey)}
             <br />
-            <span>{activeStep.headline}</span>
+            <span>{t(activeStep.headlineKey)}</span>
           </h2>
-          <p>{activeStep.body}</p>
+          <p>{t(activeStep.bodyKey)}</p>
         </div>
 
         <div className="public-home-flow__story-visual" aria-live="polite" data-step={activeIndex}>
@@ -126,34 +135,34 @@ export function PublicHomeFlow() {
             <span />
           </div>
           <article className="public-home-flow__story-card">
-            <span>{activeStep.label}</span>
-            <h3>{activeStep.title}</h3>
-            <p>{activeStep.body}</p>
+            <span>{t(activeStep.labelKey)}</span>
+            <h3>{t(activeStep.titleKey)}</h3>
+            <p>{t(activeStep.bodyKey)}</p>
           </article>
           <div className="public-home-flow__story-output" aria-hidden="true">
-            <b>{activeIndex < 2 ? "정리 중" : "오늘 할 일"}</b>
-            <span>{activeIndex < 2 ? "아직 확정하지 않은 후보" : "확정된 일만 표시"}</span>
+            <b>{activeIndex < 2 ? t("public.flow.outputTitlePending") : t("public.flow.outputTitleReady")}</b>
+            <span>{activeIndex < 2 ? t("public.flow.outputSubPending") : t("public.flow.outputSubReady")}</span>
           </div>
           <div className="public-home-flow__story-trace" aria-hidden="true">
             {flowSteps.map((step, index) => (
-              <span className={cn(index <= activeIndex && "is-on")} key={step.short} />
+              <span className={cn(index <= activeIndex && "is-on")} key={step.shortKey} />
             ))}
           </div>
         </div>
       </div>
 
-      <div className="public-home-flow__scroll-track" aria-label="자료에서 실행 화면까지 이어지는 순서">
+      <div className="public-home-flow__scroll-track" aria-label={t("public.flow.trackAria")}>
         <div className="public-home-flow__steps">
           {flowSteps.map((step, index) => {
             return (
-              <article className={cn("public-home-flow__step", index === activeIndex && "is-active")} key={step.title}>
+              <article className={cn("public-home-flow__step", index === activeIndex && "is-active")} key={step.titleKey}>
                 <span className="public-home-flow__step-index" aria-hidden="true">
                   {String(index + 1).padStart(2, "0")}
                 </span>
                 <div>
-                  <span className="public-home-flow__step-meta">{step.short}</span>
-                  <h3>{step.title}</h3>
-                  <p>{step.body}</p>
+                  <span className="public-home-flow__step-meta">{t(step.shortKey)}</span>
+                  <h3>{t(step.titleKey)}</h3>
+                  <p>{t(step.bodyKey)}</p>
                 </div>
               </article>
             );

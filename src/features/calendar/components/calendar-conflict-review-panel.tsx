@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AlertTriangle,
   CalendarClock,
@@ -16,6 +18,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./calendar-conflict-review-panel.module.css";
@@ -33,8 +37,8 @@ type CalendarConflict = {
 };
 
 type CalendarReviewRule = {
-  description: string;
-  label: string;
+  descriptionKey: MessageKey;
+  labelKey: MessageKey;
   tone: StatusTone;
 };
 
@@ -52,10 +56,10 @@ const conflictIcons: Record<CalendarConflictKind, typeof Clock3> = {
   TITLE: CalendarClock,
 };
 
-const statusMeta: Record<CalendarConflictStatus, { actionLabel: string; label: string; tone: StatusTone }> = {
-  BLOCKED: { actionLabel: "권한 확인", label: "확인 보류", tone: "warning" },
-  MATCHED: { actionLabel: "유지", label: "일치", tone: "approved" },
-  NEEDS_REVIEW: { actionLabel: "확인", label: "확인 필요", tone: "pending" },
+const statusMeta: Record<CalendarConflictStatus, { actionLabelKey: MessageKey; labelKey: MessageKey; tone: StatusTone }> = {
+  BLOCKED: { actionLabelKey: "calendar.conflict.status.blocked.action", labelKey: "calendar.conflict.status.blocked.label", tone: "warning" },
+  MATCHED: { actionLabelKey: "calendar.conflict.status.matched.action", labelKey: "calendar.conflict.status.matched.label", tone: "approved" },
+  NEEDS_REVIEW: { actionLabelKey: "calendar.conflict.status.needsReview.action", labelKey: "calendar.conflict.status.needsReview.label", tone: "pending" },
 };
 
 export const defaultCalendarConflicts: CalendarConflict[] = [
@@ -95,18 +99,18 @@ export const defaultCalendarConflicts: CalendarConflict[] = [
 
 export const defaultCalendarReviewRules: CalendarReviewRule[] = [
   {
-    description: "Bubli 일정은 서버에 저장된 일정을 원본으로 보고, Google Calendar 값은 비교 대상으로 표시합니다.",
-    label: "서버 원본 기준",
+    descriptionKey: "calendar.conflict.rule.serverSource.description",
+    labelKey: "calendar.conflict.rule.serverSource.label",
     tone: "room",
   },
   {
-    description: "시간, 제목, 연결된 TODO가 다르면 사용자가 확인한 값만 일정과 버블에 반영합니다.",
-    label: "사용자 확인",
+    descriptionKey: "calendar.conflict.rule.userConfirm.description",
+    labelKey: "calendar.conflict.rule.userConfirm.label",
     tone: "approved",
   },
   {
-    description: "외부 캘린더 접근은 연결된 계정과 프로젝트룸 접근 권한을 모두 확인합니다.",
-    label: "권한 확인",
+    descriptionKey: "calendar.conflict.rule.permission.description",
+    labelKey: "calendar.conflict.rule.permission.label",
     tone: "warning",
   },
 ];
@@ -116,9 +120,10 @@ export function CalendarConflictReviewPanel({
   conflicts,
   lastSyncedLabel,
   rules,
-  title = "일정 충돌 확인",
+  title,
   ...props
 }: CalendarConflictReviewPanelProps) {
+  const { t } = useI18n();
   const reviewCount = conflicts.filter((conflict) => conflict.status !== "MATCHED").length;
   const matchedCount = conflicts.length - reviewCount;
 
@@ -126,36 +131,33 @@ export function CalendarConflictReviewPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<CalendarDays size={16} strokeWidth={2.1} />}>Bubli 일정</Chip>
+          <Chip icon={<CalendarDays size={16} strokeWidth={2.1} />}>{t("calendar.conflict.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              Bubli 일정과 Google Calendar 일정을 비교해 시간, 제목, TODO 연결 차이를 보여줍니다. 확인한 값만 서버
-              일정과 버블 표시 데이터에 반영합니다.
-            </p>
+            <h2 className={styles.title}>{title ?? t("calendar.conflict.panelTitle")}</h2>
+            <p className={styles.description}>{t("calendar.conflict.description")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>확인 필요</span>
-          <strong>{reviewCount}건</strong>
-          <StatusBadge tone="approved">일치 {matchedCount}건</StatusBadge>
+          <span>{t("calendar.conflict.reviewNeeded")}</span>
+          <strong>{t("calendar.conflict.reviewCount", { count: reviewCount })}</strong>
+          <StatusBadge tone="approved">{t("calendar.conflict.matchedCount", { count: matchedCount })}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.syncCard} aria-label="캘린더 동기화 상태">
+      <section className={styles.syncCard} aria-label={t("calendar.conflict.syncCard.aria")}>
         <span className={styles.iconTile}>
           <RefreshCw size={18} strokeWidth={2.1} aria-hidden="true" />
         </span>
         <div>
-          <strong>마지막 확인</strong>
+          <strong>{t("calendar.conflict.lastChecked")}</strong>
           <p>{lastSyncedLabel}</p>
         </div>
         <Button icon={<ExternalLink size={15} strokeWidth={2.1} />} size="sm" variant="quiet">
-          연결 보기
+          {t("calendar.conflict.viewConnection")}
         </Button>
       </section>
 
-      <section className={styles.conflictList} aria-label="일정 충돌 목록">
+      <section className={styles.conflictList} aria-label={t("calendar.conflict.list.aria")}>
         {conflicts.map((conflict) => {
           const ConflictIcon = conflictIcons[conflict.kind];
           const status = statusMeta[conflict.status];
@@ -173,7 +175,7 @@ export function CalendarConflictReviewPanel({
                   <strong>{conflict.title}</strong>
                   <span>{conflict.projectRoomName}</span>
                 </div>
-                <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
               </div>
 
               <div className={styles.valueGrid}>
@@ -193,7 +195,7 @@ export function CalendarConflictReviewPanel({
                   {conflict.kind.toLowerCase()}
                 </span>
                 <Button size="sm" variant={conflict.status === "MATCHED" ? "ghost" : "quiet"}>
-                  {status.actionLabel}
+                  {t(status.actionLabelKey)}
                 </Button>
               </footer>
             </article>
@@ -201,13 +203,13 @@ export function CalendarConflictReviewPanel({
         })}
       </section>
 
-      <section className={styles.ruleGrid} aria-label="일정 확인 기준">
+      <section className={styles.ruleGrid} aria-label={t("calendar.conflict.rules.aria")}>
         {rules.map((rule) => (
-          <article key={rule.label}>
+          <article key={rule.labelKey}>
             <CheckCircle2 size={18} strokeWidth={2.1} aria-hidden="true" />
             <div>
-              <StatusBadge tone={rule.tone}>{rule.label}</StatusBadge>
-              <p>{rule.description}</p>
+              <StatusBadge tone={rule.tone}>{t(rule.labelKey)}</StatusBadge>
+              <p>{t(rule.descriptionKey)}</p>
             </div>
           </article>
         ))}

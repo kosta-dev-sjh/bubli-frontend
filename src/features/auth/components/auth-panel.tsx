@@ -7,6 +7,7 @@ import { useState, type CSSProperties, type PointerEvent } from "react";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { siteConfig } from "@/config/site";
 import { AuthConfigurationError, authApi } from "@/features/auth/api/authApi";
+import { useI18n } from "@/lib/i18n";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 function GoogleIcon() {
@@ -73,6 +74,7 @@ function handleSubmitPointerLeave(event: PointerEvent<HTMLButtonElement>) {
 }
 
 export function AuthPanel() {
+  const { t } = useI18n();
   const router = useRouter();
   const [isStartingLogin, setIsStartingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -96,8 +98,8 @@ export function AuthPanel() {
     } catch (error) {
       setLoginError(
         error instanceof AuthConfigurationError
-          ? "구글 로그인 설정을 확인하고 있습니다. 잠시 뒤 다시 시도해 주세요."
-          : "로그인 시작에 실패했습니다. 잠시 뒤 다시 시도하세요.",
+          ? t("auth.panel.errorConfig")
+          : t("auth.panel.errorStart"),
       );
       setIsStartingLogin(false);
     }
@@ -106,7 +108,7 @@ export function AuthPanel() {
   return (
     <main
       className="auth-page"
-      aria-label="로그인"
+      aria-label={t("auth.panel.pageAria")}
       onPointerLeave={handlePagePointerLeave}
       onPointerMove={handlePagePointerMove}
       style={{ "--auth-x": 0, "--auth-y": 0 } as CSSProperties}
@@ -129,14 +131,14 @@ export function AuthPanel() {
         </Link>
         <p className="auth-page__welcome">Welcome!</p>
         <h1>
-          <span>받은 자료를,</span>
-          <span>오늘 일로 이어갑니다.</span>
+          <span>{t("auth.panel.headingLine1")}</span>
+          <span>{t("auth.panel.headingLine2")}</span>
         </h1>
-        <p>프리랜서를 위한 업무 비서</p>
+        <p>{t("auth.panel.tagline")}</p>
       </section>
 
       <GlassPanel as="section" className="auth-card">
-        <div className="auth-form" aria-label="구글 계정 로그인">
+        <div className="auth-form" aria-label={t("auth.panel.formAria")}>
           <button
             className="bubli-button bubli-button--primary bubli-button--lg auth-card__submit"
             disabled={isStartingLogin}
@@ -156,7 +158,7 @@ export function AuthPanel() {
             type="button"
           >
             <GoogleIcon />
-            {isStartingLogin ? "구글로 이동 중" : "구글로 로그인"}
+            {isStartingLogin ? t("auth.panel.googleRedirecting") : t("auth.panel.googleLogin")}
           </button>
           {loginError ? <p className="auth-card__error">{loginError}</p> : null}
         </div>

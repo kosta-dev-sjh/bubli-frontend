@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArchiveRestore,
   Bot,
@@ -18,9 +20,13 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./daily-summary-evidence-panel.module.css";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 export type DailySummaryStatus = "DRAFT" | "READY_TO_APPROVE" | "APPROVED" | "HELD";
 
@@ -44,11 +50,11 @@ type DailySummaryEvidencePanelProps = HTMLAttributes<HTMLElement> & {
   status?: DailySummaryStatus;
 };
 
-const statusCopy: Record<DailySummaryStatus, string> = {
-  APPROVED: "승인됨",
-  DRAFT: "작성 중",
-  HELD: "보류",
-  READY_TO_APPROVE: "확인 대기",
+const statusCopyKeys: Record<DailySummaryStatus, MessageKey> = {
+  APPROVED: "agent.daily.statusApproved",
+  DRAFT: "agent.daily.statusDraft",
+  HELD: "agent.daily.statusHeld",
+  READY_TO_APPROVE: "agent.daily.statusReadyToApprove",
 };
 
 const statusTone: Record<DailySummaryStatus, StatusTone> = {
@@ -58,45 +64,46 @@ const statusTone: Record<DailySummaryStatus, StatusTone> = {
   READY_TO_APPROVE: "agent",
 };
 
+// countLabel/description/label/source は t() キーを保持し、レンダー時に翻訳する(label "TODO" は t() 폴백で그대로 통과)。
 const defaultEvidenceItems: DailySummaryEvidence[] = [
   {
-    countLabel: "완료 6개",
-    description: "완료 TODO와 남은 TODO를 오늘 업무 기준으로 정리합니다.",
+    countLabel: "agent.daily.ev1Count",
+    description: "agent.daily.ev1Desc",
     id: "tasks",
     label: "TODO",
-    source: "서버 TODO",
+    source: "agent.daily.ev1Source",
     tone: "todo",
   },
   {
-    countLabel: "3시간 42분",
-    description: "총 작업시간은 서버에 저장된 작업 시간 기록 기준으로 계산합니다.",
+    countLabel: "agent.daily.ev2Count",
+    description: "agent.daily.ev2Desc",
     id: "time",
-    label: "작업 시간",
-    source: "서버 작업시간",
+    label: "agent.daily.ev2Label",
+    source: "agent.daily.ev2Source",
     tone: "timer",
   },
   {
-    countLabel: "일정 4개",
-    description: "오늘 일정과 지나간 마감을 함께 확인합니다.",
+    countLabel: "agent.daily.ev3Count",
+    description: "agent.daily.ev3Desc",
     id: "schedule",
-    label: "일정",
-    source: "서버 일정",
+    label: "agent.daily.ev3Label",
+    source: "agent.daily.ev3Source",
     tone: "room",
   },
   {
-    countLabel: "집계 8건",
-    description: "기기별 위젯 사용 집계를 날짜 기준으로 합산합니다.",
+    countLabel: "agent.daily.ev4Count",
+    description: "agent.daily.ev4Desc",
     id: "widget",
-    label: "위젯 사용 집계",
-    source: "위젯 사용 집계",
+    label: "agent.daily.ev4Label",
+    source: "agent.daily.ev4Source",
     tone: "personal",
   },
   {
-    countLabel: "기기 안 요약 1개",
-    description: "개인 에이전트 원문 대신 기기 안 요약 참조만 하루정리에 씁니다.",
+    countLabel: "agent.daily.ev5Count",
+    description: "agent.daily.ev5Desc",
     id: "agent",
-    label: "개인 에이전트 요약",
-    source: "기기 안 개인 에이전트 요약",
+    label: "agent.daily.ev5Label",
+    source: "agent.daily.ev5Source",
     tone: "agent",
   },
 ];
@@ -104,15 +111,18 @@ const defaultEvidenceItems: DailySummaryEvidence[] = [
 export function DailySummaryEvidencePanel({
   approvedSourceCount = 4,
   className,
-  dateLabel = "오늘",
+  dateLabel,
   evidenceItems = defaultEvidenceItems,
-  localContextLabel = "최근 개인 에이전트 원문 100개 기준",
+  localContextLabel,
   onApproveSummary,
   onCreateLocalBackup,
   onRefreshEvidence,
   status = "READY_TO_APPROVE",
   ...props
 }: DailySummaryEvidencePanelProps) {
+  const { t } = useI18n();
+  const resolvedDateLabel = dateLabel ?? t("agent.daily.today");
+  const resolvedLocalContext = localContextLabel ?? t("agent.daily.localContext");
   const totalSourceCount = evidenceItems.length;
   const evidencePercent = Math.round((approvedSourceCount / Math.max(totalSourceCount, 1)) * 100);
 
@@ -124,78 +134,78 @@ export function DailySummaryEvidencePanel({
             <Bot size={22} />
           </span>
           <div>
-            <StatusBadge tone={statusTone[status]}>{statusCopy[status]}</StatusBadge>
-            <h2>하루정리 근거 확인</h2>
-            <p>확정된 기록과 기기 안 요약을 모아 후보를 만들고, 사용자가 확인한 요약만 저장합니다.</p>
+            <StatusBadge tone={statusTone[status]}>{t(statusCopyKeys[status])}</StatusBadge>
+            <h2>{t("agent.daily.title")}</h2>
+            <p>{t("agent.daily.subtitle")}</p>
           </div>
         </div>
         <div className={styles.actions}>
           <Button icon={<FileCheck2 size={15} />} onClick={onRefreshEvidence} size="sm" variant="quiet">
-            근거 다시 보기
+            {t("agent.daily.reviewEvidence")}
           </Button>
           <Button icon={<CheckCircle2 size={15} />} onClick={onApproveSummary} size="sm" variant="primary">
-            확인 후 저장
+            {t("agent.daily.saveAfterCheck")}
           </Button>
         </div>
       </header>
 
       <div className={styles.summaryCard}>
         <div>
-          <Chip>{dateLabel}</Chip>
-          <strong>{approvedSourceCount} / {totalSourceCount}개 근거 준비</strong>
-          <span>저장 대상은 사용자가 확인한 요약과 근거 범위입니다.</span>
+          <Chip>{resolvedDateLabel}</Chip>
+          <strong>{t("agent.daily.evidenceReady", { approved: approvedSourceCount, total: totalSourceCount })}</strong>
+          <span>{t("agent.daily.saveTargetNote")}</span>
         </div>
-        <ProgressBar label="하루정리 근거 준비율" value={evidencePercent} />
+        <ProgressBar label={t("agent.daily.evidenceBar")} value={evidencePercent} />
       </div>
 
-      <div className={styles.evidenceGrid} aria-label="하루정리 입력 근거">
+      <div className={styles.evidenceGrid} aria-label={t("agent.daily.evidenceGridAria")}>
         {evidenceItems.map((item) => (
-          <EvidenceCard item={item} key={item.id} />
+          <EvidenceCard item={item} key={item.id} t={t} />
         ))}
       </div>
 
       <div className={styles.boundaryGrid}>
         <BoundaryItem
           icon={<Database size={17} />}
-          label="서버에 남는 값"
-          value="사용자가 확인한 하루정리 요약과 근거 범위만 저장합니다."
+          label={t("agent.daily.boundaryServerLabel")}
+          value={t("agent.daily.boundaryServerValue")}
         />
         <BoundaryItem
           icon={<LockKeyhole size={17} />}
-          label="기기 안에만 남는 값"
-          value="개인 에이전트 원문과 상세 위젯 이벤트 원문은 기기 안에 둡니다."
+          label={t("agent.daily.boundaryLocalLabel")}
+          value={t("agent.daily.boundaryLocalValue")}
         />
         <BoundaryItem
           icon={<ArchiveRestore size={17} />}
-          label="복구 기준"
-          value="승인된 요약은 서버에서 다시 불러오고, 기기 안 원문은 백업이 없으면 복구하지 못합니다."
+          label={t("agent.daily.boundaryRestoreLabel")}
+          value={t("agent.daily.boundaryRestoreValue")}
         />
       </div>
 
       <footer className={styles.footer}>
         <div>
           <ShieldCheck size={16} />
-          {localContextLabel}
+          {resolvedLocalContext}
         </div>
         <Button icon={<ArchiveRestore size={14} />} onClick={onCreateLocalBackup} size="sm" variant="ghost">
-          기기 안 백업 만들기
+          {t("agent.daily.createLocalBackup")}
         </Button>
       </footer>
     </GlassPanel>
   );
 }
 
-function EvidenceCard({ item }: { item: DailySummaryEvidence }) {
+function EvidenceCard({ item, t }: { item: DailySummaryEvidence; t: TranslateFn }) {
   return (
     <article className={styles.evidenceCard}>
       <span aria-hidden="true">{evidenceIcon[item.id] ?? <Database size={17} />}</span>
       <div>
         <div className={styles.cardTop}>
-          <StatusBadge tone={item.tone}>{item.label}</StatusBadge>
-          <Chip>{item.countLabel}</Chip>
+          <StatusBadge tone={item.tone}>{t(item.label as MessageKey)}</StatusBadge>
+          <Chip>{t(item.countLabel as MessageKey)}</Chip>
         </div>
-        <strong>{item.source}</strong>
-        <p>{item.description}</p>
+        <strong>{t(item.source as MessageKey)}</strong>
+        <p>{t(item.description as MessageKey)}</p>
       </div>
     </article>
   );

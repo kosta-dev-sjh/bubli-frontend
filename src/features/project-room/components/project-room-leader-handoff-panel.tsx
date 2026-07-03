@@ -14,6 +14,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./project-room-leader-handoff-panel.module.css";
@@ -43,15 +45,15 @@ export type ProjectRoomLeaderHandoffPanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const statusMeta: Record<HandoffStatus, { actionLabel: string; label: string; tone: StatusTone }> = {
-  MEMBER_ONLY: { actionLabel: "보기", label: "일반 멤버", tone: "personal" },
-  NEEDS_LEADER: { actionLabel: "위임 선택", label: "위임 필요", tone: "warning" },
-  READY: { actionLabel: "나가기", label: "나가기 가능", tone: "approved" },
+const statusMetaKey: Record<HandoffStatus, { actionLabelKey: MessageKey; labelKey: MessageKey; tone: StatusTone }> = {
+  MEMBER_ONLY: { actionLabelKey: "room.handoff.statusMemberOnlyAction", labelKey: "room.handoff.statusMemberOnlyLabel", tone: "personal" },
+  NEEDS_LEADER: { actionLabelKey: "room.handoff.statusNeedsLeaderAction", labelKey: "room.handoff.statusNeedsLeaderLabel", tone: "warning" },
+  READY: { actionLabelKey: "room.handoff.statusReadyAction", labelKey: "room.handoff.statusReadyLabel", tone: "approved" },
 };
 
-const roleMeta: Record<MemberRole, { label: string; tone: StatusTone }> = {
-  MEMBER: { label: "멤버", tone: "personal" },
-  PROJECT_LEADER: { label: "프로젝트 리더", tone: "room" },
+const roleMetaKey: Record<MemberRole, { labelKey: MessageKey; tone: StatusTone }> = {
+  MEMBER: { labelKey: "room.handoff.roleMember", tone: "personal" },
+  PROJECT_LEADER: { labelKey: "room.handoff.roleLeader", tone: "room" },
 };
 
 export const defaultHandoffCandidates: HandoffCandidate[] = [
@@ -102,9 +104,11 @@ export function ProjectRoomLeaderHandoffPanel({
   currentUserName,
   roomName,
   rules,
-  title = "프로젝트룸 나가기",
+  title,
   ...props
 }: ProjectRoomLeaderHandoffPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("room.handoff.defaultTitle");
   const hasOtherLeader = candidates.some(
     (candidate) => candidate.role === "PROJECT_LEADER" && candidate.displayName !== currentUserName,
   );
@@ -114,41 +118,36 @@ export function ProjectRoomLeaderHandoffPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<DoorOpen size={16} strokeWidth={2.1} />}>멤버 권한</Chip>
+          <Chip icon={<DoorOpen size={16} strokeWidth={2.1} />}>{t("room.handoff.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              프로젝트룸을 나가기 전에 초대, 권한 변경, 설정을 관리할 프로젝트 리더가 남아 있는지 확인합니다. 리더가
-              비게 되면 위임 후보를 먼저 선택합니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("room.handoff.description")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
           <span>{roomName}</span>
-          <strong>{needsHandoff ? "위임 필요" : "나가기 가능"}</strong>
+          <strong>{needsHandoff ? t("room.handoff.needsHandoff") : t("room.handoff.canLeave")}</strong>
           <StatusBadge tone={needsHandoff ? "warning" : "approved"}>{currentUserName}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.stateCard} aria-label="프로젝트 리더 위임 상태">
+      <section className={styles.stateCard} aria-label={t("room.handoff.stateAria")}>
         <span className={styles.iconTile}>
           <KeyRound size={18} strokeWidth={2.1} aria-hidden="true" />
         </span>
         <div>
-          <strong>{needsHandoff ? "다음 프로젝트 리더를 선택하세요" : "다른 프로젝트 리더가 있습니다"}</strong>
-          <p>
-            나가기를 막기 위한 장치가 아니라, 프로젝트룸의 설정과 초대 권한이 비지 않도록 확인하는 단계입니다.
-          </p>
+          <strong>{needsHandoff ? t("room.handoff.selectNext") : t("room.handoff.otherLeaderExists")}</strong>
+          <p>{t("room.handoff.stateNote")}</p>
         </div>
         <Button icon={<UserCheck size={15} strokeWidth={2.1} />} size="sm" variant="quiet">
-          후보 확인
+          {t("room.handoff.checkCandidates")}
         </Button>
       </section>
 
-      <section className={styles.candidateGrid} aria-label="프로젝트 리더 위임 후보">
+      <section className={styles.candidateGrid} aria-label={t("room.handoff.candidateAria")}>
         {candidates.map((candidate) => {
-          const role = roleMeta[candidate.role];
-          const status = statusMeta[candidate.status];
+          const role = roleMetaKey[candidate.role];
+          const status = statusMetaKey[candidate.status];
 
           return (
             <article
@@ -167,25 +166,25 @@ export function ProjectRoomLeaderHandoffPanel({
                   <strong>{candidate.displayName}</strong>
                   <span>{candidate.lastActiveLabel}</span>
                 </div>
-                <StatusBadge tone={role.tone}>{role.label}</StatusBadge>
+                <StatusBadge tone={role.tone}>{t(role.labelKey)}</StatusBadge>
               </div>
 
               <div className={styles.candidateMeta}>
                 <span>
                   <UsersRound size={15} strokeWidth={2.1} aria-hidden="true" />
-                  담당 작업 {candidate.taskCount}개
+                  {t("room.handoff.taskCount", { count: candidate.taskCount })}
                 </span>
-                <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
               </div>
 
               <footer className={styles.candidateFooter}>
-                <span>{role.label}</span>
+                <span>{t(role.labelKey)}</span>
                 <Button
                   disabled={candidate.status === "MEMBER_ONLY"}
                   size="sm"
                   variant={candidate.status === "NEEDS_LEADER" ? "secondary" : "ghost"}
                 >
-                  {status.actionLabel}
+                  {t(status.actionLabelKey)}
                 </Button>
               </footer>
             </article>
@@ -193,7 +192,7 @@ export function ProjectRoomLeaderHandoffPanel({
         })}
       </section>
 
-      <section className={styles.ruleGrid} aria-label="프로젝트룸 나가기 기준">
+      <section className={styles.ruleGrid} aria-label={t("room.handoff.ruleAria")}>
         {rules.map((rule) => (
           <article key={rule.label}>
             <CheckCircle2 size={18} strokeWidth={2.1} aria-hidden="true" />

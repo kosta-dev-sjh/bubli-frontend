@@ -9,6 +9,7 @@ import {
   runTauriAdapter,
   unavailable,
 } from "@/lib/local/adapter-result";
+import { translate } from "@/lib/i18n/translate";
 import type {
   ActivityBufferSyncAdapterResult,
   ActivityContextAdapterResult,
@@ -42,7 +43,7 @@ export async function readCurrentActivityContext(
   if (!input.consentGranted) {
     return blocked(
       "activity_consent_required",
-      "활동 감지는 사용자가 동의한 뒤에만 읽을 수 있습니다.",
+      translate("local.activity.consentRequired"),
       commandName,
     );
   }
@@ -76,7 +77,7 @@ export async function recordCurrentActivityContext(
   if (!segment) {
     return blocked(
       "activity_no_new_duration",
-      "활동 감지는 켜져 있지만 이번 주기에 새로 기록할 체류 시간이 없습니다.",
+      translate("local.activity.noNewDwell"),
       commandName,
     );
   }
@@ -129,7 +130,7 @@ export async function recordCurrentActivityContext(
         windowTitle: context.data.windowTitle,
       },
       commandName,
-      "현재 활동을 서버에 기록했습니다.",
+      translate("local.activity.recorded"),
     );
   } catch (error) {
     await tauriCommands
@@ -163,7 +164,7 @@ export async function syncLocalActivityBufferToServer(input?: {
         syncedAt: staged.data.stagedAt,
       },
       commandName,
-      "서버에 다시 보낼 활동 기록이 없습니다.",
+      translate("local.activity.noResend"),
     );
   }
 
@@ -205,7 +206,7 @@ export async function syncLocalActivityBufferToServer(input?: {
       syncedAt: new Date().toISOString(),
     },
     commandName,
-    `활동 기록 ${sentCount}건을 서버에 다시 반영했습니다.`,
+    translate("local.activity.resent", { count: sentCount }),
   );
 }
 

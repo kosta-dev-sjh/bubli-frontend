@@ -1,3 +1,5 @@
+"use client";
+
 import {
   CheckCircle2,
   Cloud,
@@ -16,6 +18,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./managed-folder-s3-handoff-panel.module.css";
@@ -46,17 +50,17 @@ export type ManagedFolderS3HandoffPanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const statusMeta: Record<FolderEventStatus, { actionLabel: string; label: string; tone: StatusTone }> = {
-  INDEXED: { actionLabel: "보기", label: "색인됨", tone: "personal" },
-  LINKED: { actionLabel: "열기", label: "자료 연결", tone: "approved" },
-  REVIEW_NEEDED: { actionLabel: "선택", label: "확인 필요", tone: "warning" },
-  UPLOAD_WAITING: { actionLabel: "업로드", label: "대기", tone: "pending" },
+const statusMeta: Record<FolderEventStatus, { actionLabelKey: MessageKey; labelKey: MessageKey; tone: StatusTone }> = {
+  INDEXED: { actionLabelKey: "folder.handoff.actionView", labelKey: "folder.handoff.statusIndexed", tone: "personal" },
+  LINKED: { actionLabelKey: "folder.handoff.actionOpen", labelKey: "folder.handoff.statusLinked", tone: "approved" },
+  REVIEW_NEEDED: { actionLabelKey: "folder.handoff.actionSelect", labelKey: "folder.handoff.statusReviewNeeded", tone: "warning" },
+  UPLOAD_WAITING: { actionLabelKey: "folder.handoff.actionUpload", labelKey: "folder.handoff.statusWaiting", tone: "pending" },
 };
 
-const targetMeta: Record<HandoffTarget, { label: string; tone: StatusTone }> = {
-  NEW_VERSION: { label: "새 버전", tone: "agent" },
-  PERSONAL_RESOURCE: { label: "개인 자료", tone: "personal" },
-  ROOM_RESOURCE: { label: "프로젝트룸 자료", tone: "room" },
+const targetMeta: Record<HandoffTarget, { labelKey: MessageKey; tone: StatusTone }> = {
+  NEW_VERSION: { labelKey: "folder.handoff.targetNewVersion", tone: "agent" },
+  PERSONAL_RESOURCE: { labelKey: "folder.handoff.targetPersonal", tone: "personal" },
+  ROOM_RESOURCE: { labelKey: "folder.handoff.targetRoom", tone: "room" },
 };
 
 export const defaultFolderEvents: FolderEvent[] = [
@@ -108,9 +112,11 @@ export function ManagedFolderS3HandoffPanel({
   quotaPercent,
   rules,
   selectedProjectRoom,
-  title = "관리 폴더 업로드 흐름",
+  title,
   ...props
 }: ManagedFolderS3HandoffPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("folder.handoff.title");
   const reviewCount = events.filter((event) => event.status === "REVIEW_NEEDED").length;
   const waitingCount = events.filter((event) => event.status === "UPLOAD_WAITING").length;
 
@@ -118,31 +124,28 @@ export function ManagedFolderS3HandoffPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<FolderSync size={16} strokeWidth={2.1} />}>변경 후보</Chip>
+          <Chip icon={<FolderSync size={16} strokeWidth={2.1} />}>{t("folder.handoff.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              관리 폴더에서 발견한 변경은 곧바로 자료보드에 반영되지 않습니다. 앱이 기기 안 상태를 기록하고,
-              사용자가 선택한 파일만 서버 검증을 거쳐 자료로 연결됩니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("folder.handoff.desc")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
           <span>{folderName}</span>
           <strong>{selectedProjectRoom}</strong>
-          <StatusBadge tone="warning">확인 {reviewCount}개</StatusBadge>
+          <StatusBadge tone="warning">{t("folder.handoff.reviewBadge", { count: reviewCount })}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.flowGrid} aria-label="관리 폴더 자료 반영 흐름">
+      <section className={styles.flowGrid} aria-label={t("folder.handoff.flowAria")}>
         <article className={styles.flowCard}>
           <span className={styles.iconTile}>
             <HardDrive size={19} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <StatusBadge tone="personal">기기 안 기록</StatusBadge>
-            <h3>관리 폴더</h3>
-            <p>지정 폴더의 추가, 수정, 삭제 상태를 기기 안 색인에 기록합니다.</p>
+            <StatusBadge tone="personal">{t("folder.handoff.deviceRecord")}</StatusBadge>
+            <h3>{t("folder.handoff.managedFolder")}</h3>
+            <p>{t("folder.handoff.managedFolderDesc")}</p>
           </div>
         </article>
 
@@ -150,12 +153,12 @@ export function ManagedFolderS3HandoffPanel({
           <span className={styles.iconTile}>
             <ShieldCheck size={20} strokeWidth={2.1} aria-hidden="true" />
           </span>
-          <Chip selected>사용자 선택</Chip>
-          <h3>개인 자료 또는 프로젝트룸 자료로 반영</h3>
-          <p>새 파일, 수정 파일, 삭제 후보를 확인한 뒤 업로드와 버전 반영을 진행합니다.</p>
-          <ProgressBar label="관리 폴더 용량 사용률" value={quotaPercent} />
+          <Chip selected>{t("folder.handoff.userSelect")}</Chip>
+          <h3>{t("folder.handoff.applyTitle")}</h3>
+          <p>{t("folder.handoff.applyDesc")}</p>
+          <ProgressBar label={t("folder.handoff.quotaProgressLabel")} value={quotaPercent} />
           <Button icon={<RefreshCw size={15} strokeWidth={2.1} />} size="sm" variant="secondary">
-            변경 항목 확인
+            {t("folder.handoff.checkChanges")}
           </Button>
         </article>
 
@@ -164,32 +167,32 @@ export function ManagedFolderS3HandoffPanel({
             <Cloud size={19} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <StatusBadge tone="room">서버 저장</StatusBadge>
-            <h3>자료보드 연결</h3>
-            <p>업로드된 파일은 자료보드에서 권한과 버전 기준으로 다시 조회됩니다.</p>
+            <StatusBadge tone="room">{t("folder.handoff.serverStore")}</StatusBadge>
+            <h3>{t("folder.handoff.boardLink")}</h3>
+            <p>{t("folder.handoff.boardLinkDesc")}</p>
           </div>
         </article>
       </section>
 
-      <section className={styles.metrics} aria-label="관리 폴더 업로드 요약">
+      <section className={styles.metrics} aria-label={t("folder.handoff.metricsAria")}>
         <article>
-          <span>용량 사용률</span>
+          <span>{t("folder.handoff.usageRate")}</span>
           <strong>{quotaPercent}%</strong>
-          <StatusBadge tone={quotaPercent > 80 ? "warning" : "approved"}>제한 확인</StatusBadge>
+          <StatusBadge tone={quotaPercent > 80 ? "warning" : "approved"}>{t("folder.handoff.checkLimit")}</StatusBadge>
         </article>
         <article>
-          <span>업로드 대기</span>
+          <span>{t("folder.handoff.uploadWaiting")}</span>
           <strong>{waitingCount}</strong>
-          <StatusBadge tone="pending">선택 필요</StatusBadge>
+          <StatusBadge tone="pending">{t("folder.handoff.selectNeeded")}</StatusBadge>
         </article>
         <article>
-          <span>확인 필요</span>
+          <span>{t("folder.handoff.reviewNeeded")}</span>
           <strong>{reviewCount}</strong>
-          <StatusBadge tone="warning">버전 확인</StatusBadge>
+          <StatusBadge tone="warning">{t("folder.handoff.checkVersion")}</StatusBadge>
         </article>
       </section>
 
-      <section className={styles.eventList} aria-label="관리 폴더 변경 목록">
+      <section className={styles.eventList} aria-label={t("folder.handoff.eventListAria")}>
         {events.map((event) => {
           const status = statusMeta[event.status];
           const target = targetMeta[event.target];
@@ -209,17 +212,17 @@ export function ManagedFolderS3HandoffPanel({
                   {event.eventLabel} · {event.updatedLabel}
                 </span>
               </div>
-              <StatusBadge tone={target.tone}>{target.label}</StatusBadge>
-              <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+              <StatusBadge tone={target.tone}>{t(target.labelKey)}</StatusBadge>
+              <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
               <Button size="sm" variant={event.status === "REVIEW_NEEDED" ? "secondary" : "quiet"}>
-                {status.actionLabel}
+                {t(status.actionLabelKey)}
               </Button>
             </article>
           );
         })}
       </section>
 
-      <section className={styles.ruleGrid} aria-label="관리 폴더 저장 기준">
+      <section className={styles.ruleGrid} aria-label={t("folder.handoff.ruleGridAria")}>
         {rules.map((rule) => (
           <article key={rule.label}>
             <CheckCircle2 size={18} strokeWidth={2.1} aria-hidden="true" />

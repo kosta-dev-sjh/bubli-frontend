@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Bell,
   CalendarDays,
@@ -18,6 +20,7 @@ import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import type { ComponentType, HTMLAttributes } from "react";
 
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import type { DashboardWidgetDef } from "./widget-catalog";
@@ -61,6 +64,7 @@ function DashboardPaletteItem({
   onAdd?: (widgetId: string) => void;
   widget: DashboardWidgetDef;
 }) {
+  const { t } = useI18n();
   const { attributes, isDragging, listeners, setNodeRef, transform } = useDraggable({
     data: { widgetId: widget.widgetId },
     disabled: !draggable,
@@ -81,46 +85,48 @@ function DashboardPaletteItem({
       <span className="bubli-dash-tile__icon">{widgetIcon(widget.widgetId)}</span>
       <span style={{ minWidth: 0 }}>
         <span className="bubli-dash-palette__item-title" style={{ display: "block" }}>
-          {widget.title}
+          {t(widget.titleKey)}
         </span>
-        <span className="bubli-dash-palette__item-desc">{widget.description}</span>
+        <span className="bubli-dash-palette__item-desc">{t(widget.descriptionKey)}</span>
       </span>
     </button>
   );
 }
 
 function DashboardRemoveDropzone({ id }: { id: string }) {
+  const { t } = useI18n();
   const { isOver, setNodeRef } = useDroppable({ id });
 
   return (
     <div className="bubli-dash-palette__drop-remove" data-drop-active={isOver ? "true" : undefined} ref={setNodeRef}>
       <Trash2 aria-hidden size={15} strokeWidth={1.8} />
-      <strong>여기로 끌어 보드에서 빼기</strong>
+      <strong>{t("dashboard.palette.removeHint")}</strong>
     </div>
   );
 }
 
 export function DashboardPalette({ className, draggable = false, items, onAdd, onSearch, query = "", removeDropId, ...props }: DashboardPaletteProps) {
+  const { t } = useI18n();
   const filtered = query
-    ? items.filter((w) => (w.title + w.description).toLowerCase().includes(query.toLowerCase()))
+    ? items.filter((w) => (t(w.titleKey) + t(w.descriptionKey)).toLowerCase().includes(query.toLowerCase()))
     : items;
 
   return (
     <div className={cn("bubli-dash-palette", className)} {...props}>
-      <div className="bubli-dash-palette__title">대시보드에 넣을 항목</div>
-      <p className="bubli-dash-palette__hint">끌어 놓거나 눌러서 보드에 추가합니다.</p>
+      <div className="bubli-dash-palette__title">{t("dashboard.palette.title")}</div>
+      <p className="bubli-dash-palette__hint">{t("dashboard.palette.hint")}</p>
       {removeDropId ? <DashboardRemoveDropzone id={removeDropId} /> : null}
       <label className="bubli-dash-palette__search">
         <Search size={14} />
         <input
-          aria-label="이름으로 항목 찾기"
+          aria-label={t("dashboard.palette.search")}
           onChange={(e) => onSearch?.(e.target.value)}
-          placeholder="이름으로 항목 찾기"
+          placeholder={t("dashboard.palette.search")}
           value={query}
         />
       </label>
       {filtered.length === 0 ? (
-        <div className="bubli-dash-palette__empty">추가할 수 있는 항목이 없습니다</div>
+        <div className="bubli-dash-palette__empty">{t("dashboard.palette.empty")}</div>
       ) : (
         <div className="bubli-dash-palette__list">
           {filtered.map((w) => (

@@ -1,5 +1,6 @@
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { getLocalAdapterEnvironment } from "@/lib/local/adapter-result";
+import { translate } from "@/lib/i18n/translate";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { WidgetSummaryResponse } from "@/types/api/widget";
@@ -95,7 +96,7 @@ export async function readWidgetSummary(
 export function getWidgetSummaryLocalCachePending(): WidgetSummaryClientPending {
   return {
     environment: "tauri",
-    message: "로컬 위젯 표시 캐시 reader가 연결되면 SQLite summary를 먼저 읽고 서버 API를 fallback으로 씁니다.",
+    message: translate("local.widget.readerPending"),
     source: "local-cache",
     status: "pending",
     summary: {
@@ -126,7 +127,7 @@ async function readServerWidgetSummary(
     return {
       environment,
       fallbackReason,
-      message: error instanceof Error ? error.message : "위젯 summary를 읽지 못했습니다.",
+      message: error instanceof Error ? error.message : translate("local.widget.readFailed"),
       source: "server-api",
       status: "failed",
     };

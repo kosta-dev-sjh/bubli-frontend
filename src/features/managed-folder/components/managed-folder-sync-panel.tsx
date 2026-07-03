@@ -1,3 +1,5 @@
+"use client";
+
 import { CheckCircle2, Database, FileSearch, FolderOpen, HardDrive, RefreshCw, ShieldCheck, UploadCloud } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -5,6 +7,10 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 type LocalFileEventStatus = "suggested" | "approved" | "queued" | "synced";
 
@@ -52,20 +58,20 @@ const localEvents: LocalFileEvent[] = [
   },
 ];
 
-const statusMeta: Record<LocalFileEventStatus, { label: string; tone: "pending" | "approved" | "warning" | "success" }> = {
-  approved: { label: "승인됨", tone: "approved" },
-  queued: { label: "대기열", tone: "warning" },
-  suggested: { label: "승인 필요", tone: "pending" },
-  synced: { label: "반영 완료", tone: "success" },
+const statusMeta: Record<LocalFileEventStatus, { labelKey: MessageKey; tone: "pending" | "approved" | "warning" | "success" }> = {
+  approved: { labelKey: "folder.status.approved", tone: "approved" },
+  queued: { labelKey: "folder.status.queued", tone: "warning" },
+  suggested: { labelKey: "folder.status.needsApproval", tone: "pending" },
+  synced: { labelKey: "folder.status.syncDone", tone: "success" },
 };
 
-const eventTypeCopy: Record<LocalFileEvent["type"], string> = {
-  changed: "수정 감지",
-  deleted: "삭제 감지",
-  new: "새 파일",
+const eventTypeCopy: Record<LocalFileEvent["type"], MessageKey> = {
+  changed: "folder.sync.eventChanged",
+  deleted: "folder.sync.eventDeleted",
+  new: "folder.sync.eventNew",
 };
 
-function LocalFileEventRow({ event }: { event: LocalFileEvent }) {
+function LocalFileEventRow({ event, t }: { event: LocalFileEvent; t: TranslateFn }) {
   const status = statusMeta[event.status];
 
   return (
@@ -75,8 +81,8 @@ function LocalFileEventRow({ event }: { event: LocalFileEvent }) {
       </span>
       <div className="managed-folder-row__body">
         <div className="managed-folder-row__meta">
-          <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-          <span>{eventTypeCopy[event.type]}</span>
+          <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
+          <span>{t(eventTypeCopy[event.type])}</span>
           <span>{event.modifiedAt}</span>
         </div>
         <h3>{event.fileName}</h3>
@@ -85,7 +91,7 @@ function LocalFileEventRow({ event }: { event: LocalFileEvent }) {
           <Chip icon={<FolderOpen size={14} />}>{event.projectHint}</Chip>
           {event.status === "suggested" ? (
             <Button icon={<CheckCircle2 size={14} />} size="sm" variant="primary">
-              서버 반영 승인
+              {t("folder.sync.approveServerApply")}
             </Button>
           ) : null}
         </footer>
@@ -95,65 +101,67 @@ function LocalFileEventRow({ event }: { event: LocalFileEvent }) {
 }
 
 export function ManagedFolderSyncPanel() {
+  const { t } = useI18n();
+
   return (
-    <section className="managed-folder-sync" aria-label="개인 관리 폴더 동기화">
+    <section className="managed-folder-sync" aria-label={t("folder.sync.aria")}>
       <GlassPanel className="managed-folder-sync__hero">
         <div className="managed-folder-sync__title">
           <span className="bubli-icon-tile" aria-hidden="true">
             <FolderOpen size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <Chip selected>개인 관리 폴더</Chip>
-            <h2>로컬 폴더 변화는 먼저 감지하고, 사용자가 승인한 것만 서버에 반영합니다</h2>
-            <p>앱이 선택한 폴더를 감시하고, 변경 후보는 전송 대기 목록에 남긴 뒤 중복 없이 반영합니다.</p>
+            <Chip selected>{t("folder.sync.chip")}</Chip>
+            <h2>{t("folder.sync.heroTitle")}</h2>
+            <p>{t("folder.sync.heroDesc")}</p>
           </div>
         </div>
         <div className="managed-folder-sync__summary">
           <strong>342</strong>
-          <span>색인된 파일</span>
-          <ProgressBar label="저장 용량" value={68} />
+          <span>{t("folder.sync.summaryLabel")}</span>
+          <ProgressBar label={t("folder.sync.storageLabel")} value={68} />
         </div>
       </GlassPanel>
 
       <div className="managed-folder-sync__grid">
         <GlassPanel className="managed-folder-sync__panel">
           <div className="managed-folder-sync__toolbar">
-            <h3>감지된 변경</h3>
+            <h3>{t("folder.sync.detectedTitle")}</h3>
             <div>
               <Button icon={<RefreshCw size={15} />} size="sm" variant="quiet">
-                다시 스캔
+                {t("folder.sync.rescan")}
               </Button>
               <Button icon={<UploadCloud size={15} />} size="sm" variant="primary">
-                승인 항목 반영
+                {t("folder.sync.applyApproved")}
               </Button>
             </div>
           </div>
           <div className="managed-folder-sync__list">
             {localEvents.map((event) => (
-              <LocalFileEventRow event={event} key={`${event.folderName}-${event.fileName}`} />
+              <LocalFileEventRow event={event} key={`${event.folderName}-${event.fileName}`} t={t} />
             ))}
           </div>
         </GlassPanel>
 
         <GlassPanel className="managed-folder-sync__policy">
-          <h3>저장과 권한 기준</h3>
+          <h3>{t("folder.sync.policyTitle")}</h3>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <HardDrive size={16} strokeWidth={2.1} />
             </span>
-            <p>파일 변경 감지와 색인 상태는 기기 안 임시 저장소에 먼저 저장합니다.</p>
+            <p>{t("folder.sync.policyStore")}</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <ShieldCheck size={16} strokeWidth={2.1} />
             </span>
-            <p>사용자가 승인하지 않은 로컬 파일은 서버 자료로 등록하지 않습니다.</p>
+            <p>{t("folder.sync.policyApproval")}</p>
           </div>
           <div>
             <span className="bubli-icon-tile" aria-hidden="true">
               <Database size={16} strokeWidth={2.1} />
             </span>
-            <p>전송 실패 작업은 대기 목록에 남기고 같은 작업이 두 번 반영되지 않게 재시도합니다.</p>
+            <p>{t("folder.sync.policyRetry")}</p>
           </div>
         </GlassPanel>
       </div>

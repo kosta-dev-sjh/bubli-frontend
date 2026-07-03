@@ -1,105 +1,97 @@
+"use client";
+
 import { Bell, Bot, Database, FolderOpen, Globe2, LayoutDashboard, MessageCircle, Mic2, Monitor, ShieldCheck, Sparkles } from "lucide-react";
 
 import { Chip, GlassPanel, StatusBadge } from "@/components/ui";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
 import styles from "./hybrid-app-frame.module.css";
 
-const webTabs = ["대시보드", "프로젝트룸", "자료보드", "WBS/TODO", "설정"];
-
-const webCards = [
-  ["오늘 내 TODO", "여러 프로젝트룸의 내 작업을 모아 봅니다."],
-  ["자료보드", "개인 자료와 프로젝트룸 자료를 권한 기준으로 엽니다."],
-  ["에이전트 후보", "승인 전 후보만 검토 화면에 표시합니다."],
-  ["위젯 표시", "선택한 항목만 개인 버블에 표시합니다."],
+const webTabs: Array<{ key: MessageKey; active?: boolean }> = [
+  { key: "widget.hybrid.tabDashboard" },
+  { key: "widget.hybrid.tabProjectRooms", active: true },
+  { key: "widget.hybrid.tabResources" },
+  { key: "widget.hybrid.tabWbs" },
+  { key: "widget.hybrid.tabSettings" },
 ];
 
-const localCards = [
-  {
-    title: "개인 관리 폴더",
-    body: "사용자가 지정한 폴더만 살펴보고 변경을 감지합니다. 전체 PC 자동 색인은 하지 않습니다.",
-    icon: FolderOpen,
-  },
-  {
-    title: "기기 안 기록",
-    body: "개인 에이전트 원문, 폴더 색인, 위젯 상세 이벤트, 복구 대기열을 기기 안에 둡니다.",
-    icon: Database,
-  },
-  {
-    title: "소통 전용 창",
-    body: "앱에서 소통 탭을 숨기더라도 별도 창이나 버블에서 같은 채팅/보이스 연결을 씁니다.",
-    icon: MessageCircle,
-  },
-  {
-    title: "권한 안전",
-    body: "프로젝트룸 데이터는 멤버 권한을 확인한 뒤 자료, WBS/TODO, 일정, 다운로드에 접근합니다.",
-    icon: ShieldCheck,
-  },
+const webCards: Array<[MessageKey, MessageKey]> = [
+  ["widget.hybrid.card.todoTitle", "widget.hybrid.card.todoBody"],
+  ["widget.hybrid.card.resourceTitle", "widget.hybrid.card.resourceBody"],
+  ["widget.hybrid.card.agentTitle", "widget.hybrid.card.agentBody"],
+  ["widget.hybrid.card.widgetTitle", "widget.hybrid.card.widgetBody"],
 ];
 
-const connectionRows = [
-  ["메인 앱 화면", "회원 작업 화면", "프로젝트룸, 자료보드, 작업판을 같은 화면으로 봅니다."],
-  ["소통 전용 창", "앱 전용 창/버블", "같은 서버와 실시간 연결을 씁니다."],
-  ["보이스 연결", "서버 확인 후 참여", "보이스 연결 정보는 서버에서만 관리합니다."],
-  ["기기 기능", "데스크탑 앱 전용", "폴더 선택, 활동 감지, 위젯 복구를 앱에서 처리합니다."],
+const localCards: Array<{ title: MessageKey; body: MessageKey; icon: typeof FolderOpen }> = [
+  { title: "widget.hybrid.local.folderTitle", body: "widget.hybrid.local.folderBody", icon: FolderOpen },
+  { title: "widget.hybrid.local.deviceTitle", body: "widget.hybrid.local.deviceBody", icon: Database },
+  { title: "widget.hybrid.local.chatTitle", body: "widget.hybrid.local.chatBody", icon: MessageCircle },
+  { title: "widget.hybrid.local.permissionTitle", body: "widget.hybrid.local.permissionBody", icon: ShieldCheck },
+];
+
+const connectionRows: Array<{ id: "main" | "chat" | "voice" | "device"; title: MessageKey; path: MessageKey; body: MessageKey }> = [
+  { id: "main", title: "widget.hybrid.conn.mainTitle", path: "widget.hybrid.conn.mainPath", body: "widget.hybrid.conn.mainBody" },
+  { id: "chat", title: "widget.hybrid.conn.chatTitle", path: "widget.hybrid.conn.chatPath", body: "widget.hybrid.conn.chatBody" },
+  { id: "voice", title: "widget.hybrid.conn.voiceTitle", path: "widget.hybrid.conn.voicePath", body: "widget.hybrid.conn.voiceBody" },
+  { id: "device", title: "widget.hybrid.conn.deviceTitle", path: "widget.hybrid.conn.devicePath", body: "widget.hybrid.conn.deviceBody" },
 ];
 
 export function HybridAppFrame() {
+  const { t } = useI18n();
   return (
     <GlassPanel className={styles.panel}>
       <header className={styles.header}>
         <div className={styles.eyebrow}>
           <Monitor size={16} aria-hidden="true" />
-          데스크탑 하이브리드 앱
+          {t("widget.hybrid.eyebrow")}
         </div>
         <div className={styles.titleRow}>
           <div className={styles.titleGroup}>
-            <h2 className={styles.title}>같은 회원 작업 화면에 데스크톱 기능만 얹습니다</h2>
-            <p className={styles.summary}>
-              데스크탑 앱은 별도 서비스를 새로 만드는 방식이 아닙니다. 회원 작업 화면을 열고, 앱에서만 필요한 버블,
-              개인 관리 폴더, 기기 안 저장, 활동 감지, 전용 소통 창을 붙입니다.
-            </p>
+            <h2 className={styles.title}>{t("widget.hybrid.title")}</h2>
+            <p className={styles.summary}>{t("widget.hybrid.summary")}</p>
           </div>
-          <StatusBadge tone="personal">데스크탑 앱</StatusBadge>
+          <StatusBadge tone="personal">{t("widget.hybrid.badge")}</StatusBadge>
         </div>
-        <div className={styles.chips} aria-label="하이브리드 앱 기준">
+        <div className={styles.chips} aria-label={t("widget.hybrid.chipsAria")}>
           <Chip selected icon={<Globe2 size={14} aria-hidden="true" />}>
-            같은 회원 화면
+            {t("widget.hybrid.chipSameScreen")}
           </Chip>
-          <Chip icon={<MessageCircle size={14} aria-hidden="true" />}>소통 창 분리 가능</Chip>
-          <Chip icon={<Mic2 size={14} aria-hidden="true" />}>보이스 연결은 서버 발급</Chip>
+          <Chip icon={<MessageCircle size={14} aria-hidden="true" />}>{t("widget.hybrid.chipChatSplit")}</Chip>
+          <Chip icon={<Mic2 size={14} aria-hidden="true" />}>{t("widget.hybrid.chipVoiceServer")}</Chip>
         </div>
       </header>
 
-      <section className={styles.layout} aria-label="회원 작업 화면과 데스크탑 앱 구조">
+      <section className={styles.layout} aria-label={t("widget.hybrid.structureAria")}>
         <div className={styles.window}>
           <div className={styles.windowBar}>
             <span />
             <span />
             <span />
-            <strong>Bubli 데스크탑 앱 · 회원 작업 화면</strong>
+            <strong>{t("widget.hybrid.windowTitle")}</strong>
           </div>
           <div className={styles.windowBody}>
             <aside className={styles.sidebar}>
               <div className={styles.brand}>Bubli</div>
               {webTabs.map((tab) => (
-                <span className={tab === "프로젝트룸" ? styles.activeTab : ""} key={tab}>
-                  {tab}
+                <span className={tab.active ? styles.activeTab : ""} key={tab.key}>
+                  {t(tab.key)}
                 </span>
               ))}
             </aside>
             <main className={styles.webApp}>
               <div className={styles.webHeader}>
                 <div>
-                  <h3>토모에 번역 프로젝트룸</h3>
-                  <p>자료 12개 · TODO 18개 · 확인 필요 3개</p>
+                  <h3>{t("widget.hybrid.webRoomTitle")}</h3>
+                  <p>{t("widget.hybrid.webRoomMeta")}</p>
                 </div>
-                <StatusBadge tone="room">회원 작업 화면</StatusBadge>
+                <StatusBadge tone="room">{t("widget.hybrid.webRoomBadge")}</StatusBadge>
               </div>
               <div className={styles.cardGrid}>
                 {webCards.map(([title, body]) => (
                   <article className={styles.webCard} key={title}>
-                    <h4>{title}</h4>
-                    <p>{body}</p>
+                    <h4>{t(title)}</h4>
+                    <p>{t(body)}</p>
                   </article>
                 ))}
               </div>
@@ -107,10 +99,10 @@ export function HybridAppFrame() {
           </div>
         </div>
 
-        <aside className={styles.appLayer} aria-label="데스크탑 앱 전용 기능">
+        <aside className={styles.appLayer} aria-label={t("widget.hybrid.appLayerAria")}>
           <div className={styles.layerHeader}>
             <Sparkles size={18} aria-hidden="true" />
-            <h3>앱에서만 붙는 기능</h3>
+            <h3>{t("widget.hybrid.appLayerTitle")}</h3>
           </div>
           <div className={styles.localList}>
             {localCards.map((card) => {
@@ -122,8 +114,8 @@ export function HybridAppFrame() {
                     <Icon size={18} aria-hidden="true" />
                   </span>
                   <div>
-                    <h4>{card.title}</h4>
-                    <p>{card.body}</p>
+                    <h4>{t(card.title)}</h4>
+                    <p>{t(card.body)}</p>
                   </div>
                 </article>
               );
@@ -132,15 +124,15 @@ export function HybridAppFrame() {
         </aside>
       </section>
 
-      <section className={styles.connectionGrid} aria-label="웹과 데스크탑 앱 연결 기준">
-        {connectionRows.map(([title, path, body]) => (
-          <article className={styles.connectionCard} key={title}>
+      <section className={styles.connectionGrid} aria-label={t("widget.hybrid.connGridAria")}>
+        {connectionRows.map((row) => (
+          <article className={styles.connectionCard} key={row.id}>
             <div className={styles.connectionTitle}>
-              {title === "보이스 연결" ? <Mic2 size={16} aria-hidden="true" /> : title === "기기 기능" ? <Database size={16} aria-hidden="true" /> : <LayoutDashboard size={16} aria-hidden="true" />}
-              <h3>{title}</h3>
+              {row.id === "voice" ? <Mic2 size={16} aria-hidden="true" /> : row.id === "device" ? <Database size={16} aria-hidden="true" /> : <LayoutDashboard size={16} aria-hidden="true" />}
+              <h3>{t(row.title)}</h3>
             </div>
-            <strong>{path}</strong>
-            <p>{body}</p>
+            <strong>{t(row.path)}</strong>
+            <p>{t(row.body)}</p>
           </article>
         ))}
       </section>
@@ -148,11 +140,11 @@ export function HybridAppFrame() {
       <div className={styles.statusStrip}>
         <span>
           <Bell size={14} aria-hidden="true" />
-          서버 원본 데이터는 API에서 다시 불러올 수 있습니다.
+          {t("widget.hybrid.statusServer")}
         </span>
         <span>
           <Bot size={14} aria-hidden="true" />
-          개인 에이전트 원문과 상세 사용 기록은 기기 안에 둡니다.
+          {t("widget.hybrid.statusDevice")}
         </span>
       </div>
     </GlassPanel>

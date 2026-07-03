@@ -1,3 +1,5 @@
+"use client";
+
 import { BrainCircuit, CheckCircle2, FileCheck2, ShieldCheck, TriangleAlert } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 
@@ -5,6 +7,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./agent-schema-validation-panel.module.css";
@@ -31,11 +35,11 @@ export type AgentSchemaValidationPanelProps = HTMLAttributes<HTMLElement> & {
   validationResults: SchemaValidationResult[];
 };
 
-const statusMeta: Record<SchemaValidationStatus, { label: string; tone: StatusTone }> = {
-  passed: { label: "검증 통과", tone: "success" },
-  needsReview: { label: "확인 필요", tone: "warning" },
-  failed: { label: "검증 실패", tone: "warning" },
-  pending: { label: "대기", tone: "pending" },
+const statusMeta: Record<SchemaValidationStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  passed: { labelKey: "agent.schema.statusPassed", tone: "success" },
+  needsReview: { labelKey: "agent.schema.statusNeedsReview", tone: "warning" },
+  failed: { labelKey: "agent.schema.statusFailed", tone: "warning" },
+  pending: { labelKey: "agent.schema.statusPending", tone: "pending" },
 };
 
 const metricIcon: Record<SchemaValidationMetric["icon"], ReactNode> = {
@@ -48,10 +52,12 @@ const metricIcon: Record<SchemaValidationMetric["icon"], ReactNode> = {
 export function AgentSchemaValidationPanel({
   className,
   metrics,
-  title = "에이전트 결과 검증",
+  title,
   validationResults,
   ...props
 }: AgentSchemaValidationPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("agent.schema.defaultTitle");
   const failedCount = validationResults.filter((result) => result.status === "failed").length;
   const reviewCount = validationResults.filter((result) => result.status === "needsReview").length;
   const hasIssue = failedCount + reviewCount > 0;
@@ -60,21 +66,19 @@ export function AgentSchemaValidationPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<FileCheck2 size={14} strokeWidth={2.1} />}>결과 형식 확인</Chip>
+          <Chip icon={<FileCheck2 size={14} strokeWidth={2.1} />}>{t("agent.schema.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              에이전트가 만든 결과는 정해진 형식에 맞는지 확인한 뒤 후보로 저장합니다. 사용자가 승인하기 전에는 작업, WBS, 일정 같은 확정 데이터로 쓰지 않습니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("agent.schema.desc")}</p>
           </div>
         </div>
         <div className={styles.resultCard}>
-          <span>검증 상태</span>
-          <strong>{hasIssue ? `${failedCount + reviewCount}건 확인` : "통과"}</strong>
+          <span>{t("agent.schema.validationStatus")}</span>
+          <strong>{hasIssue ? t("agent.schema.issueCount", { count: failedCount + reviewCount }) : t("agent.schema.passed")}</strong>
         </div>
       </header>
 
-      <section className={styles.metricGrid} aria-label="에이전트 결과 추적 기준">
+      <section className={styles.metricGrid} aria-label={t("agent.schema.metricAria")}>
         {metrics.map((metric) => (
           <article className={styles.metricCard} key={metric.label}>
             <span className={styles.metricIcon} aria-hidden="true">
@@ -89,14 +93,14 @@ export function AgentSchemaValidationPanel({
         ))}
       </section>
 
-      <div className={styles.flow} aria-label="검증 흐름">
+      <div className={styles.flow} aria-label={t("agent.schema.flowAria")}>
         <article>
           <span aria-hidden="true">
             <BrainCircuit size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <h3>후보 만들기</h3>
-            <p>에이전트는 요약, 확인 질문, WBS/TODO 후보를 정해진 항목으로 정리합니다.</p>
+            <h3>{t("agent.schema.flowCandidateTitle")}</h3>
+            <p>{t("agent.schema.flowCandidateDesc")}</p>
           </div>
         </article>
         <article>
@@ -104,8 +108,8 @@ export function AgentSchemaValidationPanel({
             <FileCheck2 size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <h3>결과 형식 확인</h3>
-            <p>필수 항목과 상태값이 현재 기준과 맞는지 확인합니다.</p>
+            <h3>{t("agent.schema.flowCheckTitle")}</h3>
+            <p>{t("agent.schema.flowCheckDesc")}</p>
           </div>
         </article>
         <article>
@@ -113,13 +117,13 @@ export function AgentSchemaValidationPanel({
             <CheckCircle2 size={18} strokeWidth={2.1} />
           </span>
           <div>
-            <h3>후보 저장</h3>
-            <p>검증된 결과만 검토 전 후보로 저장하고 화면에 보여줍니다.</p>
+            <h3>{t("agent.schema.flowSaveTitle")}</h3>
+            <p>{t("agent.schema.flowSaveDesc")}</p>
           </div>
         </article>
       </div>
 
-      <section className={styles.resultList} aria-label="검증 결과 목록">
+      <section className={styles.resultList} aria-label={t("agent.schema.resultListAria")}>
         {validationResults.map((result) => {
           const meta = statusMeta[result.status];
 
@@ -135,7 +139,7 @@ export function AgentSchemaValidationPanel({
                   <span>{result.value}</span>
                 </div>
               </div>
-              <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
+              <StatusBadge tone={meta.tone}>{t(meta.labelKey)}</StatusBadge>
             </article>
           );
         })}

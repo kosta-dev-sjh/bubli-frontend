@@ -23,7 +23,11 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 export type AgentSuggestionInboxState = "ready" | "empty" | "loading" | "error";
 export type AgentSuggestionKind = "REQUIREMENT" | "WBS" | "TODO" | "QUESTION" | "SCHEDULE";
@@ -46,82 +50,83 @@ export type AgentSuggestionInboxPanelProps = HTMLAttributes<HTMLElement> & {
   state?: AgentSuggestionInboxState;
 };
 
+// 번역 대상 필드는 t() 키를 담고 렌더 시 번역한다(호출부 문자열/파일명은 t() 폴백으로 그대로 통과).
 const defaultItems: AgentSuggestionInboxItem[] = [
   {
     confidence: 92,
-    description: "요구사항 문서의 화면 범위를 WBS 상위 작업으로 묶을 수 있습니다.",
-    dueLabel: "이번 주",
+    description: "agent.inbox.item1Desc",
+    dueLabel: "agent.inbox.item1Due",
     id: "suggestion-wbs-scope",
     kind: "WBS",
-    projectRoomName: "브랜드 상세페이지 번역",
+    projectRoomName: "agent.inbox.item1Room",
     sourceLabel: "요구사항정의서_v1.3.pdf",
     status: "DRAFT",
-    title: "번역 검수 WBS 구조",
+    title: "agent.inbox.item1Title",
   },
   {
     confidence: 87,
-    description: "업무 문서와 회의록의 납품일이 달라 클라이언트에게 확인할 질문입니다.",
-    dueLabel: "오늘",
+    description: "agent.inbox.item2Desc",
+    dueLabel: "agent.inbox.item2Due",
     id: "suggestion-question-due-date",
     kind: "QUESTION",
-    projectRoomName: "업무 기준 문서 정리",
-    sourceLabel: "업무 문서 · 회의록",
+    projectRoomName: "agent.inbox.item2Room",
+    sourceLabel: "agent.inbox.item2Source",
     status: "EDITED",
-    title: "납품일 기준 확인 질문",
+    title: "agent.inbox.item2Title",
   },
   {
     confidence: 83,
-    description: "검수 기준표를 먼저 만들면 이후 TODO와 일정으로 연결하기 쉽습니다.",
+    description: "agent.inbox.item3Desc",
     dueLabel: "D-2",
     id: "suggestion-todo-review-table",
     kind: "TODO",
-    projectRoomName: "웹사이트 리뉴얼",
+    projectRoomName: "agent.inbox.item3Room",
     sourceLabel: "회의록_0618.md",
     status: "HELD",
-    title: "검수 기준표 초안 작성",
+    title: "agent.inbox.item3Title",
   },
 ];
 
-const kindMeta: Record<AgentSuggestionKind, { icon: typeof Bot; label: string; tone: StatusTone }> = {
-  QUESTION: { icon: FileQuestion, label: "확인 질문", tone: "warning" },
-  REQUIREMENT: { icon: Bot, label: "요구사항", tone: "agent" },
-  SCHEDULE: { icon: CalendarClock, label: "일정 후보", tone: "timer" },
-  TODO: { icon: ListTodo, label: "TODO 후보", tone: "todo" },
-  WBS: { icon: GitBranch, label: "WBS 후보", tone: "agent" },
+const kindMeta: Record<AgentSuggestionKind, { icon: typeof Bot; labelKey: MessageKey; tone: StatusTone }> = {
+  QUESTION: { icon: FileQuestion, labelKey: "agent.inbox.kindQuestion", tone: "warning" },
+  REQUIREMENT: { icon: Bot, labelKey: "agent.inbox.kindRequirement", tone: "agent" },
+  SCHEDULE: { icon: CalendarClock, labelKey: "agent.inbox.kindSchedule", tone: "timer" },
+  TODO: { icon: ListTodo, labelKey: "agent.inbox.kindTodo", tone: "todo" },
+  WBS: { icon: GitBranch, labelKey: "agent.inbox.kindWbs", tone: "agent" },
 };
 
-const statusMeta: Record<AgentInboxSuggestionStatus, { label: string; tone: StatusTone }> = {
-  APPROVED: { label: "승인됨", tone: "approved" },
-  DRAFT: { label: "검토 전", tone: "pending" },
-  EDITED: { label: "수정됨", tone: "warning" },
-  HELD: { label: "보류", tone: "neutral" },
+const statusMeta: Record<AgentInboxSuggestionStatus, { labelKey: MessageKey; tone: StatusTone }> = {
+  APPROVED: { labelKey: "agent.inbox.statusApproved", tone: "approved" },
+  DRAFT: { labelKey: "agent.inbox.statusDraft", tone: "pending" },
+  EDITED: { labelKey: "agent.inbox.statusEdited", tone: "warning" },
+  HELD: { labelKey: "agent.inbox.statusHeld", tone: "neutral" },
 };
 
-function SuggestionInboxStatePanel({ state }: { state: Exclude<AgentSuggestionInboxState, "ready"> }) {
+function SuggestionInboxStatePanel({ state, t }: { state: Exclude<AgentSuggestionInboxState, "ready">; t: TranslateFn }) {
   const stateCopy = {
     empty: {
-      action: "자료 분석 시작",
-      description: "아직 검토할 후보가 없습니다. 자료를 올리거나 프로젝트룸 채팅에서 에이전트를 불러 후보를 만들 수 있습니다.",
+      actionKey: "agent.inbox.emptyAction",
+      descriptionKey: "agent.inbox.emptyDesc",
       icon: Inbox,
-      title: "검토할 제안이 없습니다",
+      titleKey: "agent.inbox.emptyTitle",
     },
     error: {
-      action: "다시 불러오기",
-      description: "에이전트 제안을 불러오지 못했습니다. 잠시 뒤 다시 확인하세요.",
+      actionKey: "agent.inbox.errorAction",
+      descriptionKey: "agent.inbox.errorDesc",
       icon: AlertCircle,
-      title: "제안함을 불러오지 못했습니다",
+      titleKey: "agent.inbox.errorTitle",
     },
     loading: {
-      action: "불러오는 중",
-      description: "프로젝트룸별 후보와 승인 대기 항목을 모으고 있습니다.",
+      actionKey: "agent.inbox.loadingAction",
+      descriptionKey: "agent.inbox.loadingDesc",
       icon: CircleDashed,
-      title: "제안함을 정리하고 있습니다",
+      titleKey: "agent.inbox.loadingTitle",
     },
   } satisfies Record<Exclude<AgentSuggestionInboxState, "ready">, {
-    action: string;
-    description: string;
+    actionKey: MessageKey;
+    descriptionKey: MessageKey;
     icon: typeof Inbox;
-    title: string;
+    titleKey: MessageKey;
   }>;
 
   const copy = stateCopy[state];
@@ -133,21 +138,22 @@ function SuggestionInboxStatePanel({ state }: { state: Exclude<AgentSuggestionIn
         <Icon size={20} strokeWidth={2.1} />
       </span>
       <div>
-        <Chip selected={state === "loading"}>{state === "loading" ? "로딩" : state === "error" ? "에러" : "빈 화면"}</Chip>
-        <h2>{copy.title}</h2>
-        <p>{copy.description}</p>
+        <Chip selected={state === "loading"}>{state === "loading" ? t("agent.inbox.chipLoading") : state === "error" ? t("agent.inbox.chipError") : t("agent.inbox.chipEmpty")}</Chip>
+        <h2>{t(copy.titleKey)}</h2>
+        <p>{t(copy.descriptionKey)}</p>
       </div>
       <Button disabled={state === "loading"} icon={<RefreshCcw size={15} strokeWidth={2.1} />} variant={state === "error" ? "primary" : "quiet"}>
-        {copy.action}
+        {t(copy.actionKey)}
       </Button>
     </GlassPanel>
   );
 }
 
-function SuggestionRow({ item }: { item: AgentSuggestionInboxItem }) {
+function SuggestionRow({ item, t }: { item: AgentSuggestionInboxItem; t: TranslateFn }) {
   const kind = kindMeta[item.kind];
   const status = statusMeta[item.status];
   const Icon = kind.icon;
+  const title = t(item.title as MessageKey);
 
   return (
     <article className="agent-suggestion-inbox-row">
@@ -158,32 +164,32 @@ function SuggestionRow({ item }: { item: AgentSuggestionInboxItem }) {
         <div className="agent-suggestion-inbox-row__top">
           <div>
             <div className="agent-suggestion-inbox-row__badges">
-              <StatusBadge tone={kind.tone}>{kind.label}</StatusBadge>
-              <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+              <StatusBadge tone={kind.tone}>{t(kind.labelKey)}</StatusBadge>
+              <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
             </div>
-            <h3>{item.title}</h3>
+            <h3>{title}</h3>
           </div>
           <Chip>{item.confidence}%</Chip>
         </div>
-        <p>{item.description}</p>
+        <p>{t(item.description as MessageKey)}</p>
         <div className="agent-suggestion-inbox-row__meta">
-          <span>{item.projectRoomName}</span>
-          <span>{item.sourceLabel}</span>
-          <span>{item.dueLabel ?? "마감 없음"}</span>
+          <span>{t(item.projectRoomName as MessageKey)}</span>
+          <span>{t(item.sourceLabel as MessageKey)}</span>
+          <span>{item.dueLabel ? t(item.dueLabel as MessageKey) : t("agent.inbox.noDue")}</span>
         </div>
-        <ProgressBar label={`${item.title} 신뢰도`} value={item.confidence} />
+        <ProgressBar label={t("agent.inbox.confidence", { title })} value={item.confidence} />
         <footer className="agent-suggestion-inbox-row__actions">
           <Button icon={<CheckCircle2 size={15} strokeWidth={2.1} />} size="sm" variant="primary">
-            승인
+            {t("agent.inbox.approve")}
           </Button>
           <Button icon={<PencilLine size={15} strokeWidth={2.1} />} size="sm" variant="quiet">
-            수정
+            {t("agent.inbox.edit")}
           </Button>
           <Button icon={<CirclePause size={15} strokeWidth={2.1} />} size="sm" variant="ghost">
-            보류
+            {t("agent.inbox.hold")}
           </Button>
           <Button icon={<Trash2 size={15} strokeWidth={2.1} />} size="sm" variant="ghost">
-            삭제
+            {t("agent.inbox.delete")}
           </Button>
         </footer>
       </div>
@@ -197,38 +203,37 @@ export function AgentSuggestionInboxPanel({
   state = "ready",
   ...props
 }: AgentSuggestionInboxPanelProps) {
+  const { t } = useI18n();
   const pendingCount = items.filter((item) => item.status === "DRAFT" || item.status === "EDITED").length;
   const approvedCount = items.filter((item) => item.status === "APPROVED").length;
 
   return (
-    <section className={cn("agent-suggestion-inbox", className)} aria-label="에이전트 제안함" {...props}>
+    <section className={cn("agent-suggestion-inbox", className)} aria-label={t("agent.inbox.aria")} {...props}>
       {state === "ready" ? (
         <>
           <GlassPanel className="agent-suggestion-inbox__hero">
             <div>
               <Chip icon={<Inbox size={15} strokeWidth={2.1} />} selected>
-                에이전트 제안함
+                {t("agent.inbox.chip")}
               </Chip>
-              <h2>후보를 확정하기 전 한곳에서 검토합니다</h2>
-              <p>
-                요구사항, WBS, TODO, 확인 질문, 일정 후보를 모아 보고 승인한 항목만 실제 작업으로 넘깁니다.
-              </p>
+              <h2>{t("agent.inbox.heroTitle")}</h2>
+              <p>{t("agent.inbox.heroDesc")}</p>
             </div>
             <div className="agent-suggestion-inbox__summary">
               <strong>{items.length}</strong>
-              <span>전체 후보</span>
-              <p>승인 대기 {pendingCount}개 · 승인됨 {approvedCount}개</p>
+              <span>{t("agent.inbox.total")}</span>
+              <p>{t("agent.inbox.summaryStatus", { approved: approvedCount, pending: pendingCount })}</p>
             </div>
           </GlassPanel>
 
           <GlassPanel className="agent-suggestion-inbox__list">
             {items.map((item) => (
-              <SuggestionRow item={item} key={item.id} />
+              <SuggestionRow item={item} key={item.id} t={t} />
             ))}
           </GlassPanel>
         </>
       ) : (
-        <SuggestionInboxStatePanel state={state} />
+        <SuggestionInboxStatePanel state={state} t={t} />
       )}
     </section>
   );

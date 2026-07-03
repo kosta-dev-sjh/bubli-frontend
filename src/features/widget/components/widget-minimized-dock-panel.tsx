@@ -1,3 +1,5 @@
+"use client";
+
 import { Bell, CheckCircle2, Clock3, MessageCircle, Minus, PanelTop, Sparkles, TimerReset } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 
@@ -6,6 +8,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./widget-minimized-dock-panel.module.css";
@@ -15,12 +19,12 @@ type DockItemTone = "todo" | "agent" | "communication" | "timer" | "memo" | "sch
 type DockItemSource = "server" | "cache" | "local";
 
 type DockItem = {
-  badge: string;
-  description: string;
-  label: string;
+  badge: MessageKey;
+  description: MessageKey;
+  label: MessageKey;
   source: DockItemSource;
   tone: DockItemTone;
-  value: string;
+  value: MessageKey;
 };
 
 export type WidgetMinimizedDockPanelProps = HTMLAttributes<HTMLElement> & {
@@ -29,55 +33,55 @@ export type WidgetMinimizedDockPanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const toneMeta: Record<DockItemTone, { icon: ReactNode; label: string; statusTone: StatusTone }> = {
-  agent: { icon: <Sparkles size={15} strokeWidth={2.1} />, label: "에이전트", statusTone: "agent" },
-  communication: { icon: <MessageCircle size={15} strokeWidth={2.1} />, label: "소통", statusTone: "communication" },
-  memo: { icon: <PanelTop size={15} strokeWidth={2.1} />, label: "메모", statusTone: "memo" },
-  notification: { icon: <Bell size={15} strokeWidth={2.1} />, label: "알림", statusTone: "warning" },
-  resource: { icon: <CheckCircle2 size={15} strokeWidth={2.1} />, label: "자료", statusTone: "room" },
-  schedule: { icon: <Clock3 size={15} strokeWidth={2.1} />, label: "일정", statusTone: "personal" },
-  timer: { icon: <TimerReset size={15} strokeWidth={2.1} />, label: "타이머", statusTone: "timer" },
-  todo: { icon: <CheckCircle2 size={15} strokeWidth={2.1} />, label: "TODO", statusTone: "todo" },
+const toneMeta: Record<DockItemTone, { icon: ReactNode; label: MessageKey; statusTone: StatusTone }> = {
+  agent: { icon: <Sparkles size={15} strokeWidth={2.1} />, label: "widget.kind.agent", statusTone: "agent" },
+  communication: { icon: <MessageCircle size={15} strokeWidth={2.1} />, label: "widget.kind.chat", statusTone: "communication" },
+  memo: { icon: <PanelTop size={15} strokeWidth={2.1} />, label: "widget.kind.memo", statusTone: "memo" },
+  notification: { icon: <Bell size={15} strokeWidth={2.1} />, label: "widget.kind.notification", statusTone: "warning" },
+  resource: { icon: <CheckCircle2 size={15} strokeWidth={2.1} />, label: "widget.kind.resource", statusTone: "room" },
+  schedule: { icon: <Clock3 size={15} strokeWidth={2.1} />, label: "widget.kind.schedule", statusTone: "personal" },
+  timer: { icon: <TimerReset size={15} strokeWidth={2.1} />, label: "widget.kind.timer", statusTone: "timer" },
+  todo: { icon: <CheckCircle2 size={15} strokeWidth={2.1} />, label: "widget.kind.todo", statusTone: "todo" },
 };
 
-const sourceMeta: Record<DockItemSource, { label: string; tone: StatusTone }> = {
-  cache: { label: "캐시", tone: "pending" },
-  local: { label: "로컬", tone: "memo" },
-  server: { label: "서버 원본", tone: "success" },
+const sourceMeta: Record<DockItemSource, { label: MessageKey; tone: StatusTone }> = {
+  cache: { label: "widget.source.cache", tone: "pending" },
+  local: { label: "widget.source.local", tone: "memo" },
+  server: { label: "widget.source.server", tone: "success" },
 };
 
 export const defaultDockItems: DockItem[] = [
   {
-    badge: "3개",
-    description: "오늘 확인할 내 TODO와 담당 작업",
-    label: "TODO 버블",
+    badge: "widget.dock.todo.badge",
+    description: "widget.dock.todo.description",
+    label: "widget.bubble.todo",
     source: "server",
     tone: "todo",
-    value: "업무 문서 수정 조항 회신",
+    value: "widget.dock.todo.value",
   },
   {
-    badge: "1개",
-    description: "승인 전 후보와 확인 질문",
-    label: "에이전트 버블",
+    badge: "widget.dock.agent.badge",
+    description: "widget.dock.agent.description",
+    label: "widget.bubble.agent",
     source: "server",
     tone: "agent",
-    value: "WBS 후보 검토",
+    value: "widget.dock.agent.value",
   },
   {
-    badge: "방금",
-    description: "1:1과 프로젝트룸 메시지",
-    label: "소통 버블",
+    badge: "widget.dock.chat.badge",
+    description: "widget.dock.chat.description",
+    label: "widget.bubble.chat",
     source: "cache",
     tone: "communication",
-    value: "보이스 진행 중",
+    value: "widget.dock.chat.value",
   },
   {
-    badge: "42:18",
-    description: "실행 중 타이머와 마지막 heartbeat",
-    label: "타이머 버블",
+    badge: "widget.dock.timer.badge",
+    description: "widget.dock.timer.description",
+    label: "widget.bubble.timer",
     source: "server",
     tone: "timer",
-    value: "토모에 1차 검수",
+    value: "widget.dock.timer.value",
   },
 ];
 
@@ -85,9 +89,11 @@ export function WidgetMinimizedDockPanel({
   className,
   dockItems,
   lastSyncedLabel,
-  title = "최소화 버블 도크",
+  title,
   ...props
 }: WidgetMinimizedDockPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("widget.dock.title");
   const serverCount = dockItems.filter((item) => item.source === "server").length;
   const cachedCount = dockItems.filter((item) => item.source !== "server").length;
 
@@ -95,29 +101,26 @@ export function WidgetMinimizedDockPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<Minus size={16} strokeWidth={2.1} />}>최소화 상태</Chip>
+          <Chip icon={<Minus size={16} strokeWidth={2.1} />}>{t("widget.dock.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              최소화된 버블은 큰 화면을 다시 열지 않아도 지금 볼 값만 짧게 보여줍니다. 서버 원본이 필요한 값과
-              기기 안 임시 기록으로 빠르게 보여주는 값을 구분합니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("widget.dock.description")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>도크 항목</span>
-          <strong>{dockItems.length}개</strong>
+          <span>{t("widget.dock.summaryLabel")}</span>
+          <strong>{t("widget.dock.badgeCount", { count: dockItems.length })}</strong>
           <em>{lastSyncedLabel}</em>
         </div>
       </header>
 
-      <section className={styles.dockSurface} aria-label="최소화된 버블 값">
+      <section className={styles.dockSurface} aria-label={t("widget.dock.surfaceAria")}>
         <div className={styles.dockBar}>
           <span className={styles.brandDot} aria-hidden="true" />
           <strong>Bubli</strong>
-          <small>작업 중 표시</small>
-          <StatusBadge tone="success">서버 {serverCount}</StatusBadge>
-          <StatusBadge tone="pending">캐시/로컬 {cachedCount}</StatusBadge>
+          <small>{t("widget.dock.working")}</small>
+          <StatusBadge tone="success">{t("widget.dock.serverCount", { count: serverCount })}</StatusBadge>
+          <StatusBadge tone="pending">{t("widget.dock.cacheCount", { count: cachedCount })}</StatusBadge>
         </div>
 
         <div className={styles.itemGrid}>
@@ -132,18 +135,18 @@ export function WidgetMinimizedDockPanel({
                     {tone.icon}
                   </span>
                   <div>
-                    <strong>{item.label}</strong>
-                    <p>{tone.label}</p>
+                    <strong>{t(item.label)}</strong>
+                    <p>{t(tone.label)}</p>
                   </div>
-                  <StatusBadge tone={source.tone}>{source.label}</StatusBadge>
+                  <StatusBadge tone={source.tone}>{t(source.label)}</StatusBadge>
                 </div>
                 <div className={styles.itemBody}>
-                  <b>{item.value}</b>
-                  <span>{item.description}</span>
+                  <b>{t(item.value)}</b>
+                  <span>{t(item.description)}</span>
                 </div>
                 <div className={styles.itemFooter}>
-                  <em>{item.badge}</em>
-                  <button type="button">열기</button>
+                  <em>{t(item.badge)}</em>
+                  <button type="button">{t("widget.dock.open")}</button>
                 </div>
               </article>
             );
@@ -151,36 +154,36 @@ export function WidgetMinimizedDockPanel({
         </div>
       </section>
 
-      <section className={styles.policyGrid} aria-label="도크 표시 기준">
+      <section className={styles.policyGrid} aria-label={t("widget.dock.policyAria")}>
         <article>
           <CheckCircle2 size={16} strokeWidth={2.1} aria-hidden="true" />
           <div>
-            <strong>핵심 값만 표시</strong>
-            <p>최소화 상태에서는 긴 설명보다 현재 값, 건수, 남은 시간처럼 바로 필요한 정보만 보여줍니다.</p>
+            <strong>{t("widget.dock.policyCoreTitle")}</strong>
+            <p>{t("widget.dock.policyCoreBody")}</p>
           </div>
         </article>
         <article>
           <Bell size={16} strokeWidth={2.1} aria-hidden="true" />
           <div>
-            <strong>알림과 함께 정렬</strong>
-            <p>새 메시지, 후보, 확인 필요 항목은 도크에서 부드러운 상태 변화로 먼저 알려줍니다.</p>
+            <strong>{t("widget.dock.policyAlertTitle")}</strong>
+            <p>{t("widget.dock.policyAlertBody")}</p>
           </div>
         </article>
         <article>
           <PanelTop size={16} strokeWidth={2.1} aria-hidden="true" />
           <div>
-            <strong>표시 상태 저장</strong>
-            <p>최소화 여부와 위치는 widget_layouts, 표시 범위는 widget_preferences 기준으로 유지합니다.</p>
+            <strong>{t("widget.dock.policyStateTitle")}</strong>
+            <p>{t("widget.dock.policyStateBody")}</p>
           </div>
         </article>
       </section>
 
       <footer className={styles.footer}>
         <Button icon={<PanelTop size={15} strokeWidth={2.1} />} size="sm" variant="primary">
-          모두 펼치기
+          {t("widget.dock.expandAll")}
         </Button>
         <Button icon={<Bell size={15} strokeWidth={2.1} />} size="sm" variant="quiet">
-          알림만 보기
+          {t("widget.dock.alertsOnly")}
         </Button>
       </footer>
     </GlassPanel>

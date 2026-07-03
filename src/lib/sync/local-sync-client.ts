@@ -1,5 +1,6 @@
 import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
 import { blocked, pending, runTauriAdapter } from "@/lib/local/adapter-result";
+import { translate } from "@/lib/i18n/translate";
 import type {
   LocalSyncSummary,
   SyncOutboxSummaryResult,
@@ -22,7 +23,7 @@ export async function getLocalSyncOutboxSummary(): Promise<SyncOutboxSummaryResu
 
     return pending(
       summary,
-      "동기화 outbox 상태만 확인했습니다. 실제 서버 전송은 아직 실행하지 않습니다.",
+      translate("local.sync.outboxChecked"),
       commandName,
     );
   }
@@ -46,7 +47,7 @@ export async function stageWidgetUsageSummary(
 
     return pending(
       summary,
-      "위젯 사용 요약을 서버 전송 대기열에 올렸습니다. 서버 전송 완료로 표시하지 않습니다.",
+      translate("local.sync.widgetQueued"),
       commandName,
     );
   }
@@ -57,6 +58,6 @@ export async function stageWidgetUsageSummary(
 export function blockDirectServerSync(): ReturnType<typeof blocked> {
   return blocked(
     "server_transfer_not_allowed",
-    "로컬 어댑터는 서버 전송을 직접 하지 않습니다. 인증된 API 클라이언트가 별도 승인 흐름에서 처리해야 합니다.",
+    translate("local.sync.noDirectSend"),
   );
 }

@@ -1,3 +1,5 @@
+"use client";
+
 import {
   CheckCircle2,
   Clock3,
@@ -16,24 +18,28 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./data-deletion-request-panel.module.css";
+
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 type DeletionScope = "SERVER_PERSONAL" | "LOCAL_TAURI" | "ROOM_PARTICIPATION" | "ACCOUNT_CLOSE";
 type DeletionStatus = "READY" | "NEEDS_REVIEW" | "BLOCKED";
 
 type DeletionOption = {
-  description: string;
-  effect: string;
+  descriptionKey: MessageKey;
+  effectKey: MessageKey;
   scope: DeletionScope;
   status: DeletionStatus;
-  title: string;
+  titleKey: MessageKey;
 };
 
 type DeletionCheck = {
-  description: string;
-  label: string;
+  descriptionKey: MessageKey;
+  labelKey: MessageKey;
   tone: StatusTone;
 };
 
@@ -50,57 +56,57 @@ const scopeIcons: Record<DeletionScope, typeof Database> = {
   SERVER_PERSONAL: Database,
 };
 
-const statusMeta: Record<DeletionStatus, { actionLabel: string; label: string; tone: StatusTone }> = {
-  BLOCKED: { actionLabel: "확인 필요", label: "진행 전 확인", tone: "warning" },
-  NEEDS_REVIEW: { actionLabel: "검토", label: "검토 필요", tone: "pending" },
-  READY: { actionLabel: "요청", label: "요청 가능", tone: "approved" },
+const statusMeta: Record<DeletionStatus, { actionKey: MessageKey; labelKey: MessageKey; tone: StatusTone }> = {
+  BLOCKED: { actionKey: "settings.ddr.status.blocked.action", labelKey: "settings.ddr.status.blocked.label", tone: "warning" },
+  NEEDS_REVIEW: { actionKey: "settings.ddr.status.review.action", labelKey: "settings.ddr.status.review.label", tone: "pending" },
+  READY: { actionKey: "settings.ddr.status.ready.action", labelKey: "settings.ddr.status.ready.label", tone: "approved" },
 };
 
 export const defaultDeletionOptions: DeletionOption[] = [
   {
-    description: "개인 자료, 개인 설정, 개인 하루정리처럼 사용자에게 귀속된 서버 데이터를 삭제 요청합니다.",
-    effect: "서버 기록 기준",
+    descriptionKey: "settings.ddr.opt.server.desc",
+    effectKey: "settings.ddr.opt.server.effect",
     scope: "SERVER_PERSONAL",
     status: "READY",
-    title: "개인 서버 데이터",
+    titleKey: "settings.ddr.opt.server.title",
   },
   {
-    description: "개인 에이전트 원문, 위젯 상세 사용 기록, 로컬 백업 목록처럼 기기 안에 있는 데이터를 정리합니다.",
-    effect: "기기 안 저장소 기준",
+    descriptionKey: "settings.ddr.opt.local.desc",
+    effectKey: "settings.ddr.opt.local.effect",
     scope: "LOCAL_TAURI",
     status: "READY",
-    title: "기기 안 데이터",
+    titleKey: "settings.ddr.opt.local.title",
   },
   {
-    description: "프로젝트룸 참여 기록은 역할, 남은 멤버, 자료 접근 권한을 확인한 뒤 처리합니다.",
-    effect: "프로젝트룸 멤버 권한 기준",
+    descriptionKey: "settings.ddr.opt.room.desc",
+    effectKey: "settings.ddr.opt.room.effect",
     scope: "ROOM_PARTICIPATION",
     status: "NEEDS_REVIEW",
-    title: "프로젝트룸 참여 정보",
+    titleKey: "settings.ddr.opt.room.title",
   },
   {
-    description: "계정 종료는 로그인, 친구, 알림, 개인 설정을 함께 정리하므로 한 번 더 확인합니다.",
-    effect: "users 기준",
+    descriptionKey: "settings.ddr.opt.account.desc",
+    effectKey: "settings.ddr.opt.account.effect",
     scope: "ACCOUNT_CLOSE",
     status: "BLOCKED",
-    title: "계정 종료",
+    titleKey: "settings.ddr.opt.account.title",
   },
 ];
 
 export const defaultDeletionChecks: DeletionCheck[] = [
   {
-    description: "프로젝트룸 채팅과 작업 기록처럼 협업 기록인 데이터는 권한과 역할을 먼저 확인합니다.",
-    label: "협업 기록 분리",
+    descriptionKey: "settings.ddr.check.collab.desc",
+    labelKey: "settings.ddr.check.collab.label",
     tone: "room",
   },
   {
-    description: "개인 에이전트 원문과 위젯 상세 이벤트는 서버 복구 대상이 아니므로 로컬 정리 안내를 따로 보여줍니다.",
-    label: "로컬 원문 분리",
+    descriptionKey: "settings.ddr.check.local.desc",
+    labelKey: "settings.ddr.check.local.label",
     tone: "personal",
   },
   {
-    description: "삭제 전에 백업과 내보내기 안내를 먼저 제공하고, 실행 후에는 복구 가능 범위를 알려줍니다.",
-    label: "복구 범위 안내",
+    descriptionKey: "settings.ddr.check.recovery.desc",
+    labelKey: "settings.ddr.check.recovery.label",
     tone: "approved",
   },
 ];
@@ -109,9 +115,11 @@ export function DataDeletionRequestPanel({
   checks,
   className,
   options,
-  title = "데이터 삭제와 내보내기",
+  title,
   ...props
 }: DataDeletionRequestPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("settings.ddr.title");
   const readyCount = options.filter((option) => option.status === "READY").length;
   const reviewCount = options.filter((option) => option.status !== "READY").length;
 
@@ -119,30 +127,27 @@ export function DataDeletionRequestPanel({
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<ShieldAlert size={16} strokeWidth={2.1} />}>개인정보 설정</Chip>
+          <Chip icon={<ShieldAlert size={16} strokeWidth={2.1} />}>{t("settings.ddr.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              삭제 요청은 서버 기록과 기기 안 데이터를 나눠 처리합니다. 프로젝트룸에 영향을 주는 데이터는
-              역할과 권한을 확인한 뒤 진행합니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("settings.ddr.desc")}</p>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <span>바로 요청 가능</span>
-          <strong>{readyCount}개</strong>
-          <StatusBadge tone={reviewCount > 0 ? "warning" : "success"}>확인 필요 {reviewCount}개</StatusBadge>
+          <span>{t("settings.ddr.readyCount")}</span>
+          <strong>{t("settings.ddr.countUnit", { count: readyCount })}</strong>
+          <StatusBadge tone={reviewCount > 0 ? "warning" : "success"}>{t("settings.ddr.reviewCount", { count: reviewCount })}</StatusBadge>
         </div>
       </header>
 
-      <section className={styles.noticeRow} aria-label="삭제 전 확인">
+      <section className={styles.noticeRow} aria-label={t("settings.ddr.beforeAria")}>
         <article className={styles.noticeCard}>
           <span className={styles.iconTile}>
             <Download size={18} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <strong>먼저 내보내기</strong>
-            <p>삭제 전에 서버 요약, 개인 자료 목록, 로컬 백업 상태를 확인할 수 있게 둡니다.</p>
+            <strong>{t("settings.ddr.exportTitle")}</strong>
+            <p>{t("settings.ddr.exportBody")}</p>
           </div>
         </article>
         <article className={styles.noticeCard}>
@@ -150,13 +155,13 @@ export function DataDeletionRequestPanel({
             <Clock3 size={18} strokeWidth={2.1} aria-hidden="true" />
           </span>
           <div>
-            <strong>처리 상태 표시</strong>
-            <p>요청, 대기, 완료, 실패 상태를 알림과 설정 화면에서 같은 기준으로 보여줍니다.</p>
+            <strong>{t("settings.ddr.statusTitle")}</strong>
+            <p>{t("settings.ddr.statusBody")}</p>
           </div>
         </article>
       </section>
 
-      <section className={styles.optionGrid} aria-label="삭제 요청 항목">
+      <section className={styles.optionGrid} aria-label={t("settings.ddr.optionAria")}>
         {options.map((option) => {
           const ScopeIcon = scopeIcons[option.scope];
           const status = statusMeta[option.status];
@@ -169,16 +174,16 @@ export function DataDeletionRequestPanel({
                   <ScopeIcon size={18} strokeWidth={2.1} aria-hidden="true" />
                 </span>
                 <div className={styles.optionTitle}>
-                  <strong>{option.title}</strong>
-                  <span>{option.effect}</span>
+                  <strong>{t(option.titleKey)}</strong>
+                  <span>{t(option.effectKey)}</span>
                 </div>
-                <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
               </div>
-              <p>{option.description}</p>
+              <p>{t(option.descriptionKey)}</p>
               <footer className={styles.optionFooter}>
                 <span>{option.scope.toLowerCase()}</span>
                 <Button disabled={blocked} icon={<Trash2 size={15} strokeWidth={2.1} />} size="sm" variant="quiet">
-                  {status.actionLabel}
+                  {t(status.actionKey)}
                 </Button>
               </footer>
             </article>
@@ -186,13 +191,13 @@ export function DataDeletionRequestPanel({
         })}
       </section>
 
-      <section className={styles.checkGrid} aria-label="삭제 정책 기준">
+      <section className={styles.checkGrid} aria-label={t("settings.ddr.checkAria")}>
         {checks.map((check) => (
-          <article key={check.label}>
+          <article key={check.labelKey}>
             <CheckCircle2 size={18} strokeWidth={2.1} aria-hidden="true" />
             <div>
-              <StatusBadge tone={check.tone}>{check.label}</StatusBadge>
-              <p>{check.description}</p>
+              <StatusBadge tone={check.tone}>{t(check.labelKey)}</StatusBadge>
+              <p>{t(check.descriptionKey)}</p>
             </div>
           </article>
         ))}

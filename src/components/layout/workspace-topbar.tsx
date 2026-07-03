@@ -1,9 +1,12 @@
+"use client";
+
 import { Bell, ChevronDown, FolderKanban, Search, UserRound } from "lucide-react";
 import type { HTMLAttributes } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./workspace-topbar.module.css";
@@ -41,18 +44,21 @@ export function WorkspaceTopbar({
   onOpenProjectSwitcher,
   project,
   searchEnabled = false,
-  searchPlaceholder = "자료, TODO, 채팅 검색",
-  surfaceLabel = "회원 웹 앱",
+  searchPlaceholder,
+  surfaceLabel,
   user,
   ...props
 }: WorkspaceTopbarProps) {
+  const { t } = useI18n();
   const visibleNotificationCount = Math.min(notificationCount, 99);
+  const resolvedSearchPlaceholder = searchPlaceholder ?? t("layout.topbar.searchPlaceholder");
+  const resolvedSurfaceLabel = surfaceLabel ?? t("layout.topbar.surface");
 
   return (
     <header className={cn(styles.topbar, !searchEnabled && styles.topbarNoSearch, className)} {...props}>
       {onOpenProjectSwitcher ? (
         <button
-          aria-label={`${project.name} 프로젝트룸 선택`}
+          aria-label={t("layout.topbar.projectSelectAria", { name: project.name })}
           className={styles.projectButton}
           onClick={onOpenProjectSwitcher}
           type="button"
@@ -68,7 +74,7 @@ export function WorkspaceTopbar({
           <ChevronDown size={16} strokeWidth={2.1} aria-hidden="true" />
         </button>
       ) : (
-        <div aria-label={`${project.name} 현재 위치`} className={styles.projectButton} role="group">
+        <div aria-label={t("layout.topbar.projectCurrentAria", { name: project.name })} className={styles.projectButton} role="group">
           <span className="bubli-icon-tile" aria-hidden="true">
             <FolderKanban size={18} strokeWidth={2.1} />
           </span>
@@ -83,16 +89,16 @@ export function WorkspaceTopbar({
       {searchEnabled ? (
         <label className={styles.searchBox}>
           <Search size={17} strokeWidth={2.1} aria-hidden="true" />
-          <span className={styles.visuallyHidden}>검색</span>
-          <input placeholder={searchPlaceholder} type="search" />
+          <span className={styles.visuallyHidden}>{t("layout.topbar.searchHidden")}</span>
+          <input placeholder={resolvedSearchPlaceholder} type="search" />
           <kbd>⌘K</kbd>
         </label>
       ) : null}
 
       <div className={styles.actions}>
-        {surfaceLabel ? <Chip className={styles.surfaceChip}>{surfaceLabel}</Chip> : null}
+        {resolvedSurfaceLabel ? <Chip className={styles.surfaceChip}>{resolvedSurfaceLabel}</Chip> : null}
         <Button
-          aria-label={`알림 ${notificationCount}개 열기`}
+          aria-label={t("layout.topbar.notificationsAria", { count: notificationCount })}
           className={styles.iconButton}
           onClick={onOpenNotifications}
           size="sm"
@@ -101,7 +107,7 @@ export function WorkspaceTopbar({
           <Bell size={16} strokeWidth={2.1} aria-hidden="true" />
           {notificationCount > 0 ? <span className={styles.badge}>{visibleNotificationCount}</span> : null}
         </Button>
-        <button aria-label={`${user.displayName} 프로필 열기`} className={styles.profileButton} onClick={onOpenProfile} type="button">
+        <button aria-label={t("layout.topbar.profileAria", { name: user.displayName })} className={styles.profileButton} onClick={onOpenProfile} type="button">
           <span className={styles.avatar} aria-hidden="true">
             {user.avatarUrl ? <img alt="" src={user.avatarUrl} /> : user.initials}
           </span>

@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AlertCircle,
   ArrowRight,
@@ -18,6 +20,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./contract-extracted-fields-review-panel.module.css";
@@ -70,11 +74,11 @@ const kindIcon: Record<ExtractedFieldKind, ReactNode> = {
   REVIEW_STANDARD: <CheckCircle2 size={16} strokeWidth={2.1} />,
 };
 
-const statusCopy: Record<ExtractedFieldStatus, string> = {
-  APPROVED: "승인됨",
-  DRAFT: "확인 전",
-  HELD: "보류",
-  REJECTED: "제외",
+const statusCopyKey: Record<ExtractedFieldStatus, MessageKey> = {
+  APPROVED: "room.contract.status.approved",
+  DRAFT: "room.contract.status.draft",
+  HELD: "room.contract.status.held",
+  REJECTED: "room.contract.status.rejected",
 };
 
 const statusTone: Record<ExtractedFieldStatus, "approved" | "pending" | "warning" | "neutral"> = {
@@ -84,10 +88,10 @@ const statusTone: Record<ExtractedFieldStatus, "approved" | "pending" | "warning
   REJECTED: "neutral",
 };
 
-const reviewToneCopy: Record<ReviewItem["tone"], string> = {
-  conflict: "값 차이",
-  missing: "누락",
-  unclear: "확인 필요",
+const reviewToneCopyKey: Record<ReviewItem["tone"], MessageKey> = {
+  conflict: "room.contract.reviewTone.conflict",
+  missing: "room.contract.reviewTone.missing",
+  unclear: "room.contract.reviewTone.unclear",
 };
 
 const defaultFields: ExtractedField[] = [
@@ -154,6 +158,7 @@ export function ContractExtractedFieldsReviewPanel({
   onRunAnalysis,
   reviewItems = defaultReviewItems,
 }: ContractExtractedFieldsReviewPanelProps) {
+  const { t } = useI18n();
   const approvedCount = fields.filter((field) => field.status === "APPROVED").length;
   const draftCount = fields.filter((field) => field.status === "DRAFT").length;
   const heldCount = fields.filter((field) => field.status === "HELD").length;
@@ -162,51 +167,48 @@ export function ContractExtractedFieldsReviewPanel({
     <GlassPanel className={cn(styles.panel, className)}>
       <header className={styles.header}>
         <div>
-          <Chip icon={<Bot size={14} />}>프로젝트룸 생성 보조</Chip>
-          <h2>문서에서 뽑은 프로젝트 후보를 확인합니다</h2>
-          <p>
-            업무 문서, 견적서, 요구사항 문서에서 뽑은 값은 후보입니다. 사용자가 확인한 값만
-            프로젝트룸, WBS, TODO, 일정에 이어집니다.
-          </p>
+          <Chip icon={<Bot size={14} />}>{t("room.contract.chip")}</Chip>
+          <h2>{t("room.contract.heading")}</h2>
+          <p>{t("room.contract.description")}</p>
         </div>
         <div className={styles.headerActions}>
           <Button icon={<Sparkles size={15} />} onClick={onRunAnalysis} size="sm" variant="quiet">
-            다시 분석
+            {t("room.contract.reanalyze")}
           </Button>
           <Button icon={<CheckCircle2 size={15} />} onClick={onApproveAll} size="sm" variant="primary">
-            확인한 값 반영
+            {t("room.contract.applyConfirmed")}
           </Button>
         </div>
       </header>
 
-      <section className={styles.summaryGrid} aria-label="추출 상태 요약">
+      <section className={styles.summaryGrid} aria-label={t("room.contract.summaryAria")}>
         <article>
           <strong>{fields.length}</strong>
-          <span>추출 후보</span>
+          <span>{t("room.contract.summaryExtracted")}</span>
         </article>
         <article>
           <strong>{approvedCount}</strong>
-          <span>승인됨</span>
+          <span>{t("room.contract.summaryApproved")}</span>
         </article>
         <article>
           <strong>{draftCount}</strong>
-          <span>확인 전</span>
+          <span>{t("room.contract.summaryDraft")}</span>
         </article>
         <article>
           <strong>{heldCount}</strong>
-          <span>보류</span>
+          <span>{t("room.contract.summaryHeld")}</span>
         </article>
       </section>
 
       <div className={styles.contentGrid}>
-        <section className={styles.fieldList} aria-label="추출 후보 목록">
+        <section className={styles.fieldList} aria-label={t("room.contract.fieldListAria")}>
           <div className={styles.sectionHeader}>
             <div>
-              <h3>추출 후보</h3>
-              <p>프로젝트 정보로 저장하기 전에 값을 직접 확인합니다.</p>
+              <h3>{t("room.contract.fieldListTitle")}</h3>
+              <p>{t("room.contract.fieldListSub")}</p>
             </div>
             <Button icon={<FileCheck2 size={15} />} onClick={onOpenResource} size="sm" variant="ghost">
-              원문 보기
+              {t("room.contract.viewSource")}
             </Button>
           </div>
 
@@ -222,22 +224,22 @@ export function ContractExtractedFieldsReviewPanel({
                       <h4>{field.label}</h4>
                       <p>{field.value}</p>
                     </div>
-                    <StatusBadge tone={statusTone[field.status]}>{statusCopy[field.status]}</StatusBadge>
+                    <StatusBadge tone={statusTone[field.status]}>{t(statusCopyKey[field.status])}</StatusBadge>
                   </div>
                   <div className={styles.fieldMeta}>
                     <span>{field.sourceLabel}</span>
                     {typeof field.confidence === "number" ? (
-                      <ProgressBar label="신뢰도" value={field.confidence} />
+                      <ProgressBar label={t("room.contract.confidence")} value={field.confidence} />
                     ) : null}
                   </div>
                   <footer className={styles.fieldActions}>
                     <button onClick={() => onEditField?.(field.id)} type="button">
                       <PencilLine size={14} />
-                      수정
+                      {t("room.contract.edit")}
                     </button>
                     <button onClick={() => onHoldField?.(field.id)} type="button">
                       <CirclePause size={14} />
-                      보류
+                      {t("room.contract.hold")}
                     </button>
                   </footer>
                 </div>
@@ -246,13 +248,13 @@ export function ContractExtractedFieldsReviewPanel({
           </div>
         </section>
 
-        <aside className={styles.reviewPanel} aria-label="확인 필요 항목">
+        <aside className={styles.reviewPanel} aria-label={t("room.contract.reviewAria")}>
           <div className={styles.sectionHeader}>
             <div>
-              <h3>확인 필요 항목</h3>
-              <p>문서 사이 값 차이와 빠진 조건을 사용자가 검토합니다.</p>
+              <h3>{t("room.contract.reviewTitle")}</h3>
+              <p>{t("room.contract.reviewSub")}</p>
             </div>
-            <StatusBadge tone={reviewItems.length > 0 ? "warning" : "approved"}>{reviewItems.length}건</StatusBadge>
+            <StatusBadge tone={reviewItems.length > 0 ? "warning" : "approved"}>{t("room.contract.reviewCount", { count: reviewItems.length })}</StatusBadge>
           </div>
 
           <div className={styles.reviewItems}>
@@ -261,7 +263,7 @@ export function ContractExtractedFieldsReviewPanel({
                 <AlertCircle size={17} strokeWidth={2.1} />
                 <div>
                   <StatusBadge tone={item.tone === "conflict" ? "warning" : "pending"}>
-                    {reviewToneCopy[item.tone]}
+                    {t(reviewToneCopyKey[item.tone])}
                   </StatusBadge>
                   <p>{item.message}</p>
                   <span>{item.sourceLabel}</span>
@@ -273,11 +275,11 @@ export function ContractExtractedFieldsReviewPanel({
       </div>
 
       <footer className={styles.flowFooter}>
-        <span>후보 확인</span>
+        <span>{t("room.contract.flowConfirm")}</span>
         <ArrowRight size={18} />
-        <span>프로젝트룸 정보 저장</span>
+        <span>{t("room.contract.flowSave")}</span>
         <ArrowRight size={18} />
-        <span>WBS/TODO/일정 후보 생성</span>
+        <span>{t("room.contract.flowGenerate")}</span>
       </footer>
     </GlassPanel>
   );

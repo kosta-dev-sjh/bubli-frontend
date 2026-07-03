@@ -1,75 +1,81 @@
+"use client";
+
 import { Bot, CheckCircle2, Clock3, FilePlus2, Mic, RefreshCcw, Send, Smile, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
 import styles from "./chat-message-composer.module.css";
 
 type SendState = "PENDING_SEND" | "SENT" | "FAILED";
 
 type MessageStateItem = {
-  detail: string;
+  detailKey: MessageKey;
   icon: ReactNode;
-  label: string;
+  labelKey: MessageKey;
   state: SendState;
 };
 
 const messageStates: MessageStateItem[] = [
   {
-    detail: "전송 요청을 보낸 뒤 서버 응답을 기다립니다.",
+    detailKey: "chat.composerPanel.state.pendingDetail",
     icon: <Clock3 size={16} />,
-    label: "전송 대기",
+    labelKey: "chat.composerPanel.state.pendingLabel",
     state: "PENDING_SEND",
   },
   {
-    detail: "서버에 저장된 뒤 채팅방에 표시됩니다.",
+    detailKey: "chat.composerPanel.state.sentDetail",
     icon: <CheckCircle2 size={16} />,
-    label: "저장 완료",
+    labelKey: "chat.composerPanel.state.sentLabel",
     state: "SENT",
   },
   {
-    detail: "재전송해도 같은 메시지는 중복 저장하지 않습니다.",
+    detailKey: "chat.composerPanel.state.failedDetail",
     icon: <XCircle size={16} />,
-    label: "전송 실패",
+    labelKey: "chat.composerPanel.state.failedLabel",
     state: "FAILED",
   },
 ];
 
-const commandHints = [
-  { command: "/bubli 정리", label: "최근 대화 결정사항 정리" },
-  { command: "/bubli todo", label: "TODO 후보 만들기" },
-  { command: "/bubli 질문", label: "클라이언트 확인 질문 제안" },
+const commandHints: { commandKey: MessageKey; labelKey: MessageKey }[] = [
+  { commandKey: "chat.composerPanel.hint.summaryCommand", labelKey: "chat.composerPanel.hint.summaryLabel" },
+  { commandKey: "chat.composerPanel.hint.todoCommand", labelKey: "chat.composerPanel.hint.todoLabel" },
+  { commandKey: "chat.composerPanel.hint.questionCommand", labelKey: "chat.composerPanel.hint.questionLabel" },
 ];
 
 export function ChatMessageComposer() {
+  const { t } = useI18n();
+
   return (
     <GlassPanel className={styles.panel}>
       <header className={styles.header}>
         <div>
-          <Chip selected>메시지 작성</Chip>
-          <h2 className={styles.title}>채팅 입력과 전송 상태</h2>
+          <Chip selected>{t("chat.composerPanel.chip")}</Chip>
+          <h2 className={styles.title}>{t("chat.composerPanel.title")}</h2>
           <p className={styles.description}>
-            메시지는 서버에 저장된 뒤 전송 완료로 봅니다. 같은 전송 키로 다시 보내면 중복 저장을 막고 기존 메시지를 반환합니다.
+            {t("chat.composerPanel.description")}
           </p>
         </div>
-        <StatusBadge tone="communication">전송 요청</StatusBadge>
+        <StatusBadge tone="communication">{t("chat.composerPanel.badge")}</StatusBadge>
       </header>
 
       <section className={styles.composeCard} aria-labelledby="member-composer-title">
         <div className={styles.composeHeader}>
           <div>
-            <h3 id="member-composer-title">채팅 입력창</h3>
-            <span>프로젝트룸 멤버와 1:1 친구 채팅에서 사용</span>
+            <h3 id="member-composer-title">{t("chat.composerPanel.boxTitle")}</h3>
+            <span>{t("chat.composerPanel.boxSubtitle")}</span>
           </div>
-          <StatusBadge tone="success">회원</StatusBadge>
+          <StatusBadge tone="success">{t("chat.composerPanel.memberBadge")}</StatusBadge>
         </div>
 
-        <div className={styles.commandRail} aria-label="에이전트 명령어 후보">
+        <div className={styles.commandRail} aria-label={t("chat.composerPanel.commandRailAria")}>
           {commandHints.map((hint) => (
-            <button key={hint.command} type="button">
+            <button key={hint.commandKey} type="button">
               <Bot size={14} />
-              <strong>{hint.command}</strong>
-              <span>{hint.label}</span>
+              <strong>{t(hint.commandKey)}</strong>
+              <span>{t(hint.labelKey)}</span>
             </button>
           ))}
         </div>
@@ -79,8 +85,8 @@ export function ChatMessageComposer() {
 
       <section className={styles.stateSection} aria-labelledby="message-state-title">
         <div className={styles.sectionHeader}>
-          <h3 id="message-state-title">전송 상태</h3>
-          <span>서버 저장 전 메시지는 확정 데이터가 아닙니다.</span>
+          <h3 id="message-state-title">{t("chat.composerPanel.stateTitle")}</h3>
+          <span>{t("chat.composerPanel.stateSubtitle")}</span>
         </div>
         <div className={styles.stateList}>
           {messageStates.map((item) => (
@@ -93,23 +99,25 @@ export function ChatMessageComposer() {
 }
 
 function ComposerBox() {
+  const { t } = useI18n();
+
   return (
     <div className={styles.composerBox}>
       <div className={styles.textareaWrap}>
         <textarea
-          aria-label="메시지 보내기"
-          defaultValue="/bubli 질문 계약서와 회의록에서 일정이 다른 부분 정리해줘."
+          aria-label={t("chat.composerPanel.textareaAria")}
+          defaultValue={t("chat.composerPanel.textareaDefault")}
           rows={3}
         />
       </div>
       <div className={styles.toolBar}>
         <div className={styles.leftTools}>
-          <ToolButton icon={<Smile size={16} />} label="리액션" />
-          <ToolButton icon={<FilePlus2 size={16} />} label="자료 연결" />
-          <ToolButton icon={<Mic size={16} />} label="보이스" />
+          <ToolButton icon={<Smile size={16} />} label={t("chat.composerPanel.tool.reaction")} />
+          <ToolButton icon={<FilePlus2 size={16} />} label={t("chat.composerPanel.tool.attach")} />
+          <ToolButton icon={<Mic size={16} />} label={t("chat.composerPanel.tool.voice")} />
         </div>
         <Button icon={<Send size={15} />} size="sm" variant="primary">
-          보내기
+          {t("chat.composerPanel.send")}
         </Button>
       </div>
     </div>
@@ -126,8 +134,14 @@ function ToolButton({ disabled = false, icon, label }: { disabled?: boolean; ico
 }
 
 function MessageStateCard({ item }: { item: MessageStateItem }) {
+  const { t } = useI18n();
   const tone = item.state === "SENT" ? "success" : item.state === "FAILED" ? "warning" : "pending";
-  const label = item.state === "SENT" ? "완료" : item.state === "FAILED" ? "재시도" : "대기";
+  const label =
+    item.state === "SENT"
+      ? t("chat.composerPanel.card.doneLabel")
+      : item.state === "FAILED"
+        ? t("chat.composerPanel.card.retryLabel")
+        : t("chat.composerPanel.card.waitLabel");
 
   return (
     <article className={styles.stateCard}>
@@ -135,8 +149,8 @@ function MessageStateCard({ item }: { item: MessageStateItem }) {
         {item.state === "FAILED" ? <RefreshCcw size={16} /> : item.icon}
       </span>
       <div>
-        <strong>{item.label}</strong>
-        <p>{item.detail}</p>
+        <strong>{t(item.labelKey)}</strong>
+        <p>{t(item.detailKey)}</p>
       </div>
       <StatusBadge tone={tone}>{label}</StatusBadge>
     </article>

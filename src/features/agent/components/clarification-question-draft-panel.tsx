@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   Bot,
@@ -18,6 +20,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./clarification-question-draft-panel.module.css";
@@ -47,11 +51,11 @@ export type ClarificationQuestionDraftPanelProps = {
   selectedDraftId?: string;
 };
 
-const statusCopy: Record<QuestionDraftStatus, string> = {
-  APPROVED: "승인됨",
-  DRAFT: "검토 전",
-  HELD: "보류",
-  REJECTED: "제외",
+const statusCopyKeys: Record<QuestionDraftStatus, MessageKey> = {
+  APPROVED: "agent.qdraft.statusApproved",
+  DRAFT: "agent.qdraft.statusDraft",
+  HELD: "agent.qdraft.statusHeld",
+  REJECTED: "agent.qdraft.statusRejected",
 };
 
 const statusTone: Record<QuestionDraftStatus, "approved" | "pending" | "warning" | "neutral"> = {
@@ -61,39 +65,40 @@ const statusTone: Record<QuestionDraftStatus, "approved" | "pending" | "warning"
   REJECTED: "neutral",
 };
 
-const toneCopy: Record<QuestionDraftTone, string> = {
-  conflict: "값 차이",
-  missing: "빠진 조건",
-  unclear: "모호한 표현",
+const toneCopyKeys: Record<QuestionDraftTone, MessageKey> = {
+  conflict: "agent.qdraft.toneConflict",
+  missing: "agent.qdraft.toneMissing",
+  unclear: "agent.qdraft.toneUnclear",
 };
 
+// question/sourceLabel/triggerLabel は t() キーを保持し、レンダー時に翻訳する(sourceLabel のファイル名はそのまま通過)。
 const defaultDrafts: QuestionDraft[] = [
   {
     confidence: 91,
     id: "question-due-date",
-    question: "최종 납품일은 7월 5일과 7월 10일 중 어느 날짜가 맞을까요?",
-    sourceLabel: "업무 문서 2쪽, 견적서 1쪽",
+    question: "agent.qdraft.q1",
+    sourceLabel: "agent.qdraft.q1Source",
     status: "DRAFT",
     tone: "conflict",
-    triggerLabel: "납품일 후보가 문서마다 다름",
+    triggerLabel: "agent.qdraft.q1Trigger",
   },
   {
     confidence: 86,
     id: "question-review-standard",
-    question: "검수 기준과 수정 가능 횟수를 문서에 맞춰 한 번 더 확인해 주실 수 있을까요?",
+    question: "agent.qdraft.q2",
     sourceLabel: "요구사항정의서_v1.3.pdf",
     status: "APPROVED",
     tone: "missing",
-    triggerLabel: "검수 기준이 업무 문서에 없음",
+    triggerLabel: "agent.qdraft.q2Trigger",
   },
   {
     confidence: 79,
     id: "question-copyright",
-    question: "완료된 번역본의 사용 범위와 저작권 표기 방식은 어떤 기준으로 진행하면 될까요?",
-    sourceLabel: "업무 문서 4쪽",
+    question: "agent.qdraft.q3",
+    sourceLabel: "agent.qdraft.q3Source",
     status: "HELD",
     tone: "unclear",
-    triggerLabel: "사용 범위 표현이 모호함",
+    triggerLabel: "agent.qdraft.q3Trigger",
   },
 ];
 
@@ -108,6 +113,7 @@ export function ClarificationQuestionDraftPanel({
   onRunQuestionJob,
   selectedDraftId,
 }: ClarificationQuestionDraftPanelProps) {
+  const { t } = useI18n();
   const selectedDraft = drafts.find((draft) => draft.id === selectedDraftId) ?? drafts[0];
   const approvedCount = drafts.filter((draft) => draft.status === "APPROVED").length;
   const pendingCount = drafts.filter((draft) => draft.status === "DRAFT").length;
@@ -116,35 +122,32 @@ export function ClarificationQuestionDraftPanel({
     <GlassPanel className={cn(styles.panel, className)}>
       <header className={styles.header}>
         <div>
-          <Chip icon={<Bot size={14} />}>확인 질문 후보</Chip>
-          <h2>문서에서 확인할 질문을 초안으로 정리합니다</h2>
-          <p>
-            문서 사이 값이 다르거나 조건이 빠진 부분을 질문 후보로 보여줍니다. 사용자가 검토한
-            문장만 복사하거나 메시지 초안으로 저장합니다.
-          </p>
+          <Chip icon={<Bot size={14} />}>{t("agent.qdraft.chip")}</Chip>
+          <h2>{t("agent.qdraft.heroTitle")}</h2>
+          <p>{t("agent.qdraft.heroDesc")}</p>
         </div>
         <Button icon={<RefreshCw size={15} />} onClick={onRunQuestionJob} size="sm" variant="quiet">
-          질문 다시 만들기
+          {t("agent.qdraft.regenerate")}
         </Button>
       </header>
 
-      <section className={styles.summary} aria-label="질문 후보 상태">
+      <section className={styles.summary} aria-label={t("agent.qdraft.summaryAria")}>
         <article>
           <strong>{drafts.length}</strong>
-          <span>질문 후보</span>
+          <span>{t("agent.qdraft.questionCandidate")}</span>
         </article>
         <article>
           <strong>{approvedCount}</strong>
-          <span>승인됨</span>
+          <span>{t("agent.qdraft.approved")}</span>
         </article>
         <article>
           <strong>{pendingCount}</strong>
-          <span>검토 전</span>
+          <span>{t("agent.qdraft.beforeReview")}</span>
         </article>
       </section>
 
       <div className={styles.grid}>
-        <section className={styles.list} aria-label="확인 질문 후보 목록">
+        <section className={styles.list} aria-label={t("agent.qdraft.listAria")}>
           {drafts.map((draft) => (
             <article className={cn(styles.draftCard, draft.id === selectedDraft.id && styles.selected)} key={draft.id}>
               <span className={styles.draftIcon} aria-hidden="true">
@@ -153,32 +156,32 @@ export function ClarificationQuestionDraftPanel({
               <div className={styles.draftBody}>
                 <div className={styles.draftTop}>
                   <div>
-                    <Chip>{toneCopy[draft.tone]}</Chip>
-                    <h3>{draft.triggerLabel}</h3>
+                    <Chip>{t(toneCopyKeys[draft.tone])}</Chip>
+                    <h3>{t(draft.triggerLabel as MessageKey)}</h3>
                   </div>
-                  <StatusBadge tone={statusTone[draft.status]}>{statusCopy[draft.status]}</StatusBadge>
+                  <StatusBadge tone={statusTone[draft.status]}>{t(statusCopyKeys[draft.status])}</StatusBadge>
                 </div>
-                <p>{draft.question}</p>
-                <span className={styles.source}>{draft.sourceLabel}</span>
+                <p>{t(draft.question as MessageKey)}</p>
+                <span className={styles.source}>{t(draft.sourceLabel as MessageKey)}</span>
                 {typeof draft.confidence === "number" ? (
-                  <ProgressBar label="후보 신뢰도" value={draft.confidence} />
+                  <ProgressBar label={t("agent.qdraft.confidence")} value={draft.confidence} />
                 ) : null}
                 <footer className={styles.actions}>
                   <button onClick={() => onApproveDraft?.(draft.id)} type="button">
                     <CheckCircle2 size={14} />
-                    승인
+                    {t("agent.qdraft.approve")}
                   </button>
                   <button onClick={() => onEditDraft?.(draft.id)} type="button">
                     <PencilLine size={14} />
-                    수정
+                    {t("agent.qdraft.edit")}
                   </button>
                   <button onClick={() => onHoldDraft?.(draft.id)} type="button">
                     <CirclePause size={14} />
-                    보류
+                    {t("agent.qdraft.hold")}
                   </button>
                   <button onClick={() => onRejectDraft?.(draft.id)} type="button">
                     <XCircle size={14} />
-                    제외
+                    {t("agent.qdraft.reject")}
                   </button>
                 </footer>
               </div>
@@ -186,47 +189,47 @@ export function ClarificationQuestionDraftPanel({
           ))}
         </section>
 
-        <aside className={styles.preview} aria-label="질문 초안 미리보기">
+        <aside className={styles.preview} aria-label={t("agent.qdraft.previewAria")}>
           <div className={styles.previewHeader}>
             <span className={styles.previewIcon} aria-hidden="true">
               <MessageSquareText size={20} strokeWidth={2.1} />
             </span>
             <div>
-              <h3>메시지 초안</h3>
-              <p>사용자가 확인한 뒤 복사하거나 저장합니다.</p>
+              <h3>{t("agent.qdraft.messageDraft")}</h3>
+              <p>{t("agent.qdraft.messageDesc")}</p>
             </div>
           </div>
 
           <div className={styles.messageBox}>
-            <span>안녕하세요. 작업 범위를 정확히 맞추기 위해 아래 내용을 확인 부탁드립니다.</span>
-            <strong>{selectedDraft.question}</strong>
-            <span>확인해 주시면 WBS와 TODO를 그 기준으로 정리하겠습니다.</span>
+            <span>{t("agent.qdraft.greeting")}</span>
+            <strong>{t(selectedDraft.question as MessageKey)}</strong>
+            <span>{t("agent.qdraft.closing")}</span>
           </div>
 
           <div className={styles.previewActions}>
             <Button icon={<Copy size={15} />} onClick={() => onCopyDraft?.(selectedDraft.id)} size="sm" variant="quiet">
-              복사
+              {t("agent.qdraft.copy")}
             </Button>
             <Button icon={<Send size={15} />} size="sm" variant="primary">
-              초안 저장
+              {t("agent.qdraft.saveDraft")}
             </Button>
           </div>
 
           <div className={styles.policy}>
             <ClipboardCheck size={17} strokeWidth={2.1} />
-            <p>질문 초안은 바로 전송하지 않습니다. 사용자가 문장을 확인한 뒤 다음 단계로 넘깁니다.</p>
+            <p>{t("agent.qdraft.policyNote")}</p>
           </div>
         </aside>
       </div>
 
       <footer className={styles.footer}>
-        <span>확인 필요 항목</span>
+        <span>{t("agent.qdraft.flowReview")}</span>
         <ArrowRight size={16} />
-        <span>질문 후보</span>
+        <span>{t("agent.qdraft.flowCandidate")}</span>
         <ArrowRight size={16} />
-        <span>사용자 검토</span>
+        <span>{t("agent.qdraft.flowUser")}</span>
         <ArrowRight size={16} />
-        <span>메시지 초안</span>
+        <span>{t("agent.qdraft.flowMessage")}</span>
       </footer>
     </GlassPanel>
   );

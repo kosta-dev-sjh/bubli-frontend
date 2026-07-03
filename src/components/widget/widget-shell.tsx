@@ -1,7 +1,10 @@
+"use client";
+
 import type { HTMLAttributes } from "react";
 
 import { AgentBubble, BubbleBar, BubbleMark, DockOrb } from "@/components/bubbles";
 import { Ring, StatusBadge } from "@/components/ui";
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export type WidgetMode = "default" | "translucent" | "ghost" | "minimal";
@@ -25,8 +28,6 @@ type WidgetShellProps = Omit<HTMLAttributes<HTMLDivElement>, "title"> & {
   todos?: string[];
 };
 
-const DEFAULT_TODOS = ["시안 1차 보내기", "견적서 회신 확인", "WBS 구조 검토"];
-
 export function WidgetShell({
   agentCount,
   agentMessage,
@@ -41,17 +42,20 @@ export function WidgetShell({
   scheduleCount,
   sleep = false,
   timerText,
-  title = "오늘 할 일",
+  title,
   todoCount,
-  todos = DEFAULT_TODOS,
+  todos,
   ...props
 }: WidgetShellProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("widget.data.todo.label");
+  const resolvedTodos = todos ?? [t("widget.shell.todo1"), t("widget.shell.todo2"), t("widget.shell.todo3")];
   // --- Minimal: BubbleBar + DockOrb로 접힘 ---
   if (mode === "minimal") {
     return (
       <div className={cn("bubli-widget", "bubli-widget--minimal", sleep && "bubli-widget--sleep", className)} {...props}>
         <BubbleBar onClick={onExpand} schedules={scheduleCount} todos={todoCount} />
-        <DockOrb count={todoCount} label="위젯 펼치기" onClick={onExpand} />
+        <DockOrb count={todoCount} label={t("widget.shell.expand")} onClick={onExpand} />
       </div>
     );
   }
@@ -65,16 +69,16 @@ export function WidgetShell({
           {typeof scheduleCount === "number" ? (
             <span className="bubli-widget__signal">
               <span className="dot d-schedule" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--signal-memo)" }} />
-              일정 {scheduleCount}
+              {t("widget.shell.scheduleSignal", { count: scheduleCount })}
             </span>
           ) : null}
-          {agentCount ? <AgentBubble label="에이전트 대기" size={24} state="waiting" /> : null}
+          {agentCount ? <AgentBubble label={t("widget.shell.agentWaiting")} size={24} state="waiting" /> : null}
           <span className="bubli-widget__signal">
             <span className="bubli-widget__through">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
                 <path d="M5 12h14M13 6l6 6-6 6" />
               </svg>
-              클릭 투과
+              {t("widget.shell.clickThrough")}
             </span>
           </span>
         </div>
@@ -84,7 +88,7 @@ export function WidgetShell({
 
   // --- Default / Translucent: 같은 구조, 밀도/질감 차이 ---
   const isTranslucent = mode === "translucent";
-  const shownTodos = isTranslucent ? todos.slice(0, 2) : todos;
+  const shownTodos = isTranslucent ? resolvedTodos.slice(0, 2) : resolvedTodos;
 
   return (
     <div
@@ -103,13 +107,13 @@ export function WidgetShell({
       <div className="bubli-widget__head">
         <span className="bubli-widget__title">
           <BubbleMark size="sm" />
-          {projectLabel ?? title}
+          {projectLabel ?? resolvedTitle}
         </span>
         <span style={{ display: "inline-flex", gap: 6 }}>
           {typeof todoCount === "number" ? <StatusBadge tone="todo">{todoCount}</StatusBadge> : null}
           {onMinimize ? (
             <button
-              aria-label="최소화"
+              aria-label={t("widget.control.minimize")}
               className="bubli-button bubli-button--ghost bubli-button--sm"
               onClick={onMinimize}
               type="button"

@@ -1,3 +1,5 @@
+"use client";
+
 import { Bell, CheckCircle2, EyeOff, MessageCircle, Pin, RotateCcw, Sparkles, SquareCheckBig } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 
@@ -6,6 +8,8 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import styles from "./widget-item-state-panel.module.css";
@@ -29,50 +33,52 @@ export type WidgetItemStatePanelProps = HTMLAttributes<HTMLElement> & {
   title?: string;
 };
 
-const bubbleMeta: Record<BubbleType, { icon: ReactNode; label: string; tone: StatusTone }> = {
+const bubbleMeta: Record<BubbleType, { icon: ReactNode; label: MessageKey; tone: StatusTone }> = {
   todo: {
     icon: <SquareCheckBig size={18} strokeWidth={2.1} />,
-    label: "TODO 버블",
+    label: "widget.bubble.todo",
     tone: "todo",
   },
   agent: {
     icon: <Sparkles size={18} strokeWidth={2.1} />,
-    label: "에이전트 버블",
+    label: "widget.bubble.agent",
     tone: "agent",
   },
   chat: {
     icon: <MessageCircle size={18} strokeWidth={2.1} />,
-    label: "소통 버블",
+    label: "widget.itemState.chat",
     tone: "communication",
   },
   notification: {
     icon: <Bell size={18} strokeWidth={2.1} />,
-    label: "알림 버블",
+    label: "widget.bubble.notification",
     tone: "warning",
   },
   resource: {
     icon: <RotateCcw size={18} strokeWidth={2.1} />,
-    label: "자료 제안 버블",
+    label: "widget.bubble.resource",
     tone: "room",
   },
 };
 
-const stateMeta: Record<WidgetItemState, { label: string; tone: StatusTone }> = {
-  visible: { label: "표시 중", tone: "pending" },
-  confirmed: { label: "확인함", tone: "success" },
-  hidden: { label: "숨김", tone: "neutral" },
-  pinned: { label: "고정", tone: "approved" },
-  snoozed: { label: "나중에 보기", tone: "warning" },
+const stateMeta: Record<WidgetItemState, { label: MessageKey; tone: StatusTone }> = {
+  visible: { label: "widget.itemState.state.visible", tone: "pending" },
+  confirmed: { label: "widget.itemState.state.confirmed", tone: "success" },
+  hidden: { label: "widget.itemState.state.hidden", tone: "neutral" },
+  pinned: { label: "widget.itemState.state.pinned", tone: "approved" },
+  snoozed: { label: "widget.itemState.state.snoozed", tone: "warning" },
 };
 
-const actionList = [
-  { icon: <CheckCircle2 size={15} strokeWidth={2.1} />, label: "확인", variant: "primary" as const },
-  { icon: <EyeOff size={15} strokeWidth={2.1} />, label: "숨김", variant: "quiet" as const },
-  { icon: <Pin size={15} strokeWidth={2.1} />, label: "고정", variant: "secondary" as const },
-  { icon: <RotateCcw size={15} strokeWidth={2.1} />, label: "나중에 보기", variant: "ghost" as const },
+const actionList: Array<{ icon: ReactNode; id: string; label: MessageKey; variant: "primary" | "quiet" | "secondary" | "ghost" }> = [
+  { icon: <CheckCircle2 size={15} strokeWidth={2.1} />, id: "confirm", label: "widget.itemState.action.confirm", variant: "primary" },
+  { icon: <EyeOff size={15} strokeWidth={2.1} />, id: "hide", label: "widget.itemState.action.hide", variant: "quiet" },
+  { icon: <Pin size={15} strokeWidth={2.1} />, id: "pin", label: "widget.itemState.action.pin", variant: "secondary" },
+  { icon: <RotateCcw size={15} strokeWidth={2.1} />, id: "snooze", label: "widget.itemState.action.snooze", variant: "ghost" },
 ];
 
-export function WidgetItemStatePanel({ className, items, title = "버블 항목 상태", ...props }: WidgetItemStatePanelProps) {
+export function WidgetItemStatePanel({ className, items, title, ...props }: WidgetItemStatePanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("widget.itemState.title");
   const activeCount = items.filter((item) => item.state === "visible" || item.state === "pinned").length;
   const handledCount = items.length - activeCount;
 
@@ -80,36 +86,32 @@ export function WidgetItemStatePanel({ className, items, title = "버블 항목 
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <Chip icon={<Pin size={14} strokeWidth={2.1} />}>버블 항목 상태</Chip>
+          <Chip icon={<Pin size={14} strokeWidth={2.1} />}>{t("widget.itemState.chip")}</Chip>
           <div>
-            <h2 className={styles.title}>{title}</h2>
-            <p className={styles.description}>
-              버블 안에 표시된 TODO, 알림, 채팅, 에이전트 제안은 항목별 상태를 따로 저장합니다. 같은 항목은 새로 쌓지 않고 기존 상태를 갱신합니다.
-            </p>
+            <h2 className={styles.title}>{resolvedTitle}</h2>
+            <p className={styles.description}>{t("widget.itemState.description")}</p>
           </div>
         </div>
         <div className={styles.summary}>
           <div>
-            <span>현재 표시</span>
-            <strong>{activeCount}건</strong>
+            <span>{t("widget.itemState.currentVisible")}</span>
+            <strong>{t("widget.itemState.count", { count: activeCount })}</strong>
           </div>
           <div>
-            <span>처리됨</span>
-            <strong>{handledCount}건</strong>
+            <span>{t("widget.itemState.handled")}</span>
+            <strong>{t("widget.itemState.count", { count: handledCount })}</strong>
           </div>
         </div>
       </header>
 
-      <section className={styles.storageRule} aria-label="저장 기준">
+      <section className={styles.storageRule} aria-label={t("widget.itemState.storageRuleAria")}>
         <span aria-hidden="true">
           <CheckCircle2 size={18} strokeWidth={2.1} />
         </span>
-        <p>
-          상태 저장 기준은 사용자, 버블 종류, 항목 종류, 원본 항목 조합입니다. 웹과 데스크탑 앱에서 다시 열어도 같은 상태가 유지되어야 합니다.
-        </p>
+        <p>{t("widget.itemState.storageRule")}</p>
       </section>
 
-      <section className={styles.itemList} aria-label="버블 항목 상태 목록">
+      <section className={styles.itemList} aria-label={t("widget.itemState.listAria")}>
         {items.map((item) => {
           const bubble = bubbleMeta[item.bubbleType];
           const state = stateMeta[item.state];
@@ -123,21 +125,21 @@ export function WidgetItemStatePanel({ className, items, title = "버블 항목 
                 <div>
                   <div className={styles.titleLine}>
                     <h3>{item.title}</h3>
-                    <StatusBadge tone={state.tone}>{state.label}</StatusBadge>
+                    <StatusBadge tone={state.tone}>{t(state.label)}</StatusBadge>
                   </div>
                   <p>{item.meta}</p>
                   <div className={styles.metaLine}>
-                    <StatusBadge tone={bubble.tone}>{bubble.label}</StatusBadge>
+                    <StatusBadge tone={bubble.tone}>{t(bubble.label)}</StatusBadge>
                     <span>{item.sourceLabel}</span>
                     <span>{item.updatedAt}</span>
                   </div>
                 </div>
               </div>
 
-              <div className={styles.actions} aria-label={`${item.title} 상태 변경`}>
+              <div className={styles.actions} aria-label={t("widget.itemState.changeAria", { title: item.title })}>
                 {actionList.map((action) => (
-                  <Button icon={action.icon} key={action.label} size="sm" variant={action.variant}>
-                    {action.label}
+                  <Button icon={action.icon} key={action.id} size="sm" variant={action.variant}>
+                    {t(action.label)}
                   </Button>
                 ))}
               </div>
