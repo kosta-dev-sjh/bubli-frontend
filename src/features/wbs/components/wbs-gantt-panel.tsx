@@ -321,7 +321,10 @@ export function WbsGanttPanel({
     });
   };
 
-  const getParentIdForChild = (item: WbsItemResponse) => item.id;
+  const getParentIdForNewTaskFromRow = (item: WbsItemResponse) => item.parentId ?? item.id;
+
+  const getFeatureForNewTaskFromRow = (item: WbsItemResponse) =>
+    featureById.get(item.id) ?? (item.parentId ? featureById.get(item.parentId) : undefined);
 
   const persistRange = useCallback((item: WbsItemResponse, nextRange: LocalRange) => {
     const schedule = scheduleByWbsId.get(item.id);
@@ -455,7 +458,7 @@ export function WbsGanttPanel({
     const item = selectedWbsId ? itemById.get(selectedWbsId) : null;
 
     if (!item) return orderedGroups[0]?.root.id ?? null;
-    return getParentIdForChild(item);
+    return getParentIdForNewTaskFromRow(item);
   };
 
   const handleAddTask = () => {
@@ -465,8 +468,8 @@ export function WbsGanttPanel({
   };
 
   const handleAddChildFromRow = (item: WbsItemResponse) => {
-    const parentId = getParentIdForChild(item);
-    const feature = featureById.get(parentId) ?? featureById.get(item.id);
+    const parentId = getParentIdForNewTaskFromRow(item);
+    const feature = getFeatureForNewTaskFromRow(item);
     openCreateDraft(parentId, feature?.startAt ?? new Date());
   };
 
@@ -625,7 +628,7 @@ export function WbsGanttPanel({
               const feature = featureById.get(item.id);
               if (!feature) return null;
               const parentItem = item.parentId ? itemById.get(item.parentId) : null;
-              const parentIdForChild = getParentIdForChild(item);
+              const parentIdForChild = getParentIdForNewTaskFromRow(item);
               const parentTitle = itemById.get(parentIdForChild)?.title ?? item.title;
               const accent = resolveAccent(item);
               const childCount = childCountById.get(item.id) ?? 0;
