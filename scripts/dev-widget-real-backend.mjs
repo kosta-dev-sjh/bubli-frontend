@@ -198,6 +198,35 @@ async function smokeBackend(accessToken) {
   const syncedResourceId = localFileSync.results[0].resourceId;
   assert(syncedResourceId, "local file event sync did not return a resource id");
 
+  const localFileAnalysis = await apiPost("/api/local-file-analyses", headers, {
+    analyzedCharCount: 112,
+    checksum: "codex-local-analysis-smoke-checksum",
+    combinedText:
+      "Codex local file analysis smoke verifies that managed folder text extraction reaches the backend analysis queue.",
+    extractionMethod: "BM25_MMR_KEY_SENTENCE_V1",
+    fileName: "codex-local-sync-smoke.txt",
+    keySentences: [
+      {
+        endOffset: 112,
+        index: 0,
+        score: 1,
+        startOffset: 0,
+        text: "Codex local file analysis smoke verifies that managed folder text extraction reaches the backend analysis queue.",
+      },
+    ],
+    localFileId: `codex-local-file-${Date.now()}`,
+    mimeType: "text/plain",
+    resourceId: syncedResourceId,
+    sourceCharCount: 112,
+    textTruncated: false,
+  });
+  assert(localFileAnalysis.jobId, "local file analysis did not return an agent job id");
+  assert(localFileAnalysis.resourceId === syncedResourceId, "local file analysis did not return the synced resource id");
+  assert(
+    localFileAnalysis.jobType === "ANALYZE_RESOURCE",
+    "local file analysis did not create an ANALYZE_RESOURCE job",
+  );
+
   const deletedLocalEventId = `codex-local-sync-deleted-${Date.now()}`;
   const localFileDelete = await apiPost("/api/local-file-events/sync", headers, {
     events: [
@@ -268,7 +297,7 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync, /api/activity/current-app, /api/activity/today, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 
