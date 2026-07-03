@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/gantt";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
+import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
@@ -505,8 +506,8 @@ export function WbsGanttPanel({
     if (schedule) {
       try {
         await calendarApi.deleteEvent(schedule.id);
-      } catch {
-        calendarDeleteFailed = true;
+      } catch (error) {
+        calendarDeleteFailed = !(error instanceof ApiClientError && error.status === 404);
       } finally {
         setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
       }
