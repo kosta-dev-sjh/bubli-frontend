@@ -18,6 +18,7 @@ import type {
   GeneratedDocumentExport,
   GeneratedDocumentPageResponse,
   GeneratedDocumentResponse,
+  RoomAiDocumentPageResponse,
 } from "@/types/api/agent";
 
 export type AnalyzeResourceRequest = {
@@ -163,6 +164,11 @@ export const agentApi = {
 
   listRoomGeneratedDocuments(roomId: string) {
     return apiRequest<GeneratedDocumentPageResponse>(`/api/project-rooms/${roomId}/generated-documents`);
+  },
+
+  // 프로젝트룸 자료 AI 분석 문서 현황 목록.
+  listRoomAiDocuments(roomId: string) {
+    return apiRequest<RoomAiDocumentPageResponse>(`/api/project-rooms/${roomId}/ai-documents`);
   },
 
   getGeneratedDocument(documentId: string) {

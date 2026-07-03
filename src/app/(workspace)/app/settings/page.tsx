@@ -11,6 +11,7 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
+import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
@@ -41,11 +42,14 @@ import {
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
+import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 import type {
   ManagedFolderResponse,
   PrivacyConsentsResponse,
   PrivacyConsentsUpdateRequest,
   StorageUsageResponse,
+  UserPreferenceResponse,
+  UserPreferenceUpdateRequest,
 } from "@/types/api/settings";
 import type { WidgetBubbleSettingResponse, WidgetBubbleType } from "@/types/api/widget";
 import type { LocalAdapterResult } from "@/types/local";
@@ -57,7 +61,9 @@ type SettingsData = {
   googleCalendarConnectUrl: string | null;
   googleCalendarConnected: boolean;
   notifications: NotificationPreferencesResponse | null;
+  preferences: UserPreferenceResponse | null;
   privacy: PrivacyConsentsResponse | null;
+  rooms: ProjectRoomResponse[];
   storage: StorageUsageResponse | null;
   widgetBubbles: WidgetBubbleSettingResponse[] | null;
 };
@@ -88,10 +94,18 @@ const emptySettings: SettingsData = {
   googleCalendarConnectUrl: null,
   googleCalendarConnected: false,
   notifications: null,
+  preferences: null,
   privacy: null,
+  rooms: [],
   storage: null,
   widgetBubbles: null,
 };
+
+// 기본 시작 화면 — 백엔드 user_preference.default_home_type 계약 값.
+const homeTypeOptions: Array<{ labelKey: MessageKey; value: string }> = [
+  { labelKey: "settings.pref.homePersonal", value: "PERSONAL" },
+  { labelKey: "settings.pref.homeProjectRoom", value: "PROJECT_ROOM" },
+];
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
@@ -209,6 +223,8 @@ export default function SettingsPage() {
   const [desktopRuntime, setDesktopRuntime] = useState(false);
   const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
   const [copiedBubliId, setCopiedBubliId] = useState(false);
+  const [withdrawConfirming, setWithdrawConfirming] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
 
   // Bubli ID 복사 — 소통 탭 친구 관리 모달의 복사 패턴과 동일하게 짧은 "복사됨" 피드백을 준다.
   const copyBubliId = useCallback(async (bubliId: string) => {
@@ -229,15 +245,18 @@ export default function SettingsPage() {
 
     try {
       const user = await authApi.getMe();
-      const [notifications, privacy, storage, widgetBubbles, localFolders, googleConnection] = await Promise.allSettled([
+      const [notifications, privacy, storage, widgetBubbles, localFolders, googleConnection, preferences, roomPage] = await Promise.allSettled([
         settingsApi.getNotificationPreferences(),
         settingsApi.getPrivacyConsents(),
         settingsApi.getStorageUsage(),
         widgetApi.getBubbles(),
         listPersonalManagedFolders(),
         calendarApi.getGoogleConnection(),
+        settingsApi.getPreferences(),
+        projectRoomApi.list(),
       ]);
       const folderResult = settledValue(localFolders, null);
+      const roomPageResult = settledValue(roomPage, null);
 
       setNameDraft(user.name);
       setState({
@@ -250,7 +269,9 @@ export default function SettingsPage() {
           googleCalendarConnectUrl: calendarApi.getGoogleConnectUrl(),
           googleCalendarConnected: googleConnection.status === "fulfilled" && googleConnection.value?.status === "ACTIVE",
           notifications: settledValue(notifications, null),
+          preferences: settledValue(preferences, null),
           privacy: settledValue(privacy, null),
+          rooms: roomPageResult?.items ?? [],
           storage: settledValue(storage, null),
           widgetBubbles: settledValue(widgetBubbles, null),
         },
@@ -378,6 +399,42 @@ export default function SettingsPage() {
     router.push("/login");
     router.refresh();
   }, [router]);
+
+  // 서버 기본 화면 설정(/api/me/preferences) 저장 — 값이 있는 필드만 PATCH 한다.
+  const savePreference = useCallback(
+    async (patch: UserPreferenceUpdateRequest) => {
+      if (state.kind !== "ready") return;
+
+      try {
+        const saved = await settingsApi.updatePreferences(patch);
+        updateReadyState((ready) => ({
+          ...ready,
+          settings: { ...ready.settings, preferences: saved },
+        }));
+        setMessage({ text: t("settings.msg.prefSaved"), tone: "approved" });
+      } catch {
+        if (shouldUseWorkspacePreviewData()) return;
+        setMessage({ text: t("settings.msg.prefSaveFailed"), tone: "warning" });
+      }
+    },
+    [state.kind, t, updateReadyState],
+  );
+
+  const withdraw = useCallback(async () => {
+    if (state.kind !== "ready") return;
+
+    setWithdrawing(true);
+
+    try {
+      await authApi.withdrawMe();
+      router.push("/login");
+      router.refresh();
+    } catch {
+      setMessage({ text: t("settings.msg.withdrawFailed"), tone: "warning" });
+      setWithdrawing(false);
+      setWithdrawConfirming(false);
+    }
+  }, [router, state.kind, t]);
 
   const toggleNotification = useCallback(
     async (key: keyof NotificationPreferencesResponse) => {
@@ -670,6 +727,10 @@ export default function SettingsPage() {
   const currentTimezone = ready ? (state.user.timezone ?? "Asia/Seoul") : "Asia/Seoul";
   const googleConnected = ready && state.settings.googleCalendarConnected;
   const nameDirty = ready && nameDraft.trim().length > 0 && nameDraft.trim() !== state.user.name;
+  const serverPreferences = readySettings.preferences;
+  const preferenceRooms = readySettings.rooms;
+  const currentHomeType = serverPreferences?.defaultHomeType ?? "PERSONAL";
+  const currentDefaultRoomId = serverPreferences?.defaultProjectRoomId ?? "";
 
   const navItems: NavItem[] = [
     { id: "settings-account", labelKey: "settings.nav.account" },
@@ -792,6 +853,39 @@ export default function SettingsPage() {
                     {t("common.logout")}
                   </Button>
                 </div>
+                <div className={styles.row}>
+                  <div className={styles.rowText}>
+                    <strong>{t("settings.account.withdraw")}</strong>
+                    <p>{t("settings.account.withdrawDesc")}</p>
+                  </div>
+                  <div className={styles.rowControl}>
+                    <Button
+                      disabled={!ready}
+                      loading={withdrawing}
+                      onClick={() => {
+                        if (!withdrawConfirming) {
+                          setWithdrawConfirming(true);
+                          return;
+                        }
+                        void withdraw();
+                      }}
+                      size="sm"
+                      type="button"
+                      variant={withdrawConfirming ? "primary" : "quiet"}
+                    >
+                      {withdrawing
+                        ? t("settings.account.withdrawing")
+                        : withdrawConfirming
+                          ? t("settings.account.withdrawConfirm")
+                          : t("settings.account.withdraw")}
+                    </Button>
+                    {withdrawConfirming && !withdrawing ? (
+                      <Button onClick={() => setWithdrawConfirming(false)} size="sm" type="button" variant="quiet">
+                        {t("settings.account.withdrawCancel")}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
               </div>
             </GlassPanel>
 
@@ -845,6 +939,51 @@ export default function SettingsPage() {
                     <p>{t("settings.pref.themeDesc")}</p>
                   </div>
                   <ThemeToggle />
+                </div>
+                <div className={styles.row}>
+                  <div className={styles.rowText}>
+                    <strong>{t("settings.pref.homeType")}</strong>
+                    <p>{t("settings.pref.homeTypeDesc")}</p>
+                  </div>
+                  <div aria-label={t("settings.pref.homeType")} className={styles.segmented} role="radiogroup">
+                    {homeTypeOptions.map((option) => (
+                      <button
+                        aria-checked={currentHomeType === option.value}
+                        className={currentHomeType === option.value ? styles.segmentedActive : ""}
+                        disabled={!ready || !serverPreferences}
+                        key={option.value}
+                        onClick={() => void savePreference({ defaultHomeType: option.value })}
+                        role="radio"
+                        type="button"
+                      >
+                        {t(option.labelKey)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.row}>
+                  <div className={styles.rowText}>
+                    <strong>{t("settings.pref.defaultRoom")}</strong>
+                    <p>{t("settings.pref.defaultRoomDesc")}</p>
+                  </div>
+                  <select
+                    aria-label={t("settings.pref.defaultRoom")}
+                    className={styles.selectControl}
+                    disabled={!ready || !serverPreferences || preferenceRooms.length === 0}
+                    onChange={(event) => {
+                      if (event.target.value) void savePreference({ defaultProjectRoomId: event.target.value });
+                    }}
+                    value={currentDefaultRoomId}
+                  >
+                    <option disabled value="">
+                      {t("settings.pref.defaultRoomNone")}
+                    </option>
+                    {preferenceRooms.map((room) => (
+                      <option key={room.id} value={room.id}>
+                        {room.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </GlassPanel>

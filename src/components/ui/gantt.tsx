@@ -485,6 +485,7 @@ export type GanttSidebarItemStatusIndicator = {
 export type GanttSidebarItemProps = {
   actions?: ReactNode;
   accentColor?: string;
+  expander?: ReactNode;
   feature: GanttFeature;
   indentLevel?: number;
   onSelectItem?: (id: string) => void;
@@ -497,6 +498,7 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
   accentColor,
   actions,
   className,
+  expander,
   feature,
   indentLevel = 0,
   onSelectItem,
@@ -520,7 +522,7 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
 
   return (
     <div
-      className={cn("relative flex items-center gap-2.5 p-2.5 text-[13px]", className)}
+      className={cn("relative flex items-center gap-2 py-0 pr-2.5 pl-1.5 text-[13px]", className)}
       data-gantt-item-kind={indentLevel > 0 ? "child" : "parent"}
       key={feature.id}
       onClick={handleClick}
@@ -533,63 +535,66 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
       } as CSSProperties}
       tabIndex={0}
     >
-      <div
-        className="pointer-events-none h-2 w-2 shrink-0 rounded-full"
-        style={{
-          backgroundColor: color,
-        }}
-      />
+      <span className="flex w-5 shrink-0 items-center justify-center" data-roadmap-ui="gantt-row-expander">
+        {expander}
+      </span>
       <span
-        className="pointer-events-none grid min-w-0 flex-1 gap-0.5 text-left"
+        className="pointer-events-none flex min-w-0 flex-1 items-center gap-1.5 text-left"
         style={{ paddingLeft: "var(--gantt-row-indent)" }}
       >
-        <span className="flex min-w-0 items-center gap-1.5">
-          {statusIndicator ? (
+        {statusIndicator ? (
+          <span
+            aria-hidden="true"
+            className={cn(
+              "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-200",
+              statusIndicator.state === "done" ? "border-transparent" : "border-border bg-background/80",
+            )}
+            data-roadmap-ui="gantt-status-indicator"
+            data-state={statusIndicator.state}
+            style={statusIndicator.state === "done" ? { backgroundColor: color } : undefined}
+            title={statusIndicator.label}
+          >
+            {statusIndicator.state === "done" ? (
+              <svg fill="none" height="10" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" viewBox="0 0 24 24" width="10">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            ) : statusIndicator.state === "inProgress" ? (
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+            ) : null}
+          </span>
+        ) : null}
+        <span className="truncate font-medium">{feature.name}</span>
+        {progress && progress.total > 0 ? (
+          <span className="flex shrink-0 items-center gap-1.5" title={progress.label}>
             <span
               aria-hidden="true"
-              className={cn(
-                "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-200",
-                statusIndicator.state === "done" ? "border-transparent" : "border-border bg-background/80",
-              )}
-              data-roadmap-ui="gantt-status-indicator"
-              data-state={statusIndicator.state}
-              style={statusIndicator.state === "done" ? { backgroundColor: color } : undefined}
-              title={statusIndicator.label}
+              className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"
+              data-roadmap-ui="gantt-progress-track"
             >
-              {statusIndicator.state === "done" ? (
-                <svg fill="none" height="10" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" viewBox="0 0 24 24" width="10">
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              ) : statusIndicator.state === "inProgress" ? (
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-              ) : null}
-            </span>
-          ) : null}
-          <span className="truncate font-medium">{feature.name}</span>
-          {progress && progress.total > 0 ? (
-            <span className="flex shrink-0 items-center gap-1.5" title={progress.label}>
               <span
-                aria-hidden="true"
-                className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"
-                data-roadmap-ui="gantt-progress-track"
-              >
-                <span
-                  className="block h-full rounded-full transition-[width] duration-200"
-                  style={{
-                    backgroundColor: color,
-                    width: `${Math.round((Math.min(progress.done, progress.total) / progress.total) * 100)}%`,
-                  }}
-                />
-              </span>
-              <span className="text-[13px] text-muted-foreground tabular-nums">
-                {`${progress.done}/${progress.total}`}
-              </span>
+                className="block h-full rounded-full transition-[width] duration-200"
+                style={{
+                  backgroundColor: color,
+                  width: `${Math.round((Math.min(progress.done, progress.total) / progress.total) * 100)}%`,
+                }}
+              />
             </span>
-          ) : null}
-        </span>
+            <span className="text-[13px] text-muted-foreground tabular-nums">
+              {`${progress.done}/${progress.total}`}
+            </span>
+          </span>
+        ) : null}
       </span>
-      <p className="pointer-events-none text-muted-foreground">{duration}</p>
-      {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
+      <span className="ml-auto flex shrink-0 items-center" data-roadmap-ui="gantt-row-trailing">
+        <p className="pointer-events-none whitespace-nowrap text-muted-foreground" data-roadmap-ui="gantt-row-duration">
+          {duration}
+        </p>
+        {actions ? (
+          <div className="flex shrink-0 items-center gap-0.5" data-roadmap-ui="gantt-row-actions">
+            {actions}
+          </div>
+        ) : null}
+      </span>
     </div>
   );
 };
@@ -884,7 +889,7 @@ export const GanttFeatureItemCard: FC<GanttFeatureItemCardProps> = ({ color, id,
 
   return (
     <Card
-      className="h-full w-full rounded-md bg-background p-2 text-[13px] shadow-sm"
+      className="h-full w-full rounded-md bg-background px-2 py-0 text-[13px] shadow-sm"
       data-roadmap-ui="gantt-feature-card"
       style={{ "--gantt-feature-color": color ?? "currentColor" } as CSSProperties}
     >
@@ -1031,10 +1036,10 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
       style={{ height: "var(--gantt-row-height)" }}
     >
       <div
-        className="pointer-events-auto absolute top-0.5"
+        className="pointer-events-auto absolute top-[7px]"
         data-gantt-feature-id={feature.id}
         style={{
-          height: "calc(var(--gantt-row-height) - 4px)",
+          height: "calc(var(--gantt-row-height) - 14px)",
           width: Math.round(width),
           left: Math.round(offset),
         }}

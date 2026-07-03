@@ -10,6 +10,19 @@ export type ProjectRoomInvitationStatus = "PENDING" | "ACCEPTED" | "CANCELED" | 
 
 export type ContractDocumentType = "CONTRACT" | "REQUIREMENT";
 
+export type InviteLinkCreateRequest = {
+  expiresInHours: number;
+};
+
+export type InviteLinkResponse = {
+  expired: boolean;
+  expiresAt: string;
+  inviterName: string;
+  roomId: string;
+  roomName: string;
+  token: string;
+};
+
 export type ProjectRoomUpsertRequest = {
   clientName?: string | null;
   contractAmount?: number | null;

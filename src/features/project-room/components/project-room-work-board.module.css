@@ -20,86 +20,60 @@
   stroke-width: 1.9px;
 }
 
-.contextBand {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  box-shadow: none;
-  color: var(--color-text);
-  display: inline-flex;
-  inline-size: fit-content;
-  justify-self: end;
-  padding: 0;
-}
-
+/* 저장 알림: 레이아웃을 밀지 않는 토스트형 배지 (pane 우하단) */
 .saveNotice {
-  color: var(--work-muted);
+  background: rgba(44, 53, 64, 0.86);
+  border-radius: 9px;
+  color: #FFFFFF;
   font-size: 13px;
   font-weight: 650;
+  inset-block-end: 14px;
+  inset-inline-end: 16px;
   line-height: 1.4;
-  margin-inline-end: 10px;
+  padding: 7px 12px;
+  pointer-events: none;
+  position: absolute;
   word-break: keep-all;
+  z-index: 20;
 }
 
 .generateButton {
   align-items: center;
-  background: rgba(215, 234, 244, 0.72);
-  border: 1px solid rgba(142, 205, 246, 0.36);
-  border-radius: 999px;
-  color: var(--work-ink);
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--work-muted);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
   font-size: 13px;
-  font-weight: 780;
+  font-weight: 650;
   gap: 6px;
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 10px;
+  transition: background-color 140ms ease, color 140ms ease;
   white-space: nowrap;
 }
 
 .generateButton:hover:not(:disabled) {
-  background: rgba(215, 234, 244, 0.9);
-  border-color: rgba(107, 143, 168, 0.42);
+  background: rgba(44, 53, 64, 0.06);
+  color: var(--work-ink);
 }
 
 .generateButton:disabled {
   cursor: wait;
-  opacity: 0.68;
+  opacity: 0.55;
 }
 
-.progressChip {
+.boardToolbar {
   align-items: center;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(210, 225, 238, 0.78);
-  border-radius: 999px;
-  color: var(--work-muted);
-  display: inline-flex;
-  font-size: 13px;
-  font-weight: 740;
-  gap: 8px;
-  min-block-size: 30px;
-  padding: 0 12px;
-  white-space: nowrap;
-}
-
-.progressTrack {
-  background: rgba(205, 216, 223, 0.6);
-  block-size: 6px;
-  border-radius: 999px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  display: inline-block;
-  inline-size: 64px;
-  overflow: hidden;
-}
-
-.progressFill {
-  background: var(--signal-ok, #93CFA8);
-  block-size: 100%;
-  border-radius: 999px;
-  display: block;
-  transition: inline-size 200ms ease;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  justify-content: space-between;
+  margin-block-end: 12px;
+  min-block-size: 36px;
 }
 
 .paneActions {
@@ -133,80 +107,67 @@
   color: color-mix(in srgb, var(--color-warning) 42%, var(--ink) 58%);
 }
 
+/* 뷰 전환: 간트 기간 세그먼트와 같은 문법의 평평한 세그먼트 컨트롤 */
 .viewSwitch {
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(210, 225, 238, 0.64);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 12px 28px -24px rgba(107, 143, 168, 0.34);
+  align-items: center;
+  background: rgba(44, 53, 64, 0.05);
+  border: 1px solid rgba(44, 53, 64, 0.08);
+  border-radius: 10px;
   display: inline-flex;
-  gap: 4px;
-  border-radius: 999px;
-  padding: 4px;
+  gap: 2px;
+  padding: 2px;
 }
 
 .viewSwitch button {
-  display: inline-flex;
-  gap: 6px;
   align-items: center;
-  min-height: 36px;
-  padding: 0 13px;
-  border: 0;
-  border-radius: 999px;
-  color: var(--color-muted);
+  appearance: none;
   background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--work-muted);
+  cursor: pointer;
+  display: inline-flex;
   font: inherit;
   font-size: 13px;
-  font-weight: 780;
+  font-weight: 650;
+  gap: 6px;
   letter-spacing: 0;
-  cursor: pointer;
-  transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease, transform 160ms ease;
+  min-height: 28px;
+  padding: 0 12px;
+  transition: background-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
 }
 
 .viewSwitch button[aria-pressed="true"] {
+  background: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(44, 53, 64, 0.14);
   color: var(--work-ink);
-  background: rgba(215, 234, 244, 0.62);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.94),
-    0 10px 24px -18px rgba(107, 143, 168, 0.38);
-  transform: translateY(-1px);
-}
-
-.paneHead h2 {
-  color: var(--work-ink);
-  font-size: 17px;
-  line-height: 1.35;
-  margin: 0 0 4px;
-}
-
-.paneHead p {
-  color: var(--work-muted);
-  font-size: 14px;
-  line-height: 1.55;
-  margin: 0;
 }
 
 .boardGrid {
   min-inline-size: 0;
 }
 
+/* 유리 패널은 이 바깥 pane 하나뿐 — 내부 면은 평평하게 유지 */
 .pane,
 .kanbanPane,
 .wbsDetail,
 .wbsInspector,
 .wbsInspectorPopover,
 .suggestionTray {
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(250, 253, 255, 0.74)),
-    rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(18px);
   border: 1px solid var(--work-border);
-  border-radius: 22px;
+  border-radius: 18px;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 18px 44px -34px rgba(107, 143, 168, 0.34);
+    0 18px 44px -34px rgba(107, 143, 168, 0.3);
   min-inline-size: 0;
   padding: 16px;
+}
+
+.pane,
+.kanbanPane {
+  position: relative;
 }
 
 .kanbanPane {
@@ -224,87 +185,12 @@
 
 .wbsWorkspace .pane {
   overflow-x: auto;
-  padding: 18px;
-}
-
-.paneHead {
-  align-items: flex-start;
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-  margin-block-end: 14px;
-}
-
-.ganttPaneHead {
-  align-items: center;
-  margin-block-end: 10px;
-}
-
-.ganttPaneHead h2 {
-  font-size: 18px;
-  font-weight: 760;
-}
-
-.kanbanPane .paneHead {
-  align-items: center;
-  margin-block-end: 12px;
-}
-
-.kanbanPane .paneHead h2 {
-  font-size: 18px;
-  font-weight: 760;
-}
-
-.wbsWorkspace .pane :global(.gantt) {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 250, 0.88)),
-    rgba(255, 255, 255, 0.9);
-  border-color: rgba(229, 231, 235, 0.9);
-  border-radius: 18px;
-  color: #2c3540;
-  font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
-  letter-spacing: 0;
+  padding: 16px;
 }
 
 .wbsWorkspace .pane :global(.gantt button) {
   font-family: inherit;
   letter-spacing: 0;
-}
-
-.wbsWorkspace .pane :global([data-roadmap-ui="gantt-sidebar"]) {
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(229, 231, 235, 0.78);
-}
-
-.wbsWorkspace .pane :global(.gantt .bg-secondary) {
-  background-color: rgba(215, 234, 244, 0.22);
-}
-
-.wbsWorkspace .pane :global(.gantt .bg-background),
-.wbsWorkspace .pane :global(.gantt .bg-card) {
-  background-color: rgba(255, 255, 255, 0.84);
-}
-
-.wbsWorkspace .pane :global(.gantt .border-border\/50) {
-  border-color: rgba(205, 216, 223, 0.58);
-}
-
-.wbsWorkspace .pane :global(.gantt .divide-border\/50 > :not([hidden]) ~ :not([hidden])) {
-  border-color: rgba(205, 216, 223, 0.55);
-}
-
-.wbsWorkspace .pane :global(.gantt .text-muted-foreground) {
-  color: #6b8fa8;
-}
-
-.wbsWorkspace .pane :global(.gantt .text-foreground) {
-  color: #2c3540;
-}
-
-.wbsWorkspace .pane :global(.gantt .shadow-sm) {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 12px 26px -24px rgba(107, 143, 168, 0.45);
 }
 
 .wbsList,
@@ -343,7 +229,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 13px;
-  font-weight: 740;
+  font-weight: 650;
   min-block-size: 30px;
   min-inline-size: 46px;
   padding: 0 10px;
@@ -383,13 +269,13 @@
 .periodBoardHead strong {
   color: #2c3540;
   font-size: 14px;
-  font-weight: 760;
+  font-weight: 650;
 }
 
 .periodBoardHead span {
   color: #5a6772;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 650;
 }
 
 .periodNav {
@@ -411,7 +297,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 13px;
-  font-weight: 740;
+  font-weight: 650;
   min-block-size: 28px;
   padding: 0 10px;
   transition: background-color 160ms ease, color 160ms ease;
@@ -466,7 +352,7 @@
 .periodCell header strong {
   color: #2c3540;
   font-size: 14px;
-  font-weight: 760;
+  font-weight: 650;
 }
 
 .periodItems,
@@ -478,7 +364,7 @@
 .periodItems small {
   color: #8a94a0;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 650;
 }
 
 .periodPill {
@@ -496,7 +382,7 @@
 .periodPill strong {
   color: #2c3540;
   font-size: 13px;
-  font-weight: 740;
+  font-weight: 650;
   line-height: 1.35;
   word-break: keep-all;
 }
@@ -504,7 +390,7 @@
 .periodPill small {
   color: #5a6772;
   font-size: 13px;
-  font-weight: 740;
+  font-weight: 650;
   line-height: 1.35;
 }
 
@@ -693,7 +579,7 @@
 .trashZone strong {
   color: #2c3540;
   font-size: 14px;
-  font-weight: 740;
+  font-weight: 650;
   line-height: 1.35;
   min-inline-size: 0;
   overflow: hidden;
@@ -706,7 +592,7 @@
 .cardTop strong {
   display: block;
   font-size: 14px;
-  font-weight: 740;
+  font-weight: 650;
   line-height: 1.42;
   overflow: visible;
   text-overflow: clip;
@@ -804,7 +690,7 @@
 .inspectorTitle strong {
   color: #2c3540;
   font-size: 16px;
-  font-weight: 760;
+  font-weight: 650;
   line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -815,7 +701,7 @@
 .inspectorMeta {
   color: #5a6772;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 650;
   line-height: 1.35;
 }
 
@@ -914,7 +800,7 @@
 .colorControl > span {
   color: #5a6772;
   font-size: 13px;
-  font-weight: 740;
+  font-weight: 650;
 }
 
 .colorSwatches {
@@ -948,7 +834,7 @@
   color: #5a6772;
   display: inline-flex;
   font-size: 13px;
-  font-weight: 740;
+  font-weight: 650;
   gap: 7px;
   min-block-size: 28px;
   padding: 0 8px 0 10px;
@@ -985,7 +871,7 @@
   color: #5a6772;
   display: grid;
   font-size: 13px;
-  font-weight: 740;
+  font-weight: 650;
   gap: 6px;
   min-inline-size: 0;
 }
@@ -1006,7 +892,7 @@
   color: #5a6772;
   display: grid;
   font-size: 13px;
-  font-weight: 740;
+  font-weight: 650;
   gap: 6px;
   min-inline-size: 0;
 }
@@ -1021,7 +907,7 @@
   color: #2c3540;
   font: inherit;
   font-size: 14px;
-  font-weight: 760;
+  font-weight: 650;
   min-block-size: 42px;
   min-inline-size: 0;
   outline: none;
@@ -1056,7 +942,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 650;
   min-block-size: 36px;
   padding: 0 14px;
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
@@ -1171,7 +1057,7 @@
 .columnHead strong {
   color: #2c3540;
   font-size: 14px;
-  font-weight: 740;
+  font-weight: 650;
   line-height: 1.25;
 }
 
@@ -1259,7 +1145,7 @@
 
 .cardTop strong {
   font-size: 14px;
-  font-weight: 740;
+  font-weight: 650;
   inline-size: 100%;
   line-height: 1.38;
   overflow-wrap: normal;
@@ -1324,7 +1210,7 @@
   color: #5a6772;
   display: grid;
   font-size: 13px;
-  font-weight: 740;
+  font-weight: 650;
   gap: 6px;
   margin-block-start: 12px;
   max-inline-size: 260px;
@@ -1357,7 +1243,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 13px;
-  font-weight: 740;
+  font-weight: 650;
   min-block-size: 34px;
   padding: 0 12px;
 }
@@ -1392,7 +1278,7 @@
 .candidateTrayHead strong {
   color: var(--work-ink);
   font-size: 14px;
-  font-weight: 780;
+  font-weight: 700;
   line-height: 1.3;
 }
 
@@ -1416,7 +1302,7 @@
   display: inline-flex;
   font: inherit;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 650;
   gap: 4px;
   min-block-size: 28px;
   padding: 0 9px;
@@ -1536,10 +1422,6 @@
 }
 
 @media (max-width: 760px) {
-  .contextBand {
-    justify-self: start;
-  }
-
   .trashZone {
     min-inline-size: 0;
   }
@@ -1579,24 +1461,18 @@
   --work-surface: rgba(34, 46, 72, 0.5);
 }
 
+[data-theme="dark"] .saveNotice {
+  background: rgba(234, 240, 248, 0.92);
+  color: #121A28;
+}
+
 [data-theme="dark"] .generateButton {
-  background: rgba(70, 110, 165, 0.4);
-  border-color: rgba(158, 216, 255, 0.34);
+  color: #A7B6CC;
 }
 
 [data-theme="dark"] .generateButton:hover:not(:disabled) {
-  background: rgba(70, 110, 165, 0.55);
-  border-color: rgba(158, 216, 255, 0.46);
-}
-
-[data-theme="dark"] .progressChip {
-  background: rgba(34, 46, 72, 0.5);
-  border-color: rgba(150, 170, 215, 0.2);
-}
-
-[data-theme="dark"] .progressTrack {
-  background: rgba(150, 170, 215, 0.24);
-  box-shadow: inset 0 1px 0 rgba(180, 205, 240, 0.1);
+  background: rgba(150, 170, 215, 0.14);
+  color: #EAF0F8;
 }
 
 [data-theme="dark"] .generateNotice {
@@ -1612,11 +1488,8 @@
 }
 
 [data-theme="dark"] .viewSwitch {
-  background: rgba(34, 46, 72, 0.5);
+  background: rgba(150, 170, 215, 0.1);
   border-color: rgba(150, 170, 215, 0.16);
-  box-shadow:
-    var(--inner-highlight-dark),
-    0 12px 28px -24px rgba(0, 0, 0, 0.6);
 }
 
 [data-theme="dark"] .viewSwitch button {
@@ -1624,10 +1497,9 @@
 }
 
 [data-theme="dark"] .viewSwitch button[aria-pressed="true"] {
-  background: rgba(60, 80, 125, 0.55);
-  box-shadow:
-    inset 0 1px 0 rgba(180, 205, 240, 0.1),
-    0 10px 24px -18px rgba(0, 0, 0, 0.6);
+  background: rgba(60, 80, 125, 0.85);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  color: #EAF0F8;
 }
 
 [data-theme="dark"] .pane,
@@ -1640,48 +1512,6 @@
   box-shadow:
     var(--inner-highlight-dark),
     0 18px 44px -34px rgba(0, 0, 0, 0.6);
-}
-
-[data-theme="dark"] .wbsWorkspace .pane :global(.gantt) {
-  background: rgba(24, 33, 52, 0.6);
-  border-color: rgba(150, 170, 215, 0.16);
-  color: #EAF0F8;
-}
-
-[data-theme="dark"] .wbsWorkspace .pane :global([data-roadmap-ui="gantt-sidebar"]) {
-  background: rgba(24, 33, 52, 0.9);
-  border-color: rgba(150, 170, 215, 0.16);
-}
-
-[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .bg-secondary) {
-  background-color: rgba(60, 80, 125, 0.2);
-}
-
-[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .bg-background),
-[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .bg-card) {
-  background-color: rgba(24, 33, 52, 0.88);
-}
-
-[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .border-border\/50) {
-  border-color: rgba(150, 170, 215, 0.16);
-}
-
-[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .divide-border\/50 > :not([hidden]) ~ :not([hidden])) {
-  border-color: rgba(150, 170, 215, 0.14);
-}
-
-[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .text-muted-foreground) {
-  color: #A7B6CC;
-}
-
-[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .text-foreground) {
-  color: #EAF0F8;
-}
-
-[data-theme="dark"] .wbsWorkspace .pane :global(.gantt .shadow-sm) {
-  box-shadow:
-    var(--inner-highlight-dark),
-    0 12px 26px -24px rgba(0, 0, 0, 0.6);
 }
 
 [data-theme="dark"] .wbsList {

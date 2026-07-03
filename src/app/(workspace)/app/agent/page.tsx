@@ -28,7 +28,9 @@ import type {
   AgentSuggestionType,
   DailySummaryResponse,
   GeneratedDocumentResponse,
+  RoomAiDocumentResponse,
 } from "@/types/api/agent";
+import type { AiDocumentStatus } from "@/types/api/resource";
 import type { RoomMemorySummaryResponse } from "@/types/api/chat";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 
@@ -41,6 +43,7 @@ type AgentPageState =
       dailySummaries: DailySummaryResponse[];
       generatedDocuments: GeneratedDocumentResponse[];
       kind: "ready";
+      roomAiDocuments: RoomAiDocumentResponse[];
       roomMemorySummaries: RoomMemorySummaryResponse[];
       rooms: ProjectRoomResponse[];
       selectedRoomId: string | null;
@@ -75,6 +78,20 @@ const statusLabelKeys: Record<AgentSuggestionStatus, MessageKey> = {
   HELD: "agent.page.statusHeldLabel",
   REJECTED: "agent.page.statusRejectedLabel",
 };
+
+const aiDocumentStatusLabelKeys: Record<AiDocumentStatus, MessageKey> = {
+  ANALYZED: "agent.page.aiDocStatusAnalyzed",
+  ANALYZING: "agent.page.aiDocStatusAnalyzing",
+  FAILED: "agent.page.aiDocStatusFailed",
+  NONE: "agent.page.aiDocStatusNone",
+  READY: "agent.page.aiDocStatusReady",
+};
+
+function aiDocumentStatusTone(status: AiDocumentStatus) {
+  if (status === "ANALYZED") return "approved" as const;
+  if (status === "FAILED") return "warning" as const;
+  return "pending" as const;
+}
 
 const jobStatusLabelKeys: Record<AgentJobStatus, MessageKey> = {
   CANCELED: "agent.timeline.statusCanceled",
@@ -190,6 +207,7 @@ function AgentPageContent() {
           confirmedRequirements: [],
           dailySummaries: [],
           generatedDocuments: [],
+          roomAiDocuments: [],
           roomMemorySummaries: [],
           selectedRoomId: roomId,
           suggestions: [],
@@ -199,7 +217,7 @@ function AgentPageContent() {
     });
 
     try {
-      const [roomPage, suggestions, dailySummaryPage, generatedDocumentPage, roomMemorySummaries, confirmedRequirements] = await Promise.all([
+      const [roomPage, suggestions, dailySummaryPage, generatedDocumentPage, roomMemorySummaries, confirmedRequirements, roomAiDocuments] = await Promise.all([
         projectRoomApi.list(),
         roomId ? agentApi.listRoomSuggestions(roomId, { status: "DRAFT" }) : agentApi.listPersonalSuggestions({ status: "DRAFT" }),
         agentApi.listDailySummaries(),
@@ -211,6 +229,15 @@ function AgentPageContent() {
               return [] as AgentSuggestionResponse[];
             })
           : Promise.resolve([] as AgentSuggestionResponse[]),
+        roomId
+          ? agentApi
+              .listRoomAiDocuments(roomId)
+              .then((page) => page.items)
+              .catch((error: unknown) => {
+                if (error instanceof ApiClientError && error.status === 401) throw error;
+                return [] as RoomAiDocumentResponse[];
+              })
+          : Promise.resolve([] as RoomAiDocumentResponse[]),
       ]);
       const selectedRoom = roomId ? roomPage.items.find((room) => room.id === roomId) : null;
       if (selectedRoom) {
@@ -222,6 +249,7 @@ function AgentPageContent() {
         dailySummaries: dailySummaryPage.items,
         generatedDocuments: generatedDocumentPage.items,
         kind: "ready",
+        roomAiDocuments,
         roomMemorySummaries,
         rooms: roomPage.items,
         selectedRoomId: selectedRoom?.id ?? null,
@@ -244,6 +272,7 @@ function AgentPageContent() {
           dailySummaries: [],
           generatedDocuments: [],
           kind: "ready",
+          roomAiDocuments: [],
           roomMemorySummaries: [],
           rooms: workspacePreviewRooms,
           selectedRoomId: selectedRoom?.id ?? null,
@@ -786,6 +815,50 @@ function AgentPageContent() {
               </div>
             </details>
           </section>
+
+          {state.selectedRoomId ? (
+            <section className="workspace-route__section" aria-labelledby="room-ai-documents-title">
+              <details className={styles.archive}>
+                <summary className={styles.archiveHead}>
+                  <h2 className={styles.archiveTitle} id="room-ai-documents-title">{t("agent.page.aiDocsTitle")}</h2>
+                  <span className={styles.archiveCount}>{t("agent.page.suggestionsCount", { count: state.roomAiDocuments.length })}</span>
+                  <ChevronDown aria-hidden className={styles.archiveChevron} size={16} strokeWidth={2} />
+                </summary>
+                <div className={styles.archiveBody}>
+                  <p className={styles.sectionDesc}>{t("agent.page.aiDocsDesc")}</p>
+                  {state.roomAiDocuments.length === 0 ? (
+                    <p className={styles.archiveEmpty}>{t("agent.page.aiDocsEmpty")}</p>
+                  ) : (
+                    <div className="workspace-route__list">
+                      {state.roomAiDocuments.map((item) => {
+                        const typeLabel = item.documentType?.trim() || t("agent.page.aiDocsTypeFallback");
+                        const dateLabel = relativeDate(item.updatedAt);
+                        const confidence =
+                          typeof item.detectedConfidence === "number"
+                            ? t("agent.page.aiDocsConfidence", { percent: Math.round(item.detectedConfidence * 100) })
+                            : null;
+
+                        return (
+                          <article className="workspace-route__row" key={item.id}>
+                            <span className="workspace-route__dot" aria-hidden="true" />
+                            <span className="workspace-route__main">
+                              <strong>{typeLabel}</strong>
+                              <span>
+                                {[dateLabel, confidence].filter(Boolean).join(" · ") || typeLabel}
+                              </span>
+                            </span>
+                            <StatusBadge tone={aiDocumentStatusTone(item.status)}>
+                              {t(aiDocumentStatusLabelKeys[item.status])}
+                            </StatusBadge>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </details>
+            </section>
+          ) : null}
 
           {state.selectedRoomId ? (
             <section className="workspace-route__section" aria-labelledby="confirmed-requirements-title">

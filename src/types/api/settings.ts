@@ -39,3 +39,18 @@ export type StorageUsageResponse = {
   roomId?: string | null;
   usedBytes: number;
 };
+
+export type UserPreferenceResponse = {
+  createdAt?: string | null;
+  defaultHomeType?: string | null;
+  defaultProjectRoomId?: string | null;
+  theme?: string | null;
+  updatedAt?: string | null;
+  userId: string;
+};
+
+export type UserPreferenceUpdateRequest = {
+  defaultHomeType?: string;
+  defaultProjectRoomId?: string;
+  theme?: string;
+};

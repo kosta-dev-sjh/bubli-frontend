@@ -1,7 +1,8 @@
 "use client";
 
 import { addDays, endOfDay, startOfDay } from "date-fns";
-import { ArrowDown, ArrowUp, CalendarDays, CalendarRange, ChevronRight, FolderPlus, PencilIcon, Plus, TrashIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, ChevronRight, FolderPlus, PencilIcon, Plus, TrashIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -29,10 +30,10 @@ import type { ScheduleResponse, WbsItemResponse, WbsStatus } from "@/types/api/w
 
 import styles from "./wbs-gantt-panel.module.css";
 
-const rangeOptions: Array<{ icon: typeof CalendarRange; key: Range; labelKey: MessageKey }> = [
-  { icon: CalendarRange, key: "monthly", labelKey: "wbs.gantt.range.monthly" },
-  { icon: CalendarRange, key: "weekly", labelKey: "wbs.gantt.range.weekly" },
-  { icon: CalendarDays, key: "daily", labelKey: "wbs.gantt.range.daily" },
+const rangeOptions: Array<{ key: Range; labelKey: MessageKey }> = [
+  { key: "monthly", labelKey: "wbs.gantt.range.monthly" },
+  { key: "weekly", labelKey: "wbs.gantt.range.weekly" },
+  { key: "daily", labelKey: "wbs.gantt.range.daily" },
 ];
 
 const wbsGanttStatusColors: Record<WbsStatus, string> = {
@@ -109,6 +110,8 @@ export function WbsGanttPanel({
   rangeEditRequest,
   roomId,
   selectedWbsId,
+  toolbarLeading,
+  toolbarTrailing,
   wbsAccentById,
   wbsItems,
 }: {
@@ -122,6 +125,8 @@ export function WbsGanttPanel({
   rangeEditRequest?: WbsGanttRangeEditRequest | null;
   roomId: string;
   selectedWbsId: string | null;
+  toolbarLeading?: ReactNode;
+  toolbarTrailing?: ReactNode;
   wbsAccentById?: Record<string, string>;
   wbsItems: WbsItemResponse[];
 }) {
@@ -135,7 +140,9 @@ export function WbsGanttPanel({
   const [roomGroupEventCount, setRoomGroupEventCount] = useState<number | null>(null);
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const [createDraft, setCreateDraft] = useState<CreateDraft | null>(null);
+  const [isSyncPopoverOpen, setIsSyncPopoverOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const syncWrapRef = useRef<HTMLDivElement>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
   const handledRangeRequestId = useRef<number | null>(null);
   const localIdCounter = useRef(0);
@@ -164,6 +171,20 @@ export function WbsGanttPanel({
       createInputRef.current?.focus();
     }
   }, [createDraft]);
+
+  // 동기화 상세 팝오버는 바깥을 누르면 닫는다.
+  useEffect(() => {
+    if (!isSyncPopoverOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!syncWrapRef.current?.contains(event.target as Node)) {
+        setIsSyncPopoverOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isSyncPopoverOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -283,6 +304,35 @@ export function WbsGanttPanel({
     }
     return map;
   }, [wbsItems]);
+
+  // 트리 들여쓰기용 깊이(부모 체인 길이). 중첩 하위 작업도 단계별로 들여쓴다.
+  const depthById = useMemo(() => {
+    const map = new Map<string, number>();
+
+    const resolve = (item: WbsItemResponse): number => {
+      const cached = map.get(item.id);
+      if (cached !== undefined) return cached;
+
+      const parent = item.parentId ? itemById.get(item.parentId) : undefined;
+      const depth = parent ? Math.min(3, resolve(parent) + 1) : 0;
+      map.set(item.id, depth);
+      return depth;
+    };
+
+    for (const item of wbsItems) {
+      resolve(item);
+    }
+    return map;
+  }, [itemById, wbsItems]);
+
+  // 프로젝트 전체 진행률: 하위가 없는 말단 작업 기준 DONE 비율.
+  const overallProgress = useMemo(() => {
+    const parentIds = new Set(wbsItems.filter((item) => item.parentId).map((item) => item.parentId as string));
+    const leaves = wbsItems.filter((item) => !parentIds.has(item.id));
+    return { done: leaves.filter((item) => item.status === "DONE").length, total: leaves.length };
+  }, [wbsItems]);
+  const overallProgressPercent =
+    overallProgress.total > 0 ? Math.round((overallProgress.done / overallProgress.total) * 100) : 0;
 
   // 상위 작업 진행률: 모든 하위(자손) 작업 중 DONE 개수. Jira 타임라인의 진행 표시와 같은 기준.
   const progressById = useMemo(() => {
@@ -717,92 +767,130 @@ export function WbsGanttPanel({
   const draftParentTitle = createDraft?.parentId ? itemById.get(createDraft.parentId)?.title ?? null : null;
   const selectedItemForTask = selectedWbsId ? itemById.get(selectedWbsId) ?? null : null;
   const canAddTaskToSelection = Boolean(selectedItemForTask);
+  const syncState = calendarSync === "recording" && pendingSyncCount > 0 ? "pending" : calendarSync;
+  const syncStateText =
+    calendarSync === "checking"
+      ? t("wbs.gantt.sync.checking")
+      : calendarSync === "off"
+        ? t("wbs.gantt.sync.off")
+        : pendingSyncCount > 0
+          ? t("wbs.gantt.sync.pending", { count: pendingSyncCount })
+          : t("wbs.gantt.sync.recording");
+  const syncDetailText =
+    calendarSync === "recording" && (googleAccountEmail || roomGroupEventCount !== null)
+      ? [
+          googleAccountEmail,
+          roomGroupEventCount !== null ? t("wbs.gantt.sync.roomGroup", { count: roomGroupEventCount }) : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : null;
+  const syncHintText = calendarSync === "recording" ? t("wbs.gantt.sync.titleRecording") : t("wbs.gantt.sync.titleOff");
 
   return (
     <div className={styles.panel} ref={panelRef}>
       <div className={styles.toolbar}>
-        <div aria-label={t("wbs.gantt.rangeSwitchAria")} className={styles.rangeSwitch} role="tablist">
-          {rangeOptions.map((option) => {
-            const Icon = option.icon;
-            const selected = range === option.key;
-            return (
-              <button
-                aria-selected={selected}
-                key={option.key}
-                onClick={() => setRange(option.key)}
-                role="tab"
-                type="button"
-              >
-                <Icon aria-hidden="true" size={13} strokeWidth={1.9} />
-                {t(option.labelKey)}
-              </button>
-            );
-          })}
+        <div className={styles.toolbarGroup}>
+          {toolbarLeading}
+          <div aria-label={t("wbs.gantt.rangeSwitchAria")} className={styles.rangeSwitch} role="tablist">
+            {rangeOptions.map((option) => {
+              const selected = range === option.key;
+              return (
+                <button
+                  aria-selected={selected}
+                  key={option.key}
+                  onClick={() => setRange(option.key)}
+                  role="tab"
+                  type="button"
+                >
+                  {t(option.labelKey)}
+                </button>
+              );
+            })}
+          </div>
+          <button className={styles.ghostButton} onClick={scrollToToday} type="button">
+            <CalendarDays aria-hidden="true" size={14} strokeWidth={1.9} />
+            {t("wbs.board.due.today")}
+          </button>
         </div>
 
-        <button className={styles.toolButton} onClick={scrollToToday} type="button">
-          <CalendarDays aria-hidden="true" size={13} strokeWidth={1.9} />
-          {t("wbs.board.due.today")}
-        </button>
-        <button className={styles.toolButton} onClick={handleAddGroup} type="button">
-          <FolderPlus aria-hidden="true" size={13} strokeWidth={1.9} />
-          {t("wbs.gantt.addGroup")}
-        </button>
-        <button
-          className={styles.toolButton}
-          disabled={orderedGroups.length === 0 || !canAddTaskToSelection}
-          onClick={handleAddTask}
-          title={
-            orderedGroups.length === 0
-              ? t("wbs.gantt.addTaskDisabledTitle")
-              : canAddTaskToSelection
-                ? t("wbs.gantt.addTaskSelectedTitle")
-                : t("wbs.gantt.addTaskNoSelectionTitle")
-          }
-          type="button"
-        >
-          <Plus aria-hidden="true" size={13} strokeWidth={1.9} />
-          {t("wbs.gantt.addTask")}
-        </button>
-
-        <div
-          aria-live="polite"
-          className={styles.syncBlock}
-          data-state={calendarSync === "recording" && pendingSyncCount > 0 ? "pending" : calendarSync}
-          title={calendarSync === "recording" ? t("wbs.gantt.sync.titleRecording") : t("wbs.gantt.sync.titleOff")}
-        >
-          <span aria-hidden="true" className={styles.syncDot} />
-          <span className={styles.syncCopy}>
-            <strong>
-              {calendarSync === "checking"
-                ? t("wbs.gantt.sync.checking")
-                : calendarSync === "off"
-                  ? t("wbs.gantt.sync.off")
-                  : pendingSyncCount > 0
-                    ? t("wbs.gantt.sync.pending", { count: pendingSyncCount })
-                    : t("wbs.gantt.sync.recording")}
-            </strong>
-            {calendarSync === "recording" && (googleAccountEmail || roomGroupEventCount !== null) ? (
-              <small>
-                {[
-                  googleAccountEmail,
-                  roomGroupEventCount !== null ? t("wbs.gantt.sync.roomGroup", { count: roomGroupEventCount }) : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </small>
-            ) : null}
-          </span>
-          {calendarSync === "off" ? (
+        <div className={styles.toolbarGroup}>
+          {overallProgress.total > 0 ? (
+            <span
+              aria-label={t("room.workBoard.progressAria")}
+              className={styles.progressChip}
+              title={t("room.workBoard.progressCount", {
+                done: overallProgress.done,
+                percent: overallProgressPercent,
+                total: overallProgress.total,
+              })}
+            >
+              <span aria-hidden="true" className={styles.progressTrack}>
+                <span className={styles.progressFill} style={{ inlineSize: `${overallProgressPercent}%` }} />
+              </span>
+              {t("room.workBoard.progressCount", {
+                done: overallProgress.done,
+                percent: overallProgressPercent,
+                total: overallProgress.total,
+              })}
+            </span>
+          ) : null}
+          <div className={styles.syncWrap} ref={syncWrapRef}>
             <button
-              className={styles.syncConnectButton}
-              disabled={isConnectingGoogle}
-              onClick={() => void handleConnectGoogle()}
+              aria-expanded={isSyncPopoverOpen}
+              aria-haspopup="dialog"
+              aria-label={syncStateText}
+              className={styles.syncTrigger}
+              data-state={syncState}
+              onClick={() => setIsSyncPopoverOpen((current) => !current)}
+              title={syncHintText}
               type="button"
             >
-              {isConnectingGoogle ? t("wbs.gantt.sync.connecting") : t("wbs.gantt.sync.connect")}
+              <CalendarDays aria-hidden="true" size={14} strokeWidth={1.9} />
+              <span aria-hidden="true" className={styles.syncDot} />
             </button>
-          ) : null}
+            <span aria-live="polite" className="sr-only">
+              {syncStateText}
+            </span>
+            {isSyncPopoverOpen ? (
+              <div aria-label={syncStateText} className={styles.syncPopover} data-state={syncState} role="dialog">
+                <strong>{syncStateText}</strong>
+                {syncDetailText ? <small>{syncDetailText}</small> : null}
+                <p>{syncHintText}</p>
+                {calendarSync === "off" ? (
+                  <button
+                    className={styles.syncConnectButton}
+                    disabled={isConnectingGoogle}
+                    onClick={() => void handleConnectGoogle()}
+                    type="button"
+                  >
+                    {isConnectingGoogle ? t("wbs.gantt.sync.connecting") : t("wbs.gantt.sync.connect")}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          {toolbarTrailing}
+          <button className={styles.ghostButton} onClick={handleAddGroup} type="button">
+            <FolderPlus aria-hidden="true" size={14} strokeWidth={1.9} />
+            {t("wbs.gantt.addGroup")}
+          </button>
+          <button
+            className={styles.primaryButton}
+            disabled={orderedGroups.length === 0 || !canAddTaskToSelection}
+            onClick={handleAddTask}
+            title={
+              orderedGroups.length === 0
+                ? t("wbs.gantt.addTaskDisabledTitle")
+                : canAddTaskToSelection
+                  ? t("wbs.gantt.addTaskSelectedTitle")
+                  : t("wbs.gantt.addTaskNoSelectionTitle")
+            }
+            type="button"
+          >
+            <Plus aria-hidden="true" size={14} strokeWidth={2} />
+            {t("wbs.gantt.addTaskShort")}
+          </button>
         </div>
       </div>
 
@@ -858,30 +946,6 @@ export function WbsGanttPanel({
                   accentColor={accent}
                   actions={
                     <>
-                      {childCount > 0 ? (
-                        <button
-                          aria-expanded={!isCollapsed}
-                          aria-label={
-                            isCollapsed
-                              ? t("wbs.gantt.row.expandSubtasks", { title: item.title })
-                              : t("wbs.gantt.row.collapseSubtasks", { title: item.title })
-                          }
-                          className={styles.rowActionButton}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            toggleCollapsed(item.id);
-                          }}
-                          title={isCollapsed ? t("wbs.gantt.row.expandTitle") : t("wbs.gantt.row.collapseTitle")}
-                          type="button"
-                        >
-                          <ChevronRight
-                            aria-hidden="true"
-                            size={13}
-                            strokeWidth={1.9}
-                            style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)" }}
-                          />
-                        </button>
-                      ) : null}
                       {!item.parentId ? (
                         <button
                           aria-label={t("wbs.gantt.row.addChildAria", { title: item.title })}
@@ -947,8 +1011,34 @@ export function WbsGanttPanel({
                     </>
                   }
                   className={selectedWbsId === item.id ? styles.selectedRow : undefined}
+                  expander={
+                    childCount > 0 ? (
+                      <button
+                        aria-expanded={!isCollapsed}
+                        aria-label={
+                          isCollapsed
+                            ? t("wbs.gantt.row.expandSubtasks", { title: item.title })
+                            : t("wbs.gantt.row.collapseSubtasks", { title: item.title })
+                        }
+                        className={styles.expanderButton}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleCollapsed(item.id);
+                        }}
+                        title={isCollapsed ? t("wbs.gantt.row.expandTitle") : t("wbs.gantt.row.collapseTitle")}
+                        type="button"
+                      >
+                        <ChevronRight
+                          aria-hidden="true"
+                          size={13}
+                          strokeWidth={2}
+                          style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)", transition: "transform 160ms ease" }}
+                        />
+                      </button>
+                    ) : null
+                  }
                   feature={feature}
-                  indentLevel={item.parentId ? 1 : 0}
+                  indentLevel={depthById.get(item.id) ?? (item.parentId ? 1 : 0)}
                   key={item.id}
                   onSelectItem={() => focusItemOnTimeline(item)}
                   progress={
@@ -999,7 +1089,7 @@ export function WbsGanttPanel({
               })}
             </GanttFeatureListGroup>
           </GanttFeatureList>
-          <GanttToday className="bg-accent text-accent-foreground" />
+          <GanttToday />
         </GanttTimeline>
       </GanttProvider>
     </div>

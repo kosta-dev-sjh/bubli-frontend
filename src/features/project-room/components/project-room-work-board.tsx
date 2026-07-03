@@ -21,7 +21,6 @@ import {
 } from "@/features/wbs/components/wbs-gantt-panel";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewRoomSuggestions } from "@/lib/workspace-preview-data";
 import type { AgentSuggestionResponse, AgentSuggestionReviewAction, AgentSuggestionType } from "@/types/api/agent";
 import type { ProjectRoomMemberResponse } from "@/types/api/projectRoom";
@@ -308,14 +307,6 @@ function ProjectRoomWorkBoardContent({
 
     return Object.fromEntries(wbsItems.map((item) => [item.id, collect(item.id)]));
   }, [wbsItems]);
-  // 프로젝트 전체 진행률: 하위가 없는 말단 WBS 작업 기준 DONE 비율.
-  const wbsProgress = useMemo(() => {
-    const parentIds = new Set(wbsItems.filter((item) => item.parentId).map((item) => item.parentId as string));
-    const leaves = wbsItems.filter((item) => !parentIds.has(item.id));
-    const done = leaves.filter((item) => item.status === "DONE").length;
-    return { done, total: leaves.length };
-  }, [wbsItems]);
-  const wbsProgressPercent = wbsProgress.total > 0 ? Math.round((wbsProgress.done / wbsProgress.total) * 100) : 0;
   const visibleTasks = useMemo(() => tasks.filter((task) => !task.localRemoved), [tasks]);
   const activeMembers = useMemo(() => members.filter((member) => member.status === "ACTIVE"), [members]);
   const memberByUserId = useMemo(
@@ -832,56 +823,35 @@ function ProjectRoomWorkBoardContent({
     );
   };
 
+  const viewSwitch = (
+    <div aria-label={t("room.workBoard.viewSwitchAria")} className={styles.viewSwitch} role="group">
+      <button aria-pressed={viewMode === "wbs"} onClick={() => setViewMode("wbs")} type="button">
+        <GitBranch aria-hidden="true" size={14} />
+        {t("room.workBoard.viewWbs")}
+      </button>
+      <button aria-pressed={viewMode === "kanban"} onClick={() => setViewMode("kanban")} type="button">
+        <KanbanSquare aria-hidden="true" size={14} />
+        {t("room.workBoard.kanban")}
+      </button>
+    </div>
+  );
+
   return (
     <div className={styles.shell}>
-      <section className={styles.contextBand} aria-label={t("room.workBoard.viewSwitchAria")}>
-        {saveNotice ? (
-          <span aria-live="polite" className={styles.saveNotice}>
-            {saveNotice}
-          </span>
-        ) : null}
-        <div className={styles.viewSwitch} role="group" aria-label={t("room.workBoard.viewSwitchAria")}>
-          <button aria-pressed={viewMode === "wbs"} onClick={() => setViewMode("wbs")} type="button">
-            <GitBranch size={15} aria-hidden="true" />
-            {t("room.workBoard.viewWbs")}
-          </button>
-          <button aria-pressed={viewMode === "kanban"} onClick={() => setViewMode("kanban")} type="button">
-            <KanbanSquare size={15} aria-hidden="true" />
-            {t("room.workBoard.kanban")}
-          </button>
-        </div>
-      </section>
-
       <div className={styles.boardGrid} data-view={viewMode}>
         {viewMode === "wbs" ? (
           <section className={styles.wbsWorkspace} aria-label={t("room.workBoard.wbsViewAria")}>
             <section className={styles.pane} aria-label={t("room.workBoard.ganttAria")}>
-              <div className={cn(styles.paneHead, styles.ganttPaneHead)}>
-                <div>
-                  <h2>{t("room.workBoard.wbsHeading")}</h2>
-                </div>
-                <div className={styles.paneActions}>
-                  {wbsProgress.total > 0 ? (
-                    <span
-                      aria-label={t("room.workBoard.progressAria")}
-                      className={styles.progressChip}
-                      title={t("room.workBoard.progressCount", {
-                        done: wbsProgress.done,
-                        percent: wbsProgressPercent,
-                        total: wbsProgress.total,
-                      })}
-                    >
-                      <span aria-hidden="true" className={styles.progressTrack}>
-                        <span className={styles.progressFill} style={{ inlineSize: `${wbsProgressPercent}%` }} />
-                      </span>
-                      {t("room.workBoard.progressCount", {
-                        done: wbsProgress.done,
-                        percent: wbsProgressPercent,
-                        total: wbsProgress.total,
-                      })}
-                    </span>
-                  ) : null}
-                  <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
+              {wbsGeneration ? (
+                <p className={wbsGeneration.status === "error" ? styles.generateError : styles.generateNotice}>
+                  {wbsGeneration.message}
+                </p>
+              ) : null}
+              {renderCandidateTray("wbs")}
+              <WbsGanttPanel
+                onNotice={setSaveNotice}
+                toolbarLeading={viewSwitch}
+                toolbarTrailing={
                   <button
                     className={styles.generateButton}
                     disabled={wbsGeneration?.status === "pending"}
@@ -891,16 +861,7 @@ function ProjectRoomWorkBoardContent({
                     <GitBranch aria-hidden="true" size={14} strokeWidth={1.9} />
                     {wbsGeneration?.status === "pending" ? t("room.workBoard.generating") : t("room.workBoard.generateWbs")}
                   </button>
-                </div>
-              </div>
-              {wbsGeneration ? (
-                <p className={wbsGeneration.status === "error" ? styles.generateError : styles.generateNotice}>
-                  {wbsGeneration.message}
-                </p>
-              ) : null}
-              {renderCandidateTray("wbs")}
-              <WbsGanttPanel
-                onNotice={setSaveNotice}
+                }
                 onOpenSettings={openWbsSettings}
                 onRangesResolved={handleWbsRangesResolved}
                 onSelectItem={setSelectedWbsId}
@@ -944,6 +905,11 @@ function ProjectRoomWorkBoardContent({
                 wbsAccentById={wbsAccentById}
                 wbsItems={wbsItems}
               />
+              {saveNotice ? (
+                <span aria-live="polite" className={styles.saveNotice}>
+                  {saveNotice}
+                </span>
+              ) : null}
             </section>
 
             {isWbsSettingsOpen && selectedWbs ? (
@@ -1085,10 +1051,8 @@ function ProjectRoomWorkBoardContent({
 
         {viewMode === "kanban" ? (
           <section className={styles.kanbanPane} aria-label={t("room.workBoard.kanbanPaneAria")}>
-            <div className={styles.paneHead}>
-              <div>
-                <h2>{t("room.workBoard.kanban")}</h2>
-              </div>
+            <div className={styles.boardToolbar}>
+              {viewSwitch}
               <div className={styles.paneActions}>
                 <button
                   className={styles.generateButton}
@@ -1122,6 +1086,11 @@ function ProjectRoomWorkBoardContent({
               selectedTaskId={selectedTaskId}
               wbsOptions={kanbanWbsOptions}
             />
+            {saveNotice ? (
+              <span aria-live="polite" className={styles.saveNotice}>
+                {saveNotice}
+              </span>
+            ) : null}
           </section>
         ) : null}
       </div>

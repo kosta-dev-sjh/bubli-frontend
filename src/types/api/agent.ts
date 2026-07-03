@@ -1,4 +1,5 @@
 import type { PageResponse } from "./common";
+import type { AiDocumentStatus } from "./resource";
 
 export type AgentJobStatus = "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELED";
 
@@ -115,6 +116,19 @@ export type GeneratedDocumentExport = {
   contentType: string;
   fileName: string;
 };
+
+export type RoomAiDocumentResponse = {
+  createdAt: string;
+  detectedConfidence?: number | null;
+  documentType?: string | null;
+  id: string;
+  resourceId: string;
+  roomId: string;
+  status: AiDocumentStatus;
+  updatedAt: string;
+};
+
+export type RoomAiDocumentPageResponse = PageResponse<RoomAiDocumentResponse>;
 
 export type AgentResourceSearchScope = "ROOM_SHARED" | "PERSONAL";
 
