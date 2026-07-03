@@ -18,7 +18,8 @@ import { ApiClientError } from "@/lib/api/errors";
 import { getAuthAccessToken } from "@/lib/auth/auth-session";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
-import { getActiveProjectRoomId, getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
+import { useActiveProjectRoom } from "@/lib/use-active-project-room";
+import { setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
   workspacePreviewChatMessages,
@@ -323,6 +324,7 @@ function ChatPageContent() {
   const searchParams = useSearchParams();
   const queryRoomId = searchParams.get("roomId");
   const queryMode = searchParams.get("mode");
+  const { roomId: activeRoomId, roomLabel: activeRoomLabel } = useActiveProjectRoom();
   const [roomsState, setRoomsState] = useState<RoomsState>({ kind: "loading" });
   const [messagesState, setMessagesState] = useState<MessagesState>({ kind: "idle" });
   const [socialState, setSocialState] = useState<SocialState>({ kind: "loading" });
@@ -424,11 +426,11 @@ function ChatPageContent() {
   const selectedGroupFriendCount = selectedGroupMemberIds.length;
   const currentUser = profileState.kind === "ready" ? profileState.user : null;
   const myBubliId = currentUser?.bubliId ?? "";
-  const activeProjectRoomId = queryRoomId ?? getActiveProjectRoomId();
+  const activeProjectRoomId = queryRoomId ?? activeRoomId;
   const selectedProjectRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : activeProjectRoomId;
   const selectedAgentRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : null;
   const selectedProjectRoomName =
-    selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? getActiveProjectRoomLabel() ?? t("chat.room.fallbackName") : getActiveProjectRoomLabel();
+    selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? activeRoomLabel ?? t("chat.room.fallbackName") : activeRoomLabel;
   const pendingAgentCommand = useMemo(() => parseBubliCommand(t, draft), [draft, t]);
   const inviteTargetLabel = selectedProjectRoomId ? selectedProjectRoomName ?? t("chat.label.currentRoom") : t("chat.label.selectRoomNeeded");
   const pendingRoomInvitations = roomInvitationsState.kind === "ready" ? roomInvitationsState.invitations.filter((invitation) => invitation.status === "PENDING") : [];
@@ -467,16 +469,16 @@ function ChatPageContent() {
         return;
       }
       if (shouldUseWorkspacePreviewData()) {
-        const storedRoomId = getActiveProjectRoomId();
+        const previewRoomId = queryRoomId ?? activeRoomId;
         setRoomsState({
           kind: "ready",
-          rooms: workspacePreviewChatRoomsFor(queryRoomId, storedRoomId === queryRoomId ? getActiveProjectRoomLabel() : null),
+          rooms: workspacePreviewChatRoomsFor(previewRoomId, activeRoomLabel),
         });
         return;
       }
       setRoomsState({ kind: "offline" });
     }
-  }, [queryRoomId]);
+  }, [activeRoomId, activeRoomLabel, queryRoomId]);
 
   const loadMessages = useCallback(async (chatRoomId: string) => {
     setMessagesState({ kind: "loading" });
@@ -670,7 +672,7 @@ function ChatPageContent() {
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [queryMode, queryRoomId]);
+  }, [activeRoomId, queryMode, queryRoomId]);
 
   useEffect(() => {
     if (queryMode === "direct" || roomsState.kind !== "ready") return;
@@ -678,11 +680,12 @@ function ChatPageContent() {
     const voiceRoomId = voiceState.kind === "ready" ? voiceState.room.roomId : null;
     const roomChats = roomsState.rooms.filter((r) => r.chatType === "ROOM");
     const voiceMatch = voiceRoomId ? roomChats.find((r) => r.roomId === voiceRoomId) : null;
-    const best = voiceMatch ?? roomChats[0] ?? null;
+    const activeProjectRoomMatch = activeProjectRoomId ? roomChats.find((r) => r.roomId === activeProjectRoomId) : null;
+    const best = voiceMatch ?? activeProjectRoomMatch ?? roomChats[0] ?? null;
     if (!best) return;
     const id = window.setTimeout(() => { setSelectedChatRoomId(best.id); }, 0);
     return () => window.clearTimeout(id);
-  }, [queryMode, roomsState, selectedChatRoomId, voiceState]);
+  }, [activeProjectRoomId, queryMode, roomsState, selectedChatRoomId, voiceState]);
 
   useEffect(() => {
     if (!activeChatRoomId) return;
