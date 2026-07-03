@@ -389,7 +389,12 @@ export type LocalRoomMessageSyncResult = {
 };
 
 export type WidgetSummaryCacheStoreInput = {
+  cacheKey?: string | null;
   summaryJson: string;
+};
+
+export type WidgetSummaryCacheReadInput = {
+  cacheKey?: string | null;
 };
 
 export type WidgetSummaryCacheReadResult = {
@@ -752,7 +757,7 @@ export type TauriCommandContract = {
     result: LocalRoomMessageReadResult;
   };
   read_widget_summary_cache: {
-    args: undefined;
+    args: WidgetSummaryCacheReadInput | undefined;
     result: WidgetSummaryCacheReadResult | null;
   };
   reindex_file: {
@@ -990,8 +995,11 @@ export const tauriCommands = {
   readRoomMessages(input: LocalRoomMessageReadInput) {
     return invokeTauri<LocalRoomMessageReadResult>(TAURI_COMMANDS.readRoomMessages, { input });
   },
-  readWidgetSummaryCache() {
-    return invokeTauri<WidgetSummaryCacheReadResult | null>(TAURI_COMMANDS.readWidgetSummaryCache);
+  readWidgetSummaryCache(input?: WidgetSummaryCacheReadInput) {
+    return invokeTauri<WidgetSummaryCacheReadResult | null>(
+      TAURI_COMMANDS.readWidgetSummaryCache,
+      input ? { input } : undefined,
+    );
   },
   reindexFile(input: LocalFileReindexInput) {
     return invokeTauri<LocalFileReindexResult>(TAURI_COMMANDS.reindexFile, { input });

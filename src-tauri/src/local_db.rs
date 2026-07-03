@@ -192,7 +192,14 @@ pub struct LocalRoomMessageReadResult {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WidgetSummaryCacheStoreInput {
+    cache_key: Option<String>,
     summary_json: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetSummaryCacheReadInput {
+    cache_key: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -716,15 +723,16 @@ pub fn store_widget_summary_cache(
     input: WidgetSummaryCacheStoreInput,
 ) -> Result<WidgetSummaryCacheReadResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-    store_widget_summary_cache_for_conn(&conn, &input.summary_json)
+    store_widget_summary_cache_for_conn(&conn, &input.summary_json, input.cache_key.as_deref())
 }
 
 #[tauri::command]
 pub fn read_widget_summary_cache(
     state: tauri::State<'_, Db>,
+    input: Option<WidgetSummaryCacheReadInput>,
 ) -> Result<Option<WidgetSummaryCacheReadResult>, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-    read_widget_summary_cache_for_conn(&conn)
+    read_widget_summary_cache_for_conn(&conn, input.and_then(|value| value.cache_key).as_deref())
 }
 
 fn sync_room_messages_for_conn(
@@ -890,16 +898,18 @@ fn validate_widget_summary_json(summary_json: &str) -> Result<(), String> {
 fn store_widget_summary_cache_for_conn(
     conn: &Connection,
     summary_json: &str,
+    cache_key: Option<&str>,
 ) -> Result<WidgetSummaryCacheReadResult, String> {
     validate_widget_summary_json(summary_json)?;
+    let cache_id = widget_summary_cache_id(cache_key);
     let cached_at = now_ms();
     conn.execute(
         "INSERT INTO local_widget_display_cache (id, summary_json, cached_at) \
-         VALUES ('summary', ?1, ?2) \
+         VALUES (?1, ?2, ?3) \
          ON CONFLICT(id) DO UPDATE SET \
            summary_json = excluded.summary_json, \
            cached_at = excluded.cached_at",
-        params![summary_json, cached_at],
+        params![cache_id, summary_json, cached_at],
     )
     .map_err(|error| error.to_string())?;
 
@@ -911,10 +921,12 @@ fn store_widget_summary_cache_for_conn(
 
 fn read_widget_summary_cache_for_conn(
     conn: &Connection,
+    cache_key: Option<&str>,
 ) -> Result<Option<WidgetSummaryCacheReadResult>, String> {
+    let cache_id = widget_summary_cache_id(cache_key);
     conn.query_row(
-        "SELECT summary_json, cached_at FROM local_widget_display_cache WHERE id = 'summary'",
-        [],
+        "SELECT summary_json, cached_at FROM local_widget_display_cache WHERE id = ?1",
+        params![cache_id],
         |row| {
             let summary_json: String = row.get(0)?;
             let cached_at: i64 = row.get(1)?;
@@ -926,6 +938,15 @@ fn read_widget_summary_cache_for_conn(
     )
     .optional()
     .map_err(|error| error.to_string())
+}
+
+fn widget_summary_cache_id(cache_key: Option<&str>) -> String {
+    let key = cache_key.unwrap_or("").trim();
+    if key.is_empty() {
+        "summary".to_string()
+    } else {
+        format!("summary:{key}")
+    }
 }
 
 #[tauri::command]
@@ -1914,7 +1935,7 @@ mod tests {
             ]
         })
         .to_string();
-        let stored = store_widget_summary_cache_for_conn(&conn, &first_summary)
+        let stored = store_widget_summary_cache_for_conn(&conn, &first_summary, None)
             .expect("store widget summary cache");
         assert_eq!(stored.summary_json, first_summary);
         assert!(!stored.cached_at.is_empty());
@@ -1924,10 +1945,10 @@ mod tests {
             "bubbles": []
         })
         .to_string();
-        store_widget_summary_cache_for_conn(&conn, &second_summary)
+        store_widget_summary_cache_for_conn(&conn, &second_summary, None)
             .expect("replace widget summary cache");
 
-        let cached = read_widget_summary_cache_for_conn(&conn)
+        let cached = read_widget_summary_cache_for_conn(&conn, None)
             .expect("read widget summary cache")
             .expect("cache exists");
         assert_eq!(cached.summary_json, second_summary);
@@ -1941,6 +1962,43 @@ mod tests {
             )
             .expect("count widget cache rows");
         assert_eq!(row_count, 1);
+    }
+
+    #[test]
+    fn widget_summary_cache_is_partitioned_by_cache_key() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+
+        let user_one_summary = serde_json::json!({
+            "context": { "mode": "ROOM", "selectedRoomId": "room-user-one" },
+            "bubbles": []
+        })
+        .to_string();
+        let user_two_summary = serde_json::json!({
+            "context": { "mode": "ROOM", "selectedRoomId": "room-user-two" },
+            "bubbles": []
+        })
+        .to_string();
+
+        store_widget_summary_cache_for_conn(&conn, &user_one_summary, Some("user-one"))
+            .expect("store user one summary");
+        store_widget_summary_cache_for_conn(&conn, &user_two_summary, Some("user-two"))
+            .expect("store user two summary");
+
+        let user_one_cache = read_widget_summary_cache_for_conn(&conn, Some("user-one"))
+            .expect("read user one summary")
+            .expect("user one cache exists");
+        let user_two_cache = read_widget_summary_cache_for_conn(&conn, Some("user-two"))
+            .expect("read user two summary")
+            .expect("user two cache exists");
+
+        assert_eq!(user_one_cache.summary_json, user_one_summary);
+        assert_eq!(user_two_cache.summary_json, user_two_summary);
+        assert!(
+            read_widget_summary_cache_for_conn(&conn, Some("unknown-user"))
+                .expect("read unknown user summary")
+                .is_none()
+        );
     }
 
     #[test]
