@@ -1787,14 +1787,15 @@ pub fn mark_local_file_events_synced(
     input: LocalFileEventsMarkSyncedInput,
 ) -> Result<LocalFileEventsMarkSyncedResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-    mark_local_file_events_synced_for_conn(&conn, input)
+    let now = now_ms();
+    mark_local_file_events_synced_for_conn(&conn, input, now)
 }
 
 fn mark_local_file_events_synced_for_conn(
     conn: &Connection,
     input: LocalFileEventsMarkSyncedInput,
+    now: i64,
 ) -> Result<LocalFileEventsMarkSyncedResult, String> {
-    let now = now_ms();
     let mut synced_count = 0i64;
     let mut failed_count = 0i64;
 
@@ -1811,8 +1812,9 @@ fn mark_local_file_events_synced_for_conn(
             continue;
         };
 
-        let failed = result.status.eq_ignore_ascii_case("FAILED");
-        let skipped = result.status.eq_ignore_ascii_case("SKIPPED");
+        let normalized_status = result.status.to_ascii_uppercase();
+        let failed = normalized_status == "FAILED";
+        let skipped = normalized_status == "SKIPPED";
         let event_status = if failed { "FAILED" } else { "SYNCED" };
         mark_local_file_event_outbox(&conn, &result.local_event_id, event_status, now)?;
         conn.execute(
@@ -1835,17 +1837,39 @@ fn mark_local_file_events_synced_for_conn(
 
         if let Some(local_file_id) = local_file_id {
             if event_type == "DELETED" {
-                synced_count += 1;
                 delete_file_fts_index(&conn, &local_file_id)?;
                 conn.execute(
                     "DELETE FROM local_files WHERE id = ?1",
                     params![local_file_id],
                 )
                 .map_err(|error| error.to_string())?;
-            } else if skipped {
+                if !skipped {
+                    synced_count += 1;
+                }
+                continue;
+            }
+
+            if skipped {
+                let existing_resource_id: Option<String> = conn
+                    .query_row(
+                        "SELECT resource_id FROM local_files WHERE id = ?1",
+                        params![local_file_id],
+                        |row| row.get::<_, Option<String>>(0),
+                    )
+                    .optional()
+                    .map_err(|error| error.to_string())?
+                    .flatten();
+                let next_status = if existing_resource_id
+                    .as_deref()
+                    .is_some_and(|value| !value.trim().is_empty())
+                {
+                    "SYNCED"
+                } else {
+                    "LOCAL_ONLY"
+                };
                 conn.execute(
-                    "UPDATE local_files SET sync_status = 'LOCAL_ONLY', updated_at = ?2 WHERE id = ?1",
-                    params![local_file_id, now],
+                    "UPDATE local_files SET sync_status = ?2, updated_at = ?3 WHERE id = ?1",
+                    params![local_file_id, next_status, now],
                 )
                 .map_err(|error| error.to_string())?;
             } else {
@@ -2197,6 +2221,7 @@ mod tests {
                     status: "SKIPPED".to_string(),
                 }],
             },
+            20,
         )
         .expect("mark skipped update");
         let stored: (String, String) = conn
@@ -2337,6 +2362,77 @@ mod tests {
         assert_eq!(retry_count, 1);
         assert!(payload.contains("\"eventType\":\"UPDATED\""));
         assert!(payload.contains("\"resourceId\":\"resource-1\""));
+    }
+
+    #[test]
+    fn skipped_local_file_sync_does_not_mark_unsynced_files_as_synced() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, resource_id, size_bytes, checksum, sync_status, modified_at, updated_at) \
+             VALUES \
+             ('file-local-only', 'folder-1', 'draft.md', '/tmp/draft.md', NULL, 10, NULL, 'SYNC_PENDING', 1, 1), \
+             ('file-with-resource', 'folder-1', 'brief.md', '/tmp/brief.md', 'resource-1', 10, NULL, 'SYNC_PENDING', 1, 1)",
+            [],
+        )
+        .expect("insert local files");
+        conn.execute(
+            "INSERT INTO local_file_events \
+             (id, local_file_id, local_folder_id, event_type, file_name, local_path, status, created_at) \
+             VALUES \
+             ('event-local-only', 'file-local-only', 'folder-1', 'UPDATED', 'draft.md', '/tmp/draft.md', 'APPROVED', 1), \
+             ('event-with-resource', 'file-with-resource', 'folder-1', 'UPDATED', 'brief.md', '/tmp/brief.md', 'APPROVED', 1)",
+            [],
+        )
+        .expect("insert local file events");
+
+        let result = mark_local_file_events_synced_for_conn(
+            &conn,
+            LocalFileEventsMarkSyncedInput {
+                results: vec![
+                    LocalFileEventSyncResultInput {
+                        local_event_id: "event-local-only".to_string(),
+                        resource_id: None,
+                        status: "SKIPPED".to_string(),
+                    },
+                    LocalFileEventSyncResultInput {
+                        local_event_id: "event-with-resource".to_string(),
+                        resource_id: Some("resource-1".to_string()),
+                        status: "SKIPPED".to_string(),
+                    },
+                ],
+            },
+            20,
+        )
+        .expect("mark skipped sync results");
+
+        let local_only_status: String = conn
+            .query_row(
+                "SELECT sync_status FROM local_files WHERE id = 'file-local-only'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read local-only sync status");
+        let resource_status: String = conn
+            .query_row(
+                "SELECT sync_status FROM local_files WHERE id = 'file-with-resource'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read resource sync status");
+        let synced_event_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM local_file_events WHERE status = 'SYNCED'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read synced event count");
+
+        assert_eq!(result.synced_count, 0);
+        assert_eq!(result.failed_count, 0);
+        assert_eq!(local_only_status, "LOCAL_ONLY");
+        assert_eq!(resource_status, "SYNCED");
+        assert_eq!(synced_event_count, 2);
     }
 
     #[test]
