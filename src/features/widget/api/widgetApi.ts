@@ -19,6 +19,19 @@ export type BackendWidgetBubbleType = Exclude<ApiWidgetBubbleType, "ALERT" | "RE
 export type WidgetBubbleSettingResponse = ApiWidgetBubbleSettingResponse;
 export type WidgetContextResponse = ApiWidgetContextResponse;
 
+export const backendWidgetBubbleTypes = [
+  "TODO",
+  "SCHEDULE",
+  "TIMER",
+  "MEMO",
+  "CHAT",
+  "AGENT",
+] as const satisfies readonly BackendWidgetBubbleType[];
+
+export function isBackendWidgetBubbleType(value: ApiWidgetBubbleType): value is BackendWidgetBubbleType {
+  return (backendWidgetBubbleTypes as readonly ApiWidgetBubbleType[]).includes(value);
+}
+
 function widgetRequest<T>(path: string, options: Parameters<typeof apiRequest<T>>[1] = {}) {
   return apiRequest<T>(path, {
     ...options,

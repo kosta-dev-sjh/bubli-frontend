@@ -12,7 +12,7 @@ import { activityApi } from "@/features/activity/api/activityApi";
 import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
-import { widgetApi } from "@/features/widget/api/widgetApi";
+import { isBackendWidgetBubbleType, widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey, Locale } from "@/lib/i18n";
@@ -529,6 +529,10 @@ export default function SettingsPage() {
         settings: { ...ready.settings, widgetBubbles: next },
       }));
       setSaveMessage({ text: t("settings.msg.bubbleSaved"), tone: "approved" });
+
+      if (!isBackendWidgetBubbleType(nextBubble.bubbleType)) {
+        return;
+      }
 
       try {
         const saved = await widgetApi.updateBubbles({
