@@ -117,6 +117,36 @@ async function smokeBackend(accessToken) {
   });
   assert(chatRead.lastReadSequence === chatSend.roomSequence, "widget chat read marker did not return the sent sequence");
 
+  const voiceRoom = await apiPost("/api/voice/rooms", headers, { roomId: SEED_ROOM_ID });
+  assert(voiceRoom.roomId === SEED_ROOM_ID, "voice room create did not return the seeded project room id");
+  assert(voiceRoom.createdByUserId === SEED_USER_ID, "voice room create did not return the creator user id");
+  assert(voiceRoom.status === "OPEN", "voice room create did not return OPEN status");
+  assert(
+    voiceRoom.participants?.some((participant) => participant.userId === SEED_USER_ID),
+    "voice room create did not include the seed user as a participant",
+  );
+
+  const voiceRoomState = await apiGet(`/api/voice/rooms/${voiceRoom.id}`, headers);
+  assert(voiceRoomState.createdByUserId === SEED_USER_ID, "voice room read did not return the creator user id");
+  assert(voiceRoomState.participants?.length >= 1, "voice room read did not include participants");
+
+  const voiceParticipant = await apiPatch(`/api/voice/rooms/${voiceRoom.id}/mic`, headers, {
+    micStatus: "MUTED",
+  });
+  assert(voiceParticipant.userId === SEED_USER_ID, "voice mic update did not return the seed user participant");
+
+  const maybeVoiceToken = await apiPostOptional(`/api/voice/rooms/${voiceRoom.id}/token`, headers, {});
+  if (maybeVoiceToken.ok) {
+    assert(maybeVoiceToken.data.voiceRoomId === voiceRoom.id, "voice token did not return the voice room id");
+    assert(maybeVoiceToken.data.participantId, "voice token did not return a participant id");
+    assert(maybeVoiceToken.data.serverUrl !== undefined, "voice token did not include serverUrl");
+  } else {
+    console.warn(`Voice token smoke skipped: ${maybeVoiceToken.message}`);
+  }
+
+  const voiceRoomLeft = await apiPatch(`/api/voice/rooms/${voiceRoom.id}/leave`, headers, {});
+  assert(voiceRoomLeft.id === voiceRoom.id, "voice leave did not return the same voice room");
+
   const todoSetting = settings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
   assert(todoSetting?.id, "widget settings did not include a TODO bubble setting id");
 
@@ -238,7 +268,7 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync, /api/activity/current-app, /api/activity/today, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync, /api/activity/current-app, /api/activity/today, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 
@@ -301,6 +331,28 @@ async function apiPost(path, headers, body) {
   return payload.data;
 }
 
+async function apiPostOptional(path, headers, body) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    body: JSON.stringify(body),
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || !payload?.success) {
+    return {
+      data: null,
+      message: `${path} returned HTTP ${response.status}: ${JSON.stringify(payload)}`,
+      ok: false,
+    };
+  }
+
+  return { data: payload.data, message: "ok", ok: true };
+}
+
 async function apiPatch(path, headers, body) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     body: JSON.stringify(body),
@@ -348,6 +400,12 @@ VALUES
 ('${SEED_USER_ID}', 'ACTIVITY_CONTEXT', true, now()),
 ('${SEED_USER_ID}', 'MANAGED_FOLDER', true, now())
 ON CONFLICT (user_id, consent_type) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now();
+
+DELETE FROM voice_participants
+WHERE voice_room_id IN (SELECT id FROM voice_rooms WHERE room_id = '${SEED_ROOM_ID}');
+
+DELETE FROM voice_rooms
+WHERE room_id = '${SEED_ROOM_ID}';
 
 INSERT INTO project_rooms (id, created_by_user_id, name, client_name, contract_amount, payment_status, payment_due_date, paid_at, status, closed_at, created_at, updated_at)
 VALUES ('${SEED_ROOM_ID}', '${SEED_USER_ID}', 'Codex Local Room', 'Bubli QA', 1200000.00, 'PENDING', current_date + 7, NULL, 'ACTIVE', NULL, now(), now())

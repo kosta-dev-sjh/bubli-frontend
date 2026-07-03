@@ -173,6 +173,7 @@ export type WidgetVoiceParticipantResponse = {
 
 export type WidgetVoiceRoomResponse = {
   createdAt: string;
+  createdByUserId?: string | null;
   id: string;
   livekitRoomName: string;
   participants: WidgetVoiceParticipantResponse[];
