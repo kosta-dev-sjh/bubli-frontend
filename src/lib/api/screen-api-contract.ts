@@ -35,7 +35,6 @@ export type ScreenApiBinding = {
 };
 
 const WORKSPACE_PREVIEW = "src/lib/workspace-preview-data.ts";
-const WIDGET_PREVIEW = "src/features/widget/desktop-widget-preview-data.ts";
 
 export const screenApiContract: readonly ScreenApiBinding[] = [
   // Public site (no member data)
@@ -190,10 +189,10 @@ export const screenApiContract: readonly ScreenApiBinding[] = [
     surface: "TAURI_WIDGET",
     route: "/desktop-widget",
     apis: ["/api/widget/summary", "/api/widget/context", "/api/widget/items/{id}/state"],
-    state: "PREVIEW_FALLBACK",
+    state: "API_WIRED",
     refresh: "RECONNECT_ONLY",
-    fallback: WIDGET_PREVIEW,
-    notes: "Server summary combined with local widget cache; usage rollups stay on device.",
+    fallback: null,
+    notes: "Server summary/context are authoritative after login; local widget cache is offline recovery only. Usage rollups stay on device until staged sync.",
   },
 ] as const;
 

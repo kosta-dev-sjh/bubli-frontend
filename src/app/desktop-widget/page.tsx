@@ -803,8 +803,7 @@ function DesktopWidgetSurface() {
 
     async function loadWidgetApiState() {
       try {
-        const summaryResult = await readWidgetSummary();
-        const summary = summaryResult.status === "ready" ? summaryResult.data : null;
+        const summary = await readWidgetDisplaySummary();
         if (cancelled) return;
         if (!summary) return;
 
@@ -889,8 +888,7 @@ function DesktopWidgetSurface() {
     let cancelled = false;
 
     async function refreshWidgetContext() {
-      const summaryResult = await readWidgetSummary().catch(() => null);
-      const summary = summaryResult?.status === "ready" ? summaryResult.data : null;
+      const summary = await readWidgetDisplaySummary().catch(() => null);
       if (cancelled || !summary?.context) return;
 
       setWidgetContext((current) => {
