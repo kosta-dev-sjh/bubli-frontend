@@ -1,4 +1,9 @@
 .shell {
+  --work-border: rgba(205, 216, 223, 0.62);
+  --work-ink: #2c3540;
+  --work-muted: #5a6772;
+  --work-surface: rgba(255, 255, 255, 0.86);
+
   display: grid;
   font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
   gap: 12px;
@@ -6,6 +11,13 @@
   min-inline-size: 0;
   text-rendering: optimizeLegibility;
   word-break: keep-all;
+}
+
+.shell svg {
+  color: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9px;
 }
 
 .contextBand {
@@ -23,15 +35,15 @@
 
 .generateButton {
   align-items: center;
-  background: rgba(231, 246, 255, 0.78);
-  border: 1px solid rgba(111, 184, 242, 0.28);
+  background: rgba(215, 234, 244, 0.72);
+  border: 1px solid rgba(142, 205, 246, 0.36);
   border-radius: 999px;
-  color: var(--blue-ink);
+  color: var(--work-ink);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 780;
   gap: 6px;
   min-height: 34px;
   padding: 0 12px;
@@ -39,8 +51,8 @@
 }
 
 .generateButton:hover:not(:disabled) {
-  background: rgba(216, 240, 255, 0.9);
-  border-color: rgba(111, 184, 242, 0.48);
+  background: rgba(215, 234, 244, 0.9);
+  border-color: rgba(107, 143, 168, 0.42);
 }
 
 .generateButton:disabled {
@@ -103,14 +115,14 @@
   background: transparent;
   font: inherit;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 780;
   letter-spacing: 0;
   cursor: pointer;
   transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
 .viewSwitch button[aria-pressed="true"] {
-  color: var(--color-brand);
+  color: var(--work-ink);
   background: rgba(215, 234, 244, 0.62);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.94),
@@ -119,14 +131,14 @@
 }
 
 .paneHead h2 {
-  color: var(--color-text);
+  color: var(--work-ink);
   font-size: 17px;
   line-height: 1.35;
   margin: 0 0 4px;
 }
 
 .paneHead p {
-  color: var(--color-muted);
+  color: var(--work-muted);
   font-size: 13px;
   line-height: 1.55;
   margin: 0;
@@ -146,7 +158,7 @@
     linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(250, 253, 255, 0.74)),
     rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(18px);
-  border: 1px solid rgba(210, 225, 238, 0.58);
+  border: 1px solid var(--work-border);
   border-radius: 22px;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
@@ -188,7 +200,7 @@
 
 .ganttPaneHead h2 {
   font-size: 18px;
-  font-weight: 840;
+  font-weight: 760;
 }
 
 .kanbanPane .paneHead {
@@ -198,7 +210,7 @@
 
 .kanbanPane .paneHead h2 {
   font-size: 18px;
-  font-weight: 840;
+  font-weight: 760;
 }
 
 .wbsWorkspace .pane :global(.gantt) {
@@ -289,7 +301,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 860;
+  font-weight: 740;
   min-block-size: 30px;
   min-inline-size: 46px;
   padding: 0 10px;
@@ -329,7 +341,7 @@
 .periodBoardHead strong {
   color: #2c3540;
   font-size: 14px;
-  font-weight: 880;
+  font-weight: 760;
 }
 
 .periodBoardHead span {
@@ -357,7 +369,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 740;
   min-block-size: 28px;
   padding: 0 10px;
   transition: background-color 160ms ease, color 160ms ease;
@@ -406,13 +418,13 @@
 .periodCell header span {
   color: #8a94a0;
   font-size: 11px;
-  font-weight: 820;
+  font-weight: 680;
 }
 
 .periodCell header strong {
   color: #2c3540;
   font-size: 14px;
-  font-weight: 880;
+  font-weight: 760;
 }
 
 .periodItems,
@@ -442,7 +454,7 @@
 .periodPill strong {
   color: #2c3540;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 740;
   line-height: 1.35;
   word-break: keep-all;
 }
@@ -462,7 +474,7 @@
   color: #5a6772;
   display: grid;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   gap: 8px;
   grid-template-columns: 42px 56px minmax(240px, 1.7fr) 82px 54px 76px 50px;
   letter-spacing: 0;
@@ -593,7 +605,7 @@
   color: #6b8fa8;
   display: inline-flex;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   inline-size: fit-content;
   justify-content: center;
   min-inline-size: 30px;
@@ -639,7 +651,7 @@
 .trashZone strong {
   color: #2c3540;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 740;
   line-height: 1.35;
   min-inline-size: 0;
   overflow: hidden;
@@ -652,7 +664,7 @@
 .cardTop strong {
   display: block;
   font-size: 13.5px;
-  font-weight: 820;
+  font-weight: 740;
   line-height: 1.42;
   overflow: visible;
   text-overflow: clip;
@@ -663,7 +675,7 @@
 .wbsDate {
   color: #5a6772;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -750,7 +762,7 @@
 .inspectorTitle strong {
   color: #2c3540;
   font-size: 16px;
-  font-weight: 840;
+  font-weight: 760;
   line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -834,7 +846,7 @@
 .detailMetrics small {
   color: #5a6772;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .linkedTasks {
@@ -860,7 +872,7 @@
 .colorControl > span {
   color: #5a6772;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 740;
 }
 
 .colorSwatches {
@@ -894,7 +906,7 @@
   color: #5a6772;
   display: inline-flex;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 740;
   gap: 7px;
   min-block-size: 28px;
   padding: 0 8px 0 10px;
@@ -931,7 +943,7 @@
   color: #5a6772;
   display: grid;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 740;
   gap: 6px;
   min-inline-size: 0;
 }
@@ -952,7 +964,7 @@
   color: #5a6772;
   display: grid;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 740;
   gap: 6px;
   min-inline-size: 0;
 }
@@ -1002,7 +1014,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 760;
   min-block-size: 36px;
   padding: 0 14px;
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
@@ -1117,7 +1129,7 @@
 .columnHead strong {
   color: #2c3540;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 740;
   line-height: 1.25;
 }
 
@@ -1134,7 +1146,7 @@
   border-radius: 999px;
   color: #6b8fa8;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   min-inline-size: 26px;
   padding: 3px 8px;
   text-align: center;
@@ -1205,7 +1217,7 @@
 
 .cardTop strong {
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 740;
   inline-size: 100%;
   line-height: 1.38;
   overflow-wrap: normal;
@@ -1217,7 +1229,7 @@
 .cardTop :global(.bubli-status) {
   flex: 0 0 auto;
   font-size: 10px;
-  font-weight: 820;
+  font-weight: 700;
   min-block-size: 22px;
   padding-inline: 7px;
   white-space: nowrap;
@@ -1263,14 +1275,14 @@
 .taskInspector small {
   color: #8a94a0;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .assigneeControl {
   color: #5a6772;
   display: grid;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 740;
   gap: 6px;
   margin-block-start: 12px;
   max-inline-size: 260px;
@@ -1303,7 +1315,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 740;
   min-block-size: 34px;
   padding: 0 12px;
 }
@@ -1318,11 +1330,13 @@
   display: grid;
   gap: 12px;
   margin-block: 0 14px;
-  padding: 12px;
+  padding: 14px;
 }
 
 .suggestionTray .suggestionList {
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  align-items: stretch;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 360px));
+  justify-content: start;
 }
 
 .candidateTrayHead {
@@ -1334,9 +1348,9 @@
 }
 
 .candidateTrayHead strong {
-  color: #2c3540;
+  color: var(--work-ink);
   font-size: 13px;
-  font-weight: 860;
+  font-weight: 780;
   line-height: 1.3;
 }
 
@@ -1345,21 +1359,22 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  grid-column: 2;
+  grid-column: 1 / -1;
+  margin-inline-start: 39px;
 }
 
 .candidateActions button {
   align-items: center;
   appearance: none;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(229, 231, 235, 0.9);
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(210, 225, 238, 0.78);
   border-radius: 999px;
   color: #5a6772;
   cursor: pointer;
   display: inline-flex;
   font: inherit;
   font-size: 11px;
-  font-weight: 850;
+  font-weight: 760;
   gap: 4px;
   min-block-size: 28px;
   padding: 0 9px;
@@ -1414,25 +1429,33 @@
 }
 
 .suggestion {
-  align-items: center;
-  background: rgba(230, 221, 248, 0.24);
-  border: 1px solid rgba(229, 231, 235, 0.9);
-  border-radius: 14px;
+  align-items: start;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 250, 0.84)),
+    rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(210, 225, 238, 0.74);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 14px 30px -28px rgba(66, 110, 150, 0.42);
   display: grid;
   gap: 9px;
   grid-template-columns: 30px minmax(0, 1fr);
-  padding: 11px;
+  max-inline-size: 380px;
+  min-inline-size: 0;
+  padding: 12px;
 }
 
 .suggestion :global(.bubli-status) {
-  grid-column: 2;
+  grid-column: 1 / -1;
   justify-self: start;
+  margin-inline-start: 39px;
 }
 
 .suggestionIcon {
   align-items: center;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: rgba(215, 234, 244, 0.72);
+  border: 1px solid rgba(142, 205, 246, 0.34);
   border-radius: 999px;
   color: #6b8fa8;
   display: inline-flex;

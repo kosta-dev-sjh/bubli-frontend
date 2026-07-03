@@ -841,7 +841,7 @@ function ProjectRoomWorkBoardContent({
               return (
                 <article className={styles.suggestion} key={suggestion.suggestionId}>
                   <span className={styles.suggestionIcon} aria-hidden="true">
-                    {kind === "wbs" ? <GitBranch size={15} strokeWidth={2.2} /> : <KanbanSquare size={15} strokeWidth={2.2} />}
+                    {kind === "wbs" ? <GitBranch size={15} strokeWidth={1.9} /> : <KanbanSquare size={15} strokeWidth={1.9} />}
                   </span>
                   <span>
                     <strong>{candidateTitle(t, suggestion)}</strong>
@@ -854,7 +854,7 @@ function ProjectRoomWorkBoardContent({
                       onClick={() => void handleReviewCandidate(kind, suggestion.suggestionId, "APPROVE")}
                       type="button"
                     >
-                      <Check aria-hidden="true" size={13} strokeWidth={2.2} />
+                      <Check aria-hidden="true" size={13} strokeWidth={1.9} />
                       {t("room.workBoard.candidateApprove")}
                     </button>
                     <button
@@ -862,7 +862,7 @@ function ProjectRoomWorkBoardContent({
                       onClick={() => void handleReviewCandidate(kind, suggestion.suggestionId, "HOLD")}
                       type="button"
                     >
-                      <Pause aria-hidden="true" size={13} strokeWidth={2.2} />
+                      <Pause aria-hidden="true" size={13} strokeWidth={1.9} />
                       {t("room.workBoard.candidateHold")}
                     </button>
                     <button
@@ -870,7 +870,7 @@ function ProjectRoomWorkBoardContent({
                       onClick={() => void handleReviewCandidate(kind, suggestion.suggestionId, "REJECT")}
                       type="button"
                     >
-                      <X aria-hidden="true" size={13} strokeWidth={2.2} />
+                      <X aria-hidden="true" size={13} strokeWidth={1.9} />
                       {t("room.workBoard.candidateReject")}
                     </button>
                   </div>
@@ -916,7 +916,7 @@ function ProjectRoomWorkBoardContent({
                     onClick={() => void handleGenerateCandidates("wbs")}
                     type="button"
                   >
-                    <GitBranch aria-hidden="true" size={14} strokeWidth={2.2} />
+                    <GitBranch aria-hidden="true" size={14} strokeWidth={1.9} />
                     {wbsGeneration?.status === "pending" ? t("room.workBoard.generating") : t("room.workBoard.generateWbs")}
                   </button>
                 </div>
@@ -1020,7 +1020,7 @@ function ProjectRoomWorkBoardContent({
                     })}
                   </span>
                   <button className={styles.inspectorClose} onClick={() => setIsWbsSettingsOpen(false)} type="button">
-                    <X aria-hidden="true" size={15} strokeWidth={2.2} />
+                    <X aria-hidden="true" size={15} strokeWidth={1.9} />
                     <span className="sr-only">{t("room.workBoard.closeSettings")}</span>
                   </button>
                 </div>
@@ -1140,10 +1140,9 @@ function ProjectRoomWorkBoardContent({
                   onClick={() => void handleGenerateCandidates("tasks")}
                   type="button"
                 >
-                  <KanbanSquare aria-hidden="true" size={14} strokeWidth={2.2} />
+                  <KanbanSquare aria-hidden="true" size={14} strokeWidth={1.9} />
                   {taskGeneration?.status === "pending" ? t("room.workBoard.generating") : t("room.workBoard.generateKanban")}
                 </button>
-                <KanbanSquare aria-hidden="true" size={19} strokeWidth={2} />
               </div>
             </div>
             {taskGeneration ? (

@@ -280,9 +280,12 @@ export function WbsGanttPanel({
       const viewportCenter = scrollerRect.left + sidebarWidth + (scroller.clientWidth - sidebarWidth) / 2;
       const elementCenter = elementRect.left + elementRect.width / 2;
 
+      const maxScrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+      const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, scroller.scrollLeft + elementCenter - viewportCenter));
+
       scroller.scrollTo({
         behavior: "auto",
-        left: Math.max(0, scroller.scrollLeft + elementCenter - viewportCenter),
+        left: nextScrollLeft,
         top: scroller.scrollTop,
       });
     };
@@ -304,9 +307,12 @@ export function WbsGanttPanel({
     const viewportCenter = rootRect.left + sidebarWidth + (root.clientWidth - sidebarWidth) / 2;
     const todayCenter = todayRect.left + todayRect.width / 2;
 
+    const maxScrollLeft = Math.max(0, root.scrollWidth - root.clientWidth);
+    const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, root.scrollLeft + todayCenter - viewportCenter));
+
     root.scrollTo({
       behavior: "smooth",
-      left: Math.max(0, root.scrollLeft + todayCenter - viewportCenter),
+      left: nextScrollLeft,
     });
   };
 
@@ -560,7 +566,7 @@ export function WbsGanttPanel({
                 role="tab"
                 type="button"
               >
-                <Icon aria-hidden="true" size={13} strokeWidth={2.1} />
+                <Icon aria-hidden="true" size={13} strokeWidth={1.9} />
                 {t(option.labelKey)}
               </button>
             );
@@ -568,11 +574,11 @@ export function WbsGanttPanel({
         </div>
 
         <button className={styles.toolButton} onClick={scrollToToday} type="button">
-          <CalendarDays aria-hidden="true" size={13} strokeWidth={2.1} />
+          <CalendarDays aria-hidden="true" size={13} strokeWidth={1.9} />
           {t("wbs.board.due.today")}
         </button>
         <button className={styles.toolButton} onClick={handleAddGroup} type="button">
-          <FolderPlus aria-hidden="true" size={13} strokeWidth={2.1} />
+          <FolderPlus aria-hidden="true" size={13} strokeWidth={1.9} />
           {t("wbs.gantt.addGroup")}
         </button>
         <button
@@ -588,7 +594,7 @@ export function WbsGanttPanel({
           }
           type="button"
         >
-          <Plus aria-hidden="true" size={13} strokeWidth={2.1} />
+          <Plus aria-hidden="true" size={13} strokeWidth={1.9} />
           {t("wbs.gantt.addTask")}
         </button>
       </div>
@@ -662,7 +668,7 @@ export function WbsGanttPanel({
                           <ChevronRight
                             aria-hidden="true"
                             size={13}
-                            strokeWidth={2.2}
+                            strokeWidth={1.9}
                             style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)" }}
                           />
                         </button>
@@ -678,7 +684,7 @@ export function WbsGanttPanel({
                           title={t("wbs.gantt.row.addChildTitle")}
                           type="button"
                         >
-                          <Plus aria-hidden="true" size={13} strokeWidth={2.2} />
+                          <Plus aria-hidden="true" size={13} strokeWidth={1.9} />
                         </button>
                       ) : null}
                       <button
@@ -690,7 +696,7 @@ export function WbsGanttPanel({
                         }}
                         type="button"
                       >
-                        <PencilIcon aria-hidden="true" size={13} strokeWidth={2.2} />
+                        <PencilIcon aria-hidden="true" size={13} strokeWidth={1.9} />
                       </button>
                       <button
                         aria-label={t("wbs.gantt.row.deleteAria", { title: item.title })}
@@ -701,7 +707,7 @@ export function WbsGanttPanel({
                         }}
                         type="button"
                       >
-                        <TrashIcon aria-hidden="true" size={13} strokeWidth={2.2} />
+                        <TrashIcon aria-hidden="true" size={13} strokeWidth={1.9} />
                       </button>
                     </>
                   }
