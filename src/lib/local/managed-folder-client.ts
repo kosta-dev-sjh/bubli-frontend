@@ -1,5 +1,8 @@
 import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
-import type { LocalFileKeySentenceResult } from "@/lib/tauri/commands";
+import type {
+  LocalFileAnalysisStatusResult,
+  LocalFileKeySentenceResult,
+} from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { localFileAnalysisApi } from "@/features/managed-folder/api/localFileAnalysisApi";
 import { managedFolderApi } from "@/features/managed-folder/api/managedFolderApi";
@@ -57,6 +60,8 @@ export type PersonalLocalFileAnalysisBackfillResult = {
   stagedAt: string;
   succeededCount: number;
 };
+
+export type PersonalLocalFileAnalysisStatusResult = LocalFileAnalysisStatusResult;
 
 export type PersonalLocalFileAnalysisResult = {
   extraction: LocalFileKeySentenceResult;
@@ -684,6 +689,30 @@ export async function backfillPersonalLocalFileAnalyses(input?: {
     result,
     commandName,
     `기존 로컬 파일 분석 백필 ${succeededCount}건을 전달했습니다. ${failedCount}건은 실패했습니다.`,
+  );
+}
+
+export async function getPersonalLocalFileAnalysisStatus(input?: {
+  consentGranted?: boolean;
+  maxAttempts?: number;
+  roomId?: string | null;
+}): Promise<LocalAdapterResult<PersonalLocalFileAnalysisStatusResult>> {
+  const commandName = TAURI_COMMANDS.getLocalFileAnalysisStatus;
+
+  if (!isTauriRuntime()) {
+    return unavailable(commandName);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", personalScopeMessage(), commandName);
+  }
+
+  if (!input?.consentGranted) {
+    return localFolderConsentBlocked(commandName);
+  }
+
+  return runTauriAdapter(commandName, () =>
+    tauriCommands.getLocalFileAnalysisStatus({ maxAttempts: input.maxAttempts }),
   );
 }
 

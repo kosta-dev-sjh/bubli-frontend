@@ -11,6 +11,7 @@ export const TAURI_COMMANDS = {
   extractLocalFileKeySentences: "extract_local_file_key_sentences",
   flushSyncOutbox: "flush_sync_outbox",
   getIndexProgress: "get_index_progress",
+  getLocalFileAnalysisStatus: "get_local_file_analysis_status",
   getPreferredAppMonitor: "get_preferred_app_monitor",
   getWidgetBarItems: "get_widget_bar_items",
   getWidgetWindowState: "get_widget_window_state",
@@ -282,6 +283,19 @@ export type LocalFileEventsMarkSyncedResult = {
 export type LocalFileAnalysisBackfillStageInput = {
   limit?: number;
   maxAttempts?: number;
+};
+
+export type LocalFileAnalysisStatusInput = {
+  maxAttempts?: number;
+};
+
+export type LocalFileAnalysisStatusResult = {
+  failedCount: number;
+  latestErrorMessage?: string | null;
+  pendingCount: number;
+  readAt: string;
+  retryableFailedCount: number;
+  syncedCount: number;
 };
 
 export type LocalFileAnalysisBackfillCandidate = {
@@ -704,6 +718,10 @@ export type TauriCommandContract = {
     args: ManagedFolderCommandInput;
     result: ManagedFolderIndexProgressResult;
   };
+  get_local_file_analysis_status: {
+    args: LocalFileAnalysisStatusInput | undefined;
+    result: LocalFileAnalysisStatusResult;
+  };
   get_preferred_app_monitor: {
     args: undefined;
     result: AppMonitorPreference;
@@ -955,6 +973,12 @@ export const tauriCommands = {
   },
   getIndexProgress(input: ManagedFolderCommandInput) {
     return invokeTauri<ManagedFolderIndexProgressResult>(TAURI_COMMANDS.getIndexProgress, { input });
+  },
+  getLocalFileAnalysisStatus(input?: LocalFileAnalysisStatusInput) {
+    return invokeTauri<LocalFileAnalysisStatusResult>(
+      TAURI_COMMANDS.getLocalFileAnalysisStatus,
+      input ? { input } : undefined,
+    );
   },
   getPreferredAppMonitor() {
     return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.getPreferredAppMonitor);

@@ -27,6 +27,7 @@ import {
   restoreLocalSqliteBackup,
 } from "@/lib/local/local-cache-client";
 import {
+  getPersonalLocalFileAnalysisStatus,
   getPersonalManagedFolderIndexProgress,
   listPersonalManagedFolders,
   openPersonalLocalFile,
@@ -47,6 +48,7 @@ import {
   tauriCommands,
   type AppMonitorInfo,
   type AppMonitorPreference,
+  type LocalFileAnalysisStatusResult,
   type LocalFilePreviewResult,
   type ManagedFolderIndexProgressResult,
   type SqliteIntegrityResult,
@@ -187,6 +189,21 @@ function storageLabel(t: TranslateFn, storage: StorageUsageResponse | null) {
 function localSqliteDiagnosticsLabel(result: SqliteIntegrityResult) {
   const freePages = Math.max(0, result.freelistCount);
   return `DB ${byteLabel(result.databaseSizeBytes)} · WAL ${byteLabel(result.walSizeBytes)} · ${result.pageCount} pages · free ${freePages} · ${result.journalMode}`;
+}
+
+function localFileAnalysisStatusLabel(status: LocalFileAnalysisStatusResult) {
+  const parts = [
+    `analysis pending ${status.pendingCount}`,
+    `failed ${status.failedCount}`,
+    `retryable ${status.retryableFailedCount}`,
+    `synced ${status.syncedCount}`,
+  ];
+
+  if (status.latestErrorMessage) {
+    parts.push(`latest error: ${status.latestErrorMessage}`);
+  }
+
+  return parts.join(" / ");
 }
 
 function userToProfileDraft(user: AuthUser) {
@@ -957,7 +974,20 @@ export default function SettingsPage() {
     const result = await syncPersonalLocalFileEventsToServer(
       folderId ? { consentGranted, localFolderId: folderId } : { consentGranted },
     );
-    setLocalActionMessage({ text: localResultMessage(t, result), tone: result.status === "ready" ? "approved" : "warning" });
+    if (result.status !== "ready") {
+      setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
+      return;
+    }
+
+    const analysisStatus = await getPersonalLocalFileAnalysisStatus({ consentGranted, maxAttempts: 3 });
+    const analysisLabel =
+      analysisStatus.status === "ready"
+        ? ` / ${localFileAnalysisStatusLabel(analysisStatus.data)}`
+        : "";
+    setLocalActionMessage({
+      text: `${localResultMessage(t, result)}${analysisLabel}`,
+      tone: result.data.analysisFailedCount > 0 || (analysisStatus.status === "ready" && analysisStatus.data.failedCount > 0) ? "warning" : "approved",
+    });
   }, [state, t]);
 
   const syncWidgetUsage = useCallback(async () => {
