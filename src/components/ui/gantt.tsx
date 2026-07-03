@@ -866,6 +866,10 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
   const [startAt, setStartAt] = useState<Date>(feature.startAt);
   const [endAt, setEndAt] = useState<Date | null>(feature.endAt);
   const lockedScrollLeftRef = useRef<number | null>(null);
+  const rangeDraftRef = useRef<{ endAt: Date | null; startAt: Date }>({
+    endAt: feature.endAt,
+    startAt: feature.startAt,
+  });
   const width = getWidth(startAt, endAt, gantt);
   const offset = getOffset(startAt, timelineStartDate, gantt);
   const addRange = getAddRange(gantt.range);
@@ -880,6 +884,15 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
       distance: 10,
     },
   });
+
+  const setDraftRange = (nextStartAt: Date, nextEndAt: Date | null) => {
+    rangeDraftRef.current = {
+      endAt: nextEndAt,
+      startAt: nextStartAt,
+    };
+    setStartAt(nextStartAt);
+    setEndAt(nextEndAt);
+  };
 
   const getTimelineMouseX = () => {
     const ganttRect = gantt.ref?.current?.getBoundingClientRect();
@@ -936,13 +949,14 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
     const newStartDate = addDays(previousStartAt, delta);
     const newEndDate = previousEndAt ? addDays(previousEndAt, delta) : null;
 
-    setStartAt(newStartDate);
-    setEndAt(newEndDate);
+    setDraftRange(newStartDate, newEndDate);
   };
 
   const onDragEnd = () => {
+    const nextRange = rangeDraftRef.current;
+
     restoreScrollLeft();
-    onMove?.(feature.id, startAt, endAt);
+    onMove?.(feature.id, nextRange.startAt, nextRange.endAt);
     releaseScrollLeft();
   };
 
@@ -950,14 +964,14 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
     restoreScrollLeft();
     const newStartAt = getDateByMousePosition(gantt, getTimelineMouseX());
 
-    setStartAt(newStartAt);
+    setDraftRange(newStartAt, rangeDraftRef.current.endAt);
   };
 
   const handleRightDragMove = () => {
     restoreScrollLeft();
     const newEndAt = getDateByMousePosition(gantt, getTimelineMouseX());
 
-    setEndAt(newEndAt);
+    setDraftRange(rangeDraftRef.current.startAt, newEndAt);
   };
 
   return (
