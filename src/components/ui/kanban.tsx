@@ -82,6 +82,36 @@ function stopInteractive(event: React.SyntheticEvent) {
   event.stopPropagation();
 }
 
+type AssigneeAvatarProps = {
+  fallback: string;
+  label?: string;
+  option?: KanbanAssigneeOption;
+};
+
+function AssigneeAvatar({ fallback, label, option }: AssigneeAvatarProps) {
+  const [failedAvatarUrl, setFailedAvatarUrl] = React.useState<string | null>(null);
+  const avatarUrl = option?.avatarUrl ?? null;
+
+  if (avatarUrl && failedAvatarUrl !== avatarUrl) {
+    return (
+      <img
+        alt=""
+        className={styles.avatarImage}
+        decoding="async"
+        onError={() => setFailedAvatarUrl(avatarUrl)}
+        referrerPolicy="no-referrer"
+        src={avatarUrl}
+      />
+    );
+  }
+
+  if (label) {
+    return getInitial(label, fallback);
+  }
+
+  return <UserRound aria-hidden="true" size={14} strokeWidth={2.1} />;
+}
+
 export function KanbanBoard({
   columns: initialColumns,
   onColumnsChange,
@@ -204,26 +234,6 @@ export function KanbanBoard({
   };
 
   const getColumnColor = (columnId: string) => columnColors[columnId] || "var(--color-rain-gray)";
-
-  const renderAssigneeAvatar = (option: KanbanAssigneeOption | undefined, label?: string) => {
-    if (option?.avatarUrl) {
-      return (
-        <img
-          alt=""
-          className={styles.avatarImage}
-          decoding="async"
-          referrerPolicy="no-referrer"
-          src={option.avatarUrl}
-        />
-      );
-    }
-
-    if (label) {
-      return getInitial(label, t("ui.kanban.assigneeInitialFallback"));
-    }
-
-    return <UserRound aria-hidden="true" size={14} strokeWidth={2.1} />;
-  };
 
   const chooseAssignee = (taskId: string, assigneeId: string | null) => {
     onTaskAssigneeChange?.(taskId, assigneeId);
@@ -453,7 +463,13 @@ export function KanbanBoard({
                           }}
                           type="button"
                         >
-                          <span className={styles.avatar}>{renderAssigneeAvatar(selectedAssignee, assigneeLabel)}</span>
+                          <span className={styles.avatar}>
+                            <AssigneeAvatar
+                              fallback={t("ui.kanban.assigneeInitialFallback")}
+                              label={assigneeLabel}
+                              option={selectedAssignee}
+                            />
+                          </span>
                           {assigneeLabel ? (
                             <span className={styles.assigneeTriggerText}>{assigneeLabel}</span>
                           ) : (
@@ -497,7 +513,13 @@ export function KanbanBoard({
                                   role="option"
                                   type="button"
                                 >
-                                  <span className={styles.avatar}>{renderAssigneeAvatar(option, option.label)}</span>
+                                  <span className={styles.avatar}>
+                                    <AssigneeAvatar
+                                      fallback={t("ui.kanban.assigneeInitialFallback")}
+                                      label={option.label}
+                                      option={option}
+                                    />
+                                  </span>
                                   <span className={styles.assigneeCopy}>
                                     <strong>{option.label}</strong>
                                     {option.meta ? <small>{option.meta}</small> : null}
