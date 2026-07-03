@@ -1,7 +1,11 @@
 "use client";
 
 import { settingsApi } from "@/features/settings/api/settingsApi";
-import { recordCurrentActivityContext, resetIncrementalActivityCheckpoint } from "@/lib/local/activity-client";
+import {
+  recordCurrentActivityContext,
+  resetIncrementalActivityCheckpoint,
+  syncLocalActivityBufferToServer,
+} from "@/lib/local/activity-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 
@@ -13,6 +17,10 @@ let captureInFlight = false;
 let cachedConsent: boolean | null = null;
 let cachedConsentCheckedAt = 0;
 
+type ActivityAutoCaptureStopInput = {
+  flush?: boolean;
+};
+
 export function startActivityAutoCapture() {
   if (!isTauriRuntime()) return;
   if (captureIntervalId !== null) return;
@@ -23,12 +31,17 @@ export function startActivityAutoCapture() {
   }, ACTIVITY_CAPTURE_INTERVAL_MS);
 }
 
-export function stopActivityAutoCapture() {
+export async function stopActivityAutoCapture(input?: ActivityAutoCaptureStopInput) {
   if (captureIntervalId !== null) {
     window.clearInterval(captureIntervalId);
   }
 
   captureIntervalId = null;
+
+  if (input?.flush) {
+    await flushActivityAutoCapture();
+  }
+
   captureInFlight = false;
   cachedConsent = null;
   cachedConsentCheckedAt = 0;
@@ -52,6 +65,28 @@ async function captureActivityOnce() {
       recordMode: "incremental",
       roomId: getActiveProjectRoomId(),
     });
+  } catch {
+    cachedConsent = null;
+    cachedConsentCheckedAt = 0;
+  } finally {
+    captureInFlight = false;
+  }
+}
+
+export async function flushActivityAutoCapture() {
+  if (!isTauriRuntime() || captureInFlight) return;
+
+  captureInFlight = true;
+  try {
+    const consentGranted = await readActivityConsent();
+    if (!consentGranted) return;
+
+    await recordCurrentActivityContext({
+      consentGranted,
+      recordMode: "incremental",
+      roomId: getActiveProjectRoomId(),
+    }).catch(() => undefined);
+    await syncLocalActivityBufferToServer({ consentGranted, limit: 20 }).catch(() => undefined);
   } catch {
     cachedConsent = null;
     cachedConsentCheckedAt = 0;

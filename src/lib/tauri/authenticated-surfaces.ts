@@ -166,7 +166,7 @@ export async function stopTauriAuthenticatedSurfaces() {
   launchRequested = false;
   launchPromise = null;
   launchedAuthenticatedSurfaces = false;
-  stopActivityAutoCapture();
+  await stopActivityAutoCapture({ flush: true });
   stopManagedFolderAutoSync();
   stopWidgetUsageAutoSync();
 
