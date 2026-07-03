@@ -15,7 +15,7 @@ import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
-import type { TranslateVars, MessageKey } from "@/lib/i18n";
+import type { TranslateVars, MessageKey, Locale } from "@/lib/i18n";
 import { recordCurrentActivityContext } from "@/lib/local/activity-client";
 import {
   backupLocalSqlite,
@@ -252,7 +252,7 @@ function activityStartedLabel(t: TranslateFn, value?: string | null) {
 type StatusMessage = { text: string; tone: "approved" | "warning" };
 
 export default function SettingsPage() {
-  const { t } = useI18n();
+  const { t, setLocale } = useI18n();
   const router = useRouter();
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [profileDraft, setProfileDraft] = useState(defaultProfileDraft);
@@ -381,6 +381,7 @@ export default function SettingsPage() {
     };
 
     updateReadyState((current) => ({ ...current, user: nextUser }));
+    setLocale(nextUser.locale as Locale);
     setSaveMessage({ text: t("settings.msg.displaySaved"), tone: "approved" });
 
     try {

@@ -14061,6 +14061,7 @@ html {
   font-size: 13px;
   font-weight: 500;
   line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     color var(--motion-hover, 160ms) var(--ease-in, ease),
