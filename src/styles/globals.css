@@ -3820,7 +3820,7 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__voice-actions button.workspace-route__voice-end:hover:not(:disabled) {
   background: rgba(255, 235, 235, 0.9);
-  color: #c0392b;
+  color: var(--color-destructive);
 }
 
 .workspace-route__action-note {
@@ -3944,7 +3944,7 @@ button.workspace-route__friend-row:hover {
 .workspace-route__voice-pill--end:hover:not(:disabled) {
   background: rgba(255, 240, 240, 0.95);
   border-color: rgba(210, 80, 80, 0.4);
-  color: #c0392b;
+  color: var(--color-destructive);
 }
 
 /* 알림 텍스트 — 배지 아래 작게 */
@@ -4060,7 +4060,7 @@ button.workspace-route__friend-row:hover {
 .workspace-route__voice-inline__end:hover:not(:disabled) {
   background: rgba(255, 238, 238, 0.9) !important;
   border-color: rgba(210, 80, 80, 0.4) !important;
-  color: #c0392b !important;
+  color: var(--color-destructive) !important;
 }
 
 .workspace-route__voice-inline .workspace-route__voice-people {
