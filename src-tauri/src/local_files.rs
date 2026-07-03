@@ -1510,6 +1510,31 @@ fn extract_pdf_text(path: &Path) -> Result<String, String> {
         return Err("UNSUPPORTED".to_string());
     }
 
+    let extracted = match pdf_extract::extract_text(path) {
+        Ok(text) => text,
+        Err(primary_error) => {
+            let fallback = extract_pdf_text_lossy(&bytes);
+            if fallback.trim().is_empty() {
+                return Err(primary_error.to_string());
+            }
+            fallback
+        }
+    };
+
+    let text = extracted
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim()
+        .to_string();
+    if text.is_empty() {
+        return Err("EMPTY".to_string());
+    }
+
+    Ok(text)
+}
+
+fn extract_pdf_text_lossy(bytes: &[u8]) -> String {
     let mut extracted = String::new();
     let mut cursor = 0usize;
     while let Some(stream_start_relative) = find_bytes(&bytes[cursor..], b"stream") {
@@ -1553,17 +1578,7 @@ fn extract_pdf_text(path: &Path) -> Result<String, String> {
         cursor = stream_end + b"endstream".len();
     }
 
-    let text = extracted
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .trim()
-        .to_string();
-    if text.is_empty() {
-        return Err("EMPTY".to_string());
-    }
-
-    Ok(text)
+    extracted
 }
 
 fn extract_pdf_stream_text(bytes: &[u8]) -> String {

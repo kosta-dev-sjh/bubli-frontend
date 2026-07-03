@@ -137,6 +137,33 @@ function extractSummaryText(summary?: ResourceSummaryResponse | null) {
   return summary.summaryJson;
 }
 
+function extractSummaryModelLabel(summary?: ResourceSummaryResponse | null) {
+  if (summary?.modelName?.trim()) {
+    return summary.modelName.trim();
+  }
+  if (summary?.promptVersion?.trim()) {
+    return summary.promptVersion.trim();
+  }
+  if (!summary?.summaryJson) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(summary.summaryJson) as Record<string, unknown>;
+    const analysis = parsed.analysis && typeof parsed.analysis === "object" ? (parsed.analysis as Record<string, unknown>) : null;
+    const model = analysis?.model && typeof analysis.model === "object" ? (analysis.model as Record<string, unknown>) : null;
+    const modelName = typeof model?.name === "string" ? model.name.trim() : "";
+    const promptVersion = typeof model?.promptVersion === "string" ? model.promptVersion.trim() : "";
+
+    return modelName || promptVersion || null;
+  } catch {
+    const matched = summary.summaryJson.match(/model=\{[^}]*name=([^,}]+)(?:,[^}]*promptVersion=([^,}]+))?/i);
+    const modelName = matched?.[1]?.trim();
+    const promptVersion = matched?.[2]?.trim();
+    return modelName || promptVersion || null;
+  }
+}
+
 function sortComments(comments: ResourceCommentResponse[]) {
   return [...comments].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
@@ -538,6 +565,7 @@ export function ResourcePreview({
 
   const activeResource = detailResource?.id === resource?.id ? detailResource : resource;
   const summaryText = useMemo(() => extractSummaryText(summary), [summary]);
+  const summaryModelLabel = useMemo(() => extractSummaryModelLabel(summary), [summary]);
   const latestVersion = versions[0] ?? activeResource?.currentVersion ?? null;
 
   const handleDownload = useCallback(async () => {
@@ -814,7 +842,7 @@ export function ResourcePreview({
             </div>
             <div>
               <span>{t("resources.common.summaryModel")}</span>
-              <strong>{summary?.modelName ?? summary?.promptVersion ?? t("resources.common.pending")}</strong>
+              <strong>{summaryModelLabel ?? t("resources.common.pending")}</strong>
             </div>
             <div>
               <span>{t("resources.common.commentsLabel")}</span>
