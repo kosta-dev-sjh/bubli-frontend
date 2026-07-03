@@ -313,6 +313,35 @@ function applyItemStateOverrides(
   ) as Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
 }
 
+function collectWidgetItemIds(bubbles: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>) {
+  return [
+    ...new Set(
+      Object.values(bubbles)
+        .flatMap((bubble) => bubble?.rows ?? [])
+        .map((row) => row.id)
+        .filter(isUuid),
+    ),
+  ];
+}
+
+function itemStateResponseToOverrides(
+  states: Awaited<ReturnType<typeof widgetApi.listItemStates>>,
+): Record<string, WidgetItemStateAction> {
+  return Object.fromEntries(
+    states.flatMap((itemState) => {
+      if (
+        itemState.state === "CONFIRMED" ||
+        itemState.state === "HIDDEN" ||
+        itemState.state === "PINNED" ||
+        itemState.state === "SNOOZED"
+      ) {
+        return [[itemState.itemId, itemState.state]];
+      }
+      return [];
+    }),
+  );
+}
+
 function buildNotificationSignal(t: TranslateFn, notifications: WidgetNotificationResponse[]): WidgetNotificationSignal {
   const unread = notifications.filter((item) => item.status === "UNREAD");
   return {
@@ -965,7 +994,11 @@ function DesktopWidgetSurface() {
           voiceConnectionLabel,
           voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
         }, t);
-      setDisplayBubbles(applyItemStateOverrides(nextDisplayBubbles, itemStateOverrides));
+      const persistedItemStates = await widgetApi
+        .listItemStates(collectWidgetItemIds(nextDisplayBubbles))
+        .catch(() => []);
+      const persistedOverrides = itemStateResponseToOverrides(persistedItemStates);
+      setDisplayBubbles(applyItemStateOverrides(nextDisplayBubbles, { ...persistedOverrides, ...itemStateOverrides }));
     }
 
     void loadDisplayApiState().catch(() => {

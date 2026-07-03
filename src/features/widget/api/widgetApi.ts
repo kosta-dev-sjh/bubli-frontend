@@ -5,6 +5,7 @@ import type {
   WidgetBubbleType as ApiWidgetBubbleType,
   WidgetContextResponse as ApiWidgetContextResponse,
   WidgetContextUpdateRequest as ApiWidgetContextUpdateRequest,
+  WidgetItemStateResponse as ApiWidgetItemStateResponse,
   WidgetItemStateUpdateRequest as ApiWidgetItemStateUpdateRequest,
   WidgetSettingsResponse as ApiWidgetSettingsResponse,
   WidgetSummaryResponse as ApiWidgetSummaryResponse,
@@ -68,6 +69,15 @@ export const widgetApi = {
       body,
       method: "PATCH",
     });
+  },
+
+  listItemStates(itemIds: string[]) {
+    if (itemIds.length === 0) return Promise.resolve([] as ApiWidgetItemStateResponse[]);
+    const params = new URLSearchParams();
+    for (const itemId of [...new Set(itemIds)]) {
+      params.append("itemIds", itemId);
+    }
+    return widgetRequest<ApiWidgetItemStateResponse[]>(`/api/widget/items/states?${params.toString()}`);
   },
 
   saveUsageSummary(body: ApiWidgetUsageSummarySaveRequest) {

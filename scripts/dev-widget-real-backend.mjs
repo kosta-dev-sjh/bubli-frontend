@@ -168,6 +168,17 @@ async function smokeBackend(accessToken) {
       "SNOOZED",
     "widget item state PATCH did not persist SNOOZED when called with the task item id",
   );
+  const itemStates = await apiGet(`/api/widget/items/states?itemIds=${SEED_TASK_ID}`, headers);
+  assert(
+    itemStates.some(
+      (itemState) =>
+        itemState.itemId === SEED_TASK_ID &&
+        itemState.bubbleType === "TODO" &&
+        itemState.itemType === "TASK" &&
+        itemState.state === "SNOOZED",
+    ),
+    "widget item state query did not return the persisted task state",
+  );
 
   const chatRooms = await apiGet("/api/chat/rooms?page=0&size=20", headers);
   const roomChat = chatRooms.items?.find((room) => room.roomId === SEED_ROOM_ID);
@@ -423,7 +434,7 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/widget/items/{id}/state, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/widget/items/{id}/state, /api/widget/items/states, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 

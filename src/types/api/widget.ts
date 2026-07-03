@@ -66,6 +66,14 @@ export type WidgetSummaryResponse = {
 
 export type WidgetItemState = "VISIBLE" | "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED" | "UNREAD";
 
+export type WidgetItemStateResponse = {
+  bubbleType: WidgetBubbleType;
+  id: string;
+  itemId: string;
+  itemType: string;
+  state: WidgetItemState;
+};
+
 export type WidgetItemStateUpdateRequest = {
   bubbleType: WidgetBubbleType;
   itemId: string;
