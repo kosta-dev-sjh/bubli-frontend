@@ -553,7 +553,10 @@ export default function SettingsPage() {
     const result = await Promise.resolve(restoreLocalSqliteBackup({ backupId: lastBackupId }));
     setLocalActionMessage(
       result.status === "ready"
-        ? { text: t("settings.msg.restoreDone"), tone: "approved" }
+        ? {
+            text: result.data.requiresRestart ? t("settings.msg.restoreQueued") : t("settings.msg.restoreDone"),
+            tone: "approved",
+          }
         : { text: localResultMessage(t, result), tone: "warning" },
     );
   }, [lastBackupId, t]);

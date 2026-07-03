@@ -12,17 +12,18 @@
 //!   work into `local_sync_outbox`; the authenticated frontend client performs
 //!   the actual transmission.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
 const ACTIVITY_SYNC_PENDING_STALE_MS: i64 = 120_000;
+const RESTORE_REQUEST_FILE_NAME: &str = "bubli-local-restore-request.json";
 
 /// Managed Tauri state: a single SQLite connection guarded by a mutex.
 pub struct Db(pub Mutex<Connection>);
@@ -53,6 +54,8 @@ pub fn open_and_migrate(app: &AppHandle) -> Result<Connection, String> {
     if let Some(dir) = db_path.parent() {
         std::fs::create_dir_all(dir).map_err(|error| error.to_string())?;
     }
+
+    apply_pending_sqlite_restore(&db_path)?;
 
     let conn = Connection::open(db_path).map_err(|error| error.to_string())?;
     configure_connection(&conn);
@@ -124,7 +127,16 @@ pub struct LocalBackupRestoreInput {
 #[serde(rename_all = "camelCase")]
 pub struct LocalBackupRestoreResult {
     backup_id: String,
+    requires_restart: bool,
     restored_at: String,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PendingSqliteRestore {
+    backup_id: String,
+    backup_path: String,
+    requested_at: String,
 }
 
 #[derive(Deserialize)]
@@ -382,13 +394,35 @@ pub fn list_local_sqlite_backups(
 
 #[tauri::command]
 pub fn restore_local_sqlite_backup(
-    _state: tauri::State<'_, Db>,
+    app: AppHandle,
+    state: tauri::State<'_, Db>,
     input: LocalBackupRestoreInput,
 ) -> Result<LocalBackupRestoreResult, String> {
-    Err(format!(
-        "restore requires an app restart before replacing the open SQLite file: {}",
-        input.backup_id
-    ))
+    let backup_id = input.backup_id.trim();
+    if backup_id.is_empty() {
+        return Err("backupId is required".to_string());
+    }
+
+    let backup_path = {
+        let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+        read_local_backup_path_for_conn(&conn, backup_id)?
+    }
+    .ok_or_else(|| format!("backup not found: {backup_id}"))?;
+
+    verify_sqlite_file(&backup_path)?;
+
+    let request = PendingSqliteRestore {
+        backup_id: backup_id.to_string(),
+        backup_path: backup_path.to_string_lossy().to_string(),
+        requested_at: now_iso(),
+    };
+    write_pending_sqlite_restore(&app, &request)?;
+
+    Ok(LocalBackupRestoreResult {
+        backup_id: backup_id.to_string(),
+        requires_restart: true,
+        restored_at: request.requested_at,
+    })
 }
 
 fn list_local_sqlite_backups_for_conn(
@@ -421,6 +455,125 @@ fn list_local_sqlite_backups_for_conn(
         latest_backup_id,
         read_at: now_iso(),
     })
+}
+
+fn read_local_backup_path_for_conn(
+    conn: &Connection,
+    backup_id: &str,
+) -> Result<Option<PathBuf>, String> {
+    conn.query_row(
+        "SELECT path FROM local_backup_manifest WHERE id = ?1",
+        params![backup_id],
+        |row| row.get::<_, String>(0),
+    )
+    .optional()
+    .map(|path| path.map(PathBuf::from))
+    .map_err(|error| error.to_string())
+}
+
+fn write_pending_sqlite_restore(
+    app: &AppHandle,
+    request: &PendingSqliteRestore,
+) -> Result<(), String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("app_data_dir resolve failed: {error}"))?;
+    std::fs::create_dir_all(&app_data_dir).map_err(|error| error.to_string())?;
+    write_pending_sqlite_restore_to_path(&restore_request_path(&app_data_dir), request)
+}
+
+fn write_pending_sqlite_restore_to_path(
+    request_path: &Path,
+    request: &PendingSqliteRestore,
+) -> Result<(), String> {
+    let payload = serde_json::to_vec_pretty(request).map_err(|error| error.to_string())?;
+    let temp_path = request_path.with_extension("json.tmp");
+    std::fs::write(&temp_path, payload).map_err(|error| error.to_string())?;
+    if request_path.exists() {
+        std::fs::remove_file(request_path).map_err(|error| error.to_string())?;
+    }
+    std::fs::rename(&temp_path, request_path).map_err(|error| error.to_string())
+}
+
+fn apply_pending_sqlite_restore(db_path: &Path) -> Result<(), String> {
+    let Some(app_data_dir) = db_path.parent() else {
+        return Ok(());
+    };
+    let request_path = restore_request_path(app_data_dir);
+    if !request_path.exists() {
+        return Ok(());
+    }
+
+    let payload = std::fs::read(&request_path).map_err(|error| error.to_string())?;
+    let request: PendingSqliteRestore =
+        serde_json::from_slice(&payload).map_err(|error| error.to_string())?;
+    let backup_path = PathBuf::from(&request.backup_path);
+    verify_sqlite_file(&backup_path)?;
+
+    let restore_temp_path = db_path.with_extension("sqlite3.restore-tmp");
+    std::fs::copy(&backup_path, &restore_temp_path).map_err(|error| error.to_string())?;
+
+    preserve_current_sqlite_before_restore(db_path, app_data_dir, &request.backup_id)?;
+    remove_sqlite_sidecar_files(db_path);
+    if db_path.exists() {
+        std::fs::remove_file(db_path).map_err(|error| error.to_string())?;
+    }
+    std::fs::rename(&restore_temp_path, db_path).map_err(|error| error.to_string())?;
+    std::fs::remove_file(&request_path).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn preserve_current_sqlite_before_restore(
+    db_path: &Path,
+    app_data_dir: &Path,
+    backup_id: &str,
+) -> Result<(), String> {
+    if !db_path.exists() {
+        return Ok(());
+    }
+
+    let backup_dir = app_data_dir.join("backups");
+    std::fs::create_dir_all(&backup_dir).map_err(|error| error.to_string())?;
+    let safe_backup_id = backup_id
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-')
+        .collect::<String>();
+    let pre_restore_path = backup_dir.join(format!(
+        "bubli-local-pre-restore-{}-{}.sqlite3",
+        now_ms(),
+        safe_backup_id
+    ));
+    std::fs::copy(db_path, pre_restore_path).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn remove_sqlite_sidecar_files(db_path: &Path) {
+    for suffix in ["-wal", "-shm"] {
+        let sidecar_path = PathBuf::from(format!("{}{}", db_path.to_string_lossy(), suffix));
+        let _ = std::fs::remove_file(sidecar_path);
+    }
+}
+
+fn restore_request_path(app_data_dir: &Path) -> PathBuf {
+    app_data_dir.join(RESTORE_REQUEST_FILE_NAME)
+}
+
+fn verify_sqlite_file(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Err(format!("backup file not found: {}", path.display()));
+    }
+
+    let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|error| format!("backup open failed: {error}"))?;
+    let quick_check: String = conn
+        .query_row("PRAGMA quick_check", [], |row| row.get(0))
+        .map_err(|error| format!("backup quick_check failed: {error}"))?;
+    if quick_check == "ok" {
+        Ok(())
+    } else {
+        Err(format!("backup quick_check failed: {quick_check}"))
+    }
 }
 
 #[tauri::command]
@@ -1256,16 +1409,17 @@ CREATE INDEX IF NOT EXISTS idx_local_activity_buffer_status ON local_activity_bu
 #[cfg(test)]
 mod tests {
     use super::{
-        list_local_sqlite_backups_for_conn, mark_activity_context_synced_conn, now_ms,
-        read_active_project_room_for_conn, read_auth_session_json, read_room_messages_for_conn,
-        read_widget_summary_cache_for_conn, record_timer_state_for_conn,
-        recover_timer_state_for_conn, stage_activity_contexts_for_sync_conn,
-        store_active_project_room_for_conn, store_auth_session_json,
-        store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
-        validate_auth_session_json, validate_widget_summary_json, ActiveProjectRoomStoreInput,
+        apply_pending_sqlite_restore, list_local_sqlite_backups_for_conn,
+        mark_activity_context_synced_conn, now_ms, read_active_project_room_for_conn,
+        read_auth_session_json, read_room_messages_for_conn, read_widget_summary_cache_for_conn,
+        record_timer_state_for_conn, recover_timer_state_for_conn, restore_request_path,
+        stage_activity_contexts_for_sync_conn, store_active_project_room_for_conn,
+        store_auth_session_json, store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
+        validate_auth_session_json, validate_widget_summary_json,
+        write_pending_sqlite_restore_to_path, ActiveProjectRoomStoreInput,
         ActivityContextSyncInput, LocalRoomMessageCacheInput, LocalRoomMessageReadInput,
-        LocalRoomMessageSyncInput, TimerStateRecordInput, ACTIVITY_SYNC_PENDING_STALE_MS,
-        SCHEMA_SQL,
+        LocalRoomMessageSyncInput, PendingSqliteRestore, TimerStateRecordInput,
+        ACTIVITY_SYNC_PENDING_STALE_MS, SCHEMA_SQL,
     };
     use rusqlite::{params, Connection};
 
@@ -1326,6 +1480,66 @@ mod tests {
         assert_eq!(manifest.backups[0].file_name, "new.sqlite3");
         assert_eq!(manifest.backups[0].size_bytes, 20);
         assert!(!manifest.read_at.is_empty());
+    }
+
+    #[test]
+    fn applies_pending_sqlite_restore_before_opening_main_db() {
+        let test_dir =
+            std::env::temp_dir().join(format!("bubli-sqlite-restore-{}", uuid::Uuid::new_v4()));
+        let backup_dir = test_dir.join("backups");
+        std::fs::create_dir_all(&backup_dir).expect("create backup dir");
+        let db_path = test_dir.join("bubli-local.sqlite3");
+        let backup_path = backup_dir.join("backup.sqlite3");
+
+        let original = Connection::open(&db_path).expect("open original db");
+        original
+            .execute_batch(
+                "CREATE TABLE marker (value TEXT NOT NULL);
+                 INSERT INTO marker (value) VALUES ('original');",
+            )
+            .expect("seed original db");
+        drop(original);
+
+        let backup = Connection::open(&backup_path).expect("open backup db");
+        backup
+            .execute_batch(
+                "CREATE TABLE marker (value TEXT NOT NULL);
+                 INSERT INTO marker (value) VALUES ('restored');",
+            )
+            .expect("seed backup db");
+        drop(backup);
+
+        let request = PendingSqliteRestore {
+            backup_id: "backup-1".to_string(),
+            backup_path: backup_path.to_string_lossy().to_string(),
+            requested_at: "2026-07-03T00:00:00Z".to_string(),
+        };
+        let request_path = restore_request_path(&test_dir);
+        write_pending_sqlite_restore_to_path(&request_path, &request)
+            .expect("write restore request");
+
+        apply_pending_sqlite_restore(&db_path).expect("apply pending restore");
+
+        assert!(!request_path.exists());
+        let restored = Connection::open(&db_path).expect("open restored db");
+        let value: String = restored
+            .query_row("SELECT value FROM marker", [], |row| row.get(0))
+            .expect("read restored marker");
+        assert_eq!(value, "restored");
+        drop(restored);
+
+        let preserved = std::fs::read_dir(&backup_dir)
+            .expect("read backup dir")
+            .filter_map(Result::ok)
+            .any(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("bubli-local-pre-restore-")
+            });
+        assert!(preserved);
+
+        std::fs::remove_dir_all(&test_dir).expect("remove test dir");
     }
 
     #[test]

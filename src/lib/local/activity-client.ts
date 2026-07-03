@@ -151,7 +151,7 @@ export async function syncLocalActivityBufferToServer(input?: {
   limit?: number;
 }): Promise<ActivityBufferSyncAdapterResult> {
   const commandName = TAURI_COMMANDS.stageActivityContextsForSync;
-  if (!input?.consentGranted) {
+  if (input?.consentGranted !== true) {
     return blocked(
       "activity_consent_required",
       translate("local.activity.consentRequired"),
