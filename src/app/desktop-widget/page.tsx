@@ -848,7 +848,7 @@ function DesktopWidgetSurface() {
   }, [isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, widgetSessionReady, windowId]);
 
   useEffect(() => {
-    if (!isTauri || isWidgetChrome) return;
+    if (!isTauri) return;
 
     let unlisten: (() => void) | null = null;
     let cancelled = false;
@@ -870,7 +870,7 @@ function DesktopWidgetSurface() {
       cancelled = true;
       unlisten?.();
     };
-  }, [isTauri, isWidgetChrome]);
+  }, [isTauri]);
 
   useEffect(() => {
     return () => {
