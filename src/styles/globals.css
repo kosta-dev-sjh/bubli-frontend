@@ -14096,7 +14096,8 @@ html {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
+  min-height: 34px;
+  padding: 0 12px;
   border: 1px solid transparent;
   border-radius: 100px;
   background: transparent;
@@ -14118,6 +14119,10 @@ html {
 .bubli-seg__icon {
   flex: none;
   color: currentColor;
+}
+
+.bubli-seg__item span {
+  white-space: nowrap;
 }
 
 .bubli-seg__item.is-active {
