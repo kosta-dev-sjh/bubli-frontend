@@ -2827,62 +2827,11 @@ select {
   align-items: start;
 }
 
-.workspace-route__chat-overview {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 14px;
-}
 
-.workspace-route__chat-overview article {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid rgba(213, 228, 240, 0.76);
-  border-radius: 22px;
-  padding: 14px 16px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(248, 252, 255, 0.62)),
-    rgba(255, 255, 255, 0.72);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 16px 34px -32px rgba(47, 124, 193, 0.38);
-}
 
-.workspace-route__chat-overview svg {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 auto;
-  border-radius: 16px;
-  padding: 10px;
-  color: var(--blue-ink);
-  background:
-    linear-gradient(145deg, rgba(231, 246, 255, 0.9), rgba(247, 243, 255, 0.72)),
-    rgba(255, 255, 255, 0.74);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
 
-.workspace-route__chat-overview div {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
 
-.workspace-route__chat-overview strong {
-  overflow: hidden;
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
-.workspace-route__chat-overview span {
-  color: var(--color-muted);
-  font-size: 13px;
-  font-weight: 760;
-}
 
 .workspace-route__chat-toolbar {
   display: flex;
@@ -4477,9 +4426,6 @@ button.workspace-route__friend-row:hover {
     grid-template-columns: 1fr;
   }
 
-  .workspace-route__chat-overview {
-    grid-template-columns: 1fr;
-  }
 
   .workspace-route__thread,
   .workspace-route__chat-list,
@@ -7620,8 +7566,8 @@ button.workspace-route__friend-row:hover {
 
 .auth-card__heading {
   display: grid;
-  gap: 4px;
-  margin: 8px 0 0;
+  gap: 6px;
+  margin: 14px 0 0;
   color: var(--color-text);
   font-size: clamp(26px, 3.2vw, 34px);
   font-weight: 900;
@@ -7647,7 +7593,7 @@ button.workspace-route__friend-row:hover {
 }
 
 .auth-card__tagline {
-  margin: 2px 0 0;
+  margin: 6px 0 0;
   color: var(--color-muted);
   font-size: 15px;
   font-weight: 700;
@@ -7659,7 +7605,7 @@ button.workspace-route__friend-row:hover {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 24px;
+  gap: 30px;
   width: min(460px, 100%);
   border-radius: 30px;
   padding: clamp(28px, 4vw, 44px);
@@ -7675,12 +7621,12 @@ button.workspace-route__friend-row:hover {
 
 .auth-card__head {
   display: grid;
-  gap: 6px;
+  gap: 12px;
   justify-items: center;
 }
 
 .auth-card__helper {
-  margin: 4px 0 0;
+  margin: 8px 0 0;
   color: var(--color-muted);
   font-size: 14px;
   font-weight: 620;

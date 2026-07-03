@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Check, Copy, Download, Inbox, KeyRound, LogOut, MessageCircle, Mic, MicOff, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
+import { AtSign, Check, Copy, Download, Inbox, KeyRound, LogOut, Mic, MicOff, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -417,7 +417,6 @@ function ChatPageContent() {
     () => pendingFriendRequests.filter((request) => request.direction === "SENT"),
     [pendingFriendRequests],
   );
-  const roomConversationCount = roomsState.kind === "ready" ? roomsState.rooms.filter((room) => room.chatType === "ROOM").length : 0;
   const directConversationCount = roomsState.kind === "ready" ? roomsState.rooms.filter((room) => room.chatType === "DIRECT").length : 0;
   const friendCount = socialState.kind === "ready" ? socialState.friends.length : directConversationCount;
   const pendingFriendRequestCount = pendingFriendRequests.length;
@@ -1219,32 +1218,6 @@ function ChatPageContent() {
         </GlassPanel>
       ) : null}
 
-      {roomsState.kind === "ready" && roomsState.rooms.length > 0 ? (
-        <section className="workspace-route__chat-overview" aria-label={t("chat.overview.aria")}>
-          <article>
-            <MessageCircle size={17} strokeWidth={2} aria-hidden="true" />
-            <div>
-              <strong>{t("chat.overview.roomChats")}</strong>
-              <span>{t("chat.overview.roomCount", { count: roomConversationCount })}</span>
-            </div>
-          </article>
-          <article>
-            <UsersRound size={17} strokeWidth={2} aria-hidden="true" />
-            <div>
-              <strong>{t("chat.overview.direct")}</strong>
-              <span>{t("chat.overview.directSummary", { count: friendCount, requests: pendingFriendRequestCount })}</span>
-            </div>
-          </article>
-          <article>
-            <Phone size={17} strokeWidth={2} aria-hidden="true" />
-            <div>
-              <strong>{t("chat.overview.voice")}</strong>
-              <span>{selectedRoom?.chatType === "ROOM" ? t("chat.overview.voiceFromRoom") : t("chat.overview.voicePriority")}</span>
-            </div>
-          </article>
-        </section>
-      ) : null}
-
       <div className="workspace-route__chat-toolbar">
         <nav className="workspace-route__chat-mode-tabs" aria-label={t("chat.tabs.aria")}>
           <Link className={queryMode !== "direct" ? "is-active" : ""} href={queryRoomId ? `/app/chat?roomId=${queryRoomId}&mode=room` : "/app/chat?mode=room"}>
@@ -1810,6 +1783,9 @@ function ChatPageContent() {
                         <div className="workspace-route__friend-actions">
                           <button onClick={() => { void openDirectRoom(friend); setNewRoomPickerOpen(false); }} type="button">
                             {t("chat.newRoom.direct")}
+                          </button>
+                          <button onClick={() => toggleGroupMember(friend.friendUserId)} type="button">
+                            {selected ? t("chat.newRoom.deselect") : t("chat.newRoom.selectForGroup")}
                           </button>
                         </div>
                       </div>
