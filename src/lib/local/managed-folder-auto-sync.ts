@@ -1,7 +1,10 @@
 "use client";
 
+import {
+  backfillPersonalLocalFileAnalyses,
+  syncPersonalLocalFileEventsToServer,
+} from "@/lib/local/managed-folder-client";
 import { settingsApi } from "@/features/settings/api/settingsApi";
-import { syncPersonalLocalFileEventsToServer } from "@/lib/local/managed-folder-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
@@ -11,6 +14,7 @@ const CONSENT_REFRESH_INTERVAL_MS = 60_000;
 
 let syncIntervalId: number | null = null;
 let syncInFlight = false;
+let analysisBackfillHasRun = false;
 let pendingFullSyncRequested = false;
 const pendingFolderSyncIds = new Set<string>();
 let watchUnlisten: (() => void) | null = null;
@@ -35,9 +39,10 @@ export function stopManagedFolderAutoSync() {
   }
 
   syncIntervalId = null;
+  syncInFlight = false;
+  analysisBackfillHasRun = false;
   pendingFullSyncRequested = false;
   pendingFolderSyncIds.clear();
-  syncInFlight = false;
   cachedConsent = null;
   cachedConsentCheckedAt = 0;
   detachManagedFolderWatchListener();
@@ -120,6 +125,13 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
       pendingFolderSyncIds.delete(folderId);
       await syncPersonalLocalFileEventsToServer({ consentGranted, limit: 20, localFolderId: folderId });
     }
+
+    await backfillPersonalLocalFileAnalyses({
+      consentGranted,
+      limit: analysisBackfillHasRun ? 1 : 3,
+      maxAttempts: 3,
+    });
+    analysisBackfillHasRun = true;
   } catch {
     cachedConsent = null;
     cachedConsentCheckedAt = 0;

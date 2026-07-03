@@ -1250,10 +1250,7 @@ fn toggle_widget_window(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        stored_widget_window_layout, widget_window_store_from_layout, StoredWidgetWindowLayout,
-        WidgetWindowPosition, WidgetWindowState, WidgetWindowStore,
-    };
+    use super::*;
     use std::collections::HashMap;
 
     fn widget(active_bubble: &str, window_id: Option<&str>, x: i32, y: i32) -> WidgetWindowState {
@@ -1305,6 +1302,32 @@ mod tests {
             .map(|widget| widget.window_id.as_deref().unwrap_or(&widget.active_bubble))
             .collect();
         assert_eq!(keys, vec!["bar", "timer"]);
+    }
+
+    #[test]
+    fn widget_room_context_updates_all_known_widgets_and_can_clear_room() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "bar".to_string(),
+            default_widget_window_state("bar", Some("bar".to_string())),
+        );
+        store.bubbles.insert(
+            "chat".to_string(),
+            default_widget_window_state("chat", Some("chat".to_string())),
+        );
+
+        let selected = set_widget_room_context_for_store(&mut store, Some("room-1".to_string()));
+
+        assert_eq!(selected.len(), 3);
+        assert!(selected
+            .iter()
+            .all(|widget| widget.selected_room_id.as_deref() == Some("room-1")));
+
+        let cleared = set_widget_room_context_for_store(&mut store, None);
+
+        assert!(cleared
+            .iter()
+            .all(|widget| widget.selected_room_id.as_deref().is_none()));
     }
 }
 
@@ -1385,11 +1408,14 @@ pub fn run() {
             local_files::watch_managed_folder,
             local_files::search_local_files,
             local_files::read_local_file_preview,
+            local_files::extract_local_file_key_sentences,
             local_files::open_local_file,
             local_files::reindex_file,
             local_files::flush_sync_outbox,
             local_files::stage_local_file_events_for_sync,
             local_files::mark_local_file_events_synced,
+            local_files::stage_local_file_analysis_backfill,
+            local_files::mark_local_file_analyses_sent,
             local_files::unwatch_all_managed_folders,
             local_files::watch_all_managed_folders,
             // Local SQLite lifecycle + cache recovery commands.

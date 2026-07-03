@@ -355,6 +355,19 @@ export default function SettingsPage() {
     setState((current) => (current.kind === "ready" ? updater(current) : current));
   }, []);
 
+  const restoreManagedFolderWatchers = useCallback(async () => {
+    if (!desktopRuntime) return;
+    await tauriCommands.watchAllManagedFolders().catch(() => undefined);
+  }, [desktopRuntime]);
+
+  useEffect(() => {
+    if (state.kind !== "ready" || !state.settings.privacy?.localFolderEnabled || state.settings.folders.length === 0) {
+      return;
+    }
+
+    void restoreManagedFolderWatchers();
+  }, [restoreManagedFolderWatchers, state]);
+
   const refreshActivityLogs = useCallback(async () => {
     if (state.kind !== "ready") return;
 
@@ -449,12 +462,15 @@ export default function SettingsPage() {
           ...ready,
           settings: { ...ready.settings, privacy: saved },
         }));
+        if (key === "localFolderEnabled" && saved.localFolderEnabled) {
+          void restoreManagedFolderWatchers();
+        }
       } catch {
         if (shouldUseWorkspacePreviewData()) return;
         setSaveMessage({ text: t("settings.msg.privacySaveFailed"), tone: "warning" });
       }
     },
-    [state, updateReadyState],
+    [restoreManagedFolderWatchers, state, t, updateReadyState],
   );
 
   const toggleWidgetBubble = useCallback(
@@ -506,7 +522,7 @@ export default function SettingsPage() {
       id: folder.localFolderId,
       localPath: folder.path,
       name: folder.name,
-      syncEnabled: false,
+      syncEnabled: true,
       updatedAt: new Date().toISOString(),
     };
 
@@ -519,7 +535,8 @@ export default function SettingsPage() {
     }));
 
     setLocalActionMessage({ text: t("settings.msg.folderConnected"), tone: "approved" });
-  }, [state, t, updateReadyState]);
+    void restoreManagedFolderWatchers();
+  }, [restoreManagedFolderWatchers, state.kind, t, updateReadyState]);
 
   const checkLocalCache = useCallback(async () => {
     const result = await Promise.resolve(checkLocalSqliteIntegrity());
@@ -637,9 +654,12 @@ export default function SettingsPage() {
           ? { text: t("settings.msg.syncOn", { pending: result.data.pendingEventCount }), tone: "approved" }
           : { text: t("settings.msg.syncOff"), tone: "approved" },
       );
+      if (result.data.syncEnabled) {
+        void restoreManagedFolderWatchers();
+      }
       void refreshManagedFolderProgress(folder.id);
     },
-    [refreshManagedFolderProgress, state, t, updateReadyState],
+    [refreshManagedFolderProgress, restoreManagedFolderWatchers, state, t, updateReadyState],
   );
 
   const removeManagedFolder = useCallback(
@@ -705,6 +725,7 @@ export default function SettingsPage() {
   const searchLocalFiles = useCallback(async () => {
     const query = folderSearchQuery.trim();
     if (!query) {
+      setLocalFiles([]);
       setLocalActionMessage({ text: t("settings.msg.enterQuery"), tone: "warning" });
       return;
     }

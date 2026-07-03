@@ -8,6 +8,7 @@ export const TAURI_COMMANDS = {
   clearTauriAuthSession: "clear_tauri_auth_session",
   closeAllWidgetWindows: "close_all_widget_windows",
   closeWidgetWindow: "close_widget_window",
+  extractLocalFileKeySentences: "extract_local_file_key_sentences",
   flushSyncOutbox: "flush_sync_outbox",
   getIndexProgress: "get_index_progress",
   getPreferredAppMonitor: "get_preferred_app_monitor",
@@ -30,6 +31,7 @@ export const TAURI_COMMANDS = {
   recordTimerState: "record_timer_state",
   recordWidgetUsageEvent: "record_widget_usage_event",
   removeManagedFolder: "remove_managed_folder",
+  markLocalFileAnalysesSent: "mark_local_file_analyses_sent",
   markLocalFileEventsSynced: "mark_local_file_events_synced",
   markWidgetUsageSummarySynced: "mark_widget_usage_summary_synced",
   openLocalFile: "open_local_file",
@@ -47,6 +49,7 @@ export const TAURI_COMMANDS = {
   setWidgetWindowMode: "set_widget_window_mode",
   setWidgetWindowPosition: "set_widget_window_position",
   stageActivityContextsForSync: "stage_activity_contexts_for_sync",
+  stageLocalFileAnalysisBackfill: "stage_local_file_analysis_backfill",
   stageLocalFileEventsForSync: "stage_local_file_events_for_sync",
   storeActiveProjectRoom: "store_active_project_room",
   storeTauriAuthSession: "store_tauri_auth_session",
@@ -177,7 +180,38 @@ export type LocalFilePreviewResult = {
   path: string;
   previewText?: string | null;
   readAt: string;
-  status: "READY" | "UNSUPPORTED" | "MISSING" | "TOO_LARGE";
+  status: "READY" | "UNSUPPORTED" | "MISSING" | "TOO_LARGE" | "EMPTY";
+  truncated: boolean;
+};
+
+export type LocalFileKeySentenceInput = {
+  localFileId: string;
+  maxChars?: number;
+  maxSentenceChars?: number;
+  maxSentences?: number;
+};
+
+export type LocalFileKeySentenceItem = {
+  endOffset: number;
+  index: number;
+  score: number;
+  startOffset: number;
+  text: string;
+};
+
+export type LocalFileKeySentenceResult = {
+  analyzedCharCount: number;
+  checksum?: string | null;
+  combinedText: string;
+  extractedAt: string;
+  extractionMethod: "BM25_MMR_KEY_SENTENCE_V1" | string;
+  fileName: string;
+  keySentences: LocalFileKeySentenceItem[];
+  localFileId: string;
+  mimeType?: string | null;
+  path: string;
+  sourceCharCount: number;
+  status: "READY" | "UNSUPPORTED" | "MISSING" | "TOO_LARGE" | "EMPTY";
   truncated: boolean;
 };
 
@@ -238,6 +272,43 @@ export type LocalFileEventsMarkSyncedInput = {
 };
 
 export type LocalFileEventsMarkSyncedResult = {
+  completedAt: string;
+  failedCount: number;
+  syncedCount: number;
+};
+
+export type LocalFileAnalysisBackfillStageInput = {
+  limit?: number;
+  maxAttempts?: number;
+};
+
+export type LocalFileAnalysisBackfillCandidate = {
+  attemptCount: number;
+  checksum?: string | null;
+  fileName: string;
+  localFileId: string;
+  mimeType?: string | null;
+  resourceId: string;
+};
+
+export type LocalFileAnalysisBackfillStageResult = {
+  candidates: LocalFileAnalysisBackfillCandidate[];
+  stagedAt: string;
+};
+
+export type LocalFileAnalysisMarkInput = {
+  checksum?: string | null;
+  errorMessage?: string | null;
+  localFileId: string;
+  resourceId: string;
+  status: string;
+};
+
+export type LocalFileAnalysesMarkInput = {
+  results: LocalFileAnalysisMarkInput[];
+};
+
+export type LocalFileAnalysesMarkResult = {
   completedAt: string;
   failedCount: number;
   syncedCount: number;
@@ -597,6 +668,10 @@ export type TauriCommandContract = {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
   };
+  extract_local_file_key_sentences: {
+    args: LocalFileKeySentenceInput;
+    result: LocalFileKeySentenceResult;
+  };
   flush_sync_outbox: {
     args: undefined;
     result: SyncOutboxFlushResult;
@@ -685,6 +760,10 @@ export type TauriCommandContract = {
     args: ManagedFolderCommandInput;
     result: ManagedFolderRemoveResult;
   };
+  mark_local_file_analyses_sent: {
+    args: LocalFileAnalysesMarkInput;
+    result: LocalFileAnalysesMarkResult;
+  };
   mark_local_file_events_synced: {
     args: LocalFileEventsMarkSyncedInput;
     result: LocalFileEventsMarkSyncedResult;
@@ -752,6 +831,10 @@ export type TauriCommandContract = {
   stage_activity_contexts_for_sync: {
     args: ActivityContextSyncStageInput | undefined;
     result: ActivityContextSyncStageResult;
+  };
+  stage_local_file_analysis_backfill: {
+    args: LocalFileAnalysisBackfillStageInput | undefined;
+    result: LocalFileAnalysisBackfillStageResult;
   };
   stage_local_file_events_for_sync: {
     args: LocalFileEventsSyncStageInput | undefined;
@@ -832,6 +915,9 @@ export const tauriCommands = {
   closeWidgetWindow(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.closeWidgetWindow, input ? { input } : undefined);
   },
+  extractLocalFileKeySentences(input: LocalFileKeySentenceInput) {
+    return invokeTauri<LocalFileKeySentenceResult>(TAURI_COMMANDS.extractLocalFileKeySentences, { input });
+  },
   flushSyncOutbox() {
     return invokeTauri<SyncOutboxFlushResult>(TAURI_COMMANDS.flushSyncOutbox);
   },
@@ -898,6 +984,9 @@ export const tauriCommands = {
   removeManagedFolder(input: ManagedFolderCommandInput) {
     return invokeTauri<ManagedFolderRemoveResult>(TAURI_COMMANDS.removeManagedFolder, { input });
   },
+  markLocalFileAnalysesSent(input: LocalFileAnalysesMarkInput) {
+    return invokeTauri<LocalFileAnalysesMarkResult>(TAURI_COMMANDS.markLocalFileAnalysesSent, { input });
+  },
   markLocalFileEventsSynced(input: LocalFileEventsMarkSyncedInput) {
     return invokeTauri<LocalFileEventsMarkSyncedResult>(TAURI_COMMANDS.markLocalFileEventsSynced, { input });
   },
@@ -955,6 +1044,12 @@ export const tauriCommands = {
   stageActivityContextsForSync(input?: ActivityContextSyncStageInput) {
     return invokeTauri<ActivityContextSyncStageResult>(
       TAURI_COMMANDS.stageActivityContextsForSync,
+      input ? { input } : undefined,
+    );
+  },
+  stageLocalFileAnalysisBackfill(input?: LocalFileAnalysisBackfillStageInput) {
+    return invokeTauri<LocalFileAnalysisBackfillStageResult>(
+      TAURI_COMMANDS.stageLocalFileAnalysisBackfill,
       input ? { input } : undefined,
     );
   },
