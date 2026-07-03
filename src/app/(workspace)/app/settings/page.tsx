@@ -30,6 +30,7 @@ import {
   getPersonalManagedFolderIndexProgress,
   listPersonalManagedFolders,
   openPersonalLocalFile,
+  readPersonalLocalFilePreview,
   reindexPersonalLocalFile,
   removePersonalManagedFolder,
   scanPersonalManagedFolder,
@@ -46,6 +47,7 @@ import {
   tauriCommands,
   type AppMonitorInfo,
   type AppMonitorPreference,
+  type LocalFilePreviewResult,
   type ManagedFolderIndexProgressResult,
   type SqliteIntegrityResult,
 } from "@/lib/tauri/commands";
@@ -224,6 +226,14 @@ function localResultMessage<TData, TSummary>(t: TranslateFn, result: LocalAdapte
   return result.message;
 }
 
+function localFilePreviewText(preview: LocalFilePreviewResult) {
+  if (preview.status === "READY") return preview.previewText?.trim() || "미리보기 텍스트가 없습니다.";
+  if (preview.status === "EMPTY") return "파일 내용이 비어 있습니다.";
+  if (preview.status === "MISSING") return "로컬 파일을 찾을 수 없습니다.";
+  if (preview.status === "TOO_LARGE") return "파일이 너무 커서 미리보기를 만들 수 없습니다.";
+  return "이 형식은 로컬 미리보기를 지원하지 않습니다.";
+}
+
 function monitorLabel(t: TranslateFn, monitor: AppMonitorInfo, index: number) {
   const name = monitor.name?.trim() || t("settings.folders.monitorFallback", { index: index + 1 });
   const primaryLabel = monitor.isPrimary ? ` · ${t("settings.folders.primaryTag")}` : "";
@@ -256,6 +266,10 @@ function activityStartedLabel(t: TranslateFn, value?: string | null) {
 }
 
 type StatusMessage = { text: string; tone: "approved" | "warning" };
+type LocalFilePreviewState =
+  | { kind: "loading" }
+  | { kind: "ready"; data: LocalFilePreviewResult }
+  | { kind: "error"; message: string };
 
 export default function SettingsPage() {
   const { t, setLocale } = useI18n();
@@ -266,6 +280,7 @@ export default function SettingsPage() {
   const [localActionMessage, setLocalActionMessage] = useState<StatusMessage | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState("");
   const [localFiles, setLocalFiles] = useState<Array<{ localFileId: string; name: string; path: string }>>([]);
+  const [localFilePreviews, setLocalFilePreviews] = useState<Record<string, LocalFilePreviewState>>({});
   const [folderProgress, setFolderProgress] = useState<Record<string, ManagedFolderIndexProgressResult>>({});
   const [lastBackupId, setLastBackupId] = useState<string | null>(null);
   const [backupListLabel, setBackupListLabel] = useState(() => t("settings.msg.backupNotLoaded"));
@@ -739,6 +754,7 @@ export default function SettingsPage() {
     const query = folderSearchQuery.trim();
     if (!query) {
       setLocalFiles([]);
+      setLocalFilePreviews({});
       setLocalActionMessage({ text: t("settings.msg.enterQuery"), tone: "warning" });
       return;
     }
@@ -747,11 +763,13 @@ export default function SettingsPage() {
     const result = await searchPersonalLocalFiles({ consentGranted, limit: 20, query });
     if (result.status === "ready") {
       setLocalFiles(result.data.items.map((item) => ({ localFileId: item.localFileId, name: item.name, path: item.path })));
+      setLocalFilePreviews({});
       setLocalActionMessage({ text: t("settings.msg.localFilesFound", { count: result.data.items.length }), tone: "approved" });
       return;
     }
 
     setLocalFiles([]);
+    setLocalFilePreviews({});
     setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
   }, [folderSearchQuery, state, t]);
 
@@ -765,9 +783,33 @@ export default function SettingsPage() {
     );
   }, [state, t]);
 
+  const previewLocalFile = useCallback(async (localFileId: string) => {
+    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+    setLocalFilePreviews((current) => ({ ...current, [localFileId]: { kind: "loading" } }));
+
+    const result = await readPersonalLocalFilePreview({ consentGranted, localFileId, maxChars: 4000 });
+    if (result.status !== "ready") {
+      const message = localResultMessage(t, result);
+      setLocalFilePreviews((current) => ({ ...current, [localFileId]: { kind: "error", message } }));
+      setLocalActionMessage({ text: message, tone: "warning" });
+      return;
+    }
+
+    setLocalFilePreviews((current) => ({ ...current, [localFileId]: { kind: "ready", data: result.data } }));
+    setLocalActionMessage({
+      text: `${result.data.name} ${t("settings.font.preview")} ${result.data.status}`,
+      tone: result.data.status === "READY" || result.data.status === "EMPTY" ? "approved" : "warning",
+    });
+  }, [state, t]);
+
   const reindexLocalFile = useCallback(
     async (localFileId: string) => {
       const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+      setLocalFilePreviews((current) => {
+        const next = { ...current };
+        delete next[localFileId];
+        return next;
+      });
       const result = await reindexPersonalLocalFile({ consentGranted, localFileId });
       if (result.status !== "ready") {
         setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
@@ -785,6 +827,7 @@ export default function SettingsPage() {
               path: item.path,
             })),
           );
+          setLocalFilePreviews({});
         });
       }
       setLocalActionMessage(
@@ -818,6 +861,7 @@ export default function SettingsPage() {
       void searchPersonalLocalFiles({ consentGranted, limit: 20, query }).then((result) => {
         if (disposed || result.status !== "ready") return;
         setLocalFiles(result.data.items.map((item) => ({ localFileId: item.localFileId, name: item.name, path: item.path })));
+        setLocalFilePreviews({});
       });
     })
       .then((cleanup) => {
@@ -1381,35 +1425,65 @@ export default function SettingsPage() {
               </div>
               {localFiles.length > 0 ? (
                 <div className={styles.rows}>
-                  {localFiles.map((file) => (
-                    <div className={styles.row} key={file.localFileId}>
-                      <span>
-                        <strong>{file.name}</strong>
-                        <small>{file.path}</small>
-                      </span>
-                      <div className={styles.inlineActions}>
-                        <StatusBadge tone="neutral">{t("settings.value.local")}</StatusBadge>
-                        <Button
-                          disabled={!desktopRuntime}
-                          onClick={() => void openLocalFile(file.localFileId)}
-                          size="sm"
-                          type="button"
-                          variant="quiet"
-                        >
-                          {t("common.open")}
-                        </Button>
-                        <Button
-                          disabled={!desktopRuntime}
-                          onClick={() => void reindexLocalFile(file.localFileId)}
-                          size="sm"
-                          type="button"
-                          variant="quiet"
-                        >
-                          {t("settings.folders.reindex")}
-                        </Button>
+                  {localFiles.map((file) => {
+                    const preview = localFilePreviews[file.localFileId];
+
+                    return (
+                      <div className={styles.row} key={file.localFileId}>
+                        <span>
+                          <strong>{file.name}</strong>
+                          <small>{file.path}</small>
+                        </span>
+                        <div className={styles.inlineActions}>
+                          <StatusBadge tone="neutral">{t("settings.value.local")}</StatusBadge>
+                          <Button
+                            disabled={!desktopRuntime || preview?.kind === "loading"}
+                            onClick={() => void previewLocalFile(file.localFileId)}
+                            size="sm"
+                            type="button"
+                            variant="quiet"
+                          >
+                            {preview?.kind === "loading" ? t("common.loading") : t("settings.font.preview")}
+                          </Button>
+                          <Button
+                            disabled={!desktopRuntime}
+                            onClick={() => void openLocalFile(file.localFileId)}
+                            size="sm"
+                            type="button"
+                            variant="quiet"
+                          >
+                            {t("common.open")}
+                          </Button>
+                          <Button
+                            disabled={!desktopRuntime}
+                            onClick={() => void reindexLocalFile(file.localFileId)}
+                            size="sm"
+                            type="button"
+                            variant="quiet"
+                          >
+                            {t("settings.folders.reindex")}
+                          </Button>
+                        </div>
+                        {preview ? (
+                          <div className={styles.localFilePreview}>
+                            {preview.kind === "ready" ? (
+                              <>
+                                <div className={styles.localFilePreviewMeta}>
+                                  <span>{preview.data.status}</span>
+                                  {preview.data.truncated ? <span>truncated</span> : null}
+                                </div>
+                                <pre>{localFilePreviewText(preview.data)}</pre>
+                              </>
+                            ) : preview.kind === "error" ? (
+                              <p>{preview.message}</p>
+                            ) : (
+                              <p>{t("common.loading")}</p>
+                            )}
+                          </div>
+                        ) : null}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : null}
             </GlassPanel>
