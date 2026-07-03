@@ -67,6 +67,18 @@ const SOURCE_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx"]);
 const failures = [];
 const appNavPath = join(ROOT, "src/config/site.ts");
 const generatedApiCsvPath = "docs/기능_API연결_명세_2026-07-01.csv";
+const localOnlyWorkbookPathspecs = [
+  {
+    pathspec: "docs/기능_API연결_색상표_*.xlsx",
+    reason:
+      "API color workbooks are local-only because binary xlsx files repeatedly conflict in PRs. Keep them ignored and share regenerated exports outside Git.",
+  },
+  {
+    pathspec: "docs/tauri-widget-platform-split-checklist-*.xlsx",
+    reason:
+      "Tauri widget checklist workbooks are local-only because binary xlsx files repeatedly conflict in PRs. Keep them ignored and share regenerated exports outside Git.",
+  },
+];
 const desktopCommunicationRoutePath = join(
   ROOT,
   "src/app/(workspace)/app/desktop/communication/page.tsx",
@@ -83,6 +95,15 @@ if (isGitTracked(generatedApiCsvPath)) {
   failures.push(
     `${generatedApiCsvPath}: generated CSV views must stay untracked. Keep the xlsx/source docs in Git and regenerate CSV locally when needed.`,
   );
+}
+
+for (const workbookRule of localOnlyWorkbookPathspecs) {
+  const trackedPaths = listGitTracked(workbookRule.pathspec);
+  if (trackedPaths.length > 0) {
+    failures.push(
+      `${workbookRule.pathspec}: ${workbookRule.reason} Tracked now: ${trackedPaths.join(", ")}`,
+    );
+  }
 }
 
 if (existsSync(appNavPath)) {
@@ -167,4 +188,16 @@ function isGitTracked(path) {
   } catch {
     return false;
   }
+}
+
+function listGitTracked(pathspec) {
+  const output = execFileSync("git", ["ls-files", "--", pathspec], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
