@@ -1515,6 +1515,7 @@
   .suggestionTray .suggestionList,
   .taskInspector,
   .taskCreate,
+  .inspectorForms,
   .wbsFormGrid {
     grid-template-columns: 1fr;
   }
