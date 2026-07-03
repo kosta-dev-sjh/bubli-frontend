@@ -42,6 +42,7 @@ export type LocalAdapterUnavailableReason = "requires_tauri";
 export type LocalAdapterBlockedReason =
   | "activity_consent_required"
   | "activity_no_new_duration"
+  | "local_folder_consent_required"
   | "native_command_pending"
   | "personal_scope_only"
   | "server_transfer_not_allowed";

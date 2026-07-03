@@ -149,17 +149,25 @@ export async function removePersonalManagedFolder(
 }
 
 export async function watchPersonalManagedFolder(
-  input: PersonalManagedFolderCommandInput,
+  input: PersonalManagedFolderCommandInput & { consentGranted?: boolean },
 ): Promise<ManagedFolderWatchAdapterResult> {
   if (!isTauriRuntime()) {
     return unavailable(TAURI_COMMANDS.watchManagedFolder);
+  }
+
+  if (!input.consentGranted) {
+    return blocked(
+      "local_folder_consent_required",
+      translate("local.folder.consentRequired"),
+      TAURI_COMMANDS.watchManagedFolder,
+    );
   }
 
   if (hasProjectRoomScope(input)) {
     return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.watchManagedFolder);
   }
 
-  const { roomId: _roomId, ...tauriInput } = input;
+  const tauriInput = { localFolderId: input.localFolderId };
   const commandName = TAURI_COMMANDS.watchManagedFolder;
 
   const result = await runTauriAdapter(commandName, () => tauriCommands.watchManagedFolder(tauriInput));
@@ -250,6 +258,7 @@ export async function reindexPersonalLocalFile(
 }
 
 export async function syncPersonalLocalFileEventsToServer(input?: {
+  consentGranted?: boolean;
   limit?: number;
   localFolderId?: string;
   roomId?: string | null;
@@ -262,6 +271,10 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
 
   if (hasProjectRoomScope(input)) {
     return blocked("personal_scope_only", personalScopeMessage(), commandName);
+  }
+
+  if (!input?.consentGranted) {
+    return blocked("local_folder_consent_required", translate("local.folder.consentRequired"), commandName);
   }
 
   const tauriInput = input

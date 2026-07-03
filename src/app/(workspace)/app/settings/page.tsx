@@ -685,7 +685,8 @@ export default function SettingsPage() {
       return;
     }
 
-    const result = await watchPersonalManagedFolder({ localFolderId: folderId });
+    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+    const result = await watchPersonalManagedFolder({ consentGranted, localFolderId: folderId });
     setLocalActionMessage(
       result.status === "ready"
         ? { text: t("settings.msg.watchOn"), tone: "approved" }
@@ -862,7 +863,10 @@ export default function SettingsPage() {
 
   const checkSyncOutbox = useCallback(async () => {
     const folderId = state.kind === "ready" ? state.settings.folders[0]?.id : undefined;
-    const result = await syncPersonalLocalFileEventsToServer(folderId ? { localFolderId: folderId } : undefined);
+    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+    const result = await syncPersonalLocalFileEventsToServer(
+      folderId ? { consentGranted, localFolderId: folderId } : { consentGranted },
+    );
     setLocalActionMessage({ text: localResultMessage(t, result), tone: result.status === "ready" ? "approved" : "warning" });
   }, [state, t]);
 
