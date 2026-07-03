@@ -1039,9 +1039,16 @@ pub fn record_activity_context(
     state: tauri::State<'_, Db>,
     input: ActivityContextRecordInput,
 ) -> Result<ActivityContextRecordResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    record_activity_context_conn(&conn, input)
+}
+
+fn record_activity_context_conn(
+    conn: &Connection,
+    input: ActivityContextRecordInput,
+) -> Result<ActivityContextRecordResult, String> {
     let now = now_ms();
     let local_activity_id = Uuid::new_v4().to_string();
-    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
 
     conn.execute(
         "INSERT INTO local_activity_buffer \
@@ -1516,15 +1523,15 @@ mod tests {
         apply_pending_sqlite_restore, check_local_sqlite_integrity_for_conn,
         list_local_sqlite_backups_for_conn, mark_activity_context_synced_conn, now_ms,
         read_active_project_room_for_conn, read_auth_session_json, read_room_messages_for_conn,
-        read_widget_summary_cache_for_conn, record_timer_state_for_conn,
-        recover_timer_state_for_conn, restore_request_path, stage_activity_contexts_for_sync_conn,
-        store_active_project_room_for_conn, store_auth_session_json,
-        store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
+        read_widget_summary_cache_for_conn, record_activity_context_conn,
+        record_timer_state_for_conn, recover_timer_state_for_conn, restore_request_path,
+        stage_activity_contexts_for_sync_conn, store_active_project_room_for_conn,
+        store_auth_session_json, store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
         validate_auth_session_json, validate_widget_summary_json,
         write_pending_sqlite_restore_to_path, ActiveProjectRoomStoreInput,
-        ActivityContextSyncInput, LocalRoomMessageCacheInput, LocalRoomMessageReadInput,
-        LocalRoomMessageSyncInput, PendingSqliteRestore, TimerStateRecordInput,
-        ACTIVITY_SYNC_PENDING_STALE_MS, SCHEMA_SQL,
+        ActivityContextRecordInput, ActivityContextSyncInput, LocalRoomMessageCacheInput,
+        LocalRoomMessageReadInput, LocalRoomMessageSyncInput, PendingSqliteRestore,
+        TimerStateRecordInput, ACTIVITY_SYNC_PENDING_STALE_MS, SCHEMA_SQL,
     };
     use rusqlite::{params, Connection};
 
@@ -2020,6 +2027,81 @@ mod tests {
             params![id, status, updated_at],
         )
         .expect("insert activity row");
+    }
+
+    #[test]
+    fn activity_context_smoke_records_retries_and_marks_synced() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+
+        let recorded = record_activity_context_conn(
+            &conn,
+            ActivityContextRecordInput {
+                app_name: "Code.exe".to_string(),
+                captured_at: "2026-07-04T01:00:30Z".to_string(),
+                duration_seconds: Some(30),
+                ended_at: "2026-07-04T01:00:30Z".to_string(),
+                room_id: Some("room-windows-tauri".to_string()),
+                started_at: "2026-07-04T01:00:00Z".to_string(),
+                window_title: Some("Bubli - activity QA".to_string()),
+            },
+        )
+        .expect("record activity context");
+
+        assert_eq!(recorded.sync_status, "LOCAL_ONLY");
+
+        let first_stage =
+            stage_activity_contexts_for_sync_conn(&conn, 10).expect("stage first activity sync");
+        assert_eq!(first_stage.activities.len(), 1);
+        let candidate = &first_stage.activities[0];
+        assert_eq!(candidate.local_activity_id, recorded.local_activity_id);
+        assert_eq!(candidate.room_id.as_deref(), Some("room-windows-tauri"));
+        assert_eq!(candidate.app_name, "Code.exe");
+        assert_eq!(
+            candidate.window_title.as_deref(),
+            Some("Bubli - activity QA")
+        );
+        assert_eq!(candidate.duration_seconds, Some(30));
+
+        let failed = mark_activity_context_synced_conn(
+            &conn,
+            ActivityContextSyncInput {
+                local_activity_id: recorded.local_activity_id.clone(),
+                server_activity_log_id: None,
+                status: "FAILED".to_string(),
+            },
+        )
+        .expect("mark activity failed");
+        assert_eq!(failed.sync_status, "FAILED");
+
+        let retry_stage =
+            stage_activity_contexts_for_sync_conn(&conn, 10).expect("stage retry activity sync");
+        assert_eq!(retry_stage.activities.len(), 1);
+        assert_eq!(
+            retry_stage.activities[0].local_activity_id,
+            recorded.local_activity_id
+        );
+
+        let synced = mark_activity_context_synced_conn(
+            &conn,
+            ActivityContextSyncInput {
+                local_activity_id: recorded.local_activity_id.clone(),
+                server_activity_log_id: Some("server-activity-windows-1".to_string()),
+                status: "SYNCED".to_string(),
+            },
+        )
+        .expect("mark activity synced");
+        assert_eq!(synced.sync_status, "SYNCED");
+
+        let row: (Option<String>, String) = conn
+            .query_row(
+                "SELECT server_activity_log_id, sync_status FROM local_activity_buffer WHERE id = ?1",
+                params![recorded.local_activity_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read synced activity row");
+        assert_eq!(row.0.as_deref(), Some("server-activity-windows-1"));
+        assert_eq!(row.1, "SYNCED");
     }
 
     #[test]
