@@ -895,7 +895,11 @@ fn get_widget_bar_items(
     let guard = state
         .lock()
         .map_err(|_| "widget state lock failed".to_string())?;
-    let mut items: Vec<WidgetWindowState> = guard
+    Ok(widget_bar_items_from_store(&guard))
+}
+
+fn widget_bar_items_from_store(store: &WidgetWindowStore) -> Vec<WidgetWindowState> {
+    let mut items: Vec<WidgetWindowState> = store
         .bubbles
         .values()
         .filter(|widget| {
@@ -910,6 +914,48 @@ fn get_widget_bar_items(
         left_key.cmp(right_key)
     });
 
+    items
+}
+
+fn seed_widget_bar_items_for_store(
+    store: &mut WidgetWindowStore,
+    selected_room_id: Option<String>,
+) -> Vec<WidgetWindowState> {
+    for bubble_type in QA_ALL_WIDGET_BUBBLES {
+        let widget = store
+            .bubbles
+            .entry(bubble_type.to_string())
+            .or_insert_with(|| {
+                default_widget_window_state(bubble_type, Some(bubble_type.to_string()))
+            });
+        if selected_room_id.is_some() {
+            widget.selected_room_id = selected_room_id.clone();
+        }
+        if !widget.window_visible {
+            widget.mode = "MINIMIZED".to_string();
+            widget.click_through = false;
+            widget.dock_orb_visible = false;
+        }
+    }
+
+    widget_bar_items_from_store(store)
+}
+
+#[tauri::command]
+fn seed_widget_bar_items(
+    app: AppHandle,
+    state: tauri::State<'_, WidgetState>,
+    input: Option<WidgetRoomContextInput>,
+) -> Result<Vec<WidgetWindowState>, String> {
+    let selected_room_id =
+        normalize_optional_query_value(input.and_then(|value| value.selected_room_id));
+    let items = {
+        let mut guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        seed_widget_bar_items_for_store(&mut guard, selected_room_id)
+    };
+    persist_widget_window_state(&app, &state)?;
     Ok(items)
 }
 
@@ -1382,6 +1428,7 @@ pub fn run() {
             list_app_monitors,
             open_widget_window,
             register_widget_shortcut,
+            seed_widget_bar_items,
             set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,
@@ -1517,5 +1564,38 @@ mod widget_runtime_tests {
             qa_all_widgets: Some(true),
             selected_room_id: None,
         })));
+    }
+
+    #[test]
+    fn seed_widget_bar_items_creates_hidden_minimized_widgets_without_hiding_visible_one() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "todo".to_string(),
+            WidgetWindowState {
+                window_visible: true,
+                ..default_widget_window_state("todo", Some("todo".to_string()))
+            },
+        );
+
+        let seeded = seed_widget_bar_items_for_store(&mut store, Some("room-1".to_string()));
+
+        assert_eq!(store.bubbles.len(), QA_ALL_WIDGET_BUBBLES.len());
+        assert_eq!(
+            store
+                .bubbles
+                .get("todo")
+                .and_then(|widget| widget.selected_room_id.as_deref()),
+            Some("room-1")
+        );
+        assert!(store
+            .bubbles
+            .get("todo")
+            .is_some_and(|widget| widget.window_visible));
+        assert_eq!(seeded.len(), QA_ALL_WIDGET_BUBBLES.len() - 1);
+        assert!(seeded.iter().all(|widget| {
+            widget.mode == "MINIMIZED"
+                && !widget.window_visible
+                && widget.selected_room_id.as_deref() == Some("room-1")
+        }));
     }
 }
