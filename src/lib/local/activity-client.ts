@@ -101,8 +101,9 @@ export async function recordCurrentActivityContext(
     rememberIncrementalActivityCheckpoint(context.data.appName, context.data.windowTitle, durationSeconds);
   }
 
+  let recordedActivity;
   try {
-    const recordedActivity = await activityApi.recordCurrentApp({
+    recordedActivity = await activityApi.recordCurrentApp({
       appName: context.data.appName,
       durationSeconds: segment.durationSeconds,
       endedAt: segment.endedAt,
@@ -110,28 +111,6 @@ export async function recordCurrentActivityContext(
       startedAt: segment.startedAt,
       windowTitle: context.data.windowTitle ?? null,
     });
-    await tauriCommands
-      .markActivityContextSynced({
-        localActivityId: localActivity.data.localActivityId,
-        serverActivityLogId: recordedActivity.id,
-        status: "SYNCED",
-      })
-      .catch(() => undefined);
-    const todayActivities = await activityApi.getToday();
-
-    return ready(
-      {
-        appName: context.data.appName,
-        context: context.data,
-        localActivityId: localActivity.data.localActivityId,
-        recordedActivity,
-        syncStatus: "SYNCED",
-        todayActivities,
-        windowTitle: context.data.windowTitle,
-      },
-      commandName,
-      translate("local.activity.recorded"),
-    );
   } catch (error) {
     await tauriCommands
       .markActivityContextSynced({
@@ -141,6 +120,30 @@ export async function recordCurrentActivityContext(
       .catch(() => undefined);
     return failed(getErrorMessage(error), commandName);
   }
+
+  await tauriCommands
+    .markActivityContextSynced({
+      localActivityId: localActivity.data.localActivityId,
+      serverActivityLogId: recordedActivity.id,
+      status: "SYNCED",
+    })
+    .catch(() => undefined);
+
+  const todayActivities = await activityApi.getToday().catch(() => []);
+
+  return ready(
+    {
+      appName: context.data.appName,
+      context: context.data,
+      localActivityId: localActivity.data.localActivityId,
+      recordedActivity,
+      syncStatus: "SYNCED",
+      todayActivities,
+      windowTitle: context.data.windowTitle,
+    },
+    commandName,
+    translate("local.activity.recorded"),
+  );
 }
 
 export async function syncLocalActivityBufferToServer(input?: {

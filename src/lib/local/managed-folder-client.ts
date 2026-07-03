@@ -298,6 +298,7 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
         eventType: event.eventType,
         fileName: event.fileName,
         fileSizeBytes: event.fileSizeBytes,
+        localEventId: event.localEventId,
         mimeType: event.mimeType,
         resourceId: event.resourceId,
       })),
