@@ -2189,6 +2189,58 @@ mod tests {
     }
 
     #[test]
+    fn skipped_updated_sync_keeps_file_local_only() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', '/tmp/docs', 'ACTIVE', 1, 1, 1)",
+            [],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, sync_status, updated_at) \
+             VALUES ('file-1', 'folder-1', 'draft.md', '/tmp/docs/draft.md', 'SYNC_PENDING', 1)",
+            [],
+        )
+        .expect("insert pending local file");
+        conn.execute(
+            "INSERT INTO local_file_events \
+             (id, local_file_id, local_folder_id, event_type, file_name, local_path, status, created_at) \
+             VALUES ('event-1', 'file-1', 'folder-1', 'UPDATED', 'draft.md', '/tmp/docs/draft.md', 'APPROVED', 1)",
+            [],
+        )
+        .expect("insert approved update event");
+
+        let result = mark_local_file_events_synced_for_conn(
+            &conn,
+            LocalFileEventsMarkSyncedInput {
+                results: vec![LocalFileEventSyncResultInput {
+                    local_event_id: "event-1".to_string(),
+                    resource_id: None,
+                    status: "SKIPPED".to_string(),
+                }],
+            },
+            20,
+        )
+        .expect("mark skipped update");
+        let stored: (String, String) = conn
+            .query_row(
+                "SELECT f.sync_status, e.status \
+                 FROM local_files f \
+                 INNER JOIN local_file_events e ON e.local_file_id = f.id \
+                 WHERE f.id = 'file-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read stored statuses");
+
+        assert_eq!(result.synced_count, 0);
+        assert_eq!(result.failed_count, 0);
+        assert_eq!(stored, ("LOCAL_ONLY".to_string(), "SYNCED".to_string()));
+    }
+
+    #[test]
     fn remove_managed_folder_excludes_future_sync_stage() {
         let conn = test_connection();
         conn.execute(
