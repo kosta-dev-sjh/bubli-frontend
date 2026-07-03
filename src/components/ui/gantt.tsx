@@ -957,7 +957,11 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
 
     restoreScrollLeft();
     onMove?.(feature.id, nextRange.startAt, nextRange.endAt);
-    releaseScrollLeft();
+
+    window.requestAnimationFrame(() => {
+      restoreScrollLeftNow();
+      window.requestAnimationFrame(releaseScrollLeft);
+    });
   };
 
   const handleLeftDragMove = () => {
@@ -1258,6 +1262,7 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
         style={{
           ...cssVariables,
           gridTemplateColumns: "var(--gantt-sidebar-width) 1fr",
+          overflowAnchor: "none",
         }}
       >
         {children}

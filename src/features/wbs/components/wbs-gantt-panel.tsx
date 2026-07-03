@@ -321,10 +321,9 @@ export function WbsGanttPanel({
     });
   };
 
-  const getParentIdForNewTaskFromRow = (item: WbsItemResponse) => item.parentId ?? item.id;
+  const getParentIdForNewTaskFromRow = (item: WbsItemResponse) => (item.parentId ? null : item.id);
 
-  const getFeatureForNewTaskFromRow = (item: WbsItemResponse) =>
-    featureById.get(item.id) ?? (item.parentId ? featureById.get(item.parentId) : undefined);
+  const getFeatureForNewTaskFromRow = (item: WbsItemResponse) => (item.parentId ? undefined : featureById.get(item.id));
 
   const persistRange = useCallback((item: WbsItemResponse, nextRange: LocalRange) => {
     const schedule = scheduleByWbsId.get(item.id);
@@ -457,18 +456,22 @@ export function WbsGanttPanel({
 
     const item = selectedWbsId ? itemById.get(selectedWbsId) : null;
 
-    if (!item) return orderedGroups[0]?.root.id ?? null;
+    if (!item || item.parentId) return null;
     return getParentIdForNewTaskFromRow(item);
   };
 
   const handleAddTask = () => {
     const parentId = getParentIdForNewTask();
+    if (!parentId) return;
+
     const selectedFeature = selectedWbsId ? featureById.get(selectedWbsId) : null;
     openCreateDraft(parentId, selectedFeature?.startAt ?? new Date());
   };
 
   const handleAddChildFromRow = (item: WbsItemResponse) => {
     const parentId = getParentIdForNewTaskFromRow(item);
+    if (!parentId) return;
+
     const feature = getFeatureForNewTaskFromRow(item);
     openCreateDraft(parentId, feature?.startAt ?? new Date());
   };
@@ -537,6 +540,8 @@ export function WbsGanttPanel({
   };
 
   const draftParentTitle = createDraft?.parentId ? itemById.get(createDraft.parentId)?.title ?? null : null;
+  const selectedItemForTask = selectedWbsId ? itemById.get(selectedWbsId) ?? null : null;
+  const canAddTaskToSelection = Boolean(selectedItemForTask && !selectedItemForTask.parentId);
 
   return (
     <div className={styles.panel} ref={panelRef}>
@@ -570,12 +575,12 @@ export function WbsGanttPanel({
         </button>
         <button
           className={styles.toolButton}
-          disabled={orderedGroups.length === 0 || !selectedWbsId}
+          disabled={orderedGroups.length === 0 || !canAddTaskToSelection}
           onClick={handleAddTask}
           title={
             orderedGroups.length === 0
               ? t("wbs.gantt.addTaskDisabledTitle")
-              : selectedWbsId
+              : canAddTaskToSelection
                 ? t("wbs.gantt.addTaskSelectedTitle")
                 : t("wbs.gantt.addTaskNoSelectionTitle")
           }
@@ -628,8 +633,6 @@ export function WbsGanttPanel({
               const feature = featureById.get(item.id);
               if (!feature) return null;
               const parentItem = item.parentId ? itemById.get(item.parentId) : null;
-              const parentIdForChild = getParentIdForNewTaskFromRow(item);
-              const parentTitle = itemById.get(parentIdForChild)?.title ?? item.title;
               const accent = resolveAccent(item);
               const childCount = childCountById.get(item.id) ?? 0;
               const isCollapsed = collapsedWbsIds.has(item.id);
@@ -662,18 +665,20 @@ export function WbsGanttPanel({
                           />
                         </button>
                       ) : null}
-                      <button
-                        aria-label={t("wbs.gantt.row.addChildAria", { title: parentTitle })}
-                        className={styles.rowActionButton}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleAddChildFromRow(item);
-                        }}
-                        title={t("wbs.gantt.row.addChildTitle")}
-                        type="button"
-                      >
-                        <Plus aria-hidden="true" size={13} strokeWidth={2.2} />
-                      </button>
+                      {!item.parentId ? (
+                        <button
+                          aria-label={t("wbs.gantt.row.addChildAria", { title: item.title })}
+                          className={styles.rowActionButton}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleAddChildFromRow(item);
+                          }}
+                          title={t("wbs.gantt.row.addChildTitle")}
+                          type="button"
+                        >
+                          <Plus aria-hidden="true" size={13} strokeWidth={2.2} />
+                        </button>
+                      ) : null}
                       <button
                         aria-label={t("wbs.gantt.row.editAria", { title: item.title })}
                         className={styles.rowActionButton}

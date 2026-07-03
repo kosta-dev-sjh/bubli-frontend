@@ -180,16 +180,16 @@
   background:
     linear-gradient(
       90deg,
-      color-mix(in srgb, var(--gantt-row-accent) 54%, rgba(255, 255, 255, 0.88)) 0%,
-      rgba(215, 234, 244, 0.98) 46%,
-      rgba(255, 255, 255, 0.96) 100%
+      color-mix(in srgb, var(--gantt-row-accent) 68%, rgba(255, 255, 255, 0.72)) 0%,
+      rgba(215, 234, 244, 0.98) 42%,
+      rgba(255, 255, 255, 0.94) 100%
     ) !important;
   box-shadow:
-    inset 8px 0 0 var(--gantt-row-accent),
-    inset 0 0 0 1px color-mix(in srgb, var(--gantt-row-accent) 68%, rgba(107, 143, 168, 0.42)),
-    0 14px 28px -18px rgba(44, 53, 64, 0.46);
+    inset 10px 0 0 var(--gantt-row-accent),
+    inset 0 0 0 1px color-mix(in srgb, var(--gantt-row-accent) 82%, rgba(44, 53, 64, 0.36)),
+    0 16px 30px -18px rgba(44, 53, 64, 0.52);
   color: #2C3540;
-  outline: 1px solid color-mix(in srgb, var(--gantt-row-accent) 54%, rgba(107, 143, 168, 0.36));
+  outline: 2px solid color-mix(in srgb, var(--gantt-row-accent) 68%, rgba(107, 143, 168, 0.38));
   outline-offset: -1px;
 }
 
@@ -211,6 +211,7 @@
   font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
   letter-spacing: 0;
   min-block-size: 420px;
+  overflow-anchor: none;
 }
 
 .ganttSurface :global([data-roadmap-ui="gantt-sidebar"]) {
