@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/api/client";
 import type { PageResponse } from "@/types/api/common";
+import type { TimeLogResponse } from "@/types/api/timer";
 import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
 
 export type WidgetTaskStatus = "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE" | "BLOCKED";
@@ -136,22 +137,7 @@ export type WidgetFriendResponse = {
   friendUserId?: string;
 };
 
-export type WidgetTimeLogResponse = {
-  createdAt: string;
-  durationSeconds: number;
-  endedAt: string | null;
-  id: string;
-  idempotencyKey: string;
-  lastHeartbeatAt: string | null;
-  lastStartedAt: string | null;
-  recoveredFromTimeLogId: string | null;
-  roomId: string | null;
-  startedAt: string;
-  status: "RUNNING" | "PAUSED" | "ENDED" | "NEEDS_RECOVERY";
-  timerType: "GENERAL" | "WORK";
-  updatedAt: string;
-  userId: string;
-};
+export type WidgetTimeLogResponse = TimeLogResponse;
 
 export type WidgetDashboardWorkResponse = {
   agentSuggestionSummary: string[];

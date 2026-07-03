@@ -38,7 +38,7 @@ import { readWidgetSummary } from "@/lib/widget";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import type { TimeLogResponse } from "@/types/api/timer";
-import type { WidgetBubbleType as ApiWidgetBubbleType } from "@/types/api/widget";
+import type { WidgetBubbleType as ApiWidgetBubbleType, WidgetSummaryResponse } from "@/types/api/widget";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
@@ -310,24 +310,35 @@ function buildDisplayBubbles(input: {
   const scheduleItems = (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules).slice(0, 3);
   const memoItems = input.memos.filter((item) => item.status === "ACTIVE").slice(0, 3);
   const fileItems = input.resources.filter((item) => item.kind !== "MEMO").slice(0, 3);
-  const agentItems = input.suggestions.slice(0, 3);
+  const agentRows =
+    input.suggestions.length > 0
+      ? input.suggestions.slice(0, 3).map((item) => ({
+          id: item.suggestionId,
+          kind: "agent" as const,
+          label: suggestionTitle(item),
+          status: suggestionStatusLabel(t, item.status),
+        }))
+      : (input.dashboard?.agentSuggestionSummary ?? []).slice(0, 3).map((line, index) => ({
+          id: `agent-summary-${index}`,
+          kind: "agent" as const,
+          label: line,
+          status: t("widget.suggestion.draft"),
+        }));
   const unreadNotifications = input.notifications.filter((item) => item.status === "UNREAD").slice(0, 3);
-  const unreadCount = input.notifications.filter((item) => item.status === "UNREAD").length;
+  const unreadCount = Math.max(
+    input.notifications.filter((item) => item.status === "UNREAD").length,
+    input.dashboard?.unreadNotificationCount ?? 0,
+  );
   const voiceParticipants = input.voiceRoom?.participants.filter((item) => item.status === "JOINED") ?? [];
 
   return {
     agent: withBubble("agent", {
-      compactLabel: t("widget.agent.candidateCount", { count: agentItems.length }),
-      metric: String(agentItems.length),
-      notificationLabel: agentItems.length > 0 ? t("widget.agent.waitingCandidates") : t("widget.agent.noWaitingCandidates"),
-      panelBody: agentItems.length > 0 ? t("widget.agent.onlyBeforeApproval") : t("widget.agent.noWaiting"),
+      compactLabel: t("widget.agent.candidateCount", { count: agentRows.length }),
+      metric: String(agentRows.length),
+      notificationLabel: agentRows.length > 0 ? t("widget.agent.waitingCandidates") : t("widget.agent.noWaitingCandidates"),
+      panelBody: agentRows.length > 0 ? t("widget.agent.onlyBeforeApproval") : t("widget.agent.noWaiting"),
       roomLabel: label,
-      rows: agentItems.map((item) => ({
-        id: item.suggestionId,
-        kind: "agent",
-        label: suggestionTitle(item),
-        status: suggestionStatusLabel(t, item.status),
-      })),
+      rows: agentRows,
     }),
     alert: withBubble("alert", {
       actionLabel: t("widget.alert.action"),
@@ -477,6 +488,69 @@ function buildEmptyDisplayBubbles(t: TranslateFn, roomId?: string | null) {
     suggestions: [],
     tasks: [],
   }, t);
+}
+
+function summaryTaskToWidgetTask(task: NonNullable<WidgetSummaryResponse["tasks"]>[number]): WidgetTaskResponse {
+  return {
+    assigneeUserId: task.assigneeUserId ?? null,
+    createdAt: task.createdAt,
+    description: task.description ?? null,
+    dueAt: task.dueAt ?? null,
+    id: task.id,
+    ownerUserId: task.ownerUserId ?? null,
+    roomId: task.roomId ?? null,
+    status: task.status,
+    title: task.title,
+    updatedAt: task.updatedAt,
+    wbsItemId: task.wbsItemId ?? null,
+  };
+}
+
+function summaryScheduleToWidgetSchedule(
+  schedule: NonNullable<WidgetSummaryResponse["schedules"]>[number],
+): WidgetScheduleResponse {
+  return {
+    allDay: schedule.allDay,
+    createdAt: schedule.createdAt,
+    endsAt: schedule.endsAt ?? null,
+    googleEventId: schedule.googleEventId ?? null,
+    id: schedule.id,
+    lastSyncedAt: schedule.lastSyncedAt ?? null,
+    ownerUserId: schedule.ownerUserId,
+    roomId: schedule.roomId ?? null,
+    startsAt: schedule.startsAt,
+    syncStatus: schedule.syncStatus,
+    taskId: schedule.taskId ?? null,
+    title: schedule.title,
+    updatedAt: schedule.updatedAt,
+    wbsItemId: schedule.wbsItemId ?? null,
+  };
+}
+
+function dashboardFromWidgetSummary(summary: WidgetSummaryResponse | null): WidgetDashboardWorkResponse | null {
+  if (!summary) return null;
+
+  const todayTasks = (summary.tasks ?? []).map(summaryTaskToWidgetTask);
+  const todaySchedules = (summary.schedules ?? []).map(summaryScheduleToWidgetSchedule);
+
+  return {
+    agentSuggestionSummary: summary.agentSuggestionSummary ?? [],
+    runningTimer: summary.runningTimer ?? null,
+    todaySchedules,
+    todayTasks,
+    unreadNotificationCount: summary.unreadNotificationCount ?? 0,
+    upcomingDeadlines: [],
+  };
+}
+
+async function readWidgetDisplaySummary(): Promise<WidgetSummaryResponse | null> {
+  const serverResult = await readWidgetSummary({ preferLocalCache: false }).catch(() => null);
+  if (serverResult?.status === "ready") return serverResult.data;
+
+  const cacheResult = await readWidgetSummary({
+    fetchServerSummary: () => Promise.reject(new Error("server widget summary already failed")),
+  }).catch(() => null);
+  return cacheResult?.status === "ready" ? cacheResult.data : null;
 }
 
 function DesktopWidgetSurface() {
@@ -767,18 +841,15 @@ function DesktopWidgetSurface() {
 
     async function loadDisplayApiState() {
       let selectedRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
-      if (!selectedRoomId) {
-        const summaryResult = await readWidgetSummary().catch(() => null);
-        const summary = summaryResult?.status === "ready" ? summaryResult.data : null;
-        if (summary?.context) {
-          selectedRoomId = summary.context.selectedRoomId ?? requestedRoomId ?? null;
-          if (!cancelled) {
-            setWidgetContext((current) => {
-              if (summary.context.selectedRoomId || !requestedRoomId) return summary.context;
-              return current ?? { mode: "ROOM", selectedRoomId: requestedRoomId };
-            });
-            setServerSettings(summary.bubbles ?? []);
-          }
+      const summary = await readWidgetDisplaySummary();
+      if (summary?.context) {
+        selectedRoomId = selectedRoomId ?? summary.context.selectedRoomId ?? requestedRoomId ?? null;
+        if (!cancelled) {
+          setWidgetContext((current) => {
+            if (summary.context.selectedRoomId || !requestedRoomId) return summary.context;
+            return current ?? { mode: "ROOM", selectedRoomId: requestedRoomId };
+          });
+          setServerSettings(summary.bubbles ?? []);
         }
       }
 
@@ -829,7 +900,8 @@ function DesktopWidgetSurface() {
       }
 
       setNotificationSignal(buildNotificationSignal(t, notifications));
-      const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
+      const summaryDashboard = dashboardFromWidgetSummary(summary);
+      const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : summaryDashboard;
       const activeTimer = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
       const messageItems = messages?.items ?? cachedMessages;
       setActiveTimerHeartbeatId(activeTimer?.status === "RUNNING" ? activeTimer.id : null);
@@ -845,9 +917,9 @@ function DesktopWidgetSurface() {
           resources: resourcesResult.status === "fulfilled" ? resourcesResult.value.items : [],
           room: roomResult.status === "fulfilled" ? roomResult.value : null,
           roomId: selectedRoomId,
-          schedules: schedulesResult.status === "fulfilled" ? schedulesResult.value.items : [],
+          schedules: schedulesResult.status === "fulfilled" ? schedulesResult.value.items : (summaryDashboard?.todaySchedules ?? []),
           suggestions: suggestionsResult.status === "fulfilled" ? suggestionsResult.value : [],
-          tasks: tasksResult.status === "fulfilled" ? tasksResult.value.items : [],
+          tasks: tasksResult.status === "fulfilled" ? tasksResult.value.items : (summaryDashboard?.todayTasks ?? []),
           timer: activeTimer,
           voiceConnectionLabel,
           voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
