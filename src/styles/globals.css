@@ -6984,12 +6984,16 @@ button.workspace-route__friend-row:hover {
 .auth-page {
   position: relative;
   display: grid;
+  min-height: 100vh;
+  min-height: 100svh;
   min-height: 100dvh;
   grid-template-columns: minmax(0, 0.92fr) minmax(360px, 0.58fr);
   gap: clamp(28px, 6vw, 88px);
   align-items: center;
-  overflow: hidden;
+  isolation: isolate;
+  overflow: clip;
   padding: clamp(28px, 6vw, 86px);
+  background-color: var(--bg);
   background:
     radial-gradient(circle at 8% 18%, rgba(142, 205, 246, 0.18), transparent 34%),
     radial-gradient(circle at 86% 12%, rgba(230, 221, 248, 0.28), transparent 36%),
@@ -7013,8 +7017,8 @@ button.workspace-route__friend-row:hover {
 
 .auth-page__motion {
   position: absolute;
-  z-index: 0;
   inset: 0;
+  z-index: -2;
   pointer-events: none;
   opacity: 0.3;
   overflow: hidden;
@@ -7040,8 +7044,8 @@ button.workspace-route__friend-row:hover {
 
 .auth-page__bubble-field {
   position: absolute;
-  z-index: 0;
   inset: 0;
+  z-index: -1;
   pointer-events: none;
   overflow: hidden;
 }
@@ -13802,6 +13806,45 @@ html {
   .contract-review-source .bubli-status {
     grid-column: 1 / -1;
     width: fit-content;
+  }
+}
+
+@media (max-width: 720px) and (max-height: 640px) {
+  .auth-page {
+    align-content: start;
+    gap: 18px;
+    padding: 18px 22px 22px;
+  }
+
+  .auth-page__intro {
+    gap: 12px;
+  }
+
+  .auth-page__brand {
+    font-size: 30px;
+  }
+
+  .auth-page__intro .auth-page__welcome {
+    margin-top: 2px;
+    padding: 7px 12px;
+  }
+
+  .auth-page__intro h1 {
+    font-size: 34px;
+    line-height: 1.02;
+  }
+
+  .auth-page__intro > p:not(.auth-page__welcome) {
+    font-size: 17px;
+    line-height: 1.32;
+  }
+
+  .auth-card {
+    padding: 18px;
+  }
+
+  .auth-card__submit {
+    min-height: 56px;
   }
 }
 
