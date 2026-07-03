@@ -16,6 +16,7 @@ let captureIntervalId: number | null = null;
 let captureInFlight = false;
 let cachedConsent: boolean | null = null;
 let cachedConsentCheckedAt = 0;
+let activityConsentRevision = 0;
 
 type ActivityAutoCaptureStopInput = {
   flush?: boolean;
@@ -52,13 +53,31 @@ export function isActivityAutoCaptureRunning() {
   return captureIntervalId !== null;
 }
 
+export function notifyActivityConsentChanged(enabled: boolean) {
+  cachedConsent = enabled;
+  cachedConsentCheckedAt = Date.now();
+  activityConsentRevision += 1;
+
+  if (!enabled) {
+    if (captureIntervalId !== null) {
+      window.clearInterval(captureIntervalId);
+    }
+    captureIntervalId = null;
+    resetIncrementalActivityCheckpoint();
+    return;
+  }
+
+  startActivityAutoCapture();
+}
+
 async function captureActivityOnce() {
   if (captureInFlight) return;
 
   captureInFlight = true;
   try {
+    const revision = activityConsentRevision;
     const consentGranted = await readActivityConsent();
-    if (!consentGranted) return;
+    if (!consentGranted || revision !== activityConsentRevision) return;
 
     await recordCurrentActivityContext({
       consentGranted,
