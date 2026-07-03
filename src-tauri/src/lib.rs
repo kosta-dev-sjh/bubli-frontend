@@ -831,6 +831,7 @@ fn build_widget_window(
     .always_on_top(widget.always_on_top)
     .skip_taskbar(true)
     .focused(false)
+    .visible(false)
     .build()
     .map_err(|error| error.to_string())?;
 
@@ -852,7 +853,6 @@ fn build_widget_window(
     window
         .set_ignore_cursor_events(widget.click_through)
         .map_err(|error| error.to_string())?;
-    window.show().map_err(|error| error.to_string())?;
     apply_widget_window_state(app, monitor_state, widget)
 }
 
