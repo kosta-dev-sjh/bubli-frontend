@@ -15,6 +15,8 @@ const POSTGRES_DB = process.env.BUBLI_DEV_POSTGRES_DB ?? "bubli";
 
 const SEED_USER_ID = "11111111-1111-4111-8111-111111111111";
 const SEED_ROOM_ID = "22222222-2222-4222-8222-222222222222";
+const SEED_TASK_ID = "66666666-6666-4666-8666-666666666661";
+const SEED_WIDGET_TASK_ITEM_STATE_ID = "12121212-1212-4121-8121-121212121212";
 
 if (!["seed", "token", "tauri"].includes(COMMAND)) {
   console.error("Usage: node scripts/dev-widget-real-backend.mjs [seed|token|tauri]");
@@ -46,13 +48,18 @@ if (COMMAND === "tauri") {
 function seedPostgres() {
   console.log(`Seeding ${DOCKER_CONTAINER}/${POSTGRES_DB} for user ${SEED_USER_ID}...`);
 
+  runPostgresSql(buildSeedSql(), "PostgreSQL seed");
+  console.log("Seed rows are present.");
+}
+
+function runPostgresSql(sql, label, extraArgs = []) {
   const result = spawnSync(
     "docker",
-    ["exec", "-i", DOCKER_CONTAINER, "psql", "-U", POSTGRES_USER, "-d", POSTGRES_DB],
+    ["exec", "-i", DOCKER_CONTAINER, "psql", "-U", POSTGRES_USER, "-d", POSTGRES_DB, ...extraArgs],
     {
       encoding: "utf8",
       env: withDockerPath(process.env),
-      input: buildSeedSql(),
+      input: sql,
       stdio: ["pipe", "pipe", "pipe"],
     },
   );
@@ -64,10 +71,20 @@ function seedPostgres() {
   if (result.status !== 0) {
     console.error(result.stdout);
     console.error(result.stderr);
-    throw new Error(`PostgreSQL seed failed with exit code ${result.status}.`);
+    throw new Error(`${label} failed with exit code ${result.status}.`);
   }
 
-  console.log("Seed rows are present.");
+  return result.stdout;
+}
+
+function queryPostgresScalar(sql) {
+  const stdout = runPostgresSql(sql, "PostgreSQL scalar query", ["-t", "-A"]);
+  const lines = stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return lines.at(-1) ?? "";
 }
 
 async function smokeBackend(accessToken) {
@@ -114,6 +131,31 @@ async function smokeBackend(accessToken) {
   const roomWidgetContext = await apiPatch("/api/widget/context", headers, { selectedRoomId: SEED_ROOM_ID });
   assert(roomWidgetContext.selectedRoomId === SEED_ROOM_ID, "widget context did not switch back to the seeded room");
   assert(roomWidgetContext.mode === "ROOM", "widget context did not return ROOM mode");
+
+  const pinnedItemState = await apiPatch(`/api/widget/items/${SEED_WIDGET_TASK_ITEM_STATE_ID}/state`, headers, {
+    bubbleType: "TODO",
+    itemId: SEED_TASK_ID,
+    itemType: "TASK",
+    state: "PINNED",
+  });
+  assert(pinnedItemState === null || pinnedItemState === undefined, "widget item state update should not return a body");
+  assert(
+    queryPostgresScalar(`SELECT state FROM widget_item_states WHERE id = '${SEED_WIDGET_TASK_ITEM_STATE_ID}';`) ===
+      "PINNED",
+    "widget item state PATCH did not persist PINNED",
+  );
+
+  await apiPatch(`/api/widget/items/${SEED_WIDGET_TASK_ITEM_STATE_ID}/state`, headers, {
+    bubbleType: "TODO",
+    itemId: SEED_TASK_ID,
+    itemType: "TASK",
+    state: "CONFIRMED",
+  });
+  assert(
+    queryPostgresScalar(`SELECT state FROM widget_item_states WHERE id = '${SEED_WIDGET_TASK_ITEM_STATE_ID}';`) ===
+      "CONFIRMED",
+    "widget item state PATCH did not persist CONFIRMED",
+  );
 
   const chatRooms = await apiGet("/api/chat/rooms?page=0&size=20", headers);
   const roomChat = chatRooms.items?.find((room) => room.roomId === SEED_ROOM_ID);
@@ -369,7 +411,7 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/widget/items/{id}/state, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 
@@ -559,9 +601,14 @@ ON CONFLICT (user_id, bubble_type) DO UPDATE SET enabled = EXCLUDED.enabled, x =
 
 INSERT INTO tasks (id, owner_user_id, assignee_user_id, room_id, wbs_item_id, title, description, status, due_at, created_at, updated_at)
 VALUES
-('66666666-6666-4666-8666-666666666661', '${SEED_USER_ID}', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, 'Tauri widget real API smoke task', 'Seeded through PostgreSQL for desktop widget integration verification.', 'IN_PROGRESS', now() + interval '3 hours', now(), now()),
+('${SEED_TASK_ID}', '${SEED_USER_ID}', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, 'Tauri widget real API smoke task', 'Seeded through PostgreSQL for desktop widget integration verification.', 'IN_PROGRESS', now() + interval '3 hours', now(), now()),
 ('66666666-6666-4666-8666-666666666662', '${SEED_USER_ID}', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, 'Confirm backend summary rendering', 'This item should arrive through /api/widget/summary.', 'TODO', now() + interval '1 day', now(), now())
 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, status = EXCLUDED.status, due_at = EXCLUDED.due_at, updated_at = now();
+
+INSERT INTO widget_item_states (id, user_id, bubble_type, item_type, item_id, state, created_at, updated_at)
+VALUES ('${SEED_WIDGET_TASK_ITEM_STATE_ID}', '${SEED_USER_ID}', 'TODO', 'TASK', '${SEED_TASK_ID}', 'VISIBLE', now(), now())
+ON CONFLICT (user_id, bubble_type, item_type, item_id)
+DO UPDATE SET id = EXCLUDED.id, state = EXCLUDED.state, updated_at = now();
 
 INSERT INTO schedules (id, owner_user_id, room_id, task_id, wbs_item_id, google_event_id, title, starts_at, ends_at, is_all_day, sync_status, last_synced_at, created_at, updated_at)
 VALUES ('77777777-7777-4777-8777-777777777777', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, NULL, NULL, 'Desktop widget backend sync check', now() + interval '2 hours', now() + interval '3 hours', false, 'LOCAL_ONLY', NULL, now(), now())
