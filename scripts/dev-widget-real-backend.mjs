@@ -157,6 +157,18 @@ async function smokeBackend(accessToken) {
     "widget item state PATCH did not persist CONFIRMED",
   );
 
+  await apiPatch(`/api/widget/items/${SEED_TASK_ID}/state`, headers, {
+    bubbleType: "TODO",
+    itemId: SEED_TASK_ID,
+    itemType: "TASK",
+    state: "SNOOZED",
+  });
+  assert(
+    queryPostgresScalar(`SELECT state FROM widget_item_states WHERE id = '${SEED_WIDGET_TASK_ITEM_STATE_ID}';`) ===
+      "SNOOZED",
+    "widget item state PATCH did not persist SNOOZED when called with the task item id",
+  );
+
   const chatRooms = await apiGet("/api/chat/rooms?page=0&size=20", headers);
   const roomChat = chatRooms.items?.find((room) => room.roomId === SEED_ROOM_ID);
   assert(roomChat?.id, "chat room list did not include the seeded project room chat");
