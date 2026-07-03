@@ -39,6 +39,7 @@ import {
   syncPersonalLocalFileEventsToServer,
   watchPersonalManagedFolder,
 } from "@/lib/local/managed-folder-client";
+import { notifyManagedFolderConsentChanged } from "@/lib/local/managed-folder-auto-sync";
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
@@ -470,8 +471,11 @@ export default function SettingsPage() {
         if (key === "activityDetectionEnabled") {
           notifyActivityConsentChanged(saved.activityDetectionEnabled);
         }
-        if (key === "localFolderEnabled" && saved.localFolderEnabled) {
-          void restoreManagedFolderWatchers();
+        if (key === "localFolderEnabled") {
+          notifyManagedFolderConsentChanged(saved.localFolderEnabled);
+          if (saved.localFolderEnabled) {
+            void restoreManagedFolderWatchers();
+          }
         }
       } catch {
         if (shouldUseWorkspacePreviewData()) return;

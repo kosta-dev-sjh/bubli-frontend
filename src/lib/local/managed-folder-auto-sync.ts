@@ -22,6 +22,7 @@ let watchUnlistenPromise: Promise<() => void> | null = null;
 let watchListenerGeneration = 0;
 let cachedConsent: boolean | null = null;
 let cachedConsentCheckedAt = 0;
+let managedFolderConsentRevision = 0;
 
 export function startManagedFolderAutoSync() {
   if (!isTauriRuntime()) return;
@@ -53,6 +54,29 @@ export function stopManagedFolderAutoSync() {
 
 export function isManagedFolderAutoSyncRunning() {
   return syncIntervalId !== null;
+}
+
+export function notifyManagedFolderConsentChanged(enabled: boolean) {
+  cachedConsent = enabled;
+  cachedConsentCheckedAt = Date.now();
+  managedFolderConsentRevision += 1;
+
+  if (!enabled) {
+    if (syncIntervalId !== null) {
+      window.clearInterval(syncIntervalId);
+    }
+    syncIntervalId = null;
+    pendingFullSyncRequested = false;
+    pendingFolderSyncIds.clear();
+    analysisBackfillHasRun = false;
+    detachManagedFolderWatchListener();
+    if (isTauriRuntime()) {
+      void tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
+    }
+    return;
+  }
+
+  startManagedFolderAutoSync();
 }
 
 function attachManagedFolderWatchListener() {
@@ -105,8 +129,9 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
 
   syncInFlight = true;
   try {
+    const revision = managedFolderConsentRevision;
     const consentGranted = await ensureManagedFolderRuntimeConsent();
-    if (!consentGranted) {
+    if (!consentGranted || revision !== managedFolderConsentRevision) {
       pendingFullSyncRequested = false;
       pendingFolderSyncIds.clear();
       return;
