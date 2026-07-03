@@ -1,3 +1,5 @@
+#[cfg(target_os = "macos")]
+use std::thread;
 use std::{collections::HashMap, env, fs, path::PathBuf, sync::Mutex};
 
 use serde::{Deserialize, Serialize};
@@ -794,6 +796,7 @@ fn apply_widget_window_state(
         window
             .set_size(Size::Logical(widget_window_size(widget)))
             .map_err(|error| error.to_string())?;
+        #[cfg(not(target_os = "macos"))]
         window
             .set_position(Position::Logical(widget_screen_position(
                 app,
@@ -879,6 +882,27 @@ fn schedule_widget_window_build(
     monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let app_for_build = app.clone();
+        let widget_for_build = widget.clone();
+        let label = widget_window_label(widget);
+        thread::Builder::new()
+            .name(format!("bubli-widget-build-{label}"))
+            .spawn(move || {
+                let monitor_state = app_for_build.state::<AppMonitorState>();
+                if let Err(error) =
+                    build_widget_window(&app_for_build, &monitor_state, &widget_for_build)
+                {
+                    eprintln!("failed to build widget window {label}: {error}");
+                }
+            })
+            .map_err(|error| error.to_string())?;
+
+        Ok(widget.clone())
+    }
+
+    #[cfg(not(target_os = "macos"))]
     build_widget_window(app, monitor_state, widget)
 }
 
