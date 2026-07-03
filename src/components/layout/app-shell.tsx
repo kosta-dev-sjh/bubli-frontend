@@ -115,7 +115,6 @@ export function AppShell({ children }: AppShellProps) {
     async function loadShell() {
       try {
         await restoreStoredAuthSessionFromTauri();
-        await restoreActiveProjectRoomFromTauri();
         const [user, roomPage] = await Promise.all([authApi.getMe(), projectRoomApi.list()]);
         let notificationCount = 0;
 
@@ -126,26 +125,27 @@ export function AppShell({ children }: AppShellProps) {
           notificationCount = 0;
         }
 
-        const restoredRoomId = getActiveProjectRoomId();
-        const restoredRoom = restoredRoomId ? roomPage.items.find((room) => room.id === restoredRoomId) : undefined;
-        if (restoredRoom) {
-          seedActiveProjectRoomId(restoredRoom.id, restoredRoom.name);
+        const widgetContext = await widgetApi.getContext().catch(() => null);
+        const contextRoom = widgetContext?.selectedRoomId
+          ? roomPage.items.find((room) => room.id === widgetContext.selectedRoomId)
+          : undefined;
+        if (contextRoom) {
+          seedActiveProjectRoomId(contextRoom.id, contextRoom.name);
           if (mounted) {
-            setSelectedRoomId(restoredRoom.id);
-            setSelectedRoomLabel(restoredRoom.name);
+            setSelectedRoomId(contextRoom.id);
+            setSelectedRoomLabel(contextRoom.name);
           }
         }
 
-        if (!restoredRoom) {
-          const widgetContext = await widgetApi.getContext().catch(() => null);
-          const contextRoom = widgetContext?.selectedRoomId
-            ? roomPage.items.find((room) => room.id === widgetContext.selectedRoomId)
-            : undefined;
-          if (contextRoom) {
-            seedActiveProjectRoomId(contextRoom.id, contextRoom.name);
+        if (!contextRoom) {
+          await restoreActiveProjectRoomFromTauri();
+          const restoredRoomId = getActiveProjectRoomId();
+          const restoredRoom = restoredRoomId ? roomPage.items.find((room) => room.id === restoredRoomId) : undefined;
+          if (restoredRoom) {
+            seedActiveProjectRoomId(restoredRoom.id, restoredRoom.name);
             if (mounted) {
-              setSelectedRoomId(contextRoom.id);
-              setSelectedRoomLabel(contextRoom.name);
+              setSelectedRoomId(restoredRoom.id);
+              setSelectedRoomLabel(restoredRoom.name);
             }
           }
         }

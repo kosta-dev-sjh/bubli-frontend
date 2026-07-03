@@ -939,9 +939,7 @@ fn seed_widget_bar_items_for_store(
             .or_insert_with(|| {
                 default_widget_window_state(bubble_type, Some(bubble_type.to_string()))
             });
-        if selected_room_id.is_some() {
-            widget.selected_room_id = selected_room_id.clone();
-        }
+        widget.selected_room_id = selected_room_id.clone();
         if !widget.window_visible {
             widget.mode = "MINIMIZED".to_string();
             widget.click_through = false;
@@ -1072,9 +1070,7 @@ fn set_widget_window_mode(
         widget.mode = normalize_widget_mode(mode);
         widget.click_through = widget.mode == "GHOST";
         widget.dock_orb_visible = false;
-        if selected_room_id.is_some() {
-            widget.selected_room_id = selected_room_id.clone();
-        }
+        widget.selected_room_id = selected_room_id.clone();
         widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
     })?;
     persist_widget_window_state(&app, &state)?;
@@ -1242,9 +1238,7 @@ fn open_widget_window(
         widget.mode = next_mode.clone();
         widget.click_through = widget.mode == "GHOST";
         widget.dock_orb_visible = false;
-        if selected_room_id.is_some() {
-            widget.selected_room_id = selected_room_id.clone();
-        }
+        widget.selected_room_id = selected_room_id.clone();
         widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
     })?;
     persist_widget_window_state(&app, &state)?;
@@ -1608,5 +1602,27 @@ mod widget_runtime_tests {
                 && !widget.window_visible
                 && widget.selected_room_id.as_deref() == Some("room-1")
         }));
+    }
+
+    #[test]
+    fn seed_widget_bar_items_clears_stale_room_context() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "todo".to_string(),
+            WidgetWindowState {
+                selected_room_id: Some("stale-room".to_string()),
+                ..default_widget_window_state("todo", Some("todo".to_string()))
+            },
+        );
+
+        let seeded = seed_widget_bar_items_for_store(&mut store, None);
+
+        assert!(store
+            .bubbles
+            .values()
+            .all(|widget| widget.selected_room_id.is_none()));
+        assert!(seeded
+            .iter()
+            .all(|widget| widget.selected_room_id.is_none()));
     }
 }

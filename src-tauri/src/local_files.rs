@@ -1193,7 +1193,13 @@ fn record_watch_path_change(
                 .map(|value| value.to_string_lossy().to_string())
                 .unwrap_or_default();
             if !file_name.is_empty() {
-                return record_watch_path_delete(conn, local_folder_id, &file_name, &local_path, now);
+                return record_watch_path_delete(
+                    conn,
+                    local_folder_id,
+                    &file_name,
+                    &local_path,
+                    now,
+                );
             }
         }
         return Ok(0);
@@ -3559,7 +3565,8 @@ mod tests {
         let supported_path = folder_path.join("contract.md");
         let office_lock_path = folder_path.join("~$contract.docx");
         let unsupported_path = folder_path.join("draft.pages");
-        std::fs::write(&supported_path, "계약 기간과 지급 조건을 확인합니다.").expect("write supported file");
+        std::fs::write(&supported_path, "계약 기간과 지급 조건을 확인합니다.")
+            .expect("write supported file");
         std::fs::write(&office_lock_path, "temporary lock").expect("write office lock file");
         std::fs::write(&unsupported_path, "unsupported pages").expect("write unsupported file");
 

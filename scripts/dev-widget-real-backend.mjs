@@ -245,7 +245,8 @@ async function runTauriDev(accessToken) {
     stdio: "inherit",
   });
 
-  const exitCode = await new Promise((resolve) => {
+  const exitCode = await new Promise((resolve, reject) => {
+    child.on("error", reject);
     child.on("exit", resolve);
   });
 
@@ -503,18 +504,37 @@ async function isReachableDevUrl(url) {
 
 function tauriDevCommand(existingDevUrl) {
   if (!existingDevUrl) {
-    return { args: ["run", "tauri:dev"], file: "npm" };
+    if (process.platform === "win32") {
+      return { args: ["/d", "/s", "/c", "npm.cmd run tauri:dev"], file: process.env.ComSpec ?? "cmd.exe" };
+    }
+
+    return {
+      args: ["run", "tauri:dev"],
+      file: "npm",
+    };
   }
 
   const configPath = writeTauriDevConfig(existingDevUrl);
+  const tauriBinary = resolvePath(
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? "tauri.cmd" : "tauri",
+  );
+  if (process.platform === "win32") {
+    return {
+      args: ["/d", "/s", "/c", [quoteForCmd(tauriBinary), "dev", "--no-watch", "--config", quoteForCmd(configPath)].join(" ")],
+      file: process.env.ComSpec ?? "cmd.exe",
+    };
+  }
+
   return {
     args: ["dev", "--no-watch", "--config", configPath],
-    file: resolvePath(
-      "node_modules",
-      ".bin",
-      process.platform === "win32" ? "tauri.cmd" : "tauri",
-    ),
+    file: tauriBinary,
   };
+}
+
+function quoteForCmd(value) {
+  return `"${String(value).replaceAll("\"", "\"\"")}"`;
 }
 
 function writeTauriDevConfig(devUrl) {

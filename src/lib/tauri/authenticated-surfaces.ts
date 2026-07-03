@@ -6,7 +6,7 @@ import { widgetApi } from "@/features/widget/api/widgetApi";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { startWidgetUsageAutoSync, stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
-import { getActiveProjectRoomId, restoreActiveProjectRoomFromTauri } from "@/lib/workspace-active-room";
+import { getActiveProjectRoomId, restoreActiveProjectRoomFromTauri, seedActiveProjectRoomId } from "@/lib/workspace-active-room";
 import type { WidgetBubbleSettingResponse, WidgetBubbleType as ApiWidgetBubbleType } from "@/types/api/widget";
 
 let launchRequested = false;
@@ -82,13 +82,17 @@ export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInpu
 }
 
 async function resolveLaunchSelectedRoomId() {
-  await restoreActiveProjectRoomFromTauri().catch(() => null);
+  const context = await widgetApi.getContext().catch(() => null);
+  if (context?.selectedRoomId) {
+    seedActiveProjectRoomId(context.selectedRoomId);
+    return context.selectedRoomId;
+  }
 
   const activeRoomId = getActiveProjectRoomId();
   if (activeRoomId) return activeRoomId;
 
-  const context = await widgetApi.getContext().catch(() => null);
-  return context?.selectedRoomId ?? null;
+  const restored = await restoreActiveProjectRoomFromTauri().catch(() => null);
+  return restored?.roomId ?? null;
 }
 
 export function launchTauriAuthenticatedSurfaces() {
