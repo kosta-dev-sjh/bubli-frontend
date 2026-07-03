@@ -1,5 +1,8 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve as resolvePath } from "node:path";
 
 const COMMAND = process.argv[2] ?? "seed";
 const API_BASE_URL = stripTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080");
@@ -216,7 +219,14 @@ async function smokeBackend(accessToken) {
 
 async function runTauriDev(accessToken) {
   console.log("\nStarting Tauri dev with real backend widget token...");
-  const command = tauriDevCommand();
+  const existingDevUrl = await findExistingNextDevUrl();
+  const command = tauriDevCommand(existingDevUrl);
+
+  if (existingDevUrl) {
+    console.log(`Reusing existing Next dev server at ${existingDevUrl}.`);
+  } else {
+    console.log("No existing Next dev server found. Tauri will start the default dev server.");
+  }
 
   const child = spawn(command.file, command.args, {
     env: {
@@ -439,12 +449,64 @@ function withDockerPath(env) {
   };
 }
 
-function tauriDevCommand() {
-  if (process.platform === "win32") {
-    return { args: ["/d", "/s", "/c", "npm run tauri:dev"], file: "cmd.exe" };
+async function findExistingNextDevUrl() {
+  const candidates = [
+    process.env.BUBLI_TAURI_DEV_URL,
+    process.env.NEXT_PUBLIC_APP_BASE_URL,
+    process.env.NEXT_BASE_URL,
+    "http://localhost:3791",
+    "http://localhost:3000",
+  ]
+    .filter(Boolean)
+    .map(stripTrailingSlash);
+
+  for (const candidate of [...new Set(candidates)]) {
+    if (await isReachableDevUrl(candidate)) {
+      return candidate;
+    }
   }
 
-  return { args: ["run", "tauri:dev"], file: "npm" };
+  return null;
+}
+
+async function isReachableDevUrl(url) {
+  try {
+    const response = await fetch(url, { method: "GET", signal: AbortSignal.timeout(1200) });
+    return response.ok || response.status < 500;
+  } catch {
+    return false;
+  }
+}
+
+function tauriDevCommand(existingDevUrl) {
+  if (!existingDevUrl) {
+    return { args: ["run", "tauri:dev"], file: "npm" };
+  }
+
+  const configPath = writeTauriDevConfig(existingDevUrl);
+  return {
+    args: ["dev", "--no-watch", "--config", configPath],
+    file: resolvePath(
+      "node_modules",
+      ".bin",
+      process.platform === "win32" ? "tauri.cmd" : "tauri",
+    ),
+  };
+}
+
+function writeTauriDevConfig(devUrl) {
+  const configDir = mkdtempSync(join(tmpdir(), "bubli-tauri-dev-"));
+  const configPath = join(configDir, "tauri-dev-server.json");
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      build: {
+        beforeDevCommand: "",
+        devUrl,
+      },
+    }),
+  );
+  return configPath;
 }
 
 function maskToken(value) {
