@@ -170,6 +170,12 @@ export async function syncLocalWidgetUsageSummaryToServer(
     const syncedAt = new Date().toISOString();
     const mappings = toServerUsageRollupMappings(staged.data.rollups, settings, syncedAt);
     if (mappings.length === 0) {
+      await tauriCommands
+        .markWidgetUsageSummaryFailed({
+          errorMessage: "No staged widget usage rollups matched the current backend widget settings.",
+          rollupKeys: staged.data.rollups.map((rollup) => rollup.rollupKey),
+        })
+        .catch(() => undefined);
       return failed("No staged widget usage rollups matched the current backend widget settings.", commandName);
     }
 
@@ -182,14 +188,37 @@ export async function syncLocalWidgetUsageSummaryToServer(
     const successful = settled
       .filter((result): result is PromiseFulfilledResult<{ localRollupKey: string; response: WidgetUsageRollupResponse }> => result.status === "fulfilled")
       .map((result) => result.value);
+    const successfulKeys = new Set(successful.map((result) => result.localRollupKey));
+    const failedRollupKeys = [
+      ...mappings
+        .filter((mapping) => !successfulKeys.has(mapping.localRollupKey))
+        .map((mapping) => mapping.localRollupKey),
+      ...staged.data.rollups
+        .filter((rollup) => !mappings.some((mapping) => mapping.localRollupKey === rollup.rollupKey))
+        .map((rollup) => rollup.rollupKey),
+    ];
 
     if (successful.length === 0) {
+      await tauriCommands
+        .markWidgetUsageSummaryFailed({
+          errorMessage: "All staged widget usage rollups failed to sync to the backend.",
+          rollupKeys: failedRollupKeys,
+        })
+        .catch(() => undefined);
       return failed("All staged widget usage rollups failed to sync to the backend.", commandName);
     }
 
     const responses = successful.map((result) => result.response);
     const localRollupKeys = successful.map((result) => result.localRollupKey);
     const markResult = await tauriCommands.markWidgetUsageSummarySynced({ rollupKeys: localRollupKeys });
+    if (failedRollupKeys.length > 0) {
+      await tauriCommands
+        .markWidgetUsageSummaryFailed({
+          errorMessage: "Some staged widget usage rollups failed or no longer match backend settings.",
+          rollupKeys: failedRollupKeys,
+        })
+        .catch(() => undefined);
+    }
     const rejectedCount = settled.filter((result) => result.status === "rejected").length;
     const unmatchedCount = Math.max(0, staged.data.rollups.length - mappings.length);
     const failedCount = staged.data.failedCount + rejectedCount + unmatchedCount;

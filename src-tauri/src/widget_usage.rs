@@ -78,11 +78,25 @@ pub struct WidgetUsageSummaryMarkSyncedInput {
     rollup_keys: Vec<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetUsageSummaryMarkFailedInput {
+    rollup_keys: Vec<String>,
+    error_message: Option<String>,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WidgetUsageSummaryMarkSyncedResult {
     completed_at: String,
     synced_count: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetUsageSummaryMarkFailedResult {
+    completed_at: String,
+    failed_count: i64,
 }
 
 /// Record one detailed widget usage event into the local store.
@@ -349,12 +363,127 @@ pub fn mark_widget_usage_summary_synced(
     })
 }
 
+/// Mark staged widget usage rollups as failed so the next sync tick can retry
+/// them without losing the raw local detail events.
+#[tauri::command]
+pub fn mark_widget_usage_summary_failed(
+    state: State<'_, Db>,
+    input: WidgetUsageSummaryMarkFailedInput,
+) -> Result<WidgetUsageSummaryMarkFailedResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    mark_widget_usage_summary_failed_for_conn(&conn, input)
+}
+
+fn mark_widget_usage_summary_failed_for_conn(
+    conn: &Connection,
+    input: WidgetUsageSummaryMarkFailedInput,
+) -> Result<WidgetUsageSummaryMarkFailedResult, String> {
+    let now = now_ms();
+    let mut failed = 0i64;
+    let error_message = input
+        .error_message
+        .unwrap_or_else(|| "server sync failed".to_string());
+
+    for rollup_key in input.rollup_keys {
+        let updated = conn
+            .execute(
+                "UPDATE local_widget_usage_rollups SET sync_status = 'FAILED', updated_at = ?2 \
+                 WHERE rollup_key = ?1",
+                params![rollup_key, now],
+            )
+            .map_err(|error| error.to_string())?;
+
+        if updated > 0 {
+            failed += 1;
+        }
+
+        conn.execute(
+            "UPDATE local_sync_outbox \
+             SET status = 'FAILED', retry_count = retry_count + 1, error_message = ?2, updated_at = ?3 \
+             WHERE idempotency_key = ?1 AND operation = 'widget_usage_summary'",
+            params![rollup_key, error_message, now],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
+    Ok(WidgetUsageSummaryMarkFailedResult {
+        completed_at: now_iso(),
+        failed_count: failed,
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::PENDING_WIDGET_USAGE_ROLLUPS_SQL;
+    use super::{mark_widget_usage_summary_failed_for_conn, PENDING_WIDGET_USAGE_ROLLUPS_SQL};
+    use rusqlite::Connection;
 
     #[test]
     fn staged_widget_usage_rollups_are_retry_candidates() {
         assert!(PENDING_WIDGET_USAGE_ROLLUPS_SQL.contains("'SYNC_PENDING'"));
+    }
+
+    #[test]
+    fn failed_widget_usage_rollups_are_retry_candidates() {
+        let conn = Connection::open_in_memory().expect("open sqlite");
+        conn.execute_batch(
+            "
+            CREATE TABLE local_widget_usage_rollups (
+                rollup_key TEXT PRIMARY KEY,
+                bubble_type TEXT NOT NULL,
+                summary_date TEXT NOT NULL,
+                source_event_count INTEGER NOT NULL,
+                sync_status TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            CREATE TABLE local_sync_outbox (
+                id TEXT PRIMARY KEY,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                operation TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                status TEXT NOT NULL,
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                error_message TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            INSERT INTO local_widget_usage_rollups
+                (rollup_key, bubble_type, summary_date, source_event_count, sync_status, updated_at)
+            VALUES ('2026-07-03:todo', 'todo', '2026-07-03', 3, 'SYNC_PENDING', 1);
+            INSERT INTO local_sync_outbox
+                (id, idempotency_key, operation, payload_json, status, retry_count, error_message, created_at, updated_at)
+            VALUES ('outbox-1', '2026-07-03:todo', 'widget_usage_summary', '{}', 'PENDING', 0, NULL, 1, 1);
+            ",
+        )
+        .expect("seed widget usage tables");
+
+        let result = mark_widget_usage_summary_failed_for_conn(
+            &conn,
+            super::WidgetUsageSummaryMarkFailedInput {
+                rollup_keys: vec!["2026-07-03:todo".to_string()],
+                error_message: Some("settings mismatch".to_string()),
+            },
+        )
+        .expect("mark failed");
+        assert_eq!(result.failed_count, 1);
+
+        let status: String = conn
+            .query_row(
+                "SELECT sync_status FROM local_widget_usage_rollups WHERE rollup_key = '2026-07-03:todo'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read rollup status");
+        let (outbox_status, retry_count, error_message): (String, i64, String) = conn
+            .query_row(
+                "SELECT status, retry_count, error_message FROM local_sync_outbox WHERE idempotency_key = '2026-07-03:todo'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("read outbox status");
+
+        assert_eq!(status, "FAILED");
+        assert_eq!(outbox_status, "FAILED");
+        assert_eq!(retry_count, 1);
+        assert_eq!(error_message, "settings mismatch");
     }
 }
