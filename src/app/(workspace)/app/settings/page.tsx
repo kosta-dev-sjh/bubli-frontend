@@ -45,6 +45,7 @@ import {
   type AppMonitorInfo,
   type AppMonitorPreference,
   type ManagedFolderIndexProgressResult,
+  type SqliteIntegrityResult,
 } from "@/lib/tauri/commands";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
@@ -143,8 +144,6 @@ const privacyRows: Array<{
 }> = [
   { key: "localFolderEnabled", titleKey: "settings.privacy.folder.title", descriptionKey: "settings.privacy.folder.desc" },
   { key: "activityDetectionEnabled", titleKey: "settings.privacy.activity.title", descriptionKey: "settings.privacy.activity.desc" },
-  { key: "personalAgentLocalMemoryEnabled", titleKey: "settings.privacy.memory.title", descriptionKey: "settings.privacy.memory.desc" },
-  { key: "widgetUsageLocalEventEnabled", titleKey: "settings.privacy.widget.title", descriptionKey: "settings.privacy.widget.desc" },
 ];
 
 const localeOptions = [
@@ -179,6 +178,11 @@ function byteLabel(value: number) {
 function storageLabel(t: TranslateFn, storage: StorageUsageResponse | null) {
   if (!storage) return t("settings.value.beforeCheck");
   return `${byteLabel(storage.usedBytes)} / ${byteLabel(storage.limitBytes)}`;
+}
+
+function localSqliteDiagnosticsLabel(result: SqliteIntegrityResult) {
+  const freePages = Math.max(0, result.freelistCount);
+  return `DB ${byteLabel(result.databaseSizeBytes)} · WAL ${byteLabel(result.walSizeBytes)} · ${result.pageCount} pages · free ${freePages} · ${result.journalMode}`;
 }
 
 function userToProfileDraft(user: AuthUser) {
@@ -541,10 +545,11 @@ export default function SettingsPage() {
   const checkLocalCache = useCallback(async () => {
     const result = await Promise.resolve(checkLocalSqliteIntegrity());
     if (result.status === "ready") {
+      const detail = localSqliteDiagnosticsLabel(result.data);
       setLocalActionMessage(
         result.data.ok
-          ? { text: t("settings.msg.cacheHealthy"), tone: "approved" }
-          : { text: t("settings.msg.cacheNeedsRecovery"), tone: "warning" },
+          ? { text: `${t("settings.msg.cacheHealthy")} · ${detail}`, tone: "approved" }
+          : { text: `${t("settings.msg.cacheNeedsRecovery")} · ${result.data.quickCheck} · ${detail}`, tone: "warning" },
       );
       return;
     }

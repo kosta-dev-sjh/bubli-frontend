@@ -33,6 +33,7 @@ export const TAURI_COMMANDS = {
   removeManagedFolder: "remove_managed_folder",
   markLocalFileAnalysesSent: "mark_local_file_analyses_sent",
   markLocalFileEventsSynced: "mark_local_file_events_synced",
+  markWidgetUsageSummaryFailed: "mark_widget_usage_summary_failed",
   markWidgetUsageSummarySynced: "mark_widget_usage_summary_synced",
   openLocalFile: "open_local_file",
   registerWidgetShortcut: "register_widget_shortcut",
@@ -317,8 +318,15 @@ export type LocalFileAnalysesMarkResult = {
 
 export type SqliteIntegrityResult = {
   checkedAt: string;
+  databaseSizeBytes: number;
+  freelistCount: number;
+  journalMode: string;
   ok: boolean;
+  pageCount: number;
+  pageSize: number;
+  quickCheck: string;
   recoveryRequired: boolean;
+  walSizeBytes: number;
 };
 
 export type TauriAuthSessionStoreInput = {
@@ -381,7 +389,12 @@ export type LocalRoomMessageSyncResult = {
 };
 
 export type WidgetSummaryCacheStoreInput = {
+  cacheKey?: string | null;
   summaryJson: string;
+};
+
+export type WidgetSummaryCacheReadInput = {
+  cacheKey?: string | null;
 };
 
 export type WidgetSummaryCacheReadResult = {
@@ -543,6 +556,16 @@ export type WidgetUsageSummaryMarkSyncedInput = {
 export type WidgetUsageSummaryMarkSyncedResult = {
   completedAt: string;
   syncedCount: number;
+};
+
+export type WidgetUsageSummaryMarkFailedInput = {
+  errorMessage?: string | null;
+  rollupKeys: string[];
+};
+
+export type WidgetUsageSummaryMarkFailedResult = {
+  completedAt: string;
+  failedCount: number;
 };
 
 export type WidgetBubbleType = "agent" | "alert" | "chat" | "memo" | "resource" | "schedule" | "timer" | "todo";
@@ -734,7 +757,7 @@ export type TauriCommandContract = {
     result: LocalRoomMessageReadResult;
   };
   read_widget_summary_cache: {
-    args: undefined;
+    args: WidgetSummaryCacheReadInput | undefined;
     result: WidgetSummaryCacheReadResult | null;
   };
   reindex_file: {
@@ -772,6 +795,10 @@ export type TauriCommandContract = {
   mark_widget_usage_summary_synced: {
     args: WidgetUsageSummaryMarkSyncedInput;
     result: WidgetUsageSummaryMarkSyncedResult;
+  };
+  mark_widget_usage_summary_failed: {
+    args: WidgetUsageSummaryMarkFailedInput;
+    result: WidgetUsageSummaryMarkFailedResult;
   };
   open_local_file: {
     args: LocalFileOpenInput;
@@ -968,8 +995,11 @@ export const tauriCommands = {
   readRoomMessages(input: LocalRoomMessageReadInput) {
     return invokeTauri<LocalRoomMessageReadResult>(TAURI_COMMANDS.readRoomMessages, { input });
   },
-  readWidgetSummaryCache() {
-    return invokeTauri<WidgetSummaryCacheReadResult | null>(TAURI_COMMANDS.readWidgetSummaryCache);
+  readWidgetSummaryCache(input?: WidgetSummaryCacheReadInput) {
+    return invokeTauri<WidgetSummaryCacheReadResult | null>(
+      TAURI_COMMANDS.readWidgetSummaryCache,
+      input ? { input } : undefined,
+    );
   },
   reindexFile(input: LocalFileReindexInput) {
     return invokeTauri<LocalFileReindexResult>(TAURI_COMMANDS.reindexFile, { input });
@@ -994,6 +1024,9 @@ export const tauriCommands = {
   },
   markLocalFileEventsSynced(input: LocalFileEventsMarkSyncedInput) {
     return invokeTauri<LocalFileEventsMarkSyncedResult>(TAURI_COMMANDS.markLocalFileEventsSynced, { input });
+  },
+  markWidgetUsageSummaryFailed(input: WidgetUsageSummaryMarkFailedInput) {
+    return invokeTauri<WidgetUsageSummaryMarkFailedResult>(TAURI_COMMANDS.markWidgetUsageSummaryFailed, { input });
   },
   markWidgetUsageSummarySynced(input: WidgetUsageSummaryMarkSyncedInput) {
     return invokeTauri<WidgetUsageSummaryMarkSyncedResult>(TAURI_COMMANDS.markWidgetUsageSummarySynced, { input });

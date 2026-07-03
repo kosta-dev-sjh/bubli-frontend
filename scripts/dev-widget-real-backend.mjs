@@ -15,6 +15,8 @@ const POSTGRES_DB = process.env.BUBLI_DEV_POSTGRES_DB ?? "bubli";
 
 const SEED_USER_ID = "11111111-1111-4111-8111-111111111111";
 const SEED_ROOM_ID = "22222222-2222-4222-8222-222222222222";
+const SEED_TASK_ID = "66666666-6666-4666-8666-666666666661";
+const SEED_WIDGET_TASK_ITEM_STATE_ID = "12121212-1212-4121-8121-121212121212";
 
 if (!["seed", "token", "tauri"].includes(COMMAND)) {
   console.error("Usage: node scripts/dev-widget-real-backend.mjs [seed|token|tauri]");
@@ -46,13 +48,18 @@ if (COMMAND === "tauri") {
 function seedPostgres() {
   console.log(`Seeding ${DOCKER_CONTAINER}/${POSTGRES_DB} for user ${SEED_USER_ID}...`);
 
+  runPostgresSql(buildSeedSql(), "PostgreSQL seed");
+  console.log("Seed rows are present.");
+}
+
+function runPostgresSql(sql, label, extraArgs = []) {
   const result = spawnSync(
     "docker",
-    ["exec", "-i", DOCKER_CONTAINER, "psql", "-U", POSTGRES_USER, "-d", POSTGRES_DB],
+    ["exec", "-i", DOCKER_CONTAINER, "psql", "-U", POSTGRES_USER, "-d", POSTGRES_DB, ...extraArgs],
     {
       encoding: "utf8",
       env: withDockerPath(process.env),
-      input: buildSeedSql(),
+      input: sql,
       stdio: ["pipe", "pipe", "pipe"],
     },
   );
@@ -64,10 +71,20 @@ function seedPostgres() {
   if (result.status !== 0) {
     console.error(result.stdout);
     console.error(result.stderr);
-    throw new Error(`PostgreSQL seed failed with exit code ${result.status}.`);
+    throw new Error(`${label} failed with exit code ${result.status}.`);
   }
 
-  console.log("Seed rows are present.");
+  return result.stdout;
+}
+
+function queryPostgresScalar(sql) {
+  const stdout = runPostgresSql(sql, "PostgreSQL scalar query", ["-t", "-A"]);
+  const lines = stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return lines.at(-1) ?? "";
 }
 
 async function smokeBackend(accessToken) {
@@ -94,12 +111,74 @@ async function smokeBackend(accessToken) {
   );
   assert(dashboard.todayTasks !== undefined, "dashboard response did not include todayTasks");
 
+  const privacyConsents = await apiGet("/api/me/privacy-consents", headers);
+  assertPrivacyConsent(privacyConsents, "ACTIVITY_CONTEXT", true, "seeded activity consent");
+  assertPrivacyConsent(privacyConsents, "MANAGED_FOLDER", true, "seeded managed folder consent");
+
+  const managedFolderDisabled = await apiPatch("/api/me/privacy-consents", headers, {
+    items: [{ consentType: "MANAGED_FOLDER", enabled: false }],
+  });
+  assertPrivacyConsent(managedFolderDisabled, "MANAGED_FOLDER", false, "managed folder consent disable");
+
+  const managedFolderEnabled = await apiPatch("/api/me/privacy-consents", headers, {
+    items: [{ consentType: "MANAGED_FOLDER", enabled: true }],
+  });
+  assertPrivacyConsent(managedFolderEnabled, "MANAGED_FOLDER", true, "managed folder consent re-enable");
+
   const personalWidgetContext = await apiPatch("/api/widget/context", headers, { selectedRoomId: null });
   assert(personalWidgetContext.mode === "PERSONAL", "widget context did not switch to PERSONAL mode");
 
   const roomWidgetContext = await apiPatch("/api/widget/context", headers, { selectedRoomId: SEED_ROOM_ID });
   assert(roomWidgetContext.selectedRoomId === SEED_ROOM_ID, "widget context did not switch back to the seeded room");
   assert(roomWidgetContext.mode === "ROOM", "widget context did not return ROOM mode");
+
+  const pinnedItemState = await apiPatch(`/api/widget/items/${SEED_WIDGET_TASK_ITEM_STATE_ID}/state`, headers, {
+    bubbleType: "TODO",
+    itemId: SEED_TASK_ID,
+    itemType: "TASK",
+    state: "PINNED",
+  });
+  assert(pinnedItemState === null || pinnedItemState === undefined, "widget item state update should not return a body");
+  assert(
+    queryPostgresScalar(`SELECT state FROM widget_item_states WHERE id = '${SEED_WIDGET_TASK_ITEM_STATE_ID}';`) ===
+      "PINNED",
+    "widget item state PATCH did not persist PINNED",
+  );
+
+  await apiPatch(`/api/widget/items/${SEED_WIDGET_TASK_ITEM_STATE_ID}/state`, headers, {
+    bubbleType: "TODO",
+    itemId: SEED_TASK_ID,
+    itemType: "TASK",
+    state: "CONFIRMED",
+  });
+  assert(
+    queryPostgresScalar(`SELECT state FROM widget_item_states WHERE id = '${SEED_WIDGET_TASK_ITEM_STATE_ID}';`) ===
+      "CONFIRMED",
+    "widget item state PATCH did not persist CONFIRMED",
+  );
+
+  await apiPatch(`/api/widget/items/${SEED_TASK_ID}/state`, headers, {
+    bubbleType: "TODO",
+    itemId: SEED_TASK_ID,
+    itemType: "TASK",
+    state: "SNOOZED",
+  });
+  assert(
+    queryPostgresScalar(`SELECT state FROM widget_item_states WHERE id = '${SEED_WIDGET_TASK_ITEM_STATE_ID}';`) ===
+      "SNOOZED",
+    "widget item state PATCH did not persist SNOOZED when called with the task item id",
+  );
+  const itemStates = await apiGet(`/api/widget/items/states?itemIds=${SEED_TASK_ID}`, headers);
+  assert(
+    itemStates.some(
+      (itemState) =>
+        itemState.itemId === SEED_TASK_ID &&
+        itemState.bubbleType === "TODO" &&
+        itemState.itemType === "TASK" &&
+        itemState.state === "SNOOZED",
+    ),
+    "widget item state query did not return the persisted task state",
+  );
 
   const chatRooms = await apiGet("/api/chat/rooms?page=0&size=20", headers);
   const roomChat = chatRooms.items?.find((room) => room.roomId === SEED_ROOM_ID);
@@ -116,6 +195,64 @@ async function smokeBackend(accessToken) {
     lastReadSequence: chatSend.roomSequence,
   });
   assert(chatRead.lastReadSequence === chatSend.roomSequence, "widget chat read marker did not return the sent sequence");
+
+  const voiceRoom = await apiPost("/api/voice/rooms", headers, { roomId: SEED_ROOM_ID });
+  assert(voiceRoom.roomId === SEED_ROOM_ID, "voice room create did not return the seeded project room id");
+  assert(voiceRoom.createdByUserId === SEED_USER_ID, "voice room create did not return the creator user id");
+  assert(voiceRoom.status === "OPEN", "voice room create did not return OPEN status");
+  assert(
+    voiceRoom.participants?.some((participant) => participant.userId === SEED_USER_ID),
+    "voice room create did not include the seed user as a participant",
+  );
+
+  const voiceRoomState = await apiGet(`/api/voice/rooms/${voiceRoom.id}`, headers);
+  assert(voiceRoomState.createdByUserId === SEED_USER_ID, "voice room read did not return the creator user id");
+  assert(voiceRoomState.participants?.length >= 1, "voice room read did not include participants");
+
+  const voiceParticipant = await apiPatch(`/api/voice/rooms/${voiceRoom.id}/mic`, headers, {
+    micStatus: "MUTED",
+  });
+  assert(voiceParticipant.userId === SEED_USER_ID, "voice mic update did not return the seed user participant");
+
+  const maybeVoiceToken = await apiPostOptional(`/api/voice/rooms/${voiceRoom.id}/token`, headers, {});
+  if (maybeVoiceToken.ok) {
+    assert(maybeVoiceToken.data.voiceRoomId === voiceRoom.id, "voice token did not return the voice room id");
+    assert(maybeVoiceToken.data.participantId, "voice token did not return a participant id");
+    assert(maybeVoiceToken.data.serverUrl !== undefined, "voice token did not include serverUrl");
+  } else {
+    console.warn(`Voice token smoke skipped: ${maybeVoiceToken.message}`);
+  }
+
+  const voiceRoomLeft = await apiPatch(`/api/voice/rooms/${voiceRoom.id}/leave`, headers, {});
+  assert(voiceRoomLeft.id === voiceRoom.id, "voice leave did not return the same voice room");
+
+  const timeLog = await apiPost("/api/time-logs/start", headers, {
+    idempotencyKey: `codex-tauri-timer-smoke-${Date.now()}`,
+    roomId: SEED_ROOM_ID,
+    timerType: "WORK",
+  });
+  assert(timeLog.status === "RUNNING", "timer start did not return RUNNING status");
+  assert(timeLog.roomId === SEED_ROOM_ID, "timer start did not return the seeded room id");
+  assert(timeLog.timerType === "WORK", "timer start did not return WORK timer type");
+
+  const timerDashboard = await apiGet("/api/dashboard/work", headers);
+  assert(timerDashboard.runningTimer?.id === timeLog.id, "dashboard work did not include the running smoke timer");
+  const timerWidgetSummary = await apiGet("/api/widget/summary", headers);
+  assert(timerWidgetSummary.runningTimer?.id === timeLog.id, "widget summary did not include the running smoke timer");
+
+  const heartbeatTimer = await apiPatch(`/api/time-logs/${timeLog.id}/heartbeat`, headers, {});
+  assert(heartbeatTimer.status === "RUNNING", "timer heartbeat did not keep the timer RUNNING");
+  assert(heartbeatTimer.lastHeartbeatAt, "timer heartbeat did not return lastHeartbeatAt");
+
+  const pausedTimer = await apiPatch(`/api/time-logs/${timeLog.id}/pause`, headers, {});
+  assert(pausedTimer.status === "PAUSED", "timer pause did not return PAUSED status");
+
+  const resumedTimer = await apiPatch(`/api/time-logs/${timeLog.id}/resume`, headers, {});
+  assert(resumedTimer.status === "RUNNING", "timer resume did not return RUNNING status");
+
+  const stoppedTimer = await apiPatch(`/api/time-logs/${timeLog.id}/stop`, headers, {});
+  assert(stoppedTimer.status === "ENDED", "timer stop did not return ENDED status");
+  assert(stoppedTimer.endedAt, "timer stop did not return endedAt");
 
   const todoSetting = settings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
   assert(todoSetting?.id, "widget settings did not include a TODO bubble setting id");
@@ -168,6 +305,58 @@ async function smokeBackend(accessToken) {
   const syncedResourceId = localFileSync.results[0].resourceId;
   assert(syncedResourceId, "local file event sync did not return a resource id");
 
+  const updatedLocalEventId = `codex-local-sync-updated-${Date.now()}`;
+  const localFileUpdate = await apiPost("/api/local-file-events/sync", headers, {
+    events: [
+      {
+        eventType: "UPDATED",
+        fileName: "codex-local-sync-smoke-updated.txt",
+        fileSizeBytes: 112,
+        localEventId: updatedLocalEventId,
+        mimeType: "text/plain",
+        resourceId: syncedResourceId,
+      },
+    ],
+  });
+  assert(
+    localFileUpdate.results?.[0]?.status === "SYNCED",
+    "local file event update sync did not return a SYNCED result",
+  );
+  assertOptionalLocalEventId(localFileUpdate.results?.[0], updatedLocalEventId, "local file event update sync");
+  assert(
+    localFileUpdate.results?.[0]?.resourceId === syncedResourceId,
+    "local file event update sync did not preserve the synced resource id",
+  );
+
+  const localFileAnalysis = await apiPost("/api/local-file-analyses", headers, {
+    analyzedCharCount: 112,
+    checksum: "codex-local-analysis-smoke-checksum",
+    combinedText:
+      "Codex local file analysis smoke verifies that managed folder text extraction reaches the backend analysis queue.",
+    extractionMethod: "BM25_MMR_KEY_SENTENCE_V1",
+    fileName: "codex-local-sync-smoke.txt",
+    keySentences: [
+      {
+        endOffset: 112,
+        index: 0,
+        score: 1,
+        startOffset: 0,
+        text: "Codex local file analysis smoke verifies that managed folder text extraction reaches the backend analysis queue.",
+      },
+    ],
+    localFileId: `codex-local-file-${Date.now()}`,
+    mimeType: "text/plain",
+    resourceId: syncedResourceId,
+    sourceCharCount: 112,
+    textTruncated: false,
+  });
+  assert(localFileAnalysis.jobId, "local file analysis did not return an agent job id");
+  assert(localFileAnalysis.resourceId === syncedResourceId, "local file analysis did not return the synced resource id");
+  assert(
+    localFileAnalysis.jobType === "ANALYZE_RESOURCE",
+    "local file analysis did not create an ANALYZE_RESOURCE job",
+  );
+
   const deletedLocalEventId = `codex-local-sync-deleted-${Date.now()}`;
   const localFileDelete = await apiPost("/api/local-file-events/sync", headers, {
     events: [
@@ -186,6 +375,32 @@ async function smokeBackend(accessToken) {
     "local file event delete sync did not return a SYNCED result",
   );
   assertOptionalLocalEventId(localFileDelete.results?.[0], deletedLocalEventId, "local file event delete sync");
+
+  const activityStartedAt = new Date(Date.now() - 120_000).toISOString();
+  const activityEndedAt = new Date().toISOString();
+  const activitySmoke = await apiPost("/api/activity/current-app", headers, {
+    appName: "Codex Tauri activity smoke",
+    durationSeconds: 120,
+    endedAt: activityEndedAt,
+    roomId: SEED_ROOM_ID,
+    startedAt: activityStartedAt,
+    windowTitle: "Real backend activity roundtrip",
+  });
+  assert(activitySmoke.appName === "Codex Tauri activity smoke", "activity record did not return the smoke app name");
+  assert(activitySmoke.roomId === SEED_ROOM_ID, "activity record did not return the seeded room id");
+
+  const todayActivities = await apiGet("/api/activity/today", headers);
+  assert(
+    todayActivities.some((activity) => activity.id === activitySmoke.id),
+    "today activities did not include the saved smoke activity",
+  );
+
+  await apiDelete(`/api/activity/${activitySmoke.id}`, headers);
+  const todayActivitiesAfterDelete = await apiGet("/api/activity/today", headers);
+  assert(
+    !todayActivitiesAfterDelete.some((activity) => activity.id === activitySmoke.id),
+    "today activities still included the deleted smoke activity",
+  );
 
   const [dailySummaries, generatedDocuments, roomMemorySummaries] = await Promise.all([
     apiGet("/api/daily-summaries", headers),
@@ -219,8 +434,14 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/widget/items/{id}/state, /api/widget/items/states, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
+}
+
+function assertPrivacyConsent(response, consentType, enabled, label) {
+  const item = response.items?.find((entry) => entry.consentType === consentType);
+  assert(item, `${label} did not include ${consentType}`);
+  assert(item.enabled === enabled, `${label} expected ${consentType}=${enabled}`);
 }
 
 async function runTauriDev(accessToken) {
@@ -245,7 +466,8 @@ async function runTauriDev(accessToken) {
     stdio: "inherit",
   });
 
-  const exitCode = await new Promise((resolve) => {
+  const exitCode = await new Promise((resolve, reject) => {
+    child.on("error", reject);
     child.on("exit", resolve);
   });
 
@@ -281,6 +503,28 @@ async function apiPost(path, headers, body) {
   return payload.data;
 }
 
+async function apiPostOptional(path, headers, body) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    body: JSON.stringify(body),
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || !payload?.success) {
+    return {
+      data: null,
+      message: `${path} returned HTTP ${response.status}: ${JSON.stringify(payload)}`,
+      ok: false,
+    };
+  }
+
+  return { data: payload.data, message: "ok", ok: true };
+}
+
 async function apiPatch(path, headers, body) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     body: JSON.stringify(body),
@@ -289,6 +533,20 @@ async function apiPatch(path, headers, body) {
       "Content-Type": "application/json",
     },
     method: "PATCH",
+  });
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || !payload?.success) {
+    throw new Error(`${path} returned HTTP ${response.status}: ${JSON.stringify(payload)}`);
+  }
+
+  return payload.data;
+}
+
+async function apiDelete(path, headers) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers,
+    method: "DELETE",
   });
   const payload = await response.json().catch(() => null);
 
@@ -329,6 +587,19 @@ VALUES
 ('${SEED_USER_ID}', 'MANAGED_FOLDER', true, now())
 ON CONFLICT (user_id, consent_type) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now();
 
+UPDATE time_logs
+SET status = 'ENDED',
+    ended_at = COALESCE(ended_at, now()),
+    updated_at = now()
+WHERE user_id = '${SEED_USER_ID}'
+  AND status IN ('RUNNING', 'PAUSED', 'NEEDS_RECOVERY');
+
+DELETE FROM voice_participants
+WHERE voice_room_id IN (SELECT id FROM voice_rooms WHERE room_id = '${SEED_ROOM_ID}');
+
+DELETE FROM voice_rooms
+WHERE room_id = '${SEED_ROOM_ID}';
+
 INSERT INTO project_rooms (id, created_by_user_id, name, client_name, contract_amount, payment_status, payment_due_date, paid_at, status, closed_at, created_at, updated_at)
 VALUES ('${SEED_ROOM_ID}', '${SEED_USER_ID}', 'Codex Local Room', 'Bubli QA', 1200000.00, 'PENDING', current_date + 7, NULL, 'ACTIVE', NULL, now(), now())
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, updated_at = now();
@@ -353,9 +624,14 @@ ON CONFLICT (user_id, bubble_type) DO UPDATE SET enabled = EXCLUDED.enabled, x =
 
 INSERT INTO tasks (id, owner_user_id, assignee_user_id, room_id, wbs_item_id, title, description, status, due_at, created_at, updated_at)
 VALUES
-('66666666-6666-4666-8666-666666666661', '${SEED_USER_ID}', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, 'Tauri widget real API smoke task', 'Seeded through PostgreSQL for desktop widget integration verification.', 'IN_PROGRESS', now() + interval '3 hours', now(), now()),
+('${SEED_TASK_ID}', '${SEED_USER_ID}', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, 'Tauri widget real API smoke task', 'Seeded through PostgreSQL for desktop widget integration verification.', 'IN_PROGRESS', now() + interval '3 hours', now(), now()),
 ('66666666-6666-4666-8666-666666666662', '${SEED_USER_ID}', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, 'Confirm backend summary rendering', 'This item should arrive through /api/widget/summary.', 'TODO', now() + interval '1 day', now(), now())
 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, status = EXCLUDED.status, due_at = EXCLUDED.due_at, updated_at = now();
+
+INSERT INTO widget_item_states (id, user_id, bubble_type, item_type, item_id, state, created_at, updated_at)
+VALUES ('${SEED_WIDGET_TASK_ITEM_STATE_ID}', '${SEED_USER_ID}', 'TODO', 'TASK', '${SEED_TASK_ID}', 'VISIBLE', now(), now())
+ON CONFLICT (user_id, bubble_type, item_type, item_id)
+DO UPDATE SET id = EXCLUDED.id, state = EXCLUDED.state, updated_at = now();
 
 INSERT INTO schedules (id, owner_user_id, room_id, task_id, wbs_item_id, google_event_id, title, starts_at, ends_at, is_all_day, sync_status, last_synced_at, created_at, updated_at)
 VALUES ('77777777-7777-4777-8777-777777777777', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, NULL, NULL, 'Desktop widget backend sync check', now() + interval '2 hours', now() + interval '3 hours', false, 'LOCAL_ONLY', NULL, now(), now())
@@ -503,18 +779,37 @@ async function isReachableDevUrl(url) {
 
 function tauriDevCommand(existingDevUrl) {
   if (!existingDevUrl) {
-    return { args: ["run", "tauri:dev"], file: "npm" };
+    if (process.platform === "win32") {
+      return { args: ["/d", "/s", "/c", "npm.cmd run tauri:dev"], file: process.env.ComSpec ?? "cmd.exe" };
+    }
+
+    return {
+      args: ["run", "tauri:dev"],
+      file: "npm",
+    };
   }
 
   const configPath = writeTauriDevConfig(existingDevUrl);
+  const tauriBinary = resolvePath(
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? "tauri.cmd" : "tauri",
+  );
+  if (process.platform === "win32") {
+    return {
+      args: ["/d", "/s", "/c", [quoteForCmd(tauriBinary), "dev", "--no-watch", "--config", quoteForCmd(configPath)].join(" ")],
+      file: process.env.ComSpec ?? "cmd.exe",
+    };
+  }
+
   return {
     args: ["dev", "--no-watch", "--config", configPath],
-    file: resolvePath(
-      "node_modules",
-      ".bin",
-      process.platform === "win32" ? "tauri.cmd" : "tauri",
-    ),
+    file: tauriBinary,
   };
+}
+
+function quoteForCmd(value) {
+  return `"${String(value).replaceAll("\"", "\"\"")}"`;
 }
 
 function writeTauriDevConfig(devUrl) {

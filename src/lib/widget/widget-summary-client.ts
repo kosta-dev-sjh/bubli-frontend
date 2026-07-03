@@ -1,4 +1,5 @@
 import { widgetApi } from "@/features/widget/api/widgetApi";
+import { getStoredAuthSession } from "@/lib/auth/auth-session";
 import { getLocalAdapterEnvironment } from "@/lib/local/adapter-result";
 import { translate } from "@/lib/i18n/translate";
 import { tauriCommands } from "@/lib/tauri/commands";
@@ -135,7 +136,7 @@ async function readServerWidgetSummary(
 }
 
 async function readLocalWidgetSummaryCache(): Promise<WidgetSummaryResponse | null> {
-  const cached = await tauriCommands.readWidgetSummaryCache();
+  const cached = await tauriCommands.readWidgetSummaryCache({ cacheKey: getWidgetSummaryCacheKey() });
   if (!cached) return null;
   const parsed = JSON.parse(cached.summaryJson);
   return isWidgetSummaryResponse(parsed) ? parsed : null;
@@ -143,8 +144,27 @@ async function readLocalWidgetSummaryCache(): Promise<WidgetSummaryResponse | nu
 
 async function writeLocalWidgetSummaryCache(summary: WidgetSummaryResponse) {
   await tauriCommands.storeWidgetSummaryCache({
+    cacheKey: getWidgetSummaryCacheKey(),
     summaryJson: JSON.stringify(summary),
   });
+}
+
+function getWidgetSummaryCacheKey() {
+  return getJwtSubject(getStoredAuthSession()?.accessToken ?? null);
+}
+
+function getJwtSubject(token: string | null) {
+  if (!token) return null;
+
+  try {
+    const [, payload] = token.split(".");
+    if (!payload) return null;
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    const parsed = JSON.parse(atob(base64)) as { sub?: unknown };
+    return typeof parsed.sub === "string" && parsed.sub.trim() ? parsed.sub.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 function isWidgetSummaryResponse(value: unknown): value is WidgetSummaryResponse {

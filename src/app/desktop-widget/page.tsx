@@ -38,7 +38,7 @@ import { readWidgetSummary } from "@/lib/widget";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import type { TimeLogResponse } from "@/types/api/timer";
-import type { WidgetBubbleType as ApiWidgetBubbleType } from "@/types/api/widget";
+import type { WidgetBubbleType as ApiWidgetBubbleType, WidgetSummaryResponse } from "@/types/api/widget";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
@@ -63,6 +63,7 @@ const apiItemBubbleTypeMap: Record<WidgetBubbleType, ApiWidgetBubbleType> = {
 };
 
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
+type WidgetItemStateAction = "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED";
 
 function subscribeToClientMount(onStoreChange: () => void) {
   const timeoutId = window.setTimeout(onStoreChange, 0);
@@ -83,6 +84,10 @@ function getRequestedBubble(value: string | null): WidgetBubbleType {
 
 function isDesktopWidgetBubble(value: string): value is WidgetBubbleType {
   return desktopWidgetBubbleTypes.includes(value as WidgetBubbleType);
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function getRequestedMode(value: string | null): WidgetWindowMode {
@@ -272,6 +277,71 @@ function withBubble(id: WidgetBubbleType, patch: Partial<WidgetPreviewBubble>): 
   };
 }
 
+function applyItemStateActionToBubble(
+  bubble: WidgetPreviewBubble | undefined,
+  itemId: string,
+  state: WidgetItemStateAction,
+): WidgetPreviewBubble | undefined {
+  if (!bubble) return bubble;
+  if (state === "CONFIRMED" || state === "HIDDEN" || state === "SNOOZED") {
+    return { ...bubble, rows: bubble.rows.filter((row) => row.id !== itemId) };
+  }
+
+  const target = bubble.rows.find((row) => row.id === itemId);
+  if (!target) return bubble;
+  return {
+    ...bubble,
+    rows: [target, ...bubble.rows.filter((row) => row.id !== itemId)],
+  };
+}
+
+function applyItemStateOverrides(
+  bubbles: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>,
+  overrides: Record<string, WidgetItemStateAction>,
+): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
+  return Object.fromEntries(
+    Object.entries(bubbles).map(([bubbleType, bubble]) => {
+      if (!bubble) return [bubbleType, bubble];
+      return [
+        bubbleType,
+        Object.entries(overrides).reduce<WidgetPreviewBubble>(
+          (current, [itemId, state]) => applyItemStateActionToBubble(current, itemId, state) ?? current,
+          bubble,
+        ),
+      ];
+    }),
+  ) as Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
+}
+
+function collectWidgetItemIds(bubbles: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>) {
+  return [
+    ...new Set(
+      Object.values(bubbles)
+        .flatMap((bubble) => bubble?.rows ?? [])
+        .map((row) => row.id)
+        .filter(isUuid),
+    ),
+  ];
+}
+
+function itemStateResponseToOverrides(
+  states: Awaited<ReturnType<typeof widgetApi.listItemStates>>,
+): Record<string, WidgetItemStateAction> {
+  return Object.fromEntries(
+    states.flatMap((itemState) => {
+      if (
+        itemState.state === "CONFIRMED" ||
+        itemState.state === "HIDDEN" ||
+        itemState.state === "PINNED" ||
+        itemState.state === "SNOOZED"
+      ) {
+        return [[itemState.itemId, itemState.state]];
+      }
+      return [];
+    }),
+  );
+}
+
 function buildNotificationSignal(t: TranslateFn, notifications: WidgetNotificationResponse[]): WidgetNotificationSignal {
   const unread = notifications.filter((item) => item.status === "UNREAD");
   return {
@@ -310,24 +380,35 @@ function buildDisplayBubbles(input: {
   const scheduleItems = (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules).slice(0, 3);
   const memoItems = input.memos.filter((item) => item.status === "ACTIVE").slice(0, 3);
   const fileItems = input.resources.filter((item) => item.kind !== "MEMO").slice(0, 3);
-  const agentItems = input.suggestions.slice(0, 3);
+  const agentRows =
+    input.suggestions.length > 0
+      ? input.suggestions.slice(0, 3).map((item) => ({
+          id: item.suggestionId,
+          kind: "agent" as const,
+          label: suggestionTitle(item),
+          status: suggestionStatusLabel(t, item.status),
+        }))
+      : (input.dashboard?.agentSuggestionSummary ?? []).slice(0, 3).map((line, index) => ({
+          id: `agent-summary-${index}`,
+          kind: "agent" as const,
+          label: line,
+          status: t("widget.suggestion.draft"),
+        }));
   const unreadNotifications = input.notifications.filter((item) => item.status === "UNREAD").slice(0, 3);
-  const unreadCount = input.notifications.filter((item) => item.status === "UNREAD").length;
+  const unreadCount = Math.max(
+    input.notifications.filter((item) => item.status === "UNREAD").length,
+    input.dashboard?.unreadNotificationCount ?? 0,
+  );
   const voiceParticipants = input.voiceRoom?.participants.filter((item) => item.status === "JOINED") ?? [];
 
   return {
     agent: withBubble("agent", {
-      compactLabel: t("widget.agent.candidateCount", { count: agentItems.length }),
-      metric: String(agentItems.length),
-      notificationLabel: agentItems.length > 0 ? t("widget.agent.waitingCandidates") : t("widget.agent.noWaitingCandidates"),
-      panelBody: agentItems.length > 0 ? t("widget.agent.onlyBeforeApproval") : t("widget.agent.noWaiting"),
+      compactLabel: t("widget.agent.candidateCount", { count: agentRows.length }),
+      metric: String(agentRows.length),
+      notificationLabel: agentRows.length > 0 ? t("widget.agent.waitingCandidates") : t("widget.agent.noWaitingCandidates"),
+      panelBody: agentRows.length > 0 ? t("widget.agent.onlyBeforeApproval") : t("widget.agent.noWaiting"),
       roomLabel: label,
-      rows: agentItems.map((item) => ({
-        id: item.suggestionId,
-        kind: "agent",
-        label: suggestionTitle(item),
-        status: suggestionStatusLabel(t, item.status),
-      })),
+      rows: agentRows,
     }),
     alert: withBubble("alert", {
       actionLabel: t("widget.alert.action"),
@@ -479,6 +560,69 @@ function buildEmptyDisplayBubbles(t: TranslateFn, roomId?: string | null) {
   }, t);
 }
 
+function summaryTaskToWidgetTask(task: NonNullable<WidgetSummaryResponse["tasks"]>[number]): WidgetTaskResponse {
+  return {
+    assigneeUserId: task.assigneeUserId ?? null,
+    createdAt: task.createdAt,
+    description: task.description ?? null,
+    dueAt: task.dueAt ?? null,
+    id: task.id,
+    ownerUserId: task.ownerUserId ?? null,
+    roomId: task.roomId ?? null,
+    status: task.status,
+    title: task.title,
+    updatedAt: task.updatedAt,
+    wbsItemId: task.wbsItemId ?? null,
+  };
+}
+
+function summaryScheduleToWidgetSchedule(
+  schedule: NonNullable<WidgetSummaryResponse["schedules"]>[number],
+): WidgetScheduleResponse {
+  return {
+    allDay: schedule.allDay,
+    createdAt: schedule.createdAt,
+    endsAt: schedule.endsAt ?? null,
+    googleEventId: schedule.googleEventId ?? null,
+    id: schedule.id,
+    lastSyncedAt: schedule.lastSyncedAt ?? null,
+    ownerUserId: schedule.ownerUserId,
+    roomId: schedule.roomId ?? null,
+    startsAt: schedule.startsAt,
+    syncStatus: schedule.syncStatus,
+    taskId: schedule.taskId ?? null,
+    title: schedule.title,
+    updatedAt: schedule.updatedAt,
+    wbsItemId: schedule.wbsItemId ?? null,
+  };
+}
+
+function dashboardFromWidgetSummary(summary: WidgetSummaryResponse | null): WidgetDashboardWorkResponse | null {
+  if (!summary) return null;
+
+  const todayTasks = (summary.tasks ?? []).map(summaryTaskToWidgetTask);
+  const todaySchedules = (summary.schedules ?? []).map(summaryScheduleToWidgetSchedule);
+
+  return {
+    agentSuggestionSummary: summary.agentSuggestionSummary ?? [],
+    runningTimer: summary.runningTimer ?? null,
+    todaySchedules,
+    todayTasks,
+    unreadNotificationCount: summary.unreadNotificationCount ?? 0,
+    upcomingDeadlines: [],
+  };
+}
+
+async function readWidgetDisplaySummary(): Promise<WidgetSummaryResponse | null> {
+  const serverResult = await readWidgetSummary({ preferLocalCache: false }).catch(() => null);
+  if (serverResult?.status === "ready") return serverResult.data;
+
+  const cacheResult = await readWidgetSummary({
+    fetchServerSummary: () => Promise.reject(new Error("server widget summary already failed")),
+  }).catch(() => null);
+  return cacheResult?.status === "ready" ? cacheResult.data : null;
+}
+
 function DesktopWidgetSurface() {
   const { t } = useI18n();
   const isTauri = isTauriRuntime();
@@ -508,6 +652,7 @@ function DesktopWidgetSurface() {
   const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>(() => buildEmptyDisplayBubbles(t, requestedRoomId));
   const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID ?? null);
   const [communicationRevision, setCommunicationRevision] = useState(0);
+  const [itemStateOverrides, setItemStateOverrides] = useState<Record<string, WidgetItemStateAction>>({});
   const [memoRevision, setMemoRevision] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
   const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
@@ -767,18 +912,15 @@ function DesktopWidgetSurface() {
 
     async function loadDisplayApiState() {
       let selectedRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
-      if (!selectedRoomId) {
-        const summaryResult = await readWidgetSummary().catch(() => null);
-        const summary = summaryResult?.status === "ready" ? summaryResult.data : null;
-        if (summary?.context) {
-          selectedRoomId = summary.context.selectedRoomId ?? requestedRoomId ?? null;
-          if (!cancelled) {
-            setWidgetContext((current) => {
-              if (summary.context.selectedRoomId || !requestedRoomId) return summary.context;
-              return current ?? { mode: "ROOM", selectedRoomId: requestedRoomId };
-            });
-            setServerSettings(summary.bubbles ?? []);
-          }
+      const summary = await readWidgetDisplaySummary();
+      if (summary?.context) {
+        selectedRoomId = selectedRoomId ?? summary.context.selectedRoomId ?? requestedRoomId ?? null;
+        if (!cancelled) {
+          setWidgetContext((current) => {
+            if (summary.context.selectedRoomId || !requestedRoomId) return summary.context;
+            return current ?? { mode: "ROOM", selectedRoomId: requestedRoomId };
+          });
+          setServerSettings(summary.bubbles ?? []);
         }
       }
 
@@ -829,13 +971,13 @@ function DesktopWidgetSurface() {
       }
 
       setNotificationSignal(buildNotificationSignal(t, notifications));
-      const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
+      const summaryDashboard = dashboardFromWidgetSummary(summary);
+      const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : summaryDashboard;
       const activeTimer = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
       const messageItems = messages?.items ?? cachedMessages;
       setActiveTimerHeartbeatId(activeTimer?.status === "RUNNING" ? activeTimer.id : null);
 
-      setDisplayBubbles(
-        buildDisplayBubbles({
+      const nextDisplayBubbles = buildDisplayBubbles({
           chatRoom: activeRoom ?? null,
           dashboard,
           friends: friendsResult.status === "fulfilled" ? friendsResult.value : [],
@@ -845,14 +987,18 @@ function DesktopWidgetSurface() {
           resources: resourcesResult.status === "fulfilled" ? resourcesResult.value.items : [],
           room: roomResult.status === "fulfilled" ? roomResult.value : null,
           roomId: selectedRoomId,
-          schedules: schedulesResult.status === "fulfilled" ? schedulesResult.value.items : [],
+          schedules: schedulesResult.status === "fulfilled" ? schedulesResult.value.items : (summaryDashboard?.todaySchedules ?? []),
           suggestions: suggestionsResult.status === "fulfilled" ? suggestionsResult.value : [],
-          tasks: tasksResult.status === "fulfilled" ? tasksResult.value.items : [],
+          tasks: tasksResult.status === "fulfilled" ? tasksResult.value.items : (summaryDashboard?.todayTasks ?? []),
           timer: activeTimer,
           voiceConnectionLabel,
           voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
-        }, t),
-      );
+        }, t);
+      const persistedItemStates = await widgetApi
+        .listItemStates(collectWidgetItemIds(nextDisplayBubbles))
+        .catch(() => []);
+      const persistedOverrides = itemStateResponseToOverrides(persistedItemStates);
+      setDisplayBubbles(applyItemStateOverrides(nextDisplayBubbles, { ...persistedOverrides, ...itemStateOverrides }));
     }
 
     void loadDisplayApiState().catch(() => {
@@ -865,7 +1011,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, memoRevision, requestedRoomId, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
+  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, itemStateOverrides, memoRevision, requestedRoomId, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -1098,7 +1244,7 @@ function DesktopWidgetSurface() {
   );
 
   const handleItemStateChange = useCallback(
-    async (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => {
+    async (item: WidgetPreviewItem, state: WidgetItemStateAction) => {
       const itemType =
         item.kind === "message"
           ? "MESSAGE"
@@ -1120,15 +1266,19 @@ function DesktopWidgetSurface() {
           .catch(() => undefined);
       }
 
-      if (item.stateId) {
-        void widgetApi
-          .updateItemState(item.stateId, {
-            bubbleType: apiItemBubbleTypeMap[activeBubble],
-            itemId: item.id,
-            itemType,
-            state,
-          })
-          .catch(() => undefined);
+      const itemStateId = item.stateId ?? (isUuid(item.id) ? item.id : null);
+      if (itemStateId) {
+        await widgetApi.updateItemState(itemStateId, {
+          bubbleType: apiItemBubbleTypeMap[activeBubble],
+          itemId: item.id,
+          itemType,
+          state,
+        });
+        setDisplayBubbles((current) => ({
+          ...current,
+          [activeBubble]: applyItemStateActionToBubble(current[activeBubble], item.id, state),
+        }));
+        setItemStateOverrides((current) => ({ ...current, [item.id]: state }));
       }
     },
     [activeBubble, isTauri],

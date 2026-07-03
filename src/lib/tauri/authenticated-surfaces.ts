@@ -6,7 +6,7 @@ import { widgetApi } from "@/features/widget/api/widgetApi";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { startWidgetUsageAutoSync, stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
-import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
+import { getActiveProjectRoomId, restoreActiveProjectRoomFromTauri, seedActiveProjectRoomId } from "@/lib/workspace-active-room";
 import type { WidgetBubbleSettingResponse, WidgetBubbleType as ApiWidgetBubbleType } from "@/types/api/widget";
 
 let launchRequested = false;
@@ -81,6 +81,20 @@ export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInpu
   return [{ bubbleType: "bar", mode: "DEFAULT", windowId: "bar" }, primaryBubble];
 }
 
+async function resolveLaunchSelectedRoomId() {
+  const context = await widgetApi.getContext().catch(() => null);
+  if (context?.selectedRoomId) {
+    seedActiveProjectRoomId(context.selectedRoomId);
+    return context.selectedRoomId;
+  }
+
+  const activeRoomId = getActiveProjectRoomId();
+  if (activeRoomId) return activeRoomId;
+
+  const restored = await restoreActiveProjectRoomFromTauri().catch(() => null);
+  return restored?.roomId ?? null;
+}
+
 export function launchTauriAuthenticatedSurfaces() {
   if (!isTauriRuntime()) return Promise.resolve();
   if (launchedAuthenticatedSurfaces) return Promise.resolve();
@@ -89,7 +103,7 @@ export function launchTauriAuthenticatedSurfaces() {
   launchRequested = true;
   const generation = ++launchGeneration;
   launchPromise = (async () => {
-    const selectedRoomId = getActiveProjectRoomId();
+    const selectedRoomId = await resolveLaunchSelectedRoomId();
     if (generation !== launchGeneration) {
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
       return;
@@ -112,6 +126,13 @@ export function launchTauriAuthenticatedSurfaces() {
       }
     }
 
+    if (results.every((result) => result.status === "rejected")) {
+      launchRequested = false;
+      launchedAuthenticatedSurfaces = false;
+      await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
+      throw results[0].status === "rejected" ? results[0].reason : new Error("No Tauri widgets opened");
+    }
+
     void tauriCommands
       .seedWidgetBarItems({ selectedRoomId })
       .catch(() => undefined);
@@ -128,10 +149,6 @@ export function launchTauriAuthenticatedSurfaces() {
     startManagedFolderAutoSync();
     startWidgetUsageAutoSync();
     launchedAuthenticatedSurfaces = true;
-
-    if (results.every((result) => result.status === "rejected")) {
-      throw results[0].status === "rejected" ? results[0].reason : new Error("No Tauri widgets opened");
-    }
   })()
     .catch((error) => {
       launchRequested = false;
@@ -149,7 +166,7 @@ export async function stopTauriAuthenticatedSurfaces() {
   launchRequested = false;
   launchPromise = null;
   launchedAuthenticatedSurfaces = false;
-  stopActivityAutoCapture();
+  await stopActivityAutoCapture({ flush: true });
   stopManagedFolderAutoSync();
   stopWidgetUsageAutoSync();
 

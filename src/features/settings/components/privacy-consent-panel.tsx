@@ -1,18 +1,19 @@
 "use client";
 
-import { EyeOff, FolderLock, History, MonitorCog, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
+import { EyeOff, FolderLock, MonitorCog, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
 
 import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
 import type { StatusTone } from "@/components/ui/status-badge";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
+import type { PrivacyConsentType } from "@/types/api/settings";
 
 import styles from "./privacy-consent-panel.module.css";
 
 const consentRows: Array<{
   titleKey: MessageKey;
   descriptionKey: MessageKey;
-  consentType: string;
+  consentType: PrivacyConsentType;
   state: "ON" | "OFF";
   sourceKey: MessageKey;
   icon: typeof MonitorCog;
@@ -28,18 +29,10 @@ const consentRows: Array<{
   {
     titleKey: "settings.pc.row.folderTitle",
     descriptionKey: "settings.pc.row.folderDesc",
-    consentType: "MANAGED_FOLDER_ACCESS",
+    consentType: "MANAGED_FOLDER",
     state: "ON",
     sourceKey: "settings.pc.row.folderSource",
     icon: FolderLock,
-  },
-  {
-    titleKey: "settings.pc.row.memoryTitle",
-    descriptionKey: "settings.pc.row.memoryDesc",
-    consentType: "LOCAL_AGENT_MEMORY",
-    state: "OFF",
-    sourceKey: "settings.pc.row.memorySource",
-    icon: History,
   },
 ];
 
