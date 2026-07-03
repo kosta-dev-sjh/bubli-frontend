@@ -317,6 +317,12 @@ INSERT INTO users (id, google_sub, bubli_id, name, avatar_url, locale, timezone,
 VALUES ('${SEED_USER_ID}', 'codex-local-widget-user', 'codex-widget', 'Codex Widget User', NULL, 'ko-KR', 'Asia/Seoul', 'ACTIVE', NULL, now(), now())
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, updated_at = now();
 
+INSERT INTO user_privacy_consents (user_id, consent_type, enabled, updated_at)
+VALUES
+('${SEED_USER_ID}', 'ACTIVITY_CONTEXT', true, now()),
+('${SEED_USER_ID}', 'MANAGED_FOLDER', true, now())
+ON CONFLICT (user_id, consent_type) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now();
+
 INSERT INTO project_rooms (id, created_by_user_id, name, client_name, contract_amount, payment_status, payment_due_date, paid_at, status, closed_at, created_at, updated_at)
 VALUES ('${SEED_ROOM_ID}', '${SEED_USER_ID}', 'Codex Local Room', 'Bubli QA', 1200000.00, 'PENDING', current_date + 7, NULL, 'ACTIVE', NULL, now(), now())
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, updated_at = now();
