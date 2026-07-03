@@ -187,6 +187,25 @@ async function smokeBackend(accessToken) {
   );
   assertOptionalLocalEventId(localFileDelete.results?.[0], deletedLocalEventId, "local file event delete sync");
 
+  const activityStartedAt = new Date(Date.now() - 120_000).toISOString();
+  const activityEndedAt = new Date().toISOString();
+  const activitySmoke = await apiPost("/api/activity/current-app", headers, {
+    appName: "Codex Tauri activity smoke",
+    durationSeconds: 120,
+    endedAt: activityEndedAt,
+    roomId: SEED_ROOM_ID,
+    startedAt: activityStartedAt,
+    windowTitle: "Real backend activity roundtrip",
+  });
+  assert(activitySmoke.appName === "Codex Tauri activity smoke", "activity record did not return the smoke app name");
+  assert(activitySmoke.roomId === SEED_ROOM_ID, "activity record did not return the seeded room id");
+
+  const todayActivities = await apiGet("/api/activity/today", headers);
+  assert(
+    todayActivities.some((activity) => activity.id === activitySmoke.id),
+    "today activities did not include the saved smoke activity",
+  );
+
   const [dailySummaries, generatedDocuments, roomMemorySummaries] = await Promise.all([
     apiGet("/api/daily-summaries", headers),
     apiGet(`/api/project-rooms/${SEED_ROOM_ID}/generated-documents`, headers),
@@ -219,7 +238,7 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync, /api/activity/current-app, /api/activity/today, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 

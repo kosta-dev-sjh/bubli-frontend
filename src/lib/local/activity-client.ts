@@ -63,7 +63,7 @@ export async function recordCurrentActivityContext(
     return context;
   }
 
-  await syncLocalActivityBufferToServer({ limit: 10 }).catch(() => undefined);
+  await syncLocalActivityBufferToServer({ consentGranted: input.consentGranted, limit: 10 }).catch(() => undefined);
 
   const capturedAt = parseIsoDate(context.data.capturedAt);
   const durationSeconds = Math.max(0, Math.trunc(context.data.durationSeconds ?? 0));
