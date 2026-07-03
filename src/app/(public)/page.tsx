@@ -177,6 +177,12 @@ export default function HomePage() {
                   <span>{t("public.home.downloadHead2")}</span>
                 </h2>
                 <p>{t("public.home.downloadSub")}</p>
+                {/* 웹으로 바로 시작하는 경로 — 다운로드 CTA 옆에 정식 보조 버튼으로 노출한다. */}
+                <div className="landing-download__actions">
+                  <Link className="bubli-button bubli-button--lg" href="/login">
+                    {t("public.home.downloadLogin")}
+                  </Link>
+                </div>
               </div>
             </header>
 
@@ -220,9 +226,6 @@ export default function HomePage() {
                 <span className="landing-download__float-download" aria-hidden="true">
                   <Download size={20} strokeWidth={2.2} />
                 </span>
-              </Link>
-              <Link className="landing-download__float landing-download__float--login" href="/login">
-                {t("public.home.downloadLogin")}
               </Link>
               <div className="landing-download__float landing-download__float--bubble" aria-hidden="true">
                 {t("public.home.downloadBubble")}

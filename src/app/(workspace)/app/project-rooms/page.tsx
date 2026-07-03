@@ -116,6 +116,7 @@ export default function ProjectRoomsPage() {
       {state.kind === "ready" && state.rooms.length === 0 && (
         <div className="workspace-route__panel">
           <strong>{t("room.list.emptyTitle")}</strong>
+          <p>{t("room.list.emptyDesc")}</p>
           <button className="bubli-button bubli-button--primary" onClick={openProjectRoomCreate} type="button">
             {t("room.list.create")}
           </button>

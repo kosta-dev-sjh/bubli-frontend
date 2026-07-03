@@ -48,6 +48,8 @@ const ko = {
   "dashboard.state.authTitle": "로그인이 필요합니다",
   "dashboard.state.errorTitle": "서버 연결 대기",
   "dashboard.state.emptyTitle": "아직 표시할 항목이 없습니다",
+  "dashboard.state.emptyBody": "첫 프로젝트룸을 만들면 할 일·일정·자료가 여기에 모여요",
+  "dashboard.state.emptyCreate": "프로젝트룸 만들기",
   "dashboard.state.loadFailed": "홈 화면을 불러오지 못했습니다",
 
   // 할 일 위젯
@@ -364,6 +366,8 @@ const en: Record<Key, string> = {
   "dashboard.state.authTitle": "Login required",
   "dashboard.state.errorTitle": "Waiting for server",
   "dashboard.state.emptyTitle": "Nothing to show yet",
+  "dashboard.state.emptyBody": "Create your first project room and your to-dos, schedule, and files will gather here",
+  "dashboard.state.emptyCreate": "Create a project room",
   "dashboard.state.loadFailed": "Couldn't load the home screen",
 
   "dashboard.todo.roomLabel": "{room} to-dos",
@@ -667,6 +671,8 @@ const ja: Record<Key, string> = {
   "dashboard.state.authTitle": "ログインが必要です",
   "dashboard.state.errorTitle": "サーバー接続待ち",
   "dashboard.state.emptyTitle": "まだ表示する項目がありません",
+  "dashboard.state.emptyBody": "最初のプロジェクトルームを作ると、やること・予定・資料がここに集まります",
+  "dashboard.state.emptyCreate": "プロジェクトルームを作成",
   "dashboard.state.loadFailed": "ホーム画面を読み込めませんでした",
 
   "dashboard.todo.roomLabel": "{room} のやること",

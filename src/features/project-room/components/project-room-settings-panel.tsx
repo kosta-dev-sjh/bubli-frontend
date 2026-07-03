@@ -1,11 +1,12 @@
 "use client";
 
-import { Building2, Crown, DoorClosed, FileUp, UserCheck, UsersRound, Wallet, X } from "lucide-react";
+import { Building2, Crown, DoorClosed, FileUp, UserCheck, UserPlus, UsersRound, Wallet, X } from "lucide-react";
 import type { FormEvent } from "react";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { friendApi } from "@/features/communication/api/friendApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
@@ -13,6 +14,7 @@ import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type {
   ContractDocumentType,
+  ProjectRoomInvitationResponse,
   ProjectRoomMemberResponse,
   ProjectRoomPaymentStatus,
   ProjectRoomResponse,
@@ -100,6 +102,10 @@ export function ProjectRoomSettingsPanel({
   const [pendingRemoveUserId, setPendingRemoveUserId] = useState<string | null>(null);
   const [isCloseConfirming, setIsCloseConfirming] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [inviteBubliId, setInviteBubliId] = useState("");
+  const [isInviting, setIsInviting] = useState(false);
+  const [pendingInvitations, setPendingInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
+  const [cancelingInvitationId, setCancelingInvitationId] = useState<string | null>(null);
 
   const activeMembers = useMemo(() => members.filter((member) => member.status === "ACTIVE"), [members]);
   const canManage = useMemo(() => {
@@ -193,6 +199,70 @@ export function ProjectRoomSettingsPanel({
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+    }
+  };
+
+  // 대기 중 초대 목록 — 채팅 페이지와 같은 projectRoomApi.getInvitations 계약을 그대로 쓴다.
+  const loadInvitations = useCallback(async () => {
+    try {
+      const page = await projectRoomApi.getInvitations(room.id);
+      setPendingInvitations(page.items.filter((invitation) => invitation.status === "PENDING"));
+    } catch {
+      // 초대 목록 로드 실패는 조용히 넘기고, 초대 전송/취소 시 다시 시도한다.
+    }
+  }, [room.id]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadInvitations();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadInvitations]);
+
+  const handleInvite = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const bubliId = inviteBubliId.trim().replace(/^@/, "");
+    if (!bubliId) {
+      setNotice({ text: t("room.settings.inviteIdRequired"), tone: "error" });
+      return;
+    }
+
+    setIsInviting(true);
+
+    try {
+      // createInvitation은 inviteeUserId를 요구하므로 Bubli ID를 먼저 사용자로 해석한다.
+      const [target] = await friendApi.searchByBubliId(bubliId);
+      if (!target) {
+        setNotice({ text: t("room.settings.inviteNotFound"), tone: "error" });
+        return;
+      }
+
+      await projectRoomApi.createInvitation(room.id, { inviteeUserId: target.userId, role: "MEMBER" });
+      setInviteBubliId("");
+      setNotice({ text: t("room.settings.inviteSent", { name: target.name }), tone: "ok" });
+      await loadInvitations();
+    } catch (error) {
+      setNotice({ text: requestErrorText(t, error), tone: "error" });
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const handleCancelInvitation = async (invitation: ProjectRoomInvitationResponse) => {
+    if (cancelingInvitationId) return;
+
+    setCancelingInvitationId(invitation.id);
+
+    try {
+      await projectRoomApi.cancelInvitation(invitation.id);
+      setPendingInvitations((current) => current.filter((entry) => entry.id !== invitation.id));
+      setNotice({ text: t("room.settings.inviteCanceled"), tone: "ok" });
+    } catch (error) {
+      setNotice({ text: requestErrorText(t, error), tone: "error" });
+    } finally {
+      setCancelingInvitationId(null);
     }
   };
 
@@ -474,6 +544,71 @@ export function ProjectRoomSettingsPanel({
                       <StatusBadge tone={member.role === "PROJECT_LEADER" ? "approved" : "neutral"}>
                         {t(member.role === "PROJECT_LEADER" ? "room.board.roleLeader" : "room.board.roleMember")}
                       </StatusBadge>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section aria-label={t("room.settings.inviteTitle")} className={styles.section}>
+          <h3>
+            <UserPlus aria-hidden="true" size={15} strokeWidth={1.9} />
+            {t("room.settings.inviteTitle")}
+            {pendingInvitations.length > 0 ? (
+              <StatusBadge tone="room">{t("room.settings.membersCount", { count: pendingInvitations.length })}</StatusBadge>
+            ) : null}
+          </h3>
+          <p className={styles.hint}>{t("room.settings.inviteHint")}</p>
+          <form className={styles.fieldGrid} onSubmit={handleInvite}>
+            <label className={styles.field}>
+              <span>{t("room.settings.inviteLabel")}</span>
+              <input
+                disabled={!canManage || isInviting}
+                onChange={(event) => setInviteBubliId(event.target.value)}
+                placeholder={t("room.settings.invitePlaceholder")}
+                value={inviteBubliId}
+              />
+            </label>
+            <div className={styles.fieldActions}>
+              <Button disabled={!canManage} loading={isInviting} size="sm" type="submit" variant="primary">
+                {isInviting ? t("room.settings.inviteSending") : t("room.settings.inviteSend")}
+              </Button>
+            </div>
+          </form>
+          {pendingInvitations.length === 0 ? (
+            <p className={styles.hint}>{t("room.settings.invitePendingEmpty")}</p>
+          ) : (
+            <div className={styles.memberList}>
+              {pendingInvitations.map((invitation) => {
+                const inviteeName =
+                  invitation.inviteeName ?? (invitation.inviteeBubliId ? `@${invitation.inviteeBubliId}` : invitation.inviteeUserId);
+
+                return (
+                  <article className={styles.memberRow} key={invitation.id}>
+                    <span aria-hidden="true" className={styles.memberIcon}>
+                      <UserPlus size={14} strokeWidth={1.9} />
+                    </span>
+                    <span className={styles.memberName}>
+                      <strong>{inviteeName}</strong>
+                      <small>
+                        {invitation.inviteeBubliId ? `@${invitation.inviteeBubliId} · ` : ""}
+                        {t("room.settings.invitePendingTitle")}
+                      </small>
+                    </span>
+                    {canManage ? (
+                      <Button
+                        aria-label={t("room.settings.inviteCancelAria", { name: inviteeName })}
+                        loading={cancelingInvitationId === invitation.id}
+                        onClick={() => void handleCancelInvitation(invitation)}
+                        size="sm"
+                        variant="quiet"
+                      >
+                        {t("room.settings.inviteCancel")}
+                      </Button>
+                    ) : (
+                      <StatusBadge tone="neutral">{t("room.settings.invitePendingTitle")}</StatusBadge>
                     )}
                   </article>
                 );

@@ -87,6 +87,11 @@ const ko = {
   "calendar.selected.addForDate": "이 날짜에 일정 추가",
   "calendar.selected.deleteAria": "{title} 삭제",
 
+  // 삭제 2단계 확인
+  "calendar.delete.confirmBody": "일정 '{title}'을(를) 삭제할까요? 구글 캘린더에 동기화된 일정이면 함께 삭제됩니다.",
+  "calendar.delete.confirmDelete": "삭제",
+  "calendar.delete.confirmKeep": "유지",
+
   // 작성 패널
   "calendar.composer.title": "일정 추가",
   "calendar.composer.editTitle": "일정 수정",
@@ -290,6 +295,10 @@ const en: Record<Key, string> = {
   "calendar.selected.addForDate": "Add an event on this date",
   "calendar.selected.deleteAria": "Delete {title}",
 
+  "calendar.delete.confirmBody": "Delete '{title}'? If it's synced with Google Calendar, it will be deleted there too.",
+  "calendar.delete.confirmDelete": "Delete",
+  "calendar.delete.confirmKeep": "Keep",
+
   "calendar.composer.title": "Add event",
   "calendar.composer.editTitle": "Edit event",
   "calendar.composer.subtitle": "Manage a personal event or a current project room event on the selected date.",
@@ -484,6 +493,10 @@ const ja: Record<Key, string> = {
   "calendar.selected.count": "{count}件",
   "calendar.selected.addForDate": "この日付に予定を追加",
   "calendar.selected.deleteAria": "{title} を削除",
+
+  "calendar.delete.confirmBody": "「{title}」を削除しますか？Googleカレンダーに同期された予定の場合は、そちらも削除されます。",
+  "calendar.delete.confirmDelete": "削除",
+  "calendar.delete.confirmKeep": "残す",
 
   "calendar.composer.title": "予定を追加",
   "calendar.composer.editTitle": "予定を編集",

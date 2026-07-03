@@ -295,6 +295,15 @@
   line-height: 1.45;
 }
 
+/* 개인 자료 빈 화면 — 막다른 화면이 되지 않도록 다음 행동 버튼을 함께 노출한다. */
+.emptyCanvasActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .fileList {
   grid-template-columns: 1fr;
 }

@@ -341,6 +341,10 @@ function ChatPageContent() {
   const [chatRoomInviteState, setChatRoomInviteState] = useState<ChatRoomInviteState>({ kind: "idle" });
   const [roomInvitationsState, setRoomInvitationsState] = useState<RoomInvitationsState>({ kind: "idle" });
   const [busyFriendUserId, setBusyFriendUserId] = useState<string | null>(null);
+  // 친구 삭제는 결과를 먼저 알리고 삭제/유지로 확인받는 2단계 확인(프로젝트룸 설정 패널과 동일 패턴).
+  const [pendingDeleteFriendUserId, setPendingDeleteFriendUserId] = useState<string | null>(null);
+  // /bubli 에이전트 명령 힌트 — 룸 대화 첫 진입 시 상단에 한 번 노출하고 닫을 수 있다.
+  const [agentHintDismissed, setAgentHintDismissed] = useState(false);
   const [busyInvitationId, setBusyInvitationId] = useState<string | null>(null);
   const [composerActive, setComposerActive] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState<File | null>(null);
@@ -874,6 +878,7 @@ function ChatPageContent() {
         setSocialState({ kind: "offline" });
       } finally {
         setBusyFriendUserId(null);
+        setPendingDeleteFriendUserId(null);
       }
     },
     [busyFriendUserId, loadSocial, socialState],
@@ -1478,6 +1483,15 @@ function ChatPageContent() {
               <div className="workspace-route__voice-status workspace-route__voice-status--blocked">{voiceState.message}</div>
             ) : null}
 
+            {selectedRoom?.chatType === "ROOM" && !agentHintDismissed ? (
+              <div className="workspace-route__agent-hint-line" role="note">
+                <span>{t("chat.composer.hint")}</span>
+                <button aria-label={t("common.close")} onClick={() => setAgentHintDismissed(true)} type="button">
+                  <X aria-hidden size={13} strokeWidth={2} />
+                </button>
+              </div>
+            ) : null}
+
             {messagesState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.messages.loading")}</span> : null}
             {messagesState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.messages.offline")}</span> : null}
             {messagesState.kind === "ready" && messagesState.messages.length === 0 ? (
@@ -1729,9 +1743,21 @@ function ChatPageContent() {
                         <button disabled={!selectedProjectRoomId || roomInviteState.kind === "sending"} onClick={() => void inviteFriendToRoom(friend)} type="button">
                           {roomInviteState.kind === "sending" && roomInviteState.friendName === friend.name ? t("chat.friends.sending") : t("chat.friends.roomInvite")}
                         </button>
-                        <button disabled={busyFriendUserId === friend.friendUserId} onClick={() => void deleteFriend(friend)} type="button">
-                          {busyFriendUserId === friend.friendUserId ? t("chat.friends.deleting") : t("chat.friends.delete")}
-                        </button>
+                        {pendingDeleteFriendUserId === friend.friendUserId ? (
+                          <>
+                            <span className="workspace-route__pending" role="status">{t("chat.friends.deleteConfirm")}</span>
+                            <button disabled={busyFriendUserId === friend.friendUserId} onClick={() => void deleteFriend(friend)} type="button">
+                              {busyFriendUserId === friend.friendUserId ? t("chat.friends.deleting") : t("chat.friends.deleteConfirmDelete")}
+                            </button>
+                            <button disabled={busyFriendUserId === friend.friendUserId} onClick={() => setPendingDeleteFriendUserId(null)} type="button">
+                              {t("chat.friends.deleteConfirmKeep")}
+                            </button>
+                          </>
+                        ) : (
+                          <button disabled={busyFriendUserId === friend.friendUserId} onClick={() => setPendingDeleteFriendUserId(friend.friendUserId)} type="button">
+                            {busyFriendUserId === friend.friendUserId ? t("chat.friends.deleting") : t("chat.friends.delete")}
+                          </button>
+                        )}
                       </div>
                     </article>
                   ))

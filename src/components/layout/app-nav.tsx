@@ -95,7 +95,6 @@ export function AppNav({ activeRoomId }: AppNavProps) {
 
         return (
           <Link
-            aria-label={label}
             aria-current={isActive ? "page" : undefined}
             className={cn("bubli-nav__item", isActive && "bubli-nav__item--active")}
             href={href}
@@ -110,7 +109,7 @@ export function AppNav({ activeRoomId }: AppNavProps) {
             >
               <Icon size={18} strokeWidth={1.75} />
             </motion.span>
-            <span aria-hidden="true" className="bubli-nav__tooltip" data-label={label} />
+            <span className="bubli-nav__label">{label}</span>
           </Link>
         );
       })}

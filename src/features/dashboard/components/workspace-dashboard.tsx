@@ -658,6 +658,14 @@ export function WorkspaceDashboard() {
           <CheckCircle2 aria-hidden size={20} strokeWidth={2} />
           <div>
             <h2>{t("dashboard.state.emptyTitle")}</h2>
+            <p>{t("dashboard.state.emptyBody")}</p>
+            <button
+              className="bubli-button bubli-button--primary"
+              onClick={() => window.dispatchEvent(new CustomEvent("bubli:open-project-room-create"))}
+              type="button"
+            >
+              {t("dashboard.state.emptyCreate")}
+            </button>
           </div>
         </GlassPanel>
       ) : null}
@@ -666,7 +674,10 @@ export function WorkspaceDashboard() {
         <>
           <SelectedProjectRoomSummary room={selectedRoom} schedules={todaySchedules} tasks={dashboardTasks} />
           <div className="workspace-dashboard__home-grid">
-            <HomeCard moreHref="/app/calendar" title={t("dashboard.catalog.todayTodos.title")}>
+            <HomeCard
+              moreHref={activeRoom.roomId ? `/app/project-rooms/${activeRoom.roomId}` : "/app/project-rooms"}
+              title={t("dashboard.catalog.todayTodos.title")}
+            >
               <TodoWidget
                 canCreate={canShowCards}
                 creating={creatingTodo}

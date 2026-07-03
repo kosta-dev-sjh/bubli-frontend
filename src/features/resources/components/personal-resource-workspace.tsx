@@ -191,6 +191,17 @@ export function PersonalResourceWorkspace() {
                   <div className={styles.emptyCanvasInner}>
                     <strong>{isTauri ? t("resources.workspace.emptyPersonalTitleTauri") : t("resources.workspace.emptyPersonalTitleWeb")}</strong>
                     <p>{isTauri ? t("resources.workspace.emptyPersonalDescTauri") : t("resources.workspace.emptyPersonalDescWeb")}</p>
+                    <div className={styles.emptyCanvasActions}>
+                      <Link
+                        className="bubli-button bubli-button--primary bubli-button--sm"
+                        href={activeRoomId ? `/app/project-rooms/${activeRoomId}/resources` : "/app/project-rooms"}
+                      >
+                        {t("resources.workspace.emptyPersonalGoRoomBoard")}
+                      </Link>
+                      <Link className="bubli-button bubli-button--sm" href="/download">
+                        {t("resources.workspace.emptyPersonalGetDesktop")}
+                      </Link>
+                    </div>
                   </div>
                 </div>
               ) : (

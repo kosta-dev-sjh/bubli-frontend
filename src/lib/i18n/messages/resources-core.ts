@@ -166,6 +166,8 @@ const ko = {
   "resources.workspace.emptyPersonalDescTauri": "폴더를 연결하거나 스캔하면 여기에 표시됩니다.",
   "resources.workspace.emptyPersonalDescWeb": "로컬 폴더는 데스크탑 앱에서 연결합니다.",
   "resources.workspace.emptyPersonalSteps": "데스크탑 앱 열기 · 폴더 선택 · 자동 동기화",
+  "resources.workspace.emptyPersonalGoRoomBoard": "프로젝트룸 자료보드로 이동",
+  "resources.workspace.emptyPersonalGetDesktop": "데스크탑 앱 받기",
 
   // 검색 커맨드 (resource-search-command.tsx)
   "resources.search.eyebrow": "자료보드 검색",
@@ -793,6 +795,8 @@ const en: Record<Key, string> = {
   "resources.workspace.emptyPersonalDescTauri": "Connect or scan a folder to show files here.",
   "resources.workspace.emptyPersonalDescWeb": "Local folders are connected in the desktop app.",
   "resources.workspace.emptyPersonalSteps": "Open desktop app · Select folder · Auto sync",
+  "resources.workspace.emptyPersonalGoRoomBoard": "Go to project room board",
+  "resources.workspace.emptyPersonalGetDesktop": "Get the desktop app",
 
   "resources.search.eyebrow": "Resource board search",
   "resources.search.title": "Find scattered resources within your permission scope",
@@ -1406,6 +1410,8 @@ const ja: Record<Key, string> = {
   "resources.workspace.emptyPersonalDescTauri": "フォルダを接続またはスキャンすると、ここに表示されます。",
   "resources.workspace.emptyPersonalDescWeb": "ローカルフォルダはデスクトップアプリで接続します。",
   "resources.workspace.emptyPersonalSteps": "デスクトップアプリを開く · フォルダ選択 · 自動同期",
+  "resources.workspace.emptyPersonalGoRoomBoard": "プロジェクトルームの資料ボードへ",
+  "resources.workspace.emptyPersonalGetDesktop": "デスクトップアプリを入手",
 
   "resources.search.eyebrow": "資料ボード検索",
   "resources.search.title": "散らばった資料を権限範囲の中で探します",

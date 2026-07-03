@@ -904,7 +904,7 @@ function ProjectRoomWorkBoardContent({
         <div className={styles.viewSwitch} role="group" aria-label={t("room.workBoard.viewSwitchAria")}>
           <button aria-pressed={viewMode === "wbs"} onClick={() => setViewMode("wbs")} type="button">
             <GitBranch size={15} aria-hidden="true" />
-            WBS
+            {t("room.workBoard.viewWbs")}
           </button>
           <button aria-pressed={viewMode === "kanban"} onClick={() => setViewMode("kanban")} type="button">
             <KanbanSquare size={15} aria-hidden="true" />
@@ -919,7 +919,7 @@ function ProjectRoomWorkBoardContent({
             <section className={styles.pane} aria-label={t("room.workBoard.ganttAria")}>
               <div className={cn(styles.paneHead, styles.ganttPaneHead)}>
                 <div>
-                  <h2>WBS</h2>
+                  <h2>{t("room.workBoard.wbsHeading")}</h2>
                 </div>
                 <div className={styles.paneActions}>
                   {wbsProgress.total > 0 ? (

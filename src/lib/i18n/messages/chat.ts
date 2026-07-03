@@ -141,6 +141,9 @@ const ko = {
   "chat.friends.roomInvite": "룸 초대",
   "chat.friends.deleting": "삭제 중",
   "chat.friends.delete": "삭제",
+  "chat.friends.deleteConfirm": "친구를 삭제할까요?",
+  "chat.friends.deleteConfirmDelete": "삭제",
+  "chat.friends.deleteConfirmKeep": "유지",
 
   // 초대
   "chat.invite.roomSending": "{name}님에게 초대 보내는 중",
@@ -853,6 +856,9 @@ const en: Record<Key, string> = {
   "chat.friends.roomInvite": "Room invite",
   "chat.friends.deleting": "Deleting",
   "chat.friends.delete": "Delete",
+  "chat.friends.deleteConfirm": "Remove this friend?",
+  "chat.friends.deleteConfirmDelete": "Delete",
+  "chat.friends.deleteConfirmKeep": "Keep",
 
   "chat.invite.roomSending": "Sending an invite to {name}",
   "chat.invite.roomSent": "Invited {name} to {room}",
@@ -1543,6 +1549,9 @@ const ja: Record<Key, string> = {
   "chat.friends.roomInvite": "ルーム招待",
   "chat.friends.deleting": "削除中",
   "chat.friends.delete": "削除",
+  "chat.friends.deleteConfirm": "友だちを削除しますか？",
+  "chat.friends.deleteConfirmDelete": "削除",
+  "chat.friends.deleteConfirmKeep": "残す",
 
   "chat.invite.roomSending": "{name}さんに招待を送信中",
   "chat.invite.roomSent": "{name}さんを{room}に招待しました",

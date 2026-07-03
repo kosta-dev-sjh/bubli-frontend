@@ -532,7 +532,7 @@ function AgentPageContent() {
                     loading={generatingRequirements}
                     onClick={() => void startGenerateRequirements()}
                     size="sm"
-                    variant="quiet"
+                    variant="primary"
                   >
                     {t("agent.page.generateRequirements")}
                   </Button>
@@ -626,7 +626,7 @@ function AgentPageContent() {
                   loading={startingSummaryJob}
                   onClick={() => void startDailySummary()}
                   size="sm"
-                  variant="quiet"
+                  variant="primary"
                 >
                   {t("agent.page.createTodaySummary")}
                 </Button>
@@ -781,12 +781,19 @@ function AgentPageContent() {
                 </GlassPanel>
               ) : (
                 <div className="workspace-route__list">
-                  {state.roomMemorySummaries.map((item) => (
+                  {state.roomMemorySummaries.map((item) => {
+                    // 원시 시퀀스 번호 대신 요약 생성 시점과 대화 건수로 표시한다.
+                    const memoryDateLabel = formatDate(item.createdAt);
+                    const rangeLabel = t("agent.page.memoryRangeSummary", {
+                      count: Math.max(item.toSequence - item.fromSequence + 1, 1),
+                    });
+
+                    return (
                     <article className="workspace-route__row" key={item.id}>
                       <span className="workspace-route__dot" aria-hidden="true" />
                       <span className="workspace-route__main">
                         <strong>
-                          {t("agent.page.messageRange", { from: item.fromSequence, to: item.toSequence })}
+                          {memoryDateLabel ? t("agent.page.typeDateSeparator", { type: rangeLabel, date: memoryDateLabel }) : rangeLabel}
                         </strong>
                         <span>{displayJsonText(item.summaryJson, t("agent.page.roomMemoryContentFallback"))}</span>
                       </span>
@@ -794,7 +801,8 @@ function AgentPageContent() {
                         {item.status === "APPROVED" ? t("agent.page.statusApproved") : t("agent.page.statusDraft")}
                       </StatusBadge>
                     </article>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>

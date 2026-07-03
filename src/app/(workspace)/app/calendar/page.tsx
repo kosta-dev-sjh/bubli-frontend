@@ -202,6 +202,8 @@ function CalendarPageContent() {
   const [draftEndTime, setDraftEndTime] = useState("11:00");
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
+  // 삭제는 결과를 먼저 알리고 확인받는 2단계 확인(프로젝트룸 설정 패널과 동일 패턴)으로 진행한다.
+  const [confirmingDeleteEventId, setConfirmingDeleteEventId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
   const [sourceFilter, setSourceFilter] = useState<CalendarSourceFilter>("all");
   const [composerOpen, setComposerOpen] = useState(false);
@@ -547,6 +549,7 @@ function CalendarPageContent() {
       setDraftNotice(error instanceof ApiClientError && error.status === 401 ? t("calendar.draft.authRequired") : t("calendar.draft.deleteFailed"));
     } finally {
       setDeletingEventId(null);
+      setConfirmingDeleteEventId(null);
     }
   };
 
@@ -700,10 +703,12 @@ function CalendarPageContent() {
                       {t("calendar.view.week")}
                     </button>
                   </div>
-                  <StatusBadge tone={reviewCount > 0 ? "warning" : "success"}>
-                    {reviewCount > 0 ? t("calendar.view.needsCheck") : t("calendar.view.synced")}
-                  </StatusBadge>
-                  <Button icon={<Plus size={15} strokeWidth={2.1} />} onClick={openCreateComposer} variant="quiet">
+                  {reviewCount > 0 ? (
+                    <StatusBadge tone="warning">{t("calendar.view.needsCheck")}</StatusBadge>
+                  ) : googleConnected ? (
+                    <StatusBadge tone="success">{t("calendar.view.synced")}</StatusBadge>
+                  ) : null}
+                  <Button icon={<Plus size={15} strokeWidth={2.1} />} onClick={openCreateComposer} variant="primary">
                     {t("calendar.view.newEvent")}
                   </Button>
                 </div>
@@ -793,6 +798,8 @@ function CalendarPageContent() {
                         : event.googleEventId || event.syncStatus === "SYNCED"
                           ? t("calendar.source.external")
                           : t("calendar.source.personal");
+                      const confirmingDelete = confirmingDeleteEventId === event.id;
+
                       return (
                         <li key={event.id}>
                           <button className={styles.selectedEventEdit} onClick={() => openEditComposer(event)} type="button">
@@ -801,14 +808,38 @@ function CalendarPageContent() {
                             <small>{source}</small>
                           </button>
                           <button
+                            aria-expanded={confirmingDelete}
                             aria-label={t("calendar.selected.deleteAria", { title: event.title })}
                             className={styles.selectedEventDelete}
                             disabled={deletingEventId === event.id}
-                            onClick={() => void handleDeleteEvent(event)}
+                            onClick={() => setConfirmingDeleteEventId(confirmingDelete ? null : event.id)}
                             type="button"
                           >
                             <Trash2 size={15} strokeWidth={2.1} />
                           </button>
+                          {confirmingDelete ? (
+                            <div className={styles.deleteConfirm} role="alertdialog" aria-label={t("calendar.selected.deleteAria", { title: event.title })}>
+                              <p>{t("calendar.delete.confirmBody", { title: event.title })}</p>
+                              <div className={styles.deleteConfirmActions}>
+                                <Button
+                                  loading={deletingEventId === event.id}
+                                  onClick={() => void handleDeleteEvent(event)}
+                                  size="sm"
+                                  variant="primary"
+                                >
+                                  {t("calendar.delete.confirmDelete")}
+                                </Button>
+                                <Button
+                                  disabled={deletingEventId === event.id}
+                                  onClick={() => setConfirmingDeleteEventId(null)}
+                                  size="sm"
+                                  variant="quiet"
+                                >
+                                  {t("calendar.delete.confirmKeep")}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : null}
                         </li>
                       );
                     })}

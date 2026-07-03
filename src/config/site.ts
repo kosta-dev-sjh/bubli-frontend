@@ -15,7 +15,7 @@ export const siteConfig = {
     { href: "/app/project-rooms", label: "프로젝트룸" },
     { href: "/app/resources", label: "자료보드" },
     { href: "/app/chat", label: "소통" },
-    { href: "/app/agent", label: "후보" },
+    { href: "/app/agent", label: "AI 후보함" },
     { href: "/app/settings", label: "설정" },
   ],
 } as const;

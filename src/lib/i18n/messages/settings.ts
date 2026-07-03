@@ -63,6 +63,8 @@ const ko = {
   "settings.account.name": "이름",
   "settings.account.identifier": "계정 식별자",
   "settings.account.bubliId": "Bubli ID",
+  "settings.account.copy": "복사",
+  "settings.account.copied": "복사됨",
 
   // 언어와 화면
   "settings.languageScreen": "언어와 화면",
@@ -1108,6 +1110,8 @@ const en: Record<Key, string> = {
   "settings.account.name": "Name",
   "settings.account.identifier": "Account ID",
   "settings.account.bubliId": "Bubli ID",
+  "settings.account.copy": "Copy",
+  "settings.account.copied": "Copied",
 
   "settings.languageScreen": "Language & Display",
   "settings.language": "Language",
@@ -2125,6 +2129,8 @@ const ja: Record<Key, string> = {
   "settings.account.name": "名前",
   "settings.account.identifier": "アカウント識別子",
   "settings.account.bubliId": "Bubli ID",
+  "settings.account.copy": "コピー",
+  "settings.account.copied": "コピー済み",
 
   "settings.languageScreen": "言語と画面",
   "settings.language": "言語",

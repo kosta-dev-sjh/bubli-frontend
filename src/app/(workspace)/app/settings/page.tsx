@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, Copy } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -205,6 +206,20 @@ export default function SettingsPage() {
   const [backupListLabel, setBackupListLabel] = useState<string | null>(null);
   const [desktopRuntime, setDesktopRuntime] = useState(false);
   const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
+  const [copiedBubliId, setCopiedBubliId] = useState(false);
+
+  // Bubli ID 복사 — 소통 탭 친구 관리 모달의 복사 패턴과 동일하게 짧은 "복사됨" 피드백을 준다.
+  const copyBubliId = useCallback(async (bubliId: string) => {
+    if (!bubliId) return;
+
+    try {
+      await navigator.clipboard.writeText(bubliId);
+      setCopiedBubliId(true);
+      window.setTimeout(() => setCopiedBubliId(false), 1600);
+    } catch {
+      setCopiedBubliId(false);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -738,7 +753,19 @@ export default function SettingsPage() {
                   <div className={styles.rowText}>
                     <strong>{t("settings.account.bubliId")}</strong>
                   </div>
-                  <span className={styles.rowValue}>{ready ? state.user.bubliId : t("settings.value.noData")}</span>
+                  <div className={styles.rowControl}>
+                    <span className={styles.rowValue}>{ready ? state.user.bubliId : t("settings.value.noData")}</span>
+                    <Button
+                      disabled={!ready || !state.user.bubliId}
+                      icon={copiedBubliId ? <Check aria-hidden size={14} strokeWidth={2.2} /> : <Copy aria-hidden size={14} strokeWidth={2} />}
+                      onClick={() => void copyBubliId(ready ? state.user.bubliId : "")}
+                      size="sm"
+                      type="button"
+                      variant="quiet"
+                    >
+                      {copiedBubliId ? t("settings.account.copied") : t("settings.account.copy")}
+                    </Button>
+                  </div>
                 </div>
                 <div className={styles.row}>
                   <div className={styles.rowText}>
