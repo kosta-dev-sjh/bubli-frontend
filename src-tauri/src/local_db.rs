@@ -1118,6 +1118,24 @@ CREATE TABLE IF NOT EXISTS local_files (
 CREATE INDEX IF NOT EXISTS idx_local_files_folder ON local_files(local_folder_id);
 CREATE INDEX IF NOT EXISTS idx_local_files_name ON local_files(file_name);
 
+-- Local file analysis retry ledger. This prevents already-analyzed synced
+-- files from being sent repeatedly while still allowing checksum changes to
+-- trigger a fresh analysis request.
+CREATE TABLE IF NOT EXISTS local_file_analysis_requests (
+    id              TEXT PRIMARY KEY,
+    local_file_id   TEXT NOT NULL,
+    resource_id     TEXT NOT NULL,
+    checksum        TEXT,
+    status          TEXT NOT NULL DEFAULT 'PENDING', -- PENDING|SYNCED|FAILED
+    attempt_count   INTEGER NOT NULL DEFAULT 0,
+    error_message   TEXT,
+    created_at      INTEGER NOT NULL,
+    updated_at      INTEGER NOT NULL,
+    UNIQUE(local_file_id, resource_id, checksum)
+);
+CREATE INDEX IF NOT EXISTS idx_local_file_analysis_requests_status
+    ON local_file_analysis_requests(status, updated_at);
+
 -- Local full-text index. Personal file contents stay on-device.
 CREATE VIRTUAL TABLE IF NOT EXISTS local_file_fts USING fts5 (
     local_file_id UNINDEXED,

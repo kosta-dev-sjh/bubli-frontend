@@ -48,6 +48,15 @@ export type PersonalLocalFileEventsSyncResult = {
   syncedCount: number;
 };
 
+export type PersonalLocalFileAnalysisBackfillResult = {
+  attemptedCount: number;
+  failedCount: number;
+  markedFailedCount: number;
+  markedSyncedCount: number;
+  stagedAt: string;
+  succeededCount: number;
+};
+
 export type PersonalLocalFileAnalysisResult = {
   extraction: LocalFileKeySentenceResult;
   job: LocalFileAnalysisResponse;
@@ -460,6 +469,102 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
 
     return failed(syncErrorMessage, commandName);
   }
+}
+
+export async function backfillPersonalLocalFileAnalyses(input?: {
+  limit?: number;
+  maxAttempts?: number;
+  roomId?: string | null;
+}): Promise<LocalAdapterResult<PersonalLocalFileAnalysisBackfillResult>> {
+  const commandName = TAURI_COMMANDS.stageLocalFileAnalysisBackfill;
+
+  if (!isTauriRuntime()) {
+    return unavailable(commandName);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", PERSONAL_SCOPE_MESSAGE, commandName);
+  }
+
+  const staged = await runTauriAdapter(commandName, () =>
+    tauriCommands.stageLocalFileAnalysisBackfill({
+      limit: input?.limit,
+      maxAttempts: input?.maxAttempts,
+    }),
+  );
+
+  if (staged.status !== "ready") {
+    return staged;
+  }
+
+  if (staged.data.candidates.length === 0) {
+    return ready(
+      {
+        attemptedCount: 0,
+        failedCount: 0,
+        markedFailedCount: 0,
+        markedSyncedCount: 0,
+        stagedAt: staged.data.stagedAt,
+        succeededCount: 0,
+      },
+      commandName,
+      "백필할 로컬 파일 분석 대상이 없습니다.",
+    );
+  }
+
+  const analysisResults = await Promise.allSettled(
+    staged.data.candidates.map((candidate) =>
+      analyzePersonalLocalFileWithKeySentences({
+        localFileId: candidate.localFileId,
+        resourceId: candidate.resourceId,
+      }),
+    ),
+  );
+  const marks = staged.data.candidates.map((candidate, index) => {
+    const result = analysisResults[index];
+    const succeeded = result?.status === "fulfilled" && result.value.status === "ready";
+    const message =
+      result?.status === "rejected"
+        ? getErrorMessage(result.reason)
+        : result?.status === "fulfilled" && result.value.status !== "ready"
+          ? result.value.message
+          : null;
+
+    return {
+      checksum: candidate.checksum,
+      errorMessage: succeeded ? null : message,
+      localFileId: candidate.localFileId,
+      resourceId: candidate.resourceId,
+      status: succeeded ? "SYNCED" : "FAILED",
+    };
+  });
+  const markResult = await tauriCommands.markLocalFileAnalysesSent({ results: marks });
+  const succeededCount = marks.filter((mark) => mark.status === "SYNCED").length;
+  const failedCount = marks.length - succeededCount;
+  const result = {
+    attemptedCount: marks.length,
+    failedCount,
+    markedFailedCount: markResult.failedCount,
+    markedSyncedCount: markResult.syncedCount,
+    stagedAt: staged.data.stagedAt,
+    succeededCount,
+  };
+  notifyPersonalResourcesChanged({
+    analysisFailedCount: failedCount,
+    analysisRequestedCount: succeededCount,
+    analysisSkippedCount: 0,
+    failedCount,
+    sentCount: 0,
+    skippedCount: 0,
+    syncedAt: markResult.completedAt,
+    syncedCount: 0,
+  });
+
+  return ready(
+    result,
+    commandName,
+    `기존 로컬 파일 분석 백필 ${succeededCount}건을 전달했습니다. ${failedCount}건은 실패했습니다.`,
+  );
 }
 
 function isAnalyzableLocalFileName(fileName?: string | null) {

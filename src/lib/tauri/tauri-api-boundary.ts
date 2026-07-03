@@ -226,6 +226,18 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: "/api/local-file-analyses",
   },
   {
+    ipc: TAURI_COMMANDS.stageLocalFileAnalysisBackfill,
+    responsibility: "Stage a bounded set of already-synced personal files that still need key-sentence analysis",
+    reflectsToServer: true,
+    serverApi: "/api/local-file-analyses",
+  },
+  {
+    ipc: TAURI_COMMANDS.markLocalFileAnalysesSent,
+    responsibility: "Record whether local key-sentence analysis backfill was accepted by the API",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.flushSyncOutbox,
     responsibility: "Report/flush server-reflect backlog",
     reflectsToServer: true,

@@ -318,10 +318,60 @@ pub struct LocalFileEventsMarkSyncedResult {
     synced_count: i64,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileAnalysisBackfillStageInput {
+    limit: Option<i64>,
+    max_attempts: Option<i64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileAnalysisBackfillCandidate {
+    attempt_count: i64,
+    checksum: Option<String>,
+    file_name: String,
+    local_file_id: String,
+    mime_type: Option<String>,
+    resource_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileAnalysisBackfillStageResult {
+    candidates: Vec<LocalFileAnalysisBackfillCandidate>,
+    staged_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileAnalysisMarkInput {
+    checksum: Option<String>,
+    error_message: Option<String>,
+    local_file_id: String,
+    resource_id: String,
+    status: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileAnalysesMarkInput {
+    results: Vec<LocalFileAnalysisMarkInput>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileAnalysesMarkResult {
+    completed_at: String,
+    failed_count: i64,
+    synced_count: i64,
+}
+
 /// Keeps native file watchers alive for the lifetime of the app process.
 pub struct ManagedFolderWatchers(pub Mutex<HashMap<String, RecommendedWatcher>>);
 
 const SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL: &str = "'CREATED', 'UPDATED', 'DELETED'";
+const DEFAULT_ANALYSIS_BACKFILL_MAX_ATTEMPTS: i64 = 3;
 
 impl Default for ManagedFolderWatchers {
     fn default() -> Self {
@@ -2815,6 +2865,13 @@ pub fn mark_local_file_events_synced(
     input: LocalFileEventsMarkSyncedInput,
 ) -> Result<LocalFileEventsMarkSyncedResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    mark_local_file_events_synced_for_conn(&conn, input)
+}
+
+fn mark_local_file_events_synced_for_conn(
+    conn: &Connection,
+    input: LocalFileEventsMarkSyncedInput,
+) -> Result<LocalFileEventsMarkSyncedResult, String> {
     let now = now_ms();
     let mut synced_count = 0i64;
     let mut failed_count = 0i64;
@@ -2832,8 +2889,8 @@ pub fn mark_local_file_events_synced(
             continue;
         };
 
-        let failed = result.status.eq_ignore_ascii_case("FAILED");
-        let event_status = if failed { "FAILED" } else { "SYNCED" };
+        let synced = result.status.eq_ignore_ascii_case("SYNCED");
+        let event_status = if synced { "SYNCED" } else { "FAILED" };
         mark_local_file_event_outbox(&conn, &result.local_event_id, event_status, now)?;
         conn.execute(
             "UPDATE local_file_events SET status = ?2 WHERE id = ?1",
@@ -2841,7 +2898,7 @@ pub fn mark_local_file_events_synced(
         )
         .map_err(|error| error.to_string())?;
 
-        if failed {
+        if !synced {
             failed_count += 1;
             if let Some(local_file_id) = local_file_id {
                 conn.execute(
@@ -2878,6 +2935,197 @@ pub fn mark_local_file_events_synced(
         failed_count,
         synced_count,
     })
+}
+
+/// Stage a small set of already-synced personal files whose key-sentence
+/// analysis has not been sent yet.
+#[tauri::command]
+pub fn stage_local_file_analysis_backfill(
+    state: State<'_, Db>,
+    input: Option<LocalFileAnalysisBackfillStageInput>,
+) -> Result<LocalFileAnalysisBackfillStageResult, String> {
+    let limit = input
+        .as_ref()
+        .and_then(|value| value.limit)
+        .unwrap_or(3)
+        .clamp(1, 20);
+    let max_attempts = input
+        .and_then(|value| value.max_attempts)
+        .unwrap_or(DEFAULT_ANALYSIS_BACKFILL_MAX_ATTEMPTS)
+        .clamp(1, 10);
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    stage_local_file_analysis_backfill_for_conn(&conn, limit, max_attempts)
+}
+
+fn stage_local_file_analysis_backfill_for_conn(
+    conn: &Connection,
+    limit: i64,
+    max_attempts: i64,
+) -> Result<LocalFileAnalysisBackfillStageResult, String> {
+    let now = now_ms();
+    let mut candidates = Vec::new();
+    let mut stmt = conn
+        .prepare(
+            "SELECT f.id, f.file_name, f.local_path, f.resource_id, f.checksum, \
+                    COALESCE(a.attempt_count, 0) \
+             FROM local_files f \
+             INNER JOIN managed_folders m ON m.id = f.local_folder_id \
+             LEFT JOIN local_file_analysis_requests a \
+               ON a.local_file_id = f.id \
+              AND a.resource_id = f.resource_id \
+              AND COALESCE(a.checksum, '') = COALESCE(f.checksum, '') \
+             WHERE f.resource_id IS NOT NULL \
+               AND f.sync_status = 'SYNCED' \
+               AND m.status = 'ACTIVE' \
+               AND m.sync_enabled = 1 \
+               AND (a.id IS NULL OR (a.status = 'FAILED' AND a.attempt_count < ?1)) \
+             ORDER BY COALESCE(a.updated_at, 0) ASC, f.updated_at DESC \
+             LIMIT ?2",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = stmt
+        .query_map(params![max_attempts, limit * 4], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, i64>(5)?,
+            ))
+        })
+        .map_err(|error| error.to_string())?;
+
+    for row in rows {
+        let (local_file_id, file_name, local_path, resource_id, checksum, attempt_count) =
+            row.map_err(|error| error.to_string())?;
+        let path = PathBuf::from(&local_path);
+        if !is_supported_text_file(&path) || !path.exists() {
+            continue;
+        }
+
+        stage_local_file_analysis_request(
+            conn,
+            &local_file_id,
+            &resource_id,
+            checksum.as_deref(),
+            now,
+        )?;
+        candidates.push(LocalFileAnalysisBackfillCandidate {
+            attempt_count: attempt_count + 1,
+            checksum,
+            file_name,
+            local_file_id,
+            mime_type: guess_mime_type(&path.to_string_lossy()),
+            resource_id,
+        });
+        if candidates.len() as i64 >= limit {
+            break;
+        }
+    }
+
+    Ok(LocalFileAnalysisBackfillStageResult {
+        candidates,
+        staged_at: ms_to_iso(now),
+    })
+}
+
+fn stage_local_file_analysis_request(
+    conn: &Connection,
+    local_file_id: &str,
+    resource_id: &str,
+    checksum: Option<&str>,
+    now: i64,
+) -> Result<(), String> {
+    let id = local_file_analysis_request_id(local_file_id, resource_id, checksum);
+    conn.execute(
+        "INSERT INTO local_file_analysis_requests \
+         (id, local_file_id, resource_id, checksum, status, attempt_count, error_message, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, 'PENDING', 1, NULL, ?5, ?5) \
+         ON CONFLICT(local_file_id, resource_id, checksum) DO UPDATE SET \
+            status = 'PENDING', \
+            attempt_count = local_file_analysis_requests.attempt_count + 1, \
+            error_message = NULL, \
+            updated_at = excluded.updated_at",
+        params![id, local_file_id, resource_id, checksum, now],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+/// Mark local analysis transmission results after the frontend posts extracted
+/// key sentences to /api/local-file-analyses.
+#[tauri::command]
+pub fn mark_local_file_analyses_sent(
+    state: State<'_, Db>,
+    input: LocalFileAnalysesMarkInput,
+) -> Result<LocalFileAnalysesMarkResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    mark_local_file_analyses_sent_for_conn(&conn, input)
+}
+
+fn mark_local_file_analyses_sent_for_conn(
+    conn: &Connection,
+    input: LocalFileAnalysesMarkInput,
+) -> Result<LocalFileAnalysesMarkResult, String> {
+    let now = now_ms();
+    let mut synced_count = 0;
+    let mut failed_count = 0;
+
+    for result in input.results {
+        let synced = result.status.eq_ignore_ascii_case("SYNCED");
+        let status = if synced { "SYNCED" } else { "FAILED" };
+        if synced {
+            synced_count += 1;
+        } else {
+            failed_count += 1;
+        }
+
+        let id = local_file_analysis_request_id(
+            &result.local_file_id,
+            &result.resource_id,
+            result.checksum.as_deref(),
+        );
+        conn.execute(
+            "INSERT INTO local_file_analysis_requests \
+             (id, local_file_id, resource_id, checksum, status, attempt_count, error_message, created_at, updated_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7, ?7) \
+             ON CONFLICT(local_file_id, resource_id, checksum) DO UPDATE SET \
+                status = excluded.status, \
+                error_message = excluded.error_message, \
+                updated_at = excluded.updated_at",
+            params![
+                id,
+                result.local_file_id,
+                result.resource_id,
+                result.checksum,
+                status,
+                result.error_message,
+                now
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
+    Ok(LocalFileAnalysesMarkResult {
+        completed_at: ms_to_iso(now),
+        failed_count,
+        synced_count,
+    })
+}
+
+fn local_file_analysis_request_id(
+    local_file_id: &str,
+    resource_id: &str,
+    checksum: Option<&str>,
+) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(local_file_id.as_bytes());
+    hasher.update(b":");
+    hasher.update(resource_id.as_bytes());
+    hasher.update(b":");
+    hasher.update(checksum.unwrap_or("").as_bytes());
+    format!("{:x}", hasher.finalize())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3001,6 +3249,18 @@ mod tests {
                 reason TEXT,
                 modified_at INTEGER,
                 created_at INTEGER NOT NULL
+            );
+            CREATE TABLE local_file_analysis_requests (
+                id TEXT PRIMARY KEY,
+                local_file_id TEXT NOT NULL,
+                resource_id TEXT NOT NULL,
+                checksum TEXT,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                error_message TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                UNIQUE(local_file_id, resource_id, checksum)
             );
             CREATE VIRTUAL TABLE local_file_fts USING fts5 (
                 local_file_id UNINDEXED,
@@ -3464,6 +3724,124 @@ mod tests {
         assert_eq!(result.removed_at, ms_to_iso(20));
         assert_eq!(stored, ("REMOVED".to_string(), 0));
         assert_eq!(stageable_count, 0);
+    }
+
+    #[test]
+    fn skipped_delete_result_keeps_local_file_for_retry() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', '/tmp/docs', 'ACTIVE', 1, 1, 1)",
+            [],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, resource_id, sync_status, updated_at) \
+             VALUES ('file-1', 'folder-1', '~$contract.docx', '/tmp/docs/~$contract.docx', NULL, 'SYNC_PENDING', 1)",
+            [],
+        )
+        .expect("insert local file");
+        conn.execute(
+            "INSERT INTO local_file_events \
+             (id, local_file_id, local_folder_id, event_type, file_name, local_path, status, created_at) \
+             VALUES ('event-1', 'file-1', 'folder-1', 'DELETED', '~$contract.docx', '/tmp/docs/~$contract.docx', 'APPROVED', 1)",
+            [],
+        )
+        .expect("insert delete event");
+
+        let result = mark_local_file_events_synced_for_conn(
+            &conn,
+            LocalFileEventsMarkSyncedInput {
+                results: vec![LocalFileEventSyncResultInput {
+                    local_event_id: "event-1".to_string(),
+                    resource_id: None,
+                    status: "SKIPPED".to_string(),
+                }],
+            },
+        )
+        .expect("mark skipped delete");
+
+        let local_file_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM local_files WHERE id = 'file-1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read local file count");
+        let event_status: String = conn
+            .query_row(
+                "SELECT status FROM local_file_events WHERE id = 'event-1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read event status");
+        let file_sync_status: String = conn
+            .query_row(
+                "SELECT sync_status FROM local_files WHERE id = 'file-1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read file sync status");
+
+        assert_eq!(result.synced_count, 0);
+        assert_eq!(result.failed_count, 1);
+        assert_eq!(local_file_count, 1);
+        assert_eq!(event_status, "FAILED");
+        assert_eq!(file_sync_status, "FAILED");
+    }
+
+    #[test]
+    fn analysis_backfill_stages_synced_analyzable_file_once() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-analysis-backfill-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        let file_path = folder_path.join("contract.md");
+        std::fs::write(&file_path, "계약 범위와 지급 조건을 확인합니다.").expect("write file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, resource_id, checksum, sync_status, updated_at) \
+             VALUES ('file-1', 'folder-1', 'contract.md', ?1, 'resource-1', 'checksum-1', 'SYNCED', 1)",
+            params![file_path.to_string_lossy().to_string()],
+        )
+        .expect("insert synced file");
+
+        let staged =
+            stage_local_file_analysis_backfill_for_conn(&conn, 3, 3).expect("stage backfill");
+
+        assert_eq!(staged.candidates.len(), 1);
+        assert_eq!(staged.candidates[0].local_file_id, "file-1");
+        assert_eq!(staged.candidates[0].resource_id, "resource-1");
+        assert_eq!(staged.candidates[0].attempt_count, 1);
+
+        mark_local_file_analyses_sent_for_conn(
+            &conn,
+            LocalFileAnalysesMarkInput {
+                results: vec![LocalFileAnalysisMarkInput {
+                    checksum: Some("checksum-1".to_string()),
+                    error_message: None,
+                    local_file_id: "file-1".to_string(),
+                    resource_id: "resource-1".to_string(),
+                    status: "SYNCED".to_string(),
+                }],
+            },
+        )
+        .expect("mark analysis sent");
+
+        let restaged =
+            stage_local_file_analysis_backfill_for_conn(&conn, 3, 3).expect("restage backfill");
+
+        assert!(restaged.candidates.is_empty());
+
+        let _ = std::fs::remove_dir_all(folder_path);
     }
 
     #[test]

@@ -1,6 +1,9 @@
 "use client";
 
-import { syncPersonalLocalFileEventsToServer } from "@/lib/local/managed-folder-client";
+import {
+  backfillPersonalLocalFileAnalyses,
+  syncPersonalLocalFileEventsToServer,
+} from "@/lib/local/managed-folder-client";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { tauriCommands } from "@/lib/tauri/commands";
@@ -12,6 +15,7 @@ let syncIntervalId: number | null = null;
 let syncDebounceId: number | null = null;
 let syncInFlight = false;
 let syncRequestedWhileInFlight = false;
+let analysisBackfillHasRun = false;
 let unlistenManagedFolderWatchEvents: (() => void) | null = null;
 
 export function startManagedFolderAutoSync() {
@@ -44,6 +48,7 @@ export function stopManagedFolderAutoSync() {
   syncDebounceId = null;
   syncInFlight = false;
   syncRequestedWhileInFlight = false;
+  analysisBackfillHasRun = false;
   if (isTauriRuntime()) {
     void tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
   }
@@ -73,6 +78,11 @@ async function syncManagedFolderEventsOnce() {
   syncInFlight = true;
   try {
     await syncPersonalLocalFileEventsToServer({ limit: 20 });
+    await backfillPersonalLocalFileAnalyses({
+      limit: analysisBackfillHasRun ? 1 : 3,
+      maxAttempts: 3,
+    });
+    analysisBackfillHasRun = true;
   } catch {
     // The sync adapter keeps failed rows retryable in SQLite; the next tick can try again.
   } finally {
