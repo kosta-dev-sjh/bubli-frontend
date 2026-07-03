@@ -77,6 +77,9 @@ const ko = {
 
   // Google Calendar
   "settings.gcal.ready": "연결 준비",
+  "settings.gcal.connected": "연결됨",
+  "settings.gcal.connectedDesc": "연결된 계정으로 일정이 동기화됩니다",
+  "settings.gcal.reconnectCta": "재연결",
   "settings.gcal.lead": "일정은 Bubli에서 관리하고, 외부 캘린더와 함께 확인합니다.",
   "settings.gcal.leadSub": "프로젝트룸 일정과 개인 일정을 Google Calendar와 연결할 수 있습니다.",
   "settings.gcal.connectionStatus": "연결 상태",
@@ -1089,6 +1092,9 @@ const en: Record<Key, string> = {
   "settings.tz.tokyo": "Tokyo time",
 
   "settings.gcal.ready": "Ready to connect",
+  "settings.gcal.connected": "Connected",
+  "settings.gcal.connectedDesc": "Your schedules are syncing with the connected account",
+  "settings.gcal.reconnectCta": "Reconnect",
   "settings.gcal.lead": "Manage schedules in Bubli and view them alongside external calendars.",
   "settings.gcal.leadSub": "Connect project room and personal schedules with Google Calendar.",
   "settings.gcal.connectionStatus": "Connection status",
@@ -2075,6 +2081,9 @@ const ja: Record<Key, string> = {
   "settings.tz.tokyo": "東京時間",
 
   "settings.gcal.ready": "接続準備",
+  "settings.gcal.connected": "接続済み",
+  "settings.gcal.connectedDesc": "接続済みアカウントで予定が同期されます",
+  "settings.gcal.reconnectCta": "再接続",
   "settings.gcal.lead": "予定は Bubli で管理し、外部カレンダーと合わせて確認します。",
   "settings.gcal.leadSub": "プロジェクトルームの予定と個人の予定を Google カレンダーと連携できます。",
   "settings.gcal.connectionStatus": "接続状態",
