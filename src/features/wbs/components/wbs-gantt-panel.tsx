@@ -321,9 +321,10 @@ export function WbsGanttPanel({
     });
   };
 
-  const getParentIdForNewTaskFromRow = (item: WbsItemResponse) => (item.parentId ? null : item.id);
+  const getParentIdForNewTaskFromRow = (item: WbsItemResponse) => item.parentId ?? item.id;
 
-  const getFeatureForNewTaskFromRow = (item: WbsItemResponse) => (item.parentId ? undefined : featureById.get(item.id));
+  const getFeatureForNewTaskFromRow = (item: WbsItemResponse) =>
+    featureById.get(item.id) ?? (item.parentId ? featureById.get(item.parentId) : undefined);
 
   const persistRange = useCallback((item: WbsItemResponse, nextRange: LocalRange) => {
     const schedule = scheduleByWbsId.get(item.id);
@@ -456,7 +457,7 @@ export function WbsGanttPanel({
 
     const item = selectedWbsId ? itemById.get(selectedWbsId) : null;
 
-    if (!item || item.parentId) return null;
+    if (!item) return null;
     return getParentIdForNewTaskFromRow(item);
   };
 
@@ -541,7 +542,7 @@ export function WbsGanttPanel({
 
   const draftParentTitle = createDraft?.parentId ? itemById.get(createDraft.parentId)?.title ?? null : null;
   const selectedItemForTask = selectedWbsId ? itemById.get(selectedWbsId) ?? null : null;
-  const canAddTaskToSelection = Boolean(selectedItemForTask && !selectedItemForTask.parentId);
+  const canAddTaskToSelection = Boolean(selectedItemForTask);
 
   return (
     <div className={styles.panel} ref={panelRef}>
