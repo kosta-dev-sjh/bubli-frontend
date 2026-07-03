@@ -45,6 +45,7 @@ export const TAURI_COMMANDS = {
   selectManagedFolder: "select_managed_folder",
   seedWidgetBarItems: "seed_widget_bar_items",
   setPreferredAppMonitor: "set_preferred_app_monitor",
+  setActivityContextConsent: "set_activity_context_consent",
   setFolderSync: "set_folder_sync",
   setWidgetAlwaysOnTop: "set_widget_always_on_top",
   setWidgetClickThrough: "set_widget_click_through",
@@ -154,6 +155,15 @@ export type ManagedFolderWatchAllResult = {
 export type ManagedFolderUnwatchAllResult = {
   stoppedCount: number;
   stoppedFolderIds: string[];
+};
+
+export type ActivityContextConsentInput = {
+  enabled: boolean;
+};
+
+export type ActivityContextConsentResult = {
+  enabled: boolean;
+  updatedAt: string;
 };
 
 export type LocalFileSearchInput = {
@@ -854,6 +864,10 @@ export type TauriCommandContract = {
     args: AppMonitorPreferenceInput;
     result: AppMonitorPreference;
   };
+  set_activity_context_consent: {
+    args: ActivityContextConsentInput;
+    result: ActivityContextConsentResult;
+  };
   set_folder_sync: {
     args: ManagedFolderSyncInput;
     result: ManagedFolderSyncResult;
@@ -1012,6 +1026,9 @@ export const tauriCommands = {
   },
   readActivityContext() {
     return invokeTauri<ActivityContextResult>(TAURI_COMMANDS.readActivityContext);
+  },
+  setActivityContextConsent(input: ActivityContextConsentInput) {
+    return invokeTauri<ActivityContextConsentResult>(TAURI_COMMANDS.setActivityContextConsent, { input });
   },
   readLocalFilePreview(input: LocalFilePreviewInput) {
     return invokeTauri<LocalFilePreviewResult>(TAURI_COMMANDS.readLocalFilePreview, { input });

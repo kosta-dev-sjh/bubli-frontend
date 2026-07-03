@@ -6,6 +6,7 @@ import {
   resetIncrementalActivityCheckpoint,
   syncLocalActivityBufferToServer,
 } from "@/lib/local/activity-client";
+import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 
@@ -44,6 +45,8 @@ export async function stopActivityAutoCapture(input?: ActivityAutoCaptureStopInp
     await flushActivityAutoCapture();
   }
 
+  await mirrorNativeActivityConsent(false);
+
   captureInFlight = false;
   captureInFlightPromise = null;
   cachedConsent = null;
@@ -59,6 +62,7 @@ export function notifyActivityConsentChanged(enabled: boolean) {
   cachedConsent = enabled;
   cachedConsentCheckedAt = Date.now();
   activityConsentRevision += 1;
+  void mirrorNativeActivityConsent(enabled);
 
   if (!enabled) {
     if (captureIntervalId !== null) {
@@ -141,5 +145,11 @@ async function readActivityConsent() {
   const privacy = await settingsApi.getPrivacyConsents();
   cachedConsent = Boolean(privacy.activityDetectionEnabled);
   cachedConsentCheckedAt = now;
+  await mirrorNativeActivityConsent(cachedConsent);
   return cachedConsent;
+}
+
+async function mirrorNativeActivityConsent(enabled: boolean) {
+  if (!isTauriRuntime()) return;
+  await tauriCommands.setActivityContextConsent({ enabled }).catch(() => undefined);
 }
