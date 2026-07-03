@@ -24,7 +24,7 @@ export const WIDGET_CATALOG: DashboardWidgetDef[] = [
   { category: "info", descriptionKey: "dashboard.catalog.todaySummary.desc", size: "M", titleKey: "dashboard.catalog.todaySummary.title", widgetId: "today-summary" },
   { category: "info", descriptionKey: "dashboard.catalog.notifications.desc", size: "S", titleKey: "dashboard.catalog.notifications.title", widgetId: "notifications" },
   { category: "info", descriptionKey: "dashboard.catalog.recentResources.desc", size: "M", titleKey: "dashboard.catalog.recentResources.title", widgetId: "recent-resources" },
-  { category: "work", descriptionKey: "dashboard.catalog.quickMemo.desc", size: "S", titleKey: "dashboard.catalog.quickMemo.title", widgetId: "quick-memo" },
+  { category: "work", descriptionKey: "dashboard.catalog.quickMemo.desc", size: "M", titleKey: "dashboard.catalog.quickMemo.title", widgetId: "quick-memo" },
   { category: "work", descriptionKey: "dashboard.catalog.quickUpload.desc", size: "S", titleKey: "dashboard.catalog.quickUpload.title", widgetId: "quick-upload" },
 ];
 

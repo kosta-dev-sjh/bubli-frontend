@@ -278,6 +278,15 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                 void loadResources();
               }}
               onError={(message) => setUploadState({ kind: "error", message })}
+              onSelectRelated={(related) => {
+                if (resources.some((item) => item.id === related.id)) {
+                  setQuery("");
+                  setSelectedResourceId(related.id);
+                }
+              }}
+              onUpdated={() => {
+                void loadResources();
+              }}
               resource={selectedResource}
               roomId={roomId}
               scope="room"

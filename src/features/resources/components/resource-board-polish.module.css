@@ -971,3 +971,188 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 }
+
+/* 자료 상세 — 이름 바꾸기 / 관련 자료 / AI 분석 문서 */
+.renameForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.renameForm input {
+  flex: 1 1 180px;
+  min-width: 0;
+  border: 1px solid rgba(107, 143, 168, 0.16);
+  border-radius: 14px;
+  padding: 9px 12px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.78);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 540;
+  outline: none;
+}
+
+.renameForm input:focus-visible {
+  border-color: rgba(111, 184, 242, 0.55);
+}
+
+.relatedPanel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(107, 143, 168, 0.1);
+  border-radius: 20px;
+  padding: 12px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(247, 251, 255, 0.62));
+}
+
+.relatedTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.relatedTitle > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.relatedTitle span {
+  color: var(--blue-ink);
+  font-size: 12px;
+  font-weight: 610;
+  word-break: keep-all;
+}
+
+.relatedTitle strong {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 540;
+  word-break: keep-all;
+}
+
+.relatedTitle svg {
+  flex: 0 0 auto;
+  color: var(--blue-ink);
+}
+
+.relatedList {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.relatedList button {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 14px;
+  padding: 9px 11px;
+  background: rgba(255, 255, 255, 0.6);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.relatedList button:hover:not(:disabled) {
+  border-color: rgba(111, 184, 242, 0.45);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.relatedList button:disabled {
+  cursor: default;
+}
+
+.relatedList b {
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.relatedList span {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 520;
+  line-height: 1.45;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.aiDocPanel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(107, 143, 168, 0.1);
+  border-radius: 20px;
+  padding: 12px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(247, 249, 250, 0.58));
+}
+
+.aiDocHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.aiDocHead span {
+  color: var(--blue-ink);
+  font-size: 12px;
+  font-weight: 610;
+  word-break: keep-all;
+}
+
+.aiDocPanel dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.aiDocPanel dl div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid rgba(107, 143, 168, 0.1);
+  border-radius: 14px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.aiDocPanel dt {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 560;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.aiDocPanel dd {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 560;
+  line-height: 1.4;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.aiDocEmpty {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  font-weight: 540;
+  line-height: 1.5;
+  word-break: keep-all;
+}

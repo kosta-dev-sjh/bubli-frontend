@@ -11,3 +11,4 @@ export * from "./project-room-invite-access-panel";
 export * from "./project-room-invite-flow";
 export * from "./project-room-leader-handoff-panel";
 export * from "./project-room-retention-policy-panel";
+export * from "./project-room-settings-panel";

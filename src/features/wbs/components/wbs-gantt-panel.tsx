@@ -1,7 +1,7 @@
 "use client";
 
 import { addDays, endOfDay, startOfDay } from "date-fns";
-import { CalendarDays, CalendarRange, ChevronRight, FolderPlus, PencilIcon, Plus, TrashIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, CalendarRange, ChevronRight, FolderPlus, PencilIcon, Plus, TrashIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -99,6 +99,7 @@ export function WbsGanttPanel({
   onSelectItem,
   onWbsCreated,
   onWbsDeleted,
+  onWbsReordered,
   rangeEditRequest,
   roomId,
   selectedWbsId,
@@ -111,6 +112,7 @@ export function WbsGanttPanel({
   onSelectItem: (id: string) => void;
   onWbsCreated: (item: WbsItemResponse, temporaryId?: string) => void;
   onWbsDeleted: (id: string) => void;
+  onWbsReordered?: (items: WbsItemResponse[]) => void;
   rangeEditRequest?: WbsGanttRangeEditRequest | null;
   roomId: string;
   selectedWbsId: string | null;
@@ -484,6 +486,60 @@ export function WbsGanttPanel({
     openCreateDraft(parentId, feature?.startAt ?? new Date());
   };
 
+  const siblingsOf = useCallback(
+    (item: WbsItemResponse) => {
+      const parentKey = item.parentId && itemById.has(item.parentId) ? item.parentId : "__root__";
+      return childrenByParent[parentKey] ?? [];
+    },
+    [childrenByParent, itemById],
+  );
+
+  const handleReorderItem = (item: WbsItemResponse, direction: -1 | 1) => {
+    const siblings = siblingsOf(item);
+    const index = siblings.findIndex((entry) => entry.id === item.id);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= siblings.length) return;
+
+    const reordered = [...siblings];
+    [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+    const orderNoById = new Map(reordered.map((entry, position) => [entry.id, position + 1]));
+
+    const previousItems = wbsItems;
+    const nextItems = wbsItems.map((entry) => {
+      const orderNo = orderNoById.get(entry.id);
+      return orderNo !== undefined && orderNo !== entry.orderNo ? { ...entry, orderNo } : entry;
+    });
+
+    onWbsReordered?.(nextItems);
+
+    const serverItems = reordered
+      .filter((entry) => !entry.id.startsWith(LOCAL_ID_PREFIX))
+      .map((entry) => ({
+        orderNo: orderNoById.get(entry.id) ?? entry.orderNo,
+        parentId: item.parentId ?? null,
+        wbsItemId: entry.id,
+      }));
+
+    if (serverItems.length === 0) {
+      onNotice(t("wbs.gantt.notice.orderSavedLocal"));
+      return;
+    }
+
+    onNotice(t("wbs.gantt.notice.orderSaving"));
+
+    void wbsApi
+      .reorderItems(roomId, { items: serverItems })
+      .then(() => onNotice(t("wbs.gantt.notice.orderSaved")))
+      .catch(() => {
+        if (shouldUseWorkspacePreviewData()) {
+          onNotice(t("wbs.gantt.notice.orderSavedLocal"));
+          return;
+        }
+        onWbsReordered?.(previousItems);
+        onNotice(t("wbs.gantt.notice.orderServerPending"));
+      });
+  };
+
   const handleDeleteItem = async (item: WbsItemResponse) => {
     if (wbsItems.some((entry) => entry.parentId === item.id)) {
       onNotice(t("wbs.gantt.notice.groupHasTasks"));
@@ -644,6 +700,8 @@ export function WbsGanttPanel({
               const accent = resolveAccent(item);
               const childCount = childCountById.get(item.id) ?? 0;
               const isCollapsed = collapsedWbsIds.has(item.id);
+              const siblings = siblingsOf(item);
+              const siblingIndex = siblings.findIndex((entry) => entry.id === item.id);
               return (
                 <GanttSidebarItem
                   accentColor={accent}
@@ -687,6 +745,32 @@ export function WbsGanttPanel({
                           <Plus aria-hidden="true" size={13} strokeWidth={1.9} />
                         </button>
                       ) : null}
+                      <button
+                        aria-label={t("wbs.gantt.row.moveUpAria", { title: item.title })}
+                        className={styles.rowActionButton}
+                        disabled={siblingIndex <= 0}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleReorderItem(item, -1);
+                        }}
+                        title={t("wbs.gantt.row.moveUpTitle")}
+                        type="button"
+                      >
+                        <ArrowUp aria-hidden="true" size={13} strokeWidth={1.9} />
+                      </button>
+                      <button
+                        aria-label={t("wbs.gantt.row.moveDownAria", { title: item.title })}
+                        className={styles.rowActionButton}
+                        disabled={siblingIndex < 0 || siblingIndex >= siblings.length - 1}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleReorderItem(item, 1);
+                        }}
+                        title={t("wbs.gantt.row.moveDownTitle")}
+                        type="button"
+                      >
+                        <ArrowDown aria-hidden="true" size={13} strokeWidth={1.9} />
+                      </button>
                       <button
                         aria-label={t("wbs.gantt.row.editAria", { title: item.title })}
                         className={styles.rowActionButton}

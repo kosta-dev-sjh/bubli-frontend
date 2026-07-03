@@ -216,6 +216,15 @@ export function PersonalResourceWorkspace() {
                 setSelectedResourceId(null);
                 void loadResources();
               }}
+              onSelectRelated={(related) => {
+                if (resources.some((item) => item.id === related.id)) {
+                  setQuery("");
+                  setSelectedResourceId(related.id);
+                }
+              }}
+              onUpdated={() => {
+                void loadResources();
+              }}
               resource={selectedResource}
               scope="personal"
             />

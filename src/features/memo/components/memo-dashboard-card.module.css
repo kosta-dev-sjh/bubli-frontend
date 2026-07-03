@@ -1,0 +1,158 @@
+.card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.composeForm {
+  display: grid;
+  gap: 7px;
+}
+
+.composeForm textarea {
+  width: 100%;
+  min-height: 58px;
+  resize: vertical;
+  border: 1px solid rgba(107, 143, 168, 0.16);
+  border-radius: 14px;
+  padding: 9px 11px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.78);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 520;
+  line-height: 1.5;
+  outline: none;
+}
+
+.composeActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.notice {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+.memoList {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.memoItem {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 14px;
+  padding: 9px 11px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.memoBody {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 520;
+  line-height: 1.5;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.memoMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.memoMeta time {
+  color: var(--color-muted);
+  font-size: 11.5px;
+  font-weight: 560;
+}
+
+.memoActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.memoActions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: var(--radius-pill, 999px);
+  padding: 3px 8px;
+  color: var(--color-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 620;
+  cursor: pointer;
+  word-break: keep-all;
+}
+
+.memoActions button:hover:not(:disabled) {
+  color: var(--color-text);
+  background: rgba(107, 143, 168, 0.12);
+}
+
+.memoActions button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.memoDeleteConfirm {
+  color: color-mix(in srgb, var(--signal-alert, #E79BB0) 62%, var(--ink, #2C3540) 38%);
+}
+
+.editForm {
+  display: grid;
+  gap: 6px;
+}
+
+.editForm textarea {
+  width: 100%;
+  min-height: 52px;
+  resize: vertical;
+  border: 1px solid rgba(107, 143, 168, 0.16);
+  border-radius: 12px;
+  padding: 8px 10px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.82);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 520;
+  line-height: 1.5;
+  outline: none;
+}
+
+.editActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.emptyState {
+  margin: 0;
+  padding: 6px 2px;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  font-weight: 540;
+  line-height: 1.5;
+  word-break: keep-all;
+}

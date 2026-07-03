@@ -7,19 +7,22 @@ import {
   FileType,
   Grid3X3,
   HardDrive,
+  Link2,
   List,
   MessageSquareText,
   Pencil,
   Presentation,
+  ScanText,
   Search,
   Sheet,
   Sparkles,
   Trash2,
+  Upload,
   UsersRound,
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -30,7 +33,10 @@ import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type {
+  AiDocumentResponse,
+  AiDocumentStatus,
   ResourceCommentResponse,
+  ResourceRelationResponse,
   ResourceResponse,
   ResourceStatus,
   ResourceSummaryResponse,
@@ -60,6 +66,14 @@ const summaryStatusCopyKey: Record<ResourceSummaryStatus, MessageKey> = {
   NONE: "resources.common.summaryNone",
   PENDING: "resources.common.summaryPending",
   SUCCEEDED: "resources.common.summarySucceeded",
+};
+
+const aiDocumentStatusCopyKey: Record<AiDocumentStatus, MessageKey> = {
+  ANALYZED: "resources.common.aiDocStatusAnalyzed",
+  ANALYZING: "resources.common.aiDocStatusAnalyzing",
+  FAILED: "resources.common.aiDocStatusFailed",
+  NONE: "resources.common.aiDocStatusNone",
+  READY: "resources.common.aiDocStatusReady",
 };
 
 const personalStatusCopyKey: Partial<Record<ResourceStatus, MessageKey>> = {
@@ -459,6 +473,8 @@ export function ResourcePreview({
   onClose,
   onDeleted,
   onError,
+  onSelectRelated,
+  onUpdated,
 }: {
   resource: ResourceResponse | null;
   emptyHint?: string;
@@ -467,6 +483,8 @@ export function ResourcePreview({
   onClose?: () => void;
   onDeleted?: () => void;
   onError?: (message: string) => void;
+  onSelectRelated?: (resource: ResourceResponse) => void;
+  onUpdated?: () => void;
 }) {
   const { t } = useI18n();
   const [detailResource, setDetailResource] = useState<ResourceResponse | null>(resource);
@@ -490,6 +508,17 @@ export function ResourcePreview({
   const [draftState, setDraftState] = useState<{ kind: "idle" } | { kind: "running" } | { jobId: string; kind: "started" } | { kind: "error"; message: string }>({
     kind: "idle",
   });
+  const [related, setRelated] = useState<ResourceRelationResponse[]>([]);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameState, setRenameState] = useState<{ kind: "idle" } | { kind: "saving" } | { kind: "error"; message: string }>({ kind: "idle" });
+  const [versionState, setVersionState] = useState<
+    { kind: "idle" } | { fileName: string; kind: "uploading" } | { kind: "success"; versionNo: number } | { kind: "error"; message: string }
+  >({ kind: "idle" });
+  const [aiDocState, setAiDocState] = useState<{ kind: "closed" } | { kind: "loading" } | { document: AiDocumentResponse; kind: "open" } | { kind: "error"; message: string }>({
+    kind: "closed",
+  });
+  const versionInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -499,6 +528,7 @@ export function ResourcePreview({
         setSummary(null);
         setVersions([]);
         setComments([]);
+        setRelated([]);
         setDetailError(null);
         setCommentBody("");
         setEditingCommentId(null);
@@ -508,6 +538,10 @@ export function ResourcePreview({
         setAnalysisState({ kind: "idle" });
         setQuestionState({ kind: "idle" });
         setDraftState({ kind: "idle" });
+        setRenameOpen(false);
+        setRenameState({ kind: "idle" });
+        setVersionState({ kind: "idle" });
+        setAiDocState({ kind: "closed" });
         return;
       }
 
@@ -515,6 +549,7 @@ export function ResourcePreview({
       setSummary(null);
       setVersions([]);
       setComments([]);
+      setRelated([]);
       setDetailLoading(true);
       setDetailError(null);
       setCommentError(null);
@@ -524,13 +559,18 @@ export function ResourcePreview({
       setDraftState({ kind: "idle" });
       setEditingCommentId(null);
       setEditingCommentBody("");
+      setRenameOpen(false);
+      setRenameState({ kind: "idle" });
+      setVersionState({ kind: "idle" });
+      setAiDocState({ kind: "closed" });
 
       Promise.allSettled([
         resourcesApi.get(resource.id),
         resourcesApi.getSummary(resource.id),
         resourcesApi.getVersions(resource.id),
         resourcesApi.getComments(resource.id),
-      ]).then(([resourceResult, summaryResult, versionsResult, commentsResult]) => {
+        resourcesApi.getRelated(resource.id),
+      ]).then(([resourceResult, summaryResult, versionsResult, commentsResult, relatedResult]) => {
         if (cancelled) {
           return;
         }
@@ -550,6 +590,8 @@ export function ResourcePreview({
         if (commentsResult.status === "fulfilled") {
           setComments(sortComments(commentsResult.value.items));
         }
+
+        setRelated(relatedResult.status === "fulfilled" ? relatedResult.value.items : []);
 
         const failed = [resourceResult, summaryResult, versionsResult, commentsResult].find((result) => result.status === "rejected");
         setDetailError(failed?.status === "rejected" ? getErrorMessage(failed.reason) : null);
@@ -580,6 +622,80 @@ export function ResourcePreview({
       onError?.(getErrorMessage(error, t));
     }
   }, [activeResource, onError, t]);
+
+  const handleRenameSubmit = useCallback(async () => {
+    const title = renameValue.trim();
+    if (!activeResource || !title || renameState.kind === "saving") {
+      return;
+    }
+
+    if (title === activeResource.title) {
+      setRenameOpen(false);
+      setRenameState({ kind: "idle" });
+      return;
+    }
+
+    setRenameState({ kind: "saving" });
+
+    try {
+      const updated = await resourcesApi.update(activeResource.id, { title });
+      setDetailResource(updated);
+      setRenameOpen(false);
+      setRenameState({ kind: "idle" });
+      onUpdated?.();
+    } catch (error) {
+      setRenameState({ kind: "error", message: getErrorMessage(error, t) });
+    }
+  }, [activeResource, onUpdated, renameState.kind, renameValue, t]);
+
+  const handleVersionFile = useCallback(
+    async (file: File) => {
+      if (!activeResource) {
+        return;
+      }
+
+      setVersionState({ fileName: file.name, kind: "uploading" });
+
+      try {
+        const body = new FormData();
+        body.append("file", file);
+        const version = await resourcesApi.uploadVersion(activeResource.id, body);
+        setVersionState({ kind: "success", versionNo: version.versionNo });
+
+        const [detailResult, versionsResult] = await Promise.allSettled([resourcesApi.get(activeResource.id), resourcesApi.getVersions(activeResource.id)]);
+        if (detailResult.status === "fulfilled") {
+          setDetailResource(detailResult.value);
+        }
+        if (versionsResult.status === "fulfilled") {
+          setVersions(versionsResult.value.items);
+        }
+        onUpdated?.();
+      } catch (error) {
+        setVersionState({ kind: "error", message: getErrorMessage(error, t) });
+      }
+    },
+    [activeResource, onUpdated, t],
+  );
+
+  const handleToggleAiDocument = useCallback(async () => {
+    if (!activeResource || aiDocState.kind === "loading") {
+      return;
+    }
+
+    if (aiDocState.kind === "open" || aiDocState.kind === "error") {
+      setAiDocState({ kind: "closed" });
+      return;
+    }
+
+    setAiDocState({ kind: "loading" });
+
+    try {
+      const document = await resourcesApi.getAiDocument(activeResource.id);
+      setAiDocState({ document, kind: "open" });
+    } catch (error) {
+      setAiDocState({ kind: "error", message: getErrorMessage(error, t) });
+    }
+  }, [activeResource, aiDocState.kind, t]);
 
   const handleAnalyzeResource = useCallback(async () => {
     if (!activeResource || analysisState.kind === "running") {
@@ -891,7 +1007,149 @@ export function ResourcePreview({
           <Download aria-hidden size={16} strokeWidth={2} />
           {t("resources.common.download")}
         </Button>
+        <Button
+          aria-label={t("resources.common.renameAria")}
+          onClick={() => {
+            setRenameValue(activeResource.title);
+            setRenameState({ kind: "idle" });
+            setRenameOpen((current) => !current);
+          }}
+          variant="secondary"
+        >
+          <Pencil aria-hidden size={15} strokeWidth={2} />
+          {t("resources.common.rename")}
+        </Button>
+        <Button
+          aria-label={t("resources.common.uploadVersionAria")}
+          disabled={versionState.kind === "uploading"}
+          loading={versionState.kind === "uploading"}
+          onClick={() => versionInputRef.current?.click()}
+          variant="secondary"
+        >
+          <Upload aria-hidden size={15} strokeWidth={2} />
+          {t("resources.common.uploadVersion")}
+        </Button>
+        <Button
+          aria-label={t("resources.common.aiDocAria")}
+          disabled={aiDocState.kind === "loading"}
+          loading={aiDocState.kind === "loading"}
+          onClick={() => void handleToggleAiDocument()}
+          variant="secondary"
+        >
+          <ScanText aria-hidden size={15} strokeWidth={2} />
+          {aiDocState.kind === "open" || aiDocState.kind === "error" ? t("resources.common.aiDocHide") : t("resources.common.aiDocView")}
+        </Button>
       </div>
+
+      <input
+        ref={versionInputRef}
+        accept={SUPPORTED_RESOURCE_UPLOAD_ACCEPT}
+        aria-label={t("resources.common.uploadVersionAria")}
+        className="resource-workspace__file-input"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) {
+            void handleVersionFile(file);
+          }
+          event.currentTarget.value = "";
+        }}
+        type="file"
+      />
+
+      {renameOpen ? (
+        <form
+          className={styles.renameForm}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleRenameSubmit();
+          }}
+        >
+          <input
+            aria-label={t("resources.common.renameInputAria")}
+            maxLength={200}
+            onChange={(event) => setRenameValue(event.target.value)}
+            value={renameValue}
+          />
+          <Button disabled={!renameValue.trim() || renameState.kind === "saving"} loading={renameState.kind === "saving"} size="sm" type="submit" variant="primary">
+            {t("resources.common.save")}
+          </Button>
+          <Button
+            onClick={() => {
+              setRenameOpen(false);
+              setRenameState({ kind: "idle" });
+            }}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            {t("resources.common.cancel")}
+          </Button>
+        </form>
+      ) : null}
+      {renameState.kind === "error" ? <p className={styles.previewError}>{renameState.message}</p> : null}
+      {versionState.kind === "uploading" ? <p className={styles.previewNotice}>{t("resources.common.uploadingVersion", { fileName: versionState.fileName })}</p> : null}
+      {versionState.kind === "success" ? <p className={styles.previewNotice}>{t("resources.common.versionUploaded", { version: versionState.versionNo })}</p> : null}
+      {versionState.kind === "error" ? <p className={styles.previewError}>{versionState.message}</p> : null}
+      {aiDocState.kind === "error" ? <p className={styles.previewError}>{aiDocState.message}</p> : null}
+
+      {aiDocState.kind === "open" ? (
+        <section className={styles.aiDocPanel} aria-label={t("resources.common.aiDocAria")}>
+          <div className={styles.aiDocHead}>
+            <span>{t("resources.common.aiDocAria")}</span>
+            <StatusBadge tone={aiDocState.document.status === "ANALYZED" ? "success" : "neutral"}>
+              {t(aiDocumentStatusCopyKey[aiDocState.document.status])}
+            </StatusBadge>
+          </div>
+          <dl>
+            <div>
+              <dt>{t("resources.common.aiDocType")}</dt>
+              <dd>{aiDocState.document.documentType ?? t("resources.common.pending")}</dd>
+            </div>
+            <div>
+              <dt>{t("resources.common.aiDocStatusLabel")}</dt>
+              <dd>{t(aiDocumentStatusCopyKey[aiDocState.document.status])}</dd>
+            </div>
+            {Object.entries(aiDocState.document.fields ?? {})
+              .slice(0, 8)
+              .map(([fieldKey, fieldValue]) => (
+                <div key={fieldKey}>
+                  <dt>{fieldKey}</dt>
+                  <dd>{typeof fieldValue === "string" || typeof fieldValue === "number" ? String(fieldValue) : JSON.stringify(fieldValue)}</dd>
+                </div>
+              ))}
+          </dl>
+          {!aiDocState.document.documentType && Object.keys(aiDocState.document.fields ?? {}).length === 0 ? (
+            <p className={styles.aiDocEmpty}>{t("resources.common.aiDocEmpty")}</p>
+          ) : null}
+        </section>
+      ) : null}
+
+      <section className={styles.relatedPanel} aria-label={t("resources.common.relatedAria")}>
+        <div className={styles.relatedTitle}>
+          <div>
+            <span>{t("resources.common.relatedTitle")}</span>
+            <strong>{related.length > 0 ? t("resources.common.countUnit", { count: related.length }) : t("resources.common.relatedEmpty")}</strong>
+          </div>
+          <Link2 aria-hidden size={16} strokeWidth={2} />
+        </div>
+        {related.length > 0 ? (
+          <ul className={styles.relatedList}>
+            {related.map((relation) => (
+              <li key={relation.id}>
+                <button
+                  aria-label={t("resources.common.relatedOpenAria", { title: relation.relatedResource.title })}
+                  disabled={!onSelectRelated}
+                  onClick={() => onSelectRelated?.(relation.relatedResource)}
+                  type="button"
+                >
+                  <b>{relation.relatedResource.title}</b>
+                  <span>{relation.reason?.trim() || formatDate(relation.relatedResource.updatedAt, t)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
 
       <section className={styles.commentPanel} aria-label={t("resources.common.commentsAria")}>
         <div className={styles.commentPanelTitle}>

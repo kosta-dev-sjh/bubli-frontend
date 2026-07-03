@@ -27,6 +27,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { activityApi } from "@/features/activity/api/activityApi";
 import { dashboardApi } from "@/features/dashboard/api/dashboardApi";
+import { MemoDashboardCard } from "@/features/memo/components";
+import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
@@ -78,8 +80,9 @@ const connectedWidgetIds = [
   "pending-approval",
   "timer",
   "recent-resources",
+  "quick-memo",
 ];
-const defaultWidgetIds = ["today-summary", "next-focus", "today-todos", "schedule", "project-rooms", "pending-approval", "timer"];
+const defaultWidgetIds = ["today-summary", "next-focus", "today-todos", "schedule", "project-rooms", "pending-approval", "timer", "quick-memo"];
 const dashboardDropzoneId = "dashboard-canvas";
 const dashboardRemoveDropzoneId = "dashboard-remove-card";
 const DASHBOARD_TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
@@ -708,6 +711,8 @@ export function WorkspaceDashboard() {
   const [activePaletteWidgetId, setActivePaletteWidgetId] = useState<string | null>(null);
   const [activeRoom, setActiveRoom] = useState<{ label: string | null; roomId: string | null }>({ label: null, roomId: null });
   const [personalTasks, setPersonalTasks] = useState<TaskResponse[]>([]);
+  const [dashboardFeedTasks, setDashboardFeedTasks] = useState<TaskResponse[]>([]);
+  const [personalResources, setPersonalResources] = useState<ResourceResponse[]>([]);
   const [creatingTodo, setCreatingTodo] = useState(false);
   const [deletingTodoId, setDeletingTodoId] = useState<string | null>(null);
   const [todoNotice, setTodoNotice] = useState<string | null>(null);
@@ -725,16 +730,21 @@ export function WorkspaceDashboard() {
     try {
       const data = await dashboardApi.getWork();
       setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
-      const [roomResult, personalTaskResult, widgetSummaryResult, widgetUsageResult, activityResult] = await Promise.allSettled([
-        projectRoomApi.list(),
-        todoApi.list(),
-        readWidgetSummary(),
-        widgetApi.getTodayUsageRollups(),
-        activityApi.getToday(),
-      ]);
+      const [roomResult, personalTaskResult, dashboardTaskResult, personalResourceResult, widgetSummaryResult, widgetUsageResult, activityResult] =
+        await Promise.allSettled([
+          projectRoomApi.list(),
+          todoApi.list(),
+          dashboardApi.getTasks(),
+          resourcesApi.listPersonal(),
+          readWidgetSummary(),
+          widgetApi.getTodayUsageRollups(),
+          activityApi.getToday(),
+        ]);
 
       setRooms(roomResult.status === "fulfilled" ? roomResult.value.items : []);
       setPersonalTasks(personalTaskResult.status === "fulfilled" ? personalTaskResult.value.items : []);
+      setDashboardFeedTasks(dashboardTaskResult.status === "fulfilled" ? dashboardTaskResult.value.items : []);
+      setPersonalResources(personalResourceResult.status === "fulfilled" ? personalResourceResult.value.items : []);
       setWidgetSummary(widgetSummaryResult.status === "fulfilled" && widgetSummaryResult.value.status === "ready" ? widgetSummaryResult.value.data : null);
       setTodayWidgetUsageSummary(widgetUsageResult.status === "fulfilled" ? widgetUsageResult.value : null);
       setTodayActivityLogs(activityResult.status === "fulfilled" ? activityResult.value : null);
@@ -921,7 +931,8 @@ export function WorkspaceDashboard() {
     [activeRoom.roomId, applyDashboardTimerResult, data.runningTimer, realData.runningTimer, t],
   );
 
-  const dashboardTasks = [...data.todayTasks, ...data.upcomingDeadlines, ...(activeRoom.roomId ? [] : personalTasks)].filter(
+  const scopedFeedTasks = activeRoom.roomId ? dashboardFeedTasks.filter((task) => task.roomId === activeRoom.roomId) : dashboardFeedTasks;
+  const dashboardTasks = [...data.todayTasks, ...data.upcomingDeadlines, ...(activeRoom.roomId ? [] : personalTasks), ...scopedFeedTasks].filter(
     (task, index, source) => source.findIndex((item) => item.id === task.id) === index,
   );
   const taskItems = dashboardTasks
@@ -938,13 +949,18 @@ export function WorkspaceDashboard() {
   const inProgressTask = dashboardTasks.find((task) => task.status === "IN_PROGRESS") ?? null;
   const enabledBubbleCount = widgetSummary ? widgetSummary.bubbles.filter((bubble) => bubble.enabled).length : null;
   const recentResources = useMemo(() => {
+    if (personalResources.length > 0) {
+      const scoped = activeRoom.roomId ? personalResources.filter((resource) => resource.roomId === activeRoom.roomId) : personalResources;
+      return scoped.slice().sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 3);
+    }
+
     if (!shouldUseWorkspacePreviewData()) return [];
     const resources = activeRoom.roomId
       ? workspacePreviewRoomResources.filter((resource) => resource.roomId === activeRoom.roomId)
       : [...workspacePreviewPersonalResources, ...workspacePreviewRoomResources];
 
     return resources.slice().sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 3);
-  }, [activeRoom.roomId]);
+  }, [activeRoom.roomId, personalResources]);
   const activeRooms = useMemo(() => {
     const filtered = rooms.filter((room) => room.status === "ACTIVE");
     if (!activeRoom.roomId) return filtered;
@@ -996,6 +1012,7 @@ export function WorkspaceDashboard() {
 
   const removeTask = useCallback((taskId: string) => {
     setPersonalTasks((current) => current.filter((task) => task.id !== taskId));
+    setDashboardFeedTasks((current) => current.filter((task) => task.id !== taskId));
     setState((current) => {
       if (current.kind !== "ready" && current.kind !== "empty") return current;
       return {
@@ -1252,6 +1269,8 @@ export function WorkspaceDashboard() {
               {timerMessage ? <small aria-live="polite">{timerMessage}</small> : null}
             </div>
           );
+        case "quick-memo":
+          return <MemoDashboardCard />;
         case "recent-resources":
           if (recentResources.length === 0) return <EmptyWidget />;
           return (

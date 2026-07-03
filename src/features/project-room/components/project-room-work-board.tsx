@@ -256,7 +256,7 @@ function ProjectRoomWorkBoardContent({
   const [tasks, setTasks] = useState<LocalTask[]>(board.tasks);
   const [wbsItems, setWbsItems] = useState<WbsItemResponse[]>(board.wbsItems);
   const [selectedWbsId, setSelectedWbsId] = useState<string | null>(initialWbs?.id ?? null);
-  const [, setSaveNotice] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(board.tasks[0]?.id ?? null);
   const [viewMode, setViewMode] = useState<"kanban" | "wbs">("wbs");
   const [wbsDraft, setWbsDraft] = useState({ title: "" });
@@ -888,6 +888,11 @@ function ProjectRoomWorkBoardContent({
   return (
     <div className={styles.shell}>
       <section className={styles.contextBand} aria-label={t("room.workBoard.viewSwitchAria")}>
+        {saveNotice ? (
+          <span aria-live="polite" className={styles.saveNotice}>
+            {saveNotice}
+          </span>
+        ) : null}
         <div className={styles.viewSwitch} role="group" aria-label={t("room.workBoard.viewSwitchAria")}>
           <button aria-pressed={viewMode === "wbs"} onClick={() => setViewMode("wbs")} type="button">
             <GitBranch size={15} aria-hidden="true" />
@@ -966,6 +971,7 @@ function ProjectRoomWorkBoardContent({
                       setIsWbsSettingsOpen(false);
                     }
                   }}
+                  onWbsReordered={setWbsItems}
                   rangeEditRequest={wbsRangeEditRequest}
                   roomId={roomId}
                   selectedWbsId={selectedWbsId}
