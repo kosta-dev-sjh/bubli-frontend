@@ -20,7 +20,7 @@ export function seedActiveProjectRoomId(roomId: string, roomLabel?: string | nul
   const nextRoomLabel = roomLabel?.trim() || (activeProjectRoomId === cleanRoomId ? activeProjectRoomLabel : null);
   activeProjectRoomId = cleanRoomId;
   activeProjectRoomLabel = nextRoomLabel;
-  mirrorActiveProjectRoomToTauri(cleanRoomId, nextRoomLabel);
+  publishActiveProjectRoom(cleanRoomId, nextRoomLabel);
 }
 
 export function getActiveProjectRoomId() {
@@ -43,6 +43,7 @@ export async function restoreActiveProjectRoomFromTauri(): Promise<ActiveProject
 
     activeProjectRoomId = restored.roomId;
     activeProjectRoomLabel = restored.roomLabel?.trim() || null;
+    publishActiveProjectRoom(restored.roomId, activeProjectRoomLabel);
     return {
       roomId: restored.roomId,
       roomLabel: activeProjectRoomLabel,
@@ -59,6 +60,18 @@ function mirrorActiveProjectRoomToTauri(roomId: string, roomLabel?: string | nul
   void tauriCommands.setWidgetRoomContext({ selectedRoomId: roomId }).catch(() => undefined);
 }
 
+function publishActiveProjectRoom(roomId: string, roomLabel?: string | null) {
+  mirrorActiveProjectRoomToTauri(roomId, roomLabel);
+  if (typeof window === "undefined") return;
+
+  void widgetApi.updateContext({ selectedRoomId: roomId }).catch(() => undefined);
+  window.dispatchEvent(
+    new CustomEvent(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, {
+      detail: { roomId, roomLabel: roomLabel ?? null },
+    }),
+  );
+}
+
 function clearActiveProjectRoomTauriMirror() {
   if (!isTauriRuntime()) return;
   void tauriCommands.clearActiveProjectRoom().catch(() => undefined);
@@ -72,14 +85,7 @@ export function setActiveProjectRoomId(roomId: string, roomLabel?: string | null
   const nextRoomLabel = roomLabel?.trim() || (activeProjectRoomId === cleanRoomId ? activeProjectRoomLabel : null);
   activeProjectRoomId = cleanRoomId;
   activeProjectRoomLabel = nextRoomLabel;
-  mirrorActiveProjectRoomToTauri(cleanRoomId, activeProjectRoomLabel);
-  if (typeof window === "undefined") return;
-  void widgetApi.updateContext({ selectedRoomId: cleanRoomId }).catch(() => undefined);
-  window.dispatchEvent(
-    new CustomEvent(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, {
-      detail: { roomId: cleanRoomId, roomLabel: activeProjectRoomLabel },
-    }),
-  );
+  publishActiveProjectRoom(cleanRoomId, activeProjectRoomLabel);
 }
 
 export function clearActiveProjectRoomId() {
