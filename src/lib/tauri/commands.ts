@@ -39,6 +39,7 @@ export const TAURI_COMMANDS = {
   scanManagedFolder: "scan_managed_folder",
   searchLocalFiles: "search_local_files",
   selectManagedFolder: "select_managed_folder",
+  seedWidgetBarItems: "seed_widget_bar_items",
   setPreferredAppMonitor: "set_preferred_app_monitor",
   setFolderSync: "set_folder_sync",
   setWidgetAlwaysOnTop: "set_widget_always_on_top",
@@ -721,6 +722,10 @@ export type TauriCommandContract = {
     args: SelectManagedFolderInput | undefined;
     result: ManagedFolderSelection;
   };
+  seed_widget_bar_items: {
+    args: WidgetRoomContextInput | undefined;
+    result: WidgetWindowState[];
+  };
   set_preferred_app_monitor: {
     args: AppMonitorPreferenceInput;
     result: AppMonitorPreference;
@@ -930,6 +935,9 @@ export const tauriCommands = {
       TAURI_COMMANDS.selectManagedFolder,
       input ? { input } : undefined,
     );
+  },
+  seedWidgetBarItems(input?: WidgetRoomContextInput) {
+    return invokeTauri<WidgetWindowState[]>(TAURI_COMMANDS.seedWidgetBarItems, input ? { input } : undefined);
   },
   setPreferredAppMonitor(input: AppMonitorPreferenceInput) {
     return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.setPreferredAppMonitor, { input });

@@ -113,6 +113,10 @@ export function launchTauriAuthenticatedSurfaces() {
     }
 
     void tauriCommands
+      .seedWidgetBarItems({ selectedRoomId })
+      .catch(() => undefined);
+
+    void tauriCommands
       .recordWidgetUsageEvent({
         bubbleType: startupWindows.find((input) => input.bubbleType !== "bar")?.bubbleType ?? "todo",
         eventType: "open:auto-login",
