@@ -94,6 +94,20 @@ async function smokeBackend(accessToken) {
   );
   assert(dashboard.todayTasks !== undefined, "dashboard response did not include todayTasks");
 
+  const privacyConsents = await apiGet("/api/me/privacy-consents", headers);
+  assertPrivacyConsent(privacyConsents, "ACTIVITY_CONTEXT", true, "seeded activity consent");
+  assertPrivacyConsent(privacyConsents, "MANAGED_FOLDER", true, "seeded managed folder consent");
+
+  const managedFolderDisabled = await apiPatch("/api/me/privacy-consents", headers, {
+    items: [{ consentType: "MANAGED_FOLDER", enabled: false }],
+  });
+  assertPrivacyConsent(managedFolderDisabled, "MANAGED_FOLDER", false, "managed folder consent disable");
+
+  const managedFolderEnabled = await apiPatch("/api/me/privacy-consents", headers, {
+    items: [{ consentType: "MANAGED_FOLDER", enabled: true }],
+  });
+  assertPrivacyConsent(managedFolderEnabled, "MANAGED_FOLDER", true, "managed folder consent re-enable");
+
   const personalWidgetContext = await apiPatch("/api/widget/context", headers, { selectedRoomId: null });
   assert(personalWidgetContext.mode === "PERSONAL", "widget context did not switch to PERSONAL mode");
 
@@ -327,8 +341,14 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
+}
+
+function assertPrivacyConsent(response, consentType, enabled, label) {
+  const item = response.items?.find((entry) => entry.consentType === consentType);
+  assert(item, `${label} did not include ${consentType}`);
+  assert(item.enabled === enabled, `${label} expected ${consentType}=${enabled}`);
 }
 
 async function runTauriDev(accessToken) {

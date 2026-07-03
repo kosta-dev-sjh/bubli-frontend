@@ -143,8 +143,6 @@ const privacyRows: Array<{
 }> = [
   { key: "localFolderEnabled", titleKey: "settings.privacy.folder.title", descriptionKey: "settings.privacy.folder.desc" },
   { key: "activityDetectionEnabled", titleKey: "settings.privacy.activity.title", descriptionKey: "settings.privacy.activity.desc" },
-  { key: "personalAgentLocalMemoryEnabled", titleKey: "settings.privacy.memory.title", descriptionKey: "settings.privacy.memory.desc" },
-  { key: "widgetUsageLocalEventEnabled", titleKey: "settings.privacy.widget.title", descriptionKey: "settings.privacy.widget.desc" },
 ];
 
 const localeOptions = [
