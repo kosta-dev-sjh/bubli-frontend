@@ -14,6 +14,7 @@ const CONSENT_REFRESH_INTERVAL_MS = 60_000;
 
 let syncIntervalId: number | null = null;
 let syncInFlight = false;
+let syncInFlightPromise: Promise<void> | null = null;
 let analysisBackfillHasRun = false;
 let pendingFullSyncRequested = false;
 const pendingFolderSyncIds = new Set<string>();
@@ -48,6 +49,7 @@ export async function stopManagedFolderAutoSync(input?: ManagedFolderAutoSyncSto
 
   syncIntervalId = null;
   syncInFlight = false;
+  syncInFlightPromise = null;
   analysisBackfillHasRun = false;
   pendingFullSyncRequested = false;
   pendingFolderSyncIds.clear();
@@ -114,49 +116,56 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
     pendingFullSyncRequested = true;
   }
 
-  if (syncInFlight) return;
+  if (syncInFlight) {
+    return syncInFlightPromise ?? Promise.resolve();
+  }
 
   syncInFlight = true;
-  try {
-    const consentGranted = await ensureManagedFolderRuntimeConsent();
-    if (!consentGranted) {
-      pendingFullSyncRequested = false;
-      pendingFolderSyncIds.clear();
-      return;
-    }
-
-    while (pendingFullSyncRequested || pendingFolderSyncIds.size > 0) {
-      if (pendingFullSyncRequested) {
+  syncInFlightPromise = (async () => {
+    try {
+      const consentGranted = await ensureManagedFolderRuntimeConsent();
+      if (!consentGranted) {
         pendingFullSyncRequested = false;
         pendingFolderSyncIds.clear();
-        await syncPersonalLocalFileEventsToServer({ consentGranted, limit: 20 });
-        continue;
+        return;
       }
 
-      const folderId = pendingFolderSyncIds.values().next().value;
-      if (!folderId) continue;
-      pendingFolderSyncIds.delete(folderId);
-      await syncPersonalLocalFileEventsToServer({ consentGranted, limit: 20, localFolderId: folderId });
-    }
+      while (pendingFullSyncRequested || pendingFolderSyncIds.size > 0) {
+        if (pendingFullSyncRequested) {
+          pendingFullSyncRequested = false;
+          pendingFolderSyncIds.clear();
+          await syncPersonalLocalFileEventsToServer({ consentGranted, limit: 20 });
+          continue;
+        }
 
-    await backfillPersonalLocalFileAnalyses({
-      consentGranted,
-      limit: analysisBackfillHasRun ? 1 : 3,
-      maxAttempts: 3,
-    });
-    analysisBackfillHasRun = true;
-  } catch {
-    cachedConsent = null;
-    cachedConsentCheckedAt = 0;
-    pendingFullSyncRequested = false;
-    pendingFolderSyncIds.clear();
-    // The sync adapter keeps failed rows retryable in SQLite; the next watch event or tick can try again.
-  } finally {
-    syncInFlight = false;
-    if (pendingFullSyncRequested || pendingFolderSyncIds.size > 0) {
-      void syncManagedFolderEventsOnce();
+        const folderId = pendingFolderSyncIds.values().next().value;
+        if (!folderId) continue;
+        pendingFolderSyncIds.delete(folderId);
+        await syncPersonalLocalFileEventsToServer({ consentGranted, limit: 20, localFolderId: folderId });
+      }
+
+      await backfillPersonalLocalFileAnalyses({
+        consentGranted,
+        limit: analysisBackfillHasRun ? 1 : 3,
+        maxAttempts: 3,
+      });
+      analysisBackfillHasRun = true;
+    } catch {
+      cachedConsent = null;
+      cachedConsentCheckedAt = 0;
+      pendingFullSyncRequested = false;
+      pendingFolderSyncIds.clear();
+      // The sync adapter keeps failed rows retryable in SQLite; the next watch event or tick can try again.
+    } finally {
+      syncInFlight = false;
+      syncInFlightPromise = null;
+      if (pendingFullSyncRequested || pendingFolderSyncIds.size > 0) {
+        await syncManagedFolderEventsOnce();
+      }
     }
-  }
+  })();
+
+  return syncInFlightPromise;
 }
 
 async function ensureManagedFolderRuntimeConsent() {

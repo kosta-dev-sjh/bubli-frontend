@@ -7,6 +7,7 @@ const WIDGET_USAGE_SYNC_INTERVAL_MS = 60_000;
 
 let syncIntervalId: number | null = null;
 let syncInFlight = false;
+let syncInFlightPromise: Promise<void> | null = null;
 
 type WidgetUsageAutoSyncStopInput = {
   flush?: boolean;
@@ -33,10 +34,14 @@ export async function stopWidgetUsageAutoSync(input?: WidgetUsageAutoSyncStopInp
 
   syncIntervalId = null;
   syncInFlight = false;
+  syncInFlightPromise = null;
 }
 
 export async function flushWidgetUsageAutoSync() {
   if (!isTauriRuntime()) return;
+  if (syncInFlightPromise) {
+    await syncInFlightPromise.catch(() => undefined);
+  }
   await syncWidgetUsageOnce();
 }
 
@@ -45,15 +50,22 @@ export function isWidgetUsageAutoSyncRunning() {
 }
 
 async function syncWidgetUsageOnce() {
-  if (syncInFlight) return;
+  if (syncInFlight) {
+    return syncInFlightPromise ?? Promise.resolve();
+  }
 
   syncInFlight = true;
-  try {
-    await rollupLocalWidgetUsage();
-    await syncLocalWidgetUsageSummaryToServer();
-  } catch {
-    // Failed rollups stay retryable in SQLite and will be picked up on the next tick.
-  } finally {
-    syncInFlight = false;
-  }
+  syncInFlightPromise = (async () => {
+    try {
+      await rollupLocalWidgetUsage();
+      await syncLocalWidgetUsageSummaryToServer();
+    } catch {
+      // Failed rollups stay retryable in SQLite and will be picked up on the next tick.
+    } finally {
+      syncInFlight = false;
+      syncInFlightPromise = null;
+    }
+  })();
+
+  return syncInFlightPromise;
 }
