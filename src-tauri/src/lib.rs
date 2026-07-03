@@ -1137,37 +1137,6 @@ fn register_widget_shortcut(
     Ok(widget)
 }
 
-fn open_login_startup_widget(
-    app: &AppHandle,
-    _monitor_state: &AppMonitorState,
-    state: &WidgetState,
-    bubble_type: &str,
-    window_id: &str,
-    selected_room_id: Option<String>,
-) -> Result<WidgetWindowState, String> {
-    let widget = {
-        let mut guard = state
-            .lock()
-            .map_err(|_| "widget state lock failed".to_string())?;
-        let target = normalize_bubble_type(Some(bubble_type.to_string()));
-        let window_key = normalize_window_key(&target, Some(window_id.to_string()));
-        guard.active_bubble = target.clone();
-        let widget = guard
-            .bubbles
-            .entry(window_key.clone())
-            .or_insert_with(|| default_widget_window_state(&target, Some(window_key)));
-        widget.mode = "DEFAULT".to_string();
-        widget.click_through = false;
-        widget.dock_orb_visible = false;
-        widget.selected_room_id = selected_room_id;
-        widget.window_visible = true;
-        widget.clone()
-    };
-
-    persist_widget_window_state(app, state)?;
-    schedule_widget_window_build(app, &widget)
-}
-
 fn app_ready_qa_all_widgets_requested(input: &Option<AppReadyInput>) -> bool {
     input
         .as_ref()
@@ -1178,8 +1147,8 @@ fn app_ready_qa_all_widgets_requested(input: &Option<AppReadyInput>) -> bool {
 #[tauri::command]
 fn app_ready(
     app: AppHandle,
-    monitor_state: tauri::State<'_, AppMonitorState>,
-    state: tauri::State<'_, WidgetState>,
+    _monitor_state: tauri::State<'_, AppMonitorState>,
+    _state: tauri::State<'_, WidgetState>,
     input: Option<AppReadyInput>,
 ) -> Result<&'static str, String> {
     let qa_all_widgets = app_ready_qa_all_widgets_requested(&input);
@@ -1188,40 +1157,6 @@ fn app_ready(
     if qa_all_widgets && qa_all_widget_windows_enabled() {
         build_widget_qa_windows(&app, selected_room_id)?;
         return Ok("bubli-tauri-ready");
-    }
-
-    let bar_result = open_login_startup_widget(
-        &app,
-        &monitor_state,
-        &state,
-        "bar",
-        "bar",
-        selected_room_id.clone(),
-    );
-    let default_result = open_login_startup_widget(
-        &app,
-        &monitor_state,
-        &state,
-        DEFAULT_WIDGET_BUBBLE_TYPE,
-        DEFAULT_WIDGET_BUBBLE_TYPE,
-        selected_room_id,
-    );
-
-    let bar_error = bar_result.as_ref().err().map(ToString::to_string);
-    let default_error = default_result.as_ref().err().map(ToString::to_string);
-
-    if let Some(error) = &bar_error {
-        eprintln!("failed to open login startup widget bar: {error}");
-    }
-    if let Some(error) = &default_error {
-        eprintln!("failed to open login startup default widget: {error}");
-    }
-    if bar_error.is_some() || default_error.is_some() {
-        return Err(format!(
-            "failed to open login startup widgets: bar={}; default={}",
-            bar_error.unwrap_or_else(|| "ok".to_string()),
-            default_error.unwrap_or_else(|| "ok".to_string())
-        ));
     }
 
     Ok("bubli-tauri-ready")
