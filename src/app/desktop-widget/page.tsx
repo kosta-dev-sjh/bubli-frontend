@@ -63,6 +63,7 @@ const apiItemBubbleTypeMap: Record<WidgetBubbleType, ApiWidgetBubbleType> = {
 };
 
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
+type WidgetItemStateAction = "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED";
 
 function subscribeToClientMount(onStoreChange: () => void) {
   const timeoutId = window.setTimeout(onStoreChange, 0);
@@ -274,6 +275,42 @@ function withBubble(id: WidgetBubbleType, patch: Partial<WidgetPreviewBubble>): 
     id,
     rows: patch.rows ?? [],
   };
+}
+
+function applyItemStateActionToBubble(
+  bubble: WidgetPreviewBubble | undefined,
+  itemId: string,
+  state: WidgetItemStateAction,
+): WidgetPreviewBubble | undefined {
+  if (!bubble) return bubble;
+  if (state === "CONFIRMED" || state === "HIDDEN" || state === "SNOOZED") {
+    return { ...bubble, rows: bubble.rows.filter((row) => row.id !== itemId) };
+  }
+
+  const target = bubble.rows.find((row) => row.id === itemId);
+  if (!target) return bubble;
+  return {
+    ...bubble,
+    rows: [target, ...bubble.rows.filter((row) => row.id !== itemId)],
+  };
+}
+
+function applyItemStateOverrides(
+  bubbles: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>,
+  overrides: Record<string, WidgetItemStateAction>,
+): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
+  return Object.fromEntries(
+    Object.entries(bubbles).map(([bubbleType, bubble]) => {
+      if (!bubble) return [bubbleType, bubble];
+      return [
+        bubbleType,
+        Object.entries(overrides).reduce<WidgetPreviewBubble>(
+          (current, [itemId, state]) => applyItemStateActionToBubble(current, itemId, state) ?? current,
+          bubble,
+        ),
+      ];
+    }),
+  ) as Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
 }
 
 function buildNotificationSignal(t: TranslateFn, notifications: WidgetNotificationResponse[]): WidgetNotificationSignal {
@@ -586,6 +623,7 @@ function DesktopWidgetSurface() {
   const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>(() => buildEmptyDisplayBubbles(t, requestedRoomId));
   const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID ?? null);
   const [communicationRevision, setCommunicationRevision] = useState(0);
+  const [itemStateOverrides, setItemStateOverrides] = useState<Record<string, WidgetItemStateAction>>({});
   const [memoRevision, setMemoRevision] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
   const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
@@ -910,8 +948,7 @@ function DesktopWidgetSurface() {
       const messageItems = messages?.items ?? cachedMessages;
       setActiveTimerHeartbeatId(activeTimer?.status === "RUNNING" ? activeTimer.id : null);
 
-      setDisplayBubbles(
-        buildDisplayBubbles({
+      const nextDisplayBubbles = buildDisplayBubbles({
           chatRoom: activeRoom ?? null,
           dashboard,
           friends: friendsResult.status === "fulfilled" ? friendsResult.value : [],
@@ -927,8 +964,8 @@ function DesktopWidgetSurface() {
           timer: activeTimer,
           voiceConnectionLabel,
           voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
-        }, t),
-      );
+        }, t);
+      setDisplayBubbles(applyItemStateOverrides(nextDisplayBubbles, itemStateOverrides));
     }
 
     void loadDisplayApiState().catch(() => {
@@ -941,7 +978,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, memoRevision, requestedRoomId, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
+  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, itemStateOverrides, memoRevision, requestedRoomId, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -1174,7 +1211,7 @@ function DesktopWidgetSurface() {
   );
 
   const handleItemStateChange = useCallback(
-    async (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => {
+    async (item: WidgetPreviewItem, state: WidgetItemStateAction) => {
       const itemType =
         item.kind === "message"
           ? "MESSAGE"
@@ -1198,14 +1235,17 @@ function DesktopWidgetSurface() {
 
       const itemStateId = item.stateId ?? (isUuid(item.id) ? item.id : null);
       if (itemStateId) {
-        void widgetApi
-          .updateItemState(itemStateId, {
-            bubbleType: apiItemBubbleTypeMap[activeBubble],
-            itemId: item.id,
-            itemType,
-            state,
-          })
-          .catch(() => undefined);
+        await widgetApi.updateItemState(itemStateId, {
+          bubbleType: apiItemBubbleTypeMap[activeBubble],
+          itemId: item.id,
+          itemType,
+          state,
+        });
+        setDisplayBubbles((current) => ({
+          ...current,
+          [activeBubble]: applyItemStateActionToBubble(current[activeBubble], item.id, state),
+        }));
+        setItemStateOverrides((current) => ({ ...current, [item.id]: state }));
       }
     },
     [activeBubble, isTauri],
