@@ -265,10 +265,10 @@ export function WbsGanttPanel({
 
   const focusItemOnTimeline = (item: WbsItemResponse) => {
     onSelectItem(item.id);
-    requestAnimationFrame(() => {
+    const moveToFeature = () => {
       const escapedId =
         typeof CSS !== "undefined" && CSS.escape ? CSS.escape(item.id) : item.id.replace(/["\\]/g, "\\$&");
-      const element = document.querySelector<HTMLElement>(`[data-gantt-feature-id="${escapedId}"]`);
+      const element = panelRef.current?.querySelector<HTMLElement>(`[data-gantt-feature-id="${escapedId}"]`);
       const scroller = element?.closest<HTMLElement>('[data-roadmap-ui="gantt-root"]');
       if (!element || !scroller) return;
 
@@ -280,9 +280,15 @@ export function WbsGanttPanel({
       const elementCenter = elementRect.left + elementRect.width / 2;
 
       scroller.scrollTo({
-        behavior: "smooth",
+        behavior: "auto",
         left: Math.max(0, scroller.scrollLeft + elementCenter - viewportCenter),
+        top: scroller.scrollTop,
       });
+    };
+
+    requestAnimationFrame(() => {
+      moveToFeature();
+      requestAnimationFrame(moveToFeature);
     });
   };
 
