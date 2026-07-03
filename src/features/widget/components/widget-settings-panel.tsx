@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bell, CheckCircle2, Clock3, LayoutGrid, MessageCircle, Pin, ShieldCheck, Sparkles, ToggleRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -9,60 +10,97 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
+import { widgetApi } from "../api/widgetApi";
+import type { WidgetBubbleSettingResponse, WidgetBubbleType } from "@/types/api/widget";
 
-type BubbleSetting = {
-  id: string;
+type BubbleSettingView = WidgetBubbleSettingResponse & {
+  detail: MessageKey;
   name: MessageKey;
   source: MessageKey;
-  state: "enabled" | "pinned" | "hidden";
-  detail: MessageKey;
+  state: "enabled" | "minimized" | "hidden";
 };
 
-const bubbleSettings: BubbleSetting[] = [
-  {
-    id: "todo",
-    detail: "widget.settings.todo.detail",
-    name: "widget.bubble.todo",
-    source: "widget.settings.todo.source",
-    state: "enabled",
-  },
-  {
-    id: "agent",
+const bubbleMeta: Record<WidgetBubbleType, { detail: MessageKey; name: MessageKey; source: MessageKey }> = {
+  AGENT: {
     detail: "widget.settings.agent.detail",
     name: "widget.bubble.agent",
     source: "widget.settings.agent.source",
-    state: "pinned",
   },
-  {
-    id: "chat",
+  ALERT: {
+    detail: "widget.settings.configBody",
+    name: "widget.bubble.notification",
+    source: "widget.settings.policyAlert",
+  },
+  CHAT: {
     detail: "widget.settings.chat.detail",
     name: "widget.bubble.chat",
     source: "widget.settings.chat.source",
-    state: "enabled",
   },
-  {
-    id: "timer",
+  MEMO: {
+    detail: "widget.settings.configBody",
+    name: "widget.bubble.memo",
+    source: "widget.settings.policyState",
+  },
+  RESOURCE: {
+    detail: "widget.settings.configBody",
+    name: "widget.bubble.resource",
+    source: "widget.settings.policyPermission",
+  },
+  SCHEDULE: {
+    detail: "widget.settings.configBody",
+    name: "widget.bubble.schedule",
+    source: "widget.settings.policyPermission",
+  },
+  TIMER: {
     detail: "widget.settings.timer.detail",
     name: "widget.bubble.timer",
     source: "widget.settings.timer.source",
-    state: "hidden",
   },
-];
-
-const stateMeta: Record<BubbleSetting["state"], { label: MessageKey; tone: "success" | "pending" | "personal" }> = {
-  enabled: { label: "widget.settings.state.enabled", tone: "success" },
-  hidden: { label: "widget.settings.state.hidden", tone: "personal" },
-  pinned: { label: "widget.settings.state.pinned", tone: "pending" },
+  TODO: {
+    detail: "widget.settings.todo.detail",
+    name: "widget.bubble.todo",
+    source: "widget.settings.todo.source",
+  },
 };
 
-function BubbleSettingRow({ bubble }: { bubble: BubbleSetting }) {
+const stateMeta: Record<BubbleSettingView["state"], { label: MessageKey; tone: "success" | "pending" | "personal" }> = {
+  enabled: { label: "widget.settings.state.enabled", tone: "success" },
+  hidden: { label: "widget.settings.state.hidden", tone: "personal" },
+  minimized: { label: "widget.settings.state.minimized", tone: "pending" },
+};
+
+type WidgetSettingsPanelProps = {
+  autoLoad?: boolean;
+  initialBubbles?: WidgetBubbleSettingResponse[];
+  onBubblesChange?: (bubbles: WidgetBubbleSettingResponse[]) => void;
+};
+
+function toBubbleView(bubble: WidgetBubbleSettingResponse): BubbleSettingView {
+  const meta = bubbleMeta[bubble.bubbleType];
+  return {
+    ...bubble,
+    ...meta,
+    state: bubble.enabled ? (bubble.minimized ? "minimized" : "enabled") : "hidden",
+  };
+}
+
+function BubbleSettingRow({
+  bubble,
+  isSaving,
+  onToggle,
+}: {
+  bubble: BubbleSettingView;
+  isSaving: boolean;
+  onToggle: (bubble: BubbleSettingView) => void;
+}) {
   const { t } = useI18n();
   const state = stateMeta[bubble.state];
+  const actionLabel = bubble.enabled ? t("widget.settings.toggleOff") : t("widget.settings.toggleOn");
 
   return (
     <article className="widget-settings-row">
       <span className="bubli-icon-tile" aria-hidden="true">
-        {bubble.state === "pinned" ? <Pin size={16} strokeWidth={2.1} /> : <LayoutGrid size={16} strokeWidth={2.1} />}
+        {bubble.state === "minimized" ? <Pin size={16} strokeWidth={2.1} /> : <LayoutGrid size={16} strokeWidth={2.1} />}
       </span>
       <div>
         <div className="widget-settings-row__meta">
@@ -72,15 +110,87 @@ function BubbleSettingRow({ bubble }: { bubble: BubbleSetting }) {
         <h3>{t(bubble.name)}</h3>
         <p>{t(bubble.detail)}</p>
       </div>
-      <Button icon={<ToggleRight size={15} />} size="sm" variant={bubble.state === "hidden" ? "quiet" : "primary"}>
-        {t("widget.settings.settingButton")}
+      <Button
+        aria-pressed={bubble.enabled}
+        icon={<ToggleRight size={15} />}
+        loading={isSaving}
+        onClick={() => onToggle(bubble)}
+        size="sm"
+        variant={bubble.enabled ? "primary" : "quiet"}
+      >
+        {actionLabel}
       </Button>
     </article>
   );
 }
 
-export function WidgetSettingsPanel() {
+export function WidgetSettingsPanel({ autoLoad = true, initialBubbles = [], onBubblesChange }: WidgetSettingsPanelProps = {}) {
   const { t } = useI18n();
+  const [loadedBubbles, setLoadedBubbles] = useState<WidgetBubbleSettingResponse[]>(() => initialBubbles);
+  const [isLoading, setIsLoading] = useState(autoLoad);
+  const [savingBubbleId, setSavingBubbleId] = useState<string | null>(null);
+  const [hasLoadError, setHasLoadError] = useState(false);
+
+  useEffect(() => {
+    if (!autoLoad) return;
+
+    let active = true;
+
+    widgetApi
+      .getBubbles()
+      .then((response) => {
+        if (!active) return;
+        setLoadedBubbles(response);
+      })
+      .catch(() => {
+        if (!active) return;
+        setHasLoadError(true);
+        setLoadedBubbles([]);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [autoLoad]);
+
+  const bubbleViews = useMemo(() => loadedBubbles.map(toBubbleView), [loadedBubbles]);
+  const activeBubbleCount = bubbleViews.filter((bubble) => bubble.enabled).length;
+  const syncProgress = isLoading || savingBubbleId ? 100 : hasLoadError ? 0 : 100;
+
+  const replaceBubbles = useCallback(
+    (nextBubbles: WidgetBubbleSettingResponse[]) => {
+      setLoadedBubbles(nextBubbles);
+      onBubblesChange?.(nextBubbles);
+    },
+    [onBubblesChange],
+  );
+
+  const handleToggle = useCallback(
+    async (bubble: BubbleSettingView) => {
+      const nextEnabled = !bubble.enabled;
+      const optimisticBubbles = loadedBubbles.map((item) => (item.id === bubble.id ? { ...item, enabled: nextEnabled } : item));
+      replaceBubbles(optimisticBubbles);
+
+      if (!autoLoad) return;
+
+      setSavingBubbleId(bubble.id);
+      try {
+        const nextBubbles = await widgetApi.updateBubbles({
+          bubbles: [{ bubbleType: bubble.bubbleType, enabled: nextEnabled, id: bubble.id }],
+        });
+        replaceBubbles(nextBubbles);
+      } catch {
+        replaceBubbles(loadedBubbles);
+      } finally {
+        setSavingBubbleId(null);
+      }
+    },
+    [autoLoad, loadedBubbles, replaceBubbles],
+  );
+
   return (
     <section className="widget-settings" aria-label={t("widget.settings.sectionAria")}>
       <GlassPanel className="widget-settings__hero">
@@ -95,10 +205,12 @@ export function WidgetSettingsPanel() {
           </div>
         </div>
         <div className="widget-settings__summary">
-          <StatusBadge tone="success">{t("widget.settings.synced")}</StatusBadge>
-          <strong>{t("widget.dock.badgeCount", { count: 6 })}</strong>
+          <StatusBadge tone={hasLoadError ? "warning" : "success"}>
+            {hasLoadError ? t("widget.settings.loadFailed") : t("widget.settings.synced")}
+          </StatusBadge>
+          <strong>{t("widget.dock.badgeCount", { count: activeBubbleCount })}</strong>
           <span>{t("widget.settings.activeBubbles")}</span>
-          <ProgressBar label={t("widget.settings.saveState")} value={86} />
+          <ProgressBar indeterminate={isLoading || savingBubbleId !== null} label={t("widget.settings.saveState")} value={syncProgress} />
         </div>
       </GlassPanel>
 
@@ -113,9 +225,13 @@ export function WidgetSettingsPanel() {
           </div>
 
           <div className="widget-settings__list">
-            {bubbleSettings.map((bubble) => (
-              <BubbleSettingRow bubble={bubble} key={bubble.id} />
-            ))}
+            {bubbleViews.length > 0 ? (
+              bubbleViews.map((bubble) => (
+                <BubbleSettingRow bubble={bubble} isSaving={savingBubbleId === bubble.id} key={bubble.id} onToggle={handleToggle} />
+              ))
+            ) : (
+              <p>{isLoading ? t("widget.settings.loading") : t("widget.settings.empty")}</p>
+            )}
           </div>
         </GlassPanel>
 
