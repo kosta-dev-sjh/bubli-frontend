@@ -2789,13 +2789,21 @@ pub fn stage_local_file_events_for_sync(
     state: State<'_, Db>,
     input: Option<LocalFileEventsSyncStageInput>,
 ) -> Result<LocalFileEventsSyncStageResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    stage_local_file_events_for_sync_for_conn(&conn, input, now_ms())
+}
+
+fn stage_local_file_events_for_sync_for_conn(
+    conn: &Connection,
+    input: Option<LocalFileEventsSyncStageInput>,
+    now: i64,
+) -> Result<LocalFileEventsSyncStageResult, String> {
     let limit = input
         .as_ref()
         .and_then(|value| value.limit)
         .unwrap_or(100)
         .clamp(1, 500);
     let folder_filter = input.and_then(|value| value.local_folder_id);
-    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
 
     let mut candidates = Vec::new();
     {
@@ -2856,9 +2864,8 @@ pub fn stage_local_file_events_for_sync(
         }
     }
 
-    let now = now_ms();
     for event in &candidates {
-        stage_local_file_event_outbox(&conn, event, now)?;
+        stage_local_file_event_outbox(conn, event, now)?;
         conn.execute(
             "UPDATE local_file_events SET status = 'APPROVED' WHERE id = ?1",
             params![event.local_event_id],
@@ -3554,6 +3561,131 @@ mod tests {
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'CREATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'UPDATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'DELETED'"));
+    }
+
+    #[test]
+    fn managed_folder_smoke_scans_searches_previews_reindexes_and_stages_sync() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-managed-smoke-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        let file_path = folder_path.join("client-brief.md");
+        std::fs::write(
+            &file_path,
+            "Client brief renewal scope. Payment milestone is Friday. Review the deliverables before upload.",
+        )
+        .expect("write indexed file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-smoke', 'Smoke Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let scan = scan_managed_folder_for_conn(
+            &conn,
+            ManagedFolderCommandInput {
+                local_folder_id: "folder-smoke".to_string(),
+            },
+        )
+        .expect("scan managed folder");
+        assert_eq!(scan.changed_count, 1);
+
+        let search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "renewal".to_string(),
+            },
+        )
+        .expect("search scanned file");
+        assert_eq!(search.items.len(), 1);
+        let local_file_id = search.items[0].local_file_id.clone();
+        assert_eq!(search.items[0].name, "client-brief.md");
+        assert!(search.items[0]
+            .matched_text
+            .as_deref()
+            .unwrap_or("")
+            .contains("[renewal]"));
+
+        let (preview_text, preview_status, preview_truncated) =
+            read_local_text_preview(&file_path, 4000).expect("read local preview");
+        assert_eq!(preview_status, "READY");
+        assert!(!preview_truncated);
+        let preview_text = preview_text.expect("preview text");
+        assert!(preview_text.contains("Payment milestone"));
+
+        let key_sentences = extract_key_sentences(&preview_text, 3, 200);
+        assert!(!key_sentences.is_empty());
+        assert!(key_sentences
+            .iter()
+            .any(|sentence| sentence.text.contains("Payment milestone")));
+
+        let staged_created = stage_local_file_events_for_sync_for_conn(
+            &conn,
+            Some(LocalFileEventsSyncStageInput {
+                limit: Some(10),
+                local_folder_id: Some("folder-smoke".to_string()),
+            }),
+            10,
+        )
+        .expect("stage created file event");
+        assert_eq!(staged_created.events.len(), 1);
+        assert_eq!(staged_created.events[0].event_type, "CREATED");
+
+        mark_local_file_events_synced_for_conn(
+            &conn,
+            LocalFileEventsMarkSyncedInput {
+                results: vec![LocalFileEventSyncResultInput {
+                    local_event_id: staged_created.events[0].local_event_id.clone(),
+                    resource_id: Some("resource-smoke".to_string()),
+                    status: "SYNCED".to_string(),
+                }],
+            },
+            20,
+        )
+        .expect("mark created event synced");
+
+        std::fs::write(
+            &file_path,
+            "Client brief renewal scope. Payment milestone moved to Monday. Include updated QA checklist.",
+        )
+        .expect("write updated file");
+
+        let reindexed =
+            reindex_file_for_conn(&conn, &local_file_id, 30).expect("reindex changed file");
+        assert!(reindexed.changed);
+        assert_eq!(reindexed.status, "REINDEXED");
+
+        let updated_search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "Monday".to_string(),
+            },
+        )
+        .expect("search reindexed file");
+        assert_eq!(updated_search.items.len(), 1);
+        assert_eq!(updated_search.items[0].local_file_id, local_file_id);
+
+        let staged_updated = stage_local_file_events_for_sync_for_conn(
+            &conn,
+            Some(LocalFileEventsSyncStageInput {
+                limit: Some(10),
+                local_folder_id: Some("folder-smoke".to_string()),
+            }),
+            40,
+        )
+        .expect("stage updated file event");
+        assert_eq!(staged_updated.events.len(), 1);
+        assert_eq!(staged_updated.events[0].event_type, "UPDATED");
+        assert_eq!(
+            staged_updated.events[0].resource_id.as_deref(),
+            Some("resource-smoke")
+        );
+
+        let _ = std::fs::remove_dir_all(folder_path);
     }
 
     #[test]
