@@ -55,6 +55,8 @@ export async function recordCurrentActivityContext(
   input: ActivityContextRecordInput,
 ): Promise<ActivityContextRecordAdapterResult> {
   const commandName = TAURI_COMMANDS.readActivityContext;
+  await syncLocalActivityBufferToServer({ consentGranted: input.consentGranted, limit: 10 }).catch(() => undefined);
+
   const context = await readCurrentActivityContext(input);
 
   if (context.status !== "ready") {
@@ -147,11 +149,20 @@ export async function recordCurrentActivityContext(
 }
 
 export async function syncLocalActivityBufferToServer(input?: {
+  consentGranted?: boolean;
   limit?: number;
 }): Promise<ActivityBufferSyncAdapterResult> {
   const commandName = TAURI_COMMANDS.stageActivityContextsForSync;
+  if (input?.consentGranted !== true) {
+    return blocked(
+      "activity_consent_required",
+      translate("local.activity.consentRequired"),
+      commandName,
+    );
+  }
+
   const staged = await runTauriAdapter(commandName, () =>
-    tauriCommands.stageActivityContextsForSync(input),
+    tauriCommands.stageActivityContextsForSync({ limit: input.limit }),
   );
 
   if (staged.status !== "ready") {
