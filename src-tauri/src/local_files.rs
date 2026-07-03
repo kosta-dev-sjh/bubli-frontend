@@ -3647,6 +3647,66 @@ mod tests {
     }
 
     #[test]
+    fn watch_path_change_records_create_update_and_delete() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-managed-watch-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        let file_path = folder_path.join("watch-note.txt");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        std::fs::write(&file_path, "first tracked body").expect("write first file");
+        let created =
+            record_watch_path_change(&conn, "folder-1", &file_path, 10).expect("record create");
+
+        std::fs::write(&file_path, "second tracked body with searchable delta")
+            .expect("write changed file");
+        let updated =
+            record_watch_path_change(&conn, "folder-1", &file_path, 20).expect("record update");
+        let search_after_update =
+            search_local_files_fts(&conn, "searchable", 10).expect("search updated watch content");
+
+        std::fs::remove_file(&file_path).expect("delete file");
+        let deleted =
+            record_watch_path_change(&conn, "folder-1", &file_path, 30).expect("record delete");
+        let search_after_delete =
+            search_local_files_fts(&conn, "searchable", 10).expect("search deleted watch content");
+
+        let events: Vec<String> = {
+            let mut stmt = conn
+                .prepare("SELECT event_type FROM local_file_events ORDER BY created_at")
+                .expect("prepare event query");
+            stmt.query_map([], |row| row.get::<_, String>(0))
+                .expect("query events")
+                .collect::<Result<Vec<_>, _>>()
+                .expect("collect events")
+        };
+        let sync_status: String = conn
+            .query_row(
+                "SELECT sync_status FROM local_files WHERE file_name = 'watch-note.txt'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read sync status");
+
+        assert_eq!(created, 1);
+        assert_eq!(updated, 1);
+        assert_eq!(deleted, 1);
+        assert_eq!(events, vec!["CREATED", "UPDATED", "DELETED"]);
+        assert_eq!(search_after_update.len(), 1);
+        assert_eq!(search_after_delete.len(), 0);
+        assert_eq!(sync_status, "LOCAL_ONLY");
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
     fn lists_managed_folders_for_settings_restore() {
         let conn = test_connection();
         conn.execute(
