@@ -1,4 +1,4 @@
-// 대시보드 카드 선택 목록. 홈 보드 배치는 localStorage에 저장한다(전용 layout API 없음).
+// 대시보드 카드 선택 목록. 홈 보드 배치는 features/dashboard/lib/board-storage가 이 기기에 저장한다(전용 layout API 없음).
 import type { MessageKey } from "@/lib/i18n";
 
 export type WidgetSize = "S" | "M" | "L";

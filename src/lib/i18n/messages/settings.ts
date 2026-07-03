@@ -83,13 +83,13 @@ const ko = {
   "settings.gcal.connectedDesc": "연결된 계정으로 일정이 동기화됩니다",
   "settings.gcal.reconnectCta": "재연결",
   "settings.gcal.lead": "일정은 Bubli에서 관리하고, 외부 캘린더와 함께 확인합니다.",
-  "settings.gcal.leadSub": "프로젝트룸 일정과 개인 일정을 Google Calendar와 연결할 수 있습니다.",
+  "settings.gcal.leadSub": "프로젝트룸 일정과 개인 일정을 구글 캘린더와 연결할 수 있습니다.",
   "settings.gcal.connectionStatus": "연결 상태",
   "settings.gcal.canConnect": "연결 또는 재연결을 시작할 수 있습니다",
   "settings.gcal.afterLogin": "로그인 후 확인합니다",
   "settings.gcal.scope": "반영 범위",
   "settings.gcal.scopeDesc": "일정과 마감만 연결합니다. 자료와 대화는 바꾸지 않습니다.",
-  "settings.gcal.connectCta": "Google Calendar 연결",
+  "settings.gcal.connectCta": "구글 캘린더 연결",
   "settings.gcal.viewCalendar": "일정 보기",
 
   // 알림
@@ -1060,8 +1060,8 @@ const ko = {
   "settings.desktop.desc": "이 기기에서 실행 중인 데스크톱 앱 전용 설정입니다.",
   "settings.desktop.folders": "관리 폴더",
   "settings.gcal.disconnectCta": "연결 해제",
-  "settings.msg.gcalDisconnected": "Google Calendar 연결을 해제했습니다",
-  "settings.msg.gcalDisconnectFailed": "Google Calendar 연결 해제에 실패했습니다",
+  "settings.msg.gcalDisconnected": "구글 캘린더 연결을 해제했습니다",
+  "settings.msg.gcalDisconnectFailed": "구글 캘린더 연결 해제에 실패했습니다",
 } as const;
 
 type Key = keyof typeof ko;
@@ -2071,7 +2071,7 @@ const en: Record<Key, string> = {
   "settings.account.logoutDesc": "Sign out on this device.",
   "settings.account.withdraw": "Delete account",
   "settings.account.withdrawDesc": "Your account and server data will be deleted. This cannot be undone.",
-  "settings.account.withdrawConfirm": "Really delete",
+  "settings.account.withdrawConfirm": "Confirm delete",
   "settings.account.withdrawCancel": "Cancel",
   "settings.account.withdrawing": "Deleting account",
   "settings.msg.withdrawFailed": "Could not delete the account. Please try again shortly",
@@ -3130,8 +3130,8 @@ const ja: Record<Key, string> = {
   "settings.desktop.desc": "この端末で実行中のデスクトップアプリ専用の設定です。",
   "settings.desktop.folders": "管理フォルダ",
   "settings.gcal.disconnectCta": "連携を解除",
-  "settings.msg.gcalDisconnected": "Google Calendarの連携を解除しました",
-  "settings.msg.gcalDisconnectFailed": "Google Calendarの連携解除に失敗しました",
+  "settings.msg.gcalDisconnected": "Google カレンダーの連携を解除しました",
+  "settings.msg.gcalDisconnectFailed": "Google カレンダーの連携解除に失敗しました",
 };
 
 export const settingsMessages = { ko, en, ja };

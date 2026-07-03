@@ -63,6 +63,15 @@ export type GoogleCalendarListEntry = {
   summary?: string | null;
 };
 
+// GET /api/calendar/rooms/{roomId}/calendar — 룸 전용 구글 캘린더 매핑.
+// 구글 연동이 활성 상태면 룸 이름으로 캘린더를 지연 생성해 googleCalendarId를 채운다.
+// connected=true인데 googleCalendarId가 null이면 캘린더 생성이 아직/실패한 상태.
+export type RoomCalendarResponse = {
+  calendarName: string;
+  connected: boolean;
+  googleCalendarId: string | null;
+};
+
 // GET /api/calendar/groups — 로컬 일정은 프로젝트룸 단위, 구글 일정은 캘린더 단위로 묶인다.
 export type CalendarEventGroupType = "PERSONAL" | "PROJECT_ROOM" | "GOOGLE_CALENDAR";
 

@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  MoreHorizontal,
   Pencil,
   Plus,
   RefreshCw,
@@ -22,11 +21,10 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
-import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import type { Locale, MessageKey, TranslateVars } from "@/lib/i18n";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewSchedules } from "@/lib/workspace-preview-data";
 import type { GoogleCalendarConnectionResponse, ProjectRoomEventEnvelope, ProjectRoomEventType } from "@/types/api/calendar";
@@ -61,6 +59,9 @@ const dayLabels = [
   { labelKey: "calendar.day.sat", value: "SA" },
   { labelKey: "calendar.day.sun", value: "SU" },
 ] as const satisfies ReadonlyArray<{ labelKey: MessageKey; value: string }>;
+
+// 날짜 레이블은 UI 언어를 따라간다 (대시보드와 같은 BCP 47 태그 매핑).
+const LOCALE_TAGS: Record<Locale, string> = { en: "en-US", ja: "ja-JP", ko: "ko-KR" };
 
 const sourceFilters: Array<{ key: CalendarSourceFilter; labelKey: MessageKey }> = [
   { key: "all", labelKey: "calendar.source.all" },
@@ -114,11 +115,11 @@ function formatClockTime(date: Date) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-function formatTime(t: TranslateFn, event: ScheduleResponse) {
+function formatTime(t: TranslateFn, localeTag: string, event: ScheduleResponse) {
   if (event.allDay) return t("calendar.time.allDay");
   const start = new Date(event.startsAt);
   if (Number.isNaN(start.getTime())) return t("calendar.time.undecided");
-  return new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit" }).format(start);
+  return new Intl.DateTimeFormat(localeTag, { hour: "2-digit", minute: "2-digit" }).format(start);
 }
 
 function buildPreviewEvents(roomId: string | null) {
@@ -191,7 +192,8 @@ function buildPreviewRoomEvents(roomId: string | null, schedules: ScheduleRespon
 }
 
 function CalendarPageContent() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const localeTag = LOCALE_TAGS[locale] ?? "ko-KR";
   const searchParams = useSearchParams();
   const selectedRoomId = searchParams.get("roomId") ?? getActiveProjectRoomId();
   const [state, setState] = useState<PageState>({ kind: "loading" });
@@ -311,18 +313,19 @@ function CalendarPageContent() {
   );
   const reviewCount = events.filter((event) => event.syncStatus === "SYNC_FAILED").length;
   const now = new Date();
-  const monthLabel = new Intl.DateTimeFormat("ko-KR", { month: "long", year: "numeric" }).format(currentMonth);
-  const selectedDayLabel = new Intl.DateTimeFormat("ko-KR", { day: "numeric", month: "long", weekday: "long" }).format(toSelectedDay(selectedDate));
+  const monthLabel = new Intl.DateTimeFormat(localeTag, { month: "long", year: "numeric" }).format(currentMonth);
+  const selectedDayLabel = new Intl.DateTimeFormat(localeTag, { day: "numeric", month: "long", weekday: "long" }).format(toSelectedDay(selectedDate));
   const calendarDays = useMemo(() => {
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
     const leadingDays = (start.getDay() + 6) % 7;
     const totalDays = leadingDays + end.getDate();
 
-    return Array.from({ length: Math.ceil(totalDays / 7) * 7 }, (_, index) => {
-      if (index < leadingDays || index >= totalDays) return null;
-      return new Date(currentMonth.getFullYear(), currentMonth.getMonth(), index - leadingDays + 1);
-    });
+    // 앞뒤 인접 달 날짜도 채워 달력을 항상 완전한 7열 격자로 유지한다(인접 달은 흐리게만 표시).
+    return Array.from(
+      { length: Math.ceil(totalDays / 7) * 7 },
+      (_, index) => new Date(currentMonth.getFullYear(), currentMonth.getMonth(), index - leadingDays + 1),
+    );
   }, [currentMonth]);
   const weekDays = useMemo(() => {
     const start = startOfWeek(toSelectedDay(selectedDate));
@@ -342,6 +345,15 @@ function CalendarPageContent() {
         : googleConnection.kind === "error"
           ? t("calendar.google.needsCheck")
           : t("calendar.google.beforeConnect");
+  // 동기화 상태 점 — 연결됨(확인 필요 여부)·확인 중·연결 전을 색으로만 구분한다.
+  const syncDotClass =
+    googleConnection.kind === "connected"
+      ? reviewCount > 0
+        ? styles.syncDotWarn
+        : styles.syncDotOk
+      : googleConnection.kind === "loading"
+        ? styles.syncDotLoading
+        : styles.syncDotOff;
 
   const goToToday = () => {
     const today = new Date();
@@ -361,6 +373,7 @@ function CalendarPageContent() {
     setDraftTitle("");
     setDraftStartTime("10:30");
     setDraftEndTime("11:00");
+    setDraftNotice(null);
     // 일정이 있는 날짜는 하단 선택 일정 패널에서 바로 확인/수정하고, 빈 날짜는 새 일정 작성기를 연다.
     setComposerOpen(!hasEvents);
   };
@@ -585,12 +598,137 @@ function CalendarPageContent() {
 
       {state.kind === "ready" && (
         <>
-          <GlassPanel className={styles.sourcePanel} aria-label={t("calendar.sourcePanel.aria")}>
-            <div className={styles.sourceTabs} aria-label={t("calendar.sourceTabs.aria")}>
+          <GlassPanel className={styles.shell} padded={false}>
+            <div className={styles.toolbar}>
+              <div className={styles.monthNav}>
+                <button aria-label={t("calendar.nav.prevMonth")} className={styles.navButton} onClick={() => moveMonth(-1)} type="button">
+                  <ChevronLeft size={17} strokeWidth={2.1} />
+                </button>
+                <strong className={styles.monthLabel} key={monthLabel}>
+                  {monthLabel}
+                </strong>
+                <button aria-label={t("calendar.nav.nextMonth")} className={styles.navButton} onClick={() => moveMonth(1)} type="button">
+                  <ChevronRight size={17} strokeWidth={2.1} />
+                </button>
+                <button className={styles.todayButton} onClick={goToToday} type="button">
+                  {t("calendar.nav.today")}
+                </button>
+              </div>
+              <div className={styles.toolbarActions}>
+                <div aria-label={t("calendar.view.aria")} className={styles.viewSwitch}>
+                  <button aria-pressed={viewMode === "month"} onClick={() => setViewMode("month")} type="button">
+                    {t("calendar.view.month")}
+                  </button>
+                  <button aria-pressed={viewMode === "week"} onClick={() => setViewMode("week")} type="button">
+                    {t("calendar.view.week")}
+                  </button>
+                </div>
+                <div
+                  className={styles.syncWrap}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") setSyncMenuOpen(false);
+                  }}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  <button
+                    aria-expanded={syncMenuOpen}
+                    aria-haspopup="dialog"
+                    aria-label={t("calendar.google.syncAria")}
+                    className={styles.syncTrigger}
+                    onClick={() => setSyncMenuOpen((open) => !open)}
+                    type="button"
+                  >
+                    <RefreshCw className={syncAction ? styles.syncSpinner : undefined} size={15} strokeWidth={2.1} />
+                    <i aria-hidden="true" className={`${styles.syncDot} ${syncDotClass}`} />
+                  </button>
+                  {syncMenuOpen ? (
+                    <div aria-label={t("calendar.google.syncAria")} className={styles.syncPopover} role="dialog">
+                      <div className={styles.syncPopoverHead}>
+                        <strong>Google Calendar</strong>
+                        <span>{googleConnectionLabel}</span>
+                      </div>
+                      {googleConnected ? (
+                        <p className={styles.syncPopoverMeta}>
+                          {lastSync
+                            ? t("calendar.google.lastSync", { pulled: lastSync.pulled, pushed: lastSync.pushed, time: formatClockTime(lastSync.at) })
+                            : t("calendar.google.noSyncYet")}
+                        </p>
+                      ) : null}
+                      <div className={styles.syncPopoverActions}>
+                        {!googleConnected ? (
+                          <button
+                            className={styles.syncPopoverItem}
+                            disabled={syncAction !== null}
+                            onClick={() => void runGoogleAction("connect")}
+                            type="button"
+                          >
+                            <ExternalLink size={14} strokeWidth={2.1} />
+                            <span>{syncAction === "connect" ? t("calendar.google.moving") : t("calendar.google.connect")}</span>
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              className={styles.syncPopoverItem}
+                              disabled={syncAction !== null}
+                              onClick={() => void runGoogleAction("sync")}
+                              type="button"
+                            >
+                              <RefreshCw className={syncAction === "sync" ? styles.syncSpinner : undefined} size={14} strokeWidth={2.1} />
+                              <span>{syncAction === "sync" ? t("calendar.google.syncing") : t("calendar.google.sync")}</span>
+                            </button>
+                            <button
+                              className={styles.syncPopoverItem}
+                              disabled={syncAction !== null}
+                              onClick={() => {
+                                setSyncMenuOpen(false);
+                                void runGoogleAction("pull");
+                              }}
+                              type="button"
+                            >
+                              <ArrowDownToLine size={14} strokeWidth={2.1} />
+                              <span>{t("calendar.google.pullOnly")}</span>
+                            </button>
+                            <button
+                              className={styles.syncPopoverItem}
+                              disabled={syncAction !== null}
+                              onClick={() => {
+                                setSyncMenuOpen(false);
+                                void runGoogleAction("push");
+                              }}
+                              type="button"
+                            >
+                              <ArrowUpToLine size={14} strokeWidth={2.1} />
+                              <span>{t("calendar.google.pushOnly")}</span>
+                            </button>
+                            <button
+                              className={`${styles.syncPopoverItem} ${styles.syncPopoverQuiet}`}
+                              disabled={syncAction !== null}
+                              onClick={() => {
+                                setSyncMenuOpen(false);
+                                void runGoogleAction("disconnect");
+                              }}
+                              type="button"
+                            >
+                              <Unplug size={14} strokeWidth={2.1} />
+                              <span>{t("calendar.google.disconnect")}</span>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                <Button icon={<Plus size={15} strokeWidth={2.1} />} onClick={openCreateComposer} variant="primary">
+                  {t("calendar.view.newEvent")}
+                </Button>
+              </div>
+            </div>
+
+            <div aria-label={t("calendar.sourceTabs.aria")} className={styles.filterRow}>
               {sourceFilters.map(({ key, labelKey }) => (
                 <button
                   aria-pressed={sourceFilter === key}
-                  className={styles.sourceButton}
+                  className={styles.filterChip}
                   key={key}
                   onClick={() => setSourceFilter(key)}
                   type="button"
@@ -600,146 +738,29 @@ function CalendarPageContent() {
                 </button>
               ))}
             </div>
-            <div className={styles.syncCompact}>
-              <div>
-                <strong>Google Calendar</strong>
-                <span>{googleConnectionLabel}</span>
-                {googleConnected && lastSync ? (
-                  <span className={styles.syncStatusLine}>
-                    {t("calendar.google.lastSync", { pulled: lastSync.pulled, pushed: lastSync.pushed, time: formatClockTime(lastSync.at) })}
-                  </span>
-                ) : null}
-              </div>
-              <div className={styles.syncActions} aria-label={t("calendar.google.syncAria")}>
-                {!googleConnected ? (
-                  <button className={styles.syncPrimaryButton} disabled={syncAction === "connect"} onClick={() => void runGoogleAction("connect")} type="button">
-                    <ExternalLink size={14} strokeWidth={2.1} />
-                    <span>{syncAction === "connect" ? t("calendar.google.moving") : t("calendar.google.connect")}</span>
-                  </button>
-                ) : (
-                  <>
-                    <button className={styles.syncPrimaryButton} disabled={syncAction !== null} onClick={() => void runGoogleAction("sync")} type="button">
-                      <RefreshCw className={syncAction === "sync" ? styles.syncSpinner : undefined} size={14} strokeWidth={2.1} />
-                      <span>{syncAction === "sync" ? t("calendar.google.syncing") : t("calendar.google.sync")}</span>
-                    </button>
-                    <div
-                      className={styles.syncMenuWrap}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") setSyncMenuOpen(false);
-                      }}
-                      onPointerDown={(event) => event.stopPropagation()}
-                    >
-                      <button
-                        aria-expanded={syncMenuOpen}
-                        aria-haspopup="menu"
-                        aria-label={t("calendar.google.more")}
-                        className={styles.syncIconButton}
-                        disabled={syncAction !== null}
-                        onClick={() => setSyncMenuOpen((open) => !open)}
-                        type="button"
-                      >
-                        <MoreHorizontal size={14} strokeWidth={2.1} />
-                      </button>
-                      {syncMenuOpen ? (
-                        <div className={styles.syncMenu} role="menu">
-                          <button
-                            className={styles.syncMenuItem}
-                            onClick={() => {
-                              setSyncMenuOpen(false);
-                              void runGoogleAction("pull");
-                            }}
-                            role="menuitem"
-                            type="button"
-                          >
-                            <ArrowDownToLine size={14} strokeWidth={2.1} />
-                            <span>{t("calendar.google.pullOnly")}</span>
-                          </button>
-                          <button
-                            className={styles.syncMenuItem}
-                            onClick={() => {
-                              setSyncMenuOpen(false);
-                              void runGoogleAction("push");
-                            }}
-                            role="menuitem"
-                            type="button"
-                          >
-                            <ArrowUpToLine size={14} strokeWidth={2.1} />
-                            <span>{t("calendar.google.pushOnly")}</span>
-                          </button>
-                          <button
-                            className={styles.syncMenuItem}
-                            onClick={() => {
-                              setSyncMenuOpen(false);
-                              void runGoogleAction("disconnect");
-                            }}
-                            role="menuitem"
-                            type="button"
-                          >
-                            <Unplug size={14} strokeWidth={2.1} />
-                            <span>{t("calendar.google.disconnect")}</span>
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-            {googleNotice ? <p className={styles.syncNotice}>{googleNotice}</p> : null}
-          </GlassPanel>
 
-          <div className={styles.mainGrid}>
-            <GlassPanel className={styles.calendarPanel}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <h2>{viewMode === "month" ? t("calendar.view.monthTitle") : t("calendar.view.weekTitle")}</h2>
-                </div>
-                <div className={styles.panelTools}>
-                  <div className={styles.viewSwitch} aria-label={t("calendar.view.aria")}>
-                    <button aria-pressed={viewMode === "month"} onClick={() => setViewMode("month")} type="button">
-                      {t("calendar.view.month")}
-                    </button>
-                    <button aria-pressed={viewMode === "week"} onClick={() => setViewMode("week")} type="button">
-                      {t("calendar.view.week")}
-                    </button>
-                  </div>
-                  {reviewCount > 0 ? (
-                    <StatusBadge tone="warning">{t("calendar.view.needsCheck")}</StatusBadge>
-                  ) : googleConnected ? (
-                    <StatusBadge tone="success">{t("calendar.view.synced")}</StatusBadge>
-                  ) : null}
-                  <Button icon={<Plus size={15} strokeWidth={2.1} />} onClick={openCreateComposer} variant="primary">
-                    {t("calendar.view.newEvent")}
-                  </Button>
-                </div>
-              </div>
+            {googleNotice ? <p className={styles.inlineNotice}>{googleNotice}</p> : null}
+            {state.loadWarning ? <p className={styles.loadWarning}>{state.loadWarning}</p> : null}
 
-              <div className={styles.monthHeader}>
-                <button aria-label={t("calendar.nav.prevMonth")} className={styles.monthNavButton} onClick={() => moveMonth(-1)} type="button">
-                  <ChevronLeft size={18} strokeWidth={2.1} />
-                </button>
-                <strong key={monthLabel}>{monthLabel}</strong>
-                <button aria-label={t("calendar.nav.nextMonth")} className={styles.monthNavButton} onClick={() => moveMonth(1)} type="button">
-                  <ChevronRight size={18} strokeWidth={2.1} />
-                </button>
-                <button className={styles.todayButton} onClick={goToToday} type="button">
-                  {t("calendar.nav.today")}
-                </button>
-              </div>
-
-              {state.loadWarning ? <p className={styles.loadWarning}>{state.loadWarning}</p> : null}
-
-              <div className={styles.weekLabelGrid} aria-hidden="true">
+            <div className={styles.gridWrap}>
+              <div aria-hidden="true" className={styles.weekdayRow}>
                 {dayLabels.map((day) => (
                   <span key={day.value}>{t(day.labelKey)}</span>
                 ))}
               </div>
-
-              <div className={viewMode === "week" ? `${styles.monthGrid} ${styles.weekGrid}` : styles.monthGrid} aria-label={t("calendar.grid.aria")}>
-                {visibleCalendarDays.map((date, index) => {
-                  if (!date) return <span className={styles.daySpacer} key={`spacer-${index}`} />;
-
+              <div aria-label={t("calendar.grid.aria")} className={viewMode === "week" ? `${styles.grid} ${styles.gridWeek}` : styles.grid}>
+                {visibleCalendarDays.map((date) => {
                   const dateValue = toDateValue(date);
+                  const outside = viewMode === "month" && date.getMonth() !== currentMonth.getMonth();
+
+                  if (outside) {
+                    return (
+                      <span className={`${styles.cell} ${styles.cellOutside}`} key={dateValue}>
+                        <span className={styles.cellDate}>{date.getDate()}</span>
+                      </span>
+                    );
+                  }
+
                   const dayEvents = visibleEvents
                     .filter((event) => sameDate(new Date(event.startsAt), date))
                     .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
@@ -749,118 +770,116 @@ function CalendarPageContent() {
                   const today = sameDate(date, now);
                   const weekend = date.getDay() === 0 || date.getDay() === 6;
                   const className = [
-                    styles.dayButton,
-                    selected ? styles.dayButtonSelected : "",
-                    today ? styles.dayButtonToday : "",
-                    weekend ? styles.dayButtonWeekend : "",
-                    roomEventCount > 0 ? styles.dayButtonHasRoomEvent : "",
+                    styles.cell,
+                    selected ? styles.cellSelected : "",
+                    today ? styles.cellToday : "",
+                    weekend ? styles.cellWeekend : "",
                   ]
                     .filter(Boolean)
                     .join(" ");
 
                   return (
                     <button aria-pressed={selected} className={className} key={dateValue} onClick={() => selectCalendarDate(date, count > 0)} type="button">
-                      <span className={styles.dayNumberRow}>
-                        <strong>{date.getDate()}</strong>
-                        {count > 0 ? <small>{t("calendar.grid.countUnit", { count })}</small> : null}
-                      </span>
+                      <span className={styles.cellDate}>{date.getDate()}</span>
                       {count > 0 ? (
-                        <ul className={styles.dayEventList} aria-label={t("calendar.grid.dayEventsAria", { day: date.getDate() })}>
-                          {dayEvents.slice(0, 2).map((event) => {
+                        <ul aria-label={t("calendar.grid.dayEventsAria", { day: date.getDate() })} className={styles.cellEvents}>
+                          {dayEvents.slice(0, 3).map((event) => {
                             const source = event.roomId ? "room" : event.googleEventId || event.syncStatus === "SYNCED" ? "external" : "personal";
                             return (
-                              <li className={`${styles.dayEventItem} ${styles[`dayEventItem_${source}`]}`} key={event.id}>
-                                <span>{formatTime(t, event)}</span>
+                              <li className={`${styles.eventChip} ${styles[`eventChip_${source}`]}`} key={event.id}>
+                                <span>{formatTime(t, localeTag, event)}</span>
                                 <b>{event.title}</b>
                               </li>
                             );
                           })}
-                          {count > 2 ? <li className={styles.dayEventMore}>{t("calendar.grid.moreCount", { count: count - 2 })}</li> : null}
+                          {count > 3 ? <li className={styles.eventMore}>{t("calendar.grid.moreCount", { count: count - 3 })}</li> : null}
                         </ul>
                       ) : null}
-                      {roomEventCount > 0 ? <i aria-label={t("calendar.grid.roomEventsAria", { count: roomEventCount })} /> : null}
+                      {roomEventCount > 0 ? (
+                        <i aria-label={t("calendar.grid.roomEventsAria", { count: roomEventCount })} className={styles.roomDot} />
+                      ) : null}
                     </button>
                   );
                 })}
               </div>
+            </div>
 
-              <section className={styles.selectedEventPanel} aria-label={t("calendar.selected.aria")}>
-                <div>
-                  <strong>{selectedDayLabel}</strong>
-                  <span>{selectedEvents.length > 0 ? t("calendar.selected.count", { count: selectedEvents.length }) : t("calendar.summary.noEvent")}</span>
-                </div>
-                {deleteNotice ? <p className={styles.notice}>{deleteNotice}</p> : null}
-                {selectedEvents.length > 0 ? (
-                  <ul className={styles.selectedEventList}>
-                    {selectedEvents.map((event) => {
-                      const source = event.roomId
-                        ? t("calendar.source.room")
-                        : event.googleEventId || event.syncStatus === "SYNCED"
-                          ? t("calendar.source.external")
-                          : t("calendar.source.personal");
-                      const confirmingDelete = confirmingDeleteEventId === event.id;
+            <section aria-label={t("calendar.selected.aria")} className={styles.detail}>
+              <div className={styles.detailHead}>
+                <strong>{selectedDayLabel}</strong>
+                <span>{selectedEvents.length > 0 ? t("calendar.selected.count", { count: selectedEvents.length }) : t("calendar.summary.noEvent")}</span>
+              </div>
+              {deleteNotice ? <p className={styles.notice}>{deleteNotice}</p> : null}
+              {selectedEvents.length > 0 ? (
+                <ul className={styles.detailList}>
+                  {selectedEvents.map((event) => {
+                    const source = event.roomId
+                      ? t("calendar.source.room")
+                      : event.googleEventId || event.syncStatus === "SYNCED"
+                        ? t("calendar.source.external")
+                        : t("calendar.source.personal");
+                    const confirmingDelete = confirmingDeleteEventId === event.id;
 
-                      return (
-                        <li key={event.id}>
-                          <button className={styles.selectedEventEdit} onClick={() => openEditComposer(event)} type="button">
-                            <span>{formatTime(t, event)}</span>
-                            <strong>{event.title}</strong>
-                            <small>{source}</small>
-                          </button>
-                          <button
-                            aria-expanded={confirmingDelete}
-                            aria-label={t("calendar.selected.deleteAria", { title: event.title })}
-                            className={styles.selectedEventDelete}
-                            disabled={deletingEventId === event.id}
-                            onClick={() => setConfirmingDeleteEventId(confirmingDelete ? null : event.id)}
-                            type="button"
-                          >
-                            <Trash2 size={15} strokeWidth={2.1} />
-                          </button>
-                          {confirmingDelete ? (
-                            <div className={styles.deleteConfirm} role="alertdialog" aria-label={t("calendar.selected.deleteAria", { title: event.title })}>
-                              <p>{t("calendar.delete.confirmBody", { title: event.title })}</p>
-                              <div className={styles.deleteConfirmActions}>
-                                <Button
-                                  loading={deletingEventId === event.id}
-                                  onClick={() => void handleDeleteEvent(event)}
-                                  size="sm"
-                                  variant="primary"
-                                >
-                                  {t("calendar.delete.confirmDelete")}
-                                </Button>
-                                <Button
-                                  disabled={deletingEventId === event.id}
-                                  onClick={() => setConfirmingDeleteEventId(null)}
-                                  size="sm"
-                                  variant="quiet"
-                                >
-                                  {t("calendar.delete.confirmKeep")}
-                                </Button>
-                              </div>
+                    return (
+                      <li key={event.id}>
+                        <button className={styles.detailRow} onClick={() => openEditComposer(event)} type="button">
+                          <span className={styles.detailTime}>{formatTime(t, localeTag, event)}</span>
+                          <strong className={styles.detailTitle}>{event.title}</strong>
+                          <small className={styles.detailSource}>{source}</small>
+                        </button>
+                        <button
+                          aria-expanded={confirmingDelete}
+                          aria-label={t("calendar.selected.deleteAria", { title: event.title })}
+                          className={styles.detailDelete}
+                          disabled={deletingEventId === event.id}
+                          onClick={() => setConfirmingDeleteEventId(confirmingDelete ? null : event.id)}
+                          type="button"
+                        >
+                          <Trash2 size={15} strokeWidth={2.1} />
+                        </button>
+                        {confirmingDelete ? (
+                          <div aria-label={t("calendar.selected.deleteAria", { title: event.title })} className={styles.deleteConfirm} role="alertdialog">
+                            <p>{t("calendar.delete.confirmBody", { title: event.title })}</p>
+                            <div className={styles.deleteConfirmActions}>
+                              <Button
+                                loading={deletingEventId === event.id}
+                                onClick={() => void handleDeleteEvent(event)}
+                                size="sm"
+                                variant="primary"
+                              >
+                                {t("calendar.delete.confirmDelete")}
+                              </Button>
+                              <Button
+                                disabled={deletingEventId === event.id}
+                                onClick={() => setConfirmingDeleteEventId(null)}
+                                size="sm"
+                                variant="quiet"
+                              >
+                                {t("calendar.delete.confirmKeep")}
+                              </Button>
                             </div>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : null}
-                <button className={styles.emptySelectedEvent} onClick={openCreateComposer} type="button">
-                  {t("calendar.selected.addForDate")}
-                </button>
-              </section>
-            </GlassPanel>
-          </div>
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+              <button className={styles.detailAdd} onClick={openCreateComposer} type="button">
+                {t("calendar.selected.addForDate")}
+              </button>
+            </section>
+          </GlassPanel>
 
           {composerOpen ? (
             <div className={styles.composerLayer} role="presentation" onMouseDown={closeComposer}>
               <GlassPanel
                 aria-labelledby="calendar-composer-title"
-                className={`${styles.createPanel} ${styles.composerPanel}`}
+                className={styles.composerPanel}
                 role="dialog"
                 onMouseDown={(event) => event.stopPropagation()}
               >
-                <div className={styles.panelHeader}>
+                <div className={styles.composerHead}>
                   <div>
                     <h2 id="calendar-composer-title">{editingEventId ? t("calendar.composer.editTitle") : t("calendar.composer.title")}</h2>
                     <p>{t("calendar.composer.subtitle")}</p>

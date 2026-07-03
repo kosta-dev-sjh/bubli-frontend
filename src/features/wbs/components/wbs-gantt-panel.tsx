@@ -25,7 +25,7 @@ import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
-import type { GoogleCalendarConnectionResponse } from "@/types/api/calendar";
+import type { GoogleCalendarConnectionResponse, RoomCalendarResponse } from "@/types/api/calendar";
 import type { ScheduleResponse, WbsItemResponse, WbsStatus } from "@/types/api/work";
 
 import styles from "./wbs-gantt-panel.module.css";
@@ -138,6 +138,9 @@ export function WbsGanttPanel({
   const [calendarSync, setCalendarSync] = useState<CalendarSyncState>("checking");
   const [googleAccountEmail, setGoogleAccountEmail] = useState<string | null>(null);
   const [roomGroupEventCount, setRoomGroupEventCount] = useState<number | null>(null);
+  // 룸별로 캐시해 룸을 오가도 이전 룸의 캘린더가 섞여 보이지 않게 한다.
+  const [roomCalendarByRoom, setRoomCalendarByRoom] = useState<Record<string, RoomCalendarResponse>>({});
+  const [isEnsuringRoomCalendar, setIsEnsuringRoomCalendar] = useState(false);
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const [createDraft, setCreateDraft] = useState<CreateDraft | null>(null);
   const [isSyncPopoverOpen, setIsSyncPopoverOpen] = useState(false);
@@ -232,6 +235,24 @@ export function WbsGanttPanel({
       cancelled = true;
     };
   }, [calendarSync, roomId]);
+
+  // GET이지만 백엔드가 룸 이름으로 구글 캘린더를 지연 생성하는 ensure 성격의 호출이라
+  // 자동 조회하지 않고 팝오버의 버튼으로만 부른다.
+  const handleEnsureRoomCalendar = async () => {
+    setIsEnsuringRoomCalendar(true);
+
+    try {
+      const response = await calendarApi.getRoomCalendar(roomId);
+      setRoomCalendarByRoom((current) => ({ ...current, [roomId]: response }));
+      if (!response.googleCalendarId) {
+        onNotice(t("wbs.gantt.sync.roomCalendarMissing"));
+      }
+    } catch {
+      onNotice(t("wbs.gantt.sync.roomCalendarFailed"));
+    } finally {
+      setIsEnsuringRoomCalendar(false);
+    }
+  };
 
   const handleConnectGoogle = async () => {
     setIsConnectingGoogle(true);
@@ -786,6 +807,7 @@ export function WbsGanttPanel({
           .join(" · ")
       : null;
   const syncHintText = calendarSync === "recording" ? t("wbs.gantt.sync.titleRecording") : t("wbs.gantt.sync.titleOff");
+  const roomCalendar = roomCalendarByRoom[roomId] ?? null;
 
   return (
     <div className={styles.panel} ref={panelRef}>
@@ -856,7 +878,22 @@ export function WbsGanttPanel({
               <div aria-label={syncStateText} className={styles.syncPopover} data-state={syncState} role="dialog">
                 <strong>{syncStateText}</strong>
                 {syncDetailText ? <small>{syncDetailText}</small> : null}
+                {calendarSync === "recording" && roomCalendar?.googleCalendarId ? (
+                  <small>{t("wbs.gantt.sync.roomCalendarConnected", { name: roomCalendar.calendarName })}</small>
+                ) : null}
                 <p>{syncHintText}</p>
+                {calendarSync === "recording" && !roomCalendar?.googleCalendarId ? (
+                  <button
+                    className={styles.syncConnectButton}
+                    disabled={isEnsuringRoomCalendar}
+                    onClick={() => void handleEnsureRoomCalendar()}
+                    type="button"
+                  >
+                    {isEnsuringRoomCalendar
+                      ? t("wbs.gantt.sync.roomCalendarChecking")
+                      : t("wbs.gantt.sync.roomCalendarAction")}
+                  </button>
+                ) : null}
                 {calendarSync === "off" ? (
                   <button
                     className={styles.syncConnectButton}

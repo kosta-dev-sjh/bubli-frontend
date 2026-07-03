@@ -42,6 +42,7 @@ type AgentPageState =
       confirmedRequirements: AgentSuggestionResponse[];
       dailySummaries: DailySummaryResponse[];
       generatedDocuments: GeneratedDocumentResponse[];
+      heldSuggestions: AgentSuggestionResponse[];
       kind: "ready";
       roomAiDocuments: RoomAiDocumentResponse[];
       roomMemorySummaries: RoomMemorySummaryResponse[];
@@ -159,8 +160,17 @@ function todayDateKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const LOCALE_TAGS: Record<string, string> = {
+  en: "en-US",
+  ja: "ja-JP",
+  ko: "ko-KR",
+};
+
+// 진행 중 AI 작업은 5초 간격으로 자동 확인한다(수동 확인 버튼은 보조 수단).
+const JOB_POLL_INTERVAL_MS = 5000;
+
 function AgentPageContent() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const searchParams = useSearchParams();
   const [state, setState] = useState<AgentPageState>({ kind: "loading" });
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -173,6 +183,7 @@ function AgentPageContent() {
   const [checkingJob, setCheckingJob] = useState(false);
   const [activeJob, setActiveJob] = useState<ActiveJobState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [jobEventMessage, setJobEventMessage] = useState<string | null>(null);
 
   const selectedRoomId = state.kind === "ready" ? state.selectedRoomId : null;
 
@@ -192,9 +203,9 @@ function AgentPageContent() {
       const days = Math.round(hours / 24);
       if (days <= 7) return t("agent.page.dateDaysAgo", { count: days });
 
-      return new Intl.DateTimeFormat("ko-KR", { day: "numeric", month: "short" }).format(date);
+      return new Intl.DateTimeFormat(LOCALE_TAGS[locale] ?? "ko-KR", { day: "numeric", month: "short" }).format(date);
     },
-    [t],
+    [locale, t],
   );
 
   const load = useCallback(async (roomId: string | null) => {
@@ -207,6 +218,7 @@ function AgentPageContent() {
           confirmedRequirements: [],
           dailySummaries: [],
           generatedDocuments: [],
+          heldSuggestions: [],
           roomAiDocuments: [],
           roomMemorySummaries: [],
           selectedRoomId: roomId,
@@ -217,9 +229,16 @@ function AgentPageContent() {
     });
 
     try {
-      const [roomPage, suggestions, dailySummaryPage, generatedDocumentPage, roomMemorySummaries, confirmedRequirements, roomAiDocuments] = await Promise.all([
+      const [roomPage, suggestions, heldSuggestions, dailySummaryPage, generatedDocumentPage, roomMemorySummaries, confirmedRequirements, roomAiDocuments] = await Promise.all([
         projectRoomApi.list(),
         roomId ? agentApi.listRoomSuggestions(roomId, { status: "DRAFT" }) : agentApi.listPersonalSuggestions({ status: "DRAFT" }),
+        // 보류한 후보도 함께 불러와 보관함에서 다시 볼 수 있게 한다.
+        (roomId ? agentApi.listRoomSuggestions(roomId, { status: "HELD" }) : agentApi.listPersonalSuggestions({ status: "HELD" })).catch(
+          (error: unknown) => {
+            if (error instanceof ApiClientError && error.status === 401) throw error;
+            return [] as AgentSuggestionResponse[];
+          },
+        ),
         agentApi.listDailySummaries(),
         roomId ? agentApi.listRoomGeneratedDocuments(roomId) : agentApi.listGeneratedDocuments(),
         roomId ? chatApi.listRoomMemorySummaries(roomId) : Promise.resolve([]),
@@ -248,6 +267,7 @@ function AgentPageContent() {
         confirmedRequirements,
         dailySummaries: dailySummaryPage.items,
         generatedDocuments: generatedDocumentPage.items,
+        heldSuggestions,
         kind: "ready",
         roomAiDocuments,
         roomMemorySummaries,
@@ -271,6 +291,7 @@ function AgentPageContent() {
           confirmedRequirements: [],
           dailySummaries: [],
           generatedDocuments: [],
+          heldSuggestions: [],
           kind: "ready",
           roomAiDocuments: [],
           roomMemorySummaries: [],
@@ -330,12 +351,23 @@ function AgentPageContent() {
     return [...groups.entries()].map(([key, group]) => ({ key, ...group }));
   }, [state, t]);
 
+  // 카드가 목록에서 사라진 뒤에도 무슨 일이 일어났는지 알 수 있게 처리 결과를 안내한다.
+  const reviewNoticeKeys: Record<"APPROVE" | "HOLD" | "REJECT", MessageKey> = useMemo(
+    () => ({
+      APPROVE: "agent.page.reviewApprovedNotice",
+      HOLD: "agent.page.reviewHeldNotice",
+      REJECT: "agent.page.reviewRejectedNotice",
+    }),
+    [],
+  );
+
   const review = useCallback(async (suggestionId: string, action: "APPROVE" | "HOLD" | "REJECT") => {
     setUpdatingId(suggestionId);
 
     try {
       await agentApi.updateSuggestion(suggestionId, { action });
       await load(selectedRoomId);
+      setNotice(t(reviewNoticeKeys[action]));
     } catch (error) {
       if (!shouldUseWorkspacePreviewData()) {
         setState({
@@ -363,10 +395,11 @@ function AgentPageContent() {
           ),
         };
       });
+      setNotice(t(reviewNoticeKeys[action]));
     } finally {
       setUpdatingId(null);
     }
-  }, [load, selectedRoomId, t]);
+  }, [load, reviewNoticeKeys, selectedRoomId, t]);
 
   const approveDailySummary = useCallback(async (summaryId: string) => {
     setDailyUpdatingId(summaryId);
@@ -388,6 +421,7 @@ function AgentPageContent() {
     try {
       const job = await agentApi.summarizeDay({ summaryDate: todayDateKey() });
       setActiveJob({ jobId: job.jobId, status: job.status });
+      setJobEventMessage(null);
       setNotice(t("agent.page.summaryStarted", { jobId: job.jobId }));
     } catch (error) {
       setState({
@@ -406,6 +440,7 @@ function AgentPageContent() {
     try {
       const job = await agentApi.generateRequirements({ roomId: selectedRoomId });
       setActiveJob({ jobId: job.jobId, status: job.status });
+      setJobEventMessage(null);
       setNotice(t("agent.page.generateStarted"));
     } catch (error) {
       setState({
@@ -418,13 +453,14 @@ function AgentPageContent() {
   }, [selectedRoomId, t]);
 
   const checkActiveJob = useCallback(async () => {
-    if (!activeJob) return;
+    if (!activeJob || checkingJob) return;
 
     setCheckingJob(true);
     try {
       const job = await agentApi.getJob(activeJob.jobId);
       if (job.status === "SUCCEEDED") {
         setActiveJob(null);
+        setJobEventMessage(null);
         await load(selectedRoomId);
         setNotice(t("agent.page.jobDone"));
         return;
@@ -432,17 +468,41 @@ function AgentPageContent() {
 
       if (job.status === "FAILED" || job.status === "CANCELED") {
         setActiveJob(null);
+        setJobEventMessage(null);
         setNotice(job.errorMessage && job.errorMessage.trim().length > 0 ? job.errorMessage : t("agent.page.jobFailed"));
         return;
       }
 
       setActiveJob({ jobId: job.jobId, status: job.status });
+
+      // 아직 진행 중이면 최근 작업 이벤트 한 줄을 같이 보여준다(무슨 단계인지 안내).
+      // 백엔드는 이벤트를 createdAt 오름차순으로 주므로 뒤에서부터 메시지를 찾는다.
+      try {
+        const eventPage = await agentApi.getJobEvents(job.jobId);
+        const latest = [...eventPage.items]
+          .reverse()
+          .find((event) => typeof event.message === "string" && event.message.trim().length > 0);
+        setJobEventMessage(latest?.message?.trim() ?? null);
+      } catch {
+        setJobEventMessage(null);
+      }
     } catch {
       setNotice(t("agent.page.errorJobCheck"));
     } finally {
       setCheckingJob(false);
     }
-  }, [activeJob, load, selectedRoomId, t]);
+  }, [activeJob, checkingJob, load, selectedRoomId, t]);
+
+  // 진행 중 작업은 주기적으로 자동 확인해 "확인 버튼만 누르다 끝나는" 흐름을 없앤다.
+  useEffect(() => {
+    if (!activeJob) return;
+
+    const intervalId = window.setInterval(() => {
+      void checkActiveJob();
+    }, JOB_POLL_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeJob, checkActiveJob]);
 
   const openDocument = useCallback(async (documentId: string) => {
     setOpeningDocumentId(documentId);
@@ -544,6 +604,9 @@ function AgentPageContent() {
                     <StatusBadge tone={activeJob.status === "RUNNING" ? "agent" : "pending"}>
                       {t("agent.page.jobStatusLabel", { status: t(jobStatusLabelKeys[activeJob.status]) })}
                     </StatusBadge>
+                    {jobEventMessage ? (
+                      <span className={styles.jobEventLine}>{t("agent.page.jobLatestEvent", { message: jobEventMessage })}</span>
+                    ) : null}
                     <Button loading={checkingJob} onClick={() => void checkActiveJob()} size="sm" variant="quiet">
                       {t("agent.page.jobCheck")}
                     </Button>
@@ -571,12 +634,13 @@ function AgentPageContent() {
               </div>
               <span className={styles.headActions}>
                 {state.selectedRoomId ? (
+                  // 이 화면의 1순위 행동은 카드의 '승인'이므로 생성 버튼은 보조(secondary)로 둔다.
                   <Button
                     icon={<Wand2 size={14} strokeWidth={1.9} />}
                     loading={generatingRequirements}
                     onClick={() => void startGenerateRequirements()}
                     size="sm"
-                    variant="primary"
+                    variant="secondary"
                   >
                     {t("agent.page.generateRequirements")}
                   </Button>
@@ -642,11 +706,13 @@ function AgentPageContent() {
                                   <span className={styles.cardEvidenceLine}>{t("agent.page.evidence", { text: evidence })}</span>
                                 </summary>
                                 <p>{evidence}</p>
-                                <span className={styles.cardMeta}>{typeLabel}</span>
                               </details>
                             ) : null}
                             <div className={styles.cardFoot}>
-                              <span className={styles.cardDate}>{dateLabel ?? typeLabel}</span>
+                              {/* 승인하면 무엇이 되는지(종류)와 언제 생긴 후보인지 한 줄로 보여준다. */}
+                              <span className={styles.cardDate}>
+                                {dateLabel ? t("agent.page.typeDateSeparator", { date: dateLabel, type: typeLabel }) : typeLabel}
+                              </span>
                               <span className={styles.cardButtons}>
                                 <Button
                                   disabled={disabled}
@@ -812,6 +878,40 @@ function AgentPageContent() {
                     </div>
                   </GlassPanel>
                 ) : null}
+              </div>
+            </details>
+          </section>
+
+          <section className="workspace-route__section" aria-labelledby="held-suggestions-title">
+            <details className={styles.archive}>
+              <summary className={styles.archiveHead}>
+                <h2 className={styles.archiveTitle} id="held-suggestions-title">{t("agent.page.heldTitle")}</h2>
+                <span className={styles.archiveCount}>{t("agent.page.suggestionsCount", { count: state.heldSuggestions.length })}</span>
+                <ChevronDown aria-hidden className={styles.archiveChevron} size={16} strokeWidth={2} />
+              </summary>
+              <div className={styles.archiveBody}>
+                <p className={styles.sectionDesc}>{t("agent.page.heldDesc")}</p>
+                {state.heldSuggestions.length === 0 ? (
+                  <p className={styles.archiveEmpty}>{t("agent.page.heldEmpty")}</p>
+                ) : (
+                  <div className="workspace-route__list">
+                    {state.heldSuggestions.map((item) => {
+                      const typeLabel = t(typeLabelKeys[item.suggestionType]);
+                      const dateLabel = relativeDate(item.reviewedAt ?? item.updatedAt);
+
+                      return (
+                        <article className="workspace-route__row" key={item.suggestionId}>
+                          <span className="workspace-route__dot" aria-hidden="true" />
+                          <span className="workspace-route__main">
+                            <strong>{displayText(item.payloadJson, typeLabel)}</strong>
+                            <span>{dateLabel ? t("agent.page.typeDateSeparator", { date: dateLabel, type: typeLabel }) : typeLabel}</span>
+                          </span>
+                          <StatusBadge tone="warning">{t("agent.page.statusHeldLabel")}</StatusBadge>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </details>
           </section>

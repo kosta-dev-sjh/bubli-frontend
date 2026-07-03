@@ -5,7 +5,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { DecorBubble } from "@/components/bubbles";
 import { AppNav } from "@/components/layout/app-nav";
 import { TopbarNotificationsPanel } from "@/components/layout/topbar-notifications-panel";
 import { TopbarProfileMenu } from "@/components/layout/topbar-profile-menu";
@@ -420,12 +419,6 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="bubli-app-layout">
-      <div aria-hidden="true" className="bubli-app-decor">
-        <DecorBubble floating size="lg" style={{ top: "8%", right: "4%" }} />
-        <DecorBubble floating size="sm" style={{ top: "42%", right: "12%" }} />
-        <DecorBubble floating size="md" style={{ bottom: "10%", left: "16%" }} />
-        <DecorBubble size="sm" style={{ bottom: "28%", right: "38%" }} />
-      </div>
       <aside className="bubli-sidebar">
         <Link className="bubli-brand" href="/app">
           {siteConfig.name}

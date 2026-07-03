@@ -256,7 +256,7 @@ const ko = {
   "notification.center.sample.schedule.room": "정기 운영 업무",
   "notification.center.sample.schedule.title": "회의 준비 알림",
   "notification.center.sample.schedule.desc":
-    "오후 일정이 30분 앞으로 다가왔습니다. Google Calendar와 연결된 일정은 같은 일정 기준으로 표시합니다.",
+    "오후 일정이 30분 앞으로 다가왔습니다. 구글 캘린더와 연결된 일정은 같은 일정 기준으로 표시합니다.",
   "notification.center.sample.schedule.origin": "일정",
   "notification.center.sample.schedule.time": "1시간 전",
 
@@ -1090,7 +1090,7 @@ const ja: Record<Key, string> = {
   "notification.center.sample.schedule.room": "定期運用業務",
   "notification.center.sample.schedule.title": "会議準備の通知",
   "notification.center.sample.schedule.desc":
-    "午後の予定が30分後に迫りました。Google Calendarと連携した予定は同じ予定基準で表示します。",
+    "午後の予定が30分後に迫りました。Google カレンダーと連携した予定は同じ予定基準で表示します。",
   "notification.center.sample.schedule.origin": "予定",
   "notification.center.sample.schedule.time": "1時間前",
 

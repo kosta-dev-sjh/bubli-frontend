@@ -108,6 +108,7 @@ const ko = {
   "chat.composer.agentSuggest": "제안",
   "chat.composer.agentAnswer": "답변",
   "chat.composer.hint": "Shift+Enter 줄바꿈 · /bubli 질문으로 에이전트 호출",
+  "chat.composer.hintDirect": "Enter로 전송 · Shift+Enter 줄바꿈",
   "chat.composer.emojiPickerAria": "이모지 선택",
 
   // 친구 사이드바
@@ -161,6 +162,12 @@ const ko = {
   "chat.invite.pending": "대기 중인 룸 초대 {count}",
   "chat.invite.canceling": "취소 중",
   "chat.invite.cancel": "초대 취소",
+  "chat.invite.linkKicker": "초대 링크",
+  "chat.invite.linkHint": "{room}에 바로 참여할 수 있는 링크를 만들어 공유하세요 (72시간 유효)",
+  "chat.invite.linkCreate": "초대 링크 만들기",
+  "chat.invite.linkCreating": "링크 만드는 중",
+  "chat.invite.linkCopied": "초대 링크를 복사했습니다",
+  "chat.invite.linkFailed": "초대 링크를 만들지 못했습니다",
 
   // 친구 요청
   "chat.requests.title": "친구 요청",
@@ -831,6 +838,7 @@ const en: Record<Key, string> = {
   "chat.composer.agentSuggest": "Suggest",
   "chat.composer.agentAnswer": "Answer",
   "chat.composer.hint": "Shift+Enter for a new line · /bubli to call the agent",
+  "chat.composer.hintDirect": "Enter to send · Shift+Enter for a new line",
   "chat.composer.emojiPickerAria": "Choose an emoji",
 
   "chat.social.aria": "Friends",
@@ -865,10 +873,10 @@ const en: Record<Key, string> = {
   "chat.friends.chatInvite": "Chat invite",
   "chat.friends.sending": "Sending",
   "chat.friends.roomInvite": "Room invite",
-  "chat.friends.deleting": "Deleting",
-  "chat.friends.delete": "Delete",
+  "chat.friends.deleting": "Removing",
+  "chat.friends.delete": "Remove",
   "chat.friends.deleteConfirm": "Remove this friend?",
-  "chat.friends.deleteConfirmDelete": "Delete",
+  "chat.friends.deleteConfirmDelete": "Remove",
   "chat.friends.deleteConfirmKeep": "Keep",
 
   "chat.invite.roomSending": "Sending an invite to {name}",
@@ -880,6 +888,12 @@ const en: Record<Key, string> = {
   "chat.invite.pending": "{count} pending room invitations",
   "chat.invite.canceling": "Canceling",
   "chat.invite.cancel": "Cancel invite",
+  "chat.invite.linkKicker": "Invite link",
+  "chat.invite.linkHint": "Create and share a link that joins {room} directly (valid for 72 hours)",
+  "chat.invite.linkCreate": "Create invite link",
+  "chat.invite.linkCreating": "Creating link",
+  "chat.invite.linkCopied": "Invite link copied",
+  "chat.invite.linkFailed": "Couldn't create the invite link",
 
   "chat.requests.title": "Friend requests",
   "chat.requests.empty": "No pending requests",
@@ -1529,6 +1543,7 @@ const ja: Record<Key, string> = {
   "chat.composer.agentSuggest": "提案",
   "chat.composer.agentAnswer": "回答",
   "chat.composer.hint": "Shift+Enterで改行 · /bubli の質問でエージェントを呼び出し",
+  "chat.composer.hintDirect": "Enterで送信 · Shift+Enterで改行",
   "chat.composer.emojiPickerAria": "絵文字を選択",
 
   "chat.social.aria": "友だち",
@@ -1578,6 +1593,12 @@ const ja: Record<Key, string> = {
   "chat.invite.pending": "保留中のルーム招待 {count}",
   "chat.invite.canceling": "キャンセル中",
   "chat.invite.cancel": "招待をキャンセル",
+  "chat.invite.linkKicker": "招待リンク",
+  "chat.invite.linkHint": "{room}にすぐ参加できるリンクを作成して共有しましょう（72時間有効）",
+  "chat.invite.linkCreate": "招待リンクを作成",
+  "chat.invite.linkCreating": "リンクを作成中",
+  "chat.invite.linkCopied": "招待リンクをコピーしました",
+  "chat.invite.linkFailed": "招待リンクを作成できませんでした",
 
   "chat.requests.title": "友だちリクエスト",
   "chat.requests.empty": "保留中のリクエストはありません",

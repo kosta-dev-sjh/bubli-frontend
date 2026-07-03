@@ -539,7 +539,7 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
         {expander}
       </span>
       <span
-        className="pointer-events-none flex min-w-0 flex-1 items-center gap-1.5 text-left"
+        className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
         style={{ paddingLeft: "var(--gantt-row-indent)" }}
       >
         {statusIndicator ? (
@@ -563,7 +563,15 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
             ) : null}
           </span>
         ) : null}
-        <span className="truncate font-medium">{feature.name}</span>
+        {/* 작업 이름 — 트리 열의 주인공. flex-1로 남는 폭을 전부 차지해
+            진행률·기간 등 메타보다 먼저 잘려 사라지는 일이 없게 한다. */}
+        <span
+          className="min-w-0 flex-1 truncate text-left font-semibold text-[14px] text-foreground"
+          data-roadmap-ui="gantt-row-title"
+          title={feature.name}
+        >
+          {feature.name}
+        </span>
         {progress && progress.total > 0 ? (
           <span className="flex shrink-0 items-center gap-1.5" title={progress.label}>
             <span

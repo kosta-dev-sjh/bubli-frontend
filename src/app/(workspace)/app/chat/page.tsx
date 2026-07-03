@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Check, Copy, Download, Inbox, LogOut, Mic, MicOff, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
+import { AtSign, Check, Copy, Download, Inbox, Link2, LogOut, Mic, MicOff, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -93,6 +93,14 @@ type RoomInvitationsState =
   | { invitations: ProjectRoomInvitationResponse[]; kind: "ready" }
   | { kind: "loading" }
   | { kind: "offline" };
+
+// 초대 링크 — 링크 생성 후 클립보드 복사까지 한 번에 처리한다(복사 실패 시 URL을 그대로 보여줌).
+// roomId를 함께 저장해 다른 룸으로 바뀌면 이전 룸의 링크가 표시되지 않게 한다.
+type InviteLinkState =
+  | { kind: "idle" }
+  | { kind: "creating"; roomId: string }
+  | { copied: boolean; kind: "ready"; roomId: string; url: string }
+  | { kind: "error"; message: string; roomId: string };
 
 const previewFriends: FriendResponse[] = [
   {
@@ -330,6 +338,7 @@ function ChatPageContent() {
   const [roomInviteState, setRoomInviteState] = useState<RoomInviteState>({ kind: "idle" });
   const [chatRoomInviteState, setChatRoomInviteState] = useState<ChatRoomInviteState>({ kind: "idle" });
   const [roomInvitationsState, setRoomInvitationsState] = useState<RoomInvitationsState>({ kind: "idle" });
+  const [inviteLinkState, setInviteLinkState] = useState<InviteLinkState>({ kind: "idle" });
   const [busyFriendUserId, setBusyFriendUserId] = useState<string | null>(null);
   // 친구 삭제는 결과를 먼저 알리고 삭제/유지로 확인받는 2단계 확인(프로젝트룸 설정 패널과 동일 패턴).
   const [pendingDeleteFriendUserId, setPendingDeleteFriendUserId] = useState<string | null>(null);
@@ -755,14 +764,8 @@ function ChatPageContent() {
     async (friend: FriendResponse) => {
       if (roomsState.kind !== "ready") return;
 
-      const existingRoom = roomsState.rooms.find((room) => room.chatType === "DIRECT" && room.name?.includes(friend.name));
-
-      if (existingRoom) {
-        setSelectedChatRoomId(existingRoom.id);
-        if (roomMode !== "direct") router.push("/app/chat?mode=direct");
-        return;
-      }
-
+      // 백엔드가 1:1 방을 get-or-create로 중복 없이 돌려주므로 항상 API를 부른다.
+      // (이름 부분일치로 기존 방을 찾던 빠른 경로는 엉뚱한 방을 열 수 있어 제거)
       try {
         const room = await chatApi.getOrCreateDirectRoom({ targetUserId: friend.friendUserId });
         setRoomsState({ kind: "ready", rooms: [room, ...roomsState.rooms.filter((item) => item.id !== room.id)] });
@@ -770,6 +773,14 @@ function ChatPageContent() {
         setNewRoomPickerOpen(false);
         if (roomMode !== "direct") router.push("/app/chat?mode=direct");
       } catch {
+        // 서버 미연결(프리뷰) 시 이름이 정확히 일치하는 기존 1:1 방이 있으면 그 방을 연다.
+        const fallbackRoom = roomsState.rooms.find((room) => room.chatType === "DIRECT" && room.name === friend.name);
+        if (fallbackRoom) {
+          setSelectedChatRoomId(fallbackRoom.id);
+          setNewRoomPickerOpen(false);
+          if (roomMode !== "direct") router.push("/app/chat?mode=direct");
+          return;
+        }
         setSocialState({ kind: "offline" });
       }
     },
@@ -880,6 +891,29 @@ function ChatPageContent() {
     },
     [loadRoomInvitations, selectedProjectRoomId, t],
   );
+
+  const createRoomInviteLink = useCallback(async () => {
+    if (!selectedProjectRoomId || inviteLinkState.kind === "creating") return;
+    const roomId = selectedProjectRoomId;
+
+    setInviteLinkState({ kind: "creating", roomId });
+
+    try {
+      // 만료 시간을 명시해 백엔드 계약(expiresInHours)을 그대로 따른다 — 설정 패널과 동일.
+      const link = await projectRoomApi.createInviteLink(roomId, { expiresInHours: 72 });
+      const url = `${window.location.origin}/app/invite/${link.token}`;
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(url);
+        copied = true;
+      } catch {
+        copied = false;
+      }
+      setInviteLinkState({ copied, kind: "ready", roomId, url });
+    } catch {
+      setInviteLinkState({ kind: "error", message: t("chat.invite.linkFailed"), roomId });
+    }
+  }, [inviteLinkState.kind, selectedProjectRoomId, t]);
 
   const cancelRoomInvitation = useCallback(
     async (invitation: ProjectRoomInvitationResponse) => {
@@ -1449,7 +1483,19 @@ function ChatPageContent() {
                           </span>
                           <div>
                             <strong>{participant.userName}</strong>
-                            <small>{participant.micStatus === "MUTED" ? t("chat.voiceCard.micOffState") : t("chat.voiceCard.micOnState")}</small>
+                            {/* 서버 응답에는 참가자별 micStatus가 없다 — 내 상태는 로컬 값으로,
+                                다른 참가자는 근거 없는 마이크 표기 대신 참여 상태를 보여준다. */}
+                            <small>
+                              {isMe
+                                ? voiceMicMuted
+                                  ? t("chat.voiceCard.micOffState")
+                                  : t("chat.voiceCard.micOnState")
+                                : participant.micStatus
+                                  ? participant.micStatus === "MUTED"
+                                    ? t("chat.voiceCard.micOffState")
+                                    : t("chat.voiceCard.micOnState")
+                                  : voiceParticipantStatusLabel(t, participant.status)}
+                            </small>
                           </div>
                         </div>
                       );
@@ -1615,7 +1661,8 @@ function ChatPageContent() {
                         {t("chat.composer.agentQuestion")} · {pendingAgentCommand.mode === "SUMMARIZE" ? t("chat.composer.agentSummarize") : pendingAgentCommand.mode === "SUGGEST" ? t("chat.composer.agentSuggest") : t("chat.composer.agentAnswer")}
                       </span>
                     ) : (
-                      <span>{t("chat.composer.hint")}</span>
+                      // /bubli 에이전트는 프로젝트룸 대화 전용 — 1:1/그룹에서는 언급하지 않는다.
+                      <span>{selectedRoom.chatType === "ROOM" ? t("chat.composer.hint") : t("chat.composer.hintDirect")}</span>
                     )}
                   </div>
                 ) : null}
@@ -1750,6 +1797,38 @@ function ChatPageContent() {
               {roomInviteState.kind === "sent" ? <span className="workspace-route__pending">{t("chat.invite.roomSent", { name: roomInviteState.friendName, room: selectedProjectRoomName ?? t("chat.room.fallbackName") })}</span> : null}
               {chatRoomInviteState.kind === "sent" ? <span className="workspace-route__pending">{t("chat.invite.chatSent", { name: chatRoomInviteState.friendName })}</span> : null}
             </section>
+
+            {/* 초대 링크 — 아직 친구가 아닌 사람도 링크 하나로 룸에 초대 (설정 패널과 같은 흐름의 빠른 진입점) */}
+            {selectedProjectRoomId ? (
+              <section className="workspace-route__social-card">
+                <span className="workspace-route__social-kicker">
+                  <Link2 aria-hidden size={14} strokeWidth={2} />
+                  {t("chat.invite.linkKicker")}
+                </span>
+                <p className="workspace-route__social-note">
+                  {t("chat.invite.linkHint", { room: selectedProjectRoomName ?? t("chat.room.fallbackName") })}
+                </p>
+                <div className="workspace-route__chat-invite-link">
+                  <button
+                    disabled={inviteLinkState.kind === "creating"}
+                    onClick={() => void createRoomInviteLink()}
+                    type="button"
+                  >
+                    <Link2 aria-hidden size={15} strokeWidth={2} />
+                    {inviteLinkState.kind === "creating" ? t("chat.invite.linkCreating") : t("chat.invite.linkCreate")}
+                  </button>
+                  {inviteLinkState.kind === "ready" && inviteLinkState.roomId === selectedProjectRoomId ? (
+                    <input aria-label={t("chat.invite.linkKicker")} onFocus={(event) => event.currentTarget.select()} readOnly value={inviteLinkState.url} />
+                  ) : null}
+                </div>
+                {inviteLinkState.kind === "ready" && inviteLinkState.roomId === selectedProjectRoomId && inviteLinkState.copied ? (
+                  <span className="workspace-route__pending" role="status">{t("chat.invite.linkCopied")}</span>
+                ) : null}
+                {inviteLinkState.kind === "error" && inviteLinkState.roomId === selectedProjectRoomId ? (
+                  <span className="workspace-route__empty">{inviteLinkState.message}</span>
+                ) : null}
+              </section>
+            ) : null}
 
             {/* 친구 요청 */}
             {pendingFriendRequestCount > 0 ? (

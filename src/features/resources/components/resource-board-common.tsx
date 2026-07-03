@@ -671,7 +671,16 @@ export function ResourcePreview({
         }
         onUpdated?.();
       } catch (error) {
-        setVersionState({ kind: "error", message: getErrorMessage(error, t) });
+        // 백엔드 POST /api/resources/{id}/versions 는 JSON 메타데이터(storageKey 등)만 받고
+        // multipart 파일 업로드는 아직 지원하지 않는다 — 계약 밖 요청 거절(415/405/400,
+        // 혹은 비-JSON 오류 응답 파싱 실패)은 사용자에게 이해 가능한 안내로 바꿔 보여준다.
+        const contractRejected =
+          (error instanceof ApiClientError && (error.status === 415 || error.status === 405 || error.status === 400)) ||
+          error instanceof SyntaxError;
+        setVersionState({
+          kind: "error",
+          message: contractRejected ? t("resources.common.versionUploadUnsupported") : getErrorMessage(error, t),
+        });
       }
     },
     [activeResource, onUpdated, t],
@@ -922,15 +931,8 @@ export function ResourcePreview({
             </div>
           </div>
 
+          {/* 종류·원본 파일명은 상단 크롬/헤더에 이미 보이므로 여기서는 반복하지 않는다. */}
           <dl className={styles.fileFacts}>
-            <div>
-              <dt>{t("resources.common.factKind")}</dt>
-              <dd>{previewLabel}</dd>
-            </div>
-            <div>
-              <dt>{t("resources.common.factOriginal")}</dt>
-              <dd>{originalName}</dd>
-            </div>
             <div>
               <dt>{t("resources.common.factSummary")}</dt>
               <dd>{summaryLabel}</dd>

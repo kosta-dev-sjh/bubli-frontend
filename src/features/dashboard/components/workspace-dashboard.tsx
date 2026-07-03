@@ -18,6 +18,8 @@ import { activityApi } from "@/features/activity/api/activityApi";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { dashboardApi } from "@/features/dashboard/api/dashboardApi";
+import { readStoredBoard, writeStoredBoard } from "@/features/dashboard/lib/board-storage";
+import type { WidgetRoomScope } from "@/features/dashboard/lib/board-storage";
 import { MemoDashboardCard } from "@/features/memo/components";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
@@ -54,7 +56,6 @@ const emptyDashboard: DashboardWorkResponse = {
 };
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
-type WidgetRoomScope = Record<string, string | null>;
 type WbsProgress = { done: number; total: number };
 
 // 홈 보드에 실제 데이터가 연결된 위젯만 노출한다(카탈로그의 데모 항목 제외).
@@ -71,18 +72,12 @@ const connectedWidgetIds = [
 const defaultWidgetIds = [...connectedWidgetIds];
 const dashboardDropzoneId = "dashboard-canvas";
 const dashboardRemoveDropzoneId = "dashboard-remove-card";
-const BOARD_STORAGE_KEY = "bubli.dashboard.board.v2";
 const PROGRESS_ROOM_LIMIT = 4;
 
 const LOCALE_TAGS: Record<string, string> = {
   en: "en-US",
   ja: "ja-JP",
   ko: "ko-KR",
-};
-
-type StoredBoard = {
-  roomScope: WidgetRoomScope;
-  widgetIds: string[];
 };
 
 function normalizeWidgetIds(ids: unknown): string[] {
@@ -95,34 +90,6 @@ function normalizeWidgetIds(ids: unknown): string[] {
   });
 
   return normalized.length > 0 ? normalized : [...defaultWidgetIds];
-}
-
-function readStoredBoard(): StoredBoard | null {
-  try {
-    const raw = window.localStorage.getItem(BOARD_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<StoredBoard> | null;
-    if (!parsed || typeof parsed !== "object") return null;
-
-    const roomScope: WidgetRoomScope = {};
-    if (parsed.roomScope && typeof parsed.roomScope === "object") {
-      for (const [widgetId, roomId] of Object.entries(parsed.roomScope)) {
-        if (typeof roomId === "string" && roomId) roomScope[widgetId] = roomId;
-      }
-    }
-
-    return { roomScope, widgetIds: normalizeWidgetIds(parsed.widgetIds) };
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredBoard(board: StoredBoard) {
-  try {
-    window.localStorage.setItem(BOARD_STORAGE_KEY, JSON.stringify(board));
-  } catch {
-    // 저장 실패(사파리 프라이빗 모드 등)는 조용히 무시한다.
-  }
 }
 
 function greetingKey(hour: number): MessageKey {
@@ -502,7 +469,8 @@ function AgentQueueWidget({ count }: { count: number | null }) {
         <b>{count ?? "-"}</b>
         <span>{t("dashboard.agentQueue.waiting")}</span>
       </p>
-      <Link className="bubli-button bubli-button--quiet bubli-button--sm" href="/app/agent-suggestions">
+      {/* /app/agent-suggestions는 /app/agent로 리다이렉트만 하므로 곧장 후보함으로 보낸다. */}
+      <Link className="bubli-button bubli-button--quiet bubli-button--sm" href="/app/agent">
         {t("dashboard.agentQueue.open")}
       </Link>
     </div>
@@ -670,7 +638,7 @@ export function WorkspaceDashboard() {
   // 저장된 보드 구성(카드 순서 + 위젯별 룸 범위)을 마운트 뒤에 복원한다.
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      const stored = readStoredBoard();
+      const stored = readStoredBoard(normalizeWidgetIds);
       if (stored) {
         setWidgetIds(stored.widgetIds);
         setWidgetRoomScope(stored.roomScope);
@@ -681,7 +649,7 @@ export function WorkspaceDashboard() {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
-  // 보드 구성 변경은 이 기기(localStorage)에 자동 저장한다.
+  // 보드 구성 변경은 이 기기의 브라우저 저장소에 자동 저장한다(board-storage 모듈이 단독 소유).
   // widgetApi에는 홈 보드 배치용 endpoint가 없어(버블 설정/사용 집계 전용) 로컬 저장만 쓴다.
   useEffect(() => {
     if (!boardHydrated) return;

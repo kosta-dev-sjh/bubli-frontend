@@ -81,7 +81,7 @@ const en: Record<Key, string> = {
   "nav.publicLabel": "Public site",
   "nav.dashboard": "Home",
   "nav.projectRooms": "Project rooms",
-  "nav.resources": "Resources",
+  "nav.resources": "Resource board",
   "nav.chat": "Chat",
   "nav.candidates": "AI Inbox",
   "nav.calendar": "Calendar",

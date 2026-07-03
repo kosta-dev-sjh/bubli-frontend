@@ -62,6 +62,10 @@ export const resourcesApi = {
     return apiRequest<ResourceVersionPageResponse>(`/api/resources/${resourceId}/versions`);
   },
 
+  // 주의: 백엔드 POST /api/resources/{id}/versions 는 현재 JSON 메타데이터
+  // (storageKey·originalName·mimeType·sizeBytes)만 받는다(CreateResourceVersionRequest).
+  // 웹에는 파일 바이트를 스토리지에 올릴 별도 경로가 없어 multipart 요청은 거절된다 —
+  // 호출부(resource-board-common)에서 이 경우를 안내 문구로 처리한다.
   uploadVersion(resourceId: string, body: ResourceUploadRequest) {
     return apiRequest<ResourceVersionResponse>(`/api/resources/${resourceId}/versions`, {
       body,

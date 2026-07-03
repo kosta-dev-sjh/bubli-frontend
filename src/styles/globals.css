@@ -1196,6 +1196,7 @@ select {
 .bubli-nav__label {
   display: block;
   max-width: 100%;
+  height: 12px;
   overflow: hidden;
   padding: 0 2px;
   color: currentColor;
@@ -1205,6 +1206,23 @@ select {
   line-height: 1.1;
   text-overflow: ellipsis;
   white-space: nowrap;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+
+/* 메뉴는 아이콘 중심, 텍스트는 호버/포커스/활성일 때 아래에 나타난다. */
+.bubli-nav__item:hover .bubli-nav__label,
+.bubli-nav__item:focus-visible .bubli-nav__label,
+.bubli-nav__item--active .bubli-nav__label {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubli-nav__label {
+    transition: none;
+  }
 }
 
 .bubli-nav__item:hover {
@@ -1225,9 +1243,9 @@ select {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: -2px;
+  bottom: 1px;
   width: 22px;
-  height: 4px;
+  height: 3px;
   border-radius: var(--radius-pill);
   background: linear-gradient(90deg, var(--bubble-blue), var(--lilac-ink));
   box-shadow: 0 6px 16px -8px rgba(47, 124, 193, 0.72);
@@ -2822,6 +2840,11 @@ select {
   flex: 1 1 auto;
 }
 
+/* 룸 모드: 목록 컬럼이 없어 세로 여유가 크다 — 520px 상한을 풀어 화면 높이에 맞게 스레드를 늘린다 */
+.workspace-route__chat--room-scope .workspace-route__messages {
+  max-height: calc(100vh - 340px);
+}
+
 
 .workspace-route__chat-toolbar {
   display: flex;
@@ -3945,6 +3968,79 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__friends-modal {
   max-width: 480px;
+}
+
+/* 초대 링크 — 친구 관리 모달 안의 룸 초대 링크 생성/복사 행 */
+.workspace-route__chat-invite-link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.workspace-route__chat-invite-link button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(111, 184, 242, 0.4);
+  border-radius: 999px;
+  padding: 0 14px;
+  color: var(--blue-ink);
+  background: rgba(231, 246, 255, 0.78);
+  box-shadow: var(--inner-highlight-light);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 780;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 160ms var(--ease-out),
+    background 160ms var(--ease-out);
+}
+
+.workspace-route__chat-invite-link button:hover:not(:disabled) {
+  border-color: rgba(111, 184, 242, 0.62);
+  background: rgba(216, 240, 255, 0.9);
+}
+
+.workspace-route__chat-invite-link button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.workspace-route__chat-invite-link input {
+  flex: 1 1 160px;
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid rgba(190, 213, 230, 0.72);
+  border-radius: 12px;
+  padding: 0 10px;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.78);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 560;
+  text-overflow: ellipsis;
+}
+
+[data-theme="dark"] .workspace-route__chat-invite-link button {
+  border-color: rgba(158, 216, 255, 0.3);
+  color: #BFD6F5;
+  background: rgba(158, 216, 255, 0.12);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .workspace-route__chat-invite-link button:hover:not(:disabled) {
+  border-color: rgba(158, 216, 255, 0.48);
+  background: rgba(158, 216, 255, 0.18);
+}
+
+[data-theme="dark"] .workspace-route__chat-invite-link input {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+  background: rgba(28, 39, 61, 0.6);
 }
 
 .workspace-route__voice-person {
@@ -22135,51 +22231,7 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   }
 }
 
-/* ── 워크스페이스 배경 버블 장식: 랜딩의 버블 톤을 앱 내부까지 이어준다.
-   pointer-events 없음, 저불투명, 콘텐츠(z-index)보다 항상 아래. ── */
-.bubli-app-decor {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
 
-.bubli-app-decor .bubli-decor {
-  opacity: 0.22;
-}
-
-.bubli-app-layout > .bubli-sidebar,
-.bubli-app-layout > .bubli-main {
-  position: relative;
-  z-index: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bubli-app-decor .bubli-decor--floating > img {
-    animation: none;
-  }
-}
-
-@media (max-width: 920px) {
-  .bubli-app-decor {
-    display: none;
-  }
-}
-
-/* ============================================================
-   Night Bubble — 채팅/친구/보이스 다크 정합화
-   면은 어두운 유리(rgba(34,46,72)·rgba(28,39,61) 계열), 색은 텍스트·rim에만.
-   텍스트 위계: #EAF0F8(주) / #A7B6CC(보조) / rgba(176,190,208,.55)(희미).
-   ============================================================ */
-[data-theme="dark"] .workspace-route__chat-quick-actions .workspace-route__quick-button {
-  border-color: rgba(150, 170, 215, 0.2);
-  color: #A7B6CC;
-  background: rgba(34, 46, 72, 0.5);
-  box-shadow:
-    var(--inner-highlight-dark),
-    0 14px 30px -28px rgba(0, 0, 0, 0.6);
-}
 
 [data-theme="dark"] .workspace-route__chat-quick-actions .workspace-route__quick-button:hover:not(:disabled),
 [data-theme="dark"] .workspace-route__chat-quick-actions .workspace-route__quick-button:focus-visible {

@@ -3,7 +3,7 @@
 import { Check, Copy } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { ThemeToggle } from "@/components/theme";
 import { Button } from "@/components/ui/button";
@@ -210,7 +210,17 @@ function monitorLabel(t: TranslateFn, monitor: AppMonitorInfo, index: number) {
 
 type StatusMessage = { text: string; tone: "approved" | "warning" };
 
-type NavItem = { id: string; labelKey: MessageKey };
+// 좌측 탭에서 한 번에 하나의 섹션만 보여준다. URL 해시(#account 등)로 새로고침/딥링크를 지원한다.
+const sectionIds = ["account", "preferences", "notifications", "integrations", "privacy", "desktop"] as const;
+
+type SectionId = (typeof sectionIds)[number];
+
+type NavItem = { id: SectionId; labelKey: MessageKey };
+
+function parseSectionHash(hash: string): SectionId | null {
+  const value = hash.replace(/^#/, "");
+  return (sectionIds as readonly string[]).includes(value) ? (value as SectionId) : null;
+}
 
 export default function SettingsPage() {
   const { t, setLocale } = useI18n();
@@ -225,6 +235,29 @@ export default function SettingsPage() {
   const [copiedBubliId, setCopiedBubliId] = useState(false);
   const [withdrawConfirming, setWithdrawConfirming] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
+  const [activeSection, setActiveSection] = useState<SectionId>("account");
+  const tabRefs = useRef<Partial<Record<SectionId, HTMLButtonElement | null>>>({});
+
+  // URL 해시 ↔ 선택 섹션 동기화 — 새로고침, 딥링크, 브라우저 뒤로가기를 지원한다.
+  useEffect(() => {
+    const applyHash = () => {
+      const parsed = parseSectionHash(window.location.hash);
+      if (!parsed) return;
+      // 데스크톱 섹션은 Tauri 런타임에서만 유효한 딥링크다.
+      if (parsed === "desktop" && !isTauriRuntime()) return;
+      setActiveSection(parsed);
+    };
+
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
+
+  const selectSection = useCallback((id: SectionId) => {
+    setActiveSection(id);
+    // location.hash 대입 대신 replaceState — 스크롤 점프 없이 해시만 갱신한다.
+    window.history.replaceState(null, "", `#${id}`);
+  }, []);
 
   // Bubli ID 복사 — 소통 탭 친구 관리 모달의 복사 패턴과 동일하게 짧은 "복사됨" 피드백을 준다.
   const copyBubliId = useCallback(async (bubliId: string) => {
@@ -249,7 +282,8 @@ export default function SettingsPage() {
         settingsApi.getNotificationPreferences(),
         settingsApi.getPrivacyConsents(),
         settingsApi.getStorageUsage(),
-        widgetApi.getBubbles(),
+        // 위젯 버블 설정은 데스크톱 앱 전용 — 웹에서는 조회하지 않는다.
+        isTauriRuntime() ? widgetApi.getBubbles() : Promise.resolve(null),
         listPersonalManagedFolders(),
         calendarApi.getGoogleConnection(),
         settingsApi.getPreferences(),
@@ -733,14 +767,31 @@ export default function SettingsPage() {
   const currentDefaultRoomId = serverPreferences?.defaultProjectRoomId ?? "";
 
   const navItems: NavItem[] = [
-    { id: "settings-account", labelKey: "settings.nav.account" },
-    { id: "settings-preferences", labelKey: "settings.nav.preferences" },
-    { id: "settings-notifications", labelKey: "settings.nav.notifications" },
-    { id: "settings-integrations", labelKey: "settings.nav.integrations" },
-    { id: "settings-privacy", labelKey: "settings.nav.privacy" },
-    { id: "settings-widget", labelKey: "settings.nav.widget" },
-    ...(desktopRuntime ? [{ id: "settings-desktop", labelKey: "settings.nav.desktop" } satisfies NavItem] : []),
+    { id: "account", labelKey: "settings.nav.account" },
+    { id: "preferences", labelKey: "settings.nav.preferences" },
+    { id: "notifications", labelKey: "settings.nav.notifications" },
+    { id: "integrations", labelKey: "settings.nav.integrations" },
+    { id: "privacy", labelKey: "settings.nav.privacy" },
+    ...(desktopRuntime ? [{ id: "desktop", labelKey: "settings.nav.desktop" } satisfies NavItem] : []),
   ];
+
+  // 탭 리스트 키보드 이동 — 세로 내비(↑/↓)와 모바일 가로 칩(←/→)을 모두 지원한다.
+  const handleTabListKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    const ids = navItems.map((item) => item.id);
+    const currentIndex = Math.max(0, ids.indexOf(activeSection));
+    let nextIndex = -1;
+
+    if (event.key === "ArrowDown" || event.key === "ArrowRight") nextIndex = (currentIndex + 1) % ids.length;
+    else if (event.key === "ArrowUp" || event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + ids.length) % ids.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = ids.length - 1;
+
+    if (nextIndex < 0) return;
+    event.preventDefault();
+    const nextId = ids[nextIndex];
+    selectSection(nextId);
+    tabRefs.current[nextId]?.focus();
+  };
 
   return (
     <section className={`workspace-route ${styles.route}`} aria-labelledby="settings-title">
@@ -780,16 +831,35 @@ export default function SettingsPage() {
 
       {(state.kind === "ready" || state.kind === "offline") && (
         <div className={styles.page}>
-          <nav aria-label={t("settings.nav.aria")} className={styles.nav}>
+          <div aria-label={t("settings.nav.aria")} className={styles.nav} onKeyDown={handleTabListKeyDown} role="tablist">
             {navItems.map((item) => (
-              <a className={styles.navLink} href={`#${item.id}`} key={item.id}>
+              <button
+                aria-controls={`settings-panel-${item.id}`}
+                aria-selected={activeSection === item.id}
+                className={`${styles.navLink}${activeSection === item.id ? ` ${styles.navLinkActive}` : ""}`}
+                id={`settings-tab-${item.id}`}
+                key={item.id}
+                onClick={() => selectSection(item.id)}
+                ref={(node) => {
+                  tabRefs.current[item.id] = node;
+                }}
+                role="tab"
+                tabIndex={activeSection === item.id ? 0 : -1}
+                type="button"
+              >
                 {t(item.labelKey)}
-              </a>
+              </button>
             ))}
-          </nav>
+          </div>
 
           <div className={styles.sections}>
-            <GlassPanel className={styles.section} id="settings-account">
+            {activeSection === "account" ? (
+            <GlassPanel
+              aria-labelledby="settings-tab-account"
+              className={styles.section}
+              id="settings-panel-account"
+              role="tabpanel"
+            >
               <h2>{t("settings.nav.account")}</h2>
               <p className={styles.sectionDesc}>{t("settings.account.desc")}</p>
               <div className={styles.rows}>
@@ -888,8 +958,15 @@ export default function SettingsPage() {
                 </div>
               </div>
             </GlassPanel>
+            ) : null}
 
-            <GlassPanel className={styles.section} id="settings-preferences">
+            {activeSection === "preferences" ? (
+            <GlassPanel
+              aria-labelledby="settings-tab-preferences"
+              className={styles.section}
+              id="settings-panel-preferences"
+              role="tabpanel"
+            >
               <h2>{t("settings.nav.preferences")}</h2>
               <p className={styles.sectionDesc}>{t("settings.pref.desc")}</p>
               <div className={styles.rows}>
@@ -987,8 +1064,15 @@ export default function SettingsPage() {
                 </div>
               </div>
             </GlassPanel>
+            ) : null}
 
-            <GlassPanel className={styles.section} id="settings-notifications">
+            {activeSection === "notifications" ? (
+            <GlassPanel
+              aria-labelledby="settings-tab-notifications"
+              className={styles.section}
+              id="settings-panel-notifications"
+              role="tabpanel"
+            >
               <h2>{t("settings.nav.notifications")}</h2>
               <p className={styles.sectionDesc}>{t("settings.notif.sectionDesc")}</p>
               <div className={styles.rows}>
@@ -1013,8 +1097,15 @@ export default function SettingsPage() {
                 ))}
               </div>
             </GlassPanel>
+            ) : null}
 
-            <GlassPanel className={styles.section} id="settings-integrations">
+            {activeSection === "integrations" ? (
+            <GlassPanel
+              aria-labelledby="settings-tab-integrations"
+              className={styles.section}
+              id="settings-panel-integrations"
+              role="tabpanel"
+            >
               <h2>{t("settings.nav.integrations")}</h2>
               <p className={styles.sectionDesc}>{t("settings.integration.desc")}</p>
               <div className={styles.rows}>
@@ -1054,8 +1145,15 @@ export default function SettingsPage() {
                 </Link>
               </div>
             </GlassPanel>
+            ) : null}
 
-            <GlassPanel className={styles.section} id="settings-privacy">
+            {activeSection === "privacy" ? (
+            <GlassPanel
+              aria-labelledby="settings-tab-privacy"
+              className={styles.section}
+              id="settings-panel-privacy"
+              role="tabpanel"
+            >
               <h2>{t("settings.nav.privacy")}</h2>
               <p className={styles.sectionDesc}>{t("settings.privacy.desc")}</p>
               <div className={styles.rows}>
@@ -1081,38 +1179,15 @@ export default function SettingsPage() {
               </div>
               <p className={styles.guard}>{t("settings.privacy.guard")}</p>
             </GlassPanel>
+            ) : null}
 
-            <GlassPanel className={styles.section} id="settings-widget">
-              <h2>{t("settings.widget.title")}</h2>
-              <p className={styles.sectionDesc}>{t("settings.widget.desc")}</p>
-              {widgetBubbles.length > 0 ? (
-                <div className={styles.rows}>
-                  {widgetBubbles.map((bubble) => (
-                    <div className={styles.row} key={bubble.id}>
-                      <div className={styles.rowText}>
-                        <strong>{t(widgetBubbleLabels[bubble.bubbleType])}</strong>
-                      </div>
-                      <button
-                        aria-checked={bubble.enabled}
-                        aria-label={t(widgetBubbleLabels[bubble.bubbleType])}
-                        className={`${styles.toggle}${bubble.enabled ? ` ${styles.toggleOn}` : ""}`}
-                        disabled={!ready}
-                        onClick={() => void toggleWidgetBubble(bubble)}
-                        role="switch"
-                        type="button"
-                      >
-                        <span />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className={styles.emptyRow}>{t("settings.value.noData")}</p>
-              )}
-            </GlassPanel>
-
-            {desktopRuntime ? (
-              <GlassPanel className={styles.section} id="settings-desktop">
+            {activeSection === "desktop" && desktopRuntime ? (
+              <GlassPanel
+                aria-labelledby="settings-tab-desktop"
+                className={styles.section}
+                id="settings-panel-desktop"
+                role="tabpanel"
+              >
                 <h2>{t("settings.nav.desktop")}</h2>
                 <p className={styles.sectionDesc}>{t("settings.desktop.desc")}</p>
                 <div className={styles.rows}>
@@ -1137,6 +1212,34 @@ export default function SettingsPage() {
                     </select>
                   </div>
                 </div>
+
+                {/* 위젯 버블 설정 — 데스크톱 위젯 전용이라 웹 설정에는 노출하지 않는다. */}
+                <h3 className={styles.subhead}>{t("settings.widget.title")}</h3>
+                <p className={styles.sectionDesc}>{t("settings.widget.desc")}</p>
+                {widgetBubbles.length > 0 ? (
+                  <div className={styles.rows}>
+                    {widgetBubbles.map((bubble) => (
+                      <div className={styles.row} key={bubble.id}>
+                        <div className={styles.rowText}>
+                          <strong>{t(widgetBubbleLabels[bubble.bubbleType])}</strong>
+                        </div>
+                        <button
+                          aria-checked={bubble.enabled}
+                          aria-label={t(widgetBubbleLabels[bubble.bubbleType])}
+                          className={`${styles.toggle}${bubble.enabled ? ` ${styles.toggleOn}` : ""}`}
+                          disabled={!ready}
+                          onClick={() => void toggleWidgetBubble(bubble)}
+                          role="switch"
+                          type="button"
+                        >
+                          <span />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={styles.emptyRow}>{t("settings.value.noData")}</p>
+                )}
 
                 <h3 className={styles.subhead}>{t("settings.desktop.folders")}</h3>
                 <div className={styles.rows}>

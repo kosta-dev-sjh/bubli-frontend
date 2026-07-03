@@ -225,14 +225,6 @@
   word-break: keep-all;
 }
 
-.cardMeta {
-  display: inline-flex;
-  margin-top: 6px;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 780;
-}
-
 .cardFoot {
   display: flex;
   flex-wrap: wrap;
@@ -406,6 +398,18 @@
   gap: 10px;
 }
 
+/* 진행 중 작업의 최근 이벤트 한 줄(길면 말줄임) */
+.jobEventLine {
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Night Bubble — 다크 정합화 ─────────────────────────────
    잉크는 #EAF0F8(주) / #A7B6CC(보조), hairline·면은 150,170,215 / 34,46,72 계열 */
 [data-theme="dark"] .zoneTitle,
@@ -422,7 +426,7 @@
 [data-theme="dark"] .groupCount,
 [data-theme="dark"] .emptyDesc,
 [data-theme="dark"] .cardDate,
-[data-theme="dark"] .cardMeta,
+[data-theme="dark"] .jobEventLine,
 [data-theme="dark"] .archiveChevron {
   color: #A7B6CC;
 }

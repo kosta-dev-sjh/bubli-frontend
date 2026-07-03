@@ -490,8 +490,9 @@
   background: rgba(215, 234, 244, 0.35);
 }
 
-/* 우측 슬롯: 평소엔 기간, hover/focus 시 액션으로 교대
-   (display 토글 대신 opacity — 키보드 포커스가 닿으면 그대로 드러난다) */
+/* 우측 슬롯: 평소엔 기간, hover/키보드 포커스 시 액션으로 교대.
+   (:focus-within 대신 :focus-visible 계열 — 마우스로 행을 '선택'만 했을 때
+   기간이 영영 숨고 액션 오버레이가 이름 영역을 덮는 문제를 막는다) */
 .ganttSurface :global([data-roadmap-ui="gantt-row-trailing"]) {
   position: relative;
 }
@@ -516,13 +517,15 @@
 }
 
 .ganttSurface :global([data-gantt-item-kind]:hover [data-roadmap-ui="gantt-row-actions"]),
-.ganttSurface :global([data-gantt-item-kind]:focus-within [data-roadmap-ui="gantt-row-actions"]) {
+.ganttSurface :global([data-gantt-item-kind]:focus-visible [data-roadmap-ui="gantt-row-actions"]),
+.ganttSurface :global([data-gantt-item-kind]:has(:focus-visible) [data-roadmap-ui="gantt-row-actions"]) {
   opacity: 1;
   pointer-events: auto;
 }
 
 .ganttSurface :global([data-gantt-item-kind]:hover [data-roadmap-ui="gantt-row-duration"]),
-.ganttSurface :global([data-gantt-item-kind]:focus-within [data-roadmap-ui="gantt-row-duration"]) {
+.ganttSurface :global([data-gantt-item-kind]:focus-visible [data-roadmap-ui="gantt-row-duration"]),
+.ganttSurface :global([data-gantt-item-kind]:has(:focus-visible) [data-roadmap-ui="gantt-row-duration"]) {
   opacity: 0;
 }
 

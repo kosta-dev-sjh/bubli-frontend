@@ -378,7 +378,7 @@ const en: Record<Key, string> = {
   "dashboard.home.greetingEvening": "Good evening",
   "dashboard.home.summaryAria": "Today's summary",
   "dashboard.home.activeRoom": "Active room",
-  "dashboard.home.unread": "Unread alerts",
+  "dashboard.home.unread": "Unread notifications",
   "dashboard.home.more": "See more",
   "dashboard.home.memoTitle": "Personal memos",
 
@@ -464,7 +464,7 @@ const en: Record<Key, string> = {
   "dashboard.focus.empty": "No activity collected today",
   "dashboard.focus.chartAria": "Focus time by app",
   "dashboard.agentQueue.waiting": "waiting for review",
-  "dashboard.agentQueue.open": "Open queue",
+  "dashboard.agentQueue.open": "Open AI Inbox",
 
   "dashboard.catalog.nextFocus.title": "Continue now",
   "dashboard.catalog.nextFocus.desc": "Tasks and schedules to pick up next",
@@ -802,7 +802,7 @@ const ja: Record<Key, string> = {
   "dashboard.focus.empty": "今日は収集されたアクティビティがありません",
   "dashboard.focus.chartAria": "アプリ別の集中時間",
   "dashboard.agentQueue.waiting": "確認待ち",
-  "dashboard.agentQueue.open": "候補ボックスを開く",
+  "dashboard.agentQueue.open": "AI候補箱を開く",
 
   "dashboard.catalog.nextFocus.title": "続けてやること",
   "dashboard.catalog.nextFocus.desc": "次に続ける作業と予定",

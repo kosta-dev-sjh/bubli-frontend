@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Upload } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -213,11 +213,22 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                   <span>{t("resources.workspace.kickerRoom")}</span>
                   <strong>{state.kind === "loading" ? t("resources.workspace.totalUnknown") : t("resources.workspace.totalCount", { count: resources.length })}</strong>
                 </div>
-                <p>{uploadState.kind === "idle" ? t("resources.workspace.dropHint") : null}</p>
-                {uploadState.kind === "uploading" ? <p>{t("resources.workspace.uploading", { fileName: uploadState.fileName })}</p> : null}
-                {uploadState.kind === "success" ? <p>{t("resources.workspace.uploadDone", { fileName: uploadState.fileName })}</p> : null}
-                {uploadState.kind === "error" ? <p>{uploadState.message}</p> : null}
-                <Button disabled={uploadDisabled} onClick={() => fileInputRef.current?.click()} variant="primary">
+                <p>
+                  {uploadState.kind === "uploading"
+                    ? t("resources.workspace.uploading", { fileName: uploadState.fileName })
+                    : uploadState.kind === "success"
+                      ? t("resources.workspace.uploadDone", { fileName: uploadState.fileName })
+                      : uploadState.kind === "error"
+                        ? uploadState.message
+                        : t("resources.workspace.dropHint")}
+                </p>
+                <Button
+                  disabled={uploadDisabled}
+                  icon={<Upload aria-hidden size={15} strokeWidth={2} />}
+                  loading={uploadState.kind === "uploading"}
+                  onClick={() => fileInputRef.current?.click()}
+                  variant="primary"
+                >
                   {t("resources.workspace.selectFile")}
                 </Button>
               </div>
@@ -252,6 +263,18 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                   <div className={styles.emptyCanvasInner}>
                     <strong>{t("resources.workspace.emptyRoomTitle")}</strong>
                     <p>{t("resources.workspace.emptyRoomDesc")}</p>
+                    {/* 빈 화면이 막다른 길이 되지 않게 업로드 진입점을 바로 노출한다. */}
+                    <div className={styles.emptyCanvasActions}>
+                      <Button
+                        disabled={uploadDisabled}
+                        icon={<Upload aria-hidden size={15} strokeWidth={2} />}
+                        onClick={() => fileInputRef.current?.click()}
+                        size="sm"
+                        variant="primary"
+                      >
+                        {t("resources.workspace.selectFile")}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ) : (

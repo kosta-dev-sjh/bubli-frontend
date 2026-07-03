@@ -10,6 +10,7 @@ import type {
   GoogleCalendarSyncParams,
   ProjectRoomEventListParams,
   ProjectRoomEventListResponse,
+  RoomCalendarResponse,
   ScheduleListParams,
   SchedulePageResponse,
   ScheduleRequest,
@@ -93,6 +94,11 @@ export const calendarApi = {
   // 연결된 구글 계정의 캘린더 목록.
   getGoogleCalendars() {
     return apiRequest<GoogleCalendarListEntry[]>("/api/calendar/google/calendars");
+  },
+
+  // 룸 전용 구글 캘린더 매핑 조회. 구글 연동이 활성 상태면 룸 이름으로 캘린더를 지연 생성한다.
+  getRoomCalendar(roomId: string) {
+    return apiRequest<RoomCalendarResponse>(`/api/calendar/rooms/${roomId}/calendar`);
   },
 
   // 로컬 일정(프로젝트룸 단위 그룹) + 구글 캘린더 일정 그룹 조회.

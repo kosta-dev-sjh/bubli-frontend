@@ -425,7 +425,7 @@ const en: Record<Key, string> = {
   "public.download.description": "How to get and start with the Bubli desktop app (macOS, Windows).",
   "public.download.sectionAria": "Desktop app download",
   "public.download.introChip": "Desktop app",
-  "public.download.introTitle": "The member web app as-is, all the way to desktop bubbles",
+  "public.download.introTitle": "The member web app as-is, plus desktop bubbles",
   "public.download.introBody":
     "The desktop app opens the member web app as-is and adds the desktop bubble widget, device folder detection, and a fast cache. Installers are being prepared — for now, log in and use the same workspace right on the web.",
   "public.download.ctaLogin": "Log in and start on the web",
@@ -438,7 +438,7 @@ const en: Record<Key, string> = {
 
   "public.features.title": "Features",
   "public.features.description":
-    "Project rooms, the file board, agent candidates, WBS/work board, and the bubble widget — connected as one flow.",
+    "Project rooms, the resource board, agent candidates, WBS/work board, and the bubble widget — connected as one flow.",
   "public.features.flowAria": "Bubli feature flow",
   "public.features.introChip": "What you receive becomes today's work.",
   "public.features.introTitle": "Documents become work structure, and work carries all the way to the bubble",
@@ -447,7 +447,7 @@ const en: Record<Key, string> = {
   "public.features.item1Label": "Project room",
   "public.features.item1Status": "Where files start",
   "public.features.item1Body": "Gather requirements, meeting notes, and references under one project.",
-  "public.features.item2Label": "File board",
+  "public.features.item2Label": "Resource board",
   "public.features.item2Status": "Organizing docs",
   "public.features.item2Body": "Separate personal and project-room files, and view related documents and items needing review together.",
   "public.features.item3Label": "Agent candidates",
@@ -467,7 +467,7 @@ const en: Record<Key, string> = {
   "public.hybrid.frame1Title": "Public site",
   "public.hybrid.frame1Body": "Handles the intro, feature overview, and download entry. Member data isn't shown.",
   "public.hybrid.frame2Title": "Member workspace",
-  "public.hybrid.frame2Body": "The workspace that handles project rooms, the file board, the work board, and chat after login.",
+  "public.hybrid.frame2Body": "The workspace that handles project rooms, the resource board, the work board, and chat after login.",
   "public.hybrid.frame3Title": "Desktop app",
   "public.hybrid.frame3Body": "Opens the member workspace on desktop and adds the widget and device features.",
   "public.hybrid.noteChip": "Design point",
@@ -482,7 +482,7 @@ const en: Record<Key, string> = {
     "In Bubli, the public site, member web app, and desktop app each play a role. The FAQ keeps those boundaries from getting confusing.",
   "public.faq.q1": "What's the difference between the web and the desktop app?",
   "public.faq.a1":
-    "The web is the core work surface — project rooms, the file board, the work board, and chat. The desktop app opens that same member web app and adds desktop features like bubbles, device folders, quick surfacing, and timer recovery.",
+    "The web is the core work surface — project rooms, the resource board, the work board, and chat. The desktop app opens that same member web app and adds desktop features like bubbles, device folders, quick surfacing, and timer recovery.",
   "public.faq.q2": "How are personal files and project-room files separated?",
   "public.faq.a2":
     "Personal files stay invisible to a project room until you share them. Project-room files are viewed together in the same space after member permissions are checked.",

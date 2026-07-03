@@ -86,16 +86,22 @@
 }
 
 .navLink {
+  border: 0;
   border-radius: 12px;
   padding: 10px 13px;
   color: var(--color-muted);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
   font-size: 14px;
   font-weight: 700;
+  text-align: left;
   text-decoration: none;
   word-break: keep-all;
   transition:
     background 160ms var(--ease-out),
-    color 160ms var(--ease-out);
+    color 160ms var(--ease-out),
+    box-shadow 160ms var(--ease-out);
 }
 
 .navLink:hover,
@@ -104,17 +110,51 @@
   background: rgba(216, 240, 255, 0.58);
 }
 
+.navLink:focus-visible {
+  outline: 2px solid rgba(142, 205, 246, 0.55);
+  outline-offset: 1px;
+}
+
+.navLinkActive,
+.navLink.navLinkActive:hover,
+.navLink.navLinkActive:focus-visible {
+  color: var(--blue-ink);
+  background: linear-gradient(135deg, rgba(216, 240, 255, 0.92), rgba(230, 221, 248, 0.62));
+  box-shadow: 0 10px 22px -18px rgba(47, 124, 193, 0.52);
+}
+
 .sections {
   display: grid;
   gap: 16px;
   min-width: 0;
 }
 
+/* 섹션 전환 — 새 패널이 마운트될 때 짧게 떠오른다. 레이아웃 점프 없이 opacity/transform만 사용. */
+@keyframes settings-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .section {
   display: grid;
+  align-content: start;
   gap: 6px;
   padding: clamp(18px, 2vw, 26px);
+  animation: settings-panel-in 200ms var(--ease-out);
   scroll-margin-top: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .section {
+    animation: none;
+  }
 }
 
 .section h2 {
@@ -384,6 +424,14 @@
   background: rgba(54, 72, 110, 0.5);
 }
 
+:global([data-theme="dark"]) .navLinkActive,
+:global([data-theme="dark"]) .navLink.navLinkActive:hover,
+:global([data-theme="dark"]) .navLink.navLinkActive:focus-visible {
+  color: var(--sky);
+  background: rgba(54, 72, 110, 0.55);
+  box-shadow: 0 6px 16px -12px rgba(0, 0, 0, 0.6);
+}
+
 :global([data-theme="dark"]) .row {
   border-bottom-color: rgba(150, 170, 215, 0.16);
 }
@@ -439,15 +487,19 @@
     grid-template-columns: 1fr;
   }
 
+  /* 모바일 — 좌측 탭이 상단 가로 칩으로 바뀐다. 전환 방식은 동일. */
   .nav {
     position: static;
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
+    border-radius: 999px;
   }
 
   .navLink {
-    padding: 8px 12px;
+    border-radius: 999px;
+    padding: 8px 14px;
+    text-align: center;
   }
 }
 

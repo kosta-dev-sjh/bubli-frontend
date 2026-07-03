@@ -19,6 +19,7 @@ import {
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import type { ComponentType, HTMLAttributes } from "react";
+import { useState } from "react";
 
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -110,8 +111,12 @@ function DashboardRemoveDropzone({ id }: { id: string }) {
 
 export function DashboardPalette({ className, draggable = false, items, onAdd, onSearch, query = "", removeDropId, ...props }: DashboardPaletteProps) {
   const { t } = useI18n();
-  const filtered = query
-    ? items.filter((w) => (t(w.titleKey) + t(w.descriptionKey)).toLowerCase().includes(query.toLowerCase()))
+  // onSearch가 없으면(홈 보드처럼 비제어로 쓰면) 검색어를 내부에서 관리한다 — 입력이 죽은 컨트롤이 되지 않게.
+  const [internalQuery, setInternalQuery] = useState("");
+  const effectiveQuery = onSearch ? query : internalQuery;
+  const handleSearch = onSearch ?? setInternalQuery;
+  const filtered = effectiveQuery
+    ? items.filter((w) => (t(w.titleKey) + t(w.descriptionKey)).toLowerCase().includes(effectiveQuery.toLowerCase()))
     : items;
 
   return (
@@ -123,9 +128,9 @@ export function DashboardPalette({ className, draggable = false, items, onAdd, o
         <Search size={14} />
         <input
           aria-label={t("dashboard.palette.search")}
-          onChange={(e) => onSearch?.(e.target.value)}
+          onChange={(e) => handleSearch(e.target.value)}
           placeholder={t("dashboard.palette.search")}
-          value={query}
+          value={effectiveQuery}
         />
       </label>
       {filtered.length === 0 ? (
