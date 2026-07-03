@@ -30,6 +30,7 @@ docs/**/*.csv
 
 # Local planning/status workbooks are too conflict-prone to track.
 docs/기능_API연결_색상표_*.xlsx
+docs/tauri-widget-platform-split-checklist-*.xlsx
 docs/.obsidian/
 docs/visual-qa/screenshots/*
 !docs/visual-qa/screenshots/.gitkeep
