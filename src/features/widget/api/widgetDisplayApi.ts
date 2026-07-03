@@ -203,6 +203,13 @@ export const widgetDisplayApi = {
     return widgetDisplayRequest<PageResponse<WidgetTaskResponse>>(`/api/dashboard/tasks?page=0&size=${size}`);
   },
 
+  listTasks(roomId?: string | null, size = 6) {
+    if (roomId) {
+      return widgetDisplayRequest<PageResponse<WidgetTaskResponse>>(`/api/project-rooms/${roomId}/tasks?page=0&size=${size}`);
+    }
+    return widgetDisplayApi.listDashboardTasks(size);
+  },
+
   getProjectRoom(roomId: string) {
     return widgetDisplayRequest<WidgetProjectRoomResponse>(`/api/project-rooms/${roomId}`);
   },
