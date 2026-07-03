@@ -46,6 +46,7 @@ export type LocalFileEventUpdateRequest = {
 export type LocalFileSyncResponse = {
   results: Array<{
     eventType: LocalFileEventResponse["eventType"] | string;
+    localEventId?: string | null;
     resourceId?: string | null;
     status: "SYNCED" | "SKIPPED" | "FAILED" | string;
   }>;

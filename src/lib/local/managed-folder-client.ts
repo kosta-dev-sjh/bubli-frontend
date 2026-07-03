@@ -303,12 +303,20 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
         resourceId: event.resourceId,
       })),
     });
+    const markResults = response.results
+      .map((result, index) => {
+        const localEventId = result.localEventId ?? staged.data.events[index]?.localEventId;
+        if (!localEventId) return null;
+
+        return {
+          localEventId,
+          resourceId: result.resourceId,
+          status: result.status,
+        };
+      })
+      .filter((result): result is NonNullable<typeof result> => result !== null);
     const markResult = await tauriCommands.markLocalFileEventsSynced({
-      results: response.results.map((result, index) => ({
-        localEventId: staged.data.events[index]?.localEventId ?? "",
-        resourceId: result.resourceId,
-        status: result.status,
-      })),
+      results: markResults,
     });
     const skippedCount = response.results.filter((result) => result.status === "SKIPPED").length;
 
