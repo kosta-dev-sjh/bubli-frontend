@@ -1,11 +1,13 @@
 "use client";
 
+import { settingsApi } from "@/features/settings/api/settingsApi";
 import { syncPersonalLocalFileEventsToServer } from "@/lib/local/managed-folder-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 
 const LOCAL_FILE_EVENT_SYNC_INTERVAL_MS = 60_000;
+const CONSENT_REFRESH_INTERVAL_MS = 60_000;
 
 let syncIntervalId: number | null = null;
 let syncInFlight = false;
@@ -14,13 +16,13 @@ const pendingFolderSyncIds = new Set<string>();
 let watchUnlisten: (() => void) | null = null;
 let watchUnlistenPromise: Promise<() => void> | null = null;
 let watchListenerGeneration = 0;
+let cachedFolderConsent: boolean | null = null;
+let cachedFolderConsentCheckedAt = 0;
 
 export function startManagedFolderAutoSync() {
   if (!isTauriRuntime()) return;
   if (syncIntervalId !== null) return;
 
-  void tauriCommands.watchAllManagedFolders().catch(() => undefined);
-  attachManagedFolderWatchListener();
   void syncManagedFolderEventsOnce();
   syncIntervalId = window.setInterval(() => {
     void syncManagedFolderEventsOnce();
@@ -36,6 +38,8 @@ export function stopManagedFolderAutoSync() {
   pendingFullSyncRequested = false;
   pendingFolderSyncIds.clear();
   syncInFlight = false;
+  cachedFolderConsent = null;
+  cachedFolderConsentCheckedAt = 0;
   detachManagedFolderWatchListener();
   if (isTauriRuntime()) {
     void tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
@@ -96,6 +100,18 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
 
   syncInFlight = true;
   try {
+    const consentGranted = await readManagedFolderConsent();
+    if (!consentGranted) {
+      pendingFullSyncRequested = false;
+      pendingFolderSyncIds.clear();
+      detachManagedFolderWatchListener();
+      await tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
+      return;
+    }
+
+    void tauriCommands.watchAllManagedFolders().catch(() => undefined);
+    attachManagedFolderWatchListener();
+
     while (pendingFullSyncRequested || pendingFolderSyncIds.size > 0) {
       if (pendingFullSyncRequested) {
         pendingFullSyncRequested = false;
@@ -110,6 +126,12 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
       await syncPersonalLocalFileEventsToServer({ limit: 20, localFolderId: folderId });
     }
   } catch {
+    cachedFolderConsent = null;
+    cachedFolderConsentCheckedAt = 0;
+    pendingFullSyncRequested = false;
+    pendingFolderSyncIds.clear();
+    detachManagedFolderWatchListener();
+    await tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
     // The sync adapter keeps failed rows retryable in SQLite; the next watch event or tick can try again.
   } finally {
     syncInFlight = false;
@@ -117,4 +139,16 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
       void syncManagedFolderEventsOnce();
     }
   }
+}
+
+async function readManagedFolderConsent() {
+  const now = Date.now();
+  if (cachedFolderConsent !== null && now - cachedFolderConsentCheckedAt < CONSENT_REFRESH_INTERVAL_MS) {
+    return cachedFolderConsent;
+  }
+
+  const privacy = await settingsApi.getPrivacyConsents();
+  cachedFolderConsent = Boolean(privacy.localFolderEnabled);
+  cachedFolderConsentCheckedAt = now;
+  return cachedFolderConsent;
 }
