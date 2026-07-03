@@ -2884,12 +2884,20 @@ select {
   font-weight: 760;
 }
 
+.workspace-route__chat-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 14px;
+}
+
 .workspace-route__chat-quick-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
-  margin: -2px 0 16px;
+  margin: 0;
 }
 
 .workspace-route__chat-quick-actions .workspace-route__quick-button {
@@ -2951,7 +2959,7 @@ select {
 .workspace-route__chat-mode-tabs {
   display: flex;
   gap: 6px;
-  margin: 0 0 14px;
+  margin: 0;
   padding: 4px;
   width: fit-content;
   border: 1px solid rgba(190, 213, 230, 0.55);
@@ -3155,10 +3163,21 @@ select {
 }
 
 .workspace-route__chat-room--active {
-  border-color: rgba(111, 184, 242, 0.62);
-  background:
-    linear-gradient(135deg, rgba(231, 246, 255, 0.88), rgba(247, 243, 255, 0.72)),
-    rgba(255, 255, 255, 0.74);
+  border-color: rgba(55, 140, 220, 0.9);
+  background: rgba(210, 235, 255, 0.88);
+  box-shadow:
+    0 0 0 2px rgba(70, 145, 230, 0.5),
+    inset 3px 0 0 rgba(47, 124, 193, 0.8),
+    0 4px 16px -6px rgba(47, 124, 193, 0.3);
+}
+
+.workspace-route__chat-room--active .workspace-route__main strong {
+  color: var(--blue-ink);
+}
+
+.workspace-route__chat-room--active .workspace-route__dot {
+  background: var(--blue-ink);
+  box-shadow: 0 0 0 4px rgba(47, 124, 193, 0.2);
 }
 
 .workspace-route__friend-panel {
@@ -3751,11 +3770,11 @@ button.workspace-route__friend-row:hover {
   width: fit-content;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(213, 228, 240, 0.76);
+  border: 1px solid rgba(70, 150, 225, 0.5);
   border-radius: 999px;
   padding: 8px 11px;
-  color: var(--ink-soft);
-  background: rgba(255, 255, 255, 0.66);
+  color: var(--blue-ink);
+  background: rgba(215, 238, 255, 0.8);
   font-size: 12px;
   font-weight: 800;
 }
@@ -3764,8 +3783,44 @@ button.workspace-route__friend-row:hover {
   color: var(--blue-ink);
 }
 
-.workspace-route__voice-status--interactive {
+/* 헤더 내 보이스 액션 버튼 그룹 */
+.workspace-route__voice-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid rgba(190, 220, 245, 0.7);
+  border-radius: 999px;
+  background: rgba(240, 250, 255, 0.7);
+}
+
+.workspace-route__voice-actions button {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
   cursor: pointer;
+  transition: background 140ms, color 140ms;
+}
+
+.workspace-route__voice-actions button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--blue-ink);
+}
+
+.workspace-route__voice-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.workspace-route__voice-actions button.workspace-route__voice-end:hover:not(:disabled) {
+  background: rgba(255, 235, 235, 0.9);
+  color: #c0392b;
 }
 
 .workspace-route__action-note {
@@ -3810,6 +3865,177 @@ button.workspace-route__friend-row:hover {
   border-color: rgba(232, 196, 160, 0.62);
 }
 
+.workspace-route__voice-status--clickable {
+  cursor: pointer;
+  transition: background 140ms, border-color 140ms, box-shadow 140ms;
+}
+
+.workspace-route__voice-status--clickable:hover {
+  background: rgba(200, 230, 255, 0.9);
+  border-color: rgba(60, 135, 215, 0.65);
+  box-shadow: 0 2px 8px -3px rgba(60, 130, 210, 0.2);
+}
+
+/* 보이스 바 컨테이너 */
+.workspace-route__voice-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: -8px;
+}
+
+/* 배지 + pill 가로 한 줄 */
+.workspace-route__voice-row {
+  display: flex;
+  align-items: center;
+}
+
+/* pill들 컨테이너 — 보이스 활성 시 항상 보임 */
+.workspace-route__voice-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 8px;
+}
+
+/* 개별 pill — 순차 애니메이션으로 등장 */
+@keyframes voice-pill-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.workspace-route__voice-pill {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px 0 10px;
+  border: 1px solid rgba(213, 228, 240, 0.72);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  animation: voice-pill-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: background 140ms, border-color 140ms, color 140ms;
+}
+
+.workspace-route__voice-pill[data-voice-pill="0"] { animation-delay: 0ms; }
+.workspace-route__voice-pill[data-voice-pill="1"] { animation-delay: 60ms; }
+.workspace-route__voice-pill[data-voice-pill="2"] { animation-delay: 120ms; }
+.workspace-route__voice-pill[data-voice-pill="3"] { animation-delay: 180ms; }
+
+.workspace-route__voice-pill:hover:not(:disabled) {
+  background: rgba(240, 250, 255, 0.95);
+  border-color: rgba(90, 165, 230, 0.55);
+  color: var(--blue-ink);
+}
+
+.workspace-route__voice-pill:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.workspace-route__voice-pill--end:hover:not(:disabled) {
+  background: rgba(255, 240, 240, 0.95);
+  border-color: rgba(210, 80, 80, 0.4);
+  color: #c0392b;
+}
+
+/* 알림 텍스트 — 배지 아래 작게 */
+.workspace-route__voice-notice {
+  font-size: 11px;
+  color: var(--color-muted);
+  padding-left: 12px;
+  line-height: 1.4;
+}
+
+/* 참여자 패널 — 보이스 배지 클릭 시 아래로 자연스럽게 펼침 */
+.workspace-route__voice-people--inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0 2px;
+  animation: voice-panel-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes voice-panel-in {
+  from { opacity: 0; transform: translateY(-10px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+.workspace-route__voice-people--inline .workspace-route__voice-person {
+  display: inline-grid;
+  grid-template-columns: 32px auto;
+  width: fit-content;
+  gap: 7px;
+  align-items: center;
+  padding: 5px 10px 5px 5px;
+  border: 1px solid rgba(213, 228, 240, 0.58);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.58);
+  animation: voice-card-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes voice-card-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.95); }
+  to   { opacity: 1; transform: none; }
+}
+
+.workspace-route__voice-people--inline .workspace-route__voice-person:nth-child(1) { animation-delay: 30ms; }
+.workspace-route__voice-people--inline .workspace-route__voice-person:nth-child(2) { animation-delay: 80ms; }
+.workspace-route__voice-people--inline .workspace-route__voice-person:nth-child(3) { animation-delay: 130ms; }
+.workspace-route__voice-people--inline .workspace-route__voice-person:nth-child(4) { animation-delay: 180ms; }
+
+/* 발화 링 — 실제 마이크 감지 시에만 pulse */
+@keyframes voice-speaking-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(60, 135, 215, 0.6); }
+  60%  { box-shadow: 0 0 0 6px rgba(60, 135, 215, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(60, 135, 215, 0); }
+}
+
+.workspace-route__voice-people--inline .workspace-route__voice-person > span {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(120, 190, 255, 0.48), rgba(80, 140, 220, 0.28));
+  color: var(--blue-ink);
+  font-size: 12px;
+  font-weight: 900;
+  font-style: normal;
+  transition: box-shadow 120ms ease-out;
+}
+
+.workspace-route__voice-people--inline .workspace-route__voice-person > span[data-speaking="true"] {
+  animation: voice-speaking-pulse 900ms ease-out infinite;
+}
+
+.workspace-route__voice-people--inline .workspace-route__voice-person strong {
+  display: block;
+  max-width: 90px;
+  font-size: 12px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-route__voice-people--inline .workspace-route__voice-person small {
+  display: block;
+  font-size: 10px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
 .workspace-route__voice-card {
   display: grid;
   gap: 10px;
@@ -3818,33 +4044,29 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__voice-inline {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  padding: 10px 12px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
   border: 1px solid rgba(190, 220, 240, 0.5);
   border-radius: 14px;
   background: rgba(240, 248, 255, 0.5);
 }
 
-.workspace-route__voice-inline .workspace-route__voice-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.workspace-route__voice-inline__notice {
+  font-size: 12px;
+  color: var(--ink-soft);
 }
 
-.workspace-route__voice-inline .workspace-route__voice-note {
-  width: 100%;
-  font-size: 11px;
+.workspace-route__voice-inline__end:hover:not(:disabled) {
+  background: rgba(255, 238, 238, 0.9) !important;
+  border-color: rgba(210, 80, 80, 0.4) !important;
+  color: #c0392b !important;
 }
 
 .workspace-route__voice-inline .workspace-route__voice-people {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  width: 100%;
-  margin-top: 4px;
 }
 
 .workspace-route__friends-modal {
@@ -4041,6 +4263,58 @@ button.workspace-route__friend-row:hover {
   white-space: pre-wrap;
   word-break: keep-all;
   overflow-wrap: anywhere;
+}
+
+.workspace-route__file-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  padding: 6px 12px 6px 10px;
+  border: 1px solid rgba(70, 150, 225, 0.45);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--blue-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 760;
+  max-width: 320px;
+  overflow: hidden;
+  text-align: left;
+  transition: background 140ms, border-color 140ms, box-shadow 140ms;
+}
+
+/* .workspace-route__message span 셀렉터 오버라이드 방지 */
+.workspace-route__file-download span {
+  color: var(--blue-ink);
+  font-size: 13px;
+  font-weight: 760;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-route__file-download:hover:not(:disabled) {
+  background: rgba(215, 238, 255, 0.85);
+  border-color: rgba(60, 135, 215, 0.65);
+  box-shadow: 0 1px 6px -2px rgba(60, 130, 210, 0.18);
+}
+
+.workspace-route__file-download:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+/* "내가 보낸" 메시지(파란 배경)에서도 버튼이 구분되도록 */
+.workspace-route__message--mine .workspace-route__file-download {
+  background: rgba(255, 255, 255, 0.62);
+  border-color: rgba(80, 140, 220, 0.5);
+}
+
+.workspace-route__message--mine .workspace-route__file-download:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.84);
+  border-color: rgba(60, 120, 210, 0.7);
 }
 
 .workspace-route__typing {

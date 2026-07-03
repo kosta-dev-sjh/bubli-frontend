@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Check, Copy, Inbox, KeyRound, LogOut, MessageCircle, Mic, MicOff, MoreHorizontal, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
+import { AtSign, Check, Copy, Download, Inbox, KeyRound, LogOut, MessageCircle, Mic, MicOff, MoreHorizontal, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -11,8 +11,11 @@ import { authApi } from "@/features/auth/api/authApi";
 import { chatApi } from "@/features/communication/api/chatApi";
 import { friendApi } from "@/features/communication/api/friendApi";
 import { voiceApi } from "@/features/communication/api/voiceApi";
+import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
+import { getApiBaseUrl } from "@/lib/api/client";
 import { ApiClientError } from "@/lib/api/errors";
+import { getAuthAccessToken } from "@/lib/auth/auth-session";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { getActiveProjectRoomId, getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
@@ -170,10 +173,14 @@ function messageText(t: TranslateFn, message: ChatMessageResponse) {
       ? body.text ?? body.message ?? body.request ?? body.command ?? body.query ?? body.prompt ?? body.content
       : body.text ?? body.message ?? body.content ?? body.request;
 
+  if (message.messageType === "FILE") {
+    const name = body.attachmentName ?? body.originalName ?? body.fileName ?? body.name;
+    if (typeof name === "string" && name.trim()) return name;
+    return t("chat.message.file");
+  }
   if (typeof text === "string" && text.trim()) return text;
   if (message.messageType === "AGENT_COMMAND") return t("chat.message.agentCommand");
   if (message.messageType === "AGENT_RESPONSE") return t("chat.message.agentResponse");
-  if (message.messageType === "FILE") return t("chat.message.file");
   return t("chat.message.default");
 }
 
@@ -307,6 +314,10 @@ function preferredRoomId(rooms: ChatRoomResponse[], roomId: string | null, mode:
   return rooms[0]?.id ?? null;
 }
 
+// 소통 탭 내에서의 다른 페이지(설정, 자료보드 등)로 이동 후 돌아올 때 voice 상태를 유지.
+// 모듈 변수는 클라이언트 측 내비게이션 사이에서 살아남지만 하드 새로고침 시 초기화됨.
+let _voiceCache: { expanded: boolean; state: VoiceState } | null = null;
+
 function ChatPageContent() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
@@ -317,13 +328,13 @@ function ChatPageContent() {
   const [socialState, setSocialState] = useState<SocialState>({ kind: "loading" });
   const [profileState, setProfileState] = useState<ProfileState>({ kind: "loading" });
   const [friendSearchState, setFriendSearchState] = useState<FriendSearchState>({ kind: "idle" });
-  const [voiceState, setVoiceState] = useState<VoiceState>({ kind: "idle" });
+  const [voiceState, setVoiceState] = useState<VoiceState>(() => _voiceCache?.state ?? { kind: "idle" });
   const [voiceAction, setVoiceAction] = useState<VoiceAction | null>(null);
   const [selectedChatRoomId, setSelectedChatRoomId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
   const [copiedBubliId, setCopiedBubliId] = useState(false);
-  const [voiceExpanded, setVoiceExpanded] = useState(false);
+  const [voiceExpanded, setVoiceExpanded] = useState(() => _voiceCache?.expanded ?? false);
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
   const [voiceTokenInfo, setVoiceTokenInfo] = useState<VoiceTokenInfo | null>(null);
@@ -333,7 +344,8 @@ function ChatPageContent() {
   const [busyFriendUserId, setBusyFriendUserId] = useState<string | null>(null);
   const [busyInvitationId, setBusyInvitationId] = useState<string | null>(null);
   const [composerActive, setComposerActive] = useState(false);
-  const [selectedAttachmentName, setSelectedAttachmentName] = useState<string | null>(null);
+  const [selectedAttachment, setSelectedAttachment] = useState<File | null>(null);
+  const [downloadingResourceId, setDownloadingResourceId] = useState<string | null>(null);
   const [emoticonOpen, setEmoticonOpen] = useState(false);
   const [friendAddOpen, setFriendAddOpen] = useState(false);
   const [friendsOpen, setFriendsOpen] = useState(false);
@@ -343,10 +355,15 @@ function ChatPageContent() {
   const [sending, setSending] = useState(false);
   const [agentCommandNotice, setAgentCommandNotice] = useState<string | null>(null);
   const [roomCreateNotice, setRoomCreateNotice] = useState<string | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const friendSearchInputRef = useRef<HTMLInputElement | null>(null);
   const friendListRef = useRef<HTMLDivElement | null>(null);
   const messagesViewportRef = useRef<HTMLDivElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const speakingRafRef = useRef<number | null>(null);
 
   const appendMessage = useCallback((message: ChatMessageResponse) => {
     setMessagesState((current) => {
@@ -386,9 +403,8 @@ function ChatPageContent() {
   const visibleRooms = useMemo(() => {
     if (roomsState.kind !== "ready") return [];
     if (roomMode === "direct") return roomsState.rooms.filter((room) => room.chatType === "DIRECT" || room.chatType === "GROUP");
-    if (queryRoomId) return roomsState.rooms.filter((room) => room.roomId === queryRoomId);
     return roomsState.rooms.filter((room) => room.chatType === "ROOM");
-  }, [queryRoomId, roomMode, roomsState]);
+  }, [roomMode, roomsState]);
   const pendingFriendRequests = useMemo(
     () => (socialState.kind === "ready" ? socialState.requests.filter((request) => request.status === "PENDING") : []),
     [socialState],
@@ -416,7 +432,14 @@ function ChatPageContent() {
   const pendingAgentCommand = useMemo(() => parseBubliCommand(t, draft), [draft, t]);
   const inviteTargetLabel = selectedProjectRoomId ? selectedProjectRoomName ?? t("chat.label.currentRoom") : t("chat.label.selectRoomNeeded");
   const pendingRoomInvitations = roomInvitationsState.kind === "ready" ? roomInvitationsState.invitations.filter((invitation) => invitation.status === "PENDING") : [];
-  const activeVoiceRoom = voiceState.kind === "ready" && voiceState.room.status === "OPEN" ? voiceState.room : null;
+  // 보이스는 프로젝트룸 전용이며 룸별로 독립 — 다른 프로젝트룸이나 1:1/그룹 뷰에서는 null
+  const activeVoiceRoom =
+    voiceState.kind === "ready" &&
+    voiceState.room.status === "OPEN" &&
+    selectedRoom?.chatType === "ROOM" &&
+    voiceState.room.roomId === selectedRoom?.roomId
+      ? voiceState.room
+      : null;
   const isInVoice = activeVoiceRoom !== null && activeVoiceRoom.participants.some(
     (p) => p.userId === currentUser?.id && p.status === "JOINED"
   );
@@ -564,9 +587,82 @@ function ChatPageContent() {
     const timeoutId = window.setTimeout(() => {
       void loadRoomInvitations();
     }, 0);
+    const interval = window.setInterval(() => { void loadRoomInvitations(); }, 15000);
 
-    return () => window.clearTimeout(timeoutId);
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(interval);
+    };
   }, [loadRoomInvitations]);
+
+  // voice 상태를 모듈 캐시에 동기화 (다른 탭 갔다와도 복원)
+  useEffect(() => {
+    _voiceCache = { expanded: voiceExpanded, state: voiceState };
+  }, [voiceState, voiceExpanded]);
+
+  // 소셜/채팅룸/초대 상태 백그라운드 폴링 (친구 요청·초대 수락이 자동 반영)
+  useEffect(() => {
+    const pollSocial = async () => {
+      const [friends, requests] = await Promise.allSettled([friendApi.listFriends(), friendApi.listRequests()]);
+      if (friends.status === "rejected" && requests.status === "rejected") return;
+      setSocialState({
+        friends: friends.status === "fulfilled" ? friends.value : [],
+        kind: "ready",
+        requests: requests.status === "fulfilled" ? requests.value : [],
+      });
+    };
+    const pollRooms = async () => {
+      try {
+        const page = await chatApi.listRooms();
+        setRoomsState({ kind: "ready", rooms: page.items });
+      } catch { /* 폴링 실패 시 무시 */ }
+    };
+    const socialInterval = window.setInterval(() => { void pollSocial(); }, 12000);
+    const roomsInterval = window.setInterval(() => { void pollRooms(); }, 20000);
+    return () => {
+      window.clearInterval(socialInterval);
+      window.clearInterval(roomsInterval);
+    };
+  }, []);
+
+  useEffect(() => {
+    const stopAll = () => {
+      if (speakingRafRef.current) { cancelAnimationFrame(speakingRafRef.current); speakingRafRef.current = null; }
+      micStreamRef.current?.getTracks().forEach((t) => t.stop());
+      micStreamRef.current = null;
+      if (audioCtxRef.current) { void audioCtxRef.current.close(); audioCtxRef.current = null; }
+      analyserRef.current = null;
+      setIsSpeaking(false);
+    };
+
+    if (!isInVoice || voiceMicMuted) { stopAll(); return; }
+
+    let active = true;
+    void (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        if (!active) { stream.getTracks().forEach((t) => t.stop()); return; }
+        micStreamRef.current = stream;
+        const ctx = new AudioContext();
+        audioCtxRef.current = ctx;
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        analyserRef.current = analyser;
+        ctx.createMediaStreamSource(stream).connect(analyser);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        const tick = () => {
+          if (!active || !analyserRef.current) return;
+          analyserRef.current.getByteFrequencyData(data);
+          const avg = data.reduce((sum, v) => sum + v, 0) / data.length;
+          setIsSpeaking(avg > 12);
+          speakingRafRef.current = requestAnimationFrame(tick);
+        };
+        speakingRafRef.current = requestAnimationFrame(tick);
+      } catch { /* 마이크 권한 거부 시 무시 */ }
+    })();
+
+    return () => { active = false; stopAll(); };
+  }, [isInVoice, voiceMicMuted]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -575,6 +671,16 @@ function ChatPageContent() {
 
     return () => window.clearTimeout(timeoutId);
   }, [queryMode, queryRoomId]);
+
+  useEffect(() => {
+    if (queryMode === "direct" || roomsState.kind !== "ready") return;
+    if (selectedChatRoomId !== null) return;
+    const voiceRoomId = voiceState.kind === "ready" ? voiceState.room.roomId : null;
+    const roomChats = roomsState.rooms.filter((r) => r.chatType === "ROOM");
+    const voiceMatch = voiceRoomId ? roomChats.find((r) => r.roomId === voiceRoomId) : null;
+    const best = voiceMatch ?? roomChats[0] ?? null;
+    if (best) setSelectedChatRoomId(best.id);
+  }, [queryMode, roomsState, selectedChatRoomId, voiceState]);
 
   useEffect(() => {
     if (!activeChatRoomId) return;
@@ -600,11 +706,6 @@ function ChatPageContent() {
 
   function selectChatRoom(room: ChatRoomResponse) {
     setSelectedChatRoomId(room.id);
-    setVoiceState({ kind: "idle" });
-    setVoiceAction(null);
-    setVoiceMicMuted(false);
-    setVoiceNotice(null);
-    setVoiceTokenInfo(null);
     if (room.chatType === "ROOM" && room.roomId) {
       setActiveProjectRoomId(room.roomId, room.name?.replace(/\s*대화$/, "") ?? t("chat.room.fallbackName"));
     }
@@ -851,13 +952,12 @@ function ChatPageContent() {
   );
 
   const startVoice = useCallback(async () => {
-    if (!selectedRoom?.roomId) {
-      setVoiceState({
-        kind: "blocked",
-        message: t("chat.notice.voiceOnlyRoom"),
-      });
+    if (!selectedRoom) return;
+    if (selectedRoom.chatType !== "ROOM" || !selectedRoom.roomId) {
+      setVoiceState({ kind: "blocked", message: t("chat.notice.voiceOnlyRoom") });
       return;
     }
+    const voiceRoomId = selectedRoom.roomId;
 
     setVoiceState({ kind: "starting" });
     setVoiceAction(null);
@@ -866,7 +966,7 @@ function ChatPageContent() {
     setVoiceTokenInfo(null);
 
     try {
-      const room = await voiceApi.createRoom({ roomId: selectedRoom.roomId });
+      const room = await voiceApi.createRoom({ roomId: voiceRoomId });
       setVoiceState({ kind: "ready", room });
       setVoiceExpanded(true);
       setVoiceNotice(t("chat.notice.voiceOpened"));
@@ -932,6 +1032,7 @@ function ChatPageContent() {
       const room = await voiceApi.leave(activeVoiceRoom.id);
       setVoiceState({ kind: "ready", room });
       setVoiceNotice(t("chat.notice.voiceLeft"));
+      setVoiceExpanded(false);
     } catch {
       setVoiceNotice(t("chat.notice.voiceLeaveFailed"));
     } finally {
@@ -947,6 +1048,7 @@ function ChatPageContent() {
       const room = await voiceApi.end(activeVoiceRoom.id);
       setVoiceState({ kind: "ready", room });
       setVoiceNotice(t("chat.notice.voiceEnded"));
+      setVoiceExpanded(false);
     } catch {
       setVoiceNotice(t("chat.notice.voiceEndFailed"));
     } finally {
@@ -956,7 +1058,7 @@ function ChatPageContent() {
 
   const sendMessage = useCallback(async () => {
     const text = draft.trim();
-    if (!activeChatRoomId || (!text && !selectedAttachmentName)) return;
+    if (!activeChatRoomId || (!text && !selectedAttachment)) return;
     const agentCommand = parseBubliCommand(t, text);
 
     if (agentCommand) {
@@ -996,7 +1098,7 @@ function ChatPageContent() {
         });
         appendMessage(response.message);
         setDraft("");
-        setSelectedAttachmentName(null);
+        setSelectedAttachment(null);
         setEmoticonOpen(false);
         setComposerActive(true);
         setAgentCommandNotice(t("chat.notice.agentSent"));
@@ -1008,33 +1110,72 @@ function ChatPageContent() {
       return;
     }
 
-    const messageType = selectedAttachmentName && !text ? "FILE" : "TEXT";
-    const messageBody = selectedAttachmentName
-      ? {
-          attachmentName: selectedAttachmentName,
-          text: text || t("chat.attachPrefix", { name: selectedAttachmentName }),
-        }
-      : { text };
-
     setSending(true);
     setAgentCommandNotice(null);
 
     try {
+      let resourceId: string | null = null;
+
+      if (selectedAttachment) {
+        const formData = new FormData();
+        formData.append("title", selectedAttachment.name);
+        formData.append("kind", "FILE");
+        formData.append("visibility", selectedRoom?.chatType === "ROOM" ? "ROOM_SHARED" : "PERSONAL");
+        if (selectedRoom?.chatType === "ROOM" && selectedRoom.roomId) {
+          formData.append("roomId", selectedRoom.roomId);
+        }
+        formData.append("file", selectedAttachment);
+        const uploaded = await resourcesApi.upload(formData);
+        resourceId = uploaded.id;
+      }
+
+      const messageType = selectedAttachment && !text ? "FILE" : "TEXT";
+      const messageBody = selectedAttachment
+        ? { attachmentName: selectedAttachment.name, text: text || selectedAttachment.name }
+        : { text };
+
       const response = await chatApi.sendMessage(activeChatRoomId, {
         body: messageBody,
         clientMessageId: crypto.randomUUID(),
         messageType,
+        resourceId,
       });
       appendMessage(response);
       setDraft("");
-      setSelectedAttachmentName(null);
+      setSelectedAttachment(null);
       setEmoticonOpen(false);
     } catch {
       setAgentCommandNotice(t("chat.notice.sendFailed"));
     } finally {
       setSending(false);
     }
-  }, [activeChatRoomId, appendMessage, currentUser, draft, messagesState, selectedAgentRoomId, selectedAttachmentName, t]);
+  }, [activeChatRoomId, appendMessage, draft, selectedAttachment, selectedAgentRoomId, selectedRoom, t]);
+
+  const handleDownload = useCallback(async (resourceId: string, fallbackName?: string) => {
+    setDownloadingResourceId(resourceId);
+    try {
+      const token = getAuthAccessToken();
+      const response = await fetch(`${getApiBaseUrl()}/api/resources/${resourceId}/file`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error(`download failed: ${response.status}`);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = fallbackName ?? "";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      // 다운로드 실패 무시
+    } finally {
+      setDownloadingResourceId(null);
+    }
+  }, []);
 
   return (
     <section className="workspace-route" aria-labelledby="chat-title">
@@ -1095,37 +1236,39 @@ function ChatPageContent() {
         </section>
       ) : null}
 
-      <nav className="workspace-route__chat-mode-tabs" aria-label={t("chat.tabs.aria")}>
-        <Link className={queryMode !== "direct" ? "is-active" : ""} href={queryRoomId ? `/app/chat?roomId=${queryRoomId}&mode=room` : "/app/chat?mode=room"}>
-          {t("chat.tabs.projectRoom")}
-        </Link>
-        <Link className={queryMode === "direct" ? "is-active" : ""} href="/app/chat?mode=direct">
-          {t("chat.tabs.direct")}
-        </Link>
-      </nav>
+      <div className="workspace-route__chat-toolbar">
+        <nav className="workspace-route__chat-mode-tabs" aria-label={t("chat.tabs.aria")}>
+          <Link className={queryMode !== "direct" ? "is-active" : ""} href={queryRoomId ? `/app/chat?roomId=${queryRoomId}&mode=room` : "/app/chat?mode=room"}>
+            {t("chat.tabs.projectRoom")}
+          </Link>
+          <Link className={queryMode === "direct" ? "is-active" : ""} href="/app/chat?mode=direct">
+            {t("chat.tabs.direct")}
+          </Link>
+        </nav>
 
-      {roomsState.kind === "ready" ? (
-        <div className="workspace-route__chat-quick-actions" aria-label={t("chat.quick.aria")}>
-          {!isProjectRoomMode ? (
+        {roomsState.kind === "ready" ? (
+          <div className="workspace-route__chat-quick-actions" aria-label={t("chat.quick.aria")}>
+            {!isProjectRoomMode ? (
+              <button
+                className="workspace-route__quick-button"
+                onClick={() => { setRoomCreateNotice(null); setNewRoomPickerOpen((open) => !open); }}
+                type="button"
+              >
+                {t("chat.quick.create")}
+              </button>
+            ) : null}
+            {roomCreateNotice ? <span className="workspace-route__pending">{roomCreateNotice}</span> : null}
             <button
               className="workspace-route__quick-button"
-              onClick={() => { setRoomCreateNotice(null); setNewRoomPickerOpen((open) => !open); }}
+              onClick={() => { setFriendsOpen(true); setFriendAddOpen(false); }}
               type="button"
             >
-              {t("chat.quick.create")}
+              <UsersRound aria-hidden size={15} strokeWidth={2} />
+              {t("chat.quick.manageFriends")}
             </button>
-          ) : null}
-          {roomCreateNotice ? <span className="workspace-route__pending">{roomCreateNotice}</span> : null}
-          <button
-            className="workspace-route__quick-button"
-            onClick={() => { setFriendsOpen(true); setFriendAddOpen(false); }}
-            type="button"
-          >
-            <UsersRound aria-hidden size={15} strokeWidth={2} />
-            {t("chat.quick.manageFriends")}
-          </button>
-        </div>
-      ) : null}
+          </div>
+        ) : null}
+      </div>
 
       {roomsState.kind === "ready" ? (
         <div className="workspace-route__chat">
@@ -1173,79 +1316,99 @@ function ChatPageContent() {
                     {t("chat.thread.projectRoom")}
                   </Link>
                 ) : null}
-                {selectedRoom?.chatType === "ROOM" ? (
-                  <Button disabled={voiceState.kind === "starting"} loading={voiceState.kind === "starting"} onClick={() => void startVoice()} type="button" variant="quiet">
+                {selectedRoom ? (
+                  <Button
+                    aria-hidden={activeVoiceRoom ? "true" : undefined}
+                    disabled={voiceState.kind === "starting" || !!activeVoiceRoom}
+                    loading={voiceState.kind === "starting"}
+                    onClick={() => void startVoice()}
+                    style={{ visibility: activeVoiceRoom ? "hidden" : "visible" }}
+                    tabIndex={activeVoiceRoom ? -1 : undefined}
+                    type="button"
+                    variant="quiet"
+                  >
                     {t("chat.thread.startVoice")}
                   </Button>
                 ) : null}
               </div>
             </div>
-            {selectedRoom?.chatType === "ROOM" ? (
-              <button
-                aria-expanded={voiceExpanded}
-                className="workspace-route__voice-status workspace-route__voice-status--interactive"
-                onClick={() => setVoiceExpanded((open) => !open)}
-                type="button"
-              >
-                <Phone size={15} strokeWidth={2} aria-hidden="true" />
-                <span>{activeVoiceRoom ? t("chat.voice.open") : t("chat.voice.waiting")}</span>
-                <span className="workspace-route__voice-stack" aria-label={t("chat.voice.participantsAria", { count: voiceParticipants.length })}>
-                  {voiceParticipants.slice(0, 3).map((participant) => (
-                    <i data-status={participant.status.toLowerCase()} key={participant.userId}>
-                      {initialOf(participant.userName)}
-                    </i>
-                  ))}
-                </span>
-              </button>
-            ) : null}
-            {selectedRoom?.chatType === "ROOM" && voiceState.kind === "blocked" ? <div className="workspace-route__voice-status workspace-route__voice-status--blocked">{voiceState.message}</div> : null}
-            {selectedRoom?.chatType === "ROOM" && (voiceExpanded || activeVoiceRoom) ? (
-              <div className="workspace-route__voice-inline">
-                <div className="workspace-route__voice-controls" aria-label={t("chat.voiceCard.actionsAria")}>
-                  <button disabled={!activeVoiceRoom || voiceAction === "token"} onClick={() => void requestVoiceToken()} type="button">
-                    <KeyRound aria-hidden size={14} strokeWidth={2} />
-                    {voiceAction === "token" ? t("chat.voiceCard.receiving") : t("chat.voiceCard.joinToken")}
+            {selectedRoom ? (
+              <div className="workspace-route__voice-bar">
+                <div className="workspace-route__voice-row">
+                  <button
+                    aria-expanded={activeVoiceRoom ? voiceExpanded : undefined}
+                    className={`workspace-route__voice-status${activeVoiceRoom ? " workspace-route__voice-status--open workspace-route__voice-status--clickable" : ""}`}
+                    disabled={!activeVoiceRoom}
+                    onClick={() => { if (activeVoiceRoom) setVoiceExpanded((v) => !v); }}
+                    type="button"
+                  >
+                    <Phone size={15} strokeWidth={2} aria-hidden="true" />
+                    <span>{activeVoiceRoom ? t("chat.voice.open") : t("chat.voice.waiting")}</span>
+                    {voiceParticipants.filter((p) => p.status === "JOINED").length > 0 ? (
+                      <span className="workspace-route__voice-stack" aria-label={t("chat.voice.participantsAria", { count: voiceParticipants.length })}>
+                        {voiceParticipants.filter((p) => p.status === "JOINED").slice(0, 3).map((participant) => (
+                          <i data-status="joined" key={participant.userId}>
+                            {initialOf(participant.userName)}
+                          </i>
+                        ))}
+                      </span>
+                    ) : null}
                   </button>
-                  {isInVoice ? (
-                    <button disabled={voiceAction === "mic"} onClick={() => void toggleVoiceMic()} type="button">
-                      {voiceMicMuted ? <Mic aria-hidden size={14} strokeWidth={2} /> : <MicOff aria-hidden size={14} strokeWidth={2} />}
-                      {voiceAction === "mic" ? t("chat.voiceCard.changing") : voiceMicMuted ? t("chat.voiceCard.micOn") : t("chat.voiceCard.micOff")}
-                    </button>
-                  ) : null}
-                  {isInVoice ? (
-                    <button disabled={voiceAction === "leave"} onClick={() => void leaveVoice()} type="button">
-                      <LogOut aria-hidden size={14} strokeWidth={2} />
-                      {voiceAction === "leave" ? t("chat.voiceCard.leaving") : t("chat.voiceCard.leave")}
-                    </button>
-                  ) : null}
-                  {isVoiceCreator ? (
-                    <button disabled={voiceAction === "end"} onClick={() => void endVoice()} type="button">
-                      <Square aria-hidden size={14} strokeWidth={2} />
-                      {voiceAction === "end" ? t("chat.voiceCard.ending") : t("chat.voiceCard.end")}
-                    </button>
+                  {activeVoiceRoom ? (
+                    <div className="workspace-route__voice-pills">
+                      <button className="workspace-route__voice-pill" data-voice-pill="0" disabled={voiceAction === "token"} onClick={() => void requestVoiceToken()} type="button">
+                        <KeyRound aria-hidden size={13} strokeWidth={2} />
+                        {voiceAction === "token" ? t("chat.voiceCard.receiving") : t("chat.voiceCard.joinToken")}
+                      </button>
+                      {isInVoice ? (
+                        <button className="workspace-route__voice-pill" data-voice-pill="1" disabled={voiceAction === "mic"} onClick={() => void toggleVoiceMic()} type="button">
+                          {voiceMicMuted ? <Mic aria-hidden size={13} strokeWidth={2} /> : <MicOff aria-hidden size={13} strokeWidth={2} />}
+                          {voiceAction === "mic" ? t("chat.voiceCard.changing") : voiceMicMuted ? t("chat.voiceCard.micOn") : t("chat.voiceCard.micOff")}
+                        </button>
+                      ) : null}
+                      {isInVoice ? (
+                        <button className="workspace-route__voice-pill" data-voice-pill="2" disabled={voiceAction === "leave"} onClick={() => void leaveVoice()} type="button">
+                          <LogOut aria-hidden size={13} strokeWidth={2} />
+                          {voiceAction === "leave" ? t("chat.voiceCard.leaving") : t("chat.voiceCard.leave")}
+                        </button>
+                      ) : null}
+                      {isVoiceCreator ? (
+                        <button className="workspace-route__voice-pill workspace-route__voice-pill--end" data-voice-pill="3" disabled={voiceAction === "end"} onClick={() => void endVoice()} type="button">
+                          <Square aria-hidden size={13} strokeWidth={2} />
+                          {voiceAction === "end" ? t("chat.voiceCard.ending") : t("chat.voiceCard.end")}
+                        </button>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
-                {voiceTokenInfo ? (
-                  <div className="workspace-route__voice-note">
-                    <strong>{t("chat.voiceCard.tokenReady")}</strong>
-                    <span>{t("chat.voiceCard.tokenUntil", { url: voiceTokenInfo.serverUrl, time: compactDateTime(voiceTokenInfo.expiresAt) })}</span>
+                {activeVoiceRoom && voiceExpanded ? (
+                  <div className="workspace-route__voice-people workspace-route__voice-people--inline">
+                    {voiceParticipants.filter((p) => p.status === "JOINED").map((participant) => {
+                      const isMe = participant.userId === currentUser?.id;
+                      return (
+                        <div className="workspace-route__voice-person" key={participant.userId}>
+                          <span
+                            data-speaking={isMe ? String(isSpeaking) : undefined}
+                            data-status={participant.status.toLowerCase()}
+                          >
+                            {initialOf(participant.userName)}
+                          </span>
+                          <div>
+                            <strong>{participant.userName}</strong>
+                            <small>{participant.micStatus === "MUTED" ? t("chat.voiceCard.micOffState") : t("chat.voiceCard.micOnState")}</small>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : null}
-                {voiceNotice ? <div className="workspace-route__voice-note">{voiceNotice}</div> : null}
-                {voiceParticipants.length > 0 ? (
-                  <div className="workspace-route__voice-people">
-                    {voiceParticipants.map((participant, index) => (
-                      <div className="workspace-route__voice-person" key={participant.userId}>
-                        <span data-status={participant.status.toLowerCase()}>{initialOf(participant.userName)}</span>
-                        <div>
-                          <strong>{participant.userName}</strong>
-                          <small>{index === 0 && participant.status === "JOINED" ? t("chat.voiceCard.speaking") : voiceParticipantStatusLabel(t, participant.status)}</small>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                {voiceNotice ? (
+                  <span className="workspace-route__voice-notice">{voiceNotice}</span>
                 ) : null}
               </div>
+            ) : null}
+            {selectedRoom && voiceState.kind === "blocked" ? (
+              <div className="workspace-route__voice-status workspace-route__voice-status--blocked">{voiceState.message}</div>
             ) : null}
 
             {messagesState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.messages.loading")}</span> : null}
@@ -1284,7 +1447,19 @@ function ChatPageContent() {
                           </button>
                         </span>
                       </div>
-                      <p>{text}</p>
+                      {message.messageType === "FILE" && message.resourceId ? (
+                        <button
+                          className="workspace-route__file-download"
+                          disabled={downloadingResourceId === message.resourceId}
+                          onClick={() => void handleDownload(message.resourceId!, text)}
+                          type="button"
+                        >
+                          <Download aria-hidden size={13} strokeWidth={2} />
+                          <span>{text}</span>
+                        </button>
+                      ) : (
+                        <p>{text}</p>
+                      )}
                     </article>
                   );
                 })}
@@ -1295,7 +1470,7 @@ function ChatPageContent() {
               <form
                 className={[
                   "workspace-route__composer",
-                  composerActive || draft || selectedAttachmentName ? "workspace-route__composer--active" : "",
+                  composerActive || draft || selectedAttachment ? "workspace-route__composer--active" : "",
                 ]
                   .filter(Boolean)
                   .join(" ")}
@@ -1308,14 +1483,27 @@ function ChatPageContent() {
                   <button aria-label={t("chat.composer.attach")} onClick={() => fileInputRef.current?.click()} type="button">
                     <Paperclip aria-hidden size={17} strokeWidth={2} />
                   </button>
-                  <button aria-label={t("chat.composer.voiceParticipants")} onClick={() => setVoiceExpanded((open) => !open)} type="button">
-                    <Mic aria-hidden size={17} strokeWidth={2} />
-                  </button>
+                  {selectedRoom ? (
+                    <button
+                      aria-label={activeVoiceRoom ? t("chat.voice.open") : t("chat.composer.voiceParticipants")}
+                      disabled={voiceState.kind === "starting"}
+                      onClick={() => {
+                        if (activeVoiceRoom) {
+                          setVoiceExpanded((v) => !v);
+                        } else {
+                          void startVoice();
+                        }
+                      }}
+                      type="button"
+                    >
+                      <Phone aria-hidden size={17} strokeWidth={2} />
+                    </button>
+                  ) : null}
                   <input
                     ref={fileInputRef}
                     className="workspace-route__composer-file"
                     onChange={(event) => {
-                      setSelectedAttachmentName(event.target.files?.[0]?.name ?? null);
+                      setSelectedAttachment(event.target.files?.[0] ?? null);
                       event.currentTarget.value = "";
                     }}
                     type="file"
@@ -1323,7 +1511,7 @@ function ChatPageContent() {
                   <textarea
                     aria-label={t("chat.composer.message")}
                     onBlur={() => {
-                      if (!draft.trim() && !selectedAttachmentName) setComposerActive(false);
+                      if (!draft.trim() && !selectedAttachment) setComposerActive(false);
                     }}
                     onChange={(event) => {
                       setDraft(event.target.value);
@@ -1340,18 +1528,18 @@ function ChatPageContent() {
                     rows={1}
                     value={draft}
                   />
-                  <button aria-expanded={emoticonOpen} aria-label={t("chat.composer.emoticon")} onClick={() => setEmoticonOpen((open) => !open)} type="button">
+                  <button aria-expanded={emoticonOpen} aria-label={t("chat.composer.emoticon")} onClick={() => { setEmoticonOpen((open) => !open); setComposerActive(true); }} type="button">
                     <Smile aria-hidden size={17} strokeWidth={2} />
                   </button>
-                  <Button disabled={(!draft.trim() && !selectedAttachmentName) || sending} loading={sending} type="submit" variant="primary">
+                  <Button disabled={(!draft.trim() && !selectedAttachment) || sending} loading={sending} type="submit" variant="primary">
                     <Send aria-hidden size={15} strokeWidth={1.9} />
                   </Button>
                 </div>
-                {composerActive || draft || selectedAttachmentName ? (
+                {composerActive || draft || selectedAttachment ? (
                   <div className="workspace-route__composer-tools">
-                    {selectedAttachmentName ? (
-                      <button className="workspace-route__composer-chip" onClick={() => setSelectedAttachmentName(null)} type="button">
-                        {t("chat.composer.attachChip", { name: selectedAttachmentName })}
+                    {selectedAttachment ? (
+                      <button className="workspace-route__composer-chip" onClick={() => setSelectedAttachment(null)} type="button">
+                        {t("chat.composer.attachChip", { name: selectedAttachment.name })}
                         <X aria-hidden size={13} strokeWidth={2} />
                       </button>
                     ) : agentCommandNotice ? (
