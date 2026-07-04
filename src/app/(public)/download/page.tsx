@@ -34,9 +34,6 @@ export default function DownloadPage() {
             <Link className="bubli-button bubli-button--primary" href="/login">
               {t("public.download.ctaLogin")}
             </Link>
-            <Link className="bubli-button" href="/features">
-              {t("public.download.ctaFeatures")}
-            </Link>
           </div>
         </GlassPanel>
 

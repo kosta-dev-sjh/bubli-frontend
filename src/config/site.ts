@@ -5,9 +5,7 @@ export const siteConfig = {
     "업무 문서, 요구사항, 회의록을 업무 구조로 바꾸고 오늘 필요한 일을 정리해주는 프리랜서 업무 비서",
   publicNav: [
     { href: "/", label: "홈" },
-    { href: "/features", label: "기능" },
     { href: "/#download", label: "다운로드" },
-    { href: "/faq", label: "FAQ" },
   ],
   appNav: [
     // 홈(/app)은 사이드바 상단 브랜드 로고가 담당하므로 별도 아이콘을 두지 않는다(중복 제거).

@@ -17,9 +17,7 @@ export type RouteContractEntry = {
 /** Public site only handles intro, desktop app guidance, download, sign-in entry. */
 export const publicRoutes: readonly RouteContractEntry[] = [
   { path: "/", surface: "PUBLIC_SITE", role: "Service intro and download CTA" },
-  { path: "/features", surface: "PUBLIC_SITE", role: "Feature overview" },
   { path: "/download", surface: "PUBLIC_SITE", role: "Desktop app download (macOS, Windows)" },
-  { path: "/faq", surface: "PUBLIC_SITE", role: "Permissions, files, security, AI, Tauri FAQ" },
   { path: "/login", surface: "AUTH_ENTRY", role: "Google sign-in entry" },
 ] as const;
 
