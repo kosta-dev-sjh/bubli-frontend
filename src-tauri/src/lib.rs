@@ -429,6 +429,10 @@ fn widget_window_dom_ready(label: &str) -> bool {
         .unwrap_or(false)
 }
 
+fn widget_initial_visible_on_build(widget: &WidgetWindowState) -> bool {
+    widget.window_visible && !widget_waits_for_dom_ready_before_show()
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredWidgetWindowLayout {
@@ -1474,6 +1478,7 @@ fn build_widget_window(
 
     let size = widget_window_size(widget);
     let position = widget_screen_position(app, monitor_state, widget)?;
+    let initial_visible = widget_initial_visible_on_build(widget);
     reset_widget_window_dom_ready(&label);
     reset_widget_applied_window_state(&label);
     let window = WebviewWindowBuilder::new(
@@ -1495,7 +1500,7 @@ fn build_widget_window(
     .always_on_top(widget.always_on_top)
     .skip_taskbar(true)
     .focused(false)
-    .visible(widget.window_visible)
+    .visible(initial_visible)
     .build()
     .map_err(|error| error.to_string())?;
 
@@ -2614,6 +2619,20 @@ mod tests {
         mark_widget_window_dom_ready(label);
         assert!(widget_window_dom_ready(label));
         reset_widget_window_dom_ready(label);
+    }
+
+    #[test]
+    fn widget_build_starts_hidden_when_dom_ready_gate_is_required() {
+        let mut widget = default_widget_window_state("todo", Some("todo".to_string()));
+        widget.window_visible = true;
+
+        assert_eq!(
+            widget_initial_visible_on_build(&widget),
+            !widget_waits_for_dom_ready_before_show()
+        );
+
+        widget.window_visible = false;
+        assert!(!widget_initial_visible_on_build(&widget));
     }
 
     #[test]
