@@ -1,21 +1,26 @@
 "use client";
 
 import { Bell, CheckCircle2, EyeOff, MessageCircle, Pin, RotateCcw, Sparkles, SquareCheckBig } from "lucide-react";
-import type { HTMLAttributes, ReactNode } from "react";
+import { useCallback, useMemo, useState, type HTMLAttributes, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import type { BackendWidgetBubbleType } from "@/features/widget/api/widgetApi";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { saveWidgetItemState } from "@/lib/widget/widget-local-client";
+import type { WidgetItemState as ApiWidgetItemState } from "@/types/api/widget";
 
 import styles from "./widget-item-state-panel.module.css";
 
 type BubbleType = "todo" | "agent" | "chat" | "notification" | "resource";
 type WidgetItemState = "visible" | "confirmed" | "hidden" | "pinned" | "snoozed";
+type WidgetItemStateAction = "confirm" | "hide" | "pin" | "snooze";
+type BackendItemType = "MESSAGE" | "NOTIFICATION" | "SCHEDULE" | "TASK";
 
 type WidgetItem = {
   bubbleType: BubbleType;
@@ -24,12 +29,21 @@ type WidgetItem = {
   meta: string;
   sourceLabel: string;
   state: WidgetItemState;
+  stateId?: string;
   title: string;
   updatedAt: string;
 };
 
+export type WidgetItemStateChange = {
+  item: WidgetItem;
+  nextState: WidgetItemState;
+  persisted: boolean;
+};
+
 export type WidgetItemStatePanelProps = HTMLAttributes<HTMLElement> & {
   items: WidgetItem[];
+  onStateChange?: (change: WidgetItemStateChange) => Promise<void> | void;
+  persistItemState?: boolean;
   title?: string;
 };
 
@@ -69,18 +83,103 @@ const stateMeta: Record<WidgetItemState, { label: MessageKey; tone: StatusTone }
   snoozed: { label: "widget.itemState.state.snoozed", tone: "warning" },
 };
 
-const actionList: Array<{ icon: ReactNode; id: string; label: MessageKey; variant: "primary" | "quiet" | "secondary" | "ghost" }> = [
+const actionList: Array<{ icon: ReactNode; id: WidgetItemStateAction; label: MessageKey; variant: "primary" | "quiet" | "secondary" | "ghost" }> = [
   { icon: <CheckCircle2 size={15} strokeWidth={2.1} />, id: "confirm", label: "widget.itemState.action.confirm", variant: "primary" },
   { icon: <EyeOff size={15} strokeWidth={2.1} />, id: "hide", label: "widget.itemState.action.hide", variant: "quiet" },
   { icon: <Pin size={15} strokeWidth={2.1} />, id: "pin", label: "widget.itemState.action.pin", variant: "secondary" },
   { icon: <RotateCcw size={15} strokeWidth={2.1} />, id: "snooze", label: "widget.itemState.action.snooze", variant: "ghost" },
 ];
 
-export function WidgetItemStatePanel({ className, items, title, ...props }: WidgetItemStatePanelProps) {
+const backendBubbleTypeMap: Partial<Record<BubbleType, BackendWidgetBubbleType>> = {
+  agent: "AGENT",
+  chat: "CHAT",
+  todo: "TODO",
+};
+
+const actionStateMap: Record<WidgetItemStateAction, { apiState: ApiWidgetItemState; state: WidgetItemState }> = {
+  confirm: { apiState: "CONFIRMED", state: "confirmed" },
+  hide: { apiState: "HIDDEN", state: "hidden" },
+  pin: { apiState: "PINNED", state: "pinned" },
+  snooze: { apiState: "SNOOZED", state: "snoozed" },
+};
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function toBackendItemType(value: string): BackendItemType | null {
+  const upper = value.toUpperCase();
+  return upper === "MESSAGE" || upper === "NOTIFICATION" || upper === "SCHEDULE" || upper === "TASK" ? upper : null;
+}
+
+function itemKey(item: WidgetItem) {
+  return `${item.bubbleType}:${item.itemType}:${item.itemId}`;
+}
+
+export function WidgetItemStatePanel({ className, items, onStateChange, persistItemState = true, title, ...props }: WidgetItemStatePanelProps) {
   const { t } = useI18n();
+  const [itemStateOverrides, setItemStateOverrides] = useState<Record<string, WidgetItemState>>({});
+  const [savingKeys, setSavingKeys] = useState<Set<string>>(() => new Set());
+  const [noticeKey, setNoticeKey] = useState<MessageKey | null>(null);
   const resolvedTitle = title ?? t("widget.itemState.title");
-  const activeCount = items.filter((item) => item.state === "visible" || item.state === "pinned").length;
-  const handledCount = items.length - activeCount;
+  const panelItems = useMemo(
+    () => items.map((item) => ({ ...item, state: itemStateOverrides[itemKey(item)] ?? item.state })),
+    [itemStateOverrides, items],
+  );
+  const activeCount = panelItems.filter((item) => item.state === "visible" || item.state === "pinned").length;
+  const handledCount = panelItems.length - activeCount;
+
+  const persistableKeys = useMemo(() => {
+    if (!persistItemState) return new Set<string>();
+    return new Set(
+      panelItems.flatMap((item) => {
+        const backendBubbleType = backendBubbleTypeMap[item.bubbleType];
+        const backendItemType = toBackendItemType(item.itemType);
+        const itemStateId = item.stateId ?? (isUuid(item.itemId) ? item.itemId : null);
+        return backendBubbleType && backendItemType && itemStateId ? [itemKey(item)] : [];
+      }),
+    );
+  }, [panelItems, persistItemState]);
+
+  const handleStateChange = useCallback(
+    async (item: WidgetItem, action: WidgetItemStateAction) => {
+      const key = itemKey(item);
+      const next = actionStateMap[action];
+      const previousState = item.state;
+      const backendBubbleType = backendBubbleTypeMap[item.bubbleType];
+      const backendItemType = toBackendItemType(item.itemType);
+      const itemStateId = item.stateId ?? (isUuid(item.itemId) ? item.itemId : null);
+      const shouldPersist = Boolean(persistItemState && backendBubbleType && backendItemType && itemStateId);
+
+      setNoticeKey(null);
+      setSavingKeys((current) => new Set(current).add(key));
+      setItemStateOverrides((current) => ({ ...current, [key]: next.state }));
+
+      try {
+        if (shouldPersist && backendBubbleType && backendItemType && itemStateId) {
+          await saveWidgetItemState({
+            bubbleType: backendBubbleType,
+            itemId: item.itemId,
+            itemStateId,
+            itemType: backendItemType,
+            state: next.apiState,
+          });
+        }
+        await onStateChange?.({ item, nextState: next.state, persisted: shouldPersist });
+        setNoticeKey(shouldPersist ? "widget.itemState.notice.saved" : "widget.itemState.notice.localOnly");
+      } catch {
+        setItemStateOverrides((current) => ({ ...current, [key]: previousState }));
+        setNoticeKey("widget.itemState.notice.failed");
+      } finally {
+        setSavingKeys((current) => {
+          const nextKeys = new Set(current);
+          nextKeys.delete(key);
+          return nextKeys;
+        });
+      }
+    },
+    [onStateChange, persistItemState],
+  );
 
   return (
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
@@ -111,13 +210,17 @@ export function WidgetItemStatePanel({ className, items, title, ...props }: Widg
         <p>{t("widget.itemState.storageRule")}</p>
       </section>
 
+      {noticeKey ? <p className={styles.notice}>{t(noticeKey)}</p> : null}
+
       <section className={styles.itemList} aria-label={t("widget.itemState.listAria")}>
-        {items.map((item) => {
+        {panelItems.map((item) => {
           const bubble = bubbleMeta[item.bubbleType];
           const state = stateMeta[item.state];
+          const key = itemKey(item);
+          const isSaving = savingKeys.has(key);
 
           return (
-            <article className={styles.itemCard} key={`${item.bubbleType}-${item.itemType}-${item.itemId}`}>
+            <article className={styles.itemCard} key={key}>
               <div className={styles.itemMain}>
                 <span className={styles.bubbleIcon} aria-hidden="true">
                   {bubble.icon}
@@ -130,6 +233,9 @@ export function WidgetItemStatePanel({ className, items, title, ...props }: Widg
                   <p>{item.meta}</p>
                   <div className={styles.metaLine}>
                     <StatusBadge tone={bubble.tone}>{t(bubble.label)}</StatusBadge>
+                    <StatusBadge tone={persistableKeys.has(key) ? "success" : "neutral"}>
+                      {t(persistableKeys.has(key) ? "widget.itemState.persist.server" : "widget.itemState.persist.local")}
+                    </StatusBadge>
                     <span>{item.sourceLabel}</span>
                     <span>{item.updatedAt}</span>
                   </div>
@@ -138,7 +244,14 @@ export function WidgetItemStatePanel({ className, items, title, ...props }: Widg
 
               <div className={styles.actions} aria-label={t("widget.itemState.changeAria", { title: item.title })}>
                 {actionList.map((action) => (
-                  <Button icon={action.icon} key={action.id} size="sm" variant={action.variant}>
+                  <Button
+                    icon={action.icon}
+                    key={action.id}
+                    loading={isSaving}
+                    onClick={() => void handleStateChange(item, action.id)}
+                    size="sm"
+                    variant={action.variant}
+                  >
                     {t(action.label)}
                   </Button>
                 ))}

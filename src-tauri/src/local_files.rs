@@ -367,6 +367,23 @@ pub struct LocalFileAnalysesMarkResult {
     synced_count: i64,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileAnalysisStatusInput {
+    max_attempts: Option<i64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileAnalysisStatusResult {
+    failed_count: i64,
+    latest_error_message: Option<String>,
+    pending_count: i64,
+    read_at: String,
+    retryable_failed_count: i64,
+    synced_count: i64,
+}
+
 /// Keeps native file watchers alive for the lifetime of the app process.
 pub struct ManagedFolderWatchers(pub Mutex<HashMap<String, RecommendedWatcher>>);
 
@@ -1057,9 +1074,10 @@ fn reindex_file_for_conn(
         Option<i64>,
         Option<i64>,
         Option<String>,
+        String,
     )> = conn
         .query_row(
-            "SELECT id, local_folder_id, file_name, local_path, size_bytes, modified_at, checksum \
+            "SELECT id, local_folder_id, file_name, local_path, size_bytes, modified_at, checksum, sync_status \
              FROM local_files WHERE id = ?1",
             params![local_file_id],
             |row| {
@@ -1071,6 +1089,7 @@ fn reindex_file_for_conn(
                     row.get(4)?,
                     row.get(5)?,
                     row.get(6)?,
+                    row.get(7)?,
                 ))
             },
         )
@@ -1084,6 +1103,7 @@ fn reindex_file_for_conn(
         prev_size,
         prev_modified,
         prev_checksum,
+        prev_sync_status,
     )) = row
     else {
         return Err(format!(
@@ -1134,9 +1154,17 @@ fn reindex_file_for_conn(
 
     conn.execute(
         "UPDATE local_files \
-         SET file_name = ?2, size_bytes = ?3, modified_at = ?4, checksum = ?5, sync_status = 'LOCAL_ONLY', updated_at = ?6 \
+         SET file_name = ?2, size_bytes = ?3, modified_at = ?4, checksum = ?5, sync_status = ?6, updated_at = ?7 \
          WHERE id = ?1",
-        params![local_file_id, file_name, size_bytes, modified_ms, checksum, now],
+        params![
+            local_file_id,
+            file_name,
+            size_bytes,
+            modified_ms,
+            checksum,
+            if changed { "LOCAL_ONLY" } else { prev_sync_status.as_str() },
+            now
+        ],
     )
     .map_err(|error| error.to_string())?;
     upsert_file_fts_index(conn, &local_file_id, &file_name, &local_path, &path)?;
@@ -2789,13 +2817,21 @@ pub fn stage_local_file_events_for_sync(
     state: State<'_, Db>,
     input: Option<LocalFileEventsSyncStageInput>,
 ) -> Result<LocalFileEventsSyncStageResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    stage_local_file_events_for_sync_for_conn(&conn, input, now_ms())
+}
+
+fn stage_local_file_events_for_sync_for_conn(
+    conn: &Connection,
+    input: Option<LocalFileEventsSyncStageInput>,
+    now: i64,
+) -> Result<LocalFileEventsSyncStageResult, String> {
     let limit = input
         .as_ref()
         .and_then(|value| value.limit)
         .unwrap_or(100)
         .clamp(1, 500);
     let folder_filter = input.and_then(|value| value.local_folder_id);
-    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
 
     let mut candidates = Vec::new();
     {
@@ -2856,9 +2892,8 @@ pub fn stage_local_file_events_for_sync(
         }
     }
 
-    let now = now_ms();
     for event in &candidates {
-        stage_local_file_event_outbox(&conn, event, now)?;
+        stage_local_file_event_outbox(conn, event, now)?;
         conn.execute(
             "UPDATE local_file_events SET status = 'APPROVED' WHERE id = ?1",
             params![event.local_event_id],
@@ -3130,6 +3165,65 @@ pub fn mark_local_file_analyses_sent(
 ) -> Result<LocalFileAnalysesMarkResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
     mark_local_file_analyses_sent_for_conn(&conn, input)
+}
+
+#[tauri::command]
+pub fn get_local_file_analysis_status(
+    state: State<'_, Db>,
+    input: Option<LocalFileAnalysisStatusInput>,
+) -> Result<LocalFileAnalysisStatusResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let max_attempts = input
+        .and_then(|value| value.max_attempts)
+        .unwrap_or(3)
+        .max(1);
+    get_local_file_analysis_status_for_conn(&conn, max_attempts)
+}
+
+fn get_local_file_analysis_status_for_conn(
+    conn: &Connection,
+    max_attempts: i64,
+) -> Result<LocalFileAnalysisStatusResult, String> {
+    let (pending_count, failed_count, synced_count, retryable_failed_count) = conn
+        .query_row(
+            "SELECT \
+                COALESCE(SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END), 0), \
+                COALESCE(SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END), 0), \
+                COALESCE(SUM(CASE WHEN status = 'SYNCED' THEN 1 ELSE 0 END), 0), \
+                COALESCE(SUM(CASE WHEN status = 'FAILED' AND attempt_count < ?1 THEN 1 ELSE 0 END), 0) \
+             FROM local_file_analysis_requests",
+            params![max_attempts],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                ))
+            },
+        )
+        .map_err(|error| error.to_string())?;
+
+    let latest_error_message = conn
+        .query_row(
+            "SELECT error_message \
+             FROM local_file_analysis_requests \
+             WHERE status = 'FAILED' AND error_message IS NOT NULL AND error_message <> '' \
+             ORDER BY updated_at DESC LIMIT 1",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+
+    Ok(LocalFileAnalysisStatusResult {
+        failed_count,
+        latest_error_message,
+        pending_count,
+        read_at: ms_to_iso(now_ms()),
+        retryable_failed_count,
+        synced_count,
+    })
 }
 
 fn mark_local_file_analyses_sent_for_conn(
@@ -3554,6 +3648,131 @@ mod tests {
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'CREATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'UPDATED'"));
         assert!(SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL.contains("'DELETED'"));
+    }
+
+    #[test]
+    fn managed_folder_smoke_scans_searches_previews_reindexes_and_stages_sync() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-managed-smoke-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        let file_path = folder_path.join("client-brief.md");
+        std::fs::write(
+            &file_path,
+            "Client brief renewal scope. Payment milestone is Friday. Review the deliverables before upload.",
+        )
+        .expect("write indexed file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-smoke', 'Smoke Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let scan = scan_managed_folder_for_conn(
+            &conn,
+            ManagedFolderCommandInput {
+                local_folder_id: "folder-smoke".to_string(),
+            },
+        )
+        .expect("scan managed folder");
+        assert_eq!(scan.changed_count, 1);
+
+        let search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "renewal".to_string(),
+            },
+        )
+        .expect("search scanned file");
+        assert_eq!(search.items.len(), 1);
+        let local_file_id = search.items[0].local_file_id.clone();
+        assert_eq!(search.items[0].name, "client-brief.md");
+        assert!(search.items[0]
+            .matched_text
+            .as_deref()
+            .unwrap_or("")
+            .contains("[renewal]"));
+
+        let (preview_text, preview_status, preview_truncated) =
+            read_local_text_preview(&file_path, 4000).expect("read local preview");
+        assert_eq!(preview_status, "READY");
+        assert!(!preview_truncated);
+        let preview_text = preview_text.expect("preview text");
+        assert!(preview_text.contains("Payment milestone"));
+
+        let key_sentences = extract_key_sentences(&preview_text, 3, 200);
+        assert!(!key_sentences.is_empty());
+        assert!(key_sentences
+            .iter()
+            .any(|sentence| sentence.text.contains("Payment milestone")));
+
+        let staged_created = stage_local_file_events_for_sync_for_conn(
+            &conn,
+            Some(LocalFileEventsSyncStageInput {
+                limit: Some(10),
+                local_folder_id: Some("folder-smoke".to_string()),
+            }),
+            10,
+        )
+        .expect("stage created file event");
+        assert_eq!(staged_created.events.len(), 1);
+        assert_eq!(staged_created.events[0].event_type, "CREATED");
+
+        mark_local_file_events_synced_for_conn(
+            &conn,
+            LocalFileEventsMarkSyncedInput {
+                results: vec![LocalFileEventSyncResultInput {
+                    local_event_id: staged_created.events[0].local_event_id.clone(),
+                    resource_id: Some("resource-smoke".to_string()),
+                    status: "SYNCED".to_string(),
+                }],
+            },
+            20,
+        )
+        .expect("mark created event synced");
+
+        std::fs::write(
+            &file_path,
+            "Client brief renewal scope. Payment milestone moved to Monday. Include updated QA checklist.",
+        )
+        .expect("write updated file");
+
+        let reindexed =
+            reindex_file_for_conn(&conn, &local_file_id, 30).expect("reindex changed file");
+        assert!(reindexed.changed);
+        assert_eq!(reindexed.status, "REINDEXED");
+
+        let updated_search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "Monday".to_string(),
+            },
+        )
+        .expect("search reindexed file");
+        assert_eq!(updated_search.items.len(), 1);
+        assert_eq!(updated_search.items[0].local_file_id, local_file_id);
+
+        let staged_updated = stage_local_file_events_for_sync_for_conn(
+            &conn,
+            Some(LocalFileEventsSyncStageInput {
+                limit: Some(10),
+                local_folder_id: Some("folder-smoke".to_string()),
+            }),
+            40,
+        )
+        .expect("stage updated file event");
+        assert_eq!(staged_updated.events.len(), 1);
+        assert_eq!(staged_updated.events[0].event_type, "UPDATED");
+        assert_eq!(
+            staged_updated.events[0].resource_id.as_deref(),
+            Some("resource-smoke")
+        );
+
+        let _ = std::fs::remove_dir_all(folder_path);
     }
 
     #[test]
@@ -4027,6 +4246,31 @@ mod tests {
     }
 
     #[test]
+    fn local_file_analysis_status_summarizes_retry_ledger() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO local_file_analysis_requests \
+             (id, local_file_id, resource_id, checksum, status, attempt_count, error_message, created_at, updated_at) \
+             VALUES \
+             ('pending-1', 'file-1', 'resource-1', 'checksum-1', 'PENDING', 1, NULL, 1, 1), \
+             ('failed-1', 'file-2', 'resource-2', 'checksum-2', 'FAILED', 2, 'backend unavailable', 2, 20), \
+             ('failed-2', 'file-3', 'resource-3', 'checksum-3', 'FAILED', 3, 'max attempts', 3, 30), \
+             ('synced-1', 'file-4', 'resource-4', 'checksum-4', 'SYNCED', 1, NULL, 4, 4)",
+            [],
+        )
+        .expect("insert analysis rows");
+
+        let status =
+            get_local_file_analysis_status_for_conn(&conn, 3).expect("read analysis status");
+
+        assert_eq!(status.pending_count, 1);
+        assert_eq!(status.failed_count, 2);
+        assert_eq!(status.retryable_failed_count, 1);
+        assert_eq!(status.synced_count, 1);
+        assert_eq!(status.latest_error_message.as_deref(), Some("max attempts"));
+    }
+
+    #[test]
     fn reindex_file_refreshes_fts_and_records_updated_event() {
         let conn = test_connection();
         let path =
@@ -4064,6 +4308,56 @@ mod tests {
         assert_eq!(result.status, "REINDEXED");
         assert_eq!(items.len(), 1);
         assert_eq!(event_count, 1);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn reindex_file_preserves_synced_status_when_unchanged() {
+        let conn = test_connection();
+        let path = std::env::temp_dir().join(format!(
+            "bubli-local-reindex-unchanged-test-{}.txt",
+            Uuid::new_v4()
+        ));
+        std::fs::write(&path, "synced text").expect("write content");
+        let checksum = sha256_head(&path).expect("checksum");
+        let modified_ms = std::fs::metadata(&path)
+            .expect("metadata")
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as i64);
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![path.parent().unwrap().to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, size_bytes, checksum, sync_status, modified_at, updated_at) \
+             VALUES ('file-1', 'folder-1', 'note.txt', ?1, 11, ?2, 'SYNCED', ?3, 1)",
+            params![path.to_string_lossy().to_string(), checksum, modified_ms],
+        )
+        .expect("insert local file");
+
+        let result = reindex_file_for_conn(&conn, "file-1", 20).expect("reindex unchanged file");
+        let (sync_status, event_count): (String, i64) = conn
+            .query_row(
+                "SELECT f.sync_status, COUNT(e.id) \
+                 FROM local_files f \
+                 LEFT JOIN local_file_events e ON e.local_file_id = f.id AND e.event_type = 'UPDATED' \
+                 WHERE f.id = 'file-1' \
+                 GROUP BY f.sync_status",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read unchanged reindex state");
+
+        assert!(!result.changed);
+        assert_eq!(sync_status, "SYNCED");
+        assert_eq!(event_count, 0);
 
         let _ = std::fs::remove_file(path);
     }

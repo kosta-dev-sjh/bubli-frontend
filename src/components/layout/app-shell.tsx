@@ -22,7 +22,6 @@ import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
-import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
@@ -195,11 +194,6 @@ export function AppShell({ children }: AppShellProps) {
       router.replace("/login");
     }
   }, [router, state.kind]);
-
-  useEffect(() => {
-    if (state.kind !== "ready") return;
-    void launchTauriAuthenticatedSurfaces().catch(() => undefined);
-  }, [state.kind]);
 
   useEffect(() => {
     function syncActiveProjectRoom(event: Event) {

@@ -2,15 +2,18 @@
 
 import { CheckCircle2, FileText, FolderOpen, HardDrive, ListFilter, LockKeyhole, Pin, Save, Search } from "lucide-react";
 import type { HTMLAttributes } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { memoApi } from "@/features/memo/api/memoApi";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import type { MemoResponse } from "@/types/api/memo";
 
 import styles from "./memo-list-panel.module.css";
 
@@ -30,9 +33,13 @@ export type MemoListItem = {
 };
 
 export type MemoListPanelProps = HTMLAttributes<HTMLElement> & {
+  autoLoad?: boolean;
   memos?: MemoListItem[];
   onOpenMemo?: (memoId: string) => void;
   onSaveDraft?: (memoId: string) => void;
+  pageSize?: number;
+  roomId?: string | null;
+  roomLabel?: string | null;
   selectedMemoId?: string;
 };
 
@@ -78,20 +85,95 @@ export function buildDefaultMemoList(t: TranslateFn): MemoListItem[] {
   ];
 }
 
+function formatMemoUpdatedLabel(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short",
+  }).format(date);
+}
+
+function memoTitleFromBody(t: TranslateFn, body: string) {
+  const firstLine = body
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (!firstLine) return t("widget.memo.empty");
+  return firstLine.length > 34 ? `${firstLine.slice(0, 34)}...` : firstLine;
+}
+
+function toMemoListItem(t: TranslateFn, memo: MemoResponse, roomLabel?: string | null): MemoListItem {
+  return {
+    body: memo.body.trim() || t("widget.memo.empty"),
+    id: memo.id,
+    projectRoomLabel: memo.roomId ? (roomLabel ?? t("memo.scope.projectRoom")) : undefined,
+    scope: memo.roomId ? "PROJECT_ROOM" : "PERSONAL",
+    status: "SAVED",
+    title: memoTitleFromBody(t, memo.body),
+    updatedLabel: formatMemoUpdatedLabel(memo.updatedAt),
+  };
+}
+
 export function MemoListPanel({
+  autoLoad = true,
   className,
   memos,
   onOpenMemo,
   onSaveDraft,
+  pageSize = 20,
+  roomId = null,
+  roomLabel = null,
   selectedMemoId,
   ...props
 }: MemoListPanelProps) {
   const { t } = useI18n();
-  const memoList = memos ?? buildDefaultMemoList(t);
+  const [loadedMemos, setLoadedMemos] = useState<MemoListItem[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const memoList = useMemo(() => memos ?? loadedMemos ?? (autoLoad ? [] : buildDefaultMemoList(t)), [autoLoad, loadedMemos, memos, t]);
   const activeSelectedMemoId = selectedMemoId ?? memoList[0]?.id;
   const selectedMemo = memoList.find((memo) => memo.id === activeSelectedMemoId) ?? memoList[0];
   const localDraftCount = memoList.filter((memo) => memo.status === "LOCAL_DRAFT").length;
   const projectRoomMemoCount = memoList.filter((memo) => memo.scope === "PROJECT_ROOM").length;
+
+  useEffect(() => {
+    if (!autoLoad || memos) return;
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      setLoading(true);
+      setLoadFailed(false);
+
+      const request = roomId ? memoApi.listRoom(roomId, { size: pageSize }) : memoApi.listPersonal({ size: pageSize });
+
+      void request
+        .then((page) => {
+          if (cancelled) return;
+          setLoadedMemos(page.items.filter((memo) => memo.status === "ACTIVE").map((memo) => toMemoListItem(t, memo, roomLabel)));
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setLoadedMemos([]);
+          setLoadFailed(true);
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        });
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [autoLoad, memos, pageSize, roomId, roomLabel, t]);
 
   return (
     <GlassPanel as="section" className={cn(styles.panel, className)} {...props}>
@@ -133,7 +215,7 @@ export function MemoListPanel({
         <section className={styles.listPanel} aria-label={t("memo.list.listAria")}>
           <div className={styles.sectionTitle}>
             <strong>{t("memo.list.recent")}</strong>
-            <StatusBadge tone="memo">{t("memo.list.count", { count: memoList.length })}</StatusBadge>
+            <StatusBadge tone={loadFailed ? "warning" : loading ? "pending" : "memo"}>{t("memo.list.count", { count: memoList.length })}</StatusBadge>
           </div>
           <div className={styles.memoStack}>
             {memoList.map((memo) => {

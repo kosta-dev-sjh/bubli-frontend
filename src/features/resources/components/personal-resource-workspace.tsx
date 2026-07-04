@@ -7,12 +7,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
+import { settingsApi } from "@/features/settings/api/settingsApi";
 import { useI18n } from "@/lib/i18n";
-import { PERSONAL_RESOURCES_CHANGED_EVENT } from "@/lib/local/managed-folder-client";
+import {
+  openPersonalLocalFile,
+  PERSONAL_RESOURCES_CHANGED_EVENT,
+  readPersonalLocalFilePreview,
+  reindexPersonalLocalFile,
+  searchPersonalLocalFiles,
+  syncPersonalLocalFileEventsToServer,
+} from "@/lib/local/managed-folder-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
 import { ACTIVE_PROJECT_ROOM_CHANGE_EVENT, getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewPersonalResources } from "@/lib/workspace-preview-data";
+import type { LocalFilePreviewResult, LocalFileSearchResult } from "@/lib/tauri/commands";
 import type { ResourceResponse } from "@/types/api/resource";
 
 import {
@@ -34,6 +43,13 @@ type PersonalState =
   | { kind: "auth" }
   | { kind: "error"; message: string };
 
+type LocalIndexedFile = LocalFileSearchResult["items"][number];
+
+type LocalFilePreviewState =
+  | { kind: "loading" }
+  | { kind: "ready"; data: LocalFilePreviewResult }
+  | { kind: "error"; message: string };
+
 export function PersonalResourceWorkspace() {
   const { t } = useI18n();
   const [state, setState] = useState<PersonalState>({ kind: "loading" });
@@ -43,6 +59,11 @@ export function PersonalResourceWorkspace() {
   const [previewIntent, setPreviewIntent] = useState<ResourcePreviewIntent | null>(null);
   const [isTauri, setIsTauri] = useState(false);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(() => getActiveProjectRoomId());
+  const [localFolderConsent, setLocalFolderConsent] = useState(false);
+  const [localMatches, setLocalMatches] = useState<LocalIndexedFile[]>([]);
+  const [localSearchState, setLocalSearchState] = useState<"idle" | "loading" | "ready" | "blocked" | "error">("idle");
+  const [localSearchMessage, setLocalSearchMessage] = useState<string | null>(null);
+  const [localFilePreviews, setLocalFilePreviews] = useState<Record<string, LocalFilePreviewState>>({});
 
   const loadResources = useCallback(async () => {
     try {
@@ -68,12 +89,34 @@ export function PersonalResourceWorkspace() {
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      setIsTauri(isTauriRuntime());
+      const desktopRuntime = isTauriRuntime();
+      setIsTauri(desktopRuntime);
       void loadResources();
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
   }, [loadResources]);
+
+  useEffect(() => {
+    if (!isTauri) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void settingsApi
+      .getPrivacyConsents()
+      .then((privacy) => {
+        if (!cancelled) setLocalFolderConsent(Boolean(privacy.localFolderEnabled));
+      })
+      .catch(() => {
+        if (!cancelled) setLocalFolderConsent(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isTauri]);
 
   useEffect(() => {
     function handleRoomChange() {
@@ -106,6 +149,144 @@ export function PersonalResourceWorkspace() {
       return `${resource.title} ${versionName} ${resource.status}`.toLowerCase().includes(term);
     });
   }, [query, resources]);
+
+  useEffect(() => {
+    const term = query.trim();
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      setLocalFilePreviews({});
+
+      if (!isTauri || !term) {
+        setLocalMatches([]);
+        setLocalSearchState("idle");
+        setLocalSearchMessage(null);
+        return;
+      }
+
+      if (!localFolderConsent) {
+        setLocalMatches([]);
+        setLocalSearchState("blocked");
+        setLocalSearchMessage(t("settings.privacy.folder.title"));
+        return;
+      }
+
+      setLocalSearchState("loading");
+      setLocalSearchMessage(null);
+      void searchPersonalLocalFiles({ consentGranted: true, limit: 6, query: term }).then((result) => {
+        if (cancelled) return;
+
+        if (result.status === "ready") {
+          setLocalMatches(result.data.items);
+          setLocalSearchState("ready");
+          setLocalSearchMessage(t("settings.msg.localFilesFound", { count: result.data.items.length }));
+          return;
+        }
+
+        setLocalMatches([]);
+        setLocalSearchState(result.status === "blocked" ? "blocked" : "error");
+        setLocalSearchMessage(result.message);
+      });
+    }, !isTauri || !term || !localFolderConsent ? 0 : 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [isTauri, localFolderConsent, query, t]);
+
+  const openLocalIndexedFile = useCallback(
+    async (localFileId: string) => {
+      if (!localFolderConsent) return;
+      await openPersonalLocalFile({ consentGranted: true, localFileId });
+    },
+    [localFolderConsent],
+  );
+
+  const previewLocalIndexedFile = useCallback(
+    async (localFileId: string) => {
+      if (!localFolderConsent) return;
+
+      setLocalFilePreviews((current) => ({ ...current, [localFileId]: { kind: "loading" } }));
+      const result = await readPersonalLocalFilePreview({ consentGranted: true, localFileId, maxChars: 2400 });
+      if (result.status !== "ready") {
+        setLocalFilePreviews((current) => ({ ...current, [localFileId]: { kind: "error", message: result.message } }));
+        return;
+      }
+
+      setLocalFilePreviews((current) => ({ ...current, [localFileId]: { kind: "ready", data: result.data } }));
+    },
+    [localFolderConsent],
+  );
+
+  const reindexLocalIndexedFile = useCallback(
+    async (localFileId: string) => {
+      if (!localFolderConsent) return;
+
+      setLocalFilePreviews((current) => {
+        const next = { ...current };
+        delete next[localFileId];
+        return next;
+      });
+      setLocalSearchState("loading");
+
+      const result = await reindexPersonalLocalFile({ consentGranted: true, localFileId });
+      if (result.status !== "ready") {
+        setLocalSearchState(result.status === "blocked" ? "blocked" : "error");
+        setLocalSearchMessage(result.message);
+        return;
+      }
+
+      const term = query.trim();
+      if (term) {
+        const searchResult = await searchPersonalLocalFiles({ consentGranted: true, limit: 6, query: term });
+        if (searchResult.status === "ready") {
+          setLocalMatches(searchResult.data.items);
+          setLocalSearchState("ready");
+        } else {
+          setLocalSearchState(searchResult.status === "blocked" ? "blocked" : "error");
+          setLocalSearchMessage(searchResult.message);
+          return;
+        }
+      } else {
+        setLocalSearchState("idle");
+      }
+
+      setLocalSearchMessage(
+        result.data.status === "MISSING"
+          ? t("settings.msg.fileMissing", { name: result.data.name })
+          : result.data.changed
+            ? t("settings.msg.fileReindexedChanged", { name: result.data.name })
+            : t("settings.msg.fileReindexed", { name: result.data.name }),
+      );
+    },
+    [localFolderConsent, query, t],
+  );
+
+  const syncLocalIndexedChanges = useCallback(async () => {
+    if (!localFolderConsent) {
+      setLocalSearchState("blocked");
+      setLocalSearchMessage(t("local.folder.consentRequired"));
+      return;
+    }
+
+    setLocalSearchState("loading");
+    setLocalSearchMessage(t("common.loading"));
+
+    const result = await syncPersonalLocalFileEventsToServer({ consentGranted: true, limit: 20 });
+    if (result.status !== "ready") {
+      setLocalSearchState(result.status === "blocked" ? "blocked" : "error");
+      setLocalSearchMessage(result.message);
+      return;
+    }
+
+    await loadResources();
+    setLocalSearchState("ready");
+    setLocalSearchMessage(
+      result.data.syncedCount > 0 || result.data.sentCount > 0
+        ? t("local.folder.synced", { count: result.data.syncedCount })
+        : t("local.folder.noChanges"),
+    );
+  }, [loadResources, localFolderConsent, t]);
 
   const selectedResource = selectedResourceId ? filteredResources.find((resource) => resource.id === selectedResourceId) ?? null : null;
   const roomBoardHref = activeRoomId ? `/app/project-rooms/${activeRoomId}/resources` : "/app/project-rooms";
@@ -191,9 +372,78 @@ export function PersonalResourceWorkspace() {
                       : t("resources.workspace.syncDescWeb")}
                   </span>
                 </span>
+                {isTauri ? (
+                  <Button disabled={!localFolderConsent || localSearchState === "loading"} onClick={() => void syncLocalIndexedChanges()} size="sm" type="button" variant="quiet">
+                    {t("settings.lso.folder.target")}
+                  </Button>
+                ) : null}
               </div>
 
               {actionError ? <p className={styles.errorLine}>{actionError}</p> : null}
+
+              {isTauri && query.trim() ? (
+                <GlassPanel className={styles.localIndexPanel}>
+                  <div className={styles.localIndexHeader}>
+                    <div>
+                      <span>{t("settings.folders.searchLocal")}</span>
+                      <strong>{localSearchState === "loading" ? t("common.loading") : localSearchMessage ?? t("settings.value.local")}</strong>
+                    </div>
+                    <span>{t("settings.value.local")}</span>
+                  </div>
+                  {localSearchState === "ready" && localMatches.length > 0 ? (
+                    <div className={styles.localIndexRows}>
+                      {localMatches.map((file) => {
+                        const preview = localFilePreviews[file.localFileId];
+
+                        return (
+                          <div className={styles.localIndexRow} key={file.localFileId}>
+                            <div>
+                              <strong>{file.name}</strong>
+                              <small>{file.path}</small>
+                              {file.matchedText ? <p>{file.matchedText}</p> : null}
+                            </div>
+                            <div className={styles.localIndexActions}>
+                              <Button
+                                disabled={preview?.kind === "loading"}
+                                onClick={() => void previewLocalIndexedFile(file.localFileId)}
+                                size="sm"
+                                type="button"
+                                variant="quiet"
+                              >
+                                {preview?.kind === "loading" ? t("common.loading") : t("settings.font.preview")}
+                              </Button>
+                              <Button onClick={() => void openLocalIndexedFile(file.localFileId)} size="sm" type="button" variant="quiet">
+                                {t("common.open")}
+                              </Button>
+                              <Button onClick={() => void reindexLocalIndexedFile(file.localFileId)} size="sm" type="button" variant="quiet">
+                                {t("settings.folders.reindex")}
+                              </Button>
+                            </div>
+                            {preview ? (
+                              <div className={styles.localIndexPreview}>
+                                {preview.kind === "ready" ? (
+                                  <>
+                                    <span>{preview.data.status}</span>
+                                    <pre>{preview.data.previewText?.trim() || preview.data.status}</pre>
+                                  </>
+                                ) : preview.kind === "error" ? (
+                                  <p>{preview.message}</p>
+                                ) : (
+                                  <p>{t("common.loading")}</p>
+                                )}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className={styles.localIndexEmpty}>
+                      {localSearchState === "loading" ? t("common.loading") : localSearchMessage ?? t("resources.workspace.previewEmptyHint")}
+                    </p>
+                  )}
+                </GlassPanel>
+              ) : null}
 
               {state.kind === "loading" ? (
                 <div aria-hidden="true" className={styles.rows}>

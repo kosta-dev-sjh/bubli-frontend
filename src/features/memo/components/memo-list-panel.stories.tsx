@@ -25,16 +25,22 @@ const personalOnly: MemoListItem[] = [
   },
 ];
 
-export const Default: Story = {};
+export const Default: Story = {
+  args: {
+    autoLoad: false,
+  },
+};
 
 export const PersonalOnly: Story = {
   args: {
+    autoLoad: false,
     memos: personalOnly,
   },
 };
 
 export const Empty: Story = {
   args: {
+    autoLoad: false,
     memos: [],
   },
 };

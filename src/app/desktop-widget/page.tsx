@@ -19,6 +19,7 @@ import {
   type WidgetTaskResponse,
   type WidgetVoiceRoomResponse,
 } from "@/features/widget/api/widgetDisplayApi";
+import { authApi } from "@/features/auth/api/authApi";
 import { widgetApi, type BackendWidgetBubbleType, type WidgetBubbleSettingResponse, type WidgetContextResponse } from "@/features/widget/api/widgetApi";
 import { widgetCommunicationApi } from "@/features/widget/api/widgetCommunicationApi";
 import { DesktopWidgetBubble, DesktopWidgetBubbleBar, DesktopWidgetMenuOrb, desktopWidgetBubbleTypes } from "@/features/widget/components/desktop-widget-bubble";
@@ -30,7 +31,7 @@ import {
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
 import { timerApi } from "@/features/timer/api/timerApi";
-import { getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
+import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -38,7 +39,7 @@ import { readWidgetSummary } from "@/lib/widget";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import type { TimeLogResponse } from "@/types/api/timer";
-import type { WidgetBubbleType as ApiWidgetBubbleType, WidgetSummaryResponse } from "@/types/api/widget";
+import type { WidgetSummaryResponse } from "@/types/api/widget";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
@@ -51,12 +52,10 @@ const apiBubbleTypeMap: Partial<Record<WidgetBubbleType, BackendWidgetBubbleType
   todo: "TODO",
 };
 
-const apiItemBubbleTypeMap: Record<WidgetBubbleType, ApiWidgetBubbleType> = {
+const apiItemBubbleTypeMap: Partial<Record<WidgetBubbleType, BackendWidgetBubbleType>> = {
   agent: "AGENT",
-  alert: "ALERT",
   chat: "CHAT",
   memo: "MEMO",
-  resource: "RESOURCE",
   schedule: "SCHEDULE",
   timer: "TIMER",
   todo: "TODO",
@@ -707,6 +706,10 @@ function DesktopWidgetSurface() {
     bodyStyle.height = "100%";
     bodyStyle.display = "grid";
 
+    if (isTauri) {
+      void tauriCommands.appReady().catch(() => undefined);
+    }
+
     return () => {
       delete document.documentElement.dataset.bubliSurface;
       delete document.body.dataset.bubliSurface;
@@ -724,7 +727,7 @@ function DesktopWidgetSurface() {
       bodyStyle.height = previous.bodyHeight;
       bodyStyle.display = previous.bodyDisplay;
     };
-  }, []);
+  }, [isTauri]);
 
   useEffect(() => {
     if (!isTauri) return;
@@ -734,7 +737,22 @@ function DesktopWidgetSurface() {
     async function restoreWidgetAuthSession() {
       const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
       if (cancelled) return;
-      setHasAuthSession(Boolean(session));
+
+      if (!session) {
+        setHasAuthSession(false);
+        setAuthReady(true);
+        return;
+      }
+
+      try {
+        await authApi.getMe();
+        if (cancelled) return;
+        setHasAuthSession(true);
+      } catch {
+        clearStoredAuthSession();
+        if (cancelled) return;
+        setHasAuthSession(false);
+      }
       setAuthReady(true);
     }
 
@@ -742,6 +760,21 @@ function DesktopWidgetSurface() {
 
     return () => {
       cancelled = true;
+    };
+  }, [isTauri]);
+
+  useEffect(() => {
+    if (!isTauri) return;
+
+    const handleAuthSessionChange = () => {
+      setHasAuthSession(Boolean(getStoredAuthSession()));
+      setAuthReady(true);
+    };
+
+    window.addEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
+
+    return () => {
+      window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
     };
   }, [isTauri]);
 
@@ -799,8 +832,7 @@ function DesktopWidgetSurface() {
 
     async function loadWidgetApiState() {
       try {
-        const summaryResult = await readWidgetSummary();
-        const summary = summaryResult.status === "ready" ? summaryResult.data : null;
+        const summary = await readWidgetDisplaySummary();
         if (cancelled) return;
         if (!summary) return;
 
@@ -820,20 +852,6 @@ function DesktopWidgetSurface() {
           setWindowVisible(serverMode !== "MINIMIZED");
         }
 
-        if (activeSetting?.id) {
-          const now = new Date();
-          const summaryDate = now.toISOString().slice(0, 10);
-          void widgetApi.saveUsageSummary({
-            bubbleSettingId: activeSetting.id,
-            deviceId: windowId ?? "tauri-local",
-            interactionCount: 0,
-            openCount: 1,
-            rollupKey: `${windowId ?? "tauri-local"}:${activeSetting.id}:${summaryDate}`,
-            summaryDate,
-            syncedAt: now.toISOString(),
-            visibleSeconds: 1,
-          }).catch(() => undefined);
-        }
       } catch {
         // 인증 전이거나 서버가 없으면 기본 버블 데이터로 유지한다.
       }
@@ -844,10 +862,10 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, widgetSessionReady, windowId]);
+  }, [isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, widgetSessionReady]);
 
   useEffect(() => {
-    if (!isTauri || isWidgetChrome) return;
+    if (!isTauri) return;
 
     let unlisten: (() => void) | null = null;
     let cancelled = false;
@@ -869,7 +887,7 @@ function DesktopWidgetSurface() {
       cancelled = true;
       unlisten?.();
     };
-  }, [isTauri, isWidgetChrome]);
+  }, [isTauri]);
 
   useEffect(() => {
     return () => {
@@ -885,8 +903,7 @@ function DesktopWidgetSurface() {
     let cancelled = false;
 
     async function refreshWidgetContext() {
-      const summaryResult = await readWidgetSummary().catch(() => null);
-      const summary = summaryResult?.status === "ready" ? summaryResult.data : null;
+      const summary = await readWidgetDisplaySummary().catch(() => null);
       if (cancelled || !summary?.context) return;
 
       setWidgetContext((current) => {
@@ -942,7 +959,7 @@ function DesktopWidgetSurface() {
           widgetDisplayApi.listMemos(selectedRoomId, 6),
           widgetDisplayApi.listAgentSuggestions(selectedRoomId),
           widgetDisplayApi.listNotifications(6),
-          widgetDisplayApi.listChatRooms(6),
+          widgetDisplayApi.listChatRooms(20),
           widgetDisplayApi.listFriends(),
           selectedRoomId ? widgetDisplayApi.getProjectRoom(selectedRoomId) : Promise.resolve(null),
           voiceRoomId ? widgetDisplayApi.getVoiceRoom(voiceRoomId) : Promise.resolve(null),
@@ -952,7 +969,11 @@ function DesktopWidgetSurface() {
 
       const notifications = notificationsResult.status === "fulfilled" ? notificationsResult.value.items : [];
       const rooms = chatRoomsResult.status === "fulfilled" ? chatRoomsResult.value.items : [];
-      const activeRoom = rooms.find((item) => (selectedRoomId ? item.roomId === selectedRoomId : true));
+      let activeRoom = rooms.find((item) => (selectedRoomId ? item.roomId === selectedRoomId : true)) ?? null;
+      if (selectedRoomId && !activeRoom) {
+        activeRoom = await widgetDisplayApi.createProjectRoomChatRoom(selectedRoomId).catch(() => null);
+      }
+      if (cancelled) return;
       const messages = activeRoom ? await widgetDisplayApi.listChatMessages(activeRoom.id, 6).catch(() => null) : null;
       const cachedMessages =
         isTauri && activeRoom && !messages
@@ -978,12 +999,14 @@ function DesktopWidgetSurface() {
           .catch(() => undefined);
       }
 
-      setNotificationSignal(buildNotificationSignal(t, notifications));
       const summaryDashboard = dashboardFromWidgetSummary(summary);
-      const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : summaryDashboard;
+      const dashboard = selectedRoomId ? null : dashboardResult.status === "fulfilled" ? dashboardResult.value : summaryDashboard;
       const activeTimerCandidate = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
       const activeTimer = selectedRoomId && activeTimerCandidate?.roomId !== selectedRoomId ? null : activeTimerCandidate;
       const messageItems = messages?.items ?? cachedMessages;
+      const schedules = schedulesResult.status === "fulfilled" ? schedulesResult.value.items : selectedRoomId ? [] : (summaryDashboard?.todaySchedules ?? []);
+      const tasks = tasksResult.status === "fulfilled" ? tasksResult.value.items : selectedRoomId ? [] : (summaryDashboard?.todayTasks ?? []);
+      setNotificationSignal(buildNotificationSignal(t, notifications));
       setActiveTimerHeartbeatId(activeTimer?.status === "RUNNING" ? activeTimer.id : null);
 
       const nextDisplayBubbles = buildDisplayBubbles({
@@ -996,9 +1019,9 @@ function DesktopWidgetSurface() {
           resources: resourcesResult.status === "fulfilled" ? resourcesResult.value.items : [],
           room: roomResult.status === "fulfilled" ? roomResult.value : null,
           roomId: selectedRoomId,
-          schedules: schedulesResult.status === "fulfilled" ? schedulesResult.value.items : (summaryDashboard?.todaySchedules ?? []),
+          schedules,
           suggestions: suggestionsResult.status === "fulfilled" ? suggestionsResult.value : [],
-          tasks: tasksResult.status === "fulfilled" ? tasksResult.value.items : (summaryDashboard?.todayTasks ?? []),
+          tasks,
           timer: activeTimer,
           voiceConnectionLabel,
           voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
@@ -1276,18 +1299,28 @@ function DesktopWidgetSurface() {
       }
 
       const itemStateId = item.stateId ?? (isUuid(item.id) ? item.id : null);
-      if (itemStateId) {
-        await widgetApi.updateItemState(itemStateId, {
-          bubbleType: apiItemBubbleTypeMap[activeBubble],
-          itemId: item.id,
-          itemType,
-          state,
-        });
+      const applyLocalState = () => {
         setDisplayBubbles((current) => ({
           ...current,
           [activeBubble]: applyItemStateActionToBubble(current[activeBubble], item.id, state),
         }));
         setItemStateOverrides((current) => ({ ...current, [item.id]: state }));
+      };
+      const backendBubbleType = apiItemBubbleTypeMap[activeBubble];
+
+      if (!backendBubbleType) {
+        applyLocalState();
+        return;
+      }
+
+      if (itemStateId) {
+        await widgetApi.updateItemState(itemStateId, {
+          bubbleType: backendBubbleType,
+          itemId: item.id,
+          itemType,
+          state,
+        });
+        applyLocalState();
       }
     },
     [activeBubble, isTauri],

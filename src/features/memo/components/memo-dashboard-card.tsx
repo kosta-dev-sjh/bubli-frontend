@@ -21,6 +21,14 @@ type MemoListState =
 const MEMO_PAGE_SIZE = 10;
 const MEMO_VISIBLE_COUNT = 4;
 
+// 상태가 ACTIVE인 메모만, 최근 수정 순으로 정렬해 보여준다(dev PR 201 동작 이식).
+function normalizeMemoItems(items: MemoResponse[]) {
+  return items
+    .filter((memo) => memo.status === "ACTIVE")
+    .slice()
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+}
+
 function formatMemoTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -35,7 +43,7 @@ function formatMemoTime(value: string) {
   }).format(date);
 }
 
-export function MemoDashboardCard() {
+export function MemoDashboardCard({ roomId = null }: { roomId?: string | null }) {
   const { t } = useI18n();
   const [state, setState] = useState<MemoListState>({ kind: "loading" });
   const [composeBody, setComposeBody] = useState("");
@@ -60,9 +68,11 @@ export function MemoDashboardCard() {
   );
 
   const loadMemos = useCallback(async () => {
+    setState({ kind: "loading" });
+
     try {
-      const page = await memoApi.listPersonal({ size: MEMO_PAGE_SIZE });
-      setState({ kind: "ready", memos: page.items });
+      const page = roomId ? await memoApi.listRoom(roomId, { size: MEMO_PAGE_SIZE }) : await memoApi.listPersonal({ size: MEMO_PAGE_SIZE });
+      setState({ kind: "ready", memos: normalizeMemoItems(page.items) });
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
@@ -73,7 +83,7 @@ export function MemoDashboardCard() {
         message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("memo.card.loadFailed"),
       });
     }
-  }, [t]);
+  }, [roomId, t]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -96,7 +106,7 @@ export function MemoDashboardCard() {
       setNotice(null);
 
       try {
-        const created = await memoApi.createPersonal({ body });
+        const created = roomId ? await memoApi.createRoom(roomId, { body }) : await memoApi.createPersonal({ body });
         setState((current) => (current.kind === "ready" ? { kind: "ready", memos: [created, ...current.memos] } : current));
         setComposeBody("");
         setNotice(t("memo.card.savedNotice"));
@@ -106,7 +116,7 @@ export function MemoDashboardCard() {
         setCreating(false);
       }
     },
-    [composeBody, resolveErrorNotice, t],
+    [composeBody, resolveErrorNotice, roomId, t],
   );
 
   const handleUpdate = useCallback(

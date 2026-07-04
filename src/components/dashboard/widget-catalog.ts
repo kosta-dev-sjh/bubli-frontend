@@ -22,7 +22,7 @@ export const WIDGET_CATALOG: DashboardWidgetDef[] = [
   { category: "time", descriptionKey: "dashboard.catalog.focusStats.desc", roomScope: true, size: "M", titleKey: "dashboard.catalog.focusStats.title", widgetId: "focus-stats" },
   { category: "agent", descriptionKey: "dashboard.catalog.agentQueue.desc", size: "S", titleKey: "dashboard.catalog.agentQueue.title", widgetId: "agent-queue" },
   { category: "info", descriptionKey: "dashboard.catalog.recentResources.desc", roomScope: true, size: "M", titleKey: "dashboard.catalog.recentResources.title", widgetId: "recent-resources" },
-  { category: "work", descriptionKey: "dashboard.catalog.quickMemo.desc", size: "M", titleKey: "dashboard.catalog.quickMemo.title", widgetId: "quick-memo" },
+  { category: "work", descriptionKey: "dashboard.catalog.quickMemo.desc", roomScope: true, size: "M", titleKey: "dashboard.catalog.quickMemo.title", widgetId: "quick-memo" },
   // 아래 항목은 스토리북/보관함 데모용 정의로 남겨둔다(홈 보드 연결 대상 아님).
   { category: "work", descriptionKey: "dashboard.catalog.nextFocus.desc", size: "M", titleKey: "dashboard.catalog.nextFocus.title", widgetId: "next-focus" },
   { category: "time", descriptionKey: "dashboard.catalog.timer.desc", size: "S", titleKey: "dashboard.catalog.timer.title", widgetId: "timer" },

@@ -14,8 +14,9 @@ let launchPromise: Promise<void> | null = null;
 let launchGeneration = 0;
 let launchedAuthenticatedSurfaces = false;
 
+const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
 const loginStartupWindows: WidgetWindowOpenInput[] = [
-  { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" },
+  loginStartupBarWindow,
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
 ];
 const startupBubblePriority: WidgetBubbleType[] = ["todo", "schedule", "timer", "chat", "agent", "memo", "resource", "alert"];
@@ -72,13 +73,16 @@ function getPrimaryStartupBubble(settings: WidgetBubbleSettingResponse[]): Widge
 
 export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInput[]> {
   const settings = await widgetApi.getSettings().catch(() => null);
-  const primaryBubble = settings ? getPrimaryStartupBubble(settings.bubbles) : null;
-
-  if (!primaryBubble) {
+  if (!settings) {
     return loginStartupWindows;
   }
 
-  return [{ bubbleType: "bar", mode: "DEFAULT", windowId: "bar" }, primaryBubble];
+  const primaryBubble = getPrimaryStartupBubble(settings.bubbles);
+  if (!primaryBubble) {
+    return [loginStartupBarWindow];
+  }
+
+  return [loginStartupBarWindow, primaryBubble];
 }
 
 async function resolveLaunchSelectedRoomId() {
@@ -167,8 +171,8 @@ export async function stopTauriAuthenticatedSurfaces() {
   launchPromise = null;
   launchedAuthenticatedSurfaces = false;
   await stopActivityAutoCapture({ flush: true });
-  stopManagedFolderAutoSync();
-  stopWidgetUsageAutoSync();
+  await stopManagedFolderAutoSync({ flush: true });
+  await stopWidgetUsageAutoSync({ flush: true });
 
   if (!isTauriRuntime()) return;
 

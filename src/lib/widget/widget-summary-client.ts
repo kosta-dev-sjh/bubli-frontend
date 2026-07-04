@@ -136,21 +136,31 @@ async function readServerWidgetSummary(
 }
 
 async function readLocalWidgetSummaryCache(): Promise<WidgetSummaryResponse | null> {
-  const cached = await tauriCommands.readWidgetSummaryCache({ cacheKey: getWidgetSummaryCacheKey() });
+  const cacheKey = getWidgetSummaryCacheKey();
+  if (!cacheKey) return null;
+
+  const cached = await tauriCommands.readWidgetSummaryCache({ cacheKey });
   if (!cached) return null;
   const parsed = JSON.parse(cached.summaryJson);
   return isWidgetSummaryResponse(parsed) ? parsed : null;
 }
 
 async function writeLocalWidgetSummaryCache(summary: WidgetSummaryResponse) {
+  const cacheKey = getWidgetSummaryCacheKey();
+  if (!cacheKey) return;
+
   await tauriCommands.storeWidgetSummaryCache({
-    cacheKey: getWidgetSummaryCacheKey(),
+    cacheKey,
     summaryJson: JSON.stringify(summary),
   });
 }
 
 function getWidgetSummaryCacheKey() {
-  return getJwtSubject(getStoredAuthSession()?.accessToken ?? null);
+  const token = getStoredAuthSession()?.accessToken ?? null;
+  const subject = getJwtSubject(token);
+  if (subject) return `sub:${subject}`;
+  if (token?.trim()) return `token:${hashCacheToken(token)}`;
+  return null;
 }
 
 function getJwtSubject(token: string | null) {
@@ -165,6 +175,17 @@ function getJwtSubject(token: string | null) {
   } catch {
     return null;
   }
+}
+
+function hashCacheToken(token: string) {
+  let hash = 0x811c9dc5;
+
+  for (let index = 0; index < token.length; index += 1) {
+    hash ^= token.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 function isWidgetSummaryResponse(value: unknown): value is WidgetSummaryResponse {

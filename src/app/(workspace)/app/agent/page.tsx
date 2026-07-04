@@ -14,7 +14,8 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
-import { getActiveProjectRoomId, setActiveProjectRoomId } from "@/lib/workspace-active-room";
+import { useActiveProjectRoom } from "@/lib/use-active-project-room";
+import { setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
   workspacePreviewPersonalSuggestions,
@@ -172,6 +173,7 @@ const JOB_POLL_INTERVAL_MS = 5000;
 function AgentPageContent() {
   const { locale, t } = useI18n();
   const searchParams = useSearchParams();
+  const { roomId: activeRoomId } = useActiveProjectRoom();
   const [state, setState] = useState<AgentPageState>({ kind: "loading" });
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [dailyUpdatingId, setDailyUpdatingId] = useState<string | null>(null);
@@ -310,13 +312,13 @@ function AgentPageContent() {
   }, [t]);
 
   useEffect(() => {
-    const initialRoomId = searchParams.get("roomId") ?? getActiveProjectRoomId();
+    const initialRoomId = searchParams.get("roomId") ?? activeRoomId;
     const timeoutId = window.setTimeout(() => {
       void load(initialRoomId);
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [load, searchParams]);
+  }, [activeRoomId, load, searchParams]);
 
   // 숫자는 최대 3개만 — 후보 수, 하루 정리, 생성 문서.
   const counts = useMemo(() => {

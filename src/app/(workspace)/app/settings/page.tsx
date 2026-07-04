@@ -13,7 +13,7 @@ import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
-import { widgetApi } from "@/features/widget/api/widgetApi";
+import { isBackendWidgetBubbleType, widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { Locale, MessageKey, TranslateVars } from "@/lib/i18n";
@@ -26,6 +26,7 @@ import {
   restoreLocalSqliteBackup,
 } from "@/lib/local/local-cache-client";
 import {
+  getPersonalLocalFileAnalysisStatus,
   listPersonalManagedFolders,
   removePersonalManagedFolder,
   selectPersonalManagedFolder,
@@ -37,8 +38,12 @@ import {
   tauriCommands,
   type AppMonitorInfo,
   type AppMonitorPreference,
+  type LocalFileAnalysisStatusResult,
   type SqliteIntegrityResult,
+  type WidgetWindowMode,
 } from "@/lib/tauri/commands";
+import { toLocalWidgetBubbleType } from "@/lib/widget/widget-types";
+import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
@@ -176,6 +181,43 @@ function storageLabel(t: TranslateFn, storage: StorageUsageResponse | null) {
 function localSqliteDiagnosticsLabel(result: SqliteIntegrityResult) {
   const freePages = Math.max(0, result.freelistCount);
   return `DB ${byteLabel(result.databaseSizeBytes)} · WAL ${byteLabel(result.walSizeBytes)} · ${result.pageCount} pages · free ${freePages} · ${result.journalMode}`;
+}
+
+// dev PR 185 이식: 아웃박스 동기화 결과에 로컬 파일 분석 상태를 함께 표기한다.
+function localFileAnalysisStatusLabel(status: LocalFileAnalysisStatusResult) {
+  const parts = [
+    `analysis pending ${status.pendingCount}`,
+    `failed ${status.failedCount}`,
+    `retryable ${status.retryableFailedCount}`,
+    `synced ${status.syncedCount}`,
+  ];
+
+  if (status.latestErrorMessage) {
+    parts.push(`latest error: ${status.latestErrorMessage}`);
+  }
+
+  return parts.join(" / ");
+}
+
+// dev PR 216 이식: 버블 설정 값으로 데스크톱 위젯 창 모드를 결정한다.
+function getWidgetWindowModeFromSetting(bubble: WidgetBubbleSettingResponse): WidgetWindowMode {
+  if (bubble.minimized) return "MINIMIZED";
+  if (bubble.ghostMode) return "GHOST";
+  if (bubble.opacity !== null && bubble.opacity !== undefined && bubble.opacity < 0.95) return "TRANSLUCENT";
+  return "DEFAULT";
+}
+
+// dev PR 186 이식: 서버 저장 응답에 백엔드 미지원(로컬 전용) 버블 항목을 보존해 합친다.
+function mergeWidgetBubbleSettings(
+  current: WidgetBubbleSettingResponse[],
+  saved: WidgetBubbleSettingResponse[],
+) {
+  const savedBubbleTypes = new Set(saved.map((bubble) => bubble.bubbleType));
+  const localOnlyBubbles = current.filter(
+    (bubble) => !isBackendWidgetBubbleType(bubble.bubbleType) && !savedBubbleTypes.has(bubble.bubbleType),
+  );
+
+  return [...saved, ...localOnlyBubbles];
 }
 
 function userContactLabel(t: TranslateFn, user: AuthUser) {
@@ -366,8 +408,13 @@ export default function SettingsPage() {
   }, []);
 
   const restoreManagedFolderWatchers = useCallback(async () => {
-    if (!desktopRuntime) return;
-    await tauriCommands.watchAllManagedFolders().catch(() => undefined);
+    if (!desktopRuntime) return false;
+    try {
+      await tauriCommands.watchAllManagedFolders();
+      return true;
+    } catch {
+      return false;
+    }
   }, [desktopRuntime]);
 
   useEffect(() => {
@@ -552,6 +599,37 @@ export default function SettingsPage() {
       }));
       setMessage({ text: t("settings.msg.bubbleSaved"), tone: "approved" });
 
+      // dev PR 216 이식: 토글 결과를 데스크톱 위젯 창 열림/닫힘 상태와 즉시 동기화한다.
+      const reconcileTauriWindow = (bubbleSetting: WidgetBubbleSettingResponse) => {
+        if (!desktopRuntime) return;
+
+        const localBubbleType = toLocalWidgetBubbleType(bubbleSetting.bubbleType);
+        if (bubbleSetting.enabled && !bubbleSetting.minimized) {
+          void tauriCommands
+            .openWidgetWindow({
+              bubbleType: localBubbleType,
+              mode: getWidgetWindowModeFromSetting(bubbleSetting),
+              selectedRoomId: getActiveProjectRoomId(),
+              windowId: localBubbleType,
+            })
+            .catch(() => {
+              setMessage({ text: t("settings.msg.bubbleSaveFailed"), tone: "warning" });
+            });
+        } else {
+          void tauriCommands
+            .closeWidgetWindow({ bubbleType: localBubbleType, windowId: localBubbleType })
+            .catch(() => {
+              setMessage({ text: t("settings.msg.bubbleSaveFailed"), tone: "warning" });
+            });
+        }
+      };
+
+      // dev PR 186 이식: 백엔드 미지원 버블은 서버 호출 없이 로컬 창 상태만 맞춘다.
+      if (!isBackendWidgetBubbleType(nextBubble.bubbleType)) {
+        reconcileTauriWindow(nextBubble);
+        return;
+      }
+
       try {
         const saved = await widgetApi.updateBubbles({
           bubbles: [
@@ -564,14 +642,15 @@ export default function SettingsPage() {
         });
         updateReadyState((ready) => ({
           ...ready,
-          settings: { ...ready.settings, widgetBubbles: saved },
+          settings: { ...ready.settings, widgetBubbles: mergeWidgetBubbleSettings(next, saved) },
         }));
+        reconcileTauriWindow(saved.find((item) => item.bubbleType === nextBubble.bubbleType) ?? nextBubble);
       } catch {
         if (shouldUseWorkspacePreviewData()) return;
         setMessage({ text: t("settings.msg.bubbleSaveFailed"), tone: "warning" });
       }
     },
-    [state, t, updateReadyState],
+    [desktopRuntime, state, t, updateReadyState],
   );
 
   const openGoogleCalendarConnect = useCallback(() => {
@@ -748,12 +827,23 @@ export default function SettingsPage() {
   }, [lastBackupId, t]);
 
   const checkSyncOutbox = useCallback(async () => {
-    const folderId = state.kind === "ready" ? state.settings.folders[0]?.id : undefined;
+    // dev PR 191/185 이식: 특정 폴더가 아닌 전체 아웃박스를 동기화하고, 분석 상태를 함께 표기한다.
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
-    const result = await syncPersonalLocalFileEventsToServer(
-      folderId ? { consentGranted, localFolderId: folderId } : { consentGranted },
-    );
-    setMessage({ text: localResultMessage(t, result), tone: result.status === "ready" ? "approved" : "warning" });
+    const result = await syncPersonalLocalFileEventsToServer({ consentGranted });
+    if (result.status !== "ready") {
+      setMessage({ text: localResultMessage(t, result), tone: "warning" });
+      return;
+    }
+
+    const analysisStatus = await getPersonalLocalFileAnalysisStatus({ consentGranted, maxAttempts: 3 });
+    const analysisLabel =
+      analysisStatus.status === "ready"
+        ? ` / ${localFileAnalysisStatusLabel(analysisStatus.data)}`
+        : "";
+    setMessage({
+      text: `${localResultMessage(t, result)}${analysisLabel}`,
+      tone: result.data.analysisFailedCount > 0 || (analysisStatus.status === "ready" && analysisStatus.data.failedCount > 0) ? "warning" : "approved",
+    });
   }, [state, t]);
 
   const ready = state.kind === "ready";

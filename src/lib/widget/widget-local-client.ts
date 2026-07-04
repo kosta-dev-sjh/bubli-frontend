@@ -1,4 +1,4 @@
-import { widgetApi } from "@/features/widget/api/widgetApi";
+import { isBackendWidgetBubbleType, widgetApi, type BackendWidgetBubbleType } from "@/features/widget/api/widgetApi";
 import { failed, getErrorMessage, ready, runTauriAdapter } from "@/lib/local/adapter-result";
 import { recordWidgetUsageEvent, rollupWidgetUsage } from "@/lib/local";
 import { stageWidgetUsageSummary } from "@/lib/sync";
@@ -25,7 +25,8 @@ import type {
   WidgetUsageSummarySyncAdapterResult,
 } from "@/types/local";
 
-export type WidgetItemStateSaveInput = WidgetItemStateUpdateRequest & {
+export type WidgetItemStateSaveInput = Omit<WidgetItemStateUpdateRequest, "bubbleType"> & {
+  bubbleType: BackendWidgetBubbleType;
   itemStateId: string;
 };
 
@@ -51,6 +52,11 @@ function isLocalWidgetBubbleType(value: string): value is WidgetBubbleType {
   return ["agent", "alert", "chat", "memo", "resource", "schedule", "timer", "todo"].includes(value);
 }
 
+function isBackendSupportedRollup(rollup: WidgetUsageSummaryStagedRollup) {
+  if (!isLocalWidgetBubbleType(rollup.bubbleType)) return false;
+  return isBackendWidgetBubbleType(toApiWidgetBubbleType(rollup.bubbleType));
+}
+
 function toServerUsageRollupMappings(
   rollups: WidgetUsageSummaryStagedRollup[],
   settings: WidgetSettingsResponse,
@@ -65,6 +71,10 @@ function toServerUsageRollupMappings(
     }
 
     const apiBubbleType = toApiWidgetBubbleType(rollup.bubbleType);
+    if (!isBackendWidgetBubbleType(apiBubbleType)) {
+      return [];
+    }
+
     const setting = settingsByType.get(apiBubbleType);
     if (!setting) {
       return [];
@@ -168,12 +178,38 @@ export async function syncLocalWidgetUsageSummaryToServer(
   try {
     const settings = await widgetApi.getSettings();
     const syncedAt = new Date().toISOString();
-    const mappings = toServerUsageRollupMappings(staged.data.rollups, settings, syncedAt);
+    const backendRollups = staged.data.rollups.filter(isBackendSupportedRollup);
+    const localOnlyRollupKeys = staged.data.rollups
+      .filter((rollup) => isLocalWidgetBubbleType(rollup.bubbleType) && !isBackendSupportedRollup(rollup))
+      .map((rollup) => rollup.rollupKey);
+    const localOnlyMarkResult =
+      localOnlyRollupKeys.length > 0
+        ? await tauriCommands.markWidgetUsageSummarySynced({ rollupKeys: localOnlyRollupKeys }).catch(() => ({
+            syncedCount: 0,
+          }))
+        : { syncedCount: 0 };
+
+    const mappings = toServerUsageRollupMappings(backendRollups, settings, syncedAt);
+    if (backendRollups.length === 0 && localOnlyRollupKeys.length > 0) {
+      return ready(
+        {
+          failedCount: staged.data.failedCount,
+          markedSyncedCount: localOnlyMarkResult.syncedCount,
+          responses: [],
+          sentCount: 0,
+          stagedCount: staged.data.rollups.length,
+          syncedAt,
+        },
+        commandName,
+        `Marked ${localOnlyMarkResult.syncedCount} local-only widget usage rollup${localOnlyMarkResult.syncedCount === 1 ? "" : "s"} as synced.`,
+      );
+    }
+
     if (mappings.length === 0) {
       await tauriCommands
         .markWidgetUsageSummaryFailed({
           errorMessage: "No staged widget usage rollups matched the current backend widget settings.",
-          rollupKeys: staged.data.rollups.map((rollup) => rollup.rollupKey),
+          rollupKeys: backendRollups.map((rollup) => rollup.rollupKey),
         })
         .catch(() => undefined);
       return failed("No staged widget usage rollups matched the current backend widget settings.", commandName);
@@ -193,7 +229,7 @@ export async function syncLocalWidgetUsageSummaryToServer(
       ...mappings
         .filter((mapping) => !successfulKeys.has(mapping.localRollupKey))
         .map((mapping) => mapping.localRollupKey),
-      ...staged.data.rollups
+      ...backendRollups
         .filter((rollup) => !mappings.some((mapping) => mapping.localRollupKey === rollup.rollupKey))
         .map((rollup) => rollup.rollupKey),
     ];
@@ -220,13 +256,13 @@ export async function syncLocalWidgetUsageSummaryToServer(
         .catch(() => undefined);
     }
     const rejectedCount = settled.filter((result) => result.status === "rejected").length;
-    const unmatchedCount = Math.max(0, staged.data.rollups.length - mappings.length);
+    const unmatchedCount = Math.max(0, backendRollups.length - mappings.length);
     const failedCount = staged.data.failedCount + rejectedCount + unmatchedCount;
 
     return ready(
       {
         failedCount,
-        markedSyncedCount: markResult.syncedCount,
+        markedSyncedCount: markResult.syncedCount + localOnlyMarkResult.syncedCount,
         responses,
         sentCount: responses.length,
         stagedCount: staged.data.rollups.length,

@@ -1009,7 +1009,8 @@ export function WorkspaceDashboard() {
           );
         }
         case "quick-memo":
-          return <MemoDashboardCard />;
+          // dev PR 201 이식: 위젯별 룸 범위에 맞춰 개인/룸 메모를 구분해 연결한다.
+          return <MemoDashboardCard key={scopedRoomId ?? "personal"} roomId={scopedRoomId} />;
         default:
           return null;
       }

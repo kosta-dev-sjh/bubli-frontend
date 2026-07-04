@@ -227,6 +227,116 @@
   background: var(--rb-tint);
 }
 
+.dropzone > button {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* ---------- 로컬 인덱스 검색 패널 (dev PR 180/194 이식) ---------- */
+
+.localIndexPanel {
+  display: grid;
+  gap: 10px;
+  margin: 10px 16px 0;
+  padding: 13px;
+}
+
+.localIndexHeader,
+.localIndexRow,
+.localIndexActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.localIndexHeader {
+  justify-content: space-between;
+}
+
+.localIndexHeader > div,
+.localIndexRow > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.localIndexHeader span,
+.localIndexRow small,
+.localIndexRow p {
+  color: var(--rb-ink-muted);
+  font-size: 11.5px;
+}
+
+.localIndexHeader strong,
+.localIndexRow strong {
+  overflow: hidden;
+  color: var(--rb-ink);
+  font-size: 12.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.localIndexRows {
+  display: grid;
+  gap: 8px;
+}
+
+.localIndexRow {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  border: 1px solid var(--rb-hairline);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.localIndexRow > div:first-child {
+  flex: 1 1 260px;
+}
+
+.localIndexRow small,
+.localIndexRow p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.localIndexActions {
+  flex: 0 0 auto;
+}
+
+.localIndexPreview {
+  display: grid;
+  flex: 1 1 100%;
+  gap: 6px;
+  border-top: 1px solid var(--rb-hairline);
+  padding-top: 8px;
+}
+
+.localIndexPreview span {
+  color: var(--rb-ink-accent);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.localIndexPreview pre {
+  overflow: auto;
+  max-height: 150px;
+  margin: 0;
+  color: var(--rb-ink);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.localIndexEmpty {
+  margin: 0;
+  color: var(--rb-ink-muted);
+  font-size: 12px;
+}
+
 /* ---------- 파일 행: 글리프 · 이름/메타 · 상태 칩 1개 · 호버 액션 ---------- */
 
 .rows {
@@ -1219,6 +1329,10 @@
 }
 
 [data-theme="dark"] .previewBlock {
+  background: rgba(34, 46, 72, 0.5);
+}
+
+[data-theme="dark"] .localIndexRow {
   background: rgba(34, 46, 72, 0.5);
 }
 

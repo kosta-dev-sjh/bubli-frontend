@@ -18,6 +18,7 @@ import { ApiClientError } from "@/lib/api/errors";
 import { getAuthAccessToken } from "@/lib/auth/auth-session";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
+import { readCachedRoomMessages, syncCachedRoomMessages } from "@/lib/local";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -500,6 +501,7 @@ function ChatPageContent() {
     try {
       const page = await chatApi.getMessages(chatRoomId, { size: 40 });
       const sortedMessages = [...page.items].sort((a, b) => a.roomSequence - b.roomSequence);
+      void syncCachedRoomMessages(chatRoomId, sortedMessages, 0);
       setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, sortedMessages) });
       const lastReadSequence = sortedMessages.at(-1)?.roomSequence;
       if (lastReadSequence !== undefined) {
@@ -510,6 +512,11 @@ function ChatPageContent() {
     } catch {
       if (shouldUseWorkspacePreviewData()) {
         setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, workspacePreviewChatMessages(chatRoomId)) });
+        return;
+      }
+      const cachedMessages = await readCachedRoomMessages(chatRoomId, 40);
+      if (cachedMessages.length > 0) {
+        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, cachedMessages) });
         return;
       }
       setMessagesState({ kind: "offline" });
@@ -1177,6 +1184,7 @@ function ChatPageContent() {
           resourceIds: [],
         });
         appendMessage(response.message);
+        void syncCachedRoomMessages(response.message.chatRoomId, [response.message]);
         setDraft("");
         setSelectedAttachment(null);
         setEmoticonOpen(false);
@@ -1224,6 +1232,7 @@ function ChatPageContent() {
         resourceId,
       });
       appendMessage(response);
+      void syncCachedRoomMessages(response.chatRoomId, [response]);
       setDraft("");
       setSelectedAttachment(null);
       setEmoticonOpen(false);

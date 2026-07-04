@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { Activity, AppWindow, Clock3, Database, EyeOff, ListChecks, ShieldCheck } from "lucide-react";
 
 import { Chip } from "@/components/ui/chip";
@@ -8,6 +9,8 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import { activityApi } from "../api/activityApi";
+import type { ActivityLogResponse } from "@/types/api/activity";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
@@ -16,40 +19,58 @@ type ActivitySource = {
   windowTitle: string;
   duration: string;
   projectHint: string;
-  status: "tracking" | "suggested" | "local";
+  status: "tracking" | "suggested" | "synced";
 };
 
-function buildActivitySources(t: TranslateFn): ActivitySource[] {
-  return [
-    {
-      appName: "Visual Studio Code",
-      duration: t("activity.detection.sample.vscode.duration"),
-      projectHint: t("activity.detection.sample.vscode.hint"),
-      status: "tracking",
-      windowTitle: "activity-detection-panel.tsx",
-    },
-    {
-      appName: "Chrome",
-      duration: t("activity.detection.sample.chrome.duration"),
-      projectHint: t("activity.detection.sample.chrome.hint"),
-      status: "suggested",
-      windowTitle: "LiveKit docs",
-    },
-    {
-      appName: "Notion",
-      duration: t("activity.detection.sample.notion.duration"),
-      projectHint: t("activity.detection.sample.notion.hint"),
-      status: "local",
-      windowTitle: t("activity.detection.sample.notion.window"),
-    },
-  ];
-}
-
-const statusCopy: Record<ActivitySource["status"], { labelKey: MessageKey; tone: "timer" | "pending" | "personal" }> = {
-  local: { labelKey: "activity.detection.status.local", tone: "personal" },
+const statusCopy: Record<ActivitySource["status"], { labelKey: MessageKey; tone: "timer" | "pending" | "approved" }> = {
   suggested: { labelKey: "activity.detection.status.suggested", tone: "pending" },
+  synced: { labelKey: "activity.detection.status.synced", tone: "approved" },
   tracking: { labelKey: "activity.detection.status.tracking", tone: "timer" },
 };
+
+type ActivityDetectionPanelProps = {
+  autoLoad?: boolean;
+  initialActivities?: ActivityLogResponse[];
+};
+
+function getActivitySeconds(activity: ActivityLogResponse) {
+  if (typeof activity.durationSeconds === "number" && activity.durationSeconds >= 0) {
+    return activity.durationSeconds;
+  }
+
+  const started = new Date(activity.startedAt).getTime();
+  const ended = activity.endedAt ? new Date(activity.endedAt).getTime() : NaN;
+  if (Number.isNaN(started) || Number.isNaN(ended) || ended <= started) return 0;
+
+  return Math.floor((ended - started) / 1000);
+}
+
+function formatDuration(t: TranslateFn, seconds: number) {
+  if (seconds <= 0) return t("settings.activity.timeUnknown");
+
+  const totalMinutes = Math.max(1, Math.round(seconds / 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0) {
+    return t("settings.activity.hourMinute", { hours, minutes });
+  }
+
+  return t("settings.activity.minute", { minutes: totalMinutes });
+}
+
+function toActivitySource(t: TranslateFn, activity: ActivityLogResponse): ActivitySource {
+  const active = !activity.endedAt;
+  const linkedToRoom = Boolean(activity.roomId);
+
+  return {
+    appName: activity.appName?.trim() || t("dashboard.activity.appFallback"),
+    duration: formatDuration(t, getActivitySeconds(activity)),
+    projectHint: linkedToRoom ? t("activity.detection.roomLinked") : t("activity.detection.noRoom"),
+    status: active ? "tracking" : linkedToRoom ? "suggested" : "synced",
+    windowTitle: activity.windowTitle?.trim() || t("activity.detection.windowFallback"),
+  };
+}
 
 function ActivitySourceRow({ source }: { source: ActivitySource }) {
   const { t } = useI18n();
@@ -73,9 +94,51 @@ function ActivitySourceRow({ source }: { source: ActivitySource }) {
   );
 }
 
-export function ActivityDetectionPanel() {
+export function ActivityDetectionPanel({ autoLoad = true, initialActivities = [] }: ActivityDetectionPanelProps = {}) {
   const { t } = useI18n();
-  const activitySources = buildActivitySources(t);
+  const [activities, setActivities] = useState<ActivityLogResponse[]>(() => initialActivities);
+  const [isLoading, setIsLoading] = useState(autoLoad);
+  const [hasLoadError, setHasLoadError] = useState(false);
+
+  useEffect(() => {
+    if (!autoLoad) return;
+
+    let active = true;
+
+    activityApi
+      .getToday()
+      .then((response) => {
+        if (!active) return;
+        setActivities(response);
+      })
+      .catch(() => {
+        if (!active) return;
+        setHasLoadError(true);
+        setActivities([]);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [autoLoad]);
+
+  const activitySources = useMemo(
+    () =>
+      [...activities]
+        .sort((left, right) => new Date(right.startedAt).getTime() - new Date(left.startedAt).getTime())
+        .slice(0, 5)
+        .map((activity) => toActivitySource(t, activity)),
+    [activities, t],
+  );
+  const appCount = useMemo(
+    () => new Set(activities.map((activity) => activity.appName?.trim()).filter(Boolean)).size,
+    [activities],
+  );
+  const measuredCount = activities.filter((activity) => getActivitySeconds(activity) > 0).length;
+  const todayRate = activities.length > 0 ? Math.round((measuredCount / activities.length) * 100) : 0;
 
   return (
     <section className="activity-detection" aria-label={t("activity.detection.sectionAria")}>
@@ -91,10 +154,12 @@ export function ActivityDetectionPanel() {
           </div>
         </div>
         <div className="activity-detection__consent">
-          <StatusBadge tone="approved">{t("activity.detection.consented")}</StatusBadge>
-          <strong>{t("activity.detection.appCount", { count: 3 })}</strong>
+          <StatusBadge tone={hasLoadError ? "warning" : "approved"}>
+            {hasLoadError ? t("activity.detection.loadFailed") : t("activity.detection.consented")}
+          </StatusBadge>
+          <strong>{t("activity.detection.appCount", { count: appCount })}</strong>
           <span>{t("activity.detection.todayTarget")}</span>
-          <ProgressBar label={t("activity.detection.todayRate")} value={74} />
+          <ProgressBar indeterminate={isLoading} label={t("activity.detection.todayRate")} value={todayRate} />
         </div>
       </GlassPanel>
 
@@ -105,13 +170,17 @@ export function ActivityDetectionPanel() {
               <h3>{t("activity.detection.recent")}</h3>
               <p>{t("activity.detection.recentDesc")}</p>
             </div>
-            <Chip icon={<Clock3 size={14} />}>{t("activity.detection.recent3h")}</Chip>
+            <Chip icon={<Clock3 size={14} />}>{t("activity.detection.today")}</Chip>
           </div>
 
           <div className="activity-detection__list">
-            {activitySources.map((source) => (
-              <ActivitySourceRow key={`${source.appName}-${source.windowTitle}`} source={source} />
-            ))}
+            {activitySources.length > 0 ? (
+              activitySources.map((source) => (
+                <ActivitySourceRow key={`${source.appName}-${source.windowTitle}-${source.duration}`} source={source} />
+              ))
+            ) : (
+              <p>{isLoading ? t("activity.detection.loading") : t("activity.detection.empty")}</p>
+            )}
           </div>
         </GlassPanel>
 
