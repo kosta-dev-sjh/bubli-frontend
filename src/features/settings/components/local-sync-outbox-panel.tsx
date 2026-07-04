@@ -1,127 +1,193 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   ArrowRight,
   CheckCircle2,
   Clock3,
-  Database,
+  FileClock,
   RefreshCw,
   RotateCcw,
   UploadCloud,
   WifiOff,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
+import { settingsApi } from "@/features/settings/api/settingsApi";
 import { useI18n } from "@/lib/i18n";
-import { getLocalSyncOutboxSummary } from "@/lib/sync/local-sync-client";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
-import type { LocalSyncSummary, SyncOutboxSummaryResult } from "@/types/local";
+import { syncPersonalLocalFileEventsToServer } from "@/lib/local/managed-folder-client";
+import { getLocalSyncOutboxSummary } from "@/lib/sync/local-sync-client";
+import type { LocalAdapterResult, LocalSyncSummary, SyncOutboxSummaryResult } from "@/types/local";
 
 import styles from "./local-sync-outbox-panel.module.css";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
-type OutboxItem = {
+type SummaryStatus = "FAILED" | "PENDING" | "SENT";
+
+type SummaryRow = {
   count: number;
-  id: string;
-  message?: string;
-  retryCount: number;
-  status: "PENDING" | "FAILED" | "SENT";
+  descriptionKey: MessageKey;
+  icon: ReactNode;
+  status: SummaryStatus;
   titleKey: MessageKey;
 };
 
-const emptySummary: LocalSyncSummary = {
-  failedCount: 0,
-  pendingCount: 0,
-  sentCount: 0,
-  serverTransfer: "not_started",
-  summarizedAt: "",
-};
-
-const statusMeta: Record<OutboxItem["status"], { labelKey: MessageKey; tone: "pending" | "warning" | "success" }> = {
+const statusMeta: Record<SummaryStatus, { labelKey: MessageKey; tone: "pending" | "warning" | "success" }> = {
   FAILED: { labelKey: "settings.lso.status.failed", tone: "warning" },
   PENDING: { labelKey: "settings.lso.status.pending", tone: "pending" },
   SENT: { labelKey: "settings.lso.status.sent", tone: "success" },
 };
 
-function OutboxRow({ item, t }: { item: OutboxItem; t: TranslateFn }) {
-  const status = statusMeta[item.status];
+type LocalSyncOutboxPanelProps = {
+  autoLoad?: boolean;
+  initialConsentGranted?: boolean;
+  initialSummary?: LocalSyncSummary | null;
+  limit?: number;
+};
+
+function getSummaryFromResult(result: SyncOutboxSummaryResult): LocalSyncSummary | null {
+  if (result.status === "pending") return result.summary;
+  if (result.status === "ready") {
+    return {
+      failedCount: result.data.failedCount,
+      pendingCount: result.data.pendingCount,
+      sentCount: result.data.sentCount,
+      serverTransfer: "not_started",
+      summarizedAt: result.data.flushedAt,
+    };
+  }
+  return null;
+}
+
+function getMessageFromResult(result: LocalAdapterResult<unknown, unknown>) {
+  return "message" in result ? (result.message ?? null) : null;
+}
+
+function createSummaryRows(summary: LocalSyncSummary | null): SummaryRow[] {
+  return [
+    {
+      count: summary?.pendingCount ?? 0,
+      descriptionKey: "settings.lso.pendingDesc",
+      icon: <FileClock size={17} strokeWidth={2.1} />,
+      status: "PENDING",
+      titleKey: "settings.lso.pendingTitle",
+    },
+    {
+      count: summary?.failedCount ?? 0,
+      descriptionKey: "settings.lso.failedDesc",
+      icon: <AlertCircle size={17} strokeWidth={2.1} />,
+      status: "FAILED",
+      titleKey: "settings.lso.failedTitle",
+    },
+    {
+      count: summary?.sentCount ?? 0,
+      descriptionKey: "settings.lso.sentDesc",
+      icon: <CheckCircle2 size={17} strokeWidth={2.1} />,
+      status: "SENT",
+      titleKey: "settings.lso.sentTitle",
+    },
+  ];
+}
+
+function OutboxRow({ row, t }: { row: SummaryRow; t: TranslateFn }) {
+  const status = statusMeta[row.status];
 
   return (
     <article className={styles.outboxRow}>
       <span className="bubli-icon-tile" aria-hidden="true">
-        <Database size={17} strokeWidth={2.1} />
+        {row.icon}
       </span>
       <div className={styles.rowBody}>
         <div className={styles.meta}>
           <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
-          <span>{t("settings.lso.queueTitle")}</span>
+          <span>{t("settings.lso.realSQLite")}</span>
         </div>
-        <h3>{t(item.titleKey)}</h3>
-        {item.message ? <p>{item.message}</p> : null}
+        <h3>{t(row.titleKey)}</h3>
+        <p>{t(row.descriptionKey)}</p>
       </div>
       <div className={styles.rowSide}>
-        <strong>{item.count}</strong>
-        <span>{item.status === "FAILED" ? t("settings.lso.retry") : t(status.labelKey)}</span>
+        <strong>{row.count}</strong>
+        <span>{t("settings.lso.items")}</span>
       </div>
     </article>
   );
 }
 
-export function LocalSyncOutboxPanel() {
+export function LocalSyncOutboxPanel({ autoLoad = true, initialConsentGranted = false, initialSummary = null, limit = 20 }: LocalSyncOutboxPanelProps) {
   const { t } = useI18n();
-  const [result, setResult] = useState<SyncOutboxSummaryResult | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [summary, setSummary] = useState<LocalSyncSummary | null>(initialSummary);
+  const [consentGranted, setConsentGranted] = useState(initialConsentGranted);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [action, setAction] = useState<"load" | "send" | null>(autoLoad ? "load" : null);
+  const rows = useMemo(() => createSummaryRows(summary), [summary]);
+  const unsentCount = (summary?.pendingCount ?? 0) + (summary?.failedCount ?? 0);
+  const hasUnsent = unsentCount > 0;
 
-  const refreshOutbox = useCallback(async () => {
-    setRefreshing(true);
+  const refreshSummary = useCallback(async (options?: { preserveNotice?: boolean }) => {
+    setAction("load");
     try {
-      setResult(await getLocalSyncOutboxSummary());
+      const result = await getLocalSyncOutboxSummary();
+      const nextSummary = getSummaryFromResult(result);
+      if (nextSummary) setSummary(nextSummary);
+      if (!options?.preserveNotice) setNotice(getMessageFromResult(result));
     } finally {
-      setRefreshing(false);
+      setAction(null);
     }
   }, []);
 
   useEffect(() => {
-    const timerId = window.setTimeout(() => {
-      void refreshOutbox();
-    }, 0);
+    if (!autoLoad) return;
+    let cancelled = false;
 
-    return () => window.clearTimeout(timerId);
-  }, [refreshOutbox]);
+    async function loadInitialState() {
+      const [privacyResult, summaryResult] = await Promise.allSettled([
+        settingsApi.getPrivacyConsents(),
+        getLocalSyncOutboxSummary(),
+      ]);
 
-  const summary = result?.status === "pending" ? result.summary : result?.status === "ready" ? result.data : emptySummary;
-  const pendingOrFailed = (summary.pendingCount ?? 0) + summary.failedCount;
-  const items = useMemo<OutboxItem[]>(
-    () => [
-      {
-        count: summary.pendingCount ?? 0,
-        id: "pending",
-        message: result?.message,
-        retryCount: 0,
-        status: "PENDING",
-        titleKey: "settings.lso.status.pending",
-      },
-      {
-        count: summary.failedCount,
-        id: "failed",
-        message: result?.status === "failed" ? result.message : undefined,
-        retryCount: summary.failedCount,
-        status: "FAILED",
-        titleKey: "settings.lso.status.failed",
-      },
-      {
-        count: summary.sentCount ?? 0,
-        id: "sent",
-        retryCount: 0,
-        status: "SENT",
-        titleKey: "settings.lso.status.sent",
-      },
-    ],
-    [result, summary.failedCount, summary.pendingCount, summary.sentCount],
-  );
+      if (cancelled) return;
+
+      if (privacyResult.status === "fulfilled") {
+        setConsentGranted(privacyResult.value.localFolderEnabled);
+      }
+
+      if (summaryResult.status === "fulfilled") {
+        const nextSummary = getSummaryFromResult(summaryResult.value);
+        if (nextSummary) setSummary(nextSummary);
+        setNotice(getMessageFromResult(summaryResult.value));
+      } else {
+        setNotice(t("settings.lso.loadFailed"));
+      }
+
+      setAction(null);
+    }
+
+    void loadInitialState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [autoLoad, t]);
+
+  const sendQueue = async () => {
+    setAction("send");
+    const result = await syncPersonalLocalFileEventsToServer({ consentGranted, limit });
+    if (result.status === "ready") {
+      setNotice(t("settings.lso.sendResult", {
+        failed: result.data.failedCount,
+        sent: result.data.sentCount,
+        synced: result.data.syncedCount,
+      }));
+      await refreshSummary({ preserveNotice: true });
+      return;
+    }
+
+    setNotice(getMessageFromResult(result) ?? t("settings.lso.sendFailed"));
+    await refreshSummary({ preserveNotice: true });
+  };
 
   return (
     <section className={styles.panel} aria-label={t("settings.lso.panelAria")}>
@@ -134,8 +200,8 @@ export function LocalSyncOutboxPanel() {
           <p>{t("settings.lso.heroBody")}</p>
         </div>
         <div className={styles.heroState}>
-          <StatusBadge tone={pendingOrFailed > 0 ? "warning" : "success"}>{t("settings.lso.unsent")}</StatusBadge>
-          <strong>{pendingOrFailed}</strong>
+          <StatusBadge tone={hasUnsent ? "warning" : "success"}>{hasUnsent ? t("settings.lso.unsent") : t("settings.lso.allSent")}</StatusBadge>
+          <strong>{unsentCount}</strong>
           <span>{t("settings.lso.pendingOrFailed")}</span>
         </div>
       </GlassPanel>
@@ -155,15 +221,16 @@ export function LocalSyncOutboxPanel() {
           <div className={styles.toolbar}>
             <div>
               <h3>{t("settings.lso.queueTitle")}</h3>
-              <p>{result?.message ?? t("settings.lso.queueDesc")}</p>
+              <p>{t("settings.lso.queueDesc")}</p>
             </div>
-            <Button disabled={refreshing} icon={<RefreshCw size={15} />} onClick={() => void refreshOutbox()} size="sm" type="button" variant="primary">
-              {t("settings.lso.checkServer")}
+            <Button disabled={action !== null || !consentGranted} icon={<RefreshCw size={15} />} loading={action === "send"} onClick={() => void sendQueue()} size="sm" variant="primary">
+              {t("settings.lso.sendQueue")}
             </Button>
           </div>
+          {notice ? <p className={styles.notice}>{notice}</p> : null}
           <div className={styles.list}>
-            {items.map((item) => (
-              <OutboxRow item={item} key={item.id} t={t} />
+            {rows.map((row) => (
+              <OutboxRow key={row.status} row={row} t={t} />
             ))}
           </div>
         </GlassPanel>
@@ -192,7 +259,7 @@ export function LocalSyncOutboxPanel() {
       <GlassPanel className={styles.footer}>
         <CheckCircle2 size={17} strokeWidth={2.1} aria-hidden="true" />
         <p>{t("settings.lso.footer")}</p>
-        <Button icon={<UploadCloud size={15} />} size="sm" variant="quiet">
+        <Button icon={<UploadCloud size={15} />} loading={action === "load"} onClick={() => void refreshSummary()} size="sm" variant="quiet">
           {t("settings.lso.checkServer")}
         </Button>
       </GlassPanel>

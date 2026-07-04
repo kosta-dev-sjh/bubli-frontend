@@ -118,6 +118,18 @@
   gap: 12px;
 }
 
+.notice {
+  margin: 0;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: 14px;
+  padding: 10px 12px;
+  color: var(--color-text);
+  background: rgba(215, 234, 244, 0.42);
+  font-size: 12.5px;
+  font-weight: 740;
+  line-height: 1.55;
+}
+
 .outboxRow {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) 76px;
