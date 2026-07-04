@@ -12,12 +12,14 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { activityApi } from "@/features/activity/api/activityApi";
 import { ActivityDetectionPanel } from "@/features/activity/components";
 import { authApi } from "@/features/auth/api/authApi";
-import { calendarApi } from "@/features/calendar/api/calendarApi";
+import { calendarApi, googleCalendarRedirectUri } from "@/features/calendar/api/calendarApi";
+import { OPEN_TUTORIAL_EVENT } from "@/features/onboarding";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { LocalBackupRecoveryPanel, LocalSyncOutboxPanel, TauriSyncStatusPanel } from "@/features/settings/components";
 import { isBackendWidgetBubbleType, widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyUserUpdated } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { Locale, MessageKey, TranslateVars } from "@/lib/i18n";
 import {
@@ -79,7 +81,6 @@ import styles from "./settings-page.module.css";
 type SettingsData = {
   activityLogs: ActivityLogResponse[] | null;
   folders: ManagedFolderResponse[];
-  googleCalendarConnectUrl: string | null;
   googleCalendarConnected: boolean;
   notifications: NotificationPreferencesResponse | null;
   preferences: UserPreferenceResponse | null;
@@ -113,7 +114,6 @@ const defaultPrivacy: PrivacyConsentsResponse = {
 const emptySettings: SettingsData = {
   activityLogs: null,
   folders: [],
-  googleCalendarConnectUrl: null,
   googleCalendarConnected: false,
   notifications: null,
   preferences: null,
@@ -403,7 +403,6 @@ export default function SettingsPage() {
             folderResult?.status === "ready"
               ? folderResult.data.folders.map(localManagedFolderToSettingsFolder)
               : [],
-          googleCalendarConnectUrl: calendarApi.getGoogleConnectUrl(),
           googleCalendarConnected: googleConnection.status === "fulfilled" && googleConnection.value?.status === "ACTIVE",
           notifications: settledValue(notifications, null),
           preferences: settledValue(preferences, null),
@@ -512,6 +511,8 @@ export default function SettingsPage() {
       const nextUser: AuthUser = { ...state.user, ...patch };
       updateReadyState((current) => ({ ...current, user: nextUser }));
       if (patch.locale) setLocale(patch.locale as Locale);
+      // 탑바(AppShell) 사용자 표시도 저장을 기다리지 않고 낙관적으로 즉시 갱신한다.
+      notifyUserUpdated(nextUser);
       setMessage({ text: t("settings.msg.displaySaved"), tone: "approved" });
 
       try {
@@ -521,6 +522,7 @@ export default function SettingsPage() {
           timezone: nextUser.timezone ?? "Asia/Seoul",
         });
         updateReadyState((current) => ({ ...current, user: saved }));
+        notifyUserUpdated(saved);
       } catch {
         if (shouldUseWorkspacePreviewData()) return;
         setMessage({ text: t("settings.msg.saveFailed"), tone: "warning" });
@@ -713,10 +715,22 @@ export default function SettingsPage() {
     [desktopRuntime, state, t, updateReadyState],
   );
 
-  const openGoogleCalendarConnect = useCallback(() => {
-    if (state.kind !== "ready" || !state.settings.googleCalendarConnectUrl) return;
-    window.location.assign(state.settings.googleCalendarConnectUrl);
-  }, [state]);
+  const openGoogleCalendarConnect = useCallback(async () => {
+    if (state.kind !== "ready") return;
+
+    try {
+      // 연결 URL은 JSON API 응답(authorizeUrl)에서 받아 이동한다 — API 주소로 직접 이동하면
+      // 인증 헤더 없는 JSON 화면에 떨어진다. 일정 페이지의 connect 흐름과 같은 계약이다.
+      const response = await calendarApi.requestGoogleConnectUrl(googleCalendarRedirectUri());
+      window.location.assign(response.authorizeUrl);
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 401) {
+        setState({ kind: "auth" });
+        return;
+      }
+      setMessage({ text: t("settings.msg.gcalConnectFailed"), tone: "warning" });
+    }
+  }, [state.kind, t]);
 
   const disconnectGoogleCalendar = useCallback(async () => {
     if (state.kind !== "ready") return;
@@ -1471,6 +1485,24 @@ export default function SettingsPage() {
                     ))}
                   </select>
                 </div>
+                <div className={styles.row}>
+                  <div className={styles.rowText}>
+                    <strong>{t("onboarding.settings.replayTitle")}</strong>
+                    <p>{t("onboarding.settings.replayDesc")}</p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      // 홈에서 시작해야 카드 편집 단계까지 볼 수 있다. AppShell의 컨트롤러가 이벤트를 받는다.
+                      router.push("/app");
+                      window.dispatchEvent(new Event(OPEN_TUTORIAL_EVENT));
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    {t("onboarding.settings.replayCta")}
+                  </Button>
+                </div>
               </div>
             </GlassPanel>
             ) : null}
@@ -1538,7 +1570,7 @@ export default function SettingsPage() {
                     {googleConnected ? (
                       <>
                         <StatusBadge tone="approved">{t("settings.gcal.connected")}</StatusBadge>
-                        <Button onClick={openGoogleCalendarConnect} size="sm" type="button" variant="secondary">
+                        <Button onClick={() => void openGoogleCalendarConnect()} size="sm" type="button" variant="secondary">
                           {t("settings.gcal.reconnectCta")}
                         </Button>
                         <Button onClick={() => void disconnectGoogleCalendar()} size="sm" type="button" variant="quiet">
@@ -1546,7 +1578,7 @@ export default function SettingsPage() {
                         </Button>
                       </>
                     ) : (
-                      <Button disabled={!ready} onClick={openGoogleCalendarConnect} size="sm" type="button" variant="primary">
+                      <Button disabled={!ready} onClick={() => void openGoogleCalendarConnect()} size="sm" type="button" variant="primary">
                         {t("settings.gcal.connectCta")}
                       </Button>
                     )}

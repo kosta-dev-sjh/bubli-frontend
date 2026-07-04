@@ -9,6 +9,7 @@ import { siteConfig } from "@/config/site";
 import { AuthConfigurationError, authApi } from "@/features/auth/api/authApi";
 import { useLiveAuthUser } from "@/features/auth/hooks/use-live-auth-user";
 import { useI18n } from "@/lib/i18n";
+import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 function GoogleIcon() {
@@ -74,13 +75,33 @@ function handleSubmitPointerLeave(event: PointerEvent<HTMLButtonElement>) {
   event.currentTarget.style.setProperty("--button-shift-y", "0px");
 }
 
+function shouldUseTauriDevLogin() {
+  return (
+    isTauriRuntime() &&
+    process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN === "true" &&
+    Boolean(process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN)
+  );
+}
+
+const TAURI_LOOPBACK_REDIRECT_URI = "http://127.0.0.1:3791/auth/callback";
+
+function createTauriLoginState() {
+  const nonce =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  return btoa(JSON.stringify({ nonce, returnTo: "/app" }));
+}
+
 export function AuthPanel() {
   const { t } = useI18n();
   const router = useRouter();
   const liveUser = useLiveAuthUser();
   const [isStartingLogin, setIsStartingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const isDevTauriLogin = isTauriRuntime() && Boolean(process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN);
+  const isDevTauriLogin = shouldUseTauriDevLogin();
 
   // 살아 있는 세션이면 다시 로그인하지 않고 곧바로 앱으로 보낸다.
   useEffect(() => {
@@ -98,6 +119,31 @@ export function AuthPanel() {
         await authApi.loginWithDevAccessToken(process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN);
         router.replace("/app");
         return;
+      }
+
+      if (isTauriRuntime()) {
+        try {
+          const state = createTauriLoginState();
+          const { authorizeUrl } = await authApi.getGoogleAuthorizationUrl({
+            clientType: "TAURI",
+            redirectUri: TAURI_LOOPBACK_REDIRECT_URI,
+            state,
+          });
+          const result = await tauriCommands.startTauriGoogleOauthLoopback({
+            authorizeUrl,
+            expectedState: state,
+            redirectUri: TAURI_LOOPBACK_REDIRECT_URI,
+          });
+          await authApi.callbackGoogle({
+            clientType: "TAURI",
+            code: result.code,
+            redirectUri: TAURI_LOOPBACK_REDIRECT_URI,
+          });
+          router.replace("/app");
+          return;
+        } catch {
+          // If the loopback URI is not registered or the port is busy, keep the existing WebView OAuth path.
+        }
       }
 
       const { authorizeUrl } = await authApi.getGoogleAuthorizationUrl({

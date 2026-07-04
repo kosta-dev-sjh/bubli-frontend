@@ -5,6 +5,7 @@ import { waitForPendingWidgetUsageEventRecords } from "@/lib/tauri/commands";
 import { rollupLocalWidgetUsage, syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 
 const WIDGET_USAGE_SYNC_INTERVAL_MS = 60_000;
+export const WIDGET_USAGE_SYNCED_EVENT = "bubli:widget-usage-synced";
 
 let syncIntervalId: number | null = null;
 let syncInFlight = false;
@@ -13,6 +14,15 @@ let lifecycleListenersRegistered = false;
 
 type WidgetUsageAutoSyncStopInput = {
   flush?: boolean;
+};
+
+export type WidgetUsageSyncedEventDetail = {
+  failedCount?: number;
+  markedSyncedCount?: number;
+  sentCount?: number;
+  stagedCount?: number;
+  status: "ready" | "failed" | "blocked" | "pending" | "unavailable";
+  syncedAt?: string;
 };
 
 export function startWidgetUsageAutoSync() {
@@ -88,7 +98,19 @@ async function syncWidgetUsageOnce() {
     try {
       await waitForPendingWidgetUsageEventRecords();
       await rollupLocalWidgetUsage();
-      await syncLocalWidgetUsageSummaryToServer();
+      const result = await syncLocalWidgetUsageSummaryToServer();
+      notifyWidgetUsageSynced(
+        result.status === "ready"
+          ? {
+              failedCount: result.data.failedCount,
+              markedSyncedCount: result.data.markedSyncedCount,
+              sentCount: result.data.sentCount,
+              stagedCount: result.data.stagedCount,
+              status: result.status,
+              syncedAt: result.data.syncedAt,
+            }
+          : { status: result.status },
+      );
     } catch {
       // Failed rollups stay retryable in SQLite and will be picked up on the next tick.
     } finally {
@@ -98,4 +120,14 @@ async function syncWidgetUsageOnce() {
   })();
 
   return syncInFlightPromise;
+}
+
+function notifyWidgetUsageSynced(detail: WidgetUsageSyncedEventDetail) {
+  if (typeof window === "undefined") return;
+
+  window.dispatchEvent(
+    new CustomEvent<WidgetUsageSyncedEventDetail>(WIDGET_USAGE_SYNCED_EVENT, {
+      detail,
+    }),
+  );
 }

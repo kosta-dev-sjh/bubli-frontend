@@ -39,3 +39,28 @@ export const sizeToClass: Record<WidgetSize, string> = {
   M: "bubli-dash-tile--m",
   L: "bubli-dash-tile--l",
 };
+
+// ── 직군 온보딩 프리셋 ──────────────────────────────────────────
+// 첫 로그인 직군 선택에 따라 홈 보드 카드 조합 + 기본 시작 화면을 추천한다.
+// widgetIds는 홈 보드에 실제 데이터가 연결된 카탈로그 id만 쓴다
+// (workspace-dashboard의 connectedWidgetIds 집합과 동일 — 데모 항목 금지).
+// defaultHomeType은 백엔드 user_preference.default_home_type 계약 값(PERSONAL/PROJECT_ROOM)이다.
+export type HomeRolePresetId = "developer" | "designer" | "pm" | "marketer" | "writer" | "etc";
+
+export type HomeRolePreset = {
+  defaultHomeType: "PERSONAL" | "PROJECT_ROOM";
+  widgetIds: string[];
+};
+
+export const HOME_ROLE_PRESETS: Record<HomeRolePresetId, HomeRolePreset> = {
+  developer: { defaultHomeType: "PERSONAL", widgetIds: ["today-todos", "room-progress", "schedule", "focus-stats"] },
+  designer: { defaultHomeType: "PERSONAL", widgetIds: ["today-todos", "recent-resources", "schedule", "quick-memo"] },
+  pm: { defaultHomeType: "PROJECT_ROOM", widgetIds: ["room-progress", "schedule", "agent-queue", "today-todos"] },
+  marketer: { defaultHomeType: "PERSONAL", widgetIds: ["quick-memo", "today-todos", "schedule", "recent-resources"] },
+  writer: { defaultHomeType: "PERSONAL", widgetIds: ["quick-memo", "today-todos", "schedule", "recent-resources"] },
+  // 기타 — 기본 보드 구성(연결된 카드 전체)을 그대로 쓴다.
+  etc: {
+    defaultHomeType: "PERSONAL",
+    widgetIds: ["today-summary", "today-todos", "schedule", "room-progress", "focus-stats", "agent-queue", "recent-resources", "quick-memo"],
+  },
+};

@@ -13,6 +13,7 @@ import { ProjectRoomSettingsPanel } from "@/features/project-room/components/pro
 import { ProjectRoomWorkBoard } from "@/features/project-room/components/project-room-work-board";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import { getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
@@ -44,8 +45,10 @@ export default function ProjectRoomWorkPage() {
   const [state, setState] = useState<WorkPageState>({ kind: "loading" });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const load = useCallback(async () => {
-    setState({ kind: "loading" });
+  const load = useCallback(async (options?: { quiet?: boolean }) => {
+    // quiet 재조회(포커스 복귀 재검증)는 보드를 유지한다 — 데이터가 실제로 바뀐 경우에만
+    // ProjectRoomWorkBoard의 boardVersion 키가 바뀌어 최신 내용으로 갱신된다.
+    if (!options?.quiet) setState({ kind: "loading" });
 
     try {
       const [currentUser, room, board, membersPage] = await Promise.all([
@@ -103,6 +106,13 @@ export default function ProjectRoomWorkPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [load]);
+
+  // 데스크톱 위젯/다른 탭에서 바뀐 할 일·WBS를 포커스 복귀 시 재검증한다.
+  // 보드 자신의 변경(todo 이벤트)은 이미 낙관적으로 반영돼 있어 구독하지 않는다(보드 리마운트 방지).
+  const revalidateBoard = useCallback(() => {
+    void load({ quiet: true });
+  }, [load]);
+  useDataRefresh({ domains: [], minFocusIntervalMs: 30_000, onRefresh: revalidateBoard });
 
   const content = useMemo(() => {
     if (state.kind !== "ready") {

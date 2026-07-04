@@ -17,6 +17,7 @@ import { componentsMessages } from "./messages/components";
 import { resourcesCoreMessages } from "./messages/resources-core";
 import { resourcesDetailMessages } from "./messages/resources-detail";
 import { localMessages } from "./messages/local";
+import { onboardingMessages } from "./messages/onboarding";
 
 // 앱 전역 번역 사전. 네임스페이스별 파일(src/lib/i18n/messages/*.ts)을 합쳐서 만든다.
 // - 각 네임스페이스 파일이 ko/en/ja 키 정합을 Record<Key, string>로 컴파일 단계에서 보장한다.
@@ -41,6 +42,7 @@ const ko = {
   ...resourcesCoreMessages.ko,
   ...resourcesDetailMessages.ko,
   ...localMessages.ko,
+  ...onboardingMessages.ko,
 } as const;
 
 export type MessageKey = keyof typeof ko;
@@ -64,6 +66,7 @@ const en: Record<MessageKey, string> = {
   ...resourcesCoreMessages.en,
   ...resourcesDetailMessages.en,
   ...localMessages.en,
+  ...onboardingMessages.en,
 };
 
 const ja: Record<MessageKey, string> = {
@@ -85,6 +88,7 @@ const ja: Record<MessageKey, string> = {
   ...resourcesCoreMessages.ja,
   ...resourcesDetailMessages.ja,
   ...localMessages.ja,
+  ...onboardingMessages.ja,
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { ko, en, ja };

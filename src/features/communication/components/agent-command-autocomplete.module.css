@@ -1,0 +1,158 @@
+/* /bubli 명령어 자동완성 팝오버 — 컴포저 위 부착.
+   깊이는 heavy shadow 대신 hairline rim + inner highlight(Visual Target Guide 5장). */
+
+.popover {
+  position: absolute;
+  z-index: 30;
+  bottom: calc(100% + 8px);
+  left: 0;
+  display: grid;
+  gap: 4px;
+  min-width: 248px;
+  max-width: 336px;
+  padding: 6px;
+}
+
+.list {
+  display: grid;
+  gap: 2px;
+  max-height: 218px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.list::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.option {
+  display: grid;
+  gap: 1px;
+  padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.option strong {
+  overflow: hidden;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.option span {
+  overflow: hidden;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 560;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.hintRow {
+  padding: 2px 9px 3px;
+  /* 초소형 보조 힌트 — 상태 배지와 같은 최소 폰트 예외(12px 유지). */
+  font-size: 12px;
+  font-weight: 620;
+}
+
+/* ---------- 웹 소통창: Paper Glass 팝오버 ---------- */
+
+.toneGlass {
+  border: 1px solid rgba(210, 225, 238, 0.72);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+  backdrop-filter: blur(10px);
+}
+
+.toneGlass .option strong {
+  color: var(--color-text, #2C3540);
+}
+
+.toneGlass .option span,
+.toneGlass .hintRow {
+  color: var(--color-muted, #5A6772);
+}
+
+.toneGlass .option:hover,
+.toneGlass .option[data-active="true"] {
+  border-color: rgba(111, 184, 242, 0.45);
+  background: rgba(158, 216, 255, 0.16);
+}
+
+/* ---------- 위젯 버블: 컴팩트 버블 톤(desktop-widget-bubble 표면 레시피) ---------- */
+
+.toneBubble {
+  border: 1px solid var(--widget-hairline, rgba(107, 143, 168, 0.16));
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+}
+
+.toneBubble .list {
+  max-height: 176px;
+}
+
+.toneBubble .option {
+  padding: 5px 8px;
+}
+
+.toneBubble .option strong {
+  color: var(--widget-text, #2C3540);
+}
+
+.toneBubble .option span,
+.toneBubble .hintRow {
+  color: var(--widget-muted, #5A6772);
+}
+
+.toneBubble .option:hover,
+.toneBubble .option[data-active="true"] {
+  border-color: color-mix(in srgb, var(--acc, #8ECDF6) 34%, transparent);
+  background: color-mix(in srgb, var(--acc, #8ECDF6) 12%, transparent);
+}
+
+/* ---------- Night Bubble 다크 패리티 ---------- */
+
+:global([data-theme="dark"]) .toneGlass {
+  border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
+  background: rgba(22, 30, 46, 0.97);
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.5));
+}
+
+:global([data-theme="dark"]) .toneGlass .option:hover,
+:global([data-theme="dark"]) .toneGlass .option[data-active="true"] {
+  border-color: rgba(124, 196, 245, 0.4);
+  background: rgba(124, 196, 245, 0.14);
+}
+
+:global([data-theme="dark"]) .toneBubble {
+  border-color: rgba(150, 170, 215, 0.18);
+  background: rgba(22, 30, 46, 0.97);
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.5));
+}
+
+:global([data-theme="dark"]) .toneBubble .option:hover,
+:global([data-theme="dark"]) .toneBubble .option[data-active="true"] {
+  border-color: color-mix(in srgb, var(--acc, #7CC4F5) 40%, transparent);
+  background: color-mix(in srgb, var(--acc, #7CC4F5) 14%, transparent);
+}
