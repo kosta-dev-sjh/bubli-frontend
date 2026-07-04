@@ -10498,22 +10498,6 @@ html {
   line-height: 1.65;
 }
 
-.hybrid-frame__mock {
-  display: grid;
-  gap: 8px;
-  min-height: 116px;
-  border: 1px solid rgba(107, 143, 168, 0.12);
-  border-radius: 15px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.52);
-}
-
-.hybrid-frame__mock-line {
-  height: 11px;
-  border-radius: var(--radius-pill);
-  background: rgba(107, 143, 168, 0.12);
-}
-
 .hybrid-frame__note {
   display: flex;
   align-items: center;
