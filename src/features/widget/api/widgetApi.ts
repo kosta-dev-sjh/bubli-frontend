@@ -7,6 +7,7 @@ import type {
   WidgetContextUpdateRequest as ApiWidgetContextUpdateRequest,
   WidgetItemStateResponse as ApiWidgetItemStateResponse,
   WidgetItemStateUpdateRequest as ApiWidgetItemStateUpdateRequest,
+  WidgetItemType as ApiWidgetItemType,
   WidgetSettingsResponse as ApiWidgetSettingsResponse,
   WidgetSummaryResponse as ApiWidgetSummaryResponse,
   WidgetTodayUsageSummaryResponse as ApiWidgetTodayUsageSummaryResponse,
@@ -16,6 +17,7 @@ import type {
 import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
 
 export type BackendWidgetBubbleType = Exclude<ApiWidgetBubbleType, "ALERT" | "RESOURCE">;
+export type BackendWidgetItemType = ApiWidgetItemType;
 export type WidgetBubbleSettingResponse = ApiWidgetBubbleSettingResponse;
 export type WidgetContextResponse = ApiWidgetContextResponse;
 
@@ -30,6 +32,18 @@ export const backendWidgetBubbleTypes = [
 
 export function isBackendWidgetBubbleType(value: ApiWidgetBubbleType): value is BackendWidgetBubbleType {
   return (backendWidgetBubbleTypes as readonly ApiWidgetBubbleType[]).includes(value);
+}
+
+export const backendWidgetItemTypes = [
+  "TASK",
+  "MESSAGE",
+  "NOTIFICATION",
+  "SCHEDULE",
+] as const satisfies readonly BackendWidgetItemType[];
+
+export function toBackendWidgetItemType(value: string): BackendWidgetItemType | null {
+  const upper = value.toUpperCase();
+  return (backendWidgetItemTypes as readonly string[]).includes(upper) ? (upper as BackendWidgetItemType) : null;
 }
 
 function widgetRequest<T>(path: string, options: Parameters<typeof apiRequest<T>>[1] = {}) {

@@ -64,20 +64,22 @@ export type WidgetSummaryResponse = {
   unreadNotificationCount?: number;
 };
 
-export type WidgetItemState = "VISIBLE" | "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED" | "UNREAD";
+export type WidgetItemType = "TASK" | "MESSAGE" | "NOTIFICATION" | "SCHEDULE";
+
+export type WidgetItemState = "VISIBLE" | "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED";
 
 export type WidgetItemStateResponse = {
   bubbleType: WidgetBubbleType;
   id: string;
   itemId: string;
-  itemType: string;
+  itemType: WidgetItemType;
   state: WidgetItemState;
 };
 
 export type WidgetItemStateUpdateRequest = {
   bubbleType: WidgetBubbleType;
   itemId: string;
-  itemType: string;
+  itemType: WidgetItemType;
   state: WidgetItemState;
 };
 
