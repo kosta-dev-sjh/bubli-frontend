@@ -97,13 +97,18 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /const accessToken = process\.env\.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN;[\s\S]*if \(!accessToken\) return;[\s\S]*setStoredAuthSession\(\{[\s\S]*clientType: "TAURI"/,
-  "TauriRuntimeSmokeRunner must seed a Tauri dev auth session only from the explicit dev-token smoke env.",
+  /const accessToken = process\.env\.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN;[\s\S]*if \(!accessToken\) return;[\s\S]*clearStoredAuthSession\(\);[\s\S]*setStoredAuthSession\(\{[\s\S]*clientType: "TAURI"/,
+  "TauriRuntimeSmokeRunner must replace stale sessions with a Tauri dev auth session from the explicit dev-token smoke env.",
 );
 assertContains(
   runtimeSmokeRunner,
-  /storeActiveProjectRoom\(\{[\s\S]*roomId: smokeRoomId[\s\S]*readActiveProjectRoom\(\)/,
-  "TauriRuntimeSmokeRunner must verify active project-room persistence before opening widgets.",
+  /closeAllWidgetWindows\(\)\.catch\(\(\) => undefined\);[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)\.catch\(\(\) => undefined\);[\s\S]*seedDevAuthSession\(\);/,
+  "TauriRuntimeSmokeRunner must clean stale widgets and auth gate before seeding the smoke session.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /storeActiveProjectRoom\(\{[\s\S]*roomId: smokeRoomId[\s\S]*setWidgetRoomContext\(\{ selectedRoomId: smokeRoomId \}\)[\s\S]*readActiveProjectRoom\(\)/,
+  "TauriRuntimeSmokeRunner must verify active project-room persistence and mirror it to the widget runtime store before opening widgets.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -112,7 +117,7 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /getWidgetWindowState\(\{ windowId: "todo" \}\)[\s\S]*selectedRoomId === smokeRoomId/,
+  /openWidgetWindows\(\{[\s\S]*\}\);[\s\S]*assert\(windows\.length >= 4[\s\S]*setWidgetRoomContext\(\{ selectedRoomId: smokeRoomId \}\)[\s\S]*getWidgetWindowState\(\{ windowId: "todo" \}\)[\s\S]*selectedRoomId === smokeRoomId/,
   "TauriRuntimeSmokeRunner must verify widget window visibility and room context propagation.",
 );
 assertContains(
@@ -148,8 +153,13 @@ assertContains(
 );
 assertContains(
   launcher,
-  /if \(!isTauriRuntime\(\) \|\| isDesktopWidgetSurface\)/,
-  "TauriPostLoginLauncher must run only in the Tauri app shell, not normal web pages.",
+  /const runtimeSmokeEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";/,
+  "TauriPostLoginLauncher must know when the Windows runtime smoke owns widget launch.",
+);
+assertContains(
+  launcher,
+  /if \(!isTauriRuntime\(\) \|\| isDesktopWidgetSurface \|\| runtimeSmokeEnabled\)/,
+  "TauriPostLoginLauncher must run only in the Tauri app shell and must not race the runtime smoke.",
 );
 assertContains(
   launcher,
@@ -280,8 +290,13 @@ assertContains(
 
 assertContains(
   appShell,
-  /state\.kind !== "ready" \|\| !isTauriRuntime\(\)/,
-  "AppShell must launch native surfaces only after authenticated shell data is ready.",
+  /const runtimeSmokeEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";/,
+  "AppShell must know when the Windows runtime smoke owns widget launch.",
+);
+assertContains(
+  appShell,
+  /state\.kind !== "ready" \|\| !isTauriRuntime\(\) \|\| runtimeSmokeEnabled/,
+  "AppShell must launch native surfaces only after authenticated shell data is ready and must not race the runtime smoke.",
 );
 assertContains(
   appShell,
