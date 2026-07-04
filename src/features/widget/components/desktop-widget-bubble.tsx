@@ -508,13 +508,11 @@ function ChatBody({
           <ItemActions item={item} onItemStateChange={onItemStateChange} />
         </div>
       ))}
-      <div className={styles.reactionDock} aria-label={t("widget.chat.quickReaction")}>
-        <SmilePlus size={14} strokeWidth={2} />
-        {(bubble.reactionLabels ?? ["widget.data.reaction.confirm", "widget.data.reaction.like", "widget.data.reaction.later"]).map((label) => (
-          <button key={label} onClick={() => void markRead()} type="button">
-            {t(label as MessageKey)}
-          </button>
-        ))}
+      <div className={styles.reactionDock} aria-label={t("widget.chat.markReadAction")}>
+        <CheckCircle2 size={14} strokeWidth={2} />
+        <button disabled={!bubble.chatRoomId} onClick={() => void markRead()} type="button">
+          {t("widget.chat.markReadAction")}
+        </button>
         {statusText ? <span>{statusText}</span> : null}
       </div>
       <div className={styles.input}>
