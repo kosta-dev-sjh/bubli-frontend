@@ -234,7 +234,7 @@ function CalendarPageContent() {
   const { locale, t } = useI18n();
   const localeTag = LOCALE_TAGS[locale] ?? "ko-KR";
   const searchParams = useSearchParams();
-  const { roomId: activeRoomId } = useActiveProjectRoom();
+  const { roomId: activeRoomId, roomLabel: activeRoomLabel } = useActiveProjectRoom();
   const selectedRoomId = searchParams.get("roomId") ?? activeRoomId;
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [selectedDate, setSelectedDate] = useState(() => toDateValue(new Date()));
@@ -251,6 +251,9 @@ function CalendarPageContent() {
   // 브라우저 저장소 영속화는 tauri-boundaries 정책상 허용 목록 밖이라 세션(컴포넌트) 상태로만 유지한다.
   const [disabledSources, setDisabledSources] = useState<ReadonlySet<CalendarSourceKey>>(() => new Set());
   const [composerOpen, setComposerOpen] = useState(false);
+  // 새 일정 저장 대상 — 기본은 내 계정(개인 캘린더, roomId null).
+  // 프로젝트룸을 띄워둔 상태에서만 "{룸} 전체"(멤버 모두에게 반영)를 고를 수 있다.
+  const [draftTarget, setDraftTarget] = useState<"personal" | "room">("personal");
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
@@ -383,10 +386,16 @@ function CalendarPageContent() {
 
   const events = useMemo(() => (state.kind === "ready" ? state.events : []), [state]);
   const roomEvents = useMemo(() => (state.kind === "ready" ? state.roomEvents : []), [state]);
-  // 로컬 일정 + 구글 캘린더 원본 일정을 한 목록으로 합친다.
-  // 이미 동기화되어 로컬 일정으로 존재하는 구글 일정(googleEventId 일치)은 로컬 항목만 남겨 이중 표시를 막는다.
+  // 로컬 일정 + 구글 캘린더 원본 일정을 한 목록으로 합친다. 이중 표시 방지 기준:
+  // 1) 로컬 일정이 보유한 googleEventId 집합과 일치하는 구글 이벤트는 캘린더(googleCalendarId) 무관하게 숨긴다
+  //    — push된 내 일정과 sync로 당겨온 사본(SYNCED) 모두 이 기준으로 걸린다.
+  // 2) 그룹 이벤트가 로컬 scheduleId를 물고 내려오면 googleEventId가 비어 있어도 같은 일정으로 본다.
+  // 3) 같은 구글 이벤트가 여러 그룹(primary 캘린더·개인 그룹 등)에 겹쳐 내려와도 한 번만 그린다
+  //    — 연결 계정이 본인 개인 계정일 때 primary와 다른 그룹에 동일 eventId가 중복 수신되는 케이스.
   const displayEvents = useMemo<CalendarDisplayEvent[]>(() => {
     const localGoogleEventIds = new Set(events.map((event) => event.googleEventId).filter(Boolean));
+    const localScheduleIds = new Set(events.map((event) => event.id));
+    const seenGoogleEventIds = new Set<string>();
     const colorByCalendarId = new Map(googleCalendars.map((calendar) => [calendar.id, calendar.backgroundColor ?? null]));
 
     const merged: CalendarDisplayEvent[] = events.map((event) => {
@@ -414,7 +423,11 @@ function CalendarPageContent() {
       const calendarColor = colorByCalendarId.get(calendarId) ?? null;
       for (const event of group.events) {
         if (event.sourceType !== "GOOGLE") continue;
-        if (event.googleEventId && localGoogleEventIds.has(event.googleEventId)) continue;
+        if (event.scheduleId && localScheduleIds.has(event.scheduleId)) continue;
+        if (event.googleEventId) {
+          if (localGoogleEventIds.has(event.googleEventId) || seenGoogleEventIds.has(event.googleEventId)) continue;
+          seenGoogleEventIds.add(event.googleEventId);
+        }
         merged.push({
           allDay: event.allDay,
           calendarColor,
@@ -551,6 +564,7 @@ function CalendarPageContent() {
     setDraftStartTime("10:30");
     setDraftEndTime("11:00");
     setDraftNotice(null);
+    setDraftTarget("personal");
     // 일정이 있는 날짜는 하단 선택 일정 패널에서 바로 확인/수정하고, 빈 날짜는 새 일정 작성기를 연다.
     setComposerOpen(!hasEvents);
   };
@@ -561,6 +575,7 @@ function CalendarPageContent() {
     setDraftStartTime("10:30");
     setDraftEndTime("11:00");
     setDraftNotice(null);
+    setDraftTarget("personal");
     setComposerOpen(true);
   };
 
@@ -717,7 +732,8 @@ function CalendarPageContent() {
         const created = await calendarApi.createEvent({
           allDay: false,
           endsAt,
-          roomId: selectedRoomId,
+          // 개인 일정은 내 계정(개인 캘린더)으로 저장하고, "룸 전체"를 고른 경우에만 룸에 귀속시킨다.
+          roomId: draftTarget === "room" && selectedRoomId ? selectedRoomId : null,
           startsAt,
           title,
         });
@@ -727,7 +743,16 @@ function CalendarPageContent() {
       }
       closeComposer();
     } catch (error) {
-      setDraftNotice(error instanceof ApiClientError && error.status === 401 ? t("calendar.draft.authRequired") : t("calendar.draft.saveFailed"));
+      // 실패 원인을 상태코드로 구분해 안내한다 — 서버 오류(5xx)와 룸 권한(403)은 사용자가 할 일이 다르다.
+      if (error instanceof ApiClientError && error.status === 401) {
+        setDraftNotice(t("calendar.draft.authRequired"));
+      } else if (error instanceof ApiClientError && error.status === 403) {
+        setDraftNotice(t("calendar.draft.saveForbidden"));
+      } else if (error instanceof ApiClientError && error.status >= 500) {
+        setDraftNotice(t("calendar.draft.saveServerError"));
+      } else {
+        setDraftNotice(t("calendar.draft.saveFailed"));
+      }
     } finally {
       setSaving(false);
     }
@@ -1138,6 +1163,24 @@ function CalendarPageContent() {
                     <X size={16} strokeWidth={2.2} />
                   </button>
                 </div>
+
+                {/* 저장 대상 — 룸을 띄워둔 상태에서 새 일정을 만들 때만 노출(수정으로는 소속 룸을 옮기지 않음).
+                    룸 미선택 상태에서는 세그먼트를 숨기고 개인(내 계정) 저장으로 고정한다. */}
+                {!editingEventId && selectedRoomId ? (
+                  <div className={styles.field}>
+                    <span id="calendar-composer-target-label">{t("calendar.composer.targetLabel")}</span>
+                    <div aria-labelledby="calendar-composer-target-label" className={styles.targetSwitch} role="group">
+                      <button aria-pressed={draftTarget === "personal"} onClick={() => setDraftTarget("personal")} type="button">
+                        {t("calendar.composer.targetPersonal")}
+                      </button>
+                      <button aria-pressed={draftTarget === "room"} onClick={() => setDraftTarget("room")} type="button">
+                        {selectedRoomId === activeRoomId && activeRoomLabel
+                          ? t("calendar.composer.targetRoom", { room: activeRoomLabel })
+                          : t("calendar.composer.targetRoomFallback")}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
 
                 <label className={styles.field}>
                   <span>{t("calendar.composer.titleLabel")}</span>
