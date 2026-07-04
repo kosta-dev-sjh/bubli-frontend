@@ -233,6 +233,15 @@ function parseCachedWidgetChatMessages(items: Array<{ bodyJson: string }>): Widg
   });
 }
 
+function resolveActiveWidgetChatRoom(rooms: WidgetChatRoomResponse[], selectedRoomId?: string | null) {
+  const activeRooms = rooms.filter((room) => room.status === "ACTIVE");
+  if (selectedRoomId) {
+    return activeRooms.find((room) => room.chatType === "ROOM" && room.roomId === selectedRoomId) ?? null;
+  }
+
+  return activeRooms.find((room) => room.chatType === "DIRECT" || room.roomId === null) ?? null;
+}
+
 type TimerDisplay = WidgetDashboardWorkResponse["runningTimer"] | TimeLogResponse | null | undefined;
 
 function elapsedTimerLabel(timer?: TimerDisplay) {
@@ -969,7 +978,7 @@ function DesktopWidgetSurface() {
 
       const notifications = notificationsResult.status === "fulfilled" ? notificationsResult.value.items : [];
       const rooms = chatRoomsResult.status === "fulfilled" ? chatRoomsResult.value.items : [];
-      let activeRoom = rooms.find((item) => (selectedRoomId ? item.roomId === selectedRoomId : true)) ?? null;
+      let activeRoom = resolveActiveWidgetChatRoom(rooms, selectedRoomId);
       if (selectedRoomId && !activeRoom) {
         activeRoom = await widgetDisplayApi.createProjectRoomChatRoom(selectedRoomId).catch(() => null);
       }
