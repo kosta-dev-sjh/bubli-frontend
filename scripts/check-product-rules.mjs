@@ -83,6 +83,7 @@ const desktopCommunicationRoutePath = join(
   ROOT,
   "src/app/(workspace)/app/desktop/communication/page.tsx",
 );
+const managedFolderClientPath = join(ROOT, "src/lib/local/managed-folder-client.ts");
 
 for (const route of DISALLOWED_ROUTES) {
   const absolutePath = join(ROOT, route.path);
@@ -126,6 +127,15 @@ if (existsSync(desktopCommunicationRoutePath)) {
   ) {
     failures.push(
       "src/app/(workspace)/app/desktop/communication/page.tsx: legacy communication route must bridge to the chat widget in Tauri while preserving the /app/chat web fallback.",
+    );
+  }
+}
+
+if (existsSync(managedFolderClientPath)) {
+  const text = readFileSync(managedFolderClientPath, "utf8");
+  if (text.includes("not wired yet") && text.includes("watchPending")) {
+    failures.push(
+      "src/lib/local/managed-folder-client.ts: native folder watch is implemented; do not mask watch_managed_folder failures as a pending/not-wired state.",
     );
   }
 }
