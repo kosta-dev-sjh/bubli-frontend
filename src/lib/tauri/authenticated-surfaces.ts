@@ -48,7 +48,7 @@ function getStartupModeFromSetting(setting: WidgetBubbleSettingResponse): Widget
   return "DEFAULT";
 }
 
-function getPrimaryStartupBubble(settings: WidgetBubbleSettingResponse[]): WidgetWindowOpenInput | null {
+function getEnabledStartupBubbles(settings: WidgetBubbleSettingResponse[]): WidgetWindowOpenInput[] {
   const enabledByBubble = new Map<WidgetBubbleType, WidgetBubbleSettingResponse>();
 
   for (const setting of settings) {
@@ -56,18 +56,20 @@ function getPrimaryStartupBubble(settings: WidgetBubbleSettingResponse[]): Widge
     enabledByBubble.set(backendBubbleToLocal[setting.bubbleType], setting);
   }
 
+  const startupBubbles: WidgetWindowOpenInput[] = [];
+
   for (const bubbleType of startupBubblePriority) {
     const setting = enabledByBubble.get(bubbleType);
     if (!setting) continue;
 
-    return {
+    startupBubbles.push({
       bubbleType,
       mode: getStartupModeFromSetting(setting),
       windowId: bubbleType,
-    };
+    });
   }
 
-  return null;
+  return startupBubbles;
 }
 
 export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInput[]> {
@@ -76,12 +78,12 @@ export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInpu
     return loginStartupWindows;
   }
 
-  const primaryBubble = getPrimaryStartupBubble(settings.bubbles);
-  if (!primaryBubble) {
+  const enabledBubbles = getEnabledStartupBubbles(settings.bubbles);
+  if (enabledBubbles.length === 0) {
     return loginStartupWindows;
   }
 
-  return [{ bubbleType: "bar", mode: "DEFAULT", windowId: "bar" }, primaryBubble];
+  return [{ bubbleType: "bar", mode: "DEFAULT", windowId: "bar" }, ...enabledBubbles];
 }
 
 async function resolveLaunchSelectedRoomId() {
@@ -140,13 +142,18 @@ export function launchTauriAuthenticatedSurfaces() {
       .seedWidgetBarItems({ selectedRoomId })
       .catch(() => undefined);
 
-    void tauriCommands
-      .recordWidgetUsageEvent({
-        bubbleType: startupWindows.find((input) => input.bubbleType !== "bar")?.bubbleType ?? "todo",
-        eventType: "open:auto-login",
-        occurredAt: new Date().toISOString(),
-      })
-      .catch(() => undefined);
+    const openedAt = new Date().toISOString();
+    for (const input of startupWindows) {
+      if (!input.bubbleType || input.bubbleType === "bar" || input.bubbleType === "menu") continue;
+
+      void tauriCommands
+        .recordWidgetUsageEvent({
+          bubbleType: input.bubbleType,
+          eventType: "open:auto-login",
+          occurredAt: openedAt,
+        })
+        .catch(() => undefined);
+    }
 
     startActivityAutoCapture();
     startManagedFolderAutoSync();
