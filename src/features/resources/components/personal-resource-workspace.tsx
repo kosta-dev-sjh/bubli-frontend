@@ -179,12 +179,20 @@ export function PersonalResourceWorkspace() {
   const resources = useMemo(() => (state.kind === "ready" ? state.resources : EMPTY_RESOURCES), [state]);
 
   useEffect(() => {
+    let cancelled = false;
+
     if (!localFolderConsent || resources.length === 0) {
-      setLocalRevisionByResourceId({});
-      return;
+      const resetId = window.setTimeout(() => {
+        if (!cancelled) {
+          setLocalRevisionByResourceId({});
+        }
+      }, 0);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(resetId);
+      };
     }
 
-    let cancelled = false;
     Promise.all(
       resources.map(async (resource) => {
         const result = await findPersonalLocalFileByResourceId({
