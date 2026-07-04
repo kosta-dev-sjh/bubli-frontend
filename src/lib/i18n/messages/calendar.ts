@@ -26,6 +26,8 @@ const ko = {
   // 출처 필터
   "calendar.source.all": "전체",
   "calendar.source.personal": "개인",
+  // 연동한 구글 계정의 기본 캘린더 = 개인. 칩 하나로 통합하고 계정 이메일은 부제로만 보여준다.
+  "calendar.source.personalWithAccount": "개인 · {email}",
   "calendar.source.room": "프로젝트룸",
   "calendar.source.external": "외부",
 
@@ -272,6 +274,7 @@ const en: Record<Key, string> = {
 
   "calendar.source.all": "All",
   "calendar.source.personal": "Personal",
+  "calendar.source.personalWithAccount": "Personal · {email}",
   "calendar.source.room": "Project room",
   "calendar.source.external": "External",
 
@@ -502,6 +505,7 @@ const ja: Record<Key, string> = {
 
   "calendar.source.all": "すべて",
   "calendar.source.personal": "個人",
+  "calendar.source.personalWithAccount": "個人 · {email}",
   "calendar.source.room": "プロジェクトルーム",
   "calendar.source.external": "外部",
 

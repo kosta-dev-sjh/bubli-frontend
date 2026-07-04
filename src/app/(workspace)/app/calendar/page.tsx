@@ -92,9 +92,22 @@ const LOCALE_TAGS: Record<Locale, string> = { en: "en-US", ja: "ja-JP", ko: "ko-
 
 const GOOGLE_SOURCE_PREFIX = "gcal:";
 
-function localScheduleSourceKey(event: ScheduleResponse): CalendarSourceKey {
+// 연동 계정의 기본(primary) 구글 캘린더는 곧 "개인"이다.
+// 백엔드는 캐시 경로에서 빈 calendarId를 "primary" 문자열로 정규화하고,
+// 라이브 경로에서는 primary 캘린더 id를 계정 이메일(예: sjh...@gmail.com)로 내려준다.
+// 그래서 primary 판정은 (1) "primary" 리터럴, (2) primary=true인 캘린더 id,
+// (3) 연동 계정 이메일과 일치하는 id를 모두 개인으로 본다.
+function isPrimaryCalendarId(calendarId: string | null | undefined, primaryCalendarIds: ReadonlySet<string>): boolean {
+  if (!calendarId) return true;
+  if (calendarId === "primary") return true;
+  return primaryCalendarIds.has(calendarId.toLowerCase());
+}
+
+function localScheduleSourceKey(event: ScheduleResponse, primaryCalendarIds: ReadonlySet<string>): CalendarSourceKey {
   if (event.roomId) return "room";
   if (event.googleEventId || event.syncStatus === "SYNCED") {
+    // primary 캘린더로 push/sync된 로컬 개인 일정은 별도 이메일 칩이 아니라 "개인"에 합친다.
+    if (isPrimaryCalendarId(event.googleCalendarId, primaryCalendarIds)) return "personal";
     return event.googleCalendarId ? `${GOOGLE_SOURCE_PREFIX}${event.googleCalendarId}` : "external";
   }
   return "personal";
@@ -392,6 +405,17 @@ function CalendarPageContent() {
   // 2) 그룹 이벤트가 로컬 scheduleId를 물고 내려오면 googleEventId가 비어 있어도 같은 일정으로 본다.
   // 3) 같은 구글 이벤트가 여러 그룹(primary 캘린더·개인 그룹 등)에 겹쳐 내려와도 한 번만 그린다
   //    — 연결 계정이 본인 개인 계정일 때 primary와 다른 그룹에 동일 eventId가 중복 수신되는 케이스.
+  // 연동 계정의 primary 캘린더 id 집합 — primary=true인 캘린더 id와 연동 계정 이메일을 모두 소문자로 담는다.
+  // 이 집합에 들어오는 캘린더의 일정은 별도 이메일 칩 대신 "개인" 칩으로 접힌다.
+  const connectedAccountEmail = googleConnection.kind === "connected" ? googleConnection.value.googleAccountEmail ?? null : null;
+  const primaryCalendarIds = useMemo<ReadonlySet<string>>(() => {
+    const ids = new Set<string>();
+    for (const calendar of googleCalendars) {
+      if (calendar.primary && calendar.id) ids.add(calendar.id.toLowerCase());
+    }
+    if (connectedAccountEmail) ids.add(connectedAccountEmail.toLowerCase());
+    return ids;
+  }, [googleCalendars, connectedAccountEmail]);
   const displayEvents = useMemo<CalendarDisplayEvent[]>(() => {
     const localGoogleEventIds = new Set(events.map((event) => event.googleEventId).filter(Boolean));
     const localScheduleIds = new Set(events.map((event) => event.id));
@@ -399,7 +423,7 @@ function CalendarPageContent() {
     const colorByCalendarId = new Map(googleCalendars.map((calendar) => [calendar.id, calendar.backgroundColor ?? null]));
 
     const merged: CalendarDisplayEvent[] = events.map((event) => {
-      const sourceKey = localScheduleSourceKey(event);
+      const sourceKey = localScheduleSourceKey(event, primaryCalendarIds);
       return {
         allDay: event.allDay,
         calendarColor: event.googleCalendarId ? colorByCalendarId.get(event.googleCalendarId) ?? null : null,
@@ -420,6 +444,8 @@ function CalendarPageContent() {
 
     for (const group of googleGroups) {
       const calendarId = group.googleCalendarId ?? group.groupId;
+      // primary 캘린더 그룹은 "개인"으로 접는다 — 별도 이메일 칩을 만들지 않는다.
+      const isPrimary = isPrimaryCalendarId(calendarId, primaryCalendarIds);
       const calendarColor = colorByCalendarId.get(calendarId) ?? null;
       for (const event of group.events) {
         if (event.sourceType !== "GOOGLE") continue;
@@ -430,12 +456,12 @@ function CalendarPageContent() {
         }
         merged.push({
           allDay: event.allDay,
-          calendarColor,
+          calendarColor: isPrimary ? null : calendarColor,
           endsAt: event.endsAt ?? null,
           key: `google:${calendarId}:${event.googleEventId ?? event.startsAt}`,
           schedule: null,
-          sourceKey: `${GOOGLE_SOURCE_PREFIX}${calendarId}`,
-          sourceLabel: group.groupName,
+          sourceKey: isPrimary ? "personal" : `${GOOGLE_SOURCE_PREFIX}${calendarId}`,
+          sourceLabel: isPrimary ? t("calendar.source.personal") : group.groupName,
           startsAt: event.startsAt,
           title: event.title,
         });
@@ -443,15 +469,17 @@ function CalendarPageContent() {
     }
 
     return merged;
-  }, [events, googleCalendars, googleGroups, t]);
+  }, [events, googleCalendars, googleGroups, primaryCalendarIds, t]);
   // 출처 칩 — 고정 3종(전체/개인/프로젝트룸) 뒤에 구글 캘린더별 칩을 데이터 기준으로 만든다.
   const sourceChips = useMemo(() => {
-    const chips: Array<{ color: string | null; count: number; key: CalendarSourceKey; label: string }> = [
+    // 개인 칩은 연동 계정 이메일을 부제(title 툴팁)로만 노출한다 — "개인 = 내 구글 계정"임을 알리되 칩은 하나로 유지.
+    const personalTitle = connectedAccountEmail ? t("calendar.source.personalWithAccount", { email: connectedAccountEmail }) : undefined;
+    const chips: Array<{ color: string | null; count: number; key: CalendarSourceKey; label: string; title?: string }> = [
       { color: null, count: displayEvents.length, key: "all", label: t("calendar.source.all") },
-      { color: null, count: displayEvents.filter((event) => event.sourceKey === "personal").length, key: "personal", label: t("calendar.source.personal") },
+      { color: null, count: displayEvents.filter((event) => event.sourceKey === "personal").length, key: "personal", label: t("calendar.source.personal"), title: personalTitle },
       { color: null, count: displayEvents.filter((event) => event.sourceKey === "room").length, key: "room", label: t("calendar.source.room") },
     ];
-    const googleChips = new Map<CalendarSourceKey, { color: string | null; count: number; key: CalendarSourceKey; label: string }>();
+    const googleChips = new Map<CalendarSourceKey, { color: string | null; count: number; key: CalendarSourceKey; label: string; title?: string }>();
     for (const event of displayEvents) {
       if (event.sourceKey === "personal" || event.sourceKey === "room") continue;
       const existing = googleChips.get(event.sourceKey);
@@ -468,7 +496,7 @@ function CalendarPageContent() {
       }
     }
     return [...chips, ...Array.from(googleChips.values()).sort((left, right) => left.label.localeCompare(right.label))];
-  }, [displayEvents, t]);
+  }, [connectedAccountEmail, displayEvents, t]);
   const toggleSource = (key: CalendarSourceKey) => {
     if (key === "all") {
       setDisabledSources(new Set());
@@ -951,6 +979,7 @@ function CalendarPageContent() {
                   className={styles.filterChip}
                   key={chip.key}
                   onClick={() => toggleSource(chip.key)}
+                  title={chip.title}
                   type="button"
                 >
                   {chip.key.startsWith(GOOGLE_SOURCE_PREFIX) || chip.key === "external" ? (
