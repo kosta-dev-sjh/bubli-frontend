@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
-import { getStoredAuthSession, setStoredAuthSession } from "@/lib/auth/auth-session";
+import { clearStoredAuthSession, getStoredAuthSession, setStoredAuthSession } from "@/lib/auth/auth-session";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
@@ -37,13 +37,13 @@ function isWindowsRuntime() {
   return typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("windows");
 }
 
-function ensureDevAuthSession() {
-  if (getStoredAuthSession()) return;
+function seedDevAuthSession() {
   if (process.env.NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN !== "true") return;
 
   const accessToken = process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN;
   if (!accessToken) return;
 
+  clearStoredAuthSession();
   setStoredAuthSession({
     accessToken,
     clientType: "TAURI",
@@ -106,13 +106,16 @@ async function runSmoke() {
       return;
     }
 
-    ensureDevAuthSession();
+    await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
+    await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
+    seedDevAuthSession();
     assert(getStoredAuthSession(), "tauri auth session is available");
 
     await tauriCommands.storeActiveProjectRoom({
       roomId: smokeRoomId,
       roomLabel: "Codex Runtime Smoke",
     });
+    await tauriCommands.setWidgetRoomContext({ selectedRoomId: smokeRoomId });
     const restoredRoom = await tauriCommands.readActiveProjectRoom();
     assert(restoredRoom?.roomId === smokeRoomId, "active project room persisted to SQLite", restoredRoom);
 
@@ -127,6 +130,7 @@ async function runSmoke() {
     });
     assert(windows.length >= 4, "native widget windows opened", windows.map((window) => window.windowId));
 
+    await tauriCommands.setWidgetRoomContext({ selectedRoomId: smokeRoomId });
     const todoWindow = await tauriCommands.getWidgetWindowState({ windowId: "todo" });
     assert(todoWindow.windowVisible, "todo widget window visible", todoWindow);
     assert(todoWindow.selectedRoomId === smokeRoomId, "widget room context propagated", todoWindow);

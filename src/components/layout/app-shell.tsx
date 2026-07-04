@@ -43,6 +43,8 @@ import type { AuthUser } from "@/types/api/auth";
 import type { NotificationResponse } from "@/types/api/notification";
 import type { ContractDocumentType, ProjectRoomInvitationResponse, ProjectRoomResponse } from "@/types/api/projectRoom";
 
+const runtimeSmokeEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
+
 type AppShellProps = {
   children: ReactNode;
 };
@@ -291,7 +293,7 @@ export function AppShell({ children }: AppShellProps) {
   }, [state]);
 
   useEffect(() => {
-    if (state.kind !== "ready" || !isTauriRuntime()) return;
+    if (state.kind !== "ready" || !isTauriRuntime() || runtimeSmokeEnabled) return;
 
     void launchTauriAuthenticatedSurfaces().catch((error) => {
       console.warn("Failed to launch Tauri authenticated surfaces after shell ready.", error);
