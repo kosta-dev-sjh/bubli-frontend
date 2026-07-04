@@ -918,6 +918,22 @@
   max-width: 52ch;
 }
 
+.syncStrip small {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.syncActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .localIndexPanel {
   display: grid;
   gap: 10px;
@@ -1071,5 +1087,10 @@
 
   .syncStrip {
     grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .syncActions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
   }
 }
