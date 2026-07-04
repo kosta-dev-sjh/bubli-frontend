@@ -19,6 +19,7 @@ export type ActivityCurrentAppRequest = {
   appName: string;
   durationSeconds?: number | null;
   endedAt?: string | null;
+  localActivityId?: string | null;
   roomId?: string | null;
   startedAt: string;
   windowTitle?: string | null;
