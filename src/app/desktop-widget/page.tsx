@@ -195,6 +195,15 @@ function widgetInteractiveRectsChanged(previous: WidgetInteractiveRect[] | null,
   });
 }
 
+// 주기 폴링 결과가 내용까지 같으면 이전 상태 객체를 그대로 유지해,
+// 참조만 바뀐 setState가 위젯 리렌더(깜빡임)를 만들지 않게 한다.
+function keepIfDeepEqual<T>(current: T, next: T): T {
+  return JSON.stringify(current) === JSON.stringify(next) ? current : next;
+}
+
+// 상호작용 표면 위에서 실제 마우스 이벤트를 받으면 Rust에 알리는 최소 간격.
+const WIDGET_POINTER_SEEN_THROTTLE_MS = 250;
+
 function useWidgetInteractiveRectReporting(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
@@ -228,12 +237,30 @@ function useWidgetInteractiveRectReporting(enabled: boolean) {
     // 폰트 로드·비동기 데이터로 인한 레이아웃 드리프트 대비 저빈도 재확인(변경 없으면 invoke 없음).
     const intervalId = window.setInterval(scheduleReport, 1000);
 
+    // 안전망: 상호작용 표면(data-bubli-interactive) 위에서 웹뷰가 실제 마우스 이벤트를 받으면
+    // Rust에 "커서가 창 안" 힌트를 보내, Retina 배율/좌표 드리프트로 커서 폴러의 rect 판정이
+    // 어긋나도 헤더 드래그·클릭이 죽지 않게 한다. 투명 영역에서 온 이벤트는 힌트를 보내지
+    // 않아 클릭 통과 동작을 깨지 않는다.
+    let lastPointerSeenNotifiedAt = 0;
+    const notifyPointerSeen = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest?.(widgetInteractiveRectSelector)) return;
+      const now = Date.now();
+      if (now - lastPointerSeenNotifiedAt < WIDGET_POINTER_SEEN_THROTTLE_MS) return;
+      lastPointerSeenNotifiedAt = now;
+      void tauriCommands.notifyWidgetPointerSeen().catch(() => undefined);
+    };
+    window.addEventListener("pointermove", notifyPointerSeen, { passive: true });
+    window.addEventListener("pointerdown", notifyPointerSeen, { passive: true });
+
     return () => {
       if (frameId !== null) window.cancelAnimationFrame(frameId);
       mutationObserver.disconnect();
       resizeObserver.disconnect();
       window.removeEventListener("resize", scheduleReport);
       window.clearInterval(intervalId);
+      window.removeEventListener("pointermove", notifyPointerSeen);
+      window.removeEventListener("pointerdown", notifyPointerSeen);
     };
   }, [enabled]);
 }
@@ -937,6 +964,8 @@ function DesktopWidgetSurface() {
   const [menuUsageSummary, setMenuUsageSummary] = useState<string | null>(null);
   const liveKitRoomRef = useRef<Room | null>(null);
   const appReadySentRef = useRef(false);
+  // 첫 로드 성공 후의 배경 재조회 실패는 조용히 이전 데이터를 유지한다(에러 스켈레톤 스왑 금지).
+  const displayLoadedOnceRef = useRef(false);
   const selectedWidgetRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
   const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
 
@@ -1131,7 +1160,7 @@ function DesktopWidgetSurface() {
 
         const settings = summary.bubbles ?? [];
         setWidgetContext((current) => resolveWidgetContextFromSummary(summary, requestedRoomId, current));
-        setServerSettings(settings);
+        setServerSettings((current) => keepIfDeepEqual(current, settings));
 
         const backendBubbleType = apiBubbleTypeMap[requestedBubble];
         const activeSetting = backendBubbleType ? settings.find((item) => item.bubbleType === backendBubbleType) : undefined;
@@ -1206,7 +1235,8 @@ function DesktopWidgetSurface() {
         }
         return nextContext;
       });
-      setServerSettings(summary.bubbles ?? []);
+      // 5초 배경 갱신은 내용이 같으면 이전 참조를 유지해 리렌더/깜빡임을 만들지 않는다.
+      setServerSettings((current) => keepIfDeepEqual(current, summary.bubbles ?? []));
     }
 
     const intervalId = window.setInterval(() => {
@@ -1232,7 +1262,7 @@ function DesktopWidgetSurface() {
         selectedRoomId = selectedRoomId ?? normalizeWidgetRoomId(summary.context.selectedRoomId) ?? requestedRoomId ?? null;
         if (!cancelled) {
           setWidgetContext((current) => resolveWidgetContextFromSummary(summary, selectedRoomId, current));
-          setServerSettings(summary.bubbles ?? []);
+          setServerSettings((current) => keepIfDeepEqual(current, summary.bubbles ?? []));
         }
       }
 
@@ -1310,11 +1340,11 @@ function DesktopWidgetSurface() {
       const messageItems = messages?.items ?? cachedMessages;
       const schedules = schedulesResult.status === "fulfilled" ? schedulesResult.value.items : selectedRoomId ? [] : (summaryDashboard?.todaySchedules ?? []);
       const tasks = tasksResult.status === "fulfilled" ? tasksResult.value.items : selectedRoomId ? [] : (summaryDashboard?.todayTasks ?? []);
-      setNotificationSignal(
+      const nextNotificationSignal =
         notificationsResult.status === "rejected"
           ? widgetDisplayLoadSignal("error")
-          : buildNotificationSignal(t, notifications),
-      );
+          : buildNotificationSignal(t, notifications);
+      setNotificationSignal((current) => keepIfDeepEqual(current, nextNotificationSignal));
       setActiveTimerHeartbeatId(activeTimer?.status === "RUNNING" ? activeTimer.id : null);
 
       const nextDisplayBubbles = buildDisplayBubbles({
@@ -1338,14 +1368,18 @@ function DesktopWidgetSurface() {
         .listItemStates(collectWidgetItemIds(nextDisplayBubbles))
         .catch(() => []);
       const persistedOverrides = itemStateResponseToOverrides(persistedItemStates);
-      setDisplayBubbles(withFailedWidgetDisplayBubbles(
+      const nextBubbles = withFailedWidgetDisplayBubbles(
         applyItemStateOverrides(nextDisplayBubbles, { ...persistedOverrides, ...itemStateOverrides }),
         failedBubbles,
-      ));
+      );
+      // 배경 재조회 결과가 기존과 같으면 이전 데이터를 그대로 유지한다(로딩 스켈레톤 재노출 없음).
+      setDisplayBubbles((current) => keepIfDeepEqual(current, nextBubbles));
+      displayLoadedOnceRef.current = true;
     }
 
     void loadDisplayApiState().catch(() => {
-      if (!cancelled) {
+      // 첫 로드 전 실패만 에러 상태로 바꾸고, 배경 재조회 실패는 이전 데이터를 유지한다.
+      if (!cancelled && !displayLoadedOnceRef.current) {
         setDisplayBubbles(withWidgetDisplayLoadState(buildEmptyDisplayBubbles(t, widgetContext?.selectedRoomId ?? requestedRoomId), "error"));
         setNotificationSignal(widgetDisplayLoadSignal("error"));
       }
@@ -1382,9 +1416,12 @@ function DesktopWidgetSurface() {
 
       try {
         const items = await tauriCommands.getWidgetBarItems();
-        if (!cancelled) setBarItems(items.filter((item) => isDesktopWidgetBubble(item.activeBubble)));
+        if (cancelled) return;
+        const next = items.filter((item) => isDesktopWidgetBubble(item.activeBubble));
+        // 2초 폴링이 같은 목록을 새 배열 참조로 내려보내도 리렌더(칩 깜빡임)하지 않는다.
+        setBarItems((current) => keepIfDeepEqual(current, next));
       } catch {
-        if (!cancelled) setBarItems([]);
+        if (!cancelled) setBarItems((current) => (current.length === 0 ? current : []));
       }
     }
 
@@ -1578,7 +1615,8 @@ function DesktopWidgetSurface() {
           windowId: restoredWindowId ?? bubbleType,
         });
         const items = await tauriCommands.getWidgetBarItems();
-        setBarItems(items.filter((item) => isDesktopWidgetBubble(item.activeBubble)));
+        const next = items.filter((item) => isDesktopWidgetBubble(item.activeBubble));
+        setBarItems((current) => keepIfDeepEqual(current, next));
       } catch {
         // Browser preview fallback.
       }

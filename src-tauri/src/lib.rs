@@ -32,13 +32,11 @@ const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 // 바 창은 pill(하단 고정 64px)만 시각적으로 유지한다. Bubli 메뉴는 별도 menu 창으로 연다.
 // 창 높이는 pill 위 hover 요약 팝오버가 들어갈 투명 여유(약 156px)를 포함한다 —
 // desktop-widget-bubble.module.css .barRoot/.barPopover와 동기화한다.
-// 창 너비는 접힌 칩 수에 맞춰 260~560 사이에서 계산한다(칩=아이콘+숫자 compact).
-const WIDGET_BAR_MIN_WIDTH: f64 = 260.0;
-const WIDGET_BAR_MAX_WIDTH: f64 = 560.0;
-// Bubli 브랜드 칩 + 알림 칩 + pill 패딩/간격 몫.
-const WIDGET_BAR_BASE_WIDTH: f64 = 190.0;
-// compact 칩(아이콘 12px + 숫자 + 패딩 + gap) 하나 몫.
-const WIDGET_BAR_CHIP_WIDTH: f64 = 52.0;
+// 창 너비는 최대 칩 수(8)가 모두 들어가는 560 고정이다. macOS에서 resizable(false) 창의
+// min/max 재조정 기반 라이브 리사이즈가 조용히 실패해 칩이 잘렸으므로, 리사이즈 자체를 없앴다.
+// pill은 fit-content 폭으로 창 하단 중앙에 붙고(desktop-widget-bubble.module.css .barRoot),
+// pill 밖 투명 영역은 커서 폴러가 클릭 통과시키므로 창이 커도 무해하다.
+const WIDGET_BAR_WIDTH: f64 = 560.0;
 const WIDGET_BAR_HEIGHT: f64 = 220.0;
 // 메뉴 창: 오브 + Bubli 패널(버블 바로가기 그리드 + 2×2 액션)이 세로로 들어간다.
 const WIDGET_MENU_WIDTH: f64 = 248.0;
@@ -60,6 +58,9 @@ const WIDGET_POINTER_POLL_INTERVAL_MS: u64 = 80;
 const WIDGET_POINTER_RECT_PADDING: f64 = 4.0;
 // 드래그(data-tauri-drag-region) 직후 Moved 이벤트가 이 시간 안에 있으면 통과를 켜지 않는다.
 const WIDGET_POINTER_DRAG_GRACE_MS: u128 = 400;
+// 웹뷰가 상호작용 표면 위에서 실제 마우스 이벤트를 받았다는 힌트가 이 시간 안에 있으면,
+// Retina 배율/좌표 드리프트로 rect 판정이 어긋나도 클릭 가능(통과 꺼짐)을 유지한다.
+const WIDGET_POINTER_SEEN_GRACE_MS: u128 = 500;
 const QA_ALL_WIDGET_BUBBLES: [&str; 8] = [
     "todo", "agent", "chat", "timer", "memo", "schedule", "resource", "alert",
 ];
@@ -139,12 +140,44 @@ struct WidgetInteractiveRectsInput {
 struct WidgetPointerState {
     last_applied_ignore: Option<bool>,
     last_moved_at: Option<Instant>,
+    last_pointer_seen_at: Option<Instant>,
     poller_running: bool,
     rects: Vec<WidgetInteractiveRect>,
 }
 
 static WIDGET_POINTER_STATES: LazyLock<Mutex<HashMap<String, WidgetPointerState>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+
+// 갱신 깜빡임 방지용: 창별 "마지막으로 네이티브 창에 적용한 값" 캐시.
+// apply_widget_window_state가 모드 전환/룸 컨텍스트 갱신마다 setter를 무조건 재호출하지 않고
+// 실제로 바뀐 설정만 반영하게 한다(macOS에서 set_size/set_min/set_max 재호출은 눈에 띄는 깜빡임을 만든다).
+#[derive(Default)]
+struct WidgetAppliedWindowState {
+    always_on_top: Option<bool>,
+    background_applied: bool,
+    // macOS는 OS 드래그 좌표를 그대로 신뢰해 apply에서 위치를 다시 쓰지 않으므로 캐시도 두지 않는다.
+    #[cfg(not(target_os = "macos"))]
+    position: Option<(i64, i64)>,
+    size: Option<(i64, i64)>,
+}
+
+static WIDGET_APPLIED_WINDOW_STATES: LazyLock<Mutex<HashMap<String, WidgetAppliedWindowState>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn with_widget_applied_window_state<T>(
+    label: &str,
+    update: impl FnOnce(&mut WidgetAppliedWindowState) -> T,
+) -> Option<T> {
+    let mut states = WIDGET_APPLIED_WINDOW_STATES.lock().ok()?;
+    Some(update(states.entry(label.to_string()).or_default()))
+}
+
+/// 창이 파괴되거나 새로 만들어지기 직전에 캐시를 비워, 다음 창이 이전 창의 적용값을 물려받지 않게 한다.
+fn reset_widget_applied_window_state(label: &str) {
+    if let Ok(mut states) = WIDGET_APPLIED_WINDOW_STATES.lock() {
+        states.remove(label);
+    }
+}
 
 fn with_widget_pointer_state<T>(
     label: &str,
@@ -207,20 +240,25 @@ fn widget_pointer_inside_rects(rects: &[WidgetInteractiveRect], x: f64, y: f64) 
 /// 전역 커서 위치를 창-로컬 논리 좌표로 바꿔 보고된 rect 안팎을 판정한다.
 /// rect 미보고·드래그 직후·API 실패 시에는 통과를 켜지 않는 안전한 기본값을 쓴다.
 fn widget_pointer_should_ignore(window: &WebviewWindow, label: &str) -> bool {
-    let (rects, recently_moved) = match WIDGET_POINTER_STATES.lock() {
+    let (rects, recently_moved, pointer_recently_seen) = match WIDGET_POINTER_STATES.lock() {
         Ok(states) => match states.get(label) {
             Some(state) => (
                 state.rects.clone(),
                 state
                     .last_moved_at
                     .is_some_and(|at| at.elapsed().as_millis() < WIDGET_POINTER_DRAG_GRACE_MS),
+                state
+                    .last_pointer_seen_at
+                    .is_some_and(|at| at.elapsed().as_millis() < WIDGET_POINTER_SEEN_GRACE_MS),
             ),
             None => return false,
         },
         Err(_) => return false,
     };
 
-    if rects.is_empty() || recently_moved {
+    // pointer_recently_seen: 웹뷰가 방금 상호작용 표면에서 마우스 이벤트를 받았다는 힌트(안전망).
+    // rect 좌표 계산이 어긋나도 이 동안은 클릭 통과를 켜지 않아 헤더 드래그가 죽지 않는다.
+    if rects.is_empty() || recently_moved || pointer_recently_seen {
         return false;
     }
 
@@ -790,27 +828,10 @@ fn widget_window_url(widget: &WidgetWindowState) -> String {
     url
 }
 
-/// 바 창 너비를 접힌 칩 수에 맞춘다(칩=아이콘+숫자 compact, 260~560 클램프).
-fn widget_bar_window_width(minimized_item_count: usize) -> f64 {
-    (WIDGET_BAR_BASE_WIDTH + minimized_item_count as f64 * WIDGET_BAR_CHIP_WIDTH)
-        .clamp(WIDGET_BAR_MIN_WIDTH, WIDGET_BAR_MAX_WIDTH)
-}
-
-/// 현재 바에 접혀 있는(=칩으로 표시될) 위젯 수. 상태 잠금 실패 시 0으로 안전 폴백.
-fn widget_bar_minimized_item_count(app: &AppHandle) -> usize {
-    let state = app.state::<WidgetState>();
-    let Ok(guard) = state.lock() else {
-        return 0;
-    };
-    widget_bar_items_from_store(&guard).len()
-}
-
-fn widget_window_size(app: &AppHandle, widget: &WidgetWindowState) -> LogicalSize<f64> {
+fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
     if widget.active_bubble == "bar" {
-        return LogicalSize::new(
-            widget_bar_window_width(widget_bar_minimized_item_count(app)),
-            WIDGET_BAR_HEIGHT,
-        );
+        // 바 창은 칩 수와 무관하게 최대 폭 고정. 리사이즈가 없어 macOS에서 잘림/깜빡임이 없다.
+        return LogicalSize::new(WIDGET_BAR_WIDTH, WIDGET_BAR_HEIGHT);
     }
     if widget.active_bubble == "menu" {
         return LogicalSize::new(WIDGET_MENU_WIDTH, WIDGET_MENU_HEIGHT);
@@ -1028,7 +1049,7 @@ fn widget_screen_position(
         .as_ref()
         .map(|monitor| monitor.size().height as f64 / scale)
         .unwrap_or(WIDGET_FALLBACK_MONITOR_HEIGHT);
-    let size = widget_window_size(app, widget);
+    let size = widget_window_size(widget);
     let (local_x, local_y) =
         widget_default_local_position(widget, &size, monitor_width, monitor_height);
 
@@ -1144,6 +1165,7 @@ fn destroy_all_widget_windows(app: &AppHandle) -> usize {
     for (label, window) in app.webview_windows() {
         if is_widget_window_label(&label) {
             reset_widget_window_dom_ready(&label);
+            reset_widget_applied_window_state(&label);
             let _ = window.destroy();
             destroyed_count += 1;
         }
@@ -1202,40 +1224,99 @@ fn apply_widget_window_state(
     if let Some(window) = app.get_webview_window(&label) {
         if !widget.window_visible && !widget_keeps_webview_when_hidden(widget) {
             reset_widget_window_dom_ready(&label);
+            reset_widget_applied_window_state(&label);
             window.destroy().map_err(|error| error.to_string())?;
             return Ok(widget.clone());
         }
 
-        window
-            .set_always_on_top(widget.always_on_top)
-            .map_err(|error| error.to_string())?;
-        window
-            .set_ignore_cursor_events(widget.click_through)
-            .map_err(|error| error.to_string())?;
-        note_widget_ignore_applied(&label, widget.click_through);
-        // 창은 resizable(false) + 고정 min/max로 만들어지므로, 계산 크기가 바뀌는 경우
-        // (예: 바 칩 수 변화) min/max를 먼저 새 크기로 옮긴 뒤 set_size해야 실제로 줄어들거나 늘어난다.
-        let size = widget_window_size(app, widget);
-        window
-            .set_min_size(Some(Size::Logical(size)))
-            .map_err(|error| error.to_string())?;
-        window
-            .set_max_size(Some(Size::Logical(size)))
-            .map_err(|error| error.to_string())?;
-        window
-            .set_size(Size::Logical(size))
-            .map_err(|error| error.to_string())?;
+        // 갱신 깜빡임 방지: 아래 setter들은 전부 "마지막 적용값과 다를 때만" 호출한다.
+        let always_on_top_changed = with_widget_applied_window_state(&label, |applied| {
+            if applied.always_on_top == Some(widget.always_on_top) {
+                false
+            } else {
+                applied.always_on_top = Some(widget.always_on_top);
+                true
+            }
+        })
+        .unwrap_or(true);
+        if always_on_top_changed {
+            window
+                .set_always_on_top(widget.always_on_top)
+                .map_err(|error| error.to_string())?;
+        }
+
+        let ignore_changed = with_widget_pointer_state(&label, |state| {
+            state.last_applied_ignore != Some(widget.click_through)
+        })
+        .unwrap_or(true);
+        if ignore_changed {
+            window
+                .set_ignore_cursor_events(widget.click_through)
+                .map_err(|error| error.to_string())?;
+            note_widget_ignore_applied(&label, widget.click_through);
+        }
+
+        // 창은 resizable(false) + 고정 min/max로 만들어지므로, 계산 크기가 실제로 바뀔 때만
+        // min을 먼저 해제해(항상 min<=max 유지) max→min→size 순서로 다시 잠근다.
+        // macOS에서 "새 min > 기존 max" 순서의 set_min_size는 조용히 실패할 수 있다.
+        let size = widget_window_size(widget);
+        let size_key = (size.width.round() as i64, size.height.round() as i64);
+        let size_changed = with_widget_applied_window_state(&label, |applied| {
+            if applied.size == Some(size_key) {
+                false
+            } else {
+                applied.size = Some(size_key);
+                true
+            }
+        })
+        .unwrap_or(true);
+        if size_changed {
+            window
+                .set_min_size(None::<Size>)
+                .map_err(|error| error.to_string())?;
+            window
+                .set_max_size(Some(Size::Logical(size)))
+                .map_err(|error| error.to_string())?;
+            window
+                .set_min_size(Some(Size::Logical(size)))
+                .map_err(|error| error.to_string())?;
+            window
+                .set_size(Size::Logical(size))
+                .map_err(|error| error.to_string())?;
+        }
         #[cfg(not(target_os = "macos"))]
-        window
-            .set_position(Position::Logical(widget_screen_position(
-                app,
-                monitor_state,
-                widget,
-            )?))
-            .map_err(|error| error.to_string())?;
-        window
-            .set_background_color(Some(Color(0, 0, 0, 0)))
-            .map_err(|error| error.to_string())?;
+        {
+            let position = widget_screen_position(app, monitor_state, widget)?;
+            let position_key = (position.x.round() as i64, position.y.round() as i64);
+            let position_changed = with_widget_applied_window_state(&label, |applied| {
+                if applied.position == Some(position_key) {
+                    false
+                } else {
+                    applied.position = Some(position_key);
+                    true
+                }
+            })
+            .unwrap_or(true);
+            if position_changed {
+                window
+                    .set_position(Position::Logical(position))
+                    .map_err(|error| error.to_string())?;
+            }
+        }
+        let background_changed = with_widget_applied_window_state(&label, |applied| {
+            if applied.background_applied {
+                false
+            } else {
+                applied.background_applied = true;
+                true
+            }
+        })
+        .unwrap_or(true);
+        if background_changed {
+            window
+                .set_background_color(Some(Color(0, 0, 0, 0)))
+                .map_err(|error| error.to_string())?;
+        }
 
         let is_visible = window.is_visible().unwrap_or(false);
         if widget.window_visible {
@@ -1261,9 +1342,10 @@ fn build_widget_window(
         return apply_widget_window_state(app, monitor_state, widget);
     }
 
-    let size = widget_window_size(app, widget);
+    let size = widget_window_size(widget);
     let position = widget_screen_position(app, monitor_state, widget)?;
     reset_widget_window_dom_ready(&label);
+    reset_widget_applied_window_state(&label);
     let window = WebviewWindowBuilder::new(
         app,
         label.clone(),
@@ -1307,6 +1389,16 @@ fn build_widget_window(
         .set_ignore_cursor_events(widget.click_through)
         .map_err(|error| error.to_string())?;
     note_widget_ignore_applied(&label, widget.click_through);
+    // 빌더가 이미 적용한 값을 캐시에 기록해, 바로 뒤의 apply가 같은 setter를 중복 호출하지 않게 한다.
+    with_widget_applied_window_state(&label, |applied| {
+        applied.always_on_top = Some(widget.always_on_top);
+        applied.background_applied = true;
+        applied.size = Some((size.width.round() as i64, size.height.round() as i64));
+        #[cfg(not(target_os = "macos"))]
+        {
+            applied.position = Some((position.x.round() as i64, position.y.round() as i64));
+        }
+    });
     apply_widget_window_state(app, monitor_state, widget)
 }
 
@@ -1426,7 +1518,8 @@ fn ensure_widget_bar_window(
     schedule_widget_window_build(app, monitor_state, &bar)
 }
 
-/// 접힌 칩 수가 바뀐 뒤(버블 복원/모드 전환 등) 이미 떠 있는 바 창의 너비를 새 칩 수에 맞춘다.
+/// 버블 복원/모드 전환 뒤 이미 떠 있는 바 창의 상태를 재적용한다.
+/// 바 크기는 560 고정이고 setter는 변경분만 반영하므로 사실상 가시성 동기화만 남는다.
 fn refresh_widget_bar_window(
     app: &AppHandle,
     monitor_state: &AppMonitorState,
@@ -1596,7 +1689,7 @@ fn set_widget_window_mode(
     }
     persist_widget_window_state(&app, &state)?;
     let result = apply_widget_window_state(&app, &monitor_state, &widget)?;
-    // 모드 전환으로 접힌 칩 수가 바뀌었을 수 있으니 바 창 너비를 다시 맞춘다.
+    // 모드 전환 뒤 바 창 상태(가시성)를 동기화한다. 바 크기는 고정이라 리사이즈는 없다.
     refresh_widget_bar_window(&app, &monitor_state, &state)?;
     Ok(result)
 }
@@ -1688,6 +1781,21 @@ fn set_widget_click_through(
 #[tauri::command]
 fn notify_widget_drag_started(window: WebviewWindow) -> Result<(), String> {
     note_widget_window_moved(window.label());
+    Ok(())
+}
+
+/// 웹뷰가 상호작용 표면(data-bubli-interactive) 위에서 실제 마우스 이벤트를 받았다는 힌트.
+/// 커서 폴러의 rect 판정이 배율/좌표 드리프트로 어긋나도, 이 힌트가 살아 있는 동안(500ms)은
+/// 클릭 통과를 켜지 않아 헤더 드래그·버튼 클릭이 죽지 않는다(좌표 계산에 대한 안전망).
+#[tauri::command]
+fn notify_widget_pointer_seen(window: WebviewWindow) -> Result<(), String> {
+    let label = window.label().to_string();
+    if !is_widget_window_label(&label) {
+        return Ok(());
+    }
+    with_widget_pointer_state(&label, |state| {
+        state.last_pointer_seen_at = Some(Instant::now());
+    });
     Ok(())
 }
 
@@ -1867,7 +1975,7 @@ fn open_widget_window(
     })?;
     persist_widget_window_state(&app, &state)?;
     let result = schedule_widget_window_build(&app, &monitor_state, &widget)?;
-    // 바에서 버블을 복원하면 접힌 칩이 줄어드니 바 창 너비를 다시 맞춘다.
+    // 바에서 버블을 복원한 뒤 바 창 상태(가시성)를 동기화한다. 바 크기는 고정이라 리사이즈는 없다.
     refresh_widget_bar_window(&app, &monitor_state, &state)?;
     Ok(result)
 }
@@ -1897,6 +2005,7 @@ fn close_widget_window(
         let label = widget_window_label(&widget);
         if let Some(window) = app.get_webview_window(&label) {
             reset_widget_window_dom_ready(&label);
+            reset_widget_applied_window_state(&label);
             window.destroy().map_err(|error| error.to_string())?;
         }
         Ok(widget)
@@ -1931,7 +2040,7 @@ fn toggle_widget_window(
     } else {
         apply_widget_window_state(&app, &monitor_state, &widget)?
     };
-    // 토글로 접힌 칩 수가 바뀌었을 수 있으니 바 창 너비를 다시 맞춘다.
+    // 토글 뒤 바 창 상태(가시성)를 동기화한다. 바 크기는 고정이라 리사이즈는 없다.
     refresh_widget_bar_window(&app, &monitor_state, &state)?;
     Ok(result)
 }
@@ -2088,6 +2197,7 @@ pub fn run() {
             get_widget_window_state,
             list_app_monitors,
             notify_widget_drag_started,
+            notify_widget_pointer_seen,
             open_main_window_route,
             open_widget_window,
             quit_app,

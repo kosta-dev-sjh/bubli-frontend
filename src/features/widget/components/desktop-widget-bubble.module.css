@@ -1394,19 +1394,24 @@
   width: fit-content;
 }
 
-/* 바 창(360×220)은 pill보다 크다: pill을 하단에 고정하고 위 투명 영역은 hover 팝오버 전용. */
+/* 바 창(560×220 고정)은 pill보다 크다: pill(fit-content)을 하단 중앙에 고정하고
+   나머지 투명 영역은 hover 팝오버 전용이다(투명 영역 클릭은 Rust 폴러가 아래 앱으로 통과시킨다).
+   창 크기는 src-tauri/src/lib.rs WIDGET_BAR_WIDTH/HEIGHT와 동기화한다. */
 .barRoot {
   position: relative;
+  width: 100%;
   height: 100%;
   align-content: end;
+  justify-items: center;
   padding: 4px;
 }
 
 .barPopover {
   position: absolute;
-  right: 4px;
   bottom: 62px;
-  left: 4px;
+  left: 50%;
+  width: min(calc(100% - 8px), 440px);
+  transform: translateX(-50%);
   display: grid;
   gap: 6px;
   padding: 12px;
@@ -2037,4 +2042,24 @@
 :global([data-theme="dark"]) .input button:not(.composerSave) {
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 20%, transparent);
+}
+
+/* 바 고정 요소(알림)와 접힌 버블 칩 사이 구분선 */
+.barDivider {
+  align-self: center;
+  width: 1px;
+  height: 16px;
+  margin: 0 -7px;
+  padding: 0 7px;
+  border-radius: 999px;
+  cursor: grab;
+  background: linear-gradient(90deg, transparent 0 4px, rgba(44, 53, 64, 0.12) 4px 5px, transparent 5px 100%);
+}
+
+.barDivider:active {
+  cursor: grabbing;
+}
+
+:global([data-theme="dark"]) .barDivider {
+  background: rgba(150, 170, 215, 0.2);
 }
