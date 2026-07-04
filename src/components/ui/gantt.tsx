@@ -340,7 +340,7 @@ export const GanttContentHeader: FC<GanttContentHeaderProps> = ({ title, columns
     >
       <div>
         <div
-          className="sticky inline-flex whitespace-nowrap px-3 py-2 text-muted-foreground text-[13px]"
+          className="sticky inline-flex whitespace-nowrap px-3 py-2 text-muted-foreground text-sm"
           style={{
             left: "var(--gantt-sidebar-width)",
           }}
@@ -355,7 +355,7 @@ export const GanttContentHeader: FC<GanttContentHeaderProps> = ({ title, columns
         }}
       >
         {Array.from({ length: columns }).map((_, index) => (
-          <div className="shrink-0 border-border/50 border-b py-1 text-center text-[13px]" key={`${id}-${index}`}>
+          <div className="shrink-0 border-border/50 border-b py-1 text-center text-sm" key={`${id}-${index}`}>
             {renderHeaderItem(index)}
           </div>
         ))}
@@ -522,7 +522,7 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
 
   return (
     <div
-      className={cn("relative flex items-center gap-2 py-0 pr-2.5 pl-1.5 text-[13px]", className)}
+      className={cn("relative flex items-center gap-2 py-0 pr-2.5 pl-1.5 text-sm", className)}
       data-gantt-item-kind={indentLevel > 0 ? "child" : "parent"}
       key={feature.id}
       onClick={handleClick}
@@ -587,7 +587,7 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
                 }}
               />
             </span>
-            <span className="text-[13px] text-muted-foreground tabular-nums">
+            <span className="text-sm text-muted-foreground tabular-nums">
               {`${progress.done}/${progress.total}`}
             </span>
           </span>
@@ -612,7 +612,7 @@ export const GanttSidebarHeader: FC = () => {
 
   return (
     <div
-      className="sticky top-0 z-10 flex shrink-0 items-end justify-between gap-2.5 border-border/50 border-b bg-backdrop/90 p-2.5 font-medium text-muted-foreground text-[13px] backdrop-blur-sm"
+      className="sticky top-0 z-10 flex shrink-0 items-end justify-between gap-2.5 border-border/50 border-b bg-backdrop/90 p-2.5 font-medium text-muted-foreground text-sm backdrop-blur-sm"
       style={{ height: "var(--gantt-header-height)" }}
     >
       <p className="flex-1 truncate text-left">{t("ui.gantt.taskColumn")}</p>
@@ -631,7 +631,7 @@ export const GanttSidebarGroup: FC<GanttSidebarGroupProps> = ({ children, name, 
   <div className={className}>
     {name ? (
       <p
-        className="w-full truncate p-2.5 text-left font-medium text-muted-foreground text-[13px]"
+        className="w-full truncate p-2.5 text-left font-medium text-muted-foreground text-sm"
         style={{ height: "var(--gantt-row-height)" }}
       >
         {name}
@@ -819,7 +819,7 @@ export const GanttCreateMarkerTrigger: FC<GanttCreateMarkerTriggerProps> = ({ on
         >
           <PlusIcon className="text-muted-foreground" size={12} />
         </button>
-        <div className="whitespace-nowrap rounded-full border border-border/50 bg-background/90 px-2 py-1 text-foreground text-[13px] backdrop-blur-lg">
+        <div className="whitespace-nowrap rounded-full border border-border/50 bg-background/90 px-2 py-1 text-foreground text-sm backdrop-blur-lg">
           {formatFullDate(date)}
         </div>
       </div>
@@ -869,7 +869,7 @@ export const GanttFeatureDragHelper: FC<GanttFeatureDragHelperProps> = ({ direct
       {date && (
         <div
           className={cn(
-            "-translate-x-1/2 absolute top-10 hidden whitespace-nowrap rounded-lg border border-border/50 bg-background/90 px-2 py-1 text-foreground text-[13px] backdrop-blur-lg group-hover:block",
+            "-translate-x-1/2 absolute top-10 hidden whitespace-nowrap rounded-lg border border-border/50 bg-background/90 px-2 py-1 text-foreground text-sm backdrop-blur-lg group-hover:block",
             isPressed && "block",
           )}
         >
@@ -897,7 +897,7 @@ export const GanttFeatureItemCard: FC<GanttFeatureItemCardProps> = ({ color, id,
 
   return (
     <Card
-      className="h-full w-full rounded-md bg-background px-2 py-0 text-[13px] shadow-sm"
+      className="h-full w-full rounded-md bg-background px-2 py-0 text-sm shadow-sm"
       data-roadmap-ui="gantt-feature-card"
       style={{ "--gantt-feature-color": color ?? "currentColor" } as CSSProperties}
     >
@@ -1073,7 +1073,7 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
           sensors={[mouseSensor]}
         >
           <GanttFeatureItemCard color={feature.status.color} id={feature.id}>
-            {children ?? <p className="flex-1 truncate text-[13px]">{feature.name}</p>}
+            {children ?? <p className="flex-1 truncate text-sm">{feature.name}</p>}
           </GanttFeatureItemCard>
         </DndContext>
         {onMove && (
@@ -1147,7 +1147,7 @@ export const GanttMarker: FC<
         <ContextMenuTrigger asChild>
           <div
             className={cn(
-              "group pointer-events-auto sticky top-0 flex select-auto flex-col flex-nowrap items-center justify-center whitespace-nowrap rounded-b-md bg-card px-2 py-1 text-foreground text-[13px]",
+              "group pointer-events-auto sticky top-0 flex select-auto flex-col flex-nowrap items-center justify-center whitespace-nowrap rounded-b-md bg-card px-2 py-1 text-foreground text-sm",
               className,
             )}
           >
@@ -1381,7 +1381,7 @@ export const GanttToday: FC<GanttTodayProps> = ({ className }) => {
     >
       <div
         className={cn(
-          "group pointer-events-auto sticky top-0 flex select-auto flex-col flex-nowrap items-center justify-center whitespace-nowrap rounded-b-md bg-card px-2 py-1 text-foreground text-[13px]",
+          "group pointer-events-auto sticky top-0 flex select-auto flex-col flex-nowrap items-center justify-center whitespace-nowrap rounded-b-md bg-card px-2 py-1 text-foreground text-sm",
           className,
         )}
       >

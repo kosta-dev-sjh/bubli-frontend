@@ -1819,6 +1819,46 @@ function DesktopWidgetSurface() {
     }
   }, [isTauri, selectedWidgetRoomId]);
 
+  const openMainApp = useCallback(
+    async (route?: "settings") => {
+      if (!isTauri) return;
+
+      try {
+        await tauriCommands.showMainWindow(route ? { route } : undefined);
+      } catch {
+        // Browser preview fallback.
+      }
+    },
+    [isTauri],
+  );
+
+  const quitDesktopApp = useCallback(async () => {
+    if (!isTauri) return;
+
+    try {
+      await tauriCommands.quitApp();
+    } catch {
+      // Browser preview fallback.
+    }
+  }, [isTauri]);
+
+  const toggleWidgetRoomContext = useCallback(async () => {
+    if (!isTauri) return;
+
+    try {
+      if (selectedWidgetRoomId) {
+        await tauriCommands.setWidgetRoomContext({ selectedRoomId: null });
+        return;
+      }
+
+      const activeRoom = await tauriCommands.readActiveProjectRoom();
+      if (!activeRoom?.roomId) return;
+      await tauriCommands.setWidgetRoomContext({ selectedRoomId: activeRoom.roomId });
+    } catch {
+      // Browser preview fallback.
+    }
+  }, [isTauri, selectedWidgetRoomId]);
+
   if (!mounted || !widgetSessionReady) {
     return null;
   }
@@ -1831,9 +1871,14 @@ function DesktopWidgetSurface() {
     return (
       <DesktopWidgetBubbleBar
         bubbleDataByType={displayBubbles}
+        hasRoomContext={Boolean(selectedWidgetRoomId)}
         minimizedItems={barItems}
         notificationSignal={notificationSignal}
+        onOpenMainApp={() => void openMainApp()}
+        onOpenSettings={() => void openMainApp("settings")}
+        onQuit={() => void quitDesktopApp()}
         onRestoreBubble={(bubbleType, restoredWindowId) => void restoreBubbleFromBar(bubbleType, restoredWindowId)}
+        onToggleRoomContext={() => void toggleWidgetRoomContext()}
       />
     );
   }

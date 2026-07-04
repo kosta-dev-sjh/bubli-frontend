@@ -77,7 +77,7 @@
   padding: 7px 10px;
   color: var(--color-text);
   background: rgba(255, 255, 255, 0.68);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 790;
 }
 
@@ -143,7 +143,7 @@
   gap: 8px;
   align-items: center;
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -168,7 +168,7 @@
   padding: 9px;
   background: rgba(255, 255, 255, 0.56);
   color: var(--color-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 740;
   overflow-wrap: anywhere;
 }
@@ -190,7 +190,7 @@
   padding: 5px 9px;
   color: var(--color-text);
   background: rgba(232, 196, 160, 0.22);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
 }
 

@@ -47,6 +47,12 @@ const ko = {
 
   // 상단바 알림 패널
   "layout.notifications.aria": "알림 패널",
+  "layout.invites.title": "받은 초대",
+  "layout.invites.from": "{name}님이 초대했어요",
+  "layout.invites.accept": "수락",
+  "layout.invites.acceptAria": "{room} 초대 수락",
+  "layout.invites.roomFallback": "프로젝트룸",
+  "layout.invites.inviterFallback": "멤버",
   "layout.notifications.title": "알림",
   "layout.notifications.unreadCount": "안 읽음 {count}개",
   "layout.notifications.empty": "알림이 없습니다",
@@ -121,6 +127,12 @@ const en: Record<Key, string> = {
   "layout.profileMenu.loggingOut": "Logging out",
 
   "layout.notifications.aria": "Notifications panel",
+  "layout.invites.title": "Invitations",
+  "layout.invites.from": "{name} invited you",
+  "layout.invites.accept": "Accept",
+  "layout.invites.acceptAria": "Accept invitation to {room}",
+  "layout.invites.roomFallback": "Project room",
+  "layout.invites.inviterFallback": "A member",
   "layout.notifications.title": "Notifications",
   "layout.notifications.unreadCount": "{count} unread",
   "layout.notifications.empty": "No notifications",
@@ -192,6 +204,12 @@ const ja: Record<Key, string> = {
   "layout.profileMenu.loggingOut": "ログアウト中",
 
   "layout.notifications.aria": "通知パネル",
+  "layout.invites.title": "受信した招待",
+  "layout.invites.from": "{name}さんから招待されました",
+  "layout.invites.accept": "承認",
+  "layout.invites.acceptAria": "{room}への招待を承認",
+  "layout.invites.roomFallback": "プロジェクトルーム",
+  "layout.invites.inviterFallback": "メンバー",
   "layout.notifications.title": "通知",
   "layout.notifications.unreadCount": "未読{count}件",
   "layout.notifications.empty": "通知はありません",

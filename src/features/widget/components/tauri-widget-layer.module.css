@@ -15,7 +15,7 @@
   align-items: center;
   gap: 8px;
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -117,7 +117,7 @@
   padding: 8px 12px;
   color: var(--color-blue-deep);
   background: rgba(255, 255, 255, 0.66);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
 }
 
@@ -177,7 +177,7 @@
 .subtitle {
   margin: 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 720;
 }
 
@@ -192,7 +192,7 @@
   gap: 8px;
   align-items: center;
   color: var(--color-text);
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .widgetRow span {

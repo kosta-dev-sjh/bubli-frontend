@@ -1094,6 +1094,33 @@ fn recover_stale_visible_widgets_for_bar(
     }
 }
 
+fn widget_bar_state_for_show(store: &mut WidgetWindowStore) -> WidgetWindowState {
+    let widget = store
+        .bubbles
+        .entry("bar".to_string())
+        .or_insert_with(|| default_widget_window_state("bar", Some("bar".to_string())));
+    widget.mode = "DEFAULT".to_string();
+    widget.click_through = false;
+    widget.window_visible = true;
+    widget.clone()
+}
+
+/// 버블을 최소화하면 흩어진 창이 남지 않고 항상 하나의 독 바로 모이도록,
+/// 최소화 시점에 바 창을 보이는 상태로 보장한다.
+fn ensure_widget_bar_window(
+    app: &AppHandle,
+    monitor_state: &AppMonitorState,
+    state: &WidgetState,
+) -> Result<WidgetWindowState, String> {
+    let bar = {
+        let mut guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        widget_bar_state_for_show(&mut guard)
+    };
+    schedule_widget_window_build(app, monitor_state, &bar)
+}
+
 fn seed_widget_bar_items_for_store(
     store: &mut WidgetWindowStore,
     selected_room_id: Option<String>,
@@ -1238,6 +1265,9 @@ fn set_widget_window_mode(
     let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
         apply_widget_window_mode_update(widget, mode, selected_room_id.clone());
     })?;
+    if widget.mode == "MINIMIZED" && !widget_keeps_webview_when_hidden(&widget) {
+        ensure_widget_bar_window(&app, &monitor_state, &state)?;
+    }
     persist_widget_window_state(&app, &state)?;
     apply_widget_window_state(&app, &monitor_state, &widget)
 }
@@ -1364,6 +1394,45 @@ fn register_widget_shortcut(
     Ok(widget)
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MainWindowShowInput {
+    route: Option<String>,
+}
+
+/// 위젯 메뉴에서 메인 앱을 열 때 이동을 허용하는 경로 화이트리스트.
+fn normalize_main_window_route(route: Option<String>) -> Option<&'static str> {
+    match route.as_deref() {
+        Some("settings") => Some("/app/settings"),
+        _ => None,
+    }
+}
+
+#[tauri::command]
+fn show_main_window(app: AppHandle, input: Option<MainWindowShowInput>) -> Result<(), String> {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return Err("main window not found".to_string());
+    };
+
+    if let Some(route) = normalize_main_window_route(input.and_then(|value| value.route)) {
+        window
+            .eval(&format!("window.location.assign(\"{route}\")"))
+            .map_err(|error| error.to_string())?;
+    }
+
+    let _ = window.unminimize();
+    window.show().map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn quit_app(app: AppHandle, state: tauri::State<'_, WidgetState>) -> Result<(), String> {
+    persist_widget_window_state(&app, &state)?;
+    destroy_all_widget_windows(&app);
+    app.exit(0);
+    Ok(())
+}
+
 fn app_ready_qa_all_widgets_requested(input: &Option<AppReadyInput>) -> bool {
     input
         .as_ref()
@@ -1442,6 +1511,9 @@ fn close_widget_window(
         widget.dock_orb_visible = false;
         widget.window_visible = false;
     })?;
+    if !widget_keeps_webview_when_hidden(&widget) {
+        ensure_widget_bar_window(&app, &monitor_state, &state)?;
+    }
     persist_widget_window_state(&app, &state)?;
     if widget_keeps_webview_when_hidden(&widget) {
         apply_widget_window_state(&app, &monitor_state, &widget)
@@ -1473,6 +1545,9 @@ fn toggle_widget_window(
         };
         widget.dock_orb_visible = false;
     })?;
+    if !widget.window_visible && !widget_keeps_webview_when_hidden(&widget) {
+        ensure_widget_bar_window(&app, &monitor_state, &state)?;
+    }
     persist_widget_window_state(&app, &state)?;
 
     if widget.window_visible {
@@ -1635,8 +1710,10 @@ pub fn run() {
             list_app_monitors,
             open_main_window_route,
             open_widget_window,
+            quit_app,
             register_widget_shortcut,
             seed_widget_bar_items,
+            show_main_window,
             set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,
@@ -1866,6 +1943,35 @@ mod widget_runtime_tests {
                 && !widget.window_visible
                 && widget.selected_room_id.as_deref() == Some("room-1")
         }));
+    }
+
+    #[test]
+    fn minimizing_widget_marks_dock_bar_window_visible() {
+        let mut store = WidgetWindowStore::default();
+
+        let bar = widget_bar_state_for_show(&mut store);
+
+        assert_eq!(bar.active_bubble, "bar");
+        assert_eq!(bar.mode, "DEFAULT");
+        assert!(bar.window_visible);
+        assert!(!bar.click_through);
+        assert!(store
+            .bubbles
+            .get("bar")
+            .is_some_and(|widget| widget.window_visible));
+    }
+
+    #[test]
+    fn main_window_route_allows_only_known_routes() {
+        assert_eq!(
+            normalize_main_window_route(Some("settings".to_string())),
+            Some("/app/settings")
+        );
+        assert_eq!(
+            normalize_main_window_route(Some("javascript:alert(1)".to_string())),
+            None
+        );
+        assert_eq!(normalize_main_window_route(None), None);
     }
 
     #[test]

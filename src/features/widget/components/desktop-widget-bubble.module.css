@@ -46,18 +46,16 @@
   display: grid;
   align-content: start;
   gap: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.92);
+  /* v20 Visual Target Guide 5장 — 깊이는 rim + inner highlight, shadow는 작고 맑은 floating 토큰만. */
+  border: 1px solid var(--rim-light, rgba(255, 255, 255, 0.85));
   background:
     radial-gradient(circle at 20% 12%, rgba(255, 255, 255, 0.96), transparent 22%),
     radial-gradient(circle at 78% 14%, rgba(255, 255, 255, 0.88), transparent 18%),
     linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(246, 251, 255, 0.82)),
     rgba(255, 255, 255, 0.9);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.98),
-    inset 0 -12px 30px rgba(215, 234, 244, 0.18),
-    0 1px 2px rgba(47, 92, 126, 0.06),
-    0 10px 24px -14px rgba(90, 123, 150, 0.2),
-    0 22px 44px -30px rgba(47, 92, 126, 0.34);
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
   backdrop-filter: blur(10px) saturate(1.1);
   -webkit-backdrop-filter: blur(10px) saturate(1.1);
 }
@@ -81,7 +79,8 @@
 
 .tauriShell {
   width: 320px;
-  border-radius: 26px;
+  /* v20 radius 토큰 정렬(--radius-window: 24px) */
+  border-radius: var(--radius-window, 24px);
   padding: 12px;
 }
 
@@ -276,7 +275,7 @@
   background: rgba(255, 255, 255, 0.74);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
   cursor: pointer;
 }
@@ -449,9 +448,10 @@
 .memoGrid article,
 .timeline span {
   border: 1px solid rgba(107, 143, 168, 0.11);
-  border-radius: 18px;
+  /* v20 radius 토큰 정렬(--radius-card: 16px) */
+  border-radius: var(--radius-card, 16px);
   background: rgba(255, 255, 255, 0.58);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
+  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
 }
 
 .checkRow,
@@ -483,7 +483,7 @@
 .message {
   min-width: 0;
   color: var(--widget-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
   line-height: 1.35;
 }
@@ -578,7 +578,7 @@
   color: var(--widget-text);
   background: transparent;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -633,7 +633,7 @@
 
 .memoGrid strong {
   color: var(--widget-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -720,7 +720,7 @@
 
 .ghostSignal strong {
   color: rgba(44, 53, 64, 0.74);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -745,8 +745,8 @@
     radial-gradient(circle at 80% 14%, rgba(255, 255, 255, 0.98), transparent 18%),
     linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(247, 251, 255, 0.54));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.94),
-    0 16px 34px rgba(90, 123, 150, 0.16);
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
   cursor: pointer;
 }
 
@@ -774,7 +774,7 @@
 .hiddenCard b {
   overflow: hidden;
   color: var(--widget-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   line-height: 1.15;
   text-overflow: ellipsis;
@@ -798,7 +798,7 @@
   place-items: center;
   min-height: 64px;
   border: 1px dashed rgba(107, 143, 168, 0.18);
-  border-radius: 18px;
+  border-radius: var(--radius-card, 16px);
   background: rgba(255, 255, 255, 0.3);
 }
 
@@ -838,9 +838,9 @@
 .reactionDock,
 .agentInlineRow {
   border: 1px solid rgba(107, 143, 168, 0.11);
-  border-radius: 18px;
+  border-radius: var(--radius-card, 16px);
   background: rgba(255, 255, 255, 0.58);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
+  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
 }
 
 .chatPeople,
@@ -859,7 +859,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--widget-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -903,7 +903,7 @@
 
 .voiceStrip span {
   color: var(--widget-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -951,23 +951,63 @@
 }
 
 .barPreview,
-.menuPanel {
+.menuPanel,
+.barMenu {
   display: grid;
   gap: 4px;
   margin-bottom: 8px;
   padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.82);
-  border-radius: 18px;
+  border: 1px solid var(--rim-light, rgba(255, 255, 255, 0.85));
+  border-radius: var(--radius-panel, 20px);
   background: rgba(255, 255, 255, 0.62);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 14px 28px rgba(90, 123, 150, 0.12);
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+}
+
+/* 메뉴 버블리(브랜드 버블)가 여는 위젯 메뉴 — 접힘 미리보기 자리를 대체해 창 크기 안에 머문다. */
+.barMenu {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.barMenuItem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(107, 143, 168, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--widget-text);
+  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
+  font: inherit;
+  font-size: 12px;
+  font-weight: 820;
+  cursor: pointer;
+}
+
+.barMenuItem:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.barMenuItem span {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .barPreview strong,
 .menuPanel strong {
   color: var(--widget-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -984,14 +1024,14 @@
   align-items: center;
   gap: 8px;
   padding: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.82);
+  border: 1px solid var(--rim-light, rgba(255, 255, 255, 0.85));
   border-radius: 999px;
   background:
     radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.94), transparent 20%),
     linear-gradient(150deg, rgba(255, 255, 255, 0.76), rgba(246, 251, 255, 0.58));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 18px 36px rgba(90, 123, 150, 0.14);
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
 }
 
 .barBrand,
@@ -1006,6 +1046,17 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.76);
   color: var(--widget-text);
+}
+
+/* 브랜드 버블은 이제 메뉴를 여는 버튼이다. */
+.barBrand {
+  font: inherit;
+  cursor: pointer;
+}
+
+.barBrand[aria-expanded="true"] {
+  border-color: rgba(111, 184, 242, 0.34);
+  background: rgba(216, 240, 255, 0.72);
 }
 
 .barBrand i {
@@ -1041,8 +1092,8 @@
     radial-gradient(circle at 72% 72%, rgba(230, 221, 248, 0.32), transparent 30%),
     linear-gradient(150deg, rgba(255, 255, 255, 0.9), rgba(215, 234, 244, 0.62));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 18px 34px rgba(90, 123, 150, 0.16);
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
 }
 
 .menuOrb span {
@@ -1069,4 +1120,267 @@
   color: var(--widget-blue-deep);
   font-size: 12px;
   font-weight: 800;
+}
+
+/* ============================================================
+   Night Bubble 다크 — Visual Target Guide 5·7장.
+   어두운 투명 유리 + hairline rim + inner highlight. 남색 박스/큰 glow 금지.
+   ============================================================ */
+:global([data-theme="dark"]) .root {
+  --widget-text: #EAF0F8;
+  --widget-muted: #A7B6CC;
+  --widget-faint: #98A5AF;
+  --widget-border: rgba(150, 170, 215, 0.18);
+}
+
+:global([data-theme="dark"]) .shell {
+  border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
+  background:
+    radial-gradient(circle at 20% 12%, rgba(180, 205, 240, 0.09), transparent 26%),
+    radial-gradient(circle at 78% 14%, rgba(180, 205, 240, 0.06), transparent 22%),
+    var(--surface-bg-dark, rgba(34, 46, 72, 0.42));
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
+}
+
+:global([data-theme="dark"]) .shell::after {
+  opacity: 0.12;
+}
+
+:global([data-theme="dark"]) .translucentMode .shell {
+  border-color: rgba(150, 170, 215, 0.12);
+  background: rgba(34, 46, 72, 0.3);
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-surface-dark, 0 1px 2px rgba(0, 0, 0, 0.16));
+}
+
+:global([data-theme="dark"]) .ghostMode .tauriShell,
+:global([data-theme="dark"]) .minimizedMode .shell {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+:global([data-theme="dark"]) .ghostMode .previewShell {
+  border-color: rgba(150, 170, 215, 0.24);
+  background: rgba(34, 46, 72, 0.14);
+  box-shadow: none;
+}
+
+:global([data-theme="dark"]) .checkRow,
+:global([data-theme="dark"]) .fileRow,
+:global([data-theme="dark"]) .alertRow,
+:global([data-theme="dark"]) .bubbleNote,
+:global([data-theme="dark"]) .dropPanel,
+:global([data-theme="dark"]) .chatHead,
+:global([data-theme="dark"]) .handoffBubble,
+:global([data-theme="dark"]) .handoffDone,
+:global([data-theme="dark"]) .message,
+:global([data-theme="dark"]) .input,
+:global([data-theme="dark"]) .memoGrid article,
+:global([data-theme="dark"]) .timeline span,
+:global([data-theme="dark"]) .chatPeople,
+:global([data-theme="dark"]) .voiceStrip,
+:global([data-theme="dark"]) .reactionDock,
+:global([data-theme="dark"]) .agentInlineRow,
+:global([data-theme="dark"]) .dragbar {
+  border-color: rgba(150, 170, 215, 0.14);
+  background: rgba(24, 34, 54, 0.46);
+  box-shadow: var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07));
+}
+
+:global([data-theme="dark"]) .handoffBubble {
+  color: #BFD6F5;
+}
+
+:global([data-theme="dark"]) .messageMine {
+  color: #BFD6F5;
+  background: rgba(111, 184, 242, 0.16);
+}
+
+:global([data-theme="dark"]) .controls button,
+:global([data-theme="dark"]) .dragbar button,
+:global([data-theme="dark"]) .dockbar button,
+:global([data-theme="dark"]) .segmented button,
+:global([data-theme="dark"]) .timerActions button,
+:global([data-theme="dark"]) .modebar button,
+:global([data-theme="dark"]) .wideAction,
+:global([data-theme="dark"]) .itemActions button,
+:global([data-theme="dark"]) .voiceStrip button,
+:global([data-theme="dark"]) .reactionDock button,
+:global([data-theme="dark"]) .barMenuItem {
+  border-color: rgba(150, 170, 215, 0.18);
+  color: #BFD6F5;
+  background: rgba(34, 46, 72, 0.5);
+  box-shadow: var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07));
+}
+
+:global([data-theme="dark"]) .controls button[aria-pressed="true"],
+:global([data-theme="dark"]) .dragbar button[aria-pressed="true"],
+:global([data-theme="dark"]) .dockbar button[aria-pressed="true"],
+:global([data-theme="dark"]) .segmented button[aria-pressed="true"],
+:global([data-theme="dark"]) .modebar button[aria-pressed="true"] {
+  border-color: rgba(158, 216, 255, 0.34);
+  color: #BFD6F5;
+  background: rgba(111, 184, 242, 0.2);
+}
+
+:global([data-theme="dark"]) .checkRow b,
+:global([data-theme="dark"]) .fileRow b,
+:global([data-theme="dark"]) .chatHead b,
+:global([data-theme="dark"]) .handoffBubble b,
+:global([data-theme="dark"]) .chatPeople b,
+:global([data-theme="dark"]) .agentInlineRow b {
+  color: #BFD6F5;
+  background: rgba(111, 184, 242, 0.18);
+}
+
+:global([data-theme="dark"]) .modebar,
+:global([data-theme="dark"]) .dockbar {
+  border-color: rgba(150, 170, 215, 0.12);
+  background: rgba(24, 34, 54, 0.38);
+}
+
+:global([data-theme="dark"]) .progress {
+  background:
+    radial-gradient(circle, rgba(19, 26, 40, 0.92) 0 58%, transparent 59%),
+    conic-gradient(var(--bubble-tone, var(--widget-blue)) 0 270deg, rgba(150, 170, 215, 0.22) 270deg 360deg);
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-surface-dark, 0 1px 2px rgba(0, 0, 0, 0.16));
+}
+
+:global([data-theme="dark"]) .ring {
+  background:
+    radial-gradient(circle, rgba(19, 26, 40, 0.92) 0 58%, transparent 59%),
+    conic-gradient(var(--widget-lilac) 0 220deg, rgba(150, 170, 215, 0.22) 220deg 360deg);
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-surface-dark, 0 1px 2px rgba(0, 0, 0, 0.16));
+}
+
+:global([data-theme="dark"]) .timer {
+  border-color: rgba(158, 216, 255, 0.22);
+  background:
+    radial-gradient(circle at 36% 24%, rgba(180, 205, 240, 0.1), transparent 26%),
+    rgba(24, 34, 54, 0.5);
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-surface-dark, 0 1px 2px rgba(0, 0, 0, 0.16));
+}
+
+:global([data-theme="dark"]) .agentHaloCore {
+  border-color: rgba(176, 168, 224, 0.34);
+  background:
+    radial-gradient(circle at 30% 24%, rgba(180, 205, 240, 0.14), transparent 22%),
+    rgba(24, 34, 54, 0.44);
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-surface-dark, 0 1px 2px rgba(0, 0, 0, 0.16));
+}
+
+:global([data-theme="dark"]) .agentHaloRing {
+  box-shadow:
+    inset 0 0 18px rgba(19, 26, 40, 0.4),
+    0 0 0 4px rgba(176, 168, 224, 0.1);
+}
+
+:global([data-theme="dark"]) .ghostSignal {
+  border-color: rgba(150, 170, 215, 0.28);
+  background:
+    radial-gradient(circle, rgba(19, 26, 40, 0.4) 0 56%, transparent 57%),
+    conic-gradient(var(--bubble-tone, var(--widget-blue)) 0 245deg, rgba(150, 170, 215, 0.14) 245deg 360deg);
+  box-shadow:
+    inset 0 1px 0 rgba(180, 205, 240, 0.14),
+    0 0 0 1px rgba(150, 170, 215, 0.12);
+}
+
+:global([data-theme="dark"]) .ghostSignal span,
+:global([data-theme="dark"]) .ghostSignal strong {
+  color: #EAF0F8;
+  text-shadow: 0 1px 10px rgba(10, 16, 28, 0.6);
+}
+
+:global([data-theme="dark"]) .ghostSignal small {
+  color: #A7B6CC;
+  text-shadow: 0 1px 10px rgba(10, 16, 28, 0.5);
+}
+
+:global([data-theme="dark"]) .dockOrb,
+:global([data-theme="dark"]) .hiddenCard {
+  border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
+  background:
+    radial-gradient(circle at 80% 14%, rgba(180, 205, 240, 0.14), transparent 22%),
+    var(--surface-bg-dark, rgba(34, 46, 72, 0.42));
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
+}
+
+:global([data-theme="dark"]) .dockBubble,
+:global([data-theme="dark"]) .barBrand i {
+  background:
+    radial-gradient(circle at 30% 28%, rgba(234, 240, 248, 0.85), transparent 22%),
+    linear-gradient(150deg, rgba(158, 216, 255, 0.42), rgba(111, 184, 242, 0.26));
+  box-shadow: inset 0 1px 0 rgba(234, 240, 248, 0.45);
+}
+
+:global([data-theme="dark"]) .emptyState {
+  border-color: rgba(150, 170, 215, 0.24);
+  background: rgba(24, 34, 54, 0.3);
+}
+
+:global([data-theme="dark"]) .barPreview,
+:global([data-theme="dark"]) .menuPanel,
+:global([data-theme="dark"]) .barMenu {
+  border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
+  background: var(--surface-bg-dark, rgba(34, 46, 72, 0.42));
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
+}
+
+:global([data-theme="dark"]) .bubbleBar {
+  border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
+  background:
+    radial-gradient(circle at 16% 28%, rgba(180, 205, 240, 0.1), transparent 22%),
+    var(--surface-bg-dark, rgba(34, 46, 72, 0.42));
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
+}
+
+:global([data-theme="dark"]) .barBrand,
+:global([data-theme="dark"]) .barItem,
+:global([data-theme="dark"]) .barNotice {
+  border-color: rgba(150, 170, 215, 0.18);
+  color: var(--widget-text);
+  background: rgba(24, 34, 54, 0.5);
+}
+
+:global([data-theme="dark"]) .barBrand[aria-expanded="true"] {
+  border-color: rgba(158, 216, 255, 0.34);
+  background: rgba(111, 184, 242, 0.2);
+}
+
+:global([data-theme="dark"]) .menuOrb {
+  border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
+  background:
+    radial-gradient(circle at 30% 28%, rgba(180, 205, 240, 0.16), transparent 22%),
+    radial-gradient(circle at 72% 72%, rgba(176, 168, 224, 0.16), transparent 30%),
+    var(--surface-bg-dark, rgba(34, 46, 72, 0.42));
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
+}
+
+:global([data-theme="dark"]) .menuOrb span {
+  background: rgba(150, 170, 215, 0.4);
+}
+
+:global([data-theme="dark"]) .menuPanel > div span {
+  color: #BFD6F5;
+  background: rgba(111, 184, 242, 0.18);
 }

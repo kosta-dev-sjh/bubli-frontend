@@ -67,7 +67,7 @@ const ko = {
   "public.home.previewLane2Title": "회의록 결정사항 반영",
   "public.home.previewLane2Sub": "오늘 대시보드와 버블에 표시",
   "public.home.previewWidgetTitle": "버블 위젯",
-  "public.home.previewWidgetSub": "TODO · 일정 · 타이머 · 자료 제안",
+  "public.home.previewWidgetSub": "TODO, 일정, 타이머, 자료 제안",
 
   // 홈 - 다운로드 섹션
   "public.home.downloadLabel": "Download",

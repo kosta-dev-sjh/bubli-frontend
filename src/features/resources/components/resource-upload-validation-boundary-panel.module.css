@@ -78,7 +78,7 @@
 .metrics span {
   display: block;
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
 }
 
@@ -107,7 +107,7 @@
   padding: 0 14px;
   background: rgba(255, 255, 255, 0.7);
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 820;
   text-align: center;
   white-space: nowrap;
@@ -191,7 +191,7 @@
 .ruleCard p {
   margin: 8px 0 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.62;
 }
 
@@ -239,7 +239,7 @@
 .itemText p {
   margin: 5px 0 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.55;
 }
 
@@ -258,7 +258,7 @@
   padding: 0 10px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.62);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 780;
   white-space: nowrap;
 }

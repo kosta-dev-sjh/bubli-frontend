@@ -15,7 +15,7 @@
   align-items: center;
   gap: 8px;
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -145,7 +145,7 @@
 .commandSelected strong {
   color: var(--color-blue-deep);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .commandCard h3,
@@ -205,7 +205,7 @@
   border-radius: 999px;
   color: var(--color-blue-deep);
   background: rgba(215, 234, 244, 0.8);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 860;
 }
 
@@ -242,7 +242,7 @@
 
 .flowCard span {
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
 }
 

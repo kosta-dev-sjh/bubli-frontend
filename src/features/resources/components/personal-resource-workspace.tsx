@@ -27,6 +27,7 @@ import { shouldUseWorkspacePreviewData, workspacePreviewPersonalResources } from
 import type { LocalFilePreviewResult, LocalFileSearchResult, ManagedFolderListItem } from "@/lib/tauri/commands";
 import type { ResourceResponse } from "@/types/api/resource";
 
+import { ResourceAiSearchPanel } from "./resource-ai-search-panel";
 import {
   formatDate,
   getErrorMessage,
@@ -557,6 +558,16 @@ export function PersonalResourceWorkspace() {
                   )}
                 </GlassPanel>
               ) : null}
+
+              {/* 서버 업로드 자료의 내용(임베딩) 기반 AI 검색 — 파일명 필터로 못 찾을 때의 보조 경로. */}
+              <ResourceAiSearchPanel
+                onSelectResource={(resourceId) => {
+                  setQuery("");
+                  setSelectedResourceId(resourceId);
+                }}
+                query={query}
+                resources={resources}
+              />
 
               {state.kind === "loading" ? (
                 <div aria-hidden="true" className={styles.rows}>

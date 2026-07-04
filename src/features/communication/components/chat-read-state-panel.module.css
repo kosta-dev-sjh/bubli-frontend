@@ -61,7 +61,7 @@
 
 .summaryCard small {
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -104,7 +104,7 @@
 
 .sectionHeader span {
   color: var(--color-faint);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 680;
 }
 
@@ -172,7 +172,7 @@
 .noticeMain span {
   overflow: hidden;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

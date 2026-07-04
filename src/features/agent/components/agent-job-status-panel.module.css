@@ -125,7 +125,7 @@
 
 .progressRow span {
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 720;
 }
 
@@ -226,7 +226,7 @@
 .stepItem p {
   margin: 5px 0 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 560;
   line-height: 1.45;
 }
@@ -262,7 +262,7 @@
 
 .suggestionCard span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 680;
   line-height: 1.2;
 }
@@ -276,7 +276,7 @@
   padding: 10px 11px;
   color: var(--color-muted);
   background: rgba(215, 234, 244, 0.42);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 680;
   line-height: 1.35;
 }
@@ -313,7 +313,7 @@
 .boundary p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 580;
   line-height: 1.5;
 }

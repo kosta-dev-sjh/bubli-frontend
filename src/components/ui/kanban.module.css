@@ -225,7 +225,7 @@
   border: 0;
   border-radius: 6px;
   color: var(--color-brand);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1;
   padding: 4px 7px;
@@ -237,7 +237,7 @@
   border-radius: 6px;
   color: var(--color-muted);
   display: inline-block;
-  font-size: 13px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   line-height: 1.3;
@@ -276,7 +276,7 @@
   color: var(--color-brand);
   display: inline-flex;
   flex: 0 0 auto;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   inline-size: 22px;
   justify-content: center;
@@ -301,7 +301,7 @@
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   gap: 6px;
   max-inline-size: 150px;
@@ -408,7 +408,7 @@
 .assigneeCopy strong,
 .wbsCopy strong {
   color: var(--color-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   line-height: 1.2;
 }
@@ -416,7 +416,7 @@
 .assigneeCopy small,
 .wbsCopy small {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -446,7 +446,7 @@
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   justify-content: center;
   min-block-size: 30px;
@@ -467,7 +467,7 @@
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   gap: 6px;
   justify-content: center;

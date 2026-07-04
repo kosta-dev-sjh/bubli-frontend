@@ -122,7 +122,7 @@
 
 .sectionHeader span {
   color: var(--color-faint);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 680;
 }
 
@@ -189,7 +189,7 @@
 .resultMain span {
   overflow: hidden;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

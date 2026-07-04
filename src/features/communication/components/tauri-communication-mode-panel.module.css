@@ -118,7 +118,7 @@
   justify-items: center;
   gap: 8px;
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
   line-height: 1;
   text-align: center;
@@ -158,7 +158,7 @@
 .channelCard p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 12.8px;
+  font-size: 14px;
   line-height: 1.55;
 }
 
@@ -190,7 +190,7 @@
 .connectionItem p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -211,7 +211,7 @@
 
 .guardRail span {
   color: var(--color-muted);
-  font-size: 12.8px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.55;
 }

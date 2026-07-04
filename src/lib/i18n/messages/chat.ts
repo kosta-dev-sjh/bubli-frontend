@@ -107,9 +107,14 @@ const ko = {
   "chat.composer.agentSummarize": "정리",
   "chat.composer.agentSuggest": "제안",
   "chat.composer.agentAnswer": "답변",
-  "chat.composer.hint": "Shift+Enter 줄바꿈 · /bubli 질문으로 에이전트 호출",
-  "chat.composer.hintDirect": "Enter로 전송 · Shift+Enter 줄바꿈",
+  "chat.composer.hint": "Shift+Enter 줄바꿈, /bubli 질문으로 에이전트 호출",
+  "chat.composer.hintDirect": "Enter로 전송, Shift+Enter 줄바꿈",
   "chat.composer.emojiPickerAria": "이모지 선택",
+
+  // 입력 중 인디케이터 (컴포저 위 한 줄)
+  "chat.typing.agent": "Bubli가 입력 중…",
+  "chat.typing.one": "{name} 입력 중…",
+  "chat.typing.many": "여러 명 입력 중…",
 
   // 친구 사이드바
   "chat.social.aria": "친구",
@@ -665,7 +670,7 @@ const ko = {
   "chat.agentCommand.contentAria": "명령어와 프로젝트룸 채팅 미리보기",
   "chat.agentCommand.chatPreviewAria": "프로젝트룸 채팅 응답 미리보기",
   "chat.agentCommand.chatTitle": "K-Stay 프로젝트룸 채팅",
-  "chat.agentCommand.chatSource": "서버 채팅 원본 · 앱은 최근 대화만 기기 안에 임시 보관",
+  "chat.agentCommand.chatSource": "서버 채팅 원본, 앱은 최근 대화만 기기 안에 임시 보관",
   "chat.agentCommand.responseBadge": "에이전트 응답",
   "chat.agentCommand.flowAria": "프로젝트룸 에이전트 저장 흐름",
   "chat.agentCommand.footer1": "프로젝트룸 응답은 서버 채팅 원본에 남습니다.",
@@ -840,6 +845,10 @@ const en: Record<Key, string> = {
   "chat.composer.hint": "Shift+Enter for a new line · /bubli to call the agent",
   "chat.composer.hintDirect": "Enter to send · Shift+Enter for a new line",
   "chat.composer.emojiPickerAria": "Choose an emoji",
+
+  "chat.typing.agent": "Bubli is typing…",
+  "chat.typing.one": "{name} is typing…",
+  "chat.typing.many": "Several people are typing…",
 
   "chat.social.aria": "Friends",
   "chat.social.subtitle": "Add friends and invite them to your project rooms.",
@@ -1545,6 +1554,10 @@ const ja: Record<Key, string> = {
   "chat.composer.hint": "Shift+Enterで改行 · /bubli の質問でエージェントを呼び出し",
   "chat.composer.hintDirect": "Enterで送信 · Shift+Enterで改行",
   "chat.composer.emojiPickerAria": "絵文字を選択",
+
+  "chat.typing.agent": "Bubliが入力中…",
+  "chat.typing.one": "{name}さんが入力中…",
+  "chat.typing.many": "複数人が入力中…",
 
   "chat.social.aria": "友だち",
   "chat.social.subtitle": "友だちを追加してプロジェクトルームに招待しましょう。",

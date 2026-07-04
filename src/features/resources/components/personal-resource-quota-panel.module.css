@@ -46,7 +46,7 @@
 
 .summaryCard span {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -108,7 +108,7 @@
 .usageTop p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 12.8px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
@@ -126,7 +126,7 @@
   justify-content: space-between;
   gap: 10px;
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1;
 }
@@ -171,7 +171,7 @@
 .pendingCard p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 12.8px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -203,7 +203,7 @@
 .fileHeader p {
   margin: 5px 0 0;
   color: var(--color-muted);
-  font-size: 12.8px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -268,7 +268,7 @@
 
 .fileSize {
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
   line-height: 1;
   white-space: nowrap;
@@ -303,7 +303,7 @@
 .ruleGrid p {
   margin: 4px 0 7px;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.5;
 }
 

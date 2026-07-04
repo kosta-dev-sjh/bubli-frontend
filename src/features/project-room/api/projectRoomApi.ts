@@ -7,6 +7,7 @@ import type {
   ProjectRoomInvitationCreateRequest,
   ProjectRoomInvitationPageResponse,
   ProjectRoomInvitationResponse,
+  ProjectRoomInvitationStatus,
   ProjectRoomMemberPageResponse,
   ProjectRoomMemberResponse,
   ProjectRoomMemberRoleUpdateRequest,
@@ -75,6 +76,11 @@ export const projectRoomApi = {
 
   getInvitations(roomId: string) {
     return apiRequest<ProjectRoomInvitationPageResponse>(`/api/project-rooms/${roomId}/invitations`);
+  },
+
+  // 받은 초대함: 초대받은 사람이 자신의 대기 초대를 직접 조회한다. (backend PR 189)
+  getMyInvitations(status: ProjectRoomInvitationStatus = "PENDING") {
+    return apiRequest<ProjectRoomInvitationPageResponse>(`/api/me/invitations?status=${status}`);
   },
 
   acceptInvitation(invitationId: string) {

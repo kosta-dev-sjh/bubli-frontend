@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   CircleDashed,
   Clock3,
+  ExternalLink,
   FileText,
   Ghost,
   Headphones,
@@ -17,6 +18,9 @@ import {
   Pin,
   Play,
   Plus,
+  Power,
+  Repeat,
+  Settings,
   SmilePlus,
   Search,
   Send,
@@ -815,34 +819,84 @@ export function DesktopWidgetBubble({
 
 export function DesktopWidgetBubbleBar({
   bubbleDataByType,
+  hasRoomContext = false,
   minimizedItems,
   notificationSignal = widgetNotificationSignal,
+  onOpenMainApp,
+  onOpenSettings,
+  onQuit,
   onRestoreBubble,
+  onToggleRoomContext,
 }: {
   bubbleDataByType?: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
+  hasRoomContext?: boolean;
   minimizedItems: WidgetWindowState[];
   notificationSignal?: WidgetNotificationSignal;
+  onOpenMainApp?: () => void;
+  onOpenSettings?: () => void;
+  onQuit?: () => void;
   onRestoreBubble: (bubbleType: WidgetBubbleType, windowId?: string) => void;
+  onToggleRoomContext?: () => void;
 }) {
   const { t } = useI18n();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuItems: Array<{ Icon: typeof Repeat; label: string; onSelect?: () => void }> = [
+    {
+      Icon: Repeat,
+      label: t(hasRoomContext ? "widget.menu.switchToPersonal" : "widget.menu.switchToRoom"),
+      onSelect: onToggleRoomContext,
+    },
+    { Icon: ExternalLink, label: t("widget.menu.openMainApp"), onSelect: onOpenMainApp },
+    { Icon: Settings, label: t("widget.menu.openSettings"), onSelect: onOpenSettings },
+    { Icon: Power, label: t("widget.menu.quit"), onSelect: onQuit },
+  ];
+
   return (
     <div className={[styles.root, styles.barRoot].join(" ")} data-bubli-desktop-widget>
-      <div className={styles.barPreview} aria-hidden="true">
-        <strong>{t("widget.bar.folded")}</strong>
-        <span>
-          {minimizedItems.length > 0
-            ? minimizedItems.map((item) => t((bubbleDataByType?.[item.activeBubble as WidgetBubbleType] ?? getWidgetPreviewBubble(item.activeBubble as WidgetBubbleType)).compactLabel as MessageKey)).join(" · ")
-            : t("widget.bar.noneFolded")}
-        </span>
-        <small>
-          {notificationSignal.rows[0]?.label ?? t(notificationSignal.notificationLabel as MessageKey)}
-        </small>
-      </div>
+      {menuOpen ? (
+        <div className={styles.barMenu} role="menu" aria-label={t("widget.menu.title")}>
+          {menuItems.map(({ Icon, label, onSelect }) => (
+            <button
+              className={styles.barMenuItem}
+              disabled={!onSelect}
+              key={label}
+              onClick={() => {
+                setMenuOpen(false);
+                onSelect?.();
+              }}
+              role="menuitem"
+              type="button"
+            >
+              <Icon size={13} strokeWidth={2} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className={styles.barPreview} aria-hidden="true">
+          <strong>{t("widget.bar.folded")}</strong>
+          <span>
+            {minimizedItems.length > 0
+              ? minimizedItems.map((item) => t((bubbleDataByType?.[item.activeBubble as WidgetBubbleType] ?? getWidgetPreviewBubble(item.activeBubble as WidgetBubbleType)).compactLabel as MessageKey)).join(" · ")
+              : t("widget.bar.noneFolded")}
+          </span>
+          <small>
+            {notificationSignal.rows[0]?.label ?? t(notificationSignal.notificationLabel as MessageKey)}
+          </small>
+        </div>
+      )}
       <nav className={styles.bubbleBar} aria-label={t("widget.bar.minimizedAria")}>
-        <div className={styles.barBrand} aria-label={t("widget.bar.notificationState")}>
+        <button
+          className={styles.barBrand}
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          aria-label={t("widget.menu.openAria")}
+          onClick={() => setMenuOpen((current) => !current)}
+          type="button"
+        >
           <i aria-hidden="true" />
           <span>Bubli</span>
-        </div>
+        </button>
         {minimizedItems.map((item, index) => {
           if (!desktopWidgetBubbleTypes.includes(item.activeBubble as WidgetBubbleType)) return null;
 
