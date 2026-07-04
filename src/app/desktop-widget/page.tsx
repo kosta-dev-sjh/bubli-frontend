@@ -74,6 +74,22 @@ const apiItemBubbleTypeMap: Partial<Record<WidgetBubbleType, BackendWidgetBubble
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
 type WidgetItemStateAction = "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED";
 
+function roomQuery(roomId?: string | null) {
+  return roomId ? `?roomId=${encodeURIComponent(roomId)}` : "";
+}
+
+function roomWorkRoute(roomId?: string | null) {
+  return roomId ? `/app/project-rooms/${encodeURIComponent(roomId)}/work` : "/app";
+}
+
+function roomResourceRoute(roomId?: string | null) {
+  return roomId ? `/app/project-rooms/${encodeURIComponent(roomId)}/resources` : "/app/resources";
+}
+
+function roomScopedRoute(path: string, roomId?: string | null) {
+  return `${path}${roomQuery(roomId)}`;
+}
+
 function subscribeToClientMount(onStoreChange: () => void) {
   const timeoutId = window.setTimeout(onStoreChange, 0);
   return () => window.clearTimeout(timeoutId);
@@ -394,6 +410,11 @@ function buildDisplayBubbles(input: {
 }, t: TranslateFn): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
   const label = roomLabel(t, input.room, input.roomId);
   const isRoomScoped = Boolean(input.roomId);
+  const agentRoute = roomScopedRoute("/app/agent", input.roomId);
+  const chatRoute = input.roomId ? `/app/chat?mode=room&roomId=${encodeURIComponent(input.roomId)}` : "/app/chat";
+  const resourceRoute = roomResourceRoute(input.roomId);
+  const scheduleRoute = roomScopedRoute("/app/calendar", input.roomId);
+  const todoRoute = roomWorkRoute(input.roomId);
   const activeTimer = input.timer ?? (!isRoomScoped ? input.dashboard?.runningTimer ?? null : null);
   const todoSource = isRoomScoped ? input.tasks : (input.dashboard?.todayTasks.length ? input.dashboard.todayTasks : input.tasks);
   const scheduleSource = isRoomScoped ? input.schedules : (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules);
@@ -406,12 +427,16 @@ function buildDisplayBubbles(input: {
       ? input.suggestions.slice(0, 3).map((item) => ({
           id: item.suggestionId,
           kind: "agent" as const,
+          handoffLabel: suggestionStatusLabel(t, item.status),
+          handoffUrl: agentRoute,
           label: suggestionTitle(item),
           status: suggestionStatusLabel(t, item.status),
         }))
       : (input.dashboard?.agentSuggestionSummary ?? []).slice(0, 3).map((line, index) => ({
           id: `agent-summary-${index}`,
           kind: "agent" as const,
+          handoffLabel: t("widget.suggestion.draft"),
+          handoffUrl: agentRoute,
           label: line,
           status: t("widget.suggestion.draft"),
         }));
@@ -444,6 +469,8 @@ function buildDisplayBubbles(input: {
       roomLabel: label,
       rows: unreadNotifications.map((item) => ({
         id: item.id,
+        handoffLabel: item.sourceType,
+        handoffUrl: item.sourceType === "MESSAGE" ? chatRoute : item.sourceType === "RESOURCE" ? resourceRoute : agentRoute,
         kind: item.sourceType === "MESSAGE" ? "message" : item.sourceType === "RESOURCE" ? "resource" : "agent",
         label: item.title,
         status: item.sourceType,
@@ -482,6 +509,8 @@ function buildDisplayBubbles(input: {
           : []),
         ...input.messages.slice(0, 3).map((item) => ({
           dismissOnOpen: false,
+          handoffLabel: formatShortTime(item.createdAt),
+          handoffUrl: chatRoute,
           id: item.id,
           kind: "message" as const,
           label: `${item.sender.name}: ${messageText(item)}`,
@@ -498,6 +527,8 @@ function buildDisplayBubbles(input: {
       roomLabel: label,
       rows: memoItems.map((item) => ({
         id: item.id,
+        handoffLabel: formatShortTime(item.updatedAt),
+        handoffUrl: roomScopedRoute("/app", input.roomId),
         kind: "memo",
         label: memoTitle(t, item),
         status: formatShortTime(item.updatedAt),
@@ -512,6 +543,8 @@ function buildDisplayBubbles(input: {
       roomLabel: label,
       rows: fileItems.map((item) => ({
         id: item.id,
+        handoffLabel: resourceStatusLabel(t, item.status),
+        handoffUrl: resourceRoute,
         kind: "resource",
         label: item.title,
         status: resourceStatusLabel(t, item.status),
@@ -526,6 +559,8 @@ function buildDisplayBubbles(input: {
       roomLabel: label,
       rows: scheduleItems.map((item) => ({
         id: item.id,
+        handoffLabel: formatShortTime(item.startsAt),
+        handoffUrl: scheduleRoute,
         kind: "schedule",
         label: item.title,
         status: formatShortTime(item.startsAt),
@@ -560,6 +595,8 @@ function buildDisplayBubbles(input: {
       roomLabel: label,
       rows: todoItems.map((item) => ({
         checked: item.status === "DONE",
+        handoffLabel: formatDue(t, item.dueAt) || taskStatusLabel(t, item.status),
+        handoffUrl: todoRoute,
         id: item.id,
         kind: "task",
         label: item.title,
@@ -1363,6 +1400,39 @@ function DesktopWidgetSurface() {
     [activeBubble, isTauri],
   );
 
+  const openWidgetHandoff = useCallback(
+    async (item: WidgetPreviewItem) => {
+      const route = item.handoffUrl?.trim();
+      if (!route) return;
+
+      const itemType: BackendWidgetItemType =
+        item.kind === "message"
+          ? "MESSAGE"
+          : item.kind === "schedule"
+            ? "SCHEDULE"
+            : item.kind === "resource" || item.kind === "agent"
+              ? "NOTIFICATION"
+              : "TASK";
+
+      if (isTauri) {
+        await tauriCommands.openMainWindowRoute({ route });
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: activeBubble,
+            eventType: "handoff:open",
+            itemId: item.id,
+            itemType,
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+        return;
+      }
+
+      window.open(route, "_blank", "noopener,noreferrer");
+    },
+    [activeBubble, isTauri],
+  );
+
   const sendWidgetChatMessage = useCallback(
     async (bubble: WidgetPreviewBubble, text: string) => {
       if (!bubble.chatRoomId) return;
@@ -1725,6 +1795,7 @@ function DesktopWidgetSurface() {
       onMarkChatRead={markWidgetChatRead}
       onModeChange={(nextMode) => void setWindowMode(nextMode)}
       onCreateMemo={createWidgetMemo}
+      onOpenHandoff={openWidgetHandoff}
       onPauseTimer={pauseWidgetTimer}
       onPrimaryTimerAction={runPrimaryTimerAction}
       onRestore={() => void restoreCurrentWindow()}

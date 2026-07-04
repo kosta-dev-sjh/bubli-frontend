@@ -19,6 +19,7 @@ export const TAURI_COMMANDS = {
   listLocalSqliteBackups: "list_local_sqlite_backups",
   markActivityContextSynced: "mark_activity_context_synced",
   listManagedFolders: "list_managed_folders",
+  openMainWindowRoute: "open_main_window_route",
   openWidgetWindow: "open_widget_window",
   readActiveProjectRoom: "read_active_project_room",
   readTauriAuthSession: "read_tauri_auth_session",
@@ -625,6 +626,10 @@ export type AppReadyInput = {
   selectedRoomId?: string | null;
 };
 
+export type MainWindowRouteInput = {
+  route: string;
+};
+
 export type WidgetWindowModeInput = {
   bubbleType?: WidgetWindowBubbleType;
   mode: WidgetWindowMode;
@@ -832,6 +837,10 @@ export type TauriCommandContract = {
     args: LocalFileOpenInput;
     result: LocalFileOpenResult;
   };
+  open_main_window_route: {
+    args: MainWindowRouteInput;
+    result: string;
+  };
   register_widget_shortcut: {
     args: WidgetShortcutInput;
     result: WidgetWindowState;
@@ -1025,6 +1034,9 @@ export const tauriCommands = {
   },
   openWidgetWindow(input?: WidgetWindowOpenInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.openWidgetWindow, input ? { input } : undefined);
+  },
+  openMainWindowRoute(input: MainWindowRouteInput) {
+    return invokeTauri<string>(TAURI_COMMANDS.openMainWindowRoute, { input });
   },
   readActiveProjectRoom() {
     return invokeTauri<ActiveProjectRoomReadResult | null>(TAURI_COMMANDS.readActiveProjectRoom);
