@@ -202,6 +202,12 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
     serverApi: null,
   },
   {
+    ipc: TAURI_COMMANDS.findLocalFileByResourceId,
+    responsibility: "Resolve a synced personal resource to its locally indexed file id",
+    reflectsToServer: false,
+    serverApi: null,
+  },
+  {
     ipc: TAURI_COMMANDS.openLocalFile,
     responsibility: "Open only a locally indexed personal file by id with the OS default app",
     reflectsToServer: false,

@@ -17,6 +17,7 @@ import { LocalIndexedFileSearchPanel } from "./local-indexed-file-search-panel";
 import { ResourceAiSearchPanel } from "./resource-ai-search-panel";
 import {
   getErrorMessage,
+  isResourceAnalysisPending,
   openResourceDownload,
   ResourcePreview,
   ResourceRow,
@@ -102,6 +103,18 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   }, []);
 
   const resources = useMemo(() => (state.kind === "ready" ? state.resources : EMPTY_RESOURCES), [state]);
+
+  useEffect(() => {
+    if (state.kind !== "ready" || !resources.some(isResourceAnalysisPending)) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void loadResources();
+    }, 2500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadResources, resources, state.kind]);
 
   const filteredResources = useMemo(() => {
     const term = query.trim().toLowerCase();

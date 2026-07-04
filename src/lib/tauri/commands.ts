@@ -10,6 +10,7 @@ export const TAURI_COMMANDS = {
   closeAllWidgetWindows: "close_all_widget_windows",
   closeWidgetWindow: "close_widget_window",
   extractLocalFileKeySentences: "extract_local_file_key_sentences",
+  findLocalFileByResourceId: "find_local_file_by_resource_id",
   flushSyncOutbox: "flush_sync_outbox",
   getIndexProgress: "get_index_progress",
   getLocalFileAnalysisStatus: "get_local_file_analysis_status",
@@ -187,6 +188,24 @@ export type LocalFileSearchResult = {
     path: string;
     updatedAt: string;
   }>;
+};
+
+export type LocalFileByResourceIdInput = {
+  resourceId: string;
+};
+
+export type LocalFileByResourceIdResult = {
+  checksum?: string | null;
+  latestEventAt?: string | null;
+  latestEventType?: "CREATED" | "UPDATED" | string | null;
+  localFileId: string;
+  name: string;
+  path: string;
+  resourceId: string;
+  revisionNo: number;
+  sizeBytes?: number | null;
+  syncStatus: string;
+  updatedAt: string;
 };
 
 export type LocalFilePreviewInput = {
@@ -754,6 +773,10 @@ export type TauriCommandContract = {
     args: LocalFileKeySentenceInput;
     result: LocalFileKeySentenceResult;
   };
+  find_local_file_by_resource_id: {
+    args: LocalFileByResourceIdInput;
+    result: LocalFileByResourceIdResult | null;
+  };
   flush_sync_outbox: {
     args: undefined;
     result: SyncOutboxFlushResult;
@@ -1051,6 +1074,9 @@ export const tauriCommands = {
   },
   extractLocalFileKeySentences(input: LocalFileKeySentenceInput) {
     return invokeTauri<LocalFileKeySentenceResult>(TAURI_COMMANDS.extractLocalFileKeySentences, { input });
+  },
+  findLocalFileByResourceId(input: LocalFileByResourceIdInput) {
+    return invokeTauri<LocalFileByResourceIdResult | null>(TAURI_COMMANDS.findLocalFileByResourceId, { input });
   },
   flushSyncOutbox() {
     return invokeTauri<SyncOutboxFlushResult>(TAURI_COMMANDS.flushSyncOutbox);
