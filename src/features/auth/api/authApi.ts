@@ -61,6 +61,15 @@ function assertValidGoogleAuthorizeUrl(authorizeUrl: string) {
   }
 }
 
+function assertDevAccessTokenLoginAllowed() {
+  if (
+    process.env.NODE_ENV !== "development" ||
+    process.env.NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN !== "true"
+  ) {
+    throw new AuthConfigurationError("DEV_ACCESS_TOKEN_LOGIN_DISABLED");
+  }
+}
+
 export const authApi = {
   async getGoogleAuthorizationUrl(input: GetGoogleAuthorizationInput = {}) {
     const params = new URLSearchParams();
@@ -92,6 +101,7 @@ export const authApi = {
   },
 
   async loginWithDevAccessToken(accessToken: string) {
+    assertDevAccessTokenLoginAllowed();
     const user = await apiRequest<AuthUser>("/api/me", {
       headers: {
         Authorization: `Bearer ${accessToken}`,

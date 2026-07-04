@@ -6,6 +6,7 @@ import { tauriCommands } from "@/lib/tauri/commands";
 
 const AUTH_SESSION_STORAGE_KEY = "bubli-auth-session";
 const ACCESS_TOKEN_EXPIRY_BUFFER_MS = 30_000;
+const DEV_REFRESH_TOKEN_PREFIX = "dev-refresh-token:";
 
 export const AUTH_SESSION_CHANGE_EVENT = "bubli:auth-session-change";
 
@@ -66,6 +67,21 @@ function parseStoredAuthSession(raw: string): StoredAuthSession | null {
   }
 }
 
+function isDevAccessTokenSession(session: StoredAuthSession) {
+  return session.refreshToken.startsWith(DEV_REFRESH_TOKEN_PREFIX);
+}
+
+function isDevAccessTokenSessionAllowed() {
+  return (
+    process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN === "true"
+  );
+}
+
+function shouldRejectStoredAuthSession(session: StoredAuthSession) {
+  return isDevAccessTokenSession(session) && !isDevAccessTokenSessionAllowed();
+}
+
 function sameAuthSession(left: StoredAuthSession | null, right: AuthSessionInput) {
   if (!left) return false;
 
@@ -105,6 +121,10 @@ export function getStoredAuthSession(): StoredAuthSession | null {
 
     const parsed = parseStoredAuthSession(raw);
     if (!parsed) {
+      clearStoredAuthSession();
+      return null;
+    }
+    if (shouldRejectStoredAuthSession(parsed)) {
       clearStoredAuthSession();
       return null;
     }
@@ -175,7 +195,7 @@ export async function restoreStoredAuthSessionFromTauri() {
     }
 
     const parsed = parseStoredAuthSession(restored.sessionJson);
-    if (!parsed || isExpired(parsed.refreshTokenExpiresAt)) {
+    if (!parsed || shouldRejectStoredAuthSession(parsed) || isExpired(parsed.refreshTokenExpiresAt)) {
       clearTauriAuthSessionMirror();
       if (!current) {
         clearStoredAuthSession();

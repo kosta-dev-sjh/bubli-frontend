@@ -1,7 +1,12 @@
 import { getAuthAccessToken } from "@/lib/auth/auth-session";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 function shouldUseWidgetDevAuthToken() {
-  return process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_BUBLI_PREVIEW_DATA === "true";
+  return (
+    !isTauriRuntime() &&
+    process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_BUBLI_PREVIEW_DATA === "true"
+  );
 }
 
 export function withWidgetDevAuthHeaders(headers?: HeadersInit): HeadersInit {
