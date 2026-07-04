@@ -687,6 +687,7 @@ function DesktopWidgetSurface() {
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(widgetNotificationSignal);
   const liveKitRoomRef = useRef<Room | null>(null);
+  const appReadySentRef = useRef(false);
   const selectedWidgetRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
   const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
 
@@ -725,10 +726,6 @@ function DesktopWidgetSurface() {
     bodyStyle.height = "100%";
     bodyStyle.display = "grid";
 
-    if (isTauri) {
-      void tauriCommands.appReady().catch(() => undefined);
-    }
-
     return () => {
       delete document.documentElement.dataset.bubliSurface;
       delete document.body.dataset.bubliSurface;
@@ -748,30 +745,31 @@ function DesktopWidgetSurface() {
     };
   }, [isTauri]);
 
+  const validateWidgetAuthSession = useCallback(async () => {
+    const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
+    if (!session) {
+      return false;
+    }
+
+    try {
+      await authApi.getMe();
+      return true;
+    } catch {
+      clearStoredAuthSession();
+      return false;
+    }
+  }, []);
+
   useEffect(() => {
     if (!isTauri) return;
 
     let cancelled = false;
 
     async function restoreWidgetAuthSession() {
-      const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
+      const hasValidSession = await validateWidgetAuthSession();
       if (cancelled) return;
 
-      if (!session) {
-        setHasAuthSession(false);
-        setAuthReady(true);
-        return;
-      }
-
-      try {
-        await authApi.getMe();
-        if (cancelled) return;
-        setHasAuthSession(true);
-      } catch {
-        clearStoredAuthSession();
-        if (cancelled) return;
-        setHasAuthSession(false);
-      }
+      setHasAuthSession(hasValidSession);
       setAuthReady(true);
     }
 
@@ -780,28 +778,45 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [isTauri]);
+  }, [isTauri, validateWidgetAuthSession]);
 
   useEffect(() => {
     if (!isTauri) return;
 
+    let validationRun = 0;
+
     const handleAuthSessionChange = () => {
-      setHasAuthSession(Boolean(getStoredAuthSession()));
-      setAuthReady(true);
+      const currentRun = ++validationRun;
+      setAuthReady(false);
+      void validateWidgetAuthSession().then((hasValidSession) => {
+        if (currentRun !== validationRun) return;
+        setHasAuthSession(hasValidSession);
+        setAuthReady(true);
+      });
     };
 
     window.addEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
 
     return () => {
+      validationRun += 1;
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
     };
-  }, [isTauri]);
+  }, [isTauri, validateWidgetAuthSession]);
 
   useEffect(() => {
     if (!isTauri || !authReady || hasAuthSession) return;
 
     void tauriCommands.closeWidgetWindow({ bubbleType: currentWindowBubble, windowId }).catch(() => undefined);
   }, [authReady, currentWindowBubble, hasAuthSession, isTauri, windowId]);
+
+  useEffect(() => {
+    if (!isTauri || !mounted || !widgetSessionReady || appReadySentRef.current) return;
+
+    appReadySentRef.current = true;
+    void tauriCommands.appReady().catch(() => {
+      appReadySentRef.current = false;
+    });
+  }, [isTauri, mounted, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
