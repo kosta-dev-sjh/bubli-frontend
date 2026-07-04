@@ -13,7 +13,7 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::Deserialize;
 use serde::Serialize;
 use tauri::State;
@@ -69,6 +69,27 @@ pub fn read_activity_context(state: State<'_, Db>) -> Result<ActivityContextResu
 
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
 
+    let duration_seconds = Some(record_activity_focus_for_conn(
+        &conn,
+        &app_name,
+        window_title.as_deref(),
+        now,
+    )?);
+
+    Ok(ActivityContextResult {
+        app_name,
+        window_title,
+        duration_seconds,
+        captured_at: now_iso(),
+    })
+}
+
+fn record_activity_focus_for_conn(
+    conn: &Connection,
+    app_name: &str,
+    window_title: Option<&str>,
+    now: i64,
+) -> Result<i64, String> {
     // Previous focus row (single row, id = 1).
     let previous: Option<(String, Option<String>, i64)> = conn
         .query_row(
@@ -85,10 +106,14 @@ pub fn read_activity_context(state: State<'_, Db>) -> Result<ActivityContextResu
         .optional()
         .map_err(|error| error.to_string())?;
 
+    let normalized_window_title = window_title
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
     let same_focus = matches!(
         &previous,
         Some((prev_app, prev_window, _))
-            if prev_app == &app_name && prev_window == &window_title
+            if prev_app == app_name && prev_window == &normalized_window_title
     );
 
     let focus_started_ms = match (&previous, same_focus) {
@@ -104,18 +129,11 @@ pub fn read_activity_context(state: State<'_, Db>) -> Result<ActivityContextResu
            window_title = excluded.window_title, \
            focus_started_ms = excluded.focus_started_ms, \
            last_seen_ms = excluded.last_seen_ms",
-        params![app_name, window_title, focus_started_ms, now],
+        params![app_name, normalized_window_title, focus_started_ms, now],
     )
     .map_err(|error| error.to_string())?;
 
-    let duration_seconds = Some(((now - focus_started_ms).max(0)) / 1000);
-
-    Ok(ActivityContextResult {
-        app_name,
-        window_title,
-        duration_seconds,
-        captured_at: now_iso(),
-    })
+    Ok(((now - focus_started_ms).max(0)) / 1000)
 }
 
 fn set_activity_context_consent_enabled(enabled: bool) {
@@ -271,7 +289,12 @@ fn capture_foreground() -> Result<(String, Option<String>), String> {
 
 #[cfg(test)]
 mod consent_tests {
-    use super::{ensure_activity_context_consent, set_activity_context_consent_enabled};
+    use rusqlite::Connection;
+
+    use super::{
+        ensure_activity_context_consent, record_activity_focus_for_conn,
+        set_activity_context_consent_enabled,
+    };
 
     #[test]
     fn activity_context_consent_gate_defaults_closed_and_can_be_toggled() {
@@ -285,6 +308,50 @@ mod consent_tests {
 
         set_activity_context_consent_enabled(false);
         assert!(ensure_activity_context_consent().is_err());
+    }
+
+    #[test]
+    fn activity_focus_accumulates_same_window_and_resets_on_change() {
+        let conn = Connection::open_in_memory().expect("open in-memory sqlite");
+        conn.execute_batch(
+            "
+            CREATE TABLE local_activity_focus (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                app_name TEXT NOT NULL,
+                window_title TEXT,
+                focus_started_ms INTEGER NOT NULL,
+                last_seen_ms INTEGER NOT NULL
+            );
+            ",
+        )
+        .expect("create focus table");
+
+        let first =
+            record_activity_focus_for_conn(&conn, "Code", Some("Bubli"), 1_000).expect("first");
+        let same =
+            record_activity_focus_for_conn(&conn, "Code", Some("Bubli"), 6_500).expect("same");
+        let changed =
+            record_activity_focus_for_conn(&conn, "Chrome", Some("Docs"), 9_000).expect("changed");
+        let (app_name, window_title, focus_started_ms, last_seen_ms): (
+            String,
+            Option<String>,
+            i64,
+            i64,
+        ) = conn
+            .query_row(
+                "SELECT app_name, window_title, focus_started_ms, last_seen_ms FROM local_activity_focus WHERE id = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("read focus row");
+
+        assert_eq!(first, 0);
+        assert_eq!(same, 5);
+        assert_eq!(changed, 0);
+        assert_eq!(app_name, "Chrome");
+        assert_eq!(window_title.as_deref(), Some("Docs"));
+        assert_eq!(focus_started_ms, 9_000);
+        assert_eq!(last_seen_ms, 9_000);
     }
 }
 
