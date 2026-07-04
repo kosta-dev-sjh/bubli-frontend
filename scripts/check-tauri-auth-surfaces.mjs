@@ -16,6 +16,7 @@ const files = {
   layout: "src/app/layout.tsx",
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
   runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
+  windowsRuntimeSmoke: "scripts/check-tauri-windows-runtime-smoke.mjs",
   widgetAuthHeaders: "src/features/widget/api/widgetAuthHeaders.ts",
   workspaceActiveRoom: "src/lib/workspace-active-room.ts",
   workspacePreviewData: "src/lib/workspace-preview-data.ts",
@@ -65,6 +66,7 @@ const workspacePreviewData = read(files.workspacePreviewData);
 const desktopCommunicationRoute = read(files.desktopCommunicationRoute);
 const devWidgetRealBackend = read(files.devWidgetRealBackend);
 const projectRoomChatRoute = read(files.projectRoomChatRoute);
+const windowsRuntimeSmoke = read(files.windowsRuntimeSmoke);
 
 assertContains(
   layout,
@@ -139,8 +141,18 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /selectManagedFolder\(\{ path: smokeFolderPath \}\)[\s\S]*scanManagedFolder[\s\S]*searchLocalFiles[\s\S]*readLocalFilePreview[\s\S]*stageLocalFileEventsForSync/,
-  "TauriRuntimeSmokeRunner must verify managed-folder scan/search/preview/event staging against a temp folder.",
+  /selectManagedFolder\(\{ path: smokeFolderPath \}\)[\s\S]*scanManagedFolder[\s\S]*searchLocalFiles[\s\S]*readLocalFilePreview[\s\S]*stageLocalFileEventsForSync[\s\S]*watchManagedFolder[\s\S]*triggerManagedFolderMutation[\s\S]*managed folder watcher staged update and delete events/,
+  "TauriRuntimeSmokeRunner must verify managed-folder scan/search/preview/event staging and live watcher update/delete events against a temp folder.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /function smokeControlUrl[\s\S]*\/mutate-folder[\s\S]*function waitForManagedFolderEvents[\s\S]*"UPDATED"[\s\S]*"DELETED"/,
+  "TauriRuntimeSmokeRunner must ask the Node smoke server to mutate watched files and poll for UPDATED/DELETED events.",
+);
+assertContains(
+  windowsRuntimeSmoke,
+  /runtime-smoke-delete\.txt[\s\S]*request\.method === "POST" && request\.url === "\/mutate-folder"[\s\S]*appendFileSync[\s\S]*rmSync/,
+  "Windows runtime smoke server must mutate and delete real temp files after the Tauri watcher starts.",
 );
 assertContains(
   devWidgetRealBackend,

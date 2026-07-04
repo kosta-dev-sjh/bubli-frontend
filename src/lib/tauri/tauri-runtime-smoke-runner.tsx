@@ -37,6 +37,50 @@ function isWindowsRuntime() {
   return typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("windows");
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function smokeControlUrl(path: string) {
+  if (!smokeReportUrl) return null;
+
+  try {
+    return new URL(path, smokeReportUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+async function triggerManagedFolderMutation() {
+  const mutationUrl = smokeControlUrl("/mutate-folder");
+  if (!mutationUrl) {
+    throw new Error("runtime smoke mutate-folder endpoint is not configured");
+  }
+
+  const response = await fetch(mutationUrl, { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`runtime smoke mutate-folder failed: ${response.status}`);
+  }
+
+  return response.json().catch(() => null) as Promise<unknown>;
+}
+
+async function waitForManagedFolderEvents(localFolderId: string, requiredEventTypes: Array<"UPDATED" | "DELETED">) {
+  let latest = await tauriCommands.stageLocalFileEventsForSync({ limit: 20, localFolderId });
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const stagedTypes = new Set(latest.events.map((event) => event.eventType));
+    if (requiredEventTypes.every((eventType) => stagedTypes.has(eventType))) {
+      return latest;
+    }
+
+    await sleep(250);
+    latest = await tauriCommands.stageLocalFileEventsForSync({ limit: 20, localFolderId });
+  }
+
+  return latest;
+}
+
 function seedDevAuthSession() {
   if (process.env.NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN !== "true") return;
 
@@ -188,6 +232,19 @@ async function runSmoke() {
         localFolderId: folder.localFolderId,
       });
       assert(stagedFiles.events.length >= 1, "local file events staged for backend sync", stagedFiles);
+
+      const watch = await tauriCommands.watchManagedFolder({ localFolderId: folder.localFolderId });
+      assert(watch.watching, "managed folder watcher started", watch);
+      await sleep(500);
+      const mutation = await triggerManagedFolderMutation();
+      const watchedEvents = await waitForManagedFolderEvents(folder.localFolderId, ["UPDATED", "DELETED"]);
+      const watchedTypes = new Set(watchedEvents.events.map((event) => event.eventType));
+      assert(
+        watchedTypes.has("UPDATED") && watchedTypes.has("DELETED"),
+        "managed folder watcher staged update and delete events",
+        { mutation, watchedEvents },
+      );
+      await tauriCommands.unwatchAllManagedFolders();
     }
 
     const closedCount = await tauriCommands.closeAllWidgetWindows();
@@ -202,6 +259,7 @@ async function runSmoke() {
       status: "passed",
     });
   } catch (error) {
+    await tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
     await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
     await postReport({
