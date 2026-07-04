@@ -229,8 +229,13 @@ assertContains(
 );
 assertContains(
   widgetPage,
-  /if \(!isTauri \|\| !mounted \|\| !widgetSessionReady \|\| appReadySentRef\.current\) return;[\s\S]*tauriCommands\.appReady/,
-  "Desktop widget windows must send appReady only after mount and a valid widget session.",
+  /surfaceReadySentRef = useRef\(false\)[\s\S]*if \(!isTauri \|\| !mounted \|\| surfaceReadySentRef\.current\) return;[\s\S]*surfaceReadyOnly:\s*true/,
+  "Desktop widget windows must send a surface-ready appReady after mount so Windows can apply transparent background before auth/data loading.",
+);
+assertContains(
+  widgetPage,
+  /if \(!isTauri \|\| !mounted \|\| !widgetSessionReady \|\| appReadySentRef\.current\) return;[\s\S]*tauriCommands\.appReady\(\{[\s\S]*qaAllWidgets:[\s\S]*selectedRoomId:/,
+  "Desktop widget windows must send the full appReady/show path only after a valid widget session.",
 );
 assertContains(
   widgetPage,
