@@ -32,8 +32,8 @@ export type WidgetBubbleSettingResponse = {
   minimized: boolean;
   opacity?: number | null;
   width?: number | null;
-  x: number;
-  y: number;
+  x?: number | null;
+  y?: number | null;
 };
 
 export type WidgetBubbleSettingUpdate = Partial<

@@ -23,9 +23,15 @@ export function TauriPostLoginLauncher() {
     }
 
     let disposed = false;
+    let validationRun = 0;
 
     async function launchAuthenticatedSurfaces() {
+      const currentRun = ++validationRun;
       const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
+      if (disposed || currentRun !== validationRun) {
+        return;
+      }
+
       const hasAuthenticatedSession = Boolean(session);
       if (!hasAuthenticatedSession) {
         await stopTauriAuthenticatedSurfaces();
@@ -35,12 +41,21 @@ export function TauriPostLoginLauncher() {
       try {
         await authApi.getMe();
       } catch {
+        if (disposed || currentRun !== validationRun) {
+          return;
+        }
+
         await stopTauriAuthenticatedSurfaces();
         clearStoredAuthSession();
         return;
       }
 
-      if (disposed) {
+      if (disposed || currentRun !== validationRun) {
+        return;
+      }
+
+      if (!getStoredAuthSession()) {
+        await stopTauriAuthenticatedSurfaces();
         return;
       }
 
@@ -54,6 +69,7 @@ export function TauriPostLoginLauncher() {
 
     return () => {
       disposed = true;
+      validationRun += 1;
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
     };
   }, [isDesktopWidgetSurface]);
