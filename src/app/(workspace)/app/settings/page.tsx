@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { activityApi } from "@/features/activity/api/activityApi";
+import { ActivityDetectionPanel } from "@/features/activity/components";
 import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
@@ -279,31 +280,6 @@ function monitorLabel(t: TranslateFn, monitor: AppMonitorInfo, index: number) {
   return `${name}${primaryLabel} - ${monitor.size.width}x${monitor.size.height} @ ${monitor.position.x},${monitor.position.y}`;
 }
 
-function activityDurationLabel(t: TranslateFn, seconds?: number | null) {
-  if (!seconds || seconds < 0) return t("settings.activity.justRecorded");
-
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.max(1, Math.floor((seconds % 3600) / 60));
-
-  if (hours > 0) {
-    return t("settings.activity.hourMinute", { hours, minutes });
-  }
-
-  return t("settings.activity.minute", { minutes });
-}
-
-function activityStartedLabel(t: TranslateFn, value?: string | null) {
-  if (!value) return t("settings.activity.timeUnknown");
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return t("settings.activity.timeUnknown");
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 type StatusMessage = { text: string; tone: "approved" | "warning" };
 type LocalFilePreviewState =
   | { kind: "loading" }
@@ -326,6 +302,7 @@ export default function SettingsPage() {
   const [desktopRuntime, setDesktopRuntime] = useState(false);
   const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
   const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
+  const [activityAction, setActivityAction] = useState<"record" | "refresh" | null>(null);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -436,6 +413,7 @@ export default function SettingsPage() {
   const refreshActivityLogs = useCallback(async () => {
     if (state.kind !== "ready") return;
 
+    setActivityAction("refresh");
     try {
       const activityLogs = await activityApi.getToday();
       updateReadyState((ready) => ({
@@ -445,6 +423,8 @@ export default function SettingsPage() {
       setLocalActionMessage({ text: t("settings.msg.todayActivityLoaded", { count: activityLogs.length }), tone: "approved" });
     } catch {
       setLocalActionMessage({ text: t("settings.msg.activityLoadFailed"), tone: "warning" });
+    } finally {
+      setActivityAction(null);
     }
   }, [state.kind, updateReadyState]);
 
@@ -977,22 +957,27 @@ export default function SettingsPage() {
 
   const readActivity = useCallback(async () => {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
-    const result = await recordCurrentActivityContext({ consentGranted });
-    if (result.status === "ready") {
-      updateReadyState((ready) => ({
-        ...ready,
-        settings: { ...ready.settings, activityLogs: result.data.todayActivities },
-      }));
-      setLocalActionMessage({
-        text: result.data.windowTitle
-          ? t("settings.msg.activityDetectedWindow", { app: result.data.appName, window: result.data.windowTitle })
-          : t("settings.msg.activityDetected", { app: result.data.appName }),
-        tone: "approved",
-      });
-      return;
-    }
+    setActivityAction("record");
+    try {
+      const result = await recordCurrentActivityContext({ consentGranted });
+      if (result.status === "ready") {
+        updateReadyState((ready) => ({
+          ...ready,
+          settings: { ...ready.settings, activityLogs: result.data.todayActivities },
+        }));
+        setLocalActionMessage({
+          text: result.data.windowTitle
+            ? t("settings.msg.activityDetectedWindow", { app: result.data.appName, window: result.data.windowTitle })
+            : t("settings.msg.activityDetected", { app: result.data.appName }),
+          tone: "approved",
+        });
+        return;
+      }
 
-    setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
+      setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
+    } finally {
+      setActivityAction(null);
+    }
   }, [state, t, updateReadyState]);
 
   const deleteActivityLog = useCallback(
@@ -1377,43 +1362,17 @@ export default function SettingsPage() {
                 ))}
               </div>
               <p className={styles.guard}>{t("settings.privacy.guard")}</p>
-              <div className={styles.inlineActions}>
-                <Button disabled={!desktopRuntime || state.kind !== "ready"} onClick={() => void readActivity()} type="button" variant="quiet">
-                  {t("settings.privacy.recordActivity")}
-                </Button>
-                <Button disabled={state.kind !== "ready" || !privacySettings.activityDetectionEnabled} onClick={() => void refreshActivityLogs()} type="button" variant="secondary">
-                  {t("settings.privacy.refreshToday")}
-                </Button>
-              </div>
-              <div className={styles.activityList} aria-label={t("settings.privacy.activityListAria")}>
-                {todayActivityLogs.length > 0 ? (
-                  todayActivityLogs.map((activity) => (
-                    <div className={styles.activityRow} key={activity.id}>
-                      <span>
-                        <strong>{activity.appName || t("settings.privacy.noAppName")}</strong>
-                        <small>
-                          {[activity.windowTitle, activityStartedLabel(t, activity.startedAt), activityDurationLabel(t, activity.durationSeconds)]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </small>
-                      </span>
-                      <Button
-                        disabled={deletingActivityId === activity.id}
-                        loading={deletingActivityId === activity.id}
-                        onClick={() => void deleteActivityLog(activity.id)}
-                        size="sm"
-                        type="button"
-                        variant="quiet"
-                      >
-                        {t("common.delete")}
-                      </Button>
-                    </div>
-                  ))
-                ) : (
-                  <p className={styles.emptyRow}>{t("settings.privacy.noActivity")}</p>
-                )}
-              </div>
             </GlassPanel>
+            <ActivityDetectionPanel
+              activityLogs={todayActivityLogs}
+              consentGranted={Boolean(privacySettings.activityDetectionEnabled)}
+              deletingActivityId={deletingActivityId}
+              desktopRuntime={desktopRuntime}
+              loading={activityAction}
+              onDeleteActivity={(activityLogId) => void deleteActivityLog(activityLogId)}
+              onRecordActivity={() => void readActivity()}
+              onRefreshActivity={() => void refreshActivityLogs()}
+            />
           </div>
 
           <div className={styles.grid}>

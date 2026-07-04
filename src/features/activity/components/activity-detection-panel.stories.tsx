@@ -3,44 +3,6 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { ActivityDetectionPanel } from "./activity-detection-panel";
 
 const meta = {
-  args: {
-    autoLoad: false,
-    initialActivities: [
-      {
-        appName: "Visual Studio Code",
-        createdAt: "2026-07-04T00:20:00.000Z",
-        durationSeconds: 4320,
-        endedAt: "2026-07-04T01:32:00.000Z",
-        id: "story-activity-vscode",
-        roomId: "room-bubli",
-        startedAt: "2026-07-04T00:20:00.000Z",
-        userId: "story-user",
-        windowTitle: "activity-detection-panel.tsx",
-      },
-      {
-        appName: "Chrome",
-        createdAt: "2026-07-04T01:40:00.000Z",
-        durationSeconds: 1680,
-        endedAt: "2026-07-04T02:08:00.000Z",
-        id: "story-activity-chrome",
-        roomId: null,
-        startedAt: "2026-07-04T01:40:00.000Z",
-        userId: "story-user",
-        windowTitle: "LiveKit docs",
-      },
-      {
-        appName: "Figma",
-        createdAt: "2026-07-04T02:10:00.000Z",
-        durationSeconds: 540,
-        endedAt: null,
-        id: "story-activity-figma",
-        roomId: "room-bubli",
-        startedAt: "2026-07-04T02:10:00.000Z",
-        userId: "story-user",
-        windowTitle: "Bubli widget polish",
-      },
-    ],
-  },
   component: ActivityDetectionPanel,
   parameters: {
     layout: "padded",
@@ -52,4 +14,30 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+export const Default: Story = {
+  args: {
+    activityLogs: [
+      {
+        appName: "Visual Studio Code",
+        createdAt: "2026-07-04T09:18:00+09:00",
+        durationSeconds: 4320,
+        id: "activity-1",
+        roomId: "room-1",
+        startedAt: "2026-07-04T08:06:00+09:00",
+        userId: "user-1",
+        windowTitle: "activity-detection-panel.tsx",
+      },
+      {
+        appName: "Chrome",
+        createdAt: "2026-07-04T10:04:00+09:00",
+        durationSeconds: 1680,
+        id: "activity-2",
+        startedAt: "2026-07-04T09:36:00+09:00",
+        userId: "user-1",
+        windowTitle: "Bubli API docs",
+      },
+    ],
+    consentGranted: true,
+    desktopRuntime: true,
+  },
+};
