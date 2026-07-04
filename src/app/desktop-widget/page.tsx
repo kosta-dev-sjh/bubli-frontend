@@ -1013,12 +1013,14 @@ function DesktopWidgetSurface() {
           .catch(() => undefined);
       }
 
-      setNotificationSignal(buildNotificationSignal(t, notifications));
       const summaryDashboard = dashboardFromWidgetSummary(summary);
-      const dashboard = dashboardResult.status === "fulfilled" ? dashboardResult.value : summaryDashboard;
+      const dashboard = selectedRoomId ? null : dashboardResult.status === "fulfilled" ? dashboardResult.value : summaryDashboard;
       const activeTimerCandidate = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
       const activeTimer = selectedRoomId && activeTimerCandidate?.roomId !== selectedRoomId ? null : activeTimerCandidate;
       const messageItems = messages?.items ?? cachedMessages;
+      const schedules = schedulesResult.status === "fulfilled" ? schedulesResult.value.items : selectedRoomId ? [] : (summaryDashboard?.todaySchedules ?? []);
+      const tasks = tasksResult.status === "fulfilled" ? tasksResult.value.items : selectedRoomId ? [] : (summaryDashboard?.todayTasks ?? []);
+      setNotificationSignal(buildNotificationSignal(t, notifications));
       setActiveTimerHeartbeatId(activeTimer?.status === "RUNNING" ? activeTimer.id : null);
 
       const nextDisplayBubbles = buildDisplayBubbles({
@@ -1031,9 +1033,9 @@ function DesktopWidgetSurface() {
           resources: resourcesResult.status === "fulfilled" ? resourcesResult.value.items : [],
           room: roomResult.status === "fulfilled" ? roomResult.value : null,
           roomId: selectedRoomId,
-          schedules: schedulesResult.status === "fulfilled" ? schedulesResult.value.items : (summaryDashboard?.todaySchedules ?? []),
+          schedules,
           suggestions: suggestionsResult.status === "fulfilled" ? suggestionsResult.value : [],
-          tasks: tasksResult.status === "fulfilled" ? tasksResult.value.items : (summaryDashboard?.todayTasks ?? []),
+          tasks,
           timer: activeTimer,
           voiceConnectionLabel,
           voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
