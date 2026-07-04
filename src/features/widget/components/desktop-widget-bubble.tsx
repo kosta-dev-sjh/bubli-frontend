@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, type MouseEvent, type PointerEvent as ReactPointerEvent, type Ref, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, memo, type MouseEvent, type PointerEvent as ReactPointerEvent, type Ref, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from "motion/react";
 import {
   Bell,
@@ -325,18 +325,23 @@ function WidgetControls({
 function ItemActions({
   item,
   onItemStateChange,
+  showConfirm = true,
 }: {
   item: WidgetPreviewItem;
   onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
+  /** TODO 행처럼 별도 체크 어포던스가 확인을 담당하면 확인 버튼을 숨긴다. */
+  showConfirm?: boolean;
 }) {
   const { t } = useI18n();
   if (!onItemStateChange) return null;
 
   return (
     <span className={styles.itemActions}>
-      <button aria-label={t("widget.item.confirm")} onClick={() => onItemStateChange(item, "CONFIRMED")} type="button">
-        <CheckCircle2 size={12} strokeWidth={2} />
-      </button>
+      {showConfirm ? (
+        <button aria-label={t("widget.item.confirm")} onClick={() => onItemStateChange(item, "CONFIRMED")} type="button">
+          <CheckCircle2 size={12} strokeWidth={2} />
+        </button>
+      ) : null}
       <button aria-label={t("widget.item.pin")} onClick={() => onItemStateChange(item, "PINNED")} type="button">
         <Pin size={12} strokeWidth={2} />
       </button>
@@ -389,6 +394,89 @@ const ItemRows = memo(function ItemRows({
   );
 });
 
+// TODO 마감 칩 톤 클래스(지남/오늘/내일/이후) — 개인 TODO와 룸 태스크 공통.
+const todoDueToneClassNames: Record<NonNullable<WidgetPreviewItem["dueTone"]>, string> = {
+  later: styles.dueLater,
+  overdue: styles.dueOverdue,
+  today: styles.dueToday,
+  tomorrow: styles.dueTomorrow,
+};
+
+// TODO 전용 행 목록: [체크 어포던스][제목 1줄][룸 칩(있으면)][마감 칩] + 고정/숨김.
+// 개인 TODO(sourceKind=personal)와 나에게 할당된 룸 태스크(sourceKind=room)가 함께 있으면
+// "내 할 일" / "룸에서 할당됨" 그룹 헤더로 나눈다(그룹 순서는 rows 배열 순서를 따른다).
+const TodoRows = memo(function TodoRows({
+  bubble,
+  onItemStateChange,
+  onOpenHandoff,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
+}) {
+  const { t } = useI18n();
+  const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
+    if (!item.handoffUrl || !onOpenHandoff) return;
+
+    event.preventDefault();
+    void onOpenHandoff(item);
+  };
+
+  if (bubble.rows.length === 0) {
+    return <BubbleEmptyState bubble={bubble} />;
+  }
+
+  const personalRows = bubble.rows.filter((item) => item.sourceKind !== "room");
+  const roomRows = bubble.rows.filter((item) => item.sourceKind === "room");
+  const showGroupHeads = personalRows.length > 0 && roomRows.length > 0;
+  // 룸 컨텍스트면 룸 태스크 그룹을 먼저 — 고정(PINNED)으로 행 순서가 섞여도 그룹 순서는 유지한다.
+  const roomFirst = Boolean(bubble.roomId);
+  const groups: Array<{ key: string; labelKey: MessageKey; rows: WidgetPreviewItem[] }> = [
+    { key: "personal", labelKey: "widget.todo.groupMine", rows: personalRows },
+    { key: "room", labelKey: "widget.todo.groupRoom", rows: roomRows },
+  ];
+  if (roomFirst) groups.reverse();
+
+  const renderRow = (item: WidgetPreviewItem) => (
+    <div className={styles.todoRow} key={item.id}>
+      <button
+        aria-label={t("widget.todo.markDone", { label: item.label })}
+        aria-pressed={item.checked ?? false}
+        className={styles.todoCheck}
+        onClick={() => onItemStateChange?.(item, "CONFIRMED")}
+        type="button"
+      >
+        {item.checked ? <CheckCircle2 size={13} strokeWidth={2.4} /> : null}
+      </button>
+      {item.handoffUrl ? (
+        <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+          {item.label}
+        </a>
+      ) : (
+        <span>{item.label}</span>
+      )}
+      {item.roomName ? <i className={styles.roomChip}>{item.roomName}</i> : null}
+      <b className={item.dueTone ? [styles.dueChip, todoDueToneClassNames[item.dueTone]].join(" ") : styles.dueChip}>
+        {item.status}
+      </b>
+      <ItemActions item={item} onItemStateChange={onItemStateChange} showConfirm={false} />
+    </div>
+  );
+
+  return (
+    <div className={styles.rowList}>
+      {groups.map((group) =>
+        group.rows.length > 0 ? (
+          <Fragment key={group.key}>
+            {showGroupHeads ? <span className={styles.todoGroupHead}>{t(group.labelKey)}</span> : null}
+            {group.rows.map(renderRow)}
+          </Fragment>
+        ) : null,
+      )}
+    </div>
+  );
+});
+
 function TodoBody({
   bubble,
   onCreateTodo,
@@ -403,7 +491,8 @@ function TodoBody({
   const { t } = useI18n();
   return (
     <div className={styles.body}>
-      {/* 카운트 링은 중앙 부유 대신 요약 카피와 나란히 — 본문이 위에서부터 콘텐츠로 채워진다. */}
+      {/* 카운트 링은 중앙 부유 대신 요약 카피와 나란히 — 본문이 위에서부터 콘텐츠로 채워진다.
+          링 숫자는 표시 행이 아니라 병합된(개인 + 룸 할당) 남은 개수 전체를 가리킨다. */}
       <div className={styles.summaryRow}>
         <div className={styles.countRing}>
           <span>{bubble.metric}</span>
@@ -414,7 +503,7 @@ function TodoBody({
           <span>{t(bubbleEmptyLabel(bubble) as MessageKey)}</span>
         </div>
       </div>
-      <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
+      <TodoRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
       <button className={styles.wideAction} onClick={() => void onCreateTodo?.(bubble)} type="button">
         <Plus size={14} strokeWidth={2} />
         {t(bubble.actionLabel as MessageKey)}

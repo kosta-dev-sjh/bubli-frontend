@@ -48,7 +48,7 @@ import { notifyDataChanged, type DataChangedDomain } from "@/lib/data-changed";
 import { tauriCommands, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { emitWidgetDataChanged, listenWidgetDataChanged, listenWidgetMenuPanelRequested, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { readWidgetSummary } from "@/lib/widget";
+import { readCachedWidgetRoomNames, readWidgetSummary, writeCachedWidgetRoomNames, type WidgetRoomNameMap } from "@/lib/widget";
 import { syncActiveProjectRoomFromWidgetContext } from "@/lib/workspace-active-room";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
@@ -319,6 +319,22 @@ function formatDue(t: TranslateFn, value?: string | null) {
   return t("widget.due.past");
 }
 
+// 마감 칩 톤: 지남/오늘/내일/이후 — formatDue와 같은 날짜 기준(로컬 자정)으로 계산한다.
+function widgetDueTone(value?: string | null): WidgetPreviewItem["dueTone"] {
+  if (!value) return undefined;
+  const due = new Date(value);
+  if (Number.isNaN(due.getTime())) return undefined;
+  const now = new Date();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const target = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+  const diff = Math.round((target - start) / dayMs);
+  if (diff < 0) return "overdue";
+  if (diff === 0) return "today";
+  if (diff === 1) return "tomorrow";
+  return "later";
+}
+
 function taskStatusLabel(t: TranslateFn, status: WidgetTaskResponse["status"]) {
   const labels: Record<WidgetTaskResponse["status"], MessageKey> = {
     BLOCKED: "widget.task.blocked",
@@ -537,13 +553,18 @@ function buildNotificationSignal(t: TranslateFn, notifications: WidgetNotificati
 }
 
 function buildDisplayBubbles(input: {
+  currentUserId?: string | null;
   dashboard?: WidgetDashboardWorkResponse | null;
   friends: WidgetFriendResponse[];
   memos: WidgetMemoResponse[];
   messages: WidgetChatMessageResponse[];
   notifications: WidgetNotificationResponse[];
+  /** 룸 컨텍스트에서도 개인 오늘 항목을 뒤이어 보여주기 위한 개인 범위 오늘 TODO. */
+  personalTodayTasks?: WidgetTaskResponse[];
   resources: WidgetResourceResponse[];
   room?: WidgetProjectRoomResponse | null;
+  /** 룸 태스크 행의 룸 칩 라벨용 roomId → 룸 이름 매핑(서버 목록 또는 로컬 캐시). */
+  roomNames?: WidgetRoomNameMap;
   chatRoom?: WidgetChatRoomResponse | null;
   roomId?: string | null;
   schedules: WidgetScheduleResponse[];
@@ -559,15 +580,66 @@ function buildDisplayBubbles(input: {
   const chatRoute = input.roomId ? `/app/project-rooms/${encodeURIComponent(input.roomId)}/chat` : "/app/chat";
   const resourceRoute = roomResourceRoute(input.roomId);
   const scheduleRoute = roomScopedRoute("/app/calendar", input.roomId);
-  const todoRoute = roomWorkRoute(input.roomId);
   const activeTimer = input.timer ?? (!isRoomScoped ? input.dashboard?.runningTimer ?? null : null);
-  const todoSource = isRoomScoped ? input.tasks : (input.dashboard?.todayTasks.length ? input.dashboard.todayTasks : input.tasks);
   const scheduleSource = isRoomScoped ? input.schedules : (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules);
-  // /api/dashboard/work upcomingDeadlines(개인 범위)로 오늘 작업이 모자랄 때 다가오는 마감을 채운다.
-  const deadlineFill = isRoomScoped
-    ? []
-    : (input.dashboard?.upcomingDeadlines ?? []).filter((deadline) => !todoSource.some((task) => task.id === deadline.id));
-  const todoItems = [...todoSource, ...deadlineFill].slice(0, 3);
+
+  // ---------- TODO: 개인 TODO + 나에게 할당된 룸 태스크 병합 ----------
+  // 제품 모델: 룸 태스크에 내가 담당자로 지정되면 개인 TODO에도 따라온다(백엔드
+  // /api/tasks scope=personal · /api/dashboard/tasks · /api/dashboard/work가 이미
+  // "내 개인 TODO + 내가 담당자인 룸 태스크"를 내려준다 — roomId로 귀속을 구분).
+  const isNotDoneTask = (task: WidgetTaskResponse) => task.status !== "DONE";
+  let personalTodoTasks: WidgetTaskResponse[];
+  let roomTodoTasks: WidgetTaskResponse[];
+  if (isRoomScoped) {
+    // 룸 컨텍스트: 이 룸의 태스크 중 내 담당을 먼저, 나머지 룸 태스크를 뒤에 —
+    // 그 다음 개인 오늘 항목(roomId 없음)을 이어 붙인다(03_Tauri 명세: "오늘 내 TODO, 선택 프로젝트룸 TODO 요약").
+    const roomTasks = input.tasks.filter(isNotDoneTask);
+    const mine = input.currentUserId ? roomTasks.filter((task) => task.assigneeUserId === input.currentUserId) : [];
+    const rest = input.currentUserId ? roomTasks.filter((task) => task.assigneeUserId !== input.currentUserId) : roomTasks;
+    roomTodoTasks = [...mine, ...rest];
+    personalTodoTasks = (input.personalTodayTasks ?? []).filter(
+      (task) => !task.roomId && isNotDoneTask(task) && !roomTodoTasks.some((roomTask) => roomTask.id === task.id),
+    );
+  } else {
+    // 개인 컨텍스트: 오늘 작업(개인+할당) 우선, 모자라면 다가오는 마감으로 채운 뒤 귀속별로 나눈다.
+    const todoSource = input.dashboard?.todayTasks.length ? input.dashboard.todayTasks : input.tasks;
+    const deadlineFill = (input.dashboard?.upcomingDeadlines ?? []).filter(
+      (deadline) => !todoSource.some((task) => task.id === deadline.id),
+    );
+    const merged = [...todoSource, ...deadlineFill].filter(isNotDoneTask);
+    personalTodoTasks = merged.filter((task) => !task.roomId);
+    roomTodoTasks = merged.filter((task) => Boolean(task.roomId));
+  }
+  const todoTotalCount = personalTodoTasks.length + roomTodoTasks.length;
+  const todoTaskToRow = (task: WidgetTaskResponse, sourceKind: "personal" | "room"): WidgetPreviewItem => ({
+    checked: task.status === "DONE",
+    dueTone: widgetDueTone(task.dueAt),
+    handoffLabel: formatDue(t, task.dueAt) || taskStatusLabel(t, task.status),
+    // 룸 태스크는 그 룸의 작업 보드로, 개인 TODO는 개인 홈으로 넘어간다.
+    handoffUrl: roomWorkRoute(task.roomId ?? (isRoomScoped ? input.roomId : null)),
+    id: task.id,
+    kind: "task",
+    label: task.title,
+    // 룸 칩은 개인 컨텍스트의 룸 태스크에만 붙인다(룸 컨텍스트는 헤더가 룸 라벨을 이미 보여준다).
+    roomName:
+      sourceKind === "room" && !isRoomScoped && task.roomId
+        ? input.roomNames?.[task.roomId] ?? t("widget.todo.roomFallback")
+        : undefined,
+    sourceKind,
+    status: formatDue(t, task.dueAt) || taskStatusLabel(t, task.status),
+  });
+  // 행 순서 = 그룹 순서: 개인 컨텍스트는 내 할 일 → 룸에서 할당됨, 룸 컨텍스트는 룸 태스크 → 내 할 일.
+  const todoRowsOrdered = isRoomScoped
+    ? [
+        ...roomTodoTasks.map((task) => todoTaskToRow(task, "room")),
+        ...personalTodoTasks.map((task) => todoTaskToRow(task, "personal")),
+      ]
+    : [
+        ...personalTodoTasks.map((task) => todoTaskToRow(task, "personal")),
+        ...roomTodoTasks.map((task) => todoTaskToRow(task, "room")),
+      ];
+  const todoItems = todoRowsOrdered.slice(0, 4);
+
   const scheduleItems = scheduleSource.slice(0, 3);
   const scheduleTimeLabel = (item: WidgetScheduleResponse) => (item.allDay ? t("widget.schedule.allDay") : formatShortTime(item.startsAt));
   const memoItems = input.memos.filter((item) => item.status === "ACTIVE").slice(0, 3);
@@ -740,21 +812,14 @@ function buildDisplayBubbles(input: {
         : [],
     }),
     todo: withBubble("todo", {
-      compactLabel: t("widget.todo.count", { count: todoItems.length }),
-      metric: String(todoItems.length),
-      notificationLabel: todoItems[0] ? todoItems[0].title : t("widget.todo.none"),
+      // 카운트 링/칩은 잘린 표시 행이 아니라 병합된 전체 남은 개수를 반영한다.
+      compactLabel: t("widget.todo.count", { count: todoTotalCount }),
+      metric: String(todoTotalCount),
+      notificationLabel: todoItems[0] ? todoItems[0].label : t("widget.todo.none"),
       panelBody: t("widget.todo.body"),
       roomId: input.roomId,
       roomLabel: label,
-      rows: todoItems.map((item) => ({
-        checked: item.status === "DONE",
-        handoffLabel: formatDue(t, item.dueAt) || taskStatusLabel(t, item.status),
-        handoffUrl: todoRoute,
-        id: item.id,
-        kind: "task",
-        label: item.title,
-        status: formatDue(t, item.dueAt) || taskStatusLabel(t, item.status),
-      })),
+      rows: todoItems,
     }),
   };
 }
@@ -963,6 +1028,8 @@ function DesktopWidgetSurface() {
   const windowId = searchParams.get("windowId") ?? undefined;
   const [authReady, setAuthReady] = useState(!isTauri);
   const [hasAuthSession, setHasAuthSession] = useState(!isTauri);
+  // 룸 컨텍스트에서 "내 담당 태스크 우선" 정렬에 쓰는 현재 사용자 id.
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeBubble, setActiveBubble] = useState<WidgetBubbleType>(requestedBubble);
   const [mode, setMode] = useState<WidgetWindowMode>(requestedMode);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
@@ -1125,6 +1192,23 @@ function DesktopWidgetSurface() {
 
     void tauriCommands.closeWidgetWindow({ bubbleType: currentWindowBubble, windowId }).catch(() => undefined);
   }, [authReady, currentWindowBubble, hasAuthSession, isTauri, windowId]);
+
+  useEffect(() => {
+    if (!widgetSessionReady || isMenuOrb) return;
+
+    let cancelled = false;
+
+    void authApi
+      .getMe()
+      .then((me) => {
+        if (!cancelled) setCurrentUserId(me.id);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isMenuOrb, widgetSessionReady]);
 
   useEffect(() => {
     if (!isTauri || !mounted || surfaceReadySentRef.current) return;
@@ -1371,7 +1455,7 @@ function DesktopWidgetSurface() {
       }
 
       const voiceRoomId = activeVoiceRoomId;
-      const [dashboardResult, tasksResult, schedulesResult, resourcesResult, memosResult, suggestionsResult, notificationsResult, chatRoomsResult, friendsResult, roomResult, voiceResult] =
+      const [dashboardResult, tasksResult, schedulesResult, resourcesResult, memosResult, suggestionsResult, notificationsResult, chatRoomsResult, friendsResult, roomResult, voiceResult, projectRoomsResult] =
         await Promise.allSettled([
           widgetDisplayApi.getDashboardWork(),
           widgetDisplayApi.listTasks(selectedRoomId, 6),
@@ -1384,6 +1468,7 @@ function DesktopWidgetSurface() {
           widgetDisplayApi.listFriends(),
           selectedRoomId ? widgetDisplayApi.getProjectRoom(selectedRoomId) : Promise.resolve(null),
           voiceRoomId ? widgetDisplayApi.getVoiceRoom(voiceRoomId) : Promise.resolve(null),
+          widgetDisplayApi.listProjectRooms(),
         ]);
 
       if (cancelled) return;
@@ -1437,8 +1522,29 @@ function DesktopWidgetSurface() {
           .catch(() => undefined);
       }
 
+      // 룸 칩 라벨용 roomId → 룸 이름 매핑: 서버 목록 성공 시 로컬 캐시에 병합 저장하고,
+      // 실패 시 Tauri 로컬 캐시(roomNames 필드)에서 복원한다. 선택 룸 단건 조회 결과도 합친다.
+      let roomNames: WidgetRoomNameMap = {};
+      if (projectRoomsResult.status === "fulfilled") {
+        roomNames = Object.fromEntries(projectRoomsResult.value.items.map((room) => [room.id, room.name]));
+        if (isTauri) void writeCachedWidgetRoomNames(roomNames, selectedRoomId).catch(() => undefined);
+      } else if (isTauri) {
+        roomNames = (await readCachedWidgetRoomNames(selectedRoomId).catch(() => null)) ?? {};
+      }
+      if (roomResult.status === "fulfilled" && roomResult.value) {
+        roomNames = { ...roomNames, [roomResult.value.id]: roomResult.value.name };
+      }
+      if (cancelled) return;
+
       const summaryDashboard = dashboardFromWidgetSummary(summary);
       const dashboard = selectedRoomId ? null : dashboardResult.status === "fulfilled" ? dashboardResult.value : summaryDashboard;
+      // 룸 컨텍스트에서도 개인 오늘 항목(할당 룸 태스크 제외)을 뒤이어 보여준다.
+      const personalTodayTasks =
+        dashboardResult.status === "fulfilled"
+          ? dashboardResult.value.todayTasks
+          : selectedRoomId
+            ? []
+            : (summaryDashboard?.todayTasks ?? []);
       const activeTimerCandidate = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
       const activeTimer = selectedRoomId && activeTimerCandidate?.roomId !== selectedRoomId ? null : activeTimerCandidate;
       const messageItems = messages?.items ?? cachedMessages;
@@ -1453,14 +1559,17 @@ function DesktopWidgetSurface() {
 
       const nextDisplayBubbles = buildDisplayBubbles({
           chatRoom: activeRoom ?? null,
+          currentUserId,
           dashboard,
           friends: friendsResult.status === "fulfilled" ? friendsResult.value : [],
           memos: memosResult.status === "fulfilled" ? memosResult.value.items : [],
           messages: messageItems,
           notifications,
+          personalTodayTasks,
           resources: resourcesResult.status === "fulfilled" ? resourcesResult.value.items : [],
           room: roomResult.status === "fulfilled" ? roomResult.value : null,
           roomId: selectedRoomId,
+          roomNames,
           schedules,
           suggestions: suggestionsResult.status === "fulfilled" ? suggestionsResult.value : [],
           tasks,
@@ -1493,7 +1602,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, agentRevision, communicationRevision, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, requestedRoomId, resourceRevision, scheduleRevision, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
+  }, [activeVoiceRoomId, agentRevision, communicationRevision, currentUserId, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, requestedRoomId, resourceRevision, scheduleRevision, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;

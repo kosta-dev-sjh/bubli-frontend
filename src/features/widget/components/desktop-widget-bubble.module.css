@@ -539,6 +539,20 @@
   min-width: 0;
 }
 
+/* 행이 창 높이 예산을 넘으면(예: TODO 개인+룸 그룹) 목록만 조용히 스크롤하고
+   하단 주 액션(CTA)은 항상 보이게 한다 — 스크롤바는 위젯 표면이라 숨긴다. */
+.body > .rowList {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.body > .rowList::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* ---------- 리스트 rows (36px, 체크 어포던스) ---------- */
 
 .checkRow,
@@ -728,6 +742,134 @@
   font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
+}
+
+/* ---------- TODO 행: [체크 어포던스][제목][룸 칩][마감 칩] ---------- */
+
+/* 그룹 헤더("내 할 일" / "룸에서 할당됨") — 20px 미만 캡션이라 최소 폰트 예외(12px 유지). */
+.todoGroupHead {
+  margin-top: 2px;
+  color: var(--widget-faint);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.todoGroupHead:first-child {
+  margin-top: 0;
+}
+
+.todoRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
+}
+
+.todoRow:hover {
+  border-color: color-mix(in srgb, var(--acc) 22%, transparent);
+  background: color-mix(in srgb, var(--acc) 7%, rgba(255, 255, 255, 0.6));
+}
+
+.todoRow span,
+.todoRow a {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--widget-text);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 완료 체크 어포던스: accent 링 원형 버튼 — 누르면 완료(CONFIRMED) 처리로 이어진다. */
+.todoCheck {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1.5px solid color-mix(in srgb, var(--acc) 55%, transparent);
+  border-radius: 999px;
+  color: var(--acc-ink);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.todoCheck:hover {
+  border-color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 16%, transparent);
+}
+
+.todoCheck[aria-pressed="true"] {
+  border-color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 22%, transparent);
+}
+
+/* 룸 칩: 개인 컨텍스트에서 룸 태스크 귀속을 알리는 accent 타일(.rowTile 계열).
+   20px 고정 높이 초소형 배지 — 최소 폰트 예외(12px 유지). */
+.roomChip {
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  max-width: 88px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 7px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 15%, transparent);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 마감 칩: 기본 배지(.checkRow b와 동일 해부) + 톤(지남/오늘/내일/이후).
+   20px 고정 높이 초소형 배지 — 최소 폰트 예외(12px 유지). */
+.dueChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dueToday {
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 26%, transparent);
+}
+
+.dueTomorrow {
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
+}
+
+/* 지난 마감: 승인 팔레트의 soft red(#E89898)를 잉크와 섞어 경고 톤을 만든다. */
+.dueOverdue {
+  color: color-mix(in srgb, #E89898 52%, #23303B 48%);
+  background: color-mix(in srgb, #E89898 26%, transparent);
+}
+
+.dueLater {
+  color: var(--widget-muted);
+  background: color-mix(in srgb, #CDD8DF 34%, transparent);
 }
 
 /* ---------- 하단 주 액션: 40px, radius 12, accent 12% + accent ink ---------- */
@@ -2246,6 +2388,29 @@
   border-color: rgba(150, 170, 215, 0.14);
   background: rgba(18, 26, 40, 0.6);
   box-shadow: var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07));
+}
+
+/* 다크 TODO 행: checkRow와 같은 다크 표면/헤어라인 파리티. */
+:global([data-theme="dark"]) .todoRow {
+  border-color: rgba(150, 170, 215, 0.14);
+  background: rgba(18, 26, 40, 0.6);
+  box-shadow: var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07));
+}
+
+:global([data-theme="dark"]) .todoRow:hover {
+  border-color: color-mix(in srgb, var(--acc) 28%, transparent);
+  background: color-mix(in srgb, var(--acc) 10%, rgba(18, 26, 40, 0.6));
+}
+
+/* 다크 마감/룸 칩: 어두운 표면 위에서 accent 틴트를 살짝 올리고, 지난 마감은 밝은 soft red 잉크로. */
+:global([data-theme="dark"]) .dueOverdue {
+  color: #E89898;
+  background: color-mix(in srgb, #E89898 20%, transparent);
+}
+
+:global([data-theme="dark"]) .dueLater {
+  color: var(--widget-muted);
+  background: rgba(150, 170, 215, 0.14);
 }
 
 /* 다크 행 hover 틴트: 같은 accent 배어남을 다크 표면 위에서 재현한다. */

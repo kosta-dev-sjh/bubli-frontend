@@ -201,6 +201,10 @@ const ko = {
   "widget.todo.count": "TODO {count}",
   "widget.todo.none": "오늘 할 일 없음",
   "widget.todo.body": "오늘 할 일과 다가오는 작업을 표시합니다.",
+  "widget.todo.groupMine": "내 할 일",
+  "widget.todo.groupRoom": "룸에서 할당됨",
+  "widget.todo.markDone": "{label} 완료 처리",
+  "widget.todo.roomFallback": "프로젝트룸",
 
   // desktop-widget-bubble.tsx: 컨트롤/조작 라벨
   "widget.control.aria": "버블 조작",
@@ -1109,6 +1113,10 @@ const en: Record<Key, string> = {
   "widget.todo.count": "TODO {count}",
   "widget.todo.none": "No tasks today",
   "widget.todo.body": "Shows today's and upcoming tasks.",
+  "widget.todo.groupMine": "My tasks",
+  "widget.todo.groupRoom": "Assigned in rooms",
+  "widget.todo.markDone": "Mark {label} done",
+  "widget.todo.roomFallback": "Project room",
 
   "widget.control.aria": "Bubble controls",
   "widget.control.pin": "Pin on top",
@@ -1998,6 +2006,10 @@ const ja: Record<Key, string> = {
   "widget.todo.count": "TODO {count}",
   "widget.todo.none": "今日のタスクなし",
   "widget.todo.body": "今日のタスクと近づく作業を表示します。",
+  "widget.todo.groupMine": "マイタスク",
+  "widget.todo.groupRoom": "ルームから割り当て",
+  "widget.todo.markDone": "{label} を完了にする",
+  "widget.todo.roomFallback": "プロジェクトルーム",
 
   "widget.control.aria": "バブル操作",
   "widget.control.pin": "上に固定",
