@@ -405,6 +405,15 @@ pub async fn select_managed_folder(
     input: Option<SelectManagedFolderInput>,
 ) -> Result<ManagedFolderSelection, String> {
     let path_buf = resolve_managed_folder_path(&app, input).await?;
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    register_managed_folder_for_path(&conn, &path_buf, now_ms())
+}
+
+fn register_managed_folder_for_path(
+    conn: &Connection,
+    path_buf: &Path,
+    now: i64,
+) -> Result<ManagedFolderSelection, String> {
     if !path_buf.is_dir() {
         return Err(format!("not a directory: {}", path_buf.display()));
     }
@@ -413,10 +422,7 @@ pub async fn select_managed_folder(
         .file_name()
         .map(|value| value.to_string_lossy().to_string())
         .unwrap_or_else(|| path.clone());
-
-    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
     let id = Uuid::new_v4().to_string();
-    let now = now_ms();
     conn.execute(
         "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
          VALUES (?1, ?2, ?3, 'ACTIVE', 1, ?4, ?4) \
@@ -2684,10 +2690,26 @@ pub fn open_local_file(
     input: LocalFileOpenInput,
 ) -> Result<LocalFileOpenResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let (name, path_buf) = resolve_open_local_file_for_conn(&conn, &input.local_file_id)?;
+
+    tauri_plugin_opener::open_path(&path_buf, None::<&str>).map_err(|error| error.to_string())?;
+
+    Ok(LocalFileOpenResult {
+        local_file_id: input.local_file_id,
+        name,
+        opened_at: crate::local_db::now_iso(),
+        path: path_buf.to_string_lossy().to_string(),
+    })
+}
+
+fn resolve_open_local_file_for_conn(
+    conn: &Connection,
+    local_file_id: &str,
+) -> Result<(String, PathBuf), String> {
     let row: Option<(String, String)> = conn
         .query_row(
             "SELECT file_name, local_path FROM local_files WHERE id = ?1",
-            params![input.local_file_id],
+            params![local_file_id],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
@@ -2695,8 +2717,7 @@ pub fn open_local_file(
 
     let Some((name, path)) = row else {
         return Err(format!(
-            "local file not found in managed index: {}",
-            input.local_file_id
+            "local file not found in managed index: {local_file_id}"
         ));
     };
 
@@ -2705,14 +2726,7 @@ pub fn open_local_file(
         return Err(format!("local file is no longer available: {path}"));
     }
 
-    tauri_plugin_opener::open_path(&path_buf, None::<&str>).map_err(|error| error.to_string())?;
-
-    Ok(LocalFileOpenResult {
-        local_file_id: input.local_file_id,
-        name,
-        opened_at: crate::local_db::now_iso(),
-        path,
-    })
+    Ok((name, path_buf))
 }
 
 /// Re-read a locally indexed file and refresh its FTS row. If the content
@@ -3958,6 +3972,84 @@ mod tests {
     }
 
     #[test]
+    fn register_managed_folder_reactivates_existing_path() {
+        let conn = test_connection();
+        let folder_path = std::env::temp_dir().join(format!(
+            "bubli-local-register-folder-test-{}",
+            Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-existing', 'Old Docs', ?1, 'REMOVED', 0, 10, 20)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert removed managed folder");
+
+        let result = register_managed_folder_for_path(&conn, &folder_path, 30)
+            .expect("register managed folder");
+        let stored: (String, String, i64, i64) = conn
+            .query_row(
+                "SELECT id, status, sync_enabled, updated_at FROM managed_folders WHERE path = ?1",
+                params![folder_path.to_string_lossy().to_string()],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("read managed folder");
+
+        assert_eq!(result.local_folder_id, "folder-existing");
+        assert_eq!(result.path, folder_path.to_string_lossy().to_string());
+        assert_eq!(
+            stored,
+            ("folder-existing".to_string(), "ACTIVE".to_string(), 1, 30)
+        );
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
+    fn register_managed_folder_rejects_non_directory_path() {
+        let conn = test_connection();
+        let file_path = std::env::temp_dir().join(format!(
+            "bubli-local-register-file-test-{}.txt",
+            Uuid::new_v4()
+        ));
+        std::fs::write(&file_path, "not a folder").expect("write temp file");
+
+        let result = register_managed_folder_for_path(&conn, &file_path, 30);
+
+        match result {
+            Ok(_) => panic!("file path should be rejected"),
+            Err(error) => assert!(error.contains("not a directory")),
+        }
+
+        let _ = std::fs::remove_file(file_path);
+    }
+
+    #[test]
+    fn active_managed_folders_for_watch_excludes_paused_and_removed() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-active-old', 'Old', '/tmp/old', 'ACTIVE', 1, 1, 10), \
+                    ('folder-paused', 'Paused', '/tmp/paused', 'PAUSED', 1, 1, 30), \
+                    ('folder-removed', 'Removed', '/tmp/removed', 'REMOVED', 1, 1, 40), \
+                    ('folder-active-new', 'New', '/tmp/new', 'ACTIVE', 0, 1, 50)",
+            [],
+        )
+        .expect("insert managed folders");
+
+        let folders = active_managed_folders_for_conn(&conn).expect("active folders");
+
+        assert_eq!(
+            folders
+                .iter()
+                .map(|(local_folder_id, _)| local_folder_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["folder-active-new", "folder-active-old"]
+        );
+    }
+
+    #[test]
     fn index_progress_reports_fts_and_pending_events() {
         let conn = test_connection();
         conn.execute(
@@ -4586,6 +4678,35 @@ mod tests {
         assert!(truncated);
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn open_local_file_resolver_only_allows_indexed_existing_files() {
+        let conn = test_connection();
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-open-test-{}.txt", Uuid::new_v4()));
+        std::fs::write(&path, "open me").expect("write temp file");
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, sync_status, updated_at) \
+             VALUES ('file-1', 'folder-1', 'open-test.txt', ?1, 'LOCAL_ONLY', 1)",
+            params![path.to_string_lossy().to_string()],
+        )
+        .expect("insert local file");
+
+        let (name, resolved_path) =
+            resolve_open_local_file_for_conn(&conn, "file-1").expect("resolve open file");
+        let missing_index_error = resolve_open_local_file_for_conn(&conn, "missing-file")
+            .expect_err("unindexed file should fail");
+
+        std::fs::remove_file(&path).expect("remove temp file");
+        let deleted_error = resolve_open_local_file_for_conn(&conn, "file-1")
+            .expect_err("deleted indexed file should fail");
+
+        assert_eq!(name, "open-test.txt");
+        assert_eq!(resolved_path, path);
+        assert!(missing_index_error.contains("not found in managed index"));
+        assert!(deleted_error.contains("no longer available"));
     }
 
     #[test]
