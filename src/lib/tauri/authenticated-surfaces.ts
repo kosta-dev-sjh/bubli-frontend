@@ -139,9 +139,11 @@ export function launchTauriAuthenticatedSurfaces() {
   launchRequested = true;
   const generation = ++launchGeneration;
   launchPromise = (async () => {
+    await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true });
     const selectedRoomId = await resolveLaunchSelectedRoomId();
     if (generation !== launchGeneration) {
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
+      await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
       return;
     }
 
@@ -154,6 +156,7 @@ export function launchTauriAuthenticatedSurfaces() {
     if (barWindow) {
       if (generation !== launchGeneration) {
         await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
+        await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
         return;
       }
 
@@ -167,6 +170,7 @@ export function launchTauriAuthenticatedSurfaces() {
 
     if (generation !== launchGeneration) {
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
+      await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
       return;
     }
 
@@ -190,6 +194,7 @@ export function launchTauriAuthenticatedSurfaces() {
 
     if (generation !== launchGeneration) {
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
+      await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
       return;
     }
 
@@ -197,6 +202,7 @@ export function launchTauriAuthenticatedSurfaces() {
       launchRequested = false;
       launchedAuthenticatedSurfaces = false;
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
+      await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
       throw rejectedReasons[0] ?? new Error("No Tauri widgets opened");
     }
 
@@ -222,8 +228,9 @@ export function launchTauriAuthenticatedSurfaces() {
     launchedAuthenticatedSurfaces = rejectedReasons.length === 0;
     launchRequested = rejectedReasons.length === 0;
   })()
-    .catch((error) => {
+    .catch(async (error) => {
       launchRequested = false;
+      await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
       throw error;
     })
     .finally(() => {
@@ -244,5 +251,6 @@ export async function stopTauriAuthenticatedSurfaces() {
 
   if (!isTauriRuntime()) return;
 
+  await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
   await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
 }
