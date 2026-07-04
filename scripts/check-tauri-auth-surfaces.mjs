@@ -14,6 +14,7 @@ const files = {
   projectRoomChatRoute: "src/app/(workspace)/app/project-rooms/[roomId]/chat/page.tsx",
   layout: "src/app/layout.tsx",
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
+  runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
   widgetAuthHeaders: "src/features/widget/api/widgetAuthHeaders.ts",
   workspaceActiveRoom: "src/lib/workspace-active-room.ts",
   workspacePreviewData: "src/lib/workspace-preview-data.ts",
@@ -47,6 +48,7 @@ function extractConstArray(source, constName) {
 
 const layout = read(files.layout);
 const launcher = read(files.postLoginLauncher);
+const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
 const surfaces = read(files.authenticatedSurfaces);
 const chatWidgetRouting = read(files.chatWidgetRouting);
 const appNav = read(files.appNav);
@@ -71,6 +73,72 @@ assertContains(
   layout,
   /<TauriDevtoolsGuard\s*\/>/,
   "Root layout must mount TauriDevtoolsGuard for hybrid/widget devtools hardening.",
+);
+assertContains(
+  layout,
+  /<TauriRuntimeSmokeRunner\s*\/>/,
+  "Root layout must mount TauriRuntimeSmokeRunner so Windows runtime smoke can exercise real Tauri IPC.",
+);
+
+assertContains(
+  runtimeSmokeRunner,
+  /NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true"/,
+  "TauriRuntimeSmokeRunner must be disabled unless the explicit runtime-smoke env flag is enabled.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /navigator\.userAgent\.toLowerCase\(\)\.includes\("windows"\)/,
+  "TauriRuntimeSmokeRunner must stay Windows-only so macOS runtime behavior is not touched.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /pathname === "\/desktop-widget" \|\| pathname\.startsWith\("\/desktop-widget\/"\)/,
+  "TauriRuntimeSmokeRunner must skip desktop-widget windows to avoid recursive widget smoke runs.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /const accessToken = process\.env\.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN;[\s\S]*if \(!accessToken\) return;[\s\S]*setStoredAuthSession\(\{[\s\S]*clientType: "TAURI"/,
+  "TauriRuntimeSmokeRunner must seed a Tauri dev auth session only from the explicit dev-token smoke env.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /storeActiveProjectRoom\(\{[\s\S]*roomId: smokeRoomId[\s\S]*readActiveProjectRoom\(\)/,
+  "TauriRuntimeSmokeRunner must verify active project-room persistence before opening widgets.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\)[\s\S]*openWidgetWindows\(\{[\s\S]*bubbleType: "bar"[\s\S]*bubbleType: "todo"[\s\S]*bubbleType: "chat"[\s\S]*bubbleType: "timer"/,
+  "TauriRuntimeSmokeRunner must open native bar, todo, chat, and timer widget windows.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /getWidgetWindowState\(\{ windowId: "todo" \}\)[\s\S]*selectedRoomId === smokeRoomId/,
+  "TauriRuntimeSmokeRunner must verify widget window visibility and room context propagation.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /checkLocalSqliteIntegrity\(\)[\s\S]*sqlite\.ok/,
+  "TauriRuntimeSmokeRunner must verify local SQLite integrity through the real IPC command.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /recordActivityContext\(\{[\s\S]*stageActivityContextsForSync\(\{ limit: 5 \}\)/,
+  "TauriRuntimeSmokeRunner must verify activity records can be staged from SQLite.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /recordWidgetUsageEvent\(\{[\s\S]*rollupWidgetUsage\(\)/,
+  "TauriRuntimeSmokeRunner must verify widget usage events roll up locally.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /selectManagedFolder\(\{ path: smokeFolderPath \}\)[\s\S]*scanManagedFolder[\s\S]*searchLocalFiles[\s\S]*readLocalFilePreview[\s\S]*stageLocalFileEventsForSync/,
+  "TauriRuntimeSmokeRunner must verify managed-folder scan/search/preview/event staging against a temp folder.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)/,
+  "TauriRuntimeSmokeRunner must clean up widget windows and close the auth gate after the smoke run.",
 );
 
 assertContains(
