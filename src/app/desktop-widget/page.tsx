@@ -19,6 +19,7 @@ import {
   type WidgetTaskResponse,
   type WidgetVoiceRoomResponse,
 } from "@/features/widget/api/widgetDisplayApi";
+import { agentApi } from "@/features/agent/api/agentApi";
 import { authApi } from "@/features/auth/api/authApi";
 import {
   widgetApi,
@@ -749,6 +750,7 @@ function DesktopWidgetSurface() {
   const [barItems, setBarItems] = useState<WidgetWindowState[]>([]);
   const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>(() => buildEmptyDisplayBubbles(t, requestedRoomId));
   const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID ?? null);
+  const [agentRevision, setAgentRevision] = useState(0);
   const [communicationRevision, setCommunicationRevision] = useState(0);
   const [itemStateOverrides, setItemStateOverrides] = useState<Record<string, WidgetItemStateAction>>({});
   const [memoRevision, setMemoRevision] = useState(0);
@@ -1148,7 +1150,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, requestedRoomId, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
+  }, [activeVoiceRoomId, agentRevision, communicationRevision, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, requestedRoomId, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -1432,6 +1434,10 @@ function DesktopWidgetSurface() {
         if (activeBubble === "alert" && state === "CONFIRMED") {
           await notificationApi.markRead(item.id);
           setNotificationRevision((current) => current + 1);
+        }
+        if (activeBubble === "agent" && item.kind === "agent" && state === "CONFIRMED") {
+          await agentApi.updateSuggestion(item.id, { action: "APPROVE" });
+          setAgentRevision((current) => current + 1);
         }
         applyLocalState();
       }
