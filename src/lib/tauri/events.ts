@@ -13,7 +13,9 @@ type TauriEvent<TPayload> = {
 type TauriListen = <TPayload>(
   eventName: string,
   handler: (event: TauriEvent<TPayload>) => void,
-) => Promise<() => void>;
+) => Promise<() => Promise<void> | void>;
+
+type TauriUnlisten = () => Promise<void> | void;
 
 export const TAURI_EVENTS = {
   managedFolderWatchEvent: "bubli-managed-folder-watch-event",
@@ -62,7 +64,28 @@ async function listenTauriEvent<TPayload>(
     listen: TauriListen;
   };
 
-  return listen<TPayload>(eventName, (event) => handler(event.payload));
+  const unlisten = await listen<TPayload>(eventName, (event) => handler(event.payload));
+  return onceUnlisten(eventName, unlisten);
+}
+
+function onceUnlisten(eventName: string, unlisten: TauriUnlisten) {
+  let called = false;
+
+  return () => {
+    if (called) return;
+    called = true;
+
+    try {
+      const result = unlisten();
+      if (result && typeof result === "object" && "catch" in result) {
+        result.catch((error) => {
+          console.warn(`Failed to remove Tauri event listener: ${eventName}`, error);
+        });
+      }
+    } catch (error) {
+      console.warn(`Failed to remove Tauri event listener: ${eventName}`, error);
+    }
+  };
 }
 
 export function listenManagedFolderWatchEvents(
