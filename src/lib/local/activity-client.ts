@@ -19,6 +19,8 @@ import type {
   ActivityContextRecordInput,
 } from "@/types/local";
 
+export const LOCAL_ACTIVITY_RECORDED_EVENT = "bubli:local-activity-recorded";
+
 type IncrementalActivityCheckpoint = {
   focusKey: string;
   recordedDurationSeconds: number;
@@ -143,6 +145,7 @@ export async function recordCurrentActivityContext(
     .catch(() => undefined);
 
   const todayActivities = await activityApi.getToday().catch(() => []);
+  notifyLocalActivityRecorded(todayActivities);
 
   return ready(
     {
@@ -295,4 +298,14 @@ async function mirrorNativeActivityConsent(enabled: boolean) {
   } catch {
     return false;
   }
+}
+
+function notifyLocalActivityRecorded(todayActivities: unknown[]) {
+  if (typeof window === "undefined") return;
+
+  window.dispatchEvent(
+    new CustomEvent(LOCAL_ACTIVITY_RECORDED_EVENT, {
+      detail: { todayActivities },
+    }),
+  );
 }
