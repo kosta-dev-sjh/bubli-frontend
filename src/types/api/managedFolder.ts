@@ -19,9 +19,10 @@ export type LocalFileResponse = {
 };
 
 export type LocalFileEventStatus = "PENDING" | "APPROVED" | "REJECTED" | "SYNCED" | "FAILED";
+export type LocalFileEventType = "CREATED" | "UPDATED" | "DELETED";
 
 export type LocalFileEventResponse = {
-  eventType: "CREATED" | "UPDATED" | "DELETED" | "MOVED";
+  eventType: LocalFileEventType;
   id: string;
   localFileId?: string | null;
   reason?: string | null;
@@ -30,7 +31,7 @@ export type LocalFileEventResponse = {
 
 export type LocalFileEventSyncRequest = {
   events: Array<{
-    eventType: LocalFileEventResponse["eventType"];
+    eventType: LocalFileEventType;
     fileName: string;
     fileSizeBytes?: number | null;
     localEventId: string;
@@ -45,7 +46,7 @@ export type LocalFileEventUpdateRequest = {
 
 export type LocalFileSyncResponse = {
   results: Array<{
-    eventType: LocalFileEventResponse["eventType"] | string;
+    eventType: LocalFileEventType | string;
     localEventId?: string | null;
     resourceId?: string | null;
     status: "SYNCED" | "SKIPPED" | "FAILED" | string;
