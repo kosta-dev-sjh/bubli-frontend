@@ -17,7 +17,9 @@ import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import { LOCAL_ACTIVITY_RECORDED_EVENT } from "@/lib/local/activity-client";
 import { syncPersonalLocalFileEventsToServer } from "@/lib/local/managed-folder-client";
+import { PERSONAL_RESOURCES_CHANGED_EVENT } from "@/lib/local/managed-folder-client";
 import { getLocalSyncOutboxSummary } from "@/lib/sync/local-sync-client";
 import type { LocalAdapterResult, LocalSyncSummary, SyncOutboxSummaryResult } from "@/types/local";
 
@@ -171,6 +173,22 @@ export function LocalSyncOutboxPanel({ autoLoad = true, initialConsentGranted = 
       cancelled = true;
     };
   }, [autoLoad, t]);
+
+  useEffect(() => {
+    if (!autoLoad) return;
+
+    const refreshAfterLocalSync = () => {
+      void refreshSummary({ preserveNotice: true });
+    };
+
+    window.addEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, refreshAfterLocalSync);
+    window.addEventListener(LOCAL_ACTIVITY_RECORDED_EVENT, refreshAfterLocalSync);
+
+    return () => {
+      window.removeEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, refreshAfterLocalSync);
+      window.removeEventListener(LOCAL_ACTIVITY_RECORDED_EVENT, refreshAfterLocalSync);
+    };
+  }, [autoLoad, refreshSummary]);
 
   const sendQueue = async () => {
     setAction("send");
