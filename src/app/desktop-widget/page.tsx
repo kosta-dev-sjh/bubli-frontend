@@ -755,6 +755,7 @@ function DesktopWidgetSurface() {
   const [itemStateOverrides, setItemStateOverrides] = useState<Record<string, WidgetItemStateAction>>({});
   const [memoRevision, setMemoRevision] = useState(0);
   const [notificationRevision, setNotificationRevision] = useState(0);
+  const [resourceRevision, setResourceRevision] = useState(0);
   const [todoRevision, setTodoRevision] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
   const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
@@ -1150,7 +1151,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, agentRevision, communicationRevision, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, requestedRoomId, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
+  }, [activeVoiceRoomId, agentRevision, communicationRevision, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, requestedRoomId, resourceRevision, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -1476,6 +1477,48 @@ function DesktopWidgetSurface() {
       window.open(route, "_blank", "noopener,noreferrer");
     },
     [activeBubble, isTauri],
+  );
+
+  const downloadWidgetResource = useCallback(
+    async (item: WidgetPreviewItem) => {
+      const result = await widgetDisplayApi.getResourceDownloadUrl(item.id);
+      window.open(result.url, "_blank", "noopener,noreferrer");
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "resource",
+            eventType: "resource:download",
+            itemId: item.id,
+            itemType: "NOTIFICATION",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+    },
+    [isTauri],
+  );
+
+  const analyzeWidgetResource = useCallback(
+    async (item: WidgetPreviewItem) => {
+      const job = await widgetDisplayApi.analyzeResource(item.id);
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "resource",
+            eventType: "resource:analyze",
+            itemId: job.jobId,
+            itemType: "NOTIFICATION",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setResourceRevision((current) => current + 1);
+      setAgentRevision((current) => current + 1);
+    },
+    [isTauri],
   );
 
   const sendWidgetChatMessage = useCallback(
@@ -1946,6 +1989,8 @@ function DesktopWidgetSurface() {
       onPauseTimer={pauseWidgetTimer}
       onPrimaryTimerAction={runPrimaryTimerAction}
       onRestore={() => void restoreCurrentWindow()}
+      onAnalyzeResource={analyzeWidgetResource}
+      onDownloadResource={downloadWidgetResource}
       onSendAgentCommand={sendWidgetAgentCommand}
       onSendChatMessage={sendWidgetChatMessage}
       onStartVoice={startWidgetVoice}

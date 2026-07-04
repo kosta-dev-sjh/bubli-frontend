@@ -513,6 +513,23 @@
   font-weight: 860;
 }
 
+.resourceActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.resourceActions button {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(111, 184, 242, 0.22);
+  border-radius: 999px;
+  color: var(--widget-blue-deep);
+  background: rgba(255, 255, 255, 0.68);
+}
+
 .handoffBubble {
   color: var(--widget-blue-deep);
   text-decoration: none;
