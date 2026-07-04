@@ -11,6 +11,7 @@ const files = {
   chatWidgetRouting: "src/lib/tauri/chat-widget-routing.ts",
   desktopWidgetPage: "src/app/desktop-widget/page.tsx",
   desktopCommunicationRoute: "src/app/(workspace)/app/desktop/communication/page.tsx",
+  devWidgetRealBackend: "scripts/dev-widget-real-backend.mjs",
   projectRoomChatRoute: "src/app/(workspace)/app/project-rooms/[roomId]/chat/page.tsx",
   layout: "src/app/layout.tsx",
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
@@ -62,6 +63,7 @@ const widgetAuthHeaders = read(files.widgetAuthHeaders);
 const workspaceActiveRoom = read(files.workspaceActiveRoom);
 const workspacePreviewData = read(files.workspacePreviewData);
 const desktopCommunicationRoute = read(files.desktopCommunicationRoute);
+const devWidgetRealBackend = read(files.devWidgetRealBackend);
 const projectRoomChatRoute = read(files.projectRoomChatRoute);
 
 assertContains(
@@ -127,8 +129,8 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /recordActivityContext\(\{[\s\S]*stageActivityContextsForSync\(\{ limit: 5 \}\)/,
-  "TauriRuntimeSmokeRunner must verify activity records can be staged from SQLite.",
+  /setActivityContextConsent\(\{ enabled: true \}\)[\s\S]*readActivityContext\(\)[\s\S]*native foreground activity captured[\s\S]*recordActivityContext\(\{[\s\S]*stageActivityContextsForSync\(\{ limit: 5 \}\)/,
+  "TauriRuntimeSmokeRunner must verify native foreground activity capture and staged SQLite activity records.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -139,6 +141,11 @@ assertContains(
   runtimeSmokeRunner,
   /selectManagedFolder\(\{ path: smokeFolderPath \}\)[\s\S]*scanManagedFolder[\s\S]*searchLocalFiles[\s\S]*readLocalFilePreview[\s\S]*stageLocalFileEventsForSync/,
   "TauriRuntimeSmokeRunner must verify managed-folder scan/search/preview/event staging against a temp folder.",
+);
+assertContains(
+  devWidgetRealBackend,
+  /Desktop widget backend sync check[\s\S]*date_trunc\('day', now\(\)\) \+ interval '12 hours'[\s\S]*date_trunc\('day', now\(\)\) \+ interval '13 hours'/,
+  "Real backend widget seed schedule must stay inside the backend widget summary's current UTC day window.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -425,6 +432,11 @@ assertContains(
   workspaceActiveRoom,
   /function syncActiveProjectRoomFromWidgetContext[\s\S]*mirrorActiveProjectRoomToServer\(null\)/,
   "Widget-origin project-room context clears must sync back to the backend widget context.",
+);
+assertContains(
+  workspaceActiveRoom,
+  /const runtimeSmokeEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";[\s\S]*function mirrorActiveProjectRoomToServer[\s\S]*if \(runtimeSmokeEnabled\) return;/,
+  "Windows runtime smoke must not let stale AppShell active-room restore calls mirror project-room context to the backend.",
 );
 
 console.log("Tauri authenticated surface contract check passed.");

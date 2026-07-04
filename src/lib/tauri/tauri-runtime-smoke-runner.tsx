@@ -139,15 +139,17 @@ async function runSmoke() {
     assert(sqlite.ok, "local SQLite quick_check passed", sqlite);
 
     await tauriCommands.setActivityContextConsent({ enabled: true });
+    const foreground = await tauriCommands.readActivityContext();
+    assert(foreground.appName.trim().length > 0, "native foreground activity captured", foreground);
     const now = new Date();
     const activity = await tauriCommands.recordActivityContext({
-      appName: "Codex Tauri runtime smoke",
+      appName: foreground.appName,
       capturedAt: now.toISOString(),
       durationSeconds: 60,
       endedAt: now.toISOString(),
       roomId: smokeRoomId,
       startedAt: new Date(now.getTime() - 60_000).toISOString(),
-      windowTitle: "Windows runtime smoke",
+      windowTitle: foreground.windowTitle ?? "Windows runtime smoke",
     });
     const stagedActivity = await tauriCommands.stageActivityContextsForSync({ limit: 5 });
     assert(
