@@ -10,6 +10,7 @@ export type WidgetPreviewItem = {
   id: string;
   kind?: "agent" | "friend" | "memo" | "message" | "resource" | "schedule" | "task" | "time" | "voice";
   label: string;
+  memoBody?: string;
   stateId?: string;
   status: string;
 };

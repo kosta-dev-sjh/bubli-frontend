@@ -671,6 +671,13 @@
   padding: 12px;
 }
 
+.memoRowHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .memoGrid a {
   min-width: 0;
   color: inherit;
@@ -681,6 +688,34 @@
   color: var(--widget-text);
   font-size: 14px;
   font-weight: 900;
+}
+
+.memoActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.memoActions button {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(111, 184, 242, 0.22);
+  border-radius: 999px;
+  color: var(--widget-blue-deep);
+  background: rgba(255, 255, 255, 0.68);
+  cursor: pointer;
+}
+
+.memoActions button:hover {
+  border-color: rgba(64, 143, 220, 0.36);
+  background: rgba(235, 247, 255, 0.82);
+}
+
+.memoActions button:disabled {
+  cursor: default;
+  opacity: 0.42;
 }
 
 .timeline {
@@ -1254,6 +1289,7 @@
 :global([data-theme="dark"]) .modebar button,
 :global([data-theme="dark"]) .wideAction,
 :global([data-theme="dark"]) .itemActions button,
+:global([data-theme="dark"]) .memoActions button,
 :global([data-theme="dark"]) .voiceStrip button,
 :global([data-theme="dark"]) .reactionDock button,
 :global([data-theme="dark"]) .barMenuItem {

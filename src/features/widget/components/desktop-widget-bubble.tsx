@@ -14,6 +14,7 @@ import {
   Mic,
   Minus,
   Pause,
+  Pencil,
   PhoneOff,
   Pin,
   Play,
@@ -28,6 +29,7 @@ import {
   Square,
   StickyNote,
   Timer,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -105,6 +107,8 @@ export type DesktopWidgetBubbleProps = {
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onCreateMemo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onCreateTodo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  onDeleteMemo?: (item: WidgetPreviewItem) => Promise<void> | void;
+  onEditMemo?: (item: WidgetPreviewItem) => Promise<void> | void;
   onAnalyzeResource?: (item: WidgetPreviewItem) => Promise<void> | void;
   onDownloadResource?: (item: WidgetPreviewItem) => Promise<void> | void;
   onRestore?: () => void;
@@ -573,10 +577,14 @@ function TimerBody({
 function MemoBody({
   bubble,
   onCreateMemo,
+  onDeleteMemo,
+  onEditMemo,
   onOpenHandoff,
 }: {
   bubble: WidgetPreviewBubble;
   onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
+  onDeleteMemo?: DesktopWidgetBubbleProps["onDeleteMemo"];
+  onEditMemo?: DesktopWidgetBubbleProps["onEditMemo"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
   const { t } = useI18n();
@@ -592,13 +600,23 @@ function MemoBody({
       {bubble.rows.length > 0 ? (
         bubble.rows.map((item) => (
           <article key={item.id}>
-            {item.handoffUrl ? (
-              <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+            <div className={styles.memoRowHeader}>
+              {item.handoffUrl ? (
+                <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+                  <strong>{item.label}</strong>
+                </a>
+              ) : (
                 <strong>{item.label}</strong>
-              </a>
-            ) : (
-              <strong>{item.label}</strong>
-            )}
+              )}
+              <span className={styles.memoActions}>
+                <button aria-label={t("widget.memo.edit")} disabled={!onEditMemo} onClick={() => void onEditMemo?.(item)} type="button">
+                  <Pencil size={12} strokeWidth={2.1} />
+                </button>
+                <button aria-label={t("widget.memo.delete")} disabled={!onDeleteMemo} onClick={() => void onDeleteMemo?.(item)} type="button">
+                  <Trash2 size={12} strokeWidth={2.1} />
+                </button>
+              </span>
+            </div>
             <span>{item.status}</span>
           </article>
         ))
@@ -734,6 +752,8 @@ function BubbleBody({
   onCreateMemo,
   onCreateTodo,
   onAnalyzeResource,
+  onDeleteMemo,
+  onEditMemo,
   onDownloadResource,
   onLeaveVoice,
   onMarkChatRead,
@@ -749,6 +769,8 @@ function BubbleBody({
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
   onCreateTodo?: DesktopWidgetBubbleProps["onCreateTodo"];
+  onDeleteMemo?: DesktopWidgetBubbleProps["onDeleteMemo"];
+  onEditMemo?: DesktopWidgetBubbleProps["onEditMemo"];
   onAnalyzeResource?: DesktopWidgetBubbleProps["onAnalyzeResource"];
   onDownloadResource?: DesktopWidgetBubbleProps["onDownloadResource"];
   onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
@@ -788,7 +810,9 @@ function BubbleBody({
   if (bubble.id === "timer") {
     return <TimerBody bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />;
   }
-  if (bubble.id === "memo") return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} onOpenHandoff={onOpenHandoff} />;
+  if (bubble.id === "memo") {
+    return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} onDeleteMemo={onDeleteMemo} onEditMemo={onEditMemo} onOpenHandoff={onOpenHandoff} />;
+  }
   if (bubble.id === "schedule") return <ScheduleBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
   if (bubble.id === "resource") {
     return (
@@ -823,7 +847,9 @@ export function DesktopWidgetBubble({
   mode,
   onClose,
   onAnalyzeResource,
+  onDeleteMemo,
   onDownloadResource,
+  onEditMemo,
   onItemStateChange,
   onLeaveVoice,
   onMarkChatRead,
@@ -899,8 +925,10 @@ export function DesktopWidgetBubble({
               <BubbleBody
                 bubble={activeData}
                 onAnalyzeResource={onAnalyzeResource}
+                onDeleteMemo={onDeleteMemo}
                 onItemStateChange={onItemStateChange}
                 onDownloadResource={onDownloadResource}
+                onEditMemo={onEditMemo}
                 onLeaveVoice={onLeaveVoice}
                 onMarkChatRead={onMarkChatRead}
                 onCreateMemo={onCreateMemo}
