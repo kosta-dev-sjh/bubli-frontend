@@ -93,6 +93,7 @@ export type DesktopWidgetBubbleProps = {
   clickThrough: boolean;
   mode: WidgetWindowMode;
   onClose: () => void;
+  onOpenHandoff?: (item: WidgetPreviewItem) => Promise<void> | void;
   onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
   onLeaveVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onMarkChatRead?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
@@ -183,11 +184,20 @@ function ItemActions({
 function ItemRows({
   bubble,
   onItemStateChange,
+  onOpenHandoff,
 }: {
   bubble: WidgetPreviewBubble;
-  onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
   const { t } = useI18n();
+  const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
+    if (!item.handoffUrl || !onOpenHandoff) return;
+
+    event.preventDefault();
+    void onOpenHandoff(item);
+  };
+
   if (bubble.rows.length === 0) {
     return (
       <div className={styles.emptyState}>
@@ -201,7 +211,13 @@ function ItemRows({
       {bubble.rows.map((item) => (
         <label className={styles.checkRow} key={item.label}>
           <input checked={item.checked ?? false} readOnly type="checkbox" />
-          <span>{item.label}</span>
+          {item.handoffUrl ? (
+            <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+              {item.label}
+            </a>
+          ) : (
+            <span>{item.label}</span>
+          )}
           <b>{item.status}</b>
           <ItemActions item={item} onItemStateChange={onItemStateChange} />
         </label>
@@ -210,7 +226,15 @@ function ItemRows({
   );
 }
 
-function TodoBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+function TodoBody({
+  bubble,
+  onItemStateChange,
+  onOpenHandoff,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
+}) {
   const { t } = useI18n();
   return (
     <div className={styles.body}>
@@ -218,7 +242,7 @@ function TodoBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; 
         <span>{bubble.metric}</span>
         <b>{t(bubble.metricLabel as MessageKey)}</b>
       </div>
-      <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
+      <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
       <button className={styles.wideAction} type="button">
         <Plus size={14} strokeWidth={2} />
         {t(bubble.actionLabel as MessageKey)}
@@ -227,7 +251,15 @@ function TodoBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; 
   );
 }
 
-function AgentBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+function AgentBody({
+  bubble,
+  onItemStateChange,
+  onOpenHandoff,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
+}) {
   const { t } = useI18n();
   return (
     <div className={styles.body}>
@@ -239,7 +271,7 @@ function AgentBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble;
         <strong>{t(bubble.panelLabel as MessageKey)}</strong>
         <span>{t(bubble.panelBody as MessageKey)}</span>
       </div>
-      <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
+      <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
       <div className={styles.dropPanel}>
         <FileText size={16} strokeWidth={2} />
         <span>{t(bubble.notificationLabel as MessageKey)}</span>
@@ -257,6 +289,7 @@ function ChatBody({
   onItemStateChange,
   onLeaveVoice,
   onMarkChatRead,
+  onOpenHandoff,
   onSendChatMessage,
   onStartVoice,
   onToggleVoiceMic,
@@ -265,6 +298,7 @@ function ChatBody({
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
   onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
+  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
   onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
   onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
   onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
@@ -292,6 +326,10 @@ function ChatBody({
 
     event.preventDefault();
     if (item.dismissOnOpen) hideAfterHandoff(item.id);
+    if (onOpenHandoff) {
+      void onOpenHandoff(item);
+      return;
+    }
     window.open(item.handoffUrl, "_blank", "noopener,noreferrer");
   };
 
@@ -502,8 +540,23 @@ function MemoBody({ bubble, onCreateMemo }: { bubble: WidgetPreviewBubble; onCre
   );
 }
 
-function ScheduleBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+function ScheduleBody({
+  bubble,
+  onItemStateChange,
+  onOpenHandoff,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
+}) {
   const { t } = useI18n();
+  const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
+    if (!item.handoffUrl || !onOpenHandoff) return;
+
+    event.preventDefault();
+    void onOpenHandoff(item);
+  };
+
   return (
     <div className={styles.body}>
       <div className={styles.ring}>
@@ -521,7 +574,14 @@ function ScheduleBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubb
         {bubble.rows.length > 0 ? (
           bubble.rows.map((item) => (
             <span key={item.id}>
-              {item.label} · {item.status}
+              {item.handoffUrl ? (
+                <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+                  {item.label}
+                </a>
+              ) : (
+                item.label
+              )}{" "}
+              · {item.status}
               <ItemActions item={item} onItemStateChange={onItemStateChange} />
             </span>
           ))
@@ -535,8 +595,23 @@ function ScheduleBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubb
   );
 }
 
-function ResourceBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubble; onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"] }) {
+function ResourceBody({
+  bubble,
+  onItemStateChange,
+  onOpenHandoff,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
+}) {
   const { t } = useI18n();
+  const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
+    if (!item.handoffUrl || !onOpenHandoff) return;
+
+    event.preventDefault();
+    void onOpenHandoff(item);
+  };
+
   return (
     <div className={styles.body}>
       <div className={styles.bubbleNote}>
@@ -546,7 +621,13 @@ function ResourceBody({ bubble, onItemStateChange }: { bubble: WidgetPreviewBubb
       {bubble.rows.map((item) => (
         <div className={styles.fileRow} key={item.id}>
           <FileText size={16} strokeWidth={2} />
-          <span>{item.label}</span>
+          {item.handoffUrl ? (
+            <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+              {item.label}
+            </a>
+          ) : (
+            <span>{item.label}</span>
+          )}
           <b>{item.status}</b>
           <ItemActions item={item} onItemStateChange={onItemStateChange} />
         </div>
@@ -566,6 +647,7 @@ function BubbleBody({
   onCreateMemo,
   onLeaveVoice,
   onMarkChatRead,
+  onOpenHandoff,
   onPauseTimer,
   onPrimaryTimerAction,
   onSendChatMessage,
@@ -577,13 +659,14 @@ function BubbleBody({
   onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
   onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
   onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
+  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
   onPauseTimer?: DesktopWidgetBubbleProps["onPauseTimer"];
   onPrimaryTimerAction?: DesktopWidgetBubbleProps["onPrimaryTimerAction"];
   onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
   onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
   onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
 }) {
-  if (bubble.id === "agent") return <AgentBody bubble={bubble} onItemStateChange={onItemStateChange} />;
+  if (bubble.id === "agent") return <AgentBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
   if (bubble.id === "chat") {
     return (
       <ChatBody
@@ -591,6 +674,7 @@ function BubbleBody({
         onItemStateChange={onItemStateChange}
         onLeaveVoice={onLeaveVoice}
         onMarkChatRead={onMarkChatRead}
+        onOpenHandoff={onOpenHandoff}
         onSendChatMessage={onSendChatMessage}
         onStartVoice={onStartVoice}
         onToggleVoiceMic={onToggleVoiceMic}
@@ -601,9 +685,9 @@ function BubbleBody({
     return <TimerBody bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />;
   }
   if (bubble.id === "memo") return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} />;
-  if (bubble.id === "schedule") return <ScheduleBody bubble={bubble} onItemStateChange={onItemStateChange} />;
-  if (bubble.id === "resource") return <ResourceBody bubble={bubble} onItemStateChange={onItemStateChange} />;
-  return <TodoBody bubble={bubble} onItemStateChange={onItemStateChange} />;
+  if (bubble.id === "schedule") return <ScheduleBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
+  if (bubble.id === "resource") return <ResourceBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
+  return <TodoBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
 }
 
 function GhostSignal({ bubble }: { bubble: WidgetPreviewBubble }) {
@@ -629,6 +713,7 @@ export function DesktopWidgetBubble({
   onMarkChatRead,
   onModeChange,
   onCreateMemo,
+  onOpenHandoff,
   onPauseTimer,
   onPrimaryTimerAction,
   onRestore,
@@ -699,6 +784,7 @@ export function DesktopWidgetBubble({
                 onLeaveVoice={onLeaveVoice}
                 onMarkChatRead={onMarkChatRead}
                 onCreateMemo={onCreateMemo}
+                onOpenHandoff={onOpenHandoff}
                 onPauseTimer={onPauseTimer}
                 onPrimaryTimerAction={onPrimaryTimerAction}
                 onSendChatMessage={onSendChatMessage}

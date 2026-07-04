@@ -244,6 +244,12 @@ struct AppReadyInput {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct MainWindowRouteInput {
+    route: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct WidgetWindowTargetInput {
     bubble_type: Option<String>,
     window_id: Option<String>,
@@ -776,6 +782,54 @@ fn position_main_window_on_preferred_monitor(
     let _ = window.set_focus();
 
     Ok(())
+}
+
+fn normalize_main_window_route(route: &str) -> Result<String, String> {
+    let trimmed = route.trim();
+    if trimmed.is_empty()
+        || trimmed.starts_with("//")
+        || trimmed.contains("://")
+        || trimmed.to_ascii_lowercase().starts_with("javascript:")
+    {
+        return Err("main window route must be an app-internal path".to_string());
+    }
+
+    let normalized = if trimmed.starts_with('/') {
+        trimmed.to_string()
+    } else {
+        format!("/{trimmed}")
+    };
+
+    if normalized == "/"
+        || normalized == "/app"
+        || normalized.starts_with("/app/")
+        || normalized.starts_with("/app?")
+    {
+        Ok(normalized)
+    } else {
+        Err("main window route must start with /app".to_string())
+    }
+}
+
+#[tauri::command]
+fn open_main_window_route(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+    input: MainWindowRouteInput,
+) -> Result<String, String> {
+    let route = normalize_main_window_route(&input.route)?;
+    let window = app
+        .get_webview_window(MAIN_WINDOW_LABEL)
+        .ok_or_else(|| "main window not found".to_string())?;
+
+    position_main_window_on_preferred_monitor(&app, &monitor_state)?;
+
+    let route_json = serde_json::to_string(&route).map_err(|error| error.to_string())?;
+    window
+        .eval(&format!("window.location.assign({route_json});"))
+        .map_err(|error| error.to_string())?;
+
+    Ok(route)
 }
 
 fn widget_keeps_webview_when_hidden(widget: &WidgetWindowState) -> bool {
@@ -1548,6 +1602,7 @@ pub fn run() {
             get_preferred_app_monitor,
             get_widget_window_state,
             list_app_monitors,
+            open_main_window_route,
             open_widget_window,
             register_widget_shortcut,
             seed_widget_bar_items,
@@ -1689,6 +1744,22 @@ mod widget_runtime_tests {
             qa_all_widgets: Some(true),
             selected_room_id: None,
         })));
+    }
+
+    #[test]
+    fn main_window_route_allows_only_app_internal_routes() {
+        assert_eq!(
+            normalize_main_window_route("app/project-rooms/room-1/work").as_deref(),
+            Ok("/app/project-rooms/room-1/work")
+        );
+        assert_eq!(
+            normalize_main_window_route("/app/calendar?roomId=room-1").as_deref(),
+            Ok("/app/calendar?roomId=room-1")
+        );
+        assert!(normalize_main_window_route("https://example.com/app").is_err());
+        assert!(normalize_main_window_route("//example.com/app").is_err());
+        assert!(normalize_main_window_route("javascript:alert(1)").is_err());
+        assert!(normalize_main_window_route("/login").is_err());
     }
 
     #[test]
