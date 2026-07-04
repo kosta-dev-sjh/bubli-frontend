@@ -36,6 +36,7 @@ import {
   type WidgetPreviewBubble,
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
+import { notificationApi } from "@/features/notification/api/notificationApi";
 import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
@@ -751,6 +752,7 @@ function DesktopWidgetSurface() {
   const [communicationRevision, setCommunicationRevision] = useState(0);
   const [itemStateOverrides, setItemStateOverrides] = useState<Record<string, WidgetItemStateAction>>({});
   const [memoRevision, setMemoRevision] = useState(0);
+  const [notificationRevision, setNotificationRevision] = useState(0);
   const [todoRevision, setTodoRevision] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
   const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
@@ -1146,7 +1148,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, itemStateOverrides, memoRevision, requestedRoomId, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
+  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, requestedRoomId, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -1426,6 +1428,10 @@ function DesktopWidgetSurface() {
         if (activeBubble === "todo" && item.kind === "task" && state === "CONFIRMED") {
           await todoApi.update(item.id, { status: "DONE" });
           setTodoRevision((current) => current + 1);
+        }
+        if (activeBubble === "alert" && state === "CONFIRMED") {
+          await notificationApi.markRead(item.id);
+          setNotificationRevision((current) => current + 1);
         }
         applyLocalState();
       }
