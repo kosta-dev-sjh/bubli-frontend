@@ -11,9 +11,7 @@ const ko = {
   "nav.calendar": "일정",
   "nav.settings": "설정",
   "nav.public.home": "홈",
-  "nav.public.features": "기능",
   "nav.public.download": "다운로드",
-  "nav.public.faq": "FAQ",
 
   // 사이드바/프로젝트 표시
   "layout.sidebar.personal": "개인",
@@ -98,9 +96,7 @@ const en: Record<Key, string> = {
   "nav.calendar": "Calendar",
   "nav.settings": "Settings",
   "nav.public.home": "Home",
-  "nav.public.features": "Features",
   "nav.public.download": "Download",
-  "nav.public.faq": "FAQ",
 
   "layout.sidebar.personal": "Personal",
   "layout.project.checking": "Checking",
@@ -178,9 +174,7 @@ const ja: Record<Key, string> = {
   "nav.calendar": "予定",
   "nav.settings": "設定",
   "nav.public.home": "ホーム",
-  "nav.public.features": "機能",
   "nav.public.download": "ダウンロード",
-  "nav.public.faq": "FAQ",
 
   "layout.sidebar.personal": "個人",
   "layout.project.checking": "確認中",

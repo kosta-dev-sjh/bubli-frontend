@@ -79,9 +79,9 @@ function SortableTile({
 function Flow() {
   const [ids, setIds] = useState<string[]>([
     "today-todos",
-    "project-time-ring",
+    "focus-stats",
     "pending-approval",
-    "timer",
+    "schedule",
     "today-summary",
   ]);
   const [hidden, setHidden] = useState<Set<string>>(new Set(["today-summary"]));

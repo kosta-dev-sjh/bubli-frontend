@@ -245,12 +245,12 @@ const ko = {
   // /bubli 명령어 자동완성(웹 소통창 + 위젯 chat 버블 공용)
   "chat.agentCommands.popoverAria": "Bubli 명령어 자동완성",
   "chat.agentCommands.hint": "↑↓ 이동 · Tab/Enter 완성 · Esc 닫기",
-  "chat.agentCommands.summarizeDesc": "최근 대화·결정 사항을 요약해요",
+  "chat.agentCommands.summarizeDesc": "최근 대화와 결정 사항을 요약해요",
   "chat.agentCommands.todoDesc": "대화에서 TODO 후보를 만들어요",
   "chat.agentCommands.taskDesc": "작업(태스크) 후보를 만들어요",
   "chat.agentCommands.questionDesc": "확인이 필요한 질문 후보를 정리해요",
   "chat.agentCommands.requirementDesc": "요구사항 후보를 정리해요",
-  "chat.agentCommands.reviewDesc": "위험·조건 등 검토 항목 후보를 만들어요",
+  "chat.agentCommands.reviewDesc": "위험, 조건 등 검토 항목 후보를 만들어요",
   "chat.agentCommands.suggestDesc": "요청 내용으로 제안 후보를 만들어요",
   "chat.agentCommands.answerDesc": "프로젝트 맥락을 바탕으로 자유롭게 답해요",
 

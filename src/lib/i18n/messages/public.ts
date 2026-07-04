@@ -47,7 +47,7 @@ const ko = {
   "public.home.desktopChip": "데스크탑 앱",
   "public.home.desktopTitle": "작업 중에도, 화면 위에 가볍게",
   "public.home.desktopBody":
-    "Bubli 데스크탑 앱은 회원 웹 앱을 그대로 띄우고, 바탕화면 위에 오늘 할 일, 일정, 타이머, 자료 제안을 버블로 남깁니다. 화면을 전환하지 않아도 필요한 정보만 맑게 떠 있습니다.",
+    "Bubli 데스크탑 앱은 웹에서 쓰던 작업 화면을 그대로 띄우고, 바탕화면 위에 오늘 할 일, 일정, 타이머, 자료 제안을 버블로 남깁니다. 화면을 전환하지 않아도 필요한 정보만 맑게 떠 있습니다.",
   "public.home.desktopList1": "바탕화면 버블 (기본, 반투명, 고스트, 최소화)",
   "public.home.desktopList2": "개인 관리 폴더 감지와 빠른 로컬 캐시",
   "public.home.desktopList3": "개인 데이터는 로컬에, 원본은 서버 기준",
@@ -55,10 +55,11 @@ const ko = {
 
   // 홈 - 앱 미리보기
   "public.home.previewAria": "Bubli 앱 버전 미리보기",
-  "public.home.previewTabMac": "macOS 앱",
-  "public.home.previewTabWin": "Windows 앱",
-  "public.home.previewTabWeb": "회원 웹 앱",
-  "public.home.previewBarTitle": "Bubli 회원 앱",
+  "public.home.previewSupported": "모든 플랫폼 지원",
+  "public.home.previewTabMac": "macOS",
+  "public.home.previewTabWin": "Windows",
+  "public.home.previewTabWeb": "웹",
+  "public.home.previewBarTitle": "Bubli 앱",
   "public.home.previewSummary1": "자료 확인",
   "public.home.previewSummary2": "후보 승인",
   "public.home.previewSummary3": "오늘 실행",
@@ -97,7 +98,7 @@ const ko = {
   "public.home.faq2Q": "내 PC 파일을 다 읽나요?",
   "public.home.faq2A": "아니요. 사용자가 직접 지정한 폴더만 감지하고, 전체 PC 자동 색인은 하지 않습니다.",
   "public.home.faq3Q": "데스크탑 앱은 무엇이 다른가요?",
-  "public.home.faq3A": "회원 웹 앱을 그대로 띄우고, 바탕화면 버블과 기기 폴더 연동, 빠른 캐시를 더합니다.",
+  "public.home.faq3A": "웹에서 쓰던 작업 화면을 그대로 띄우고, 바탕화면 버블과 기기 폴더 연동, 빠른 캐시를 더합니다.",
   "public.home.faq4Q": "에이전트가 임의로 작업을 바꾸나요?",
   "public.home.faq4A": "아니요. 에이전트는 후보만 만들고, 사용자가 확인한 항목만 실제 작업이 됩니다.",
 
@@ -174,45 +175,15 @@ const ko = {
   "public.download.description": "Bubli 데스크탑 앱(macOS, Windows) 안내와 시작 방법을 정리합니다.",
   "public.download.sectionAria": "데스크탑 앱 다운로드",
   "public.download.introChip": "데스크탑 앱",
-  "public.download.introTitle": "회원 웹 앱 그대로, 바탕화면 버블까지",
+  "public.download.introTitle": "웹 작업 화면 그대로, 바탕화면 버블까지",
   "public.download.introBody":
-    "데스크탑 앱은 회원 웹 앱을 그대로 열고 바탕화면 버블, 기기 폴더 감지, 빠른 캐시를 더합니다. 설치 파일은 준비 중이며, 지금은 로그인 후 웹에서 같은 작업 화면을 바로 사용할 수 있습니다.",
+    "데스크탑 앱은 웹에서 쓰던 작업 화면을 그대로 열고 바탕화면 버블, 기기 폴더 감지, 빠른 캐시를 더합니다. 설치 파일은 준비 중이며, 지금은 로그인 후 웹에서 같은 작업 화면을 바로 사용할 수 있습니다.",
   "public.download.ctaLogin": "로그인하고 웹에서 시작",
-  "public.download.ctaFeatures": "기능 살펴보기",
   "public.download.macTitle": "macOS 앱",
   "public.download.macBody": "바탕화면 버블과 기기 폴더 감지를 포함한 macOS용 데스크탑 앱입니다.",
   "public.download.winTitle": "Windows 앱",
-  "public.download.winBody": "같은 회원 웹 앱과 버블을 여는 Windows용 데스크탑 앱입니다.",
+  "public.download.winBody": "같은 웹 작업 화면과 버블을 여는 Windows용 데스크탑 앱입니다.",
   "public.download.statusPreparing": "설치 파일 준비 중",
-
-  // 기능 페이지
-  "public.features.title": "기능",
-  "public.features.description":
-    "프로젝트룸, 자료보드, 에이전트 후보, WBS/작업판, 버블을 한 흐름으로 연결합니다.",
-  "public.features.flowAria": "Bubli 기능 흐름",
-  "public.features.introChip": "받은 자료를, 오늘 할 일로.",
-  "public.features.introTitle": "문서가 업무 구조가 되고, 업무는 버블까지 이어집니다",
-  "public.features.introBody":
-    "Bubli의 기능은 따로 떨어진 메뉴가 아니라 하나의 흐름입니다. 자료를 올리고, 후보를 확인하고, 승인된 작업을 여러 실행 화면에서 같은 기준으로 봅니다.",
-  "public.features.item1Label": "프로젝트룸",
-  "public.features.item1Status": "자료 시작점",
-  "public.features.item1Body": "요구사항, 회의록, 참고 자료를 한 프로젝트 기준으로 모읍니다.",
-  "public.features.item2Label": "자료보드",
-  "public.features.item2Status": "문서 정리",
-  "public.features.item2Body":
-    "개인 자료와 프로젝트룸 자료를 구분하고, 관련 문서와 확인 필요 항목을 같이 봅니다.",
-  "public.features.item3Label": "에이전트 후보",
-  "public.features.item3Status": "승인 전",
-  "public.features.item3Body": "문서에서 작업 범위, 확인 질문, WBS/TODO 후보를 만들고 사용자가 승인합니다.",
-  "public.features.item4Label": "WBS/작업판",
-  "public.features.item4Status": "실행 화면",
-  "public.features.item4Body": "확정된 TODO는 작업판, 대시보드, 일정, 버블에서 같은 작업으로 이어집니다.",
-  "public.features.item5Label": "소통",
-  "public.features.item5Status": "채팅과 보이스",
-  "public.features.item5Body": "친구, 1:1 채팅, 프로젝트룸 채팅, 보이스를 같은 소통 흐름 안에서 다룹니다.",
-  "public.features.item6Label": "버블",
-  "public.features.item6Status": "데스크탑 기능",
-  "public.features.item6Body": "작업 중 필요한 TODO, 알림, 타이머, 자료 제안만 데스크탑 위에 남깁니다.",
 
   // 하이브리드 앱 프레임
   "public.hybrid.aria": "웹과 앱 역할 분리",
@@ -224,30 +195,6 @@ const ko = {
   "public.hybrid.frame3Body": "회원 작업 화면을 데스크탑에서 열고, 버블과 기기 기능을 더합니다.",
   "public.hybrid.noteChip": "설계 포인트",
   "public.hybrid.note": "회원 작업 화면을 그대로 쓰고, 데스크탑에서만 필요한 버블과 기기 기능을 덧붙입니다.",
-
-  // FAQ 페이지
-  "public.faq.title": "FAQ",
-  "public.faq.description": "Bubli 사용 전 자주 묻는 질문을 정리합니다.",
-  "public.faq.sectionAria": "자주 묻는 질문",
-  "public.faq.introChip": "사용 전 확인",
-  "public.faq.introTitle": "웹, 앱, 버블, 자료 권한을 같은 기준으로 이해할 수 있게 정리했습니다",
-  "public.faq.introBody":
-    "Bubli는 공개 사이트, 회원 웹 앱, 데스크탑 앱이 역할을 나눕니다. FAQ는 이 경계가 헷갈리지 않게 잡는 화면입니다.",
-  "public.faq.q1": "웹과 데스크탑 앱은 무엇이 다른가요?",
-  "public.faq.a1":
-    "웹은 프로젝트룸, 자료보드, 작업판, 소통 같은 기본 업무 화면입니다. 데스크탑 앱은 같은 회원 웹 앱을 열고 버블, 기기 폴더, 빠른 표시, 타이머 복구 같은 데스크탑 기능을 더합니다.",
-  "public.faq.q2": "개인 자료와 프로젝트룸 자료는 어떻게 나뉘나요?",
-  "public.faq.a2":
-    "개인 자료는 사용자가 공유하기 전까지 프로젝트룸에 보이지 않습니다. 프로젝트룸 자료는 멤버 권한을 확인한 뒤 같은 공간에서 함께 봅니다.",
-  "public.faq.q3": "에이전트가 자동으로 작업을 확정하나요?",
-  "public.faq.a3":
-    "에이전트 결과는 확정 데이터가 아니라 후보입니다. 사용자가 확인한 값만 WBS, TODO, 일정, 자료 상태에 반영됩니다.",
-  "public.faq.q4": "앱에서는 채팅과 보이스를 어디서 쓰나요?",
-  "public.faq.a4":
-    "회원 웹 앱에서는 소통 탭에서 채팅과 보이스를 사용합니다. 데스크탑 앱에서는 메인 탭을 숨기고 소통 버블이나 전용 창에서 같은 서버 연결과 보이스 연결을 씁니다.",
-  "public.faq.q5": "기기 안 저장소에는 무엇을 저장하나요?",
-  "public.faq.a5":
-    "TODO, 일정, 채팅, 알림, 타이머 원본은 서버에 둡니다. 개인 에이전트 원문, 상세 버블 사용 이벤트, 빠른 표시와 복구 대기열은 기기 안 저장소에 둡니다.",
 
   // 글자 전략 패널
   "public.font.aria": "글자 전략",
@@ -305,17 +252,18 @@ const en: Record<Key, string> = {
   "public.home.desktopChip": "Desktop app",
   "public.home.desktopTitle": "Light on screen, even while you work",
   "public.home.desktopBody":
-    "The Bubli desktop app opens the member web app as-is and leaves today's tasks, schedule, timer, and file suggestions as bubbles on your desktop. Only what you need floats clearly — no switching screens.",
+    "The Bubli desktop app opens the same workspace you use in your browser and leaves today's tasks, schedule, timer, and file suggestions as bubbles on your desktop. Only what you need floats clearly — no switching screens.",
   "public.home.desktopList1": "Desktop bubble (default, translucent, ghost, minimized)",
   "public.home.desktopList2": "Managed-folder detection with a fast local cache",
   "public.home.desktopList3": "Personal data stays local; originals stay on the server",
   "public.home.desktopCta": "Get the desktop app",
 
   "public.home.previewAria": "Bubli app version preview",
-  "public.home.previewTabMac": "macOS app",
-  "public.home.previewTabWin": "Windows app",
-  "public.home.previewTabWeb": "Member web app",
-  "public.home.previewBarTitle": "Bubli member app",
+  "public.home.previewSupported": "Available on all platforms",
+  "public.home.previewTabMac": "macOS",
+  "public.home.previewTabWin": "Windows",
+  "public.home.previewTabWeb": "Web",
+  "public.home.previewBarTitle": "Bubli app",
   "public.home.previewSummary1": "Review files",
   "public.home.previewSummary2": "Approve candidates",
   "public.home.previewSummary3": "Do it today",
@@ -352,7 +300,7 @@ const en: Record<Key, string> = {
   "public.home.faq2Q": "Does it read every file on my PC?",
   "public.home.faq2A": "No. It only watches the folders you specify — it never auto-indexes your whole PC.",
   "public.home.faq3Q": "What's different about the desktop app?",
-  "public.home.faq3A": "It opens the member web app as-is and adds a desktop bubble, local folder sync, and a fast cache.",
+  "public.home.faq3A": "It opens the same web workspace as-is and adds a desktop bubble, local folder sync, and a fast cache.",
   "public.home.faq4Q": "Does the agent change work on its own?",
   "public.home.faq4A": "No. The agent only creates candidates; only what you confirm becomes real work.",
 
@@ -425,43 +373,15 @@ const en: Record<Key, string> = {
   "public.download.description": "How to get and start with the Bubli desktop app (macOS, Windows).",
   "public.download.sectionAria": "Desktop app download",
   "public.download.introChip": "Desktop app",
-  "public.download.introTitle": "The member web app as-is, plus desktop bubbles",
+  "public.download.introTitle": "Your web workspace as-is, plus desktop bubbles",
   "public.download.introBody":
-    "The desktop app opens the member web app as-is and adds the desktop bubble, device folder detection, and a fast cache. Installers are being prepared — for now, log in and use the same workspace right on the web.",
+    "The desktop app opens the same web workspace as-is and adds the desktop bubble, device folder detection, and a fast cache. Installers are being prepared — for now, log in and use the same workspace right on the web.",
   "public.download.ctaLogin": "Log in and start on the web",
-  "public.download.ctaFeatures": "Explore the features",
   "public.download.macTitle": "macOS app",
   "public.download.macBody": "The macOS desktop app with the desktop bubble and device folder detection.",
   "public.download.winTitle": "Windows app",
-  "public.download.winBody": "The Windows desktop app that opens the same member web app and bubble.",
+  "public.download.winBody": "The Windows desktop app that opens the same web workspace and bubble.",
   "public.download.statusPreparing": "Installer coming soon",
-
-  "public.features.title": "Features",
-  "public.features.description":
-    "Project rooms, the resource board, agent candidates, WBS/work board, and the bubble — connected as one flow.",
-  "public.features.flowAria": "Bubli feature flow",
-  "public.features.introChip": "What you receive becomes today's work.",
-  "public.features.introTitle": "Documents become work structure, and work carries all the way to the bubble",
-  "public.features.introBody":
-    "Bubli's features aren't separate menus — they're a single flow. Upload files, review candidates, and see approved work under the same standard across multiple execution screens.",
-  "public.features.item1Label": "Project room",
-  "public.features.item1Status": "Where files start",
-  "public.features.item1Body": "Gather requirements, meeting notes, and references under one project.",
-  "public.features.item2Label": "Resource board",
-  "public.features.item2Status": "Organizing docs",
-  "public.features.item2Body": "Separate personal and project-room files, and view related documents and items needing review together.",
-  "public.features.item3Label": "Agent candidates",
-  "public.features.item3Status": "Before approval",
-  "public.features.item3Body": "From documents, it builds work scope, clarifying questions, and WBS/TODO candidates for you to approve.",
-  "public.features.item4Label": "WBS/Work board",
-  "public.features.item4Status": "Execution screen",
-  "public.features.item4Body": "Confirmed TODOs carry into the board, dashboard, schedule, and bubble as the same task.",
-  "public.features.item5Label": "Chat",
-  "public.features.item5Status": "Chat & voice",
-  "public.features.item5Body": "Handle friends, 1:1 chats, project-room chats, and voice within one communication flow.",
-  "public.features.item6Label": "Bubble",
-  "public.features.item6Status": "Desktop feature",
-  "public.features.item6Body": "Keep only the TODOs, alerts, timer, and file suggestions you need mid-task on your desktop.",
 
   "public.hybrid.aria": "Web and app role separation",
   "public.hybrid.frame1Title": "Public site",
@@ -472,29 +392,6 @@ const en: Record<Key, string> = {
   "public.hybrid.frame3Body": "Opens the member workspace on desktop and adds the bubble and device features.",
   "public.hybrid.noteChip": "Design point",
   "public.hybrid.note": "Use the member workspace as-is, and add only the bubble and device features that desktop needs.",
-
-  "public.faq.title": "FAQ",
-  "public.faq.description": "The questions people most often ask before using Bubli.",
-  "public.faq.sectionAria": "Frequently asked questions",
-  "public.faq.introChip": "Before you start",
-  "public.faq.introTitle": "We laid out web, app, bubble, and file permissions under one consistent standard",
-  "public.faq.introBody":
-    "In Bubli, the public site, member web app, and desktop app each play a role. The FAQ keeps those boundaries from getting confusing.",
-  "public.faq.q1": "What's the difference between the web and the desktop app?",
-  "public.faq.a1":
-    "The web is the core work surface — project rooms, the resource board, the work board, and chat. The desktop app opens that same member web app and adds desktop features like bubbles, device folders, quick surfacing, and timer recovery.",
-  "public.faq.q2": "How are personal files and project-room files separated?",
-  "public.faq.a2":
-    "Personal files stay invisible to a project room until you share them. Project-room files are viewed together in the same space after member permissions are checked.",
-  "public.faq.q3": "Does the agent confirm work automatically?",
-  "public.faq.a3":
-    "Agent results are candidates, not confirmed data. Only the values you confirm are applied to WBS, TODOs, schedules, and file status.",
-  "public.faq.q4": "Where do I use chat and voice in the app?",
-  "public.faq.a4":
-    "In the member web app you use chat and voice from the communication tab. In the desktop app the main tab is hidden, and you use the same server and voice connection from the chat bubble or a dedicated window.",
-  "public.faq.q5": "What gets stored in on-device storage?",
-  "public.faq.a5":
-    "TODOs, schedules, chats, alerts, and timer originals stay on the server. Personal agent transcripts, detailed bubble-usage events, and the quick-surface and recovery queues stay in on-device storage.",
 
   "public.font.aria": "Type strategy",
   "public.font.rule1Title": "Hero",
@@ -549,17 +446,18 @@ const ja: Record<Key, string> = {
   "public.home.desktopChip": "デスクトップアプリ",
   "public.home.desktopTitle": "作業中でも、画面の上に軽く",
   "public.home.desktopBody":
-    "Bubli デスクトップアプリは会員ウェブアプリをそのまま表示し、デスクトップ上に今日やること・予定・タイマー・資料提案をバブルで残します。画面を切り替えなくても、必要な情報だけが澄んで浮かびます。",
+    "Bubli デスクトップアプリはブラウザで使う作業画面をそのまま表示し、デスクトップ上に今日やること・予定・タイマー・資料提案をバブルで残します。画面を切り替えなくても、必要な情報だけが澄んで浮かびます。",
   "public.home.desktopList1": "デスクトップバブル（標準・半透明・ゴースト・最小化）",
   "public.home.desktopList2": "管理フォルダの検知と高速ローカルキャッシュ",
   "public.home.desktopList3": "個人データはローカルに、原本はサーバー基準に",
   "public.home.desktopCta": "デスクトップアプリを入手",
 
   "public.home.previewAria": "Bubli アプリ版プレビュー",
-  "public.home.previewTabMac": "macOS アプリ",
-  "public.home.previewTabWin": "Windows アプリ",
-  "public.home.previewTabWeb": "会員ウェブアプリ",
-  "public.home.previewBarTitle": "Bubli 会員アプリ",
+  "public.home.previewSupported": "全プラットフォーム対応",
+  "public.home.previewTabMac": "macOS",
+  "public.home.previewTabWin": "Windows",
+  "public.home.previewTabWeb": "ウェブ",
+  "public.home.previewBarTitle": "Bubli アプリ",
   "public.home.previewSummary1": "資料確認",
   "public.home.previewSummary2": "候補承認",
   "public.home.previewSummary3": "今日実行",
@@ -596,7 +494,7 @@ const ja: Record<Key, string> = {
   "public.home.faq2Q": "PC のファイルを全部読みますか？",
   "public.home.faq2A": "いいえ。ユーザーが指定したフォルダのみ検知し、PC 全体の自動インデックスは行いません。",
   "public.home.faq3Q": "デスクトップアプリは何が違いますか？",
-  "public.home.faq3A": "会員ウェブアプリをそのまま表示し、デスクトップ上のバブル・ローカルフォルダ連携・高速キャッシュを加えます。",
+  "public.home.faq3A": "ブラウザで使う作業画面をそのまま表示し、デスクトップ上のバブル・ローカルフォルダ連携・高速キャッシュを加えます。",
   "public.home.faq4Q": "エージェントが勝手に作業を変えますか？",
   "public.home.faq4A": "いいえ。エージェントは候補を作るだけで、ユーザーが確認した項目だけが実際の作業になります。",
 
@@ -669,43 +567,15 @@ const ja: Record<Key, string> = {
   "public.download.description": "Bubli デスクトップアプリ（macOS・Windows）の案内と始め方をまとめます。",
   "public.download.sectionAria": "デスクトップアプリのダウンロード",
   "public.download.introChip": "デスクトップアプリ",
-  "public.download.introTitle": "会員ウェブアプリをそのまま、デスクトップバブルまで",
+  "public.download.introTitle": "ウェブの作業画面そのまま、デスクトップバブルまで",
   "public.download.introBody":
-    "デスクトップアプリは会員ウェブアプリをそのまま開き、デスクトップバブル・端末フォルダ検知・高速キャッシュを加えます。インストーラーは準備中です。今はログイン後、ウェブで同じ作業画面をすぐに使えます。",
+    "デスクトップアプリはブラウザで使う作業画面をそのまま開き、デスクトップバブル・端末フォルダ検知・高速キャッシュを加えます。インストーラーは準備中です。今はログイン後、ウェブで同じ作業画面をすぐに使えます。",
   "public.download.ctaLogin": "ログインしてウェブで開始",
-  "public.download.ctaFeatures": "機能を見る",
   "public.download.macTitle": "macOS アプリ",
   "public.download.macBody": "デスクトップバブルと端末フォルダ検知を備えた macOS 用デスクトップアプリです。",
   "public.download.winTitle": "Windows アプリ",
-  "public.download.winBody": "同じ会員ウェブアプリとバブルを開く Windows 用デスクトップアプリです。",
+  "public.download.winBody": "同じウェブ作業画面とバブルを開く Windows 用デスクトップアプリです。",
   "public.download.statusPreparing": "インストーラー準備中",
-
-  "public.features.title": "機能",
-  "public.features.description":
-    "プロジェクトルーム・資料ボード・エージェント候補・WBS/作業板・バブルを一つの流れでつなぎます。",
-  "public.features.flowAria": "Bubli 機能フロー",
-  "public.features.introChip": "受け取った資料を、今日やることに。",
-  "public.features.introTitle": "文書が業務構造になり、業務はバブルまでつながります",
-  "public.features.introBody":
-    "Bubli の機能はバラバラのメニューではなく、一つの流れです。資料をアップし、候補を確認し、承認された作業を複数の実行画面で同じ基準で見ます。",
-  "public.features.item1Label": "プロジェクトルーム",
-  "public.features.item1Status": "資料の起点",
-  "public.features.item1Body": "要件・議事録・参考資料を一つのプロジェクト単位で集めます。",
-  "public.features.item2Label": "資料ボード",
-  "public.features.item2Status": "文書整理",
-  "public.features.item2Body": "個人資料とプロジェクトルーム資料を区別し、関連文書と確認が必要な項目を一緒に見ます。",
-  "public.features.item3Label": "エージェント候補",
-  "public.features.item3Status": "承認前",
-  "public.features.item3Body": "文書から作業範囲・確認質問・WBS/TODO 候補を作り、ユーザーが承認します。",
-  "public.features.item4Label": "WBS/作業板",
-  "public.features.item4Status": "実行画面",
-  "public.features.item4Body": "確定した TODO は作業板・ダッシュボード・予定・バブルで同じ作業としてつながります。",
-  "public.features.item5Label": "コミュニケーション",
-  "public.features.item5Status": "チャットとボイス",
-  "public.features.item5Body": "友だち・1:1 チャット・プロジェクトルームチャット・ボイスを同じ流れの中で扱います。",
-  "public.features.item6Label": "バブル",
-  "public.features.item6Status": "デスクトップ機能",
-  "public.features.item6Body": "作業中に必要な TODO・通知・タイマー・資料提案だけをデスクトップ上に残します。",
 
   "public.hybrid.aria": "ウェブとアプリの役割分担",
   "public.hybrid.frame1Title": "公開サイト",
@@ -716,29 +586,6 @@ const ja: Record<Key, string> = {
   "public.hybrid.frame3Body": "会員作業画面をデスクトップで開き、バブルと端末機能を加えます。",
   "public.hybrid.noteChip": "設計ポイント",
   "public.hybrid.note": "会員作業画面をそのまま使い、デスクトップだけに必要なバブルと端末機能を足します。",
-
-  "public.faq.title": "FAQ",
-  "public.faq.description": "Bubli を使う前によくある質問をまとめます。",
-  "public.faq.sectionAria": "よくある質問",
-  "public.faq.introChip": "使う前に確認",
-  "public.faq.introTitle": "ウェブ・アプリ・バブル・資料権限を同じ基準で理解できるように整理しました",
-  "public.faq.introBody":
-    "Bubli は公開サイト・会員ウェブアプリ・デスクトップアプリで役割を分けます。FAQ はこの境界が混乱しないように整える画面です。",
-  "public.faq.q1": "ウェブとデスクトップアプリは何が違いますか？",
-  "public.faq.a1":
-    "ウェブはプロジェクトルーム・資料ボード・作業板・コミュニケーションといった基本の業務画面です。デスクトップアプリは同じ会員ウェブアプリを開き、バブル・端末フォルダ・素早い表示・タイマー復元などのデスクトップ機能を加えます。",
-  "public.faq.q2": "個人資料とプロジェクトルーム資料はどう分かれますか？",
-  "public.faq.a2":
-    "個人資料はユーザーが共有するまでプロジェクトルームに表示されません。プロジェクトルーム資料はメンバー権限を確認したうえで同じ空間で一緒に見ます。",
-  "public.faq.q3": "エージェントが自動で作業を確定しますか？",
-  "public.faq.a3":
-    "エージェントの結果は確定データではなく候補です。ユーザーが確認した値だけが WBS・TODO・予定・資料状態に反映されます。",
-  "public.faq.q4": "アプリではチャットとボイスをどこで使いますか？",
-  "public.faq.a4":
-    "会員ウェブアプリではコミュニケーションタブでチャットとボイスを使います。デスクトップアプリではメインタブを隠し、コミュニケーションバブルや専用ウィンドウで同じサーバー接続とボイス接続を使います。",
-  "public.faq.q5": "端末内ストレージには何を保存しますか？",
-  "public.faq.a5":
-    "TODO・予定・チャット・通知・タイマーの原本はサーバーに置きます。個人エージェントの原文・詳細バブル使用イベント・素早い表示と復元の待ち行列は端末内ストレージに置きます。",
 
   "public.font.aria": "文字戦略",
   "public.font.rule1Title": "ヒーロー",

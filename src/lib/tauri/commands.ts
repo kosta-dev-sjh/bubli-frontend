@@ -34,6 +34,7 @@ export const TAURI_COMMANDS = {
   readActivityContext: "read_activity_context",
   readLocalFilePreview: "read_local_file_preview",
   readRoomMessages: "read_room_messages",
+  readWidgetPref: "read_widget_pref",
   readWidgetSummaryCache: "read_widget_summary_cache",
   reindexFile: "reindex_file",
   recoverTimerState: "recover_timer_state",
@@ -71,6 +72,7 @@ export const TAURI_COMMANDS = {
   stageLocalFileEventsForSync: "stage_local_file_events_for_sync",
   storeActiveProjectRoom: "store_active_project_room",
   storeTauriAuthSession: "store_tauri_auth_session",
+  storeWidgetPref: "store_widget_pref",
   storeWidgetSummaryCache: "store_widget_summary_cache",
   syncRoomMessages: "sync_room_messages",
   syncWidgetUsageSummary: "sync_widget_usage_summary",
@@ -460,6 +462,21 @@ export type WidgetSummaryCacheReadInput = {
 export type WidgetSummaryCacheReadResult = {
   cachedAt: string;
   summaryJson: string;
+};
+
+export type WidgetPrefStoreInput = {
+  cacheKey: string;
+  kind: string;
+  valueJson: string;
+};
+
+export type WidgetPrefReadInput = {
+  cacheKey: string;
+  kind: string;
+};
+
+export type WidgetPrefValue = {
+  valueJson: string;
 };
 
 export type LocalBackupResult = {
@@ -904,6 +921,10 @@ export type TauriCommandContract = {
     args: LocalRoomMessageReadInput;
     result: LocalRoomMessageReadResult;
   };
+  read_widget_pref: {
+    args: WidgetPrefReadInput;
+    result: WidgetPrefValue | null;
+  };
   read_widget_summary_cache: {
     args: WidgetSummaryCacheReadInput | undefined;
     result: WidgetSummaryCacheReadResult | null;
@@ -1051,6 +1072,10 @@ export type TauriCommandContract = {
   store_tauri_auth_session: {
     args: TauriAuthSessionStoreInput;
     result: TauriAuthSessionReadResult;
+  };
+  store_widget_pref: {
+    args: WidgetPrefStoreInput;
+    result: null;
   };
   store_widget_summary_cache: {
     args: WidgetSummaryCacheStoreInput;
@@ -1211,6 +1236,9 @@ export const tauriCommands = {
   readRoomMessages(input: LocalRoomMessageReadInput) {
     return invokeTauri<LocalRoomMessageReadResult>(TAURI_COMMANDS.readRoomMessages, { input });
   },
+  readWidgetPref(input: WidgetPrefReadInput) {
+    return invokeTauri<WidgetPrefValue | null>(TAURI_COMMANDS.readWidgetPref, { input });
+  },
   readWidgetSummaryCache(input?: WidgetSummaryCacheReadInput) {
     return invokeTauri<WidgetSummaryCacheReadResult | null>(
       TAURI_COMMANDS.readWidgetSummaryCache,
@@ -1339,6 +1367,9 @@ export const tauriCommands = {
   },
   storeTauriAuthSession(input: TauriAuthSessionStoreInput) {
     return invokeTauri<TauriAuthSessionReadResult>(TAURI_COMMANDS.storeTauriAuthSession, { input });
+  },
+  storeWidgetPref(input: WidgetPrefStoreInput) {
+    return invokeTauri<null>(TAURI_COMMANDS.storeWidgetPref, { input });
   },
   storeWidgetSummaryCache(input: WidgetSummaryCacheStoreInput) {
     return invokeTauri<WidgetSummaryCacheReadResult>(TAURI_COMMANDS.storeWidgetSummaryCache, { input });

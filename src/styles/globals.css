@@ -1727,15 +1727,14 @@ select {
 }
 
 .workspace-route {
+  /* 표준 컨테이너 — 캘린더(.page)와 동일하게 스크롤 영역을 꽉 채우고,
+     좌우 여백(거터)은 바깥 프레임(.shell)의 패딩만으로 준다.
+     자체 max-width/좌우 패딩을 두지 않아 회원 라우트 폭이 캘린더와 일치한다. */
   display: grid;
   gap: 18px;
-  width: min(100%, 1120px);
-  margin: 0 auto;
-  padding: 18px clamp(18px, 3vw, 34px) 46px;
-}
-
-.workspace-route--work {
-  width: min(100%, 1280px);
+  width: 100%;
+  min-width: 0;
+  padding: 18px 0 46px;
 }
 
 .workspace-route__header {
@@ -1755,6 +1754,11 @@ select {
 }
 
 .workspace-route__header h1 {
+  /* 제목 폭을 글자에 맞춘다. block(전체 폭)이면 그라데이션이 넓은 상자에 펴져
+     짧은 제목엔 좌측 파랑만 걸려 단색처럼 보인다 → fit-content로 글자에 딱 맞춰
+     모든 제목이 소통처럼 파랑→보라 전체 그라데이션을 보이게 한다. */
+  width: fit-content;
+  max-width: 100%;
   margin: 0;
   color: transparent;
   background: linear-gradient(105deg, var(--blue-ink), var(--bubble-blue) 58%, var(--lilac-ink));
@@ -1768,6 +1772,9 @@ select {
 }
 
 .workspace-route__eyebrow {
+  /* 아이브로도 같은 이유로 글자 폭에 맞춰 그라데이션이 온전히 보이게 한다. */
+  width: fit-content;
+  max-width: 100%;
   margin: 0 0 8px;
   color: transparent;
   background: linear-gradient(100deg, var(--blue-ink), var(--bubble-blue) 58%, var(--lilac-ink));
@@ -9988,10 +9995,17 @@ html {
   gap: 16px;
 }
 .landing-desktop__copy h2 {
+  /* 랜딩 톤에 맞춰 브랜드 그라데이션 적용. fit-content로 그라데이션이 글자에 온전히 걸리게 한다. */
+  width: fit-content;
+  max-width: 100%;
   margin: 0;
+  color: transparent;
+  background: linear-gradient(102deg, var(--blue-ink), var(--bubble-blue) 56%, var(--lilac-ink));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   font-size: clamp(24px, 3vw, 34px);
   font-weight: 800;
-  color: var(--color-text);
 }
 .landing-desktop__copy p {
   margin: 0;
@@ -9999,6 +10013,10 @@ html {
   color: var(--color-muted);
   font-size: 16px;
   line-height: 1.7;
+  /* 한국어는 단어 중간에서 꺾지 않고(keep-all) 자연스럽게 줄바꿈되게 한다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  text-wrap: pretty;
 }
 .landing-desktop__list {
   list-style: none;
@@ -11059,26 +11077,36 @@ html {
   padding: 24px;
 }
 
-.landing-app-preview__tabs {
+/* 지원 플랫폼 배지 행: 선택 탭이 아니라 "셋 다 지원"을 알리는 정적 표시.
+   버튼처럼 보이지 않게 테두리 없는 소프트 배지 + 체크 아이콘으로 통일한다. */
+.landing-app-preview__platforms {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
-.landing-app-preview__tabs span {
-  border: 1px solid rgba(107, 143, 168, 0.14);
-  border-radius: 999px;
-  padding: 9px 13px;
+.landing-app-preview__platforms-label {
+  margin-right: 2px;
   color: var(--ink-soft);
-  background: rgba(255, 255, 255, 0.52);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.landing-app-preview__platform {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 6px 12px 6px 9px;
+  color: var(--blue-ink);
+  background: linear-gradient(135deg, rgba(216, 240, 255, 0.9), rgba(220, 216, 248, 0.62));
   font-size: 14px;
   font-weight: 780;
 }
 
-.landing-app-preview__tabs span.is-active {
-  border-color: rgba(111, 184, 242, 0.38);
+.landing-app-preview__platform svg {
   color: var(--blue-ink);
-  background: rgba(216, 240, 255, 0.54);
 }
 
 .landing-app-preview__stage {
@@ -11392,6 +11420,16 @@ html {
 .public-home-flow__main::before,
 .public-home-flow__todo::before {
   display: none !important;
+}
+
+/* 공개 하위 페이지(/features·/faq·/download) 공용 컨테이너.
+   PageHeading과 카드 그리드가 같은 좌우 거터를 공유하도록 폭·패딩을 한곳에서 준다.
+   (이전에는 헤더가 x=0에 붙어 카드 그리드와 정렬이 어긋났다.) */
+.public-page {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(32px, 6vh, 56px) clamp(20px, 4vw, 48px) clamp(48px, 8vh, 88px);
 }
 
 .public-feature-flow,
@@ -16013,9 +16051,9 @@ html {
 }
 
 .public-orbit-preview__node--agent {
-  right: 14%;
+  right: 10%;
   top: 30%;
-  transform: translateZ(120px);
+  transform: translateZ(96px);
   animation-delay: -1.5s;
 }
 
@@ -16027,9 +16065,9 @@ html {
 }
 
 .public-orbit-preview__node--todo {
-  right: 8%;
+  right: 6%;
   bottom: 32%;
-  transform: translateZ(128px);
+  transform: translateZ(100px);
   animation-delay: -4.2s;
 }
 
@@ -16126,17 +16164,17 @@ html {
 
 .public-orbit-preview__widgets {
   position: absolute;
-  right: 6%;
+  right: 8%;
   bottom: 8%;
   z-index: 3;
   display: grid;
   gap: 10px;
-  width: min(250px, 42%);
+  width: min(236px, 40%);
   transform:
     translate3d(
       calc(var(--orbit-x, 0) * -12px),
       calc(var(--orbit-y, 0) * 8px),
-      150px
+      100px
     );
 }
 
@@ -21130,9 +21168,7 @@ html {
 }
 
 @media (max-width: 640px) {
-  .workspace-route {
-    padding-inline: 14px;
-  }
+  /* 좌우 거터는 바깥 프레임(.shell)이 이미 줄여주므로 라우트에서 중복 패딩을 두지 않는다. */
 
   .workspace-route__header {
     align-items: flex-start;
@@ -21871,4 +21907,30 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   color: var(--color-muted);
   font-size: 14px;
   font-weight: 600;
+}
+
+/* ── 홈 대시보드 추가 카드(프로젝트룸 바로가기) 링크 — __line 타이포와 맞춘다 ── */
+.workspace-dashboard__room-link {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 14.5px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-dashboard__room-link:hover {
+  color: var(--blue-ink);
+  text-decoration: underline;
+}
+
+[data-theme="dark"] .workspace-dashboard__room-link {
+  color: var(--color-text);
+}
+
+[data-theme="dark"] .workspace-dashboard__room-link:hover {
+  color: var(--sky);
 }

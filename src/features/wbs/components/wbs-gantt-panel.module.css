@@ -353,6 +353,58 @@
   color: #2C3540;
 }
 
+/* ---------- 리스트 맨 아래 "새 작업 추가" 행 (지라식 통합 생성) ---------- */
+.addRow {
+  padding: 4px 6px 8px;
+}
+
+.addRowButton {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: #5A6772;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  gap: 6px;
+  inline-size: 100%;
+  justify-content: flex-start;
+  min-block-size: 34px;
+  padding: 0 8px;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.addRowButton:hover,
+.addRowButton:focus-visible {
+  background: rgba(215, 234, 244, 0.5);
+  color: #2C3540;
+  outline: none;
+}
+
+/* 항목이 하나도 없을 때: 전체 폭 점선 어포던스로 첫 작업 생성을 유도한다. */
+.addRowButton[data-empty="true"] {
+  border: 1px dashed rgba(58, 120, 184, 0.5);
+  color: #36729A;
+  justify-content: center;
+  margin: 4px 2px;
+  min-block-size: 44px;
+}
+
+.addRowButton[data-empty="true"]:hover,
+.addRowButton[data-empty="true"]:focus-visible {
+  background: rgba(215, 234, 244, 0.45);
+  border-color: rgba(58, 120, 184, 0.7);
+}
+
+/* 하위 추가 인라인 행 — 부모 행 바로 아래 위치 */
+.createInlineRow {
+  padding: 4px 6px;
+}
+
 /* ---------- 트리 행 컨트롤 ---------- */
 .expanderButton {
   align-items: center;
@@ -725,6 +777,27 @@
 [data-theme="dark"] .createInlineButtonSecondary:hover {
   background: rgba(150, 170, 215, 0.14);
   color: #EAF0F8;
+}
+
+[data-theme="dark"] .addRowButton {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .addRowButton:hover,
+[data-theme="dark"] .addRowButton:focus-visible {
+  background: rgba(60, 80, 125, 0.4);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .addRowButton[data-empty="true"] {
+  border-color: rgba(158, 216, 255, 0.4);
+  color: #9ED8FF;
+}
+
+[data-theme="dark"] .addRowButton[data-empty="true"]:hover,
+[data-theme="dark"] .addRowButton[data-empty="true"]:focus-visible {
+  background: rgba(60, 80, 125, 0.36);
+  border-color: rgba(158, 216, 255, 0.6);
 }
 
 [data-theme="dark"] .expanderButton,

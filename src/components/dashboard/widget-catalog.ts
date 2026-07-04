@@ -23,15 +23,11 @@ export const WIDGET_CATALOG: DashboardWidgetDef[] = [
   { category: "agent", descriptionKey: "dashboard.catalog.agentQueue.desc", size: "S", titleKey: "dashboard.catalog.agentQueue.title", widgetId: "agent-queue" },
   { category: "info", descriptionKey: "dashboard.catalog.recentResources.desc", roomScope: true, size: "M", titleKey: "dashboard.catalog.recentResources.title", widgetId: "recent-resources" },
   { category: "work", descriptionKey: "dashboard.catalog.quickMemo.desc", roomScope: true, size: "M", titleKey: "dashboard.catalog.quickMemo.title", widgetId: "quick-memo" },
-  // 아래 항목은 스토리북/보관함 데모용 정의로 남겨둔다(홈 보드 연결 대상 아님).
-  { category: "work", descriptionKey: "dashboard.catalog.nextFocus.desc", size: "M", titleKey: "dashboard.catalog.nextFocus.title", widgetId: "next-focus" },
-  { category: "time", descriptionKey: "dashboard.catalog.timer.desc", size: "S", titleKey: "dashboard.catalog.timer.title", widgetId: "timer" },
-  { category: "agent", descriptionKey: "dashboard.catalog.pendingApproval.desc", size: "S", titleKey: "dashboard.catalog.pendingApproval.title", widgetId: "pending-approval" },
+  // 아래 항목은 실제 백엔드 데이터에 연결된 추가 카드다(팔레트에서 사용자가 직접 담을 수 있다).
   { category: "work", descriptionKey: "dashboard.catalog.projectRooms.desc", size: "M", titleKey: "dashboard.catalog.projectRooms.title", widgetId: "project-rooms" },
-  { category: "time", descriptionKey: "dashboard.catalog.projectTimeRing.desc", size: "M", titleKey: "dashboard.catalog.projectTimeRing.title", widgetId: "project-time-ring" },
-  { category: "time", descriptionKey: "dashboard.catalog.activityTimeline.desc", size: "L", titleKey: "dashboard.catalog.activityTimeline.title", widgetId: "activity-timeline" },
-  { category: "info", descriptionKey: "dashboard.catalog.notifications.desc", size: "S", titleKey: "dashboard.catalog.notifications.title", widgetId: "notifications" },
-  { category: "work", descriptionKey: "dashboard.catalog.quickUpload.desc", size: "S", titleKey: "dashboard.catalog.quickUpload.title", widgetId: "quick-upload" },
+  { category: "work", descriptionKey: "dashboard.catalog.upcomingDeadlines.desc", roomScope: true, size: "M", titleKey: "dashboard.catalog.upcomingDeadlines.title", widgetId: "upcoming-deadlines" },
+  { category: "agent", descriptionKey: "dashboard.catalog.pendingApproval.desc", size: "M", titleKey: "dashboard.catalog.pendingApproval.title", widgetId: "pending-approval" },
+  { category: "info", descriptionKey: "dashboard.catalog.notifications.desc", size: "M", titleKey: "dashboard.catalog.notifications.title", widgetId: "notifications" },
 ];
 
 export const sizeToClass: Record<WidgetSize, string> = {

@@ -9,9 +9,7 @@ import type { MessageKey } from "@/lib/i18n";
 // 공개 네비 라벨은 siteConfig(단일 언어)에 있으므로 href → 번역 키로 매핑해 t()로 표시한다.
 const publicNavKeys: Record<(typeof siteConfig.publicNav)[number]["href"], MessageKey> = {
   "/": "nav.public.home",
-  "/features": "nav.public.features",
   "/#download": "nav.public.download",
-  "/faq": "nav.public.faq",
 };
 
 export function PublicHeader() {
