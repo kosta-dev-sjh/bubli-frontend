@@ -1253,6 +1253,7 @@ export function DesktopWidgetBubbleBar({
         aria-label={t("widget.bar.minimizedAria")}
         className={styles.bubbleBar}
         data-bubli-interactive="true"
+        onMouseDownCapture={handleWidgetDragMouseDownDeferred}
         onMouseDown={handleWidgetDragMouseDown}
       >
         {/* 알림은 바에 고정된 요소라 맨 왼쪽에 둔다. 접힌 버블 칩과는 구분선으로 분리. */}
@@ -1271,7 +1272,7 @@ export function DesktopWidgetBubbleBar({
           </i>
           <b>{notificationSignal.metric}</b>
         </button>
-        <span className={styles.barDivider} aria-hidden="true" />
+        <span className={styles.barDivider} aria-hidden="true" data-bubli-interactive="true" data-tauri-drag-region />
         <button
           className={styles.barBrand}
           aria-haspopup="menu"

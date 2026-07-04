@@ -2049,8 +2049,15 @@
   align-self: center;
   width: 1px;
   height: 16px;
-  border-radius: 1px;
-  background: rgba(44, 53, 64, 0.12);
+  margin: 0 -7px;
+  padding: 0 7px;
+  border-radius: 999px;
+  cursor: grab;
+  background: linear-gradient(90deg, transparent 0 4px, rgba(44, 53, 64, 0.12) 4px 5px, transparent 5px 100%);
+}
+
+.barDivider:active {
+  cursor: grabbing;
 }
 
 :global([data-theme="dark"]) .barDivider {
