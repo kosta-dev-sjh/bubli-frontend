@@ -1807,15 +1807,6 @@
   transition: background-color 140ms ease, width 200ms ease, margin-left 200ms ease, border-width 200ms ease;
 }
 
-/* 메뉴 morph 중 칩 슬롯 붕괴: 패널이 layoutId를 넘겨받아 motion이 칩을 visibility로 숨기는 동안
-   남는 36px 자리를 width/margin 트랜지션으로 접는다(-6px는 flex gap 한 칸 상쇄) —
-   pill에 빈 구멍이 남지 않고, 닫히면 같은 트랜지션으로 다시 벌어진다. */
-.barBrandCollapsed {
-  width: 0;
-  margin-left: -6px;
-  border-width: 0;
-  pointer-events: none;
-}
 
 .barBrand:hover,
 .barBrand:focus-visible {

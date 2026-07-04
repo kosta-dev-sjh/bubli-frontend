@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, type MouseEvent, type PointerEvent as ReactPointerEvent, type Ref, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from "motion/react";
 import {
   Bell,
   CheckCircle2,
@@ -1898,6 +1898,8 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   // 창 높이는 Rust WIDGET_BAR_HEIGHT(430)가 패널(≈352px)을 수용한다.
   return (
     <MotionConfig reducedMotion="user">
+      {/* memo된 형제(칩)들 사이에서 layoutId 프로젝션이 함께 갱신되도록 LayoutGroup으로 묶는다. */}
+      <LayoutGroup>
       <div className={[styles.root, styles.barRoot].join(" ")} data-bubli-desktop-widget ref={barRootRef}>
         <GooeyFilter />
         {/* hover 프리뷰 팝오버: 칩 accent를 물려받고 pill 위에서 스프링 스케일 인(하단 앵커). */}
@@ -2054,25 +2056,29 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
           </span>
           <span className={styles.barDivider} aria-hidden="true" data-bubli-interactive="true" data-tauri-drag-region />
           {/* Bubli 브랜드 칩: 웹앱과 같은 28px 버블 마크 + 메뉴 morph 앵커(layoutId 공유).
-              패널이 열려 motion이 칩을 visibility로 숨기는 동안에는 barBrandCollapsed가
-              칩의 레이아웃 슬롯(36px + gap)을 부드럽게 접어 pill에 구멍이 남지 않게 한다. */}
-          <motion.button
-            className={[styles.barBrand, menuOpen ? styles.barBrandCollapsed : ""].filter(Boolean).join(" ")}
-            aria-expanded={menuOpen}
-            aria-haspopup="menu"
-            aria-label={t("widget.menu.openAria")}
-            layoutId={BAR_MENU_MORPH_ID}
-            onClick={() => setMenuOpen((current) => !current)}
-            ref={menuAnchorRef}
-            style={{ borderRadius: 12 }}
-            title={t("widget.menu.openAria")}
-            transition={menuMorphSpring}
-            type="button"
-            whileHover={chipWhileHover}
-            whileTap={chipWhileTap}
-          >
-            <BubbleMark size="md" />
-          </motion.button>
+              PopoverForm 원형처럼 패널과 "동시 마운트"하지 않고 조건부로 스왑해야 morph가 진행된다
+              — 둘 다 마운트하면 layoutId 크로스페이드가 opacity 0에서 얼어붙는다(라이브 버그).
+              칩이 빠진 pill 틈은 형제 칩들의 layout 애니메이션이 자연스럽게 메운다. */}
+          {!menuOpen ? (
+            <motion.button
+              className={styles.barBrand}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              aria-label={t("widget.menu.openAria")}
+              layout
+              layoutId={BAR_MENU_MORPH_ID}
+              onClick={() => setMenuOpen(true)}
+              ref={menuAnchorRef}
+              style={{ borderRadius: 12 }}
+              title={t("widget.menu.openAria")}
+              transition={menuMorphSpring}
+              type="button"
+              whileHover={chipWhileHover}
+              whileTap={chipWhileTap}
+            >
+              <BubbleMark size="md" />
+            </motion.button>
+          ) : null}
           <AnimatePresence initial={false} mode="popLayout">
             {visibleItems.map((item) => {
               const bubbleType = item.activeBubble as WidgetBubbleType;
@@ -2094,6 +2100,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
           </AnimatePresence>
         </nav>
       </div>
+      </LayoutGroup>
     </MotionConfig>
   );
 });
