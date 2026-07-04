@@ -1,18 +1,67 @@
+/* ============================================================
+   Desktop widget bubble — 버블별 soft accent 아이덴티티 리스킨.
+   구조: accent 틴트 헤더 밴드(→ ~64px에서 투명) + near-white 글라스 바디,
+   20px radius, 1px hairline, 작은 floating shadow (가이드 5·7·11장).
+   색은 면이 아니라 빛: 밴드/아이콘 타일/CTA/칩에만 accent를 쓴다.
+   ============================================================ */
+
 .root {
   --widget-window-gutter: 0px;
   --widget-text: var(--color-text, #2c3540);
   --widget-muted: var(--color-muted, #5a6772);
   --widget-faint: var(--color-faint, #8a94a0);
-  --widget-blue: var(--color-todo, #8ecdf6);
-  --widget-blue-deep: var(--color-brand, #6b8fa8);
-  --widget-water: var(--color-water-blue, #d7eaf4);
-  --widget-lilac: var(--color-lilac, #e6ddf8);
-  --widget-pearl: var(--color-pearl, #e8c4a0);
-  --widget-rose: var(--color-dust-rose, #e89898);
-  --widget-border: rgba(107, 143, 168, 0.16);
+  --widget-border: rgba(107, 143, 168, 0.14);
+  --widget-hairline: rgba(107, 143, 168, 0.12);
+  /* accent 기본값(todo sky) — 버블별 acc* 클래스가 덮어쓴다. */
+  --acc: #6FB8F2;
+  --acc-ink: #36729A;
+  --sync-ink: #9B6A35;
   color: var(--widget-text);
   background: transparent;
   font-family: var(--font-line-seed, "LINE Seed Sans KR", Pretendard, system-ui, sans-serif);
+}
+
+/* 버블 아이덴티티 팔레트 — 전부 디자인 토큰 allowlist 색만 사용한다.
+   todo=sky · schedule=blue · timer=amber · memo=cream · resource=sand ·
+   chat=rose · alert=lilac · agent=sage(승인된 soft green). */
+.accSky {
+  --acc: #6FB8F2;
+  --acc-ink: #36729A;
+}
+
+.accBlue {
+  --acc: #4C91CD;
+  --acc-ink: #36729A;
+}
+
+.accAmber {
+  --acc: #E8C4A0;
+  --acc-ink: #9B6A35;
+}
+
+.accCream {
+  --acc: #F1D7B8;
+  --acc-ink: #9B6A35;
+}
+
+.accSand {
+  --acc: #E6C49C;
+  --acc-ink: #9B6A35;
+}
+
+.accRose {
+  --acc: #E79BB0;
+  --acc-ink: #C56B85;
+}
+
+.accLilac {
+  --acc: #B0A8E0;
+  --acc-ink: #6F58C9;
+}
+
+.accSage {
+  --acc: #93CFA8;
+  --acc-ink: color-mix(in srgb, #93CFA8 46%, #23303B 54%);
 }
 
 .previewRoot {
@@ -43,54 +92,48 @@
   opacity: 1;
 }
 
+/* ---------- Shell: accent 밴드 + near-white 글라스 ---------- */
+
 .shell {
   position: relative;
-  display: grid;
-  align-content: start;
-  gap: 12px;
-  /* v20 Visual Target Guide 5장 — 깊이는 rim + inner highlight, shadow는 작고 맑은 floating 토큰만. */
-  border: 1px solid var(--rim-light, rgba(255, 255, 255, 0.85));
-  background:
-    radial-gradient(circle at 20% 12%, rgba(255, 255, 255, 0.96), transparent 22%),
-    radial-gradient(circle at 78% 14%, rgba(255, 255, 255, 0.88), transparent 18%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(246, 251, 255, 0.82)),
-    rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
+  background: rgba(255, 255, 255, 0.94);
   box-shadow:
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
     var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
-  backdrop-filter: blur(10px) saturate(1.1);
-  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  backdrop-filter: blur(12px) saturate(1.08);
+  -webkit-backdrop-filter: blur(12px) saturate(1.08);
 }
 
-.shell::after {
+/* 헤더 밴드: accent 9% → ~64px에서 투명. 색은 빛으로만. */
+.shell::before {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background:
-    linear-gradient(120deg, rgba(255, 255, 255, 0.26), transparent 42%),
-    radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.34), transparent 18%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 9%, transparent), transparent 64px);
 }
 
 .previewShell {
   width: min(100%, 374px);
-  border-radius: 34px;
+  border-radius: 24px;
   padding: 14px;
 }
 
 .tauriShell {
   width: 320px;
-  /* v20 radius 토큰 정렬(--radius-window: 24px) */
-  border-radius: var(--radius-window, 24px);
-  /* v20 내부 여백 통일(16px) */
-  padding: 16px;
+  border-radius: 20px;
+  padding: 14px;
 }
 
-/* 기본/반투명 모드에서 셸이 창 높이를 꽉 채워, 주 액션 pill을 하단에 고정할 수 있게 한다. */
+/* 기본/반투명 모드에서 셸이 창 높이를 채워 CTA를 하단에 고정한다.
+   구성 자체는 콘텐츠 우선이라 stretch가 없어도 무너지지 않는다. */
 .tauriRoot:not(.minimizedMode):not(.ghostMode) .tauriShell {
   min-height: calc(100vh - 2 * var(--widget-window-gutter));
-  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .tauriRoot:not(.minimizedMode):not(.ghostMode) {
@@ -105,54 +148,18 @@
   --widget-window-gutter: 10px;
 }
 
-/* 버블 accent별 은은한 유리 틴트 — 색은 면이 아니라 빛(가이드 11장). */
-.shellBlue {
-  --bubble-tone: var(--widget-blue);
-  background:
-    radial-gradient(circle at 20% 12%, rgba(255, 255, 255, 0.96), transparent 22%),
-    radial-gradient(circle at 78% 14%, rgba(142, 205, 246, 0.2), transparent 24%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(246, 251, 255, 0.84)),
-    rgba(255, 255, 255, 0.9);
-}
-
-.shellLilac {
-  --bubble-tone: var(--widget-lilac);
-  background:
-    radial-gradient(circle at 20% 12%, rgba(255, 255, 255, 0.96), transparent 22%),
-    radial-gradient(circle at 78% 14%, rgba(230, 221, 248, 0.28), transparent 24%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(248, 247, 255, 0.84)),
-    rgba(255, 255, 255, 0.9);
-}
-
-.shellRose {
-  --bubble-tone: var(--widget-rose);
-  background:
-    radial-gradient(circle at 20% 12%, rgba(255, 255, 255, 0.96), transparent 22%),
-    radial-gradient(circle at 78% 14%, rgba(232, 152, 152, 0.18), transparent 24%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(255, 248, 248, 0.84)),
-    rgba(255, 255, 255, 0.9);
-}
-
-.shellPearl {
-  --bubble-tone: var(--widget-pearl);
-  background:
-    radial-gradient(circle at 20% 12%, rgba(255, 255, 255, 0.96), transparent 22%),
-    radial-gradient(circle at 78% 14%, rgba(232, 196, 160, 0.2), transparent 24%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(255, 250, 244, 0.84)),
-    rgba(255, 255, 255, 0.9);
-}
-
 .translucentMode .shell {
   border-color: rgba(255, 255, 255, 0.54);
-  background:
-    radial-gradient(circle at 20% 12%, rgba(255, 255, 255, 0.72), transparent 24%),
-    radial-gradient(circle at 78% 14%, rgba(255, 255, 255, 0.52), transparent 24%),
-    rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.4);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.66),
     0 14px 32px rgba(90, 123, 150, 0.1);
   backdrop-filter: blur(8px) saturate(1.02);
   -webkit-backdrop-filter: blur(8px) saturate(1.02);
+}
+
+.translucentMode .shell::before {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 6%, transparent), transparent 64px);
 }
 
 .ghostMode .shell {
@@ -167,6 +174,10 @@
   backdrop-filter: blur(1px);
   -webkit-backdrop-filter: blur(1px);
   opacity: 0.72;
+}
+
+.ghostMode .shell::before {
+  background: none;
 }
 
 .ghostMode .tauriShell {
@@ -202,11 +213,17 @@
   -webkit-backdrop-filter: none;
 }
 
+.minimizedMode .shell::before {
+  background: none;
+}
+
+/* ---------- Header: 28px accent 아이콘 타일 + 타이틀/스코프 ---------- */
+
 .head {
   position: relative;
   z-index: 1;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   min-width: 0;
@@ -215,9 +232,9 @@
 
 .title {
   display: inline-flex;
-  align-items: flex-start;
+  align-items: center;
   min-width: 0;
-  gap: 8px;
+  gap: 9px;
   cursor: grab;
   user-select: none;
 }
@@ -230,6 +247,17 @@
   cursor: grabbing;
 }
 
+.iconTile {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 15%, transparent);
+}
+
 .titleCopy {
   display: grid;
   min-width: 0;
@@ -238,102 +266,84 @@
 
 .titleCopy strong {
   overflow: hidden;
-  /* v20 헤더 타이틀 15px/700 */
   font-size: 15px;
   font-weight: 700;
-  line-height: 1.08;
+  line-height: 1.1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* 스코프 서브타이틀: "개인 작업" 또는 룸 이름. */
 .titleCopy small {
   overflow: hidden;
   color: var(--widget-muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.signal {
-  width: 9px;
-  height: 9px;
-  margin-top: 4px;
-  border-radius: 999px;
-  background: var(--bubble-tone, var(--widget-blue));
-  box-shadow: 0 0 0 5px rgba(142, 205, 246, 0.14);
-}
+/* ---------- 창 컨트롤: 22px ghost circle, gap 4, .6→1 hover ---------- */
 
-.controls,
-.segmented,
-.timerActions,
-.dockbar,
-.modebar {
+.controls {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 4px;
 }
 
-.controls button,
-.dragbar button,
-.dockbar button,
-.segmented button,
-.timerActions button,
-.modebar button,
-.wideAction {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--widget-border);
-  border-radius: 999px;
-  color: var(--widget-blue-deep);
-  background: rgba(255, 255, 255, 0.74);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 820;
-  cursor: pointer;
-}
-
-.controls button,
-.dockbar button {
-  width: 30px;
-  min-width: 0;
-  height: 30px;
+.controls button {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
   padding: 0;
+  border: 0;
+  border-radius: 999px;
   color: var(--widget-muted);
+  background: transparent;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 140ms ease, background-color 140ms ease;
 }
 
-.controls button[aria-pressed="true"],
-.dragbar button[aria-pressed="true"],
-.dockbar button[aria-pressed="true"],
-.segmented button[aria-pressed="true"],
-.modebar button[aria-pressed="true"] {
-  border-color: rgba(111, 184, 242, 0.34);
-  color: var(--widget-blue-deep);
-  background: rgba(216, 240, 255, 0.72);
+.controls button:hover,
+.controls button:focus-visible {
+  opacity: 1;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+}
+
+.controls button[aria-pressed="true"] {
+  opacity: 1;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 16%, transparent);
 }
 
 .controlsPreview {
   opacity: 1;
 }
 
-/* 창 조작 가능성이 항상 보이도록 상시 노출(0.55) + hover 시 1로 강조한다. */
 .controlsTauri {
-  opacity: 0.55;
   transition: opacity 160ms ease;
 }
 
-.controlsTauri button {
-  width: 24px;
-  height: 24px;
+/* ---------- 동기화 상태 한 줄(스테일일 때만) ---------- */
+
+.syncLine {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: -4px;
+  color: color-mix(in srgb, var(--sync-ink) 88%, transparent);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
-.tauriShell:hover .controlsTauri,
-.tauriShell:focus-within .controlsTauri {
-  opacity: 1;
-}
+/* ---------- Preview 전용 드래그바 ---------- */
 
 .dragbar {
   position: relative;
@@ -342,14 +352,14 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(107, 143, 168, 0.11);
+  border: 1px solid var(--widget-hairline);
   border-radius: 999px;
   padding: 7px 8px 7px 12px;
   color: var(--widget-muted);
   background: rgba(255, 255, 255, 0.56);
   cursor: grab;
   font-size: 12px;
-  font-weight: 820;
+  font-weight: 700;
   user-select: none;
 }
 
@@ -367,158 +377,124 @@
   min-width: 58px;
   height: 24px;
   padding: 0 9px;
+  border: 1px solid var(--widget-border);
+  border-radius: 999px;
   color: var(--widget-muted);
+  background: rgba(255, 255, 255, 0.74);
+  font: inherit;
   font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
 }
+
+.dragbar button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--acc) 34%, transparent);
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
+}
+
+/* ---------- Body 공통 ---------- */
 
 .body {
   position: relative;
   z-index: 1;
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  min-height: 0;
 }
 
-/* 셸이 창 높이를 채울 때 주 액션 pill과 입력줄을 하단에 고정한다. */
+/* 주 액션/입력줄은 하단 고정 — 나머지 콘텐츠는 위에서부터 채운다. */
 .body > .wideAction {
   margin-top: auto;
 }
 
-.body > .input:last-child {
+.body > .input {
   margin-top: auto;
 }
 
-.progress,
-.ring {
-  justify-self: center;
-  align-self: center;
+.body > .timerActions {
+  margin-top: auto;
+}
+
+.rowList {
   display: grid;
-  place-items: center;
-  width: 92px;
-  height: 92px;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.96) 0 58%, transparent 59%),
-    conic-gradient(var(--bubble-tone, var(--widget-blue)) 0 270deg, rgba(215, 234, 244, 0.7) 270deg 360deg);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.94),
-    0 10px 28px rgba(107, 143, 168, 0.12);
+  gap: 6px;
+  min-width: 0;
 }
 
-.ring {
-  background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.96) 0 58%, transparent 59%),
-    conic-gradient(var(--widget-lilac) 0 220deg, rgba(215, 234, 244, 0.7) 220deg 360deg);
-}
-
-.progress span,
-.ring span,
-.timer strong {
-  color: var(--widget-text);
-  font-size: 22px;
-  font-weight: 940;
-  line-height: 1;
-}
-
-.progress b,
-.ring b,
-.timer span {
-  color: var(--widget-muted);
-  font-size: 12px;
-  font-weight: 780;
-  line-height: 1.1;
-}
-
-.agentHalo {
-  position: relative;
-  justify-self: center;
-  align-self: center;
-  width: 94px;
-  height: 94px;
-  border-radius: 999px;
-}
-
-.agentHaloCore,
-.agentHaloRing {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-}
-
-.agentHaloCore {
-  border: 1px solid rgba(230, 221, 248, 0.86);
-  background:
-    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.98), transparent 20%),
-    radial-gradient(circle at 70% 74%, rgba(142, 205, 246, 0.22), transparent 30%),
-    rgba(255, 255, 255, 0.48);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 12px 30px rgba(107, 143, 168, 0.12);
-}
-
-.agentHaloRing {
-  inset: 10px;
-  border: 1.5px solid rgba(111, 184, 242, 0.34);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.46),
-    0 0 0 4px rgba(230, 221, 248, 0.12);
-}
+/* ---------- 리스트 rows (36px, 체크 어포던스) ---------- */
 
 .checkRow,
 .fileRow,
 .alertRow,
-.bubbleNote,
-.dropPanel,
+.timelineRow,
+.memoRow,
 .chatHead,
 .handoffBubble,
-.message,
-.input,
-.memoGrid article,
-.timeline span {
-  border: 1px solid rgba(107, 143, 168, 0.11);
-  /* v20 radius 토큰 정렬(--radius-card: 16px) */
-  border-radius: var(--radius-card, 16px);
-  background: rgba(255, 255, 255, 0.58);
+.chatPeople,
+.voiceStrip,
+.reactionDock,
+.agentInlineRow {
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
   box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
 }
 
 .checkRow,
 .fileRow,
 .alertRow,
-.input,
+.timelineRow,
+.memoRow,
 .chatHead,
 .handoffBubble {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  /* 리스트 밀도 타이트하게(v20) */
-  padding: 8px 12px;
+  min-height: 36px;
+  padding: 4px 10px;
+}
+
+.timelineRow,
+.memoRow {
+  grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
 .checkRow input {
   width: 16px;
   height: 16px;
-  accent-color: var(--widget-blue);
+  accent-color: var(--acc);
+  cursor: pointer;
 }
 
 .checkRow span,
+.checkRow a,
 .fileRow span,
+.fileRow a,
+.timelineRow span,
+.timelineRow a,
 .chatHead span,
 .handoffBubble span,
 .alertRow strong,
-.timeline span,
 .message {
   min-width: 0;
   color: var(--widget-text);
-  font-size: 14px;
-  font-weight: 820;
+  font-size: 13.5px;
+  font-weight: 700;
   line-height: 1.35;
+  text-decoration: none;
 }
 
-.fileRow span,
+.checkRow a,
+.fileRow a,
+.timelineRow a,
 .checkRow span,
+.fileRow span,
+.timelineRow span,
 .handoffBubble span,
 .alertRow strong {
   overflow: hidden;
@@ -528,194 +504,325 @@
 
 .checkRow b,
 .fileRow b,
+.timelineRow b,
 .chatHead b,
 .handoffBubble b {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 38px;
-  height: 22px;
+  min-width: 36px;
+  height: 20px;
+  padding: 0 7px;
   border-radius: 999px;
-  color: var(--widget-blue-deep);
-  background: rgba(216, 240, 255, 0.72);
-  font-size: 12px;
-  font-weight: 860;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.resourceActions {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.resourceActions button {
+/* 자료 행의 미니 accent 타일 */
+.rowTile {
   display: inline-grid;
   place-items: center;
   width: 24px;
   height: 24px;
-  border: 1px solid rgba(111, 184, 242, 0.22);
+  border-radius: 8px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 15%, transparent);
+}
+
+.alertRow {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.alertRow > span:first-child {
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
-  color: var(--widget-blue-deep);
-  background: rgba(255, 255, 255, 0.68);
+  background: var(--acc);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--acc) 16%, transparent);
 }
 
-.handoffBubble {
-  color: var(--widget-blue-deep);
-  text-decoration: none;
-  background:
-    radial-gradient(circle at 12% 24%, rgba(255, 255, 255, 0.92), transparent 24%),
-    rgba(255, 255, 255, 0.68);
-}
+/* ---------- TODO: 카운트 링 + 요약 카피 ---------- */
 
-.wideAction {
-  width: 100%;
-  height: 36px;
-  gap: 7px;
-}
-
-.bubbleNote,
-.dropPanel {
+.summaryRow {
   display: grid;
-  gap: 5px;
-  padding: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
 }
 
-.bubbleNote strong {
-  color: var(--widget-text);
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.bubbleNote span,
-.dropPanel span,
-.memoGrid span {
-  color: var(--widget-muted);
-  font-size: 12px;
-  font-weight: 720;
-  line-height: 1.45;
-}
-
-/* v20: dashed 대신 낮은 대비의 평평한 well. */
-.dropPanel {
-  justify-items: center;
-  border-color: rgba(107, 143, 168, 0.1);
-  color: var(--widget-blue-deep);
-  background: rgba(246, 251, 255, 0.55);
-  box-shadow: none;
-}
-
-.input {
-  display: flex;
-  grid-template-columns: none;
-  height: 38px;
-  padding: 0 12px;
-  color: var(--widget-muted);
-}
-
-.input input {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  outline: 0;
-  color: var(--widget-text);
-  background: transparent;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 760;
-}
-
-.input button {
-  display: inline-grid;
+.countRing {
+  display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid rgba(111, 184, 242, 0.24);
+  width: 96px;
+  height: 96px;
   border-radius: 999px;
-  color: var(--widget-blue-deep);
-  background: rgba(255, 255, 255, 0.64);
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.97) 0 61%, transparent 62%),
+    conic-gradient(var(--acc) 0 270deg, color-mix(in srgb, var(--acc) 18%, transparent) 270deg 360deg);
+  box-shadow: inset 0 0 14px rgba(255, 255, 255, 0.9);
 }
 
-.input button:disabled {
-  cursor: default;
-  opacity: 0.45;
+.countRing span {
+  color: var(--widget-text);
+  font-size: 23px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
-.statusText {
+.countRing b {
   color: var(--widget-muted);
   font-size: 11px;
-  font-weight: 760;
-  text-align: center;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
-.message {
-  padding: 8px 12px;
+.summaryCopy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
 }
 
-.messageMine {
-  justify-self: end;
-  align-self: flex-end;
-  max-width: 78%;
-  color: var(--widget-blue-deep);
-  background: rgba(216, 240, 255, 0.62);
+.summaryCopy strong {
+  color: var(--widget-text);
+  font-size: 14px;
+  font-weight: 800;
 }
+
+.summaryCopy span {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--widget-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* ---------- 하단 주 액션: 40px, radius 12, accent 12% + accent ink ---------- */
+
+.wideAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  height: 40px;
+  border: 0;
+  border-radius: 12px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.wideAction:hover,
+.wideAction:focus-visible {
+  background: color-mix(in srgb, var(--acc) 18%, transparent);
+}
+
+/* ---------- 타이머: 140px 링 + 세그먼트 바 + 시작/일시정지 ---------- */
 
 .timer {
-  justify-self: center;
   align-self: center;
   display: grid;
   place-items: center;
-  /* v20 타이머 링 140px */
   width: 140px;
   height: 140px;
-  border: 1px solid rgba(142, 205, 246, 0.32);
+  border: 1px solid color-mix(in srgb, var(--acc) 30%, transparent);
   border-radius: 999px;
   background:
-    radial-gradient(circle at 36% 24%, rgba(255, 255, 255, 0.96), transparent 24%),
-    radial-gradient(circle at 74% 78%, rgba(230, 221, 248, 0.28), transparent 32%),
-    rgba(255, 255, 255, 0.54);
+    radial-gradient(circle at 36% 24%, rgba(255, 255, 255, 0.96), transparent 26%),
+    color-mix(in srgb, var(--acc) 7%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 12px 32px rgba(107, 143, 168, 0.13);
+    0 10px 26px -16px rgba(35, 48, 59, 0.24);
 }
 
-.segmented button,
-.timerActions button,
-.modebar button {
-  flex: 1;
-  min-width: 0;
-  height: 32px;
-  padding: 0 9px;
+.timer strong {
+  color: var(--widget-text);
+  font-size: 24px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.timer span {
   color: var(--widget-muted);
   font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
-.memoGrid {
-  grid-template-columns: 1fr;
-}
-
-.memoGrid article {
+/* 하나의 세그먼트 바(시계|작업|뽀모도로 · 주간|월간|WBS) — pill 3개 금지. */
+.segmented {
   display: grid;
-  gap: 4px;
-  padding: 12px;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--acc) 8%, transparent);
 }
 
-.memoRowHeader {
+.segmented button {
+  min-width: 0;
+  height: 27px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--widget-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.segmented button[aria-pressed="true"] {
+  color: var(--acc-ink);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 3px rgba(35, 48, 59, 0.12);
+}
+
+.timerActions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
-.memoGrid a {
+.timerPrimary,
+.timerGhost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.timerPrimary {
+  border: 0;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+}
+
+.timerPrimary:hover,
+.timerPrimary:focus-visible {
+  background: color-mix(in srgb, var(--acc) 18%, transparent);
+}
+
+.timerGhost {
+  border: 1px solid var(--widget-hairline);
+  color: var(--widget-muted);
+  background: transparent;
+}
+
+.timerGhost:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---------- 일정: "다음 일정" 컴팩트 카드 ---------- */
+
+.nextCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--acc) 24%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--acc) 10%, transparent);
+}
+
+.nextTime {
+  color: var(--acc-ink);
+  font-size: 16px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.nextCopy {
+  display: grid;
+  gap: 1px;
   min-width: 0;
+}
+
+.nextCopy small {
+  color: var(--widget-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.nextCopy strong {
+  overflow: hidden;
+  color: var(--widget-text);
+  font-size: 13.5px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nextCopy a {
+  min-width: 0;
+  overflow: hidden;
   color: inherit;
   text-decoration: none;
 }
 
-.memoGrid strong {
+.nextEmpty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  color: var(--widget-muted);
+  background: rgba(255, 255, 255, 0.6);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* ---------- 메모: 리스트 + 인라인 컴포저 ---------- */
+
+.memoRow strong {
+  overflow: hidden;
+  min-width: 0;
   color: var(--widget-text);
-  font-size: 14px;
-  font-weight: 900;
+  font-size: 13.5px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memoRow a {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+}
+
+.memoTime {
+  color: var(--widget-faint);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .memoActions {
@@ -727,68 +834,442 @@
 .memoActions button {
   display: inline-grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  border: 1px solid rgba(111, 184, 242, 0.22);
+  width: 22px;
+  height: 22px;
+  border: 0;
   border-radius: 999px;
-  color: var(--widget-blue-deep);
-  background: rgba(255, 255, 255, 0.68);
+  color: var(--widget-muted);
+  background: transparent;
+  opacity: 0.65;
   cursor: pointer;
 }
 
 .memoActions button:hover {
-  border-color: rgba(64, 143, 220, 0.36);
-  background: rgba(235, 247, 255, 0.82);
+  opacity: 1;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
 }
 
 .memoActions button:disabled {
   cursor: default;
-  opacity: 0.42;
+  opacity: 0.35;
 }
 
-.timeline {
-  display: grid;
+.composerSave {
+  flex: none;
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.composerSave:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--acc) 20%, transparent);
+}
+
+.composerSave:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+/* ---------- 입력줄 공통 ---------- */
+
+.input {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  color: var(--widget-muted);
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
 }
 
-.alertRow {
-  grid-template-columns: auto minmax(0, 1fr);
+.input:focus-within {
+  border-color: color-mix(in srgb, var(--acc) 40%, transparent);
+  box-shadow: var(--glow-sky, 0 0 0 3px rgba(158, 216, 255, 0.2));
 }
 
-.alertRow > span {
+.input input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--widget-text);
+  background: transparent;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.input button:not(.composerSave) {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
+  cursor: pointer;
+}
+
+.input button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.statusText {
+  color: var(--widget-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ---------- 에이전트: 요약 라인 ---------- */
+
+.agentSummary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--acc) 22%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--acc) 9%, transparent);
+}
+
+.agentDot {
+  flex: none;
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: var(--bubble-tone, var(--widget-blue));
-  box-shadow: 0 0 0 5px rgba(142, 205, 246, 0.14);
+  background: var(--acc);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--acc) 18%, transparent);
 }
 
-.modebar,
-.dockbar {
-  position: relative;
-  z-index: 1;
-  justify-content: center;
-  border: 1px solid rgba(107, 143, 168, 0.1);
-  border-radius: 999px;
-  padding: 7px;
-  background: rgba(255, 255, 255, 0.54);
+.agentSummary strong {
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+  color: var(--widget-text);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.modebar {
+.agentSummary b {
+  color: var(--acc-ink);
+  font-size: 13px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.agentInlineRow {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 10px;
 }
 
-.ghostMode .dockbar {
-  border-color: transparent;
+.agentInlineRow strong {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--widget-text);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentInlineRow b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
+  color: var(--acc-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+/* ---------- 채팅 ---------- */
+
+.chatPicker {
+  display: grid;
+  gap: 6px;
+}
+
+.chatPickerItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  color: var(--widget-text);
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chatPickerItem:hover {
+  border-color: color-mix(in srgb, var(--acc) 30%, transparent);
+  background: color-mix(in srgb, var(--acc) 8%, transparent);
+}
+
+.chatPickerItem span {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickerAvatar {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 16%, transparent);
+}
+
+.chatHead button,
+.voiceStrip button,
+.reactionDock button,
+.itemActions button,
+.resourceActions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
   background: transparent;
-  opacity: 0.2;
+  color: var(--widget-muted);
+  opacity: 0.7;
+  cursor: pointer;
 }
 
-.ghostMode .dockbar:hover,
-.ghostMode .dockbar:focus-within {
-  opacity: 0.76;
+.chatHead button:hover,
+.voiceStrip button:hover,
+.reactionDock button:hover,
+.itemActions button:hover,
+.resourceActions button:hover {
+  opacity: 1;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
 }
+
+.itemActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.itemActions button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+}
+
+.resourceActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.resourceActions button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
+.chatHead button,
+.voiceStrip button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+}
+
+.chatHead button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.chatPeople {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 10px;
+}
+
+.chatPeople span {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--widget-text);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chatPeople b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
+  color: var(--acc-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.voiceStrip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.voiceStrip > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 3px 8px;
+  min-width: 0;
+}
+
+.voiceStrip span,
+.voiceStrip small {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voiceStrip span {
+  color: var(--widget-text);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.voiceStrip small {
+  grid-column: 2;
+  color: var(--widget-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.handoffBubble {
+  color: var(--acc-ink);
+  text-decoration: none;
+}
+
+.message {
+  padding: 8px 10px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
+}
+
+.messageMine {
+  align-self: flex-end;
+  max-width: 78%;
+  border-color: color-mix(in srgb, var(--acc) 22%, transparent);
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+}
+
+.reactionDock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  color: var(--widget-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.reactionDock button {
+  height: 26px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ---------- 엠티 스테이트: 옅고 평평한 well 한 개 ---------- */
+
+.emptyState {
+  display: grid;
+  place-items: center;
+  min-height: 56px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--acc) 5%, transparent);
+}
+
+.emptyState span {
+  color: var(--widget-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ---------- Preview 전용 노트 ---------- */
+
+.bubbleNote {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
+}
+
+.bubbleNote strong {
+  color: var(--widget-text);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.bubbleNote span {
+  color: var(--widget-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+/* ---------- Ghost signal ---------- */
 
 .ghostSignal {
   position: relative;
@@ -797,12 +1278,12 @@
   place-items: center;
   width: 142px;
   height: 142px;
-  justify-self: center;
+  align-self: center;
   border: 1px solid rgba(255, 255, 255, 0.48);
   border-radius: 999px;
   background:
     radial-gradient(circle, rgba(255, 255, 255, 0.42) 0 56%, transparent 57%),
-    conic-gradient(var(--bubble-tone, var(--widget-blue)) 0 245deg, rgba(215, 234, 244, 0.16) 245deg 360deg);
+    conic-gradient(var(--acc) 0 245deg, color-mix(in srgb, var(--acc) 14%, transparent) 245deg 360deg);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.58),
     0 0 0 1px rgba(255, 255, 255, 0.22);
@@ -812,7 +1293,7 @@
 .ghostSignal span {
   color: rgba(44, 53, 64, 0.78);
   font-size: 28px;
-  font-weight: 940;
+  font-weight: 900;
   line-height: 1;
   text-shadow: 0 1px 10px rgba(255, 255, 255, 0.82);
 }
@@ -836,8 +1317,10 @@
 .ghostSignal small {
   color: rgba(90, 103, 114, 0.64);
   font-size: 12px;
-  font-weight: 820;
+  font-weight: 700;
 }
+
+/* ---------- 최소화 오브 / 숨김 카드 ---------- */
 
 .dockOrb,
 .hiddenCard {
@@ -852,11 +1335,13 @@
   padding: 6px 12px;
   background:
     radial-gradient(circle at 80% 14%, rgba(255, 255, 255, 0.98), transparent 18%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(247, 251, 255, 0.54));
+    linear-gradient(145deg, rgba(255, 255, 255, 0.86), color-mix(in srgb, var(--acc) 10%, transparent));
   box-shadow:
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
     var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
   cursor: pointer;
+  font: inherit;
+  text-align: left;
 }
 
 .dockBubble {
@@ -864,9 +1349,8 @@
   height: 36px;
   border-radius: 999px;
   background:
-    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.98), transparent 18%),
-    radial-gradient(circle at 70% 72%, rgba(230, 221, 248, 0.3), transparent 28%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.88), rgba(215, 234, 244, 0.62));
+    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.98), transparent 22%),
+    linear-gradient(150deg, rgba(255, 255, 255, 0.88), color-mix(in srgb, var(--acc) 34%, transparent));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
     0 10px 22px rgba(90, 123, 150, 0.16);
@@ -884,7 +1368,7 @@
   overflow: hidden;
   color: var(--widget-text);
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -896,162 +1380,13 @@
   overflow: hidden;
   color: var(--widget-muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* v20: 엠티 스테이트는 dashed 박스가 아니라 평평하고 옅은 well. */
-.emptyState {
-  display: grid;
-  place-items: center;
-  min-height: 64px;
-  border: 1px solid rgba(107, 143, 168, 0.08);
-  border-radius: var(--radius-card, 16px);
-  background: rgba(242, 247, 252, 0.6);
-}
-
-.emptyState span {
-  color: var(--widget-muted);
-  font-size: 12px;
-  font-weight: 760;
-}
-
-.itemActions {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.itemActions button,
-.chatHead button,
-.voiceStrip button,
-.reactionDock button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(107, 143, 168, 0.14);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--widget-blue-deep);
-  cursor: pointer;
-}
-
-.itemActions button {
-  width: 22px;
-  height: 22px;
-  padding: 0;
-}
-
-.chatPeople,
-.voiceStrip,
-.reactionDock,
-.agentInlineRow {
-  border: 1px solid rgba(107, 143, 168, 0.11);
-  border-radius: var(--radius-card, 16px);
-  background: rgba(255, 255, 255, 0.58);
-  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
-}
-
-.chatPeople,
-.agentInlineRow {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-}
-
-.chatPeople span,
-.agentInlineRow strong {
-  overflow: hidden;
-  min-width: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--widget-text);
-  font-size: 14px;
-  font-weight: 820;
-}
-
-.chatPeople b,
-.agentInlineRow b {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 34px;
-  height: 22px;
-  border-radius: 999px;
-  background: rgba(216, 240, 255, 0.72);
-  color: var(--widget-blue-deep);
-  font-size: 12px;
-  font-weight: 860;
-}
-
-.voiceStrip {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-}
-
-.voiceStrip > div {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 4px 8px;
-  min-width: 0;
-}
-
-.voiceStrip span,
-.voiceStrip small {
-  overflow: hidden;
-  min-width: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.voiceStrip span {
-  color: var(--widget-text);
-  font-size: 14px;
-  font-weight: 820;
-}
-
-.voiceStrip small {
-  grid-column: 2;
-  color: var(--widget-muted);
-  font-size: 12px;
-  font-weight: 760;
-}
-
-.chatHead button,
-.voiceStrip button {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-}
-
-.chatHead button:disabled {
-  cursor: default;
-  opacity: 0.45;
-}
-
-.reactionDock {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  color: var(--widget-muted);
-}
-
-.reactionDock button {
-  height: 26px;
-  padding: 0 10px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 780;
-}
+/* ---------- 바(pill) 창 ---------- */
 
 .barRoot,
 .menuRoot {
@@ -1059,7 +1394,7 @@
   width: fit-content;
 }
 
-/* 바 창(360×220)은 pill보다 크다: pill을 하단에 고정하고 위 투명 영역은 hover 팝오버 전용으로 쓴다. */
+/* 바 창(360×220)은 pill보다 크다: pill을 하단에 고정하고 위 투명 영역은 hover 팝오버 전용. */
 .barRoot {
   position: relative;
   height: 100%;
@@ -1067,7 +1402,6 @@
   padding: 4px;
 }
 
-/* 접힌 칩 hover/포커스 시 pill 위에 뜨는 요약 팝오버. 표시 전용이라 클릭을 가로채지 않는다. */
 .barPopover {
   position: absolute;
   right: 4px;
@@ -1076,9 +1410,9 @@
   display: grid;
   gap: 6px;
   padding: 12px;
-  border: 1px solid var(--rim-light, rgba(255, 255, 255, 0.85));
-  border-radius: var(--radius-panel, 20px);
-  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
   color: var(--widget-text);
   box-shadow:
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
@@ -1104,7 +1438,7 @@
   margin-left: auto;
   color: var(--widget-muted);
   font-size: 12px;
-  font-weight: 820;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1113,7 +1447,7 @@
   overflow: hidden;
   color: var(--widget-muted);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1132,7 +1466,7 @@
   gap: 6px;
   min-width: 0;
   font-size: 12px;
-  font-weight: 780;
+  font-weight: 700;
 }
 
 .barPopover li span {
@@ -1147,7 +1481,7 @@
   min-width: 0;
   color: var(--widget-faint);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1157,99 +1491,20 @@
   margin-left: auto;
   color: var(--widget-muted);
   font-size: 11px;
-  font-weight: 820;
+  font-weight: 700;
   white-space: nowrap;
-}
-
-.menuRoot {
-  gap: 8px;
-  justify-items: start;
-  padding: 10px;
-}
-
-/* 오브에 앵커된 Bubli 메뉴 패널 — 헤더/버블 바로가기/2×2 액션이 세로로 쌓인다. */
-.menuPanel {
-  display: grid;
-  gap: 8px;
-  width: 204px;
-  padding: 12px;
-  border: 1px solid var(--rim-light, rgba(255, 255, 255, 0.85));
-  border-radius: var(--radius-panel, 20px);
-  background: rgba(255, 255, 255, 0.62);
-  box-shadow:
-    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
-    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
-}
-
-.menuGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-/* 소통 버블 방 미선택 상태의 방/친구 선택 리스트. */
-.chatPicker {
-  display: grid;
-  gap: 6px;
-}
-
-.barMenuItem,
-.chatPickerItem {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 6px;
-  min-width: 0;
-  min-height: 30px;
-  padding: 0 10px;
-  border: 1px solid rgba(107, 143, 168, 0.14);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.76);
-  color: var(--widget-text);
-  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
-  font: inherit;
-  font-size: 12px;
-  font-weight: 820;
-  cursor: pointer;
-}
-
-.barMenuItem:disabled,
-.chatPickerItem:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.barMenuItem span,
-.chatPickerItem span {
-  overflow: hidden;
-  min-width: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.menuPanel strong {
-  color: var(--widget-text);
-  font-size: 14px;
-  font-weight: 900;
-}
-
-/* 오늘 버블 사용 롤업(서버 usage-summaries/today) 요약 한 줄. */
-.menuUsage {
-  color: var(--widget-muted);
-  font-size: 11px;
-  font-weight: 720;
 }
 
 .bubbleBar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border: 1px solid var(--rim-light, rgba(255, 255, 255, 0.85));
+  gap: 7px;
+  padding: 7px;
+  border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
   border-radius: 999px;
   background:
     radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.94), transparent 20%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.76), rgba(246, 251, 255, 0.58));
+    rgba(255, 255, 255, 0.9);
   box-shadow:
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
     var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
@@ -1262,36 +1517,47 @@
   align-items: center;
   gap: 6px;
   min-height: 32px;
-  padding: 0 12px;
-  border: 1px solid rgba(107, 143, 168, 0.14);
+  border: 1px solid var(--widget-hairline);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.76);
   color: var(--widget-text);
+  cursor: pointer;
 }
 
-/* 접힌 칩은 아이콘+숫자만(compact) — 라벨은 aria/hover 팝오버로. */
+.barBrand {
+  padding: 0 12px;
+  font: inherit;
+}
+
+/* 접힌 칩: 18px accent 미니 타일 + 12px tabular 카운트. */
 .barItem,
 .barNotice {
   flex: none;
   gap: 5px;
-  padding: 0 10px;
+  padding: 0 9px 0 6px;
+}
+
+.chipTile {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 16%, transparent);
 }
 
 .barItem b,
 .barNotice b {
+  font-size: 12px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-/* 브랜드 버블은 이제 메뉴를 여는 버튼이다. */
-.barBrand {
-  font: inherit;
-  cursor: pointer;
-}
-
 .barBrand[aria-expanded="true"] {
-  border-color: rgba(111, 184, 242, 0.34);
-  background: rgba(216, 240, 255, 0.72);
+  border-color: color-mix(in srgb, #6FB8F2 34%, transparent);
+  background: color-mix(in srgb, #6FB8F2 14%, transparent);
 }
 
 .barBrand i {
@@ -1299,79 +1565,229 @@
   height: 14px;
   border-radius: 999px;
   background:
-    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.98), transparent 18%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.9), rgba(215, 234, 244, 0.64));
+    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.98), transparent 22%),
+    linear-gradient(150deg, #9ED8FF, #DCD8F8);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 
-.barBrand span,
-.barItem b,
-.barNotice b {
+.barBrand span {
   font-size: 12px;
-  font-weight: 820;
+  font-weight: 800;
 }
 
-.barItem,
-.barNotice,
-.menuOrb {
-  cursor: pointer;
+/* ---------- 메뉴 창(248×360): 44px 오브 + 바로 아래 패널 ---------- */
+
+.menuRoot {
+  gap: 8px;
+  justify-items: start;
+  padding: 4px;
 }
 
 .menuOrb {
-  width: 56px;
-  height: 56px;
+  width: 44px;
+  height: 44px;
   border: 1px solid rgba(255, 255, 255, 0.84);
   border-radius: 999px;
   background:
-    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.98), transparent 18%),
-    radial-gradient(circle at 72% 72%, rgba(230, 221, 248, 0.32), transparent 30%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.9), rgba(215, 234, 244, 0.62));
+    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.98), transparent 20%),
+    radial-gradient(circle at 72% 72%, rgba(220, 216, 248, 0.4), transparent 34%),
+    linear-gradient(150deg, rgba(255, 255, 255, 0.92), rgba(216, 240, 255, 0.7));
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+  cursor: pointer;
+}
+
+.menuOrb span {
+  display: block;
+  width: 15px;
+  height: 15px;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: linear-gradient(150deg, #6FB8F2, #B0A8E0);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* 오브와 같은 왼쪽 라인, 8px 아래에 바로 붙는 패널. */
+.menuPanel {
+  display: grid;
+  gap: 6px;
+  width: 232px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.95);
   box-shadow:
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
     var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
 }
 
-.menuOrb span {
-  display: block;
-  width: 18px;
-  height: 18px;
-  margin: 0 auto;
-  border-radius: 999px;
-  background: rgba(107, 143, 168, 0.28);
+.menuHead {
+  display: grid;
+  gap: 2px;
+  padding: 0 2px;
+}
+
+.menuWordmark {
+  width: fit-content;
+  background: linear-gradient(96deg, #6FB8F2, #B0A8E0 62%, #E79BB0);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  line-height: 1.15;
+}
+
+/* 오늘 버블 사용 요약 한 줄(usage-summaries/today). */
+.menuUsage {
+  overflow: hidden;
+  color: var(--widget-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menuGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.menuShortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 26px;
+  padding: 1px 4px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--widget-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuShortcut:hover,
+.menuShortcut:focus-visible {
+  background: color-mix(in srgb, var(--acc) 10%, transparent);
+}
+
+.menuShortcut span {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menuTile {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 16%, transparent);
+}
+
+.menuActions {
+  display: grid;
+  gap: 2px;
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--widget-hairline);
+}
+
+.menuActionRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--widget-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuActionRow:hover,
+.menuActionRow:focus-visible {
+  background: color-mix(in srgb, #6FB8F2 10%, transparent);
+}
+
+.menuActionRow:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.menuActionRow span {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ============================================================
-   Night Bubble 다크 — Visual Target Guide 5·7장.
-   어두운 투명 유리 + hairline rim + inner highlight. 남색 박스/큰 glow 금지.
+   Night Bubble 다크 — 같은 레시피의 미러(가이드 5·7장).
+   accent 14% 밴드 + rgba(22,30,46,0.97) 바디, hairline rim.
    ============================================================ */
+
 :global([data-theme="dark"]) .root {
   --widget-text: #EAF0F8;
   --widget-muted: #A7B6CC;
   --widget-faint: #98A5AF;
   --widget-border: rgba(150, 170, 215, 0.18);
+  --widget-hairline: rgba(150, 170, 215, 0.14);
+  --sync-ink: color-mix(in srgb, #E6C49C 82%, #EAF0F8 18%);
+}
+
+/* 다크에서는 accent ink를 밝힌다(칩/타일/CTA 텍스트 가독성). */
+:global([data-theme="dark"]) .accSky,
+:global([data-theme="dark"]) .accBlue,
+:global([data-theme="dark"]) .accAmber,
+:global([data-theme="dark"]) .accCream,
+:global([data-theme="dark"]) .accSand,
+:global([data-theme="dark"]) .accRose,
+:global([data-theme="dark"]) .accLilac,
+:global([data-theme="dark"]) .accSage {
+  --acc-ink: color-mix(in srgb, var(--acc) 66%, #EAF0F8 34%);
 }
 
 :global([data-theme="dark"]) .shell {
   border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
-  background:
-    radial-gradient(circle at 20% 12%, rgba(180, 205, 240, 0.09), transparent 26%),
-    radial-gradient(circle at 78% 14%, rgba(180, 205, 240, 0.06), transparent 22%),
-    var(--surface-bg-dark, rgba(34, 46, 72, 0.42));
+  background: rgba(22, 30, 46, 0.97);
   box-shadow:
     var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
     var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
 }
 
-:global([data-theme="dark"]) .shell::after {
-  opacity: 0.12;
+:global([data-theme="dark"]) .shell::before {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 14%, transparent), transparent 64px);
 }
 
 :global([data-theme="dark"]) .translucentMode .shell {
   border-color: rgba(150, 170, 215, 0.12);
-  background: rgba(34, 46, 72, 0.3);
+  background: rgba(22, 30, 46, 0.6);
   box-shadow:
     var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
     var(--shadow-surface-dark, 0 1px 2px rgba(0, 0, 0, 0.16));
+}
+
+:global([data-theme="dark"]) .translucentMode .shell::before {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 9%, transparent), transparent 64px);
 }
 
 :global([data-theme="dark"]) .ghostMode .tauriShell,
@@ -1390,128 +1806,108 @@
 :global([data-theme="dark"]) .checkRow,
 :global([data-theme="dark"]) .fileRow,
 :global([data-theme="dark"]) .alertRow,
-:global([data-theme="dark"]) .bubbleNote,
-:global([data-theme="dark"]) .dropPanel,
+:global([data-theme="dark"]) .timelineRow,
+:global([data-theme="dark"]) .memoRow,
 :global([data-theme="dark"]) .chatHead,
 :global([data-theme="dark"]) .handoffBubble,
-:global([data-theme="dark"]) .message,
-:global([data-theme="dark"]) .input,
-:global([data-theme="dark"]) .memoGrid article,
-:global([data-theme="dark"]) .timeline span,
 :global([data-theme="dark"]) .chatPeople,
 :global([data-theme="dark"]) .voiceStrip,
 :global([data-theme="dark"]) .reactionDock,
 :global([data-theme="dark"]) .agentInlineRow,
+:global([data-theme="dark"]) .message,
+:global([data-theme="dark"]) .input,
+:global([data-theme="dark"]) .bubbleNote,
+:global([data-theme="dark"]) .nextEmpty,
+:global([data-theme="dark"]) .chatPickerItem,
 :global([data-theme="dark"]) .dragbar {
   border-color: rgba(150, 170, 215, 0.14);
-  background: rgba(24, 34, 54, 0.46);
+  background: rgba(18, 26, 40, 0.6);
   box-shadow: var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07));
 }
 
-:global([data-theme="dark"]) .handoffBubble {
-  color: #BFD6F5;
+:global([data-theme="dark"]) .chatPickerItem:hover {
+  border-color: color-mix(in srgb, var(--acc) 34%, transparent);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
 }
 
 :global([data-theme="dark"]) .messageMine {
-  color: #BFD6F5;
-  background: rgba(111, 184, 242, 0.16);
+  border-color: color-mix(in srgb, var(--acc) 26%, transparent);
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 16%, transparent);
 }
 
-:global([data-theme="dark"]) .controls button,
-:global([data-theme="dark"]) .dragbar button,
-:global([data-theme="dark"]) .dockbar button,
-:global([data-theme="dark"]) .segmented button,
-:global([data-theme="dark"]) .timerActions button,
-:global([data-theme="dark"]) .modebar button,
-:global([data-theme="dark"]) .wideAction,
-:global([data-theme="dark"]) .itemActions button,
-:global([data-theme="dark"]) .chatHead button,
-:global([data-theme="dark"]) .memoActions button,
-:global([data-theme="dark"]) .voiceStrip button,
-:global([data-theme="dark"]) .reactionDock button,
-:global([data-theme="dark"]) .barMenuItem,
-:global([data-theme="dark"]) .chatPickerItem {
+:global([data-theme="dark"]) .dragbar button {
   border-color: rgba(150, 170, 215, 0.18);
-  color: #BFD6F5;
+  color: var(--widget-muted);
   background: rgba(34, 46, 72, 0.5);
+}
+
+:global([data-theme="dark"]) .segmented {
+  border-color: rgba(150, 170, 215, 0.12);
+  background: color-mix(in srgb, var(--acc) 10%, transparent);
+}
+
+:global([data-theme="dark"]) .segmented button[aria-pressed="true"] {
+  color: var(--acc-ink);
+  background: rgba(22, 30, 46, 0.94);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+:global([data-theme="dark"]) .wideAction,
+:global([data-theme="dark"]) .timerPrimary {
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 16%, transparent);
+}
+
+:global([data-theme="dark"]) .wideAction:hover,
+:global([data-theme="dark"]) .wideAction:focus-visible,
+:global([data-theme="dark"]) .timerPrimary:hover,
+:global([data-theme="dark"]) .timerPrimary:focus-visible {
+  background: color-mix(in srgb, var(--acc) 24%, transparent);
+}
+
+:global([data-theme="dark"]) .timerGhost {
+  border-color: rgba(150, 170, 215, 0.18);
+  color: var(--widget-muted);
+}
+
+:global([data-theme="dark"]) .countRing {
+  background:
+    radial-gradient(circle, rgba(22, 30, 46, 0.97) 0 61%, transparent 62%),
+    conic-gradient(var(--acc) 0 270deg, color-mix(in srgb, var(--acc) 22%, transparent) 270deg 360deg);
   box-shadow: var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07));
 }
 
-:global([data-theme="dark"]) .controls button[aria-pressed="true"],
-:global([data-theme="dark"]) .dragbar button[aria-pressed="true"],
-:global([data-theme="dark"]) .dockbar button[aria-pressed="true"],
-:global([data-theme="dark"]) .segmented button[aria-pressed="true"],
-:global([data-theme="dark"]) .modebar button[aria-pressed="true"] {
-  border-color: rgba(158, 216, 255, 0.34);
-  color: #BFD6F5;
-  background: rgba(111, 184, 242, 0.2);
-}
-
-:global([data-theme="dark"]) .checkRow b,
-:global([data-theme="dark"]) .fileRow b,
-:global([data-theme="dark"]) .chatHead b,
-:global([data-theme="dark"]) .handoffBubble b,
-:global([data-theme="dark"]) .chatPeople b,
-:global([data-theme="dark"]) .agentInlineRow b {
-  color: #BFD6F5;
-  background: rgba(111, 184, 242, 0.18);
-}
-
-:global([data-theme="dark"]) .modebar,
-:global([data-theme="dark"]) .dockbar {
-  border-color: rgba(150, 170, 215, 0.12);
-  background: rgba(24, 34, 54, 0.38);
-}
-
-:global([data-theme="dark"]) .progress {
-  background:
-    radial-gradient(circle, rgba(19, 26, 40, 0.92) 0 58%, transparent 59%),
-    conic-gradient(var(--bubble-tone, var(--widget-blue)) 0 270deg, rgba(150, 170, 215, 0.22) 270deg 360deg);
-  box-shadow:
-    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
-    var(--shadow-surface-dark, 0 1px 2px rgba(0, 0, 0, 0.16));
-}
-
-:global([data-theme="dark"]) .ring {
-  background:
-    radial-gradient(circle, rgba(19, 26, 40, 0.92) 0 58%, transparent 59%),
-    conic-gradient(var(--widget-lilac) 0 220deg, rgba(150, 170, 215, 0.22) 220deg 360deg);
-  box-shadow:
-    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
-    var(--shadow-surface-dark, 0 1px 2px rgba(0, 0, 0, 0.16));
-}
-
 :global([data-theme="dark"]) .timer {
-  border-color: rgba(158, 216, 255, 0.22);
+  border-color: color-mix(in srgb, var(--acc) 30%, transparent);
   background:
-    radial-gradient(circle at 36% 24%, rgba(180, 205, 240, 0.1), transparent 26%),
-    rgba(24, 34, 54, 0.5);
+    radial-gradient(circle at 36% 24%, rgba(180, 205, 240, 0.08), transparent 26%),
+    color-mix(in srgb, var(--acc) 10%, transparent);
   box-shadow:
     var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
     var(--shadow-surface-dark, 0 1px 2px rgba(0, 0, 0, 0.16));
 }
 
-:global([data-theme="dark"]) .agentHaloCore {
-  border-color: rgba(176, 168, 224, 0.34);
-  background:
-    radial-gradient(circle at 30% 24%, rgba(180, 205, 240, 0.14), transparent 22%),
-    rgba(24, 34, 54, 0.44);
-  box-shadow:
-    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
-    var(--shadow-surface-dark, 0 1px 2px rgba(0, 0, 0, 0.16));
+:global([data-theme="dark"]) .nextCard {
+  border-color: color-mix(in srgb, var(--acc) 30%, transparent);
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
 }
 
-:global([data-theme="dark"]) .agentHaloRing {
-  box-shadow:
-    inset 0 0 18px rgba(19, 26, 40, 0.4),
-    0 0 0 4px rgba(176, 168, 224, 0.1);
+:global([data-theme="dark"]) .agentSummary {
+  border-color: color-mix(in srgb, var(--acc) 28%, transparent);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+}
+
+:global([data-theme="dark"]) .emptyState {
+  border-color: rgba(150, 170, 215, 0.1);
+  background: color-mix(in srgb, var(--acc) 8%, transparent);
 }
 
 :global([data-theme="dark"]) .ghostSignal {
   border-color: rgba(150, 170, 215, 0.28);
   background:
     radial-gradient(circle, rgba(19, 26, 40, 0.4) 0 56%, transparent 57%),
-    conic-gradient(var(--bubble-tone, var(--widget-blue)) 0 245deg, rgba(150, 170, 215, 0.14) 245deg 360deg);
+    conic-gradient(var(--acc) 0 245deg, rgba(150, 170, 215, 0.14) 245deg 360deg);
   box-shadow:
     inset 0 1px 0 rgba(180, 205, 240, 0.14),
     0 0 0 1px rgba(150, 170, 215, 0.12);
@@ -1533,45 +1929,24 @@
   border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
   background:
     radial-gradient(circle at 80% 14%, rgba(180, 205, 240, 0.14), transparent 22%),
-    var(--surface-bg-dark, rgba(34, 46, 72, 0.42));
+    rgba(22, 30, 46, 0.97);
   box-shadow:
     var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
     var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
 }
 
-:global([data-theme="dark"]) .dockBubble,
-:global([data-theme="dark"]) .barBrand i {
+:global([data-theme="dark"]) .dockBubble {
   background:
     radial-gradient(circle at 30% 28%, rgba(234, 240, 248, 0.85), transparent 22%),
-    linear-gradient(150deg, rgba(158, 216, 255, 0.42), rgba(111, 184, 242, 0.26));
+    linear-gradient(150deg, color-mix(in srgb, var(--acc) 42%, transparent), color-mix(in srgb, var(--acc) 22%, transparent));
   box-shadow: inset 0 1px 0 rgba(234, 240, 248, 0.45);
-}
-
-/* 다크도 dashed 없이 평평한 well로 미러링. */
-:global([data-theme="dark"]) .emptyState {
-  border-color: rgba(150, 170, 215, 0.1);
-  background: rgba(24, 34, 54, 0.34);
-}
-
-:global([data-theme="dark"]) .dropPanel {
-  border-color: rgba(150, 170, 215, 0.1);
-  background: rgba(24, 34, 54, 0.34);
-  box-shadow: none;
-}
-
-:global([data-theme="dark"]) .menuPanel {
-  border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
-  background: var(--surface-bg-dark, rgba(34, 46, 72, 0.42));
-  box-shadow:
-    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
-    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
 }
 
 :global([data-theme="dark"]) .bubbleBar {
   border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
   background:
     radial-gradient(circle at 16% 28%, rgba(180, 205, 240, 0.1), transparent 22%),
-    var(--surface-bg-dark, rgba(34, 46, 72, 0.42));
+    rgba(22, 30, 46, 0.97);
   box-shadow:
     var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
     var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
@@ -1582,15 +1957,14 @@
 :global([data-theme="dark"]) .barNotice {
   border-color: rgba(150, 170, 215, 0.18);
   color: var(--widget-text);
-  background: rgba(24, 34, 54, 0.5);
+  background: rgba(18, 26, 40, 0.6);
 }
 
-:global([data-theme="dark"]) .barPopover {
-  border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
-  background: rgba(24, 34, 54, 0.88);
-  box-shadow:
-    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
-    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
+:global([data-theme="dark"]) .barBrand i {
+  background:
+    radial-gradient(circle at 30% 28%, rgba(234, 240, 248, 0.85), transparent 22%),
+    linear-gradient(150deg, rgba(158, 216, 255, 0.42), rgba(111, 184, 242, 0.26));
+  box-shadow: inset 0 1px 0 rgba(234, 240, 248, 0.45);
 }
 
 :global([data-theme="dark"]) .barBrand[aria-expanded="true"] {
@@ -1598,21 +1972,69 @@
   background: rgba(111, 184, 242, 0.2);
 }
 
+:global([data-theme="dark"]) .chipTile {
+  background: color-mix(in srgb, var(--acc) 22%, transparent);
+}
+
+:global([data-theme="dark"]) .barPopover {
+  border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
+  background: rgba(22, 30, 46, 0.97);
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
+}
+
 :global([data-theme="dark"]) .menuOrb {
   border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
   background:
     radial-gradient(circle at 30% 28%, rgba(180, 205, 240, 0.16), transparent 22%),
     radial-gradient(circle at 72% 72%, rgba(176, 168, 224, 0.16), transparent 30%),
-    var(--surface-bg-dark, rgba(34, 46, 72, 0.42));
+    rgba(22, 30, 46, 0.97);
   box-shadow:
     var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
     var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
 }
 
 :global([data-theme="dark"]) .menuOrb span {
-  background: rgba(150, 170, 215, 0.4);
+  background: linear-gradient(150deg, #7CC4F5, #B0A8E0);
+  box-shadow: inset 0 1px 0 rgba(234, 240, 248, 0.3);
 }
 
-:global([data-theme="dark"]) .menuPanel strong {
-  color: var(--widget-text);
+:global([data-theme="dark"]) .menuPanel {
+  border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
+  background: rgba(22, 30, 46, 0.97);
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
+}
+
+:global([data-theme="dark"]) .menuWordmark {
+  background: linear-gradient(96deg, #7CC4F5, #B0A8E0 62%, #E79BB0);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+:global([data-theme="dark"]) .menuShortcut:hover,
+:global([data-theme="dark"]) .menuShortcut:focus-visible {
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
+}
+
+:global([data-theme="dark"]) .menuTile {
+  background: color-mix(in srgb, var(--acc) 22%, transparent);
+}
+
+:global([data-theme="dark"]) .menuActions {
+  border-top-color: rgba(150, 170, 215, 0.14);
+}
+
+:global([data-theme="dark"]) .menuActionRow:hover,
+:global([data-theme="dark"]) .menuActionRow:focus-visible {
+  background: rgba(111, 184, 242, 0.14);
+}
+
+:global([data-theme="dark"]) .composerSave,
+:global([data-theme="dark"]) .input button:not(.composerSave) {
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 20%, transparent);
 }
