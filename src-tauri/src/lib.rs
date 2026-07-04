@@ -1003,8 +1003,7 @@ fn widget_default_local_position(
         ),
         "menu" => (
             ((monitor_width - size.width) / 2.0).max(0.0),
-            (monitor_height - size.height - WIDGET_DEFAULT_MARGIN * 4.0)
-                .max(WIDGET_DEFAULT_MARGIN),
+            (monitor_height - size.height - WIDGET_DEFAULT_MARGIN * 4.0).max(WIDGET_DEFAULT_MARGIN),
         ),
         bubble_type => {
             let step = widget_default_cascade_index(bubble_type) * WIDGET_DEFAULT_MARGIN;
@@ -1364,7 +1363,7 @@ fn build_widget_window(
     .always_on_top(widget.always_on_top)
     .skip_taskbar(true)
     .focused(false)
-    .visible(false)
+    .visible(widget.window_visible)
     .build()
     .map_err(|error| error.to_string())?;
 
@@ -1952,7 +1951,7 @@ fn app_ready(
 }
 
 #[tauri::command]
-fn open_widget_window(
+async fn open_widget_window(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,

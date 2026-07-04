@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import { siteConfig } from "@/config/site";
 import { Providers } from "@/app/providers";
+import { TauriDevtoolsGuard } from "@/lib/tauri/tauri-devtools-guard";
 import { TauriPostLoginLauncher } from "@/lib/tauri/tauri-post-login-launcher";
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="ko">
       <body>
         <Providers>
+          <TauriDevtoolsGuard />
           <TauriPostLoginLauncher />
           {children}
         </Providers>
