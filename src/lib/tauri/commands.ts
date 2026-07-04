@@ -26,6 +26,7 @@ export const TAURI_COMMANDS = {
   notifyWidgetPointerSeen: "notify_widget_pointer_seen",
   openMainWindowRoute: "open_main_window_route",
   openWidgetWindow: "open_widget_window",
+  openWidgetWindows: "open_widget_windows",
   quitApp: "quit_app",
   readActiveProjectRoom: "read_active_project_room",
   readTauriAuthSession: "read_tauri_auth_session",
@@ -678,6 +679,10 @@ export type WidgetWindowOpenInput = {
   windowId?: string;
 };
 
+export type WidgetWindowsOpenInput = {
+  windows: WidgetWindowOpenInput[];
+};
+
 export type WidgetWindowTargetInput = {
   bubbleType?: WidgetWindowBubbleType;
   windowId?: string;
@@ -827,6 +832,10 @@ export type TauriCommandContract = {
   open_widget_window: {
     args: WidgetWindowOpenInput | undefined;
     result: WidgetWindowState;
+  };
+  open_widget_windows: {
+    args: WidgetWindowsOpenInput;
+    result: WidgetWindowState[];
   };
   quit_app: {
     args: undefined;
@@ -1126,6 +1135,9 @@ export const tauriCommands = {
   },
   openWidgetWindow(input?: WidgetWindowOpenInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.openWidgetWindow, input ? { input } : undefined);
+  },
+  openWidgetWindows(input: WidgetWindowsOpenInput) {
+    return invokeTauri<WidgetWindowState[]>(TAURI_COMMANDS.openWidgetWindows, { input });
   },
   openMainWindowRoute(input: MainWindowRouteInput) {
     return invokeTauri<string>(TAURI_COMMANDS.openMainWindowRoute, { input });

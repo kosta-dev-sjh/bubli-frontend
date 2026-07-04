@@ -540,13 +540,19 @@ struct WidgetWindowResizeInput {
     window_id: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WidgetWindowOpenInput {
     bubble_type: Option<String>,
     mode: Option<String>,
     selected_room_id: Option<String>,
     window_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WidgetWindowsOpenInput {
+    windows: Vec<WidgetWindowOpenInput>,
 }
 
 #[derive(Deserialize)]
@@ -2333,35 +2339,22 @@ fn set_authenticated_surfaces_enabled(
     Ok(*enabled)
 }
 
-#[tauri::command]
-async fn open_widget_window(
-    app: AppHandle,
-    monitor_state: tauri::State<'_, AppMonitorState>,
-    state: tauri::State<'_, WidgetState>,
-    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
-    input: Option<WidgetWindowOpenInput>,
+fn prepare_open_widget_window(
+    app: &AppHandle,
+    state: &WidgetState,
+    input: WidgetWindowOpenInput,
 ) -> Result<WidgetWindowState, String> {
-    require_authenticated_surfaces_enabled(&auth_state)?;
-    let bubble_type =
-        normalize_bubble_type(input.as_ref().and_then(|value| value.bubble_type.clone()));
-    let window_id = input.as_ref().and_then(|value| value.window_id.clone());
-    let selected_room_id = normalize_optional_query_value(
-        input
-            .as_ref()
-            .and_then(|value| value.selected_room_id.clone()),
-    );
+    let bubble_type = normalize_bubble_type(input.bubble_type);
+    let window_id = input.window_id;
+    let selected_room_id = normalize_optional_query_value(input.selected_room_id);
     let next_mode = input
-        .and_then(|value| value.mode)
+        .mode
         .map(normalize_widget_mode)
         .unwrap_or_else(|| "DEFAULT".to_string());
-    let widget = with_widget_state(&state, Some(bubble_type), window_id, |widget| {
+    let widget = with_widget_state(state, Some(bubble_type), window_id, |widget| {
         apply_open_widget_window_update(widget, next_mode.clone(), selected_room_id.clone());
     })?;
-    persist_widget_window_state(&app, &state)?;
-    // 같은 버블의 좀비 창 정리: 캐논 label(bubli-widget-{type}) 외의 레거시 windowId 기반
-    // label(bubli-widget-{type}-…)로 떠 있는 창은 파괴한다. 버블 타입 간에는 접두 관계가
-    // 없어("todo-"는 다른 타입 label과 겹치지 않는다) 안전하다. 이후 build는 캐논 창이
-    // 이미 있으면 새로 만들지 않고 상태만 재적용(show/focus)한다 — 버블당 싱글턴 보장.
+
     let canonical_label = widget_window_label(&widget);
     let stale_label_prefix = format!("{canonical_label}-");
     for (label, window) in app.webview_windows() {
@@ -2371,10 +2364,51 @@ async fn open_widget_window(
             let _ = window.destroy();
         }
     }
+
+    Ok(widget)
+}
+
+#[tauri::command]
+async fn open_widget_window(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+    state: tauri::State<'_, WidgetState>,
+    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
+    input: Option<WidgetWindowOpenInput>,
+) -> Result<WidgetWindowState, String> {
+    require_authenticated_surfaces_enabled(&auth_state)?;
+    let widget = prepare_open_widget_window(&app, &state, input.unwrap_or_default())?;
+    persist_widget_window_state(&app, &state)?;
     let result = schedule_widget_window_build(&app, &monitor_state, &widget)?;
     // 바에서 버블을 복원한 뒤 바 창 상태(가시성)를 동기화한다. 바 크기는 고정이라 리사이즈는 없다.
     refresh_widget_bar_window(&app, &monitor_state, &state)?;
     Ok(result)
+}
+
+#[tauri::command]
+async fn open_widget_windows(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+    state: tauri::State<'_, WidgetState>,
+    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
+    input: WidgetWindowsOpenInput,
+) -> Result<Vec<WidgetWindowState>, String> {
+    require_authenticated_surfaces_enabled(&auth_state)?;
+
+    let mut widgets = Vec::with_capacity(input.windows.len());
+    for window in input.windows {
+        widgets.push(prepare_open_widget_window(&app, &state, window)?);
+    }
+
+    persist_widget_window_state(&app, &state)?;
+
+    let mut results = Vec::with_capacity(widgets.len());
+    for widget in widgets {
+        results.push(schedule_widget_window_build(&app, &monitor_state, &widget)?);
+    }
+
+    refresh_widget_bar_window(&app, &monitor_state, &state)?;
+    Ok(results)
 }
 
 #[tauri::command]
@@ -2769,6 +2803,7 @@ pub fn run() {
             notify_widget_pointer_seen,
             open_main_window_route,
             open_widget_window,
+            open_widget_windows,
             quit_app,
             register_widget_shortcut,
             resize_widget_window,

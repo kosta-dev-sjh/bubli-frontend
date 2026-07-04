@@ -85,6 +85,38 @@ async function openWidgetWindowWithRetry(
   return { input, reason: lastReason, status: "rejected" };
 }
 
+async function openWidgetWindowsWithRetry(
+  inputs: WidgetWindowOpenInput[],
+  selectedRoomId: string | null,
+  shouldContinue: () => boolean,
+): Promise<WidgetOpenResult[]> {
+  if (inputs.length === 0) return [];
+  let lastReason: unknown = null;
+  const windows = inputs.map((input) => ({ ...input, selectedRoomId }));
+
+  for (let attempt = 0; attempt <= widgetOpenRetryAttempts; attempt += 1) {
+    if (!shouldContinue()) {
+      return inputs.map((input) => ({
+        input,
+        reason: new Error("Tauri widget launch cancelled"),
+        status: "rejected" as const,
+      }));
+    }
+
+    try {
+      await withTimeout(tauriCommands.openWidgetWindows({ windows }), widgetOpenCommandTimeoutMs);
+      return inputs.map((input) => ({ input, status: "fulfilled" as const }));
+    } catch (reason) {
+      lastReason = reason;
+      if (attempt < widgetOpenRetryAttempts && shouldContinue()) {
+        await delay(widgetOpenRetryDelayMs);
+      }
+    }
+  }
+
+  return inputs.map((input) => ({ input, reason: lastReason, status: "rejected" as const }));
+}
+
 function getStartupModeFromSetting(setting: WidgetBubbleSettingResponse): WidgetWindowMode {
   if (setting.minimized) return "MINIMIZED";
   if (setting.ghostMode) return "GHOST";
@@ -199,8 +231,8 @@ export function launchTauriAuthenticatedSurfaces() {
       return;
     }
 
-    for (const input of bubbleWindows) {
-      const result = await openWidgetWindowWithRetry(input, selectedRoomId, shouldContinueLaunch);
+    const bubbleResults = await openWidgetWindowsWithRetry(bubbleWindows, selectedRoomId, shouldContinueLaunch);
+    for (const result of bubbleResults) {
       if (result.status === "fulfilled") {
         openedWindows.push(result.input);
       } else {
