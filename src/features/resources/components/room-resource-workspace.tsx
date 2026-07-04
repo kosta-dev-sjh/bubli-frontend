@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
+import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
@@ -98,6 +99,12 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
     return () => window.clearTimeout(timeoutId);
   }, [loadResources]);
 
+  // 데스크톱 위젯/다른 탭에서 올라온 자료를 포커스 복귀 시 재검증한다(loadResources는 목록을 유지한 채 갱신).
+  const revalidateResources = useCallback(() => {
+    void loadResources();
+  }, [loadResources]);
+  useDataRefresh({ domains: [], onRefresh: revalidateResources });
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setIsTauri(isTauriRuntime());
@@ -159,6 +166,8 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
         setUploadState({ fileName: firstFile.name, kind: "success" });
         await loadResources();
         setSelectedResourceId(firstUploadedResource?.id ?? null);
+        // 홈 최근 자료 카드 등 같은 창의 다른 자료 표면에 업로드를 즉시 반영한다.
+        notifyDataChanged("resource");
       } catch (error) {
         setUploadState({ kind: "error", message: getErrorMessage(error, t) });
       }

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { memoApi } from "@/features/memo/api/memoApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MemoResponse } from "@/types/api/memo";
 
@@ -20,6 +21,8 @@ type MemoListState =
 
 const MEMO_PAGE_SIZE = 10;
 const MEMO_VISIBLE_COUNT = 4;
+// 데이터 변경 이벤트 발행 주체 — 카드 자신이 이미 낙관적으로 갱신한 변경으로 재조회하지 않게 한다.
+const MEMO_CARD_EVENT_SOURCE = "memo-dashboard-card";
 
 // 상태가 ACTIVE인 메모만, 최근 수정 순으로 정렬해 보여준다(dev PR 201 동작 이식).
 function normalizeMemoItems(items: MemoResponse[]) {
@@ -67,8 +70,9 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
     [t],
   );
 
-  const loadMemos = useCallback(async () => {
-    setState({ kind: "loading" });
+  const loadMemos = useCallback(async (options?: { quiet?: boolean }) => {
+    // quiet 재조회(이벤트/포커스 복귀)는 기존 목록을 유지해 카드가 깜빡이지 않게 한다.
+    if (!options?.quiet) setState({ kind: "loading" });
 
     try {
       const page = roomId ? await memoApi.listRoom(roomId, { size: MEMO_PAGE_SIZE }) : await memoApi.listPersonal({ size: MEMO_PAGE_SIZE });
@@ -93,6 +97,12 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
     return () => window.clearTimeout(timeoutId);
   }, [loadMemos]);
 
+  // 메모 페이지/데스크톱 위젯 등 다른 표면의 메모 변경을 이벤트·포커스 복귀로 즉시 반영한다.
+  const refreshMemos = useCallback(() => {
+    void loadMemos({ quiet: true });
+  }, [loadMemos]);
+  useDataRefresh({ domains: ["memo"], ignoreSource: MEMO_CARD_EVENT_SOURCE, onRefresh: refreshMemos });
+
   const handleCreate = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -109,6 +119,7 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
         const created = roomId ? await memoApi.createRoom(roomId, { body }) : await memoApi.createPersonal({ body });
         setState((current) => (current.kind === "ready" ? { kind: "ready", memos: [created, ...current.memos] } : current));
         setComposeBody("");
+        notifyDataChanged("memo", { source: MEMO_CARD_EVENT_SOURCE });
         setNotice(t("memo.card.savedNotice"));
       } catch (error) {
         setNotice(resolveErrorNotice(error, t("memo.card.saveFailed")));
@@ -137,6 +148,7 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
         );
         setEditingMemoId(null);
         setEditingBody("");
+        notifyDataChanged("memo", { source: MEMO_CARD_EVENT_SOURCE });
         setNotice(t("memo.card.savedNotice"));
       } catch (error) {
         setNotice(resolveErrorNotice(error, t("memo.card.saveFailed")));
@@ -164,6 +176,7 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
           setEditingMemoId(null);
           setEditingBody("");
         }
+        notifyDataChanged("memo", { source: MEMO_CARD_EVENT_SOURCE });
         setNotice(t("memo.card.deletedNotice"));
       } catch (error) {
         setNotice(resolveErrorNotice(error, t("memo.card.deleteFailed")));

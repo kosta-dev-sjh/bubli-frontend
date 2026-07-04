@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { setActiveProjectRoomId } from "@/lib/workspace-active-room";
@@ -51,8 +52,9 @@ export default function ProjectRoomsPage() {
     window.dispatchEvent(new Event("bubli:open-project-room-create"));
   }
 
-  const loadRooms = useCallback(async () => {
-    setState({ kind: "loading" });
+  const loadRooms = useCallback(async (options?: { quiet?: boolean }) => {
+    // quiet 재조회(스위처 생성/포커스 복귀)는 기존 목록을 유지해 화면 깜빡임을 막는다.
+    if (!options?.quiet) setState({ kind: "loading" });
 
     try {
       const page = await projectRoomApi.list();
@@ -79,6 +81,12 @@ export default function ProjectRoomsPage() {
       window.clearTimeout(timeoutId);
     };
   }, [loadRooms]);
+
+  // 셸 스위처의 생성/초대 수락, 다른 화면의 종료/다시 열기가 이 목록에 바로 반영되게 한다.
+  const refreshRooms = useCallback(() => {
+    void loadRooms({ quiet: true });
+  }, [loadRooms]);
+  useDataRefresh({ domains: ["project-room"], onRefresh: refreshRooms });
 
   return (
     <section className="workspace-route" aria-labelledby="project-rooms-title">

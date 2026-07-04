@@ -19,6 +19,7 @@ import {
   type WbsGanttRange,
   type WbsGanttRangeEditRequest,
 } from "@/features/wbs/components/wbs-gantt-panel";
+import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData, workspacePreviewRoomSuggestions } from "@/lib/workspace-preview-data";
@@ -617,6 +618,8 @@ function ProjectRoomWorkBoardContent({
 
     try {
       await todoApi.update(taskId, { status });
+      // 홈 할 일 카드 등 같은 창의 다른 표면이 상태 변경을 받아가도록 알린다.
+      notifyDataChanged("todo");
       setSaveNotice(t("room.workBoard.noticeSaved"));
     } catch {
       setSaveNotice(t("room.workBoard.noticeServerPending"));
@@ -648,6 +651,7 @@ function ProjectRoomWorkBoardContent({
       .then((created) => {
         setTasks((current) => [...current, created]);
         setSelectedTaskId(created.id);
+        notifyDataChanged("todo");
         setSaveNotice(t("room.workBoard.noticeTaskSaved"));
       })
       .catch(() => setSaveNotice(t("room.workBoard.noticeTaskServerPending")));
@@ -663,6 +667,7 @@ function ProjectRoomWorkBoardContent({
       .update(taskId, { assigneeUserId })
       .then((updated) => {
         setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, ...updated } : task)));
+        notifyDataChanged("todo");
         setSaveNotice(t("room.workBoard.noticeAssigneeSaved"));
       })
       .catch(() => {
@@ -681,6 +686,7 @@ function ProjectRoomWorkBoardContent({
       .update(taskId, { wbsItemId })
       .then((updated) => {
         setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, ...updated } : task)));
+        notifyDataChanged("todo");
         setSaveNotice(t("room.workBoard.noticeTaskWbsSaved"));
       })
       .catch(() => {
@@ -699,6 +705,7 @@ function ProjectRoomWorkBoardContent({
       .update(taskId, { title })
       .then((updated) => {
         setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, ...updated } : task)));
+        notifyDataChanged("todo");
         setSaveNotice(t("room.workBoard.noticeTitleSaved"));
       })
       .catch(() => {
@@ -719,6 +726,7 @@ function ProjectRoomWorkBoardContent({
 
     try {
       await todoApi.delete(taskId);
+      notifyDataChanged("todo");
       setSaveNotice(t("room.workBoard.noticeTaskDeleted"));
     } catch {
       setTasks(previousTasks);
