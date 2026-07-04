@@ -22,7 +22,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
-import { calendarApi } from "@/features/calendar/api/calendarApi";
+import { calendarApi, googleCalendarRedirectUri } from "@/features/calendar/api/calendarApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
@@ -610,7 +610,8 @@ function CalendarPageContent() {
 
     try {
       if (action === "connect") {
-        const response = await calendarApi.requestGoogleConnectUrl();
+        // 현재 오리진의 콜백 라우트(/calendar/google/callback)를 redirect_uri로 명시해 왕복을 맞춘다.
+        const response = await calendarApi.requestGoogleConnectUrl(googleCalendarRedirectUri());
         window.location.href = response.authorizeUrl;
         return;
       }

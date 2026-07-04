@@ -60,6 +60,16 @@ const ko = {
   "calendar.google.readOnlyBadge": "읽기 전용",
   "calendar.google.readOnly": "구글 캘린더 원본 일정은 여기서 수정할 수 없습니다. 구글 캘린더에서 바꾸면 이 화면에도 반영됩니다.",
 
+  // 구글 OAuth 콜백 페이지(/calendar/google/callback)
+  "calendar.googleCallback.pageAria": "구글 캘린더 연결 처리",
+  "calendar.googleCallback.heading": "구글 캘린더 연결",
+  "calendar.googleCallback.connecting": "구글 캘린더를 연결하는 중입니다…",
+  "calendar.googleCallback.redirecting": "연결 완료! 일정 화면으로 이동합니다.",
+  "calendar.googleCallback.failedStatus": "연결하지 못했습니다",
+  "calendar.googleCallback.noCode": "구글에서 인증 코드를 받지 못했습니다. 일정 화면에서 다시 시도해 주세요.",
+  "calendar.googleCallback.failed": "구글 캘린더 연결에 실패했습니다. 일정 화면에서 다시 시도해 주세요.",
+  "calendar.googleCallback.back": "일정으로 돌아가기",
+
   // 알림
   "calendar.notice.disconnected": "구글 캘린더 연결을 해제했습니다.",
   "calendar.notice.syncDone": "동기화 완료: 가져옴 {pulled}건 / 보냄 {pushed}건",
@@ -288,6 +298,15 @@ const en: Record<Key, string> = {
   "calendar.google.readOnlyBadge": "Read-only",
   "calendar.google.readOnly": "Google Calendar source events can't be edited here. Changes made in Google Calendar are reflected on this screen.",
 
+  "calendar.googleCallback.pageAria": "Completing Google Calendar connection",
+  "calendar.googleCallback.heading": "Google Calendar connection",
+  "calendar.googleCallback.connecting": "Connecting your Google Calendar…",
+  "calendar.googleCallback.redirecting": "Connected! Taking you back to your calendar.",
+  "calendar.googleCallback.failedStatus": "Connection failed",
+  "calendar.googleCallback.noCode": "We didn't receive an authorization code from Google. Please try again from the calendar screen.",
+  "calendar.googleCallback.failed": "Couldn't connect Google Calendar. Please try again from the calendar screen.",
+  "calendar.googleCallback.back": "Back to calendar",
+
   "calendar.notice.disconnected": "Disconnected from Google Calendar.",
   "calendar.notice.syncDone": "Sync complete · pulled {pulled} / sent {pushed}",
   "calendar.notice.pullDone": "Pulled {count} events from Google Calendar.",
@@ -502,6 +521,15 @@ const ja: Record<Key, string> = {
   "calendar.google.retry": "再試行",
   "calendar.google.readOnlyBadge": "読み取り専用",
   "calendar.google.readOnly": "Google カレンダー原本の予定はここでは編集できません。Google カレンダーで変更するとこの画面にも反映されます。",
+
+  "calendar.googleCallback.pageAria": "Google カレンダー連携の処理",
+  "calendar.googleCallback.heading": "Google カレンダー連携",
+  "calendar.googleCallback.connecting": "Google カレンダーを連携しています…",
+  "calendar.googleCallback.redirecting": "連携が完了しました。予定画面に移動します。",
+  "calendar.googleCallback.failedStatus": "連携できませんでした",
+  "calendar.googleCallback.noCode": "Google から認証コードを受け取れませんでした。予定画面からもう一度お試しください。",
+  "calendar.googleCallback.failed": "Google カレンダーの連携に失敗しました。予定画面からもう一度お試しください。",
+  "calendar.googleCallback.back": "予定に戻る",
 
   "calendar.notice.disconnected": "Google カレンダーの連携を解除しました。",
   "calendar.notice.syncDone": "同期完了 · 取り込み {pulled}件 / 送信 {pushed}件",
