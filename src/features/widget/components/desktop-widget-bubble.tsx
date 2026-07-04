@@ -266,6 +266,22 @@ function TodoBody({
   );
 }
 
+function AlertBody({
+  bubble,
+  onItemStateChange,
+  onOpenHandoff,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
+}) {
+  return (
+    <div className={styles.stack}>
+      <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
+    </div>
+  );
+}
+
 function AgentBody({
   bubble,
   onItemStateChange,
@@ -815,6 +831,9 @@ function BubbleBody({
         onToggleVoiceMic={onToggleVoiceMic}
       />
     );
+  }
+  if (bubble.id === "alert") {
+    return <AlertBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
   }
   if (bubble.id === "timer") {
     return <TimerBody bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />;

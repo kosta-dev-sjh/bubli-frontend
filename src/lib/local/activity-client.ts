@@ -79,14 +79,14 @@ export async function recordCurrentActivityContext(
 
   const capturedAt = parseIsoDate(context.data.capturedAt);
   const durationSeconds = Math.max(0, Math.trunc(context.data.durationSeconds ?? 0));
-  const segment =
-    input.recordMode === "incremental"
-      ? resolveIncrementalActivitySegment(context.data.appName, context.data.windowTitle, durationSeconds, capturedAt)
-      : {
-          durationSeconds,
-          endedAt: capturedAt.toISOString(),
-          startedAt: new Date(capturedAt.getTime() - durationSeconds * 1000).toISOString(),
-        };
+  const incremental = input.recordMode === "incremental";
+  const segment = incremental
+    ? resolveIncrementalActivitySegment(context.data.appName, context.data.windowTitle, durationSeconds, capturedAt)
+    : {
+        durationSeconds,
+        endedAt: capturedAt.toISOString(),
+        startedAt: new Date(capturedAt.getTime() - durationSeconds * 1000).toISOString(),
+      };
 
   if (!segment) {
     return blocked(
@@ -111,9 +111,7 @@ export async function recordCurrentActivityContext(
   if (localActivity.status !== "ready") {
     return localActivity;
   }
-  if (input.recordMode !== "incremental") {
-    rememberIncrementalActivityCheckpoint(context.data.appName, context.data.windowTitle, durationSeconds);
-  }
+  rememberIncrementalActivityCheckpoint(context.data.appName, context.data.windowTitle, durationSeconds);
 
   let recordedActivity;
   try {
@@ -258,8 +256,6 @@ function resolveIncrementalActivitySegment(
       ? Math.min(incrementalActivityCheckpoint.recordedDurationSeconds, durationSeconds)
       : 0;
   const nextDuration = Math.max(0, durationSeconds - previousDuration);
-
-  rememberIncrementalActivityCheckpoint(appName, windowTitle, durationSeconds);
 
   if (nextDuration <= 0) {
     return null;
