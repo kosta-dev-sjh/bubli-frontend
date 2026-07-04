@@ -361,8 +361,14 @@ mod tests {
 
     #[test]
     fn windows_foreground_capture_returns_app_name() {
-        let (app_name, _window_title) =
-            capture_foreground().expect("foreground app should be readable on Windows");
+        let (app_name, _window_title) = match capture_foreground() {
+            Ok(context) => context,
+            Err(error) if error.contains("foreground window was not available") => {
+                eprintln!("skipping foreground capture assertion: {error}");
+                return;
+            }
+            Err(error) => panic!("foreground app should be readable on Windows: {error}"),
+        };
 
         assert!(
             !app_name.trim().is_empty(),
