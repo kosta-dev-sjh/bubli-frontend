@@ -459,6 +459,29 @@ button.profileButton {
   font-weight: 700;
 }
 
+/* 클릭 가능한 알림(딥링크 보러가기) — 본문 전체가 버튼이지만 카드 톤은 그대로 유지한다. */
+.notificationOpenButton {
+  flex: 1 1 auto;
+  border: 0;
+  border-radius: 10px;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+}
+
+.notificationOpenButton:hover strong,
+.notificationOpenButton:focus-visible strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.notificationOpenButton:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .notificationReadButton {
   flex: 0 0 auto;
   white-space: nowrap;

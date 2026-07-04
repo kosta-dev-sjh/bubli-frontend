@@ -9,6 +9,11 @@ import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { authApi } from "@/features/auth/api/authApi";
 import { chatApi } from "@/features/communication/api/chatApi";
+import {
+  dispatchEmojiSplash,
+  EmojiSplashLayer,
+  extractEmojiSplashEmojis,
+} from "@/features/communication/components/emoji-splash-layer";
 import { friendApi } from "@/features/communication/api/friendApi";
 import { voiceApi } from "@/features/communication/api/voiceApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
@@ -451,6 +456,31 @@ function ChatPageContent() {
     lastStartSentAt: 0,
     stopTimer: null,
   });
+
+  // 이모지 퐁퐁 — 이모지만(1~5개)으로 된 TEXT 메시지가 도착하면(내 것/남의 것 모두)
+  // "bubli:emoji-splash" 이벤트를 발행해 스레드 오버레이가 이모지를 띄우게 한다.
+  // 같은 메시지가 REST 응답과 WS 에코로 두 번 들어와도 한 번만 발행되도록 ID로 중복 제거한다.
+  const splashedMessageIdsRef = useRef<Set<string>>(new Set());
+  const maybeSplashEmojiMessage = useCallback((message: ChatMessageResponse) => {
+    if (message.messageType !== "TEXT") return;
+    const text = typeof message.body.text === "string" ? message.body.text : null;
+    if (!text) return;
+    const emojis = extractEmojiSplashEmojis(text);
+    if (!emojis) return;
+
+    const seen = splashedMessageIdsRef.current;
+    const keys = [message.id, message.clientMessageId].filter((key): key is string => Boolean(key));
+    if (keys.some((key) => seen.has(key))) return;
+    if (seen.size > 200) seen.clear();
+    keys.forEach((key) => seen.add(key));
+
+    dispatchEmojiSplash({
+      chatRoomId: message.chatRoomId,
+      emojis,
+      messageId: message.id,
+      senderId: message.sender.id ?? null,
+    });
+  }, []);
 
   const appendMessage = useCallback((message: ChatMessageResponse) => {
     setMessagesState((current) => {
@@ -959,6 +989,8 @@ function ChatPageContent() {
       if (!message || message.chatRoomId !== chatRoomId) return;
 
       mergeIncomingMessages([message]);
+      // 남이 보낸(그리고 내 WS 에코) 이모지 전용 메시지 → 이모지 퐁퐁.
+      maybeSplashEmojiMessage(message);
 
       // 에이전트 응답이 도착하면 "Bubli가 입력 중…"을 내린다.
       if (message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT") {
@@ -1020,7 +1052,7 @@ function ChatPageContent() {
       unsubscribeReconnect();
       unsubscribeTyping?.();
     };
-  }, [activeChatRoomId, mergeIncomingMessages, refreshLatestMessages, stopTypingPublish, t]);
+  }, [activeChatRoomId, maybeSplashEmojiMessage, mergeIncomingMessages, refreshLatestMessages, stopTypingPublish, t]);
 
   // "Bubli가 입력 중…" 60초 타임아웃 폴백 — 응답이 끝내 안 오면 조용히 내린다.
   useEffect(() => {
@@ -1554,9 +1586,6 @@ function ChatPageContent() {
         ? { attachmentName: selectedAttachment.name, text: text || selectedAttachment.name }
         : { text };
 
-      // TODO(widget): 이모지 전송 시 데스크톱 오버레이 이벤트 발행 지점.
-      // 추후 Tauri 위젯 레이어가 붙으면, text에 포함된 이모지를 감지해
-      // 데스크톱 위로 떠오르는 오버레이(스트리밍 오버레이 스타일) 이벤트를 여기서 emit한다.
       const response = await chatApi.sendMessage(activeChatRoomId, {
         body: messageBody,
         clientMessageId: crypto.randomUUID(),
@@ -1564,6 +1593,11 @@ function ChatPageContent() {
         resourceId,
       });
       appendMessage(response);
+      // 내가 보낸 이모지 전용 메시지도 즉시 퐁퐁 — WS 에코가 오면 ID 중복 제거로 한 번만 뜬다.
+      // [TAURI WIDGET HOOK] dispatchEmojiSplash가 발행하는 "bubli:emoji-splash" CustomEvent를
+      // 데스크톱 위젯 레이어가 나중에 구독해 데스크톱 오버레이 창으로 미러링할 수 있다
+      // (계약과 페이로드는 emoji-splash-layer.tsx 상단 주석 참고 — 지금은 웹 오버레이만 구현).
+      maybeSplashEmojiMessage(response);
       void syncCachedRoomMessages(response.chatRoomId, [response]);
       setDraft("");
       setSelectedAttachment(null);
@@ -1573,7 +1607,7 @@ function ChatPageContent() {
     } finally {
       setSending(false);
     }
-  }, [activeChatRoomId, appendMessage, draft, selectedAttachment, selectedAgentRoomId, selectedRoom, stopTypingPublish, t]);
+  }, [activeChatRoomId, appendMessage, draft, maybeSplashEmojiMessage, selectedAttachment, selectedAgentRoomId, selectedRoom, stopTypingPublish, t]);
 
   const handleDownload = useCallback(async (resourceId: string, fallbackName?: string) => {
     setDownloadingResourceId(resourceId);
@@ -1873,6 +1907,9 @@ function ChatPageContent() {
                 })}
               </div>
             ) : null}
+
+            {/* 이모지 퐁퐁 오버레이 — 스레드 우하단(컴포저 위)에서 이모지가 떠오른다. 높이 0 앵커라 레이아웃 영향 없음. */}
+            <EmojiSplashLayer chatRoomId={activeChatRoomId} />
 
             {selectedRoom && typingIndicatorText ? (
               <div aria-live="polite" className="workspace-route__typing-line" role="status">

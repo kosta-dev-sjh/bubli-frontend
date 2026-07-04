@@ -1,0 +1,80 @@
+/* 이모지 퐁퐁(셋로그 스타일) 오버레이 — 채팅 스레드 우하단에 고정된 파티클 필드.
+   레이아웃에 영향을 주지 않도록 높이 0의 앵커 안에서 절대 배치하고,
+   포인터 이벤트를 모두 통과시킨다(순수 장식 레이어). */
+
+.anchor {
+  position: relative;
+  height: 0;
+  pointer-events: none;
+}
+
+.field {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  z-index: 6;
+  overflow: hidden;
+  width: 220px;
+  height: 380px;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  bottom: 0;
+  left: var(--splash-x, 50%);
+  font-size: 30px;
+  line-height: 1;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: emoji-splash-float var(--splash-duration, 2.4s) cubic-bezier(0.22, 0.61, 0.36, 1)
+    var(--splash-delay, 0s) forwards;
+}
+
+/* 떠오르기: 240~320px 상승(--splash-rise) + 좌우 살랑임(--splash-drift),
+   스케일 1 → 1.15 → 0.9, 마지막에 페이드아웃. */
+@keyframes emoji-splash-float {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  12% {
+    opacity: 1;
+    transform: translate3d(calc(var(--splash-drift, 0px) * 0.3), calc(var(--splash-rise, 280px) * -0.12), 0)
+      scale(1.08);
+  }
+  48% {
+    opacity: 1;
+    transform: translate3d(var(--splash-drift, 0px), calc(var(--splash-rise, 280px) * -0.52), 0) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(var(--splash-drift, 0px) * -0.55), calc(var(--splash-rise, 280px) * -1), 0)
+      scale(0.9);
+  }
+}
+
+/* 모션 최소화: 이동 없이 제자리에서 잠깐 나타났다 사라지는 정적 페이드로 대체. */
+@keyframes emoji-splash-static {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -24px, 0) scale(1);
+  }
+  20% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -24px, 0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .particle {
+    animation-name: emoji-splash-static;
+    animation-timing-function: ease-out;
+  }
+}

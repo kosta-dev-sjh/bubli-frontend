@@ -4,6 +4,7 @@ export * from "./chat-read-state-panel";
 export * from "./chat-room-list-panel";
 export * from "./chat-sequence-loading-boundary-panel";
 export * from "./communication-panel";
+export * from "./emoji-splash-layer";
 export * from "./friend-invite-panel";
 export * from "./friend-request-inbox";
 export * from "./friend-search-panel";
