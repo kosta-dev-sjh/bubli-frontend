@@ -1804,8 +1804,9 @@ function DesktopWidgetSurface() {
   );
 
   const createWidgetMemo = useCallback(
-    async (bubble: WidgetPreviewBubble) => {
-      const body = window.prompt(t("widget.memo.prompt"))?.trim();
+    async (bubble: WidgetPreviewBubble, inlineBody?: string) => {
+      // 버블 하단 인라인 컴포저가 본문을 넘겨주면 그대로 저장하고, 없을 때만 prompt로 받는다.
+      const body = (inlineBody ?? window.prompt(t("widget.memo.prompt")) ?? "").trim();
       if (!body) return;
 
       const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;

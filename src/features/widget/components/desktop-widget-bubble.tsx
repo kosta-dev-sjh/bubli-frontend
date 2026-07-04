@@ -20,6 +20,7 @@ import {
   Play,
   Plus,
   Power,
+  RefreshCw,
   Repeat,
   Settings,
   SmilePlus,
@@ -48,22 +49,24 @@ import { startWidgetWindowDragging, type WidgetBubbleType, type WidgetWindowMode
 
 import styles from "./desktop-widget-bubble.module.css";
 
+// 버블별 셸 아이덴티티(헤더 밴드/아이콘 타일/CTA/칩이 같은 accent를 공유한다).
+// todo=sky · timer=amber · chat=rose · memo=cream · schedule=blue · alert=lilac · agent=mint · resource=sand
 type BubbleMeta = {
-  accent: "blue" | "lilac" | "rose" | "pearl";
+  accent: "amber" | "blue" | "cream" | "lilac" | "mint" | "rose" | "sand" | "sky";
   id: WidgetBubbleType;
   label: MessageKey;
   Icon: typeof CheckCircle2;
 };
 
 const bubbleMeta: BubbleMeta[] = [
-  { Icon: CheckCircle2, accent: "blue", id: "todo", label: "widget.kind.todo" },
-  { Icon: Sparkles, accent: "lilac", id: "agent", label: "widget.kind.agent" },
+  { Icon: CheckCircle2, accent: "sky", id: "todo", label: "widget.kind.todo" },
+  { Icon: Sparkles, accent: "mint", id: "agent", label: "widget.kind.agent" },
   { Icon: MessageSquare, accent: "rose", id: "chat", label: "widget.kind.chat" },
-  { Icon: Timer, accent: "pearl", id: "timer", label: "widget.kind.timer" },
-  { Icon: StickyNote, accent: "pearl", id: "memo", label: "widget.kind.memo" },
+  { Icon: Timer, accent: "amber", id: "timer", label: "widget.kind.timer" },
+  { Icon: StickyNote, accent: "cream", id: "memo", label: "widget.kind.memo" },
   { Icon: Clock3, accent: "blue", id: "schedule", label: "widget.kind.schedule" },
-  { Icon: FileText, accent: "lilac", id: "resource", label: "widget.kind.resource" },
-  { Icon: Bell, accent: "blue", id: "alert", label: "widget.kind.notification" },
+  { Icon: FileText, accent: "sand", id: "resource", label: "widget.kind.resource" },
+  { Icon: Bell, accent: "lilac", id: "alert", label: "widget.kind.notification" },
 ];
 
 const modeLabels: Record<WidgetWindowMode, MessageKey> = {
@@ -81,11 +84,25 @@ const modeClassNames: Record<WidgetWindowMode, string> = {
 };
 
 const accentClassNames: Record<BubbleMeta["accent"], string> = {
-  blue: styles.shellBlue,
-  lilac: styles.shellLilac,
-  pearl: styles.shellPearl,
-  rose: styles.shellRose,
+  amber: styles.accAmber,
+  blue: styles.accBlue,
+  cream: styles.accCream,
+  lilac: styles.accLilac,
+  mint: styles.accMint,
+  rose: styles.accRose,
+  sand: styles.accSand,
+  sky: styles.accSky,
 };
+
+// 서버 부분 동기화 실패는 회색 웰 대신 헤더 아래 얇은 상태 한 줄로만 알린다.
+function isBubbleSyncPending(bubble: WidgetPreviewBubble) {
+  return bubble.notificationLabel === "widget.data.partialIssue" || bubble.panelBody === "widget.data.partialIssueBody";
+}
+
+// 동기화 상태 문구가 엠티 스테이트/노트로 중복 노출되지 않게 안전한 라벨로 치환한다.
+function bubbleEmptyLabel(bubble: WidgetPreviewBubble) {
+  return isBubbleSyncPending(bubble) ? "widget.data.emptyItems" : bubble.notificationLabel;
+}
 
 const presentationClassNames = {
   preview: styles.previewShell,
@@ -105,7 +122,7 @@ export type DesktopWidgetBubbleProps = {
   onMarkChatRead?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onModeChange: (mode: WidgetWindowMode) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
-  onCreateMemo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  onCreateMemo?: (bubble: WidgetPreviewBubble, body?: string) => Promise<void> | void;
   onCreateSchedule?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onCreateTodo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onDeleteMemo?: (item: WidgetPreviewItem) => Promise<void> | void;
@@ -253,13 +270,13 @@ function ItemRows({
   if (bubble.rows.length === 0) {
     return (
       <div className={styles.emptyState}>
-        <span>{t(bubble.notificationLabel as MessageKey)}</span>
+        <span>{t(bubbleEmptyLabel(bubble) as MessageKey)}</span>
       </div>
     );
   }
 
   return (
-    <>
+    <div className={styles.rowList}>
       {bubble.rows.map((item) => (
         <label className={styles.checkRow} key={item.label}>
           <input checked={item.checked ?? false} readOnly type="checkbox" />
@@ -274,7 +291,7 @@ function ItemRows({
           <ItemActions item={item} onItemStateChange={onItemStateChange} />
         </label>
       ))}
-    </>
+    </div>
   );
 }
 
@@ -292,9 +309,16 @@ function TodoBody({
   const { t } = useI18n();
   return (
     <div className={styles.body}>
-      <div className={styles.progress}>
-        <span>{bubble.metric}</span>
-        <b>{t(bubble.metricLabel as MessageKey)}</b>
+      {/* 카운트 링은 중앙 부유 대신 요약 카피와 나란히 — 본문이 위에서부터 콘텐츠로 채워진다. */}
+      <div className={styles.summaryRow}>
+        <div className={styles.countRing}>
+          <span>{bubble.metric}</span>
+          <b>{t(bubble.metricLabel as MessageKey)}</b>
+        </div>
+        <div className={styles.summaryCopy}>
+          <strong>{t(bubble.panelLabel as MessageKey)}</strong>
+          <span>{t(bubbleEmptyLabel(bubble) as MessageKey)}</span>
+        </div>
       </div>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
       <button className={styles.wideAction} onClick={() => void onCreateTodo?.(bubble)} type="button">
@@ -314,9 +338,25 @@ function AlertBody({
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
+  const { t } = useI18n();
+  const openAll = () => {
+    if (!onOpenHandoff) return;
+    void onOpenHandoff({
+      handoffUrl: bubble.rows[0]?.handoffUrl ?? "/app",
+      id: "alert-open-all",
+      kind: "message",
+      label: t(bubble.actionLabel as MessageKey),
+      status: "",
+    });
+  };
+
   return (
-    <div className={styles.stack}>
+    <div className={styles.body}>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
+      <button className={styles.wideAction} onClick={openAll} type="button">
+        <Bell size={14} strokeWidth={2} />
+        {t(bubble.actionLabel as MessageKey)}
+      </button>
     </div>
   );
 }
@@ -363,15 +403,13 @@ function AgentBody({
 
   return (
     <div className={styles.body}>
-      <div className={styles.agentHalo} aria-label={t("widget.agentSignal")}>
-        <span className={styles.agentHaloCore} />
-        <span className={styles.agentHaloRing} />
+      {/* 큰 할로 장식 대신 얇은 요약 라인 — 승인 대기 수가 콘텐츠 첫 줄이 된다. */}
+      <div className={styles.agentSummary} aria-label={t("widget.agentSignal")}>
+        <span className={styles.agentDot} aria-hidden="true" />
+        <strong>{t(bubble.panelLabel as MessageKey)}</strong>
+        <b>{bubble.metric}</b>
       </div>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
-      <div className={styles.dropPanel}>
-        <FileText size={16} strokeWidth={2} />
-        <span>{t(bubble.notificationLabel as MessageKey)}</span>
-      </div>
       <form
         className={styles.input}
         onSubmit={(event) => {
@@ -511,12 +549,16 @@ function ChatBody({
       <div className={styles.body}>
         <div className={styles.chatPicker} role="group" aria-label={t("widget.chat.openRooms")}>
           <button className={styles.chatPickerItem} onClick={() => openChatPicker(t("widget.chat.openRooms"))} type="button">
-            <MessageSquare size={13} strokeWidth={2} />
+            <i className={styles.pickerAvatar} aria-hidden="true">
+              <MessageSquare size={14} strokeWidth={2} />
+            </i>
             <span>{t("widget.chat.openRooms")}</span>
           </button>
           {pickerFriends.slice(0, 3).map((friend) => (
             <button className={styles.chatPickerItem} key={friend.id} onClick={() => openChatPicker(friend.label)} type="button">
-              <Users size={13} strokeWidth={2} />
+              <i className={styles.pickerAvatar} aria-hidden="true">
+                <Users size={14} strokeWidth={2} />
+              </i>
               <span>{friend.label}</span>
             </button>
           ))}
@@ -639,24 +681,25 @@ function TimerBody({
         <strong>{bubble.metric}</strong>
         <span>{t(bubble.metricLabel as MessageKey)}</span>
       </div>
-      <div className={styles.segmented}>
+      {/* 모드 전환은 pill 3개가 아니라 하나의 세그먼트 바로 읽혀야 한다. */}
+      <div className={styles.segmented} role="group">
         <button aria-pressed="true" type="button">
           {t("widget.timer.tabClock")}
         </button>
         <button type="button">{t("widget.timer.tabWork")}</button>
         <button type="button">{t("widget.timer.tabPomodoro")}</button>
       </div>
+      <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
       <div className={styles.timerActions}>
-        <button onClick={() => void onPrimaryTimerAction?.(bubble)} type="button">
+        <button className={styles.timerPrimary} onClick={() => void onPrimaryTimerAction?.(bubble)} type="button">
           <PrimaryIcon size={13} />
           {t(bubble.actionLabel as MessageKey)}
         </button>
-        <button disabled={!canPause} onClick={() => void onPauseTimer?.(bubble)} type="button">
+        <button className={styles.timerGhost} disabled={!canPause} onClick={() => void onPauseTimer?.(bubble)} type="button">
           <Pause size={13} />
           {timerStatus === "PAUSED" ? t("widget.timer.paused") : t("widget.timer.pause")}
         </button>
       </div>
-      <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
     </div>
   );
 }
@@ -675,6 +718,8 @@ function MemoBody({
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
   const { t } = useI18n();
+  const [draft, setDraft] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
     if (!item.handoffUrl || !onOpenHandoff) return;
 
@@ -682,12 +727,26 @@ function MemoBody({
     void onOpenHandoff(item);
   };
 
+  // 단독 "메모 남기기" 버튼 대신 하단 인라인 컴포저(1줄 입력 + 저장)로 바로 남긴다.
+  const saveDraftMemo = async () => {
+    const body = draft.trim();
+    if (!body || !onCreateMemo || submitting) return;
+
+    setSubmitting(true);
+    try {
+      await onCreateMemo(bubble, body);
+      setDraft("");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <div className={[styles.body, styles.memoGrid].join(" ")}>
+    <div className={styles.body}>
       {bubble.rows.length > 0 ? (
-        bubble.rows.map((item) => (
-          <article key={item.id}>
-            <div className={styles.memoRowHeader}>
+        <div className={styles.rowList}>
+          {bubble.rows.slice(0, 4).map((item) => (
+            <div className={styles.memoRow} key={item.id}>
               {item.handoffUrl ? (
                 <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
                   <strong>{item.label}</strong>
@@ -695,6 +754,7 @@ function MemoBody({
               ) : (
                 <strong>{item.label}</strong>
               )}
+              <span className={styles.memoTime}>{item.status}</span>
               <span className={styles.memoActions}>
                 <button aria-label={t("widget.memo.edit")} disabled={!onEditMemo} onClick={() => void onEditMemo?.(item)} type="button">
                   <Pencil size={12} strokeWidth={2.1} />
@@ -704,18 +764,32 @@ function MemoBody({
                 </button>
               </span>
             </div>
-            <span>{item.status}</span>
-          </article>
-        ))
+          ))}
+        </div>
       ) : (
         <div className={styles.emptyState}>
-          <span>{t(bubble.notificationLabel as MessageKey)}</span>
+          <span>{t(bubbleEmptyLabel(bubble) as MessageKey)}</span>
         </div>
       )}
-      <button className={styles.wideAction} onClick={() => void onCreateMemo?.(bubble)} type="button">
-        <Plus size={14} strokeWidth={2} />
-        {t(bubble.actionLabel as MessageKey)}
-      </button>
+      <form
+        className={[styles.input, styles.composer].join(" ")}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void saveDraftMemo();
+        }}
+      >
+        <StickyNote size={14} strokeWidth={2} />
+        <input
+          aria-label={t(bubble.actionLabel as MessageKey)}
+          disabled={submitting}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : t(bubble.actionLabel as MessageKey)}
+          value={draft}
+        />
+        <button className={styles.composerSave} disabled={submitting || !draft.trim()} type="submit">
+          {t("widget.memo.save")}
+        </button>
+      </form>
     </div>
   );
 }
@@ -739,40 +813,57 @@ function ScheduleBody({
     void onOpenHandoff(item);
   };
 
+  const nextItem = bubble.rows[0];
+  const restItems = bubble.rows.slice(1);
+
   return (
     <div className={styles.body}>
-      <div className={styles.ring}>
-        <span>{bubble.metric}</span>
-        <b>{t(bubble.metricLabel as MessageKey)}</b>
-      </div>
-      <div className={styles.segmented}>
+      {/* 부유하는 링 대신 "다음 일정" 컴팩트 카드가 첫 콘텐츠다. */}
+      {nextItem ? (
+        <div className={styles.nextCard}>
+          <span className={styles.nextTime}>{nextItem.status}</span>
+          <div className={styles.nextCopy}>
+            <small>{t(bubble.metricLabel as MessageKey)}</small>
+            {nextItem.handoffUrl ? (
+              <a href={nextItem.handoffUrl} onClick={(event) => openHandoff(event, nextItem)} rel="noreferrer" target="_blank">
+                <strong>{nextItem.label}</strong>
+              </a>
+            ) : (
+              <strong>{nextItem.label}</strong>
+            )}
+          </div>
+          <ItemActions item={nextItem} onItemStateChange={onItemStateChange} />
+        </div>
+      ) : (
+        <div className={styles.nextEmpty}>
+          <Clock3 size={13} strokeWidth={2} />
+          <span>{t("widget.schedule.noneRemaining")}</span>
+        </div>
+      )}
+      <div className={styles.segmented} role="group">
         <button aria-pressed="true" type="button">
           {t("widget.schedule.tabWeek")}
         </button>
         <button type="button">{t("widget.schedule.tabMonth")}</button>
         <button type="button">{t("widget.schedule.tabWbs")}</button>
       </div>
-      <div className={styles.timeline}>
-        {bubble.rows.length > 0 ? (
-          bubble.rows.map((item) => (
-            <span key={item.id}>
+      {restItems.length > 0 ? (
+        <div className={styles.rowList}>
+          {restItems.map((item) => (
+            <div className={styles.timelineRow} key={item.id}>
               {item.handoffUrl ? (
                 <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
                   {item.label}
                 </a>
               ) : (
-                item.label
-              )}{" "}
-              · {item.status}
+                <span>{item.label}</span>
+              )}
+              <b>{item.status}</b>
               <ItemActions item={item} onItemStateChange={onItemStateChange} />
-            </span>
-          ))
-        ) : (
-          <div className={styles.emptyState}>
-            <span>{t(bubble.notificationLabel as MessageKey)}</span>
-          </div>
-        )}
-      </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <button className={styles.wideAction} onClick={() => void onCreateSchedule?.(bubble)} type="button">
         <Plus size={14} strokeWidth={2} />
         {t("widget.schedule.quickAdd")}
@@ -802,35 +893,55 @@ function ResourceBody({
     void onOpenHandoff(item);
   };
 
+  const openAll = () => {
+    if (!onOpenHandoff) return;
+    void onOpenHandoff({
+      handoffUrl: bubble.rows[0]?.handoffUrl ?? "/app/resources",
+      id: "resource-open-all",
+      kind: "resource",
+      label: t(bubble.actionLabel as MessageKey),
+      status: "",
+    });
+  };
+
   return (
     <div className={styles.body}>
-      {bubble.rows.map((item) => (
-        <div className={styles.fileRow} key={item.id}>
-          <FileText size={16} strokeWidth={2} />
-          {item.handoffUrl ? (
-            <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
-              {item.label}
-            </a>
-          ) : (
-            <span>{item.label}</span>
-          )}
-          <b>{item.status}</b>
-          <span className={styles.resourceActions}>
-            <button aria-label={t("resources.common.download")} onClick={() => void onDownloadResource?.(item)} type="button">
-              <ExternalLink size={13} strokeWidth={2.1} />
-            </button>
-            <button aria-label={t("resources.common.analyzeRun")} onClick={() => void onAnalyzeResource?.(item)} type="button">
-              <Sparkles size={13} strokeWidth={2.1} />
-            </button>
-          </span>
-          <ItemActions item={item} onItemStateChange={onItemStateChange} />
+      {bubble.rows.length > 0 ? (
+        <div className={styles.rowList}>
+          {bubble.rows.map((item) => (
+            <div className={styles.fileRow} key={item.id}>
+              <i className={styles.rowTile} aria-hidden="true">
+                <FileText size={14} strokeWidth={2} />
+              </i>
+              {item.handoffUrl ? (
+                <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+                  {item.label}
+                </a>
+              ) : (
+                <span>{item.label}</span>
+              )}
+              <b>{item.status}</b>
+              <span className={styles.resourceActions}>
+                <button aria-label={t("resources.common.download")} onClick={() => void onDownloadResource?.(item)} type="button">
+                  <ExternalLink size={13} strokeWidth={2.1} />
+                </button>
+                <button aria-label={t("resources.common.analyzeRun")} onClick={() => void onAnalyzeResource?.(item)} type="button">
+                  <Sparkles size={13} strokeWidth={2.1} />
+                </button>
+              </span>
+              <ItemActions item={item} onItemStateChange={onItemStateChange} />
+            </div>
+          ))}
         </div>
-      ))}
-      {bubble.rows.length === 0 ? (
+      ) : (
         <div className={styles.emptyState}>
-          <span>{t(bubble.notificationLabel as MessageKey)}</span>
+          <span>{t(bubbleEmptyLabel(bubble) as MessageKey)}</span>
         </div>
-      ) : null}
+      )}
+      <button className={styles.wideAction} onClick={openAll} type="button">
+        <FileText size={14} strokeWidth={2} />
+        {t(bubble.actionLabel as MessageKey)}
+      </button>
     </div>
   );
 }
@@ -997,8 +1108,10 @@ export function DesktopWidgetBubble({
           <>
             <header className={styles.head} onMouseDown={handleWidgetDragMouseDown}>
               <div className={styles.title} data-tauri-drag-region>
-                <span className={styles.signal} aria-hidden="true" />
-                <Icon size={16} strokeWidth={2} />
+                {/* 28px accent 아이콘 타일이 버블 아이덴티티의 앵커다. */}
+                <span className={styles.iconTile} aria-hidden="true">
+                  <Icon size={15} strokeWidth={2.1} />
+                </span>
                 <div className={styles.titleCopy}>
                   {/* 헤더 타이틀은 "버블" 접미사 없이 종류명만 쓴다. */}
                   <strong>{t(activeData.label as MessageKey)}</strong>
@@ -1007,6 +1120,14 @@ export function DesktopWidgetBubble({
               </div>
               <WidgetControls alwaysOnTop={alwaysOnTop} mode={mode} onClose={onClose} onMode={onModeChange} onPin={onToggleAlwaysOnTop} presentation={presentation} />
             </header>
+
+            {/* 부분 동기화 실패는 회색 웰 대신 얇은 상태 한 줄로만. */}
+            {mode !== "GHOST" && isBubbleSyncPending(activeData) ? (
+              <div className={styles.syncLine} role="status">
+                <RefreshCw size={12} strokeWidth={2.2} />
+                <span>{t("widget.data.syncPending")}</span>
+              </div>
+            ) : null}
 
             {isPreview ? (
               <div className={styles.dragbar} data-tauri-drag-region onMouseDown={handleWidgetDragMouseDown}>
@@ -1157,7 +1278,7 @@ export function DesktopWidgetBubbleBar({
               aria-describedby={previewTarget === bubbleType ? BAR_PREVIEW_POPOVER_ID : undefined}
               // 칩은 아이콘+숫자만 표시해 pill이 넘치지 않게 하고, 전체 라벨은 aria와 hover 팝오버가 담당한다.
               aria-label={t(bubble.compactLabel as MessageKey)}
-              className={styles.barItem}
+              className={[styles.barItem, accentClassNames[meta.accent]].join(" ")}
               key={`${bubbleType}-${item.windowId ?? index}`}
               onBlur={() => hidePreview(bubbleType)}
               onClick={() => onRestoreBubble(bubbleType, item.windowId ?? bubbleType)}
@@ -1166,7 +1287,10 @@ export function DesktopWidgetBubbleBar({
               onMouseLeave={() => hidePreview(bubbleType)}
               type="button"
             >
-              <Icon size={12} strokeWidth={2} />
+              {/* 칩도 버블 아이덴티티를 공유 — 18px 미니 accent 타일 + tabular 카운트. */}
+              <i className={styles.chipTile} aria-hidden="true">
+                <Icon size={11} strokeWidth={2.2} />
+              </i>
               <b>{bubble.metric}</b>
             </button>
           );
@@ -1174,14 +1298,16 @@ export function DesktopWidgetBubbleBar({
         <button
           aria-describedby={previewTarget === "notice" ? BAR_PREVIEW_POPOVER_ID : undefined}
           aria-label={t(notificationSignal.notificationLabel as MessageKey)}
-          className={styles.barNotice}
+          className={[styles.barNotice, accentClassNames.lilac].join(" ")}
           onBlur={() => hidePreview("notice")}
           onFocus={() => showPreview("notice")}
           onMouseEnter={() => showPreview("notice")}
           onMouseLeave={() => hidePreview("notice")}
           type="button"
         >
-          <Bell size={12} strokeWidth={2} />
+          <i className={styles.chipTile} aria-hidden="true">
+            <Bell size={11} strokeWidth={2.2} />
+          </i>
           <b>{notificationSignal.metric}</b>
         </button>
       </nav>
@@ -1219,7 +1345,8 @@ export function DesktopWidgetMenuOrb({
     { Icon: Power, label: t("widget.menu.quit"), onSelect: onQuit },
   ];
 
-  // 오브에 앵커된 단일 패널: Bubli 헤더 → 전체 버블 바로가기 그리드 → 2×2 액션.
+  // 44px 오브 바로 아래(8px 간격, 같은 왼쪽 라인)에 패널이 붙는다:
+  // Bubli 그라디언트 워드마크 + 오늘 사용 요약 1줄 → accent 타일 바로가기 그리드 → hairline → 액션 rows.
   return (
     <div className={[styles.root, styles.menuRoot].join(" ")} data-bubli-desktop-widget>
       <button
@@ -1242,32 +1369,42 @@ export function DesktopWidgetMenuOrb({
           onMouseDown={handleWidgetDragMouseDown}
           role="menu"
         >
-          <strong>Bubli</strong>
+          <div className={styles.menuHead}>
+            <strong className={styles.menuWordmark}>Bubli</strong>
+            {/* 서버 usage-summaries/today 롤업(기기 합산)을 사용자에게 보여주는 유일한 지점. */}
+            {usageSummary ? <small className={styles.menuUsage}>{usageSummary}</small> : null}
+          </div>
           <div className={styles.menuGrid} aria-label={t("widget.menu.bubbles")}>
-            {bubbleMeta.map(({ Icon, id, label }) => (
-              <button className={styles.barMenuItem} key={id} onClick={() => onOpenBubble?.(id)} role="menuitem" type="button">
-                <Icon size={13} strokeWidth={2} />
+            {bubbleMeta.map(({ Icon, accent, id, label }) => (
+              <button
+                className={[styles.menuShortcut, accentClassNames[accent]].join(" ")}
+                key={id}
+                onClick={() => onOpenBubble?.(id)}
+                role="menuitem"
+                type="button"
+              >
+                <i className={styles.menuTile} aria-hidden="true">
+                  <Icon size={13} strokeWidth={2.1} />
+                </i>
                 <span>{t(label)}</span>
               </button>
             ))}
           </div>
-          <div className={styles.menuGrid}>
+          <div className={styles.menuActions}>
             {actionItems.map(({ Icon, label, onSelect }) => (
               <button
-                className={styles.barMenuItem}
+                className={styles.menuActionRow}
                 disabled={!onSelect}
                 key={label}
                 onClick={() => onSelect?.()}
                 role="menuitem"
                 type="button"
               >
-                <Icon size={13} strokeWidth={2} />
+                <Icon size={14} strokeWidth={2} />
                 <span>{label}</span>
               </button>
             ))}
           </div>
-          {/* 서버 usage-summaries/today 롤업(기기 합산)을 사용자에게 보여주는 유일한 지점. */}
-          {usageSummary ? <small className={styles.menuUsage}>{usageSummary}</small> : null}
         </div>
       ) : null}
     </div>
