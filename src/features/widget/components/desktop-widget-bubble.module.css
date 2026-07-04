@@ -64,6 +64,18 @@
   --acc-ink: color-mix(in srgb, #93CFA8 46%, #23303B 54%);
 }
 
+/* ---------- 포커스 링: 모든 조작 요소 공통 — accent 40% 2px, 요소 radius를 그대로 따른다 ---------- */
+
+.root :is(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--acc) 40%, transparent);
+  outline-offset: 1px;
+}
+
+/* 입력줄 내부 input은 컨테이너(.input:focus-within)가 링을 담당한다 — 이중 링 방지. */
+.root .input input:focus-visible {
+  outline: none;
+}
+
 .previewRoot {
   width: 100%;
 }
@@ -121,8 +133,8 @@
 
 .previewShell {
   width: min(100%, 374px);
-  border-radius: 24px;
-  padding: 14px;
+  border-radius: 20px;
+  padding: 16px;
 }
 
 .tauriShell {
@@ -130,7 +142,7 @@
      좌우 슬랙과 리사이즈 미대응을 없애고, 20px 라운드가 항상 창 안쪽에서 끝난다. */
   width: calc(100vw - 2 * var(--widget-window-gutter));
   border-radius: 20px;
-  padding: 14px;
+  padding: 16px;
 }
 
 /* 기본/반투명 모드에서 셸이 창 높이를 채워 CTA를 하단에 고정한다.
@@ -201,16 +213,14 @@
   height: 16px;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: 9px;
+  /* 보이는 그립: 대각선 도트 트라이앵글(GripDiagonal 문법) — 투명 코너 금지. */
   background:
-    linear-gradient(
-      135deg,
-      transparent 0 44%,
-      color-mix(in srgb, var(--acc-ink) 55%, transparent) 44% 52%,
-      transparent 52% 64%,
-      color-mix(in srgb, var(--acc-ink) 55%, transparent) 64% 72%,
-      transparent 72%
-    );
+    radial-gradient(circle 1.4px at 13px 13px, color-mix(in srgb, var(--acc-ink) 62%, transparent) 98%, transparent),
+    radial-gradient(circle 1.4px at 13px 8px, color-mix(in srgb, var(--acc-ink) 62%, transparent) 98%, transparent),
+    radial-gradient(circle 1.4px at 8px 13px, color-mix(in srgb, var(--acc-ink) 62%, transparent) 98%, transparent),
+    radial-gradient(circle 1.4px at 13px 3px, color-mix(in srgb, var(--acc-ink) 42%, transparent) 98%, transparent),
+    radial-gradient(circle 1.4px at 3px 13px, color-mix(in srgb, var(--acc-ink) 42%, transparent) 98%, transparent);
   opacity: 0;
   cursor: nwse-resize;
   touch-action: none;
@@ -254,7 +264,7 @@
   background: rgba(255, 255, 255, 0.4);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.66),
-    0 14px 32px rgba(90, 123, 150, 0.1);
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
   backdrop-filter: blur(8px) saturate(1.02);
   -webkit-backdrop-filter: blur(8px) saturate(1.02);
 }
@@ -458,7 +468,7 @@
   gap: 8px;
   border: 1px solid var(--widget-hairline);
   border-radius: 999px;
-  padding: 7px 8px 7px 12px;
+  padding: 8px 8px 8px 12px;
   color: var(--widget-muted);
   background: rgba(255, 255, 255, 0.56);
   cursor: grab;
@@ -568,6 +578,17 @@
   grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
+/* 리스트 행 hover: 버블 accent가 옅게 배어나는 틴트(행 단위 어포던스). */
+.checkRow:hover,
+.fileRow:hover,
+.alertRow:hover,
+.timelineRow:hover,
+.memoRow:hover,
+.agentInlineRow:hover {
+  border-color: color-mix(in srgb, var(--acc) 22%, transparent);
+  background: color-mix(in srgb, var(--acc) 7%, rgba(255, 255, 255, 0.6));
+}
+
 .checkRow input {
   width: 16px;
   height: 16px;
@@ -632,7 +653,7 @@
   place-items: center;
   width: 24px;
   height: 24px;
-  border-radius: 8px;
+  border-radius: 9px;
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 15%, transparent);
 }
@@ -734,6 +755,25 @@
   background: color-mix(in srgb, var(--acc) 18%, transparent);
 }
 
+/* CTA 프레스: 누르는 동안 살짝 가라앉는다(scale 0.98) — reduced-motion에서는 생략. */
+@media (prefers-reduced-motion: no-preference) {
+  .wideAction,
+  .timerPrimary,
+  .timerGhost,
+  .composerSave,
+  .chatPickerItem {
+    transition: background-color 140ms ease, border-color 140ms ease, transform 120ms ease;
+  }
+
+  .wideAction:active,
+  .timerPrimary:active,
+  .timerGhost:active:not(:disabled),
+  .composerSave:active:not(:disabled),
+  .chatPickerItem:active {
+    transform: scale(0.98);
+  }
+}
+
 /* ---------- 타이머: 140px 링 + 세그먼트 바 + 시작/일시정지 ---------- */
 
 .timer {
@@ -749,7 +789,7 @@
     color-mix(in srgb, var(--acc) 7%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 10px 26px -16px rgba(35, 48, 59, 0.24);
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
 }
 
 .timer strong {
@@ -780,6 +820,7 @@
 }
 
 .segmented button {
+  position: relative;
   min-width: 0;
   height: 27px;
   padding: 0 8px;
@@ -793,10 +834,23 @@
   cursor: pointer;
 }
 
+/* 선택 배경은 layoutId 썸(motion)이 스프링 translate로 그린다 — bg 스왑 금지. */
 .segmented button[aria-pressed="true"] {
   color: var(--acc-ink);
+}
+
+.segThumb {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 1px 3px rgba(35, 48, 59, 0.12);
+}
+
+.segLabel {
+  position: relative;
+  z-index: 1;
 }
 
 .timerActions {
@@ -850,7 +904,7 @@
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--acc) 24%, transparent);
-  border-radius: 14px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--acc) 10%, transparent);
 }
 
@@ -888,20 +942,6 @@
   overflow: hidden;
   color: inherit;
   text-decoration: none;
-}
-
-.nextEmpty {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 4px 10px;
-  border: 1px solid var(--widget-hairline);
-  border-radius: 12px;
-  color: var(--widget-muted);
-  background: rgba(255, 255, 255, 0.6);
-  font-size: 14px;
-  font-weight: 600;
 }
 
 /* ---------- 메모: 리스트 + 인라인 컴포저 ---------- */
@@ -1335,21 +1375,37 @@
   font-weight: 700;
 }
 
-/* ---------- 엠티 스테이트: 옅고 평평한 well 한 개 ---------- */
+/* ---------- 엠티 스테이트: 20px accent 아이콘 + "다음 행동" 한 줄(모든 버블 공통 해부) ---------- */
 
 .emptyState {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 56px;
+  padding: 12px;
   border: 1px solid var(--widget-hairline);
   border-radius: 12px;
   background: color-mix(in srgb, var(--acc) 5%, transparent);
+  text-align: center;
+}
+
+.emptyIcon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  color: var(--acc-ink);
 }
 
 .emptyState span {
+  overflow: hidden;
+  min-width: 0;
   color: var(--widget-muted);
   font-size: 14px;
   font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---------- Preview 전용 노트 ---------- */
@@ -1461,7 +1517,7 @@
     linear-gradient(150deg, rgba(255, 255, 255, 0.88), color-mix(in srgb, var(--acc) 34%, transparent));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 10px 22px rgba(90, 123, 150, 0.16);
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
 }
 
 .dockCopy {
@@ -1517,17 +1573,20 @@
 
 .barPopover {
   position: absolute;
-  /* pill(36px 칩 + 패딩 ≈ 52px) + 루트 패딩 4 + 여백 12 — pill 위 투명 영역에 뜨므로
-     pill 자체는 절대 밀리지 않는다. */
+  /* pill(36px 칩 + 패딩 ≈ 54px) + 루트 패딩 4 + 여백 10 — pill 위 투명 영역에 뜨므로
+     pill 자체는 절대 밀리지 않는다. motion이 transform(스케일 인)을 소유하므로
+     중앙 정렬은 translateX 대신 left/right + margin auto로 한다(하단 앵커 origin). */
   bottom: 68px;
-  left: 50%;
+  right: 4px;
+  left: 4px;
   width: min(calc(100% - 8px), 440px);
-  transform: translateX(-50%);
+  margin: 0 auto;
+  transform-origin: 50% 100%;
   display: grid;
-  gap: 6px;
+  gap: 8px;
   padding: 12px;
   border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
-  border-radius: 16px;
+  border-radius: 20px;
   background: rgba(255, 255, 255, 0.92);
   color: var(--widget-text);
   box-shadow:
@@ -1539,8 +1598,20 @@
 .barPopoverHead {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
+}
+
+/* 팝오버 헤드의 버블 accent 아이콘 타일(24px) — 칩과 같은 아이덴티티를 이어받는다. */
+.barPopoverTile {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 9px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 15%, transparent);
 }
 
 .barPopoverHead strong {
@@ -1570,19 +1641,28 @@
 
 .barPopover ul {
   display: grid;
-  gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* hairline rows: 첫 행 위와 행 사이에 얇은 헤어라인 — 최대 3행 + "…" 잘림 표시. */
 .barPopover li {
   display: flex;
   align-items: baseline;
   gap: 6px;
   min-width: 0;
+  min-height: 26px;
+  padding: 4px 0;
+  border-top: 1px solid var(--widget-hairline);
   font-size: 14px;
   font-weight: 700;
+}
+
+.barPopoverMore {
+  justify-content: center;
+  color: var(--widget-faint);
+  line-height: 1;
 }
 
 .barPopover li span {
@@ -1608,6 +1688,7 @@
   color: var(--widget-muted);
   font-size: 14px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -1622,7 +1703,7 @@
   gap: 6px;
   max-width: 100%;
   overflow: visible;
-  padding: 7px;
+  padding: 8px;
   border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
   border-radius: 999px;
   background:
@@ -1634,9 +1715,14 @@
   transition: opacity 200ms ease;
 }
 
-/* idle 페이드: 8초 무상호작용이면 옅어지고, hover/포커스에 즉시 돌아온다. */
+/* idle 페이드: 8초 무상호작용이면 pill(nav)만 0.85로 옅어지고, hover/포커스에 즉시 1.0으로
+   돌아온다(200ms ease). 요소 opacity는 pill의 반투명 배경(0.9)·헤어라인·섀도와 "곱해져"
+   실제로는 수치보다 훨씬 흐리게 읽힌다 — 0.72는 데스크톱 위에서 ~40%처럼 보였다(라이브 버그).
+   0.85 × 배경 0.9 ≈ 0.77 유효 알파로 '살짝 물러남'까지만 허용한다.
+   메뉴 morph 패널·hover 프리뷰 팝오버는 nav 밖 형제 레이어라 절대 같이 옅어지지 않고,
+   goo 팝은 nav 안이라 TSX가 떠 있는 동안 페이드 자체를 정지시킨다(barIdle 클래스 미부여). */
 .barIdle {
-  opacity: 0.55;
+  opacity: 0.85;
 }
 
 .bubbleBar:hover,
@@ -1701,12 +1787,14 @@
   font-style: normal;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  line-height: 1;
+  /* 16px 배지의 보더 안쪽 콘텐츠 높이(14px)에 라인박스를 맞춰 숫자를 수직 중앙에 앉힌다. */
+  line-height: 14px;
   white-space: nowrap;
 }
 
 /* Bubli 브랜드 칩: 텍스트 워드마크 대신 웹앱과 같은 28px 버블 마크. */
 .barBrand {
+  overflow: hidden;
   display: inline-grid;
   flex: none;
   place-items: center;
@@ -1717,8 +1805,9 @@
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.76);
   cursor: pointer;
-  transition: background-color 140ms ease;
+  transition: background-color 140ms ease, width 200ms ease, margin-left 200ms ease, border-width 200ms ease;
 }
+
 
 .barBrand:hover,
 .barBrand:focus-visible {
@@ -1732,7 +1821,10 @@
 
 /* ---------- 바 인라인 Bubli 메뉴 패널(브랜드 칩 ↔ 패널 layoutId morph) ----------
    pill 위 투명 영역(bottom 68px)에 280px 패널이 뜬다. motion이 transform을 소유하므로
-   중앙 정렬은 transform 대신 left 계산으로 한다. 창 높이 430(WIDGET_BAR_HEIGHT)과 동기화. */
+   중앙 정렬은 transform 대신 left 계산으로 한다. 창 높이 430(WIDGET_BAR_HEIGHT)과 동기화:
+   하단 앵커 68(pill 52 + 루트 패딩 4 + 여백 12) + max-height 352 = 420 ≤ 430이라 상단이
+   최소 10px 남아 절대 잘리지 않는다(예산 430 - 52 - 24 ≈ 354 이내). 내용이 더 길면
+   overflow auto가 패널 내부 스크롤로 흡수한다. */
 
 .barMenuPanel {
   position: absolute;
@@ -1945,9 +2037,9 @@
   display: grid;
   gap: 6px;
   width: 232px;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
-  border-radius: 16px;
+  border-radius: 20px;
   background: rgba(255, 255, 255, 0.95);
   box-shadow:
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
@@ -2025,7 +2117,7 @@
   place-items: center;
   width: 24px;
   height: 24px;
-  border-radius: 7px;
+  border-radius: 9px;
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 16%, transparent);
 }
@@ -2149,12 +2241,22 @@
 :global([data-theme="dark"]) .message,
 :global([data-theme="dark"]) .input,
 :global([data-theme="dark"]) .bubbleNote,
-:global([data-theme="dark"]) .nextEmpty,
 :global([data-theme="dark"]) .chatPickerItem,
 :global([data-theme="dark"]) .dragbar {
   border-color: rgba(150, 170, 215, 0.14);
   background: rgba(18, 26, 40, 0.6);
   box-shadow: var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07));
+}
+
+/* 다크 행 hover 틴트: 같은 accent 배어남을 다크 표면 위에서 재현한다. */
+:global([data-theme="dark"]) .checkRow:hover,
+:global([data-theme="dark"]) .fileRow:hover,
+:global([data-theme="dark"]) .alertRow:hover,
+:global([data-theme="dark"]) .timelineRow:hover,
+:global([data-theme="dark"]) .memoRow:hover,
+:global([data-theme="dark"]) .agentInlineRow:hover {
+  border-color: color-mix(in srgb, var(--acc) 28%, transparent);
+  background: color-mix(in srgb, var(--acc) 10%, rgba(18, 26, 40, 0.6));
 }
 
 :global([data-theme="dark"]) .chatPickerItem:hover {
@@ -2181,6 +2283,9 @@
 
 :global([data-theme="dark"]) .segmented button[aria-pressed="true"] {
   color: var(--acc-ink);
+}
+
+:global([data-theme="dark"]) .segThumb {
   background: rgba(22, 30, 46, 0.94);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
@@ -2320,6 +2425,11 @@
   box-shadow:
     var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
     var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
+}
+
+/* 다크: 팝오버 헤드 accent 타일은 다크 표면 위에서 한 단계 진하게(menuTile과 동일 레시피). */
+:global([data-theme="dark"]) .barPopoverTile {
+  background: color-mix(in srgb, var(--acc) 22%, transparent);
 }
 
 /* 다크: 바 인라인 메뉴 패널은 menuPanel과 같은 Night Bubble 레시피. */

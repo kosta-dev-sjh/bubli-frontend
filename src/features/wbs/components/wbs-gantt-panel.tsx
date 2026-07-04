@@ -23,6 +23,7 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { useRoomCalendarAutoPush } from "@/features/calendar/api/use-room-calendar-auto-push";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
@@ -816,6 +817,8 @@ export function WbsGanttPanel({
       } finally {
         setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
       }
+      // 홈 일정 카드/일정 화면이 이 삭제(또는 실패 시 서버 상태)를 다시 받아가도록 알린다.
+      notifyDataChanged("schedule");
     }
 
     try {

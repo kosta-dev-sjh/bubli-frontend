@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
+import { useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import {
   listPersonalManagedFolders,
@@ -165,6 +166,12 @@ export function PersonalResourceWorkspace() {
     window.addEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, handlePersonalResourcesChanged);
     return () => window.removeEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, handlePersonalResourcesChanged);
   }, [loadResources]);
+
+  // 데스크톱 위젯/다른 탭에서 올라온 자료를 포커스 복귀 시 재검증한다(loadResources는 목록을 유지한 채 갱신).
+  const revalidateResources = useCallback(() => {
+    void loadResources();
+  }, [loadResources]);
+  useDataRefresh({ domains: [], onRefresh: revalidateResources });
 
   const resources = useMemo(() => (state.kind === "ready" ? state.resources : EMPTY_RESOURCES), [state]);
 

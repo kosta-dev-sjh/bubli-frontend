@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { friendApi } from "@/features/communication/api/friendApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
@@ -120,6 +121,17 @@ export function ProjectRoomSettingsPanel({
     return activeMembers.some((member) => member.userId === currentUserId && member.role === "PROJECT_LEADER");
   }, [activeMembers, currentUserId, room.createdByUserId]);
 
+  // 룸/멤버 변경을 부모 화면에 반영하면서, 셸 스위처·탑바·홈 카드 등 같은 창의 다른 표면에도 즉시 알린다.
+  const emitRoomChange = (updated: ProjectRoomResponse) => {
+    onRoomChange(updated);
+    notifyDataChanged("project-room");
+  };
+
+  const emitMembersChange = (nextMembers: ProjectRoomMemberResponse[]) => {
+    onMembersChange(nextMembers);
+    notifyDataChanged("project-room");
+  };
+
   const handleSaveInfo = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -138,11 +150,11 @@ export function ProjectRoomSettingsPanel({
 
     try {
       const updated = await projectRoomApi.update(room.id, body);
-      onRoomChange(updated);
+      emitRoomChange(updated);
       setNotice({ text: t("room.settings.infoSaved"), tone: "ok" });
     } catch (error) {
       if (shouldUseWorkspacePreviewData()) {
-        onRoomChange({ ...room, ...body, updatedAt: new Date().toISOString() });
+        emitRoomChange({ ...room, ...body, updatedAt: new Date().toISOString() });
         setNotice({ text: t("room.settings.infoSaved"), tone: "ok" });
       } else {
         setNotice({ text: requestErrorText(t, error), tone: "error" });
@@ -173,11 +185,11 @@ export function ProjectRoomSettingsPanel({
 
     try {
       const updated = await projectRoomApi.updatePayment(room.id, body);
-      onRoomChange(updated);
+      emitRoomChange(updated);
       setNotice({ text: t("room.settings.paymentSaved"), tone: "ok" });
     } catch (error) {
       if (shouldUseWorkspacePreviewData()) {
-        onRoomChange({ ...room, ...body, updatedAt: new Date().toISOString() });
+        emitRoomChange({ ...room, ...body, updatedAt: new Date().toISOString() });
         setNotice({ text: t("room.settings.paymentSaved"), tone: "ok" });
       } else {
         setNotice({ text: requestErrorText(t, error), tone: "error" });
@@ -312,11 +324,11 @@ export function ProjectRoomSettingsPanel({
 
     try {
       const updated = await projectRoomApi.updateMemberRole(room.id, member.userId, { role });
-      onMembersChange(members.map((entry) => (entry.userId === member.userId ? { ...entry, ...updated } : entry)));
+      emitMembersChange(members.map((entry) => (entry.userId === member.userId ? { ...entry, ...updated } : entry)));
       setNotice({ text: t("room.settings.roleUpdated"), tone: "ok" });
     } catch (error) {
       if (shouldUseWorkspacePreviewData()) {
-        onMembersChange(members.map((entry) => (entry.userId === member.userId ? { ...entry, role } : entry)));
+        emitMembersChange(members.map((entry) => (entry.userId === member.userId ? { ...entry, role } : entry)));
         setNotice({ text: t("room.settings.roleUpdated"), tone: "ok" });
       } else {
         setNotice({ text: requestErrorText(t, error), tone: "error" });
@@ -340,7 +352,7 @@ export function ProjectRoomSettingsPanel({
       setNotice({ text: t("room.settings.memberRemoved"), tone: "ok" });
     } catch (error) {
       if (shouldUseWorkspacePreviewData()) {
-        onMembersChange(members.filter((entry) => entry.userId !== member.userId));
+        emitMembersChange(members.filter((entry) => entry.userId !== member.userId));
         setNotice({ text: t("room.settings.memberRemoved"), tone: "ok" });
       } else {
         setNotice({ text: requestErrorText(t, error), tone: "error" });
@@ -361,9 +373,12 @@ export function ProjectRoomSettingsPanel({
 
     try {
       await projectRoomApi.close(room.id);
+      // 종료 즉시 셸 스위처/홈 카드가 룸 목록을 다시 받도록 알린다.
+      notifyDataChanged("project-room");
       onRoomClosed();
     } catch (error) {
       if (shouldUseWorkspacePreviewData()) {
+        notifyDataChanged("project-room");
         onRoomClosed();
         return;
       }
@@ -381,11 +396,11 @@ export function ProjectRoomSettingsPanel({
 
     try {
       const updated = await projectRoomApi.update(room.id, { status: "ACTIVE" });
-      onRoomChange(updated);
+      emitRoomChange(updated);
       setNotice({ text: t("room.settings.reopened"), tone: "ok" });
     } catch (error) {
       if (shouldUseWorkspacePreviewData()) {
-        onRoomChange({ ...room, closedAt: null, status: "ACTIVE", updatedAt: new Date().toISOString() });
+        emitRoomChange({ ...room, closedAt: null, status: "ACTIVE", updatedAt: new Date().toISOString() });
         setNotice({ text: t("room.settings.reopened"), tone: "ok" });
       } else {
         setNotice({ text: requestErrorText(t, error), tone: "error" });

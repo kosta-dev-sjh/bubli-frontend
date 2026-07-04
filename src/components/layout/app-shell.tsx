@@ -21,6 +21,7 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyDataChanged, readUserUpdatedDetail, useDataRefresh, USER_UPDATED_EVENT } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
@@ -225,6 +226,57 @@ export function AppShell({ children }: AppShellProps) {
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, reloadShell);
     };
   }, []);
+
+  // 프로필 저장(설정/온보딩) 즉시 반영 — 셸 재조회 없이 이벤트 페이로드로 탑바 사용자 표시를 갱신한다.
+  useEffect(() => {
+    function handleUserUpdated(event: Event) {
+      const user = readUserUpdatedDetail(event);
+      if (!user) return;
+      setState((current) => {
+        if (current.kind === "ready") return { ...current, user };
+        if (current.kind === "offline") return { ...current, user };
+        return current;
+      });
+    }
+
+    window.addEventListener(USER_UPDATED_EVENT, handleUserUpdated);
+    return () => window.removeEventListener(USER_UPDATED_EVENT, handleUserUpdated);
+  }, []);
+
+  // 룸 목록/알림/초대함만 가볍게 재조회한다(셸 전체 리로드 없이 스위처·벨 배지를 최신으로 유지).
+  const shellReady = state.kind === "ready";
+  const refreshShellLists = useCallback(async () => {
+    if (!shellReady) return;
+
+    const [roomPage, notificationPage, invitationPage] = await Promise.allSettled([
+      projectRoomApi.list(),
+      notificationApi.list(),
+      projectRoomApi.getMyInvitations("PENDING"),
+    ]);
+
+    if (roomPage.status === "fulfilled") {
+      setState((current) => (current.kind === "ready" ? { ...current, rooms: roomPage.value.items } : current));
+    }
+    if (notificationPage.status === "fulfilled") {
+      setState((current) => (current.kind === "ready" ? { ...current, notifications: notificationPage.value.items } : current));
+    }
+    if (invitationPage.status === "fulfilled") {
+      setMyInvitations(invitationPage.value.items);
+    }
+  }, [shellReady]);
+
+  const handleShellListsRefresh = useCallback(() => {
+    void refreshShellLists();
+  }, [refreshShellLists]);
+
+  // 룸 생성/이름 변경/종료/다시 열기/멤버 변경이 어디에서 일어나든 스위처·탑바에 즉시 반영하고,
+  // 창 포커스 복귀 시에도(데스크톱 위젯/다른 탭에서의 변경 대비) 스로틀을 걸어 재검증한다.
+  useDataRefresh({
+    domains: ["project-room"],
+    ignoreSource: "app-shell",
+    minFocusIntervalMs: 20_000,
+    onRefresh: handleShellListsRefresh,
+  });
 
   useEffect(() => {
     if (state.kind === "auth") {
@@ -490,6 +542,8 @@ export function AppShell({ children }: AppShellProps) {
         const joinedRoom = roomPage.items.find((room) => room.id === invitation.roomId);
         if (joinedRoom) setActiveProjectRoom(joinedRoom);
       }
+      // 같은 창에 떠 있는 홈 카드/룸 목록 화면에도 즉시 알린다(셸 자신은 위에서 이미 갱신).
+      notifyDataChanged("project-room", { source: "app-shell" });
       setTopbarMenu(null);
       router.push(`/app/project-rooms/${invitation.roomId}`);
     } catch {
@@ -555,6 +609,8 @@ export function AppShell({ children }: AppShellProps) {
     setActiveProjectRoom(createdRoom);
     setCreatePanelOpen(false);
     setProjectSwitcherOpen(false);
+    // 홈 카드/룸 목록 화면 등 같은 창의 다른 표면에 생성 사실을 즉시 알린다.
+    notifyDataChanged("project-room", { source: "app-shell" });
     router.push(`/app/project-rooms/${createdRoom.id}`);
   }
 

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { authApi } from "@/features/auth/api/authApi";
 import { applyHomeBoardPreset } from "@/features/dashboard/lib/home-board-preset";
 import { settingsApi } from "@/features/settings/api/settingsApi";
+import { notifyUserUpdated } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import type { AuthUser } from "@/types/api/auth";
@@ -77,6 +78,10 @@ export function RoleOnboardingOverlay({ onFinish, user }: RoleOnboardingOverlayP
     if (trimmed && trimmed !== user.name) {
       void authApi
         .updateMe({ locale: user.locale ?? "ko", name: trimmed, timezone: user.timezone ?? "Asia/Seoul" })
+        .then((saved) => {
+          // 탑바(AppShell) 사용자 표시를 새로고침 없이 즉시 갱신한다.
+          notifyUserUpdated(saved);
+        })
         .catch(() => undefined);
     }
     setStep(1);

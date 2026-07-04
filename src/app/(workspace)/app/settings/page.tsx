@@ -19,6 +19,7 @@ import { settingsApi } from "@/features/settings/api/settingsApi";
 import { LocalBackupRecoveryPanel, LocalSyncOutboxPanel, TauriSyncStatusPanel } from "@/features/settings/components";
 import { isBackendWidgetBubbleType, widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyUserUpdated } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { Locale, MessageKey, TranslateVars } from "@/lib/i18n";
 import {
@@ -513,6 +514,8 @@ export default function SettingsPage() {
       const nextUser: AuthUser = { ...state.user, ...patch };
       updateReadyState((current) => ({ ...current, user: nextUser }));
       if (patch.locale) setLocale(patch.locale as Locale);
+      // 탑바(AppShell) 사용자 표시도 저장을 기다리지 않고 낙관적으로 즉시 갱신한다.
+      notifyUserUpdated(nextUser);
       setMessage({ text: t("settings.msg.displaySaved"), tone: "approved" });
 
       try {
@@ -522,6 +525,7 @@ export default function SettingsPage() {
           timezone: nextUser.timezone ?? "Asia/Seoul",
         });
         updateReadyState((current) => ({ ...current, user: saved }));
+        notifyUserUpdated(saved);
       } catch {
         if (shouldUseWorkspacePreviewData()) return;
         setMessage({ text: t("settings.msg.saveFailed"), tone: "warning" });

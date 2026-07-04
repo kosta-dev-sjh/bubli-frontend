@@ -24,6 +24,7 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { Locale, MessageKey, TranslateVars } from "@/lib/i18n";
 import { useActiveProjectRoom } from "@/lib/use-active-project-room";
@@ -44,6 +45,9 @@ type PageState =
   | { events: ScheduleResponse[]; kind: "ready"; roomEvents: ProjectRoomEventEnvelope[]; scheduleLoadFailed?: boolean }
   | { kind: "auth" }
   | { kind: "offline" };
+
+// 데이터 변경 이벤트 발행 주체 — 이 화면이 자기 변경(낙관적 갱신 완료분)으로 재조회하지 않게 한다.
+const CALENDAR_PAGE_EVENT_SOURCE = "calendar-page";
 
 // 출처 키 — 고정 출처(personal/room/external) 외에 구글 캘린더별 `gcal:<calendarId>` 키를 동적으로 만든다.
 type CalendarSourceKey = string;
@@ -267,9 +271,12 @@ function CalendarPageContent() {
     return { end: end.toISOString(), size: 80, start: start.toISOString() };
   }, [currentMonth]);
 
-  const loadEvents = useCallback(async () => {
-    setState({ kind: "loading" });
-    setGoogleConnection({ kind: "loading" });
+  const loadEvents = useCallback(async (options?: { quiet?: boolean }) => {
+    // quiet 재조회(포커스 복귀 재검증)는 기존 격자를 유지해 화면 깜빡임을 막는다.
+    if (!options?.quiet) {
+      setState({ kind: "loading" });
+      setGoogleConnection({ kind: "loading" });
+    }
 
     try {
       const [scheduleResult, roomEventResult, googleConnectionResult] = await Promise.allSettled([
@@ -342,6 +349,13 @@ function CalendarPageContent() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadEvents]);
+
+  // 홈 일정 카드/WBS 팝오버/데스크톱 위젯 등 다른 표면의 일정 변경과
+  // 구글 연동 상태(설정에서 연결/해제)를 포커스 복귀·이벤트로 재검증한다(자기 변경은 무시).
+  const refreshEvents = useCallback(() => {
+    void loadEvents({ quiet: true });
+  }, [loadEvents]);
+  useDataRefresh({ domains: ["schedule"], ignoreSource: CALENDAR_PAGE_EVENT_SOURCE, onRefresh: refreshEvents });
 
   useEffect(() => {
     // 재조회 중(loading)에는 이전 결과를 유지해 화면 깜빡임을 줄인다.
@@ -645,6 +659,8 @@ function CalendarPageContent() {
       );
       // 동기화 이후 구글 원본 그룹을 다시 받아 중복 제거·표시 상태를 맞춘다.
       void loadGoogleEvents();
+      // 동기화로 로컬 일정이 늘거나 상태가 바뀌었을 수 있으니 홈 일정 카드 등에도 알린다.
+      notifyDataChanged("schedule", { source: CALENDAR_PAGE_EVENT_SOURCE });
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setGoogleNotice(t("calendar.notice.loginNeeded"));
@@ -694,6 +710,7 @@ function CalendarPageContent() {
           ? (await calendarApi.updateGoogleCalendarEvent(editingEventId, updateBody)).schedule
           : await calendarApi.updateEvent(editingEventId, updateBody);
         updateEventInState(updated);
+        notifyDataChanged("schedule", { source: CALENDAR_PAGE_EVENT_SOURCE });
         setDraftNotice(t("calendar.draft.updated"));
       } else {
         const created = await calendarApi.createEvent({
@@ -704,6 +721,7 @@ function CalendarPageContent() {
           title,
         });
         updateEventInState(created);
+        notifyDataChanged("schedule", { source: CALENDAR_PAGE_EVENT_SOURCE });
         setDraftNotice(t("calendar.draft.added"));
       }
       closeComposer();
@@ -726,6 +744,7 @@ function CalendarPageContent() {
         await calendarApi.deleteEvent(event.id);
       }
       removeEventFromState(event.id);
+      notifyDataChanged("schedule", { source: CALENDAR_PAGE_EVENT_SOURCE });
       if (editingEventId === event.id) {
         closeComposer();
       }
@@ -763,7 +782,7 @@ function CalendarPageContent() {
       {state.kind === "offline" && (
         <GlassPanel className={styles.statePanel}>
           <strong>{t("calendar.state.offlineTitle")}</strong>
-          <Button onClick={loadEvents} variant="quiet">
+          <Button onClick={() => void loadEvents()} variant="quiet">
             {t("calendar.state.reconnect")}
           </Button>
         </GlassPanel>

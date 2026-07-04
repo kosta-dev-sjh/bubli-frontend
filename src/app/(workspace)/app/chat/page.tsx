@@ -21,6 +21,7 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { getApiBaseUrl } from "@/lib/api/client";
 import { ApiClientError } from "@/lib/api/errors";
 import { getAuthAccessToken } from "@/lib/auth/auth-session";
+import { notifyDataChanged } from "@/lib/data-changed";
 import {
   chatTypingDestinations,
   getChatRealtimeClient,
@@ -1579,6 +1580,8 @@ function ChatPageContent() {
         formData.append("file", selectedAttachment);
         const uploaded = await resourcesApi.upload(formData);
         resourceId = uploaded.id;
+        // 첨부 업로드는 자료보드에도 등록된다 — 자료 목록/홈 최근 자료 카드에 즉시 반영한다.
+        notifyDataChanged("resource");
       }
 
       const messageType = selectedAttachment && !text ? "FILE" : "TEXT";
