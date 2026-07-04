@@ -44,8 +44,16 @@ type ServerUsageRollupMapping = {
   request: WidgetUsageSummarySyncCandidate;
 };
 
-function getWidgetUsageDeviceId(): string {
-  return "tauri-local-device";
+let cachedWidgetUsageDeviceId: string | null = null;
+
+async function getWidgetUsageDeviceId(): Promise<string> {
+  if (cachedWidgetUsageDeviceId) {
+    return cachedWidgetUsageDeviceId;
+  }
+
+  const identity = await tauriCommands.getOrCreateWidgetUsageDeviceId();
+  cachedWidgetUsageDeviceId = identity.deviceId;
+  return cachedWidgetUsageDeviceId;
 }
 
 function isLocalWidgetBubbleType(value: string): value is WidgetBubbleType {
@@ -57,13 +65,13 @@ function isBackendSupportedRollup(rollup: WidgetUsageSummaryStagedRollup) {
   return isBackendWidgetBubbleType(toApiWidgetBubbleType(rollup.bubbleType));
 }
 
-function toServerUsageRollupMappings(
+async function toServerUsageRollupMappings(
   rollups: WidgetUsageSummaryStagedRollup[],
   settings: WidgetSettingsResponse,
   syncedAt: string,
-): ServerUsageRollupMapping[] {
+): Promise<ServerUsageRollupMapping[]> {
   const settingsByType = new Map(settings.bubbles.map((bubble) => [bubble.bubbleType, bubble]));
-  const deviceId = getWidgetUsageDeviceId();
+  const deviceId = await getWidgetUsageDeviceId();
 
   return rollups.flatMap((rollup) => {
     if (!isLocalWidgetBubbleType(rollup.bubbleType)) {
@@ -189,7 +197,7 @@ export async function syncLocalWidgetUsageSummaryToServer(
           }))
         : { syncedCount: 0 };
 
-    const mappings = toServerUsageRollupMappings(backendRollups, settings, syncedAt);
+    const mappings = await toServerUsageRollupMappings(backendRollups, settings, syncedAt);
     if (backendRollups.length === 0 && localOnlyRollupKeys.length > 0) {
       return ready(
         {

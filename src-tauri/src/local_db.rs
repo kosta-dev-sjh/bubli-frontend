@@ -335,6 +335,12 @@ pub struct ActivityContextSyncStageResult {
     staged_at: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetUsageDeviceIdentityResult {
+    device_id: String,
+}
+
 #[tauri::command]
 pub fn check_local_sqlite_integrity(
     state: tauri::State<'_, Db>,
@@ -672,6 +678,39 @@ pub fn clear_tauri_auth_session(state: tauri::State<'_, Db>) -> Result<(), Strin
     conn.execute("DELETE FROM local_auth_session WHERE id = 1", [])
         .map_err(|error| error.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_or_create_widget_usage_device_id(
+    state: tauri::State<'_, Db>,
+) -> Result<WidgetUsageDeviceIdentityResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    get_or_create_widget_usage_device_id_for_conn(&conn)
+}
+
+fn get_or_create_widget_usage_device_id_for_conn(
+    conn: &Connection,
+) -> Result<WidgetUsageDeviceIdentityResult, String> {
+    if let Some(device_id) = conn
+        .query_row(
+            "SELECT device_id FROM local_device_identity WHERE id = 1",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+    {
+        return Ok(WidgetUsageDeviceIdentityResult { device_id });
+    }
+
+    let device_id = format!("tauri-widget-{}", Uuid::new_v4());
+    conn.execute(
+        "INSERT INTO local_device_identity (id, device_id, created_at) VALUES (1, ?1, ?2)",
+        params![device_id, now_ms()],
+    )
+    .map_err(|error| error.to_string())?;
+
+    Ok(WidgetUsageDeviceIdentityResult { device_id })
 }
 
 #[tauri::command]
@@ -1336,6 +1375,13 @@ CREATE TABLE IF NOT EXISTS local_active_project_room (
     saved_at   INTEGER NOT NULL
 );
 
+-- Stable, per-install device identity for local widget usage rollup sync.
+CREATE TABLE IF NOT EXISTS local_device_identity (
+    id         INTEGER PRIMARY KEY CHECK (id = 1),
+    device_id  TEXT NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL
+);
+
 -- Personal managed folders (user-selected). Personal-only: no room_id column.
 CREATE TABLE IF NOT EXISTS managed_folders (
     id            TEXT PRIMARY KEY,
@@ -1521,12 +1567,13 @@ CREATE INDEX IF NOT EXISTS idx_local_activity_buffer_status ON local_activity_bu
 mod tests {
     use super::{
         apply_pending_sqlite_restore, check_local_sqlite_integrity_for_conn,
-        list_local_sqlite_backups_for_conn, mark_activity_context_synced_conn, now_ms,
-        read_active_project_room_for_conn, read_auth_session_json, read_room_messages_for_conn,
-        read_widget_summary_cache_for_conn, record_activity_context_conn,
-        record_timer_state_for_conn, recover_timer_state_for_conn, restore_request_path,
-        stage_activity_contexts_for_sync_conn, store_active_project_room_for_conn,
-        store_auth_session_json, store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
+        get_or_create_widget_usage_device_id_for_conn, list_local_sqlite_backups_for_conn,
+        mark_activity_context_synced_conn, now_ms, read_active_project_room_for_conn,
+        read_auth_session_json, read_room_messages_for_conn, read_widget_summary_cache_for_conn,
+        record_activity_context_conn, record_timer_state_for_conn, recover_timer_state_for_conn,
+        restore_request_path, stage_activity_contexts_for_sync_conn,
+        store_active_project_room_for_conn, store_auth_session_json,
+        store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
         validate_auth_session_json, validate_widget_summary_json,
         write_pending_sqlite_restore_to_path, ActiveProjectRoomStoreInput,
         ActivityContextRecordInput, ActivityContextSyncInput, LocalRoomMessageCacheInput,
@@ -1569,6 +1616,20 @@ mod tests {
         let error = validate_auth_session_json(r#"{"accessToken":"access-token"}"#)
             .expect_err("incomplete session should fail");
         assert!(error.contains("refreshToken"));
+    }
+
+    #[test]
+    fn widget_usage_device_identity_is_persistent() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+
+        let first = get_or_create_widget_usage_device_id_for_conn(&conn)
+            .expect("create widget usage device identity");
+        let second = get_or_create_widget_usage_device_id_for_conn(&conn)
+            .expect("read widget usage device identity");
+
+        assert!(first.device_id.starts_with("tauri-widget-"));
+        assert_eq!(first.device_id, second.device_id);
     }
 
     #[test]

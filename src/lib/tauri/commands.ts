@@ -12,6 +12,7 @@ export const TAURI_COMMANDS = {
   flushSyncOutbox: "flush_sync_outbox",
   getIndexProgress: "get_index_progress",
   getLocalFileAnalysisStatus: "get_local_file_analysis_status",
+  getOrCreateWidgetUsageDeviceId: "get_or_create_widget_usage_device_id",
   getPreferredAppMonitor: "get_preferred_app_monitor",
   getWidgetBarItems: "get_widget_bar_items",
   getWidgetWindowState: "get_widget_window_state",
@@ -549,6 +550,10 @@ export type WidgetUsageEventRecordResult = {
   recordedAt: string;
 };
 
+export type WidgetUsageDeviceIdentityResult = {
+  deviceId: string;
+};
+
 export type WidgetUsageRollupInput = {
   summaryDate?: string;
 };
@@ -828,6 +833,10 @@ export type TauriCommandContract = {
     args: WidgetUsageEventInput;
     result: WidgetUsageEventRecordResult;
   };
+  get_or_create_widget_usage_device_id: {
+    args: undefined;
+    result: WidgetUsageDeviceIdentityResult;
+  };
   remove_managed_folder: {
     args: ManagedFolderCommandInput;
     result: ManagedFolderRemoveResult;
@@ -1103,6 +1112,9 @@ export const tauriCommands = {
       () => pendingWidgetUsageEventRecords.delete(promise),
     );
     return promise;
+  },
+  getOrCreateWidgetUsageDeviceId() {
+    return invokeTauri<WidgetUsageDeviceIdentityResult>(TAURI_COMMANDS.getOrCreateWidgetUsageDeviceId);
   },
   removeManagedFolder(input: ManagedFolderCommandInput) {
     return invokeTauri<ManagedFolderRemoveResult>(TAURI_COMMANDS.removeManagedFolder, { input });
