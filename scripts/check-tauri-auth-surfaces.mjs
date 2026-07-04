@@ -16,6 +16,7 @@ const files = {
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
   widgetAuthHeaders: "src/features/widget/api/widgetAuthHeaders.ts",
   workspaceActiveRoom: "src/lib/workspace-active-room.ts",
+  workspacePreviewData: "src/lib/workspace-preview-data.ts",
 };
 
 function read(path) {
@@ -57,6 +58,7 @@ const authSession = read(files.authSession);
 const widgetPage = read(files.desktopWidgetPage);
 const widgetAuthHeaders = read(files.widgetAuthHeaders);
 const workspaceActiveRoom = read(files.workspaceActiveRoom);
+const workspacePreviewData = read(files.workspacePreviewData);
 const desktopCommunicationRoute = read(files.desktopCommunicationRoute);
 const projectRoomChatRoute = read(files.projectRoomChatRoute);
 
@@ -263,6 +265,11 @@ assertContains(
   widgetAuthHeaders,
   /!isTauriRuntime\(\)[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_PREVIEW_DATA === "true"/,
   "Widget dev bearer headers must stay web-preview only and must not mask missing Tauri auth sessions.",
+);
+assertContains(
+  workspacePreviewData,
+  /function shouldUseWorkspacePreviewData\(\) \{[\s\S]*if \(isTauriRuntime\(\)\) return false;[\s\S]*NEXT_PUBLIC_BUBLI_PREVIEW_DATA === "true"/,
+  "Workspace preview data must be disabled inside Tauri so hybrid app and widgets use real auth/API state.",
 );
 
 assertContains(
