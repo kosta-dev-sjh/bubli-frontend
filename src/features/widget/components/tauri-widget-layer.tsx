@@ -23,6 +23,12 @@ import type { MessageKey } from "@/lib/i18n";
 
 import styles from "./tauri-widget-layer.module.css";
 
+// [TAURI WIDGET HOOK] 이모지 퐁퐁 데스크톱 미러링(미구현):
+// 채팅에서 이모지 전용 메시지가 오면 window에 "bubli:emoji-splash" CustomEvent가 발행된다
+// (계약: src/features/communication/components/emoji-splash-layer.tsx의 EmojiSplashDetail).
+// 데스크톱 위젯 레이어를 확장할 때 이 이벤트를 구독해 Tauri 오버레이 창(항상 위 투명 창)으로
+// 이모지를 미러링하면 된다 — 웹/하이브리드 스레드 오버레이는 이미 EmojiSplashLayer가 담당한다.
+
 type WidgetBubbleEntry = {
   title: MessageKey;
   dockLabel: MessageKey;

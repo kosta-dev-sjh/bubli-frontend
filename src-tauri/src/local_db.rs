@@ -416,31 +416,24 @@ fn metadata_len(path: &Path) -> Result<u64, String> {
     }
 }
 
-#[tauri::command]
-pub fn backup_local_sqlite(
-    app: AppHandle,
-    state: tauri::State<'_, Db>,
+fn create_local_sqlite_backup_for_conn(
+    conn: &Connection,
+    backup_dir: &Path,
+    backup_id: String,
+    created_at: String,
 ) -> Result<LocalBackupResult, String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("app_data_dir resolve failed: {error}"))?;
-    let backup_dir = app_data_dir.join("backups");
-    std::fs::create_dir_all(&backup_dir).map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(backup_dir).map_err(|error| error.to_string())?;
 
-    let backup_id = Uuid::new_v4().to_string();
     let file_name = format!("bubli-local-{backup_id}.sqlite3");
     let backup_path = backup_dir.join(&file_name);
     let backup_path_sql = backup_path.to_string_lossy().replace('\'', "''");
 
-    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
     conn.execute_batch(&format!("VACUUM main INTO '{backup_path_sql}'"))
         .map_err(|error| error.to_string())?;
 
     let size_bytes = std::fs::metadata(&backup_path)
         .map_err(|error| error.to_string())?
         .len();
-    let created_at = now_iso();
     conn.execute(
         "INSERT INTO local_backup_manifest (id, file_name, path, size_bytes, created_at) \
          VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -463,6 +456,21 @@ pub fn backup_local_sqlite(
 }
 
 #[tauri::command]
+pub fn backup_local_sqlite(
+    app: AppHandle,
+    state: tauri::State<'_, Db>,
+) -> Result<LocalBackupResult, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("app_data_dir resolve failed: {error}"))?;
+    let backup_dir = app_data_dir.join("backups");
+
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    create_local_sqlite_backup_for_conn(&conn, &backup_dir, Uuid::new_v4().to_string(), now_iso())
+}
+
+#[tauri::command]
 pub fn list_local_sqlite_backups(
     state: tauri::State<'_, Db>,
 ) -> Result<LocalBackupManifestResult, String> {
@@ -481,26 +489,12 @@ pub fn restore_local_sqlite_backup(
         return Err("backupId is required".to_string());
     }
 
-    let backup_path = {
-        let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-        read_local_backup_path_for_conn(&conn, backup_id)?
-    }
-    .ok_or_else(|| format!("backup not found: {backup_id}"))?;
-
-    verify_sqlite_file(&backup_path)?;
-
-    let request = PendingSqliteRestore {
-        backup_id: backup_id.to_string(),
-        backup_path: backup_path.to_string_lossy().to_string(),
-        requested_at: now_iso(),
-    };
-    write_pending_sqlite_restore(&app, &request)?;
-
-    Ok(LocalBackupRestoreResult {
-        backup_id: backup_id.to_string(),
-        requires_restart: true,
-        restored_at: request.requested_at,
-    })
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("app_data_dir resolve failed: {error}"))?;
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    queue_local_sqlite_restore_for_conn(&conn, &app_data_dir, backup_id, now_iso())
 }
 
 fn list_local_sqlite_backups_for_conn(
@@ -549,16 +543,30 @@ fn read_local_backup_path_for_conn(
     .map_err(|error| error.to_string())
 }
 
-fn write_pending_sqlite_restore(
-    app: &AppHandle,
-    request: &PendingSqliteRestore,
-) -> Result<(), String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("app_data_dir resolve failed: {error}"))?;
-    std::fs::create_dir_all(&app_data_dir).map_err(|error| error.to_string())?;
-    write_pending_sqlite_restore_to_path(&restore_request_path(&app_data_dir), request)
+fn queue_local_sqlite_restore_for_conn(
+    conn: &Connection,
+    app_data_dir: &Path,
+    backup_id: &str,
+    requested_at: String,
+) -> Result<LocalBackupRestoreResult, String> {
+    let backup_path = read_local_backup_path_for_conn(conn, backup_id)?
+        .ok_or_else(|| format!("backup not found: {backup_id}"))?;
+
+    verify_sqlite_file(&backup_path)?;
+
+    let request = PendingSqliteRestore {
+        backup_id: backup_id.to_string(),
+        backup_path: backup_path.to_string_lossy().to_string(),
+        requested_at,
+    };
+    std::fs::create_dir_all(app_data_dir).map_err(|error| error.to_string())?;
+    write_pending_sqlite_restore_to_path(&restore_request_path(app_data_dir), &request)?;
+
+    Ok(LocalBackupRestoreResult {
+        backup_id: backup_id.to_string(),
+        requires_restart: true,
+        restored_at: request.requested_at,
+    })
 }
 
 fn write_pending_sqlite_restore_to_path(
@@ -977,6 +985,51 @@ fn read_widget_summary_cache_for_conn(
     )
     .optional()
     .map_err(|error| error.to_string())
+}
+
+/// Persist the user-chosen window size (logical px) for a bubble type.
+/// Follows the widget display cache upsert pattern: one row per key.
+pub fn store_widget_bubble_size_for_conn(
+    conn: &Connection,
+    bubble_type: &str,
+    width: i64,
+    height: i64,
+) -> Result<(), String> {
+    let bubble_type = bubble_type.trim();
+    if bubble_type.is_empty() {
+        return Err("bubbleType is required to store a widget size".to_string());
+    }
+    if width <= 0 || height <= 0 {
+        return Err("widget size must be positive".to_string());
+    }
+
+    conn.execute(
+        "INSERT INTO local_widget_bubble_sizes (bubble_type, width, height, updated_at) \
+         VALUES (?1, ?2, ?3, ?4) \
+         ON CONFLICT(bubble_type) DO UPDATE SET \
+           width = excluded.width, \
+           height = excluded.height, \
+           updated_at = excluded.updated_at",
+        params![bubble_type, width, height, now_ms()],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+/// Read every persisted user widget size as (bubble_type, width, height).
+/// lib.rs clamps the values against the current defaults before applying them.
+pub fn read_widget_bubble_sizes_for_conn(
+    conn: &Connection,
+) -> Result<Vec<(String, i64, i64)>, String> {
+    let mut stmt = conn
+        .prepare("SELECT bubble_type, width, height FROM local_widget_bubble_sizes")
+        .map_err(|error| error.to_string())?;
+    let rows = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    Ok(rows)
 }
 
 fn widget_summary_cache_id(cache_key: Option<&str>) -> String {
@@ -1517,6 +1570,17 @@ CREATE TABLE IF NOT EXISTS local_widget_display_cache (
     cached_at    INTEGER NOT NULL
 );
 
+-- User-resized widget bubble window sizes (logical px, per bubble type).
+-- Written when the user releases a corner-drag resize; read once at app start
+-- so reopened bubbles restore the user size within the min/max clamps
+-- (min = bubble default size, max = min x 1.6, enforced in lib.rs).
+CREATE TABLE IF NOT EXISTS local_widget_bubble_sizes (
+    bubble_type TEXT PRIMARY KEY,
+    width       INTEGER NOT NULL,
+    height      INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS local_timer_state (
     id                 TEXT PRIMARY KEY,
     room_id            TEXT,
@@ -1567,12 +1631,14 @@ CREATE INDEX IF NOT EXISTS idx_local_activity_buffer_status ON local_activity_bu
 mod tests {
     use super::{
         apply_pending_sqlite_restore, check_local_sqlite_integrity_for_conn,
-        get_or_create_widget_usage_device_id_for_conn, list_local_sqlite_backups_for_conn,
-        mark_activity_context_synced_conn, now_ms, read_active_project_room_for_conn,
-        read_auth_session_json, read_room_messages_for_conn, read_widget_summary_cache_for_conn,
-        record_activity_context_conn, record_timer_state_for_conn, recover_timer_state_for_conn,
-        restore_request_path, stage_activity_contexts_for_sync_conn,
-        store_active_project_room_for_conn, store_auth_session_json,
+        create_local_sqlite_backup_for_conn, get_or_create_widget_usage_device_id_for_conn,
+        list_local_sqlite_backups_for_conn, mark_activity_context_synced_conn, now_ms,
+        queue_local_sqlite_restore_for_conn, read_active_project_room_for_conn,
+        read_auth_session_json, read_room_messages_for_conn, read_widget_bubble_sizes_for_conn,
+        read_widget_summary_cache_for_conn, record_activity_context_conn,
+        record_timer_state_for_conn, recover_timer_state_for_conn, restore_request_path,
+        stage_activity_contexts_for_sync_conn, store_active_project_room_for_conn,
+        store_auth_session_json, store_widget_bubble_size_for_conn,
         store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
         validate_auth_session_json, validate_widget_summary_json,
         write_pending_sqlite_restore_to_path, ActiveProjectRoomStoreInput,
@@ -1580,7 +1646,8 @@ mod tests {
         LocalRoomMessageReadInput, LocalRoomMessageSyncInput, PendingSqliteRestore,
         TimerStateRecordInput, ACTIVITY_SYNC_PENDING_STALE_MS, SCHEMA_SQL,
     };
-    use rusqlite::{params, Connection};
+    use rusqlite::{params, Connection, OpenFlags};
+    use std::path::PathBuf;
 
     fn auth_session_fixture() -> String {
         serde_json::json!({
@@ -1619,6 +1686,28 @@ mod tests {
     }
 
     #[test]
+    fn widget_bubble_size_upserts_one_row_per_bubble_type() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+
+        store_widget_bubble_size_for_conn(&conn, "todo", 420, 480).expect("store size");
+        store_widget_bubble_size_for_conn(&conn, "todo", 440, 500).expect("update size");
+        store_widget_bubble_size_for_conn(&conn, "memo", 380, 400).expect("store second size");
+        assert!(store_widget_bubble_size_for_conn(&conn, " ", 10, 10).is_err());
+        assert!(store_widget_bubble_size_for_conn(&conn, "todo", 0, 10).is_err());
+
+        let mut sizes = read_widget_bubble_sizes_for_conn(&conn).expect("read sizes");
+        sizes.sort();
+        assert_eq!(
+            sizes,
+            vec![
+                ("memo".to_string(), 380, 400),
+                ("todo".to_string(), 440, 500)
+            ]
+        );
+    }
+
+    #[test]
     fn widget_usage_device_identity_is_persistent() {
         let conn = Connection::open_in_memory().expect("open in-memory db");
         conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
@@ -1653,6 +1742,124 @@ mod tests {
         assert_eq!(manifest.backups[0].file_name, "new.sqlite3");
         assert_eq!(manifest.backups[0].size_bytes, 20);
         assert!(!manifest.read_at.is_empty());
+    }
+
+    #[test]
+    fn creates_file_backup_and_records_manifest() {
+        let test_dir =
+            std::env::temp_dir().join(format!("bubli-sqlite-backup-{}", uuid::Uuid::new_v4()));
+        let backup_dir = test_dir.join("backups");
+        std::fs::create_dir_all(&test_dir).expect("create test dir");
+        let db_path = test_dir.join("bubli-local.sqlite3");
+        let conn = Connection::open(&db_path).expect("open file db");
+        super::configure_connection(&conn);
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+        conn.execute(
+            "INSERT INTO local_widget_usage_events \
+             (id, bubble_type, event_type, item_id, item_type, occurred_at, created_at) \
+             VALUES ('event-1', 'todo', 'OPEN', 'todo-1', 'todo', '2026-07-05T00:00:00+00:00', 1)",
+            [],
+        )
+        .expect("seed source row");
+
+        let result = create_local_sqlite_backup_for_conn(
+            &conn,
+            &backup_dir,
+            "backup-test".to_string(),
+            "2026-07-05T00:00:00+00:00".to_string(),
+        )
+        .expect("create local sqlite backup");
+
+        let backup_path = backup_dir.join(&result.file_name);
+        assert_eq!(result.backup_id, "backup-test");
+        assert_eq!(result.file_name, "bubli-local-backup-test.sqlite3");
+        assert!(backup_path.exists());
+        assert!(result.size_bytes > 0);
+        assert_eq!(
+            result.size_bytes,
+            std::fs::metadata(&backup_path).unwrap().len()
+        );
+
+        let manifest = list_local_sqlite_backups_for_conn(&conn).expect("list backups");
+        assert_eq!(manifest.latest_backup_id.as_deref(), Some("backup-test"));
+        assert_eq!(manifest.backups[0].size_bytes, result.size_bytes);
+
+        let copied = Connection::open_with_flags(&backup_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .expect("open copied backup");
+        let copied_count: i64 = copied
+            .query_row(
+                "SELECT COUNT(*) FROM local_widget_usage_events WHERE id = 'event-1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read copied source row");
+        assert_eq!(copied_count, 1);
+
+        drop(copied);
+        drop(conn);
+        std::fs::remove_dir_all(&test_dir).expect("remove test dir");
+    }
+
+    #[test]
+    fn queues_restore_request_from_manifest_backup() {
+        let test_dir = std::env::temp_dir().join(format!(
+            "bubli-sqlite-restore-request-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let backup_dir = test_dir.join("backups");
+        std::fs::create_dir_all(&backup_dir).expect("create backup dir");
+        let backup_path = backup_dir.join("backup.sqlite3");
+        let backup = Connection::open(&backup_path).expect("open backup db");
+        backup
+            .execute_batch(
+                "CREATE TABLE marker (value TEXT NOT NULL);
+                 INSERT INTO marker (value) VALUES ('backup');",
+            )
+            .expect("seed backup db");
+        drop(backup);
+
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+        conn.execute(
+            "INSERT INTO local_backup_manifest (id, file_name, path, size_bytes, created_at) \
+             VALUES ('backup-queued', 'backup.sqlite3', ?1, 32, '2026-07-05T00:00:00+00:00')",
+            params![backup_path.to_string_lossy()],
+        )
+        .expect("insert backup manifest");
+
+        let result = queue_local_sqlite_restore_for_conn(
+            &conn,
+            &test_dir,
+            "backup-queued",
+            "2026-07-05T01:00:00+00:00".to_string(),
+        )
+        .expect("queue restore");
+
+        assert_eq!(result.backup_id, "backup-queued");
+        assert!(result.requires_restart);
+        assert_eq!(result.restored_at, "2026-07-05T01:00:00+00:00");
+
+        let request_path = restore_request_path(&test_dir);
+        let payload = std::fs::read(&request_path).expect("read restore request");
+        let request: PendingSqliteRestore =
+            serde_json::from_slice(&payload).expect("parse restore request");
+        assert_eq!(request.backup_id, "backup-queued");
+        assert_eq!(PathBuf::from(request.backup_path), backup_path);
+        assert_eq!(request.requested_at, "2026-07-05T01:00:00+00:00");
+
+        let missing = match queue_local_sqlite_restore_for_conn(
+            &conn,
+            &test_dir,
+            "missing-backup",
+            "2026-07-05T02:00:00+00:00".to_string(),
+        ) {
+            Ok(_) => panic!("missing backup should fail"),
+            Err(error) => error,
+        };
+        assert!(missing.contains("backup not found: missing-backup"));
+
+        drop(conn);
+        std::fs::remove_dir_all(&test_dir).expect("remove test dir");
     }
 
     #[test]

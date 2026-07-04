@@ -3906,79 +3906,6 @@ button.workspace-route__friend-row:hover {
   max-width: 480px;
 }
 
-/* 초대 링크 — 친구 관리 모달 안의 룸 초대 링크 생성/복사 행 */
-.workspace-route__chat-invite-link {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.workspace-route__chat-invite-link button {
-  display: inline-flex;
-  min-height: 36px;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  border: 1px solid rgba(111, 184, 242, 0.4);
-  border-radius: 999px;
-  padding: 0 14px;
-  color: var(--blue-ink);
-  background: rgba(231, 246, 255, 0.78);
-  box-shadow: var(--inner-highlight-light);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 780;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    border-color 160ms var(--ease-out),
-    background 160ms var(--ease-out);
-}
-
-.workspace-route__chat-invite-link button:hover:not(:disabled) {
-  border-color: rgba(111, 184, 242, 0.62);
-  background: rgba(216, 240, 255, 0.9);
-}
-
-.workspace-route__chat-invite-link button:disabled {
-  cursor: wait;
-  opacity: 0.6;
-}
-
-.workspace-route__chat-invite-link input {
-  flex: 1 1 160px;
-  min-width: 0;
-  min-height: 36px;
-  border: 1px solid rgba(190, 213, 230, 0.72);
-  border-radius: 12px;
-  padding: 0 10px;
-  color: var(--color-muted);
-  background: rgba(255, 255, 255, 0.78);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 560;
-  text-overflow: ellipsis;
-}
-
-[data-theme="dark"] .workspace-route__chat-invite-link button {
-  border-color: rgba(158, 216, 255, 0.3);
-  color: #BFD6F5;
-  background: rgba(158, 216, 255, 0.12);
-  box-shadow: var(--inner-highlight-dark);
-}
-
-[data-theme="dark"] .workspace-route__chat-invite-link button:hover:not(:disabled) {
-  border-color: rgba(158, 216, 255, 0.48);
-  background: rgba(158, 216, 255, 0.18);
-}
-
-[data-theme="dark"] .workspace-route__chat-invite-link input {
-  border-color: rgba(150, 170, 215, 0.2);
-  color: #A7B6CC;
-  background: rgba(28, 39, 61, 0.6);
-}
-
 .workspace-route__voice-person {
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
@@ -10569,22 +10496,6 @@ html {
   color: var(--color-muted);
   font-size: 14px;
   line-height: 1.65;
-}
-
-.hybrid-frame__mock {
-  display: grid;
-  gap: 8px;
-  min-height: 116px;
-  border: 1px solid rgba(107, 143, 168, 0.12);
-  border-radius: 15px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.52);
-}
-
-.hybrid-frame__mock-line {
-  height: 11px;
-  border-radius: var(--radius-pill);
-  background: rgba(107, 143, 168, 0.12);
 }
 
 .hybrid-frame__note {

@@ -12,14 +12,28 @@ import {
   restoreStoredAuthSessionFromTauri,
 } from "@/lib/auth/auth-session";
 import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
+import { startWidgetDataChangedBridge } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+
+const runtimeSmokeEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
 
 export function TauriPostLoginLauncher() {
   const pathname = usePathname();
   const isDesktopWidgetSurface = pathname === "/desktop-widget" || pathname.startsWith("/desktop-widget/");
 
+  // 메인(하이브리드) 창 ↔ 위젯 버블 창 데이터 변경 이벤트 브릿지:
+  // window bubli:data-changed → tauri emit(열린 버블이 즉시 조용한 재조회), tauri 수신(버블 안
+  // 액션) → window 재발행(useDataRefresh 구독 표면 갱신). 위젯 창 자신은 page가 직접 emit/listen한다.
   useEffect(() => {
-    if (!isTauriRuntime() || isDesktopWidgetSurface) {
+    if (!isTauriRuntime() || isDesktopWidgetSurface || runtimeSmokeEnabled) {
+      return;
+    }
+
+    return startWidgetDataChangedBridge();
+  }, [isDesktopWidgetSurface]);
+
+  useEffect(() => {
+    if (!isTauriRuntime() || isDesktopWidgetSurface || runtimeSmokeEnabled) {
       return;
     }
 

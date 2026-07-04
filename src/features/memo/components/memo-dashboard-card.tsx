@@ -1,12 +1,13 @@
 "use client";
 
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import type { FormEvent } from "react";
-import { useCallback, useEffect, useState } from "react";
+import type { FormEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { memoApi } from "@/features/memo/api/memoApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MemoResponse } from "@/types/api/memo";
 
@@ -20,6 +21,8 @@ type MemoListState =
 
 const MEMO_PAGE_SIZE = 10;
 const MEMO_VISIBLE_COUNT = 4;
+// 데이터 변경 이벤트 발행 주체 — 카드 자신이 이미 낙관적으로 갱신한 변경으로 재조회하지 않게 한다.
+const MEMO_CARD_EVENT_SOURCE = "memo-dashboard-card";
 
 // 상태가 ACTIVE인 메모만, 최근 수정 순으로 정렬해 보여준다(dev PR 201 동작 이식).
 function normalizeMemoItems(items: MemoResponse[]) {
@@ -27,6 +30,24 @@ function normalizeMemoItems(items: MemoResponse[]) {
     .filter((memo) => memo.status === "ACTIVE")
     .slice()
     .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+}
+
+// 장문 대응 컴포저 — 1줄에서 시작해 최대 약 5줄(≈123px)까지 늘고 이후 내부 스크롤.
+const MEMO_TEXTAREA_MAX_HEIGHT = 123;
+
+function autoGrowTextarea(node: HTMLTextAreaElement | null) {
+  if (!node) return;
+  node.style.height = "auto";
+  node.style.height = `${Math.min(node.scrollHeight, MEMO_TEXTAREA_MAX_HEIGHT)}px`;
+  node.style.overflowY = node.scrollHeight > MEMO_TEXTAREA_MAX_HEIGHT ? "auto" : "hidden";
+}
+
+// Enter는 줄바꿈, Cmd/Ctrl+Enter는 소속 폼 저장(컴포저 힌트와 동일 계약).
+function submitOnModEnter(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
+  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
 }
 
 function formatMemoTime(value: string) {
@@ -53,6 +74,16 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
   const [busyMemoId, setBusyMemoId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const composeRef = useRef<HTMLTextAreaElement | null>(null);
+  const editRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // 자동 확장 — 값이 바뀔 때마다 높이를 내용에 맞춘다(최대 높이 초과 시 내부 스크롤).
+  useEffect(() => {
+    autoGrowTextarea(composeRef.current);
+  }, [composeBody]);
+  useEffect(() => {
+    autoGrowTextarea(editRef.current);
+  }, [editingBody, editingMemoId]);
 
   const resolveErrorNotice = useCallback(
     (error: unknown, fallbackNotice: string) => {
@@ -67,8 +98,9 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
     [t],
   );
 
-  const loadMemos = useCallback(async () => {
-    setState({ kind: "loading" });
+  const loadMemos = useCallback(async (options?: { quiet?: boolean }) => {
+    // quiet 재조회(이벤트/포커스 복귀)는 기존 목록을 유지해 카드가 깜빡이지 않게 한다.
+    if (!options?.quiet) setState({ kind: "loading" });
 
     try {
       const page = roomId ? await memoApi.listRoom(roomId, { size: MEMO_PAGE_SIZE }) : await memoApi.listPersonal({ size: MEMO_PAGE_SIZE });
@@ -93,6 +125,12 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
     return () => window.clearTimeout(timeoutId);
   }, [loadMemos]);
 
+  // 메모 페이지/데스크톱 위젯 등 다른 표면의 메모 변경을 이벤트·포커스 복귀로 즉시 반영한다.
+  const refreshMemos = useCallback(() => {
+    void loadMemos({ quiet: true });
+  }, [loadMemos]);
+  useDataRefresh({ domains: ["memo"], ignoreSource: MEMO_CARD_EVENT_SOURCE, onRefresh: refreshMemos });
+
   const handleCreate = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -109,6 +147,7 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
         const created = roomId ? await memoApi.createRoom(roomId, { body }) : await memoApi.createPersonal({ body });
         setState((current) => (current.kind === "ready" ? { kind: "ready", memos: [created, ...current.memos] } : current));
         setComposeBody("");
+        notifyDataChanged("memo", { source: MEMO_CARD_EVENT_SOURCE });
         setNotice(t("memo.card.savedNotice"));
       } catch (error) {
         setNotice(resolveErrorNotice(error, t("memo.card.saveFailed")));
@@ -137,6 +176,7 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
         );
         setEditingMemoId(null);
         setEditingBody("");
+        notifyDataChanged("memo", { source: MEMO_CARD_EVENT_SOURCE });
         setNotice(t("memo.card.savedNotice"));
       } catch (error) {
         setNotice(resolveErrorNotice(error, t("memo.card.saveFailed")));
@@ -164,6 +204,7 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
           setEditingMemoId(null);
           setEditingBody("");
         }
+        notifyDataChanged("memo", { source: MEMO_CARD_EVENT_SOURCE });
         setNotice(t("memo.card.deletedNotice"));
       } catch (error) {
         setNotice(resolveErrorNotice(error, t("memo.card.deleteFailed")));
@@ -197,10 +238,14 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
           disabled={creating}
           maxLength={2000}
           onChange={(event) => setComposeBody(event.target.value)}
+          onKeyDown={submitOnModEnter}
           placeholder={t("memo.card.placeholder")}
+          ref={composeRef}
+          rows={1}
           value={composeBody}
         />
         <div className={styles.composeActions}>
+          <span className={styles.composeHint}>{t("memo.card.composerHint")}</span>
           <Button
             disabled={!composeBody.trim() || creating}
             icon={<Plus size={14} strokeWidth={2.1} />}
@@ -239,6 +284,9 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
                     disabled={busyMemoId === memo.id}
                     maxLength={2000}
                     onChange={(event) => setEditingBody(event.target.value)}
+                    onKeyDown={submitOnModEnter}
+                    ref={editRef}
+                    rows={1}
                     value={editingBody}
                   />
                   <div className={styles.editActions}>

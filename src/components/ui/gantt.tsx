@@ -310,6 +310,23 @@ const calculateInnerOffset = (date: Date, range: Range, columnWidth: number) => 
   return (dayOfMonth / totalRangeDays) * columnWidth;
 };
 
+// 오늘 컬럼의 목표 scrollLeft — 오늘이 뷰포트(사이드바 제외) 좌측 1/3 지점에 오게 한다.
+// GanttToday 마커와 같은 산술(getDifferenceIn + calculateInnerOffset)로 위치를 계산하므로
+// 마커 DOM rect(숨김 탭·레이아웃 확정 전에는 전부 0)에 의존하지 않는다.
+export const getGanttTodayScrollLeft = (element: HTMLElement, range: Range): number => {
+  const today = new Date();
+  // GanttProvider의 timelineData는 (올해 - 1)년 1월 1일부터 시작한다(createInitialTimelineData 참고).
+  const timelineStartDate = new Date(today.getFullYear() - 1, 0, 1);
+  const style = getComputedStyle(element);
+  const columnWidth = Number.parseFloat(style.getPropertyValue("--gantt-column-width")) || 0;
+  const sidebarWidth = Number.parseFloat(style.getPropertyValue("--gantt-sidebar-width")) || 0;
+  const todayOffset =
+    getDifferenceIn(range)(today, timelineStartDate) * columnWidth + calculateInnerOffset(today, range, columnWidth);
+  const visibleTimelineWidth = Math.max(0, element.clientWidth - sidebarWidth);
+
+  return Math.max(0, Math.round(todayOffset - visibleTimelineWidth / 3));
+};
+
 const GanttContext = createContext<GanttContextProps>({
   zoom: 100,
   range: "monthly",
@@ -1256,29 +1273,37 @@ export const GanttProvider: FC<GanttProviderProps> = ({ zoom = 100, range = "mon
     setScrollX(element.scrollLeft);
   }, [isDragging, setScrollX]);
 
+  // 마운트/레인지 전환 시 오늘 컬럼을 뷰포트 좌측 1/3 지점으로 이동시킨다.
+  // 이전 구현은 오늘 마커의 getBoundingClientRect에 의존해, 패널이 아직 레이아웃되지 않은(숨김 탭 등
+  // rect가 전부 0인) 시점에 한 번만 실행되고 소진되어 scrollLeft가 0(타임라인 시작 = 작년 1월)에 머물렀다.
+  // 이제는 산술 계산(getGanttTodayScrollLeft)으로 목표 위치를 구하고, 레이아웃이 잡힐 때까지 프레임을 미룬다.
   useEffect(() => {
     const element = scrollRef.current;
     const rangeKey = `${range}:${zoom}`;
     if (!element || centeredRangeRef.current === rangeKey) return;
 
-    centeredRangeRef.current = rangeKey;
-    const frameId = window.requestAnimationFrame(() => {
-      const today = element.querySelector<HTMLElement>('[data-roadmap-ui="gantt-today"]');
-      if (!today) return;
+    let frameId = 0;
+    let attempts = 0;
 
-      const elementRect = element.getBoundingClientRect();
-      const todayRect = today.getBoundingClientRect();
-      const viewportCenter = elementRect.left + sidebarWidth + (element.clientWidth - sidebarWidth) / 2;
-      const todayCenter = todayRect.left + todayRect.width / 2;
-      const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
-      const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, element.scrollLeft + todayCenter - viewportCenter));
+    const alignToday = () => {
+      // clientWidth 0 = 아직 화면에 배치되지 않음 — 시도를 소진하지 않고 다음 프레임으로 미룬다.
+      if (element.clientWidth === 0) {
+        attempts += 1;
+        if (attempts <= 300) {
+          frameId = window.requestAnimationFrame(alignToday);
+        }
+        return;
+      }
 
-      element.scrollTo({ behavior: "auto", left: nextScrollLeft, top: element.scrollTop });
-      setScrollX(nextScrollLeft);
-    });
+      centeredRangeRef.current = rangeKey;
+      element.scrollTo({ behavior: "auto", left: getGanttTodayScrollLeft(element, range), top: element.scrollTop });
+      setScrollX(element.scrollLeft);
+    };
+
+    frameId = window.requestAnimationFrame(alignToday);
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [range, sidebarWidth, setScrollX, zoom]);
+  }, [range, setScrollX, zoom]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: "Throttled"
   const handleScroll = useCallback(

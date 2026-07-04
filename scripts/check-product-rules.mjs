@@ -58,6 +58,10 @@ const DISALLOWED_SOURCE_PATTERNS = [
     reason: "Do not route users to the retired in-app widget review surface.",
   },
   {
+    pattern: /hybrid-frame__mock/i,
+    reason: "Hybrid app surfaces must not keep mock-named UI classes; use neutral live-surface naming.",
+  },
+  {
     pattern: /\b(NEXT_PUBLIC_AGENT|VITE_AGENT|TAURI_AGENT|AGENT_BASE_URL|AGENT_SERVER_URL)\b/,
     reason: "Frontend and Tauri must call the API server, not an agent server directly.",
   },
@@ -83,6 +87,20 @@ const desktopCommunicationRoutePath = join(
   ROOT,
   "src/app/(workspace)/app/desktop/communication/page.tsx",
 );
+const managedFolderClientPath = join(ROOT, "src/lib/local/managed-folder-client.ts");
+const globalsCssPath = join(ROOT, "src/styles/globals.css");
+const tauriLibPath = join(ROOT, "src-tauri/src/lib.rs");
+const tauriSyncStatusPanelPath = join(
+  ROOT,
+  "src/features/settings/components/tauri-sync-status-panel.tsx",
+);
+const activityCapturePath = join(ROOT, "src-tauri/src/activity.rs");
+const localSyncClientPath = join(ROOT, "src/lib/sync/local-sync-client.ts");
+const localSyncOutboxPanelPath = join(
+  ROOT,
+  "src/features/settings/components/local-sync-outbox-panel.tsx",
+);
+const localFilesRustPath = join(ROOT, "src-tauri/src/local_files.rs");
 
 for (const route of DISALLOWED_ROUTES) {
   const absolutePath = join(ROOT, route.path);
@@ -117,9 +135,113 @@ if (existsSync(appNavPath)) {
 
 if (existsSync(desktopCommunicationRoutePath)) {
   const text = readFileSync(desktopCommunicationRoutePath, "utf8");
-  if (!text.includes("/app/chat") || !text.includes("mode") || !text.includes('"room"')) {
+  if (
+    !text.includes("openTauriChatWidget") ||
+    !text.includes("isTauriRuntime") ||
+    !text.includes("/app/chat") ||
+    !text.includes("mode") ||
+    !text.includes('"room"')
+  ) {
     failures.push(
-      "src/app/(workspace)/app/desktop/communication/page.tsx: legacy communication route must redirect to the web chat surface.",
+      "src/app/(workspace)/app/desktop/communication/page.tsx: legacy communication route must bridge to the chat widget in Tauri while preserving the /app/chat web fallback.",
+    );
+  }
+}
+
+if (existsSync(managedFolderClientPath)) {
+  const text = readFileSync(managedFolderClientPath, "utf8");
+  if (text.includes("not wired yet") && text.includes("watchPending")) {
+    failures.push(
+      "src/lib/local/managed-folder-client.ts: native folder watch is implemented; do not mask watch_managed_folder failures as a pending/not-wired state.",
+    );
+  }
+}
+
+if (existsSync(globalsCssPath)) {
+  const text = readFileSync(globalsCssPath, "utf8");
+  if (/hybrid-frame__mock/i.test(text)) {
+    failures.push(
+      "src/styles/globals.css: hybrid app surfaces must not keep mock-named UI classes; use neutral live-surface naming.",
+    );
+  }
+}
+
+if (existsSync(tauriLibPath)) {
+  const text = readFileSync(tauriLibPath, "utf8");
+  if (
+    !text.includes("route_targets_chat_widget") ||
+    !text.includes('path == "/app/chat"') ||
+    !text.includes('segments[1] == "project-rooms"') ||
+    !text.includes('segments[3] == "chat"')
+  ) {
+    failures.push(
+      "src-tauri/src/lib.rs: Tauri open_main_window_route must reject /app/chat and project-room chat routes; chat belongs in the native chat widget.",
+    );
+  }
+}
+
+if (existsSync(tauriSyncStatusPanelPath)) {
+  const text = readFileSync(tauriSyncStatusPanelPath, "utf8");
+  if (
+    !text.includes("hasAdapterIssue") ||
+    !text.includes('result.status !== "pending"') ||
+    !text.includes('result.status !== "ready"') ||
+    !text.includes("hasAdapterIssue ? 1 : 0")
+  ) {
+    failures.push(
+      "src/features/settings/components/tauri-sync-status-panel.tsx: Tauri/SQLite sync adapter failures must be surfaced as unresolved sync issues, not hidden behind an empty summary.",
+    );
+  }
+}
+
+if (existsSync(activityCapturePath)) {
+  const text = readFileSync(activityCapturePath, "utf8");
+  if (
+    !text.includes("windows_app_name_from_process_path") ||
+    text.includes('Ok((format!("process-{process_id}")') ||
+    !text.includes("OpenProcess failed") ||
+    !text.includes("process image query failed")
+  ) {
+    failures.push(
+      "src-tauri/src/activity.rs: Windows activity capture must surface process-name lookup failures instead of recording process-id fallback names as successful activity.",
+    );
+  }
+}
+
+if (existsSync(localSyncClientPath)) {
+  const text = readFileSync(localSyncClientPath, "utf8");
+  if (
+    !text.includes("syncAllLocalOutboxToServer") ||
+    !text.includes("syncPersonalLocalFileEventsToServer") ||
+    !text.includes("syncLocalActivityBufferToServer") ||
+    !text.includes("syncLocalWidgetUsageSummaryToServer") ||
+    !text.includes("waitForPendingWidgetUsageEventRecords")
+  ) {
+    failures.push(
+      "src/lib/sync/local-sync-client.ts: manual local outbox sync must trigger file, activity, and widget usage backend sync paths together after pending widget usage event writes settle.",
+    );
+  }
+}
+
+if (existsSync(localSyncOutboxPanelPath)) {
+  const text = readFileSync(localSyncOutboxPanelPath, "utf8");
+  if (!text.includes("syncAllLocalOutboxToServer") || text.includes("syncPersonalLocalFileEventsToServer")) {
+    failures.push(
+      "src/features/settings/components/local-sync-outbox-panel.tsx: the manual send queue action must use syncAllLocalOutboxToServer instead of the file-only sync path.",
+    );
+  }
+}
+
+if (existsSync(localFilesRustPath)) {
+  const text = readFileSync(localFilesRustPath, "utf8");
+  if (
+    !text.includes("local_activity_buffer") ||
+    !text.includes("local_widget_usage_rollups") ||
+    !text.includes("local_file_events") ||
+    !text.includes("operation NOT IN ('local_file_event', 'widget_usage_summary')")
+  ) {
+    failures.push(
+      "src-tauri/src/local_files.rs: flush_sync_outbox must summarize durable file, activity, and widget usage backlog without double-counting staged outbox rows.",
     );
   }
 }

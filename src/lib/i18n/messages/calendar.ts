@@ -60,6 +60,16 @@ const ko = {
   "calendar.google.readOnlyBadge": "읽기 전용",
   "calendar.google.readOnly": "구글 캘린더 원본 일정은 여기서 수정할 수 없습니다. 구글 캘린더에서 바꾸면 이 화면에도 반영됩니다.",
 
+  // 구글 OAuth 콜백 페이지(/calendar/google/callback)
+  "calendar.googleCallback.pageAria": "구글 캘린더 연결 처리",
+  "calendar.googleCallback.heading": "구글 캘린더 연결",
+  "calendar.googleCallback.connecting": "구글 캘린더를 연결하는 중입니다…",
+  "calendar.googleCallback.redirecting": "연결 완료! 일정 화면으로 이동합니다.",
+  "calendar.googleCallback.failedStatus": "연결하지 못했습니다",
+  "calendar.googleCallback.noCode": "구글에서 인증 코드를 받지 못했습니다. 일정 화면에서 다시 시도해 주세요.",
+  "calendar.googleCallback.failed": "구글 캘린더 연결에 실패했습니다. 일정 화면에서 다시 시도해 주세요.",
+  "calendar.googleCallback.back": "일정으로 돌아가기",
+
   // 알림
   "calendar.notice.disconnected": "구글 캘린더 연결을 해제했습니다.",
   "calendar.notice.syncDone": "동기화 완료: 가져옴 {pulled}건 / 보냄 {pushed}건",
@@ -105,8 +115,12 @@ const ko = {
   // 작성 패널
   "calendar.composer.title": "일정 추가",
   "calendar.composer.editTitle": "일정 수정",
-  "calendar.composer.subtitle": "선택한 날짜의 개인 일정이나 현재 프로젝트룸 일정을 관리합니다.",
+  "calendar.composer.subtitle": "개인 일정은 내 캘린더에, 룸 일정은 멤버 모두에게 보여요.",
   "calendar.composer.close": "닫기",
+  "calendar.composer.targetLabel": "저장 대상",
+  "calendar.composer.targetPersonal": "내 일정",
+  "calendar.composer.targetRoom": "{room} 전체",
+  "calendar.composer.targetRoomFallback": "프로젝트룸 전체",
   "calendar.composer.titleLabel": "제목",
   "calendar.composer.titlePlaceholder": "일정 제목",
   "calendar.composer.dateLabel": "날짜",
@@ -125,6 +139,8 @@ const ko = {
   "calendar.draft.added": "일정을 추가했습니다.",
   "calendar.draft.authRequired": "로그인이 필요합니다.",
   "calendar.draft.saveFailed": "일정을 저장하지 못했습니다.",
+  "calendar.draft.saveServerError": "서버 오류로 저장하지 못했어요. 잠시 후 다시 시도해 주세요.",
+  "calendar.draft.saveForbidden": "이 프로젝트룸에 일정을 추가할 권한이 없어요. 룸 멤버 권한을 확인해 주세요.",
   "calendar.draft.deleteFailed": "일정을 삭제하지 못했습니다.",
   "calendar.draft.deleted": "일정이 삭제되었습니다.",
 
@@ -288,6 +304,15 @@ const en: Record<Key, string> = {
   "calendar.google.readOnlyBadge": "Read-only",
   "calendar.google.readOnly": "Google Calendar source events can't be edited here. Changes made in Google Calendar are reflected on this screen.",
 
+  "calendar.googleCallback.pageAria": "Completing Google Calendar connection",
+  "calendar.googleCallback.heading": "Google Calendar connection",
+  "calendar.googleCallback.connecting": "Connecting your Google Calendar…",
+  "calendar.googleCallback.redirecting": "Connected! Taking you back to your calendar.",
+  "calendar.googleCallback.failedStatus": "Connection failed",
+  "calendar.googleCallback.noCode": "We didn't receive an authorization code from Google. Please try again from the calendar screen.",
+  "calendar.googleCallback.failed": "Couldn't connect Google Calendar. Please try again from the calendar screen.",
+  "calendar.googleCallback.back": "Back to calendar",
+
   "calendar.notice.disconnected": "Disconnected from Google Calendar.",
   "calendar.notice.syncDone": "Sync complete · pulled {pulled} / sent {pushed}",
   "calendar.notice.pullDone": "Pulled {count} events from Google Calendar.",
@@ -327,7 +352,11 @@ const en: Record<Key, string> = {
 
   "calendar.composer.title": "Add event",
   "calendar.composer.editTitle": "Edit event",
-  "calendar.composer.subtitle": "Manage a personal event or a current project room event on the selected date.",
+  "calendar.composer.subtitle": "Personal events go to your calendar; room events are visible to every member.",
+  "calendar.composer.targetLabel": "Save to",
+  "calendar.composer.targetPersonal": "My events",
+  "calendar.composer.targetRoom": "All of {room}",
+  "calendar.composer.targetRoomFallback": "Entire project room",
   "calendar.composer.close": "Close",
   "calendar.composer.titleLabel": "Title",
   "calendar.composer.titlePlaceholder": "Event title",
@@ -346,6 +375,8 @@ const en: Record<Key, string> = {
   "calendar.draft.added": "Event added.",
   "calendar.draft.authRequired": "Login required.",
   "calendar.draft.saveFailed": "Couldn't save the event.",
+  "calendar.draft.saveServerError": "Couldn't save because of a server error. Please try again in a moment.",
+  "calendar.draft.saveForbidden": "You don't have permission to add events to this project room. Check your room membership.",
   "calendar.draft.deleteFailed": "Couldn't delete the event.",
   "calendar.draft.deleted": "The event was deleted.",
 
@@ -503,6 +534,15 @@ const ja: Record<Key, string> = {
   "calendar.google.readOnlyBadge": "読み取り専用",
   "calendar.google.readOnly": "Google カレンダー原本の予定はここでは編集できません。Google カレンダーで変更するとこの画面にも反映されます。",
 
+  "calendar.googleCallback.pageAria": "Google カレンダー連携の処理",
+  "calendar.googleCallback.heading": "Google カレンダー連携",
+  "calendar.googleCallback.connecting": "Google カレンダーを連携しています…",
+  "calendar.googleCallback.redirecting": "連携が完了しました。予定画面に移動します。",
+  "calendar.googleCallback.failedStatus": "連携できませんでした",
+  "calendar.googleCallback.noCode": "Google から認証コードを受け取れませんでした。予定画面からもう一度お試しください。",
+  "calendar.googleCallback.failed": "Google カレンダーの連携に失敗しました。予定画面からもう一度お試しください。",
+  "calendar.googleCallback.back": "予定に戻る",
+
   "calendar.notice.disconnected": "Google カレンダーの連携を解除しました。",
   "calendar.notice.syncDone": "同期完了 · 取り込み {pulled}件 / 送信 {pushed}件",
   "calendar.notice.pullDone": "Google カレンダーから予定 {count}件を取り込みました。",
@@ -542,7 +582,11 @@ const ja: Record<Key, string> = {
 
   "calendar.composer.title": "予定を追加",
   "calendar.composer.editTitle": "予定を編集",
-  "calendar.composer.subtitle": "選択した日付の個人の予定または現在のプロジェクトルームの予定を管理します。",
+  "calendar.composer.subtitle": "個人の予定は自分のカレンダーに、ルームの予定はメンバー全員に表示されます。",
+  "calendar.composer.targetLabel": "保存先",
+  "calendar.composer.targetPersonal": "自分の予定",
+  "calendar.composer.targetRoom": "{room}全体",
+  "calendar.composer.targetRoomFallback": "プロジェクトルーム全体",
   "calendar.composer.close": "閉じる",
   "calendar.composer.titleLabel": "タイトル",
   "calendar.composer.titlePlaceholder": "予定のタイトル",
@@ -561,6 +605,8 @@ const ja: Record<Key, string> = {
   "calendar.draft.added": "予定を追加しました。",
   "calendar.draft.authRequired": "ログインが必要です。",
   "calendar.draft.saveFailed": "予定を保存できませんでした。",
+  "calendar.draft.saveServerError": "サーバーエラーで保存できませんでした。しばらくしてからもう一度お試しください。",
+  "calendar.draft.saveForbidden": "このプロジェクトルームに予定を追加する権限がありません。ルームメンバー権限を確認してください。",
   "calendar.draft.deleteFailed": "予定を削除できませんでした。",
   "calendar.draft.deleted": "予定を削除しました。",
 

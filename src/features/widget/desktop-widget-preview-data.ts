@@ -7,12 +7,18 @@ export type WidgetPreviewItem = {
   /** 목록 라벨을 보조하는 본문 요약(바 hover 팝오버에서만 노출). */
   detail?: string;
   dismissOnOpen?: boolean;
+  /** TODO 마감 칩 톤(지남/오늘/내일/이후) — status 문자열과 함께 계산돼 내려온다. */
+  dueTone?: "later" | "overdue" | "today" | "tomorrow";
   handoffLabel?: string;
   handoffUrl?: string;
   id: string;
   kind?: "agent" | "friend" | "memo" | "message" | "resource" | "schedule" | "task" | "time" | "voice";
   label: string;
   memoBody?: string;
+  /** 개인 컨텍스트에서 룸 태스크 행에 붙는 룸 칩 라벨(룸 이름). */
+  roomName?: string;
+  /** TODO 그룹핑: 내 개인 TODO(personal) vs 나에게 할당된 룸 태스크(room). */
+  sourceKind?: "personal" | "room";
   stateId?: string;
   status: string;
 };

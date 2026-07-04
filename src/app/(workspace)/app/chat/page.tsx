@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Check, Copy, Download, Inbox, Link2, LogOut, Mic, MicOff, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
+import { AtSign, Check, Copy, Download, Inbox, LogOut, Mic, MicOff, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -9,6 +9,14 @@ import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { authApi } from "@/features/auth/api/authApi";
 import { chatApi } from "@/features/communication/api/chatApi";
+import { AgentCommandAutocomplete } from "@/features/communication/components/agent-command-autocomplete";
+import {
+  dispatchEmojiSplash,
+  EmojiSplashLayer,
+  extractEmojiSplashEmojis,
+} from "@/features/communication/components/emoji-splash-layer";
+import { inferAgentCommandMode } from "@/features/communication/lib/agent-commands";
+import { useAgentCommandAutocomplete } from "@/features/communication/lib/use-agent-command-autocomplete";
 import { friendApi } from "@/features/communication/api/friendApi";
 import { voiceApi } from "@/features/communication/api/voiceApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
@@ -16,6 +24,9 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { getApiBaseUrl } from "@/lib/api/client";
 import { ApiClientError } from "@/lib/api/errors";
 import { getAuthAccessToken } from "@/lib/auth/auth-session";
+import { notifyDataChanged } from "@/lib/data-changed";
+import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
   chatTypingDestinations,
   getChatRealtimeClient,
@@ -100,14 +111,6 @@ type RoomInvitationsState =
   | { invitations: ProjectRoomInvitationResponse[]; kind: "ready" }
   | { kind: "loading" }
   | { kind: "offline" };
-
-// 초대 링크 — 링크 생성 후 클립보드 복사까지 한 번에 처리한다(복사 실패 시 URL을 그대로 보여줌).
-// roomId를 함께 저장해 다른 룸으로 바뀌면 이전 룸의 링크가 표시되지 않게 한다.
-type InviteLinkState =
-  | { kind: "idle" }
-  | { kind: "creating"; roomId: string }
-  | { copied: boolean; kind: "ready"; roomId: string; url: string }
-  | { kind: "error"; message: string; roomId: string };
 
 const previewFriends: FriendResponse[] = [
   {
@@ -371,15 +374,8 @@ function parseBubliCommand(t: TranslateFn, text: string): AgentCommandDraft | nu
   if (!match) return null;
 
   const message = match[1]?.trim() || t("chat.agentDefaultPrompt");
-  const normalized = message.toLowerCase();
-  const mode: RoomAgentCommandMode =
-    /^(정리|요약|summary|summarize)\b/.test(normalized)
-      ? "SUMMARIZE"
-      : /^(todo|할일|작업|질문|제안|검토|suggest|proposal)\b/.test(normalized)
-        ? "SUGGEST"
-        : "ANSWER";
-
-  return { message, mode };
+  // 키워드→mode 매핑은 공용 명령 모듈이 단일 출처다(자동완성 목록과 동일 계약).
+  return { message, mode: inferAgentCommandMode(message) };
 }
 
 // 소통 탭 내에서의 다른 페이지(설정, 자료보드 등)로 이동 후 돌아올 때 voice 상태를 유지.
@@ -409,7 +405,6 @@ function ChatPageContent() {
   const [roomInviteState, setRoomInviteState] = useState<RoomInviteState>({ kind: "idle" });
   const [chatRoomInviteState, setChatRoomInviteState] = useState<ChatRoomInviteState>({ kind: "idle" });
   const [roomInvitationsState, setRoomInvitationsState] = useState<RoomInvitationsState>({ kind: "idle" });
-  const [inviteLinkState, setInviteLinkState] = useState<InviteLinkState>({ kind: "idle" });
   const [busyFriendUserId, setBusyFriendUserId] = useState<string | null>(null);
   const [busyFriendRequestId, setBusyFriendRequestId] = useState<string | null>(null);
   // 친구 삭제는 결과를 먼저 알리고 삭제/유지로 확인받는 2단계 확인(프로젝트룸 설정 패널과 동일 패턴).
@@ -451,6 +446,42 @@ function ChatPageContent() {
     lastStartSentAt: 0,
     stopTimer: null,
   });
+  const tauriChatRedirectSentRef = useRef(false);
+
+  useEffect(() => {
+    if (tauriChatRedirectSentRef.current || !isTauriRuntime()) return;
+
+    tauriChatRedirectSentRef.current = true;
+    const fallbackRoute = queryRoomId ? `/app/project-rooms/${encodeURIComponent(queryRoomId)}/work` : "/app";
+    void openTauriChatWidget({ eventType: "handoff:chat-route", roomId: queryRoomId })
+      .then(() => router.replace(fallbackRoute))
+      .catch(() => router.replace(fallbackRoute));
+  }, [queryRoomId, router]);
+
+  // 이모지 퐁퐁 — 이모지만(1~5개)으로 된 TEXT 메시지가 도착하면(내 것/남의 것 모두)
+  // "bubli:emoji-splash" 이벤트를 발행해 스레드 오버레이가 이모지를 띄우게 한다.
+  // 같은 메시지가 REST 응답과 WS 에코로 두 번 들어와도 한 번만 발행되도록 ID로 중복 제거한다.
+  const splashedMessageIdsRef = useRef<Set<string>>(new Set());
+  const maybeSplashEmojiMessage = useCallback((message: ChatMessageResponse) => {
+    if (message.messageType !== "TEXT") return;
+    const text = typeof message.body.text === "string" ? message.body.text : null;
+    if (!text) return;
+    const emojis = extractEmojiSplashEmojis(text);
+    if (!emojis) return;
+
+    const seen = splashedMessageIdsRef.current;
+    const keys = [message.id, message.clientMessageId].filter((key): key is string => Boolean(key));
+    if (keys.some((key) => seen.has(key))) return;
+    if (seen.size > 200) seen.clear();
+    keys.forEach((key) => seen.add(key));
+
+    dispatchEmojiSplash({
+      chatRoomId: message.chatRoomId,
+      emojis,
+      messageId: message.id,
+      senderId: message.sender.id ?? null,
+    });
+  }, []);
 
   const appendMessage = useCallback((message: ChatMessageResponse) => {
     setMessagesState((current) => {
@@ -633,6 +664,23 @@ function ChatPageContent() {
   const selectedProjectRoomName =
     selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? activeRoomInfo.label ?? t("chat.room.fallbackName") : activeRoomInfo.label;
   const pendingAgentCommand = useMemo(() => parseBubliCommand(t, draft), [draft, t]);
+  // /bubli 자동완성 — 프로젝트룸 대화에서만 연다(1:1/그룹에는 에이전트가 없다).
+  // 완성 텍스트를 넣은 뒤 커서를 끝으로 옮겨 이어서 본문을 입력하게 한다.
+  const applyAgentCommandCompletion = useCallback((completedText: string) => {
+    setDraft(completedText);
+    setComposerActive(true);
+    const input = composerInputRef.current;
+    if (!input) return;
+    window.requestAnimationFrame(() => {
+      input.focus();
+      input.setSelectionRange(completedText.length, completedText.length);
+    });
+  }, []);
+  const agentAutocomplete = useAgentCommandAutocomplete({
+    draft,
+    enabled: selectedRoom?.chatType === "ROOM",
+    onApply: applyAgentCommandCompletion,
+  });
   // 컴포저 위 한 줄 인디케이터 문구 — 1명이면 이름, 여럿(에이전트 포함)이면 "여러 명".
   const agentTypingActive = agentTyping !== null && agentTyping.chatRoomId === activeChatRoomId;
   const typingIndicatorText = useMemo(() => {
@@ -959,6 +1007,8 @@ function ChatPageContent() {
       if (!message || message.chatRoomId !== chatRoomId) return;
 
       mergeIncomingMessages([message]);
+      // 남이 보낸(그리고 내 WS 에코) 이모지 전용 메시지 → 이모지 퐁퐁.
+      maybeSplashEmojiMessage(message);
 
       // 에이전트 응답이 도착하면 "Bubli가 입력 중…"을 내린다.
       if (message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT") {
@@ -1020,7 +1070,7 @@ function ChatPageContent() {
       unsubscribeReconnect();
       unsubscribeTyping?.();
     };
-  }, [activeChatRoomId, mergeIncomingMessages, refreshLatestMessages, stopTypingPublish, t]);
+  }, [activeChatRoomId, maybeSplashEmojiMessage, mergeIncomingMessages, refreshLatestMessages, stopTypingPublish, t]);
 
   // "Bubli가 입력 중…" 60초 타임아웃 폴백 — 응답이 끝내 안 오면 조용히 내린다.
   useEffect(() => {
@@ -1203,29 +1253,6 @@ function ChatPageContent() {
     },
     [loadRoomInvitations, roomInviteState.kind, selectedProjectRoomId, t],
   );
-
-  const createRoomInviteLink = useCallback(async () => {
-    if (!selectedProjectRoomId || inviteLinkState.kind === "creating") return;
-    const roomId = selectedProjectRoomId;
-
-    setInviteLinkState({ kind: "creating", roomId });
-
-    try {
-      // 만료 시간을 명시해 백엔드 계약(expiresInHours)을 그대로 따른다 — 설정 패널과 동일.
-      const link = await projectRoomApi.createInviteLink(roomId, { expiresInHours: 72 });
-      const url = `${window.location.origin}/app/invite/${link.token}`;
-      let copied = false;
-      try {
-        await navigator.clipboard.writeText(url);
-        copied = true;
-      } catch {
-        copied = false;
-      }
-      setInviteLinkState({ copied, kind: "ready", roomId, url });
-    } catch {
-      setInviteLinkState({ kind: "error", message: t("chat.invite.linkFailed"), roomId });
-    }
-  }, [inviteLinkState.kind, selectedProjectRoomId, t]);
 
   const cancelRoomInvitation = useCallback(
     async (invitation: ProjectRoomInvitationResponse) => {
@@ -1547,6 +1574,8 @@ function ChatPageContent() {
         formData.append("file", selectedAttachment);
         const uploaded = await resourcesApi.upload(formData);
         resourceId = uploaded.id;
+        // 첨부 업로드는 자료보드에도 등록된다 — 자료 목록/홈 최근 자료 카드에 즉시 반영한다.
+        notifyDataChanged("resource");
       }
 
       const messageType = selectedAttachment && !text ? "FILE" : "TEXT";
@@ -1554,9 +1583,6 @@ function ChatPageContent() {
         ? { attachmentName: selectedAttachment.name, text: text || selectedAttachment.name }
         : { text };
 
-      // TODO(widget): 이모지 전송 시 데스크톱 오버레이 이벤트 발행 지점.
-      // 추후 Tauri 위젯 레이어가 붙으면, text에 포함된 이모지를 감지해
-      // 데스크톱 위로 떠오르는 오버레이(스트리밍 오버레이 스타일) 이벤트를 여기서 emit한다.
       const response = await chatApi.sendMessage(activeChatRoomId, {
         body: messageBody,
         clientMessageId: crypto.randomUUID(),
@@ -1564,6 +1590,11 @@ function ChatPageContent() {
         resourceId,
       });
       appendMessage(response);
+      // 내가 보낸 이모지 전용 메시지도 즉시 퐁퐁 — WS 에코가 오면 ID 중복 제거로 한 번만 뜬다.
+      // [TAURI WIDGET HOOK] dispatchEmojiSplash가 발행하는 "bubli:emoji-splash" CustomEvent를
+      // 데스크톱 위젯 레이어가 나중에 구독해 데스크톱 오버레이 창으로 미러링할 수 있다
+      // (계약과 페이로드는 emoji-splash-layer.tsx 상단 주석 참고 — 지금은 웹 오버레이만 구현).
+      maybeSplashEmojiMessage(response);
       void syncCachedRoomMessages(response.chatRoomId, [response]);
       setDraft("");
       setSelectedAttachment(null);
@@ -1573,7 +1604,7 @@ function ChatPageContent() {
     } finally {
       setSending(false);
     }
-  }, [activeChatRoomId, appendMessage, draft, selectedAttachment, selectedAgentRoomId, selectedRoom, stopTypingPublish, t]);
+  }, [activeChatRoomId, appendMessage, draft, maybeSplashEmojiMessage, selectedAttachment, selectedAgentRoomId, selectedRoom, stopTypingPublish, t]);
 
   const handleDownload = useCallback(async (resourceId: string, fallbackName?: string) => {
     setDownloadingResourceId(resourceId);
@@ -1874,6 +1905,9 @@ function ChatPageContent() {
               </div>
             ) : null}
 
+            {/* 이모지 퐁퐁 오버레이 — 스레드 우하단(컴포저 위)에서 이모지가 떠오른다. 높이 0 앵커라 레이아웃 영향 없음. */}
+            <EmojiSplashLayer chatRoomId={activeChatRoomId} />
+
             {selectedRoom && typingIndicatorText ? (
               <div aria-live="polite" className="workspace-route__typing-line" role="status">
                 <span aria-hidden className="workspace-route__typing-line-dots">
@@ -1898,6 +1932,15 @@ function ChatPageContent() {
                   void sendMessage();
                 }}
               >
+                {agentAutocomplete.open ? (
+                  <AgentCommandAutocomplete
+                    activeIndex={agentAutocomplete.activeIndex}
+                    items={agentAutocomplete.items}
+                    onHoverItem={agentAutocomplete.setActiveIndex}
+                    onPick={agentAutocomplete.pick}
+                    tone="glass"
+                  />
+                ) : null}
                 <div className="workspace-route__composer-main">
                   <button aria-label={t("chat.composer.attach")} onClick={() => fileInputRef.current?.click()} type="button">
                     <Paperclip aria-hidden size={17} strokeWidth={2} />
@@ -1929,6 +1972,8 @@ function ChatPageContent() {
                     }}
                     onFocus={() => setComposerActive(true)}
                     onKeyDown={(event) => {
+                      // 자동완성이 열려 있으면 ↑/↓/Tab/Enter/Esc는 팝오버가 먼저 소비한다.
+                      if (agentAutocomplete.handleKeyDown(event)) return;
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
                         if (!sending) void sendMessage();
@@ -2110,30 +2155,6 @@ function ChatPageContent() {
                 : null}
               {roomInviteState.kind === "sent" ? <span className="workspace-route__pending">{t("chat.invite.roomSent", { name: roomInviteState.friendName, room: selectedProjectRoomName ?? t("chat.room.fallbackName") })}</span> : null}
               {chatRoomInviteState.kind === "sent" ? <span className="workspace-route__pending">{t("chat.invite.chatSent", { name: chatRoomInviteState.friendName })}</span> : null}
-              {/* 초대 링크 — 아직 친구가 아닌 사람도 링크 하나로 룸에 초대. 별도 카드 대신 한 줄로 접어 둔다. */}
-              {selectedProjectRoomId ? (
-                <>
-                  <div className="workspace-route__chat-invite-link">
-                    <button
-                      disabled={inviteLinkState.kind === "creating"}
-                      onClick={() => void createRoomInviteLink()}
-                      type="button"
-                    >
-                      <Link2 aria-hidden size={15} strokeWidth={2} />
-                      {inviteLinkState.kind === "creating" ? t("chat.invite.linkCreating") : t("chat.invite.linkCreate")}
-                    </button>
-                    {inviteLinkState.kind === "ready" && inviteLinkState.roomId === selectedProjectRoomId ? (
-                      <input aria-label={t("chat.invite.linkKicker")} onFocus={(event) => event.currentTarget.select()} readOnly value={inviteLinkState.url} />
-                    ) : null}
-                  </div>
-                  {inviteLinkState.kind === "ready" && inviteLinkState.roomId === selectedProjectRoomId && inviteLinkState.copied ? (
-                    <span className="workspace-route__pending" role="status">{t("chat.invite.linkCopied")}</span>
-                  ) : null}
-                  {inviteLinkState.kind === "error" && inviteLinkState.roomId === selectedProjectRoomId ? (
-                    <span className="workspace-route__empty">{inviteLinkState.message}</span>
-                  ) : null}
-                </>
-              ) : null}
             </section>
 
             {/* 친구 요청 */}

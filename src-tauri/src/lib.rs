@@ -1,6 +1,8 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{hash_map::Entry, HashMap, HashSet},
     env, fs,
+    io::{Read, Write},
+    net::TcpListener,
     path::PathBuf,
     sync::{LazyLock, Mutex},
     thread,
@@ -25,22 +27,34 @@ const WIDGET_ROOM_CONTEXT_CHANGED_EVENT: &str = "bubli-widget-room-context-chang
 const MAIN_WINDOW_LABEL: &str = "main";
 const MAIN_WINDOW_DEFAULT_WIDTH: i32 = 1280;
 const MAIN_WINDOW_DEFAULT_HEIGHT: i32 = 820;
+const TAURI_OAUTH_LOOPBACK_BIND: &str = "127.0.0.1:3791";
+const TAURI_OAUTH_LOOPBACK_PATH: &str = "/auth/callback";
+const TAURI_OAUTH_LOOPBACK_TIMEOUT_MS: u64 = 120_000;
 const DEFAULT_WIDGET_BUBBLE_TYPE: &str = "todo";
 const WIDGET_DEFAULT_WIDTH: f64 = 324.0;
 const WIDGET_DEFAULT_HEIGHT: f64 = 360.0;
 const WIDGET_WINDOW_GUTTER: f64 = 44.0;
-// 바 창은 pill(하단 고정 64px)만 시각적으로 유지한다. Bubli 메뉴는 별도 menu 창으로 연다.
-// 창 높이는 pill 위 hover 요약 팝오버가 들어갈 투명 여유(약 156px)를 포함한다 —
-// desktop-widget-bubble.module.css .barRoot/.barPopover와 동기화한다.
-// 창 너비는 최대 칩 수(8)가 모두 들어가는 560 고정이다. macOS에서 resizable(false) 창의
-// min/max 재조정 기반 라이브 리사이즈가 조용히 실패해 칩이 잘렸으므로, 리사이즈 자체를 없앴다.
-// pill은 fit-content 폭으로 창 하단 중앙에 붙고(desktop-widget-bubble.module.css .barRoot),
-// pill 밖 투명 영역은 커서 폴러가 클릭 통과시키므로 창이 커도 무해하다.
-const WIDGET_BAR_WIDTH: f64 = 560.0;
-const WIDGET_BAR_HEIGHT: f64 = 220.0;
-// 메뉴 창: 오브 + Bubli 패널(버블 바로가기 그리드 + 2×2 액션)이 세로로 들어간다.
+// 바 창은 pill(하단 고정 64px)만 시각적으로 유지한다. Bubli 메뉴는 바 창 안에서
+// 브랜드 칩이 pill 위 투명 영역으로 morph해 열리는 인라인 패널이다(별도 menu 창 자동 실행 없음).
+// 창 높이는 pill 위 hover 요약 팝오버 + 메뉴 패널(280×≈352, bottom 68px 앵커)이 들어갈
+// 투명 여유를 포함한다 — desktop-widget-bubble.module.css .barRoot/.barPopover/.barMenuPanel과
+// 동기화한다(68 + 352 + 여유 ≈ 430).
+// 창 너비는 최악 조합(고정 알림 칩 + 구분선 + 브랜드 버블 마크 + 접힌 칩 7개, 타이머 칩은
+// 시간 텍스트 포함)이 전부 들어가는 640 고정이다. 계산: 36px 칩 8개 + 타이머 시간 텍스트(~78px)
+// + gap 6×9 + pill 패딩/보더 ≈ 460px < 640. "+N" 접기와 잘림이 어떤 조합에서도 없다.
+// macOS에서 resizable(false) 창의 min/max 재조정 기반 라이브 리사이즈가 조용히 실패해
+// 칩이 잘렸으므로, 바 창 리사이즈 자체를 없앴다. pill은 fit-content 폭으로 창 하단 중앙에
+// 붙고(desktop-widget-bubble.module.css .barRoot), pill 밖 투명 영역은 커서 폴러가 클릭
+// 통과시키므로 창이 커도 무해하다.
+const WIDGET_BAR_WIDTH: f64 = 640.0;
+const WIDGET_BAR_HEIGHT: f64 = 430.0;
+// 직전 릴리스의 바 창 높이. 저장 레이아웃에 barLayoutHeight가 없으면 이 값으로 간주하고,
+// 바 pill이 창 하단 고정이므로 높이 델타만큼 저장 y를 위로 당겨 pill의 화면 위치를 유지한다.
+const WIDGET_BAR_LEGACY_HEIGHT: f64 = 220.0;
+// (deprecated) 메뉴 창: Bubli 메뉴가 바 인라인 패널로 통합되면서 로그인 자동 실행 목록에서
+// 빠졌다. ?bubble=menu 창을 수동으로 열면 기존 크기/동작이 그대로 유지된다.
 const WIDGET_MENU_WIDTH: f64 = 248.0;
-const WIDGET_MENU_HEIGHT: f64 = 360.0;
+const WIDGET_MENU_HEIGHT: f64 = 424.0;
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
 const PRIMARY_MONITOR_ID: &str = "primary";
@@ -64,6 +78,42 @@ const WIDGET_POINTER_SEEN_GRACE_MS: u128 = 500;
 const QA_ALL_WIDGET_BUBBLES: [&str; 8] = [
     "todo", "agent", "chat", "timer", "memo", "schedule", "resource", "alert",
 ];
+// 사용자 크기 조절 클램프: 버블별 최소 = 현재 기본 크기, 최대 = 최소 × 1.6.
+// src/features/widget/components/desktop-widget-bubble.tsx 리사이즈 핸들과 동기화한다.
+const WIDGET_USER_SIZE_MAX_SCALE: f64 = 1.6;
+// 버블 자동 정렬(arrange_widget_windows): 우상단 앵커, 24px 간격, 한 열에 2개.
+const WIDGET_ARRANGE_GAP: f64 = 24.0;
+const WIDGET_ARRANGE_ROWS_PER_COLUMN: usize = 2;
+
+// 사용자가 리사이즈로 정한 버블별 창 크기(논리 px). 시작 시 SQLite
+// local_widget_bubble_sizes에서 로드하고, resize_widget_window가 갱신한다.
+// widget_window_size가 DEFAULT/TRANSLUCENT 버블 창에 한해 기본 크기 대신 이 값을 쓴다.
+static WIDGET_USER_SIZES: LazyLock<Mutex<HashMap<String, (f64, f64)>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn widget_user_size_override(bubble_type: &str) -> Option<LogicalSize<f64>> {
+    let sizes = WIDGET_USER_SIZES.lock().ok()?;
+    sizes
+        .get(bubble_type)
+        .map(|(width, height)| LogicalSize::new(*width, *height))
+}
+
+fn remember_widget_user_size(bubble_type: &str, size: &LogicalSize<f64>) {
+    if let Ok(mut sizes) = WIDGET_USER_SIZES.lock() {
+        sizes.insert(bubble_type.to_string(), (size.width, size.height));
+    }
+}
+
+/// 리사이즈 입력을 버블별 [기본 크기, 기본 × 1.6] 범위로 클램프한다(정수 논리 px).
+fn clamp_widget_user_size(bubble_type: &str, width: f64, height: f64) -> LogicalSize<f64> {
+    let base = widget_default_bubble_size(bubble_type);
+    let max_width = (base.width * WIDGET_USER_SIZE_MAX_SCALE).round();
+    let max_height = (base.height * WIDGET_USER_SIZE_MAX_SCALE).round();
+    LogicalSize::new(
+        width.round().clamp(base.width, max_width),
+        height.round().clamp(base.height, max_height),
+    )
+}
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -117,6 +167,7 @@ impl Default for WidgetWindowStore {
 }
 
 type WidgetState = Mutex<WidgetWindowStore>;
+type AuthenticatedSurfacesState = Mutex<bool>;
 static WIDGET_READY_WINDOW_LABELS: LazyLock<Mutex<HashSet<String>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
 
@@ -134,6 +185,12 @@ struct WidgetInteractiveRect {
 #[serde(rename_all = "camelCase")]
 struct WidgetInteractiveRectsInput {
     rects: Vec<WidgetInteractiveRect>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AuthenticatedSurfacesInput {
+    enabled: bool,
 }
 
 #[derive(Default)]
@@ -349,6 +406,14 @@ fn widget_waits_for_dom_ready_before_show() -> bool {
     cfg!(target_os = "windows")
 }
 
+fn widget_unminimizes_before_show() -> bool {
+    cfg!(target_os = "windows")
+}
+
+fn widget_should_unminimize_before_show(is_visible: bool) -> bool {
+    !is_visible && widget_unminimizes_before_show()
+}
+
 fn reset_widget_window_dom_ready(label: &str) {
     if !widget_waits_for_dom_ready_before_show() {
         return;
@@ -377,10 +442,18 @@ fn widget_window_dom_ready(label: &str) -> bool {
         .unwrap_or(false)
 }
 
+fn widget_initial_visible_on_build(widget: &WidgetWindowState) -> bool {
+    widget.window_visible && !widget_waits_for_dom_ready_before_show()
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredWidgetWindowLayout {
     active_bubble: String,
+    /// 저장 당시의 바 창 높이(논리 px). 바 pill은 창 하단 고정이라 릴리스 간 높이가 바뀌면
+    /// 로드 시 저장 y를 델타만큼 보정한다. None = barLayoutHeight 도입 전(220) 레이아웃.
+    #[serde(default)]
+    bar_layout_height: Option<f64>,
     bubbles: Vec<WidgetWindowState>,
 }
 
@@ -463,11 +536,28 @@ struct WidgetWindowPositionInput {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct WidgetWindowResizeInput {
+    bubble_type: Option<String>,
+    // true면(드래그 종료) 클램프된 최종 크기를 SQLite에 저장한다.
+    commit: Option<bool>,
+    height: f64,
+    width: f64,
+    window_id: Option<String>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct WidgetWindowOpenInput {
     bubble_type: Option<String>,
     mode: Option<String>,
     selected_room_id: Option<String>,
     window_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WidgetWindowsOpenInput {
+    windows: Vec<WidgetWindowOpenInput>,
 }
 
 #[derive(Deserialize)]
@@ -487,6 +577,7 @@ struct WidgetRoomContextChangedPayload {
 struct AppReadyInput {
     qa_all_widgets: Option<bool>,
     selected_room_id: Option<String>,
+    surface_ready_only: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -549,8 +640,23 @@ fn default_widget_window_state(bubble_type: &str, window_id: Option<String>) -> 
     }
 }
 
-fn resolve_target_bubble(store: &WidgetWindowStore, requested: Option<String>) -> String {
-    requested.unwrap_or_else(|| store.active_bubble.clone())
+fn resolve_target_bubble(
+    store: &WidgetWindowStore,
+    requested_bubble: Option<String>,
+    requested_window_id: Option<String>,
+) -> String {
+    if let Some(requested_bubble) = requested_bubble {
+        return requested_bubble;
+    }
+
+    if let Some(requested_window_id) = requested_window_id {
+        let trimmed = requested_window_id.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+
+    store.active_bubble.clone()
 }
 
 fn with_widget_state(
@@ -562,7 +668,11 @@ fn with_widget_state(
     let mut guard = state
         .lock()
         .map_err(|_| "widget state lock failed".to_string())?;
-    let target = normalize_bubble_type(Some(resolve_target_bubble(&guard, bubble_type)));
+    let target = normalize_bubble_type(Some(resolve_target_bubble(
+        &guard,
+        bubble_type,
+        window_id.clone(),
+    )));
     let window_key = normalize_window_key(&target, window_id);
     guard.active_bubble = target.clone();
     let widget = guard
@@ -571,6 +681,45 @@ fn with_widget_state(
         .or_insert_with(|| default_widget_window_state(&target, Some(window_key)));
     update(widget);
     Ok(widget.clone())
+}
+
+fn require_authenticated_surfaces_enabled(
+    auth_state: &AuthenticatedSurfacesState,
+) -> Result<(), String> {
+    if authenticated_surfaces_enabled(auth_state)? {
+        Ok(())
+    } else {
+        Err("authenticated Tauri surfaces are not enabled".to_string())
+    }
+}
+
+fn authenticated_surfaces_enabled(auth_state: &AuthenticatedSurfacesState) -> Result<bool, String> {
+    let enabled = auth_state
+        .lock()
+        .map_err(|_| "authenticated surfaces state lock failed".to_string())?;
+    Ok(*enabled)
+}
+
+fn widget_visibility_after_toggle(
+    state: &WidgetState,
+    bubble_type: Option<String>,
+    window_id: Option<String>,
+) -> Result<bool, String> {
+    let guard = state
+        .lock()
+        .map_err(|_| "widget state lock failed".to_string())?;
+    let target = normalize_bubble_type(Some(resolve_target_bubble(
+        &guard,
+        bubble_type,
+        window_id.clone(),
+    )));
+    let window_key = normalize_window_key(&target, window_id);
+    let currently_visible = guard
+        .bubbles
+        .get(&window_key)
+        .map(|widget| widget.window_visible)
+        .unwrap_or(false);
+    Ok(!currently_visible)
 }
 
 fn normalize_bubble_type(value: Option<String>) -> String {
@@ -608,18 +757,13 @@ fn normalize_optional_query_value(value: Option<String>) -> Option<String> {
     })
 }
 
-fn normalize_window_key(bubble_type: &str, window_id: Option<String>) -> String {
-    let raw = window_id.unwrap_or_else(|| bubble_type.to_string());
-    let cleaned: String = raw
-        .chars()
-        .filter(|value| value.is_ascii_alphanumeric() || *value == '-')
-        .collect();
-
-    if cleaned.is_empty() {
-        bubble_type.to_string()
-    } else {
-        cleaned
-    }
+/// 창 키(= label 접미사)는 버블 타입으로 고정한다 — 버블 타입당 네이티브 창은 정확히 하나다.
+/// 과거에는 호출자가 넘긴 windowId를 그대로 키로 써서, 같은 버블에 서로 다른 windowId
+/// (로그인 자동 실행 "todo" vs 저장 레이아웃의 "todo-…" 등)가 들어오면 스토어 키와 label이
+/// 갈라져 같은 버블 창이 두 개 열렸다. bar/menu는 자기 타입("bar"/"menu")이 곧 키라 특수
+/// 동작이 그대로 유지된다.
+fn normalize_window_key(bubble_type: &str, _window_id: Option<String>) -> String {
+    bubble_type.to_string()
 }
 
 fn apply_widget_window_mode_update(
@@ -661,9 +805,10 @@ fn append_widget_url_query(url: &mut String, key: &str, value: &str) {
     }
 }
 
+/// 창 label은 항상 버블 타입 기반 캐논 값(bubli-widget-{type})이다. window_id가 아니라
+/// active_bubble에서 파생해, 레거시 windowId를 지닌 스토어 항목도 같은 창을 가리킨다(중복 창 방지).
 fn widget_window_label(widget: &WidgetWindowState) -> String {
-    let window_key = widget.window_id.as_deref().unwrap_or(&widget.active_bubble);
-    format!("{WIDGET_WINDOW_LABEL_PREFIX}-{window_key}")
+    format!("{WIDGET_WINDOW_LABEL_PREFIX}-{}", widget.active_bubble)
 }
 
 fn widget_window_layout_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -684,12 +829,17 @@ fn stored_widget_window_layout(store: &WidgetWindowStore) -> StoredWidgetWindowL
 
     StoredWidgetWindowLayout {
         active_bubble: store.active_bubble.clone(),
+        bar_layout_height: Some(WIDGET_BAR_HEIGHT),
         bubbles,
     }
 }
 
 fn widget_window_store_from_layout(layout: StoredWidgetWindowLayout) -> WidgetWindowStore {
     let mut bubbles = HashMap::new();
+    // 바 창 높이 마이그레이션: 저장 시점 높이(구버전 220)와 현재 높이의 델타만큼 저장 y를
+    // 위로 당겨, 하단 고정 pill이 화면에서 움직이지 않게 한다(top-left 저장 좌표 보정).
+    let bar_height_delta =
+        WIDGET_BAR_HEIGHT - layout.bar_layout_height.unwrap_or(WIDGET_BAR_LEGACY_HEIGHT);
 
     for mut widget in layout.bubbles {
         widget.active_bubble = normalize_bubble_type(Some(widget.active_bubble));
@@ -698,9 +848,33 @@ fn widget_window_store_from_layout(layout: StoredWidgetWindowLayout) -> WidgetWi
         if widget.active_bubble != "bar" && widget.mode == "MINIMIZED" {
             widget.window_visible = false;
         }
+        if widget.active_bubble == "bar"
+            && bar_height_delta != 0.0
+            && !widget_position_is_unset(&widget.position)
+        {
+            widget.position.y =
+                ((widget.position.y as f64 - bar_height_delta).round() as i32).max(0);
+        }
         let key = normalize_window_key(&widget.active_bubble, widget.window_id.clone());
         widget.window_id = Some(key.clone());
-        bubbles.insert(key, widget);
+        match bubbles.entry(key) {
+            Entry::Vacant(entry) => {
+                entry.insert(widget);
+            }
+            Entry::Occupied(mut entry) => {
+                // 과거 빌드가 같은 버블을 여러 windowId 키("todo"와 "todo-…" 등)로 저장한
+                // 레이아웃 파일이 남아 있을 수 있다 — 같은 버블 창이 두 개 열리던 근원.
+                // 보이는 항목 > 좌표가 저장된 항목 순으로 하나만 남긴다.
+                let existing = entry.get();
+                let replaces = (widget.window_visible && !existing.window_visible)
+                    || (widget.window_visible == existing.window_visible
+                        && widget_position_is_unset(&existing.position)
+                        && !widget_position_is_unset(&widget.position));
+                if replaces {
+                    entry.insert(widget);
+                }
+            }
+        }
     }
 
     let active_bubble = normalize_bubble_type(Some(layout.active_bubble));
@@ -843,23 +1017,27 @@ fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
             WIDGET_MINIMIZED_HEIGHT + 20.0,
         ),
         "GHOST" => LogicalSize::new(188.0 + 24.0, 188.0 + 24.0),
-        // 콘텐츠 자동 높이에 맞춘 창 크기 — src/app/desktop-widget/page.tsx getWidgetWindowSize와 동기화한다.
-        _ => match widget.active_bubble.as_str() {
-            "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
-            "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 430.0 + WIDGET_WINDOW_GUTTER),
-            "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 352.0 + WIDGET_WINDOW_GUTTER),
-            "resource" => {
-                LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 330.0 + WIDGET_WINDOW_GUTTER)
-            }
-            "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 320.0 + WIDGET_WINDOW_GUTTER),
-            "schedule" => {
-                LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER)
-            }
-            _ => LogicalSize::new(
-                WIDGET_DEFAULT_WIDTH + WIDGET_WINDOW_GUTTER,
-                WIDGET_DEFAULT_HEIGHT + WIDGET_WINDOW_GUTTER,
-            ),
-        },
+        // 콘텐츠 자동 높이에 맞춘 기본 창 크기 위에, 사용자가 리사이즈로 저장한 크기를
+        // 우선한다(클램프된 값만 저장되므로 여기서는 그대로 쓴다).
+        _ => widget_user_size_override(&widget.active_bubble)
+            .unwrap_or_else(|| widget_default_bubble_size(&widget.active_bubble)),
+    }
+}
+
+/// 버블별 기본(최소) 창 크기 — src/app/desktop-widget/page.tsx getWidgetWindowSize와 동기화한다.
+/// 정수 논리 px만 쓴다(HiDPI에서 분수 높이로 인한 라운드 코너 왜곡 방지).
+fn widget_default_bubble_size(bubble_type: &str) -> LogicalSize<f64> {
+    match bubble_type {
+        "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
+        "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 430.0 + WIDGET_WINDOW_GUTTER),
+        "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 352.0 + WIDGET_WINDOW_GUTTER),
+        "resource" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 330.0 + WIDGET_WINDOW_GUTTER),
+        "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 320.0 + WIDGET_WINDOW_GUTTER),
+        "schedule" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER),
+        _ => LogicalSize::new(
+            WIDGET_DEFAULT_WIDTH + WIDGET_WINDOW_GUTTER,
+            WIDGET_DEFAULT_HEIGHT + WIDGET_WINDOW_GUTTER,
+        ),
     }
 }
 
@@ -1112,6 +1290,10 @@ fn normalize_main_window_route(route: &str) -> Result<String, String> {
         format!("/{trimmed}")
     };
 
+    if route_targets_chat_widget(&normalized) {
+        return Err("chat routes must open the Tauri chat widget, not the main window".to_string());
+    }
+
     if normalized == "/"
         || normalized == "/app"
         || normalized.starts_with("/app/")
@@ -1121,6 +1303,28 @@ fn normalize_main_window_route(route: &str) -> Result<String, String> {
     } else {
         Err("main window route must start with /app".to_string())
     }
+}
+
+fn route_targets_chat_widget(normalized_route: &str) -> bool {
+    let path = normalized_route
+        .split(&['?', '#'])
+        .next()
+        .unwrap_or(normalized_route)
+        .trim_end_matches('/');
+
+    if path == "/app/chat" {
+        return true;
+    }
+
+    let segments = path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    segments.len() >= 4
+        && segments[0] == "app"
+        && segments[1] == "project-rooms"
+        && !segments[2].is_empty()
+        && segments[3] == "chat"
 }
 
 #[tauri::command]
@@ -1319,6 +1523,9 @@ fn apply_widget_window_state(
 
         let is_visible = window.is_visible().unwrap_or(false);
         if widget.window_visible {
+            if widget_should_unminimize_before_show(is_visible) {
+                let _ = window.unminimize();
+            }
             if !is_visible && widget_window_dom_ready(&label) {
                 window.show().map_err(|error| error.to_string())?;
             }
@@ -1343,6 +1550,7 @@ fn build_widget_window(
 
     let size = widget_window_size(widget);
     let position = widget_screen_position(app, monitor_state, widget)?;
+    let initial_visible = widget_initial_visible_on_build(widget);
     reset_widget_window_dom_ready(&label);
     reset_widget_applied_window_state(&label);
     let window = WebviewWindowBuilder::new(
@@ -1364,7 +1572,7 @@ fn build_widget_window(
     .always_on_top(widget.always_on_top)
     .skip_taskbar(true)
     .focused(false)
-    .visible(widget.window_visible)
+    .visible(initial_visible)
     .build()
     .map_err(|error| error.to_string())?;
 
@@ -1466,6 +1674,11 @@ fn widget_bar_items_from_store(store: &WidgetWindowStore) -> Vec<WidgetWindowSta
         let right_key = right.window_id.as_deref().unwrap_or(&right.active_bubble);
         left_key.cmp(right_key)
     });
+
+    // 방어적 중복 제거: 스토어 키가 버블 타입으로 고정돼 정상 경로에서는 중복이 없지만,
+    // 같은 버블 칩이 바에 두 번 뜨는 일은 어떤 경우에도 없어야 한다.
+    let mut seen_bubbles = HashSet::new();
+    items.retain(|widget| seen_bubbles.insert(widget.active_bubble.clone()));
 
     items
 }
@@ -1711,6 +1924,210 @@ fn set_widget_window_position(
     apply_widget_window_state(&app, &monitor_state, &widget)
 }
 
+/// 사용자 코너 드래그 리사이즈. 버블별 [기본 크기, 기본 × 1.6]으로 클램프해 창 크기를
+/// 라이브로 바꾸고, commit(드래그 종료)일 때만 SQLite(local_widget_bubble_sizes)에 저장한다.
+/// 바/메뉴 창은 리사이즈 대상이 아니다. resizable(false) 창이므로 apply와 같은
+/// "min 해제 → max → min → size" 순서로 다시 잠근다(macOS에서 조용한 실패 방지).
+#[tauri::command]
+fn resize_widget_window(
+    app: AppHandle,
+    db: tauri::State<'_, local_db::Db>,
+    state: tauri::State<'_, WidgetState>,
+    input: WidgetWindowResizeInput,
+) -> Result<WidgetWindowState, String> {
+    let bubble_type = normalize_bubble_type(input.bubble_type.clone());
+    if bubble_type == "bar" || bubble_type == "menu" {
+        return Err("bar/menu widget windows are not resizable".to_string());
+    }
+    if !input.width.is_finite() || !input.height.is_finite() {
+        return Err("widget size must be finite".to_string());
+    }
+
+    let size = clamp_widget_user_size(&bubble_type, input.width, input.height);
+    remember_widget_user_size(&bubble_type, &size);
+
+    let widget = with_widget_state(&state, Some(bubble_type.clone()), input.window_id, |_| {})?;
+    let label = widget_window_label(&widget);
+    if let Some(window) = app.get_webview_window(&label) {
+        let size_key = (size.width.round() as i64, size.height.round() as i64);
+        let size_changed = with_widget_applied_window_state(&label, |applied| {
+            if applied.size == Some(size_key) {
+                false
+            } else {
+                applied.size = Some(size_key);
+                true
+            }
+        })
+        .unwrap_or(true);
+        if size_changed {
+            window
+                .set_min_size(None::<Size>)
+                .map_err(|error| error.to_string())?;
+            window
+                .set_max_size(Some(Size::Logical(size)))
+                .map_err(|error| error.to_string())?;
+            window
+                .set_min_size(Some(Size::Logical(size)))
+                .map_err(|error| error.to_string())?;
+            window
+                .set_size(Size::Logical(size))
+                .map_err(|error| error.to_string())?;
+        }
+    }
+
+    if input.commit.unwrap_or(false) {
+        let conn = db.0.lock().map_err(|_| "db lock failed".to_string())?;
+        local_db::store_widget_bubble_size_for_conn(
+            &conn,
+            &bubble_type,
+            size.width as i64,
+            size.height as i64,
+        )?;
+    }
+
+    Ok(widget)
+}
+
+/// 열려 있는 버블 창들을 선호 모니터 우상단 기준 24px 간격, 한 열에 2개씩 그리드로 정렬한다.
+/// 바/메뉴 창은 움직이지 않는다. 좌표는 store에 논리·모니터-로컬로 기록/저장하고, 실제 이동은
+/// set_position으로 반영한다 — 이어지는 Moved 이벤트가 같은 좌표를 다시 저장한다(기존 영속 경로).
+#[tauri::command]
+fn arrange_widget_windows(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+    state: tauri::State<'_, WidgetState>,
+) -> Result<Vec<WidgetWindowState>, String> {
+    let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
+    let monitor = resolve_preferred_monitor(&app, &preferred_monitor_id)?;
+    let scale = monitor
+        .as_ref()
+        .map(|monitor| monitor.scale_factor())
+        .unwrap_or(1.0)
+        .max(0.5);
+    let origin_x = monitor
+        .as_ref()
+        .map_or(0.0, |monitor| monitor.position().x as f64 / scale);
+    let origin_y = monitor
+        .as_ref()
+        .map_or(0.0, |monitor| monitor.position().y as f64 / scale);
+    let monitor_width = monitor
+        .as_ref()
+        .map(|monitor| monitor.size().width as f64 / scale)
+        .unwrap_or(WIDGET_FALLBACK_MONITOR_WIDTH);
+
+    // 정렬 대상: 바/메뉴 제외, 실제 웹뷰가 떠 있는 보이는 버블 창(계단 인덱스 순 안정 정렬).
+    let mut targets: Vec<WidgetWindowState> = {
+        let guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        guard
+            .bubbles
+            .values()
+            .filter(|widget| {
+                widget.active_bubble != "bar"
+                    && widget.active_bubble != "menu"
+                    && widget.window_visible
+                    && app
+                        .get_webview_window(&widget_window_label(widget))
+                        .is_some()
+            })
+            .cloned()
+            .collect()
+    };
+    targets.sort_by(|left, right| {
+        let left_index = widget_default_cascade_index(&left.active_bubble) as i64;
+        let right_index = widget_default_cascade_index(&right.active_bubble) as i64;
+        left_index.cmp(&right_index).then_with(|| {
+            let left_key = left.window_id.as_deref().unwrap_or(&left.active_bubble);
+            let right_key = right.window_id.as_deref().unwrap_or(&right.active_bubble);
+            left_key.cmp(right_key)
+        })
+    });
+
+    let placements = arrange_widget_grid_placements(&targets, monitor_width);
+
+    // store 좌표 갱신 + 정렬된 위젯 목록 스냅샷.
+    let arranged = {
+        let mut guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        for (label, position) in &placements {
+            if let Some(widget) = guard
+                .bubbles
+                .values_mut()
+                .find(|widget| widget_window_label(widget) == *label)
+            {
+                widget.position = position.clone();
+            }
+        }
+        let placed_labels: HashSet<String> =
+            placements.iter().map(|(label, _)| label.clone()).collect();
+        let mut arranged: Vec<WidgetWindowState> = guard
+            .bubbles
+            .values()
+            .filter(|widget| placed_labels.contains(&widget_window_label(widget)))
+            .cloned()
+            .collect();
+        arranged.sort_by(|left, right| {
+            let left_key = left.window_id.as_deref().unwrap_or(&left.active_bubble);
+            let right_key = right.window_id.as_deref().unwrap_or(&right.active_bubble);
+            left_key.cmp(right_key)
+        });
+        arranged
+    };
+    persist_widget_window_state(&app, &state)?;
+
+    for (label, position) in &placements {
+        if let Some(window) = app.get_webview_window(label) {
+            // 이동 grace를 미리 열어 커서 폴러가 이동 중 클릭 통과를 켜지 않게 한다.
+            note_widget_window_moved(label);
+            let logical =
+                LogicalPosition::new(origin_x + position.x as f64, origin_y + position.y as f64);
+            #[cfg(not(target_os = "macos"))]
+            with_widget_applied_window_state(label, |applied| {
+                applied.position = Some((logical.x.round() as i64, logical.y.round() as i64));
+            });
+            window
+                .set_position(Position::Logical(logical))
+                .map_err(|error| error.to_string())?;
+        }
+    }
+
+    Ok(arranged)
+}
+
+/// 우상단 앵커 그리드 좌표 계산(모니터-로컬 논리 px). 열은 오른쪽에서 왼쪽으로 채우고,
+/// 각 열은 위에서 아래로 최대 2개. 열 폭은 그 열에서 가장 넓은 창 기준이다.
+fn arrange_widget_grid_placements(
+    targets: &[WidgetWindowState],
+    monitor_width: f64,
+) -> Vec<(String, WidgetWindowPosition)> {
+    let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
+    let mut column_right = monitor_width - WIDGET_ARRANGE_GAP;
+
+    for column in targets.chunks(WIDGET_ARRANGE_ROWS_PER_COLUMN) {
+        let column_width = column
+            .iter()
+            .map(|widget| widget_window_size(widget).width)
+            .fold(0.0_f64, f64::max);
+        let column_x = (column_right - column_width).max(WIDGET_ARRANGE_GAP);
+        let mut row_y = WIDGET_ARRANGE_GAP;
+        for widget in column {
+            placements.push((
+                widget_window_label(widget),
+                WidgetWindowPosition {
+                    x: column_x.round() as i32,
+                    y: row_y.round() as i32,
+                },
+            ));
+            row_y += widget_window_size(widget).height + WIDGET_ARRANGE_GAP;
+        }
+        column_right = column_x - WIDGET_ARRANGE_GAP;
+    }
+
+    placements
+}
+
 #[tauri::command]
 fn set_widget_room_context(
     app: AppHandle,
@@ -1867,6 +2284,205 @@ struct MainWindowShowInput {
     route: Option<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriGoogleOauthLoopbackInput {
+    authorize_url: String,
+    expected_state: Option<String>,
+    redirect_uri: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriGoogleOauthLoopbackResult {
+    code: String,
+    state: Option<String>,
+}
+
+fn percent_decode(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut output = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+
+    while index < bytes.len() {
+        match bytes[index] {
+            b'+' => {
+                output.push(b' ');
+                index += 1;
+            }
+            b'%' if index + 2 < bytes.len() => {
+                let hex = &input[index + 1..index + 3];
+                if let Ok(value) = u8::from_str_radix(hex, 16) {
+                    output.push(value);
+                    index += 3;
+                } else {
+                    output.push(bytes[index]);
+                    index += 1;
+                }
+            }
+            value => {
+                output.push(value);
+                index += 1;
+            }
+        }
+    }
+
+    String::from_utf8_lossy(&output).into_owned()
+}
+
+fn query_value(query: &str, key: &str) -> Option<String> {
+    query.split('&').find_map(|part| {
+        let mut pieces = part.splitn(2, '=');
+        let raw_key = pieces.next()?;
+        if percent_decode(raw_key) != key {
+            return None;
+        }
+
+        Some(percent_decode(pieces.next().unwrap_or_default()))
+    })
+}
+
+fn query_value_from_url(url: &str, key: &str) -> Option<String> {
+    let query = url.split_once('?')?.1.split('#').next().unwrap_or_default();
+    query_value(query, key)
+}
+
+fn validate_google_authorize_url(authorize_url: &str, redirect_uri: &str) -> Result<(), String> {
+    if authorize_url.chars().any(char::is_whitespace) {
+        return Err("Google authorize URL must not contain whitespace".to_string());
+    }
+
+    if !authorize_url.starts_with("https://accounts.google.com/o/oauth2/v2/auth?") {
+        return Err("Google authorize URL must target accounts.google.com OAuth".to_string());
+    }
+
+    let Some(url_redirect_uri) = query_value_from_url(authorize_url, "redirect_uri") else {
+        return Err("Google authorize URL is missing redirect_uri".to_string());
+    };
+
+    if url_redirect_uri != redirect_uri {
+        return Err(
+            "Google authorize redirect_uri does not match the loopback listener".to_string(),
+        );
+    }
+
+    Ok(())
+}
+
+fn oauth_response_html(message: &str) -> String {
+    format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<!doctype html><meta charset=\"utf-8\"><title>Bubli login</title><body style=\"font-family: system-ui, sans-serif; padding: 32px;\"><h1>Bubli login</h1><p>{message}</p><p>You can close this browser tab and return to the Bubli app.</p></body>"
+    )
+}
+
+fn oauth_error_html(message: &str) -> String {
+    format!(
+        "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<!doctype html><meta charset=\"utf-8\"><title>Bubli login failed</title><body style=\"font-family: system-ui, sans-serif; padding: 32px;\"><h1>Bubli login failed</h1><p>{message}</p></body>"
+    )
+}
+
+#[tauri::command]
+fn start_tauri_google_oauth_loopback(
+    input: TauriGoogleOauthLoopbackInput,
+) -> Result<TauriGoogleOauthLoopbackResult, String> {
+    #[cfg(target_os = "windows")]
+    {
+        if input.redirect_uri
+            != format!("http://{TAURI_OAUTH_LOOPBACK_BIND}{TAURI_OAUTH_LOOPBACK_PATH}")
+        {
+            return Err("Tauri OAuth loopback redirect URI is not allowed".to_string());
+        }
+        validate_google_authorize_url(&input.authorize_url, &input.redirect_uri)?;
+
+        let listener = TcpListener::bind(TAURI_OAUTH_LOOPBACK_BIND)
+            .map_err(|error| format!("could not bind Tauri OAuth loopback listener: {error}"))?;
+        listener
+            .set_nonblocking(true)
+            .map_err(|error| error.to_string())?;
+
+        tauri_plugin_opener::open_url(&input.authorize_url, None::<&str>)
+            .map_err(|error| error.to_string())?;
+
+        let started_at = Instant::now();
+        loop {
+            if started_at.elapsed() > Duration::from_millis(TAURI_OAUTH_LOOPBACK_TIMEOUT_MS) {
+                return Err("Tauri OAuth loopback timed out".to_string());
+            }
+
+            match listener.accept() {
+                Ok((mut stream, _address)) => {
+                    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                    let mut buffer = [0_u8; 8192];
+                    let bytes_read = stream
+                        .read(&mut buffer)
+                        .map_err(|error| error.to_string())?;
+                    let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+                    let request_line = request.lines().next().unwrap_or_default();
+                    let path_and_query = request_line
+                        .strip_prefix("GET ")
+                        .and_then(|line| line.split_whitespace().next())
+                        .ok_or_else(|| {
+                            "Tauri OAuth loopback received an invalid request".to_string()
+                        })?;
+                    let (path, query) = path_and_query
+                        .split_once('?')
+                        .unwrap_or((path_and_query, ""));
+                    if path != TAURI_OAUTH_LOOPBACK_PATH {
+                        let _ = stream.write_all(
+                            oauth_error_html("Invalid Bubli login callback path.").as_bytes(),
+                        );
+                        return Err(
+                            "Tauri OAuth loopback received an invalid callback path".to_string()
+                        );
+                    }
+
+                    let code = query_value(query, "code").unwrap_or_default();
+                    let state = query_value(query, "state");
+                    let error = query_value(query, "error");
+                    if let Some(error) = error {
+                        let _ = stream.write_all(
+                            oauth_error_html("Google login was not completed.").as_bytes(),
+                        );
+                        return Err(format!("Google OAuth returned an error: {error}"));
+                    }
+                    if code.trim().is_empty() {
+                        let _ = stream.write_all(
+                            oauth_error_html("Google login code was missing.").as_bytes(),
+                        );
+                        return Err(
+                            "Tauri OAuth loopback callback did not include code".to_string()
+                        );
+                    }
+                    if let Some(expected_state) = input.expected_state.as_deref() {
+                        if state.as_deref() != Some(expected_state) {
+                            let _ = stream.write_all(
+                                oauth_error_html(
+                                    "Login state did not match the Bubli app request.",
+                                )
+                                .as_bytes(),
+                            );
+                            return Err("Tauri OAuth loopback state mismatch".to_string());
+                        }
+                    }
+
+                    let _ = stream.write_all(oauth_response_html("Login confirmed.").as_bytes());
+                    return Ok(TauriGoogleOauthLoopbackResult { code, state });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(50));
+                }
+                Err(error) => return Err(error.to_string()),
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = input;
+        Err("Tauri OAuth loopback is only enabled on Windows in this build".to_string())
+    }
+}
+
 /// 위젯 메뉴에서 메인 앱을 열 때 이동을 허용하는 경로 화이트리스트.
 fn normalize_widget_menu_route(route: Option<String>) -> Option<&'static str> {
     match route.as_deref() {
@@ -1907,6 +2523,13 @@ fn app_ready_qa_all_widgets_requested(input: &Option<AppReadyInput>) -> bool {
         .unwrap_or(false)
 }
 
+fn app_ready_surface_ready_only(input: &Option<AppReadyInput>) -> bool {
+    input
+        .as_ref()
+        .and_then(|value| value.surface_ready_only)
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 fn app_ready(
     app: AppHandle,
@@ -1916,8 +2539,10 @@ fn app_ready(
     input: Option<AppReadyInput>,
 ) -> Result<&'static str, String> {
     let qa_all_widgets = app_ready_qa_all_widgets_requested(&input);
-    let selected_room_id =
-        input.and_then(|value| normalize_optional_query_value(value.selected_room_id));
+    let surface_ready_only = app_ready_surface_ready_only(&input);
+    let selected_room_id = input
+        .as_ref()
+        .and_then(|value| normalize_optional_query_value(value.selected_room_id.clone()));
     if qa_all_widgets && qa_all_widget_windows_enabled() {
         build_widget_qa_windows(&app, selected_room_id)?;
         return Ok("bubli-tauri-ready");
@@ -1929,6 +2554,10 @@ fn app_ready(
         window
             .set_background_color(Some(Color(0, 0, 0, 0)))
             .map_err(|error| error.to_string())?;
+
+        if surface_ready_only {
+            return Ok("bubli-tauri-ready");
+        }
 
         let widget = {
             let guard = state
@@ -1952,27 +2581,56 @@ fn app_ready(
 }
 
 #[tauri::command]
+fn set_authenticated_surfaces_enabled(
+    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
+    input: AuthenticatedSurfacesInput,
+) -> Result<bool, String> {
+    let mut enabled = auth_state
+        .lock()
+        .map_err(|_| "authenticated surfaces state lock failed".to_string())?;
+    *enabled = input.enabled;
+    Ok(*enabled)
+}
+
+fn prepare_open_widget_window(
+    app: &AppHandle,
+    state: &WidgetState,
+    input: WidgetWindowOpenInput,
+) -> Result<WidgetWindowState, String> {
+    let bubble_type = normalize_bubble_type(input.bubble_type);
+    let window_id = input.window_id;
+    let selected_room_id = normalize_optional_query_value(input.selected_room_id);
+    let next_mode = input
+        .mode
+        .map(normalize_widget_mode)
+        .unwrap_or_else(|| "DEFAULT".to_string());
+    let widget = with_widget_state(state, Some(bubble_type), window_id, |widget| {
+        apply_open_widget_window_update(widget, next_mode.clone(), selected_room_id.clone());
+    })?;
+
+    let canonical_label = widget_window_label(&widget);
+    let stale_label_prefix = format!("{canonical_label}-");
+    for (label, window) in app.webview_windows() {
+        if label != canonical_label && label.starts_with(&stale_label_prefix) {
+            reset_widget_window_dom_ready(&label);
+            reset_widget_applied_window_state(&label);
+            let _ = window.destroy();
+        }
+    }
+
+    Ok(widget)
+}
+
+#[tauri::command]
 async fn open_widget_window(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
+    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
     input: Option<WidgetWindowOpenInput>,
 ) -> Result<WidgetWindowState, String> {
-    let bubble_type =
-        normalize_bubble_type(input.as_ref().and_then(|value| value.bubble_type.clone()));
-    let window_id = input.as_ref().and_then(|value| value.window_id.clone());
-    let selected_room_id = normalize_optional_query_value(
-        input
-            .as_ref()
-            .and_then(|value| value.selected_room_id.clone()),
-    );
-    let next_mode = input
-        .and_then(|value| value.mode)
-        .map(normalize_widget_mode)
-        .unwrap_or_else(|| "DEFAULT".to_string());
-    let widget = with_widget_state(&state, Some(bubble_type), window_id, |widget| {
-        apply_open_widget_window_update(widget, next_mode.clone(), selected_room_id.clone());
-    })?;
+    require_authenticated_surfaces_enabled(&auth_state)?;
+    let widget = prepare_open_widget_window(&app, &state, input.unwrap_or_default())?;
     persist_widget_window_state(&app, &state)?;
     let result = schedule_widget_window_build(&app, &monitor_state, &widget)?;
     // 바에서 버블을 복원한 뒤 바 창 상태(가시성)를 동기화한다. 바 크기는 고정이라 리사이즈는 없다.
@@ -1981,10 +2639,37 @@ async fn open_widget_window(
 }
 
 #[tauri::command]
+async fn open_widget_windows(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+    state: tauri::State<'_, WidgetState>,
+    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
+    input: WidgetWindowsOpenInput,
+) -> Result<Vec<WidgetWindowState>, String> {
+    require_authenticated_surfaces_enabled(&auth_state)?;
+
+    let mut widgets = Vec::with_capacity(input.windows.len());
+    for window in input.windows {
+        widgets.push(prepare_open_widget_window(&app, &state, window)?);
+    }
+
+    persist_widget_window_state(&app, &state)?;
+
+    let mut results = Vec::with_capacity(widgets.len());
+    for widget in widgets {
+        results.push(schedule_widget_window_build(&app, &monitor_state, &widget)?);
+    }
+
+    refresh_widget_bar_window(&app, &monitor_state, &state)?;
+    Ok(results)
+}
+
+#[tauri::command]
 fn close_widget_window(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
+    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
     input: Option<WidgetWindowTargetInput>,
 ) -> Result<WidgetWindowState, String> {
     let bubble_type = input.as_ref().and_then(|value| value.bubble_type.clone());
@@ -1995,7 +2680,7 @@ fn close_widget_window(
         widget.dock_orb_visible = false;
         widget.window_visible = false;
     })?;
-    if !widget_keeps_webview_when_hidden(&widget) {
+    if !widget_keeps_webview_when_hidden(&widget) && authenticated_surfaces_enabled(&auth_state)? {
         ensure_widget_bar_window(&app, &monitor_state, &state)?;
     }
     persist_widget_window_state(&app, &state)?;
@@ -2017,10 +2702,14 @@ fn toggle_widget_window(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
+    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
     input: Option<WidgetWindowTargetInput>,
 ) -> Result<WidgetWindowState, String> {
     let bubble_type = input.as_ref().and_then(|value| value.bubble_type.clone());
-    let window_id = input.and_then(|value| value.window_id);
+    let window_id = input.as_ref().and_then(|value| value.window_id.clone());
+    if widget_visibility_after_toggle(&state, bubble_type.clone(), window_id.clone())? {
+        require_authenticated_surfaces_enabled(&auth_state)?;
+    }
     let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
         widget.window_visible = !widget.window_visible;
         widget.mode = if widget.window_visible {
@@ -2030,7 +2719,10 @@ fn toggle_widget_window(
         };
         widget.dock_orb_visible = false;
     })?;
-    if !widget.window_visible && !widget_keeps_webview_when_hidden(&widget) {
+    if !widget.window_visible
+        && !widget_keeps_webview_when_hidden(&widget)
+        && authenticated_surfaces_enabled(&auth_state)?
+    {
         ensure_widget_bar_window(&app, &monitor_state, &state)?;
     }
     persist_widget_window_state(&app, &state)?;
@@ -2070,15 +2762,103 @@ mod tests {
     fn widget_layout_restore_keeps_saved_position_and_normalizes_window_key() {
         let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
             active_bubble: "timer".to_string(),
+            bar_layout_height: Some(WIDGET_BAR_HEIGHT),
             bubbles: vec![widget("timer", Some("timer*bad"), 144, 188)],
         });
 
         assert_eq!(store.active_bubble, "timer");
-        let restored = store.bubbles.get("timerbad").expect("normalized widget");
+        // 레거시 windowId는 버블 타입 키로 접힌다(버블당 싱글턴 창).
+        let restored = store.bubbles.get("timer").expect("normalized widget");
         assert_eq!(restored.active_bubble, "timer");
-        assert_eq!(restored.window_id.as_deref(), Some("timerbad"));
+        assert_eq!(restored.window_id.as_deref(), Some("timer"));
         assert_eq!(restored.position.x, 144);
         assert_eq!(restored.position.y, 188);
+    }
+
+    #[test]
+    fn widget_layout_restore_shifts_legacy_bar_y_by_height_delta() {
+        // barLayoutHeight가 없는 구버전(220) 레이아웃: 바 pill은 창 하단 고정이라
+        // 새 높이(430)와의 델타(210)만큼 y를 위로 당겨 pill 화면 위치를 유지한다.
+        let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
+            active_bubble: "bar".to_string(),
+            bar_layout_height: None,
+            bubbles: vec![widget("bar", Some("bar"), 400, 656)],
+        });
+
+        let bar = store.bubbles.get("bar").expect("bar widget");
+        let delta = (WIDGET_BAR_HEIGHT - WIDGET_BAR_LEGACY_HEIGHT) as i32;
+        assert_eq!(bar.position.x, 400);
+        assert_eq!(bar.position.y, 656 - delta);
+
+        // 현재 높이로 저장된 레이아웃은 보정하지 않는다.
+        let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
+            active_bubble: "bar".to_string(),
+            bar_layout_height: Some(WIDGET_BAR_HEIGHT),
+            bubbles: vec![widget("bar", Some("bar"), 400, 656)],
+        });
+        assert_eq!(
+            store.bubbles.get("bar").expect("bar widget").position.y,
+            656
+        );
+    }
+
+    #[test]
+    fn widget_layout_restore_collapses_duplicate_bubble_entries_preferring_visible_one() {
+        // 과거 빌드가 남긴 레이아웃: 같은 todo 버블이 "todo"와 "todo-legacy" 두 키로 저장됨
+        // — 실사용에서 "오늘 할 일" 창이 두 개 열리던 근원.
+        let hidden = WidgetWindowState {
+            mode: "MINIMIZED".to_string(),
+            window_visible: false,
+            ..widget("todo", Some("todo"), 10, 10)
+        };
+        let visible = widget("todo", Some("todo-legacy"), 240, 64);
+
+        let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
+            active_bubble: "todo".to_string(),
+            bar_layout_height: Some(WIDGET_BAR_HEIGHT),
+            bubbles: vec![hidden, visible],
+        });
+
+        assert_eq!(store.bubbles.len(), 1);
+        let merged = store.bubbles.get("todo").expect("collapsed widget");
+        assert!(merged.window_visible);
+        assert_eq!(merged.window_id.as_deref(), Some("todo"));
+        assert_eq!(merged.position.x, 240);
+        assert_eq!(merged.position.y, 64);
+        // label도 캐논 값 하나로 수렴한다.
+        assert_eq!(widget_window_label(merged), "bubli-widget-todo");
+    }
+
+    #[test]
+    fn widget_bar_items_never_contain_duplicate_bubble_chips() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "todo".to_string(),
+            WidgetWindowState {
+                mode: "MINIMIZED".to_string(),
+                window_visible: false,
+                ..widget("todo", Some("todo"), 0, 0)
+            },
+        );
+        // 손상된 스토어를 흉내 낸 중복 키(정상 경로에서는 만들어지지 않는다).
+        store.bubbles.insert(
+            "todo-legacy".to_string(),
+            WidgetWindowState {
+                mode: "MINIMIZED".to_string(),
+                window_visible: false,
+                ..widget("todo", Some("todo-legacy"), 0, 0)
+            },
+        );
+
+        let items = widget_bar_items_from_store(&store);
+
+        assert_eq!(
+            items
+                .iter()
+                .filter(|widget| widget.active_bubble == "todo")
+                .count(),
+            1
+        );
     }
 
     #[test]
@@ -2102,6 +2882,39 @@ mod tests {
     }
 
     #[test]
+    fn authenticated_surface_gate_defaults_closed_and_can_open() {
+        let auth_state = Mutex::new(false);
+
+        assert!(require_authenticated_surfaces_enabled(&auth_state).is_err());
+        assert!(!authenticated_surfaces_enabled(&auth_state).expect("auth state"));
+
+        *auth_state.lock().expect("auth state lock") = true;
+
+        assert!(require_authenticated_surfaces_enabled(&auth_state).is_ok());
+        assert!(authenticated_surfaces_enabled(&auth_state).expect("auth state"));
+    }
+
+    #[test]
+    fn widget_toggle_visibility_helper_predicts_show_before_mutation() {
+        let state = Mutex::new(WidgetWindowStore::default());
+
+        assert!(
+            widget_visibility_after_toggle(&state, Some("todo".to_string()), None)
+                .expect("toggle visibility")
+        );
+
+        let _ = with_widget_state(&state, Some("todo".to_string()), None, |widget| {
+            widget.window_visible = true;
+        })
+        .expect("widget state");
+
+        assert!(
+            !widget_visibility_after_toggle(&state, Some("todo".to_string()), None)
+                .expect("toggle visibility")
+        );
+    }
+
+    #[test]
     fn windows_widget_uses_component_shadow_instead_of_native_shadow() {
         assert_eq!(widget_native_shadow_enabled(), !cfg!(target_os = "windows"));
     }
@@ -2118,6 +2931,33 @@ mod tests {
         mark_widget_window_dom_ready(label);
         assert!(widget_window_dom_ready(label));
         reset_widget_window_dom_ready(label);
+    }
+
+    #[test]
+    fn widget_build_starts_hidden_when_dom_ready_gate_is_required() {
+        let mut widget = default_widget_window_state("todo", Some("todo".to_string()));
+        widget.window_visible = true;
+
+        assert_eq!(
+            widget_initial_visible_on_build(&widget),
+            !widget_waits_for_dom_ready_before_show()
+        );
+
+        widget.window_visible = false;
+        assert!(!widget_initial_visible_on_build(&widget));
+    }
+
+    #[test]
+    fn windows_widget_unminimizes_without_forcing_focus() {
+        assert_eq!(
+            widget_unminimizes_before_show(),
+            cfg!(target_os = "windows")
+        );
+        assert!(!widget_should_unminimize_before_show(true));
+        assert_eq!(
+            widget_should_unminimize_before_show(false),
+            cfg!(target_os = "windows")
+        );
     }
 
     #[test]
@@ -2154,12 +2994,27 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(Mutex::new(AppMonitorPreferenceStore::default()))
         .manage(Mutex::new(WidgetWindowStore::default()))
+        .manage(Mutex::new(false))
         .manage(local_files::ManagedFolderWatchers::default())
         .setup(|app| {
             // Open the on-device SQLite store (folder index, widget usage,
             // activity focus, sync outbox) and expose it as managed state.
             let connection =
                 local_db::open_and_migrate(app.handle()).map_err(|error| error.to_string())?;
+            // 사용자 리사이즈 크기(local_widget_bubble_sizes)를 읽어 창 크기 계산에 반영한다.
+            // 저장 이후 기본 크기가 바뀌었을 수 있으므로 로드 시점에 다시 클램프한다.
+            match local_db::read_widget_bubble_sizes_for_conn(&connection) {
+                Ok(sizes) => {
+                    for (bubble_type, width, height) in sizes {
+                        let clamped =
+                            clamp_widget_user_size(&bubble_type, width as f64, height as f64);
+                        remember_widget_user_size(&bubble_type, &clamped);
+                    }
+                }
+                Err(error) => {
+                    eprintln!("failed to load widget bubble sizes: {error}");
+                }
+            }
             app.manage(local_db::Db(Mutex::new(connection)));
 
             match load_preferred_monitor_id(app.handle()) {
@@ -2190,6 +3045,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             app_ready,
+            arrange_widget_windows,
             close_all_widget_windows,
             close_widget_window,
             get_widget_bar_items,
@@ -2200,10 +3056,14 @@ pub fn run() {
             notify_widget_pointer_seen,
             open_main_window_route,
             open_widget_window,
+            open_widget_windows,
             quit_app,
             register_widget_shortcut,
+            resize_widget_window,
             seed_widget_bar_items,
+            set_authenticated_surfaces_enabled,
             show_main_window,
+            start_tauri_google_oauth_loopback,
             set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,
@@ -2335,14 +3195,37 @@ mod widget_runtime_tests {
         assert!(!app_ready_qa_all_widgets_requested(&Some(AppReadyInput {
             qa_all_widgets: None,
             selected_room_id: Some("room-1".to_string()),
+            surface_ready_only: None,
         })));
         assert!(!app_ready_qa_all_widgets_requested(&Some(AppReadyInput {
             qa_all_widgets: Some(false),
             selected_room_id: None,
+            surface_ready_only: Some(true),
         })));
         assert!(app_ready_qa_all_widgets_requested(&Some(AppReadyInput {
             qa_all_widgets: Some(true),
             selected_room_id: None,
+            surface_ready_only: None,
+        })));
+    }
+
+    #[test]
+    fn app_ready_surface_ready_only_defaults_off_unless_explicitly_requested() {
+        assert!(!app_ready_surface_ready_only(&None));
+        assert!(!app_ready_surface_ready_only(&Some(AppReadyInput {
+            qa_all_widgets: None,
+            selected_room_id: None,
+            surface_ready_only: None,
+        })));
+        assert!(!app_ready_surface_ready_only(&Some(AppReadyInput {
+            qa_all_widgets: Some(true),
+            selected_room_id: None,
+            surface_ready_only: Some(false),
+        })));
+        assert!(app_ready_surface_ready_only(&Some(AppReadyInput {
+            qa_all_widgets: None,
+            selected_room_id: Some("room-1".to_string()),
+            surface_ready_only: Some(true),
         })));
     }
 
@@ -2356,10 +3239,32 @@ mod widget_runtime_tests {
             normalize_main_window_route("/app/calendar?roomId=room-1").as_deref(),
             Ok("/app/calendar?roomId=room-1")
         );
+        assert!(normalize_main_window_route("/app/chat").is_err());
+        assert!(normalize_main_window_route("/app/chat?roomId=room-1").is_err());
+        assert!(normalize_main_window_route("/app/project-rooms/room-1/chat").is_err());
+        assert!(normalize_main_window_route("/app/project-rooms/room-1/chat?mode=room").is_err());
         assert!(normalize_main_window_route("https://example.com/app").is_err());
         assert!(normalize_main_window_route("//example.com/app").is_err());
         assert!(normalize_main_window_route("javascript:alert(1)").is_err());
         assert!(normalize_main_window_route("/login").is_err());
+    }
+
+    #[test]
+    fn tauri_oauth_authorize_url_must_target_google_and_loopback_redirect() {
+        let redirect_uri = "http://127.0.0.1:3791/auth/callback";
+        let authorize_url = "https://accounts.google.com/o/oauth2/v2/auth?client_id=client&redirect_uri=http%3A%2F%2F127.0.0.1%3A3791%2Fauth%2Fcallback&state=abc";
+
+        assert!(validate_google_authorize_url(authorize_url, redirect_uri).is_ok());
+        assert!(validate_google_authorize_url("https://example.com/o/oauth2/v2/auth?redirect_uri=http%3A%2F%2F127.0.0.1%3A3791%2Fauth%2Fcallback", redirect_uri).is_err());
+        assert!(validate_google_authorize_url(
+            authorize_url,
+            "http://127.0.0.1:3792/auth/callback"
+        )
+        .is_err());
+        assert_eq!(
+            query_value_from_url(authorize_url, "redirect_uri").as_deref(),
+            Some(redirect_uri)
+        );
     }
 
     #[test]
@@ -2402,6 +3307,33 @@ mod widget_runtime_tests {
         );
 
         assert_eq!(widget.selected_room_id.as_deref(), Some("room-2"));
+    }
+
+    #[test]
+    fn widget_window_id_targets_requested_bubble_when_active_bubble_differs() {
+        let mut store = WidgetWindowStore::default();
+        store.active_bubble = "schedule".to_string();
+        store.bubbles.insert(
+            "todo".to_string(),
+            WidgetWindowState {
+                selected_room_id: Some("room-todo".to_string()),
+                window_visible: true,
+                ..default_widget_window_state("todo", Some("todo".to_string()))
+            },
+        );
+
+        assert_eq!(
+            resolve_target_bubble(&store, None, Some("todo".to_string())),
+            "todo"
+        );
+
+        let state = Mutex::new(store);
+        let widget = with_widget_state(&state, None, Some("todo".to_string()), |_| {})
+            .expect("read widget by window id");
+
+        assert_eq!(widget.active_bubble, "todo");
+        assert_eq!(widget.window_id.as_deref(), Some("todo"));
+        assert_eq!(widget.selected_room_id.as_deref(), Some("room-todo"));
     }
 
     #[test]
@@ -2464,6 +3396,67 @@ mod widget_runtime_tests {
             None
         );
         assert_eq!(normalize_widget_menu_route(None), None);
+    }
+
+    #[test]
+    fn resize_clamps_between_bubble_default_and_max_scale() {
+        let base = widget_default_bubble_size("memo");
+
+        let too_small = clamp_widget_user_size("memo", 10.0, 10.0);
+        assert_eq!(too_small.width, base.width);
+        assert_eq!(too_small.height, base.height);
+
+        let too_big = clamp_widget_user_size("memo", 10_000.0, 10_000.0);
+        assert_eq!(
+            too_big.width,
+            (base.width * WIDGET_USER_SIZE_MAX_SCALE).round()
+        );
+        assert_eq!(
+            too_big.height,
+            (base.height * WIDGET_USER_SIZE_MAX_SCALE).round()
+        );
+
+        // 범위 안 값은 정수로 반올림만 한다(분수 논리 px 금지).
+        let in_range = clamp_widget_user_size("memo", base.width + 20.4, base.height + 30.6);
+        assert_eq!(in_range.width, (base.width + 20.0).round());
+        assert_eq!(in_range.height, (base.height + 31.0).round());
+    }
+
+    #[test]
+    fn arrange_places_two_rows_per_column_from_top_right() {
+        let targets = vec![
+            default_widget_window_state("todo", Some("todo".to_string())),
+            default_widget_window_state("agent", Some("agent".to_string())),
+            default_widget_window_state("chat", Some("chat".to_string())),
+        ];
+
+        let placements = arrange_widget_grid_placements(&targets, 1440.0);
+
+        assert_eq!(placements.len(), 3);
+        let todo_size = widget_default_bubble_size("todo");
+        let agent_size = widget_default_bubble_size("agent");
+        let chat_size = widget_default_bubble_size("chat");
+
+        // 1열(우측): todo 위, agent 아래.
+        let column_one_width = todo_size.width.max(agent_size.width);
+        let column_one_x = (1440.0 - 24.0 - column_one_width).round() as i32;
+        assert_eq!(placements[0].0, "bubli-widget-todo");
+        assert_eq!(placements[0].1.x, column_one_x);
+        assert_eq!(placements[0].1.y, 24);
+        assert_eq!(placements[1].0, "bubli-widget-agent");
+        assert_eq!(placements[1].1.x, column_one_x);
+        assert_eq!(
+            placements[1].1.y,
+            (24.0 + todo_size.height + 24.0).round() as i32
+        );
+
+        // 2열은 1열 왼쪽으로 24px 간격.
+        let column_two_x = (column_one_x as f64 - 24.0 - chat_size.width)
+            .max(24.0)
+            .round() as i32;
+        assert_eq!(placements[2].0, "bubli-widget-chat");
+        assert_eq!(placements[2].1.x, column_two_x);
+        assert_eq!(placements[2].1.y, 24);
     }
 
     #[test]

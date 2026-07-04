@@ -20,12 +20,14 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { dashboardApi } from "@/features/dashboard/api/dashboardApi";
 import { readStoredBoard, writeStoredBoard } from "@/features/dashboard/lib/board-storage";
 import type { WidgetRoomScope } from "@/features/dashboard/lib/board-storage";
+import { useHomeBoardPresetListener } from "@/features/dashboard/lib/home-board-preset";
 import { MemoDashboardCard } from "@/features/memo/components";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import {
@@ -72,6 +74,8 @@ const connectedWidgetIds = [
 const defaultWidgetIds = [...connectedWidgetIds];
 const dashboardDropzoneId = "dashboard-canvas";
 const dashboardRemoveDropzoneId = "dashboard-remove-card";
+// 데이터 변경 이벤트의 발행 주체 표시 — 홈이 자기 변경(낙관적 갱신 완료분)으로 다시 전체 재조회하지 않게 한다.
+const DASHBOARD_EVENT_SOURCE = "workspace-dashboard";
 const PROGRESS_ROOM_LIMIT = 4;
 
 const LOCALE_TAGS: Record<string, string> = {
@@ -656,6 +660,13 @@ export function WorkspaceDashboard() {
     writeStoredBoard({ roomScope: widgetRoomScope, widgetIds });
   }, [boardHydrated, widgetIds, widgetRoomScope]);
 
+  // 직군 온보딩이 프리셋을 적용하면(홈 위 오버레이) 리로드 없이 카드 구성을 즉시 반영한다.
+  const applyPresetWidgetIds = useCallback((ids: string[]) => {
+    setWidgetIds(normalizeWidgetIds(ids));
+    setWidgetRoomScope({});
+  }, []);
+  useHomeBoardPresetListener(applyPresetWidgetIds);
+
   const fetchDashboard = useCallback(async () => {
     try {
       const data = await dashboardApi.getWork();
@@ -743,12 +754,13 @@ export function WorkspaceDashboard() {
   }, [activeRooms, canShowBoard, widgetIds, widgetRoomScope]);
 
   // 자료 위젯이 특정 룸을 보면 해당 룸의 공유 자료를 가져와 캐시한다.
+  // 캐시 값(roomResources)이 비워지면 다시 받아온다 — refreshDashboard가 이 경로로 재조회를 유도한다.
   const requestedResourceRoomsRef = useRef(new Set<string>());
   useEffect(() => {
     if (!canShowBoard || !widgetIds.includes("recent-resources")) return;
 
     const scopedRoomId = widgetRoomScope["recent-resources"] ?? null;
-    if (!scopedRoomId || requestedResourceRoomsRef.current.has(scopedRoomId)) return;
+    if (!scopedRoomId || roomResources[scopedRoomId] !== undefined || requestedResourceRoomsRef.current.has(scopedRoomId)) return;
     requestedResourceRoomsRef.current.add(scopedRoomId);
 
     void resourcesApi
@@ -759,7 +771,24 @@ export function WorkspaceDashboard() {
       .catch(() => {
         setRoomResources((current) => ({ ...current, [scopedRoomId]: [] }));
       });
-  }, [canShowBoard, widgetIds, widgetRoomScope]);
+  }, [canShowBoard, roomResources, widgetIds, widgetRoomScope]);
+
+  // 다른 표면(셸 스위처의 룸 생성/초대 수락, 일정·워크보드·자료보드, 데스크톱 위젯/다른 탭 등)의
+  // 변경을 새로고침 없이 반영한다 — 데이터 변경 이벤트 + 포커스 복귀 재검증(30초 스로틀), 폴링 없음.
+  const refreshDashboard = useCallback(() => {
+    requestedWbsRoomsRef.current.clear();
+    requestedResourceRoomsRef.current.clear();
+    setRoomResources({});
+    void fetchDashboard();
+  }, [fetchDashboard]);
+
+  // memo 도메인은 제외 — 메모 카드는 자체 조회를 갖고 있어(MemoDashboardCard) 스스로 갱신한다.
+  useDataRefresh({
+    domains: ["project-room", "resource", "schedule", "todo"],
+    ignoreSource: DASHBOARD_EVENT_SOURCE,
+    minFocusIntervalMs: 30_000,
+    onRefresh: refreshDashboard,
+  });
 
   const allTasks = useMemo(
     () => dedupeTasks([...realData.todayTasks, ...realData.upcomingDeadlines, ...personalTasks, ...dashboardFeedTasks]),
@@ -849,6 +878,8 @@ export function WorkspaceDashboard() {
           ? await todoApi.createRoomTask(todoScopeRoomId, { status: "TODO", title: trimmed })
           : await todoApi.create({ status: "TODO", title: trimmed });
         upsertTask(created);
+        // 같은 창의 다른 표면(워크보드/일정 화면 등)이 이 변경을 받도록 알린다(홈 자신은 무시).
+        notifyDataChanged("todo", { source: DASHBOARD_EVENT_SOURCE });
         setTodoNotice(todoScopeRoomId ? t("dashboard.todo.createdRoom") : t("dashboard.todo.createdPersonal"));
         return true;
       } catch (error) {
@@ -869,6 +900,7 @@ export function WorkspaceDashboard() {
       try {
         await todoApi.delete(task.id);
         removeTask(task.id);
+        notifyDataChanged("todo", { source: DASHBOARD_EVENT_SOURCE });
         setTodoNotice(t("dashboard.todo.deleted"));
       } catch (error) {
         setTodoNotice(error instanceof ApiClientError && error.status === 401 ? t("dashboard.todo.loginRequired") : t("dashboard.todo.deleteFailed"));
@@ -1066,6 +1098,7 @@ export function WorkspaceDashboard() {
               </Button>
             ) : null}
             <Button
+              data-tour="card-edit"
               icon={<LayoutDashboard aria-hidden size={15} strokeWidth={1.9} />}
               onClick={() => setEditMode((current) => !current)}
               variant={editMode ? "primary" : "secondary"}

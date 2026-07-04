@@ -12,6 +12,7 @@ import { agentApi } from "@/features/agent/api/agentApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import type { ProjectRoomUpsertRequest } from "@/types/api/projectRoom";
@@ -128,9 +129,12 @@ export default function NewProjectRoomPage() {
 
     try {
       const room = await projectRoomApi.create(body);
+      // 셸 스위처/탑바가 새 룸을 즉시 반영하도록 알린다(자료 업로드 결과와 무관).
+      notifyDataChanged("project-room");
       if (attachedFiles.length > 0) {
         try {
           await uploadRoomFiles(room.id, attachedFiles);
+          notifyDataChanged("resource");
         } catch {
           // 프로젝트룸 생성은 유지하고, 자료 업로드/분석은 룸 자료보드에서 다시 이어갈 수 있게 한다.
         }

@@ -142,6 +142,23 @@ export type ActivityBufferSyncResult = {
   syncedAt: string;
 };
 
+export type LocalOutboxServerSyncResult = {
+  activityFailedCount: number;
+  activitySentCount: number;
+  activityStagedCount: number;
+  failedCount: number;
+  fileFailedCount: number;
+  fileSentCount: number;
+  fileSyncedCount: number;
+  pendingCount: number;
+  sentCount: number;
+  syncedAt: string;
+  widgetFailedCount: number;
+  widgetMarkedSyncedCount: number;
+  widgetSentCount: number;
+  widgetStagedCount: number;
+};
+
 export type LocalFolderScopeInput = {
   roomId?: string | null;
 };
@@ -188,6 +205,7 @@ export type WidgetUsageRollupAdapterResult = LocalAdapterResult<WidgetUsageRollu
 export type WidgetUsageSummarySyncAdapterInput = WidgetUsageSummarySyncInput;
 export type WidgetUsageSummarySyncAdapterResult = LocalAdapterResult<WidgetUsageSummarySyncResult, LocalSyncSummary>;
 export type SyncOutboxSummaryResult = LocalAdapterResult<SyncOutboxFlushResult, LocalSyncSummary>;
+export type LocalOutboxServerSyncAdapterResult = LocalAdapterResult<LocalOutboxServerSyncResult, LocalSyncSummary>;
 
 export type LocalAdapterSmokeResult = {
   activity: ActivityContextAdapterResult;

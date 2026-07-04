@@ -26,6 +26,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -649,6 +650,8 @@ export function ResourcePreview({
       setRenameOpen(false);
       setRenameState({ kind: "idle" });
       onUpdated?.();
+      // 홈 최근 자료 카드 등 같은 창의 다른 자료 표면에 즉시 반영한다.
+      notifyDataChanged("resource");
     } catch (error) {
       setRenameState({ kind: "error", message: getErrorMessage(error, t) });
     }
@@ -676,6 +679,7 @@ export function ResourcePreview({
           setVersions(versionsResult.value.items);
         }
         onUpdated?.();
+        notifyDataChanged("resource");
       } catch (error) {
         // 백엔드 POST /api/resources/{id}/versions 는 JSON 메타데이터(storageKey 등)만 받고
         // multipart 파일 업로드는 아직 지원하지 않는다 — 계약 밖 요청 거절(415/405/400,
@@ -847,6 +851,7 @@ export function ResourcePreview({
       await resourcesApi.delete(activeResource.id);
       onDeleted?.();
       onClose?.();
+      notifyDataChanged("resource");
     } catch (error) {
       setDeleteState({ kind: "error", message: getErrorMessage(error, t) });
     }

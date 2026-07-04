@@ -2,8 +2,6 @@ import { apiRequest } from "@/lib/api/client";
 import type {
   ContractDocumentType,
   ContractDocumentUploadResponse,
-  InviteLinkCreateRequest,
-  InviteLinkResponse,
   ProjectRoomInvitationCreateRequest,
   ProjectRoomInvitationPageResponse,
   ProjectRoomInvitationResponse,
@@ -91,24 +89,6 @@ export const projectRoomApi = {
 
   cancelInvitation(invitationId: string) {
     return apiRequest<ProjectRoomInvitationResponse>(`/api/invitations/${invitationId}/cancel`, {
-      method: "PATCH",
-    });
-  },
-
-  // body를 생략하면 백엔드 기본 만료(72시간)를 그대로 쓴다.
-  createInviteLink(roomId: string, body?: InviteLinkCreateRequest) {
-    return apiRequest<InviteLinkResponse>(`/api/project-rooms/${roomId}/invite-links`, {
-      body,
-      method: "POST",
-    });
-  },
-
-  getInviteLink(token: string) {
-    return apiRequest<InviteLinkResponse>(`/api/invite-links/${encodeURIComponent(token)}`);
-  },
-
-  acceptInviteLink(token: string) {
-    return apiRequest<InviteLinkResponse>(`/api/invite-links/${encodeURIComponent(token)}/accept`, {
       method: "PATCH",
     });
   },
