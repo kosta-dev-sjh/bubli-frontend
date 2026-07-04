@@ -37,6 +37,7 @@ import {
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
 import { timerApi } from "@/features/timer/api/timerApi";
+import { todoApi } from "@/features/todo/api/todoApi";
 import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
@@ -750,6 +751,7 @@ function DesktopWidgetSurface() {
   const [communicationRevision, setCommunicationRevision] = useState(0);
   const [itemStateOverrides, setItemStateOverrides] = useState<Record<string, WidgetItemStateAction>>({});
   const [memoRevision, setMemoRevision] = useState(0);
+  const [todoRevision, setTodoRevision] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
   const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
   const [activeTimerHeartbeatId, setActiveTimerHeartbeatId] = useState<string | null>(null);
@@ -1144,7 +1146,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, itemStateOverrides, memoRevision, requestedRoomId, timerRevision, timerSnapshot, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
+  }, [activeVoiceRoomId, communicationRevision, isMenuOrb, isTauri, itemStateOverrides, memoRevision, requestedRoomId, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -1531,6 +1533,33 @@ function DesktopWidgetSurface() {
     [isTauri, widgetContext?.selectedRoomId],
   );
 
+  const createWidgetTodo = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      const title = window.prompt(t(bubble.actionLabel as MessageKey))?.trim();
+      if (!title) return;
+
+      const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
+      const task = roomId
+        ? await todoApi.createRoomTask(roomId, { status: "TODO", title })
+        : await todoApi.create({ status: "TODO", title });
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "todo",
+            eventType: "todo:create",
+            itemId: task.id,
+            itemType: "TASK",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setTodoRevision((current) => current + 1);
+    },
+    [isTauri, t, widgetContext?.selectedRoomId],
+  );
+
   const recordTimerUsage = useCallback(
     (eventType: string, itemId?: string) => {
       if (!isTauri) return;
@@ -1822,6 +1851,7 @@ function DesktopWidgetSurface() {
       onMarkChatRead={markWidgetChatRead}
       onModeChange={(nextMode) => void setWindowMode(nextMode)}
       onCreateMemo={createWidgetMemo}
+      onCreateTodo={createWidgetTodo}
       onOpenHandoff={openWidgetHandoff}
       onPauseTimer={pauseWidgetTimer}
       onPrimaryTimerAction={runPrimaryTimerAction}
