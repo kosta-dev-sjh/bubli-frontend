@@ -49,6 +49,7 @@ import { tauriCommands, type WidgetBubbleType, type WidgetInteractiveRect, type 
 import { emitWidgetDataChanged, listenWidgetDataChanged, listenWidgetMenuPanelRequested, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readWidgetSummary } from "@/lib/widget";
+import { syncActiveProjectRoomFromWidgetContext } from "@/lib/workspace-active-room";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import type { TimeLogResponse } from "@/types/api/timer";
@@ -555,7 +556,7 @@ function buildDisplayBubbles(input: {
   const label = roomLabel(t, input.room, input.roomId);
   const isRoomScoped = Boolean(input.roomId);
   const agentRoute = roomScopedRoute("/app/agent", input.roomId);
-  const chatRoute = input.roomId ? `/app/chat?mode=room&roomId=${encodeURIComponent(input.roomId)}` : "/app/chat";
+  const chatRoute = input.roomId ? `/app/project-rooms/${encodeURIComponent(input.roomId)}/chat` : "/app/chat";
   const resourceRoute = roomResourceRoute(input.roomId);
   const scheduleRoute = roomScopedRoute("/app/calendar", input.roomId);
   const todoRoute = roomWorkRoute(input.roomId);
@@ -994,6 +995,7 @@ function DesktopWidgetSurface() {
   // 바 창의 Bubli 버튼이 보낸 "패널 열기" 요청 수신 카운터(메뉴 창 전용).
   const [menuPanelSignal, setMenuPanelSignal] = useState(0);
   const liveKitRoomRef = useRef<Room | null>(null);
+  const surfaceReadySentRef = useRef(false);
   const appReadySentRef = useRef(false);
   // 첫 로드 성공 후의 배경 재조회 실패는 조용히 이전 데이터를 유지한다(에러 스켈레톤 스왑 금지).
   const displayLoadedOnceRef = useRef(false);
@@ -1125,6 +1127,15 @@ function DesktopWidgetSurface() {
   }, [authReady, currentWindowBubble, hasAuthSession, isTauri, windowId]);
 
   useEffect(() => {
+    if (!isTauri || !mounted || surfaceReadySentRef.current) return;
+
+    surfaceReadySentRef.current = true;
+    void tauriCommands.appReady({ surfaceReadyOnly: true }).catch(() => {
+      surfaceReadySentRef.current = false;
+    });
+  }, [isTauri, mounted]);
+
+  useEffect(() => {
     if (!isTauri || !mounted || !widgetSessionReady || appReadySentRef.current) return;
 
     appReadySentRef.current = true;
@@ -1220,7 +1231,9 @@ function DesktopWidgetSurface() {
     let cancelled = false;
 
     void listenWidgetRoomContextChanged((payload) => {
-      setWidgetContext(payload.selectedRoomId ? { mode: "ROOM", selectedRoomId: payload.selectedRoomId } : null);
+      const roomId = payload.selectedRoomId?.trim() || null;
+      syncActiveProjectRoomFromWidgetContext(roomId);
+      setWidgetContext(roomId ? { mode: "ROOM", selectedRoomId: roomId } : null);
       setCommunicationRevision((current) => current + 1);
       setMemoRevision((current) => current + 1);
       setTimerRevision((current) => current + 1);

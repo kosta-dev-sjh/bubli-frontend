@@ -108,6 +108,7 @@
 
 .shell {
   position: relative;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1827,6 +1828,7 @@
 
 .barMenuPanel {
   position: absolute;
+  box-sizing: border-box;
   bottom: 68px;
   left: calc(50% - 140px);
   z-index: 3;
@@ -1840,6 +1842,18 @@
   box-shadow:
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
     var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+  scrollbar-width: none;
+}
+
+.barRoot,
+.menuRoot {
+  box-sizing: border-box;
+}
+
+.barMenuPanel::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .barMenuInner {

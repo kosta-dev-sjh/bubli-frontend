@@ -642,6 +642,7 @@ export type WidgetRoomContextInput = {
 export type AppReadyInput = {
   qaAllWidgets?: boolean;
   selectedRoomId?: string | null;
+  surfaceReadyOnly?: boolean;
 };
 
 export type MainWindowRouteInput = {

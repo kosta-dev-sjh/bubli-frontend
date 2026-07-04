@@ -401,6 +401,14 @@ fn widget_waits_for_dom_ready_before_show() -> bool {
     cfg!(target_os = "windows")
 }
 
+fn widget_unminimizes_before_show() -> bool {
+    cfg!(target_os = "windows")
+}
+
+fn widget_should_unminimize_before_show(is_visible: bool) -> bool {
+    !is_visible && widget_unminimizes_before_show()
+}
+
 fn reset_widget_window_dom_ready(label: &str) {
     if !widget_waits_for_dom_ready_before_show() {
         return;
@@ -558,6 +566,7 @@ struct WidgetRoomContextChangedPayload {
 struct AppReadyInput {
     qa_all_widgets: Option<bool>,
     selected_room_id: Option<String>,
+    surface_ready_only: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -1454,6 +1463,9 @@ fn apply_widget_window_state(
 
         let is_visible = window.is_visible().unwrap_or(false);
         if widget.window_visible {
+            if widget_should_unminimize_before_show(is_visible) {
+                let _ = window.unminimize();
+            }
             if !is_visible && widget_window_dom_ready(&label) {
                 window.show().map_err(|error| error.to_string())?;
             }
@@ -2252,6 +2264,13 @@ fn app_ready_qa_all_widgets_requested(input: &Option<AppReadyInput>) -> bool {
         .unwrap_or(false)
 }
 
+fn app_ready_surface_ready_only(input: &Option<AppReadyInput>) -> bool {
+    input
+        .as_ref()
+        .and_then(|value| value.surface_ready_only)
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 fn app_ready(
     app: AppHandle,
@@ -2261,8 +2280,10 @@ fn app_ready(
     input: Option<AppReadyInput>,
 ) -> Result<&'static str, String> {
     let qa_all_widgets = app_ready_qa_all_widgets_requested(&input);
-    let selected_room_id =
-        input.and_then(|value| normalize_optional_query_value(value.selected_room_id));
+    let surface_ready_only = app_ready_surface_ready_only(&input);
+    let selected_room_id = input
+        .as_ref()
+        .and_then(|value| normalize_optional_query_value(value.selected_room_id.clone()));
     if qa_all_widgets && qa_all_widget_windows_enabled() {
         build_widget_qa_windows(&app, selected_room_id)?;
         return Ok("bubli-tauri-ready");
@@ -2274,6 +2295,10 @@ fn app_ready(
         window
             .set_background_color(Some(Color(0, 0, 0, 0)))
             .map_err(|error| error.to_string())?;
+
+        if surface_ready_only {
+            return Ok("bubli-tauri-ready");
+        }
 
         let widget = {
             let guard = state
@@ -2636,6 +2661,19 @@ mod tests {
     }
 
     #[test]
+    fn windows_widget_unminimizes_without_forcing_focus() {
+        assert_eq!(
+            widget_unminimizes_before_show(),
+            cfg!(target_os = "windows")
+        );
+        assert!(!widget_should_unminimize_before_show(true));
+        assert_eq!(
+            widget_should_unminimize_before_show(false),
+            cfg!(target_os = "windows")
+        );
+    }
+
+    #[test]
     fn widget_room_context_updates_all_known_widgets_and_can_clear_room() {
         let mut store = WidgetWindowStore::default();
         store.bubbles.insert(
@@ -2868,14 +2906,37 @@ mod widget_runtime_tests {
         assert!(!app_ready_qa_all_widgets_requested(&Some(AppReadyInput {
             qa_all_widgets: None,
             selected_room_id: Some("room-1".to_string()),
+            surface_ready_only: None,
         })));
         assert!(!app_ready_qa_all_widgets_requested(&Some(AppReadyInput {
             qa_all_widgets: Some(false),
             selected_room_id: None,
+            surface_ready_only: Some(true),
         })));
         assert!(app_ready_qa_all_widgets_requested(&Some(AppReadyInput {
             qa_all_widgets: Some(true),
             selected_room_id: None,
+            surface_ready_only: None,
+        })));
+    }
+
+    #[test]
+    fn app_ready_surface_ready_only_defaults_off_unless_explicitly_requested() {
+        assert!(!app_ready_surface_ready_only(&None));
+        assert!(!app_ready_surface_ready_only(&Some(AppReadyInput {
+            qa_all_widgets: None,
+            selected_room_id: None,
+            surface_ready_only: None,
+        })));
+        assert!(!app_ready_surface_ready_only(&Some(AppReadyInput {
+            qa_all_widgets: Some(true),
+            selected_room_id: None,
+            surface_ready_only: Some(false),
+        })));
+        assert!(app_ready_surface_ready_only(&Some(AppReadyInput {
+            qa_all_widgets: None,
+            selected_room_id: Some("room-1".to_string()),
+            surface_ready_only: Some(true),
         })));
     }
 

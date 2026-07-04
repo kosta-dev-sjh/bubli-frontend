@@ -74,13 +74,22 @@ function handleSubmitPointerLeave(event: PointerEvent<HTMLButtonElement>) {
   event.currentTarget.style.setProperty("--button-shift-y", "0px");
 }
 
+function shouldUseTauriDevLogin() {
+  return (
+    isTauriRuntime() &&
+    process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN === "true" &&
+    Boolean(process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN)
+  );
+}
+
 export function AuthPanel() {
   const { t } = useI18n();
   const router = useRouter();
   const liveUser = useLiveAuthUser();
   const [isStartingLogin, setIsStartingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const isDevTauriLogin = isTauriRuntime() && Boolean(process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN);
+  const isDevTauriLogin = shouldUseTauriDevLogin();
 
   // 살아 있는 세션이면 다시 로그인하지 않고 곧바로 앱으로 보낸다.
   useEffect(() => {
