@@ -108,6 +108,7 @@ export function WorkspaceTopbar({
         <button
           aria-label={t("layout.topbar.projectSelectAria", { name: project.name })}
           className={styles.projectButton}
+          data-tour="room-switcher"
           onClick={onOpenProjectSwitcher}
           type="button"
         >

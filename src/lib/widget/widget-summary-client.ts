@@ -138,6 +138,62 @@ async function readServerWidgetSummary(
   }
 }
 
+// ---------- 룸 이름 로컬 캐시 ----------
+// 위젯 TODO 버블은 개인 컨텍스트에서 "나에게 할당된 룸 태스크"에 룸 칩(룸 이름)을 붙인다.
+// 서버 summary/tasks 응답에는 roomId만 있고 이름이 없으므로, 프로젝트룸 목록 조회 결과를
+// 같은 local_widget_display_cache 행(summary JSON)에 roomNames 필드로 병합 저장해
+// 오프라인/서버 실패 시에도 칩 라벨을 복원할 수 있게 한다. Rust 쪽 validation은
+// context/bubbles만 확인하므로 추가 필드는 그대로 통과한다.
+
+export type WidgetRoomNameMap = Record<string, string>;
+
+type CachedWidgetSummary = WidgetSummaryResponse & { roomNames?: WidgetRoomNameMap };
+
+function isWidgetRoomNameMap(value: unknown): value is WidgetRoomNameMap {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return Object.values(value).every((name) => typeof name === "string");
+}
+
+export async function readCachedWidgetRoomNames(selectedRoomId?: string | null): Promise<WidgetRoomNameMap | null> {
+  if (!isTauriRuntime()) return null;
+
+  const cacheKey = getWidgetSummaryCacheKey(selectedRoomId?.trim() || null);
+  if (!cacheKey) return null;
+
+  try {
+    const cached = await tauriCommands.readWidgetSummaryCache({ cacheKey });
+    if (!cached) return null;
+    const parsed: unknown = JSON.parse(cached.summaryJson);
+    if (!isWidgetSummaryResponse(parsed)) return null;
+    const roomNames = (parsed as CachedWidgetSummary).roomNames;
+    return isWidgetRoomNameMap(roomNames) ? roomNames : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeCachedWidgetRoomNames(
+  roomNames: WidgetRoomNameMap,
+  selectedRoomId?: string | null,
+): Promise<void> {
+  if (!isTauriRuntime()) return;
+
+  const cacheKey = getWidgetSummaryCacheKey(selectedRoomId?.trim() || null);
+  if (!cacheKey) return;
+
+  try {
+    // summary 캐시 행이 있어야 병합 저장할 수 있다(테이블 스키마/validation 유지 — 별도 마이그레이션 없음).
+    const cached = await tauriCommands.readWidgetSummaryCache({ cacheKey });
+    if (!cached) return;
+    const parsed: unknown = JSON.parse(cached.summaryJson);
+    if (!isWidgetSummaryResponse(parsed)) return;
+    (parsed as CachedWidgetSummary).roomNames = roomNames;
+    await tauriCommands.storeWidgetSummaryCache({ cacheKey, summaryJson: JSON.stringify(parsed) });
+  } catch {
+    // best-effort: 캐시 실패가 위젯 표시를 막지 않는다.
+  }
+}
+
 async function readLocalWidgetSummaryCache(cacheKey: string | null): Promise<WidgetSummaryResponse | null> {
   if (!cacheKey) return null;
 

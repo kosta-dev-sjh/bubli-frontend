@@ -49,6 +49,10 @@
 /* ---------- 상단 툴바: 월 내비 · 보기 전환 · 동기화 상태 · 새 일정 ---------- */
 
 .toolbar {
+  /* 동기화 팝오버가 달력 격자 위에 완전히 얹히도록 툴바 스태킹 컨텍스트를 격자보다 위로 올린다.
+     (팝오버 z-index 60은 이 컨텍스트 안에서만 유효 — 조상이 격자 아래면 글자가 비쳐 보인다) */
+  position: relative;
+  z-index: 70;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -908,6 +912,43 @@
   box-shadow: 0 0 0 3px rgba(215, 234, 244, 0.56);
 }
 
+/* 저장 대상 세그먼트 — 내 일정(개인 캘린더) / 현재 룸 전체. 보기 전환(.viewSwitch)과 같은 문법. */
+.targetSwitch {
+  display: inline-flex;
+  justify-self: start;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--cal-hairline);
+  border-radius: 11px;
+  background: rgba(205, 216, 223, 0.16);
+}
+
+.targetSwitch button {
+  min-height: 28px;
+  max-width: 260px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 12px;
+  overflow: hidden;
+  color: var(--cal-ink-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--motion-hover) var(--ease-out),
+    color var(--motion-hover) var(--ease-out);
+}
+
+.targetSwitch button[aria-pressed="true"] {
+  color: var(--cal-ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-surface-light);
+}
+
 .fieldGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1043,6 +1084,7 @@
 
   .todayButton,
   .viewSwitch button,
+  .targetSwitch button,
   .filterChip {
     min-height: 32px;
   }
@@ -1168,11 +1210,13 @@
   --cal-tint: rgba(158, 216, 255, 0.14);
 }
 
-[data-theme="dark"] .viewSwitch {
+[data-theme="dark"] .viewSwitch,
+[data-theme="dark"] .targetSwitch {
   background: rgba(28, 39, 61, 0.5);
 }
 
-[data-theme="dark"] .viewSwitch button[aria-pressed="true"] {
+[data-theme="dark"] .viewSwitch button[aria-pressed="true"],
+[data-theme="dark"] .targetSwitch button[aria-pressed="true"] {
   background: rgba(60, 80, 125, 0.55);
   box-shadow: var(--shadow-surface-dark);
 }
@@ -1311,6 +1355,7 @@
   .navButton,
   .todayButton,
   .viewSwitch button,
+  .targetSwitch button,
   .syncTrigger,
   .filterChip,
   .cell,

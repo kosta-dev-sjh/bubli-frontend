@@ -17,8 +17,10 @@ import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
-import { syncPersonalLocalFileEventsToServer } from "@/lib/local/managed-folder-client";
-import { getLocalSyncOutboxSummary } from "@/lib/sync/local-sync-client";
+import { LOCAL_ACTIVITY_RECORDED_EVENT } from "@/lib/local/activity-client";
+import { PERSONAL_RESOURCES_CHANGED_EVENT } from "@/lib/local/managed-folder-client";
+import { getLocalSyncOutboxSummary, syncAllLocalOutboxToServer } from "@/lib/sync/local-sync-client";
+import { WIDGET_USAGE_SYNCED_EVENT } from "@/lib/widget/widget-usage-auto-sync";
 import type { LocalAdapterResult, LocalSyncSummary, SyncOutboxSummaryResult } from "@/types/local";
 
 import styles from "./local-sync-outbox-panel.module.css";
@@ -172,14 +174,32 @@ export function LocalSyncOutboxPanel({ autoLoad = true, initialConsentGranted = 
     };
   }, [autoLoad, t]);
 
+  useEffect(() => {
+    if (!autoLoad) return;
+
+    const refreshAfterLocalSync = () => {
+      void refreshSummary({ preserveNotice: true });
+    };
+
+    window.addEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, refreshAfterLocalSync);
+    window.addEventListener(LOCAL_ACTIVITY_RECORDED_EVENT, refreshAfterLocalSync);
+    window.addEventListener(WIDGET_USAGE_SYNCED_EVENT, refreshAfterLocalSync);
+
+    return () => {
+      window.removeEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, refreshAfterLocalSync);
+      window.removeEventListener(LOCAL_ACTIVITY_RECORDED_EVENT, refreshAfterLocalSync);
+      window.removeEventListener(WIDGET_USAGE_SYNCED_EVENT, refreshAfterLocalSync);
+    };
+  }, [autoLoad, refreshSummary]);
+
   const sendQueue = async () => {
     setAction("send");
-    const result = await syncPersonalLocalFileEventsToServer({ consentGranted, limit });
+    const result = await syncAllLocalOutboxToServer({ limit });
     if (result.status === "ready") {
       setNotice(t("settings.lso.sendResult", {
         failed: result.data.failedCount,
-        sent: result.data.sentCount,
-        synced: result.data.syncedCount,
+        sent: result.data.fileSentCount + result.data.activitySentCount + result.data.widgetSentCount,
+        synced: result.data.fileSyncedCount + result.data.activitySentCount + result.data.widgetMarkedSyncedCount,
       }));
       await refreshSummary({ preserveNotice: true });
       return;
@@ -223,7 +243,7 @@ export function LocalSyncOutboxPanel({ autoLoad = true, initialConsentGranted = 
               <h3>{t("settings.lso.queueTitle")}</h3>
               <p>{t("settings.lso.queueDesc")}</p>
             </div>
-            <Button disabled={action !== null || !consentGranted} icon={<RefreshCw size={15} />} loading={action === "send"} onClick={() => void sendQueue()} size="sm" variant="primary">
+            <Button disabled={action !== null} icon={<RefreshCw size={15} />} loading={action === "send"} onClick={() => void sendQueue()} size="sm" variant="primary">
               {t("settings.lso.sendQueue")}
             </Button>
           </div>

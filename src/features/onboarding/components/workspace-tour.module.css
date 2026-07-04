@@ -1,0 +1,171 @@
+/* 워크스페이스 튜토리얼(코치 마크) — 딤 + 스포트라이트 컷아웃 + 툴팁 카드. 탑바/모달(z 350) 위. */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 620;
+}
+
+.blocker {
+  position: absolute;
+  inset: 0;
+}
+
+/* 대상 탐색 중에는 옅은 딤만 유지한다(깜빡임 방지). */
+.searchingDim {
+  position: fixed;
+  inset: 0;
+  z-index: 620;
+  background: rgba(23, 33, 46, 0.32);
+}
+
+/* 스포트라이트 — 거대한 box-shadow가 주변을 딤 처리해 컷아웃을 만든다. */
+.spotlight {
+  position: fixed;
+  border-radius: 18px;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 2px rgba(158, 216, 255, 0.85),
+    0 0 0 6px rgba(111, 184, 242, 0.28),
+    0 0 0 200vmax rgba(23, 33, 46, 0.52);
+  transition: top 0.28s ease, left 0.28s ease, width 0.28s ease, height 0.28s ease;
+}
+
+/* 대상 없는 중앙 단계용 전체 딤. */
+.centerDim {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(23, 33, 46, 0.52);
+}
+
+.tooltip {
+  position: fixed;
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 20px;
+  padding: 16px 18px;
+  background:
+    radial-gradient(ellipse 76% 46% at 10% 0%, rgba(216, 240, 255, 0.5), transparent 70%),
+    rgba(255, 255, 255, 0.97);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 24px 58px -38px rgba(21, 34, 48, 0.65);
+  outline: none;
+}
+
+.tooltipHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.progress {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--blue-ink);
+}
+
+.skip {
+  border: 0;
+  background: none;
+  padding: 3px 6px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.skip:hover {
+  color: var(--blue-ink);
+  background: rgba(216, 240, 255, 0.5);
+}
+
+.tooltipTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.tooltipBody {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.tooltipFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.dots {
+  display: flex;
+  gap: 5px;
+}
+
+.dot,
+.dotActive {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(111, 184, 242, 0.28);
+}
+
+.dotActive {
+  width: 18px;
+  border-radius: 999px;
+  background: var(--bubble-blue);
+}
+
+.tooltipActions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Night Bubble 다크 정합화 ── */
+:global([data-theme="dark"]) .spotlight {
+  box-shadow:
+    0 0 0 2px rgba(158, 216, 255, 0.6),
+    0 0 0 6px rgba(111, 184, 242, 0.2),
+    0 0 0 200vmax rgba(6, 11, 20, 0.66);
+}
+
+:global([data-theme="dark"]) .centerDim,
+:global([data-theme="dark"]) .searchingDim {
+  background: rgba(6, 11, 20, 0.66);
+}
+
+:global([data-theme="dark"]) .tooltip {
+  border-color: rgba(150, 170, 215, 0.16);
+  background:
+    radial-gradient(ellipse 76% 46% at 10% 0%, rgba(158, 216, 255, 0.07), transparent 70%),
+    rgba(24, 33, 52, 0.97);
+  box-shadow:
+    inset 0 1px 0 rgba(180, 205, 240, 0.1),
+    0 24px 58px -32px rgba(0, 0, 0, 0.8);
+}
+
+:global([data-theme="dark"]) .tooltipTitle {
+  color: rgba(234, 240, 248, 0.96);
+}
+
+:global([data-theme="dark"]) .tooltipBody,
+:global([data-theme="dark"]) .skip {
+  color: rgba(167, 182, 204, 0.95);
+}
+
+:global([data-theme="dark"]) .progress {
+  color: rgba(191, 214, 245, 0.95);
+}
+
+:global([data-theme="dark"]) .skip:hover {
+  color: rgba(216, 240, 255, 0.95);
+  background: rgba(60, 80, 125, 0.4);
+}

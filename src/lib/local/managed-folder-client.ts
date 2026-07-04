@@ -12,7 +12,6 @@ import {
   failed,
   getErrorMessage,
   hasProjectRoomScope,
-  pending,
   ready,
   runTauriAdapter,
   unavailable,
@@ -232,14 +231,6 @@ export async function watchPersonalManagedFolder(
   const result = await runTauriAdapter(commandName, () => tauriCommands.watchManagedFolder(tauriInput));
   if (result.status !== "failed") {
     return result;
-  }
-
-  if (result.message.includes("not wired yet")) {
-    return pending(
-      { localFolderId: tauriInput.localFolderId, watching: false },
-      translate("local.folder.watchPending"),
-      commandName,
-    );
   }
 
   return failed(getErrorMessage(result.message), commandName);

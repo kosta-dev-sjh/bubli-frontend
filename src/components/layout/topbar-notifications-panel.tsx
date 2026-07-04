@@ -18,6 +18,8 @@ export type TopbarNotificationsPanelProps = {
   onAcceptInvitation?: (invitation: ProjectRoomInvitationResponse) => void;
   onArchive: (notificationId: string) => void;
   onMarkRead: (notificationId: string) => void;
+  /** 알림 본문 클릭 → 출처(sourceType/sourceId)로 이동. 상위(app-shell)가 라우팅을 결정한다. */
+  onOpen?: (notification: NotificationResponse) => void;
 };
 
 export function TopbarNotificationsPanel({
@@ -28,6 +30,7 @@ export function TopbarNotificationsPanel({
   onAcceptInvitation,
   onArchive,
   onMarkRead,
+  onOpen,
 }: TopbarNotificationsPanelProps) {
   const { locale, t } = useI18n();
   const visibleItems = items.filter((item) => item.status !== "ARCHIVED");
@@ -86,17 +89,35 @@ export function TopbarNotificationsPanel({
       ) : null}
       {visibleItems.length ? (
         <ul className={styles.notificationsList}>
-          {visibleItems.map((item) => (
+          {visibleItems.map((item) => {
+            // sourceType이 있으면 "보러가기" 딥링크로 이동 가능한 알림이다(라우팅은 app-shell 담당).
+            const openable = Boolean(onOpen && item.sourceType);
+            const bodyContent = (
+              <>
+                <strong>{item.title}</strong>
+                {item.body ? <p>{item.body}</p> : null}
+                <time dateTime={item.createdAt}>{formatTime(item.createdAt)}</time>
+              </>
+            );
+
+            return (
             <li
               className={styles.notificationItem}
               data-unread={item.status === "UNREAD" ? "true" : undefined}
               key={item.id}
             >
-              <div className={styles.notificationBody}>
-                <strong>{item.title}</strong>
-                {item.body ? <p>{item.body}</p> : null}
-                <time dateTime={item.createdAt}>{formatTime(item.createdAt)}</time>
-              </div>
+              {openable ? (
+                <button
+                  aria-label={t("layout.notifications.openAria", { title: item.title })}
+                  className={cn(styles.notificationBody, styles.notificationOpenButton)}
+                  onClick={() => onOpen?.(item)}
+                  type="button"
+                >
+                  {bodyContent}
+                </button>
+              ) : (
+                <div className={styles.notificationBody}>{bodyContent}</div>
+              )}
               <div className={styles.notificationActions}>
                 {item.status === "UNREAD" ? (
                   <Button
@@ -120,7 +141,8 @@ export function TopbarNotificationsPanel({
                 </Button>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       ) : !invitations.length ? (
         <p className={styles.notificationsEmpty}>

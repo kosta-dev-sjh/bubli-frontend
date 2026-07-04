@@ -2,11 +2,13 @@
 
 import { AlertCircle, HardDrive, Search, Upload } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
+import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
@@ -54,6 +56,10 @@ function createUploadBody(file: File, roomId: string) {
 
 export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   const { t } = useI18n();
+  const searchParams = useSearchParams();
+  // 딥링크 지원: ?resourceId= 로 진입하면(예: 댓글/자료 알림 보러가기) 해당 자료 상세를 연다.
+  const queryResourceId = searchParams.get("resourceId");
+  const appliedQueryResourceIdRef = useRef<string | null>(null);
   const [state, setState] = useState<RoomState>({ kind: "loading" });
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -94,6 +100,12 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
     return () => window.clearTimeout(timeoutId);
   }, [loadResources]);
 
+  // 데스크톱 위젯/다른 탭에서 올라온 자료를 포커스 복귀 시 재검증한다(loadResources는 목록을 유지한 채 갱신).
+  const revalidateResources = useCallback(() => {
+    void loadResources();
+  }, [loadResources]);
+  useDataRefresh({ domains: [], onRefresh: revalidateResources });
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setIsTauri(isTauriRuntime());
@@ -115,6 +127,19 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadResources, resources, state.kind]);
+
+  // ?resourceId= 딥링크는 목록 로드 완료 후, 같은 값에 대해 한 번만 적용한다
+  // (적용 후 사용자가 다른 자료를 고르거나 닫는 것을 방해하지 않는다).
+  useEffect(() => {
+    if (!queryResourceId || appliedQueryResourceIdRef.current === queryResourceId) return;
+    if (state.kind !== "ready") return;
+    const exists = state.resources.some((resource) => resource.id === queryResourceId);
+    const timeoutId = window.setTimeout(() => {
+      appliedQueryResourceIdRef.current = queryResourceId;
+      if (exists) setSelectedResourceId(queryResourceId);
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [queryResourceId, state]);
 
   const filteredResources = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -154,6 +179,8 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
         setUploadState({ fileName: firstFile.name, kind: "success" });
         await loadResources();
         setSelectedResourceId(firstUploadedResource?.id ?? null);
+        // 홈 최근 자료 카드 등 같은 창의 다른 자료 표면에 업로드를 즉시 반영한다.
+        notifyDataChanged("resource");
       } catch (error) {
         setUploadState({ kind: "error", message: getErrorMessage(error, t) });
       }

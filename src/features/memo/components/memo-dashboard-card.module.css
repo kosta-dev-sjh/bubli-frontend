@@ -9,10 +9,12 @@
   gap: 7px;
 }
 
+/* 자동 확장 컴포저 — 1줄(≈39px)에서 시작해 JS가 내용 높이만큼 늘린다(최대 ~5줄 후 내부 스크롤). */
 .composeForm textarea {
   width: 100%;
-  min-height: 58px;
-  resize: vertical;
+  min-height: 39px;
+  max-height: 123px;
+  resize: none;
   border: 1px solid rgba(107, 143, 168, 0.16);
   border-radius: 14px;
   padding: 9px 11px;
@@ -27,7 +29,17 @@
 
 .composeActions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Enter 줄바꿈 · Cmd/Ctrl+Enter 저장 힌트 — 초소형 보조 문구(12px 예외). */
+.composeHint {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 560;
+  word-break: keep-all;
 }
 
 .notice {
@@ -127,8 +139,9 @@
 
 .editForm textarea {
   width: 100%;
-  min-height: 52px;
-  resize: vertical;
+  min-height: 39px;
+  max-height: 123px;
+  resize: none;
   border: 1px solid rgba(107, 143, 168, 0.16);
   border-radius: 12px;
   padding: 8px 10px;

@@ -64,6 +64,18 @@
   --acc-ink: color-mix(in srgb, #93CFA8 46%, #23303B 54%);
 }
 
+/* ---------- 포커스 링: 모든 조작 요소 공통 — accent 40% 2px, 요소 radius를 그대로 따른다 ---------- */
+
+.root :is(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--acc) 40%, transparent);
+  outline-offset: 1px;
+}
+
+/* 입력줄 내부 input은 컨테이너(.input:focus-within)가 링을 담당한다 — 이중 링 방지. */
+.root .input input:focus-visible {
+  outline: none;
+}
+
 .previewRoot {
   width: 100%;
 }
@@ -96,6 +108,7 @@
 
 .shell {
   position: relative;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -120,20 +133,61 @@
 
 .previewShell {
   width: min(100%, 374px);
-  border-radius: 24px;
-  padding: 14px;
+  border-radius: 20px;
+  padding: 16px;
 }
 
 .tauriShell {
-  width: 320px;
+  /* 창(논리 px, 항상 정수)에서 거터를 뺀 폭을 정확히 채운다 — 고정 320px 시절의
+     좌우 슬랙과 리사이즈 미대응을 없애고, 20px 라운드가 항상 창 안쪽에서 끝난다. */
+  width: calc(100vw - 2 * var(--widget-window-gutter));
   border-radius: 20px;
-  padding: 14px;
+  padding: 16px;
 }
 
 /* 기본/반투명 모드에서 셸이 창 높이를 채워 CTA를 하단에 고정한다.
-   구성 자체는 콘텐츠 우선이라 stretch가 없어도 무너지지 않는다. */
+   max-height + overflow hidden: 콘텐츠가 넘쳐도 셸이 창 밖으로 자라며
+   하단 라운드/그림자가 창 모서리에서 잘려 찌그러져 보이는 일을 막는다.
+   거터(22px)는 floating shadow 최대 확장(10+22-14=18px)보다 크므로
+   그림자도 1x/2x 배율 모두 창 안에서 온전히 렌더링된다. */
 .tauriRoot:not(.minimizedMode):not(.ghostMode) .tauriShell {
   min-height: calc(100vh - 2 * var(--widget-window-gutter));
+  max-height: calc(100vh - 2 * var(--widget-window-gutter));
+  overflow: hidden;
+}
+
+/* ---------- 말랑말랑(jelly) 모션 — 순수 transform, reduced-motion 존중 ----------
+   평상시에는 transform 속성 자체를 두지 않아 서브픽셀 왜곡이 없다(회복은 스프링 트랜지션). */
+
+@media (prefers-reduced-motion: no-preference) {
+  .tauriShell {
+    transform-origin: 50% 62%;
+    transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* hover 젤리 scale과 포인터 추적 미세 틸트(±2.5°, JS가 --tilt-rx/--tilt-ry만 흘림)를
+     한 transform에서 합성한다 — 서로 싸우지 않는다. 틸트 미사용 시 var 기본 0deg. */
+  .tauriShell:hover {
+    transform: perspective(720px) rotateX(var(--tilt-rx, 0deg)) rotateY(var(--tilt-ry, 0deg)) scale(1.01);
+  }
+
+  /* 틸트 추적 중(JS가 data-bubli-tilting 부여)에는 빠른 트랜지션으로 손을 따라오고,
+     떠나면(속성 제거) 기본 오버슈트로 스프링 복귀. */
+  .tauriShell[data-bubli-tilting] {
+    transition: transform 120ms ease-out;
+  }
+
+  /* 창 드래그 시작 순간의 아주 짧은 스쿼시. */
+  .tauriShell.shellSquash {
+    transform: scale(0.988, 0.982);
+  }
+
+  /* 리사이즈 드래그 중: JS(rAF)가 감쇠된 --jelly-sx/--jelly-sy를 흘린다.
+     트랜지션을 끊어 손을 따라오게 하고, 클래스 해제 시 스프링으로 복귀한다. */
+  .tauriShell.shellResizing {
+    transform: scale(var(--jelly-sx, 1), var(--jelly-sy, 1));
+    transition: none;
+  }
 }
 
 .tauriRoot:not(.minimizedMode):not(.ghostMode) {
@@ -148,12 +202,69 @@
   --widget-window-gutter: 10px;
 }
 
+/* ---------- 우하단 16px 커스텀 리사이즈 핸들(hover 시에만 노출) ---------- */
+
+.resizeHandle {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 2;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  /* 보이는 그립: 대각선 도트 트라이앵글(GripDiagonal 문법) — 투명 코너 금지. */
+  background:
+    radial-gradient(circle 1.4px at 13px 13px, color-mix(in srgb, var(--acc-ink) 62%, transparent) 98%, transparent),
+    radial-gradient(circle 1.4px at 13px 8px, color-mix(in srgb, var(--acc-ink) 62%, transparent) 98%, transparent),
+    radial-gradient(circle 1.4px at 8px 13px, color-mix(in srgb, var(--acc-ink) 62%, transparent) 98%, transparent),
+    radial-gradient(circle 1.4px at 13px 3px, color-mix(in srgb, var(--acc-ink) 42%, transparent) 98%, transparent),
+    radial-gradient(circle 1.4px at 3px 13px, color-mix(in srgb, var(--acc-ink) 42%, transparent) 98%, transparent);
+  opacity: 0;
+  cursor: nwse-resize;
+  touch-action: none;
+  transition: opacity 160ms ease;
+}
+
+.tauriShell:hover .resizeHandle,
+.resizeHandle:focus-visible {
+  opacity: 0.8;
+}
+
+.resizeHandle:hover {
+  opacity: 1;
+}
+
+/* 쫄깃 피크: 셸 hover 시 핸들이 코너 안쪽(2px,2px)에서 오버슈트로 튀어나오고,
+   핸들 자체 hover에서는 1.18배로 통통해진다(plump). reduced-motion에서는 기존 페이드만. */
+@media (prefers-reduced-motion: no-preference) {
+  .resizeHandle {
+    transform: translate(2px, 2px) scale(0.82);
+    transition:
+      opacity 160ms ease,
+      transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .tauriShell:hover .resizeHandle,
+  .resizeHandle:focus-visible {
+    transform: translate(0, 0) scale(1);
+  }
+
+  .resizeHandle:hover {
+    transform: translate(0, 0) scale(1.18);
+    transition:
+      opacity 160ms ease,
+      transform 300ms cubic-bezier(0.34, 1.8, 0.64, 1);
+  }
+}
+
 .translucentMode .shell {
   border-color: rgba(255, 255, 255, 0.54);
   background: rgba(255, 255, 255, 0.4);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.66),
-    0 14px 32px rgba(90, 123, 150, 0.1);
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
   backdrop-filter: blur(8px) saturate(1.02);
   -webkit-backdrop-filter: blur(8px) saturate(1.02);
 }
@@ -273,30 +384,33 @@
   white-space: nowrap;
 }
 
-/* 스코프 서브타이틀: "개인 작업" 또는 룸 이름. */
+/* 스코프 서브타이틀: "개인 작업" 또는 룸 이름. 위젯 최소 폰트 14 정책. */
 .titleCopy small {
   overflow: hidden;
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* ---------- 창 컨트롤: 22px ghost circle, gap 4, .6→1 hover ---------- */
+/* ---------- 창 컨트롤: 24px ghost circle, 고정 gap 6, .6→1 hover ----------
+   버튼(핀/최소화/고스트/닫기)은 플로우 배치라 절대배치 겹침이 없고,
+   flex: none으로 타이틀이 길어도 히트영역이 줄어들지 않는다. */
 
 .controls {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .controls button {
   display: inline-grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -338,7 +452,7 @@
   gap: 6px;
   margin-top: -4px;
   color: color-mix(in srgb, var(--sync-ink) 88%, transparent);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.2;
 }
@@ -354,11 +468,11 @@
   gap: 8px;
   border: 1px solid var(--widget-hairline);
   border-radius: 999px;
-  padding: 7px 8px 7px 12px;
+  padding: 8px 8px 8px 12px;
   color: var(--widget-muted);
   background: rgba(255, 255, 255, 0.56);
   cursor: grab;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   user-select: none;
 }
@@ -382,7 +496,7 @@
   color: var(--widget-muted);
   background: rgba(255, 255, 255, 0.74);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -415,6 +529,11 @@
   margin-top: auto;
 }
 
+/* chat 버블 하단 입력줄 래퍼(자동완성 팝오버 기준점)도 같은 하단 고정을 따른다. */
+.body > .composerWrap {
+  margin-top: auto;
+}
+
 .body > .timerActions {
   margin-top: auto;
 }
@@ -423,6 +542,20 @@
   display: grid;
   gap: 6px;
   min-width: 0;
+}
+
+/* 행이 창 높이 예산을 넘으면(예: TODO 개인+룸 그룹) 목록만 조용히 스크롤하고
+   하단 주 액션(CTA)은 항상 보이게 한다 — 스크롤바는 위젯 표면이라 숨긴다. */
+.body > .rowList {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.body > .rowList::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 /* ---------- 리스트 rows (36px, 체크 어포던스) ---------- */
@@ -464,6 +597,17 @@
   grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
+/* 리스트 행 hover: 버블 accent가 옅게 배어나는 틴트(행 단위 어포던스). */
+.checkRow:hover,
+.fileRow:hover,
+.alertRow:hover,
+.timelineRow:hover,
+.memoRow:hover,
+.agentInlineRow:hover {
+  border-color: color-mix(in srgb, var(--acc) 22%, transparent);
+  background: color-mix(in srgb, var(--acc) 7%, rgba(255, 255, 255, 0.6));
+}
+
 .checkRow input {
   width: 16px;
   height: 16px;
@@ -483,7 +627,7 @@
 .message {
   min-width: 0;
   color: var(--widget-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.35;
   text-decoration: none;
@@ -516,7 +660,8 @@
   border-radius: 999px;
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 14%, transparent);
-  font-size: 11.5px;
+  /* 20px 고정 높이의 초소형 상태 배지 — 최소 폰트 예외(12px 유지). */
+  font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -527,7 +672,7 @@
   place-items: center;
   width: 24px;
   height: 24px;
-  border-radius: 8px;
+  border-radius: 9px;
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 15%, transparent);
 }
@@ -573,9 +718,10 @@
   line-height: 1;
 }
 
+/* 96px 링 내부(내경 약 58px)에 물리적으로 갇힌 캡션 — 최소 폰트 예외(12px). */
 .countRing b {
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
 }
@@ -598,9 +744,137 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
+}
+
+/* ---------- TODO 행: [체크 어포던스][제목][룸 칩][마감 칩] ---------- */
+
+/* 그룹 헤더("내 할 일" / "룸에서 할당됨") — 20px 미만 캡션이라 최소 폰트 예외(12px 유지). */
+.todoGroupHead {
+  margin-top: 2px;
+  color: var(--widget-faint);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.todoGroupHead:first-child {
+  margin-top: 0;
+}
+
+.todoRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
+}
+
+.todoRow:hover {
+  border-color: color-mix(in srgb, var(--acc) 22%, transparent);
+  background: color-mix(in srgb, var(--acc) 7%, rgba(255, 255, 255, 0.6));
+}
+
+.todoRow span,
+.todoRow a {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--widget-text);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 완료 체크 어포던스: accent 링 원형 버튼 — 누르면 완료(CONFIRMED) 처리로 이어진다. */
+.todoCheck {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1.5px solid color-mix(in srgb, var(--acc) 55%, transparent);
+  border-radius: 999px;
+  color: var(--acc-ink);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.todoCheck:hover {
+  border-color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 16%, transparent);
+}
+
+.todoCheck[aria-pressed="true"] {
+  border-color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 22%, transparent);
+}
+
+/* 룸 칩: 개인 컨텍스트에서 룸 태스크 귀속을 알리는 accent 타일(.rowTile 계열).
+   20px 고정 높이 초소형 배지 — 최소 폰트 예외(12px 유지). */
+.roomChip {
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  max-width: 88px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 7px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 15%, transparent);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 마감 칩: 기본 배지(.checkRow b와 동일 해부) + 톤(지남/오늘/내일/이후).
+   20px 고정 높이 초소형 배지 — 최소 폰트 예외(12px 유지). */
+.dueChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dueToday {
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 26%, transparent);
+}
+
+.dueTomorrow {
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
+}
+
+/* 지난 마감: 승인 팔레트의 soft red(#E89898)를 잉크와 섞어 경고 톤을 만든다. */
+.dueOverdue {
+  color: color-mix(in srgb, #E89898 52%, #23303B 48%);
+  background: color-mix(in srgb, #E89898 26%, transparent);
+}
+
+.dueLater {
+  color: var(--widget-muted);
+  background: color-mix(in srgb, #CDD8DF 34%, transparent);
 }
 
 /* ---------- 하단 주 액션: 40px, radius 12, accent 12% + accent ink ---------- */
@@ -617,7 +891,7 @@
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 12%, transparent);
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 140ms ease;
@@ -626,6 +900,25 @@
 .wideAction:hover,
 .wideAction:focus-visible {
   background: color-mix(in srgb, var(--acc) 18%, transparent);
+}
+
+/* CTA 프레스: 누르는 동안 살짝 가라앉는다(scale 0.98) — reduced-motion에서는 생략. */
+@media (prefers-reduced-motion: no-preference) {
+  .wideAction,
+  .timerPrimary,
+  .timerGhost,
+  .composerSave,
+  .chatPickerItem {
+    transition: background-color 140ms ease, border-color 140ms ease, transform 120ms ease;
+  }
+
+  .wideAction:active,
+  .timerPrimary:active,
+  .timerGhost:active:not(:disabled),
+  .composerSave:active:not(:disabled),
+  .chatPickerItem:active {
+    transform: scale(0.98);
+  }
 }
 
 /* ---------- 타이머: 140px 링 + 세그먼트 바 + 시작/일시정지 ---------- */
@@ -643,7 +936,7 @@
     color-mix(in srgb, var(--acc) 7%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 10px 26px -16px rgba(35, 48, 59, 0.24);
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
 }
 
 .timer strong {
@@ -656,7 +949,7 @@
 
 .timer span {
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.2;
 }
@@ -674,6 +967,7 @@
 }
 
 .segmented button {
+  position: relative;
   min-width: 0;
   height: 27px;
   padding: 0 8px;
@@ -682,15 +976,28 @@
   color: var(--widget-muted);
   background: transparent;
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
 
+/* 선택 배경은 layoutId 썸(motion)이 스프링 translate로 그린다 — bg 스왑 금지. */
 .segmented button[aria-pressed="true"] {
   color: var(--acc-ink);
+}
+
+.segThumb {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 1px 3px rgba(35, 48, 59, 0.12);
+}
+
+.segLabel {
+  position: relative;
+  z-index: 1;
 }
 
 .timerActions {
@@ -708,7 +1015,7 @@
   height: 40px;
   border-radius: 12px;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -744,7 +1051,7 @@
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--acc) 24%, transparent);
-  border-radius: 14px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--acc) 10%, transparent);
 }
 
@@ -764,14 +1071,14 @@
 
 .nextCopy small {
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
 }
 
 .nextCopy strong {
   overflow: hidden;
   color: var(--widget-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -784,27 +1091,13 @@
   text-decoration: none;
 }
 
-.nextEmpty {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 4px 10px;
-  border: 1px solid var(--widget-hairline);
-  border-radius: 12px;
-  color: var(--widget-muted);
-  background: rgba(255, 255, 255, 0.6);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
 /* ---------- 메모: 리스트 + 인라인 컴포저 ---------- */
 
 .memoRow strong {
   overflow: hidden;
   min-width: 0;
   color: var(--widget-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -819,7 +1112,7 @@
 
 .memoTime {
   color: var(--widget-faint);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -864,7 +1157,7 @@
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 14%, transparent);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -906,7 +1199,7 @@
   color: var(--widget-text);
   background: transparent;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -930,7 +1223,7 @@
 
 .statusText {
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   text-align: center;
 }
@@ -962,7 +1255,7 @@
   min-width: 0;
   flex: 1;
   color: var(--widget-text);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -970,7 +1263,7 @@
 
 .agentSummary b {
   color: var(--acc-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
 }
@@ -988,7 +1281,7 @@
   overflow: hidden;
   min-width: 0;
   color: var(--widget-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1004,7 +1297,8 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--acc) 14%, transparent);
   color: var(--acc-ink);
-  font-size: 11.5px;
+  /* 20px 고정 높이의 초소형 상태 배지 — 최소 폰트 예외(12px 유지). */
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1028,7 +1322,7 @@
   background: rgba(255, 255, 255, 0.6);
   box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   text-align: left;
   cursor: pointer;
@@ -1131,7 +1425,7 @@
   overflow: hidden;
   min-width: 0;
   color: var(--widget-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1147,7 +1441,8 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--acc) 14%, transparent);
   color: var(--acc-ink);
-  font-size: 11.5px;
+  /* 20px 고정 높이의 초소형 상태 배지 — 최소 폰트 예외(12px 유지). */
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1177,14 +1472,14 @@
 
 .voiceStrip span {
   color: var(--widget-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
 }
 
 .voiceStrip small {
   grid-column: 2;
   color: var(--widget-muted);
-  font-size: 11.5px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -1215,7 +1510,7 @@
   gap: 6px;
   padding: 6px 10px;
   color: var(--widget-muted);
-  font-size: 11.5px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -1223,25 +1518,41 @@
   height: 26px;
   padding: 0 10px;
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 
-/* ---------- 엠티 스테이트: 옅고 평평한 well 한 개 ---------- */
+/* ---------- 엠티 스테이트: 20px accent 아이콘 + "다음 행동" 한 줄(모든 버블 공통 해부) ---------- */
 
 .emptyState {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 56px;
+  padding: 12px;
   border: 1px solid var(--widget-hairline);
   border-radius: 12px;
   background: color-mix(in srgb, var(--acc) 5%, transparent);
+  text-align: center;
+}
+
+.emptyIcon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  color: var(--acc-ink);
 }
 
 .emptyState span {
+  overflow: hidden;
+  min-width: 0;
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---------- Preview 전용 노트 ---------- */
@@ -1264,7 +1575,7 @@
 
 .bubbleNote span {
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.45;
 }
@@ -1316,7 +1627,7 @@
 
 .ghostSignal small {
   color: rgba(90, 103, 114, 0.64);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -1353,7 +1664,7 @@
     linear-gradient(150deg, rgba(255, 255, 255, 0.88), color-mix(in srgb, var(--acc) 34%, transparent));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 10px 22px rgba(90, 123, 150, 0.16);
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
 }
 
 .dockCopy {
@@ -1379,7 +1690,7 @@
 .hiddenCard span {
   overflow: hidden;
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.15;
   text-overflow: ellipsis;
@@ -1394,8 +1705,9 @@
   width: fit-content;
 }
 
-/* 바 창(560×220 고정)은 pill보다 크다: pill(fit-content)을 하단 중앙에 고정하고
-   나머지 투명 영역은 hover 팝오버 전용이다(투명 영역 클릭은 Rust 폴러가 아래 앱으로 통과시킨다).
+/* 바 창(640×430 고정)은 pill보다 크다: pill(fit-content)을 하단 중앙에 고정하고
+   나머지 투명 영역은 hover 팝오버 + Bubli 메뉴 morph 패널(≈352px) 전용이다
+   (투명 영역 클릭은 Rust 폴러가 아래 앱으로 통과시킨다).
    창 크기는 src-tauri/src/lib.rs WIDGET_BAR_WIDTH/HEIGHT와 동기화한다. */
 .barRoot {
   position: relative;
@@ -1408,15 +1720,20 @@
 
 .barPopover {
   position: absolute;
-  bottom: 62px;
-  left: 50%;
+  /* pill(36px 칩 + 패딩 ≈ 54px) + 루트 패딩 4 + 여백 10 — pill 위 투명 영역에 뜨므로
+     pill 자체는 절대 밀리지 않는다. motion이 transform(스케일 인)을 소유하므로
+     중앙 정렬은 translateX 대신 left/right + margin auto로 한다(하단 앵커 origin). */
+  bottom: 68px;
+  right: 4px;
+  left: 4px;
   width: min(calc(100% - 8px), 440px);
-  transform: translateX(-50%);
+  margin: 0 auto;
+  transform-origin: 50% 100%;
   display: grid;
-  gap: 6px;
+  gap: 8px;
   padding: 12px;
   border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
-  border-radius: 16px;
+  border-radius: 20px;
   background: rgba(255, 255, 255, 0.92);
   color: var(--widget-text);
   box-shadow:
@@ -1428,12 +1745,24 @@
 .barPopoverHead {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 
+/* 팝오버 헤드의 버블 accent 아이콘 타일(24px) — 칩과 같은 아이덴티티를 이어받는다. */
+.barPopoverTile {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 9px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 15%, transparent);
+}
+
 .barPopoverHead strong {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -1442,7 +1771,7 @@
   min-width: 0;
   margin-left: auto;
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1451,7 +1780,7 @@
 .barPopover > small {
   overflow: hidden;
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1459,19 +1788,28 @@
 
 .barPopover ul {
   display: grid;
-  gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* hairline rows: 첫 행 위와 행 사이에 얇은 헤어라인 — 최대 3행 + "…" 잘림 표시. */
 .barPopover li {
   display: flex;
   align-items: baseline;
   gap: 6px;
   min-width: 0;
-  font-size: 12px;
+  min-height: 26px;
+  padding: 4px 0;
+  border-top: 1px solid var(--widget-hairline);
+  font-size: 14px;
   font-weight: 700;
+}
+
+.barPopoverMore {
+  justify-content: center;
+  color: var(--widget-faint);
+  line-height: 1;
 }
 
 .barPopover li span {
@@ -1485,7 +1823,7 @@
   overflow: hidden;
   min-width: 0;
   color: var(--widget-faint);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1495,16 +1833,24 @@
   flex: none;
   margin-left: auto;
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .bubbleBar {
+  /* popLayout 퇴장 칩의 absolute 기준 + goo 팝 버블의 위치 기준. */
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px;
+  /* 고정 알림 + Bubli 마크 + 접힌 칩 전부(최대 7개, 타이머는 시간 텍스트 포함)가
+     640px 창을 절대 넘지 않는 간격 — "+N" 접기·잘림 없음(총 ~460px).
+     goo 팝 버블·칩 배지가 pill 밖으로 솟아야 해서 overflow는 visible이다(폭 계산이 잘림을 대신 보장). */
+  gap: 6px;
+  max-width: 100%;
+  overflow: visible;
+  padding: 8px;
   border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
   border-radius: 999px;
   background:
@@ -1513,51 +1859,106 @@
   box-shadow:
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
     var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+  transition: opacity 200ms ease;
 }
 
-.barBrand,
-.barItem,
-.barNotice {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  border: 1px solid var(--widget-hairline);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.76);
-  color: var(--widget-text);
-  cursor: pointer;
+/* idle 페이드: 8초 무상호작용이면 pill(nav)만 0.85로 옅어지고, hover/포커스에 즉시 1.0으로
+   돌아온다(200ms ease). 요소 opacity는 pill의 반투명 배경(0.9)·헤어라인·섀도와 "곱해져"
+   실제로는 수치보다 훨씬 흐리게 읽힌다 — 0.72는 데스크톱 위에서 ~40%처럼 보였다(라이브 버그).
+   0.85 × 배경 0.9 ≈ 0.77 유효 알파로 '살짝 물러남'까지만 허용한다.
+   메뉴 morph 패널·hover 프리뷰 팝오버는 nav 밖 형제 레이어라 절대 같이 옅어지지 않고,
+   goo 팝은 nav 안이라 TSX가 떠 있는 동안 페이드 자체를 정지시킨다(barIdle 클래스 미부여). */
+.barIdle {
+  opacity: 0.85;
 }
 
-.barBrand {
-  padding: 0 12px;
-  font: inherit;
+.bubbleBar:hover,
+.bubbleBar:focus-within {
+  opacity: 1;
 }
 
-/* 접힌 칩: 18px accent 미니 타일 + 12px tabular 카운트. */
-.barItem,
-.barNotice {
-  flex: none;
-  gap: 5px;
-  padding: 0 9px 0 6px;
-}
-
-.chipTile {
+/* 접힌 칩: 아이콘 전용 36px accent 타일 + 우상단 16px 카운트 배지(>0일 때만). */
+.barChip {
+  position: relative;
   display: inline-grid;
+  flex: none;
   place-items: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
   color: var(--acc-ink);
-  background: color-mix(in srgb, var(--acc) 16%, transparent);
+  background: color-mix(in srgb, var(--acc) 13%, transparent);
+  cursor: pointer;
+  transition: background-color 140ms ease;
 }
 
-.barItem b,
-.barNotice b {
-  font-size: 12px;
+.barChip:hover,
+.barChip:focus-visible {
+  background: color-mix(in srgb, var(--acc) 20%, transparent);
+}
+
+/* 타이머 칩만 아이콘 옆 컴팩트 시간 텍스트가 붙는다(배지 없음). */
+.barTimerChip {
+  grid-auto-flow: column;
+  width: auto;
+  gap: 5px;
+  padding: 0 10px 0 8px;
+}
+
+.chipTime {
+  color: var(--acc-ink);
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* 16px 우상단 카운트 배지 — 초소형 고정 높이라 최소 폰트 예외(12px 유지). */
+.chipBadge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  color: #FFFFFF;
+  background: var(--acc-ink);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  /* 16px 배지의 보더 안쪽 콘텐츠 높이(14px)에 라인박스를 맞춰 숫자를 수직 중앙에 앉힌다. */
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+/* Bubli 브랜드 칩: 텍스트 워드마크 대신 웹앱과 같은 28px 버블 마크. */
+.barBrand {
+  overflow: hidden;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.76);
+  cursor: pointer;
+  transition: background-color 140ms ease, width 200ms ease, margin-left 200ms ease, border-width 200ms ease;
+}
+
+
+.barBrand:hover,
+.barBrand:focus-visible {
+  background: color-mix(in srgb, #6FB8F2 14%, transparent);
 }
 
 .barBrand[aria-expanded="true"] {
@@ -1565,22 +1966,131 @@
   background: color-mix(in srgb, #6FB8F2 14%, transparent);
 }
 
-.barBrand i {
-  width: 14px;
-  height: 14px;
+/* ---------- 바 인라인 Bubli 메뉴 패널(브랜드 칩 ↔ 패널 layoutId morph) ----------
+   pill 위 투명 영역(bottom 68px)에 280px 패널이 뜬다. motion이 transform을 소유하므로
+   중앙 정렬은 transform 대신 left 계산으로 한다. 창 높이 430(WIDGET_BAR_HEIGHT)과 동기화:
+   하단 앵커 68(pill 52 + 루트 패딩 4 + 여백 12) + max-height 352 = 420 ≤ 430이라 상단이
+   최소 10px 남아 절대 잘리지 않는다(예산 430 - 52 - 24 ≈ 354 이내). 내용이 더 길면
+   overflow auto가 패널 내부 스크롤로 흡수한다. */
+
+.barMenuPanel {
+  position: absolute;
+  box-sizing: border-box;
+  bottom: 68px;
+  left: calc(50% - 140px);
+  z-index: 3;
+  width: 280px;
+  max-height: 352px;
+  overflow: hidden auto;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+  scrollbar-width: none;
+}
+
+.barRoot,
+.menuRoot {
+  box-sizing: border-box;
+}
+
+.barMenuPanel::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.barMenuInner {
+  display: grid;
+  gap: 6px;
+}
+
+/* ---------- 알림 구이(gooey) 팝: 칩 + 팝 버블 블롭 그룹에만 goo 필터 ---------- */
+
+/* 필터 정의 전용 svg — 화면을 차지하지 않는다. */
+.gooDefs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.noticeWrap {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+}
+
+/* goo 블롭 레이어(배경 전용): 칩 자리 seed 원 + 위로 솟는 pill 블롭이 blur+대비로 붙었다
+   떨어진다. 아이콘/텍스트는 필터 밖(칩 버튼·gooLabel)에서 또렷하게 그린다. */
+.gooGroup {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  z-index: 0;
+  width: 220px;
+  height: 104px;
+  translate: -50% 0;
+  pointer-events: none;
+  filter: url("#bubli-goo");
+}
+
+.gooSeed {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, #E6DDF8 55%, #FFFFFF);
+}
+
+/* 블롭은 gooLabel과 같은 타이포/패딩의 투명 텍스트로 크기를 맞춘다(텍스트는 label이 그린다). */
+.gooBlob,
+.gooLabel {
+  position: absolute;
+  bottom: 46px;
+  left: 50%;
+  overflow: hidden;
+  max-width: 200px;
+  padding: 7px 12px;
+  border: 0;
   border-radius: 999px;
-  background:
-    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.98), transparent 22%),
-    linear-gradient(150deg, #9ED8FF, #DCD8F8);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  translate: -50% 0;
+  transform-origin: 50% 100%;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.barBrand span {
-  font-size: 12px;
-  font-weight: 800;
+.gooBlob {
+  color: transparent;
+  background: color-mix(in srgb, #E6DDF8 55%, #FFFFFF);
 }
 
-/* ---------- 메뉴 창(248×360): 44px 오브 + 바로 아래 패널 ---------- */
+/* 클릭 타깃 + 또렷한 제목 1줄(필터 밖). 배경은 블롭이 담당하므로 투명. */
+.gooLabel {
+  z-index: 3;
+  background: transparent;
+  color: var(--widget-text);
+  box-shadow: var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+  cursor: pointer;
+}
+
+/* 칩/구분선이 goo 레이어 위에 오도록 쌓임만 정리한다. */
+.noticeWrap .barChip {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- 메뉴 창(248×424): 44px 브랜드 타일 오브(미니 앱 아이콘) + 바로 아래 패널 ---------- */
 
 .menuRoot {
   gap: 8px;
@@ -1588,29 +2098,85 @@
   padding: 4px;
 }
 
+/* 오브 버튼: 시각 타일(44px)보다 살짝 큰 56px 히트 타깃. 배경은 투명(타일이 곧 오브). */
 .menuOrb {
-  width: 44px;
-  height: 44px;
-  border: 1px solid rgba(255, 255, 255, 0.84);
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.98), transparent 20%),
-    radial-gradient(circle at 72% 72%, rgba(220, 216, 248, 0.4), transparent 34%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.92), rgba(216, 240, 255, 0.7));
-  box-shadow:
-    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
-    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   cursor: pointer;
 }
 
-.menuOrb span {
+/* 오브 본체: 유리 버블 단독은 '사탕'처럼 읽혀서, 웹앱 브랜드와 같은 sky→lilac 그라디언트
+   타일(44px, radius 14 = 미니 앱 아이콘 문법) 위에 버블 마크를 얹는다.
+   hairline 1px + 상단 인셋 하이라이트 + 부드러운 드롭 섀도로 "Bubli 앱 메뉴"로 읽히게 한다. */
+.menuOrbTile {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 14px;
+  background:
+    radial-gradient(ellipse 82% 54% at 22% 10%, rgba(255, 255, 255, 0.5), transparent 64%),
+    linear-gradient(135deg, #9ED8FF 0%, #6FB8F2 48%, #B0A8E0 100%);
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    0 10px 22px -12px rgba(58, 120, 184, 0.5);
+}
+
+/* 타일 위 버블 마크(30px) — 조합 셀렉터로 전역 .bubli-mark--md(28px)보다 우선한다. */
+.menuOrb .menuOrbMark {
   display: block;
-  width: 15px;
-  height: 15px;
-  margin: 0 auto;
-  border-radius: 999px;
-  background: linear-gradient(150deg, #6FB8F2, #B0A8E0);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  width: 30px;
+  height: 30px;
+  filter: drop-shadow(0 4px 8px rgba(35, 48, 59, 0.28));
+}
+
+/* 잔잔한 bob 부유(3s, ±3px) + hover/포커스 워블·scale 1.06 — reduced-motion에서는 정지.
+   애니메이션은 타일 전체에 건다(마크만 흔들리면 아이콘이 아니라 사탕처럼 다시 읽힌다). */
+@media (prefers-reduced-motion: no-preference) {
+  .menuOrbTile {
+    animation: bubble-orb-bob 3s ease-in-out infinite;
+  }
+
+  .menuOrb:hover .menuOrbTile,
+  .menuOrb:focus-visible .menuOrbTile {
+    animation: bubble-orb-wobble 700ms ease-in-out;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes bubble-orb-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes bubble-orb-wobble {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+
+  30% {
+    transform: scale(1.09) rotate(-3deg);
+  }
+
+  65% {
+    transform: scale(1.04) rotate(2deg);
+  }
+
+  100% {
+    transform: scale(1.06) rotate(0deg);
+  }
 }
 
 /* 오브와 같은 왼쪽 라인, 8px 아래에 바로 붙는 패널. */
@@ -1618,9 +2184,9 @@
   display: grid;
   gap: 6px;
   width: 232px;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
-  border-radius: 16px;
+  border-radius: 20px;
   background: rgba(255, 255, 255, 0.95);
   box-shadow:
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
@@ -1649,7 +2215,7 @@
 .menuUsage {
   overflow: hidden;
   color: var(--widget-muted);
-  font-size: 10.5px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -1674,7 +2240,7 @@
   background: transparent;
   color: var(--widget-text);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   text-align: left;
   cursor: pointer;
@@ -1698,7 +2264,7 @@
   place-items: center;
   width: 24px;
   height: 24px;
-  border-radius: 7px;
+  border-radius: 9px;
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 16%, transparent);
 }
@@ -1722,7 +2288,7 @@
   background: transparent;
   color: var(--widget-text);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   text-align: left;
   cursor: pointer;
@@ -1822,12 +2388,45 @@
 :global([data-theme="dark"]) .message,
 :global([data-theme="dark"]) .input,
 :global([data-theme="dark"]) .bubbleNote,
-:global([data-theme="dark"]) .nextEmpty,
 :global([data-theme="dark"]) .chatPickerItem,
 :global([data-theme="dark"]) .dragbar {
   border-color: rgba(150, 170, 215, 0.14);
   background: rgba(18, 26, 40, 0.6);
   box-shadow: var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07));
+}
+
+/* 다크 TODO 행: checkRow와 같은 다크 표면/헤어라인 파리티. */
+:global([data-theme="dark"]) .todoRow {
+  border-color: rgba(150, 170, 215, 0.14);
+  background: rgba(18, 26, 40, 0.6);
+  box-shadow: var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07));
+}
+
+:global([data-theme="dark"]) .todoRow:hover {
+  border-color: color-mix(in srgb, var(--acc) 28%, transparent);
+  background: color-mix(in srgb, var(--acc) 10%, rgba(18, 26, 40, 0.6));
+}
+
+/* 다크 마감/룸 칩: 어두운 표면 위에서 accent 틴트를 살짝 올리고, 지난 마감은 밝은 soft red 잉크로. */
+:global([data-theme="dark"]) .dueOverdue {
+  color: #E89898;
+  background: color-mix(in srgb, #E89898 20%, transparent);
+}
+
+:global([data-theme="dark"]) .dueLater {
+  color: var(--widget-muted);
+  background: rgba(150, 170, 215, 0.14);
+}
+
+/* 다크 행 hover 틴트: 같은 accent 배어남을 다크 표면 위에서 재현한다. */
+:global([data-theme="dark"]) .checkRow:hover,
+:global([data-theme="dark"]) .fileRow:hover,
+:global([data-theme="dark"]) .alertRow:hover,
+:global([data-theme="dark"]) .timelineRow:hover,
+:global([data-theme="dark"]) .memoRow:hover,
+:global([data-theme="dark"]) .agentInlineRow:hover {
+  border-color: color-mix(in srgb, var(--acc) 28%, transparent);
+  background: color-mix(in srgb, var(--acc) 10%, rgba(18, 26, 40, 0.6));
 }
 
 :global([data-theme="dark"]) .chatPickerItem:hover {
@@ -1854,6 +2453,9 @@
 
 :global([data-theme="dark"]) .segmented button[aria-pressed="true"] {
   color: var(--acc-ink);
+}
+
+:global([data-theme="dark"]) .segThumb {
   background: rgba(22, 30, 46, 0.94);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
@@ -1957,19 +2559,14 @@
     var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
 }
 
-:global([data-theme="dark"]) .barBrand,
-:global([data-theme="dark"]) .barItem,
-:global([data-theme="dark"]) .barNotice {
+:global([data-theme="dark"]) .barBrand {
   border-color: rgba(150, 170, 215, 0.18);
-  color: var(--widget-text);
   background: rgba(18, 26, 40, 0.6);
 }
 
-:global([data-theme="dark"]) .barBrand i {
-  background:
-    radial-gradient(circle at 30% 28%, rgba(234, 240, 248, 0.85), transparent 22%),
-    linear-gradient(150deg, rgba(158, 216, 255, 0.42), rgba(111, 184, 242, 0.26));
-  box-shadow: inset 0 1px 0 rgba(234, 240, 248, 0.45);
+:global([data-theme="dark"]) .barBrand:hover,
+:global([data-theme="dark"]) .barBrand:focus-visible {
+  background: rgba(111, 184, 242, 0.2);
 }
 
 :global([data-theme="dark"]) .barBrand[aria-expanded="true"] {
@@ -1977,8 +2574,19 @@
   background: rgba(111, 184, 242, 0.2);
 }
 
-:global([data-theme="dark"]) .chipTile {
-  background: color-mix(in srgb, var(--acc) 22%, transparent);
+:global([data-theme="dark"]) .barChip {
+  border-color: rgba(150, 170, 215, 0.18);
+  background: color-mix(in srgb, var(--acc) 20%, transparent);
+}
+
+:global([data-theme="dark"]) .barChip:hover,
+:global([data-theme="dark"]) .barChip:focus-visible {
+  background: color-mix(in srgb, var(--acc) 28%, transparent);
+}
+
+:global([data-theme="dark"]) .chipBadge {
+  border-color: rgba(22, 30, 46, 0.9);
+  color: #EAF0F8;
 }
 
 :global([data-theme="dark"]) .barPopover {
@@ -1989,20 +2597,43 @@
     var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
 }
 
-:global([data-theme="dark"]) .menuOrb {
+/* 다크: 팝오버 헤드 accent 타일은 다크 표면 위에서 한 단계 진하게(menuTile과 동일 레시피). */
+:global([data-theme="dark"]) .barPopoverTile {
+  background: color-mix(in srgb, var(--acc) 22%, transparent);
+}
+
+/* 다크: 바 인라인 메뉴 패널은 menuPanel과 같은 Night Bubble 레시피. */
+:global([data-theme="dark"]) .barMenuPanel {
   border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
-  background:
-    radial-gradient(circle at 30% 28%, rgba(180, 205, 240, 0.16), transparent 22%),
-    radial-gradient(circle at 72% 72%, rgba(176, 168, 224, 0.16), transparent 30%),
-    rgba(22, 30, 46, 0.97);
+  background: rgba(22, 30, 46, 0.97);
   box-shadow:
     var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
     var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
 }
 
-:global([data-theme="dark"]) .menuOrb span {
-  background: linear-gradient(150deg, #7CC4F5, #B0A8E0);
-  box-shadow: inset 0 1px 0 rgba(234, 240, 248, 0.3);
+/* 다크: goo 블롭/seed는 다크 표면 톤(라일락 살짝) — 라벨 텍스트는 --widget-text가 처리. */
+:global([data-theme="dark"]) .gooSeed,
+:global([data-theme="dark"]) .gooBlob {
+  background: color-mix(in srgb, #6E63B8 26%, rgba(22, 30, 46, 0.97));
+}
+
+:global([data-theme="dark"]) .gooLabel {
+  box-shadow: var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
+}
+
+/* 다크: 타일은 더 깊은 sky→lilac + 어두운 섀도, hairline은 다크 rim 톤으로. */
+:global([data-theme="dark"]) .menuOrbTile {
+  border-color: rgba(150, 170, 215, 0.32);
+  background:
+    radial-gradient(ellipse 82% 54% at 22% 10%, rgba(220, 240, 255, 0.22), transparent 64%),
+    linear-gradient(135deg, #3A78B8 0%, #4C91CD 48%, #6E63B8 100%);
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.24)),
+    0 12px 24px -12px rgba(0, 0, 0, 0.55);
+}
+
+:global([data-theme="dark"]) .menuOrbMark {
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
 }
 
 :global([data-theme="dark"]) .menuPanel {
@@ -2062,4 +2693,210 @@
 
 :global([data-theme="dark"]) .barDivider {
   background: rgba(150, 170, 215, 0.2);
+}
+
+/* ============================================================
+   에이전트 버블 미니 대화 + /bubli 자동완성 + 장문 메모(2026-07-05)
+   ============================================================ */
+
+/* 컴포저 위 자동완성 팝오버의 absolute 기준점(chat 버블 하단 입력줄 래퍼). */
+.composerWrap {
+  position: relative;
+  display: grid;
+}
+
+/* 에이전트 요청/응답 말풍선 히스토리 — 최근 10개, 내부 스크롤(스크롤바 숨김). */
+.agentThread {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  max-height: 158px;
+  padding: 2px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.agentThread::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.agentThread .message {
+  margin: 0;
+  max-width: 86%;
+  font-weight: 600;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agentReply {
+  align-self: flex-start;
+}
+
+.agentReplyError {
+  border-color: color-mix(in srgb, #E79BB0 45%, transparent);
+  color: color-mix(in srgb, #C56B85 72%, var(--widget-text) 28%);
+  background: color-mix(in srgb, #E79BB0 10%, transparent);
+}
+
+/* "Bubli가 생각 중…" — 웹 소통창 typing-line 점 애니메이션과 같은 리듬. */
+.agentThinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  padding: 7px 11px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  color: var(--widget-muted);
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
+  font-size: 14px;
+  font-weight: 600;
+  word-break: keep-all;
+}
+
+.agentThinkingDots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.agentThinkingDots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: widget-thinking-dot 1.15s ease-in-out infinite;
+}
+
+.agentThinkingDots i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.agentThinkingDots i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes widget-thinking-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agentThinkingDots i {
+    animation: none;
+  }
+}
+
+/* 메모 행 장문 대응: 본문(2줄 clamp/펼침) 위, 시간·액션 메타 아래의 세로 스택. */
+.memoRowStack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 7px 10px;
+}
+
+.memoBodyButton {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--widget-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.memoBodyClamp {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.memoMetaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 메모 인라인 컴포저: textarea 자동 확장(1줄 시작, 최대 ~5줄 후 내부 스크롤). */
+.memoComposer {
+  align-items: flex-end;
+  height: auto;
+  min-height: 38px;
+  padding: 6px 10px;
+}
+
+.memoComposer > svg {
+  flex: none;
+  margin-bottom: 6px;
+}
+
+.memoComposer .composerSave {
+  margin-bottom: 3px;
+}
+
+.memoComposerField {
+  min-width: 0;
+  flex: 1;
+  max-height: 106px;
+  border: 0;
+  outline: 0;
+  resize: none;
+  color: var(--widget-text);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  scrollbar-width: none;
+}
+
+.memoComposerField::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Enter 줄바꿈 · Cmd/Ctrl+Enter 저장 힌트 — 상태 배지와 같은 최소 폰트 예외(12px). */
+.composerHint {
+  color: var(--widget-faint);
+  font-size: 12px;
+  font-weight: 620;
+  text-align: right;
+  word-break: keep-all;
+}
+
+/* Night Bubble 다크 패리티 */
+:global([data-theme="dark"]) .agentThinking {
+  border-color: rgba(150, 170, 215, 0.14);
+  background: rgba(18, 26, 40, 0.6);
+  box-shadow: var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07));
+}
+
+:global([data-theme="dark"]) .agentReplyError {
+  border-color: color-mix(in srgb, #E79BB0 40%, transparent);
+  color: color-mix(in srgb, #E79BB0 70%, #EAF0F8 30%);
+  background: color-mix(in srgb, #E79BB0 14%, transparent);
 }

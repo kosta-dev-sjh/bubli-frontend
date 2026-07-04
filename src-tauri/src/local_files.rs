@@ -427,6 +427,15 @@ pub async fn select_managed_folder(
     input: Option<SelectManagedFolderInput>,
 ) -> Result<ManagedFolderSelection, String> {
     let path_buf = resolve_managed_folder_path(&app, input).await?;
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    register_managed_folder_for_path(&conn, &path_buf, now_ms())
+}
+
+fn register_managed_folder_for_path(
+    conn: &Connection,
+    path_buf: &Path,
+    now: i64,
+) -> Result<ManagedFolderSelection, String> {
     if !path_buf.is_dir() {
         return Err(format!("not a directory: {}", path_buf.display()));
     }
@@ -435,10 +444,7 @@ pub async fn select_managed_folder(
         .file_name()
         .map(|value| value.to_string_lossy().to_string())
         .unwrap_or_else(|| path.clone());
-
-    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
     let id = Uuid::new_v4().to_string();
-    let now = now_ms();
     conn.execute(
         "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
          VALUES (?1, ?2, ?3, 'ACTIVE', 1, ?4, ?4) \
@@ -939,12 +945,37 @@ fn start_managed_folder_watcher(
     local_folder_id: String,
     folder_path: String,
 ) -> Result<ManagedFolderWatchResult, String> {
+    let db_path = crate::local_db::database_path(app)?;
+    let callback_app = app.clone();
+
+    start_managed_folder_watcher_with_db_path(
+        watchers,
+        local_folder_id,
+        folder_path,
+        db_path,
+        move |payload| {
+            if let Err(error) = callback_app.emit(MANAGED_FOLDER_WATCH_EVENT, payload) {
+                eprintln!("managed folder watch emit failed: {error}");
+            }
+        },
+    )
+}
+
+fn start_managed_folder_watcher_with_db_path<F>(
+    watchers: &ManagedFolderWatchers,
+    local_folder_id: String,
+    folder_path: String,
+    db_path: PathBuf,
+    emit: F,
+) -> Result<ManagedFolderWatchResult, String>
+where
+    F: Fn(ManagedFolderWatchEvent) + Send + 'static,
+{
     let folder = PathBuf::from(&folder_path);
     if !folder.is_dir() {
         return Err(format!("not a directory: {folder_path}"));
     }
 
-    let db_path = crate::local_db::database_path(app)?;
     let mut guard = watchers
         .0
         .lock()
@@ -959,7 +990,6 @@ fn start_managed_folder_watcher(
 
     let callback_folder_id = local_folder_id.clone();
     let callback_db_path = db_path.clone();
-    let callback_app = app.clone();
     let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
         let event = match result {
             Ok(value) => value,
@@ -981,14 +1011,8 @@ fn start_managed_folder_watcher(
         };
         crate::local_db::configure_connection(&conn);
         let now = now_ms();
-        let mut changed_count = 0;
-
-        for path in event.paths {
-            match record_watch_path_change(&conn, &callback_folder_id, &path, now) {
-                Ok(count) => changed_count += count,
-                Err(error) => eprintln!("managed folder watch event failed: {error}"),
-            }
-        }
+        let changed_count =
+            record_watch_event_paths_for_conn(&conn, &callback_folder_id, event.paths, now);
 
         if changed_count > 0 {
             let payload = ManagedFolderWatchEvent {
@@ -996,9 +1020,7 @@ fn start_managed_folder_watcher(
                 local_folder_id: callback_folder_id.clone(),
                 observed_at: ms_to_iso(now),
             };
-            if let Err(error) = callback_app.emit(MANAGED_FOLDER_WATCH_EVENT, payload) {
-                eprintln!("managed folder watch emit failed: {error}");
-            }
+            emit(payload);
         }
     })
     .map_err(|error| format!("folder watch setup failed: {error}"))?;
@@ -1227,6 +1249,27 @@ fn should_process_watch_event(event: &Event) -> bool {
             | EventKind::Remove(_)
             | EventKind::Other
     )
+}
+
+fn record_watch_event_paths_for_conn<I>(
+    conn: &Connection,
+    local_folder_id: &str,
+    paths: I,
+    now: i64,
+) -> i64
+where
+    I: IntoIterator<Item = PathBuf>,
+{
+    let mut changed_count = 0;
+
+    for path in paths {
+        match record_watch_path_change(conn, local_folder_id, &path, now) {
+            Ok(count) => changed_count += count,
+            Err(error) => eprintln!("managed folder watch event failed: {error}"),
+        }
+    }
+
+    changed_count
 }
 
 fn record_watch_path_change(
@@ -2800,10 +2843,26 @@ pub fn open_local_file(
     input: LocalFileOpenInput,
 ) -> Result<LocalFileOpenResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let (name, path_buf) = resolve_open_local_file_for_conn(&conn, &input.local_file_id)?;
+
+    tauri_plugin_opener::open_path(&path_buf, None::<&str>).map_err(|error| error.to_string())?;
+
+    Ok(LocalFileOpenResult {
+        local_file_id: input.local_file_id,
+        name,
+        opened_at: crate::local_db::now_iso(),
+        path: path_buf.to_string_lossy().to_string(),
+    })
+}
+
+fn resolve_open_local_file_for_conn(
+    conn: &Connection,
+    local_file_id: &str,
+) -> Result<(String, PathBuf), String> {
     let row: Option<(String, String)> = conn
         .query_row(
             "SELECT file_name, local_path FROM local_files WHERE id = ?1",
-            params![input.local_file_id],
+            params![local_file_id],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
@@ -2811,8 +2870,7 @@ pub fn open_local_file(
 
     let Some((name, path)) = row else {
         return Err(format!(
-            "local file not found in managed index: {}",
-            input.local_file_id
+            "local file not found in managed index: {local_file_id}"
         ));
     };
 
@@ -2821,14 +2879,7 @@ pub fn open_local_file(
         return Err(format!("local file is no longer available: {path}"));
     }
 
-    tauri_plugin_opener::open_path(&path_buf, None::<&str>).map_err(|error| error.to_string())?;
-
-    Ok(LocalFileOpenResult {
-        local_file_id: input.local_file_id,
-        name,
-        opened_at: crate::local_db::now_iso(),
-        path,
-    })
+    Ok((name, path_buf))
 }
 
 /// Re-read a locally indexed file and refresh its FTS row. If the content
@@ -2853,17 +2904,68 @@ pub fn flush_sync_outbox(state: State<'_, Db>) -> Result<SyncOutboxFlushResult, 
 
 fn sync_outbox_count_for_conn(conn: &Connection, status: &str) -> Result<i64, String> {
     conn.query_row(
-        "SELECT COUNT(*) FROM local_sync_outbox WHERE status = ?1",
+        "SELECT COUNT(*) FROM local_sync_outbox \
+         WHERE status = ?1 AND operation NOT IN ('local_file_event', 'widget_usage_summary')",
         params![status],
         |row| row.get(0),
     )
     .map_err(|error| error.to_string())
 }
 
+fn sync_table_count_for_conn(
+    conn: &Connection,
+    table: &str,
+    status_column: &str,
+    statuses: &[&str],
+) -> Result<i64, String> {
+    let placeholders = statuses.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+    let query = format!("SELECT COUNT(*) FROM {table} WHERE {status_column} IN ({placeholders})");
+    let params = rusqlite::params_from_iter(statuses.iter().copied());
+    match conn.query_row(&query, params, |row| row.get(0)) {
+        Ok(count) => Ok(count),
+        Err(error) if error.to_string().contains("no such table") => Ok(0),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
 fn sync_outbox_summary_for_conn(conn: &Connection) -> Result<SyncOutboxFlushResult, String> {
-    let pending_count = sync_outbox_count_for_conn(conn, "PENDING")?;
-    let failed_count = sync_outbox_count_for_conn(conn, "FAILED")?;
-    let sent_count = sync_outbox_count_for_conn(conn, "SENT")?;
+    let pending_count = sync_outbox_count_for_conn(conn, "PENDING")?
+        + sync_table_count_for_conn(
+            conn,
+            "local_file_events",
+            "status",
+            &["PENDING", "APPROVED"],
+        )?
+        + sync_table_count_for_conn(
+            conn,
+            "local_activity_buffer",
+            "sync_status",
+            &["LOCAL_ONLY", "SYNC_PENDING"],
+        )?
+        + sync_table_count_for_conn(
+            conn,
+            "local_widget_usage_rollups",
+            "sync_status",
+            &["LOCAL_ONLY", "SYNC_PENDING"],
+        )?;
+    let failed_count = sync_outbox_count_for_conn(conn, "FAILED")?
+        + sync_table_count_for_conn(conn, "local_file_events", "status", &["FAILED"])?
+        + sync_table_count_for_conn(conn, "local_activity_buffer", "sync_status", &["FAILED"])?
+        + sync_table_count_for_conn(
+            conn,
+            "local_widget_usage_rollups",
+            "sync_status",
+            &["FAILED"],
+        )?;
+    let sent_count = sync_outbox_count_for_conn(conn, "SENT")?
+        + sync_table_count_for_conn(conn, "local_file_events", "status", &["SYNCED"])?
+        + sync_table_count_for_conn(conn, "local_activity_buffer", "sync_status", &["SYNCED"])?
+        + sync_table_count_for_conn(
+            conn,
+            "local_widget_usage_rollups",
+            "sync_status",
+            &["SYNCED"],
+        )?;
 
     Ok(SyncOutboxFlushResult {
         failed_count,
@@ -3489,10 +3591,7 @@ fn guess_mime_type(file_name: &str) -> Option<String> {
 mod tests {
     use super::*;
 
-    fn test_connection() -> Connection {
-        let conn = Connection::open_in_memory().expect("open in-memory sqlite");
-        conn.execute_batch(
-            "
+    const TEST_SCHEMA_SQL: &str = r#"
             CREATE TABLE local_files (
                 id TEXT PRIMARY KEY,
                 local_folder_id TEXT NOT NULL,
@@ -3557,9 +3656,20 @@ mod tests {
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             );
-            ",
-        )
-        .expect("create local file schema");
+            "#;
+
+    fn test_connection() -> Connection {
+        let conn = Connection::open_in_memory().expect("open in-memory sqlite");
+        conn.execute_batch(TEST_SCHEMA_SQL)
+            .expect("create local file schema");
+        conn
+    }
+
+    fn test_connection_at_path(path: &Path) -> Connection {
+        let conn = Connection::open(path).expect("open file sqlite");
+        crate::local_db::configure_connection(&conn);
+        conn.execute_batch(TEST_SCHEMA_SQL)
+            .expect("create local file schema");
         conn
     }
 
@@ -4045,6 +4155,154 @@ mod tests {
     }
 
     #[test]
+    fn watch_event_paths_counts_only_actual_file_changes() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-managed-watch-batch-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        let nested_path = folder_path.join("nested");
+        std::fs::create_dir_all(&nested_path).expect("create nested folder");
+        let file_path = nested_path.join("watch-note.txt");
+        std::fs::write(&file_path, "batch tracked body").expect("write file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let changed = record_watch_event_paths_for_conn(
+            &conn,
+            "folder-1",
+            vec![folder_path.clone(), nested_path.clone(), file_path.clone()],
+            10,
+        );
+        let repeated =
+            record_watch_event_paths_for_conn(&conn, "folder-1", vec![nested_path, file_path], 20);
+        let (file_count, event_count): (i64, i64) = conn
+            .query_row(
+                "SELECT \
+                   (SELECT COUNT(*) FROM local_files WHERE local_folder_id = 'folder-1'), \
+                   (SELECT COUNT(*) FROM local_file_events WHERE local_folder_id = 'folder-1')",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read watch rows");
+
+        assert_eq!(changed, 1);
+        assert_eq!(repeated, 0);
+        assert_eq!(file_count, 1);
+        assert_eq!(event_count, 1);
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn managed_folder_watcher_records_real_windows_create_update_delete_events() {
+        use std::sync::mpsc;
+        use std::time::{Duration, Instant};
+
+        let root_path =
+            std::env::temp_dir().join(format!("bubli-managed-watch-os-test-{}", Uuid::new_v4()));
+        let watched_path = root_path.join("watched");
+        let staging_path = root_path.join("staging");
+        std::fs::create_dir_all(&watched_path).expect("create watched folder");
+        std::fs::create_dir_all(&staging_path).expect("create staging folder");
+        let db_path = root_path.join("bubli-local.sqlite3");
+        let conn = test_connection_at_path(&db_path);
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![watched_path.to_string_lossy().to_string()],
+        )
+        .expect("insert watched folder");
+
+        let watchers = ManagedFolderWatchers::default();
+        let (sender, receiver) = mpsc::channel::<ManagedFolderWatchEvent>();
+        start_managed_folder_watcher_with_db_path(
+            &watchers,
+            "folder-1".to_string(),
+            watched_path.to_string_lossy().to_string(),
+            db_path.clone(),
+            move |payload| {
+                let _ = sender.send(payload);
+            },
+        )
+        .expect("start real watcher");
+
+        std::thread::sleep(Duration::from_millis(250));
+
+        let staged_file_path = staging_path.join("watch-note.txt");
+        let file_path = watched_path.join("watch-note.txt");
+        std::fs::write(&staged_file_path, "created by real windows watcher")
+            .expect("write staged file");
+        std::fs::rename(&staged_file_path, &file_path).expect("move file into watched folder");
+        assert!(
+            wait_until(Duration::from_secs(5), || local_event_count(
+                &conn, "CREATED"
+            ) >= 1),
+            "real watcher should record CREATED"
+        );
+
+        std::fs::write(
+            &file_path,
+            "updated by real windows watcher with searchable delta",
+        )
+        .expect("update watched file");
+        assert!(
+            wait_until(Duration::from_secs(5), || local_event_count(
+                &conn, "UPDATED"
+            ) >= 1),
+            "real watcher should record UPDATED"
+        );
+
+        std::fs::remove_file(&file_path).expect("delete watched file");
+        assert!(
+            wait_until(Duration::from_secs(5), || local_event_count(
+                &conn, "DELETED"
+            ) >= 1),
+            "real watcher should record DELETED"
+        );
+
+        let search_after_delete =
+            search_local_files_fts(&conn, "searchable", 10).expect("search deleted watch content");
+        let emitted_count = receiver.try_iter().count();
+
+        assert_eq!(search_after_delete.len(), 0);
+        assert!(
+            emitted_count >= 1,
+            "watcher should emit at least one changed payload"
+        );
+
+        let _ = std::fs::remove_dir_all(root_path);
+
+        fn local_event_count(conn: &Connection, event_type: &str) -> i64 {
+            conn.query_row(
+                "SELECT COUNT(*) FROM local_file_events WHERE local_folder_id = 'folder-1' AND event_type = ?1",
+                params![event_type],
+                |row| row.get(0),
+            )
+            .expect("count local file events")
+        }
+
+        fn wait_until<F>(timeout: Duration, mut condition: F) -> bool
+        where
+            F: FnMut() -> bool,
+        {
+            let deadline = Instant::now() + timeout;
+            while Instant::now() < deadline {
+                if condition() {
+                    return true;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            false
+        }
+    }
+
+    #[test]
     fn lists_managed_folders_for_settings_restore() {
         let conn = test_connection();
         conn.execute(
@@ -4074,6 +4332,84 @@ mod tests {
             .folders
             .iter()
             .all(|folder| folder.status != "REMOVED"));
+    }
+
+    #[test]
+    fn register_managed_folder_reactivates_existing_path() {
+        let conn = test_connection();
+        let folder_path = std::env::temp_dir().join(format!(
+            "bubli-local-register-folder-test-{}",
+            Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-existing', 'Old Docs', ?1, 'REMOVED', 0, 10, 20)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert removed managed folder");
+
+        let result = register_managed_folder_for_path(&conn, &folder_path, 30)
+            .expect("register managed folder");
+        let stored: (String, String, i64, i64) = conn
+            .query_row(
+                "SELECT id, status, sync_enabled, updated_at FROM managed_folders WHERE path = ?1",
+                params![folder_path.to_string_lossy().to_string()],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("read managed folder");
+
+        assert_eq!(result.local_folder_id, "folder-existing");
+        assert_eq!(result.path, folder_path.to_string_lossy().to_string());
+        assert_eq!(
+            stored,
+            ("folder-existing".to_string(), "ACTIVE".to_string(), 1, 30)
+        );
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
+    fn register_managed_folder_rejects_non_directory_path() {
+        let conn = test_connection();
+        let file_path = std::env::temp_dir().join(format!(
+            "bubli-local-register-file-test-{}.txt",
+            Uuid::new_v4()
+        ));
+        std::fs::write(&file_path, "not a folder").expect("write temp file");
+
+        let result = register_managed_folder_for_path(&conn, &file_path, 30);
+
+        match result {
+            Ok(_) => panic!("file path should be rejected"),
+            Err(error) => assert!(error.contains("not a directory")),
+        }
+
+        let _ = std::fs::remove_file(file_path);
+    }
+
+    #[test]
+    fn active_managed_folders_for_watch_excludes_paused_and_removed() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-active-old', 'Old', '/tmp/old', 'ACTIVE', 1, 1, 10), \
+                    ('folder-paused', 'Paused', '/tmp/paused', 'PAUSED', 1, 1, 30), \
+                    ('folder-removed', 'Removed', '/tmp/removed', 'REMOVED', 1, 1, 40), \
+                    ('folder-active-new', 'New', '/tmp/new', 'ACTIVE', 0, 1, 50)",
+            [],
+        )
+        .expect("insert managed folders");
+
+        let folders = active_managed_folders_for_conn(&conn).expect("active folders");
+
+        assert_eq!(
+            folders
+                .iter()
+                .map(|(local_folder_id, _)| local_folder_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["folder-active-new", "folder-active-old"]
+        );
     }
 
     #[test]
@@ -4591,23 +4927,82 @@ mod tests {
     #[test]
     fn sync_outbox_summary_reports_pending_failed_and_sent_counts() {
         let conn = test_connection();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS local_activity_buffer (
+                id TEXT PRIMARY KEY,
+                server_activity_log_id TEXT,
+                room_id TEXT,
+                app_name TEXT NOT NULL,
+                window_title TEXT,
+                duration_seconds INTEGER,
+                started_at TEXT NOT NULL,
+                ended_at TEXT NOT NULL,
+                captured_at TEXT NOT NULL,
+                sync_status TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS local_widget_usage_rollups (
+                rollup_key TEXT PRIMARY KEY,
+                bubble_type TEXT NOT NULL,
+                summary_date TEXT NOT NULL,
+                source_event_count INTEGER NOT NULL DEFAULT 0,
+                sync_status TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
+                updated_at INTEGER NOT NULL
+            );",
+        )
+        .expect("create source backlog tables");
         conn.execute(
             "INSERT INTO local_sync_outbox \
              (id, idempotency_key, operation, payload_json, status, retry_count, created_at, updated_at) \
              VALUES \
-             ('outbox-1', 'key-1', 'local_file_event', '{}', 'PENDING', 0, 1, 1), \
-             ('outbox-2', 'key-2', 'local_file_event', '{}', 'PENDING', 0, 1, 1), \
-             ('outbox-3', 'key-3', 'local_file_event', '{}', 'FAILED', 1, 1, 1), \
-             ('outbox-4', 'key-4', 'local_file_event', '{}', 'SENT', 0, 1, 1)",
+             ('outbox-1', 'key-1', 'custom_operation', '{}', 'PENDING', 0, 1, 1), \
+             ('outbox-2', 'key-2', 'custom_operation', '{}', 'FAILED', 1, 1, 1), \
+             ('outbox-3', 'key-3', 'custom_operation', '{}', 'SENT', 0, 1, 1), \
+             ('outbox-4', 'key-4', 'local_file_event', '{}', 'PENDING', 0, 1, 1), \
+             ('outbox-5', 'key-5', 'widget_usage_summary', '{}', 'FAILED', 1, 1, 1)",
             [],
         )
         .expect("insert outbox rows");
+        conn.execute(
+            "INSERT INTO local_file_events \
+             (id, local_file_id, local_folder_id, event_type, file_name, local_path, status, created_at) \
+             VALUES \
+             ('event-1', 'file-1', 'folder-1', 'UPDATED', 'draft.md', '/tmp/draft.md', 'PENDING', 1), \
+             ('event-2', 'file-2', 'folder-1', 'UPDATED', 'brief.md', '/tmp/brief.md', 'APPROVED', 1), \
+             ('event-3', 'file-3', 'folder-1', 'UPDATED', 'bad.md', '/tmp/bad.md', 'FAILED', 1), \
+             ('event-4', 'file-4', 'folder-1', 'UPDATED', 'done.md', '/tmp/done.md', 'SYNCED', 1)",
+            [],
+        )
+        .expect("insert file event rows");
+        conn.execute(
+            "INSERT INTO local_activity_buffer \
+             (id, app_name, duration_seconds, started_at, ended_at, captured_at, sync_status, created_at, updated_at) \
+             VALUES \
+             ('activity-1', 'Code', 60, '2026-07-05T00:00:00Z', '2026-07-05T00:01:00Z', '2026-07-05T00:01:00Z', 'LOCAL_ONLY', 1, 1), \
+             ('activity-2', 'Code', 60, '2026-07-05T00:01:00Z', '2026-07-05T00:02:00Z', '2026-07-05T00:02:00Z', 'SYNC_PENDING', 1, 1), \
+             ('activity-3', 'Code', 60, '2026-07-05T00:02:00Z', '2026-07-05T00:03:00Z', '2026-07-05T00:03:00Z', 'FAILED', 1, 1), \
+             ('activity-4', 'Code', 60, '2026-07-05T00:03:00Z', '2026-07-05T00:04:00Z', '2026-07-05T00:04:00Z', 'SYNCED', 1, 1)",
+            [],
+        )
+        .expect("insert activity buffer rows");
+        conn.execute(
+            "INSERT INTO local_widget_usage_rollups \
+             (rollup_key, bubble_type, summary_date, source_event_count, sync_status, updated_at) \
+             VALUES \
+             ('rollup-1', 'todo', '2026-07-05', 2, 'LOCAL_ONLY', 1), \
+             ('rollup-2', 'memo', '2026-07-05', 2, 'SYNC_PENDING', 1), \
+             ('rollup-3', 'chat', '2026-07-05', 2, 'FAILED', 1), \
+             ('rollup-4', 'timer', '2026-07-05', 2, 'SYNCED', 1)",
+            [],
+        )
+        .expect("insert widget rollup rows");
 
         let summary = sync_outbox_summary_for_conn(&conn).expect("read outbox summary");
 
-        assert_eq!(summary.pending_count, 2);
-        assert_eq!(summary.failed_count, 1);
-        assert_eq!(summary.sent_count, 1);
+        assert_eq!(summary.pending_count, 7);
+        assert_eq!(summary.failed_count, 4);
+        assert_eq!(summary.sent_count, 4);
     }
 
     #[test]
@@ -4705,6 +5100,35 @@ mod tests {
         assert!(truncated);
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn open_local_file_resolver_only_allows_indexed_existing_files() {
+        let conn = test_connection();
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-open-test-{}.txt", Uuid::new_v4()));
+        std::fs::write(&path, "open me").expect("write temp file");
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, sync_status, updated_at) \
+             VALUES ('file-1', 'folder-1', 'open-test.txt', ?1, 'LOCAL_ONLY', 1)",
+            params![path.to_string_lossy().to_string()],
+        )
+        .expect("insert local file");
+
+        let (name, resolved_path) =
+            resolve_open_local_file_for_conn(&conn, "file-1").expect("resolve open file");
+        let missing_index_error = resolve_open_local_file_for_conn(&conn, "missing-file")
+            .expect_err("unindexed file should fail");
+
+        std::fs::remove_file(&path).expect("remove temp file");
+        let deleted_error = resolve_open_local_file_for_conn(&conn, "file-1")
+            .expect_err("deleted indexed file should fail");
+
+        assert_eq!(name, "open-test.txt");
+        assert_eq!(resolved_path, path);
+        assert!(missing_index_error.contains("not found in managed index"));
+        assert!(deleted_error.contains("no longer available"));
     }
 
     #[test]

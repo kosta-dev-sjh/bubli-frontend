@@ -61,6 +61,10 @@ export type UserPreferenceResponse = {
   createdAt?: string | null;
   defaultHomeType?: string | null;
   defaultProjectRoomId?: string | null;
+  // 직군 온보딩에서 고른 직군(user_preferences.job_role, backend PR 195).
+  jobRole?: string | null;
+  // 직군 온보딩(건너뛰기 포함)을 끝낸 시각(user_preferences.onboarding_completed_at, backend PR 195).
+  onboardingCompletedAt?: string | null;
   theme?: string | null;
   updatedAt?: string | null;
   userId: string;
@@ -69,5 +73,7 @@ export type UserPreferenceResponse = {
 export type UserPreferenceUpdateRequest = {
   defaultHomeType?: string;
   defaultProjectRoomId?: string;
+  jobRole?: string;
+  onboardingCompletedAt?: string;
   theme?: string;
 };
