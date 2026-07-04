@@ -1452,6 +1452,10 @@ function DesktopWidgetSurface() {
           await notificationApi.markRead(item.id);
           setNotificationRevision((current) => current + 1);
         }
+        if (activeBubble === "alert" && state === "HIDDEN") {
+          await notificationApi.archive(item.id);
+          setNotificationRevision((current) => current + 1);
+        }
         if (activeBubble === "agent" && item.kind === "agent" && state === "CONFIRMED") {
           await agentApi.updateSuggestion(item.id, { action: "APPROVE" });
           setAgentRevision((current) => current + 1);
