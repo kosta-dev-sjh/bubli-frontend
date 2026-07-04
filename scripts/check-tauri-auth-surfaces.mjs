@@ -3,10 +3,14 @@ import { readFileSync } from "node:fs";
 const files = {
   appNav: "src/components/layout/app-nav.tsx",
   appShell: "src/components/layout/app-shell.tsx",
+  authApi: "src/features/auth/api/authApi.ts",
+  authPanel: "src/features/auth/components/auth-panel.tsx",
+  authSession: "src/lib/auth/auth-session.ts",
   authenticatedSurfaces: "src/lib/tauri/authenticated-surfaces.ts",
   desktopWidgetPage: "src/app/desktop-widget/page.tsx",
   layout: "src/app/layout.tsx",
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
+  widgetAuthHeaders: "src/features/widget/api/widgetAuthHeaders.ts",
   workspaceActiveRoom: "src/lib/workspace-active-room.ts",
 };
 
@@ -41,7 +45,11 @@ const launcher = read(files.postLoginLauncher);
 const surfaces = read(files.authenticatedSurfaces);
 const appNav = read(files.appNav);
 const appShell = read(files.appShell);
+const authApi = read(files.authApi);
+const authPanel = read(files.authPanel);
+const authSession = read(files.authSession);
 const widgetPage = read(files.desktopWidgetPage);
+const widgetAuthHeaders = read(files.widgetAuthHeaders);
 const workspaceActiveRoom = read(files.workspaceActiveRoom);
 
 assertContains(
@@ -176,6 +184,42 @@ assertContains(
   appShell,
   /void launchTauriAuthenticatedSurfaces\(\)\.catch/,
   "AppShell must trigger authenticated native surfaces after shell readiness.",
+);
+
+assertContains(
+  authPanel,
+  /process\.env\.NODE_ENV === "development"[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN === "true"[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN/,
+  "Tauri login must not bypass Google OAuth with a dev access token unless the explicit Tauri dev-login flag is set.",
+);
+assertContains(
+  authApi,
+  /function assertDevAccessTokenLoginAllowed\(\)[\s\S]*process\.env\.NODE_ENV !== "development"[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN !== "true"[\s\S]*throw new AuthConfigurationError\("DEV_ACCESS_TOKEN_LOGIN_DISABLED"\)/,
+  "authApi.loginWithDevAccessToken must also reject dev-token login outside the explicit development-only Tauri dev-login flag.",
+);
+assertContains(
+  authApi,
+  /async loginWithDevAccessToken\(accessToken: string\) \{[\s\S]*assertDevAccessTokenLoginAllowed\(\);/,
+  "authApi.loginWithDevAccessToken must enforce the dev-login guard before calling /api/me.",
+);
+assertContains(
+  authSession,
+  /const DEV_REFRESH_TOKEN_PREFIX = "dev-refresh-token:";[\s\S]*function shouldRejectStoredAuthSession\(session: StoredAuthSession\)[\s\S]*isDevAccessTokenSession\(session\) && !isDevAccessTokenSessionAllowed\(\)/,
+  "Stored synthetic dev-token sessions must be rejected unless the explicit development-only Tauri dev-login flag is set.",
+);
+assertContains(
+  authSession,
+  /const parsed = parseStoredAuthSession\(raw\);[\s\S]*shouldRejectStoredAuthSession\(parsed\)[\s\S]*clearStoredAuthSession\(\);/,
+  "Local stored auth session reads must clear stale dev-token sessions when the dev-login flag is not enabled.",
+);
+assertContains(
+  authSession,
+  /const parsed = parseStoredAuthSession\(restored\.sessionJson\);[\s\S]*shouldRejectStoredAuthSession\(parsed\)[\s\S]*clearTauriAuthSessionMirror\(\);/,
+  "Tauri mirrored auth session restore must clear stale dev-token sessions when the dev-login flag is not enabled.",
+);
+assertContains(
+  widgetAuthHeaders,
+  /!isTauriRuntime\(\)[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_PREVIEW_DATA === "true"/,
+  "Widget dev bearer headers must stay web-preview only and must not mask missing Tauri auth sessions.",
 );
 
 assertContains(

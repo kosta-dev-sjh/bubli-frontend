@@ -41,6 +41,7 @@ if (COMMAND === "tauri") {
   console.log(maskToken(token));
   console.log("\nPowerShell:");
   console.log(`$env:NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN = (node scripts/dev-widget-real-backend.mjs token)`);
+  console.log(`$env:NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN = "true"`);
   console.log(`$env:NEXT_PUBLIC_API_BASE_URL = "${API_BASE_URL}"`);
   console.log("npm run tauri:dev");
 }
@@ -449,6 +450,9 @@ async function runTauriDev(accessToken) {
 
   if (existingDevUrl) {
     console.log(`Reusing existing Next dev server at ${existingDevUrl}.`);
+    console.log(
+      "If that server was started with NEXT_PUBLIC_BUBLI_PREVIEW_DATA=true, restart it before Tauri real-auth QA.",
+    );
   } else {
     console.log("No existing Next dev server found. Tauri will start the default dev server.");
   }
@@ -457,6 +461,7 @@ async function runTauriDev(accessToken) {
     env: {
       ...process.env,
       NEXT_PUBLIC_API_BASE_URL: API_BASE_URL,
+      NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "true",
       NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN: accessToken,
       NEXT_PUBLIC_BUBLI_PREVIEW_DATA: "false",
     },
