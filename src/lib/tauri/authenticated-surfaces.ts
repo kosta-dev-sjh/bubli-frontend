@@ -14,8 +14,9 @@ let launchPromise: Promise<void> | null = null;
 let launchGeneration = 0;
 let launchedAuthenticatedSurfaces = false;
 
+const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
 const loginStartupWindows: WidgetWindowOpenInput[] = [
-  { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" },
+  loginStartupBarWindow,
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
 ];
 const startupBubblePriority: WidgetBubbleType[] = ["todo", "schedule", "timer", "chat", "agent", "memo", "resource", "alert"];
@@ -78,10 +79,10 @@ export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInpu
 
   const primaryBubble = getPrimaryStartupBubble(settings.bubbles);
   if (!primaryBubble) {
-    return loginStartupWindows;
+    return [loginStartupBarWindow];
   }
 
-  return [{ bubbleType: "bar", mode: "DEFAULT", windowId: "bar" }, primaryBubble];
+  return [loginStartupBarWindow, primaryBubble];
 }
 
 async function resolveLaunchSelectedRoomId() {

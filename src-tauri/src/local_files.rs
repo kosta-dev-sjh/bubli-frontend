@@ -1074,9 +1074,10 @@ fn reindex_file_for_conn(
         Option<i64>,
         Option<i64>,
         Option<String>,
+        String,
     )> = conn
         .query_row(
-            "SELECT id, local_folder_id, file_name, local_path, size_bytes, modified_at, checksum \
+            "SELECT id, local_folder_id, file_name, local_path, size_bytes, modified_at, checksum, sync_status \
              FROM local_files WHERE id = ?1",
             params![local_file_id],
             |row| {
@@ -1088,6 +1089,7 @@ fn reindex_file_for_conn(
                     row.get(4)?,
                     row.get(5)?,
                     row.get(6)?,
+                    row.get(7)?,
                 ))
             },
         )
@@ -1101,6 +1103,7 @@ fn reindex_file_for_conn(
         prev_size,
         prev_modified,
         prev_checksum,
+        prev_sync_status,
     )) = row
     else {
         return Err(format!(
@@ -1151,9 +1154,17 @@ fn reindex_file_for_conn(
 
     conn.execute(
         "UPDATE local_files \
-         SET file_name = ?2, size_bytes = ?3, modified_at = ?4, checksum = ?5, sync_status = 'LOCAL_ONLY', updated_at = ?6 \
+         SET file_name = ?2, size_bytes = ?3, modified_at = ?4, checksum = ?5, sync_status = ?6, updated_at = ?7 \
          WHERE id = ?1",
-        params![local_file_id, file_name, size_bytes, modified_ms, checksum, now],
+        params![
+            local_file_id,
+            file_name,
+            size_bytes,
+            modified_ms,
+            checksum,
+            if changed { "LOCAL_ONLY" } else { prev_sync_status.as_str() },
+            now
+        ],
     )
     .map_err(|error| error.to_string())?;
     upsert_file_fts_index(conn, &local_file_id, &file_name, &local_path, &path)?;
@@ -4297,6 +4308,56 @@ mod tests {
         assert_eq!(result.status, "REINDEXED");
         assert_eq!(items.len(), 1);
         assert_eq!(event_count, 1);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn reindex_file_preserves_synced_status_when_unchanged() {
+        let conn = test_connection();
+        let path = std::env::temp_dir().join(format!(
+            "bubli-local-reindex-unchanged-test-{}.txt",
+            Uuid::new_v4()
+        ));
+        std::fs::write(&path, "synced text").expect("write content");
+        let checksum = sha256_head(&path).expect("checksum");
+        let modified_ms = std::fs::metadata(&path)
+            .expect("metadata")
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as i64);
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![path.parent().unwrap().to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, size_bytes, checksum, sync_status, modified_at, updated_at) \
+             VALUES ('file-1', 'folder-1', 'note.txt', ?1, 11, ?2, 'SYNCED', ?3, 1)",
+            params![path.to_string_lossy().to_string(), checksum, modified_ms],
+        )
+        .expect("insert local file");
+
+        let result = reindex_file_for_conn(&conn, "file-1", 20).expect("reindex unchanged file");
+        let (sync_status, event_count): (String, i64) = conn
+            .query_row(
+                "SELECT f.sync_status, COUNT(e.id) \
+                 FROM local_files f \
+                 LEFT JOIN local_file_events e ON e.local_file_id = f.id AND e.event_type = 'UPDATED' \
+                 WHERE f.id = 'file-1' \
+                 GROUP BY f.sync_status",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read unchanged reindex state");
+
+        assert!(!result.changed);
+        assert_eq!(sync_status, "SYNCED");
+        assert_eq!(event_count, 0);
 
         let _ = std::fs::remove_file(path);
     }
