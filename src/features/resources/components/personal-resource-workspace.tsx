@@ -22,6 +22,7 @@ import {
   syncPersonalLocalFileEventsToServer,
   watchPersonalManagedFolder,
 } from "@/lib/local/managed-folder-client";
+import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
 import { ACTIVE_PROJECT_ROOM_CHANGE_EVENT, getActiveProjectRoomId } from "@/lib/workspace-active-room";
@@ -77,6 +78,7 @@ export function PersonalResourceWorkspace() {
   const [localSearchState, setLocalSearchState] = useState<"idle" | "loading" | "ready" | "blocked" | "error">("idle");
   const [localSearchMessage, setLocalSearchMessage] = useState<string | null>(null);
   const [localFilePreviews, setLocalFilePreviews] = useState<Record<string, LocalFilePreviewState>>({});
+  const [localSearchRefreshKey, setLocalSearchRefreshKey] = useState(0);
 
   const loadResources = useCallback(async () => {
     try {
@@ -233,7 +235,22 @@ export function PersonalResourceWorkspace() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [isTauri, localFolderConsent, query, t]);
+  }, [isTauri, localFolderConsent, localSearchRefreshKey, query, t]);
+
+  useEffect(() => {
+    if (!isTauri || !localFolderConsent || !query.trim()) return;
+
+    let cancelled = false;
+    const unlistenPromise = listenManagedFolderWatchEvents((payload) => {
+      if (cancelled || payload.changedCount <= 0) return;
+      setLocalSearchRefreshKey((current) => current + 1);
+    });
+
+    return () => {
+      cancelled = true;
+      void unlistenPromise.then((unlisten) => unlisten()).catch(() => undefined);
+    };
+  }, [isTauri, localFolderConsent, query]);
 
   const openLocalIndexedFile = useCallback(
     async (localFileId: string) => {
