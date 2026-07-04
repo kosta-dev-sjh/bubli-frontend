@@ -1503,6 +1503,35 @@ function DesktopWidgetSurface() {
     [isTauri],
   );
 
+  const sendWidgetAgentCommand = useCallback(
+    async (bubble: WidgetPreviewBubble, text: string) => {
+      const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
+      if (!roomId) throw new Error("Project room is required for widget agent commands.");
+
+      const result = await widgetCommunicationApi.runRoomAgentCommand(roomId, {
+        clientMessageId: `widget-agent-${crypto.randomUUID()}`,
+        message: text,
+        mode: "SUGGEST",
+      });
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "agent",
+            eventType: "agent:command",
+            itemId: result.message.id,
+            itemType: "MESSAGE",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setAgentRevision((current) => current + 1);
+      setCommunicationRevision((current) => current + 1);
+    },
+    [isTauri, widgetContext?.selectedRoomId],
+  );
+
   const markWidgetChatRead = useCallback(
     async (bubble: WidgetPreviewBubble) => {
       if (!bubble.chatRoomId || !bubble.lastMessageSequence) return;
@@ -1872,6 +1901,7 @@ function DesktopWidgetSurface() {
       onPauseTimer={pauseWidgetTimer}
       onPrimaryTimerAction={runPrimaryTimerAction}
       onRestore={() => void restoreCurrentWindow()}
+      onSendAgentCommand={sendWidgetAgentCommand}
       onSendChatMessage={sendWidgetChatMessage}
       onStartVoice={startWidgetVoice}
       onToggleAlwaysOnTop={() => void toggleAlwaysOnTop()}
