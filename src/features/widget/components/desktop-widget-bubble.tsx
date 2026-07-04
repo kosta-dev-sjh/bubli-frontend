@@ -142,21 +142,21 @@ function WidgetControls({
   return (
     <div className={[styles.controls, presentation === "tauri" ? styles.controlsTauri : styles.controlsPreview].join(" ")} aria-label={t("widget.control.aria")}>
       <button aria-pressed={alwaysOnTop} aria-label={t("widget.control.pin")} onClick={onPin} type="button">
-        <Pin size={12} strokeWidth={2} />
+        <Pin size={14} strokeWidth={2} />
       </button>
       <button aria-label={t("widget.control.minimize")} onClick={() => onMode("MINIMIZED")} type="button">
-        <Minus size={13} strokeWidth={2} />
+        <Minus size={14} strokeWidth={2} />
       </button>
       <button aria-pressed={mode === "GHOST"} aria-label={t("widget.control.ghost")} onClick={() => onMode(mode === "GHOST" ? "DEFAULT" : "GHOST")} type="button">
-        <Ghost size={13} strokeWidth={2} />
+        <Ghost size={14} strokeWidth={2} />
       </button>
       {presentation === "preview" ? (
         <button aria-pressed={mode === "TRANSLUCENT"} aria-label={t("widget.control.translucent")} onClick={() => onMode(mode === "TRANSLUCENT" ? "DEFAULT" : "TRANSLUCENT")} type="button">
-          <CircleDashed size={13} strokeWidth={2} />
+          <CircleDashed size={14} strokeWidth={2} />
         </button>
       ) : null}
       <button aria-label={t("widget.control.close")} onClick={onClose} type="button">
-        <X size={13} strokeWidth={2} />
+        <X size={14} strokeWidth={2} />
       </button>
     </div>
   );
@@ -305,10 +305,6 @@ function AgentBody({
         <span className={styles.agentHaloCore} />
         <span className={styles.agentHaloRing} />
       </div>
-      <div className={styles.bubbleNote}>
-        <strong>{t(bubble.panelLabel as MessageKey)}</strong>
-        <span>{t(bubble.panelBody as MessageKey)}</span>
-      </div>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
       <div className={styles.dropPanel}>
         <FileText size={16} strokeWidth={2} />
@@ -430,44 +426,84 @@ function ChatBody({
     }
   };
 
+  const roomSelected = Boolean(bubble.chatRoomId);
+  const voiceOpen = Boolean(bubble.voiceRoomId);
+
+  // 방 미선택: 방/친구 선택이 먼저다. 보이스·반응·입력은 방이 선택된 뒤에만 보여준다.
+  if (!roomSelected) {
+    const pickerFriends =
+      friendRows.length > 0
+        ? friendRows.map((item) => ({ id: item.id, label: item.label }))
+        : (bubble.participantLabels ?? []).map((label, index) => ({ id: `friend-${index}`, label }));
+
+    const openChatPicker = (label: string) => {
+      const pickerItem: WidgetPreviewItem = { handoffUrl: "/app/chat", id: "chat-room-picker", kind: "friend", label, status: "" };
+      if (onOpenHandoff) {
+        void onOpenHandoff(pickerItem);
+        return;
+      }
+      window.open("/app/chat", "_blank", "noopener,noreferrer");
+    };
+
+    return (
+      <div className={styles.body}>
+        <div className={styles.chatPicker} role="group" aria-label={t("widget.chat.openRooms")}>
+          <button className={styles.chatPickerItem} onClick={() => openChatPicker(t("widget.chat.openRooms"))} type="button">
+            <MessageSquare size={13} strokeWidth={2} />
+            <span>{t("widget.chat.openRooms")}</span>
+          </button>
+          {pickerFriends.slice(0, 3).map((friend) => (
+            <button className={styles.chatPickerItem} key={friend.id} onClick={() => openChatPicker(friend.label)} type="button">
+              <Users size={13} strokeWidth={2} />
+              <span>{friend.label}</span>
+            </button>
+          ))}
+        </div>
+        <span className={styles.statusText}>{t("widget.chat.pickHint")}</span>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.body}>
       <div className={styles.chatHead}>
         <span>{t(bubble.panelLabel as MessageKey)}</span>
         <b>{visibleRows.length}</b>
+        {!voiceOpen ? (
+          <button aria-label={t("widget.chat.startVoice")} disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
+            <Headphones size={13} strokeWidth={2} />
+          </button>
+        ) : null}
       </div>
-      <div className={styles.chatPeople}>
-        <Users size={14} strokeWidth={2} />
-        <span>{friendRows[0]?.label ?? bubble.participantLabels?.join(" · ") ?? t(bubble.roomLabel as MessageKey)}</span>
-        <b>{friendRows[0]?.status ?? t("widget.chat.people")}</b>
-      </div>
-      <div className={styles.voiceStrip}>
-        <div>
-          <Mic size={14} strokeWidth={2} />
-          <span>{voiceRows[0]?.label ?? bubble.voiceLabel ?? t("widget.chat.voiceWaiting")}</span>
-          <small>{bubble.voiceParticipants ?? t("widget.chat.noParticipants")}</small>
+      {friendRows.length > 0 || (bubble.participantLabels?.length ?? 0) > 0 ? (
+        <div className={styles.chatPeople}>
+          <Users size={14} strokeWidth={2} />
+          <span>{friendRows[0]?.label ?? bubble.participantLabels?.join(" · ")}</span>
+          <b>{friendRows[0]?.status ?? t("widget.chat.people")}</b>
         </div>
-        <button aria-label={t("widget.chat.micStatus")} disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("mic")} type="button">
-          <Mic size={13} strokeWidth={2} />
-        </button>
-        <button aria-label={t("widget.chat.startVoice")} disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
-          <Headphones size={13} strokeWidth={2} />
-        </button>
-        <button aria-label={t("widget.chat.leaveVoice")} disabled={!bubble.voiceRoomId || voiceSubmitting} onClick={() => void runVoiceAction("leave")} type="button">
-          <PhoneOff size={13} strokeWidth={2} />
-        </button>
-      </div>
+      ) : null}
+      {voiceOpen ? (
+        <div className={styles.voiceStrip}>
+          <div>
+            <Mic size={14} strokeWidth={2} />
+            <span>{voiceRows[0]?.label ?? bubble.voiceLabel ?? t("widget.chat.voiceWaiting")}</span>
+            <small>{bubble.voiceParticipants ?? t("widget.chat.noParticipants")}</small>
+          </div>
+          <button aria-label={t("widget.chat.micStatus")} disabled={voiceSubmitting} onClick={() => void runVoiceAction("mic")} type="button">
+            <Mic size={13} strokeWidth={2} />
+          </button>
+          <button aria-label={t("widget.chat.leaveVoice")} disabled={voiceSubmitting} onClick={() => void runVoiceAction("leave")} type="button">
+            <PhoneOff size={13} strokeWidth={2} />
+          </button>
+        </div>
+      ) : null}
       {handoffItem ? (
         <a className={styles.handoffBubble} href={handoffItem.handoffUrl} onClick={(event) => openHandoff(event, handoffItem)} rel="noreferrer" target="_blank">
           <MessageSquare size={14} strokeWidth={2} />
           <span>{handoffItem.label}</span>
           <b>{handoffItem.handoffLabel ?? handoffItem.status}</b>
         </a>
-      ) : (
-        <div className={styles.handoffDone}>
-          <span>{t("widget.chat.linkShared")}</span>
-        </div>
-      )}
+      ) : null}
       {first ? <p className={styles.message}>{first.label}</p> : null}
       {second ? <p className={[styles.message, styles.messageMine].join(" ")}>{second.label}</p> : null}
       {agentRows.map((item) => (
@@ -505,12 +541,9 @@ function ChatBody({
               void sendDraftMessage();
             }
           }}
-          placeholder={bubble.chatRoomId ? (bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : undefined) : t("widget.chat.selectRoomFirst")}
+          placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : undefined}
           value={draft}
         />
-        <button aria-label={t("widget.chat.startVoice")} disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
-          <Mic size={13} strokeWidth={2} />
-        </button>
         <button
           aria-label={t("widget.chat.sendMessage")}
           disabled={!draft.trim() || !bubble.chatRoomId || submitting}
@@ -554,13 +587,13 @@ function TimerBody({
         <button type="button">{t("widget.timer.tabPomodoro")}</button>
       </div>
       <div className={styles.timerActions}>
-        <button disabled={!canPause} onClick={() => void onPauseTimer?.(bubble)} type="button">
-          <Pause size={13} />
-          {timerStatus === "PAUSED" ? t("widget.timer.paused") : t("widget.timer.pause")}
-        </button>
         <button onClick={() => void onPrimaryTimerAction?.(bubble)} type="button">
           <PrimaryIcon size={13} />
           {t(bubble.actionLabel as MessageKey)}
+        </button>
+        <button disabled={!canPause} onClick={() => void onPauseTimer?.(bubble)} type="button">
+          <Pause size={13} />
+          {timerStatus === "PAUSED" ? t("widget.timer.paused") : t("widget.timer.pause")}
         </button>
       </div>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
@@ -687,10 +720,6 @@ function ResourceBody({
 
   return (
     <div className={styles.body}>
-      <div className={styles.bubbleNote}>
-        <strong>{t(bubble.panelLabel as MessageKey)}</strong>
-        <span>{t(bubble.panelBody as MessageKey)}</span>
-      </div>
       {bubble.rows.map((item) => (
         <div className={styles.fileRow} key={item.id}>
           <FileText size={16} strokeWidth={2} />
@@ -847,7 +876,8 @@ export function DesktopWidgetBubble({
                 <span className={styles.signal} aria-hidden="true" />
                 <Icon size={16} strokeWidth={2} />
                 <div className={styles.titleCopy}>
-                  <strong>{t("widget.bubble.suffix", { label: t(activeData.label as MessageKey) })}</strong>
+                  {/* 헤더 타이틀은 "버블" 접미사 없이 종류명만 쓴다. */}
+                  <strong>{t(activeData.label as MessageKey)}</strong>
                   <small>{isPreview ? `${t(modeLabels[mode])} · ${t(activeData.notificationLabel as MessageKey)}` : t(activeData.roomLabel as MessageKey)}</small>
                 </div>
               </div>
@@ -896,81 +926,84 @@ export function DesktopWidgetBubble({
   );
 }
 
+const BAR_PREVIEW_POPOVER_ID = "bubli-bar-preview";
+
 export function DesktopWidgetBubbleBar({
   bubbleDataByType,
-  hasRoomContext = false,
   minimizedItems,
   notificationSignal = widgetNotificationSignal,
-  onOpenMainApp,
-  onOpenSettings,
-  onQuit,
+  onOpenMenu,
   onRestoreBubble,
-  onToggleRoomContext,
 }: {
   bubbleDataByType?: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
-  hasRoomContext?: boolean;
   minimizedItems: WidgetWindowState[];
   notificationSignal?: WidgetNotificationSignal;
-  onOpenMainApp?: () => void;
-  onOpenSettings?: () => void;
-  onQuit?: () => void;
+  onOpenMenu?: () => void;
   onRestoreBubble: (bubbleType: WidgetBubbleType, windowId?: string) => void;
-  onToggleRoomContext?: () => void;
 }) {
   const { t } = useI18n();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuItems: Array<{ Icon: typeof Repeat; label: string; onSelect?: () => void }> = [
-    {
-      Icon: Repeat,
-      label: t(hasRoomContext ? "widget.menu.switchToPersonal" : "widget.menu.switchToRoom"),
-      onSelect: onToggleRoomContext,
-    },
-    { Icon: ExternalLink, label: t("widget.menu.openMainApp"), onSelect: onOpenMainApp },
-    { Icon: Settings, label: t("widget.menu.openSettings"), onSelect: onOpenSettings },
-    { Icon: Power, label: t("widget.menu.quit"), onSelect: onQuit },
-  ];
+  // 접힌 칩에 hover/포커스하면 pill 위 투명 영역에 요약 팝오버를 띄운다.
+  const [previewTarget, setPreviewTarget] = useState<WidgetBubbleType | "notice" | null>(null);
 
+  const showPreview = (target: WidgetBubbleType | "notice") => setPreviewTarget(target);
+  const hidePreview = (target: WidgetBubbleType | "notice") =>
+    setPreviewTarget((current) => (current === target ? null : current));
+
+  const preview = (() => {
+    if (!previewTarget) return null;
+    if (previewTarget === "notice") {
+      return {
+        headline: t(notificationSignal.compactLabel as MessageKey),
+        Icon: Bell,
+        label: t("widget.kind.notification"),
+        rows: notificationSignal.rows.slice(0, 2),
+        sub: t(notificationSignal.notificationLabel as MessageKey),
+      };
+    }
+    const bubble = bubbleDataByType?.[previewTarget] ?? getWidgetPreviewBubble(previewTarget);
+    const meta = getBubbleMeta(previewTarget);
+    return {
+      headline: t(bubble.compactLabel as MessageKey),
+      Icon: meta.Icon,
+      label: t(meta.label),
+      rows: bubble.rows.slice(0, 2),
+      sub: t(bubble.notificationLabel as MessageKey),
+    };
+  })();
+  const PreviewIcon = preview?.Icon;
+
+  // 바 창은 pill 하나만 시각적으로 유지한다(접힘 상시 미리보기 카드 없음).
+  // 창(360×220)은 pill(하단 고정)보다 크게 잡아 두고, 남는 투명 영역에 hover 팝오버만 띄운다.
+  // Bubli 버튼은 인라인 메뉴 대신 별도 menu 창(?bubble=menu)을 연다.
   return (
     <div className={[styles.root, styles.barRoot].join(" ")} data-bubli-desktop-widget>
-      {menuOpen ? (
-        <div className={styles.barMenu} role="menu" aria-label={t("widget.menu.title")}>
-          {menuItems.map(({ Icon, label, onSelect }) => (
-            <button
-              className={styles.barMenuItem}
-              disabled={!onSelect}
-              key={label}
-              onClick={() => {
-                setMenuOpen(false);
-                onSelect?.();
-              }}
-              role="menuitem"
-              type="button"
-            >
-              <Icon size={13} strokeWidth={2} />
-              <span>{label}</span>
-            </button>
-          ))}
+      {preview && PreviewIcon ? (
+        <div aria-label={t("widget.bar.previewAria")} className={styles.barPopover} id={BAR_PREVIEW_POPOVER_ID} role="status">
+          <div className={styles.barPopoverHead}>
+            <PreviewIcon size={13} strokeWidth={2} />
+            <strong>{preview.label}</strong>
+            <b>{preview.headline}</b>
+          </div>
+          <small>{preview.sub}</small>
+          {preview.rows.length > 0 ? (
+            <ul>
+              {preview.rows.map((item) => (
+                <li key={item.id}>
+                  <span>{item.label}</span>
+                  {item.detail ? <small>{item.detail}</small> : null}
+                  <b>{item.status}</b>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
-      ) : (
-        <div className={styles.barPreview} aria-hidden="true">
-          <strong>{t("widget.bar.folded")}</strong>
-          <span>
-            {minimizedItems.length > 0
-              ? minimizedItems.map((item) => t((bubbleDataByType?.[item.activeBubble as WidgetBubbleType] ?? getWidgetPreviewBubble(item.activeBubble as WidgetBubbleType)).compactLabel as MessageKey)).join(" · ")
-              : t("widget.bar.noneFolded")}
-          </span>
-          <small>
-            {notificationSignal.rows[0]?.label ?? t(notificationSignal.notificationLabel as MessageKey)}
-          </small>
-        </div>
-      )}
+      ) : null}
       <nav className={styles.bubbleBar} aria-label={t("widget.bar.minimizedAria")}>
         <button
           className={styles.barBrand}
-          aria-expanded={menuOpen}
           aria-haspopup="menu"
           aria-label={t("widget.menu.openAria")}
-          onClick={() => setMenuOpen((current) => !current)}
+          onClick={() => onOpenMenu?.()}
           type="button"
         >
           <i aria-hidden="true" />
@@ -985,13 +1018,32 @@ export function DesktopWidgetBubbleBar({
           const Icon = meta.Icon;
 
           return (
-            <button className={styles.barItem} key={`${bubbleType}-${item.windowId ?? index}`} onClick={() => onRestoreBubble(bubbleType, item.windowId ?? bubbleType)} type="button">
+            <button
+              aria-describedby={previewTarget === bubbleType ? BAR_PREVIEW_POPOVER_ID : undefined}
+              className={styles.barItem}
+              key={`${bubbleType}-${item.windowId ?? index}`}
+              onBlur={() => hidePreview(bubbleType)}
+              onClick={() => onRestoreBubble(bubbleType, item.windowId ?? bubbleType)}
+              onFocus={() => showPreview(bubbleType)}
+              onMouseEnter={() => showPreview(bubbleType)}
+              onMouseLeave={() => hidePreview(bubbleType)}
+              type="button"
+            >
               <Icon size={12} strokeWidth={2} />
               <b>{t(bubble.compactLabel as MessageKey)}</b>
             </button>
           );
         })}
-        <button className={styles.barNotice} type="button" aria-label={t(notificationSignal.notificationLabel as MessageKey)}>
+        <button
+          aria-describedby={previewTarget === "notice" ? BAR_PREVIEW_POPOVER_ID : undefined}
+          aria-label={t(notificationSignal.notificationLabel as MessageKey)}
+          className={styles.barNotice}
+          onBlur={() => hidePreview("notice")}
+          onFocus={() => showPreview("notice")}
+          onMouseEnter={() => showPreview("notice")}
+          onMouseLeave={() => hidePreview("notice")}
+          type="button"
+        >
           <Bell size={12} strokeWidth={2} />
           <b>{notificationSignal.metric}</b>
         </button>
@@ -1000,22 +1052,79 @@ export function DesktopWidgetBubbleBar({
   );
 }
 
-export function DesktopWidgetMenuOrb({ onOpenMenu }: { onOpenMenu: () => void }) {
+export function DesktopWidgetMenuOrb({
+  hasRoomContext = false,
+  onOpenBubble,
+  onOpenMainApp,
+  onOpenSettings,
+  onQuit,
+  onToggleRoomContext,
+  usageSummary,
+}: {
+  hasRoomContext?: boolean;
+  onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
+  onOpenMainApp?: () => void;
+  onOpenSettings?: () => void;
+  onQuit?: () => void;
+  onToggleRoomContext?: () => void;
+  usageSummary?: string | null;
+}) {
   const { t } = useI18n();
+  const [open, setOpen] = useState(true);
+  const actionItems: Array<{ Icon: typeof Repeat; label: string; onSelect?: () => void }> = [
+    {
+      Icon: Repeat,
+      label: t(hasRoomContext ? "widget.menu.switchToPersonal" : "widget.menu.switchToRoom"),
+      onSelect: onToggleRoomContext,
+    },
+    { Icon: ExternalLink, label: t("widget.menu.openMainApp"), onSelect: onOpenMainApp },
+    { Icon: Settings, label: t("widget.menu.openSettings"), onSelect: onOpenSettings },
+    { Icon: Power, label: t("widget.menu.quit"), onSelect: onQuit },
+  ];
+
+  // 오브에 앵커된 단일 패널: Bubli 헤더 → 전체 버블 바로가기 그리드 → 2×2 액션.
   return (
     <div className={[styles.root, styles.menuRoot].join(" ")} data-bubli-desktop-widget>
-      <button className={styles.menuOrb} onClick={onOpenMenu} type="button" aria-label={t("widget.menu.openAria")}>
+      <button
+        className={styles.menuOrb}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={t("widget.menu.openAria")}
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
         <span />
       </button>
-      <div className={styles.menuPanel} aria-hidden="true">
-        <strong>Bubli</strong>
-        <span>{t("widget.menu.desc")}</span>
-        <div>
-          <span>{t("widget.kind.todo")}</span>
-          <span>{t("widget.kind.schedule")}</span>
-          <span>{t("widget.kind.chat")}</span>
+      {open ? (
+        <div className={styles.menuPanel} role="menu" aria-label={t("widget.menu.title")}>
+          <strong>Bubli</strong>
+          <div className={styles.menuGrid} aria-label={t("widget.menu.bubbles")}>
+            {bubbleMeta.map(({ Icon, id, label }) => (
+              <button className={styles.barMenuItem} key={id} onClick={() => onOpenBubble?.(id)} role="menuitem" type="button">
+                <Icon size={13} strokeWidth={2} />
+                <span>{t(label)}</span>
+              </button>
+            ))}
+          </div>
+          <div className={styles.menuGrid}>
+            {actionItems.map(({ Icon, label, onSelect }) => (
+              <button
+                className={styles.barMenuItem}
+                disabled={!onSelect}
+                key={label}
+                onClick={() => onSelect?.()}
+                role="menuitem"
+                type="button"
+              >
+                <Icon size={13} strokeWidth={2} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+          {/* 서버 usage-summaries/today 롤업(기기 합산)을 사용자에게 보여주는 유일한 지점. */}
+          {usageSummary ? <small className={styles.menuUsage}>{usageSummary}</small> : null}
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

@@ -27,11 +27,16 @@ const MAIN_WINDOW_DEFAULT_WIDTH: i32 = 1280;
 const MAIN_WINDOW_DEFAULT_HEIGHT: i32 = 820;
 const DEFAULT_WIDGET_BUBBLE_TYPE: &str = "todo";
 const WIDGET_DEFAULT_WIDTH: f64 = 324.0;
-const WIDGET_DEFAULT_HEIGHT: f64 = 392.0;
+const WIDGET_DEFAULT_HEIGHT: f64 = 360.0;
 const WIDGET_WINDOW_GUTTER: f64 = 44.0;
+// 바 창은 pill(하단 고정 64px)만 시각적으로 유지한다. Bubli 메뉴는 별도 menu 창으로 연다.
+// 창 높이는 pill 위 hover 요약 팝오버가 들어갈 투명 여유(약 156px)를 포함한다 —
+// desktop-widget-bubble.module.css .barRoot/.barPopover와 동기화한다.
 const WIDGET_BAR_WIDTH: f64 = 360.0;
-const WIDGET_BAR_HEIGHT: f64 = 168.0;
-const WIDGET_MENU_SIZE: f64 = 192.0;
+const WIDGET_BAR_HEIGHT: f64 = 220.0;
+// 메뉴 창: 오브 + Bubli 패널(버블 바로가기 그리드 + 2×2 액션)이 세로로 들어간다.
+const WIDGET_MENU_WIDTH: f64 = 248.0;
+const WIDGET_MENU_HEIGHT: f64 = 360.0;
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
 const PRIMARY_MONITOR_ID: &str = "primary";
@@ -577,7 +582,7 @@ fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
         return LogicalSize::new(WIDGET_BAR_WIDTH, WIDGET_BAR_HEIGHT);
     }
     if widget.active_bubble == "menu" {
-        return LogicalSize::new(WIDGET_MENU_SIZE, WIDGET_MENU_SIZE);
+        return LogicalSize::new(WIDGET_MENU_WIDTH, WIDGET_MENU_HEIGHT);
     }
 
     match widget.mode.as_str() {
@@ -586,14 +591,15 @@ fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
             WIDGET_MINIMIZED_HEIGHT + 20.0,
         ),
         "GHOST" => LogicalSize::new(188.0 + 24.0, 188.0 + 24.0),
+        // 콘텐츠 자동 높이에 맞춘 창 크기 — src/app/desktop-widget/page.tsx getWidgetWindowSize와 동기화한다.
         _ => match widget.active_bubble.as_str() {
-            "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 476.0 + WIDGET_WINDOW_GUTTER),
-            "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 444.0 + WIDGET_WINDOW_GUTTER),
-            "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
+            "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
+            "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 430.0 + WIDGET_WINDOW_GUTTER),
+            "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 336.0 + WIDGET_WINDOW_GUTTER),
             "resource" => {
-                LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER)
+                LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 330.0 + WIDGET_WINDOW_GUTTER)
             }
-            "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 304.0 + WIDGET_WINDOW_GUTTER),
+            "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 320.0 + WIDGET_WINDOW_GUTTER),
             "schedule" => {
                 LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER)
             }

@@ -4,6 +4,8 @@ export type WidgetBubbleAccent = "blue" | "lilac" | "pearl" | "rose";
 
 export type WidgetPreviewItem = {
   checked?: boolean;
+  /** 목록 라벨을 보조하는 본문 요약(바 hover 팝오버에서만 노출). */
+  detail?: string;
   dismissOnOpen?: boolean;
   handoffLabel?: string;
   handoffUrl?: string;
