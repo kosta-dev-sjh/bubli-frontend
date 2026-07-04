@@ -944,6 +944,7 @@ export default function SettingsPage() {
       if (disposed) return;
 
       setLocalActionMessage({ text: t("settings.msg.folderWatchDetected", { count: event.changedCount }), tone: "approved" });
+      void refreshManagedFolderProgress(event.localFolderId, { quiet: true });
       const query = folderSearchQuery.trim();
       if (!query) return;
 
@@ -967,7 +968,7 @@ export default function SettingsPage() {
       disposed = true;
       unlisten?.();
     };
-  }, [desktopRuntime, folderSearchQuery, state]);
+  }, [desktopRuntime, folderSearchQuery, refreshManagedFolderProgress, state, t]);
 
   const readActivity = useCallback(async () => {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
@@ -1056,8 +1057,14 @@ export default function SettingsPage() {
       return;
     }
 
-    if (localFolderId) {
-      void refreshManagedFolderProgress(localFolderId, { quiet: true });
+    const foldersToRefresh =
+      localFolderId
+        ? [localFolderId]
+        : state.kind === "ready"
+          ? state.settings.folders.map((folder) => folder.id)
+          : [];
+    for (const folderId of foldersToRefresh) {
+      void refreshManagedFolderProgress(folderId, { quiet: true });
     }
 
     const analysisStatus = await getPersonalLocalFileAnalysisStatus({ consentGranted, maxAttempts: 3 });
