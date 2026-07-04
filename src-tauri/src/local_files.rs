@@ -2788,17 +2788,68 @@ pub fn flush_sync_outbox(state: State<'_, Db>) -> Result<SyncOutboxFlushResult, 
 
 fn sync_outbox_count_for_conn(conn: &Connection, status: &str) -> Result<i64, String> {
     conn.query_row(
-        "SELECT COUNT(*) FROM local_sync_outbox WHERE status = ?1",
+        "SELECT COUNT(*) FROM local_sync_outbox \
+         WHERE status = ?1 AND operation NOT IN ('local_file_event', 'widget_usage_summary')",
         params![status],
         |row| row.get(0),
     )
     .map_err(|error| error.to_string())
 }
 
+fn sync_table_count_for_conn(
+    conn: &Connection,
+    table: &str,
+    status_column: &str,
+    statuses: &[&str],
+) -> Result<i64, String> {
+    let placeholders = statuses.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+    let query = format!("SELECT COUNT(*) FROM {table} WHERE {status_column} IN ({placeholders})");
+    let params = rusqlite::params_from_iter(statuses.iter().copied());
+    match conn.query_row(&query, params, |row| row.get(0)) {
+        Ok(count) => Ok(count),
+        Err(error) if error.to_string().contains("no such table") => Ok(0),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
 fn sync_outbox_summary_for_conn(conn: &Connection) -> Result<SyncOutboxFlushResult, String> {
-    let pending_count = sync_outbox_count_for_conn(conn, "PENDING")?;
-    let failed_count = sync_outbox_count_for_conn(conn, "FAILED")?;
-    let sent_count = sync_outbox_count_for_conn(conn, "SENT")?;
+    let pending_count = sync_outbox_count_for_conn(conn, "PENDING")?
+        + sync_table_count_for_conn(
+            conn,
+            "local_file_events",
+            "status",
+            &["PENDING", "APPROVED"],
+        )?
+        + sync_table_count_for_conn(
+            conn,
+            "local_activity_buffer",
+            "sync_status",
+            &["LOCAL_ONLY", "SYNC_PENDING"],
+        )?
+        + sync_table_count_for_conn(
+            conn,
+            "local_widget_usage_rollups",
+            "sync_status",
+            &["LOCAL_ONLY", "SYNC_PENDING"],
+        )?;
+    let failed_count = sync_outbox_count_for_conn(conn, "FAILED")?
+        + sync_table_count_for_conn(conn, "local_file_events", "status", &["FAILED"])?
+        + sync_table_count_for_conn(conn, "local_activity_buffer", "sync_status", &["FAILED"])?
+        + sync_table_count_for_conn(
+            conn,
+            "local_widget_usage_rollups",
+            "sync_status",
+            &["FAILED"],
+        )?;
+    let sent_count = sync_outbox_count_for_conn(conn, "SENT")?
+        + sync_table_count_for_conn(conn, "local_file_events", "status", &["SYNCED"])?
+        + sync_table_count_for_conn(conn, "local_activity_buffer", "sync_status", &["SYNCED"])?
+        + sync_table_count_for_conn(
+            conn,
+            "local_widget_usage_rollups",
+            "sync_status",
+            &["SYNCED"],
+        )?;
 
     Ok(SyncOutboxFlushResult {
         failed_count,
@@ -4757,23 +4808,82 @@ mod tests {
     #[test]
     fn sync_outbox_summary_reports_pending_failed_and_sent_counts() {
         let conn = test_connection();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS local_activity_buffer (
+                id TEXT PRIMARY KEY,
+                server_activity_log_id TEXT,
+                room_id TEXT,
+                app_name TEXT NOT NULL,
+                window_title TEXT,
+                duration_seconds INTEGER,
+                started_at TEXT NOT NULL,
+                ended_at TEXT NOT NULL,
+                captured_at TEXT NOT NULL,
+                sync_status TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS local_widget_usage_rollups (
+                rollup_key TEXT PRIMARY KEY,
+                bubble_type TEXT NOT NULL,
+                summary_date TEXT NOT NULL,
+                source_event_count INTEGER NOT NULL DEFAULT 0,
+                sync_status TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
+                updated_at INTEGER NOT NULL
+            );",
+        )
+        .expect("create source backlog tables");
         conn.execute(
             "INSERT INTO local_sync_outbox \
              (id, idempotency_key, operation, payload_json, status, retry_count, created_at, updated_at) \
              VALUES \
-             ('outbox-1', 'key-1', 'local_file_event', '{}', 'PENDING', 0, 1, 1), \
-             ('outbox-2', 'key-2', 'local_file_event', '{}', 'PENDING', 0, 1, 1), \
-             ('outbox-3', 'key-3', 'local_file_event', '{}', 'FAILED', 1, 1, 1), \
-             ('outbox-4', 'key-4', 'local_file_event', '{}', 'SENT', 0, 1, 1)",
+             ('outbox-1', 'key-1', 'custom_operation', '{}', 'PENDING', 0, 1, 1), \
+             ('outbox-2', 'key-2', 'custom_operation', '{}', 'FAILED', 1, 1, 1), \
+             ('outbox-3', 'key-3', 'custom_operation', '{}', 'SENT', 0, 1, 1), \
+             ('outbox-4', 'key-4', 'local_file_event', '{}', 'PENDING', 0, 1, 1), \
+             ('outbox-5', 'key-5', 'widget_usage_summary', '{}', 'FAILED', 1, 1, 1)",
             [],
         )
         .expect("insert outbox rows");
+        conn.execute(
+            "INSERT INTO local_file_events \
+             (id, local_file_id, local_folder_id, event_type, file_name, local_path, status, created_at) \
+             VALUES \
+             ('event-1', 'file-1', 'folder-1', 'UPDATED', 'draft.md', '/tmp/draft.md', 'PENDING', 1), \
+             ('event-2', 'file-2', 'folder-1', 'UPDATED', 'brief.md', '/tmp/brief.md', 'APPROVED', 1), \
+             ('event-3', 'file-3', 'folder-1', 'UPDATED', 'bad.md', '/tmp/bad.md', 'FAILED', 1), \
+             ('event-4', 'file-4', 'folder-1', 'UPDATED', 'done.md', '/tmp/done.md', 'SYNCED', 1)",
+            [],
+        )
+        .expect("insert file event rows");
+        conn.execute(
+            "INSERT INTO local_activity_buffer \
+             (id, app_name, duration_seconds, started_at, ended_at, captured_at, sync_status, created_at, updated_at) \
+             VALUES \
+             ('activity-1', 'Code', 60, '2026-07-05T00:00:00Z', '2026-07-05T00:01:00Z', '2026-07-05T00:01:00Z', 'LOCAL_ONLY', 1, 1), \
+             ('activity-2', 'Code', 60, '2026-07-05T00:01:00Z', '2026-07-05T00:02:00Z', '2026-07-05T00:02:00Z', 'SYNC_PENDING', 1, 1), \
+             ('activity-3', 'Code', 60, '2026-07-05T00:02:00Z', '2026-07-05T00:03:00Z', '2026-07-05T00:03:00Z', 'FAILED', 1, 1), \
+             ('activity-4', 'Code', 60, '2026-07-05T00:03:00Z', '2026-07-05T00:04:00Z', '2026-07-05T00:04:00Z', 'SYNCED', 1, 1)",
+            [],
+        )
+        .expect("insert activity buffer rows");
+        conn.execute(
+            "INSERT INTO local_widget_usage_rollups \
+             (rollup_key, bubble_type, summary_date, source_event_count, sync_status, updated_at) \
+             VALUES \
+             ('rollup-1', 'todo', '2026-07-05', 2, 'LOCAL_ONLY', 1), \
+             ('rollup-2', 'memo', '2026-07-05', 2, 'SYNC_PENDING', 1), \
+             ('rollup-3', 'chat', '2026-07-05', 2, 'FAILED', 1), \
+             ('rollup-4', 'timer', '2026-07-05', 2, 'SYNCED', 1)",
+            [],
+        )
+        .expect("insert widget rollup rows");
 
         let summary = sync_outbox_summary_for_conn(&conn).expect("read outbox summary");
 
-        assert_eq!(summary.pending_count, 2);
-        assert_eq!(summary.failed_count, 1);
-        assert_eq!(summary.sent_count, 1);
+        assert_eq!(summary.pending_count, 7);
+        assert_eq!(summary.failed_count, 4);
+        assert_eq!(summary.sent_count, 4);
     }
 
     #[test]

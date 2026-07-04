@@ -95,6 +95,12 @@ const tauriSyncStatusPanelPath = join(
   "src/features/settings/components/tauri-sync-status-panel.tsx",
 );
 const activityCapturePath = join(ROOT, "src-tauri/src/activity.rs");
+const localSyncClientPath = join(ROOT, "src/lib/sync/local-sync-client.ts");
+const localSyncOutboxPanelPath = join(
+  ROOT,
+  "src/features/settings/components/local-sync-outbox-panel.tsx",
+);
+const localFilesRustPath = join(ROOT, "src-tauri/src/local_files.rs");
 
 for (const route of DISALLOWED_ROUTES) {
   const absolutePath = join(ROOT, route.path);
@@ -198,6 +204,43 @@ if (existsSync(activityCapturePath)) {
   ) {
     failures.push(
       "src-tauri/src/activity.rs: Windows activity capture must surface process-name lookup failures instead of recording process-id fallback names as successful activity.",
+    );
+  }
+}
+
+if (existsSync(localSyncClientPath)) {
+  const text = readFileSync(localSyncClientPath, "utf8");
+  if (
+    !text.includes("syncAllLocalOutboxToServer") ||
+    !text.includes("syncPersonalLocalFileEventsToServer") ||
+    !text.includes("syncLocalActivityBufferToServer") ||
+    !text.includes("syncLocalWidgetUsageSummaryToServer")
+  ) {
+    failures.push(
+      "src/lib/sync/local-sync-client.ts: manual local outbox sync must trigger file, activity, and widget usage backend sync paths together.",
+    );
+  }
+}
+
+if (existsSync(localSyncOutboxPanelPath)) {
+  const text = readFileSync(localSyncOutboxPanelPath, "utf8");
+  if (!text.includes("syncAllLocalOutboxToServer") || text.includes("syncPersonalLocalFileEventsToServer")) {
+    failures.push(
+      "src/features/settings/components/local-sync-outbox-panel.tsx: the manual send queue action must use syncAllLocalOutboxToServer instead of the file-only sync path.",
+    );
+  }
+}
+
+if (existsSync(localFilesRustPath)) {
+  const text = readFileSync(localFilesRustPath, "utf8");
+  if (
+    !text.includes("local_activity_buffer") ||
+    !text.includes("local_widget_usage_rollups") ||
+    !text.includes("local_file_events") ||
+    !text.includes("operation NOT IN ('local_file_event', 'widget_usage_summary')")
+  ) {
+    failures.push(
+      "src-tauri/src/local_files.rs: flush_sync_outbox must summarize durable file, activity, and widget usage backlog without double-counting staged outbox rows.",
     );
   }
 }
