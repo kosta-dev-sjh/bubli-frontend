@@ -91,6 +91,8 @@ const actionList: Array<{ icon: ReactNode; id: WidgetItemStateAction; label: Mes
 const backendBubbleTypeMap: Partial<Record<BubbleType, BackendWidgetBubbleType>> = {
   agent: "AGENT",
   chat: "CHAT",
+  notification: "ALERT",
+  resource: "RESOURCE",
   todo: "TODO",
 };
 

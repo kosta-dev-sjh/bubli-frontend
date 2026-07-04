@@ -51,8 +51,10 @@ type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 const apiBubbleTypeMap: Partial<Record<WidgetBubbleType, BackendWidgetBubbleType>> = {
   agent: "AGENT",
+  alert: "ALERT",
   chat: "CHAT",
   memo: "MEMO",
+  resource: "RESOURCE",
   schedule: "SCHEDULE",
   timer: "TIMER",
   todo: "TODO",
@@ -60,8 +62,10 @@ const apiBubbleTypeMap: Partial<Record<WidgetBubbleType, BackendWidgetBubbleType
 
 const apiItemBubbleTypeMap: Partial<Record<WidgetBubbleType, BackendWidgetBubbleType>> = {
   agent: "AGENT",
+  alert: "ALERT",
   chat: "CHAT",
   memo: "MEMO",
+  resource: "RESOURCE",
   schedule: "SCHEDULE",
   timer: "TIMER",
   todo: "TODO",
