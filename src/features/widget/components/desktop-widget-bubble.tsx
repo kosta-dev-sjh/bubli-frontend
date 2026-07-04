@@ -1361,9 +1361,17 @@ const BAR_IDLE_FADE_MS = 8000;
 // 알림 버블 칩은 바 맨 왼쪽의 고정 알림 칩과 완전히 중복(같은 종·같은 카운트)이라 제외하고,
 // 알림 버블 복원은 Bubli 메뉴의 바로가기 그리드가 담당한다.
 function collectBarFoldedItems(minimizedItems: WidgetWindowState[]) {
-  return minimizedItems.filter(
-    (item) => desktopWidgetBubbleTypes.includes(item.activeBubble as WidgetBubbleType) && item.activeBubble !== "alert",
-  );
+  // 버블 타입별로 칩 하나만 남긴다. 레거시 레이아웃이 같은 버블을 여러 windowId로 들고 있어도
+  // 같은 버블 칩이 두 개 뜨거나, 두 칩이 같은 버블 창을 중복 복원하는 일이 없어야 한다.
+  const seenBubbles = new Set<string>();
+  return minimizedItems.filter((item) => {
+    if (!desktopWidgetBubbleTypes.includes(item.activeBubble as WidgetBubbleType) || item.activeBubble === "alert") {
+      return false;
+    }
+    if (seenBubbles.has(item.activeBubble)) return false;
+    seenBubbles.add(item.activeBubble);
+    return true;
+  });
 }
 
 // 아이콘 전용 칩의 카운트 배지(16px, 우상단). 0/비숫자면 배지를 그리지 않는다.
@@ -1384,7 +1392,7 @@ export function DesktopWidgetBubbleBar({
   minimizedItems: WidgetWindowState[];
   notificationSignal?: WidgetNotificationSignal;
   onOpenMenu?: () => void;
-  onRestoreBubble: (bubbleType: WidgetBubbleType, windowId?: string) => void;
+  onRestoreBubble: (bubbleType: WidgetBubbleType) => void;
 }) {
   const { t } = useI18n();
   // 접힌 칩에 hover/포커스하면 pill 위 투명 영역에 요약 팝오버를 띄운다.
@@ -1503,7 +1511,7 @@ export function DesktopWidgetBubbleBar({
         >
           <BubbleMark size="md" />
         </button>
-        {visibleItems.map((item, index) => {
+        {visibleItems.map((item) => {
           const bubbleType = item.activeBubble as WidgetBubbleType;
           const bubble = bubbleDataByType?.[bubbleType] ?? getWidgetPreviewBubble(bubbleType);
           const meta = getBubbleMeta(bubbleType);
@@ -1520,9 +1528,9 @@ export function DesktopWidgetBubbleBar({
               className={[styles.barChip, isTimerChip ? styles.barTimerChip : "", accentClassNames[meta.accent]]
                 .filter(Boolean)
                 .join(" ")}
-              key={`${bubbleType}-${item.windowId ?? index}`}
+              key={bubbleType}
               onBlur={() => hidePreview(bubbleType)}
-              onClick={() => onRestoreBubble(bubbleType, item.windowId ?? bubbleType)}
+              onClick={() => onRestoreBubble(bubbleType)}
               onFocus={() => showPreview(bubbleType)}
               onMouseEnter={() => showPreview(bubbleType)}
               onMouseLeave={() => hidePreview(bubbleType)}
@@ -1602,8 +1610,12 @@ export function DesktopWidgetMenuOrb({
         title={t("widget.menu.openAria")}
         type="button"
       >
-        {/* 웹앱과 같은 브랜드 버블 마크(48px) — 잔잔한 bob 부유 + hover 워블(reduced-motion 존중). */}
-        <BubbleMark className={styles.menuOrbMark} />
+        {/* 미니 앱 아이콘 오브(44px, radius 14): 유리 버블 단독은 '사탕'처럼 읽혀서,
+            하이브리드 앱 브랜드 톤(sky→lilac 그라디언트 타일) 위에 버블 마크를 얹은
+            앱 아이콘 구성으로 바꿨다 — 잔잔한 bob 부유 + hover 워블(reduced-motion 존중). */}
+        <span aria-hidden="true" className={styles.menuOrbTile}>
+          <BubbleMark className={styles.menuOrbMark} />
+        </span>
       </button>
       {open ? (
         <div

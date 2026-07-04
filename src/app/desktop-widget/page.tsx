@@ -1605,15 +1605,17 @@ function DesktopWidgetSurface() {
   }, [activeBubble, isTauri, windowId]);
 
   const restoreBubbleFromBar = useCallback(
-    async (bubbleType: WidgetBubbleType, restoredWindowId?: string) => {
+    async (bubbleType: WidgetBubbleType) => {
       if (!isTauri) return;
 
       try {
+        // windowId는 항상 버블 타입으로 고정한다. 바 칩이 들고 있던 저장 windowId를 그대로
+        // 넘기면(레거시 "todo-…" 등) Rust 스토어 키가 갈라져 같은 버블 창이 두 개 열렸다.
         await tauriCommands.openWidgetWindow({
           bubbleType,
           mode: "DEFAULT",
           selectedRoomId: selectedWidgetRoomId,
-          windowId: restoredWindowId ?? bubbleType,
+          windowId: bubbleType,
         });
         const items = await tauriCommands.getWidgetBarItems();
         const next = items.filter((item) => isDesktopWidgetBubble(item.activeBubble));
@@ -2347,7 +2349,7 @@ function DesktopWidgetSurface() {
       <DesktopWidgetMenuOrb
         hasRoomContext={Boolean(selectedWidgetRoomId)}
         onArrangeBubbles={() => void arrangeWidgetBubbles()}
-        onOpenBubble={(bubbleType) => void restoreBubbleFromBar(bubbleType, bubbleType)}
+        onOpenBubble={(bubbleType) => void restoreBubbleFromBar(bubbleType)}
         onOpenMainApp={() => void openMainApp()}
         onOpenSettings={() => void openMainApp("settings")}
         onQuit={() => void quitDesktopApp()}
@@ -2365,7 +2367,7 @@ function DesktopWidgetSurface() {
         minimizedItems={barItems}
         notificationSignal={notificationSignal}
         onOpenMenu={() => void openWidgetMenu()}
-        onRestoreBubble={(bubbleType, restoredWindowId) => void restoreBubbleFromBar(bubbleType, restoredWindowId)}
+        onRestoreBubble={(bubbleType) => void restoreBubbleFromBar(bubbleType)}
       />
     );
   }

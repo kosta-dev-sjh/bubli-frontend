@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{hash_map::Entry, HashMap, HashSet},
     env, fs,
     path::PathBuf,
     sync::{LazyLock, Mutex},
@@ -41,8 +41,8 @@ const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 // 통과시키므로 창이 커도 무해하다.
 const WIDGET_BAR_WIDTH: f64 = 640.0;
 const WIDGET_BAR_HEIGHT: f64 = 220.0;
-// 메뉴 창: 상시 런처 오브(48px 버블 마크) + 클릭 시 열리는 Bubli 패널이 세로로 들어간다.
-// 위젯 최소 폰트 14 적용 후 패널 높이 기준(오브 48 + 8 + 패널 ~340(정렬 액션 행 포함) + 여유).
+// 메뉴 창: 상시 런처 오브(44px 브랜드 타일 미니 앱 아이콘) + 클릭 시 열리는 Bubli 패널이 세로로 들어간다.
+// 위젯 최소 폰트 14 적용 후 패널 높이 기준(오브 버튼 56 + 8 + 패널 ~340(정렬 액션 행 포함) + 여유).
 const WIDGET_MENU_WIDTH: f64 = 248.0;
 const WIDGET_MENU_HEIGHT: f64 = 424.0;
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
@@ -701,18 +701,13 @@ fn normalize_optional_query_value(value: Option<String>) -> Option<String> {
     })
 }
 
-fn normalize_window_key(bubble_type: &str, window_id: Option<String>) -> String {
-    let raw = window_id.unwrap_or_else(|| bubble_type.to_string());
-    let cleaned: String = raw
-        .chars()
-        .filter(|value| value.is_ascii_alphanumeric() || *value == '-')
-        .collect();
-
-    if cleaned.is_empty() {
-        bubble_type.to_string()
-    } else {
-        cleaned
-    }
+/// 창 키(= label 접미사)는 버블 타입으로 고정한다 — 버블 타입당 네이티브 창은 정확히 하나다.
+/// 과거에는 호출자가 넘긴 windowId를 그대로 키로 써서, 같은 버블에 서로 다른 windowId
+/// (로그인 자동 실행 "todo" vs 저장 레이아웃의 "todo-…" 등)가 들어오면 스토어 키와 label이
+/// 갈라져 같은 버블 창이 두 개 열렸다. bar/menu는 자기 타입("bar"/"menu")이 곧 키라 특수
+/// 동작이 그대로 유지된다.
+fn normalize_window_key(bubble_type: &str, _window_id: Option<String>) -> String {
+    bubble_type.to_string()
 }
 
 fn apply_widget_window_mode_update(
@@ -754,9 +749,10 @@ fn append_widget_url_query(url: &mut String, key: &str, value: &str) {
     }
 }
 
+/// 창 label은 항상 버블 타입 기반 캐논 값(bubli-widget-{type})이다. window_id가 아니라
+/// active_bubble에서 파생해, 레거시 windowId를 지닌 스토어 항목도 같은 창을 가리킨다(중복 창 방지).
 fn widget_window_label(widget: &WidgetWindowState) -> String {
-    let window_key = widget.window_id.as_deref().unwrap_or(&widget.active_bubble);
-    format!("{WIDGET_WINDOW_LABEL_PREFIX}-{window_key}")
+    format!("{WIDGET_WINDOW_LABEL_PREFIX}-{}", widget.active_bubble)
 }
 
 fn widget_window_layout_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -793,7 +789,24 @@ fn widget_window_store_from_layout(layout: StoredWidgetWindowLayout) -> WidgetWi
         }
         let key = normalize_window_key(&widget.active_bubble, widget.window_id.clone());
         widget.window_id = Some(key.clone());
-        bubbles.insert(key, widget);
+        match bubbles.entry(key) {
+            Entry::Vacant(entry) => {
+                entry.insert(widget);
+            }
+            Entry::Occupied(mut entry) => {
+                // 과거 빌드가 같은 버블을 여러 windowId 키("todo"와 "todo-…" 등)로 저장한
+                // 레이아웃 파일이 남아 있을 수 있다 — 같은 버블 창이 두 개 열리던 근원.
+                // 보이는 항목 > 좌표가 저장된 항목 순으로 하나만 남긴다.
+                let existing = entry.get();
+                let replaces = (widget.window_visible && !existing.window_visible)
+                    || (widget.window_visible == existing.window_visible
+                        && widget_position_is_unset(&existing.position)
+                        && !widget_position_is_unset(&widget.position));
+                if replaces {
+                    entry.insert(widget);
+                }
+            }
+        }
     }
 
     let active_bubble = normalize_bubble_type(Some(layout.active_bubble));
@@ -1564,6 +1577,11 @@ fn widget_bar_items_from_store(store: &WidgetWindowStore) -> Vec<WidgetWindowSta
         left_key.cmp(right_key)
     });
 
+    // 방어적 중복 제거: 스토어 키가 버블 타입으로 고정돼 정상 경로에서는 중복이 없지만,
+    // 같은 버블 칩이 바에 두 번 뜨는 일은 어떤 경우에도 없어야 한다.
+    let mut seen_bubbles = HashSet::new();
+    items.retain(|widget| seen_bubbles.insert(widget.active_bubble.clone()));
+
     items
 }
 
@@ -2289,6 +2307,19 @@ async fn open_widget_window(
         apply_open_widget_window_update(widget, next_mode.clone(), selected_room_id.clone());
     })?;
     persist_widget_window_state(&app, &state)?;
+    // 같은 버블의 좀비 창 정리: 캐논 label(bubli-widget-{type}) 외의 레거시 windowId 기반
+    // label(bubli-widget-{type}-…)로 떠 있는 창은 파괴한다. 버블 타입 간에는 접두 관계가
+    // 없어("todo-"는 다른 타입 label과 겹치지 않는다) 안전하다. 이후 build는 캐논 창이
+    // 이미 있으면 새로 만들지 않고 상태만 재적용(show/focus)한다 — 버블당 싱글턴 보장.
+    let canonical_label = widget_window_label(&widget);
+    let stale_label_prefix = format!("{canonical_label}-");
+    for (label, window) in app.webview_windows() {
+        if label != canonical_label && label.starts_with(&stale_label_prefix) {
+            reset_widget_window_dom_ready(&label);
+            reset_widget_applied_window_state(&label);
+            let _ = window.destroy();
+        }
+    }
     let result = schedule_widget_window_build(&app, &monitor_state, &widget)?;
     // 바에서 버블을 복원한 뒤 바 창 상태(가시성)를 동기화한다. 바 크기는 고정이라 리사이즈는 없다.
     refresh_widget_bar_window(&app, &monitor_state, &state)?;
@@ -2397,11 +2428,70 @@ mod tests {
         });
 
         assert_eq!(store.active_bubble, "timer");
-        let restored = store.bubbles.get("timerbad").expect("normalized widget");
+        // 레거시 windowId는 버블 타입 키로 접힌다(버블당 싱글턴 창).
+        let restored = store.bubbles.get("timer").expect("normalized widget");
         assert_eq!(restored.active_bubble, "timer");
-        assert_eq!(restored.window_id.as_deref(), Some("timerbad"));
+        assert_eq!(restored.window_id.as_deref(), Some("timer"));
         assert_eq!(restored.position.x, 144);
         assert_eq!(restored.position.y, 188);
+    }
+
+    #[test]
+    fn widget_layout_restore_collapses_duplicate_bubble_entries_preferring_visible_one() {
+        // 과거 빌드가 남긴 레이아웃: 같은 todo 버블이 "todo"와 "todo-legacy" 두 키로 저장됨
+        // — 실사용에서 "오늘 할 일" 창이 두 개 열리던 근원.
+        let hidden = WidgetWindowState {
+            mode: "MINIMIZED".to_string(),
+            window_visible: false,
+            ..widget("todo", Some("todo"), 10, 10)
+        };
+        let visible = widget("todo", Some("todo-legacy"), 240, 64);
+
+        let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
+            active_bubble: "todo".to_string(),
+            bubbles: vec![hidden, visible],
+        });
+
+        assert_eq!(store.bubbles.len(), 1);
+        let merged = store.bubbles.get("todo").expect("collapsed widget");
+        assert!(merged.window_visible);
+        assert_eq!(merged.window_id.as_deref(), Some("todo"));
+        assert_eq!(merged.position.x, 240);
+        assert_eq!(merged.position.y, 64);
+        // label도 캐논 값 하나로 수렴한다.
+        assert_eq!(widget_window_label(merged), "bubli-widget-todo");
+    }
+
+    #[test]
+    fn widget_bar_items_never_contain_duplicate_bubble_chips() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "todo".to_string(),
+            WidgetWindowState {
+                mode: "MINIMIZED".to_string(),
+                window_visible: false,
+                ..widget("todo", Some("todo"), 0, 0)
+            },
+        );
+        // 손상된 스토어를 흉내 낸 중복 키(정상 경로에서는 만들어지지 않는다).
+        store.bubbles.insert(
+            "todo-legacy".to_string(),
+            WidgetWindowState {
+                mode: "MINIMIZED".to_string(),
+                window_visible: false,
+                ..widget("todo", Some("todo-legacy"), 0, 0)
+            },
+        );
+
+        let items = widget_bar_items_from_store(&store);
+
+        assert_eq!(
+            items
+                .iter()
+                .filter(|widget| widget.active_bubble == "todo")
+                .count(),
+            1
+        );
     }
 
     #[test]
