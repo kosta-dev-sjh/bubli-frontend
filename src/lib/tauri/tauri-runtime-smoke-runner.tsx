@@ -3,9 +3,13 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
+import { chatApi } from "@/features/communication/api/chatApi";
+import { voiceApi } from "@/features/communication/api/voiceApi";
 import { managedFolderApi } from "@/features/managed-folder/api/managedFolderApi";
 import { activityApi } from "@/features/activity/api/activityApi";
 import { authApi } from "@/features/auth/api/authApi";
+import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
+import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { clearStoredAuthSession, getStoredAuthSession } from "@/lib/auth/auth-session";
 import { tauriCommands } from "@/lib/tauri/commands";
@@ -130,6 +134,88 @@ async function seedDevAuthSession() {
   return authApi.loginWithDevAccessToken(accessToken);
 }
 
+async function verifyRealBackendRoomCommunication(smokeRoomId: string, assert: SmokeAssert) {
+  const projectRoom = await projectRoomApi.get(smokeRoomId);
+  assert(
+    projectRoom.id === smokeRoomId && projectRoom.status === "ACTIVE",
+    "real backend project room loaded",
+    projectRoom,
+  );
+
+  const roomMembers = await projectRoomApi.getMembers(smokeRoomId);
+  assert(
+    roomMembers.items.some((member) => member.userId === "11111111-1111-4111-8111-111111111111"),
+    "real backend project room members loaded",
+    roomMembers,
+  );
+
+  const roomResources = await resourcesApi.listRoomResources(smokeRoomId);
+  assert(Array.isArray(roomResources.items), "real backend room resources endpoint loaded", roomResources);
+
+  const chatRooms = await chatApi.listRooms();
+  const roomChat = chatRooms.items.find((room) => room.roomId === smokeRoomId);
+  assert(roomChat?.id, "real backend chat room resolved for project room", chatRooms);
+
+  const clientMessageId = `tauri-runtime-smoke-${Date.now()}`;
+  const messageText = "Tauri runtime smoke real backend chat message";
+  const sentMessage = await chatApi.sendMessage(roomChat.id, {
+    body: { text: messageText },
+    clientMessageId,
+    messageType: "TEXT",
+  });
+  assert(
+    sentMessage.clientMessageId === clientMessageId && sentMessage.body.text === messageText,
+    "real backend chat message sent",
+    sentMessage,
+  );
+
+  const messagePage = await chatApi.getMessages(roomChat.id, { size: 20 });
+  assert(
+    messagePage.items.some((message) => message.clientMessageId === clientMessageId),
+    "real backend chat message read back",
+    messagePage,
+  );
+
+  const readMarker = (await chatApi.markRead(roomChat.id, sentMessage.roomSequence)) as {
+    lastReadSequence?: number;
+  } | null;
+  assert(
+    readMarker?.lastReadSequence === sentMessage.roomSequence,
+    "real backend chat read marker updated",
+    readMarker,
+  );
+
+  const voiceRoom = await voiceApi.createRoom({ roomId: smokeRoomId });
+  assert(
+    voiceRoom.roomId === smokeRoomId &&
+      voiceRoom.status === "OPEN" &&
+      voiceRoom.participants.some((participant) => participant.userId === "11111111-1111-4111-8111-111111111111"),
+    "real backend voice room opened",
+    voiceRoom,
+  );
+
+  const voiceToken = await voiceApi.getToken(voiceRoom.id);
+  assert(
+    voiceToken.voiceRoomId === voiceRoom.id &&
+      voiceToken.participantId &&
+      voiceToken.serverUrl &&
+      voiceToken.token &&
+      voiceToken.expiresAt,
+    "real backend voice token issued",
+    voiceToken,
+  );
+
+  const mutedParticipant = await voiceApi.updateMicStatus(voiceRoom.id, { micStatus: "MUTED" });
+  assert(
+    mutedParticipant.userId === "11111111-1111-4111-8111-111111111111",
+    "real backend voice mic status updated",
+    mutedParticipant,
+  );
+
+  const leftVoiceRoom = await voiceApi.leave(voiceRoom.id);
+  assert(leftVoiceRoom.id === voiceRoom.id, "real backend voice room left", leftVoiceRoom);
+}
+
 async function postReport(report: SmokeReport) {
   if (!smokeReportUrl) return;
 
@@ -228,6 +314,7 @@ async function runSmoke() {
     await tauriCommands.setWidgetRoomContext({ selectedRoomId: smokeRoomId });
     const restoredRoom = await tauriCommands.readActiveProjectRoom();
     assert(restoredRoom?.roomId === smokeRoomId, "active project room persisted to SQLite", restoredRoom);
+    await verifyRealBackendRoomCommunication(smokeRoomId, assert);
 
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true });
     const windows = await tauriCommands.openWidgetWindows({
