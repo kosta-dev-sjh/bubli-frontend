@@ -105,6 +105,8 @@ export type DesktopWidgetBubbleProps = {
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onCreateMemo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onCreateTodo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  onAnalyzeResource?: (item: WidgetPreviewItem) => Promise<void> | void;
+  onDownloadResource?: (item: WidgetPreviewItem) => Promise<void> | void;
   onRestore?: () => void;
   onSendAgentCommand?: (bubble: WidgetPreviewBubble, text: string) => Promise<void> | void;
   onSendChatMessage?: (bubble: WidgetPreviewBubble, text: string) => Promise<void> | void;
@@ -670,10 +672,14 @@ function ScheduleBody({
 
 function ResourceBody({
   bubble,
+  onAnalyzeResource,
+  onDownloadResource,
   onItemStateChange,
   onOpenHandoff,
 }: {
   bubble: WidgetPreviewBubble;
+  onAnalyzeResource?: DesktopWidgetBubbleProps["onAnalyzeResource"];
+  onDownloadResource?: DesktopWidgetBubbleProps["onDownloadResource"];
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
@@ -702,6 +708,14 @@ function ResourceBody({
             <span>{item.label}</span>
           )}
           <b>{item.status}</b>
+          <span className={styles.resourceActions}>
+            <button aria-label={t("resources.common.download")} onClick={() => void onDownloadResource?.(item)} type="button">
+              <ExternalLink size={13} strokeWidth={2.1} />
+            </button>
+            <button aria-label={t("resources.common.analyzeRun")} onClick={() => void onAnalyzeResource?.(item)} type="button">
+              <Sparkles size={13} strokeWidth={2.1} />
+            </button>
+          </span>
           <ItemActions item={item} onItemStateChange={onItemStateChange} />
         </div>
       ))}
@@ -719,6 +733,8 @@ function BubbleBody({
   onItemStateChange,
   onCreateMemo,
   onCreateTodo,
+  onAnalyzeResource,
+  onDownloadResource,
   onLeaveVoice,
   onMarkChatRead,
   onOpenHandoff,
@@ -733,6 +749,8 @@ function BubbleBody({
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
   onCreateTodo?: DesktopWidgetBubbleProps["onCreateTodo"];
+  onAnalyzeResource?: DesktopWidgetBubbleProps["onAnalyzeResource"];
+  onDownloadResource?: DesktopWidgetBubbleProps["onDownloadResource"];
   onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
   onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
@@ -772,7 +790,17 @@ function BubbleBody({
   }
   if (bubble.id === "memo") return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} onOpenHandoff={onOpenHandoff} />;
   if (bubble.id === "schedule") return <ScheduleBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
-  if (bubble.id === "resource") return <ResourceBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
+  if (bubble.id === "resource") {
+    return (
+      <ResourceBody
+        bubble={bubble}
+        onAnalyzeResource={onAnalyzeResource}
+        onDownloadResource={onDownloadResource}
+        onItemStateChange={onItemStateChange}
+        onOpenHandoff={onOpenHandoff}
+      />
+    );
+  }
   return <TodoBody bubble={bubble} onCreateTodo={onCreateTodo} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
 }
 
@@ -794,6 +822,8 @@ export function DesktopWidgetBubble({
   clickThrough,
   mode,
   onClose,
+  onAnalyzeResource,
+  onDownloadResource,
   onItemStateChange,
   onLeaveVoice,
   onMarkChatRead,
@@ -868,7 +898,9 @@ export function DesktopWidgetBubble({
             ) : (
               <BubbleBody
                 bubble={activeData}
+                onAnalyzeResource={onAnalyzeResource}
                 onItemStateChange={onItemStateChange}
+                onDownloadResource={onDownloadResource}
                 onLeaveVoice={onLeaveVoice}
                 onMarkChatRead={onMarkChatRead}
                 onCreateMemo={onCreateMemo}
