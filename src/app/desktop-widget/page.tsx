@@ -43,7 +43,7 @@ import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { tauriCommands, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
-import { emitWidgetMenuPanelRequested, listenWidgetMenuPanelRequested, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
+import { listenWidgetMenuPanelRequested, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readWidgetSummary } from "@/lib/widget";
 import { useI18n } from "@/lib/i18n";
@@ -2220,9 +2220,10 @@ function DesktopWidgetSurface() {
     [activeVoiceRoomId, isTauri],
   );
 
-  // 메뉴 창에서만 서버 사용 롤업(usage-summaries/today)을 읽어 한 줄 요약으로 보여준다.
+  // 바(인라인 Bubli 메뉴)와 (deprecated) 메뉴 창에서 서버 사용 롤업(usage-summaries/today)을
+  // 읽어 한 줄 요약으로 보여준다.
   useEffect(() => {
-    if (!widgetSessionReady || !isMenuOrb) return;
+    if (!widgetSessionReady || !isWidgetChrome) return;
 
     let cancelled = false;
 
@@ -2245,27 +2246,11 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [isMenuOrb, t, widgetSessionReady]);
+  }, [isWidgetChrome, t, widgetSessionReady]);
 
-  // 메뉴(오브) 창은 로그인과 함께 상시 실행되는 런처다. 바의 Bubli 버튼은 창을 앞으로 가져오고
-  // (없으면 새로 열고), 창 간 이벤트로 오브에 "패널 열기"를 요청한다.
-  const openWidgetMenu = useCallback(async () => {
-    if (!isTauri) return;
-
-    try {
-      await tauriCommands.openWidgetWindow({
-        bubbleType: "menu",
-        mode: "DEFAULT",
-        selectedRoomId: selectedWidgetRoomId,
-        windowId: "menu",
-      });
-      await emitWidgetMenuPanelRequested().catch(() => undefined);
-    } catch {
-      // Browser preview fallback.
-    }
-  }, [isTauri, selectedWidgetRoomId]);
-
-  // 메뉴 창: 바 Bubli 버튼의 패널 열기 요청을 수신한다.
+  // (deprecated) 메뉴 창: 과거 바 Bubli 버튼이 보내던 패널 열기 요청을 계속 수신한다.
+  // Bubli 메뉴는 이제 바 창 인라인 morph 패널이라 이 이벤트를 emit하는 곳은 없지만,
+  // ?bubble=menu 창을 수동으로 열면 기존 경로가 그대로 동작한다.
   useEffect(() => {
     if (!isTauri || !isMenuOrb) return;
 
@@ -2361,13 +2346,21 @@ function DesktopWidgetSurface() {
   }
 
   if (isBubbleBar) {
+    // Bubli 메뉴는 바 창 안 인라인 morph 패널이다(별도 메뉴 창 자동 실행 없음).
     return (
       <DesktopWidgetBubbleBar
         bubbleDataByType={displayBubbles}
+        hasRoomContext={Boolean(selectedWidgetRoomId)}
         minimizedItems={barItems}
         notificationSignal={notificationSignal}
-        onOpenMenu={() => void openWidgetMenu()}
+        onArrangeBubbles={() => void arrangeWidgetBubbles()}
+        onOpenBubble={(bubbleType) => void restoreBubbleFromBar(bubbleType)}
+        onOpenMainApp={() => void openMainApp()}
+        onOpenSettings={() => void openMainApp("settings")}
+        onQuit={() => void quitDesktopApp()}
         onRestoreBubble={(bubbleType) => void restoreBubbleFromBar(bubbleType)}
+        onToggleRoomContext={() => void toggleWidgetRoomContext()}
+        usageSummary={menuUsageSummary}
       />
     );
   }

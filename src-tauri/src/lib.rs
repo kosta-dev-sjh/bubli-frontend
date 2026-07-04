@@ -29,9 +29,11 @@ const DEFAULT_WIDGET_BUBBLE_TYPE: &str = "todo";
 const WIDGET_DEFAULT_WIDTH: f64 = 324.0;
 const WIDGET_DEFAULT_HEIGHT: f64 = 360.0;
 const WIDGET_WINDOW_GUTTER: f64 = 44.0;
-// 바 창은 pill(하단 고정 64px)만 시각적으로 유지한다. Bubli 메뉴는 별도 menu 창으로 연다.
-// 창 높이는 pill 위 hover 요약 팝오버가 들어갈 투명 여유(약 156px)를 포함한다 —
-// desktop-widget-bubble.module.css .barRoot/.barPopover와 동기화한다.
+// 바 창은 pill(하단 고정 64px)만 시각적으로 유지한다. Bubli 메뉴는 바 창 안에서
+// 브랜드 칩이 pill 위 투명 영역으로 morph해 열리는 인라인 패널이다(별도 menu 창 자동 실행 없음).
+// 창 높이는 pill 위 hover 요약 팝오버 + 메뉴 패널(280×≈352, bottom 68px 앵커)이 들어갈
+// 투명 여유를 포함한다 — desktop-widget-bubble.module.css .barRoot/.barPopover/.barMenuPanel과
+// 동기화한다(68 + 352 + 여유 ≈ 430).
 // 창 너비는 최악 조합(고정 알림 칩 + 구분선 + 브랜드 버블 마크 + 접힌 칩 7개, 타이머 칩은
 // 시간 텍스트 포함)이 전부 들어가는 640 고정이다. 계산: 36px 칩 8개 + 타이머 시간 텍스트(~78px)
 // + gap 6×9 + pill 패딩/보더 ≈ 460px < 640. "+N" 접기와 잘림이 어떤 조합에서도 없다.
@@ -40,9 +42,12 @@ const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 // 붙고(desktop-widget-bubble.module.css .barRoot), pill 밖 투명 영역은 커서 폴러가 클릭
 // 통과시키므로 창이 커도 무해하다.
 const WIDGET_BAR_WIDTH: f64 = 640.0;
-const WIDGET_BAR_HEIGHT: f64 = 220.0;
-// 메뉴 창: 상시 런처 오브(44px 브랜드 타일 미니 앱 아이콘) + 클릭 시 열리는 Bubli 패널이 세로로 들어간다.
-// 위젯 최소 폰트 14 적용 후 패널 높이 기준(오브 버튼 56 + 8 + 패널 ~340(정렬 액션 행 포함) + 여유).
+const WIDGET_BAR_HEIGHT: f64 = 430.0;
+// 직전 릴리스의 바 창 높이. 저장 레이아웃에 barLayoutHeight가 없으면 이 값으로 간주하고,
+// 바 pill이 창 하단 고정이므로 높이 델타만큼 저장 y를 위로 당겨 pill의 화면 위치를 유지한다.
+const WIDGET_BAR_LEGACY_HEIGHT: f64 = 220.0;
+// (deprecated) 메뉴 창: Bubli 메뉴가 바 인라인 패널로 통합되면서 로그인 자동 실행 목록에서
+// 빠졌다. ?bubble=menu 창을 수동으로 열면 기존 크기/동작이 그대로 유지된다.
 const WIDGET_MENU_WIDTH: f64 = 248.0;
 const WIDGET_MENU_HEIGHT: f64 = 424.0;
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
@@ -428,6 +433,10 @@ fn widget_window_dom_ready(label: &str) -> bool {
 #[serde(rename_all = "camelCase")]
 struct StoredWidgetWindowLayout {
     active_bubble: String,
+    /// 저장 당시의 바 창 높이(논리 px). 바 pill은 창 하단 고정이라 릴리스 간 높이가 바뀌면
+    /// 로드 시 저장 y를 델타만큼 보정한다. None = barLayoutHeight 도입 전(220) 레이아웃.
+    #[serde(default)]
+    bar_layout_height: Option<f64>,
     bubbles: Vec<WidgetWindowState>,
 }
 
@@ -773,12 +782,17 @@ fn stored_widget_window_layout(store: &WidgetWindowStore) -> StoredWidgetWindowL
 
     StoredWidgetWindowLayout {
         active_bubble: store.active_bubble.clone(),
+        bar_layout_height: Some(WIDGET_BAR_HEIGHT),
         bubbles,
     }
 }
 
 fn widget_window_store_from_layout(layout: StoredWidgetWindowLayout) -> WidgetWindowStore {
     let mut bubbles = HashMap::new();
+    // 바 창 높이 마이그레이션: 저장 시점 높이(구버전 220)와 현재 높이의 델타만큼 저장 y를
+    // 위로 당겨, 하단 고정 pill이 화면에서 움직이지 않게 한다(top-left 저장 좌표 보정).
+    let bar_height_delta =
+        WIDGET_BAR_HEIGHT - layout.bar_layout_height.unwrap_or(WIDGET_BAR_LEGACY_HEIGHT);
 
     for mut widget in layout.bubbles {
         widget.active_bubble = normalize_bubble_type(Some(widget.active_bubble));
@@ -786,6 +800,12 @@ fn widget_window_store_from_layout(layout: StoredWidgetWindowLayout) -> WidgetWi
         widget.click_through = widget.click_through || widget.mode == "GHOST";
         if widget.active_bubble != "bar" && widget.mode == "MINIMIZED" {
             widget.window_visible = false;
+        }
+        if widget.active_bubble == "bar"
+            && bar_height_delta != 0.0
+            && !widget_position_is_unset(&widget.position)
+        {
+            widget.position.y = ((widget.position.y as f64 - bar_height_delta).round() as i32).max(0);
         }
         let key = normalize_window_key(&widget.active_bubble, widget.window_id.clone());
         widget.window_id = Some(key.clone());
@@ -2424,6 +2444,7 @@ mod tests {
     fn widget_layout_restore_keeps_saved_position_and_normalizes_window_key() {
         let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
             active_bubble: "timer".to_string(),
+            bar_layout_height: Some(WIDGET_BAR_HEIGHT),
             bubbles: vec![widget("timer", Some("timer*bad"), 144, 188)],
         });
 
@@ -2434,6 +2455,30 @@ mod tests {
         assert_eq!(restored.window_id.as_deref(), Some("timer"));
         assert_eq!(restored.position.x, 144);
         assert_eq!(restored.position.y, 188);
+    }
+
+    #[test]
+    fn widget_layout_restore_shifts_legacy_bar_y_by_height_delta() {
+        // barLayoutHeight가 없는 구버전(220) 레이아웃: 바 pill은 창 하단 고정이라
+        // 새 높이(430)와의 델타(210)만큼 y를 위로 당겨 pill 화면 위치를 유지한다.
+        let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
+            active_bubble: "bar".to_string(),
+            bar_layout_height: None,
+            bubbles: vec![widget("bar", Some("bar"), 400, 656)],
+        });
+
+        let bar = store.bubbles.get("bar").expect("bar widget");
+        let delta = (WIDGET_BAR_HEIGHT - WIDGET_BAR_LEGACY_HEIGHT) as i32;
+        assert_eq!(bar.position.x, 400);
+        assert_eq!(bar.position.y, 656 - delta);
+
+        // 현재 높이로 저장된 레이아웃은 보정하지 않는다.
+        let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
+            active_bubble: "bar".to_string(),
+            bar_layout_height: Some(WIDGET_BAR_HEIGHT),
+            bubbles: vec![widget("bar", Some("bar"), 400, 656)],
+        });
+        assert_eq!(store.bubbles.get("bar").expect("bar widget").position.y, 656);
     }
 
     #[test]
@@ -2449,6 +2494,7 @@ mod tests {
 
         let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
             active_bubble: "todo".to_string(),
+            bar_layout_height: Some(WIDGET_BAR_HEIGHT),
             bubbles: vec![hidden, visible],
         });
 

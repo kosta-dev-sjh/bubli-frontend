@@ -15,12 +15,11 @@ let launchGeneration = 0;
 let launchedAuthenticatedSurfaces = false;
 
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
-// 메뉴(오브) 창은 데스크톱 상시 런처다: 로그인과 함께 바와 같이 뜨고, 패널이 닫혀 있으면
-// 44px 오브만 보인다(나머지 영역은 투명 + 커서 폴러 클릭 통과).
-const loginStartupMenuWindow: WidgetWindowOpenInput = { bubbleType: "menu", mode: "DEFAULT", windowId: "menu" };
+// (deprecated) 메뉴(오브) 창은 더 이상 자동 실행하지 않는다 — Bubli 메뉴는 바 창의
+// 브랜드 칩에서 열리는 인라인 morph 패널로 통합됐다. "menu" 창 경로(?bubble=menu)와
+// Rust 창 상태는 그대로 남아 있어 수동으로 열면 여전히 동작한다.
 const loginStartupWindows: WidgetWindowOpenInput[] = [
   loginStartupBarWindow,
-  loginStartupMenuWindow,
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
 ];
 const loginPrimaryBubble: WidgetBubbleType = "todo";
@@ -116,9 +115,9 @@ export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInpu
   // Backend defaults keep all eight bubbles enabled for the bar/catalog, but
   // login must not spawn eight native windows at once.
   const primaryBubbleWindow = getLoginPrimaryBubbleWindow(settings.bubbles);
-  if (!primaryBubbleWindow) return [loginStartupBarWindow, loginStartupMenuWindow];
+  if (!primaryBubbleWindow) return [loginStartupBarWindow];
 
-  return [loginStartupBarWindow, loginStartupMenuWindow, primaryBubbleWindow];
+  return [loginStartupBarWindow, primaryBubbleWindow];
 }
 
 async function resolveLaunchSelectedRoomId() {
