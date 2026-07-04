@@ -1358,6 +1358,7 @@ fn build_widget_window(
     .decorations(false)
     .transparent(true)
     .background_color(Color(0, 0, 0, 0))
+    .devtools(false)
     .shadow(widget_native_shadow_enabled())
     .resizable(false)
     .always_on_top(widget.always_on_top)
