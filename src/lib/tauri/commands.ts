@@ -51,6 +51,7 @@ export const TAURI_COMMANDS = {
   selectManagedFolder: "select_managed_folder",
   seedWidgetBarItems: "seed_widget_bar_items",
   setPreferredAppMonitor: "set_preferred_app_monitor",
+  setAuthenticatedSurfacesEnabled: "set_authenticated_surfaces_enabled",
   setActivityContextConsent: "set_activity_context_consent",
   setFolderSync: "set_folder_sync",
   setWidgetAlwaysOnTop: "set_widget_always_on_top",
@@ -88,6 +89,10 @@ export type ManagedFolderSelection = {
   localFolderId: string;
   name: string;
   path: string;
+};
+
+export type AuthenticatedSurfacesInput = {
+  enabled: boolean;
 };
 
 export type ManagedFolderListItem = ManagedFolderSelection & {
@@ -922,6 +927,10 @@ export type TauriCommandContract = {
     args: AppMonitorPreferenceInput;
     result: AppMonitorPreference;
   };
+  set_authenticated_surfaces_enabled: {
+    args: AuthenticatedSurfacesInput;
+    result: boolean;
+  };
   set_activity_context_consent: {
     args: ActivityContextConsentInput;
     result: ActivityContextConsentResult;
@@ -1198,6 +1207,9 @@ export const tauriCommands = {
   },
   setPreferredAppMonitor(input: AppMonitorPreferenceInput) {
     return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.setPreferredAppMonitor, { input });
+  },
+  setAuthenticatedSurfacesEnabled(input: AuthenticatedSurfacesInput) {
+    return invokeTauri<boolean>(TAURI_COMMANDS.setAuthenticatedSurfacesEnabled, { input });
   },
   setFolderSync(input: ManagedFolderSyncInput) {
     return invokeTauri<ManagedFolderSyncResult>(TAURI_COMMANDS.setFolderSync, { input });

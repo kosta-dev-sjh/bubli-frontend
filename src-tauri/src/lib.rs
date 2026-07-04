@@ -117,6 +117,7 @@ impl Default for WidgetWindowStore {
 }
 
 type WidgetState = Mutex<WidgetWindowStore>;
+type AuthenticatedSurfacesState = Mutex<bool>;
 static WIDGET_READY_WINDOW_LABELS: LazyLock<Mutex<HashSet<String>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
 
@@ -134,6 +135,12 @@ struct WidgetInteractiveRect {
 #[serde(rename_all = "camelCase")]
 struct WidgetInteractiveRectsInput {
     rects: Vec<WidgetInteractiveRect>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AuthenticatedSurfacesInput {
+    enabled: bool,
 }
 
 #[derive(Default)]
@@ -571,6 +578,41 @@ fn with_widget_state(
         .or_insert_with(|| default_widget_window_state(&target, Some(window_key)));
     update(widget);
     Ok(widget.clone())
+}
+
+fn require_authenticated_surfaces_enabled(
+    auth_state: &AuthenticatedSurfacesState,
+) -> Result<(), String> {
+    if authenticated_surfaces_enabled(auth_state)? {
+        Ok(())
+    } else {
+        Err("authenticated Tauri surfaces are not enabled".to_string())
+    }
+}
+
+fn authenticated_surfaces_enabled(auth_state: &AuthenticatedSurfacesState) -> Result<bool, String> {
+    let enabled = auth_state
+        .lock()
+        .map_err(|_| "authenticated surfaces state lock failed".to_string())?;
+    Ok(*enabled)
+}
+
+fn widget_visibility_after_toggle(
+    state: &WidgetState,
+    bubble_type: Option<String>,
+    window_id: Option<String>,
+) -> Result<bool, String> {
+    let guard = state
+        .lock()
+        .map_err(|_| "widget state lock failed".to_string())?;
+    let target = normalize_bubble_type(Some(resolve_target_bubble(&guard, bubble_type)));
+    let window_key = normalize_window_key(&target, window_id);
+    let currently_visible = guard
+        .bubbles
+        .get(&window_key)
+        .map(|widget| widget.window_visible)
+        .unwrap_or(false);
+    Ok(!currently_visible)
 }
 
 fn normalize_bubble_type(value: Option<String>) -> String {
@@ -1952,12 +1994,26 @@ fn app_ready(
 }
 
 #[tauri::command]
+fn set_authenticated_surfaces_enabled(
+    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
+    input: AuthenticatedSurfacesInput,
+) -> Result<bool, String> {
+    let mut enabled = auth_state
+        .lock()
+        .map_err(|_| "authenticated surfaces state lock failed".to_string())?;
+    *enabled = input.enabled;
+    Ok(*enabled)
+}
+
+#[tauri::command]
 async fn open_widget_window(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
+    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
     input: Option<WidgetWindowOpenInput>,
 ) -> Result<WidgetWindowState, String> {
+    require_authenticated_surfaces_enabled(&auth_state)?;
     let bubble_type =
         normalize_bubble_type(input.as_ref().and_then(|value| value.bubble_type.clone()));
     let window_id = input.as_ref().and_then(|value| value.window_id.clone());
@@ -1985,6 +2041,7 @@ fn close_widget_window(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
+    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
     input: Option<WidgetWindowTargetInput>,
 ) -> Result<WidgetWindowState, String> {
     let bubble_type = input.as_ref().and_then(|value| value.bubble_type.clone());
@@ -1995,7 +2052,7 @@ fn close_widget_window(
         widget.dock_orb_visible = false;
         widget.window_visible = false;
     })?;
-    if !widget_keeps_webview_when_hidden(&widget) {
+    if !widget_keeps_webview_when_hidden(&widget) && authenticated_surfaces_enabled(&auth_state)? {
         ensure_widget_bar_window(&app, &monitor_state, &state)?;
     }
     persist_widget_window_state(&app, &state)?;
@@ -2017,10 +2074,14 @@ fn toggle_widget_window(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
+    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
     input: Option<WidgetWindowTargetInput>,
 ) -> Result<WidgetWindowState, String> {
     let bubble_type = input.as_ref().and_then(|value| value.bubble_type.clone());
-    let window_id = input.and_then(|value| value.window_id);
+    let window_id = input.as_ref().and_then(|value| value.window_id.clone());
+    if widget_visibility_after_toggle(&state, bubble_type.clone(), window_id.clone())? {
+        require_authenticated_surfaces_enabled(&auth_state)?;
+    }
     let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
         widget.window_visible = !widget.window_visible;
         widget.mode = if widget.window_visible {
@@ -2030,7 +2091,10 @@ fn toggle_widget_window(
         };
         widget.dock_orb_visible = false;
     })?;
-    if !widget.window_visible && !widget_keeps_webview_when_hidden(&widget) {
+    if !widget.window_visible
+        && !widget_keeps_webview_when_hidden(&widget)
+        && authenticated_surfaces_enabled(&auth_state)?
+    {
         ensure_widget_bar_window(&app, &monitor_state, &state)?;
     }
     persist_widget_window_state(&app, &state)?;
@@ -2102,6 +2166,39 @@ mod tests {
     }
 
     #[test]
+    fn authenticated_surface_gate_defaults_closed_and_can_open() {
+        let auth_state = Mutex::new(false);
+
+        assert!(require_authenticated_surfaces_enabled(&auth_state).is_err());
+        assert!(!authenticated_surfaces_enabled(&auth_state).expect("auth state"));
+
+        *auth_state.lock().expect("auth state lock") = true;
+
+        assert!(require_authenticated_surfaces_enabled(&auth_state).is_ok());
+        assert!(authenticated_surfaces_enabled(&auth_state).expect("auth state"));
+    }
+
+    #[test]
+    fn widget_toggle_visibility_helper_predicts_show_before_mutation() {
+        let state = Mutex::new(WidgetWindowStore::default());
+
+        assert!(
+            widget_visibility_after_toggle(&state, Some("todo".to_string()), None)
+                .expect("toggle visibility")
+        );
+
+        let _ = with_widget_state(&state, Some("todo".to_string()), None, |widget| {
+            widget.window_visible = true;
+        })
+        .expect("widget state");
+
+        assert!(
+            !widget_visibility_after_toggle(&state, Some("todo".to_string()), None)
+                .expect("toggle visibility")
+        );
+    }
+
+    #[test]
     fn windows_widget_uses_component_shadow_instead_of_native_shadow() {
         assert_eq!(widget_native_shadow_enabled(), !cfg!(target_os = "windows"));
     }
@@ -2154,6 +2251,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(Mutex::new(AppMonitorPreferenceStore::default()))
         .manage(Mutex::new(WidgetWindowStore::default()))
+        .manage(Mutex::new(false))
         .manage(local_files::ManagedFolderWatchers::default())
         .setup(|app| {
             // Open the on-device SQLite store (folder index, widget usage,
@@ -2203,6 +2301,7 @@ pub fn run() {
             quit_app,
             register_widget_shortcut,
             seed_widget_bar_items,
+            set_authenticated_surfaces_enabled,
             show_main_window,
             set_preferred_app_monitor,
             set_widget_always_on_top,
