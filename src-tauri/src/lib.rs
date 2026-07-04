@@ -2861,8 +2861,6 @@ pub fn run() {
             local_db::read_active_project_room,
             local_db::read_tauri_auth_session,
             local_db::read_widget_summary_cache,
-            local_db::read_widget_pref,
-            local_db::store_widget_pref,
             local_db::record_activity_context,
             local_db::record_timer_state,
             local_db::recover_timer_state,

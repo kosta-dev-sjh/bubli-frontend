@@ -1236,6 +1236,13 @@ function TimerBody({
         onChange={changeMode}
         value={TIMER_MODE_ORDER.indexOf(mode)}
       />
+      {/* 서버 동기화 상태는 서버에 기록하는 작업 모드에서만 의미가 있다. */}
+      {mode === "work" && isBubbleSyncPending(bubble) ? (
+        <div className={styles.syncLine} role="status">
+          <RefreshCw size={12} strokeWidth={2.2} />
+          <span>{t("widget.data.syncPending")}</span>
+        </div>
+      ) : null}
       {mode === "clock" ? <ClockView /> : null}
       {mode === "work" ? (
         <WorkView bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />
@@ -1922,8 +1929,10 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
               <WidgetControls alwaysOnTop={alwaysOnTop} mode={mode} onClose={onClose} onMode={onModeChange} onPin={onToggleAlwaysOnTop} presentation={presentation} />
             </header>
 
-            {/* 부분 동기화 실패는 회색 웰 대신 얇은 상태 한 줄로만. */}
-            {mode !== "GHOST" && isBubbleSyncPending(activeData) ? (
+            {/* 부분 동기화 실패는 회색 웰 대신 얇은 상태 한 줄로만.
+                타이머 버블은 시계·뽀모도로가 서버와 무관하므로 셸에서는 표시하지 않고
+                작업(WORK) 모드일 때만 TimerBody 내부에서 직접 표시한다. */}
+            {mode !== "GHOST" && activeBubble !== "timer" && isBubbleSyncPending(activeData) ? (
               <div className={styles.syncLine} role="status">
                 <RefreshCw size={12} strokeWidth={2.2} />
                 <span>{t("widget.data.syncPending")}</span>
