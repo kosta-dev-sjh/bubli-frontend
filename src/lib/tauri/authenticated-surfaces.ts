@@ -32,12 +32,48 @@ const backendBubbleToLocal: Record<ApiWidgetBubbleType, Exclude<WidgetBubbleType
 };
 
 const widgetOpenCommandTimeoutMs = 8_000;
+const widgetOpenRetryAttempts = 2;
+const widgetOpenRetryDelayMs = 650;
+
+type WidgetOpenResult =
+  | { input: WidgetWindowOpenInput; status: "fulfilled" }
+  | { input: WidgetWindowOpenInput; reason: unknown; status: "rejected" };
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error("Tauri widget open timed out")), timeoutMs)),
   ]);
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function openWidgetWindowWithRetry(
+  input: WidgetWindowOpenInput,
+  selectedRoomId: string | null,
+  shouldContinue: () => boolean,
+): Promise<WidgetOpenResult> {
+  let lastReason: unknown = null;
+
+  for (let attempt = 0; attempt <= widgetOpenRetryAttempts; attempt += 1) {
+    if (!shouldContinue()) {
+      return { input, reason: new Error("Tauri widget launch cancelled"), status: "rejected" };
+    }
+
+    try {
+      await withTimeout(tauriCommands.openWidgetWindow({ ...input, selectedRoomId }), widgetOpenCommandTimeoutMs);
+      return { input, status: "fulfilled" };
+    } catch (reason) {
+      lastReason = reason;
+      if (attempt < widgetOpenRetryAttempts && shouldContinue()) {
+        await delay(widgetOpenRetryDelayMs);
+      }
+    }
+  }
+
+  return { input, reason: lastReason, status: "rejected" };
 }
 
 function getStartupModeFromSetting(setting: WidgetBubbleSettingResponse): WidgetWindowMode {
@@ -113,6 +149,7 @@ export function launchTauriAuthenticatedSurfaces() {
     const [barWindow, ...bubbleWindows] = startupWindows;
     const openedWindows: WidgetWindowOpenInput[] = [];
     const rejectedReasons: unknown[] = [];
+    const shouldContinueLaunch = () => generation === launchGeneration;
 
     if (barWindow) {
       if (generation !== launchGeneration) {
@@ -120,11 +157,11 @@ export function launchTauriAuthenticatedSurfaces() {
         return;
       }
 
-      try {
-        await withTimeout(tauriCommands.openWidgetWindow({ ...barWindow, selectedRoomId }), widgetOpenCommandTimeoutMs);
+      const barResult = await openWidgetWindowWithRetry(barWindow, selectedRoomId, shouldContinueLaunch);
+      if (barResult.status === "fulfilled") {
         openedWindows.push(barWindow);
-      } catch (reason) {
-        rejectedReasons.push(reason);
+      } else {
+        rejectedReasons.push(barResult.reason);
       }
     }
 
@@ -134,14 +171,20 @@ export function launchTauriAuthenticatedSurfaces() {
     }
 
     const bubbleResults = await Promise.allSettled(
-      bubbleWindows.map((input) => withTimeout(tauriCommands.openWidgetWindow({ ...input, selectedRoomId }), widgetOpenCommandTimeoutMs)),
+      bubbleWindows.map((input) => openWidgetWindowWithRetry(input, selectedRoomId, shouldContinueLaunch)),
     );
 
-    for (const [index, result] of bubbleResults.entries()) {
-      if (result.status === "fulfilled") {
-        openedWindows.push(bubbleWindows[index]);
-      } else {
+    for (const result of bubbleResults) {
+      if (result.status === "rejected") {
         rejectedReasons.push(result.reason);
+        continue;
+      }
+
+      const value = result.value;
+      if (value.status === "fulfilled") {
+        openedWindows.push(value.input);
+      } else {
+        rejectedReasons.push(value.reason);
       }
     }
 
@@ -176,7 +219,8 @@ export function launchTauriAuthenticatedSurfaces() {
     startActivityAutoCapture();
     startManagedFolderAutoSync();
     startWidgetUsageAutoSync();
-    launchedAuthenticatedSurfaces = true;
+    launchedAuthenticatedSurfaces = rejectedReasons.length === 0;
+    launchRequested = rejectedReasons.length === 0;
   })()
     .catch((error) => {
       launchRequested = false;
