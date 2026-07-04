@@ -64,6 +64,7 @@ export const TAURI_COMMANDS = {
   setWidgetWindowMode: "set_widget_window_mode",
   setWidgetWindowPosition: "set_widget_window_position",
   showMainWindow: "show_main_window",
+  startTauriGoogleOauthLoopback: "start_tauri_google_oauth_loopback",
   stageActivityContextsForSync: "stage_activity_contexts_for_sync",
   stageLocalFileAnalysisBackfill: "stage_local_file_analysis_backfill",
   stageLocalFileEventsForSync: "stage_local_file_events_for_sync",
@@ -716,6 +717,17 @@ export type MainWindowShowInput = {
   route?: "settings";
 };
 
+export type TauriGoogleOauthLoopbackInput = {
+  authorizeUrl: string;
+  expectedState?: string | null;
+  redirectUri: string;
+};
+
+export type TauriGoogleOauthLoopbackResult = {
+  code: string;
+  state?: string | null;
+};
+
 export type SyncOutboxFlushResult = {
   failedCount: number;
   flushedAt: string;
@@ -844,6 +856,10 @@ export type TauriCommandContract = {
   show_main_window: {
     args: MainWindowShowInput | undefined;
     result: null;
+  };
+  start_tauri_google_oauth_loopback: {
+    args: TauriGoogleOauthLoopbackInput;
+    result: TauriGoogleOauthLoopbackResult;
   };
   read_active_project_room: {
     args: undefined;
@@ -1147,6 +1163,9 @@ export const tauriCommands = {
   },
   showMainWindow(input?: MainWindowShowInput) {
     return invokeTauri<null>(TAURI_COMMANDS.showMainWindow, input ? { input } : undefined);
+  },
+  startTauriGoogleOauthLoopback(input: TauriGoogleOauthLoopbackInput) {
+    return invokeTauri<TauriGoogleOauthLoopbackResult>(TAURI_COMMANDS.startTauriGoogleOauthLoopback, { input });
   },
   readActiveProjectRoom() {
     return invokeTauri<ActiveProjectRoomReadResult | null>(TAURI_COMMANDS.readActiveProjectRoom);

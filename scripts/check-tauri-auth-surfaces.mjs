@@ -237,6 +237,16 @@ assertContains(
   "Tauri login must not bypass Google OAuth with a dev access token unless the explicit Tauri dev-login flag is set.",
 );
 assertContains(
+  authPanel,
+  /TAURI_LOOPBACK_REDIRECT_URI = "http:\/\/127\.0\.0\.1:3791\/auth\/callback"[\s\S]*isTauriRuntime\(\)[\s\S]*startTauriGoogleOauthLoopback\(\{[\s\S]*authApi\.callbackGoogle\(\{[\s\S]*clientType: "TAURI"/,
+  "Tauri login should try the Windows loopback OAuth bridge before falling back to the WebView OAuth path.",
+);
+assertContains(
+  authPanel,
+  /catch \{[\s\S]*existing WebView OAuth path[\s\S]*authApi\.getGoogleAuthorizationUrl\(\{[\s\S]*state: "login"[\s\S]*window\.location\.assign\(authorizeUrl\)/,
+  "Tauri loopback OAuth failures must fall back to the existing WebView OAuth path.",
+);
+assertContains(
   authApi,
   /function assertDevAccessTokenLoginAllowed\(\)[\s\S]*process\.env\.NODE_ENV !== "development"[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN !== "true"[\s\S]*throw new AuthConfigurationError\("DEV_ACCESS_TOKEN_LOGIN_DISABLED"\)/,
   "authApi.loginWithDevAccessToken must also reject dev-token login outside the explicit development-only Tauri dev-login flag.",
