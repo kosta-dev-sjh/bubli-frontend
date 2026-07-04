@@ -49,7 +49,7 @@ type ShellState =
   | { kind: "loading" }
   | { kind: "ready"; notifications: NotificationResponse[]; rooms: ProjectRoomResponse[]; user: AuthUser }
   | { kind: "auth" }
-  | { kind: "offline" };
+  | { kind: "offline"; user?: AuthUser };
 
 type TopbarMenu = "notifications" | "profile" | null;
 
@@ -131,8 +131,33 @@ export function AppShell({ children }: AppShellProps) {
 
     async function loadShell() {
       try {
-        await restoreStoredAuthSessionFromTauri();
-        const [user, roomPage] = await Promise.all([authApi.getMe(), projectRoomApi.list()]);
+        const restoredSession = await restoreStoredAuthSessionFromTauri();
+
+        if (!restoredSession) {
+          if (shouldUseWorkspacePreviewData()) {
+            setState({ kind: "ready", notifications: [], rooms: workspacePreviewRooms, user: workspacePreviewUser });
+          } else {
+            setState({ kind: "auth" });
+          }
+
+          return;
+        }
+
+        const user = await authApi.getMe();
+        let roomPage: Awaited<ReturnType<typeof projectRoomApi.list>>;
+
+        try {
+          roomPage = await projectRoomApi.list();
+        } catch (error) {
+          if (error instanceof ApiClientError && error.status === 401) {
+            setState({ kind: "auth" });
+            return;
+          }
+
+          setState({ kind: "offline", user });
+          return;
+        }
+
         let notifications: NotificationResponse[] = [];
 
         try {
@@ -184,7 +209,7 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
 
-        setState({ kind: "offline" });
+        setState({ kind: "auth" });
       }
     }
 
@@ -356,6 +381,15 @@ export function AppShell({ children }: AppShellProps) {
   }, [activeRoom, selectedRoom, selectedRoomId, selectedRoomLabel, state, t]);
 
   const topbarUser = useMemo(() => {
+    if (state.kind === "offline" && state.user) {
+      return {
+        avatarUrl: state.user.avatarUrl,
+        displayName: state.user.name,
+        email: t("layout.user.serverWaiting"),
+        initials: initialsFromName(state.user.name),
+      };
+    }
+
     if (state.kind !== "ready") {
       return {
         displayName: state.kind === "auth" ? t("common.login") : "Bubli",
@@ -695,13 +729,13 @@ export function AppShell({ children }: AppShellProps) {
           </>
         ) : null}
         <div className="bubli-main-scroll">
-          {state.kind === "auth" ? (
+          {state.kind === "ready" || (state.kind === "offline" && state.user) ? (
+            children
+          ) : (
             // 비로그인 상태에서는 회원 전용 콘텐츠를 렌더하지 않는다. (로그인 페이지로 리다이렉트 중)
             <div className="bubli-auth-gate" role="status">
               {t("layout.gate.redirecting")}
             </div>
-          ) : (
-            children
           )}
         </div>
         {/* 첫 사용 경험(직군 온보딩 + 튜토리얼) — 인증 완료 후에만, 홈 위 오버레이로 렌더한다. */}
