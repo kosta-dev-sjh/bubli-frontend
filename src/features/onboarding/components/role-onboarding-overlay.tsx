@@ -68,6 +68,9 @@ export function RoleOnboardingOverlay({ onFinish, user }: RoleOnboardingOverlayP
 
   const skip = () => {
     if (applying) return;
+    // 건너뛰기도 서버 user_preferences.onboarding_completed_at에 기록한다(backend PR 195).
+    // 실패해도 로컬 기록(onboarding-storage)이 1차 게이트라 온보딩 UX에는 영향이 없다.
+    void settingsApi.updatePreferences({ onboardingCompletedAt: new Date().toISOString() }).catch(() => undefined);
     onFinish({ applied: false, role: null });
   };
 
@@ -99,9 +102,14 @@ export function RoleOnboardingOverlay({ onFinish, user }: RoleOnboardingOverlayP
     try {
       // 홈 카드 구성 — 이 기기의 보드 저장소에 쓰고, 마운트된 홈에 즉시 반영을 알린다.
       applyHomeBoardPreset(selectedRole);
-      // 기본 시작 화면 — 서버 user_preference 계약(defaultHomeType). 실패해도 온보딩은 끝낸다.
+      // 기본 시작 화면 + 직군 + 온보딩 완료 시각 — 서버 user_preference 계약
+      // (defaultHomeType / jobRole / onboardingCompletedAt, backend PR 195). 실패해도 온보딩은 끝낸다.
       await settingsApi
-        .updatePreferences({ defaultHomeType: HOME_ROLE_PRESETS[selectedRole].defaultHomeType })
+        .updatePreferences({
+          defaultHomeType: HOME_ROLE_PRESETS[selectedRole].defaultHomeType,
+          jobRole: selectedRole,
+          onboardingCompletedAt: new Date().toISOString(),
+        })
         .catch(() => undefined);
     } finally {
       setApplying(false);
