@@ -188,6 +188,11 @@ assertContains(
   /if \(!isTauri \|\| !mounted \|\| !widgetSessionReady \|\| appReadySentRef\.current\) return;[\s\S]*tauriCommands\.appReady/,
   "Desktop widget windows must send appReady only after mount and a valid widget session.",
 );
+assertContains(
+  widgetPage,
+  /listenWidgetRoomContextChanged\(\(payload\) => \{[\s\S]*syncActiveProjectRoomFromWidgetContext\(roomId\)/,
+  "Desktop widget windows must sync room-context changes back through the shared active-room service.",
+);
 
 assertContains(
   workspaceActiveRoom,

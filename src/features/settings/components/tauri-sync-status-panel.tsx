@@ -9,6 +9,8 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useI18n } from "@/lib/i18n";
+import { LOCAL_ACTIVITY_RECORDED_EVENT } from "@/lib/local/activity-client";
+import { PERSONAL_RESOURCES_CHANGED_EVENT } from "@/lib/local/managed-folder-client";
 import { getLocalSyncOutboxSummary } from "@/lib/sync/local-sync-client";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import type { LocalSyncSummary, SyncOutboxSummaryResult } from "@/types/local";
@@ -79,6 +81,18 @@ export function TauriSyncStatusPanel() {
     }, 0);
 
     return () => window.clearTimeout(timerId);
+  }, [refreshOutbox]);
+
+  useEffect(() => {
+    const refreshAfterLocalSync = () => void refreshOutbox();
+
+    window.addEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, refreshAfterLocalSync);
+    window.addEventListener(LOCAL_ACTIVITY_RECORDED_EVENT, refreshAfterLocalSync);
+
+    return () => {
+      window.removeEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, refreshAfterLocalSync);
+      window.removeEventListener(LOCAL_ACTIVITY_RECORDED_EVENT, refreshAfterLocalSync);
+    };
   }, [refreshOutbox]);
 
   const summary = result?.status === "pending" ? result.summary : result?.status === "ready" ? result.data : emptySummary;

@@ -47,6 +47,7 @@ import { tauriCommands, type WidgetBubbleType, type WidgetInteractiveRect, type 
 import { listenWidgetMenuPanelRequested, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readWidgetSummary } from "@/lib/widget";
+import { syncActiveProjectRoomFromWidgetContext } from "@/lib/workspace-active-room";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import type { TimeLogResponse } from "@/types/api/timer";
@@ -1192,7 +1193,9 @@ function DesktopWidgetSurface() {
     let cancelled = false;
 
     void listenWidgetRoomContextChanged((payload) => {
-      setWidgetContext(payload.selectedRoomId ? { mode: "ROOM", selectedRoomId: payload.selectedRoomId } : null);
+      const roomId = payload.selectedRoomId?.trim() || null;
+      syncActiveProjectRoomFromWidgetContext(roomId);
+      setWidgetContext(roomId ? { mode: "ROOM", selectedRoomId: roomId } : null);
       setCommunicationRevision((current) => current + 1);
       setMemoRevision((current) => current + 1);
       setTimerRevision((current) => current + 1);
