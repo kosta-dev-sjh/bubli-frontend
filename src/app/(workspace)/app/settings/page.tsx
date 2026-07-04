@@ -26,7 +26,7 @@ import {
   subscribeActivityAutoCaptureStatus,
   type ActivityAutoCaptureStatus,
 } from "@/lib/local/activity-auto-capture";
-import { recordCurrentActivityContext } from "@/lib/local/activity-client";
+import { LOCAL_ACTIVITY_RECORDED_EVENT, recordCurrentActivityContext } from "@/lib/local/activity-client";
 import { notifyManagedFolderConsentChanged } from "@/lib/local/managed-folder-auto-sync";
 import {
   backupLocalSqlite,
@@ -333,6 +333,25 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => subscribeActivityAutoCaptureStatus(setActivityAutoCaptureStatus), []);
+
+  useEffect(() => {
+    function handleLocalActivityRecorded(event: Event) {
+      const detail = (event as CustomEvent<{ todayActivities?: ActivityLogResponse[] }>).detail;
+      if (!Array.isArray(detail?.todayActivities)) return;
+
+      setState((current) =>
+        current.kind === "ready"
+          ? {
+              ...current,
+              settings: { ...current.settings, activityLogs: detail.todayActivities ?? [] },
+            }
+          : current,
+      );
+    }
+
+    window.addEventListener(LOCAL_ACTIVITY_RECORDED_EVENT, handleLocalActivityRecorded);
+    return () => window.removeEventListener(LOCAL_ACTIVITY_RECORDED_EVENT, handleLocalActivityRecorded);
+  }, []);
 
   const selectSection = useCallback((id: SectionId) => {
     setActiveSection(id);
