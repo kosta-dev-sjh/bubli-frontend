@@ -140,13 +140,33 @@ assertContains(
 );
 assertContains(
   surfaces,
+  /const selectedRoomId = await resolveLaunchSelectedRoomId\(\);[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*const startupWindows = await resolveLoginStartupWindows\(\);/,
+  "launchTauriAuthenticatedSurfaces must cancel cleanly if auth/session state changes after resolving the project-room context.",
+);
+assertContains(
+  surfaces,
+  /const startupWindows = await resolveLoginStartupWindows\(\);[\s\S]*if \(barWindow\) \{[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*openWidgetWindowWithRetry\(barWindow, selectedRoomId, shouldContinueLaunch\)/,
+  "launchTauriAuthenticatedSurfaces must cancel cleanly before opening the bar window.",
+);
+assertContains(
+  surfaces,
   /openWidgetWindowWithRetry\(barWindow, selectedRoomId, shouldContinueLaunch\)/,
   "launchTauriAuthenticatedSurfaces must open the Bubli bar first with retry.",
 );
 assertContains(
   surfaces,
+  /openWidgetWindowWithRetry\(barWindow, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)/,
+  "launchTauriAuthenticatedSurfaces must cancel cleanly after opening the bar and before opening bubble windows.",
+);
+assertContains(
+  surfaces,
   /openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)/,
   "launchTauriAuthenticatedSurfaces must open authenticated bubble windows through the batch IPC retry path.",
+);
+assertContains(
+  surfaces,
+  /openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*if \(openedWindows\.length === 0\)/,
+  "launchTauriAuthenticatedSurfaces must cancel cleanly after bubble window attempts and before marking the launch active.",
 );
 assertContains(
   surfaces,
