@@ -1,7 +1,12 @@
 import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
-import { blocked, pending, runTauriAdapter } from "@/lib/local/adapter-result";
+import { settingsApi } from "@/features/settings/api/settingsApi";
+import { blocked, failed, pending, ready, runTauriAdapter } from "@/lib/local/adapter-result";
 import { translate } from "@/lib/i18n/translate";
+import { syncLocalActivityBufferToServer } from "@/lib/local/activity-client";
+import { syncPersonalLocalFileEventsToServer } from "@/lib/local/managed-folder-client";
+import { rollupLocalWidgetUsage, syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 import type {
+  LocalOutboxServerSyncAdapterResult,
   LocalSyncSummary,
   SyncOutboxSummaryResult,
   WidgetUsageSummarySyncAdapterInput,
@@ -53,6 +58,76 @@ export async function stageWidgetUsageSummary(
   }
 
   return result;
+}
+
+export async function syncAllLocalOutboxToServer(input?: {
+  limit?: number;
+}): Promise<LocalOutboxServerSyncAdapterResult> {
+  const commandName = TAURI_COMMANDS.flushSyncOutbox;
+
+  try {
+    const consent = await settingsApi.getPrivacyConsents();
+    const limit = input?.limit;
+    const fileResult = await syncPersonalLocalFileEventsToServer({
+      consentGranted: consent.localFolderEnabled,
+      limit,
+    });
+    const activityResult = await syncLocalActivityBufferToServer({
+      consentGranted: consent.activityDetectionEnabled,
+      limit,
+    });
+    await rollupLocalWidgetUsage().catch(() => undefined);
+    const widgetResult = await syncLocalWidgetUsageSummaryToServer();
+    const summaryResult = await getLocalSyncOutboxSummary();
+    const summary =
+      summaryResult.status === "pending"
+        ? summaryResult.summary
+        : summaryResult.status === "ready"
+          ? {
+              failedCount: summaryResult.data.failedCount,
+              pendingCount: summaryResult.data.pendingCount,
+              sentCount: summaryResult.data.sentCount,
+              serverTransfer: "sent" as const,
+              summarizedAt: summaryResult.data.flushedAt,
+            }
+          : {
+              failedCount: 1,
+              pendingCount: 0,
+              sentCount: 0,
+              serverTransfer: "sent" as const,
+              summarizedAt: new Date().toISOString(),
+            };
+
+    const fileFailedCount = fileResult.status === "ready" ? fileResult.data.failedCount : 0;
+    const activityFailedCount = activityResult.status === "ready" ? activityResult.data.failedCount : 0;
+    const widgetFailedCount = widgetResult.status === "ready" ? widgetResult.data.failedCount : 0;
+    const adapterIssueCount = [fileResult, activityResult, widgetResult, summaryResult].filter(
+      (result) => result.status !== "ready" && result.status !== "pending",
+    ).length;
+
+    return ready(
+      {
+        activityFailedCount,
+        activitySentCount: activityResult.status === "ready" ? activityResult.data.sentCount : 0,
+        activityStagedCount: activityResult.status === "ready" ? activityResult.data.stagedCount : 0,
+        failedCount: fileFailedCount + activityFailedCount + widgetFailedCount + adapterIssueCount,
+        fileFailedCount,
+        fileSentCount: fileResult.status === "ready" ? fileResult.data.sentCount : 0,
+        fileSyncedCount: fileResult.status === "ready" ? fileResult.data.syncedCount : 0,
+        pendingCount: summary.pendingCount ?? 0,
+        sentCount: summary.sentCount ?? 0,
+        syncedAt: new Date().toISOString(),
+        widgetFailedCount,
+        widgetMarkedSyncedCount: widgetResult.status === "ready" ? widgetResult.data.markedSyncedCount : 0,
+        widgetSentCount: widgetResult.status === "ready" ? widgetResult.data.sentCount : 0,
+        widgetStagedCount: widgetResult.status === "ready" ? widgetResult.data.stagedCount : 0,
+      },
+      commandName,
+      translate("local.sync.outboxChecked"),
+    );
+  } catch (error) {
+    return failed(error instanceof Error ? error.message : String(error), commandName);
+  }
 }
 
 export function blockDirectServerSync(): ReturnType<typeof blocked> {
