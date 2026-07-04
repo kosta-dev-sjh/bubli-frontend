@@ -33,7 +33,6 @@ import { widgetCommunicationApi } from "@/features/widget/api/widgetCommunicatio
 import { DesktopWidgetBubble, DesktopWidgetBubbleBar, DesktopWidgetMenuOrb, desktopWidgetBubbleTypes } from "@/features/widget/components/desktop-widget-bubble";
 import {
   getWidgetPreviewBubble,
-  widgetNotificationSignal,
   type WidgetNotificationSignal,
   type WidgetPreviewBubble,
   type WidgetPreviewItem,
@@ -629,6 +628,73 @@ function buildEmptyDisplayBubbles(t: TranslateFn, roomId?: string | null) {
   }, t);
 }
 
+type WidgetDisplayLoadState = "error" | "loading";
+
+const widgetDisplayLoadLabels: Record<WidgetDisplayLoadState, { body: MessageKey; compact: MessageKey; notification: MessageKey }> = {
+  error: {
+    body: "widget.data.loadIssueBody",
+    compact: "widget.data.loadIssueCompact",
+    notification: "widget.data.loadIssue",
+  },
+  loading: {
+    body: "widget.data.loadingBody",
+    compact: "widget.data.loadingCompact",
+    notification: "widget.data.loading",
+  },
+};
+
+function withWidgetDisplayLoadState(
+  bubbles: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>,
+  state: WidgetDisplayLoadState,
+): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
+  const labels = widgetDisplayLoadLabels[state];
+  return Object.fromEntries(
+    Object.entries(bubbles).map(([bubbleType, bubble]) => [
+      bubbleType,
+      bubble
+        ? {
+            ...bubble,
+            compactLabel: labels.compact,
+            metric: state === "loading" ? "..." : "!",
+            notificationLabel: labels.notification,
+            panelBody: labels.body,
+            rows: [],
+          }
+        : bubble,
+    ]),
+  ) as Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
+}
+
+function withFailedWidgetDisplayBubbles(
+  bubbles: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>,
+  failedBubbles: Set<WidgetBubbleType>,
+): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
+  if (failedBubbles.size === 0) return bubbles;
+
+  return Object.fromEntries(
+    Object.entries(bubbles).map(([bubbleType, bubble]) => [
+      bubbleType,
+      bubble && failedBubbles.has(bubbleType as WidgetBubbleType)
+        ? {
+            ...bubble,
+            notificationLabel: "widget.data.partialIssue",
+            panelBody: "widget.data.partialIssueBody",
+          }
+        : bubble,
+    ]),
+  ) as Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
+}
+
+function widgetDisplayLoadSignal(state: WidgetDisplayLoadState): WidgetNotificationSignal {
+  const labels = widgetDisplayLoadLabels[state];
+  return {
+    compactLabel: labels.compact,
+    metric: state === "loading" ? "..." : "!",
+    notificationLabel: labels.notification,
+    rows: [],
+  };
+}
+
 function summaryTaskToWidgetTask(task: NonNullable<WidgetSummaryResponse["tasks"]>[number]): WidgetTaskResponse {
   return {
     assigneeUserId: task.assigneeUserId ?? null,
@@ -759,7 +825,9 @@ function DesktopWidgetSurface() {
   );
   const [serverSettings, setServerSettings] = useState<WidgetBubbleSettingResponse[]>([]);
   const [barItems, setBarItems] = useState<WidgetWindowState[]>([]);
-  const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>(() => buildEmptyDisplayBubbles(t, requestedRoomId));
+  const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>(() =>
+    withWidgetDisplayLoadState(buildEmptyDisplayBubbles(t, requestedRoomId), "loading"),
+  );
   const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID ?? null);
   const [agentRevision, setAgentRevision] = useState(0);
   const [communicationRevision, setCommunicationRevision] = useState(0);
@@ -774,7 +842,7 @@ function DesktopWidgetSurface() {
   const [activeTimerHeartbeatId, setActiveTimerHeartbeatId] = useState<string | null>(null);
   const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
-  const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(widgetNotificationSignal);
+  const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(() => widgetDisplayLoadSignal("loading"));
   const liveKitRoomRef = useRef<Room | null>(null);
   const appReadySentRef = useRef(false);
   const selectedWidgetRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
@@ -1109,6 +1177,23 @@ function DesktopWidgetSurface() {
 
       if (cancelled) return;
 
+      const failedBubbles = new Set<WidgetBubbleType>();
+      if (dashboardResult.status === "rejected") failedBubbles.add("timer");
+      if (tasksResult.status === "rejected") failedBubbles.add("todo");
+      if (schedulesResult.status === "rejected") failedBubbles.add("schedule");
+      if (resourcesResult.status === "rejected") failedBubbles.add("resource");
+      if (memosResult.status === "rejected") failedBubbles.add("memo");
+      if (suggestionsResult.status === "rejected") failedBubbles.add("agent");
+      if (notificationsResult.status === "rejected") failedBubbles.add("alert");
+      if (
+        chatRoomsResult.status === "rejected" ||
+        friendsResult.status === "rejected" ||
+        (activeRoom && !messages) ||
+        (voiceRoomId && voiceResult.status === "rejected")
+      ) {
+        failedBubbles.add("chat");
+      }
+
       if (isTauri && activeRoom && messages?.items.length) {
         void tauriCommands
           .syncRoomMessages({
@@ -1130,7 +1215,11 @@ function DesktopWidgetSurface() {
       const messageItems = messages?.items ?? cachedMessages;
       const schedules = schedulesResult.status === "fulfilled" ? schedulesResult.value.items : selectedRoomId ? [] : (summaryDashboard?.todaySchedules ?? []);
       const tasks = tasksResult.status === "fulfilled" ? tasksResult.value.items : selectedRoomId ? [] : (summaryDashboard?.todayTasks ?? []);
-      setNotificationSignal(buildNotificationSignal(t, notifications));
+      setNotificationSignal(
+        notificationsResult.status === "rejected"
+          ? widgetDisplayLoadSignal("error")
+          : buildNotificationSignal(t, notifications),
+      );
       setActiveTimerHeartbeatId(activeTimer?.status === "RUNNING" ? activeTimer.id : null);
 
       const nextDisplayBubbles = buildDisplayBubbles({
@@ -1154,13 +1243,16 @@ function DesktopWidgetSurface() {
         .listItemStates(collectWidgetItemIds(nextDisplayBubbles))
         .catch(() => []);
       const persistedOverrides = itemStateResponseToOverrides(persistedItemStates);
-      setDisplayBubbles(applyItemStateOverrides(nextDisplayBubbles, { ...persistedOverrides, ...itemStateOverrides }));
+      setDisplayBubbles(withFailedWidgetDisplayBubbles(
+        applyItemStateOverrides(nextDisplayBubbles, { ...persistedOverrides, ...itemStateOverrides }),
+        failedBubbles,
+      ));
     }
 
     void loadDisplayApiState().catch(() => {
       if (!cancelled) {
-        setDisplayBubbles(buildEmptyDisplayBubbles(t, widgetContext?.selectedRoomId ?? requestedRoomId));
-        setNotificationSignal(widgetNotificationSignal);
+        setDisplayBubbles(withWidgetDisplayLoadState(buildEmptyDisplayBubbles(t, widgetContext?.selectedRoomId ?? requestedRoomId), "error"));
+        setNotificationSignal(widgetDisplayLoadSignal("error"));
       }
     });
 
