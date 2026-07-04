@@ -1485,7 +1485,8 @@ export function DesktopWidgetBubble({
 
 const BAR_PREVIEW_POPOVER_ID = "bubli-bar-preview";
 
-// 아무 상호작용 없이 이 시간이 지나면 바가 옅어진다(hover 시 즉시 복귀 — CSS 200ms).
+// 아무 상호작용 없이 이 시간이 지나면 pill만 옅어진다(0.72 — hover/상호작용 시 즉시 복귀, CSS 200ms).
+// 메뉴 패널·hover 프리뷰·goo 팝이 떠 있는 동안에는 페이드를 아예 정지한다.
 const BAR_IDLE_FADE_MS = 8000;
 
 // 접힌 칩은 전부 바에 노출한다 — "+N" 접기·잘림 없음. 칩이 아이콘 전용 36px 타일이라
@@ -1681,7 +1682,9 @@ export function DesktopWidgetBubbleBar({
   }, [gooPop]);
   const gooPopVisible = Boolean(gooPop && gooPop.title.trim());
 
-  // idle 페이드: 8초 무상호작용 → 옅게(0.55), hover/포커스 → 즉시 1.0(CSS).
+  // idle 페이드: 8초 무상호작용 → pill(nav)만 옅게(0.72), 상호작용 → 즉시 1.0(CSS 200ms).
+  // 메뉴 패널/hover 프리뷰/goo 팝이 하나라도 떠 있으면 페이드를 완전히 정지한다(즉시 불투명) —
+  // goo 팝은 nav 안에 살아서 pill 페이드에 같이 씻겨 나가면 안 되고, 패널/팝오버 내용도 마찬가지다.
   const [barIdle, setBarIdle] = useState(false);
   const idleTimerRef = useRef<number | null>(null);
   const armIdleTimer = useCallback(() => {
@@ -1689,13 +1692,35 @@ export function DesktopWidgetBubbleBar({
     if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current);
     idleTimerRef.current = window.setTimeout(() => setBarIdle(true), BAR_IDLE_FADE_MS);
   }, []);
+  const barFadeSuspended = menuOpen || previewTarget !== null || gooPopVisible;
+  // 정지 상태가 바뀌는 순간(특히 해제 직후) stale barIdle을 지운다 — effect 내 동기 setState 금지
+  // 규칙이 있어 렌더 중 상태 보정 패턴(seenPanelSignal과 동일)으로 처리한다.
+  const [seenFadeSuspended, setSeenFadeSuspended] = useState(barFadeSuspended);
+  if (seenFadeSuspended !== barFadeSuspended) {
+    setSeenFadeSuspended(barFadeSuspended);
+    if (!barFadeSuspended) setBarIdle(false);
+  }
   useEffect(() => {
-    // 마운트 직후 첫 idle 카운트다운만 시작한다(동기 setState 금지 — 이후 재무장은 이벤트 핸들러가 한다).
+    // 마운트 직후 첫 카운트다운을 시작하고, 패널/프리뷰/팝 상태가 바뀔 때마다 재무장한다
+    // (패널 열기도 상호작용이므로 리셋 — 닫히면 그 시점부터 8초를 다시 센다).
+    if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current);
     idleTimerRef.current = window.setTimeout(() => setBarIdle(true), BAR_IDLE_FADE_MS);
     return () => {
       if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current);
     };
-  }, []);
+  }, [barFadeSuspended]);
+  // 바 창 안의 어떤 상호작용(포인터 이동/다운·포커스 이동·키 입력)이든 타이머를 재무장한다.
+  // pill 밖 투명 영역(팝오버/패널 포함)까지 들어야 하므로 nav가 아니라 바 루트에서 듣는다.
+  const barRootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const rootElement = barRootRef.current;
+    if (!rootElement) return;
+    const eventNames = ["pointermove", "pointerdown", "focusin", "keydown"] as const;
+    for (const name of eventNames) rootElement.addEventListener(name, armIdleTimer);
+    return () => {
+      for (const name of eventNames) rootElement.removeEventListener(name, armIdleTimer);
+    };
+  }, [armIdleTimer]);
 
   const showPreview = (target: WidgetBubbleType | "notice") => setPreviewTarget(target);
   const hidePreview = (target: WidgetBubbleType | "notice") =>
@@ -1759,7 +1784,7 @@ export function DesktopWidgetBubbleBar({
   // 창 높이는 Rust WIDGET_BAR_HEIGHT(430)가 패널(≈352px)을 수용한다.
   return (
     <MotionConfig reducedMotion="user">
-      <div className={[styles.root, styles.barRoot].join(" ")} data-bubli-desktop-widget>
+      <div className={[styles.root, styles.barRoot].join(" ")} data-bubli-desktop-widget ref={barRootRef}>
         <GooeyFilter />
         {/* hover 프리뷰 팝오버: 칩 accent를 물려받고 pill 위에서 스프링 스케일 인(하단 앵커). */}
         <AnimatePresence>
@@ -1837,15 +1862,14 @@ export function DesktopWidgetBubbleBar({
             </motion.div>
           ) : null}
         </AnimatePresence>
+        {/* idle 페이드는 이 nav(pill)에만 적용된다 — 패널/팝오버는 nav 밖 형제 레이어라 영향이 없고,
+            페이드 재무장은 바 루트의 pointermove/pointerdown/focusin/keydown 리스너가 담당한다. */}
         <nav
           aria-label={t("widget.bar.minimizedAria")}
-          className={[styles.bubbleBar, barIdle ? styles.barIdle : ""].filter(Boolean).join(" ")}
+          className={[styles.bubbleBar, barIdle && !barFadeSuspended ? styles.barIdle : ""].filter(Boolean).join(" ")}
           data-bubli-interactive="true"
-          onFocusCapture={armIdleTimer}
           onMouseDownCapture={handleWidgetDragMouseDownDeferred}
           onMouseDown={handleWidgetDragMouseDown}
-          onMouseEnter={armIdleTimer}
-          onMouseLeave={armIdleTimer}
         >
           {/* 알림은 바에 고정된 요소라 맨 왼쪽에 둔다. 접힌 버블 칩과는 구분선으로 분리.
               새 알림이 늘면 칩 위로 goo 버블(제목 1줄)이 솟았다가 3초 뒤 흡수된다. */}
@@ -1909,9 +1933,11 @@ export function DesktopWidgetBubbleBar({
             </AnimatePresence>
           </span>
           <span className={styles.barDivider} aria-hidden="true" data-bubli-interactive="true" data-tauri-drag-region />
-          {/* Bubli 브랜드 칩: 웹앱과 같은 28px 버블 마크 + 메뉴 morph 앵커(layoutId 공유). */}
+          {/* Bubli 브랜드 칩: 웹앱과 같은 28px 버블 마크 + 메뉴 morph 앵커(layoutId 공유).
+              패널이 열려 motion이 칩을 visibility로 숨기는 동안에는 barBrandCollapsed가
+              칩의 레이아웃 슬롯(36px + gap)을 부드럽게 접어 pill에 구멍이 남지 않게 한다. */}
           <motion.button
-            className={styles.barBrand}
+            className={[styles.barBrand, menuOpen ? styles.barBrandCollapsed : ""].filter(Boolean).join(" ")}
             aria-expanded={menuOpen}
             aria-haspopup="menu"
             aria-label={t("widget.menu.openAria")}

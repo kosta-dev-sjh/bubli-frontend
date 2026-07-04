@@ -1714,9 +1714,12 @@
   transition: opacity 200ms ease;
 }
 
-/* idle 페이드: 8초 무상호작용이면 옅어지고, hover/포커스에 즉시 돌아온다. */
+/* idle 페이드: 8초 무상호작용이면 pill(nav)만 0.72로 옅어지고(0.55는 유령처럼 흐렸다),
+   hover/포커스에 즉시 1.0으로 돌아온다(200ms ease). 메뉴 morph 패널·hover 프리뷰 팝오버는
+   nav 밖 형제 레이어라 절대 같이 옅어지지 않고, goo 팝은 nav 안이라 TSX가 떠 있는 동안
+   페이드 자체를 정지시킨다(barIdle 클래스 미부여). */
 .barIdle {
-  opacity: 0.55;
+  opacity: 0.72;
 }
 
 .bubbleBar:hover,
@@ -1788,6 +1791,7 @@
 
 /* Bubli 브랜드 칩: 텍스트 워드마크 대신 웹앱과 같은 28px 버블 마크. */
 .barBrand {
+  overflow: hidden;
   display: inline-grid;
   flex: none;
   place-items: center;
@@ -1798,7 +1802,17 @@
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.76);
   cursor: pointer;
-  transition: background-color 140ms ease;
+  transition: background-color 140ms ease, width 200ms ease, margin-left 200ms ease, border-width 200ms ease;
+}
+
+/* 메뉴 morph 중 칩 슬롯 붕괴: 패널이 layoutId를 넘겨받아 motion이 칩을 visibility로 숨기는 동안
+   남는 36px 자리를 width/margin 트랜지션으로 접는다(-6px는 flex gap 한 칸 상쇄) —
+   pill에 빈 구멍이 남지 않고, 닫히면 같은 트랜지션으로 다시 벌어진다. */
+.barBrandCollapsed {
+  width: 0;
+  margin-left: -6px;
+  border-width: 0;
+  pointer-events: none;
 }
 
 .barBrand:hover,
@@ -1813,7 +1827,10 @@
 
 /* ---------- 바 인라인 Bubli 메뉴 패널(브랜드 칩 ↔ 패널 layoutId morph) ----------
    pill 위 투명 영역(bottom 68px)에 280px 패널이 뜬다. motion이 transform을 소유하므로
-   중앙 정렬은 transform 대신 left 계산으로 한다. 창 높이 430(WIDGET_BAR_HEIGHT)과 동기화. */
+   중앙 정렬은 transform 대신 left 계산으로 한다. 창 높이 430(WIDGET_BAR_HEIGHT)과 동기화:
+   하단 앵커 68(pill 52 + 루트 패딩 4 + 여백 12) + max-height 352 = 420 ≤ 430이라 상단이
+   최소 10px 남아 절대 잘리지 않는다(예산 430 - 52 - 24 ≈ 354 이내). 내용이 더 길면
+   overflow auto가 패널 내부 스크롤로 흡수한다. */
 
 .barMenuPanel {
   position: absolute;
