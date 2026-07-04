@@ -2,7 +2,8 @@
 
 import { AlertCircle, HardDrive, Search } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
@@ -57,6 +58,10 @@ type LocalFilePreviewState =
 
 export function PersonalResourceWorkspace() {
   const { t } = useI18n();
+  const searchParams = useSearchParams();
+  // 딥링크 지원: ?resourceId= 로 진입하면(예: 댓글/자료 알림 보러가기) 해당 자료 상세를 연다.
+  const queryResourceId = searchParams.get("resourceId");
+  const appliedQueryResourceIdRef = useRef<string | null>(null);
   const [state, setState] = useState<PersonalState>({ kind: "loading" });
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -160,6 +165,19 @@ export function PersonalResourceWorkspace() {
   }, [loadResources]);
 
   const resources = useMemo(() => (state.kind === "ready" ? state.resources : EMPTY_RESOURCES), [state]);
+
+  // ?resourceId= 딥링크는 목록 로드 완료 후, 같은 값에 대해 한 번만 적용한다
+  // (적용 후 사용자가 다른 자료를 고르거나 닫는 것을 방해하지 않는다).
+  useEffect(() => {
+    if (!queryResourceId || appliedQueryResourceIdRef.current === queryResourceId) return;
+    if (state.kind !== "ready") return;
+    const exists = state.resources.some((resource) => resource.id === queryResourceId);
+    const timeoutId = window.setTimeout(() => {
+      appliedQueryResourceIdRef.current = queryResourceId;
+      if (exists) setSelectedResourceId(queryResourceId);
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [queryResourceId, state]);
 
   const filteredResources = useMemo(() => {
     const term = query.trim().toLowerCase();

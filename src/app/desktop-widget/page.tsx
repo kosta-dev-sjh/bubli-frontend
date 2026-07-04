@@ -4,6 +4,7 @@ import { Room } from "livekit-client";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
+import { dispatchEmojiSplash, extractEmojiSplashEmojis } from "@/features/communication/components/emoji-splash-layer";
 import {
   widgetDisplayApi,
   type WidgetAgentSuggestionResponse,
@@ -43,7 +44,7 @@ import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { tauriCommands, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
-import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
+import { listenWidgetMenuPanelRequested, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readWidgetSummary } from "@/lib/widget";
 import { useI18n } from "@/lib/i18n";
@@ -962,6 +963,8 @@ function DesktopWidgetSurface() {
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(() => widgetDisplayLoadSignal("loading"));
   const [menuUsageSummary, setMenuUsageSummary] = useState<string | null>(null);
+  // 바 창의 Bubli 버튼이 보낸 "패널 열기" 요청 수신 카운터(메뉴 창 전용).
+  const [menuPanelSignal, setMenuPanelSignal] = useState(0);
   const liveKitRoomRef = useRef<Room | null>(null);
   const appReadySentRef = useRef(false);
   // 첫 로드 성공 후의 배경 재조회 실패는 조용히 이전 데이터를 유지한다(에러 스켈레톤 스왑 금지).
@@ -1603,15 +1606,17 @@ function DesktopWidgetSurface() {
   }, [activeBubble, isTauri, windowId]);
 
   const restoreBubbleFromBar = useCallback(
-    async (bubbleType: WidgetBubbleType, restoredWindowId?: string) => {
+    async (bubbleType: WidgetBubbleType) => {
       if (!isTauri) return;
 
       try {
+        // windowId는 항상 버블 타입으로 고정한다. 바 칩이 들고 있던 저장 windowId를 그대로
+        // 넘기면(레거시 "todo-…" 등) Rust 스토어 키가 갈라져 같은 버블 창이 두 개 열렸다.
         await tauriCommands.openWidgetWindow({
           bubbleType,
           mode: "DEFAULT",
           selectedRoomId: selectedWidgetRoomId,
-          windowId: restoredWindowId ?? bubbleType,
+          windowId: bubbleType,
         });
         const items = await tauriCommands.getWidgetBarItems();
         const next = items.filter((item) => isDesktopWidgetBubble(item.activeBubble));
@@ -1769,11 +1774,21 @@ function DesktopWidgetSurface() {
     async (bubble: WidgetPreviewBubble, text: string) => {
       if (!bubble.chatRoomId) return;
 
-      await widgetCommunicationApi.sendChatMessage(bubble.chatRoomId, {
+      const clientMessageId = crypto.randomUUID();
+      const response = await widgetCommunicationApi.sendChatMessage(bubble.chatRoomId, {
         body: { text },
-        clientMessageId: crypto.randomUUID(),
+        clientMessageId,
         messageType: "TEXT",
       });
+      const emojis = extractEmojiSplashEmojis(text);
+      if (emojis) {
+        dispatchEmojiSplash({
+          chatRoomId: response.chatRoomId,
+          emojis,
+          messageId: response.id ?? clientMessageId,
+          senderId: response.sender?.id ?? null,
+        });
+      }
       if (isTauri) {
         void tauriCommands
           .recordWidgetUsageEvent({
@@ -2216,9 +2231,10 @@ function DesktopWidgetSurface() {
     [activeVoiceRoomId, isTauri],
   );
 
-  // 메뉴 창에서만 서버 사용 롤업(usage-summaries/today)을 읽어 한 줄 요약으로 보여준다.
+  // 바(인라인 Bubli 메뉴)와 (deprecated) 메뉴 창에서 서버 사용 롤업(usage-summaries/today)을
+  // 읽어 한 줄 요약으로 보여준다.
   useEffect(() => {
-    if (!widgetSessionReady || !isMenuOrb) return;
+    if (!widgetSessionReady || !isWidgetChrome) return;
 
     let cancelled = false;
 
@@ -2241,23 +2257,32 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [isMenuOrb, t, widgetSessionReady]);
+  }, [isWidgetChrome, t, widgetSessionReady]);
 
-  // Bubli 버튼은 바 창 안 인라인 메뉴 대신 별도 menu 창을 연다(바 창은 pill + hover 팝오버 전용).
-  const openWidgetMenu = useCallback(async () => {
-    if (!isTauri) return;
+  // (deprecated) 메뉴 창: 과거 바 Bubli 버튼이 보내던 패널 열기 요청을 계속 수신한다.
+  // Bubli 메뉴는 이제 바 창 인라인 morph 패널이라 이 이벤트를 emit하는 곳은 없지만,
+  // ?bubble=menu 창을 수동으로 열면 기존 경로가 그대로 동작한다.
+  useEffect(() => {
+    if (!isTauri || !isMenuOrb) return;
 
-    try {
-      await tauriCommands.openWidgetWindow({
-        bubbleType: "menu",
-        mode: "DEFAULT",
-        selectedRoomId: selectedWidgetRoomId,
-        windowId: "menu",
-      });
-    } catch {
-      // Browser preview fallback.
-    }
-  }, [isTauri, selectedWidgetRoomId]);
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+
+    void listenWidgetMenuPanelRequested(() => {
+      setMenuPanelSignal((current) => current + 1);
+    }).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten();
+        return;
+      }
+      unlisten = nextUnlisten;
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [isMenuOrb, isTauri]);
 
   const openMainApp = useCallback(
     async (route?: "settings") => {
@@ -2277,6 +2302,18 @@ function DesktopWidgetSurface() {
 
     try {
       await tauriCommands.quitApp();
+    } catch {
+      // Browser preview fallback.
+    }
+  }, [isTauri]);
+
+  // 열린 버블 창들을 선호 모니터 우상단 그리드(24px 간격, 한 열 2개)로 정렬한다.
+  // 이동 좌표는 Rust가 기존 Moved 영속 경로로 저장하므로 여기서는 호출만 한다.
+  const arrangeWidgetBubbles = useCallback(async () => {
+    if (!isTauri) return;
+
+    try {
+      await tauriCommands.arrangeWidgetWindows();
     } catch {
       // Browser preview fallback.
     }
@@ -2307,24 +2344,34 @@ function DesktopWidgetSurface() {
     return (
       <DesktopWidgetMenuOrb
         hasRoomContext={Boolean(selectedWidgetRoomId)}
-        onOpenBubble={(bubbleType) => void restoreBubbleFromBar(bubbleType, bubbleType)}
+        onArrangeBubbles={() => void arrangeWidgetBubbles()}
+        onOpenBubble={(bubbleType) => void restoreBubbleFromBar(bubbleType)}
         onOpenMainApp={() => void openMainApp()}
         onOpenSettings={() => void openMainApp("settings")}
         onQuit={() => void quitDesktopApp()}
         onToggleRoomContext={() => void toggleWidgetRoomContext()}
+        panelOpenSignal={menuPanelSignal}
         usageSummary={menuUsageSummary}
       />
     );
   }
 
   if (isBubbleBar) {
+    // Bubli 메뉴는 바 창 안 인라인 morph 패널이다(별도 메뉴 창 자동 실행 없음).
     return (
       <DesktopWidgetBubbleBar
         bubbleDataByType={displayBubbles}
+        hasRoomContext={Boolean(selectedWidgetRoomId)}
         minimizedItems={barItems}
         notificationSignal={notificationSignal}
-        onOpenMenu={() => void openWidgetMenu()}
-        onRestoreBubble={(bubbleType, restoredWindowId) => void restoreBubbleFromBar(bubbleType, restoredWindowId)}
+        onArrangeBubbles={() => void arrangeWidgetBubbles()}
+        onOpenBubble={(bubbleType) => void restoreBubbleFromBar(bubbleType)}
+        onOpenMainApp={() => void openMainApp()}
+        onOpenSettings={() => void openMainApp("settings")}
+        onQuit={() => void quitDesktopApp()}
+        onRestoreBubble={(bubbleType) => void restoreBubbleFromBar(bubbleType)}
+        onToggleRoomContext={() => void toggleWidgetRoomContext()}
+        usageSummary={menuUsageSummary}
       />
     );
   }
@@ -2358,6 +2405,7 @@ function DesktopWidgetSurface() {
       onToggleAlwaysOnTop={() => void toggleAlwaysOnTop()}
       onToggleVoiceMic={toggleWidgetVoiceMic}
       presentation="tauri"
+      windowId={windowId}
       windowVisible={windowVisible}
     />
   );

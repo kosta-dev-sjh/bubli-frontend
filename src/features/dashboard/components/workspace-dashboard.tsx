@@ -20,6 +20,7 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { dashboardApi } from "@/features/dashboard/api/dashboardApi";
 import { readStoredBoard, writeStoredBoard } from "@/features/dashboard/lib/board-storage";
 import type { WidgetRoomScope } from "@/features/dashboard/lib/board-storage";
+import { useHomeBoardPresetListener } from "@/features/dashboard/lib/home-board-preset";
 import { MemoDashboardCard } from "@/features/memo/components";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
@@ -656,6 +657,13 @@ export function WorkspaceDashboard() {
     writeStoredBoard({ roomScope: widgetRoomScope, widgetIds });
   }, [boardHydrated, widgetIds, widgetRoomScope]);
 
+  // 직군 온보딩이 프리셋을 적용하면(홈 위 오버레이) 리로드 없이 카드 구성을 즉시 반영한다.
+  const applyPresetWidgetIds = useCallback((ids: string[]) => {
+    setWidgetIds(normalizeWidgetIds(ids));
+    setWidgetRoomScope({});
+  }, []);
+  useHomeBoardPresetListener(applyPresetWidgetIds);
+
   const fetchDashboard = useCallback(async () => {
     try {
       const data = await dashboardApi.getWork();
@@ -1066,6 +1074,7 @@ export function WorkspaceDashboard() {
               </Button>
             ) : null}
             <Button
+              data-tour="card-edit"
               icon={<LayoutDashboard aria-hidden size={15} strokeWidth={1.9} />}
               onClick={() => setEditMode((current) => !current)}
               variant={editMode ? "primary" : "secondary"}

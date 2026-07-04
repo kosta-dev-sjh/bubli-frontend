@@ -16,7 +16,9 @@ import {
 import { siteConfig } from "@/config/site";
 import { authApi } from "@/features/auth/api/authApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
+import { FirstRunController } from "@/features/onboarding";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
+import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
@@ -395,6 +397,48 @@ export function AppShell({ children }: AppShellProps) {
     void notificationApi.markRead(notificationId).catch(() => undefined);
   }
 
+  // 알림 "보러가기" 딥링크 — sourceType별 이동 경로(백엔드 NotificationResponse 계약: sourceType + sourceId):
+  // - COMMENT/RESOURCE: sourceId를 자료 ID로 보고 자료를 조회해 룸 자료보드(?resourceId=)로,
+  //   룸 정보가 없으면 개인 자료보드로 이동한다(조회 실패 시에도 개인 보드 폴백).
+  //   자료보드는 ?resourceId=로 해당 자료 상세를 열고, 댓글 섹션은 기본 펼침(<details open>)이다.
+  // - MESSAGE: 소통 화면으로(sourceId가 있으면 ?roomId=로 해당 룸 스코프).
+  // - AGENT: AI 요청함으로.
+  // 클릭 즉시 읽음 처리(낙관적)하고 알림 패널을 닫는다.
+  async function handleOpenNotification(notification: NotificationResponse) {
+    if (notification.status === "UNREAD") {
+      handleMarkNotificationRead(notification.id);
+    }
+    setTopbarMenu(null);
+
+    const sourceId = notification.sourceId ?? null;
+
+    if (notification.sourceType === "AGENT") {
+      router.push("/app/agent");
+      return;
+    }
+    if (notification.sourceType === "MESSAGE") {
+      router.push(sourceId ? `/app/chat?roomId=${encodeURIComponent(sourceId)}` : "/app/chat");
+      return;
+    }
+    if (notification.sourceType === "COMMENT" || notification.sourceType === "RESOURCE") {
+      if (!sourceId) {
+        router.push("/app/resources");
+        return;
+      }
+      try {
+        const resource = await resourcesApi.get(sourceId);
+        router.push(
+          resource.roomId
+            ? `/app/project-rooms/${resource.roomId}/resources?resourceId=${encodeURIComponent(resource.id)}`
+            : `/app/resources?resourceId=${encodeURIComponent(resource.id)}`,
+        );
+      } catch {
+        // 자료 조회 실패(권한/삭제 등) — 개인 자료보드로 폴백해 최소한 보드까지는 안내한다.
+        router.push(`/app/resources?resourceId=${encodeURIComponent(sourceId)}`);
+      }
+    }
+  }
+
   async function handleAcceptInvitation(invitation: ProjectRoomInvitationResponse) {
     if (acceptingInvitationId) return;
     setAcceptingInvitationId(invitation.id);
@@ -510,7 +554,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="bubli-app-layout">
-      <aside className="bubli-sidebar">
+      <aside className="bubli-sidebar" data-tour="sidebar">
         <Link className="bubli-brand" href="/app">
           {siteConfig.name}
         </Link>
@@ -533,6 +577,7 @@ export function AppShell({ children }: AppShellProps) {
                 onAcceptInvitation={(invitation) => void handleAcceptInvitation(invitation)}
                 onArchive={handleArchiveNotification}
                 onMarkRead={handleMarkNotificationRead}
+                onOpen={(notification) => void handleOpenNotification(notification)}
               />
             ) : null
           }
@@ -659,6 +704,8 @@ export function AppShell({ children }: AppShellProps) {
             children
           )}
         </div>
+        {/* 첫 사용 경험(직군 온보딩 + 튜토리얼) — 인증 완료 후에만, 홈 위 오버레이로 렌더한다. */}
+        {state.kind === "ready" ? <FirstRunController user={state.user} /> : null}
       </main>
     </div>
   );

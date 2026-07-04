@@ -979,6 +979,51 @@ fn read_widget_summary_cache_for_conn(
     .map_err(|error| error.to_string())
 }
 
+/// Persist the user-chosen window size (logical px) for a bubble type.
+/// Follows the widget display cache upsert pattern: one row per key.
+pub fn store_widget_bubble_size_for_conn(
+    conn: &Connection,
+    bubble_type: &str,
+    width: i64,
+    height: i64,
+) -> Result<(), String> {
+    let bubble_type = bubble_type.trim();
+    if bubble_type.is_empty() {
+        return Err("bubbleType is required to store a widget size".to_string());
+    }
+    if width <= 0 || height <= 0 {
+        return Err("widget size must be positive".to_string());
+    }
+
+    conn.execute(
+        "INSERT INTO local_widget_bubble_sizes (bubble_type, width, height, updated_at) \
+         VALUES (?1, ?2, ?3, ?4) \
+         ON CONFLICT(bubble_type) DO UPDATE SET \
+           width = excluded.width, \
+           height = excluded.height, \
+           updated_at = excluded.updated_at",
+        params![bubble_type, width, height, now_ms()],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+/// Read every persisted user widget size as (bubble_type, width, height).
+/// lib.rs clamps the values against the current defaults before applying them.
+pub fn read_widget_bubble_sizes_for_conn(
+    conn: &Connection,
+) -> Result<Vec<(String, i64, i64)>, String> {
+    let mut stmt = conn
+        .prepare("SELECT bubble_type, width, height FROM local_widget_bubble_sizes")
+        .map_err(|error| error.to_string())?;
+    let rows = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    Ok(rows)
+}
+
 fn widget_summary_cache_id(cache_key: Option<&str>) -> String {
     let key = cache_key.unwrap_or("").trim();
     if key.is_empty() {
@@ -1517,6 +1562,17 @@ CREATE TABLE IF NOT EXISTS local_widget_display_cache (
     cached_at    INTEGER NOT NULL
 );
 
+-- User-resized widget bubble window sizes (logical px, per bubble type).
+-- Written when the user releases a corner-drag resize; read once at app start
+-- so reopened bubbles restore the user size within the min/max clamps
+-- (min = bubble default size, max = min x 1.6, enforced in lib.rs).
+CREATE TABLE IF NOT EXISTS local_widget_bubble_sizes (
+    bubble_type TEXT PRIMARY KEY,
+    width       INTEGER NOT NULL,
+    height      INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS local_timer_state (
     id                 TEXT PRIMARY KEY,
     room_id            TEXT,
@@ -1570,8 +1626,9 @@ mod tests {
         get_or_create_widget_usage_device_id_for_conn, list_local_sqlite_backups_for_conn,
         mark_activity_context_synced_conn, now_ms, read_active_project_room_for_conn,
         read_auth_session_json, read_room_messages_for_conn, read_widget_summary_cache_for_conn,
-        record_activity_context_conn, record_timer_state_for_conn, recover_timer_state_for_conn,
-        restore_request_path, stage_activity_contexts_for_sync_conn,
+        read_widget_bubble_sizes_for_conn, record_activity_context_conn,
+        record_timer_state_for_conn, recover_timer_state_for_conn, restore_request_path,
+        stage_activity_contexts_for_sync_conn, store_widget_bubble_size_for_conn,
         store_active_project_room_for_conn, store_auth_session_json,
         store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
         validate_auth_session_json, validate_widget_summary_json,
@@ -1616,6 +1673,28 @@ mod tests {
         let error = validate_auth_session_json(r#"{"accessToken":"access-token"}"#)
             .expect_err("incomplete session should fail");
         assert!(error.contains("refreshToken"));
+    }
+
+    #[test]
+    fn widget_bubble_size_upserts_one_row_per_bubble_type() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+
+        store_widget_bubble_size_for_conn(&conn, "todo", 420, 480).expect("store size");
+        store_widget_bubble_size_for_conn(&conn, "todo", 440, 500).expect("update size");
+        store_widget_bubble_size_for_conn(&conn, "memo", 380, 400).expect("store second size");
+        assert!(store_widget_bubble_size_for_conn(&conn, " ", 10, 10).is_err());
+        assert!(store_widget_bubble_size_for_conn(&conn, "todo", 0, 10).is_err());
+
+        let mut sizes = read_widget_bubble_sizes_for_conn(&conn).expect("read sizes");
+        sizes.sort();
+        assert_eq!(
+            sizes,
+            vec![
+                ("memo".to_string(), 380, 400),
+                ("todo".to_string(), 440, 500)
+            ]
+        );
     }
 
     #[test]

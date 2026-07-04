@@ -97,6 +97,7 @@ export function AppNav({ activeRoomId }: AppNavProps) {
           <Link
             aria-current={isActive ? "page" : undefined}
             className={cn("bubli-nav__item", isActive && "bubli-nav__item--active")}
+            data-tour={item.href === "/app/agent" ? "agent-nav" : undefined}
             href={href}
             key={item.href}
           >

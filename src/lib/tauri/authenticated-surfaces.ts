@@ -15,6 +15,9 @@ let launchGeneration = 0;
 let launchedAuthenticatedSurfaces = false;
 
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
+// (deprecated) 메뉴(오브) 창은 더 이상 자동 실행하지 않는다 — Bubli 메뉴는 바 창의
+// 브랜드 칩에서 열리는 인라인 morph 패널로 통합됐다. "menu" 창 경로(?bubble=menu)와
+// Rust 창 상태는 그대로 남아 있어 수동으로 열면 여전히 동작한다.
 const loginStartupWindows: WidgetWindowOpenInput[] = [
   loginStartupBarWindow,
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
