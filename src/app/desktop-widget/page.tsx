@@ -534,6 +534,7 @@ function buildDisplayBubbles(input: {
         handoffUrl: roomScopedRoute("/app", input.roomId),
         kind: "memo",
         label: memoTitle(t, item),
+        memoBody: item.body,
         status: formatShortTime(item.updatedAt),
       })),
     }),
@@ -1618,7 +1619,55 @@ function DesktopWidgetSurface() {
 
       setMemoRevision((current) => current + 1);
     },
-    [isTauri, widgetContext?.selectedRoomId],
+    [isTauri, t, widgetContext?.selectedRoomId],
+  );
+
+  const editWidgetMemo = useCallback(
+    async (item: WidgetPreviewItem) => {
+      const currentBody = item.memoBody ?? item.label;
+      const body = window.prompt(t("widget.memo.prompt"), currentBody)?.trim();
+      if (!body || body === currentBody) return;
+
+      const memo = await widgetDisplayApi.updateMemo(item.id, body);
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "memo",
+            eventType: "memo:update",
+            itemId: memo.id,
+            itemType: "MEMO",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setMemoRevision((current) => current + 1);
+    },
+    [isTauri, t],
+  );
+
+  const deleteWidgetMemo = useCallback(
+    async (item: WidgetPreviewItem) => {
+      if (!window.confirm(t("widget.memo.deleteConfirm", { label: item.label }))) return;
+
+      await widgetDisplayApi.deleteMemo(item.id);
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "memo",
+            eventType: "memo:delete",
+            itemId: item.id,
+            itemType: "MEMO",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setMemoRevision((current) => current + 1);
+    },
+    [isTauri, t],
   );
 
   const createWidgetTodo = useCallback(
@@ -1985,6 +2034,8 @@ function DesktopWidgetSurface() {
       onModeChange={(nextMode) => void setWindowMode(nextMode)}
       onCreateMemo={createWidgetMemo}
       onCreateTodo={createWidgetTodo}
+      onDeleteMemo={deleteWidgetMemo}
+      onEditMemo={editWidgetMemo}
       onOpenHandoff={openWidgetHandoff}
       onPauseTimer={pauseWidgetTimer}
       onPrimaryTimerAction={runPrimaryTimerAction}
