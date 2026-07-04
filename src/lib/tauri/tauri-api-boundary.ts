@@ -245,9 +245,9 @@ export const ipcServerBoundary: readonly IpcBoundaryRow[] = [
   },
   {
     ipc: TAURI_COMMANDS.flushSyncOutbox,
-    responsibility: "Report/flush server-reflect backlog",
-    reflectsToServer: true,
-    serverApi: "/api/local-file-events/sync",
+    responsibility: "Report local SQLite sync outbox backlog; authenticated frontend API flows perform server transfer",
+    reflectsToServer: false,
+    serverApi: null,
   },
   // Chat cache: server is the source of truth.
   {
