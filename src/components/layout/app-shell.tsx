@@ -234,7 +234,9 @@ export function AppShell({ children }: AppShellProps) {
     let unlisten: (() => void) | null = null;
     const safeUnlisten = (nextUnlisten: () => void) => {
       try {
-        nextUnlisten();
+        void Promise.resolve(nextUnlisten()).catch((error) => {
+          console.warn("Failed to remove Tauri widget room listener.", error);
+        });
       } catch (error) {
         console.warn("Failed to remove Tauri widget room listener.", error);
       }
