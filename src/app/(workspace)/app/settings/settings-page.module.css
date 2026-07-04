@@ -250,6 +250,12 @@
   padding-top: 8px;
 }
 
+.embeddedPanelStack {
+  display: grid;
+  gap: 16px;
+  padding: 10px 0 16px;
+}
+
 .textInput,
 .selectControl {
   min-height: 38px;
