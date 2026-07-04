@@ -16,6 +16,9 @@ const files = {
   layout: "src/app/layout.tsx",
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
   runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
+  tauriCapability: "src-tauri/capabilities/default.json",
+  tauriConf: "src-tauri/tauri.conf.json",
+  tauriDevtoolsGuard: "src/lib/tauri/tauri-devtools-guard.tsx",
   tauriLib: "src-tauri/src/lib.rs",
   windowsRuntimeSmoke: "scripts/check-tauri-windows-runtime-smoke.mjs",
   widgetAuthHeaders: "src/features/widget/api/widgetAuthHeaders.ts",
@@ -30,6 +33,13 @@ function read(path) {
 function assertContains(source, pattern, message) {
   const matched = typeof pattern === "string" ? source.includes(pattern) : pattern.test(source);
   if (!matched) {
+    throw new Error(message);
+  }
+}
+
+function assertNotContains(source, pattern, message) {
+  const matched = typeof pattern === "string" ? source.includes(pattern) : pattern.test(source);
+  if (matched) {
     throw new Error(message);
   }
 }
@@ -52,6 +62,9 @@ function extractConstArray(source, constName) {
 const layout = read(files.layout);
 const launcher = read(files.postLoginLauncher);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
+const tauriCapability = read(files.tauriCapability);
+const tauriConf = read(files.tauriConf);
+const tauriDevtoolsGuard = read(files.tauriDevtoolsGuard);
 const tauriLib = read(files.tauriLib);
 const surfaces = read(files.authenticatedSurfaces);
 const chatWidgetRouting = read(files.chatWidgetRouting);
@@ -79,6 +92,46 @@ assertContains(
   layout,
   /<TauriDevtoolsGuard\s*\/>/,
   "Root layout must mount TauriDevtoolsGuard for hybrid/widget devtools hardening.",
+);
+assertContains(
+  tauriConf,
+  /"devtools":\s*false/,
+  "The main Tauri hybrid app window must keep devtools disabled in tauri.conf.json.",
+);
+assertContains(
+  tauriCapability,
+  /"core:webview:deny-internal-toggle-devtools"/,
+  "The shared Tauri capability must deny internal devtools toggles for main and widget windows.",
+);
+assertNotContains(
+  tauriCapability,
+  /core:webview:allow-internal-toggle-devtools/,
+  "Tauri capabilities must not allow internal devtools toggles.",
+);
+assertContains(
+  tauriLib,
+  /WebviewWindowBuilder::new\([\s\S]*WebviewUrl::App\(widget_window_url\(widget\)\.into\(\)\)[\s\S]*\.devtools\(false\)[\s\S]*\.build\(\)/,
+  "Every desktop widget WebviewWindowBuilder path must explicitly disable devtools.",
+);
+assertNotContains(
+  tauriLib,
+  /open_devtools|close_devtools|is_devtools_open/,
+  "Tauri runtime code must not expose devtools open/close helpers for hybrid or widget windows.",
+);
+assertContains(
+  tauriDevtoolsGuard,
+  /event\.key === "F12"[\s\S]*event\.key === "ContextMenu"[\s\S]*event\.shiftKey && event\.key === "F10"[\s\S]*BLOCKED_DEVTOOLS_KEYS\.has\(event\.key\.toLowerCase\(\)\)/,
+  "TauriDevtoolsGuard must block F12, keyboard context menu, Shift+F10, and Ctrl+Shift devtools shortcuts.",
+);
+assertContains(
+  tauriDevtoolsGuard,
+  /window\.addEventListener\("mousedown", blockContextMenuPointer, \{ capture: true \}\)[\s\S]*window\.addEventListener\("contextmenu", blockContextMenu, \{ capture: true \}\)[\s\S]*window\.addEventListener\("keydown", blockDevtoolsShortcut, \{ capture: true \}\)/,
+  "TauriDevtoolsGuard must capture right-click, contextmenu, and devtools keyboard events.",
+);
+assertContains(
+  tauriDevtoolsGuard,
+  /stopImmediatePropagation\(\)/,
+  "TauriDevtoolsGuard must stop blocked devtools/context-menu events before app handlers can re-open them.",
 );
 assertContains(
   layout,
