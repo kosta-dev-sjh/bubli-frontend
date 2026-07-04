@@ -4,12 +4,14 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 import { managedFolderApi } from "@/features/managed-folder/api/managedFolderApi";
+import { activityApi } from "@/features/activity/api/activityApi";
 import { authApi } from "@/features/auth/api/authApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { clearStoredAuthSession, getStoredAuthSession } from "@/lib/auth/auth-session";
 import { tauriCommands } from "@/lib/tauri/commands";
 import type { LocalFileEventsSyncStageResult } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 
 type SmokeCheck = {
   detail?: unknown;
@@ -24,6 +26,8 @@ type SmokeReport = {
   platform: string;
   status: "passed" | "failed" | "skipped";
 };
+
+type SmokeAssert = (condition: unknown, name: string, detail?: unknown) => asserts condition;
 
 const smokeEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
 const smokeReportUrl = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_REPORT_URL;
@@ -140,7 +144,7 @@ async function runSmoke() {
   const startedAt = Date.now();
   const checks: SmokeCheck[] = [];
   const addCheck = (name: string, detail?: unknown) => checks.push({ detail, name });
-  const assert = (condition: unknown, name: string, detail?: unknown) => {
+  const assert: SmokeAssert = (condition, name, detail) => {
     if (!condition) {
       throw new Error(`${name}${detail === undefined ? "" : `: ${JSON.stringify(detail)}`}`);
     }
@@ -300,21 +304,94 @@ async function runSmoke() {
       windowTitle: foreground.windowTitle ?? "Windows runtime smoke",
     });
     const stagedActivity = await tauriCommands.stageActivityContextsForSync({ limit: 50 });
+    const stagedCurrentActivity = stagedActivity.activities.find(
+      (item) => item.localActivityId === activity.localActivityId,
+    );
     assert(
-      stagedActivity.activities.some((item) => item.localActivityId === activity.localActivityId),
+      stagedCurrentActivity,
       "activity capture staged from SQLite",
       stagedActivity,
     );
+    const syncedActivities = [];
+    for (const stagedItem of stagedActivity.activities) {
+      const recordedActivity = await activityApi.recordCurrentApp({
+        appName: stagedItem.appName,
+        durationSeconds: stagedItem.durationSeconds ?? null,
+        endedAt: stagedItem.endedAt,
+        localActivityId: stagedItem.localActivityId,
+        roomId: stagedItem.roomId ?? null,
+        startedAt: stagedItem.startedAt,
+        windowTitle: stagedItem.windowTitle ?? null,
+      });
+      const activityMark = await tauriCommands.markActivityContextSynced({
+        localActivityId: stagedItem.localActivityId,
+        serverActivityLogId: recordedActivity.id,
+        status: "SYNCED",
+      });
+      syncedActivities.push({ activityMark, recordedActivity });
+    }
+    assert(
+      syncedActivities.some(
+        ({ activityMark, recordedActivity }) =>
+          activityMark.localActivityId === activity.localActivityId && recordedActivity.id.length > 0,
+      ),
+      "activity buffer reached backend sync API",
+      syncedActivities,
+    );
+    const syncedCurrentActivity = syncedActivities.find(
+      ({ activityMark }) => activityMark.localActivityId === activity.localActivityId,
+    );
+    assert(
+      syncedCurrentActivity?.activityMark.syncStatus === "SYNCED",
+      "activity buffer sync marked SQLite row as SYNCED",
+      syncedCurrentActivity,
+    );
+    const remainingActivity = await tauriCommands.stageActivityContextsForSync({ limit: 50 });
+    assert(
+      !remainingActivity.activities.some((item) => item.localActivityId === activity.localActivityId),
+      "synced activity capture no longer remains pending",
+      remainingActivity,
+    );
 
+    const widgetUsageOccurredAt = new Date().toISOString();
+    const widgetUsageSummaryDate = widgetUsageOccurredAt.slice(0, 10);
     await tauriCommands.recordWidgetUsageEvent({
       bubbleType: "todo",
       eventType: "runtime-smoke:click",
       itemId: "codex-runtime-smoke",
       itemType: "TASK",
-      occurredAt: new Date().toISOString(),
+      occurredAt: widgetUsageOccurredAt,
     });
-    const rollups = await tauriCommands.rollupWidgetUsage();
-    assert(rollups.some((rollup) => rollup.bubbleType === "todo"), "widget usage rollup created", rollups);
+    const rollups = await tauriCommands.rollupWidgetUsage({ summaryDate: widgetUsageSummaryDate });
+    const smokeRollup = rollups.find(
+      (rollup) => rollup.rollupKey === `${widgetUsageSummaryDate}:todo` && rollup.bubbleType === "todo",
+    );
+    assert(
+      smokeRollup && smokeRollup.sourceEventCount >= 1 && smokeRollup.interactionCount >= 1,
+      "widget usage rollup created",
+      smokeRollup ?? rollups,
+    );
+    const widgetUsageSync = await syncLocalWidgetUsageSummaryToServer({
+      rollupKeys: [smokeRollup.rollupKey],
+    });
+    assert(widgetUsageSync.status === "ready", "widget usage summary reached backend sync API", widgetUsageSync);
+    assert(
+      widgetUsageSync.status === "ready" &&
+        widgetUsageSync.data.failedCount === 0 &&
+        widgetUsageSync.data.markedSyncedCount === 1 &&
+        widgetUsageSync.data.sentCount === 1 &&
+        widgetUsageSync.data.stagedCount === 1,
+      "widget usage summary marked SQLite rollups as SYNCED",
+      widgetUsageSync,
+    );
+    const remainingWidgetUsage = await tauriCommands.syncWidgetUsageSummary({
+      rollupKeys: [smokeRollup.rollupKey],
+    });
+    assert(
+      remainingWidgetUsage.rollups.length === 0 && remainingWidgetUsage.sentCount === 0,
+      "synced widget usage rollup no longer remains pending",
+      remainingWidgetUsage,
+    );
 
     if (smokeFolderPath) {
       const folder = await tauriCommands.selectManagedFolder({ path: smokeFolderPath });
