@@ -923,12 +923,37 @@ fn start_managed_folder_watcher(
     local_folder_id: String,
     folder_path: String,
 ) -> Result<ManagedFolderWatchResult, String> {
+    let db_path = crate::local_db::database_path(app)?;
+    let callback_app = app.clone();
+
+    start_managed_folder_watcher_with_db_path(
+        watchers,
+        local_folder_id,
+        folder_path,
+        db_path,
+        move |payload| {
+            if let Err(error) = callback_app.emit(MANAGED_FOLDER_WATCH_EVENT, payload) {
+                eprintln!("managed folder watch emit failed: {error}");
+            }
+        },
+    )
+}
+
+fn start_managed_folder_watcher_with_db_path<F>(
+    watchers: &ManagedFolderWatchers,
+    local_folder_id: String,
+    folder_path: String,
+    db_path: PathBuf,
+    emit: F,
+) -> Result<ManagedFolderWatchResult, String>
+where
+    F: Fn(ManagedFolderWatchEvent) + Send + 'static,
+{
     let folder = PathBuf::from(&folder_path);
     if !folder.is_dir() {
         return Err(format!("not a directory: {folder_path}"));
     }
 
-    let db_path = crate::local_db::database_path(app)?;
     let mut guard = watchers
         .0
         .lock()
@@ -943,7 +968,6 @@ fn start_managed_folder_watcher(
 
     let callback_folder_id = local_folder_id.clone();
     let callback_db_path = db_path.clone();
-    let callback_app = app.clone();
     let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
         let event = match result {
             Ok(value) => value,
@@ -965,14 +989,8 @@ fn start_managed_folder_watcher(
         };
         crate::local_db::configure_connection(&conn);
         let now = now_ms();
-        let mut changed_count = 0;
-
-        for path in event.paths {
-            match record_watch_path_change(&conn, &callback_folder_id, &path, now) {
-                Ok(count) => changed_count += count,
-                Err(error) => eprintln!("managed folder watch event failed: {error}"),
-            }
-        }
+        let changed_count =
+            record_watch_event_paths_for_conn(&conn, &callback_folder_id, event.paths, now);
 
         if changed_count > 0 {
             let payload = ManagedFolderWatchEvent {
@@ -980,9 +998,7 @@ fn start_managed_folder_watcher(
                 local_folder_id: callback_folder_id.clone(),
                 observed_at: ms_to_iso(now),
             };
-            if let Err(error) = callback_app.emit(MANAGED_FOLDER_WATCH_EVENT, payload) {
-                eprintln!("managed folder watch emit failed: {error}");
-            }
+            emit(payload);
         }
     })
     .map_err(|error| format!("folder watch setup failed: {error}"))?;
@@ -1211,6 +1227,27 @@ fn should_process_watch_event(event: &Event) -> bool {
             | EventKind::Remove(_)
             | EventKind::Other
     )
+}
+
+fn record_watch_event_paths_for_conn<I>(
+    conn: &Connection,
+    local_folder_id: &str,
+    paths: I,
+    now: i64,
+) -> i64
+where
+    I: IntoIterator<Item = PathBuf>,
+{
+    let mut changed_count = 0;
+
+    for path in paths {
+        match record_watch_path_change(conn, local_folder_id, &path, now) {
+            Ok(count) => changed_count += count,
+            Err(error) => eprintln!("managed folder watch event failed: {error}"),
+        }
+    }
+
+    changed_count
 }
 
 fn record_watch_path_change(
@@ -3387,10 +3424,7 @@ fn guess_mime_type(file_name: &str) -> Option<String> {
 mod tests {
     use super::*;
 
-    fn test_connection() -> Connection {
-        let conn = Connection::open_in_memory().expect("open in-memory sqlite");
-        conn.execute_batch(
-            "
+    const TEST_SCHEMA_SQL: &str = r#"
             CREATE TABLE local_files (
                 id TEXT PRIMARY KEY,
                 local_folder_id TEXT NOT NULL,
@@ -3455,9 +3489,20 @@ mod tests {
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             );
-            ",
-        )
-        .expect("create local file schema");
+            "#;
+
+    fn test_connection() -> Connection {
+        let conn = Connection::open_in_memory().expect("open in-memory sqlite");
+        conn.execute_batch(TEST_SCHEMA_SQL)
+            .expect("create local file schema");
+        conn
+    }
+
+    fn test_connection_at_path(path: &Path) -> Connection {
+        let conn = Connection::open(path).expect("open file sqlite");
+        crate::local_db::configure_connection(&conn);
+        conn.execute_batch(TEST_SCHEMA_SQL)
+            .expect("create local file schema");
         conn
     }
 
@@ -3937,6 +3982,154 @@ mod tests {
         assert_eq!(sync_status, "LOCAL_ONLY");
 
         let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
+    fn watch_event_paths_counts_only_actual_file_changes() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-managed-watch-batch-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        let nested_path = folder_path.join("nested");
+        std::fs::create_dir_all(&nested_path).expect("create nested folder");
+        let file_path = nested_path.join("watch-note.txt");
+        std::fs::write(&file_path, "batch tracked body").expect("write file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let changed = record_watch_event_paths_for_conn(
+            &conn,
+            "folder-1",
+            vec![folder_path.clone(), nested_path.clone(), file_path.clone()],
+            10,
+        );
+        let repeated =
+            record_watch_event_paths_for_conn(&conn, "folder-1", vec![nested_path, file_path], 20);
+        let (file_count, event_count): (i64, i64) = conn
+            .query_row(
+                "SELECT \
+                   (SELECT COUNT(*) FROM local_files WHERE local_folder_id = 'folder-1'), \
+                   (SELECT COUNT(*) FROM local_file_events WHERE local_folder_id = 'folder-1')",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read watch rows");
+
+        assert_eq!(changed, 1);
+        assert_eq!(repeated, 0);
+        assert_eq!(file_count, 1);
+        assert_eq!(event_count, 1);
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn managed_folder_watcher_records_real_windows_create_update_delete_events() {
+        use std::sync::mpsc;
+        use std::time::{Duration, Instant};
+
+        let root_path =
+            std::env::temp_dir().join(format!("bubli-managed-watch-os-test-{}", Uuid::new_v4()));
+        let watched_path = root_path.join("watched");
+        let staging_path = root_path.join("staging");
+        std::fs::create_dir_all(&watched_path).expect("create watched folder");
+        std::fs::create_dir_all(&staging_path).expect("create staging folder");
+        let db_path = root_path.join("bubli-local.sqlite3");
+        let conn = test_connection_at_path(&db_path);
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![watched_path.to_string_lossy().to_string()],
+        )
+        .expect("insert watched folder");
+
+        let watchers = ManagedFolderWatchers::default();
+        let (sender, receiver) = mpsc::channel::<ManagedFolderWatchEvent>();
+        start_managed_folder_watcher_with_db_path(
+            &watchers,
+            "folder-1".to_string(),
+            watched_path.to_string_lossy().to_string(),
+            db_path.clone(),
+            move |payload| {
+                let _ = sender.send(payload);
+            },
+        )
+        .expect("start real watcher");
+
+        std::thread::sleep(Duration::from_millis(250));
+
+        let staged_file_path = staging_path.join("watch-note.txt");
+        let file_path = watched_path.join("watch-note.txt");
+        std::fs::write(&staged_file_path, "created by real windows watcher")
+            .expect("write staged file");
+        std::fs::rename(&staged_file_path, &file_path).expect("move file into watched folder");
+        assert!(
+            wait_until(Duration::from_secs(5), || local_event_count(
+                &conn, "CREATED"
+            ) >= 1),
+            "real watcher should record CREATED"
+        );
+
+        std::fs::write(
+            &file_path,
+            "updated by real windows watcher with searchable delta",
+        )
+        .expect("update watched file");
+        assert!(
+            wait_until(Duration::from_secs(5), || local_event_count(
+                &conn, "UPDATED"
+            ) >= 1),
+            "real watcher should record UPDATED"
+        );
+
+        std::fs::remove_file(&file_path).expect("delete watched file");
+        assert!(
+            wait_until(Duration::from_secs(5), || local_event_count(
+                &conn, "DELETED"
+            ) >= 1),
+            "real watcher should record DELETED"
+        );
+
+        let search_after_delete =
+            search_local_files_fts(&conn, "searchable", 10).expect("search deleted watch content");
+        let emitted_count = receiver.try_iter().count();
+
+        assert_eq!(search_after_delete.len(), 0);
+        assert!(
+            emitted_count >= 1,
+            "watcher should emit at least one changed payload"
+        );
+
+        let _ = std::fs::remove_dir_all(root_path);
+
+        fn local_event_count(conn: &Connection, event_type: &str) -> i64 {
+            conn.query_row(
+                "SELECT COUNT(*) FROM local_file_events WHERE local_folder_id = 'folder-1' AND event_type = ?1",
+                params![event_type],
+                |row| row.get(0),
+            )
+            .expect("count local file events")
+        }
+
+        fn wait_until<F>(timeout: Duration, mut condition: F) -> bool
+        where
+            F: FnMut() -> bool,
+        {
+            let deadline = Instant::now() + timeout;
+            while Instant::now() < deadline {
+                if condition() {
+                    return true;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            false
+        }
     }
 
     #[test]
