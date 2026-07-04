@@ -22,6 +22,7 @@ import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
+import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
@@ -30,6 +31,7 @@ import {
   restoreActiveProjectRoomFromTauri,
   seedActiveProjectRoomId,
   setActiveProjectRoomId,
+  syncActiveProjectRoomFromWidgetContext,
 } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewRooms, workspacePreviewUser } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
@@ -210,6 +212,34 @@ export function AppShell({ children }: AppShellProps) {
   }, []);
 
   useEffect(() => {
+    if (!isTauriRuntime()) return;
+
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+
+    void listenWidgetRoomContextChanged((payload) => {
+      const roomId = payload.selectedRoomId?.trim() || null;
+      const room = roomId && state.kind === "ready" ? state.rooms.find((item) => item.id === roomId) : undefined;
+      const roomLabel = room?.name ?? null;
+
+      syncActiveProjectRoomFromWidgetContext(roomId, roomLabel);
+      setSelectedRoomId(roomId);
+      setSelectedRoomLabel(roomLabel);
+    }).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten();
+        return;
+      }
+      unlisten = nextUnlisten;
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [state]);
+
+  useEffect(() => {
     function openProjectRoomCreate() {
       setProjectSwitcherOpen(true);
       setCreatePanelOpen(true);
@@ -252,6 +282,7 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     if (state.kind !== "ready" || !selectedRoom) return;
+    if (getActiveProjectRoomId() === selectedRoom.id && getActiveProjectRoomLabel() === selectedRoom.name) return;
     setActiveProjectRoomId(selectedRoom.id, selectedRoom.name);
   }, [selectedRoom, state.kind]);
 
