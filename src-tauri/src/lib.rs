@@ -1073,6 +1073,27 @@ fn widget_bar_items_from_store(store: &WidgetWindowStore) -> Vec<WidgetWindowSta
     items
 }
 
+fn recover_stale_visible_widgets_for_bar(
+    store: &mut WidgetWindowStore,
+    existing_window_labels: &HashSet<String>,
+) {
+    for widget in store.bubbles.values_mut() {
+        if widget.active_bubble == "bar" || !widget.window_visible {
+            continue;
+        }
+
+        let label = widget_window_label(widget);
+        if existing_window_labels.contains(&label) {
+            continue;
+        }
+
+        widget.mode = "MINIMIZED".to_string();
+        widget.click_through = false;
+        widget.dock_orb_visible = false;
+        widget.window_visible = false;
+    }
+}
+
 fn seed_widget_bar_items_for_store(
     store: &mut WidgetWindowStore,
     selected_room_id: Option<String>,
@@ -1103,10 +1124,12 @@ fn seed_widget_bar_items(
 ) -> Result<Vec<WidgetWindowState>, String> {
     let selected_room_id =
         normalize_optional_query_value(input.and_then(|value| value.selected_room_id));
+    let existing_window_labels: HashSet<String> = app.webview_windows().keys().cloned().collect();
     let items = {
         let mut guard = state
             .lock()
             .map_err(|_| "widget state lock failed".to_string())?;
+        recover_stale_visible_widgets_for_bar(&mut guard, &existing_window_labels);
         seed_widget_bar_items_for_store(&mut guard, selected_room_id)
     };
     persist_widget_window_state(&app, &state)?;
@@ -1865,5 +1888,31 @@ mod widget_runtime_tests {
         assert!(seeded
             .iter()
             .all(|widget| widget.selected_room_id.is_none()));
+    }
+
+    #[test]
+    fn seed_widget_bar_items_recovers_visible_state_when_window_is_missing() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "schedule".to_string(),
+            WidgetWindowState {
+                mode: "DEFAULT".to_string(),
+                window_visible: true,
+                ..default_widget_window_state("schedule", Some("schedule".to_string()))
+            },
+        );
+
+        recover_stale_visible_widgets_for_bar(&mut store, &HashSet::new());
+        let seeded = seed_widget_bar_items_for_store(&mut store, Some("room-1".to_string()));
+        let schedule = store.bubbles.get("schedule").expect("schedule widget");
+
+        assert_eq!(schedule.mode, "MINIMIZED");
+        assert!(!schedule.window_visible);
+        assert_eq!(schedule.selected_room_id.as_deref(), Some("room-1"));
+        assert!(seeded.iter().any(|widget| {
+            widget.active_bubble == "schedule"
+                && widget.mode == "MINIMIZED"
+                && !widget.window_visible
+        }));
     }
 }
