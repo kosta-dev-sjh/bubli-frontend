@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNav } from "@/components/layout/app-nav";
 import { TopbarNotificationsPanel } from "@/components/layout/topbar-notifications-panel";
@@ -111,6 +111,7 @@ export function AppShell({ children }: AppShellProps) {
   const [topbarMenu, setTopbarMenu] = useState<TopbarMenu>(null);
   const [myInvitations, setMyInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
   const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null);
+  const roomsRef = useRef<ProjectRoomResponse[]>([]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -286,6 +287,10 @@ export function AppShell({ children }: AppShellProps) {
   }, [router, state.kind]);
 
   useEffect(() => {
+    roomsRef.current = state.kind === "ready" ? state.rooms : [];
+  }, [state]);
+
+  useEffect(() => {
     if (state.kind !== "ready" || !isTauriRuntime()) return;
 
     void launchTauriAuthenticatedSurfaces().catch((error) => {
@@ -324,7 +329,7 @@ export function AppShell({ children }: AppShellProps) {
 
     void listenWidgetRoomContextChanged((payload) => {
       const roomId = payload.selectedRoomId?.trim() || null;
-      const room = roomId && state.kind === "ready" ? state.rooms.find((item) => item.id === roomId) : undefined;
+      const room = roomId ? roomsRef.current.find((item) => item.id === roomId) : undefined;
       const roomLabel = room?.name ?? null;
 
       syncActiveProjectRoomFromWidgetContext(roomId, roomLabel);
@@ -344,7 +349,7 @@ export function AppShell({ children }: AppShellProps) {
         safeUnlisten(unlisten);
       }
     };
-  }, [state]);
+  }, []);
 
   useEffect(() => {
     function openProjectRoomCreate() {
