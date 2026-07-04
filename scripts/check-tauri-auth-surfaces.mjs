@@ -3,11 +3,15 @@ import { readFileSync } from "node:fs";
 const files = {
   appNav: "src/components/layout/app-nav.tsx",
   appShell: "src/components/layout/app-shell.tsx",
+  appChat: "src/app/(workspace)/app/chat/page.tsx",
   authApi: "src/features/auth/api/authApi.ts",
   authPanel: "src/features/auth/components/auth-panel.tsx",
   authSession: "src/lib/auth/auth-session.ts",
   authenticatedSurfaces: "src/lib/tauri/authenticated-surfaces.ts",
+  chatWidgetRouting: "src/lib/tauri/chat-widget-routing.ts",
   desktopWidgetPage: "src/app/desktop-widget/page.tsx",
+  desktopCommunicationRoute: "src/app/(workspace)/app/desktop/communication/page.tsx",
+  projectRoomChatRoute: "src/app/(workspace)/app/project-rooms/[roomId]/chat/page.tsx",
   layout: "src/app/layout.tsx",
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
   widgetAuthHeaders: "src/features/widget/api/widgetAuthHeaders.ts",
@@ -43,14 +47,18 @@ function extractConstArray(source, constName) {
 const layout = read(files.layout);
 const launcher = read(files.postLoginLauncher);
 const surfaces = read(files.authenticatedSurfaces);
+const chatWidgetRouting = read(files.chatWidgetRouting);
 const appNav = read(files.appNav);
 const appShell = read(files.appShell);
+const appChat = read(files.appChat);
 const authApi = read(files.authApi);
 const authPanel = read(files.authPanel);
 const authSession = read(files.authSession);
 const widgetPage = read(files.desktopWidgetPage);
 const widgetAuthHeaders = read(files.widgetAuthHeaders);
 const workspaceActiveRoom = read(files.workspaceActiveRoom);
+const desktopCommunicationRoute = read(files.desktopCommunicationRoute);
+const projectRoomChatRoute = read(files.projectRoomChatRoute);
 
 assertContains(
   layout,
@@ -185,6 +193,36 @@ assertContains(
   /void launchTauriAuthenticatedSurfaces\(\)\.catch/,
   "AppShell must trigger authenticated native surfaces after shell readiness.",
 );
+assertContains(
+  appShell,
+  /sourceType === "MESSAGE"[\s\S]*const fallbackRoute[\s\S]*isTauriRuntime\(\)[\s\S]*openTauriChatWidget\(\{[\s\S]*eventType: "handoff:notification"[\s\S]*roomId: sourceId/,
+  "Hybrid Tauri MESSAGE notifications must open the chat widget instead of routing the main app to /app/chat.",
+);
+assertContains(
+  chatWidgetRouting,
+  /openWidgetWindow\(\{[\s\S]*bubbleType: "chat"[\s\S]*selectedRoomId:[\s\S]*windowId: "chat"/,
+  "Tauri chat widget routing must open the native chat bubble with the active project-room context.",
+);
+assertContains(
+  chatWidgetRouting,
+  /setActiveProjectRoomId\(selectedRoomId/,
+  "Tauri chat widget routing must propagate project-room context before opening the chat bubble.",
+);
+assertContains(
+  desktopCommunicationRoute,
+  /isTauriRuntime\(\)[\s\S]*openTauriChatWidget\(\{[\s\S]*eventType: "handoff:legacy-communication"/,
+  "Legacy desktop communication route must bridge to the chat widget in Tauri.",
+);
+assertContains(
+  projectRoomChatRoute,
+  /isTauriRuntime\(\)[\s\S]*openTauriChatWidget\(\{[\s\S]*eventType: "handoff:room-chat-route"[\s\S]*roomId/,
+  "Project-room chat route must bridge to the chat widget in Tauri.",
+);
+assertContains(
+  appChat,
+  /isTauriRuntime\(\)[\s\S]*openTauriChatWidget\(\{[\s\S]*eventType: "handoff:chat-route"[\s\S]*router\.replace\(fallbackRoute\)/,
+  "Direct /app/chat in Tauri must hand off to the chat widget and leave the chat page.",
+);
 
 assertContains(
   authPanel,
@@ -241,6 +279,11 @@ assertContains(
   widgetPage,
   /listenWidgetRoomContextChanged\(\(payload\) => \{[\s\S]*syncActiveProjectRoomFromWidgetContext\(roomId\)/,
   "Desktop widget windows must sync room-context changes back through the shared active-room service.",
+);
+assertContains(
+  widgetPage,
+  /item\.kind === "message" \|\| route\.includes\("\/chat"\)[\s\S]*openTauriChatWidget\(\{[\s\S]*eventType: "handoff:message"/,
+  "Desktop widget message handoffs must reopen the chat bubble instead of routing the main app to /app/chat.",
 );
 
 assertContains(

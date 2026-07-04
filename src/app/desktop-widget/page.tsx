@@ -46,6 +46,7 @@ import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { notifyDataChanged, type DataChangedDomain } from "@/lib/data-changed";
+import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { tauriCommands, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { emitWidgetDataChanged, listenWidgetDataChanged, listenWidgetMenuPanelRequested, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -1925,6 +1926,14 @@ function DesktopWidgetSurface() {
               : "TASK";
 
       if (isTauri) {
+        if (item.kind === "message" || route.includes("/chat")) {
+          await openTauriChatWidget({
+            eventType: "handoff:message",
+            roomId: selectedWidgetRoomId,
+          });
+          return;
+        }
+
         await tauriCommands.openMainWindowRoute({ route });
         void tauriCommands
           .recordWidgetUsageEvent({
@@ -1940,7 +1949,7 @@ function DesktopWidgetSurface() {
 
       window.open(route, "_blank", "noopener,noreferrer");
     },
-    [activeBubble, isTauri],
+    [activeBubble, isTauri, selectedWidgetRoomId],
   );
 
   const downloadWidgetResource = useCallback(
