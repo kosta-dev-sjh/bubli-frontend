@@ -269,7 +269,7 @@ const ko = {
   "notification.center.sample.schedule.room": "정기 운영 업무",
   "notification.center.sample.schedule.title": "회의 준비 알림",
   "notification.center.sample.schedule.desc":
-    "오후 일정이 30분 앞으로 다가왔습니다. Google Calendar와 연결된 일정은 같은 일정 기준으로 표시합니다.",
+    "오후 일정이 30분 앞으로 다가왔습니다. 구글 캘린더와 연결된 일정은 같은 일정 기준으로 표시합니다.",
   "notification.center.sample.schedule.origin": "일정",
   "notification.center.sample.schedule.time": "1시간 전",
 
@@ -431,6 +431,30 @@ const ko = {
   "activity.detection.sample.notion.duration": "19분",
   "activity.detection.sample.notion.hint": "발표 정리",
   "activity.detection.sample.notion.window": "Bubli v15 기획서",
+
+  // memo-dashboard-card (대시보드 빠른 메모 위젯)
+  "memo.card.composeAria": "새 메모 입력",
+  "memo.card.placeholder": "메모를 입력하세요",
+  "memo.card.save": "저장",
+  "memo.card.saving": "저장 중",
+  "memo.card.loading": "메모를 불러오는 중입니다",
+  "memo.card.empty": "저장된 메모가 없습니다",
+  "memo.card.listAria": "개인 메모 목록",
+  "memo.card.needBody": "메모 내용을 입력해 주세요",
+  "memo.card.loginRequired": "로그인 후 메모를 사용할 수 있습니다",
+  "memo.card.loadFailed": "메모를 불러오지 못했습니다",
+  "memo.card.saveFailed": "메모를 저장하지 못했습니다",
+  "memo.card.deleteFailed": "메모를 삭제하지 못했습니다",
+  "memo.card.savedNotice": "메모를 저장했습니다",
+  "memo.card.deletedNotice": "메모를 삭제했습니다",
+  "memo.card.edit": "수정",
+  "memo.card.editAria": "메모 수정",
+  "memo.card.editComposeAria": "메모 내용 수정",
+  "memo.card.cancel": "취소",
+  "memo.card.delete": "삭제",
+  "memo.card.deleteAria": "메모 삭제",
+  "memo.card.deleteConfirm": "삭제 확인",
+  "memo.card.deleting": "삭제 중",
 } as const;
 
 type Key = keyof typeof ko;
@@ -855,6 +879,29 @@ const en: Record<Key, string> = {
   "activity.detection.sample.notion.duration": "19 min",
   "activity.detection.sample.notion.hint": "Presentation notes",
   "activity.detection.sample.notion.window": "Bubli v15 proposal",
+
+  "memo.card.composeAria": "Write a new memo",
+  "memo.card.placeholder": "Write a memo",
+  "memo.card.save": "Save",
+  "memo.card.saving": "Saving",
+  "memo.card.loading": "Loading memos",
+  "memo.card.empty": "No saved memos yet",
+  "memo.card.listAria": "Personal memo list",
+  "memo.card.needBody": "Please enter memo content",
+  "memo.card.loginRequired": "Log in to use memos",
+  "memo.card.loadFailed": "Could not load memos",
+  "memo.card.saveFailed": "Could not save the memo",
+  "memo.card.deleteFailed": "Could not delete the memo",
+  "memo.card.savedNotice": "Memo saved",
+  "memo.card.deletedNotice": "Memo deleted",
+  "memo.card.edit": "Edit",
+  "memo.card.editAria": "Edit memo",
+  "memo.card.editComposeAria": "Edit memo content",
+  "memo.card.cancel": "Cancel",
+  "memo.card.delete": "Delete",
+  "memo.card.deleteAria": "Delete memo",
+  "memo.card.deleteConfirm": "Confirm delete",
+  "memo.card.deleting": "Deleting",
 };
 
 const ja: Record<Key, string> = {
@@ -1118,7 +1165,7 @@ const ja: Record<Key, string> = {
   "notification.center.sample.schedule.room": "定期運用業務",
   "notification.center.sample.schedule.title": "会議準備の通知",
   "notification.center.sample.schedule.desc":
-    "午後の予定が30分後に迫りました。Google Calendarと連携した予定は同じ予定基準で表示します。",
+    "午後の予定が30分後に迫りました。Google カレンダーと連携した予定は同じ予定基準で表示します。",
   "notification.center.sample.schedule.origin": "予定",
   "notification.center.sample.schedule.time": "1時間前",
 
@@ -1277,6 +1324,29 @@ const ja: Record<Key, string> = {
   "activity.detection.sample.notion.duration": "19分",
   "activity.detection.sample.notion.hint": "発表整理",
   "activity.detection.sample.notion.window": "Bubli v15 企画書",
+
+  "memo.card.composeAria": "新しいメモを入力",
+  "memo.card.placeholder": "メモを入力してください",
+  "memo.card.save": "保存",
+  "memo.card.saving": "保存中",
+  "memo.card.loading": "メモを読み込み中です",
+  "memo.card.empty": "保存されたメモはありません",
+  "memo.card.listAria": "個人メモリスト",
+  "memo.card.needBody": "メモの内容を入力してください",
+  "memo.card.loginRequired": "ログイン後にメモを使用できます",
+  "memo.card.loadFailed": "メモを読み込めませんでした",
+  "memo.card.saveFailed": "メモを保存できませんでした",
+  "memo.card.deleteFailed": "メモを削除できませんでした",
+  "memo.card.savedNotice": "メモを保存しました",
+  "memo.card.deletedNotice": "メモを削除しました",
+  "memo.card.edit": "編集",
+  "memo.card.editAria": "メモを編集",
+  "memo.card.editComposeAria": "メモ内容を編集",
+  "memo.card.cancel": "キャンセル",
+  "memo.card.delete": "削除",
+  "memo.card.deleteAria": "メモを削除",
+  "memo.card.deleteConfirm": "削除を確認",
+  "memo.card.deleting": "削除中",
 };
 
 export const miscMessages = { ko, en, ja };

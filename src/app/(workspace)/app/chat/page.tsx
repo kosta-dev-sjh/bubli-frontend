@@ -1,8 +1,8 @@
 "use client";
 
-import { AtSign, Check, Copy, Download, Inbox, KeyRound, LogOut, MessageCircle, Mic, MicOff, MoreHorizontal, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
+import { AtSign, Check, Copy, Download, Inbox, Link2, LogOut, Mic, MicOff, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,12 @@ import { getAuthAccessToken } from "@/lib/auth/auth-session";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { readCachedRoomMessages, syncCachedRoomMessages } from "@/lib/local";
-import { getActiveProjectRoomId, getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
+import {
+  ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
+  getActiveProjectRoomId,
+  getActiveProjectRoomLabel,
+  setActiveProjectRoomId,
+} from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
   workspacePreviewChatMessages,
@@ -30,7 +35,7 @@ import type { AuthUser } from "@/types/api/auth";
 import type { ChatMessageResponse, ChatRoomResponse, RoomAgentCommandMode } from "@/types/api/chat";
 import type { FriendRequestResponse, FriendResponse, FriendSearchResponse } from "@/types/api/friend";
 import type { ProjectRoomInvitationResponse } from "@/types/api/projectRoom";
-import type { VoiceParticipantResponse, VoiceRoomResponse, VoiceTokenResponse } from "@/types/api/voice";
+import type { VoiceParticipantResponse, VoiceRoomResponse } from "@/types/api/voice";
 
 type RoomsState =
   | { kind: "loading" }
@@ -65,9 +70,7 @@ type VoiceState =
   | { kind: "ready"; room: VoiceRoomResponse }
   | { kind: "blocked"; message: string };
 
-type VoiceAction = "token" | "mic" | "leave" | "end";
-
-type VoiceTokenInfo = Pick<VoiceTokenResponse, "expiresAt" | "serverUrl">;
+type VoiceAction = "join" | "mic" | "leave" | "end";
 
 type RoomInviteState =
   | { kind: "idle" }
@@ -91,6 +94,14 @@ type RoomInvitationsState =
   | { invitations: ProjectRoomInvitationResponse[]; kind: "ready" }
   | { kind: "loading" }
   | { kind: "offline" };
+
+// 초대 링크 — 링크 생성 후 클립보드 복사까지 한 번에 처리한다(복사 실패 시 URL을 그대로 보여줌).
+// roomId를 함께 저장해 다른 룸으로 바뀌면 이전 룸의 링크가 표시되지 않게 한다.
+type InviteLinkState =
+  | { kind: "idle" }
+  | { kind: "creating"; roomId: string }
+  | { copied: boolean; kind: "ready"; roomId: string; url: string }
+  | { kind: "error"; message: string; roomId: string };
 
 const previewFriends: FriendResponse[] = [
   {
@@ -142,12 +153,14 @@ const previewFriendRequests: FriendRequestResponse[] = [
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
-const emoticonTokens = [
-  { labelKey: "chat.emoticon.like", value: "[좋아요]" },
-  { labelKey: "chat.emoticon.ok", value: "[확인]" },
-  { labelKey: "chat.emoticon.laugh", value: "[웃음]" },
-  { labelKey: "chat.emoticon.cheer", value: "[응원]" },
-  { labelKey: "chat.emoticon.wait", value: "[잠시만요]" },
+// 컴포저 이모지 피커에 노출하는 기본 이모지 세트(외부 의존성 없이 하드코딩).
+const composerEmojis = [
+  "😀", "😄", "😆", "😂", "🤣", "😊", "🙂", "😉",
+  "😍", "😘", "😎", "🤔", "😅", "😭", "😢", "😡",
+  "😱", "🥳", "🤗", "😴", "🙃", "😇", "🤩", "😋",
+  "👍", "👎", "👏", "🙏", "💪", "🤝", "👌", "✌️",
+  "🙌", "❤️", "💙", "💛", "💚", "🔥", "⭐", "✨",
+  "🎉", "🎊", "✅", "❌", "⚡", "☕", "🍀", "💡",
 ] as const;
 
 function roomTypeLabel(t: TranslateFn, room: ChatRoomResponse) {
@@ -261,18 +274,6 @@ function messageTime(value: string) {
   }).format(date);
 }
 
-function compactDateTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-    day: "numeric",
-  }).format(date);
-}
-
 function initialOf(name: string) {
   return name.trim().slice(0, 1).toUpperCase() || "B";
 }
@@ -299,28 +300,13 @@ function parseBubliCommand(t: TranslateFn, text: string): AgentCommandDraft | nu
   return { message, mode };
 }
 
-function preferredRoomId(rooms: ChatRoomResponse[], roomId: string | null, mode: string | null) {
-  if (roomId) {
-    return rooms.find((room) => room.roomId === roomId)?.id ?? null;
-  }
-
-  if (mode === "direct") {
-    return rooms.find((room) => room.chatType === "DIRECT")?.id ?? null;
-  }
-
-  if (mode === "room") {
-    return rooms.find((room) => room.chatType === "ROOM")?.id ?? null;
-  }
-
-  return rooms[0]?.id ?? null;
-}
-
 // 소통 탭 내에서의 다른 페이지(설정, 자료보드 등)로 이동 후 돌아올 때 voice 상태를 유지.
 // 모듈 변수는 클라이언트 측 내비게이션 사이에서 살아남지만 하드 새로고침 시 초기화됨.
 let _voiceCache: { expanded: boolean; state: VoiceState } | null = null;
 
 function ChatPageContent() {
   const { t } = useI18n();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const queryRoomId = searchParams.get("roomId");
   const queryMode = searchParams.get("mode");
@@ -338,28 +324,31 @@ function ChatPageContent() {
   const [voiceExpanded, setVoiceExpanded] = useState(() => _voiceCache?.expanded ?? false);
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
-  const [voiceTokenInfo, setVoiceTokenInfo] = useState<VoiceTokenInfo | null>(null);
   const [roomInviteState, setRoomInviteState] = useState<RoomInviteState>({ kind: "idle" });
   const [chatRoomInviteState, setChatRoomInviteState] = useState<ChatRoomInviteState>({ kind: "idle" });
   const [roomInvitationsState, setRoomInvitationsState] = useState<RoomInvitationsState>({ kind: "idle" });
+  const [inviteLinkState, setInviteLinkState] = useState<InviteLinkState>({ kind: "idle" });
   const [busyFriendUserId, setBusyFriendUserId] = useState<string | null>(null);
+  const [busyFriendRequestId, setBusyFriendRequestId] = useState<string | null>(null);
+  // 친구 삭제는 결과를 먼저 알리고 삭제/유지로 확인받는 2단계 확인(프로젝트룸 설정 패널과 동일 패턴).
+  const [pendingDeleteFriendUserId, setPendingDeleteFriendUserId] = useState<string | null>(null);
   const [busyInvitationId, setBusyInvitationId] = useState<string | null>(null);
   const [composerActive, setComposerActive] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState<File | null>(null);
   const [downloadingResourceId, setDownloadingResourceId] = useState<string | null>(null);
   const [emoticonOpen, setEmoticonOpen] = useState(false);
-  const [friendAddOpen, setFriendAddOpen] = useState(false);
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [newRoomPickerOpen, setNewRoomPickerOpen] = useState(false);
   const [groupRoomName, setGroupRoomName] = useState("");
   const [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [agentCommandNotice, setAgentCommandNotice] = useState<string | null>(null);
-  const [roomCreateNotice, setRoomCreateNotice] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement | null>(null);
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null);
   const friendSearchInputRef = useRef<HTMLInputElement | null>(null);
-  const friendListRef = useRef<HTMLDivElement | null>(null);
   const messagesViewportRef = useRef<HTMLDivElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -387,25 +376,51 @@ function ChatPageContent() {
     });
   }, []);
 
+  const roomMode: "direct" | "room" = queryMode === "direct" ? "direct" : "room";
+
+  // 상단바에서 고른 활성 프로젝트룸을 따라간다 — 룸 모드 대화는 이 룸 하나로 한정된다(Jitsi처럼 방에 들어가야 보이는 구조).
+  const [activeRoomInfo, setActiveRoomInfo] = useState<{ id: string | null; label: string | null }>(() => ({
+    id: getActiveProjectRoomId(),
+    label: getActiveProjectRoomLabel(),
+  }));
+
+  useEffect(() => {
+    const syncActiveRoom = (event: Event) => {
+      const detail = event instanceof CustomEvent ? (event.detail as { roomId?: string | null; roomLabel?: string | null } | null) : null;
+      setActiveRoomInfo({
+        id: detail?.roomId ?? getActiveProjectRoomId(),
+        label: detail?.roomLabel ?? getActiveProjectRoomLabel(),
+      });
+    };
+
+    window.addEventListener(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, syncActiveRoom);
+    return () => window.removeEventListener(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, syncActiveRoom);
+  }, []);
+
+  // ?roomId= 가 있으면 그 룸, 없으면 상단바 활성 룸 — 룸 모드에서 열리는 유일한 대화 기준.
+  const scopedProjectRoomId = queryRoomId ?? activeRoomInfo.id;
+
+  const directRooms = useMemo(
+    () => (roomsState.kind === "ready" ? roomsState.rooms.filter((room) => room.chatType === "DIRECT" || room.chatType === "GROUP") : []),
+    [roomsState],
+  );
+
+  const scopedRoomChat = useMemo(() => {
+    if (roomsState.kind !== "ready" || !scopedProjectRoomId) return null;
+    return roomsState.rooms.find((room) => room.chatType === "ROOM" && room.roomId === scopedProjectRoomId) ?? null;
+  }, [roomsState, scopedProjectRoomId]);
+
   const activeChatRoomId = useMemo(() => {
     if (roomsState.kind !== "ready") return null;
-    if (selectedChatRoomId) return selectedChatRoomId;
-    if (queryRoomId) return preferredRoomId(roomsState.rooms, queryRoomId, queryMode);
-    return preferredRoomId(roomsState.rooms, queryRoomId, queryMode);
-  }, [queryMode, queryRoomId, roomsState, selectedChatRoomId]);
+    if (roomMode === "room") return scopedRoomChat?.id ?? null;
+    if (selectedChatRoomId && directRooms.some((room) => room.id === selectedChatRoomId)) return selectedChatRoomId;
+    return directRooms[0]?.id ?? null;
+  }, [directRooms, roomMode, roomsState.kind, scopedRoomChat, selectedChatRoomId]);
 
   const selectedRoom = useMemo(() => {
     if (roomsState.kind !== "ready") return null;
     return roomsState.rooms.find((room) => room.id === activeChatRoomId) ?? null;
   }, [activeChatRoomId, roomsState]);
-  const isProjectRoomScoped = Boolean(queryRoomId);
-  const isProjectRoomMode = queryMode !== "direct";
-  const roomMode = selectedRoom?.chatType === "DIRECT" || selectedRoom?.chatType === "GROUP" || queryMode === "direct" ? "direct" : "room";
-  const visibleRooms = useMemo(() => {
-    if (roomsState.kind !== "ready") return [];
-    if (roomMode === "direct") return roomsState.rooms.filter((room) => room.chatType === "DIRECT" || room.chatType === "GROUP");
-    return roomsState.rooms.filter((room) => room.chatType === "ROOM");
-  }, [roomMode, roomsState]);
   const pendingFriendRequests = useMemo(
     () => (socialState.kind === "ready" ? socialState.requests.filter((request) => request.status === "PENDING") : []),
     [socialState],
@@ -418,20 +433,17 @@ function ChatPageContent() {
     () => pendingFriendRequests.filter((request) => request.direction === "SENT"),
     [pendingFriendRequests],
   );
-  const roomConversationCount = roomsState.kind === "ready" ? roomsState.rooms.filter((room) => room.chatType === "ROOM").length : 0;
   const directConversationCount = roomsState.kind === "ready" ? roomsState.rooms.filter((room) => room.chatType === "DIRECT").length : 0;
   const friendCount = socialState.kind === "ready" ? socialState.friends.length : directConversationCount;
   const pendingFriendRequestCount = pendingFriendRequests.length;
   const selectedGroupFriendCount = selectedGroupMemberIds.length;
   const currentUser = profileState.kind === "ready" ? profileState.user : null;
   const myBubliId = currentUser?.bubliId ?? "";
-  const activeProjectRoomId = queryRoomId ?? getActiveProjectRoomId();
-  const selectedProjectRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : activeProjectRoomId;
+  const selectedProjectRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : scopedProjectRoomId;
   const selectedAgentRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : null;
   const selectedProjectRoomName =
-    selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? getActiveProjectRoomLabel() ?? t("chat.room.fallbackName") : getActiveProjectRoomLabel();
+    selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? activeRoomInfo.label ?? t("chat.room.fallbackName") : activeRoomInfo.label;
   const pendingAgentCommand = useMemo(() => parseBubliCommand(t, draft), [draft, t]);
-  const inviteTargetLabel = selectedProjectRoomId ? selectedProjectRoomName ?? t("chat.label.currentRoom") : t("chat.label.selectRoomNeeded");
   const pendingRoomInvitations = roomInvitationsState.kind === "ready" ? roomInvitationsState.invitations.filter((invitation) => invitation.status === "PENDING") : [];
   // 보이스는 프로젝트룸 전용이며 룸별로 독립 — 다른 프로젝트룸이나 1:1/그룹 뷰에서는 null
   const activeVoiceRoom =
@@ -455,6 +467,10 @@ function ChatPageContent() {
 
     return [];
   }, [voiceState, t]);
+  const joinedVoiceParticipants = useMemo(
+    () => (activeVoiceRoom ? voiceParticipants.filter((participant) => participant.status === "JOINED") : []),
+    [activeVoiceRoom, voiceParticipants],
+  );
 
   const loadRooms = useCallback(async () => {
     setRoomsState({ kind: "loading" });
@@ -469,9 +485,10 @@ function ChatPageContent() {
       }
       if (shouldUseWorkspacePreviewData()) {
         const storedRoomId = getActiveProjectRoomId();
+        const previewRoomId = queryRoomId ?? storedRoomId;
         setRoomsState({
           kind: "ready",
-          rooms: workspacePreviewChatRoomsFor(queryRoomId, storedRoomId === queryRoomId ? getActiveProjectRoomLabel() : null),
+          rooms: workspacePreviewChatRoomsFor(previewRoomId, previewRoomId === storedRoomId ? getActiveProjectRoomLabel() : null),
         });
         return;
       }
@@ -484,9 +501,15 @@ function ChatPageContent() {
 
     try {
       const page = await chatApi.getMessages(chatRoomId, { size: 40 });
-      const messages = [...page.items].sort((a, b) => a.roomSequence - b.roomSequence);
-      void syncCachedRoomMessages(chatRoomId, messages, 0);
-      setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, messages) });
+      const sortedMessages = [...page.items].sort((a, b) => a.roomSequence - b.roomSequence);
+      void syncCachedRoomMessages(chatRoomId, sortedMessages, 0);
+      setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, sortedMessages) });
+      const lastReadSequence = sortedMessages.at(-1)?.roomSequence;
+      if (lastReadSequence !== undefined) {
+        void chatApi.markRead(chatRoomId, lastReadSequence).catch(() => {
+          // 읽음 처리 실패는 조용히 무시 (다음 로드에서 재시도)
+        });
+      }
     } catch {
       if (shouldUseWorkspacePreviewData()) {
         setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, workspacePreviewChatMessages(chatRoomId)) });
@@ -573,15 +596,29 @@ function ChatPageContent() {
     return () => window.clearTimeout(timeoutId);
   }, [loadSocial]);
 
+  // 룸 모드 자동 진입: 활성 프로젝트룸의 채팅방이 없으면 만들어서 바로 연다.
   useEffect(() => {
-    if (roomsState.kind !== "ready" || !queryRoomId) return;
-    const hasChat = roomsState.rooms.some((r) => r.chatType === "ROOM" && r.roomId === queryRoomId);
+    if (roomMode !== "room" || roomsState.kind !== "ready" || !scopedProjectRoomId) return;
+    const hasChat = roomsState.rooms.some((room) => room.chatType === "ROOM" && room.roomId === scopedProjectRoomId);
     if (hasChat) return;
-    void chatApi.createProjectRoomChatRoom({ roomId: queryRoomId }).then((room) => {
-      setRoomsState({ kind: "ready", rooms: [room, ...roomsState.rooms.filter((r) => r.id !== room.id)] });
-      setSelectedChatRoomId(room.id);
-    });
-  }, [roomsState, queryRoomId]);
+    void chatApi
+      .createProjectRoomChatRoom({ roomId: scopedProjectRoomId })
+      .then((room) => {
+        setRoomsState((current) =>
+          current.kind === "ready" ? { kind: "ready", rooms: [room, ...current.rooms.filter((item) => item.id !== room.id)] } : current,
+        );
+      })
+      .catch(() => {
+        if (shouldUseWorkspacePreviewData()) {
+          setRoomsState((current) =>
+            current.kind === "ready"
+              ? { kind: "ready", rooms: workspacePreviewChatRoomsFor(scopedProjectRoomId, activeRoomInfo.label) }
+              : current,
+          );
+        }
+        // 생성 실패 시 빈 상태 유지 — 룸 목록 폴링에서 다시 시도한다.
+      });
+  }, [activeRoomInfo.label, roomMode, roomsState, scopedProjectRoomId]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -607,6 +644,23 @@ function ChatPageContent() {
   useEffect(() => {
     _voiceCache = { expanded: voiceExpanded, state: voiceState };
   }, [voiceState, voiceExpanded]);
+
+  // 열린 보이스룸의 참여자 상태를 주기적으로 갱신 (다른 멤버의 참여/퇴장 반영)
+  const openVoiceRoomDbId = voiceState.kind === "ready" && voiceState.room.status === "OPEN" ? voiceState.room.id : null;
+  useEffect(() => {
+    if (!openVoiceRoomDbId) return;
+
+    const interval = window.setInterval(() => {
+      void voiceApi
+        .getRoom(openVoiceRoomDbId)
+        .then((room) => setVoiceState({ kind: "ready", room }))
+        .catch(() => {
+          // 폴링 실패는 조용히 무시 (다음 주기에 재시도)
+        });
+    }, 12000);
+
+    return () => window.clearInterval(interval);
+  }, [openVoiceRoomDbId]);
 
   // 소셜/채팅룸/초대 상태 백그라운드 폴링 (친구 요청·초대 수락이 자동 반영)
   useEffect(() => {
@@ -673,26 +727,6 @@ function ChatPageContent() {
   }, [isInVoice, voiceMicMuted]);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setSelectedChatRoomId(null);
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [queryMode, queryRoomId]);
-
-  useEffect(() => {
-    if (queryMode === "direct" || roomsState.kind !== "ready") return;
-    if (selectedChatRoomId !== null) return;
-    const voiceRoomId = voiceState.kind === "ready" ? voiceState.room.roomId : null;
-    const roomChats = roomsState.rooms.filter((r) => r.chatType === "ROOM");
-    const voiceMatch = voiceRoomId ? roomChats.find((r) => r.roomId === voiceRoomId) : null;
-    const best = voiceMatch ?? roomChats[0] ?? null;
-    if (!best) return;
-    const id = window.setTimeout(() => { setSelectedChatRoomId(best.id); }, 0);
-    return () => window.clearTimeout(id);
-  }, [queryMode, roomsState, selectedChatRoomId, voiceState]);
-
-  useEffect(() => {
     if (!activeChatRoomId) return;
 
     const timeoutId = window.setTimeout(() => {
@@ -716,68 +750,34 @@ function ChatPageContent() {
 
   function selectChatRoom(room: ChatRoomResponse) {
     setSelectedChatRoomId(room.id);
-    if (room.chatType === "ROOM" && room.roomId) {
-      setActiveProjectRoomId(room.roomId, room.name?.replace(/\s*대화$/, "") ?? t("chat.room.fallbackName"));
-    }
   }
 
   const openDirectRoom = useCallback(
     async (friend: FriendResponse) => {
       if (roomsState.kind !== "ready") return;
 
-      const existingRoom = roomsState.rooms.find((room) => room.chatType === "DIRECT" && room.name?.includes(friend.name));
-
-      if (existingRoom) {
-        selectChatRoom(existingRoom);
-        return;
-      }
-
+      // 백엔드가 1:1 방을 get-or-create로 중복 없이 돌려주므로 항상 API를 부른다.
+      // (이름 부분일치로 기존 방을 찾던 빠른 경로는 엉뚱한 방을 열 수 있어 제거)
       try {
         const room = await chatApi.getOrCreateDirectRoom({ targetUserId: friend.friendUserId });
         setRoomsState({ kind: "ready", rooms: [room, ...roomsState.rooms.filter((item) => item.id !== room.id)] });
         setSelectedChatRoomId(room.id);
         setNewRoomPickerOpen(false);
+        if (roomMode !== "direct") router.push("/app/chat?mode=direct");
       } catch {
+        // 서버 미연결(프리뷰) 시 이름이 정확히 일치하는 기존 1:1 방이 있으면 그 방을 연다.
+        const fallbackRoom = roomsState.rooms.find((room) => room.chatType === "DIRECT" && room.name === friend.name);
+        if (fallbackRoom) {
+          setSelectedChatRoomId(fallbackRoom.id);
+          setNewRoomPickerOpen(false);
+          if (roomMode !== "direct") router.push("/app/chat?mode=direct");
+          return;
+        }
         setSocialState({ kind: "offline" });
       }
     },
-    [roomsState],
+    [roomMode, roomsState, router],
   );
-
-  const createProjectChatRoom = useCallback(async () => {
-    if (roomsState.kind !== "ready") return;
-
-    if (!selectedProjectRoomId) {
-      setRoomCreateNotice(t("chat.notice.selectRoomFirst"));
-      setNewRoomPickerOpen(false);
-      return;
-    }
-
-    setSending(true);
-    setRoomCreateNotice(null);
-
-    try {
-      const room = await chatApi.createProjectRoomChatRoom({ roomId: selectedProjectRoomId });
-      setRoomsState({ kind: "ready", rooms: [room, ...roomsState.rooms.filter((item) => item.id !== room.id)] });
-      setSelectedChatRoomId(room.id);
-      setNewRoomPickerOpen(false);
-      if (room.roomId) setActiveProjectRoomId(room.roomId, room.name?.replace(/\s*대화$/, "") ?? selectedProjectRoomName ?? t("chat.room.fallbackName"));
-      setRoomCreateNotice(t("chat.notice.roomChatCreated"));
-    } catch {
-      if (shouldUseWorkspacePreviewData()) {
-        const previewRooms = workspacePreviewChatRoomsFor(selectedProjectRoomId, selectedProjectRoomName);
-        const room = previewRooms.find((item) => item.roomId === selectedProjectRoomId);
-        setRoomsState({ kind: "ready", rooms: previewRooms });
-        if (room) setSelectedChatRoomId(room.id);
-        setNewRoomPickerOpen(false);
-        setRoomCreateNotice(t("chat.notice.roomChatCreated"));
-        return;
-      }
-      setRoomCreateNotice(t("chat.notice.roomChatFailed"));
-    } finally {
-      setSending(false);
-    }
-  }, [roomsState, selectedProjectRoomId, selectedProjectRoomName, t]);
 
   const toggleGroupMember = useCallback((friendUserId: string) => {
     setSelectedGroupMemberIds((current) =>
@@ -811,15 +811,17 @@ function ChatPageContent() {
       setNewRoomPickerOpen(false);
       setGroupRoomName("");
       setSelectedGroupMemberIds([]);
+      if (roomMode !== "direct") router.push("/app/chat?mode=direct");
     } catch {
       setChatRoomInviteState({ kind: "blocked", message: t("chat.notice.groupCreateFailed") });
     } finally {
       setSending(false);
     }
-  }, [groupRoomName, roomsState, selectedGroupMemberIds, socialState, t]);
+  }, [groupRoomName, roomMode, roomsState, router, selectedGroupMemberIds, socialState, t]);
 
   const inviteFriendToChatRoom = useCallback(
     async (friend: FriendResponse) => {
+      if (chatRoomInviteState.kind === "sending") return;
       if (!selectedRoom || selectedRoom.chatType !== "GROUP") {
         setChatRoomInviteState({ kind: "blocked", message: t("chat.notice.chatInviteOnlyGroup") });
         return;
@@ -839,7 +841,7 @@ function ChatPageContent() {
         setChatRoomInviteState({ kind: "blocked", message: t("chat.notice.chatInviteFailed") });
       }
     },
-    [selectedRoom, t],
+    [chatRoomInviteState.kind, selectedRoom, t],
   );
 
   const deleteFriend = useCallback(
@@ -854,6 +856,7 @@ function ChatPageContent() {
         setSocialState({ kind: "offline" });
       } finally {
         setBusyFriendUserId(null);
+        setPendingDeleteFriendUserId(null);
       }
     },
     [busyFriendUserId, loadSocial, socialState],
@@ -861,6 +864,7 @@ function ChatPageContent() {
 
   const inviteFriendToRoom = useCallback(
     async (friend: FriendResponse) => {
+      if (roomInviteState.kind === "sending") return;
       if (!selectedProjectRoomId) {
         setRoomInviteState({ kind: "blocked", message: t("chat.notice.roomInviteOnlyRoom") });
         return;
@@ -879,8 +883,31 @@ function ChatPageContent() {
         setRoomInviteState({ kind: "blocked", message: t("chat.notice.roomInviteFailed") });
       }
     },
-    [loadRoomInvitations, selectedProjectRoomId, t],
+    [loadRoomInvitations, roomInviteState.kind, selectedProjectRoomId, t],
   );
+
+  const createRoomInviteLink = useCallback(async () => {
+    if (!selectedProjectRoomId || inviteLinkState.kind === "creating") return;
+    const roomId = selectedProjectRoomId;
+
+    setInviteLinkState({ kind: "creating", roomId });
+
+    try {
+      // 만료 시간을 명시해 백엔드 계약(expiresInHours)을 그대로 따른다 — 설정 패널과 동일.
+      const link = await projectRoomApi.createInviteLink(roomId, { expiresInHours: 72 });
+      const url = `${window.location.origin}/app/invite/${link.token}`;
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(url);
+        copied = true;
+      } catch {
+        copied = false;
+      }
+      setInviteLinkState({ copied, kind: "ready", roomId, url });
+    } catch {
+      setInviteLinkState({ kind: "error", message: t("chat.invite.linkFailed"), roomId });
+    }
+  }, [inviteLinkState.kind, selectedProjectRoomId, t]);
 
   const cancelRoomInvitation = useCallback(
     async (invitation: ProjectRoomInvitationResponse) => {
@@ -901,8 +928,10 @@ function ChatPageContent() {
 
   const respondFriendRequest = useCallback(
     async (request: FriendRequestResponse, action: "accept" | "reject") => {
-      if (socialState.kind !== "ready") return;
+      // 이중 클릭 시 같은 요청에 PATCH가 중복 전송되지 않도록 진행 중 가드를 둔다.
+      if (socialState.kind !== "ready" || busyFriendRequestId) return;
 
+      setBusyFriendRequestId(request.id);
       try {
         if (action === "accept") {
           await friendApi.acceptRequest(request.id);
@@ -912,9 +941,11 @@ function ChatPageContent() {
         await loadSocial();
       } catch {
         setSocialState({ kind: "offline" });
+      } finally {
+        setBusyFriendRequestId(null);
       }
     },
-    [loadSocial, socialState],
+    [busyFriendRequestId, loadSocial, socialState],
   );
 
   const copyMyBubliId = useCallback(async () => {
@@ -973,31 +1004,43 @@ function ChatPageContent() {
     setVoiceAction(null);
     setVoiceMicMuted(false);
     setVoiceNotice(null);
-    setVoiceTokenInfo(null);
 
     try {
       const room = await voiceApi.createRoom({ roomId: voiceRoomId });
       setVoiceState({ kind: "ready", room });
       setVoiceExpanded(true);
-      setVoiceNotice(t("chat.notice.voiceOpened"));
+
+      // 개설자는 곧바로 참여 처리 — 참여 토큰은 내부에서만 발급/사용하고 화면에 노출하지 않는다.
+      try {
+        await voiceApi.getToken(room.id);
+        const refreshed = await voiceApi.getRoom(room.id);
+        setVoiceState({ kind: "ready", room: refreshed });
+      } catch {
+        // 자동 참여 실패 시 룸은 열린 상태 유지 — "보이스 참여" 버튼으로 재시도 가능
+      }
     } catch {
       setVoiceState({ kind: "blocked", message: t("chat.notice.voiceStartFailed") });
     }
   }, [selectedRoom, t]);
 
-  const requestVoiceToken = useCallback(async () => {
+  // 보이스 참여: 참여 토큰 발급은 join 흐름 내부에서 자동 수행하고 토큰 자체는 사용자에게 보여주지 않는다.
+  const joinVoice = useCallback(async () => {
     if (!activeVoiceRoom || voiceAction) return;
 
-    setVoiceAction("token");
+    setVoiceAction("join");
     try {
-      const token = await voiceApi.getToken(activeVoiceRoom.id);
-      setVoiceTokenInfo({
-        expiresAt: token.expiresAt,
-        serverUrl: token.serverUrl,
-      });
-      setVoiceNotice(t("chat.notice.tokenReceived"));
-    } catch {
-      setVoiceNotice(t("chat.notice.tokenFailed"));
+      await voiceApi.getToken(activeVoiceRoom.id);
+      const room = await voiceApi.getRoom(activeVoiceRoom.id);
+      setVoiceState({ kind: "ready", room });
+      setVoiceMicMuted(false);
+      setVoiceExpanded(true);
+      setVoiceNotice(null);
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 403) {
+        setVoiceNotice(t("chat.notice.voiceJoinDenied"));
+      } else {
+        setVoiceNotice(t("chat.notice.voiceJoinFailed"));
+      }
     } finally {
       setVoiceAction(null);
     }
@@ -1026,7 +1069,7 @@ function ChatPageContent() {
           },
         };
       });
-      setVoiceNotice(nextMuted ? t("chat.notice.micOff") : t("chat.notice.micOn"));
+      setVoiceNotice(null);
     } catch {
       setVoiceNotice(t("chat.notice.micFailed"));
     } finally {
@@ -1041,7 +1084,7 @@ function ChatPageContent() {
     try {
       const room = await voiceApi.leave(activeVoiceRoom.id);
       setVoiceState({ kind: "ready", room });
-      setVoiceNotice(t("chat.notice.voiceLeft"));
+      setVoiceNotice(null);
       setVoiceExpanded(false);
     } catch {
       setVoiceNotice(t("chat.notice.voiceLeaveFailed"));
@@ -1057,7 +1100,7 @@ function ChatPageContent() {
     try {
       const room = await voiceApi.end(activeVoiceRoom.id);
       setVoiceState({ kind: "ready", room });
-      setVoiceNotice(t("chat.notice.voiceEnded"));
+      setVoiceNotice(null);
       setVoiceExpanded(false);
     } catch {
       setVoiceNotice(t("chat.notice.voiceEndFailed"));
@@ -1065,6 +1108,47 @@ function ChatPageContent() {
       setVoiceAction(null);
     }
   }, [activeVoiceRoom, voiceAction, t]);
+
+  // 이모지 피커: Escape 또는 바깥 클릭으로 닫기
+  useEffect(() => {
+    if (!emoticonOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (emojiPickerRef.current?.contains(target) || emojiButtonRef.current?.contains(target)) return;
+      setEmoticonOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setEmoticonOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [emoticonOpen]);
+
+  // 선택한 이모지를 입력창 커서 위치에 삽입
+  const insertEmoji = useCallback((emoji: string) => {
+    setComposerActive(true);
+    const input = composerInputRef.current;
+
+    if (!input) {
+      setDraft((current) => `${current}${emoji}`);
+      return;
+    }
+
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? start;
+    setDraft((current) => `${current.slice(0, start)}${emoji}${current.slice(end)}`);
+    window.requestAnimationFrame(() => {
+      input.focus();
+      const caret = start + emoji.length;
+      input.setSelectionRange(caret, caret);
+    });
+  }, []);
 
   const sendMessage = useCallback(async () => {
     const text = draft.trim();
@@ -1145,6 +1229,9 @@ function ChatPageContent() {
         ? { attachmentName: selectedAttachment.name, text: text || selectedAttachment.name }
         : { text };
 
+      // TODO(widget): 이모지 전송 시 데스크톱 오버레이 이벤트 발행 지점.
+      // 추후 Tauri 위젯 레이어가 붙으면, text에 포함된 이모지를 감지해
+      // 데스크톱 위로 떠오르는 오버레이(스트리밍 오버레이 스타일) 이벤트를 여기서 emit한다.
       const response = await chatApi.sendMessage(activeChatRoomId, {
         body: messageBody,
         clientMessageId: crypto.randomUUID(),
@@ -1213,41 +1300,6 @@ function ChatPageContent() {
         </GlassPanel>
       ) : null}
 
-      {roomsState.kind === "ready" && roomsState.rooms.length === 0 ? (
-        <GlassPanel className="workspace-route__panel">
-          <strong>{t("chat.panel.emptyTitle")}</strong>
-          <Link className="bubli-button bubli-button--primary" href="/app/project-rooms">
-            {t("chat.panel.viewProjectRooms")}
-          </Link>
-        </GlassPanel>
-      ) : null}
-
-      {roomsState.kind === "ready" && roomsState.rooms.length > 0 ? (
-        <section className="workspace-route__chat-overview" aria-label={t("chat.overview.aria")}>
-          <article>
-            <MessageCircle size={17} strokeWidth={2} aria-hidden="true" />
-            <div>
-              <strong>{t("chat.overview.roomChats")}</strong>
-              <span>{t("chat.overview.roomCount", { count: roomConversationCount })}</span>
-            </div>
-          </article>
-          <article>
-            <UsersRound size={17} strokeWidth={2} aria-hidden="true" />
-            <div>
-              <strong>{t("chat.overview.direct")}</strong>
-              <span>{t("chat.overview.directSummary", { count: friendCount, requests: pendingFriendRequestCount })}</span>
-            </div>
-          </article>
-          <article>
-            <Phone size={17} strokeWidth={2} aria-hidden="true" />
-            <div>
-              <strong>{t("chat.overview.voice")}</strong>
-              <span>{selectedRoom?.chatType === "ROOM" ? t("chat.overview.voiceFromRoom") : t("chat.overview.voicePriority")}</span>
-            </div>
-          </article>
-        </section>
-      ) : null}
-
       <div className="workspace-route__chat-toolbar">
         <nav className="workspace-route__chat-mode-tabs" aria-label={t("chat.tabs.aria")}>
           <Link className={queryMode !== "direct" ? "is-active" : ""} href={queryRoomId ? `/app/chat?roomId=${queryRoomId}&mode=room` : "/app/chat?mode=room"}>
@@ -1260,19 +1312,18 @@ function ChatPageContent() {
 
         {roomsState.kind === "ready" ? (
           <div className="workspace-route__chat-quick-actions" aria-label={t("chat.quick.aria")}>
-            {!isProjectRoomMode ? (
+            {roomMode === "direct" ? (
               <button
                 className="workspace-route__quick-button"
-                onClick={() => { setRoomCreateNotice(null); setNewRoomPickerOpen((open) => !open); }}
+                onClick={() => setNewRoomPickerOpen((open) => !open)}
                 type="button"
               >
                 {t("chat.quick.create")}
               </button>
             ) : null}
-            {roomCreateNotice ? <span className="workspace-route__pending">{roomCreateNotice}</span> : null}
             <button
               className="workspace-route__quick-button"
-              onClick={() => { setFriendsOpen(true); setFriendAddOpen(false); }}
+              onClick={() => setFriendsOpen(true)}
               type="button"
             >
               <UsersRound aria-hidden size={15} strokeWidth={2} />
@@ -1282,45 +1333,55 @@ function ChatPageContent() {
         ) : null}
       </div>
 
-      {roomsState.kind === "ready" ? (
-        <div className="workspace-route__chat">
-          <aside className="workspace-route__section workspace-route__chat-list" aria-label={t("chat.list.aria")}>
-            <div className="workspace-route__chat-list-head">
-              <strong>{roomMode === "direct" ? t("chat.list.friendChats") : isProjectRoomScoped ? t("chat.list.currentRoomChats") : t("chat.list.roomChats")}</strong>
-              <span>{visibleRooms.length}</span>
-            </div>
-            {visibleRooms.map((room) => {
-              const selected = room.id === activeChatRoomId;
+      {roomsState.kind === "ready" && roomMode === "room" && !scopedProjectRoomId ? (
+        <GlassPanel className="workspace-route__panel workspace-route__chat-scope-empty">
+          <strong>{t("chat.roomScope.emptyTitle")}</strong>
+          <span>{t("chat.roomScope.emptyBody")}</span>
+          <button
+            className="bubli-button bubli-button--primary"
+            onClick={() => window.dispatchEvent(new CustomEvent("bubli:open-project-room-switcher"))}
+            type="button"
+          >
+            {t("chat.roomScope.pickRoom")}
+          </button>
+        </GlassPanel>
+      ) : null}
 
-              return (
-                <button
-                  aria-pressed={selected}
-                  className={`workspace-route__row workspace-route__chat-room${selected ? " workspace-route__chat-room--active" : ""}`}
-                  key={room.id}
-                  onClick={() => selectChatRoom(room)}
-                  type="button"
-                >
-                  <span className="workspace-route__dot" aria-hidden="true" />
-                  <span className="workspace-route__main">
-                    <strong>{room.name ?? roomTypeLabel(t, room)}</strong>
-                    <span>{updatedLabel(t, room)}</span>
-                  </span>
-                  <span className="workspace-route__meta">{roomTypeLabel(t, room)}</span>
-                </button>
-              );
-            })}
-            {visibleRooms.length === 0 ? (
-              <span className="workspace-route__empty">{roomMode === "direct" ? t("chat.list.emptyDirect") : t("chat.list.emptyRoom")}</span>
-            ) : null}
-          </aside>
+      {roomsState.kind === "ready" && (roomMode === "direct" || scopedProjectRoomId) ? (
+        <div className={`workspace-route__chat${roomMode === "room" ? " workspace-route__chat--room-scope" : ""}`}>
+          {roomMode === "direct" ? (
+            <aside className="workspace-route__section workspace-route__chat-list" aria-label={t("chat.list.aria")}>
+              {directRooms.map((room) => {
+                const selected = room.id === activeChatRoomId;
+
+                return (
+                  <button
+                    aria-pressed={selected}
+                    className={`workspace-route__row workspace-route__chat-room${selected ? " workspace-route__chat-room--active" : ""}`}
+                    key={room.id}
+                    onClick={() => selectChatRoom(room)}
+                    type="button"
+                  >
+                    <span className="workspace-route__main">
+                      <strong>{room.name ?? roomTypeLabel(t, room)}</strong>
+                      <span>{updatedLabel(t, room)}</span>
+                    </span>
+                    <span className="workspace-route__meta">{roomTypeLabel(t, room)}</span>
+                  </button>
+                );
+              })}
+              {directRooms.length === 0 ? (
+                <span className="workspace-route__empty">{t("chat.list.emptyDirect")}</span>
+              ) : null}
+            </aside>
+          ) : null}
 
           <GlassPanel className="workspace-route__section workspace-route__thread">
             <div className="workspace-route__section-head">
               <div>
-                <strong>{selectedRoom?.name ?? t("chat.thread.defaultName")}</strong>
-                {selectedRoom ? (
-                  <span>{selectedRoom.chatType === "ROOM" ? t("chat.thread.roomDesc") : selectedRoom.chatType === "GROUP" ? t("chat.thread.groupDesc") : t("chat.thread.directDesc")}</span>
-                ) : null}
+                <strong>
+                  {selectedRoom?.name ?? (roomMode === "room" ? selectedProjectRoomName ?? t("chat.thread.defaultName") : t("chat.thread.defaultName"))}
+                </strong>
               </div>
               <div className="workspace-route__thread-actions">
                 {selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? (
@@ -1328,14 +1389,11 @@ function ChatPageContent() {
                     {t("chat.thread.projectRoom")}
                   </Link>
                 ) : null}
-                {selectedRoom ? (
+                {selectedRoom && !activeVoiceRoom ? (
                   <Button
-                    aria-hidden={activeVoiceRoom ? "true" : undefined}
-                    disabled={voiceState.kind === "starting" || !!activeVoiceRoom}
+                    disabled={voiceState.kind === "starting"}
                     loading={voiceState.kind === "starting"}
                     onClick={() => void startVoice()}
-                    style={{ visibility: activeVoiceRoom ? "hidden" : "visible" }}
-                    tabIndex={activeVoiceRoom ? -1 : undefined}
                     type="button"
                     variant="quiet"
                   >
@@ -1344,58 +1402,59 @@ function ChatPageContent() {
                 ) : null}
               </div>
             </div>
-            {selectedRoom ? (
+            {selectedRoom && activeVoiceRoom ? (
               <div className="workspace-route__voice-bar">
                 <div className="workspace-route__voice-row">
                   <button
-                    aria-expanded={activeVoiceRoom ? voiceExpanded : undefined}
-                    className={`workspace-route__voice-status${activeVoiceRoom ? " workspace-route__voice-status--open workspace-route__voice-status--clickable" : ""}`}
-                    disabled={!activeVoiceRoom}
-                    onClick={() => { if (activeVoiceRoom) setVoiceExpanded((v) => !v); }}
+                    aria-expanded={voiceExpanded}
+                    className="workspace-route__voice-status workspace-route__voice-status--open workspace-route__voice-status--clickable"
+                    onClick={() => setVoiceExpanded((v) => !v)}
                     type="button"
                   >
                     <Phone size={15} strokeWidth={2} aria-hidden="true" />
-                    <span>{activeVoiceRoom ? t("chat.voice.open") : t("chat.voice.waiting")}</span>
-                    {voiceParticipants.filter((p) => p.status === "JOINED").length > 0 ? (
-                      <span className="workspace-route__voice-stack" aria-label={t("chat.voice.participantsAria", { count: voiceParticipants.length })}>
-                        {voiceParticipants.filter((p) => p.status === "JOINED").slice(0, 3).map((participant) => (
-                          <i data-status="joined" key={participant.userId}>
-                            {initialOf(participant.userName)}
-                          </i>
-                        ))}
-                      </span>
-                    ) : null}
+                    <span>
+                      {joinedVoiceParticipants.length > 0
+                        ? t("chat.voice.live", { count: joinedVoiceParticipants.length })
+                        : t("chat.voice.open")}
+                    </span>
                   </button>
-                  {activeVoiceRoom ? (
-                    <div className="workspace-route__voice-pills">
-                      <button className="workspace-route__voice-pill" data-voice-pill="0" disabled={voiceAction === "token"} onClick={() => void requestVoiceToken()} type="button">
-                        <KeyRound aria-hidden size={13} strokeWidth={2} />
-                        {voiceAction === "token" ? t("chat.voiceCard.receiving") : t("chat.voiceCard.joinToken")}
+                  <div className="workspace-route__voice-pills">
+                    {!isInVoice ? (
+                      <button className="workspace-route__voice-pill" data-voice-pill="0" disabled={voiceAction === "join"} onClick={() => void joinVoice()} type="button">
+                        <Phone aria-hidden size={13} strokeWidth={2} />
+                        {voiceAction === "join" ? t("chat.voice.joining") : t("chat.voice.join")}
                       </button>
-                      {isInVoice ? (
-                        <button className="workspace-route__voice-pill" data-voice-pill="1" disabled={voiceAction === "mic"} onClick={() => void toggleVoiceMic()} type="button">
-                          {voiceMicMuted ? <Mic aria-hidden size={13} strokeWidth={2} /> : <MicOff aria-hidden size={13} strokeWidth={2} />}
-                          {voiceAction === "mic" ? t("chat.voiceCard.changing") : voiceMicMuted ? t("chat.voiceCard.micOn") : t("chat.voiceCard.micOff")}
-                        </button>
-                      ) : null}
-                      {isInVoice ? (
-                        <button className="workspace-route__voice-pill" data-voice-pill="2" disabled={voiceAction === "leave"} onClick={() => void leaveVoice()} type="button">
-                          <LogOut aria-hidden size={13} strokeWidth={2} />
-                          {voiceAction === "leave" ? t("chat.voiceCard.leaving") : t("chat.voiceCard.leave")}
-                        </button>
-                      ) : null}
-                      {isVoiceCreator ? (
-                        <button className="workspace-route__voice-pill workspace-route__voice-pill--end" data-voice-pill="3" disabled={voiceAction === "end"} onClick={() => void endVoice()} type="button">
-                          <Square aria-hidden size={13} strokeWidth={2} />
-                          {voiceAction === "end" ? t("chat.voiceCard.ending") : t("chat.voiceCard.end")}
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
+                    ) : null}
+                    {isInVoice ? (
+                      <button
+                        aria-pressed={voiceMicMuted}
+                        className="workspace-route__voice-pill"
+                        data-voice-pill="1"
+                        disabled={voiceAction === "mic"}
+                        onClick={() => void toggleVoiceMic()}
+                        type="button"
+                      >
+                        {voiceMicMuted ? <Mic aria-hidden size={13} strokeWidth={2} /> : <MicOff aria-hidden size={13} strokeWidth={2} />}
+                        {voiceAction === "mic" ? t("chat.voiceCard.changing") : voiceMicMuted ? t("chat.voiceCard.micOn") : t("chat.voiceCard.micOff")}
+                      </button>
+                    ) : null}
+                    {isInVoice ? (
+                      <button className="workspace-route__voice-pill" data-voice-pill="2" disabled={voiceAction === "leave"} onClick={() => void leaveVoice()} type="button">
+                        <LogOut aria-hidden size={13} strokeWidth={2} />
+                        {voiceAction === "leave" ? t("chat.voiceCard.leaving") : t("chat.voiceCard.leave")}
+                      </button>
+                    ) : null}
+                    {isVoiceCreator ? (
+                      <button className="workspace-route__voice-pill workspace-route__voice-pill--end" data-voice-pill="3" disabled={voiceAction === "end"} onClick={() => void endVoice()} type="button">
+                        <Square aria-hidden size={13} strokeWidth={2} />
+                        {voiceAction === "end" ? t("chat.voiceCard.ending") : t("chat.voiceCard.end")}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-                {activeVoiceRoom && voiceExpanded ? (
+                {voiceExpanded ? (
                   <div className="workspace-route__voice-people workspace-route__voice-people--inline">
-                    {voiceParticipants.filter((p) => p.status === "JOINED").map((participant) => {
+                    {joinedVoiceParticipants.map((participant) => {
                       const isMe = participant.userId === currentUser?.id;
                       return (
                         <div className="workspace-route__voice-person" key={participant.userId}>
@@ -1407,7 +1466,19 @@ function ChatPageContent() {
                           </span>
                           <div>
                             <strong>{participant.userName}</strong>
-                            <small>{participant.micStatus === "MUTED" ? t("chat.voiceCard.micOffState") : t("chat.voiceCard.micOnState")}</small>
+                            {/* 서버 응답에는 참가자별 micStatus가 없다 — 내 상태는 로컬 값으로,
+                                다른 참가자는 근거 없는 마이크 표기 대신 참여 상태를 보여준다. */}
+                            <small>
+                              {isMe
+                                ? voiceMicMuted
+                                  ? t("chat.voiceCard.micOffState")
+                                  : t("chat.voiceCard.micOnState")
+                                : participant.micStatus
+                                  ? participant.micStatus === "MUTED"
+                                    ? t("chat.voiceCard.micOffState")
+                                    : t("chat.voiceCard.micOnState")
+                                  : voiceParticipantStatusLabel(t, participant.status)}
+                            </small>
                           </div>
                         </div>
                       );
@@ -1423,6 +1494,9 @@ function ChatPageContent() {
               <div className="workspace-route__voice-status workspace-route__voice-status--blocked">{voiceState.message}</div>
             ) : null}
 
+            {roomMode === "room" && !selectedRoom ? (
+              <span className="workspace-route__empty">{t("chat.roomScope.opening")}</span>
+            ) : null}
             {messagesState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.messages.loading")}</span> : null}
             {messagesState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.messages.offline")}</span> : null}
             {messagesState.kind === "ready" && messagesState.messages.length === 0 ? (
@@ -1453,9 +1527,6 @@ function ChatPageContent() {
                         <span className="workspace-route__message-tools">
                           <button aria-label={t("chat.messages.copy")} onClick={() => void navigator.clipboard.writeText(text)} type="button">
                             <Copy aria-hidden size={13} strokeWidth={2} />
-                          </button>
-                          <button aria-label={t("chat.messages.more")} type="button">
-                            <MoreHorizontal aria-hidden size={13} strokeWidth={2} />
                           </button>
                         </span>
                       </div>
@@ -1495,22 +1566,6 @@ function ChatPageContent() {
                   <button aria-label={t("chat.composer.attach")} onClick={() => fileInputRef.current?.click()} type="button">
                     <Paperclip aria-hidden size={17} strokeWidth={2} />
                   </button>
-                  {selectedRoom ? (
-                    <button
-                      aria-label={activeVoiceRoom ? t("chat.voice.open") : t("chat.composer.voiceParticipants")}
-                      disabled={voiceState.kind === "starting"}
-                      onClick={() => {
-                        if (activeVoiceRoom) {
-                          setVoiceExpanded((v) => !v);
-                        } else {
-                          void startVoice();
-                        }
-                      }}
-                      type="button"
-                    >
-                      <Phone aria-hidden size={17} strokeWidth={2} />
-                    </button>
-                  ) : null}
                   <input
                     ref={fileInputRef}
                     className="workspace-route__composer-file"
@@ -1521,6 +1576,7 @@ function ChatPageContent() {
                     type="file"
                   />
                   <textarea
+                    ref={composerInputRef}
                     aria-label={t("chat.composer.message")}
                     onBlur={() => {
                       if (!draft.trim() && !selectedAttachment) setComposerActive(false);
@@ -1540,13 +1596,29 @@ function ChatPageContent() {
                     rows={1}
                     value={draft}
                   />
-                  <button aria-expanded={emoticonOpen} aria-label={t("chat.composer.emoticon")} onClick={() => { setEmoticonOpen((open) => !open); setComposerActive(true); }} type="button">
+                  <button
+                    ref={emojiButtonRef}
+                    aria-expanded={emoticonOpen}
+                    aria-haspopup="true"
+                    aria-label={t("chat.composer.emoticon")}
+                    onClick={() => { setEmoticonOpen((open) => !open); setComposerActive(true); }}
+                    type="button"
+                  >
                     <Smile aria-hidden size={17} strokeWidth={2} />
                   </button>
                   <Button disabled={(!draft.trim() && !selectedAttachment) || sending} loading={sending} type="submit" variant="primary">
                     <Send aria-hidden size={15} strokeWidth={1.9} />
                   </Button>
                 </div>
+                {emoticonOpen ? (
+                  <div ref={emojiPickerRef} aria-label={t("chat.composer.emojiPickerAria")} className="workspace-route__composer-emoji-picker" role="group">
+                    {composerEmojis.map((emoji) => (
+                      <button key={emoji} onClick={() => insertEmoji(emoji)} type="button">
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 {composerActive || draft || selectedAttachment ? (
                   <div className="workspace-route__composer-tools">
                     {selectedAttachment ? (
@@ -1563,25 +1635,9 @@ function ChatPageContent() {
                         {t("chat.composer.agentQuestion")} · {pendingAgentCommand.mode === "SUMMARIZE" ? t("chat.composer.agentSummarize") : pendingAgentCommand.mode === "SUGGEST" ? t("chat.composer.agentSuggest") : t("chat.composer.agentAnswer")}
                       </span>
                     ) : (
-                      <span>{t("chat.composer.hint")}</span>
+                      // /bubli 에이전트는 프로젝트룸 대화 전용 — 1:1/그룹에서는 언급하지 않는다.
+                      <span>{selectedRoom.chatType === "ROOM" ? t("chat.composer.hint") : t("chat.composer.hintDirect")}</span>
                     )}
-                    {emoticonOpen ? (
-                      <div className="workspace-route__emoticons" aria-label={t("chat.composer.emoticonAria")}>
-                        {emoticonTokens.map((token) => (
-                          <button
-                            key={token.value}
-                            onClick={() => {
-                              setDraft((current) => `${current}${current ? " " : ""}${token.value}`);
-                              setEmoticonOpen(false);
-                              setComposerActive(true);
-                            }}
-                            type="button"
-                          >
-                            {t(token.labelKey)}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
                   </div>
                 ) : null}
               </form>
@@ -1598,7 +1654,6 @@ function ChatPageContent() {
             <div className="workspace-route__new-room-modal-head">
               <div>
                 <strong>{t("chat.quick.manageFriends")}</strong>
-                <span>{t("chat.social.subtitle")}</span>
               </div>
               <button className="workspace-route__new-room-close" onClick={() => setFriendsOpen(false)} type="button" aria-label={t("common.close")}>
                 <X aria-hidden size={16} strokeWidth={2} />
@@ -1613,7 +1668,6 @@ function ChatPageContent() {
               </span>
               <div className="workspace-route__my-code">
                 <div>
-                  <small>{t("chat.social.forAdding")}</small>
                   <strong>{myBubliId || t("chat.social.loginToShow")}</strong>
                 </div>
                 <button aria-label={t("chat.social.copyMyId")} disabled={!myBubliId} onClick={() => void copyMyBubliId()} type="button">
@@ -1633,10 +1687,10 @@ function ChatPageContent() {
                 className="workspace-route__friend-search"
                 onSubmit={(event) => { event.preventDefault(); void searchFriend(); }}
               >
-                <label htmlFor="friend-id-search-modal">{t("chat.social.searchLabel")}</label>
                 <div>
                   <Search aria-hidden size={16} strokeWidth={2} />
                   <input
+                    aria-label={t("chat.social.searchLabel")}
                     autoComplete="off"
                     id="friend-id-search-modal"
                     onChange={(event) => {
@@ -1693,15 +1747,51 @@ function ChatPageContent() {
                         <button disabled={!selectedProjectRoomId || roomInviteState.kind === "sending"} onClick={() => void inviteFriendToRoom(friend)} type="button">
                           {roomInviteState.kind === "sending" && roomInviteState.friendName === friend.name ? t("chat.friends.sending") : t("chat.friends.roomInvite")}
                         </button>
-                        <button disabled={busyFriendUserId === friend.friendUserId} onClick={() => void deleteFriend(friend)} type="button">
-                          {busyFriendUserId === friend.friendUserId ? t("chat.friends.deleting") : t("chat.friends.delete")}
-                        </button>
+                        {pendingDeleteFriendUserId === friend.friendUserId ? (
+                          <>
+                            <span className="workspace-route__pending" role="status">{t("chat.friends.deleteConfirm")}</span>
+                            <button disabled={busyFriendUserId === friend.friendUserId} onClick={() => void deleteFriend(friend)} type="button">
+                              {busyFriendUserId === friend.friendUserId ? t("chat.friends.deleting") : t("chat.friends.deleteConfirmDelete")}
+                            </button>
+                            <button disabled={busyFriendUserId === friend.friendUserId} onClick={() => setPendingDeleteFriendUserId(null)} type="button">
+                              {t("chat.friends.deleteConfirmKeep")}
+                            </button>
+                          </>
+                        ) : (
+                          <button disabled={busyFriendUserId === friend.friendUserId} onClick={() => setPendingDeleteFriendUserId(friend.friendUserId)} type="button">
+                            {busyFriendUserId === friend.friendUserId ? t("chat.friends.deleting") : t("chat.friends.delete")}
+                          </button>
+                        )}
                       </div>
                     </article>
                   ))
                 : null}
               {roomInviteState.kind === "sent" ? <span className="workspace-route__pending">{t("chat.invite.roomSent", { name: roomInviteState.friendName, room: selectedProjectRoomName ?? t("chat.room.fallbackName") })}</span> : null}
               {chatRoomInviteState.kind === "sent" ? <span className="workspace-route__pending">{t("chat.invite.chatSent", { name: chatRoomInviteState.friendName })}</span> : null}
+              {/* 초대 링크 — 아직 친구가 아닌 사람도 링크 하나로 룸에 초대. 별도 카드 대신 한 줄로 접어 둔다. */}
+              {selectedProjectRoomId ? (
+                <>
+                  <div className="workspace-route__chat-invite-link">
+                    <button
+                      disabled={inviteLinkState.kind === "creating"}
+                      onClick={() => void createRoomInviteLink()}
+                      type="button"
+                    >
+                      <Link2 aria-hidden size={15} strokeWidth={2} />
+                      {inviteLinkState.kind === "creating" ? t("chat.invite.linkCreating") : t("chat.invite.linkCreate")}
+                    </button>
+                    {inviteLinkState.kind === "ready" && inviteLinkState.roomId === selectedProjectRoomId ? (
+                      <input aria-label={t("chat.invite.linkKicker")} onFocus={(event) => event.currentTarget.select()} readOnly value={inviteLinkState.url} />
+                    ) : null}
+                  </div>
+                  {inviteLinkState.kind === "ready" && inviteLinkState.roomId === selectedProjectRoomId && inviteLinkState.copied ? (
+                    <span className="workspace-route__pending" role="status">{t("chat.invite.linkCopied")}</span>
+                  ) : null}
+                  {inviteLinkState.kind === "error" && inviteLinkState.roomId === selectedProjectRoomId ? (
+                    <span className="workspace-route__empty">{inviteLinkState.message}</span>
+                  ) : null}
+                </>
+              ) : null}
             </section>
 
             {/* 친구 요청 */}
@@ -1718,8 +1808,8 @@ function ChatPageContent() {
                       <div className="workspace-route__friend-request" key={request.id}>
                         <div><strong>{request.requester.name}</strong><small>{request.requester.bubliId}</small></div>
                         <div>
-                          <button onClick={() => void respondFriendRequest(request, "accept")} type="button">{t("chat.requests.accept")}</button>
-                          <button onClick={() => void respondFriendRequest(request, "reject")} type="button">{t("chat.requests.reject")}</button>
+                          <button disabled={busyFriendRequestId !== null} onClick={() => void respondFriendRequest(request, "accept")} type="button">{t("chat.requests.accept")}</button>
+                          <button disabled={busyFriendRequestId !== null} onClick={() => void respondFriendRequest(request, "reject")} type="button">{t("chat.requests.reject")}</button>
                         </div>
                       </div>
                     ))}
@@ -1782,7 +1872,8 @@ function ChatPageContent() {
                 className="workspace-route__quick-button"
                 onClick={() => {
                   setNewRoomPickerOpen(false);
-                  setFriendAddOpen(true);
+                  // 친구 검색 입력은 친구 관리 모달 안에 있으므로 해당 모달을 연다
+                  setFriendsOpen(true);
                   window.setTimeout(() => friendSearchInputRef.current?.focus(), 0);
                 }}
                 type="button"
@@ -1806,7 +1897,7 @@ function ChatPageContent() {
                     const selected = selectedGroupMemberIds.includes(friend.friendUserId);
                     return (
                       <div className="workspace-route__friend-row workspace-route__group-friend-row" key={friend.friendUserId}>
-                        <button aria-pressed={selected} className="workspace-route__group-select" onClick={() => toggleGroupMember(friend.friendUserId)} type="button">
+                        <button aria-label={selected ? t("chat.newRoom.deselect") : t("chat.newRoom.selectForGroup")} aria-pressed={selected} className="workspace-route__group-select" onClick={() => toggleGroupMember(friend.friendUserId)} type="button">
                           {selected ? <Check aria-hidden size={14} strokeWidth={2.2} /> : initialOf(friend.name)}
                         </button>
                         <div>
@@ -1816,9 +1907,6 @@ function ChatPageContent() {
                         <div className="workspace-route__friend-actions">
                           <button onClick={() => { void openDirectRoom(friend); setNewRoomPickerOpen(false); }} type="button">
                             {t("chat.newRoom.direct")}
-                          </button>
-                          <button onClick={() => toggleGroupMember(friend.friendUserId)} type="button">
-                            {selected ? t("chat.newRoom.deselect") : t("chat.newRoom.selectForGroup")}
                           </button>
                         </div>
                       </div>

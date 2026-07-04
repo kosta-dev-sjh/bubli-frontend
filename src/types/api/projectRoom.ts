@@ -10,6 +10,19 @@ export type ProjectRoomInvitationStatus = "PENDING" | "ACCEPTED" | "CANCELED" | 
 
 export type ContractDocumentType = "CONTRACT" | "REQUIREMENT";
 
+export type InviteLinkCreateRequest = {
+  expiresInHours: number;
+};
+
+export type InviteLinkResponse = {
+  expired: boolean;
+  expiresAt: string;
+  inviterName: string;
+  roomId: string;
+  roomName: string;
+  token: string;
+};
+
 export type ProjectRoomUpsertRequest = {
   clientName?: string | null;
   contractAmount?: number | null;
@@ -17,6 +30,8 @@ export type ProjectRoomUpsertRequest = {
   paidAt?: string | null;
   paymentDueDate?: string | null;
   paymentStatus?: ProjectRoomPaymentStatus;
+  // 백엔드 UpdateProjectRoomRequest.status — 닫힌 룸 다시 열기(ACTIVE 전환) 등에 사용한다.
+  status?: ProjectRoomStatus;
 };
 
 export type ProjectRoomResponse = ProjectRoomUpsertRequest & {

@@ -1,0 +1,673 @@
+/* /app/agent(AI 후보함) 전용 스타일.
+   구조: 헤더(제목·한 줄 부제·룸 선택·생성 버튼) → 분야 필터 칩 한 줄 → 알림 피드 하나.
+   피드 행은 모바일 알림처럼 [분야 아이콘 타일][제목/요약/근거][우상단 상대 시간][액션]으로 구성한다.
+   레이아웃 원칙: 콘텐츠 칼럼 하나(최대 880px)·16px 리듬·keep-all·요약 2줄 클램프. */
+
+.page {
+  width: min(100%, 880px);
+  gap: 16px;
+}
+
+/* 중간 폭에서 부제와 헤더 액션(셀렉트·생성 버튼)이 겹치지 않게 줄바꿈을 허용한다. */
+.header {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
+.header > div:first-child {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  max-width: 65ch;
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+.headerActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 8px;
+}
+
+/* ── 분야 필터 칩: 알림 카테고리처럼 한 줄, 좁으면 가로 스크롤 ── */
+.filters {
+  display: flex;
+  overflow-x: auto;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.filters::-webkit-scrollbar {
+  display: none;
+}
+
+.filterChip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  border: 1px solid rgba(210, 225, 238, 0.76);
+  border-radius: 999px;
+  padding: 0 7px 0 13px;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    border-color 160ms var(--ease-out),
+    background 160ms var(--ease-out),
+    color 160ms var(--ease-out);
+}
+
+.filterChip:hover {
+  border-color: rgba(111, 184, 242, 0.4);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.filterChip[data-active] {
+  border-color: rgba(111, 184, 242, 0.55);
+  color: var(--blue-ink);
+  background: rgba(216, 240, 255, 0.72);
+}
+
+.filterCount {
+  display: inline-grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 6px;
+  color: var(--color-muted);
+  background: rgba(210, 225, 238, 0.5);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.filterChip[data-active] .filterCount {
+  color: var(--blue-ink);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* ── 알림 피드 ── */
+.feed {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 18px;
+  padding: 12px 14px;
+  background:
+    radial-gradient(ellipse 76% 46% at 18% 0%, rgba(255, 255, 255, 0.86), transparent 70%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.76), rgba(250, 253, 255, 0.58));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 16px 40px -34px rgba(47, 124, 193, 0.32);
+  -webkit-backdrop-filter: blur(18px) saturate(1.18);
+  backdrop-filter: blur(18px) saturate(1.18);
+  transition:
+    border-color 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out);
+}
+
+.row:hover {
+  border-color: rgba(111, 184, 242, 0.34);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    0 18px 40px -32px rgba(58, 120, 184, 0.42);
+}
+
+/* 분야 아이콘 타일: 알림창의 앱 아이콘처럼 분야마다 다른 색을 쓴다. */
+.iconTile {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.iconTile[data-category="requirement"] {
+  color: #36729A;
+  background: rgba(216, 240, 255, 0.85);
+}
+
+.iconTile[data-category="task"] {
+  color: rgba(43, 105, 74, 0.95);
+  background: rgba(167, 216, 190, 0.5);
+}
+
+.iconTile[data-category="schedule"] {
+  color: #9B6A35;
+  background: rgba(241, 215, 184, 0.55);
+}
+
+.iconTile[data-category="document"] {
+  color: #6E63B8;
+  background: rgba(220, 216, 248, 0.6);
+}
+
+.iconTile[data-category="daily"] {
+  color: #C56B85;
+  background: rgba(246, 221, 235, 0.7);
+}
+
+.rowMain {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rowTop {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rowTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--ink);
+  font-size: 14.5px;
+  font-weight: 880;
+  line-height: 1.4;
+  text-align: left;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 펼침형 행(하루 정리·대화 요약·생성 문서)의 제목 버튼 */
+.rowTitleButton {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+  background: none;
+  text-align: left;
+}
+
+.rowTitleButton:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.rowTitleButton:hover .rowTitle {
+  color: var(--blue-ink);
+}
+
+.rowChevron {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  transition: transform 160ms var(--ease-out);
+}
+
+.rowChevron[data-open] {
+  transform: rotate(180deg);
+}
+
+/* 상대 시간: 알림처럼 우상단 고정 */
+.rowTime {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.rowSummary {
+  margin: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-width: 65ch;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.6;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 펼친 본문(하루 정리·대화 요약): 문장 줄 단위로 보여준다 */
+.rowBody {
+  margin: 0;
+  max-width: 65ch;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.65;
+  white-space: pre-line;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 근거: 사람이 읽을 인용문만, 최대 2줄 */
+.rowEvidence {
+  margin: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-width: 65ch;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1.55;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 근거를 문장으로 못 만들 때 대신 보여주는 출처 칩 */
+.rowEvidenceChip,
+.tagPlain {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.22);
+  border-radius: 999px;
+  padding: 2px 9px;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.56);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.rowEvidenceChip {
+  justify-self: start;
+}
+
+.rowMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rowTags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* 종류 태그: 승인하면 무엇이 되는지를 분야 색으로 바로 보여준다 */
+.tag {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.tag[data-category="requirement"] {
+  color: #36729A;
+  background: rgba(216, 240, 255, 0.72);
+}
+
+.tag[data-category="task"] {
+  color: rgba(43, 105, 74, 0.95);
+  background: rgba(167, 216, 190, 0.42);
+}
+
+.tag[data-category="schedule"] {
+  color: #9B6A35;
+  background: rgba(241, 215, 184, 0.48);
+}
+
+.tag[data-category="document"] {
+  color: #6E63B8;
+  background: rgba(220, 216, 248, 0.52);
+}
+
+.tag[data-category="daily"] {
+  color: #C56B85;
+  background: rgba(246, 221, 235, 0.6);
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 버튼 라벨이 단어 중간에서 꺾이지 않게 한다(승인/보류/제외는 항상 한 줄). */
+.rowActions :global(.bubli-button) {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* 생성 문서 미리보기(행 안에서 펼침) */
+.docPreview {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border-top: 1px dashed rgba(107, 143, 168, 0.24);
+  padding-top: 10px;
+}
+
+.docPreviewHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+/* ── 빈 상태 ── */
+/* 전역 상태 패널은 가로 flex 중앙 정렬이라 문단·목록이 옆으로 눕는다 → 세로 그리드로 교정. */
+.page .emptyPanel {
+  display: grid;
+  min-height: 0;
+  justify-items: start;
+  gap: 10px;
+  text-align: left;
+}
+
+.emptyDesc {
+  margin: 0;
+  max-width: 65ch;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+/* 숫자 원과 문장의 시작선을 맞춘 단정한 번호 목록 */
+.howList {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: how-step;
+}
+
+.howList li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ink);
+  counter-increment: how-step;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.howList li::before {
+  content: counter(how-step);
+  display: grid;
+  flex: 0 0 auto;
+  width: 19px;
+  height: 19px;
+  place-items: center;
+  margin-top: 1px;
+  border-radius: 50%;
+  color: var(--blue-ink);
+  background: rgba(216, 240, 255, 0.8);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* 필터별 빈 안내 한 줄 */
+.filterEmpty {
+  display: grid;
+  min-height: 56px;
+  place-items: center;
+  margin: 0;
+  border: 1px dashed rgba(107, 143, 168, 0.28);
+  border-radius: 16px;
+  padding: 12px;
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 760;
+  text-align: center;
+  word-break: keep-all;
+}
+
+/* 알림 배너: 빈 상태용 큰 패널(min-height·중앙 정렬)이 아니라 한 줄 배너로 보이게 한다. */
+.page .noticePanel {
+  min-height: 0;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.jobNotice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* 진행 중 작업의 최근 이벤트 한 줄(길면 말줄임) */
+.jobEventLine {
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 반응형(≤640): 피드 행 밀도·터치 타깃 보정 ── */
+@media (max-width: 640px) {
+  /* 필터 칩은 가로 스크롤 한 줄 — 터치 타깃만 40px 근처로 키운다. */
+  .filterChip {
+    min-height: 38px;
+  }
+
+  .filterCount {
+    min-width: 24px;
+    height: 24px;
+  }
+
+  .row {
+    gap: 10px;
+    border-radius: 16px;
+    padding: 11px 12px;
+  }
+
+  .iconTile {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  /* 우상단 상대 시간이 제목을 밀지 않게 한 줄 위계 유지 */
+  .rowTop {
+    gap: 8px;
+  }
+}
+
+/* ── Night Bubble — 다크 정합화 ─────────────────────────────
+   잉크는 #EAF0F8(주) / #A7B6CC(보조), hairline·면은 150,170,215 / 34,46,72 계열 */
+[data-theme="dark"] .rowTitle,
+[data-theme="dark"] .howList li {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .subtitle,
+[data-theme="dark"] .emptyDesc,
+[data-theme="dark"] .rowTime,
+[data-theme="dark"] .rowEvidence,
+[data-theme="dark"] .rowChevron,
+[data-theme="dark"] .docPreviewHead,
+[data-theme="dark"] .jobEventLine {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .rowTitleButton:hover .rowTitle {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .filterChip {
+  border-color: rgba(150, 170, 215, 0.18);
+  color: #A7B6CC;
+  background: rgba(34, 46, 72, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .filterChip:hover {
+  border-color: rgba(158, 216, 255, 0.34);
+  background: rgba(60, 80, 125, 0.4);
+}
+
+[data-theme="dark"] .filterChip[data-active] {
+  border-color: rgba(158, 216, 255, 0.42);
+  color: #BFD6F5;
+  background: rgba(70, 110, 165, 0.42);
+}
+
+[data-theme="dark"] .filterCount {
+  color: #A7B6CC;
+  background: rgba(28, 39, 61, 0.6);
+}
+
+[data-theme="dark"] .filterChip[data-active] .filterCount {
+  color: #BFD6F5;
+  background: rgba(28, 39, 61, 0.6);
+}
+
+[data-theme="dark"] .row {
+  border-color: rgba(150, 170, 215, 0.14);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(158, 216, 255, 0.06), transparent 34%),
+    rgba(34, 46, 72, 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 16px 38px -32px rgba(0, 0, 0, 0.66);
+}
+
+[data-theme="dark"] .row:hover {
+  border-color: rgba(158, 216, 255, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 38px -30px rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="dark"] .rowSummary,
+[data-theme="dark"] .rowBody {
+  color: #C2CFE6;
+}
+
+[data-theme="dark"] .iconTile {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .iconTile[data-category="requirement"] {
+  color: #7CC4F5;
+  background: rgba(70, 110, 165, 0.38);
+}
+
+[data-theme="dark"] .iconTile[data-category="task"] {
+  color: #93CFA8;
+  background: rgba(60, 110, 85, 0.36);
+}
+
+[data-theme="dark"] .iconTile[data-category="schedule"] {
+  color: #E6C49C;
+  background: rgba(120, 90, 50, 0.36);
+}
+
+[data-theme="dark"] .iconTile[data-category="document"] {
+  color: #B0A8E0;
+  background: rgba(90, 80, 140, 0.4);
+}
+
+[data-theme="dark"] .iconTile[data-category="daily"] {
+  color: #E79BB0;
+  background: rgba(140, 75, 100, 0.36);
+}
+
+[data-theme="dark"] .tag[data-category="requirement"] {
+  color: #7CC4F5;
+  background: rgba(70, 110, 165, 0.32);
+}
+
+[data-theme="dark"] .tag[data-category="task"] {
+  color: #93CFA8;
+  background: rgba(60, 110, 85, 0.3);
+}
+
+[data-theme="dark"] .tag[data-category="schedule"] {
+  color: #E6C49C;
+  background: rgba(120, 90, 50, 0.3);
+}
+
+[data-theme="dark"] .tag[data-category="document"] {
+  color: #B0A8E0;
+  background: rgba(90, 80, 140, 0.34);
+}
+
+[data-theme="dark"] .tag[data-category="daily"] {
+  color: #E79BB0;
+  background: rgba(140, 75, 100, 0.3);
+}
+
+[data-theme="dark"] .rowEvidenceChip,
+[data-theme="dark"] .tagPlain {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+  background: rgba(28, 39, 61, 0.5);
+}
+
+[data-theme="dark"] .docPreview {
+  border-top-color: rgba(150, 170, 215, 0.22);
+}
+
+[data-theme="dark"] .howList li::before {
+  color: #BFD6F5;
+  background: rgba(70, 110, 165, 0.42);
+}
+
+[data-theme="dark"] .filterEmpty {
+  border-color: rgba(150, 170, 215, 0.24);
+  color: #A7B6CC;
+}

@@ -340,7 +340,7 @@ export const GanttContentHeader: FC<GanttContentHeaderProps> = ({ title, columns
     >
       <div>
         <div
-          className="sticky inline-flex whitespace-nowrap px-3 py-2 text-muted-foreground text-xs"
+          className="sticky inline-flex whitespace-nowrap px-3 py-2 text-muted-foreground text-[13px]"
           style={{
             left: "var(--gantt-sidebar-width)",
           }}
@@ -355,7 +355,7 @@ export const GanttContentHeader: FC<GanttContentHeaderProps> = ({ title, columns
         }}
       >
         {Array.from({ length: columns }).map((_, index) => (
-          <div className="shrink-0 border-border/50 border-b py-1 text-center text-xs" key={`${id}-${index}`}>
+          <div className="shrink-0 border-border/50 border-b py-1 text-center text-[13px]" key={`${id}-${index}`}>
             {renderHeaderItem(index)}
           </div>
         ))}
@@ -470,14 +470,27 @@ export const GanttHeader: FC<GanttHeaderProps> = ({ className }) => {
   );
 };
 
+export type GanttSidebarItemProgress = {
+  done: number;
+  label?: string;
+  total: number;
+};
+
+// 말단 행의 완료 표시 — 체크박스형 상태 인디케이터.
+export type GanttSidebarItemStatusIndicator = {
+  label?: string;
+  state: "done" | "inProgress" | "todo";
+};
+
 export type GanttSidebarItemProps = {
   actions?: ReactNode;
   accentColor?: string;
+  expander?: ReactNode;
   feature: GanttFeature;
   indentLevel?: number;
-  kindLabel?: string;
   onSelectItem?: (id: string) => void;
-  parentLabel?: string | null;
+  progress?: GanttSidebarItemProgress | null;
+  statusIndicator?: GanttSidebarItemStatusIndicator | null;
   className?: string;
 };
 
@@ -485,11 +498,12 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
   accentColor,
   actions,
   className,
+  expander,
   feature,
   indentLevel = 0,
-  kindLabel,
   onSelectItem,
-  parentLabel,
+  progress,
+  statusIndicator,
 }) => {
   const { t } = useI18n();
   const tempEndAt = feature.endAt && isSameDay(feature.startAt, feature.endAt) ? addDays(feature.endAt, 1) : feature.endAt;
@@ -508,7 +522,7 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
 
   return (
     <div
-      className={cn("relative flex items-center gap-2.5 p-2.5 text-xs", className)}
+      className={cn("relative flex items-center gap-2 py-0 pr-2.5 pl-1.5 text-[13px]", className)}
       data-gantt-item-kind={indentLevel > 0 ? "child" : "parent"}
       key={feature.id}
       onClick={handleClick}
@@ -521,28 +535,74 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
       } as CSSProperties}
       tabIndex={0}
     >
-      <div
-        className="pointer-events-none h-2 w-2 shrink-0 rounded-full"
-        style={{
-          backgroundColor: color,
-        }}
-      />
+      <span className="flex w-5 shrink-0 items-center justify-center" data-roadmap-ui="gantt-row-expander">
+        {expander}
+      </span>
       <span
-        className="pointer-events-none grid min-w-0 flex-1 gap-0.5 text-left"
+        className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
         style={{ paddingLeft: "var(--gantt-row-indent)" }}
       >
-        <span className="flex min-w-0 items-center gap-1.5">
-          {kindLabel ? (
-            <span className="shrink-0 rounded-full border border-border/50 bg-background/80 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
-              {kindLabel}
-            </span>
-          ) : null}
-          <span className="truncate font-medium">{feature.name}</span>
+        {statusIndicator ? (
+          <span
+            aria-hidden="true"
+            className={cn(
+              "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-200",
+              statusIndicator.state === "done" ? "border-transparent" : "border-border bg-background/80",
+            )}
+            data-roadmap-ui="gantt-status-indicator"
+            data-state={statusIndicator.state}
+            style={statusIndicator.state === "done" ? { backgroundColor: color } : undefined}
+            title={statusIndicator.label}
+          >
+            {statusIndicator.state === "done" ? (
+              <svg fill="none" height="10" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" viewBox="0 0 24 24" width="10">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            ) : statusIndicator.state === "inProgress" ? (
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+            ) : null}
+          </span>
+        ) : null}
+        {/* 작업 이름 — 트리 열의 주인공. flex-1로 남는 폭을 전부 차지해
+            진행률·기간 등 메타보다 먼저 잘려 사라지는 일이 없게 한다. */}
+        <span
+          className="min-w-0 flex-1 truncate text-left font-semibold text-[14px] text-foreground"
+          data-roadmap-ui="gantt-row-title"
+          title={feature.name}
+        >
+          {feature.name}
         </span>
-        {parentLabel ? <span className="truncate text-[10px] text-muted-foreground">{parentLabel}</span> : null}
+        {progress && progress.total > 0 ? (
+          <span className="flex shrink-0 items-center gap-1.5" title={progress.label}>
+            <span
+              aria-hidden="true"
+              className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"
+              data-roadmap-ui="gantt-progress-track"
+            >
+              <span
+                className="block h-full rounded-full transition-[width] duration-200"
+                style={{
+                  backgroundColor: color,
+                  width: `${Math.round((Math.min(progress.done, progress.total) / progress.total) * 100)}%`,
+                }}
+              />
+            </span>
+            <span className="text-[13px] text-muted-foreground tabular-nums">
+              {`${progress.done}/${progress.total}`}
+            </span>
+          </span>
+        ) : null}
       </span>
-      <p className="pointer-events-none text-muted-foreground">{duration}</p>
-      {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
+      <span className="ml-auto flex shrink-0 items-center" data-roadmap-ui="gantt-row-trailing">
+        <p className="pointer-events-none whitespace-nowrap text-muted-foreground" data-roadmap-ui="gantt-row-duration">
+          {duration}
+        </p>
+        {actions ? (
+          <div className="flex shrink-0 items-center gap-0.5" data-roadmap-ui="gantt-row-actions">
+            {actions}
+          </div>
+        ) : null}
+      </span>
     </div>
   );
 };
@@ -552,7 +612,7 @@ export const GanttSidebarHeader: FC = () => {
 
   return (
     <div
-      className="sticky top-0 z-10 flex shrink-0 items-end justify-between gap-2.5 border-border/50 border-b bg-backdrop/90 p-2.5 font-medium text-muted-foreground text-xs backdrop-blur-sm"
+      className="sticky top-0 z-10 flex shrink-0 items-end justify-between gap-2.5 border-border/50 border-b bg-backdrop/90 p-2.5 font-medium text-muted-foreground text-[13px] backdrop-blur-sm"
       style={{ height: "var(--gantt-header-height)" }}
     >
       <p className="flex-1 truncate text-left">{t("ui.gantt.taskColumn")}</p>
@@ -571,7 +631,7 @@ export const GanttSidebarGroup: FC<GanttSidebarGroupProps> = ({ children, name, 
   <div className={className}>
     {name ? (
       <p
-        className="w-full truncate p-2.5 text-left font-medium text-muted-foreground text-xs"
+        className="w-full truncate p-2.5 text-left font-medium text-muted-foreground text-[13px]"
         style={{ height: "var(--gantt-row-height)" }}
       >
         {name}
@@ -759,7 +819,7 @@ export const GanttCreateMarkerTrigger: FC<GanttCreateMarkerTriggerProps> = ({ on
         >
           <PlusIcon className="text-muted-foreground" size={12} />
         </button>
-        <div className="whitespace-nowrap rounded-full border border-border/50 bg-background/90 px-2 py-1 text-foreground text-xs backdrop-blur-lg">
+        <div className="whitespace-nowrap rounded-full border border-border/50 bg-background/90 px-2 py-1 text-foreground text-[13px] backdrop-blur-lg">
           {formatFullDate(date)}
         </div>
       </div>
@@ -809,7 +869,7 @@ export const GanttFeatureDragHelper: FC<GanttFeatureDragHelperProps> = ({ direct
       {date && (
         <div
           className={cn(
-            "-translate-x-1/2 absolute top-10 hidden whitespace-nowrap rounded-lg border border-border/50 bg-background/90 px-2 py-1 text-foreground text-xs backdrop-blur-lg group-hover:block",
+            "-translate-x-1/2 absolute top-10 hidden whitespace-nowrap rounded-lg border border-border/50 bg-background/90 px-2 py-1 text-foreground text-[13px] backdrop-blur-lg group-hover:block",
             isPressed && "block",
           )}
         >
@@ -837,7 +897,7 @@ export const GanttFeatureItemCard: FC<GanttFeatureItemCardProps> = ({ color, id,
 
   return (
     <Card
-      className="h-full w-full rounded-md bg-background p-2 text-xs shadow-sm"
+      className="h-full w-full rounded-md bg-background px-2 py-0 text-[13px] shadow-sm"
       data-roadmap-ui="gantt-feature-card"
       style={{ "--gantt-feature-color": color ?? "currentColor" } as CSSProperties}
     >
@@ -984,10 +1044,10 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
       style={{ height: "var(--gantt-row-height)" }}
     >
       <div
-        className="pointer-events-auto absolute top-0.5"
+        className="pointer-events-auto absolute top-[7px]"
         data-gantt-feature-id={feature.id}
         style={{
-          height: "calc(var(--gantt-row-height) - 4px)",
+          height: "calc(var(--gantt-row-height) - 14px)",
           width: Math.round(width),
           left: Math.round(offset),
         }}
@@ -1013,7 +1073,7 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({ onMove, children, 
           sensors={[mouseSensor]}
         >
           <GanttFeatureItemCard color={feature.status.color} id={feature.id}>
-            {children ?? <p className="flex-1 truncate text-xs">{feature.name}</p>}
+            {children ?? <p className="flex-1 truncate text-[13px]">{feature.name}</p>}
           </GanttFeatureItemCard>
         </DndContext>
         {onMove && (
@@ -1087,7 +1147,7 @@ export const GanttMarker: FC<
         <ContextMenuTrigger asChild>
           <div
             className={cn(
-              "group pointer-events-auto sticky top-0 flex select-auto flex-col flex-nowrap items-center justify-center whitespace-nowrap rounded-b-md bg-card px-2 py-1 text-foreground text-xs",
+              "group pointer-events-auto sticky top-0 flex select-auto flex-col flex-nowrap items-center justify-center whitespace-nowrap rounded-b-md bg-card px-2 py-1 text-foreground text-[13px]",
               className,
             )}
           >
@@ -1321,7 +1381,7 @@ export const GanttToday: FC<GanttTodayProps> = ({ className }) => {
     >
       <div
         className={cn(
-          "group pointer-events-auto sticky top-0 flex select-auto flex-col flex-nowrap items-center justify-center whitespace-nowrap rounded-b-md bg-card px-2 py-1 text-foreground text-xs",
+          "group pointer-events-auto sticky top-0 flex select-auto flex-col flex-nowrap items-center justify-center whitespace-nowrap rounded-b-md bg-card px-2 py-1 text-foreground text-[13px]",
           className,
         )}
       >

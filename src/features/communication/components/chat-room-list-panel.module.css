@@ -61,7 +61,7 @@
 
 .policyCard small {
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
 }
 
@@ -98,7 +98,7 @@
 
 .sectionHeader span {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 680;
 }
 
@@ -174,7 +174,7 @@
   border-radius: var(--radius-pill);
   color: var(--color-blue-deep);
   background: rgba(142, 205, 246, 0.48);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 860;
 }
 
@@ -183,7 +183,7 @@
   overflow: hidden;
   margin: 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -203,7 +203,7 @@
   padding: 0 9px;
   color: var(--color-faint);
   background: rgba(215, 234, 244, 0.42);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
 }
 

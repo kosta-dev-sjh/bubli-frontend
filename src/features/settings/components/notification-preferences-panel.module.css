@@ -15,7 +15,7 @@
   align-items: center;
   gap: 8px;
   color: var(--color-blue-deep);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 820;
 }
 
@@ -105,7 +105,7 @@
 .preferenceText p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .meta {
@@ -179,7 +179,7 @@
   align-items: flex-start;
   gap: 9px;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .checkItem svg {
@@ -198,7 +198,7 @@
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.62);
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .apiPath {
@@ -220,7 +220,7 @@
   border-radius: 999px;
   color: rgb(255 255 255);
   background: linear-gradient(145deg, var(--color-blue), var(--color-blue-deep));
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 860;
 }
 
@@ -230,12 +230,12 @@
 }
 
 .flowCopy strong {
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .flowCopy span {
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 @media (max-width: 1020px) {

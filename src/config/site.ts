@@ -10,12 +10,12 @@ export const siteConfig = {
     { href: "/faq", label: "FAQ" },
   ],
   appNav: [
-    { href: "/app", label: "대시보드" },
+    // 홈(/app)은 사이드바 상단 브랜드 로고가 담당하므로 별도 아이콘을 두지 않는다(중복 제거).
+    { href: "/app/calendar", label: "일정" },
     { href: "/app/project-rooms", label: "프로젝트룸" },
     { href: "/app/resources", label: "자료보드" },
     { href: "/app/chat", label: "소통" },
-    { href: "/app/agent", label: "후보" },
-    { href: "/app/calendar", label: "일정" },
+    { href: "/app/agent", label: "AI 후보함" },
     { href: "/app/settings", label: "설정" },
   ],
 } as const;

@@ -1,10 +1,17 @@
-/* WBS 간트 패널 크롬 — Sky Opal 글래스 톤/워크스페이스 폰트 정합 */
+/* ============================================================
+   WBS 간트 패널 — Jira/Linear 타임라인 급 재설계
+   시스템:
+   - 유리 패널은 바깥 pane 하나뿐. 내부는 헤어라인 구분선 위의 평평한 행.
+   - 컨트롤: 세그먼트(사각 10px) · 고스트 버튼 · 프라이머리 1개.
+   - 행: hover = 행 전체 틴트, 선택 = 좌측 액센트 레일.
+   - 타이포: 14px 기본 / 13px 보조, 굵기 ≤700.
+   ============================================================ */
 
 .panel {
   display: flex;
   flex-direction: column;
   font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
-  gap: 12px;
+  gap: 10px;
   letter-spacing: 0;
   min-block-size: 0;
 }
@@ -13,98 +20,277 @@
   color: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.9px;
 }
 
+/* ---------- 툴바: 단 한 줄 ---------- */
 .toolbar {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
+  gap: 8px 14px;
+  justify-content: space-between;
+  min-block-size: 36px;
+}
+
+.toolbarGroup {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  margin-block-end: 2px;
+  min-inline-size: 0;
 }
 
 .rangeSwitch {
   align-items: center;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(229, 231, 235, 0.9);
-  border-radius: 999px;
-  display: flex;
+  background: rgba(44, 53, 64, 0.05);
+  border: 1px solid rgba(44, 53, 64, 0.08);
+  border-radius: 10px;
+  display: inline-flex;
   gap: 2px;
-  padding: 3px;
+  padding: 2px;
 }
 
 .rangeSwitch button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: #5A6772;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  min-block-size: 28px;
+  padding: 0 12px;
+  transition: background-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
+}
+
+.rangeSwitch button[aria-selected="true"] {
+  background: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(44, 53, 64, 0.14);
+  color: #2C3540;
+}
+
+.ghostButton {
   align-items: center;
   appearance: none;
   background: transparent;
   border: 0;
-  border-radius: 999px;
+  border-radius: 8px;
   color: #5A6772;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   font: inherit;
-  font-size: 12px;
-  font-weight: 780;
-  gap: 5px;
-  min-block-size: 30px;
-  padding: 0 12px;
-  transition: background-color 160ms ease, color 160ms ease;
+  font-size: 13px;
+  font-weight: 650;
+  gap: 6px;
+  min-block-size: 32px;
+  padding: 0 10px;
+  transition: background-color 140ms ease, color 140ms ease;
+  white-space: nowrap;
 }
 
-.rangeSwitch button[aria-selected="true"] {
-  background: rgba(215, 234, 244, 0.64);
+.ghostButton:hover:not(:disabled) {
+  background: rgba(44, 53, 64, 0.06);
   color: #2C3540;
 }
 
-.toolButton {
+.ghostButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.primaryButton {
   align-items: center;
   appearance: none;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(229, 231, 235, 0.9);
-  border-radius: 999px;
-  color: #5A6772;
+  background: #3A78B8;
+  border: 0;
+  border-radius: 9px;
+  color: #FFFFFF;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   font: inherit;
-  font-size: 12px;
-  font-weight: 780;
-  gap: 6px;
-  min-block-size: 34px;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 5px;
+  min-block-size: 32px;
   padding: 0 13px;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition: background-color 140ms ease;
+  white-space: nowrap;
 }
 
-.toolButton:hover:not(:disabled) {
-  box-shadow: 0 12px 24px rgba(107, 143, 168, 0.12);
-  transform: translateY(-1px);
+.primaryButton:hover:not(:disabled) {
+  background: #36729A;
 }
 
-.toolButton:disabled {
+.primaryButton:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
 
+/* ---------- 진행률 칩 ---------- */
+.progressChip {
+  align-items: center;
+  color: #5A6772;
+  display: inline-flex;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.progressTrack {
+  background: rgba(44, 53, 64, 0.1);
+  block-size: 5px;
+  border-radius: 999px;
+  display: inline-block;
+  inline-size: 56px;
+  overflow: hidden;
+}
+
+.progressFill {
+  background: var(--signal-ok, #93CFA8);
+  block-size: 100%;
+  border-radius: 999px;
+  display: block;
+  transition: inline-size 200ms ease;
+}
+
+/* ---------- 캘린더 동기화: 점 + 아이콘, 상세는 팝오버 ---------- */
+.syncWrap {
+  position: relative;
+}
+
+.syncTrigger {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  block-size: 32px;
+  border: 0;
+  border-radius: 8px;
+  color: #5A6772;
+  cursor: pointer;
+  display: inline-flex;
+  inline-size: 32px;
+  justify-content: center;
+  position: relative;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.syncTrigger:hover,
+.syncTrigger[aria-expanded="true"] {
+  background: rgba(44, 53, 64, 0.06);
+  color: #2C3540;
+}
+
+.syncDot {
+  background: var(--ink-faint, #98A5AF);
+  block-size: 7px;
+  border: 1px solid #FFFFFF;
+  border-radius: 999px;
+  inline-size: 7px;
+  inset-block-start: 5px;
+  inset-inline-end: 5px;
+  position: absolute;
+}
+
+.syncTrigger[data-state="checking"] .syncDot {
+  background: #CDD8DF;
+}
+
+.syncTrigger[data-state="recording"] .syncDot {
+  background: var(--signal-ok, #93CFA8);
+}
+
+.syncTrigger[data-state="pending"] .syncDot {
+  background: var(--color-warning, #F1D7B8);
+}
+
+.syncPopover {
+  background: #FFFFFF;
+  border: 1px solid rgba(44, 53, 64, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px -20px rgba(44, 53, 64, 0.35);
+  display: grid;
+  gap: 6px;
+  inline-size: min(300px, calc(100vw - 48px));
+  inset-block-start: calc(100% + 8px);
+  inset-inline-end: 0;
+  padding: 12px 14px;
+  position: absolute;
+  z-index: 60;
+}
+
+.syncPopover strong {
+  color: #2C3540;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.syncPopover small {
+  color: #5A6772;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.syncPopover p {
+  color: #8A94A0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.syncConnectButton {
+  align-items: center;
+  appearance: none;
+  background: #3A78B8;
+  border: 0;
+  border-radius: 9px;
+  color: #FFFFFF;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  justify-content: center;
+  justify-self: start;
+  margin-block-start: 2px;
+  min-block-size: 30px;
+  padding: 0 12px;
+  transition: background-color 140ms ease;
+  white-space: nowrap;
+}
+
+.syncConnectButton:hover:not(:disabled) {
+  background: #36729A;
+}
+
+.syncConnectButton:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+/* ---------- 인라인 생성 행 ---------- */
 .createInline {
   align-items: center;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 250, 0.9)),
-    rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(210, 225, 238, 0.82);
-  border-radius: 16px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 14px 30px -26px rgba(107, 143, 168, 0.46);
+  background: rgba(215, 234, 244, 0.28);
+  border: 1px solid rgba(111, 184, 242, 0.35);
+  border-radius: 10px;
   display: grid;
   gap: 8px;
-  grid-template-columns: auto minmax(180px, 1fr) auto auto;
-  padding: 10px;
+  grid-template-columns: auto minmax(160px, 1fr) auto auto;
+  padding: 8px 10px;
 }
 
 .createInlineMeta {
-  color: #6B8FA8;
-  font-size: 12px;
-  font-weight: 760;
+  color: #5A6772;
+  font-size: 13px;
+  font-weight: 650;
   max-inline-size: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -113,107 +299,122 @@
 
 .createInlineInput {
   appearance: none;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(210, 225, 238, 0.86);
-  border-radius: 12px;
+  background: #FFFFFF;
+  border: 1px solid rgba(44, 53, 64, 0.12);
+  border-radius: 8px;
   color: #2C3540;
   font: inherit;
-  font-size: 13px;
-  font-weight: 740;
-  min-block-size: 36px;
+  font-size: 14px;
+  font-weight: 600;
+  min-block-size: 32px;
   min-inline-size: 0;
   outline: none;
-  padding: 0 12px;
+  padding: 0 10px;
 }
 
 .createInlineInput:focus {
-  border-color: rgba(142, 205, 246, 0.72);
-  box-shadow: 0 0 0 3px rgba(215, 234, 244, 0.48);
+  border-color: rgba(58, 120, 184, 0.6);
+  box-shadow: 0 0 0 3px rgba(142, 205, 246, 0.28);
 }
 
 .createInlineButton,
 .createInlineButtonSecondary {
   align-items: center;
   appearance: none;
-  border: 1px solid rgba(210, 225, 238, 0.86);
-  border-radius: 999px;
+  border: 0;
+  border-radius: 8px;
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 12px;
-  font-weight: 780;
+  font-size: 13px;
+  font-weight: 700;
   justify-content: center;
-  min-block-size: 34px;
-  padding: 0 13px;
+  min-block-size: 32px;
+  padding: 0 12px;
+  transition: background-color 140ms ease, color 140ms ease;
 }
 
 .createInlineButton {
-  background: rgba(215, 234, 244, 0.78);
-  color: #2C3540;
+  background: #3A78B8;
+  color: #FFFFFF;
+}
+
+.createInlineButton:hover {
+  background: #36729A;
 }
 
 .createInlineButtonSecondary {
-  background: rgba(255, 255, 255, 0.72);
+  background: transparent;
+  color: #5A6772;
+}
+
+.createInlineButtonSecondary:hover {
+  background: rgba(44, 53, 64, 0.06);
+  color: #2C3540;
+}
+
+/* ---------- 트리 행 컨트롤 ---------- */
+.expanderButton {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  block-size: 18px;
+  border: 0;
+  border-radius: 5px;
   color: #6B8FA8;
+  cursor: pointer;
+  display: inline-flex;
+  inline-size: 18px;
+  justify-content: center;
+  padding: 0;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.expanderButton:hover {
+  background: rgba(44, 53, 64, 0.08);
+  color: #2C3540;
 }
 
 .rowActionButton {
   align-items: center;
   appearance: none;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(229, 231, 235, 0.88);
-  border-radius: 999px;
+  background: transparent;
+  block-size: 24px;
+  border: 0;
+  border-radius: 6px;
   color: #6B8FA8;
   cursor: pointer;
   display: inline-flex;
   inline-size: 24px;
-  block-size: 24px;
   justify-content: center;
-  opacity: 0.72;
   padding: 0;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 160ms ease;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.rowActionButton:disabled {
+  cursor: default;
+  opacity: 0.3;
+  pointer-events: none;
 }
 
 .rowActionButton:hover,
 .rowActionButton:focus-visible {
-  background: rgba(215, 234, 244, 0.72);
-  border-color: rgba(107, 143, 168, 0.38);
+  background: rgba(44, 53, 64, 0.08);
   color: #2C3540;
-  opacity: 1;
-  transform: translateY(-1px);
 }
 
+/* 선택 행: 좌측 액센트 레일 + 옅은 틴트 (카드·아웃라인 없음) */
 .selectedRow {
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--gantt-row-accent) 78%, rgba(255, 255, 255, 0.58)) 0%,
-      rgba(184, 220, 244, 0.98) 44%,
-      rgba(255, 255, 255, 0.96) 100%
-    ) !important;
-  box-shadow:
-    inset 12px 0 0 var(--gantt-row-accent),
-    inset 0 0 0 2px color-mix(in srgb, var(--gantt-row-accent) 82%, rgba(44, 53, 64, 0.32)),
-    0 16px 30px -18px rgba(44, 53, 64, 0.48);
-  color: #2C3540;
-  outline: 2px solid color-mix(in srgb, var(--gantt-row-accent) 68%, rgba(107, 143, 168, 0.38));
-  outline-offset: -1px;
+  background: rgba(215, 234, 244, 0.55) !important;
+  box-shadow: inset 3px 0 0 var(--gantt-row-accent);
 }
 
-.selectedRow :global(.text-muted-foreground) {
-  color: #6B8FA8;
-}
-
+/* ---------- 간트 표면: 평평한 내부 (유리는 바깥 pane 하나) ---------- */
 .ganttSurface {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 250, 0.88)),
-    rgba(255, 255, 255, 0.9);
-  block-size: min(500px, calc(100dvh - 260px));
-  border: 1px solid rgba(229, 231, 235, 0.92);
-  border-radius: 16px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 12px 30px -28px rgba(107, 143, 168, 0.38);
+  background: rgba(255, 255, 255, 0.55);
+  block-size: min(520px, calc(100dvh - 250px));
+  border: 1px solid rgba(44, 53, 64, 0.1);
+  border-radius: 14px;
   color: #2C3540;
   font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
   letter-spacing: 0;
@@ -230,33 +431,35 @@
   color: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.85px;
 }
 
+/* 사이드바(작업 트리): 타임라인 위에 뜨는 불투명 면 */
 .ganttSurface :global([data-roadmap-ui="gantt-sidebar"]) {
-  background: rgba(255, 255, 255, 0.92);
-  border-color: rgba(229, 231, 235, 0.9);
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(44, 53, 64, 0.1);
   inline-size: var(--gantt-sidebar-width);
   left: 0;
   position: sticky;
   z-index: 48;
 }
 
-.ganttSurface :global([data-gantt-item-kind="child"]) {
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--gantt-row-accent) 44%, rgba(255, 255, 255, 0.82)) 0%,
-      rgba(234, 246, 253, 0.92) 42%,
-      rgba(255, 255, 255, 0.92) 100%
-    );
-  box-shadow:
-    inset 7px 0 0 color-mix(in srgb, var(--gantt-row-accent) 86%, rgba(107, 143, 168, 0.28)),
-    inset 23px 0 0 rgba(247, 249, 250, 0.62);
+/* 헤더(열 이름·날짜 눈금): 옅은 고정 띠 */
+.ganttSurface :global(.bg-backdrop\/90) {
+  background-color: rgba(252, 253, 255, 0.94);
 }
 
+/* 헤어라인 */
+.ganttSurface :global(.border-border\/50) {
+  border-color: rgba(44, 53, 64, 0.08);
+}
+
+.ganttSurface :global(.divide-border\/50 > :not([hidden]) ~ :not([hidden])) {
+  border-color: rgba(44, 53, 64, 0.07);
+}
+
+/* 주말 틴트: 아주 옅게 */
 .ganttSurface :global(.bg-secondary) {
-  background-color: rgba(215, 234, 244, 0.24);
+  background-color: rgba(107, 143, 168, 0.07);
 }
 
 .ganttSurface :global(.bg-background),
@@ -264,22 +467,8 @@
   background-color: rgba(255, 255, 255, 0.94);
 }
 
-.ganttSurface :global([data-roadmap-ui="gantt-feature-card"]) {
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--gantt-feature-color) 26%, rgba(255, 255, 255, 0.86)) 0%,
-      rgba(255, 255, 255, 0.92) 68%
-    );
-  border: 1px solid color-mix(in srgb, var(--gantt-feature-color) 42%, rgba(229, 231, 235, 0.92));
-  box-shadow:
-    inset 4px 0 0 var(--gantt-feature-color),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 10px 22px -20px rgba(107, 143, 168, 0.48);
-}
-
-.ganttSurface :global(.border-border\/50) {
-  border-color: rgba(229, 231, 235, 0.9);
+.ganttSurface :global(.bg-background\/80) {
+  background-color: rgba(255, 255, 255, 0.85);
 }
 
 .ganttSurface :global(.text-muted-foreground) {
@@ -290,8 +479,357 @@
   color: #2C3540;
 }
 
+/* 행: 평평 + hover 시 행 전체 틴트 */
+.ganttSurface :global([data-gantt-item-kind]) {
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.ganttSurface :global([data-gantt-item-kind]:hover),
+.ganttSurface :global([data-gantt-item-kind]:focus-within) {
+  background: rgba(215, 234, 244, 0.35);
+}
+
+/* 우측 슬롯: 평소엔 기간, hover/키보드 포커스 시 액션으로 교대.
+   (:focus-within 대신 :focus-visible 계열 — 마우스로 행을 '선택'만 했을 때
+   기간이 영영 숨고 액션 오버레이가 이름 영역을 덮는 문제를 막는다) */
+.ganttSurface :global([data-roadmap-ui="gantt-row-trailing"]) {
+  position: relative;
+}
+
+.ganttSurface :global([data-roadmap-ui="gantt-row-duration"]) {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  transition: opacity 120ms ease;
+}
+
+.ganttSurface :global([data-roadmap-ui="gantt-row-actions"]) {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 8px;
+  inset-block-start: 50%;
+  inset-inline-end: -4px;
+  opacity: 0;
+  padding: 2px 4px;
+  pointer-events: none;
+  position: absolute;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+}
+
+.ganttSurface :global([data-gantt-item-kind]:hover [data-roadmap-ui="gantt-row-actions"]),
+.ganttSurface :global([data-gantt-item-kind]:focus-visible [data-roadmap-ui="gantt-row-actions"]),
+.ganttSurface :global([data-gantt-item-kind]:has(:focus-visible) [data-roadmap-ui="gantt-row-actions"]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ganttSurface :global([data-gantt-item-kind]:hover [data-roadmap-ui="gantt-row-duration"]),
+.ganttSurface :global([data-gantt-item-kind]:focus-visible [data-roadmap-ui="gantt-row-duration"]),
+.ganttSurface :global([data-gantt-item-kind]:has(:focus-visible) [data-roadmap-ui="gantt-row-duration"]) {
+  opacity: 0;
+}
+
+/* 막대: 상태색 단일 라운드 바 + 은은한 깊이 */
+.ganttSurface :global([data-roadmap-ui="gantt-feature-card"]) {
+  background: color-mix(in srgb, var(--gantt-feature-color) 32%, #FFFFFF);
+  border: 1px solid color-mix(in srgb, var(--gantt-feature-color) 55%, rgba(44, 53, 64, 0.1));
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(44, 53, 64, 0.14);
+  color: #2C3540;
+}
+
+.ganttSurface :global([data-roadmap-ui="gantt-progress-track"]) {
+  background-color: rgba(44, 53, 64, 0.1);
+  box-shadow: none;
+}
+
 .ganttSurface :global(.shadow-sm) {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 10px 22px -22px rgba(107, 143, 168, 0.45);
+  box-shadow: 0 1px 3px rgba(44, 53, 64, 0.14);
+}
+
+/* 오늘: 액센트 세로선 하나 + 작은 라벨 */
+.ganttSurface :global([data-roadmap-ui="gantt-today"] > div:first-child) {
+  background: rgba(216, 240, 255, 0.95);
+  border: 1px solid rgba(111, 184, 242, 0.5);
+  border-block-start: 0;
+  border-radius: 0 0 8px 8px;
+  color: #36729A;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 8px;
+}
+
+.ganttSurface :global([data-roadmap-ui="gantt-today"] > div:last-child) {
+  background: #6FB8F2;
+  inline-size: 2px;
+}
+
+/* ============================================================
+   반응형(≤768) — 플랫 툴바·트리 행 터치 타깃, 인라인 생성 행 줄바꿈
+   ============================================================ */
+@media (max-width: 768px) {
+  .rangeSwitch button {
+    min-block-size: 32px;
+  }
+
+  .ghostButton,
+  .primaryButton {
+    min-block-size: 36px;
+  }
+
+  .syncTrigger {
+    block-size: 38px;
+    inline-size: 38px;
+  }
+
+  .expanderButton {
+    block-size: 24px;
+    inline-size: 24px;
+  }
+
+  .rowActionButton {
+    block-size: 32px;
+    inline-size: 32px;
+  }
+
+  /* 인라인 생성 행 — 360px에서 메타(최대 220px)+입력(160px)+버튼 2개가 한 줄에
+     들어가지 않으므로 메타를 첫 줄 전체 폭으로 올리고 입력+버튼을 아래 줄로 나눈다. */
+  .createInline {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .createInlineMeta {
+    grid-column: 1 / -1;
+    max-inline-size: none;
+  }
+}
+
+/* ============================================================
+   Night Bubble — 다크 정합
+   ============================================================ */
+[data-theme="dark"] .rangeSwitch {
+  background: rgba(150, 170, 215, 0.1);
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .rangeSwitch button {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .rangeSwitch button[aria-selected="true"] {
+  background: rgba(60, 80, 125, 0.85);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .ghostButton {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .ghostButton:hover:not(:disabled) {
+  background: rgba(150, 170, 215, 0.14);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .primaryButton {
+  background: #9ED8FF;
+  color: #121A28;
+}
+
+[data-theme="dark"] .primaryButton:hover:not(:disabled) {
+  background: #7CC4F5;
+}
+
+[data-theme="dark"] .progressChip {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .progressTrack {
+  background: rgba(150, 170, 215, 0.22);
+}
+
+[data-theme="dark"] .syncTrigger {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .syncTrigger:hover,
+[data-theme="dark"] .syncTrigger[aria-expanded="true"] {
+  background: rgba(150, 170, 215, 0.14);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .syncDot {
+  border-color: rgba(24, 33, 52, 0.9);
+}
+
+[data-theme="dark"] .syncPopover {
+  background: rgba(34, 46, 72, 0.98);
+  border-color: rgba(150, 170, 215, 0.2);
+  box-shadow: 0 16px 40px -20px rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="dark"] .syncPopover strong {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .syncPopover small {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .syncPopover p {
+  color: rgba(176, 190, 208, 0.7);
+}
+
+[data-theme="dark"] .syncConnectButton {
+  background: #9ED8FF;
+  color: #121A28;
+}
+
+[data-theme="dark"] .syncConnectButton:hover:not(:disabled) {
+  background: #7CC4F5;
+}
+
+[data-theme="dark"] .createInline {
+  background: rgba(60, 80, 125, 0.26);
+  border-color: rgba(158, 216, 255, 0.28);
+}
+
+[data-theme="dark"] .createInlineMeta {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .createInlineInput {
+  background: rgba(28, 39, 61, 0.7);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .createInlineInput:focus {
+  border-color: rgba(158, 216, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(158, 216, 255, 0.16);
+}
+
+[data-theme="dark"] .createInlineButton {
+  background: #9ED8FF;
+  color: #121A28;
+}
+
+[data-theme="dark"] .createInlineButton:hover {
+  background: #7CC4F5;
+}
+
+[data-theme="dark"] .createInlineButtonSecondary {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .createInlineButtonSecondary:hover {
+  background: rgba(150, 170, 215, 0.14);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .expanderButton,
+[data-theme="dark"] .rowActionButton {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .expanderButton:hover,
+[data-theme="dark"] .rowActionButton:hover,
+[data-theme="dark"] .rowActionButton:focus-visible {
+  background: rgba(150, 170, 215, 0.16);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .selectedRow {
+  background: rgba(60, 80, 125, 0.42) !important;
+  box-shadow: inset 3px 0 0 var(--gantt-row-accent);
+}
+
+[data-theme="dark"] .ganttSurface {
+  background: rgba(24, 33, 52, 0.55);
+  border-color: rgba(150, 170, 215, 0.16);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .ganttSurface :global([data-roadmap-ui="gantt-sidebar"]) {
+  background: rgba(24, 33, 52, 0.94);
+  border-color: rgba(150, 170, 215, 0.14);
+}
+
+[data-theme="dark"] .ganttSurface :global(.bg-backdrop\/90) {
+  background-color: rgba(24, 33, 52, 0.94);
+}
+
+[data-theme="dark"] .ganttSurface :global(.border-border\/50) {
+  border-color: rgba(150, 170, 215, 0.14);
+}
+
+[data-theme="dark"] .ganttSurface :global(.divide-border\/50 > :not([hidden]) ~ :not([hidden])) {
+  border-color: rgba(150, 170, 215, 0.12);
+}
+
+[data-theme="dark"] .ganttSurface :global(.bg-secondary) {
+  background-color: rgba(150, 170, 215, 0.07);
+}
+
+[data-theme="dark"] .ganttSurface :global(.bg-background),
+[data-theme="dark"] .ganttSurface :global(.bg-card) {
+  background-color: rgba(24, 33, 52, 0.92);
+}
+
+[data-theme="dark"] .ganttSurface :global(.bg-background\/80) {
+  background-color: rgba(28, 39, 61, 0.8);
+}
+
+[data-theme="dark"] .ganttSurface :global(.text-muted-foreground) {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .ganttSurface :global(.text-foreground) {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .ganttSurface :global([data-gantt-item-kind]:hover),
+[data-theme="dark"] .ganttSurface :global([data-gantt-item-kind]:focus-within) {
+  background: rgba(60, 80, 125, 0.32);
+}
+
+[data-theme="dark"] .ganttSurface :global([data-roadmap-ui="gantt-row-actions"]) {
+  background: rgba(34, 46, 72, 0.94);
+}
+
+[data-theme="dark"] .ganttSurface :global([data-roadmap-ui="gantt-feature-card"]) {
+  background: color-mix(in srgb, var(--gantt-feature-color) 42%, rgba(34, 46, 72, 0.92));
+  border-color: color-mix(in srgb, var(--gantt-feature-color) 55%, rgba(150, 170, 215, 0.16));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .ganttSurface :global([data-roadmap-ui="gantt-progress-track"]) {
+  background-color: rgba(150, 170, 215, 0.22);
+}
+
+[data-theme="dark"] .ganttSurface :global(.shadow-sm) {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .ganttSurface :global([data-roadmap-ui="gantt-today"] > div:first-child) {
+  background: rgba(34, 46, 72, 0.95);
+  border-color: rgba(158, 216, 255, 0.4);
+  color: #9ED8FF;
+}
+
+[data-theme="dark"] .ganttSurface :global([data-roadmap-ui="gantt-today"] > div:last-child) {
+  background: #9ED8FF;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rangeSwitch button,
+  .ghostButton,
+  .primaryButton,
+  .syncTrigger,
+  .rowActionButton,
+  .expanderButton,
+  .progressFill {
+    transition: none;
+  }
 }

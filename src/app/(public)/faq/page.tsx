@@ -2,6 +2,7 @@
 
 import { AppWindow, Database, FolderLock, MessageCircle, ShieldCheck } from "lucide-react";
 
+import { DecorBubble } from "@/components/bubbles";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { PageHeading } from "@/components/ui/page-heading";
@@ -24,6 +25,7 @@ export default function FaqPage() {
       <PageHeading title={t("public.faq.title")} description={t("public.faq.description")} />
       <section className="public-faq" aria-label={t("public.faq.sectionAria")}>
         <GlassPanel className="public-faq__intro">
+          <DecorBubble size="md" />
           <Chip selected>{t("public.faq.introChip")}</Chip>
           <h2>{t("public.faq.introTitle")}</h2>
           <p>{t("public.faq.introBody")}</p>

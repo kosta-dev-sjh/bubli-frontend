@@ -13,7 +13,8 @@ import {
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { LocalFilePreviewResult, LocalFileSearchResult } from "@/lib/tauri/commands";
 
-import styles from "./resource-board-polish.module.css";
+// 재구축 워크스페이스 공용 스타일 사용 — resource-board-polish.module.css는 폐기되었다.
+import styles from "./resource-workspace.module.css";
 
 type LocalIndexedFile = LocalFileSearchResult["items"][number];
 

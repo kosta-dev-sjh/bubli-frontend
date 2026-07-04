@@ -9,6 +9,8 @@ import type {
   PrivacyConsentsResponse,
   PrivacyConsentsUpdateRequest,
   StorageUsageResponse,
+  UserPreferenceResponse,
+  UserPreferenceUpdateRequest,
 } from "@/types/api/settings";
 
 export type StorageUsageParams = {
@@ -87,5 +89,16 @@ export const settingsApi = {
 
   getStorageUsage(params?: StorageUsageParams) {
     return apiRequest<StorageUsageResponse>(`/api/storage/usage${storageUsageQuery(params)}`);
+  },
+
+  getPreferences() {
+    return apiRequest<UserPreferenceResponse>("/api/me/preferences");
+  },
+
+  updatePreferences(body: UserPreferenceUpdateRequest) {
+    return apiRequest<UserPreferenceResponse>("/api/me/preferences", {
+      body,
+      method: "PATCH",
+    });
   },
 } as const;

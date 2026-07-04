@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, GitBranch, KanbanSquare, Pause, X } from "lucide-react";
-import type { CSSProperties, FormEvent } from "react";
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -21,7 +21,6 @@ import {
 } from "@/features/wbs/components/wbs-gantt-panel";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewRoomSuggestions } from "@/lib/workspace-preview-data";
 import type { AgentSuggestionResponse, AgentSuggestionReviewAction, AgentSuggestionType } from "@/types/api/agent";
 import type { ProjectRoomMemberResponse } from "@/types/api/projectRoom";
@@ -256,10 +255,9 @@ function ProjectRoomWorkBoardContent({
   const [tasks, setTasks] = useState<LocalTask[]>(board.tasks);
   const [wbsItems, setWbsItems] = useState<WbsItemResponse[]>(board.wbsItems);
   const [selectedWbsId, setSelectedWbsId] = useState<string | null>(initialWbs?.id ?? null);
-  const [, setSaveNotice] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(board.tasks[0]?.id ?? null);
   const [viewMode, setViewMode] = useState<"kanban" | "wbs">("wbs");
-  const [wbsDraft, setWbsDraft] = useState({ title: "" });
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [isWbsSettingsOpen, setIsWbsSettingsOpen] = useState(false);
   const [wbsAccentById, setWbsAccentById] = useState<Record<string, string>>(() => createInitialWbsAccentMap(board.wbsItems));
@@ -321,10 +319,10 @@ function ProjectRoomWorkBoardContent({
         avatarUrl: member.avatarUrl || null,
         id: member.userId,
         label: member.name,
-        meta: member.bubliId ? `@${member.bubliId}` : member.role === "PROJECT_LEADER" ? "리더" : "멤버",
-        shortLabel: member.name.trim().slice(0, 1).toUpperCase() || "멤",
+        meta: member.bubliId ? `@${member.bubliId}` : member.role === "PROJECT_LEADER" ? t("room.board.roleLeader") : t("room.board.roleMember"),
+        shortLabel: member.name.trim().slice(0, 1).toUpperCase() || t("room.board.roleMember").slice(0, 1),
       })),
-    [activeMembers],
+    [activeMembers, t],
   );
   const kanbanWbsOptions = useMemo<KanbanWbsOption[]>(
     () =>
@@ -345,10 +343,6 @@ function ProjectRoomWorkBoardContent({
       })
     : [];
   const activeWbsTitle = selectedWbsId ? wbsTitleById[selectedWbsId] : null;
-  const selectedParentWbs = selectedWbs?.parentId
-    ? wbsItems.find((item) => item.id === selectedWbs.parentId) ?? null
-    : selectedWbs;
-  const selectedCreateParentId = selectedParentWbs?.id ?? null;
   const kanbanColumns = useMemo<KanbanBoardColumn[]>(
     () =>
       columns.map((column) => ({
@@ -556,69 +550,13 @@ function ProjectRoomWorkBoardContent({
     });
   };
 
-  const handleCreateWbs = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const title = wbsDraft.title.trim();
-    if (!title) return;
-
-    const now = new Date().toISOString();
-    const parentId = selectedCreateParentId;
-    const orderNo = wbsItems.filter((item) => (item.parentId ?? null) === parentId).length + 1;
-    const optimistic: WbsItemResponse = {
-      createdAt: now,
-      id: `local-wbs-${now}`,
-      orderNo,
-      parentId,
-      roomId,
-      status: "TODO",
-      title,
-      updatedAt: now,
-    };
-
-    setWbsItems((current) => [...current, optimistic]);
-    if (optimistic.parentId) {
-      setWbsAccentById((current) => ({
-        ...current,
-        [optimistic.id]: current[optimistic.parentId ?? ""] ?? wbsAccentOptions[wbsItems.length % wbsAccentOptions.length].value,
-      }));
-    }
-    setSelectedWbsId(optimistic.id);
-    setIsWbsSettingsOpen(true);
-    setWbsDraft({ title: "" });
-    setSaveNotice(t("room.workBoard.noticeWbsSaving"));
-
-    try {
-      const created = await wbsApi.createItem(roomId, {
-        orderNo: optimistic.orderNo,
-        parentId: optimistic.parentId,
-        title,
-      });
-      setWbsItems((current) => current.map((item) => (item.id === optimistic.id ? created : item)));
-      setWbsAccentById((current) => {
-        const next = { ...current };
-        const color = next[optimistic.id];
-        delete next[optimistic.id];
-        if (created.parentId) {
-          next[created.id] = color ?? next[created.parentId] ?? wbsAccentOptions[0].value;
-        }
-        return next;
-      });
-      setSelectedWbsId(created.id);
-      setIsWbsSettingsOpen(true);
-      setSaveNotice(t("room.workBoard.noticeWbsSaved"));
-    } catch {
-      setSaveNotice(t("room.workBoard.noticeWbsServerPending"));
-    }
-  };
-
-  const handleUpdateWbs = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  // 이름 입력을 벗어나거나 Enter를 누르면 바로 저장한다(별도 저장 버튼 없음).
+  const updateSelectedWbsTitle = async () => {
     if (!selectedWbs) return;
 
     const title = activeWbsEditDraft.title.trim();
     if (!title) return;
+    if (title === selectedWbs.title) return;
 
     const patch = {
       title,
@@ -885,31 +823,35 @@ function ProjectRoomWorkBoardContent({
     );
   };
 
+  const viewSwitch = (
+    <div aria-label={t("room.workBoard.viewSwitchAria")} className={styles.viewSwitch} role="group">
+      <button aria-pressed={viewMode === "wbs"} onClick={() => setViewMode("wbs")} type="button">
+        <GitBranch aria-hidden="true" size={14} />
+        {t("room.workBoard.viewWbs")}
+      </button>
+      <button aria-pressed={viewMode === "kanban"} onClick={() => setViewMode("kanban")} type="button">
+        <KanbanSquare aria-hidden="true" size={14} />
+        {t("room.workBoard.kanban")}
+      </button>
+    </div>
+  );
+
   return (
     <div className={styles.shell}>
-      <section className={styles.contextBand} aria-label={t("room.workBoard.viewSwitchAria")}>
-        <div className={styles.viewSwitch} role="group" aria-label={t("room.workBoard.viewSwitchAria")}>
-          <button aria-pressed={viewMode === "wbs"} onClick={() => setViewMode("wbs")} type="button">
-            <GitBranch size={15} aria-hidden="true" />
-            WBS
-          </button>
-          <button aria-pressed={viewMode === "kanban"} onClick={() => setViewMode("kanban")} type="button">
-            <KanbanSquare size={15} aria-hidden="true" />
-            {t("room.workBoard.kanban")}
-          </button>
-        </div>
-      </section>
-
       <div className={styles.boardGrid} data-view={viewMode}>
         {viewMode === "wbs" ? (
           <section className={styles.wbsWorkspace} aria-label={t("room.workBoard.wbsViewAria")}>
             <section className={styles.pane} aria-label={t("room.workBoard.ganttAria")}>
-              <div className={cn(styles.paneHead, styles.ganttPaneHead)}>
-                <div>
-                  <h2>WBS</h2>
-                </div>
-                <div className={styles.paneActions}>
-                  <StatusBadge tone="neutral">{wbsItems.length}</StatusBadge>
+              {wbsGeneration ? (
+                <p className={wbsGeneration.status === "error" ? styles.generateError : styles.generateNotice}>
+                  {wbsGeneration.message}
+                </p>
+              ) : null}
+              {renderCandidateTray("wbs")}
+              <WbsGanttPanel
+                onNotice={setSaveNotice}
+                toolbarLeading={viewSwitch}
+                toolbarTrailing={
                   <button
                     className={styles.generateButton}
                     disabled={wbsGeneration?.status === "pending"}
@@ -919,79 +861,55 @@ function ProjectRoomWorkBoardContent({
                     <GitBranch aria-hidden="true" size={14} strokeWidth={1.9} />
                     {wbsGeneration?.status === "pending" ? t("room.workBoard.generating") : t("room.workBoard.generateWbs")}
                   </button>
-                </div>
-              </div>
-              {wbsGeneration ? (
-                <p className={wbsGeneration.status === "error" ? styles.generateError : styles.generateNotice}>
-                  {wbsGeneration.message}
-                </p>
-              ) : null}
-              {renderCandidateTray("wbs")}
-              {wbsItems.length > 0 ? (
-                <WbsGanttPanel
-                  onNotice={setSaveNotice}
-                  onOpenSettings={openWbsSettings}
-                  onRangesResolved={handleWbsRangesResolved}
-                  onSelectItem={setSelectedWbsId}
-                  onWbsCreated={(item, temporaryId) => {
-                    setWbsItems((current) => {
-                      if (temporaryId) {
-                        return current.map((entry) => (entry.id === temporaryId ? item : entry));
-                      }
-                      if (current.some((entry) => entry.id === item.id)) return current;
-                      return [...current, item];
-                    });
-                    setWbsAccentById((current) => {
-                      if (temporaryId) {
-                        const next = { ...current };
-                        const color = next[temporaryId];
-                        delete next[temporaryId];
-                        next[item.id] = color ?? (item.parentId ? next[item.parentId] : undefined) ?? wbsAccentOptions[0].value;
-                        return next;
-                      }
-
-                      if (current[item.id]) return current;
-
-                      return {
-                        ...current,
-                        [item.id]: (item.parentId ? current[item.parentId] : undefined) ?? wbsAccentOptions[wbsItems.length % wbsAccentOptions.length].value,
-                      };
-                    });
-                    setSelectedWbsId(item.id);
-                  }}
-                  onWbsDeleted={(id) => {
-                    setWbsItems((current) => current.filter((entry) => entry.id !== id));
-                    if (selectedWbsId === id) {
-                      setSelectedWbsId(null);
-                      setIsWbsSettingsOpen(false);
+                }
+                onOpenSettings={openWbsSettings}
+                onRangesResolved={handleWbsRangesResolved}
+                onSelectItem={setSelectedWbsId}
+                onWbsCreated={(item, temporaryId) => {
+                  setWbsItems((current) => {
+                    if (temporaryId) {
+                      return current.map((entry) => (entry.id === temporaryId ? item : entry));
                     }
-                  }}
-                  rangeEditRequest={wbsRangeEditRequest}
-                  roomId={roomId}
-                  selectedWbsId={selectedWbsId}
-                  wbsAccentById={wbsAccentById}
-                  wbsItems={wbsItems}
-                />
-              ) : (
-                <form className={cn(styles.wbsCreate, styles.inlineCreate)} onSubmit={handleCreateWbs}>
-                  <div className={styles.wbsFormGrid}>
-                    <label>
-                      <span>{t("room.workBoard.firstParentTask")}</span>
-                      <input
-                        aria-label={t("room.workBoard.wbsNameAria")}
-                        onChange={(event) => setWbsDraft((current) => ({ ...current, title: event.target.value }))}
-                        placeholder={t("room.workBoard.wbsNamePlaceholder")}
-                        value={wbsDraft.title}
-                      />
-                    </label>
-                  </div>
-                  <div className={styles.wbsFormActions}>
-                    <button className={styles.primaryAction} type="submit">
-                      {t("room.workBoard.add")}
-                    </button>
-                  </div>
-                </form>
-              )}
+                    if (current.some((entry) => entry.id === item.id)) return current;
+                    return [...current, item];
+                  });
+                  setWbsAccentById((current) => {
+                    if (temporaryId) {
+                      const next = { ...current };
+                      const color = next[temporaryId];
+                      delete next[temporaryId];
+                      next[item.id] = color ?? (item.parentId ? next[item.parentId] : undefined) ?? wbsAccentOptions[0].value;
+                      return next;
+                    }
+
+                    if (current[item.id]) return current;
+
+                    return {
+                      ...current,
+                      [item.id]: (item.parentId ? current[item.parentId] : undefined) ?? wbsAccentOptions[wbsItems.length % wbsAccentOptions.length].value,
+                    };
+                  });
+                  setSelectedWbsId(item.id);
+                }}
+                onWbsDeleted={(id) => {
+                  setWbsItems((current) => current.filter((entry) => entry.id !== id));
+                  if (selectedWbsId === id) {
+                    setSelectedWbsId(null);
+                    setIsWbsSettingsOpen(false);
+                  }
+                }}
+                onWbsReordered={setWbsItems}
+                rangeEditRequest={wbsRangeEditRequest}
+                roomId={roomId}
+                selectedWbsId={selectedWbsId}
+                wbsAccentById={wbsAccentById}
+                wbsItems={wbsItems}
+              />
+              {saveNotice ? (
+                <span aria-live="polite" className={styles.saveNotice}>
+                  {saveNotice}
+                </span>
+              ) : null}
             </section>
 
             {isWbsSettingsOpen && selectedWbs ? (
@@ -1040,7 +958,7 @@ function ProjectRoomWorkBoardContent({
               ) : null}
 
               <div className={styles.inspectorForms}>
-                <form className={styles.wbsEditor} onSubmit={handleUpdateWbs}>
+                <div className={styles.wbsEditor}>
                   {selectedWbs ? (
                     <>
                       <div className={styles.wbsFormGrid}>
@@ -1048,7 +966,16 @@ function ProjectRoomWorkBoardContent({
                           <span>{t("room.workBoard.taskName")}</span>
                           <input
                             aria-label={t("room.workBoard.wbsNameLabel")}
+                            onBlur={() => {
+                              void updateSelectedWbsTitle();
+                            }}
                             onChange={(event) => setWbsEditDraft({ ...activeWbsEditDraft, title: event.target.value })}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                event.currentTarget.blur();
+                              }
+                            }}
                             value={activeWbsEditDraft.title}
                           />
                         </label>
@@ -1110,16 +1037,11 @@ function ProjectRoomWorkBoardContent({
                           </label>
                         </div>
                       </div>
-                      <div className={styles.wbsFormActions}>
-                        <button className={styles.primaryAction} type="submit">
-                          {t("room.workBoard.save")}
-                        </button>
-                      </div>
                     </>
                   ) : (
                     <p className={styles.empty}>{t("room.workBoard.selectRowInGantt")}</p>
                   )}
-                </form>
+                </div>
 
               </div>
             </section>
@@ -1129,10 +1051,8 @@ function ProjectRoomWorkBoardContent({
 
         {viewMode === "kanban" ? (
           <section className={styles.kanbanPane} aria-label={t("room.workBoard.kanbanPaneAria")}>
-            <div className={styles.paneHead}>
-              <div>
-                <h2>{t("room.workBoard.kanban")}</h2>
-              </div>
+            <div className={styles.boardToolbar}>
+              {viewSwitch}
               <div className={styles.paneActions}>
                 <button
                   className={styles.generateButton}
@@ -1166,6 +1086,11 @@ function ProjectRoomWorkBoardContent({
               selectedTaskId={selectedTaskId}
               wbsOptions={kanbanWbsOptions}
             />
+            {saveNotice ? (
+              <span aria-live="polite" className={styles.saveNotice}>
+                {saveNotice}
+              </span>
+            ) : null}
           </section>
         ) : null}
       </div>

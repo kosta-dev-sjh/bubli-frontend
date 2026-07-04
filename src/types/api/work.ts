@@ -84,6 +84,9 @@ export type ScheduleResponse = {
   allDay: boolean;
   createdAt: string;
   endsAt?: string | null;
+  // 백엔드 ScheduleResponse가 함께 내려주는 구글 캘린더 매핑(어느 캘린더에서 동기화됐는지).
+  googleCalendarId?: string | null;
+  googleCalendarSummary?: string | null;
   googleEventId?: string | null;
   id: string;
   lastSyncedAt?: string | null;

@@ -13,29 +13,23 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
-import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import type { ProjectRoomUpsertRequest } from "@/types/api/projectRoom";
-
-type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 type SubmitState = "idle" | "submitting" | "auth" | "error";
 
 type RoomDraft = {
   clientName: string;
   contractAmount: string;
-  deliveryScope: string;
   name: string;
   paymentDueDate: string;
-  reviewQuestion: string;
 };
 
 const emptyDraft: RoomDraft = {
   clientName: "",
   contractAmount: "",
-  deliveryScope: "",
   name: "",
   paymentDueDate: "",
-  reviewQuestion: "",
 };
 
 const documentSlots = [
@@ -84,8 +78,6 @@ export default function NewProjectRoomPage() {
     setDraft((current) => ({
       ...current,
       name: current.name || firstName,
-      deliveryScope: current.deliveryScope || t("room.new.autofillScope"),
-      reviewQuestion: current.reviewQuestion || t("room.new.autofillReview"),
     }));
   }
 
@@ -301,33 +293,6 @@ export default function NewProjectRoomPage() {
               </div>
             </div>
           </div>
-
-          <details className="workspace-route__details">
-            <summary>{t("room.new.wbsDetails")}</summary>
-            <div className="workspace-route__field-grid">
-              <label className="workspace-route__field">
-                <span>{t("room.new.scopeLabel")}</span>
-                <input
-                  maxLength={160}
-                  name="deliveryScope"
-                  onChange={(event) => updateDraft("deliveryScope", event.target.value)}
-                  placeholder={t("room.new.scopePlaceholder")}
-                  value={draft.deliveryScope}
-                />
-              </label>
-
-              <label className="workspace-route__field">
-                <span>{t("room.new.reviewLabel")}</span>
-                <input
-                  maxLength={160}
-                  name="reviewQuestion"
-                  onChange={(event) => updateDraft("reviewQuestion", event.target.value)}
-                  placeholder={t("room.new.reviewPlaceholder")}
-                  value={draft.reviewQuestion}
-                />
-              </label>
-            </div>
-          </details>
 
           <div className="workspace-route__summary" aria-label={t("room.new.flowLabel")}>
             <span>{t("room.new.flowSave")}</span>

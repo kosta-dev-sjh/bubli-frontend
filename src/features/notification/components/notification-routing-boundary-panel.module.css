@@ -85,7 +85,7 @@
 }
 
 .sectionTitle p {
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .routeGrid {
@@ -149,7 +149,7 @@
 
 .routeCard p {
   margin-top: 6px;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .columns {
@@ -188,7 +188,7 @@
 
 .rowMeta strong {
   color: var(--color-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 850;
 }
 
@@ -199,19 +199,19 @@
   padding: 5px 8px;
   background: rgba(215, 234, 244, 0.58);
   color: var(--color-blue-deep);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 780;
 }
 
 .notificationRow p {
   margin-top: 7px;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .channel {
   align-self: center;
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 820;
   white-space: nowrap;
 }
@@ -231,7 +231,7 @@
 }
 
 .ruleCard p {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .notice {
@@ -252,7 +252,7 @@
 }
 
 .notice p {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .footerPanel {
@@ -264,7 +264,7 @@
 
 .footerPanel p {
   flex: 1 1 420px;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 @media (max-width: 1080px) {

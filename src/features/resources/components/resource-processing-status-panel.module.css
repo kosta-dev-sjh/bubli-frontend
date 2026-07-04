@@ -72,7 +72,7 @@
 .resourceText span {
   display: block;
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
 }
 
@@ -112,7 +112,7 @@
   display: block;
   margin-top: 7px;
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 760;
 }
 
@@ -170,7 +170,7 @@
 .stepTop span:not(:global(.bubli-status)) {
   display: block;
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
 }
 
@@ -232,13 +232,13 @@
 .policyList strong {
   display: block;
   color: var(--color-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 840;
 }
 
 .policyList p {
   margin-top: 3px;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .storageFlow {
@@ -252,7 +252,7 @@
   padding: 11px 13px;
   color: var(--color-blue-deep);
   background: rgba(215, 234, 244, 0.48);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 820;
   text-align: center;
 }

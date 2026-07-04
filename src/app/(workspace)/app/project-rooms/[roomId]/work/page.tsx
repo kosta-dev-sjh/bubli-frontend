@@ -1,14 +1,15 @@
 "use client";
 
-import { AlertCircle, Clock3 } from "lucide-react";
+import { AlertCircle, Clock3, Settings2 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { authApi } from "@/features/auth/api/authApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
+import { ProjectRoomSettingsPanel } from "@/features/project-room/components/project-room-settings-panel";
 import { ProjectRoomWorkBoard } from "@/features/project-room/components/project-room-work-board";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
@@ -28,6 +29,7 @@ type WorkPageState =
   | {
       kind: "ready";
       board: WbsBoardResponse;
+      currentUserId: string | null;
       members: ProjectRoomMemberResponse[];
       room: ProjectRoomResponse;
     }
@@ -37,8 +39,10 @@ type WorkPageState =
 export default function ProjectRoomWorkPage() {
   const { t } = useI18n();
   const params = useParams<{ roomId: string }>();
+  const router = useRouter();
   const roomId = params.roomId;
   const [state, setState] = useState<WorkPageState>({ kind: "loading" });
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -65,7 +69,7 @@ export default function ProjectRoomWorkPage() {
           : member;
       });
       setActiveProjectRoomId(room.id, room.name);
-      setState({ board, kind: "ready", members, room });
+      setState({ board, currentUserId: currentUser.id, kind: "ready", members, room });
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
@@ -77,6 +81,7 @@ export default function ProjectRoomWorkPage() {
         setActiveProjectRoomId(room.id, room.name);
         setState({
           board: workspacePreviewWbsBoard(room.id),
+          currentUserId: workspacePreviewMembers[0]?.userId ?? null,
           kind: "ready",
           members: workspacePreviewMembers.map((member) => ({ ...member, roomId: room.id })),
           room,
@@ -116,7 +121,34 @@ export default function ProjectRoomWorkPage() {
         <div>
           <h1 id="work-title">{state.kind === "ready" ? state.room.name : t("room.work.fallbackName")}</h1>
         </div>
+        {state.kind === "ready" ? (
+          <Button
+            aria-expanded={isSettingsOpen}
+            icon={<Settings2 size={15} strokeWidth={1.9} />}
+            onClick={() => setIsSettingsOpen((open) => !open)}
+            size="sm"
+          >
+            {t("room.settings.open")}
+          </Button>
+        ) : null}
       </header>
+
+      {state.kind === "ready" && isSettingsOpen ? (
+        <ProjectRoomSettingsPanel
+          currentUserId={state.currentUserId}
+          members={state.members}
+          onClose={() => setIsSettingsOpen(false)}
+          onMembersChange={(members) =>
+            setState((current) => (current.kind === "ready" ? { ...current, members } : current))
+          }
+          onRoomChange={(room) => {
+            setActiveProjectRoomId(room.id, room.name);
+            setState((current) => (current.kind === "ready" ? { ...current, room } : current));
+          }}
+          onRoomClosed={() => router.replace("/app/project-rooms")}
+          room={state.room}
+        />
+      ) : null}
 
       {state.kind === "loading" ? (
         <GlassPanel className="workspace-route__panel">
@@ -143,7 +175,7 @@ export default function ProjectRoomWorkPage() {
             <Button onClick={() => void load()} variant="primary">
               {t("room.work.reload")}
             </Button>
-            <Link className="bubli-button" href={`/app/project-rooms/${roomId}`}>
+            <Link className="bubli-button" href="/app/project-rooms">
               {t("room.work.backToRoom")}
             </Link>
           </div>

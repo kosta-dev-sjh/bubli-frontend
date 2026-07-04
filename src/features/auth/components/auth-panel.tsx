@@ -7,6 +7,7 @@ import { useState, type CSSProperties, type PointerEvent } from "react";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { siteConfig } from "@/config/site";
 import { AuthConfigurationError, authApi } from "@/features/auth/api/authApi";
+import { useLiveAuthUser } from "@/features/auth/hooks/use-live-auth-user";
 import { useI18n } from "@/lib/i18n";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
@@ -76,6 +77,7 @@ function handleSubmitPointerLeave(event: PointerEvent<HTMLButtonElement>) {
 export function AuthPanel() {
   const { t } = useI18n();
   const router = useRouter();
+  const liveUser = useLiveAuthUser();
   const [isStartingLogin, setIsStartingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const isDevTauriLogin = isTauriRuntime() && Boolean(process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN);
@@ -125,20 +127,26 @@ export function AuthPanel() {
         <span />
         <span />
       </div>
-      <section className="auth-page__intro">
-        <Link className="auth-page__brand bubli-wordmark" href="/">
-          {siteConfig.name}
-        </Link>
-        <p className="auth-page__welcome">Welcome!</p>
-        <h1>
-          <span>{t("auth.panel.headingLine1")}</span>
-          <span>{t("auth.panel.headingLine2")}</span>
-        </h1>
-        <p>{t("auth.panel.tagline")}</p>
-      </section>
-
       <GlassPanel as="section" className="auth-card">
+        <div className="auth-card__head">
+          <Link className="auth-card__brand bubli-wordmark" href="/">
+            {siteConfig.name}
+          </Link>
+          <h1 className="auth-card__heading">
+            <span>{t("auth.panel.headingLine1")}</span>
+            <span>{t("auth.panel.headingLine2")}</span>
+          </h1>
+          <p className="auth-card__tagline">{t("auth.panel.tagline")}</p>
+        </div>
         <div className="auth-form" aria-label={t("auth.panel.formAria")}>
+          {liveUser ? (
+            <div className="auth-card__session">
+              <p className="auth-card__session-notice">{t("auth.panel.sessionNotice", { name: liveUser.name })}</p>
+              <Link className="auth-card__session-link" href="/app">
+                {t("auth.panel.sessionOpenApp")}
+              </Link>
+            </div>
+          ) : null}
           <button
             className="bubli-button bubli-button--primary bubli-button--lg auth-card__submit"
             disabled={isStartingLogin}

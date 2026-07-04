@@ -96,7 +96,7 @@ export function AgentUsageGuardPanel({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="m-0 text-[14px] font-[820] text-[var(--color-text)]">{t("agent.guard.todayUsage")}</p>
-              <p className="m-0 text-[12.5px] text-[var(--color-muted)]">
+              <p className="m-0 text-[13.5px] text-[var(--color-muted)]">
                 {t("agent.guard.usageMeta", { limit: dailyLimit, used: usedToday })}
               </p>
             </div>
@@ -105,11 +105,11 @@ export function AgentUsageGuardPanel({
           <ProgressBar label={t("agent.guard.usageBar")} value={usagePercent} />
         </div>
         <div className="grid gap-2 rounded-[var(--radius-input)] bg-[rgba(215,234,244,0.42)] p-3">
-          <div className="flex items-center gap-2 text-[12.5px] font-[820] text-[var(--color-blue-deep)]">
+          <div className="flex items-center gap-2 text-[13.5px] font-[820] text-[var(--color-blue-deep)]">
             <Layers3 size={15} strokeWidth={2.1} />
             {t("agent.guard.dedup")}
           </div>
-          <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">
+          <p className="m-0 text-[14px] leading-5 text-[var(--color-muted)]">
             {t("agent.guard.dedupDesc")}
           </p>
         </div>
@@ -130,9 +130,9 @@ export function AgentUsageGuardPanel({
                 </span>
                 <StatusBadge tone={status.tone}>{t(status.labelKey)}</StatusBadge>
               </div>
-              <p className="m-0 text-[13px] font-[820] text-[var(--color-muted)]">{guard.label}</p>
+              <p className="m-0 text-[14px] font-[820] text-[var(--color-muted)]">{guard.label}</p>
               <p className="m-0 mt-1 text-[20px] font-[860] leading-tight text-[var(--color-text)]">{guard.value}</p>
-              <p className="m-0 mt-2 text-[13px] leading-5 text-[var(--color-muted)]">{guard.description}</p>
+              <p className="m-0 mt-2 text-[14px] leading-5 text-[var(--color-muted)]">{guard.description}</p>
             </article>
           );
         })}
@@ -150,8 +150,8 @@ export function AgentUsageGuardPanel({
               key={`${call.strategyLabel}-${call.reviewRuleLabel}-${call.resultLabel}-${call.latencyLabel}`}
             >
               <div className="min-w-0">
-                <p className="m-0 text-[13.5px] font-[820] text-[var(--color-text)]">{call.strategyLabel}</p>
-                <p className="m-0 mt-1 text-[12.5px] text-[var(--color-muted)]">
+                <p className="m-0 text-[14px] font-[820] text-[var(--color-text)]">{call.strategyLabel}</p>
+                <p className="m-0 mt-1 text-[13.5px] text-[var(--color-muted)]">
                   {t("agent.guard.callMeta", { result: call.resultLabel, reviewRule: call.reviewRuleLabel })}
                 </p>
               </div>

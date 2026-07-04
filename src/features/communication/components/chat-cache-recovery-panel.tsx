@@ -95,7 +95,7 @@ export function ChatCacheRecoveryPanel({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="m-0 text-[14px] font-[820] text-[var(--color-text)]">{roomLabel}</p>
-              <p className="m-0 text-[12.5px] text-[var(--color-muted)]">
+              <p className="m-0 text-[13.5px] text-[var(--color-muted)]">
                 {t("chat.cachePanel.recentMissing", { cached: cachedCount, missing: missingCount })}
               </p>
             </div>
@@ -105,11 +105,11 @@ export function ChatCacheRecoveryPanel({
         </div>
 
         <div className="grid gap-2 rounded-[var(--radius-input)] bg-[rgba(215,234,244,0.42)] p-3">
-          <div className="flex items-center gap-2 text-[12.5px] font-[820] text-[var(--color-blue-deep)]">
+          <div className="flex items-center gap-2 text-[13.5px] font-[820] text-[var(--color-blue-deep)]">
             <Server size={15} strokeWidth={2.1} />
             {t("chat.cachePanel.syncBasis")}
           </div>
-          <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">
+          <p className="m-0 text-[14px] leading-5 text-[var(--color-muted)]">
             {t("chat.cachePanel.syncDetail", { server: serverSequence, last: lastRoomSequence })}
           </p>
         </div>
@@ -131,7 +131,7 @@ export function ChatCacheRecoveryPanel({
                 <StatusBadge tone={stepStatus.tone}>{t(stepStatus.labelKey)}</StatusBadge>
               </div>
               <h3 className="m-0 text-[15px] font-[840] leading-tight text-[var(--color-text)]">{step.label}</h3>
-              <p className="m-0 mt-2 text-[13px] leading-5 text-[var(--color-muted)]">{step.description}</p>
+              <p className="m-0 mt-2 text-[14px] leading-5 text-[var(--color-muted)]">{step.description}</p>
             </article>
           );
         })}
@@ -142,7 +142,7 @@ export function ChatCacheRecoveryPanel({
           <span className="bubli-icon-tile" aria-hidden="true">
             <Database size={18} strokeWidth={2.1} />
           </span>
-          <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">
+          <p className="m-0 text-[14px] leading-5 text-[var(--color-muted)]">
             {t("chat.cachePanel.footerWeb")}
           </p>
         </div>
@@ -150,7 +150,7 @@ export function ChatCacheRecoveryPanel({
           <span className="bubli-icon-tile" aria-hidden="true">
             <HardDriveDownload size={18} strokeWidth={2.1} />
           </span>
-          <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">
+          <p className="m-0 text-[14px] leading-5 text-[var(--color-muted)]">
             {t("chat.cachePanel.footerApp")}
           </p>
         </div>

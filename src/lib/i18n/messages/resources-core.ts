@@ -102,6 +102,15 @@ const ko = {
   "resources.common.deleting": "삭제 중",
   "resources.common.deleteFile": "파일 삭제",
 
+  // 플랫 행/섹션 재구성 (자료보드 단일 패널)
+  "resources.common.rowActionsAria": "{title} 파일 액션",
+  "resources.common.sectionAi": "AI 분석",
+  "resources.common.analyzeRun": "분석 시작",
+  "resources.common.versionCurrent": "현재",
+  "resources.common.versionsEmpty": "버전 기록이 아직 없습니다",
+  "resources.common.deleteConfirmBody": "이 파일을 삭제할까요? 삭제하면 되돌릴 수 없습니다.",
+  "resources.common.deleteConfirmYes": "삭제",
+
   // 데모 보드 (resource-board.tsx)
   "resources.board.aria": "자료보드",
   "resources.board.scopeAll": "전체",
@@ -168,6 +177,8 @@ const ko = {
   "resources.workspace.emptyPersonalDescTauri": "폴더를 연결하거나 스캔하면 여기에 표시됩니다.",
   "resources.workspace.emptyPersonalDescWeb": "로컬 폴더는 데스크탑 앱에서 연결합니다.",
   "resources.workspace.emptyPersonalSteps": "데스크탑 앱 열기 · 폴더 선택 · 자동 동기화",
+  "resources.workspace.emptyPersonalGoRoomBoard": "프로젝트룸 자료보드로 이동",
+  "resources.workspace.emptyPersonalGetDesktop": "데스크탑 앱 받기",
 
   // 검색 커맨드 (resource-search-command.tsx)
   "resources.search.eyebrow": "자료보드 검색",
@@ -606,6 +617,32 @@ const ko = {
   "resources.storage.stepsAria": "저장소 처리 단계",
   "resources.storage.failureAria": "업로드 실패 사유",
   "resources.storage.failureTitle": "업로드 실패 사유 저장",
+
+  // 자료 상세 — 이름 바꾸기 / 새 버전 / 관련 자료 / AI 분석 문서 (resource-board-common)
+  "resources.common.rename": "이름 바꾸기",
+  "resources.common.renameAria": "자료 이름 바꾸기",
+  "resources.common.renameInputAria": "새 자료 이름",
+  "resources.common.uploadVersion": "새 버전 업로드",
+  "resources.common.uploadVersionAria": "새 버전 파일 선택",
+  "resources.common.uploadingVersion": "{fileName} 버전 업로드 중…",
+  "resources.common.versionUploaded": "새 버전 v{version}이(가) 등록됐습니다",
+  "resources.common.versionUploadUnsupported": "웹에서는 아직 새 버전 업로드를 지원하지 않아요. 파일을 새 자료로 업로드해 주세요.",
+  "resources.common.relatedTitle": "관련 자료",
+  "resources.common.relatedAria": "관련 자료 목록",
+  "resources.common.relatedEmpty": "아직 없음",
+  "resources.common.relatedOpenAria": "{title} 자료 열기",
+  "resources.common.aiDocView": "AI 분석 문서 보기",
+  "resources.common.aiDocHide": "AI 분석 문서 접기",
+  "resources.common.aiDocLoading": "분석 문서 불러오는 중…",
+  "resources.common.aiDocAria": "AI 분석 문서",
+  "resources.common.aiDocType": "문서 유형",
+  "resources.common.aiDocStatusLabel": "분석 상태",
+  "resources.common.aiDocEmpty": "분석된 문서 정보가 아직 없습니다",
+  "resources.common.aiDocStatusNone": "분석 전",
+  "resources.common.aiDocStatusReady": "준비됨",
+  "resources.common.aiDocStatusAnalyzing": "분석 중",
+  "resources.common.aiDocStatusAnalyzed": "분석 완료",
+  "resources.common.aiDocStatusFailed": "확인 필요",
 } as const;
 
 type Key = keyof typeof ko;
@@ -708,6 +745,14 @@ const en: Record<Key, string> = {
   "resources.common.deleting": "Deleting",
   "resources.common.deleteFile": "Delete file",
 
+  "resources.common.rowActionsAria": "Actions for {title}",
+  "resources.common.sectionAi": "AI analysis",
+  "resources.common.analyzeRun": "Run analysis",
+  "resources.common.versionCurrent": "Current",
+  "resources.common.versionsEmpty": "No version history yet",
+  "resources.common.deleteConfirmBody": "Delete this file? This cannot be undone.",
+  "resources.common.deleteConfirmYes": "Delete",
+
   "resources.board.aria": "Resource board",
   "resources.board.scopeAll": "All",
   "resources.board.scopePersonal": "Personal resource",
@@ -772,6 +817,8 @@ const en: Record<Key, string> = {
   "resources.workspace.emptyPersonalDescTauri": "Connect or scan a folder to show files here.",
   "resources.workspace.emptyPersonalDescWeb": "Local folders are connected in the desktop app.",
   "resources.workspace.emptyPersonalSteps": "Open desktop app · Select folder · Auto sync",
+  "resources.workspace.emptyPersonalGoRoomBoard": "Go to the room resource board",
+  "resources.workspace.emptyPersonalGetDesktop": "Get the desktop app",
 
   "resources.search.eyebrow": "Resource board search",
   "resources.search.title": "Find scattered resources within your permission scope",
@@ -1199,6 +1246,31 @@ const en: Record<Key, string> = {
   "resources.storage.stepsAria": "Storage processing steps",
   "resources.storage.failureAria": "Upload failure reason",
   "resources.storage.failureTitle": "Save upload failure reason",
+
+  "resources.common.rename": "Rename",
+  "resources.common.renameAria": "Rename resource",
+  "resources.common.renameInputAria": "New resource name",
+  "resources.common.uploadVersion": "Upload new version",
+  "resources.common.uploadVersionAria": "Choose a file for the new version",
+  "resources.common.uploadingVersion": "Uploading version {fileName}…",
+  "resources.common.versionUploaded": "New version v{version} registered",
+  "resources.common.versionUploadUnsupported": "Uploading a new version from the web isn't supported yet. Please upload the file as a new resource.",
+  "resources.common.relatedTitle": "Related resources",
+  "resources.common.relatedAria": "Related resource list",
+  "resources.common.relatedEmpty": "None yet",
+  "resources.common.relatedOpenAria": "Open resource {title}",
+  "resources.common.aiDocView": "View AI document",
+  "resources.common.aiDocHide": "Hide AI document",
+  "resources.common.aiDocLoading": "Loading AI document…",
+  "resources.common.aiDocAria": "AI analyzed document",
+  "resources.common.aiDocType": "Document type",
+  "resources.common.aiDocStatusLabel": "Analysis status",
+  "resources.common.aiDocEmpty": "No analyzed document data yet",
+  "resources.common.aiDocStatusNone": "Not analyzed",
+  "resources.common.aiDocStatusReady": "Ready",
+  "resources.common.aiDocStatusAnalyzing": "Analyzing",
+  "resources.common.aiDocStatusAnalyzed": "Analyzed",
+  "resources.common.aiDocStatusFailed": "Needs review",
 };
 
 const ja: Record<Key, string> = {
@@ -1299,6 +1371,14 @@ const ja: Record<Key, string> = {
   "resources.common.deleting": "削除中",
   "resources.common.deleteFile": "ファイル削除",
 
+  "resources.common.rowActionsAria": "{title} のファイル操作",
+  "resources.common.sectionAi": "AI分析",
+  "resources.common.analyzeRun": "分析を開始",
+  "resources.common.versionCurrent": "現在",
+  "resources.common.versionsEmpty": "バージョン履歴はまだありません",
+  "resources.common.deleteConfirmBody": "このファイルを削除しますか？削除すると元に戻せません。",
+  "resources.common.deleteConfirmYes": "削除",
+
   "resources.board.aria": "資料ボード",
   "resources.board.scopeAll": "すべて",
   "resources.board.scopePersonal": "個人資料",
@@ -1363,6 +1443,8 @@ const ja: Record<Key, string> = {
   "resources.workspace.emptyPersonalDescTauri": "フォルダを接続またはスキャンすると、ここに表示されます。",
   "resources.workspace.emptyPersonalDescWeb": "ローカルフォルダはデスクトップアプリで接続します。",
   "resources.workspace.emptyPersonalSteps": "デスクトップアプリを開く · フォルダ選択 · 自動同期",
+  "resources.workspace.emptyPersonalGoRoomBoard": "プロジェクトルームの資料ボードへ",
+  "resources.workspace.emptyPersonalGetDesktop": "デスクトップアプリを入手",
 
   "resources.search.eyebrow": "資料ボード検索",
   "resources.search.title": "散らばった資料を権限範囲の中で探します",
@@ -1790,6 +1872,31 @@ const ja: Record<Key, string> = {
   "resources.storage.stepsAria": "ストレージ処理ステップ",
   "resources.storage.failureAria": "アップロード失敗理由",
   "resources.storage.failureTitle": "アップロード失敗理由を保存",
+
+  "resources.common.rename": "名前を変更",
+  "resources.common.renameAria": "資料名を変更",
+  "resources.common.renameInputAria": "新しい資料名",
+  "resources.common.uploadVersion": "新バージョンをアップロード",
+  "resources.common.uploadVersionAria": "新バージョンのファイルを選択",
+  "resources.common.uploadingVersion": "{fileName} のバージョンをアップロード中…",
+  "resources.common.versionUploaded": "新バージョン v{version} を登録しました",
+  "resources.common.versionUploadUnsupported": "ウェブからの新バージョンアップロードはまだ対応していません。ファイルを新しい資料としてアップロードしてください。",
+  "resources.common.relatedTitle": "関連資料",
+  "resources.common.relatedAria": "関連資料リスト",
+  "resources.common.relatedEmpty": "まだありません",
+  "resources.common.relatedOpenAria": "{title} を開く",
+  "resources.common.aiDocView": "AI分析ドキュメントを見る",
+  "resources.common.aiDocHide": "AI分析ドキュメントを閉じる",
+  "resources.common.aiDocLoading": "分析ドキュメントを読み込み中…",
+  "resources.common.aiDocAria": "AI分析ドキュメント",
+  "resources.common.aiDocType": "文書タイプ",
+  "resources.common.aiDocStatusLabel": "分析ステータス",
+  "resources.common.aiDocEmpty": "分析された文書情報はまだありません",
+  "resources.common.aiDocStatusNone": "分析前",
+  "resources.common.aiDocStatusReady": "準備完了",
+  "resources.common.aiDocStatusAnalyzing": "分析中",
+  "resources.common.aiDocStatusAnalyzed": "分析完了",
+  "resources.common.aiDocStatusFailed": "要確認",
 };
 
 export const resourcesCoreMessages = { ko, en, ja };

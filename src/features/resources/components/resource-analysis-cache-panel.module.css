@@ -46,7 +46,7 @@
 
 .contractCard span {
   color: var(--color-faint);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -99,7 +99,7 @@
 .metricCard p {
   margin: 0;
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -187,7 +187,7 @@
   display: inline-block;
   margin-top: 7px;
   color: var(--color-faint);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 760;
   line-height: 1.35;
 }
@@ -211,7 +211,7 @@
   color: var(--color-blue-deep);
   background: rgba(255, 255, 255, 0.68);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 8px 18px rgba(80, 110, 130, 0.08);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;

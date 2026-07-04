@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { siteConfig } from "@/config/site";
+import { useLiveAuthUser } from "@/features/auth/hooks/use-live-auth-user";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ const navLinks: { href: string; id: string; labelKey: MessageKey }[] = [
 
 export function LandingNav() {
   const { t } = useI18n();
+  const authUser = useLiveAuthUser();
   const [activeSection, setActiveSection] = useState("hero");
   const [scrolled, setScrolled] = useState(false);
 
@@ -68,9 +70,23 @@ export function LandingNav() {
           ))}
         </nav>
         <div className="landing-nav__cta">
-          <Link className="bubli-button bubli-button--primary bubli-button--sm" href="/login">
-            {t("common.login")}
-          </Link>
+          {authUser ? (
+            <>
+              <span aria-label={t("public.session.userAria", { name: authUser.name })} className="landing-nav__user">
+                <span aria-hidden="true" className="landing-nav__user-avatar">
+                  {authUser.name.trim().charAt(0)}
+                </span>
+                {authUser.name}
+              </span>
+              <Link className="bubli-button bubli-button--primary bubli-button--sm" href="/app">
+                {t("public.session.openApp")}
+              </Link>
+            </>
+          ) : (
+            <Link className="bubli-button bubli-button--primary bubli-button--sm" href="/login">
+              {t("common.login")}
+            </Link>
+          )}
         </div>
       </div>
     </header>

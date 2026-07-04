@@ -167,4 +167,15 @@ export const authApi = {
       method: "PATCH",
     });
   },
+
+  // 회원 탈퇴 — 서버 처리 후 로컬 세션도 정리한다.
+  async withdrawMe() {
+    try {
+      return await apiRequest<null>("/api/me", {
+        method: "DELETE",
+      });
+    } finally {
+      clearStoredAuthSession();
+    }
+  },
 } as const;

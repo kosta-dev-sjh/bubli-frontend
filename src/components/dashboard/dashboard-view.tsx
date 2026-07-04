@@ -165,7 +165,7 @@ export function DashboardView({ data = DASHBOARD_STORY_DATA, empty = false, load
               <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                 <span aria-hidden="true" className="bubli-agent-signal" />
                 <div style={{ display: "grid", gap: 8 }}>
-                  <p style={{ margin: 0, fontSize: 13 }}>{t("dashboard.view.needCheckBody")}</p>
+                  <p style={{ margin: 0, fontSize: 14 }}>{t("dashboard.view.needCheckBody")}</p>
                   <div style={{ display: "flex", gap: 8 }}>
                     <Button size="sm" variant="primary">
                       {t("dashboard.view.confirm")}

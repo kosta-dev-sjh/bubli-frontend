@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, HardDrive } from "lucide-react";
+import { AlertCircle, HardDrive, Search, Upload } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -16,14 +16,14 @@ import type { ResourceResponse } from "@/types/api/resource";
 import { LocalIndexedFileSearchPanel } from "./local-indexed-file-search-panel";
 import {
   getErrorMessage,
+  openResourceDownload,
   ResourcePreview,
+  ResourceRow,
   ResourceScopeSwitch,
-  ResourceTile,
-  ResourceToolbar,
   SUPPORTED_RESOURCE_UPLOAD_ACCEPT,
-  type ViewMode,
+  type ResourcePreviewIntent,
 } from "./resource-board-common";
-import styles from "./resource-board-polish.module.css";
+import styles from "./resource-workspace.module.css";
 
 const EMPTY_RESOURCES: ResourceResponse[] = [];
 
@@ -55,8 +55,8 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   const [state, setState] = useState<RoomState>({ kind: "loading" });
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [uploadState, setUploadState] = useState<UploadState>({ kind: "idle" });
+  const [previewIntent, setPreviewIntent] = useState<ResourcePreviewIntent | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [isTauri, setIsTauri] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -147,165 +147,211 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
     [loadResources, roomId, t],
   );
 
+  const handleRowDownload = useCallback(async (resource: ResourceResponse) => {
+    try {
+      await openResourceDownload(resource.id);
+    } catch (error) {
+      setUploadState({ kind: "error", message: getErrorMessage(error, t) });
+    }
+  }, [t]);
+
+  const sendPreviewIntent = useCallback((resourceId: string, kind: ResourcePreviewIntent["kind"]) => {
+    setSelectedResourceId(resourceId);
+    setPreviewIntent((current) => ({ kind, token: (current?.token ?? 0) + 1 }));
+  }, []);
+
   return (
-    <section className={cn("resource-workspace", styles.workspace)} aria-label={t("resources.workspace.aria")}>
-      <GlassPanel className={cn("resource-workspace__hero", styles.boardHeader)}>
-        <div className="resource-workspace__copy">
-          <span className={styles.kicker}>{t("resources.workspace.kickerRoom")}</span>
-          <h1>{t("resources.workspace.title")}</h1>
-          <p>{t("resources.workspace.roomHint")}</p>
-        </div>
-        <div className={styles.headerActions}>
+    <section className={styles.page} aria-label={t("resources.workspace.aria")}>
+      <GlassPanel
+        className={cn(styles.shell, dragActive && styles.shellDrop)}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          setDragActive(true);
+        }}
+        onDragLeave={(event) => {
+          event.preventDefault();
+          if (event.currentTarget === event.target) {
+            setDragActive(false);
+          }
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragActive(false);
+          if (!uploadDisabled) {
+            void handleFiles(event.dataTransfer.files);
+          }
+        }}
+        padded={false}
+      >
+        <header className={styles.header}>
+          <h1 className={styles.title}>{t("resources.workspace.title")}</h1>
+          <span className={styles.count}>
+            {state.kind === "loading" ? t("resources.workspace.totalUnknown") : t("resources.workspace.totalCount", { count: resources.length })}
+          </span>
+          <span className={styles.headerSpacer} aria-hidden="true" />
           <ResourceScopeSwitch activeScope="room" roomHref={`/app/project-rooms/${roomId}/resources`} roomLabel={t("resources.common.roomFallback")} />
-        </div>
-      </GlassPanel>
+          <label className={styles.search}>
+            <Search aria-hidden size={15} strokeWidth={2} />
+            <input
+              aria-label={t("resources.common.searchAria")}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("resources.common.searchPlaceholder")}
+              type="search"
+              value={query}
+            />
+          </label>
+          <Button
+            disabled={uploadDisabled}
+            icon={<Upload aria-hidden size={14} strokeWidth={2} />}
+            loading={uploadState.kind === "uploading"}
+            onClick={() => fileInputRef.current?.click()}
+            size="sm"
+            variant="primary"
+          >
+            {t("resources.board.upload")}
+          </Button>
+        </header>
 
-      {state.kind === "auth" ? (
-        <GlassPanel className="resource-workspace__notice">
-          <AlertCircle aria-hidden size={20} strokeWidth={2} />
-          <div>
-            <h2>{t("resources.workspace.loginRequired")}</h2>
-            <Link className="bubli-button bubli-button--primary" href="/login">
-              {t("resources.workspace.login")}
-            </Link>
+        <input
+          ref={fileInputRef}
+          accept={SUPPORTED_RESOURCE_UPLOAD_ACCEPT}
+          aria-label={t("resources.workspace.selectFile")}
+          className={styles.srInput}
+          disabled={uploadDisabled}
+          multiple
+          onChange={(event) => {
+            if (event.target.files) {
+              void handleFiles(event.target.files);
+            }
+            event.currentTarget.value = "";
+          }}
+          type="file"
+        />
+
+        {state.kind === "auth" ? (
+          <div className={styles.stateBlock} role="status">
+            <AlertCircle aria-hidden size={22} strokeWidth={2} />
+            <strong>{t("resources.workspace.loginRequired")}</strong>
+            <div className={styles.stateActions}>
+              <Link className="bubli-button bubli-button--primary bubli-button--sm" href="/login">
+                {t("resources.workspace.login")}
+              </Link>
+            </div>
           </div>
-        </GlassPanel>
-      ) : null}
+        ) : null}
 
-      {state.kind === "error" ? (
-        <GlassPanel className="resource-workspace__notice">
-          <AlertCircle aria-hidden size={20} strokeWidth={2} />
-          <div>
-            <h2>{t("resources.workspace.serverWaiting")}</h2>
+        {state.kind === "error" ? (
+          <div className={styles.stateBlock} role="status">
+            <AlertCircle aria-hidden size={22} strokeWidth={2} />
+            <strong>{t("resources.workspace.serverWaiting")}</strong>
             <p>{state.message}</p>
-            <div className="resource-workspace__notice-actions" aria-label={t("resources.workspace.statusActionAria")}>
-              <Button onClick={refreshResources} variant="primary">
+            <div className={styles.stateActions} aria-label={t("resources.workspace.statusActionAria")}>
+              <Button onClick={refreshResources} size="sm" variant="primary">
                 {t("resources.workspace.reconnect")}
               </Button>
             </div>
           </div>
-        </GlassPanel>
-      ) : null}
+        ) : null}
 
-      {canShowBoard ? (
-        <>
-          <GlassPanel
-            className={cn(
-              "resource-workspace__board",
-              styles.boardShell,
-              styles.boardShellFlat,
-              selectedResource ? styles.boardShellHasPreview : styles.boardShellNoPreview,
-              dragActive && styles.boardDropActive,
-            )}
-            onDragEnter={(event) => {
-              event.preventDefault();
-              setDragActive(true);
-            }}
-            onDragLeave={(event) => {
-              event.preventDefault();
-              if (event.currentTarget === event.target) {
-                setDragActive(false);
-              }
-            }}
-            onDragOver={(event) => {
-              event.preventDefault();
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              setDragActive(false);
-              if (!uploadDisabled) {
-                void handleFiles(event.dataTransfer.files);
-              }
-            }}
-          >
-            <section className="resource-workspace__browser" aria-label={t("resources.workspace.browseAria")}>
-              <div className={styles.listHeader}>
-                <div>
-                  <span>{t("resources.workspace.kickerRoom")}</span>
-                  <strong>{state.kind === "loading" ? t("resources.workspace.totalUnknown") : t("resources.workspace.totalCount", { count: resources.length })}</strong>
-                </div>
-                <p>{uploadState.kind === "idle" ? t("resources.workspace.dropHint") : null}</p>
-                {uploadState.kind === "uploading" ? <p>{t("resources.workspace.uploading", { fileName: uploadState.fileName })}</p> : null}
-                {uploadState.kind === "success" ? <p>{t("resources.workspace.uploadDone", { fileName: uploadState.fileName })}</p> : null}
-                {uploadState.kind === "error" ? <p>{uploadState.message}</p> : null}
-                <Button disabled={uploadDisabled} onClick={() => fileInputRef.current?.click()} variant="primary">
-                  {t("resources.workspace.selectFile")}
-                </Button>
+        {canShowBoard ? (
+          <div className={cn(styles.body, selectedResource && styles.bodyHasPreview)}>
+            <div className={styles.list} aria-label={t("resources.workspace.browseAria")}>
+              <div className={cn(styles.dropzone, dragActive && styles.dropzoneActive)}>
+                <Upload aria-hidden size={18} strokeWidth={2} />
+                <span className={styles.dropzoneText}>
+                  <strong>{t("resources.workspace.dropHint")}</strong>
+                  <span>{t("resources.workspace.roomHint")}</span>
+                </span>
               </div>
 
-              <ResourceToolbar onQuery={setQuery} onViewMode={setViewMode} query={query} viewMode={viewMode} />
-
-              <GlassPanel className={cn("resource-workspace__dropzone resource-workspace__dropzone--local", styles.syncStrip)}>
-                <HardDrive aria-hidden size={22} strokeWidth={2} />
-                <div>
+              {/* dev PR 217 이식: 로컬 동기화 안내 스트립 — 우리 드롭존 스트립 문법으로 플랫하게 배치.
+                  웹에서는 안내 문구만 보여주고, 실제 로컬 검색 패널은 아래 컴포넌트가 Tauri에서만 렌더링한다. */}
+              <div className={styles.dropzone}>
+                <HardDrive aria-hidden size={18} strokeWidth={2} />
+                <span className={styles.dropzoneText}>
                   <strong>{isTauri ? t("resources.workspace.syncTitleTauri") : t("resources.workspace.syncTitleWeb")}</strong>
-                  <p>{isTauri ? t("local.folder.personalOnly") : t("resources.workspace.syncDescWeb")}</p>
-                </div>
-              </GlassPanel>
+                  <span>{isTauri ? t("local.folder.personalOnly") : t("resources.workspace.syncDescWeb")}</span>
+                </span>
+              </div>
 
+              {/* dev PR 217 이식: 프로젝트룸 자료보드 로컬 참고 검색 — 검색어 입력 + Tauri 런타임에서만 내용이 뜬다. */}
               <LocalIndexedFileSearchPanel query={query} />
 
-              <input
-                ref={fileInputRef}
-                className="resource-workspace__file-input"
-                disabled={uploadDisabled}
-                accept={SUPPORTED_RESOURCE_UPLOAD_ACCEPT}
-                multiple
-                onChange={(event) => {
-                  if (event.target.files) {
-                    void handleFiles(event.target.files);
-                  }
-                  event.currentTarget.value = "";
-                }}
-                type="file"
-              />
+              {uploadState.kind === "uploading" ? <p className={styles.noticeLine}>{t("resources.workspace.uploading", { fileName: uploadState.fileName })}</p> : null}
+              {uploadState.kind === "success" ? <p className={styles.noticeLine}>{t("resources.workspace.uploadDone", { fileName: uploadState.fileName })}</p> : null}
+              {uploadState.kind === "error" ? <p className={styles.errorLine}>{uploadState.message}</p> : null}
 
               {state.kind === "loading" ? (
-                <div className={cn("resource-workspace__items", styles.fileGrid, viewMode === "list" && "resource-workspace__items--list", viewMode === "list" && styles.fileList)}>
-                  <>
-                    <GlassPanel loading />
-                    <GlassPanel loading />
-                    <GlassPanel loading />
-                  </>
+                <div aria-hidden="true" className={styles.rows}>
+                  {[0, 1, 2].map((index) => (
+                    <div className={styles.skeletonRow} key={index}>
+                      <span className="bubli-skeleton" style={{ borderRadius: 9, height: 34, width: 34 }} />
+                      <span className="bubli-skeleton" style={{ height: 13, width: `${54 - index * 9}%` }} />
+                    </div>
+                  ))}
                 </div>
               ) : filteredResources.length === 0 ? (
-                <div className={styles.emptyCanvas} role="status">
-                  <div className={styles.emptyCanvasInner}>
-                    <strong>{t("resources.workspace.emptyRoomTitle")}</strong>
-                    <p>{t("resources.workspace.emptyRoomDesc")}</p>
+                <div className={styles.empty} role="status">
+                  <strong>{t("resources.workspace.emptyRoomTitle")}</strong>
+                  <p>{t("resources.workspace.emptyRoomDesc")}</p>
+                  {/* 빈 화면이 막다른 길이 되지 않게 업로드 진입점을 바로 노출한다. */}
+                  <div className={styles.emptyActions}>
+                    <Button
+                      disabled={uploadDisabled}
+                      icon={<Upload aria-hidden size={14} strokeWidth={2} />}
+                      onClick={() => fileInputRef.current?.click()}
+                      size="sm"
+                      variant="primary"
+                    >
+                      {t("resources.workspace.selectFile")}
+                    </Button>
                   </div>
                 </div>
               ) : (
-                <div className={cn("resource-workspace__items", styles.fileGrid, viewMode === "list" && "resource-workspace__items--list", viewMode === "list" && styles.fileList)}>
+                <ul className={styles.rows}>
                   {filteredResources.map((resource) => (
-                    <ResourceTile
+                    <ResourceRow
                       key={resource.id}
-                      mode={viewMode}
+                      onDelete={() => sendPreviewIntent(resource.id, "delete")}
+                      onDownload={() => void handleRowDownload(resource)}
+                      onRename={() => sendPreviewIntent(resource.id, "rename")}
                       onSelect={() => setSelectedResourceId(resource.id)}
                       resource={resource}
                       scope="room"
                       selected={selectedResource?.id === resource.id}
                     />
                   ))}
-                </div>
+                </ul>
               )}
-            </section>
+            </div>
 
             <ResourcePreview
-              emptyHint={t("resources.workspace.previewEmptyHint")}
+              intent={previewIntent}
               onClose={() => setSelectedResourceId(null)}
               onDeleted={() => {
                 setSelectedResourceId(null);
                 void loadResources();
               }}
               onError={(message) => setUploadState({ kind: "error", message })}
+              onSelectRelated={(relatedResource) => {
+                if (resources.some((item) => item.id === relatedResource.id)) {
+                  setQuery("");
+                  setSelectedResourceId(relatedResource.id);
+                }
+              }}
+              onUpdated={() => {
+                void loadResources();
+              }}
               resource={selectedResource}
               roomId={roomId}
               scope="room"
             />
-          </GlassPanel>
-        </>
-      ) : null}
+          </div>
+        ) : null}
+      </GlassPanel>
     </section>
   );
 }

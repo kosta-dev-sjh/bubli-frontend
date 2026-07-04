@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
@@ -109,6 +109,21 @@ export function PublicHomeFlow() {
     };
   }, []);
 
+  // 인디케이터 클릭 시 해당 스텝이 활성화되는 스크롤 위치로 이동한다.
+  // prefers-reduced-motion이면 부드러운 스크롤 없이 바로 이동한다.
+  const scrollToStep = useCallback((index: number) => {
+    const section = sectionRef.current;
+    if (!section) {
+      return;
+    }
+    const rect = section.getBoundingClientRect();
+    const sectionTop = rect.top + window.scrollY;
+    const scrollable = Math.max(rect.height - window.innerHeight, 1);
+    const target = sectionTop + scrollable * ((index + 0.5) / flowSteps.length);
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: target, behavior: reduceMotion ? "auto" : "smooth" });
+  }, []);
+
   const flowStyle = { "--flow-progress": progress, ...stickyFrame } as CSSProperties;
 
   return (
@@ -143,9 +158,16 @@ export function PublicHomeFlow() {
             <b>{activeIndex < 2 ? t("public.flow.outputTitlePending") : t("public.flow.outputTitleReady")}</b>
             <span>{activeIndex < 2 ? t("public.flow.outputSubPending") : t("public.flow.outputSubReady")}</span>
           </div>
-          <div className="public-home-flow__story-trace" aria-hidden="true">
+          <div className="public-home-flow__story-trace" role="group" aria-label={t("public.flow.trackAria")}>
             {flowSteps.map((step, index) => (
-              <span className={cn(index <= activeIndex && "is-on")} key={step.shortKey} />
+              <button
+                aria-current={index === activeIndex ? "step" : undefined}
+                aria-label={t("public.flow.jumpAria", { step: t(step.titleKey) })}
+                className={cn(index <= activeIndex && "is-on")}
+                key={step.shortKey}
+                onClick={() => scrollToStep(index)}
+                type="button"
+              />
             ))}
           </div>
         </div>

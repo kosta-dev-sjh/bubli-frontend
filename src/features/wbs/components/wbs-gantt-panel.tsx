@@ -1,7 +1,8 @@
 "use client";
 
 import { addDays, endOfDay, startOfDay } from "date-fns";
-import { CalendarDays, CalendarRange, ChevronRight, FolderPlus, PencilIcon, Plus, TrashIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, ChevronRight, FolderPlus, PencilIcon, Plus, TrashIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -24,14 +25,15 @@ import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
+import type { GoogleCalendarConnectionResponse, RoomCalendarResponse } from "@/types/api/calendar";
 import type { ScheduleResponse, WbsItemResponse, WbsStatus } from "@/types/api/work";
 
 import styles from "./wbs-gantt-panel.module.css";
 
-const rangeOptions: Array<{ icon: typeof CalendarRange; key: Range; labelKey: MessageKey }> = [
-  { icon: CalendarRange, key: "monthly", labelKey: "wbs.gantt.range.monthly" },
-  { icon: CalendarRange, key: "weekly", labelKey: "wbs.gantt.range.weekly" },
-  { icon: CalendarDays, key: "daily", labelKey: "wbs.gantt.range.daily" },
+const rangeOptions: Array<{ key: Range; labelKey: MessageKey }> = [
+  { key: "monthly", labelKey: "wbs.gantt.range.monthly" },
+  { key: "weekly", labelKey: "wbs.gantt.range.weekly" },
+  { key: "daily", labelKey: "wbs.gantt.range.daily" },
 ];
 
 const wbsGanttStatusColors: Record<WbsStatus, string> = {
@@ -63,6 +65,11 @@ type CreateDraft = {
   startAt: Date;
   title: string;
 };
+
+type CalendarSyncState = "checking" | "off" | "recording";
+
+const pad2 = (value: number) => String(value).padStart(2, "0");
+const formatBarDate = (date: Date) => `${date.getFullYear()}.${pad2(date.getMonth() + 1)}.${pad2(date.getDate())}`;
 
 function scheduleRangeQuery() {
   const now = new Date();
@@ -99,9 +106,12 @@ export function WbsGanttPanel({
   onSelectItem,
   onWbsCreated,
   onWbsDeleted,
+  onWbsReordered,
   rangeEditRequest,
   roomId,
   selectedWbsId,
+  toolbarLeading,
+  toolbarTrailing,
   wbsAccentById,
   wbsItems,
 }: {
@@ -111,9 +121,12 @@ export function WbsGanttPanel({
   onSelectItem: (id: string) => void;
   onWbsCreated: (item: WbsItemResponse, temporaryId?: string) => void;
   onWbsDeleted: (id: string) => void;
+  onWbsReordered?: (items: WbsItemResponse[]) => void;
   rangeEditRequest?: WbsGanttRangeEditRequest | null;
   roomId: string;
   selectedWbsId: string | null;
+  toolbarLeading?: ReactNode;
+  toolbarTrailing?: ReactNode;
   wbsAccentById?: Record<string, string>;
   wbsItems: WbsItemResponse[];
 }) {
@@ -122,8 +135,17 @@ export function WbsGanttPanel({
   const [schedules, setSchedules] = useState<ScheduleResponse[]>([]);
   const [localRanges, setLocalRanges] = useState<Record<string, LocalRange>>({});
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(() => new Set());
+  const [calendarSync, setCalendarSync] = useState<CalendarSyncState>("checking");
+  const [googleAccountEmail, setGoogleAccountEmail] = useState<string | null>(null);
+  const [roomGroupEventCount, setRoomGroupEventCount] = useState<number | null>(null);
+  // 룸별로 캐시해 룸을 오가도 이전 룸의 캘린더가 섞여 보이지 않게 한다.
+  const [roomCalendarByRoom, setRoomCalendarByRoom] = useState<Record<string, RoomCalendarResponse>>({});
+  const [isEnsuringRoomCalendar, setIsEnsuringRoomCalendar] = useState(false);
+  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const [createDraft, setCreateDraft] = useState<CreateDraft | null>(null);
+  const [isSyncPopoverOpen, setIsSyncPopoverOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const syncWrapRef = useRef<HTMLDivElement>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
   const handledRangeRequestId = useRef<number | null>(null);
   const localIdCounter = useRef(0);
@@ -152,6 +174,97 @@ export function WbsGanttPanel({
       createInputRef.current?.focus();
     }
   }, [createDraft]);
+
+  // 동기화 상세 팝오버는 바깥을 누르면 닫는다.
+  useEffect(() => {
+    if (!isSyncPopoverOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!syncWrapRef.current?.contains(event.target as Node)) {
+        setIsSyncPopoverOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isSyncPopoverOpen]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void calendarApi
+      .getGoogleConnection()
+      .then((connection: GoogleCalendarConnectionResponse | null) => {
+        if (cancelled) return;
+        const isActive = connection?.status === "ACTIVE";
+        setCalendarSync(isActive ? "recording" : "off");
+        setGoogleAccountEmail(isActive ? connection?.googleAccountEmail ?? null : null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // ApiClientError 404 = 연결 이력 없음. 그 외 오류도 표시상 '미연동'으로 둔다
+        // (일정 저장 자체는 roomId 기준 /api/schedules로 계속 동작).
+        setCalendarSync("off");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 연결 상태일 때 이 룸의 캘린더 그룹(로컬 일정 묶음) 건수를 함께 보여준다.
+  useEffect(() => {
+    // 미연결이면 조회하지 않는다. 건수 표시는 recording 상태에서만 렌더되므로 리셋은 불필요.
+    if (calendarSync !== "recording") return;
+
+    let cancelled = false;
+    const { from, to } = scheduleRangeQuery();
+
+    void calendarApi
+      .getGroupedEvents({ from, roomId, to })
+      .then((groups) => {
+        if (cancelled) return;
+        const roomGroup = groups.find((group) => group.groupType === "PROJECT_ROOM" && group.roomId === roomId);
+        setRoomGroupEventCount(roomGroup?.eventCount ?? 0);
+      })
+      .catch(() => {
+        // 그룹 조회 실패는 건수 표시만 생략한다(연결 상태 표시는 유지).
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [calendarSync, roomId]);
+
+  // GET이지만 백엔드가 룸 이름으로 구글 캘린더를 지연 생성하는 ensure 성격의 호출이라
+  // 자동 조회하지 않고 팝오버의 버튼으로만 부른다.
+  const handleEnsureRoomCalendar = async () => {
+    setIsEnsuringRoomCalendar(true);
+
+    try {
+      const response = await calendarApi.getRoomCalendar(roomId);
+      setRoomCalendarByRoom((current) => ({ ...current, [roomId]: response }));
+      if (!response.googleCalendarId) {
+        onNotice(t("wbs.gantt.sync.roomCalendarMissing"));
+      }
+    } catch {
+      onNotice(t("wbs.gantt.sync.roomCalendarFailed"));
+    } finally {
+      setIsEnsuringRoomCalendar(false);
+    }
+  };
+
+  const handleConnectGoogle = async () => {
+    setIsConnectingGoogle(true);
+
+    try {
+      const response = await calendarApi.requestGoogleConnectUrl();
+      window.location.href = response.authorizeUrl;
+    } catch {
+      setIsConnectingGoogle(false);
+      onNotice(t("wbs.gantt.sync.connectFailed"));
+    }
+  };
 
   const scheduleByWbsId = useMemo(() => {
     const map = new Map<string, ScheduleResponse>();
@@ -212,6 +325,69 @@ export function WbsGanttPanel({
     }
     return map;
   }, [wbsItems]);
+
+  // 트리 들여쓰기용 깊이(부모 체인 길이). 중첩 하위 작업도 단계별로 들여쓴다.
+  const depthById = useMemo(() => {
+    const map = new Map<string, number>();
+
+    const resolve = (item: WbsItemResponse): number => {
+      const cached = map.get(item.id);
+      if (cached !== undefined) return cached;
+
+      const parent = item.parentId ? itemById.get(item.parentId) : undefined;
+      const depth = parent ? Math.min(3, resolve(parent) + 1) : 0;
+      map.set(item.id, depth);
+      return depth;
+    };
+
+    for (const item of wbsItems) {
+      resolve(item);
+    }
+    return map;
+  }, [itemById, wbsItems]);
+
+  // 프로젝트 전체 진행률: 하위가 없는 말단 작업 기준 DONE 비율.
+  const overallProgress = useMemo(() => {
+    const parentIds = new Set(wbsItems.filter((item) => item.parentId).map((item) => item.parentId as string));
+    const leaves = wbsItems.filter((item) => !parentIds.has(item.id));
+    return { done: leaves.filter((item) => item.status === "DONE").length, total: leaves.length };
+  }, [wbsItems]);
+  const overallProgressPercent =
+    overallProgress.total > 0 ? Math.round((overallProgress.done / overallProgress.total) * 100) : 0;
+
+  // 상위 작업 진행률: 모든 하위(자손) 작업 중 DONE 개수. Jira 타임라인의 진행 표시와 같은 기준.
+  const progressById = useMemo(() => {
+    const cache = new Map<string, { done: number; total: number }>();
+
+    const collect = (id: string): { done: number; total: number } => {
+      const cached = cache.get(id);
+      if (cached) return cached;
+
+      let done = 0;
+      let total = 0;
+      for (const child of childrenByParent[id] ?? []) {
+        total += 1;
+        if (child.status === "DONE") done += 1;
+        const nested = collect(child.id);
+        done += nested.done;
+        total += nested.total;
+      }
+
+      const result = { done, total };
+      cache.set(id, result);
+      return result;
+    };
+
+    for (const item of wbsItems) {
+      collect(item.id);
+    }
+    return cache;
+  }, [childrenByParent, wbsItems]);
+
+  const pendingSyncCount = useMemo(
+    () => schedules.filter((schedule) => schedule.wbsItemId && schedule.syncStatus === "SYNC_FAILED").length,
+    [schedules],
+  );
 
   const resolveAccent = useCallback((item: WbsItemResponse) => {
     if (wbsAccentById?.[item.id]) return wbsAccentById[item.id];
@@ -277,6 +453,14 @@ export function WbsGanttPanel({
       const scrollerRect = scroller.getBoundingClientRect();
       const sidebarWidth =
         Number.parseFloat(getComputedStyle(scroller).getPropertyValue("--gantt-sidebar-width")) || 0;
+      // 바가 이미 화면 안에 온전히 보이면 스크롤을 건드리지 않는다(선택할 때마다 튀는 것 방지).
+      const visibleLeft = scrollerRect.left + sidebarWidth + 18;
+      const visibleRight = scrollerRect.right - 18;
+
+      if (elementRect.left >= visibleLeft && elementRect.right <= visibleRight) {
+        return;
+      }
+
       const viewportCenter = scrollerRect.left + sidebarWidth + (scroller.clientWidth - sidebarWidth) / 2;
       const elementCenter = elementRect.left + elementRect.width / 2;
 
@@ -484,6 +668,60 @@ export function WbsGanttPanel({
     openCreateDraft(parentId, feature?.startAt ?? new Date());
   };
 
+  const siblingsOf = useCallback(
+    (item: WbsItemResponse) => {
+      const parentKey = item.parentId && itemById.has(item.parentId) ? item.parentId : "__root__";
+      return childrenByParent[parentKey] ?? [];
+    },
+    [childrenByParent, itemById],
+  );
+
+  const handleReorderItem = (item: WbsItemResponse, direction: -1 | 1) => {
+    const siblings = siblingsOf(item);
+    const index = siblings.findIndex((entry) => entry.id === item.id);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= siblings.length) return;
+
+    const reordered = [...siblings];
+    [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+    const orderNoById = new Map(reordered.map((entry, position) => [entry.id, position + 1]));
+
+    const previousItems = wbsItems;
+    const nextItems = wbsItems.map((entry) => {
+      const orderNo = orderNoById.get(entry.id);
+      return orderNo !== undefined && orderNo !== entry.orderNo ? { ...entry, orderNo } : entry;
+    });
+
+    onWbsReordered?.(nextItems);
+
+    const serverItems = reordered
+      .filter((entry) => !entry.id.startsWith(LOCAL_ID_PREFIX))
+      .map((entry) => ({
+        orderNo: orderNoById.get(entry.id) ?? entry.orderNo,
+        parentId: item.parentId ?? null,
+        wbsItemId: entry.id,
+      }));
+
+    if (serverItems.length === 0) {
+      onNotice(t("wbs.gantt.notice.orderSavedLocal"));
+      return;
+    }
+
+    onNotice(t("wbs.gantt.notice.orderSaving"));
+
+    void wbsApi
+      .reorderItems(roomId, { items: serverItems })
+      .then(() => onNotice(t("wbs.gantt.notice.orderSaved")))
+      .catch(() => {
+        if (shouldUseWorkspacePreviewData()) {
+          onNotice(t("wbs.gantt.notice.orderSavedLocal"));
+          return;
+        }
+        onWbsReordered?.(previousItems);
+        onNotice(t("wbs.gantt.notice.orderServerPending"));
+      });
+  };
+
   const handleDeleteItem = async (item: WbsItemResponse) => {
     if (wbsItems.some((entry) => entry.parentId === item.id)) {
       onNotice(t("wbs.gantt.notice.groupHasTasks"));
@@ -550,53 +788,147 @@ export function WbsGanttPanel({
   const draftParentTitle = createDraft?.parentId ? itemById.get(createDraft.parentId)?.title ?? null : null;
   const selectedItemForTask = selectedWbsId ? itemById.get(selectedWbsId) ?? null : null;
   const canAddTaskToSelection = Boolean(selectedItemForTask);
+  const syncState = calendarSync === "recording" && pendingSyncCount > 0 ? "pending" : calendarSync;
+  const syncStateText =
+    calendarSync === "checking"
+      ? t("wbs.gantt.sync.checking")
+      : calendarSync === "off"
+        ? t("wbs.gantt.sync.off")
+        : pendingSyncCount > 0
+          ? t("wbs.gantt.sync.pending", { count: pendingSyncCount })
+          : t("wbs.gantt.sync.recording");
+  const syncDetailText =
+    calendarSync === "recording" && (googleAccountEmail || roomGroupEventCount !== null)
+      ? [
+          googleAccountEmail,
+          roomGroupEventCount !== null ? t("wbs.gantt.sync.roomGroup", { count: roomGroupEventCount }) : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : null;
+  const syncHintText = calendarSync === "recording" ? t("wbs.gantt.sync.titleRecording") : t("wbs.gantt.sync.titleOff");
+  const roomCalendar = roomCalendarByRoom[roomId] ?? null;
 
   return (
     <div className={styles.panel} ref={panelRef}>
       <div className={styles.toolbar}>
-        <div aria-label={t("wbs.gantt.rangeSwitchAria")} className={styles.rangeSwitch} role="tablist">
-          {rangeOptions.map((option) => {
-            const Icon = option.icon;
-            const selected = range === option.key;
-            return (
-              <button
-                aria-selected={selected}
-                key={option.key}
-                onClick={() => setRange(option.key)}
-                role="tab"
-                type="button"
-              >
-                <Icon aria-hidden="true" size={13} strokeWidth={1.9} />
-                {t(option.labelKey)}
-              </button>
-            );
-          })}
+        <div className={styles.toolbarGroup}>
+          {toolbarLeading}
+          <div aria-label={t("wbs.gantt.rangeSwitchAria")} className={styles.rangeSwitch} role="tablist">
+            {rangeOptions.map((option) => {
+              const selected = range === option.key;
+              return (
+                <button
+                  aria-selected={selected}
+                  key={option.key}
+                  onClick={() => setRange(option.key)}
+                  role="tab"
+                  type="button"
+                >
+                  {t(option.labelKey)}
+                </button>
+              );
+            })}
+          </div>
+          <button className={styles.ghostButton} onClick={scrollToToday} type="button">
+            <CalendarDays aria-hidden="true" size={14} strokeWidth={1.9} />
+            {t("wbs.board.due.today")}
+          </button>
         </div>
 
-        <button className={styles.toolButton} onClick={scrollToToday} type="button">
-          <CalendarDays aria-hidden="true" size={13} strokeWidth={1.9} />
-          {t("wbs.board.due.today")}
-        </button>
-        <button className={styles.toolButton} onClick={handleAddGroup} type="button">
-          <FolderPlus aria-hidden="true" size={13} strokeWidth={1.9} />
-          {t("wbs.gantt.addGroup")}
-        </button>
-        <button
-          className={styles.toolButton}
-          disabled={orderedGroups.length === 0 || !canAddTaskToSelection}
-          onClick={handleAddTask}
-          title={
-            orderedGroups.length === 0
-              ? t("wbs.gantt.addTaskDisabledTitle")
-              : canAddTaskToSelection
-                ? t("wbs.gantt.addTaskSelectedTitle")
-                : t("wbs.gantt.addTaskNoSelectionTitle")
-          }
-          type="button"
-        >
-          <Plus aria-hidden="true" size={13} strokeWidth={1.9} />
-          {t("wbs.gantt.addTask")}
-        </button>
+        <div className={styles.toolbarGroup}>
+          {overallProgress.total > 0 ? (
+            <span
+              aria-label={t("room.workBoard.progressAria")}
+              className={styles.progressChip}
+              title={t("room.workBoard.progressCount", {
+                done: overallProgress.done,
+                percent: overallProgressPercent,
+                total: overallProgress.total,
+              })}
+            >
+              <span aria-hidden="true" className={styles.progressTrack}>
+                <span className={styles.progressFill} style={{ inlineSize: `${overallProgressPercent}%` }} />
+              </span>
+              {t("room.workBoard.progressCount", {
+                done: overallProgress.done,
+                percent: overallProgressPercent,
+                total: overallProgress.total,
+              })}
+            </span>
+          ) : null}
+          <div className={styles.syncWrap} ref={syncWrapRef}>
+            <button
+              aria-expanded={isSyncPopoverOpen}
+              aria-haspopup="dialog"
+              aria-label={syncStateText}
+              className={styles.syncTrigger}
+              data-state={syncState}
+              onClick={() => setIsSyncPopoverOpen((current) => !current)}
+              title={syncHintText}
+              type="button"
+            >
+              <CalendarDays aria-hidden="true" size={14} strokeWidth={1.9} />
+              <span aria-hidden="true" className={styles.syncDot} />
+            </button>
+            <span aria-live="polite" className="sr-only">
+              {syncStateText}
+            </span>
+            {isSyncPopoverOpen ? (
+              <div aria-label={syncStateText} className={styles.syncPopover} data-state={syncState} role="dialog">
+                <strong>{syncStateText}</strong>
+                {syncDetailText ? <small>{syncDetailText}</small> : null}
+                {calendarSync === "recording" && roomCalendar?.googleCalendarId ? (
+                  <small>{t("wbs.gantt.sync.roomCalendarConnected", { name: roomCalendar.calendarName })}</small>
+                ) : null}
+                <p>{syncHintText}</p>
+                {calendarSync === "recording" && !roomCalendar?.googleCalendarId ? (
+                  <button
+                    className={styles.syncConnectButton}
+                    disabled={isEnsuringRoomCalendar}
+                    onClick={() => void handleEnsureRoomCalendar()}
+                    type="button"
+                  >
+                    {isEnsuringRoomCalendar
+                      ? t("wbs.gantt.sync.roomCalendarChecking")
+                      : t("wbs.gantt.sync.roomCalendarAction")}
+                  </button>
+                ) : null}
+                {calendarSync === "off" ? (
+                  <button
+                    className={styles.syncConnectButton}
+                    disabled={isConnectingGoogle}
+                    onClick={() => void handleConnectGoogle()}
+                    type="button"
+                  >
+                    {isConnectingGoogle ? t("wbs.gantt.sync.connecting") : t("wbs.gantt.sync.connect")}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          {toolbarTrailing}
+          <button className={styles.ghostButton} onClick={handleAddGroup} type="button">
+            <FolderPlus aria-hidden="true" size={14} strokeWidth={1.9} />
+            {t("wbs.gantt.addGroup")}
+          </button>
+          <button
+            className={styles.primaryButton}
+            disabled={orderedGroups.length === 0 || !canAddTaskToSelection}
+            onClick={handleAddTask}
+            title={
+              orderedGroups.length === 0
+                ? t("wbs.gantt.addTaskDisabledTitle")
+                : canAddTaskToSelection
+                  ? t("wbs.gantt.addTaskSelectedTitle")
+                  : t("wbs.gantt.addTaskNoSelectionTitle")
+            }
+            type="button"
+          >
+            <Plus aria-hidden="true" size={14} strokeWidth={2} />
+            {t("wbs.gantt.addTaskShort")}
+          </button>
+        </div>
       </div>
 
       {createDraft ? (
@@ -640,39 +972,17 @@ export function WbsGanttPanel({
             {visibleItems.map((item) => {
               const feature = featureById.get(item.id);
               if (!feature) return null;
-              const parentItem = item.parentId ? itemById.get(item.parentId) : null;
               const accent = resolveAccent(item);
               const childCount = childCountById.get(item.id) ?? 0;
+              const progress = childCount > 0 ? progressById.get(item.id) ?? null : null;
               const isCollapsed = collapsedWbsIds.has(item.id);
+              const siblings = siblingsOf(item);
+              const siblingIndex = siblings.findIndex((entry) => entry.id === item.id);
               return (
                 <GanttSidebarItem
                   accentColor={accent}
                   actions={
                     <>
-                      {childCount > 0 ? (
-                        <button
-                          aria-expanded={!isCollapsed}
-                          aria-label={
-                            isCollapsed
-                              ? t("wbs.gantt.row.expandSubtasks", { title: item.title })
-                              : t("wbs.gantt.row.collapseSubtasks", { title: item.title })
-                          }
-                          className={styles.rowActionButton}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            toggleCollapsed(item.id);
-                          }}
-                          title={isCollapsed ? t("wbs.gantt.row.expandTitle") : t("wbs.gantt.row.collapseTitle")}
-                          type="button"
-                        >
-                          <ChevronRight
-                            aria-hidden="true"
-                            size={13}
-                            strokeWidth={1.9}
-                            style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)" }}
-                          />
-                        </button>
-                      ) : null}
                       {!item.parentId ? (
                         <button
                           aria-label={t("wbs.gantt.row.addChildAria", { title: item.title })}
@@ -687,6 +997,32 @@ export function WbsGanttPanel({
                           <Plus aria-hidden="true" size={13} strokeWidth={1.9} />
                         </button>
                       ) : null}
+                      <button
+                        aria-label={t("wbs.gantt.row.moveUpAria", { title: item.title })}
+                        className={styles.rowActionButton}
+                        disabled={siblingIndex <= 0}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleReorderItem(item, -1);
+                        }}
+                        title={t("wbs.gantt.row.moveUpTitle")}
+                        type="button"
+                      >
+                        <ArrowUp aria-hidden="true" size={13} strokeWidth={1.9} />
+                      </button>
+                      <button
+                        aria-label={t("wbs.gantt.row.moveDownAria", { title: item.title })}
+                        className={styles.rowActionButton}
+                        disabled={siblingIndex < 0 || siblingIndex >= siblings.length - 1}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleReorderItem(item, 1);
+                        }}
+                        title={t("wbs.gantt.row.moveDownTitle")}
+                        type="button"
+                      >
+                        <ArrowDown aria-hidden="true" size={13} strokeWidth={1.9} />
+                      </button>
                       <button
                         aria-label={t("wbs.gantt.row.editAria", { title: item.title })}
                         className={styles.rowActionButton}
@@ -712,12 +1048,53 @@ export function WbsGanttPanel({
                     </>
                   }
                   className={selectedWbsId === item.id ? styles.selectedRow : undefined}
+                  expander={
+                    childCount > 0 ? (
+                      <button
+                        aria-expanded={!isCollapsed}
+                        aria-label={
+                          isCollapsed
+                            ? t("wbs.gantt.row.expandSubtasks", { title: item.title })
+                            : t("wbs.gantt.row.collapseSubtasks", { title: item.title })
+                        }
+                        className={styles.expanderButton}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleCollapsed(item.id);
+                        }}
+                        title={isCollapsed ? t("wbs.gantt.row.expandTitle") : t("wbs.gantt.row.collapseTitle")}
+                        type="button"
+                      >
+                        <ChevronRight
+                          aria-hidden="true"
+                          size={13}
+                          strokeWidth={2}
+                          style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)", transition: "transform 160ms ease" }}
+                        />
+                      </button>
+                    ) : null
+                  }
                   feature={feature}
-                  indentLevel={item.parentId ? 1 : 0}
+                  indentLevel={depthById.get(item.id) ?? (item.parentId ? 1 : 0)}
                   key={item.id}
-                  kindLabel={item.parentId ? t("wbs.gantt.row.kindChild") : t("wbs.gantt.row.kindParent")}
                   onSelectItem={() => focusItemOnTimeline(item)}
-                  parentLabel={parentItem ? t("wbs.gantt.row.parentPrefix", { title: parentItem.title }) : null}
+                  progress={
+                    progress && progress.total > 0
+                      ? {
+                          done: progress.done,
+                          label: t("wbs.gantt.row.progressLabel", { done: progress.done, total: progress.total }),
+                          total: progress.total,
+                        }
+                      : null
+                  }
+                  statusIndicator={
+                    childCount === 0
+                      ? {
+                          label: t(wbsGanttStatusNameKeys[item.status]),
+                          state: item.status === "DONE" ? "done" : item.status === "IN_PROGRESS" ? "inProgress" : "todo",
+                        }
+                      : null
+                  }
                 />
               );
             })}
@@ -732,15 +1109,24 @@ export function WbsGanttPanel({
                 if (!feature) return null;
                 // 일정 로드/저장으로 기간이 바뀌면 바 내부 상태를 다시 맞추기 위해 key에 기간을 포함한다.
                 const featureKey = `${item.id}:${feature.startAt.getTime()}:${feature.endAt.getTime()}`;
+                const barTitle = t("wbs.gantt.bar.range", {
+                  end: formatBarDate(feature.endAt),
+                  name: feature.name,
+                  start: formatBarDate(feature.startAt),
+                });
                 return (
                   <div className="flex" key={item.id}>
-                    <GanttFeatureItem key={featureKey} onMove={handleMoveFeature} {...feature} />
+                    <GanttFeatureItem key={featureKey} onMove={handleMoveFeature} {...feature}>
+                      <p className="flex-1 truncate text-[13px]" title={barTitle}>
+                        {feature.name}
+                      </p>
+                    </GanttFeatureItem>
                   </div>
                 );
               })}
             </GanttFeatureListGroup>
           </GanttFeatureList>
-          <GanttToday className="bg-accent text-accent-foreground" />
+          <GanttToday />
         </GanttTimeline>
       </GanttProvider>
     </div>

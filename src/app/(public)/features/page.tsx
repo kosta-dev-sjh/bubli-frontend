@@ -2,6 +2,7 @@
 
 import { Bot, FolderKanban, LayoutGrid, MessageCircle, PanelTop, SearchCheck } from "lucide-react";
 
+import { DecorBubble } from "@/components/bubbles";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { PageHeading } from "@/components/ui/page-heading";
@@ -31,6 +32,7 @@ export default function FeaturesPage() {
 
       <section className="public-feature-flow" aria-label={t("public.features.flowAria")}>
         <GlassPanel className="public-feature-flow__intro">
+          <DecorBubble size="md" />
           <Chip selected>{t("public.features.introChip")}</Chip>
           <h2>{t("public.features.introTitle")}</h2>
           <p>{t("public.features.introBody")}</p>

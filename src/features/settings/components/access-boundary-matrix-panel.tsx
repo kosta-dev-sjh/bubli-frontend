@@ -91,7 +91,7 @@ export function AccessBoundaryMatrixPanel({
                   </span>
                   <div className="min-w-0">
                     <h3 className="m-0 text-[16px] font-[840] leading-tight text-[var(--color-text)]">{item.dataName}</h3>
-                    <p className="m-0 mt-1 text-[12.5px] text-[var(--color-muted)]">
+                    <p className="m-0 mt-1 text-[13.5px] text-[var(--color-muted)]">
                       {item.ownerLabel} · {item.storageLabel}
                     </p>
                   </div>
@@ -101,22 +101,22 @@ export function AccessBoundaryMatrixPanel({
 
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-[var(--radius-input)] border border-[var(--glass-border)] bg-[rgba(255,255,255,0.58)] p-3">
-                  <div className="mb-2 flex items-center gap-2 text-[12.5px] font-[820] text-[var(--color-blue-deep)]">
+                  <div className="mb-2 flex items-center gap-2 text-[13.5px] font-[820] text-[var(--color-blue-deep)]">
                     <Eye size={15} strokeWidth={2.1} />
                     {t("settings.abm.viewable")}
                   </div>
-                  <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">{item.allowed}</p>
+                  <p className="m-0 text-[14px] leading-5 text-[var(--color-muted)]">{item.allowed}</p>
                 </div>
                 <div className="rounded-[var(--radius-input)] border border-[var(--glass-border)] bg-[rgba(255,255,255,0.58)] p-3">
-                  <div className="mb-2 flex items-center gap-2 text-[12.5px] font-[820] text-[var(--color-muted)]">
+                  <div className="mb-2 flex items-center gap-2 text-[13.5px] font-[820] text-[var(--color-muted)]">
                     <EyeOff size={15} strokeWidth={2.1} />
                     {t("settings.abm.mustBlock")}
                   </div>
-                  <p className="m-0 text-[13px] leading-5 text-[var(--color-muted)]">{item.blocked}</p>
+                  <p className="m-0 text-[14px] leading-5 text-[var(--color-muted)]">{item.blocked}</p>
                 </div>
               </div>
 
-              <p className="m-0 rounded-[var(--radius-input)] bg-[rgba(215,234,244,0.42)] px-3 py-2 text-[13px] leading-5 text-[var(--color-muted)]">
+              <p className="m-0 rounded-[var(--radius-input)] bg-[rgba(215,234,244,0.42)] px-3 py-2 text-[14px] leading-5 text-[var(--color-muted)]">
                 {item.note}
               </p>
             </article>

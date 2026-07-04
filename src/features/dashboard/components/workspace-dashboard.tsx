@@ -4,45 +4,30 @@ import { DndContext, DragOverlay, PointerSensor, closestCenter, useDroppable, us
 import type { CollisionDetection, DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Clock3,
-  LayoutDashboard,
-  Pause,
-  Play,
-  Plus,
-  RotateCcw,
-  Square,
-  Trash2,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, LayoutDashboard, Plus, RotateCcw, Trash2 } from "lucide-react";
 import Link from "next/link";
-import type { FormEvent } from "react";
+import type { FormEvent, HTMLAttributes, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardGrid, DashboardPalette, DashboardWidgetTile, WIDGET_CATALOG, sizeToClass, widgetIcon } from "@/components/dashboard";
 import type { DashboardWidgetDef } from "@/components/dashboard";
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { Ring } from "@/components/ui/ring";
 import { activityApi } from "@/features/activity/api/activityApi";
+import { agentApi } from "@/features/agent/api/agentApi";
+import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { dashboardApi } from "@/features/dashboard/api/dashboardApi";
-import { memoApi } from "@/features/memo/api/memoApi";
+import { readStoredBoard, writeStoredBoard } from "@/features/dashboard/lib/board-storage";
+import type { WidgetRoomScope } from "@/features/dashboard/lib/board-storage";
+import { MemoDashboardCard } from "@/features/memo/components";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
-import { timerApi } from "@/features/timer/api/timerApi";
+import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { todoApi } from "@/features/todo/api/todoApi";
-import { widgetApi } from "@/features/widget/api/widgetApi";
+import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
-import { tauriCommands } from "@/lib/tauri/commands";
-import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { readWidgetSummary } from "@/lib/widget";
-import {
-  ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
-  getActiveProjectRoomId,
-  getActiveProjectRoomLabel,
-} from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
   workspacePreviewDashboard,
@@ -51,12 +36,11 @@ import {
   workspacePreviewRooms,
 } from "@/lib/workspace-preview-data";
 import type { ActivityLogResponse } from "@/types/api/activity";
-import type { MemoResponse } from "@/types/api/memo";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { ResourceResponse } from "@/types/api/resource";
-import type { TimeLogResponse } from "@/types/api/timer";
-import type { WidgetSummaryResponse, WidgetTodayUsageSummaryResponse } from "@/types/api/widget";
 import type { DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
+
+import styles from "./workspace-dashboard.module.css";
 
 type DashboardState =
   | { kind: "loading" }
@@ -71,35 +55,36 @@ const emptyDashboard: DashboardWorkResponse = {
   upcomingDeadlines: [],
 };
 
+type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
+type WbsProgress = { done: number; total: number };
+
+// 홈 보드에 실제 데이터가 연결된 위젯만 노출한다(카탈로그의 데모 항목 제외).
 const connectedWidgetIds = [
   "today-summary",
-  "next-focus",
   "today-todos",
   "schedule",
-  "project-rooms",
-  "pending-approval",
-  "timer",
+  "room-progress",
+  "focus-stats",
+  "agent-queue",
   "recent-resources",
   "quick-memo",
 ];
-const defaultWidgetIds = ["today-summary", "next-focus", "today-todos", "schedule", "project-rooms", "pending-approval", "timer"];
+const defaultWidgetIds = [...connectedWidgetIds];
 const dashboardDropzoneId = "dashboard-canvas";
 const dashboardRemoveDropzoneId = "dashboard-remove-card";
-const DASHBOARD_TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
-let dashboardWidgetLayoutSnapshot = [...defaultWidgetIds];
-type DashboardTimerAction = "idle" | "starting" | "pausing" | "resuming" | "stopping";
-type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
-type ActivityFocusSummary = {
-  logCount: number;
-  topAppName: string | null;
-  topWindowTitle: string | null;
-  totalSeconds: number;
+const PROGRESS_ROOM_LIMIT = 4;
+
+const LOCALE_TAGS: Record<string, string> = {
+  en: "en-US",
+  ja: "ja-JP",
+  ko: "ko-KR",
 };
 
-function normalizeWidgetIds(ids: string[]) {
+function normalizeWidgetIds(ids: unknown): string[] {
+  if (!Array.isArray(ids)) return [...defaultWidgetIds];
   const seen = new Set<string>();
-  const normalized = ids.filter((id) => {
-    if (!connectedWidgetIds.includes(id) || seen.has(id)) return false;
+  const normalized = ids.filter((id): id is string => {
+    if (typeof id !== "string" || !connectedWidgetIds.includes(id) || seen.has(id)) return false;
     seen.add(id);
     return true;
   });
@@ -107,28 +92,16 @@ function normalizeWidgetIds(ids: string[]) {
   return normalized.length > 0 ? normalized : [...defaultWidgetIds];
 }
 
-function readStoredWidgetIds() {
-  return normalizeWidgetIds(dashboardWidgetLayoutSnapshot);
+function greetingKey(hour: number): MessageKey {
+  if (hour >= 5 && hour < 12) return "dashboard.home.greetingMorning";
+  if (hour >= 12 && hour < 18) return "dashboard.home.greetingAfternoon";
+  return "dashboard.home.greetingEvening";
 }
 
-function storeWidgetIds(ids: string[]) {
-  dashboardWidgetLayoutSnapshot = normalizeWidgetIds(ids);
-}
-
-function formatTime(t: TranslateFn, value?: string | null) {
-  if (!value) {
-    return t("dashboard.common.timeUndecided");
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return t("dashboard.common.timeUndecided");
-  }
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+function hasDashboardItems(data: DashboardWorkResponse) {
+  return (
+    data.todayTasks.length + data.upcomingDeadlines.length + data.todaySchedules.length + (data.unreadNotificationCount ?? 0) > 0
+  );
 }
 
 function formatDue(t: TranslateFn, value?: string | null) {
@@ -147,13 +120,13 @@ function formatDue(t: TranslateFn, value?: string | null) {
   }).format(date);
 }
 
-function formatDuration(t: TranslateFn, seconds?: number | null) {
-  if (!seconds || seconds < 0) {
-    return t("dashboard.common.recording");
+function formatFocusDuration(t: TranslateFn, seconds: number) {
+  if (seconds < 60) {
+    return t("dashboard.common.minute", { minutes: 0 });
   }
 
   const hours = Math.floor(seconds / 3600);
-  const minutes = Math.max(1, Math.floor((seconds % 3600) / 60));
+  const minutes = Math.floor((seconds % 3600) / 60);
 
   if (hours > 0) {
     return t("dashboard.common.hourMinute", { hours, minutes });
@@ -162,51 +135,32 @@ function formatDuration(t: TranslateFn, seconds?: number | null) {
   return t("dashboard.common.minute", { minutes });
 }
 
-function formatMetricDuration(t: TranslateFn, seconds: number) {
-  if (seconds <= 0) return t("dashboard.metricDuration.zero");
-
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.max(1, Math.floor((seconds % 3600) / 60));
-  if (hours > 0) return t("dashboard.metricDuration.hour", { hours });
-
-  return t("dashboard.metricDuration.minute", { minutes });
-}
-
-function getTimerSeconds(timer: DashboardWorkResponse["runningTimer"]) {
-  if (!timer) return null;
-  if (typeof timer.durationSeconds === "number") return timer.durationSeconds;
-
-  const startedAt = timer.lastStartedAt ?? timer.startedAt;
-  const started = startedAt ? new Date(startedAt).getTime() : NaN;
-  if (timer.status !== "RUNNING" || Number.isNaN(started)) return null;
-
-  return Math.max(0, Math.floor((Date.now() - started) / 1000));
-}
-
-function makeTimerIdempotencyKey() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `dashboard-timer-${crypto.randomUUID()}`;
+function getActivitySeconds(activity: ActivityLogResponse) {
+  if (typeof activity.durationSeconds === "number" && activity.durationSeconds >= 0) {
+    return activity.durationSeconds;
   }
 
-  return `dashboard-timer-${Date.now()}`;
+  const started = new Date(activity.startedAt).getTime();
+  const ended = activity.endedAt ? new Date(activity.endedAt).getTime() : NaN;
+  if (Number.isNaN(started) || Number.isNaN(ended) || ended <= started) return 0;
+
+  return Math.floor((ended - started) / 1000);
 }
 
-function timerActionLabel(t: TranslateFn, timer?: DashboardWorkResponse["runningTimer"]) {
-  if (timer?.status === "RUNNING") return t("dashboard.timer.statusRunning");
-  if (timer?.status === "PAUSED") return t("dashboard.timer.statusPaused");
-  if (timer?.status === "NEEDS_RECOVERY") return t("dashboard.timer.statusRecovery");
-  return t("dashboard.timer.statusWaiting");
+function getWeekRange(base: Date) {
+  const from = new Date(base);
+  from.setHours(0, 0, 0, 0);
+  const weekday = (from.getDay() + 6) % 7; // 월요일 시작
+  from.setDate(from.getDate() - weekday);
+
+  const to = new Date(from);
+  to.setDate(from.getDate() + 7);
+
+  return { from, to };
 }
 
-function hasDashboardItems(data: DashboardWorkResponse) {
-  return (
-    data.todayTasks.length +
-      data.upcomingDeadlines.length +
-      data.todaySchedules.length +
-      (data.runningTimer ? 1 : 0) +
-      (data.unreadNotificationCount ?? 0) >
-    0
-  );
+function dedupeTasks(tasks: TaskResponse[]) {
+  return tasks.filter((task, index, source) => source.findIndex((item) => item.id === task.id) === index);
 }
 
 function StatusLine({ children, meta }: { children: string; meta?: string }) {
@@ -215,6 +169,45 @@ function StatusLine({ children, meta }: { children: string; meta?: string }) {
       <span>{children}</span>
       {meta ? <b>{meta}</b> : null}
     </li>
+  );
+}
+
+function DashboardLineList({ children }: { children: ReactNode }) {
+  return <ul className="workspace-dashboard__list workspace-dashboard__list--compact">{children}</ul>;
+}
+
+function EmptyWidget({ message }: { message?: string }) {
+  const { t } = useI18n();
+  return <div className="workspace-dashboard__empty-widget">{message ?? t("dashboard.common.noData")}</div>;
+}
+
+function WidgetRoomPicker({
+  onChange,
+  rooms,
+  value,
+}: {
+  onChange: (roomId: string | null) => void;
+  rooms: ProjectRoomResponse[];
+  value: string | null;
+}) {
+  const { t } = useI18n();
+
+  if (rooms.length === 0) return null;
+
+  return (
+    <select
+      aria-label={t("dashboard.widget.roomScopeAria")}
+      className={styles.roomPicker}
+      onChange={(event) => onChange(event.target.value || null)}
+      value={value ?? ""}
+    >
+      <option value="">{t("dashboard.widget.scopeAll")}</option>
+      {rooms.map((room) => (
+        <option key={room.id} value={room.id}>
+          {room.name}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -249,307 +242,6 @@ function TaskLine({
       </span>
     </li>
   );
-}
-
-function ScheduleLine({ schedule }: { schedule: ScheduleResponse }) {
-  const { t } = useI18n();
-  return <StatusLine meta={formatTime(t, schedule.startsAt)}>{schedule.title}</StatusLine>;
-}
-
-function normalizeMemoItems(items: MemoResponse[]) {
-  return items
-    .filter((memo) => memo.status === "ACTIVE")
-    .slice()
-    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
-}
-
-function memoBodyPreview(t: TranslateFn, body: string) {
-  const trimmed = body.trim();
-  return trimmed.length > 0 ? trimmed : t("dashboard.quickMemo.bodyFallback");
-}
-
-function pickNextTask(tasks: TaskResponse[]) {
-  const inProgressTask = tasks.find((task) => task.status === "IN_PROGRESS");
-  if (inProgressTask) return inProgressTask;
-
-  const withDueDate = tasks
-    .filter((task) => task.status !== "DONE" && task.dueAt)
-    .sort((left, right) => new Date(left.dueAt ?? "").getTime() - new Date(right.dueAt ?? "").getTime());
-  if (withDueDate[0]) return withDueDate[0];
-
-  return tasks.find((task) => task.status !== "DONE") ?? null;
-}
-
-function pickNextSchedule(schedules: ScheduleResponse[]) {
-  const now = Date.now();
-  const sorted = schedules
-    .filter((schedule) => schedule.startsAt)
-    .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
-
-  return sorted.find((schedule) => new Date(schedule.startsAt).getTime() >= now) ?? sorted[0] ?? null;
-}
-
-function getMetricProgress(value: number, max: number) {
-  if (value <= 0) return 0;
-  return Math.min(100, Math.max(18, Math.round((value / max) * 100)));
-}
-
-function getActivitySeconds(activity: ActivityLogResponse) {
-  if (typeof activity.durationSeconds === "number" && activity.durationSeconds >= 0) {
-    return activity.durationSeconds;
-  }
-
-  const started = new Date(activity.startedAt).getTime();
-  const ended = activity.endedAt ? new Date(activity.endedAt).getTime() : NaN;
-  if (Number.isNaN(started) || Number.isNaN(ended) || ended <= started) return 0;
-
-  return Math.floor((ended - started) / 1000);
-}
-
-function summarizeActivityFocus(t: TranslateFn, logs: ActivityLogResponse[] | null, activeRoomId: string | null): ActivityFocusSummary | null {
-  if (!logs) return null;
-
-  const scopedLogs = activeRoomId ? logs.filter((activity) => activity.roomId === activeRoomId) : logs;
-  const byApp = new Map<string, { seconds: number; title: string | null }>();
-  let totalSeconds = 0;
-
-  for (const activity of scopedLogs) {
-    const seconds = getActivitySeconds(activity);
-    totalSeconds += seconds;
-
-    const appName = activity.appName?.trim() || t("dashboard.activity.appFallback");
-    const current = byApp.get(appName) ?? { seconds: 0, title: null };
-    current.seconds += seconds;
-    current.title = activity.windowTitle?.trim() || current.title;
-    byApp.set(appName, current);
-  }
-
-  const [topAppName, topApp] =
-    [...byApp.entries()].sort((left, right) => right[1].seconds - left[1].seconds)[0] ?? [null, null];
-
-  return {
-    logCount: scopedLogs.length,
-    topAppName,
-    topWindowTitle: topApp?.title ?? null,
-    totalSeconds,
-  };
-}
-
-function DashboardMetricRing({ label, progress, tone, value }: { label: string; progress: number; tone: string; value: number | string }) {
-  return (
-    <div className="workspace-dashboard__metric-ring" data-tone={tone}>
-      <span className="workspace-dashboard__metric-ring-graph" aria-hidden="true">
-        <svg viewBox="0 0 36 36">
-          <path d="M18 2.0845a15.9155 15.9155 0 0 1 0 31.831a15.9155 15.9155 0 0 1 0-31.831" />
-          <path
-            d="M18 2.0845a15.9155 15.9155 0 0 1 0 31.831a15.9155 15.9155 0 0 1 0-31.831"
-            style={{ strokeDasharray: `${progress}, 100` }}
-          />
-        </svg>
-        <b>{value}</b>
-      </span>
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function DashboardSummary({
-  activityFocus,
-  data,
-  enabledBubbleCount,
-  tasks,
-  widgetUsageSummary,
-}: {
-  activityFocus: ActivityFocusSummary | null;
-  data: DashboardWorkResponse;
-  enabledBubbleCount: number | null;
-  tasks: TaskResponse[];
-  widgetUsageSummary: WidgetTodayUsageSummaryResponse | null;
-}) {
-  const { t } = useI18n();
-  const reviewCount = tasks.filter((task) => task.status === "REVIEW" || task.status === "BLOCKED").length;
-  const timerActive = data.runningTimer ? 1 : 0;
-  const bubbleUsageCount = widgetUsageSummary ? widgetUsageSummary.totalOpenCount + widgetUsageSummary.totalInteractionCount : null;
-  const metrics = [
-    { label: t("dashboard.metric.todos"), progress: getMetricProgress(tasks.length, 8), tone: "task", value: tasks.length },
-    { label: t("dashboard.metric.schedule"), progress: getMetricProgress(data.todaySchedules.length, 6), tone: "schedule", value: data.todaySchedules.length },
-    { label: t("dashboard.metric.review"), progress: getMetricProgress(reviewCount, 5), tone: "review", value: reviewCount },
-    { label: t("dashboard.metric.timer"), progress: timerActive ? 100 : 0, tone: "timer", value: timerActive ? t("dashboard.metric.timerOn") : "0" },
-    ...(bubbleUsageCount !== null
-      ? [{ label: t("dashboard.metric.bubbleUsage"), progress: getMetricProgress(bubbleUsageCount, 24), tone: "bubble", value: bubbleUsageCount }]
-      : enabledBubbleCount !== null
-        ? [{ label: t("dashboard.metric.bubbleActive"), progress: getMetricProgress(enabledBubbleCount, 8), tone: "bubble", value: enabledBubbleCount }]
-        : []),
-    ...(activityFocus
-      ? [
-          {
-            label: t("dashboard.metric.focus"),
-            progress: getMetricProgress(Math.round(activityFocus.totalSeconds / 60), 240),
-            tone: "focus",
-            value: formatMetricDuration(t, activityFocus.totalSeconds),
-          },
-        ]
-      : []),
-  ];
-
-  return (
-    <div className="workspace-dashboard__summary-wrap">
-      <div className="workspace-dashboard__summary">
-        {metrics.map((metric) => (
-          <DashboardMetricRing key={metric.label} {...metric} />
-        ))}
-      </div>
-      <div className="workspace-dashboard__summary-insights">
-        {widgetUsageSummary ? (
-          <span>
-            {t("dashboard.insight.bubbleUsage", {
-              open: widgetUsageSummary.totalOpenCount,
-              interaction: widgetUsageSummary.totalInteractionCount,
-              visible: formatDuration(t, widgetUsageSummary.totalVisibleSeconds),
-            })}
-          </span>
-        ) : (
-          <span>{enabledBubbleCount !== null ? t("dashboard.insight.bubbleActive", { count: enabledBubbleCount }) : t("dashboard.insight.bubbleNone")}</span>
-        )}
-        {activityFocus ? (
-          <span>
-            {activityFocus.totalSeconds > 0
-              ? t("dashboard.insight.focusApp", {
-                  app: activityFocus.topAppName ?? t("dashboard.insight.focusAppFallback"),
-                  duration: formatDuration(t, activityFocus.totalSeconds),
-                })
-              : activityFocus.logCount > 0
-                ? t("dashboard.insight.focusNoTime")
-                : t("dashboard.insight.focusNone")}
-          </span>
-        ) : (
-          <span>{t("dashboard.insight.focusConsent")}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function NextFocusWidget({
-  activityFocus,
-  nextSchedule,
-  nextTask,
-  runningTimer,
-}: {
-  activityFocus: ActivityFocusSummary | null;
-  nextSchedule: ScheduleResponse | null;
-  nextTask: TaskResponse | null;
-  runningTimer?: DashboardWorkResponse["runningTimer"];
-}) {
-  const { t } = useI18n();
-
-  if (!nextTask && !nextSchedule && !runningTimer && !activityFocus?.totalSeconds) {
-    return <EmptyWidget />;
-  }
-
-  return (
-    <div style={{ display: "grid", gap: 10 }}>
-      {runningTimer ? (
-        <div className="workspace-dashboard__timer-preview">
-          <b>{formatDuration(t, getTimerSeconds(runningTimer))}</b>
-          <span>{nextTask ? t("dashboard.nextFocus.continueTask", { title: nextTask.title }) : t("dashboard.nextFocus.hasOngoing")}</span>
-        </div>
-      ) : activityFocus?.totalSeconds ? (
-        <div className="workspace-dashboard__timer-preview workspace-dashboard__timer-preview--compact">
-          <b>{formatDuration(t, activityFocus.totalSeconds)}</b>
-          <span>{activityFocus.topAppName ? t("dashboard.nextFocus.focusApp", { app: activityFocus.topAppName }) : t("dashboard.nextFocus.focusRecorded")}</span>
-          {activityFocus.topWindowTitle ? <small>{activityFocus.topWindowTitle}</small> : null}
-        </div>
-      ) : null}
-      <DashboardLineList>
-        {nextTask ? <TaskLine task={nextTask} /> : null}
-        {nextSchedule ? <ScheduleLine schedule={nextSchedule} /> : null}
-      </DashboardLineList>
-    </div>
-  );
-}
-
-function ProjectRoomScopeSelector({
-  activeRoomId,
-  onSelect,
-  rooms,
-}: {
-  activeRoomId: string | null;
-  onSelect: (room: { label: string | null; roomId: string | null }) => void;
-  rooms: ProjectRoomResponse[];
-}) {
-  const { t } = useI18n();
-
-  if (rooms.length === 0) return null;
-
-  return (
-    <div className="workspace-dashboard__scope-strip" aria-label={t("dashboard.scope.aria")}>
-      <button data-active={!activeRoomId ? "true" : undefined} onClick={() => onSelect({ label: null, roomId: null })} type="button">
-        {t("dashboard.scope.all")}
-      </button>
-      {rooms.slice(0, 5).map((room) => (
-        <button
-          data-active={activeRoomId === room.id ? "true" : undefined}
-          key={room.id}
-          onClick={() => onSelect({ label: room.name, roomId: room.id })}
-          type="button"
-        >
-          {room.name}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function SelectedProjectRoomSummary({
-  room,
-  schedules,
-  tasks,
-}: {
-  room: ProjectRoomResponse | null;
-  schedules: ScheduleResponse[];
-  tasks: TaskResponse[];
-}) {
-  const { t } = useI18n();
-
-  if (!room) return null;
-
-  const reviewCount = tasks.filter((task) => task.status === "REVIEW" || task.status === "BLOCKED").length;
-  const inProgressCount = tasks.filter((task) => task.status === "IN_PROGRESS").length;
-
-  return (
-    <GlassPanel className="workspace-dashboard__room-summary">
-      <div>
-        <span>{t("dashboard.roomSummary.selected")}</span>
-        <strong>{room.name}</strong>
-      </div>
-      <dl>
-        <div>
-          <dt>{t("dashboard.roomSummary.todos")}</dt>
-          <dd>{tasks.length}</dd>
-        </div>
-        <div>
-          <dt>{t("dashboard.roomSummary.inProgress")}</dt>
-          <dd>{inProgressCount}</dd>
-        </div>
-        <div>
-          <dt>{t("dashboard.roomSummary.schedule")}</dt>
-          <dd>{schedules.length}</dd>
-        </div>
-        <div>
-          <dt>{t("dashboard.roomSummary.review")}</dt>
-          <dd>{reviewCount}</dd>
-        </div>
-      </dl>
-      <Link className="bubli-button bubli-button--quiet" href={`/app/project-rooms/${room.id}`}>
-        {t("dashboard.common.viewRoom")}
-      </Link>
-    </GlassPanel>
-  );
-}
-
-function DashboardLineList({ children }: { children: React.ReactNode }) {
-  return <ul className="workspace-dashboard__list workspace-dashboard__list--compact">{children}</ul>;
 }
 
 function TodoWidget({
@@ -614,81 +306,213 @@ function TodoWidget({
   );
 }
 
-function QuickMemoWidget({
-  canCreate,
-  creating,
-  loading,
-  memos,
-  notice,
-  onCreate,
-  roomId,
-  roomLabel,
-}: {
-  canCreate: boolean;
-  creating: boolean;
-  loading: boolean;
-  memos: MemoResponse[];
-  notice: string | null;
-  onCreate: (body: string) => Promise<boolean>;
-  roomId: string | null;
-  roomLabel: string | null;
-}) {
+function WeekScheduleWidget({ locale, schedules }: { locale: string; schedules: ScheduleResponse[] }) {
   const { t } = useI18n();
-  const [body, setBody] = useState("");
-  const scopeLabel = roomId ? t("dashboard.quickMemo.roomLabel", { room: roomLabel ?? t("dashboard.board.roomFallback") }) : t("dashboard.quickMemo.personalLabel");
+  const localeTag = LOCALE_TAGS[locale] ?? "ko-KR";
+  const from = useMemo(() => getWeekRange(new Date()).from, []);
 
-  const submitMemo = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const saved = await onCreate(body);
-    if (saved) {
-      setBody("");
+  const dayCounts = useMemo(() => {
+    const counts = new Array<number>(7).fill(0);
+    for (const schedule of schedules) {
+      const started = new Date(schedule.startsAt);
+      if (Number.isNaN(started.getTime())) continue;
+      const dayIndex = Math.floor((started.getTime() - from.getTime()) / 86_400_000);
+      if (dayIndex >= 0 && dayIndex < 7) counts[dayIndex] += 1;
     }
-  };
+    return counts;
+  }, [from, schedules]);
+
+  const maxCount = Math.max(1, ...dayCounts);
+  const dayFormatter = new Intl.DateTimeFormat(localeTag, { weekday: "narrow" });
+  const timeFormatter = new Intl.DateTimeFormat(localeTag, { day: "numeric", hour: "2-digit", minute: "2-digit", month: "short" });
+  const upcoming = schedules
+    .slice()
+    .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime())
+    .slice(0, 4);
 
   return (
-    <div className="workspace-dashboard__todo-widget">
-      <form className="workspace-dashboard__todo-form" onSubmit={submitMemo}>
-        <label>
-          <span>{scopeLabel}</span>
-          <input
-            disabled={!canCreate || creating}
-            maxLength={500}
-            onChange={(event) => setBody(event.target.value)}
-            placeholder={t("dashboard.quickMemo.placeholder")}
-            value={body}
-          />
-        </label>
-        <button disabled={!canCreate || creating} type="submit">
-          <Plus aria-hidden size={14} strokeWidth={2.1} />
-          <span>{creating ? t("dashboard.quickMemo.adding") : t("dashboard.quickMemo.add")}</span>
-        </button>
-      </form>
-      {notice ? <p className="workspace-dashboard__todo-notice">{notice}</p> : null}
-      {loading && memos.length === 0 ? (
-        <div className="workspace-dashboard__empty-widget">{t("dashboard.quickMemo.loading")}</div>
-      ) : memos.length > 0 ? (
+    <div className={styles.statBlock}>
+      <p className={styles.statHeadline}>{t("dashboard.schedule.weekCount", { count: schedules.length })}</p>
+      <div aria-label={t("dashboard.schedule.chartAria")} className={styles.weekBars} role="img">
+        {dayCounts.map((count, index) => {
+          const day = new Date(from);
+          day.setDate(from.getDate() + index);
+          return (
+            <span className={styles.weekBar} key={day.toISOString()}>
+              <i className={styles.weekBarFill} style={{ height: `${Math.max(8, Math.round((count / maxCount) * 100))}%` }} data-empty={count === 0 ? "true" : undefined} />
+              <b>{dayFormatter.format(day)}</b>
+            </span>
+          );
+        })}
+      </div>
+      {upcoming.length > 0 ? (
         <DashboardLineList>
-          {memos.map((memo) => (
-            <StatusLine key={memo.id} meta={formatTime(t, memo.updatedAt)}>
-              {memoBodyPreview(t, memo.body)}
+          {upcoming.map((schedule) => (
+            <StatusLine key={schedule.id} meta={timeFormatter.format(new Date(schedule.startsAt))}>
+              {schedule.title}
             </StatusLine>
           ))}
         </DashboardLineList>
       ) : (
-        <div className="workspace-dashboard__empty-widget">{t("dashboard.quickMemo.empty")}</div>
+        <EmptyWidget />
       )}
+    </div>
+  );
+}
+
+function RoomProgressWidget({
+  boards,
+  roomId,
+  rooms,
+}: {
+  boards: Record<string, WbsProgress | null>;
+  roomId: string | null;
+  rooms: ProjectRoomResponse[];
+}) {
+  const { t } = useI18n();
+
+  if (rooms.length === 0) {
+    return <EmptyWidget />;
+  }
+
+  if (roomId) {
+    const progress = boards[roomId];
+    if (!progress) {
+      return <EmptyWidget />;
+    }
+    if (progress.total === 0) {
+      return <EmptyWidget message={t("dashboard.progress.empty")} />;
+    }
+
+    const percent = Math.round((progress.done / progress.total) * 100);
+    return (
+      <div className={styles.progressSingle}>
+        <Ring label={t("dashboard.progress.ratioLabel")} max={progress.total} metric={`${percent}%`} size={92} value={progress.done} variant="progress" />
+        <p className={styles.statCaption}>{t("dashboard.progress.count", { done: progress.done, total: progress.total })}</p>
+      </div>
+    );
+  }
+
+  const targetRooms = rooms.slice(0, PROGRESS_ROOM_LIMIT);
+  return (
+    <div aria-label={t("dashboard.progress.chartAria")} className={styles.progressList} role="img">
+      {targetRooms.map((room) => {
+        const progress = boards[room.id];
+        const percent = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+        return (
+          <div className={styles.progressRow} key={room.id}>
+            <span className={styles.progressName}>{room.name}</span>
+            <span className={styles.progressTrack}>
+              <i className={styles.progressFill} style={{ width: `${percent}%` }} />
+            </span>
+            <b className={styles.progressValue}>{progress && progress.total > 0 ? `${percent}%` : "-"}</b>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FocusStatsWidget({ logs, roomId }: { logs: ActivityLogResponse[] | null; roomId: string | null }) {
+  const { t } = useI18n();
+
+  if (!logs) {
+    return <EmptyWidget message={t("dashboard.focus.empty")} />;
+  }
+
+  const scoped = roomId ? logs.filter((log) => log.roomId === roomId) : logs;
+  const byApp = new Map<string, number>();
+  let totalSeconds = 0;
+
+  for (const log of scoped) {
+    const seconds = getActivitySeconds(log);
+    totalSeconds += seconds;
+    const appName = log.appName?.trim() || t("dashboard.activity.appFallback");
+    byApp.set(appName, (byApp.get(appName) ?? 0) + seconds);
+  }
+
+  if (scoped.length === 0 || totalSeconds === 0) {
+    return <EmptyWidget message={t("dashboard.focus.empty")} />;
+  }
+
+  const topApps = [...byApp.entries()].sort((left, right) => right[1] - left[1]).slice(0, 3);
+  const topSeconds = Math.max(1, topApps[0]?.[1] ?? 1);
+
+  return (
+    <div className={styles.statBlock}>
+      <p className={styles.statHeadline}>
+        <em>{t("dashboard.focus.total")}</em>
+        <b>{formatFocusDuration(t, totalSeconds)}</b>
+      </p>
+      <div aria-label={t("dashboard.focus.chartAria")} className={styles.appBars} role="img">
+        {topApps.map(([appName, seconds]) => (
+          <div className={styles.appBarRow} key={appName}>
+            <span className={styles.appBarName}>{appName}</span>
+            <span className={styles.appBarTrack}>
+              <i className={styles.appBarFill} style={{ width: `${Math.max(6, Math.round((seconds / topSeconds) * 100))}%` }} />
+            </span>
+            <b className={styles.appBarValue}>{formatFocusDuration(t, seconds)}</b>
+          </div>
+        ))}
+      </div>
+      <p className={styles.statCaption}>{t("dashboard.focus.autoNote")}</p>
+    </div>
+  );
+}
+
+function AgentQueueWidget({ count }: { count: number | null }) {
+  const { t } = useI18n();
+
+  return (
+    <div className={styles.queueBlock}>
+      <p className={styles.queueCount}>
+        <b>{count ?? "-"}</b>
+        <span>{t("dashboard.agentQueue.waiting")}</span>
+      </p>
+      {/* /app/agent-suggestions는 /app/agent로 리다이렉트만 하므로 곧장 후보함으로 보낸다. */}
+      <Link className="bubli-button bubli-button--quiet bubli-button--sm" href="/app/agent">
+        {t("dashboard.agentQueue.open")}
+      </Link>
+    </div>
+  );
+}
+
+function TodaySummaryWidget({
+  focusSeconds,
+  pendingCount,
+  taskCount,
+  weekScheduleCount,
+}: {
+  focusSeconds: number;
+  pendingCount: number | null;
+  taskCount: number;
+  weekScheduleCount: number;
+}) {
+  const { t } = useI18n();
+  const focusMinutes = Math.round(focusSeconds / 60);
+  const rings = [
+    { label: t("dashboard.metric.todos"), max: 8, metric: `${taskCount}`, value: taskCount },
+    { label: t("dashboard.metric.schedule"), max: 10, metric: `${weekScheduleCount}`, value: weekScheduleCount },
+    { label: t("dashboard.metric.focusMinutes"), max: 240, metric: `${focusMinutes}`, value: focusMinutes },
+    ...(pendingCount !== null ? [{ label: t("dashboard.metric.aiQueue"), max: 8, metric: `${pendingCount}`, value: pendingCount }] : []),
+  ];
+
+  return (
+    <div className={styles.summaryRow}>
+      {rings.map((ring) => (
+        <Ring key={ring.label} label={ring.label} max={ring.max} metric={ring.metric} size={82} thickness={9} value={ring.value} variant="todo" />
+      ))}
     </div>
   );
 }
 
 function ResourceLine({ resource }: { resource: ResourceResponse }) {
   const { t } = useI18n();
-  return <StatusLine meta={resource.visibility === "ROOM_SHARED" ? t("dashboard.resource.room") : t("dashboard.resource.personal")}>{resource.title}</StatusLine>;
-}
-
-function EmptyWidget() {
-  const { t } = useI18n();
-  return <div className="workspace-dashboard__empty-widget">{t("dashboard.common.noData")}</div>;
+  return (
+    <StatusLine meta={resource.visibility === "ROOM_SHARED" ? t("dashboard.resource.room") : t("dashboard.resource.personal")}>
+      {resource.title}
+    </StatusLine>
+  );
 }
 
 function SortableDashboardTile({
@@ -697,19 +521,19 @@ function SortableDashboardTile({
   editMode,
   onRemove,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   def: DashboardWidgetDef;
   editMode: boolean;
   onRemove: () => void;
 }) {
   const { t } = useI18n();
-  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({ id: def.widgetId });
-  const dragHandleProps = { ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>;
+  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({ disabled: !editMode, id: def.widgetId });
+  const dragHandleProps = { ...attributes, ...listeners } as HTMLAttributes<HTMLButtonElement>;
 
   return (
     <div
-      ref={setNodeRef}
       className={sizeToClass[def.size]}
+      ref={setNodeRef}
       style={{
         minWidth: 0,
         transform: CSS.Transform.toString(transform),
@@ -732,37 +556,6 @@ function SortableDashboardTile({
   );
 }
 
-function DashboardCanvas({
-  boardDragging,
-  children,
-  editMode,
-  sorting,
-}: {
-  boardDragging: boolean;
-  children: React.ReactNode;
-  editMode: boolean;
-  sorting: boolean;
-}) {
-  const { t } = useI18n();
-  const { isOver, setNodeRef } = useDroppable({
-    disabled: !editMode,
-    id: dashboardDropzoneId,
-  });
-
-  return (
-    <section
-      className="workspace-dashboard__canvas"
-      data-drop-active={isOver ? "true" : undefined}
-      data-sorting={sorting ? "true" : undefined}
-      ref={setNodeRef}
-      aria-label={t("dashboard.canvas.placeAria")}
-    >
-      {children}
-      {editMode ? <DashboardCanvasRemoveDropzone active={boardDragging} /> : null}
-    </section>
-  );
-}
-
 function DashboardCanvasRemoveDropzone({ active }: { active: boolean }) {
   const { t } = useI18n();
   const { isOver, setNodeRef } = useDroppable({
@@ -782,49 +575,112 @@ function DashboardCanvasRemoveDropzone({ active }: { active: boolean }) {
   );
 }
 
-export function WorkspaceDashboard() {
+function DashboardCanvas({
+  boardDragging,
+  children,
+  editMode,
+  sorting,
+}: {
+  boardDragging: boolean;
+  children: ReactNode;
+  editMode: boolean;
+  sorting: boolean;
+}) {
   const { t } = useI18n();
+  const { isOver, setNodeRef } = useDroppable({
+    disabled: !editMode,
+    id: dashboardDropzoneId,
+  });
+
+  return (
+    <section
+      aria-label={t("dashboard.canvas.placeAria")}
+      className="workspace-dashboard__canvas"
+      data-drop-active={isOver ? "true" : undefined}
+      data-sorting={sorting ? "true" : undefined}
+      ref={setNodeRef}
+    >
+      {children}
+      {editMode ? <DashboardCanvasRemoveDropzone active={boardDragging} /> : null}
+    </section>
+  );
+}
+
+export function WorkspaceDashboard() {
+  const { locale, t } = useI18n();
   const [state, setState] = useState<DashboardState>({ kind: "loading" });
   const [editMode, setEditMode] = useState(false);
+  const [boardHydrated, setBoardHydrated] = useState(false);
+  const [widgetIds, setWidgetIds] = useState<string[]>([...defaultWidgetIds]);
+  const [widgetRoomScope, setWidgetRoomScope] = useState<WidgetRoomScope>({});
   const [activeBoardWidgetId, setActiveBoardWidgetId] = useState<string | null>(null);
   const [activePaletteWidgetId, setActivePaletteWidgetId] = useState<string | null>(null);
-  const [activeRoom, setActiveRoom] = useState<{ label: string | null; roomId: string | null }>({ label: null, roomId: null });
+
+  const [rooms, setRooms] = useState<ProjectRoomResponse[]>([]);
+  const [roomsLoaded, setRoomsLoaded] = useState(false);
   const [personalTasks, setPersonalTasks] = useState<TaskResponse[]>([]);
+  const [dashboardFeedTasks, setDashboardFeedTasks] = useState<TaskResponse[]>([]);
+  const [personalResources, setPersonalResources] = useState<ResourceResponse[]>([]);
+  const [roomResources, setRoomResources] = useState<Record<string, ResourceResponse[] | null>>({});
+  const [weekSchedules, setWeekSchedules] = useState<ScheduleResponse[] | null>(null);
+  const [todayActivityLogs, setTodayActivityLogs] = useState<ActivityLogResponse[] | null>(null);
+  const [pendingSuggestionCount, setPendingSuggestionCount] = useState<number | null>(null);
+  const [wbsBoards, setWbsBoards] = useState<Record<string, WbsProgress | null>>({});
+
   const [creatingTodo, setCreatingTodo] = useState(false);
   const [deletingTodoId, setDeletingTodoId] = useState<string | null>(null);
   const [todoNotice, setTodoNotice] = useState<string | null>(null);
-  const [quickMemos, setQuickMemos] = useState<MemoResponse[]>([]);
-  const [quickMemoLoading, setQuickMemoLoading] = useState(false);
-  const [quickMemoSaving, setQuickMemoSaving] = useState(false);
-  const [quickMemoNotice, setQuickMemoNotice] = useState<string | null>(null);
-  const [rooms, setRooms] = useState<ProjectRoomResponse[]>([]);
-  const [todayActivityLogs, setTodayActivityLogs] = useState<ActivityLogResponse[] | null>(null);
-  const [todayWidgetUsageSummary, setTodayWidgetUsageSummary] = useState<WidgetTodayUsageSummaryResponse | null>(null);
-  const [widgetSummary, setWidgetSummary] = useState<WidgetSummaryResponse | null>(null);
-  const [widgetIds, setWidgetIds] = useState(() => readStoredWidgetIds());
-  const [timerAction, setTimerAction] = useState<DashboardTimerAction>("idle");
-  const [timerMessage, setTimerMessage] = useState<string | null>(null);
-  const quickMemoRequestSeqRef = useRef(0);
-  const timerRecoveryAttemptedRef = useRef(false);
+  // 인사말/날짜는 마운트 후에만 계산해 SSR-클라이언트 하이드레이션 불일치를 피한다.
+  const [now, setNow] = useState<Date | null>(null);
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  // 저장된 보드 구성(카드 순서 + 위젯별 룸 범위)을 마운트 뒤에 복원한다.
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const stored = readStoredBoard(normalizeWidgetIds);
+      if (stored) {
+        setWidgetIds(stored.widgetIds);
+        setWidgetRoomScope(stored.roomScope);
+      }
+      setBoardHydrated(true);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  // 보드 구성 변경은 이 기기의 브라우저 저장소에 자동 저장한다(board-storage 모듈이 단독 소유).
+  // widgetApi에는 홈 보드 배치용 endpoint가 없어(버블 설정/사용 집계 전용) 로컬 저장만 쓴다.
+  useEffect(() => {
+    if (!boardHydrated) return;
+    writeStoredBoard({ roomScope: widgetRoomScope, widgetIds });
+  }, [boardHydrated, widgetIds, widgetRoomScope]);
 
   const fetchDashboard = useCallback(async () => {
     try {
       const data = await dashboardApi.getWork();
       setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
-      const [roomResult, personalTaskResult, widgetSummaryResult, widgetUsageResult, activityResult] = await Promise.allSettled([
-        projectRoomApi.list(),
-        todoApi.list(),
-        readWidgetSummary(),
-        widgetApi.getTodayUsageRollups(),
-        activityApi.getToday(),
-      ]);
+
+      const { from, to } = getWeekRange(new Date());
+      const [roomResult, personalTaskResult, feedTaskResult, resourceResult, activityResult, scheduleResult, suggestionResult] =
+        await Promise.allSettled([
+          projectRoomApi.list(),
+          todoApi.list(),
+          dashboardApi.getTasks(),
+          resourcesApi.listPersonal(),
+          activityApi.getToday(),
+          calendarApi.getEvents({ from: from.toISOString(), size: 100, to: to.toISOString() }),
+          agentApi.listPersonalSuggestions({ status: "DRAFT" }),
+        ]);
 
       setRooms(roomResult.status === "fulfilled" ? roomResult.value.items : []);
+      setRoomsLoaded(true);
       setPersonalTasks(personalTaskResult.status === "fulfilled" ? personalTaskResult.value.items : []);
-      setWidgetSummary(widgetSummaryResult.status === "fulfilled" && widgetSummaryResult.value.status === "ready" ? widgetSummaryResult.value.data : null);
-      setTodayWidgetUsageSummary(widgetUsageResult.status === "fulfilled" ? widgetUsageResult.value : null);
+      setDashboardFeedTasks(feedTaskResult.status === "fulfilled" ? feedTaskResult.value.items : []);
+      setPersonalResources(resourceResult.status === "fulfilled" ? resourceResult.value.items : []);
       setTodayActivityLogs(activityResult.status === "fulfilled" ? activityResult.value : null);
+      setWeekSchedules(scheduleResult.status === "fulfilled" ? scheduleResult.value.items : null);
+      setPendingSuggestionCount(suggestionResult.status === "fulfilled" ? suggestionResult.value.length : null);
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
@@ -833,8 +689,11 @@ export function WorkspaceDashboard() {
       if (shouldUseWorkspacePreviewData()) {
         setState({ data: workspacePreviewDashboard, kind: "ready" });
         setRooms(workspacePreviewRooms);
+        setRoomsLoaded(true);
+        setPersonalResources([...workspacePreviewPersonalResources, ...workspacePreviewRoomResources]);
+        setWeekSchedules(workspacePreviewDashboard.todaySchedules);
         setTodayActivityLogs([]);
-        setTodayWidgetUsageSummary(null);
+        setPendingSuggestionCount(0);
         return;
       }
       setState({
@@ -846,237 +705,77 @@ export function WorkspaceDashboard() {
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
+      setNow(new Date());
       void fetchDashboard();
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
   }, [fetchDashboard]);
 
-  useEffect(() => {
-    function syncActiveRoom(event?: Event) {
-      const detail = event instanceof CustomEvent ? (event.detail as { roomId?: string | null; roomLabel?: string | null } | null) : null;
-      setActiveRoom({
-        label: detail?.roomLabel ?? getActiveProjectRoomLabel(),
-        roomId: detail?.roomId ?? getActiveProjectRoomId(),
-      });
-    }
-
-    syncActiveRoom();
-    window.addEventListener(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, syncActiveRoom);
-
-    return () => {
-      window.removeEventListener(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, syncActiveRoom);
-    };
-  }, []);
-
-  useEffect(() => {
-    storeWidgetIds(widgetIds);
-  }, [widgetIds]);
-
-  const recordDashboardTimerState = useCallback((timeLog: TimeLogResponse) => {
-    if (!isTauriRuntime()) return;
-
-    void tauriCommands
-      .recordTimerState({
-        roomId: timeLog.roomId ?? null,
-        serverTimeLogId: timeLog.id,
-        startedAt: timeLog.startedAt,
-        status: timeLog.status,
-      })
-      .catch(() => undefined);
-  }, []);
-
-  const applyDashboardTimerResult = useCallback(
-    (timeLog: TimeLogResponse) => {
-      setState((current) => {
-        if (current.kind !== "ready" && current.kind !== "empty") return current;
-
-        const nextData = {
-          ...current.data,
-          runningTimer: timeLog.status === "ENDED" ? null : timeLog,
-        };
-
-        return hasDashboardItems(nextData) ? { data: nextData, kind: "ready" } : { data: nextData, kind: "empty" };
-      });
-      recordDashboardTimerState(timeLog);
-    },
-    [recordDashboardTimerState],
-  );
-
+  const activeRooms = useMemo(() => rooms.filter((room) => room.status === "ACTIVE"), [rooms]);
   const realData = state.kind === "ready" || state.kind === "empty" ? state.data : emptyDashboard;
-  const data = useMemo<DashboardWorkResponse>(() => {
-    if (!activeRoom.roomId) return realData;
+  const canShowBoard = state.kind === "ready" || state.kind === "empty";
 
-    return {
-      ...realData,
-      runningTimer: realData.runningTimer?.roomId === activeRoom.roomId ? realData.runningTimer : null,
-      todaySchedules: realData.todaySchedules.filter((schedule) => schedule.roomId === activeRoom.roomId),
-      todayTasks: realData.todayTasks.filter((task) => task.roomId === activeRoom.roomId),
-      upcomingDeadlines: realData.upcomingDeadlines.filter((task) => task.roomId === activeRoom.roomId),
-    };
-  }, [activeRoom.roomId, realData]);
-  const activeDashboardTimer = data.runningTimer ?? null;
-  const roomFilteredRunningTimer = activeRoom.roomId && realData.runningTimer && !activeDashboardTimer ? realData.runningTimer : null;
-  const timerBusy = timerAction !== "idle";
-  const activeHeartbeatTimerId = realData.runningTimer?.status === "RUNNING" ? realData.runningTimer.id : null;
-
-  const fetchQuickMemos = useCallback(async () => {
-    const requestSeq = quickMemoRequestSeqRef.current + 1;
-    quickMemoRequestSeqRef.current = requestSeq;
-    setQuickMemoLoading(true);
-    setQuickMemoNotice(null);
-
-    try {
-      const page = activeRoom.roomId ? await memoApi.listRoom(activeRoom.roomId, { size: 3 }) : await memoApi.listPersonal({ size: 3 });
-      if (quickMemoRequestSeqRef.current !== requestSeq) return;
-      setQuickMemos(normalizeMemoItems(page.items).slice(0, 3));
-    } catch (error) {
-      if (quickMemoRequestSeqRef.current !== requestSeq) return;
-      setQuickMemos([]);
-      setQuickMemoNotice(error instanceof ApiClientError && error.status === 401 ? t("dashboard.quickMemo.loginRequired") : t("dashboard.quickMemo.loadFailed"));
-    } finally {
-      if (quickMemoRequestSeqRef.current === requestSeq) {
-        setQuickMemoLoading(false);
-      }
-    }
-  }, [activeRoom.roomId, t]);
-
+  // 진행률 위젯이 참조하는 프로젝트룸의 WBS 보드를 필요할 때만 가져와 캐시한다.
+  const requestedWbsRoomsRef = useRef(new Set<string>());
   useEffect(() => {
-    if (state.kind !== "ready" && state.kind !== "empty") return;
+    if (!canShowBoard || !widgetIds.includes("room-progress")) return;
 
-    const timeoutId = window.setTimeout(() => {
-      void fetchQuickMemos();
-    }, 0);
+    const scopedRoomId = widgetRoomScope["room-progress"] ?? null;
+    const targets = scopedRoomId ? [scopedRoomId] : activeRooms.slice(0, PROGRESS_ROOM_LIMIT).map((room) => room.id);
 
-    return () => window.clearTimeout(timeoutId);
-  }, [fetchQuickMemos, state.kind]);
+    for (const roomId of targets) {
+      if (requestedWbsRoomsRef.current.has(roomId)) continue;
+      requestedWbsRoomsRef.current.add(roomId);
 
-  useEffect(() => {
-    if (timerRecoveryAttemptedRef.current) return;
-    if (state.kind !== "ready" && state.kind !== "empty") return;
-    if (!isTauriRuntime()) return;
-
-    timerRecoveryAttemptedRef.current = true;
-    let cancelled = false;
-
-    async function recoverDashboardTimerFromLocalState() {
-      const recovery = await tauriCommands.recoverTimerState().catch(() => null);
-      if (cancelled || !recovery?.recoveryRequired || !recovery.serverTimeLogId) return;
-
-      const timeLog = await timerApi.heartbeat(recovery.serverTimeLogId).catch(() => null);
-      if (cancelled || !timeLog) return;
-
-      applyDashboardTimerResult(timeLog);
-    }
-
-    void recoverDashboardTimerFromLocalState();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [applyDashboardTimerResult, state.kind]);
-
-  useEffect(() => {
-    if (!activeHeartbeatTimerId) return;
-
-    let cancelled = false;
-    const intervalId = window.setInterval(() => {
-      void timerApi
-        .heartbeat(activeHeartbeatTimerId)
-        .then((timeLog) => {
-          if (!cancelled) {
-            applyDashboardTimerResult(timeLog);
-          }
+      void wbsApi
+        .getBoard(roomId)
+        .then((board) => {
+          const total = board.wbsItems.length;
+          const done = board.wbsItems.filter((item) => item.status === "DONE").length;
+          setWbsBoards((current) => ({ ...current, [roomId]: { done, total } }));
         })
-        .catch(() => undefined);
-    }, DASHBOARD_TIMER_HEARTBEAT_INTERVAL_MS);
+        .catch(() => {
+          // 실패한 룸은 다음 진입 때 다시 시도한다.
+          requestedWbsRoomsRef.current.delete(roomId);
+        });
+    }
+  }, [activeRooms, canShowBoard, widgetIds, widgetRoomScope]);
 
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [activeHeartbeatTimerId, applyDashboardTimerResult]);
+  // 자료 위젯이 특정 룸을 보면 해당 룸의 공유 자료를 가져와 캐시한다.
+  const requestedResourceRoomsRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!canShowBoard || !widgetIds.includes("recent-resources")) return;
 
-  const runDashboardTimerAction = useCallback(
-    async (action: Exclude<DashboardTimerAction, "idle">) => {
-      const currentTimer = data.runningTimer ?? realData.runningTimer ?? null;
-      setTimerAction(action);
-      setTimerMessage(null);
+    const scopedRoomId = widgetRoomScope["recent-resources"] ?? null;
+    if (!scopedRoomId || requestedResourceRoomsRef.current.has(scopedRoomId)) return;
+    requestedResourceRoomsRef.current.add(scopedRoomId);
 
-      try {
-        if (action === "starting") {
-          const roomId = activeRoom.roomId ?? null;
-          const timeLog = await timerApi.start({
-            idempotencyKey: makeTimerIdempotencyKey(),
-            roomId,
-            timerType: roomId ? "WORK" : "GENERAL",
-          });
-          applyDashboardTimerResult(timeLog);
-          setTimerMessage(t("dashboard.timer.started"));
-          return;
-        }
+    void resourcesApi
+      .listRoomResources(scopedRoomId)
+      .then((page) => {
+        setRoomResources((current) => ({ ...current, [scopedRoomId]: page.items }));
+      })
+      .catch(() => {
+        setRoomResources((current) => ({ ...current, [scopedRoomId]: [] }));
+      });
+  }, [canShowBoard, widgetIds, widgetRoomScope]);
 
-        if (!currentTimer) {
-          setTimerMessage(t("dashboard.timer.noRunning"));
-          return;
-        }
-
-        const timeLog =
-          action === "pausing"
-            ? await timerApi.pause(currentTimer.id)
-            : action === "resuming"
-              ? await timerApi.resume(currentTimer.id)
-              : await timerApi.stop(currentTimer.id);
-
-        applyDashboardTimerResult(timeLog);
-        setTimerMessage(action === "pausing" ? t("dashboard.timer.paused") : action === "resuming" ? t("dashboard.timer.resumed") : t("dashboard.timer.stopped"));
-      } catch (error) {
-        setTimerMessage(error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("dashboard.timer.requestFailed"));
-      } finally {
-        setTimerAction("idle");
-      }
-    },
-    [activeRoom.roomId, applyDashboardTimerResult, data.runningTimer, realData.runningTimer, t],
+  const allTasks = useMemo(
+    () => dedupeTasks([...realData.todayTasks, ...realData.upcomingDeadlines, ...personalTasks, ...dashboardFeedTasks]),
+    [dashboardFeedTasks, personalTasks, realData.todayTasks, realData.upcomingDeadlines],
   );
 
-  const dashboardTasks = [...data.todayTasks, ...data.upcomingDeadlines, ...(activeRoom.roomId ? [] : personalTasks)].filter(
-    (task, index, source) => source.findIndex((item) => item.id === task.id) === index,
+  const totalFocusSeconds = useMemo(
+    () => (todayActivityLogs ?? []).reduce((sum, log) => sum + getActivitySeconds(log), 0),
+    [todayActivityLogs],
   );
-  const taskItems = dashboardTasks
-    .filter((task, index, source) => source.findIndex((item) => item.id === task.id) === index)
-    .slice(0, 4);
-  const todaySchedules = data.todaySchedules.slice(0, 4);
-  const reviewTasks = dashboardTasks
-    .filter((task, index, source) => (task.status === "REVIEW" || task.status === "BLOCKED") && source.findIndex((item) => item.id === task.id) === index)
-    .slice(0, 4);
-  const nextFocusTask = pickNextTask(dashboardTasks);
-  const nextFocusSchedule = pickNextSchedule(todaySchedules);
-  const activityFocus = useMemo(() => summarizeActivityFocus(t, todayActivityLogs, activeRoom.roomId), [activeRoom.roomId, t, todayActivityLogs]);
-  const canShowDashboardGrid = state.kind === "ready" || state.kind === "empty";
-  const inProgressTask = dashboardTasks.find((task) => task.status === "IN_PROGRESS") ?? null;
-  const enabledBubbleCount = widgetSummary ? widgetSummary.bubbles.filter((bubble) => bubble.enabled).length : null;
-  const recentResources = useMemo(() => {
-    if (!shouldUseWorkspacePreviewData()) return [];
-    const resources = activeRoom.roomId
-      ? workspacePreviewRoomResources.filter((resource) => resource.roomId === activeRoom.roomId)
-      : [...workspacePreviewPersonalResources, ...workspacePreviewRoomResources];
 
-    return resources.slice().sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 3);
-  }, [activeRoom.roomId]);
-  const activeRooms = useMemo(() => {
-    const filtered = rooms.filter((room) => room.status === "ACTIVE");
-    if (!activeRoom.roomId) return filtered;
-    return filtered.filter((room) => room.id === activeRoom.roomId);
-  }, [activeRoom.roomId, rooms]);
-  const selectableRooms = useMemo(() => rooms.filter((room) => room.status === "ACTIVE"), [rooms]);
-  const selectedRoom = useMemo(
-    () => (activeRoom.roomId ? rooms.find((room) => room.id === activeRoom.roomId) ?? null : null),
-    [activeRoom.roomId, rooms],
-  );
+  const scheduleItems = useMemo(() => weekSchedules ?? realData.todaySchedules, [realData.todaySchedules, weekSchedules]);
+
   const visibleWidgets = useMemo(
     () =>
       widgetIds
-        .filter((id) => connectedWidgetIds.includes(id))
         .map((id) => WIDGET_CATALOG.find((widget) => widget.widgetId === id))
         .filter((widget): widget is DashboardWidgetDef => Boolean(widget)),
     [widgetIds],
@@ -1084,9 +783,9 @@ export function WorkspaceDashboard() {
   const availableWidgets = WIDGET_CATALOG.filter(
     (widget) => connectedWidgetIds.includes(widget.widgetId) && !widgetIds.includes(widget.widgetId),
   );
-
   const activePaletteWidget = activePaletteWidgetId ? WIDGET_CATALOG.find((widget) => widget.widgetId === activePaletteWidgetId) ?? null : null;
   const activeBoardWidget = activeBoardWidgetId ? WIDGET_CATALOG.find((widget) => widget.widgetId === activeBoardWidgetId) ?? null : null;
+
   const dashboardCollisionDetection = useCallback<CollisionDetection>((args) => {
     const activeId = String(args.active.id);
     const droppableContainers = activeId.startsWith("palette:")
@@ -1096,24 +795,29 @@ export function WorkspaceDashboard() {
     return closestCenter({ ...args, droppableContainers });
   }, []);
 
+  const setWidgetScope = useCallback((widgetId: string, roomId: string | null) => {
+    setWidgetRoomScope((current) => {
+      const next = { ...current };
+      if (roomId) {
+        next[widgetId] = roomId;
+      } else {
+        delete next[widgetId];
+      }
+      return next;
+    });
+  }, []);
+
   const upsertTask = useCallback((task: TaskResponse) => {
     if (!task.roomId) {
       setPersonalTasks((current) => [task, ...current.filter((item) => item.id !== task.id)]);
+    } else {
+      setDashboardFeedTasks((current) => [task, ...current.filter((item) => item.id !== task.id)]);
     }
-    setState((current) => {
-      if (current.kind !== "ready" && current.kind !== "empty") return current;
-      return {
-        data: {
-          ...current.data,
-          todayTasks: [task, ...current.data.todayTasks.filter((item) => item.id !== task.id)],
-        },
-        kind: "ready",
-      };
-    });
   }, []);
 
   const removeTask = useCallback((taskId: string) => {
     setPersonalTasks((current) => current.filter((task) => task.id !== taskId));
+    setDashboardFeedTasks((current) => current.filter((task) => task.id !== taskId));
     setState((current) => {
       if (current.kind !== "ready" && current.kind !== "empty") return current;
       return {
@@ -1127,6 +831,8 @@ export function WorkspaceDashboard() {
     });
   }, []);
 
+  const todoScopeRoomId = widgetRoomScope["today-todos"] ?? null;
+
   const createTodo = useCallback(
     async (title: string) => {
       const trimmed = title.trim();
@@ -1139,11 +845,11 @@ export function WorkspaceDashboard() {
       setTodoNotice(null);
 
       try {
-        const created = activeRoom.roomId
-          ? await todoApi.createRoomTask(activeRoom.roomId, { status: "TODO", title: trimmed })
+        const created = todoScopeRoomId
+          ? await todoApi.createRoomTask(todoScopeRoomId, { status: "TODO", title: trimmed })
           : await todoApi.create({ status: "TODO", title: trimmed });
         upsertTask(created);
-        setTodoNotice(activeRoom.roomId ? t("dashboard.todo.createdRoom") : t("dashboard.todo.createdPersonal"));
+        setTodoNotice(todoScopeRoomId ? t("dashboard.todo.createdRoom") : t("dashboard.todo.createdPersonal"));
         return true;
       } catch (error) {
         setTodoNotice(error instanceof ApiClientError && error.status === 401 ? t("dashboard.todo.loginRequired") : t("dashboard.todo.saveFailed"));
@@ -1152,7 +858,7 @@ export function WorkspaceDashboard() {
         setCreatingTodo(false);
       }
     },
-    [activeRoom.roomId, t, upsertTask],
+    [t, todoScopeRoomId, upsertTask],
   );
 
   const deleteTodo = useCallback(
@@ -1171,32 +877,6 @@ export function WorkspaceDashboard() {
       }
     },
     [removeTask, t],
-  );
-
-  const createQuickMemo = useCallback(
-    async (body: string) => {
-      const trimmed = body.trim();
-      if (!trimmed) {
-        setQuickMemoNotice(t("dashboard.quickMemo.needBody"));
-        return false;
-      }
-
-      setQuickMemoSaving(true);
-      setQuickMemoNotice(null);
-
-      try {
-        const created = activeRoom.roomId ? await memoApi.createRoom(activeRoom.roomId, { body: trimmed }) : await memoApi.createPersonal({ body: trimmed });
-        setQuickMemos((current) => normalizeMemoItems([created, ...current.filter((memo) => memo.id !== created.id)]).slice(0, 3));
-        setQuickMemoNotice(activeRoom.roomId ? t("dashboard.quickMemo.createdRoom") : t("dashboard.quickMemo.createdPersonal"));
-        return true;
-      } catch (error) {
-        setQuickMemoNotice(error instanceof ApiClientError && error.status === 401 ? t("dashboard.quickMemo.loginRequired") : t("dashboard.quickMemo.saveFailed"));
-        return false;
-      } finally {
-        setQuickMemoSaving(false);
-      }
-    },
-    [activeRoom.roomId, t],
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -1275,210 +955,122 @@ export function WorkspaceDashboard() {
 
   const renderWidgetBody = useCallback(
     (widgetId: string) => {
+      const scopedRoomId = widgetRoomScope[widgetId] ?? null;
+
       switch (widgetId) {
         case "today-summary":
           return (
-            <DashboardSummary
-              activityFocus={activityFocus}
-              data={data}
-              enabledBubbleCount={enabledBubbleCount}
-              tasks={dashboardTasks}
-              widgetUsageSummary={todayWidgetUsageSummary}
+            <TodaySummaryWidget
+              focusSeconds={totalFocusSeconds}
+              pendingCount={pendingSuggestionCount}
+              taskCount={allTasks.length}
+              weekScheduleCount={scheduleItems.length}
             />
           );
-        case "next-focus":
-          return <NextFocusWidget activityFocus={activityFocus} nextSchedule={nextFocusSchedule} nextTask={nextFocusTask} runningTimer={data.runningTimer} />;
-        case "today-todos":
+        case "today-todos": {
+          const scopedTasks = scopedRoomId ? allTasks.filter((task) => task.roomId === scopedRoomId) : allTasks;
+          const roomLabel = scopedRoomId ? rooms.find((room) => room.id === scopedRoomId)?.name ?? null : null;
           return (
             <TodoWidget
-              canCreate={state.kind === "ready" || state.kind === "empty"}
+              canCreate={canShowBoard}
               creating={creatingTodo}
               deletingTaskId={deletingTodoId}
               notice={todoNotice}
               onCreate={createTodo}
               onDelete={(task) => void deleteTodo(task)}
-              roomLabel={activeRoom.label}
-              tasks={taskItems}
+              roomLabel={roomLabel}
+              tasks={scopedTasks.slice(0, 6)}
             />
           );
-        case "quick-memo":
-          return (
-            <QuickMemoWidget
-              canCreate={state.kind === "ready" || state.kind === "empty"}
-              creating={quickMemoSaving}
-              loading={quickMemoLoading}
-              memos={quickMemos}
-              notice={quickMemoNotice}
-              onCreate={createQuickMemo}
-              roomId={activeRoom.roomId}
-              roomLabel={activeRoom.label}
-            />
-          );
-        case "pending-approval":
-          if (reviewTasks.length === 0) return <EmptyWidget />;
-          return (
-            <DashboardLineList>
-              {reviewTasks.map((task) => (
-                <TaskLine key={task.id} task={task} />
-              ))}
-            </DashboardLineList>
-          );
-        case "schedule":
-          if (todaySchedules.length === 0) return <EmptyWidget />;
+        }
+        case "schedule": {
+          const scopedSchedules = scopedRoomId ? scheduleItems.filter((schedule) => schedule.roomId === scopedRoomId) : scheduleItems;
+          return <WeekScheduleWidget locale={locale} schedules={scopedSchedules} />;
+        }
+        case "room-progress":
+          return <RoomProgressWidget boards={wbsBoards} roomId={scopedRoomId} rooms={activeRooms} />;
+        case "focus-stats":
+          return <FocusStatsWidget logs={todayActivityLogs} roomId={scopedRoomId} />;
+        case "agent-queue":
+          return <AgentQueueWidget count={pendingSuggestionCount} />;
+        case "recent-resources": {
+          const source = scopedRoomId ? roomResources[scopedRoomId] ?? [] : personalResources;
+          const recent = (source ?? [])
+            .slice()
+            .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+            .slice(0, 4);
+          if (recent.length === 0) return <EmptyWidget />;
           return (
             <DashboardLineList>
-              {todaySchedules.map((schedule) => (
-                <ScheduleLine key={schedule.id} schedule={schedule} />
-              ))}
-            </DashboardLineList>
-          );
-        case "project-rooms":
-          if (activeRooms.length === 0) return <EmptyWidget />;
-          return (
-            <DashboardLineList>
-              {activeRooms.slice(0, 4).map((room) => (
-                <StatusLine key={room.id} meta={room.clientName ?? undefined}>
-                  {room.name}
-                </StatusLine>
-              ))}
-            </DashboardLineList>
-          );
-        case "timer":
-          return (
-            <div className="workspace-dashboard__timer-preview">
-              <b>{formatDuration(t, getTimerSeconds(activeDashboardTimer))}</b>
-              <span>
-                {activeDashboardTimer
-                  ? timerActionLabel(t, activeDashboardTimer)
-                  : roomFilteredRunningTimer
-                    ? t("dashboard.timer.otherRoom")
-                    : inProgressTask
-                      ? t("dashboard.timer.taskRunning", { title: inProgressTask.title })
-                      : t("dashboard.timer.idle")}
-              </span>
-              <div className="workspace-dashboard__timer-actions" aria-label={t("dashboard.timer.actionsAria")} role="group">
-                <Button
-                  aria-label={t("dashboard.timer.startAria")}
-                  className="workspace-dashboard__timer-action"
-                  disabled={timerBusy || Boolean(realData.runningTimer)}
-                  icon={<Play size={13} strokeWidth={2.2} />}
-                  loading={timerAction === "starting"}
-                  onClick={() => void runDashboardTimerAction("starting")}
-                  size="sm"
-                  variant="primary"
-                >
-                  {t("dashboard.timer.start")}
-                </Button>
-                <Button
-                  aria-label={t("dashboard.timer.pauseAria")}
-                  className="workspace-dashboard__timer-action"
-                  disabled={timerBusy || activeDashboardTimer?.status !== "RUNNING"}
-                  icon={<Pause size={13} strokeWidth={2.2} />}
-                  loading={timerAction === "pausing"}
-                  onClick={() => void runDashboardTimerAction("pausing")}
-                  size="sm"
-                  variant="secondary"
-                >
-                  {t("dashboard.timer.pause")}
-                </Button>
-                <Button
-                  aria-label={t("dashboard.timer.resumeAria")}
-                  className="workspace-dashboard__timer-action"
-                  disabled={timerBusy || activeDashboardTimer?.status !== "PAUSED"}
-                  icon={<RotateCcw size={13} strokeWidth={2.2} />}
-                  loading={timerAction === "resuming"}
-                  onClick={() => void runDashboardTimerAction("resuming")}
-                  size="sm"
-                  variant="secondary"
-                >
-                  {t("dashboard.timer.resume")}
-                </Button>
-                <Button
-                  aria-label={t("dashboard.timer.stopAria")}
-                  className="workspace-dashboard__timer-action"
-                  disabled={timerBusy || !activeDashboardTimer || activeDashboardTimer.status === "ENDED"}
-                  icon={<Square size={12} strokeWidth={2.4} />}
-                  loading={timerAction === "stopping"}
-                  onClick={() => void runDashboardTimerAction("stopping")}
-                  size="sm"
-                  variant="quiet"
-                >
-                  {t("dashboard.timer.stop")}
-                </Button>
-              </div>
-              {timerMessage ? <small aria-live="polite">{timerMessage}</small> : null}
-            </div>
-          );
-        case "recent-resources":
-          if (recentResources.length === 0) return <EmptyWidget />;
-          return (
-            <DashboardLineList>
-              {recentResources.map((resource) => (
+              {recent.map((resource) => (
                 <ResourceLine key={resource.id} resource={resource} />
               ))}
             </DashboardLineList>
           );
+        }
+        case "quick-memo":
+          // dev PR 201 이식: 위젯별 룸 범위에 맞춰 개인/룸 메모를 구분해 연결한다.
+          return <MemoDashboardCard key={scopedRoomId ?? "personal"} roomId={scopedRoomId} />;
         default:
           return null;
       }
     },
     [
-      activeRoom.label,
-      activeDashboardTimer,
       activeRooms,
-      activityFocus,
+      allTasks,
+      canShowBoard,
       createTodo,
-      createQuickMemo,
       creatingTodo,
-      dashboardTasks,
-      data,
       deleteTodo,
       deletingTodoId,
-      enabledBubbleCount,
-      inProgressTask,
-      nextFocusSchedule,
-      nextFocusTask,
-      quickMemoLoading,
-      quickMemoNotice,
-      quickMemoSaving,
-      quickMemos,
-      realData.runningTimer,
-      recentResources,
-      reviewTasks,
-      roomFilteredRunningTimer,
-      runDashboardTimerAction,
-      state.kind,
-      t,
-      taskItems,
-      timerAction,
-      timerBusy,
-      timerMessage,
-      todaySchedules,
-      todayWidgetUsageSummary,
+      locale,
+      pendingSuggestionCount,
+      personalResources,
+      roomResources,
+      rooms,
+      scheduleItems,
+      todayActivityLogs,
       todoNotice,
+      totalFocusSeconds,
+      wbsBoards,
+      widgetRoomScope,
     ],
   );
 
+  const todayLabel = now
+    ? new Intl.DateTimeFormat(LOCALE_TAGS[locale] ?? "ko-KR", { day: "numeric", month: "long", weekday: "short" }).format(now)
+    : null;
+
   return (
-    <section className="workspace-dashboard" aria-label={t("dashboard.aria")}>
-      <GlassPanel className="workspace-dashboard__hero">
-        <div className="workspace-dashboard__copy">
-          <div className="workspace-dashboard__titlebar">
-            <h1>{t("dashboard.title")}</h1>
-            <span>{t("dashboard.personalHome")}</span>
-          </div>
-          <ProjectRoomScopeSelector activeRoomId={activeRoom.roomId} onSelect={setActiveRoom} rooms={selectableRooms} />
+    <section aria-label={t("dashboard.aria")} className="workspace-dashboard">
+      <GlassPanel className={styles.hero}>
+        <div className={styles.heroText}>
+          <h1>{t("dashboard.title")}</h1>
+          <p className={styles.heroMeta}>
+            {now ? <span>{t(greetingKey(now.getHours()))}</span> : null}
+            {todayLabel ? <b>{todayLabel}</b> : null}
+          </p>
         </div>
-        {canShowDashboardGrid ? (
-          <div className="workspace-dashboard__actions">
+        {canShowBoard ? (
+          <div className={styles.heroActions}>
             {editMode ? (
-              <Button onClick={() => setWidgetIds([...defaultWidgetIds])} variant="secondary">
-                {t("dashboard.action.default")}
+              <Button
+                icon={<RotateCcw aria-hidden size={14} strokeWidth={2} />}
+                onClick={() => {
+                  setWidgetIds([...defaultWidgetIds]);
+                  setWidgetRoomScope({});
+                }}
+                variant="secondary"
+              >
+                {t("dashboard.home.resetLayout")}
               </Button>
             ) : null}
-            <Button onClick={() => setEditMode((current) => !current)} variant={editMode ? "primary" : "secondary"}>
-              <LayoutDashboard aria-hidden size={15} strokeWidth={1.9} />
-              {editMode ? t("dashboard.action.done") : t("dashboard.action.edit")}
+            <Button
+              icon={<LayoutDashboard aria-hidden size={15} strokeWidth={1.9} />}
+              onClick={() => setEditMode((current) => !current)}
+              variant={editMode ? "primary" : "secondary"}
+            >
+              {editMode ? t("dashboard.home.editDone") : t("dashboard.home.editWidgets")}
             </Button>
           </div>
         ) : null}
@@ -1515,16 +1107,24 @@ export function WorkspaceDashboard() {
         </GlassPanel>
       ) : null}
 
-      {state.kind === "empty" ? (
+      {state.kind === "empty" && roomsLoaded && rooms.length === 0 ? (
         <GlassPanel className="workspace-dashboard__state">
           <CheckCircle2 aria-hidden size={20} strokeWidth={2} />
           <div>
             <h2>{t("dashboard.state.emptyTitle")}</h2>
+            <p>{t("dashboard.state.emptyBody")}</p>
+            <button
+              className="bubli-button bubli-button--primary"
+              onClick={() => window.dispatchEvent(new CustomEvent("bubli:open-project-room-create"))}
+              type="button"
+            >
+              {t("dashboard.state.emptyCreate")}
+            </button>
           </div>
         </GlassPanel>
       ) : null}
 
-      {canShowDashboardGrid ? (
+      {canShowBoard ? (
         <DndContext
           collisionDetection={dashboardCollisionDetection}
           onDragCancel={handleDragCancel}
@@ -1533,22 +1133,14 @@ export function WorkspaceDashboard() {
           onDragStart={handleDragStart}
           sensors={sensors}
         >
-          <SelectedProjectRoomSummary room={selectedRoom} schedules={todaySchedules} tasks={dashboardTasks} />
-          <div className={`workspace-dashboard__stage${editMode ? " workspace-dashboard__stage--editing" : ""}`}>
+          <div aria-label={t("dashboard.home.boardAria")} className={`workspace-dashboard__stage${editMode ? " workspace-dashboard__stage--editing" : ""}`}>
             <DashboardCanvas boardDragging={Boolean(activeBoardWidgetId)} editMode={editMode} sorting={Boolean(activeBoardWidgetId)}>
-              <div className="workspace-dashboard__canvas-head">
-                <div>
-                  <strong>{t("dashboard.board.title")}</strong>
-                  <span>
-                    {editMode
-                      ? t("dashboard.board.editing")
-                      : activeRoom.roomId
-                        ? t("dashboard.board.roomItems", { room: activeRoom.label ?? t("dashboard.board.roomFallback") })
-                        : t("dashboard.board.cardCount", { count: visibleWidgets.length })}
-                  </span>
+              {editMode ? (
+                <div className={styles.editHint}>
+                  <span>{t("dashboard.home.editingHint")}</span>
+                  <b>{t("dashboard.home.autoSaved")}</b>
                 </div>
-                {editMode ? <StatusBadge tone="agent">{t("dashboard.board.autoSave")}</StatusBadge> : null}
-              </div>
+              ) : null}
               <SortableContext items={visibleWidgets.map((widget) => widget.widgetId)} strategy={rectSortingStrategy}>
                 <DashboardGrid mode={editMode ? "edit" : "view"}>
                   {visibleWidgets.map((widget) => (
@@ -1558,6 +1150,13 @@ export function WorkspaceDashboard() {
                       key={widget.widgetId}
                       onRemove={() => setWidgetIds((current) => current.filter((id) => id !== widget.widgetId))}
                     >
+                      {widget.roomScope ? (
+                        <WidgetRoomPicker
+                          onChange={(roomId) => setWidgetScope(widget.widgetId, roomId)}
+                          rooms={activeRooms}
+                          value={widgetRoomScope[widget.widgetId] ?? null}
+                        />
+                      ) : null}
                       {renderWidgetBody(widget.widgetId)}
                     </SortableDashboardTile>
                   ))}
@@ -1566,11 +1165,12 @@ export function WorkspaceDashboard() {
             </DashboardCanvas>
 
             {editMode ? (
-              <aside className="workspace-dashboard__palette" aria-label={t("dashboard.board.addAria")}>
+              <aside aria-label={t("dashboard.palette.title")} className="workspace-dashboard__palette">
                 <DashboardPalette
                   draggable
                   items={availableWidgets}
                   onAdd={(widgetId) => setWidgetIds((current) => (current.includes(widgetId) ? current : [...current, widgetId]))}
+                  removeDropId={dashboardRemoveDropzoneId}
                 />
               </aside>
             ) : null}

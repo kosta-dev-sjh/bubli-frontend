@@ -56,11 +56,17 @@ const ko = {
 
   // 대화 스레드
   "chat.thread.defaultName": "대화",
-  "chat.thread.roomDesc": "이 프로젝트룸에 묶인 대화",
+  "chat.thread.roomDesc": "룸 멤버 모두가 참여하는 대화",
   "chat.thread.groupDesc": "친구들과 함께하는 그룹 대화",
   "chat.thread.directDesc": "친구와 1:1 대화",
   "chat.thread.projectRoom": "프로젝트룸",
   "chat.thread.startVoice": "보이스 시작",
+
+  // 룸 모드 스코프(활성 프로젝트룸 하나만 열림)
+  "chat.roomScope.emptyTitle": "선택된 프로젝트룸이 없습니다",
+  "chat.roomScope.emptyBody": "프로젝트룸을 선택하면 그 룸의 대화가 열립니다.",
+  "chat.roomScope.pickRoom": "프로젝트룸 선택",
+  "chat.roomScope.opening": "프로젝트룸 대화를 여는 중",
 
   // 새 채팅방
   "chat.newRoom.aria": "새 1:1 채팅방 만들기",
@@ -79,8 +85,10 @@ const ko = {
 
   // 보이스 상태 요약
   "chat.voice.open": "보이스 열림",
+  "chat.voice.live": "보이스 대화 중 · {count}명",
   "chat.voice.waiting": "보이스 대기",
-  "chat.voice.participantsAria": "참여자 {count}명",
+  "chat.voice.join": "보이스 참여",
+  "chat.voice.joining": "참여 중",
 
   // 메시지 목록
   "chat.messages.loading": "메시지를 불러오는 중",
@@ -91,24 +99,17 @@ const ko = {
 
   // 입력창
   "chat.composer.attach": "파일 첨부",
-  "chat.composer.voiceParticipants": "보이스 참여자 보기",
   "chat.composer.message": "메시지",
   "chat.composer.placeholder": "메시지 쓰기",
-  "chat.composer.emoticon": "이모티콘",
+  "chat.composer.emoticon": "이모지",
   "chat.composer.attachChip": "첨부 {name}",
   "chat.composer.agentQuestion": "에이전트 질문",
   "chat.composer.agentSummarize": "정리",
   "chat.composer.agentSuggest": "제안",
   "chat.composer.agentAnswer": "답변",
   "chat.composer.hint": "Shift+Enter 줄바꿈 · /bubli 질문으로 에이전트 호출",
-  "chat.composer.emoticonAria": "이모티콘 선택",
-
-  // 이모티콘
-  "chat.emoticon.like": "좋아요",
-  "chat.emoticon.ok": "확인",
-  "chat.emoticon.laugh": "웃음",
-  "chat.emoticon.cheer": "응원",
-  "chat.emoticon.wait": "잠시만요",
+  "chat.composer.hintDirect": "Enter로 전송 · Shift+Enter 줄바꿈",
+  "chat.composer.emojiPickerAria": "이모지 선택",
 
   // 친구 사이드바
   "chat.social.aria": "친구",
@@ -147,6 +148,9 @@ const ko = {
   "chat.friends.roomInvite": "룸 초대",
   "chat.friends.deleting": "삭제 중",
   "chat.friends.delete": "삭제",
+  "chat.friends.deleteConfirm": "친구를 삭제할까요?",
+  "chat.friends.deleteConfirmDelete": "삭제",
+  "chat.friends.deleteConfirmKeep": "유지",
 
   // 초대
   "chat.invite.roomSending": "{name}님에게 초대 보내는 중",
@@ -158,6 +162,12 @@ const ko = {
   "chat.invite.pending": "대기 중인 룸 초대 {count}",
   "chat.invite.canceling": "취소 중",
   "chat.invite.cancel": "초대 취소",
+  "chat.invite.linkKicker": "초대 링크",
+  "chat.invite.linkHint": "{room}에 바로 참여할 수 있는 링크를 만들어 공유하세요 (72시간 유효)",
+  "chat.invite.linkCreate": "초대 링크 만들기",
+  "chat.invite.linkCreating": "링크 만드는 중",
+  "chat.invite.linkCopied": "초대 링크를 복사했습니다",
+  "chat.invite.linkFailed": "초대 링크를 만들지 못했습니다",
 
   // 친구 요청
   "chat.requests.title": "친구 요청",
@@ -178,8 +188,6 @@ const ko = {
   "chat.voiceCard.ended": "종료됨",
   "chat.voiceCard.canStart": "시작 가능",
   "chat.voiceCard.priority": "프로젝트룸 채팅에서 시작",
-  "chat.voiceCard.receiving": "받는 중",
-  "chat.voiceCard.joinToken": "참여 토큰",
   "chat.voiceCard.changing": "변경 중",
   "chat.voiceCard.micOn": "마이크 켜기",
   "chat.voiceCard.micOff": "마이크 끄기",
@@ -189,8 +197,6 @@ const ko = {
   "chat.voiceCard.leave": "나가기",
   "chat.voiceCard.ending": "종료 중",
   "chat.voiceCard.end": "종료",
-  "chat.voiceCard.tokenReady": "토큰 준비됨",
-  "chat.voiceCard.tokenUntil": "{url} · {time}까지",
   "chat.voiceCard.speaking": "말하는 중",
   "chat.voiceCard.noParticipants": "아직 참여자가 없습니다",
 
@@ -210,10 +216,11 @@ const ko = {
   "chat.notice.roomInviteOnlyRoom": "프로젝트룸 대화에서 친구를 초대할 수 있습니다.",
   "chat.notice.roomInviteFailed": "초대를 보내지 못했습니다. 멤버 권한이나 서버 상태를 확인하세요.",
   "chat.notice.voiceOnlyRoom": "보이스는 프로젝트룸에서 사용할 수 있습니다.",
-  "chat.notice.voiceOpened": "보이스룸이 열렸습니다. 참여 토큰을 받아 LiveKit 연결을 준비할 수 있습니다.",
+  "chat.notice.voiceOpened": "보이스룸이 열렸습니다.",
   "chat.notice.voiceStartFailed": "보이스를 시작하지 못했습니다. 서버 상태를 확인하세요.",
-  "chat.notice.tokenReceived": "참여 토큰을 받았습니다. 실제 음성 연결은 LiveKit 클라이언트 연결 단계에서 사용합니다.",
-  "chat.notice.tokenFailed": "참여 토큰을 받지 못했습니다. 보이스 서버 상태를 확인하세요.",
+  "chat.notice.voiceJoined": "보이스에 참여했습니다.",
+  "chat.notice.voiceJoinFailed": "보이스에 참여하지 못했습니다. 서버 상태를 확인하세요.",
+  "chat.notice.voiceJoinDenied": "보이스 참여 권한이 없습니다. 프로젝트룸 멤버인지 확인하세요.",
   "chat.notice.micOff": "내 마이크를 껐습니다.",
   "chat.notice.micOn": "내 마이크를 켰습니다.",
   "chat.notice.micFailed": "마이크 상태를 바꾸지 못했습니다.",
@@ -784,11 +791,16 @@ const en: Record<Key, string> = {
   "chat.message.default": "Message",
 
   "chat.thread.defaultName": "Conversation",
-  "chat.thread.roomDesc": "Conversation tied to this project room",
+  "chat.thread.roomDesc": "Shared conversation for everyone in the room",
   "chat.thread.groupDesc": "Group conversation with friends",
   "chat.thread.directDesc": "1:1 conversation with a friend",
   "chat.thread.projectRoom": "Project room",
   "chat.thread.startVoice": "Start voice",
+
+  "chat.roomScope.emptyTitle": "No project room selected",
+  "chat.roomScope.emptyBody": "Pick a project room to open its conversation.",
+  "chat.roomScope.pickRoom": "Choose a project room",
+  "chat.roomScope.opening": "Opening the project room conversation",
 
   "chat.newRoom.aria": "Create a new 1:1 chat room",
   "chat.newRoom.title": "New chat room",
@@ -805,8 +817,10 @@ const en: Record<Key, string> = {
   "chat.newRoom.createGroup": "Create group chat",
 
   "chat.voice.open": "Voice open",
+  "chat.voice.live": "In voice · {count}",
   "chat.voice.waiting": "Voice idle",
-  "chat.voice.participantsAria": "{count} participants",
+  "chat.voice.join": "Join voice",
+  "chat.voice.joining": "Joining",
 
   "chat.messages.loading": "Loading messages",
   "chat.messages.offline": "Couldn't load messages",
@@ -815,23 +829,17 @@ const en: Record<Key, string> = {
   "chat.messages.more": "More options",
 
   "chat.composer.attach": "Attach file",
-  "chat.composer.voiceParticipants": "View voice participants",
   "chat.composer.message": "Message",
   "chat.composer.placeholder": "Write a message",
-  "chat.composer.emoticon": "Emoticon",
+  "chat.composer.emoticon": "Emoji",
   "chat.composer.attachChip": "Attachment {name}",
   "chat.composer.agentQuestion": "Agent question",
   "chat.composer.agentSummarize": "Summarize",
   "chat.composer.agentSuggest": "Suggest",
   "chat.composer.agentAnswer": "Answer",
   "chat.composer.hint": "Shift+Enter for a new line · /bubli to call the agent",
-  "chat.composer.emoticonAria": "Select emoticon",
-
-  "chat.emoticon.like": "Like",
-  "chat.emoticon.ok": "OK",
-  "chat.emoticon.laugh": "Haha",
-  "chat.emoticon.cheer": "Cheer",
-  "chat.emoticon.wait": "One moment",
+  "chat.composer.hintDirect": "Enter to send · Shift+Enter for a new line",
+  "chat.composer.emojiPickerAria": "Choose an emoji",
 
   "chat.social.aria": "Friends",
   "chat.social.subtitle": "Add friends and invite them to your project rooms.",
@@ -865,8 +873,11 @@ const en: Record<Key, string> = {
   "chat.friends.chatInvite": "Chat invite",
   "chat.friends.sending": "Sending",
   "chat.friends.roomInvite": "Room invite",
-  "chat.friends.deleting": "Deleting",
-  "chat.friends.delete": "Delete",
+  "chat.friends.deleting": "Removing",
+  "chat.friends.delete": "Remove",
+  "chat.friends.deleteConfirm": "Remove this friend?",
+  "chat.friends.deleteConfirmDelete": "Remove",
+  "chat.friends.deleteConfirmKeep": "Keep",
 
   "chat.invite.roomSending": "Sending an invite to {name}",
   "chat.invite.roomSent": "Invited {name} to {room}",
@@ -877,6 +888,12 @@ const en: Record<Key, string> = {
   "chat.invite.pending": "{count} pending room invitations",
   "chat.invite.canceling": "Canceling",
   "chat.invite.cancel": "Cancel invite",
+  "chat.invite.linkKicker": "Invite link",
+  "chat.invite.linkHint": "Create and share a link that joins {room} directly (valid for 72 hours)",
+  "chat.invite.linkCreate": "Create invite link",
+  "chat.invite.linkCreating": "Creating link",
+  "chat.invite.linkCopied": "Invite link copied",
+  "chat.invite.linkFailed": "Couldn't create the invite link",
 
   "chat.requests.title": "Friend requests",
   "chat.requests.empty": "No pending requests",
@@ -895,8 +912,6 @@ const en: Record<Key, string> = {
   "chat.voiceCard.ended": "Ended",
   "chat.voiceCard.canStart": "Ready to start",
   "chat.voiceCard.priority": "Start from a project room chat",
-  "chat.voiceCard.receiving": "Receiving",
-  "chat.voiceCard.joinToken": "Join token",
   "chat.voiceCard.changing": "Changing",
   "chat.voiceCard.micOn": "Turn mic on",
   "chat.voiceCard.micOff": "Turn mic off",
@@ -906,8 +921,6 @@ const en: Record<Key, string> = {
   "chat.voiceCard.leave": "Leave",
   "chat.voiceCard.ending": "Ending",
   "chat.voiceCard.end": "End",
-  "chat.voiceCard.tokenReady": "Token ready",
-  "chat.voiceCard.tokenUntil": "{url} · until {time}",
   "chat.voiceCard.speaking": "Speaking",
   "chat.voiceCard.noParticipants": "No participants yet",
 
@@ -925,10 +938,11 @@ const en: Record<Key, string> = {
   "chat.notice.roomInviteOnlyRoom": "You can invite friends in a project room conversation.",
   "chat.notice.roomInviteFailed": "Couldn't send the invite. Check your member permissions or server status.",
   "chat.notice.voiceOnlyRoom": "Voice is available in project rooms.",
-  "chat.notice.voiceOpened": "The voice room is open. Get a join token to prepare the LiveKit connection.",
+  "chat.notice.voiceOpened": "The voice room is open.",
   "chat.notice.voiceStartFailed": "Couldn't start voice. Check the server status.",
-  "chat.notice.tokenReceived": "Join token received. The actual voice connection is used during the LiveKit client connection step.",
-  "chat.notice.tokenFailed": "Couldn't get a join token. Check the voice server status.",
+  "chat.notice.voiceJoined": "Joined the voice room.",
+  "chat.notice.voiceJoinFailed": "Couldn't join the voice room. Check the server status.",
+  "chat.notice.voiceJoinDenied": "You don't have permission to join this voice room. Check your project room membership.",
   "chat.notice.micOff": "Turned off your mic.",
   "chat.notice.micOn": "Turned on your mic.",
   "chat.notice.micFailed": "Couldn't change the mic status.",
@@ -1482,11 +1496,16 @@ const ja: Record<Key, string> = {
   "chat.message.default": "メッセージ",
 
   "chat.thread.defaultName": "会話",
-  "chat.thread.roomDesc": "このプロジェクトルームに紐づく会話",
+  "chat.thread.roomDesc": "ルームメンバー全員が参加する会話",
   "chat.thread.groupDesc": "友だちと一緒のグループ会話",
   "chat.thread.directDesc": "友だちとの1:1会話",
   "chat.thread.projectRoom": "プロジェクトルーム",
   "chat.thread.startVoice": "ボイス開始",
+
+  "chat.roomScope.emptyTitle": "選択中のプロジェクトルームがありません",
+  "chat.roomScope.emptyBody": "プロジェクトルームを選ぶと、そのルームの会話が開きます。",
+  "chat.roomScope.pickRoom": "プロジェクトルームを選択",
+  "chat.roomScope.opening": "プロジェクトルームの会話を開いています",
 
   "chat.newRoom.aria": "新しい1:1チャットルームを作成",
   "chat.newRoom.title": "新しいチャットルーム",
@@ -1503,8 +1522,10 @@ const ja: Record<Key, string> = {
   "chat.newRoom.createGroup": "グループチャットを作成",
 
   "chat.voice.open": "ボイス開放中",
+  "chat.voice.live": "ボイス通話中 · {count}名",
   "chat.voice.waiting": "ボイス待機",
-  "chat.voice.participantsAria": "参加者{count}名",
+  "chat.voice.join": "ボイスに参加",
+  "chat.voice.joining": "参加中",
 
   "chat.messages.loading": "メッセージを読み込み中",
   "chat.messages.offline": "メッセージを読み込めませんでした",
@@ -1513,7 +1534,6 @@ const ja: Record<Key, string> = {
   "chat.messages.more": "メッセージの詳細",
 
   "chat.composer.attach": "ファイル添付",
-  "chat.composer.voiceParticipants": "ボイス参加者を見る",
   "chat.composer.message": "メッセージ",
   "chat.composer.placeholder": "メッセージを書く",
   "chat.composer.emoticon": "絵文字",
@@ -1523,13 +1543,8 @@ const ja: Record<Key, string> = {
   "chat.composer.agentSuggest": "提案",
   "chat.composer.agentAnswer": "回答",
   "chat.composer.hint": "Shift+Enterで改行 · /bubli の質問でエージェントを呼び出し",
-  "chat.composer.emoticonAria": "絵文字を選択",
-
-  "chat.emoticon.like": "いいね",
-  "chat.emoticon.ok": "OK",
-  "chat.emoticon.laugh": "笑い",
-  "chat.emoticon.cheer": "応援",
-  "chat.emoticon.wait": "少々お待ちを",
+  "chat.composer.hintDirect": "Enterで送信 · Shift+Enterで改行",
+  "chat.composer.emojiPickerAria": "絵文字を選択",
 
   "chat.social.aria": "友だち",
   "chat.social.subtitle": "友だちを追加してプロジェクトルームに招待しましょう。",
@@ -1565,6 +1580,9 @@ const ja: Record<Key, string> = {
   "chat.friends.roomInvite": "ルーム招待",
   "chat.friends.deleting": "削除中",
   "chat.friends.delete": "削除",
+  "chat.friends.deleteConfirm": "友だちを削除しますか？",
+  "chat.friends.deleteConfirmDelete": "削除",
+  "chat.friends.deleteConfirmKeep": "残す",
 
   "chat.invite.roomSending": "{name}さんに招待を送信中",
   "chat.invite.roomSent": "{name}さんを{room}に招待しました",
@@ -1575,6 +1593,12 @@ const ja: Record<Key, string> = {
   "chat.invite.pending": "保留中のルーム招待 {count}",
   "chat.invite.canceling": "キャンセル中",
   "chat.invite.cancel": "招待をキャンセル",
+  "chat.invite.linkKicker": "招待リンク",
+  "chat.invite.linkHint": "{room}にすぐ参加できるリンクを作成して共有しましょう（72時間有効）",
+  "chat.invite.linkCreate": "招待リンクを作成",
+  "chat.invite.linkCreating": "リンクを作成中",
+  "chat.invite.linkCopied": "招待リンクをコピーしました",
+  "chat.invite.linkFailed": "招待リンクを作成できませんでした",
 
   "chat.requests.title": "友だちリクエスト",
   "chat.requests.empty": "保留中のリクエストはありません",
@@ -1593,8 +1617,6 @@ const ja: Record<Key, string> = {
   "chat.voiceCard.ended": "終了済み",
   "chat.voiceCard.canStart": "開始可能",
   "chat.voiceCard.priority": "プロジェクトルームチャットで開始",
-  "chat.voiceCard.receiving": "受信中",
-  "chat.voiceCard.joinToken": "参加トークン",
   "chat.voiceCard.changing": "変更中",
   "chat.voiceCard.micOn": "マイクをオン",
   "chat.voiceCard.micOff": "マイクをオフ",
@@ -1604,8 +1626,6 @@ const ja: Record<Key, string> = {
   "chat.voiceCard.leave": "退出",
   "chat.voiceCard.ending": "終了中",
   "chat.voiceCard.end": "終了",
-  "chat.voiceCard.tokenReady": "トークン準備完了",
-  "chat.voiceCard.tokenUntil": "{url} · {time}まで",
   "chat.voiceCard.speaking": "発話中",
   "chat.voiceCard.noParticipants": "まだ参加者がいません",
 
@@ -1623,10 +1643,11 @@ const ja: Record<Key, string> = {
   "chat.notice.roomInviteOnlyRoom": "プロジェクトルームの会話で友だちを招待できます。",
   "chat.notice.roomInviteFailed": "招待を送れませんでした。メンバー権限やサーバー状態を確認してください。",
   "chat.notice.voiceOnlyRoom": "ボイスはプロジェクトルームで使用できます。",
-  "chat.notice.voiceOpened": "ボイスルームが開きました。参加トークンを取得してLiveKit接続を準備できます。",
+  "chat.notice.voiceOpened": "ボイスルームが開きました。",
   "chat.notice.voiceStartFailed": "ボイスを開始できませんでした。サーバー状態を確認してください。",
-  "chat.notice.tokenReceived": "参加トークンを取得しました。実際の音声接続はLiveKitクライアント接続の段階で使用します。",
-  "chat.notice.tokenFailed": "参加トークンを取得できませんでした。ボイスサーバーの状態を確認してください。",
+  "chat.notice.voiceJoined": "ボイスに参加しました。",
+  "chat.notice.voiceJoinFailed": "ボイスに参加できませんでした。サーバー状態を確認してください。",
+  "chat.notice.voiceJoinDenied": "ボイスに参加する権限がありません。プロジェクトルームのメンバーか確認してください。",
   "chat.notice.micOff": "自分のマイクをオフにしました。",
   "chat.notice.micOn": "自分のマイクをオンにしました。",
   "chat.notice.micFailed": "マイクの状態を変更できませんでした。",

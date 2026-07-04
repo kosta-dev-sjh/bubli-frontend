@@ -1,5 +1,5 @@
 import type { PageResponse, RealtimeActor, SequenceListResponse } from "./common";
-import type { ScheduleResponse } from "./work";
+import type { ScheduleResponse, ScheduleSyncStatus } from "./work";
 
 export type ScheduleListParams = {
   end?: string;
@@ -47,7 +47,66 @@ export type GoogleCalendarCallbackRequest = {
 };
 
 export type GoogleCalendarSyncParams = {
+  // POST /api/calendar/sync — calendarIds를 넘기면 해당 구글 캘린더만 동기화한다.
+  calendarIds?: string[];
   from: string;
+  to: string;
+};
+
+// GET /api/calendar/google/calendars 응답 항목 (백엔드 GoogleCalendarListEntry).
+export type GoogleCalendarListEntry = {
+  accessRole?: string | null;
+  backgroundColor?: string | null;
+  id: string;
+  primary?: boolean | null;
+  selected?: boolean | null;
+  summary?: string | null;
+};
+
+// GET /api/calendar/rooms/{roomId}/calendar — 룸 전용 구글 캘린더 매핑.
+// 구글 연동이 활성 상태면 룸 이름으로 캘린더를 지연 생성해 googleCalendarId를 채운다.
+// connected=true인데 googleCalendarId가 null이면 캘린더 생성이 아직/실패한 상태.
+export type RoomCalendarResponse = {
+  calendarName: string;
+  connected: boolean;
+  googleCalendarId: string | null;
+};
+
+// GET /api/calendar/groups — 로컬 일정은 프로젝트룸 단위, 구글 일정은 캘린더 단위로 묶인다.
+export type CalendarEventGroupType = "PERSONAL" | "PROJECT_ROOM" | "GOOGLE_CALENDAR";
+
+export type CalendarEventSourceType = "BUBLI" | "GOOGLE";
+
+export type CalendarGroupEventResponse = {
+  allDay: boolean;
+  endsAt?: string | null;
+  googleCalendarId?: string | null;
+  googleCalendarSummary?: string | null;
+  googleEventId?: string | null;
+  ownerUserId?: string | null;
+  roomId?: string | null;
+  scheduleId?: string | null;
+  sourceType: CalendarEventSourceType;
+  startsAt: string;
+  syncStatus: ScheduleSyncStatus;
+  title: string;
+};
+
+export type CalendarEventGroupResponse = {
+  eventCount: number;
+  events: CalendarGroupEventResponse[];
+  googleCalendarId?: string | null;
+  groupId: string;
+  groupName: string;
+  groupType: CalendarEventGroupType;
+  roomId?: string | null;
+};
+
+export type CalendarEventGroupParams = {
+  from: string;
+  googleCalendarIds?: string[];
+  localLimit?: number;
+  roomId?: string;
   to: string;
 };
 

@@ -234,7 +234,7 @@
 .titleCopy small {
   overflow: hidden;
   color: var(--widget-muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 760;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -276,7 +276,7 @@
   background: rgba(255, 255, 255, 0.74);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 820;
   cursor: pointer;
 }
@@ -331,7 +331,7 @@
   color: var(--widget-muted);
   background: rgba(255, 255, 255, 0.56);
   cursor: grab;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 820;
   user-select: none;
 }
@@ -351,7 +351,7 @@
   height: 24px;
   padding: 0 9px;
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .body {
@@ -397,7 +397,7 @@
 .ring b,
 .timer span {
   color: var(--widget-muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 780;
   line-height: 1.1;
 }
@@ -483,7 +483,7 @@
 .message {
   min-width: 0;
   color: var(--widget-text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 820;
   line-height: 1.35;
 }
@@ -509,7 +509,7 @@
   border-radius: 999px;
   color: var(--widget-blue-deep);
   background: rgba(216, 240, 255, 0.72);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 860;
 }
 
@@ -543,7 +543,7 @@
 
 .bubbleNote strong {
   color: var(--widget-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -551,7 +551,7 @@
 .dropPanel span,
 .memoGrid span {
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 720;
   line-height: 1.45;
 }
@@ -578,7 +578,7 @@
   color: var(--widget-text);
   background: transparent;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
 }
 
@@ -618,7 +618,7 @@
   height: 32px;
   padding: 0 9px;
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .memoGrid {
@@ -633,7 +633,7 @@
 
 .memoGrid strong {
   color: var(--widget-text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
 }
 
@@ -720,13 +720,13 @@
 
 .ghostSignal strong {
   color: rgba(44, 53, 64, 0.74);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
 }
 
 .ghostSignal small {
   color: rgba(90, 103, 114, 0.64);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 820;
 }
 
@@ -774,7 +774,7 @@
 .hiddenCard b {
   overflow: hidden;
   color: var(--widget-text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   line-height: 1.15;
   text-overflow: ellipsis;
@@ -786,7 +786,7 @@
 .hiddenCard span {
   overflow: hidden;
   color: var(--widget-muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 760;
   line-height: 1.15;
   text-overflow: ellipsis;
@@ -804,7 +804,7 @@
 
 .emptyState span {
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 760;
 }
 
@@ -859,7 +859,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--widget-text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 820;
 }
 
@@ -873,7 +873,7 @@
   border-radius: 999px;
   background: rgba(216, 240, 255, 0.72);
   color: var(--widget-blue-deep);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 860;
 }
 
@@ -903,14 +903,14 @@
 
 .voiceStrip span {
   color: var(--widget-text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 820;
 }
 
 .voiceStrip small {
   grid-column: 2;
   color: var(--widget-muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 760;
 }
 
@@ -932,7 +932,7 @@
   height: 26px;
   padding: 0 10px;
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 780;
 }
 
@@ -967,7 +967,7 @@
 .barPreview strong,
 .menuPanel strong {
   color: var(--widget-text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
 }
 
@@ -975,7 +975,7 @@
 .barPreview small,
 .menuPanel span {
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 760;
 }
 
@@ -1021,7 +1021,7 @@
 .barBrand span,
 .barItem b,
 .barNotice b {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 820;
 }
 
@@ -1067,6 +1067,6 @@
   border-radius: 999px;
   background: rgba(216, 240, 255, 0.62);
   color: var(--widget-blue-deep);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
 }

@@ -1,25 +1,25 @@
 "use client";
 
 import {
+  ChevronDown,
   Download,
   FileImage,
   FileText,
   FileType,
-  Grid3X3,
   HardDrive,
-  List,
   MessageSquareText,
   Pencil,
   Presentation,
-  Search,
+  ScanText,
   Sheet,
   Sparkles,
   Trash2,
+  Upload,
   UsersRound,
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -30,7 +30,10 @@ import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type {
+  AiDocumentResponse,
+  AiDocumentStatus,
   ResourceCommentResponse,
+  ResourceRelationResponse,
   ResourceResponse,
   ResourceStatus,
   ResourceSummaryResponse,
@@ -38,10 +41,12 @@ import type {
   ResourceVersionResponse,
 } from "@/types/api/resource";
 
-import styles from "./resource-board-polish.module.css";
+import styles from "./resource-workspace.module.css";
 
-export type ViewMode = "grid" | "list";
 export type ResourceBoardScope = "personal" | "room";
+
+// 파일 행 액션(이름 바꾸기/삭제)을 상세 패널의 같은 흐름으로 넘기는 신호.
+export type ResourcePreviewIntent = { kind: "delete" | "rename"; token: number };
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
@@ -60,6 +65,14 @@ const summaryStatusCopyKey: Record<ResourceSummaryStatus, MessageKey> = {
   NONE: "resources.common.summaryNone",
   PENDING: "resources.common.summaryPending",
   SUCCEEDED: "resources.common.summarySucceeded",
+};
+
+const aiDocumentStatusCopyKey: Record<AiDocumentStatus, MessageKey> = {
+  ANALYZED: "resources.common.aiDocStatusAnalyzed",
+  ANALYZING: "resources.common.aiDocStatusAnalyzing",
+  FAILED: "resources.common.aiDocStatusFailed",
+  NONE: "resources.common.aiDocStatusNone",
+  READY: "resources.common.aiDocStatusReady",
 };
 
 const personalStatusCopyKey: Partial<Record<ResourceStatus, MessageKey>> = {
@@ -289,6 +302,10 @@ function getKindLabel(kind: ResourcePreviewKind, t: TranslateFn) {
   return t("resources.common.kindDocument");
 }
 
+function glyphClassName(kind: ResourcePreviewKind) {
+  return styles[`glyph${kind[0].toUpperCase()}${kind.slice(1)}`];
+}
+
 function ResourceKindIcon({ kind, size, strokeWidth }: { kind: ResourcePreviewKind; size: number; strokeWidth: number }) {
   if (kind === "image") {
     return <FileImage aria-hidden size={size} strokeWidth={strokeWidth} />;
@@ -309,57 +326,6 @@ function ResourceKindIcon({ kind, size, strokeWidth }: { kind: ResourcePreviewKi
   return <FileText aria-hidden size={size} strokeWidth={strokeWidth} />;
 }
 
-export function ResourceScopeSwitch({
-  activeScope,
-  roomHref,
-  roomLabel,
-}: {
-  activeScope: ResourceBoardScope;
-  roomHref: string;
-  roomLabel?: string;
-}) {
-  const { t } = useI18n();
-  const scopes = [
-    {
-      description: t("resources.scope.personalDesc"),
-      href: "/app/resources",
-      icon: HardDrive,
-      id: "personal" as const,
-      title: t("resources.scope.personalTitle"),
-    },
-    {
-      description: t("resources.scope.roomDesc"),
-      href: roomHref,
-      icon: UsersRound,
-      id: "room" as const,
-      title: roomLabel ?? t("resources.common.roomFallback"),
-    },
-  ];
-
-  return (
-    <div className={styles.scopeSwitch} aria-label={t("resources.scope.switchAria")}>
-      {scopes.map((scope) => {
-        const Icon = scope.icon;
-
-        return (
-          <Link
-            key={scope.id}
-            aria-current={activeScope === scope.id ? "page" : undefined}
-            className={cn(activeScope === scope.id && styles.activeScope)}
-            href={scope.href}
-          >
-            <Icon aria-hidden size={14} strokeWidth={2} />
-            <span>
-              <strong>{scope.title}</strong>
-              <b>{scope.description}</b>
-            </span>
-          </Link>
-        );
-      })}
-    </div>
-  );
-}
-
 export function toneForStatus(status: ResourceStatus) {
   if (status === "FAILED") {
     return "warning";
@@ -376,97 +342,133 @@ export function toneForStatus(status: ResourceStatus) {
   return "neutral";
 }
 
-export function ResourceToolbar({
-  query,
-  viewMode,
-  onQuery,
-  onViewMode,
+// 권한 확인 뒤 발급된 다운로드 주소를 새 탭으로 연다. 실패는 호출부에서 알린다.
+export async function openResourceDownload(resourceId: string) {
+  const response = await resourcesApi.getDownloadUrl(resourceId);
+  window.open(response.url, "_blank", "noopener,noreferrer");
+}
+
+/* ---------- 범위 세그먼트: 개인 | 프로젝트룸 ---------- */
+
+export function ResourceScopeSwitch({
+  activeScope,
+  roomHref,
+  roomLabel,
 }: {
-  query: string;
-  viewMode: ViewMode;
-  onQuery: (value: string) => void;
-  onViewMode: (mode: ViewMode) => void;
+  activeScope: ResourceBoardScope;
+  roomHref: string;
+  roomLabel?: string;
 }) {
   const { t } = useI18n();
-  return (
-    <div className="resource-workspace__toolbar">
-      <div className="resource-workspace__search">
-        <Search aria-hidden size={17} strokeWidth={2} />
-        <input aria-label={t("resources.common.searchAria")} onChange={(event) => onQuery(event.target.value)} placeholder={t("resources.common.searchPlaceholder")} value={query} />
-      </div>
 
-      <div className={styles.viewToggle} aria-label={t("resources.common.viewModeAria")}>
-        <button className={cn(viewMode === "grid" && "is-active")} onClick={() => onViewMode("grid")} title={t("resources.common.viewGridTitle")} type="button">
-          <Grid3X3 aria-hidden size={16} strokeWidth={2} />
-          <span>{t("resources.common.viewGridLabel")}</span>
-        </button>
-        <button className={cn(viewMode === "list" && "is-active")} onClick={() => onViewMode("list")} title={t("resources.common.viewListTitle")} type="button">
-          <List aria-hidden size={16} strokeWidth={2} />
-          <span>{t("resources.common.viewListLabel")}</span>
-        </button>
-      </div>
-    </div>
+  return (
+    <nav className={styles.scopeSwitch} aria-label={t("resources.scope.switchAria")}>
+      <Link
+        aria-current={activeScope === "personal" ? "page" : undefined}
+        className={cn(styles.scopeItem, activeScope === "personal" && styles.scopeItemActive)}
+        href="/app/resources"
+      >
+        <HardDrive aria-hidden size={13} strokeWidth={2} />
+        {t("resources.scope.personalTitle")}
+      </Link>
+      <Link
+        aria-current={activeScope === "room" ? "page" : undefined}
+        className={cn(styles.scopeItem, activeScope === "room" && styles.scopeItemActive)}
+        href={roomHref}
+      >
+        <UsersRound aria-hidden size={13} strokeWidth={2} />
+        {roomLabel ?? t("resources.common.roomFallback")}
+      </Link>
+    </nav>
   );
 }
 
-export function ResourceTile({
-  mode,
+/* ---------- 파일 행: 글리프 · 이름 · 메타 · 상태 칩 1개 · 호버 액션 ---------- */
+
+export function ResourceRow({
   resource,
   scope = "room",
   selected,
+  onDelete,
+  onDownload,
+  onRename,
   onSelect,
 }: {
-  mode: ViewMode;
   resource: ResourceResponse;
   scope?: ResourceBoardScope;
   selected: boolean;
+  onDelete: () => void;
+  onDownload: () => void;
+  onRename: () => void;
   onSelect: () => void;
 }) {
   const { t } = useI18n();
   const size = formatSize(resource.currentVersion?.sizeBytes);
-  const visibleStatus = statusLabel(t, scope, resource.status);
   const previewKind = getResourcePreviewKind(resource);
   const kindLabel = getKindLabel(previewKind, t);
+  const versionNo = resource.currentVersion?.versionNo;
 
   return (
-    <button
-      aria-pressed={selected}
-      className={cn("resource-workspace__item", styles.fileItem, mode === "list" && "resource-workspace__item--list", mode === "list" && styles.fileItemList)}
-      onClick={onSelect}
-      title={resource.title}
-      type="button"
-    >
-      <span className={cn("resource-workspace__file-icon", styles.fileGlyph, styles[`fileGlyph${previewKind[0].toUpperCase()}${previewKind.slice(1)}`])} aria-hidden="true">
-        <ResourceKindIcon kind={previewKind} size={19} strokeWidth={2} />
-        <em>{kindLabel}</em>
-      </span>
-      <span className="resource-workspace__item-main">
-        <b>{resource.title}</b>
-        <span>
-          {kindLabel} · {formatDate(resource.updatedAt, t)}
-          {size ? ` / ${size}` : ""}
+    <li className={cn(styles.row, selected && styles.rowSelected)}>
+      <button aria-pressed={selected} className={styles.rowMain} onClick={onSelect} title={resource.title} type="button">
+        <span aria-hidden="true" className={cn(styles.glyph, glyphClassName(previewKind))}>
+          <ResourceKindIcon kind={previewKind} size={17} strokeWidth={2} />
         </span>
+        <span className={styles.rowText}>
+          <b className={styles.rowName}>{resource.title}</b>
+          <span className={styles.rowMeta}>
+            {kindLabel}
+            {versionNo ? ` · v${versionNo}` : ""} · {formatDate(resource.updatedAt, t)}
+            {size ? ` · ${size}` : ""}
+          </span>
+        </span>
+      </button>
+      <StatusBadge className={styles.rowChip} tone={toneForStatus(resource.status)}>
+        {statusLabel(t, scope, resource.status)}
+      </StatusBadge>
+      <span aria-label={t("resources.common.rowActionsAria", { title: resource.title })} className={styles.rowActions} role="group">
+        <button aria-label={t("resources.common.download")} className={styles.iconButton} onClick={onDownload} title={t("resources.common.download")} type="button">
+          <Download aria-hidden size={15} strokeWidth={2} />
+        </button>
+        <button aria-label={t("resources.common.renameAria")} className={styles.iconButton} onClick={onRename} title={t("resources.common.rename")} type="button">
+          <Pencil aria-hidden size={15} strokeWidth={2} />
+        </button>
+        <button
+          aria-label={t("resources.common.deleteFile")}
+          className={cn(styles.iconButton, styles.iconDanger)}
+          onClick={onDelete}
+          title={t("resources.common.deleteFile")}
+          type="button"
+        >
+          <Trash2 aria-hidden size={15} strokeWidth={2} />
+        </button>
       </span>
-      <StatusBadge tone={toneForStatus(resource.status)}>{visibleStatus}</StatusBadge>
-    </button>
+    </li>
   );
 }
+
+/* ---------- 상세 패널: 파일명 헤더 + 요약 + 접기 가능한 플랫 섹션 ---------- */
 
 export function ResourcePreview({
   resource,
   scope = "room",
+  intent,
   roomId,
   onClose,
   onDeleted,
   onError,
+  onSelectRelated,
+  onUpdated,
 }: {
   resource: ResourceResponse | null;
-  emptyHint?: string;
+  intent?: ResourcePreviewIntent | null;
   roomId?: string;
   scope?: ResourceBoardScope;
   onClose?: () => void;
   onDeleted?: () => void;
   onError?: (message: string) => void;
+  onSelectRelated?: (resource: ResourceResponse) => void;
+  onUpdated?: () => void;
 }) {
   const { t } = useI18n();
   const [detailResource, setDetailResource] = useState<ResourceResponse | null>(resource);
@@ -480,7 +482,7 @@ export function ResourcePreview({
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentBody, setEditingCommentBody] = useState("");
   const [commentError, setCommentError] = useState<string | null>(null);
-  const [deleteState, setDeleteState] = useState<{ kind: "idle" } | { kind: "deleting" } | { kind: "error"; message: string }>({ kind: "idle" });
+  const [deleteState, setDeleteState] = useState<{ kind: "idle" } | { kind: "confirm" } | { kind: "deleting" } | { kind: "error"; message: string }>({ kind: "idle" });
   const [analysisState, setAnalysisState] = useState<{ kind: "idle" } | { kind: "running" } | { jobId: string; kind: "started" } | { kind: "error"; message: string }>({
     kind: "idle",
   });
@@ -490,6 +492,18 @@ export function ResourcePreview({
   const [draftState, setDraftState] = useState<{ kind: "idle" } | { kind: "running" } | { jobId: string; kind: "started" } | { kind: "error"; message: string }>({
     kind: "idle",
   });
+  const [related, setRelated] = useState<ResourceRelationResponse[]>([]);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameState, setRenameState] = useState<{ kind: "idle" } | { kind: "saving" } | { kind: "error"; message: string }>({ kind: "idle" });
+  const [versionState, setVersionState] = useState<
+    { kind: "idle" } | { fileName: string; kind: "uploading" } | { kind: "success"; versionNo: number } | { kind: "error"; message: string }
+  >({ kind: "idle" });
+  const [aiDocState, setAiDocState] = useState<{ kind: "closed" } | { kind: "loading" } | { document: AiDocumentResponse; kind: "open" } | { kind: "error"; message: string }>({
+    kind: "closed",
+  });
+  const versionInputRef = useRef<HTMLInputElement | null>(null);
+  const handledIntentTokenRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -499,6 +513,7 @@ export function ResourcePreview({
         setSummary(null);
         setVersions([]);
         setComments([]);
+        setRelated([]);
         setDetailError(null);
         setCommentBody("");
         setEditingCommentId(null);
@@ -508,6 +523,10 @@ export function ResourcePreview({
         setAnalysisState({ kind: "idle" });
         setQuestionState({ kind: "idle" });
         setDraftState({ kind: "idle" });
+        setRenameOpen(false);
+        setRenameState({ kind: "idle" });
+        setVersionState({ kind: "idle" });
+        setAiDocState({ kind: "closed" });
         return;
       }
 
@@ -515,6 +534,7 @@ export function ResourcePreview({
       setSummary(null);
       setVersions([]);
       setComments([]);
+      setRelated([]);
       setDetailLoading(true);
       setDetailError(null);
       setCommentError(null);
@@ -524,13 +544,18 @@ export function ResourcePreview({
       setDraftState({ kind: "idle" });
       setEditingCommentId(null);
       setEditingCommentBody("");
+      setRenameOpen(false);
+      setRenameState({ kind: "idle" });
+      setVersionState({ kind: "idle" });
+      setAiDocState({ kind: "closed" });
 
       Promise.allSettled([
         resourcesApi.get(resource.id),
         resourcesApi.getSummary(resource.id),
         resourcesApi.getVersions(resource.id),
         resourcesApi.getComments(resource.id),
-      ]).then(([resourceResult, summaryResult, versionsResult, commentsResult]) => {
+        resourcesApi.getRelated(resource.id),
+      ]).then(([resourceResult, summaryResult, versionsResult, commentsResult, relatedResult]) => {
         if (cancelled) {
           return;
         }
@@ -551,6 +576,8 @@ export function ResourcePreview({
           setComments(sortComments(commentsResult.value.items));
         }
 
+        setRelated(relatedResult.status === "fulfilled" ? relatedResult.value.items : []);
+
         const failed = [resourceResult, summaryResult, versionsResult, commentsResult].find((result) => result.status === "rejected");
         setDetailError(failed?.status === "rejected" ? getErrorMessage(failed.reason) : null);
         setDetailLoading(false);
@@ -563,6 +590,28 @@ export function ResourcePreview({
     };
   }, [resource]);
 
+  // 행 호버 액션에서 넘어온 이름 바꾸기/삭제 신호 — 위 초기화 타임아웃 뒤에 실행되도록 같은 방식으로 미룬다.
+  useEffect(() => {
+    if (!intent || !resource || intent.token === handledIntentTokenRef.current) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      handledIntentTokenRef.current = intent.token;
+
+      if (intent.kind === "rename") {
+        setRenameValue(resource.title);
+        setRenameState({ kind: "idle" });
+        setRenameOpen(true);
+        return;
+      }
+
+      setDeleteState({ kind: "confirm" });
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [intent, resource]);
+
   const activeResource = detailResource?.id === resource?.id ? detailResource : resource;
   const summaryText = useMemo(() => extractSummaryText(summary), [summary]);
   const summaryModelLabel = useMemo(() => extractSummaryModelLabel(summary), [summary]);
@@ -574,12 +623,94 @@ export function ResourcePreview({
     }
 
     try {
-      const response = await resourcesApi.getDownloadUrl(activeResource.id);
-      window.open(response.url, "_blank", "noopener,noreferrer");
+      await openResourceDownload(activeResource.id);
     } catch (error) {
       onError?.(getErrorMessage(error, t));
     }
   }, [activeResource, onError, t]);
+
+  const handleRenameSubmit = useCallback(async () => {
+    const title = renameValue.trim();
+    if (!activeResource || !title || renameState.kind === "saving") {
+      return;
+    }
+
+    if (title === activeResource.title) {
+      setRenameOpen(false);
+      setRenameState({ kind: "idle" });
+      return;
+    }
+
+    setRenameState({ kind: "saving" });
+
+    try {
+      const updated = await resourcesApi.update(activeResource.id, { title });
+      setDetailResource(updated);
+      setRenameOpen(false);
+      setRenameState({ kind: "idle" });
+      onUpdated?.();
+    } catch (error) {
+      setRenameState({ kind: "error", message: getErrorMessage(error, t) });
+    }
+  }, [activeResource, onUpdated, renameState.kind, renameValue, t]);
+
+  const handleVersionFile = useCallback(
+    async (file: File) => {
+      if (!activeResource) {
+        return;
+      }
+
+      setVersionState({ fileName: file.name, kind: "uploading" });
+
+      try {
+        const body = new FormData();
+        body.append("file", file);
+        const version = await resourcesApi.uploadVersion(activeResource.id, body);
+        setVersionState({ kind: "success", versionNo: version.versionNo });
+
+        const [detailResult, versionsResult] = await Promise.allSettled([resourcesApi.get(activeResource.id), resourcesApi.getVersions(activeResource.id)]);
+        if (detailResult.status === "fulfilled") {
+          setDetailResource(detailResult.value);
+        }
+        if (versionsResult.status === "fulfilled") {
+          setVersions(versionsResult.value.items);
+        }
+        onUpdated?.();
+      } catch (error) {
+        // 백엔드 POST /api/resources/{id}/versions 는 JSON 메타데이터(storageKey 등)만 받고
+        // multipart 파일 업로드는 아직 지원하지 않는다 — 계약 밖 요청 거절(415/405/400,
+        // 혹은 비-JSON 오류 응답 파싱 실패)은 사용자에게 이해 가능한 안내로 바꿔 보여준다.
+        const contractRejected =
+          (error instanceof ApiClientError && (error.status === 415 || error.status === 405 || error.status === 400)) ||
+          error instanceof SyntaxError;
+        setVersionState({
+          kind: "error",
+          message: contractRejected ? t("resources.common.versionUploadUnsupported") : getErrorMessage(error, t),
+        });
+      }
+    },
+    [activeResource, onUpdated, t],
+  );
+
+  const handleToggleAiDocument = useCallback(async () => {
+    if (!activeResource || aiDocState.kind === "loading") {
+      return;
+    }
+
+    if (aiDocState.kind === "open" || aiDocState.kind === "error") {
+      setAiDocState({ kind: "closed" });
+      return;
+    }
+
+    setAiDocState({ kind: "loading" });
+
+    try {
+      const document = await resourcesApi.getAiDocument(activeResource.id);
+      setAiDocState({ document, kind: "open" });
+    } catch (error) {
+      setAiDocState({ kind: "error", message: getErrorMessage(error, t) });
+    }
+  }, [activeResource, aiDocState.kind, t]);
 
   const handleAnalyzeResource = useCallback(async () => {
     if (!activeResource || analysisState.kind === "running") {
@@ -731,6 +862,7 @@ export function ResourcePreview({
   const size = formatSize(latestVersion?.sizeBytes);
   const originalName = latestVersion?.originalName ?? activeResource.title;
   const versionLabel = latestVersion ? `v${latestVersion.versionNo}` : "v1";
+  const versionCount = versions.length || (activeResource.currentVersion ? 1 : 0);
   const summaryLabel = summary?.status
     ? t(summaryStatusCopyKey[summary.status])
     : activeResource.summaryStatus
@@ -738,262 +870,405 @@ export function ResourcePreview({
       : visibleStatus;
 
   return (
-    <aside className={cn("resource-workspace__preview", styles.previewPanel)} aria-label={t("resources.common.previewAria")}>
-      <div className={styles.previewTitle}>
-        <div>
-          <span>{t("resources.common.previewDetail")}</span>
-          <strong>{visibleStatus}</strong>
+    <aside className={styles.detail} aria-label={t("resources.common.previewAria")}>
+      <div className={styles.detailHead}>
+        <span aria-hidden="true" className={cn(styles.glyph, glyphClassName(previewKind))}>
+          <ResourceKindIcon kind={previewKind} size={18} strokeWidth={1.9} />
+        </span>
+        <div className={styles.detailTitleWrap}>
+          <h2 className={styles.detailName} title={activeResource.title}>
+            {activeResource.title}
+          </h2>
+          <span className={styles.detailSub}>
+            {previewLabel} · {versionLabel}
+            {size ? ` · ${size}` : ""} · {formatDate(activeResource.updatedAt, t)}
+          </span>
+          {originalName !== activeResource.title ? <span className={styles.detailSub}>{originalName}</span> : null}
         </div>
-        <div className={styles.previewTitleActions}>
-          <button
-            aria-label={t("resources.common.analyzeStartAria")}
-            className={styles.analyzeResourceButton}
-            disabled={analysisState.kind === "running"}
-            onClick={() => void handleAnalyzeResource()}
-            title={t("resources.common.analyzeStartAria")}
-            type="button"
-          >
-            <Sparkles aria-hidden size={15} strokeWidth={2} />
-            <span>{analysisState.kind === "running" ? t("resources.common.analyzing") : t("resources.common.aiAnalyze")}</span>
-          </button>
-          <button aria-label={t("resources.common.previewCloseAria")} className={styles.closePreview} onClick={onClose} type="button">
+        <StatusBadge tone={toneForStatus(activeResource.status)}>{visibleStatus}</StatusBadge>
+        {onClose ? (
+          <button aria-label={t("resources.common.previewCloseAria")} className={styles.iconButton} onClick={onClose} type="button">
             <X aria-hidden size={16} strokeWidth={2} />
           </button>
-        </div>
+        ) : null}
       </div>
 
-      {roomId ? (
-        <div className={styles.previewAiActions} aria-label={t("resources.common.aiActionsAria")}>
-          <button
-            aria-label={t("resources.common.generateQuestionsAria")}
-            className={styles.analyzeResourceButton}
-            disabled={questionState.kind === "running"}
-            onClick={() => void handleGenerateQuestions()}
-            title={t("resources.common.generateQuestionsAria")}
-            type="button"
-          >
-            <MessageSquareText aria-hidden size={15} strokeWidth={2} />
-            <span>{questionState.kind === "running" ? t("resources.common.questionRunning") : t("resources.common.questionCandidate")}</span>
+      <div className={styles.detailChrome}>
+        <div className={styles.detailActions}>
+          <button className={cn(styles.actionButton, styles.actionPrimary)} onClick={() => void handleDownload()} type="button">
+            <Download aria-hidden size={14} strokeWidth={2} />
+            {t("resources.common.download")}
           </button>
           <button
-            aria-label={t("resources.common.draftDocumentAria")}
-            className={styles.analyzeResourceButton}
-            disabled={draftState.kind === "running"}
-            onClick={() => void handleDraftDocument()}
-            title={t("resources.common.draftDocumentAria")}
+            aria-expanded={renameOpen}
+            aria-label={t("resources.common.renameAria")}
+            className={styles.actionButton}
+            onClick={() => {
+              setRenameValue(activeResource.title);
+              setRenameState({ kind: "idle" });
+              setRenameOpen((current) => !current);
+            }}
             type="button"
           >
-            <FileText aria-hidden size={15} strokeWidth={2} />
-            <span>{draftState.kind === "running" ? t("resources.common.draftRunning") : t("resources.common.documentDraft")}</span>
+            <Pencil aria-hidden size={14} strokeWidth={2} />
+            {t("resources.common.rename")}
+          </button>
+          <button
+            className={cn(styles.actionButton, styles.actionDanger)}
+            disabled={deleteState.kind === "deleting"}
+            onClick={() => setDeleteState((current) => (current.kind === "confirm" ? { kind: "idle" } : current.kind === "deleting" ? current : { kind: "confirm" }))}
+            type="button"
+          >
+            <Trash2 aria-hidden size={14} strokeWidth={2} />
+            {deleteState.kind === "deleting" ? t("resources.common.deleting") : t("resources.common.deleteFile")}
           </button>
         </div>
-      ) : null}
 
-      <div className="resource-workspace__preview-window">
-        <div className={styles.previewChrome}>
-          <span>{previewLabel}</span>
-          <strong>{versionLabel}</strong>
-        </div>
-        <div className={cn("resource-workspace__preview-page", styles.previewPage)}>
-          <div className={styles.previewHeader}>
-            <span className={cn(styles.previewFileIcon, styles[`fileGlyph${previewKind[0].toUpperCase()}${previewKind.slice(1)}`])}>
-              <ResourceKindIcon kind={previewKind} size={20} strokeWidth={1.9} />
-            </span>
-            <div>
-              <span>{activeResource.visibility === "PERSONAL" ? t("resources.common.indexPersonal") : t("resources.common.indexRoom")}</span>
-              <h2>{activeResource.title}</h2>
-              <p>{originalName}</p>
+        {renameOpen ? (
+          <form
+            className={styles.renameForm}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleRenameSubmit();
+            }}
+          >
+            <input
+              aria-label={t("resources.common.renameInputAria")}
+              maxLength={200}
+              onChange={(event) => setRenameValue(event.target.value)}
+              value={renameValue}
+            />
+            <Button disabled={!renameValue.trim() || renameState.kind === "saving"} loading={renameState.kind === "saving"} size="sm" type="submit" variant="primary">
+              {t("resources.common.save")}
+            </Button>
+            <Button
+              onClick={() => {
+                setRenameOpen(false);
+                setRenameState({ kind: "idle" });
+              }}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {t("resources.common.cancel")}
+            </Button>
+          </form>
+        ) : null}
+        {renameState.kind === "error" ? <p className={styles.errorInline}>{renameState.message}</p> : null}
+
+        {deleteState.kind === "confirm" ? (
+          <div className={styles.deleteConfirm}>
+            <p>{t("resources.common.deleteConfirmBody")}</p>
+            <div className={styles.deleteConfirmActions}>
+              <Button onClick={() => void handleDeleteResource()} size="sm" variant="primary">
+                {t("resources.common.deleteConfirmYes")}
+              </Button>
+              <Button onClick={() => setDeleteState({ kind: "idle" })} size="sm" variant="ghost">
+                {t("resources.common.cancel")}
+              </Button>
             </div>
           </div>
+        ) : null}
+        {deleteState.kind === "error" ? <p className={styles.errorInline}>{deleteState.message}</p> : null}
+        {detailLoading ? <p className={styles.noticeInline}>{t("resources.common.loading")}</p> : null}
+        {detailError ? <p className={styles.errorInline}>{detailError}</p> : null}
+      </div>
 
-          <dl className={styles.fileFacts}>
-            <div>
-              <dt>{t("resources.common.factKind")}</dt>
-              <dd>{previewLabel}</dd>
-            </div>
-            <div>
-              <dt>{t("resources.common.factOriginal")}</dt>
-              <dd>{originalName}</dd>
-            </div>
-            <div>
-              <dt>{t("resources.common.factSummary")}</dt>
-              <dd>{summaryLabel}</dd>
-            </div>
-            <div>
-              <dt>{t("resources.common.factVersion")}</dt>
-              <dd>{versionLabel}</dd>
-            </div>
-          </dl>
+      <div className={styles.previewBlock}>
+        <strong>{summaryText ? t("resources.common.summaryHeading") : t("resources.common.previewInfoSuffix", { label: previewLabel })}</strong>
+        <span>
+          {summaryText ??
+            (activeResource.visibility === "PERSONAL"
+              ? t("resources.common.previewBodyPersonal")
+              : t("resources.common.previewBodyRoom"))}
+        </span>
+      </div>
 
-          <div className={cn(styles.previewBody, styles[`previewBody${previewKind[0].toUpperCase()}${previewKind.slice(1)}`])}>
-            <strong>{summaryText ? t("resources.common.summaryHeading") : t("resources.common.previewInfoSuffix", { label: previewLabel })}</strong>
-            <span>
-              {summaryText ??
-                (activeResource.visibility === "PERSONAL"
-                  ? t("resources.common.previewBodyPersonal")
-                  : t("resources.common.previewBodyRoom"))}
-            </span>
+      <details className={styles.section} open>
+        <summary className={styles.sectionSummary}>
+          {t("resources.common.sectionAi")}
+          <span className={styles.sectionCount}>{summaryLabel}</span>
+          <ChevronDown aria-hidden className={styles.sectionChevron} size={15} strokeWidth={2} />
+        </summary>
+        <div className={styles.sectionBody}>
+          <div className={styles.kvLine}>
+            <span>{t("resources.common.summaryModel")}</span>
+            <b>{summaryModelLabel ?? t("resources.common.pending")}</b>
+          </div>
+          <div className={styles.aiActions}>
+            <button
+              aria-label={t("resources.common.analyzeStartAria")}
+              className={styles.actionButton}
+              disabled={analysisState.kind === "running"}
+              onClick={() => void handleAnalyzeResource()}
+              type="button"
+            >
+              <Sparkles aria-hidden size={14} strokeWidth={2} />
+              {analysisState.kind === "running" ? t("resources.common.analyzing") : t("resources.common.analyzeRun")}
+            </button>
+            {roomId ? (
+              <>
+                <button
+                  aria-label={t("resources.common.generateQuestionsAria")}
+                  className={styles.actionButton}
+                  disabled={questionState.kind === "running"}
+                  onClick={() => void handleGenerateQuestions()}
+                  type="button"
+                >
+                  <MessageSquareText aria-hidden size={14} strokeWidth={2} />
+                  {questionState.kind === "running" ? t("resources.common.questionRunning") : t("resources.common.questionCandidate")}
+                </button>
+                <button
+                  aria-label={t("resources.common.draftDocumentAria")}
+                  className={styles.actionButton}
+                  disabled={draftState.kind === "running"}
+                  onClick={() => void handleDraftDocument()}
+                  type="button"
+                >
+                  <FileText aria-hidden size={14} strokeWidth={2} />
+                  {draftState.kind === "running" ? t("resources.common.draftRunning") : t("resources.common.documentDraft")}
+                </button>
+              </>
+            ) : null}
+            <button
+              aria-label={t("resources.common.aiDocAria")}
+              className={styles.actionButton}
+              disabled={aiDocState.kind === "loading"}
+              onClick={() => void handleToggleAiDocument()}
+              type="button"
+            >
+              <ScanText aria-hidden size={14} strokeWidth={2} />
+              {aiDocState.kind === "loading"
+                ? t("resources.common.aiDocLoading")
+                : aiDocState.kind === "open" || aiDocState.kind === "error"
+                  ? t("resources.common.aiDocHide")
+                  : t("resources.common.aiDocView")}
+            </button>
           </div>
 
-          <section className={styles.detailPanel} aria-label={t("resources.common.detailApiAria")}>
-            <div>
-              <span>{t("resources.common.detailLookup")}</span>
-              <strong>{detailLoading ? t("resources.common.loading") : detailError ? t("resources.common.partialPending") : t("resources.common.connected")}</strong>
-            </div>
-            <div>
-              <span>{t("resources.common.summaryModel")}</span>
-              <strong>{summaryModelLabel ?? t("resources.common.pending")}</strong>
-            </div>
-            <div>
-              <span>{t("resources.common.commentsLabel")}</span>
-              <strong>{t("resources.common.countUnit", { count: comments.length })}</strong>
-            </div>
-            <div>
-              <span>{t("resources.common.factVersion")}</span>
-              <strong>{t("resources.common.countUnit", { count: versions.length || (activeResource.currentVersion ? 1 : 0) })}</strong>
-            </div>
-          </section>
+          {analysisState.kind === "started" ? <p className={styles.noticeInline}>{t("resources.common.analysisStarted", { jobId: analysisState.jobId.slice(0, 8) })}</p> : null}
+          {analysisState.kind === "running" ? <p className={styles.noticeInline}>{t("resources.common.analysisRunning")}</p> : null}
+          {analysisState.kind === "error" ? <p className={styles.errorInline}>{analysisState.message}</p> : null}
+          {questionState.kind === "started" ? <p className={styles.noticeInline}>{t("resources.common.questionStarted", { jobId: questionState.jobId.slice(0, 8) })}</p> : null}
+          {questionState.kind === "running" ? <p className={styles.noticeInline}>{t("resources.common.questionRunningNotice")}</p> : null}
+          {questionState.kind === "error" ? <p className={styles.errorInline}>{t("resources.common.questionFailed", { message: questionState.message })}</p> : null}
+          {draftState.kind === "started" ? <p className={styles.noticeInline}>{t("resources.common.draftStarted", { jobId: draftState.jobId.slice(0, 8) })}</p> : null}
+          {draftState.kind === "running" ? <p className={styles.noticeInline}>{t("resources.common.draftRunningNotice")}</p> : null}
+          {draftState.kind === "error" ? <p className={styles.errorInline}>{t("resources.common.draftFailed", { message: draftState.message })}</p> : null}
+          {aiDocState.kind === "error" ? <p className={styles.errorInline}>{aiDocState.message}</p> : null}
 
-          {detailError ? <p className={styles.previewError}>{detailError}</p> : null}
-          {analysisState.kind === "started" ? <p className={styles.previewNotice}>{t("resources.common.analysisStarted", { jobId: analysisState.jobId.slice(0, 8) })}</p> : null}
-          {analysisState.kind === "running" ? <p className={styles.previewNotice}>{t("resources.common.analysisRunning")}</p> : null}
-          {analysisState.kind === "error" ? <p className={styles.previewError}>{analysisState.message}</p> : null}
-          {questionState.kind === "started" ? <p className={styles.previewNotice}>{t("resources.common.questionStarted", { jobId: questionState.jobId.slice(0, 8) })}</p> : null}
-          {questionState.kind === "running" ? <p className={styles.previewNotice}>{t("resources.common.questionRunningNotice")}</p> : null}
-          {questionState.kind === "error" ? <p className={styles.previewError}>{t("resources.common.questionFailed", { message: questionState.message })}</p> : null}
-          {draftState.kind === "started" ? <p className={styles.previewNotice}>{t("resources.common.draftStarted", { jobId: draftState.jobId.slice(0, 8) })}</p> : null}
-          {draftState.kind === "running" ? <p className={styles.previewNotice}>{t("resources.common.draftRunningNotice")}</p> : null}
-          {draftState.kind === "error" ? <p className={styles.previewError}>{t("resources.common.draftFailed", { message: draftState.message })}</p> : null}
-        </div>
-      </div>
-
-      <div className="resource-workspace__preview-meta">
-        <div>
-          <span>{t("resources.common.metaStatus")}</span>
-          <StatusBadge tone={toneForStatus(activeResource.status)}>{visibleStatus}</StatusBadge>
-        </div>
-        <div>
-          <span>{t("resources.common.metaUpdated")}</span>
-          <b>{formatDate(activeResource.updatedAt, t)}</b>
-        </div>
-        <div>
-          <span>{t("resources.common.metaLocation")}</span>
-          <b>{activeResource.visibility === "PERSONAL" ? t("resources.common.metaLocationPersonal") : t("resources.common.metaLocationRoom")}</b>
-        </div>
-        <div>
-          <span>{t("resources.common.metaFile")}</span>
-          <b>{size ?? previewLabel}</b>
-        </div>
-      </div>
-
-      <div className="resource-workspace__preview-actions">
-        <Button onClick={handleDownload} variant="primary">
-          <Download aria-hidden size={16} strokeWidth={2} />
-          {t("resources.common.download")}
-        </Button>
-      </div>
-
-      <section className={styles.commentPanel} aria-label={t("resources.common.commentsAria")}>
-        <div className={styles.commentPanelTitle}>
-          <div>
-            <span>{t("resources.common.commentsLabel")}</span>
-            <strong>{comments.length ? t("resources.common.commentsLinked", { count: comments.length }) : t("resources.common.commentsEmptyTitle")}</strong>
-          </div>
-          <MessageSquareText aria-hidden size={18} strokeWidth={2} />
-        </div>
-
-        <form
-          className={styles.commentForm}
-          onSubmit={(event) => {
-            event.preventDefault();
-            void handleCreateComment();
-          }}
-        >
-          <textarea
-            aria-label={t("resources.common.commentComposeAria")}
-            onChange={(event) => setCommentBody(event.target.value)}
-            placeholder={t("resources.common.commentPlaceholder")}
-            rows={3}
-            value={commentBody}
-          />
-          <Button disabled={!commentBody.trim() || commentBusyId === "new"} type="submit" variant="primary">
-            {t("resources.common.commentSubmit")}
-          </Button>
-        </form>
-
-        {commentError ? <p className={styles.previewError}>{commentError}</p> : null}
-
-        <div className={styles.commentList}>
-          {comments.length === 0 ? (
-            <p className={styles.commentEmpty}>{t("resources.common.commentsEmpty")}</p>
-          ) : (
-            comments.map((comment) => (
-              <article className={styles.commentItem} key={comment.id}>
-                <div className={styles.commentHead}>
-                  <div>
-                    <span>{comment.authorId.slice(0, 8)}</span>
-                    <strong>{formatDate(comment.updatedAt, t)}</strong>
-                  </div>
-                  <div className={styles.commentActions}>
-                    <button aria-label={t("resources.common.commentEditAria")} onClick={() => startEditComment(comment)} type="button">
-                      <Pencil aria-hidden size={14} strokeWidth={2} />
-                    </button>
-                    <button aria-label={t("resources.common.commentDeleteAria")} disabled={commentBusyId === comment.id} onClick={() => void handleDeleteComment(comment.id)} type="button">
-                      <Trash2 aria-hidden size={14} strokeWidth={2} />
-                    </button>
-                  </div>
+          {aiDocState.kind === "open" ? (
+            <>
+              <dl className={styles.aiDocList}>
+                <div>
+                  <dt>{t("resources.common.aiDocType")}</dt>
+                  <dd>{aiDocState.document.documentType ?? t("resources.common.pending")}</dd>
                 </div>
-
-                {editingCommentId === comment.id ? (
-                  <form
-                    className={styles.commentEditForm}
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void handleUpdateComment(comment.id);
-                    }}
-                  >
-                    <textarea
-                      aria-label={t("resources.common.commentEditComposeAria")}
-                      onChange={(event) => setEditingCommentBody(event.target.value)}
-                      rows={3}
-                      value={editingCommentBody}
-                    />
-                    <div>
-                      <Button
-                        disabled={!editingCommentBody.trim() || commentBusyId === comment.id}
-                        type="submit"
-                        variant="primary"
-                      >
-                        {t("resources.common.save")}
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setEditingCommentId(null);
-                          setEditingCommentBody("");
-                        }}
-                        type="button"
-                        variant="ghost"
-                      >
-                        {t("resources.common.cancel")}
-                      </Button>
+                <div>
+                  <dt>{t("resources.common.aiDocStatusLabel")}</dt>
+                  <dd>{t(aiDocumentStatusCopyKey[aiDocState.document.status])}</dd>
+                </div>
+                {Object.entries(aiDocState.document.fields ?? {})
+                  .slice(0, 8)
+                  .map(([fieldKey, fieldValue]) => (
+                    <div key={fieldKey}>
+                      <dt>{fieldKey}</dt>
+                      <dd>{typeof fieldValue === "string" || typeof fieldValue === "number" ? String(fieldValue) : JSON.stringify(fieldValue)}</dd>
                     </div>
-                  </form>
-                ) : (
-                  <p>{comment.body}</p>
-                )}
-              </article>
-            ))
+                  ))}
+              </dl>
+              {!aiDocState.document.documentType && Object.keys(aiDocState.document.fields ?? {}).length === 0 ? (
+                <p className={styles.sectionEmpty}>{t("resources.common.aiDocEmpty")}</p>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </details>
+
+      <details className={styles.section}>
+        <summary className={styles.sectionSummary}>
+          {t("resources.common.factVersion")}
+          <span className={styles.sectionCount}>{t("resources.common.countUnit", { count: versionCount })}</span>
+          <ChevronDown aria-hidden className={styles.sectionChevron} size={15} strokeWidth={2} />
+        </summary>
+        <div className={styles.sectionBody}>
+          <div className={styles.detailActions}>
+            <button
+              aria-label={t("resources.common.uploadVersionAria")}
+              className={styles.actionButton}
+              disabled={versionState.kind === "uploading"}
+              onClick={() => versionInputRef.current?.click()}
+              type="button"
+            >
+              <Upload aria-hidden size={14} strokeWidth={2} />
+              {t("resources.common.uploadVersion")}
+            </button>
+          </div>
+          {versionState.kind === "uploading" ? <p className={styles.noticeInline}>{t("resources.common.uploadingVersion", { fileName: versionState.fileName })}</p> : null}
+          {versionState.kind === "success" ? <p className={styles.noticeInline}>{t("resources.common.versionUploaded", { version: versionState.versionNo })}</p> : null}
+          {versionState.kind === "error" ? <p className={styles.errorInline}>{versionState.message}</p> : null}
+          {versions.length > 0 ? (
+            <ol className={styles.versionList}>
+              {versions.map((version, index) => (
+                <li key={version.id}>
+                  <span className={styles.versionNo}>v{version.versionNo}</span>
+                  <span className={styles.versionName}>{version.originalName}</span>
+                  <span className={styles.versionMeta}>
+                    {index === 0 ? `${t("resources.common.versionCurrent")} · ` : ""}
+                    {formatDate(version.createdAt, t)}
+                    {formatSize(version.sizeBytes) ? ` · ${formatSize(version.sizeBytes)}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className={styles.sectionEmpty}>{t("resources.common.versionsEmpty")}</p>
           )}
         </div>
-      </section>
+      </details>
 
-      <div className={styles.resourceDeleteArea}>
-        <button className={styles.resourceDeleteButton} disabled={deleteState.kind === "deleting"} onClick={() => void handleDeleteResource()} type="button">
-          <Trash2 aria-hidden size={15} strokeWidth={2} />
-          {deleteState.kind === "deleting" ? t("resources.common.deleting") : t("resources.common.deleteFile")}
-        </button>
-        {deleteState.kind === "error" ? <p className={styles.previewError}>{deleteState.message}</p> : null}
-      </div>
+      <details className={styles.section} open>
+        <summary className={styles.sectionSummary}>
+          {t("resources.common.relatedTitle")}
+          <span className={styles.sectionCount}>
+            {related.length > 0 ? t("resources.common.countUnit", { count: related.length }) : t("resources.common.relatedEmpty")}
+          </span>
+          <ChevronDown aria-hidden className={styles.sectionChevron} size={15} strokeWidth={2} />
+        </summary>
+        <div className={styles.sectionBody}>
+          {related.length > 0 ? (
+            <ul className={styles.relatedList} aria-label={t("resources.common.relatedAria")}>
+              {related.map((relation) => (
+                <li key={relation.id}>
+                  <button
+                    aria-label={t("resources.common.relatedOpenAria", { title: relation.relatedResource.title })}
+                    className={styles.relatedButton}
+                    disabled={!onSelectRelated}
+                    onClick={() => onSelectRelated?.(relation.relatedResource)}
+                    type="button"
+                  >
+                    <b>{relation.relatedResource.title}</b>
+                    <span>{relation.reason?.trim() || formatDate(relation.relatedResource.updatedAt, t)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className={styles.sectionEmpty}>{t("resources.common.relatedEmpty")}</p>
+          )}
+        </div>
+      </details>
+
+      <details className={styles.section} open>
+        <summary className={styles.sectionSummary}>
+          {t("resources.common.commentsLabel")}
+          <span className={styles.sectionCount}>{t("resources.common.countUnit", { count: comments.length })}</span>
+          <ChevronDown aria-hidden className={styles.sectionChevron} size={15} strokeWidth={2} />
+        </summary>
+        <div className={styles.sectionBody} aria-label={t("resources.common.commentsAria")}>
+          <form
+            className={styles.commentForm}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleCreateComment();
+            }}
+          >
+            <textarea
+              aria-label={t("resources.common.commentComposeAria")}
+              onChange={(event) => setCommentBody(event.target.value)}
+              placeholder={t("resources.common.commentPlaceholder")}
+              rows={3}
+              value={commentBody}
+            />
+            <div className={styles.commentFormActions}>
+              <Button disabled={!commentBody.trim() || commentBusyId === "new"} size="sm" type="submit" variant="primary">
+                {t("resources.common.commentSubmit")}
+              </Button>
+            </div>
+          </form>
+
+          {commentError ? <p className={styles.errorInline}>{commentError}</p> : null}
+
+          <div className={styles.commentList}>
+            {comments.length === 0 ? (
+              <p className={styles.sectionEmpty}>{t("resources.common.commentsEmpty")}</p>
+            ) : (
+              comments.map((comment) => (
+                <article className={styles.commentItem} key={comment.id}>
+                  <div className={styles.commentHead}>
+                    <span className={styles.commentAuthor}>{comment.authorId.slice(0, 8)}</span>
+                    <span className={styles.commentDate}>{formatDate(comment.updatedAt, t)}</span>
+                    <div className={styles.commentTools}>
+                      <button aria-label={t("resources.common.commentEditAria")} className={styles.iconButton} onClick={() => startEditComment(comment)} type="button">
+                        <Pencil aria-hidden size={13} strokeWidth={2} />
+                      </button>
+                      <button
+                        aria-label={t("resources.common.commentDeleteAria")}
+                        className={cn(styles.iconButton, styles.iconDanger)}
+                        disabled={commentBusyId === comment.id}
+                        onClick={() => void handleDeleteComment(comment.id)}
+                        type="button"
+                      >
+                        <Trash2 aria-hidden size={13} strokeWidth={2} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {editingCommentId === comment.id ? (
+                    <form
+                      className={styles.commentEditForm}
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void handleUpdateComment(comment.id);
+                      }}
+                    >
+                      <textarea
+                        aria-label={t("resources.common.commentEditComposeAria")}
+                        onChange={(event) => setEditingCommentBody(event.target.value)}
+                        rows={3}
+                        value={editingCommentBody}
+                      />
+                      <div className={styles.commentEditActions}>
+                        <Button disabled={!editingCommentBody.trim() || commentBusyId === comment.id} size="sm" type="submit" variant="primary">
+                          {t("resources.common.save")}
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setEditingCommentId(null);
+                            setEditingCommentBody("");
+                          }}
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          {t("resources.common.cancel")}
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <p className={styles.commentBody}>{comment.body}</p>
+                  )}
+                </article>
+              ))
+            )}
+          </div>
+        </div>
+      </details>
+
+      <input
+        ref={versionInputRef}
+        accept={SUPPORTED_RESOURCE_UPLOAD_ACCEPT}
+        aria-label={t("resources.common.uploadVersionAria")}
+        className={styles.srInput}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) {
+            void handleVersionFile(file);
+          }
+          event.currentTarget.value = "";
+        }}
+        type="file"
+      />
     </aside>
   );
 }

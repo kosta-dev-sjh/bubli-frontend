@@ -2,7 +2,6 @@
   --work-border: rgba(205, 216, 223, 0.62);
   --work-ink: #2c3540;
   --work-muted: #5a6772;
-  --work-surface: rgba(255, 255, 255, 0.86);
 
   display: grid;
   font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
@@ -20,44 +19,60 @@
   stroke-width: 1.9px;
 }
 
-.contextBand {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  box-shadow: none;
-  color: var(--color-text);
-  display: inline-flex;
-  inline-size: fit-content;
-  justify-self: end;
-  padding: 0;
+/* 저장 알림: 레이아웃을 밀지 않는 토스트형 배지 (pane 우하단) */
+.saveNotice {
+  background: rgba(44, 53, 64, 0.86);
+  border-radius: 9px;
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 650;
+  inset-block-end: 14px;
+  inset-inline-end: 16px;
+  line-height: 1.4;
+  padding: 7px 12px;
+  pointer-events: none;
+  position: absolute;
+  word-break: keep-all;
+  z-index: 20;
 }
 
 .generateButton {
   align-items: center;
-  background: rgba(215, 234, 244, 0.72);
-  border: 1px solid rgba(142, 205, 246, 0.36);
-  border-radius: 999px;
-  color: var(--work-ink);
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--work-muted);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 12px;
-  font-weight: 780;
+  font-size: 13px;
+  font-weight: 650;
   gap: 6px;
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 10px;
+  transition: background-color 140ms ease, color 140ms ease;
   white-space: nowrap;
 }
 
 .generateButton:hover:not(:disabled) {
-  background: rgba(215, 234, 244, 0.9);
-  border-color: rgba(107, 143, 168, 0.42);
+  background: rgba(44, 53, 64, 0.06);
+  color: var(--work-ink);
 }
 
 .generateButton:disabled {
   cursor: wait;
-  opacity: 0.68;
+  opacity: 0.55;
+}
+
+.boardToolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  justify-content: space-between;
+  margin-block-end: 12px;
+  min-block-size: 36px;
 }
 
 .paneActions {
@@ -72,7 +87,7 @@
 .generateNotice,
 .generateError {
   border-radius: 12px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
   line-height: 1.45;
   margin: -4px 0 12px;
@@ -91,80 +106,65 @@
   color: color-mix(in srgb, var(--color-warning) 42%, var(--ink) 58%);
 }
 
+/* 뷰 전환: 간트 기간 세그먼트와 같은 문법의 평평한 세그먼트 컨트롤 */
 .viewSwitch {
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(210, 225, 238, 0.64);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 12px 28px -24px rgba(107, 143, 168, 0.34);
+  align-items: center;
+  background: rgba(44, 53, 64, 0.05);
+  border: 1px solid rgba(44, 53, 64, 0.08);
+  border-radius: 10px;
   display: inline-flex;
-  gap: 4px;
-  border-radius: 999px;
-  padding: 4px;
+  gap: 2px;
+  padding: 2px;
 }
 
 .viewSwitch button {
-  display: inline-flex;
-  gap: 6px;
   align-items: center;
-  min-height: 36px;
-  padding: 0 13px;
-  border: 0;
-  border-radius: 999px;
-  color: var(--color-muted);
+  appearance: none;
   background: transparent;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 780;
-  letter-spacing: 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--work-muted);
   cursor: pointer;
-  transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease, transform 160ms ease;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  gap: 6px;
+  letter-spacing: 0;
+  min-height: 28px;
+  padding: 0 12px;
+  transition: background-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
 }
 
 .viewSwitch button[aria-pressed="true"] {
+  background: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(44, 53, 64, 0.14);
   color: var(--work-ink);
-  background: rgba(215, 234, 244, 0.62);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.94),
-    0 10px 24px -18px rgba(107, 143, 168, 0.38);
-  transform: translateY(-1px);
-}
-
-.paneHead h2 {
-  color: var(--work-ink);
-  font-size: 17px;
-  line-height: 1.35;
-  margin: 0 0 4px;
-}
-
-.paneHead p {
-  color: var(--work-muted);
-  font-size: 13px;
-  line-height: 1.55;
-  margin: 0;
 }
 
 .boardGrid {
   min-inline-size: 0;
 }
 
+/* 유리 패널은 이 바깥 pane 하나뿐 — 내부 면은 평평하게 유지 */
 .pane,
 .kanbanPane,
-.wbsDetail,
-.wbsInspector,
 .wbsInspectorPopover,
 .suggestionTray {
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(250, 253, 255, 0.74)),
-    rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(18px);
   border: 1px solid var(--work-border);
-  border-radius: 22px;
+  border-radius: 18px;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 18px 44px -34px rgba(107, 143, 168, 0.34);
+    0 18px 44px -34px rgba(107, 143, 168, 0.3);
   min-inline-size: 0;
   padding: 16px;
+}
+
+.pane,
+.kanbanPane {
+  position: relative;
 }
 
 .kanbanPane {
@@ -182,46 +182,7 @@
 
 .wbsWorkspace .pane {
   overflow-x: auto;
-  padding: 18px;
-}
-
-.paneHead {
-  align-items: flex-start;
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-  margin-block-end: 14px;
-}
-
-.ganttPaneHead {
-  align-items: center;
-  margin-block-end: 10px;
-}
-
-.ganttPaneHead h2 {
-  font-size: 18px;
-  font-weight: 760;
-}
-
-.kanbanPane .paneHead {
-  align-items: center;
-  margin-block-end: 12px;
-}
-
-.kanbanPane .paneHead h2 {
-  font-size: 18px;
-  font-weight: 760;
-}
-
-.wbsWorkspace .pane :global(.gantt) {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 250, 0.88)),
-    rgba(255, 255, 255, 0.9);
-  border-color: rgba(229, 231, 235, 0.9);
-  border-radius: 18px;
-  color: #2c3540;
-  font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
-  letter-spacing: 0;
+  padding: 16px;
 }
 
 .wbsWorkspace .pane :global(.gantt button) {
@@ -229,501 +190,9 @@
   letter-spacing: 0;
 }
 
-.wbsWorkspace .pane :global([data-roadmap-ui="gantt-sidebar"]) {
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(229, 231, 235, 0.78);
-}
-
-.wbsWorkspace .pane :global(.gantt .bg-secondary) {
-  background-color: rgba(215, 234, 244, 0.22);
-}
-
-.wbsWorkspace .pane :global(.gantt .bg-background),
-.wbsWorkspace .pane :global(.gantt .bg-card) {
-  background-color: rgba(255, 255, 255, 0.84);
-}
-
-.wbsWorkspace .pane :global(.gantt .border-border\/50) {
-  border-color: rgba(205, 216, 223, 0.58);
-}
-
-.wbsWorkspace .pane :global(.gantt .divide-border\/50 > :not([hidden]) ~ :not([hidden])) {
-  border-color: rgba(205, 216, 223, 0.55);
-}
-
-.wbsWorkspace .pane :global(.gantt .text-muted-foreground) {
-  color: #6b8fa8;
-}
-
-.wbsWorkspace .pane :global(.gantt .text-foreground) {
-  color: #2c3540;
-}
-
-.wbsWorkspace .pane :global(.gantt .shadow-sm) {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 12px 26px -24px rgba(107, 143, 168, 0.45);
-}
-
-.wbsList,
-.suggestionList,
-.cardList {
+.suggestionList {
   display: grid;
   gap: 8px;
-}
-
-.wbsList {
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px solid rgba(229, 231, 235, 0.82);
-  border-radius: 14px;
-  gap: 0;
-  min-inline-size: 720px;
-  overflow: hidden;
-}
-
-.wbsPeriodSwitch {
-  align-items: center;
-  background: rgba(247, 249, 250, 0.72);
-  border: 1px solid rgba(229, 231, 235, 0.86);
-  border-radius: 999px;
-  display: inline-flex;
-  gap: 4px;
-  margin-block-end: 10px;
-  padding: 4px;
-}
-
-.wbsPeriodSwitch button {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  color: #5a6772;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 740;
-  min-block-size: 30px;
-  min-inline-size: 46px;
-  padding: 0 10px;
-}
-
-.wbsPeriodSwitch button[aria-pressed="true"] {
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 8px 18px rgba(107, 143, 168, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  color: #2c3540;
-}
-
-.periodBoard,
-.periodDayBoard {
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid rgba(229, 231, 235, 0.86);
-  border-radius: 14px;
-  display: grid;
-  gap: 10px;
-  min-inline-size: 0;
-  padding: 12px;
-}
-
-.periodBoardHead {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: space-between;
-}
-
-.periodTitle {
-  display: grid;
-  gap: 3px;
-  min-inline-size: min(100%, 260px);
-}
-
-.periodBoardHead strong {
-  color: #2c3540;
-  font-size: 14px;
-  font-weight: 760;
-}
-
-.periodBoardHead span {
-  color: #5a6772;
-  font-size: 12px;
-  font-weight: 760;
-}
-
-.periodNav {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.66);
-  border: 1px solid rgba(229, 231, 235, 0.82);
-  border-radius: 999px;
-  display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-}
-
-.periodNav button {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  color: #5a6772;
-  cursor: pointer;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 740;
-  min-block-size: 28px;
-  padding: 0 10px;
-  transition: background-color 160ms ease, color 160ms ease;
-}
-
-.periodNav button:hover {
-  background: rgba(215, 234, 244, 0.72);
-  color: #2c3540;
-}
-
-.periodGrid {
-  display: grid;
-  gap: 8px;
-  min-inline-size: 0;
-}
-
-.periodBoardMonth .periodGrid {
-  grid-template-columns: repeat(7, minmax(104px, 1fr));
-  overflow-x: auto;
-  padding-block-end: 4px;
-}
-
-.periodBoardWeek .periodGrid {
-  grid-template-columns: repeat(7, minmax(118px, 1fr));
-  overflow-x: auto;
-  padding-block-end: 4px;
-}
-
-.periodCell {
-  background: rgba(247, 249, 250, 0.7);
-  border: 1px solid rgba(229, 231, 235, 0.9);
-  border-radius: 13px;
-  display: grid;
-  gap: 8px;
-  min-block-size: 132px;
-  min-inline-size: 0;
-  padding: 9px;
-}
-
-.periodCell header {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-}
-
-.periodCell header span {
-  color: #8a94a0;
-  font-size: 11px;
-  font-weight: 680;
-}
-
-.periodCell header strong {
-  color: #2c3540;
-  font-size: 14px;
-  font-weight: 760;
-}
-
-.periodItems,
-.dayTaskList {
-  display: grid;
-  gap: 7px;
-}
-
-.periodItems small {
-  color: #8a94a0;
-  font-size: 11px;
-  font-weight: 760;
-}
-
-.periodPill {
-  --wbs-accent-soft: color-mix(in srgb, var(--wbs-accent, var(--color-water-blue)) 18%, transparent);
-
-  background: linear-gradient(90deg, var(--wbs-accent-soft), rgba(255, 255, 255, 0.86));
-  border: 1px solid rgba(229, 231, 235, 0.88);
-  border-inline-start: 3px solid var(--wbs-accent, var(--color-todo));
-  border-radius: 11px;
-  display: grid;
-  gap: 3px;
-  padding: 8px 9px;
-}
-
-.periodPill strong {
-  color: #2c3540;
-  font-size: 12px;
-  font-weight: 740;
-  line-height: 1.35;
-  word-break: keep-all;
-}
-
-.periodPill small {
-  color: #5a6772;
-  font-size: 10.5px;
-  font-weight: 740;
-  line-height: 1.35;
-}
-
-.wbsTableHead {
-  align-items: center;
-  background: rgba(247, 249, 250, 0.86);
-  border: 1px solid rgba(229, 231, 235, 0.82);
-  border-radius: 14px;
-  color: #5a6772;
-  display: grid;
-  font-size: 11px;
-  font-weight: 700;
-  gap: 8px;
-  grid-template-columns: 42px 56px minmax(240px, 1.7fr) 82px 54px 76px 50px;
-  letter-spacing: 0;
-  margin-block-end: 8px;
-  min-inline-size: 720px;
-  padding: 9px 12px;
-  text-transform: none;
-}
-
-.wbsRow {
-  align-items: center;
-  appearance: none;
-  background: transparent;
-  border: 0;
-  border-block-end: 1px solid rgba(229, 231, 235, 0.78);
-  border-radius: 0;
-  color: #2c3540;
-  cursor: pointer;
-  display: grid;
-  gap: 8px;
-  grid-template-columns: 42px 56px minmax(240px, 1.7fr) 82px 54px 76px 50px;
-  min-block-size: 48px;
-  min-inline-size: 720px;
-  padding: 8px 12px;
-  position: relative;
-  text-align: start;
-  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
-
-.wbsRow::before {
-  background: transparent;
-  border-radius: 999px;
-  content: "";
-  inline-size: 5px;
-  inset-block: 6px;
-  inset-inline-start: 0;
-  position: absolute;
-}
-
-.wbsRowTinted {
-  --wbs-accent-soft: color-mix(in srgb, var(--wbs-accent, var(--color-water-blue)) 22%, transparent);
-
-  background: linear-gradient(
-    90deg,
-    var(--wbs-accent-soft, transparent) 0%,
-    color-mix(in srgb, var(--wbs-accent, var(--color-water-blue)) 10%, transparent) 42%,
-    rgba(255, 255, 255, 0) 100%
-  );
-}
-
-.wbsRowTinted::before {
-  background: var(--wbs-accent, var(--color-todo));
-}
-
-.wbsRowChild .wbsCode {
-  border-color: color-mix(in srgb, var(--wbs-accent, var(--color-todo)) 36%, var(--color-border));
-  color: color-mix(in srgb, var(--wbs-accent, var(--color-todo)) 58%, var(--color-text));
-}
-
-.wbsRow:last-child {
-  border-block-end: 0;
-}
-
-.wbsRow:hover,
-.wbsRowSelected {
-  background: rgba(215, 234, 244, 0.34);
-  border-color: rgba(107, 143, 168, 0.2);
-  box-shadow: inset 3px 0 0 rgba(107, 143, 168, 0.5);
-}
-
-.wbsRowTinted:hover,
-.wbsRowTinted.wbsRowSelected {
-  background: linear-gradient(90deg, var(--wbs-accent-soft, rgba(215, 234, 244, 0.34)) 0%, rgba(215, 234, 244, 0.34) 62%);
-  box-shadow: inset 3px 0 0 var(--wbs-accent, rgba(107, 143, 168, 0.5));
-}
-
-.wbsRowDragging {
-  opacity: 0.54;
-}
-
-.wbsRowDropTarget {
-  background: rgba(142, 205, 246, 0.22);
-  box-shadow: inset 0 2px 0 rgba(107, 143, 168, 0.7), inset 3px 0 0 rgba(107, 143, 168, 0.44);
-}
-
-.wbsHandle {
-  align-self: center;
-  color: #8a94a0;
-  opacity: 0.72;
-}
-
-.wbsHierarchy {
-  align-items: center;
-  display: grid;
-  gap: 5px;
-  grid-template-columns: 16px 8px;
-  justify-content: center;
-  min-inline-size: 0;
-}
-
-.wbsRail {
-  background: rgba(205, 216, 223, 0.7);
-  border-radius: 999px;
-  block-size: 28px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
-  display: block;
-  inline-size: 4px;
-  opacity: 0.82;
-  transform: translateX(calc(var(--wbs-depth, 0) * 3px));
-}
-
-.wbsRowTinted .wbsRail {
-  background: var(--wbs-accent, var(--color-todo));
-  opacity: 1;
-}
-
-.wbsRow:hover .wbsHandle,
-.wbsRowSelected .wbsHandle {
-  color: #6b8fa8;
-  opacity: 1;
-}
-
-.wbsCode {
-  align-items: center;
-  background: rgba(247, 249, 250, 0.9);
-  border: 1px solid rgba(229, 231, 235, 0.9);
-  border-radius: 999px;
-  color: #6b8fa8;
-  display: inline-flex;
-  font-size: 12px;
-  font-weight: 700;
-  inline-size: fit-content;
-  justify-content: center;
-  min-inline-size: 30px;
-  padding: 4px 7px;
-}
-
-.wbsMain,
-.suggestion span,
-.selectedWbs span,
-.trashZone span {
-  display: grid;
-  gap: 3px;
-  min-inline-size: 0;
-}
-
-.wbsMain {
-  padding-inline-start: calc(var(--wbs-depth, 0) * 16px);
-  position: relative;
-}
-
-.wbsMain::before {
-  background: var(--wbs-accent, rgba(107, 143, 168, 0.22));
-  border-radius: 999px;
-  content: "";
-  display: none;
-  inline-size: 3px;
-  inset-block: 4px;
-  inset-inline-start: calc((var(--wbs-depth, 0) * 16px) - 8px);
-  position: absolute;
-}
-
-.wbsRow[style*="--wbs-depth: 1"] .wbsMain::before,
-.wbsRow[style*="--wbs-depth: 2"] .wbsMain::before,
-.wbsRow[style*="--wbs-depth: 3"] .wbsMain::before {
-  display: block;
-  opacity: 0.54;
-}
-
-.wbsMain strong,
-.suggestion strong,
-.cardTop strong,
-.selectedWbs strong,
-.trashZone strong {
-  color: #2c3540;
-  font-size: 14px;
-  font-weight: 740;
-  line-height: 1.35;
-  min-inline-size: 0;
-  overflow: hidden;
-  overflow-wrap: normal;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  word-break: keep-all;
-}
-
-.cardTop strong {
-  display: block;
-  font-size: 13.5px;
-  font-weight: 740;
-  line-height: 1.42;
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
-}
-
-.wbsMetric,
-.wbsDate {
-  color: #5a6772;
-  font-size: 12px;
-  font-weight: 700;
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wbsMetric {
-  text-align: center;
-}
-
-.wbsMain small,
-.suggestion small,
-.cardBody p,
-.selectedWbs small,
-.trashZone small {
-  color: #5a6772;
-  font-size: 11px;
-  line-height: 1.4;
-  overflow-wrap: normal;
-  word-break: keep-all;
-}
-
-.selectedWbs {
-  align-items: center;
-  background: rgba(215, 234, 244, 0.34);
-  border: 1px dashed rgba(107, 143, 168, 0.34);
-  border-radius: 14px;
-  color: #6b8fa8;
-  display: flex;
-  gap: 10px;
-  margin-block-start: 14px;
-  padding: 11px;
-}
-
-.wbsDetail {
-  align-content: start;
-  display: grid;
-  gap: 12px;
-  max-block-size: calc(100vh - 210px);
-  overflow: auto;
-  position: sticky;
-  top: 18px;
-}
-
-.wbsInspector {
-  display: grid;
-  gap: 12px;
-  padding: 12px;
 }
 
 .wbsInspectorPopover {
@@ -762,7 +231,7 @@
 .inspectorTitle strong {
   color: #2c3540;
   font-size: 16px;
-  font-weight: 760;
+  font-weight: 650;
   line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -772,8 +241,8 @@
 .inspectorTitle small,
 .inspectorMeta {
   color: #5a6772;
-  font-size: 12px;
-  font-weight: 760;
+  font-size: 13px;
+  font-weight: 650;
   line-height: 1.35;
 }
 
@@ -818,44 +287,7 @@
   grid-template-columns: minmax(0, 1.2fr) minmax(240px, 0.8fr);
 }
 
-.detailMetrics {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.detailMetrics span {
-  background: rgba(247, 249, 250, 0.76);
-  border: 1px solid rgba(229, 231, 235, 0.9);
-  border-radius: 12px;
-  display: grid;
-  gap: 4px;
-  min-inline-size: 0;
-  padding: 10px;
-}
-
-.detailMetrics strong {
-  color: #2c3540;
-  font-size: 17px;
-  line-height: 1.15;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.detailMetrics small {
-  color: #5a6772;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.linkedTasks {
-  display: grid;
-  gap: 10px;
-}
-
-.wbsEditor,
-.wbsCreate {
+.wbsEditor {
   background: rgba(255, 255, 255, 0.64);
   border: 1px solid rgba(229, 231, 235, 0.86);
   border-radius: 14px;
@@ -871,8 +303,8 @@
 
 .colorControl > span {
   color: #5a6772;
-  font-size: 12px;
-  font-weight: 740;
+  font-size: 13px;
+  font-weight: 650;
 }
 
 .colorSwatches {
@@ -905,8 +337,8 @@
   border-radius: 999px;
   color: #5a6772;
   display: inline-flex;
-  font-size: 11px;
-  font-weight: 740;
+  font-size: 13px;
+  font-weight: 650;
   gap: 7px;
   min-block-size: 28px;
   padding: 0 8px 0 10px;
@@ -920,32 +352,6 @@
   block-size: 20px;
   inline-size: 24px;
   padding: 0;
-}
-
-.wbsCreate {
-  background: rgba(215, 234, 244, 0.2);
-  border-color: rgba(107, 143, 168, 0.24);
-}
-
-.taskCreate {
-  align-items: end;
-  background: rgba(215, 234, 244, 0.24);
-  border: 1px solid rgba(107, 143, 168, 0.24);
-  border-radius: 14px;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  margin-block-end: 12px;
-  padding: 12px;
-}
-
-.taskCreate label {
-  color: #5a6772;
-  display: grid;
-  font-size: 12px;
-  font-weight: 740;
-  gap: 6px;
-  min-inline-size: 0;
 }
 
 .wbsFormGrid {
@@ -963,23 +369,22 @@
 .wbsFormGrid label {
   color: #5a6772;
   display: grid;
-  font-size: 12px;
-  font-weight: 740;
+  font-size: 13px;
+  font-weight: 650;
   gap: 6px;
   min-inline-size: 0;
 }
 
 .wbsFormGrid input,
-.wbsDateGrid input,
-.taskCreate input {
+.wbsDateGrid input {
   appearance: none;
   background: rgba(255, 255, 255, 0.86);
   border: 1px solid rgba(229, 231, 235, 0.95);
   border-radius: 12px;
   color: #2c3540;
   font: inherit;
-  font-size: 13px;
-  font-weight: 760;
+  font-size: 14px;
+  font-weight: 650;
   min-block-size: 42px;
   min-inline-size: 0;
   outline: none;
@@ -988,54 +393,14 @@
 }
 
 .wbsFormGrid input::placeholder,
-.wbsDateGrid input::placeholder,
-.taskCreate input::placeholder {
+.wbsDateGrid input::placeholder {
   color: #8a94a0;
 }
 
 .wbsFormGrid input:focus-visible,
-.wbsDateGrid input:focus-visible,
-.taskCreate input:focus-visible {
+.wbsDateGrid input:focus-visible {
   border-color: rgba(107, 143, 168, 0.62);
   box-shadow: 0 0 0 4px rgba(215, 234, 244, 0.58);
-}
-
-.wbsFormActions {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.primaryAction {
-  appearance: none;
-  border-radius: 999px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 760;
-  min-block-size: 36px;
-  padding: 0 14px;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
-
-.primaryAction {
-  background: rgba(215, 234, 244, 0.78);
-  border: 1px solid rgba(107, 143, 168, 0.45);
-  color: #2c3540;
-}
-
-.primaryAction:hover {
-  box-shadow: 0 12px 24px rgba(107, 143, 168, 0.12);
-  transform: translateY(-1px);
-}
-
-.sectionLabel {
-  align-items: center;
-  color: #2c3540;
-  display: flex;
-  gap: 8px;
 }
 
 .linkedTask {
@@ -1065,238 +430,10 @@
 
 .linkedTask small {
   color: #5a6772;
-  font-size: 12px;
-  line-height: 1.45;
-  overflow-wrap: break-word;
-  word-break: keep-all;
-}
-
-.columns {
-  display: grid;
-  gap: 12px;
-  grid-auto-columns: minmax(340px, 1fr);
-  grid-auto-flow: column;
-  grid-template-columns: none;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  padding-block-end: 8px;
-  padding-inline-end: 2px;
-  scrollbar-color: rgba(107, 143, 168, 0.34) transparent;
-  scroll-snap-type: x proximity;
-  scrollbar-width: thin;
-}
-
-.columns::-webkit-scrollbar {
-  block-size: 8px;
-}
-
-.columns::-webkit-scrollbar-thumb {
-  background: rgba(107, 143, 168, 0.28);
-  border-radius: 999px;
-}
-
-.column {
-  background: rgba(247, 249, 250, 0.72);
-  border: 1px solid rgba(229, 231, 235, 0.9);
-  border-radius: 18px;
-  min-block-size: 300px;
-  min-inline-size: 340px;
-  padding: 12px;
-  scroll-snap-align: start;
-  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
-}
-
-.columnActive {
-  background: rgba(215, 234, 244, 0.42);
-  border-color: rgba(107, 143, 168, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9);
-}
-
-.columnHead {
-  align-items: flex-start;
-  display: flex;
-  gap: 10px;
-  justify-content: space-between;
-  margin-block-end: 10px;
-}
-
-.columnHead span {
-  display: grid;
-  gap: 3px;
-  min-inline-size: 0;
-}
-
-.columnHead strong {
-  color: #2c3540;
-  font-size: 14px;
-  font-weight: 740;
-  line-height: 1.25;
-}
-
-.columnHead small {
-  color: #8a94a0;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.columnHead b {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 999px;
-  color: #6b8fa8;
-  font-size: 12px;
-  font-weight: 700;
-  min-inline-size: 26px;
-  padding: 3px 8px;
-  text-align: center;
-}
-
-.dropIndicator {
-  background: #6b8fa8;
-  border-radius: 999px;
-  display: block;
-  block-size: 2px;
-  inline-size: 100%;
-  margin-block: 3px;
-  opacity: 0;
-  transition: opacity 120ms ease, block-size 120ms ease;
-}
-
-.dropIndicator[data-active="true"] {
-  block-size: 4px;
-  opacity: 1;
-}
-
-.card {
-  align-items: flex-start;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.86);
-  border-radius: 12px;
-  box-shadow: 0 7px 18px rgba(107, 143, 168, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  cursor: grab;
-  display: grid;
-  gap: 9px;
-  grid-template-columns: 18px minmax(0, 1fr);
-  min-inline-size: 0;
-  padding: 10px;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
-
-.card:active {
-  cursor: grabbing;
-}
-
-.card:hover,
-.cardSelected {
-  border-color: rgba(142, 205, 246, 0.82);
-  box-shadow: 0 12px 28px rgba(107, 143, 168, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  transform: translateY(-1px);
-}
-
-.grip {
-  color: #8a94a0;
-  flex: 0 0 auto;
-  margin-block-start: 3px;
-}
-
-.cardBody {
-  display: grid;
-  gap: 5px;
-  min-inline-size: 0;
-  inline-size: 100%;
-}
-
-.cardTop {
-  align-items: flex-start;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 7px;
-  min-inline-size: 0;
-}
-
-.cardTop strong {
-  font-size: 14px;
-  font-weight: 740;
-  inline-size: 100%;
-  line-height: 1.38;
-  overflow-wrap: normal;
-  text-wrap: pretty;
-  white-space: normal;
-  word-break: keep-all;
-}
-
-.cardTop :global(.bubli-status) {
-  flex: 0 0 auto;
-  font-size: 10px;
-  font-weight: 700;
-  min-block-size: 22px;
-  padding-inline: 7px;
-  white-space: nowrap;
-}
-
-.cardBody p {
-  color: #5a6772;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.45;
-  overflow-wrap: break-word;
-  word-break: keep-all;
-}
-
-.kanbanFooter {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: space-between;
-  margin-block-start: 12px;
-}
-
-.taskInspector {
-  align-items: center;
-  background: rgba(247, 249, 250, 0.62);
-  border: 1px solid rgba(229, 231, 235, 0.85);
-  border-radius: 16px;
-  display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  margin-block-start: 14px;
-  padding: 14px;
-}
-
-.taskInspector p {
-  color: #5a6772;
   font-size: 13px;
-  line-height: 1.5;
-  margin: 8px 0 4px;
-}
-
-.taskInspector small {
-  color: #8a94a0;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.assigneeControl {
-  color: #5a6772;
-  display: grid;
-  font-size: 12px;
-  font-weight: 740;
-  gap: 6px;
-  margin-block-start: 12px;
-  max-inline-size: 260px;
-}
-
-.assigneeControl select {
-  appearance: none;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(229, 231, 235, 0.95);
-  border-radius: 12px;
-  color: #2c3540;
-  font: inherit;
-  min-block-size: 40px;
-  padding: 0 12px;
+  line-height: 1.45;
+  overflow-wrap: break-word;
+  word-break: keep-all;
 }
 
 .statusActions {
@@ -1314,8 +451,8 @@
   color: #5a6772;
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
-  font-weight: 740;
+  font-size: 13px;
+  font-weight: 650;
   min-block-size: 34px;
   padding: 0 12px;
 }
@@ -1349,8 +486,8 @@
 
 .candidateTrayHead strong {
   color: var(--work-ink);
-  font-size: 13px;
-  font-weight: 780;
+  font-size: 14px;
+  font-weight: 700;
   line-height: 1.3;
 }
 
@@ -1373,8 +510,8 @@
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 11px;
-  font-weight: 760;
+  font-size: 13px;
+  font-weight: 650;
   gap: 4px;
   min-block-size: 28px;
   padding: 0 9px;
@@ -1397,35 +534,10 @@
   border: 1px dashed rgba(205, 216, 223, 0.8);
   border-radius: 12px;
   color: #8a94a0;
-  font-size: 12px;
+  font-size: 13px;
   margin: 0;
   padding: 10px;
   text-align: center;
-}
-
-.trashZone {
-  align-items: center;
-  background: rgba(232, 152, 152, 0.11);
-  border: 1px dashed rgba(232, 152, 152, 0.62);
-  border-radius: 16px;
-  color: var(--color-dust-rose);
-  display: flex;
-  gap: 10px;
-  min-inline-size: 240px;
-  padding: 11px 13px;
-  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
-}
-
-.trashZoneActive {
-  background: rgba(232, 152, 152, 0.2);
-  border-color: rgba(232, 152, 152, 0.86);
-  transform: translateY(-1px);
-}
-
-.notice {
-  color: #5a6772;
-  font-size: 12px;
-  margin: 0;
 }
 
 .suggestion {
@@ -1444,6 +556,33 @@
   max-inline-size: 380px;
   min-inline-size: 0;
   padding: 12px;
+}
+
+.suggestion span {
+  display: grid;
+  gap: 3px;
+  min-inline-size: 0;
+}
+
+.suggestion strong {
+  color: #2c3540;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+  min-inline-size: 0;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.suggestion small {
+  color: #5a6772;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: normal;
+  word-break: keep-all;
 }
 
 .suggestion :global(.bubli-status) {
@@ -1468,7 +607,7 @@
   border: 1px dashed #cdd8df;
   border-radius: 14px;
   color: #8a94a0;
-  font-size: 12px;
+  font-size: 13px;
   margin: 0;
   padding: 12px;
   text-align: center;
@@ -1478,35 +617,22 @@
   .wbsWorkspace {
     grid-template-columns: 1fr;
   }
-
-  .wbsDetail {
-    max-block-size: none;
-    position: static;
-  }
-
-  .columns {
-    grid-auto-columns: minmax(340px, 46vw);
-  }
-
-  .column {
-    min-block-size: 180px;
-  }
 }
 
 @media (max-width: 760px) {
-  .contextBand {
-    justify-self: start;
-  }
-
-  .trashZone {
-    min-inline-size: 0;
-  }
-
-  .detailMetrics,
   .suggestionTray .suggestionList,
-  .taskInspector,
-  .taskCreate,
+  .inspectorForms,
   .wbsFormGrid {
+    grid-template-columns: 1fr;
+  }
+
+  /* 연결된 할 일 3열 고정은 좁은 화면에서 칸이 90px대로 눌린다 — 한 줄에 하나씩. */
+  .linkedTaskStrip {
+    grid-template-columns: 1fr;
+  }
+
+  /* 날짜 시작/종료 입력도 반쪽 폭(~140px)에서 잘리므로 세로로 쌓는다. */
+  .wbsDateGrid {
     grid-template-columns: 1fr;
   }
 
@@ -1515,34 +641,233 @@
     position: static;
   }
 
-  .columns {
-    grid-auto-columns: minmax(320px, 88vw);
-  }
-
   .statusActions {
     justify-content: flex-start;
   }
+
+  /* 터치 타깃 확보 — 뷰 전환 세그먼트와 후보 트레이 액션을 34px 이상으로. */
+  .viewSwitch button {
+    min-height: 34px;
+  }
+
+  .generateButton {
+    min-height: 36px;
+  }
+
+  .candidateActions button {
+    min-block-size: 34px;
+  }
+
+  .inspectorClose {
+    block-size: 36px;
+    inline-size: 36px;
+  }
+
+  .colorSwatch {
+    block-size: 30px;
+    inline-size: 30px;
+  }
+}
+
+/* ============================================================
+   Night Bubble — 워크보드 다크 정합화
+   로컬 토큰(--work-*)을 뒤집고, 하드코딩 잉크(#2c3540/#5a6772/#8a94a0)를
+   #EAF0F8/#A7B6CC/희미(176,190,208) 위계로 정렬. 면은 어두운 유리.
+   ============================================================ */
+[data-theme="dark"] .shell {
+  --work-border: rgba(150, 170, 215, 0.16);
+  --work-ink: #EAF0F8;
+  --work-muted: #A7B6CC;
+}
+
+[data-theme="dark"] .saveNotice {
+  background: rgba(234, 240, 248, 0.92);
+  color: #121A28;
+}
+
+[data-theme="dark"] .generateButton {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .generateButton:hover:not(:disabled) {
+  background: rgba(150, 170, 215, 0.14);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .generateNotice {
+  background: rgba(158, 216, 255, 0.1);
+  border-color: rgba(158, 216, 255, 0.24);
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .generateError {
+  background: rgba(230, 196, 156, 0.1);
+  border-color: rgba(230, 196, 156, 0.3);
+  color: var(--signal-memo, #E6C49C);
+}
+
+[data-theme="dark"] .viewSwitch {
+  background: rgba(150, 170, 215, 0.1);
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .viewSwitch button {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .viewSwitch button[aria-pressed="true"] {
+  background: rgba(60, 80, 125, 0.85);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .pane,
+[data-theme="dark"] .kanbanPane,
+[data-theme="dark"] .wbsInspectorPopover,
+[data-theme="dark"] .suggestionTray {
+  background: rgba(34, 46, 72, 0.5);
+  box-shadow:
+    var(--inner-highlight-dark),
+    0 18px 44px -34px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .suggestion strong,
+[data-theme="dark"] .inspectorTitle strong,
+[data-theme="dark"] .linkedTask strong {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .suggestion small,
+[data-theme="dark"] .inspectorTitle small,
+[data-theme="dark"] .inspectorMeta,
+[data-theme="dark"] .linkedTask small,
+[data-theme="dark"] .colorControl > span,
+[data-theme="dark"] .wbsFormGrid label,
+[data-theme="dark"] .customColor {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .candidateEmpty,
+[data-theme="dark"] .empty {
+  color: rgba(176, 190, 208, 0.62);
+}
+
+[data-theme="dark"] .inspectorMeta {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.18);
+}
+
+[data-theme="dark"] .inspectorClose {
+  background: rgba(54, 72, 110, 0.45);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .inspectorClose:hover {
+  background: rgba(70, 92, 140, 0.55);
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .wbsEditor {
+  background: rgba(28, 39, 61, 0.5);
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .colorSwatch {
+  border-color: rgba(28, 39, 61, 0.9);
+  box-shadow: 0 0 0 1px rgba(150, 170, 215, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .colorSwatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px rgba(158, 216, 255, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+[data-theme="dark"] .customColor {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.2);
+}
+
+[data-theme="dark"] .wbsFormGrid input,
+[data-theme="dark"] .wbsDateGrid input {
+  background: rgba(28, 39, 61, 0.66);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .wbsFormGrid input::placeholder,
+[data-theme="dark"] .wbsDateGrid input::placeholder {
+  color: rgba(176, 190, 208, 0.55);
+}
+
+[data-theme="dark"] .wbsFormGrid input:focus-visible,
+[data-theme="dark"] .wbsDateGrid input:focus-visible {
+  border-color: rgba(158, 216, 255, 0.5);
+  box-shadow: 0 0 0 4px rgba(158, 216, 255, 0.16);
+}
+
+[data-theme="dark"] .linkedTask {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .statusActions button {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .statusActions button[aria-pressed="true"] {
+  background: rgba(70, 110, 165, 0.4);
+  border-color: rgba(158, 216, 255, 0.4);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .candidateActions button {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .candidateActions button:hover:not(:disabled) {
+  background: rgba(60, 80, 125, 0.5);
+  border-color: rgba(158, 216, 255, 0.36);
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .candidateEmpty {
+  border-color: rgba(150, 170, 215, 0.3);
+}
+
+[data-theme="dark"] .suggestion {
+  background: rgba(34, 46, 72, 0.5);
+  border-color: rgba(150, 170, 215, 0.16);
+  box-shadow:
+    var(--inner-highlight-dark),
+    0 14px 30px -28px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .suggestionIcon {
+  background: rgba(70, 110, 165, 0.36);
+  border-color: rgba(158, 216, 255, 0.3);
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .empty {
+  border-color: rgba(150, 170, 215, 0.3);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wbsRow,
-  .column,
-  .dropIndicator,
-  .card,
-  .trashZone,
-  .primaryAction,
   .viewSwitch button,
-  .wbsFormGrid input {
+  .generateButton,
+  .inspectorClose,
+  .candidateActions button,
+  .wbsFormGrid input,
+  .wbsDateGrid input {
     transition: none;
   }
 
-  .wbsRow:hover,
-  .wbsRowSelected,
-  .card:hover,
-  .cardSelected,
-  .trashZoneActive,
-  .primaryAction:hover,
-  .viewSwitch button[aria-pressed="true"] {
+  .inspectorClose:hover,
+  .candidateActions button:hover:not(:disabled) {
     transform: none;
   }
 }

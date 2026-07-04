@@ -1,19 +1,36 @@
 "use client";
 
-import { Check, Download, Eye, Pause, RefreshCw, Sparkles, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import {
+  CalendarDays,
+  Check,
+  ChevronDown,
+  ClipboardList,
+  Download,
+  FileText,
+  ListChecks,
+  MessageSquareText,
+  NotebookPen,
+  Pause,
+  RefreshCw,
+  Sparkles,
+  Wand2,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
+import type { StatusTone } from "@/components/ui/status-badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { chatApi } from "@/features/communication/api/chatApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
-import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { useActiveProjectRoom } from "@/lib/use-active-project-room";
 import { setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
@@ -23,21 +40,29 @@ import {
   workspacePreviewRooms,
 } from "@/lib/workspace-preview-data";
 import type {
+  AgentJobStatus,
   AgentSuggestionResponse,
   AgentSuggestionStatus,
   AgentSuggestionType,
   DailySummaryResponse,
   GeneratedDocumentResponse,
+  RoomAiDocumentResponse,
 } from "@/types/api/agent";
+import type { AiDocumentStatus } from "@/types/api/resource";
 import type { RoomMemorySummaryResponse } from "@/types/api/chat";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
+
+import styles from "./page.module.css";
 
 type AgentPageState =
   | { kind: "loading" }
   | {
+      confirmedRequirements: AgentSuggestionResponse[];
       dailySummaries: DailySummaryResponse[];
       generatedDocuments: GeneratedDocumentResponse[];
+      heldSuggestions: AgentSuggestionResponse[];
       kind: "ready";
+      roomAiDocuments: RoomAiDocumentResponse[];
       roomMemorySummaries: RoomMemorySummaryResponse[];
       rooms: ProjectRoomResponse[];
       selectedRoomId: string | null;
@@ -46,7 +71,37 @@ type AgentPageState =
   | { kind: "auth" }
   | { kind: "offline"; message: string };
 
-type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
+type ActiveJobState = {
+  jobId: string;
+  status: AgentJobStatus;
+};
+
+// 알림 피드의 분야(모바일 알림창의 앱 아이콘처럼 항목마다 하나씩 붙는다).
+type FeedCategory = "daily" | "document" | "requirement" | "schedule" | "task";
+
+type FeedFilter = FeedCategory | "ALL" | "HELD";
+
+type FeedItem = {
+  badge: { label: string; tone: StatusTone } | null;
+  body: string | null;
+  category: FeedCategory;
+  dailySummaryApproved: boolean;
+  dailySummaryId: string | null;
+  documentId: string | null;
+  evidenceSource: boolean;
+  evidenceText: string | null;
+  expandable: boolean;
+  id: string;
+  kind: "aiDocument" | "confirmed" | "dailySummary" | "generatedDocument" | "held" | "memory" | "suggestion";
+  roomLabel: string | null;
+  sortAt: number;
+  sourceLabel: string | null;
+  suggestion: AgentSuggestionResponse | null;
+  summary: string | null;
+  timeLabel: string | null;
+  title: string;
+  typeTag: string;
+};
 
 const typeLabelKeys: Record<AgentSuggestionType, MessageKey> = {
   CONTRACT_FIELD: "agent.page.typeContractField",
@@ -63,6 +118,38 @@ const typeLabelKeys: Record<AgentSuggestionType, MessageKey> = {
   WBS: "agent.page.typeWbs",
 };
 
+// 후보 종류 → 알림 분야 매핑. 승인하면 무엇이 되는지가 분야의 기준이다.
+const suggestionCategories: Record<AgentSuggestionType, FeedCategory> = {
+  CONTRACT_FIELD: "requirement",
+  CONTRACT_REVIEW: "requirement",
+  DAILY_SUMMARY: "daily",
+  DOCUMENT_DRAFT: "document",
+  MEMO: "task",
+  QUESTION: "requirement",
+  REQUIREMENT: "requirement",
+  REVIEW_ITEM: "requirement",
+  SCHEDULE: "schedule",
+  TASK: "task",
+  TODO: "task",
+  WBS: "task",
+};
+
+const categoryIcons: Record<FeedCategory, LucideIcon> = {
+  daily: NotebookPen,
+  document: FileText,
+  requirement: ClipboardList,
+  schedule: CalendarDays,
+  task: ListChecks,
+};
+
+const filterLabelKeys: Record<Exclude<FeedFilter, "ALL" | "HELD">, MessageKey> = {
+  daily: "agent.page.filterDaily",
+  document: "agent.page.filterDocument",
+  requirement: "agent.page.filterRequirement",
+  schedule: "agent.page.filterSchedule",
+  task: "agent.page.filterTask",
+};
+
 const statusLabelKeys: Record<AgentSuggestionStatus, MessageKey> = {
   APPROVED: "agent.page.statusApprovedLabel",
   DRAFT: "agent.page.statusDraftLabel",
@@ -70,9 +157,30 @@ const statusLabelKeys: Record<AgentSuggestionStatus, MessageKey> = {
   REJECTED: "agent.page.statusRejectedLabel",
 };
 
-function statusTone(status: AgentSuggestionStatus) {
+const aiDocumentStatusLabelKeys: Record<AiDocumentStatus, MessageKey> = {
+  ANALYZED: "agent.page.aiDocStatusAnalyzed",
+  ANALYZING: "agent.page.aiDocStatusAnalyzing",
+  FAILED: "agent.page.aiDocStatusFailed",
+  NONE: "agent.page.aiDocStatusNone",
+  READY: "agent.page.aiDocStatusReady",
+};
+
+function aiDocumentStatusTone(status: AiDocumentStatus): StatusTone {
+  if (status === "ANALYZED") return "approved";
+  if (status === "FAILED") return "warning";
+  return "pending";
+}
+
+const jobStatusLabelKeys: Record<AgentJobStatus, MessageKey> = {
+  CANCELED: "agent.timeline.statusCanceled",
+  FAILED: "agent.timeline.statusFailed",
+  PENDING: "agent.timeline.statusPending",
+  RUNNING: "agent.timeline.statusRunning",
+  SUCCEEDED: "agent.timeline.statusSucceeded",
+};
+
+function statusTone(status: AgentSuggestionStatus): StatusTone {
   if (status === "APPROVED") return "success";
-  if (status === "DRAFT") return "agent";
   if (status === "HELD") return "warning";
   return "neutral";
 }
@@ -88,71 +196,145 @@ function displayText(payload: Record<string, unknown>, fallback: string) {
   return firstString ?? fallback;
 }
 
-function displayJsonText(value: string, fallback: string) {
-  try {
-    const parsed: unknown = JSON.parse(value);
+// 제목과 겹치지 않는 두 번째 설명 문자열(내용 요약)을 찾는다.
+function displaySecondaryText(payload: Record<string, unknown>, title: string) {
+  const secondary = ["summary", "description", "content", "detail", "body", "text"]
+    .map((key) => payload[key])
+    .find(
+      (value): value is string =>
+        typeof value === "string" && value.trim().length > 0 && value.trim() !== title.trim(),
+    );
 
-    if (typeof parsed === "string" && parsed.trim().length > 0) return parsed;
-    if (parsed && typeof parsed === "object") {
-      const record = parsed as Record<string, unknown>;
-      const direct = ["title", "summary", "content", "text", "memo"]
-        .map((key) => record[key])
-        .find((item): item is string => typeof item === "string" && item.trim().length > 0);
-
-      if (direct) return direct;
-
-      const list = Object.values(record).find((item): item is string[] =>
-        Array.isArray(item) && item.every((entry) => typeof entry === "string"),
-      );
-      if (list?.length) return list.slice(0, 3).join(" / ");
-    }
-  } catch {
-    if (value.trim().length > 0) return value;
-  }
-
-  return fallback;
+  return secondary ?? null;
 }
 
-function formatDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
+// 사람이 읽을 문장인지 확인한다. JSON 조각·식별자·코드 형태는 화면에 절대 내보내지 않는다.
+function isReadableSentence(value: string) {
+  const text = value.trim();
+  if (text.length < 2) return false;
+  if (/[{}[\]]/.test(text)) return false;
+  if (/"\s*:/.test(text)) return false;
+  if (/^[0-9a-fA-F-]{16,}$/.test(text)) return false;
+  if (text.length > 12 && /^[A-Za-z0-9_.-]+$/.test(text)) return false;
+  return true;
+}
 
-  return new Intl.DateTimeFormat("ko-KR", {
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-  }).format(date);
+// 근거(evidenceJson)에서 사람이 읽을 문장만 고른다.
+// 백엔드 근거에는 sourceText(문서 인용)·analysisSummary(분석 요약) 외에
+// jobId·promptVersion·modelName 같은 기술 필드가 섞여 있어 whitelist로만 추출한다.
+const EVIDENCE_TEXT_KEYS = ["sourceText", "analysisSummary", "summary", "quote", "reason", "detail", "text"];
+
+function evidenceDisplay(evidence: Record<string, unknown> | null | undefined) {
+  if (!evidence || Object.keys(evidence).length === 0) return { fromSource: false, text: null as string | null };
+
+  for (const key of EVIDENCE_TEXT_KEYS) {
+    const value = evidence[key];
+    if (typeof value === "string" && isReadableSentence(value)) return { fromSource: false, text: value.trim() };
+    if (Array.isArray(value)) {
+      const lines = value.filter((entry): entry is string => typeof entry === "string" && isReadableSentence(entry));
+      if (lines.length > 0) return { fromSource: false, text: lines.slice(0, 2).join(", ") };
+    }
+  }
+
+  // 읽을 문장이 없으면 원본 출처 칩으로 대체한다(중괄호·키 노출 금지).
+  return { fromSource: true, text: null as string | null };
+}
+
+// JSON 문자열(하루 정리·대화 요약)에서 사람이 읽을 문장만 줄 단위로 뽑는다.
+function readableJsonLines(value: string): string[] {
+  const lines: string[] = [];
+  const visit = (node: unknown) => {
+    if (lines.length >= 8) return;
+    if (typeof node === "string") {
+      if (isReadableSentence(node)) lines.push(node.trim());
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const entry of node) visit(entry);
+      return;
+    }
+    if (node && typeof node === "object") {
+      for (const entry of Object.values(node)) visit(entry);
+    }
+  };
+
+  try {
+    visit(JSON.parse(value));
+  } catch {
+    if (isReadableSentence(value)) lines.push(value.trim());
+  }
+
+  return lines;
 }
 
 function todayDateKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const LOCALE_TAGS: Record<string, string> = {
+  en: "en-US",
+  ja: "ja-JP",
+  ko: "ko-KR",
+};
+
+// 진행 중 AI 작업은 5초 간격으로 자동 확인한다(수동 확인 버튼은 보조 수단).
+const JOB_POLL_INTERVAL_MS = 5000;
+
 function AgentPageContent() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const searchParams = useSearchParams();
   const { roomId: activeRoomId } = useActiveProjectRoom();
   const [state, setState] = useState<AgentPageState>({ kind: "loading" });
+  const [filter, setFilter] = useState<FeedFilter>("ALL");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [dailyUpdatingId, setDailyUpdatingId] = useState<string | null>(null);
   const [exportingDocumentId, setExportingDocumentId] = useState<string | null>(null);
   const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<GeneratedDocumentResponse | null>(null);
   const [startingSummaryJob, setStartingSummaryJob] = useState(false);
+  const [generatingRequirements, setGeneratingRequirements] = useState(false);
+  const [checkingJob, setCheckingJob] = useState(false);
+  const [activeJob, setActiveJob] = useState<ActiveJobState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [jobEventMessage, setJobEventMessage] = useState<string | null>(null);
 
   const selectedRoomId = state.kind === "ready" ? state.selectedRoomId : null;
+
+  // 절대 타임스탬프 대신 상대 날짜 하나만 보여준다(7일 이후는 월·일).
+  const relativeDate = useCallback(
+    (value: string) => {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+
+      const minutes = Math.round((Date.now() - date.getTime()) / 60000);
+      if (minutes < 1) return t("agent.page.dateJustNow");
+      if (minutes < 60) return t("agent.page.dateMinutesAgo", { count: minutes });
+
+      const hours = Math.round(minutes / 60);
+      if (hours < 24) return t("agent.page.dateHoursAgo", { count: hours });
+
+      const days = Math.round(hours / 24);
+      if (days <= 7) return t("agent.page.dateDaysAgo", { count: days });
+
+      return new Intl.DateTimeFormat(LOCALE_TAGS[locale] ?? "ko-KR", { day: "numeric", month: "short" }).format(date);
+    },
+    [locale, t],
+  );
 
   const load = useCallback(async (roomId: string | null) => {
     setNotice(null);
     setSelectedDocument(null);
+    setExpandedId(null);
     setState((current) => {
       if (current.kind === "ready") {
         return {
           ...current,
+          confirmedRequirements: [],
           dailySummaries: [],
           generatedDocuments: [],
+          heldSuggestions: [],
+          roomAiDocuments: [],
           roomMemorySummaries: [],
           selectedRoomId: roomId,
           suggestions: [],
@@ -162,12 +344,34 @@ function AgentPageContent() {
     });
 
     try {
-      const [roomPage, suggestions, dailySummaryPage, generatedDocumentPage, roomMemorySummaries] = await Promise.all([
+      const [roomPage, suggestions, heldSuggestions, dailySummaryPage, generatedDocumentPage, roomMemorySummaries, confirmedRequirements, roomAiDocuments] = await Promise.all([
         projectRoomApi.list(),
         roomId ? agentApi.listRoomSuggestions(roomId, { status: "DRAFT" }) : agentApi.listPersonalSuggestions({ status: "DRAFT" }),
+        // 보류한 후보도 함께 불러와 보류함 필터에서 다시 볼 수 있게 한다.
+        (roomId ? agentApi.listRoomSuggestions(roomId, { status: "HELD" }) : agentApi.listPersonalSuggestions({ status: "HELD" })).catch(
+          (error: unknown) => {
+            if (error instanceof ApiClientError && error.status === 401) throw error;
+            return [] as AgentSuggestionResponse[];
+          },
+        ),
         agentApi.listDailySummaries(),
         roomId ? agentApi.listRoomGeneratedDocuments(roomId) : agentApi.listGeneratedDocuments(),
         roomId ? chatApi.listRoomMemorySummaries(roomId) : Promise.resolve([]),
+        roomId
+          ? agentApi.listRoomConfirmedRequirements(roomId).catch((error: unknown) => {
+              if (error instanceof ApiClientError && error.status === 401) throw error;
+              return [] as AgentSuggestionResponse[];
+            })
+          : Promise.resolve([] as AgentSuggestionResponse[]),
+        roomId
+          ? agentApi
+              .listRoomAiDocuments(roomId)
+              .then((page) => page.items)
+              .catch((error: unknown) => {
+                if (error instanceof ApiClientError && error.status === 401) throw error;
+                return [] as RoomAiDocumentResponse[];
+              })
+          : Promise.resolve([] as RoomAiDocumentResponse[]),
       ]);
       const selectedRoom = roomId ? roomPage.items.find((room) => room.id === roomId) : null;
       if (selectedRoom) {
@@ -175,9 +379,12 @@ function AgentPageContent() {
       }
 
       setState({
+        confirmedRequirements,
         dailySummaries: dailySummaryPage.items,
         generatedDocuments: generatedDocumentPage.items,
+        heldSuggestions,
         kind: "ready",
+        roomAiDocuments,
         roomMemorySummaries,
         rooms: roomPage.items,
         selectedRoomId: selectedRoom?.id ?? null,
@@ -196,9 +403,12 @@ function AgentPageContent() {
         }
 
         setState({
+          confirmedRequirements: [],
           dailySummaries: [],
           generatedDocuments: [],
+          heldSuggestions: [],
           kind: "ready",
+          roomAiDocuments: [],
           roomMemorySummaries: [],
           rooms: workspacePreviewRooms,
           selectedRoomId: selectedRoom?.id ?? null,
@@ -223,16 +433,253 @@ function AgentPageContent() {
     return () => window.clearTimeout(timeoutId);
   }, [activeRoomId, load, searchParams]);
 
-  const counts = useMemo(() => {
-    if (state.kind !== "ready") return null;
+  // 화면의 모든 항목을 알림 피드 하나로 합친다(최신순).
+  const feedItems = useMemo<FeedItem[]>(() => {
+    if (state.kind !== "ready") return [];
+
+    const roomLabelOf = (roomId: string | null) =>
+      roomId ? state.rooms.find((room) => room.id === roomId)?.name ?? t("agent.page.groupUnknownRoom") : null;
+
+    const sourceLabelOf = (suggestion: AgentSuggestionResponse) =>
+      suggestion.resourceId
+        ? t("agent.page.sourceFile")
+        : suggestion.roomId
+          ? t("agent.page.sourceRoom")
+          : t("agent.page.scopePersonal");
+
+    const items: FeedItem[] = [];
+
+    for (const suggestion of state.suggestions) {
+      const typeLabel = t(typeLabelKeys[suggestion.suggestionType]);
+      const title = displayText(suggestion.payloadJson, typeLabel);
+      const evidence = evidenceDisplay(suggestion.evidenceJson);
+
+      items.push({
+        badge: suggestion.status === "DRAFT" ? null : { label: t(statusLabelKeys[suggestion.status]), tone: statusTone(suggestion.status) },
+        body: null,
+        category: suggestionCategories[suggestion.suggestionType],
+        dailySummaryApproved: false,
+        dailySummaryId: null,
+        documentId: null,
+        evidenceSource: evidence.fromSource,
+        evidenceText: evidence.text,
+        expandable: false,
+        id: `suggestion-${suggestion.suggestionId}`,
+        kind: "suggestion",
+        roomLabel: state.selectedRoomId ? null : roomLabelOf(suggestion.roomId),
+        sortAt: Date.parse(suggestion.createdAt) || 0,
+        sourceLabel: sourceLabelOf(suggestion),
+        suggestion,
+        summary: displaySecondaryText(suggestion.payloadJson, title),
+        timeLabel: relativeDate(suggestion.createdAt),
+        title,
+        // 승인하면 무엇이 되는지를 카드에서 바로 보여주는 태그.
+        typeTag: t("agent.page.becomes", { type: typeLabel }),
+      });
+    }
+
+    for (const confirmed of state.confirmedRequirements) {
+      const typeLabel = t(typeLabelKeys[confirmed.suggestionType]);
+      const confirmedAt = confirmed.reviewedAt ?? confirmed.updatedAt;
+
+      items.push({
+        badge: { label: t("agent.page.statusApprovedLabel"), tone: "success" },
+        body: null,
+        category: "requirement",
+        dailySummaryApproved: false,
+        dailySummaryId: null,
+        documentId: null,
+        evidenceSource: false,
+        evidenceText: null,
+        expandable: false,
+        id: `confirmed-${confirmed.suggestionId}`,
+        kind: "confirmed",
+        roomLabel: null,
+        sortAt: Date.parse(confirmedAt) || 0,
+        sourceLabel: null,
+        suggestion: null,
+        summary: null,
+        timeLabel: relativeDate(confirmedAt),
+        title: displayText(confirmed.payloadJson, typeLabel),
+        typeTag: typeLabel,
+      });
+    }
+
+    for (const summary of state.dailySummaries) {
+      const lines = readableJsonLines(summary.summaryJson);
+
+      items.push({
+        badge: {
+          label: summary.status === "APPROVED" ? t("agent.page.statusApproved") : t("agent.page.statusDraft"),
+          tone: summary.status === "APPROVED" ? "approved" : "pending",
+        },
+        body: lines.length > 1 ? lines.join("\n") : null,
+        category: "daily",
+        dailySummaryApproved: summary.status === "APPROVED",
+        dailySummaryId: summary.id,
+        documentId: null,
+        evidenceSource: false,
+        evidenceText: null,
+        expandable: lines.length > 1,
+        id: `daily-${summary.id}`,
+        kind: "dailySummary",
+        roomLabel: null,
+        sortAt: Date.parse(summary.createdAt) || Date.parse(summary.summaryDate) || 0,
+        sourceLabel: null,
+        suggestion: null,
+        summary: lines[0] ?? t("agent.page.dailyContentFallback"),
+        timeLabel: relativeDate(summary.createdAt),
+        title: summary.summaryDate,
+        typeTag: t("agent.page.filterDaily"),
+      });
+    }
+
+    for (const document of state.generatedDocuments) {
+      items.push({
+        badge: null,
+        body: null,
+        category: "document",
+        dailySummaryApproved: false,
+        dailySummaryId: null,
+        documentId: document.id,
+        evidenceSource: false,
+        evidenceText: null,
+        expandable: true,
+        id: `document-${document.id}`,
+        kind: "generatedDocument",
+        roomLabel: null,
+        sortAt: Date.parse(document.updatedAt) || Date.parse(document.createdAt) || 0,
+        sourceLabel: null,
+        suggestion: null,
+        summary: document.documentType,
+        timeLabel: relativeDate(document.updatedAt || document.createdAt),
+        title: document.title,
+        typeTag: t("agent.page.tagGeneratedDocument"),
+      });
+    }
+
+    for (const aiDocument of state.roomAiDocuments) {
+      const confidence =
+        typeof aiDocument.detectedConfidence === "number"
+          ? t("agent.page.aiDocsConfidence", { percent: Math.round(aiDocument.detectedConfidence * 100) })
+          : null;
+
+      items.push({
+        badge: { label: t(aiDocumentStatusLabelKeys[aiDocument.status]), tone: aiDocumentStatusTone(aiDocument.status) },
+        body: null,
+        category: "document",
+        dailySummaryApproved: false,
+        dailySummaryId: null,
+        documentId: null,
+        evidenceSource: false,
+        evidenceText: null,
+        expandable: false,
+        id: `aidoc-${aiDocument.id}`,
+        kind: "aiDocument",
+        roomLabel: null,
+        sortAt: Date.parse(aiDocument.updatedAt) || 0,
+        sourceLabel: null,
+        suggestion: null,
+        summary: confidence,
+        timeLabel: relativeDate(aiDocument.updatedAt),
+        title: aiDocument.documentType?.trim() || t("agent.page.aiDocsTypeFallback"),
+        typeTag: t("agent.page.tagAiDocument"),
+      });
+    }
+
+    for (const memory of state.roomMemorySummaries) {
+      const lines = readableJsonLines(memory.summaryJson);
+
+      items.push({
+        badge: {
+          label: memory.status === "APPROVED" ? t("agent.page.statusApproved") : t("agent.page.statusDraft"),
+          tone: memory.status === "APPROVED" ? "approved" : "pending",
+        },
+        body: lines.length > 1 ? lines.join("\n") : null,
+        category: "daily",
+        dailySummaryApproved: false,
+        dailySummaryId: null,
+        documentId: null,
+        evidenceSource: false,
+        evidenceText: null,
+        expandable: lines.length > 1,
+        id: `memory-${memory.id}`,
+        kind: "memory",
+        roomLabel: null,
+        sortAt: Date.parse(memory.createdAt) || 0,
+        sourceLabel: null,
+        suggestion: null,
+        summary: lines[0] ?? t("agent.page.roomMemoryContentFallback"),
+        timeLabel: relativeDate(memory.createdAt),
+        title: t("agent.page.memoryRangeSummary", { count: Math.max(memory.toSequence - memory.fromSequence + 1, 1) }),
+        typeTag: t("agent.page.tagMemory"),
+      });
+    }
+
+    return items.sort((a, b) => b.sortAt - a.sortAt);
+  }, [relativeDate, state, t]);
+
+  // 보류한 후보는 보류함 필터를 눌렀을 때만 보여준다.
+  const heldItems = useMemo<FeedItem[]>(() => {
+    if (state.kind !== "ready") return [];
+
+    return state.heldSuggestions
+      .map((suggestion): FeedItem => {
+        const typeLabel = t(typeLabelKeys[suggestion.suggestionType]);
+        const heldAt = suggestion.reviewedAt ?? suggestion.updatedAt;
+        const title = displayText(suggestion.payloadJson, typeLabel);
+
+        return {
+          badge: { label: t("agent.page.statusHeldLabel"), tone: "warning" },
+          body: null,
+          category: suggestionCategories[suggestion.suggestionType],
+          dailySummaryApproved: false,
+          dailySummaryId: null,
+          documentId: null,
+          evidenceSource: false,
+          evidenceText: null,
+          expandable: false,
+          id: `held-${suggestion.suggestionId}`,
+          kind: "held",
+          roomLabel: null,
+          sortAt: Date.parse(heldAt) || 0,
+          sourceLabel: null,
+          suggestion: null,
+          summary: displaySecondaryText(suggestion.payloadJson, title),
+          timeLabel: relativeDate(heldAt),
+          title,
+          typeTag: typeLabel,
+        };
+      })
+      .sort((a, b) => b.sortAt - a.sortAt);
+  }, [relativeDate, state, t]);
+
+  const filterChips = useMemo(() => {
+    const countOf = (category: FeedCategory) => feedItems.filter((item) => item.category === category).length;
+    const categories: FeedCategory[] = ["requirement", "task", "schedule", "document", "daily"];
 
     return [
-      { label: state.selectedRoomId ? t("agent.page.countRoomCandidates") : t("agent.page.countPersonalCandidates"), value: state.suggestions.length },
-      { label: t("agent.page.countDailySummary"), value: state.dailySummaries.length },
-      { label: t("agent.page.countGeneratedDocuments"), value: state.generatedDocuments.length },
-      { label: t("agent.page.countRoomMemory"), value: state.roomMemorySummaries.length },
+      { count: feedItems.length, key: "ALL" as FeedFilter, label: t("agent.page.filterAll") },
+      ...categories.map((category) => ({ count: countOf(category), key: category as FeedFilter, label: t(filterLabelKeys[category]) })),
+      { count: heldItems.length, key: "HELD" as FeedFilter, label: t("agent.page.filterHeld") },
     ];
-  }, [state, t]);
+  }, [feedItems, heldItems, t]);
+
+  const visibleItems = useMemo(() => {
+    if (filter === "HELD") return heldItems;
+    if (filter === "ALL") return feedItems;
+    return feedItems.filter((item) => item.category === filter);
+  }, [feedItems, filter, heldItems]);
+
+  // 카드가 목록에서 사라진 뒤에도 무슨 일이 일어났는지 알 수 있게 처리 결과를 안내한다.
+  const reviewNoticeKeys: Record<"APPROVE" | "HOLD" | "REJECT", MessageKey> = useMemo(
+    () => ({
+      APPROVE: "agent.page.reviewApprovedNotice",
+      HOLD: "agent.page.reviewHeldNotice",
+      REJECT: "agent.page.reviewRejectedNotice",
+    }),
+    [],
+  );
 
   const review = useCallback(async (suggestionId: string, action: "APPROVE" | "HOLD" | "REJECT") => {
     setUpdatingId(suggestionId);
@@ -240,6 +687,7 @@ function AgentPageContent() {
     try {
       await agentApi.updateSuggestion(suggestionId, { action });
       await load(selectedRoomId);
+      setNotice(t(reviewNoticeKeys[action]));
     } catch (error) {
       if (!shouldUseWorkspacePreviewData()) {
         setState({
@@ -267,10 +715,11 @@ function AgentPageContent() {
           ),
         };
       });
+      setNotice(t(reviewNoticeKeys[action]));
     } finally {
       setUpdatingId(null);
     }
-  }, [load, selectedRoomId, t]);
+  }, [load, reviewNoticeKeys, selectedRoomId, t]);
 
   const approveDailySummary = useCallback(async (summaryId: string) => {
     setDailyUpdatingId(summaryId);
@@ -291,7 +740,9 @@ function AgentPageContent() {
     setStartingSummaryJob(true);
     try {
       const job = await agentApi.summarizeDay({ summaryDate: todayDateKey() });
-      setNotice(t("agent.page.summaryStarted", { jobId: job.jobId }));
+      setActiveJob({ jobId: job.jobId, status: job.status });
+      setJobEventMessage(null);
+      setNotice(t("agent.page.summaryStarted"));
     } catch (error) {
       setState({
         kind: "offline",
@@ -301,6 +752,77 @@ function AgentPageContent() {
       setStartingSummaryJob(false);
     }
   }, [t]);
+
+  const startGenerateRequirements = useCallback(async () => {
+    if (!selectedRoomId) return;
+
+    setGeneratingRequirements(true);
+    try {
+      const job = await agentApi.generateRequirements({ roomId: selectedRoomId });
+      setActiveJob({ jobId: job.jobId, status: job.status });
+      setJobEventMessage(null);
+      setNotice(t("agent.page.generateStarted"));
+    } catch (error) {
+      setState({
+        kind: "offline",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("agent.page.errorGenerate"),
+      });
+    } finally {
+      setGeneratingRequirements(false);
+    }
+  }, [selectedRoomId, t]);
+
+  const checkActiveJob = useCallback(async () => {
+    if (!activeJob || checkingJob) return;
+
+    setCheckingJob(true);
+    try {
+      const job = await agentApi.getJob(activeJob.jobId);
+      if (job.status === "SUCCEEDED") {
+        setActiveJob(null);
+        setJobEventMessage(null);
+        await load(selectedRoomId);
+        setNotice(t("agent.page.jobDone"));
+        return;
+      }
+
+      if (job.status === "FAILED" || job.status === "CANCELED") {
+        setActiveJob(null);
+        setJobEventMessage(null);
+        setNotice(job.errorMessage && job.errorMessage.trim().length > 0 ? job.errorMessage : t("agent.page.jobFailed"));
+        return;
+      }
+
+      setActiveJob({ jobId: job.jobId, status: job.status });
+
+      // 아직 진행 중이면 최근 작업 이벤트 한 줄을 같이 보여준다(무슨 단계인지 안내).
+      // 백엔드는 이벤트를 createdAt 오름차순으로 주므로 뒤에서부터 메시지를 찾는다.
+      try {
+        const eventPage = await agentApi.getJobEvents(job.jobId);
+        const latest = [...eventPage.items]
+          .reverse()
+          .find((event) => typeof event.message === "string" && event.message.trim().length > 0);
+        setJobEventMessage(latest?.message?.trim() ?? null);
+      } catch {
+        setJobEventMessage(null);
+      }
+    } catch {
+      setNotice(t("agent.page.errorJobCheck"));
+    } finally {
+      setCheckingJob(false);
+    }
+  }, [activeJob, checkingJob, load, selectedRoomId, t]);
+
+  // 진행 중 작업은 주기적으로 자동 확인해 "확인 버튼만 누르다 끝나는" 흐름을 없앤다.
+  useEffect(() => {
+    if (!activeJob) return;
+
+    const intervalId = window.setInterval(() => {
+      void checkActiveJob();
+    }, JOB_POLL_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeJob, checkActiveJob]);
 
   const openDocument = useCallback(async (documentId: string) => {
     setOpeningDocumentId(documentId);
@@ -340,38 +862,50 @@ function AgentPageContent() {
   }, [t]);
 
   return (
-    <section className="workspace-route" aria-labelledby="agent-title">
-      <header className="workspace-route__header">
+    <section className={`workspace-route ${styles.page}`} aria-labelledby="agent-title">
+      <header className={`workspace-route__header ${styles.header}`}>
         <div>
           <h1 id="agent-title">{t("agent.page.title")}</h1>
+          <p className={styles.subtitle}>{t("agent.page.subtitle")}</p>
         </div>
-        <div className="workspace-route__actions">
-          {state.kind === "ready" ? (
-            <>
-              <select
-                aria-label={t("agent.page.scopeAria")}
-                className="workspace-route__select"
-                onChange={(event) => void load(event.target.value || null)}
-                value={state.selectedRoomId ?? ""}
-              >
-                <option value="">{t("agent.page.scopePersonal")}</option>
-                {state.rooms.map((room) => (
-                  <option key={room.id} value={room.id}>
-                    {room.name}
-                  </option>
-                ))}
-              </select>
+        {state.kind === "ready" ? (
+          // 생성 버튼은 후보를 만드는 입구이므로 목록이 아니라 헤더에 함께 둔다.
+          <div className={`workspace-route__actions ${styles.headerActions}`}>
+            <select
+              aria-label={t("agent.page.scopeAria")}
+              className="workspace-route__select"
+              onChange={(event) => void load(event.target.value || null)}
+              value={state.selectedRoomId ?? ""}
+            >
+              <option value="">{t("agent.page.scopePersonal")}</option>
+              {state.rooms.map((room) => (
+                <option key={room.id} value={room.id}>
+                  {room.name}
+                </option>
+              ))}
+            </select>
+            {state.selectedRoomId ? (
               <Button
-                icon={<Sparkles size={15} strokeWidth={1.9} />}
-                loading={startingSummaryJob}
-                onClick={() => void startDailySummary()}
-                variant="primary"
+                icon={<Wand2 size={14} strokeWidth={1.9} />}
+                loading={generatingRequirements}
+                onClick={() => void startGenerateRequirements()}
+                size="sm"
+                variant="secondary"
               >
-                {t("agent.page.createTodaySummary")}
+                {t("agent.page.generateRequirements")}
               </Button>
-            </>
-          ) : null}
-        </div>
+            ) : null}
+            <Button
+              icon={<Sparkles size={14} strokeWidth={1.9} />}
+              loading={startingSummaryJob}
+              onClick={() => void startDailySummary()}
+              size="sm"
+              variant="secondary"
+            >
+              {t("agent.page.createTodaySummary")}
+            </Button>
+          </div>
+        ) : null}
       </header>
 
       {state.kind === "loading" ? <GlassPanel className="workspace-route__panel">{t("agent.page.loadingData")}</GlassPanel> : null}
@@ -402,31 +936,54 @@ function AgentPageContent() {
 
       {state.kind === "ready" ? (
         <>
-          {notice ? (
-            <GlassPanel className="workspace-route__panel">
-              <strong>{notice}</strong>
+          {notice || activeJob ? (
+            <GlassPanel className={`workspace-route__panel ${styles.noticePanel}`}>
+              <div className={styles.jobNotice}>
+                {notice ? <strong>{notice}</strong> : null}
+                {activeJob ? (
+                  <>
+                    <StatusBadge tone={activeJob.status === "RUNNING" ? "agent" : "pending"}>
+                      {t("agent.page.jobStatusLabel", { status: t(jobStatusLabelKeys[activeJob.status]) })}
+                    </StatusBadge>
+                    {jobEventMessage ? (
+                      <span className={styles.jobEventLine}>{t("agent.page.jobLatestEvent", { message: jobEventMessage })}</span>
+                    ) : null}
+                    <Button loading={checkingJob} onClick={() => void checkActiveJob()} size="sm" variant="quiet">
+                      {t("agent.page.jobCheck")}
+                    </Button>
+                  </>
+                ) : null}
+              </div>
             </GlassPanel>
           ) : null}
 
-          {counts ? (
-            <div className="workspace-route__summary" aria-label={t("agent.page.summaryAria")}>
-              {counts.map((item) => (
-                <div key={item.label}>
-                  <span>{item.label}</span>
-                  <strong>{item.value}</strong>
-                </div>
-              ))}
-            </div>
-          ) : null}
+          {/* 알림 카테고리처럼 분야 칩으로만 나눈다(단락 제목 없음). */}
+          <div aria-label={t("agent.page.filterAria")} className={styles.filters} role="group">
+            {filterChips.map((chip) => (
+              <button
+                aria-pressed={filter === chip.key}
+                className={styles.filterChip}
+                data-active={filter === chip.key ? "true" : undefined}
+                key={chip.key}
+                onClick={() => setFilter(chip.key)}
+                type="button"
+              >
+                <span>{chip.label}</span>
+                <span className={styles.filterCount}>{chip.count}</span>
+              </button>
+            ))}
+          </div>
 
-          <section className="workspace-route__section" aria-labelledby="agent-suggestions-title">
-            <div className="workspace-route__section-head">
-              <h2 id="agent-suggestions-title">{t("agent.page.suggestionsTitle")}</h2>
-              <StatusBadge tone={state.suggestions.length > 0 ? "agent" : "neutral"}>{t("agent.page.suggestionsCount", { count: state.suggestions.length })}</StatusBadge>
-            </div>
-            {state.suggestions.length === 0 ? (
-              <GlassPanel className="workspace-route__panel">
+          {visibleItems.length === 0 ? (
+            filter === "ALL" ? (
+              <GlassPanel className={`workspace-route__panel ${styles.emptyPanel}`}>
                 <strong>{t("agent.page.suggestionsEmpty")}</strong>
+                <p className={styles.emptyDesc}>{t("agent.page.suggestionsEmptyDesc")}</p>
+                <ol className={styles.howList}>
+                  <li>{t("agent.page.howStep1")}</li>
+                  <li>{t("agent.page.howStep2")}</li>
+                  <li>{t("agent.page.howStep3")}</li>
+                </ol>
                 <div className="workspace-route__actions">
                   <Link className="bubli-button bubli-button--primary" href="/app/resources">
                     {t("agent.page.resources")}
@@ -437,176 +994,155 @@ function AgentPageContent() {
                 </div>
               </GlassPanel>
             ) : (
-              <div className="workspace-route__list">
-                {state.suggestions.map((item) => {
-                  const typeLabel = t(typeLabelKeys[item.suggestionType]);
-                  const title = displayText(item.payloadJson, typeLabel);
-                  const disabled = updatingId === item.suggestionId || item.status !== "DRAFT";
-                  const dateLabel = formatDate(item.createdAt);
+              <p className={styles.filterEmpty}>{filter === "HELD" ? t("agent.page.heldEmpty") : t("agent.page.filterEmpty")}</p>
+            )
+          ) : (
+            <div aria-label={t("agent.page.feedAria")} className={styles.feed}>
+              {visibleItems.map((item) => {
+                const Icon = item.kind === "memory" ? MessageSquareText : categoryIcons[item.category];
+                const expanded = expandedId === item.id;
+                const reviewable = item.kind === "suggestion" && item.suggestion?.status === "DRAFT";
+                const reviewBusy = item.suggestion ? updatingId === item.suggestion.suggestionId : false;
+                const documentOpen = item.kind === "generatedDocument" && selectedDocument?.id === item.documentId;
 
-                  return (
-                    <article className="workspace-route__row workspace-route__row--actions" key={item.suggestionId}>
-                      <span className="workspace-route__dot" aria-hidden="true" />
-                      <span className="workspace-route__main">
-                        <strong>{title}</strong>
-                        <span>{dateLabel ? t("agent.page.typeDateSeparator", { type: typeLabel, date: dateLabel }) : typeLabel}</span>
-                      </span>
-                      <StatusBadge tone={statusTone(item.status)}>{t(statusLabelKeys[item.status])}</StatusBadge>
-                      <span className="workspace-route__actions workspace-route__actions--compact">
-                        <button disabled={disabled} onClick={() => void review(item.suggestionId, "APPROVE")} type="button">
-                          <Check aria-hidden size={14} />
-                          {t("agent.page.approve")}
-                        </button>
-                        <button disabled={disabled} onClick={() => void review(item.suggestionId, "HOLD")} type="button">
-                          <Pause aria-hidden size={14} />
-                          {t("agent.page.hold")}
-                        </button>
-                        <button disabled={disabled} onClick={() => void review(item.suggestionId, "REJECT")} type="button">
-                          <X aria-hidden size={14} />
-                          {t("agent.page.reject")}
-                        </button>
-                      </span>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <section className="workspace-route__section" aria-labelledby="daily-summary-title">
-            <div className="workspace-route__section-head">
-              <h2 id="daily-summary-title">{t("agent.page.dailyTitle")}</h2>
-              <StatusBadge tone={state.dailySummaries.length > 0 ? "personal" : "neutral"}>{t("agent.page.suggestionsCount", { count: state.dailySummaries.length })}</StatusBadge>
-            </div>
-            {state.dailySummaries.length === 0 ? (
-              <GlassPanel className="workspace-route__panel">
-                <strong>{t("agent.page.dailyEmpty")}</strong>
-              </GlassPanel>
-            ) : (
-              <div className="workspace-route__list">
-                {state.dailySummaries.map((summary) => (
-                  <article className="workspace-route__row workspace-route__row--actions" key={summary.id}>
-                    <span className="workspace-route__dot" aria-hidden="true" />
-                    <span className="workspace-route__main">
-                      <strong>{summary.summaryDate}</strong>
-                      <span>{displayJsonText(summary.summaryJson, t("agent.page.dailyContentFallback"))}</span>
+                return (
+                  <article className={styles.row} key={item.id}>
+                    <span aria-hidden className={styles.iconTile} data-category={item.category}>
+                      <Icon size={17} strokeWidth={2} />
                     </span>
-                    <StatusBadge tone={summary.status === "APPROVED" ? "approved" : "pending"}>
-                      {summary.status === "APPROVED" ? t("agent.page.statusApproved") : t("agent.page.statusDraft")}
-                    </StatusBadge>
-                    <Button
-                      disabled={summary.status === "APPROVED"}
-                      loading={dailyUpdatingId === summary.id}
-                      onClick={() => void approveDailySummary(summary.id)}
-                      size="sm"
-                      variant="quiet"
-                    >
-                      {t("agent.page.approve")}
-                    </Button>
+                    <div className={styles.rowMain}>
+                      <div className={styles.rowTop}>
+                        {item.kind === "generatedDocument" && item.documentId ? (
+                          // 생성 문서는 제목을 누르면 본문 미리보기가 열린다.
+                          <button
+                            aria-expanded={documentOpen}
+                            className={styles.rowTitleButton}
+                            disabled={openingDocumentId === item.documentId}
+                            onClick={() => (documentOpen ? setSelectedDocument(null) : void openDocument(item.documentId ?? ""))}
+                            type="button"
+                          >
+                            <strong className={styles.rowTitle}>{item.title}</strong>
+                            <ChevronDown aria-hidden className={styles.rowChevron} data-open={documentOpen ? "true" : undefined} size={14} strokeWidth={2.1} />
+                          </button>
+                        ) : item.expandable ? (
+                          <button
+                            aria-expanded={expanded}
+                            className={styles.rowTitleButton}
+                            onClick={() => setExpandedId(expanded ? null : item.id)}
+                            type="button"
+                          >
+                            <strong className={styles.rowTitle}>{item.title}</strong>
+                            <ChevronDown aria-hidden className={styles.rowChevron} data-open={expanded ? "true" : undefined} size={14} strokeWidth={2.1} />
+                          </button>
+                        ) : (
+                          <strong className={styles.rowTitle}>{item.title}</strong>
+                        )}
+                        {item.timeLabel ? <span className={styles.rowTime}>{item.timeLabel}</span> : null}
+                      </div>
+                      {expanded && item.body ? (
+                        <p className={styles.rowBody}>{item.body}</p>
+                      ) : item.summary ? (
+                        <p className={styles.rowSummary}>{item.summary}</p>
+                      ) : null}
+                      {item.evidenceText ? (
+                        <p className={styles.rowEvidence}>{t("agent.page.evidenceLine", { text: item.evidenceText })}</p>
+                      ) : item.evidenceSource ? (
+                        <span className={styles.rowEvidenceChip}>{t("agent.page.evidenceSource")}</span>
+                      ) : null}
+                      <div className={styles.rowMeta}>
+                        <span className={styles.rowTags}>
+                          <span className={styles.tag} data-category={item.category}>
+                            {item.typeTag}
+                          </span>
+                          {item.sourceLabel ? <span className={styles.tagPlain}>{item.sourceLabel}</span> : null}
+                          {item.roomLabel ? <span className={styles.tagPlain}>{item.roomLabel}</span> : null}
+                          {item.badge ? <StatusBadge tone={item.badge.tone}>{item.badge.label}</StatusBadge> : null}
+                        </span>
+                        {reviewable && item.suggestion ? (
+                          <span className={styles.rowActions}>
+                            <Button
+                              disabled={reviewBusy}
+                              icon={<Check aria-hidden size={14} strokeWidth={2} />}
+                              onClick={() => void review(item.suggestion?.suggestionId ?? "", "APPROVE")}
+                              size="sm"
+                              title={t("agent.page.approveHint")}
+                              variant="primary"
+                            >
+                              {t("agent.page.approve")}
+                            </Button>
+                            <Button
+                              disabled={reviewBusy}
+                              icon={<Pause aria-hidden size={14} strokeWidth={2} />}
+                              onClick={() => void review(item.suggestion?.suggestionId ?? "", "HOLD")}
+                              size="sm"
+                              title={t("agent.page.holdHint")}
+                              variant="quiet"
+                            >
+                              {t("agent.page.hold")}
+                            </Button>
+                            <Button
+                              disabled={reviewBusy}
+                              icon={<X aria-hidden size={14} strokeWidth={2} />}
+                              onClick={() => void review(item.suggestion?.suggestionId ?? "", "REJECT")}
+                              size="sm"
+                              title={t("agent.page.rejectHint")}
+                              variant="quiet"
+                            >
+                              {t("agent.page.reject")}
+                            </Button>
+                          </span>
+                        ) : null}
+                        {item.kind === "dailySummary" && item.dailySummaryId ? (
+                          <span className={styles.rowActions}>
+                            <Button
+                              disabled={item.dailySummaryApproved}
+                              loading={dailyUpdatingId === item.dailySummaryId}
+                              onClick={() => void approveDailySummary(item.dailySummaryId ?? "")}
+                              size="sm"
+                              variant="quiet"
+                            >
+                              {t("agent.page.approve")}
+                            </Button>
+                          </span>
+                        ) : null}
+                        {item.kind === "generatedDocument" && item.documentId ? (
+                          <span className={styles.rowActions}>
+                            <Button
+                              icon={<Download aria-hidden size={14} strokeWidth={1.9} />}
+                              loading={exportingDocumentId === item.documentId}
+                              onClick={() => void exportDocument(item.documentId ?? "")}
+                              size="sm"
+                              variant="quiet"
+                            >
+                              {t("agent.page.export")}
+                            </Button>
+                          </span>
+                        ) : null}
+                      </div>
+                      {documentOpen && selectedDocument ? (
+                        <div className={styles.docPreview}>
+                          <div className={styles.docPreviewHead}>
+                            <span>{selectedDocument.documentType}</span>
+                            <button
+                              aria-label={t("agent.page.documentPreviewCloseAria")}
+                              className="workspace-route__icon-button"
+                              onClick={() => setSelectedDocument(null)}
+                              type="button"
+                            >
+                              <X aria-hidden size={16} />
+                            </button>
+                          </div>
+                          <pre className="workspace-route__document-body">
+                            {selectedDocument.contentMarkdown.trim().length > 0 ? selectedDocument.contentMarkdown : t("agent.page.documentEmptyBody")}
+                          </pre>
+                        </div>
+                      ) : null}
+                    </div>
                   </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="workspace-route__section" aria-labelledby="generated-documents-title">
-            <div className="workspace-route__section-head">
-              <h2 id="generated-documents-title">{t("agent.page.generatedTitle")}</h2>
-              <StatusBadge tone={state.generatedDocuments.length > 0 ? "room" : "neutral"}>{t("agent.page.suggestionsCount", { count: state.generatedDocuments.length })}</StatusBadge>
+                );
+              })}
             </div>
-            {state.generatedDocuments.length === 0 ? (
-              <GlassPanel className="workspace-route__panel">
-                <strong>{t("agent.page.generatedEmpty")}</strong>
-              </GlassPanel>
-            ) : (
-              <div className="workspace-route__list">
-                {state.generatedDocuments.map((item) => (
-                  <article className="workspace-route__row workspace-route__row--actions" key={item.id}>
-                    <span className="workspace-route__dot" aria-hidden="true" />
-                    <span className="workspace-route__main">
-                      <strong>{item.title}</strong>
-                      <span>{item.documentType}</span>
-                    </span>
-                    <span className="workspace-route__actions workspace-route__actions--compact">
-                      <button disabled={openingDocumentId === item.id} onClick={() => void openDocument(item.id)} type="button">
-                        <Eye aria-hidden size={14} />
-                        {openingDocumentId === item.id ? t("agent.page.opening") : t("agent.page.open")}
-                      </button>
-                      <button disabled={exportingDocumentId === item.id} onClick={() => void exportDocument(item.id)} type="button">
-                        <Download aria-hidden size={14} />
-                        {exportingDocumentId === item.id ? t("agent.page.exporting") : t("agent.page.export")}
-                      </button>
-                    </span>
-                  </article>
-                ))}
-              </div>
-            )}
-            {selectedDocument ? (
-              <GlassPanel className="workspace-route__panel workspace-route__panel--document">
-                <div className="workspace-route__section-head">
-                  <div>
-                    <h3>{selectedDocument.title}</h3>
-                    <span>{selectedDocument.documentType}</span>
-                  </div>
-                  <button
-                    aria-label={t("agent.page.documentPreviewCloseAria")}
-                    className="workspace-route__icon-button"
-                    onClick={() => setSelectedDocument(null)}
-                    type="button"
-                  >
-                    <X aria-hidden size={16} />
-                  </button>
-                </div>
-                <pre className="workspace-route__document-body">
-                  {selectedDocument.contentMarkdown.trim().length > 0 ? selectedDocument.contentMarkdown : t("agent.page.documentEmptyBody")}
-                </pre>
-                <div className="workspace-route__actions">
-                  <Button
-                    icon={<Download size={14} strokeWidth={1.9} />}
-                    loading={exportingDocumentId === selectedDocument.id}
-                    onClick={() => void exportDocument(selectedDocument.id)}
-                    size="sm"
-                    variant="quiet"
-                  >
-                    {t("agent.page.exportDocument")}
-                  </Button>
-                </div>
-              </GlassPanel>
-            ) : null}
-          </section>
-
-          {state.selectedRoomId ? (
-            <section className="workspace-route__section" aria-labelledby="room-memory-title">
-              <div className="workspace-route__section-head">
-                <h2 id="room-memory-title">{t("agent.page.roomMemoryTitle")}</h2>
-                <StatusBadge tone={state.roomMemorySummaries.length > 0 ? "agent" : "neutral"}>
-                  {t("agent.page.suggestionsCount", { count: state.roomMemorySummaries.length })}
-                </StatusBadge>
-              </div>
-              {state.roomMemorySummaries.length === 0 ? (
-                <GlassPanel className="workspace-route__panel">
-                  <strong>{t("agent.page.roomMemoryEmpty")}</strong>
-                </GlassPanel>
-              ) : (
-                <div className="workspace-route__list">
-                  {state.roomMemorySummaries.map((item) => (
-                    <article className="workspace-route__row" key={item.id}>
-                      <span className="workspace-route__dot" aria-hidden="true" />
-                      <span className="workspace-route__main">
-                        <strong>
-                          {t("agent.page.messageRange", { from: item.fromSequence, to: item.toSequence })}
-                        </strong>
-                        <span>{displayJsonText(item.summaryJson, t("agent.page.roomMemoryContentFallback"))}</span>
-                      </span>
-                      <StatusBadge tone={item.status === "APPROVED" ? "approved" : "pending"}>
-                        {item.status === "APPROVED" ? t("agent.page.statusApproved") : t("agent.page.statusDraft")}
-                      </StatusBadge>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
-          ) : null}
+          )}
         </>
       ) : null}
     </section>
