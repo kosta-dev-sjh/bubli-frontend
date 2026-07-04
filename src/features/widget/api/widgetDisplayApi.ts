@@ -188,10 +188,17 @@ function widgetDisplayRequest<T>(path: string, options: Parameters<typeof apiReq
   });
 }
 
-function withRoom(path: string, roomId?: string | null) {
-  if (!roomId) return path;
-  const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}roomId=${encodeURIComponent(roomId)}`;
+function widgetScheduleWindow(now = new Date()) {
+  const from = new Date(now);
+  from.setHours(0, 0, 0, 0);
+
+  const to = new Date(from);
+  to.setDate(to.getDate() + 14);
+
+  return {
+    from: from.toISOString(),
+    to: to.toISOString(),
+  };
 }
 
 export const widgetDisplayApi = {
@@ -215,7 +222,16 @@ export const widgetDisplayApi = {
   },
 
   listSchedules(roomId?: string | null, size = 6) {
-    return widgetDisplayRequest<PageResponse<WidgetScheduleResponse>>(withRoom(`/api/schedules?page=0&size=${size}`, roomId));
+    const { from, to } = widgetScheduleWindow();
+    const params = new URLSearchParams({
+      from,
+      page: "0",
+      size: String(size),
+      to,
+    });
+    if (roomId) params.set("roomId", roomId);
+
+    return widgetDisplayRequest<PageResponse<WidgetScheduleResponse>>(`/api/schedules?${params.toString()}`);
   },
 
   listResources(roomId?: string | null, size = 6) {
