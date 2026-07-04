@@ -3,6 +3,7 @@ import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 export const ACTIVE_PROJECT_ROOM_CHANGE_EVENT = "bubli:active-project-room-change";
+export const ACTIVE_PROJECT_ROOM_SYNC_ERROR_EVENT = "bubli:active-project-room-sync-error";
 
 let activeProjectRoomId: string | null = null;
 let activeProjectRoomLabel: string | null = null;
@@ -12,6 +13,20 @@ export type ActiveProjectRoomSnapshot = {
   roomLabel?: string | null;
   savedAt?: string;
 };
+
+type ActiveProjectRoomSyncTarget = "local-cache" | "widget-context" | "server-widget-context";
+
+function reportActiveProjectRoomSyncFailure(target: ActiveProjectRoomSyncTarget, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`[Bubli] Active project room sync failed: ${target}`, error);
+
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent(ACTIVE_PROJECT_ROOM_SYNC_ERROR_EVENT, {
+      detail: { message, target },
+    }),
+  );
+}
 
 export function seedActiveProjectRoomId(roomId: string, roomLabel?: string | null) {
   const cleanRoomId = roomId.trim();
@@ -56,15 +71,21 @@ export async function restoreActiveProjectRoomFromTauri(): Promise<ActiveProject
 
 function mirrorActiveProjectRoomToTauri(roomId: string, roomLabel?: string | null) {
   if (!isTauriRuntime()) return;
-  void tauriCommands.storeActiveProjectRoom({ roomId, roomLabel: roomLabel ?? null }).catch(() => undefined);
-  void tauriCommands.setWidgetRoomContext({ selectedRoomId: roomId }).catch(() => undefined);
+  void tauriCommands
+    .storeActiveProjectRoom({ roomId, roomLabel: roomLabel ?? null })
+    .catch((error) => reportActiveProjectRoomSyncFailure("local-cache", error));
+  void tauriCommands
+    .setWidgetRoomContext({ selectedRoomId: roomId })
+    .catch((error) => reportActiveProjectRoomSyncFailure("widget-context", error));
 }
 
 function publishActiveProjectRoom(roomId: string, roomLabel?: string | null) {
   mirrorActiveProjectRoomToTauri(roomId, roomLabel);
   if (typeof window === "undefined") return;
 
-  void widgetApi.updateContext({ selectedRoomId: roomId }).catch(() => undefined);
+  void widgetApi
+    .updateContext({ selectedRoomId: roomId })
+    .catch((error) => reportActiveProjectRoomSyncFailure("server-widget-context", error));
   publishActiveProjectRoomChange(roomId, roomLabel);
 }
 
@@ -80,8 +101,12 @@ function publishActiveProjectRoomChange(roomId: string | null, roomLabel?: strin
 
 function clearActiveProjectRoomTauriMirror() {
   if (!isTauriRuntime()) return;
-  void tauriCommands.clearActiveProjectRoom().catch(() => undefined);
-  void tauriCommands.setWidgetRoomContext({ selectedRoomId: null }).catch(() => undefined);
+  void tauriCommands
+    .clearActiveProjectRoom()
+    .catch((error) => reportActiveProjectRoomSyncFailure("local-cache", error));
+  void tauriCommands
+    .setWidgetRoomContext({ selectedRoomId: null })
+    .catch((error) => reportActiveProjectRoomSyncFailure("widget-context", error));
 }
 
 export function setActiveProjectRoomId(roomId: string, roomLabel?: string | null) {
@@ -102,7 +127,9 @@ export function syncActiveProjectRoomFromWidgetContext(roomId: string | null | u
     activeProjectRoomId = null;
     activeProjectRoomLabel = null;
     if (isTauriRuntime()) {
-      void tauriCommands.clearActiveProjectRoom().catch(() => undefined);
+      void tauriCommands
+        .clearActiveProjectRoom()
+        .catch((error) => reportActiveProjectRoomSyncFailure("local-cache", error));
     }
     publishActiveProjectRoomChange(null);
     return;
@@ -114,7 +141,9 @@ export function syncActiveProjectRoomFromWidgetContext(roomId: string | null | u
   activeProjectRoomId = cleanRoomId;
   activeProjectRoomLabel = nextRoomLabel;
   if (isTauriRuntime()) {
-    void tauriCommands.storeActiveProjectRoom({ roomId: cleanRoomId, roomLabel: nextRoomLabel }).catch(() => undefined);
+    void tauriCommands
+      .storeActiveProjectRoom({ roomId: cleanRoomId, roomLabel: nextRoomLabel })
+      .catch((error) => reportActiveProjectRoomSyncFailure("local-cache", error));
   }
   publishActiveProjectRoomChange(cleanRoomId, nextRoomLabel);
 }
@@ -124,7 +153,9 @@ export function clearActiveProjectRoomId() {
   activeProjectRoomLabel = null;
   clearActiveProjectRoomTauriMirror();
   if (typeof window === "undefined") return;
-  void widgetApi.updateContext({ selectedRoomId: null }).catch(() => undefined);
+  void widgetApi
+    .updateContext({ selectedRoomId: null })
+    .catch((error) => reportActiveProjectRoomSyncFailure("server-widget-context", error));
   window.dispatchEvent(
     new CustomEvent(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, { detail: { roomId: null } }),
   );

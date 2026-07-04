@@ -19,6 +19,7 @@ import {
   searchPersonalLocalFiles,
   selectPersonalManagedFolder,
   syncPersonalLocalFileEventsToServer,
+  watchPersonalManagedFolder,
 } from "@/lib/local/managed-folder-client";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
@@ -334,12 +335,38 @@ export function PersonalResourceWorkspace() {
         },
         ...current.filter((folder) => folder.localFolderId !== result.data.localFolderId),
       ]);
-      setLocalFolderMessage(t("settings.msg.folderConnected"));
+
+      const scanResult = await scanPersonalManagedFolder({
+        consentGranted: localFolderConsent,
+        localFolderId: result.data.localFolderId,
+      });
+      if (scanResult.status !== "ready") {
+        setLocalFolderMessage(scanResult.message ?? t("settings.msg.folderConnected"));
+        void refreshLocalFolders();
+        return;
+      }
+
+      const watchResult = await watchPersonalManagedFolder({
+        consentGranted: localFolderConsent,
+        localFolderId: result.data.localFolderId,
+      });
+      const syncResult = await syncPersonalLocalFileEventsToServer({
+        consentGranted: localFolderConsent,
+        limit: 20,
+        localFolderId: result.data.localFolderId,
+      });
+
+      await loadResources();
       void refreshLocalFolders();
+      const syncText = syncResult.status === "ready" ? syncResult.message : syncResult.message ?? t("settings.msg.folderConnected");
+      const watchText = watchResult.status === "ready" || watchResult.status === "pending" ? t("settings.msg.watchOn") : watchResult.message;
+      setLocalFolderMessage(
+        `${t("settings.msg.folderChanges", { count: scanResult.data.changedCount })} / ${watchText} / ${syncText}`,
+      );
     } finally {
       setLocalFolderAction(null);
     }
-  }, [isTauri, localFolderConsent, refreshLocalFolders, t]);
+  }, [isTauri, loadResources, localFolderConsent, refreshLocalFolders, t]);
 
   const scanLocalFolders = useCallback(async () => {
     if (!isTauri) return;
