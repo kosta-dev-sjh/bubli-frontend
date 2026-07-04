@@ -1091,6 +1091,7 @@ const ko = {
   "settings.gcal.disconnectCta": "연결 해제",
   "settings.msg.gcalDisconnected": "구글 캘린더 연결을 해제했습니다",
   "settings.msg.gcalDisconnectFailed": "구글 캘린더 연결 해제에 실패했습니다",
+  "settings.msg.gcalConnectFailed": "구글 캘린더 연결을 시작하지 못했습니다",
 } as const;
 
 type Key = keyof typeof ko;
@@ -2156,6 +2157,7 @@ const en: Record<Key, string> = {
   "settings.gcal.disconnectCta": "Disconnect",
   "settings.msg.gcalDisconnected": "Disconnected Google Calendar",
   "settings.msg.gcalDisconnectFailed": "Could not disconnect Google Calendar",
+  "settings.msg.gcalConnectFailed": "Could not start the Google Calendar connection",
 };
 
 const ja: Record<Key, string> = {
@@ -3219,6 +3221,7 @@ const ja: Record<Key, string> = {
   "settings.gcal.disconnectCta": "連携を解除",
   "settings.msg.gcalDisconnected": "Google カレンダーの連携を解除しました",
   "settings.msg.gcalDisconnectFailed": "Google カレンダーの連携解除に失敗しました",
+  "settings.msg.gcalConnectFailed": "Google カレンダーの連携を開始できませんでした",
 };
 
 export const settingsMessages = { ko, en, ja };

@@ -167,12 +167,6 @@ const ko = {
   "chat.invite.pending": "대기 중인 룸 초대 {count}",
   "chat.invite.canceling": "취소 중",
   "chat.invite.cancel": "초대 취소",
-  "chat.invite.linkKicker": "초대 링크",
-  "chat.invite.linkHint": "{room}에 바로 참여할 수 있는 링크를 만들어 공유하세요 (72시간 유효)",
-  "chat.invite.linkCreate": "초대 링크 만들기",
-  "chat.invite.linkCreating": "링크 만드는 중",
-  "chat.invite.linkCopied": "초대 링크를 복사했습니다",
-  "chat.invite.linkFailed": "초대 링크를 만들지 못했습니다",
 
   // 친구 요청
   "chat.requests.title": "친구 요청",
@@ -247,6 +241,18 @@ const ko = {
   "chat.groupNameSuffix": "{name} 그룹",
   "chat.agentDefaultPrompt": "현재 프로젝트룸 맥락을 기준으로 도와줘",
   "chat.senderMe": "나",
+
+  // /bubli 명령어 자동완성(웹 소통창 + 위젯 chat 버블 공용)
+  "chat.agentCommands.popoverAria": "Bubli 명령어 자동완성",
+  "chat.agentCommands.hint": "↑↓ 이동 · Tab/Enter 완성 · Esc 닫기",
+  "chat.agentCommands.summarizeDesc": "최근 대화·결정 사항을 요약해요",
+  "chat.agentCommands.todoDesc": "대화에서 TODO 후보를 만들어요",
+  "chat.agentCommands.taskDesc": "작업(태스크) 후보를 만들어요",
+  "chat.agentCommands.questionDesc": "확인이 필요한 질문 후보를 정리해요",
+  "chat.agentCommands.requirementDesc": "요구사항 후보를 정리해요",
+  "chat.agentCommands.reviewDesc": "위험·조건 등 검토 항목 후보를 만들어요",
+  "chat.agentCommands.suggestDesc": "요청 내용으로 제안 후보를 만들어요",
+  "chat.agentCommands.answerDesc": "프로젝트 맥락을 바탕으로 자유롭게 답해요",
 
   // 소통 요약 패널(communication-panel)
   "chat.commPanel.aria": "소통",
@@ -897,12 +903,6 @@ const en: Record<Key, string> = {
   "chat.invite.pending": "{count} pending room invitations",
   "chat.invite.canceling": "Canceling",
   "chat.invite.cancel": "Cancel invite",
-  "chat.invite.linkKicker": "Invite link",
-  "chat.invite.linkHint": "Create and share a link that joins {room} directly (valid for 72 hours)",
-  "chat.invite.linkCreate": "Create invite link",
-  "chat.invite.linkCreating": "Creating link",
-  "chat.invite.linkCopied": "Invite link copied",
-  "chat.invite.linkFailed": "Couldn't create the invite link",
 
   "chat.requests.title": "Friend requests",
   "chat.requests.empty": "No pending requests",
@@ -972,6 +972,17 @@ const en: Record<Key, string> = {
   "chat.groupNameSuffix": "{name} group",
   "chat.agentDefaultPrompt": "Help me based on the current project room context",
   "chat.senderMe": "Me",
+
+  "chat.agentCommands.popoverAria": "Bubli command autocomplete",
+  "chat.agentCommands.hint": "↑↓ move · Tab/Enter complete · Esc close",
+  "chat.agentCommands.summarizeDesc": "Summarizes recent conversation and decisions",
+  "chat.agentCommands.todoDesc": "Creates TODO candidates from the conversation",
+  "chat.agentCommands.taskDesc": "Creates task candidates",
+  "chat.agentCommands.questionDesc": "Collects question candidates that need confirmation",
+  "chat.agentCommands.requirementDesc": "Collects requirement candidates",
+  "chat.agentCommands.reviewDesc": "Creates review-item candidates such as risks and conditions",
+  "chat.agentCommands.suggestDesc": "Creates suggestion candidates from your request",
+  "chat.agentCommands.answerDesc": "Answers freely based on the project context",
 
   "chat.commPanel.aria": "Chat",
   "chat.commPanel.summaryAria": "Chat feature breakdown",
@@ -1606,12 +1617,6 @@ const ja: Record<Key, string> = {
   "chat.invite.pending": "保留中のルーム招待 {count}",
   "chat.invite.canceling": "キャンセル中",
   "chat.invite.cancel": "招待をキャンセル",
-  "chat.invite.linkKicker": "招待リンク",
-  "chat.invite.linkHint": "{room}にすぐ参加できるリンクを作成して共有しましょう（72時間有効）",
-  "chat.invite.linkCreate": "招待リンクを作成",
-  "chat.invite.linkCreating": "リンクを作成中",
-  "chat.invite.linkCopied": "招待リンクをコピーしました",
-  "chat.invite.linkFailed": "招待リンクを作成できませんでした",
 
   "chat.requests.title": "友だちリクエスト",
   "chat.requests.empty": "保留中のリクエストはありません",
@@ -1681,6 +1686,17 @@ const ja: Record<Key, string> = {
   "chat.groupNameSuffix": "{name} グループ",
   "chat.agentDefaultPrompt": "現在のプロジェクトルームの文脈を基準に手伝って",
   "chat.senderMe": "自分",
+
+  "chat.agentCommands.popoverAria": "Bubli コマンドの自動補完",
+  "chat.agentCommands.hint": "↑↓ 移動 · Tab/Enter 補完 · Esc 閉じる",
+  "chat.agentCommands.summarizeDesc": "最近の会話と決定事項を要約します",
+  "chat.agentCommands.todoDesc": "会話からTODO候補を作ります",
+  "chat.agentCommands.taskDesc": "作業（タスク）候補を作ります",
+  "chat.agentCommands.questionDesc": "確認が必要な質問候補を整理します",
+  "chat.agentCommands.requirementDesc": "要件候補を整理します",
+  "chat.agentCommands.reviewDesc": "リスク・条件などのレビュー項目候補を作ります",
+  "chat.agentCommands.suggestDesc": "リクエスト内容から提案候補を作ります",
+  "chat.agentCommands.answerDesc": "プロジェクトの文脈をもとに自由に答えます",
 
   "chat.commPanel.aria": "コミュニケーション",
   "chat.commPanel.summaryAria": "コミュニケーション機能の区分",

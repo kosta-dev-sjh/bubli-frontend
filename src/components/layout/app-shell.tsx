@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNav } from "@/components/layout/app-nav";
 import { TopbarNotificationsPanel } from "@/components/layout/topbar-notifications-panel";
@@ -16,13 +16,17 @@ import {
 import { siteConfig } from "@/config/site";
 import { authApi } from "@/features/auth/api/authApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
+import { FirstRunController } from "@/features/onboarding";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
+import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyDataChanged, readUserUpdatedDetail, useDataRefresh, USER_UPDATED_EVENT } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
+import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
@@ -39,6 +43,8 @@ import type { AuthUser } from "@/types/api/auth";
 import type { NotificationResponse } from "@/types/api/notification";
 import type { ContractDocumentType, ProjectRoomInvitationResponse, ProjectRoomResponse } from "@/types/api/projectRoom";
 
+const runtimeSmokeEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
+
 type AppShellProps = {
   children: ReactNode;
 };
@@ -47,7 +53,7 @@ type ShellState =
   | { kind: "loading" }
   | { kind: "ready"; notifications: NotificationResponse[]; rooms: ProjectRoomResponse[]; user: AuthUser }
   | { kind: "auth" }
-  | { kind: "offline" };
+  | { kind: "offline"; user?: AuthUser };
 
 type TopbarMenu = "notifications" | "profile" | null;
 
@@ -107,6 +113,7 @@ export function AppShell({ children }: AppShellProps) {
   const [topbarMenu, setTopbarMenu] = useState<TopbarMenu>(null);
   const [myInvitations, setMyInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
   const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null);
+  const roomsRef = useRef<ProjectRoomResponse[]>([]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -129,8 +136,33 @@ export function AppShell({ children }: AppShellProps) {
 
     async function loadShell() {
       try {
-        await restoreStoredAuthSessionFromTauri();
-        const [user, roomPage] = await Promise.all([authApi.getMe(), projectRoomApi.list()]);
+        const restoredSession = await restoreStoredAuthSessionFromTauri();
+
+        if (!restoredSession) {
+          if (shouldUseWorkspacePreviewData()) {
+            setState({ kind: "ready", notifications: [], rooms: workspacePreviewRooms, user: workspacePreviewUser });
+          } else {
+            setState({ kind: "auth" });
+          }
+
+          return;
+        }
+
+        const user = await authApi.getMe();
+        let roomPage: Awaited<ReturnType<typeof projectRoomApi.list>>;
+
+        try {
+          roomPage = await projectRoomApi.list();
+        } catch (error) {
+          if (error instanceof ApiClientError && error.status === 401) {
+            setState({ kind: "auth" });
+            return;
+          }
+
+          setState({ kind: "offline", user });
+          return;
+        }
+
         let notifications: NotificationResponse[] = [];
 
         try {
@@ -182,7 +214,7 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
 
-        setState({ kind: "offline" });
+        setState({ kind: "auth" });
       }
     }
 
@@ -199,6 +231,57 @@ export function AppShell({ children }: AppShellProps) {
     };
   }, []);
 
+  // 프로필 저장(설정/온보딩) 즉시 반영 — 셸 재조회 없이 이벤트 페이로드로 탑바 사용자 표시를 갱신한다.
+  useEffect(() => {
+    function handleUserUpdated(event: Event) {
+      const user = readUserUpdatedDetail(event);
+      if (!user) return;
+      setState((current) => {
+        if (current.kind === "ready") return { ...current, user };
+        if (current.kind === "offline") return { ...current, user };
+        return current;
+      });
+    }
+
+    window.addEventListener(USER_UPDATED_EVENT, handleUserUpdated);
+    return () => window.removeEventListener(USER_UPDATED_EVENT, handleUserUpdated);
+  }, []);
+
+  // 룸 목록/알림/초대함만 가볍게 재조회한다(셸 전체 리로드 없이 스위처·벨 배지를 최신으로 유지).
+  const shellReady = state.kind === "ready";
+  const refreshShellLists = useCallback(async () => {
+    if (!shellReady) return;
+
+    const [roomPage, notificationPage, invitationPage] = await Promise.allSettled([
+      projectRoomApi.list(),
+      notificationApi.list(),
+      projectRoomApi.getMyInvitations("PENDING"),
+    ]);
+
+    if (roomPage.status === "fulfilled") {
+      setState((current) => (current.kind === "ready" ? { ...current, rooms: roomPage.value.items } : current));
+    }
+    if (notificationPage.status === "fulfilled") {
+      setState((current) => (current.kind === "ready" ? { ...current, notifications: notificationPage.value.items } : current));
+    }
+    if (invitationPage.status === "fulfilled") {
+      setMyInvitations(invitationPage.value.items);
+    }
+  }, [shellReady]);
+
+  const handleShellListsRefresh = useCallback(() => {
+    void refreshShellLists();
+  }, [refreshShellLists]);
+
+  // 룸 생성/이름 변경/종료/다시 열기/멤버 변경이 어디에서 일어나든 스위처·탑바에 즉시 반영하고,
+  // 창 포커스 복귀 시에도(데스크톱 위젯/다른 탭에서의 변경 대비) 스로틀을 걸어 재검증한다.
+  useDataRefresh({
+    domains: ["project-room"],
+    ignoreSource: "app-shell",
+    minFocusIntervalMs: 20_000,
+    onRefresh: handleShellListsRefresh,
+  });
+
   useEffect(() => {
     if (state.kind === "auth") {
       router.replace("/login");
@@ -206,7 +289,11 @@ export function AppShell({ children }: AppShellProps) {
   }, [router, state.kind]);
 
   useEffect(() => {
-    if (state.kind !== "ready" || !isTauriRuntime()) return;
+    roomsRef.current = state.kind === "ready" ? state.rooms : [];
+  }, [state]);
+
+  useEffect(() => {
+    if (state.kind !== "ready" || !isTauriRuntime() || runtimeSmokeEnabled) return;
 
     void launchTauriAuthenticatedSurfaces().catch((error) => {
       console.warn("Failed to launch Tauri authenticated surfaces after shell ready.", error);
@@ -231,10 +318,12 @@ export function AppShell({ children }: AppShellProps) {
     if (!isTauriRuntime()) return;
 
     let cancelled = false;
-    let unlisten: (() => void) | null = null;
-    const safeUnlisten = (nextUnlisten: () => void) => {
+    let unlisten: (() => unknown) | null = null;
+    const safeUnlisten = (nextUnlisten: () => unknown) => {
       try {
-        nextUnlisten();
+        void Promise.resolve(nextUnlisten()).catch((error) => {
+          console.warn("Failed to remove Tauri widget room listener.", error);
+        });
       } catch (error) {
         console.warn("Failed to remove Tauri widget room listener.", error);
       }
@@ -242,7 +331,7 @@ export function AppShell({ children }: AppShellProps) {
 
     void listenWidgetRoomContextChanged((payload) => {
       const roomId = payload.selectedRoomId?.trim() || null;
-      const room = roomId && state.kind === "ready" ? state.rooms.find((item) => item.id === roomId) : undefined;
+      const room = roomId ? roomsRef.current.find((item) => item.id === roomId) : undefined;
       const roomLabel = room?.name ?? null;
 
       syncActiveProjectRoomFromWidgetContext(roomId, roomLabel);
@@ -262,7 +351,7 @@ export function AppShell({ children }: AppShellProps) {
         safeUnlisten(unlisten);
       }
     };
-  }, [state]);
+  }, []);
 
   useEffect(() => {
     function openProjectRoomCreate() {
@@ -354,6 +443,15 @@ export function AppShell({ children }: AppShellProps) {
   }, [activeRoom, selectedRoom, selectedRoomId, selectedRoomLabel, state, t]);
 
   const topbarUser = useMemo(() => {
+    if (state.kind === "offline" && state.user) {
+      return {
+        avatarUrl: state.user.avatarUrl,
+        displayName: state.user.name,
+        email: t("layout.user.serverWaiting"),
+        initials: initialsFromName(state.user.name),
+      };
+    }
+
     if (state.kind !== "ready") {
       return {
         displayName: state.kind === "auth" ? t("common.login") : "Bubli",
@@ -395,6 +493,59 @@ export function AppShell({ children }: AppShellProps) {
     void notificationApi.markRead(notificationId).catch(() => undefined);
   }
 
+  // 알림 "보러가기" 딥링크 — sourceType별 이동 경로(백엔드 NotificationResponse 계약: sourceType + sourceId):
+  // - COMMENT/RESOURCE: sourceId를 자료 ID로 보고 자료를 조회해 룸 자료보드(?resourceId=)로,
+  //   룸 정보가 없으면 개인 자료보드로 이동한다(조회 실패 시에도 개인 보드 폴백).
+  //   자료보드는 ?resourceId=로 해당 자료 상세를 열고, 댓글 섹션은 기본 펼침(<details open>)이다.
+  // - MESSAGE: 소통 화면으로(sourceId가 있으면 ?roomId=로 해당 룸 스코프).
+  // - AGENT: AI 요청함으로.
+  // 클릭 즉시 읽음 처리(낙관적)하고 알림 패널을 닫는다.
+  async function handleOpenNotification(notification: NotificationResponse) {
+    if (notification.status === "UNREAD") {
+      handleMarkNotificationRead(notification.id);
+    }
+    setTopbarMenu(null);
+
+    const sourceId = notification.sourceId ?? null;
+
+    if (notification.sourceType === "AGENT") {
+      router.push("/app/agent");
+      return;
+    }
+    if (notification.sourceType === "MESSAGE") {
+      const fallbackRoute = sourceId
+        ? `/app/project-rooms/${encodeURIComponent(sourceId)}/work`
+        : "/app";
+
+      if (isTauriRuntime()) {
+        const opened = await openTauriChatWidget({ eventType: "handoff:notification", roomId: sourceId });
+        if (!opened) {
+          router.replace(fallbackRoute);
+        }
+        return;
+      }
+      router.push(sourceId ? `/app/chat?roomId=${encodeURIComponent(sourceId)}` : "/app/chat");
+      return;
+    }
+    if (notification.sourceType === "COMMENT" || notification.sourceType === "RESOURCE") {
+      if (!sourceId) {
+        router.push("/app/resources");
+        return;
+      }
+      try {
+        const resource = await resourcesApi.get(sourceId);
+        router.push(
+          resource.roomId
+            ? `/app/project-rooms/${resource.roomId}/resources?resourceId=${encodeURIComponent(resource.id)}`
+            : `/app/resources?resourceId=${encodeURIComponent(resource.id)}`,
+        );
+      } catch {
+        // 자료 조회 실패(권한/삭제 등) — 개인 자료보드로 폴백해 최소한 보드까지는 안내한다.
+        router.push(`/app/resources?resourceId=${encodeURIComponent(sourceId)}`);
+      }
+    }
+  }
+
   async function handleAcceptInvitation(invitation: ProjectRoomInvitationResponse) {
     if (acceptingInvitationId) return;
     setAcceptingInvitationId(invitation.id);
@@ -410,6 +561,8 @@ export function AppShell({ children }: AppShellProps) {
         const joinedRoom = roomPage.items.find((room) => room.id === invitation.roomId);
         if (joinedRoom) setActiveProjectRoom(joinedRoom);
       }
+      // 같은 창에 떠 있는 홈 카드/룸 목록 화면에도 즉시 알린다(셸 자신은 위에서 이미 갱신).
+      notifyDataChanged("project-room", { source: "app-shell" });
       setTopbarMenu(null);
       router.push(`/app/project-rooms/${invitation.roomId}`);
     } catch {
@@ -475,6 +628,8 @@ export function AppShell({ children }: AppShellProps) {
     setActiveProjectRoom(createdRoom);
     setCreatePanelOpen(false);
     setProjectSwitcherOpen(false);
+    // 홈 카드/룸 목록 화면 등 같은 창의 다른 표면에 생성 사실을 즉시 알린다.
+    notifyDataChanged("project-room", { source: "app-shell" });
     router.push(`/app/project-rooms/${createdRoom.id}`);
   }
 
@@ -510,7 +665,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="bubli-app-layout">
-      <aside className="bubli-sidebar">
+      <aside className="bubli-sidebar" data-tour="sidebar">
         <Link className="bubli-brand" href="/app">
           {siteConfig.name}
         </Link>
@@ -533,6 +688,7 @@ export function AppShell({ children }: AppShellProps) {
                 onAcceptInvitation={(invitation) => void handleAcceptInvitation(invitation)}
                 onArchive={handleArchiveNotification}
                 onMarkRead={handleMarkNotificationRead}
+                onOpen={(notification) => void handleOpenNotification(notification)}
               />
             ) : null
           }
@@ -650,15 +806,17 @@ export function AppShell({ children }: AppShellProps) {
           </>
         ) : null}
         <div className="bubli-main-scroll">
-          {state.kind === "auth" ? (
+          {state.kind === "ready" || (state.kind === "offline" && state.user) ? (
+            children
+          ) : (
             // 비로그인 상태에서는 회원 전용 콘텐츠를 렌더하지 않는다. (로그인 페이지로 리다이렉트 중)
             <div className="bubli-auth-gate" role="status">
               {t("layout.gate.redirecting")}
             </div>
-          ) : (
-            children
           )}
         </div>
+        {/* 첫 사용 경험(직군 온보딩 + 튜토리얼) — 인증 완료 후에만, 홈 위 오버레이로 렌더한다. */}
+        {state.kind === "ready" ? <FirstRunController user={state.user} /> : null}
       </main>
     </div>
   );

@@ -16,6 +16,7 @@ import {
   GanttSidebarItem,
   GanttTimeline,
   GanttToday,
+  getGanttTodayScrollLeft,
   type GanttFeature,
   type Range,
 } from "@/components/ui/gantt";
@@ -23,6 +24,7 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { useRoomCalendarAutoPush } from "@/features/calendar/api/use-room-calendar-auto-push";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
@@ -538,23 +540,16 @@ export function WbsGanttPanel({
     });
   };
 
+  // 마운트 시 초기 정렬(GanttProvider)과 같은 산술 계산으로 오늘 컬럼을 뷰포트 좌측 1/3 지점에 맞춘다.
+  // 마커 rect 기반 계산은 레이아웃 타이밍에 따라 0을 돌려줘 버튼이 동작하지 않는 경우가 있었다.
   const scrollToToday = () => {
     const root = panelRef.current?.querySelector<HTMLElement>('[data-roadmap-ui="gantt-root"]');
-    const today = root?.querySelector<HTMLElement>('[data-roadmap-ui="gantt-today"]');
-    if (!root || !today) return;
-
-    const rootRect = root.getBoundingClientRect();
-    const todayRect = today.getBoundingClientRect();
-    const sidebarWidth = Number.parseFloat(getComputedStyle(root).getPropertyValue("--gantt-sidebar-width")) || 0;
-    const viewportCenter = rootRect.left + sidebarWidth + (root.clientWidth - sidebarWidth) / 2;
-    const todayCenter = todayRect.left + todayRect.width / 2;
-
-    const maxScrollLeft = Math.max(0, root.scrollWidth - root.clientWidth);
-    const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, root.scrollLeft + todayCenter - viewportCenter));
+    if (!root) return;
 
     root.scrollTo({
       behavior: "smooth",
-      left: nextScrollLeft,
+      left: getGanttTodayScrollLeft(root, range),
+      top: root.scrollTop,
     });
   };
 
@@ -816,6 +811,8 @@ export function WbsGanttPanel({
       } finally {
         setSchedules((current) => current.filter((entry) => entry.id !== schedule.id));
       }
+      // 홈 일정 카드/일정 화면이 이 삭제(또는 실패 시 서버 상태)를 다시 받아가도록 알린다.
+      notifyDataChanged("schedule");
     }
 
     try {

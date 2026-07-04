@@ -9,6 +9,7 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { memoApi } from "@/features/memo/api/memoApi";
+import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import type { MemoResponse } from "@/types/api/memo";
@@ -179,6 +180,8 @@ export function MemoDraftPanel({
       const created = roomId ? await memoApi.createRoom(roomId, { body }) : await memoApi.createPersonal({ body });
       setMemos((current) => [toMemoDraftItem(t, created, roomLabel), ...current.filter((memo) => memo.id !== created.id)].slice(0, pageSize));
       setDraftBody("");
+      // 홈 메모 카드 등 같은 창의 다른 메모 표면에 즉시 반영한다.
+      notifyDataChanged("memo");
       setNotice(t("memo.draft.policy.confirmedDesc"));
     } catch {
       setNotice(t("memo.draft.policy.syncDesc"));

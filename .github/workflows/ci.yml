@@ -37,6 +37,12 @@ jobs:
       - name: Tauri boundaries
         run: npm run check:tauri-boundaries
 
+      - name: Tauri command contract
+        run: npm run check:tauri-command-contract
+
+      - name: Tauri authenticated surfaces
+        run: npm run check:tauri-auth-surfaces
+
       - name: i18n messages
         run: npm run check:i18n
 

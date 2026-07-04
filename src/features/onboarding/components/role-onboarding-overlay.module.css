@@ -1,0 +1,387 @@
+/* 직군 온보딩 오버레이 — Sky Opal 글래스 + 버블 모티프. 탑바/전환 모달(z 350)보다 위. */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 640;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 24px;
+  background:
+    radial-gradient(ellipse 72% 54% at 12% -4%, rgba(216, 240, 255, 0.6), transparent 62%),
+    radial-gradient(ellipse 64% 46% at 92% 106%, rgba(230, 221, 248, 0.44), transparent 64%),
+    rgba(252, 253, 255, 0.78);
+  backdrop-filter: blur(18px) saturate(1.06);
+  -webkit-backdrop-filter: blur(18px) saturate(1.06);
+}
+
+/* 떠 있는 버블 장식 — 색은 면이 아니라 빛에(옅은 그라디언트 원). */
+.bubbleA,
+.bubbleB,
+.bubbleC {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: onboarding-bubble-float 7s ease-in-out infinite;
+}
+
+.bubbleA {
+  top: 8%;
+  left: 10%;
+  width: 150px;
+  height: 150px;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.9), rgba(158, 216, 255, 0.3) 62%, transparent 78%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.bubbleB {
+  right: 12%;
+  bottom: 14%;
+  width: 110px;
+  height: 110px;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.85), rgba(220, 216, 248, 0.34) 62%, transparent 78%);
+  animation-delay: -2.4s;
+}
+
+.bubbleC {
+  top: 56%;
+  left: 4%;
+  width: 64px;
+  height: 64px;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.85), rgba(158, 216, 255, 0.26) 62%, transparent 78%);
+  animation-delay: -4.6s;
+}
+
+@keyframes onboarding-bubble-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+
+.card {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  width: min(560px, 100%);
+  max-height: min(720px, calc(100dvh - 48px));
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 28px;
+  padding: 26px 28px 28px;
+  background:
+    radial-gradient(ellipse 76% 46% at 10% 0%, rgba(216, 240, 255, 0.5), transparent 70%),
+    radial-gradient(ellipse 64% 42% at 100% 8%, rgba(230, 221, 248, 0.32), transparent 72%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 30px 74px -46px rgba(47, 124, 193, 0.42);
+  outline: none;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stepLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--blue-ink);
+}
+
+.skip {
+  border: 0;
+  background: none;
+  padding: 4px 6px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+.skip:hover:not(:disabled) {
+  color: var(--blue-ink);
+  background: rgba(216, 240, 255, 0.5);
+}
+
+.dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dot,
+.dotActive {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(111, 184, 242, 0.28);
+}
+
+.dotActive {
+  width: 22px;
+  border-radius: 999px;
+  background: var(--bubble-blue);
+}
+
+.body {
+  display: grid;
+  gap: 12px;
+}
+
+.kicker {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--blue-ink);
+}
+
+.title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+.desc {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.nameField {
+  display: grid;
+  gap: 6px;
+}
+
+.nameField span {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.nameField input {
+  min-height: 44px;
+  border: 1px solid rgba(111, 184, 242, 0.36);
+  border-radius: 14px;
+  padding: 0 14px;
+  font-size: 15px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.nameField input:focus-visible {
+  outline: 2px solid var(--bubble-blue);
+  outline-offset: 1px;
+}
+
+.nameField small {
+  font-size: 14px;
+  color: var(--ink-faint);
+}
+
+.roleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 560px) {
+  .roleGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.roleCard {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  border: 1px solid rgba(111, 184, 242, 0.26);
+  border-radius: 18px;
+  padding: 16px 10px 14px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.roleCard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(111, 184, 242, 0.55);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 16px 34px -26px rgba(47, 124, 193, 0.5);
+}
+
+.roleCard:focus-visible {
+  outline: 2px solid var(--bubble-blue);
+  outline-offset: 2px;
+}
+
+.roleCard[data-selected="true"] {
+  border-color: var(--bubble-blue);
+  background: linear-gradient(150deg, rgba(216, 240, 255, 0.72), rgba(255, 255, 255, 0.92) 64%);
+}
+
+.roleIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
+  color: var(--blue-ink);
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.95), rgba(216, 240, 255, 0.65));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 10px 22px -18px rgba(47, 124, 193, 0.5);
+}
+
+.roleLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.presetBox {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(111, 184, 242, 0.24);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(242, 247, 252, 0.75);
+}
+
+.presetLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--blue-ink);
+}
+
+.presetCards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.presetCards li {
+  border: 1px solid rgba(111, 184, 242, 0.3);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.presetHome {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ── Night Bubble 다크 정합화 — 어두운 유리 + 옅은 스카이 빛 ── */
+:global([data-theme="dark"]) .overlay {
+  background:
+    radial-gradient(ellipse 72% 54% at 12% -4%, rgba(158, 216, 255, 0.08), transparent 62%),
+    radial-gradient(ellipse 64% 46% at 92% 106%, rgba(220, 216, 248, 0.06), transparent 64%),
+    rgba(14, 22, 38, 0.78);
+}
+
+:global([data-theme="dark"]) .bubbleA,
+:global([data-theme="dark"]) .bubbleB,
+:global([data-theme="dark"]) .bubbleC {
+  opacity: 0.35;
+}
+
+:global([data-theme="dark"]) .card {
+  border-color: rgba(150, 170, 215, 0.16);
+  background:
+    radial-gradient(ellipse 76% 46% at 10% 0%, rgba(158, 216, 255, 0.07), transparent 70%),
+    rgba(24, 33, 52, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(180, 205, 240, 0.1),
+    0 30px 74px -42px rgba(0, 0, 0, 0.75);
+}
+
+:global([data-theme="dark"]) .title,
+:global([data-theme="dark"]) .roleLabel,
+:global([data-theme="dark"]) .presetHome,
+:global([data-theme="dark"]) .nameField span {
+  color: rgba(234, 240, 248, 0.96);
+}
+
+:global([data-theme="dark"]) .desc,
+:global([data-theme="dark"]) .skip {
+  color: rgba(167, 182, 204, 0.95);
+}
+
+:global([data-theme="dark"]) .kicker,
+:global([data-theme="dark"]) .stepLabel,
+:global([data-theme="dark"]) .presetLabel {
+  color: rgba(191, 214, 245, 0.95);
+}
+
+:global([data-theme="dark"]) .skip:hover:not(:disabled) {
+  color: rgba(216, 240, 255, 0.95);
+  background: rgba(60, 80, 125, 0.4);
+}
+
+:global([data-theme="dark"]) .nameField input {
+  border-color: rgba(150, 170, 215, 0.28);
+  color: rgba(234, 240, 248, 0.96);
+  background: rgba(34, 46, 72, 0.6);
+  box-shadow: inset 0 1px 0 rgba(180, 205, 240, 0.08);
+}
+
+:global([data-theme="dark"]) .nameField small {
+  color: rgba(140, 156, 180, 0.9);
+}
+
+:global([data-theme="dark"]) .roleCard {
+  border-color: rgba(150, 170, 215, 0.16);
+  background: rgba(34, 46, 72, 0.48);
+  box-shadow: inset 0 1px 0 rgba(180, 205, 240, 0.08);
+}
+
+:global([data-theme="dark"]) .roleCard:hover,
+:global([data-theme="dark"]) .roleCard[data-selected="true"] {
+  border-color: rgba(111, 184, 242, 0.4);
+  background: rgba(60, 80, 125, 0.44);
+}
+
+:global([data-theme="dark"]) .roleIcon {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: rgba(191, 214, 245, 0.95);
+  background: rgba(54, 72, 110, 0.55);
+}
+
+:global([data-theme="dark"]) .presetBox {
+  border-color: rgba(150, 170, 215, 0.16);
+  background: rgba(28, 39, 60, 0.6);
+}
+
+:global([data-theme="dark"]) .presetCards li {
+  border-color: rgba(150, 170, 215, 0.22);
+  color: rgba(234, 240, 248, 0.94);
+  background: rgba(44, 58, 88, 0.6);
+  box-shadow: inset 0 1px 0 rgba(180, 205, 240, 0.08);
+}
