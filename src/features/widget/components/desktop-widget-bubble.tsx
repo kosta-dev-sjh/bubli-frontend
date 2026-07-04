@@ -1485,7 +1485,7 @@ export function DesktopWidgetBubble({
 
 const BAR_PREVIEW_POPOVER_ID = "bubli-bar-preview";
 
-// 아무 상호작용 없이 이 시간이 지나면 pill만 옅어진다(0.72 — hover/상호작용 시 즉시 복귀, CSS 200ms).
+// 아무 상호작용 없이 이 시간이 지나면 pill만 옅어진다(0.85 — hover/상호작용 시 즉시 복귀, CSS 200ms).
 // 메뉴 패널·hover 프리뷰·goo 팝이 떠 있는 동안에는 페이드를 아예 정지한다.
 const BAR_IDLE_FADE_MS = 8000;
 
@@ -1682,7 +1682,7 @@ export function DesktopWidgetBubbleBar({
   }, [gooPop]);
   const gooPopVisible = Boolean(gooPop && gooPop.title.trim());
 
-  // idle 페이드: 8초 무상호작용 → pill(nav)만 옅게(0.72), 상호작용 → 즉시 1.0(CSS 200ms).
+  // idle 페이드: 8초 무상호작용 → pill(nav)만 옅게(0.85), 상호작용 → 즉시 1.0(CSS 200ms).
   // 메뉴 패널/hover 프리뷰/goo 팝이 하나라도 떠 있으면 페이드를 완전히 정지한다(즉시 불투명) —
   // goo 팝은 nav 안에 살아서 pill 페이드에 같이 씻겨 나가면 안 되고, 패널/팝오버 내용도 마찬가지다.
   const [barIdle, setBarIdle] = useState(false);
@@ -1790,12 +1790,16 @@ export function DesktopWidgetBubbleBar({
         <AnimatePresence>
           {preview && PreviewIcon && !menuOpen ? (
             <motion.div
+              // key는 반드시 spread 앞에 둔다: key가 spread 뒤면 SWC가 jsxDEV 대신
+              // createElement(config.children) 폴백으로 컴파일해 정적 자식이 "동적 배열"로 취급되고,
+              // motion이 그 배열을 host 요소에 그대로 넘기면서 React 19가 자식마다 key를 요구한다
+              // (콘솔 "Each child in a list should have a unique key" 경고의 실제 원인).
+              key="bubli-bar-preview"
               {...popoverEnterExit}
               aria-label={t("widget.bar.previewAria")}
               className={[styles.barPopover, accentClassNames[preview.accent]].join(" ")}
               data-bubli-interactive="true"
               id={BAR_PREVIEW_POPOVER_ID}
-              key="bubli-bar-preview"
               role="status"
               transition={barChipSpring}
             >
@@ -1868,7 +1872,9 @@ export function DesktopWidgetBubbleBar({
           aria-label={t("widget.bar.minimizedAria")}
           className={[styles.bubbleBar, barIdle && !barFadeSuspended ? styles.barIdle : ""].filter(Boolean).join(" ")}
           data-bubli-interactive="true"
-          onMouseDownCapture={handleWidgetDragMouseDownDeferred}
+          // 창 드래그는 pill 빈 영역/구분선의 non-capture 핸들러만 담당한다. capture 단계의
+          // deferred 드래그는 칩/브랜드 버튼 mousedown까지 가로채 4px 지터만으로 macOS 웹뷰
+          // 네이티브 창 드래그를 시작시켜 click을 삼켰다(브랜드 칩 메뉴가 안 열리던 라이브 버그).
           onMouseDown={handleWidgetDragMouseDown}
         >
           {/* 알림은 바에 고정된 요소라 맨 왼쪽에 둔다. 접힌 버블 칩과는 구분선으로 분리.
@@ -1903,9 +1909,9 @@ export function DesktopWidgetBubbleBar({
               whileHover={chipWhileHover}
               whileTap={chipWhileTap}
             >
-              <Bell key="notice-icon" size={15} strokeWidth={2.1} aria-hidden="true" />
+              <Bell size={15} strokeWidth={2.1} aria-hidden="true" />
               {barChipBadge(notificationSignal.metric) ? (
-                <i key="notice-badge" className={styles.chipBadge} aria-hidden="true">
+                <i className={styles.chipBadge} aria-hidden="true">
                   {barChipBadge(notificationSignal.metric)}
                 </i>
               ) : null}
@@ -1966,6 +1972,9 @@ export function DesktopWidgetBubbleBar({
 
               return (
                 <motion.button
+                  // key는 반드시 spread 앞에 둔다(팝오버와 동일한 SWC createElement 폴백 방지) —
+                  // 정적 자식(Icon/시간/배지)이 key 없는 동적 배열로 바뀌어 key 경고가 났었다.
+                  key={bubbleType}
                   layout
                   {...chipEnterExit}
                   aria-describedby={previewTarget === bubbleType ? BAR_PREVIEW_POPOVER_ID : undefined}
@@ -1973,7 +1982,6 @@ export function DesktopWidgetBubbleBar({
                   className={[styles.barChip, isTimerChip ? styles.barTimerChip : "", accentClassNames[meta.accent]]
                     .filter(Boolean)
                     .join(" ")}
-                  key={bubbleType}
                   onBlur={() => hidePreview(bubbleType)}
                   onClick={() => onRestoreBubble(bubbleType)}
                   onFocus={() => showPreview(bubbleType)}
@@ -1984,14 +1992,10 @@ export function DesktopWidgetBubbleBar({
                   whileHover={chipWhileHover}
                   whileTap={chipWhileTap}
                 >
-                  <Icon key={`${bubbleType}-icon`} size={15} strokeWidth={2.1} aria-hidden="true" />
-                  {isTimerChip ? (
-                    <b key={`${bubbleType}-time`} className={styles.chipTime}>
-                      {bubble.metric}
-                    </b>
-                  ) : null}
+                  <Icon size={15} strokeWidth={2.1} aria-hidden="true" />
+                  {isTimerChip ? <b className={styles.chipTime}>{bubble.metric}</b> : null}
                   {badge ? (
-                    <i key={`${bubbleType}-badge`} className={styles.chipBadge} aria-hidden="true">
+                    <i className={styles.chipBadge} aria-hidden="true">
                       {badge}
                     </i>
                   ) : null}
