@@ -16,7 +16,8 @@
         "title": "Bubli",
         "width": 1280,
         "height": 820,
-        "url": "/app"
+        "url": "/app",
+        "devtools": false
       }
     ],
     "security": {
