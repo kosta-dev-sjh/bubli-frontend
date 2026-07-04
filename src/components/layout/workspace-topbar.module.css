@@ -418,6 +418,15 @@ button.profileButton {
   white-space: nowrap;
 }
 
+/* 알림 항목 우측 액션 묶음(읽음 처리 + 보관) — 버튼이 2개가 되어 세로로 쌓는다. */
+.notificationActions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
 .notificationsEmpty {
   display: flex;
   align-items: center;

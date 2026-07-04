@@ -822,7 +822,9 @@ function CalendarPageContent() {
                             ? t("calendar.google.lastSync", { pulled: lastSync.pulled, pushed: lastSync.pushed, time: formatClockTime(lastSync.at) })
                             : t("calendar.google.noSyncYet")}
                         </p>
-                      ) : null}
+                      ) : (
+                        <p className={styles.syncPopoverMeta}>{t("calendar.google.connectHint")}</p>
+                      )}
                       <div className={styles.syncPopoverActions}>
                         {!googleConnected ? (
                           <button

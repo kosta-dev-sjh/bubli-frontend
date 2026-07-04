@@ -496,6 +496,36 @@
   white-space: nowrap;
 }
 
+/* ── 반응형(≤640): 피드 행 밀도·터치 타깃 보정 ── */
+@media (max-width: 640px) {
+  /* 필터 칩은 가로 스크롤 한 줄 — 터치 타깃만 40px 근처로 키운다. */
+  .filterChip {
+    min-height: 38px;
+  }
+
+  .filterCount {
+    min-width: 24px;
+    height: 24px;
+  }
+
+  .row {
+    gap: 10px;
+    border-radius: 16px;
+    padding: 11px 12px;
+  }
+
+  .iconTile {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  /* 우상단 상대 시간이 제목을 밀지 않게 한 줄 위계 유지 */
+  .rowTop {
+    gap: 8px;
+  }
+}
+
 /* ── Night Bubble — 다크 정합화 ─────────────────────────────
    잉크는 #EAF0F8(주) / #A7B6CC(보조), hairline·면은 150,170,215 / 34,46,72 계열 */
 [data-theme="dark"] .rowTitle,

@@ -507,7 +507,8 @@
 
   .navLink {
     border-radius: 999px;
-    padding: 8px 14px;
+    /* 터치 타깃 40px 확보 — 상단 가로 칩 모드에서 세로 패딩을 키운다. */
+    padding: 10px 14px;
     text-align: center;
   }
 }
@@ -552,5 +553,20 @@
 
   .segmented button {
     flex: 1;
+  }
+
+  /* 터치 타깃 확보 — 토글을 모바일에서 한 단계 키운다(노브 이동거리도 함께 보정). */
+  .toggle {
+    width: 52px;
+    height: 32px;
+  }
+
+  .toggle span {
+    width: 22px;
+    height: 22px;
+  }
+
+  .toggleOn span {
+    transform: translateX(20px);
   }
 }

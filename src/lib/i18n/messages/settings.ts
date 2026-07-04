@@ -856,7 +856,7 @@ const ko = {
   "settings.pc.badge": "동의 기록",
   "settings.pc.chipsAria": "개인정보 동의 핵심 기준",
   "settings.pc.chipConsent": "동의 후 실행",
-  "settings.pc.chipNoCollect": "화면·키보드 미수집",
+  "settings.pc.chipNoCollect": "화면과 키보드 미수집",
   "settings.pc.chipAnytime": "언제든 끄기",
   "settings.pc.layoutAria": "개인정보 동의 상태",
   "settings.pc.on": "켜짐",
@@ -1049,7 +1049,7 @@ const ko = {
   // 설정 페이지(섹션 내비게이션 리뉴얼)
   "settings.nav.aria": "설정 섹션",
   "settings.nav.account": "계정",
-  "settings.nav.preferences": "환경",
+  "settings.nav.preferences": "일반",
   "settings.nav.notifications": "알림",
   "settings.nav.integrations": "연동",
   "settings.nav.privacy": "개인정보",

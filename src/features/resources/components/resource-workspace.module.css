@@ -1249,6 +1249,34 @@
     margin-right: 12px;
     margin-left: 12px;
   }
+
+  /* dev 이식된 로컬 인덱스 헤더 — 좁은 화면에서 제목과 액션이 겹치지 않게 줄바꿈 허용 */
+  .localIndexHeader {
+    flex-wrap: wrap;
+  }
+
+  /* 터치 타깃 확보 — 행 액션/상세 액션/범위 세그먼트/검색 입력을 키운다. */
+  .iconButton {
+    width: 36px;
+    height: 36px;
+  }
+
+  .commentTools .iconButton {
+    width: 32px;
+    height: 32px;
+  }
+
+  .actionButton {
+    min-height: 34px;
+  }
+
+  .scopeItem {
+    min-height: 30px;
+  }
+
+  .search input {
+    min-height: 38px;
+  }
 }
 
 @media (max-width: 440px) {

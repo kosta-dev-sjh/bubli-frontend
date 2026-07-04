@@ -339,6 +339,23 @@ export function AppShell({ children }: AppShellProps) {
     void notificationApi.markRead(notificationId).catch(() => undefined);
   }
 
+  function handleArchiveNotification(notificationId: string) {
+    // 낙관적으로 보관 처리해 목록에서 바로 숨기고, 서버 반영 실패는 다음 로드에서 복구된다.
+    setState((current) =>
+      current.kind === "ready"
+        ? {
+            ...current,
+            notifications: current.notifications.map((item) =>
+              item.id === notificationId && item.status !== "ARCHIVED"
+                ? { ...item, status: "ARCHIVED" as const }
+                : item,
+            ),
+          }
+        : current,
+    );
+    void notificationApi.archive(notificationId).catch(() => undefined);
+  }
+
   async function handleLogout() {
     try {
       await authApi.logout();
@@ -431,6 +448,7 @@ export function AppShell({ children }: AppShellProps) {
               <TopbarNotificationsPanel
                 id={TOPBAR_NOTIFICATIONS_PANEL_ID}
                 items={notifications}
+                onArchive={handleArchiveNotification}
                 onMarkRead={handleMarkNotificationRead}
               />
             ) : null

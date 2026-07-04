@@ -4,11 +4,11 @@ const ko = {
   "public.hero.taglineLead": "받은 자료를",
   "public.hero.taglineRest": "오늘 할 일로.",
   "public.hero.description":
-    "업무 문서, 요구사항, 회의록을 업무 구조로 바꾸고 오늘 필요한 일을 정리해주는 프리랜서 업무 비서",
+    "업무 문서, 요구사항, 회의록을 오늘 할 일로 정리해주는 프리랜서 업무 비서",
   "public.hero.aria": "Bubli 소개",
   "public.hero.eyebrowAria": "서비스 요약",
   "public.hero.eyebrow": "프리랜서 업무를 자료에서 실행까지",
-  "public.hero.descLine1": "요구사항, 회의록, 참고 자료를 업무 구조로 바꾸고",
+  "public.hero.descLine1": "요구사항, 회의록, 참고 자료를 할 일과 일정으로 바꾸고",
   "public.hero.descLine2": "오늘 필요한 일을 한 화면에 정리해주는 프리랜서 업무 비서",
   "public.hero.download": "앱 다운로드",
 
@@ -35,7 +35,7 @@ const ko = {
   // 홈 - why 카드
   "public.home.card1Kicker": "문제",
   "public.home.card1Title": "자료가 흩어지지 않게",
-  "public.home.card1Body": "요구사항·회의록·참고 자료를 프로젝트룸 기준으로 묶어 업무 기준을 잃지 않습니다.",
+  "public.home.card1Body": "요구사항, 회의록, 참고 자료를 프로젝트룸 기준으로 묶어 업무 기준을 잃지 않습니다.",
   "public.home.card2Kicker": "판단",
   "public.home.card2Title": "에이전트는 후보만",
   "public.home.card2Body": "확인 질문과 TODO 후보를 제안하고, 사용자가 승인한 항목만 실제 작업이 됩니다.",
@@ -48,7 +48,7 @@ const ko = {
   "public.home.desktopTitle": "작업 중에도, 화면 위에 가볍게",
   "public.home.desktopBody":
     "Bubli 데스크탑 앱은 회원 웹 앱을 그대로 띄우고, 바탕화면 위에 오늘 할 일, 일정, 타이머, 자료 제안을 버블로 남깁니다. 화면을 전환하지 않아도 필요한 정보만 맑게 떠 있습니다.",
-  "public.home.desktopList1": "바탕화면 버블 위젯 (기본·반투명·고스트·최소화)",
+  "public.home.desktopList1": "바탕화면 버블 위젯 (기본, 반투명, 고스트, 최소화)",
   "public.home.desktopList2": "개인 관리 폴더 감지와 빠른 로컬 캐시",
   "public.home.desktopList3": "개인 데이터는 로컬에, 원본은 서버 기준",
   "public.home.desktopCta": "데스크탑 앱 받기",
@@ -97,7 +97,7 @@ const ko = {
   "public.home.faq2Q": "내 PC 파일을 다 읽나요?",
   "public.home.faq2A": "아니요. 사용자가 직접 지정한 폴더만 감지하고, 전체 PC 자동 색인은 하지 않습니다.",
   "public.home.faq3Q": "데스크탑 앱은 무엇이 다른가요?",
-  "public.home.faq3A": "회원 웹 앱을 그대로 띄우고, 바탕화면 위 버블 위젯·로컬 폴더 연동·빠른 캐시를 더합니다.",
+  "public.home.faq3A": "회원 웹 앱을 그대로 띄우고, 바탕화면 버블 위젯과 기기 폴더 연동, 빠른 캐시를 더합니다.",
   "public.home.faq4Q": "에이전트가 임의로 작업을 바꾸나요?",
   "public.home.faq4A": "아니요. 에이전트는 후보만 만들고, 사용자가 확인한 항목만 실제 작업이 됩니다.",
 
@@ -171,7 +171,7 @@ const ko = {
 
   // 다운로드 페이지
   "public.download.title": "다운로드",
-  "public.download.description": "Bubli 데스크탑 앱(macOS·Windows) 안내와 시작 방법을 정리합니다.",
+  "public.download.description": "Bubli 데스크탑 앱(macOS, Windows) 안내와 시작 방법을 정리합니다.",
   "public.download.sectionAria": "데스크탑 앱 다운로드",
   "public.download.introChip": "데스크탑 앱",
   "public.download.introTitle": "회원 웹 앱 그대로, 바탕화면 버블까지",

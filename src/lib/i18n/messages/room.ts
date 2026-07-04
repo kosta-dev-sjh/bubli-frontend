@@ -186,9 +186,9 @@ const ko = {
   "room.board.invite1Title": "친구 초대",
   "room.board.invite2Description": "초대를 수락한 뒤에만 자료, WBS/TODO, 일정, 채팅 접근 권한을 부여합니다.",
   "room.board.invite2Title": "수락 후 멤버 권한",
-  "room.board.step1": "업무 문서·견적서·요구사항 업로드",
+  "room.board.step1": "업무 문서, 견적서, 요구사항 업로드",
   "room.board.step2": "추출 후보 확인",
-  "room.board.step3": "WBS·TODO·일정 저장",
+  "room.board.step3": "WBS, TODO, 일정 저장",
   "room.board.createTitle": "새 프로젝트룸 만들기",
   "room.board.createSub": "문서에서 뽑은 값은 후보로만 보여주고, 사용자가 확인한 값만 저장합니다.",
   "room.board.create": "만들기",
@@ -529,7 +529,7 @@ const ko = {
   "room.workBoard.colInProgressLabel": "진행",
   "room.workBoard.colInProgressDescription": "진행 중",
   "room.workBoard.colReviewLabel": "검토",
-  "room.workBoard.colReviewDescription": "검토·막힘",
+  "room.workBoard.colReviewDescription": "검토 중이거나 막힘",
   "room.workBoard.colDoneLabel": "완료",
   "room.workBoard.colDoneDescription": "마무리",
   "room.workBoard.wbsStatusTodo": "대기",
@@ -726,7 +726,7 @@ const ko = {
 
   // 초대 링크 참여 페이지
   "room.inviteJoin.title": "프로젝트룸 초대",
-  "room.inviteJoin.subtitle": "초대 링크로 프로젝트룸에 참여합니다.",
+  "room.inviteJoin.subtitle": "초대를 수락하면 이 프로젝트룸의 자료, 일정, 채팅을 함께 볼 수 있어요.",
   "room.inviteJoin.loading": "초대 정보를 불러오는 중",
   "room.inviteJoin.loginRequired": "로그인이 필요합니다",
   "room.inviteJoin.loginHint": "로그인한 뒤 이 링크를 다시 열면 참여할 수 있어요.",
@@ -749,6 +749,11 @@ const ko = {
   "room.settings.closeCancel": "취소",
   "room.settings.closing": "종료 중",
   "room.settings.statusClosed": "종료된 룸",
+  "room.settings.reopenTitle": "룸 다시 열기",
+  "room.settings.reopenHint": "다시 열면 프로젝트룸이 진행 중 상태로 돌아갑니다.",
+  "room.settings.reopenRoom": "프로젝트룸 다시 열기",
+  "room.settings.reopening": "다시 여는 중",
+  "room.settings.reopened": "프로젝트룸을 다시 열었습니다.",
 } as const;
 
 type Key = keyof typeof ko;
@@ -1459,7 +1464,7 @@ const en: Record<Key, string> = {
 
   // Invite link join page
   "room.inviteJoin.title": "Project room invitation",
-  "room.inviteJoin.subtitle": "Join a project room with an invite link.",
+  "room.inviteJoin.subtitle": "Accept the invite to see this project room's files, schedule, and chat together.",
   "room.inviteJoin.loading": "Loading invitation details",
   "room.inviteJoin.loginRequired": "Login required",
   "room.inviteJoin.loginHint": "Sign in and open this link again to join.",
@@ -1482,6 +1487,11 @@ const en: Record<Key, string> = {
   "room.settings.closeCancel": "Cancel",
   "room.settings.closing": "Closing",
   "room.settings.statusClosed": "Closed room",
+  "room.settings.reopenTitle": "Reopen room",
+  "room.settings.reopenHint": "Reopening returns the project room to active status.",
+  "room.settings.reopenRoom": "Reopen project room",
+  "room.settings.reopening": "Reopening",
+  "room.settings.reopened": "Project room reopened.",
 };
 
 const ja: Record<Key, string> = {
@@ -2190,7 +2200,7 @@ const ja: Record<Key, string> = {
 
   // 招待リンク参加ページ
   "room.inviteJoin.title": "プロジェクトルームへの招待",
-  "room.inviteJoin.subtitle": "招待リンクでプロジェクトルームに参加します。",
+  "room.inviteJoin.subtitle": "招待を承諾すると、このプロジェクトルームの資料、予定、チャットを一緒に見られます。",
   "room.inviteJoin.loading": "招待情報を読み込み中",
   "room.inviteJoin.loginRequired": "ログインが必要です",
   "room.inviteJoin.loginHint": "ログイン後にこのリンクをもう一度開くと参加できます。",
@@ -2213,6 +2223,11 @@ const ja: Record<Key, string> = {
   "room.settings.closeCancel": "キャンセル",
   "room.settings.closing": "終了中",
   "room.settings.statusClosed": "終了したルーム",
+  "room.settings.reopenTitle": "ルームを再開",
+  "room.settings.reopenHint": "再開するとプロジェクトルームは進行中の状態に戻ります。",
+  "room.settings.reopenRoom": "プロジェクトルームを再開",
+  "room.settings.reopening": "再開中",
+  "room.settings.reopened": "プロジェクトルームを再開しました。",
 };
 
 export const roomMessages = { ko, en, ja };

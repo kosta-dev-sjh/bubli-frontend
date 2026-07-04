@@ -565,6 +565,46 @@
 }
 
 /* ============================================================
+   반응형(≤768) — 플랫 툴바·트리 행 터치 타깃, 인라인 생성 행 줄바꿈
+   ============================================================ */
+@media (max-width: 768px) {
+  .rangeSwitch button {
+    min-block-size: 32px;
+  }
+
+  .ghostButton,
+  .primaryButton {
+    min-block-size: 36px;
+  }
+
+  .syncTrigger {
+    block-size: 38px;
+    inline-size: 38px;
+  }
+
+  .expanderButton {
+    block-size: 24px;
+    inline-size: 24px;
+  }
+
+  .rowActionButton {
+    block-size: 32px;
+    inline-size: 32px;
+  }
+
+  /* 인라인 생성 행 — 360px에서 메타(최대 220px)+입력(160px)+버튼 2개가 한 줄에
+     들어가지 않으므로 메타를 첫 줄 전체 폭으로 올리고 입력+버튼을 아래 줄로 나눈다. */
+  .createInline {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .createInlineMeta {
+    grid-column: 1 / -1;
+    max-inline-size: none;
+  }
+}
+
+/* ============================================================
    Night Bubble — 다크 정합
    ============================================================ */
 [data-theme="dark"] .rangeSwitch {

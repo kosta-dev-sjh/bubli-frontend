@@ -329,6 +329,7 @@ function ChatPageContent() {
   const [roomInvitationsState, setRoomInvitationsState] = useState<RoomInvitationsState>({ kind: "idle" });
   const [inviteLinkState, setInviteLinkState] = useState<InviteLinkState>({ kind: "idle" });
   const [busyFriendUserId, setBusyFriendUserId] = useState<string | null>(null);
+  const [busyFriendRequestId, setBusyFriendRequestId] = useState<string | null>(null);
   // 친구 삭제는 결과를 먼저 알리고 삭제/유지로 확인받는 2단계 확인(프로젝트룸 설정 패널과 동일 패턴).
   const [pendingDeleteFriendUserId, setPendingDeleteFriendUserId] = useState<string | null>(null);
   const [busyInvitationId, setBusyInvitationId] = useState<string | null>(null);
@@ -820,6 +821,7 @@ function ChatPageContent() {
 
   const inviteFriendToChatRoom = useCallback(
     async (friend: FriendResponse) => {
+      if (chatRoomInviteState.kind === "sending") return;
       if (!selectedRoom || selectedRoom.chatType !== "GROUP") {
         setChatRoomInviteState({ kind: "blocked", message: t("chat.notice.chatInviteOnlyGroup") });
         return;
@@ -839,7 +841,7 @@ function ChatPageContent() {
         setChatRoomInviteState({ kind: "blocked", message: t("chat.notice.chatInviteFailed") });
       }
     },
-    [selectedRoom, t],
+    [chatRoomInviteState.kind, selectedRoom, t],
   );
 
   const deleteFriend = useCallback(
@@ -862,6 +864,7 @@ function ChatPageContent() {
 
   const inviteFriendToRoom = useCallback(
     async (friend: FriendResponse) => {
+      if (roomInviteState.kind === "sending") return;
       if (!selectedProjectRoomId) {
         setRoomInviteState({ kind: "blocked", message: t("chat.notice.roomInviteOnlyRoom") });
         return;
@@ -880,7 +883,7 @@ function ChatPageContent() {
         setRoomInviteState({ kind: "blocked", message: t("chat.notice.roomInviteFailed") });
       }
     },
-    [loadRoomInvitations, selectedProjectRoomId, t],
+    [loadRoomInvitations, roomInviteState.kind, selectedProjectRoomId, t],
   );
 
   const createRoomInviteLink = useCallback(async () => {
@@ -925,8 +928,10 @@ function ChatPageContent() {
 
   const respondFriendRequest = useCallback(
     async (request: FriendRequestResponse, action: "accept" | "reject") => {
-      if (socialState.kind !== "ready") return;
+      // 이중 클릭 시 같은 요청에 PATCH가 중복 전송되지 않도록 진행 중 가드를 둔다.
+      if (socialState.kind !== "ready" || busyFriendRequestId) return;
 
+      setBusyFriendRequestId(request.id);
       try {
         if (action === "accept") {
           await friendApi.acceptRequest(request.id);
@@ -936,9 +941,11 @@ function ChatPageContent() {
         await loadSocial();
       } catch {
         setSocialState({ kind: "offline" });
+      } finally {
+        setBusyFriendRequestId(null);
       }
     },
-    [loadSocial, socialState],
+    [busyFriendRequestId, loadSocial, socialState],
   );
 
   const copyMyBubliId = useCallback(async () => {
@@ -1801,8 +1808,8 @@ function ChatPageContent() {
                       <div className="workspace-route__friend-request" key={request.id}>
                         <div><strong>{request.requester.name}</strong><small>{request.requester.bubliId}</small></div>
                         <div>
-                          <button onClick={() => void respondFriendRequest(request, "accept")} type="button">{t("chat.requests.accept")}</button>
-                          <button onClick={() => void respondFriendRequest(request, "reject")} type="button">{t("chat.requests.reject")}</button>
+                          <button disabled={busyFriendRequestId !== null} onClick={() => void respondFriendRequest(request, "accept")} type="button">{t("chat.requests.accept")}</button>
+                          <button disabled={busyFriendRequestId !== null} onClick={() => void respondFriendRequest(request, "reject")} type="button">{t("chat.requests.reject")}</button>
                         </div>
                       </div>
                     ))}

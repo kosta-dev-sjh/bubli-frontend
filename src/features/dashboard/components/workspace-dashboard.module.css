@@ -292,6 +292,13 @@
     width: 100%;
     justify-content: flex-end;
   }
+
+  /* 위젯별 룸 선택 — 터치 타깃 확보(셀렉트 높이 36px 이상) */
+  .roomPicker {
+    min-height: 36px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
 }
 
 /* 다크 테마(Night Bubble) 보정: 글로벌 다크 패스와 별개로 이 모듈 소유 조각만 손본다. */

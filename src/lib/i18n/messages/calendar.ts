@@ -3,7 +3,7 @@ const ko = {
   // 헤더
   "calendar.kicker": "일정",
   "calendar.title": "일정",
-  "calendar.subtitle": "개인 일정, 현재 프로젝트룸 일정, 외부 캘린더를 월/주 보기로 확인합니다.",
+  "calendar.subtitle": "개인, 프로젝트룸, 구글 캘린더 일정을 한 화면에서 봅니다.",
 
   // 상태 패널
   "calendar.state.loading": "일정을 불러오는 중",
@@ -41,6 +41,7 @@ const ko = {
   "calendar.google.checking": "확인 중",
   "calendar.google.needsCheck": "상태 확인 필요",
   "calendar.google.beforeConnect": "연결 전",
+  "calendar.google.connectHint": "연결하면 구글 캘린더 일정을 여기서 함께 볼 수 있어요. 언제든 해제할 수 있어요.",
   "calendar.google.moving": "이동 중",
   "calendar.google.connect": "구글 캘린더 연결",
   "calendar.google.sync": "구글 캘린더와 동기화",
@@ -265,6 +266,7 @@ const en: Record<Key, string> = {
   "calendar.google.checking": "Checking",
   "calendar.google.needsCheck": "Status check needed",
   "calendar.google.beforeConnect": "Not connected",
+  "calendar.google.connectHint": "Connect to see your Google Calendar events here. You can disconnect anytime.",
   "calendar.google.moving": "Redirecting",
   "calendar.google.connect": "Connect Google Calendar",
   "calendar.google.sync": "Sync with Google Calendar",
@@ -476,6 +478,7 @@ const ja: Record<Key, string> = {
   "calendar.google.checking": "確認中",
   "calendar.google.needsCheck": "状態確認が必要",
   "calendar.google.beforeConnect": "接続前",
+  "calendar.google.connectHint": "連携するとGoogleカレンダーの予定をここで一緒に確認できます。いつでも解除できます。",
   "calendar.google.moving": "移動中",
   "calendar.google.connect": "Google カレンダーを連携",
   "calendar.google.sync": "Google カレンダーと同期",

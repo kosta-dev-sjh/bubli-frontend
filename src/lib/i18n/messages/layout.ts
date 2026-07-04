@@ -52,6 +52,8 @@ const ko = {
   "layout.notifications.empty": "알림이 없습니다",
   "layout.notifications.markRead": "읽음 처리",
   "layout.notifications.markReadAria": "{title} 알림 읽음 처리",
+  "layout.notifications.archive": "보관",
+  "layout.notifications.archiveAria": "{title} 알림 보관",
 
   // 프로젝트룸 전환 패널
   "layout.switcher.closeAria": "프로젝트룸 전환 닫기",
@@ -124,6 +126,8 @@ const en: Record<Key, string> = {
   "layout.notifications.empty": "No notifications",
   "layout.notifications.markRead": "Mark as read",
   "layout.notifications.markReadAria": "Mark notification {title} as read",
+  "layout.notifications.archive": "Archive",
+  "layout.notifications.archiveAria": "Archive notification {title}",
 
   "layout.switcher.closeAria": "Close project room switcher",
   "layout.switcher.aria": "Switch project room",
@@ -193,6 +197,8 @@ const ja: Record<Key, string> = {
   "layout.notifications.empty": "通知はありません",
   "layout.notifications.markRead": "既読にする",
   "layout.notifications.markReadAria": "通知「{title}」を既読にする",
+  "layout.notifications.archive": "アーカイブ",
+  "layout.notifications.archiveAria": "通知「{title}」をアーカイブ",
 
   "layout.switcher.closeAria": "プロジェクトルーム切替を閉じる",
   "layout.switcher.aria": "プロジェクトルーム切替",

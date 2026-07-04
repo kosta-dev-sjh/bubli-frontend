@@ -12,10 +12,11 @@ import styles from "./workspace-topbar.module.css";
 export type TopbarNotificationsPanelProps = {
   id?: string;
   items: NotificationResponse[];
+  onArchive: (notificationId: string) => void;
   onMarkRead: (notificationId: string) => void;
 };
 
-export function TopbarNotificationsPanel({ id, items, onMarkRead }: TopbarNotificationsPanelProps) {
+export function TopbarNotificationsPanel({ id, items, onArchive, onMarkRead }: TopbarNotificationsPanelProps) {
   const { locale, t } = useI18n();
   const visibleItems = items.filter((item) => item.status !== "ARCHIVED");
   const unreadCount = visibleItems.filter((item) => item.status === "UNREAD").length;
@@ -49,17 +50,28 @@ export function TopbarNotificationsPanel({ id, items, onMarkRead }: TopbarNotifi
                 {item.body ? <p>{item.body}</p> : null}
                 <time dateTime={item.createdAt}>{formatTime(item.createdAt)}</time>
               </div>
-              {item.status === "UNREAD" ? (
+              <div className={styles.notificationActions}>
+                {item.status === "UNREAD" ? (
+                  <Button
+                    aria-label={t("layout.notifications.markReadAria", { title: item.title })}
+                    className={styles.notificationReadButton}
+                    onClick={() => onMarkRead(item.id)}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    {t("layout.notifications.markRead")}
+                  </Button>
+                ) : null}
                 <Button
-                  aria-label={t("layout.notifications.markReadAria", { title: item.title })}
+                  aria-label={t("layout.notifications.archiveAria", { title: item.title })}
                   className={styles.notificationReadButton}
-                  onClick={() => onMarkRead(item.id)}
+                  onClick={() => onArchive(item.id)}
                   size="sm"
                   variant="ghost"
                 >
-                  {t("layout.notifications.markRead")}
+                  {t("layout.notifications.archive")}
                 </Button>
-              ) : null}
+              </div>
             </li>
           ))}
         </ul>

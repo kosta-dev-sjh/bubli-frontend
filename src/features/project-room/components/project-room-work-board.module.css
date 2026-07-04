@@ -626,6 +626,16 @@
     grid-template-columns: 1fr;
   }
 
+  /* 연결된 할 일 3열 고정은 좁은 화면에서 칸이 90px대로 눌린다 — 한 줄에 하나씩. */
+  .linkedTaskStrip {
+    grid-template-columns: 1fr;
+  }
+
+  /* 날짜 시작/종료 입력도 반쪽 폭(~140px)에서 잘리므로 세로로 쌓는다. */
+  .wbsDateGrid {
+    grid-template-columns: 1fr;
+  }
+
   .wbsInspectorPopover {
     inline-size: 100%;
     position: static;
@@ -633,6 +643,29 @@
 
   .statusActions {
     justify-content: flex-start;
+  }
+
+  /* 터치 타깃 확보 — 뷰 전환 세그먼트와 후보 트레이 액션을 34px 이상으로. */
+  .viewSwitch button {
+    min-height: 34px;
+  }
+
+  .generateButton {
+    min-height: 36px;
+  }
+
+  .candidateActions button {
+    min-block-size: 34px;
+  }
+
+  .inspectorClose {
+    block-size: 36px;
+    inline-size: 36px;
+  }
+
+  .colorSwatch {
+    block-size: 30px;
+    inline-size: 30px;
   }
 }
 

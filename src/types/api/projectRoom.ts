@@ -30,6 +30,8 @@ export type ProjectRoomUpsertRequest = {
   paidAt?: string | null;
   paymentDueDate?: string | null;
   paymentStatus?: ProjectRoomPaymentStatus;
+  // 백엔드 UpdateProjectRoomRequest.status — 닫힌 룸 다시 열기(ACTIVE 전환) 등에 사용한다.
+  status?: ProjectRoomStatus;
 };
 
 export type ProjectRoomResponse = ProjectRoomUpsertRequest & {

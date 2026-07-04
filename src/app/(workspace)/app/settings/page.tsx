@@ -507,7 +507,11 @@ export default function SettingsPage() {
   }, [nameDraft, saveProfile, state]);
 
   const logout = useCallback(async () => {
-    await authApi.logout();
+    try {
+      await authApi.logout();
+    } catch {
+      // authApi.logout()이 finally에서 세션을 정리하므로 서버 오류여도 로그인 화면으로 이동한다.
+    }
     router.push("/login");
     router.refresh();
   }, [router]);

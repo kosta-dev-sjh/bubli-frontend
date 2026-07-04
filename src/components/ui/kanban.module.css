@@ -481,6 +481,13 @@
   color: var(--color-brand);
 }
 
+/* 터치 환경: 카드 액션은 hover가 없으므로 항상 노출한다. */
+@media (hover: none) {
+  .taskActions {
+    opacity: 1;
+  }
+}
+
 @media (max-width: 760px) {
   .board {
     gap: 10px;
@@ -489,6 +496,22 @@
   .column {
     flex-basis: min(78vw, 286px);
     padding: 9px;
+  }
+
+  /* 터치 타깃 확보 — 카드 액션·담당/WBS 트리거를 32px 이상으로 키운다. */
+  .iconButton,
+  .cancelButton {
+    min-block-size: 32px;
+    min-inline-size: 32px;
+  }
+
+  .assigneeTrigger,
+  .wbsTrigger {
+    min-block-size: 34px;
+  }
+
+  .addButton {
+    min-block-size: 36px;
   }
 }
 

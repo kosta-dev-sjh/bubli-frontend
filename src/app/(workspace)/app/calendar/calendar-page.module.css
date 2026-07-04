@@ -1031,11 +1031,48 @@
   .detail {
     margin: 12px 12px 14px;
   }
+
+  /* 터치 타깃 확보 — 월 내비/보기 전환/동기화/필터 칩을 40px 근처로 키운다. */
+  .navButton {
+    width: 38px;
+    height: 38px;
+  }
+
+  .todayButton,
+  .viewSwitch button,
+  .filterChip {
+    min-height: 32px;
+  }
+
+  .syncTrigger {
+    width: 42px;
+    height: 38px;
+  }
+
+  .detailLock,
+  .detailDelete {
+    width: 40px;
+    height: 40px;
+  }
+
+  .detailList li {
+    grid-template-columns: minmax(0, 1fr) 40px;
+  }
 }
 
 /* ---------- 반응형: 모바일(≤420) ---------- */
 
 @media (max-width: 420px) {
+  /* 동기화 팝오버(264px, 오른쪽 앵커)가 좁은 화면에서 왼쪽으로 튀어나가지 않게
+     화면(패널) 가로폭 기준으로 고정한다. top은 정적 위치(트리거 근처)를 그대로 쓴다. */
+  .syncPopover {
+    position: fixed;
+    top: auto;
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
+
   .cellDate {
     width: 22px;
     height: 22px;
@@ -1107,8 +1144,9 @@
     max-height: calc(100dvh - 116px);
   }
 
+  /* 360px에서 날짜·시간 입력이 반쪽 폭(~150px)에 눌려 잘리므로 한 줄에 하나씩 쌓는다. */
   .fieldGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

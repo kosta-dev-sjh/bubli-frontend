@@ -103,6 +103,7 @@ export function ProjectRoomSettingsPanel({
   const [pendingRemoveUserId, setPendingRemoveUserId] = useState<string | null>(null);
   const [isCloseConfirming, setIsCloseConfirming] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
   const [inviteBubliId, setInviteBubliId] = useState("");
   const [isInviting, setIsInviting] = useState(false);
   const [pendingInvitations, setPendingInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
@@ -369,6 +370,28 @@ export function ProjectRoomSettingsPanel({
       setNotice({ text: requestErrorText(t, error), tone: "error" });
       setIsClosing(false);
       setIsCloseConfirming(false);
+    }
+  };
+
+  // 닫힌 룸 다시 열기 — 백엔드 PATCH /api/project-rooms/{roomId} 의 status(ACTIVE|CLOSED) 계약을 사용한다.
+  const handleReopenRoom = async () => {
+    if (isReopening) return;
+
+    setIsReopening(true);
+
+    try {
+      const updated = await projectRoomApi.update(room.id, { status: "ACTIVE" });
+      onRoomChange(updated);
+      setNotice({ text: t("room.settings.reopened"), tone: "ok" });
+    } catch (error) {
+      if (shouldUseWorkspacePreviewData()) {
+        onRoomChange({ ...room, closedAt: null, status: "ACTIVE", updatedAt: new Date().toISOString() });
+        setNotice({ text: t("room.settings.reopened"), tone: "ok" });
+      } else {
+        setNotice({ text: requestErrorText(t, error), tone: "error" });
+      }
+    } finally {
+      setIsReopening(false);
     }
   };
 
@@ -711,6 +734,21 @@ export function ProjectRoomSettingsPanel({
                   {t("room.settings.closeCancel")}
                 </Button>
               ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {canManage && room.status === "CLOSED" ? (
+          <section aria-label={t("room.settings.reopenTitle")} className={styles.section}>
+            <h3>
+              <DoorClosed aria-hidden="true" size={15} strokeWidth={1.9} />
+              {t("room.settings.reopenTitle")}
+            </h3>
+            <p className={styles.hint}>{t("room.settings.reopenHint")}</p>
+            <div className={styles.dangerRow}>
+              <Button loading={isReopening} onClick={() => void handleReopenRoom()} size="sm" variant="primary">
+                {isReopening ? t("room.settings.reopening") : t("room.settings.reopenRoom")}
+              </Button>
             </div>
           </section>
         ) : null}
