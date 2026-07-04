@@ -4,6 +4,7 @@ import { Room } from "livekit-client";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
+import { dispatchEmojiSplash, extractEmojiSplashEmojis } from "@/features/communication/components/emoji-splash-layer";
 import {
   widgetDisplayApi,
   type WidgetAgentSuggestionResponse,
@@ -1773,11 +1774,21 @@ function DesktopWidgetSurface() {
     async (bubble: WidgetPreviewBubble, text: string) => {
       if (!bubble.chatRoomId) return;
 
-      await widgetCommunicationApi.sendChatMessage(bubble.chatRoomId, {
+      const clientMessageId = crypto.randomUUID();
+      const response = await widgetCommunicationApi.sendChatMessage(bubble.chatRoomId, {
         body: { text },
-        clientMessageId: crypto.randomUUID(),
+        clientMessageId,
         messageType: "TEXT",
       });
+      const emojis = extractEmojiSplashEmojis(text);
+      if (emojis) {
+        dispatchEmojiSplash({
+          chatRoomId: response.chatRoomId,
+          emojis,
+          messageId: response.id ?? clientMessageId,
+          senderId: response.sender?.id ?? null,
+        });
+      }
       if (isTauri) {
         void tauriCommands
           .recordWidgetUsageEvent({
