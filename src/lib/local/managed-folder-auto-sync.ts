@@ -15,6 +15,7 @@ const LOCAL_FILE_EVENT_SYNC_INTERVAL_MS = 60_000;
 const CONSENT_REFRESH_INTERVAL_MS = 60_000;
 const LOCAL_FILE_EVENT_SYNC_BATCH_LIMIT = 20;
 const LOCAL_FILE_EVENT_SYNC_MAX_BATCHES_PER_TICK = 5;
+const WATCH_EVENT_SYNC_DEBOUNCE_MS = 400;
 
 let syncIntervalId: number | null = null;
 let syncInFlight = false;
@@ -26,6 +27,7 @@ const pendingFolderSyncIds = new Set<string>();
 let watchUnlisten: (() => void) | null = null;
 let watchUnlistenPromise: Promise<() => void> | null = null;
 let watchListenerGeneration = 0;
+const pendingWatchEventSyncTimeoutIds = new Map<string, number>();
 let cachedConsent: boolean | null = null;
 let cachedConsentCheckedAt = 0;
 let managedFolderConsentRevision = 0;
@@ -60,6 +62,7 @@ export async function stopManagedFolderAutoSync(input?: ManagedFolderAutoSyncSto
   startupScanHasRun = false;
   pendingFullSyncRequested = false;
   pendingFolderSyncIds.clear();
+  clearPendingWatchEventSyncs();
   cachedConsent = null;
   cachedConsentCheckedAt = 0;
   detachManagedFolderWatchListener();
@@ -89,6 +92,7 @@ export function notifyManagedFolderConsentChanged(enabled: boolean) {
     syncIntervalId = null;
     pendingFullSyncRequested = false;
     pendingFolderSyncIds.clear();
+    clearPendingWatchEventSyncs();
     analysisBackfillHasRun = false;
     startupScanHasRun = false;
     detachManagedFolderWatchListener();
@@ -106,7 +110,7 @@ function attachManagedFolderWatchListener() {
 
   const generation = ++watchListenerGeneration;
   watchUnlistenPromise = listenManagedFolderWatchEvents((payload) => {
-    void syncManagedFolderEventsOnce(payload.localFolderId);
+    debounceManagedFolderWatchEventSync(payload.localFolderId);
   })
     .then((nextUnlisten) => {
       if (generation !== watchListenerGeneration) {
@@ -126,6 +130,7 @@ function attachManagedFolderWatchListener() {
 
 function detachManagedFolderWatchListener() {
   watchListenerGeneration += 1;
+  clearPendingWatchEventSyncs();
 
   if (watchUnlisten) {
     watchUnlisten();
@@ -138,6 +143,27 @@ function detachManagedFolderWatchListener() {
       .catch(() => undefined);
     watchUnlistenPromise = null;
   }
+}
+
+function debounceManagedFolderWatchEventSync(localFolderId: string) {
+  const pendingTimeoutId = pendingWatchEventSyncTimeoutIds.get(localFolderId);
+  if (pendingTimeoutId !== undefined) {
+    window.clearTimeout(pendingTimeoutId);
+  }
+
+  const timeoutId = window.setTimeout(() => {
+    pendingWatchEventSyncTimeoutIds.delete(localFolderId);
+    void syncManagedFolderEventsOnce(localFolderId);
+  }, WATCH_EVENT_SYNC_DEBOUNCE_MS);
+
+  pendingWatchEventSyncTimeoutIds.set(localFolderId, timeoutId);
+}
+
+function clearPendingWatchEventSyncs() {
+  for (const timeoutId of pendingWatchEventSyncTimeoutIds.values()) {
+    window.clearTimeout(timeoutId);
+  }
+  pendingWatchEventSyncTimeoutIds.clear();
 }
 
 async function syncManagedFolderEventsOnce(localFolderId?: string) {

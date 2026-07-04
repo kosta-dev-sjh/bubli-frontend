@@ -1,5 +1,7 @@
 import { apiRequest } from "@/lib/api/client";
+import type { AgentJobResponse } from "@/types/api/agent";
 import type { PageResponse } from "@/types/api/common";
+import type { ResourceDownloadUrlResponse } from "@/types/api/resource";
 import type { TimeLogResponse } from "@/types/api/timer";
 import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
 
@@ -239,6 +241,20 @@ export const widgetDisplayApi = {
       return widgetDisplayRequest<PageResponse<WidgetResourceResponse>>(`/api/project-rooms/${roomId}/resources?page=0&size=${size}`);
     }
     return widgetDisplayRequest<PageResponse<WidgetResourceResponse>>(`/api/resources?scope=personal&page=0&size=${size}`);
+  },
+
+  analyzeResource(resourceId: string) {
+    return widgetDisplayRequest<AgentJobResponse>("/api/ai/analyze-resource", {
+      body: { resourceId },
+      headers: {
+        "Idempotency-Key": `widget-resource-analysis-${crypto.randomUUID()}`,
+      },
+      method: "POST",
+    });
+  },
+
+  getResourceDownloadUrl(resourceId: string) {
+    return widgetDisplayRequest<ResourceDownloadUrlResponse>(`/api/resources/${resourceId}/download-url`);
   },
 
   listMemos(roomId?: string | null, size = 6) {

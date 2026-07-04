@@ -1803,8 +1803,8 @@ fn app_ready_qa_all_widgets_requested(input: &Option<AppReadyInput>) -> bool {
 fn app_ready(
     app: AppHandle,
     window: WebviewWindow,
-    _monitor_state: tauri::State<'_, AppMonitorState>,
-    _state: tauri::State<'_, WidgetState>,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+    state: tauri::State<'_, WidgetState>,
     input: Option<AppReadyInput>,
 ) -> Result<&'static str, String> {
     let qa_all_widgets = app_ready_qa_all_widgets_requested(&input);
@@ -1821,7 +1821,21 @@ fn app_ready(
         window
             .set_background_color(Some(Color(0, 0, 0, 0)))
             .map_err(|error| error.to_string())?;
-        if !window.is_visible().unwrap_or(false) {
+
+        let widget = {
+            let guard = state
+                .lock()
+                .map_err(|_| "widget state lock failed".to_string())?;
+            guard
+                .bubbles
+                .values()
+                .find(|widget| widget_window_label(widget) == label)
+                .cloned()
+        };
+
+        if let Some(widget) = widget {
+            apply_widget_window_state(&app, &monitor_state, &widget)?;
+        } else if !window.is_visible().unwrap_or(false) {
             window.show().map_err(|error| error.to_string())?;
         }
     }
@@ -2125,6 +2139,7 @@ pub fn run() {
             local_db::check_local_sqlite_integrity,
             local_db::clear_active_project_room,
             local_db::clear_tauri_auth_session,
+            local_db::get_or_create_widget_usage_device_id,
             local_db::list_local_sqlite_backups,
             local_db::mark_activity_context_synced,
             local_db::read_active_project_room,

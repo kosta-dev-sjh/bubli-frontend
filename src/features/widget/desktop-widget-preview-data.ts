@@ -12,6 +12,7 @@ export type WidgetPreviewItem = {
   id: string;
   kind?: "agent" | "friend" | "memo" | "message" | "resource" | "schedule" | "task" | "time" | "voice";
   label: string;
+  memoBody?: string;
   stateId?: string;
   status: string;
 };
@@ -31,7 +32,6 @@ export type WidgetPreviewBubble = {
   panelBody: string;
   panelLabel: string;
   participantLabels?: string[];
-  reactionLabels?: string[];
   roomId?: string | null;
   roomLabel: string;
   rows: WidgetPreviewItem[];
@@ -138,7 +138,6 @@ export const widgetPreviewBubbles: WidgetPreviewBubble[] = baseBubbles.map((bubb
   metric: "0",
   notificationLabel: "widget.data.emptyItems",
   panelBody: "widget.data.emptyBody",
-  reactionLabels: bubble.id === "chat" ? ["widget.data.reaction.confirm", "widget.data.reaction.like", "widget.data.reaction.later"] : undefined,
   roomLabel: "widget.data.roomFallback",
   rows: [],
 }));
