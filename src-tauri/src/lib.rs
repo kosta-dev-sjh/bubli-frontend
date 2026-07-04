@@ -1253,6 +1253,14 @@ fn set_widget_room_context(
     persist_widget_window_state(&app, &state)?;
     let payload = WidgetRoomContextChangedPayload { selected_room_id };
 
+    if app.get_webview_window(MAIN_WINDOW_LABEL).is_some() {
+        let _ = app.emit_to(
+            MAIN_WINDOW_LABEL,
+            WIDGET_ROOM_CONTEXT_CHANGED_EVENT,
+            payload.clone(),
+        );
+    }
+
     for widget in &widgets {
         apply_widget_window_state(&app, &monitor_state, widget)?;
         let label = widget_window_label(widget);

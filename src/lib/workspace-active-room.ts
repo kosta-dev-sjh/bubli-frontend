@@ -65,6 +65,12 @@ function publishActiveProjectRoom(roomId: string, roomLabel?: string | null) {
   if (typeof window === "undefined") return;
 
   void widgetApi.updateContext({ selectedRoomId: roomId }).catch(() => undefined);
+  publishActiveProjectRoomChange(roomId, roomLabel);
+}
+
+function publishActiveProjectRoomChange(roomId: string | null, roomLabel?: string | null) {
+  if (typeof window === "undefined") return;
+
   window.dispatchEvent(
     new CustomEvent(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, {
       detail: { roomId, roomLabel: roomLabel ?? null },
@@ -86,6 +92,31 @@ export function setActiveProjectRoomId(roomId: string, roomLabel?: string | null
   activeProjectRoomId = cleanRoomId;
   activeProjectRoomLabel = nextRoomLabel;
   publishActiveProjectRoom(cleanRoomId, activeProjectRoomLabel);
+}
+
+export function syncActiveProjectRoomFromWidgetContext(roomId: string | null | undefined, roomLabel?: string | null) {
+  const cleanRoomId = roomId?.trim() ?? "";
+  if (!cleanRoomId) {
+    if (activeProjectRoomId === null && activeProjectRoomLabel === null) return;
+
+    activeProjectRoomId = null;
+    activeProjectRoomLabel = null;
+    if (isTauriRuntime()) {
+      void tauriCommands.clearActiveProjectRoom().catch(() => undefined);
+    }
+    publishActiveProjectRoomChange(null);
+    return;
+  }
+
+  const nextRoomLabel = roomLabel?.trim() || (activeProjectRoomId === cleanRoomId ? activeProjectRoomLabel : null);
+  if (activeProjectRoomId === cleanRoomId && activeProjectRoomLabel === nextRoomLabel) return;
+
+  activeProjectRoomId = cleanRoomId;
+  activeProjectRoomLabel = nextRoomLabel;
+  if (isTauriRuntime()) {
+    void tauriCommands.storeActiveProjectRoom({ roomId: cleanRoomId, roomLabel: nextRoomLabel }).catch(() => undefined);
+  }
+  publishActiveProjectRoomChange(cleanRoomId, nextRoomLabel);
 }
 
 export function clearActiveProjectRoomId() {
