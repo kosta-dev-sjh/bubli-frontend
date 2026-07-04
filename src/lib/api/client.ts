@@ -6,6 +6,7 @@ import {
   getAuthRefreshToken,
   setStoredAuthSession,
 } from "@/lib/auth/auth-session";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { AuthTokenResponse } from "@/types/api/auth";
 import type { ApiFailure, ApiResponse } from "@/types/api/common";
 
@@ -29,7 +30,11 @@ function getApiTimeoutMs() {
     return configured;
   }
 
-  if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_BUBLI_PREVIEW_DATA === "true") {
+  if (
+    !isTauriRuntime() &&
+    process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_BUBLI_PREVIEW_DATA === "true"
+  ) {
     return PREVIEW_API_TIMEOUT_MS;
   }
 
