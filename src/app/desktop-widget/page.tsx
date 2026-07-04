@@ -20,7 +20,13 @@ import {
   type WidgetVoiceRoomResponse,
 } from "@/features/widget/api/widgetDisplayApi";
 import { authApi } from "@/features/auth/api/authApi";
-import { widgetApi, type BackendWidgetBubbleType, type WidgetBubbleSettingResponse, type WidgetContextResponse } from "@/features/widget/api/widgetApi";
+import {
+  widgetApi,
+  type BackendWidgetBubbleType,
+  type BackendWidgetItemType,
+  type WidgetBubbleSettingResponse,
+  type WidgetContextResponse,
+} from "@/features/widget/api/widgetApi";
 import { widgetCommunicationApi } from "@/features/widget/api/widgetCommunicationApi";
 import { DesktopWidgetBubble, DesktopWidgetBubbleBar, DesktopWidgetMenuOrb, desktopWidgetBubbleTypes } from "@/features/widget/components/desktop-widget-bubble";
 import {
@@ -1286,7 +1292,7 @@ function DesktopWidgetSurface() {
 
   const handleItemStateChange = useCallback(
     async (item: WidgetPreviewItem, state: WidgetItemStateAction) => {
-      const itemType =
+      const itemType: BackendWidgetItemType =
         item.kind === "message"
           ? "MESSAGE"
           : item.kind === "schedule"
