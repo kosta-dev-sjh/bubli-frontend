@@ -1542,6 +1542,7 @@ pub fn run() {
             update_widget_tray_state,
             // BUBLI-44 activity context
             activity::read_activity_context,
+            activity::set_activity_context_consent,
             // BUBLI-41 widget usage events + rollups + server-sync staging
             widget_usage::record_widget_usage_event,
             widget_usage::rollup_widget_usage,

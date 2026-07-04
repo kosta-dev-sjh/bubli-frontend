@@ -11,11 +11,29 @@
 //! DELETE /api/activity/{id}) is the frontend's job through the API client; the
 //! local focus row here only exists to compute dwell time between reads.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use rusqlite::{params, OptionalExtension};
+use serde::Deserialize;
 use serde::Serialize;
 use tauri::State;
 
 use crate::local_db::{now_iso, now_ms, Db};
+
+static ACTIVITY_CONTEXT_CONSENT_GRANTED: AtomicBool = AtomicBool::new(false);
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityContextConsentInput {
+    enabled: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityContextConsentResult {
+    enabled: bool,
+    updated_at: String,
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,9 +44,26 @@ pub struct ActivityContextResult {
     captured_at: String,
 }
 
+/// Mirror the server-backed ACTIVITY_CONTEXT consent into the native process.
+/// Native capture is denied by default, so a frontend bug or stale call cannot
+/// read the foreground app/window before the latest consent check succeeds.
+#[tauri::command]
+pub fn set_activity_context_consent(
+    input: ActivityContextConsentInput,
+) -> ActivityContextConsentResult {
+    set_activity_context_consent_enabled(input.enabled);
+
+    ActivityContextConsentResult {
+        enabled: activity_context_consent_enabled(),
+        updated_at: now_iso(),
+    }
+}
+
 /// Read the current foreground activity context and compute dwell time.
 #[tauri::command]
 pub fn read_activity_context(state: State<'_, Db>) -> Result<ActivityContextResult, String> {
+    ensure_activity_context_consent()?;
+
     let (app_name, window_title) = capture_foreground()?;
     let now = now_ms();
 
@@ -81,6 +116,22 @@ pub fn read_activity_context(state: State<'_, Db>) -> Result<ActivityContextResu
         duration_seconds,
         captured_at: now_iso(),
     })
+}
+
+fn set_activity_context_consent_enabled(enabled: bool) {
+    ACTIVITY_CONTEXT_CONSENT_GRANTED.store(enabled, Ordering::SeqCst);
+}
+
+fn activity_context_consent_enabled() -> bool {
+    ACTIVITY_CONTEXT_CONSENT_GRANTED.load(Ordering::SeqCst)
+}
+
+fn ensure_activity_context_consent() -> Result<(), String> {
+    if activity_context_consent_enabled() {
+        return Ok(());
+    }
+
+    Err("activity capture requires ACTIVITY_CONTEXT consent".to_string())
 }
 
 /// macOS: read the frontmost app name and front window title via AppleScript.
@@ -216,6 +267,25 @@ fn capture_foreground() -> Result<(String, Option<String>), String> {
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn capture_foreground() -> Result<(String, Option<String>), String> {
     Err("activity context capture is not implemented on this platform yet".to_string())
+}
+
+#[cfg(test)]
+mod consent_tests {
+    use super::{ensure_activity_context_consent, set_activity_context_consent_enabled};
+
+    #[test]
+    fn activity_context_consent_gate_defaults_closed_and_can_be_toggled() {
+        set_activity_context_consent_enabled(false);
+
+        let blocked = ensure_activity_context_consent().expect_err("consent should be required");
+        assert!(blocked.contains("ACTIVITY_CONTEXT consent"));
+
+        set_activity_context_consent_enabled(true);
+        ensure_activity_context_consent().expect("enabled consent should allow capture gate");
+
+        set_activity_context_consent_enabled(false);
+        assert!(ensure_activity_context_consent().is_err());
+    }
 }
 
 #[cfg(all(test, target_os = "windows"))]

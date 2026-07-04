@@ -1,4 +1,5 @@
 import { activityApi } from "@/features/activity/api/activityApi";
+import { settingsApi } from "@/features/settings/api/settingsApi";
 import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
@@ -40,7 +41,15 @@ export async function readCurrentActivityContext(
     return unavailable(commandName);
   }
 
-  if (!input.consentGranted) {
+  const serverConsentGranted = input.consentGranted
+    ? await readServerActivityConsent().catch(() => false)
+    : false;
+
+  if (!serverConsentGranted) {
+    const disabled = await mirrorNativeActivityConsent(false);
+    if (!disabled) {
+      return failed("Failed to disable native activity consent", commandName);
+    }
     return blocked(
       "activity_consent_required",
       translate("local.activity.consentRequired"),
@@ -48,7 +57,10 @@ export async function readCurrentActivityContext(
     );
   }
 
-  return runTauriAdapter(commandName, () => tauriCommands.readActivityContext());
+  return runTauriAdapter(commandName, async () => {
+    await tauriCommands.setActivityContextConsent({ enabled: serverConsentGranted });
+    return tauriCommands.readActivityContext();
+  });
 }
 
 export async function recordCurrentActivityContext(
@@ -271,4 +283,18 @@ function rememberIncrementalActivityCheckpoint(
 
 export function resetIncrementalActivityCheckpoint() {
   incrementalActivityCheckpoint = null;
+}
+
+async function readServerActivityConsent() {
+  const privacy = await settingsApi.getPrivacyConsents();
+  return Boolean(privacy.activityDetectionEnabled);
+}
+
+async function mirrorNativeActivityConsent(enabled: boolean) {
+  try {
+    await tauriCommands.setActivityContextConsent({ enabled });
+    return true;
+  } catch {
+    return false;
+  }
 }
