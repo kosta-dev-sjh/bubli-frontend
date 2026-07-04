@@ -102,6 +102,15 @@ const ko = {
   "resources.common.deleting": "삭제 중",
   "resources.common.deleteFile": "파일 삭제",
 
+  // 플랫 행/섹션 재구성 (자료보드 단일 패널)
+  "resources.common.rowActionsAria": "{title} 파일 액션",
+  "resources.common.sectionAi": "AI 분석",
+  "resources.common.analyzeRun": "분석 시작",
+  "resources.common.versionCurrent": "현재",
+  "resources.common.versionsEmpty": "버전 기록이 아직 없습니다",
+  "resources.common.deleteConfirmBody": "이 파일을 삭제할까요? 삭제하면 되돌릴 수 없습니다.",
+  "resources.common.deleteConfirmYes": "삭제",
+
   // 데모 보드 (resource-board.tsx)
   "resources.board.aria": "자료보드",
   "resources.board.scopeAll": "전체",
@@ -734,6 +743,14 @@ const en: Record<Key, string> = {
   "resources.common.deleting": "Deleting",
   "resources.common.deleteFile": "Delete file",
 
+  "resources.common.rowActionsAria": "Actions for {title}",
+  "resources.common.sectionAi": "AI analysis",
+  "resources.common.analyzeRun": "Run analysis",
+  "resources.common.versionCurrent": "Current",
+  "resources.common.versionsEmpty": "No version history yet",
+  "resources.common.deleteConfirmBody": "Delete this file? This cannot be undone.",
+  "resources.common.deleteConfirmYes": "Delete",
+
   "resources.board.aria": "Resource board",
   "resources.board.scopeAll": "All",
   "resources.board.scopePersonal": "Personal resource",
@@ -1349,6 +1366,14 @@ const ja: Record<Key, string> = {
   "resources.common.cancel": "キャンセル",
   "resources.common.deleting": "削除中",
   "resources.common.deleteFile": "ファイル削除",
+
+  "resources.common.rowActionsAria": "{title} のファイル操作",
+  "resources.common.sectionAi": "AI分析",
+  "resources.common.analyzeRun": "分析を開始",
+  "resources.common.versionCurrent": "現在",
+  "resources.common.versionsEmpty": "バージョン履歴はまだありません",
+  "resources.common.deleteConfirmBody": "このファイルを削除しますか？削除すると元に戻せません。",
+  "resources.common.deleteConfirmYes": "削除",
 
   "resources.board.aria": "資料ボード",
   "resources.board.scopeAll": "すべて",

@@ -542,8 +542,8 @@ function AgentPageContent() {
   }, [t]);
 
   return (
-    <section className="workspace-route" aria-labelledby="agent-title">
-      <header className="workspace-route__header">
+    <section className={`workspace-route ${styles.page}`} aria-labelledby="agent-title">
+      <header className={`workspace-route__header ${styles.header}`}>
         <div>
           <h1 id="agent-title">{t("agent.page.title")}</h1>
           <p className={styles.subtitle}>{t("agent.page.subtitle")}</p>
@@ -596,7 +596,7 @@ function AgentPageContent() {
       {state.kind === "ready" ? (
         <>
           {notice || activeJob ? (
-            <GlassPanel className="workspace-route__panel">
+            <GlassPanel className={`workspace-route__panel ${styles.noticePanel}`}>
               <div className={styles.jobNotice}>
                 {notice ? <strong>{notice}</strong> : null}
                 {activeJob ? (
@@ -650,7 +650,7 @@ function AgentPageContent() {
             </div>
             <p className={styles.sectionDesc}>{t("agent.page.suggestionsDesc")}</p>
             {state.suggestions.length === 0 ? (
-              <GlassPanel className="workspace-route__panel">
+              <GlassPanel className={`workspace-route__panel ${styles.emptyPanel}`}>
                 <strong>{t("agent.page.suggestionsEmpty")}</strong>
                 <p className={styles.emptyDesc}>{t("agent.page.suggestionsEmptyDesc")}</p>
                 <ol className={styles.howList}>

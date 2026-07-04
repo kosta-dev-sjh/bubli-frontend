@@ -1,22 +1,48 @@
 /* /app/agent(AI 후보함) 전용 스타일.
    후보는 룸 그룹별 1열 글라스 카드(제목·요약·출처 칩 1개·근거 1줄 접기·승인/보류/제외)로만 보여주고,
-   생성물 보관함은 섹션별 토글(details) 뒤로 접어 첫 화면을 가볍게 유지한다. */
+   생성물 보관함은 섹션별 토글(details) 뒤로 접어 첫 화면을 가볍게 유지한다.
+   레이아웃 원칙: 콘텐츠 칼럼 하나(최대 880px)·16px 섹션 리듬·칩 레시피 하나·한글 keep-all. */
+
+.page {
+  width: min(100%, 880px);
+  gap: 16px;
+}
+
+/* 이 페이지에서는 섹션 자체 패딩을 걷어 헤더 → 숫자 칩 → 카드가 같은 칼럼 라인에 맞도록 한다. */
+.page :global(.workspace-route__section) {
+  gap: 12px;
+  padding: 0;
+}
+
+/* 중간 폭에서 부제와 룸 선택 셀렉트가 겹치지 않게 줄바꿈을 허용한다. */
+.header {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
+.header > div:first-child {
+  flex: 1 1 300px;
+  min-width: 0;
+}
 
 .subtitle {
   margin: 8px 0 0;
-  max-width: 680px;
+  max-width: 65ch;
   color: var(--color-muted);
   font-size: 14px;
   font-weight: 750;
   line-height: 1.55;
+  word-break: keep-all;
 }
 
 .sectionDesc {
   margin: -4px 0 0;
+  max-width: 65ch;
   color: var(--color-muted);
   font-size: 13px;
   font-weight: 720;
   line-height: 1.55;
+  word-break: keep-all;
 }
 
 /* ── 숫자 스트립: 최대 3개, 유리 칩 하나에 라벨+숫자를 함께 담는다 ── */
@@ -29,6 +55,7 @@
 
 .countChip {
   display: inline-flex;
+  flex: 0 0 auto;
   min-height: 34px;
   align-items: center;
   gap: 8px;
@@ -37,6 +64,7 @@
   padding: 0 6px 0 13px;
   background: rgba(255, 255, 255, 0.68);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  white-space: nowrap;
 }
 
 .countChip span {
@@ -76,22 +104,34 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 2px;
+  margin: 0;
   color: var(--ink);
   font-size: 13px;
   font-weight: 900;
 }
 
-.groupCount {
+/* ── 칩 레시피 하나: 출처 칩·그룹 개수·보관함 개수가 모두 같은 모양을 쓴다 ── */
+.cardChip,
+.groupCount,
+.archiveCount {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  border: 1px solid rgba(107, 143, 168, 0.22);
+  border-radius: 999px;
+  padding: 3px 10px;
   color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.56);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 820;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
 .cardList {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
+  gap: 12px;
 }
 
 .card {
@@ -139,20 +179,7 @@
   font-weight: 880;
   line-height: 1.4;
   word-break: keep-all;
-}
-
-.cardChip {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid rgba(111, 184, 242, 0.3);
-  border-radius: 999px;
-  padding: 3px 10px;
-  color: var(--blue-ink);
-  background: rgba(216, 240, 255, 0.44);
-  font-size: 11.5px;
-  font-weight: 820;
-  line-height: 1;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .cardSummary {
@@ -161,10 +188,13 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  max-width: 65ch;
   color: var(--ink-soft);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.6;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 /* 근거: 접힌 상태에서는 한 줄만, 펼치면 전체 문장과 후보 종류를 보여준다 */
@@ -218,11 +248,13 @@
 
 .cardEvidence p {
   margin: 8px 0 0;
+  max-width: 65ch;
   color: var(--ink-soft);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.6;
   word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .cardFoot {
@@ -235,7 +267,7 @@
 
 .cardDate {
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 760;
   white-space: nowrap;
 }
@@ -245,31 +277,38 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 7px;
+  gap: 8px;
+}
+
+/* 버튼 라벨이 단어 중간에서 꺾이지 않게 한다(승인/보류/제외는 항상 한 줄). */
+.cardButtons :global(.bubli-button) {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 /* ── AI 생성물 보관함: 섹션별 접기 ── */
 .zoneHead {
   display: grid;
   gap: 4px;
-  margin-top: 14px;
-  padding: 16px 14px 0;
+  padding: 16px 0 0;
   border-top: 1px dashed rgba(107, 143, 168, 0.34);
 }
 
 .zoneTitle {
   margin: 0;
   color: var(--ink);
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 900;
 }
 
 .zoneDesc {
   margin: 0;
+  max-width: 65ch;
   color: var(--color-muted);
   font-size: 13px;
   font-weight: 720;
   line-height: 1.5;
+  word-break: keep-all;
 }
 
 .archive {
@@ -313,18 +352,6 @@
   white-space: nowrap;
 }
 
-.archiveCount {
-  flex: 0 0 auto;
-  border: 1px solid rgba(107, 143, 168, 0.22);
-  border-radius: 999px;
-  padding: 3px 10px;
-  color: var(--color-muted);
-  background: rgba(255, 255, 255, 0.56);
-  font-size: 12px;
-  font-weight: 820;
-  line-height: 1;
-}
-
 .archiveChevron {
   flex: 0 0 auto;
   color: var(--color-muted);
@@ -338,7 +365,7 @@
 .archiveBody {
   display: grid;
   gap: 12px;
-  padding: 12px 2px 0;
+  padding: 12px 0 0;
 }
 
 .archiveActions {
@@ -364,12 +391,23 @@
 }
 
 /* ── 빈 상태/안내 ── */
+/* 전역 상태 패널은 가로 flex 중앙 정렬이라 문단·목록이 옆으로 눕는다 → 세로 그리드로 교정. */
+.page .emptyPanel {
+  display: grid;
+  min-height: 0;
+  justify-items: start;
+  gap: 10px;
+  text-align: left;
+}
+
 .emptyDesc {
   margin: 0;
+  max-width: 65ch;
   color: var(--color-muted);
   font-size: 13px;
   font-weight: 720;
   line-height: 1.55;
+  word-break: keep-all;
 }
 
 .howList {
@@ -381,6 +419,7 @@
   font-size: 13px;
   font-weight: 750;
   line-height: 1.5;
+  word-break: keep-all;
 }
 
 .headActions {
@@ -391,11 +430,19 @@
   gap: 8px;
 }
 
+/* 알림 배너: 빈 상태용 큰 패널(min-height 158px·중앙 정렬)이 아니라 한 줄 배너로 보이게 한다. */
+.page .noticePanel {
+  min-height: 0;
+  justify-content: flex-start;
+  text-align: left;
+}
+
 .jobNotice {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 /* 진행 중 작업의 최근 이벤트 한 줄(길면 말줄임) */
@@ -423,12 +470,20 @@
 [data-theme="dark"] .subtitle,
 [data-theme="dark"] .sectionDesc,
 [data-theme="dark"] .zoneDesc,
-[data-theme="dark"] .groupCount,
 [data-theme="dark"] .emptyDesc,
 [data-theme="dark"] .cardDate,
 [data-theme="dark"] .jobEventLine,
 [data-theme="dark"] .archiveChevron {
   color: #A7B6CC;
+}
+
+/* 칩 레시피 하나의 다크 대응(출처·그룹 개수·보관함 개수 공통) */
+[data-theme="dark"] .cardChip,
+[data-theme="dark"] .groupCount,
+[data-theme="dark"] .archiveCount {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #A7B6CC;
+  background: rgba(28, 39, 61, 0.5);
 }
 
 [data-theme="dark"] .zoneHead {
@@ -467,12 +522,6 @@
     0 18px 38px -30px rgba(0, 0, 0, 0.7);
 }
 
-[data-theme="dark"] .cardChip {
-  border-color: rgba(158, 216, 255, 0.26);
-  color: #BFD6F5;
-  background: rgba(158, 216, 255, 0.12);
-}
-
 [data-theme="dark"] .cardSummary,
 [data-theme="dark"] .cardEvidence p {
   color: #C2CFE6;
@@ -499,12 +548,6 @@
 [data-theme="dark"] .archiveHead:hover {
   border-color: rgba(158, 216, 255, 0.34);
   background: rgba(60, 80, 125, 0.4);
-}
-
-[data-theme="dark"] .archiveCount {
-  border-color: rgba(150, 170, 215, 0.2);
-  color: #A7B6CC;
-  background: rgba(28, 39, 61, 0.5);
 }
 
 [data-theme="dark"] .archiveEmpty {

@@ -157,15 +157,20 @@ function settledValue<T>(result: PromiseSettledResult<T>, fallback: T) {
   return result.status === "fulfilled" ? result.value : fallback;
 }
 
-function byteLabel(value: number) {
+// 서버 계약이 어긋나거나 값이 비어 있으면 "NaNKB" 대신 fallback을 노출한다.
+function byteLabel(value: number | null | undefined, fallback = "—") {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
   if (value >= 1024 * 1024 * 1024) return `${(value / (1024 * 1024 * 1024)).toFixed(1)}GB`;
   if (value >= 1024 * 1024) return `${Math.round(value / (1024 * 1024))}MB`;
   return `${Math.round(value / 1024)}KB`;
 }
 
+// 백엔드 StorageUsageResponse 합계 필드는 totalUsedBytes/totalLimitBytes다(usedBytes/limitBytes 아님).
 function storageLabel(t: TranslateFn, storage: StorageUsageResponse | null) {
-  if (!storage) return t("settings.value.beforeCheck");
-  return `${byteLabel(storage.usedBytes)} / ${byteLabel(storage.limitBytes)}`;
+  const beforeCheck = t("settings.value.beforeCheck");
+  if (!storage) return beforeCheck;
+  if (!Number.isFinite(storage.totalUsedBytes) || !Number.isFinite(storage.totalLimitBytes)) return beforeCheck;
+  return `${byteLabel(storage.totalUsedBytes, beforeCheck)} / ${byteLabel(storage.totalLimitBytes, beforeCheck)}`;
 }
 
 function localSqliteDiagnosticsLabel(result: SqliteIntegrityResult) {
