@@ -372,6 +372,14 @@
   transform: translateX(18px);
 }
 
+/* desktopOnly 행 안내 — 웹에서 잠긴 토글 아래 "데스크톱 앱에서 사용하는 기능" 문구. */
+.desktopOnlyNote {
+  margin: 2px 0 0;
+  color: var(--blue-ink);
+  font-size: 13px;
+  font-weight: 660;
+}
+
 .guard,
 .emptyRow {
   margin: 0;
@@ -478,7 +486,8 @@
   background: rgba(70, 110, 165, 0.36);
 }
 
-:global([data-theme="dark"]) .kicker {
+:global([data-theme="dark"]) .kicker,
+:global([data-theme="dark"]) .desktopOnlyNote {
   color: #BFD6F5;
 }
 

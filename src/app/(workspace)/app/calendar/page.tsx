@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Lock,
   Pencil,
   Plus,
   RefreshCw,
@@ -27,7 +28,13 @@ import { useI18n } from "@/lib/i18n";
 import type { Locale, MessageKey, TranslateVars } from "@/lib/i18n";
 import { useActiveProjectRoom } from "@/lib/use-active-project-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewSchedules } from "@/lib/workspace-preview-data";
-import type { GoogleCalendarConnectionResponse, ProjectRoomEventEnvelope, ProjectRoomEventType } from "@/types/api/calendar";
+import type {
+  CalendarEventGroupResponse,
+  GoogleCalendarConnectionResponse,
+  GoogleCalendarListEntry,
+  ProjectRoomEventEnvelope,
+  ProjectRoomEventType,
+} from "@/types/api/calendar";
 import type { ScheduleResponse } from "@/types/api/work";
 
 import styles from "./calendar-page.module.css";
@@ -38,7 +45,23 @@ type PageState =
   | { kind: "auth" }
   | { kind: "offline" };
 
-type CalendarSourceFilter = "all" | "external" | "personal" | "room";
+// 출처 키 — 고정 출처(personal/room/external) 외에 구글 캘린더별 `gcal:<calendarId>` 키를 동적으로 만든다.
+type CalendarSourceKey = string;
+
+// 달력 격자/상세에 그리는 통합 일정 — 로컬 일정(schedule 보유, 수정 가능)과
+// 구글 캘린더 원본 일정(schedule 없음, 읽기 전용)을 한 모양으로 합친다.
+type CalendarDisplayEvent = {
+  allDay: boolean;
+  calendarColor: string | null;
+  endsAt: string | null;
+  key: string;
+  schedule: ScheduleResponse | null;
+  sourceKey: CalendarSourceKey;
+  sourceLabel: string;
+  startsAt: string;
+  title: string;
+};
+
 type GoogleConnectionState =
   | { kind: "connected"; value: GoogleCalendarConnectionResponse }
   | { kind: "disconnected" }
@@ -63,12 +86,15 @@ const dayLabels = [
 // 날짜 레이블은 UI 언어를 따라간다 (대시보드와 같은 BCP 47 태그 매핑).
 const LOCALE_TAGS: Record<Locale, string> = { en: "en-US", ja: "ja-JP", ko: "ko-KR" };
 
-const sourceFilters: Array<{ key: CalendarSourceFilter; labelKey: MessageKey }> = [
-  { key: "all", labelKey: "calendar.source.all" },
-  { key: "personal", labelKey: "calendar.source.personal" },
-  { key: "room", labelKey: "calendar.source.room" },
-  { key: "external", labelKey: "calendar.source.external" },
-];
+const GOOGLE_SOURCE_PREFIX = "gcal:";
+
+function localScheduleSourceKey(event: ScheduleResponse): CalendarSourceKey {
+  if (event.roomId) return "room";
+  if (event.googleEventId || event.syncStatus === "SYNCED") {
+    return event.googleCalendarId ? `${GOOGLE_SOURCE_PREFIX}${event.googleCalendarId}` : "external";
+  }
+  return "personal";
+}
 
 function toDateValue(date: Date) {
   const year = date.getFullYear();
@@ -115,11 +141,20 @@ function formatClockTime(date: Date) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-function formatTime(t: TranslateFn, localeTag: string, event: ScheduleResponse) {
+function formatTime(t: TranslateFn, localeTag: string, event: { allDay: boolean; startsAt: string }) {
   if (event.allDay) return t("calendar.time.allDay");
   const start = new Date(event.startsAt);
   if (Number.isNaN(start.getTime())) return t("calendar.time.undecided");
   return new Intl.DateTimeFormat(localeTag, { hour: "2-digit", minute: "2-digit" }).format(start);
+}
+
+function formatTimeRange(t: TranslateFn, localeTag: string, event: { allDay: boolean; endsAt?: string | null; startsAt: string }) {
+  const startLabel = formatTime(t, localeTag, event);
+  if (event.allDay || !event.endsAt) return startLabel;
+  const end = new Date(event.endsAt);
+  if (Number.isNaN(end.getTime())) return startLabel;
+  const endLabel = new Intl.DateTimeFormat(localeTag, { hour: "2-digit", minute: "2-digit" }).format(end);
+  return `${startLabel} - ${endLabel}`;
 }
 
 function buildPreviewEvents(roomId: string | null) {
@@ -208,7 +243,9 @@ function CalendarPageContent() {
   // 삭제는 결과를 먼저 알리고 확인받는 2단계 확인(프로젝트룸 설정 패널과 동일 패턴)으로 진행한다.
   const [confirmingDeleteEventId, setConfirmingDeleteEventId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
-  const [sourceFilter, setSourceFilter] = useState<CalendarSourceFilter>("all");
+  // 출처 칩은 다중 토글 — 꺼진 출처만 기록한다(기본은 전부 표시).
+  // 브라우저 저장소 영속화는 tauri-boundaries 정책상 허용 목록 밖이라 세션(컴포넌트) 상태로만 유지한다.
+  const [disabledSources, setDisabledSources] = useState<ReadonlySet<CalendarSourceKey>>(() => new Set());
   const [composerOpen, setComposerOpen] = useState(false);
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -218,6 +255,12 @@ function CalendarPageContent() {
   const [syncAction, setSyncAction] = useState<SyncAction | null>(null);
   const [lastSync, setLastSync] = useState<LastSyncSummary | null>(null);
   const [syncMenuOpen, setSyncMenuOpen] = useState(false);
+  // 구글 캘린더 원본 일정(캘린더별 그룹) — 연동이 활성일 때 /api/calendar/groups로 실시간 조회한다.
+  const [googleGroups, setGoogleGroups] = useState<CalendarEventGroupResponse[]>([]);
+  const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarListEntry[]>([]);
+  const [googleEventsLoading, setGoogleEventsLoading] = useState(false);
+  const [googleEventsError, setGoogleEventsError] = useState(false);
+  const [expandedGoogleEventKey, setExpandedGoogleEventKey] = useState<string | null>(null);
   const range = useMemo(() => {
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
@@ -267,6 +310,30 @@ function CalendarPageContent() {
     }
   }, [range, selectedRoomId, t]);
 
+  // 구글 연동이 활성일 때, 보이는 기간(월/주 범위)의 모든 구글 캘린더 일정을 원본 그대로 가져온다.
+  // 수동 동기화(pull) 없이도 격자에 바로 보이게 하는 경로다.
+  const loadGoogleEvents = useCallback(async () => {
+    setGoogleEventsLoading(true);
+    setGoogleEventsError(false);
+
+    // 로컬 일정은 /api/schedules로 이미 받으므로 그룹 API에서는 구글 캘린더 그룹만 필요하다(localLimit 최소화).
+    const [groupsResult, calendarsResult] = await Promise.allSettled([
+      calendarApi.getGroupedEvents({ from: range.start, localLimit: 1, to: range.end }),
+      calendarApi.getGoogleCalendars(),
+    ]);
+
+    if (groupsResult.status === "fulfilled") {
+      setGoogleGroups(groupsResult.value.filter((group) => group.groupType === "GOOGLE_CALENDAR"));
+    } else {
+      setGoogleEventsError(true);
+    }
+    // 캘린더 목록은 칩 색(backgroundColor) 표시에만 쓰므로 실패해도 그룹 표시는 유지한다.
+    if (calendarsResult.status === "fulfilled") {
+      setGoogleCalendars(calendarsResult.value);
+    }
+    setGoogleEventsLoading(false);
+  }, [range]);
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       void loadEvents();
@@ -274,6 +341,23 @@ function CalendarPageContent() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadEvents]);
+
+  useEffect(() => {
+    // 재조회 중(loading)에는 이전 결과를 유지해 화면 깜빡임을 줄인다.
+    if (googleConnection.kind === "loading") return;
+
+    const timeoutId = window.setTimeout(() => {
+      if (googleConnection.kind === "connected") {
+        void loadGoogleEvents();
+        return;
+      }
+      // 연결 해제/오류가 확정되면 구글 원본 일정을 비운다.
+      setGoogleGroups([]);
+      setGoogleEventsError(false);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [googleConnection.kind, loadGoogleEvents]);
 
   useEffect(() => {
     if (!syncMenuOpen) return;
@@ -284,24 +368,97 @@ function CalendarPageContent() {
 
   const events = useMemo(() => (state.kind === "ready" ? state.events : []), [state]);
   const roomEvents = useMemo(() => (state.kind === "ready" ? state.roomEvents : []), [state]);
-  const sourceCounts = useMemo(
-    () => ({
-      all: events.length,
-      external: events.filter((event) => event.googleEventId || event.syncStatus === "SYNCED").length,
-      personal: events.filter((event) => !event.roomId && !event.googleEventId && event.syncStatus !== "SYNCED").length,
-      room: events.filter((event) => event.roomId).length,
-    }),
-    [events],
-  );
+  // 로컬 일정 + 구글 캘린더 원본 일정을 한 목록으로 합친다.
+  // 이미 동기화되어 로컬 일정으로 존재하는 구글 일정(googleEventId 일치)은 로컬 항목만 남겨 이중 표시를 막는다.
+  const displayEvents = useMemo<CalendarDisplayEvent[]>(() => {
+    const localGoogleEventIds = new Set(events.map((event) => event.googleEventId).filter(Boolean));
+    const colorByCalendarId = new Map(googleCalendars.map((calendar) => [calendar.id, calendar.backgroundColor ?? null]));
+
+    const merged: CalendarDisplayEvent[] = events.map((event) => {
+      const sourceKey = localScheduleSourceKey(event);
+      return {
+        allDay: event.allDay,
+        calendarColor: event.googleCalendarId ? colorByCalendarId.get(event.googleCalendarId) ?? null : null,
+        endsAt: event.endsAt ?? null,
+        key: `schedule:${event.id}`,
+        schedule: event,
+        sourceKey,
+        sourceLabel:
+          sourceKey === "room"
+            ? t("calendar.source.room")
+            : sourceKey === "personal"
+              ? t("calendar.source.personal")
+              : event.googleCalendarSummary ?? t("calendar.source.external"),
+        startsAt: event.startsAt,
+        title: event.title,
+      };
+    });
+
+    for (const group of googleGroups) {
+      const calendarId = group.googleCalendarId ?? group.groupId;
+      const calendarColor = colorByCalendarId.get(calendarId) ?? null;
+      for (const event of group.events) {
+        if (event.sourceType !== "GOOGLE") continue;
+        if (event.googleEventId && localGoogleEventIds.has(event.googleEventId)) continue;
+        merged.push({
+          allDay: event.allDay,
+          calendarColor,
+          endsAt: event.endsAt ?? null,
+          key: `google:${calendarId}:${event.googleEventId ?? event.startsAt}`,
+          schedule: null,
+          sourceKey: `${GOOGLE_SOURCE_PREFIX}${calendarId}`,
+          sourceLabel: group.groupName,
+          startsAt: event.startsAt,
+          title: event.title,
+        });
+      }
+    }
+
+    return merged;
+  }, [events, googleCalendars, googleGroups, t]);
+  // 출처 칩 — 고정 3종(전체/개인/프로젝트룸) 뒤에 구글 캘린더별 칩을 데이터 기준으로 만든다.
+  const sourceChips = useMemo(() => {
+    const chips: Array<{ color: string | null; count: number; key: CalendarSourceKey; label: string }> = [
+      { color: null, count: displayEvents.length, key: "all", label: t("calendar.source.all") },
+      { color: null, count: displayEvents.filter((event) => event.sourceKey === "personal").length, key: "personal", label: t("calendar.source.personal") },
+      { color: null, count: displayEvents.filter((event) => event.sourceKey === "room").length, key: "room", label: t("calendar.source.room") },
+    ];
+    const googleChips = new Map<CalendarSourceKey, { color: string | null; count: number; key: CalendarSourceKey; label: string }>();
+    for (const event of displayEvents) {
+      if (event.sourceKey === "personal" || event.sourceKey === "room") continue;
+      const existing = googleChips.get(event.sourceKey);
+      if (existing) {
+        existing.count += 1;
+        if (existing.color === null) existing.color = event.calendarColor;
+      } else {
+        googleChips.set(event.sourceKey, {
+          color: event.calendarColor,
+          count: 1,
+          key: event.sourceKey,
+          label: event.sourceKey === "external" ? t("calendar.source.external") : event.sourceLabel,
+        });
+      }
+    }
+    return [...chips, ...Array.from(googleChips.values()).sort((left, right) => left.label.localeCompare(right.label))];
+  }, [displayEvents, t]);
+  const toggleSource = (key: CalendarSourceKey) => {
+    if (key === "all") {
+      setDisabledSources(new Set());
+      return;
+    }
+    setDisabledSources((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
   const visibleEvents = useMemo(
-    () =>
-      events.filter((event) => {
-        if (sourceFilter === "external") return Boolean(event.googleEventId || event.syncStatus === "SYNCED");
-        if (sourceFilter === "room") return Boolean(event.roomId);
-        if (sourceFilter === "personal") return !event.roomId && !event.googleEventId && event.syncStatus !== "SYNCED";
-        return true;
-      }),
-    [events, sourceFilter],
+    () => displayEvents.filter((event) => !disabledSources.has(event.sourceKey)),
+    [displayEvents, disabledSources],
   );
   const selectedEvents = useMemo(
     () => {
@@ -370,6 +527,7 @@ function CalendarPageContent() {
 
   const selectCalendarDate = (date: Date, hasEvents: boolean) => {
     setSelectedDate(toDateValue(date));
+    setExpandedGoogleEventKey(null);
     setEditingEventId(null);
     setDraftTitle("");
     setDraftStartTime("10:30");
@@ -446,23 +604,30 @@ function CalendarPageContent() {
         return;
       }
 
-      const syncRange = { from: range.start, to: range.end };
+      // 가져오기(pull)는 primary만 도는 백엔드 기본값 대신, 알고 있는 모든 캘린더를 명시해 전체를 동기화한다.
+      const pullRange = {
+        calendarIds: googleCalendars.length > 0 ? googleCalendars.map((calendar) => calendar.id) : undefined,
+        from: range.start,
+        to: range.end,
+      };
+      const pushRange = { from: range.start, to: range.end };
 
       if (action === "sync") {
         // 한 버튼으로 가져오기(구글 → Bubli) 후 보내기(Bubli → 구글)를 순서대로 실행한다.
-        const pulledEvents = await calendarApi.syncGoogleEvents(syncRange);
+        const pulledEvents = await calendarApi.syncGoogleEvents(pullRange);
         mergeSyncedEvents(pulledEvents);
-        const pushedEvents = await calendarApi.pushUnsyncedGoogleEvents(syncRange);
+        const pushedEvents = await calendarApi.pushUnsyncedGoogleEvents(pushRange);
         mergeSyncedEvents(pushedEvents);
         setLastSync({ at: new Date(), pulled: pulledEvents.length, pushed: pushedEvents.length });
         setGoogleNotice(t("calendar.notice.syncDone", { pulled: pulledEvents.length, pushed: pushedEvents.length }));
+        void loadGoogleEvents();
         return;
       }
 
       const syncedEvents =
         action === "pull"
-          ? await calendarApi.syncGoogleEvents(syncRange)
-          : await calendarApi.pushUnsyncedGoogleEvents(syncRange);
+          ? await calendarApi.syncGoogleEvents(pullRange)
+          : await calendarApi.pushUnsyncedGoogleEvents(pushRange);
       mergeSyncedEvents(syncedEvents);
       setLastSync((current) => ({
         at: new Date(),
@@ -474,6 +639,8 @@ function CalendarPageContent() {
           ? t("calendar.notice.pullDone", { count: syncedEvents.length })
           : t("calendar.notice.pushDone", { count: syncedEvents.length }),
       );
+      // 동기화 이후 구글 원본 그룹을 다시 받아 중복 제거·표시 상태를 맞춘다.
+      void loadGoogleEvents();
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setGoogleNotice(t("calendar.notice.loginNeeded"));
@@ -514,23 +681,24 @@ function CalendarPageContent() {
     setDraftNotice(null);
 
     try {
-      const body = {
-        allDay: false,
-        endsAt,
-        roomId: selectedRoomId,
-        startsAt,
-        title,
-      };
       if (editingEventId) {
+        // 백엔드 UpdateScheduleRequest에는 roomId가 없다(수정으로 일정의 소속 룸을 옮기지 않음).
+        const updateBody = { allDay: false, endsAt, startsAt, title };
         const currentEvent = events.find((event) => event.id === editingEventId);
         const shouldSyncGoogle = Boolean(currentEvent?.googleEventId || currentEvent?.syncStatus === "SYNCED");
         const updated = shouldSyncGoogle
-          ? (await calendarApi.updateGoogleCalendarEvent(editingEventId, body)).schedule
-          : await calendarApi.updateEvent(editingEventId, body);
+          ? (await calendarApi.updateGoogleCalendarEvent(editingEventId, updateBody)).schedule
+          : await calendarApi.updateEvent(editingEventId, updateBody);
         updateEventInState(updated);
         setDraftNotice(t("calendar.draft.updated"));
       } else {
-        const created = await calendarApi.createEvent(body);
+        const created = await calendarApi.createEvent({
+          allDay: false,
+          endsAt,
+          roomId: selectedRoomId,
+          startsAt,
+          title,
+        });
         updateEventInState(created);
         setDraftNotice(t("calendar.draft.added"));
       }
@@ -726,22 +894,34 @@ function CalendarPageContent() {
             </div>
 
             <div aria-label={t("calendar.sourceTabs.aria")} className={styles.filterRow}>
-              {sourceFilters.map(({ key, labelKey }) => (
+              {sourceChips.map((chip) => (
                 <button
-                  aria-pressed={sourceFilter === key}
+                  aria-pressed={chip.key === "all" ? disabledSources.size === 0 : !disabledSources.has(chip.key)}
                   className={styles.filterChip}
-                  key={key}
-                  onClick={() => setSourceFilter(key)}
+                  key={chip.key}
+                  onClick={() => toggleSource(chip.key)}
                   type="button"
                 >
-                  <span>{t(labelKey)}</span>
-                  <strong>{sourceCounts[key]}</strong>
+                  {chip.key.startsWith(GOOGLE_SOURCE_PREFIX) || chip.key === "external" ? (
+                    <i aria-hidden="true" className={styles.chipDot} style={chip.color ? { background: chip.color } : undefined} />
+                  ) : null}
+                  <span>{chip.label}</span>
+                  <strong>{chip.count}</strong>
                 </button>
               ))}
             </div>
 
             {googleNotice ? <p className={styles.inlineNotice}>{googleNotice}</p> : null}
             {state.loadWarning ? <p className={styles.loadWarning}>{state.loadWarning}</p> : null}
+            {googleConnected && googleEventsLoading ? <p className={styles.inlineNotice}>{t("calendar.google.eventsLoading")}</p> : null}
+            {googleConnected && !googleEventsLoading && googleEventsError ? (
+              <p className={styles.loadWarning}>
+                {t("calendar.google.eventsError")}
+                <button className={styles.retryButton} onClick={() => void loadGoogleEvents()} type="button">
+                  {t("calendar.google.retry")}
+                </button>
+              </p>
+            ) : null}
 
             <div className={styles.gridWrap}>
               <div aria-hidden="true" className={styles.weekdayRow}>
@@ -785,9 +965,9 @@ function CalendarPageContent() {
                       {count > 0 ? (
                         <ul aria-label={t("calendar.grid.dayEventsAria", { day: date.getDate() })} className={styles.cellEvents}>
                           {dayEvents.slice(0, 3).map((event) => {
-                            const source = event.roomId ? "room" : event.googleEventId || event.syncStatus === "SYNCED" ? "external" : "personal";
+                            const source = event.sourceKey === "room" ? "room" : event.sourceKey === "personal" ? "personal" : "external";
                             return (
-                              <li className={`${styles.eventChip} ${styles[`eventChip_${source}`]}`} key={event.id}>
+                              <li className={`${styles.eventChip} ${styles[`eventChip_${source}`]}`} key={event.key}>
                                 <span>{formatTime(t, localeTag, event)}</span>
                                 <b>{event.title}</b>
                               </li>
@@ -814,44 +994,79 @@ function CalendarPageContent() {
               {selectedEvents.length > 0 ? (
                 <ul className={styles.detailList}>
                   {selectedEvents.map((event) => {
-                    const source = event.roomId
-                      ? t("calendar.source.room")
-                      : event.googleEventId || event.syncStatus === "SYNCED"
-                        ? t("calendar.source.external")
-                        : t("calendar.source.personal");
-                    const confirmingDelete = confirmingDeleteEventId === event.id;
+                    // 구글 캘린더 원본 일정(로컬 schedule 없음)은 읽기 전용 — 클릭하면 상세만 펼친다.
+                    if (!event.schedule) {
+                      const expanded = expandedGoogleEventKey === event.key;
+                      return (
+                        <li key={event.key}>
+                          <button
+                            aria-expanded={expanded}
+                            className={styles.detailRow}
+                            onClick={() => setExpandedGoogleEventKey(expanded ? null : event.key)}
+                            type="button"
+                          >
+                            <span className={styles.detailTime}>{formatTime(t, localeTag, event)}</span>
+                            <strong className={styles.detailTitle}>{event.title}</strong>
+                            <small className={styles.detailSource}>
+                              <i aria-hidden="true" className={styles.chipDot} style={event.calendarColor ? { background: event.calendarColor } : undefined} />
+                              {event.sourceLabel}
+                            </small>
+                          </button>
+                          <span aria-label={t("calendar.google.readOnlyBadge")} className={styles.detailLock} role="img" title={t("calendar.google.readOnlyBadge")}>
+                            <Lock size={14} strokeWidth={2.1} />
+                          </span>
+                          {expanded ? (
+                            <div className={styles.readOnlyDetail} role="note">
+                              <strong>{event.title}</strong>
+                              <p>
+                                {formatTimeRange(t, localeTag, event)} · {event.sourceLabel}
+                              </p>
+                              <p>{t("calendar.google.readOnly")}</p>
+                            </div>
+                          ) : null}
+                        </li>
+                      );
+                    }
+
+                    const schedule = event.schedule;
+                    const confirmingDelete = confirmingDeleteEventId === schedule.id;
 
                     return (
-                      <li key={event.id}>
-                        <button className={styles.detailRow} onClick={() => openEditComposer(event)} type="button">
+                      <li key={event.key}>
+                        <button className={styles.detailRow} onClick={() => openEditComposer(schedule)} type="button">
                           <span className={styles.detailTime}>{formatTime(t, localeTag, event)}</span>
                           <strong className={styles.detailTitle}>{event.title}</strong>
-                          <small className={styles.detailSource}>{source}</small>
+                          <small className={styles.detailSource}>
+                            {event.sourceKey.startsWith(GOOGLE_SOURCE_PREFIX) || event.sourceKey === "external" ? (
+                              <i aria-hidden="true" className={styles.chipDot} style={event.calendarColor ? { background: event.calendarColor } : undefined} />
+                            ) : null}
+                            {event.sourceLabel}
+                          </small>
                         </button>
                         <button
                           aria-expanded={confirmingDelete}
-                          aria-label={t("calendar.selected.deleteAria", { title: event.title })}
+                          aria-label={t("calendar.selected.deleteAria", { title: schedule.title })}
                           className={styles.detailDelete}
-                          disabled={deletingEventId === event.id}
-                          onClick={() => setConfirmingDeleteEventId(confirmingDelete ? null : event.id)}
+                          disabled={deletingEventId === schedule.id}
+                          onClick={() => setConfirmingDeleteEventId(confirmingDelete ? null : schedule.id)}
                           type="button"
                         >
                           <Trash2 size={15} strokeWidth={2.1} />
                         </button>
                         {confirmingDelete ? (
-                          <div aria-label={t("calendar.selected.deleteAria", { title: event.title })} className={styles.deleteConfirm} role="alertdialog">
-                            <p>{t("calendar.delete.confirmBody", { title: event.title })}</p>
+                          <div aria-label={t("calendar.selected.deleteAria", { title: schedule.title })} className={styles.deleteConfirm} role="alertdialog">
+                            <p>{t("calendar.delete.confirmBody", { title: schedule.title })}</p>
                             <div className={styles.deleteConfirmActions}>
                               <Button
-                                loading={deletingEventId === event.id}
-                                onClick={() => void handleDeleteEvent(event)}
+                                loading={deletingEventId === schedule.id}
+                                onClick={() => void handleDeleteEvent(schedule)}
                                 size="sm"
                                 variant="primary"
                               >
                                 {t("calendar.delete.confirmDelete")}
                               </Button>
                               <Button
-                                disabled={deletingEventId === event.id}
+                                disabled={deletingEventId === schedule.id}
                                 onClick={() => setConfirmingDeleteEventId(null)}
                                 size="sm"
                                 variant="quiet"

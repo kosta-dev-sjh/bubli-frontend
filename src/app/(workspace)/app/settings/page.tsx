@@ -125,11 +125,20 @@ const widgetBubbleLabels: Record<WidgetBubbleType, MessageKey> = {
   TODO: "settings.bubbleType.TODO",
 };
 
-const notificationRows: Array<{
+// 웹/데스크톱 분리 규칙:
+// - Tauri 데스크톱 앱에서만 "동작"하는 행은 `desktopOnly: true`로 표시한다.
+//   웹에서는 해당 행의 컨트롤을 비활성화하고 "데스크톱 앱에서 사용하는 기능" 안내를 덧붙인다(죽은 토글 금지).
+// - 데스크톱 전용 섹션(모니터, 위젯 버블, 관리 폴더, 로컬 백업)은 desktop 탭에만 두고,
+//   desktop 탭의 컨트롤은 isTauriRuntime()에서만 렌더링한다. 웹의 desktop 탭은 안내 + 다운로드 링크만 보여준다.
+// 새 설정 행을 추가할 때 데스크톱 전용이면 이 플래그만 붙이면 웹 처리가 자동으로 적용된다.
+type ToggleRowConfig<TKey extends string> = {
   descriptionKey: MessageKey;
-  key: keyof NotificationPreferencesResponse;
+  desktopOnly?: boolean;
+  key: TKey;
   titleKey: MessageKey;
-}> = [
+};
+
+const notificationRows: Array<ToggleRowConfig<keyof NotificationPreferencesResponse>> = [
   { key: "messageEnabled", titleKey: "settings.notif.message.title", descriptionKey: "settings.notif.message.desc" },
   { key: "commentEnabled", titleKey: "settings.notif.comment.title", descriptionKey: "settings.notif.comment.desc" },
   { key: "resourceVersionEnabled", titleKey: "settings.notif.resource.title", descriptionKey: "settings.notif.resource.desc" },
@@ -137,13 +146,12 @@ const notificationRows: Array<{
   { key: "capacityEnabled", titleKey: "settings.notif.capacity.title", descriptionKey: "settings.notif.capacity.desc" },
 ];
 
-const privacyRows: Array<{
-  descriptionKey: MessageKey;
-  key: keyof PrivacyConsentsResponse;
-  titleKey: MessageKey;
-}> = [
-  { key: "localFolderEnabled", titleKey: "settings.privacy.folder.title", descriptionKey: "settings.privacy.folder.desc" },
-  { key: "activityDetectionEnabled", titleKey: "settings.privacy.activity.title", descriptionKey: "settings.privacy.activity.desc" },
+// 두 동의 모두 데스크톱 전용 동작만 제어한다 — activity-auto-capture/managed-folder-auto-sync는
+// isTauriRuntime()이 아니면 시작조차 하지 않는다. 동의 상태는 서버 계정 설정이라 웹에서도 보여주되,
+// desktopOnly로 표시해 웹에서는 토글을 잠그고 안내만 노출한다.
+const privacyRows: Array<ToggleRowConfig<keyof PrivacyConsentsResponse>> = [
+  { key: "localFolderEnabled", titleKey: "settings.privacy.folder.title", descriptionKey: "settings.privacy.folder.desc", desktopOnly: true },
+  { key: "activityDetectionEnabled", titleKey: "settings.privacy.activity.title", descriptionKey: "settings.privacy.activity.desc", desktopOnly: true },
 ];
 
 const localeOptions = [
@@ -290,8 +298,7 @@ export default function SettingsPage() {
     const applyHash = () => {
       const parsed = parseSectionHash(window.location.hash);
       if (!parsed) return;
-      // 데스크톱 섹션은 Tauri 런타임에서만 유효한 딥링크다.
-      if (parsed === "desktop" && !isTauriRuntime()) return;
+      // 데스크톱 탭은 웹에서도 존재한다(안내 패널) — 해시 딥링크를 그대로 허용한다.
       setActiveSection(parsed);
     };
 
@@ -329,9 +336,9 @@ export default function SettingsPage() {
         settingsApi.getNotificationPreferences(),
         settingsApi.getPrivacyConsents(),
         settingsApi.getStorageUsage(),
-        // 위젯 버블 설정은 데스크톱 앱 전용 — 웹에서는 조회하지 않는다.
+        // 위젯 버블/관리 폴더는 데스크톱 앱 전용 — 웹 load()에서는 Tauri 경로를 아예 타지 않는다.
         isTauriRuntime() ? widgetApi.getBubbles() : Promise.resolve(null),
-        listPersonalManagedFolders(),
+        isTauriRuntime() ? listPersonalManagedFolders() : Promise.resolve(null),
         calendarApi.getGoogleConnection(),
         settingsApi.getPreferences(),
         projectRoomApi.list(),
@@ -867,7 +874,8 @@ export default function SettingsPage() {
     { id: "notifications", labelKey: "settings.nav.notifications" },
     { id: "integrations", labelKey: "settings.nav.integrations" },
     { id: "privacy", labelKey: "settings.nav.privacy" },
-    ...(desktopRuntime ? [{ id: "desktop", labelKey: "settings.nav.desktop" } satisfies NavItem] : []),
+    // 데스크톱 탭은 웹에서도 항상 노출한다 — 웹에서는 컨트롤 없이 안내 + 다운로드 링크만 렌더링한다.
+    { id: "desktop", labelKey: "settings.nav.desktop" },
   ];
 
   // 탭 리스트 키보드 이동 — 세로 내비(↑/↓)와 모바일 가로 칩(←/→)을 모두 지원한다.
@@ -1171,25 +1179,30 @@ export default function SettingsPage() {
               <h2>{t("settings.nav.notifications")}</h2>
               <p className={styles.sectionDesc}>{t("settings.notif.sectionDesc")}</p>
               <div className={styles.rows}>
-                {notificationRows.map((row) => (
-                  <div className={styles.row} key={row.key}>
-                    <div className={styles.rowText}>
-                      <strong>{t(row.titleKey)}</strong>
-                      <p>{t(row.descriptionKey)}</p>
+                {notificationRows.map((row) => {
+                  // desktopOnly 행이 추가되면 privacy 탭과 동일하게 웹에서 잠그고 안내를 붙인다.
+                  const webLocked = Boolean(row.desktopOnly) && !desktopRuntime;
+                  return (
+                    <div className={styles.row} key={row.key}>
+                      <div className={styles.rowText}>
+                        <strong>{t(row.titleKey)}</strong>
+                        <p>{t(row.descriptionKey)}</p>
+                        {webLocked ? <p className={styles.desktopOnlyNote}>{t("settings.row.desktopOnlyNote")}</p> : null}
+                      </div>
+                      <button
+                        aria-checked={notificationSettings[row.key]}
+                        aria-label={t(row.titleKey)}
+                        className={`${styles.toggle}${notificationSettings[row.key] ? ` ${styles.toggleOn}` : ""}`}
+                        disabled={!ready || !readySettings.notifications || webLocked}
+                        onClick={() => void toggleNotification(row.key)}
+                        role="switch"
+                        type="button"
+                      >
+                        <span />
+                      </button>
                     </div>
-                    <button
-                      aria-checked={notificationSettings[row.key]}
-                      aria-label={t(row.titleKey)}
-                      className={`${styles.toggle}${notificationSettings[row.key] ? ` ${styles.toggleOn}` : ""}`}
-                      disabled={!ready || !readySettings.notifications}
-                      onClick={() => void toggleNotification(row.key)}
-                      role="switch"
-                      type="button"
-                    >
-                      <span />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </GlassPanel>
             ) : null}
@@ -1252,28 +1265,51 @@ export default function SettingsPage() {
               <h2>{t("settings.nav.privacy")}</h2>
               <p className={styles.sectionDesc}>{t("settings.privacy.desc")}</p>
               <div className={styles.rows}>
-                {privacyRows.map((row) => (
-                  <div className={styles.row} key={row.key}>
-                    <div className={styles.rowText}>
-                      <strong>{t(row.titleKey)}</strong>
-                      <p>{t(row.descriptionKey)}</p>
+                {privacyRows.map((row) => {
+                  // desktopOnly 행은 웹에서 상태만 보여주고 조작은 데스크톱 앱으로 안내한다.
+                  const webLocked = Boolean(row.desktopOnly) && !desktopRuntime;
+                  return (
+                    <div className={styles.row} key={row.key}>
+                      <div className={styles.rowText}>
+                        <strong>{t(row.titleKey)}</strong>
+                        <p>{t(row.descriptionKey)}</p>
+                        {webLocked ? <p className={styles.desktopOnlyNote}>{t("settings.row.desktopOnlyNote")}</p> : null}
+                      </div>
+                      <button
+                        aria-checked={privacySettings[row.key]}
+                        aria-label={t(row.titleKey)}
+                        className={`${styles.toggle}${privacySettings[row.key] ? ` ${styles.toggleOn}` : ""}`}
+                        disabled={!ready || !readySettings.privacy || webLocked}
+                        onClick={() => void togglePrivacy(row.key)}
+                        role="switch"
+                        type="button"
+                      >
+                        <span />
+                      </button>
                     </div>
-                    <button
-                      aria-checked={privacySettings[row.key]}
-                      aria-label={t(row.titleKey)}
-                      className={`${styles.toggle}${privacySettings[row.key] ? ` ${styles.toggleOn}` : ""}`}
-                      disabled={!ready || !readySettings.privacy}
-                      onClick={() => void togglePrivacy(row.key)}
-                      role="switch"
-                      type="button"
-                    >
-                      <span />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <p className={styles.guard}>{t("settings.privacy.guard")}</p>
             </GlassPanel>
+            ) : null}
+
+            {/* 웹의 데스크톱 탭 — 데스크톱 전용 컨트롤은 렌더링하지 않고(죽은 토글 금지) 안내와 다운로드 링크만 보여준다. */}
+            {activeSection === "desktop" && !desktopRuntime ? (
+              <GlassPanel
+                aria-labelledby="settings-tab-desktop"
+                className={styles.section}
+                id="settings-panel-desktop"
+                role="tabpanel"
+              >
+                <h2>{t("settings.nav.desktop")}</h2>
+                <p className={styles.sectionDesc}>{t("settings.desktop.webBody")}</p>
+                <div className={styles.sectionFoot}>
+                  <Link className="bubli-button bubli-button--primary" href="/download">
+                    {t("settings.desktop.webDownloadCta")}
+                  </Link>
+                </div>
+              </GlassPanel>
             ) : null}
 
             {activeSection === "desktop" && desktopRuntime ? (

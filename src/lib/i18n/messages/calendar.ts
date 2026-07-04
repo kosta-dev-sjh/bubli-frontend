@@ -51,6 +51,11 @@ const ko = {
   "calendar.google.pullOnly": "가져오기만 (구글 → Bubli)",
   "calendar.google.pushOnly": "보내기만 (Bubli → 구글)",
   "calendar.google.disconnect": "연결 해제",
+  "calendar.google.eventsLoading": "구글 캘린더 일정을 불러오는 중",
+  "calendar.google.eventsError": "구글 캘린더 일정을 불러오지 못했습니다.",
+  "calendar.google.retry": "다시 시도",
+  "calendar.google.readOnlyBadge": "읽기 전용",
+  "calendar.google.readOnly": "구글 캘린더 원본 일정은 여기서 수정할 수 없습니다. 구글 캘린더에서 바꾸면 이 화면에도 반영됩니다.",
 
   // 알림
   "calendar.notice.disconnected": "구글 캘린더 연결을 해제했습니다.",
@@ -270,6 +275,11 @@ const en: Record<Key, string> = {
   "calendar.google.pullOnly": "Pull only (Google → Bubli)",
   "calendar.google.pushOnly": "Push only (Bubli → Google)",
   "calendar.google.disconnect": "Disconnect",
+  "calendar.google.eventsLoading": "Loading Google Calendar events",
+  "calendar.google.eventsError": "Couldn't load Google Calendar events.",
+  "calendar.google.retry": "Try again",
+  "calendar.google.readOnlyBadge": "Read-only",
+  "calendar.google.readOnly": "Google Calendar source events can't be edited here. Changes made in Google Calendar are reflected on this screen.",
 
   "calendar.notice.disconnected": "Disconnected from Google Calendar.",
   "calendar.notice.syncDone": "Sync complete · pulled {pulled} / sent {pushed}",
@@ -476,6 +486,11 @@ const ja: Record<Key, string> = {
   "calendar.google.pullOnly": "取り込みのみ（Google → Bubli）",
   "calendar.google.pushOnly": "送信のみ（Bubli → Google）",
   "calendar.google.disconnect": "連携を解除",
+  "calendar.google.eventsLoading": "Google カレンダーの予定を読み込み中",
+  "calendar.google.eventsError": "Google カレンダーの予定を読み込めませんでした。",
+  "calendar.google.retry": "再試行",
+  "calendar.google.readOnlyBadge": "読み取り専用",
+  "calendar.google.readOnly": "Google カレンダー原本の予定はここでは編集できません。Google カレンダーで変更するとこの画面にも反映されます。",
 
   "calendar.notice.disconnected": "Google カレンダーの連携を解除しました。",
   "calendar.notice.syncDone": "同期完了 · 取り込み {pulled}件 / 送信 {pushed}件",
