@@ -16,6 +16,7 @@ import {
 import { siteConfig } from "@/config/site";
 import { authApi } from "@/features/auth/api/authApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
+import { FirstRunController } from "@/features/onboarding";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
@@ -510,7 +511,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="bubli-app-layout">
-      <aside className="bubli-sidebar">
+      <aside className="bubli-sidebar" data-tour="sidebar">
         <Link className="bubli-brand" href="/app">
           {siteConfig.name}
         </Link>
@@ -659,6 +660,8 @@ export function AppShell({ children }: AppShellProps) {
             children
           )}
         </div>
+        {/* 첫 사용 경험(직군 온보딩 + 튜토리얼) — 인증 완료 후에만, 홈 위 오버레이로 렌더한다. */}
+        {state.kind === "ready" ? <FirstRunController user={state.user} /> : null}
       </main>
     </div>
   );

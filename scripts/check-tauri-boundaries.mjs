@@ -13,6 +13,7 @@ const ALLOWED_INVOKE_FILES = new Set(["src/lib/tauri/ipc.ts"]);
 const ALLOWED_LOCALSTORAGE_FILES = new Set([
   "src/components/theme/theme-provider.tsx",
   "src/features/dashboard/lib/board-storage.ts",
+  "src/features/onboarding/lib/onboarding-storage.ts",
   "src/lib/auth/auth-session.ts",
   "src/lib/i18n/locale.ts",
 ]);

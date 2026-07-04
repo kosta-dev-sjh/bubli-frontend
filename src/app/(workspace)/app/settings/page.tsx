@@ -13,6 +13,7 @@ import { activityApi } from "@/features/activity/api/activityApi";
 import { ActivityDetectionPanel } from "@/features/activity/components";
 import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
+import { OPEN_TUTORIAL_EVENT } from "@/features/onboarding";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { LocalBackupRecoveryPanel, LocalSyncOutboxPanel, TauriSyncStatusPanel } from "@/features/settings/components";
@@ -1470,6 +1471,24 @@ export default function SettingsPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+                <div className={styles.row}>
+                  <div className={styles.rowText}>
+                    <strong>{t("onboarding.settings.replayTitle")}</strong>
+                    <p>{t("onboarding.settings.replayDesc")}</p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      // 홈에서 시작해야 카드 편집 단계까지 볼 수 있다. AppShell의 컨트롤러가 이벤트를 받는다.
+                      router.push("/app");
+                      window.dispatchEvent(new Event(OPEN_TUTORIAL_EVENT));
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    {t("onboarding.settings.replayCta")}
+                  </Button>
                 </div>
               </div>
             </GlassPanel>
