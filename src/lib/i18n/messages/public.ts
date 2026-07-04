@@ -47,7 +47,7 @@ const ko = {
   "public.home.desktopChip": "데스크탑 앱",
   "public.home.desktopTitle": "작업 중에도, 화면 위에 가볍게",
   "public.home.desktopBody":
-    "Bubli 데스크탑 앱은 웹에서 쓰던 작업 화면을 그대로 띄우고, 바탕화면 위에 오늘 할 일, 일정, 타이머, 자료 제안을 버블로 남깁니다. 화면을 전환하지 않아도 필요한 정보만 맑게 떠 있습니다.",
+    "Bubli 데스크탑 앱은 웹에서 쓰던 작업 화면을 그대로 띄우고, 바탕화면 위에 오늘 할 일, 일정, 타이머, 자료 제안을 버블로 남깁니다. 화면을 전환하지 않아도 필요한 정보만 맑게 떠 있습니다.",
   "public.home.desktopList1": "바탕화면 버블 (기본, 반투명, 고스트, 최소화)",
   "public.home.desktopList2": "개인 관리 폴더 감지와 빠른 로컬 캐시",
   "public.home.desktopList3": "개인 데이터는 로컬에, 원본은 서버 기준",

@@ -10013,10 +10013,10 @@ html {
   color: var(--color-muted);
   font-size: 16px;
   line-height: 1.7;
-  /* 한국어는 단어 중간에서 꺾지 않고(keep-all) 자연스럽게 줄바꿈되게 한다. */
+  /* 한국어는 단어 중간에서 꺾지 않고(keep-all) 줄 길이를 고르게(balance) 나눈다. */
   word-break: keep-all;
   overflow-wrap: break-word;
-  text-wrap: pretty;
+  text-wrap: balance;
 }
 .landing-desktop__list {
   list-style: none;
