@@ -9,6 +9,8 @@ import { ThemeToggle } from "@/components/theme";
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { activityApi } from "@/features/activity/api/activityApi";
+import { ActivityDetectionPanel } from "@/features/activity/components";
 import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
@@ -18,6 +20,7 @@ import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { Locale, MessageKey, TranslateVars } from "@/lib/i18n";
 import { notifyActivityConsentChanged } from "@/lib/local/activity-auto-capture";
+import { recordCurrentActivityContext } from "@/lib/local/activity-client";
 import { notifyManagedFolderConsentChanged } from "@/lib/local/managed-folder-auto-sync";
 import {
   backupLocalSqlite,
@@ -27,24 +30,30 @@ import {
 } from "@/lib/local/local-cache-client";
 import {
   getPersonalLocalFileAnalysisStatus,
+  getPersonalManagedFolderIndexProgress,
   listPersonalManagedFolders,
   removePersonalManagedFolder,
+  scanPersonalManagedFolder,
   selectPersonalManagedFolder,
   setPersonalManagedFolderSync,
   syncPersonalLocalFileEventsToServer,
+  watchPersonalManagedFolder,
 } from "@/lib/local/managed-folder-client";
+import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
   tauriCommands,
   type AppMonitorInfo,
   type AppMonitorPreference,
   type LocalFileAnalysisStatusResult,
+  type ManagedFolderIndexProgressResult,
   type SqliteIntegrityResult,
   type WidgetWindowMode,
 } from "@/lib/tauri/commands";
 import { toLocalWidgetBubbleType } from "@/lib/widget/widget-types";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
+import type { ActivityLogResponse } from "@/types/api/activity";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationPreferencesResponse, NotificationPreferencesUpdateRequest } from "@/types/api/notification";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
@@ -62,6 +71,7 @@ import type { LocalAdapterResult } from "@/types/local";
 import styles from "./settings-page.module.css";
 
 type SettingsData = {
+  activityLogs: ActivityLogResponse[] | null;
   folders: ManagedFolderResponse[];
   googleCalendarConnectUrl: string | null;
   googleCalendarConnected: boolean;
@@ -95,6 +105,7 @@ const defaultPrivacy: PrivacyConsentsResponse = {
 };
 
 const emptySettings: SettingsData = {
+  activityLogs: null,
   folders: [],
   googleCalendarConnectUrl: null,
   googleCalendarConnected: false,
@@ -287,6 +298,11 @@ export default function SettingsPage() {
   const [backupListLabel, setBackupListLabel] = useState<string | null>(null);
   const [desktopRuntime, setDesktopRuntime] = useState(false);
   const [monitorPreference, setMonitorPreference] = useState<AppMonitorPreference | null>(null);
+  // dev PR 212 이식: 활동 감지 패널의 삭제/기록/새로고침 진행 상태.
+  const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
+  const [activityAction, setActivityAction] = useState<"record" | "refresh" | null>(null);
+  // dev 이식: 관리 폴더별 인덱싱 진행률 캐시(로컬 폴더 감시 진행률).
+  const [folderProgress, setFolderProgress] = useState<Record<string, ManagedFolderIndexProgressResult>>({});
   const [copiedBubliId, setCopiedBubliId] = useState(false);
   const [withdrawConfirming, setWithdrawConfirming] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
@@ -332,10 +348,12 @@ export default function SettingsPage() {
 
     try {
       const user = await authApi.getMe();
-      const [notifications, privacy, storage, widgetBubbles, localFolders, googleConnection, preferences, roomPage] = await Promise.allSettled([
+      const [notifications, privacy, storage, activityLogs, widgetBubbles, localFolders, googleConnection, preferences, roomPage] = await Promise.allSettled([
         settingsApi.getNotificationPreferences(),
         settingsApi.getPrivacyConsents(),
         settingsApi.getStorageUsage(),
+        // 오늘 활동 기록은 서버 데이터라 웹에서도 조회한다(dev PR 212 이식).
+        activityApi.getToday(),
         // 위젯 버블/관리 폴더는 데스크톱 앱 전용 — 웹 load()에서는 Tauri 경로를 아예 타지 않는다.
         isTauriRuntime() ? widgetApi.getBubbles() : Promise.resolve(null),
         isTauriRuntime() ? listPersonalManagedFolders() : Promise.resolve(null),
@@ -350,6 +368,7 @@ export default function SettingsPage() {
       setState({
         kind: "ready",
         settings: {
+          activityLogs: settledValue(activityLogs, null),
           folders:
             folderResult?.status === "ready"
               ? folderResult.data.folders.map(localManagedFolderToSettingsFolder)
@@ -716,6 +735,30 @@ export default function SettingsPage() {
     void restoreManagedFolderWatchers();
   }, [restoreManagedFolderWatchers, state, t, updateReadyState]);
 
+  // dev 이식(로컬 폴더 감시 진행률): 폴더별 인덱싱 진행률을 조회해 행 옆에 표기한다.
+  const refreshManagedFolderProgress = useCallback(async (localFolderId: string, options?: { quiet?: boolean }) => {
+    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+    const result = await getPersonalManagedFolderIndexProgress({ consentGranted, localFolderId });
+    if (result.status === "ready") {
+      setFolderProgress((current) => ({ ...current, [localFolderId]: result.data }));
+      if (!options?.quiet) {
+        setMessage({
+          text: t("settings.msg.indexProgress", {
+            indexed: result.data.indexedFiles,
+            total: result.data.totalFiles,
+            pending: result.data.pendingEventCount,
+          }),
+          tone: "approved",
+        });
+      }
+      return;
+    }
+
+    if (!options?.quiet) {
+      setMessage({ text: localResultMessage(t, result), tone: "warning" });
+    }
+  }, [state, t]);
+
   const toggleManagedFolderSync = useCallback(
     async (folder: ManagedFolderResponse) => {
       const result = await setPersonalManagedFolderSync({
@@ -751,8 +794,9 @@ export default function SettingsPage() {
       if (result.data.syncEnabled) {
         void restoreManagedFolderWatchers();
       }
+      void refreshManagedFolderProgress(folder.id);
     },
-    [restoreManagedFolderWatchers, state, t, updateReadyState],
+    [refreshManagedFolderProgress, restoreManagedFolderWatchers, state, t, updateReadyState],
   );
 
   const removeManagedFolder = useCallback(
@@ -771,9 +815,188 @@ export default function SettingsPage() {
           folders: ready.settings.folders.filter((item) => item.id !== folder.id),
         },
       }));
+      setFolderProgress((current) => {
+        const next = { ...current };
+        delete next[folder.id];
+        return next;
+      });
       setMessage({ text: t("settings.msg.folderRemoved"), tone: "approved" });
     },
     [state, t, updateReadyState],
+  );
+
+  // dev PR 213 이식: 관리 폴더별(또는 전체) 스캔 — 완료 후 진행률을 조용히 갱신한다.
+  const scanManagedFolder = useCallback(async (localFolderId?: string) => {
+    const folders = state.kind === "ready" ? state.settings.folders : [];
+    const targetFolders = localFolderId ? folders.filter((folder) => folder.id === localFolderId) : folders;
+    if (targetFolders.length === 0) {
+      setMessage({ text: t("settings.msg.selectFolderFirst"), tone: "warning" });
+      return;
+    }
+
+    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+    const results = await Promise.all(
+      targetFolders.map((folder) => scanPersonalManagedFolder({ consentGranted, localFolderId: folder.id })),
+    );
+    const readyResults = results.filter((result): result is Extract<typeof result, { status: "ready" }> => result.status === "ready");
+    for (const folder of targetFolders) {
+      void refreshManagedFolderProgress(folder.id, { quiet: true });
+    }
+    const firstFailed = results.find((result) => result.status !== "ready");
+
+    setMessage(
+      firstFailed
+        ? { text: localResultMessage(t, firstFailed), tone: "warning" }
+        : {
+            text: t("settings.msg.folderChanges", {
+              count: readyResults.reduce((total, result) => total + result.data.changedCount, 0),
+            }),
+            tone: "approved",
+          },
+    );
+  }, [refreshManagedFolderProgress, state, t]);
+
+  // dev PR 213 이식: 폴더별 감시 시작 — 인자가 없으면 전체 감시 복원으로 동작한다.
+  const watchManagedFolder = useCallback(async (localFolderId?: string) => {
+    const folders = state.kind === "ready" ? state.settings.folders : [];
+    const targetFolder = localFolderId ? folders.find((folder) => folder.id === localFolderId) : folders[0];
+    if (folders.length === 0 || (localFolderId && !targetFolder)) {
+      setMessage({ text: t("settings.msg.selectFolderFirst"), tone: "warning" });
+      return;
+    }
+
+    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
+    if (!consentGranted) {
+      const result = await watchPersonalManagedFolder({ consentGranted, localFolderId: targetFolder?.id ?? folders[0].id });
+      setMessage({ text: localResultMessage(t, result), tone: "warning" });
+      return;
+    }
+
+    if (localFolderId) {
+      const result = await watchPersonalManagedFolder({ consentGranted, localFolderId });
+      if (result.status === "ready") {
+        void refreshManagedFolderProgress(localFolderId, { quiet: true });
+      }
+      setMessage({
+        text: result.status === "ready" ? t("settings.msg.watchOn") : localResultMessage(t, result),
+        tone: result.status === "ready" ? "approved" : "warning",
+      });
+      return;
+    }
+
+    const restored = await restoreManagedFolderWatchers();
+    setMessage(
+      restored
+        ? { text: t("settings.msg.watchOn"), tone: "approved" }
+        : { text: t("settings.msg.availableInApp"), tone: "warning" },
+    );
+  }, [refreshManagedFolderProgress, restoreManagedFolderWatchers, state, t]);
+
+  // dev 이식: 폴더 감시 이벤트 → 변경 알림 + 진행률 즉시 갱신.
+  // (설정에서 로컬 파일 검색 UI는 제거했으므로 검색 재조회 분기는 이식하지 않는다.)
+  useEffect(() => {
+    if (!desktopRuntime) return;
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    void listenManagedFolderWatchEvents((event) => {
+      if (disposed) return;
+
+      setMessage({ text: t("settings.msg.folderWatchDetected", { count: event.changedCount }), tone: "approved" });
+      void refreshManagedFolderProgress(event.localFolderId, { quiet: true });
+    })
+      .then((cleanup) => {
+        if (disposed) {
+          cleanup();
+          return;
+        }
+        unlisten = cleanup;
+      })
+      .catch(() => undefined);
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [desktopRuntime, refreshManagedFolderProgress, t]);
+
+  // dev PR 212 이식: 현재 앱/창 컨텍스트를 즉시 기록한다(데스크톱 전용 — 웹에서는 버튼이 비활성).
+  const readActivity = useCallback(async () => {
+    const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
+    setActivityAction("record");
+    try {
+      const result = await recordCurrentActivityContext({ consentGranted });
+      if (result.status === "ready") {
+        updateReadyState((ready) => ({
+          ...ready,
+          settings: { ...ready.settings, activityLogs: result.data.todayActivities },
+        }));
+        setMessage({
+          text: result.data.windowTitle
+            ? t("settings.msg.activityDetectedWindow", { app: result.data.appName, window: result.data.windowTitle })
+            : t("settings.msg.activityDetected", { app: result.data.appName }),
+          tone: "approved",
+        });
+        return;
+      }
+
+      setMessage({ text: localResultMessage(t, result), tone: "warning" });
+    } finally {
+      setActivityAction(null);
+    }
+  }, [state, t, updateReadyState]);
+
+  // dev PR 212 이식: 오늘 활동 기록 새로고침 — 서버 데이터라 웹에서도 동작한다.
+  const refreshActivityLogs = useCallback(async () => {
+    if (state.kind !== "ready") return;
+
+    setActivityAction("refresh");
+    try {
+      const activityLogs = await activityApi.getToday();
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: { ...ready.settings, activityLogs },
+      }));
+      setMessage({ text: t("settings.msg.todayActivityLoaded", { count: activityLogs.length }), tone: "approved" });
+    } catch {
+      setMessage({ text: t("settings.msg.activityLoadFailed"), tone: "warning" });
+    } finally {
+      setActivityAction(null);
+    }
+  }, [state.kind, t, updateReadyState]);
+
+  // dev PR 212 이식: 활동 기록 삭제 — 낙관적으로 지우고 실패 시 서버 상태로 되돌린다.
+  const deleteActivityLog = useCallback(
+    async (activityLogId: string) => {
+      if (state.kind !== "ready") return;
+
+      setDeletingActivityId(activityLogId);
+      updateReadyState((ready) => ({
+        ...ready,
+        settings: {
+          ...ready.settings,
+          activityLogs: ready.settings.activityLogs?.filter((activity) => activity.id !== activityLogId) ?? null,
+        },
+      }));
+
+      try {
+        await activityApi.delete(activityLogId);
+        setMessage({ text: t("settings.msg.activityDeleted"), tone: "approved" });
+      } catch {
+        const activityLogs = await activityApi.getToday().catch(() => null);
+        if (activityLogs) {
+          updateReadyState((ready) => ({
+            ...ready,
+            settings: { ...ready.settings, activityLogs },
+          }));
+        }
+        setMessage({ text: t("settings.msg.activityDeleteFailed"), tone: "warning" });
+      } finally {
+        setDeletingActivityId(null);
+      }
+    },
+    [state.kind, t, updateReadyState],
   );
 
   const selectAppMonitor = useCallback(
@@ -833,13 +1056,26 @@ export default function SettingsPage() {
     );
   }, [lastBackupId, t]);
 
-  const checkSyncOutbox = useCallback(async () => {
-    // dev PR 191/185 이식: 특정 폴더가 아닌 전체 아웃박스를 동기화하고, 분석 상태를 함께 표기한다.
+  const checkSyncOutbox = useCallback(async (localFolderId?: string) => {
+    // dev PR 191/185 이식 + PR 213: 폴더 인자가 있으면 해당 폴더만, 없으면 전체 아웃박스를 동기화하고
+    // 분석 상태를 함께 표기한다. 성공 시 관련 폴더 진행률을 조용히 갱신한다.
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
-    const result = await syncPersonalLocalFileEventsToServer({ consentGranted });
+    const result = await syncPersonalLocalFileEventsToServer(
+      localFolderId ? { consentGranted, localFolderId } : { consentGranted },
+    );
     if (result.status !== "ready") {
       setMessage({ text: localResultMessage(t, result), tone: "warning" });
       return;
+    }
+
+    const foldersToRefresh =
+      localFolderId
+        ? [localFolderId]
+        : state.kind === "ready"
+          ? state.settings.folders.map((folder) => folder.id)
+          : [];
+    for (const folderId of foldersToRefresh) {
+      void refreshManagedFolderProgress(folderId, { quiet: true });
     }
 
     const analysisStatus = await getPersonalLocalFileAnalysisStatus({ consentGranted, maxAttempts: 3 });
@@ -851,7 +1087,7 @@ export default function SettingsPage() {
       text: `${localResultMessage(t, result)}${analysisLabel}`,
       tone: result.data.analysisFailedCount > 0 || (analysisStatus.status === "ready" && analysisStatus.data.failedCount > 0) ? "warning" : "approved",
     });
-  }, [state, t]);
+  }, [refreshManagedFolderProgress, state, t]);
 
   const ready = state.kind === "ready";
   const readySettings = ready ? state.settings : emptySettings;
@@ -1256,6 +1492,7 @@ export default function SettingsPage() {
             ) : null}
 
             {activeSection === "privacy" ? (
+            <>
             <GlassPanel
               aria-labelledby="settings-tab-privacy"
               className={styles.section}
@@ -1292,6 +1529,19 @@ export default function SettingsPage() {
               </div>
               <p className={styles.guard}>{t("settings.privacy.guard")}</p>
             </GlassPanel>
+            {/* dev PR 212 이식: 활동 감지 패널 — 기록 버튼은 데스크톱에서만 활성화되고(desktopRuntime),
+                새로고침/삭제는 서버 데이터라 웹에서도 동작한다. 패널 내부에서 웹 안내 문구를 처리한다. */}
+            <ActivityDetectionPanel
+              activityLogs={readySettings.activityLogs ?? []}
+              consentGranted={Boolean(privacySettings.activityDetectionEnabled)}
+              deletingActivityId={deletingActivityId}
+              desktopRuntime={desktopRuntime}
+              loading={activityAction}
+              onDeleteActivity={(activityLogId) => void deleteActivityLog(activityLogId)}
+              onRecordActivity={() => void readActivity()}
+              onRefreshActivity={() => void refreshActivityLogs()}
+            />
+            </>
             ) : null}
 
             {/* 웹의 데스크톱 탭 — 데스크톱 전용 컨트롤은 렌더링하지 않고(죽은 토글 금지) 안내와 다운로드 링크만 보여준다. */}
@@ -1379,8 +1629,17 @@ export default function SettingsPage() {
                       <div className={styles.row} key={folder.id}>
                         <div className={styles.rowText}>
                           <strong>{folder.name}</strong>
-                          <p>{folder.localPath ?? t("settings.folders.localPathAppOnly")}</p>
+                          <p>
+                            {folder.localPath ?? t("settings.folders.localPathAppOnly")}
+                            {folderProgress[folder.id]
+                              ? ` · ${t("settings.folders.inlineProgress", {
+                                  percent: folderProgress[folder.id].progressPercent,
+                                  pending: folderProgress[folder.id].pendingEventCount,
+                                })}`
+                              : ""}
+                          </p>
                         </div>
+                        {/* dev PR 213 이식: 폴더별 진행률/스캔/감시/아웃박스 액션 — desktop 탭은 데스크톱 런타임에서만 렌더링된다. */}
                         <div className={styles.rowControl}>
                           <button
                             aria-checked={folder.syncEnabled}
@@ -1392,6 +1651,18 @@ export default function SettingsPage() {
                           >
                             <span />
                           </button>
+                          <Button onClick={() => void refreshManagedFolderProgress(folder.id)} size="sm" type="button" variant="quiet">
+                            {t("settings.folders.progress")}
+                          </Button>
+                          <Button onClick={() => void scanManagedFolder(folder.id)} size="sm" type="button" variant="quiet">
+                            {t("settings.folders.scan")}
+                          </Button>
+                          <Button disabled={!folder.syncEnabled} onClick={() => void watchManagedFolder(folder.id)} size="sm" type="button" variant="quiet">
+                            {t("settings.folders.watch")}
+                          </Button>
+                          <Button disabled={!folder.syncEnabled} onClick={() => void checkSyncOutbox(folder.id)} size="sm" type="button" variant="quiet">
+                            {t("settings.backup.outbox")}
+                          </Button>
                           <Button onClick={() => void removeManagedFolder(folder)} size="sm" type="button" variant="quiet">
                             {t("settings.folders.disconnect")}
                           </Button>
@@ -1405,6 +1676,12 @@ export default function SettingsPage() {
                 <div className={styles.sectionFoot}>
                   <Button disabled={!ready} onClick={() => void selectManagedFolder()} size="sm" type="button" variant="primary">
                     {t("settings.folders.selectFolder")}
+                  </Button>
+                  <Button disabled={!ready} onClick={() => void scanManagedFolder()} size="sm" type="button" variant="quiet">
+                    {t("settings.folders.scan")}
+                  </Button>
+                  <Button disabled={!ready} onClick={() => void watchManagedFolder()} size="sm" type="button" variant="quiet">
+                    {t("settings.folders.watch")}
                   </Button>
                 </div>
 

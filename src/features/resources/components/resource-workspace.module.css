@@ -232,6 +232,24 @@
   margin-left: auto;
 }
 
+/* dev PR 214 이식: 동기화 스트립 — 연결된 로컬 폴더 안내(작은 줄) */
+.dropzoneText small {
+  color: var(--rb-ink-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* dev PR 214 이식: 동기화 스트립 우측 액션 묶음(폴더 연결 · 스캔 · 변경 반영) */
+.syncActions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
 /* ---------- 로컬 인덱스 검색 패널 (dev PR 180/194 이식) ---------- */
 
 .localIndexPanel {
@@ -1196,6 +1214,13 @@
   .empty {
     margin-right: 12px;
     margin-left: 12px;
+  }
+
+  /* 좁은 화면에서는 동기화 액션이 스트립 아래로 내려와 왼쪽 정렬된다. */
+  .syncActions {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
   }
 
   .statusLine,

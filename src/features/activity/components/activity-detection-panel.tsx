@@ -1,78 +1,90 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Activity, AppWindow, Clock3, Database, EyeOff, ListChecks, ShieldCheck } from "lucide-react";
+import { Activity, AppWindow, Clock3, Database, EyeOff, ListChecks, RefreshCw, ShieldCheck } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
-import { activityApi } from "../api/activityApi";
 import type { ActivityLogResponse } from "@/types/api/activity";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 type ActivitySource = {
+  id: string;
   appName: string;
   windowTitle: string;
   duration: string;
   projectHint: string;
-  status: "tracking" | "suggested" | "synced";
-};
-
-const statusCopy: Record<ActivitySource["status"], { labelKey: MessageKey; tone: "timer" | "pending" | "approved" }> = {
-  suggested: { labelKey: "activity.detection.status.suggested", tone: "pending" },
-  synced: { labelKey: "activity.detection.status.synced", tone: "approved" },
-  tracking: { labelKey: "activity.detection.status.tracking", tone: "timer" },
+  status: "tracking" | "suggested" | "local";
 };
 
 type ActivityDetectionPanelProps = {
-  autoLoad?: boolean;
-  initialActivities?: ActivityLogResponse[];
+  activityLogs?: ActivityLogResponse[] | null;
+  consentGranted?: boolean;
+  deletingActivityId?: string | null;
+  desktopRuntime?: boolean;
+  loading?: "record" | "refresh" | null;
+  onDeleteActivity?: (activityLogId: string) => void;
+  onRecordActivity?: () => void;
+  onRefreshActivity?: () => void;
 };
 
-function getActivitySeconds(activity: ActivityLogResponse) {
-  if (typeof activity.durationSeconds === "number" && activity.durationSeconds >= 0) {
-    return activity.durationSeconds;
-  }
-
-  const started = new Date(activity.startedAt).getTime();
-  const ended = activity.endedAt ? new Date(activity.endedAt).getTime() : NaN;
-  if (Number.isNaN(started) || Number.isNaN(ended) || ended <= started) return 0;
-
-  return Math.floor((ended - started) / 1000);
-}
-
-function formatDuration(t: TranslateFn, seconds: number) {
-  if (seconds <= 0) return t("settings.activity.timeUnknown");
+function formatActivityDuration(t: TranslateFn, seconds?: number | null) {
+  if (!seconds || seconds <= 0) return t("activity.detection.durationUnknown");
 
   const totalMinutes = Math.max(1, Math.round(seconds / 60));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
-  if (hours > 0) {
-    return t("settings.activity.hourMinute", { hours, minutes });
-  }
-
-  return t("settings.activity.minute", { minutes: totalMinutes });
+  if (hours > 0 && minutes > 0) return t("activity.detection.durationHoursMinutes", { hours, minutes });
+  if (hours > 0) return t("activity.detection.durationHours", { hours });
+  return t("activity.detection.durationMinutes", { minutes });
 }
 
-function toActivitySource(t: TranslateFn, activity: ActivityLogResponse): ActivitySource {
-  const active = !activity.endedAt;
-  const linkedToRoom = Boolean(activity.roomId);
+function formatActivityStartedAt(value?: string | null) {
+  if (!value) return null;
 
-  return {
-    appName: activity.appName?.trim() || t("dashboard.activity.appFallback"),
-    duration: formatDuration(t, getActivitySeconds(activity)),
-    projectHint: linkedToRoom ? t("activity.detection.roomLinked") : t("activity.detection.noRoom"),
-    status: active ? "tracking" : linkedToRoom ? "suggested" : "synced",
-    windowTitle: activity.windowTitle?.trim() || t("activity.detection.windowFallback"),
-  };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function ActivitySourceRow({ source }: { source: ActivitySource }) {
+function buildActivitySources(t: TranslateFn, activityLogs: ActivityLogResponse[]): ActivitySource[] {
+  return activityLogs.map((activity, index) => {
+    const startedAt = formatActivityStartedAt(activity.startedAt);
+    const duration = formatActivityDuration(t, activity.durationSeconds);
+
+    return {
+      appName: activity.appName || t("settings.privacy.noAppName"),
+      duration: startedAt ? `${startedAt} - ${duration}` : duration,
+      id: activity.id,
+      projectHint: activity.roomId ? t("activity.detection.roomLinked") : t("activity.detection.personalScope"),
+      status: index === 0 ? "tracking" : activity.roomId ? "suggested" : "local",
+      windowTitle: activity.windowTitle || t("activity.detection.windowUnknown"),
+    };
+  });
+}
+
+const statusCopy: Record<ActivitySource["status"], { labelKey: MessageKey; tone: "timer" | "pending" | "personal" }> = {
+  local: { labelKey: "activity.detection.status.local", tone: "personal" },
+  suggested: { labelKey: "activity.detection.status.suggested", tone: "pending" },
+  tracking: { labelKey: "activity.detection.status.tracking", tone: "timer" },
+};
+
+function ActivitySourceRow({
+  deletingActivityId,
+  onDeleteActivity,
+  source,
+}: {
+  deletingActivityId?: string | null;
+  onDeleteActivity?: (activityLogId: string) => void;
+  source: ActivitySource;
+}) {
   const { t } = useI18n();
   const status = statusCopy[source.status];
 
@@ -88,57 +100,43 @@ function ActivitySourceRow({ source }: { source: ActivitySource }) {
         </div>
         <h3>{source.appName}</h3>
         <p>{source.windowTitle}</p>
-        <Chip icon={<ListChecks size={14} />}>{source.projectHint}</Chip>
+        <div className="activity-source-row__footer">
+          <Chip icon={<ListChecks size={14} />}>{source.projectHint}</Chip>
+          {onDeleteActivity ? (
+            <Button
+              disabled={deletingActivityId === source.id}
+              loading={deletingActivityId === source.id}
+              onClick={() => onDeleteActivity(source.id)}
+              size="sm"
+              type="button"
+              variant="quiet"
+            >
+              {t("common.delete")}
+            </Button>
+          ) : null}
+        </div>
       </div>
     </article>
   );
 }
 
-export function ActivityDetectionPanel({ autoLoad = true, initialActivities = [] }: ActivityDetectionPanelProps = {}) {
+export function ActivityDetectionPanel({
+  activityLogs = [],
+  consentGranted = false,
+  deletingActivityId = null,
+  desktopRuntime = false,
+  loading = null,
+  onDeleteActivity,
+  onRecordActivity,
+  onRefreshActivity,
+}: ActivityDetectionPanelProps) {
   const { t } = useI18n();
-  const [activities, setActivities] = useState<ActivityLogResponse[]>(() => initialActivities);
-  const [isLoading, setIsLoading] = useState(autoLoad);
-  const [hasLoadError, setHasLoadError] = useState(false);
-
-  useEffect(() => {
-    if (!autoLoad) return;
-
-    let active = true;
-
-    activityApi
-      .getToday()
-      .then((response) => {
-        if (!active) return;
-        setActivities(response);
-      })
-      .catch(() => {
-        if (!active) return;
-        setHasLoadError(true);
-        setActivities([]);
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [autoLoad]);
-
-  const activitySources = useMemo(
-    () =>
-      [...activities]
-        .sort((left, right) => new Date(right.startedAt).getTime() - new Date(left.startedAt).getTime())
-        .slice(0, 5)
-        .map((activity) => toActivitySource(t, activity)),
-    [activities, t],
-  );
-  const appCount = useMemo(
-    () => new Set(activities.map((activity) => activity.appName?.trim()).filter(Boolean)).size,
-    [activities],
-  );
-  const measuredCount = activities.filter((activity) => getActivitySeconds(activity) > 0).length;
-  const todayRate = activities.length > 0 ? Math.round((measuredCount / activities.length) * 100) : 0;
+  const safeActivityLogs = activityLogs ?? [];
+  const activitySources = buildActivitySources(t, safeActivityLogs);
+  const appCount = new Set(safeActivityLogs.map((activity) => activity.appName).filter(Boolean)).size;
+  const progressValue = safeActivityLogs.length > 0 ? Math.min(100, Math.round((safeActivityLogs.length / 8) * 100)) : 0;
+  const recordDisabled = !desktopRuntime || !onRecordActivity;
+  const refreshDisabled = !consentGranted || !onRefreshActivity;
 
   return (
     <section className="activity-detection" aria-label={t("activity.detection.sectionAria")}>
@@ -154,12 +152,12 @@ export function ActivityDetectionPanel({ autoLoad = true, initialActivities = []
           </div>
         </div>
         <div className="activity-detection__consent">
-          <StatusBadge tone={hasLoadError ? "warning" : "approved"}>
-            {hasLoadError ? t("activity.detection.loadFailed") : t("activity.detection.consented")}
+          <StatusBadge tone={consentGranted ? "approved" : "warning"}>
+            {consentGranted ? t("activity.detection.consented") : t("activity.detection.notConsented")}
           </StatusBadge>
           <strong>{t("activity.detection.appCount", { count: appCount })}</strong>
-          <span>{t("activity.detection.todayTarget")}</span>
-          <ProgressBar indeterminate={isLoading} label={t("activity.detection.todayRate")} value={todayRate} />
+          <span>{desktopRuntime ? t("activity.detection.todayTarget") : t("activity.detection.desktopRequired")}</span>
+          <ProgressBar label={t("activity.detection.todayRate")} value={progressValue} />
         </div>
       </GlassPanel>
 
@@ -170,16 +168,44 @@ export function ActivityDetectionPanel({ autoLoad = true, initialActivities = []
               <h3>{t("activity.detection.recent")}</h3>
               <p>{t("activity.detection.recentDesc")}</p>
             </div>
-            <Chip icon={<Clock3 size={14} />}>{t("activity.detection.today")}</Chip>
+            <div className="activity-detection__actions">
+              <Chip icon={<Clock3 size={14} />}>{t("activity.detection.recent3h")}</Chip>
+              <Button
+                disabled={recordDisabled}
+                loading={loading === "record"}
+                onClick={onRecordActivity}
+                size="sm"
+                type="button"
+                variant="quiet"
+              >
+                {t("activity.detection.record")}
+              </Button>
+              <Button
+                disabled={refreshDisabled}
+                icon={<RefreshCw size={14} />}
+                loading={loading === "refresh"}
+                onClick={onRefreshActivity}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                {t("activity.detection.refresh")}
+              </Button>
+            </div>
           </div>
 
           <div className="activity-detection__list">
             {activitySources.length > 0 ? (
               activitySources.map((source) => (
-                <ActivitySourceRow key={`${source.appName}-${source.windowTitle}-${source.duration}`} source={source} />
+                <ActivitySourceRow
+                  deletingActivityId={deletingActivityId}
+                  key={source.id}
+                  onDeleteActivity={onDeleteActivity}
+                  source={source}
+                />
               ))
             ) : (
-              <p>{isLoading ? t("activity.detection.loading") : t("activity.detection.empty")}</p>
+              <p className="activity-detection__empty">{t("activity.detection.empty")}</p>
             )}
           </div>
         </GlassPanel>

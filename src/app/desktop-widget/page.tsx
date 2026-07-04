@@ -20,7 +20,13 @@ import {
   type WidgetVoiceRoomResponse,
 } from "@/features/widget/api/widgetDisplayApi";
 import { authApi } from "@/features/auth/api/authApi";
-import { widgetApi, type BackendWidgetBubbleType, type WidgetBubbleSettingResponse, type WidgetContextResponse } from "@/features/widget/api/widgetApi";
+import {
+  widgetApi,
+  type BackendWidgetBubbleType,
+  type BackendWidgetItemType,
+  type WidgetBubbleSettingResponse,
+  type WidgetContextResponse,
+} from "@/features/widget/api/widgetApi";
 import { widgetCommunicationApi } from "@/features/widget/api/widgetCommunicationApi";
 import { DesktopWidgetBubble, DesktopWidgetBubbleBar, DesktopWidgetMenuOrb, desktopWidgetBubbleTypes } from "@/features/widget/components/desktop-widget-bubble";
 import {
@@ -231,6 +237,15 @@ function parseCachedWidgetChatMessages(items: Array<{ bodyJson: string }>): Widg
       return [];
     }
   });
+}
+
+function resolveActiveWidgetChatRoom(rooms: WidgetChatRoomResponse[], selectedRoomId?: string | null) {
+  const activeRooms = rooms.filter((room) => room.status === "ACTIVE");
+  if (selectedRoomId) {
+    return activeRooms.find((room) => room.chatType === "ROOM" && room.roomId === selectedRoomId) ?? null;
+  }
+
+  return activeRooms.find((room) => room.chatType === "DIRECT" || room.roomId === null) ?? null;
 }
 
 type TimerDisplay = WidgetDashboardWorkResponse["runningTimer"] | TimeLogResponse | null | undefined;
@@ -969,7 +984,7 @@ function DesktopWidgetSurface() {
 
       const notifications = notificationsResult.status === "fulfilled" ? notificationsResult.value.items : [];
       const rooms = chatRoomsResult.status === "fulfilled" ? chatRoomsResult.value.items : [];
-      let activeRoom = rooms.find((item) => (selectedRoomId ? item.roomId === selectedRoomId : true)) ?? null;
+      let activeRoom = resolveActiveWidgetChatRoom(rooms, selectedRoomId);
       if (selectedRoomId && !activeRoom) {
         activeRoom = await widgetDisplayApi.createProjectRoomChatRoom(selectedRoomId).catch(() => null);
       }
@@ -1277,7 +1292,7 @@ function DesktopWidgetSurface() {
 
   const handleItemStateChange = useCallback(
     async (item: WidgetPreviewItem, state: WidgetItemStateAction) => {
-      const itemType =
+      const itemType: BackendWidgetItemType =
         item.kind === "message"
           ? "MESSAGE"
           : item.kind === "schedule"

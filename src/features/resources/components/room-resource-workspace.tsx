@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Search, Upload } from "lucide-react";
+import { AlertCircle, HardDrive, Search, Upload } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { useI18n } from "@/lib/i18n";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewRoomResources } from "@/lib/workspace-preview-data";
 import type { ResourceResponse } from "@/types/api/resource";
 
+import { LocalIndexedFileSearchPanel } from "./local-indexed-file-search-panel";
 import {
   getErrorMessage,
   openResourceDownload,
@@ -56,6 +58,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   const [uploadState, setUploadState] = useState<UploadState>({ kind: "idle" });
   const [previewIntent, setPreviewIntent] = useState<ResourcePreviewIntent | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [isTauri, setIsTauri] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadResources = useCallback(async () => {
@@ -88,6 +91,14 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadResources]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setIsTauri(isTauriRuntime());
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   const resources = useMemo(() => (state.kind === "ready" ? state.resources : EMPTY_RESOURCES), [state]);
 
@@ -255,6 +266,19 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                   <span>{t("resources.workspace.roomHint")}</span>
                 </span>
               </div>
+
+              {/* dev PR 217 이식: 로컬 동기화 안내 스트립 — 우리 드롭존 스트립 문법으로 플랫하게 배치.
+                  웹에서는 안내 문구만 보여주고, 실제 로컬 검색 패널은 아래 컴포넌트가 Tauri에서만 렌더링한다. */}
+              <div className={styles.dropzone}>
+                <HardDrive aria-hidden size={18} strokeWidth={2} />
+                <span className={styles.dropzoneText}>
+                  <strong>{isTauri ? t("resources.workspace.syncTitleTauri") : t("resources.workspace.syncTitleWeb")}</strong>
+                  <span>{isTauri ? t("local.folder.personalOnly") : t("resources.workspace.syncDescWeb")}</span>
+                </span>
+              </div>
+
+              {/* dev PR 217 이식: 프로젝트룸 자료보드 로컬 참고 검색 — 검색어 입력 + Tauri 런타임에서만 내용이 뜬다. */}
+              <LocalIndexedFileSearchPanel query={query} />
 
               {uploadState.kind === "uploading" ? <p className={styles.noticeLine}>{t("resources.workspace.uploading", { fileName: uploadState.fileName })}</p> : null}
               {uploadState.kind === "success" ? <p className={styles.noticeLine}>{t("resources.workspace.uploadDone", { fileName: uploadState.fileName })}</p> : null}

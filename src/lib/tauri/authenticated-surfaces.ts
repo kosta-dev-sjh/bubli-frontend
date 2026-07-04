@@ -49,7 +49,7 @@ function getStartupModeFromSetting(setting: WidgetBubbleSettingResponse): Widget
   return "DEFAULT";
 }
 
-function getPrimaryStartupBubble(settings: WidgetBubbleSettingResponse[]): WidgetWindowOpenInput | null {
+function getEnabledStartupBubbles(settings: WidgetBubbleSettingResponse[]): WidgetWindowOpenInput[] {
   const enabledByBubble = new Map<WidgetBubbleType, WidgetBubbleSettingResponse>();
 
   for (const setting of settings) {
@@ -57,18 +57,18 @@ function getPrimaryStartupBubble(settings: WidgetBubbleSettingResponse[]): Widge
     enabledByBubble.set(backendBubbleToLocal[setting.bubbleType], setting);
   }
 
-  for (const bubbleType of startupBubblePriority) {
+  return startupBubblePriority.flatMap((bubbleType) => {
     const setting = enabledByBubble.get(bubbleType);
-    if (!setting) continue;
+    if (!setting) return [];
 
-    return {
-      bubbleType,
-      mode: getStartupModeFromSetting(setting),
-      windowId: bubbleType,
-    };
-  }
-
-  return null;
+    return [
+      {
+        bubbleType,
+        mode: getStartupModeFromSetting(setting),
+        windowId: bubbleType,
+      },
+    ];
+  });
 }
 
 export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInput[]> {
@@ -77,12 +77,12 @@ export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInpu
     return loginStartupWindows;
   }
 
-  const primaryBubble = getPrimaryStartupBubble(settings.bubbles);
-  if (!primaryBubble) {
+  const enabledBubbles = getEnabledStartupBubbles(settings.bubbles);
+  if (enabledBubbles.length === 0) {
     return [loginStartupBarWindow];
   }
 
-  return [loginStartupBarWindow, primaryBubble];
+  return [loginStartupBarWindow, ...enabledBubbles];
 }
 
 async function resolveLaunchSelectedRoomId() {
@@ -114,40 +114,68 @@ export function launchTauriAuthenticatedSurfaces() {
     }
 
     const startupWindows = await resolveLoginStartupWindows();
-    const results: PromiseSettledResult<void>[] = [];
+    const [barWindow, ...bubbleWindows] = startupWindows;
+    const openedWindows: WidgetWindowOpenInput[] = [];
+    const rejectedReasons: unknown[] = [];
 
-    for (const input of startupWindows) {
+    if (barWindow) {
       if (generation !== launchGeneration) {
         await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
         return;
       }
 
       try {
-        await withTimeout(tauriCommands.openWidgetWindow({ ...input, selectedRoomId }), widgetOpenCommandTimeoutMs);
-        results.push({ status: "fulfilled", value: undefined });
+        await withTimeout(tauriCommands.openWidgetWindow({ ...barWindow, selectedRoomId }), widgetOpenCommandTimeoutMs);
+        openedWindows.push(barWindow);
       } catch (reason) {
-        results.push({ reason, status: "rejected" });
+        rejectedReasons.push(reason);
       }
     }
 
-    if (results.every((result) => result.status === "rejected")) {
+    if (generation !== launchGeneration) {
+      await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
+      return;
+    }
+
+    const bubbleResults = await Promise.allSettled(
+      bubbleWindows.map((input) => withTimeout(tauriCommands.openWidgetWindow({ ...input, selectedRoomId }), widgetOpenCommandTimeoutMs)),
+    );
+
+    for (const [index, result] of bubbleResults.entries()) {
+      if (result.status === "fulfilled") {
+        openedWindows.push(bubbleWindows[index]);
+      } else {
+        rejectedReasons.push(result.reason);
+      }
+    }
+
+    if (generation !== launchGeneration) {
+      await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
+      return;
+    }
+
+    if (openedWindows.length === 0) {
       launchRequested = false;
       launchedAuthenticatedSurfaces = false;
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
-      throw results[0].status === "rejected" ? results[0].reason : new Error("No Tauri widgets opened");
+      throw rejectedReasons[0] ?? new Error("No Tauri widgets opened");
     }
 
     void tauriCommands
       .seedWidgetBarItems({ selectedRoomId })
       .catch(() => undefined);
 
-    void tauriCommands
-      .recordWidgetUsageEvent({
-        bubbleType: startupWindows.find((input) => input.bubbleType !== "bar")?.bubbleType ?? "todo",
-        eventType: "open:auto-login",
-        occurredAt: new Date().toISOString(),
-      })
-      .catch(() => undefined);
+    for (const input of openedWindows) {
+      const bubbleType = input.bubbleType;
+      if (!bubbleType || bubbleType === "bar" || bubbleType === "menu") continue;
+      void tauriCommands
+        .recordWidgetUsageEvent({
+          bubbleType,
+          eventType: "open:auto-login",
+          occurredAt: new Date().toISOString(),
+        })
+        .catch(() => undefined);
+    }
 
     startActivityAutoCapture();
     startManagedFolderAutoSync();

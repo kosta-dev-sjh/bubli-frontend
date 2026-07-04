@@ -8,7 +8,7 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { StatusTone } from "@/components/ui/status-badge";
-import type { BackendWidgetBubbleType } from "@/features/widget/api/widgetApi";
+import { toBackendWidgetItemType, type BackendWidgetBubbleType } from "@/features/widget/api/widgetApi";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -20,8 +20,6 @@ import styles from "./widget-item-state-panel.module.css";
 type BubbleType = "todo" | "agent" | "chat" | "notification" | "resource";
 type WidgetItemState = "visible" | "confirmed" | "hidden" | "pinned" | "snoozed";
 type WidgetItemStateAction = "confirm" | "hide" | "pin" | "snooze";
-type BackendItemType = "MESSAGE" | "NOTIFICATION" | "SCHEDULE" | "TASK";
-
 type WidgetItem = {
   bubbleType: BubbleType;
   itemId: string;
@@ -107,11 +105,6 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function toBackendItemType(value: string): BackendItemType | null {
-  const upper = value.toUpperCase();
-  return upper === "MESSAGE" || upper === "NOTIFICATION" || upper === "SCHEDULE" || upper === "TASK" ? upper : null;
-}
-
 function itemKey(item: WidgetItem) {
   return `${item.bubbleType}:${item.itemType}:${item.itemId}`;
 }
@@ -134,7 +127,7 @@ export function WidgetItemStatePanel({ className, items, onStateChange, persistI
     return new Set(
       panelItems.flatMap((item) => {
         const backendBubbleType = backendBubbleTypeMap[item.bubbleType];
-        const backendItemType = toBackendItemType(item.itemType);
+        const backendItemType = toBackendWidgetItemType(item.itemType);
         const itemStateId = item.stateId ?? (isUuid(item.itemId) ? item.itemId : null);
         return backendBubbleType && backendItemType && itemStateId ? [itemKey(item)] : [];
       }),
@@ -147,7 +140,7 @@ export function WidgetItemStatePanel({ className, items, onStateChange, persistI
       const next = actionStateMap[action];
       const previousState = item.state;
       const backendBubbleType = backendBubbleTypeMap[item.bubbleType];
-      const backendItemType = toBackendItemType(item.itemType);
+      const backendItemType = toBackendWidgetItemType(item.itemType);
       const itemStateId = item.stateId ?? (isUuid(item.itemId) ? item.itemId : null);
       const shouldPersist = Boolean(persistItemState && backendBubbleType && backendItemType && itemStateId);
 
