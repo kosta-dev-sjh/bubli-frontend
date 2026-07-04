@@ -41,7 +41,7 @@ import styles from "./calendar-page.module.css";
 
 type PageState =
   | { kind: "loading" }
-  | { events: ScheduleResponse[]; kind: "ready"; loadWarning?: string | null; roomEvents: ProjectRoomEventEnvelope[] }
+  | { events: ScheduleResponse[]; kind: "ready"; roomEvents: ProjectRoomEventEnvelope[]; scheduleLoadFailed?: boolean }
   | { kind: "auth" }
   | { kind: "offline" };
 
@@ -285,8 +285,9 @@ function CalendarPageContent() {
       setState({
         events: scheduleResult.status === "fulfilled" ? scheduleResult.value.items : [],
         kind: "ready",
-        loadWarning: scheduleResult.status === "rejected" ? t("calendar.notice.loadWarning") : null,
         roomEvents: roomEventResult.status === "fulfilled" && roomEventResult.value ? roomEventResult.value.items : [],
+        // 로컬(/api/schedules) 실패만 표시 — 배너 문구는 렌더 시점의 구글 연동 상태에 따라 나눈다.
+        scheduleLoadFailed: scheduleResult.status === "rejected",
       });
       if (googleConnectionResult.status === "fulfilled" && googleConnectionResult.value?.status === "ACTIVE") {
         setGoogleConnection({ kind: "connected", value: googleConnectionResult.value });
@@ -308,7 +309,7 @@ function CalendarPageContent() {
       setState({ kind: "offline" });
       setGoogleConnection({ kind: "error" });
     }
-  }, [range, selectedRoomId, t]);
+  }, [range, selectedRoomId]);
 
   // 구글 연동이 활성일 때, 보이는 기간(월/주 범위)의 모든 구글 캘린더 일정을 원본 그대로 가져온다.
   // 수동 동기화(pull) 없이도 격자에 바로 보이게 하는 경로다.
@@ -495,9 +496,12 @@ function CalendarPageContent() {
   }, [selectedDate]);
   const visibleCalendarDays = viewMode === "week" ? weekDays : calendarDays;
   const googleConnected = googleConnection.kind === "connected";
+  // 연결 상태 라인 — 이메일만 보여주면 "연동 안 됨"으로 오해하기 쉬워 "연결됨 · {email}" 형태로 상태를 먼저 밝힌다.
   const googleConnectionLabel =
     googleConnection.kind === "connected"
-      ? googleConnection.value.googleAccountEmail ?? t("calendar.google.connected")
+      ? googleConnection.value.googleAccountEmail
+        ? t("calendar.google.connectedAs", { email: googleConnection.value.googleAccountEmail })
+        : t("calendar.google.connected")
       : googleConnection.kind === "loading"
         ? t("calendar.google.checking")
         : googleConnection.kind === "error"
@@ -914,11 +918,19 @@ function CalendarPageContent() {
             </div>
 
             {googleNotice ? <p className={styles.inlineNotice}>{googleNotice}</p> : null}
-            {state.loadWarning ? <p className={styles.loadWarning}>{state.loadWarning}</p> : null}
+            {state.scheduleLoadFailed ? (
+              <p className={styles.loadWarning}>
+                {/* 어느 쪽이 실패했는지 분명히 — 구글 일정이 정상 표시 중이면 그 사실을 함께 알린다. */}
+                {googleConnected && !googleEventsError ? t("calendar.notice.localLoadFailedGoogleOk") : t("calendar.notice.loadWarning")}
+                <button className={styles.retryButton} onClick={() => void loadEvents()} type="button">
+                  {t("calendar.google.retry")}
+                </button>
+              </p>
+            ) : null}
             {googleConnected && googleEventsLoading ? <p className={styles.inlineNotice}>{t("calendar.google.eventsLoading")}</p> : null}
             {googleConnected && !googleEventsLoading && googleEventsError ? (
               <p className={styles.loadWarning}>
-                {t("calendar.google.eventsError")}
+                {state.scheduleLoadFailed ? t("calendar.google.eventsError") : t("calendar.google.eventsErrorLocalOk")}
                 <button className={styles.retryButton} onClick={() => void loadGoogleEvents()} type="button">
                   {t("calendar.google.retry")}
                 </button>

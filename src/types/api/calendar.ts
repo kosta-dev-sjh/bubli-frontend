@@ -70,6 +70,8 @@ export type RoomCalendarResponse = {
   calendarName: string;
   connected: boolean;
   googleCalendarId: string | null;
+  // 예전 권한(scope)으로 연결돼 캘린더 생성이 거부된 경우 — 재동의 필요.
+  needsReconsent?: boolean;
 };
 
 // GET /api/calendar/groups — 로컬 일정은 프로젝트룸 단위, 구글 일정은 캘린더 단위로 묶인다.

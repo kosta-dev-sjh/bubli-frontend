@@ -285,7 +285,10 @@ export function WbsGanttPanel({
     try {
       const response = await calendarApi.getRoomCalendar(roomId);
       setRoomCalendarByRoom((current) => ({ ...current, [roomId]: response }));
-      if (!response.googleCalendarId) {
+      if (response.needsReconsent) {
+        // 예전 권한으로 연결된 구글 계정은 캘린더 생성 권한이 없어 재동의가 필요하다.
+        onNotice(t("wbs.gantt.sync.roomCalendarReconsent"));
+      } else if (!response.googleCalendarId) {
         onNotice(t("wbs.gantt.sync.roomCalendarMissing"));
       }
     } catch {
@@ -299,6 +302,20 @@ export function WbsGanttPanel({
     setIsConnectingGoogle(true);
 
     try {
+      const response = await calendarApi.requestGoogleConnectUrl();
+      window.location.href = response.authorizeUrl;
+    } catch {
+      setIsConnectingGoogle(false);
+      onNotice(t("wbs.gantt.sync.connectFailed"));
+    }
+  };
+
+  // 예전 권한으로 연결된 계정: 연결 해제 후 재동의 플로우로 보낸다(캘린더 생성 권한 확보).
+  const handleReconnectGoogle = async () => {
+    setIsConnectingGoogle(true);
+
+    try {
+      await calendarApi.disconnectGoogleConnection().catch(() => undefined);
       const response = await calendarApi.requestGoogleConnectUrl();
       window.location.href = response.authorizeUrl;
     } catch {
@@ -952,7 +969,10 @@ export function WbsGanttPanel({
                 {syncModelText ? <small>{syncModelText}</small> : null}
                 {lastPushText ? <small>{lastPushText}</small> : null}
                 <p>{syncHintText}</p>
-                {calendarSync === "recording" && !roomCalendar?.googleCalendarId ? (
+                {roomCalendar?.needsReconsent ? (
+                  <p className={styles.syncReconsentNote}>{t("wbs.gantt.sync.reconsentNote")}</p>
+                ) : null}
+                {calendarSync === "recording" && !roomCalendar?.googleCalendarId && !roomCalendar?.needsReconsent ? (
                   <button
                     className={styles.syncConnectButton}
                     disabled={isEnsuringRoomCalendar}
@@ -962,6 +982,16 @@ export function WbsGanttPanel({
                     {isEnsuringRoomCalendar
                       ? t("wbs.gantt.sync.roomCalendarChecking")
                       : t("wbs.gantt.sync.roomCalendarAction")}
+                  </button>
+                ) : null}
+                {roomCalendar?.needsReconsent ? (
+                  <button
+                    className={styles.syncConnectButton}
+                    disabled={isConnectingGoogle}
+                    onClick={() => void handleReconnectGoogle()}
+                    type="button"
+                  >
+                    {isConnectingGoogle ? t("wbs.gantt.sync.connecting") : t("wbs.gantt.sync.reconnect")}
                   </button>
                 ) : null}
                 {calendarSync === "off" ? (

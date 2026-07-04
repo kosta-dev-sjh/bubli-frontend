@@ -110,6 +110,9 @@ const ko = {
   "wbs.gantt.sync.roomCalendarAction": "룸 캘린더 만들기/확인",
   "wbs.gantt.sync.roomCalendarChecking": "룸 캘린더 확인 중",
   "wbs.gantt.sync.roomCalendarMissing": "룸 캘린더가 아직 없습니다 — 잠시 후 다시 확인하세요",
+  "wbs.gantt.sync.roomCalendarReconsent": "구글 캘린더 권한이 예전 버전이라 룸 캘린더를 만들 수 없어요. 다시 연결해 주세요.",
+  "wbs.gantt.sync.reconsentNote": "구글 연결을 갱신하면 룸 이름의 캘린더가 자동으로 만들어져요.",
+  "wbs.gantt.sync.reconnect": "구글 다시 연결",
   "wbs.gantt.sync.roomCalendarFailed": "룸 캘린더를 확인하지 못했습니다",
 
   // --- WBS: TODO 보드 ---
@@ -499,6 +502,9 @@ const en: Record<Key, string> = {
   "wbs.gantt.sync.roomCalendarAction": "Create/check room calendar",
   "wbs.gantt.sync.roomCalendarChecking": "Checking room calendar",
   "wbs.gantt.sync.roomCalendarMissing": "No room calendar yet — check again in a moment",
+  "wbs.gantt.sync.roomCalendarReconsent": "Your Google connection uses old permissions, so the room calendar can\'t be created. Please reconnect.",
+  "wbs.gantt.sync.reconsentNote": "Reconnecting Google will create a calendar named after this room automatically.",
+  "wbs.gantt.sync.reconnect": "Reconnect Google",
   "wbs.gantt.sync.roomCalendarFailed": "Could not check the room calendar",
 
   "wbs.board.flow.candidateBody": "Split large tasks and subtasks from the material into candidates.",
@@ -881,6 +887,9 @@ const ja: Record<Key, string> = {
   "wbs.gantt.sync.roomCalendarAction": "ルームカレンダーを作成/確認",
   "wbs.gantt.sync.roomCalendarChecking": "ルームカレンダー確認中",
   "wbs.gantt.sync.roomCalendarMissing": "ルームカレンダーはまだありません — しばらくしてから再確認してください",
+  "wbs.gantt.sync.roomCalendarReconsent": "Google連携の権限が古いため、ルームカレンダーを作成できません。再連携してください。",
+  "wbs.gantt.sync.reconsentNote": "Googleを再連携すると、ルーム名のカレンダーが自動で作成されます。",
+  "wbs.gantt.sync.reconnect": "Googleを再連携",
   "wbs.gantt.sync.roomCalendarFailed": "ルームカレンダーを確認できませんでした",
 
   "wbs.board.flow.candidateBody": "資料から大きな作業と下位作業を候補に分けます。",

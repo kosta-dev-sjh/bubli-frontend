@@ -833,3 +833,17 @@
     transition: none;
   }
 }
+
+/* 재동의 안내 문구 */
+.syncReconsentNote {
+  margin: 4px 0 0;
+  color: var(--blue-ink);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+:global([data-theme="dark"]) .syncReconsentNote {
+  color: #9ED8FF;
+}
