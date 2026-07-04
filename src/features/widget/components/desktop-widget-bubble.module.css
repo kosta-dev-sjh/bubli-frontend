@@ -1042,6 +1042,144 @@
   cursor: default;
 }
 
+/* ---------- 타이머 · 시계 모드 ---------- */
+/* HH:MM:SS 라이브 + 날짜 한 줄. 링을 대신하는 큰 시계 타이포. */
+.clockFace {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  padding: 18px 8px;
+  align-self: stretch;
+  text-align: center;
+}
+
+.clockTime {
+  color: var(--widget-text);
+  font-size: 40px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.clockDate {
+  color: var(--widget-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* 컨텍스트/사이클 등 타이머 보조 한 줄. */
+.timerScopeNote {
+  margin: 0;
+  align-self: center;
+  color: var(--widget-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ---------- 타이머 · 뽀모도로 모드 ---------- */
+/* 진행 링: conic-gradient 각도(--pomodoro-progress)로 진행률. 집중=amber / 휴식=sky. */
+.pomodoroRing {
+  position: relative;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 140px;
+  height: 140px;
+  --pomodoro-accent: #E8C4A0;
+  --pomodoro-track: color-mix(in srgb, var(--pomodoro-accent) 22%, transparent);
+}
+
+.pomodoroFocus {
+  --pomodoro-accent: #E8C4A0; /* amber */
+}
+
+.pomodoroBreak {
+  --pomodoro-accent: #8ECDF6; /* sky */
+}
+
+.pomodoroRingTrack {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, transparent 0 61%, color-mix(in srgb, var(--pomodoro-accent) 8%, transparent) 62%),
+    conic-gradient(var(--pomodoro-accent) 0 var(--pomodoro-progress, 0deg), var(--pomodoro-track) var(--pomodoro-progress, 0deg) 360deg);
+  transition: background 0.4s ease;
+}
+
+.pomodoroRingInner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  width: 96px;
+  height: 96px;
+  border-radius: 999px;
+  background: var(--widget-surface, #FFFFFF);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.pomodoroRingInner strong {
+  color: var(--widget-text);
+  font-size: 26px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.pomodoroRingInner span {
+  color: var(--widget-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* 페이즈 완료 시 짧은 goo 팝 신호(기존 팝 감성 재사용). */
+.pomodoroPop {
+  position: absolute;
+  z-index: 2;
+  inset: 22px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pomodoro-accent) 60%, transparent);
+  pointer-events: none;
+}
+
+/* ---------- 헤더 스코프 토글(개인 ⇄ 룸) ---------- */
+.scopeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 1px;
+  padding: 1px 6px 1px 4px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 999px;
+  color: var(--widget-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.scopeToggle:hover:not(:disabled),
+.scopeToggle:focus-visible {
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+}
+
+.scopeToggle[aria-pressed="true"] {
+  color: var(--acc-ink);
+  border-color: color-mix(in srgb, var(--acc) 40%, transparent);
+  background: color-mix(in srgb, var(--acc) 10%, transparent);
+}
+
+.scopeToggle:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 /* ---------- 일정: "다음 일정" 컴팩트 카드 ---------- */
 
 .nextCard {
@@ -2493,6 +2631,34 @@
   box-shadow:
     var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
     var(--shadow-surface-dark, 0 1px 2px rgba(0, 0, 0, 0.16));
+}
+
+/* 타이머 새 모드 다크 패리티: 시계 타이포·뽀모도로 이너·스코프 토글. */
+:global([data-theme="dark"]) .clockTime {
+  color: var(--widget-text);
+}
+
+:global([data-theme="dark"]) .pomodoroRingInner {
+  background: rgba(22, 30, 46, 0.96);
+  box-shadow: var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07));
+}
+
+:global([data-theme="dark"]) .pomodoroRingTrack {
+  background:
+    radial-gradient(circle, transparent 0 61%, color-mix(in srgb, var(--pomodoro-accent) 12%, transparent) 62%),
+    conic-gradient(var(--pomodoro-accent) 0 var(--pomodoro-progress, 0deg), color-mix(in srgb, var(--pomodoro-accent) 26%, transparent) var(--pomodoro-progress, 0deg) 360deg);
+}
+
+:global([data-theme="dark"]) .scopeToggle {
+  border-color: rgba(150, 170, 215, 0.18);
+  color: var(--widget-muted);
+}
+
+:global([data-theme="dark"]) .scopeToggle:hover:not(:disabled),
+:global([data-theme="dark"]) .scopeToggle:focus-visible,
+:global([data-theme="dark"]) .scopeToggle[aria-pressed="true"] {
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 16%, transparent);
 }
 
 :global([data-theme="dark"]) .nextCard {

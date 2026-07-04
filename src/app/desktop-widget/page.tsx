@@ -3,7 +3,7 @@
 import { Room } from "livekit-client";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { dispatchEmojiSplash, extractEmojiSplashEmojis } from "@/features/communication/components/emoji-splash-layer";
 import { inferAgentCommandMode, parseAgentCommandText } from "@/features/communication/lib/agent-commands";
@@ -1061,6 +1061,8 @@ function DesktopWidgetSurface() {
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(() => widgetDisplayLoadSignal("loading"));
   const [menuUsageSummary, setMenuUsageSummary] = useState<string | null>(null);
+  // 헤더 스코프 토글이 "개인 ⇄ 활성 룸"으로 전환할 대상 룸(로컬 마지막 선택 룸)의 힌트.
+  const [activeRoomHint, setActiveRoomHint] = useState<{ roomId: string; roomLabel?: string | null } | null>(null);
   // 바 창의 Bubli 버튼이 보낸 "패널 열기" 요청 수신 카운터(메뉴 창 전용).
   const [menuPanelSignal, setMenuPanelSignal] = useState(0);
   const liveKitRoomRef = useRef<Room | null>(null);
@@ -2604,6 +2606,33 @@ function DesktopWidgetSurface() {
     }
   }, [isTauri, selectedWidgetRoomId]);
 
+  // 스코프 토글 대상(활성 룸) 힌트를 로컬 마지막 선택 룸에서 읽어둔다. 개인 컨텍스트일 때
+  // "활성 룸으로 전환" 버튼을 활성화할지 판단하는 근거가 된다.
+  useEffect(() => {
+    if (!isTauri || !widgetSessionReady) return;
+    let cancelled = false;
+    void tauriCommands
+      .readActiveProjectRoom()
+      .then((room) => {
+        if (cancelled) return;
+        setActiveRoomHint(room?.roomId ? { roomId: room.roomId, roomLabel: room.roomLabel } : null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isTauri, selectedWidgetRoomId, widgetContext, widgetSessionReady]);
+
+  const widgetScope = useMemo(() => {
+    const isRoom = Boolean(selectedWidgetRoomId);
+    const roomLabelText = selectedWidgetRoomId ? activeRoomHint?.roomLabel ?? undefined : activeRoomHint?.roomLabel ?? undefined;
+    return {
+      isRoom,
+      roomAvailable: Boolean(activeRoomHint?.roomId),
+      roomLabel: roomLabelText ?? undefined,
+    };
+  }, [activeRoomHint, selectedWidgetRoomId]);
+
   if (!mounted || !widgetSessionReady) {
     return null;
   }
@@ -2671,7 +2700,9 @@ function DesktopWidgetSurface() {
       onSendChatMessage={sendWidgetChatMessage}
       onStartVoice={startWidgetVoice}
       onToggleAlwaysOnTop={toggleAlwaysOnTop}
+      onToggleScope={toggleWidgetRoomContext}
       onToggleVoiceMic={toggleWidgetVoiceMic}
+      scope={widgetScope}
       presentation="tauri"
       windowId={windowId}
       windowVisible={windowVisible}

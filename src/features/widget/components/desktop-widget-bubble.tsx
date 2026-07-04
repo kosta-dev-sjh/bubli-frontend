@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, memo, type MouseEvent, type PointerEvent as ReactPointerEvent, type Ref, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, memo, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type Ref, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from "motion/react";
 import {
   Bell,
@@ -52,6 +52,18 @@ import { stripAgentCommandPrefix } from "@/features/communication/lib/agent-comm
 import { useAgentCommandAutocomplete } from "@/features/communication/lib/use-agent-command-autocomplete";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
+import {
+  createIdlePomodoroState,
+  phaseDurationSeconds,
+  POMODORO_FOCUS_SECONDS,
+  readPomodoroState,
+  readWidgetTimerMode,
+  writePomodoroState,
+  writeWidgetTimerMode,
+  type PomodoroPhase,
+  type PomodoroState,
+  type WidgetTimerMode,
+} from "@/lib/widget/widget-pref-client";
 import { startWidgetWindowDragging, tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 
 import styles from "./desktop-widget-bubble.module.css";
@@ -173,6 +185,11 @@ export type DesktopWidgetBubbleProps = {
   onPrimaryTimerAction?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onToggleAlwaysOnTop: () => void;
   onToggleVoiceMic?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  // 헤더 스코프 토글: 개인 ⇄ 활성 룸. 전역 위젯 컨텍스트를 전환한다(스펙: PATCH /api/widget/context는
+  // 위젯 전체가 바라보는 프로젝트룸을 저장 — 컨텍스트는 위젯 단위 전역, per-bubble 오버라이드 아님).
+  // roomAvailable=false면 비활성(활성 룸 없음). 콜백이 없으면 기존 표시전용 라벨로 폴백한다.
+  onToggleScope?: () => void;
+  scope?: { isRoom: boolean; roomAvailable: boolean; roomLabel?: string };
   presentation?: "preview" | "tauri";
   // Tauri 창 식별자(리사이즈 커맨드 타깃). 프리뷰에서는 불필요.
   windowId?: string;
@@ -263,15 +280,50 @@ function GooeyFilter({ id = "bubli-goo", strength = 6 }: { id?: string; strength
 
 // 세그먼트 컨트롤: 등폭(1fr) 버튼 위를 layoutId 썸이 스프링 translate로 미끄러진다
 // (배경 스왑 아님). reduced-motion에서는 즉시 점프(duration 0).
-function SegmentedControl({ defaultIndex = 0, labels }: { defaultIndex?: number; labels: string[] }) {
+// value/onChange를 주면 controlled로 동작하고(활성 인덱스는 부모가 소유), 안 주면
+// 기존처럼 내부 상태로 동작한다 — 무인자 사용처(일정 탭 등) 호환 유지.
+// 좌우 화살표 키보드 이동을 지원하고 활성 버튼만 tabbable(roving tabindex)로 둔다.
+function SegmentedControl({
+  ariaLabel,
+  defaultIndex = 0,
+  labels,
+  onChange,
+  value,
+}: {
+  ariaLabel?: string;
+  defaultIndex?: number;
+  labels: string[];
+  onChange?: (index: number) => void;
+  value?: number;
+}) {
   const prefersReducedMotion = useReducedMotion();
   const thumbId = useId();
-  const [index, setIndex] = useState(defaultIndex);
+  const [internalIndex, setInternalIndex] = useState(defaultIndex);
+  const isControlled = value !== undefined;
+  const index = isControlled ? value : internalIndex;
+
+  const select = (nextIndex: number) => {
+    if (!isControlled) setInternalIndex(nextIndex);
+    onChange?.(nextIndex);
+  };
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    event.preventDefault();
+    const delta = event.key === "ArrowRight" ? 1 : -1;
+    select((index + delta + labels.length) % labels.length);
+  };
 
   return (
-    <div className={styles.segmented} role="group">
+    <div aria-label={ariaLabel} className={styles.segmented} onKeyDown={onKeyDown} role="group">
       {labels.map((label, itemIndex) => (
-        <button aria-pressed={itemIndex === index} key={label} onClick={() => setIndex(itemIndex)} type="button">
+        <button
+          aria-pressed={itemIndex === index}
+          key={label}
+          onClick={() => select(itemIndex)}
+          tabIndex={itemIndex === index ? 0 : -1}
+          type="button"
+        >
           {itemIndex === index ? (
             <motion.span
               aria-hidden="true"
@@ -930,7 +982,45 @@ function ChatBody({
   );
 }
 
-function TimerBody({
+const TIMER_MODE_ORDER: WidgetTimerMode[] = ["clock", "work", "pomodoro"];
+
+function formatClock(date: Date): string {
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function formatMinutesSeconds(totalSeconds: number): string {
+  const clamped = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(clamped / 60);
+  const seconds = clamped % 60;
+  return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
+// 시계 모드: HH:MM:SS 라이브(1s 인터벌) + 날짜 한 줄. start/stop 컨트롤 없음.
+// reduced-motion과 무관하게 텍스트만 갱신하므로 애니메이션 정책의 영향을 받지 않는다.
+function ClockView() {
+  const { locale } = useI18n();
+  // 라이브 클라이언트 전용 위젯이라 lazy init으로 첫 값을 렌더 시 만든다(effect 내 동기 setState 회피).
+  const [now, setNow] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  const dateLabel = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", weekday: "short", year: "numeric" }).format(now);
+
+  return (
+    <div className={styles.clockFace} role="timer" aria-live="off">
+      <strong className={styles.clockTime}>{formatClock(now)}</strong>
+      <span className={styles.clockDate}>{dateLabel}</span>
+    </div>
+  );
+}
+
+// 작업 모드: 서버 time_logs에 기록되는 작업 타이머(start/pause/resume/stop).
+// 현재 컨텍스트(개인=GENERAL / 룸=WORK)로 귀속되며 링에 서버 경과 지표를 표시한다.
+function WorkView({
   bubble,
   onItemStateChange,
   onPauseTimer,
@@ -945,15 +1035,15 @@ function TimerBody({
   const timerStatus = bubble.rows[0]?.status;
   const canPause = timerStatus === "RUNNING";
   const PrimaryIcon = timerStatus === "RUNNING" ? Square : Play;
+  const contextLabel = bubble.roomId ? t("widget.timer.workTimer") : t("widget.timer.generalTimer");
 
   return (
-    <div className={styles.body}>
+    <>
       <div className={styles.timer}>
         <strong>{bubble.metric}</strong>
         <span>{t(bubble.metricLabel as MessageKey)}</span>
       </div>
-      {/* 모드 전환은 pill 3개가 아니라 하나의 세그먼트 바로 읽혀야 한다. */}
-      <SegmentedControl labels={[t("widget.timer.tabClock"), t("widget.timer.tabWork"), t("widget.timer.tabPomodoro")]} />
+      <p className={styles.timerScopeNote}>{contextLabel}</p>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
       <div className={styles.timerActions}>
         <button className={styles.timerPrimary} onClick={() => void onPrimaryTimerAction?.(bubble)} type="button">
@@ -965,6 +1055,192 @@ function TimerBody({
           {timerStatus === "PAUSED" ? t("widget.timer.paused") : t("widget.timer.pause")}
         </button>
       </div>
+    </>
+  );
+}
+
+// 뽀모도로 모드: 로컬 전용 25/5 사이클. 서버 기록 없음. 진행 상태는 sqlite에 저장돼
+// 창을 닫아도 복원된다(집중↔휴식 자동전환, 사이클 카운트). 완료 시 goo 팝 신호를 재사용한다.
+function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
+  const { t } = useI18n();
+  const prefersReducedMotion = useReducedMotion();
+  const [state, setState] = useState<PomodoroState>(() => createIdlePomodoroState());
+  const [remaining, setRemaining] = useState<number>(POMODORO_FOCUS_SECONDS);
+  const [popKey, setPopKey] = useState<number | null>(null);
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  // 재오픈 복원: 저장된 진행 상태를 읽어 실행 중이면 phaseEndsAt으로 남은 시간을 재계산한다.
+  useEffect(() => {
+    let cancelled = false;
+    void readPomodoroState(selectedRoomId).then((stored) => {
+      if (cancelled || !stored) return;
+      setState(stored);
+      if (stored.running && stored.phaseEndsAt) {
+        setRemaining(Math.max(0, Math.round((stored.phaseEndsAt - Date.now()) / 1000)));
+      } else {
+        setRemaining(stored.remainingSeconds ?? phaseDurationSeconds(stored.phase));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRoomId]);
+
+  const persist = useCallback(
+    (next: PomodoroState) => {
+      setState(next);
+      void writePomodoroState(next, selectedRoomId);
+    },
+    [selectedRoomId],
+  );
+
+  // 실행 중 1s 틱 — phaseEndsAt에 도달하면 페이즈 자동 전환(집중→휴식은 사이클 +1).
+  useEffect(() => {
+    if (!state.running || !state.phaseEndsAt) return;
+
+    const tick = () => {
+      const current = stateRef.current;
+      if (!current.running || !current.phaseEndsAt) return;
+      const left = Math.round((current.phaseEndsAt - Date.now()) / 1000);
+      if (left > 0) {
+        setRemaining(left);
+        return;
+      }
+      // 페이즈 종료 → 자동 전환.
+      const nextPhase: PomodoroPhase = current.phase === "focus" ? "break" : "focus";
+      const nextCycles = current.phase === "focus" ? current.cyclesCompleted + 1 : current.cyclesCompleted;
+      const nextDuration = phaseDurationSeconds(nextPhase);
+      const next: PomodoroState = {
+        cyclesCompleted: nextCycles,
+        phase: nextPhase,
+        phaseEndsAt: Date.now() + nextDuration * 1000,
+        remainingSeconds: null,
+        running: true,
+      };
+      setRemaining(nextDuration);
+      setPopKey(Date.now());
+      persist(next);
+    };
+
+    tick();
+    const intervalId = window.setInterval(tick, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [persist, state.phaseEndsAt, state.running]);
+
+  const start = () => {
+    const duration = phaseDurationSeconds(state.phase);
+    const base = remaining > 0 && remaining < duration ? remaining : duration;
+    persist({ ...state, phaseEndsAt: Date.now() + base * 1000, remainingSeconds: null, running: true });
+    setRemaining(base);
+  };
+
+  const pause = () => {
+    persist({ ...state, phaseEndsAt: null, remainingSeconds: remaining, running: false });
+  };
+
+  const reset = () => {
+    const idle = createIdlePomodoroState();
+    persist(idle);
+    setRemaining(POMODORO_FOCUS_SECONDS);
+  };
+
+  const totalPhase = phaseDurationSeconds(state.phase);
+  const progress = totalPhase > 0 ? 1 - remaining / totalPhase : 0;
+  const phaseClass = state.phase === "focus" ? styles.pomodoroFocus : styles.pomodoroBreak;
+  const phaseLabel = state.phase === "focus" ? t("widget.timer.pomodoroFocus") : t("widget.timer.pomodoroBreak");
+
+  return (
+    <>
+      <div className={[styles.pomodoroRing, phaseClass].join(" ")}>
+        {/* 진행 링(집중=amber / 휴식=sky) — conic-gradient 각도로 진행률을 그린다. */}
+        <div className={styles.pomodoroRingTrack} style={{ ["--pomodoro-progress" as string]: `${Math.round(progress * 360)}deg` }} aria-hidden="true" />
+        <div className={styles.pomodoroRingInner}>
+          <strong>{formatMinutesSeconds(remaining)}</strong>
+          <span>{phaseLabel}</span>
+        </div>
+        {popKey !== null ? (
+          <motion.span
+            key={popKey}
+            className={styles.pomodoroPop}
+            aria-hidden="true"
+            initial={{ opacity: 0.9, scale: 0.4 }}
+            animate={{ opacity: 0, scale: 1.6 }}
+            transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.5 }}
+            onAnimationComplete={() => setPopKey(null)}
+          />
+        ) : null}
+      </div>
+      <p className={styles.timerScopeNote}>{t("widget.timer.pomodoroCycles", { value: state.cyclesCompleted })}</p>
+      <div className={styles.timerActions}>
+        {state.running ? (
+          <button className={styles.timerPrimary} onClick={pause} type="button">
+            <Pause size={13} />
+            {t("widget.timer.pause")}
+          </button>
+        ) : (
+          <button className={styles.timerPrimary} onClick={start} type="button">
+            <Play size={13} />
+            {t("widget.timerAction.start")}
+          </button>
+        )}
+        <button className={styles.timerGhost} onClick={reset} type="button">
+          <RefreshCw size={13} />
+          {t("widget.timer.pomodoroReset")}
+        </button>
+      </div>
+    </>
+  );
+}
+
+function TimerBody({
+  bubble,
+  onItemStateChange,
+  onPauseTimer,
+  onPrimaryTimerAction,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onPauseTimer?: DesktopWidgetBubbleProps["onPauseTimer"];
+  onPrimaryTimerAction?: DesktopWidgetBubbleProps["onPrimaryTimerAction"];
+}) {
+  const { t } = useI18n();
+  const selectedRoomId = bubble.roomId?.trim() || null;
+  const [mode, setMode] = useState<WidgetTimerMode>("work");
+
+  // 선택 모드 복원(재오픈) — 컨텍스트별로 저장된 모드를 읽어온다.
+  useEffect(() => {
+    let cancelled = false;
+    void readWidgetTimerMode(selectedRoomId).then((stored) => {
+      if (!cancelled && stored) setMode(stored);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRoomId]);
+
+  const changeMode = (index: number) => {
+    const next = TIMER_MODE_ORDER[index] ?? "work";
+    setMode(next);
+    void writeWidgetTimerMode(next, selectedRoomId);
+  };
+
+  return (
+    <div className={styles.body}>
+      {/* 모드 전환은 pill 3개가 아니라 하나의 세그먼트 바로 읽혀야 한다. */}
+      <SegmentedControl
+        ariaLabel={t("widget.timer.modeAria")}
+        labels={[t("widget.timer.tabClock"), t("widget.timer.tabWork"), t("widget.timer.tabPomodoro")]}
+        onChange={changeMode}
+        value={TIMER_MODE_ORDER.indexOf(mode)}
+      />
+      {mode === "clock" ? <ClockView /> : null}
+      {mode === "work" ? (
+        <WorkView bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />
+      ) : null}
+      {mode === "pomodoro" ? <PomodoroView selectedRoomId={selectedRoomId} /> : null}
     </div>
   );
 }
@@ -1484,7 +1760,9 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   onSendChatMessage,
   onStartVoice,
   onToggleAlwaysOnTop,
+  onToggleScope,
   onToggleVoiceMic,
+  scope,
   presentation = "tauri",
   windowId,
   windowVisible = true,
@@ -1621,7 +1899,24 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
                 <div className={styles.titleCopy}>
                   {/* 헤더 타이틀은 "버블" 접미사 없이 종류명만 쓴다. */}
                   <strong>{t(activeData.label as MessageKey)}</strong>
-                  <small>{isPreview ? `${t(modeLabels[mode])} · ${t(activeData.notificationLabel as MessageKey)}` : t(activeData.roomLabel as MessageKey)}</small>
+                  {isPreview ? (
+                    <small>{`${t(modeLabels[mode])} · ${t(activeData.notificationLabel as MessageKey)}`}</small>
+                  ) : onToggleScope && scope ? (
+                    // 표시전용 라벨을 클릭 가능한 스코프 토글로 승격(개인 ⇄ 활성 룸).
+                    <button
+                      aria-pressed={scope.isRoom}
+                      className={styles.scopeToggle}
+                      disabled={!scope.roomAvailable && !scope.isRoom}
+                      onClick={onToggleScope}
+                      title={t("widget.scope.toggleHint")}
+                      type="button"
+                    >
+                      <Users size={11} strokeWidth={2.2} aria-hidden="true" />
+                      <span>{scope.isRoom ? scope.roomLabel ?? t("widget.scope.room") : t("widget.scope.personal")}</span>
+                    </button>
+                  ) : (
+                    <small>{t(activeData.roomLabel as MessageKey)}</small>
+                  )}
                 </div>
               </div>
               <WidgetControls alwaysOnTop={alwaysOnTop} mode={mode} onClose={onClose} onMode={onModeChange} onPin={onToggleAlwaysOnTop} presentation={presentation} />

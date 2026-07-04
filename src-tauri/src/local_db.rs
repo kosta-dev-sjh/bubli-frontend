@@ -209,6 +209,32 @@ pub struct WidgetSummaryCacheReadResult {
     summary_json: String,
 }
 
+// Widget bubble preference cache (timer mode + local Pomodoro state).
+// Partitioned by (kind, cacheKey) so a personal context and each project-room
+// context keep independent state and never overwrite each other, mirroring the
+// summary cache partitioning. Value is an opaque JSON blob owned by the client.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetPrefStoreInput {
+    cache_key: Option<String>,
+    kind: String,
+    value_json: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetPrefReadInput {
+    cache_key: Option<String>,
+    kind: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetPrefReadResult {
+    updated_at: String,
+    value_json: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalRoomMessageSyncResult {
@@ -780,6 +806,83 @@ pub fn read_widget_summary_cache(
 ) -> Result<Option<WidgetSummaryCacheReadResult>, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
     read_widget_summary_cache_for_conn(&conn, input.and_then(|value| value.cache_key).as_deref())
+}
+
+#[tauri::command]
+pub fn store_widget_pref(
+    state: tauri::State<'_, Db>,
+    input: WidgetPrefStoreInput,
+) -> Result<WidgetPrefReadResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    store_widget_pref_for_conn(&conn, &input.kind, &input.value_json, input.cache_key.as_deref())
+}
+
+#[tauri::command]
+pub fn read_widget_pref(
+    state: tauri::State<'_, Db>,
+    input: WidgetPrefReadInput,
+) -> Result<Option<WidgetPrefReadResult>, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    read_widget_pref_for_conn(&conn, &input.kind, input.cache_key.as_deref())
+}
+
+fn widget_pref_id(kind: &str, cache_key: Option<&str>) -> String {
+    let key = cache_key.unwrap_or("").trim();
+    let scope = if key.is_empty() { "context" } else { key };
+    format!("{}:{scope}", kind.trim())
+}
+
+fn store_widget_pref_for_conn(
+    conn: &Connection,
+    kind: &str,
+    value_json: &str,
+    cache_key: Option<&str>,
+) -> Result<WidgetPrefReadResult, String> {
+    let kind = kind.trim();
+    if kind.is_empty() {
+        return Err("widget pref kind is required".to_string());
+    }
+    serde_json::from_str::<Value>(value_json)
+        .map_err(|error| format!("valueJson must be valid JSON: {error}"))?;
+
+    let now = now_ms();
+    let pref_id = widget_pref_id(kind, cache_key);
+    conn.execute(
+        "INSERT INTO local_widget_pref (id, kind, value_json, updated_at) \
+         VALUES (?1, ?2, ?3, ?4) \
+         ON CONFLICT(id) DO UPDATE SET \
+           value_json = excluded.value_json, \
+           updated_at = excluded.updated_at",
+        params![pref_id, kind, value_json, now],
+    )
+    .map_err(|error| error.to_string())?;
+
+    Ok(WidgetPrefReadResult {
+        updated_at: ms_to_iso(now),
+        value_json: value_json.to_string(),
+    })
+}
+
+fn read_widget_pref_for_conn(
+    conn: &Connection,
+    kind: &str,
+    cache_key: Option<&str>,
+) -> Result<Option<WidgetPrefReadResult>, String> {
+    let pref_id = widget_pref_id(kind, cache_key);
+    conn.query_row(
+        "SELECT value_json, updated_at FROM local_widget_pref WHERE id = ?1",
+        params![pref_id],
+        |row| {
+            let value_json: String = row.get(0)?;
+            let updated_at: i64 = row.get(1)?;
+            Ok(WidgetPrefReadResult {
+                updated_at: ms_to_iso(updated_at),
+                value_json,
+            })
+        },
+    )
+    .optional()
+    .map_err(|error| error.to_string())
 }
 
 fn sync_room_messages_for_conn(
@@ -1570,6 +1673,17 @@ CREATE TABLE IF NOT EXISTS local_widget_display_cache (
     cached_at    INTEGER NOT NULL
 );
 
+-- Per-context widget bubble preferences. id = "{kind}:{scope}" where scope is
+-- "context" for the personal context or the room-scoped cache key, so personal
+-- and each project-room keep independent state (timer mode, local Pomodoro run
+-- state). Local-only: Pomodoro cycles are never reflected to the server.
+CREATE TABLE IF NOT EXISTS local_widget_pref (
+    id         TEXT PRIMARY KEY,
+    kind       TEXT NOT NULL,                   -- e.g. timer_mode | pomodoro_state
+    value_json TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
 -- User-resized widget bubble window sizes (logical px, per bubble type).
 -- Written when the user releases a corner-drag resize; read once at app start
 -- so reopened bubbles restore the user size within the min/max clamps
@@ -1638,8 +1752,8 @@ mod tests {
         read_widget_summary_cache_for_conn, record_activity_context_conn,
         record_timer_state_for_conn, recover_timer_state_for_conn, restore_request_path,
         stage_activity_contexts_for_sync_conn, store_active_project_room_for_conn,
-        store_auth_session_json, store_widget_bubble_size_for_conn,
-        store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
+        read_widget_pref_for_conn, store_auth_session_json, store_widget_bubble_size_for_conn,
+        store_widget_pref_for_conn, store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
         validate_auth_session_json, validate_widget_summary_json,
         write_pending_sqlite_restore_to_path, ActiveProjectRoomStoreInput,
         ActivityContextRecordInput, ActivityContextSyncInput, LocalRoomMessageCacheInput,
@@ -2274,6 +2388,43 @@ mod tests {
                 .expect("read unknown user summary")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn widget_pref_is_partitioned_by_kind_and_context() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
+
+        // Personal timer mode and a room timer mode must not overwrite each other.
+        store_widget_pref_for_conn(&conn, "timer_mode", r#"{"mode":"pomodoro"}"#, Some("sub:u1:personal"))
+            .expect("store personal timer mode");
+        store_widget_pref_for_conn(&conn, "timer_mode", r#"{"mode":"work"}"#, Some("sub:u1:room:r1"))
+            .expect("store room timer mode");
+
+        let personal = read_widget_pref_for_conn(&conn, "timer_mode", Some("sub:u1:personal"))
+            .expect("read personal timer mode")
+            .expect("personal pref exists");
+        let room = read_widget_pref_for_conn(&conn, "timer_mode", Some("sub:u1:room:r1"))
+            .expect("read room timer mode")
+            .expect("room pref exists");
+        assert_eq!(personal.value_json, r#"{"mode":"pomodoro"}"#);
+        assert_eq!(room.value_json, r#"{"mode":"work"}"#);
+
+        // Different kinds in the same context are independent rows.
+        store_widget_pref_for_conn(
+            &conn,
+            "pomodoro_state",
+            r#"{"phase":"focus","cyclesCompleted":2,"running":false,"phaseEndsAt":null,"remainingSeconds":1500}"#,
+            Some("sub:u1:personal"),
+        )
+        .expect("store pomodoro state");
+        let still_mode = read_widget_pref_for_conn(&conn, "timer_mode", Some("sub:u1:personal"))
+            .expect("read personal timer mode again")
+            .expect("personal pref still exists");
+        assert_eq!(still_mode.value_json, r#"{"mode":"pomodoro"}"#);
+
+        // Invalid JSON is rejected.
+        assert!(store_widget_pref_for_conn(&conn, "timer_mode", "not json", None).is_err());
     }
 
     #[test]
