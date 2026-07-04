@@ -805,7 +805,8 @@ fn widget_window_store_from_layout(layout: StoredWidgetWindowLayout) -> WidgetWi
             && bar_height_delta != 0.0
             && !widget_position_is_unset(&widget.position)
         {
-            widget.position.y = ((widget.position.y as f64 - bar_height_delta).round() as i32).max(0);
+            widget.position.y =
+                ((widget.position.y as f64 - bar_height_delta).round() as i32).max(0);
         }
         let key = normalize_window_key(&widget.active_bubble, widget.window_id.clone());
         widget.window_id = Some(key.clone());
@@ -2478,7 +2479,10 @@ mod tests {
             bar_layout_height: Some(WIDGET_BAR_HEIGHT),
             bubbles: vec![widget("bar", Some("bar"), 400, 656)],
         });
-        assert_eq!(store.bubbles.get("bar").expect("bar widget").position.y, 656);
+        assert_eq!(
+            store.bubbles.get("bar").expect("bar widget").position.y,
+            656
+        );
     }
 
     #[test]
@@ -2985,7 +2989,10 @@ mod widget_runtime_tests {
         assert_eq!(too_small.height, base.height);
 
         let too_big = clamp_widget_user_size("memo", 10_000.0, 10_000.0);
-        assert_eq!(too_big.width, (base.width * WIDGET_USER_SIZE_MAX_SCALE).round());
+        assert_eq!(
+            too_big.width,
+            (base.width * WIDGET_USER_SIZE_MAX_SCALE).round()
+        );
         assert_eq!(
             too_big.height,
             (base.height * WIDGET_USER_SIZE_MAX_SCALE).round()
@@ -3020,11 +3027,15 @@ mod widget_runtime_tests {
         assert_eq!(placements[0].1.y, 24);
         assert_eq!(placements[1].0, "bubli-widget-agent");
         assert_eq!(placements[1].1.x, column_one_x);
-        assert_eq!(placements[1].1.y, (24.0 + todo_size.height + 24.0).round() as i32);
+        assert_eq!(
+            placements[1].1.y,
+            (24.0 + todo_size.height + 24.0).round() as i32
+        );
 
         // 2열은 1열 왼쪽으로 24px 간격.
-        let column_two_x =
-            (column_one_x as f64 - 24.0 - chat_size.width).max(24.0).round() as i32;
+        let column_two_x = (column_one_x as f64 - 24.0 - chat_size.width)
+            .max(24.0)
+            .round() as i32;
         assert_eq!(placements[2].0, "bubli-widget-chat");
         assert_eq!(placements[2].1.x, column_two_x);
         assert_eq!(placements[2].1.y, 24);
