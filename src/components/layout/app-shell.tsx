@@ -630,7 +630,16 @@ export function AppShell({ children }: AppShellProps) {
             </section>
           </>
         ) : null}
-        <div className="bubli-main-scroll">{children}</div>
+        <div className="bubli-main-scroll">
+          {state.kind === "auth" ? (
+            // 비로그인 상태에서는 회원 전용 콘텐츠를 렌더하지 않는다. (로그인 페이지로 리다이렉트 중)
+            <div className="bubli-auth-gate" role="status">
+              {t("layout.gate.redirecting")}
+            </div>
+          ) : (
+            children
+          )}
+        </div>
       </main>
     </div>
   );

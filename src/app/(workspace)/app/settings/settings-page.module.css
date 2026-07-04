@@ -374,10 +374,16 @@
 
 /* desktopOnly 행 안내 — 웹에서 잠긴 토글 아래 "데스크톱 앱에서 사용하는 기능" 문구. */
 .desktopOnlyNote {
-  margin: 2px 0 0;
+  display: inline-flex;
+  width: fit-content;
+  margin: 4px 0 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(111, 184, 242, 0.14);
   color: var(--blue-ink);
-  font-size: 14px;
-  font-weight: 660;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .guard,

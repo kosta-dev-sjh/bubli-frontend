@@ -47,6 +47,7 @@ const ko = {
 
   // 상단바 알림 패널
   "layout.notifications.aria": "알림 패널",
+  "layout.gate.redirecting": "로그인이 필요해요. 로그인 화면으로 이동 중…",
   "layout.invites.title": "받은 초대",
   "layout.invites.from": "{name}님이 초대했어요",
   "layout.invites.accept": "수락",
@@ -127,6 +128,7 @@ const en: Record<Key, string> = {
   "layout.profileMenu.loggingOut": "Logging out",
 
   "layout.notifications.aria": "Notifications panel",
+  "layout.gate.redirecting": "Sign-in required. Redirecting to login…",
   "layout.invites.title": "Invitations",
   "layout.invites.from": "{name} invited you",
   "layout.invites.accept": "Accept",
@@ -204,6 +206,7 @@ const ja: Record<Key, string> = {
   "layout.profileMenu.loggingOut": "ログアウト中",
 
   "layout.notifications.aria": "通知パネル",
+  "layout.gate.redirecting": "ログインが必要です。ログイン画面へ移動中…",
   "layout.invites.title": "受信した招待",
   "layout.invites.from": "{name}さんから招待されました",
   "layout.invites.accept": "承認",

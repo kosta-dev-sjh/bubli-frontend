@@ -1536,8 +1536,9 @@ export default function SettingsPage() {
               </div>
               <p className={styles.guard}>{t("settings.privacy.guard")}</p>
             </GlassPanel>
-            {/* dev PR 212 이식: 활동 감지 패널 — 기록 버튼은 데스크톱에서만 활성화되고(desktopRuntime),
-                새로고침/삭제는 서버 데이터라 웹에서도 동작한다. 패널 내부에서 웹 안내 문구를 처리한다. */}
+            {/* dev PR 212 이식: 활동 감지 패널 — 데스크톱 전용 기능이므로 웹에서는 렌더하지 않는다.
+                (웹은 위 동의 토글 + 데스크톱 안내로 충분, 죽은 히어로 배너 금지) */}
+            {desktopRuntime ? (
             <ActivityDetectionPanel
               activityLogs={readySettings.activityLogs ?? []}
               consentGranted={Boolean(privacySettings.activityDetectionEnabled)}
@@ -1548,6 +1549,7 @@ export default function SettingsPage() {
               onRecordActivity={() => void readActivity()}
               onRefreshActivity={() => void refreshActivityLogs()}
             />
+            ) : null}
             </>
             ) : null}
 
