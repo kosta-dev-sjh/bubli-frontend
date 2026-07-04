@@ -278,7 +278,7 @@ function ItemRows({
   return (
     <div className={styles.rowList}>
       {bubble.rows.map((item) => (
-        <label className={styles.checkRow} key={item.label}>
+        <label className={styles.checkRow} key={item.id}>
           <input checked={item.checked ?? false} readOnly type="checkbox" />
           {item.handoffUrl ? (
             <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
@@ -1255,6 +1255,23 @@ export function DesktopWidgetBubbleBar({
         data-bubli-interactive="true"
         onMouseDown={handleWidgetDragMouseDown}
       >
+        {/* 알림은 바에 고정된 요소라 맨 왼쪽에 둔다. 접힌 버블 칩과는 구분선으로 분리. */}
+        <button
+          aria-describedby={previewTarget === "notice" ? BAR_PREVIEW_POPOVER_ID : undefined}
+          aria-label={t(notificationSignal.notificationLabel as MessageKey)}
+          className={[styles.barNotice, accentClassNames.lilac].join(" ")}
+          onBlur={() => hidePreview("notice")}
+          onFocus={() => showPreview("notice")}
+          onMouseEnter={() => showPreview("notice")}
+          onMouseLeave={() => hidePreview("notice")}
+          type="button"
+        >
+          <i className={styles.chipTile} aria-hidden="true">
+            <Bell size={11} strokeWidth={2.2} />
+          </i>
+          <b>{notificationSignal.metric}</b>
+        </button>
+        <span className={styles.barDivider} aria-hidden="true" />
         <button
           className={styles.barBrand}
           aria-haspopup="menu"
@@ -1295,21 +1312,6 @@ export function DesktopWidgetBubbleBar({
             </button>
           );
         })}
-        <button
-          aria-describedby={previewTarget === "notice" ? BAR_PREVIEW_POPOVER_ID : undefined}
-          aria-label={t(notificationSignal.notificationLabel as MessageKey)}
-          className={[styles.barNotice, accentClassNames.lilac].join(" ")}
-          onBlur={() => hidePreview("notice")}
-          onFocus={() => showPreview("notice")}
-          onMouseEnter={() => showPreview("notice")}
-          onMouseLeave={() => hidePreview("notice")}
-          type="button"
-        >
-          <i className={styles.chipTile} aria-hidden="true">
-            <Bell size={11} strokeWidth={2.2} />
-          </i>
-          <b>{notificationSignal.metric}</b>
-        </button>
       </nav>
     </div>
   );

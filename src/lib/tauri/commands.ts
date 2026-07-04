@@ -22,6 +22,7 @@ export const TAURI_COMMANDS = {
   markActivityContextSynced: "mark_activity_context_synced",
   listManagedFolders: "list_managed_folders",
   notifyWidgetDragStarted: "notify_widget_drag_started",
+  notifyWidgetPointerSeen: "notify_widget_pointer_seen",
   openMainWindowRoute: "open_main_window_route",
   openWidgetWindow: "open_widget_window",
   quitApp: "quit_app",
@@ -797,6 +798,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: null;
   };
+  notify_widget_pointer_seen: {
+    args: undefined;
+    result: null;
+  };
   open_widget_window: {
     args: WidgetWindowOpenInput | undefined;
     result: WidgetWindowState;
@@ -1082,6 +1087,9 @@ export const tauriCommands = {
   },
   notifyWidgetDragStarted() {
     return invokeTauri<null>(TAURI_COMMANDS.notifyWidgetDragStarted);
+  },
+  notifyWidgetPointerSeen() {
+    return invokeTauri<null>(TAURI_COMMANDS.notifyWidgetPointerSeen);
   },
   openWidgetWindow(input?: WidgetWindowOpenInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.openWidgetWindow, input ? { input } : undefined);

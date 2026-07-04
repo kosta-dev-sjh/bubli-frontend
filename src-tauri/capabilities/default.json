@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Core permissions for the Bubli main and desktop widget windows.",
   "windows": ["main", "bubli-widget-*"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "core:window:allow-start-dragging"]
 }
