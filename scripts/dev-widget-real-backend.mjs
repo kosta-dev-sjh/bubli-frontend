@@ -570,6 +570,11 @@ SET status = 'ENDED',
 WHERE user_id = '${SEED_USER_ID}'
   AND status IN ('RUNNING', 'PAUSED', 'NEEDS_RECOVERY');
 
+UPDATE schedules
+SET sync_status = 'LOCAL_ONLY',
+    updated_at = now()
+WHERE sync_status = 'PENDING';
+
 DELETE FROM voice_participants
 WHERE voice_room_id IN (SELECT id FROM voice_rooms WHERE room_id = '${SEED_ROOM_ID}');
 
@@ -611,7 +616,7 @@ DO UPDATE SET id = EXCLUDED.id, state = EXCLUDED.state, updated_at = now();
 
 INSERT INTO schedules (id, owner_user_id, room_id, task_id, wbs_item_id, google_event_id, title, starts_at, ends_at, is_all_day, sync_status, last_synced_at, created_at, updated_at)
 VALUES ('77777777-7777-4777-8777-777777777777', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, NULL, NULL, 'Desktop widget backend sync check', now() + interval '2 hours', now() + interval '3 hours', false, 'LOCAL_ONLY', NULL, now(), now())
-ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at, updated_at = now();
+ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at, sync_status = EXCLUDED.sync_status, last_synced_at = EXCLUDED.last_synced_at, updated_at = now();
 
 INSERT INTO notifications (id, user_id, source_type, source_id, title, body, status, read_at, created_at)
 VALUES ('88888888-8888-4888-8888-888888888888', '${SEED_USER_ID}', 'AGENT', NULL, 'Widget real data notification', 'Unread count should include this seeded notification.', 'UNREAD', NULL, now())

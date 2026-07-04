@@ -1401,7 +1401,7 @@ struct MainWindowShowInput {
 }
 
 /// 위젯 메뉴에서 메인 앱을 열 때 이동을 허용하는 경로 화이트리스트.
-fn normalize_main_window_route(route: Option<String>) -> Option<&'static str> {
+fn normalize_widget_menu_route(route: Option<String>) -> Option<&'static str> {
     match route.as_deref() {
         Some("settings") => Some("/app/settings"),
         _ => None,
@@ -1414,7 +1414,7 @@ fn show_main_window(app: AppHandle, input: Option<MainWindowShowInput>) -> Resul
         return Err("main window not found".to_string());
     };
 
-    if let Some(route) = normalize_main_window_route(input.and_then(|value| value.route)) {
+    if let Some(route) = normalize_widget_menu_route(input.and_then(|value| value.route)) {
         window
             .eval(&format!("window.location.assign(\"{route}\")"))
             .map_err(|error| error.to_string())?;
@@ -1964,14 +1964,14 @@ mod widget_runtime_tests {
     #[test]
     fn main_window_route_allows_only_known_routes() {
         assert_eq!(
-            normalize_main_window_route(Some("settings".to_string())),
+            normalize_widget_menu_route(Some("settings".to_string())),
             Some("/app/settings")
         );
         assert_eq!(
-            normalize_main_window_route(Some("javascript:alert(1)".to_string())),
+            normalize_widget_menu_route(Some("javascript:alert(1)".to_string())),
             None
         );
-        assert_eq!(normalize_main_window_route(None), None);
+        assert_eq!(normalize_widget_menu_route(None), None);
     }
 
     #[test]
