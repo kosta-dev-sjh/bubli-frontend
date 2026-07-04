@@ -27,6 +27,7 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { activityApi } from "@/features/activity/api/activityApi";
 import { dashboardApi } from "@/features/dashboard/api/dashboardApi";
+import { memoApi } from "@/features/memo/api/memoApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
@@ -50,6 +51,7 @@ import {
   workspacePreviewRooms,
 } from "@/lib/workspace-preview-data";
 import type { ActivityLogResponse } from "@/types/api/activity";
+import type { MemoResponse } from "@/types/api/memo";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { ResourceResponse } from "@/types/api/resource";
 import type { TimeLogResponse } from "@/types/api/timer";
@@ -78,6 +80,7 @@ const connectedWidgetIds = [
   "pending-approval",
   "timer",
   "recent-resources",
+  "quick-memo",
 ];
 const defaultWidgetIds = ["today-summary", "next-focus", "today-todos", "schedule", "project-rooms", "pending-approval", "timer"];
 const dashboardDropzoneId = "dashboard-canvas";
@@ -251,6 +254,18 @@ function TaskLine({
 function ScheduleLine({ schedule }: { schedule: ScheduleResponse }) {
   const { t } = useI18n();
   return <StatusLine meta={formatTime(t, schedule.startsAt)}>{schedule.title}</StatusLine>;
+}
+
+function normalizeMemoItems(items: MemoResponse[]) {
+  return items
+    .filter((memo) => memo.status === "ACTIVE")
+    .slice()
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+}
+
+function memoBodyPreview(t: TranslateFn, body: string) {
+  const trimmed = body.trim();
+  return trimmed.length > 0 ? trimmed : t("dashboard.quickMemo.bodyFallback");
 }
 
 function pickNextTask(tasks: TaskResponse[]) {
@@ -599,6 +614,73 @@ function TodoWidget({
   );
 }
 
+function QuickMemoWidget({
+  canCreate,
+  creating,
+  loading,
+  memos,
+  notice,
+  onCreate,
+  roomId,
+  roomLabel,
+}: {
+  canCreate: boolean;
+  creating: boolean;
+  loading: boolean;
+  memos: MemoResponse[];
+  notice: string | null;
+  onCreate: (body: string) => Promise<boolean>;
+  roomId: string | null;
+  roomLabel: string | null;
+}) {
+  const { t } = useI18n();
+  const [body, setBody] = useState("");
+  const scopeLabel = roomId ? t("dashboard.quickMemo.roomLabel", { room: roomLabel ?? t("dashboard.board.roomFallback") }) : t("dashboard.quickMemo.personalLabel");
+
+  const submitMemo = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const saved = await onCreate(body);
+    if (saved) {
+      setBody("");
+    }
+  };
+
+  return (
+    <div className="workspace-dashboard__todo-widget">
+      <form className="workspace-dashboard__todo-form" onSubmit={submitMemo}>
+        <label>
+          <span>{scopeLabel}</span>
+          <input
+            disabled={!canCreate || creating}
+            maxLength={500}
+            onChange={(event) => setBody(event.target.value)}
+            placeholder={t("dashboard.quickMemo.placeholder")}
+            value={body}
+          />
+        </label>
+        <button disabled={!canCreate || creating} type="submit">
+          <Plus aria-hidden size={14} strokeWidth={2.1} />
+          <span>{creating ? t("dashboard.quickMemo.adding") : t("dashboard.quickMemo.add")}</span>
+        </button>
+      </form>
+      {notice ? <p className="workspace-dashboard__todo-notice">{notice}</p> : null}
+      {loading && memos.length === 0 ? (
+        <div className="workspace-dashboard__empty-widget">{t("dashboard.quickMemo.loading")}</div>
+      ) : memos.length > 0 ? (
+        <DashboardLineList>
+          {memos.map((memo) => (
+            <StatusLine key={memo.id} meta={formatTime(t, memo.updatedAt)}>
+              {memoBodyPreview(t, memo.body)}
+            </StatusLine>
+          ))}
+        </DashboardLineList>
+      ) : (
+        <div className="workspace-dashboard__empty-widget">{t("dashboard.quickMemo.empty")}</div>
+      )}
+    </div>
+  );
+}
+
 function ResourceLine({ resource }: { resource: ResourceResponse }) {
   const { t } = useI18n();
   return <StatusLine meta={resource.visibility === "ROOM_SHARED" ? t("dashboard.resource.room") : t("dashboard.resource.personal")}>{resource.title}</StatusLine>;
@@ -711,6 +793,10 @@ export function WorkspaceDashboard() {
   const [creatingTodo, setCreatingTodo] = useState(false);
   const [deletingTodoId, setDeletingTodoId] = useState<string | null>(null);
   const [todoNotice, setTodoNotice] = useState<string | null>(null);
+  const [quickMemos, setQuickMemos] = useState<MemoResponse[]>([]);
+  const [quickMemoLoading, setQuickMemoLoading] = useState(false);
+  const [quickMemoSaving, setQuickMemoSaving] = useState(false);
+  const [quickMemoNotice, setQuickMemoNotice] = useState<string | null>(null);
   const [rooms, setRooms] = useState<ProjectRoomResponse[]>([]);
   const [todayActivityLogs, setTodayActivityLogs] = useState<ActivityLogResponse[] | null>(null);
   const [todayWidgetUsageSummary, setTodayWidgetUsageSummary] = useState<WidgetTodayUsageSummaryResponse | null>(null);
@@ -718,6 +804,7 @@ export function WorkspaceDashboard() {
   const [widgetIds, setWidgetIds] = useState(() => readStoredWidgetIds());
   const [timerAction, setTimerAction] = useState<DashboardTimerAction>("idle");
   const [timerMessage, setTimerMessage] = useState<string | null>(null);
+  const quickMemoRequestSeqRef = useRef(0);
   const timerRecoveryAttemptedRef = useRef(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -832,6 +919,37 @@ export function WorkspaceDashboard() {
   const roomFilteredRunningTimer = activeRoom.roomId && realData.runningTimer && !activeDashboardTimer ? realData.runningTimer : null;
   const timerBusy = timerAction !== "idle";
   const activeHeartbeatTimerId = realData.runningTimer?.status === "RUNNING" ? realData.runningTimer.id : null;
+
+  const fetchQuickMemos = useCallback(async () => {
+    const requestSeq = quickMemoRequestSeqRef.current + 1;
+    quickMemoRequestSeqRef.current = requestSeq;
+    setQuickMemoLoading(true);
+    setQuickMemoNotice(null);
+
+    try {
+      const page = activeRoom.roomId ? await memoApi.listRoom(activeRoom.roomId, { size: 3 }) : await memoApi.listPersonal({ size: 3 });
+      if (quickMemoRequestSeqRef.current !== requestSeq) return;
+      setQuickMemos(normalizeMemoItems(page.items).slice(0, 3));
+    } catch (error) {
+      if (quickMemoRequestSeqRef.current !== requestSeq) return;
+      setQuickMemos([]);
+      setQuickMemoNotice(error instanceof ApiClientError && error.status === 401 ? t("dashboard.quickMemo.loginRequired") : t("dashboard.quickMemo.loadFailed"));
+    } finally {
+      if (quickMemoRequestSeqRef.current === requestSeq) {
+        setQuickMemoLoading(false);
+      }
+    }
+  }, [activeRoom.roomId, t]);
+
+  useEffect(() => {
+    if (state.kind !== "ready" && state.kind !== "empty") return;
+
+    const timeoutId = window.setTimeout(() => {
+      void fetchQuickMemos();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchQuickMemos, state.kind]);
 
   useEffect(() => {
     if (timerRecoveryAttemptedRef.current) return;
@@ -1055,6 +1173,32 @@ export function WorkspaceDashboard() {
     [removeTask, t],
   );
 
+  const createQuickMemo = useCallback(
+    async (body: string) => {
+      const trimmed = body.trim();
+      if (!trimmed) {
+        setQuickMemoNotice(t("dashboard.quickMemo.needBody"));
+        return false;
+      }
+
+      setQuickMemoSaving(true);
+      setQuickMemoNotice(null);
+
+      try {
+        const created = activeRoom.roomId ? await memoApi.createRoom(activeRoom.roomId, { body: trimmed }) : await memoApi.createPersonal({ body: trimmed });
+        setQuickMemos((current) => normalizeMemoItems([created, ...current.filter((memo) => memo.id !== created.id)]).slice(0, 3));
+        setQuickMemoNotice(activeRoom.roomId ? t("dashboard.quickMemo.createdRoom") : t("dashboard.quickMemo.createdPersonal"));
+        return true;
+      } catch (error) {
+        setQuickMemoNotice(error instanceof ApiClientError && error.status === 401 ? t("dashboard.quickMemo.loginRequired") : t("dashboard.quickMemo.saveFailed"));
+        return false;
+      } finally {
+        setQuickMemoSaving(false);
+      }
+    },
+    [activeRoom.roomId, t],
+  );
+
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const activeId = String(event.active.id);
     if (activeId.startsWith("palette:")) {
@@ -1155,6 +1299,19 @@ export function WorkspaceDashboard() {
               onDelete={(task) => void deleteTodo(task)}
               roomLabel={activeRoom.label}
               tasks={taskItems}
+            />
+          );
+        case "quick-memo":
+          return (
+            <QuickMemoWidget
+              canCreate={state.kind === "ready" || state.kind === "empty"}
+              creating={quickMemoSaving}
+              loading={quickMemoLoading}
+              memos={quickMemos}
+              notice={quickMemoNotice}
+              onCreate={createQuickMemo}
+              roomId={activeRoom.roomId}
+              roomLabel={activeRoom.label}
             />
           );
         case "pending-approval":
@@ -1271,6 +1428,7 @@ export function WorkspaceDashboard() {
       activeRooms,
       activityFocus,
       createTodo,
+      createQuickMemo,
       creatingTodo,
       dashboardTasks,
       data,
@@ -1280,6 +1438,10 @@ export function WorkspaceDashboard() {
       inProgressTask,
       nextFocusSchedule,
       nextFocusTask,
+      quickMemoLoading,
+      quickMemoNotice,
+      quickMemoSaving,
+      quickMemos,
       realData.runningTimer,
       recentResources,
       reviewTasks,
