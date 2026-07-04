@@ -17,10 +17,26 @@ type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 type ActivitySource = {
   id: string;
   appName: string;
+  fullWindowTitle: string;
   windowTitle: string;
   duration: string;
   projectHint: string;
   status: "tracking" | "suggested" | "local";
+};
+
+type ActivitySourceGroup = {
+  appName: string;
+  durationSeconds: number;
+  id: string;
+  latestCreatedAt: number;
+  roomId?: string | null;
+  startedAt?: string | null;
+  windowTitle?: string | null;
+};
+
+type ActivityProjectRoom = {
+  id: string;
+  name?: string | null;
 };
 
 type ActivityDetectionPanelProps = {
@@ -33,7 +49,10 @@ type ActivityDetectionPanelProps = {
   onDeleteActivity?: (activityLogId: string) => void;
   onRecordActivity?: () => void;
   onRefreshActivity?: () => void;
+  projectRooms?: ActivityProjectRoom[];
 };
+
+const WINDOW_TITLE_DISPLAY_MAX_LENGTH = 56;
 
 function formatActivityDuration(t: TranslateFn, seconds?: number | null) {
   if (!seconds || seconds <= 0) return t("activity.detection.durationUnknown");
@@ -56,18 +75,83 @@ function formatActivityStartedAt(value?: string | null) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function buildActivitySources(t: TranslateFn, activityLogs: ActivityLogResponse[]): ActivitySource[] {
-  return activityLogs.map((activity, index) => {
+function timestampOf(value?: string | null) {
+  if (!value) return 0;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function groupActivityLogs(activityLogs: ActivityLogResponse[]) {
+  const groups = new Map<string, ActivitySourceGroup>();
+
+  for (const activity of activityLogs) {
+    const appName = activity.appName?.trim() || "";
+    const windowTitle = activity.windowTitle?.trim() || "";
+    const roomId = activity.roomId ?? null;
+    const key = `${appName}\u0000${windowTitle}\u0000${roomId ?? ""}`;
+    const createdAt = timestampOf(activity.createdAt);
+    const existing = groups.get(key);
+
+    if (!existing) {
+      groups.set(key, {
+        appName,
+        durationSeconds: Math.max(0, activity.durationSeconds ?? 0),
+        id: activity.id,
+        latestCreatedAt: createdAt,
+        roomId,
+        startedAt: activity.startedAt,
+        windowTitle,
+      });
+      continue;
+    }
+
+    existing.durationSeconds += Math.max(0, activity.durationSeconds ?? 0);
+    if (timestampOf(activity.startedAt) < timestampOf(existing.startedAt)) {
+      existing.startedAt = activity.startedAt;
+    }
+    if (createdAt > existing.latestCreatedAt) {
+      existing.id = activity.id;
+      existing.latestCreatedAt = createdAt;
+    }
+  }
+
+  return [...groups.values()].sort((left, right) => right.latestCreatedAt - left.latestCreatedAt);
+}
+
+function shortRoomId(roomId: string) {
+  return roomId.split("-")[0] || roomId.slice(0, 8);
+}
+
+function formatProjectHint(t: TranslateFn, roomId: string | null | undefined, projectRoomsById: Map<string, string>) {
+  if (!roomId) return t("activity.detection.personalScope");
+
+  const roomName = projectRoomsById.get(roomId) ?? shortRoomId(roomId);
+  return t("activity.detection.roomScope", { room: roomName });
+}
+
+function formatWindowTitleForDisplay(windowTitle: string) {
+  if (windowTitle.length <= WINDOW_TITLE_DISPLAY_MAX_LENGTH) return windowTitle;
+  return `${windowTitle.slice(0, WINDOW_TITLE_DISPLAY_MAX_LENGTH).trimEnd()}...`;
+}
+
+function buildActivitySources(
+  t: TranslateFn,
+  activityLogs: ActivityLogResponse[],
+  projectRoomsById: Map<string, string>,
+): ActivitySource[] {
+  return groupActivityLogs(activityLogs).map((activity, index) => {
     const startedAt = formatActivityStartedAt(activity.startedAt);
     const duration = formatActivityDuration(t, activity.durationSeconds);
+    const windowTitle = activity.windowTitle || t("activity.detection.windowUnknown");
 
     return {
       appName: activity.appName || t("settings.privacy.noAppName"),
       duration: startedAt ? `${startedAt} - ${duration}` : duration,
+      fullWindowTitle: windowTitle,
       id: activity.id,
-      projectHint: activity.roomId ? t("activity.detection.roomLinked") : t("activity.detection.personalScope"),
+      projectHint: formatProjectHint(t, activity.roomId, projectRoomsById),
       status: index === 0 ? "tracking" : activity.roomId ? "suggested" : "local",
-      windowTitle: activity.windowTitle || t("activity.detection.windowUnknown"),
+      windowTitle: formatWindowTitleForDisplay(windowTitle),
     };
   });
 }
@@ -131,7 +215,7 @@ function ActivitySourceRow({
           <span>{source.duration}</span>
         </div>
         <h3>{source.appName}</h3>
-        <p>{source.windowTitle}</p>
+        <p title={source.fullWindowTitle}>{source.windowTitle}</p>
         <div className="activity-source-row__footer">
           <Chip icon={<ListChecks size={14} />}>{source.projectHint}</Chip>
           {onDeleteActivity ? (
@@ -162,10 +246,16 @@ export function ActivityDetectionPanel({
   onDeleteActivity,
   onRecordActivity,
   onRefreshActivity,
+  projectRooms = [],
 }: ActivityDetectionPanelProps) {
   const { t } = useI18n();
   const safeActivityLogs = activityLogs ?? [];
-  const activitySources = buildActivitySources(t, safeActivityLogs);
+  const projectRoomsById = new Map(
+    projectRooms
+      .map((room) => [room.id, room.name?.trim() || room.id] as const)
+      .filter(([roomId]) => roomId.trim().length > 0),
+  );
+  const activitySources = buildActivitySources(t, safeActivityLogs, projectRoomsById);
   const appCount = new Set(safeActivityLogs.map((activity) => activity.appName).filter(Boolean)).size;
   const progressValue = safeActivityLogs.length > 0 ? Math.min(100, Math.round((safeActivityLogs.length / 8) * 100)) : 0;
   const recordDisabled = !desktopRuntime || !onRecordActivity;
