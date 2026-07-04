@@ -113,18 +113,18 @@ assertContains(
   /bubbleType:\s*"todo"[\s\S]*windowId:\s*"todo"/,
   "Login startup windows must include the primary TODO bubble.",
 );
-for (const disallowed of ["agent", "alert", "chat", "memo", "resource", "schedule", "timer"]) {
-  if (new RegExp(`bubbleType:\\s*"${disallowed}"`).test(startupWindows)) {
-    throw new Error(
-      `Login startup must not spawn every widget at once; unexpected ${disallowed} window in loginStartupWindows.`,
-    );
-  }
+for (const required of ["agent", "alert", "chat", "memo", "resource", "schedule", "timer"]) {
+  assertContains(
+    startupWindows,
+    new RegExp(`bubbleType:\\s*"${required}"[\\s\\S]*windowId:\\s*"${required}"`),
+    `Login startup windows must include the ${required} bubble so authenticated Tauri launches restore all widget surfaces.`,
+  );
 }
 
 assertContains(
   surfaces,
-  /return \[loginStartupBarWindow, primaryBubbleWindow\];/,
-  "resolveLoginStartupWindows must pair the bar with one enabled primary bubble.",
+  /return \[loginStartupBarWindow, \.\.\.startupBubbles\];/,
+  "resolveLoginStartupWindows must pair the bar with every enabled startup bubble.",
 );
 assertContains(
   surfaces,
@@ -140,6 +140,11 @@ assertContains(
   surfaces,
   /openWidgetWindowWithRetry\(barWindow, selectedRoomId, shouldContinueLaunch\)/,
   "launchTauriAuthenticatedSurfaces must open the Bubli bar first with retry.",
+);
+assertContains(
+  surfaces,
+  /openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)/,
+  "launchTauriAuthenticatedSurfaces must open authenticated bubble windows through the batch IPC retry path.",
 );
 assertContains(
   surfaces,
