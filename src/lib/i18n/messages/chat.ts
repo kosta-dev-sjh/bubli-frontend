@@ -167,12 +167,6 @@ const ko = {
   "chat.invite.pending": "대기 중인 룸 초대 {count}",
   "chat.invite.canceling": "취소 중",
   "chat.invite.cancel": "초대 취소",
-  "chat.invite.linkKicker": "초대 링크",
-  "chat.invite.linkHint": "{room}에 바로 참여할 수 있는 링크를 만들어 공유하세요 (72시간 유효)",
-  "chat.invite.linkCreate": "초대 링크 만들기",
-  "chat.invite.linkCreating": "링크 만드는 중",
-  "chat.invite.linkCopied": "초대 링크를 복사했습니다",
-  "chat.invite.linkFailed": "초대 링크를 만들지 못했습니다",
 
   // 친구 요청
   "chat.requests.title": "친구 요청",
@@ -909,12 +903,6 @@ const en: Record<Key, string> = {
   "chat.invite.pending": "{count} pending room invitations",
   "chat.invite.canceling": "Canceling",
   "chat.invite.cancel": "Cancel invite",
-  "chat.invite.linkKicker": "Invite link",
-  "chat.invite.linkHint": "Create and share a link that joins {room} directly (valid for 72 hours)",
-  "chat.invite.linkCreate": "Create invite link",
-  "chat.invite.linkCreating": "Creating link",
-  "chat.invite.linkCopied": "Invite link copied",
-  "chat.invite.linkFailed": "Couldn't create the invite link",
 
   "chat.requests.title": "Friend requests",
   "chat.requests.empty": "No pending requests",
@@ -1629,12 +1617,6 @@ const ja: Record<Key, string> = {
   "chat.invite.pending": "保留中のルーム招待 {count}",
   "chat.invite.canceling": "キャンセル中",
   "chat.invite.cancel": "招待をキャンセル",
-  "chat.invite.linkKicker": "招待リンク",
-  "chat.invite.linkHint": "{room}にすぐ参加できるリンクを作成して共有しましょう（72時間有効）",
-  "chat.invite.linkCreate": "招待リンクを作成",
-  "chat.invite.linkCreating": "リンクを作成中",
-  "chat.invite.linkCopied": "招待リンクをコピーしました",
-  "chat.invite.linkFailed": "招待リンクを作成できませんでした",
 
   "chat.requests.title": "友だちリクエスト",
   "chat.requests.empty": "保留中のリクエストはありません",

@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, Check, Copy, Crown, DoorClosed, FileUp, Link2, UserCheck, UserPlus, UsersRound, Wallet, X } from "lucide-react";
+import { Building2, Crown, DoorClosed, FileUp, UserCheck, UserPlus, UsersRound, Wallet, X } from "lucide-react";
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -15,7 +15,6 @@ import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type {
   ContractDocumentType,
-  InviteLinkResponse,
   ProjectRoomInvitationResponse,
   ProjectRoomMemberResponse,
   ProjectRoomPaymentStatus,
@@ -109,9 +108,6 @@ export function ProjectRoomSettingsPanel({
   const [isInviting, setIsInviting] = useState(false);
   const [pendingInvitations, setPendingInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
   const [cancelingInvitationId, setCancelingInvitationId] = useState<string | null>(null);
-  const [inviteLink, setInviteLink] = useState<InviteLinkResponse | null>(null);
-  const [isCreatingInviteLink, setIsCreatingInviteLink] = useState(false);
-  const [copiedInviteLink, setCopiedInviteLink] = useState(false);
 
   const activeMembers = useMemo(() => members.filter((member) => member.status === "ACTIVE"), [members]);
   const canManage = useMemo(() => {
@@ -264,40 +260,6 @@ export function ProjectRoomSettingsPanel({
       setNotice({ text: requestErrorText(t, error), tone: "error" });
     } finally {
       setIsInviting(false);
-    }
-  };
-
-  // 초대 링크 — 만료 시간을 명시해 백엔드 계약(expiresInHours)을 그대로 따른다.
-  const handleCreateInviteLink = async () => {
-    if (isCreatingInviteLink) return;
-
-    setIsCreatingInviteLink(true);
-    setCopiedInviteLink(false);
-
-    try {
-      const link = await projectRoomApi.createInviteLink(room.id, { expiresInHours: 72 });
-      setInviteLink(link);
-      setNotice({ text: t("room.settings.inviteLinkCreated"), tone: "ok" });
-    } catch (error) {
-      setNotice({ text: requestErrorText(t, error), tone: "error" });
-    } finally {
-      setIsCreatingInviteLink(false);
-    }
-  };
-
-  const inviteLinkUrl = inviteLink
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/app/invite/${inviteLink.token}`
-    : "";
-
-  const handleCopyInviteLink = async () => {
-    if (!inviteLinkUrl) return;
-
-    try {
-      await navigator.clipboard.writeText(inviteLinkUrl);
-      setCopiedInviteLink(true);
-      window.setTimeout(() => setCopiedInviteLink(false), 1600);
-    } catch {
-      setCopiedInviteLink(false);
     }
   };
 
@@ -653,41 +615,6 @@ export function ProjectRoomSettingsPanel({
               </Button>
             </div>
           </form>
-
-          <p className={styles.hint}>{t("room.settings.inviteLinkHint")}</p>
-          <div className={styles.fieldActions}>
-            <Button
-              disabled={!canManage}
-              icon={<Link2 size={14} strokeWidth={1.9} />}
-              loading={isCreatingInviteLink}
-              onClick={() => void handleCreateInviteLink()}
-              size="sm"
-              variant="secondary"
-            >
-              {isCreatingInviteLink ? t("room.settings.inviteLinkCreating") : t("room.settings.inviteLinkCreate")}
-            </Button>
-            {inviteLink ? (
-              <Button
-                aria-label={t("room.settings.inviteLinkCopyAria")}
-                icon={copiedInviteLink ? <Check size={14} strokeWidth={2.2} /> : <Copy size={14} strokeWidth={1.9} />}
-                onClick={() => void handleCopyInviteLink()}
-                size="sm"
-                variant="quiet"
-              >
-                {copiedInviteLink ? t("room.settings.inviteLinkCopied") : t("room.settings.inviteLinkCopy")}
-              </Button>
-            ) : null}
-          </div>
-          {inviteLink ? (
-            <label className={styles.field}>
-              <span>
-                {t("room.settings.inviteLinkExpires", {
-                  date: new Date(inviteLink.expiresAt).toLocaleString(),
-                })}
-              </span>
-              <input aria-label={t("room.settings.inviteLinkTitle")} readOnly value={inviteLinkUrl} />
-            </label>
-          ) : null}
 
           {pendingInvitations.length === 0 ? (
             <p className={styles.hint}>{t("room.settings.invitePendingEmpty")}</p>
