@@ -19,6 +19,7 @@ sha2 = "0.10"
 flate2 = "1"
 pdf-extract = "0.7"
 tauri = { version = "2", features = ["macos-private-api"] }
+tauri-plugin-global-shortcut = "2.3.2"
 tauri-plugin-opener = "2"
 notify = "6"
 # On-device store for folder index, widget usage rollups, activity focus, sync outbox.

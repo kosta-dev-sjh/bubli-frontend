@@ -2,9 +2,9 @@
 
 ## Current Context
 
-- Frontend base before this branch: `2f0933e1`
+- Frontend base before this branch: `a56aacf2`
 - Backend verified during this run: local dev backend at `http://localhost:8080`
-- Branch: `codex/tauri-runtime-smoke-activity-widget-sync`
+- Branch: `codex/tauri-widget-tray-shortcut-runtime`
 - Scope: Windows Tauri runtime smoke only. macOS-specific Tauri logic was not changed.
 
 ## What Changed
@@ -16,6 +16,8 @@
 - Activity smoke no longer stops at local staging. It sends the staged activity row through `activityApi.recordCurrentApp`, marks the exact SQLite row `SYNCED`, then verifies the row is no longer returned by staging.
 - Widget usage smoke no longer stops at local rollup. It syncs the exact daily `todo` rollup through `syncLocalWidgetUsageSummaryToServer`, verifies one backend send and one local `SYNCED` mark, then verifies the rollup is no longer pending.
 - Widget usage rollup refresh now moves an already-synced rollup back to `LOCAL_ONLY` when new source events change the aggregate count, so same-day widget interactions are not silently skipped.
+- The native widget shortcut command now registers the requested accelerator with `tauri-plugin-global-shortcut`; the runtime smoke verifies `CommandOrControl+Shift+B` is accepted by the real Windows Tauri runtime.
+- Activity context sync no longer reports `SYNCED` when the backend POST succeeds but the local SQLite mark fails. That case now marks the row retryable/failed and returns a failure result instead of overstating local sync state.
 - Local file event smoke no longer stops at local staging. It sends staged `CREATED`, watched `UPDATED`, and watched `DELETED` events through `managedFolderApi.syncApprovedLocalFileEvents`, then applies the backend response with `markLocalFileEventsSynced`.
 - `verify_sqlite_file` now opens backup files read-write for `PRAGMA quick_check`. On Windows, read-only quick_check can fail for FTS5 with `attempt to write a readonly database` while validating the inverted index.
 
@@ -29,6 +31,7 @@ npm run check:tauri-command-contract
 npm run check:tauri-boundaries
 npm run lint
 cargo fmt --check --manifest-path src-tauri/Cargo.toml
+cargo check --manifest-path src-tauri/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml widget_usage -- --nocapture
 cargo test --manifest-path src-tauri/Cargo.toml local_db -- --nocapture
 npm run check:tauri-windows-runtime-smoke
@@ -46,6 +49,7 @@ Full phase:
 - Backend privacy consent was enabled for `ACTIVITY_CONTEXT` and `MANAGED_FOLDER`.
 - Native widget windows opened: `bar`, `todo`, `chat`, `timer`.
 - `todo.selectedRoomId` matched `22222222-2222-4222-8222-222222222222`.
+- Native widget global shortcut registration accepted `CommandOrControl+Shift+B`.
 - SQLite integrity passed with `quickCheck = ok`, `journalMode = wal`.
 - SQLite restore snapshot marker was written at room sequence `777`.
 - SQLite backup file was created and listed as latest in the backup manifest.
