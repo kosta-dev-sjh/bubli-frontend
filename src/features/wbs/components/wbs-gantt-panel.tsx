@@ -1,7 +1,7 @@
 "use client";
 
 import { addDays, endOfDay, startOfDay } from "date-fns";
-import { ArrowDown, ArrowUp, CalendarDays, ChevronRight, FolderPlus, PencilIcon, Plus, TrashIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, ChevronRight, PencilIcon, Plus, TrashIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -355,16 +355,6 @@ export function WbsGanttPanel({
     return groups;
   }, [itemById, wbsItems]);
 
-  const orderedGroups = useMemo(() => {
-    const collect = (id: string): WbsItemResponse[] =>
-      (childrenByParent[id] ?? []).flatMap((child) => [child, ...collect(child.id)]);
-
-    return (childrenByParent.__root__ ?? []).map((root) => ({
-      items: [root, ...collect(root.id)],
-      root,
-    }));
-  }, [childrenByParent]);
-
   const visibleItems = useMemo(() => {
     const collectVisible = (item: WbsItemResponse): WbsItemResponse[] => {
       if (collapsedWbsIds.has(item.id)) {
@@ -629,8 +619,10 @@ export function WbsGanttPanel({
     const item = itemById.get(id);
     if (!item) return;
 
-    onNotice(t("wbs.gantt.notice.rangeSaving"));
+    // 프론트 우선: 드래그가 끝나는 즉시 로컬 기간을 확정해 화면에 유지한다.
+    // 서버(schedule)·구글 캘린더 저장은 persistRange에서 뒤따르며, 실패해도 로컬 값을 되돌리지 않는다.
     applyRange(item, startAt, endAt);
+    onNotice(t("wbs.gantt.notice.rangeSaved"));
   };
 
   const createItem = (parentId: string | null, date: Date, title: string) => {
@@ -698,23 +690,6 @@ export function WbsGanttPanel({
   };
 
   const handleAddGroup = () => openCreateDraft(null, new Date());
-
-  const getParentIdForNewTask = () => {
-    if (orderedGroups.length === 0) return null;
-
-    const item = selectedWbsId ? itemById.get(selectedWbsId) : null;
-
-    if (!item) return null;
-    return getParentIdForNewTaskFromRow(item);
-  };
-
-  const handleAddTask = () => {
-    const parentId = getParentIdForNewTask();
-    if (!parentId) return;
-
-    const selectedFeature = selectedWbsId ? featureById.get(selectedWbsId) : null;
-    openCreateDraft(parentId, selectedFeature?.startAt ?? new Date());
-  };
 
   const handleAddChildFromRow = (item: WbsItemResponse) => {
     const parentId = getParentIdForNewTaskFromRow(item);
@@ -848,8 +823,6 @@ export function WbsGanttPanel({
   };
 
   const draftParentTitle = createDraft?.parentId ? itemById.get(createDraft.parentId)?.title ?? null : null;
-  const selectedItemForTask = selectedWbsId ? itemById.get(selectedWbsId) ?? null : null;
-  const canAddTaskToSelection = Boolean(selectedItemForTask);
   const syncState = calendarSync === "recording" && pendingSyncCount > 0 ? "pending" : calendarSync;
   const syncStateText =
     calendarSync === "checking"
@@ -1007,21 +980,10 @@ export function WbsGanttPanel({
             ) : null}
           </div>
           {toolbarTrailing}
-          <button className={styles.ghostButton} onClick={handleAddGroup} type="button">
-            <FolderPlus aria-hidden="true" size={14} strokeWidth={1.9} />
-            {t("wbs.gantt.addGroup")}
-          </button>
           <button
             className={styles.primaryButton}
-            disabled={orderedGroups.length === 0 || !canAddTaskToSelection}
-            onClick={handleAddTask}
-            title={
-              orderedGroups.length === 0
-                ? t("wbs.gantt.addTaskDisabledTitle")
-                : canAddTaskToSelection
-                  ? t("wbs.gantt.addTaskSelectedTitle")
-                  : t("wbs.gantt.addTaskNoSelectionTitle")
-            }
+            onClick={handleAddGroup}
+            title={t("wbs.gantt.addTaskParentTitle")}
             type="button"
           >
             <Plus aria-hidden="true" size={14} strokeWidth={2} />

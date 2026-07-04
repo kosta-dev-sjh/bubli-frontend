@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, GitBranch, KanbanSquare, Pause, X } from "lucide-react";
+import { Check, GitBranch, KanbanSquare, Pause, Sparkles, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -866,7 +866,7 @@ function ProjectRoomWorkBoardContent({
                     onClick={() => void handleGenerateCandidates("wbs")}
                     type="button"
                   >
-                    <GitBranch aria-hidden="true" size={14} strokeWidth={1.9} />
+                    <Sparkles aria-hidden="true" size={14} strokeWidth={1.9} />
                     {wbsGeneration?.status === "pending" ? t("room.workBoard.generating") : t("room.workBoard.generateWbs")}
                   </button>
                 }
@@ -1068,7 +1068,7 @@ function ProjectRoomWorkBoardContent({
                   onClick={() => void handleGenerateCandidates("tasks")}
                   type="button"
                 >
-                  <KanbanSquare aria-hidden="true" size={14} strokeWidth={1.9} />
+                  <Sparkles aria-hidden="true" size={14} strokeWidth={1.9} />
                   {taskGeneration?.status === "pending" ? t("room.workBoard.generating") : t("room.workBoard.generateKanban")}
                 </button>
               </div>
