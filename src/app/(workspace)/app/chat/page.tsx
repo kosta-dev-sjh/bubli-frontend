@@ -1768,17 +1768,23 @@ function ChatPageContent() {
             {socialState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.newRoom.friendsLoading")}</span> : null}
             {socialState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.newRoom.friendsOffline")}</span> : null}
             {socialState.kind === "ready" && socialState.friends.length === 0 ? (
-              <button
-                className="workspace-route__quick-button"
-                onClick={() => {
-                  setNewRoomPickerOpen(false);
-                  setFriendAddOpen(true);
-                  window.setTimeout(() => friendSearchInputRef.current?.focus(), 0);
-                }}
-                type="button"
-              >
-                {t("chat.newRoom.addFriend")}
-              </button>
+              <div className="workspace-route__new-room-empty">
+                <UsersRound aria-hidden size={34} strokeWidth={1.4} />
+                <strong>{t("chat.newRoom.noFriendsTitle")}</strong>
+                <span>{t("chat.newRoom.noFriendsDesc")}</span>
+                <button
+                  className="workspace-route__invite-friend-btn"
+                  onClick={() => {
+                    setNewRoomPickerOpen(false);
+                    setFriendsOpen(true);
+                    window.setTimeout(() => friendSearchInputRef.current?.focus(), 0);
+                  }}
+                  type="button"
+                >
+                  <UserPlus aria-hidden size={14} strokeWidth={2} />
+                  {t("chat.newRoom.inviteFriend")}
+                </button>
+              </div>
             ) : null}
             {socialState.kind === "ready" && socialState.friends.length > 0 ? (
               <>

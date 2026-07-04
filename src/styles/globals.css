@@ -3687,6 +3687,61 @@ button.workspace-route__friend-row:hover {
   gap: 8px;
 }
 
+.workspace-route__new-room-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 20px 24px;
+  margin: 4px 0;
+  border: 1px solid rgba(70, 150, 225, 0.22);
+  border-radius: 16px;
+  background: rgba(215, 238, 255, 0.18);
+  text-align: center;
+}
+
+.workspace-route__new-room-empty > svg {
+  color: var(--blue-ink);
+  opacity: 0.38;
+  margin-bottom: 4px;
+}
+
+.workspace-route__new-room-empty > strong {
+  font-size: 14px;
+  font-weight: 780;
+  color: var(--ink-soft);
+}
+
+.workspace-route__new-room-empty > span {
+  font-size: 12px;
+  font-weight: 680;
+  color: var(--color-muted);
+  line-height: 1.55;
+}
+
+.workspace-route__invite-friend-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 9px 20px;
+  border: 1px solid rgba(70, 150, 225, 0.45);
+  border-radius: 999px;
+  background: rgba(215, 238, 255, 0.55);
+  color: var(--blue-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 780;
+  transition: background 140ms, border-color 140ms, box-shadow 140ms;
+}
+
+.workspace-route__invite-friend-btn:hover {
+  background: rgba(200, 228, 255, 0.82);
+  border-color: rgba(60, 130, 215, 0.6);
+  box-shadow: 0 2px 8px -3px rgba(60, 130, 210, 0.22);
+}
+
 .workspace-route__group-name-field {
   display: grid;
   gap: 6px;
