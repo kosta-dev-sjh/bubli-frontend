@@ -8,7 +8,7 @@ const ko = {
   "onboarding.skip": "건너뛰기",
   "onboarding.welcome.kicker": "Bubli 시작하기",
   "onboarding.welcome.title": "만나서 반가워요, {name}님!",
-  "onboarding.welcome.body": "버블리는 프로젝트룸·일정·AI 후보함을 하나의 워크스페이스로 모아요. 1분이면 나에게 맞는 홈을 준비할 수 있어요.",
+  "onboarding.welcome.body": "버블리는 프로젝트룸, 일정, AI 후보함을 하나의 워크스페이스로 모아요. 1분이면 나에게 맞는 홈을 준비할 수 있어요.",
   "onboarding.welcome.nameLabel": "표시 이름",
   "onboarding.welcome.nameHint": "홈과 프로젝트룸에서 이 이름으로 보여요. 설정에서 언제든 바꿀 수 있어요.",
   "onboarding.role.title": "어떤 일을 하세요?",
@@ -37,19 +37,19 @@ const ko = {
   "tour.skip": "건너뛰기",
   "tour.done": "시작하기",
   "tour.sidebar.title": "사이드바",
-  "tour.sidebar.body": "홈·일정·프로젝트룸·자료보드 등 모든 화면은 여기서 이동해요.",
+  "tour.sidebar.body": "홈, 일정, 프로젝트룸, 자료보드 등 모든 화면은 여기서 이동해요.",
   "tour.roomSwitcher.title": "프로젝트룸 선택",
   "tour.roomSwitcher.body": "상단에서 지금 작업 중인 프로젝트룸을 바꾸거나 새로 만들 수 있어요.",
   "tour.cardEdit.title": "홈 카드 편집",
   "tour.cardEdit.body": "홈 카드는 끌어서 순서를 바꾸고, 필요한 카드만 남길 수 있어요.",
   "tour.agent.title": "AI 후보함",
-  "tour.agent.body": "AI가 제안한 할 일·일정 후보가 여기에 모여요. 확인하고 승인하면 반영돼요.",
+  "tour.agent.body": "AI가 제안한 할 일과 일정 후보가 여기에 모여요. 확인하고 승인하면 반영돼요.",
   "tour.desktop.title": "데스크톱 버블",
-  "tour.desktop.body": "데스크톱 앱을 설치하면 타이머·메모·할 일 버블을 화면 위에 띄울 수 있어요. 설정의 데스크톱 탭에서 관리해요.",
+  "tour.desktop.body": "데스크톱 앱을 설치하면 타이머, 메모, 할 일 버블을 화면 위에 띄울 수 있어요. 설정의 데스크톱 탭에서 관리해요.",
 
   // 설정 > 표시 — 튜토리얼 다시 보기
   "onboarding.settings.replayTitle": "튜토리얼 다시 보기",
-  "onboarding.settings.replayDesc": "워크스페이스 안내(사이드바·프로젝트룸·홈 카드·AI 후보함)를 처음부터 다시 봅니다.",
+  "onboarding.settings.replayDesc": "워크스페이스 안내(사이드바, 프로젝트룸, 홈 카드, AI 후보함)를 처음부터 다시 봅니다.",
   "onboarding.settings.replayCta": "다시 보기",
 } as const;
 

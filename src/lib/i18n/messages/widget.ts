@@ -100,7 +100,7 @@ const ko = {
   "widget.data.loadIssueBody": "실시간 데이터를 가져오지 못했습니다. 잠시 후 다시 동기화합니다.",
   "widget.data.loadIssueCompact": "연결 확인",
   "widget.data.partialIssue": "일부 데이터 동기화 확인 필요",
-  "widget.data.partialIssueBody": "이 위젯의 실시간 데이터를 가져오지 못했습니다.",
+  "widget.data.partialIssueBody": "이 버블의 실시간 데이터를 가져오지 못했습니다.",
   "widget.data.syncPending": "서버와 동기화 대기 중",
   "widget.data.roomFallback": "프로젝트룸",
   "widget.data.notification.compact": "알림",
