@@ -15,6 +15,7 @@ import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
+import { LocalBackupRecoveryPanel, LocalSyncOutboxPanel, TauriSyncStatusPanel } from "@/features/settings/components";
 import { isBackendWidgetBubbleType, widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
@@ -1739,6 +1740,14 @@ export default function SettingsPage() {
                 </div>
 
                 <h3 className={styles.subhead}>{t("settings.backup.title")}</h3>
+                <div className={styles.embeddedPanelStack}>
+                  <TauriSyncStatusPanel />
+                  <LocalSyncOutboxPanel
+                    key={privacySettings.localFolderEnabled ? "local-folder-consented" : "local-folder-blocked"}
+                    initialConsentGranted={Boolean(privacySettings.localFolderEnabled)}
+                  />
+                  <LocalBackupRecoveryPanel />
+                </div>
                 <div className={styles.rows}>
                   <div className={styles.row}>
                     <div className={styles.rowText}>
