@@ -208,6 +208,11 @@ pub fn rollup_widget_usage(
              VALUES (?1, ?2, ?3, ?4, 'LOCAL_ONLY', ?5) \
              ON CONFLICT(rollup_key) DO UPDATE SET \
                source_event_count = excluded.source_event_count, \
+               sync_status = CASE \
+                 WHEN excluded.source_event_count != local_widget_usage_rollups.source_event_count \
+                 THEN 'LOCAL_ONLY' \
+                 ELSE local_widget_usage_rollups.sync_status \
+               END, \
                updated_at = excluded.updated_at",
             params![rollup_key, bubble_type, date, count, now_ms()],
         )

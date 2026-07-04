@@ -146,13 +146,13 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /setActivityContextConsent\(\{ enabled: true \}\)[\s\S]*readActivityContext\(\)[\s\S]*native foreground activity captured[\s\S]*recordActivityContext\(\{[\s\S]*stageActivityContextsForSync\(\{ limit: 50 \}\)/,
-  "TauriRuntimeSmokeRunner must verify native foreground activity capture and staged SQLite activity records.",
+  /setActivityContextConsent\(\{ enabled: true \}\)[\s\S]*readActivityContext\(\)[\s\S]*native foreground activity captured[\s\S]*recordActivityContext\(\{[\s\S]*stageActivityContextsForSync\(\{ limit: 50 \}\)[\s\S]*activityApi\.recordCurrentApp[\s\S]*markActivityContextSynced[\s\S]*activity buffer sync marked SQLite row as SYNCED[\s\S]*synced activity capture no longer remains pending/,
+  "TauriRuntimeSmokeRunner must verify native activity capture, backend sync, and local SQLite SYNCED marking.",
 );
 assertContains(
   runtimeSmokeRunner,
-  /recordWidgetUsageEvent\(\{[\s\S]*rollupWidgetUsage\(\)/,
-  "TauriRuntimeSmokeRunner must verify widget usage events roll up locally.",
+  /recordWidgetUsageEvent\(\{[\s\S]*rollupWidgetUsage\(\{ summaryDate: widgetUsageSummaryDate \}\)[\s\S]*syncLocalWidgetUsageSummaryToServer[\s\S]*widget usage summary reached backend sync API[\s\S]*widget usage summary marked SQLite rollups as SYNCED[\s\S]*synced widget usage rollup no longer remains pending/,
+  "TauriRuntimeSmokeRunner must verify widget usage rollups reach the backend and leave local SQLite pending state.",
 );
 assertContains(
   runtimeSmokeRunner,
