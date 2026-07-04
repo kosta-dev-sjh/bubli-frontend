@@ -821,20 +821,6 @@ function DesktopWidgetSurface() {
           setWindowVisible(serverMode !== "MINIMIZED");
         }
 
-        if (activeSetting?.id) {
-          const now = new Date();
-          const summaryDate = now.toISOString().slice(0, 10);
-          void widgetApi.saveUsageSummary({
-            bubbleSettingId: activeSetting.id,
-            deviceId: windowId ?? "tauri-local",
-            interactionCount: 0,
-            openCount: 1,
-            rollupKey: `${windowId ?? "tauri-local"}:${activeSetting.id}:${summaryDate}`,
-            summaryDate,
-            syncedAt: now.toISOString(),
-            visibleSeconds: 1,
-          }).catch(() => undefined);
-        }
       } catch {
         // 인증 전이거나 서버가 없으면 기본 버블 데이터로 유지한다.
       }
@@ -845,7 +831,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, widgetSessionReady, windowId]);
+  }, [isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, widgetSessionReady]);
 
   useEffect(() => {
     if (!isTauri || isWidgetChrome) return;
