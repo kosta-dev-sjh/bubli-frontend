@@ -1,6 +1,8 @@
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
     env, fs,
+    io::{Read, Write},
+    net::TcpListener,
     path::PathBuf,
     sync::{LazyLock, Mutex},
     thread,
@@ -25,6 +27,9 @@ const WIDGET_ROOM_CONTEXT_CHANGED_EVENT: &str = "bubli-widget-room-context-chang
 const MAIN_WINDOW_LABEL: &str = "main";
 const MAIN_WINDOW_DEFAULT_WIDTH: i32 = 1280;
 const MAIN_WINDOW_DEFAULT_HEIGHT: i32 = 820;
+const TAURI_OAUTH_LOOPBACK_BIND: &str = "127.0.0.1:3791";
+const TAURI_OAUTH_LOOPBACK_PATH: &str = "/auth/callback";
+const TAURI_OAUTH_LOOPBACK_TIMEOUT_MS: u64 = 120_000;
 const DEFAULT_WIDGET_BUBBLE_TYPE: &str = "todo";
 const WIDGET_DEFAULT_WIDTH: f64 = 324.0;
 const WIDGET_DEFAULT_HEIGHT: f64 = 360.0;
@@ -2256,6 +2261,205 @@ struct MainWindowShowInput {
     route: Option<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriGoogleOauthLoopbackInput {
+    authorize_url: String,
+    expected_state: Option<String>,
+    redirect_uri: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriGoogleOauthLoopbackResult {
+    code: String,
+    state: Option<String>,
+}
+
+fn percent_decode(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut output = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+
+    while index < bytes.len() {
+        match bytes[index] {
+            b'+' => {
+                output.push(b' ');
+                index += 1;
+            }
+            b'%' if index + 2 < bytes.len() => {
+                let hex = &input[index + 1..index + 3];
+                if let Ok(value) = u8::from_str_radix(hex, 16) {
+                    output.push(value);
+                    index += 3;
+                } else {
+                    output.push(bytes[index]);
+                    index += 1;
+                }
+            }
+            value => {
+                output.push(value);
+                index += 1;
+            }
+        }
+    }
+
+    String::from_utf8_lossy(&output).into_owned()
+}
+
+fn query_value(query: &str, key: &str) -> Option<String> {
+    query.split('&').find_map(|part| {
+        let mut pieces = part.splitn(2, '=');
+        let raw_key = pieces.next()?;
+        if percent_decode(raw_key) != key {
+            return None;
+        }
+
+        Some(percent_decode(pieces.next().unwrap_or_default()))
+    })
+}
+
+fn query_value_from_url(url: &str, key: &str) -> Option<String> {
+    let query = url.split_once('?')?.1.split('#').next().unwrap_or_default();
+    query_value(query, key)
+}
+
+fn validate_google_authorize_url(authorize_url: &str, redirect_uri: &str) -> Result<(), String> {
+    if authorize_url.chars().any(char::is_whitespace) {
+        return Err("Google authorize URL must not contain whitespace".to_string());
+    }
+
+    if !authorize_url.starts_with("https://accounts.google.com/o/oauth2/v2/auth?") {
+        return Err("Google authorize URL must target accounts.google.com OAuth".to_string());
+    }
+
+    let Some(url_redirect_uri) = query_value_from_url(authorize_url, "redirect_uri") else {
+        return Err("Google authorize URL is missing redirect_uri".to_string());
+    };
+
+    if url_redirect_uri != redirect_uri {
+        return Err(
+            "Google authorize redirect_uri does not match the loopback listener".to_string(),
+        );
+    }
+
+    Ok(())
+}
+
+fn oauth_response_html(message: &str) -> String {
+    format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<!doctype html><meta charset=\"utf-8\"><title>Bubli login</title><body style=\"font-family: system-ui, sans-serif; padding: 32px;\"><h1>Bubli login</h1><p>{message}</p><p>You can close this browser tab and return to the Bubli app.</p></body>"
+    )
+}
+
+fn oauth_error_html(message: &str) -> String {
+    format!(
+        "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<!doctype html><meta charset=\"utf-8\"><title>Bubli login failed</title><body style=\"font-family: system-ui, sans-serif; padding: 32px;\"><h1>Bubli login failed</h1><p>{message}</p></body>"
+    )
+}
+
+#[tauri::command]
+fn start_tauri_google_oauth_loopback(
+    input: TauriGoogleOauthLoopbackInput,
+) -> Result<TauriGoogleOauthLoopbackResult, String> {
+    #[cfg(target_os = "windows")]
+    {
+        if input.redirect_uri
+            != format!("http://{TAURI_OAUTH_LOOPBACK_BIND}{TAURI_OAUTH_LOOPBACK_PATH}")
+        {
+            return Err("Tauri OAuth loopback redirect URI is not allowed".to_string());
+        }
+        validate_google_authorize_url(&input.authorize_url, &input.redirect_uri)?;
+
+        let listener = TcpListener::bind(TAURI_OAUTH_LOOPBACK_BIND)
+            .map_err(|error| format!("could not bind Tauri OAuth loopback listener: {error}"))?;
+        listener
+            .set_nonblocking(true)
+            .map_err(|error| error.to_string())?;
+
+        tauri_plugin_opener::open_url(&input.authorize_url, None::<&str>)
+            .map_err(|error| error.to_string())?;
+
+        let started_at = Instant::now();
+        loop {
+            if started_at.elapsed() > Duration::from_millis(TAURI_OAUTH_LOOPBACK_TIMEOUT_MS) {
+                return Err("Tauri OAuth loopback timed out".to_string());
+            }
+
+            match listener.accept() {
+                Ok((mut stream, _address)) => {
+                    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                    let mut buffer = [0_u8; 8192];
+                    let bytes_read = stream
+                        .read(&mut buffer)
+                        .map_err(|error| error.to_string())?;
+                    let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+                    let request_line = request.lines().next().unwrap_or_default();
+                    let path_and_query = request_line
+                        .strip_prefix("GET ")
+                        .and_then(|line| line.split_whitespace().next())
+                        .ok_or_else(|| {
+                            "Tauri OAuth loopback received an invalid request".to_string()
+                        })?;
+                    let (path, query) = path_and_query
+                        .split_once('?')
+                        .unwrap_or((path_and_query, ""));
+                    if path != TAURI_OAUTH_LOOPBACK_PATH {
+                        let _ = stream.write_all(
+                            oauth_error_html("Invalid Bubli login callback path.").as_bytes(),
+                        );
+                        return Err(
+                            "Tauri OAuth loopback received an invalid callback path".to_string()
+                        );
+                    }
+
+                    let code = query_value(query, "code").unwrap_or_default();
+                    let state = query_value(query, "state");
+                    let error = query_value(query, "error");
+                    if let Some(error) = error {
+                        let _ = stream.write_all(
+                            oauth_error_html("Google login was not completed.").as_bytes(),
+                        );
+                        return Err(format!("Google OAuth returned an error: {error}"));
+                    }
+                    if code.trim().is_empty() {
+                        let _ = stream.write_all(
+                            oauth_error_html("Google login code was missing.").as_bytes(),
+                        );
+                        return Err(
+                            "Tauri OAuth loopback callback did not include code".to_string()
+                        );
+                    }
+                    if let Some(expected_state) = input.expected_state.as_deref() {
+                        if state.as_deref() != Some(expected_state) {
+                            let _ = stream.write_all(
+                                oauth_error_html(
+                                    "Login state did not match the Bubli app request.",
+                                )
+                                .as_bytes(),
+                            );
+                            return Err("Tauri OAuth loopback state mismatch".to_string());
+                        }
+                    }
+
+                    let _ = stream.write_all(oauth_response_html("Login confirmed.").as_bytes());
+                    return Ok(TauriGoogleOauthLoopbackResult { code, state });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(50));
+                }
+                Err(error) => return Err(error.to_string()),
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = input;
+        Err("Tauri OAuth loopback is only enabled on Windows in this build".to_string())
+    }
+}
+
 /// 위젯 메뉴에서 메인 앱을 열 때 이동을 허용하는 경로 화이트리스트.
 fn normalize_widget_menu_route(route: Option<String>) -> Option<&'static str> {
     match route.as_deref() {
@@ -2836,6 +3040,7 @@ pub fn run() {
             seed_widget_bar_items,
             set_authenticated_surfaces_enabled,
             show_main_window,
+            start_tauri_google_oauth_loopback,
             set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,
@@ -3019,6 +3224,24 @@ mod widget_runtime_tests {
         assert!(normalize_main_window_route("//example.com/app").is_err());
         assert!(normalize_main_window_route("javascript:alert(1)").is_err());
         assert!(normalize_main_window_route("/login").is_err());
+    }
+
+    #[test]
+    fn tauri_oauth_authorize_url_must_target_google_and_loopback_redirect() {
+        let redirect_uri = "http://127.0.0.1:3791/auth/callback";
+        let authorize_url = "https://accounts.google.com/o/oauth2/v2/auth?client_id=client&redirect_uri=http%3A%2F%2F127.0.0.1%3A3791%2Fauth%2Fcallback&state=abc";
+
+        assert!(validate_google_authorize_url(authorize_url, redirect_uri).is_ok());
+        assert!(validate_google_authorize_url("https://example.com/o/oauth2/v2/auth?redirect_uri=http%3A%2F%2F127.0.0.1%3A3791%2Fauth%2Fcallback", redirect_uri).is_err());
+        assert!(validate_google_authorize_url(
+            authorize_url,
+            "http://127.0.0.1:3792/auth/callback"
+        )
+        .is_err());
+        assert_eq!(
+            query_value_from_url(authorize_url, "redirect_uri").as_deref(),
+            Some(redirect_uri)
+        );
     }
 
     #[test]
