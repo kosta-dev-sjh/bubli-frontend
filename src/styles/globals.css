@@ -1727,15 +1727,14 @@ select {
 }
 
 .workspace-route {
+  /* 표준 컨테이너 — 캘린더(.page)와 동일하게 스크롤 영역을 꽉 채우고,
+     좌우 여백(거터)은 바깥 프레임(.shell)의 패딩만으로 준다.
+     자체 max-width/좌우 패딩을 두지 않아 회원 라우트 폭이 캘린더와 일치한다. */
   display: grid;
   gap: 18px;
-  width: min(100%, 1120px);
-  margin: 0 auto;
-  padding: 18px clamp(18px, 3vw, 34px) 46px;
-}
-
-.workspace-route--work {
-  width: min(100%, 1280px);
+  width: 100%;
+  min-width: 0;
+  padding: 18px 0 46px;
 }
 
 .workspace-route__header {
@@ -21146,9 +21145,7 @@ html {
 }
 
 @media (max-width: 640px) {
-  .workspace-route {
-    padding-inline: 14px;
-  }
+  /* 좌우 거터는 바깥 프레임(.shell)이 이미 줄여주므로 라우트에서 중복 패딩을 두지 않는다. */
 
   .workspace-route__header {
     align-items: flex-start;
