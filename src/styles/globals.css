@@ -15720,9 +15720,98 @@ html {
 .landing-feature-card::before {
   content: "";
   width: 42px;
-  height: 2px;
+  height: 3px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--brand-deep) 46%, transparent);
+  background: linear-gradient(90deg, var(--blue-ink), var(--bubble-blue) 60%, var(--lilac-ink));
+  transition: width 0.34s var(--ease-out, ease);
+}
+
+/* 카드 셀: 그리드 배치와 스태거 진입을 담당한다(카드 본체는 안에서 100% 채운다). */
+.landing-feature-cell {
+  position: relative;
+  grid-column: span 4;
+  display: flex;
+  min-width: 0;
+}
+
+.landing-feature-cell > .landing-feature-card {
+  width: 100%;
+}
+
+/* 문제→판단→결과 흐름 화살표(넓은 화면): 카드 사이 gap에 살짝 얹는다. */
+.landing-feature-cell:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -11px;
+  width: 9px;
+  height: 9px;
+  border-top: 2px solid rgba(111, 184, 242, 0.7);
+  border-right: 2px solid rgba(111, 184, 242, 0.7);
+  transform: translateY(-50%) rotate(45deg);
+  opacity: 0.85;
+}
+
+/* 순서 번호 배지: 흐름 순서를 은은한 그라데이션 원반으로 강조한다. */
+.landing-feature-card__index {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 12px;
+  border-radius: 11px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--blue-ink), var(--bubble-blue) 62%, var(--lilac-ink));
+  box-shadow: 0 10px 20px -12px rgba(47, 124, 193, 0.7);
+  font-size: 13px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  transition:
+    transform 0.3s var(--ease-out, ease),
+    box-shadow 0.3s var(--ease-out, ease);
+}
+
+/* 호버: 카드가 더 크게 떠오르고, 번호 배지가 살짝 튀며, 액센트 바가 길어진다. */
+.landing-feature-cell:hover .landing-feature-card {
+  border-color: rgba(111, 184, 242, 0.42);
+}
+
+.landing-feature-cell:hover .landing-feature-card::before {
+  width: 66px;
+}
+
+.landing-feature-cell:hover .landing-feature-card__index {
+  transform: translateY(-2px) scale(1.06);
+  box-shadow: 0 16px 26px -12px rgba(47, 124, 193, 0.8);
+}
+
+@media (min-width: 861px) {
+  /* 가운데 카드를 살짝 내려 계단식 리듬(정적 스태거)을 준다 — transform 대신 margin으로 리빌 애니메이션과 충돌 회피. */
+  .landing-feature-cell:nth-child(2) {
+    margin-top: 18px;
+  }
+}
+
+@media (max-width: 860px) {
+  .landing-feature-cell {
+    grid-column: auto;
+  }
+
+  .landing-feature-cell:nth-child(2) {
+    margin-top: 0;
+  }
+
+  .landing-feature-cell:not(:last-child)::after {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-feature-card::before,
+  .landing-feature-card__index {
+    transition: none;
+  }
 }
 
 .landing-feature-card h3 {

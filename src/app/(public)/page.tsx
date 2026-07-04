@@ -56,29 +56,35 @@ export default function HomePage() {
         <PublicHomeFlow />
       </section>
 
-      <Reveal>
-        <section className="landing-section" id="why">
-          <DecorBubble floating size="lg" style={{ top: "6%", right: "3%" }} />
-          <DecorBubble floating size="sm" style={{ bottom: "10%", left: "2%" }} />
+      <section className="landing-section" id="why">
+        <DecorBubble floating size="lg" style={{ top: "6%", right: "3%" }} />
+        <DecorBubble floating size="sm" style={{ bottom: "10%", left: "2%" }} />
+        <Reveal>
           <header className="landing-section__head landing-section__head--left">
             <Chip>{t("public.home.whyChip")}</Chip>
             <h2>{t("public.home.whyTitle")}</h2>
             <p>{t("public.home.whySub")}</p>
           </header>
-          <div className="landing-feature-grid">
-            {featureCards.map((card) => {
-              return (
-                <GlassPanel className="landing-feature-card" key={card.titleKey}>
+        </Reveal>
+        {/* 문제→판단→결과 흐름: 카드가 순서대로 계단식으로 떠오르게(스태거) 하고 번호로 순서를 강조한다. */}
+        <div className="landing-feature-grid">
+          {featureCards.map((card, index) => {
+            return (
+              <Reveal key={card.titleKey} delay={140 + index * 130} className="landing-feature-cell">
+                <GlassPanel className="landing-feature-card">
                   <DecorBubble size="md" />
+                  <span className="landing-feature-card__index" aria-hidden="true">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
                   <span className="landing-feature-card__kicker">{t(card.kickerKey)}</span>
                   <h3>{t(card.titleKey)}</h3>
                   <p>{t(card.bodyKey)}</p>
                 </GlassPanel>
-              );
-            })}
-          </div>
-        </section>
-      </Reveal>
+              </Reveal>
+            );
+          })}
+        </div>
+      </section>
 
       <Reveal>
         <section className="landing-section landing-desktop" id="desktop">
