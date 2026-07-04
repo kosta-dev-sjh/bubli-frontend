@@ -58,6 +58,10 @@ const DISALLOWED_SOURCE_PATTERNS = [
     reason: "Do not route users to the retired in-app widget review surface.",
   },
   {
+    pattern: /hybrid-frame__mock/i,
+    reason: "Hybrid app surfaces must not keep mock-named UI classes; use neutral live-surface naming.",
+  },
+  {
     pattern: /\b(NEXT_PUBLIC_AGENT|VITE_AGENT|TAURI_AGENT|AGENT_BASE_URL|AGENT_SERVER_URL)\b/,
     reason: "Frontend and Tauri must call the API server, not an agent server directly.",
   },
@@ -84,6 +88,7 @@ const desktopCommunicationRoutePath = join(
   "src/app/(workspace)/app/desktop/communication/page.tsx",
 );
 const managedFolderClientPath = join(ROOT, "src/lib/local/managed-folder-client.ts");
+const globalsCssPath = join(ROOT, "src/styles/globals.css");
 
 for (const route of DISALLOWED_ROUTES) {
   const absolutePath = join(ROOT, route.path);
@@ -136,6 +141,15 @@ if (existsSync(managedFolderClientPath)) {
   if (text.includes("not wired yet") && text.includes("watchPending")) {
     failures.push(
       "src/lib/local/managed-folder-client.ts: native folder watch is implemented; do not mask watch_managed_folder failures as a pending/not-wired state.",
+    );
+  }
+}
+
+if (existsSync(globalsCssPath)) {
+  const text = readFileSync(globalsCssPath, "utf8");
+  if (/hybrid-frame__mock/i.test(text)) {
+    failures.push(
+      "src/styles/globals.css: hybrid app surfaces must not keep mock-named UI classes; use neutral live-surface naming.",
     );
   }
 }
