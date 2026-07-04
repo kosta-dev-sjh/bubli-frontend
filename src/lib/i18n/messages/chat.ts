@@ -248,6 +248,18 @@ const ko = {
   "chat.agentDefaultPrompt": "현재 프로젝트룸 맥락을 기준으로 도와줘",
   "chat.senderMe": "나",
 
+  // /bubli 명령어 자동완성(웹 소통창 + 위젯 chat 버블 공용)
+  "chat.agentCommands.popoverAria": "Bubli 명령어 자동완성",
+  "chat.agentCommands.hint": "↑↓ 이동 · Tab/Enter 완성 · Esc 닫기",
+  "chat.agentCommands.summarizeDesc": "최근 대화·결정 사항을 요약해요",
+  "chat.agentCommands.todoDesc": "대화에서 TODO 후보를 만들어요",
+  "chat.agentCommands.taskDesc": "작업(태스크) 후보를 만들어요",
+  "chat.agentCommands.questionDesc": "확인이 필요한 질문 후보를 정리해요",
+  "chat.agentCommands.requirementDesc": "요구사항 후보를 정리해요",
+  "chat.agentCommands.reviewDesc": "위험·조건 등 검토 항목 후보를 만들어요",
+  "chat.agentCommands.suggestDesc": "요청 내용으로 제안 후보를 만들어요",
+  "chat.agentCommands.answerDesc": "프로젝트 맥락을 바탕으로 자유롭게 답해요",
+
   // 소통 요약 패널(communication-panel)
   "chat.commPanel.aria": "소통",
   "chat.commPanel.summaryAria": "소통 기능 구분",
@@ -973,6 +985,17 @@ const en: Record<Key, string> = {
   "chat.agentDefaultPrompt": "Help me based on the current project room context",
   "chat.senderMe": "Me",
 
+  "chat.agentCommands.popoverAria": "Bubli command autocomplete",
+  "chat.agentCommands.hint": "↑↓ move · Tab/Enter complete · Esc close",
+  "chat.agentCommands.summarizeDesc": "Summarizes recent conversation and decisions",
+  "chat.agentCommands.todoDesc": "Creates TODO candidates from the conversation",
+  "chat.agentCommands.taskDesc": "Creates task candidates",
+  "chat.agentCommands.questionDesc": "Collects question candidates that need confirmation",
+  "chat.agentCommands.requirementDesc": "Collects requirement candidates",
+  "chat.agentCommands.reviewDesc": "Creates review-item candidates such as risks and conditions",
+  "chat.agentCommands.suggestDesc": "Creates suggestion candidates from your request",
+  "chat.agentCommands.answerDesc": "Answers freely based on the project context",
+
   "chat.commPanel.aria": "Chat",
   "chat.commPanel.summaryAria": "Chat feature breakdown",
   "chat.commPanel.feature.directTitle": "1:1 chat with friends",
@@ -1681,6 +1704,17 @@ const ja: Record<Key, string> = {
   "chat.groupNameSuffix": "{name} グループ",
   "chat.agentDefaultPrompt": "現在のプロジェクトルームの文脈を基準に手伝って",
   "chat.senderMe": "自分",
+
+  "chat.agentCommands.popoverAria": "Bubli コマンドの自動補完",
+  "chat.agentCommands.hint": "↑↓ 移動 · Tab/Enter 補完 · Esc 閉じる",
+  "chat.agentCommands.summarizeDesc": "最近の会話と決定事項を要約します",
+  "chat.agentCommands.todoDesc": "会話からTODO候補を作ります",
+  "chat.agentCommands.taskDesc": "作業（タスク）候補を作ります",
+  "chat.agentCommands.questionDesc": "確認が必要な質問候補を整理します",
+  "chat.agentCommands.requirementDesc": "要件候補を整理します",
+  "chat.agentCommands.reviewDesc": "リスク・条件などのレビュー項目候補を作ります",
+  "chat.agentCommands.suggestDesc": "リクエスト内容から提案候補を作ります",
+  "chat.agentCommands.answerDesc": "プロジェクトの文脈をもとに自由に答えます",
 
   "chat.commPanel.aria": "コミュニケーション",
   "chat.commPanel.summaryAria": "コミュニケーション機能の区分",

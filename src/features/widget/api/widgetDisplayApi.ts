@@ -223,6 +223,11 @@ export const widgetDisplayApi = {
     return widgetDisplayRequest<WidgetProjectRoomResponse>(`/api/project-rooms/${roomId}`);
   },
 
+  // 개인 컨텍스트 TODO 행의 룸 칩(룸 이름) 표시용 — 내가 속한 프로젝트룸 목록.
+  listProjectRooms(size = 50) {
+    return widgetDisplayRequest<PageResponse<WidgetProjectRoomResponse>>(`/api/project-rooms?page=0&size=${size}`);
+  },
+
   listSchedules(roomId?: string | null, size = 6) {
     const { from, to } = widgetScheduleWindow();
     const params = new URLSearchParams({

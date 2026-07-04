@@ -1,8 +1,8 @@
 "use client";
 
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import type { FormEvent } from "react";
-import { useCallback, useEffect, useState } from "react";
+import type { FormEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { memoApi } from "@/features/memo/api/memoApi";
@@ -32,6 +32,24 @@ function normalizeMemoItems(items: MemoResponse[]) {
     .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
 }
 
+// 장문 대응 컴포저 — 1줄에서 시작해 최대 약 5줄(≈123px)까지 늘고 이후 내부 스크롤.
+const MEMO_TEXTAREA_MAX_HEIGHT = 123;
+
+function autoGrowTextarea(node: HTMLTextAreaElement | null) {
+  if (!node) return;
+  node.style.height = "auto";
+  node.style.height = `${Math.min(node.scrollHeight, MEMO_TEXTAREA_MAX_HEIGHT)}px`;
+  node.style.overflowY = node.scrollHeight > MEMO_TEXTAREA_MAX_HEIGHT ? "auto" : "hidden";
+}
+
+// Enter는 줄바꿈, Cmd/Ctrl+Enter는 소속 폼 저장(컴포저 힌트와 동일 계약).
+function submitOnModEnter(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
+  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
+}
+
 function formatMemoTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -56,6 +74,16 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
   const [busyMemoId, setBusyMemoId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const composeRef = useRef<HTMLTextAreaElement | null>(null);
+  const editRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // 자동 확장 — 값이 바뀔 때마다 높이를 내용에 맞춘다(최대 높이 초과 시 내부 스크롤).
+  useEffect(() => {
+    autoGrowTextarea(composeRef.current);
+  }, [composeBody]);
+  useEffect(() => {
+    autoGrowTextarea(editRef.current);
+  }, [editingBody, editingMemoId]);
 
   const resolveErrorNotice = useCallback(
     (error: unknown, fallbackNotice: string) => {
@@ -210,10 +238,14 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
           disabled={creating}
           maxLength={2000}
           onChange={(event) => setComposeBody(event.target.value)}
+          onKeyDown={submitOnModEnter}
           placeholder={t("memo.card.placeholder")}
+          ref={composeRef}
+          rows={1}
           value={composeBody}
         />
         <div className={styles.composeActions}>
+          <span className={styles.composeHint}>{t("memo.card.composerHint")}</span>
           <Button
             disabled={!composeBody.trim() || creating}
             icon={<Plus size={14} strokeWidth={2.1} />}
@@ -252,6 +284,9 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
                     disabled={busyMemoId === memo.id}
                     maxLength={2000}
                     onChange={(event) => setEditingBody(event.target.value)}
+                    onKeyDown={submitOnModEnter}
+                    ref={editRef}
+                    rows={1}
                     value={editingBody}
                   />
                   <div className={styles.editActions}>

@@ -1,3 +1,4 @@
+export * from "./agent-command-autocomplete";
 export * from "./chat-cache-recovery-panel";
 export * from "./chat-message-composer";
 export * from "./chat-read-state-panel";

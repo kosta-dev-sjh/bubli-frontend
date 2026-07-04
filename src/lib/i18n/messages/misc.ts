@@ -449,6 +449,7 @@ const ko = {
   // memo-dashboard-card (대시보드 빠른 메모 위젯)
   "memo.card.composeAria": "새 메모 입력",
   "memo.card.placeholder": "메모를 입력하세요",
+  "memo.card.composerHint": "Enter 줄바꿈 · ⌘/Ctrl+Enter 저장",
   "memo.card.save": "저장",
   "memo.card.saving": "저장 중",
   "memo.card.loading": "메모를 불러오는 중입니다",
@@ -910,6 +911,7 @@ const en: Record<Key, string> = {
 
   "memo.card.composeAria": "Write a new memo",
   "memo.card.placeholder": "Write a memo",
+  "memo.card.composerHint": "Enter for a new line · ⌘/Ctrl+Enter to save",
   "memo.card.save": "Save",
   "memo.card.saving": "Saving",
   "memo.card.loading": "Loading memos",
@@ -1369,6 +1371,7 @@ const ja: Record<Key, string> = {
 
   "memo.card.composeAria": "新しいメモを入力",
   "memo.card.placeholder": "メモを入力してください",
+  "memo.card.composerHint": "Enterで改行 · ⌘/Ctrl+Enterで保存",
   "memo.card.save": "保存",
   "memo.card.saving": "保存中",
   "memo.card.loading": "メモを読み込み中です",

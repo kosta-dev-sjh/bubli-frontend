@@ -1,9 +1,9 @@
 "use client";
 
 // 첫 사용 경험(직군 온보딩/워크스페이스 튜토리얼) 완료 상태의 로컬 영속화 전용 모듈.
-// 백엔드 user_preferences에는 아직 직군/온보딩 완료 필드가 없어
-// (theme / default_home_type / default_project_room_id 만 존재 — origin/develop UserPreference.java)
-// 서버 필드가 생기기 전까지 board-storage와 같은 방식으로 이 모듈 한 곳에서만 브라우저 저장소를 쓴다.
+// 서버 user_preferences에도 job_role / onboarding_completed_at 필드가 생겨(backend PR 195)
+// 온보딩 종료 시 role-onboarding-overlay가 best-effort로 함께 저장하지만,
+// "이 기기에서 다시 보여줄지"의 1차 게이트는 여전히 이 로컬 기록이다(board-storage와 같은 방식).
 // userId를 함께 저장해 "사용자당 1회"를 보장한다(같은 기기에서 다른 계정 로그인 시 다시 보여준다).
 // scripts/check-tauri-boundaries.mjs 의 ALLOWED_LOCALSTORAGE_FILES 에 등록되어 있다.
 

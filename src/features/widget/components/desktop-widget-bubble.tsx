@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, type MouseEvent, type PointerEvent as ReactPointerEvent, type Ref, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, memo, type MouseEvent, type PointerEvent as ReactPointerEvent, type Ref, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from "motion/react";
 import {
   Bell,
@@ -26,7 +26,6 @@ import {
   Repeat,
   Settings,
   SmilePlus,
-  Search,
   Send,
   Sparkles,
   Square,
@@ -47,6 +46,10 @@ import {
 } from "@/features/widget/desktop-widget-preview-data";
 // 웹앱과 같은 브랜드 버블 마크(읽기 전용 import) — 바 Bubli 칩(28px)과 메뉴 오브(48px)가 공유한다.
 import { BubbleMark } from "@/components/bubbles";
+// /bubli 명령 문법·자동완성은 웹 소통창과 같은 공용 모듈을 쓴다(계약 단일 출처).
+import { AgentCommandAutocomplete } from "@/features/communication/components/agent-command-autocomplete";
+import { stripAgentCommandPrefix } from "@/features/communication/lib/agent-commands";
+import { useAgentCommandAutocomplete } from "@/features/communication/lib/use-agent-command-autocomplete";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { startWidgetWindowDragging, tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
@@ -162,7 +165,8 @@ export type DesktopWidgetBubbleProps = {
   onAnalyzeResource?: (item: WidgetPreviewItem) => Promise<void> | void;
   onDownloadResource?: (item: WidgetPreviewItem) => Promise<void> | void;
   onRestore?: () => void;
-  onSendAgentCommand?: (bubble: WidgetPreviewBubble, text: string) => Promise<void> | void;
+  // 에이전트 요청 전송. 응답 본문(에이전트 답변 텍스트)을 돌려주면 버블 내 미니 대화에 그대로 붙는다.
+  onSendAgentCommand?: (bubble: WidgetPreviewBubble, text: string) => Promise<string | void> | string | void;
   onSendChatMessage?: (bubble: WidgetPreviewBubble, text: string) => Promise<void> | void;
   onStartVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onPauseTimer?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
@@ -325,18 +329,23 @@ function WidgetControls({
 function ItemActions({
   item,
   onItemStateChange,
+  showConfirm = true,
 }: {
   item: WidgetPreviewItem;
   onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
+  /** TODO 행처럼 별도 체크 어포던스가 확인을 담당하면 확인 버튼을 숨긴다. */
+  showConfirm?: boolean;
 }) {
   const { t } = useI18n();
   if (!onItemStateChange) return null;
 
   return (
     <span className={styles.itemActions}>
-      <button aria-label={t("widget.item.confirm")} onClick={() => onItemStateChange(item, "CONFIRMED")} type="button">
-        <CheckCircle2 size={12} strokeWidth={2} />
-      </button>
+      {showConfirm ? (
+        <button aria-label={t("widget.item.confirm")} onClick={() => onItemStateChange(item, "CONFIRMED")} type="button">
+          <CheckCircle2 size={12} strokeWidth={2} />
+        </button>
+      ) : null}
       <button aria-label={t("widget.item.pin")} onClick={() => onItemStateChange(item, "PINNED")} type="button">
         <Pin size={12} strokeWidth={2} />
       </button>
@@ -389,6 +398,89 @@ const ItemRows = memo(function ItemRows({
   );
 });
 
+// TODO 마감 칩 톤 클래스(지남/오늘/내일/이후) — 개인 TODO와 룸 태스크 공통.
+const todoDueToneClassNames: Record<NonNullable<WidgetPreviewItem["dueTone"]>, string> = {
+  later: styles.dueLater,
+  overdue: styles.dueOverdue,
+  today: styles.dueToday,
+  tomorrow: styles.dueTomorrow,
+};
+
+// TODO 전용 행 목록: [체크 어포던스][제목 1줄][룸 칩(있으면)][마감 칩] + 고정/숨김.
+// 개인 TODO(sourceKind=personal)와 나에게 할당된 룸 태스크(sourceKind=room)가 함께 있으면
+// "내 할 일" / "룸에서 할당됨" 그룹 헤더로 나눈다(그룹 순서는 rows 배열 순서를 따른다).
+const TodoRows = memo(function TodoRows({
+  bubble,
+  onItemStateChange,
+  onOpenHandoff,
+}: {
+  bubble: WidgetPreviewBubble;
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
+}) {
+  const { t } = useI18n();
+  const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
+    if (!item.handoffUrl || !onOpenHandoff) return;
+
+    event.preventDefault();
+    void onOpenHandoff(item);
+  };
+
+  if (bubble.rows.length === 0) {
+    return <BubbleEmptyState bubble={bubble} />;
+  }
+
+  const personalRows = bubble.rows.filter((item) => item.sourceKind !== "room");
+  const roomRows = bubble.rows.filter((item) => item.sourceKind === "room");
+  const showGroupHeads = personalRows.length > 0 && roomRows.length > 0;
+  // 룸 컨텍스트면 룸 태스크 그룹을 먼저 — 고정(PINNED)으로 행 순서가 섞여도 그룹 순서는 유지한다.
+  const roomFirst = Boolean(bubble.roomId);
+  const groups: Array<{ key: string; labelKey: MessageKey; rows: WidgetPreviewItem[] }> = [
+    { key: "personal", labelKey: "widget.todo.groupMine", rows: personalRows },
+    { key: "room", labelKey: "widget.todo.groupRoom", rows: roomRows },
+  ];
+  if (roomFirst) groups.reverse();
+
+  const renderRow = (item: WidgetPreviewItem) => (
+    <div className={styles.todoRow} key={item.id}>
+      <button
+        aria-label={t("widget.todo.markDone", { label: item.label })}
+        aria-pressed={item.checked ?? false}
+        className={styles.todoCheck}
+        onClick={() => onItemStateChange?.(item, "CONFIRMED")}
+        type="button"
+      >
+        {item.checked ? <CheckCircle2 size={13} strokeWidth={2.4} /> : null}
+      </button>
+      {item.handoffUrl ? (
+        <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+          {item.label}
+        </a>
+      ) : (
+        <span>{item.label}</span>
+      )}
+      {item.roomName ? <i className={styles.roomChip}>{item.roomName}</i> : null}
+      <b className={item.dueTone ? [styles.dueChip, todoDueToneClassNames[item.dueTone]].join(" ") : styles.dueChip}>
+        {item.status}
+      </b>
+      <ItemActions item={item} onItemStateChange={onItemStateChange} showConfirm={false} />
+    </div>
+  );
+
+  return (
+    <div className={styles.rowList}>
+      {groups.map((group) =>
+        group.rows.length > 0 ? (
+          <Fragment key={group.key}>
+            {showGroupHeads ? <span className={styles.todoGroupHead}>{t(group.labelKey)}</span> : null}
+            {group.rows.map(renderRow)}
+          </Fragment>
+        ) : null,
+      )}
+    </div>
+  );
+});
+
 function TodoBody({
   bubble,
   onCreateTodo,
@@ -403,7 +495,8 @@ function TodoBody({
   const { t } = useI18n();
   return (
     <div className={styles.body}>
-      {/* 카운트 링은 중앙 부유 대신 요약 카피와 나란히 — 본문이 위에서부터 콘텐츠로 채워진다. */}
+      {/* 카운트 링은 중앙 부유 대신 요약 카피와 나란히 — 본문이 위에서부터 콘텐츠로 채워진다.
+          링 숫자는 표시 행이 아니라 병합된(개인 + 룸 할당) 남은 개수 전체를 가리킨다. */}
       <div className={styles.summaryRow}>
         <div className={styles.countRing}>
           <span>{bubble.metric}</span>
@@ -414,7 +507,7 @@ function TodoBody({
           <span>{t(bubbleEmptyLabel(bubble) as MessageKey)}</span>
         </div>
       </div>
-      <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
+      <TodoRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
       <button className={styles.wideAction} onClick={() => void onCreateTodo?.(bubble)} type="button">
         <Plus size={14} strokeWidth={2} />
         {t(bubble.actionLabel as MessageKey)}
@@ -455,6 +548,16 @@ function AlertBody({
   );
 }
 
+// 에이전트 버블 미니 대화 항목. 히스토리는 버블 내 로컬 상태로 최근 10개만 유지한다.
+type AgentThreadEntry = {
+  error?: boolean;
+  id: string;
+  role: "agent" | "me";
+  text: string;
+};
+
+const AGENT_THREAD_LIMIT = 10;
+
 function AgentBody({
   bubble,
   onItemStateChange,
@@ -469,11 +572,25 @@ function AgentBody({
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [statusText, setStatusText] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [thread, setThread] = useState<AgentThreadEntry[]>([]);
+  const [pending, setPending] = useState(false);
+  const threadRef = useRef<HTMLDivElement | null>(null);
+
+  const appendThreadEntry = (entry: AgentThreadEntry) => {
+    setThread((current) => [...current, entry].slice(-AGENT_THREAD_LIMIT));
+  };
+
+  // 새 말풍선/생각 중 표시가 붙으면 히스토리를 항상 바닥으로 따라간다.
+  useEffect(() => {
+    const node = threadRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [thread, pending]);
 
   const sendAgentCommand = async () => {
-    const text = draft.trim();
-    if (!text || submitting) return;
+    // 위젯 에이전트 버블은 명령어가 필요 없다 — 자연어를 그대로 요청으로 보내고,
+    // 습관적으로 "/bubli"를 붙여도 접두어는 떼고 전송한다.
+    const text = stripAgentCommandPrefix(draft);
+    if (!text || pending) return;
 
     if (!bubble.roomId) {
       setStatusText(t("widget.chat.selectRoomFirst"));
@@ -482,16 +599,21 @@ function AgentBody({
 
     if (!onSendAgentCommand) return;
 
-    setSubmitting(true);
     setStatusText(null);
+    setPending(true);
+    appendThreadEntry({ id: `me-${Date.now()}`, role: "me", text });
+    setDraft("");
     try {
-      await onSendAgentCommand(bubble, text);
-      setDraft("");
-      setStatusText(t("widget.chat.sent"));
+      const answer = await onSendAgentCommand(bubble, text);
+      appendThreadEntry({
+        id: `agent-${Date.now()}`,
+        role: "agent",
+        text: typeof answer === "string" && answer.trim() ? answer.trim() : t("widget.agent.replyFallback"),
+      });
     } catch {
-      setStatusText(t("widget.chat.sendFailed"));
+      appendThreadEntry({ error: true, id: `error-${Date.now()}`, role: "agent", text: t("widget.agent.replyFailed") });
     } finally {
-      setSubmitting(false);
+      setPending(false);
     }
   };
 
@@ -504,6 +626,34 @@ function AgentBody({
         <b>{bubble.metric}</b>
       </div>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
+      {thread.length > 0 || pending ? (
+        <div aria-label={t("widget.agent.threadAria")} aria-live="polite" className={styles.agentThread} ref={threadRef}>
+          {thread.map((entry) => (
+            <p
+              className={[
+                styles.message,
+                entry.role === "me" ? styles.messageMine : styles.agentReply,
+                entry.error ? styles.agentReplyError : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              key={entry.id}
+            >
+              {entry.text}
+            </p>
+          ))}
+          {pending ? (
+            <span className={styles.agentThinking} role="status">
+              <span className={styles.agentThinkingDots} aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              {t("widget.agent.thinking")}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <form
         className={styles.input}
         onSubmit={(event) => {
@@ -511,13 +661,14 @@ function AgentBody({
           void sendAgentCommand();
         }}
       >
-        <Search size={14} strokeWidth={2} />
+        <Sparkles size={14} strokeWidth={2} />
         <input
+          disabled={pending}
           onChange={(event) => setDraft(event.target.value)}
           placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : undefined}
           value={draft}
         />
-        <button aria-label={t("widget.chat.sendMessage")} disabled={submitting || !draft.trim()} type="submit">
+        <button aria-label={t("widget.chat.sendMessage")} disabled={pending || !stripAgentCommandPrefix(draft)} type="submit">
           <Send size={13} strokeWidth={2.1} />
         </button>
       </form>
@@ -551,6 +702,17 @@ function ChatBody({
   const [statusText, setStatusText] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [voiceSubmitting, setVoiceSubmitting] = useState(false);
+  const composerInputRef = useRef<HTMLInputElement | null>(null);
+  // /bubli 자동완성 — 프로젝트룸 소통 버블에서만 연다(웹 소통창과 같은 명령 목록).
+  const applyAgentCommandCompletion = useCallback((completedText: string) => {
+    setDraft(completedText);
+    composerInputRef.current?.focus();
+  }, []);
+  const agentAutocomplete = useAgentCommandAutocomplete({
+    draft,
+    enabled: Boolean(bubble.roomId && bubble.chatRoomId),
+    onApply: applyAgentCommandCompletion,
+  });
   const visibleRows = bubble.rows.filter((item) => !hiddenIds.includes(item.id));
   const handoffItem = visibleRows.find((item) => item.handoffUrl);
   const agentRows = visibleRows.filter((item) => item.kind === "agent");
@@ -727,28 +889,42 @@ function ChatBody({
         </button>
         {statusText ? <span>{statusText}</span> : null}
       </div>
-      <div className={styles.input}>
-        <SmilePlus size={14} strokeWidth={2} />
-        <input
-          disabled={!bubble.chatRoomId || submitting}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              void sendDraftMessage();
-            }
-          }}
-          placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : undefined}
-          value={draft}
-        />
-        <button
-          aria-label={t("widget.chat.sendMessage")}
-          disabled={!draft.trim() || !bubble.chatRoomId || submitting}
-          onClick={() => void sendDraftMessage()}
-          type="button"
-        >
-          <Send size={14} strokeWidth={2} />
-        </button>
+      <div className={styles.composerWrap}>
+        {agentAutocomplete.open ? (
+          <AgentCommandAutocomplete
+            activeIndex={agentAutocomplete.activeIndex}
+            items={agentAutocomplete.items}
+            onHoverItem={agentAutocomplete.setActiveIndex}
+            onPick={agentAutocomplete.pick}
+            tone="bubble"
+          />
+        ) : null}
+        <div className={styles.input}>
+          <SmilePlus size={14} strokeWidth={2} />
+          <input
+            disabled={!bubble.chatRoomId || submitting}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              // 자동완성이 열려 있으면 ↑/↓/Tab/Enter/Esc는 팝오버가 먼저 소비한다.
+              if (agentAutocomplete.handleKeyDown(event)) return;
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void sendDraftMessage();
+              }
+            }}
+            placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : undefined}
+            ref={composerInputRef}
+            value={draft}
+          />
+          <button
+            aria-label={t("widget.chat.sendMessage")}
+            disabled={!draft.trim() || !bubble.chatRoomId || submitting}
+            onClick={() => void sendDraftMessage()}
+            type="button"
+          >
+            <Send size={14} strokeWidth={2} />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -793,30 +969,43 @@ function TimerBody({
   );
 }
 
+// 메모 컴포저 textarea 자동 확장 — 1줄에서 시작해 최대 약 5줄까지 늘고 이후 내부 스크롤.
+const MEMO_COMPOSER_MAX_HEIGHT = 106;
+
+function autoGrowTextarea(node: HTMLTextAreaElement | null, maxHeight: number) {
+  if (!node) return;
+  node.style.height = "auto";
+  node.style.height = `${Math.min(node.scrollHeight, maxHeight)}px`;
+  node.style.overflowY = node.scrollHeight > maxHeight ? "auto" : "hidden";
+}
+
 function MemoBody({
   bubble,
   onCreateMemo,
   onDeleteMemo,
   onEditMemo,
-  onOpenHandoff,
 }: {
   bubble: WidgetPreviewBubble;
   onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
   onDeleteMemo?: DesktopWidgetBubbleProps["onDeleteMemo"];
   onEditMemo?: DesktopWidgetBubbleProps["onEditMemo"];
-  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
-    if (!item.handoffUrl || !onOpenHandoff) return;
+  // 장문 메모 대응 — 목록은 2줄 미리보기로 접고, 탭하면 전체를 펼친다(다시 탭으로 접기).
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
-    event.preventDefault();
-    void onOpenHandoff(item);
+  useEffect(() => {
+    autoGrowTextarea(composerRef.current, MEMO_COMPOSER_MAX_HEIGHT);
+  }, [draft]);
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   };
 
-  // 단독 "메모 남기기" 버튼 대신 하단 인라인 컴포저(1줄 입력 + 저장)로 바로 남긴다.
+  // 단독 "메모 남기기" 버튼 대신 하단 인라인 컴포저(자동 확장 + 저장)로 바로 남긴다.
   const saveDraftMemo = async () => {
     const body = draft.trim();
     if (!body || !onCreateMemo || submitting) return;
@@ -834,49 +1023,68 @@ function MemoBody({
     <div className={styles.body}>
       {bubble.rows.length > 0 ? (
         <div className={styles.rowList}>
-          {bubble.rows.slice(0, 4).map((item) => (
-            <div className={styles.memoRow} key={item.id}>
-              {item.handoffUrl ? (
-                <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
-                  <strong>{item.label}</strong>
-                </a>
-              ) : (
-                <strong>{item.label}</strong>
-              )}
-              <span className={styles.memoTime}>{item.status}</span>
-              <span className={styles.memoActions}>
-                <button aria-label={t("widget.memo.edit")} disabled={!onEditMemo} onClick={() => void onEditMemo?.(item)} type="button">
-                  <Pencil size={12} strokeWidth={2.1} />
+          {bubble.rows.slice(0, 4).map((item) => {
+            const expanded = expandedIds.includes(item.id);
+            const body = item.memoBody ?? item.label;
+            return (
+              <div className={[styles.memoRow, styles.memoRowStack].join(" ")} key={item.id}>
+                <button
+                  aria-expanded={expanded}
+                  aria-label={expanded ? t("widget.memo.collapseMemo") : t("widget.memo.expandMemo")}
+                  className={[styles.memoBodyButton, expanded ? "" : styles.memoBodyClamp].filter(Boolean).join(" ")}
+                  onClick={() => toggleExpanded(item.id)}
+                  type="button"
+                >
+                  {body}
                 </button>
-                <button aria-label={t("widget.memo.delete")} disabled={!onDeleteMemo} onClick={() => void onDeleteMemo?.(item)} type="button">
-                  <Trash2 size={12} strokeWidth={2.1} />
-                </button>
-              </span>
-            </div>
-          ))}
+                <span className={styles.memoMetaRow}>
+                  <span className={styles.memoTime}>{item.status}</span>
+                  <span className={styles.memoActions}>
+                    <button aria-label={t("widget.memo.edit")} disabled={!onEditMemo} onClick={() => void onEditMemo?.(item)} type="button">
+                      <Pencil size={12} strokeWidth={2.1} />
+                    </button>
+                    <button aria-label={t("widget.memo.delete")} disabled={!onDeleteMemo} onClick={() => void onDeleteMemo?.(item)} type="button">
+                      <Trash2 size={12} strokeWidth={2.1} />
+                    </button>
+                  </span>
+                </span>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <BubbleEmptyState bubble={bubble} />
       )}
       <form
-        className={[styles.input, styles.composer].join(" ")}
+        className={[styles.input, styles.memoComposer].join(" ")}
         onSubmit={(event) => {
           event.preventDefault();
           void saveDraftMemo();
         }}
       >
         <StickyNote size={14} strokeWidth={2} />
-        <input
+        <textarea
           aria-label={t(bubble.actionLabel as MessageKey)}
+          className={styles.memoComposerField}
           disabled={submitting}
           onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            // Enter는 줄바꿈, Cmd/Ctrl+Enter는 저장(아래 힌트와 동일 계약).
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault();
+              void saveDraftMemo();
+            }
+          }}
           placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : t(bubble.actionLabel as MessageKey)}
+          ref={composerRef}
+          rows={1}
           value={draft}
         />
         <button className={styles.composerSave} disabled={submitting || !draft.trim()} type="submit">
           {t("widget.memo.save")}
         </button>
       </form>
+      <span className={styles.composerHint}>{t("widget.memo.composerHint")}</span>
     </div>
   );
 }
@@ -1092,7 +1300,7 @@ function BubbleBody({
     return <TimerBody bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />;
   }
   if (bubble.id === "memo") {
-    return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} onDeleteMemo={onDeleteMemo} onEditMemo={onEditMemo} onOpenHandoff={onOpenHandoff} />;
+    return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} onDeleteMemo={onDeleteMemo} onEditMemo={onEditMemo} />;
   }
   if (bubble.id === "schedule") {
     return <ScheduleBody bubble={bubble} onCreateSchedule={onCreateSchedule} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
