@@ -22,7 +22,7 @@ export default function DownloadPage() {
   const { t } = useI18n();
 
   return (
-    <>
+    <div className="public-page">
       <PageHeading title={t("public.download.title")} description={t("public.download.description")} />
       <section className="public-download" aria-label={t("public.download.sectionAria")}>
         <GlassPanel className="public-download__intro">
@@ -58,6 +58,6 @@ export default function DownloadPage() {
           })}
         </div>
       </section>
-    </>
+    </div>
   );
 }

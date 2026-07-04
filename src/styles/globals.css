@@ -11409,6 +11409,16 @@ html {
   display: none !important;
 }
 
+/* 공개 하위 페이지(/features·/faq·/download) 공용 컨테이너.
+   PageHeading과 카드 그리드가 같은 좌우 거터를 공유하도록 폭·패딩을 한곳에서 준다.
+   (이전에는 헤더가 x=0에 붙어 카드 그리드와 정렬이 어긋났다.) */
+.public-page {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(32px, 6vh, 56px) clamp(20px, 4vw, 48px) clamp(48px, 8vh, 88px);
+}
+
 .public-feature-flow,
 .public-faq {
   position: relative;
@@ -16028,9 +16038,9 @@ html {
 }
 
 .public-orbit-preview__node--agent {
-  right: 14%;
+  right: 10%;
   top: 30%;
-  transform: translateZ(120px);
+  transform: translateZ(96px);
   animation-delay: -1.5s;
 }
 
@@ -16042,9 +16052,9 @@ html {
 }
 
 .public-orbit-preview__node--todo {
-  right: 8%;
+  right: 6%;
   bottom: 32%;
-  transform: translateZ(128px);
+  transform: translateZ(100px);
   animation-delay: -4.2s;
 }
 
@@ -16141,17 +16151,17 @@ html {
 
 .public-orbit-preview__widgets {
   position: absolute;
-  right: 6%;
+  right: 8%;
   bottom: 8%;
   z-index: 3;
   display: grid;
   gap: 10px;
-  width: min(250px, 42%);
+  width: min(236px, 40%);
   transform:
     translate3d(
       calc(var(--orbit-x, 0) * -12px),
       calc(var(--orbit-y, 0) * 8px),
-      150px
+      100px
     );
 }
 
