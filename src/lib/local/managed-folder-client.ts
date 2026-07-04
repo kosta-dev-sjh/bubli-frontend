@@ -1,5 +1,6 @@
 import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
 import type {
+  LocalFileByResourceIdResult,
   LocalFileAnalysisStatusResult,
   LocalFileKeySentenceResult,
 } from "@/lib/tauri/commands";
@@ -70,6 +71,12 @@ export type PersonalLocalFileAnalysisResult = {
 
 type PersonalLocalFileAnalysisInput = LocalFileKeySentenceAdapterInput & {
   resourceId: string;
+};
+
+type PersonalLocalFileByResourceInput = {
+  consentGranted?: boolean;
+  resourceId: string;
+  roomId?: string | null;
 };
 
 export const PERSONAL_RESOURCES_CHANGED_EVENT = "bubli-personal-resources-changed";
@@ -296,6 +303,26 @@ export async function readPersonalLocalFilePreview(
 
   return runTauriAdapter(TAURI_COMMANDS.readLocalFilePreview, () =>
     tauriCommands.readLocalFilePreview(tauriInput),
+  );
+}
+
+export async function findPersonalLocalFileByResourceId(
+  input: PersonalLocalFileByResourceInput,
+): Promise<LocalAdapterResult<LocalFileByResourceIdResult | null>> {
+  if (!isTauriRuntime()) {
+    return unavailable(TAURI_COMMANDS.findLocalFileByResourceId);
+  }
+
+  if (!input.consentGranted) {
+    return localFolderConsentBlocked(TAURI_COMMANDS.findLocalFileByResourceId);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", personalScopeMessage(), TAURI_COMMANDS.findLocalFileByResourceId);
+  }
+
+  return runTauriAdapter(TAURI_COMMANDS.findLocalFileByResourceId, () =>
+    tauriCommands.findLocalFileByResourceId({ resourceId: input.resourceId }),
   );
 }
 

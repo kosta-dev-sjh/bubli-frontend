@@ -12,6 +12,7 @@ import { settingsApi } from "@/features/settings/api/settingsApi";
 import { useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import {
+  findPersonalLocalFileByResourceId,
   listPersonalManagedFolders,
   openPersonalLocalFile,
   PERSONAL_RESOURCES_CHANGED_EVENT,
@@ -35,6 +36,7 @@ import { ResourceAiSearchPanel } from "./resource-ai-search-panel";
 import {
   formatDate,
   getErrorMessage,
+  isResourceAnalysisPending,
   openResourceDownload,
   ResourcePreview,
   ResourceRow,
@@ -69,6 +71,7 @@ export function PersonalResourceWorkspace() {
   const [query, setQuery] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [previewIntent, setPreviewIntent] = useState<ResourcePreviewIntent | null>(null);
+  const [localRevisionByResourceId, setLocalRevisionByResourceId] = useState<Record<string, number>>({});
   const [isTauri, setIsTauri] = useState(false);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(() => getActiveProjectRoomId());
   const [localFolderConsent, setLocalFolderConsent] = useState(false);
@@ -174,6 +177,62 @@ export function PersonalResourceWorkspace() {
   useDataRefresh({ domains: [], onRefresh: revalidateResources });
 
   const resources = useMemo(() => (state.kind === "ready" ? state.resources : EMPTY_RESOURCES), [state]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!localFolderConsent || resources.length === 0) {
+      const resetId = window.setTimeout(() => {
+        if (!cancelled) {
+          setLocalRevisionByResourceId({});
+        }
+      }, 0);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(resetId);
+      };
+    }
+
+    Promise.all(
+      resources.map(async (resource) => {
+        const result = await findPersonalLocalFileByResourceId({
+          consentGranted: localFolderConsent,
+          resourceId: resource.id,
+        });
+        if (result.status !== "ready" || !result.data || result.data.revisionNo < 1) {
+          return null;
+        }
+        return [resource.id, result.data.revisionNo] as const;
+      }),
+    )
+      .then((entries) => {
+        if (cancelled) return;
+        setLocalRevisionByResourceId(
+          Object.fromEntries(entries.filter((entry): entry is readonly [string, number] => entry !== null)),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLocalRevisionByResourceId({});
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [localFolderConsent, resources]);
+
+  useEffect(() => {
+    if (state.kind !== "ready" || !resources.some(isResourceAnalysisPending)) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void loadResources();
+    }, 2500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadResources, resources, state.kind]);
 
   // ?resourceId= 딥링크는 목록 로드 완료 후, 같은 값에 대해 한 번만 적용한다
   // (적용 후 사용자가 다른 자료를 고르거나 닫는 것을 방해하지 않는다).
@@ -672,6 +731,7 @@ export function PersonalResourceWorkspace() {
                       resource={resource}
                       scope="personal"
                       selected={selectedResource?.id === resource.id}
+                      versionLabel={localRevisionByResourceId[resource.id] ? `v${localRevisionByResourceId[resource.id]}` : undefined}
                     />
                   ))}
                 </ul>
@@ -680,6 +740,7 @@ export function PersonalResourceWorkspace() {
 
             <ResourcePreview
               intent={previewIntent}
+              localFolderConsent={localFolderConsent}
               onClose={() => setSelectedResourceId(null)}
               onDeleted={() => {
                 setSelectedResourceId(null);

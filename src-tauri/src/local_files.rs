@@ -172,6 +172,28 @@ pub struct LocalFileSearchResult {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LocalFileByResourceIdInput {
+    resource_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFileByResourceIdResult {
+    checksum: Option<String>,
+    latest_event_at: Option<String>,
+    latest_event_type: Option<String>,
+    local_file_id: String,
+    name: String,
+    path: String,
+    resource_id: String,
+    revision_no: i64,
+    size_bytes: Option<i64>,
+    sync_status: String,
+    updated_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LocalFilePreviewInput {
     local_file_id: String,
     max_chars: Option<usize>,
@@ -1461,7 +1483,10 @@ fn should_skip_managed_file(path: &Path) -> bool {
 }
 
 fn is_temporary_office_file_name(name: &str) -> bool {
-    name.starts_with("~$") || name.ends_with(".tmp") || name.ends_with(".temp")
+    name.starts_with("~$")
+        || name.ends_with(".tmp")
+        || name.ends_with(".temp")
+        || name.contains(".sb-")
 }
 
 fn upsert_file_fts_index(
@@ -2590,6 +2615,97 @@ fn search_local_files_for_conn(
 
 fn is_path_like_search_query(query: &str) -> bool {
     query.contains('/') || query.contains('\\') || query.starts_with('~')
+}
+
+/// Find the local managed-folder record that backs a synced personal resource.
+#[tauri::command]
+pub fn find_local_file_by_resource_id(
+    state: State<'_, Db>,
+    input: LocalFileByResourceIdInput,
+) -> Result<Option<LocalFileByResourceIdResult>, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let row: Option<(
+        String,
+        String,
+        String,
+        Option<String>,
+        String,
+        Option<i64>,
+        i64,
+        i64,
+        Option<String>,
+        Option<i64>,
+    )> = conn
+        .query_row(
+            "SELECT f.id, f.file_name, f.local_path, f.checksum, f.sync_status, f.size_bytes, f.updated_at, \
+                    (SELECT COUNT(*) \
+                       FROM local_file_events e \
+                      WHERE e.local_file_id = f.id \
+                        AND e.event_type IN ('CREATED', 'UPDATED') \
+                        AND e.status = 'SYNCED') AS revision_no, \
+                    (SELECT e.event_type \
+                       FROM local_file_events e \
+                      WHERE e.local_file_id = f.id \
+                        AND e.event_type IN ('CREATED', 'UPDATED') \
+                        AND e.status = 'SYNCED' \
+                      ORDER BY e.created_at DESC LIMIT 1) AS latest_event_type, \
+                    (SELECT e.created_at \
+                       FROM local_file_events e \
+                      WHERE e.local_file_id = f.id \
+                        AND e.event_type IN ('CREATED', 'UPDATED') \
+                        AND e.status = 'SYNCED' \
+                      ORDER BY e.created_at DESC LIMIT 1) AS latest_event_at \
+             FROM local_files f \
+             WHERE f.resource_id = ?1 \
+             ORDER BY f.updated_at DESC \
+             LIMIT 1",
+            params![input.resource_id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                    row.get(7)?,
+                    row.get(8)?,
+                    row.get(9)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+
+    Ok(row.map(
+        |(
+            local_file_id,
+            name,
+            path,
+            checksum,
+            sync_status,
+            size_bytes,
+            updated_ms,
+            revision_no,
+            latest_event_type,
+            latest_event_ms,
+        )| {
+            LocalFileByResourceIdResult {
+                checksum,
+                latest_event_at: latest_event_ms.map(ms_to_iso),
+                latest_event_type,
+                local_file_id,
+                name,
+                path,
+                resource_id: input.resource_id,
+                revision_no: revision_no.max(1),
+                size_bytes,
+                sync_status,
+                updated_at: ms_to_iso(updated_ms),
+            }
+        },
+    ))
 }
 
 /// Read a bounded text preview for a file already registered in the personal
@@ -3886,17 +4002,20 @@ mod tests {
     }
 
     #[test]
-    fn managed_folder_scan_ignores_office_lock_but_indexes_unsupported_files() {
+    fn managed_folder_scan_ignores_temporary_files_but_indexes_unsupported_files() {
         let conn = test_connection();
         let folder_path =
             std::env::temp_dir().join(format!("bubli-managed-ignore-test-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&folder_path).expect("create temp folder");
         let supported_path = folder_path.join("contract.md");
         let office_lock_path = folder_path.join("~$contract.docx");
+        let text_edit_temp_path = folder_path.join("contract.rtf.sb-55bf7eef-WnHPaM");
         let unsupported_path = folder_path.join("draft.pages");
         std::fs::write(&supported_path, "계약 기간과 지급 조건을 확인합니다.")
             .expect("write supported file");
         std::fs::write(&office_lock_path, "temporary lock").expect("write office lock file");
+        std::fs::write(&text_edit_temp_path, "temporary save file")
+            .expect("write text edit temp file");
         std::fs::write(&unsupported_path, "unsupported pages").expect("write unsupported file");
 
         conn.execute(

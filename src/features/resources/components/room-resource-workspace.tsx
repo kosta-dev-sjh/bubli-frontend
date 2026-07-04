@@ -19,6 +19,7 @@ import { LocalIndexedFileSearchPanel } from "./local-indexed-file-search-panel";
 import { ResourceAiSearchPanel } from "./resource-ai-search-panel";
 import {
   getErrorMessage,
+  isResourceAnalysisPending,
   openResourceDownload,
   ResourcePreview,
   ResourceRow,
@@ -114,6 +115,18 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   }, []);
 
   const resources = useMemo(() => (state.kind === "ready" ? state.resources : EMPTY_RESOURCES), [state]);
+
+  useEffect(() => {
+    if (state.kind !== "ready" || !resources.some(isResourceAnalysisPending)) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void loadResources();
+    }, 2500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadResources, resources, state.kind]);
 
   // ?resourceId= 딥링크는 목록 로드 완료 후, 같은 값에 대해 한 번만 적용한다
   // (적용 후 사용자가 다른 자료를 고르거나 닫는 것을 방해하지 않는다).

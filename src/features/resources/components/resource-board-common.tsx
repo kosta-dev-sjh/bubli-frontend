@@ -28,6 +28,11 @@ import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
+import {
+  analyzePersonalLocalFileWithKeySentences,
+  findPersonalLocalFileByResourceId,
+} from "@/lib/local/managed-folder-client";
+import type { LocalFileByResourceIdResult } from "@/lib/tauri/commands";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type {
@@ -61,13 +66,6 @@ const statusCopyKey: Record<ResourceStatus, MessageKey> = {
   UPLOADING: "resources.common.statusUploading",
 };
 
-const summaryStatusCopyKey: Record<ResourceSummaryStatus, MessageKey> = {
-  FAILED: "resources.common.summaryFailed",
-  NONE: "resources.common.summaryNone",
-  PENDING: "resources.common.summaryPending",
-  SUCCEEDED: "resources.common.summarySucceeded",
-};
-
 const aiDocumentStatusCopyKey: Record<AiDocumentStatus, MessageKey> = {
   ANALYZED: "resources.common.aiDocStatusAnalyzed",
   ANALYZING: "resources.common.aiDocStatusAnalyzing",
@@ -84,6 +82,60 @@ const personalStatusCopyKey: Partial<Record<ResourceStatus, MessageKey>> = {
 function statusLabel(t: TranslateFn, scope: ResourceBoardScope, status: ResourceStatus) {
   const personalKey = scope === "personal" ? personalStatusCopyKey[status] : undefined;
   return t(personalKey ?? statusCopyKey[status]);
+}
+
+function displayStatusRank(status: ResourceStatus) {
+  switch (status) {
+    case "ANALYZED":
+      return 5;
+    case "FAILED":
+      return 4;
+    case "ANALYZING":
+      return 3;
+    case "READY":
+      return 2;
+    case "UPLOADED":
+      return 1;
+    case "UPLOADING":
+      return 0;
+    case "ARCHIVED":
+      return 6;
+  }
+}
+
+function statusFromAnalysisState(resource: ResourceResponse, summaryStatus?: ResourceSummaryStatus | null): ResourceStatus {
+  if (resource.status === "ARCHIVED") return "ARCHIVED";
+
+  const resolvedSummaryStatus = summaryStatus ?? resource.summaryStatus;
+  if (resolvedSummaryStatus === "SUCCEEDED" || resource.aiDocumentStatus === "ANALYZED") return "ANALYZED";
+  if (resolvedSummaryStatus === "FAILED" || resource.aiDocumentStatus === "FAILED") return "FAILED";
+  if (resolvedSummaryStatus === "PENDING" || resource.aiDocumentStatus === "ANALYZING") return "ANALYZING";
+
+  return resource.status;
+}
+
+export function isResourceAnalysisPending(resource: ResourceResponse) {
+  return resource.status === "ANALYZING" || resource.summaryStatus === "PENDING" || resource.aiDocumentStatus === "ANALYZING";
+}
+
+function resolveDisplayStatus(
+  resource: ResourceResponse,
+  options?: {
+    fallbackResource?: ResourceResponse | null;
+    summaryStatus?: ResourceSummaryStatus | null;
+  },
+) {
+  const primaryStatus = statusFromAnalysisState(resource, options?.summaryStatus);
+  const fallbackStatus = options?.fallbackResource
+    ? statusFromAnalysisState(options.fallbackResource, options.summaryStatus)
+    : null;
+
+  if (!fallbackStatus) return primaryStatus;
+  return displayStatusRank(fallbackStatus) > displayStatusRank(primaryStatus) ? fallbackStatus : primaryStatus;
+}
+
+function isNotFoundError(error: unknown) {
+  return error instanceof ApiClientError && error.status === 404;
 }
 
 // getErrorMessage returns the "AUTH_REQUIRED" sentinel or a raw error message.
@@ -390,6 +442,7 @@ export function ResourceRow({
   resource,
   scope = "room",
   selected,
+  versionLabel,
   onDelete,
   onDownload,
   onRename,
@@ -398,6 +451,7 @@ export function ResourceRow({
   resource: ResourceResponse;
   scope?: ResourceBoardScope;
   selected: boolean;
+  versionLabel?: string | null;
   onDelete: () => void;
   onDownload: () => void;
   onRename: () => void;
@@ -408,6 +462,8 @@ export function ResourceRow({
   const previewKind = getResourcePreviewKind(resource);
   const kindLabel = getKindLabel(previewKind, t);
   const versionNo = resource.currentVersion?.versionNo;
+  const rowVersionLabel = versionLabel ?? (versionNo ? `v${versionNo}` : null);
+  const displayStatus = resolveDisplayStatus(resource);
 
   return (
     <li className={cn(styles.row, selected && styles.rowSelected)}>
@@ -419,13 +475,13 @@ export function ResourceRow({
           <b className={styles.rowName}>{resource.title}</b>
           <span className={styles.rowMeta}>
             {kindLabel}
-            {versionNo ? ` · v${versionNo}` : ""} · {formatDate(resource.updatedAt, t)}
+            {rowVersionLabel ? ` · ${rowVersionLabel}` : ""} · {formatDate(resource.updatedAt, t)}
             {size ? ` · ${size}` : ""}
           </span>
         </span>
       </button>
-      <StatusBadge className={styles.rowChip} tone={toneForStatus(resource.status)}>
-        {statusLabel(t, scope, resource.status)}
+      <StatusBadge className={styles.rowChip} tone={toneForStatus(displayStatus)}>
+        {statusLabel(t, scope, displayStatus)}
       </StatusBadge>
       <span aria-label={t("resources.common.rowActionsAria", { title: resource.title })} className={styles.rowActions} role="group">
         <button aria-label={t("resources.common.download")} className={styles.iconButton} onClick={onDownload} title={t("resources.common.download")} type="button">
@@ -454,6 +510,7 @@ export function ResourcePreview({
   resource,
   scope = "room",
   intent,
+  localFolderConsent,
   roomId,
   onClose,
   onDeleted,
@@ -463,6 +520,7 @@ export function ResourcePreview({
 }: {
   resource: ResourceResponse | null;
   intent?: ResourcePreviewIntent | null;
+  localFolderConsent?: boolean;
   roomId?: string;
   scope?: ResourceBoardScope;
   onClose?: () => void;
@@ -475,6 +533,7 @@ export function ResourcePreview({
   const [detailResource, setDetailResource] = useState<ResourceResponse | null>(resource);
   const [summary, setSummary] = useState<ResourceSummaryResponse | null>(null);
   const [versions, setVersions] = useState<ResourceVersionResponse[]>([]);
+  const [localFileVersion, setLocalFileVersion] = useState<LocalFileByResourceIdResult | null>(null);
   const [comments, setComments] = useState<ResourceCommentResponse[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -513,6 +572,7 @@ export function ResourcePreview({
         setDetailResource(null);
         setSummary(null);
         setVersions([]);
+        setLocalFileVersion(null);
         setComments([]);
         setRelated([]);
         setDetailError(null);
@@ -534,6 +594,7 @@ export function ResourcePreview({
       setDetailResource(resource);
       setSummary(null);
       setVersions([]);
+      setLocalFileVersion(null);
       setComments([]);
       setRelated([]);
       setDetailLoading(true);
@@ -550,13 +611,22 @@ export function ResourcePreview({
       setVersionState({ kind: "idle" });
       setAiDocState({ kind: "closed" });
 
+      const localFileVersionRequest =
+        scope === "personal" && localFolderConsent
+          ? findPersonalLocalFileByResourceId({
+              consentGranted: localFolderConsent,
+              resourceId: resource.id,
+            })
+          : Promise.resolve(null);
+
       Promise.allSettled([
         resourcesApi.get(resource.id),
         resourcesApi.getSummary(resource.id),
         resourcesApi.getVersions(resource.id),
         resourcesApi.getComments(resource.id),
         resourcesApi.getRelated(resource.id),
-      ]).then(([resourceResult, summaryResult, versionsResult, commentsResult, relatedResult]) => {
+        localFileVersionRequest,
+      ]).then(([resourceResult, summaryResult, versionsResult, commentsResult, relatedResult, localFileVersionResult]) => {
         if (cancelled) {
           return;
         }
@@ -573,13 +643,25 @@ export function ResourcePreview({
           setVersions(versionsResult.value.items);
         }
 
+        if (
+          localFileVersionResult.status === "fulfilled" &&
+          localFileVersionResult.value?.status === "ready"
+        ) {
+          setLocalFileVersion(localFileVersionResult.value.data);
+        }
+
         if (commentsResult.status === "fulfilled") {
           setComments(sortComments(commentsResult.value.items));
         }
 
         setRelated(relatedResult.status === "fulfilled" ? relatedResult.value.items : []);
 
-        const failed = [resourceResult, summaryResult, versionsResult, commentsResult].find((result) => result.status === "rejected");
+        const failed = [
+          resourceResult,
+          summaryResult.status === "rejected" && !isNotFoundError(summaryResult.reason) ? summaryResult : null,
+          versionsResult,
+          commentsResult,
+        ].find((result) => result?.status === "rejected");
         setDetailError(failed?.status === "rejected" ? getErrorMessage(failed.reason) : null);
         setDetailLoading(false);
       });
@@ -589,7 +671,7 @@ export function ResourcePreview({
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [resource]);
+  }, [localFolderConsent, resource, scope]);
 
   // 행 호버 액션에서 넘어온 이름 바꾸기/삭제 신호 — 위 초기화 타임아웃 뒤에 실행되도록 같은 방식으로 미룬다.
   useEffect(() => {
@@ -725,17 +807,46 @@ export function ResourcePreview({
     setDetailError(null);
 
     try {
+      if (scope === "personal" && localFolderConsent) {
+        const localFileResult = await findPersonalLocalFileByResourceId({
+          consentGranted: localFolderConsent,
+          resourceId: activeResource.id,
+        });
+
+        if (localFileResult.status !== "ready") {
+          throw new Error(localFileResult.message);
+        }
+
+        if (localFileResult.data) {
+          const localAnalysisResult = await analyzePersonalLocalFileWithKeySentences({
+            consentGranted: localFolderConsent,
+            localFileId: localFileResult.data.localFileId,
+            resourceId: activeResource.id,
+          });
+
+          if (localAnalysisResult.status !== "ready") {
+            throw new Error(localAnalysisResult.message);
+          }
+
+          setAnalysisState({ jobId: localAnalysisResult.data.job.jobId, kind: "started" });
+          setDetailResource((current) => (current && current.id === activeResource.id ? { ...current, status: "ANALYZING" } : current));
+          onUpdated?.();
+          return;
+        }
+      }
+
       const job = await agentApi.analyzeResource({
         idempotencyKey: crypto.randomUUID(),
         resourceId: activeResource.id,
       });
       setAnalysisState({ jobId: job.jobId, kind: "started" });
       setDetailResource((current) => (current && current.id === activeResource.id ? { ...current, status: "ANALYZING" } : current));
+      onUpdated?.();
     } catch (error) {
       const message = getErrorMessage(error, t);
       setAnalysisState({ kind: "error", message });
     }
-  }, [activeResource, analysisState.kind, t]);
+  }, [activeResource, analysisState.kind, localFolderConsent, onUpdated, scope, t]);
 
   const handleGenerateQuestions = useCallback(async () => {
     if (!roomId || questionState.kind === "running") {
@@ -861,18 +972,27 @@ export function ResourcePreview({
     return null;
   }
 
-  const visibleStatus = statusLabel(t, scope, activeResource.status);
+  const listDisplayResource = resource ?? activeResource;
+  const displayStatus = resolveDisplayStatus(listDisplayResource);
+  const visibleStatus = statusLabel(t, scope, displayStatus);
   const previewKind = getResourcePreviewKind(activeResource);
   const previewLabel = getKindLabel(previewKind, t);
-  const size = formatSize(latestVersion?.sizeBytes);
-  const originalName = latestVersion?.originalName ?? activeResource.title;
-  const versionLabel = latestVersion ? `v${latestVersion.versionNo}` : "v1";
-  const versionCount = versions.length || (activeResource.currentVersion ? 1 : 0);
-  const summaryLabel = summary?.status
-    ? t(summaryStatusCopyKey[summary.status])
-    : activeResource.summaryStatus
-      ? t(summaryStatusCopyKey[activeResource.summaryStatus])
-      : visibleStatus;
+  const localRevisionNo = localFileVersion?.revisionNo ?? 0;
+  const size = formatSize(latestVersion?.sizeBytes ?? localFileVersion?.sizeBytes);
+  const originalName = latestVersion?.originalName ?? localFileVersion?.name ?? activeResource.title;
+  const versionLabel = latestVersion ? `v${latestVersion.versionNo}` : localRevisionNo > 0 ? `v${localRevisionNo}` : "v1";
+  const versionCount = versions.length || (activeResource.currentVersion ? 1 : localRevisionNo);
+  const localVersionDate = localFileVersion?.latestEventAt ?? localFileVersion?.updatedAt;
+  const summaryLabel = visibleStatus;
+  const analysisAlreadyRequested = displayStatus === "ANALYZING";
+  const analysisAlreadyCompleted = displayStatus === "ANALYZED";
+  const analysisButtonDisabled = analysisState.kind === "running" || analysisState.kind === "started" || analysisAlreadyRequested || analysisAlreadyCompleted;
+  const analysisButtonLabel =
+    analysisState.kind === "running" || analysisState.kind === "started"
+      ? t("resources.common.analyzing")
+      : analysisAlreadyRequested || analysisAlreadyCompleted
+        ? visibleStatus
+        : t("resources.common.analyzeRun");
 
   return (
     <aside className={styles.detail} aria-label={t("resources.common.previewAria")}>
@@ -890,7 +1010,7 @@ export function ResourcePreview({
           </span>
           {originalName !== activeResource.title ? <span className={styles.detailSub}>{originalName}</span> : null}
         </div>
-        <StatusBadge tone={toneForStatus(activeResource.status)}>{visibleStatus}</StatusBadge>
+        <StatusBadge tone={toneForStatus(displayStatus)}>{visibleStatus}</StatusBadge>
         {onClose ? (
           <button aria-label={t("resources.common.previewCloseAria")} className={styles.iconButton} onClick={onClose} type="button">
             <X aria-hidden size={16} strokeWidth={2} />
@@ -1004,12 +1124,12 @@ export function ResourcePreview({
             <button
               aria-label={t("resources.common.analyzeStartAria")}
               className={styles.actionButton}
-              disabled={analysisState.kind === "running"}
+              disabled={analysisButtonDisabled}
               onClick={() => void handleAnalyzeResource()}
               type="button"
             >
               <Sparkles aria-hidden size={14} strokeWidth={2} />
-              {analysisState.kind === "running" ? t("resources.common.analyzing") : t("resources.common.analyzeRun")}
+              {analysisButtonLabel}
             </button>
             {roomId ? (
               <>
@@ -1082,6 +1202,12 @@ export function ResourcePreview({
                     </div>
                   ))}
               </dl>
+              {summaryText ? (
+                <div className={styles.aiDocSummary}>
+                  <strong>{t("resources.common.summaryHeading")}</strong>
+                  <p>{summaryText}</p>
+                </div>
+              ) : null}
               {!aiDocState.document.documentType && Object.keys(aiDocState.document.fields ?? {}).length === 0 ? (
                 <p className={styles.sectionEmpty}>{t("resources.common.aiDocEmpty")}</p>
               ) : null}
@@ -1125,6 +1251,17 @@ export function ResourcePreview({
                   </span>
                 </li>
               ))}
+            </ol>
+          ) : localFileVersion ? (
+            <ol className={styles.versionList}>
+              <li>
+                <span className={styles.versionNo}>v{localFileVersion.revisionNo}</span>
+                <span className={styles.versionName}>{localFileVersion.name}</span>
+                <span className={styles.versionMeta}>
+                  {t("resources.common.versionCurrent")} · {formatDate(localVersionDate, t)}
+                  {formatSize(localFileVersion.sizeBytes) ? ` · ${formatSize(localFileVersion.sizeBytes)}` : ""}
+                </span>
+              </li>
             </ol>
           ) : (
             <p className={styles.sectionEmpty}>{t("resources.common.versionsEmpty")}</p>

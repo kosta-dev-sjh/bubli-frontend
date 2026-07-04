@@ -3172,6 +3172,7 @@ pub fn run() {
             local_files::scan_managed_folder,
             local_files::watch_managed_folder,
             local_files::search_local_files,
+            local_files::find_local_file_by_resource_id,
             local_files::read_local_file_preview,
             local_files::extract_local_file_key_sentences,
             local_files::open_local_file,

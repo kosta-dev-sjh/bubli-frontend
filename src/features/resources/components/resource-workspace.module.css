@@ -1049,6 +1049,29 @@
   white-space: nowrap;
 }
 
+.aiDocSummary {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--rb-hairline);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(205, 216, 223, 0.12);
+}
+
+.aiDocSummary strong {
+  color: var(--rb-ink);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.aiDocSummary p {
+  margin: 0;
+  color: var(--rb-ink-muted);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
 /* ---------- 댓글 섹션 ---------- */
 
 .commentForm {
