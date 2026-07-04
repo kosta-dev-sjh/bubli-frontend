@@ -12,6 +12,7 @@ import { useI18n } from "@/lib/i18n";
 import { LOCAL_ACTIVITY_RECORDED_EVENT } from "@/lib/local/activity-client";
 import { PERSONAL_RESOURCES_CHANGED_EVENT } from "@/lib/local/managed-folder-client";
 import { getLocalSyncOutboxSummary } from "@/lib/sync/local-sync-client";
+import { WIDGET_USAGE_SYNCED_EVENT } from "@/lib/widget/widget-usage-auto-sync";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import type { LocalSyncSummary, SyncOutboxSummaryResult } from "@/types/local";
 
@@ -88,10 +89,12 @@ export function TauriSyncStatusPanel() {
 
     window.addEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, refreshAfterLocalSync);
     window.addEventListener(LOCAL_ACTIVITY_RECORDED_EVENT, refreshAfterLocalSync);
+    window.addEventListener(WIDGET_USAGE_SYNCED_EVENT, refreshAfterLocalSync);
 
     return () => {
       window.removeEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, refreshAfterLocalSync);
       window.removeEventListener(LOCAL_ACTIVITY_RECORDED_EVENT, refreshAfterLocalSync);
+      window.removeEventListener(WIDGET_USAGE_SYNCED_EVENT, refreshAfterLocalSync);
     };
   }, [refreshOutbox]);
 
