@@ -1003,7 +1003,26 @@ async function readWidgetDisplaySummary(requestedRoomId?: string | null): Promis
     }).catch(() => null);
 
     if (cacheResult?.status === "ready") {
-      void readWidgetSummary({ preferLocalCache: false, selectedRoomId: requestedRoomId }).catch(() => null);
+      void readWidgetSummary({ preferLocalCache: false, selectedRoomId: requestedRoomId })
+        .then((serverResult) => {
+          if (serverResult.status !== "failed") return;
+          void tauriCommands
+            .recordWidgetUsageEvent({
+              bubbleType: "bar",
+              eventType: `summary:server-refresh-failed:${serverResult.fallbackReason ?? "unknown"}`,
+              occurredAt: new Date().toISOString(),
+            })
+            .catch(() => undefined);
+        })
+        .catch(() => {
+          void tauriCommands
+            .recordWidgetUsageEvent({
+              bubbleType: "bar",
+              eventType: "summary:server-refresh-error",
+              occurredAt: new Date().toISOString(),
+            })
+            .catch(() => undefined);
+        });
       if (widgetSummaryMatchesRequestedRoom(cacheResult.data, requestedRoomId)) {
         return cacheResult.data;
       }
