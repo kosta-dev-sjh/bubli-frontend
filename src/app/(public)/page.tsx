@@ -1,6 +1,6 @@
 "use client";
 
-import { Apple, Download, MonitorDown } from "lucide-react";
+import { Apple, Check, Download, MonitorDown } from "lucide-react";
 import Link from "next/link";
 
 import { DecorBubble } from "@/components/bubbles";
@@ -107,11 +107,23 @@ export default function HomePage() {
           </div>
           <GlassPanel className="landing-desktop__visual" padded={false}>
             <div className="landing-app-preview" aria-label={t("public.home.previewAria")}>
-              {/* 실제 전환 기능이 없는 장식용 탭 — 버튼처럼 보이지 않게 정적 요소로 둔다. */}
-              <div aria-hidden="true" className="landing-app-preview__tabs">
-                <span className="is-active">{t("public.home.previewTabMac")}</span>
-                <span>{t("public.home.previewTabWin")}</span>
-                <span>{t("public.home.previewTabWeb")}</span>
+              {/* 선택 탭이 아니라 "세 플랫폼 모두 지원"을 알리는 정적 배지 행이다. */}
+              <div aria-hidden="true" className="landing-app-preview__platforms">
+                <span className="landing-app-preview__platforms-label">
+                  {t("public.home.previewSupported")}
+                </span>
+                <span className="landing-app-preview__platform">
+                  <Check size={13} strokeWidth={2.8} />
+                  {t("public.home.previewTabMac")}
+                </span>
+                <span className="landing-app-preview__platform">
+                  <Check size={13} strokeWidth={2.8} />
+                  {t("public.home.previewTabWin")}
+                </span>
+                <span className="landing-app-preview__platform">
+                  <Check size={13} strokeWidth={2.8} />
+                  {t("public.home.previewTabWeb")}
+                </span>
               </div>
               <div className="landing-app-preview__stage">
                 <div className="landing-app-preview__chrome" aria-hidden="true">
