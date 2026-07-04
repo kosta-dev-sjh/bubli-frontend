@@ -29,7 +29,7 @@ import {
   type WidgetContextResponse,
 } from "@/features/widget/api/widgetApi";
 import { widgetCommunicationApi } from "@/features/widget/api/widgetCommunicationApi";
-import { DesktopWidgetBubble, DesktopWidgetBubbleBar, DesktopWidgetMenuOrb, desktopWidgetBubbleTypes } from "@/features/widget/components/desktop-widget-bubble";
+import { DesktopWidgetBubble, DesktopWidgetBubbleBar, DesktopWidgetMenuOrb, desktopWidgetBubbleTypes, widgetInteractiveRectSelector } from "@/features/widget/components/desktop-widget-bubble";
 import {
   getWidgetPreviewBubble,
   widgetNotificationSignal,
@@ -41,7 +41,7 @@ import { notificationApi } from "@/features/notification/api/notificationApi";
 import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
-import { tauriCommands, type WidgetBubbleType, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { tauriCommands, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readWidgetSummary } from "@/lib/widget";
@@ -151,16 +151,90 @@ function getSettingPatch(bubbleType: WidgetBubbleType, mode: WidgetWindowMode) {
 // src-tauri/src/lib.rs widget_window_size와 반드시 동기화한다(콘텐츠 자동 높이 + 버블별 창 크기).
 const WIDGET_WINDOW_GUTTER = 44;
 
+// Rust 쪽 "저장 전 기본 자리" 좌표 센티널(i32::MIN)은 실제 좌표가 아니므로 서버 설정에 반영하지 않는다.
+const WIDGET_POSITION_UNSET_THRESHOLD = -1_000_000;
+
+function widgetSettingCoordinate(value: number) {
+  return value <= WIDGET_POSITION_UNSET_THRESHOLD ? undefined : value;
+}
+
 function getWidgetWindowSize(bubbleType: WidgetBubbleType, mode: WidgetWindowMode) {
   if (mode === "MINIMIZED") return { height: 92, width: 208 };
   if (mode === "GHOST") return { height: 212, width: 212 };
   if (bubbleType === "chat") return { height: 420 + WIDGET_WINDOW_GUTTER, width: 336 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "agent") return { height: 430 + WIDGET_WINDOW_GUTTER, width: 332 + WIDGET_WINDOW_GUTTER };
-  if (bubbleType === "timer") return { height: 336 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
+  if (bubbleType === "timer") return { height: 352 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "resource") return { height: 330 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "memo") return { height: 320 + WIDGET_WINDOW_GUTTER, width: 308 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "schedule") return { height: 340 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
   return { height: 360 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
+}
+
+// 위젯 창은 보이는 콘텐츠(pill/셸/팝오버)보다 큰 투명 사각형이므로, 마우스를 받아야 하는
+// 콘텐츠 rect(논리 px, 창-로컬)를 Rust 커서 폴러에 보고해 투명 영역 클릭을 아래 앱으로 통과시킨다.
+const INTERACTIVE_RECT_EPSILON = 0.5;
+
+function collectWidgetInteractiveRects(): WidgetInteractiveRect[] {
+  return Array.from(document.querySelectorAll<HTMLElement>(widgetInteractiveRectSelector))
+    .map((element) => element.getBoundingClientRect())
+    .filter((rect) => rect.width > 0 && rect.height > 0)
+    .map((rect) => ({ height: rect.height, width: rect.width, x: rect.x, y: rect.y }));
+}
+
+function widgetInteractiveRectsChanged(previous: WidgetInteractiveRect[] | null, next: WidgetInteractiveRect[]) {
+  if (!previous || previous.length !== next.length) return true;
+  return next.some((rect, index) => {
+    const before = previous[index];
+    return (
+      Math.abs(before.x - rect.x) > INTERACTIVE_RECT_EPSILON ||
+      Math.abs(before.y - rect.y) > INTERACTIVE_RECT_EPSILON ||
+      Math.abs(before.width - rect.width) > INTERACTIVE_RECT_EPSILON ||
+      Math.abs(before.height - rect.height) > INTERACTIVE_RECT_EPSILON
+    );
+  });
+}
+
+function useWidgetInteractiveRectReporting(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+
+    let lastReported: WidgetInteractiveRect[] | null = null;
+    let frameId: number | null = null;
+
+    const report = () => {
+      frameId = null;
+      const rects = collectWidgetInteractiveRects();
+      if (!widgetInteractiveRectsChanged(lastReported, rects)) return;
+      lastReported = rects;
+      void tauriCommands.setWidgetInteractiveRects({ rects }).catch(() => {
+        // 다음 변경 때 재시도할 수 있도록 마지막 보고값을 비운다.
+        lastReported = null;
+      });
+    };
+    const scheduleReport = () => {
+      if (frameId !== null) return;
+      frameId = window.requestAnimationFrame(report);
+    };
+
+    scheduleReport();
+
+    // hover 팝오버·메뉴 패널 mount/unmount와 모드 전환(클래스 변경)을 감지한다.
+    const mutationObserver = new MutationObserver(scheduleReport);
+    mutationObserver.observe(document.body, { attributes: true, childList: true, subtree: true });
+    const resizeObserver = new ResizeObserver(scheduleReport);
+    resizeObserver.observe(document.body);
+    window.addEventListener("resize", scheduleReport);
+    // 폰트 로드·비동기 데이터로 인한 레이아웃 드리프트 대비 저빈도 재확인(변경 없으면 invoke 없음).
+    const intervalId = window.setInterval(scheduleReport, 1000);
+
+    return () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", scheduleReport);
+      window.clearInterval(intervalId);
+    };
+  }, [enabled]);
 }
 
 function formatShortTime(value?: string | null) {
@@ -785,6 +859,9 @@ function DesktopWidgetSurface() {
   const selectedWidgetRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
   const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
 
+  // 창별 상호작용 rect 보고(투명 영역 클릭 통과). 브라우저 미리보기에서는 동작하지 않는다.
+  useWidgetInteractiveRectReporting(isTauri && mounted);
+
   useLayoutEffect(() => {
     const htmlStyle = document.documentElement.style;
     const bodyStyle = document.body.style;
@@ -1236,8 +1313,8 @@ function DesktopWidgetSurface() {
                   ...settingPatch,
                   height: size.height,
                   width: size.width,
-                  x: state.position.x,
-                  y: state.position.y,
+                  x: widgetSettingCoordinate(state.position.x),
+                  y: widgetSettingCoordinate(state.position.y),
                 },
               ],
             })
@@ -1315,8 +1392,8 @@ function DesktopWidgetSurface() {
                 ...settingPatch,
                 height: size.height,
                 width: size.width,
-                x: state.position.x,
-                y: state.position.y,
+                x: widgetSettingCoordinate(state.position.x),
+                y: widgetSettingCoordinate(state.position.y),
               },
             ],
           })
@@ -1357,8 +1434,8 @@ function DesktopWidgetSurface() {
                 ...settingPatch,
                 height: size.height,
                 width: size.width,
-                x: state.position.x,
-                y: state.position.y,
+                x: widgetSettingCoordinate(state.position.x),
+                y: widgetSettingCoordinate(state.position.y),
               },
             ],
           })

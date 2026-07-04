@@ -1,4 +1,5 @@
 import { invokeTauri } from "@/lib/tauri/ipc";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 export const TAURI_COMMANDS = {
   appReady: "app_ready",
@@ -19,6 +20,7 @@ export const TAURI_COMMANDS = {
   listLocalSqliteBackups: "list_local_sqlite_backups",
   markActivityContextSynced: "mark_activity_context_synced",
   listManagedFolders: "list_managed_folders",
+  notifyWidgetDragStarted: "notify_widget_drag_started",
   openMainWindowRoute: "open_main_window_route",
   openWidgetWindow: "open_widget_window",
   quitApp: "quit_app",
@@ -51,6 +53,7 @@ export const TAURI_COMMANDS = {
   setFolderSync: "set_folder_sync",
   setWidgetAlwaysOnTop: "set_widget_always_on_top",
   setWidgetClickThrough: "set_widget_click_through",
+  setWidgetInteractiveRects: "set_widget_interactive_rects",
   setWidgetRoomContext: "set_widget_room_context",
   setWidgetWindowMode: "set_widget_window_mode",
   setWidgetWindowPosition: "set_widget_window_position",
@@ -666,6 +669,19 @@ export type WidgetShortcutInput = {
   shortcut: string;
 };
 
+// 위젯 창(투명 사각형)에서 실제 마우스를 받아야 하는 콘텐츠 rect(논리 px, 창-로컬 좌표).
+// Rust 커서 폴러가 이 rect 밖에서만 set_ignore_cursor_events(true)로 클릭을 통과시킨다.
+export type WidgetInteractiveRect = {
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+};
+
+export type WidgetInteractiveRectsInput = {
+  rects: WidgetInteractiveRect[];
+};
+
 // 위젯 메뉴 버블리에서 메인 앱을 열 때 쓰는 입력. route는 Rust 쪽 화이트리스트로 검증된다.
 export type MainWindowShowInput = {
   route?: "settings";
@@ -771,6 +787,10 @@ export type TauriCommandContract = {
   list_managed_folders: {
     args: undefined;
     result: ManagedFolderListResult;
+  };
+  notify_widget_drag_started: {
+    args: undefined;
+    result: null;
   };
   open_widget_window: {
     args: WidgetWindowOpenInput | undefined;
@@ -903,6 +923,10 @@ export type TauriCommandContract = {
   set_widget_click_through: {
     args: WidgetBooleanInput;
     result: WidgetWindowState;
+  };
+  set_widget_interactive_rects: {
+    args: WidgetInteractiveRectsInput;
+    result: null;
   };
   set_widget_room_context: {
     args: WidgetRoomContextInput;
@@ -1047,6 +1071,9 @@ export const tauriCommands = {
   listManagedFolders() {
     return invokeTauri<ManagedFolderListResult>(TAURI_COMMANDS.listManagedFolders);
   },
+  notifyWidgetDragStarted() {
+    return invokeTauri<null>(TAURI_COMMANDS.notifyWidgetDragStarted);
+  },
   openWidgetWindow(input?: WidgetWindowOpenInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.openWidgetWindow, input ? { input } : undefined);
   },
@@ -1161,6 +1188,9 @@ export const tauriCommands = {
   setWidgetClickThrough(input: WidgetBooleanInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetClickThrough, { input });
   },
+  setWidgetInteractiveRects(input: WidgetInteractiveRectsInput) {
+    return invokeTauri<null>(TAURI_COMMANDS.setWidgetInteractiveRects, { input });
+  },
   setWidgetRoomContext(input: WidgetRoomContextInput) {
     return invokeTauri<WidgetWindowState[]>(TAURI_COMMANDS.setWidgetRoomContext, { input });
   },
@@ -1227,3 +1257,17 @@ export const tauriCommands = {
 } as const;
 
 export const plannedTauriCommands = {} as const;
+
+// 위젯 창 드래그 시작.
+// data-tauri-drag-region은 mousedown "target 요소 자체"에 속성이 있어야만 동작해서
+// 헤더 안 아이콘/텍스트(자식 요소)에서 누르면 드래그가 시작되지 않는다.
+// 그래서 공식 Tauri v2 window API startDragging을 명시적으로 호출한다.
+// 호출 전에 notify_widget_drag_started로 Rust 커서 폴러의 이동 grace를 미리 열어,
+// 드래그 도중 클릭 통과(set_ignore_cursor_events)가 켜지는 일을 막는다.
+export async function startWidgetWindowDragging(): Promise<void> {
+  if (!isTauriRuntime()) return;
+
+  void tauriCommands.notifyWidgetDragStarted().catch(() => undefined);
+  const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+  await getCurrentWebviewWindow().startDragging();
+}

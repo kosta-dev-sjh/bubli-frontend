@@ -42,7 +42,7 @@ import {
 } from "@/features/widget/desktop-widget-preview-data";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
-import type { WidgetBubbleType, WidgetWindowMode, WidgetWindowState } from "@/lib/tauri/commands";
+import { startWidgetWindowDragging, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 
 import styles from "./desktop-widget-bubble.module.css";
 
@@ -118,6 +118,45 @@ export type DesktopWidgetBubbleProps = {
 };
 
 export const desktopWidgetBubbleTypes = widgetPreviewBubbles.map((bubble) => bubble.id);
+
+// 위젯 창은 보이는 콘텐츠보다 큰 투명 창이다. 마우스를 받아야 하는 표면(셸/pill/팝오버/메뉴)에만
+// data-bubli-interactive를 붙이고, desktop-widget page가 이 셀렉터로 rect를 수집해 Rust 폴러에 보고한다.
+export const widgetInteractiveRectSelector = "[data-bubli-interactive]";
+
+// 드래그 시작에서 제외할 조작 요소. 여기서 시작한 mousedown은 클릭/입력으로 처리한다.
+const widgetDragIgnoreSelector = "button, input, a, textarea, select, [contenteditable='true']";
+
+// 헤더/드래그 스트립/pill 빈 영역용: 조작 요소가 아니면 즉시 창 드래그를 시작한다.
+// data-tauri-drag-region은 target 요소 자체에만 반응해 자식(아이콘/텍스트)에서 끊기므로
+// 공식 startDragging 헬퍼를 명시적으로 호출한다(브라우저 미리보기에서는 no-op).
+function handleWidgetDragMouseDown(event: MouseEvent<HTMLElement>) {
+  if (event.button !== 0) return;
+  const target = event.target as HTMLElement | null;
+  if (target?.closest(widgetDragIgnoreSelector)) return;
+
+  event.preventDefault();
+  void startWidgetWindowDragging().catch(() => undefined);
+}
+
+// 메뉴 오브처럼 "클릭 동작이 있는 표면"용: 실제로 커서가 움직이기 시작한 경우에만
+// 드래그로 전환해 클릭(토글)을 깨지 않는다.
+function handleWidgetDragMouseDownDeferred(event: MouseEvent<HTMLElement>) {
+  if (event.button !== 0) return;
+
+  const startX = event.clientX;
+  const startY = event.clientY;
+  const cleanup = () => {
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", cleanup);
+  };
+  const onMove = (moveEvent: globalThis.MouseEvent) => {
+    if (Math.abs(moveEvent.clientX - startX) + Math.abs(moveEvent.clientY - startY) < 4) return;
+    cleanup();
+    void startWidgetWindowDragging().catch(() => undefined);
+  };
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", cleanup);
+}
 
 function getBubbleMeta(bubbleType: WidgetBubbleType) {
   return bubbleMeta.find((item) => item.id === bubbleType) ?? bubbleMeta[0];
@@ -852,7 +891,7 @@ export function DesktopWidgetBubble({
 
   return (
     <div className={rootClassName} data-bubli-desktop-widget>
-      <section className={shellClassName} aria-label={t("widget.bubble.suffix", { label: activeLabel })}>
+      <section className={shellClassName} aria-label={t("widget.bubble.suffix", { label: activeLabel })} data-bubli-interactive="true">
         {!windowVisible ? (
           isPreview ? (
             <button className={styles.hiddenCard} onClick={onRestore ?? (() => onModeChange("DEFAULT"))} type="button">
@@ -871,7 +910,7 @@ export function DesktopWidgetBubble({
           </button>
         ) : (
           <>
-            <header className={styles.head}>
+            <header className={styles.head} onMouseDown={handleWidgetDragMouseDown}>
               <div className={styles.title} data-tauri-drag-region>
                 <span className={styles.signal} aria-hidden="true" />
                 <Icon size={16} strokeWidth={2} />
@@ -885,7 +924,7 @@ export function DesktopWidgetBubble({
             </header>
 
             {isPreview ? (
-              <div className={styles.dragbar} data-tauri-drag-region>
+              <div className={styles.dragbar} data-tauri-drag-region onMouseDown={handleWidgetDragMouseDown}>
                 <span>{t(modeLabels[mode])} · {alwaysOnTop ? t("widget.pinnedTop") : t("widget.normalWindow")} · {clickThrough ? t("widget.clickThrough") : t("widget.clickable")}</span>
                 <button aria-pressed={mode === "TRANSLUCENT"} onClick={() => onModeChange(mode === "TRANSLUCENT" ? "DEFAULT" : "TRANSLUCENT")} type="button">
                   {t("widget.control.translucent")}
@@ -973,12 +1012,13 @@ export function DesktopWidgetBubbleBar({
   const PreviewIcon = preview?.Icon;
 
   // 바 창은 pill 하나만 시각적으로 유지한다(접힘 상시 미리보기 카드 없음).
-  // 창(360×220)은 pill(하단 고정)보다 크게 잡아 두고, 남는 투명 영역에 hover 팝오버만 띄운다.
+  // 창 너비는 Rust(widget_bar_window_width)가 칩 수에 맞춰 260~560으로 계산하고,
+  // pill 위 남는 투명 영역에는 hover 팝오버만 띄운다.
   // Bubli 버튼은 인라인 메뉴 대신 별도 menu 창(?bubble=menu)을 연다.
   return (
     <div className={[styles.root, styles.barRoot].join(" ")} data-bubli-desktop-widget>
       {preview && PreviewIcon ? (
-        <div aria-label={t("widget.bar.previewAria")} className={styles.barPopover} id={BAR_PREVIEW_POPOVER_ID} role="status">
+        <div aria-label={t("widget.bar.previewAria")} className={styles.barPopover} data-bubli-interactive="true" id={BAR_PREVIEW_POPOVER_ID} role="status">
           <div className={styles.barPopoverHead}>
             <PreviewIcon size={13} strokeWidth={2} />
             <strong>{preview.label}</strong>
@@ -998,7 +1038,12 @@ export function DesktopWidgetBubbleBar({
           ) : null}
         </div>
       ) : null}
-      <nav className={styles.bubbleBar} aria-label={t("widget.bar.minimizedAria")}>
+      <nav
+        aria-label={t("widget.bar.minimizedAria")}
+        className={styles.bubbleBar}
+        data-bubli-interactive="true"
+        onMouseDown={handleWidgetDragMouseDown}
+      >
         <button
           className={styles.barBrand}
           aria-haspopup="menu"
@@ -1020,6 +1065,8 @@ export function DesktopWidgetBubbleBar({
           return (
             <button
               aria-describedby={previewTarget === bubbleType ? BAR_PREVIEW_POPOVER_ID : undefined}
+              // 칩은 아이콘+숫자만 표시해 pill이 넘치지 않게 하고, 전체 라벨은 aria와 hover 팝오버가 담당한다.
+              aria-label={t(bubble.compactLabel as MessageKey)}
               className={styles.barItem}
               key={`${bubbleType}-${item.windowId ?? index}`}
               onBlur={() => hidePreview(bubbleType)}
@@ -1030,7 +1077,7 @@ export function DesktopWidgetBubbleBar({
               type="button"
             >
               <Icon size={12} strokeWidth={2} />
-              <b>{t(bubble.compactLabel as MessageKey)}</b>
+              <b>{bubble.metric}</b>
             </button>
           );
         })}
@@ -1088,15 +1135,23 @@ export function DesktopWidgetMenuOrb({
       <button
         className={styles.menuOrb}
         aria-expanded={open}
+        data-bubli-interactive="true"
         aria-haspopup="menu"
         aria-label={t("widget.menu.openAria")}
         onClick={() => setOpen((current) => !current)}
+        onMouseDown={handleWidgetDragMouseDownDeferred}
         type="button"
       >
         <span />
       </button>
       {open ? (
-        <div className={styles.menuPanel} role="menu" aria-label={t("widget.menu.title")}>
+        <div
+          aria-label={t("widget.menu.title")}
+          className={styles.menuPanel}
+          data-bubli-interactive="true"
+          onMouseDown={handleWidgetDragMouseDown}
+          role="menu"
+        >
           <strong>Bubli</strong>
           <div className={styles.menuGrid} aria-label={t("widget.menu.bubbles")}>
             {bubbleMeta.map(({ Icon, id, label }) => (

@@ -47,7 +47,7 @@
   position: relative;
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 12px;
   /* v20 Visual Target Guide 5장 — 깊이는 rim + inner highlight, shadow는 작고 맑은 floating 토큰만. */
   border: 1px solid var(--rim-light, rgba(255, 255, 255, 0.85));
   background:
@@ -83,7 +83,14 @@
   width: 320px;
   /* v20 radius 토큰 정렬(--radius-window: 24px) */
   border-radius: var(--radius-window, 24px);
-  padding: 12px;
+  /* v20 내부 여백 통일(16px) */
+  padding: 16px;
+}
+
+/* 기본/반투명 모드에서 셸이 창 높이를 꽉 채워, 주 액션 pill을 하단에 고정할 수 있게 한다. */
+.tauriRoot:not(.minimizedMode):not(.ghostMode) .tauriShell {
+  min-height: calc(100vh - 2 * var(--widget-window-gutter));
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .tauriRoot:not(.minimizedMode):not(.ghostMode) {
@@ -98,8 +105,14 @@
   --widget-window-gutter: 10px;
 }
 
+/* 버블 accent별 은은한 유리 틴트 — 색은 면이 아니라 빛(가이드 11장). */
 .shellBlue {
   --bubble-tone: var(--widget-blue);
+  background:
+    radial-gradient(circle at 20% 12%, rgba(255, 255, 255, 0.96), transparent 22%),
+    radial-gradient(circle at 78% 14%, rgba(142, 205, 246, 0.2), transparent 24%),
+    linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(246, 251, 255, 0.84)),
+    rgba(255, 255, 255, 0.9);
 }
 
 .shellLilac {
@@ -225,8 +238,9 @@
 
 .titleCopy strong {
   overflow: hidden;
+  /* v20 헤더 타이틀 15px/700 */
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1.08;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -360,14 +374,25 @@
 .body {
   position: relative;
   z-index: 1;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   min-width: 0;
+}
+
+/* 셸이 창 높이를 채울 때 주 액션 pill과 입력줄을 하단에 고정한다. */
+.body > .wideAction {
+  margin-top: auto;
+}
+
+.body > .input:last-child {
+  margin-top: auto;
 }
 
 .progress,
 .ring {
   justify-self: center;
+  align-self: center;
   display: grid;
   place-items: center;
   width: 92px;
@@ -408,6 +433,7 @@
 .agentHalo {
   position: relative;
   justify-self: center;
+  align-self: center;
   width: 94px;
   height: 94px;
   border-radius: 999px;
@@ -467,7 +493,8 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  /* 리스트 밀도 타이트하게(v20) */
+  padding: 8px 12px;
 }
 
 .checkRow input {
@@ -551,10 +578,13 @@
   line-height: 1.45;
 }
 
+/* v20: dashed 대신 낮은 대비의 평평한 well. */
 .dropPanel {
   justify-items: center;
-  border-style: dashed;
+  border-color: rgba(107, 143, 168, 0.1);
   color: var(--widget-blue-deep);
+  background: rgba(246, 251, 255, 0.55);
+  box-shadow: none;
 }
 
 .input {
@@ -601,11 +631,12 @@
 }
 
 .message {
-  padding: 10px 12px;
+  padding: 8px 12px;
 }
 
 .messageMine {
   justify-self: end;
+  align-self: flex-end;
   max-width: 78%;
   color: var(--widget-blue-deep);
   background: rgba(216, 240, 255, 0.62);
@@ -613,10 +644,12 @@
 
 .timer {
   justify-self: center;
+  align-self: center;
   display: grid;
   place-items: center;
-  width: 118px;
-  height: 118px;
+  /* v20 타이머 링 140px */
+  width: 140px;
+  height: 140px;
   border: 1px solid rgba(142, 205, 246, 0.32);
   border-radius: 999px;
   background:
@@ -817,13 +850,14 @@
   white-space: nowrap;
 }
 
+/* v20: 엠티 스테이트는 dashed 박스가 아니라 평평하고 옅은 well. */
 .emptyState {
   display: grid;
   place-items: center;
   min-height: 64px;
-  border: 1px dashed rgba(107, 143, 168, 0.18);
+  border: 1px solid rgba(107, 143, 168, 0.08);
   border-radius: var(--radius-card, 16px);
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(242, 247, 252, 0.6);
 }
 
 .emptyState span {
@@ -1183,6 +1217,20 @@
   color: var(--widget-text);
 }
 
+/* 접힌 칩은 아이콘+숫자만(compact) — 라벨은 aria/hover 팝오버로. */
+.barItem,
+.barNotice {
+  flex: none;
+  gap: 5px;
+  padding: 0 10px;
+}
+
+.barItem b,
+.barNotice b {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* 브랜드 버블은 이제 메뉴를 여는 버튼이다. */
 .barBrand {
   font: inherit;
@@ -1446,9 +1494,16 @@
   box-shadow: inset 0 1px 0 rgba(234, 240, 248, 0.45);
 }
 
+/* 다크도 dashed 없이 평평한 well로 미러링. */
 :global([data-theme="dark"]) .emptyState {
-  border-color: rgba(150, 170, 215, 0.24);
-  background: rgba(24, 34, 54, 0.3);
+  border-color: rgba(150, 170, 215, 0.1);
+  background: rgba(24, 34, 54, 0.34);
+}
+
+:global([data-theme="dark"]) .dropPanel {
+  border-color: rgba(150, 170, 215, 0.1);
+  background: rgba(24, 34, 54, 0.34);
+  box-shadow: none;
 }
 
 :global([data-theme="dark"]) .menuPanel {
