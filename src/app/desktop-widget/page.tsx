@@ -813,10 +813,13 @@ function DesktopWidgetSurface() {
     if (!isTauri || !mounted || !widgetSessionReady || appReadySentRef.current) return;
 
     appReadySentRef.current = true;
-    void tauriCommands.appReady().catch(() => {
+    void tauriCommands.appReady({
+      qaAllWidgets: searchParams.get("qaAllWidgets") === "1",
+      selectedRoomId: selectedWidgetRoomId,
+    }).catch(() => {
       appReadySentRef.current = false;
     });
-  }, [isTauri, mounted, widgetSessionReady]);
+  }, [isTauri, mounted, searchParams, selectedWidgetRoomId, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;

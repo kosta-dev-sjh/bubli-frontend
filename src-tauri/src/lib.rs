@@ -367,6 +367,34 @@ fn normalize_window_key(bubble_type: &str, window_id: Option<String>) -> String 
     }
 }
 
+fn apply_widget_window_mode_update(
+    widget: &mut WidgetWindowState,
+    mode: String,
+    selected_room_id: Option<String>,
+) {
+    widget.mode = normalize_widget_mode(mode);
+    widget.click_through = widget.mode == "GHOST";
+    widget.dock_orb_visible = false;
+    if let Some(selected_room_id) = selected_room_id {
+        widget.selected_room_id = Some(selected_room_id);
+    }
+    widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
+}
+
+fn apply_open_widget_window_update(
+    widget: &mut WidgetWindowState,
+    next_mode: String,
+    selected_room_id: Option<String>,
+) {
+    widget.mode = next_mode;
+    widget.click_through = widget.mode == "GHOST";
+    widget.dock_orb_visible = false;
+    if let Some(selected_room_id) = selected_room_id {
+        widget.selected_room_id = Some(selected_room_id);
+    }
+    widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
+}
+
 fn append_widget_url_query(url: &mut String, key: &str, value: &str) {
     url.push('&');
     url.push_str(key);
@@ -1131,11 +1159,7 @@ fn set_widget_window_mode(
     } = input;
     let selected_room_id = normalize_optional_query_value(selected_room_id);
     let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
-        widget.mode = normalize_widget_mode(mode);
-        widget.click_through = widget.mode == "GHOST";
-        widget.dock_orb_visible = false;
-        widget.selected_room_id = selected_room_id.clone();
-        widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
+        apply_widget_window_mode_update(widget, mode, selected_room_id.clone());
     })?;
     persist_widget_window_state(&app, &state)?;
     apply_widget_window_state(&app, &monitor_state, &widget)
@@ -1312,11 +1336,7 @@ fn open_widget_window(
         .map(normalize_widget_mode)
         .unwrap_or_else(|| "DEFAULT".to_string());
     let widget = with_widget_state(&state, Some(bubble_type), window_id, |widget| {
-        widget.mode = next_mode.clone();
-        widget.click_through = widget.mode == "GHOST";
-        widget.dock_orb_visible = false;
-        widget.selected_room_id = selected_room_id.clone();
-        widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
+        apply_open_widget_window_update(widget, next_mode.clone(), selected_room_id.clone());
     })?;
     persist_widget_window_state(&app, &state)?;
     schedule_widget_window_build(&app, &monitor_state, &widget)
@@ -1669,6 +1689,48 @@ mod widget_runtime_tests {
             qa_all_widgets: Some(true),
             selected_room_id: None,
         })));
+    }
+
+    #[test]
+    fn widget_window_mode_without_room_id_preserves_existing_room_context() {
+        let mut widget = WidgetWindowState {
+            selected_room_id: Some("room-1".to_string()),
+            ..default_widget_window_state("todo", Some("todo".to_string()))
+        };
+
+        apply_widget_window_mode_update(&mut widget, "MINIMIZED".to_string(), None);
+
+        assert_eq!(widget.mode, "MINIMIZED");
+        assert_eq!(widget.selected_room_id.as_deref(), Some("room-1"));
+
+        apply_widget_window_mode_update(
+            &mut widget,
+            "DEFAULT".to_string(),
+            Some("room-2".to_string()),
+        );
+
+        assert_eq!(widget.selected_room_id.as_deref(), Some("room-2"));
+    }
+
+    #[test]
+    fn open_widget_window_without_room_id_preserves_existing_room_context() {
+        let mut widget = WidgetWindowState {
+            selected_room_id: Some("room-1".to_string()),
+            ..default_widget_window_state("schedule", Some("schedule".to_string()))
+        };
+
+        apply_open_widget_window_update(&mut widget, "DEFAULT".to_string(), None);
+
+        assert_eq!(widget.mode, "DEFAULT");
+        assert_eq!(widget.selected_room_id.as_deref(), Some("room-1"));
+
+        apply_open_widget_window_update(
+            &mut widget,
+            "TRANSLUCENT".to_string(),
+            Some("room-2".to_string()),
+        );
+
+        assert_eq!(widget.selected_room_id.as_deref(), Some("room-2"));
     }
 
     #[test]
