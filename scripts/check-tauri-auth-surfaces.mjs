@@ -101,13 +101,18 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /const accessToken = process\.env\.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN;[\s\S]*if \(!accessToken\) return;[\s\S]*clearStoredAuthSession\(\);[\s\S]*setStoredAuthSession\(\{[\s\S]*clientType: "TAURI"/,
-  "TauriRuntimeSmokeRunner must replace stale sessions with a Tauri dev auth session from the explicit dev-token smoke env.",
+  /const accessToken = process\.env\.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN;[\s\S]*if \(!accessToken\) return null;[\s\S]*clearStoredAuthSession\(\);[\s\S]*return authApi\.loginWithDevAccessToken\(accessToken\);/,
+  "TauriRuntimeSmokeRunner must replace stale sessions with a backend-validated Tauri dev auth session from the explicit dev-token smoke env.",
 );
 assertContains(
   runtimeSmokeRunner,
-  /closeAllWidgetWindows\(\)\.catch\(\(\) => undefined\);[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)\.catch\(\(\) => undefined\);[\s\S]*seedDevAuthSession\(\);/,
+  /closeAllWidgetWindows\(\)\.catch\(\(\) => undefined\);[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)\.catch\(\(\) => undefined\);[\s\S]*const devToken = await seedDevAuthSession\(\);[\s\S]*tauri dev access token resolved seed user/,
   "TauriRuntimeSmokeRunner must clean stale widgets and auth gate before seeding the smoke session.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /settingsApi\.updatePrivacyConsents\(\{[\s\S]*activityDetectionEnabled: true[\s\S]*localFolderEnabled: true[\s\S]*backend privacy consent enabled for runtime smoke/,
+  "TauriRuntimeSmokeRunner must enable backend privacy consent for activity and managed-folder runtime smoke calls.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -131,7 +136,17 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /setActivityContextConsent\(\{ enabled: true \}\)[\s\S]*readActivityContext\(\)[\s\S]*native foreground activity captured[\s\S]*recordActivityContext\(\{[\s\S]*stageActivityContextsForSync\(\{ limit: 5 \}\)/,
+  /syncRoomMessages\(\{[\s\S]*restore-snapshot[\s\S]*backupLocalSqlite\(\)[\s\S]*local SQLite backup file created[\s\S]*listLocalSqliteBackups\(\)[\s\S]*restore-dirty[\s\S]*restoreLocalSqliteBackup\(\{ backupId: backup\.backupId \}\)[\s\S]*local SQLite restore queued for next app restart/,
+  "TauriRuntimeSmokeRunner must create a SQLite backup around a stable room-message marker, verify the manifest, and queue restore for restart.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /smokePhase === "restore-verify"[\s\S]*readRoomMessages\(\{[\s\S]*local SQLite restore applied after app restart[\s\S]*checkLocalSqliteIntegrity\(\)[\s\S]*local SQLite integrity passed after restore restart/,
+  "TauriRuntimeSmokeRunner must relaunch and verify that queued SQLite restore is applied after restart.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /setActivityContextConsent\(\{ enabled: true \}\)[\s\S]*readActivityContext\(\)[\s\S]*native foreground activity captured[\s\S]*recordActivityContext\(\{[\s\S]*stageActivityContextsForSync\(\{ limit: 50 \}\)/,
   "TauriRuntimeSmokeRunner must verify native foreground activity capture and staged SQLite activity records.",
 );
 assertContains(
@@ -146,8 +161,18 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /syncStagedLocalFileEventsToBackend[\s\S]*managedFolderApi\.syncApprovedLocalFileEvents[\s\S]*markLocalFileEventsSynced[\s\S]*local file event sync marked SQLite rows as SYNCED[\s\S]*watched file event sync marked SQLite rows as SYNCED[\s\S]*synced watched file events no longer remain pending/,
+  "TauriRuntimeSmokeRunner must send staged and watched local file events to the backend and verify local SQLite rows are no longer pending.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /function smokeControlUrl[\s\S]*\/mutate-folder[\s\S]*function waitForManagedFolderEvents[\s\S]*"UPDATED"[\s\S]*"DELETED"/,
   "TauriRuntimeSmokeRunner must ask the Node smoke server to mutate watched files and poll for UPDATED/DELETED events.",
+);
+assertContains(
+  windowsRuntimeSmoke,
+  /runRuntimeSmokePhase\("full", accessToken\)[\s\S]*runRuntimeSmokePhase\("restore-verify", accessToken\)[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_PHASE: phase/,
+  "Windows runtime smoke script must relaunch Tauri for the SQLite restore verification phase.",
 );
 assertContains(
   windowsRuntimeSmoke,

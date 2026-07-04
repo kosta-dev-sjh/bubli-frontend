@@ -37,30 +37,10 @@ if (!accessToken) {
   throw new Error("Could not create local dev access token for Tauri runtime smoke.");
 }
 
-const { closeServer, reportPromise, reportUrl } = await startReportServer();
-const child = spawnTauri(reportUrl, accessToken);
-let timeout = null;
-
-try {
-  const report = await Promise.race([
-    reportPromise,
-    new Promise((_, reject) => {
-      timeout = setTimeout(() => reject(new Error(`Tauri runtime smoke timed out after ${TIMEOUT_MS}ms`)), TIMEOUT_MS);
-    }),
-  ]);
-
-  if (report.status !== "passed") {
-    console.error(JSON.stringify(report, null, 2));
-    throw new Error(`Tauri runtime smoke failed: ${report.error ?? report.status}`);
-  }
-
-  console.log(JSON.stringify(report, null, 2));
-  console.log("Windows Tauri runtime smoke passed.");
-} finally {
-  if (timeout) clearTimeout(timeout);
-  closeServer();
-  stopProcessTree(child.pid);
-}
+const fullReport = await runRuntimeSmokePhase("full", accessToken);
+const restoreReport = await runRuntimeSmokePhase("restore-verify", accessToken);
+console.log(JSON.stringify({ phases: [fullReport, restoreReport] }, null, 2));
+console.log("Windows Tauri runtime smoke passed.");
 
 function runNodeScript(args, extraEnv = {}) {
   const result = spawnSync(process.execPath, args, {
@@ -79,8 +59,37 @@ function runNodeScript(args, extraEnv = {}) {
   return result.stdout;
 }
 
-function spawnTauri(reportUrl, accessToken) {
-  console.log("Starting Tauri dev runtime smoke...");
+async function runRuntimeSmokePhase(phase, accessToken) {
+  const { closeServer, reportPromise, reportUrl } = await startReportServer();
+  const child = spawnTauri(reportUrl, accessToken, phase);
+  let timeout = null;
+
+  try {
+    const report = await Promise.race([
+      reportPromise,
+      new Promise((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error(`Tauri runtime smoke ${phase} phase timed out after ${TIMEOUT_MS}ms`)),
+          TIMEOUT_MS,
+        );
+      }),
+    ]);
+
+    if (report.status !== "passed") {
+      console.error(JSON.stringify(report, null, 2));
+      throw new Error(`Tauri runtime smoke ${phase} phase failed: ${report.error ?? report.status}`);
+    }
+
+    return { phase, ...report };
+  } finally {
+    if (timeout) clearTimeout(timeout);
+    closeServer();
+    stopProcessTree(child.pid);
+  }
+}
+
+function spawnTauri(reportUrl, accessToken, phase) {
+  console.log(`Starting Tauri dev runtime smoke (${phase})...`);
   const child = spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "npm.cmd run tauri:dev"], {
     env: {
       ...process.env,
@@ -90,6 +99,7 @@ function spawnTauri(reportUrl, accessToken) {
       NEXT_PUBLIC_BUBLI_PREVIEW_DATA: "false",
       NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "true",
       NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_FOLDER: managedFolderPath,
+      NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_PHASE: phase,
       NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_QUIT: "true",
       NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_REPORT_URL: reportUrl,
       NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_ROOM_ID: ROOM_ID,

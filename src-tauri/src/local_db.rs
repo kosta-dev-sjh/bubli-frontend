@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
@@ -650,8 +650,7 @@ fn verify_sqlite_file(path: &Path) -> Result<(), String> {
         return Err(format!("backup file not found: {}", path.display()));
     }
 
-    let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-        .map_err(|error| format!("backup open failed: {error}"))?;
+    let conn = Connection::open(path).map_err(|error| format!("backup open failed: {error}"))?;
     let quick_check: String = conn
         .query_row("PRAGMA quick_check", [], |row| row.get(0))
         .map_err(|error| format!("backup quick_check failed: {error}"))?;

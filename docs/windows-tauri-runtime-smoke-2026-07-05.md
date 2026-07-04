@@ -1,80 +1,65 @@
 # Windows Tauri Runtime Smoke Evidence - 2026-07-05
 
-## 기준 커밋
+## Current Context
 
-- Frontend base: `a86ed5d0`
-- Backend base: `eb646b4`
-- Branch: `codex/tauri-runtime-smoke-server-context-isolation`
+- Frontend base before this branch: `b0e26516`
+- Backend verified during this run: local dev backend at `http://localhost:8080`
+- Branch: `codex/tauri-runtime-smoke-sqlite-outbox`
+- Scope: Windows Tauri runtime smoke only. macOS-specific Tauri logic was not changed.
 
-## 변경 목적
+## What Changed
 
-- Windows Tauri runtime smoke가 기존 AppShell active-room restore 경로를 통해 `/api/widget/context`에 예전 프로젝트룸을 반영하지 않도록 smoke env에서 server mirror를 격리했다.
-- 실제 백엔드 seed 일정이 UTC 날짜 경계에서 widget summary 밖으로 밀려 smoke가 실패하지 않도록 seed schedule 시간을 현재 UTC day 안으로 고정했다.
-- 활동 감지는 synthetic record만 남기지 않고 `readActivityContext`로 실제 Windows foreground window/app capture를 검증한 뒤 그 값을 SQLite stage에 기록한다.
-- README의 SQLite 백업 설명을 현재 구현과 맞게 평문 `.sqlite3` 백업으로 정정했다.
+- The Windows runtime smoke now runs in two phases:
+  - `full`: login with the dev access token, open native widgets, exercise SQLite/activity/widget/local-folder flows, queue a SQLite restore.
+  - `restore-verify`: relaunch Tauri and prove the queued SQLite restore was applied after app restart.
+- SQLite restore verification uses `syncRoomMessages` / `readRoomMessages` as a stable local DB marker, because AppShell can legitimately update the active-room row during `/app` startup.
+- Local file event smoke no longer stops at local staging. It sends staged `CREATED`, watched `UPDATED`, and watched `DELETED` events through `managedFolderApi.syncApprovedLocalFileEvents`, then applies the backend response with `markLocalFileEventsSynced`.
+- `verify_sqlite_file` now opens backup files read-write for `PRAGMA quick_check`. On Windows, read-only quick_check can fail for FTS5 with `attempt to write a readonly database` while validating the inverted index.
 
-## 실행 증거
-
-### Real backend seed
-
-Command:
-
-```powershell
-node scripts/dev-widget-real-backend.mjs seed
-```
-
-Result:
-
-- `/api/widget/summary`
-- `/api/widget/settings`
-- `/api/widget/context`
-- `/api/widget/items/{id}/state`
-- `/api/widget/items/states`
-- `/api/me/privacy-consents`
-- `/api/chat/rooms`, message send/read
-- `/api/voice/rooms`, token/mic/leave
-- `/api/time-logs/start`, heartbeat, pause, resume, stop
-- `/api/dashboard/work`
-- `/api/widget/usage-summaries`
-- `/api/local-file-events/sync` for `CREATED/UPDATED/DELETED`
-- `/api/local-file-analyses`
-- `/api/activity/current-app`, `/api/activity/today`, `DELETE /api/activity/{id}`
-- `/api/daily-summaries`
-- `/api/generated-documents/{id}/export`
-- `/api/project-rooms/{roomId}/memory-summaries`
-
-All passed against `http://localhost:8080`.
-
-### Windows Tauri runtime smoke
-
-Command:
+## Commands
 
 ```powershell
+npm run typecheck
+npm run check:tauri-auth-surfaces
+cargo test --manifest-path src-tauri/Cargo.toml local_db -- --nocapture
 npm run check:tauri-windows-runtime-smoke
 ```
 
-Result: passed.
+All passed.
 
-Important report excerpts:
+## Runtime Evidence
 
-- Opened native widget windows: `bar`, `todo`, `chat`, `timer`
-- `todo.selectedRoomId`: `22222222-2222-4222-8222-222222222222`
-- SQLite quick_check: `ok`, journal mode: `wal`
-- Native foreground activity captured: `appName = bubli`, `windowTitle = Bubli`
-- Activity record staged from SQLite with the captured app/window values
-- Widget usage rollup created
-- Managed folder scan/search/preview/event staging passed for a temp folder
-- Managed folder live watcher started and staged `UPDATED` for `runtime-smoke-note.txt`
-- Managed folder live watcher staged `DELETED` for `runtime-smoke-delete.txt`
-- Widget windows cleaned up at the end
+`npm run check:tauri-windows-runtime-smoke` passed with two reported phases.
 
-No `server-widget-context` 403 log appeared in the successful run after the smoke server-mirror guard.
+Full phase:
 
-## 남은 미검증
+- Dev access token resolved backend seed user `11111111-1111-4111-8111-111111111111`.
+- Backend privacy consent was enabled for `ACTIVITY_CONTEXT` and `MANAGED_FOLDER`.
+- Native widget windows opened: `bar`, `todo`, `chat`, `timer`.
+- `todo.selectedRoomId` matched `22222222-2222-4222-8222-222222222222`.
+- SQLite integrity passed with `quickCheck = ok`, `journalMode = wal`.
+- SQLite restore snapshot marker was written at room sequence `777`.
+- SQLite backup file was created and listed as latest in the backup manifest.
+- Dirty marker was written after backup at room sequence `888`.
+- Restore was queued with `requiresRestart = true`.
+- Native foreground activity was captured from Windows as `appName = bubli`, `windowTitle = Bubli`, then staged from SQLite.
+- Widget usage rollup was created.
+- Managed folder scan/search/preview/event staging passed against a temp folder.
+- Initial `CREATED` file events reached the real backend and were marked locally as `SYNCED`.
+- `watchManagedFolder` observed real `UPDATED` and `DELETED` file changes from the Node smoke control server.
+- Watched `UPDATED` and `DELETED` events reached the real backend and were marked locally as `SYNCED`.
+- A follow-up stage returned no remaining pending watched file events.
+- Widget windows were cleaned up at the end.
 
-- SQLite backup/restore has Rust unit coverage and runtime integrity smoke, but the Windows smoke does not yet perform an isolated backup, queued restore, restart, and restored-data assertion.
-- Full local outbox server transfer is covered by backend seed API smoke and frontend sync code, but the Windows runtime smoke still stops at local staging/rollup evidence rather than asserting every local pending row becomes `SYNCED`.
+Restore verification phase:
 
-## CSV 정책
+- Tauri relaunched with the same app data.
+- The restored SQLite marker contained only the snapshot message at sequence `777`.
+- The dirty message at sequence `888` was absent after restart restore.
+- SQLite integrity passed again after restore.
 
-`docs/기능_API연결_명세_2026-07-01.csv` is intentionally ignored and was updated locally with this evidence. Do not commit the CSV or workbook artifacts.
+## Remaining Risk
+
+- This is a Windows automated runtime smoke, not a long-duration manual QA pass.
+- Long-running native folder watch stability, repeated app restarts, and real user OAuth sessions still need broader QA.
+- The CSV/XLSX tracking files remain intentionally ignored and should not be committed.
