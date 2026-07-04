@@ -100,6 +100,7 @@ export type DesktopWidgetBubbleProps = {
   onModeChange: (mode: WidgetWindowMode) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onCreateMemo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  onCreateTodo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onRestore?: () => void;
   onSendChatMessage?: (bubble: WidgetPreviewBubble, text: string) => Promise<void> | void;
   onStartVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
@@ -228,10 +229,12 @@ function ItemRows({
 
 function TodoBody({
   bubble,
+  onCreateTodo,
   onItemStateChange,
   onOpenHandoff,
 }: {
   bubble: WidgetPreviewBubble;
+  onCreateTodo?: DesktopWidgetBubbleProps["onCreateTodo"];
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
@@ -243,7 +246,7 @@ function TodoBody({
         <b>{t(bubble.metricLabel as MessageKey)}</b>
       </div>
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
-      <button className={styles.wideAction} type="button">
+      <button className={styles.wideAction} onClick={() => void onCreateTodo?.(bubble)} type="button">
         <Plus size={14} strokeWidth={2} />
         {t(bubble.actionLabel as MessageKey)}
       </button>
@@ -645,6 +648,7 @@ function BubbleBody({
   bubble,
   onItemStateChange,
   onCreateMemo,
+  onCreateTodo,
   onLeaveVoice,
   onMarkChatRead,
   onOpenHandoff,
@@ -657,6 +661,7 @@ function BubbleBody({
   bubble: WidgetPreviewBubble;
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
+  onCreateTodo?: DesktopWidgetBubbleProps["onCreateTodo"];
   onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
   onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
@@ -687,7 +692,7 @@ function BubbleBody({
   if (bubble.id === "memo") return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} />;
   if (bubble.id === "schedule") return <ScheduleBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
   if (bubble.id === "resource") return <ResourceBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
-  return <TodoBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
+  return <TodoBody bubble={bubble} onCreateTodo={onCreateTodo} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
 }
 
 function GhostSignal({ bubble }: { bubble: WidgetPreviewBubble }) {
@@ -713,6 +718,7 @@ export function DesktopWidgetBubble({
   onMarkChatRead,
   onModeChange,
   onCreateMemo,
+  onCreateTodo,
   onOpenHandoff,
   onPauseTimer,
   onPrimaryTimerAction,
@@ -784,6 +790,7 @@ export function DesktopWidgetBubble({
                 onLeaveVoice={onLeaveVoice}
                 onMarkChatRead={onMarkChatRead}
                 onCreateMemo={onCreateMemo}
+                onCreateTodo={onCreateTodo}
                 onOpenHandoff={onOpenHandoff}
                 onPauseTimer={onPauseTimer}
                 onPrimaryTimerAction={onPrimaryTimerAction}
