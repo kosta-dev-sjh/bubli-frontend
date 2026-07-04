@@ -652,11 +652,19 @@ export default function SettingsPage() {
     };
   }, [desktopRuntime]);
 
-  const refreshManagedFolderProgress = useCallback(async (localFolderId: string) => {
+  const loadManagedFolderProgress = useCallback(async (localFolderId: string) => {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
     const result = await getPersonalManagedFolderIndexProgress({ consentGranted, localFolderId });
     if (result.status === "ready") {
       setFolderProgress((current) => ({ ...current, [localFolderId]: result.data }));
+    }
+
+    return result;
+  }, [state]);
+
+  const refreshManagedFolderProgress = useCallback(async (localFolderId: string) => {
+    const result = await loadManagedFolderProgress(localFolderId);
+    if (result.status === "ready") {
       setLocalActionMessage({
         text: t("settings.msg.indexProgress", {
           indexed: result.data.indexedFiles,
@@ -669,7 +677,7 @@ export default function SettingsPage() {
     }
 
     setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
-  }, [state, t]);
+  }, [loadManagedFolderProgress, t]);
 
   const toggleManagedFolderSync = useCallback(
     async (folder: ManagedFolderResponse) => {
@@ -738,8 +746,8 @@ export default function SettingsPage() {
     [state, t, updateReadyState],
   );
 
-  const scanManagedFolder = useCallback(async () => {
-    const folderId = state.kind === "ready" ? state.settings.folders[0]?.id : undefined;
+  const scanManagedFolder = useCallback(async (localFolderId?: string) => {
+    const folderId = localFolderId ?? (state.kind === "ready" ? state.settings.folders[0]?.id : undefined);
     if (!folderId) {
       setLocalActionMessage({ text: t("settings.msg.selectFolderFirst"), tone: "warning" });
       return;
@@ -755,8 +763,8 @@ export default function SettingsPage() {
     );
   }, [refreshManagedFolderProgress, state, t]);
 
-  const watchManagedFolder = useCallback(async () => {
-    const folderId = state.kind === "ready" ? state.settings.folders[0]?.id : undefined;
+  const watchManagedFolder = useCallback(async (localFolderId?: string) => {
+    const folderId = localFolderId ?? (state.kind === "ready" ? state.settings.folders[0]?.id : undefined);
     if (!folderId) {
       setLocalActionMessage({ text: t("settings.msg.selectFolderFirst"), tone: "warning" });
       return;
@@ -875,6 +883,7 @@ export default function SettingsPage() {
       if (disposed) return;
 
       setLocalActionMessage({ text: t("settings.msg.folderWatchDetected", { count: event.changedCount }), tone: "approved" });
+      void loadManagedFolderProgress(event.localFolderId).catch(() => undefined);
       const query = folderSearchQuery.trim();
       if (!query) return;
 
@@ -898,7 +907,7 @@ export default function SettingsPage() {
       disposed = true;
       unlisten?.();
     };
-  }, [desktopRuntime, folderSearchQuery, state]);
+  }, [desktopRuntime, folderSearchQuery, loadManagedFolderProgress, state]);
 
   const readActivity = useCallback(async () => {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
@@ -972,11 +981,10 @@ export default function SettingsPage() {
     window.location.assign(state.settings.googleCalendarConnectUrl);
   }, [state]);
 
-  const checkSyncOutbox = useCallback(async () => {
-    const folderId = state.kind === "ready" ? state.settings.folders[0]?.id : undefined;
+  const checkSyncOutbox = useCallback(async (localFolderId?: string) => {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
     const result = await syncPersonalLocalFileEventsToServer(
-      folderId ? { consentGranted, localFolderId: folderId } : { consentGranted },
+      localFolderId ? { consentGranted, localFolderId } : { consentGranted },
     );
     if (result.status !== "ready") {
       setLocalActionMessage({ text: localResultMessage(t, result), tone: "warning" });
@@ -992,7 +1000,10 @@ export default function SettingsPage() {
       text: `${localResultMessage(t, result)}${analysisLabel}`,
       tone: result.data.analysisFailedCount > 0 || (analysisStatus.status === "ready" && analysisStatus.data.failedCount > 0) ? "warning" : "approved",
     });
-  }, [state, t]);
+
+    const foldersToRefresh = localFolderId ? [localFolderId] : state.kind === "ready" ? state.settings.folders.map((folder) => folder.id) : [];
+    await Promise.all(foldersToRefresh.map((folderId) => loadManagedFolderProgress(folderId).catch(() => undefined)));
+  }, [loadManagedFolderProgress, state, t]);
 
   const syncWidgetUsage = useCallback(async () => {
     const result = await syncLocalWidgetUsageSummaryToServer();
@@ -1406,6 +1417,33 @@ export default function SettingsPage() {
                           variant="quiet"
                         >
                           {t("settings.folders.progress")}
+                        </Button>
+                        <Button
+                          disabled={!desktopRuntime}
+                          onClick={() => void scanManagedFolder(folder.id)}
+                          size="sm"
+                          type="button"
+                          variant="quiet"
+                        >
+                          {t("settings.folders.scan")}
+                        </Button>
+                        <Button
+                          disabled={!desktopRuntime || !folder.syncEnabled}
+                          onClick={() => void watchManagedFolder(folder.id)}
+                          size="sm"
+                          type="button"
+                          variant="quiet"
+                        >
+                          {t("settings.folders.watch")}
+                        </Button>
+                        <Button
+                          disabled={!desktopRuntime || !folder.syncEnabled}
+                          onClick={() => void checkSyncOutbox(folder.id)}
+                          size="sm"
+                          type="button"
+                          variant="quiet"
+                        >
+                          {t("settings.backup.outbox")}
                         </Button>
                         <Button
                           disabled={!desktopRuntime}
