@@ -19,8 +19,8 @@ const loginStartupWindows: WidgetWindowOpenInput[] = [
   loginStartupBarWindow,
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
 ];
-const startupBubblePriority: WidgetBubbleType[] = ["todo", "schedule", "timer", "chat", "agent", "memo", "resource", "alert"];
-const backendBubbleToLocal: Record<ApiWidgetBubbleType, WidgetBubbleType> = {
+const loginPrimaryBubble: WidgetBubbleType = "todo";
+const backendBubbleToLocal: Record<ApiWidgetBubbleType, Exclude<WidgetBubbleType, "bar" | "menu">> = {
   AGENT: "agent",
   ALERT: "alert",
   CHAT: "chat",
@@ -49,26 +49,22 @@ function getStartupModeFromSetting(setting: WidgetBubbleSettingResponse): Widget
   return "DEFAULT";
 }
 
-function getEnabledStartupBubbles(settings: WidgetBubbleSettingResponse[]): WidgetWindowOpenInput[] {
-  const enabledByBubble = new Map<WidgetBubbleType, WidgetBubbleSettingResponse>();
+function getLoginPrimaryBubbleWindow(settings: WidgetBubbleSettingResponse[]): WidgetWindowOpenInput | null {
+  const enabledByBubble = new Map<Exclude<WidgetBubbleType, "bar" | "menu">, WidgetBubbleSettingResponse>();
 
   for (const setting of settings) {
     if (!setting.enabled || setting.minimized) continue;
     enabledByBubble.set(backendBubbleToLocal[setting.bubbleType], setting);
   }
 
-  return startupBubblePriority.flatMap((bubbleType) => {
-    const setting = enabledByBubble.get(bubbleType);
-    if (!setting) return [];
+  const setting = enabledByBubble.get(loginPrimaryBubble);
+  if (!setting) return null;
 
-    return [
-      {
-        bubbleType,
-        mode: getStartupModeFromSetting(setting),
-        windowId: bubbleType,
-      },
-    ];
-  });
+  return {
+    bubbleType: loginPrimaryBubble,
+    mode: getStartupModeFromSetting(setting),
+    windowId: loginPrimaryBubble,
+  };
 }
 
 export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInput[]> {
@@ -77,12 +73,12 @@ export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInpu
     return loginStartupWindows;
   }
 
-  const enabledBubbles = getEnabledStartupBubbles(settings.bubbles);
-  if (enabledBubbles.length === 0) {
-    return [loginStartupBarWindow];
-  }
+  // Backend defaults keep all eight bubbles enabled for the bar/catalog, but
+  // login must not spawn eight native windows at once.
+  const primaryBubbleWindow = getLoginPrimaryBubbleWindow(settings.bubbles);
+  if (!primaryBubbleWindow) return [loginStartupBarWindow];
 
-  return [loginStartupBarWindow, ...enabledBubbles];
+  return [loginStartupBarWindow, primaryBubbleWindow];
 }
 
 async function resolveLaunchSelectedRoomId() {
