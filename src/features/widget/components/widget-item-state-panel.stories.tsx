@@ -21,6 +21,7 @@ type Story = StoryObj<typeof meta>;
 
 export const MixedBubbleItems: Story = {
   args: {
+    persistItemState: false,
     items: [
       {
         bubbleType: "todo",
@@ -68,6 +69,7 @@ export const MixedBubbleItems: Story = {
 
 export const ResourceSuggestionStates: Story = {
   args: {
+    persistItemState: false,
     items: [
       {
         bubbleType: "resource",
