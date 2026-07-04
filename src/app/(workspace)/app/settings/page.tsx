@@ -1612,6 +1612,7 @@ export default function SettingsPage() {
               onDeleteActivity={(activityLogId) => void deleteActivityLog(activityLogId)}
               onRecordActivity={() => void readActivity()}
               onRefreshActivity={() => void refreshActivityLogs()}
+              projectRooms={readySettings.rooms}
             />
             ) : null}
             </>
