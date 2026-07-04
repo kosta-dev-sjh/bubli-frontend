@@ -66,6 +66,19 @@ function parseStoredAuthSession(raw: string): StoredAuthSession | null {
   }
 }
 
+function sameAuthSession(left: StoredAuthSession | null, right: AuthSessionInput) {
+  if (!left) return false;
+
+  return (
+    left.accessToken === right.accessToken &&
+    left.refreshToken === right.refreshToken &&
+    left.expiresAt === right.expiresAt &&
+    left.refreshTokenExpiresAt === right.refreshTokenExpiresAt &&
+    left.tokenType === right.tokenType &&
+    left.clientType === right.clientType
+  );
+}
+
 function mirrorAuthSessionToTauri(session: StoredAuthSession) {
   if (!isTauriRuntime()) return;
   void tauriCommands
@@ -107,6 +120,11 @@ export function setStoredAuthSession(session: AuthSessionInput) {
     return;
   }
 
+  const current = getStoredAuthSession();
+  if (sameAuthSession(current, session)) {
+    return;
+  }
+
   const next: StoredAuthSession = {
     ...session,
     savedAt: new Date().toISOString(),
@@ -120,6 +138,10 @@ export function setStoredAuthSession(session: AuthSessionInput) {
 
 export function clearStoredAuthSession() {
   if (!canUseStorage()) {
+    return;
+  }
+
+  if (!window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY)) {
     return;
   }
 

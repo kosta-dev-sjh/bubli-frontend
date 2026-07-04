@@ -21,6 +21,7 @@ import {
 } from "@/features/widget/api/widgetDisplayApi";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { authApi } from "@/features/auth/api/authApi";
+import { ApiClientError } from "@/lib/api/errors";
 import {
   widgetApi,
   type BackendWidgetBubbleType,
@@ -833,9 +834,13 @@ function DesktopWidgetSurface() {
     try {
       await authApi.getMe();
       return true;
-    } catch {
-      clearStoredAuthSession();
-      return false;
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 401) {
+        clearStoredAuthSession();
+        return false;
+      }
+
+      return true;
     }
   }, []);
 
