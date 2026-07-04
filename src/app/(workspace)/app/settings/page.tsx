@@ -43,6 +43,7 @@ import {
 } from "@/lib/local/managed-folder-client";
 import { notifyManagedFolderConsentChanged } from "@/lib/local/managed-folder-auto-sync";
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
+import { toLocalWidgetBubbleType } from "@/lib/widget/widget-types";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
   tauriCommands,
@@ -52,8 +53,10 @@ import {
   type LocalFilePreviewResult,
   type ManagedFolderIndexProgressResult,
   type SqliteIntegrityResult,
+  type WidgetWindowMode,
 } from "@/lib/tauri/commands";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
+import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { ActivityLogResponse } from "@/types/api/activity";
 import type { AuthUser } from "@/types/api/auth";
@@ -130,6 +133,25 @@ const widgetBubbleLabels: Record<WidgetBubbleType, MessageKey> = {
   TIMER: "settings.bubbleType.TIMER",
   TODO: "settings.bubbleType.TODO",
 };
+
+function getWidgetWindowModeFromSetting(bubble: WidgetBubbleSettingResponse): WidgetWindowMode {
+  if (bubble.minimized) return "MINIMIZED";
+  if (bubble.ghostMode) return "GHOST";
+  if (bubble.opacity !== null && bubble.opacity !== undefined && bubble.opacity < 0.95) return "TRANSLUCENT";
+  return "DEFAULT";
+}
+
+function mergeWidgetBubbleSettings(
+  current: WidgetBubbleSettingResponse[],
+  saved: WidgetBubbleSettingResponse[],
+) {
+  const savedBubbleTypes = new Set(saved.map((bubble) => bubble.bubbleType));
+  const localOnlyBubbles = current.filter(
+    (bubble) => !isBackendWidgetBubbleType(bubble.bubbleType) && !savedBubbleTypes.has(bubble.bubbleType),
+  );
+
+  return [...saved, ...localOnlyBubbles];
+}
 
 const notificationRows: Array<{
   descriptionKey: MessageKey;
@@ -530,7 +552,32 @@ export default function SettingsPage() {
       }));
       setSaveMessage({ text: t("settings.msg.bubbleSaved"), tone: "approved" });
 
+      const reconcileTauriWindow = (bubbleSetting: WidgetBubbleSettingResponse) => {
+        if (!desktopRuntime) return;
+
+        const localBubbleType = toLocalWidgetBubbleType(bubbleSetting.bubbleType);
+        if (bubbleSetting.enabled && !bubbleSetting.minimized) {
+          void tauriCommands
+            .openWidgetWindow({
+              bubbleType: localBubbleType,
+              mode: getWidgetWindowModeFromSetting(bubbleSetting),
+              selectedRoomId: getActiveProjectRoomId(),
+              windowId: localBubbleType,
+            })
+            .catch(() => {
+              setLocalActionMessage({ text: t("settings.msg.bubbleSaveFailed"), tone: "warning" });
+            });
+        } else {
+          void tauriCommands
+            .closeWidgetWindow({ bubbleType: localBubbleType, windowId: localBubbleType })
+            .catch(() => {
+              setLocalActionMessage({ text: t("settings.msg.bubbleSaveFailed"), tone: "warning" });
+            });
+        }
+      };
+
       if (!isBackendWidgetBubbleType(nextBubble.bubbleType)) {
+        reconcileTauriWindow(nextBubble);
         return;
       }
 
@@ -546,14 +593,15 @@ export default function SettingsPage() {
         });
         updateReadyState((ready) => ({
           ...ready,
-          settings: { ...ready.settings, widgetBubbles: saved },
+          settings: { ...ready.settings, widgetBubbles: mergeWidgetBubbleSettings(next, saved) },
         }));
+        reconcileTauriWindow(saved.find((item) => item.bubbleType === nextBubble.bubbleType) ?? nextBubble);
       } catch {
         if (shouldUseWorkspacePreviewData()) return;
         setSaveMessage({ text: t("settings.msg.bubbleSaveFailed"), tone: "warning" });
       }
     },
-    [state, updateReadyState],
+    [desktopRuntime, state, t, updateReadyState],
   );
 
   const selectManagedFolder = useCallback(async () => {
