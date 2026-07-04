@@ -89,8 +89,14 @@ export const widgetApi = {
     return response.bubbles;
   },
 
-  getSummary() {
-    return widgetRequest<ApiWidgetSummaryResponse>("/api/widget/summary");
+  getSummary(selectedRoomId?: string | null) {
+    const roomId = selectedRoomId?.trim();
+    if (!roomId) {
+      return widgetRequest<ApiWidgetSummaryResponse>("/api/widget/summary");
+    }
+
+    const params = new URLSearchParams({ selectedRoomId: roomId });
+    return widgetRequest<ApiWidgetSummaryResponse>(`/api/widget/summary?${params.toString()}`);
   },
 
   updateItemState(itemStateId: string, body: ApiWidgetItemStateUpdateRequest) {
