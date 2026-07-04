@@ -31,7 +31,7 @@ function Sample({ title = "오늘 할 일" }: { title?: string }) {
         <strong style={{ fontSize: 14 }}>{title}</strong>
         <StatusBadge tone="todo">3</StatusBadge>
       </div>
-      <p style={{ margin: 0, fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.6 }}>
+      <p style={{ margin: 0, fontSize: 14, color: "var(--ink-soft)", lineHeight: 1.6 }}>
         계약서·요구사항·회의록을 모으면 에이전트가 오늘 할 일로 정리해드려요.
       </p>
     </>
@@ -85,7 +85,7 @@ export const Empty: Story = {
       <GlassPanel className="bubli-surface--empty">
         <div>
           <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 700 }}>아직 자료가 없어요</p>
-          <p style={{ margin: 0, fontSize: 13, color: "var(--ink-soft)" }}>
+          <p style={{ margin: 0, fontSize: 14, color: "var(--ink-soft)" }}>
             받은 자료를 올리면, 오늘 할 일로 정리해드려요.
           </p>
         </div>

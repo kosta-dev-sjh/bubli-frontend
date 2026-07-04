@@ -16,6 +16,12 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { getApiBaseUrl } from "@/lib/api/client";
 import { ApiClientError } from "@/lib/api/errors";
 import { getAuthAccessToken } from "@/lib/auth/auth-session";
+import {
+  chatTypingDestinations,
+  getChatRealtimeClient,
+  isChatTypingRelaySupported,
+} from "@/lib/websocket/chat-realtime";
+import { websocketTopics } from "@/lib/websocket/topics";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { readCachedRoomMessages, syncCachedRoomMessages } from "@/lib/local";
@@ -264,6 +270,82 @@ function withAgentCommandMessages(t: TranslateFn, messages: ChatMessageResponse[
   return expanded.sort((a, b) => a.roomSequence - b.roomSequence);
 }
 
+// withAgentCommandMessages가 합성한 명령 버블(id: agent-command-*)을 걷어낸다 —
+// 실시간 병합 후 변환을 다시 돌릴 때 합성분이 중복 생성되지 않게 하기 위함.
+function withoutSyntheticAgentCommands(messages: ChatMessageResponse[]) {
+  return messages.filter((message) => !message.id.startsWith("agent-command-"));
+}
+
+// 실시간/재조회 병합용 중복 판정 — id·clientMessageId 일치, 또는 서버가 부여하는
+// 정수 roomSequence가 같고 발신자/타입까지 같으면 같은 메시지로 본다.
+// (낙관적 로컬 메시지는 정수 sequence를 추정하므로 발신자 조건 없이 sequence만 비교하면
+//  같은 시각에 도착한 다른 사람 메시지를 삼킬 수 있다.)
+function isDuplicateChatMessage(existing: ChatMessageResponse, incoming: ChatMessageResponse) {
+  if (existing.id === incoming.id) return true;
+  if (Boolean(incoming.clientMessageId) && existing.clientMessageId === incoming.clientMessageId) return true;
+  return (
+    Number.isInteger(existing.roomSequence) &&
+    existing.roomSequence === incoming.roomSequence &&
+    existing.messageType === incoming.messageType &&
+    (existing.sender.id ?? null) === (incoming.sender.id ?? null)
+  );
+}
+
+// /topic/chat/{id} 프레임 파싱 — 백엔드는 ChatMessageResponse JSON을 그대로 발행한다.
+// (혹시 envelope({eventType, payload}) 형태로 바뀌어도 함께 수용한다.)
+function parseIncomingChatMessage(data: unknown): ChatMessageResponse | null {
+  if (typeof data !== "object" || data === null) return null;
+  const record = data as Record<string, unknown>;
+
+  if (record.eventType === "CHAT_MESSAGE_CREATED" && typeof record.payload === "object" && record.payload !== null) {
+    return parseIncomingChatMessage(record.payload);
+  }
+  if (
+    typeof record.id === "string" &&
+    typeof record.chatRoomId === "string" &&
+    typeof record.roomSequence === "number" &&
+    typeof record.createdAt === "string" &&
+    typeof record.messageType === "string" &&
+    typeof record.sender === "object" &&
+    record.sender !== null
+  ) {
+    return record as unknown as ChatMessageResponse;
+  }
+  return null;
+}
+
+// 타이핑 릴레이 페이로드 — src/lib/websocket/chat-realtime.ts의 백엔드 계약 주석 참고.
+type ChatTypingSignal = {
+  chatRoomId: string;
+  typing: boolean;
+  userId: string;
+  userName: string;
+};
+
+function parseChatTypingSignal(data: unknown): ChatTypingSignal | null {
+  if (typeof data !== "object" || data === null) return null;
+  const record = data as Record<string, unknown>;
+  if (
+    typeof record.chatRoomId !== "string" ||
+    typeof record.typing !== "boolean" ||
+    typeof record.userId !== "string"
+  ) {
+    return null;
+  }
+  return {
+    chatRoomId: record.chatRoomId,
+    typing: record.typing,
+    userId: record.userId,
+    userName: typeof record.userName === "string" ? record.userName : "",
+  };
+}
+
+const AGENT_TYPING_TIMEOUT_MS = 60000;
+const TYPING_START_THROTTLE_MS = 3000;
+const TYPING_IDLE_STOP_MS = 5000;
+const TYPING_ENTRY_TTL_MS = 6000;
+const NEAR_BOTTOM_THRESHOLD_PX = 96;
+
 function messageTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -354,6 +436,21 @@ function ChatPageContent() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const speakingRafRef = useRef<number | null>(null);
+  // 실시간 채팅/타이핑 인디케이터 상태 — 방 전환 시 초기화 대신 chatRoomId로 스코프해
+  // 렌더에서 현재 방 것만 보여준다(다른 방의 잔여 표시는 만료 정리로 사라진다).
+  // agentTyping: /bubli 명령 후 "Bubli가 입력 중…"을 보여줄 마감 시각(60초 타임아웃 폴백).
+  const [agentTyping, setAgentTyping] = useState<{ chatRoomId: string; until: number } | null>(null);
+  const [typingPeople, setTypingPeople] = useState<
+    Record<string, { chatRoomId: string; expiresAt: number; name: string }>
+  >({});
+  // 사용자가 스크롤로 과거를 읽는 중이면 새 메시지가 와도 강제 스크롤하지 않는다.
+  const pinnedToBottomRef = useRef(true);
+  const activeChatRoomIdRef = useRef<string | null>(null);
+  const currentUserRef = useRef<AuthUser | null>(null);
+  const typingPublishRef = useRef<{ lastStartSentAt: number; stopTimer: number | null }>({
+    lastStartSentAt: 0,
+    stopTimer: null,
+  });
 
   const appendMessage = useCallback((message: ChatMessageResponse) => {
     setMessagesState((current) => {
@@ -373,6 +470,98 @@ function ChatPageContent() {
         kind: "ready",
         messages: [...current.messages, message].sort((a, b) => a.roomSequence - b.roomSequence),
       };
+    });
+  }, []);
+
+  // 실시간 수신/재조회 메시지를 현재 스레드에 병합 — 중복 제거 후
+  // withAgentCommandMessages 변환과 roomSequence 정렬을 다시 적용한다.
+  const mergeIncomingMessages = useCallback(
+    (incoming: ChatMessageResponse[]) => {
+      const scopedRoomId = activeChatRoomIdRef.current;
+      const scoped = incoming.filter((message) => message.chatRoomId === scopedRoomId);
+      if (scoped.length === 0) return;
+
+      setMessagesState((current) => {
+        const base = current.kind === "ready" ? current.messages : [];
+        const fresh = scoped.filter(
+          (message) => !base.some((item) => isDuplicateChatMessage(item, message)),
+        );
+        if (fresh.length === 0) return current;
+        return {
+          kind: "ready",
+          messages: withAgentCommandMessages(t, [...withoutSyntheticAgentCommands(base), ...fresh]),
+        };
+      });
+    },
+    [t],
+  );
+
+  // 재연결 시 놓친 메시지 보정 — 최신 페이지를 다시 받아 병합한다(교체 아님).
+  const refreshLatestMessages = useCallback(
+    async (chatRoomId: string) => {
+      try {
+        const page = await chatApi.getMessages(chatRoomId, { size: 40 });
+        if (activeChatRoomIdRef.current !== chatRoomId) return;
+        const sortedMessages = [...page.items].sort((a, b) => a.roomSequence - b.roomSequence);
+        void syncCachedRoomMessages(chatRoomId, sortedMessages, 0);
+        mergeIncomingMessages(sortedMessages);
+        const lastReadSequence = sortedMessages.at(-1)?.roomSequence;
+        if (lastReadSequence !== undefined && typeof document !== "undefined" && document.hasFocus()) {
+          void chatApi.markRead(chatRoomId, lastReadSequence).catch(() => {
+            // 읽음 처리 실패는 조용히 무시
+          });
+        }
+      } catch {
+        // 재동기화 실패는 무시 — 다음 재연결/새로고침에서 다시 시도
+      }
+    },
+    [mergeIncomingMessages],
+  );
+
+  // 내 타이핑 시작 신호 — 3초 스로틀로 발행하고, 5초 입력이 없으면 stop을 보낸다.
+  // 백엔드 릴레이 미배포(플래그 OFF) 상태에서는 아무것도 하지 않는다.
+  const notifyTypingActivity = useCallback(() => {
+    if (!isChatTypingRelaySupported()) return;
+    const chatRoomId = activeChatRoomIdRef.current;
+    const me = currentUserRef.current;
+    if (!chatRoomId || !me?.id) return;
+
+    const client = getChatRealtimeClient();
+    const state = typingPublishRef.current;
+    const now = Date.now();
+    const signal = { chatRoomId, typing: true, userId: me.id, userName: me.name };
+
+    if (now - state.lastStartSentAt >= TYPING_START_THROTTLE_MS) {
+      if (client.publish(chatTypingDestinations.publish(chatRoomId), signal)) {
+        state.lastStartSentAt = now;
+      }
+    }
+    if (state.stopTimer) window.clearTimeout(state.stopTimer);
+    state.stopTimer = window.setTimeout(() => {
+      state.stopTimer = null;
+      if (state.lastStartSentAt === 0) return;
+      state.lastStartSentAt = 0;
+      client.publish(chatTypingDestinations.publish(chatRoomId), { ...signal, typing: false });
+    }, TYPING_IDLE_STOP_MS);
+  }, []);
+
+  // 전송/방 전환/언마운트 시 타이핑 stop 신호를 즉시 보낸다(보낸 적이 있을 때만).
+  const stopTypingPublish = useCallback((chatRoomId?: string | null) => {
+    const state = typingPublishRef.current;
+    if (state.stopTimer) {
+      window.clearTimeout(state.stopTimer);
+      state.stopTimer = null;
+    }
+    if (!isChatTypingRelaySupported() || state.lastStartSentAt === 0) return;
+    state.lastStartSentAt = 0;
+    const targetRoomId = chatRoomId ?? activeChatRoomIdRef.current;
+    const me = currentUserRef.current;
+    if (!targetRoomId || !me?.id) return;
+    getChatRealtimeClient().publish(chatTypingDestinations.publish(targetRoomId), {
+      chatRoomId: targetRoomId,
+      typing: false,
+      userId: me.id,
+      userName: me.name,
     });
   }, []);
 
@@ -444,6 +633,18 @@ function ChatPageContent() {
   const selectedProjectRoomName =
     selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? activeRoomInfo.label ?? t("chat.room.fallbackName") : activeRoomInfo.label;
   const pendingAgentCommand = useMemo(() => parseBubliCommand(t, draft), [draft, t]);
+  // 컴포저 위 한 줄 인디케이터 문구 — 1명이면 이름, 여럿(에이전트 포함)이면 "여러 명".
+  const agentTypingActive = agentTyping !== null && agentTyping.chatRoomId === activeChatRoomId;
+  const typingIndicatorText = useMemo(() => {
+    const names = Object.values(typingPeople)
+      .filter((person) => person.chatRoomId === activeChatRoomId)
+      .map((person) => person.name);
+    const typingCount = names.length + (agentTypingActive ? 1 : 0);
+    if (typingCount === 0) return null;
+    if (typingCount > 1) return t("chat.typing.many");
+    if (agentTypingActive) return t("chat.typing.agent");
+    return t("chat.typing.one", { name: names[0] ?? t("chat.participant.fallbackName") });
+  }, [activeChatRoomId, agentTypingActive, typingPeople, t]);
   const pendingRoomInvitations = roomInvitationsState.kind === "ready" ? roomInvitationsState.invitations.filter((invitation) => invitation.status === "PENDING") : [];
   // 보이스는 프로젝트룸 전용이며 룸별로 독립 — 다른 프로젝트룸이나 1:1/그룹 뷰에서는 null
   const activeVoiceRoom =
@@ -727,6 +928,14 @@ function ChatPageContent() {
   }, [isInVoice, voiceMicMuted]);
 
   useEffect(() => {
+    activeChatRoomIdRef.current = activeChatRoomId;
+  }, [activeChatRoomId]);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  useEffect(() => {
     if (!activeChatRoomId) return;
 
     const timeoutId = window.setTimeout(() => {
@@ -736,17 +945,126 @@ function ChatPageContent() {
     return () => window.clearTimeout(timeoutId);
   }, [activeChatRoomId, loadMessages]);
 
+  // 실시간 구독 — 대화가 열려 있는 동안 /topic/chat/{id}를 구독해 새 메시지를 즉시 반영하고,
+  // 재연결 시 최신 페이지를 재조회해 절전/끊김 동안 놓친 메시지를 메운다.
+  useEffect(() => {
+    if (!activeChatRoomId) return;
+
+    const chatRoomId = activeChatRoomId;
+    pinnedToBottomRef.current = true;
+
+    const client = getChatRealtimeClient();
+    const unsubscribeMessages = client.subscribe(websocketTopics.chatRoom(chatRoomId), (data) => {
+      const message = parseIncomingChatMessage(data);
+      if (!message || message.chatRoomId !== chatRoomId) return;
+
+      mergeIncomingMessages([message]);
+
+      // 에이전트 응답이 도착하면 "Bubli가 입력 중…"을 내린다.
+      if (message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT") {
+        setAgentTyping((current) => (current?.chatRoomId === chatRoomId ? null : current));
+      }
+      // 메시지를 보낸 사람의 타이핑 표시는 즉시 제거.
+      const senderId = message.sender.id;
+      if (senderId) {
+        setTypingPeople((current) => {
+          if (!current[senderId]) return current;
+          const next = { ...current };
+          delete next[senderId];
+          return next;
+        });
+      }
+      // 창이 포커스된 상태로 보고 있으면 수신 즉시 읽음 처리.
+      if (typeof document !== "undefined" && document.hasFocus()) {
+        void chatApi.markRead(chatRoomId, message.roomSequence).catch(() => {
+          // 읽음 처리 실패는 조용히 무시
+        });
+      }
+    });
+
+    const unsubscribeReconnect = client.onReconnect(() => {
+      void refreshLatestMessages(chatRoomId);
+    });
+
+    // 사람 타이핑 구독 — 백엔드 릴레이가 배포되어 플래그가 켜진 경우에만.
+    // (릴레이 없이 구독하면 서버 인가 로직이 세션을 끊으므로 기본 OFF. chat-realtime.ts 참고)
+    let unsubscribeTyping: (() => void) | null = null;
+    if (isChatTypingRelaySupported()) {
+      unsubscribeTyping = client.subscribe(chatTypingDestinations.subscribe(chatRoomId), (data) => {
+        const signal = parseChatTypingSignal(data);
+        if (!signal || signal.chatRoomId !== chatRoomId) return;
+        if (currentUserRef.current?.id && signal.userId === currentUserRef.current.id) return;
+
+        setTypingPeople((current) => {
+          if (!signal.typing) {
+            if (!current[signal.userId]) return current;
+            const next = { ...current };
+            delete next[signal.userId];
+            return next;
+          }
+          return {
+            ...current,
+            [signal.userId]: {
+              chatRoomId,
+              expiresAt: Date.now() + TYPING_ENTRY_TTL_MS,
+              name: signal.userName.trim() || t("chat.participant.fallbackName"),
+            },
+          };
+        });
+      });
+    }
+
+    return () => {
+      stopTypingPublish(chatRoomId);
+      unsubscribeMessages();
+      unsubscribeReconnect();
+      unsubscribeTyping?.();
+    };
+  }, [activeChatRoomId, mergeIncomingMessages, refreshLatestMessages, stopTypingPublish, t]);
+
+  // "Bubli가 입력 중…" 60초 타임아웃 폴백 — 응답이 끝내 안 오면 조용히 내린다.
+  useEffect(() => {
+    if (agentTyping === null) return;
+    const timer = window.setTimeout(
+      () => setAgentTyping(null),
+      Math.max(0, agentTyping.until - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [agentTyping]);
+
+  // stop 신호가 유실돼도 표시가 남지 않도록 만료된 타이핑 엔트리를 주기적으로 정리.
+  useEffect(() => {
+    if (Object.keys(typingPeople).length === 0) return;
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      setTypingPeople((current) => {
+        const entries = Object.entries(current).filter(([, value]) => value.expiresAt > now);
+        if (entries.length === Object.keys(current).length) return current;
+        return Object.fromEntries(entries);
+      });
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [typingPeople]);
+
   useEffect(() => {
     if (!selectedRoom?.roomId || selectedRoom.chatType !== "ROOM") return;
     setActiveProjectRoomId(selectedRoom.roomId, selectedRoom.name?.replace(/\s*대화$/, "") ?? t("chat.room.fallbackName"));
   }, [currentUser, selectedRoom, t]);
 
+  // 하단 근처에 있을 때만 자동 스크롤 — 과거 메시지를 읽는 중이면 위치를 유지한다.
   useEffect(() => {
     if (messagesState.kind !== "ready") return;
     const viewport = messagesViewportRef.current;
-    if (!viewport) return;
+    if (!viewport || !pinnedToBottomRef.current) return;
     viewport.scrollTop = viewport.scrollHeight;
   }, [activeChatRoomId, messagesState]);
+
+  const handleMessagesScroll = useCallback(() => {
+    const viewport = messagesViewportRef.current;
+    if (!viewport) return;
+    pinnedToBottomRef.current =
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < NEAR_BOTTOM_THRESHOLD_PX;
+  }, []);
 
   function selectChatRoom(room: ChatRoomResponse) {
     setSelectedChatRoomId(room.id);
@@ -1153,6 +1471,9 @@ function ChatPageContent() {
   const sendMessage = useCallback(async () => {
     const text = draft.trim();
     if (!activeChatRoomId || (!text && !selectedAttachment)) return;
+    // 전송 시 내 타이핑 stop 신호를 보내고, 내 메시지는 항상 하단으로 따라간다.
+    stopTypingPublish(activeChatRoomId);
+    pinnedToBottomRef.current = true;
     const agentCommand = parseBubliCommand(t, text);
 
     if (agentCommand) {
@@ -1181,6 +1502,8 @@ function ChatPageContent() {
 
       setSending(true);
       setAgentCommandNotice(t("chat.notice.agentSending"));
+      // "Bubli가 입력 중…" — 응답 메시지가 도착(REST/WS)하거나 60초가 지나면 내려간다.
+      setAgentTyping({ chatRoomId: activeChatRoomId, until: Date.now() + AGENT_TYPING_TIMEOUT_MS });
       appendMessage(optimisticCommandMessage);
 
       try {
@@ -1191,6 +1514,7 @@ function ChatPageContent() {
           resourceIds: [],
         });
         appendMessage(response.message);
+        setAgentTyping(null);
         void syncCachedRoomMessages(response.message.chatRoomId, [response.message]);
         setDraft("");
         setSelectedAttachment(null);
@@ -1198,6 +1522,7 @@ function ChatPageContent() {
         setComposerActive(true);
         setAgentCommandNotice(t("chat.notice.agentSent"));
       } catch {
+        setAgentTyping(null);
         setAgentCommandNotice(t("chat.notice.agentFailed"));
       } finally {
         setSending(false);
@@ -1248,7 +1573,7 @@ function ChatPageContent() {
     } finally {
       setSending(false);
     }
-  }, [activeChatRoomId, appendMessage, draft, selectedAttachment, selectedAgentRoomId, selectedRoom, t]);
+  }, [activeChatRoomId, appendMessage, draft, selectedAttachment, selectedAgentRoomId, selectedRoom, stopTypingPublish, t]);
 
   const handleDownload = useCallback(async (resourceId: string, fallbackName?: string) => {
     setDownloadingResourceId(resourceId);
@@ -1504,7 +1829,7 @@ function ChatPageContent() {
             ) : null}
 
             {messagesState.kind === "ready" && messagesState.messages.length > 0 ? (
-              <div className="workspace-route__messages" ref={messagesViewportRef}>
+              <div className="workspace-route__messages" onScroll={handleMessagesScroll} ref={messagesViewportRef}>
                 {messagesState.messages.map((message) => {
                   const isAgent = message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT";
                   const isMine = message.messageType === "AGENT_COMMAND" || (!isAgent && Boolean(currentUser?.id && message.sender.id === currentUser.id));
@@ -1549,6 +1874,17 @@ function ChatPageContent() {
               </div>
             ) : null}
 
+            {selectedRoom && typingIndicatorText ? (
+              <div aria-live="polite" className="workspace-route__typing-line" role="status">
+                <span aria-hidden className="workspace-route__typing-line-dots">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                <span>{typingIndicatorText}</span>
+              </div>
+            ) : null}
+
             {selectedRoom ? (
               <form
                 className={[
@@ -1584,6 +1920,12 @@ function ChatPageContent() {
                     onChange={(event) => {
                       setDraft(event.target.value);
                       if (agentCommandNotice) setAgentCommandNotice(null);
+                      // 카카오톡식 타이핑 신호 — 릴레이 미지원이면 내부에서 no-op.
+                      if (event.target.value.trim()) {
+                        notifyTypingActivity();
+                      } else {
+                        stopTypingPublish();
+                      }
                     }}
                     onFocus={() => setComposerActive(true)}
                     onKeyDown={(event) => {

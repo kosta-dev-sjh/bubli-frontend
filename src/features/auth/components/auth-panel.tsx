@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type CSSProperties, type PointerEvent } from "react";
+import { useEffect, useState, type CSSProperties, type PointerEvent } from "react";
 
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { siteConfig } from "@/config/site";
@@ -81,6 +81,13 @@ export function AuthPanel() {
   const [isStartingLogin, setIsStartingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const isDevTauriLogin = isTauriRuntime() && Boolean(process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN);
+
+  // 살아 있는 세션이면 다시 로그인하지 않고 곧바로 앱으로 보낸다.
+  useEffect(() => {
+    if (liveUser) {
+      router.replace("/app");
+    }
+  }, [liveUser, router]);
 
   async function handleGoogleLogin() {
     setIsStartingLogin(true);

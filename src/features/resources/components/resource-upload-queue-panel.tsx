@@ -128,7 +128,7 @@ export function ResourceUploadQueuePanel({
             </span>
             <div>
               <p className="m-0 text-[14px] font-[820] text-[var(--color-text)]">{t("resources.upload.queueStorageTitle")}</p>
-              <p className="m-0 text-[13.5px] text-[var(--color-muted)]">{storageUsageLabel}</p>
+              <p className="m-0 text-sm text-[var(--color-muted)]">{storageUsageLabel}</p>
             </div>
           </div>
           <Chip>{limitLabel}</Chip>
@@ -156,7 +156,7 @@ export function ResourceUploadQueuePanel({
                       </span>
                     </StatusBadge>
                   </div>
-                  <p className="m-0 mt-1 text-[13.5px] text-[var(--color-muted)]">
+                  <p className="m-0 mt-1 text-sm text-[var(--color-muted)]">
                     {t(scopeLabelKey[item.scope])} · {item.sizeLabel}
                   </p>
                 </div>

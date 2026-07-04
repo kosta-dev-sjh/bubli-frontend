@@ -21,6 +21,7 @@ export const TAURI_COMMANDS = {
   listManagedFolders: "list_managed_folders",
   openMainWindowRoute: "open_main_window_route",
   openWidgetWindow: "open_widget_window",
+  quitApp: "quit_app",
   readActiveProjectRoom: "read_active_project_room",
   readTauriAuthSession: "read_tauri_auth_session",
   readActivityContext: "read_activity_context",
@@ -53,6 +54,7 @@ export const TAURI_COMMANDS = {
   setWidgetRoomContext: "set_widget_room_context",
   setWidgetWindowMode: "set_widget_window_mode",
   setWidgetWindowPosition: "set_widget_window_position",
+  showMainWindow: "show_main_window",
   stageActivityContextsForSync: "stage_activity_contexts_for_sync",
   stageLocalFileAnalysisBackfill: "stage_local_file_analysis_backfill",
   stageLocalFileEventsForSync: "stage_local_file_events_for_sync",
@@ -664,6 +666,11 @@ export type WidgetShortcutInput = {
   shortcut: string;
 };
 
+// 위젯 메뉴 버블리에서 메인 앱을 열 때 쓰는 입력. route는 Rust 쪽 화이트리스트로 검증된다.
+export type MainWindowShowInput = {
+  route?: "settings";
+};
+
 export type SyncOutboxFlushResult = {
   failedCount: number;
   flushedAt: string;
@@ -768,6 +775,14 @@ export type TauriCommandContract = {
   open_widget_window: {
     args: WidgetWindowOpenInput | undefined;
     result: WidgetWindowState;
+  };
+  quit_app: {
+    args: undefined;
+    result: null;
+  };
+  show_main_window: {
+    args: MainWindowShowInput | undefined;
+    result: null;
   };
   read_active_project_room: {
     args: undefined;
@@ -1037,6 +1052,12 @@ export const tauriCommands = {
   },
   openMainWindowRoute(input: MainWindowRouteInput) {
     return invokeTauri<string>(TAURI_COMMANDS.openMainWindowRoute, { input });
+  },
+  quitApp() {
+    return invokeTauri<null>(TAURI_COMMANDS.quitApp);
+  },
+  showMainWindow(input?: MainWindowShowInput) {
+    return invokeTauri<null>(TAURI_COMMANDS.showMainWindow, input ? { input } : undefined);
   },
   readActiveProjectRoom() {
     return invokeTauri<ActiveProjectRoomReadResult | null>(TAURI_COMMANDS.readActiveProjectRoom);

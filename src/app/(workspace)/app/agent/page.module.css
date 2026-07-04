@@ -30,9 +30,22 @@
 }
 
 .headerActions {
+  min-width: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
   row-gap: 8px;
+}
+
+/* 좁은 폭에서 룸 선택 셀렉트가 버튼을 밀어내지 않게 스스로 줄어들 수 있게 한다. */
+.headerActions :global(.workspace-route__select) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* 헤더 생성 버튼(요구사항 후보 추출·오늘 정리 생성) 라벨은 단어 중간에서 꺾지 않는다. */
+.headerActions :global(.bubli-button) {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 /* ── 분야 필터 칩: 알림 카테고리처럼 한 줄, 좁으면 가로 스크롤 ── */
@@ -62,7 +75,7 @@
   color: var(--ink-soft);
   background: rgba(255, 255, 255, 0.68);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
@@ -77,10 +90,19 @@
   background: rgba(255, 255, 255, 0.82);
 }
 
+.filterChip:focus-visible {
+  outline: 2px solid rgba(111, 184, 242, 0.75);
+  outline-offset: 2px;
+}
+
+/* 활성 칩은 색만이 아니라 테두리·그림자까지 확실히 구분한다(옅은 하늘색 대비 보강). */
 .filterChip[data-active] {
-  border-color: rgba(111, 184, 242, 0.55);
+  border-color: rgba(111, 184, 242, 0.72);
   color: var(--blue-ink);
-  background: rgba(216, 240, 255, 0.72);
+  background: rgba(216, 240, 255, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 8px 18px -14px rgba(47, 124, 193, 0.55);
 }
 
 .filterCount {
@@ -138,12 +160,15 @@
     0 18px 40px -32px rgba(58, 120, 184, 0.42);
 }
 
-/* 분야 아이콘 타일: 알림창의 앱 아이콘처럼 분야마다 다른 색을 쓴다. */
+/* 분야 아이콘 타일: 알림창의 앱 아이콘처럼 분야마다 다른 색을 쓴다.
+   요약이 2줄로 늘어나도 항상 제목 첫 줄에 맞춰 상단 정렬을 유지한다. */
 .iconTile {
   display: grid;
   width: 36px;
   height: 36px;
+  flex: 0 0 auto;
   place-items: center;
+  margin-top: 2px;
   border-radius: 12px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
@@ -218,6 +243,12 @@
   opacity: 0.6;
 }
 
+.rowTitleButton:focus-visible {
+  outline: 2px solid rgba(111, 184, 242, 0.75);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
 .rowTitleButton:hover .rowTitle {
   color: var(--blue-ink);
 }
@@ -232,12 +263,14 @@
   transform: rotate(180deg);
 }
 
-/* 상대 시간: 알림처럼 우상단 고정 */
+/* 상대 시간: 알림처럼 우상단 고정 — 제목 길이와 무관하게 항상 오른쪽 끝에 붙는다. */
 .rowTime {
   flex: 0 0 auto;
+  margin-left: auto;
   color: var(--color-muted);
   font-size: 12px;
   font-weight: 760;
+  text-align: right;
   white-space: nowrap;
 }
 
@@ -249,7 +282,7 @@
   -webkit-line-clamp: 2;
   max-width: 65ch;
   color: var(--ink-soft);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.6;
   word-break: keep-all;
@@ -261,7 +294,7 @@
   margin: 0;
   max-width: 65ch;
   color: var(--ink-soft);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.65;
   white-space: pre-line;
@@ -278,7 +311,7 @@
   -webkit-line-clamp: 2;
   max-width: 65ch;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
   line-height: 1.55;
   word-break: keep-all;
@@ -390,7 +423,7 @@
   justify-content: space-between;
   gap: 8px;
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -400,15 +433,21 @@
   display: grid;
   min-height: 0;
   justify-items: start;
-  gap: 10px;
+  gap: 12px;
   text-align: left;
+}
+
+/* 빈 상태 CTA 두 개: 목록과 살짝 띄우고 같은 시작선에서 나란히 정렬한다. */
+.page .emptyPanel :global(.workspace-route__actions) {
+  align-items: center;
+  margin-top: 2px;
 }
 
 .emptyDesc {
   margin: 0;
   max-width: 65ch;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
   line-height: 1.55;
   word-break: keep-all;
@@ -417,7 +456,7 @@
 /* 숫자 원과 문장의 시작선을 맞춘 단정한 번호 목록 */
 .howList {
   display: grid;
-  gap: 6px;
+  gap: 9px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -431,7 +470,7 @@
   min-width: 0;
   color: var(--ink);
   counter-increment: how-step;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.5;
   word-break: keep-all;
@@ -448,7 +487,7 @@
   border-radius: 50%;
   color: var(--blue-ink);
   background: rgba(216, 240, 255, 0.8);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   line-height: 1;
 }
@@ -490,7 +529,7 @@
   min-width: 0;
   max-width: 100%;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -498,6 +537,16 @@
 
 /* ── 반응형(≤640): 피드 행 밀도·터치 타깃 보정 ── */
 @media (max-width: 640px) {
+  /* 헤더 액션(룸 선택 + 생성 버튼 2개)은 제목 아래 한 덩어리로 내려 왼쪽 정렬로 감싼다. */
+  .header > div:first-child {
+    flex-basis: 100%;
+  }
+
+  .headerActions {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+
   /* 필터 칩은 가로 스크롤 한 줄 — 터치 타깃만 40px 근처로 키운다. */
   .filterChip {
     min-height: 38px;
@@ -559,10 +608,15 @@
   background: rgba(60, 80, 125, 0.4);
 }
 
+[data-theme="dark"] .filterChip:focus-visible,
+[data-theme="dark"] .rowTitleButton:focus-visible {
+  outline-color: rgba(158, 216, 255, 0.6);
+}
+
 [data-theme="dark"] .filterChip[data-active] {
-  border-color: rgba(158, 216, 255, 0.42);
+  border-color: rgba(158, 216, 255, 0.5);
   color: #BFD6F5;
-  background: rgba(70, 110, 165, 0.42);
+  background: rgba(70, 110, 165, 0.52);
 }
 
 [data-theme="dark"] .filterCount {

@@ -37,7 +37,7 @@ function Sample() {
       <GlassPanel>
         <div style={{ display: "grid", gap: 12, padding: 4 }}>
           <strong style={{ fontSize: 14 }}>오늘 할 일</strong>
-          <p style={{ fontSize: 13, margin: 0, color: "var(--text-soft, #586978)" }}>
+          <p style={{ fontSize: 14, margin: 0, color: "var(--text-soft, #586978)" }}>
             시안 1차 보내기 · 견적서 회신 확인
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

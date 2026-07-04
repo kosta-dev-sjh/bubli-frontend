@@ -1,22 +1,34 @@
 "use client";
 
-import { BellOff } from "lucide-react";
+import { BellOff, FolderKanban } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { NotificationResponse } from "@/types/api/notification";
+import type { ProjectRoomInvitationResponse } from "@/types/api/projectRoom";
 
 import styles from "./workspace-topbar.module.css";
 
 export type TopbarNotificationsPanelProps = {
+  acceptingInvitationId?: string | null;
   id?: string;
+  invitations?: ProjectRoomInvitationResponse[];
   items: NotificationResponse[];
+  onAcceptInvitation?: (invitation: ProjectRoomInvitationResponse) => void;
   onArchive: (notificationId: string) => void;
   onMarkRead: (notificationId: string) => void;
 };
 
-export function TopbarNotificationsPanel({ id, items, onArchive, onMarkRead }: TopbarNotificationsPanelProps) {
+export function TopbarNotificationsPanel({
+  acceptingInvitationId,
+  id,
+  invitations = [],
+  items,
+  onAcceptInvitation,
+  onArchive,
+  onMarkRead,
+}: TopbarNotificationsPanelProps) {
   const { locale, t } = useI18n();
   const visibleItems = items.filter((item) => item.status !== "ARCHIVED");
   const unreadCount = visibleItems.filter((item) => item.status === "UNREAD").length;
@@ -37,6 +49,41 @@ export function TopbarNotificationsPanel({ id, items, onArchive, onMarkRead }: T
         <strong>{t("layout.notifications.title")}</strong>
         {unreadCount > 0 ? <span>{t("layout.notifications.unreadCount", { count: unreadCount })}</span> : null}
       </header>
+      {invitations.length ? (
+        <div className={styles.invitesSection}>
+          <span className={styles.invitesLabel}>{t("layout.invites.title")}</span>
+          <ul className={styles.notificationsList}>
+            {invitations.map((invitation) => (
+              <li className={styles.notificationItem} data-unread="true" key={invitation.id}>
+                <span className={styles.inviteIcon} aria-hidden="true">
+                  <FolderKanban size={15} strokeWidth={2.1} />
+                </span>
+                <div className={styles.notificationBody}>
+                  <strong>{invitation.roomName || t("layout.invites.roomFallback")}</strong>
+                  <p>
+                    {t("layout.invites.from", {
+                      name: invitation.inviterName || invitation.inviterBubliId || t("layout.invites.inviterFallback"),
+                    })}
+                  </p>
+                  <time dateTime={invitation.createdAt}>{formatTime(invitation.createdAt)}</time>
+                </div>
+                <div className={styles.notificationActions}>
+                  <Button
+                    aria-label={t("layout.invites.acceptAria", { room: invitation.roomName ?? "" })}
+                    disabled={acceptingInvitationId !== null && acceptingInvitationId !== undefined}
+                    loading={acceptingInvitationId === invitation.id}
+                    onClick={() => onAcceptInvitation?.(invitation)}
+                    size="sm"
+                    variant="primary"
+                  >
+                    {t("layout.invites.accept")}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {visibleItems.length ? (
         <ul className={styles.notificationsList}>
           {visibleItems.map((item) => (
@@ -75,12 +122,12 @@ export function TopbarNotificationsPanel({ id, items, onArchive, onMarkRead }: T
             </li>
           ))}
         </ul>
-      ) : (
+      ) : !invitations.length ? (
         <p className={styles.notificationsEmpty}>
           <BellOff size={16} strokeWidth={2.1} aria-hidden="true" />
           {t("layout.notifications.empty")}
         </p>
-      )}
+      ) : null}
     </section>
   );
 }

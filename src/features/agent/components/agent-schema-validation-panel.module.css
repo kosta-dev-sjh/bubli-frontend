@@ -46,7 +46,7 @@
 
 .resultCard span {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -99,7 +99,7 @@
 .metricCard p {
   margin: 0;
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -148,7 +148,7 @@
 .resultItem p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 12.8px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -188,7 +188,7 @@
   display: inline-block;
   margin-top: 7px;
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.35;
   overflow-wrap: anywhere;

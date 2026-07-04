@@ -176,9 +176,19 @@ const ko = {
   "resources.workspace.emptyPersonalTitleWeb": "연결된 개인 자료가 없습니다",
   "resources.workspace.emptyPersonalDescTauri": "폴더를 연결하거나 스캔하면 여기에 표시됩니다.",
   "resources.workspace.emptyPersonalDescWeb": "로컬 폴더는 데스크탑 앱에서 연결합니다.",
-  "resources.workspace.emptyPersonalSteps": "데스크탑 앱 열기 · 폴더 선택 · 자동 동기화",
+  "resources.workspace.emptyPersonalSteps": "데스크탑 앱 열기, 폴더 선택, 자동 동기화",
   "resources.workspace.emptyPersonalGoRoomBoard": "프로젝트룸 자료보드로 이동",
   "resources.workspace.emptyPersonalGetDesktop": "데스크탑 앱 받기",
+
+  // AI 의미 검색 (resource-ai-search-panel.tsx)
+  "resources.aiSearch.title": "AI 내용 검색",
+  "resources.aiSearch.query": "'{query}' 관련 내용 찾기",
+  "resources.aiSearch.run": "AI로 찾기",
+  "resources.aiSearch.hint": "버튼을 누르면 파일 내용에서 의미가 비슷한 부분을 찾아요.",
+  "resources.aiSearch.empty": "관련 내용을 찾지 못했어요.",
+  "resources.aiSearch.unknownResource": "연결된 자료",
+  "resources.aiSearch.score": "일치율 {percent}%",
+  "resources.aiSearch.page": "{page}쪽",
 
   // 검색 커맨드 (resource-search-command.tsx)
   "resources.search.eyebrow": "자료보드 검색",
@@ -820,6 +830,15 @@ const en: Record<Key, string> = {
   "resources.workspace.emptyPersonalGoRoomBoard": "Go to the room resource board",
   "resources.workspace.emptyPersonalGetDesktop": "Get the desktop app",
 
+  "resources.aiSearch.title": "AI content search",
+  "resources.aiSearch.query": "Find content about '{query}'",
+  "resources.aiSearch.run": "Search with AI",
+  "resources.aiSearch.hint": "Press the button to find passages with a similar meaning inside your files.",
+  "resources.aiSearch.empty": "No related content found.",
+  "resources.aiSearch.unknownResource": "Linked file",
+  "resources.aiSearch.score": "{percent}% match",
+  "resources.aiSearch.page": "Page {page}",
+
   "resources.search.eyebrow": "Resource board search",
   "resources.search.title": "Find scattered resources within your permission scope",
   "resources.search.summary":
@@ -1445,6 +1464,15 @@ const ja: Record<Key, string> = {
   "resources.workspace.emptyPersonalSteps": "デスクトップアプリを開く · フォルダ選択 · 自動同期",
   "resources.workspace.emptyPersonalGoRoomBoard": "プロジェクトルームの資料ボードへ",
   "resources.workspace.emptyPersonalGetDesktop": "デスクトップアプリを入手",
+
+  "resources.aiSearch.title": "AI内容検索",
+  "resources.aiSearch.query": "「{query}」に関する内容を探す",
+  "resources.aiSearch.run": "AIで探す",
+  "resources.aiSearch.hint": "ボタンを押すと、ファイル内容から意味が近い箇所を探します。",
+  "resources.aiSearch.empty": "関連する内容が見つかりませんでした。",
+  "resources.aiSearch.unknownResource": "関連資料",
+  "resources.aiSearch.score": "一致率 {percent}%",
+  "resources.aiSearch.page": "{page}ページ",
 
   "resources.search.eyebrow": "資料ボード検索",
   "resources.search.title": "散らばった資料を権限範囲の中で探します",

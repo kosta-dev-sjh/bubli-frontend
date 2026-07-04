@@ -46,7 +46,7 @@
 
 .summaryCard span {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -94,7 +94,7 @@
   padding: 7px 10px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.5);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 820;
   line-height: 1;
 }
@@ -128,7 +128,7 @@
   padding: 0 10px;
   color: var(--color-blue-deep);
   background: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 860;
   line-height: 1;
   box-shadow: var(--shadow-soft);
@@ -172,7 +172,7 @@
 .focusCard p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 12.8px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -189,7 +189,7 @@
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.56);
   box-shadow: var(--shadow-soft);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 820;
   line-height: 1;
 }
@@ -270,7 +270,7 @@
 .targetCopy span {
   overflow: hidden;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.45;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -312,7 +312,7 @@
 .ruleCard p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 12.8px;
+  font-size: 14px;
   line-height: 1.55;
 }
 
@@ -339,7 +339,7 @@
 .boundaryCard p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 12.8px;
+  font-size: 14px;
   line-height: 1.55;
 }
 

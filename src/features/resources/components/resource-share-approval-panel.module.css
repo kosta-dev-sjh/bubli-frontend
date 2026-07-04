@@ -81,7 +81,7 @@
 .flowCard span:not(:global(.bubli-status)) {
   display: block;
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -98,7 +98,7 @@
 
 .flowCard p {
   margin-top: 4px;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .flowArrow {
@@ -183,7 +183,7 @@
 .auditList p,
 .policyStack p {
   margin-top: 3px;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .policyStack {

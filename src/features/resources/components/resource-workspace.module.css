@@ -81,7 +81,7 @@
   border-radius: 8px;
   padding: 0 10px;
   color: var(--rb-ink-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   text-decoration: none;
   transition:
@@ -126,7 +126,7 @@
   color: var(--rb-ink);
   background: transparent;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   outline: none;
 }
@@ -145,7 +145,7 @@
 .statusLine {
   margin: 10px 16px 0;
   color: var(--rb-ink-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
 }
@@ -156,7 +156,7 @@
   padding: 8px 11px;
   color: var(--rb-ink-accent);
   background: var(--rb-tint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
 }
@@ -168,7 +168,7 @@
   padding: 8px 11px;
   color: var(--rb-ink);
   background: rgba(232, 152, 152, 0.1);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
 }
@@ -200,7 +200,7 @@
   border-radius: 12px;
   padding: 9px 13px;
   color: var(--rb-ink-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
 }
@@ -212,7 +212,7 @@
 
 .dropzone strong {
   color: var(--rb-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
 }
 
@@ -235,7 +235,7 @@
 /* dev PR 214 이식: 동기화 스트립 — 연결된 로컬 폴더 안내(작은 줄) */
 .dropzoneText small {
   color: var(--rb-ink-muted);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1.4;
 }
@@ -282,14 +282,14 @@
 .localIndexRow small,
 .localIndexRow p {
   color: var(--rb-ink-muted);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .localIndexHeader strong,
 .localIndexRow strong {
   overflow: hidden;
   color: var(--rb-ink);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -334,7 +334,7 @@
 
 .localIndexPreview span {
   color: var(--rb-ink-accent);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -459,7 +459,7 @@
 .rowMeta {
   overflow: hidden;
   color: var(--rb-ink-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
@@ -566,7 +566,7 @@
 .empty p {
   margin: 0;
   color: var(--rb-ink-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.6;
 }
@@ -602,7 +602,7 @@
 .stateBlock p {
   margin: 0;
   color: var(--rb-ink-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.6;
 }
@@ -652,7 +652,7 @@
 .detailSub {
   overflow: hidden;
   color: var(--rb-ink-muted);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
@@ -685,7 +685,7 @@
   color: var(--rb-ink);
   background: transparent;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   cursor: pointer;
   transition:
@@ -738,7 +738,7 @@
   color: var(--rb-ink);
   background: rgba(255, 255, 255, 0.78);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   outline: none;
 }
@@ -761,7 +761,7 @@
 .deleteConfirm p {
   margin: 0;
   color: var(--rb-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
 }
@@ -786,13 +786,13 @@
 
 .previewBlock strong {
   color: var(--rb-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
 }
 
 .previewBlock span {
   color: var(--rb-ink-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.6;
 }
@@ -851,7 +851,7 @@
 .sectionEmpty {
   margin: 0;
   color: var(--rb-ink-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -861,7 +861,7 @@
   padding: 7px 10px;
   color: var(--rb-ink-accent);
   background: var(--rb-tint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
 }
@@ -873,7 +873,7 @@
   padding: 7px 10px;
   color: var(--rb-ink);
   background: rgba(232, 152, 152, 0.1);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
 }
@@ -890,7 +890,7 @@
 .kvLine span {
   flex: 0 0 auto;
   color: var(--rb-ink-muted);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -898,7 +898,7 @@
   overflow: hidden;
   min-width: 0;
   color: var(--rb-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   text-align: right;
   text-overflow: ellipsis;
@@ -929,7 +929,7 @@
 .versionNo {
   flex: 0 0 auto;
   color: var(--rb-ink-accent);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
@@ -939,7 +939,7 @@
   flex: 1 1 auto;
   min-width: 0;
   color: var(--rb-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -993,7 +993,7 @@
 .relatedButton b {
   overflow: hidden;
   color: var(--rb-ink);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1002,7 +1002,7 @@
 .relatedButton span {
   overflow: hidden;
   color: var(--rb-ink-muted);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1033,7 +1033,7 @@
 .aiDocList dt {
   flex: 0 0 auto;
   color: var(--rb-ink-muted);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -1042,7 +1042,7 @@
   min-width: 0;
   margin: 0;
   color: var(--rb-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   text-align: right;
   text-overflow: ellipsis;
@@ -1066,7 +1066,7 @@
   color: var(--rb-ink);
   background: rgba(255, 255, 255, 0.78);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.55;
   resize: vertical;
@@ -1106,7 +1106,7 @@
 
 .commentAuthor {
   color: var(--rb-ink);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 650;
 }
 
@@ -1132,7 +1132,7 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--rb-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -1153,7 +1153,7 @@
   color: var(--rb-ink);
   background: rgba(255, 255, 255, 0.78);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.55;
   resize: vertical;

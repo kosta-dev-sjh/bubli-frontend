@@ -46,7 +46,7 @@
 
 .summaryCard span {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -115,7 +115,7 @@
 .boundaryCopy p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 12.6px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -153,7 +153,7 @@
 
 .sectionMeta {
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -221,7 +221,7 @@
 
 .inputGrid span {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 820;
   line-height: 1.2;
 }
@@ -236,7 +236,7 @@
 .inputGrid small {
   overflow: hidden;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -255,7 +255,7 @@
   align-items: center;
   gap: 8px;
   color: var(--color-muted);
-  font-size: 12.8px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.45;
 }

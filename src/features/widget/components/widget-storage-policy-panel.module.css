@@ -148,7 +148,7 @@
 .tableList :global(.bubli-chip) {
   max-width: 100%;
   min-height: 26px;
-  font-size: 12.5px;
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 
@@ -195,7 +195,7 @@
 
 .rollupTotal span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .deviceList {
@@ -222,7 +222,7 @@
 
 .deviceItem span {
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .deviceStats {

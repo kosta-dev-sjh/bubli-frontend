@@ -20,6 +20,7 @@ import {
   type Range,
 } from "@/components/ui/gantt";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
+import { useRoomCalendarAutoPush } from "@/features/calendar/api/use-room-calendar-auto-push";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
@@ -144,6 +145,8 @@ export function WbsGanttPanel({
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const [createDraft, setCreateDraft] = useState<CreateDraft | null>(null);
   const [isSyncPopoverOpen, setIsSyncPopoverOpen] = useState(false);
+  // 팝오버를 연 시각. "방금/{n}분 전" 계산의 기준으로 써서 렌더 중 Date.now() 호출을 피한다.
+  const [syncPopoverOpenedAt, setSyncPopoverOpenedAt] = useState<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const syncWrapRef = useRef<HTMLDivElement>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
@@ -235,6 +238,44 @@ export function WbsGanttPanel({
       cancelled = true;
     };
   }, [calendarSync, roomId]);
+
+  // 자동 push용 기간은 마운트 시점 기준으로 고정한다(렌더마다 ISO 문자열이 바뀌지 않게).
+  const autoPushRange = useMemo(() => scheduleRangeQuery(), []);
+
+  // 자동 push가 끝나면 이번에 연동된 룸 일정(WBS 기간 일정)을 화면 상태에 합치고,
+  // push로 룸 캘린더가 지연 생성됐을 수 있으니 매핑(이름)을 갱신해 팝오버 문구에 쓴다.
+  const handleAutoPushed = useCallback(
+    (roomEvents: ScheduleResponse[]) => {
+      const wbsEvents = roomEvents.filter((event) => event.wbsItemId);
+      if (wbsEvents.length > 0) {
+        setSchedules((current) => {
+          const byId = new Map(current.map((entry) => [entry.id, entry]));
+          for (const event of wbsEvents) {
+            byId.set(event.id, event);
+          }
+          return Array.from(byId.values());
+        });
+      }
+
+      void calendarApi
+        .getRoomCalendar(roomId)
+        .then((response) => setRoomCalendarByRoom((current) => ({ ...current, [roomId]: response })))
+        .catch(() => {
+          // 매핑 조회 실패는 팝오버 문구만 생략한다.
+        });
+    },
+    [roomId],
+  );
+
+  // 구글 연동이 활성인 멤버가 WBS 보드를 열면 세션당 한 번, 그리고 일정 변경 후
+  // 5초 디바운스로 내가 만든 룸 일정의 미연동분을 내 구글 캘린더(룸 캘린더)로 push한다.
+  const { lastPush, schedulePush } = useRoomCalendarAutoPush({
+    enabled: calendarSync === "recording",
+    from: autoPushRange.from,
+    onPushed: handleAutoPushed,
+    roomId,
+    to: autoPushRange.to,
+  });
 
   // GET이지만 백엔드가 룸 이름으로 구글 캘린더를 지연 생성하는 ensure 성격의 호출이라
   // 자동 조회하지 않고 팝오버의 버튼으로만 부른다.
@@ -537,6 +578,8 @@ export function WbsGanttPanel({
         .then((updated) => {
           setSchedules((current) => current.map((entry) => (entry.id === updated.id ? updated : entry)));
           onNotice(t("wbs.gantt.notice.rangeSaved"));
+          // 서버 저장 직후 동기화가 실패했을 수 있어 디바운스 push로 구글 사본을 맞춘다.
+          schedulePush();
         })
         .catch(() => onNotice(shouldUseWorkspacePreviewData() ? t("wbs.gantt.notice.rangeSaved") : t("wbs.gantt.notice.rangeServerPending")));
       return;
@@ -547,9 +590,10 @@ export function WbsGanttPanel({
       .then((created) => {
         setSchedules((current) => [...current, created]);
         onNotice(t("wbs.gantt.notice.rangeSaved"));
+        schedulePush();
       })
       .catch(() => onNotice(shouldUseWorkspacePreviewData() ? t("wbs.gantt.notice.rangeSaved") : t("wbs.gantt.notice.rangeServerPending")));
-  }, [onNotice, roomId, scheduleByWbsId, t]);
+  }, [onNotice, roomId, schedulePush, scheduleByWbsId, t]);
 
   const applyRange = useCallback((item: WbsItemResponse, startAt: Date, endAt: Date | null) => {
     const nextRange = normalizeRange(startAt, endAt);
@@ -782,6 +826,10 @@ export function WbsGanttPanel({
       return next;
     });
     onWbsDeleted(item.id);
+    if (schedule) {
+      // 기간이 있던 항목을 지웠으면 남은 미연동분도 함께 밀어 구글 사본 상태를 맞춘다.
+      schedulePush();
+    }
     onNotice(calendarDeleteFailed ? t("wbs.gantt.notice.deletedCalendarPending") : t("wbs.gantt.notice.deleted"));
   };
 
@@ -808,6 +856,26 @@ export function WbsGanttPanel({
       : null;
   const syncHintText = calendarSync === "recording" ? t("wbs.gantt.sync.titleRecording") : t("wbs.gantt.sync.titleOff");
   const roomCalendar = roomCalendarByRoom[roomId] ?? null;
+  // 연동 모델을 한 줄로: 원본은 Bubli, 구글에는 사본. 룸 캘린더 이름을 알면 함께 보여준다.
+  const syncModelText =
+    calendarSync === "recording"
+      ? roomCalendar?.googleCalendarId
+        ? t("wbs.gantt.sync.modelNamed", { name: roomCalendar.calendarName })
+        : t("wbs.gantt.sync.model")
+      : null;
+  const lastPushTimeText =
+    lastPush && syncPopoverOpenedAt !== null
+      ? (() => {
+          const elapsedMinutes = Math.max(0, Math.floor((syncPopoverOpenedAt - new Date(lastPush.at).getTime()) / 60_000));
+          return elapsedMinutes < 1 ? t("wbs.gantt.sync.justNow") : t("wbs.gantt.sync.minutesAgo", { count: elapsedMinutes });
+        })()
+      : null;
+  const lastPushText =
+    calendarSync === "recording" && lastPush && lastPushTimeText
+      ? lastPush.roomEventCount > 0
+        ? t("wbs.gantt.sync.lastPushed", { count: lastPush.roomEventCount, time: lastPushTimeText })
+        : t("wbs.gantt.sync.lastPushedNone", { time: lastPushTimeText })
+      : null;
 
   return (
     <div className={styles.panel} ref={panelRef}>
@@ -864,7 +932,10 @@ export function WbsGanttPanel({
               aria-label={syncStateText}
               className={styles.syncTrigger}
               data-state={syncState}
-              onClick={() => setIsSyncPopoverOpen((current) => !current)}
+              onClick={() => {
+                setSyncPopoverOpenedAt(Date.now());
+                setIsSyncPopoverOpen((current) => !current);
+              }}
               title={syncHintText}
               type="button"
             >
@@ -878,9 +949,8 @@ export function WbsGanttPanel({
               <div aria-label={syncStateText} className={styles.syncPopover} data-state={syncState} role="dialog">
                 <strong>{syncStateText}</strong>
                 {syncDetailText ? <small>{syncDetailText}</small> : null}
-                {calendarSync === "recording" && roomCalendar?.googleCalendarId ? (
-                  <small>{t("wbs.gantt.sync.roomCalendarConnected", { name: roomCalendar.calendarName })}</small>
-                ) : null}
+                {syncModelText ? <small>{syncModelText}</small> : null}
+                {lastPushText ? <small>{lastPushText}</small> : null}
                 <p>{syncHintText}</p>
                 {calendarSync === "recording" && !roomCalendar?.googleCalendarId ? (
                   <button
@@ -1117,7 +1187,7 @@ export function WbsGanttPanel({
                 return (
                   <div className="flex" key={item.id}>
                     <GanttFeatureItem key={featureKey} onMove={handleMoveFeature} {...feature}>
-                      <p className="flex-1 truncate text-[13px]" title={barTitle}>
+                      <p className="flex-1 truncate text-sm" title={barTitle}>
                         {feature.name}
                       </p>
                     </GanttFeatureItem>

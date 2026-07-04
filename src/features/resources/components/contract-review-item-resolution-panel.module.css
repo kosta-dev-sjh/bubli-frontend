@@ -55,7 +55,7 @@
 .fieldBlock small,
 .documentValue span {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -95,7 +95,7 @@
 .notice p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 13.2px;
+  font-size: 14px;
   line-height: 1.65;
 }
 
@@ -144,7 +144,7 @@
 .itemTitle p {
   margin: 6px 0 0;
   color: var(--color-muted);
-  font-size: 12.8px;
+  font-size: 14px;
   line-height: 1.6;
 }
 

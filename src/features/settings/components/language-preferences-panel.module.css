@@ -15,7 +15,7 @@
   align-items: center;
   gap: 8px;
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -161,7 +161,7 @@
 
 .cardTop strong {
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 840;
   white-space: nowrap;
 }
@@ -218,7 +218,7 @@
 
 .ruleCard span {
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
 }
 

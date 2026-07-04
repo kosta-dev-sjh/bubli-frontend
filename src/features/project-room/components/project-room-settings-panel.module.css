@@ -69,7 +69,7 @@
 .notice,
 .noticeError {
   border-radius: 12px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   line-height: 1.45;
   margin: 0;
@@ -131,7 +131,7 @@
 .field {
   color: var(--settings-muted);
   display: grid;
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 650;
   gap: 4px;
   min-inline-size: 0;
@@ -144,7 +144,7 @@
   border-radius: 10px;
   color: var(--settings-ink);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   min-block-size: 34px;
   min-inline-size: 0;
   padding: 0 10px;
@@ -164,7 +164,7 @@
 
 .hint {
   color: var(--settings-muted);
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1.55;
   margin: 0;
   word-break: keep-all;
@@ -210,7 +210,7 @@
 
 .memberName strong {
   color: var(--settings-ink);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.4;
   overflow-wrap: anywhere;
   word-break: keep-all;
@@ -236,7 +236,7 @@
   border-radius: 10px;
   color: var(--settings-ink);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 14px;
   min-block-size: 30px;
   padding: 0 8px;
 }

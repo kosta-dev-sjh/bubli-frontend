@@ -465,7 +465,7 @@ select {
 .bubli-button--sm {
   min-height: 32px;
   padding: 0 12px;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .bubli-button--lg {
@@ -578,7 +578,7 @@ select {
   padding: 0 11px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.58);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1;
 }
@@ -601,7 +601,7 @@ select {
   padding: 0 9px;
   background: rgba(255, 255, 255, 0.64);
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 780;
   line-height: 1;
   white-space: nowrap;
@@ -752,7 +752,7 @@ select {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .bubli-progress-row__head span:first-child { color: var(--ink-soft); }
 .bubli-progress-row__head span:last-child {
@@ -865,7 +865,7 @@ select {
   border-radius: 999px;
   background: #E79BB0;
   color: #fff;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -909,7 +909,7 @@ select {
   box-shadow: var(--surface-shadow);
   -webkit-backdrop-filter: blur(var(--surface-blur)) saturate(var(--surface-sat));
   backdrop-filter: blur(var(--surface-blur)) saturate(var(--surface-sat));
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--ink);
   cursor: pointer;
@@ -977,7 +977,7 @@ select {
 .bubli-widget__cb--done { background: var(--bubble-blue); border-color: transparent; }
 .bubli-widget__timer { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; margin: 4px 0 0; }
 .bubli-widget__agent { display: flex; align-items: flex-start; gap: 9px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(120, 150, 170, 0.13); }
-.bubli-widget__agent p { margin: 0; font-size: 13px; line-height: 18px; color: var(--ink-soft); }
+.bubli-widget__agent p { margin: 0; font-size: 14px; line-height: 18px; color: var(--ink-soft); }
 
 /* Translucent — opacity만이 아니라 rim·blur·shadow·대비·밀도 함께↓ */
 .bubli-widget--translucent {
@@ -1005,7 +1005,7 @@ select {
   backdrop-filter: none;
 }
 .bubli-widget__ghost { display: flex; align-items: center; gap: 16px; }
-.bubli-widget__signal { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-soft); }
+.bubli-widget__signal { display: flex; align-items: center; gap: 7px; font-size: 14px; color: var(--ink-soft); }
 .bubli-widget__signal .bubli-widget__through {
   display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-3);
 }
@@ -1070,7 +1070,7 @@ select {
 .bubli-app-layout {
   position: relative;
   display: grid;
-  grid-template-columns: 94px minmax(0, 1fr);
+  grid-template-columns: 104px minmax(0, 1fr);
   width: 100%;
   min-width: 0;
   min-height: 100vh;
@@ -1147,7 +1147,7 @@ select {
   gap: 8px;
   margin: 14px 8px 8px;
   color: color-mix(in srgb, var(--color-muted) 82%, var(--blue-ink) 18%);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   letter-spacing: 0;
   line-height: 1;
@@ -1175,10 +1175,11 @@ select {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  min-height: 54px;
+  min-height: 68px;
   border: 1px solid transparent;
   border-radius: 18px;
-  padding: 0;
+  /* 활성 그라데이션 바와 라벨 사이 최소 5px 여백 확보 */
+  padding: 7px 2px 12px;
   color: rgba(48, 91, 132, 0.7);
   font-size: 16px;
   font-weight: 860;
@@ -1196,11 +1197,11 @@ select {
 .bubli-nav__label {
   display: block;
   max-width: 100%;
-  height: 12px;
+  height: 16px;
   overflow: hidden;
   padding: 0 2px;
   color: currentColor;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 650;
   letter-spacing: 0.01em;
   line-height: 1.1;
@@ -1382,7 +1383,7 @@ select {
 
 .workspace-switcher__head span {
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -1495,7 +1496,7 @@ select {
   padding: 14px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.36);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -1629,7 +1630,7 @@ select {
   padding: 0 13px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.32);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -1692,7 +1693,7 @@ select {
 .bubli-room-card__body small {
   min-width: 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
   line-height: 1.3;
   overflow: hidden;
@@ -1976,7 +1977,7 @@ select {
 
 .workspace-route__members-chip small {
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1;
 }
@@ -2157,7 +2158,7 @@ select {
   color: var(--ink-soft);
   background: transparent;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 860;
   cursor: pointer;
 }
@@ -2202,7 +2203,7 @@ select {
   border-radius: 999px;
   color: var(--blue-ink);
   background: rgba(216, 240, 255, 0.62);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .room-home__kanban-list,
@@ -2238,7 +2239,7 @@ select {
 
 .room-home__wbs-step > span:first-child {
   color: var(--blue-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 920;
 }
 
@@ -2261,7 +2262,7 @@ select {
 .room-home__wbs-step-main > span:not(.room-home__wbs-progress) {
   overflow: hidden;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2365,7 +2366,7 @@ select {
 .room-home__route-card small {
   overflow: hidden;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -2481,7 +2482,7 @@ select {
   padding: 0 11px;
   color: var(--blue-ink);
   background: rgba(216, 240, 255, 0.46);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 860;
 }
 
@@ -2530,7 +2531,7 @@ select {
   padding: 0 10px;
   color: var(--blue-ink);
   background: rgba(216, 240, 255, 0.5);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 860;
 }
 
@@ -2550,7 +2551,7 @@ select {
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 880;
 }
 
@@ -2631,7 +2632,7 @@ select {
   display: block;
   margin-top: 4px;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 680;
   line-height: 1.45;
   word-break: keep-all;
@@ -2789,7 +2790,7 @@ select {
   padding: 0 10px;
   color: var(--ink-soft);
   background: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
   transition:
     border-color 160ms var(--ease-out),
@@ -2882,7 +2883,7 @@ select {
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
     0 14px 30px -28px rgba(47, 124, 193, 0.38);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 880;
   cursor: pointer;
   transition:
@@ -2976,7 +2977,7 @@ select {
   padding: 0 13px;
   color: var(--ink-soft);
   background: rgba(255, 255, 255, 0.66);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 880;
   text-decoration: none;
   transition:
@@ -3059,7 +3060,7 @@ select {
 
 .workspace-route__new-room-modal-head span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -3296,7 +3297,7 @@ select {
   color: var(--ink);
   background: transparent;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
   outline: none;
 }
@@ -3471,7 +3472,7 @@ button.workspace-route__friend-row:hover {
   padding: 7px 10px;
   color: var(--blue-ink);
   background: rgba(255, 255, 255, 0.68);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 860;
 }
 
@@ -3483,7 +3484,7 @@ button.workspace-route__friend-row:hover {
 .workspace-route__agent-notice {
   width: fit-content;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -3599,7 +3600,7 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__new-room-panel span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -3628,7 +3629,7 @@ button.workspace-route__friend-row:hover {
   color: var(--ink);
   background: rgba(255, 255, 255, 0.68);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
   outline: none;
 }
@@ -3676,13 +3677,13 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__group-create-actions > span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
 .workspace-route__section-head span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
 }
 
@@ -3696,7 +3697,7 @@ button.workspace-route__friend-row:hover {
   padding: 8px 11px;
   color: var(--blue-ink);
   background: rgba(215, 238, 255, 0.8);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -3714,7 +3715,7 @@ button.workspace-route__friend-row:hover {
   padding: 0 12px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
   white-space: nowrap;
 }
@@ -3783,7 +3784,7 @@ button.workspace-route__friend-row:hover {
   color: var(--ink);
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   white-space: nowrap;
   animation: voice-pill-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -3874,7 +3875,7 @@ button.workspace-route__friend-row:hover {
   border-radius: 999px;
   background: linear-gradient(135deg, rgba(120, 190, 255, 0.48), rgba(80, 140, 220, 0.28));
   color: var(--blue-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   font-style: normal;
   transition: box-shadow 120ms ease-out;
@@ -3887,7 +3888,7 @@ button.workspace-route__friend-row:hover {
 .workspace-route__voice-people--inline .workspace-route__voice-person strong {
   display: block;
   max-width: 90px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3926,7 +3927,7 @@ button.workspace-route__friend-row:hover {
   background: rgba(231, 246, 255, 0.78);
   box-shadow: var(--inner-highlight-light);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
   white-space: nowrap;
   cursor: pointer;
@@ -3955,7 +3956,7 @@ button.workspace-route__friend-row:hover {
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.78);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 560;
   text-overflow: ellipsis;
 }
@@ -3992,7 +3993,7 @@ button.workspace-route__friend-row:hover {
 .workspace-route__voice-person > span {
   width: 32px;
   height: 32px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .workspace-route__messages {
@@ -4069,7 +4070,7 @@ button.workspace-route__friend-row:hover {
   min-width: 0;
   overflow: hidden;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 880;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4156,7 +4157,7 @@ button.workspace-route__friend-row:hover {
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.68);
   box-shadow: var(--inner-highlight-light);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
 }
 
@@ -4166,6 +4167,60 @@ button.workspace-route__friend-row:hover {
   border-radius: 999px;
   background: var(--bubble-blue);
   box-shadow: 0 0 0 5px rgba(111, 184, 242, 0.14);
+}
+
+/* 입력 중 인디케이터 — 컴포저 바로 위 한 줄(카카오톡식). */
+.workspace-route__typing-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 760;
+  word-break: keep-all;
+}
+
+.workspace-route__typing-line-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.workspace-route__typing-line-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: workspace-typing-dot 1.15s ease-in-out infinite;
+}
+
+.workspace-route__typing-line-dots i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.workspace-route__typing-line-dots i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes workspace-typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-route__typing-line-dots i {
+    animation: none;
+  }
 }
 
 .workspace-route__composer {
@@ -4268,7 +4323,7 @@ button.workspace-route__friend-row:hover {
   border-top: 1px solid rgba(210, 225, 238, 0.56);
   padding: 8px 4px 2px;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 740;
 }
 
@@ -4284,7 +4339,7 @@ button.workspace-route__friend-row:hover {
   background: rgba(216, 240, 255, 0.5);
   box-shadow: var(--inner-highlight-light);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -4929,7 +4984,7 @@ button.workspace-route__friend-row:hover {
 
 .bubli-bubble__meta {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -4997,7 +5052,7 @@ button.workspace-route__friend-row:hover {
 .bubli-domain-card__meta {
   margin: 3px 0 0;
   color: var(--color-faint);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -5114,7 +5169,7 @@ button.workspace-route__friend-row:hover {
 
 .dashboard-metric span {
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
   line-height: 1.35;
 }
@@ -5192,7 +5247,7 @@ button.workspace-route__friend-row:hover {
 
 .dashboard-handoff-row span {
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -5273,7 +5328,7 @@ button.workspace-route__friend-row:hover {
 .project-room-candidate span,
 .project-room-members__note {
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 620;
   line-height: 1.55;
 }
@@ -5414,7 +5469,7 @@ button.workspace-route__friend-row:hover {
   color: var(--color-blue-deep);
   border-color: rgba(111, 184, 242, 0.3);
   background: rgba(215, 234, 244, 0.54);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 780;
   line-height: 18px;
 }
@@ -5439,7 +5494,7 @@ button.workspace-route__friend-row:hover {
 .project-room-member span:not(.project-room-member__avatar, .bubli-status) {
   display: block;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   line-height: 17px;
 }
@@ -5454,7 +5509,7 @@ button.workspace-route__friend-row:hover {
   border-radius: 999px;
   color: var(--color-blue-deep);
   background: rgba(215, 234, 244, 0.74);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 850;
 }
 
@@ -5586,7 +5641,7 @@ button.workspace-route__friend-row:hover {
 
 .project-room-create-resource__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -5798,7 +5853,7 @@ button.workspace-route__friend-row:hover {
   display: block;
   margin-top: 3px;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 660;
   line-height: 18px;
 }
@@ -5853,7 +5908,7 @@ button.workspace-route__friend-row:hover {
 .resource-board__detail-head p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -6017,7 +6072,7 @@ button.workspace-route__friend-row:hover {
 
 .work-board__target span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -6050,7 +6105,7 @@ button.workspace-route__friend-row:hover {
   display: block;
   margin-top: 3px;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.48;
 }
 
@@ -6086,7 +6141,7 @@ button.workspace-route__friend-row:hover {
 .work-board__pane-head p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -6104,7 +6159,7 @@ button.workspace-route__friend-row:hover {
   padding: 10px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.58);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -6150,7 +6205,7 @@ button.workspace-route__friend-row:hover {
   padding: 12px;
   color: var(--color-brand);
   background: rgba(232, 196, 160, 0.18);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -6308,7 +6363,7 @@ button.workspace-route__friend-row:hover {
 
 .schedule-day span,
 .schedule-day small {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.2;
 }
@@ -6332,7 +6387,7 @@ button.workspace-route__friend-row:hover {
   padding: 18px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.5);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.5;
   text-align: center;
@@ -6382,7 +6437,7 @@ button.workspace-route__friend-row:hover {
 
 .schedule-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -6533,7 +6588,7 @@ button.workspace-route__friend-row:hover {
 
 .google-calendar-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -6686,7 +6741,7 @@ button.workspace-route__friend-row:hover {
 
 .agent-job-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -6716,7 +6771,7 @@ button.workspace-route__friend-row:hover {
   padding: 6px 9px;
   color: var(--color-faint);
   background: rgba(255, 255, 255, 0.52);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.2;
 }
@@ -6756,7 +6811,7 @@ button.workspace-route__friend-row:hover {
   padding: 6px 9px;
   color: var(--color-muted);
   background: rgba(234, 241, 250, 0.7);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.2;
 }
@@ -6852,7 +6907,7 @@ button.workspace-route__friend-row:hover {
   padding: 7px 10px;
   color: var(--color-text);
   background: rgba(255, 255, 255, 0.66);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 790;
 }
 
@@ -7043,7 +7098,7 @@ button.workspace-route__friend-row:hover {
 
 .agent-suggestion-inbox-row__meta span {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -7234,7 +7289,7 @@ button.workspace-route__friend-row:hover {
 .wbs-four-view__columns {
   color: var(--color-faint);
   display: grid;
-  font-size: 13px;
+  font-size: 14px;
   gap: 8px;
   grid-column: 1 / -1;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -7401,7 +7456,7 @@ button.workspace-route__friend-row:hover {
 
 .agent-draft-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -8001,7 +8056,7 @@ button.workspace-route__friend-row:hover {
 
 .bubli-dash-palette__drop-remove strong {
   color: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -8022,7 +8077,7 @@ button.workspace-route__friend-row:hover {
   border-radius: var(--radius-pill);
   border: 1px solid var(--surface-border);
   background: rgba(255, 255, 255, 0.5);
-  font-size: 13px; color: var(--text-3);
+  font-size: 14px; color: var(--text-3);
 }
 .bubli-dash-palette__search input { border: none; background: transparent; outline: none; font: inherit; color: var(--ink); width: 100%; }
 .bubli-dash-palette__list { display: grid; gap: 4px; max-height: 360px; overflow: auto; }
@@ -8049,9 +8104,9 @@ button.workspace-route__friend-row:hover {
   opacity: 0.62;
 }
 .bubli-dash-palette__item .bubli-dash-tile__icon { width: 26px; height: 26px; }
-.bubli-dash-palette__item-title { font-size: 13px; font-weight: 600; }
+.bubli-dash-palette__item-title { font-size: 14px; font-weight: 600; }
 .bubli-dash-palette__item-desc { font-size: 12px; color: var(--text-3); }
-.bubli-dash-palette__empty { padding: 18px 8px; text-align: center; font-size: 13px; color: var(--text-3); }
+.bubli-dash-palette__empty { padding: 18px 8px; text-align: center; font-size: 14px; color: var(--text-3); }
 .bubli-dash-palette__drag-preview {
   display: inline-flex;
   align-items: center;
@@ -8077,7 +8132,7 @@ button.workspace-route__friend-row:hover {
   border-radius: var(--radius-card);
   border: 1.5px dashed rgba(140, 165, 200, 0.5);
   background: rgba(242, 247, 252, 0.5);
-  color: var(--text-3); font-size: 13px; text-align: center;
+  color: var(--text-3); font-size: 14px; text-align: center;
 }
 .bubli-dash-dropzone svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; }
 .bubli-dash-dropzone--active {
@@ -8247,7 +8302,7 @@ button.workspace-route__friend-row:hover {
 
 .member-role-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -8406,14 +8461,14 @@ button.workspace-route__friend-row:hover {
   padding: 10px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.48);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.4;
 }
 
 .resource-compare-row__values strong {
   color: var(--color-blue-deep);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 880;
 }
 
@@ -8561,7 +8616,7 @@ button.workspace-route__friend-row:hover {
 
 .resource-sharing-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -8715,7 +8770,7 @@ button.workspace-route__friend-row:hover {
 .resource-suggestion__bubble-title > span:last-child {
   margin-left: auto;
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
 }
 
@@ -8766,7 +8821,7 @@ button.workspace-route__friend-row:hover {
 
 .resource-suggestion-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -8892,7 +8947,7 @@ button.workspace-route__friend-row:hover {
 .contract-review-source span {
   margin-top: 2px;
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 680;
 }
 
@@ -8939,7 +8994,7 @@ button.workspace-route__friend-row:hover {
 .contract-review-value span,
 .contract-review-value small {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.35;
 }
@@ -8960,7 +9015,7 @@ button.workspace-route__friend-row:hover {
   padding: 7px 10px;
   background: rgba(255, 255, 255, 0.66);
   color: var(--color-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 790;
 }
 
@@ -9142,7 +9197,7 @@ button.workspace-route__friend-row:hover {
 
 .daily-summary-source span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.35;
 }
@@ -9414,7 +9469,7 @@ button.workspace-route__friend-row:hover {
 
 .room-memory__chat span {
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -9468,7 +9523,7 @@ button.workspace-route__friend-row:hover {
 
 .room-memory-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -9601,7 +9656,7 @@ button.workspace-route__friend-row:hover {
 
 .memo-draft__note span {
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -9644,7 +9699,7 @@ button.workspace-route__friend-row:hover {
 .memo-draft__notice {
   margin: 0;
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.45;
 }
@@ -9683,7 +9738,7 @@ button.workspace-route__friend-row:hover {
 
 .memo-draft-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -9784,7 +9839,7 @@ html {
   width: 26px;
   height: 26px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 830;
   color: var(--blue-ink);
   background: linear-gradient(145deg, rgba(158, 216, 255, 0.6), rgba(220, 216, 248, 0.6));
@@ -11456,7 +11511,7 @@ html {
 .font-strategy__card p {
   margin: 8px 0 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.55;
 }
 
@@ -11483,7 +11538,7 @@ html {
 .widget-preview__toolbar p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -11599,7 +11654,7 @@ html {
 .widget-preview__policy-card p {
   margin: 7px 0 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.55;
 }
 
@@ -11725,7 +11780,7 @@ html {
 
 .widget-settings-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -11888,7 +11943,7 @@ html {
 .notification-row__meta span:not(.bubli-status),
 .notification-row__footer > span {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -11920,7 +11975,7 @@ html {
 
 .notification-center__policy dt {
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 850;
   line-height: 1.3;
 }
@@ -12059,7 +12114,7 @@ html {
 
 .friend-invite-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -12219,7 +12274,7 @@ html {
 
 .voice-session-participant__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -12292,7 +12347,7 @@ html {
 
 .communication-panel__summary-card > span:not(.bubli-icon-tile) {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 620;
   line-height: 1.5;
 }
@@ -12329,7 +12384,7 @@ html {
 .communication-panel__head p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -12354,7 +12409,7 @@ html {
 
 .communication-panel__room span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -12421,7 +12476,7 @@ html {
 .communication-panel__side-card p,
 .communication-panel__side-card li {
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -12554,7 +12609,7 @@ html {
 
 .resource-version-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -12707,7 +12762,7 @@ html {
 
 .managed-folder-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -12978,7 +13033,7 @@ html {
   padding: 12px 14px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.5);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
   line-height: 1.55;
 }
@@ -13010,7 +13065,7 @@ html {
 
 .local-backup-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -13170,7 +13225,7 @@ html {
 
 .tauri-sync-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -13263,7 +13318,7 @@ html {
 .settings-summary__item p {
   margin: 5px 0 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 640;
   line-height: 1.55;
 }
@@ -13338,7 +13393,7 @@ html {
   display: block;
   margin-top: 3px;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 640;
   line-height: 18px;
 }
@@ -13413,12 +13468,12 @@ html {
 
 .activity-detection__title h2 {
   max-width: 800px;
-  margin: 10px 0 0;
+  margin: 4px 0 0;
   color: var(--color-text);
-  font-size: clamp(26px, 3vw, 40px);
-  font-weight: 900;
+  font-size: 17px;
+  font-weight: 700;
   letter-spacing: 0;
-  line-height: 1.12;
+  line-height: 1.3;
 }
 
 .activity-detection__title p,
@@ -13521,7 +13576,7 @@ html {
 
 .activity-source-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -13542,7 +13597,7 @@ html {
   padding: 18px;
   background: rgba(255, 255, 255, 0.45);
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
   line-height: 1.5;
   text-align: center;
@@ -14503,7 +14558,7 @@ html {
 
 .widget-rollup-row__meta span:not(.bubli-status) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.3;
 }
@@ -14752,7 +14807,7 @@ html {
 
 .bubli-dash-faint {
   color: var(--text-faint, #98a5af);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .bubli-agent-signal {
@@ -14811,7 +14866,7 @@ html {
 }
 
 .bubli-widget-state__cap span {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-faint, #98a5af);
 }
 
@@ -14957,7 +15012,7 @@ html {
   max-width: 86%;
   padding: 7px 12px;
   border-radius: 100px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-soft, #586978);
   background: var(--surface, rgba(255, 255, 255, 0.92));
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
@@ -18426,7 +18481,7 @@ html {
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.62);
   box-shadow: var(--inner-highlight-light);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 820;
   line-height: 1;
   white-space: nowrap;
@@ -18467,7 +18522,7 @@ html {
   padding: 0 12px;
   background: rgba(255, 255, 255, 0.62);
   box-shadow: var(--inner-highlight-light);
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1;
   white-space: nowrap;
 }
@@ -18522,7 +18577,7 @@ html {
   padding: 5px 10px;
   color: var(--blue-ink);
   background: rgba(216, 240, 255, 0.5);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 860;
   line-height: 1;
   white-space: nowrap;
@@ -18609,7 +18664,7 @@ html {
   max-width: 680px;
   margin: 6px 0 0;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 620;
   line-height: 1.5;
 }
@@ -18715,7 +18770,7 @@ html {
 
 .workspace-dashboard__canvas-head span {
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 780;
   line-height: 1.3;
 }
@@ -18794,7 +18849,7 @@ html {
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.5);
   box-shadow: var(--inner-highlight-light);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 820;
   line-height: 1.2;
 }
@@ -18868,7 +18923,7 @@ html {
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.44);
   box-shadow: var(--inner-highlight-light);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.35;
   overflow: hidden;
@@ -18901,7 +18956,7 @@ html {
 .workspace-dashboard__room-summary span,
 .workspace-dashboard__room-summary dt {
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 820;
   line-height: 1.2;
 }
@@ -18969,7 +19024,7 @@ html {
   border-radius: 16px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.36);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 780;
 }
 
@@ -19011,7 +19066,7 @@ html {
 
 .workspace-dashboard__timer-preview small {
   color: rgba(45, 68, 89, 0.72);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.35;
 }
@@ -19151,7 +19206,7 @@ html {
   color: var(--color-text);
   background: rgba(255, 255, 255, 0.82);
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 780;
   outline: none;
 }
@@ -19174,7 +19229,7 @@ html {
   color: var(--color-text);
   background: rgba(255, 255, 255, 0.72);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   cursor: pointer;
 }
@@ -19192,7 +19247,7 @@ html {
 .workspace-dashboard__todo-notice {
   margin: 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
   line-height: 1.45;
 }
@@ -19244,7 +19299,7 @@ html {
 .workspace-dashboard__line b {
   flex: 0 0 auto;
   color: var(--blue-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -19510,6 +19565,7 @@ html {
     min-width: 50px;
     min-height: 50px;
     border-radius: 20px;
+    padding: 2px;
   }
 
   .bubli-nav__item--active::before {
@@ -19753,11 +19809,11 @@ html {
    작업공간 도크는 얇고 또렷해야 한다.
    ============================================================ */
 .bubli-app-layout {
-  grid-template-columns: 94px minmax(0, 1fr);
+  grid-template-columns: 104px minmax(0, 1fr);
 }
 
 .bubli-app-layout .bubli-sidebar {
-  width: 82px;
+  width: 92px;
   margin-left: 10px;
   padding: 12px 6px;
   border-color: rgba(255, 255, 255, 0.78);
@@ -19888,6 +19944,7 @@ html {
     width: 46px;
     min-width: 46px;
     min-height: 46px;
+    padding: 2px;
   }
 
   .bubli-app-layout .bubli-nav__icon {
@@ -19946,11 +20003,11 @@ html {
    라벨 상시 노출(C2)로 도크 폭을 아이콘+라벨 기준으로 잡는다.
    ============================================================ */
 .bubli-app-layout {
-  grid-template-columns: 94px minmax(0, 1fr);
+  grid-template-columns: 104px minmax(0, 1fr);
 }
 
 .bubli-app-layout .bubli-sidebar {
-  width: 82px;
+  width: 92px;
   margin-left: 10px;
   padding: 10px 5px;
   border-radius: 26px;
@@ -19987,9 +20044,10 @@ html {
 }
 
 .bubli-app-layout .bubli-nav__item {
-  min-height: 52px;
+  min-height: 64px;
   border-radius: 14px;
-  padding: 4px 2px 5px;
+  /* 활성 바(bottom 4px + 2px) 위로 라벨이 6px 이상 뜨도록 */
+  padding: 4px 2px 12px;
 }
 
 .bubli-app-layout .bubli-nav__icon {
@@ -20110,6 +20168,7 @@ html {
     width: 44px;
     min-width: 44px;
     min-height: 44px;
+    padding: 2px;
   }
 
   .bubli-app-layout .bubli-nav__icon {
@@ -20355,7 +20414,7 @@ html {
   background: rgba(255, 255, 255, 0.72);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
   cursor: pointer;
 }
@@ -20480,7 +20539,7 @@ html {
 
 .desktop-widget__bubble-title strong {
   min-width: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 850;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -20539,7 +20598,7 @@ html {
   border-radius: 999px;
   color: white;
   background: var(--blue-ink);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .desktop-widget__modebar {
@@ -20662,7 +20721,7 @@ html {
   background: rgba(255, 255, 255, 0.72);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
   cursor: pointer;
 }
@@ -20840,7 +20899,7 @@ html {
 .desktop-widget__message {
   min-width: 0;
   color: var(--color-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
   line-height: 1.35;
 }
@@ -20910,7 +20969,7 @@ html {
   color: var(--color-text);
   background: transparent;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -20963,7 +21022,7 @@ html {
 
 .desktop-widget__memo-grid strong {
   color: var(--color-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -21712,6 +21771,10 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   box-shadow: var(--inner-highlight-dark);
 }
 
+[data-theme="dark"] .workspace-route__typing-line {
+  color: #A7B6CC;
+}
+
 [data-theme="dark"] .workspace-route__composer {
   border-color: rgba(150, 170, 215, 0.2);
   background: rgba(28, 39, 61, 0.6);
@@ -21771,3 +21834,13 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   background: rgba(158, 216, 255, 0.16);
 }
 
+
+/* 비로그인 가드: 회원 전용 콘텐츠 대신 리다이렉트 안내만 렌더 */
+.bubli-auth-gate {
+  display: grid;
+  place-items: center;
+  min-height: 40vh;
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 600;
+}

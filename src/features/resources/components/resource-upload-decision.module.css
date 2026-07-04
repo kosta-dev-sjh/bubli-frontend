@@ -92,7 +92,7 @@
   padding: 7px 10px;
   color: var(--color-text);
   background: rgba(255, 255, 255, 0.68);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 790;
 }
 
@@ -165,7 +165,7 @@
 
 .stepList span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   line-height: 1.55;
 }
@@ -213,13 +213,13 @@
 
 .notice strong {
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 860;
 }
 
 .notice span {
   color: var(--color-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 690;
   line-height: 1.65;
 }

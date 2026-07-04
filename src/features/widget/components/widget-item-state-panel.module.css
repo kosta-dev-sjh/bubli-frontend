@@ -53,7 +53,7 @@
 .summary span,
 .metaLine span {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 780;
   line-height: 1.35;
 }
@@ -93,7 +93,7 @@
 .storageRule p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 13.2px;
+  font-size: 14px;
   line-height: 1.65;
 }
 
@@ -104,7 +104,7 @@
   padding: 10px 12px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.64);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.55;
 }
@@ -155,7 +155,7 @@
 .itemMain p {
   margin: 6px 0 0;
   color: var(--color-muted);
-  font-size: 12.8px;
+  font-size: 14px;
   line-height: 1.6;
 }
 

@@ -95,7 +95,7 @@ export function ChatCacheRecoveryPanel({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="m-0 text-[14px] font-[820] text-[var(--color-text)]">{roomLabel}</p>
-              <p className="m-0 text-[13.5px] text-[var(--color-muted)]">
+              <p className="m-0 text-sm text-[var(--color-muted)]">
                 {t("chat.cachePanel.recentMissing", { cached: cachedCount, missing: missingCount })}
               </p>
             </div>
@@ -105,7 +105,7 @@ export function ChatCacheRecoveryPanel({
         </div>
 
         <div className="grid gap-2 rounded-[var(--radius-input)] bg-[rgba(215,234,244,0.42)] p-3">
-          <div className="flex items-center gap-2 text-[13.5px] font-[820] text-[var(--color-blue-deep)]">
+          <div className="flex items-center gap-2 text-sm font-[820] text-[var(--color-blue-deep)]">
             <Server size={15} strokeWidth={2.1} />
             {t("chat.cachePanel.syncBasis")}
           </div>

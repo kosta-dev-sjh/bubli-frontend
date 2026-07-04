@@ -37,7 +37,7 @@
 .summaryStrip span {
   display: block;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -224,7 +224,7 @@
   padding: 6px 10px;
   color: var(--ink-soft);
   background: rgba(255, 255, 255, 0.48);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -264,7 +264,7 @@
   display: block;
   margin: 2px 0 0;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 

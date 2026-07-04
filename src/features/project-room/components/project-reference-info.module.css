@@ -15,7 +15,7 @@
   align-items: center;
   gap: 8px;
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -78,7 +78,7 @@
 
 .cardTop span {
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
 }
 
@@ -174,7 +174,7 @@
   padding: 0 10px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.58);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
 }
 

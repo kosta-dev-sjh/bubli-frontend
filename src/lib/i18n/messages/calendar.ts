@@ -60,7 +60,7 @@ const ko = {
 
   // 알림
   "calendar.notice.disconnected": "구글 캘린더 연결을 해제했습니다.",
-  "calendar.notice.syncDone": "동기화 완료 · 가져옴 {pulled}건 / 보냄 {pushed}건",
+  "calendar.notice.syncDone": "동기화 완료: 가져옴 {pulled}건 / 보냄 {pushed}건",
   "calendar.notice.pullDone": "구글 캘린더에서 일정 {count}건을 가져왔습니다.",
   "calendar.notice.pushDone": "구글 캘린더로 일정 {count}건을 보냈습니다.",
   "calendar.notice.loginNeeded": "로그인 후 구글 캘린더를 연결할 수 있습니다.",

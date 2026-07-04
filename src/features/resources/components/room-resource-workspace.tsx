@@ -14,6 +14,7 @@ import { shouldUseWorkspacePreviewData, workspacePreviewRoomResources } from "@/
 import type { ResourceResponse } from "@/types/api/resource";
 
 import { LocalIndexedFileSearchPanel } from "./local-indexed-file-search-panel";
+import { ResourceAiSearchPanel } from "./resource-ai-search-panel";
 import {
   getErrorMessage,
   openResourceDownload,
@@ -279,6 +280,17 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
 
               {/* dev PR 217 이식: 프로젝트룸 자료보드 로컬 참고 검색 — 검색어 입력 + Tauri 런타임에서만 내용이 뜬다. */}
               <LocalIndexedFileSearchPanel query={query} />
+
+              {/* 룸 공유 자료의 내용(임베딩) 기반 AI 검색 — 파일명 필터로 못 찾을 때의 보조 경로. */}
+              <ResourceAiSearchPanel
+                onSelectResource={(resourceId) => {
+                  setQuery("");
+                  setSelectedResourceId(resourceId);
+                }}
+                query={query}
+                resources={resources}
+                roomId={roomId}
+              />
 
               {uploadState.kind === "uploading" ? <p className={styles.noticeLine}>{t("resources.workspace.uploading", { fileName: uploadState.fileName })}</p> : null}
               {uploadState.kind === "success" ? <p className={styles.noticeLine}>{t("resources.workspace.uploadDone", { fileName: uploadState.fileName })}</p> : null}

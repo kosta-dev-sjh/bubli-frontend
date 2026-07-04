@@ -61,7 +61,7 @@
 
 .summaryLabel {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -103,7 +103,7 @@
 
 .helperText {
   color: var(--color-faint);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 680;
 }
 
@@ -155,7 +155,7 @@
 .outgoingRow span {
   overflow: hidden;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -199,7 +199,7 @@
   flex-wrap: wrap;
   gap: 8px;
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .metaLine span {
@@ -238,7 +238,7 @@
 .friendSeen {
   flex: 0 0 auto;
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
 }
 

@@ -193,7 +193,7 @@
   padding: 5px 8px;
   background: rgba(215, 234, 244, 0.58);
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
 }
 
@@ -213,7 +213,7 @@
 
 .actionRow span {
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
 }
 

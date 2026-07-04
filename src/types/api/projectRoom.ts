@@ -63,14 +63,19 @@ export type ProjectRoomInvitationCreateRequest = {
 
 export type ProjectRoomInvitationResponse = {
   createdAt: string;
+  expiresAt?: string | null;
   id: string;
   inviteeAvatarUrl?: string | null;
   inviteeBubliId?: string | null;
   inviteeName?: string | null;
   inviteeUserId: string;
+  inviterAvatarUrl?: string | null;
+  inviterBubliId?: string | null;
+  inviterName?: string | null;
   inviterUserId: string;
   role: "MEMBER";
   roomId: string;
+  roomName?: string | null;
   status: ProjectRoomInvitationStatus;
 };
 

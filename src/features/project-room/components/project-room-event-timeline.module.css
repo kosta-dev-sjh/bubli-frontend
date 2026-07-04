@@ -15,7 +15,7 @@
   align-items: center;
   gap: 8px;
   color: var(--color-blue-deep);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -154,7 +154,7 @@
 
 .detailBox span {
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -220,7 +220,7 @@
 
 .flowCopy span {
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .checkItem {
@@ -249,14 +249,14 @@
 .topicBox code {
   color: var(--color-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 760;
   white-space: normal;
 }
 
 .topicBox span {
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 @media (max-width: 1020px) {

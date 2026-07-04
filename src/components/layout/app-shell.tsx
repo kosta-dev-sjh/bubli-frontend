@@ -36,7 +36,7 @@ import {
 import { shouldUseWorkspacePreviewData, workspacePreviewRooms, workspacePreviewUser } from "@/lib/workspace-preview-data";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationResponse } from "@/types/api/notification";
-import type { ContractDocumentType, ProjectRoomResponse } from "@/types/api/projectRoom";
+import type { ContractDocumentType, ProjectRoomInvitationResponse, ProjectRoomResponse } from "@/types/api/projectRoom";
 
 type AppShellProps = {
   children: ReactNode;
@@ -103,6 +103,8 @@ export function AppShell({ children }: AppShellProps) {
   const [newRoomName, setNewRoomName] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [topbarMenu, setTopbarMenu] = useState<TopbarMenu>(null);
+  const [myInvitations, setMyInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
+  const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -135,6 +137,10 @@ export function AppShell({ children }: AppShellProps) {
         } catch {
           notifications = [];
         }
+
+        // 받은 초대함 (backend PR 189): 실패해도 셸 로드는 계속한다.
+        const invitationPage = await projectRoomApi.getMyInvitations("PENDING").catch(() => null);
+        if (mounted) setMyInvitations(invitationPage?.items ?? []);
 
         const widgetContext = await widgetApi.getContext().catch(() => null);
         const contextRoom = widgetContext?.selectedRoomId
@@ -370,6 +376,30 @@ export function AppShell({ children }: AppShellProps) {
     void notificationApi.markRead(notificationId).catch(() => undefined);
   }
 
+  async function handleAcceptInvitation(invitation: ProjectRoomInvitationResponse) {
+    if (acceptingInvitationId) return;
+    setAcceptingInvitationId(invitation.id);
+
+    try {
+      await projectRoomApi.acceptInvitation(invitation.id);
+      setMyInvitations((current) => current.filter((item) => item.id !== invitation.id));
+
+      // 수락한 룸을 목록에 반영하고 곧바로 이동한다.
+      const roomPage = await projectRoomApi.list().catch(() => null);
+      if (roomPage) {
+        setState((current) => (current.kind === "ready" ? { ...current, rooms: roomPage.items } : current));
+        const joinedRoom = roomPage.items.find((room) => room.id === invitation.roomId);
+        if (joinedRoom) setActiveProjectRoom(joinedRoom);
+      }
+      setTopbarMenu(null);
+      router.push(`/app/project-rooms/${invitation.roomId}`);
+    } catch {
+      // 만료/취소된 초대일 수 있으므로 목록에서만 제거하지 않고 다음 로드에서 동기화한다.
+    } finally {
+      setAcceptingInvitationId(null);
+    }
+  }
+
   function handleArchiveNotification(notificationId: string) {
     // 낙관적으로 보관 처리해 목록에서 바로 숨기고, 서버 반영 실패는 다음 로드에서 복구된다.
     setState((current) =>
@@ -472,13 +502,16 @@ export function AppShell({ children }: AppShellProps) {
       </aside>
       <main className="shell bubli-main">
         <WorkspaceTopbar
-          notificationCount={unreadNotificationCount}
+          notificationCount={unreadNotificationCount + myInvitations.length}
           notificationsOpen={topbarMenu === "notifications"}
           notificationsPanel={
             topbarMenu === "notifications" ? (
               <TopbarNotificationsPanel
+                acceptingInvitationId={acceptingInvitationId}
                 id={TOPBAR_NOTIFICATIONS_PANEL_ID}
+                invitations={myInvitations}
                 items={notifications}
+                onAcceptInvitation={(invitation) => void handleAcceptInvitation(invitation)}
                 onArchive={handleArchiveNotification}
                 onMarkRead={handleMarkNotificationRead}
               />
@@ -597,7 +630,16 @@ export function AppShell({ children }: AppShellProps) {
             </section>
           </>
         ) : null}
-        <div className="bubli-main-scroll">{children}</div>
+        <div className="bubli-main-scroll">
+          {state.kind === "auth" ? (
+            // 비로그인 상태에서는 회원 전용 콘텐츠를 렌더하지 않는다. (로그인 페이지로 리다이렉트 중)
+            <div className="bubli-auth-gate" role="status">
+              {t("layout.gate.redirecting")}
+            </div>
+          ) : (
+            children
+          )}
+        </div>
       </main>
     </div>
   );

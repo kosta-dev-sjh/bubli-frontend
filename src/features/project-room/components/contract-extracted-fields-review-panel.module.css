@@ -62,7 +62,7 @@
   display: block;
   margin-top: 7px;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -167,7 +167,7 @@
 
 .fieldMeta > span {
   color: var(--color-faint);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 740;
 }
 
@@ -187,7 +187,7 @@
   padding: 0 10px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.48);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
   cursor: pointer;
 }
@@ -228,7 +228,7 @@
 
 .reviewItem span:not(:global(.bubli-status)) {
   color: var(--color-faint);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 720;
 }
 

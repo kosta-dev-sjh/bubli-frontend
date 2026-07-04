@@ -58,6 +58,7 @@ type AgentPageState =
   | { kind: "loading" }
   | {
       confirmedRequirements: AgentSuggestionResponse[];
+      contractReferences: AgentSuggestionResponse[];
       dailySummaries: DailySummaryResponse[];
       generatedDocuments: GeneratedDocumentResponse[];
       heldSuggestions: AgentSuggestionResponse[];
@@ -331,6 +332,7 @@ function AgentPageContent() {
         return {
           ...current,
           confirmedRequirements: [],
+          contractReferences: [],
           dailySummaries: [],
           generatedDocuments: [],
           heldSuggestions: [],
@@ -344,7 +346,7 @@ function AgentPageContent() {
     });
 
     try {
-      const [roomPage, suggestions, heldSuggestions, dailySummaryPage, generatedDocumentPage, roomMemorySummaries, confirmedRequirements, roomAiDocuments] = await Promise.all([
+      const [roomPage, suggestions, heldSuggestions, dailySummaryPage, generatedDocumentPage, roomMemorySummaries, confirmedRequirements, contractReferences, roomAiDocuments] = await Promise.all([
         projectRoomApi.list(),
         roomId ? agentApi.listRoomSuggestions(roomId, { status: "DRAFT" }) : agentApi.listPersonalSuggestions({ status: "DRAFT" }),
         // 보류한 후보도 함께 불러와 보류함 필터에서 다시 볼 수 있게 한다.
@@ -359,6 +361,13 @@ function AgentPageContent() {
         roomId ? chatApi.listRoomMemorySummaries(roomId) : Promise.resolve([]),
         roomId
           ? agentApi.listRoomConfirmedRequirements(roomId).catch((error: unknown) => {
+              if (error instanceof ApiClientError && error.status === 401) throw error;
+              return [] as AgentSuggestionResponse[];
+            })
+          : Promise.resolve([] as AgentSuggestionResponse[]),
+        // 승인된 계약 근거(계약 필드·계약 검토)도 함께 불러와 피드에서 다시 찾을 수 있게 한다.
+        roomId
+          ? agentApi.listRoomContractReferences(roomId).catch((error: unknown) => {
               if (error instanceof ApiClientError && error.status === 401) throw error;
               return [] as AgentSuggestionResponse[];
             })
@@ -380,6 +389,7 @@ function AgentPageContent() {
 
       setState({
         confirmedRequirements,
+        contractReferences,
         dailySummaries: dailySummaryPage.items,
         generatedDocuments: generatedDocumentPage.items,
         heldSuggestions,
@@ -404,6 +414,7 @@ function AgentPageContent() {
 
         setState({
           confirmedRequirements: [],
+          contractReferences: [],
           dailySummaries: [],
           generatedDocuments: [],
           heldSuggestions: [],
@@ -501,6 +512,36 @@ function AgentPageContent() {
         summary: null,
         timeLabel: relativeDate(confirmedAt),
         title: displayText(confirmed.payloadJson, typeLabel),
+        typeTag: typeLabel,
+      });
+    }
+
+    // 승인된 계약 근거(계약 필드·계약 검토) — 승인 뒤에도 피드에서 근거를 다시 확인할 수 있다.
+    for (const reference of state.contractReferences) {
+      const typeLabel = t(typeLabelKeys[reference.suggestionType]);
+      const referencedAt = reference.reviewedAt ?? reference.updatedAt;
+      const title = displayText(reference.payloadJson, typeLabel);
+      const evidence = evidenceDisplay(reference.evidenceJson);
+
+      items.push({
+        badge: { label: t("agent.page.statusApprovedLabel"), tone: "success" },
+        body: null,
+        category: "requirement",
+        dailySummaryApproved: false,
+        dailySummaryId: null,
+        documentId: null,
+        evidenceSource: evidence.fromSource,
+        evidenceText: evidence.text,
+        expandable: false,
+        id: `contract-${reference.suggestionId}`,
+        kind: "confirmed",
+        roomLabel: null,
+        sortAt: Date.parse(referencedAt) || 0,
+        sourceLabel: t("agent.page.tagContractReference"),
+        suggestion: null,
+        summary: displaySecondaryText(reference.payloadJson, title),
+        timeLabel: relativeDate(referencedAt),
+        title,
         typeTag: typeLabel,
       });
     }
@@ -938,7 +979,8 @@ function AgentPageContent() {
         <>
           {notice || activeJob ? (
             <GlassPanel className={`workspace-route__panel ${styles.noticePanel}`}>
-              <div className={styles.jobNotice}>
+              {/* 처리 결과·작업 진행은 화면리더에도 바로 전달한다. */}
+              <div aria-live="polite" className={styles.jobNotice} role="status">
                 {notice ? <strong>{notice}</strong> : null}
                 {activeJob ? (
                   <>

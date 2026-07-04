@@ -392,7 +392,7 @@ const ko = {
   "activity.detection.status.local": "기기 안 기록",
   "activity.detection.status.synced": "서버 반영",
   "activity.detection.sectionAria": "활성 앱 감지 설정",
-  "activity.detection.chip": "Tauri 전용",
+  "activity.detection.chip": "데스크톱 앱 전용",
   "activity.detection.heroTitle": "작업 중인 앱 이름과 창 제목만 동의 후 기록합니다",
   "activity.detection.heroDesc":
     "활동 감지는 작업 시간 보조, WBS/TODO 후보, 하루정리에 쓰입니다. 화면 전체 내용과 키보드 입력은 수집하지 않습니다.",
@@ -840,7 +840,7 @@ const en: Record<Key, string> = {
   "activity.detection.status.local": "On-device record",
   "activity.detection.status.synced": "Synced to server",
   "activity.detection.sectionAria": "Active app detection settings",
-  "activity.detection.chip": "Tauri only",
+  "activity.detection.chip": "Desktop app only",
   "activity.detection.heroTitle": "Records only the app name and window title you're working on, with consent",
   "activity.detection.heroDesc":
     "Activity detection is used for work-time assistance, WBS/TODO candidates, and daily wrap-up. Full screen contents and keyboard input are not collected.",
@@ -1285,7 +1285,7 @@ const ja: Record<Key, string> = {
   "activity.detection.status.local": "端末内記録",
   "activity.detection.status.synced": "サーバー反映済み",
   "activity.detection.sectionAria": "アクティブアプリ検知の設定",
-  "activity.detection.chip": "Tauri専用",
+  "activity.detection.chip": "デスクトップアプリ専用",
   "activity.detection.heroTitle": "作業中のアプリ名とウィンドウタイトルだけを同意のうえで記録します",
   "activity.detection.heroDesc":
     "アクティビティ検知は作業時間の補助、WBS/TODO候補、1日のまとめに使われます。画面全体の内容やキーボード入力は収集しません。",

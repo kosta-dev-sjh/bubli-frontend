@@ -222,6 +222,12 @@ const ko = {
   "widget.bar.notificationState": "Bubli 알림 상태",
   "widget.menu.openAria": "Bubli 메뉴 열기",
   "widget.menu.desc": "접힌 버블과 알림을 펼쳐봅니다",
+  "widget.menu.title": "Bubli 메뉴",
+  "widget.menu.switchToPersonal": "개인 컨텍스트로 전환",
+  "widget.menu.switchToRoom": "룸 컨텍스트로 전환",
+  "widget.menu.openMainApp": "메인 앱 열기",
+  "widget.menu.openSettings": "설정 열기",
+  "widget.menu.quit": "Bubli 종료",
 
   // widget-preview.tsx / widget-shell.tsx
   "widget.preview.agentAlert": "에이전트 알림",
@@ -1094,6 +1100,12 @@ const en: Record<Key, string> = {
   "widget.bar.notificationState": "Bubli alert status",
   "widget.menu.openAria": "Open Bubli menu",
   "widget.menu.desc": "Expand folded bubbles and alerts",
+  "widget.menu.title": "Bubli menu",
+  "widget.menu.switchToPersonal": "Switch to personal context",
+  "widget.menu.switchToRoom": "Switch to room context",
+  "widget.menu.openMainApp": "Open main app",
+  "widget.menu.openSettings": "Open settings",
+  "widget.menu.quit": "Quit Bubli",
 
   "widget.preview.agentAlert": "Agent alert",
   "widget.preview.menu": "Widget menu",
@@ -1948,6 +1960,12 @@ const ja: Record<Key, string> = {
   "widget.bar.notificationState": "Bubli 通知状態",
   "widget.menu.openAria": "Bubli メニューを開く",
   "widget.menu.desc": "畳んだバブルと通知を広げます",
+  "widget.menu.title": "Bubli メニュー",
+  "widget.menu.switchToPersonal": "個人コンテキストに切り替え",
+  "widget.menu.switchToRoom": "ルームコンテキストに切り替え",
+  "widget.menu.openMainApp": "メインアプリを開く",
+  "widget.menu.openSettings": "設定を開く",
+  "widget.menu.quit": "Bubli を終了",
 
   "widget.preview.agentAlert": "エージェント通知",
   "widget.preview.menu": "ウィジェットメニュー",
