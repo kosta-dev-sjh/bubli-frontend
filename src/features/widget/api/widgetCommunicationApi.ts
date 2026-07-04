@@ -1,5 +1,5 @@
 import { apiRequest } from "@/lib/api/client";
-import type { ChatMessageListResponse, ChatMessageResponse, ChatRoomResponse } from "@/types/api/chat";
+import type { ChatMessageListResponse, ChatMessageResponse, ChatRoomResponse, RoomAgentCommandRequest, RoomAgentCommandResponse } from "@/types/api/chat";
 import type { FriendResponse } from "@/types/api/friend";
 import type { VoiceParticipantResponse, VoiceRoomResponse, VoiceTokenResponse } from "@/types/api/voice";
 import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
@@ -39,6 +39,16 @@ export const widgetCommunicationApi = {
         body: request.body,
         clientMessageId: request.clientMessageId,
         messageType: request.messageType ?? "TEXT",
+      },
+      method: "POST",
+    });
+  },
+
+  runRoomAgentCommand(roomId: string, { clientMessageId, ...body }: RoomAgentCommandRequest) {
+    return widgetCommunicationRequest<RoomAgentCommandResponse>(`/api/project-rooms/${roomId}/agent/commands`, {
+      body,
+      headers: {
+        "Idempotency-Key": clientMessageId,
       },
       method: "POST",
     });

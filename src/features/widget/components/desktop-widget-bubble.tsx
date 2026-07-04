@@ -102,6 +102,7 @@ export type DesktopWidgetBubbleProps = {
   onCreateMemo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onCreateTodo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onRestore?: () => void;
+  onSendAgentCommand?: (bubble: WidgetPreviewBubble, text: string) => Promise<void> | void;
   onSendChatMessage?: (bubble: WidgetPreviewBubble, text: string) => Promise<void> | void;
   onStartVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onPauseTimer?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
@@ -258,12 +259,42 @@ function AgentBody({
   bubble,
   onItemStateChange,
   onOpenHandoff,
+  onSendAgentCommand,
 }: {
   bubble: WidgetPreviewBubble;
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
+  onSendAgentCommand?: DesktopWidgetBubbleProps["onSendAgentCommand"];
 }) {
   const { t } = useI18n();
+  const [draft, setDraft] = useState("");
+  const [statusText, setStatusText] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const sendAgentCommand = async () => {
+    const text = draft.trim();
+    if (!text || submitting) return;
+
+    if (!bubble.roomId) {
+      setStatusText(t("widget.chat.selectRoomFirst"));
+      return;
+    }
+
+    if (!onSendAgentCommand) return;
+
+    setSubmitting(true);
+    setStatusText(null);
+    try {
+      await onSendAgentCommand(bubble, text);
+      setDraft("");
+      setStatusText(t("widget.chat.sent"));
+    } catch {
+      setStatusText(t("widget.chat.sendFailed"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className={styles.body}>
       <div className={styles.agentHalo} aria-label={t("widget.agentSignal")}>
@@ -279,10 +310,24 @@ function AgentBody({
         <FileText size={16} strokeWidth={2} />
         <span>{t(bubble.notificationLabel as MessageKey)}</span>
       </div>
-      <label className={styles.input}>
+      <form
+        className={styles.input}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void sendAgentCommand();
+        }}
+      >
         <Search size={14} strokeWidth={2} />
-        <input placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : undefined} />
-      </label>
+        <input
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : undefined}
+          value={draft}
+        />
+        <button aria-label={t("widget.chat.sendMessage")} disabled={submitting || !draft.trim()} type="submit">
+          <Send size={13} strokeWidth={2.1} />
+        </button>
+      </form>
+      {statusText ? <span className={styles.statusText}>{statusText}</span> : null}
     </div>
   );
 }
@@ -519,14 +564,35 @@ function TimerBody({
   );
 }
 
-function MemoBody({ bubble, onCreateMemo }: { bubble: WidgetPreviewBubble; onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"] }) {
+function MemoBody({
+  bubble,
+  onCreateMemo,
+  onOpenHandoff,
+}: {
+  bubble: WidgetPreviewBubble;
+  onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
+  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
+}) {
   const { t } = useI18n();
+  const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
+    if (!item.handoffUrl || !onOpenHandoff) return;
+
+    event.preventDefault();
+    void onOpenHandoff(item);
+  };
+
   return (
     <div className={[styles.body, styles.memoGrid].join(" ")}>
       {bubble.rows.length > 0 ? (
         bubble.rows.map((item) => (
           <article key={item.id}>
-            <strong>{item.label}</strong>
+            {item.handoffUrl ? (
+              <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+                <strong>{item.label}</strong>
+              </a>
+            ) : (
+              <strong>{item.label}</strong>
+            )}
             <span>{item.status}</span>
           </article>
         ))
@@ -654,6 +720,7 @@ function BubbleBody({
   onOpenHandoff,
   onPauseTimer,
   onPrimaryTimerAction,
+  onSendAgentCommand,
   onSendChatMessage,
   onStartVoice,
   onToggleVoiceMic,
@@ -667,11 +734,21 @@ function BubbleBody({
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
   onPauseTimer?: DesktopWidgetBubbleProps["onPauseTimer"];
   onPrimaryTimerAction?: DesktopWidgetBubbleProps["onPrimaryTimerAction"];
+  onSendAgentCommand?: DesktopWidgetBubbleProps["onSendAgentCommand"];
   onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
   onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
   onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
 }) {
-  if (bubble.id === "agent") return <AgentBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
+  if (bubble.id === "agent") {
+    return (
+      <AgentBody
+        bubble={bubble}
+        onItemStateChange={onItemStateChange}
+        onOpenHandoff={onOpenHandoff}
+        onSendAgentCommand={onSendAgentCommand}
+      />
+    );
+  }
   if (bubble.id === "chat") {
     return (
       <ChatBody
@@ -689,7 +766,7 @@ function BubbleBody({
   if (bubble.id === "timer") {
     return <TimerBody bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />;
   }
-  if (bubble.id === "memo") return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} />;
+  if (bubble.id === "memo") return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} onOpenHandoff={onOpenHandoff} />;
   if (bubble.id === "schedule") return <ScheduleBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
   if (bubble.id === "resource") return <ResourceBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
   return <TodoBody bubble={bubble} onCreateTodo={onCreateTodo} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
@@ -723,6 +800,7 @@ export function DesktopWidgetBubble({
   onPauseTimer,
   onPrimaryTimerAction,
   onRestore,
+  onSendAgentCommand,
   onSendChatMessage,
   onStartVoice,
   onToggleAlwaysOnTop,
@@ -794,6 +872,7 @@ export function DesktopWidgetBubble({
                 onOpenHandoff={onOpenHandoff}
                 onPauseTimer={onPauseTimer}
                 onPrimaryTimerAction={onPrimaryTimerAction}
+                onSendAgentCommand={onSendAgentCommand}
                 onSendChatMessage={onSendChatMessage}
                 onStartVoice={onStartVoice}
                 onToggleVoiceMic={onToggleVoiceMic}
