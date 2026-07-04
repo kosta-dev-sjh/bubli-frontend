@@ -1423,6 +1423,10 @@ function DesktopWidgetSurface() {
           itemType,
           state,
         });
+        if (activeBubble === "todo" && item.kind === "task" && state === "CONFIRMED") {
+          await todoApi.update(item.id, { status: "DONE" });
+          setTodoRevision((current) => current + 1);
+        }
         applyLocalState();
       }
     },
