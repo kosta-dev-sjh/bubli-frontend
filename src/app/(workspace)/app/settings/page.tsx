@@ -745,8 +745,41 @@ export default function SettingsPage() {
       },
     }));
 
-    setMessage({ text: t("settings.msg.folderConnected"), tone: "approved" });
+    const scanResult = await scanPersonalManagedFolder({
+      consentGranted,
+      localFolderId: folder.localFolderId,
+    });
+    const watchResult = await watchPersonalManagedFolder({
+      consentGranted,
+      localFolderId: folder.localFolderId,
+    });
+    const syncResult = await syncPersonalLocalFileEventsToServer({
+      consentGranted,
+      limit: 20,
+      localFolderId: folder.localFolderId,
+    });
+
     void restoreManagedFolderWatchers();
+
+    if (scanResult.status !== "ready") {
+      setMessage({ text: localResultMessage(t, scanResult), tone: "warning" });
+      return;
+    }
+
+    if (watchResult.status !== "ready" && watchResult.status !== "pending") {
+      setMessage({ text: localResultMessage(t, watchResult), tone: "warning" });
+      return;
+    }
+
+    if (syncResult.status !== "ready") {
+      setMessage({ text: localResultMessage(t, syncResult), tone: "warning" });
+      return;
+    }
+
+    setMessage({
+      text: `${t("settings.msg.folderChanges", { count: scanResult.data.changedCount })} / ${t("settings.msg.watchOn")} / ${syncResult.message}`,
+      tone: "approved",
+    });
   }, [restoreManagedFolderWatchers, state, t, updateReadyState]);
 
   // dev 이식(로컬 폴더 감시 진행률): 폴더별 인덱싱 진행률을 조회해 행 옆에 표기한다.
