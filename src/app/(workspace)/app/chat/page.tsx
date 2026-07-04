@@ -25,6 +25,8 @@ import { getApiBaseUrl } from "@/lib/api/client";
 import { ApiClientError } from "@/lib/api/errors";
 import { getAuthAccessToken } from "@/lib/auth/auth-session";
 import { notifyDataChanged } from "@/lib/data-changed";
+import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
   chatTypingDestinations,
   getChatRealtimeClient,
@@ -453,6 +455,17 @@ function ChatPageContent() {
     lastStartSentAt: 0,
     stopTimer: null,
   });
+  const tauriChatRedirectSentRef = useRef(false);
+
+  useEffect(() => {
+    if (tauriChatRedirectSentRef.current || !isTauriRuntime()) return;
+
+    tauriChatRedirectSentRef.current = true;
+    const fallbackRoute = queryRoomId ? `/app/project-rooms/${encodeURIComponent(queryRoomId)}/work` : "/app";
+    void openTauriChatWidget({ eventType: "handoff:chat-route", roomId: queryRoomId })
+      .then(() => router.replace(fallbackRoute))
+      .catch(() => router.replace(fallbackRoute));
+  }, [queryRoomId, router]);
 
   // 이모지 퐁퐁 — 이모지만(1~5개)으로 된 TEXT 메시지가 도착하면(내 것/남의 것 모두)
   // "bubli:emoji-splash" 이벤트를 발행해 스레드 오버레이가 이모지를 띄우게 한다.

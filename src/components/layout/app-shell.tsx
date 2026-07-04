@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNav } from "@/components/layout/app-nav";
 import { TopbarNotificationsPanel } from "@/components/layout/topbar-notifications-panel";
@@ -26,6 +26,7 @@ import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
+import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
@@ -110,6 +111,7 @@ export function AppShell({ children }: AppShellProps) {
   const [topbarMenu, setTopbarMenu] = useState<TopbarMenu>(null);
   const [myInvitations, setMyInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
   const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null);
+  const roomsRef = useRef<ProjectRoomResponse[]>([]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -285,6 +287,10 @@ export function AppShell({ children }: AppShellProps) {
   }, [router, state.kind]);
 
   useEffect(() => {
+    roomsRef.current = state.kind === "ready" ? state.rooms : [];
+  }, [state]);
+
+  useEffect(() => {
     if (state.kind !== "ready" || !isTauriRuntime()) return;
 
     void launchTauriAuthenticatedSurfaces().catch((error) => {
@@ -323,7 +329,7 @@ export function AppShell({ children }: AppShellProps) {
 
     void listenWidgetRoomContextChanged((payload) => {
       const roomId = payload.selectedRoomId?.trim() || null;
-      const room = roomId && state.kind === "ready" ? state.rooms.find((item) => item.id === roomId) : undefined;
+      const room = roomId ? roomsRef.current.find((item) => item.id === roomId) : undefined;
       const roomLabel = room?.name ?? null;
 
       syncActiveProjectRoomFromWidgetContext(roomId, roomLabel);
@@ -343,7 +349,7 @@ export function AppShell({ children }: AppShellProps) {
         safeUnlisten(unlisten);
       }
     };
-  }, [state]);
+  }, []);
 
   useEffect(() => {
     function openProjectRoomCreate() {
@@ -505,6 +511,17 @@ export function AppShell({ children }: AppShellProps) {
       return;
     }
     if (notification.sourceType === "MESSAGE") {
+      const fallbackRoute = sourceId
+        ? `/app/project-rooms/${encodeURIComponent(sourceId)}/work`
+        : "/app";
+
+      if (isTauriRuntime()) {
+        const opened = await openTauriChatWidget({ eventType: "handoff:notification", roomId: sourceId });
+        if (!opened) {
+          router.replace(fallbackRoute);
+        }
+        return;
+      }
       router.push(sourceId ? `/app/chat?roomId=${encodeURIComponent(sourceId)}` : "/app/chat");
       return;
     }

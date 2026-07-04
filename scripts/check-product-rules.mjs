@@ -117,9 +117,15 @@ if (existsSync(appNavPath)) {
 
 if (existsSync(desktopCommunicationRoutePath)) {
   const text = readFileSync(desktopCommunicationRoutePath, "utf8");
-  if (!text.includes("/app/chat") || !text.includes("mode") || !text.includes('"room"')) {
+  if (
+    !text.includes("openTauriChatWidget") ||
+    !text.includes("isTauriRuntime") ||
+    !text.includes("/app/chat") ||
+    !text.includes("mode") ||
+    !text.includes('"room"')
+  ) {
     failures.push(
-      "src/app/(workspace)/app/desktop/communication/page.tsx: legacy communication route must redirect to the web chat surface.",
+      "src/app/(workspace)/app/desktop/communication/page.tsx: legacy communication route must bridge to the chat widget in Tauri while preserving the /app/chat web fallback.",
     );
   }
 }

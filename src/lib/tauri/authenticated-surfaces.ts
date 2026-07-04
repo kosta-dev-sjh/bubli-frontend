@@ -20,9 +20,15 @@ const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: 
 // Rust 창 상태는 그대로 남아 있어 수동으로 열면 여전히 동작한다.
 const loginStartupWindows: WidgetWindowOpenInput[] = [
   loginStartupBarWindow,
+  { bubbleType: "agent", mode: "DEFAULT", windowId: "agent" },
+  { bubbleType: "alert", mode: "DEFAULT", windowId: "alert" },
+  { bubbleType: "chat", mode: "DEFAULT", windowId: "chat" },
+  { bubbleType: "memo", mode: "DEFAULT", windowId: "memo" },
+  { bubbleType: "resource", mode: "DEFAULT", windowId: "resource" },
+  { bubbleType: "schedule", mode: "DEFAULT", windowId: "schedule" },
+  { bubbleType: "timer", mode: "DEFAULT", windowId: "timer" },
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
 ];
-const loginPrimaryBubble: WidgetBubbleType = "todo";
 const backendBubbleToLocal: Record<ApiWidgetBubbleType, Exclude<WidgetBubbleType, "bar" | "menu">> = {
   AGENT: "agent",
   ALERT: "alert",
@@ -79,6 +85,38 @@ async function openWidgetWindowWithRetry(
   return { input, reason: lastReason, status: "rejected" };
 }
 
+async function openWidgetWindowsWithRetry(
+  inputs: WidgetWindowOpenInput[],
+  selectedRoomId: string | null,
+  shouldContinue: () => boolean,
+): Promise<WidgetOpenResult[]> {
+  if (inputs.length === 0) return [];
+  let lastReason: unknown = null;
+  const windows = inputs.map((input) => ({ ...input, selectedRoomId }));
+
+  for (let attempt = 0; attempt <= widgetOpenRetryAttempts; attempt += 1) {
+    if (!shouldContinue()) {
+      return inputs.map((input) => ({
+        input,
+        reason: new Error("Tauri widget launch cancelled"),
+        status: "rejected" as const,
+      }));
+    }
+
+    try {
+      await withTimeout(tauriCommands.openWidgetWindows({ windows }), widgetOpenCommandTimeoutMs);
+      return inputs.map((input) => ({ input, status: "fulfilled" as const }));
+    } catch (reason) {
+      lastReason = reason;
+      if (attempt < widgetOpenRetryAttempts && shouldContinue()) {
+        await delay(widgetOpenRetryDelayMs);
+      }
+    }
+  }
+
+  return inputs.map((input) => ({ input, reason: lastReason, status: "rejected" as const }));
+}
+
 function getStartupModeFromSetting(setting: WidgetBubbleSettingResponse): WidgetWindowMode {
   if (setting.minimized) return "MINIMIZED";
   if (setting.ghostMode) return "GHOST";
@@ -88,22 +126,40 @@ function getStartupModeFromSetting(setting: WidgetBubbleSettingResponse): Widget
   return "DEFAULT";
 }
 
-function getLoginPrimaryBubbleWindow(settings: WidgetBubbleSettingResponse[]): WidgetWindowOpenInput | null {
+function getLoginStartupBubbles(settings: WidgetBubbleSettingResponse[]): WidgetWindowOpenInput[] {
   const enabledByBubble = new Map<Exclude<WidgetBubbleType, "bar" | "menu">, WidgetBubbleSettingResponse>();
+  const sortedStartupBubbles: Array<WidgetWindowOpenInput & { bubbleType: Exclude<WidgetBubbleType, "bar" | "menu"> }> = [];
 
-  for (const setting of settings) {
-    if (!setting.enabled || setting.minimized) continue;
-    enabledByBubble.set(backendBubbleToLocal[setting.bubbleType], setting);
+  for (const startupWindow of loginStartupWindows) {
+    if (startupWindow.bubbleType === undefined || startupWindow.bubbleType === "bar" || startupWindow.bubbleType === "menu") {
+      continue;
+    }
+
+    const bubbleWithType = startupWindow as WidgetWindowOpenInput & {
+      bubbleType: Exclude<WidgetBubbleType, "bar" | "menu">;
+    };
+    sortedStartupBubbles.push(bubbleWithType);
   }
 
-  const setting = enabledByBubble.get(loginPrimaryBubble);
-  if (!setting) return null;
+  for (const setting of settings) {
+    if (!setting.enabled) continue;
+    const localType = backendBubbleToLocal[setting.bubbleType];
+    if (!localType) continue;
+    enabledByBubble.set(localType, setting);
+  }
 
-  return {
-    bubbleType: loginPrimaryBubble,
-    mode: getStartupModeFromSetting(setting),
-    windowId: loginPrimaryBubble,
-  };
+  const startupBubbles: WidgetWindowOpenInput[] = [];
+  for (const bubble of sortedStartupBubbles) {
+    const setting = enabledByBubble.get(bubble.bubbleType);
+    if (!setting) continue;
+    startupBubbles.push({
+      bubbleType: bubble.bubbleType,
+      mode: getStartupModeFromSetting(setting),
+      windowId: bubble.windowId,
+    });
+  }
+
+  return startupBubbles;
 }
 
 export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInput[]> {
@@ -112,12 +168,10 @@ export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInpu
     return loginStartupWindows;
   }
 
-  // Backend defaults keep all eight bubbles enabled for the bar/catalog, but
-  // login must not spawn eight native windows at once.
-  const primaryBubbleWindow = getLoginPrimaryBubbleWindow(settings.bubbles);
-  if (!primaryBubbleWindow) return [loginStartupBarWindow];
+  const startupBubbles = getLoginStartupBubbles(settings.bubbles);
+  if (startupBubbles.length === 0) return [loginStartupBarWindow];
 
-  return [loginStartupBarWindow, primaryBubbleWindow];
+  return [loginStartupBarWindow, ...startupBubbles];
 }
 
 async function resolveLaunchSelectedRoomId() {
@@ -177,21 +231,12 @@ export function launchTauriAuthenticatedSurfaces() {
       return;
     }
 
-    const bubbleResults = await Promise.allSettled(
-      bubbleWindows.map((input) => openWidgetWindowWithRetry(input, selectedRoomId, shouldContinueLaunch)),
-    );
-
+    const bubbleResults = await openWidgetWindowsWithRetry(bubbleWindows, selectedRoomId, shouldContinueLaunch);
     for (const result of bubbleResults) {
-      if (result.status === "rejected") {
-        rejectedReasons.push(result.reason);
-        continue;
-      }
-
-      const value = result.value;
-      if (value.status === "fulfilled") {
-        openedWindows.push(value.input);
+      if (result.status === "fulfilled") {
+        openedWindows.push(result.input);
       } else {
-        rejectedReasons.push(value.reason);
+        rejectedReasons.push(result.reason);
       }
     }
 
