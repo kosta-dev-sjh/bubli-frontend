@@ -139,16 +139,17 @@ export function setStoredAuthSession(session: AuthSessionInput) {
 
 export function clearStoredAuthSession() {
   if (!canUseStorage()) {
+    clearTauriAuthSessionMirror();
     return;
   }
 
-  if (!window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY)) {
-    return;
-  }
+  const hadStoredSession = Boolean(window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY));
 
   window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
   clearTauriAuthSessionMirror();
-  emitAuthSessionChange();
+  if (hadStoredSession || isTauriRuntime()) {
+    emitAuthSessionChange();
+  }
 }
 
 export async function restoreStoredAuthSessionFromTauri() {
@@ -156,7 +157,12 @@ export async function restoreStoredAuthSessionFromTauri() {
     return getStoredAuthSession();
   }
 
-  const current = getStoredAuthSession();
+  let current = getStoredAuthSession();
+
+  if (current && isExpired(current.refreshTokenExpiresAt)) {
+    clearStoredAuthSession();
+    current = null;
+  }
 
   if (current && !isExpired(current.refreshTokenExpiresAt)) {
     await mirrorAuthSessionToTauri(current);
@@ -170,7 +176,10 @@ export async function restoreStoredAuthSessionFromTauri() {
 
     const parsed = parseStoredAuthSession(restored.sessionJson);
     if (!parsed || isExpired(parsed.refreshTokenExpiresAt)) {
-      if (!current) clearStoredAuthSession();
+      clearTauriAuthSessionMirror();
+      if (!current) {
+        clearStoredAuthSession();
+      }
       return current;
     }
 

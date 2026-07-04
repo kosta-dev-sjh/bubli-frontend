@@ -1038,10 +1038,9 @@ function DesktopWidgetSurface() {
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         clearStoredAuthSession();
-        return false;
       }
 
-      return true;
+      return false;
     }
   }, []);
 

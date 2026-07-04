@@ -232,6 +232,13 @@ export function AppShell({ children }: AppShellProps) {
 
     let cancelled = false;
     let unlisten: (() => void) | null = null;
+    const safeUnlisten = (nextUnlisten: () => void) => {
+      try {
+        nextUnlisten();
+      } catch (error) {
+        console.warn("Failed to remove Tauri widget room listener.", error);
+      }
+    };
 
     void listenWidgetRoomContextChanged((payload) => {
       const roomId = payload.selectedRoomId?.trim() || null;
@@ -243,7 +250,7 @@ export function AppShell({ children }: AppShellProps) {
       setSelectedRoomLabel(roomLabel);
     }).then((nextUnlisten) => {
       if (cancelled) {
-        nextUnlisten();
+        safeUnlisten(nextUnlisten);
         return;
       }
       unlisten = nextUnlisten;
@@ -251,7 +258,9 @@ export function AppShell({ children }: AppShellProps) {
 
     return () => {
       cancelled = true;
-      unlisten?.();
+      if (unlisten) {
+        safeUnlisten(unlisten);
+      }
     };
   }, [state]);
 
