@@ -930,7 +930,10 @@ export default function SettingsPage() {
     const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.activityDetectionEnabled) : false;
     setActivityAction("record");
     try {
-      const result = await recordCurrentActivityContext({ consentGranted });
+      const result = await recordCurrentActivityContext({
+        consentGranted,
+        roomId: getActiveProjectRoomId(),
+      });
       if (result.status === "ready") {
         updateReadyState((ready) => ({
           ...ready,
