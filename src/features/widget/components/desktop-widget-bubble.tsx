@@ -106,6 +106,7 @@ export type DesktopWidgetBubbleProps = {
   onModeChange: (mode: WidgetWindowMode) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onCreateMemo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  onCreateSchedule?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onCreateTodo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onDeleteMemo?: (item: WidgetPreviewItem) => Promise<void> | void;
   onEditMemo?: (item: WidgetPreviewItem) => Promise<void> | void;
@@ -635,10 +636,12 @@ function MemoBody({
 
 function ScheduleBody({
   bubble,
+  onCreateSchedule,
   onItemStateChange,
   onOpenHandoff,
 }: {
   bubble: WidgetPreviewBubble;
+  onCreateSchedule?: DesktopWidgetBubbleProps["onCreateSchedule"];
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
@@ -684,6 +687,10 @@ function ScheduleBody({
           </div>
         )}
       </div>
+      <button className={styles.wideAction} onClick={() => void onCreateSchedule?.(bubble)} type="button">
+        <Plus size={14} strokeWidth={2} />
+        {t("widget.schedule.quickAdd")}
+      </button>
     </div>
   );
 }
@@ -750,6 +757,7 @@ function BubbleBody({
   bubble,
   onItemStateChange,
   onCreateMemo,
+  onCreateSchedule,
   onCreateTodo,
   onAnalyzeResource,
   onDeleteMemo,
@@ -768,6 +776,7 @@ function BubbleBody({
   bubble: WidgetPreviewBubble;
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
+  onCreateSchedule?: DesktopWidgetBubbleProps["onCreateSchedule"];
   onCreateTodo?: DesktopWidgetBubbleProps["onCreateTodo"];
   onDeleteMemo?: DesktopWidgetBubbleProps["onDeleteMemo"];
   onEditMemo?: DesktopWidgetBubbleProps["onEditMemo"];
@@ -813,7 +822,9 @@ function BubbleBody({
   if (bubble.id === "memo") {
     return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} onDeleteMemo={onDeleteMemo} onEditMemo={onEditMemo} onOpenHandoff={onOpenHandoff} />;
   }
-  if (bubble.id === "schedule") return <ScheduleBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
+  if (bubble.id === "schedule") {
+    return <ScheduleBody bubble={bubble} onCreateSchedule={onCreateSchedule} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
+  }
   if (bubble.id === "resource") {
     return (
       <ResourceBody
@@ -855,6 +866,7 @@ export function DesktopWidgetBubble({
   onMarkChatRead,
   onModeChange,
   onCreateMemo,
+  onCreateSchedule,
   onCreateTodo,
   onOpenHandoff,
   onPauseTimer,
@@ -932,6 +944,7 @@ export function DesktopWidgetBubble({
                 onLeaveVoice={onLeaveVoice}
                 onMarkChatRead={onMarkChatRead}
                 onCreateMemo={onCreateMemo}
+                onCreateSchedule={onCreateSchedule}
                 onCreateTodo={onCreateTodo}
                 onOpenHandoff={onOpenHandoff}
                 onPauseTimer={onPauseTimer}

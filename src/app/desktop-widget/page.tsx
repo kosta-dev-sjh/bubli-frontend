@@ -39,6 +39,7 @@ import {
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
 import { notificationApi } from "@/features/notification/api/notificationApi";
+import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
@@ -685,6 +686,13 @@ function normalizeWidgetRoomId(roomId?: string | null) {
   return roomId?.trim() || null;
 }
 
+function nextWidgetScheduleStart() {
+  const next = new Date();
+  const minutes = next.getMinutes();
+  next.setMinutes(minutes < 30 ? 30 : 60, 0, 0);
+  return next.toISOString();
+}
+
 function widgetSummaryMatchesRequestedRoom(summary: WidgetSummaryResponse, requestedRoomId?: string | null) {
   const requested = normalizeWidgetRoomId(requestedRoomId);
   if (!requested) return true;
@@ -759,6 +767,7 @@ function DesktopWidgetSurface() {
   const [memoRevision, setMemoRevision] = useState(0);
   const [notificationRevision, setNotificationRevision] = useState(0);
   const [resourceRevision, setResourceRevision] = useState(0);
+  const [scheduleRevision, setScheduleRevision] = useState(0);
   const [todoRevision, setTodoRevision] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
   const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
@@ -1158,7 +1167,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, agentRevision, communicationRevision, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, requestedRoomId, resourceRevision, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
+  }, [activeVoiceRoomId, agentRevision, communicationRevision, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, requestedRoomId, resourceRevision, scheduleRevision, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -1703,6 +1712,37 @@ function DesktopWidgetSurface() {
     [isTauri, t, widgetContext?.selectedRoomId],
   );
 
+  const createWidgetSchedule = useCallback(
+    async (bubble: WidgetPreviewBubble) => {
+      const title = window.prompt(t("widget.schedule.prompt"))?.trim();
+      if (!title) return;
+
+      const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
+      const schedule = await calendarApi.createEvent({
+        allDay: false,
+        endsAt: null,
+        roomId,
+        startsAt: nextWidgetScheduleStart(),
+        title,
+      });
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "schedule",
+            eventType: "schedule:create",
+            itemId: schedule.id,
+            itemType: "SCHEDULE",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setScheduleRevision((current) => current + 1);
+    },
+    [isTauri, t, widgetContext?.selectedRoomId],
+  );
+
   const recordTimerUsage = useCallback(
     (eventType: string, itemId?: string) => {
       if (!isTauri) return;
@@ -2039,6 +2079,7 @@ function DesktopWidgetSurface() {
       onMarkChatRead={markWidgetChatRead}
       onModeChange={(nextMode) => void setWindowMode(nextMode)}
       onCreateMemo={createWidgetMemo}
+      onCreateSchedule={createWidgetSchedule}
       onCreateTodo={createWidgetTodo}
       onDeleteMemo={deleteWidgetMemo}
       onEditMemo={editWidgetMemo}
