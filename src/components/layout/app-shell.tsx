@@ -258,10 +258,12 @@ export function AppShell({ children }: AppShellProps) {
     if (!isTauriRuntime()) return;
 
     let cancelled = false;
-    let unlisten: (() => void) | null = null;
-    const safeUnlisten = (nextUnlisten: () => void) => {
+    let unlisten: (() => unknown) | null = null;
+    const safeUnlisten = (nextUnlisten: () => unknown) => {
       try {
-        nextUnlisten();
+        void Promise.resolve(nextUnlisten()).catch((error) => {
+          console.warn("Failed to remove Tauri widget room listener.", error);
+        });
       } catch (error) {
         console.warn("Failed to remove Tauri widget room listener.", error);
       }

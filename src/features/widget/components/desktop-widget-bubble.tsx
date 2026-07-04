@@ -1903,9 +1903,9 @@ export function DesktopWidgetBubbleBar({
               whileHover={chipWhileHover}
               whileTap={chipWhileTap}
             >
-              <Bell size={15} strokeWidth={2.1} aria-hidden="true" />
+              <Bell key="notice-icon" size={15} strokeWidth={2.1} aria-hidden="true" />
               {barChipBadge(notificationSignal.metric) ? (
-                <i className={styles.chipBadge} aria-hidden="true">
+                <i key="notice-badge" className={styles.chipBadge} aria-hidden="true">
                   {barChipBadge(notificationSignal.metric)}
                 </i>
               ) : null}
@@ -1984,10 +1984,14 @@ export function DesktopWidgetBubbleBar({
                   whileHover={chipWhileHover}
                   whileTap={chipWhileTap}
                 >
-                  <Icon size={15} strokeWidth={2.1} aria-hidden="true" />
-                  {isTimerChip ? <b className={styles.chipTime}>{bubble.metric}</b> : null}
+                  <Icon key={`${bubbleType}-icon`} size={15} strokeWidth={2.1} aria-hidden="true" />
+                  {isTimerChip ? (
+                    <b key={`${bubbleType}-time`} className={styles.chipTime}>
+                      {bubble.metric}
+                    </b>
+                  ) : null}
                   {badge ? (
-                    <i className={styles.chipBadge} aria-hidden="true">
+                    <i key={`${bubbleType}-badge`} className={styles.chipBadge} aria-hidden="true">
                       {badge}
                     </i>
                   ) : null}
