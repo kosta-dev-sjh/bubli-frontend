@@ -98,10 +98,12 @@ export function TauriSyncStatusPanel() {
     };
   }, [refreshOutbox]);
 
+  const hasAdapterIssue = Boolean(result && result.status !== "pending" && result.status !== "ready");
   const summary = result?.status === "pending" ? result.summary : result?.status === "ready" ? result.data : emptySummary;
   const pendingCount = summary.pendingCount ?? 0;
+  const failedCount = (summary.failedCount ?? 0) + (hasAdapterIssue ? 1 : 0);
   const sentCount = summary.sentCount ?? 0;
-  const unsentCount = pendingCount + summary.failedCount;
+  const unsentCount = pendingCount + failedCount;
   const totalCount = unsentCount + sentCount;
   const syncedPercent = totalCount > 0 ? Math.round((sentCount / totalCount) * 100) : 100;
   const queueItems = useMemo<SyncQueueItem[]>(
@@ -114,7 +116,7 @@ export function TauriSyncStatusPanel() {
         targetKey: "settings.tss.pending.target",
       },
       {
-        count: summary.failedCount,
+        count: failedCount,
         labelKey: "settings.tss.failed.label",
         sourceKey: "settings.tss.failed.source",
         status: "retrying",
@@ -128,7 +130,7 @@ export function TauriSyncStatusPanel() {
         targetKey: "settings.tss.sent.target",
       },
     ],
-    [pendingCount, sentCount, summary.failedCount],
+    [failedCount, pendingCount, sentCount],
   );
 
   return (
@@ -145,9 +147,9 @@ export function TauriSyncStatusPanel() {
           </div>
         </div>
         <div className="tauri-sync__health">
-          <StatusBadge tone={unsentCount > 0 ? "warning" : "success"}>{t("settings.tss.syncPending")}</StatusBadge>
+          <StatusBadge tone={hasAdapterIssue || unsentCount > 0 ? "warning" : "success"}>{t("settings.tss.syncPending")}</StatusBadge>
           <strong>{t("settings.tss.count", { count: unsentCount })}</strong>
-          <span>{t("settings.tss.unsent")}</span>
+          <span>{hasAdapterIssue ? (result?.message ?? t("settings.tss.unsent")) : t("settings.tss.unsent")}</span>
           <ProgressBar label={t("settings.tss.syncState")} value={syncedPercent} />
         </div>
       </GlassPanel>

@@ -1262,6 +1262,10 @@ fn normalize_main_window_route(route: &str) -> Result<String, String> {
         format!("/{trimmed}")
     };
 
+    if route_targets_chat_widget(&normalized) {
+        return Err("chat routes must open the Tauri chat widget, not the main window".to_string());
+    }
+
     if normalized == "/"
         || normalized == "/app"
         || normalized.starts_with("/app/")
@@ -1271,6 +1275,28 @@ fn normalize_main_window_route(route: &str) -> Result<String, String> {
     } else {
         Err("main window route must start with /app".to_string())
     }
+}
+
+fn route_targets_chat_widget(normalized_route: &str) -> bool {
+    let path = normalized_route
+        .split(&['?', '#'])
+        .next()
+        .unwrap_or(normalized_route)
+        .trim_end_matches('/');
+
+    if path == "/app/chat" {
+        return true;
+    }
+
+    let segments = path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    segments.len() >= 4
+        && segments[0] == "app"
+        && segments[1] == "project-rooms"
+        && !segments[2].is_empty()
+        && segments[3] == "chat"
 }
 
 #[tauri::command]
@@ -2985,6 +3011,10 @@ mod widget_runtime_tests {
             normalize_main_window_route("/app/calendar?roomId=room-1").as_deref(),
             Ok("/app/calendar?roomId=room-1")
         );
+        assert!(normalize_main_window_route("/app/chat").is_err());
+        assert!(normalize_main_window_route("/app/chat?roomId=room-1").is_err());
+        assert!(normalize_main_window_route("/app/project-rooms/room-1/chat").is_err());
+        assert!(normalize_main_window_route("/app/project-rooms/room-1/chat?mode=room").is_err());
         assert!(normalize_main_window_route("https://example.com/app").is_err());
         assert!(normalize_main_window_route("//example.com/app").is_err());
         assert!(normalize_main_window_route("javascript:alert(1)").is_err());

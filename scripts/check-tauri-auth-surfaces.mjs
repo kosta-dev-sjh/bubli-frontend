@@ -297,6 +297,11 @@ assertContains(
   /item\.kind === "message" \|\| route\.includes\("\/chat"\)[\s\S]*openTauriChatWidget\(\{[\s\S]*eventType: "handoff:message"/,
   "Desktop widget message handoffs must reopen the chat bubble instead of routing the main app to /app/chat.",
 );
+assertContains(
+  widgetPage,
+  /readWidgetSummary\(\{ preferLocalCache: false[\s\S]*serverResult\.status !== "failed"[\s\S]*summary:server-refresh-failed/,
+  "Desktop widget cached summary fallback must record server refresh failures instead of hiding backend/API failures.",
+);
 
 assertContains(
   workspaceActiveRoom,

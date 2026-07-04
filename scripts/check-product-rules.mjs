@@ -89,6 +89,11 @@ const desktopCommunicationRoutePath = join(
 );
 const managedFolderClientPath = join(ROOT, "src/lib/local/managed-folder-client.ts");
 const globalsCssPath = join(ROOT, "src/styles/globals.css");
+const tauriLibPath = join(ROOT, "src-tauri/src/lib.rs");
+const tauriSyncStatusPanelPath = join(
+  ROOT,
+  "src/features/settings/components/tauri-sync-status-panel.tsx",
+);
 
 for (const route of DISALLOWED_ROUTES) {
   const absolutePath = join(ROOT, route.path);
@@ -150,6 +155,34 @@ if (existsSync(globalsCssPath)) {
   if (/hybrid-frame__mock/i.test(text)) {
     failures.push(
       "src/styles/globals.css: hybrid app surfaces must not keep mock-named UI classes; use neutral live-surface naming.",
+    );
+  }
+}
+
+if (existsSync(tauriLibPath)) {
+  const text = readFileSync(tauriLibPath, "utf8");
+  if (
+    !text.includes("route_targets_chat_widget") ||
+    !text.includes('path == "/app/chat"') ||
+    !text.includes('segments[1] == "project-rooms"') ||
+    !text.includes('segments[3] == "chat"')
+  ) {
+    failures.push(
+      "src-tauri/src/lib.rs: Tauri open_main_window_route must reject /app/chat and project-room chat routes; chat belongs in the native chat widget.",
+    );
+  }
+}
+
+if (existsSync(tauriSyncStatusPanelPath)) {
+  const text = readFileSync(tauriSyncStatusPanelPath, "utf8");
+  if (
+    !text.includes("hasAdapterIssue") ||
+    !text.includes('result.status !== "pending"') ||
+    !text.includes('result.status !== "ready"') ||
+    !text.includes("hasAdapterIssue ? 1 : 0")
+  ) {
+    failures.push(
+      "src/features/settings/components/tauri-sync-status-panel.tsx: Tauri/SQLite sync adapter failures must be surfaced as unresolved sync issues, not hidden behind an empty summary.",
     );
   }
 }
