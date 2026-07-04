@@ -876,9 +876,11 @@ export function WbsGanttPanel({
   // 연동 모델을 한 줄로: 원본은 Bubli, 구글에는 사본. 룸 캘린더 이름을 알면 함께 보여준다.
   const syncModelText =
     calendarSync === "recording"
-      ? roomCalendar?.googleCalendarId
-        ? t("wbs.gantt.sync.modelNamed", { name: roomCalendar.calendarName })
-        : t("wbs.gantt.sync.model")
+      ? roomCalendar?.needsReconsent
+        ? t("wbs.gantt.sync.modelReconsent")
+        : roomCalendar?.googleCalendarId
+          ? t("wbs.gantt.sync.modelNamed", { name: roomCalendar.calendarName })
+          : t("wbs.gantt.sync.model")
       : null;
   const lastPushTimeText =
     lastPush && syncPopoverOpenedAt !== null
