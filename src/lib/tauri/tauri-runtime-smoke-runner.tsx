@@ -3,8 +3,12 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
-import { clearStoredAuthSession, getStoredAuthSession, setStoredAuthSession } from "@/lib/auth/auth-session";
+import { managedFolderApi } from "@/features/managed-folder/api/managedFolderApi";
+import { authApi } from "@/features/auth/api/authApi";
+import { settingsApi } from "@/features/settings/api/settingsApi";
+import { clearStoredAuthSession, getStoredAuthSession } from "@/lib/auth/auth-session";
 import { tauriCommands } from "@/lib/tauri/commands";
+import type { LocalFileEventsSyncStageResult } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 type SmokeCheck = {
@@ -24,14 +28,14 @@ type SmokeReport = {
 const smokeEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
 const smokeReportUrl = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_REPORT_URL;
 const smokeFolderPath = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_FOLDER;
+const smokePhase = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_PHASE ?? "full";
 const smokeRoomId =
   process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_ROOM_ID ??
   "22222222-2222-4222-8222-222222222222";
 const smokeShouldQuit = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_QUIT === "true";
-
-function isoAfter(seconds: number) {
-  return new Date(Date.now() + seconds * 1000).toISOString();
-}
+const smokeRestoreSnapshotRoomId = "33333333-3333-4333-8333-333333333333";
+const smokeRestoreSnapshotMessageId = "codex-restore-snapshot-message";
+const smokeRestoreDirtyMessageId = "codex-restore-dirty-message";
 
 function isWindowsRuntime() {
   return typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("windows");
@@ -81,29 +85,45 @@ async function waitForManagedFolderEvents(localFolderId: string, requiredEventTy
   return latest;
 }
 
-function seedDevAuthSession() {
-  if (process.env.NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN !== "true") return;
+function localFileEventNames(events: Array<{ fileName: string }>) {
+  return new Set(events.map((event) => event.fileName));
+}
 
+async function syncStagedLocalFileEventsToBackend(staged: LocalFileEventsSyncStageResult) {
+  const response = await managedFolderApi.syncApprovedLocalFileEvents({
+    events: staged.events.map((event) => ({
+      eventType: event.eventType,
+      fileName: event.fileName,
+      fileSizeBytes: event.fileSizeBytes,
+      localEventId: event.localEventId,
+      mimeType: event.mimeType,
+      resourceId: event.resourceId,
+    })),
+  });
+  const markResult = await tauriCommands.markLocalFileEventsSynced({
+    results: response.results
+      .map((result, index) => {
+        const localEventId = result.localEventId ?? staged.events[index]?.localEventId;
+        if (!localEventId) return null;
+
+        return {
+          localEventId,
+          resourceId: result.resourceId,
+          status: result.status,
+        };
+      })
+      .filter((result): result is NonNullable<typeof result> => result !== null),
+  });
+
+  return { markResult, response };
+}
+
+async function seedDevAuthSession() {
   const accessToken = process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN;
-  if (!accessToken) return;
+  if (!accessToken) return null;
 
   clearStoredAuthSession();
-  setStoredAuthSession({
-    accessToken,
-    clientType: "TAURI",
-    expiresAt: isoAfter(55 * 60),
-    expiresIn: 55 * 60,
-    refreshToken: `dev-refresh-token:${Date.now()}`,
-    refreshTokenExpiresAt: isoAfter(2 * 60 * 60),
-    tokenType: "Bearer",
-    user: {
-      bubliId: "codex-widget",
-      id: "11111111-1111-4111-8111-111111111111",
-      locale: "ko-KR",
-      name: "Codex Widget User",
-      timezone: "Asia/Seoul",
-    },
-  });
+  return authApi.loginWithDevAccessToken(accessToken);
 }
 
 async function postReport(report: SmokeReport) {
@@ -152,8 +172,50 @@ async function runSmoke() {
 
     await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
-    seedDevAuthSession();
+    const devToken = await seedDevAuthSession();
+    assert(
+      devToken?.user.id === "11111111-1111-4111-8111-111111111111",
+      "tauri dev access token resolved seed user",
+      devToken?.user,
+    );
     assert(getStoredAuthSession(), "tauri auth session is available");
+
+    const privacyConsents = await settingsApi.updatePrivacyConsents({
+      activityDetectionEnabled: true,
+      localFolderEnabled: true,
+    });
+    assert(
+      privacyConsents.activityDetectionEnabled && privacyConsents.localFolderEnabled,
+      "backend privacy consent enabled for runtime smoke",
+      privacyConsents,
+    );
+
+    if (smokePhase === "restore-verify") {
+      const restoredMessages = await tauriCommands.readRoomMessages({
+        limit: 5,
+        roomId: smokeRestoreSnapshotRoomId,
+      });
+      assert(
+        restoredMessages.latestSequence === 777 &&
+          restoredMessages.items.some((item) => item.serverMessageId === smokeRestoreSnapshotMessageId) &&
+          !restoredMessages.items.some((item) => item.serverMessageId === smokeRestoreDirtyMessageId),
+        "local SQLite restore applied after app restart",
+        restoredMessages,
+      );
+      const restoredIntegrity = await tauriCommands.checkLocalSqliteIntegrity();
+      assert(restoredIntegrity.ok, "local SQLite integrity passed after restore restart", restoredIntegrity);
+      const closedCount = await tauriCommands.closeAllWidgetWindows();
+      await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false });
+      addCheck("widget windows cleaned up", { closedCount });
+      await postReport({
+        checks,
+        durationMs: Date.now() - startedAt,
+        finishedAt: new Date().toISOString(),
+        platform: navigator.userAgent,
+        status: "passed",
+      });
+      return;
+    }
 
     await tauriCommands.storeActiveProjectRoom({
       roomId: smokeRoomId,
@@ -182,6 +244,48 @@ async function runSmoke() {
     const sqlite = await tauriCommands.checkLocalSqliteIntegrity();
     assert(sqlite.ok, "local SQLite quick_check passed", sqlite);
 
+    const snapshotMessages = await tauriCommands.syncRoomMessages({
+      messages: [
+        {
+          bodyJson: JSON.stringify({ marker: "restore-snapshot" }),
+          roomSequence: 777,
+          serverMessageId: smokeRestoreSnapshotMessageId,
+        },
+      ],
+      roomId: smokeRestoreSnapshotRoomId,
+    });
+    assert(snapshotMessages.latestSequence === 777, "local SQLite restore snapshot marker written", snapshotMessages);
+    const backup = await tauriCommands.backupLocalSqlite();
+    assert(backup.backupId && backup.sizeBytes > 0, "local SQLite backup file created", backup);
+    const backupManifest = await tauriCommands.listLocalSqliteBackups();
+    assert(
+      backupManifest.latestBackupId === backup.backupId &&
+        backupManifest.backups.some((entry) => entry.backupId === backup.backupId),
+      "local SQLite backup manifest lists latest backup",
+      { backup, backupManifest },
+    );
+    const dirtyMessages = await tauriCommands.syncRoomMessages({
+      messages: [
+        {
+          bodyJson: JSON.stringify({ marker: "restore-dirty" }),
+          roomSequence: 888,
+          serverMessageId: smokeRestoreDirtyMessageId,
+        },
+      ],
+      roomId: smokeRestoreSnapshotRoomId,
+    });
+    assert(dirtyMessages.latestSequence === 888, "local SQLite dirty state written after backup", dirtyMessages);
+    const restore = await tauriCommands.restoreLocalSqliteBackup({ backupId: backup.backupId });
+    assert(
+      restore.backupId === backup.backupId && restore.requiresRestart,
+      "local SQLite restore queued for next app restart",
+      restore,
+    );
+    await tauriCommands.storeActiveProjectRoom({
+      roomId: smokeRoomId,
+      roomLabel: "Codex Runtime Smoke",
+    });
+
     await tauriCommands.setActivityContextConsent({ enabled: true });
     const foreground = await tauriCommands.readActivityContext();
     assert(foreground.appName.trim().length > 0, "native foreground activity captured", foreground);
@@ -195,7 +299,7 @@ async function runSmoke() {
       startedAt: new Date(now.getTime() - 60_000).toISOString(),
       windowTitle: foreground.windowTitle ?? "Windows runtime smoke",
     });
-    const stagedActivity = await tauriCommands.stageActivityContextsForSync({ limit: 5 });
+    const stagedActivity = await tauriCommands.stageActivityContextsForSync({ limit: 50 });
     assert(
       stagedActivity.activities.some((item) => item.localActivityId === activity.localActivityId),
       "activity capture staged from SQLite",
@@ -233,6 +337,15 @@ async function runSmoke() {
       });
       assert(stagedFiles.events.length >= 1, "local file events staged for backend sync", stagedFiles);
 
+      const initialSync = await syncStagedLocalFileEventsToBackend(stagedFiles);
+      assert(
+        initialSync.response.results.every((result) => result.status === "SYNCED") &&
+          initialSync.markResult.failedCount === 0 &&
+          initialSync.markResult.syncedCount >= 1,
+        "local file event sync marked SQLite rows as SYNCED",
+        initialSync,
+      );
+
       const watch = await tauriCommands.watchManagedFolder({ localFolderId: folder.localFolderId });
       assert(watch.watching, "managed folder watcher started", watch);
       await sleep(500);
@@ -243,6 +356,24 @@ async function runSmoke() {
         watchedTypes.has("UPDATED") && watchedTypes.has("DELETED"),
         "managed folder watcher staged update and delete events",
         { mutation, watchedEvents },
+      );
+      const watchedSync = await syncStagedLocalFileEventsToBackend(watchedEvents);
+      assert(
+        watchedSync.response.results.every((result) => result.status === "SYNCED") &&
+          watchedSync.markResult.failedCount === 0 &&
+          watchedSync.markResult.syncedCount >= 2,
+        "watched file event sync marked SQLite rows as SYNCED",
+        watchedSync,
+      );
+      const remainingWatchedEvents = await tauriCommands.stageLocalFileEventsForSync({
+        limit: 20,
+        localFolderId: folder.localFolderId,
+      });
+      const remainingNames = localFileEventNames(remainingWatchedEvents.events);
+      assert(
+        !remainingNames.has("runtime-smoke-note.txt") && !remainingNames.has("runtime-smoke-delete.txt"),
+        "synced watched file events no longer remain pending",
+        remainingWatchedEvents,
       );
       await tauriCommands.unwatchAllManagedFolders();
     }
