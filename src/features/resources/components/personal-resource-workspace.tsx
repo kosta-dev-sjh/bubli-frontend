@@ -9,11 +9,14 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import {
+  listPersonalManagedFolders,
   openPersonalLocalFile,
   PERSONAL_RESOURCES_CHANGED_EVENT,
   readPersonalLocalFilePreview,
   reindexPersonalLocalFile,
+  scanPersonalManagedFolder,
   searchPersonalLocalFiles,
+  selectPersonalManagedFolder,
   syncPersonalLocalFileEventsToServer,
 } from "@/lib/local/managed-folder-client";
 import { ACTIVE_PROJECT_ROOM_CHANGE_EVENT, getActiveProjectRoomId } from "@/lib/workspace-active-room";
@@ -21,7 +24,7 @@ import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewPersonalResources } from "@/lib/workspace-preview-data";
-import type { LocalFilePreviewResult, LocalFileSearchResult } from "@/lib/tauri/commands";
+import type { LocalFilePreviewResult, LocalFileSearchResult, ManagedFolderListItem } from "@/lib/tauri/commands";
 import type { ResourceResponse } from "@/types/api/resource";
 
 import { formatDate, getErrorMessage, ResourcePreview, ResourceScopeSwitch, ResourceTile, ResourceToolbar, type ViewMode } from "./resource-board-common";
@@ -51,6 +54,9 @@ export function PersonalResourceWorkspace() {
   const [isTauri, setIsTauri] = useState(false);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(() => getActiveProjectRoomId());
   const [localFolderConsent, setLocalFolderConsent] = useState(false);
+  const [localFolders, setLocalFolders] = useState<ManagedFolderListItem[]>([]);
+  const [localFolderAction, setLocalFolderAction] = useState<"select" | "scan" | null>(null);
+  const [localFolderMessage, setLocalFolderMessage] = useState<string | null>(null);
   const [localMatches, setLocalMatches] = useState<LocalIndexedFile[]>([]);
   const [localSearchState, setLocalSearchState] = useState<"idle" | "loading" | "ready" | "blocked" | "error">("idle");
   const [localSearchMessage, setLocalSearchMessage] = useState<string | null>(null);
@@ -78,6 +84,18 @@ export function PersonalResourceWorkspace() {
     void loadResources();
   }, [loadResources]);
 
+  const refreshLocalFolders = useCallback(async () => {
+    if (!isTauri) {
+      setLocalFolders([]);
+      return;
+    }
+
+    const result = await listPersonalManagedFolders();
+    if (result.status === "ready") {
+      setLocalFolders(result.data.folders.filter((folder) => folder.status !== "REMOVED"));
+    }
+  }, [isTauri]);
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       const desktopRuntime = isTauriRuntime();
@@ -98,7 +116,10 @@ export function PersonalResourceWorkspace() {
     void settingsApi
       .getPrivacyConsents()
       .then((privacy) => {
-        if (!cancelled) setLocalFolderConsent(Boolean(privacy.localFolderEnabled));
+        if (!cancelled) {
+          setLocalFolderConsent(Boolean(privacy.localFolderEnabled));
+          void refreshLocalFolders();
+        }
       })
       .catch(() => {
         if (!cancelled) setLocalFolderConsent(false);
@@ -107,7 +128,7 @@ export function PersonalResourceWorkspace() {
     return () => {
       cancelled = true;
     };
-  }, [isTauri]);
+  }, [isTauri, refreshLocalFolders]);
 
   useEffect(() => {
     function handleRoomChange() {
@@ -279,6 +300,67 @@ export function PersonalResourceWorkspace() {
     );
   }, [loadResources, localFolderConsent, t]);
 
+  const connectLocalFolder = useCallback(async () => {
+    if (!isTauri) return;
+
+    setLocalFolderAction("select");
+    setLocalFolderMessage(null);
+    try {
+      const result = await selectPersonalManagedFolder({ consentGranted: localFolderConsent });
+      if (result.status !== "ready") {
+        setLocalFolderMessage(result.message ?? t("settings.msg.selectFolderFirst"));
+        return;
+      }
+
+      setLocalFolders((current) => [
+        {
+          createdAt: new Date().toISOString(),
+          localFolderId: result.data.localFolderId,
+          name: result.data.name,
+          path: result.data.path,
+          status: "ACTIVE",
+          syncEnabled: true,
+          updatedAt: new Date().toISOString(),
+        },
+        ...current.filter((folder) => folder.localFolderId !== result.data.localFolderId),
+      ]);
+      setLocalFolderMessage(t("settings.msg.folderConnected"));
+      void refreshLocalFolders();
+    } finally {
+      setLocalFolderAction(null);
+    }
+  }, [isTauri, localFolderConsent, refreshLocalFolders, t]);
+
+  const scanLocalFolders = useCallback(async () => {
+    if (!isTauri) return;
+    if (localFolders.length === 0) {
+      setLocalFolderMessage(t("settings.msg.selectFolderFirst"));
+      return;
+    }
+
+    setLocalFolderAction("scan");
+    setLocalFolderMessage(null);
+    try {
+      const results = await Promise.all(
+        localFolders.map(async (folder) => ({
+          folderId: folder.localFolderId,
+          result: await scanPersonalManagedFolder({ consentGranted: localFolderConsent, localFolderId: folder.localFolderId }),
+        })),
+      );
+      const failed = results.find(({ result }) => result.status !== "ready");
+      if (failed) {
+        setLocalFolderMessage(failed.result.message ?? t("settings.msg.selectFolderFirst"));
+        return;
+      }
+
+      const changedCount = results.reduce((total, { result }) => (result.status === "ready" ? total + result.data.changedCount : total), 0);
+      setLocalFolderMessage(t("settings.msg.folderChanges", { count: changedCount }));
+      void loadResources();
+    } finally {
+      setLocalFolderAction(null);
+    }
+  }, [isTauri, loadResources, localFolderConsent, localFolders, t]);
+
   const selectedResource = selectedResourceId ? filteredResources.find((resource) => resource.id === selectedResourceId) ?? null : null;
   const canShowBoard = state.kind !== "auth" && state.kind !== "error";
   const latestScannedAt = resources.reduce<string | null>((latest, resource) => {
@@ -356,11 +438,41 @@ export function PersonalResourceWorkspace() {
                       ? t("resources.workspace.syncDescTauri")
                       : t("resources.workspace.syncDescWeb")}
                   </p>
+                  {isTauri ? (
+                    <small>
+                      {localFolderMessage ??
+                        (localFolders.length > 0
+                          ? t("resources.workspace.localFolderCount", { count: localFolders.length })
+                          : t("resources.workspace.localFolderNone"))}
+                    </small>
+                  ) : null}
                 </div>
                 {isTauri ? (
-                  <Button disabled={!localFolderConsent || localSearchState === "loading"} onClick={() => void syncLocalIndexedChanges()} type="button" variant="quiet">
-                    {t("settings.lso.folder.target")}
-                  </Button>
+                  <div className={styles.syncActions}>
+                    <Button
+                      disabled={localFolderAction !== null}
+                      loading={localFolderAction === "select"}
+                      onClick={() => void connectLocalFolder()}
+                      size="sm"
+                      type="button"
+                      variant="primary"
+                    >
+                      {t("settings.folders.selectFolder")}
+                    </Button>
+                    <Button
+                      disabled={localFolderAction !== null || localFolders.length === 0}
+                      loading={localFolderAction === "scan"}
+                      onClick={() => void scanLocalFolders()}
+                      size="sm"
+                      type="button"
+                      variant="quiet"
+                    >
+                      {t("settings.folders.scan")}
+                    </Button>
+                    <Button disabled={!localFolderConsent || localSearchState === "loading"} onClick={() => void syncLocalIndexedChanges()} size="sm" type="button" variant="quiet">
+                      {t("settings.lso.folder.target")}
+                    </Button>
+                  </div>
                 ) : null}
               </GlassPanel>
 
