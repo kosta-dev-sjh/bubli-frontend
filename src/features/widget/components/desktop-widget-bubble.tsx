@@ -1,6 +1,6 @@
 "use client";
 
-import { type MouseEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type MouseEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "motion/react";
 import {
   Bell,
@@ -106,6 +106,34 @@ function isBubbleSyncPending(bubble: WidgetPreviewBubble) {
 // 동기화 상태 문구가 엠티 스테이트/노트로 중복 노출되지 않게 안전한 라벨로 치환한다.
 function bubbleEmptyLabel(bubble: WidgetPreviewBubble) {
   return isBubbleSyncPending(bubble) ? "widget.data.emptyItems" : bubble.notificationLabel;
+}
+
+// 엠티 스테이트는 "다음 행동"을 한 줄로 가르친다(버블별 고정 카피).
+// 동기화 대기 중에는 행동 유도 대신 안전한 "새 항목 없음"으로 대체한다.
+const emptyHintKeys: Record<WidgetBubbleType, MessageKey> = {
+  agent: "widget.empty.agent",
+  alert: "widget.empty.alert",
+  chat: "widget.empty.chat",
+  memo: "widget.empty.memo",
+  resource: "widget.empty.resource",
+  schedule: "widget.empty.schedule",
+  timer: "widget.empty.timer",
+  todo: "widget.empty.todo",
+};
+
+// 공통 엠티 스테이트 해부: 20px accent 아이콘 + 14px 한 줄 + 12px 패딩(모든 버블 동일).
+function BubbleEmptyState({ bubble }: { bubble: WidgetPreviewBubble }) {
+  const { t } = useI18n();
+  const { Icon } = getBubbleMeta(bubble.id);
+  const hintKey = isBubbleSyncPending(bubble) ? "widget.data.emptyItems" : (emptyHintKeys[bubble.id] ?? bubbleEmptyLabel(bubble));
+  return (
+    <div className={styles.emptyState}>
+      <i aria-hidden="true" className={styles.emptyIcon}>
+        <Icon size={20} strokeWidth={2} />
+      </i>
+      <span>{t(hintKey as MessageKey)}</span>
+    </div>
+  );
 }
 
 const presentationClassNames = {
@@ -229,6 +257,32 @@ function GooeyFilter({ id = "bubli-goo", strength = 6 }: { id?: string; strength
   );
 }
 
+// 세그먼트 컨트롤: 등폭(1fr) 버튼 위를 layoutId 썸이 스프링 translate로 미끄러진다
+// (배경 스왑 아님). reduced-motion에서는 즉시 점프(duration 0).
+function SegmentedControl({ defaultIndex = 0, labels }: { defaultIndex?: number; labels: string[] }) {
+  const prefersReducedMotion = useReducedMotion();
+  const thumbId = useId();
+  const [index, setIndex] = useState(defaultIndex);
+
+  return (
+    <div className={styles.segmented} role="group">
+      {labels.map((label, itemIndex) => (
+        <button aria-pressed={itemIndex === index} key={label} onClick={() => setIndex(itemIndex)} type="button">
+          {itemIndex === index ? (
+            <motion.span
+              aria-hidden="true"
+              className={styles.segThumb}
+              layoutId={thumbId}
+              transition={prefersReducedMotion ? { duration: 0 } : barChipSpring}
+            />
+          ) : null}
+          <span className={styles.segLabel}>{label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function WidgetControls({
   alwaysOnTop,
   mode,
@@ -302,7 +356,6 @@ function ItemRows({
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
-  const { t } = useI18n();
   const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
     if (!item.handoffUrl || !onOpenHandoff) return;
 
@@ -311,11 +364,7 @@ function ItemRows({
   };
 
   if (bubble.rows.length === 0) {
-    return (
-      <div className={styles.emptyState}>
-        <span>{t(bubbleEmptyLabel(bubble) as MessageKey)}</span>
-      </div>
-    );
+    return <BubbleEmptyState bubble={bubble} />;
   }
 
   return (
@@ -668,6 +717,7 @@ function ChatBody({
           <ItemActions item={item} onItemStateChange={onItemStateChange} />
         </div>
       ))}
+      {visibleRows.length === 0 ? <BubbleEmptyState bubble={bubble} /> : null}
       <div className={styles.reactionDock} aria-label={t("widget.chat.markReadAction")}>
         <CheckCircle2 size={14} strokeWidth={2} />
         <button disabled={!bubble.chatRoomId} onClick={() => void markRead()} type="button">
@@ -725,13 +775,7 @@ function TimerBody({
         <span>{t(bubble.metricLabel as MessageKey)}</span>
       </div>
       {/* 모드 전환은 pill 3개가 아니라 하나의 세그먼트 바로 읽혀야 한다. */}
-      <div className={styles.segmented} role="group">
-        <button aria-pressed="true" type="button">
-          {t("widget.timer.tabClock")}
-        </button>
-        <button type="button">{t("widget.timer.tabWork")}</button>
-        <button type="button">{t("widget.timer.tabPomodoro")}</button>
-      </div>
+      <SegmentedControl labels={[t("widget.timer.tabClock"), t("widget.timer.tabWork"), t("widget.timer.tabPomodoro")]} />
       <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
       <div className={styles.timerActions}>
         <button className={styles.timerPrimary} onClick={() => void onPrimaryTimerAction?.(bubble)} type="button">
@@ -810,9 +854,7 @@ function MemoBody({
           ))}
         </div>
       ) : (
-        <div className={styles.emptyState}>
-          <span>{t(bubbleEmptyLabel(bubble) as MessageKey)}</span>
-        </div>
+        <BubbleEmptyState bubble={bubble} />
       )}
       <form
         className={[styles.input, styles.composer].join(" ")}
@@ -878,18 +920,9 @@ function ScheduleBody({
           <ItemActions item={nextItem} onItemStateChange={onItemStateChange} />
         </div>
       ) : (
-        <div className={styles.nextEmpty}>
-          <Clock3 size={13} strokeWidth={2} />
-          <span>{t("widget.schedule.noneRemaining")}</span>
-        </div>
+        <BubbleEmptyState bubble={bubble} />
       )}
-      <div className={styles.segmented} role="group">
-        <button aria-pressed="true" type="button">
-          {t("widget.schedule.tabWeek")}
-        </button>
-        <button type="button">{t("widget.schedule.tabMonth")}</button>
-        <button type="button">{t("widget.schedule.tabWbs")}</button>
-      </div>
+      <SegmentedControl labels={[t("widget.schedule.tabWeek"), t("widget.schedule.tabMonth"), t("widget.schedule.tabWbs")]} />
       {restItems.length > 0 ? (
         <div className={styles.rowList}>
           {restItems.map((item) => (
@@ -977,9 +1010,7 @@ function ResourceBody({
           ))}
         </div>
       ) : (
-        <div className={styles.emptyState}>
-          <span>{t(bubbleEmptyLabel(bubble) as MessageKey)}</span>
-        </div>
+        <BubbleEmptyState bubble={bubble} />
       )}
       <button className={styles.wideAction} onClick={openAll} type="button">
         <FileText size={14} strokeWidth={2} />
@@ -1670,28 +1701,42 @@ export function DesktopWidgetBubbleBar({
   const hidePreview = (target: WidgetBubbleType | "notice") =>
     setPreviewTarget((current) => (current === target ? null : current));
 
+  // 팝오버는 최대 3행 + 초과분 "…" 한 줄로 잘라 보여준다(전체는 버블 복원이 담당).
   const preview = (() => {
     if (!previewTarget) return null;
     if (previewTarget === "notice") {
       return {
+        accent: "lilac" as const,
         headline: t(notificationSignal.compactLabel as MessageKey),
         Icon: Bell,
         label: t("widget.kind.notification"),
-        rows: notificationSignal.rows.slice(0, 2),
+        rows: notificationSignal.rows.slice(0, 3),
         sub: t(notificationSignal.notificationLabel as MessageKey),
+        truncated: notificationSignal.rows.length > 3,
       };
     }
     const bubble = bubbleDataByType?.[previewTarget] ?? getWidgetPreviewBubble(previewTarget);
     const meta = getBubbleMeta(previewTarget);
     return {
+      accent: meta.accent,
       headline: t(bubble.compactLabel as MessageKey),
       Icon: meta.Icon,
       label: t(meta.label),
-      rows: bubble.rows.slice(0, 2),
+      rows: bubble.rows.slice(0, 3),
       sub: t(bubble.notificationLabel as MessageKey),
+      truncated: bubble.rows.length > 3,
     };
   })();
   const PreviewIcon = preview?.Icon;
+
+  // 팝오버 등장: 칩(아래 중앙)을 앵커로 스프링 스케일 인 — reduced-motion은 페이드만.
+  const popoverEnterExit = prefersReducedMotion
+    ? { animate: { opacity: 1 }, exit: { opacity: 0 }, initial: { opacity: 0 } }
+    : {
+        animate: { opacity: 1, scale: 1, y: 0 },
+        exit: { opacity: 0, scale: 0.92, y: 6 },
+        initial: { opacity: 0, scale: 0.86, y: 10 },
+      };
 
   // 칩 등장/퇴장(OverflowActions 문법): blur+opacity+scale 스프링, reduced-motion은 페이드만.
   const chipEnterExit = prefersReducedMotion
@@ -1716,27 +1761,46 @@ export function DesktopWidgetBubbleBar({
     <MotionConfig reducedMotion="user">
       <div className={[styles.root, styles.barRoot].join(" ")} data-bubli-desktop-widget>
         <GooeyFilter />
-        {preview && PreviewIcon && !menuOpen ? (
-          <div aria-label={t("widget.bar.previewAria")} className={styles.barPopover} data-bubli-interactive="true" id={BAR_PREVIEW_POPOVER_ID} role="status">
-            <div className={styles.barPopoverHead}>
-              <PreviewIcon size={13} strokeWidth={2} />
-              <strong>{preview.label}</strong>
-              <b>{preview.headline}</b>
-            </div>
-            <small>{preview.sub}</small>
-            {preview.rows.length > 0 ? (
-              <ul>
-                {preview.rows.map((item) => (
-                  <li key={item.id}>
-                    <span>{item.label}</span>
-                    {item.detail ? <small>{item.detail}</small> : null}
-                    <b>{item.status}</b>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        ) : null}
+        {/* hover 프리뷰 팝오버: 칩 accent를 물려받고 pill 위에서 스프링 스케일 인(하단 앵커). */}
+        <AnimatePresence>
+          {preview && PreviewIcon && !menuOpen ? (
+            <motion.div
+              {...popoverEnterExit}
+              aria-label={t("widget.bar.previewAria")}
+              className={[styles.barPopover, accentClassNames[preview.accent]].join(" ")}
+              data-bubli-interactive="true"
+              id={BAR_PREVIEW_POPOVER_ID}
+              key="bubli-bar-preview"
+              role="status"
+              transition={barChipSpring}
+            >
+              <div className={styles.barPopoverHead}>
+                <i aria-hidden="true" className={styles.barPopoverTile}>
+                  <PreviewIcon size={14} strokeWidth={2.1} />
+                </i>
+                <strong>{preview.label}</strong>
+                <b>{preview.headline}</b>
+              </div>
+              <small>{preview.sub}</small>
+              {preview.rows.length > 0 ? (
+                <ul>
+                  {preview.rows.map((item) => (
+                    <li key={item.id}>
+                      <span>{item.label}</span>
+                      {item.detail ? <small>{item.detail}</small> : null}
+                      <b>{item.status}</b>
+                    </li>
+                  ))}
+                  {preview.truncated ? (
+                    <li aria-hidden="true" className={styles.barPopoverMore}>
+                      …
+                    </li>
+                  ) : null}
+                </ul>
+              ) : null}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
         {/* Bubli 메뉴: 브랜드 칩에서 pill 위 280px 패널로 morph(스프링 220/17/0.85). 본문은 blur 페이드 인. */}
         <AnimatePresence>
           {menuOpen ? (

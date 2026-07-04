@@ -106,6 +106,16 @@ const ko = {
   "widget.data.notification.compact": "알림",
   "widget.data.notification.empty": "새 알림 없음",
 
+  // 엠티 스테이트: 버블별 "다음 행동"을 한 줄로 가르친다(20px 아이콘 + 14px 한 줄).
+  "widget.empty.agent": "승인 대기 후보가 없어요 — 아래 입력줄로 질문해 보세요",
+  "widget.empty.alert": "새 알림이 없어요 — 도착하면 여기에 모여요",
+  "widget.empty.chat": "아직 메시지가 없어요 — 첫 메시지를 보내보세요",
+  "widget.empty.memo": "메모가 없어요 — 아래 입력줄에 바로 남겨보세요",
+  "widget.empty.resource": "제안된 자료가 없어요 — 자료 확인으로 가져와 보세요",
+  "widget.empty.schedule": "남은 일정이 없어요 — 빠른 추가로 채워보세요",
+  "widget.empty.timer": "진행 중인 기록이 없어요 — 시작으로 첫 세션을 열어보세요",
+  "widget.empty.todo": "오늘 할 일이 비어 있어요 — TODO 추가로 시작해 보세요",
+
   // desktop-widget/page.tsx: 날짜/상태 라벨
   "widget.due.today": "오늘",
   "widget.due.tomorrow": "내일",
@@ -1007,6 +1017,15 @@ const en: Record<Key, string> = {
   "widget.data.notification.compact": "Alerts",
   "widget.data.notification.empty": "No new alerts",
 
+  "widget.empty.agent": "No candidates awaiting approval — ask a question below",
+  "widget.empty.alert": "No new alerts — they gather here when they arrive",
+  "widget.empty.chat": "No messages yet — send the first one",
+  "widget.empty.memo": "No memos yet — jot one down in the line below",
+  "widget.empty.resource": "No suggested resources — pull them in with Open resources",
+  "widget.empty.schedule": "Nothing left today — fill it with Quick add",
+  "widget.empty.timer": "No session in progress — press Start to open one",
+  "widget.empty.todo": "Today is clear — start with Add TODO",
+
   "widget.due.today": "Today",
   "widget.due.tomorrow": "Tomorrow",
   "widget.due.past": "Past due",
@@ -1886,6 +1905,15 @@ const ja: Record<Key, string> = {
   "widget.data.roomFallback": "プロジェクトルーム",
   "widget.data.notification.compact": "通知",
   "widget.data.notification.empty": "新しい通知なし",
+
+  "widget.empty.agent": "承認待ちの候補はありません — 下の入力欄で質問してみましょう",
+  "widget.empty.alert": "新しい通知はありません — 届いたらここに集まります",
+  "widget.empty.chat": "まだメッセージがありません — 最初の一通を送ってみましょう",
+  "widget.empty.memo": "メモはまだありません — 下の入力欄にすぐ残せます",
+  "widget.empty.resource": "提案された資料はありません — 資料確認から取り込みましょう",
+  "widget.empty.schedule": "残りの予定はありません — クイック追加で埋めましょう",
+  "widget.empty.timer": "進行中の記録はありません — 開始で最初のセッションを",
+  "widget.empty.todo": "今日のタスクは空です — TODO追加から始めましょう",
 
   "widget.due.today": "今日",
   "widget.due.tomorrow": "明日",
