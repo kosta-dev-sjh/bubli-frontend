@@ -23,7 +23,7 @@
 
 /* 버블 아이덴티티 팔레트 — 전부 디자인 토큰 allowlist 색만 사용한다.
    todo=sky · schedule=blue · timer=amber · memo=cream · resource=sand ·
-   chat=rose · alert=lilac · agent=mint(승인된 soft green, teal/aqua 아님). */
+   chat=rose · alert=lilac · agent=sage(승인된 soft green). */
 .accSky {
   --acc: #6FB8F2;
   --acc-ink: #36729A;
@@ -59,7 +59,7 @@
   --acc-ink: #6F58C9;
 }
 
-.accMint {
+.accSage {
   --acc: #93CFA8;
   --acc-ink: color-mix(in srgb, #93CFA8 46%, #23303B 54%);
 }
@@ -1762,7 +1762,7 @@
 :global([data-theme="dark"]) .accSand,
 :global([data-theme="dark"]) .accRose,
 :global([data-theme="dark"]) .accLilac,
-:global([data-theme="dark"]) .accMint {
+:global([data-theme="dark"]) .accSage {
   --acc-ink: color-mix(in srgb, var(--acc) 66%, #EAF0F8 34%);
 }
 

@@ -50,9 +50,9 @@ import { startWidgetWindowDragging, type WidgetBubbleType, type WidgetWindowMode
 import styles from "./desktop-widget-bubble.module.css";
 
 // 버블별 셸 아이덴티티(헤더 밴드/아이콘 타일/CTA/칩이 같은 accent를 공유한다).
-// todo=sky · timer=amber · chat=rose · memo=cream · schedule=blue · alert=lilac · agent=mint · resource=sand
+// todo=sky · timer=amber · chat=rose · memo=cream · schedule=blue · alert=lilac · agent=sage · resource=sand
 type BubbleMeta = {
-  accent: "amber" | "blue" | "cream" | "lilac" | "mint" | "rose" | "sand" | "sky";
+  accent: "amber" | "blue" | "cream" | "lilac" | "rose" | "sage" | "sand" | "sky";
   id: WidgetBubbleType;
   label: MessageKey;
   Icon: typeof CheckCircle2;
@@ -60,7 +60,7 @@ type BubbleMeta = {
 
 const bubbleMeta: BubbleMeta[] = [
   { Icon: CheckCircle2, accent: "sky", id: "todo", label: "widget.kind.todo" },
-  { Icon: Sparkles, accent: "mint", id: "agent", label: "widget.kind.agent" },
+  { Icon: Sparkles, accent: "sage", id: "agent", label: "widget.kind.agent" },
   { Icon: MessageSquare, accent: "rose", id: "chat", label: "widget.kind.chat" },
   { Icon: Timer, accent: "amber", id: "timer", label: "widget.kind.timer" },
   { Icon: StickyNote, accent: "cream", id: "memo", label: "widget.kind.memo" },
@@ -88,8 +88,8 @@ const accentClassNames: Record<BubbleMeta["accent"], string> = {
   blue: styles.accBlue,
   cream: styles.accCream,
   lilac: styles.accLilac,
-  mint: styles.accMint,
   rose: styles.accRose,
+  sage: styles.accSage,
   sand: styles.accSand,
   sky: styles.accSky,
 };
