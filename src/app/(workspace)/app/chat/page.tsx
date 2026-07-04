@@ -18,6 +18,7 @@ import { ApiClientError } from "@/lib/api/errors";
 import { getAuthAccessToken } from "@/lib/auth/auth-session";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
+import { readCachedRoomMessages, syncCachedRoomMessages } from "@/lib/local";
 import { getActiveProjectRoomId, getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
@@ -483,10 +484,17 @@ function ChatPageContent() {
 
     try {
       const page = await chatApi.getMessages(chatRoomId, { size: 40 });
-      setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, [...page.items].sort((a, b) => a.roomSequence - b.roomSequence)) });
+      const messages = [...page.items].sort((a, b) => a.roomSequence - b.roomSequence);
+      void syncCachedRoomMessages(chatRoomId, messages, 0);
+      setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, messages) });
     } catch {
       if (shouldUseWorkspacePreviewData()) {
         setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, workspacePreviewChatMessages(chatRoomId)) });
+        return;
+      }
+      const cachedMessages = await readCachedRoomMessages(chatRoomId, 40);
+      if (cachedMessages.length > 0) {
+        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, cachedMessages) });
         return;
       }
       setMessagesState({ kind: "offline" });
@@ -1099,6 +1107,7 @@ function ChatPageContent() {
           resourceIds: [],
         });
         appendMessage(response.message);
+        void syncCachedRoomMessages(response.message.chatRoomId, [response.message]);
         setDraft("");
         setSelectedAttachment(null);
         setEmoticonOpen(false);
@@ -1143,6 +1152,7 @@ function ChatPageContent() {
         resourceId,
       });
       appendMessage(response);
+      void syncCachedRoomMessages(response.chatRoomId, [response]);
       setDraft("");
       setSelectedAttachment(null);
       setEmoticonOpen(false);
