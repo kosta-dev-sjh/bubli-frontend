@@ -100,28 +100,36 @@ export async function syncAllLocalOutboxToServer(input?: {
             };
 
     const fileFailedCount = fileResult.status === "ready" ? fileResult.data.failedCount : 0;
+    const fileSentCount = fileResult.status === "ready" ? fileResult.data.sentCount : 0;
+    const fileSyncedCount = fileResult.status === "ready" ? fileResult.data.syncedCount : 0;
     const activityFailedCount = activityResult.status === "ready" ? activityResult.data.failedCount : 0;
+    const activitySentCount = activityResult.status === "ready" ? activityResult.data.sentCount : 0;
+    const activityStagedCount = activityResult.status === "ready" ? activityResult.data.stagedCount : 0;
     const widgetFailedCount = widgetResult.status === "ready" ? widgetResult.data.failedCount : 0;
+    const widgetMarkedSyncedCount = widgetResult.status === "ready" ? widgetResult.data.markedSyncedCount : 0;
+    const widgetSentCount = widgetResult.status === "ready" ? widgetResult.data.sentCount : 0;
+    const widgetStagedCount = widgetResult.status === "ready" ? widgetResult.data.stagedCount : 0;
     const adapterIssueCount = [fileResult, activityResult, widgetResult, summaryResult].filter(
       (result) => result.status !== "ready" && result.status !== "pending",
     ).length;
+    const serverSentCount = fileSentCount + activitySentCount + widgetSentCount;
 
     return ready(
       {
         activityFailedCount,
-        activitySentCount: activityResult.status === "ready" ? activityResult.data.sentCount : 0,
-        activityStagedCount: activityResult.status === "ready" ? activityResult.data.stagedCount : 0,
+        activitySentCount,
+        activityStagedCount,
         failedCount: fileFailedCount + activityFailedCount + widgetFailedCount + adapterIssueCount,
         fileFailedCount,
-        fileSentCount: fileResult.status === "ready" ? fileResult.data.sentCount : 0,
-        fileSyncedCount: fileResult.status === "ready" ? fileResult.data.syncedCount : 0,
+        fileSentCount,
+        fileSyncedCount,
         pendingCount: summary.pendingCount ?? 0,
-        sentCount: summary.sentCount ?? 0,
+        sentCount: serverSentCount,
         syncedAt: new Date().toISOString(),
         widgetFailedCount,
-        widgetMarkedSyncedCount: widgetResult.status === "ready" ? widgetResult.data.markedSyncedCount : 0,
-        widgetSentCount: widgetResult.status === "ready" ? widgetResult.data.sentCount : 0,
-        widgetStagedCount: widgetResult.status === "ready" ? widgetResult.data.stagedCount : 0,
+        widgetMarkedSyncedCount,
+        widgetSentCount,
+        widgetStagedCount,
       },
       commandName,
       translate("local.sync.outboxChecked"),
