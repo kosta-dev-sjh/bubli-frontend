@@ -496,6 +496,11 @@ const ko = {
   "widget.itemState.storageRule": "상태 저장 기준은 사용자, 버블 종류, 항목 종류, 원본 항목 조합입니다. 웹과 데스크탑 앱에서 다시 열어도 같은 상태가 유지되어야 합니다.",
   "widget.itemState.listAria": "버블 항목 상태 목록",
   "widget.itemState.changeAria": "{title} 상태 변경",
+  "widget.itemState.persist.server": "서버 저장",
+  "widget.itemState.persist.local": "로컬 표시",
+  "widget.itemState.notice.saved": "항목 상태를 서버에 저장했습니다.",
+  "widget.itemState.notice.localOnly": "현재 서버 계약 밖의 항목이라 화면 상태만 갱신했습니다.",
+  "widget.itemState.notice.failed": "항목 상태를 저장하지 못해 이전 상태로 되돌렸습니다.",
 
   // widget-minimized-dock-panel.tsx
   "widget.dock.todo.badge": "3개",
@@ -1356,6 +1361,11 @@ const en: Record<Key, string> = {
   "widget.itemState.storageRule": "The state key is the combination of user, bubble type, item type, and source item. The same state must persist when reopened on web and the desktop app.",
   "widget.itemState.listAria": "Bubble item state list",
   "widget.itemState.changeAria": "Change {title} state",
+  "widget.itemState.persist.server": "Server saved",
+  "widget.itemState.persist.local": "Local display",
+  "widget.itemState.notice.saved": "Saved the item state to the server.",
+  "widget.itemState.notice.localOnly": "This item is outside the current server contract, so only the screen state changed.",
+  "widget.itemState.notice.failed": "Could not save the item state, so it was restored.",
 
   "widget.dock.todo.badge": "3",
   "widget.dock.todo.description": "My TODOs and assigned work to check today",
@@ -2205,6 +2215,11 @@ const ja: Record<Key, string> = {
   "widget.itemState.storageRule": "状態の保存キーはユーザー、バブル種類、項目種類、原本項目の組み合わせです。ウェブとデスクトップアプリで再び開いても同じ状態が保たれる必要があります。",
   "widget.itemState.listAria": "バブル項目状態リスト",
   "widget.itemState.changeAria": "{title} 状態変更",
+  "widget.itemState.persist.server": "サーバー保存",
+  "widget.itemState.persist.local": "ローカル表示",
+  "widget.itemState.notice.saved": "項目状態をサーバーに保存しました。",
+  "widget.itemState.notice.localOnly": "現在のサーバー契約外の項目のため、画面状態だけを更新しました。",
+  "widget.itemState.notice.failed": "項目状態を保存できなかったため、前の状態に戻しました。",
 
   "widget.dock.todo.badge": "3件",
   "widget.dock.todo.description": "今日確認する自分のTODOと担当作業",
