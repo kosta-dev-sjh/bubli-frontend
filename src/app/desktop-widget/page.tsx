@@ -19,6 +19,7 @@ import {
   type WidgetTaskResponse,
   type WidgetVoiceRoomResponse,
 } from "@/features/widget/api/widgetDisplayApi";
+import { authApi } from "@/features/auth/api/authApi";
 import { widgetApi, type BackendWidgetBubbleType, type WidgetBubbleSettingResponse, type WidgetContextResponse } from "@/features/widget/api/widgetApi";
 import { widgetCommunicationApi } from "@/features/widget/api/widgetCommunicationApi";
 import { DesktopWidgetBubble, DesktopWidgetBubbleBar, DesktopWidgetMenuOrb, desktopWidgetBubbleTypes } from "@/features/widget/components/desktop-widget-bubble";
@@ -30,7 +31,7 @@ import {
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
 import { timerApi } from "@/features/timer/api/timerApi";
-import { getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
+import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -736,7 +737,22 @@ function DesktopWidgetSurface() {
     async function restoreWidgetAuthSession() {
       const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
       if (cancelled) return;
-      setHasAuthSession(Boolean(session));
+
+      if (!session) {
+        setHasAuthSession(false);
+        setAuthReady(true);
+        return;
+      }
+
+      try {
+        await authApi.getMe();
+        if (cancelled) return;
+        setHasAuthSession(true);
+      } catch {
+        clearStoredAuthSession();
+        if (cancelled) return;
+        setHasAuthSession(false);
+      }
       setAuthReady(true);
     }
 
@@ -744,6 +760,21 @@ function DesktopWidgetSurface() {
 
     return () => {
       cancelled = true;
+    };
+  }, [isTauri]);
+
+  useEffect(() => {
+    if (!isTauri) return;
+
+    const handleAuthSessionChange = () => {
+      setHasAuthSession(Boolean(getStoredAuthSession()));
+      setAuthReady(true);
+    };
+
+    window.addEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
+
+    return () => {
+      window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
     };
   }, [isTauri]);
 
