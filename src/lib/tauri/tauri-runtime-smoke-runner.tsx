@@ -245,6 +245,13 @@ async function runSmoke() {
     assert(todoWindow.windowVisible, "todo widget window visible", todoWindow);
     assert(todoWindow.selectedRoomId === smokeRoomId, "widget room context propagated", todoWindow);
 
+    const shortcut = await tauriCommands.registerWidgetShortcut({ shortcut: "CommandOrControl+Shift+B" });
+    assert(
+      shortcut.shortcut === "CommandOrControl+Shift+B",
+      "widget global shortcut registered",
+      shortcut,
+    );
+
     const sqlite = await tauriCommands.checkLocalSqliteIntegrity();
     assert(sqlite.ok, "local SQLite quick_check passed", sqlite);
 

@@ -16,6 +16,7 @@ const files = {
   layout: "src/app/layout.tsx",
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
   runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
+  tauriLib: "src-tauri/src/lib.rs",
   windowsRuntimeSmoke: "scripts/check-tauri-windows-runtime-smoke.mjs",
   widgetAuthHeaders: "src/features/widget/api/widgetAuthHeaders.ts",
   workspaceActiveRoom: "src/lib/workspace-active-room.ts",
@@ -51,6 +52,7 @@ function extractConstArray(source, constName) {
 const layout = read(files.layout);
 const launcher = read(files.postLoginLauncher);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
+const tauriLib = read(files.tauriLib);
 const surfaces = read(files.authenticatedSurfaces);
 const chatWidgetRouting = read(files.chatWidgetRouting);
 const appNav = read(files.appNav);
@@ -131,6 +133,11 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /registerWidgetShortcut\(\{ shortcut: "CommandOrControl\+Shift\+B" \}\)[\s\S]*widget global shortcut registered/,
+  "TauriRuntimeSmokeRunner must verify the native global widget shortcut registration command.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /checkLocalSqliteIntegrity\(\)[\s\S]*sqlite\.ok/,
   "TauriRuntimeSmokeRunner must verify local SQLite integrity through the real IPC command.",
 );
@@ -188,6 +195,16 @@ assertContains(
   runtimeSmokeRunner,
   /closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)/,
   "TauriRuntimeSmokeRunner must clean up widget windows and close the auth gate after the smoke run.",
+);
+assertContains(
+  tauriLib,
+  /tauri_plugin_global_shortcut::Builder::new\(\)\.build\(\)/,
+  "Tauri must install the native global shortcut plugin.",
+);
+assertContains(
+  tauriLib,
+  /fn register_native_widget_shortcut[\s\S]*on_shortcut[\s\S]*toggle_widget_window_from_shortcut/,
+  "Tauri register_widget_shortcut must register a native global shortcut that toggles a widget window.",
 );
 
 assertContains(

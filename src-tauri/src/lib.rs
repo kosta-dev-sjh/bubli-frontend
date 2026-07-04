@@ -15,6 +15,7 @@ use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Monitor, Position, Size, WebviewUrl,
     WebviewWindow, WebviewWindowBuilder,
 };
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 mod activity;
 mod local_db;
@@ -170,6 +171,8 @@ type WidgetState = Mutex<WidgetWindowStore>;
 type AuthenticatedSurfacesState = Mutex<bool>;
 static WIDGET_READY_WINDOW_LABELS: LazyLock<Mutex<HashSet<String>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
+static REGISTERED_WIDGET_SHORTCUT: LazyLock<Mutex<Option<String>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 // JS(desktop-widget page)가 논리 px 기준으로 보고하는 상호작용 가능 rect.
 #[derive(Clone, Copy, Deserialize)]
@@ -698,6 +701,81 @@ fn authenticated_surfaces_enabled(auth_state: &AuthenticatedSurfacesState) -> Re
         .lock()
         .map_err(|_| "authenticated surfaces state lock failed".to_string())?;
     Ok(*enabled)
+}
+
+fn toggle_widget_window_from_shortcut(app: &AppHandle) -> Result<(), String> {
+    let monitor_state = app.state::<AppMonitorState>();
+    let state = app.state::<WidgetState>();
+    let auth_state = app.state::<AuthenticatedSurfacesState>();
+
+    if widget_visibility_after_toggle(&state, None, None)? {
+        require_authenticated_surfaces_enabled(&auth_state)?;
+    }
+
+    let widget = with_widget_state(&state, None, None, |widget| {
+        widget.window_visible = !widget.window_visible;
+        widget.mode = if widget.window_visible {
+            "DEFAULT".to_string()
+        } else {
+            "MINIMIZED".to_string()
+        };
+        widget.dock_orb_visible = false;
+    })?;
+
+    if !widget.window_visible
+        && !widget_keeps_webview_when_hidden(&widget)
+        && authenticated_surfaces_enabled(&auth_state)?
+    {
+        ensure_widget_bar_window(app, &monitor_state, &state)?;
+    }
+
+    persist_widget_window_state(app, &state)?;
+
+    if widget.window_visible {
+        build_widget_window(app, &monitor_state, &widget)?;
+    } else {
+        apply_widget_window_state(app, &monitor_state, &widget)?;
+    }
+
+    refresh_widget_bar_window(app, &monitor_state, &state)?;
+    Ok(())
+}
+
+fn register_native_widget_shortcut(app: &AppHandle, shortcut: &str) -> Result<(), String> {
+    let normalized = shortcut.trim();
+    if normalized.is_empty() {
+        return Err("widget shortcut cannot be empty".to_string());
+    }
+
+    let previous = {
+        let mut guard = REGISTERED_WIDGET_SHORTCUT
+            .lock()
+            .map_err(|_| "widget shortcut state lock failed".to_string())?;
+        if guard.as_deref() == Some(normalized) && app.global_shortcut().is_registered(normalized) {
+            return Ok(());
+        }
+        guard.take()
+    };
+
+    if let Some(previous) = previous {
+        let _ = app.global_shortcut().unregister(previous.as_str());
+    }
+
+    app.global_shortcut()
+        .on_shortcut(normalized, |app, _shortcut, event| {
+            if event.state == ShortcutState::Pressed {
+                if let Err(error) = toggle_widget_window_from_shortcut(app) {
+                    eprintln!("failed to toggle widget from global shortcut: {error}");
+                }
+            }
+        })
+        .map_err(|error| format!("failed to register widget shortcut: {error}"))?;
+
+    let mut guard = REGISTERED_WIDGET_SHORTCUT
+        .lock()
+        .map_err(|_| "widget shortcut state lock failed".to_string())?;
+    *guard = Some(normalized.to_string());
+    Ok(())
 }
 
 fn widget_visibility_after_toggle(
@@ -2271,6 +2349,7 @@ fn register_widget_shortcut(
     state: tauri::State<'_, WidgetState>,
     input: WidgetShortcutInput,
 ) -> Result<WidgetWindowState, String> {
+    register_native_widget_shortcut(&app, &input.shortcut)?;
     let widget = with_widget_state(&state, None, None, |widget| {
         widget.shortcut = Some(input.shortcut);
     })?;
@@ -2991,6 +3070,7 @@ mod tests {
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(Mutex::new(AppMonitorPreferenceStore::default()))
         .manage(Mutex::new(WidgetWindowStore::default()))

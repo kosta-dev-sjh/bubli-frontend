@@ -136,13 +136,21 @@ export async function recordCurrentActivityContext(
     return failed(getErrorMessage(error), commandName);
   }
 
-  await tauriCommands
-    .markActivityContextSynced({
+  try {
+    await tauriCommands.markActivityContextSynced({
       localActivityId: localActivity.data.localActivityId,
       serverActivityLogId: recordedActivity.id,
       status: "SYNCED",
-    })
-    .catch(() => undefined);
+    });
+  } catch (error) {
+    await tauriCommands
+      .markActivityContextSynced({
+        localActivityId: localActivity.data.localActivityId,
+        status: "FAILED",
+      })
+      .catch(() => undefined);
+    return failed(getErrorMessage(error), commandName);
+  }
 
   const todayActivities = await activityApi.getToday().catch(() => []);
   notifyLocalActivityRecorded(todayActivities);
