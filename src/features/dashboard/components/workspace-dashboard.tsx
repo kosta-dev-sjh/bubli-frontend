@@ -22,6 +22,7 @@ import { readStoredBoard, writeStoredBoard } from "@/features/dashboard/lib/boar
 import type { WidgetRoomScope } from "@/features/dashboard/lib/board-storage";
 import { useHomeBoardPresetListener } from "@/features/dashboard/lib/home-board-preset";
 import { MemoDashboardCard } from "@/features/memo/components";
+import { notificationApi } from "@/features/notification/api/notificationApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { todoApi } from "@/features/todo/api/todoApi";
@@ -38,6 +39,8 @@ import {
   workspacePreviewRooms,
 } from "@/lib/workspace-preview-data";
 import type { ActivityLogResponse } from "@/types/api/activity";
+import type { AgentSuggestionResponse, AgentSuggestionType } from "@/types/api/agent";
+import type { NotificationResponse } from "@/types/api/notification";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { ResourceResponse } from "@/types/api/resource";
 import type { DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
@@ -61,6 +64,7 @@ type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 type WbsProgress = { done: number; total: number };
 
 // 홈 보드에 실제 데이터가 연결된 위젯만 노출한다(카탈로그의 데모 항목 제외).
+// 앞의 8개는 기본 보드 구성이고, 뒤의 4개는 팔레트에서 사용자가 직접 담는 추가 카드다.
 const connectedWidgetIds = [
   "today-summary",
   "today-todos",
@@ -70,8 +74,13 @@ const connectedWidgetIds = [
   "agent-queue",
   "recent-resources",
   "quick-memo",
+  "project-rooms",
+  "upcoming-deadlines",
+  "pending-approval",
+  "notifications",
 ];
-const defaultWidgetIds = [...connectedWidgetIds];
+// 기본 보드는 과밀하지 않게 기존 8개만 둔다(새 카드는 opt-in).
+const defaultWidgetIds = connectedWidgetIds.slice(0, 8);
 const dashboardDropzoneId = "dashboard-canvas";
 const dashboardRemoveDropzoneId = "dashboard-remove-card";
 // 데이터 변경 이벤트의 발행 주체 표시 — 홈이 자기 변경(낙관적 갱신 완료분)으로 다시 전체 재조회하지 않게 한다.
@@ -122,6 +131,49 @@ function formatDue(t: TranslateFn, value?: string | null) {
     day: "numeric",
     month: "short",
   }).format(date);
+}
+
+// 마감까지 남은 일수를 사람이 읽을 라벨로 바꾼다(지남/오늘/N일 뒤).
+function formatDeadlineMeta(t: TranslateFn, value?: string | null): string {
+  if (!value) return t("dashboard.common.dueUndecided");
+
+  const due = new Date(value);
+  if (Number.isNaN(due.getTime())) return t("dashboard.common.dueUndecided");
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfDue = new Date(due);
+  startOfDue.setHours(0, 0, 0, 0);
+  const days = Math.round((startOfDue.getTime() - startOfToday.getTime()) / 86_400_000);
+
+  if (days < 0) return t("dashboard.deadlines.overdue");
+  if (days === 0) return t("dashboard.deadlines.today");
+  return t("dashboard.deadlines.dayAfter", { days });
+}
+
+const SUGGESTION_TYPE_KEYS: Partial<Record<AgentSuggestionType, MessageKey>> = {
+  QUESTION: "dashboard.approval.type.QUESTION",
+  REQUIREMENT: "dashboard.approval.type.REQUIREMENT",
+  SCHEDULE: "dashboard.approval.type.SCHEDULE",
+  TASK: "dashboard.approval.type.TASK",
+  TODO: "dashboard.approval.type.TODO",
+  WBS: "dashboard.approval.type.WBS",
+};
+
+// AI 후보의 표시 제목을 payloadJson에서 최선으로 뽑는다(desktop-widget과 동일 규칙).
+function suggestionTitle(suggestion: AgentSuggestionResponse, t: TranslateFn): string {
+  const { content, summary, text, title } = suggestion.payloadJson;
+  for (const candidate of [title, text, content, summary]) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+  }
+  return t(SUGGESTION_TYPE_KEYS[suggestion.suggestionType] ?? "dashboard.approval.type.OTHER");
+}
+
+function notificationKindLabel(t: TranslateFn, sourceType: NotificationResponse["sourceType"]): string {
+  if (sourceType === "AGENT") return t("dashboard.notifications.kind.agent");
+  if (sourceType === "MESSAGE" || sourceType === "COMMENT") return t("dashboard.notifications.kind.communication");
+  if (sourceType === "RESOURCE") return t("dashboard.notifications.kind.resource");
+  return t("dashboard.notifications.kind.system");
 }
 
 function formatFocusDuration(t: TranslateFn, seconds: number) {
@@ -481,6 +533,118 @@ function AgentQueueWidget({ count }: { count: number | null }) {
   );
 }
 
+function ProjectRoomsWidget({ rooms }: { rooms: ProjectRoomResponse[] }) {
+  const { t } = useI18n();
+
+  if (rooms.length === 0) {
+    return <EmptyWidget message={t("dashboard.rooms.empty")} />;
+  }
+
+  return (
+    <ul className="workspace-dashboard__list workspace-dashboard__list--compact">
+      {rooms.slice(0, 6).map((room) => {
+        const paymentMeta =
+          room.paymentStatus === "OVERDUE"
+            ? t("dashboard.rooms.paymentOverdue")
+            : room.paymentStatus === "PENDING"
+              ? t("dashboard.rooms.paymentPending")
+              : t("dashboard.rooms.statusActive");
+        return (
+          <li className="workspace-dashboard__line" key={room.id}>
+            <Link
+              aria-label={t("dashboard.rooms.enterAria", { room: room.name })}
+              className="workspace-dashboard__room-link"
+              href={`/app/project-rooms/${room.id}`}
+            >
+              {room.name}
+            </Link>
+            <b>{paymentMeta}</b>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function UpcomingDeadlinesWidget({ tasks }: { tasks: TaskResponse[] }) {
+  const { t } = useI18n();
+
+  const sorted = tasks
+    .filter((task) => Boolean(task.dueAt) && task.status !== "DONE")
+    .slice()
+    .sort((left, right) => new Date(left.dueAt ?? "").getTime() - new Date(right.dueAt ?? "").getTime())
+    .slice(0, 6);
+
+  if (sorted.length === 0) {
+    return <EmptyWidget message={t("dashboard.deadlines.empty")} />;
+  }
+
+  return (
+    <DashboardLineList>
+      {sorted.map((task) => (
+        <StatusLine key={task.id} meta={formatDeadlineMeta(t, task.dueAt)}>
+          {task.title}
+        </StatusLine>
+      ))}
+    </DashboardLineList>
+  );
+}
+
+function PendingApprovalWidget({ suggestions }: { suggestions: AgentSuggestionResponse[] | null }) {
+  const { t } = useI18n();
+
+  const recent = (suggestions ?? [])
+    .slice()
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+    .slice(0, 5);
+
+  if (recent.length === 0) {
+    return <EmptyWidget message={t("dashboard.approval.empty")} />;
+  }
+
+  return (
+    <div className={styles.statBlock}>
+      <DashboardLineList>
+        {recent.map((suggestion) => (
+          <StatusLine
+            key={suggestion.suggestionId}
+            meta={t(SUGGESTION_TYPE_KEYS[suggestion.suggestionType] ?? "dashboard.approval.type.OTHER")}
+          >
+            {suggestionTitle(suggestion, t)}
+          </StatusLine>
+        ))}
+      </DashboardLineList>
+      <Link className="bubli-button bubli-button--quiet bubli-button--sm" href="/app/agent">
+        {t("dashboard.approval.open")}
+      </Link>
+    </div>
+  );
+}
+
+function NotificationsWidget({ notifications }: { notifications: NotificationResponse[] | null }) {
+  const { t } = useI18n();
+
+  const unread = (notifications ?? [])
+    .filter((notification) => notification.status === "UNREAD")
+    .slice()
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+    .slice(0, 5);
+
+  if (unread.length === 0) {
+    return <EmptyWidget message={t("dashboard.notifications.empty")} />;
+  }
+
+  return (
+    <DashboardLineList>
+      {unread.map((notification) => (
+        <StatusLine key={notification.id} meta={notificationKindLabel(t, notification.sourceType)}>
+          {notification.title.trim() || notificationKindLabel(t, notification.sourceType)}
+        </StatusLine>
+      ))}
+    </DashboardLineList>
+  );
+}
+
 function TodaySummaryWidget({
   focusSeconds,
   pendingCount,
@@ -628,7 +792,8 @@ export function WorkspaceDashboard() {
   const [roomResources, setRoomResources] = useState<Record<string, ResourceResponse[] | null>>({});
   const [weekSchedules, setWeekSchedules] = useState<ScheduleResponse[] | null>(null);
   const [todayActivityLogs, setTodayActivityLogs] = useState<ActivityLogResponse[] | null>(null);
-  const [pendingSuggestionCount, setPendingSuggestionCount] = useState<number | null>(null);
+  const [pendingSuggestions, setPendingSuggestions] = useState<AgentSuggestionResponse[] | null>(null);
+  const [notifications, setNotifications] = useState<NotificationResponse[] | null>(null);
   const [wbsBoards, setWbsBoards] = useState<Record<string, WbsProgress | null>>({});
 
   const [creatingTodo, setCreatingTodo] = useState(false);
@@ -673,16 +838,25 @@ export function WorkspaceDashboard() {
       setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
 
       const { from, to } = getWeekRange(new Date());
-      const [roomResult, personalTaskResult, feedTaskResult, resourceResult, activityResult, scheduleResult, suggestionResult] =
-        await Promise.allSettled([
-          projectRoomApi.list(),
-          todoApi.list(),
-          dashboardApi.getTasks(),
-          resourcesApi.listPersonal(),
-          activityApi.getToday(),
-          calendarApi.getEvents({ from: from.toISOString(), size: 100, to: to.toISOString() }),
-          agentApi.listPersonalSuggestions({ status: "DRAFT" }),
-        ]);
+      const [
+        roomResult,
+        personalTaskResult,
+        feedTaskResult,
+        resourceResult,
+        activityResult,
+        scheduleResult,
+        suggestionResult,
+        notificationResult,
+      ] = await Promise.allSettled([
+        projectRoomApi.list(),
+        todoApi.list(),
+        dashboardApi.getTasks(),
+        resourcesApi.listPersonal(),
+        activityApi.getToday(),
+        calendarApi.getEvents({ from: from.toISOString(), size: 100, to: to.toISOString() }),
+        agentApi.listPersonalSuggestions({ status: "DRAFT" }),
+        notificationApi.list({ size: 20 }),
+      ]);
 
       setRooms(roomResult.status === "fulfilled" ? roomResult.value.items : []);
       setRoomsLoaded(true);
@@ -691,7 +865,8 @@ export function WorkspaceDashboard() {
       setPersonalResources(resourceResult.status === "fulfilled" ? resourceResult.value.items : []);
       setTodayActivityLogs(activityResult.status === "fulfilled" ? activityResult.value : null);
       setWeekSchedules(scheduleResult.status === "fulfilled" ? scheduleResult.value.items : null);
-      setPendingSuggestionCount(suggestionResult.status === "fulfilled" ? suggestionResult.value.length : null);
+      setPendingSuggestions(suggestionResult.status === "fulfilled" ? suggestionResult.value : null);
+      setNotifications(notificationResult.status === "fulfilled" ? notificationResult.value.items : null);
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
@@ -704,7 +879,8 @@ export function WorkspaceDashboard() {
         setPersonalResources([...workspacePreviewPersonalResources, ...workspacePreviewRoomResources]);
         setWeekSchedules(workspacePreviewDashboard.todaySchedules);
         setTodayActivityLogs([]);
-        setPendingSuggestionCount(0);
+        setPendingSuggestions([]);
+        setNotifications([]);
         return;
       }
       setState({
@@ -798,6 +974,11 @@ export function WorkspaceDashboard() {
   const totalFocusSeconds = useMemo(
     () => (todayActivityLogs ?? []).reduce((sum, log) => sum + getActivitySeconds(log), 0),
     [todayActivityLogs],
+  );
+
+  const pendingSuggestionCount = useMemo(
+    () => (pendingSuggestions === null ? null : pendingSuggestions.length),
+    [pendingSuggestions],
   );
 
   const scheduleItems = useMemo(() => weekSchedules ?? realData.todaySchedules, [realData.todaySchedules, weekSchedules]);
@@ -1025,6 +1206,16 @@ export function WorkspaceDashboard() {
           return <FocusStatsWidget logs={todayActivityLogs} roomId={scopedRoomId} />;
         case "agent-queue":
           return <AgentQueueWidget count={pendingSuggestionCount} />;
+        case "project-rooms":
+          return <ProjectRoomsWidget rooms={activeRooms} />;
+        case "upcoming-deadlines": {
+          const source = scopedRoomId ? allTasks.filter((task) => task.roomId === scopedRoomId) : allTasks;
+          return <UpcomingDeadlinesWidget tasks={source} />;
+        }
+        case "pending-approval":
+          return <PendingApprovalWidget suggestions={pendingSuggestions} />;
+        case "notifications":
+          return <NotificationsWidget notifications={notifications} />;
         case "recent-resources": {
           const source = scopedRoomId ? roomResources[scopedRoomId] ?? [] : personalResources;
           const recent = (source ?? [])
@@ -1056,7 +1247,9 @@ export function WorkspaceDashboard() {
       deleteTodo,
       deletingTodoId,
       locale,
+      notifications,
       pendingSuggestionCount,
+      pendingSuggestions,
       personalResources,
       roomResources,
       rooms,

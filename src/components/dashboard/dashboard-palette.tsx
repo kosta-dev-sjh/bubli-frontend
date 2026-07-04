@@ -2,9 +2,10 @@
 
 import {
   Bell,
+  CalendarClock,
   CalendarDays,
   CheckCircle2,
-  Clock3,
+  ClipboardCheck,
   FileSearch,
   FileText,
   FolderKanban,
@@ -14,7 +15,6 @@ import {
   Sparkles,
   Timer,
   Trash2,
-  UploadCloud,
 } from "lucide-react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -27,22 +27,18 @@ import { cn } from "@/lib/utils";
 import type { DashboardWidgetDef } from "./widget-catalog";
 
 const ICONS: Record<string, ComponentType<{ size?: number }>> = {
-  "next-focus": Clock3,
   "today-todos": CheckCircle2,
   schedule: CalendarDays,
-  timer: Timer,
-  "pending-approval": Clock3,
+  "upcoming-deadlines": CalendarClock,
+  "pending-approval": ClipboardCheck,
   "project-rooms": FolderKanban,
-  "project-time-ring": Gauge,
   "room-progress": Gauge,
   "focus-stats": Timer,
   "agent-queue": Sparkles,
-  "activity-timeline": Sparkles,
   "today-summary": FileText,
   notifications: Bell,
   "recent-resources": FileSearch,
   "quick-memo": NotebookPen,
-  "quick-upload": UploadCloud,
 };
 
 export function widgetIcon(widgetId: string) {
