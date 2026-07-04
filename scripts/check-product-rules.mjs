@@ -94,6 +94,7 @@ const tauriSyncStatusPanelPath = join(
   ROOT,
   "src/features/settings/components/tauri-sync-status-panel.tsx",
 );
+const activityCapturePath = join(ROOT, "src-tauri/src/activity.rs");
 
 for (const route of DISALLOWED_ROUTES) {
   const absolutePath = join(ROOT, route.path);
@@ -183,6 +184,20 @@ if (existsSync(tauriSyncStatusPanelPath)) {
   ) {
     failures.push(
       "src/features/settings/components/tauri-sync-status-panel.tsx: Tauri/SQLite sync adapter failures must be surfaced as unresolved sync issues, not hidden behind an empty summary.",
+    );
+  }
+}
+
+if (existsSync(activityCapturePath)) {
+  const text = readFileSync(activityCapturePath, "utf8");
+  if (
+    !text.includes("windows_app_name_from_process_path") ||
+    text.includes('Ok((format!("process-{process_id}")') ||
+    !text.includes("OpenProcess failed") ||
+    !text.includes("process image query failed")
+  ) {
+    failures.push(
+      "src-tauri/src/activity.rs: Windows activity capture must surface process-name lookup failures instead of recording process-id fallback names as successful activity.",
     );
   }
 }
