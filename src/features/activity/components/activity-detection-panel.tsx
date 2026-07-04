@@ -9,6 +9,7 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import type { ActivityAutoCaptureStatus } from "@/lib/local/activity-auto-capture";
 import type { ActivityLogResponse } from "@/types/api/activity";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
@@ -24,6 +25,7 @@ type ActivitySource = {
 
 type ActivityDetectionPanelProps = {
   activityLogs?: ActivityLogResponse[] | null;
+  autoCaptureStatus?: ActivityAutoCaptureStatus;
   consentGranted?: boolean;
   deletingActivityId?: string | null;
   desktopRuntime?: boolean;
@@ -76,6 +78,36 @@ const statusCopy: Record<ActivitySource["status"], { labelKey: MessageKey; tone:
   tracking: { labelKey: "activity.detection.status.tracking", tone: "timer" },
 };
 
+function autoCaptureTone(status?: ActivityAutoCaptureStatus): "approved" | "warning" | "pending" {
+  if (!status?.running || status.lastStatus === "stopped") return "warning";
+  if (status.lastStatus === "failed" || status.lastStatus === "blocked") return "warning";
+  if (status.lastStatus === "capturing" || status.lastStatus === "waiting") return "pending";
+  return "approved";
+}
+
+function autoCaptureLabelKey(status?: ActivityAutoCaptureStatus): MessageKey {
+  if (!status?.running || status.lastStatus === "stopped") return "activity.detection.autoCapture.stopped";
+  if (status.lastStatus === "capturing") return "activity.detection.autoCapture.capturing";
+  if (status.lastStatus === "recorded") return "activity.detection.autoCapture.recorded";
+  if (status.lastStatus === "waiting") return "activity.detection.autoCapture.waiting";
+  if (status.lastStatus === "blocked") return "activity.detection.autoCapture.blocked";
+  if (status.lastStatus === "failed") return "activity.detection.autoCapture.failed";
+  return "activity.detection.autoCapture.idle";
+}
+
+function autoCaptureDetail(t: TranslateFn, status?: ActivityAutoCaptureStatus) {
+  if (!status) return t("activity.detection.autoCapture.noStatus");
+  if (status.lastErrorMessage) return status.lastErrorMessage;
+  if (status.lastAppName) {
+    return status.lastWindowTitle
+      ? t("activity.detection.autoCapture.lastWindow", { app: status.lastAppName, window: status.lastWindowTitle })
+      : t("activity.detection.autoCapture.lastApp", { app: status.lastAppName });
+  }
+  if (status.lastMessage) return status.lastMessage;
+  if (status.lastAttemptAt) return t("activity.detection.autoCapture.lastAttempt");
+  return t("activity.detection.autoCapture.noStatus");
+}
+
 function ActivitySourceRow({
   deletingActivityId,
   onDeleteActivity,
@@ -122,6 +154,7 @@ function ActivitySourceRow({
 
 export function ActivityDetectionPanel({
   activityLogs = [],
+  autoCaptureStatus,
   consentGranted = false,
   deletingActivityId = null,
   desktopRuntime = false,
@@ -155,6 +188,10 @@ export function ActivityDetectionPanel({
           <StatusBadge tone={consentGranted ? "approved" : "warning"}>
             {consentGranted ? t("activity.detection.consented") : t("activity.detection.notConsented")}
           </StatusBadge>
+          <div className="activity-detection__auto-capture">
+            <StatusBadge tone={autoCaptureTone(autoCaptureStatus)}>{t(autoCaptureLabelKey(autoCaptureStatus))}</StatusBadge>
+            <span>{autoCaptureDetail(t, autoCaptureStatus)}</span>
+          </div>
           <strong>{t("activity.detection.appCount", { count: appCount })}</strong>
           <span>{desktopRuntime ? t("activity.detection.todayTarget") : t("activity.detection.desktopRequired")}</span>
           <ProgressBar label={t("activity.detection.todayRate")} value={progressValue} />
