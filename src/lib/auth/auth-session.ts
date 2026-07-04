@@ -80,9 +80,10 @@ function sameAuthSession(left: StoredAuthSession | null, right: AuthSessionInput
 }
 
 function mirrorAuthSessionToTauri(session: StoredAuthSession) {
-  if (!isTauriRuntime()) return;
-  void tauriCommands
+  if (!isTauriRuntime()) return Promise.resolve();
+  return tauriCommands
     .storeTauriAuthSession({ sessionJson: JSON.stringify(session) })
+    .then(() => undefined)
     .catch(() => undefined);
 }
 
@@ -132,7 +133,7 @@ export function setStoredAuthSession(session: AuthSessionInput) {
   };
 
   window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(next));
-  mirrorAuthSessionToTauri(next);
+  void mirrorAuthSessionToTauri(next);
   emitAuthSessionChange();
 }
 
@@ -156,6 +157,10 @@ export async function restoreStoredAuthSessionFromTauri() {
   }
 
   const current = getStoredAuthSession();
+
+  if (current && !isExpired(current.refreshTokenExpiresAt)) {
+    await mirrorAuthSessionToTauri(current);
+  }
 
   try {
     const restored = await tauriCommands.readTauriAuthSession();

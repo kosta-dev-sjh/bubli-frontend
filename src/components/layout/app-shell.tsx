@@ -22,6 +22,7 @@ import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
+import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
@@ -102,6 +103,7 @@ export function AppShell({ children }: AppShellProps) {
   const [newRoomFiles, setNewRoomFiles] = useState<File[]>([]);
   const [newRoomName, setNewRoomName] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const readyUserId = state.kind === "ready" ? state.user.id : null;
   const [topbarMenu, setTopbarMenu] = useState<TopbarMenu>(null);
   const [myInvitations, setMyInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
   const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null);
@@ -202,6 +204,14 @@ export function AppShell({ children }: AppShellProps) {
       router.replace("/login");
     }
   }, [router, state.kind]);
+
+  useEffect(() => {
+    if (state.kind !== "ready" || !isTauriRuntime()) return;
+
+    void launchTauriAuthenticatedSurfaces().catch((error) => {
+      console.warn("Failed to launch Tauri authenticated surfaces after shell ready.", error);
+    });
+  }, [state.kind, readyUserId]);
 
   useEffect(() => {
     function syncActiveProjectRoom(event: Event) {
