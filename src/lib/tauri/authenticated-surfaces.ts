@@ -228,8 +228,11 @@ export function launchTauriAuthenticatedSurfaces() {
     startActivityAutoCapture();
     startManagedFolderAutoSync();
     startWidgetUsageAutoSync();
-    launchedAuthenticatedSurfaces = rejectedReasons.length === 0;
-    launchRequested = rejectedReasons.length === 0;
+    // If at least the bar or one bubble opened, this login cycle is active.
+    // Leaving the launch flags false on a partial failure makes later shell/auth
+    // events re-open already visible widgets, which appears as sequential flicker.
+    launchedAuthenticatedSurfaces = true;
+    launchRequested = true;
   })()
     .catch(async (error) => {
       launchRequested = false;

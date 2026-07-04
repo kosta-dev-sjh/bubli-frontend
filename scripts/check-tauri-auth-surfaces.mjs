@@ -7,6 +7,7 @@ const files = {
   desktopWidgetPage: "src/app/desktop-widget/page.tsx",
   layout: "src/app/layout.tsx",
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
+  workspaceActiveRoom: "src/lib/workspace-active-room.ts",
 };
 
 function read(path) {
@@ -41,6 +42,7 @@ const surfaces = read(files.authenticatedSurfaces);
 const appNav = read(files.appNav);
 const appShell = read(files.appShell);
 const widgetPage = read(files.desktopWidgetPage);
+const workspaceActiveRoom = read(files.workspaceActiveRoom);
 
 assertContains(
   layout,
@@ -130,6 +132,11 @@ assertContains(
 );
 assertContains(
   surfaces,
+  /openedWindows\.length === 0[\s\S]*throw rejectedReasons\[0\][\s\S]*launchedAuthenticatedSurfaces = true;[\s\S]*launchRequested = true;/,
+  "A partially opened widget session must be treated as launched so auth/shell events do not repeatedly raise visible widgets.",
+);
+assertContains(
+  surfaces,
   /startActivityAutoCapture\(\);[\s\S]*startManagedFolderAutoSync\(\);[\s\S]*startWidgetUsageAutoSync\(\);/,
   "launchTauriAuthenticatedSurfaces must start activity, folder, and widget sync loops together.",
 );
@@ -180,6 +187,17 @@ assertContains(
   widgetPage,
   /if \(!isTauri \|\| !mounted \|\| !widgetSessionReady \|\| appReadySentRef\.current\) return;[\s\S]*tauriCommands\.appReady/,
   "Desktop widget windows must send appReady only after mount and a valid widget session.",
+);
+
+assertContains(
+  workspaceActiveRoom,
+  /function syncActiveProjectRoomFromWidgetContext[\s\S]*mirrorActiveProjectRoomToServer\(cleanRoomId\)/,
+  "Widget-origin project-room context changes must sync back to the backend widget context.",
+);
+assertContains(
+  workspaceActiveRoom,
+  /function syncActiveProjectRoomFromWidgetContext[\s\S]*mirrorActiveProjectRoomToServer\(null\)/,
+  "Widget-origin project-room context clears must sync back to the backend widget context.",
 );
 
 console.log("Tauri authenticated surface contract check passed.");

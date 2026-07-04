@@ -79,13 +79,19 @@ function mirrorActiveProjectRoomToTauri(roomId: string, roomLabel?: string | nul
     .catch((error) => reportActiveProjectRoomSyncFailure("widget-context", error));
 }
 
-function publishActiveProjectRoom(roomId: string, roomLabel?: string | null) {
-  mirrorActiveProjectRoomToTauri(roomId, roomLabel);
+function mirrorActiveProjectRoomToServer(roomId: string | null) {
   if (typeof window === "undefined") return;
 
   void widgetApi
     .updateContext({ selectedRoomId: roomId })
     .catch((error) => reportActiveProjectRoomSyncFailure("server-widget-context", error));
+}
+
+function publishActiveProjectRoom(roomId: string, roomLabel?: string | null) {
+  mirrorActiveProjectRoomToTauri(roomId, roomLabel);
+  if (typeof window === "undefined") return;
+
+  mirrorActiveProjectRoomToServer(roomId);
   publishActiveProjectRoomChange(roomId, roomLabel);
 }
 
@@ -122,7 +128,10 @@ export function setActiveProjectRoomId(roomId: string, roomLabel?: string | null
 export function syncActiveProjectRoomFromWidgetContext(roomId: string | null | undefined, roomLabel?: string | null) {
   const cleanRoomId = roomId?.trim() ?? "";
   if (!cleanRoomId) {
-    if (activeProjectRoomId === null && activeProjectRoomLabel === null) return;
+    if (activeProjectRoomId === null && activeProjectRoomLabel === null) {
+      mirrorActiveProjectRoomToServer(null);
+      return;
+    }
 
     activeProjectRoomId = null;
     activeProjectRoomLabel = null;
@@ -131,12 +140,16 @@ export function syncActiveProjectRoomFromWidgetContext(roomId: string | null | u
         .clearActiveProjectRoom()
         .catch((error) => reportActiveProjectRoomSyncFailure("local-cache", error));
     }
+    mirrorActiveProjectRoomToServer(null);
     publishActiveProjectRoomChange(null);
     return;
   }
 
   const nextRoomLabel = roomLabel?.trim() || (activeProjectRoomId === cleanRoomId ? activeProjectRoomLabel : null);
-  if (activeProjectRoomId === cleanRoomId && activeProjectRoomLabel === nextRoomLabel) return;
+  if (activeProjectRoomId === cleanRoomId && activeProjectRoomLabel === nextRoomLabel) {
+    mirrorActiveProjectRoomToServer(cleanRoomId);
+    return;
+  }
 
   activeProjectRoomId = cleanRoomId;
   activeProjectRoomLabel = nextRoomLabel;
@@ -145,6 +158,7 @@ export function syncActiveProjectRoomFromWidgetContext(roomId: string | null | u
       .storeActiveProjectRoom({ roomId: cleanRoomId, roomLabel: nextRoomLabel })
       .catch((error) => reportActiveProjectRoomSyncFailure("local-cache", error));
   }
+  mirrorActiveProjectRoomToServer(cleanRoomId);
   publishActiveProjectRoomChange(cleanRoomId, nextRoomLabel);
 }
 
@@ -153,9 +167,7 @@ export function clearActiveProjectRoomId() {
   activeProjectRoomLabel = null;
   clearActiveProjectRoomTauriMirror();
   if (typeof window === "undefined") return;
-  void widgetApi
-    .updateContext({ selectedRoomId: null })
-    .catch((error) => reportActiveProjectRoomSyncFailure("server-widget-context", error));
+  mirrorActiveProjectRoomToServer(null);
   window.dispatchEvent(
     new CustomEvent(ACTIVE_PROJECT_ROOM_CHANGE_EVENT, { detail: { roomId: null } }),
   );
