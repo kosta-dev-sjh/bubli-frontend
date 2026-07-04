@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, HardDrive } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { useI18n } from "@/lib/i18n";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewRoomResources } from "@/lib/workspace-preview-data";
 import type { ResourceResponse } from "@/types/api/resource";
 
+import { LocalIndexedFileSearchPanel } from "./local-indexed-file-search-panel";
 import {
   getErrorMessage,
   ResourcePreview,
@@ -56,6 +58,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [uploadState, setUploadState] = useState<UploadState>({ kind: "idle" });
   const [dragActive, setDragActive] = useState(false);
+  const [isTauri, setIsTauri] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadResources = useCallback(async () => {
@@ -88,6 +91,14 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadResources]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setIsTauri(isTauriRuntime());
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   const resources = useMemo(() => (state.kind === "ready" ? state.resources : EMPTY_RESOURCES), [state]);
 
@@ -223,6 +234,16 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
               </div>
 
               <ResourceToolbar onQuery={setQuery} onViewMode={setViewMode} query={query} viewMode={viewMode} />
+
+              <GlassPanel className={cn("resource-workspace__dropzone resource-workspace__dropzone--local", styles.syncStrip)}>
+                <HardDrive aria-hidden size={22} strokeWidth={2} />
+                <div>
+                  <strong>{isTauri ? t("resources.workspace.syncTitleTauri") : t("resources.workspace.syncTitleWeb")}</strong>
+                  <p>{isTauri ? t("local.folder.personalOnly") : t("resources.workspace.syncDescWeb")}</p>
+                </div>
+              </GlassPanel>
+
+              <LocalIndexedFileSearchPanel query={query} />
 
               <input
                 ref={fileInputRef}
