@@ -676,7 +676,32 @@ function dashboardFromWidgetSummary(summary: WidgetSummaryResponse | null): Widg
   };
 }
 
-async function readWidgetDisplaySummary(): Promise<WidgetSummaryResponse | null> {
+function normalizeWidgetRoomId(roomId?: string | null) {
+  return roomId?.trim() || null;
+}
+
+function widgetSummaryMatchesRequestedRoom(summary: WidgetSummaryResponse, requestedRoomId?: string | null) {
+  const requested = normalizeWidgetRoomId(requestedRoomId);
+  if (!requested) return true;
+
+  return normalizeWidgetRoomId(summary.context.selectedRoomId) === requested;
+}
+
+function resolveWidgetContextFromSummary(
+  summary: WidgetSummaryResponse,
+  requestedRoomId: string | null,
+  current: WidgetContextResponse | null,
+) {
+  const requested = normalizeWidgetRoomId(requestedRoomId);
+  if (requested && normalizeWidgetRoomId(summary.context.selectedRoomId) !== requested) {
+    return current?.selectedRoomId === requested ? current : { mode: "ROOM" as const, selectedRoomId: requested };
+  }
+
+  if (summary.context.selectedRoomId || !requested) return summary.context;
+  return current ?? { mode: "ROOM", selectedRoomId: requested };
+}
+
+async function readWidgetDisplaySummary(requestedRoomId?: string | null): Promise<WidgetSummaryResponse | null> {
   if (isTauriRuntime()) {
     const cacheResult = await readWidgetSummary({
       fetchServerSummary: () => Promise.reject(new Error("local widget summary cache empty")),
@@ -684,7 +709,9 @@ async function readWidgetDisplaySummary(): Promise<WidgetSummaryResponse | null>
 
     if (cacheResult?.status === "ready") {
       void readWidgetSummary({ preferLocalCache: false }).catch(() => null);
-      return cacheResult.data;
+      if (widgetSummaryMatchesRequestedRoom(cacheResult.data, requestedRoomId)) {
+        return cacheResult.data;
+      }
     }
   }
 
@@ -912,15 +939,12 @@ function DesktopWidgetSurface() {
 
     async function loadWidgetApiState() {
       try {
-        const summary = await readWidgetDisplaySummary();
+        const summary = await readWidgetDisplaySummary(requestedRoomId);
         if (cancelled) return;
         if (!summary) return;
 
         const settings = summary.bubbles ?? [];
-        setWidgetContext((current) => {
-          if (summary.context.selectedRoomId || !requestedRoomId) return summary.context;
-          return current ?? { mode: "ROOM", selectedRoomId: requestedRoomId };
-        });
+        setWidgetContext((current) => resolveWidgetContextFromSummary(summary, requestedRoomId, current));
         setServerSettings(settings);
 
         const backendBubbleType = apiBubbleTypeMap[requestedBubble];
@@ -983,18 +1007,18 @@ function DesktopWidgetSurface() {
     let cancelled = false;
 
     async function refreshWidgetContext() {
-      const summary = await readWidgetDisplaySummary().catch(() => null);
+      const summary = await readWidgetDisplaySummary(requestedRoomId).catch(() => null);
       if (cancelled || !summary?.context) return;
 
       setWidgetContext((current) => {
+        const nextContext = resolveWidgetContextFromSummary(summary, requestedRoomId, current);
         if (
-          current?.mode === summary.context.mode &&
-          current?.selectedRoomId === summary.context.selectedRoomId
+          current?.mode === nextContext.mode &&
+          current?.selectedRoomId === nextContext.selectedRoomId
         ) {
           return current;
         }
-        if (summary.context.selectedRoomId || !requestedRoomId) return summary.context;
-        return current ?? { mode: "ROOM", selectedRoomId: requestedRoomId };
+        return nextContext;
       });
       setServerSettings(summary.bubbles ?? []);
     }
@@ -1017,14 +1041,11 @@ function DesktopWidgetSurface() {
 
     async function loadDisplayApiState() {
       let selectedRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
-      const summary = await readWidgetDisplaySummary();
+      const summary = await readWidgetDisplaySummary(selectedRoomId);
       if (summary?.context) {
-        selectedRoomId = selectedRoomId ?? summary.context.selectedRoomId ?? requestedRoomId ?? null;
+        selectedRoomId = selectedRoomId ?? normalizeWidgetRoomId(summary.context.selectedRoomId) ?? requestedRoomId ?? null;
         if (!cancelled) {
-          setWidgetContext((current) => {
-            if (summary.context.selectedRoomId || !requestedRoomId) return summary.context;
-            return current ?? { mode: "ROOM", selectedRoomId: requestedRoomId };
-          });
+          setWidgetContext((current) => resolveWidgetContextFromSummary(summary, selectedRoomId, current));
           setServerSettings(summary.bubbles ?? []);
         }
       }
