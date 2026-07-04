@@ -213,7 +213,6 @@ return appName & "\n" & winTitle
 /// Windows: read the foreground window and owning process through Win32 APIs.
 #[cfg(target_os = "windows")]
 fn capture_foreground() -> Result<(String, Option<String>), String> {
-    use std::path::Path;
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{
         OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
@@ -254,7 +253,9 @@ fn capture_foreground() -> Result<(String, Option<String>), String> {
 
         let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id);
         if process == 0 {
-            return Ok((format!("process-{process_id}"), window_title));
+            return Err(format!(
+                "foreground process name was not available for pid {process_id}: OpenProcess failed"
+            ));
         }
 
         let mut path_buffer = vec![0_u16; 32768];
@@ -264,20 +265,30 @@ fn capture_foreground() -> Result<(String, Option<String>), String> {
         CloseHandle(process);
 
         if query_ok == 0 || path_size == 0 {
-            return Ok((format!("process-{process_id}"), window_title));
+            return Err(format!(
+                "foreground process name was not available for pid {process_id}: process image query failed"
+            ));
         }
 
         let process_path = String::from_utf16_lossy(&path_buffer[..path_size as usize]);
-        let app_name = Path::new(&process_path)
-            .file_stem()
-            .or_else(|| Path::new(&process_path).file_name())
-            .and_then(|value| value.to_str())
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| format!("process-{process_id}"));
+        let app_name = windows_app_name_from_process_path(&process_path).ok_or_else(|| {
+            format!("foreground process name was not available for pid {process_id}: process image path was empty")
+        })?;
 
         Ok((app_name, window_title))
     }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_app_name_from_process_path(process_path: &str) -> Option<String> {
+    use std::path::Path;
+
+    Path::new(process_path)
+        .file_stem()
+        .or_else(|| Path::new(process_path).file_name())
+        .and_then(|value| value.to_str())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 /// Other platforms: native capture depends on the desktop/window manager.
@@ -357,7 +368,20 @@ mod consent_tests {
 
 #[cfg(all(test, target_os = "windows"))]
 mod tests {
-    use super::capture_foreground;
+    use super::{capture_foreground, windows_app_name_from_process_path};
+
+    #[test]
+    fn windows_app_name_requires_real_process_path_name() {
+        assert_eq!(
+            windows_app_name_from_process_path(
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+            )
+            .as_deref(),
+            Some("chrome")
+        );
+        assert_eq!(windows_app_name_from_process_path("").as_deref(), None);
+        assert_eq!(windows_app_name_from_process_path(r"C:\").as_deref(), None);
+    }
 
     #[test]
     fn windows_foreground_capture_returns_app_name() {
@@ -373,6 +397,10 @@ mod tests {
         assert!(
             !app_name.trim().is_empty(),
             "foreground app name should not be empty"
+        );
+        assert!(
+            !app_name.starts_with("process-"),
+            "foreground app name should come from the process image name, not a pid fallback"
         );
     }
 }
