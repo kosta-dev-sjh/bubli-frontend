@@ -273,6 +273,12 @@ export const widgetDisplayApi = {
     return widgetDisplayRequest<PageResponse<WidgetChatRoomResponse>>(`/api/chat/rooms?page=0&size=${size}`);
   },
 
+  createProjectRoomChatRoom(roomId: string) {
+    return widgetDisplayRequest<WidgetChatRoomResponse>(`/api/project-rooms/${roomId}/chat-room`, {
+      method: "POST",
+    });
+  },
+
   listChatMessages(chatRoomId: string, size = 6) {
     return widgetDisplayRequest<PageResponse<WidgetChatMessageResponse>>(`/api/chat/rooms/${chatRoomId}/messages?page=0&size=${size}`);
   },

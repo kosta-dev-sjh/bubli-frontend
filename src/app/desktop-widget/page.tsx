@@ -942,7 +942,7 @@ function DesktopWidgetSurface() {
           widgetDisplayApi.listMemos(selectedRoomId, 6),
           widgetDisplayApi.listAgentSuggestions(selectedRoomId),
           widgetDisplayApi.listNotifications(6),
-          widgetDisplayApi.listChatRooms(6),
+          widgetDisplayApi.listChatRooms(20),
           widgetDisplayApi.listFriends(),
           selectedRoomId ? widgetDisplayApi.getProjectRoom(selectedRoomId) : Promise.resolve(null),
           voiceRoomId ? widgetDisplayApi.getVoiceRoom(voiceRoomId) : Promise.resolve(null),
@@ -952,7 +952,11 @@ function DesktopWidgetSurface() {
 
       const notifications = notificationsResult.status === "fulfilled" ? notificationsResult.value.items : [];
       const rooms = chatRoomsResult.status === "fulfilled" ? chatRoomsResult.value.items : [];
-      const activeRoom = rooms.find((item) => (selectedRoomId ? item.roomId === selectedRoomId : true));
+      let activeRoom = rooms.find((item) => (selectedRoomId ? item.roomId === selectedRoomId : true)) ?? null;
+      if (selectedRoomId && !activeRoom) {
+        activeRoom = await widgetDisplayApi.createProjectRoomChatRoom(selectedRoomId).catch(() => null);
+      }
+      if (cancelled) return;
       const messages = activeRoom ? await widgetDisplayApi.listChatMessages(activeRoom.id, 6).catch(() => null) : null;
       const cachedMessages =
         isTauri && activeRoom && !messages
