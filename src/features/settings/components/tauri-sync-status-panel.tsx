@@ -9,12 +9,15 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useI18n } from "@/lib/i18n";
-import { LOCAL_ACTIVITY_RECORDED_EVENT } from "@/lib/local/activity-client";
-import { PERSONAL_RESOURCES_CHANGED_EVENT } from "@/lib/local/managed-folder-client";
+import { LOCAL_ACTIVITY_RECORDED_EVENT, LOCAL_ACTIVITY_SYNCED_EVENT } from "@/lib/local/activity-client";
+import {
+  PERSONAL_RESOURCES_CHANGED_EVENT,
+  type PersonalLocalFileEventsSyncResult,
+} from "@/lib/local/managed-folder-client";
 import { getLocalSyncOutboxSummary } from "@/lib/sync/local-sync-client";
-import { WIDGET_USAGE_SYNCED_EVENT } from "@/lib/widget/widget-usage-auto-sync";
+import { WIDGET_USAGE_SYNCED_EVENT, type WidgetUsageSyncedEventDetail } from "@/lib/widget/widget-usage-auto-sync";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
-import type { LocalSyncSummary, SyncOutboxSummaryResult } from "@/types/local";
+import type { ActivityBufferSyncResult, LocalSyncSummary, SyncOutboxSummaryResult } from "@/types/local";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
@@ -24,6 +27,18 @@ type SyncQueueItem = {
   sourceKey: MessageKey;
   status: "queued" | "retrying" | "synced";
   targetKey: MessageKey;
+};
+
+type RecentAutoSyncSource = "activity" | "file" | "widget";
+
+type RecentAutoSyncItem = {
+  confirmedCount: number;
+  failedCount: number;
+  labelKey: MessageKey;
+  sentCount: number;
+  source: RecentAutoSyncSource;
+  stagedCount: number;
+  syncedAt: string;
 };
 
 const emptySummary: LocalSyncSummary = {
@@ -66,6 +81,7 @@ export function TauriSyncStatusPanel() {
   const { t } = useI18n();
   const [result, setResult] = useState<SyncOutboxSummaryResult | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [recentAutoSync, setRecentAutoSync] = useState<Partial<Record<RecentAutoSyncSource, RecentAutoSyncItem>>>({});
 
   const refreshOutbox = useCallback(async () => {
     setRefreshing(true);
@@ -86,15 +102,62 @@ export function TauriSyncStatusPanel() {
 
   useEffect(() => {
     const refreshAfterLocalSync = () => void refreshOutbox();
+    const updateRecentAutoSync = (item: RecentAutoSyncItem) => {
+      setRecentAutoSync((current) => ({
+        ...current,
+        [item.source]: item,
+      }));
+    };
+    const handleActivitySync = (event: Event) => {
+      const detail = (event as CustomEvent<ActivityBufferSyncResult>).detail;
+      updateRecentAutoSync({
+        confirmedCount: detail.sentCount,
+        failedCount: detail.failedCount,
+        labelKey: "settings.tss.recent.activity",
+        sentCount: detail.sentCount,
+        source: "activity",
+        stagedCount: detail.stagedCount,
+        syncedAt: detail.syncedAt,
+      });
+      refreshAfterLocalSync();
+    };
+    const handleFileSync = (event: Event) => {
+      const detail = (event as CustomEvent<PersonalLocalFileEventsSyncResult>).detail;
+      updateRecentAutoSync({
+        confirmedCount: detail.syncedCount + detail.analysisRequestedCount,
+        failedCount: detail.failedCount + detail.analysisFailedCount,
+        labelKey: "settings.tss.recent.file",
+        sentCount: detail.sentCount,
+        source: "file",
+        stagedCount: detail.sentCount,
+        syncedAt: detail.syncedAt,
+      });
+      refreshAfterLocalSync();
+    };
+    const handleWidgetSync = (event: Event) => {
+      const detail = (event as CustomEvent<WidgetUsageSyncedEventDetail>).detail;
+      updateRecentAutoSync({
+        confirmedCount: detail.markedSyncedCount ?? 0,
+        failedCount: detail.failedCount ?? (detail.status === "failed" ? 1 : 0),
+        labelKey: "settings.tss.recent.widget",
+        sentCount: detail.sentCount ?? 0,
+        source: "widget",
+        stagedCount: detail.stagedCount ?? 0,
+        syncedAt: detail.syncedAt ?? new Date().toISOString(),
+      });
+      refreshAfterLocalSync();
+    };
 
-    window.addEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, refreshAfterLocalSync);
+    window.addEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, handleFileSync);
     window.addEventListener(LOCAL_ACTIVITY_RECORDED_EVENT, refreshAfterLocalSync);
-    window.addEventListener(WIDGET_USAGE_SYNCED_EVENT, refreshAfterLocalSync);
+    window.addEventListener(LOCAL_ACTIVITY_SYNCED_EVENT, handleActivitySync);
+    window.addEventListener(WIDGET_USAGE_SYNCED_EVENT, handleWidgetSync);
 
     return () => {
-      window.removeEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, refreshAfterLocalSync);
+      window.removeEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, handleFileSync);
       window.removeEventListener(LOCAL_ACTIVITY_RECORDED_EVENT, refreshAfterLocalSync);
-      window.removeEventListener(WIDGET_USAGE_SYNCED_EVENT, refreshAfterLocalSync);
+      window.removeEventListener(LOCAL_ACTIVITY_SYNCED_EVENT, handleActivitySync);
+      window.removeEventListener(WIDGET_USAGE_SYNCED_EVENT, handleWidgetSync);
     };
   }, [refreshOutbox]);
 
@@ -131,6 +194,13 @@ export function TauriSyncStatusPanel() {
       },
     ],
     [failedCount, pendingCount, sentCount],
+  );
+  const recentAutoSyncItems = useMemo(
+    () =>
+      (["activity", "file", "widget"] as const)
+        .map((source) => recentAutoSync[source])
+        .filter((item): item is RecentAutoSyncItem => item !== undefined),
+    [recentAutoSync],
   );
 
   return (
@@ -171,6 +241,28 @@ export function TauriSyncStatusPanel() {
               <SyncQueueRow item={item} key={item.labelKey} t={t} />
             ))}
           </div>
+
+          {recentAutoSyncItems.length > 0 ? (
+            <div className="tauri-sync__recent" aria-label={t("settings.tss.recent.aria")}>
+              <h4>{t("settings.tss.recent.title")}</h4>
+              {recentAutoSyncItems.map((item) => (
+                <article className="tauri-sync__recent-row" key={item.source}>
+                  <StatusBadge tone={item.failedCount > 0 ? "warning" : "success"}>
+                    {item.failedCount > 0 ? t("settings.tss.status.retrying") : t("settings.tss.status.synced")}
+                  </StatusBadge>
+                  <strong>{t(item.labelKey)}</strong>
+                  <span>
+                    {t("settings.tss.recent.detail", {
+                      confirmed: item.confirmedCount,
+                      failed: item.failedCount,
+                      sent: item.sentCount,
+                      staged: item.stagedCount,
+                    })}
+                  </span>
+                </article>
+              ))}
+            </div>
+          ) : null}
         </GlassPanel>
 
         <GlassPanel className="tauri-sync__policy">

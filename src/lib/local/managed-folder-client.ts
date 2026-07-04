@@ -717,7 +717,15 @@ function notifyPersonalResourcesChanged(result: PersonalLocalFileEventsSyncResul
     return;
   }
 
-  if (result.syncedCount === 0 && result.analysisRequestedCount === 0) {
+  const changedOrAttempted =
+    result.syncedCount > 0 ||
+    result.sentCount > 0 ||
+    result.failedCount > 0 ||
+    result.skippedCount > 0 ||
+    result.analysisRequestedCount > 0 ||
+    result.analysisFailedCount > 0 ||
+    result.analysisSkippedCount > 0;
+  if (!changedOrAttempted) {
     return;
   }
 

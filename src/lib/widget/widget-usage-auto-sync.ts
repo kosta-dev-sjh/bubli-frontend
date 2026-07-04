@@ -112,6 +112,11 @@ async function syncWidgetUsageOnce() {
           : { status: result.status },
       );
     } catch {
+      notifyWidgetUsageSynced({
+        failedCount: 1,
+        status: "failed",
+        syncedAt: new Date().toISOString(),
+      });
       // Failed rollups stay retryable in SQLite and will be picked up on the next tick.
     } finally {
       syncInFlight = false;

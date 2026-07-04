@@ -13,6 +13,7 @@ import {
 import { translate } from "@/lib/i18n/translate";
 import type {
   ActivityBufferSyncAdapterResult,
+  ActivityBufferSyncResult,
   ActivityContextAdapterResult,
   ActivityContextReadInput,
   ActivityContextRecordAdapterResult,
@@ -20,6 +21,7 @@ import type {
 } from "@/types/local";
 
 export const LOCAL_ACTIVITY_RECORDED_EVENT = "bubli:local-activity-recorded";
+export const LOCAL_ACTIVITY_SYNCED_EVENT = "bubli:local-activity-synced";
 
 type IncrementalActivityCheckpoint = {
   focusKey: string;
@@ -153,6 +155,12 @@ export async function recordCurrentActivityContext(
   }
 
   const todayActivities = await activityApi.getToday().catch(() => []);
+  notifyLocalActivitySynced({
+    failedCount: 0,
+    sentCount: 1,
+    stagedCount: 1,
+    syncedAt: new Date().toISOString(),
+  });
   notifyLocalActivityRecorded(todayActivities);
 
   return ready(
@@ -192,13 +200,16 @@ export async function syncLocalActivityBufferToServer(input?: {
   }
 
   if (staged.data.activities.length === 0) {
+    const emptySyncResult = {
+      failedCount: 0,
+      sentCount: 0,
+      stagedCount: 0,
+      syncedAt: staged.data.stagedAt,
+    };
+    notifyLocalActivitySynced(emptySyncResult);
+
     return ready(
-      {
-        failedCount: 0,
-        sentCount: 0,
-        stagedCount: 0,
-        syncedAt: staged.data.stagedAt,
-      },
+      emptySyncResult,
       commandName,
       translate("local.activity.noResend"),
     );
@@ -235,13 +246,16 @@ export async function syncLocalActivityBufferToServer(input?: {
     }
   }
 
+  const syncResult = {
+    failedCount,
+    sentCount,
+    stagedCount: staged.data.activities.length,
+    syncedAt: new Date().toISOString(),
+  };
+  notifyLocalActivitySynced(syncResult);
+
   return ready(
-    {
-      failedCount,
-      sentCount,
-      stagedCount: staged.data.activities.length,
-      syncedAt: new Date().toISOString(),
-    },
+    syncResult,
     commandName,
     translate("local.activity.resent", { count: sentCount }),
   );
@@ -314,6 +328,16 @@ function notifyLocalActivityRecorded(todayActivities: unknown[]) {
   window.dispatchEvent(
     new CustomEvent(LOCAL_ACTIVITY_RECORDED_EVENT, {
       detail: { todayActivities },
+    }),
+  );
+}
+
+function notifyLocalActivitySynced(result: ActivityBufferSyncResult) {
+  if (typeof window === "undefined") return;
+
+  window.dispatchEvent(
+    new CustomEvent<ActivityBufferSyncResult>(LOCAL_ACTIVITY_SYNCED_EVENT, {
+      detail: result,
     }),
   );
 }

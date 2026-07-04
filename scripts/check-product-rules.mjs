@@ -192,6 +192,17 @@ if (existsSync(tauriSyncStatusPanelPath)) {
       "src/features/settings/components/tauri-sync-status-panel.tsx: Tauri/SQLite sync adapter failures must be surfaced as unresolved sync issues, not hidden behind an empty summary.",
     );
   }
+  if (
+    !text.includes("LOCAL_ACTIVITY_SYNCED_EVENT") ||
+    !text.includes("PERSONAL_RESOURCES_CHANGED_EVENT") ||
+    !text.includes("WIDGET_USAGE_SYNCED_EVENT") ||
+    !text.includes("setRecentAutoSync") ||
+    !text.includes("settings.tss.recent.detail")
+  ) {
+    failures.push(
+      "src/features/settings/components/tauri-sync-status-panel.tsx: Tauri sync status must consume automatic activity, file, and widget sync event details instead of using them only as refresh triggers.",
+    );
+  }
 }
 
 if (existsSync(activityCapturePath)) {
@@ -219,6 +230,14 @@ if (existsSync(localSyncClientPath)) {
   ) {
     failures.push(
       "src/lib/sync/local-sync-client.ts: manual local outbox sync must trigger file, activity, and widget usage backend sync paths together after pending widget usage event writes settle.",
+    );
+  }
+  if (
+    !text.includes("const serverSentCount = fileSentCount + activitySentCount + widgetSentCount") ||
+    !text.includes("sentCount: serverSentCount")
+  ) {
+    failures.push(
+      "src/lib/sync/local-sync-client.ts: manual local outbox sync must report sentCount as the aggregate server transfer count across file, activity, and widget usage sync paths.",
     );
   }
 }

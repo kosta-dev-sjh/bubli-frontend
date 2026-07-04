@@ -13241,6 +13241,46 @@ html {
   line-height: 1.3;
 }
 
+.tauri-sync__recent {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  border: 1px solid rgba(107, 143, 168, 0.12);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(246, 250, 252, 0.72);
+}
+
+.tauri-sync__recent h4 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 840;
+  letter-spacing: 0;
+  line-height: 20px;
+}
+
+.tauri-sync__recent-row {
+  display: grid;
+  grid-template-columns: auto minmax(100px, 0.24fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.tauri-sync__recent-row strong {
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.tauri-sync__recent-row span:not(.bubli-status) {
+  min-width: 0;
+}
+
 .tauri-sync__policy {
   display: grid;
   align-content: start;
@@ -14214,6 +14254,10 @@ html {
   }
 
   .tauri-sync-row {
+    grid-template-columns: 1fr;
+  }
+
+  .tauri-sync__recent-row {
     grid-template-columns: 1fr;
   }
 
