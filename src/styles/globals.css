@@ -4754,6 +4754,23 @@ button.workspace-route__friend-row:hover {
   color: #A7B6CC;
 }
 
+/* 독립 셀렉트(필드 래퍼 밖) — 라이트 전용 흰 유리 채움을 다크 유리로 교체한다. */
+[data-theme="dark"] .workspace-route__select {
+  color: rgba(232, 240, 250, 0.94);
+  border-color: rgba(150, 170, 215, 0.2);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(158, 216, 255, 0.08), transparent 36%),
+    rgba(28, 39, 61, 0.66);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .workspace-route__select:focus {
+  border-color: rgba(158, 216, 255, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 5px rgba(158, 216, 255, 0.14);
+}
+
 [data-theme="dark"] .bubli-icon-tile {
   border-color: var(--surface-border-dark);
   background: rgba(54, 72, 110, 0.5);
@@ -5987,6 +6004,89 @@ button.workspace-route__friend-row:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+/* ============================================================
+   Night Bubble — 자료보드(resource-board) 다크 정합화.
+   라이트 전용 흰 유리 채움을 어두운 유리 + hairline으로 바꾸고 잉크를 밝힌다.
+   ============================================================ */
+[data-theme="dark"] .resource-board::before {
+  opacity: 0.14;
+}
+
+[data-theme="dark"] .resource-board__search {
+  border-color: rgba(150, 170, 215, 0.2);
+  color: #EAF0F8;
+  background: rgba(28, 39, 61, 0.66);
+  box-shadow:
+    var(--inner-highlight-dark),
+    0 18px 34px -24px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .resource-board__search::placeholder {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .resource-board__summary {
+  background:
+    radial-gradient(circle at 8% 4%, rgba(158, 216, 255, 0.08), transparent 24%),
+    rgba(28, 38, 60, 0.6);
+}
+
+[data-theme="dark"] .resource-board__summary::after {
+  opacity: 0.14;
+}
+
+[data-theme="dark"] .resource-board__stat {
+  background: rgba(34, 46, 72, 0.45);
+}
+
+[data-theme="dark"] .resource-board__stat-icon,
+[data-theme="dark"] .resource-board__stat--pearl .resource-board__stat-icon,
+[data-theme="dark"] .resource-board__stat--opal .resource-board__stat-icon,
+[data-theme="dark"] .resource-board__stat--glass .resource-board__stat-icon {
+  border-color: rgba(150, 170, 215, 0.18);
+  color: #BFD6F5;
+  background: rgba(54, 72, 110, 0.5);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .resource-board__stat b,
+[data-theme="dark"] .resource-board__list-head h2,
+[data-theme="dark"] .resource-board__detail-head h2,
+[data-theme="dark"] .resource-board__section h3 {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .resource-board__stat span,
+[data-theme="dark"] .resource-board__list-head p,
+[data-theme="dark"] .resource-board__detail-head p,
+[data-theme="dark"] .resource-board__section p,
+[data-theme="dark"] .resource-board__section li {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .resource-board__grid {
+  border-color: rgba(150, 170, 215, 0.14);
+  background: rgba(24, 33, 52, 0.55);
+  box-shadow:
+    var(--inner-highlight-dark),
+    var(--shadow-floating-dark);
+}
+
+[data-theme="dark"] .resource-board__detail {
+  border-left-color: rgba(150, 170, 215, 0.16);
+}
+
+[data-theme="dark"] .resource-board__section li {
+  border-color: rgba(150, 170, 215, 0.14);
+  background: rgba(28, 39, 61, 0.5);
+}
+
+[data-theme="dark"] .resource-board__note {
+  border-color: rgba(230, 196, 156, 0.3);
+  color: #E6C49C;
+  background: rgba(230, 196, 156, 0.1);
 }
 
 .work-board {

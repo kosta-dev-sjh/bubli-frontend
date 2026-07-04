@@ -107,17 +107,17 @@ const ko = {
   "dashboard.palette.empty": "추가할 수 있는 항목이 없습니다",
 
   // 홈 위젯 보드(편집/저장/캔버스)
-  "dashboard.home.editWidgets": "위젯 편집",
+  "dashboard.home.editWidgets": "카드 편집",
   "dashboard.home.editDone": "편집 완료",
   "dashboard.home.resetLayout": "기본 구성",
-  "dashboard.home.boardAria": "홈 위젯 보드",
-  "dashboard.home.editingHint": "카드를 끌어 순서를 바꾸고, 오른쪽 목록에서 새 위젯을 추가하세요.",
+  "dashboard.home.boardAria": "홈 카드 보드",
+  "dashboard.home.editingHint": "카드를 끌어 순서를 바꾸고, 오른쪽 목록에서 새 카드를 추가하세요.",
   "dashboard.home.autoSaved": "이 기기에 자동 저장",
-  "dashboard.canvas.placeAria": "위젯 배치 영역",
+  "dashboard.canvas.placeAria": "카드 배치 영역",
   "dashboard.canvas.removeHint": "여기에 놓으면 보드에서 빠집니다",
 
   // 위젯별 프로젝트룸 범위
-  "dashboard.widget.roomScopeAria": "이 위젯이 보여줄 프로젝트룸",
+  "dashboard.widget.roomScopeAria": "이 카드가 보여줄 프로젝트룸",
   "dashboard.widget.scopeAll": "전체",
 
   // 통계 위젯(요약 링/주간 일정/진행률/집중/AI 대기)
@@ -470,16 +470,16 @@ const en: Record<Key, string> = {
   "dashboard.palette.search": "Find items by name",
   "dashboard.palette.empty": "No items available to add",
 
-  "dashboard.home.editWidgets": "Edit widgets",
+  "dashboard.home.editWidgets": "Edit cards",
   "dashboard.home.editDone": "Done",
   "dashboard.home.resetLayout": "Reset layout",
-  "dashboard.home.boardAria": "Home widget board",
-  "dashboard.home.editingHint": "Drag cards to reorder, and add new widgets from the list on the right.",
+  "dashboard.home.boardAria": "Home card board",
+  "dashboard.home.editingHint": "Drag cards to reorder, and add new cards from the list on the right.",
   "dashboard.home.autoSaved": "Saved on this device automatically",
-  "dashboard.canvas.placeAria": "Widget placement area",
+  "dashboard.canvas.placeAria": "Card placement area",
   "dashboard.canvas.removeHint": "Drop here to remove from the board",
 
-  "dashboard.widget.roomScopeAria": "Project room shown in this widget",
+  "dashboard.widget.roomScopeAria": "Project room shown in this card",
   "dashboard.widget.scopeAll": "All rooms",
 
   "dashboard.metric.aiQueue": "AI queue",
@@ -823,16 +823,16 @@ const ja: Record<Key, string> = {
   "dashboard.palette.search": "名前で項目を探す",
   "dashboard.palette.empty": "追加できる項目がありません",
 
-  "dashboard.home.editWidgets": "ウィジェット編集",
+  "dashboard.home.editWidgets": "カード編集",
   "dashboard.home.editDone": "編集を完了",
   "dashboard.home.resetLayout": "既定の構成",
-  "dashboard.home.boardAria": "ホームウィジェットボード",
-  "dashboard.home.editingHint": "カードをドラッグして並べ替え、右のリストから新しいウィジェットを追加します。",
+  "dashboard.home.boardAria": "ホームカードボード",
+  "dashboard.home.editingHint": "カードをドラッグして並べ替え、右のリストから新しいカードを追加します。",
   "dashboard.home.autoSaved": "この端末に自動保存",
-  "dashboard.canvas.placeAria": "ウィジェット配置エリア",
+  "dashboard.canvas.placeAria": "カード配置エリア",
   "dashboard.canvas.removeHint": "ここにドロップするとボードから外れます",
 
-  "dashboard.widget.roomScopeAria": "このウィジェットに表示するプロジェクトルーム",
+  "dashboard.widget.roomScopeAria": "このカードに表示するプロジェクトルーム",
   "dashboard.widget.scopeAll": "すべて",
 
   "dashboard.metric.aiQueue": "AI待機",

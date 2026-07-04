@@ -30,7 +30,7 @@ import {
   type WidgetContextResponse,
 } from "@/features/widget/api/widgetApi";
 import { widgetCommunicationApi } from "@/features/widget/api/widgetCommunicationApi";
-import { DesktopWidgetBubble, DesktopWidgetBubbleBar, DesktopWidgetMenuOrb, desktopWidgetBubbleTypes } from "@/features/widget/components/desktop-widget-bubble";
+import { DesktopWidgetBubble, DesktopWidgetBubbleBar, DesktopWidgetMenuOrb, desktopWidgetBubbleTypes, widgetInteractiveRectSelector } from "@/features/widget/components/desktop-widget-bubble";
 import {
   getWidgetPreviewBubble,
   type WidgetNotificationSignal,
@@ -42,7 +42,7 @@ import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
-import { tauriCommands, type WidgetBubbleType, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { tauriCommands, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readWidgetSummary } from "@/lib/widget";
@@ -149,10 +149,93 @@ function getSettingPatch(bubbleType: WidgetBubbleType, mode: WidgetWindowMode) {
   };
 }
 
+// src-tauri/src/lib.rs widget_window_size와 반드시 동기화한다(콘텐츠 자동 높이 + 버블별 창 크기).
+const WIDGET_WINDOW_GUTTER = 44;
+
+// Rust 쪽 "저장 전 기본 자리" 좌표 센티널(i32::MIN)은 실제 좌표가 아니므로 서버 설정에 반영하지 않는다.
+const WIDGET_POSITION_UNSET_THRESHOLD = -1_000_000;
+
+function widgetSettingCoordinate(value: number) {
+  return value <= WIDGET_POSITION_UNSET_THRESHOLD ? undefined : value;
+}
+
 function getWidgetWindowSize(bubbleType: WidgetBubbleType, mode: WidgetWindowMode) {
-  if (mode === "MINIMIZED") return { height: 62, width: 218 };
-  if (bubbleType === "timer") return { height: 500, width: 344 };
-  return { height: 500, width: 344 };
+  if (mode === "MINIMIZED") return { height: 92, width: 208 };
+  if (mode === "GHOST") return { height: 212, width: 212 };
+  if (bubbleType === "chat") return { height: 420 + WIDGET_WINDOW_GUTTER, width: 336 + WIDGET_WINDOW_GUTTER };
+  if (bubbleType === "agent") return { height: 430 + WIDGET_WINDOW_GUTTER, width: 332 + WIDGET_WINDOW_GUTTER };
+  if (bubbleType === "timer") return { height: 352 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
+  if (bubbleType === "resource") return { height: 330 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
+  if (bubbleType === "memo") return { height: 320 + WIDGET_WINDOW_GUTTER, width: 308 + WIDGET_WINDOW_GUTTER };
+  if (bubbleType === "schedule") return { height: 340 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
+  return { height: 360 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
+}
+
+// 위젯 창은 보이는 콘텐츠(pill/셸/팝오버)보다 큰 투명 사각형이므로, 마우스를 받아야 하는
+// 콘텐츠 rect(논리 px, 창-로컬)를 Rust 커서 폴러에 보고해 투명 영역 클릭을 아래 앱으로 통과시킨다.
+const INTERACTIVE_RECT_EPSILON = 0.5;
+
+function collectWidgetInteractiveRects(): WidgetInteractiveRect[] {
+  return Array.from(document.querySelectorAll<HTMLElement>(widgetInteractiveRectSelector))
+    .map((element) => element.getBoundingClientRect())
+    .filter((rect) => rect.width > 0 && rect.height > 0)
+    .map((rect) => ({ height: rect.height, width: rect.width, x: rect.x, y: rect.y }));
+}
+
+function widgetInteractiveRectsChanged(previous: WidgetInteractiveRect[] | null, next: WidgetInteractiveRect[]) {
+  if (!previous || previous.length !== next.length) return true;
+  return next.some((rect, index) => {
+    const before = previous[index];
+    return (
+      Math.abs(before.x - rect.x) > INTERACTIVE_RECT_EPSILON ||
+      Math.abs(before.y - rect.y) > INTERACTIVE_RECT_EPSILON ||
+      Math.abs(before.width - rect.width) > INTERACTIVE_RECT_EPSILON ||
+      Math.abs(before.height - rect.height) > INTERACTIVE_RECT_EPSILON
+    );
+  });
+}
+
+function useWidgetInteractiveRectReporting(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+
+    let lastReported: WidgetInteractiveRect[] | null = null;
+    let frameId: number | null = null;
+
+    const report = () => {
+      frameId = null;
+      const rects = collectWidgetInteractiveRects();
+      if (!widgetInteractiveRectsChanged(lastReported, rects)) return;
+      lastReported = rects;
+      void tauriCommands.setWidgetInteractiveRects({ rects }).catch(() => {
+        // 다음 변경 때 재시도할 수 있도록 마지막 보고값을 비운다.
+        lastReported = null;
+      });
+    };
+    const scheduleReport = () => {
+      if (frameId !== null) return;
+      frameId = window.requestAnimationFrame(report);
+    };
+
+    scheduleReport();
+
+    // hover 팝오버·메뉴 패널 mount/unmount와 모드 전환(클래스 변경)을 감지한다.
+    const mutationObserver = new MutationObserver(scheduleReport);
+    mutationObserver.observe(document.body, { attributes: true, childList: true, subtree: true });
+    const resizeObserver = new ResizeObserver(scheduleReport);
+    resizeObserver.observe(document.body);
+    window.addEventListener("resize", scheduleReport);
+    // 폰트 로드·비동기 데이터로 인한 레이아웃 드리프트 대비 저빈도 재확인(변경 없으면 invoke 없음).
+    const intervalId = window.setInterval(scheduleReport, 1000);
+
+    return () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", scheduleReport);
+      window.clearInterval(intervalId);
+    };
+  }, [enabled]);
 }
 
 function formatShortTime(value?: string | null) {
@@ -388,6 +471,7 @@ function buildNotificationSignal(t: TranslateFn, notifications: WidgetNotificati
     notificationLabel: unread.length > 0 ? t("widget.signal.newAlertCount", { count: unread.length }) : t("widget.signal.noNewAlert"),
     rows: unread.slice(0, 3).map((item) => ({
       id: item.id,
+      detail: item.body ?? undefined,
       kind: item.sourceType === "MESSAGE" ? "message" : item.sourceType === "RESOURCE" ? "resource" : "agent",
       label: item.title,
       status: item.sourceType,
@@ -422,8 +506,13 @@ function buildDisplayBubbles(input: {
   const activeTimer = input.timer ?? (!isRoomScoped ? input.dashboard?.runningTimer ?? null : null);
   const todoSource = isRoomScoped ? input.tasks : (input.dashboard?.todayTasks.length ? input.dashboard.todayTasks : input.tasks);
   const scheduleSource = isRoomScoped ? input.schedules : (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules);
-  const todoItems = todoSource.slice(0, 3);
+  // /api/dashboard/work upcomingDeadlines(개인 범위)로 오늘 작업이 모자랄 때 다가오는 마감을 채운다.
+  const deadlineFill = isRoomScoped
+    ? []
+    : (input.dashboard?.upcomingDeadlines ?? []).filter((deadline) => !todoSource.some((task) => task.id === deadline.id));
+  const todoItems = [...todoSource, ...deadlineFill].slice(0, 3);
   const scheduleItems = scheduleSource.slice(0, 3);
+  const scheduleTimeLabel = (item: WidgetScheduleResponse) => (item.allDay ? t("widget.schedule.allDay") : formatShortTime(item.startsAt));
   const memoItems = input.memos.filter((item) => item.status === "ACTIVE").slice(0, 3);
   const fileItems = input.resources.filter((item) => item.kind !== "MEMO").slice(0, 3);
   const agentRows =
@@ -473,6 +562,7 @@ function buildDisplayBubbles(input: {
       roomLabel: label,
       rows: unreadNotifications.map((item) => ({
         id: item.id,
+        detail: item.body ?? undefined,
         handoffLabel: item.sourceType,
         handoffUrl: item.sourceType === "MESSAGE" ? chatRoute : item.sourceType === "RESOURCE" ? resourceRoute : agentRoute,
         kind: item.sourceType === "MESSAGE" ? "message" : item.sourceType === "RESOURCE" ? "resource" : "agent",
@@ -487,7 +577,8 @@ function buildDisplayBubbles(input: {
       metric: String(input.messages.length),
       notificationLabel: unreadCount > 0 ? t("widget.chat.unreadCount", { count: unreadCount }) : t("widget.chat.noNew"),
       panelBody: t("widget.chat.body"),
-      panelLabel: t("widget.chat.panelLabel", { label }),
+      // DIRECT 채팅방은 백엔드 chat room name을 쓰고, 룸 채팅은 프로젝트룸 라벨을 쓴다.
+      panelLabel: t("widget.chat.panelLabel", { label: input.chatRoom?.name?.trim() || label }),
       participantLabels: input.friends.slice(0, 3).map((item) => item.name),
       roomId: input.roomId,
       roomLabel: label,
@@ -557,18 +648,18 @@ function buildDisplayBubbles(input: {
     }),
     schedule: withBubble("schedule", {
       compactLabel: t("widget.schedule.count", { count: scheduleItems.length }),
-      metric: scheduleItems[0] ? formatShortTime(scheduleItems[0].startsAt) : "0",
+      metric: scheduleItems[0] ? scheduleTimeLabel(scheduleItems[0]) || "0" : "0",
       notificationLabel: scheduleItems[0]?.title ?? t("widget.schedule.none"),
       panelBody: t("widget.schedule.body"),
       roomId: input.roomId,
       roomLabel: label,
       rows: scheduleItems.map((item) => ({
         id: item.id,
-        handoffLabel: formatShortTime(item.startsAt),
+        handoffLabel: scheduleTimeLabel(item),
         handoffUrl: scheduleRoute,
         kind: "schedule",
         label: item.title,
-        status: formatShortTime(item.startsAt),
+        status: scheduleTimeLabel(item),
       })),
     }),
     timer: withBubble("timer", {
@@ -843,10 +934,14 @@ function DesktopWidgetSurface() {
   const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(() => widgetDisplayLoadSignal("loading"));
+  const [menuUsageSummary, setMenuUsageSummary] = useState<string | null>(null);
   const liveKitRoomRef = useRef<Room | null>(null);
   const appReadySentRef = useRef(false);
   const selectedWidgetRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
   const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
+
+  // 창별 상호작용 rect 보고(투명 영역 클릭 통과). 브라우저 미리보기에서는 동작하지 않는다.
+  useWidgetInteractiveRectReporting(isTauri && mounted);
 
   useLayoutEffect(() => {
     const htmlStyle = document.documentElement.style;
@@ -1327,8 +1422,8 @@ function DesktopWidgetSurface() {
                   ...settingPatch,
                   height: size.height,
                   width: size.width,
-                  x: state.position.x,
-                  y: state.position.y,
+                  x: widgetSettingCoordinate(state.position.x),
+                  y: widgetSettingCoordinate(state.position.y),
                 },
               ],
             })
@@ -1406,8 +1501,8 @@ function DesktopWidgetSurface() {
                 ...settingPatch,
                 height: size.height,
                 width: size.width,
-                x: state.position.x,
-                y: state.position.y,
+                x: widgetSettingCoordinate(state.position.x),
+                y: widgetSettingCoordinate(state.position.y),
               },
             ],
           })
@@ -1448,8 +1543,8 @@ function DesktopWidgetSurface() {
                 ...settingPatch,
                 height: size.height,
                 width: size.width,
-                x: state.position.x,
-                y: state.position.y,
+                x: widgetSettingCoordinate(state.position.x),
+                y: widgetSettingCoordinate(state.position.y),
               },
             ],
           })
@@ -2083,15 +2178,43 @@ function DesktopWidgetSurface() {
     [activeVoiceRoomId, isTauri],
   );
 
-  const openBubbleBar = useCallback(async () => {
+  // 메뉴 창에서만 서버 사용 롤업(usage-summaries/today)을 읽어 한 줄 요약으로 보여준다.
+  useEffect(() => {
+    if (!widgetSessionReady || !isMenuOrb) return;
+
+    let cancelled = false;
+
+    void widgetApi
+      .getTodayUsageRollups()
+      .then((summary) => {
+        if (cancelled) return;
+        if (!summary || (summary.totalOpenCount === 0 && summary.totalInteractionCount === 0)) {
+          setMenuUsageSummary(null);
+          return;
+        }
+        setMenuUsageSummary(
+          t("widget.menu.todayUsage", { interaction: summary.totalInteractionCount, open: summary.totalOpenCount }),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setMenuUsageSummary(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isMenuOrb, t, widgetSessionReady]);
+
+  // Bubli 버튼은 바 창 안 인라인 메뉴 대신 별도 menu 창을 연다(바 창은 pill + hover 팝오버 전용).
+  const openWidgetMenu = useCallback(async () => {
     if (!isTauri) return;
 
     try {
       await tauriCommands.openWidgetWindow({
-        bubbleType: "bar",
+        bubbleType: "menu",
         mode: "DEFAULT",
         selectedRoomId: selectedWidgetRoomId,
-        windowId: "bar",
+        windowId: "menu",
       });
     } catch {
       // Browser preview fallback.
@@ -2143,21 +2266,27 @@ function DesktopWidgetSurface() {
   }
 
   if (isMenuOrb) {
-    return <DesktopWidgetMenuOrb onOpenMenu={() => void openBubbleBar()} />;
+    return (
+      <DesktopWidgetMenuOrb
+        hasRoomContext={Boolean(selectedWidgetRoomId)}
+        onOpenBubble={(bubbleType) => void restoreBubbleFromBar(bubbleType, bubbleType)}
+        onOpenMainApp={() => void openMainApp()}
+        onOpenSettings={() => void openMainApp("settings")}
+        onQuit={() => void quitDesktopApp()}
+        onToggleRoomContext={() => void toggleWidgetRoomContext()}
+        usageSummary={menuUsageSummary}
+      />
+    );
   }
 
   if (isBubbleBar) {
     return (
       <DesktopWidgetBubbleBar
         bubbleDataByType={displayBubbles}
-        hasRoomContext={Boolean(selectedWidgetRoomId)}
         minimizedItems={barItems}
         notificationSignal={notificationSignal}
-        onOpenMainApp={() => void openMainApp()}
-        onOpenSettings={() => void openMainApp("settings")}
-        onQuit={() => void quitDesktopApp()}
+        onOpenMenu={() => void openWidgetMenu()}
         onRestoreBubble={(bubbleType, restoredWindowId) => void restoreBubbleFromBar(bubbleType, restoredWindowId)}
-        onToggleRoomContext={() => void toggleWidgetRoomContext()}
       />
     );
   }

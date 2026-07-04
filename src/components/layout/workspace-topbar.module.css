@@ -332,6 +332,52 @@ button.profileButton {
   background: rgba(111, 184, 242, 0.16);
 }
 
+/* 테마 행 — 언어 행과 같은 문법(아이콘 + 알약 세그먼트). ThemeToggle(bubli-seg)의
+   독립 표면(테두리/그림자/블러)은 메뉴 안에서는 걷어내고 menuLocaleButton 톤으로 맞춘다. */
+.menuThemeRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  color: var(--color-muted);
+}
+
+.menuThemeRow > svg {
+  flex: 0 0 auto;
+}
+
+.menuThemeRow :global(.bubli-seg) {
+  padding: 0;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.menuThemeRow :global(.bubli-seg__item) {
+  min-height: 0;
+  border: 1px solid rgba(107, 143, 168, 0.16);
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: var(--color-muted);
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.menuThemeRow :global(.bubli-seg__item:hover) {
+  border-color: rgba(111, 184, 242, 0.32);
+  color: var(--color-muted);
+}
+
+.menuThemeRow :global(.bubli-seg__item.is-active) {
+  border-color: rgba(111, 184, 242, 0.42);
+  color: var(--color-blue-deep);
+  background: rgba(111, 184, 242, 0.16);
+  box-shadow: none;
+}
+
 .notificationsPopover {
   min-width: 320px;
   max-width: min(92vw, 380px);
@@ -536,12 +582,13 @@ button.profileButton {
   background: rgba(158, 216, 255, 0.12);
 }
 
+/* 로그아웃 행 — 라이트의 로즈 톤(#E79BB0)은 유지하되, 다크에서는 더 밝은 로즈로 대비를 확보한다. */
 [data-theme="dark"] .menuItemDanger {
-  color: var(--color-destructive);
+  color: #F2BBD2;
 }
 
 [data-theme="dark"] .menuItemDanger:hover {
-  background: rgba(210, 96, 88, 0.16);
+  background: rgba(231, 155, 176, 0.14);
 }
 
 [data-theme="dark"] .menuDivider {
@@ -558,6 +605,28 @@ button.profileButton {
   border-color: rgba(158, 216, 255, 0.42);
   color: #9ed8ff;
   background: rgba(158, 216, 255, 0.14);
+}
+
+[data-theme="dark"] .menuThemeRow {
+  color: rgba(176, 190, 208, 0.66);
+}
+
+[data-theme="dark"] .menuThemeRow :global(.bubli-seg__item) {
+  border-color: var(--surface-border-dark, rgba(150, 170, 215, 0.16));
+  color: rgba(176, 190, 208, 0.7);
+  background: rgba(54, 72, 110, 0.45);
+}
+
+[data-theme="dark"] .menuThemeRow :global(.bubli-seg__item:hover) {
+  border-color: rgba(158, 216, 255, 0.32);
+  color: rgba(206, 216, 230, 0.85);
+}
+
+[data-theme="dark"] .menuThemeRow :global(.bubli-seg__item.is-active) {
+  border-color: rgba(158, 216, 255, 0.42);
+  color: #9ed8ff;
+  background: rgba(158, 216, 255, 0.14);
+  box-shadow: none;
 }
 
 [data-theme="dark"] .notificationsHead span {
@@ -667,6 +736,10 @@ button.profileButton {
 
   /* 모바일 터치 타깃 확보 */
   .menuLocaleButton {
+    padding: 9px 13px;
+  }
+
+  .menuThemeRow :global(.bubli-seg__item) {
     padding: 9px 13px;
   }
 

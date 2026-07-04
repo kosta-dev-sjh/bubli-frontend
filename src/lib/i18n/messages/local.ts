@@ -14,10 +14,10 @@ const ko = {
   "local.folder.noChanges": "서버에 보낼 로컬 파일 변경분이 없습니다.",
   "local.folder.synced": "로컬 파일 변경 {count}건을 서버에 반영했습니다.",
   "local.sync.outboxChecked": "동기화 outbox 상태를 확인했습니다. 서버 전송은 승인된 전송 흐름에서 처리됩니다.",
-  "local.sync.widgetQueued": "위젯 사용 요약을 서버 전송 대기열에 올렸습니다. 인증된 동기화 흐름에서 반영됩니다.",
+  "local.sync.widgetQueued": "버블 사용 요약을 서버 전송 대기열에 올렸습니다. 인증된 동기화 흐름에서 반영됩니다.",
   "local.sync.noDirectSend": "로컬 어댑터는 서버 전송을 직접 수행하지 않습니다. 인증된 API 클라이언트가 별도 승인 흐름에서 처리해야 합니다.",
-  "local.widget.readerPending": "로컬 위젯 표시 캐시 reader가 연결되면 SQLite summary를 먼저 읽고 서버 API를 fallback으로 씁니다.",
-  "local.widget.readFailed": "위젯 summary를 읽지 못했습니다.",
+  "local.widget.readerPending": "로컬 버블 표시 캐시 reader가 연결되면 SQLite summary를 먼저 읽고 서버 API를 fallback으로 씁니다.",
+  "local.widget.readFailed": "버블 summary를 읽지 못했습니다.",
 } as const;
 
 type Key = keyof typeof ko;
@@ -37,10 +37,10 @@ const en: Record<Key, string> = {
   "local.folder.noChanges": "There are no local file changes to send to the server.",
   "local.folder.synced": "Synced {count} local file changes to the server.",
   "local.sync.outboxChecked": "Checked the sync outbox state. Server transfer is handled by the approved send flow.",
-  "local.sync.widgetQueued": "Queued the widget usage summary for server send. It will be reflected by the authenticated sync flow.",
+  "local.sync.widgetQueued": "Queued the bubble usage summary for server send. It will be reflected by the authenticated sync flow.",
   "local.sync.noDirectSend": "The local adapter doesn't send to the server directly. An authenticated API client must handle it in a separate approval flow.",
-  "local.widget.readerPending": "Once the local widget display cache reader is connected, it reads the SQLite summary first and falls back to the server API.",
-  "local.widget.readFailed": "Couldn't read the widget summary.",
+  "local.widget.readerPending": "Once the local bubble display cache reader is connected, it reads the SQLite summary first and falls back to the server API.",
+  "local.widget.readFailed": "Couldn't read the bubble summary.",
 };
 
 const ja: Record<Key, string> = {
@@ -58,10 +58,10 @@ const ja: Record<Key, string> = {
   "local.folder.noChanges": "サーバーに送信するローカルファイル変更はありません。",
   "local.folder.synced": "ローカルファイル変更{count}件をサーバーに反映しました。",
   "local.sync.outboxChecked": "同期outboxの状態を確認しました。サーバー送信は承認済みの送信フローで処理されます。",
-  "local.sync.widgetQueued": "ウィジェット使用要約をサーバー送信キューに追加しました。認証済み同期フローで反映されます。",
+  "local.sync.widgetQueued": "バブル使用要約をサーバー送信キューに追加しました。認証済み同期フローで反映されます。",
   "local.sync.noDirectSend": "ローカルアダプターはサーバー送信を直接実行しません。認証済みAPIクライアントが別の承認フローで処理する必要があります。",
-  "local.widget.readerPending": "ローカルウィジェット表示キャッシュreaderが接続されると、SQLite summaryを先に読み、サーバーAPIをfallbackとして使います。",
-  "local.widget.readFailed": "ウィジェットsummaryを読み取れませんでした。",
+  "local.widget.readerPending": "ローカルバブル表示キャッシュreaderが接続されると、SQLite summaryを先に読み、サーバーAPIをfallbackとして使います。",
+  "local.widget.readFailed": "バブルsummaryを読み取れませんでした。",
 };
 
 export const localMessages = { ko, en, ja };

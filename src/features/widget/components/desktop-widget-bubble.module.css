@@ -21,6 +21,8 @@
 
 .tauriRoot {
   display: grid;
+  /* 창 높이가 콘텐츠보다 커도 shell이 늘어나 빈 유리판이 보이지 않도록 위로 붙인다. */
+  align-content: start;
   width: max-content;
   min-width: 0;
   min-height: 0;
@@ -45,7 +47,7 @@
   position: relative;
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 12px;
   /* v20 Visual Target Guide 5장 — 깊이는 rim + inner highlight, shadow는 작고 맑은 floating 토큰만. */
   border: 1px solid var(--rim-light, rgba(255, 255, 255, 0.85));
   background:
@@ -81,7 +83,14 @@
   width: 320px;
   /* v20 radius 토큰 정렬(--radius-window: 24px) */
   border-radius: var(--radius-window, 24px);
-  padding: 12px;
+  /* v20 내부 여백 통일(16px) */
+  padding: 16px;
+}
+
+/* 기본/반투명 모드에서 셸이 창 높이를 꽉 채워, 주 액션 pill을 하단에 고정할 수 있게 한다. */
+.tauriRoot:not(.minimizedMode):not(.ghostMode) .tauriShell {
+  min-height: calc(100vh - 2 * var(--widget-window-gutter));
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .tauriRoot:not(.minimizedMode):not(.ghostMode) {
@@ -96,8 +105,14 @@
   --widget-window-gutter: 10px;
 }
 
+/* 버블 accent별 은은한 유리 틴트 — 색은 면이 아니라 빛(가이드 11장). */
 .shellBlue {
   --bubble-tone: var(--widget-blue);
+  background:
+    radial-gradient(circle at 20% 12%, rgba(255, 255, 255, 0.96), transparent 22%),
+    radial-gradient(circle at 78% 14%, rgba(142, 205, 246, 0.2), transparent 24%),
+    linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(246, 251, 255, 0.84)),
+    rgba(255, 255, 255, 0.9);
 }
 
 .shellLilac {
@@ -223,8 +238,9 @@
 
 .titleCopy strong {
   overflow: hidden;
+  /* v20 헤더 타이틀 15px/700 */
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1.08;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -303,18 +319,20 @@
   opacity: 1;
 }
 
+/* 창 조작 가능성이 항상 보이도록 상시 노출(0.55) + hover 시 1로 강조한다. */
 .controlsTauri {
-  opacity: 0;
-  transform: translateY(-2px);
-  transition:
-    opacity 160ms ease,
-    transform 160ms ease;
+  opacity: 0.55;
+  transition: opacity 160ms ease;
+}
+
+.controlsTauri button {
+  width: 24px;
+  height: 24px;
 }
 
 .tauriShell:hover .controlsTauri,
 .tauriShell:focus-within .controlsTauri {
   opacity: 1;
-  transform: none;
 }
 
 .dragbar {
@@ -356,14 +374,25 @@
 .body {
   position: relative;
   z-index: 1;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   min-width: 0;
+}
+
+/* 셸이 창 높이를 채울 때 주 액션 pill과 입력줄을 하단에 고정한다. */
+.body > .wideAction {
+  margin-top: auto;
+}
+
+.body > .input:last-child {
+  margin-top: auto;
 }
 
 .progress,
 .ring {
   justify-self: center;
+  align-self: center;
   display: grid;
   place-items: center;
   width: 92px;
@@ -404,6 +433,7 @@
 .agentHalo {
   position: relative;
   justify-self: center;
+  align-self: center;
   width: 94px;
   height: 94px;
   border-radius: 999px;
@@ -442,7 +472,6 @@
 .dropPanel,
 .chatHead,
 .handoffBubble,
-.handoffDone,
 .message,
 .input,
 .memoGrid article,
@@ -464,7 +493,8 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  /* 리스트 밀도 타이트하게(v20) */
+  padding: 8px 12px;
 }
 
 .checkRow input {
@@ -477,7 +507,6 @@
 .fileRow span,
 .chatHead span,
 .handoffBubble span,
-.handoffDone span,
 .alertRow strong,
 .timeline span,
 .message {
@@ -538,13 +567,6 @@
     rgba(255, 255, 255, 0.68);
 }
 
-.handoffDone {
-  display: grid;
-  place-items: center;
-  min-height: 38px;
-  padding: 10px 12px;
-}
-
 .wideAction {
   width: 100%;
   height: 36px;
@@ -573,10 +595,13 @@
   line-height: 1.45;
 }
 
+/* v20: dashed 대신 낮은 대비의 평평한 well. */
 .dropPanel {
   justify-items: center;
-  border-style: dashed;
+  border-color: rgba(107, 143, 168, 0.1);
   color: var(--widget-blue-deep);
+  background: rgba(246, 251, 255, 0.55);
+  box-shadow: none;
 }
 
 .input {
@@ -623,11 +648,12 @@
 }
 
 .message {
-  padding: 10px 12px;
+  padding: 8px 12px;
 }
 
 .messageMine {
   justify-self: end;
+  align-self: flex-end;
   max-width: 78%;
   color: var(--widget-blue-deep);
   background: rgba(216, 240, 255, 0.62);
@@ -635,10 +661,12 @@
 
 .timer {
   justify-self: center;
+  align-self: center;
   display: grid;
   place-items: center;
-  width: 118px;
-  height: 118px;
+  /* v20 타이머 링 140px */
+  width: 140px;
+  height: 140px;
   border: 1px solid rgba(142, 205, 246, 0.32);
   border-radius: 999px;
   background:
@@ -874,13 +902,14 @@
   white-space: nowrap;
 }
 
+/* v20: 엠티 스테이트는 dashed 박스가 아니라 평평하고 옅은 well. */
 .emptyState {
   display: grid;
   place-items: center;
   min-height: 64px;
-  border: 1px dashed rgba(107, 143, 168, 0.18);
+  border: 1px solid rgba(107, 143, 168, 0.08);
   border-radius: var(--radius-card, 16px);
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(242, 247, 252, 0.6);
 }
 
 .emptyState span {
@@ -896,6 +925,7 @@
 }
 
 .itemActions button,
+.chatHead button,
 .voiceStrip button,
 .reactionDock button {
   display: inline-flex;
@@ -995,10 +1025,16 @@
   font-weight: 760;
 }
 
+.chatHead button,
 .voiceStrip button {
   width: 26px;
   height: 26px;
   padding: 0;
+}
+
+.chatHead button:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .reactionDock {
@@ -1023,21 +1059,120 @@
   width: fit-content;
 }
 
+/* 바 창(360×220)은 pill보다 크다: pill을 하단에 고정하고 위 투명 영역은 hover 팝오버 전용으로 쓴다. */
 .barRoot {
+  position: relative;
+  height: 100%;
+  align-content: end;
   padding: 4px;
 }
 
+/* 접힌 칩 hover/포커스 시 pill 위에 뜨는 요약 팝오버. 표시 전용이라 클릭을 가로채지 않는다. */
+.barPopover {
+  position: absolute;
+  right: 4px;
+  bottom: 62px;
+  left: 4px;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--rim-light, rgba(255, 255, 255, 0.85));
+  border-radius: var(--radius-panel, 20px);
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--widget-text);
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+  pointer-events: none;
+}
+
+.barPopoverHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.barPopoverHead strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.barPopoverHead b {
+  overflow: hidden;
+  min-width: 0;
+  margin-left: auto;
+  color: var(--widget-muted);
+  font-size: 12px;
+  font-weight: 820;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barPopover > small {
+  overflow: hidden;
+  color: var(--widget-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barPopover ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.barPopover li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.barPopover li span {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barPopover li small {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--widget-faint);
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barPopover li b {
+  flex: none;
+  margin-left: auto;
+  color: var(--widget-muted);
+  font-size: 11px;
+  font-weight: 820;
+  white-space: nowrap;
+}
+
 .menuRoot {
+  gap: 8px;
+  justify-items: start;
   padding: 10px;
 }
 
-.barPreview,
-.menuPanel,
-.barMenu {
+/* 오브에 앵커된 Bubli 메뉴 패널 — 헤더/버블 바로가기/2×2 액션이 세로로 쌓인다. */
+.menuPanel {
   display: grid;
-  gap: 4px;
-  margin-bottom: 8px;
-  padding: 10px 12px;
+  gap: 8px;
+  width: 204px;
+  padding: 12px;
   border: 1px solid var(--rim-light, rgba(255, 255, 255, 0.85));
   border-radius: var(--radius-panel, 20px);
   background: rgba(255, 255, 255, 0.62);
@@ -1046,15 +1181,20 @@
     var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
 }
 
-/* 메뉴 버블리(브랜드 버블)가 여는 위젯 메뉴 — 접힘 미리보기 자리를 대체해 창 크기 안에 머문다. */
-.barMenu {
+.menuGrid {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
-  padding: 8px;
-  background: rgba(255, 255, 255, 0.72);
 }
 
-.barMenuItem {
+/* 소통 버블 방 미선택 상태의 방/친구 선택 리스트. */
+.chatPicker {
+  display: grid;
+  gap: 6px;
+}
+
+.barMenuItem,
+.chatPickerItem {
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
@@ -1073,31 +1213,31 @@
   cursor: pointer;
 }
 
-.barMenuItem:disabled {
+.barMenuItem:disabled,
+.chatPickerItem:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.barMenuItem span {
+.barMenuItem span,
+.chatPickerItem span {
   overflow: hidden;
   min-width: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.barPreview strong,
 .menuPanel strong {
   color: var(--widget-text);
   font-size: 14px;
   font-weight: 900;
 }
 
-.barPreview span,
-.barPreview small,
-.menuPanel span {
+/* 오늘 버블 사용 롤업(서버 usage-summaries/today) 요약 한 줄. */
+.menuUsage {
   color: var(--widget-muted);
-  font-size: 12px;
-  font-weight: 760;
+  font-size: 11px;
+  font-weight: 720;
 }
 
 .bubbleBar {
@@ -1127,6 +1267,20 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.76);
   color: var(--widget-text);
+}
+
+/* 접힌 칩은 아이콘+숫자만(compact) — 라벨은 aria/hover 팝오버로. */
+.barItem,
+.barNotice {
+  flex: none;
+  gap: 5px;
+  padding: 0 10px;
+}
+
+.barItem b,
+.barNotice b {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* 브랜드 버블은 이제 메뉴를 여는 버튼이다. */
@@ -1186,23 +1340,6 @@
   background: rgba(107, 143, 168, 0.28);
 }
 
-.menuPanel > div {
-  display: flex;
-  gap: 6px;
-}
-
-.menuPanel > div span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: rgba(216, 240, 255, 0.62);
-  color: var(--widget-blue-deep);
-  font-size: 12px;
-  font-weight: 800;
-}
-
 /* ============================================================
    Night Bubble 다크 — Visual Target Guide 5·7장.
    어두운 투명 유리 + hairline rim + inner highlight. 남색 박스/큰 glow 금지.
@@ -1257,7 +1394,6 @@
 :global([data-theme="dark"]) .dropPanel,
 :global([data-theme="dark"]) .chatHead,
 :global([data-theme="dark"]) .handoffBubble,
-:global([data-theme="dark"]) .handoffDone,
 :global([data-theme="dark"]) .message,
 :global([data-theme="dark"]) .input,
 :global([data-theme="dark"]) .memoGrid article,
@@ -1289,10 +1425,12 @@
 :global([data-theme="dark"]) .modebar button,
 :global([data-theme="dark"]) .wideAction,
 :global([data-theme="dark"]) .itemActions button,
+:global([data-theme="dark"]) .chatHead button,
 :global([data-theme="dark"]) .memoActions button,
 :global([data-theme="dark"]) .voiceStrip button,
 :global([data-theme="dark"]) .reactionDock button,
-:global([data-theme="dark"]) .barMenuItem {
+:global([data-theme="dark"]) .barMenuItem,
+:global([data-theme="dark"]) .chatPickerItem {
   border-color: rgba(150, 170, 215, 0.18);
   color: #BFD6F5;
   background: rgba(34, 46, 72, 0.5);
@@ -1409,14 +1547,19 @@
   box-shadow: inset 0 1px 0 rgba(234, 240, 248, 0.45);
 }
 
+/* 다크도 dashed 없이 평평한 well로 미러링. */
 :global([data-theme="dark"]) .emptyState {
-  border-color: rgba(150, 170, 215, 0.24);
-  background: rgba(24, 34, 54, 0.3);
+  border-color: rgba(150, 170, 215, 0.1);
+  background: rgba(24, 34, 54, 0.34);
 }
 
-:global([data-theme="dark"]) .barPreview,
-:global([data-theme="dark"]) .menuPanel,
-:global([data-theme="dark"]) .barMenu {
+:global([data-theme="dark"]) .dropPanel {
+  border-color: rgba(150, 170, 215, 0.1);
+  background: rgba(24, 34, 54, 0.34);
+  box-shadow: none;
+}
+
+:global([data-theme="dark"]) .menuPanel {
   border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
   background: var(--surface-bg-dark, rgba(34, 46, 72, 0.42));
   box-shadow:
@@ -1442,6 +1585,14 @@
   background: rgba(24, 34, 54, 0.5);
 }
 
+:global([data-theme="dark"]) .barPopover {
+  border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
+  background: rgba(24, 34, 54, 0.88);
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
+}
+
 :global([data-theme="dark"]) .barBrand[aria-expanded="true"] {
   border-color: rgba(158, 216, 255, 0.34);
   background: rgba(111, 184, 242, 0.2);
@@ -1462,7 +1613,6 @@
   background: rgba(150, 170, 215, 0.4);
 }
 
-:global([data-theme="dark"]) .menuPanel > div span {
-  color: #BFD6F5;
-  background: rgba(111, 184, 242, 0.18);
+:global([data-theme="dark"]) .menuPanel strong {
+  color: var(--widget-text);
 }

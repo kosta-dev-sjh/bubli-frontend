@@ -42,6 +42,7 @@ const ko = {
   "layout.profileMenu.aria": "프로필 메뉴",
   "layout.profileMenu.settings": "설정",
   "layout.profileMenu.language": "언어",
+  "layout.profileMenu.theme": "테마",
   "layout.profileMenu.logout": "로그아웃",
   "layout.profileMenu.loggingOut": "로그아웃 중",
 
@@ -124,6 +125,7 @@ const en: Record<Key, string> = {
   "layout.profileMenu.aria": "Profile menu",
   "layout.profileMenu.settings": "Settings",
   "layout.profileMenu.language": "Language",
+  "layout.profileMenu.theme": "Theme",
   "layout.profileMenu.logout": "Log out",
   "layout.profileMenu.loggingOut": "Logging out",
 
@@ -202,6 +204,7 @@ const ja: Record<Key, string> = {
   "layout.profileMenu.aria": "プロフィールメニュー",
   "layout.profileMenu.settings": "設定",
   "layout.profileMenu.language": "言語",
+  "layout.profileMenu.theme": "テーマ",
   "layout.profileMenu.logout": "ログアウト",
   "layout.profileMenu.loggingOut": "ログアウト中",
 

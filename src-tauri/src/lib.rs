@@ -1,10 +1,10 @@
-#[cfg(target_os = "macos")]
-use std::thread;
 use std::{
     collections::{HashMap, HashSet},
     env, fs,
     path::PathBuf,
     sync::{LazyLock, Mutex},
+    thread,
+    time::{Duration, Instant},
 };
 
 use serde::{Deserialize, Serialize};
@@ -27,14 +27,39 @@ const MAIN_WINDOW_DEFAULT_WIDTH: i32 = 1280;
 const MAIN_WINDOW_DEFAULT_HEIGHT: i32 = 820;
 const DEFAULT_WIDGET_BUBBLE_TYPE: &str = "todo";
 const WIDGET_DEFAULT_WIDTH: f64 = 324.0;
-const WIDGET_DEFAULT_HEIGHT: f64 = 392.0;
+const WIDGET_DEFAULT_HEIGHT: f64 = 360.0;
 const WIDGET_WINDOW_GUTTER: f64 = 44.0;
-const WIDGET_BAR_WIDTH: f64 = 360.0;
-const WIDGET_BAR_HEIGHT: f64 = 168.0;
-const WIDGET_MENU_SIZE: f64 = 192.0;
+// 바 창은 pill(하단 고정 64px)만 시각적으로 유지한다. Bubli 메뉴는 별도 menu 창으로 연다.
+// 창 높이는 pill 위 hover 요약 팝오버가 들어갈 투명 여유(약 156px)를 포함한다 —
+// desktop-widget-bubble.module.css .barRoot/.barPopover와 동기화한다.
+// 창 너비는 접힌 칩 수에 맞춰 260~560 사이에서 계산한다(칩=아이콘+숫자 compact).
+const WIDGET_BAR_MIN_WIDTH: f64 = 260.0;
+const WIDGET_BAR_MAX_WIDTH: f64 = 560.0;
+// Bubli 브랜드 칩 + 알림 칩 + pill 패딩/간격 몫.
+const WIDGET_BAR_BASE_WIDTH: f64 = 190.0;
+// compact 칩(아이콘 12px + 숫자 + 패딩 + gap) 하나 몫.
+const WIDGET_BAR_CHIP_WIDTH: f64 = 52.0;
+const WIDGET_BAR_HEIGHT: f64 = 220.0;
+// 메뉴 창: 오브 + Bubli 패널(버블 바로가기 그리드 + 2×2 액션)이 세로로 들어간다.
+const WIDGET_MENU_WIDTH: f64 = 248.0;
+const WIDGET_MENU_HEIGHT: f64 = 360.0;
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
 const PRIMARY_MONITOR_ID: &str = "primary";
+// 저장된 위치가 아직 없는 창의 좌표 센티널. 실제 좌표는 widget_screen_position이
+// 모니터 크기 기준 기본 자리(바=하단 중앙, 메뉴=하단 중앙 위, 버블=우상단 24px 계단)로 계산한다.
+const WIDGET_POSITION_UNSET: i32 = i32::MIN;
+const WIDGET_DEFAULT_MARGIN: f64 = 24.0;
+// 모니터 정보를 얻지 못했을 때 기본 자리 계산에 쓰는 보수적 화면 크기(논리 px).
+const WIDGET_FALLBACK_MONITOR_WIDTH: f64 = 1440.0;
+const WIDGET_FALLBACK_MONITOR_HEIGHT: f64 = 900.0;
+// 위젯 창은 보이는 콘텐츠(pill/셸/팝오버)보다 큰 투명 사각형이다. set_ignore_cursor_events는
+// 전부-아니면-전무이고 켜 두면 재진입 이벤트도 막히므로, 커서 폴링으로 콘텐츠 rect 안팎을
+// 판정해 투명 영역 클릭만 아래 앱으로 통과시킨다(macOS/Windows 공통 패턴).
+const WIDGET_POINTER_POLL_INTERVAL_MS: u64 = 80;
+const WIDGET_POINTER_RECT_PADDING: f64 = 4.0;
+// 드래그(data-tauri-drag-region) 직후 Moved 이벤트가 이 시간 안에 있으면 통과를 켜지 않는다.
+const WIDGET_POINTER_DRAG_GRACE_MS: u128 = 400;
 const QA_ALL_WIDGET_BUBBLES: [&str; 8] = [
     "todo", "agent", "chat", "timer", "memo", "schedule", "resource", "alert",
 ];
@@ -93,6 +118,190 @@ impl Default for WidgetWindowStore {
 type WidgetState = Mutex<WidgetWindowStore>;
 static WIDGET_READY_WINDOW_LABELS: LazyLock<Mutex<HashSet<String>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
+
+// JS(desktop-widget page)가 논리 px 기준으로 보고하는 상호작용 가능 rect.
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WidgetInteractiveRect {
+    height: f64,
+    width: f64,
+    x: f64,
+    y: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WidgetInteractiveRectsInput {
+    rects: Vec<WidgetInteractiveRect>,
+}
+
+#[derive(Default)]
+struct WidgetPointerState {
+    last_applied_ignore: Option<bool>,
+    last_moved_at: Option<Instant>,
+    poller_running: bool,
+    rects: Vec<WidgetInteractiveRect>,
+}
+
+static WIDGET_POINTER_STATES: LazyLock<Mutex<HashMap<String, WidgetPointerState>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn with_widget_pointer_state<T>(
+    label: &str,
+    update: impl FnOnce(&mut WidgetPointerState) -> T,
+) -> Option<T> {
+    let mut states = WIDGET_POINTER_STATES.lock().ok()?;
+    Some(update(states.entry(label.to_string()).or_default()))
+}
+
+fn remove_widget_pointer_state(label: &str) {
+    if let Ok(mut states) = WIDGET_POINTER_STATES.lock() {
+        states.remove(label);
+    }
+}
+
+fn note_widget_window_moved(label: &str) {
+    if !is_widget_window_label(label) {
+        return;
+    }
+    with_widget_pointer_state(label, |state| {
+        state.last_moved_at = Some(Instant::now());
+    });
+}
+
+/// apply_widget_window_state 등 폴러 밖에서 set_ignore_cursor_events를 호출한 뒤
+/// 폴러가 실제 창 상태와 어긋난 판단을 하지 않도록 마지막 적용값을 동기화한다.
+fn note_widget_ignore_applied(label: &str, ignoring: bool) {
+    if !is_widget_window_label(label) {
+        return;
+    }
+    with_widget_pointer_state(label, |state| {
+        state.last_applied_ignore = Some(ignoring);
+    });
+}
+
+/// 사용자가 수동으로 켠 클릭 통과(GHOST 모드 포함)는 폴러보다 우선한다.
+fn widget_manual_click_through(app: &AppHandle, label: &str) -> bool {
+    let state = app.state::<WidgetState>();
+    let Ok(guard) = state.lock() else {
+        // 상태를 읽지 못하면 폴러가 개입하지 않는 쪽이 안전하다.
+        return true;
+    };
+    guard
+        .bubbles
+        .values()
+        .find(|widget| widget_window_label(widget) == label)
+        .map(|widget| widget.click_through)
+        .unwrap_or(false)
+}
+
+fn widget_pointer_inside_rects(rects: &[WidgetInteractiveRect], x: f64, y: f64) -> bool {
+    rects.iter().any(|rect| {
+        x >= rect.x - WIDGET_POINTER_RECT_PADDING
+            && x <= rect.x + rect.width + WIDGET_POINTER_RECT_PADDING
+            && y >= rect.y - WIDGET_POINTER_RECT_PADDING
+            && y <= rect.y + rect.height + WIDGET_POINTER_RECT_PADDING
+    })
+}
+
+/// 전역 커서 위치를 창-로컬 논리 좌표로 바꿔 보고된 rect 안팎을 판정한다.
+/// rect 미보고·드래그 직후·API 실패 시에는 통과를 켜지 않는 안전한 기본값을 쓴다.
+fn widget_pointer_should_ignore(window: &WebviewWindow, label: &str) -> bool {
+    let (rects, recently_moved) = match WIDGET_POINTER_STATES.lock() {
+        Ok(states) => match states.get(label) {
+            Some(state) => (
+                state.rects.clone(),
+                state
+                    .last_moved_at
+                    .is_some_and(|at| at.elapsed().as_millis() < WIDGET_POINTER_DRAG_GRACE_MS),
+            ),
+            None => return false,
+        },
+        Err(_) => return false,
+    };
+
+    if rects.is_empty() || recently_moved {
+        return false;
+    }
+
+    // tauri v2 데스크톱 API. 실패(권한/플랫폼 미지원 등) 시 클릭 가능 상태를 유지한다.
+    let Ok(cursor) = window.cursor_position() else {
+        return false;
+    };
+    let Ok(origin) = window.outer_position() else {
+        return false;
+    };
+    let scale = window.scale_factor().unwrap_or(1.0).max(0.5);
+    let local_x = (cursor.x - origin.x as f64) / scale;
+    let local_y = (cursor.y - origin.y as f64) / scale;
+
+    !widget_pointer_inside_rects(&rects, local_x, local_y)
+}
+
+/// 위젯 창마다 커서 폴러 스레드 하나를 유지한다. 창이 사라지면 스스로 종료·정리한다.
+fn spawn_widget_pointer_poller(app: &AppHandle, label: String) {
+    let should_spawn = with_widget_pointer_state(&label, |state| {
+        if state.poller_running {
+            false
+        } else {
+            state.poller_running = true;
+            true
+        }
+    })
+    .unwrap_or(false);
+    if !should_spawn {
+        return;
+    }
+
+    let app_for_poller = app.clone();
+    let thread_label = label.clone();
+    let spawned = thread::Builder::new()
+        .name(format!("bubli-widget-pointer-{label}"))
+        .spawn(move || {
+            loop {
+                thread::sleep(Duration::from_millis(WIDGET_POINTER_POLL_INTERVAL_MS));
+                let Some(window) = app_for_poller.get_webview_window(&thread_label) else {
+                    break;
+                };
+
+                // 수동 클릭 통과가 켜져 있는 동안 폴러는 일시 정지한다(수동 설정 우선).
+                if widget_manual_click_through(&app_for_poller, &thread_label) {
+                    with_widget_pointer_state(&thread_label, |state| {
+                        state.last_applied_ignore = Some(true);
+                    });
+                    continue;
+                }
+
+                let desired = widget_pointer_should_ignore(&window, &thread_label);
+                let changed = with_widget_pointer_state(&thread_label, |state| {
+                    if state.last_applied_ignore == Some(desired) {
+                        false
+                    } else {
+                        state.last_applied_ignore = Some(desired);
+                        true
+                    }
+                })
+                .unwrap_or(false);
+
+                if changed {
+                    if let Err(error) = window.set_ignore_cursor_events(desired) {
+                        eprintln!(
+                            "failed to toggle widget cursor pass-through for {thread_label}: {error}"
+                        );
+                    }
+                }
+            }
+
+            remove_widget_pointer_state(&thread_label);
+        });
+
+    if let Err(error) = spawned {
+        with_widget_pointer_state(&label, |state| {
+            state.poller_running = false;
+        });
+        eprintln!("failed to spawn widget pointer poller for {label}: {error}");
+    }
+}
 
 fn widget_native_shadow_enabled() -> bool {
     !cfg!(target_os = "windows")
@@ -268,29 +477,31 @@ struct WidgetShortcutInput {
     shortcut: String,
 }
 
-fn default_widget_window_state(bubble_type: &str, window_id: Option<String>) -> WidgetWindowState {
-    let offset = match bubble_type {
-        "agent" => 28,
-        "chat" => 56,
-        "timer" => 84,
-        "memo" => 112,
-        "schedule" => 140,
-        "resource" => 168,
-        "alert" => 196,
-        "bar" => 224,
-        "menu" => 252,
-        _ => 0,
-    };
+/// 버블별 기본 자리 계단(우상단 스택)의 인덱스. 새 창이 같은 지점에 겹쳐 열리지 않게 한다.
+fn widget_default_cascade_index(bubble_type: &str) -> f64 {
+    match bubble_type {
+        "agent" => 1.0,
+        "chat" => 2.0,
+        "timer" => 3.0,
+        "memo" => 4.0,
+        "schedule" => 5.0,
+        "resource" => 6.0,
+        "alert" => 7.0,
+        _ => 0.0,
+    }
+}
 
+fn default_widget_window_state(bubble_type: &str, window_id: Option<String>) -> WidgetWindowState {
     WidgetWindowState {
         always_on_top: true,
         active_bubble: bubble_type.to_string(),
         click_through: false,
         dock_orb_visible: false,
         mode: "DEFAULT".to_string(),
+        // 사용자가 옮기기 전까지는 좌표를 저장하지 않고(UNSET), 화면 크기 기반 기본 자리를 쓴다.
         position: WidgetWindowPosition {
-            x: 32 + offset,
-            y: 32 + offset,
+            x: WIDGET_POSITION_UNSET,
+            y: WIDGET_POSITION_UNSET,
         },
         selected_room_id: None,
         shortcut: Some("CommandOrControl+Shift+B".to_string()),
@@ -514,11 +725,18 @@ fn remember_widget_window_absolute_position(
     let monitor_state = app.state::<AppMonitorState>();
     let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
     let monitor = resolve_preferred_monitor(app, &preferred_monitor_id)?;
+    let scale = monitor
+        .as_ref()
+        .map(|monitor| monitor.scale_factor())
+        .unwrap_or(1.0)
+        .max(0.5);
     let origin = monitor.as_ref().map(|monitor| monitor.position());
     let origin_x = origin.map_or(0, |position| position.x);
     let origin_y = origin.map_or(0, |position| position.y);
-    let relative_x = absolute_x - origin_x;
-    let relative_y = absolute_y - origin_y;
+    // Moved 이벤트 좌표는 물리 px이므로 논리 px(모니터-로컬)로 환산해 저장한다.
+    // widget_screen_position이 같은 단위로 복원하므로 HiDPI에서도 위치가 두 배로 밀리지 않는다.
+    let relative_x = ((absolute_x - origin_x) as f64 / scale).round() as i32;
+    let relative_y = ((absolute_y - origin_y) as f64 / scale).round() as i32;
 
     let state = app.state::<WidgetState>();
     let layout = {
@@ -572,12 +790,30 @@ fn widget_window_url(widget: &WidgetWindowState) -> String {
     url
 }
 
-fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
+/// 바 창 너비를 접힌 칩 수에 맞춘다(칩=아이콘+숫자 compact, 260~560 클램프).
+fn widget_bar_window_width(minimized_item_count: usize) -> f64 {
+    (WIDGET_BAR_BASE_WIDTH + minimized_item_count as f64 * WIDGET_BAR_CHIP_WIDTH)
+        .clamp(WIDGET_BAR_MIN_WIDTH, WIDGET_BAR_MAX_WIDTH)
+}
+
+/// 현재 바에 접혀 있는(=칩으로 표시될) 위젯 수. 상태 잠금 실패 시 0으로 안전 폴백.
+fn widget_bar_minimized_item_count(app: &AppHandle) -> usize {
+    let state = app.state::<WidgetState>();
+    let Ok(guard) = state.lock() else {
+        return 0;
+    };
+    widget_bar_items_from_store(&guard).len()
+}
+
+fn widget_window_size(app: &AppHandle, widget: &WidgetWindowState) -> LogicalSize<f64> {
     if widget.active_bubble == "bar" {
-        return LogicalSize::new(WIDGET_BAR_WIDTH, WIDGET_BAR_HEIGHT);
+        return LogicalSize::new(
+            widget_bar_window_width(widget_bar_minimized_item_count(app)),
+            WIDGET_BAR_HEIGHT,
+        );
     }
     if widget.active_bubble == "menu" {
-        return LogicalSize::new(WIDGET_MENU_SIZE, WIDGET_MENU_SIZE);
+        return LogicalSize::new(WIDGET_MENU_WIDTH, WIDGET_MENU_HEIGHT);
     }
 
     match widget.mode.as_str() {
@@ -586,14 +822,15 @@ fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
             WIDGET_MINIMIZED_HEIGHT + 20.0,
         ),
         "GHOST" => LogicalSize::new(188.0 + 24.0, 188.0 + 24.0),
+        // 콘텐츠 자동 높이에 맞춘 창 크기 — src/app/desktop-widget/page.tsx getWidgetWindowSize와 동기화한다.
         _ => match widget.active_bubble.as_str() {
-            "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 476.0 + WIDGET_WINDOW_GUTTER),
-            "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 444.0 + WIDGET_WINDOW_GUTTER),
-            "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
+            "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
+            "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 430.0 + WIDGET_WINDOW_GUTTER),
+            "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 352.0 + WIDGET_WINDOW_GUTTER),
             "resource" => {
-                LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER)
+                LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 330.0 + WIDGET_WINDOW_GUTTER)
             }
-            "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 304.0 + WIDGET_WINDOW_GUTTER),
+            "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 320.0 + WIDGET_WINDOW_GUTTER),
             "schedule" => {
                 LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER)
             }
@@ -726,6 +963,39 @@ fn resolve_preferred_monitor(
         .or_else(|| monitors.first().cloned()))
 }
 
+fn widget_position_is_unset(position: &WidgetWindowPosition) -> bool {
+    position.x == WIDGET_POSITION_UNSET || position.y == WIDGET_POSITION_UNSET
+}
+
+/// 저장 좌표가 없는 창의 기본 자리(모니터-로컬 논리 px).
+/// 바=하단 중앙, 메뉴=하단 중앙에서 바보다 위, 버블=우상단에서 24px 계단(cascade).
+fn widget_default_local_position(
+    widget: &WidgetWindowState,
+    size: &LogicalSize<f64>,
+    monitor_width: f64,
+    monitor_height: f64,
+) -> (f64, f64) {
+    match widget.active_bubble.as_str() {
+        "bar" => (
+            ((monitor_width - size.width) / 2.0).max(0.0),
+            (monitor_height - size.height - WIDGET_DEFAULT_MARGIN).max(WIDGET_DEFAULT_MARGIN),
+        ),
+        "menu" => (
+            ((monitor_width - size.width) / 2.0).max(0.0),
+            (monitor_height - size.height - WIDGET_DEFAULT_MARGIN * 4.0)
+                .max(WIDGET_DEFAULT_MARGIN),
+        ),
+        bubble_type => {
+            let step = widget_default_cascade_index(bubble_type) * WIDGET_DEFAULT_MARGIN;
+            (
+                (monitor_width - size.width - WIDGET_DEFAULT_MARGIN - step)
+                    .max(WIDGET_DEFAULT_MARGIN),
+                WIDGET_DEFAULT_MARGIN + step,
+            )
+        }
+    }
+}
+
 fn widget_screen_position(
     app: &AppHandle,
     monitor_state: &AppMonitorState,
@@ -733,14 +1003,36 @@ fn widget_screen_position(
 ) -> Result<LogicalPosition<f64>, String> {
     let preferred_monitor_id = get_preferred_monitor_id(monitor_state)?;
     let monitor = resolve_preferred_monitor(app, &preferred_monitor_id)?;
+    let scale = monitor
+        .as_ref()
+        .map(|monitor| monitor.scale_factor())
+        .unwrap_or(1.0)
+        .max(0.5);
+    // 모니터 원점/크기는 물리 px이므로 논리 px로 환산해 저장 좌표(논리, 모니터-로컬)와 합친다.
     let origin = monitor.as_ref().map(|monitor| monitor.position());
-    let origin_x = origin.map_or(0, |position| position.x);
-    let origin_y = origin.map_or(0, |position| position.y);
+    let origin_x = origin.map_or(0.0, |position| position.x as f64 / scale);
+    let origin_y = origin.map_or(0.0, |position| position.y as f64 / scale);
 
-    Ok(LogicalPosition::new(
-        (origin_x + widget.position.x) as f64,
-        (origin_y + widget.position.y) as f64,
-    ))
+    if !widget_position_is_unset(&widget.position) {
+        return Ok(LogicalPosition::new(
+            origin_x + widget.position.x as f64,
+            origin_y + widget.position.y as f64,
+        ));
+    }
+
+    let monitor_width = monitor
+        .as_ref()
+        .map(|monitor| monitor.size().width as f64 / scale)
+        .unwrap_or(WIDGET_FALLBACK_MONITOR_WIDTH);
+    let monitor_height = monitor
+        .as_ref()
+        .map(|monitor| monitor.size().height as f64 / scale)
+        .unwrap_or(WIDGET_FALLBACK_MONITOR_HEIGHT);
+    let size = widget_window_size(app, widget);
+    let (local_x, local_y) =
+        widget_default_local_position(widget, &size, monitor_width, monitor_height);
+
+    Ok(LogicalPosition::new(origin_x + local_x, origin_y + local_y))
 }
 
 fn position_main_window_on_preferred_monitor(
@@ -920,8 +1212,18 @@ fn apply_widget_window_state(
         window
             .set_ignore_cursor_events(widget.click_through)
             .map_err(|error| error.to_string())?;
+        note_widget_ignore_applied(&label, widget.click_through);
+        // 창은 resizable(false) + 고정 min/max로 만들어지므로, 계산 크기가 바뀌는 경우
+        // (예: 바 칩 수 변화) min/max를 먼저 새 크기로 옮긴 뒤 set_size해야 실제로 줄어들거나 늘어난다.
+        let size = widget_window_size(app, widget);
         window
-            .set_size(Size::Logical(widget_window_size(widget)))
+            .set_min_size(Some(Size::Logical(size)))
+            .map_err(|error| error.to_string())?;
+        window
+            .set_max_size(Some(Size::Logical(size)))
+            .map_err(|error| error.to_string())?;
+        window
+            .set_size(Size::Logical(size))
             .map_err(|error| error.to_string())?;
         #[cfg(not(target_os = "macos"))]
         window
@@ -959,7 +1261,7 @@ fn build_widget_window(
         return apply_widget_window_state(app, monitor_state, widget);
     }
 
-    let size = widget_window_size(widget);
+    let size = widget_window_size(app, widget);
     let position = widget_screen_position(app, monitor_state, widget)?;
     reset_widget_window_dom_ready(&label);
     let window = WebviewWindowBuilder::new(
@@ -988,6 +1290,8 @@ fn build_widget_window(
     let label_for_move_event = label.clone();
     window.on_window_event(move |event| {
         if let tauri::WindowEvent::Moved(position) = event {
+            // 드래그 중에는 커서 폴러가 클릭 통과를 켜지 않도록 최근 이동 시각을 남긴다.
+            note_widget_window_moved(&label_for_move_event);
             if let Err(error) = remember_widget_window_absolute_position(
                 &app_for_move_event,
                 &label_for_move_event,
@@ -1002,6 +1306,7 @@ fn build_widget_window(
     window
         .set_ignore_cursor_events(widget.click_through)
         .map_err(|error| error.to_string())?;
+    note_widget_ignore_applied(&label, widget.click_through);
     apply_widget_window_state(app, monitor_state, widget)
 }
 
@@ -1119,6 +1424,27 @@ fn ensure_widget_bar_window(
         widget_bar_state_for_show(&mut guard)
     };
     schedule_widget_window_build(app, monitor_state, &bar)
+}
+
+/// 접힌 칩 수가 바뀐 뒤(버블 복원/모드 전환 등) 이미 떠 있는 바 창의 너비를 새 칩 수에 맞춘다.
+fn refresh_widget_bar_window(
+    app: &AppHandle,
+    monitor_state: &AppMonitorState,
+    state: &WidgetState,
+) -> Result<(), String> {
+    let bar = {
+        let guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        guard.bubbles.get("bar").cloned()
+    };
+    let Some(bar) = bar else {
+        return Ok(());
+    };
+    if app.get_webview_window(&widget_window_label(&bar)).is_some() {
+        apply_widget_window_state(app, monitor_state, &bar)?;
+    }
+    Ok(())
 }
 
 fn seed_widget_bar_items_for_store(
@@ -1269,7 +1595,10 @@ fn set_widget_window_mode(
         ensure_widget_bar_window(&app, &monitor_state, &state)?;
     }
     persist_widget_window_state(&app, &state)?;
-    apply_widget_window_state(&app, &monitor_state, &widget)
+    let result = apply_widget_window_state(&app, &monitor_state, &widget)?;
+    // 모드 전환으로 접힌 칩 수가 바뀌었을 수 있으니 바 창 너비를 다시 맞춘다.
+    refresh_widget_bar_window(&app, &monitor_state, &state)?;
+    Ok(result)
 }
 
 #[tauri::command]
@@ -1351,6 +1680,36 @@ fn set_widget_click_through(
     })?;
     persist_widget_window_state(&app, &state)?;
     apply_widget_window_state(&app, &monitor_state, &widget)
+}
+
+/// 위젯 창 드래그 시작 알림. 커서 폴러의 "최근 이동" grace를 미리 열어,
+/// mousedown 직후 첫 Moved 이벤트가 오기 전 구간에서도 클릭 통과가 켜지지 않게 한다.
+/// 드래그 중에는 OS가 Moved 이벤트를 계속 보내므로 grace가 mouseup까지 이어진다.
+#[tauri::command]
+fn notify_widget_drag_started(window: WebviewWindow) -> Result<(), String> {
+    note_widget_window_moved(window.label());
+    Ok(())
+}
+
+/// desktop-widget 창이 자기 상호작용 rect(셸/pill/팝오버/메뉴 패널)를 보고한다.
+/// 호출한 창(label) 기준으로 저장하고, 해당 창의 커서 폴러를 게으르게 시작한다.
+#[tauri::command]
+fn set_widget_interactive_rects(
+    app: AppHandle,
+    window: WebviewWindow,
+    input: WidgetInteractiveRectsInput,
+) -> Result<(), String> {
+    let label = window.label().to_string();
+    if !is_widget_window_label(&label) {
+        return Ok(());
+    }
+
+    with_widget_pointer_state(&label, |state| {
+        state.rects = input.rects;
+    })
+    .ok_or_else(|| "widget pointer state lock failed".to_string())?;
+    spawn_widget_pointer_poller(&app, label);
+    Ok(())
 }
 
 #[tauri::command]
@@ -1507,7 +1866,10 @@ fn open_widget_window(
         apply_open_widget_window_update(widget, next_mode.clone(), selected_room_id.clone());
     })?;
     persist_widget_window_state(&app, &state)?;
-    schedule_widget_window_build(&app, &monitor_state, &widget)
+    let result = schedule_widget_window_build(&app, &monitor_state, &widget)?;
+    // 바에서 버블을 복원하면 접힌 칩이 줄어드니 바 창 너비를 다시 맞춘다.
+    refresh_widget_bar_window(&app, &monitor_state, &state)?;
+    Ok(result)
 }
 
 #[tauri::command]
@@ -1564,11 +1926,14 @@ fn toggle_widget_window(
     }
     persist_widget_window_state(&app, &state)?;
 
-    if widget.window_visible {
-        build_widget_window(&app, &monitor_state, &widget)
+    let result = if widget.window_visible {
+        build_widget_window(&app, &monitor_state, &widget)?
     } else {
-        apply_widget_window_state(&app, &monitor_state, &widget)
-    }
+        apply_widget_window_state(&app, &monitor_state, &widget)?
+    };
+    // 토글로 접힌 칩 수가 바뀌었을 수 있으니 바 창 너비를 다시 맞춘다.
+    refresh_widget_bar_window(&app, &monitor_state, &state)?;
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -1722,6 +2087,7 @@ pub fn run() {
             get_preferred_app_monitor,
             get_widget_window_state,
             list_app_monitors,
+            notify_widget_drag_started,
             open_main_window_route,
             open_widget_window,
             quit_app,
@@ -1731,6 +2097,7 @@ pub fn run() {
             set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,
+            set_widget_interactive_rects,
             set_widget_room_context,
             set_widget_window_mode,
             set_widget_window_position,
@@ -1987,6 +2354,24 @@ mod widget_runtime_tests {
             None
         );
         assert_eq!(normalize_widget_menu_route(None), None);
+    }
+
+    #[test]
+    fn widget_pointer_rects_hit_test_applies_padding() {
+        let rects = vec![WidgetInteractiveRect {
+            height: 64.0,
+            width: 320.0,
+            x: 20.0,
+            y: 156.0,
+        }];
+
+        // rect 내부와 4px 패딩 경계는 클릭 가능, 그 밖(투명 영역)은 통과 대상.
+        assert!(widget_pointer_inside_rects(&rects, 24.0, 160.0));
+        assert!(widget_pointer_inside_rects(&rects, 16.5, 152.5));
+        assert!(widget_pointer_inside_rects(&rects, 343.5, 223.5));
+        assert!(!widget_pointer_inside_rects(&rects, 10.0, 10.0));
+        assert!(!widget_pointer_inside_rects(&rects, 180.0, 40.0));
+        assert!(!widget_pointer_inside_rects(&[], 24.0, 160.0));
     }
 
     #[test]

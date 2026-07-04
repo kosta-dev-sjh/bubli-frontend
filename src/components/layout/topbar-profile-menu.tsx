@@ -1,9 +1,10 @@
 "use client";
 
-import { Globe, LogOut, Settings } from "lucide-react";
+import { Globe, LogOut, Settings, SunMoon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { ThemeToggle } from "@/components/theme";
 import { LOCALES, useI18n } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,11 @@ export function TopbarProfileMenu({ id, onClose, onLogout, user }: TopbarProfile
             {localeLabels[option]}
           </button>
         ))}
+      </div>
+      {/* 다크/라이트 전환 — 설정 화면까지 가지 않아도 프로필 메뉴에서 바로 바꿀 수 있게 한다. */}
+      <div aria-label={t("layout.profileMenu.theme")} className={styles.menuThemeRow} role="group">
+        <SunMoon size={15} strokeWidth={2.1} aria-hidden="true" />
+        <ThemeToggle />
       </div>
       <div aria-hidden="true" className={styles.menuDivider} />
       <button
