@@ -9,11 +9,14 @@ import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { authApi } from "@/features/auth/api/authApi";
 import { chatApi } from "@/features/communication/api/chatApi";
+import { AgentCommandAutocomplete } from "@/features/communication/components/agent-command-autocomplete";
 import {
   dispatchEmojiSplash,
   EmojiSplashLayer,
   extractEmojiSplashEmojis,
 } from "@/features/communication/components/emoji-splash-layer";
+import { inferAgentCommandMode } from "@/features/communication/lib/agent-commands";
+import { useAgentCommandAutocomplete } from "@/features/communication/lib/use-agent-command-autocomplete";
 import { friendApi } from "@/features/communication/api/friendApi";
 import { voiceApi } from "@/features/communication/api/voiceApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
@@ -377,15 +380,8 @@ function parseBubliCommand(t: TranslateFn, text: string): AgentCommandDraft | nu
   if (!match) return null;
 
   const message = match[1]?.trim() || t("chat.agentDefaultPrompt");
-  const normalized = message.toLowerCase();
-  const mode: RoomAgentCommandMode =
-    /^(정리|요약|summary|summarize)\b/.test(normalized)
-      ? "SUMMARIZE"
-      : /^(todo|할일|작업|질문|제안|검토|suggest|proposal)\b/.test(normalized)
-        ? "SUGGEST"
-        : "ANSWER";
-
-  return { message, mode };
+  // 키워드→mode 매핑은 공용 명령 모듈이 단일 출처다(자동완성 목록과 동일 계약).
+  return { message, mode: inferAgentCommandMode(message) };
 }
 
 // 소통 탭 내에서의 다른 페이지(설정, 자료보드 등)로 이동 후 돌아올 때 voice 상태를 유지.
@@ -664,6 +660,23 @@ function ChatPageContent() {
   const selectedProjectRoomName =
     selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? activeRoomInfo.label ?? t("chat.room.fallbackName") : activeRoomInfo.label;
   const pendingAgentCommand = useMemo(() => parseBubliCommand(t, draft), [draft, t]);
+  // /bubli 자동완성 — 프로젝트룸 대화에서만 연다(1:1/그룹에는 에이전트가 없다).
+  // 완성 텍스트를 넣은 뒤 커서를 끝으로 옮겨 이어서 본문을 입력하게 한다.
+  const applyAgentCommandCompletion = useCallback((completedText: string) => {
+    setDraft(completedText);
+    setComposerActive(true);
+    const input = composerInputRef.current;
+    if (!input) return;
+    window.requestAnimationFrame(() => {
+      input.focus();
+      input.setSelectionRange(completedText.length, completedText.length);
+    });
+  }, []);
+  const agentAutocomplete = useAgentCommandAutocomplete({
+    draft,
+    enabled: selectedRoom?.chatType === "ROOM",
+    onApply: applyAgentCommandCompletion,
+  });
   // 컴포저 위 한 줄 인디케이터 문구 — 1명이면 이름, 여럿(에이전트 포함)이면 "여러 명".
   const agentTypingActive = agentTyping !== null && agentTyping.chatRoomId === activeChatRoomId;
   const typingIndicatorText = useMemo(() => {
@@ -1938,6 +1951,15 @@ function ChatPageContent() {
                   void sendMessage();
                 }}
               >
+                {agentAutocomplete.open ? (
+                  <AgentCommandAutocomplete
+                    activeIndex={agentAutocomplete.activeIndex}
+                    items={agentAutocomplete.items}
+                    onHoverItem={agentAutocomplete.setActiveIndex}
+                    onPick={agentAutocomplete.pick}
+                    tone="glass"
+                  />
+                ) : null}
                 <div className="workspace-route__composer-main">
                   <button aria-label={t("chat.composer.attach")} onClick={() => fileInputRef.current?.click()} type="button">
                     <Paperclip aria-hidden size={17} strokeWidth={2} />
@@ -1969,6 +1991,8 @@ function ChatPageContent() {
                     }}
                     onFocus={() => setComposerActive(true)}
                     onKeyDown={(event) => {
+                      // 자동완성이 열려 있으면 ↑/↓/Tab/Enter/Esc는 팝오버가 먼저 소비한다.
+                      if (agentAutocomplete.handleKeyDown(event)) return;
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
                         if (!sending) void sendMessage();

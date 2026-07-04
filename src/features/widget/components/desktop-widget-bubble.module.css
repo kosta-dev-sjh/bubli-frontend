@@ -529,6 +529,11 @@
   margin-top: auto;
 }
 
+/* chat 버블 하단 입력줄 래퍼(자동완성 팝오버 기준점)도 같은 하단 고정을 따른다. */
+.body > .composerWrap {
+  margin-top: auto;
+}
+
 .body > .timerActions {
   margin-top: auto;
 }
@@ -2688,4 +2693,210 @@
 
 :global([data-theme="dark"]) .barDivider {
   background: rgba(150, 170, 215, 0.2);
+}
+
+/* ============================================================
+   에이전트 버블 미니 대화 + /bubli 자동완성 + 장문 메모(2026-07-05)
+   ============================================================ */
+
+/* 컴포저 위 자동완성 팝오버의 absolute 기준점(chat 버블 하단 입력줄 래퍼). */
+.composerWrap {
+  position: relative;
+  display: grid;
+}
+
+/* 에이전트 요청/응답 말풍선 히스토리 — 최근 10개, 내부 스크롤(스크롤바 숨김). */
+.agentThread {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  max-height: 158px;
+  padding: 2px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.agentThread::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.agentThread .message {
+  margin: 0;
+  max-width: 86%;
+  font-weight: 600;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agentReply {
+  align-self: flex-start;
+}
+
+.agentReplyError {
+  border-color: color-mix(in srgb, #E79BB0 45%, transparent);
+  color: color-mix(in srgb, #C56B85 72%, var(--widget-text) 28%);
+  background: color-mix(in srgb, #E79BB0 10%, transparent);
+}
+
+/* "Bubli가 생각 중…" — 웹 소통창 typing-line 점 애니메이션과 같은 리듬. */
+.agentThinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  padding: 7px 11px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  color: var(--widget-muted);
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
+  font-size: 14px;
+  font-weight: 600;
+  word-break: keep-all;
+}
+
+.agentThinkingDots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.agentThinkingDots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: widget-thinking-dot 1.15s ease-in-out infinite;
+}
+
+.agentThinkingDots i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.agentThinkingDots i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes widget-thinking-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agentThinkingDots i {
+    animation: none;
+  }
+}
+
+/* 메모 행 장문 대응: 본문(2줄 clamp/펼침) 위, 시간·액션 메타 아래의 세로 스택. */
+.memoRowStack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 7px 10px;
+}
+
+.memoBodyButton {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--widget-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.memoBodyClamp {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.memoMetaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 메모 인라인 컴포저: textarea 자동 확장(1줄 시작, 최대 ~5줄 후 내부 스크롤). */
+.memoComposer {
+  align-items: flex-end;
+  height: auto;
+  min-height: 38px;
+  padding: 6px 10px;
+}
+
+.memoComposer > svg {
+  flex: none;
+  margin-bottom: 6px;
+}
+
+.memoComposer .composerSave {
+  margin-bottom: 3px;
+}
+
+.memoComposerField {
+  min-width: 0;
+  flex: 1;
+  max-height: 106px;
+  border: 0;
+  outline: 0;
+  resize: none;
+  color: var(--widget-text);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  scrollbar-width: none;
+}
+
+.memoComposerField::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Enter 줄바꿈 · Cmd/Ctrl+Enter 저장 힌트 — 상태 배지와 같은 최소 폰트 예외(12px). */
+.composerHint {
+  color: var(--widget-faint);
+  font-size: 12px;
+  font-weight: 620;
+  text-align: right;
+  word-break: keep-all;
+}
+
+/* Night Bubble 다크 패리티 */
+:global([data-theme="dark"]) .agentThinking {
+  border-color: rgba(150, 170, 215, 0.14);
+  background: rgba(18, 26, 40, 0.6);
+  box-shadow: var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07));
+}
+
+:global([data-theme="dark"]) .agentReplyError {
+  border-color: color-mix(in srgb, #E79BB0 40%, transparent);
+  color: color-mix(in srgb, #E79BB0 70%, #EAF0F8 30%);
+  background: color-mix(in srgb, #E79BB0 14%, transparent);
 }

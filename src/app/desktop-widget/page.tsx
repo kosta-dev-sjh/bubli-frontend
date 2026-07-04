@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { dispatchEmojiSplash, extractEmojiSplashEmojis } from "@/features/communication/components/emoji-splash-layer";
+import { inferAgentCommandMode, parseAgentCommandText } from "@/features/communication/lib/agent-commands";
 import {
   widgetDisplayApi,
   type WidgetAgentSuggestionResponse,
@@ -174,10 +175,10 @@ function getWidgetWindowSize(bubbleType: WidgetBubbleType, mode: WidgetWindowMod
   if (mode === "MINIMIZED") return { height: 92, width: 208 };
   if (mode === "GHOST") return { height: 212, width: 212 };
   if (bubbleType === "chat") return { height: 420 + WIDGET_WINDOW_GUTTER, width: 336 + WIDGET_WINDOW_GUTTER };
-  if (bubbleType === "agent") return { height: 430 + WIDGET_WINDOW_GUTTER, width: 332 + WIDGET_WINDOW_GUTTER };
+  if (bubbleType === "agent") return { height: 484 + WIDGET_WINDOW_GUTTER, width: 332 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "timer") return { height: 352 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "resource") return { height: 330 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
-  if (bubbleType === "memo") return { height: 320 + WIDGET_WINDOW_GUTTER, width: 308 + WIDGET_WINDOW_GUTTER };
+  if (bubbleType === "memo") return { height: 348 + WIDGET_WINDOW_GUTTER, width: 308 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "schedule") return { height: 340 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
   return { height: 360 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
 }
@@ -1989,6 +1990,33 @@ function DesktopWidgetSurface() {
     async (bubble: WidgetPreviewBubble, text: string) => {
       if (!bubble.chatRoomId) return;
 
+      // "/bubli …"는 일반 텍스트가 아니라 프로젝트룸 에이전트 명령으로 라우팅한다
+      // (웹 소통창과 같은 계약 — 자동완성으로 완성한 명령이 그대로 실행되게).
+      const agentCommand = parseAgentCommandText(text);
+      if (agentCommand && bubble.roomId) {
+        const result = await widgetCommunicationApi.runRoomAgentCommand(bubble.roomId, {
+          clientMessageId: `widget-chat-agent-${crypto.randomUUID()}`,
+          message: agentCommand.message || t("chat.agentDefaultPrompt"),
+          mode: agentCommand.mode,
+        });
+
+        if (isTauri) {
+          void tauriCommands
+            .recordWidgetUsageEvent({
+              bubbleType: "agent",
+              eventType: "agent:command",
+              itemId: result.message.id,
+              itemType: "MESSAGE",
+              occurredAt: new Date().toISOString(),
+            })
+            .catch(() => undefined);
+        }
+
+        setAgentRevision((current) => current + 1);
+        setCommunicationRevision((current) => current + 1);
+        return;
+      }
+
       const clientMessageId = crypto.randomUUID();
       const response = await widgetCommunicationApi.sendChatMessage(bubble.chatRoomId, {
         body: { text },
@@ -2017,7 +2045,7 @@ function DesktopWidgetSurface() {
       }
       setCommunicationRevision((current) => current + 1);
     },
-    [isTauri],
+    [isTauri, t],
   );
 
   const sendWidgetAgentCommand = useCallback(
@@ -2025,10 +2053,12 @@ function DesktopWidgetSurface() {
       const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
       if (!roomId) throw new Error("Project room is required for widget agent commands.");
 
+      // 위젯 에이전트 버블은 자연어 그대로 받는다(접두어는 버블 컴포저가 이미 제거).
+      // mode는 웹 소통창과 같은 키워드 계약으로 추론한다(기본 ANSWER).
       const result = await widgetCommunicationApi.runRoomAgentCommand(roomId, {
         clientMessageId: `widget-agent-${crypto.randomUUID()}`,
         message: text,
-        mode: "SUGGEST",
+        mode: inferAgentCommandMode(text),
       });
 
       if (isTauri) {
@@ -2045,6 +2075,10 @@ function DesktopWidgetSurface() {
 
       setAgentRevision((current) => current + 1);
       setCommunicationRevision((current) => current + 1);
+
+      // 에이전트 응답 본문을 돌려줘 버블 내 미니 대화에 응답 말풍선으로 붙인다.
+      const responseBody = result.message.body as Record<string, unknown>;
+      return typeof responseBody.text === "string" ? responseBody.text : undefined;
     },
     [isTauri, widgetContext?.selectedRoomId],
   );
