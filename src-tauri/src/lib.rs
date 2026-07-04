@@ -640,8 +640,23 @@ fn default_widget_window_state(bubble_type: &str, window_id: Option<String>) -> 
     }
 }
 
-fn resolve_target_bubble(store: &WidgetWindowStore, requested: Option<String>) -> String {
-    requested.unwrap_or_else(|| store.active_bubble.clone())
+fn resolve_target_bubble(
+    store: &WidgetWindowStore,
+    requested_bubble: Option<String>,
+    requested_window_id: Option<String>,
+) -> String {
+    if let Some(requested_bubble) = requested_bubble {
+        return requested_bubble;
+    }
+
+    if let Some(requested_window_id) = requested_window_id {
+        let trimmed = requested_window_id.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+
+    store.active_bubble.clone()
 }
 
 fn with_widget_state(
@@ -653,7 +668,11 @@ fn with_widget_state(
     let mut guard = state
         .lock()
         .map_err(|_| "widget state lock failed".to_string())?;
-    let target = normalize_bubble_type(Some(resolve_target_bubble(&guard, bubble_type)));
+    let target = normalize_bubble_type(Some(resolve_target_bubble(
+        &guard,
+        bubble_type,
+        window_id.clone(),
+    )));
     let window_key = normalize_window_key(&target, window_id);
     guard.active_bubble = target.clone();
     let widget = guard
@@ -689,7 +708,11 @@ fn widget_visibility_after_toggle(
     let guard = state
         .lock()
         .map_err(|_| "widget state lock failed".to_string())?;
-    let target = normalize_bubble_type(Some(resolve_target_bubble(&guard, bubble_type)));
+    let target = normalize_bubble_type(Some(resolve_target_bubble(
+        &guard,
+        bubble_type,
+        window_id.clone(),
+    )));
     let window_key = normalize_window_key(&target, window_id);
     let currently_visible = guard
         .bubbles
@@ -3284,6 +3307,33 @@ mod widget_runtime_tests {
         );
 
         assert_eq!(widget.selected_room_id.as_deref(), Some("room-2"));
+    }
+
+    #[test]
+    fn widget_window_id_targets_requested_bubble_when_active_bubble_differs() {
+        let mut store = WidgetWindowStore::default();
+        store.active_bubble = "schedule".to_string();
+        store.bubbles.insert(
+            "todo".to_string(),
+            WidgetWindowState {
+                selected_room_id: Some("room-todo".to_string()),
+                window_visible: true,
+                ..default_widget_window_state("todo", Some("todo".to_string()))
+            },
+        );
+
+        assert_eq!(
+            resolve_target_bubble(&store, None, Some("todo".to_string())),
+            "todo"
+        );
+
+        let state = Mutex::new(store);
+        let widget = with_widget_state(&state, None, Some("todo".to_string()), |_| {})
+            .expect("read widget by window id");
+
+        assert_eq!(widget.active_bubble, "todo");
+        assert_eq!(widget.window_id.as_deref(), Some("todo"));
+        assert_eq!(widget.selected_room_id.as_deref(), Some("room-todo"));
     }
 
     #[test]
