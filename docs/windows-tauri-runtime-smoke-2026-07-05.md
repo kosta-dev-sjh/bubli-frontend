@@ -2,9 +2,9 @@
 
 ## Current Context
 
-- Frontend base before this branch: `a56aacf2`
+- Frontend base before this branch: `d1790b18`
 - Backend verified during this run: local dev backend at `http://localhost:8080`
-- Branch: `codex/tauri-widget-tray-shortcut-runtime`
+- Branch: `codex/tauri-real-backend-smoke-data`
 - Scope: Windows Tauri runtime smoke only. macOS-specific Tauri logic was not changed.
 
 ## What Changed
@@ -17,6 +17,7 @@
 - Widget usage smoke no longer stops at local rollup. It syncs the exact daily `todo` rollup through `syncLocalWidgetUsageSummaryToServer`, verifies one backend send and one local `SYNCED` mark, then verifies the rollup is no longer pending.
 - Widget usage rollup refresh now moves an already-synced rollup back to `LOCAL_ONLY` when new source events change the aggregate count, so same-day widget interactions are not silently skipped.
 - The native widget shortcut command now registers the requested accelerator with `tauri-plugin-global-shortcut`; the runtime smoke verifies `CommandOrControl+Shift+B` is accepted by the real Windows Tauri runtime.
+- The runtime smoke now verifies real backend project-room communication data from inside the Tauri app: project-room detail, members, room resources, chat room resolution, chat send/read/read-marker, voice room open, voice token issuance, mic status update, and leave.
 - Activity context sync no longer reports `SYNCED` when the backend POST succeeds but the local SQLite mark fails. That case now marks the row retryable/failed and returns a failure result instead of overstating local sync state.
 - Local file event smoke no longer stops at local staging. It sends staged `CREATED`, watched `UPDATED`, and watched `DELETED` events through `managedFolderApi.syncApprovedLocalFileEvents`, then applies the backend response with `markLocalFileEventsSynced`.
 - `verify_sqlite_file` now opens backup files read-write for `PRAGMA quick_check`. On Windows, read-only quick_check can fail for FTS5 with `attempt to write a readonly database` while validating the inverted index.
@@ -47,6 +48,12 @@ Full phase:
 
 - Dev access token resolved backend seed user `11111111-1111-4111-8111-111111111111`.
 - Backend privacy consent was enabled for `ACTIVITY_CONTEXT` and `MANAGED_FOLDER`.
+- Real backend project-room detail loaded for `22222222-2222-4222-8222-222222222222`.
+- Real backend project-room members included the dev-token seed user.
+- Real backend room resources endpoint returned room-scoped resources.
+- Real backend chat room resolved for the project room.
+- A chat message was sent through the frontend `chatApi`, read back through `getMessages`, and acknowledged through the read marker endpoint.
+- A voice room was opened through the frontend `voiceApi`, a voice token was issued, mic status was updated, and the room was left.
 - Native widget windows opened: `bar`, `todo`, `chat`, `timer`.
 - `todo.selectedRoomId` matched `22222222-2222-4222-8222-222222222222`.
 - Native widget global shortcut registration accepted `CommandOrControl+Shift+B`.

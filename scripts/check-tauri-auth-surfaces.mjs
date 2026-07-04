@@ -176,6 +176,21 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /import \{ chatApi \} from "@\/features\/communication\/api\/chatApi";[\s\S]*import \{ voiceApi \} from "@\/features\/communication\/api\/voiceApi";[\s\S]*import \{ projectRoomApi \} from "@\/features\/project-room\/api\/projectRoomApi";[\s\S]*import \{ resourcesApi \} from "@\/features\/resources\/api\/resourcesApi";/,
+  "TauriRuntimeSmokeRunner must use the real frontend API clients for room communication smoke checks.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /function verifyRealBackendRoomCommunication[\s\S]*projectRoomApi\.get\(smokeRoomId\)[\s\S]*projectRoomApi\.getMembers\(smokeRoomId\)[\s\S]*resourcesApi\.listRoomResources\(smokeRoomId\)[\s\S]*chatApi\.listRooms\(\)[\s\S]*chatApi\.sendMessage[\s\S]*chatApi\.getMessages[\s\S]*chatApi\.markRead[\s\S]*voiceApi\.createRoom[\s\S]*voiceApi\.getToken[\s\S]*voiceApi\.updateMicStatus[\s\S]*voiceApi\.leave/,
+  "TauriRuntimeSmokeRunner must verify project-room, chat send/read, resources list, and voice token flows against the real backend.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /readActiveProjectRoom\(\);[\s\S]*active project room persisted to SQLite[\s\S]*verifyRealBackendRoomCommunication\(smokeRoomId, assert\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\)/,
+  "TauriRuntimeSmokeRunner must verify real backend room communication before opening authenticated widgets.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\)[\s\S]*openWidgetWindows\(\{[\s\S]*bubbleType: "bar"[\s\S]*bubbleType: "todo"[\s\S]*bubbleType: "chat"[\s\S]*bubbleType: "timer"/,
   "TauriRuntimeSmokeRunner must open native bar, todo, chat, and timer widget windows.",
 );
