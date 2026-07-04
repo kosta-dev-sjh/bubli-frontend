@@ -16,7 +16,7 @@ import type {
 } from "@/types/api/widget";
 import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
 
-export type BackendWidgetBubbleType = Exclude<ApiWidgetBubbleType, "ALERT" | "RESOURCE">;
+export type BackendWidgetBubbleType = ApiWidgetBubbleType;
 export type BackendWidgetItemType = ApiWidgetItemType;
 export type WidgetBubbleSettingResponse = ApiWidgetBubbleSettingResponse;
 export type WidgetContextResponse = ApiWidgetContextResponse;
@@ -28,6 +28,8 @@ export const backendWidgetBubbleTypes = [
   "MEMO",
   "CHAT",
   "AGENT",
+  "RESOURCE",
+  "ALERT",
 ] as const satisfies readonly BackendWidgetBubbleType[];
 
 export function isBackendWidgetBubbleType(value: ApiWidgetBubbleType): value is BackendWidgetBubbleType {
