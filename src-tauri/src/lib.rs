@@ -32,16 +32,19 @@ const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 // 바 창은 pill(하단 고정 64px)만 시각적으로 유지한다. Bubli 메뉴는 별도 menu 창으로 연다.
 // 창 높이는 pill 위 hover 요약 팝오버가 들어갈 투명 여유(약 156px)를 포함한다 —
 // desktop-widget-bubble.module.css .barRoot/.barPopover와 동기화한다.
-// 창 너비는 최대 칩 수(8)가 모두 들어가는 560 고정이다. macOS에서 resizable(false) 창의
-// min/max 재조정 기반 라이브 리사이즈가 조용히 실패해 칩이 잘렸으므로, 리사이즈 자체를 없앴다.
-// pill은 fit-content 폭으로 창 하단 중앙에 붙고(desktop-widget-bubble.module.css .barRoot),
-// pill 밖 투명 영역은 커서 폴러가 클릭 통과시키므로 창이 커도 무해하다.
-const WIDGET_BAR_WIDTH: f64 = 560.0;
+// 창 너비는 최악 조합(고정 알림 칩 + 구분선 + 브랜드 버블 마크 + 접힌 칩 7개, 타이머 칩은
+// 시간 텍스트 포함)이 전부 들어가는 640 고정이다. 계산: 36px 칩 8개 + 타이머 시간 텍스트(~78px)
+// + gap 6×9 + pill 패딩/보더 ≈ 460px < 640. "+N" 접기와 잘림이 어떤 조합에서도 없다.
+// macOS에서 resizable(false) 창의 min/max 재조정 기반 라이브 리사이즈가 조용히 실패해
+// 칩이 잘렸으므로, 바 창 리사이즈 자체를 없앴다. pill은 fit-content 폭으로 창 하단 중앙에
+// 붙고(desktop-widget-bubble.module.css .barRoot), pill 밖 투명 영역은 커서 폴러가 클릭
+// 통과시키므로 창이 커도 무해하다.
+const WIDGET_BAR_WIDTH: f64 = 640.0;
 const WIDGET_BAR_HEIGHT: f64 = 220.0;
-// 메뉴 창: 상시 런처 오브(44px) + 클릭 시 열리는 Bubli 패널이 세로로 들어간다.
-// 위젯 최소 폰트 14 적용 후 패널 높이 기준(오브 44 + 8 + 패널 ~310 + 여유).
+// 메뉴 창: 상시 런처 오브(48px 버블 마크) + 클릭 시 열리는 Bubli 패널이 세로로 들어간다.
+// 위젯 최소 폰트 14 적용 후 패널 높이 기준(오브 48 + 8 + 패널 ~340(정렬 액션 행 포함) + 여유).
 const WIDGET_MENU_WIDTH: f64 = 248.0;
-const WIDGET_MENU_HEIGHT: f64 = 392.0;
+const WIDGET_MENU_HEIGHT: f64 = 424.0;
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
 const PRIMARY_MONITOR_ID: &str = "primary";
@@ -65,6 +68,42 @@ const WIDGET_POINTER_SEEN_GRACE_MS: u128 = 500;
 const QA_ALL_WIDGET_BUBBLES: [&str; 8] = [
     "todo", "agent", "chat", "timer", "memo", "schedule", "resource", "alert",
 ];
+// 사용자 크기 조절 클램프: 버블별 최소 = 현재 기본 크기, 최대 = 최소 × 1.6.
+// src/features/widget/components/desktop-widget-bubble.tsx 리사이즈 핸들과 동기화한다.
+const WIDGET_USER_SIZE_MAX_SCALE: f64 = 1.6;
+// 버블 자동 정렬(arrange_widget_windows): 우상단 앵커, 24px 간격, 한 열에 2개.
+const WIDGET_ARRANGE_GAP: f64 = 24.0;
+const WIDGET_ARRANGE_ROWS_PER_COLUMN: usize = 2;
+
+// 사용자가 리사이즈로 정한 버블별 창 크기(논리 px). 시작 시 SQLite
+// local_widget_bubble_sizes에서 로드하고, resize_widget_window가 갱신한다.
+// widget_window_size가 DEFAULT/TRANSLUCENT 버블 창에 한해 기본 크기 대신 이 값을 쓴다.
+static WIDGET_USER_SIZES: LazyLock<Mutex<HashMap<String, (f64, f64)>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn widget_user_size_override(bubble_type: &str) -> Option<LogicalSize<f64>> {
+    let sizes = WIDGET_USER_SIZES.lock().ok()?;
+    sizes
+        .get(bubble_type)
+        .map(|(width, height)| LogicalSize::new(*width, *height))
+}
+
+fn remember_widget_user_size(bubble_type: &str, size: &LogicalSize<f64>) {
+    if let Ok(mut sizes) = WIDGET_USER_SIZES.lock() {
+        sizes.insert(bubble_type.to_string(), (size.width, size.height));
+    }
+}
+
+/// 리사이즈 입력을 버블별 [기본 크기, 기본 × 1.6] 범위로 클램프한다(정수 논리 px).
+fn clamp_widget_user_size(bubble_type: &str, width: f64, height: f64) -> LogicalSize<f64> {
+    let base = widget_default_bubble_size(bubble_type);
+    let max_width = (base.width * WIDGET_USER_SIZE_MAX_SCALE).round();
+    let max_height = (base.height * WIDGET_USER_SIZE_MAX_SCALE).round();
+    LogicalSize::new(
+        width.round().clamp(base.width, max_width),
+        height.round().clamp(base.height, max_height),
+    )
+}
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -467,6 +506,17 @@ struct WidgetWindowPositionInput {
     window_id: Option<String>,
     x: i32,
     y: i32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WidgetWindowResizeInput {
+    bubble_type: Option<String>,
+    // true면(드래그 종료) 클램프된 최종 크기를 SQLite에 저장한다.
+    commit: Option<bool>,
+    height: f64,
+    width: f64,
+    window_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -886,23 +936,27 @@ fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
             WIDGET_MINIMIZED_HEIGHT + 20.0,
         ),
         "GHOST" => LogicalSize::new(188.0 + 24.0, 188.0 + 24.0),
-        // 콘텐츠 자동 높이에 맞춘 창 크기 — src/app/desktop-widget/page.tsx getWidgetWindowSize와 동기화한다.
-        _ => match widget.active_bubble.as_str() {
-            "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
-            "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 430.0 + WIDGET_WINDOW_GUTTER),
-            "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 352.0 + WIDGET_WINDOW_GUTTER),
-            "resource" => {
-                LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 330.0 + WIDGET_WINDOW_GUTTER)
-            }
-            "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 320.0 + WIDGET_WINDOW_GUTTER),
-            "schedule" => {
-                LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER)
-            }
-            _ => LogicalSize::new(
-                WIDGET_DEFAULT_WIDTH + WIDGET_WINDOW_GUTTER,
-                WIDGET_DEFAULT_HEIGHT + WIDGET_WINDOW_GUTTER,
-            ),
-        },
+        // 콘텐츠 자동 높이에 맞춘 기본 창 크기 위에, 사용자가 리사이즈로 저장한 크기를
+        // 우선한다(클램프된 값만 저장되므로 여기서는 그대로 쓴다).
+        _ => widget_user_size_override(&widget.active_bubble)
+            .unwrap_or_else(|| widget_default_bubble_size(&widget.active_bubble)),
+    }
+}
+
+/// 버블별 기본(최소) 창 크기 — src/app/desktop-widget/page.tsx getWidgetWindowSize와 동기화한다.
+/// 정수 논리 px만 쓴다(HiDPI에서 분수 높이로 인한 라운드 코너 왜곡 방지).
+fn widget_default_bubble_size(bubble_type: &str) -> LogicalSize<f64> {
+    match bubble_type {
+        "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
+        "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 430.0 + WIDGET_WINDOW_GUTTER),
+        "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 352.0 + WIDGET_WINDOW_GUTTER),
+        "resource" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 330.0 + WIDGET_WINDOW_GUTTER),
+        "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 320.0 + WIDGET_WINDOW_GUTTER),
+        "schedule" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER),
+        _ => LogicalSize::new(
+            WIDGET_DEFAULT_WIDTH + WIDGET_WINDOW_GUTTER,
+            WIDGET_DEFAULT_HEIGHT + WIDGET_WINDOW_GUTTER,
+        ),
     }
 }
 
@@ -1754,6 +1808,210 @@ fn set_widget_window_position(
     apply_widget_window_state(&app, &monitor_state, &widget)
 }
 
+/// 사용자 코너 드래그 리사이즈. 버블별 [기본 크기, 기본 × 1.6]으로 클램프해 창 크기를
+/// 라이브로 바꾸고, commit(드래그 종료)일 때만 SQLite(local_widget_bubble_sizes)에 저장한다.
+/// 바/메뉴 창은 리사이즈 대상이 아니다. resizable(false) 창이므로 apply와 같은
+/// "min 해제 → max → min → size" 순서로 다시 잠근다(macOS에서 조용한 실패 방지).
+#[tauri::command]
+fn resize_widget_window(
+    app: AppHandle,
+    db: tauri::State<'_, local_db::Db>,
+    state: tauri::State<'_, WidgetState>,
+    input: WidgetWindowResizeInput,
+) -> Result<WidgetWindowState, String> {
+    let bubble_type = normalize_bubble_type(input.bubble_type.clone());
+    if bubble_type == "bar" || bubble_type == "menu" {
+        return Err("bar/menu widget windows are not resizable".to_string());
+    }
+    if !input.width.is_finite() || !input.height.is_finite() {
+        return Err("widget size must be finite".to_string());
+    }
+
+    let size = clamp_widget_user_size(&bubble_type, input.width, input.height);
+    remember_widget_user_size(&bubble_type, &size);
+
+    let widget = with_widget_state(&state, Some(bubble_type.clone()), input.window_id, |_| {})?;
+    let label = widget_window_label(&widget);
+    if let Some(window) = app.get_webview_window(&label) {
+        let size_key = (size.width.round() as i64, size.height.round() as i64);
+        let size_changed = with_widget_applied_window_state(&label, |applied| {
+            if applied.size == Some(size_key) {
+                false
+            } else {
+                applied.size = Some(size_key);
+                true
+            }
+        })
+        .unwrap_or(true);
+        if size_changed {
+            window
+                .set_min_size(None::<Size>)
+                .map_err(|error| error.to_string())?;
+            window
+                .set_max_size(Some(Size::Logical(size)))
+                .map_err(|error| error.to_string())?;
+            window
+                .set_min_size(Some(Size::Logical(size)))
+                .map_err(|error| error.to_string())?;
+            window
+                .set_size(Size::Logical(size))
+                .map_err(|error| error.to_string())?;
+        }
+    }
+
+    if input.commit.unwrap_or(false) {
+        let conn = db.0.lock().map_err(|_| "db lock failed".to_string())?;
+        local_db::store_widget_bubble_size_for_conn(
+            &conn,
+            &bubble_type,
+            size.width as i64,
+            size.height as i64,
+        )?;
+    }
+
+    Ok(widget)
+}
+
+/// 열려 있는 버블 창들을 선호 모니터 우상단 기준 24px 간격, 한 열에 2개씩 그리드로 정렬한다.
+/// 바/메뉴 창은 움직이지 않는다. 좌표는 store에 논리·모니터-로컬로 기록/저장하고, 실제 이동은
+/// set_position으로 반영한다 — 이어지는 Moved 이벤트가 같은 좌표를 다시 저장한다(기존 영속 경로).
+#[tauri::command]
+fn arrange_widget_windows(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+    state: tauri::State<'_, WidgetState>,
+) -> Result<Vec<WidgetWindowState>, String> {
+    let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
+    let monitor = resolve_preferred_monitor(&app, &preferred_monitor_id)?;
+    let scale = monitor
+        .as_ref()
+        .map(|monitor| monitor.scale_factor())
+        .unwrap_or(1.0)
+        .max(0.5);
+    let origin_x = monitor
+        .as_ref()
+        .map_or(0.0, |monitor| monitor.position().x as f64 / scale);
+    let origin_y = monitor
+        .as_ref()
+        .map_or(0.0, |monitor| monitor.position().y as f64 / scale);
+    let monitor_width = monitor
+        .as_ref()
+        .map(|monitor| monitor.size().width as f64 / scale)
+        .unwrap_or(WIDGET_FALLBACK_MONITOR_WIDTH);
+
+    // 정렬 대상: 바/메뉴 제외, 실제 웹뷰가 떠 있는 보이는 버블 창(계단 인덱스 순 안정 정렬).
+    let mut targets: Vec<WidgetWindowState> = {
+        let guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        guard
+            .bubbles
+            .values()
+            .filter(|widget| {
+                widget.active_bubble != "bar"
+                    && widget.active_bubble != "menu"
+                    && widget.window_visible
+                    && app
+                        .get_webview_window(&widget_window_label(widget))
+                        .is_some()
+            })
+            .cloned()
+            .collect()
+    };
+    targets.sort_by(|left, right| {
+        let left_index = widget_default_cascade_index(&left.active_bubble) as i64;
+        let right_index = widget_default_cascade_index(&right.active_bubble) as i64;
+        left_index.cmp(&right_index).then_with(|| {
+            let left_key = left.window_id.as_deref().unwrap_or(&left.active_bubble);
+            let right_key = right.window_id.as_deref().unwrap_or(&right.active_bubble);
+            left_key.cmp(right_key)
+        })
+    });
+
+    let placements = arrange_widget_grid_placements(&targets, monitor_width);
+
+    // store 좌표 갱신 + 정렬된 위젯 목록 스냅샷.
+    let arranged = {
+        let mut guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        for (label, position) in &placements {
+            if let Some(widget) = guard
+                .bubbles
+                .values_mut()
+                .find(|widget| widget_window_label(widget) == *label)
+            {
+                widget.position = position.clone();
+            }
+        }
+        let placed_labels: HashSet<String> =
+            placements.iter().map(|(label, _)| label.clone()).collect();
+        let mut arranged: Vec<WidgetWindowState> = guard
+            .bubbles
+            .values()
+            .filter(|widget| placed_labels.contains(&widget_window_label(widget)))
+            .cloned()
+            .collect();
+        arranged.sort_by(|left, right| {
+            let left_key = left.window_id.as_deref().unwrap_or(&left.active_bubble);
+            let right_key = right.window_id.as_deref().unwrap_or(&right.active_bubble);
+            left_key.cmp(right_key)
+        });
+        arranged
+    };
+    persist_widget_window_state(&app, &state)?;
+
+    for (label, position) in &placements {
+        if let Some(window) = app.get_webview_window(label) {
+            // 이동 grace를 미리 열어 커서 폴러가 이동 중 클릭 통과를 켜지 않게 한다.
+            note_widget_window_moved(label);
+            let logical =
+                LogicalPosition::new(origin_x + position.x as f64, origin_y + position.y as f64);
+            #[cfg(not(target_os = "macos"))]
+            with_widget_applied_window_state(label, |applied| {
+                applied.position = Some((logical.x.round() as i64, logical.y.round() as i64));
+            });
+            window
+                .set_position(Position::Logical(logical))
+                .map_err(|error| error.to_string())?;
+        }
+    }
+
+    Ok(arranged)
+}
+
+/// 우상단 앵커 그리드 좌표 계산(모니터-로컬 논리 px). 열은 오른쪽에서 왼쪽으로 채우고,
+/// 각 열은 위에서 아래로 최대 2개. 열 폭은 그 열에서 가장 넓은 창 기준이다.
+fn arrange_widget_grid_placements(
+    targets: &[WidgetWindowState],
+    monitor_width: f64,
+) -> Vec<(String, WidgetWindowPosition)> {
+    let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
+    let mut column_right = monitor_width - WIDGET_ARRANGE_GAP;
+
+    for column in targets.chunks(WIDGET_ARRANGE_ROWS_PER_COLUMN) {
+        let column_width = column
+            .iter()
+            .map(|widget| widget_window_size(widget).width)
+            .fold(0.0_f64, f64::max);
+        let column_x = (column_right - column_width).max(WIDGET_ARRANGE_GAP);
+        let mut row_y = WIDGET_ARRANGE_GAP;
+        for widget in column {
+            placements.push((
+                widget_window_label(widget),
+                WidgetWindowPosition {
+                    x: column_x.round() as i32,
+                    y: row_y.round() as i32,
+                },
+            ));
+            row_y += widget_window_size(widget).height + WIDGET_ARRANGE_GAP;
+        }
+        column_right = column_x - WIDGET_ARRANGE_GAP;
+    }
+
+    placements
+}
+
 #[tauri::command]
 fn set_widget_room_context(
     app: AppHandle,
@@ -2259,6 +2517,20 @@ pub fn run() {
             // activity focus, sync outbox) and expose it as managed state.
             let connection =
                 local_db::open_and_migrate(app.handle()).map_err(|error| error.to_string())?;
+            // 사용자 리사이즈 크기(local_widget_bubble_sizes)를 읽어 창 크기 계산에 반영한다.
+            // 저장 이후 기본 크기가 바뀌었을 수 있으므로 로드 시점에 다시 클램프한다.
+            match local_db::read_widget_bubble_sizes_for_conn(&connection) {
+                Ok(sizes) => {
+                    for (bubble_type, width, height) in sizes {
+                        let clamped =
+                            clamp_widget_user_size(&bubble_type, width as f64, height as f64);
+                        remember_widget_user_size(&bubble_type, &clamped);
+                    }
+                }
+                Err(error) => {
+                    eprintln!("failed to load widget bubble sizes: {error}");
+                }
+            }
             app.manage(local_db::Db(Mutex::new(connection)));
 
             match load_preferred_monitor_id(app.handle()) {
@@ -2289,6 +2561,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             app_ready,
+            arrange_widget_windows,
             close_all_widget_windows,
             close_widget_window,
             get_widget_bar_items,
@@ -2301,6 +2574,7 @@ pub fn run() {
             open_widget_window,
             quit_app,
             register_widget_shortcut,
+            resize_widget_window,
             seed_widget_bar_items,
             set_authenticated_surfaces_enabled,
             show_main_window,
@@ -2564,6 +2838,60 @@ mod widget_runtime_tests {
             None
         );
         assert_eq!(normalize_widget_menu_route(None), None);
+    }
+
+    #[test]
+    fn resize_clamps_between_bubble_default_and_max_scale() {
+        let base = widget_default_bubble_size("memo");
+
+        let too_small = clamp_widget_user_size("memo", 10.0, 10.0);
+        assert_eq!(too_small.width, base.width);
+        assert_eq!(too_small.height, base.height);
+
+        let too_big = clamp_widget_user_size("memo", 10_000.0, 10_000.0);
+        assert_eq!(too_big.width, (base.width * WIDGET_USER_SIZE_MAX_SCALE).round());
+        assert_eq!(
+            too_big.height,
+            (base.height * WIDGET_USER_SIZE_MAX_SCALE).round()
+        );
+
+        // 범위 안 값은 정수로 반올림만 한다(분수 논리 px 금지).
+        let in_range = clamp_widget_user_size("memo", base.width + 20.4, base.height + 30.6);
+        assert_eq!(in_range.width, (base.width + 20.0).round());
+        assert_eq!(in_range.height, (base.height + 31.0).round());
+    }
+
+    #[test]
+    fn arrange_places_two_rows_per_column_from_top_right() {
+        let targets = vec![
+            default_widget_window_state("todo", Some("todo".to_string())),
+            default_widget_window_state("agent", Some("agent".to_string())),
+            default_widget_window_state("chat", Some("chat".to_string())),
+        ];
+
+        let placements = arrange_widget_grid_placements(&targets, 1440.0);
+
+        assert_eq!(placements.len(), 3);
+        let todo_size = widget_default_bubble_size("todo");
+        let agent_size = widget_default_bubble_size("agent");
+        let chat_size = widget_default_bubble_size("chat");
+
+        // 1열(우측): todo 위, agent 아래.
+        let column_one_width = todo_size.width.max(agent_size.width);
+        let column_one_x = (1440.0 - 24.0 - column_one_width).round() as i32;
+        assert_eq!(placements[0].0, "bubli-widget-todo");
+        assert_eq!(placements[0].1.x, column_one_x);
+        assert_eq!(placements[0].1.y, 24);
+        assert_eq!(placements[1].0, "bubli-widget-agent");
+        assert_eq!(placements[1].1.x, column_one_x);
+        assert_eq!(placements[1].1.y, (24.0 + todo_size.height + 24.0).round() as i32);
+
+        // 2열은 1열 왼쪽으로 24px 간격.
+        let column_two_x =
+            (column_one_x as f64 - 24.0 - chat_size.width).max(24.0).round() as i32;
+        assert_eq!(placements[2].0, "bubli-widget-chat");
+        assert_eq!(placements[2].1.x, column_two_x);
+        assert_eq!(placements[2].1.y, 24);
     }
 
     #[test]

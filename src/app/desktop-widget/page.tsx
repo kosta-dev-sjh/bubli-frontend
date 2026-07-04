@@ -2309,6 +2309,18 @@ function DesktopWidgetSurface() {
     }
   }, [isTauri]);
 
+  // 열린 버블 창들을 선호 모니터 우상단 그리드(24px 간격, 한 열 2개)로 정렬한다.
+  // 이동 좌표는 Rust가 기존 Moved 영속 경로로 저장하므로 여기서는 호출만 한다.
+  const arrangeWidgetBubbles = useCallback(async () => {
+    if (!isTauri) return;
+
+    try {
+      await tauriCommands.arrangeWidgetWindows();
+    } catch {
+      // Browser preview fallback.
+    }
+  }, [isTauri]);
+
   const toggleWidgetRoomContext = useCallback(async () => {
     if (!isTauri) return;
 
@@ -2334,6 +2346,7 @@ function DesktopWidgetSurface() {
     return (
       <DesktopWidgetMenuOrb
         hasRoomContext={Boolean(selectedWidgetRoomId)}
+        onArrangeBubbles={() => void arrangeWidgetBubbles()}
         onOpenBubble={(bubbleType) => void restoreBubbleFromBar(bubbleType, bubbleType)}
         onOpenMainApp={() => void openMainApp()}
         onOpenSettings={() => void openMainApp("settings")}
@@ -2386,6 +2399,7 @@ function DesktopWidgetSurface() {
       onToggleAlwaysOnTop={() => void toggleAlwaysOnTop()}
       onToggleVoiceMic={toggleWidgetVoiceMic}
       presentation="tauri"
+      windowId={windowId}
       windowVisible={windowVisible}
     />
   );

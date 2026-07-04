@@ -125,15 +125,48 @@
 }
 
 .tauriShell {
-  width: 320px;
+  /* 창(논리 px, 항상 정수)에서 거터를 뺀 폭을 정확히 채운다 — 고정 320px 시절의
+     좌우 슬랙과 리사이즈 미대응을 없애고, 20px 라운드가 항상 창 안쪽에서 끝난다. */
+  width: calc(100vw - 2 * var(--widget-window-gutter));
   border-radius: 20px;
   padding: 14px;
 }
 
 /* 기본/반투명 모드에서 셸이 창 높이를 채워 CTA를 하단에 고정한다.
-   구성 자체는 콘텐츠 우선이라 stretch가 없어도 무너지지 않는다. */
+   max-height + overflow hidden: 콘텐츠가 넘쳐도 셸이 창 밖으로 자라며
+   하단 라운드/그림자가 창 모서리에서 잘려 찌그러져 보이는 일을 막는다.
+   거터(22px)는 floating shadow 최대 확장(10+22-14=18px)보다 크므로
+   그림자도 1x/2x 배율 모두 창 안에서 온전히 렌더링된다. */
 .tauriRoot:not(.minimizedMode):not(.ghostMode) .tauriShell {
   min-height: calc(100vh - 2 * var(--widget-window-gutter));
+  max-height: calc(100vh - 2 * var(--widget-window-gutter));
+  overflow: hidden;
+}
+
+/* ---------- 말랑말랑(jelly) 모션 — 순수 transform, reduced-motion 존중 ----------
+   평상시에는 transform 속성 자체를 두지 않아 서브픽셀 왜곡이 없다(회복은 스프링 트랜지션). */
+
+@media (prefers-reduced-motion: no-preference) {
+  .tauriShell {
+    transform-origin: 50% 62%;
+    transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .tauriShell:hover {
+    transform: scale(1.01);
+  }
+
+  /* 창 드래그 시작 순간의 아주 짧은 스쿼시. */
+  .tauriShell.shellSquash {
+    transform: scale(0.988, 0.982);
+  }
+
+  /* 리사이즈 드래그 중: JS(rAF)가 감쇠된 --jelly-sx/--jelly-sy를 흘린다.
+     트랜지션을 끊어 손을 따라오게 하고, 클래스 해제 시 스프링으로 복귀한다. */
+  .tauriShell.shellResizing {
+    transform: scale(var(--jelly-sx, 1), var(--jelly-sy, 1));
+    transition: none;
+  }
 }
 
 .tauriRoot:not(.minimizedMode):not(.ghostMode) {
@@ -146,6 +179,42 @@
 
 .tauriRoot.minimizedMode {
   --widget-window-gutter: 10px;
+}
+
+/* ---------- 우하단 16px 커스텀 리사이즈 핸들(hover 시에만 노출) ---------- */
+
+.resizeHandle {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 2;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background:
+    linear-gradient(
+      135deg,
+      transparent 0 44%,
+      color-mix(in srgb, var(--acc-ink) 55%, transparent) 44% 52%,
+      transparent 52% 64%,
+      color-mix(in srgb, var(--acc-ink) 55%, transparent) 64% 72%,
+      transparent 72%
+    );
+  opacity: 0;
+  cursor: nwse-resize;
+  touch-action: none;
+  transition: opacity 160ms ease;
+}
+
+.tauriShell:hover .resizeHandle,
+.resizeHandle:focus-visible {
+  opacity: 0.8;
+}
+
+.resizeHandle:hover {
+  opacity: 1;
 }
 
 .translucentMode .shell {
@@ -1415,7 +1484,9 @@
 
 .barPopover {
   position: absolute;
-  bottom: 62px;
+  /* pill(36px 칩 + 패딩 ≈ 52px) + 루트 패딩 4 + 여백 12 — pill 위 투명 영역에 뜨므로
+     pill 자체는 절대 밀리지 않는다. */
+  bottom: 68px;
   left: 50%;
   width: min(calc(100% - 8px), 440px);
   transform: translateX(-50%);
@@ -1510,7 +1581,8 @@
 .bubbleBar {
   display: flex;
   align-items: center;
-  /* 고정 알림 + Bubli + 접힌 칩 5개 + "+N"까지 560px 창을 절대 넘지 않는 간격. */
+  /* 고정 알림 + Bubli 마크 + 접힌 칩 전부(최대 7개, 타이머는 시간 텍스트 포함)가
+     640px 창을 절대 넘지 않는 간격 — "+N" 접기·잘림 없음(총 ~460px). */
   gap: 6px;
   max-width: 100%;
   overflow: hidden;
@@ -1523,72 +1595,98 @@
   box-shadow:
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
     var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+  transition: opacity 200ms ease;
 }
 
-.barBrand,
-.barItem,
-.barNotice,
-.barMore {
+/* idle 페이드: 8초 무상호작용이면 옅어지고, hover/포커스에 즉시 돌아온다. */
+.barIdle {
+  opacity: 0.55;
+}
+
+.bubbleBar:hover,
+.bubbleBar:focus-within {
+  opacity: 1;
+}
+
+/* 접힌 칩: 아이콘 전용 36px accent 타일 + 우상단 16px 카운트 배지(>0일 때만). */
+.barChip {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 13%, transparent);
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.barChip:hover,
+.barChip:focus-visible {
+  background: color-mix(in srgb, var(--acc) 20%, transparent);
+}
+
+/* 타이머 칩만 아이콘 옆 컴팩트 시간 텍스트가 붙는다(배지 없음). */
+.barTimerChip {
+  grid-auto-flow: column;
+  width: auto;
+  gap: 5px;
+  padding: 0 10px 0 8px;
+}
+
+.chipTime {
+  color: var(--acc-ink);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 16px 우상단 카운트 배지 — 초소형 고정 높이라 최소 폰트 예외(12px 유지). */
+.chipBadge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  border: 1px solid var(--widget-hairline);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.76);
-  color: var(--widget-text);
-  cursor: pointer;
-}
-
-.barBrand {
-  padding: 0 10px;
-  font: inherit;
-}
-
-/* 접힌 칩: 18px accent 미니 타일 + 14px tabular 카운트. */
-.barItem,
-.barNotice {
-  flex: none;
-  gap: 5px;
-  padding: 0 8px 0 6px;
-}
-
-/* 초과분 "+N" 칩 — 클릭하면 Bubli 메뉴 창을 연다. */
-.barMore {
-  flex: none;
   justify-content: center;
-  padding: 0 9px;
-  border: 1px solid var(--widget-hairline);
-  color: var(--widget-muted);
-  font: inherit;
-  font-size: 14px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  color: #FFFFFF;
+  background: var(--acc-ink);
+  font-size: 12px;
+  font-style: normal;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
   white-space: nowrap;
 }
 
-.barMore:hover,
-.barMore:focus-visible {
-  color: var(--widget-text);
-  background: rgba(255, 255, 255, 0.92);
-}
-
-.chipTile {
+/* Bubli 브랜드 칩: 텍스트 워드마크 대신 웹앱과 같은 28px 버블 마크. */
+.barBrand {
   display: inline-grid;
+  flex: none;
   place-items: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 6px;
-  color: var(--acc-ink);
-  background: color-mix(in srgb, var(--acc) 16%, transparent);
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.76);
+  cursor: pointer;
+  transition: background-color 140ms ease;
 }
 
-.barItem b,
-.barNotice b {
-  font-size: 14px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+.barBrand:hover,
+.barBrand:focus-visible {
+  background: color-mix(in srgb, #6FB8F2 14%, transparent);
 }
 
 .barBrand[aria-expanded="true"] {
@@ -1596,22 +1694,7 @@
   background: color-mix(in srgb, #6FB8F2 14%, transparent);
 }
 
-.barBrand i {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.98), transparent 22%),
-    linear-gradient(150deg, #9ED8FF, #DCD8F8);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96);
-}
-
-.barBrand span {
-  font-size: 14px;
-  font-weight: 800;
-}
-
-/* ---------- 메뉴 창(248×360): 44px 오브 + 바로 아래 패널 ---------- */
+/* ---------- 메뉴 창(248×424): 48px 브랜드 버블 마크 오브 + 바로 아래 패널 ---------- */
 
 .menuRoot {
   gap: 8px;
@@ -1619,29 +1702,66 @@
   padding: 4px;
 }
 
+/* 오브는 유리 원판 대신 웹앱 브랜드 버블 마크 그 자체다(하이브리드 앱 톤 일치). */
 .menuOrb {
-  width: 44px;
-  height: 44px;
-  border: 1px solid rgba(255, 255, 255, 0.84);
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.98), transparent 20%),
-    radial-gradient(circle at 72% 72%, rgba(220, 216, 248, 0.4), transparent 34%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.92), rgba(216, 240, 255, 0.7));
-  box-shadow:
-    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
-    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   cursor: pointer;
 }
 
-.menuOrb span {
+/* BubbleMark(전역 .bubli-mark--md 28px)를 오브 크기로 키운다 — 조합 셀렉터로 우선순위 확보. */
+.menuOrb .menuOrbMark {
   display: block;
-  width: 15px;
-  height: 15px;
-  margin: 0 auto;
-  border-radius: 999px;
-  background: linear-gradient(150deg, #6FB8F2, #B0A8E0);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  width: 48px;
+  height: 48px;
+  filter: drop-shadow(0 10px 18px rgba(35, 48, 59, 0.22));
+}
+
+/* 잔잔한 bob 부유(3s, ±3px) + hover/포커스 워블·scale 1.06 — reduced-motion에서는 정지. */
+@media (prefers-reduced-motion: no-preference) {
+  .menuOrbMark {
+    animation: bubble-orb-bob 3s ease-in-out infinite;
+  }
+
+  .menuOrb:hover .menuOrbMark,
+  .menuOrb:focus-visible .menuOrbMark {
+    animation: bubble-orb-wobble 700ms ease-in-out;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes bubble-orb-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes bubble-orb-wobble {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+
+  30% {
+    transform: scale(1.09) rotate(-3deg);
+  }
+
+  65% {
+    transform: scale(1.04) rotate(2deg);
+  }
+
+  100% {
+    transform: scale(1.06) rotate(0deg);
+  }
 }
 
 /* 오브와 같은 왼쪽 라인, 8px 아래에 바로 붙는 패널. */
@@ -1988,26 +2108,14 @@
     var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
 }
 
-:global([data-theme="dark"]) .barBrand,
-:global([data-theme="dark"]) .barItem,
-:global([data-theme="dark"]) .barNotice,
-:global([data-theme="dark"]) .barMore {
+:global([data-theme="dark"]) .barBrand {
   border-color: rgba(150, 170, 215, 0.18);
-  color: var(--widget-text);
   background: rgba(18, 26, 40, 0.6);
 }
 
-:global([data-theme="dark"]) .barMore:hover,
-:global([data-theme="dark"]) .barMore:focus-visible {
-  color: var(--widget-text);
-  background: rgba(34, 46, 72, 0.7);
-}
-
-:global([data-theme="dark"]) .barBrand i {
-  background:
-    radial-gradient(circle at 30% 28%, rgba(234, 240, 248, 0.85), transparent 22%),
-    linear-gradient(150deg, rgba(158, 216, 255, 0.42), rgba(111, 184, 242, 0.26));
-  box-shadow: inset 0 1px 0 rgba(234, 240, 248, 0.45);
+:global([data-theme="dark"]) .barBrand:hover,
+:global([data-theme="dark"]) .barBrand:focus-visible {
+  background: rgba(111, 184, 242, 0.2);
 }
 
 :global([data-theme="dark"]) .barBrand[aria-expanded="true"] {
@@ -2015,8 +2123,19 @@
   background: rgba(111, 184, 242, 0.2);
 }
 
-:global([data-theme="dark"]) .chipTile {
-  background: color-mix(in srgb, var(--acc) 22%, transparent);
+:global([data-theme="dark"]) .barChip {
+  border-color: rgba(150, 170, 215, 0.18);
+  background: color-mix(in srgb, var(--acc) 20%, transparent);
+}
+
+:global([data-theme="dark"]) .barChip:hover,
+:global([data-theme="dark"]) .barChip:focus-visible {
+  background: color-mix(in srgb, var(--acc) 28%, transparent);
+}
+
+:global([data-theme="dark"]) .chipBadge {
+  border-color: rgba(22, 30, 46, 0.9);
+  color: #EAF0F8;
 }
 
 :global([data-theme="dark"]) .barPopover {
@@ -2027,20 +2146,8 @@
     var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
 }
 
-:global([data-theme="dark"]) .menuOrb {
-  border-color: var(--rim-dark, rgba(150, 170, 215, 0.16));
-  background:
-    radial-gradient(circle at 30% 28%, rgba(180, 205, 240, 0.16), transparent 22%),
-    radial-gradient(circle at 72% 72%, rgba(176, 168, 224, 0.16), transparent 30%),
-    rgba(22, 30, 46, 0.97);
-  box-shadow:
-    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
-    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
-}
-
-:global([data-theme="dark"]) .menuOrb span {
-  background: linear-gradient(150deg, #7CC4F5, #B0A8E0);
-  box-shadow: inset 0 1px 0 rgba(234, 240, 248, 0.3);
+:global([data-theme="dark"]) .menuOrbMark {
+  filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.44));
 }
 
 :global([data-theme="dark"]) .menuPanel {

@@ -3,6 +3,7 @@ import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 export const TAURI_COMMANDS = {
   appReady: "app_ready",
+  arrangeWidgetWindows: "arrange_widget_windows",
   backupLocalSqlite: "backup_local_sqlite",
   checkLocalSqliteIntegrity: "check_local_sqlite_integrity",
   clearActiveProjectRoom: "clear_active_project_room",
@@ -38,6 +39,7 @@ export const TAURI_COMMANDS = {
   recordTimerState: "record_timer_state",
   recordWidgetUsageEvent: "record_widget_usage_event",
   removeManagedFolder: "remove_managed_folder",
+  resizeWidgetWindow: "resize_widget_window",
   markLocalFileAnalysesSent: "mark_local_file_analyses_sent",
   markLocalFileEventsSynced: "mark_local_file_events_synced",
   markWidgetUsageSummaryFailed: "mark_widget_usage_summary_failed",
@@ -658,6 +660,16 @@ export type WidgetWindowPositionInput = WidgetWindowPosition & {
   windowId?: string;
 };
 
+// 사용자 코너 드래그 리사이즈 입력(논리 px). Rust가 버블별 [기본, 기본×1.6]으로 클램프하고,
+// commit=true(드래그 종료)일 때만 SQLite local_widget_bubble_sizes에 저장한다.
+export type WidgetWindowResizeInput = {
+  bubbleType?: WidgetWindowBubbleType;
+  commit?: boolean;
+  height: number;
+  width: number;
+  windowId?: string;
+};
+
 export type WidgetWindowOpenInput = {
   bubbleType?: WidgetWindowBubbleType;
   mode?: WidgetWindowMode;
@@ -730,6 +742,10 @@ export type TauriCommandContract = {
   app_ready: {
     args: AppReadyInput | undefined;
     result: string;
+  };
+  arrange_widget_windows: {
+    args: undefined;
+    result: WidgetWindowState[];
   };
   backup_local_sqlite: {
     args: undefined;
@@ -870,6 +886,10 @@ export type TauriCommandContract = {
   remove_managed_folder: {
     args: ManagedFolderCommandInput;
     result: ManagedFolderRemoveResult;
+  };
+  resize_widget_window: {
+    args: WidgetWindowResizeInput;
+    result: WidgetWindowState;
   };
   mark_local_file_analyses_sent: {
     args: LocalFileAnalysesMarkInput;
@@ -1040,6 +1060,9 @@ export const tauriCommands = {
   appReady(input?: AppReadyInput) {
     return invokeTauri<string>(TAURI_COMMANDS.appReady, input ? { input } : undefined);
   },
+  arrangeWidgetWindows() {
+    return invokeTauri<WidgetWindowState[]>(TAURI_COMMANDS.arrangeWidgetWindows);
+  },
   backupLocalSqlite() {
     return invokeTauri<LocalBackupResult>(TAURI_COMMANDS.backupLocalSqlite);
   },
@@ -1162,6 +1185,9 @@ export const tauriCommands = {
   },
   removeManagedFolder(input: ManagedFolderCommandInput) {
     return invokeTauri<ManagedFolderRemoveResult>(TAURI_COMMANDS.removeManagedFolder, { input });
+  },
+  resizeWidgetWindow(input: WidgetWindowResizeInput) {
+    return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.resizeWidgetWindow, { input });
   },
   markLocalFileAnalysesSent(input: LocalFileAnalysesMarkInput) {
     return invokeTauri<LocalFileAnalysesMarkResult>(TAURI_COMMANDS.markLocalFileAnalysesSent, { input });

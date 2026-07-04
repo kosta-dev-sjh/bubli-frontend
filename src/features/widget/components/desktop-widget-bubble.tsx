@@ -1,6 +1,6 @@
 "use client";
 
-import { type MouseEvent, useState } from "react";
+import { type MouseEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   Bell,
   CheckCircle2,
@@ -10,6 +10,7 @@ import {
   FileText,
   Ghost,
   Headphones,
+  LayoutGrid,
   MessageSquare,
   Mic,
   Minus,
@@ -43,9 +44,11 @@ import {
   type WidgetPreviewBubble,
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
+// 웹앱과 같은 브랜드 버블 마크(읽기 전용 import) — 바 Bubli 칩(28px)과 메뉴 오브(48px)가 공유한다.
+import { BubbleMark } from "@/components/bubbles";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
-import { startWidgetWindowDragging, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { startWidgetWindowDragging, tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 
 import styles from "./desktop-widget-bubble.module.css";
 
@@ -138,6 +141,8 @@ export type DesktopWidgetBubbleProps = {
   onToggleAlwaysOnTop: () => void;
   onToggleVoiceMic?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   presentation?: "preview" | "tauri";
+  // Tauri 창 식별자(리사이즈 커맨드 타깃). 프리뷰에서는 불필요.
+  windowId?: string;
   windowVisible?: boolean;
 };
 
@@ -1035,6 +1040,132 @@ function BubbleBody({
   return <TodoBody bubble={bubble} onCreateTodo={onCreateTodo} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
 }
 
+// 리사이즈 중 말랑(jelly) 오버슈트 스케일의 스텝당 최대치. CSS --jelly-sx/--jelly-sy로 전달되고
+// prefers-reduced-motion: reduce에서는 CSS가 transform 자체를 끈다.
+const JELLY_MAX_OVERSHOOT = 0.03;
+const JELLY_DAMPING = 0.0015;
+
+type BubbleResizeDragState = {
+  frame: number | null;
+  lastSent: { height: number; width: number } | null;
+  pending: { height: number; width: number } | null;
+  pointerId: number;
+  startHeight: number;
+  startWidth: number;
+  startX: number;
+  startY: number;
+};
+
+// 우하단 16px 코너 핸들 드래그로 창 크기를 라이브 조절한다(논리 px = CSS px).
+// rAF당 1회만 resize_widget_window를 호출하고(min/max 클램프는 Rust), 드래그 종료 시
+// commit=true로 최종 크기를 SQLite에 저장한다. 드래그 델타를 감쇠시킨 미세 스케일을
+// CSS 변수로 흘려 말랑한 스퀴시를 만들고, 놓으면 스프링 트랜지션으로 복귀한다.
+function useBubbleWindowResize(
+  activeBubble: WidgetBubbleType,
+  windowId: string | undefined,
+  shellRef: { current: HTMLElement | null },
+) {
+  const [resizing, setResizing] = useState(false);
+  const dragRef = useRef<BubbleResizeDragState | null>(null);
+
+  const flushResize = useCallback(() => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    drag.frame = null;
+    const pending = drag.pending;
+    if (!pending) return;
+    drag.pending = null;
+    drag.lastSent = pending;
+    void tauriCommands
+      .resizeWidgetWindow({ bubbleType: activeBubble, height: pending.height, width: pending.width, windowId })
+      .catch(() => undefined);
+  }, [activeBubble, windowId]);
+
+  const clearJelly = useCallback(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    shell.style.removeProperty("--jelly-sx");
+    shell.style.removeProperty("--jelly-sy");
+  }, [shellRef]);
+
+  const onResizePointerDown = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      frame: null,
+      lastSent: null,
+      pending: null,
+      pointerId: event.pointerId,
+      startHeight: window.innerHeight,
+      startWidth: window.innerWidth,
+      // 창 자체가 커지므로 client 좌표 대신 screen 좌표로 델타를 계산한다.
+      startX: event.screenX,
+      startY: event.screenY,
+    };
+    setResizing(true);
+  }, []);
+
+  const onResizePointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      const drag = dragRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const width = drag.startWidth + (event.screenX - drag.startX);
+      const height = drag.startHeight + (event.screenY - drag.startY);
+      const referenceWidth = drag.lastSent?.width ?? drag.startWidth;
+      const referenceHeight = drag.lastSent?.height ?? drag.startHeight;
+      drag.pending = { height, width };
+
+      const shell = shellRef.current;
+      if (shell) {
+        const sx = 1 + Math.max(-JELLY_MAX_OVERSHOOT, Math.min(JELLY_MAX_OVERSHOOT, (width - referenceWidth) * JELLY_DAMPING));
+        const sy = 1 + Math.max(-JELLY_MAX_OVERSHOOT, Math.min(JELLY_MAX_OVERSHOOT, (height - referenceHeight) * JELLY_DAMPING));
+        shell.style.setProperty("--jelly-sx", sx.toFixed(4));
+        shell.style.setProperty("--jelly-sy", sy.toFixed(4));
+      }
+
+      if (drag.frame === null) {
+        drag.frame = window.requestAnimationFrame(flushResize);
+      }
+    },
+    [flushResize, shellRef],
+  );
+
+  const onResizePointerEnd = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      const drag = dragRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      dragRef.current = null;
+      if (drag.frame !== null) window.cancelAnimationFrame(drag.frame);
+      clearJelly();
+      setResizing(false);
+
+      const finalSize = drag.pending ?? drag.lastSent;
+      if (!finalSize) return;
+      void tauriCommands
+        .resizeWidgetWindow({
+          bubbleType: activeBubble,
+          commit: true,
+          height: finalSize.height,
+          width: finalSize.width,
+          windowId,
+        })
+        .catch(() => undefined);
+    },
+    [activeBubble, clearJelly, windowId],
+  );
+
+  useEffect(() => {
+    return () => {
+      const drag = dragRef.current;
+      if (drag?.frame != null) window.cancelAnimationFrame(drag.frame);
+      dragRef.current = null;
+    };
+  }, []);
+
+  return { onResizePointerDown, onResizePointerEnd, onResizePointerMove, resizing };
+}
+
 function GhostSignal({ bubble }: { bubble: WidgetPreviewBubble }) {
   const { t } = useI18n();
   return (
@@ -1074,6 +1205,7 @@ export function DesktopWidgetBubble({
   onToggleAlwaysOnTop,
   onToggleVoiceMic,
   presentation = "tauri",
+  windowId,
   windowVisible = true,
 }: DesktopWidgetBubbleProps) {
   const { t } = useI18n();
@@ -1082,12 +1214,42 @@ export function DesktopWidgetBubble({
   const Icon = active.Icon;
   const isPreview = presentation === "preview";
   const activeLabel = t(active.label);
+  const shellRef = useRef<HTMLElement | null>(null);
+  const { onResizePointerDown, onResizePointerEnd, onResizePointerMove, resizing } = useBubbleWindowResize(
+    activeBubble,
+    windowId,
+    shellRef,
+  );
+  // 드래그 시작 스쿼시: 헤더 mousedown이 실제 창 드래그로 이어질 때만 잠깐 눌린 느낌을 준다.
+  const [dragSquash, setDragSquash] = useState(false);
+  const squashTimeoutRef = useRef<number | null>(null);
+  const handleHeaderMouseDown = (event: MouseEvent<HTMLElement>) => {
+    handleWidgetDragMouseDown(event);
+    if (!event.defaultPrevented || isPreview) return;
+    setDragSquash(true);
+    if (squashTimeoutRef.current !== null) window.clearTimeout(squashTimeoutRef.current);
+    squashTimeoutRef.current = window.setTimeout(() => setDragSquash(false), 320);
+  };
+  useEffect(() => {
+    return () => {
+      if (squashTimeoutRef.current !== null) window.clearTimeout(squashTimeoutRef.current);
+    };
+  }, []);
+  const resizable = !isPreview && windowVisible && mode !== "MINIMIZED" && mode !== "GHOST";
   const rootClassName = [styles.root, modeClassNames[mode], isPreview ? styles.previewRoot : styles.tauriRoot].filter(Boolean).join(" ");
-  const shellClassName = [styles.shell, accentClassNames[active.accent], presentationClassNames[presentation]].join(" ");
+  const shellClassName = [
+    styles.shell,
+    accentClassNames[active.accent],
+    presentationClassNames[presentation],
+    resizing ? styles.shellResizing : "",
+    dragSquash && !resizing ? styles.shellSquash : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div className={rootClassName} data-bubli-desktop-widget>
-      <section className={shellClassName} aria-label={t("widget.bubble.suffix", { label: activeLabel })} data-bubli-interactive="true">
+      <section className={shellClassName} aria-label={t("widget.bubble.suffix", { label: activeLabel })} data-bubli-interactive="true" ref={shellRef}>
         {!windowVisible ? (
           isPreview ? (
             <button className={styles.hiddenCard} onClick={onRestore ?? (() => onModeChange("DEFAULT"))} type="button">
@@ -1106,7 +1268,7 @@ export function DesktopWidgetBubble({
           </button>
         ) : (
           <>
-            <header className={styles.head} onMouseDown={handleWidgetDragMouseDown}>
+            <header className={styles.head} onMouseDown={handleHeaderMouseDown}>
               <div className={styles.title} data-tauri-drag-region>
                 {/* 28px accent 아이콘 타일이 버블 아이덴티티의 앵커다. */}
                 <span className={styles.iconTile} aria-hidden="true">
@@ -1169,6 +1331,19 @@ export function DesktopWidgetBubble({
                 <span>{t(activeData.notificationLabel as MessageKey)}</span>
               </div>
             ) : null}
+
+            {/* 우하단 16px 커스텀 리사이즈 핸들 — hover 시에만 보인다(바/메뉴/고스트/최소화 제외). */}
+            {resizable ? (
+              <button
+                aria-label={t("widget.resize.handleAria")}
+                className={styles.resizeHandle}
+                onPointerCancel={onResizePointerEnd}
+                onPointerDown={onResizePointerDown}
+                onPointerMove={onResizePointerMove}
+                onPointerUp={onResizePointerEnd}
+                type="button"
+              />
+            ) : null}
           </>
         )}
       </section>
@@ -1178,29 +1353,24 @@ export function DesktopWidgetBubble({
 
 const BAR_PREVIEW_POPOVER_ID = "bubli-bar-preview";
 
-// 접힌 칩은 최대 5개까지만 바에 직접 노출한다(창 폭 560 고정 — 어떤 칩 조합에서도 넘치지 않게).
-// 초과분은 "+N" 칩으로 접고, 클릭하면 Bubli 메뉴 창을 연다. 타이머 칩은 항상 우선 노출한다.
-const BAR_MAX_FOLDED_CHIPS = 5;
+// 아무 상호작용 없이 이 시간이 지나면 바가 옅어진다(hover 시 즉시 복귀 — CSS 200ms).
+const BAR_IDLE_FADE_MS = 8000;
 
-// 알림 버블 칩은 바 맨 왼쪽의 고정 알림 칩과 완전히 중복(같은 종·같은 카운트)이라 접힌 칩 목록에서
-// 제외한다. 알림 버블 복원은 Bubli 메뉴의 바로가기 그리드로 계속 가능하다.
+// 접힌 칩은 전부 바에 노출한다 — "+N" 접기·잘림 없음. 칩이 아이콘 전용 36px 타일이라
+// 최악 조합(7개 + 타이머 시간 텍스트)도 Rust WIDGET_BAR_WIDTH(640 고정)를 넘지 않는다.
+// 알림 버블 칩은 바 맨 왼쪽의 고정 알림 칩과 완전히 중복(같은 종·같은 카운트)이라 제외하고,
+// 알림 버블 복원은 Bubli 메뉴의 바로가기 그리드가 담당한다.
 function collectBarFoldedItems(minimizedItems: WidgetWindowState[]) {
-  const folded = minimizedItems.filter(
+  return minimizedItems.filter(
     (item) => desktopWidgetBubbleTypes.includes(item.activeBubble as WidgetBubbleType) && item.activeBubble !== "alert",
   );
+}
 
-  if (folded.length <= BAR_MAX_FOLDED_CHIPS) {
-    return { overflowCount: 0, visibleItems: folded };
-  }
-
-  let visibleItems = folded.slice(0, BAR_MAX_FOLDED_CHIPS);
-  // 타이머 버블이 최소화돼 있으면 타이머 칩은 항상 보이게 마지막 슬롯과 교체한다.
-  const timerItem = folded.find((item) => item.activeBubble === "timer");
-  if (timerItem && !visibleItems.some((item) => item.activeBubble === "timer")) {
-    visibleItems = [...visibleItems.slice(0, BAR_MAX_FOLDED_CHIPS - 1), timerItem];
-  }
-
-  return { overflowCount: folded.length - visibleItems.length, visibleItems };
+// 아이콘 전용 칩의 카운트 배지(16px, 우상단). 0/비숫자면 배지를 그리지 않는다.
+function barChipBadge(metric: string) {
+  const count = Number.parseInt(metric, 10);
+  if (!Number.isFinite(count) || count <= 0) return null;
+  return count > 99 ? "99+" : String(count);
 }
 
 export function DesktopWidgetBubbleBar({
@@ -1219,8 +1389,24 @@ export function DesktopWidgetBubbleBar({
   const { t } = useI18n();
   // 접힌 칩에 hover/포커스하면 pill 위 투명 영역에 요약 팝오버를 띄운다.
   const [previewTarget, setPreviewTarget] = useState<WidgetBubbleType | "notice" | null>(null);
-  // 알림 버블 칩 제외(고정 알림 칩과 중복) + 최대 5개 초과분은 "+N" 칩으로 접는다.
-  const { overflowCount, visibleItems } = collectBarFoldedItems(minimizedItems);
+  // 알림 버블 칩만 제외(고정 알림 칩과 중복)하고 접힌 칩은 전부 노출한다.
+  const visibleItems = collectBarFoldedItems(minimizedItems);
+
+  // idle 페이드: 8초 무상호작용 → 옅게(0.55), hover/포커스 → 즉시 1.0(CSS).
+  const [barIdle, setBarIdle] = useState(false);
+  const idleTimerRef = useRef<number | null>(null);
+  const armIdleTimer = useCallback(() => {
+    setBarIdle(false);
+    if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = window.setTimeout(() => setBarIdle(true), BAR_IDLE_FADE_MS);
+  }, []);
+  useEffect(() => {
+    // 마운트 직후 첫 idle 카운트다운만 시작한다(동기 setState 금지 — 이후 재무장은 이벤트 핸들러가 한다).
+    idleTimerRef.current = window.setTimeout(() => setBarIdle(true), BAR_IDLE_FADE_MS);
+    return () => {
+      if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current);
+    };
+  }, []);
 
   const showPreview = (target: WidgetBubbleType | "notice") => setPreviewTarget(target);
   const hidePreview = (target: WidgetBubbleType | "notice") =>
@@ -1250,8 +1436,9 @@ export function DesktopWidgetBubbleBar({
   const PreviewIcon = preview?.Icon;
 
   // 바 창은 pill 하나만 시각적으로 유지한다(접힘 상시 미리보기 카드 없음).
-  // 창 너비는 Rust(WIDGET_BAR_WIDTH)가 560 고정이므로, 칩은 알림 버블 제외 + 최대 5개 +
-  // "+N" 초과 칩으로 어떤 조합에서도 창을 넘지 않는다. pill 위 투명 영역에는 hover 팝오버만 띄운다.
+  // 창 너비는 Rust(WIDGET_BAR_WIDTH)가 640 고정이고 칩이 아이콘 전용 36px 타일이라
+  // 접힌 칩 전부(알림 버블 제외 최대 7개)가 어떤 조합에서도 창을 넘지 않는다 — "+N" 없음.
+  // pill 위 투명 영역에는 hover 팝오버만 띄운다(absolute라 pill이 밀리지 않는다).
   // Bubli 버튼은 인라인 메뉴 대신 상시 실행 중인 menu(오브) 창의 패널을 연다.
   return (
     <div className={[styles.root, styles.barRoot].join(" ")} data-bubli-desktop-widget>
@@ -1278,50 +1465,61 @@ export function DesktopWidgetBubbleBar({
       ) : null}
       <nav
         aria-label={t("widget.bar.minimizedAria")}
-        className={styles.bubbleBar}
+        className={[styles.bubbleBar, barIdle ? styles.barIdle : ""].filter(Boolean).join(" ")}
         data-bubli-interactive="true"
+        onFocusCapture={armIdleTimer}
         onMouseDownCapture={handleWidgetDragMouseDownDeferred}
         onMouseDown={handleWidgetDragMouseDown}
+        onMouseEnter={armIdleTimer}
+        onMouseLeave={armIdleTimer}
       >
         {/* 알림은 바에 고정된 요소라 맨 왼쪽에 둔다. 접힌 버블 칩과는 구분선으로 분리. */}
         <button
           aria-describedby={previewTarget === "notice" ? BAR_PREVIEW_POPOVER_ID : undefined}
           aria-label={t(notificationSignal.notificationLabel as MessageKey)}
-          className={[styles.barNotice, accentClassNames.lilac].join(" ")}
+          className={[styles.barChip, accentClassNames.lilac].join(" ")}
           onBlur={() => hidePreview("notice")}
           onFocus={() => showPreview("notice")}
           onMouseEnter={() => showPreview("notice")}
           onMouseLeave={() => hidePreview("notice")}
           type="button"
         >
-          <i className={styles.chipTile} aria-hidden="true">
-            <Bell size={11} strokeWidth={2.2} />
-          </i>
-          <b>{notificationSignal.metric}</b>
+          <Bell size={15} strokeWidth={2.1} aria-hidden="true" />
+          {barChipBadge(notificationSignal.metric) ? (
+            <i className={styles.chipBadge} aria-hidden="true">
+              {barChipBadge(notificationSignal.metric)}
+            </i>
+          ) : null}
         </button>
         <span className={styles.barDivider} aria-hidden="true" data-bubli-interactive="true" data-tauri-drag-region />
+        {/* Bubli 브랜드 칩: 텍스트 대신 웹앱과 같은 28px 버블 마크(툴팁/aria가 의미를 설명). */}
         <button
           className={styles.barBrand}
           aria-haspopup="menu"
           aria-label={t("widget.menu.openAria")}
           onClick={() => onOpenMenu?.()}
+          title={t("widget.menu.openAria")}
           type="button"
         >
-          <i aria-hidden="true" />
-          <span>Bubli</span>
+          <BubbleMark size="md" />
         </button>
         {visibleItems.map((item, index) => {
           const bubbleType = item.activeBubble as WidgetBubbleType;
           const bubble = bubbleDataByType?.[bubbleType] ?? getWidgetPreviewBubble(bubbleType);
           const meta = getBubbleMeta(bubbleType);
           const Icon = meta.Icon;
+          // 칩은 아이콘 전용 36px 타일 + 우상단 16px 카운트 배지(>0일 때만).
+          // 타이머만 배지 대신 컴팩트 시간 텍스트를 보여준다. 전체 라벨은 aria/hover 팝오버 담당.
+          const isTimerChip = bubbleType === "timer";
+          const badge = isTimerChip ? null : barChipBadge(bubble.metric);
 
           return (
             <button
               aria-describedby={previewTarget === bubbleType ? BAR_PREVIEW_POPOVER_ID : undefined}
-              // 칩은 아이콘+숫자만 표시해 pill이 넘치지 않게 하고, 전체 라벨은 aria와 hover 팝오버가 담당한다.
               aria-label={t(bubble.compactLabel as MessageKey)}
-              className={[styles.barItem, accentClassNames[meta.accent]].join(" ")}
+              className={[styles.barChip, isTimerChip ? styles.barTimerChip : "", accentClassNames[meta.accent]]
+                .filter(Boolean)
+                .join(" ")}
               key={`${bubbleType}-${item.windowId ?? index}`}
               onBlur={() => hidePreview(bubbleType)}
               onClick={() => onRestoreBubble(bubbleType, item.windowId ?? bubbleType)}
@@ -1330,25 +1528,16 @@ export function DesktopWidgetBubbleBar({
               onMouseLeave={() => hidePreview(bubbleType)}
               type="button"
             >
-              {/* 칩도 버블 아이덴티티를 공유 — 18px 미니 accent 타일 + tabular 카운트. */}
-              <i className={styles.chipTile} aria-hidden="true">
-                <Icon size={11} strokeWidth={2.2} />
-              </i>
-              <b>{bubble.metric}</b>
+              <Icon size={15} strokeWidth={2.1} aria-hidden="true" />
+              {isTimerChip ? <b className={styles.chipTime}>{bubble.metric}</b> : null}
+              {badge ? (
+                <i className={styles.chipBadge} aria-hidden="true">
+                  {badge}
+                </i>
+              ) : null}
             </button>
           );
         })}
-        {overflowCount > 0 ? (
-          <button
-            aria-haspopup="menu"
-            aria-label={t("widget.bar.moreChips", { count: overflowCount })}
-            className={styles.barMore}
-            onClick={() => onOpenMenu?.()}
-            type="button"
-          >
-            +{overflowCount}
-          </button>
-        ) : null}
       </nav>
     </div>
   );
@@ -1356,6 +1545,7 @@ export function DesktopWidgetBubbleBar({
 
 export function DesktopWidgetMenuOrb({
   hasRoomContext = false,
+  onArrangeBubbles,
   onOpenBubble,
   onOpenMainApp,
   onOpenSettings,
@@ -1365,6 +1555,7 @@ export function DesktopWidgetMenuOrb({
   usageSummary,
 }: {
   hasRoomContext?: boolean;
+  onArrangeBubbles?: () => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onOpenMainApp?: () => void;
   onOpenSettings?: () => void;
@@ -1374,8 +1565,8 @@ export function DesktopWidgetMenuOrb({
   usageSummary?: string | null;
 }) {
   const { t } = useI18n();
-  // 메뉴 창은 로그인과 함께 상시 떠 있는 런처다: 기본은 44px 오브만 보이고(나머지는 투명·클릭 통과),
-  // 오브 클릭 또는 바 Bubli 버튼(panelOpenSignal)으로 패널을 연다.
+  // 메뉴 창은 로그인과 함께 상시 떠 있는 런처다: 기본은 48px 브랜드 버블 마크 오브만 보이고
+  // (나머지는 투명·클릭 통과), 오브 클릭 또는 바 Bubli 버튼(panelOpenSignal)으로 패널을 연다.
   const [open, setOpen] = useState(false);
   // 바 Bubli 버튼의 열기 요청은 렌더 중 상태 보정 패턴으로 반영한다(effect 내 setState 금지 규칙).
   const [seenPanelSignal, setSeenPanelSignal] = useState(panelOpenSignal);
@@ -1384,6 +1575,8 @@ export function DesktopWidgetMenuOrb({
     if (panelOpenSignal > 0 && !open) setOpen(true);
   }
   const actionItems: Array<{ Icon: typeof Repeat; label: string; onSelect?: () => void }> = [
+    // 열린 버블 창들을 우상단 그리드로 정리하는 arrange_widget_windows 바로가기.
+    { Icon: LayoutGrid, label: t("widget.menu.arrange"), onSelect: onArrangeBubbles },
     {
       Icon: Repeat,
       label: t(hasRoomContext ? "widget.menu.switchToPersonal" : "widget.menu.switchToRoom"),
@@ -1394,7 +1587,7 @@ export function DesktopWidgetMenuOrb({
     { Icon: Power, label: t("widget.menu.quit"), onSelect: onQuit },
   ];
 
-  // 44px 오브 바로 아래(8px 간격, 같은 왼쪽 라인)에 패널이 붙는다:
+  // 48px 오브 바로 아래(8px 간격, 같은 왼쪽 라인)에 패널이 붙는다:
   // Bubli 그라디언트 워드마크 + 오늘 사용 요약 1줄 → accent 타일 바로가기 그리드 → hairline → 액션 rows.
   return (
     <div className={[styles.root, styles.menuRoot].join(" ")} data-bubli-desktop-widget>
@@ -1406,9 +1599,11 @@ export function DesktopWidgetMenuOrb({
         aria-label={t("widget.menu.openAria")}
         onClick={() => setOpen((current) => !current)}
         onMouseDown={handleWidgetDragMouseDownDeferred}
+        title={t("widget.menu.openAria")}
         type="button"
       >
-        <span />
+        {/* 웹앱과 같은 브랜드 버블 마크(48px) — 잔잔한 bob 부유 + hover 워블(reduced-motion 존중). */}
+        <BubbleMark className={styles.menuOrbMark} />
       </button>
       {open ? (
         <div
