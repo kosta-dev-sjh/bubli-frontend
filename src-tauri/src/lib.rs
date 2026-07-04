@@ -38,9 +38,10 @@ const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 // pill 밖 투명 영역은 커서 폴러가 클릭 통과시키므로 창이 커도 무해하다.
 const WIDGET_BAR_WIDTH: f64 = 560.0;
 const WIDGET_BAR_HEIGHT: f64 = 220.0;
-// 메뉴 창: 오브 + Bubli 패널(버블 바로가기 그리드 + 2×2 액션)이 세로로 들어간다.
+// 메뉴 창: 상시 런처 오브(44px) + 클릭 시 열리는 Bubli 패널이 세로로 들어간다.
+// 위젯 최소 폰트 14 적용 후 패널 높이 기준(오브 44 + 8 + 패널 ~310 + 여유).
 const WIDGET_MENU_WIDTH: f64 = 248.0;
-const WIDGET_MENU_HEIGHT: f64 = 360.0;
+const WIDGET_MENU_HEIGHT: f64 = 392.0;
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
 const PRIMARY_MONITOR_ID: &str = "primary";

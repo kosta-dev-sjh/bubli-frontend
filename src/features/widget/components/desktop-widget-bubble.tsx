@@ -1178,6 +1178,31 @@ export function DesktopWidgetBubble({
 
 const BAR_PREVIEW_POPOVER_ID = "bubli-bar-preview";
 
+// 접힌 칩은 최대 5개까지만 바에 직접 노출한다(창 폭 560 고정 — 어떤 칩 조합에서도 넘치지 않게).
+// 초과분은 "+N" 칩으로 접고, 클릭하면 Bubli 메뉴 창을 연다. 타이머 칩은 항상 우선 노출한다.
+const BAR_MAX_FOLDED_CHIPS = 5;
+
+// 알림 버블 칩은 바 맨 왼쪽의 고정 알림 칩과 완전히 중복(같은 종·같은 카운트)이라 접힌 칩 목록에서
+// 제외한다. 알림 버블 복원은 Bubli 메뉴의 바로가기 그리드로 계속 가능하다.
+function collectBarFoldedItems(minimizedItems: WidgetWindowState[]) {
+  const folded = minimizedItems.filter(
+    (item) => desktopWidgetBubbleTypes.includes(item.activeBubble as WidgetBubbleType) && item.activeBubble !== "alert",
+  );
+
+  if (folded.length <= BAR_MAX_FOLDED_CHIPS) {
+    return { overflowCount: 0, visibleItems: folded };
+  }
+
+  let visibleItems = folded.slice(0, BAR_MAX_FOLDED_CHIPS);
+  // 타이머 버블이 최소화돼 있으면 타이머 칩은 항상 보이게 마지막 슬롯과 교체한다.
+  const timerItem = folded.find((item) => item.activeBubble === "timer");
+  if (timerItem && !visibleItems.some((item) => item.activeBubble === "timer")) {
+    visibleItems = [...visibleItems.slice(0, BAR_MAX_FOLDED_CHIPS - 1), timerItem];
+  }
+
+  return { overflowCount: folded.length - visibleItems.length, visibleItems };
+}
+
 export function DesktopWidgetBubbleBar({
   bubbleDataByType,
   minimizedItems,
@@ -1194,6 +1219,8 @@ export function DesktopWidgetBubbleBar({
   const { t } = useI18n();
   // 접힌 칩에 hover/포커스하면 pill 위 투명 영역에 요약 팝오버를 띄운다.
   const [previewTarget, setPreviewTarget] = useState<WidgetBubbleType | "notice" | null>(null);
+  // 알림 버블 칩 제외(고정 알림 칩과 중복) + 최대 5개 초과분은 "+N" 칩으로 접는다.
+  const { overflowCount, visibleItems } = collectBarFoldedItems(minimizedItems);
 
   const showPreview = (target: WidgetBubbleType | "notice") => setPreviewTarget(target);
   const hidePreview = (target: WidgetBubbleType | "notice") =>
@@ -1223,9 +1250,9 @@ export function DesktopWidgetBubbleBar({
   const PreviewIcon = preview?.Icon;
 
   // 바 창은 pill 하나만 시각적으로 유지한다(접힘 상시 미리보기 카드 없음).
-  // 창 너비는 Rust(widget_bar_window_width)가 칩 수에 맞춰 260~560으로 계산하고,
-  // pill 위 남는 투명 영역에는 hover 팝오버만 띄운다.
-  // Bubli 버튼은 인라인 메뉴 대신 별도 menu 창(?bubble=menu)을 연다.
+  // 창 너비는 Rust(WIDGET_BAR_WIDTH)가 560 고정이므로, 칩은 알림 버블 제외 + 최대 5개 +
+  // "+N" 초과 칩으로 어떤 조합에서도 창을 넘지 않는다. pill 위 투명 영역에는 hover 팝오버만 띄운다.
+  // Bubli 버튼은 인라인 메뉴 대신 상시 실행 중인 menu(오브) 창의 패널을 연다.
   return (
     <div className={[styles.root, styles.barRoot].join(" ")} data-bubli-desktop-widget>
       {preview && PreviewIcon ? (
@@ -1283,9 +1310,7 @@ export function DesktopWidgetBubbleBar({
           <i aria-hidden="true" />
           <span>Bubli</span>
         </button>
-        {minimizedItems.map((item, index) => {
-          if (!desktopWidgetBubbleTypes.includes(item.activeBubble as WidgetBubbleType)) return null;
-
+        {visibleItems.map((item, index) => {
           const bubbleType = item.activeBubble as WidgetBubbleType;
           const bubble = bubbleDataByType?.[bubbleType] ?? getWidgetPreviewBubble(bubbleType);
           const meta = getBubbleMeta(bubbleType);
@@ -1313,6 +1338,17 @@ export function DesktopWidgetBubbleBar({
             </button>
           );
         })}
+        {overflowCount > 0 ? (
+          <button
+            aria-haspopup="menu"
+            aria-label={t("widget.bar.moreChips", { count: overflowCount })}
+            className={styles.barMore}
+            onClick={() => onOpenMenu?.()}
+            type="button"
+          >
+            +{overflowCount}
+          </button>
+        ) : null}
       </nav>
     </div>
   );
@@ -1325,6 +1361,7 @@ export function DesktopWidgetMenuOrb({
   onOpenSettings,
   onQuit,
   onToggleRoomContext,
+  panelOpenSignal = 0,
   usageSummary,
 }: {
   hasRoomContext?: boolean;
@@ -1333,10 +1370,19 @@ export function DesktopWidgetMenuOrb({
   onOpenSettings?: () => void;
   onQuit?: () => void;
   onToggleRoomContext?: () => void;
+  panelOpenSignal?: number;
   usageSummary?: string | null;
 }) {
   const { t } = useI18n();
-  const [open, setOpen] = useState(true);
+  // 메뉴 창은 로그인과 함께 상시 떠 있는 런처다: 기본은 44px 오브만 보이고(나머지는 투명·클릭 통과),
+  // 오브 클릭 또는 바 Bubli 버튼(panelOpenSignal)으로 패널을 연다.
+  const [open, setOpen] = useState(false);
+  // 바 Bubli 버튼의 열기 요청은 렌더 중 상태 보정 패턴으로 반영한다(effect 내 setState 금지 규칙).
+  const [seenPanelSignal, setSeenPanelSignal] = useState(panelOpenSignal);
+  if (panelOpenSignal !== seenPanelSignal) {
+    setSeenPanelSignal(panelOpenSignal);
+    if (panelOpenSignal > 0 && !open) setOpen(true);
+  }
   const actionItems: Array<{ Icon: typeof Repeat; label: string; onSelect?: () => void }> = [
     {
       Icon: Repeat,

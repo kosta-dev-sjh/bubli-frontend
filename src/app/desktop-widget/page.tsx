@@ -43,7 +43,7 @@ import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { tauriCommands, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
-import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
+import { emitWidgetMenuPanelRequested, listenWidgetMenuPanelRequested, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readWidgetSummary } from "@/lib/widget";
 import { useI18n } from "@/lib/i18n";
@@ -962,6 +962,8 @@ function DesktopWidgetSurface() {
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(() => widgetDisplayLoadSignal("loading"));
   const [menuUsageSummary, setMenuUsageSummary] = useState<string | null>(null);
+  // 바 창의 Bubli 버튼이 보낸 "패널 열기" 요청 수신 카운터(메뉴 창 전용).
+  const [menuPanelSignal, setMenuPanelSignal] = useState(0);
   const liveKitRoomRef = useRef<Room | null>(null);
   const appReadySentRef = useRef(false);
   // 첫 로드 성공 후의 배경 재조회 실패는 조용히 이전 데이터를 유지한다(에러 스켈레톤 스왑 금지).
@@ -2243,7 +2245,8 @@ function DesktopWidgetSurface() {
     };
   }, [isMenuOrb, t, widgetSessionReady]);
 
-  // Bubli 버튼은 바 창 안 인라인 메뉴 대신 별도 menu 창을 연다(바 창은 pill + hover 팝오버 전용).
+  // 메뉴(오브) 창은 로그인과 함께 상시 실행되는 런처다. 바의 Bubli 버튼은 창을 앞으로 가져오고
+  // (없으면 새로 열고), 창 간 이벤트로 오브에 "패널 열기"를 요청한다.
   const openWidgetMenu = useCallback(async () => {
     if (!isTauri) return;
 
@@ -2254,10 +2257,34 @@ function DesktopWidgetSurface() {
         selectedRoomId: selectedWidgetRoomId,
         windowId: "menu",
       });
+      await emitWidgetMenuPanelRequested().catch(() => undefined);
     } catch {
       // Browser preview fallback.
     }
   }, [isTauri, selectedWidgetRoomId]);
+
+  // 메뉴 창: 바 Bubli 버튼의 패널 열기 요청을 수신한다.
+  useEffect(() => {
+    if (!isTauri || !isMenuOrb) return;
+
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+
+    void listenWidgetMenuPanelRequested(() => {
+      setMenuPanelSignal((current) => current + 1);
+    }).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten();
+        return;
+      }
+      unlisten = nextUnlisten;
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [isMenuOrb, isTauri]);
 
   const openMainApp = useCallback(
     async (route?: "settings") => {
@@ -2312,6 +2339,7 @@ function DesktopWidgetSurface() {
         onOpenSettings={() => void openMainApp("settings")}
         onQuit={() => void quitDesktopApp()}
         onToggleRoomContext={() => void toggleWidgetRoomContext()}
+        panelOpenSignal={menuPanelSignal}
         usageSummary={menuUsageSummary}
       />
     );

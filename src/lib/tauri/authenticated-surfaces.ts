@@ -15,8 +15,12 @@ let launchGeneration = 0;
 let launchedAuthenticatedSurfaces = false;
 
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
+// 메뉴(오브) 창은 데스크톱 상시 런처다: 로그인과 함께 바와 같이 뜨고, 패널이 닫혀 있으면
+// 44px 오브만 보인다(나머지 영역은 투명 + 커서 폴러 클릭 통과).
+const loginStartupMenuWindow: WidgetWindowOpenInput = { bubbleType: "menu", mode: "DEFAULT", windowId: "menu" };
 const loginStartupWindows: WidgetWindowOpenInput[] = [
   loginStartupBarWindow,
+  loginStartupMenuWindow,
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
 ];
 const loginPrimaryBubble: WidgetBubbleType = "todo";
@@ -112,9 +116,9 @@ export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInpu
   // Backend defaults keep all eight bubbles enabled for the bar/catalog, but
   // login must not spawn eight native windows at once.
   const primaryBubbleWindow = getLoginPrimaryBubbleWindow(settings.bubbles);
-  if (!primaryBubbleWindow) return [loginStartupBarWindow];
+  if (!primaryBubbleWindow) return [loginStartupBarWindow, loginStartupMenuWindow];
 
-  return [loginStartupBarWindow, primaryBubbleWindow];
+  return [loginStartupBarWindow, loginStartupMenuWindow, primaryBubbleWindow];
 }
 
 async function resolveLaunchSelectedRoomId() {

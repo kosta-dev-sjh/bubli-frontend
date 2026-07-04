@@ -273,30 +273,33 @@
   white-space: nowrap;
 }
 
-/* 스코프 서브타이틀: "개인 작업" 또는 룸 이름. */
+/* 스코프 서브타이틀: "개인 작업" 또는 룸 이름. 위젯 최소 폰트 14 정책. */
 .titleCopy small {
   overflow: hidden;
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* ---------- 창 컨트롤: 22px ghost circle, gap 4, .6→1 hover ---------- */
+/* ---------- 창 컨트롤: 24px ghost circle, 고정 gap 6, .6→1 hover ----------
+   버튼(핀/최소화/고스트/닫기)은 플로우 배치라 절대배치 겹침이 없고,
+   flex: none으로 타이틀이 길어도 히트영역이 줄어들지 않는다. */
 
 .controls {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .controls button {
   display: inline-grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -338,7 +341,7 @@
   gap: 6px;
   margin-top: -4px;
   color: color-mix(in srgb, var(--sync-ink) 88%, transparent);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.2;
 }
@@ -358,7 +361,7 @@
   color: var(--widget-muted);
   background: rgba(255, 255, 255, 0.56);
   cursor: grab;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   user-select: none;
 }
@@ -382,7 +385,7 @@
   color: var(--widget-muted);
   background: rgba(255, 255, 255, 0.74);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -483,7 +486,7 @@
 .message {
   min-width: 0;
   color: var(--widget-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.35;
   text-decoration: none;
@@ -516,7 +519,8 @@
   border-radius: 999px;
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 14%, transparent);
-  font-size: 11.5px;
+  /* 20px 고정 높이의 초소형 상태 배지 — 최소 폰트 예외(12px 유지). */
+  font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -573,9 +577,10 @@
   line-height: 1;
 }
 
+/* 96px 링 내부(내경 약 58px)에 물리적으로 갇힌 캡션 — 최소 폰트 예외(12px). */
 .countRing b {
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
 }
@@ -598,7 +603,7 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
 }
@@ -617,7 +622,7 @@
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 12%, transparent);
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 140ms ease;
@@ -656,7 +661,7 @@
 
 .timer span {
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.2;
 }
@@ -682,7 +687,7 @@
   color: var(--widget-muted);
   background: transparent;
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -708,7 +713,7 @@
   height: 40px;
   border-radius: 12px;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -764,14 +769,14 @@
 
 .nextCopy small {
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
 }
 
 .nextCopy strong {
   overflow: hidden;
   color: var(--widget-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -794,7 +799,7 @@
   border-radius: 12px;
   color: var(--widget-muted);
   background: rgba(255, 255, 255, 0.6);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -804,7 +809,7 @@
   overflow: hidden;
   min-width: 0;
   color: var(--widget-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -819,7 +824,7 @@
 
 .memoTime {
   color: var(--widget-faint);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -864,7 +869,7 @@
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 14%, transparent);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -906,7 +911,7 @@
   color: var(--widget-text);
   background: transparent;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -930,7 +935,7 @@
 
 .statusText {
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   text-align: center;
 }
@@ -962,7 +967,7 @@
   min-width: 0;
   flex: 1;
   color: var(--widget-text);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -970,7 +975,7 @@
 
 .agentSummary b {
   color: var(--acc-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
 }
@@ -988,7 +993,7 @@
   overflow: hidden;
   min-width: 0;
   color: var(--widget-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1004,7 +1009,8 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--acc) 14%, transparent);
   color: var(--acc-ink);
-  font-size: 11.5px;
+  /* 20px 고정 높이의 초소형 상태 배지 — 최소 폰트 예외(12px 유지). */
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1028,7 +1034,7 @@
   background: rgba(255, 255, 255, 0.6);
   box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   text-align: left;
   cursor: pointer;
@@ -1131,7 +1137,7 @@
   overflow: hidden;
   min-width: 0;
   color: var(--widget-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1147,7 +1153,8 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--acc) 14%, transparent);
   color: var(--acc-ink);
-  font-size: 11.5px;
+  /* 20px 고정 높이의 초소형 상태 배지 — 최소 폰트 예외(12px 유지). */
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1177,14 +1184,14 @@
 
 .voiceStrip span {
   color: var(--widget-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
 }
 
 .voiceStrip small {
   grid-column: 2;
   color: var(--widget-muted);
-  font-size: 11.5px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -1215,7 +1222,7 @@
   gap: 6px;
   padding: 6px 10px;
   color: var(--widget-muted);
-  font-size: 11.5px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -1223,7 +1230,7 @@
   height: 26px;
   padding: 0 10px;
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -1240,7 +1247,7 @@
 
 .emptyState span {
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -1264,7 +1271,7 @@
 
 .bubbleNote span {
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.45;
 }
@@ -1316,7 +1323,7 @@
 
 .ghostSignal small {
   color: rgba(90, 103, 114, 0.64);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -1379,7 +1386,7 @@
 .hiddenCard span {
   overflow: hidden;
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.15;
   text-overflow: ellipsis;
@@ -1433,7 +1440,7 @@
 }
 
 .barPopoverHead strong {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -1442,7 +1449,7 @@
   min-width: 0;
   margin-left: auto;
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1451,7 +1458,7 @@
 .barPopover > small {
   overflow: hidden;
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1470,7 +1477,7 @@
   align-items: baseline;
   gap: 6px;
   min-width: 0;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -1485,7 +1492,7 @@
   overflow: hidden;
   min-width: 0;
   color: var(--widget-faint);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1495,7 +1502,7 @@
   flex: none;
   margin-left: auto;
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -1503,7 +1510,10 @@
 .bubbleBar {
   display: flex;
   align-items: center;
-  gap: 7px;
+  /* 고정 알림 + Bubli + 접힌 칩 5개 + "+N"까지 560px 창을 절대 넘지 않는 간격. */
+  gap: 6px;
+  max-width: 100%;
+  overflow: hidden;
   padding: 7px;
   border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
   border-radius: 999px;
@@ -1517,7 +1527,8 @@
 
 .barBrand,
 .barItem,
-.barNotice {
+.barNotice,
+.barMore {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1530,16 +1541,36 @@
 }
 
 .barBrand {
-  padding: 0 12px;
+  padding: 0 10px;
   font: inherit;
 }
 
-/* 접힌 칩: 18px accent 미니 타일 + 12px tabular 카운트. */
+/* 접힌 칩: 18px accent 미니 타일 + 14px tabular 카운트. */
 .barItem,
 .barNotice {
   flex: none;
   gap: 5px;
-  padding: 0 9px 0 6px;
+  padding: 0 8px 0 6px;
+}
+
+/* 초과분 "+N" 칩 — 클릭하면 Bubli 메뉴 창을 연다. */
+.barMore {
+  flex: none;
+  justify-content: center;
+  padding: 0 9px;
+  border: 1px solid var(--widget-hairline);
+  color: var(--widget-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.barMore:hover,
+.barMore:focus-visible {
+  color: var(--widget-text);
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .chipTile {
@@ -1554,7 +1585,7 @@
 
 .barItem b,
 .barNotice b {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1576,7 +1607,7 @@
 }
 
 .barBrand span {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -1649,7 +1680,7 @@
 .menuUsage {
   overflow: hidden;
   color: var(--widget-muted);
-  font-size: 10.5px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -1674,7 +1705,7 @@
   background: transparent;
   color: var(--widget-text);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   text-align: left;
   cursor: pointer;
@@ -1722,7 +1753,7 @@
   background: transparent;
   color: var(--widget-text);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   text-align: left;
   cursor: pointer;
@@ -1959,10 +1990,17 @@
 
 :global([data-theme="dark"]) .barBrand,
 :global([data-theme="dark"]) .barItem,
-:global([data-theme="dark"]) .barNotice {
+:global([data-theme="dark"]) .barNotice,
+:global([data-theme="dark"]) .barMore {
   border-color: rgba(150, 170, 215, 0.18);
   color: var(--widget-text);
   background: rgba(18, 26, 40, 0.6);
+}
+
+:global([data-theme="dark"]) .barMore:hover,
+:global([data-theme="dark"]) .barMore:focus-visible {
+  color: var(--widget-text);
+  background: rgba(34, 46, 72, 0.7);
 }
 
 :global([data-theme="dark"]) .barBrand i {
