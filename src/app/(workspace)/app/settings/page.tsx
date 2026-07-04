@@ -1005,7 +1005,7 @@ export default function SettingsPage() {
         setMessage({
           text: result.data.windowTitle
             ? t("settings.msg.activityDetectedWindow", { app: result.data.appName, window: result.data.windowTitle })
-            : t("settings.msg.activityDetected", { app: result.data.appName }),
+            : t("settings.msg.activityDetectedNoWindow", { app: result.data.appName }),
           tone: "approved",
         });
         return;

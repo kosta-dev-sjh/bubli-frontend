@@ -2138,7 +2138,7 @@ function DesktopWidgetSurface() {
           setVoiceMicMuted(false);
           setVoiceConnectionLabel("LiveKit connected");
         } catch {
-          setVoiceConnectionLabel("Token issued; media connect failed");
+          setVoiceConnectionLabel("Token issued; check microphone permission");
         }
       }
 
