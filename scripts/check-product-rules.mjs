@@ -214,10 +214,11 @@ if (existsSync(localSyncClientPath)) {
     !text.includes("syncAllLocalOutboxToServer") ||
     !text.includes("syncPersonalLocalFileEventsToServer") ||
     !text.includes("syncLocalActivityBufferToServer") ||
-    !text.includes("syncLocalWidgetUsageSummaryToServer")
+    !text.includes("syncLocalWidgetUsageSummaryToServer") ||
+    !text.includes("waitForPendingWidgetUsageEventRecords")
   ) {
     failures.push(
-      "src/lib/sync/local-sync-client.ts: manual local outbox sync must trigger file, activity, and widget usage backend sync paths together.",
+      "src/lib/sync/local-sync-client.ts: manual local outbox sync must trigger file, activity, and widget usage backend sync paths together after pending widget usage event writes settle.",
     );
   }
 }
