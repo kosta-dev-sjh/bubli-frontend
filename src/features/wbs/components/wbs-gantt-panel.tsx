@@ -685,11 +685,17 @@ export function WbsGanttPanel({
       return;
     }
 
+    const wasParent = createDraft.parentId === null;
+    const parentStartAt = createDraft.startAt;
     createItem(createDraft.parentId, createDraft.startAt, title);
-    setCreateDraft(null);
+    // 상위 작업은 리스트 맨 아래 추가 행에서 연달아 입력할 수 있게 입력창을 비운 채 유지한다.
+    // 하위 작업은 한 번 추가하면 닫아 부모 아래로 접힌다.
+    if (wasParent) {
+      setCreateDraft({ parentId: null, startAt: parentStartAt, title: "" });
+    } else {
+      setCreateDraft(null);
+    }
   };
-
-  const handleAddGroup = () => openCreateDraft(null, new Date());
 
   const handleAddChildFromRow = (item: WbsItemResponse) => {
     const parentId = getParentIdForNewTaskFromRow(item);
@@ -866,6 +872,60 @@ export function WbsGanttPanel({
         : t("wbs.gantt.sync.lastPushedNone", { time: lastPushTimeText })
       : null;
 
+  // createDraft 입력 UI — 리스트 안(맨 아래 상위 추가 행 / 부모 아래 하위 추가 행)에서 재사용한다.
+  const renderCreateInline = () => (
+    <div className={styles.createInline} data-wbs-create-inline="true">
+      <span className={styles.createInlineMeta}>
+        {createDraft?.parentId
+          ? draftParentTitle
+            ? t("wbs.gantt.createChildUnder", { title: draftParentTitle })
+            : t("wbs.gantt.createChild")
+          : t("wbs.gantt.createParent")}
+      </span>
+      <input
+        aria-label={createDraft?.parentId ? t("wbs.gantt.createChild") : t("wbs.gantt.createParent")}
+        className={styles.createInlineInput}
+        onBlur={() => setCreateDraft(null)}
+        onChange={(event) => setCreateDraft((current) => (current ? { ...current, title: event.target.value } : current))}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            commitCreateDraft();
+          }
+          if (event.key === "Escape") {
+            setCreateDraft(null);
+          }
+        }}
+        placeholder={createDraft?.parentId ? t("wbs.gantt.createChildPlaceholder") : t("wbs.gantt.createParentPlaceholder")}
+        ref={createInputRef}
+        type="text"
+        value={createDraft?.title ?? ""}
+      />
+      {/* 커밋 버튼은 입력 blur보다 먼저 처리돼야 하므로 pointerDown에서 실행한다(blur 취소 방지). */}
+      <button
+        className={styles.createInlineButton}
+        onMouseDown={(event) => {
+          event.preventDefault();
+          commitCreateDraft();
+        }}
+        type="button"
+      >
+        {t("wbs.gantt.createCommit")}
+      </button>
+      <button
+        className={styles.createInlineButtonSecondary}
+        onMouseDown={(event) => {
+          event.preventDefault();
+          setCreateDraft(null);
+        }}
+        type="button"
+      >
+        {t("wbs.gantt.createCancel")}
+      </button>
+    </div>
+  );
+
+  const isCreatingParent = createDraft !== null && createDraft.parentId === null;
+
   return (
     <div className={styles.panel} ref={panelRef}>
       <div className={styles.toolbar}>
@@ -980,52 +1040,8 @@ export function WbsGanttPanel({
             ) : null}
           </div>
           {toolbarTrailing}
-          <button
-            className={styles.primaryButton}
-            onClick={handleAddGroup}
-            title={t("wbs.gantt.addTaskParentTitle")}
-            type="button"
-          >
-            <Plus aria-hidden="true" size={14} strokeWidth={2} />
-            {t("wbs.gantt.addTaskShort")}
-          </button>
         </div>
       </div>
-
-      {createDraft ? (
-        <div className={styles.createInline}>
-          <span className={styles.createInlineMeta}>
-            {createDraft.parentId
-              ? draftParentTitle
-                ? t("wbs.gantt.createChildUnder", { title: draftParentTitle })
-                : t("wbs.gantt.createChild")
-              : t("wbs.gantt.createParent")}
-          </span>
-          <input
-            aria-label={createDraft.parentId ? t("wbs.gantt.createChild") : t("wbs.gantt.createParent")}
-            className={styles.createInlineInput}
-            onChange={(event) => setCreateDraft((current) => (current ? { ...current, title: event.target.value } : current))}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                commitCreateDraft();
-              }
-              if (event.key === "Escape") {
-                setCreateDraft(null);
-              }
-            }}
-            placeholder={createDraft.parentId ? t("wbs.gantt.createChildPlaceholder") : t("wbs.gantt.createParentPlaceholder")}
-            ref={createInputRef}
-            type="text"
-            value={createDraft.title}
-          />
-          <button className={styles.createInlineButton} onClick={commitCreateDraft} type="button">
-            {t("wbs.gantt.createCommit")}
-          </button>
-          <button className={styles.createInlineButtonSecondary} onClick={() => setCreateDraft(null)} type="button">
-            {t("wbs.gantt.createCancel")}
-          </button>
-        </div>
-      ) : null}
 
       <GanttProvider className={styles.ganttSurface} range={range} zoom={100}>
         <GanttSidebar>
@@ -1039,7 +1055,10 @@ export function WbsGanttPanel({
               const isCollapsed = collapsedWbsIds.has(item.id);
               const siblings = siblingsOf(item);
               const siblingIndex = siblings.findIndex((entry) => entry.id === item.id);
+              // 하위 추가 입력은 해당 부모(=이 행) 바로 아래에 인라인으로 붙인다.
+              const showChildDraft = createDraft?.parentId === item.id;
               return (
+                <div key={item.id}>
                 <GanttSidebarItem
                   accentColor={accent}
                   actions={
@@ -1137,7 +1156,6 @@ export function WbsGanttPanel({
                   }
                   feature={feature}
                   indentLevel={depthById.get(item.id) ?? (item.parentId ? 1 : 0)}
-                  key={item.id}
                   onSelectItem={() => focusItemOnTimeline(item)}
                   progress={
                     progress && progress.total > 0
@@ -1157,8 +1175,29 @@ export function WbsGanttPanel({
                       : null
                   }
                 />
+                {showChildDraft ? (
+                  <div className={styles.createInlineRow} data-wbs-create-child="true">
+                    {renderCreateInline()}
+                  </div>
+                ) : null}
+                </div>
               );
             })}
+            <div className={styles.addRow} data-wbs-add-row="true">
+              {isCreatingParent ? (
+                renderCreateInline()
+              ) : (
+                <button
+                  className={styles.addRowButton}
+                  data-empty={visibleItems.length === 0 ? "true" : undefined}
+                  onClick={() => openCreateDraft(null, new Date())}
+                  type="button"
+                >
+                  <Plus aria-hidden="true" size={15} strokeWidth={2} />
+                  {t("wbs.gantt.addRowLabel")}
+                </button>
+              )}
+            </div>
           </GanttSidebarGroup>
         </GanttSidebar>
         <GanttTimeline>
