@@ -1,4 +1,4 @@
-import { apiRequest, getApiBaseUrl } from "@/lib/api/client";
+import { apiRequest } from "@/lib/api/client";
 import type {
   CalendarEventGroupParams,
   CalendarEventGroupResponse,
@@ -72,10 +72,6 @@ export function googleCalendarRedirectUri() {
 
 export const calendarApi = {
   // 구글 연결만 calendar 컨트롤러를 쓴다. 일정 CRUD는 /api/schedules가 기준.
-  getGoogleConnectUrl() {
-    return `${getApiBaseUrl()}/api/calendar/google/connect`;
-  },
-
   // redirectUri를 넘기면 구글 인증 후 그 주소로 돌아온다(생략 시 백엔드 기본값).
   requestGoogleConnectUrl(redirectUri?: string) {
     const query = redirectUri ? `?redirectUri=${encodeURIComponent(redirectUri)}` : "";
