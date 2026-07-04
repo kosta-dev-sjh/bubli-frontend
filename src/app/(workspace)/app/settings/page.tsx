@@ -19,7 +19,12 @@ import { isBackendWidgetBubbleType, widgetApi } from "@/features/widget/api/widg
 import { ApiClientError } from "@/lib/api/errors";
 import { useI18n } from "@/lib/i18n";
 import type { Locale, MessageKey, TranslateVars } from "@/lib/i18n";
-import { notifyActivityConsentChanged } from "@/lib/local/activity-auto-capture";
+import {
+  getActivityAutoCaptureStatus,
+  notifyActivityConsentChanged,
+  subscribeActivityAutoCaptureStatus,
+  type ActivityAutoCaptureStatus,
+} from "@/lib/local/activity-auto-capture";
 import { recordCurrentActivityContext } from "@/lib/local/activity-client";
 import { notifyManagedFolderConsentChanged } from "@/lib/local/managed-folder-auto-sync";
 import {
@@ -301,6 +306,9 @@ export default function SettingsPage() {
   // dev PR 212 이식: 활동 감지 패널의 삭제/기록/새로고침 진행 상태.
   const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
   const [activityAction, setActivityAction] = useState<"record" | "refresh" | null>(null);
+  const [activityAutoCaptureStatus, setActivityAutoCaptureStatus] = useState<ActivityAutoCaptureStatus>(() =>
+    getActivityAutoCaptureStatus(),
+  );
   // dev 이식: 관리 폴더별 인덱싱 진행률 캐시(로컬 폴더 감시 진행률).
   const [folderProgress, setFolderProgress] = useState<Record<string, ManagedFolderIndexProgressResult>>({});
   const [copiedBubliId, setCopiedBubliId] = useState(false);
@@ -322,6 +330,8 @@ export default function SettingsPage() {
     window.addEventListener("hashchange", applyHash);
     return () => window.removeEventListener("hashchange", applyHash);
   }, []);
+
+  useEffect(() => subscribeActivityAutoCaptureStatus(setActivityAutoCaptureStatus), []);
 
   const selectSection = useCallback((id: SectionId) => {
     setActiveSection(id);
@@ -1545,6 +1555,7 @@ export default function SettingsPage() {
               deletingActivityId={deletingActivityId}
               desktopRuntime={desktopRuntime}
               loading={activityAction}
+              autoCaptureStatus={activityAutoCaptureStatus}
               onDeleteActivity={(activityLogId) => void deleteActivityLog(activityLogId)}
               onRecordActivity={() => void readActivity()}
               onRefreshActivity={() => void refreshActivityLogs()}
