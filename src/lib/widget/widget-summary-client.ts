@@ -54,6 +54,7 @@ export type WidgetSummaryClientOptions = {
   fetchServerSummary?: () => Promise<WidgetSummaryResponse>;
   preferLocalCache?: boolean;
   readLocalSummary?: WidgetLocalSummaryReader;
+  selectedRoomId?: string | null;
   writeLocalSummary?: WidgetLocalSummaryWriter;
 };
 
@@ -61,12 +62,14 @@ export async function readWidgetSummary(
   options: WidgetSummaryClientOptions = {},
 ): Promise<WidgetSummaryClientResult> {
   const environment = getLocalAdapterEnvironment();
-  const fetchServerSummary = options.fetchServerSummary ?? widgetApi.getSummary;
+  const selectedRoomId = options.selectedRoomId?.trim() || null;
+  const summaryCacheKey = getWidgetSummaryCacheKey(selectedRoomId);
+  const fetchServerSummary = options.fetchServerSummary ?? (() => widgetApi.getSummary(selectedRoomId));
   const preferLocalCache = options.preferLocalCache ?? true;
   const readLocalSummary =
-    options.readLocalSummary ?? (isTauriRuntime() ? readLocalWidgetSummaryCache : undefined);
+    options.readLocalSummary ?? (isTauriRuntime() ? () => readLocalWidgetSummaryCache(summaryCacheKey) : undefined);
   const writeLocalSummary =
-    options.writeLocalSummary ?? (isTauriRuntime() ? writeLocalWidgetSummaryCache : undefined);
+    options.writeLocalSummary ?? (isTauriRuntime() ? (summary) => writeLocalWidgetSummaryCache(summary, summaryCacheKey) : undefined);
 
   if (!preferLocalCache || !isTauriRuntime()) {
     return readServerWidgetSummary(fetchServerSummary, environment, "not_tauri_runtime", writeLocalSummary);
@@ -135,8 +138,7 @@ async function readServerWidgetSummary(
   }
 }
 
-async function readLocalWidgetSummaryCache(): Promise<WidgetSummaryResponse | null> {
-  const cacheKey = getWidgetSummaryCacheKey();
+async function readLocalWidgetSummaryCache(cacheKey: string | null): Promise<WidgetSummaryResponse | null> {
   if (!cacheKey) return null;
 
   const cached = await tauriCommands.readWidgetSummaryCache({ cacheKey });
@@ -145,8 +147,7 @@ async function readLocalWidgetSummaryCache(): Promise<WidgetSummaryResponse | nu
   return isWidgetSummaryResponse(parsed) ? parsed : null;
 }
 
-async function writeLocalWidgetSummaryCache(summary: WidgetSummaryResponse) {
-  const cacheKey = getWidgetSummaryCacheKey();
+async function writeLocalWidgetSummaryCache(summary: WidgetSummaryResponse, cacheKey: string | null) {
   if (!cacheKey) return;
 
   await tauriCommands.storeWidgetSummaryCache({
@@ -155,11 +156,12 @@ async function writeLocalWidgetSummaryCache(summary: WidgetSummaryResponse) {
   });
 }
 
-function getWidgetSummaryCacheKey() {
+function getWidgetSummaryCacheKey(selectedRoomId?: string | null) {
   const token = getStoredAuthSession()?.accessToken ?? null;
   const subject = getJwtSubject(token);
-  if (subject) return `sub:${subject}`;
-  if (token?.trim()) return `token:${hashCacheToken(token)}`;
+  const contextScope = selectedRoomId?.trim() ? `room:${selectedRoomId.trim()}` : "context";
+  if (subject) return `sub:${subject}:${contextScope}`;
+  if (token?.trim()) return `token:${hashCacheToken(token)}:${contextScope}`;
   return null;
 }
 

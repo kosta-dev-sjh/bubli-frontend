@@ -709,17 +709,18 @@ async function readWidgetDisplaySummary(requestedRoomId?: string | null): Promis
   if (isTauriRuntime()) {
     const cacheResult = await readWidgetSummary({
       fetchServerSummary: () => Promise.reject(new Error("local widget summary cache empty")),
+      selectedRoomId: requestedRoomId,
     }).catch(() => null);
 
     if (cacheResult?.status === "ready") {
-      void readWidgetSummary({ preferLocalCache: false }).catch(() => null);
+      void readWidgetSummary({ preferLocalCache: false, selectedRoomId: requestedRoomId }).catch(() => null);
       if (widgetSummaryMatchesRequestedRoom(cacheResult.data, requestedRoomId)) {
         return cacheResult.data;
       }
     }
   }
 
-  const serverResult = await readWidgetSummary({ preferLocalCache: false }).catch(() => null);
+  const serverResult = await readWidgetSummary({ preferLocalCache: false, selectedRoomId: requestedRoomId }).catch(() => null);
   return serverResult?.status === "ready" ? serverResult.data : null;
 }
 
