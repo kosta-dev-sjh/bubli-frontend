@@ -1754,6 +1754,11 @@ select {
 }
 
 .workspace-route__header h1 {
+  /* 제목 폭을 글자에 맞춘다. block(전체 폭)이면 그라데이션이 넓은 상자에 펴져
+     짧은 제목엔 좌측 파랑만 걸려 단색처럼 보인다 → fit-content로 글자에 딱 맞춰
+     모든 제목이 소통처럼 파랑→보라 전체 그라데이션을 보이게 한다. */
+  width: fit-content;
+  max-width: 100%;
   margin: 0;
   color: transparent;
   background: linear-gradient(105deg, var(--blue-ink), var(--bubble-blue) 58%, var(--lilac-ink));
@@ -1767,6 +1772,9 @@ select {
 }
 
 .workspace-route__eyebrow {
+  /* 아이브로도 같은 이유로 글자 폭에 맞춰 그라데이션이 온전히 보이게 한다. */
+  width: fit-content;
+  max-width: 100%;
   margin: 0 0 8px;
   color: transparent;
   background: linear-gradient(100deg, var(--blue-ink), var(--bubble-blue) 58%, var(--lilac-ink));

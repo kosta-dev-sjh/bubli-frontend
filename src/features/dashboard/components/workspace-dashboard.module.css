@@ -16,7 +16,10 @@
 }
 
 .heroText h1 {
-  /* 슬림 인사 헤더지만 제목 색은 전 페이지 표준 그라데이션에 맞춘다. */
+  /* 슬림 인사 헤더지만 제목 색은 전 페이지 표준 그라데이션에 맞춘다.
+     폭을 글자에 맞춰(fit-content) 그라데이션이 온전히 보이게 한다. */
+  width: fit-content;
+  max-width: 100%;
   margin: 0;
   color: transparent;
   background: linear-gradient(105deg, var(--blue-ink), var(--bubble-blue) 58%, var(--lilac-ink));
