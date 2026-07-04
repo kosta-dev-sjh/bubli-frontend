@@ -64,13 +64,14 @@ Important report excerpts:
 - Activity record staged from SQLite with the captured app/window values
 - Widget usage rollup created
 - Managed folder scan/search/preview/event staging passed for a temp folder
+- Managed folder live watcher started and staged `UPDATED` for `runtime-smoke-note.txt`
+- Managed folder live watcher staged `DELETED` for `runtime-smoke-delete.txt`
 - Widget windows cleaned up at the end
 
 No `server-widget-context` 403 log appeared in the successful run after the smoke server-mirror guard.
 
 ## 남은 미검증
 
-- Windows runtime smoke still verifies local file scan/search/preview/staging for a created temp file, but it does not yet prove live watcher `UPDATED`/`DELETED` events from `watchManagedFolder`.
 - SQLite backup/restore has Rust unit coverage and runtime integrity smoke, but the Windows smoke does not yet perform an isolated backup, queued restore, restart, and restored-data assertion.
 - Full local outbox server transfer is covered by backend seed API smoke and frontend sync code, but the Windows runtime smoke still stops at local staging/rollup evidence rather than asserting every local pending row becomes `SYNCED`.
 

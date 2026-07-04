@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -15,12 +15,15 @@ if (process.platform !== "win32") {
 
 const smokeRoot = mkdtempSync(join(tmpdir(), "bubli-tauri-runtime-smoke-"));
 const managedFolderPath = join(smokeRoot, "managed-folder");
+const managedFolderNotePath = join(managedFolderPath, "runtime-smoke-note.txt");
+const managedFolderDeletePath = join(managedFolderPath, "runtime-smoke-delete.txt");
 writeFileSync(join(smokeRoot, "README.txt"), "Bubli Tauri runtime smoke workspace.");
 await import("node:fs/promises").then((fs) => fs.mkdir(managedFolderPath, { recursive: true }));
 writeFileSync(
-  join(managedFolderPath, "runtime-smoke-note.txt"),
+  managedFolderNotePath,
   "Codex runtime smoke verifies local file scan, preview, search, and staging.",
 );
+writeFileSync(managedFolderDeletePath, "Codex runtime smoke verifies watcher delete events.");
 
 console.log("Seeding real backend data for Windows Tauri runtime smoke...");
 runNodeScript(["scripts/dev-widget-real-backend.mjs", "seed"], {
@@ -124,6 +127,19 @@ function startReportServer() {
       return;
     }
 
+    if (request.method === "POST" && request.url === "/mutate-folder") {
+      try {
+        const mutated = mutateManagedFolder();
+        response.setHeader("Content-Type", "application/json");
+        response.writeHead(200);
+        response.end(JSON.stringify(mutated));
+      } catch (error) {
+        response.writeHead(500);
+        response.end(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
     if (request.method !== "POST" || request.url !== "/report") {
       response.writeHead(404);
       response.end();
@@ -171,6 +187,16 @@ function startReportServer() {
       });
     });
   });
+}
+
+function mutateManagedFolder() {
+  appendFileSync(managedFolderNotePath, `\nWatcher update ${new Date().toISOString()}.`);
+  rmSync(managedFolderDeletePath, { force: true });
+
+  return {
+    deletedFileName: "runtime-smoke-delete.txt",
+    updatedFileName: "runtime-smoke-note.txt",
+  };
 }
 
 function stopProcessTree(pid) {
