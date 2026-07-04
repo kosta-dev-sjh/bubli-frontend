@@ -401,6 +401,10 @@ fn widget_waits_for_dom_ready_before_show() -> bool {
     cfg!(target_os = "windows")
 }
 
+fn widget_unminimizes_before_show() -> bool {
+    cfg!(target_os = "windows")
+}
+
 fn reset_widget_window_dom_ready(label: &str) {
     if !widget_waits_for_dom_ready_before_show() {
         return;
@@ -1454,6 +1458,9 @@ fn apply_widget_window_state(
 
         let is_visible = window.is_visible().unwrap_or(false);
         if widget.window_visible {
+            if widget_unminimizes_before_show() {
+                let _ = window.unminimize();
+            }
             if !is_visible && widget_window_dom_ready(&label) {
                 window.show().map_err(|error| error.to_string())?;
             }
@@ -2633,6 +2640,14 @@ mod tests {
 
         widget.window_visible = false;
         assert!(!widget_initial_visible_on_build(&widget));
+    }
+
+    #[test]
+    fn windows_widget_unminimizes_without_forcing_focus() {
+        assert_eq!(
+            widget_unminimizes_before_show(),
+            cfg!(target_os = "windows")
+        );
     }
 
     #[test]

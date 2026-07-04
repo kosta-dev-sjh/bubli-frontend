@@ -528,7 +528,7 @@ function buildDisplayBubbles(input: {
   const label = roomLabel(t, input.room, input.roomId);
   const isRoomScoped = Boolean(input.roomId);
   const agentRoute = roomScopedRoute("/app/agent", input.roomId);
-  const chatRoute = input.roomId ? `/app/chat?mode=room&roomId=${encodeURIComponent(input.roomId)}` : "/app/chat";
+  const chatRoute = input.roomId ? `/app/project-rooms/${encodeURIComponent(input.roomId)}/chat` : "/app/chat";
   const resourceRoute = roomResourceRoute(input.roomId);
   const scheduleRoute = roomScopedRoute("/app/calendar", input.roomId);
   const todoRoute = roomWorkRoute(input.roomId);
