@@ -967,6 +967,7 @@ function DesktopWidgetSurface() {
   // 바 창의 Bubli 버튼이 보낸 "패널 열기" 요청 수신 카운터(메뉴 창 전용).
   const [menuPanelSignal, setMenuPanelSignal] = useState(0);
   const liveKitRoomRef = useRef<Room | null>(null);
+  const surfaceReadySentRef = useRef(false);
   const appReadySentRef = useRef(false);
   // 첫 로드 성공 후의 배경 재조회 실패는 조용히 이전 데이터를 유지한다(에러 스켈레톤 스왑 금지).
   const displayLoadedOnceRef = useRef(false);
@@ -1096,6 +1097,15 @@ function DesktopWidgetSurface() {
 
     void tauriCommands.closeWidgetWindow({ bubbleType: currentWindowBubble, windowId }).catch(() => undefined);
   }, [authReady, currentWindowBubble, hasAuthSession, isTauri, windowId]);
+
+  useEffect(() => {
+    if (!isTauri || !mounted || surfaceReadySentRef.current) return;
+
+    surfaceReadySentRef.current = true;
+    void tauriCommands.appReady({ surfaceReadyOnly: true }).catch(() => {
+      surfaceReadySentRef.current = false;
+    });
+  }, [isTauri, mounted]);
 
   useEffect(() => {
     if (!isTauri || !mounted || !widgetSessionReady || appReadySentRef.current) return;
