@@ -677,13 +677,19 @@ function dashboardFromWidgetSummary(summary: WidgetSummaryResponse | null): Widg
 }
 
 async function readWidgetDisplaySummary(): Promise<WidgetSummaryResponse | null> {
-  const serverResult = await readWidgetSummary({ preferLocalCache: false }).catch(() => null);
-  if (serverResult?.status === "ready") return serverResult.data;
+  if (isTauriRuntime()) {
+    const cacheResult = await readWidgetSummary({
+      fetchServerSummary: () => Promise.reject(new Error("local widget summary cache empty")),
+    }).catch(() => null);
 
-  const cacheResult = await readWidgetSummary({
-    fetchServerSummary: () => Promise.reject(new Error("server widget summary already failed")),
-  }).catch(() => null);
-  return cacheResult?.status === "ready" ? cacheResult.data : null;
+    if (cacheResult?.status === "ready") {
+      void readWidgetSummary({ preferLocalCache: false }).catch(() => null);
+      return cacheResult.data;
+    }
+  }
+
+  const serverResult = await readWidgetSummary({ preferLocalCache: false }).catch(() => null);
+  return serverResult?.status === "ready" ? serverResult.data : null;
 }
 
 function DesktopWidgetSurface() {
