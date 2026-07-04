@@ -1,4 +1,4 @@
-import { tauriCommands, TAURI_COMMANDS } from "@/lib/tauri/commands";
+import { tauriCommands, TAURI_COMMANDS, waitForPendingWidgetUsageEventRecords } from "@/lib/tauri/commands";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { blocked, failed, pending, ready, runTauriAdapter } from "@/lib/local/adapter-result";
 import { translate } from "@/lib/i18n/translate";
@@ -76,6 +76,7 @@ export async function syncAllLocalOutboxToServer(input?: {
       consentGranted: consent.activityDetectionEnabled,
       limit,
     });
+    await waitForPendingWidgetUsageEventRecords().catch(() => undefined);
     await rollupLocalWidgetUsage().catch(() => undefined);
     const widgetResult = await syncLocalWidgetUsageSummaryToServer();
     const summaryResult = await getLocalSyncOutboxSummary();
