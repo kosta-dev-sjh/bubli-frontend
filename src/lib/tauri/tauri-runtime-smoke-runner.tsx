@@ -1352,7 +1352,8 @@ async function runSmoke() {
     );
 
     const widgetUsageOccurredAt = new Date().toISOString();
-    const widgetUsageSummaryDate = widgetUsageOccurredAt.slice(0, 10);
+    const initialTodayWidgetUsage = await widgetApi.getTodayUsageRollups();
+    const widgetUsageSummaryDate = initialTodayWidgetUsage.date;
     for (const bubbleType of smokeWidgetBubbles) {
       await tauriCommands.recordWidgetUsageEvent({
         bubbleType,
@@ -1360,6 +1361,7 @@ async function runSmoke() {
         itemId: `codex-runtime-smoke-${bubbleType}`,
         itemType: bubbleType === "chat" ? "MESSAGE" : "TASK",
         occurredAt: widgetUsageOccurredAt,
+        summaryDate: widgetUsageSummaryDate,
       });
     }
     const rollups = await tauriCommands.rollupWidgetUsage({ summaryDate: widgetUsageSummaryDate });
