@@ -1547,10 +1547,7 @@ fn extract_text_preview(path: &Path) -> Option<String> {
     }
 
     let bytes = std::fs::read(path).ok()?;
-    let text = String::from_utf8_lossy(&bytes)
-        .replace('\0', " ")
-        .trim()
-        .to_string();
+    let text = decode_text_bytes(&bytes);
     if text.is_empty() {
         None
     } else {
@@ -2453,10 +2450,7 @@ fn read_local_text_preview(
     }
 
     let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
-    let text = String::from_utf8_lossy(&bytes)
-        .replace('\0', " ")
-        .trim()
-        .to_string();
+    let text = decode_text_bytes(&bytes);
     let total_chars = text.chars().count();
     let truncated = total_chars > max_chars;
     let preview_text = if truncated {
@@ -2548,11 +2542,7 @@ fn read_local_text_for_key_sentences(path: &Path) -> Result<(Option<String>, Str
     }
 
     let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
-    let text = String::from_utf8_lossy(&bytes)
-        .replace('\0', " ")
-        .replace('\r', "\n")
-        .trim()
-        .to_string();
+    let text = decode_text_bytes(&bytes);
 
     if text.is_empty() {
         return Ok((None, "EMPTY".to_string()));
@@ -4282,21 +4272,28 @@ mod tests {
     }
 
     fn minimal_hwpx_utf16_preview_bytes(preview_text: &str, little_endian: bool) -> Vec<u8> {
-        let mut preview_bytes = if little_endian {
+        minimal_zip_bytes(vec![(
+            "Preview/PrvText.txt",
+            utf16_text_bytes(preview_text, little_endian),
+        )])
+    }
+
+    fn utf16_text_bytes(text: &str, little_endian: bool) -> Vec<u8> {
+        let mut bytes = if little_endian {
             vec![0xff, 0xfe]
         } else {
             vec![0xfe, 0xff]
         };
-        for unit in preview_text.encode_utf16() {
-            let bytes = if little_endian {
+        for unit in text.encode_utf16() {
+            let unit_bytes = if little_endian {
                 unit.to_le_bytes()
             } else {
                 unit.to_be_bytes()
             };
-            preview_bytes.extend_from_slice(&bytes);
+            bytes.extend_from_slice(&unit_bytes);
         }
 
-        minimal_zip_bytes(vec![("Preview/PrvText.txt", preview_bytes)])
+        bytes
     }
 
     fn minimal_xlsx_bytes(shared_text: &str, inline_text: &str, number_text: &str) -> Vec<u8> {
@@ -5989,6 +5986,111 @@ mod tests {
     }
 
     #[test]
+    fn reads_utf16_plain_text_for_preview_and_key_sentence_extraction() {
+        let le_path =
+            std::env::temp_dir().join(format!("bubli-local-utf16-le-{}.txt", Uuid::new_v4()));
+        let be_path =
+            std::env::temp_dir().join(format!("bubli-local-utf16-be-{}.md", Uuid::new_v4()));
+        let csv_path =
+            std::env::temp_dir().join(format!("bubli-local-utf16-csv-{}.csv", Uuid::new_v4()));
+        let tsv_path =
+            std::env::temp_dir().join(format!("bubli-local-utf16-tsv-{}.tsv", Uuid::new_v4()));
+        std::fs::write(
+            &le_path,
+            utf16_text_bytes("Utf16PlainPreviewSignal captures Windows notes.", true),
+        )
+        .expect("write utf16 le text file");
+        std::fs::write(
+            &be_path,
+            utf16_text_bytes("Utf16PlainMarkdownSignal captures markdown notes.", false),
+        )
+        .expect("write utf16 be markdown file");
+        std::fs::write(
+            &csv_path,
+            utf16_text_bytes(
+                "title,owner,status\nUtf16PlainCsvSignal,Maren,READY\n",
+                true,
+            ),
+        )
+        .expect("write utf16 le csv file");
+        std::fs::write(
+            &tsv_path,
+            utf16_text_bytes(
+                "title\towner\tstatus\nUtf16PlainTsvSignal\tMinji\tREADY\n",
+                false,
+            ),
+        )
+        .expect("write utf16 be tsv file");
+
+        let (le_preview, le_status, le_truncated) =
+            read_local_text_preview(&le_path, 500).expect("read utf16 le preview");
+        let (be_preview, be_status, be_truncated) =
+            read_local_text_preview(&be_path, 500).expect("read utf16 be preview");
+        let (csv_preview, csv_status, csv_truncated) =
+            read_local_text_preview(&csv_path, 500).expect("read utf16 csv preview");
+        let (tsv_preview, tsv_status, tsv_truncated) =
+            read_local_text_preview(&tsv_path, 500).expect("read utf16 tsv preview");
+        let le_text = read_local_text_for_key_sentences(&le_path)
+            .expect("read utf16 le text")
+            .0
+            .expect("utf16 le text");
+        let be_text = read_local_text_for_key_sentences(&be_path)
+            .expect("read utf16 be text")
+            .0
+            .expect("utf16 be text");
+        let csv_text = read_local_text_for_key_sentences(&csv_path)
+            .expect("read utf16 csv text")
+            .0
+            .expect("utf16 csv text");
+        let tsv_text = read_local_text_for_key_sentences(&tsv_path)
+            .expect("read utf16 tsv text")
+            .0
+            .expect("utf16 tsv text");
+
+        assert_eq!(le_status, "READY");
+        assert_eq!(be_status, "READY");
+        assert_eq!(csv_status, "READY");
+        assert_eq!(tsv_status, "READY");
+        assert!(!le_truncated);
+        assert!(!be_truncated);
+        assert!(!csv_truncated);
+        assert!(!tsv_truncated);
+        assert!(le_preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Utf16PlainPreviewSignal"));
+        assert!(be_preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Utf16PlainMarkdownSignal"));
+        assert!(csv_preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Utf16PlainCsvSignal"));
+        assert!(tsv_preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Utf16PlainTsvSignal"));
+        assert!(extract_key_sentences(&le_text, 2, 200)
+            .iter()
+            .any(|sentence| sentence.text.contains("Utf16PlainPreviewSignal")));
+        assert!(extract_key_sentences(&be_text, 2, 200)
+            .iter()
+            .any(|sentence| sentence.text.contains("Utf16PlainMarkdownSignal")));
+        assert!(extract_key_sentences(&csv_text, 2, 200)
+            .iter()
+            .any(|sentence| sentence.text.contains("Utf16PlainCsvSignal")));
+        assert!(extract_key_sentences(&tsv_text, 2, 200)
+            .iter()
+            .any(|sentence| sentence.text.contains("Utf16PlainTsvSignal")));
+
+        let _ = std::fs::remove_file(le_path);
+        let _ = std::fs::remove_file(be_path);
+        let _ = std::fs::remove_file(csv_path);
+        let _ = std::fs::remove_file(tsv_path);
+    }
+
+    #[test]
     fn scans_csv_and_tsv_content_into_local_file_search_index() {
         let conn = test_connection();
         let folder_path =
@@ -6042,6 +6144,85 @@ mod tests {
         assert_eq!(csv_search.items[0].name, "budget.csv");
         assert_eq!(tsv_search.items.len(), 1);
         assert_eq!(tsv_search.items[0].name, "risks.tsv");
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
+    fn scans_utf16_plain_text_content_into_local_file_search_index() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-local-utf16-text-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        std::fs::write(
+            folder_path.join("windows-note.txt"),
+            utf16_text_bytes("Utf16PlainSearchSignal syncs from Windows folders.", true),
+        )
+        .expect("write temp utf16 text file");
+        std::fs::write(
+            folder_path.join("windows-table.csv"),
+            utf16_text_bytes(
+                "title,owner,status\nUtf16CsvSearchSignal,Maren,READY\n",
+                true,
+            ),
+        )
+        .expect("write temp utf16 csv file");
+        std::fs::write(
+            folder_path.join("windows-table.tsv"),
+            utf16_text_bytes(
+                "title\towner\tstatus\nUtf16TsvSearchSignal\tMinji\tREADY\n",
+                false,
+            ),
+        )
+        .expect("write temp utf16 tsv file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-utf16-text', 'UTF16 Text Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let scan = scan_managed_folder_for_conn(
+            &conn,
+            ManagedFolderCommandInput {
+                local_folder_id: "folder-utf16-text".to_string(),
+            },
+        )
+        .expect("scan managed folder");
+        assert_eq!(scan.changed_count, 3);
+
+        let search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "Utf16PlainSearchSignal".to_string(),
+            },
+        )
+        .expect("search utf16 content");
+        let csv_search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "Utf16CsvSearchSignal".to_string(),
+            },
+        )
+        .expect("search utf16 csv content");
+        let tsv_search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "Utf16TsvSearchSignal".to_string(),
+            },
+        )
+        .expect("search utf16 tsv content");
+
+        assert_eq!(search.items.len(), 1);
+        assert_eq!(search.items[0].name, "windows-note.txt");
+        assert_eq!(csv_search.items.len(), 1);
+        assert_eq!(csv_search.items[0].name, "windows-table.csv");
+        assert_eq!(tsv_search.items.len(), 1);
+        assert_eq!(tsv_search.items[0].name, "windows-table.tsv");
 
         let _ = std::fs::remove_dir_all(folder_path);
     }
