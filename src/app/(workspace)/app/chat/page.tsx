@@ -25,6 +25,7 @@ import { getApiBaseUrl } from "@/lib/api/client";
 import { ApiClientError } from "@/lib/api/errors";
 import { getAuthAccessToken } from "@/lib/auth/auth-session";
 import { notifyDataChanged } from "@/lib/data-changed";
+import { projectRoomRoute } from "@/lib/project-room-routes";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
@@ -452,7 +453,7 @@ function ChatPageContent() {
     if (tauriChatRedirectSentRef.current || !isTauriRuntime()) return;
 
     tauriChatRedirectSentRef.current = true;
-    const fallbackRoute = queryRoomId ? `/app/project-rooms/${encodeURIComponent(queryRoomId)}/work` : "/app";
+    const fallbackRoute = queryRoomId ? projectRoomRoute(queryRoomId, "work") : "/app";
     void openTauriChatWidget({ eventType: "handoff:chat-route", roomId: queryRoomId })
       .then(() => router.replace(fallbackRoute))
       .catch(() => router.replace(fallbackRoute));
@@ -1741,7 +1742,7 @@ function ChatPageContent() {
               </div>
               <div className="workspace-route__thread-actions">
                 {selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? (
-                  <Link className="bubli-button" href={`/app/project-rooms/${selectedRoom.roomId}`}>
+                  <Link className="bubli-button" href={projectRoomRoute(selectedRoom.roomId, "work")}>
                     {t("chat.thread.projectRoom")}
                   </Link>
                 ) : null}

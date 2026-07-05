@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 
+import { projectRoomRoute } from "@/lib/project-room-routes";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
@@ -26,7 +27,7 @@ export default function DesktopCommunicationPage() {
       return;
     }
 
-    const fallbackRoute = roomId ? `/app/project-rooms/${encodeURIComponent(roomId)}/work` : "/app";
+    const fallbackRoute = roomId ? projectRoomRoute(roomId, "work") : "/app";
     void openTauriChatWidget({ eventType: "handoff:legacy-communication", roomId })
       .then(() => router.replace(fallbackRoute))
       .catch(() => router.replace(fallbackRoute));

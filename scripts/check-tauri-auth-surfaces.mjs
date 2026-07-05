@@ -20,11 +20,13 @@ const files = {
   realOAuthQaReporter: "src/lib/tauri/tauri-real-oauth-qa-reporter.tsx",
   authWidgetQa: "src/lib/tauri/tauri-auth-widget-qa.ts",
   managedFolderAutoSync: "src/lib/local/managed-folder-auto-sync.ts",
+  firstRunController: "src/features/onboarding/components/first-run-controller.tsx",
   runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
   tauriCapability: "src-tauri/capabilities/default.json",
   tauriConf: "src-tauri/tauri.conf.json",
   tauriDevtoolsGuard: "src/lib/tauri/tauri-devtools-guard.tsx",
   tauriLib: "src-tauri/src/lib.rs",
+  prepareTauriDist: "scripts/prepare-tauri-dist.mjs",
   runtimePreflight: "scripts/check-tauri-runtime-preflight.mjs",
   oauthLiveContract: "scripts/check-tauri-oauth-live-contract.mjs",
   realOAuthQaScript: "scripts/qa-tauri-real-oauth-manual.mjs",
@@ -90,11 +92,13 @@ const launcher = read(files.postLoginLauncher);
 const realOAuthQaReporter = read(files.realOAuthQaReporter);
 const authWidgetQa = read(files.authWidgetQa);
 const managedFolderAutoSync = read(files.managedFolderAutoSync);
+const firstRunController = read(files.firstRunController);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
 const tauriCapability = read(files.tauriCapability);
 const tauriConf = read(files.tauriConf);
 const tauriDevtoolsGuard = read(files.tauriDevtoolsGuard);
 const tauriLib = read(files.tauriLib);
+const prepareTauriDist = read(files.prepareTauriDist);
 const runtimePreflight = read(files.runtimePreflight);
 const oauthLiveContract = read(files.oauthLiveContract);
 const realOAuthQaScript = read(files.realOAuthQaScript);
@@ -321,6 +325,21 @@ assertContains(
   "The main Tauri hybrid app window must keep devtools disabled in tauri.conf.json.",
 );
 assertContains(
+  tauriConf,
+  /"beforeBuildCommand":\s*"npm run build && node scripts\/prepare-tauri-dist\.mjs"[\s\S]*"frontendDist":\s*"\.\.\/\.tauri-dist"/,
+  "Tauri release builds must package the prepared .tauri-dist directory instead of raw .next server output.",
+);
+assertContains(
+  tauriConf,
+  /"url":\s*"\/app\/"/,
+  "The packaged hybrid app window must open /app/ so the release asset protocol resolves app/index.html.",
+);
+assertContains(
+  prepareTauriDist,
+  /SERVER_APP_DIR[\s\S]*routeHtmlDestination[\s\S]*copyRequiredFile\(source, join\(TAURI_DIST_DIR, routeHtmlDestination\(relativePath\)\)\)[\s\S]*copyIfExists\(join\(NEXT_DIR, "static"\), join\(TAURI_DIST_DIR, "_next", "static"\)\)/,
+  "prepare-tauri-dist must expand Next static route HTML into /route/index.html and copy _next/static for packaged Tauri release windows.",
+);
+assertContains(
   tauriCapability,
   /"core:webview:deny-internal-toggle-devtools"/,
   "The shared Tauri capability must deny internal devtools toggles for main and widget windows.",
@@ -339,6 +358,11 @@ assertNotContains(
   tauriLib,
   /open_devtools|close_devtools|is_devtools_open/,
   "Tauri runtime code must not expose devtools open/close helpers for hybrid or widget windows.",
+);
+assertContains(
+  tauriLib,
+  /fn position_main_window_on_preferred_monitor[\s\S]*app\.get_webview_window\(MAIN_WINDOW_LABEL\)[\s\S]*window\.unminimize\(\)[\s\S]*window\.show\(\)[\s\S]*resolve_preferred_monitor/,
+  "The Windows release main window must be shown before preferred-monitor resolution so stale monitor preferences cannot leave the installed app headless.",
 );
 assertContains(
   tauriDevtoolsGuard,
@@ -370,6 +394,21 @@ assertContains(
   runtimeSmokeRunner,
   /navigator\.userAgent\.toLowerCase\(\)\.includes\("windows"\)/,
   "TauriRuntimeSmokeRunner must stay Windows-only so macOS runtime behavior is not touched.",
+);
+assertContains(
+  firstRunController,
+  /import \{ isMacTauriRuntime \} from "@\/lib\/tauri\/platform";/,
+  "Desktop onboarding overlay must stay macOS-only so Windows widget windows are not covered by the full-monitor overlay.",
+);
+assertContains(
+  firstRunController,
+  /const triggerOnboardingOverlay = useCallback\(\(\) => \{[\s\S]*if \(!isMacTauriRuntime\(\)\) return false;[\s\S]*tauriCommands\.openOnboardingOverlay\(\)[\s\S]*return true;/,
+  "First-run onboarding must only open the native overlay through the macOS-only guard.",
+);
+assertContains(
+  firstRunController,
+  /const showTour = useCallback\(\(\) => \{[\s\S]*if \(triggerOnboardingOverlay\(\)\)[\s\S]*setPhase\("tour"\)/,
+  "Windows Tauri must fall back to the in-app tour instead of opening the macOS desktop onboarding overlay.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -854,6 +893,11 @@ assertContains(
 );
 assertContains(
   surfaces,
+  /launchTauriAuthenticatedSurfaces\(\)[\s\S]*await authApi\.getMe\(\);[\s\S]*const startupWindows = await resolveLoginStartupWindows\(\);/,
+  "launchTauriAuthenticatedSurfaces must verify the live backend auth session before resolving or opening login widgets.",
+);
+assertContains(
+  surfaces,
   /await tauriCommands\.setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\);/,
   "launchTauriAuthenticatedSurfaces must open the native auth gate before widget windows.",
 );
@@ -997,13 +1041,18 @@ assertContains(
 );
 assertContains(
   authPanel,
-  /function createTauriLoginState\(\) \{[\s\S]*crypto\.randomUUID\(\)[\s\S]*return btoa\(JSON\.stringify\(\{ nonce, returnTo: "\/app" \}\)\);[\s\S]*const state = createTauriLoginState\(\);[\s\S]*authApi\.getGoogleAuthorizationUrl\(\{[\s\S]*clientType: "TAURI"[\s\S]*redirectUri: TAURI_LOOPBACK_REDIRECT_URI[\s\S]*state,[\s\S]*startTauriGoogleOauthLoopback\(\{[\s\S]*authorizeUrl,[\s\S]*expectedState: state,[\s\S]*redirectUri: TAURI_LOOPBACK_REDIRECT_URI[\s\S]*authApi\.callbackGoogle\(\{[\s\S]*clientType: "TAURI"[\s\S]*code: result\.code[\s\S]*redirectUri: TAURI_LOOPBACK_REDIRECT_URI/,
-  "Tauri login must use a nonce state, pass it to backend authorize, and require the same expectedState from the loopback callback before token exchange.",
+  /const TAURI_MEMBER_APP_ROUTE = "\/app\/";[\s\S]*function createTauriLoginState\(\) \{[\s\S]*crypto\.randomUUID\(\)[\s\S]*return btoa\(JSON\.stringify\(\{ nonce, returnTo: TAURI_MEMBER_APP_ROUTE \}\)\);[\s\S]*async function runTauriLoginStep<T>[\s\S]*throw new Error\(`\$\{stage\}: \$\{getErrorMessage\(error\)\}`\)[\s\S]*const state = createTauriLoginState\(\);[\s\S]*runTauriLoginStep\("authorize"[\s\S]*tauriCommands\.getTauriGoogleAuthorizationUrl\(\{[\s\S]*apiBaseUrl: getApiBaseUrl\(\)[\s\S]*redirectUri: TAURI_LOOPBACK_REDIRECT_URI[\s\S]*state,[\s\S]*runTauriLoginStep\("complete-oauth"[\s\S]*tauriCommands\.completeTauriGoogleOauth\(\{[\s\S]*apiBaseUrl: getApiBaseUrl\(\)[\s\S]*authorizeUrl,[\s\S]*expectedState: state,[\s\S]*redirectUri: TAURI_LOOPBACK_REDIRECT_URI[\s\S]*runTauriLoginStep\("store-session"[\s\S]*setStoredAuthSessionAndWaitForTauriMirror\(\{ \.\.\.token, clientType: "TAURI" \}\)[\s\S]*tauriCommands\.openMainWindowRoute\(\{ route: TAURI_MEMBER_APP_ROUTE \}\)[\s\S]*router\.replace\(TAURI_MEMBER_APP_ROUTE\)/,
+  "Tauri login must use the native complete OAuth command with a nonce state, persist the TAURI session mirror, and open the packaged /app/ member route after token exchange.",
+);
+assertNotContains(
+  authPanel,
+  /catch \{[\s\S]*existing WebView OAuth path|catch \{[\s\S]*authApi\.getGoogleAuthorizationUrl\(\{[\s\S]*state: "login"/,
+  "Tauri OAuth failures must not fall back into WebView OAuth and repeat Google login.",
 );
 assertContains(
-  authPanel,
-  /catch \{[\s\S]*existing WebView OAuth path[\s\S]*authApi\.getGoogleAuthorizationUrl\(\{[\s\S]*state: "login"[\s\S]*window\.location\.assign\(authorizeUrl\)/,
-  "Tauri loopback OAuth failures must fall back to the existing WebView OAuth path.",
+  tauriLib,
+  /struct ApiEnvelopeError \{[\s\S]*code: Option<String>[\s\S]*trace_id: Option<String>[\s\S]*traceId=\{trace_id\}[\s\S]*fn focus_main_window_after_oauth_callback\(app: &AppHandle\)[\s\S]*window\.unminimize\(\)[\s\S]*window\.show\(\)[\s\S]*window\.set_focus\(\)[\s\S]*fn start_tauri_google_oauth_loopback\([\s\S]*app: AppHandle[\s\S]*focus_main_window_after_oauth_callback\(&app\)[\s\S]*return Ok\(result\);/,
+  "Tauri OAuth loopback must expose backend auth error code/traceId and bring the app forward after Google callback.",
 );
 assertContains(
   authApi,

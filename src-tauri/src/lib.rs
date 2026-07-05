@@ -23,7 +23,7 @@ mod local_files;
 mod widget_usage;
 
 const WIDGET_WINDOW_LABEL_PREFIX: &str = "bubli-widget";
-const WIDGET_WINDOW_URL: &str = "desktop-widget";
+const WIDGET_WINDOW_URL: &str = "desktop-widget/";
 const WIDGET_ROOM_CONTEXT_CHANGED_EVENT: &str = "bubli-widget-room-context-changed";
 const MAIN_WINDOW_LABEL: &str = "main";
 const MAIN_WINDOW_DEFAULT_WIDTH: i32 = 1280;
@@ -69,7 +69,7 @@ const WIDGET_MENU_WIDTH: f64 = 248.0;
 // 닫힘 상태(오브만)에서는 그림자를 껐고 투명 영역이라 큰 창이 보이지 않는다.
 const WIDGET_MENU_HEIGHT: f64 = 540.0;
 const ONBOARDING_OVERLAY_WINDOW_LABEL: &str = "onboarding-overlay";
-const ONBOARDING_OVERLAY_WINDOW_URL: &str = "desktop-widget/onboarding";
+const ONBOARDING_OVERLAY_WINDOW_URL: &str = "desktop-widget/onboarding/";
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
 const PRIMARY_MONITOR_ID: &str = "primary";
@@ -1514,8 +1514,12 @@ fn position_main_window_on_preferred_monitor(
     let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
         return Ok(());
     };
+    let _ = window.unminimize();
+    let _ = window.show();
+
     let preferred_monitor_id = get_preferred_monitor_id(monitor_state)?;
     let Some(monitor) = resolve_preferred_monitor(app, &preferred_monitor_id)? else {
+        let _ = window.set_focus();
         return Ok(());
     };
     let origin = monitor.position();
@@ -1541,8 +1545,6 @@ fn position_main_window_on_preferred_monitor(
         .set_position(position)
         .map_err(|error| error.to_string())?;
 
-    let _ = window.unminimize();
-    let _ = window.show();
     let _ = window.set_focus();
 
     Ok(())
@@ -1626,13 +1628,54 @@ fn route_targets_chat_widget(normalized_route: &str) -> bool {
         && segments[3] == "chat"
 }
 
+fn map_main_window_route_for_static_assets(normalized_route: &str) -> String {
+    let (route_without_hash, hash) = normalized_route
+        .split_once('#')
+        .map_or((normalized_route, None), |(path, hash)| (path, Some(hash)));
+    let (path, query) = route_without_hash
+        .split_once('?')
+        .map_or((route_without_hash, None), |(path, query)| {
+            (path, Some(query))
+        });
+    let trimmed_path = path.trim_end_matches('/');
+    let segments = trimmed_path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+
+    if segments.len() >= 3 && segments[0] == "app" && segments[1] == "project-rooms" {
+        let room_id = segments[2];
+        let static_path = match segments.get(3).copied() {
+            None | Some("work") => Some("/app/project-room-work"),
+            Some("resources") => Some("/app/project-room-resources"),
+            _ => None,
+        };
+
+        if let Some(static_path) = static_path {
+            let mut mapped = format!("{static_path}?roomId={room_id}");
+            if let Some(query) = query.filter(|value| !value.is_empty()) {
+                mapped.push('&');
+                mapped.push_str(query);
+            }
+            if let Some(hash) = hash.filter(|value| !value.is_empty()) {
+                mapped.push('#');
+                mapped.push_str(hash);
+            }
+            return mapped;
+        }
+    }
+
+    normalized_route.to_string()
+}
+
 #[tauri::command]
 fn open_main_window_route(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
     input: MainWindowRouteInput,
 ) -> Result<String, String> {
-    let route = normalize_main_window_route(&input.route)?;
+    let route =
+        map_main_window_route_for_static_assets(&normalize_main_window_route(&input.route)?);
     let window = app
         .get_webview_window(MAIN_WINDOW_LABEL)
         .ok_or_else(|| "main window not found".to_string())?;
@@ -2888,11 +2931,170 @@ struct TauriGoogleOauthLoopbackInput {
     redirect_uri: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriGoogleCompleteOauthInput {
+    api_base_url: String,
+    authorize_url: String,
+    expected_state: Option<String>,
+    redirect_uri: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TauriGoogleOauthLoopbackResult {
     code: String,
     state: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriGoogleApiInput {
+    api_base_url: String,
+    redirect_uri: String,
+    state: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriGoogleCallbackInput {
+    api_base_url: String,
+    code: String,
+    redirect_uri: String,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriGoogleAuthorizeResponse {
+    authorize_url: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApiEnvelope<T> {
+    success: bool,
+    data: Option<T>,
+    error: Option<ApiEnvelopeError>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApiEnvelopeError {
+    code: Option<String>,
+    message: String,
+    trace_id: Option<String>,
+}
+
+fn normalize_tauri_api_base_url(api_base_url: &str) -> Result<String, String> {
+    let trimmed = api_base_url.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return Err("Tauri API base URL is required".to_string());
+    }
+    if trimmed.starts_with("https://")
+        || trimmed.starts_with("http://localhost:")
+        || trimmed.starts_with("http://127.0.0.1:")
+    {
+        return Ok(trimmed.to_string());
+    }
+
+    Err("Tauri API base URL must be HTTPS or a local development URL".to_string())
+}
+
+fn parse_api_envelope<T: for<'de> Deserialize<'de>>(
+    status: reqwest::StatusCode,
+    body: &str,
+) -> Result<T, String> {
+    let parsed: ApiEnvelope<T> = serde_json::from_str(body)
+        .map_err(|error| format!("Tauri auth API returned invalid JSON: {error}"))?;
+    if status.is_success() && parsed.success {
+        return parsed
+            .data
+            .ok_or_else(|| "Tauri auth API returned no data".to_string());
+    }
+
+    let message = parsed.error.map_or_else(
+        || format!("Tauri auth API request failed with HTTP {status}"),
+        |error| {
+            let code = error.code.unwrap_or_else(|| "UNKNOWN".to_string());
+            let trace_id = error.trace_id.unwrap_or_else(|| "no-trace".to_string());
+            format!(
+                "{} [{code}, traceId={trace_id}, HTTP {status}]",
+                error.message
+            )
+        },
+    );
+    Err(message)
+}
+
+#[tauri::command]
+fn get_tauri_google_authorization_url(
+    input: TauriGoogleApiInput,
+) -> Result<TauriGoogleAuthorizeResponse, String> {
+    let api_base_url = normalize_tauri_api_base_url(&input.api_base_url)?;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let mut request = client
+        .get(format!("{api_base_url}/api/auth/google/authorize"))
+        .query(&[
+            ("clientType", "TAURI"),
+            ("redirectUri", input.redirect_uri.as_str()),
+        ]);
+    if let Some(state) = input.state.as_deref() {
+        request = request.query(&[("state", state)]);
+    }
+    let response = request.send().map_err(|error| error.to_string())?;
+    let status = response.status();
+    let body = response.text().map_err(|error| error.to_string())?;
+    let result: TauriGoogleAuthorizeResponse = parse_api_envelope(status, &body)?;
+    validate_google_authorize_url(&result.authorize_url, &input.redirect_uri)?;
+    Ok(result)
+}
+
+#[tauri::command]
+fn callback_tauri_google_oauth(
+    input: TauriGoogleCallbackInput,
+) -> Result<serde_json::Value, String> {
+    let api_base_url = normalize_tauri_api_base_url(&input.api_base_url)?;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let response = client
+        .post(format!("{api_base_url}/api/auth/google/callback"))
+        .json(&serde_json::json!({
+            "clientType": "TAURI",
+            "code": input.code,
+            "redirectUri": input.redirect_uri,
+        }))
+        .send()
+        .map_err(|error| error.to_string())?;
+    let status = response.status();
+    let body = response.text().map_err(|error| error.to_string())?;
+    parse_api_envelope(status, &body)
+}
+
+fn build_tauri_auth_session_json(token: &serde_json::Value) -> Result<String, String> {
+    let mut session = token
+        .as_object()
+        .cloned()
+        .ok_or_else(|| "Tauri auth token response must be a JSON object".to_string())?;
+    let saved_at_ms = local_db::now_ms();
+    session.insert(
+        "clientType".to_string(),
+        serde_json::Value::String("TAURI".to_string()),
+    );
+    session.insert(
+        "savedAt".to_string(),
+        serde_json::Value::String(local_db::ms_to_iso(saved_at_ms)),
+    );
+    session.insert(
+        "savedAtMs".to_string(),
+        serde_json::Value::Number(saved_at_ms.into()),
+    );
+
+    serde_json::to_string(&serde_json::Value::Object(session)).map_err(|error| error.to_string())
 }
 
 fn percent_decode(input: &str) -> String {
@@ -3050,8 +3252,19 @@ fn parse_tauri_oauth_callback_request_line(
     Ok(TauriGoogleOauthLoopbackResult { code, state })
 }
 
+fn focus_main_window_after_oauth_callback(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return;
+    };
+
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
 #[tauri::command]
 fn start_tauri_google_oauth_loopback(
+    app: AppHandle,
     input: TauriGoogleOauthLoopbackInput,
 ) -> Result<TauriGoogleOauthLoopbackResult, String> {
     if input.redirect_uri
@@ -3093,6 +3306,7 @@ fn start_tauri_google_oauth_loopback(
                     Ok(result) => {
                         let _ = stream
                             .write_all(oauth_response_html("로그인이 확인됐어요.").as_bytes());
+                        focus_main_window_after_oauth_callback(&app);
                         return Ok(result);
                     }
                     Err(error) => {
@@ -3118,6 +3332,36 @@ fn start_tauri_google_oauth_loopback(
             Err(error) => return Err(error.to_string()),
         }
     }
+}
+
+#[tauri::command]
+fn complete_tauri_google_oauth(
+    app: AppHandle,
+    db: tauri::State<'_, local_db::Db>,
+    input: TauriGoogleCompleteOauthInput,
+) -> Result<serde_json::Value, String> {
+    let result = start_tauri_google_oauth_loopback(
+        app.clone(),
+        TauriGoogleOauthLoopbackInput {
+            authorize_url: input.authorize_url,
+            expected_state: input.expected_state,
+            redirect_uri: input.redirect_uri.clone(),
+        },
+    )?;
+    let token = callback_tauri_google_oauth(TauriGoogleCallbackInput {
+        api_base_url: input.api_base_url,
+        code: result.code,
+        redirect_uri: input.redirect_uri,
+    })?;
+    let session_json = build_tauri_auth_session_json(&token)?;
+    local_db::store_tauri_auth_session(
+        db,
+        local_db::AuthSessionStoreInput {
+            session_json: session_json.clone(),
+        },
+    )?;
+    focus_main_window_after_oauth_callback(&app);
+    Ok(token)
 }
 
 #[tauri::command]
@@ -3767,6 +4011,7 @@ pub fn run() {
             drag_widget_bar_window,
             get_widget_bar_items,
             get_preferred_app_monitor,
+            get_tauri_google_authorization_url,
             get_widget_window_state,
             list_app_monitors,
             notify_widget_drag_started,
@@ -3780,6 +4025,8 @@ pub fn run() {
             seed_widget_bar_items,
             set_authenticated_surfaces_enabled,
             show_main_window,
+            callback_tauri_google_oauth,
+            complete_tauri_google_oauth,
             start_tauri_google_oauth_loopback,
             set_widget_bar_preview_placement,
             open_onboarding_overlay,

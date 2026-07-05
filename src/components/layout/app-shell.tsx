@@ -25,7 +25,8 @@ import { notifyDataChanged, readUserUpdatedDetail, useDataRefresh, USER_UPDATED_
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
-import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
+import { projectRoomRoute } from "@/lib/project-room-routes";
+import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -286,6 +287,11 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     if (state.kind === "auth") {
+      if (isTauriRuntime()) {
+        void stopTauriAuthenticatedSurfaces().catch((error) => {
+          console.warn("Failed to stop Tauri authenticated surfaces after auth reset.", error);
+        });
+      }
       router.replace("/login");
     }
   }, [router, state.kind]);
@@ -516,7 +522,7 @@ export function AppShell({ children }: AppShellProps) {
     }
     if (notification.sourceType === "MESSAGE") {
       const fallbackRoute = sourceId
-        ? `/app/project-rooms/${encodeURIComponent(sourceId)}/work`
+        ? projectRoomRoute(sourceId, "work")
         : "/app";
 
       if (isTauriRuntime()) {
@@ -538,7 +544,7 @@ export function AppShell({ children }: AppShellProps) {
         const resource = await resourcesApi.get(sourceId);
         router.push(
           resource.roomId
-            ? `/app/project-rooms/${resource.roomId}/resources?resourceId=${encodeURIComponent(resource.id)}`
+            ? `${projectRoomRoute(resource.roomId, "resources")}&resourceId=${encodeURIComponent(resource.id)}`
             : `/app/resources?resourceId=${encodeURIComponent(resource.id)}`,
         );
       } catch {
@@ -566,7 +572,7 @@ export function AppShell({ children }: AppShellProps) {
       // 같은 창에 떠 있는 홈 카드/룸 목록 화면에도 즉시 알린다(셸 자신은 위에서 이미 갱신).
       notifyDataChanged("project-room", { source: "app-shell" });
       setTopbarMenu(null);
-      router.push(`/app/project-rooms/${invitation.roomId}`);
+      router.push(projectRoomRoute(invitation.roomId, "work"));
     } catch {
       // 만료/취소된 초대일 수 있으므로 목록에서만 제거하지 않고 다음 로드에서 동기화한다.
     } finally {
@@ -632,7 +638,7 @@ export function AppShell({ children }: AppShellProps) {
     setProjectSwitcherOpen(false);
     // 홈 카드/룸 목록 화면 등 같은 창의 다른 표면에 생성 사실을 즉시 알린다.
     notifyDataChanged("project-room", { source: "app-shell" });
-    router.push(`/app/project-rooms/${createdRoom.id}`);
+    router.push(projectRoomRoute(createdRoom.id, "work"));
   }
 
   async function handleCreateRoom(event: FormEvent<HTMLFormElement>) {

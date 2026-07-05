@@ -10,6 +10,7 @@ import { ApiClientError } from "@/lib/api/errors";
 import { useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import { projectRoomRoute } from "@/lib/project-room-routes";
 import { setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewRooms } from "@/lib/workspace-preview-data";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
@@ -136,7 +137,7 @@ export default function ProjectRoomsPage() {
           {state.rooms.map((room) => (
             <Link
               className="workspace-route__row"
-              href={`/app/project-rooms/${room.id}`}
+              href={projectRoomRoute(room.id, "work")}
               key={room.id}
               onClick={() => setActiveProjectRoomId(room.id, room.name)}
             >

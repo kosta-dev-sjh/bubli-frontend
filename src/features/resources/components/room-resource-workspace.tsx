@@ -10,6 +10,7 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
+import { projectRoomRoute } from "@/lib/project-room-routes";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewRoomResources } from "@/lib/workspace-preview-data";
@@ -233,7 +234,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
             {state.kind === "loading" ? t("resources.workspace.totalUnknown") : t("resources.workspace.totalCount", { count: resources.length })}
           </span>
           <span className={styles.headerSpacer} aria-hidden="true" />
-          <ResourceScopeSwitch activeScope="room" roomHref={`/app/project-rooms/${roomId}/resources`} roomLabel={t("resources.common.roomFallback")} />
+          <ResourceScopeSwitch activeScope="room" roomHref={projectRoomRoute(roomId, "resources")} roomLabel={t("resources.common.roomFallback")} />
           <label className={styles.search}>
             <Search aria-hidden size={15} strokeWidth={2} />
             <input

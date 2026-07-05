@@ -15,6 +15,7 @@ import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
+import { projectRoomRoute } from "@/lib/project-room-routes";
 import type { ProjectRoomUpsertRequest } from "@/types/api/projectRoom";
 
 type SubmitState = "idle" | "submitting" | "auth" | "error";
@@ -139,7 +140,7 @@ export default function NewProjectRoomPage() {
           // 프로젝트룸 생성은 유지하고, 자료 업로드/분석은 룸 자료보드에서 다시 이어갈 수 있게 한다.
         }
       }
-      router.push(`/app/project-rooms/${room.id}`);
+      router.push(projectRoomRoute(room.id, "work"));
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setSubmitState("auth");

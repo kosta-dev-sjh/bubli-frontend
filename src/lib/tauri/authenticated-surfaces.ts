@@ -2,6 +2,7 @@
 
 import { startActivityAutoCapture, stopActivityAutoCapture } from "@/lib/local/activity-auto-capture";
 import { startManagedFolderAutoSync, stopManagedFolderAutoSync } from "@/lib/local/managed-folder-auto-sync";
+import { authApi } from "@/features/auth/api/authApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -230,6 +231,8 @@ export function launchTauriAuthenticatedSurfaces() {
   launchRequested = true;
   const generation = ++launchGeneration;
   launchPromise = (async () => {
+    await authApi.getMe();
+
     const startupWindows = await resolveLoginStartupWindows();
     if (launchedAuthenticatedSurfaces) {
       const ready = await authenticatedStartupWindowsReady(startupWindows);
