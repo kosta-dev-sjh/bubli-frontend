@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
 const files = {
+  packageJson: "package.json",
   appNav: "src/components/layout/app-nav.tsx",
   appShell: "src/components/layout/app-shell.tsx",
   appChat: "src/app/(workspace)/app/chat/page.tsx",
@@ -21,6 +22,7 @@ const files = {
   tauriConf: "src-tauri/tauri.conf.json",
   tauriDevtoolsGuard: "src/lib/tauri/tauri-devtools-guard.tsx",
   tauriLib: "src-tauri/src/lib.rs",
+  runtimePreflight: "scripts/check-tauri-runtime-preflight.mjs",
   windowsRuntimeSmoke: "scripts/check-tauri-windows-runtime-smoke.mjs",
   widgetAuthHeaders: "src/features/widget/api/widgetAuthHeaders.ts",
   workspaceActiveRoom: "src/lib/workspace-active-room.ts",
@@ -76,6 +78,7 @@ function extractTypeObject(source, typeName) {
 }
 
 const layout = read(files.layout);
+const packageJson = read(files.packageJson);
 const launcher = read(files.postLoginLauncher);
 const authWidgetQa = read(files.authWidgetQa);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
@@ -83,6 +86,7 @@ const tauriCapability = read(files.tauriCapability);
 const tauriConf = read(files.tauriConf);
 const tauriDevtoolsGuard = read(files.tauriDevtoolsGuard);
 const tauriLib = read(files.tauriLib);
+const runtimePreflight = read(files.runtimePreflight);
 const surfaces = read(files.authenticatedSurfaces);
 const chatWidgetRouting = read(files.chatWidgetRouting);
 const appNav = read(files.appNav);
@@ -100,6 +104,32 @@ const devWidgetRealBackend = read(files.devWidgetRealBackend);
 const projectRoomChatRoute = read(files.projectRoomChatRoute);
 const windowsRuntimeSmoke = read(files.windowsRuntimeSmoke);
 const authSessionDiagnosticsType = extractTypeObject(authSession, "AuthSessionDiagnostics");
+
+assertContains(
+  packageJson,
+  /"check:tauri-runtime-preflight":\s*"node scripts\/check-tauri-runtime-preflight\.mjs"/,
+  "package.json must expose the Windows Tauri runtime preflight script.",
+);
+assertContains(
+  windowsRuntimeSmoke,
+  /runNodeScript\(\["scripts\/check-tauri-runtime-preflight\.mjs"\][\s\S]*NEXT_PUBLIC_API_BASE_URL: API_BASE_URL/,
+  "Windows Tauri runtime smoke must run the preflight before seeding or launching Tauri.",
+);
+assertContains(
+  runtimePreflight,
+  /process\.platform !== "win32"[\s\S]*Tauri runtime preflight skipped/,
+  "Tauri runtime preflight must remain Windows-only so macOS/Linux CI is not affected.",
+);
+assertContains(
+  runtimePreflight,
+  /\/actuator\/health[\s\S]*checkOAuthLiveContract\(\)[\s\S]*scripts\/check-tauri-oauth-live-contract\.mjs/,
+  "Tauri runtime preflight must verify backend health and the live Google OAuth authorize contract.",
+);
+assertContains(
+  runtimePreflight,
+  /POSTGRES_CONTAINER[\s\S]*bubli-postgres[\s\S]*REDIS_CONTAINER[\s\S]*bubli-redis[\s\S]*pg_isready[\s\S]*redis-cli/,
+  "Tauri runtime preflight must verify the Docker Postgres and Redis services needed by real backend smoke data.",
+);
 
 assertContains(
   layout,
