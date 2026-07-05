@@ -4,6 +4,7 @@ import { startActivityAutoCapture, stopActivityAutoCapture } from "@/lib/local/a
 import { startManagedFolderAutoSync, stopManagedFolderAutoSync } from "@/lib/local/managed-folder-auto-sync";
 import { authApi } from "@/features/auth/api/authApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
+import { getStoredAuthSession, setStoredAuthSessionAndWaitForTauriMirror } from "@/lib/auth/auth-session";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { startWidgetUsageAutoSync, stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
@@ -214,6 +215,9 @@ async function resolveLaunchSelectedRoomId() {
   const context = await widgetApi.getContext().catch(() => null);
   if (context?.selectedRoomId) {
     seedActiveProjectRoomId(context.selectedRoomId);
+    await tauriCommands
+      .storeActiveProjectRoom({ roomId: context.selectedRoomId, roomLabel: null })
+      .catch(() => undefined);
     return context.selectedRoomId;
   }
 
@@ -232,6 +236,10 @@ export function launchTauriAuthenticatedSurfaces() {
   const generation = ++launchGeneration;
   launchPromise = (async () => {
     await authApi.getMe();
+    const verifiedSession = getStoredAuthSession();
+    if (verifiedSession) {
+      await setStoredAuthSessionAndWaitForTauriMirror(verifiedSession);
+    }
 
     const startupWindows = await resolveLoginStartupWindows();
     if (launchedAuthenticatedSurfaces) {
