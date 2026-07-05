@@ -1563,7 +1563,10 @@ fn is_supported_plain_text_file(path: &Path) -> bool {
         return false;
     };
 
-    matches!(extension.as_str(), "md" | "markdown" | "txt")
+    matches!(
+        extension.as_str(),
+        "csv" | "md" | "markdown" | "tsv" | "txt"
+    )
 }
 
 fn is_supported_docx_file(path: &Path) -> bool {
@@ -3580,6 +3583,7 @@ fn guess_mime_type(file_name: &str) -> Option<String> {
         "ppt" => "application/vnd.ms-powerpoint",
         "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "txt" => "text/plain",
+        "tsv" => "text/tab-separated-values",
         "xls" => "application/vnd.ms-excel",
         "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         _ => return None,
@@ -5100,6 +5104,117 @@ mod tests {
         assert!(truncated);
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn reads_csv_and_tsv_for_preview_and_key_sentence_extraction() {
+        let csv_path =
+            std::env::temp_dir().join(format!("bubli-local-preview-test-{}.csv", Uuid::new_v4()));
+        let tsv_path =
+            std::env::temp_dir().join(format!("bubli-local-preview-test-{}.tsv", Uuid::new_v4()));
+        std::fs::write(
+            &csv_path,
+            "title,owner,status\nPayment milestone,Maren,READY\nRisk review,Minji,PENDING\n",
+        )
+        .expect("write temp csv file");
+        std::fs::write(
+            &tsv_path,
+            "title\towner\tstatus\nLocal folder sync\tMaren\tREADY\nWidget usage\tMinji\tSYNCED\n",
+        )
+        .expect("write temp tsv file");
+
+        let (csv_preview, csv_status, csv_truncated) =
+            read_local_text_preview(&csv_path, 500).expect("read csv preview");
+        let csv_text = read_local_text_for_key_sentences(&csv_path)
+            .expect("read csv text")
+            .0
+            .expect("csv text");
+        let (tsv_preview, tsv_status, tsv_truncated) =
+            read_local_text_preview(&tsv_path, 500).expect("read tsv preview");
+        let tsv_text = read_local_text_for_key_sentences(&tsv_path)
+            .expect("read tsv text")
+            .0
+            .expect("tsv text");
+
+        assert_eq!(csv_status, "READY");
+        assert_eq!(tsv_status, "READY");
+        assert!(!csv_truncated);
+        assert!(!tsv_truncated);
+        assert!(csv_preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Payment milestone"));
+        assert!(tsv_preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Local folder sync"));
+        assert!(extract_key_sentences(&csv_text, 2, 200)
+            .iter()
+            .any(|sentence| sentence.text.contains("Payment milestone")));
+        assert!(extract_key_sentences(&tsv_text, 2, 200)
+            .iter()
+            .any(|sentence| sentence.text.contains("Local folder sync")));
+
+        let _ = std::fs::remove_file(csv_path);
+        let _ = std::fs::remove_file(tsv_path);
+    }
+
+    #[test]
+    fn scans_csv_and_tsv_content_into_local_file_search_index() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-local-tabular-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        std::fs::write(
+            folder_path.join("budget.csv"),
+            "title,owner,status\nQuarterlyRevenue,Maren,READY\n",
+        )
+        .expect("write temp csv file");
+        std::fs::write(
+            folder_path.join("risks.tsv"),
+            "title\towner\tstatus\nEscalationWindow\tMinji\tPENDING\n",
+        )
+        .expect("write temp tsv file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-tabular', 'Tabular Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let scan = scan_managed_folder_for_conn(
+            &conn,
+            ManagedFolderCommandInput {
+                local_folder_id: "folder-tabular".to_string(),
+            },
+        )
+        .expect("scan managed folder");
+        assert_eq!(scan.changed_count, 2);
+
+        let csv_search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "QuarterlyRevenue".to_string(),
+            },
+        )
+        .expect("search csv content");
+        let tsv_search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "EscalationWindow".to_string(),
+            },
+        )
+        .expect("search tsv content");
+
+        assert_eq!(csv_search.items.len(), 1);
+        assert_eq!(csv_search.items[0].name, "budget.csv");
+        assert_eq!(tsv_search.items.len(), 1);
+        assert_eq!(tsv_search.items[0].name, "risks.tsv");
+
+        let _ = std::fs::remove_dir_all(folder_path);
     }
 
     #[test]
