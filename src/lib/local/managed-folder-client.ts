@@ -81,7 +81,25 @@ type PersonalLocalFileByResourceInput = {
 
 export const PERSONAL_RESOURCES_CHANGED_EVENT = "bubli-personal-resources-changed";
 
-const ANALYZABLE_LOCAL_FILE_EXTENSIONS = new Set(["csv", "docx", "hwpx", "markdown", "md", "pdf", "pptx", "rtf", "tsv", "txt", "xlsx"]);
+const ANALYZABLE_LOCAL_FILE_EXTENSIONS = new Set([
+  "csv",
+  "docx",
+  "htm",
+  "html",
+  "hwpx",
+  "json",
+  "jsonl",
+  "markdown",
+  "md",
+  "pdf",
+  "pptx",
+  "rtf",
+  "tsv",
+  "txt",
+  "xlsx",
+  "yaml",
+  "yml",
+]);
 
 // 호출 시점의 로케일로 번역하기 위해 상수 대신 함수로 둔다(모듈 로드 시점에 고정되지 않도록).
 const personalScopeMessage = () => translate("local.folder.personalOnly");

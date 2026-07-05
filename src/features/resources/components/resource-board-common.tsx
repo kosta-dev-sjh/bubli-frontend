@@ -247,6 +247,12 @@ export const SUPPORTED_RESOURCE_UPLOAD_ACCEPT = [
   ".txt",
   ".md",
   ".markdown",
+  ".json",
+  ".jsonl",
+  ".yaml",
+  ".yml",
+  ".html",
+  ".htm",
   ".rtf",
   ".hwp",
   ".hwpx",
@@ -267,6 +273,11 @@ export const SUPPORTED_RESOURCE_UPLOAD_ACCEPT = [
   "text/tab-separated-values",
   "text/plain",
   "text/markdown",
+  "application/json",
+  "application/x-ndjson",
+  "application/yaml",
+  "text/yaml",
+  "text/html",
   "application/rtf",
   "image/png",
   "image/jpeg",
@@ -307,7 +318,12 @@ function getResourcePreviewKind(resource: ResourceResponse): ResourcePreviewKind
     return "markdown";
   }
 
-  if (mimeType.includes("text") || /\.txt$/.test(fileName)) {
+  if (
+    mimeType.includes("text") ||
+    mimeType.includes("json") ||
+    mimeType.includes("yaml") ||
+    /\.(txt|jsonl?|ya?ml|html?)$/.test(fileName)
+  ) {
     return "text";
   }
 
