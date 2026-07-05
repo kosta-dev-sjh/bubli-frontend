@@ -404,7 +404,7 @@ function ItemActions({
           <CheckCircle2 size={12} strokeWidth={2} />
         </button>
       ) : null}
-      <button aria-label={t("widget.item.pin")} onClick={() => onItemStateChange(item, "PINNED")} type="button">
+      <button aria-label={t("widget.item.pin")} aria-pressed={item.pinned ?? false} onClick={() => onItemStateChange(item, "PINNED")} type="button">
         <Pin size={12} strokeWidth={2} />
       </button>
       <button aria-label={t("widget.item.hide")} onClick={() => onItemStateChange(item, "HIDDEN")} type="button">
@@ -425,6 +425,7 @@ const ItemRows = memo(function ItemRows({
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
+  const { t } = useI18n();
   const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
     if (!item.handoffUrl || !onOpenHandoff) return;
 
@@ -439,8 +440,13 @@ const ItemRows = memo(function ItemRows({
   return (
     <div className={styles.rowList}>
       {bubble.rows.map((item) => (
-        <label className={styles.checkRow} key={item.id}>
-          <input checked={item.checked ?? false} readOnly type="checkbox" />
+        <div className={styles.checkRow} key={item.id}>
+          <input
+            aria-label={t("widget.item.confirm")}
+            checked={item.checked ?? false}
+            onChange={() => onItemStateChange?.(item, "CONFIRMED")}
+            type="checkbox"
+          />
           {item.handoffUrl ? (
             <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
               {item.label}
@@ -450,7 +456,7 @@ const ItemRows = memo(function ItemRows({
           )}
           <b>{item.status}</b>
           <ItemActions item={item} onItemStateChange={onItemStateChange} />
-        </label>
+        </div>
       ))}
     </div>
   );
@@ -627,9 +633,41 @@ function AlertBody({
     });
   };
 
+  const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
+    if (!item.handoffUrl || !onOpenHandoff) return;
+
+    event.preventDefault();
+    void onOpenHandoff(item);
+  };
+
   return (
     <div className={styles.body}>
-      <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
+      {bubble.rows.length > 0 ? (
+        <div className={styles.rowList}>
+          {bubble.rows.map((item) => (
+            <div className={styles.alertRow} key={item.id}>
+              <button
+                aria-label={t("widget.item.confirm")}
+                className={styles.alertCheck}
+                onClick={() => onItemStateChange?.(item, "CONFIRMED")}
+                type="button"
+              >
+                <CheckCircle2 size={13} strokeWidth={2.4} />
+              </button>
+              {item.handoffUrl ? (
+                <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+                  {item.label}
+                </a>
+              ) : (
+                <strong>{item.label}</strong>
+              )}
+              <ItemActions item={item} onItemStateChange={onItemStateChange} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <BubbleEmptyState bubble={bubble} />
+      )}
       <button className={styles.wideAction} onClick={openAll} type="button">
         <Bell size={14} strokeWidth={2} />
         {t(bubble.actionLabel as MessageKey)}

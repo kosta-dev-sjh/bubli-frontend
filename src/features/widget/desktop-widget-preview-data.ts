@@ -15,6 +15,7 @@ export type WidgetPreviewItem = {
   kind?: "agent" | "friend" | "memo" | "message" | "resource" | "schedule" | "task" | "time" | "voice";
   label: string;
   memoBody?: string;
+  pinned?: boolean;
   /** 개인 컨텍스트에서 룸 태스크 행에 붙는 룸 칩 라벨(룸 이름). */
   roomName?: string;
   /** TODO 그룹핑: 내 개인 TODO(personal) vs 나에게 할당된 룸 태스크(room). */
