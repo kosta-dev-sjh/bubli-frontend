@@ -55,8 +55,8 @@ Full phase:
 - Real backend chat room resolved for the project room.
 - A chat message was sent through the frontend `chatApi`, read back through `getMessages`, and acknowledged through the read marker endpoint.
 - A voice room was opened through the frontend `voiceApi`, a voice token was issued, mic status was updated, and the room was left.
-- Native widget windows opened: `bar`, `todo`, `chat`, `timer`.
-- `todo.selectedRoomId` matched `22222222-2222-4222-8222-222222222222`.
+- Native widget windows opened after login: `bar`, `todo`, `agent`, `chat`, `timer`, `memo`, `schedule`, `resource`, and `alert`.
+- Every bubble widget window was visible and carried selected project room `22222222-2222-4222-8222-222222222222`.
 - Native widget global shortcut registration accepted `CommandOrControl+Shift+B`.
 - SQLite integrity passed with `quickCheck = ok`, `journalMode = wal`.
 - SQLite restore snapshot marker was written at room sequence `777`.

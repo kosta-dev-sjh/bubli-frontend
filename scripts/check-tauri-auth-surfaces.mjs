@@ -211,13 +211,13 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\)[\s\S]*openWidgetWindows\(\{[\s\S]*bubbleType: "bar"[\s\S]*bubbleType: "todo"[\s\S]*bubbleType: "chat"[\s\S]*bubbleType: "timer"/,
-  "TauriRuntimeSmokeRunner must open native bar, todo, chat, and timer widget windows.",
+  /const smokeWidgetBubbles:[\s\S]*"todo"[\s\S]*"agent"[\s\S]*"chat"[\s\S]*"timer"[\s\S]*"memo"[\s\S]*"schedule"[\s\S]*"resource"[\s\S]*"alert"/,
+  "TauriRuntimeSmokeRunner must keep the full eight bubble widget list explicit.",
 );
 assertContains(
   runtimeSmokeRunner,
-  /openWidgetWindows\(\{[\s\S]*\}\);[\s\S]*assert\(windows\.length >= 4[\s\S]*setWidgetRoomContext\(\{ selectedRoomId: smokeRoomId \}\)[\s\S]*getWidgetWindowState\(\{ windowId: "todo" \}\)[\s\S]*selectedRoomId === smokeRoomId/,
-  "TauriRuntimeSmokeRunner must verify widget window visibility and room context propagation.",
+  /setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\)[\s\S]*openWidgetWindows\(\{[\s\S]*bubbleType: "bar"[\s\S]*\.\.\.smokeWidgetBubbles\.map[\s\S]*native bar and all bubble widget windows opened after login[\s\S]*setWidgetRoomContext\(\{ selectedRoomId: smokeRoomId \}\)[\s\S]*Promise\.all\([\s\S]*getWidgetWindowState\(\{ bubbleType, windowId: bubbleType \}\)[\s\S]*all bubble widget windows visible[\s\S]*project room context propagated to all bubble widgets/,
+  "TauriRuntimeSmokeRunner must verify post-login native bar plus all bubble widget windows and room context propagation.",
 );
 assertContains(
   runtimeSmokeRunner,

@@ -39,6 +39,7 @@ type SmokeReport = {
 };
 
 type SmokeAssert = (condition: unknown, name: string, detail?: unknown) => asserts condition;
+type SmokeWidgetBubble = "agent" | "alert" | "chat" | "memo" | "resource" | "schedule" | "timer" | "todo";
 
 const smokeEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
 const smokeReportUrl = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_REPORT_URL;
@@ -51,6 +52,16 @@ const smokeShouldQuit = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_QUIT =
 const smokeRestoreSnapshotRoomId = "33333333-3333-4333-8333-333333333333";
 const smokeRestoreSnapshotMessageId = "codex-restore-snapshot-message";
 const smokeRestoreDirtyMessageId = "codex-restore-dirty-message";
+const smokeWidgetBubbles: SmokeWidgetBubble[] = [
+  "todo",
+  "agent",
+  "chat",
+  "timer",
+  "memo",
+  "schedule",
+  "resource",
+  "alert",
+];
 
 function isWindowsRuntime() {
   return typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("windows");
@@ -389,17 +400,44 @@ async function runSmoke() {
     const windows = await tauriCommands.openWidgetWindows({
       windows: [
         { bubbleType: "bar", mode: "DEFAULT", selectedRoomId: smokeRoomId, windowId: "bar" },
-        { bubbleType: "todo", mode: "DEFAULT", selectedRoomId: smokeRoomId, windowId: "todo" },
-        { bubbleType: "chat", mode: "DEFAULT", selectedRoomId: smokeRoomId, windowId: "chat" },
-        { bubbleType: "timer", mode: "DEFAULT", selectedRoomId: smokeRoomId, windowId: "timer" },
+        ...smokeWidgetBubbles.map((bubbleType) => ({
+          bubbleType,
+          mode: "DEFAULT" as const,
+          selectedRoomId: smokeRoomId,
+          windowId: bubbleType,
+        })),
       ],
     });
-    assert(windows.length >= 4, "native widget windows opened", windows.map((window) => window.windowId));
+    const openedWidgetIds = new Set(windows.map((window) => window.windowId ?? window.activeBubble));
+    assert(
+      windows.length >= smokeWidgetBubbles.length + 1 &&
+        smokeWidgetBubbles.every((bubbleType) => openedWidgetIds.has(bubbleType)) &&
+        openedWidgetIds.has("bar"),
+      "native bar and all bubble widget windows opened after login",
+      windows.map((window) => ({
+        activeBubble: window.activeBubble,
+        selectedRoomId: window.selectedRoomId,
+        windowId: window.windowId,
+        windowVisible: window.windowVisible,
+      })),
+    );
 
     await tauriCommands.setWidgetRoomContext({ selectedRoomId: smokeRoomId });
-    const todoWindow = await tauriCommands.getWidgetWindowState({ windowId: "todo" });
-    assert(todoWindow.windowVisible, "todo widget window visible", todoWindow);
-    assert(todoWindow.selectedRoomId === smokeRoomId, "widget room context propagated", todoWindow);
+    const widgetStates = await Promise.all(
+      smokeWidgetBubbles.map((bubbleType) =>
+        tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
+      ),
+    );
+    assert(
+      widgetStates.every((widget) => widget.windowVisible),
+      "all bubble widget windows visible",
+      widgetStates,
+    );
+    assert(
+      widgetStates.every((widget) => widget.selectedRoomId === smokeRoomId),
+      "project room context propagated to all bubble widgets",
+      widgetStates,
+    );
 
     const shortcut = await tauriCommands.registerWidgetShortcut({ shortcut: "CommandOrControl+Shift+B" });
     assert(
