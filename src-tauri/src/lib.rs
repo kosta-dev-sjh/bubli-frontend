@@ -554,6 +554,7 @@ struct WidgetBarDragInput {
     grab_y: f64,
     nav_height: f64,
     nav_width: f64,
+    placement: String,
     root_height: f64,
     root_width: f64,
 }
@@ -2203,6 +2204,9 @@ fn drag_widget_bar_window(
     if !is_widget_window_label(&label) || !label.ends_with("-bar") {
         return Err("drag_widget_bar_window can only be called from the bar widget".to_string());
     }
+    if input.placement != "above" && input.placement != "below" {
+        return Err("widget bar drag placement must be above or below".to_string());
+    }
 
     let scale = window
         .scale_factor()
@@ -2255,12 +2259,12 @@ fn drag_widget_bar_window(
     let visible_y = (cursor.y - grab_y)
         .max(work_y + padding)
         .min((work_bottom - nav_height - padding).max(work_y + padding));
-    let placement = if visible_y < work_y + bar_preview_flip_threshold_physical(scale) {
+    let suggested_placement = if visible_y < work_y + bar_preview_flip_threshold_physical(scale) {
         "below"
     } else {
         "above"
     };
-    let offset_top = if placement == "below" {
+    let offset_top = if input.placement == "below" {
         padding
     } else {
         root_height - nav_height - padding
@@ -2290,7 +2294,7 @@ fn drag_widget_bar_window(
     persist_widget_window_state(&app, &state)?;
 
     Ok(WidgetBarDragResult {
-        placement: placement.to_string(),
+        placement: suggested_placement.to_string(),
         state: widget,
     })
 }

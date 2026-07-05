@@ -2144,6 +2144,7 @@ const gooExitFull = { opacity: 1, scale: 0, y: 10 };
 const gooEnterReduced = { opacity: 0 };
 const gooShownReduced = { opacity: 1 };
 const gooExitReduced = { opacity: 0 };
+const chipInstantTransition = { duration: 0 };
 
 type BarChipEnterExit = typeof chipEnterExitFull | typeof chipEnterExitReduced;
 
@@ -2159,6 +2160,7 @@ const BarChipButton = memo(function BarChipButton({
   onRestoreBubble,
   onShowPreview,
   ref,
+  motionEnabled,
   whileHover,
   whileTap,
 }: {
@@ -2166,6 +2168,7 @@ const BarChipButton = memo(function BarChipButton({
   bubbleType: WidgetBubbleType;
   chipEnterExit: BarChipEnterExit;
   describedBy?: string;
+  motionEnabled: boolean;
   onHidePreview: (target: WidgetBubbleType) => void;
   onRestoreBubble: (bubbleType: WidgetBubbleType) => void;
   onShowPreview: (target: WidgetBubbleType) => void;
@@ -2183,7 +2186,7 @@ const BarChipButton = memo(function BarChipButton({
 
   return (
     <motion.button
-      layout
+      layout={motionEnabled}
       {...chipEnterExit}
       aria-describedby={describedBy}
       aria-label={t(bubble.compactLabel as MessageKey)}
@@ -2196,10 +2199,10 @@ const BarChipButton = memo(function BarChipButton({
       onMouseEnter={() => onShowPreview(bubbleType)}
       onMouseLeave={() => onHidePreview(bubbleType)}
       ref={ref}
-      transition={barChipSpring}
+      transition={motionEnabled ? barChipSpring : chipInstantTransition}
       type="button"
-      whileHover={whileHover}
-      whileTap={whileTap}
+      whileHover={motionEnabled ? whileHover : undefined}
+      whileTap={motionEnabled ? whileTap : undefined}
     >
       <Icon size={15} strokeWidth={2.1} aria-hidden="true" />
       {isTimerChip ? <b className={styles.chipTime}>{bubble.metric}</b> : null}
@@ -2318,7 +2321,17 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   const barRootRef = useRef<HTMLDivElement | null>(null);
   const barNavRef = useRef<HTMLElement | null>(null);
   const suppressNextBarClickRef = useRef(false);
+  const [barDragging, setBarDragging] = useState(false);
+  const barDraggingRef = useRef(false);
   const [barPreviewPlacement, setBarPreviewPlacement] = useState<BarPreviewPlacement>("above");
+  const barPreviewPlacementRef = useRef<BarPreviewPlacement>("above");
+  useEffect(() => {
+    barPreviewPlacementRef.current = barPreviewPlacement;
+  }, [barPreviewPlacement]);
+  const setBarDraggingState = useCallback((nextDragging: boolean) => {
+    barDraggingRef.current = nextDragging;
+    setBarDragging(nextDragging);
+  }, []);
   useEffect(() => {
     const rootElement = barRootRef.current;
     if (!rootElement) return;
@@ -2331,6 +2344,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
 
   const syncBarPreviewPlacement = useCallback(async () => {
     if (!isMacTauriRuntime()) return;
+    if (barDraggingRef.current) return;
     const rootElement = barRootRef.current;
     const navElement = barNavRef.current;
     if (!rootElement || !navElement) return;
@@ -2385,17 +2399,17 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   const moveBarToCursor = useCallback(
     async (
       grab: { x: number; y: number },
-      metrics: { rootHeight: number; rootWidth: number; navHeight: number; navWidth: number },
+      metrics: { rootHeight: number; rootWidth: number; navHeight: number; navWidth: number; placement: BarPreviewPlacement },
     ) => {
-      const result = await tauriCommands.dragWidgetBarWindow({
+      await tauriCommands.dragWidgetBarWindow({
         grabX: grab.x,
         grabY: grab.y,
         navHeight: metrics.navHeight,
         navWidth: metrics.navWidth,
+        placement: metrics.placement,
         rootHeight: metrics.rootHeight,
         rootWidth: metrics.rootWidth,
       });
-      setBarPreviewPlacement((current) => (current === result.placement ? current : result.placement));
     },
     [],
   );
@@ -2431,11 +2445,14 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
       const metrics = {
         navHeight: navRect.height,
         navWidth: navRect.width,
+        placement: barPreviewPlacementRef.current,
         rootHeight: rootRect.height,
         rootWidth: rootRect.width,
       };
 
       const cleanup = () => {
+        if (disposed) return;
+        const shouldSyncPlacement = dragStarted;
         disposed = true;
         window.removeEventListener("pointermove", onPointerMove);
         window.removeEventListener("pointerup", cleanup);
@@ -2444,6 +2461,10 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
           navElement.releasePointerCapture(pointerId);
         } catch {
           // Pointer capture may already be released by the browser.
+        }
+        if (shouldSyncPlacement) {
+          setBarDraggingState(false);
+          window.setTimeout(() => void syncBarPreviewPlacement(), 0);
         }
       };
 
@@ -2470,6 +2491,8 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
           if (distance < 4) return;
           dragStarted = true;
           suppressNextBarClickRef.current = true;
+          setPreviewTarget(null);
+          setBarDraggingState(true);
           void tauriCommands.notifyWidgetDragStarted().catch(() => undefined);
         }
         latestCursor = { x: moveEvent.screenX, y: moveEvent.screenY };
@@ -2480,7 +2503,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
       window.addEventListener("pointerup", cleanup, { once: true });
       window.addEventListener("pointercancel", cleanup, { once: true });
     },
-    [moveBarToCursor],
+    [moveBarToCursor, setBarDraggingState, syncBarPreviewPlacement],
   );
 
   const handleBarClickCapture = useCallback((event: MouseEvent<HTMLElement>) => {
@@ -2504,6 +2527,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   // memo 칩에 그대로 내려가는 콜백 — 참조가 안정해야 칩 memo가 작동한다.
   const showPreview = useCallback(
     (target: WidgetBubbleType | "notice") => {
+      if (barDraggingRef.current) return;
       void syncBarPreviewPlacement();
       setPreviewTarget(target);
     },
@@ -2548,8 +2572,9 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   const popoverEnterExit = prefersReducedMotion ? popoverEnterExitReduced : popoverEnterExitFull;
   // 칩 등장/퇴장(OverflowActions 문법): blur+opacity+scale 스프링, reduced-motion은 페이드만.
   const chipEnterExit = prefersReducedMotion ? chipEnterExitReduced : chipEnterExitFull;
-  const chipWhileHover = hoverCapable && !prefersReducedMotion ? chipWhileHoverPreset : undefined;
-  const chipWhileTap = prefersReducedMotion ? undefined : chipWhileTapPreset;
+  const chipMotionEnabled = !barDragging;
+  const chipWhileHover = chipMotionEnabled && hoverCapable && !prefersReducedMotion ? chipWhileHoverPreset : undefined;
+  const chipWhileTap = chipMotionEnabled && !prefersReducedMotion ? chipWhileTapPreset : undefined;
   const gooEnter = prefersReducedMotion ? gooEnterReduced : gooEnterFull;
   const gooShown = prefersReducedMotion ? gooShownReduced : gooShownFull;
   const gooExit = prefersReducedMotion ? gooExitReduced : gooExitFull;
@@ -2568,6 +2593,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
           .filter(Boolean)
           .join(" ")}
         data-bubli-desktop-widget
+        data-bubli-dragging={barDragging ? "true" : undefined}
         ref={barRootRef}
       >
         <GooeyFilter />
@@ -2701,6 +2727,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
                   chipEnterExit={chipEnterExit}
                   describedBy={previewTarget === bubbleType ? BAR_PREVIEW_POPOVER_ID : undefined}
                   key={bubbleType}
+                  motionEnabled={chipMotionEnabled}
                   onHidePreview={hidePreview}
                   onRestoreBubble={onRestoreBubble}
                   onShowPreview={showPreview}

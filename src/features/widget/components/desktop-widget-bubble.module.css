@@ -1909,6 +1909,10 @@
   background: color-mix(in srgb, var(--acc) 20%, transparent);
 }
 
+.barRoot[data-bubli-dragging="true"] .barChip {
+  transition: none;
+}
+
 /* 타이머 칩만 아이콘 옆 컴팩트 시간 텍스트가 붙는다(배지 없음). */
 .barTimerChip {
   grid-auto-flow: column;

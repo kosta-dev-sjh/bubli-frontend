@@ -720,6 +720,7 @@ export type WidgetBarDragInput = {
   grabY: number;
   navHeight: number;
   navWidth: number;
+  placement: "above" | "below";
   rootHeight: number;
   rootWidth: number;
 };
