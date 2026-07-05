@@ -58,6 +58,8 @@ const WIDGET_MENU_WIDTH: f64 = 248.0;
 // 메뉴 패널이 개인/룸 컨텍스트 행 + 8개 버블(1열) + 액션까지 담도록 높이를 넉넉히.
 // 닫힘 상태(오브만)에서는 그림자를 껐고 투명 영역이라 큰 창이 보이지 않는다.
 const WIDGET_MENU_HEIGHT: f64 = 540.0;
+const ONBOARDING_OVERLAY_WINDOW_LABEL: &str = "onboarding-overlay";
+const ONBOARDING_OVERLAY_WINDOW_URL: &str = "desktop-widget/onboarding";
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
 const PRIMARY_MONITOR_ID: &str = "primary";
@@ -1082,6 +1084,33 @@ fn widget_window_url(widget: &WidgetWindowState) -> String {
     url
 }
 
+fn onboarding_overlay_window_geometry(
+    app: &AppHandle,
+    monitor_state: &AppMonitorState,
+) -> Result<(LogicalPosition<f64>, LogicalSize<f64>), String> {
+    let preferred_monitor_id = get_preferred_monitor_id(monitor_state)?;
+    let monitor = resolve_preferred_monitor(app, &preferred_monitor_id)?;
+    let scale = monitor
+        .as_ref()
+        .map(|monitor| monitor.scale_factor())
+        .unwrap_or(1.0)
+        .max(0.5);
+    let origin = monitor.as_ref().map(|monitor| monitor.position());
+    let origin_x = origin.map_or(0.0, |position| position.x as f64 / scale);
+    let origin_y = origin.map_or(0.0, |position| position.y as f64 / scale);
+    let size = LogicalSize::new(
+        monitor
+            .as_ref()
+            .map(|monitor| monitor.size().width as f64 / scale)
+            .unwrap_or(WIDGET_FALLBACK_MONITOR_WIDTH),
+        monitor
+            .as_ref()
+            .map(|monitor| monitor.size().height as f64 / scale)
+            .unwrap_or(WIDGET_FALLBACK_MONITOR_HEIGHT),
+    );
+    Ok((LogicalPosition::new(origin_x, origin_y), size))
+}
+
 fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
     if widget.active_bubble == "bar" {
         // 바 창은 칩 수와 무관하게 최대 폭 고정. 리사이즈가 없어 macOS에서 잘림/깜빡임이 없다.
@@ -1471,7 +1500,7 @@ fn set_widget_room_context_for_store(
 fn destroy_all_widget_windows(app: &AppHandle) -> usize {
     let mut destroyed_count = 0;
     for (label, window) in app.webview_windows() {
-        if is_widget_window_label(&label) {
+        if is_widget_window_label(&label) || label == ONBOARDING_OVERLAY_WINDOW_LABEL {
             reset_widget_window_dom_ready(&label);
             reset_widget_applied_window_state(&label);
             let _ = window.destroy();
@@ -1524,7 +1553,7 @@ fn build_widget_qa_windows(
 
 fn apply_widget_window_state(
     app: &AppHandle,
-    monitor_state: &AppMonitorState,
+    _monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
     let label = widget_window_label(widget);
@@ -1723,7 +1752,7 @@ fn build_widget_window(
 
 fn schedule_widget_window_build(
     app: &AppHandle,
-    monitor_state: &AppMonitorState,
+    _monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
     #[cfg(target_os = "macos")]
@@ -2724,6 +2753,57 @@ fn start_tauri_google_oauth_loopback(
     }
 }
 
+#[tauri::command]
+fn open_onboarding_overlay(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window(ONBOARDING_OVERLAY_WINDOW_LABEL) {
+        let _ = window.unminimize();
+        let _ = window.show();
+        return window.set_focus().map_err(|error| error.to_string());
+    }
+
+    let (position, size) = onboarding_overlay_window_geometry(&app, &monitor_state)?;
+    let window = WebviewWindowBuilder::new(
+        &app,
+        ONBOARDING_OVERLAY_WINDOW_LABEL,
+        WebviewUrl::App(ONBOARDING_OVERLAY_WINDOW_URL.into()),
+    )
+    .title("Bubli onboarding")
+    .inner_size(size.width, size.height)
+    .min_inner_size(size.width, size.height)
+    .max_inner_size(size.width, size.height)
+    .position(position.x, position.y)
+    .decorations(false)
+    .transparent(true)
+    .background_color(Color(0, 0, 0, 0))
+    .devtools(false)
+    .shadow(false)
+    .resizable(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .focused(true)
+    .visible(true)
+    .build()
+    .map_err(|error| error.to_string())?;
+
+    window
+        .set_ignore_cursor_events(false)
+        .map_err(|error| error.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn close_onboarding_overlay(app: AppHandle) -> Result<(), String> {
+    let Some(window) = app.get_webview_window(ONBOARDING_OVERLAY_WINDOW_LABEL) else {
+        return Ok(());
+    };
+
+    window.close().map_err(|error| error.to_string())
+}
+
 /// 위젯 메뉴에서 메인 앱을 열 때 이동을 허용하는 경로 화이트리스트.
 fn normalize_widget_menu_route(route: Option<String>) -> Option<&'static str> {
     match route.as_deref() {
@@ -3314,6 +3394,8 @@ pub fn run() {
             set_authenticated_surfaces_enabled,
             show_main_window,
             start_tauri_google_oauth_loopback,
+            open_onboarding_overlay,
+            close_onboarding_overlay,
             set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,

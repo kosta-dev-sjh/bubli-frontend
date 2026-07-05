@@ -21,6 +21,8 @@ export const TAURI_COMMANDS = {
   getWidgetWindowState: "get_widget_window_state",
   listAppMonitors: "list_app_monitors",
   listLocalSqliteBackups: "list_local_sqlite_backups",
+  closeOnboardingOverlay: "close_onboarding_overlay",
+  openOnboardingOverlay: "open_onboarding_overlay",
   markActivityContextSynced: "mark_activity_context_synced",
   listManagedFolders: "list_managed_folders",
   notifyWidgetDragStarted: "notify_widget_drag_started",
@@ -828,6 +830,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: number;
   };
+  close_onboarding_overlay: {
+    args: undefined;
+    result: null;
+  };
   close_widget_window: {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
@@ -991,6 +997,10 @@ export type TauriCommandContract = {
   open_main_window_route: {
     args: MainWindowRouteInput;
     result: string;
+  };
+  open_onboarding_overlay: {
+    args: undefined;
+    result: null;
   };
   register_widget_shortcut: {
     args: WidgetShortcutInput;
@@ -1162,6 +1172,9 @@ export const tauriCommands = {
   closeWidgetWindow(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.closeWidgetWindow, input ? { input } : undefined);
   },
+  closeOnboardingOverlay() {
+    return invokeTauri<null>(TAURI_COMMANDS.closeOnboardingOverlay);
+  },
   extractLocalFileKeySentences(input: LocalFileKeySentenceInput) {
     return invokeTauri<LocalFileKeySentenceResult>(TAURI_COMMANDS.extractLocalFileKeySentences, { input });
   },
@@ -1215,6 +1228,9 @@ export const tauriCommands = {
   },
   openMainWindowRoute(input: MainWindowRouteInput) {
     return invokeTauri<string>(TAURI_COMMANDS.openMainWindowRoute, { input });
+  },
+  openOnboardingOverlay() {
+    return invokeTauri<null>(TAURI_COMMANDS.openOnboardingOverlay);
   },
   quitApp() {
     return invokeTauri<null>(TAURI_COMMANDS.quitApp);
