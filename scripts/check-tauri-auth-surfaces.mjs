@@ -26,7 +26,9 @@ const files = {
   tauriDevtoolsGuard: "src/lib/tauri/tauri-devtools-guard.tsx",
   tauriLib: "src-tauri/src/lib.rs",
   runtimePreflight: "scripts/check-tauri-runtime-preflight.mjs",
+  oauthLiveContract: "scripts/check-tauri-oauth-live-contract.mjs",
   realOAuthQaScript: "scripts/qa-tauri-real-oauth-manual.mjs",
+  localAutoSyncSoak: "scripts/check-tauri-local-auto-sync-soak.mjs",
   windowsRuntimeSoak: "scripts/check-tauri-windows-runtime-soak.mjs",
   windowsRuntimeSmoke: "scripts/check-tauri-windows-runtime-smoke.mjs",
   widgetAuthHeaders: "src/features/widget/api/widgetAuthHeaders.ts",
@@ -94,7 +96,9 @@ const tauriConf = read(files.tauriConf);
 const tauriDevtoolsGuard = read(files.tauriDevtoolsGuard);
 const tauriLib = read(files.tauriLib);
 const runtimePreflight = read(files.runtimePreflight);
+const oauthLiveContract = read(files.oauthLiveContract);
 const realOAuthQaScript = read(files.realOAuthQaScript);
+const localAutoSyncSoak = read(files.localAutoSyncSoak);
 const windowsRuntimeSoak = read(files.windowsRuntimeSoak);
 const surfaces = read(files.authenticatedSurfaces);
 const chatWidgetRouting = read(files.chatWidgetRouting);
@@ -131,6 +135,11 @@ assertContains(
   "package.json must expose the Windows Tauri runtime soak QA script.",
 );
 assertContains(
+  packageJson,
+  /"check:tauri-local-auto-sync-soak":\s*"node scripts\/check-tauri-local-auto-sync-soak\.mjs"/,
+  "package.json must expose the Windows local-auto-sync soak QA script.",
+);
+assertContains(
   layout,
   /<TauriRealOAuthQaReporter\s*\/>/,
   "Root layout must mount TauriRealOAuthQaReporter so manual real Google OAuth QA can collect a redacted report.",
@@ -157,13 +166,68 @@ assertNotContains(
 );
 assertContains(
   realOAuthQaScript,
-  /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN:\s*"false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL/,
-  "Manual real OAuth QA script must launch Tauri with dev-login disabled and the real OAuth QA report bridge enabled.",
+  /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN:\s*"false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS:\s*"15000"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL/,
+  "Manual real OAuth QA script must launch Tauri with dev-login disabled, local-sync, stability, session-restore, and stop-cleanup probes enabled, and the real OAuth QA report bridge enabled.",
 );
 assertNotContains(
   realOAuthQaScript,
   /NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN/,
   "Manual real OAuth QA script must not inject a dev access token.",
+);
+assertContains(
+  realOAuthQaScript,
+  /if \(CONTRACT_ONLY\) \{[\s\S]*const contractChecks = runContractCheck\(\);[\s\S]*checks: contractChecks[\s\S]*function runContractCheck\(\)/,
+  "Manual real OAuth QA script contract mode must run real static checks before reporting pass.",
+);
+assertContains(
+  realOAuthQaScript,
+  /request\.on\("end"[\s\S]*const report = JSON\.parse\(body\);[\s\S]*validateRealOAuthQaReport\(report\)[\s\S]*resolveReport\(report\)/,
+  "Manual real OAuth QA script must validate posted reports before accepting them.",
+);
+assertContains(
+  realOAuthQaScript,
+  /const report = await Promise\.race[\s\S]*validateRealOAuthQaReport\(report\)[\s\S]*const outputPaths = writeReport\(report\)[\s\S]*JSON\.stringify\(\{ \.\.\.outputPaths, \.\.\.report \}/,
+  "Manual real OAuth QA script must validate the final report before writing JSON and markdown evidence outputs.",
+);
+assertContains(
+  realOAuthQaScript,
+  /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1[\s\S]*snapshot\.stabilityProbe\?\.enabled[\s\S]*snapshot\.stabilityProbe\.allExpectedWindowsVisible[\s\S]*snapshot\.stabilityProbe\.allAutoSyncLoopsRunning[\s\S]*snapshot\.sessionRestoreProbe\?\.enabled[\s\S]*snapshot\.sessionRestoreProbe\.restoredLocalSession[\s\S]*snapshot\.sessionRestoreProbe\.backendMeOk[\s\S]*snapshot\.stopCleanupProbe\?\.enabled[\s\S]*snapshot\.stopCleanupProbe\.activeProjectRoomCleared[\s\S]*snapshot\.stopCleanupProbe\.allExpectedWindowsHidden[\s\S]*snapshot\.stopCleanupProbe\.barWindowHidden[\s\S]*snapshot\.stopCleanupProbe\.syncLoopsStopped/,
+  "Manual real OAuth QA script must prove redaction, real TAURI sessions, visible widgets, sync loops, managed-folder watcher status, local SQLite/widget/activity outbox sync, stability dwell, session restore, and stop cleanup for passed reports.",
+);
+assertContains(
+  realOAuthQaScript,
+  /function writeReport\(report\)[\s\S]*const reportPath = join\(directory, `tauri-real-oauth-qa-\$\{timestamp\}\.json`\)[\s\S]*const summaryPath = join\(directory, `tauri-real-oauth-qa-\$\{timestamp\}\.md`\)[\s\S]*writeFileSync\(reportPath, JSON\.stringify\(report, null, 2\)\)[\s\S]*writeFileSync\(summaryPath, renderEvidenceSummary\(report, reportPath\)\)[\s\S]*return \{ reportPath, summaryPath \}/,
+  "Manual real OAuth QA script must persist both the redacted JSON report and a markdown evidence summary.",
+);
+assertContains(
+  realOAuthQaScript,
+  /function renderEvidenceSummary\(report, reportPath\)[\s\S]*Redacted Proof[\s\S]*Real TAURI local session[\s\S]*Backend \/api\/me[\s\S]*All widget windows visible[\s\S]*Stability dwell ms[\s\S]*Session restored from Tauri mirror[\s\S]*Stop cleanup closed widgets and loops[\s\S]*Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded/,
+  "Manual real OAuth QA evidence summary must stay redacted and list the core auth, backend, widget, stability, restore, and cleanup proofs.",
+);
+assertContains(
+  authWidgetQa,
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA === "true"[\s\S]*settingsApi\.getPrivacyConsents\(\)[\s\S]*recordActivityContext\(\{[\s\S]*recordWidgetUsageEvent\([\s\S]*syncAllLocalOutboxToServer\(\{ limit: 50 \}\)[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:widgetUsageReachedBackend[\s\S]*localSyncProbe:activityReachedBackend/,
+  "Real OAuth widget QA must include an opt-in local SQLite, widget outbox, and activity outbox sync probe.",
+);
+assertContains(
+  authWidgetQa,
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS[\s\S]*waitForMs\(dwellMs\)[\s\S]*readWidgetRuntimeState\(selectedRoomId, serverSelectedRoomId\)[\s\S]*widgetApi\.getSummary\(selectedRoomId\)[\s\S]*stabilityProbe:allExpectedWindowsVisible[\s\S]*stabilityProbe:syncLoopsStillRunning[\s\S]*stabilityProbe:backendWidgetSummary/,
+  "Real OAuth widget QA must include an opt-in stability dwell probe that re-checks widgets, room context, sync loops, and backend widget summary.",
+);
+assertContains(
+  authWidgetQa,
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA === "true"[\s\S]*probeStoredAuthSessionRestoreFromTauriMirrorForQa\(\)[\s\S]*authApi\.getMe\(\)[\s\S]*sessionRestoreProbe:restoredLocalSession[\s\S]*sessionRestoreProbe:restoredTauriClient[\s\S]*sessionRestoreProbe:backendMeAfterRestore/,
+  "Real OAuth widget QA must include an opt-in Tauri mirror session restore probe that proves backend auth after localStorage restart recovery.",
+);
+assertContains(
+  authWidgetQa,
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA === "true"[\s\S]*stopTauriAuthenticatedSurfaces\(\)[\s\S]*readActiveProjectRoom\(\)[\s\S]*allExpectedWindowsHidden[\s\S]*barWindowHidden[\s\S]*syncLoopsStopped[\s\S]*stopCleanupProbe:activeProjectRoomCleared[\s\S]*stopCleanupProbe:allExpectedWindowsHidden[\s\S]*stopCleanupProbe:syncLoopsStopped/,
+  "Real OAuth widget QA must include an opt-in stop cleanup probe that closes widgets, clears active room, and stops sync loops.",
+);
+assertContains(
+  authWidgetQa,
+  /getManagedFolderAutoSyncStatus[\s\S]*managedFolderStatus: ManagedFolderAutoSyncStatus[\s\S]*sync:managedFolderStatusMatchesRunningFlag[\s\S]*sync:managedFolderStatusNotFailed[\s\S]*managedFolderStatus,/,
+  "Real OAuth widget QA must include managed-folder watcher status diagnostics in the redacted snapshot.",
 );
 assertContains(
   windowsRuntimeSoak,
@@ -179,6 +243,31 @@ assertContains(
   windowsRuntimeSoak,
   /CONTRACT_ONLY[\s\S]*mode: "contract"/,
   "Windows Tauri runtime soak must support a no-window contract mode for fast static verification.",
+);
+assertContains(
+  localAutoSyncSoak,
+  /process\.platform !== "win32"[\s\S]*Windows Tauri local-auto-sync soak skipped/,
+  "Windows local-auto-sync soak must remain Windows-only so macOS/Linux CI is not affected.",
+);
+assertContains(
+  localAutoSyncSoak,
+  /scripts\/check-tauri-windows-runtime-soak\.mjs[\s\S]*process\.argv\.slice\(2\)[\s\S]*BUBLI_TAURI_RUNTIME_SMOKE_PHASES:\s*"local-auto-sync"[\s\S]*BUBLI_TAURI_LOCAL_AUTO_SYNC_SOAK_ITERATIONS/,
+  "Windows local-auto-sync soak must delegate to the existing soak runner while forcing only the local-auto-sync runtime smoke phase.",
+);
+assertContains(
+  localAutoSyncSoak,
+  /process\.argv\.slice\(2\)/,
+  "Windows local-auto-sync soak must pass through --contract for fast no-window verification.",
+);
+assertContains(
+  windowsRuntimeSmoke,
+  /const allowed = new Set\(\[\.\.\.DEFAULT_PHASES, "local-auto-sync"\]\)/,
+  "Windows runtime smoke script must explicitly allow the local-auto-sync phase.",
+);
+assertContains(
+  windowsRuntimeSoak,
+  /CONTRACT_ONLY[\s\S]*mode: "contract"/,
+  "Windows local-auto-sync soak must inherit no-window contract mode from the existing Windows soak runner.",
 );
 assertContains(
   windowsRuntimeSmoke,
@@ -204,6 +293,11 @@ assertContains(
   runtimePreflight,
   /\/actuator\/health[\s\S]*checkOAuthLiveContract\(\)[\s\S]*scripts\/check-tauri-oauth-live-contract\.mjs/,
   "Tauri runtime preflight must verify backend health and the live Google OAuth authorize contract.",
+);
+assertContains(
+  oauthLiveContract,
+  /access_type"\) === "offline"[\s\S]*desktop sessions can receive refresh tokens/,
+  "Tauri OAuth live contract must require access_type=offline so real desktop sessions can refresh.",
 );
 assertContains(
   runtimePreflight,
@@ -309,6 +403,16 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /verifyRealBackendWidgetItemState[\s\S]*widgetApi\.updateItemState\(smokeTaskItemId[\s\S]*state: "PINNED"[\s\S]*widgetApi\.listItemStates\(\[smokeTaskItemId\]\)[\s\S]*real backend widget item state pinned readback from Tauri runtime[\s\S]*state: "VISIBLE"[\s\S]*real backend widget item state restored after Tauri runtime smoke/,
+  "TauriRuntimeSmokeRunner must verify widget item state PATCH and readback through the real backend from the Windows runtime.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /verifyRealBackendWidgetSettings[\s\S]*widgetApi\.getSettings\(\)[\s\S]*real backend widget settings included TODO bubble before Tauri patch[\s\S]*widgetApi\.updateSettings\(\{[\s\S]*bubbleType: "TODO"[\s\S]*opacity: 0\.88[\s\S]*real backend widget settings PATCH persisted TODO layout and flags in Tauri runtime[\s\S]*real backend widget settings GET read back patched TODO layout in Tauri runtime[\s\S]*real backend widget settings restored after Tauri runtime patch[\s\S]*await verifyRealBackendWidgetSettings\(assert\)/,
+  "TauriRuntimeSmokeRunner must verify widget settings PATCH, GET readback, and restore through the real backend from the Windows runtime.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /import \{ chatApi \} from "@\/features\/communication\/api\/chatApi";[\s\S]*import \{ voiceApi \} from "@\/features\/communication\/api\/voiceApi";[\s\S]*import \{ projectRoomApi \} from "@\/features\/project-room\/api\/projectRoomApi";[\s\S]*import \{ resourcesApi \} from "@\/features\/resources\/api\/resourcesApi";/,
   "TauriRuntimeSmokeRunner must use the real frontend API clients for room communication smoke checks.",
 );
@@ -389,8 +493,13 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /setWidgetWindowPosition\(\{[\s\S]*all bubble widget positions persisted with project room context[\s\S]*closeWidgetWindow\(\{ bubbleType, windowId: bubbleType \}\)[\s\S]*all bubble widget windows minimized without losing project room context[\s\S]*getWidgetWindowState\(\{ bubbleType: "bar", windowId: "bar" \}\)[\s\S]*widget bar remains visible after all bubble widgets are minimized[\s\S]*getWidgetBarItems\(\)[\s\S]*all minimized bubble widgets appear as bar restore items[\s\S]*openWidgetWindows\(\{[\s\S]*mode: "DEFAULT" as const[\s\S]*all minimized bubble widget windows restore with position and project room context/,
+  /setWidgetWindowPosition\(\{[\s\S]*all bubble widget positions persisted with project room context[\s\S]*setWidgetWindowMode\(\{[\s\S]*mode: "MINIMIZED"[\s\S]*all bubble widget windows minimized without losing project room context[\s\S]*getWidgetWindowState\(\{ bubbleType: "bar", windowId: "bar" \}\)[\s\S]*widget bar remains visible after all bubble widgets are minimized[\s\S]*getWidgetBarItems\(\)[\s\S]*all minimized bubble widgets appear as bar restore items[\s\S]*openWidgetWindows\(\{[\s\S]*mode: "DEFAULT" as const[\s\S]*all minimized bubble widget windows restore with position and project room context/,
   "TauriRuntimeSmokeRunner must verify all eight bubble widgets preserve position while minimizing to the bar and restoring with project-room context.",
+);
+assertContains(
+  widgetPage,
+  /const closeWindow = useCallback[\s\S]*setWidgetWindowMode\(\{[\s\S]*mode: "MINIMIZED"[\s\S]*selectedRoomId: selectedWidgetRoomId[\s\S]*eventType: "close:minimize"/,
+  "Desktop widget minimize control must use MINIMIZED mode so the bubble remains restorable from the bar.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -469,7 +578,7 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened all bubble widgets with project room context[\s\S]*isActivityAutoCaptureRunning\(\)[\s\S]*isManagedFolderAutoSyncRunning\(\)[\s\S]*isWidgetUsageAutoSyncRunning\(\)[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*stopTauriAuthenticatedSurfaces\(\)[\s\S]*post-login stop closed all bubble widget windows[\s\S]*post-login stop stopped activity folder and widget sync loops/,
+  /launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened all bubble widgets with project room context[\s\S]*isActivityAutoCaptureRunning\(\)[\s\S]*isManagedFolderAutoSyncRunning\(\)[\s\S]*isWidgetUsageAutoSyncRunning\(\)[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*stopTauriAuthenticatedSurfaces\(\)[\s\S]*post-login stop cleared active project room context[\s\S]*post-login stop closed all bubble widget windows[\s\S]*post-login stop stopped activity folder and widget sync loops/,
   "TauriRuntimeSmokeRunner must prove the real post-login authenticated launcher opens widgets, starts sync loops, and stops both widgets and loops.",
 );
 assertContains(
@@ -484,7 +593,7 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /verifyLocalAutoSyncLoops[\s\S]*startActivityAutoCapture\(\)[\s\S]*startManagedFolderAutoSync\(\)[\s\S]*getActivityAutoCaptureStatus[\s\S]*local auto-sync activity loop repeated on smoke interval[\s\S]*getManagedFolderAutoSyncStatus[\s\S]*local auto-sync managed folder watcher restored active folders[\s\S]*triggerManagedFolderMutation[\s\S]*local auto-sync managed folder events drained through backend sync[\s\S]*stopActivityAutoCapture\(\{ flush: true \}\)[\s\S]*stopManagedFolderAutoSync\(\{ flush: true \}\)/,
+  /verifyLocalAutoSyncLoops[\s\S]*startActivityAutoCapture\(\)[\s\S]*startManagedFolderAutoSync\(\)[\s\S]*getActivityAutoCaptureStatus[\s\S]*local auto-sync activity loop repeated on smoke interval[\s\S]*getManagedFolderAutoSyncStatus[\s\S]*local auto-sync managed folder watcher restored active folders[\s\S]*triggerManagedFolderMutation[\s\S]*lastFileEventSentCount[\s\S]*lastFileEventSyncedCount[\s\S]*lastFileAnalysisFailedCount[\s\S]*local auto-sync managed folder events drained through backend sync[\s\S]*stopActivityAutoCapture\(\{ flush: true \}\)[\s\S]*stopManagedFolderAutoSync\(\{ flush: true \}\)/,
   "TauriRuntimeSmokeRunner must provide a UI-free local-auto-sync phase for activity and managed-folder loops.",
 );
 assertContains(
@@ -509,8 +618,8 @@ assertContains(
 );
 assertContains(
   windowsRuntimeSmoke,
-  /const CONTRACT_ONLY = process\.argv\.includes\("--contract"\)[\s\S]*if \(CONTRACT_ONLY\) \{[\s\S]*mode: "contract"[\s\S]*process\.exit\(0\);/,
-  "Windows runtime smoke script must support a no-window --contract mode.",
+  /const CONTRACT_ONLY = process\.argv\.includes\("--contract"\)[\s\S]*if \(CONTRACT_ONLY\) \{[\s\S]*const contractChecks = runContractCheck\(\);[\s\S]*checks: contractChecks[\s\S]*mode: "contract"[\s\S]*process\.exit\(0\);[\s\S]*function runContractCheck\(\)[\s\S]*runner verifies post-login bar and all bubble widgets with room context[\s\S]*runner verifies real backend widget context and settings persistence[\s\S]*runner verifies SQLite backup creation and restore queueing[\s\S]*runner verifies local file scan reindex watch sync and analysis backfill/,
+  "Windows runtime smoke --contract mode must statically verify key runtime smoke functional assertions before reporting pass.",
 );
 assertContains(
   windowsRuntimeSmoke,
@@ -519,8 +628,8 @@ assertContains(
 );
 assertContains(
   windowsRuntimeSmoke,
-  /runtime-smoke-structured\.json[\s\S]*runtime-smoke-rich\.rtf[\s\S]*runtime-smoke-delete\.txt[\s\S]*request\.method === "POST" && request\.url === "\/mutate-folder"[\s\S]*appendFileSync[\s\S]*rmSync/,
-  "Windows runtime smoke server must mutate and delete real temp files after the Tauri watcher starts.",
+  /runtime-smoke-table\.csv[\s\S]*~\$runtime-smoke-temp\.csv[\s\S]*runtime-smoke-structured\.json[\s\S]*runtime-smoke-rich\.rtf[\s\S]*runtime-smoke-delete\.txt[\s\S]*request\.method === "POST" && request\.url === "\/mutate-folder"[\s\S]*appendFileSync[\s\S]*rmSync/,
+  "Windows runtime smoke server must seed CSV, ignored temp CSV, and mutate/delete real temp files after the Tauri watcher starts.",
 );
 assertContains(
   windowsRuntimeSmoke,
@@ -536,6 +645,41 @@ assertContains(
   devWidgetRealBackend,
   /REQUIRED_WIDGET_BUBBLES = \["TODO", "AGENT", "CHAT", "TIMER", "MEMO", "SCHEDULE", "RESOURCE", "ALERT"\][\s\S]*REQUIRED_WIDGET_BUBBLES\.every[\s\S]*widget settings did not include all eight backend-supported bubbles[\s\S]*'RESOURCE'[\s\S]*'ALERT'/,
   "Real backend widget seed must require and insert all eight backend-supported bubbles.",
+);
+assertContains(
+  devWidgetRealBackend,
+  /apiGet\("\/api\/project-rooms\?page=0&size=20"[\s\S]*apiGet\("\/api\/me\/project-rooms\?page=0&size=20"[\s\S]*assertProjectRoomListContainsSeed\(projectRooms[\s\S]*assertProjectRoomListContainsSeed\(myProjectRooms/,
+  "Real backend widget smoke must verify both project-room list bootstrap endpoints include the active seed room.",
+);
+assertContains(
+  devWidgetRealBackend,
+  /\/api\/project-rooms\/\$\{SEED_ROOM_ID\}\/events\?afterSequence=0&limit=100[\s\S]*ROOM_UPDATED[\s\S]*event\.sequence === 1[\s\S]*event\.payload\?\.source === "codex-local-seed"[\s\S]*project room event backfill did not include the seeded ROOM_UPDATED event[\s\S]*INSERT INTO project_room_events/,
+  "Real backend widget smoke must seed and verify project-room event history catch-up.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /calendarApi\.getProjectRoomEvents\(smokeRoomId, \{ afterSequence: 0, limit: 100 \}\)[\s\S]*real backend project room event catch-up returned sequence list shape[\s\S]*event\.eventType === "ROOM_UPDATED"[\s\S]*event\.actor\?\.id === "11111111-1111-4111-8111-111111111111"[\s\S]*event\.payload\?\.source === "codex-local-seed"[\s\S]*real backend project room event catch-up loaded seeded history[\s\S]*calendarApi\.getProjectRoomEvents\(smokeRoomId, \{[\s\S]*afterSequence: firstLastReceivedSequence[\s\S]*event\.sequence > firstLastReceivedSequence[\s\S]*real backend project room event catch-up skipped already received sequences/,
+  "TauriRuntimeSmokeRunner must verify project-room event catch-up sequence shape, seeded ROOM_UPDATED history, and incremental afterSequence filtering.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /runtime-smoke-table\.csv[\s\S]*managed folder CSV file resolved for tabular preview[\s\S]*managed folder CSV preview is readable[\s\S]*~\$runtime-smoke-temp\.csv[\s\S]*managed folder temp CSV stayed ignored during initial scan[\s\S]*local CSV file event reached backend sync batch/,
+  "TauriRuntimeSmokeRunner must prove user managed-folder CSV files are readable/synced while temporary CSV lock files are ignored.",
+);
+assertContains(
+  devWidgetRealBackend,
+  /apiPatch\("\/api\/widget\/settings"[\s\S]*bubbleType: "TODO"[\s\S]*opacity: 0\.88[\s\S]*widget settings PATCH did not persist TODO layout and flags[\s\S]*apiGet\("\/api\/widget\/settings"[\s\S]*widget settings GET did not read back the patched TODO layout[\s\S]*todoSettingBefore\.alertEnabled/,
+  "Real backend widget smoke must verify widget settings PATCH persistence, GET readback, and restoration.",
+);
+assertContains(
+  devWidgetRealBackend,
+  /const localFileSyncReplay = await apiPost\("\/api\/local-file-events\/sync"[\s\S]*localEventId: createdLocalEventId[\s\S]*local file event duplicate localEventId did not replay the original result/,
+  "Real backend widget smoke must verify duplicate localEventId replay returns the original local file sync result.",
+);
+assertContains(
+  devWidgetRealBackend,
+  /const localActivityId = `codex-activity-\$\{Date\.now\(\)\}`[\s\S]*localActivityId,[\s\S]*const activityReplay = await apiPost\("\/api\/activity\/current-app"[\s\S]*activityReplay\.id === activitySmoke\.id[\s\S]*activity duplicate localActivityId replay unexpectedly changed the original row/,
+  "Real backend widget smoke must verify duplicate localActivityId replay returns the original activity row.",
 );
 assertContains(
   devWidgetRealBackend,
@@ -780,8 +924,8 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*closeAllWidgetWindows\(\)/,
-  "stopTauriAuthenticatedSurfaces must disable the native auth gate and close all widgets.",
+  /clearActiveProjectRoomId\(\)[\s\S]*clearActiveProjectRoom\(\)[\s\S]*setWidgetRoomContext\(\{ selectedRoomId: null \}\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*closeAllWidgetWindows\(\)/,
+  "stopTauriAuthenticatedSurfaces must clear active room context, disable the native auth gate, and close all widgets.",
 );
 
 assertContains(
@@ -905,6 +1049,11 @@ assertContains(
   authSession,
   /const parsed = parseStoredAuthSession\(restored\.sessionJson\);[\s\S]*shouldRejectStoredAuthSession\(parsed\)[\s\S]*clearTauriAuthSessionMirror\(\);/,
   "Tauri mirrored auth session restore must clear stale dev-token sessions when the dev-login flag is not enabled.",
+);
+assertContains(
+  authSession,
+  /probeStoredAuthSessionRestoreFromTauriMirrorForQa[\s\S]*window\.localStorage\.removeItem\(AUTH_SESSION_STORAGE_KEY\)[\s\S]*restoreStoredAuthSessionFromTauri\(\)[\s\S]*restoredRealOAuthSession[\s\S]*window\.localStorage\.setItem\(AUTH_SESSION_STORAGE_KEY, originalRawSession\)/,
+  "Manual Tauri OAuth QA must simulate renderer-session loss inside auth-session and restore from the Tauri SQLite auth mirror without exposing raw tokens.",
 );
 assertContains(
   widgetAuthHeaders,

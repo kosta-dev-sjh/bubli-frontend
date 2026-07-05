@@ -10,6 +10,8 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
 import { completeOnboarding, completeTutorial, hasCompletedOnboarding, readStoredOnboarding } from "@/features/onboarding/lib/onboarding-storage";
+import { tauriCommands } from "@/lib/tauri/commands";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { AuthUser } from "@/types/api/auth";
 
 import type { RoleOnboardingResult } from "./role-onboarding-overlay";
@@ -32,6 +34,22 @@ type FirstRunControllerProps = {
 export function FirstRunController({ user }: FirstRunControllerProps) {
   const [phase, setPhase] = useState<FirstRunPhase>("idle");
 
+  const triggerOnboardingOverlay = () => {
+    if (!isTauriRuntime()) return;
+
+    void tauriCommands.openOnboardingOverlay();
+  };
+
+  const showTour = () => {
+    if (isTauriRuntime()) {
+      triggerOnboardingOverlay();
+      setPhase("idle");
+      return;
+    }
+
+    setPhase("tour");
+  };
+
   // 저장소 확인은 마운트 뒤에만 — SSR 하이드레이션 불일치를 피한다.
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -46,7 +64,7 @@ export function FirstRunController({ user }: FirstRunControllerProps) {
         // 창 닫기/강제 종료/새로고침 등 어떤 이탈 경로로도 다시 자동으로 뜨지 않게 한다.
         // (다시 보기는 설정 > 표시의 OPEN_TUTORIAL_EVENT 수동 경로만 사용한다.)
         completeTutorial(user.id);
-        setPhase("tour");
+        showTour();
       }
     }, 0);
 
@@ -56,6 +74,12 @@ export function FirstRunController({ user }: FirstRunControllerProps) {
   // 설정 > 표시 "튜토리얼 다시 보기" — AppShell에 상주하므로 어느 화면에서든 받는다.
   useEffect(() => {
     function openTutorial() {
+      if (isTauriRuntime()) {
+        triggerOnboardingOverlay();
+        setPhase("idle");
+        return;
+      }
+
       setPhase((current) => (current === "onboarding" ? current : "tour"));
     }
 
@@ -69,7 +93,7 @@ export function FirstRunController({ user }: FirstRunControllerProps) {
     // 적용/건너뛰기와 무관하게 튜토리얼로 이어간다(건너뛰기는 온보딩만 넘긴 것).
     // 튜토리얼도 노출 시점에 완료로 기록 — 진행 중 창을 닫아도 다음 실행에서 자동 재노출되지 않는다.
     completeTutorial(user.id);
-    setPhase("tour");
+    showTour();
   };
 
   const handleTourClose = () => {
@@ -84,6 +108,10 @@ export function FirstRunController({ user }: FirstRunControllerProps) {
   }
 
   if (phase === "tour") {
+    if (isTauriRuntime()) {
+      return null;
+    }
+
     return <WorkspaceTour onClose={handleTourClose} />;
   }
 

@@ -117,6 +117,88 @@ async function smokeBackend(accessToken) {
   );
   assert(dashboard.todayTasks !== undefined, "dashboard response did not include todayTasks");
 
+  const [projectRooms, myProjectRooms] = await Promise.all([
+    apiGet("/api/project-rooms?page=0&size=20", headers),
+    apiGet("/api/me/project-rooms?page=0&size=20", headers),
+  ]);
+  assertProjectRoomListContainsSeed(projectRooms, "/api/project-rooms");
+  assertProjectRoomListContainsSeed(myProjectRooms, "/api/me/project-rooms");
+
+  const roomEvents = await apiGet(`/api/project-rooms/${SEED_ROOM_ID}/events?afterSequence=0&limit=100`, headers);
+  assert(
+    roomEvents.items?.some(
+      (event) =>
+        event.eventType === "ROOM_UPDATED" &&
+        event.roomId === SEED_ROOM_ID &&
+        event.sequence === 1 &&
+        event.actor?.type === "USER" &&
+        event.actor?.id === SEED_USER_ID &&
+        event.payload?.source === "codex-local-seed",
+    ),
+    "project room event backfill did not include the seeded ROOM_UPDATED event",
+  );
+  assert(roomEvents.latestSequence >= 1, "project room events did not report latestSequence");
+  assert(roomEvents.lastReceivedSequence >= 1, "project room events did not report lastReceivedSequence");
+
+  const todoSettingBefore = settings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
+  assert(todoSettingBefore?.id, "widget settings did not include a TODO bubble setting id");
+  const patchedWidgetSettings = await apiPatch("/api/widget/settings", headers, {
+    bubbles: [
+      {
+        alertEnabled: false,
+        bubbleType: "TODO",
+        enabled: true,
+        ghostMode: true,
+        height: 333,
+        minimized: false,
+        opacity: 0.88,
+        width: 321,
+        x: 77,
+        y: 88,
+      },
+    ],
+  });
+  const patchedTodoSetting = patchedWidgetSettings.bubbles?.find((bubble) => bubble.bubbleType === "TODO");
+  assert(patchedTodoSetting?.id === todoSettingBefore.id, "widget settings PATCH changed the TODO setting id");
+  assert(
+    patchedTodoSetting.enabled === true &&
+      patchedTodoSetting.x === 77 &&
+      patchedTodoSetting.y === 88 &&
+      patchedTodoSetting.width === 321 &&
+      patchedTodoSetting.height === 333 &&
+      patchedTodoSetting.minimized === false &&
+      Number(patchedTodoSetting.opacity) === 0.88 &&
+      patchedTodoSetting.ghostMode === true &&
+      patchedTodoSetting.alertEnabled === false,
+    "widget settings PATCH did not persist TODO layout and flags",
+  );
+  const readBackWidgetSettings = await apiGet("/api/widget/settings", headers);
+  const readBackTodoSetting = readBackWidgetSettings.bubbles?.find((bubble) => bubble.bubbleType === "TODO");
+  assert(
+    readBackTodoSetting?.x === 77 &&
+      readBackTodoSetting.y === 88 &&
+      readBackTodoSetting.width === 321 &&
+      readBackTodoSetting.height === 333 &&
+      readBackTodoSetting.ghostMode === true,
+    "widget settings GET did not read back the patched TODO layout",
+  );
+  await apiPatch("/api/widget/settings", headers, {
+    bubbles: [
+      {
+        alertEnabled: todoSettingBefore.alertEnabled,
+        bubbleType: "TODO",
+        enabled: todoSettingBefore.enabled,
+        ghostMode: todoSettingBefore.ghostMode,
+        height: todoSettingBefore.height,
+        minimized: todoSettingBefore.minimized,
+        opacity: todoSettingBefore.opacity,
+        width: todoSettingBefore.width,
+        x: todoSettingBefore.x,
+        y: todoSettingBefore.y,
+      },
+    ],
+  });
+
   const privacyConsents = await apiGet("/api/me/privacy-consents", headers);
   assertPrivacyConsent(privacyConsents, "ACTIVITY_CONTEXT", true, "seeded activity consent");
   assertPrivacyConsent(privacyConsents, "MANAGED_FOLDER", true, "seeded managed folder consent");
@@ -258,7 +340,7 @@ async function smokeBackend(accessToken) {
   assert(stoppedTimer.status === "ENDED", "timer stop did not return ENDED status");
   assert(stoppedTimer.endedAt, "timer stop did not return endedAt");
 
-  const todoSetting = settings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
+  const todoSetting = todoSettingBefore;
   assert(todoSetting?.id, "widget settings did not include a TODO bubble setting id");
 
   const todayUsageBefore = await apiGet("/api/widget/usage-summaries/today", headers);
@@ -308,6 +390,25 @@ async function smokeBackend(accessToken) {
   assertOptionalLocalEventId(localFileSync.results?.[0], createdLocalEventId, "local file event sync");
   const syncedResourceId = localFileSync.results[0].resourceId;
   assert(syncedResourceId, "local file event sync did not return a resource id");
+
+  const localFileSyncReplay = await apiPost("/api/local-file-events/sync", headers, {
+    events: [
+      {
+        eventType: "CREATED",
+        fileName: "codex-local-sync-smoke-replayed.txt",
+        fileSizeBytes: 4200,
+        localEventId: createdLocalEventId,
+        mimeType: "text/plain",
+        resourceId: null,
+      },
+    ],
+  });
+  assert(
+    localFileSyncReplay.results?.[0]?.status === "SYNCED" &&
+      localFileSyncReplay.results[0].localEventId === createdLocalEventId &&
+      localFileSyncReplay.results[0].resourceId === syncedResourceId,
+    "local file event duplicate localEventId did not replay the original result",
+  );
 
   const updatedLocalEventId = `codex-local-sync-updated-${Date.now()}`;
   const localFileUpdate = await apiPost("/api/local-file-events/sync", headers, {
@@ -382,16 +483,32 @@ async function smokeBackend(accessToken) {
 
   const activityStartedAt = new Date(Date.now() - 120_000).toISOString();
   const activityEndedAt = new Date().toISOString();
+  const localActivityId = `codex-activity-${Date.now()}`;
   const activitySmoke = await apiPost("/api/activity/current-app", headers, {
     appName: "Codex Tauri activity smoke",
     durationSeconds: 120,
     endedAt: activityEndedAt,
+    localActivityId,
     roomId: SEED_ROOM_ID,
     startedAt: activityStartedAt,
     windowTitle: "Real backend activity roundtrip",
   });
   assert(activitySmoke.appName === "Codex Tauri activity smoke", "activity record did not return the smoke app name");
   assert(activitySmoke.roomId === SEED_ROOM_ID, "activity record did not return the seeded room id");
+  const activityReplay = await apiPost("/api/activity/current-app", headers, {
+    appName: "Codex Tauri activity smoke replay should not overwrite",
+    durationSeconds: 999,
+    endedAt: activityEndedAt,
+    localActivityId,
+    roomId: SEED_ROOM_ID,
+    startedAt: activityStartedAt,
+    windowTitle: "Duplicate local activity id replay",
+  });
+  assert(activityReplay.id === activitySmoke.id, "activity duplicate localActivityId did not replay the original row");
+  assert(
+    activityReplay.appName === activitySmoke.appName && activityReplay.durationSeconds === activitySmoke.durationSeconds,
+    "activity duplicate localActivityId replay unexpectedly changed the original row",
+  );
 
   const todayActivities = await apiGet("/api/activity/today", headers);
   assert(
@@ -438,8 +555,16 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings, /api/widget/context, /api/widget/items/{id}/state, /api/widget/items/states, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/token, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings GET/PATCH, /api/widget/context, /api/widget/items/{id}/state, /api/widget/items/states, /api/project-rooms, /api/me/project-rooms, /api/project-rooms/{roomId}, /api/project-rooms/{roomId}/events, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/token, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED + duplicate localEventId replay, /api/local-file-analyses, /api/activity/current-app + duplicate localActivityId replay, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
+}
+
+function assertProjectRoomListContainsSeed(page, label) {
+  assert(Array.isArray(page.items), `${label} did not return an item array`);
+  const room = page.items.find((item) => item.id === SEED_ROOM_ID);
+  assert(room, `${label} did not include the seeded project room`);
+  assert(room.name === "Codex Local Room", `${label} did not return the seeded project room name`);
+  assert(room.status === "ACTIVE", `${label} did not return the seeded project room as ACTIVE`);
 }
 
 function assertPrivacyConsent(response, consentType, enabled, label) {
@@ -598,6 +723,20 @@ ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, u
 INSERT INTO room_members (id, room_id, user_id, role, status, created_at, updated_at)
 VALUES ('33333333-3333-4333-8333-333333333333', '${SEED_ROOM_ID}', '${SEED_USER_ID}', 'PROJECT_LEADER', 'ACTIVE', now(), now())
 ON CONFLICT (room_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status, updated_at = now();
+
+INSERT INTO project_room_events (id, room_id, sequence, event_type, actor_user_id, payload_json, occurred_at, created_at)
+VALUES (
+'23232323-2323-4232-8232-232323232323',
+'${SEED_ROOM_ID}',
+1,
+'ROOM_UPDATED',
+'${SEED_USER_ID}',
+'{"name":"Codex Local Room","source":"codex-local-seed"}'::jsonb,
+now(),
+now()
+)
+ON CONFLICT ON CONSTRAINT uk_project_room_events_room_sequence
+DO UPDATE SET event_type = EXCLUDED.event_type, actor_user_id = EXCLUDED.actor_user_id, payload_json = EXCLUDED.payload_json, occurred_at = EXCLUDED.occurred_at;
 
 INSERT INTO widget_context_settings (id, user_id, selected_room_id, mode, created_at, updated_at)
 VALUES ('44444444-4444-4444-8444-444444444444', '${SEED_USER_ID}', '${SEED_ROOM_ID}', 'ROOM', now(), now())

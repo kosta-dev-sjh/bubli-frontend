@@ -23,6 +23,8 @@ export const TAURI_COMMANDS = {
   getWidgetWindowState: "get_widget_window_state",
   listAppMonitors: "list_app_monitors",
   listLocalSqliteBackups: "list_local_sqlite_backups",
+  closeOnboardingOverlay: "close_onboarding_overlay",
+  openOnboardingOverlay: "open_onboarding_overlay",
   markActivityContextSynced: "mark_activity_context_synced",
   listManagedFolders: "list_managed_folders",
   notifyWidgetDragStarted: "notify_widget_drag_started",
@@ -746,6 +748,13 @@ export type WidgetWindowResizeInput = {
   windowId?: string;
 };
 
+// 자동 정렬 프리셋: 격자(기본)/세로 한 열/가로 한 줄/계단식.
+export type WidgetArrangeLayout = "grid" | "column" | "row" | "cascade";
+
+export type WidgetArrangeInput = {
+  layout?: WidgetArrangeLayout;
+};
+
 export type WidgetWindowOpenInput = {
   bubbleType?: WidgetWindowBubbleType;
   mode?: WidgetWindowMode;
@@ -835,7 +844,7 @@ export type TauriCommandContract = {
     result: string;
   };
   arrange_widget_windows: {
-    args: undefined;
+    args: WidgetArrangeInput;
     result: WidgetWindowState[];
   };
   backup_local_sqlite: {
@@ -857,6 +866,10 @@ export type TauriCommandContract = {
   close_all_widget_windows: {
     args: undefined;
     result: number;
+  };
+  close_onboarding_overlay: {
+    args: undefined;
+    result: null;
   };
   close_widget_window: {
     args: WidgetWindowTargetInput | undefined;
@@ -1030,6 +1043,10 @@ export type TauriCommandContract = {
     args: MainWindowRouteInput;
     result: string;
   };
+  open_onboarding_overlay: {
+    args: undefined;
+    result: null;
+  };
   register_widget_shortcut: {
     args: WidgetShortcutInput;
     result: WidgetWindowState;
@@ -1179,8 +1196,8 @@ export const tauriCommands = {
   appReady(input?: AppReadyInput) {
     return invokeTauri<string>(TAURI_COMMANDS.appReady, input ? { input } : undefined);
   },
-  arrangeWidgetWindows() {
-    return invokeTauri<WidgetWindowState[]>(TAURI_COMMANDS.arrangeWidgetWindows);
+  arrangeWidgetWindows(input?: WidgetArrangeInput) {
+    return invokeTauri<WidgetWindowState[]>(TAURI_COMMANDS.arrangeWidgetWindows, input ? { input } : undefined);
   },
   backupLocalSqlite() {
     return invokeTauri<LocalBackupResult>(TAURI_COMMANDS.backupLocalSqlite);
@@ -1199,6 +1216,9 @@ export const tauriCommands = {
   },
   closeWidgetWindow(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.closeWidgetWindow, input ? { input } : undefined);
+  },
+  closeOnboardingOverlay() {
+    return invokeTauri<null>(TAURI_COMMANDS.closeOnboardingOverlay);
   },
   dragWidgetBarWindow(input: WidgetBarDragInput) {
     return invokeTauri<WidgetBarDragResult>(TAURI_COMMANDS.dragWidgetBarWindow, { input });
@@ -1259,6 +1279,9 @@ export const tauriCommands = {
   },
   openMainWindowRoute(input: MainWindowRouteInput) {
     return invokeTauri<string>(TAURI_COMMANDS.openMainWindowRoute, { input });
+  },
+  openOnboardingOverlay() {
+    return invokeTauri<null>(TAURI_COMMANDS.openOnboardingOverlay);
   },
   quitApp() {
     return invokeTauri<null>(TAURI_COMMANDS.quitApp);

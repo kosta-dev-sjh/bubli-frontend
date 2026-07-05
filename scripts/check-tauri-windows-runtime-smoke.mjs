@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -18,9 +18,11 @@ if (process.platform !== "win32") {
 }
 
 if (CONTRACT_ONLY) {
+  const contractChecks = runContractCheck();
   console.log(
     JSON.stringify(
       {
+        checks: contractChecks,
         mode: "contract",
         phases: REQUESTED_PHASES,
         result: "passed",
@@ -41,6 +43,8 @@ runNodeScript(["scripts/check-tauri-runtime-preflight.mjs"], {
 const smokeRoot = mkdtempSync(join(tmpdir(), "bubli-tauri-runtime-smoke-"));
 const managedFolderPath = join(smokeRoot, "managed-folder");
 const managedFolderNotePath = join(managedFolderPath, "runtime-smoke-note.txt");
+const managedFolderCsvPath = join(managedFolderPath, "runtime-smoke-table.csv");
+const managedFolderTempCsvPath = join(managedFolderPath, "~$runtime-smoke-temp.csv");
 const managedFolderStructuredPath = join(managedFolderPath, "runtime-smoke-structured.json");
 const managedFolderRichPath = join(managedFolderPath, "runtime-smoke-rich.rtf");
 const managedFolderDeletePath = join(managedFolderPath, "runtime-smoke-delete.txt");
@@ -50,6 +54,14 @@ await import("node:fs/promises").then((fs) => fs.mkdir(managedFolderPath, { recu
 writeFileSync(
   managedFolderNotePath,
   "Codex runtime smoke verifies local file scan, preview, search, and staging.",
+);
+writeFileSync(
+  managedFolderCsvPath,
+  "title,status,owner\nRuntime smoke CSV,tracked,Codex\nManaged folder table,synced,Tauri\n",
+);
+writeFileSync(
+  managedFolderTempCsvPath,
+  "title,status\nTemporary office lock,ignored\n",
 );
 writeFileSync(
   managedFolderStructuredPath,
@@ -102,6 +114,105 @@ function runNodeScript(args, extraEnv = {}) {
   }
 
   return result.stdout;
+}
+
+function runContractCheck() {
+  const scriptSource = readFileSync("scripts/check-tauri-windows-runtime-smoke.mjs", "utf8");
+  const runtimeSmokeRunner = readFileSync("src/lib/tauri/tauri-runtime-smoke-runner.tsx", "utf8");
+  const checks = [
+    {
+      name: "script seeds csv structured rtf and watcher fixtures",
+      pattern:
+        /runtime-smoke-table\.csv[\s\S]*~\$runtime-smoke-temp\.csv[\s\S]*runtime-smoke-structured\.json[\s\S]*runtime-smoke-rich\.rtf[\s\S]*runtime-smoke-delete\.txt[\s\S]*\/mutate-folder[\s\S]*appendFileSync[\s\S]*rmSync/,
+      source: scriptSource,
+    },
+    {
+      name: "script exposes reindex and manual outbox mutation endpoints",
+      pattern:
+        /\/mutate-indexed-file[\s\S]*mutateIndexedFile[\s\S]*ReindexSignal[\s\S]*\/create-manual-outbox-file[\s\S]*runtime-smoke-manual-outbox\.dat/,
+      source: scriptSource,
+    },
+    {
+      name: "script passes runtime smoke env for backend websocket and local folder",
+      pattern:
+        /NEXT_PUBLIC_API_BASE_URL: API_BASE_URL[\s\S]*NEXT_PUBLIC_WS_URL: WS_URL[\s\S]*NEXT_PUBLIC_CHAT_TYPING_RELAY: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_FOLDER: managedFolderPath[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_ROOM_ID: ROOM_ID/,
+      source: scriptSource,
+    },
+    {
+      name: "runner verifies post-login bar and all bubble widgets with room context",
+      pattern:
+        /const smokeWidgetBubbles:[\s\S]*"todo"[\s\S]*"agent"[\s\S]*"chat"[\s\S]*"timer"[\s\S]*"memo"[\s\S]*"schedule"[\s\S]*"resource"[\s\S]*"alert"[\s\S]*native bar and all bubble widget windows opened after login[\s\S]*all bubble widget windows visible[\s\S]*project room context propagated to all bubble widgets/,
+      source: runtimeSmokeRunner,
+    },
+    {
+      name: "runner verifies real backend widget context and settings persistence",
+      pattern:
+        /verifyRealBackendWidgetSettings[\s\S]*real backend widget settings PATCH persisted TODO layout and flags in Tauri runtime[\s\S]*real backend widget settings GET read back patched TODO layout in Tauri runtime[\s\S]*real backend widget settings restored after Tauri runtime patch[\s\S]*widgetApi\.updateContext\(\{ selectedRoomId: smokeRoomId \}\)[\s\S]*real backend widget summary uses selected project room[\s\S]*await verifyRealBackendWidgetSettings\(assert\)/,
+      source: runtimeSmokeRunner,
+    },
+    {
+      name: "runner verifies real backend widget item state",
+      pattern:
+        /verifyRealBackendWidgetItemState[\s\S]*widgetApi\.updateItemState\(smokeTaskItemId[\s\S]*state: "PINNED"[\s\S]*real backend widget item state pinned readback from Tauri runtime[\s\S]*state: "VISIBLE"[\s\S]*real backend widget item state restored after Tauri runtime smoke[\s\S]*await verifyRealBackendWidgetItemState\(assert\)/,
+      source: runtimeSmokeRunner,
+    },
+    {
+      name: "runner verifies real backend project room events catch-up",
+      pattern:
+        /calendarApi\.getProjectRoomEvents\(smokeRoomId, \{ afterSequence: 0, limit: 100 \}\)[\s\S]*real backend project room event catch-up returned sequence list shape[\s\S]*real backend project room event catch-up loaded seeded history[\s\S]*afterSequence: firstLastReceivedSequence[\s\S]*real backend project room event catch-up skipped already received sequences/,
+      source: runtimeSmokeRunner,
+    },
+    {
+      name: "runner verifies SQLite backup creation and restore queueing",
+      pattern:
+        /checkLocalSqliteIntegrity\(\)[\s\S]*local SQLite quick_check passed[\s\S]*syncRoomMessages\(\{[\s\S]*local SQLite restore snapshot marker written[\s\S]*backupLocalSqlite\(\)[\s\S]*local SQLite backup file created[\s\S]*restoreLocalSqliteBackup\(\{ backupId: backup\.backupId \}\)[\s\S]*local SQLite restore queued for next app restart/,
+      source: runtimeSmokeRunner,
+    },
+    {
+      name: "runner verifies SQLite restore after restart",
+      pattern:
+        /smokePhase === "restore-verify"[\s\S]*readRoomMessages\(\{[\s\S]*local SQLite restore applied after app restart[\s\S]*checkLocalSqliteIntegrity\(\)[\s\S]*local SQLite integrity passed after restore restart/,
+      source: runtimeSmokeRunner,
+    },
+    {
+      name: "runner verifies activity capture backend sync and server readback",
+      pattern:
+        /readActivityContext\(\)[\s\S]*native foreground activity captured[\s\S]*recordActivityContext\(\{[\s\S]*stageActivityContextsForSync\(\{ limit: 50 \}\)[\s\S]*activityApi\.recordCurrentApp[\s\S]*markActivityContextSynced[\s\S]*activity buffer sync marked SQLite row as SYNCED[\s\S]*synced activity appears in real backend today readback/,
+      source: runtimeSmokeRunner,
+    },
+    {
+      name: "runner verifies all bubble widget usage backend sync",
+      pattern:
+        /for \(const bubbleType of smokeWidgetBubbles\) \{[\s\S]*recordWidgetUsageEvent\(\{[\s\S]*all bubble widget usage rollups created[\s\S]*syncLocalWidgetUsageSummaryToServer\(\{[\s\S]*all bubble widget usage summaries marked SQLite rollups as SYNCED[\s\S]*synced all bubble widget usage appears in real backend today readback/,
+      source: runtimeSmokeRunner,
+    },
+    {
+      name: "runner verifies local file scan reindex watch sync and analysis backfill",
+      pattern:
+        /selectManagedFolder\(\{ path: smokeFolderPath \}\)[\s\S]*scanManagedFolder[\s\S]*searchLocalFiles[\s\S]*readLocalFilePreview[\s\S]*managed folder CSV file resolved for tabular preview[\s\S]*managed folder temp CSV stayed ignored during initial scan[\s\S]*local CSV file event reached backend sync batch[\s\S]*local file event sync marked SQLite rows as SYNCED[\s\S]*reindexFile\(\{ localFileId: noteFile\.localFileId \}\)[\s\S]*local file reindex update event synced to backend[\s\S]*analyzePersonalLocalFileWithKeySentences\(\{[\s\S]*local file analysis backend job read back[\s\S]*managed folder watcher staged update and delete events[\s\S]*watched file event sync marked SQLite rows as SYNCED/,
+      source: runtimeSmokeRunner,
+    },
+    {
+      name: "runner verifies integrated outbox and post-login sync loops",
+      pattern:
+        /syncAllLocalOutboxToServer\(\{ limit: 50 \}\)[\s\S]*manual integrated outbox sync sent file activity and widget usage[\s\S]*launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened all bubble widgets with project room context[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*post-login stop cleared active project room context[\s\S]*post-login stop stopped activity folder and widget sync loops/,
+      source: runtimeSmokeRunner,
+    },
+    {
+      name: "runner keeps UI-free local auto sync phase",
+      pattern:
+        /verifyLocalAutoSyncLoops[\s\S]*local auto-sync activity loop repeated on smoke interval[\s\S]*lastFileEventSentCount[\s\S]*lastFileEventSyncedCount[\s\S]*lastFileAnalysisFailedCount[\s\S]*local auto-sync managed folder events drained through backend sync[\s\S]*if \(smokePhase === "local-auto-sync"\) \{[\s\S]*verifyLocalAutoSyncLoops\(assert\)[\s\S]*status: "passed"[\s\S]*return;/,
+      source: runtimeSmokeRunner,
+    },
+  ];
+
+  for (const check of checks) {
+    if (!check.pattern.test(check.source)) {
+      throw new Error(`Windows Tauri runtime smoke contract failed: ${check.name}`);
+    }
+  }
+
+  return checks.map((check) => check.name);
 }
 
 async function runRuntimeSmokePhase(phase, accessToken) {

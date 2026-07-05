@@ -65,7 +65,11 @@ const WIDGET_BAR_LEGACY_HEIGHT: f64 = 220.0;
 // (deprecated) 메뉴 창: Bubli 메뉴가 바 인라인 패널로 통합되면서 로그인 자동 실행 목록에서
 // 빠졌다. ?bubble=menu 창을 수동으로 열면 기존 크기/동작이 그대로 유지된다.
 const WIDGET_MENU_WIDTH: f64 = 248.0;
-const WIDGET_MENU_HEIGHT: f64 = 424.0;
+// 메뉴 패널이 개인/룸 컨텍스트 행 + 8개 버블(1열) + 액션까지 담도록 높이를 넉넉히.
+// 닫힘 상태(오브만)에서는 그림자를 껐고 투명 영역이라 큰 창이 보이지 않는다.
+const WIDGET_MENU_HEIGHT: f64 = 540.0;
+const ONBOARDING_OVERLAY_WINDOW_LABEL: &str = "onboarding-overlay";
+const ONBOARDING_OVERLAY_WINDOW_URL: &str = "desktop-widget/onboarding";
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
 const PRIMARY_MONITOR_ID: &str = "primary";
@@ -1130,6 +1134,33 @@ fn widget_window_url(widget: &WidgetWindowState) -> String {
     url
 }
 
+fn onboarding_overlay_window_geometry(
+    app: &AppHandle,
+    monitor_state: &AppMonitorState,
+) -> Result<(LogicalPosition<f64>, LogicalSize<f64>), String> {
+    let preferred_monitor_id = get_preferred_monitor_id(monitor_state)?;
+    let monitor = resolve_preferred_monitor(app, &preferred_monitor_id)?;
+    let scale = monitor
+        .as_ref()
+        .map(|monitor| monitor.scale_factor())
+        .unwrap_or(1.0)
+        .max(0.5);
+    let origin = monitor.as_ref().map(|monitor| monitor.position());
+    let origin_x = origin.map_or(0.0, |position| position.x as f64 / scale);
+    let origin_y = origin.map_or(0.0, |position| position.y as f64 / scale);
+    let size = LogicalSize::new(
+        monitor
+            .as_ref()
+            .map(|monitor| monitor.size().width as f64 / scale)
+            .unwrap_or(WIDGET_FALLBACK_MONITOR_WIDTH),
+        monitor
+            .as_ref()
+            .map(|monitor| monitor.size().height as f64 / scale)
+            .unwrap_or(WIDGET_FALLBACK_MONITOR_HEIGHT),
+    );
+    Ok((LogicalPosition::new(origin_x, origin_y), size))
+}
+
 fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
     if widget.active_bubble == "bar" {
         // 바 창은 칩 수와 무관하게 최대 폭 고정. 리사이즈가 없어 macOS에서 잘림/깜빡임이 없다.
@@ -1634,7 +1665,7 @@ fn set_widget_room_context_for_store(
 fn destroy_all_widget_windows(app: &AppHandle) -> usize {
     let mut destroyed_count = 0;
     for (label, window) in app.webview_windows() {
-        if is_widget_window_label(&label) {
+        if is_widget_window_label(&label) || label == ONBOARDING_OVERLAY_WINDOW_LABEL {
             reset_widget_window_dom_ready(&label);
             reset_widget_applied_window_state(&label);
             let _ = window.destroy();
@@ -1835,7 +1866,13 @@ fn build_widget_window(
     .transparent(true)
     .background_color(Color(0, 0, 0, 0))
     .devtools(false)
-    .shadow(widget_native_shadow_enabled())
+    // 바/메뉴 창은 작은 콘텐츠(pill·오브)가 큰 투명창에 떠 있어, 네이티브 창 그림자가
+    // 콘텐츠를 두르는 "창 테두리"처럼 보인다 → 이 두 창만 그림자를 끈다(버블 창은 유지).
+    .shadow(
+        widget_native_shadow_enabled()
+            && widget.active_bubble != "bar"
+            && widget.active_bubble != "menu",
+    )
     .resizable(false)
     .always_on_top(widget.always_on_top)
     .skip_taskbar(true)
@@ -1880,10 +1917,31 @@ fn build_widget_window(
 
 fn schedule_widget_window_build(
     app: &AppHandle,
-    monitor_state: &AppMonitorState,
+    _monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
-    build_widget_window(app, monitor_state, widget)
+    #[cfg(target_os = "macos")]
+    {
+        let app_for_build = app.clone();
+        let widget_for_build = widget.clone();
+        let label = widget_window_label(widget);
+        thread::Builder::new()
+            .name(format!("bubli-widget-build-{label}"))
+            .spawn(move || {
+                let monitor_state = app_for_build.state::<AppMonitorState>();
+                if let Err(error) =
+                    build_widget_window(&app_for_build, &monitor_state, &widget_for_build)
+                {
+                    eprintln!("failed to build widget window {label}: {error}");
+                }
+            })
+            .map_err(|error| error.to_string())?;
+
+        Ok(widget.clone())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    build_widget_window(app, _monitor_state, widget)
 }
 
 #[tauri::command]
@@ -2445,6 +2503,7 @@ fn arrange_widget_windows(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
+    input: Option<ArrangeWidgetWindowsInput>,
 ) -> Result<Vec<WidgetWindowState>, String> {
     let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
     let monitor = resolve_preferred_monitor(&app, &preferred_monitor_id)?;
@@ -2493,7 +2552,17 @@ fn arrange_widget_windows(
         })
     });
 
-    let placements = arrange_widget_grid_placements(&targets, monitor_width);
+    // 정렬 프리셋: 격자(기본)/세로 한 열/가로 한 줄/계단식.
+    let layout = input
+        .as_ref()
+        .and_then(|value| value.layout.as_deref())
+        .unwrap_or("grid");
+    let placements = match layout {
+        "column" => arrange_widget_column_placements(&targets, monitor_width),
+        "row" => arrange_widget_row_placements(&targets, monitor_width),
+        "cascade" => arrange_widget_cascade_placements(&targets, monitor_width),
+        _ => arrange_widget_grid_placements(&targets, monitor_width),
+    };
 
     // store 좌표 갱신 + 정렬된 위젯 목록 스냅샷.
     let arranged = {
@@ -2574,6 +2643,83 @@ fn arrange_widget_grid_placements(
         column_right = column_x - WIDGET_ARRANGE_GAP;
     }
 
+    placements
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ArrangeWidgetWindowsInput {
+    #[serde(default)]
+    layout: Option<String>,
+}
+
+/// 세로 정렬: 오른쪽에 한 열로 위→아래로 쌓는다.
+fn arrange_widget_column_placements(
+    targets: &[WidgetWindowState],
+    monitor_width: f64,
+) -> Vec<(String, WidgetWindowPosition)> {
+    let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
+    let column_width = targets
+        .iter()
+        .map(|widget| widget_window_size(widget).width)
+        .fold(0.0_f64, f64::max);
+    let column_x = (monitor_width - WIDGET_ARRANGE_GAP - column_width).max(WIDGET_ARRANGE_GAP);
+    let mut row_y = WIDGET_ARRANGE_GAP;
+    for widget in targets {
+        placements.push((
+            widget_window_label(widget),
+            WidgetWindowPosition {
+                x: column_x.round() as i32,
+                y: row_y.round() as i32,
+            },
+        ));
+        row_y += widget_window_size(widget).height + WIDGET_ARRANGE_GAP;
+    }
+    placements
+}
+
+/// 가로 정렬: 상단에 한 줄로 왼쪽→오른쪽으로 늘어놓는다.
+fn arrange_widget_row_placements(
+    targets: &[WidgetWindowState],
+    _monitor_width: f64,
+) -> Vec<(String, WidgetWindowPosition)> {
+    let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
+    let mut col_x = WIDGET_ARRANGE_GAP;
+    for widget in targets {
+        placements.push((
+            widget_window_label(widget),
+            WidgetWindowPosition {
+                x: col_x.round() as i32,
+                y: WIDGET_ARRANGE_GAP.round() as i32,
+            },
+        ));
+        col_x += widget_window_size(widget).width + WIDGET_ARRANGE_GAP;
+    }
+    placements
+}
+
+/// 계단식: 오른쪽 위에서 대각선으로 겹쳐 쌓는다(카드 덱 느낌).
+fn arrange_widget_cascade_placements(
+    targets: &[WidgetWindowState],
+    monitor_width: f64,
+) -> Vec<(String, WidgetWindowPosition)> {
+    let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
+    let step = 36.0_f64;
+    let base_width = targets
+        .iter()
+        .map(|widget| widget_window_size(widget).width)
+        .fold(0.0_f64, f64::max);
+    let base_x = (monitor_width - WIDGET_ARRANGE_GAP - base_width).max(WIDGET_ARRANGE_GAP);
+    for (index, widget) in targets.iter().enumerate() {
+        let offset = step * index as f64;
+        placements.push((
+            widget_window_label(widget),
+            WidgetWindowPosition {
+                x: (base_x - offset).max(WIDGET_ARRANGE_GAP).round() as i32,
+                y: (WIDGET_ARRANGE_GAP + offset).round() as i32,
+            },
+        ));
+    }
     placements
 }
 
@@ -2972,6 +3118,57 @@ fn start_tauri_google_oauth_loopback(
             Err(error) => return Err(error.to_string()),
         }
     }
+}
+
+#[tauri::command]
+fn open_onboarding_overlay(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window(ONBOARDING_OVERLAY_WINDOW_LABEL) {
+        let _ = window.unminimize();
+        let _ = window.show();
+        return window.set_focus().map_err(|error| error.to_string());
+    }
+
+    let (position, size) = onboarding_overlay_window_geometry(&app, &monitor_state)?;
+    let window = WebviewWindowBuilder::new(
+        &app,
+        ONBOARDING_OVERLAY_WINDOW_LABEL,
+        WebviewUrl::App(ONBOARDING_OVERLAY_WINDOW_URL.into()),
+    )
+    .title("Bubli onboarding")
+    .inner_size(size.width, size.height)
+    .min_inner_size(size.width, size.height)
+    .max_inner_size(size.width, size.height)
+    .position(position.x, position.y)
+    .decorations(false)
+    .transparent(true)
+    .background_color(Color(0, 0, 0, 0))
+    .devtools(false)
+    .shadow(false)
+    .resizable(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .focused(true)
+    .visible(true)
+    .build()
+    .map_err(|error| error.to_string())?;
+
+    window
+        .set_ignore_cursor_events(false)
+        .map_err(|error| error.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn close_onboarding_overlay(app: AppHandle) -> Result<(), String> {
+    let Some(window) = app.get_webview_window(ONBOARDING_OVERLAY_WINDOW_LABEL) else {
+        return Ok(());
+    };
+
+    window.close().map_err(|error| error.to_string())
 }
 
 /// 위젯 메뉴에서 메인 앱을 열 때 이동을 허용하는 경로 화이트리스트.
@@ -3566,6 +3763,8 @@ pub fn run() {
             show_main_window,
             start_tauri_google_oauth_loopback,
             set_widget_bar_preview_placement,
+            open_onboarding_overlay,
+            close_onboarding_overlay,
             set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,

@@ -38,6 +38,11 @@ type ManagedFolderAutoSyncStopInput = {
 
 export type ManagedFolderAutoSyncStatus = {
   lastAttemptAt?: string;
+  lastFileAnalysisFailedCount?: number;
+  lastFileAnalysisRequestedCount?: number;
+  lastFileEventSentCount?: number;
+  lastFileEventSkippedCount?: number;
+  lastFileEventSyncedCount?: number;
   lastErrorMessage?: string;
   lastSkippedCount?: number;
   lastSkippedFolderIds?: string[];
@@ -58,6 +63,22 @@ let autoSyncStatus: ManagedFolderAutoSyncStatus = {
   pendingFullSyncRequested: false,
   running: false,
 };
+
+type ManagedFolderDrainSummary = {
+  analysisFailedCount: number;
+  analysisRequestedCount: number;
+  sentCount: number;
+  skippedCount: number;
+  syncedCount: number;
+};
+
+const emptyManagedFolderDrainSummary = (): ManagedFolderDrainSummary => ({
+  analysisFailedCount: 0,
+  analysisRequestedCount: 0,
+  sentCount: 0,
+  skippedCount: 0,
+  syncedCount: 0,
+});
 
 export function startManagedFolderAutoSync() {
   if (!isTauriRuntime()) return;
@@ -238,8 +259,13 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
         if (pendingFullSyncRequested) {
           pendingFullSyncRequested = false;
           pendingFolderSyncIds.clear();
-          await drainPersonalLocalFileEvents({ consentGranted });
+          const drained = await drainPersonalLocalFileEvents({ consentGranted });
           updateManagedFolderAutoSyncStatus({
+            lastFileAnalysisFailedCount: drained.analysisFailedCount,
+            lastFileAnalysisRequestedCount: drained.analysisRequestedCount,
+            lastFileEventSentCount: drained.sentCount,
+            lastFileEventSkippedCount: drained.skippedCount,
+            lastFileEventSyncedCount: drained.syncedCount,
             lastStatus: "synced",
             lastSuccessAt: new Date().toISOString(),
             lastSyncedFolderId: null,
@@ -250,8 +276,13 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
         const folderId = pendingFolderSyncIds.values().next().value;
         if (!folderId) continue;
         pendingFolderSyncIds.delete(folderId);
-        await drainPersonalLocalFileEvents({ consentGranted, localFolderId: folderId });
+        const drained = await drainPersonalLocalFileEvents({ consentGranted, localFolderId: folderId });
         updateManagedFolderAutoSyncStatus({
+          lastFileAnalysisFailedCount: drained.analysisFailedCount,
+          lastFileAnalysisRequestedCount: drained.analysisRequestedCount,
+          lastFileEventSentCount: drained.sentCount,
+          lastFileEventSkippedCount: drained.skippedCount,
+          lastFileEventSyncedCount: drained.syncedCount,
           lastStatus: "synced",
           lastSuccessAt: new Date().toISOString(),
           lastSyncedFolderId: folderId,
@@ -301,7 +332,12 @@ async function scanSyncEnabledManagedFoldersOnce(consentGranted: boolean) {
   }
 }
 
-async function drainPersonalLocalFileEvents(input: { consentGranted: boolean; localFolderId?: string }) {
+async function drainPersonalLocalFileEvents(input: {
+  consentGranted: boolean;
+  localFolderId?: string;
+}): Promise<ManagedFolderDrainSummary> {
+  const summary = emptyManagedFolderDrainSummary();
+
   for (let batch = 0; batch < LOCAL_FILE_EVENT_SYNC_MAX_BATCHES_PER_TICK; batch += 1) {
     const result = await syncPersonalLocalFileEventsToServer({
       consentGranted: input.consentGranted,
@@ -309,10 +345,22 @@ async function drainPersonalLocalFileEvents(input: { consentGranted: boolean; lo
       localFolderId: input.localFolderId,
     });
 
-    if (result.status !== "ready" || result.data.sentCount < LOCAL_FILE_EVENT_SYNC_BATCH_LIMIT) {
-      return;
+    if (result.status !== "ready") {
+      return summary;
+    }
+
+    summary.analysisFailedCount += result.data.analysisFailedCount;
+    summary.analysisRequestedCount += result.data.analysisRequestedCount;
+    summary.sentCount += result.data.sentCount;
+    summary.skippedCount += result.data.skippedCount;
+    summary.syncedCount += result.data.syncedCount;
+
+    if (result.data.sentCount < LOCAL_FILE_EVENT_SYNC_BATCH_LIMIT) {
+      return summary;
     }
   }
+
+  return summary;
 }
 
 async function ensureManagedFolderRuntimeConsent() {

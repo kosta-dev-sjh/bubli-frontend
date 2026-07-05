@@ -9,6 +9,7 @@ import { managedFolderApi } from "@/features/managed-folder/api/managedFolderApi
 import { agentApi } from "@/features/agent/api/agentApi";
 import { activityApi } from "@/features/activity/api/activityApi";
 import { authApi } from "@/features/auth/api/authApi";
+import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
@@ -73,6 +74,7 @@ const smokeShouldQuit = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_QUIT =
 const smokeRestoreSnapshotRoomId = "33333333-3333-4333-8333-333333333333";
 const smokeRestoreSnapshotMessageId = "codex-restore-snapshot-message";
 const smokeRestoreDirtyMessageId = "codex-restore-dirty-message";
+const smokeTaskItemId = "66666666-6666-4666-8666-666666666661";
 const smokeWidgetBubbles: SmokeWidgetBubble[] = [
   "todo",
   "agent",
@@ -528,6 +530,131 @@ async function openRealtimeTypingProbe(chatRoomId: string, typing: boolean, asse
   throw new Error(`Timed out waiting for runtime smoke STOMP connection to ${destination}.`);
 }
 
+async function verifyRealBackendWidgetItemState(assert: SmokeAssert) {
+  await widgetApi.updateItemState(smokeTaskItemId, {
+    bubbleType: "TODO",
+    itemId: smokeTaskItemId,
+    itemType: "TASK",
+    state: "PINNED",
+  });
+  const pinnedStates = await widgetApi.listItemStates([smokeTaskItemId]);
+  assert(
+    pinnedStates.some(
+      (itemState) =>
+        itemState.itemId === smokeTaskItemId &&
+        itemState.bubbleType === "TODO" &&
+        itemState.itemType === "TASK" &&
+        itemState.state === "PINNED",
+    ),
+    "real backend widget item state pinned readback from Tauri runtime",
+    pinnedStates,
+  );
+
+  await widgetApi.updateItemState(smokeTaskItemId, {
+    bubbleType: "TODO",
+    itemId: smokeTaskItemId,
+    itemType: "TASK",
+    state: "VISIBLE",
+  });
+  const restoredStates = await widgetApi.listItemStates([smokeTaskItemId]);
+  assert(
+    restoredStates.some(
+      (itemState) =>
+        itemState.itemId === smokeTaskItemId &&
+        itemState.bubbleType === "TODO" &&
+        itemState.itemType === "TASK" &&
+        itemState.state === "VISIBLE",
+    ),
+    "real backend widget item state restored after Tauri runtime smoke",
+    restoredStates,
+  );
+}
+
+async function verifyRealBackendWidgetSettings(assert: SmokeAssert) {
+  const originalSettings = await widgetApi.getSettings();
+  const originalTodoSetting = originalSettings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
+  assert(originalTodoSetting?.id, "real backend widget settings included TODO bubble before Tauri patch", originalSettings);
+
+  const restoreTodoSetting = {
+    alertEnabled: originalTodoSetting.alertEnabled,
+    bubbleType: "TODO" as const,
+    enabled: originalTodoSetting.enabled,
+    ghostMode: originalTodoSetting.ghostMode,
+    height: originalTodoSetting.height ?? null,
+    minimized: originalTodoSetting.minimized,
+    opacity: originalTodoSetting.opacity ?? null,
+    width: originalTodoSetting.width ?? null,
+    x: originalTodoSetting.x ?? null,
+    y: originalTodoSetting.y ?? null,
+  };
+
+  try {
+    const patchedSettings = await widgetApi.updateSettings({
+      bubbles: [
+        {
+          alertEnabled: false,
+          bubbleType: "TODO",
+          enabled: true,
+          ghostMode: true,
+          height: 333,
+          minimized: false,
+          opacity: 0.88,
+          width: 321,
+          x: 77,
+          y: 88,
+        },
+      ],
+    });
+    const patchedTodoSetting = patchedSettings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
+    assert(
+      patchedTodoSetting?.id === originalTodoSetting.id &&
+        patchedTodoSetting.enabled === true &&
+        patchedTodoSetting.x === 77 &&
+        patchedTodoSetting.y === 88 &&
+        patchedTodoSetting.width === 321 &&
+        patchedTodoSetting.height === 333 &&
+        patchedTodoSetting.minimized === false &&
+        Number(patchedTodoSetting.opacity) === 0.88 &&
+        patchedTodoSetting.ghostMode === true &&
+        patchedTodoSetting.alertEnabled === false,
+      "real backend widget settings PATCH persisted TODO layout and flags in Tauri runtime",
+      patchedTodoSetting,
+    );
+
+    const readBackSettings = await widgetApi.getSettings();
+    const readBackTodoSetting = readBackSettings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
+    assert(
+      readBackTodoSetting?.id === originalTodoSetting.id &&
+        readBackTodoSetting.x === 77 &&
+        readBackTodoSetting.y === 88 &&
+        readBackTodoSetting.width === 321 &&
+        readBackTodoSetting.height === 333 &&
+        Number(readBackTodoSetting.opacity) === 0.88 &&
+        readBackTodoSetting.ghostMode === true &&
+        readBackTodoSetting.alertEnabled === false,
+      "real backend widget settings GET read back patched TODO layout in Tauri runtime",
+      readBackTodoSetting,
+    );
+  } finally {
+    const restoredSettings = await widgetApi.updateSettings({ bubbles: [restoreTodoSetting] });
+    const restoredTodoSetting = restoredSettings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
+    assert(
+      restoredTodoSetting?.id === originalTodoSetting.id &&
+        restoredTodoSetting.enabled === originalTodoSetting.enabled &&
+        (restoredTodoSetting.x ?? null) === (originalTodoSetting.x ?? null) &&
+        (restoredTodoSetting.y ?? null) === (originalTodoSetting.y ?? null) &&
+        (restoredTodoSetting.width ?? null) === (originalTodoSetting.width ?? null) &&
+        (restoredTodoSetting.height ?? null) === (originalTodoSetting.height ?? null) &&
+        restoredTodoSetting.minimized === originalTodoSetting.minimized &&
+        (restoredTodoSetting.opacity ?? null) === (originalTodoSetting.opacity ?? null) &&
+        restoredTodoSetting.ghostMode === originalTodoSetting.ghostMode &&
+        restoredTodoSetting.alertEnabled === originalTodoSetting.alertEnabled,
+      "real backend widget settings restored after Tauri runtime patch",
+      restoredTodoSetting,
+    );
+  }
+}
+
 async function verifyRealBackendRoomCommunication(smokeRoomId: string, assert: SmokeAssert) {
   const projectRoom = await projectRoomApi.get(smokeRoomId);
   assert(
@@ -545,6 +672,43 @@ async function verifyRealBackendRoomCommunication(smokeRoomId: string, assert: S
 
   const roomResources = await resourcesApi.listRoomResources(smokeRoomId);
   assert(Array.isArray(roomResources.items), "real backend room resources endpoint loaded", roomResources);
+
+  const roomEvents = await calendarApi.getProjectRoomEvents(smokeRoomId, { afterSequence: 0, limit: 100 });
+  assert(
+    Array.isArray(roomEvents.items) &&
+      typeof roomEvents.latestSequence === "number" &&
+      (roomEvents.lastReceivedSequence === null || typeof roomEvents.lastReceivedSequence === "number") &&
+      typeof roomEvents.hasNext === "boolean",
+    "real backend project room event catch-up returned sequence list shape",
+    roomEvents,
+  );
+  const seededRoomEvent = roomEvents.items.find(
+    (event) =>
+      event.roomId === smokeRoomId &&
+      event.sequence === 1 &&
+      event.eventType === "ROOM_UPDATED" &&
+      event.actor?.type === "USER" &&
+      event.actor?.id === "11111111-1111-4111-8111-111111111111" &&
+      event.payload?.source === "codex-local-seed",
+  );
+  assert(
+    Boolean(seededRoomEvent) && roomEvents.latestSequence >= 1 && (roomEvents.lastReceivedSequence ?? 0) >= 1,
+    "real backend project room event catch-up loaded seeded history",
+    roomEvents,
+  );
+  const firstLastReceivedSequence = roomEvents.lastReceivedSequence ?? 0;
+  const incrementalRoomEvents = await calendarApi.getProjectRoomEvents(smokeRoomId, {
+    afterSequence: firstLastReceivedSequence,
+    limit: 10,
+  });
+  assert(
+    incrementalRoomEvents.items.every((event) => event.sequence > firstLastReceivedSequence) &&
+      incrementalRoomEvents.latestSequence >= roomEvents.latestSequence &&
+      (incrementalRoomEvents.lastReceivedSequence === null ||
+        incrementalRoomEvents.lastReceivedSequence > firstLastReceivedSequence),
+    "real backend project room event catch-up skipped already received sequences",
+    incrementalRoomEvents,
+  );
 
   const chatRooms = await chatApi.listRooms();
   const roomChat = chatRooms.items.find((room) => room.roomId === smokeRoomId);
@@ -764,6 +928,9 @@ async function verifyLocalAutoSyncLoops(assert: SmokeAssert) {
     assert(
       !drainedNames.has("runtime-smoke-note.txt") &&
         !drainedNames.has("runtime-smoke-delete.txt") &&
+        (drainedStatus.lastFileEventSentCount ?? 0) >= 1 &&
+        (drainedStatus.lastFileEventSyncedCount ?? 0) >= 1 &&
+        (drainedStatus.lastFileAnalysisFailedCount ?? 0) === 0 &&
         drainedStatus.lastStatus !== "failed",
       "local auto-sync managed folder events drained through backend sync",
       { drainedEvents, drainedStatus },
@@ -927,6 +1094,8 @@ async function runSmoke() {
       "real backend widget summary uses selected project room",
       serverWidgetSummary.context,
     );
+    await verifyRealBackendWidgetSettings(assert);
+    await verifyRealBackendWidgetItemState(assert);
     await verifyRealBackendRoomCommunication(smokeRoomId, assert);
 
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true });
@@ -994,7 +1163,12 @@ async function runSmoke() {
     );
     const minimizedWidgetStates = await Promise.all(
       smokeWidgetBubbles.map((bubbleType) =>
-        tauriCommands.closeWidgetWindow({ bubbleType, windowId: bubbleType }),
+        tauriCommands.setWidgetWindowMode({
+          bubbleType,
+          mode: "MINIMIZED",
+          selectedRoomId: smokeRoomId,
+          windowId: bubbleType,
+        }),
       ),
     );
     assert(
@@ -1259,13 +1433,46 @@ async function runSmoke() {
       });
       assert(preview.status === "READY", "local file preview is readable", preview);
 
+      const csvSearch = await tauriCommands.searchLocalFiles({ limit: 5, query: "Runtime smoke CSV" });
+      const csvFile = csvSearch.items.find((item) => item.name === "runtime-smoke-table.csv");
+      assert(csvFile?.localFileId, "managed folder CSV file resolved for tabular preview", csvSearch);
+      const csvPreview = await tauriCommands.readLocalFilePreview({
+        localFileId: csvFile.localFileId,
+        maxChars: 500,
+      });
+      assert(
+        csvPreview.status === "READY" &&
+          Boolean(csvPreview.previewText?.includes("Runtime smoke CSV")) &&
+          Boolean(csvPreview.previewText?.includes("Managed folder table")),
+        "managed folder CSV preview is readable",
+        csvPreview,
+      );
+
       const stagedFiles = await tauriCommands.stageLocalFileEventsForSync({
-        limit: 10,
+        limit: 20,
         localFolderId: folder.localFolderId,
       });
       assert(stagedFiles.events.length >= 1, "local file events staged for backend sync", stagedFiles);
+      const stagedFileNames = localFileEventNames(stagedFiles.events);
+      assert(
+        stagedFileNames.has("runtime-smoke-table.csv") && !stagedFileNames.has("~$runtime-smoke-temp.csv"),
+        "managed folder temp CSV stayed ignored during initial scan",
+        stagedFiles,
+      );
 
       const initialSync = await syncStagedLocalFileEventsToBackend(stagedFiles);
+      const csvSyncIndex = stagedFiles.events.findIndex((event) => event.fileName === "runtime-smoke-table.csv");
+      const csvSyncResult =
+        csvSyncIndex >= 0
+          ? initialSync.response.results.find(
+              (result) => result.localEventId === stagedFiles.events[csvSyncIndex]?.localEventId,
+            ) ?? initialSync.response.results[csvSyncIndex]
+          : null;
+      assert(
+        csvSyncResult?.status === "SYNCED" && Boolean(csvSyncResult.resourceId),
+        "local CSV file event reached backend sync batch",
+        { csvSyncResult, stagedFiles },
+      );
       assert(
         initialSync.response.results.every((result) => result.status === "SYNCED") &&
           initialSync.markResult.failedCount === 0 &&
@@ -1540,6 +1747,12 @@ async function runSmoke() {
       authWidgetQaSnapshot.widgetRuntime,
     );
     await stopTauriAuthenticatedSurfaces();
+    const stoppedActiveProjectRoom = await tauriCommands.readActiveProjectRoom();
+    assert(
+      stoppedActiveProjectRoom === null,
+      "post-login stop cleared active project room context",
+      stoppedActiveProjectRoom,
+    );
     const stoppedWidgetStates = await Promise.all(
       smokeWidgetBubbles.map((bubbleType) =>
         tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),

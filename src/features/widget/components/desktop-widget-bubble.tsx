@@ -62,29 +62,34 @@ import {
   type PomodoroState,
   type WidgetTimerMode,
 } from "@/lib/widget/widget-pref-client";
-import { readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 import styles from "./desktop-widget-bubble.module.css";
 
 // 버블별 셸 아이덴티티(헤더 밴드/아이콘 타일/CTA/칩이 같은 accent를 공유한다).
 // todo=sky · timer=amber · chat=rose · memo=cream · schedule=blue · alert=lilac · agent=sage · resource=sand
+// scope: 개인 전용(personal) · 프로젝트룸 귀속(room) · 둘 다(both).
+// 룸 미선택(개인 모드)에서는 room 버블이 비활성으로 보이고, 룸을 골라야 활성화된다.
+type BubbleScope = "personal" | "room" | "both";
+
 type BubbleMeta = {
   accent: "amber" | "blue" | "cream" | "lilac" | "rose" | "sage" | "sand" | "sky";
   id: WidgetBubbleType;
   label: MessageKey;
   Icon: typeof CheckCircle2;
+  scope: BubbleScope;
 };
 
 const bubbleMeta: BubbleMeta[] = [
-  { Icon: CheckCircle2, accent: "sky", id: "todo", label: "widget.kind.todo" },
-  { Icon: Sparkles, accent: "sage", id: "agent", label: "widget.kind.agent" },
-  { Icon: MessageSquare, accent: "rose", id: "chat", label: "widget.kind.chat" },
-  { Icon: Timer, accent: "amber", id: "timer", label: "widget.kind.timer" },
-  { Icon: StickyNote, accent: "cream", id: "memo", label: "widget.kind.memo" },
-  { Icon: Clock3, accent: "blue", id: "schedule", label: "widget.kind.schedule" },
-  { Icon: FileText, accent: "sand", id: "resource", label: "widget.kind.resource" },
-  { Icon: Bell, accent: "lilac", id: "alert", label: "widget.kind.notification" },
+  { Icon: CheckCircle2, accent: "sky", id: "todo", label: "widget.kind.todo", scope: "both" },
+  { Icon: Sparkles, accent: "sage", id: "agent", label: "widget.kind.agent", scope: "both" },
+  { Icon: MessageSquare, accent: "rose", id: "chat", label: "widget.kind.chat", scope: "room" },
+  { Icon: Timer, accent: "amber", id: "timer", label: "widget.kind.timer", scope: "personal" },
+  { Icon: StickyNote, accent: "cream", id: "memo", label: "widget.kind.memo", scope: "personal" },
+  { Icon: Clock3, accent: "blue", id: "schedule", label: "widget.kind.schedule", scope: "both" },
+  { Icon: FileText, accent: "sand", id: "resource", label: "widget.kind.resource", scope: "both" },
+  { Icon: Bell, accent: "lilac", id: "alert", label: "widget.kind.notification", scope: "both" },
 ];
 
 const modeLabels: Record<WidgetWindowMode, MessageKey> = {
@@ -371,11 +376,10 @@ function WidgetControls({
       <button aria-pressed={mode === "GHOST"} aria-label={t("widget.control.ghost")} onClick={() => onMode(mode === "GHOST" ? "DEFAULT" : "GHOST")} type="button">
         <Ghost size={14} strokeWidth={2} />
       </button>
-      {presentation === "preview" ? (
-        <button aria-pressed={mode === "TRANSLUCENT"} aria-label={t("widget.control.translucent")} onClick={() => onMode(mode === "TRANSLUCENT" ? "DEFAULT" : "TRANSLUCENT")} type="button">
-          <CircleDashed size={14} strokeWidth={2} />
-        </button>
-      ) : null}
+      {/* 반투명(투명도) 토글은 실제 앱에서도 노출한다 — 이전엔 preview 전용이라 사용자가 못 찾았다. */}
+      <button aria-pressed={mode === "TRANSLUCENT"} aria-label={t("widget.control.translucent")} onClick={() => onMode(mode === "TRANSLUCENT" ? "DEFAULT" : "TRANSLUCENT")} type="button">
+        <CircleDashed size={14} strokeWidth={2} />
+      </button>
       <button aria-label={t("widget.control.close")} onClick={onClose} type="button">
         <X size={14} strokeWidth={2} />
       </button>
@@ -2039,7 +2043,7 @@ function barChipBadge(metric: string) {
 // 버블 바로가기 그리드 + 자동 정렬/룸 전환/메인 앱/설정/종료 + 오늘 사용 요약 한 줄.
 export type WidgetMenuContentProps = {
   hasRoomContext?: boolean;
-  onArrangeBubbles?: () => void;
+  onArrangeBubbles?: (layout?: WidgetArrangeLayout) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onOpenMainApp?: () => void;
   onOpenSettings?: () => void;
@@ -2047,6 +2051,14 @@ export type WidgetMenuContentProps = {
   onToggleRoomContext?: () => void;
   usageSummary?: string | null;
 };
+
+// 자동 정렬 프리셋: 격자(기본)/세로 한 열/가로 한 줄/계단식.
+const arrangePresets: { labelKey: MessageKey; layout: WidgetArrangeLayout }[] = [
+  { labelKey: "widget.menu.arrangeGrid", layout: "grid" },
+  { labelKey: "widget.menu.arrangeColumn", layout: "column" },
+  { labelKey: "widget.menu.arrangeRow", layout: "row" },
+  { labelKey: "widget.menu.arrangeCascade", layout: "cascade" },
+];
 
 export function WidgetMenuPanelContent({
   hasRoomContext = false,
@@ -2059,14 +2071,8 @@ export function WidgetMenuPanelContent({
   usageSummary,
 }: WidgetMenuContentProps) {
   const { t } = useI18n();
+  // 룸 전환은 상단 컨텍스트 행으로, 자동정렬은 프리셋 행으로 분리한다.
   const actionItems: Array<{ Icon: typeof Repeat; label: string; onSelect?: () => void }> = [
-    // 열린 버블 창들을 우상단 그리드로 정리하는 arrange_widget_windows 바로가기.
-    { Icon: LayoutGrid, label: t("widget.menu.arrange"), onSelect: onArrangeBubbles },
-    {
-      Icon: Repeat,
-      label: t(hasRoomContext ? "widget.menu.switchToPersonal" : "widget.menu.switchToRoom"),
-      onSelect: onToggleRoomContext,
-    },
     { Icon: ExternalLink, label: t("widget.menu.openMainApp"), onSelect: onOpenMainApp },
     { Icon: Settings, label: t("widget.menu.openSettings"), onSelect: onOpenSettings },
     { Icon: Power, label: t("widget.menu.quit"), onSelect: onQuit },
@@ -2076,24 +2082,79 @@ export function WidgetMenuPanelContent({
     <>
       <div className={styles.menuHead}>
         <strong className={styles.menuWordmark}>Bubli</strong>
-        {/* 서버 usage-summaries/today 롤업(기기 합산)을 사용자에게 보여주는 유일한 지점. */}
         {usageSummary ? <small className={styles.menuUsage}>{usageSummary}</small> : null}
       </div>
+      {/* 현재 컨텍스트(개인/프로젝트룸)를 명확히 보여주고 여기서 전환한다 — 룸 선택은 선택사항. */}
+      <button
+        className={styles.menuContext}
+        data-room={hasRoomContext ? "true" : "false"}
+        disabled={!onToggleRoomContext}
+        onClick={() => onToggleRoomContext?.()}
+        type="button"
+      >
+        <span className={styles.menuContextDot} aria-hidden="true" />
+        <span className={styles.menuContextLabel}>
+          {t(hasRoomContext ? "widget.menu.contextRoom" : "widget.menu.contextPersonal")}
+        </span>
+        <span className={styles.menuContextSwitch}>
+          <Repeat size={12} strokeWidth={2.2} aria-hidden="true" />
+          {t(hasRoomContext ? "widget.menu.switchToPersonal" : "widget.menu.switchToRoom")}
+        </span>
+      </button>
       <div className={styles.menuGrid} aria-label={t("widget.menu.bubbles")}>
-        {bubbleMeta.map(({ Icon, accent, id, label }) => (
-          <button
-            className={[styles.menuShortcut, accentClassNames[accent]].join(" ")}
-            key={id}
-            onClick={() => onOpenBubble?.(id)}
-            role="menuitem"
-            type="button"
-          >
-            <i className={styles.menuTile} aria-hidden="true">
-              <Icon size={13} strokeWidth={2.1} />
-            </i>
-            <span>{t(label)}</span>
-          </button>
-        ))}
+        {bubbleMeta.map(({ Icon, accent, id, label, scope }) => {
+          // 룸 귀속(room) 버블은 개인 모드(룸 미선택)에서 비활성 — 룸을 골라야 활성화된다.
+          const roomLocked = scope === "room" && !hasRoomContext;
+          const scopeLabel =
+            scope === "personal"
+              ? "widget.menu.scopePersonal"
+              : scope === "room"
+                ? "widget.menu.scopeRoom"
+                : "widget.menu.scopeBoth";
+          return (
+            <button
+              className={[styles.menuShortcut, accentClassNames[accent]].join(" ")}
+              data-scope={scope}
+              data-locked={roomLocked ? "true" : undefined}
+              disabled={roomLocked || !onOpenBubble}
+              key={id}
+              onClick={() => onOpenBubble?.(id)}
+              role="menuitem"
+              title={roomLocked ? t("widget.menu.roomNeeded") : undefined}
+              type="button"
+            >
+              <i className={styles.menuTile} aria-hidden="true">
+                <Icon size={13} strokeWidth={2.1} />
+              </i>
+              <span className={styles.menuShortcutLabel}>{t(label)}</span>
+              {scope !== "both" || roomLocked ? (
+                <span className={styles.menuScope} data-scope={scope}>
+                  {t(roomLocked ? "widget.menu.roomNeeded" : (scopeLabel as MessageKey))}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+      {/* 자동 정렬 프리셋 — 격자/세로/가로/계단 중 골라 열린 버블 창을 정돈한다. */}
+      <div className={styles.menuArrange} role="group" aria-label={t("widget.menu.arrange")}>
+        <span className={styles.menuArrangeLabel}>
+          <LayoutGrid size={13} strokeWidth={2.1} aria-hidden="true" />
+          {t("widget.menu.arrange")}
+        </span>
+        <div className={styles.menuArrangeRow}>
+          {arrangePresets.map(({ labelKey, layout }) => (
+            <button
+              className={styles.menuArrangeChip}
+              disabled={!onArrangeBubbles}
+              key={layout}
+              onClick={() => onArrangeBubbles?.(layout)}
+              type="button"
+            >
+              {t(labelKey)}
+            </button>
+          ))}
+        </div>
       </div>
       <div className={styles.menuActions}>
         {actionItems.map(({ Icon, label, onSelect }) => (
@@ -2231,7 +2292,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   hasRoomContext?: boolean;
   minimizedItems: WidgetWindowState[];
   notificationSignal?: WidgetNotificationSignal;
-  onArrangeBubbles?: () => void;
+  onArrangeBubbles?: (layout?: WidgetArrangeLayout) => void;
   onOpenMainApp?: () => void;
   onOpenSettings?: () => void;
   onQuit?: () => void;
