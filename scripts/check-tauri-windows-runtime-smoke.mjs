@@ -43,6 +43,8 @@ runNodeScript(["scripts/check-tauri-runtime-preflight.mjs"], {
 const smokeRoot = mkdtempSync(join(tmpdir(), "bubli-tauri-runtime-smoke-"));
 const managedFolderPath = join(smokeRoot, "managed-folder");
 const managedFolderNotePath = join(managedFolderPath, "runtime-smoke-note.txt");
+const managedFolderCsvPath = join(managedFolderPath, "runtime-smoke-table.csv");
+const managedFolderTempCsvPath = join(managedFolderPath, "~$runtime-smoke-temp.csv");
 const managedFolderStructuredPath = join(managedFolderPath, "runtime-smoke-structured.json");
 const managedFolderRichPath = join(managedFolderPath, "runtime-smoke-rich.rtf");
 const managedFolderDeletePath = join(managedFolderPath, "runtime-smoke-delete.txt");
@@ -52,6 +54,14 @@ await import("node:fs/promises").then((fs) => fs.mkdir(managedFolderPath, { recu
 writeFileSync(
   managedFolderNotePath,
   "Codex runtime smoke verifies local file scan, preview, search, and staging.",
+);
+writeFileSync(
+  managedFolderCsvPath,
+  "title,status,owner\nRuntime smoke CSV,tracked,Codex\nManaged folder table,synced,Tauri\n",
+);
+writeFileSync(
+  managedFolderTempCsvPath,
+  "title,status\nTemporary office lock,ignored\n",
 );
 writeFileSync(
   managedFolderStructuredPath,
@@ -111,9 +121,9 @@ function runContractCheck() {
   const runtimeSmokeRunner = readFileSync("src/lib/tauri/tauri-runtime-smoke-runner.tsx", "utf8");
   const checks = [
     {
-      name: "script seeds structured rtf and watcher fixtures",
+      name: "script seeds csv structured rtf and watcher fixtures",
       pattern:
-        /runtime-smoke-structured\.json[\s\S]*runtime-smoke-rich\.rtf[\s\S]*runtime-smoke-delete\.txt[\s\S]*\/mutate-folder[\s\S]*appendFileSync[\s\S]*rmSync/,
+        /runtime-smoke-table\.csv[\s\S]*~\$runtime-smoke-temp\.csv[\s\S]*runtime-smoke-structured\.json[\s\S]*runtime-smoke-rich\.rtf[\s\S]*runtime-smoke-delete\.txt[\s\S]*\/mutate-folder[\s\S]*appendFileSync[\s\S]*rmSync/,
       source: scriptSource,
     },
     {
@@ -179,7 +189,7 @@ function runContractCheck() {
     {
       name: "runner verifies local file scan reindex watch sync and analysis backfill",
       pattern:
-        /selectManagedFolder\(\{ path: smokeFolderPath \}\)[\s\S]*scanManagedFolder[\s\S]*searchLocalFiles[\s\S]*readLocalFilePreview[\s\S]*local file event sync marked SQLite rows as SYNCED[\s\S]*reindexFile\(\{ localFileId: noteFile\.localFileId \}\)[\s\S]*local file reindex update event synced to backend[\s\S]*analyzePersonalLocalFileWithKeySentences\(\{[\s\S]*local file analysis backend job read back[\s\S]*managed folder watcher staged update and delete events[\s\S]*watched file event sync marked SQLite rows as SYNCED/,
+        /selectManagedFolder\(\{ path: smokeFolderPath \}\)[\s\S]*scanManagedFolder[\s\S]*searchLocalFiles[\s\S]*readLocalFilePreview[\s\S]*managed folder CSV file resolved for tabular preview[\s\S]*managed folder temp CSV stayed ignored during initial scan[\s\S]*local CSV file event reached backend sync batch[\s\S]*local file event sync marked SQLite rows as SYNCED[\s\S]*reindexFile\(\{ localFileId: noteFile\.localFileId \}\)[\s\S]*local file reindex update event synced to backend[\s\S]*analyzePersonalLocalFileWithKeySentences\(\{[\s\S]*local file analysis backend job read back[\s\S]*managed folder watcher staged update and delete events[\s\S]*watched file event sync marked SQLite rows as SYNCED/,
       source: runtimeSmokeRunner,
     },
     {

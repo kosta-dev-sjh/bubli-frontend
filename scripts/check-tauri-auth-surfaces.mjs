@@ -598,8 +598,8 @@ assertContains(
 );
 assertContains(
   windowsRuntimeSmoke,
-  /runtime-smoke-structured\.json[\s\S]*runtime-smoke-rich\.rtf[\s\S]*runtime-smoke-delete\.txt[\s\S]*request\.method === "POST" && request\.url === "\/mutate-folder"[\s\S]*appendFileSync[\s\S]*rmSync/,
-  "Windows runtime smoke server must mutate and delete real temp files after the Tauri watcher starts.",
+  /runtime-smoke-table\.csv[\s\S]*~\$runtime-smoke-temp\.csv[\s\S]*runtime-smoke-structured\.json[\s\S]*runtime-smoke-rich\.rtf[\s\S]*runtime-smoke-delete\.txt[\s\S]*request\.method === "POST" && request\.url === "\/mutate-folder"[\s\S]*appendFileSync[\s\S]*rmSync/,
+  "Windows runtime smoke server must seed CSV, ignored temp CSV, and mutate/delete real temp files after the Tauri watcher starts.",
 );
 assertContains(
   windowsRuntimeSmoke,
@@ -630,6 +630,11 @@ assertContains(
   runtimeSmokeRunner,
   /calendarApi\.getProjectRoomEvents\(smokeRoomId, \{ afterSequence: 0, limit: 100 \}\)[\s\S]*real backend project room event catch-up returned sequence list shape[\s\S]*event\.eventType === "ROOM_UPDATED"[\s\S]*event\.actor\?\.id === "11111111-1111-4111-8111-111111111111"[\s\S]*event\.payload\?\.source === "codex-local-seed"[\s\S]*real backend project room event catch-up loaded seeded history[\s\S]*calendarApi\.getProjectRoomEvents\(smokeRoomId, \{[\s\S]*afterSequence: firstLastReceivedSequence[\s\S]*event\.sequence > firstLastReceivedSequence[\s\S]*real backend project room event catch-up skipped already received sequences/,
   "TauriRuntimeSmokeRunner must verify project-room event catch-up sequence shape, seeded ROOM_UPDATED history, and incremental afterSequence filtering.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /runtime-smoke-table\.csv[\s\S]*managed folder CSV file resolved for tabular preview[\s\S]*managed folder CSV preview is readable[\s\S]*~\$runtime-smoke-temp\.csv[\s\S]*managed folder temp CSV stayed ignored during initial scan[\s\S]*local CSV file event reached backend sync batch/,
+  "TauriRuntimeSmokeRunner must prove user managed-folder CSV files are readable/synced while temporary CSV lock files are ignored.",
 );
 assertContains(
   devWidgetRealBackend,
