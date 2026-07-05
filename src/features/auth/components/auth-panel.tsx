@@ -162,8 +162,8 @@ export function AuthPanel() {
         );
         await tauriCommands.openMainWindowRoute({ route: TAURI_MEMBER_APP_ROUTE }).catch(async () => {
           await tauriCommands.showMainWindow().catch(() => undefined);
-          router.replace(TAURI_MEMBER_APP_ROUTE);
         });
+        router.replace(TAURI_MEMBER_APP_ROUTE);
         return;
       }
 

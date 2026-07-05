@@ -5,6 +5,7 @@ import {
   getAuthRedirectUri,
   getAuthRefreshToken,
   setStoredAuthSession,
+  setStoredAuthSessionAndWaitForTauriMirror,
 } from "@/lib/auth/auth-session";
 import type {
   AuthClientType,
@@ -96,7 +97,11 @@ export const authApi = {
       skipAuth: true,
       skipAuthRefresh: true,
     });
-    setStoredAuthSession({ ...token, clientType: input.clientType });
+    if (input.clientType === "TAURI") {
+      await setStoredAuthSessionAndWaitForTauriMirror({ ...token, clientType: input.clientType });
+    } else {
+      setStoredAuthSession({ ...token, clientType: input.clientType });
+    }
     return token;
   },
 
