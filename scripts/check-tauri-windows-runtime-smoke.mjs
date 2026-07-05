@@ -13,6 +13,11 @@ if (process.platform !== "win32") {
   process.exit(0);
 }
 
+console.log("Running Windows Tauri runtime preflight...");
+runNodeScript(["scripts/check-tauri-runtime-preflight.mjs"], {
+  NEXT_PUBLIC_API_BASE_URL: API_BASE_URL,
+});
+
 const smokeRoot = mkdtempSync(join(tmpdir(), "bubli-tauri-runtime-smoke-"));
 const managedFolderPath = join(smokeRoot, "managed-folder");
 const managedFolderNotePath = join(managedFolderPath, "runtime-smoke-note.txt");
