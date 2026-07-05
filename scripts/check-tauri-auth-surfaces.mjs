@@ -226,6 +226,11 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /function runtimeSmokeWidgetPosition[\s\S]*async function verifyWidgetRestartLayout[\s\S]*widget layout restored visible positions after app restart[\s\S]*openWidgetWindows\(\{[\s\S]*widget layout rebuilt native windows after app restart[\s\S]*async function persistWidgetRestartLayoutCheckpoint[\s\S]*widget restart layout checkpoint persisted before app restart[\s\S]*smokePhase === "restore-verify"[\s\S]*await verifyWidgetRestartLayout\(assert\)[\s\S]*await tauriCommands\.closeAllWidgetWindows\(\)\.catch/,
+  "TauriRuntimeSmokeRunner must verify persisted widget layout before restore-verify cleanup overwrites the restart state.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /registerWidgetShortcut\(\{ shortcut: "CommandOrControl\+Shift\+B" \}\)[\s\S]*widget global shortcut registered/,
   "TauriRuntimeSmokeRunner must verify the native global widget shortcut registration command.",
 );
