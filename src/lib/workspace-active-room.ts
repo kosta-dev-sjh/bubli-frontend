@@ -8,7 +8,9 @@ export const ACTIVE_PROJECT_ROOM_SYNC_ERROR_EVENT = "bubli:active-project-room-s
 let activeProjectRoomId: string | null = null;
 let activeProjectRoomLabel: string | null = null;
 
-const runtimeSmokeEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
+const runtimeSmokeEnabled =
+  process.env.NODE_ENV === "development" &&
+  process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
 
 export type ActiveProjectRoomSnapshot = {
   roomId: string;
