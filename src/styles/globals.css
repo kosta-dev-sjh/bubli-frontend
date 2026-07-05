@@ -10122,6 +10122,67 @@ html {
   font-size: 14px;
   line-height: 1.65;
 }
+
+/* FAQ 제목: 데스크탑 섹션과 동일한 브랜드 그라데이션으로 톤을 맞춘다(가운데 정렬 유지). */
+.landing-faq .landing-section__head h2 {
+  width: fit-content;
+  color: transparent;
+  background: linear-gradient(102deg, var(--blue-ink), var(--bubble-blue) 56%, var(--lilac-ink));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* FAQ 카드 셀: 그리드 배치 + 스태거 진입을 담당(카드 본체는 안에서 100% 채운다). */
+.landing-faq__cell {
+  display: flex;
+  min-width: 0;
+}
+
+.landing-faq__cell > .landing-faq__item {
+  width: 100%;
+}
+
+/* 질문 앞 Q 배지: '왜 필요한가'의 번호 배지와 같은 그라데이션 언어로 통일. */
+.landing-faq__item h3 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.landing-faq__q {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--blue-ink), var(--bubble-blue) 62%, var(--lilac-ink));
+  box-shadow: 0 8px 16px -10px rgba(47, 124, 193, 0.7);
+  font-size: 12px;
+  font-weight: 900;
+  transition:
+    transform 0.3s var(--ease-out, ease),
+    box-shadow 0.3s var(--ease-out, ease);
+}
+
+/* 호버: 카드 테두리 글로우 + Q 배지 팝. */
+.landing-faq__cell:hover .landing-faq__item {
+  border-color: rgba(111, 184, 242, 0.42);
+}
+
+.landing-faq__cell:hover .landing-faq__q {
+  transform: translateY(-1px) scale(1.08);
+  box-shadow: 0 12px 20px -10px rgba(47, 124, 193, 0.82);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-faq__q {
+    transition: none;
+  }
+}
+
 @media (max-width: 760px) {
   .landing-faq__list {
     grid-template-columns: 1fr;
