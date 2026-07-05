@@ -1052,6 +1052,27 @@ async function runSmoke() {
       authWidgetQaSnapshot.widgetRuntime,
     );
     await stopTauriAuthenticatedSurfaces();
+    const stoppedWidgetStates = await Promise.all(
+      smokeWidgetBubbles.map((bubbleType) =>
+        tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
+      ),
+    );
+    assert(
+      stoppedWidgetStates.every((widget) => !widget.windowVisible),
+      "post-login stop closed all bubble widget windows",
+      stoppedWidgetStates,
+    );
+    assert(
+      !isActivityAutoCaptureRunning() &&
+        !isManagedFolderAutoSyncRunning() &&
+        !isWidgetUsageAutoSyncRunning(),
+      "post-login stop stopped activity folder and widget sync loops",
+      {
+        activityAutoCaptureRunning: isActivityAutoCaptureRunning(),
+        managedFolderAutoSyncRunning: isManagedFolderAutoSyncRunning(),
+        widgetUsageAutoSyncRunning: isWidgetUsageAutoSyncRunning(),
+      },
+    );
     await persistWidgetRestartLayoutCheckpoint(assert);
 
     await postReport({

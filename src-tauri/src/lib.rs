@@ -2972,6 +2972,11 @@ mod tests {
 
         assert!(require_authenticated_surfaces_enabled(&auth_state).is_ok());
         assert!(authenticated_surfaces_enabled(&auth_state).expect("auth state"));
+
+        *auth_state.lock().expect("auth state lock") = false;
+
+        assert!(require_authenticated_surfaces_enabled(&auth_state).is_err());
+        assert!(!authenticated_surfaces_enabled(&auth_state).expect("auth state"));
     }
 
     #[test]
