@@ -1670,7 +1670,13 @@ fn build_widget_window(
     .transparent(true)
     .background_color(Color(0, 0, 0, 0))
     .devtools(false)
-    .shadow(widget_native_shadow_enabled())
+    // 바/메뉴 창은 작은 콘텐츠(pill·오브)가 큰 투명창에 떠 있어, 네이티브 창 그림자가
+    // 콘텐츠를 두르는 "창 테두리"처럼 보인다 → 이 두 창만 그림자를 끈다(버블 창은 유지).
+    .shadow(
+        widget_native_shadow_enabled()
+            && widget.active_bubble != "bar"
+            && widget.active_bubble != "menu",
+    )
     .resizable(false)
     .always_on_top(widget.always_on_top)
     .skip_taskbar(true)
