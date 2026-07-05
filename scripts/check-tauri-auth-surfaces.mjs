@@ -27,6 +27,7 @@ const files = {
   tauriLib: "src-tauri/src/lib.rs",
   runtimePreflight: "scripts/check-tauri-runtime-preflight.mjs",
   realOAuthQaScript: "scripts/qa-tauri-real-oauth-manual.mjs",
+  localAutoSyncSoak: "scripts/check-tauri-local-auto-sync-soak.mjs",
   windowsRuntimeSoak: "scripts/check-tauri-windows-runtime-soak.mjs",
   windowsRuntimeSmoke: "scripts/check-tauri-windows-runtime-smoke.mjs",
   widgetAuthHeaders: "src/features/widget/api/widgetAuthHeaders.ts",
@@ -95,6 +96,7 @@ const tauriDevtoolsGuard = read(files.tauriDevtoolsGuard);
 const tauriLib = read(files.tauriLib);
 const runtimePreflight = read(files.runtimePreflight);
 const realOAuthQaScript = read(files.realOAuthQaScript);
+const localAutoSyncSoak = read(files.localAutoSyncSoak);
 const windowsRuntimeSoak = read(files.windowsRuntimeSoak);
 const surfaces = read(files.authenticatedSurfaces);
 const chatWidgetRouting = read(files.chatWidgetRouting);
@@ -129,6 +131,11 @@ assertContains(
   packageJson,
   /"check:tauri-windows-runtime-soak":\s*"node scripts\/check-tauri-windows-runtime-soak\.mjs"/,
   "package.json must expose the Windows Tauri runtime soak QA script.",
+);
+assertContains(
+  packageJson,
+  /"check:tauri-local-auto-sync-soak":\s*"node scripts\/check-tauri-local-auto-sync-soak\.mjs"/,
+  "package.json must expose the Windows local-auto-sync soak QA script.",
 );
 assertContains(
   layout,
@@ -179,6 +186,31 @@ assertContains(
   windowsRuntimeSoak,
   /CONTRACT_ONLY[\s\S]*mode: "contract"/,
   "Windows Tauri runtime soak must support a no-window contract mode for fast static verification.",
+);
+assertContains(
+  localAutoSyncSoak,
+  /process\.platform !== "win32"[\s\S]*Windows Tauri local-auto-sync soak skipped/,
+  "Windows local-auto-sync soak must remain Windows-only so macOS/Linux CI is not affected.",
+);
+assertContains(
+  localAutoSyncSoak,
+  /scripts\/check-tauri-windows-runtime-soak\.mjs[\s\S]*process\.argv\.slice\(2\)[\s\S]*BUBLI_TAURI_RUNTIME_SMOKE_PHASES:\s*"local-auto-sync"[\s\S]*BUBLI_TAURI_LOCAL_AUTO_SYNC_SOAK_ITERATIONS/,
+  "Windows local-auto-sync soak must delegate to the existing soak runner while forcing only the local-auto-sync runtime smoke phase.",
+);
+assertContains(
+  localAutoSyncSoak,
+  /process\.argv\.slice\(2\)/,
+  "Windows local-auto-sync soak must pass through --contract for fast no-window verification.",
+);
+assertContains(
+  windowsRuntimeSmoke,
+  /const allowed = new Set\(\[\.\.\.DEFAULT_PHASES, "local-auto-sync"\]\)/,
+  "Windows runtime smoke script must explicitly allow the local-auto-sync phase.",
+);
+assertContains(
+  windowsRuntimeSoak,
+  /CONTRACT_ONLY[\s\S]*mode: "contract"/,
+  "Windows local-auto-sync soak must inherit no-window contract mode from the existing Windows soak runner.",
 );
 assertContains(
   windowsRuntimeSmoke,
