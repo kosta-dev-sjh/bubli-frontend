@@ -3,6 +3,7 @@
 import { startActivityAutoCapture, stopActivityAutoCapture } from "@/lib/local/activity-auto-capture";
 import { startManagedFolderAutoSync, stopManagedFolderAutoSync } from "@/lib/local/managed-folder-auto-sync";
 import { authApi } from "@/features/auth/api/authApi";
+import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { getStoredAuthSession, setStoredAuthSessionAndWaitForTauriMirror } from "@/lib/auth/auth-session";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
@@ -154,8 +155,8 @@ async function openWidgetWindowsWithRetry(
   return inputs.map((input) => ({ input, reason: lastReason, status: "rejected" as const }));
 }
 
-function getStartupModeFromSetting(setting: WidgetBubbleSettingResponse): WidgetWindowMode {
-  if (setting.minimized) return "MINIMIZED";
+function getVisibleLoginStartupModeFromSetting(setting: WidgetBubbleSettingResponse): WidgetWindowMode {
+  // Login startup opens enabled widgets visibly; minimized mode is restored through widget bar/settings flows.
   if (setting.ghostMode) return "GHOST";
   if (setting.opacity !== null && setting.opacity !== undefined && setting.opacity < 0.95) {
     return "TRANSLUCENT";
@@ -195,7 +196,7 @@ function getLoginStartupBubbles(settings: WidgetBubbleSettingResponse[]): Widget
     if (!setting) continue;
     startupBubbles.push({
       bubbleType: bubble.bubbleType,
-      mode: getStartupModeFromSetting(setting),
+      mode: getVisibleLoginStartupModeFromSetting(setting),
       windowId: bubble.windowId,
     });
   }
@@ -229,7 +230,23 @@ async function resolveLaunchSelectedRoomId() {
   if (activeRoomId) return activeRoomId;
 
   const restored = await restoreActiveProjectRoomFromTauri().catch(() => null);
-  return restored?.roomId ?? null;
+  if (restored?.roomId) {
+    await widgetApi.updateContext({ selectedRoomId: restored.roomId }).catch(() => undefined);
+    return restored.roomId;
+  }
+
+  const roomPage = await projectRoomApi.list().catch(() => null);
+  const firstRoom = roomPage?.items[0];
+  if (firstRoom?.id) {
+    seedActiveProjectRoomId(firstRoom.id, firstRoom.name);
+    await tauriCommands
+      .storeActiveProjectRoom({ roomId: firstRoom.id, roomLabel: firstRoom.name })
+      .catch(() => undefined);
+    await widgetApi.updateContext({ selectedRoomId: firstRoom.id }).catch(() => undefined);
+    return firstRoom.id;
+  }
+
+  return null;
 }
 
 export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticatedSurfacesOptions = {}) {

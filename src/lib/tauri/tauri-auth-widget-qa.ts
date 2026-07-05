@@ -10,16 +10,18 @@ import {
   type AuthSessionDiagnostics,
 } from "@/lib/auth/auth-session";
 import { ApiClientError } from "@/lib/api/errors";
-import { isActivityAutoCaptureRunning } from "@/lib/local/activity-auto-capture";
+import { isActivityAutoCaptureRunning, notifyActivityConsentChanged } from "@/lib/local/activity-auto-capture";
 import {
   getManagedFolderAutoSyncStatus,
   isManagedFolderAutoSyncRunning,
+  notifyManagedFolderConsentChanged,
   type ManagedFolderAutoSyncStatus,
 } from "@/lib/local/managed-folder-auto-sync";
 import { syncPersonalLocalFileEventsToServer } from "@/lib/local/managed-folder-client";
 import { syncAllLocalOutboxToServer } from "@/lib/sync/local-sync-client";
 import {
   tauriCommands,
+  type LocalFileEventsSyncStageResult,
   type WidgetBubbleType,
   type WidgetWindowBubbleType,
   type WidgetWindowState,
@@ -29,6 +31,16 @@ import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { isWidgetUsageAutoSyncRunning } from "@/lib/widget/widget-usage-auto-sync";
 import { WIDGET_BUBBLE_TYPES } from "@/lib/widget/widget-types";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
+
+const REAL_OAUTH_LOCAL_SYNC_FOLDER_MARKER = "bubli-real-oauth-local-sync-";
+
+type RealOAuthQaPrivacyConsents = {
+  activityDetectionEnabled: boolean;
+  localFolderEnabled: boolean;
+};
+
+let realOAuthQaOriginalPrivacyConsents: RealOAuthQaPrivacyConsents | null = null;
+let realOAuthQaPrivacyConsentsChanged = false;
 
 type QaProbe = {
   code?: string;
@@ -59,14 +71,21 @@ type TauriRealOAuthLocalSyncProbe = {
     initialSyncFailedCount?: number;
     initialSyncSentCount?: number;
     initialSyncSyncedCount?: number;
+    fixtureFileName?: string;
     localFolderId?: string;
     mutationRequested?: boolean;
+    prepareRequested?: boolean;
     reindexChanged?: boolean;
     reindexStatus?: string;
     remainingQaEvents?: number;
     scanFileCount?: number;
+    staleQaFolderRemovedCount?: number;
     stagedCreatedCount?: number;
+    stagedCreatedEventTypes?: string[];
+    stagedCreatedFileNames?: string[];
     stagedUpdatedCount?: number;
+    stagedUpdatedEventTypes?: string[];
+    stagedUpdatedFileNames?: string[];
     updatedPreviewIncludesMarker?: boolean;
     updatedPreviewReady?: boolean;
     updatedSearchMatched?: boolean;
@@ -192,6 +211,10 @@ export type TauriRealGoogleAuthWidgetQaAssertion = {
   snapshot: TauriAuthWidgetQaSnapshot;
 };
 
+type ReadTauriAuthWidgetQaSnapshotOptions = {
+  runStopCleanupProbe?: boolean;
+};
+
 function toProbe(error: unknown): QaProbe {
   if (error instanceof ApiClientError) {
     return { code: error.code, ok: false, status: error.status };
@@ -251,6 +274,11 @@ function resolveRealOAuthLocalSyncMutateUrl() {
   return value?.trim() || null;
 }
 
+function resolveRealOAuthLocalSyncPrepareUrl() {
+  const value = process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_PREPARE_URL;
+  return value?.trim() || null;
+}
+
 function shouldRunRealOAuthStopCleanupProbe() {
   return process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA === "true";
 }
@@ -277,6 +305,87 @@ function waitForMs(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+async function enableRealOAuthQaPrivacyConsents() {
+  const original = await settingsApi.getPrivacyConsents();
+  if (!realOAuthQaOriginalPrivacyConsents) {
+    realOAuthQaOriginalPrivacyConsents = {
+      activityDetectionEnabled: original.activityDetectionEnabled,
+      localFolderEnabled: original.localFolderEnabled,
+    };
+  }
+
+  if (original.activityDetectionEnabled && original.localFolderEnabled) {
+    notifyActivityConsentChanged(original.activityDetectionEnabled);
+    notifyManagedFolderConsentChanged(original.localFolderEnabled);
+    return original;
+  }
+
+  const enabled = await settingsApi.updatePrivacyConsents({
+    activityDetectionEnabled: true,
+    localFolderEnabled: true,
+  });
+  realOAuthQaPrivacyConsentsChanged = true;
+  notifyActivityConsentChanged(enabled.activityDetectionEnabled);
+  notifyManagedFolderConsentChanged(enabled.localFolderEnabled);
+  return enabled;
+}
+
+async function restoreRealOAuthQaPrivacyConsents() {
+  if (!realOAuthQaPrivacyConsentsChanged || !realOAuthQaOriginalPrivacyConsents) {
+    return;
+  }
+
+  const restored = await settingsApi.updatePrivacyConsents(realOAuthQaOriginalPrivacyConsents);
+  notifyActivityConsentChanged(restored.activityDetectionEnabled);
+  notifyManagedFolderConsentChanged(restored.localFolderEnabled);
+  realOAuthQaOriginalPrivacyConsents = null;
+  realOAuthQaPrivacyConsentsChanged = false;
+}
+
+async function stageQaLocalFileEventsUntil(
+  localFolderId: string,
+  isReady: (stage: LocalFileEventsSyncStageResult) => boolean,
+) {
+  let latestStage = await tauriCommands.stageLocalFileEventsForSync({
+    limit: 20,
+    localFolderId,
+  });
+  if (isReady(latestStage)) {
+    return latestStage;
+  }
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await waitForMs(250);
+    latestStage = await tauriCommands.stageLocalFileEventsForSync({
+      limit: 20,
+      localFolderId,
+    });
+    if (isReady(latestStage)) {
+      return latestStage;
+    }
+  }
+
+  return latestStage;
+}
+
+async function cleanupStaleRealOAuthQaManagedFolders(currentFixturePath: string) {
+  const folders = await tauriCommands.listManagedFolders().catch(() => null);
+  if (!folders) {
+    return 0;
+  }
+
+  const currentPath = currentFixturePath.toLowerCase();
+  const staleQaFolders = folders.folders.filter((folder) => {
+    const folderPath = folder.path.toLowerCase();
+    return folderPath.includes(REAL_OAUTH_LOCAL_SYNC_FOLDER_MARKER) && folderPath !== currentPath && folder.status !== "REMOVED";
+  });
+  const removed = await Promise.allSettled(
+    staleQaFolders.map((folder) => tauriCommands.removeManagedFolder({ localFolderId: folder.localFolderId })),
+  );
+
+  return removed.filter((result) => result.status === "fulfilled").length;
+}
+
 async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonNullable<TauriRealOAuthLocalSyncProbe["localFiles"]>> {
   const fixturePath = resolveRealOAuthLocalSyncFolderPath();
   if (!fixturePath) {
@@ -287,17 +396,39 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
     return { enabled: true, error: "local_folder_consent_disabled", fixturePath };
   }
 
+  let localFolderId: string | undefined;
+
   try {
+    const prepareUrl = resolveRealOAuthLocalSyncPrepareUrl();
+    let fixtureFileName = "real-oauth-local-sync-note.txt";
+    let prepareRequested = false;
+    if (prepareUrl) {
+      const response = await fetch(prepareUrl, { method: "POST" });
+      if (!response.ok) {
+        throw new Error(`fixture prepare failed: ${response.status}`);
+      }
+      const prepared = (await response.json().catch(() => null)) as { fileName?: unknown } | null;
+      if (typeof prepared?.fileName === "string" && prepared.fileName.trim()) {
+        fixtureFileName = prepared.fileName.trim();
+      }
+      prepareRequested = true;
+    }
+
+    const staleQaFolderRemovedCount = await cleanupStaleRealOAuthQaManagedFolders(fixturePath);
     const folder = await tauriCommands.selectManagedFolder({ path: fixturePath });
+    localFolderId = folder.localFolderId;
+    await tauriCommands.setFolderSync({ enabled: true, localFolderId: folder.localFolderId });
     const scan = await tauriCommands.scanManagedFolder({ localFolderId: folder.localFolderId });
     const initialSearch = await tauriCommands.searchLocalFiles({ limit: 10, query: "RealOAuthLocalSyncInitial" });
-    const noteFile = initialSearch.items.find((item) => item.name === "real-oauth-local-sync-note.txt") ?? initialSearch.items[0];
+    const noteFile = initialSearch.items.find((item) => item.name === fixtureFileName) ?? initialSearch.items[0];
     if (!noteFile?.localFileId) {
       return {
         enabled: true,
         error: "fixture_file_not_indexed",
+        fixtureFileName,
         fixturePath,
         localFolderId: folder.localFolderId,
+        prepareRequested,
         scanFileCount: scan.changedCount,
       };
     }
@@ -306,12 +437,11 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
       localFileId: noteFile.localFileId,
       maxChars: 1_000,
     });
-    const createdEvents = await tauriCommands.stageLocalFileEventsForSync({
-      limit: 20,
-      localFolderId: folder.localFolderId,
-    });
+    const createdEvents = await stageQaLocalFileEventsUntil(folder.localFolderId, (stage) =>
+      stage.events.some((event) => event.fileName === fixtureFileName && event.eventType === "CREATED"),
+    );
     const qaCreatedEvents = createdEvents.events.filter(
-      (event) => event.fileName === "real-oauth-local-sync-note.txt" && event.eventType === "CREATED",
+      (event) => event.fileName === fixtureFileName && event.eventType === "CREATED",
     );
     const initialSync = await syncPersonalLocalFileEventsToServer({
       consentGranted,
@@ -335,10 +465,9 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
       localFileId: noteFile.localFileId,
       maxChars: 1_000,
     });
-    const updatedEvents = await tauriCommands.stageLocalFileEventsForSync({
-      limit: 20,
-      localFolderId: folder.localFolderId,
-    });
+    const updatedEvents = await stageQaLocalFileEventsUntil(folder.localFolderId, (stage) =>
+      stage.events.some((event) => event.localFileId === noteFile.localFileId && event.eventType === "UPDATED"),
+    );
     const qaUpdatedEvents = updatedEvents.events.filter(
       (event) => event.localFileId === noteFile.localFileId && event.eventType === "UPDATED",
     );
@@ -354,6 +483,7 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
 
     return {
       enabled: true,
+      fixtureFileName,
       fixturePath,
       initialPreviewIncludesMarker: Boolean(initialPreview.previewText?.includes("RealOAuthLocalSyncInitial")),
       initialPreviewReady: initialPreview.status === "READY",
@@ -363,12 +493,18 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
       initialSyncSyncedCount: initialSync.status === "ready" ? initialSync.data.syncedCount : undefined,
       localFolderId: folder.localFolderId,
       mutationRequested,
+      prepareRequested,
       reindexChanged: reindex.changed,
       reindexStatus: reindex.status,
-      remainingQaEvents: remainingEvents.events.filter((event) => event.fileName === "real-oauth-local-sync-note.txt").length,
+      remainingQaEvents: remainingEvents.events.filter((event) => event.fileName === fixtureFileName).length,
       scanFileCount: scan.changedCount,
+      staleQaFolderRemovedCount,
       stagedCreatedCount: qaCreatedEvents.length,
+      stagedCreatedEventTypes: createdEvents.events.map((event) => event.eventType),
+      stagedCreatedFileNames: createdEvents.events.map((event) => event.fileName),
       stagedUpdatedCount: qaUpdatedEvents.length,
+      stagedUpdatedEventTypes: updatedEvents.events.map((event) => event.eventType),
+      stagedUpdatedFileNames: updatedEvents.events.map((event) => event.fileName),
       updatedPreviewIncludesMarker: Boolean(updatedPreview.previewText?.includes("RealOAuthLocalSyncUpdated")),
       updatedPreviewReady: updatedPreview.status === "READY",
       updatedSearchMatched: updatedSearch.items.some((item) => item.localFileId === noteFile.localFileId),
@@ -381,7 +517,12 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
       enabled: true,
       error: errorMessage(error),
       fixturePath,
+      localFolderId,
     };
+  } finally {
+    if (localFolderId) {
+      await tauriCommands.removeManagedFolder({ localFolderId }).catch(() => undefined);
+    }
   }
 }
 
@@ -395,7 +536,7 @@ async function runRealOAuthLocalSyncProbe(roomId: string | null): Promise<TauriR
   }
 
   try {
-    const privacyConsents = await settingsApi.getPrivacyConsents();
+    const privacyConsents = await enableRealOAuthQaPrivacyConsents();
     const sqlite = await tauriCommands.checkLocalSqliteIntegrity();
     const localFiles = await runRealOAuthLocalFileProbe(privacyConsents.localFolderEnabled);
     const occurredAt = new Date();
@@ -602,7 +743,7 @@ function assertRealGoogleSessionDiagnostics(
 }
 
 export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoogleAuthWidgetQaAssertion> {
-  const snapshot = await readTauriAuthWidgetQaSnapshot();
+  const snapshot = await readTauriAuthWidgetQaSnapshot({ runStopCleanupProbe: false });
   const failedChecks: string[] = [];
 
   assertRealGoogleSessionDiagnostics(failedChecks, snapshot.localSession, "local");
@@ -770,6 +911,37 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
     addCheck(failedChecks, snapshot.stopCleanupProbe.syncLoopsStopped, "stopCleanupProbe:syncLoopsStopped");
   }
 
+  if (failedChecks.length === 0 && shouldRunRealOAuthStopCleanupProbe()) {
+    const finalSnapshot = {
+      ...snapshot,
+      stopCleanupProbe: await runRealOAuthStopCleanupProbe(),
+    };
+    const cleanupFailedChecks: string[] = [];
+    addCheck(cleanupFailedChecks, !finalSnapshot.stopCleanupProbe.error, "stopCleanupProbe:noError");
+    addCheck(
+      cleanupFailedChecks,
+      finalSnapshot.stopCleanupProbe.activeProjectRoomCleared,
+      "stopCleanupProbe:activeProjectRoomCleared",
+    );
+    addCheck(
+      cleanupFailedChecks,
+      finalSnapshot.stopCleanupProbe.allExpectedWindowsHidden,
+      "stopCleanupProbe:allExpectedWindowsHidden",
+    );
+    addCheck(cleanupFailedChecks, finalSnapshot.stopCleanupProbe.barWindowHidden, "stopCleanupProbe:barWindowHidden");
+    addCheck(cleanupFailedChecks, finalSnapshot.stopCleanupProbe.syncLoopsStopped, "stopCleanupProbe:syncLoopsStopped");
+
+    await restoreRealOAuthQaPrivacyConsents().catch(() => undefined);
+
+    return {
+      failedChecks: cleanupFailedChecks,
+      ok: cleanupFailedChecks.length === 0,
+      snapshot: finalSnapshot,
+    };
+  }
+
+  await restoreRealOAuthQaPrivacyConsents().catch(() => undefined);
+
   return {
     failedChecks,
     ok: failedChecks.length === 0,
@@ -827,7 +999,9 @@ async function readWidgetRuntimeState(
   };
 }
 
-export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQaSnapshot> {
+export async function readTauriAuthWidgetQaSnapshot(
+  options: ReadTauriAuthWidgetQaSnapshotOptions = {},
+): Promise<TauriAuthWidgetQaSnapshot> {
   const localSession = getStoredAuthSessionDiagnostics();
   const tauriMirrorSession = await readTauriAuthSessionDiagnostics();
 
@@ -853,7 +1027,8 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
   };
   const stabilityProbe = await runRealOAuthStabilityProbe(selectedRoomId ?? null, serverSelectedRoomId);
   const sessionRestoreProbe = await runRealOAuthSessionRestoreProbe();
-  const stopCleanupProbe = await runRealOAuthStopCleanupProbe();
+  const stopCleanupProbe =
+    options.runStopCleanupProbe === false ? { enabled: false } : await runRealOAuthStopCleanupProbe();
 
   return {
     activeProjectRoom: {

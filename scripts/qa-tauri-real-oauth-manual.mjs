@@ -13,6 +13,9 @@ const RELEASE_EXE_ABSOLUTE_PATH = resolve(RELEASE_EXE_PATH);
 const DEFAULT_API_BASE_URL = RELEASE_MODE ? "https://bubli.n-e.kr" : "http://localhost:8080";
 const API_BASE_URL = stripTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL);
 const TIMEOUT_MS = Number(process.env.BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS ?? 300_000);
+const REPORTER_TIMEOUT_MS = Number(
+  process.env.BUBLI_TAURI_REAL_OAUTH_QA_REPORTER_TIMEOUT_MS ?? Math.max(10_000, TIMEOUT_MS - 15_000),
+);
 
 if (process.platform !== "win32") {
   console.log("Tauri real OAuth manual QA skipped: this script is Windows-only.");
@@ -28,6 +31,7 @@ if (CONTRACT_ONLY) {
         checks: contractChecks,
         mode: "contract",
         result: "passed",
+        reporterTimeoutMs: REPORTER_TIMEOUT_MS,
         runtimeMode: RUNTIME_MODE,
         script: "qa-tauri-real-oauth-manual",
         timeoutMs: TIMEOUT_MS,
@@ -40,14 +44,15 @@ if (CONTRACT_ONLY) {
 }
 
 const localSyncFixture = createLocalSyncFixture();
-const { closeServer, mutateUrl, reportPromise, reportUrl } = await startReportServer(localSyncFixture);
-const qaEnv = createQaEnv(reportUrl, localSyncFixture.folderPath, mutateUrl);
+const { closeServer, eventUrl, mutateUrl, prepareUrl, qaEvents, reportPromise, reportUrl } = await startReportServer(localSyncFixture);
+const qaEnv = createQaEnv(reportUrl, eventUrl, localSyncFixture.folderPath, mutateUrl, prepareUrl);
 let child = null;
 let timeout = null;
 
 console.log("");
 console.log("Tauri real Google OAuth manual QA is waiting for a login.");
 console.log(`Runtime mode: ${RUNTIME_MODE}`);
+console.log(`Reporter timeout: ${REPORTER_TIMEOUT_MS}ms; harness timeout: ${TIMEOUT_MS}ms`);
 console.log("1. Complete Google login in the Bubli Tauri app.");
 console.log("2. Keep the app open until this script prints the redacted QA report.");
 console.log("3. This script does not pass a dev access token.");
@@ -74,6 +79,10 @@ try {
   }
 
   console.log("Tauri real OAuth manual QA passed.");
+} catch (error) {
+  const outputPaths = writeDiagnostics(error, qaEvents);
+  console.log(JSON.stringify({ ...outputPaths, error: error instanceof Error ? error.message : String(error), qaEvents }, null, 2));
+  throw error;
 } finally {
   if (timeout) clearTimeout(timeout);
   closeServer();
@@ -81,7 +90,7 @@ try {
   localSyncFixture.cleanup();
 }
 
-function createQaEnv(reportUrl, localSyncFolderPath, localSyncMutateUrl) {
+function createQaEnv(reportUrl, eventUrl, localSyncFolderPath, localSyncMutateUrl, localSyncPrepareUrl) {
   return {
     ...process.env,
     CARGO_BUILD_JOBS: process.env.CARGO_BUILD_JOBS ?? "1",
@@ -93,13 +102,15 @@ function createQaEnv(reportUrl, localSyncFolderPath, localSyncMutateUrl) {
     NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS: "true",
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_FOLDER: localSyncFolderPath,
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL: localSyncMutateUrl,
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_PREPARE_URL: localSyncPrepareUrl,
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA: "true",
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA: "true",
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS: "15000",
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA: "true",
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA: "true",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL: eventUrl,
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL: reportUrl,
-    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS: String(TIMEOUT_MS),
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS: String(REPORTER_TIMEOUT_MS),
     NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "false",
   };
 }
@@ -177,24 +188,37 @@ function stopExistingReleaseExe() {
 
 function createLocalSyncFixture() {
   const folderPath = mkdtempSync(join(tmpdir(), "bubli-real-oauth-local-sync-"));
-  const notePath = join(folderPath, "real-oauth-local-sync-note.txt");
-  writeFileSync(
-    notePath,
-    [
-      "RealOAuthLocalSyncInitial",
-      "Bubli Windows Tauri real OAuth local file tracking fixture.",
-      "This file must be scanned, previewed, synced, mutated, reindexed, and synced again.",
-      "",
-    ].join("\n"),
-    "utf8",
-  );
+  let currentFileName = "";
+  let currentNotePath = "";
+  let prepareCount = 0;
+  const prepare = () => {
+    prepareCount += 1;
+    currentFileName = `real-oauth-local-sync-note-${prepareCount}-${Date.now()}.txt`;
+    currentNotePath = join(folderPath, currentFileName);
+    writeFileSync(
+      currentNotePath,
+      [
+        "RealOAuthLocalSyncInitial",
+        "Bubli Windows Tauri real OAuth local file tracking fixture.",
+        "This file must be scanned, previewed, synced, mutated, reindexed, and synced again.",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    return { fileName: currentFileName, notePath: currentNotePath };
+  };
+  prepare();
 
   return {
     folderPath,
+    prepare,
     mutate() {
+      if (!currentNotePath) {
+        prepare();
+      }
       const marker = `RealOAuthLocalSyncUpdated ${new Date().toISOString()}`;
       writeFileSync(
-        notePath,
+        currentNotePath,
         [
           marker,
           "The QA server mutated this file after the initial backend sync.",
@@ -203,7 +227,7 @@ function createLocalSyncFixture() {
         ].join("\n"),
         "utf8",
       );
-      return { marker, notePath };
+      return { fileName: currentFileName, marker, notePath: currentNotePath };
     },
     cleanup() {
       rmSync(folderPath, { force: true, recursive: true });
@@ -213,6 +237,7 @@ function createLocalSyncFixture() {
 
 function startReportServer(localSyncFixture) {
   let settled = false;
+  const qaEvents = [];
   let resolveReport;
   let rejectReport;
   const reportPromise = new Promise((resolve, reject) => {
@@ -236,11 +261,45 @@ function startReportServer(localSyncFixture) {
         const mutation = localSyncFixture.mutate();
         response.setHeader("Content-Type", "application/json");
         response.writeHead(200);
-        response.end(JSON.stringify({ marker: mutation.marker }));
+        response.end(JSON.stringify({ fileName: mutation.fileName, marker: mutation.marker }));
       } catch (error) {
         response.writeHead(500);
         response.end(error instanceof Error ? error.message : String(error));
       }
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/prepare-local-file") {
+      try {
+        const prepared = localSyncFixture.prepare();
+        response.setHeader("Content-Type", "application/json");
+        response.writeHead(200);
+        response.end(JSON.stringify({ fileName: prepared.fileName, notePath: prepared.notePath }));
+      } catch (error) {
+        response.writeHead(500);
+        response.end(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/event") {
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk) => {
+        body += chunk;
+      });
+      request.on("end", () => {
+        try {
+          const event = JSON.parse(body);
+          validateRealOAuthQaEvent(event);
+          qaEvents.push(event);
+          response.writeHead(204);
+          response.end();
+        } catch (error) {
+          response.writeHead(400);
+          response.end(error instanceof Error ? error.message : String(error));
+        }
+      });
       return;
     }
 
@@ -287,12 +346,40 @@ function startReportServer(localSyncFixture) {
           }
           server.close();
         },
+        eventUrl: `http://127.0.0.1:${address.port}/event`,
         mutateUrl: `http://127.0.0.1:${address.port}/mutate-local-file`,
+        prepareUrl: `http://127.0.0.1:${address.port}/prepare-local-file`,
+        qaEvents,
         reportPromise,
         reportUrl: `http://127.0.0.1:${address.port}/report`,
       });
     });
   });
+}
+
+function writeDiagnostics(error, qaEvents) {
+  const directory = ".codex-runtime-logs";
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const reportPath = join(directory, `tauri-real-oauth-qa-diagnostics-${timestamp}.json`);
+  const summaryPath = join(directory, `tauri-real-oauth-qa-diagnostics-${timestamp}.md`);
+  const message = error instanceof Error ? error.message : String(error);
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(reportPath, JSON.stringify({ error: message, qaEvents }, null, 2));
+  writeFileSync(
+    summaryPath,
+    [
+      "# Tauri Real OAuth QA Diagnostics",
+      "",
+      `- Error: ${message}`,
+      `- Event count: ${qaEvents.length}`,
+      "",
+      "## Events",
+      "",
+      ...qaEvents.map((event, index) => `- ${index + 1}. ${event.stage}: ${event.reason}`),
+      "",
+    ].join("\n"),
+  );
+  return { reportPath, summaryPath };
 }
 
 function writeReport(report) {
@@ -373,7 +460,19 @@ function runContractCheck() {
     {
       name: "script launches real OAuth QA with local sync stability session restore and stop cleanup probes without dev token",
       pattern:
-        /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_FOLDER: localSyncFolderPath[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL: localSyncMutateUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS: "15000"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL: reportUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "false"/,
+        /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_FOLDER: localSyncFolderPath[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL: localSyncMutateUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_PREPARE_URL: localSyncPrepareUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS: "15000"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL: eventUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL: reportUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "false"/,
+      source: scriptSource,
+    },
+    {
+      name: "script collects redacted lifecycle events for release report timeouts",
+      pattern:
+        /eventUrl[\s\S]*qaEvents[\s\S]*request\.method === "POST" && request\.url === "\/event"[\s\S]*validateRealOAuthQaEvent\(event\)[\s\S]*writeDiagnostics\(error, qaEvents\)/,
+      source: scriptSource,
+    },
+    {
+      name: "script gives the reporter a shorter timeout than the harness",
+      pattern:
+        /const REPORTER_TIMEOUT_MS = Number\([\s\S]*Math\.max\(10_000, TIMEOUT_MS - 15_000\)[\s\S]*Reporter timeout: \$\{REPORTER_TIMEOUT_MS\}ms; harness timeout: \$\{TIMEOUT_MS\}ms[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS: String\(REPORTER_TIMEOUT_MS\)/,
       source: scriptSource,
     },
     {
@@ -425,6 +524,12 @@ function runContractCheck() {
       source: reporterSource,
     },
     {
+      name: "reporter posts redacted lifecycle events before and during real OAuth QA",
+      pattern:
+        /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL[\s\S]*postRealOAuthQaEvent[\s\S]*stage: "mounted"[\s\S]*stage: "skipped"[\s\S]*stage: "run-start"[\s\S]*stage: "assertion"[\s\S]*stage: "report-posted"[\s\S]*stage: "report-error"/,
+      source: reporterSource,
+    },
+    {
       name: "real OAuth assertion rejects dev tokens and requires widgets sync loops plus local sync stability restore and stop cleanup probes",
       pattern:
         /diagnostics\.clientType === "TAURI"[\s\S]*diagnostics\.isDevAccessTokenSession === false[\s\S]*diagnostics\.refreshTokenExpired === false[\s\S]*widgets:allExpectedWindowsVisible[\s\S]*sync:allAutoSyncLoopsRunning[\s\S]*sync:managedFolderStatusMatchesRunningFlag[\s\S]*sync:managedFolderStatusNotFailed[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:localFileInitialPreviewMarker[\s\S]*localSyncProbe:localFileCreatedSynced[\s\S]*localSyncProbe:localFileUpdatedPreviewMarker[\s\S]*localSyncProbe:localFileUpdatedSynced[\s\S]*localSyncProbe:widgetUsageReachedBackend[\s\S]*localSyncProbe:activityNativeCaptured[\s\S]*localSyncProbe:activityReachedBackend[\s\S]*sessionRestoreProbe:restoredLocalSession[\s\S]*sessionRestoreProbe:backendMeAfterRestore[\s\S]*stabilityProbe:allExpectedWindowsVisible[\s\S]*stabilityProbe:syncLoopsStillRunning[\s\S]*stopCleanupProbe:activeProjectRoomCleared[\s\S]*stopCleanupProbe:allExpectedWindowsHidden[\s\S]*stopCleanupProbe:syncLoopsStopped/,
@@ -439,6 +544,20 @@ function runContractCheck() {
   }
 
   return checks.map((check) => check.name);
+}
+
+function validateRealOAuthQaEvent(event) {
+  assert(event && typeof event === "object", "QA event must be an object.");
+  const serialized = JSON.stringify(event);
+  assert(!forbiddenReportFieldPattern().test(serialized), "QA event must not include raw tokens or user identifiers.");
+  assert(typeof event.stage === "string" && event.stage.length > 0, "QA event stage is required.");
+  assert(typeof event.reason === "string", "QA event reason is required.");
+  assert(typeof event.pathname === "string", "QA event pathname is required.");
+  assert(typeof event.timestamp === "string" && event.timestamp.length > 0, "QA event timestamp is required.");
+  if (event.failedChecks !== undefined) {
+    assert(Array.isArray(event.failedChecks), "QA event failedChecks must be an array when present.");
+    assert(event.failedChecks.every((name) => typeof name === "string"), "QA event failedChecks entries must be strings.");
+  }
 }
 
 function validateRealOAuthQaReport(report) {
