@@ -391,6 +391,25 @@ async function smokeBackend(accessToken) {
   const syncedResourceId = localFileSync.results[0].resourceId;
   assert(syncedResourceId, "local file event sync did not return a resource id");
 
+  const localFileSyncReplay = await apiPost("/api/local-file-events/sync", headers, {
+    events: [
+      {
+        eventType: "CREATED",
+        fileName: "codex-local-sync-smoke-replayed.txt",
+        fileSizeBytes: 4200,
+        localEventId: createdLocalEventId,
+        mimeType: "text/plain",
+        resourceId: null,
+      },
+    ],
+  });
+  assert(
+    localFileSyncReplay.results?.[0]?.status === "SYNCED" &&
+      localFileSyncReplay.results[0].localEventId === createdLocalEventId &&
+      localFileSyncReplay.results[0].resourceId === syncedResourceId,
+    "local file event duplicate localEventId did not replay the original result",
+  );
+
   const updatedLocalEventId = `codex-local-sync-updated-${Date.now()}`;
   const localFileUpdate = await apiPost("/api/local-file-events/sync", headers, {
     events: [
@@ -464,16 +483,32 @@ async function smokeBackend(accessToken) {
 
   const activityStartedAt = new Date(Date.now() - 120_000).toISOString();
   const activityEndedAt = new Date().toISOString();
+  const localActivityId = `codex-activity-${Date.now()}`;
   const activitySmoke = await apiPost("/api/activity/current-app", headers, {
     appName: "Codex Tauri activity smoke",
     durationSeconds: 120,
     endedAt: activityEndedAt,
+    localActivityId,
     roomId: SEED_ROOM_ID,
     startedAt: activityStartedAt,
     windowTitle: "Real backend activity roundtrip",
   });
   assert(activitySmoke.appName === "Codex Tauri activity smoke", "activity record did not return the smoke app name");
   assert(activitySmoke.roomId === SEED_ROOM_ID, "activity record did not return the seeded room id");
+  const activityReplay = await apiPost("/api/activity/current-app", headers, {
+    appName: "Codex Tauri activity smoke replay should not overwrite",
+    durationSeconds: 999,
+    endedAt: activityEndedAt,
+    localActivityId,
+    roomId: SEED_ROOM_ID,
+    startedAt: activityStartedAt,
+    windowTitle: "Duplicate local activity id replay",
+  });
+  assert(activityReplay.id === activitySmoke.id, "activity duplicate localActivityId did not replay the original row");
+  assert(
+    activityReplay.appName === activitySmoke.appName && activityReplay.durationSeconds === activitySmoke.durationSeconds,
+    "activity duplicate localActivityId replay unexpectedly changed the original row",
+  );
 
   const todayActivities = await apiGet("/api/activity/today", headers);
   assert(
@@ -520,7 +555,7 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings GET/PATCH, /api/widget/context, /api/widget/items/{id}/state, /api/widget/items/states, /api/project-rooms, /api/me/project-rooms, /api/project-rooms/{roomId}, /api/project-rooms/{roomId}/events, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/token, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED, /api/local-file-analyses, /api/activity/current-app, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings GET/PATCH, /api/widget/context, /api/widget/items/{id}/state, /api/widget/items/states, /api/project-rooms, /api/me/project-rooms, /api/project-rooms/{roomId}, /api/project-rooms/{roomId}/events, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/token, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED + duplicate localEventId replay, /api/local-file-analyses, /api/activity/current-app + duplicate localActivityId replay, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 
