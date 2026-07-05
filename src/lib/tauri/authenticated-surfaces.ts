@@ -15,11 +15,11 @@ let launchGeneration = 0;
 let launchedAuthenticatedSurfaces = false;
 
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
-// (deprecated) 메뉴(오브) 창은 더 이상 자동 실행하지 않는다 — Bubli 메뉴는 바 창의
-// 브랜드 칩에서 열리는 인라인 morph 패널로 통합됐다. "menu" 창 경로(?bubble=menu)와
-// Rust 창 상태는 그대로 남아 있어 수동으로 열면 여전히 동작한다.
+// 메뉴 오브 창도 로그인 시 자동 실행 목록에 함께 띄운다.
+const loginStartupMenuWindow: WidgetWindowOpenInput = { bubbleType: "menu", mode: "DEFAULT", windowId: "menu" };
 const loginStartupWindows: WidgetWindowOpenInput[] = [
   loginStartupBarWindow,
+  loginStartupMenuWindow,
   { bubbleType: "agent", mode: "DEFAULT", windowId: "agent" },
   { bubbleType: "alert", mode: "DEFAULT", windowId: "alert" },
   { bubbleType: "chat", mode: "DEFAULT", windowId: "chat" },
@@ -154,7 +154,11 @@ function getStartupModeFromSetting(setting: WidgetBubbleSettingResponse): Widget
 
 function getLoginStartupBubbles(settings: WidgetBubbleSettingResponse[]): WidgetWindowOpenInput[] {
   const enabledByBubble = new Map<Exclude<WidgetBubbleType, "bar" | "menu">, WidgetBubbleSettingResponse>();
-  const sortedStartupBubbles: Array<WidgetWindowOpenInput & { bubbleType: Exclude<WidgetBubbleType, "bar" | "menu"> }> = [];
+  const sortedStartupBubbles: Array<
+    WidgetWindowOpenInput & {
+      bubbleType: Exclude<WidgetBubbleType, "bar" | "menu">;
+    }
+  > = [];
 
   for (const startupWindow of loginStartupWindows) {
     if (startupWindow.bubbleType === undefined || startupWindow.bubbleType === "bar" || startupWindow.bubbleType === "menu") {
@@ -174,7 +178,7 @@ function getLoginStartupBubbles(settings: WidgetBubbleSettingResponse[]): Widget
     enabledByBubble.set(localType, setting);
   }
 
-  const startupBubbles: WidgetWindowOpenInput[] = [];
+  const startupBubbles: WidgetWindowOpenInput[] = [loginStartupMenuWindow];
   for (const bubble of sortedStartupBubbles) {
     const setting = enabledByBubble.get(bubble.bubbleType);
     if (!setting) continue;
