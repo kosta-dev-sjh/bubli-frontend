@@ -54,8 +54,8 @@ try {
   ]);
 
   validateRealOAuthQaReport(report);
-  const outputPath = writeReport(report);
-  console.log(JSON.stringify({ reportPath: outputPath, ...report }, null, 2));
+  const outputPaths = writeReport(report);
+  console.log(JSON.stringify({ ...outputPaths, ...report }, null, 2));
 
   if (report.status !== "passed") {
     throw new Error(`Tauri real OAuth manual QA failed: ${report.error ?? "assertion failed"}`);
@@ -171,10 +171,68 @@ function startReportServer() {
 function writeReport(report) {
   const directory = ".codex-runtime-logs";
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const outputPath = join(directory, `tauri-real-oauth-qa-${timestamp}.json`);
+  const reportPath = join(directory, `tauri-real-oauth-qa-${timestamp}.json`);
+  const summaryPath = join(directory, `tauri-real-oauth-qa-${timestamp}.md`);
   mkdirSync(directory, { recursive: true });
-  writeFileSync(outputPath, JSON.stringify(report, null, 2));
-  return outputPath;
+  writeFileSync(reportPath, JSON.stringify(report, null, 2));
+  writeFileSync(summaryPath, renderEvidenceSummary(report, reportPath));
+  return { reportPath, summaryPath };
+}
+
+function renderEvidenceSummary(report, reportPath) {
+  const snapshot = report.assertion?.snapshot;
+  const failedChecks = report.assertion?.failedChecks ?? [];
+  const lines = [
+    "# Tauri Real OAuth QA Evidence",
+    "",
+    `- Result: ${report.status}`,
+    `- Finished at: ${report.finishedAt}`,
+    `- Duration ms: ${report.durationMs}`,
+    `- Attempts: ${report.attemptCount}`,
+    `- Trigger reason: ${report.reason}`,
+    `- JSON report: ${reportPath}`,
+    `- Failed checks: ${failedChecks.length === 0 ? "none" : failedChecks.join(", ")}`,
+    "",
+    "## Redacted Proof",
+    "",
+  ];
+
+  if (!snapshot) {
+    lines.push("- Snapshot: missing", "");
+    return `${lines.join("\n")}\n`;
+  }
+
+  const localSync = snapshot.localSyncProbe ?? {};
+  const stability = snapshot.stabilityProbe ?? {};
+  const sessionRestore = snapshot.sessionRestoreProbe ?? {};
+  const stopCleanup = snapshot.stopCleanupProbe ?? {};
+
+  lines.push(
+    `- Real TAURI local session: ${Boolean(snapshot.localSession?.hasSession && snapshot.localSession?.clientType === "TAURI" && snapshot.localSession?.isDevAccessTokenSession === false)}`,
+    `- Real TAURI mirror session: ${Boolean(snapshot.tauriMirrorSession?.hasSession && snapshot.tauriMirrorSession?.clientType === "TAURI" && snapshot.tauriMirrorSession?.isDevAccessTokenSession === false)}`,
+    `- Backend /api/me: ${Boolean(snapshot.backend?.me?.ok)}`,
+    `- Backend widget context: ${Boolean(snapshot.backend?.widgetContext?.ok)}`,
+    `- Backend widget summary: ${Boolean(snapshot.backend?.widgetSummary?.ok)}`,
+    `- Selected room propagated: ${Boolean(snapshot.activeProjectRoom?.hasSelectedRoom && snapshot.activeProjectRoom?.tauriMatchesMemory && snapshot.activeProjectRoom?.tauriMatchesServerContext)}`,
+    `- All widget windows visible: ${Boolean(snapshot.widgetRuntime?.allExpectedWindowsVisible)}`,
+    `- Widget room context matches active/server: ${Boolean(snapshot.widgetRuntime?.allWindowRoomContextMatchesActive && snapshot.widgetRuntime?.allWindowRoomContextMatchesServer)}`,
+    `- Auto-sync loops running: ${Boolean(snapshot.syncRuntime?.allAutoSyncLoopsRunning)}`,
+    `- Managed-folder watcher not failed: ${snapshot.syncRuntime?.managedFolderStatus?.lastStatus !== "failed"}`,
+    `- SQLite quick_check: ${Boolean(localSync.sqlite?.ok)}`,
+    `- Widget usage reached backend: ${(localSync.outbox?.widgetSentCount ?? 0) >= 1}`,
+    `- Activity reached backend when consented: ${
+      localSync.activity?.consentGranted ? (localSync.outbox?.activitySentCount ?? 0) >= 1 : "not required"
+    }`,
+    `- Stability dwell ms: ${stability.dwellMs ?? 0}`,
+    `- Stability widgets/sync/backend healthy: ${Boolean(stability.allExpectedWindowsVisible && stability.allAutoSyncLoopsRunning && stability.backendWidgetSummaryOk)}`,
+    `- Session restored from Tauri mirror: ${Boolean(sessionRestore.restoredLocalSession && sessionRestore.restoredTauriClient && sessionRestore.backendMeOk)}`,
+    `- Stop cleanup closed widgets and loops: ${Boolean(stopCleanup.activeProjectRoomCleared && stopCleanup.allExpectedWindowsHidden && stopCleanup.syncLoopsStopped)}`,
+    "",
+    "Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded by the report validator.",
+    "",
+  );
+
+  return `${lines.join("\n")}\n`;
 }
 
 function runContractCheck() {
@@ -192,6 +250,18 @@ function runContractCheck() {
       name: "script validates redacted QA reports before accepting pass",
       pattern:
         /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1[\s\S]*snapshot\.stabilityProbe\?\.enabled[\s\S]*snapshot\.stabilityProbe\.allExpectedWindowsVisible[\s\S]*snapshot\.stabilityProbe\.allAutoSyncLoopsRunning[\s\S]*snapshot\.sessionRestoreProbe\?\.enabled[\s\S]*snapshot\.sessionRestoreProbe\.restoredLocalSession[\s\S]*snapshot\.sessionRestoreProbe\.backendMeOk[\s\S]*snapshot\.stopCleanupProbe\?\.enabled[\s\S]*snapshot\.stopCleanupProbe\.activeProjectRoomCleared[\s\S]*snapshot\.stopCleanupProbe\.allExpectedWindowsHidden[\s\S]*snapshot\.stopCleanupProbe\.barWindowHidden[\s\S]*snapshot\.stopCleanupProbe\.syncLoopsStopped/,
+      source: scriptSource,
+    },
+    {
+      name: "script writes a markdown evidence summary next to the JSON report",
+      pattern:
+        /function writeReport\(report\)[\s\S]*const reportPath = join\(directory, `tauri-real-oauth-qa-\$\{timestamp\}\.json`\)[\s\S]*const summaryPath = join\(directory, `tauri-real-oauth-qa-\$\{timestamp\}\.md`\)[\s\S]*renderEvidenceSummary\(report, reportPath\)[\s\S]*return \{ reportPath, summaryPath \}/,
+      source: scriptSource,
+    },
+    {
+      name: "script evidence summary stays redacted and records key real OAuth probes",
+      pattern:
+        /function renderEvidenceSummary\(report, reportPath\)[\s\S]*Redacted Proof[\s\S]*Real TAURI local session[\s\S]*Backend \/api\/me[\s\S]*All widget windows visible[\s\S]*Stability dwell ms[\s\S]*Session restored from Tauri mirror[\s\S]*Stop cleanup closed widgets and loops[\s\S]*Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded/,
       source: scriptSource,
     },
     {
