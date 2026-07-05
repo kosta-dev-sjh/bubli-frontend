@@ -22,6 +22,7 @@ import {
 } from "@/lib/local/managed-folder-client";
 import { syncAllLocalOutboxToServer } from "@/lib/sync/local-sync-client";
 import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
+import { readTauriAuthWidgetQaSnapshot } from "@/lib/tauri/tauri-auth-widget-qa";
 import { tauriCommands } from "@/lib/tauri/commands";
 import type { LocalFileEventsSyncStageResult } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -1015,6 +1016,38 @@ async function runSmoke() {
         managedFolderAutoSyncRunning: isManagedFolderAutoSyncRunning(),
         widgetUsageAutoSyncRunning: isWidgetUsageAutoSyncRunning(),
       },
+    );
+    const authWidgetQaSnapshot = await readTauriAuthWidgetQaSnapshot();
+    assert(
+      authWidgetQaSnapshot.localSession.hasSession &&
+        authWidgetQaSnapshot.tauriMirrorSession.hasSession &&
+        authWidgetQaSnapshot.localSession.clientType === "TAURI" &&
+        authWidgetQaSnapshot.tauriMirrorSession.clientType === "TAURI",
+      "post-login QA snapshot confirmed Tauri auth session without raw tokens",
+      authWidgetQaSnapshot,
+    );
+    assert(
+      authWidgetQaSnapshot.backend.me.ok &&
+        authWidgetQaSnapshot.backend.widgetContext.ok &&
+        authWidgetQaSnapshot.backend.widgetSummary.ok,
+      "post-login QA snapshot confirmed real backend auth and widget APIs",
+      authWidgetQaSnapshot.backend,
+    );
+    assert(
+      authWidgetQaSnapshot.activeProjectRoom.memoryRoomId === smokeRoomId &&
+        authWidgetQaSnapshot.activeProjectRoom.tauriRoomId === smokeRoomId &&
+        authWidgetQaSnapshot.activeProjectRoom.serverSelectedRoomId === smokeRoomId &&
+        authWidgetQaSnapshot.activeProjectRoom.tauriMatchesMemory &&
+        authWidgetQaSnapshot.activeProjectRoom.tauriMatchesServerContext,
+      "post-login QA snapshot confirmed project room context across memory Tauri and backend",
+      authWidgetQaSnapshot.activeProjectRoom,
+    );
+    assert(
+      authWidgetQaSnapshot.widgetRuntime.allExpectedWindowsVisible &&
+        authWidgetQaSnapshot.widgetRuntime.allWindowRoomContextMatchesActive &&
+        authWidgetQaSnapshot.widgetRuntime.barItems.ok,
+      "post-login QA snapshot confirmed all widget windows and bar items",
+      authWidgetQaSnapshot.widgetRuntime,
     );
     await stopTauriAuthenticatedSurfaces();
     await persistWidgetRestartLayoutCheckpoint(assert);

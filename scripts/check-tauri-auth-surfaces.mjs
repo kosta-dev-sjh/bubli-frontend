@@ -214,6 +214,11 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /import \{ readTauriAuthWidgetQaSnapshot \} from "@\/lib\/tauri\/tauri-auth-widget-qa";/,
+  "TauriRuntimeSmokeRunner must exercise the redacted auth/widget QA snapshot in the real Windows runtime smoke.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /import \{[\s\S]*analyzePersonalLocalFileWithKeySentences[\s\S]*getPersonalLocalFileAnalysisStatus[\s\S]*\} from "@\/lib\/local\/managed-folder-client";/,
   "TauriRuntimeSmokeRunner must use the real managed-folder local analysis adapter for backend analysis job checks.",
 );
@@ -301,6 +306,11 @@ assertContains(
   runtimeSmokeRunner,
   /launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened all bubble widgets with project room context[\s\S]*isActivityAutoCaptureRunning\(\)[\s\S]*isManagedFolderAutoSyncRunning\(\)[\s\S]*isWidgetUsageAutoSyncRunning\(\)[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*stopTauriAuthenticatedSurfaces\(\)/,
   "TauriRuntimeSmokeRunner must prove the real post-login authenticated launcher opens widgets and starts all local sync loops.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /const authWidgetQaSnapshot = await readTauriAuthWidgetQaSnapshot\(\);[\s\S]*post-login QA snapshot confirmed Tauri auth session without raw tokens[\s\S]*post-login QA snapshot confirmed real backend auth and widget APIs[\s\S]*post-login QA snapshot confirmed project room context across memory Tauri and backend[\s\S]*post-login QA snapshot confirmed all widget windows and bar items[\s\S]*stopTauriAuthenticatedSurfaces\(\)/,
+  "TauriRuntimeSmokeRunner must verify the redacted QA snapshot after the post-login launcher opens authenticated widgets.",
 );
 assertContains(
   runtimeSmokeRunner,
