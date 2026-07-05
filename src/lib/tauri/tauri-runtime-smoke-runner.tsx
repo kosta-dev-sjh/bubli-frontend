@@ -28,6 +28,8 @@ import type { LocalFileEventsSyncStageResult } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { isWidgetUsageAutoSyncRunning } from "@/lib/widget/widget-usage-auto-sync";
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
+import { getChatRealtimeClient } from "@/lib/websocket/chat-realtime";
+import { websocketTopics } from "@/lib/websocket/topics";
 
 type SmokeCheck = {
   detail?: unknown;
@@ -81,6 +83,23 @@ function isWindowsRuntime() {
 
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isRealtimeChatMessageFor(
+  value: unknown,
+  chatRoomId: string,
+  clientMessageId: string,
+): value is { chatRoomId: string; clientMessageId: string; roomSequence?: number } {
+  return (
+    isObject(value) &&
+    value.chatRoomId === chatRoomId &&
+    value.clientMessageId === clientMessageId &&
+    (value.roomSequence === undefined || typeof value.roomSequence === "number")
+  );
 }
 
 function smokeControlUrl(path: string) {
@@ -307,6 +326,80 @@ async function seedDevAuthSession() {
   return authApi.loginWithDevAccessToken(accessToken);
 }
 
+async function openRealtimeChatMessageProbe(
+  chatRoomId: string,
+  clientMessageId: string,
+  assert: SmokeAssert,
+) {
+  assert(
+    Boolean(process.env.NEXT_PUBLIC_WS_URL),
+    "real backend websocket URL configured for runtime smoke",
+    { hasWsUrl: Boolean(process.env.NEXT_PUBLIC_WS_URL) },
+  );
+
+  const client = getChatRealtimeClient();
+  const destination = websocketTopics.chatRoom(chatRoomId);
+  const startedAt = Date.now();
+  let settled = false;
+  let unsubscribe: () => void = () => undefined;
+  let timeout: number | null = null;
+
+  const messagePromise = new Promise<{ chatRoomId: string; clientMessageId: string; roomSequence?: number }>(
+    (resolve, reject) => {
+      timeout = window.setTimeout(() => {
+        finish(
+          null,
+          new Error(
+            `Timed out waiting for runtime smoke STOMP chat delivery after ${Date.now() - startedAt}ms.`,
+          ),
+        );
+      }, 10000);
+
+      unsubscribe = client.subscribe(destination, (message) => {
+        if (!isRealtimeChatMessageFor(message, chatRoomId, clientMessageId)) {
+          return;
+        }
+        finish(message);
+      });
+
+      function finish(
+        message: { chatRoomId: string; clientMessageId: string; roomSequence?: number } | null,
+        error?: Error,
+      ) {
+        if (settled) return;
+        settled = true;
+        if (timeout) window.clearTimeout(timeout);
+        unsubscribe();
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(message as { chatRoomId: string; clientMessageId: string; roomSequence?: number });
+      }
+    },
+  );
+
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (client.isOpen()) {
+      await sleep(150);
+      return {
+        cancel() {
+          if (settled) return;
+          settled = true;
+          if (timeout) window.clearTimeout(timeout);
+          unsubscribe();
+        },
+        message: messagePromise,
+      };
+    }
+    await sleep(125);
+  }
+
+  if (timeout) window.clearTimeout(timeout);
+  unsubscribe();
+  throw new Error(`Timed out waiting for runtime smoke STOMP connection to ${destination}.`);
+}
+
 async function verifyRealBackendRoomCommunication(smokeRoomId: string, assert: SmokeAssert) {
   const projectRoom = await projectRoomApi.get(smokeRoomId);
   assert(
@@ -331,16 +424,35 @@ async function verifyRealBackendRoomCommunication(smokeRoomId: string, assert: S
 
   const clientMessageId = `tauri-runtime-smoke-${Date.now()}`;
   const messageText = "Tauri runtime smoke real backend chat message";
-  const sentMessage = await chatApi.sendMessage(roomChat.id, {
-    body: { text: messageText },
-    clientMessageId,
-    messageType: "TEXT",
-  });
-  assert(
-    sentMessage.clientMessageId === clientMessageId && sentMessage.body.text === messageText,
-    "real backend chat message sent",
-    sentMessage,
-  );
+  const realtimeProbe = await openRealtimeChatMessageProbe(roomChat.id, clientMessageId, assert);
+  let sentMessage: Awaited<ReturnType<typeof chatApi.sendMessage>>;
+  try {
+    sentMessage = await chatApi.sendMessage(roomChat.id, {
+      body: { text: messageText },
+      clientMessageId,
+      messageType: "TEXT",
+    });
+    assert(
+      sentMessage.clientMessageId === clientMessageId && sentMessage.body.text === messageText,
+      "real backend chat message sent",
+      sentMessage,
+    );
+    const realtimeMessage = await realtimeProbe.message;
+    assert(
+      realtimeMessage.clientMessageId === clientMessageId &&
+        realtimeMessage.chatRoomId === roomChat.id &&
+        realtimeMessage.roomSequence === sentMessage.roomSequence,
+      "real backend chat message delivered over STOMP",
+      {
+        chatRoomId: realtimeMessage.chatRoomId,
+        clientMessageId: realtimeMessage.clientMessageId,
+        roomSequence: realtimeMessage.roomSequence,
+      },
+    );
+  } catch (error) {
+    realtimeProbe.cancel();
+    throw error;
+  }
 
   const messagePage = await chatApi.getMessages(roomChat.id, { size: 20 });
   assert(

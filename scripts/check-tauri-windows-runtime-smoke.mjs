@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? resolveWsUrl(API_BASE_URL);
 const ROOM_ID = "22222222-2222-4222-8222-222222222222";
 const TIMEOUT_MS = Number(process.env.BUBLI_TAURI_RUNTIME_SMOKE_TIMEOUT_MS ?? 240_000);
 
@@ -117,6 +118,7 @@ function spawnTauri(reportUrl, accessToken, phase) {
     env: {
       ...process.env,
       NEXT_PUBLIC_API_BASE_URL: API_BASE_URL,
+      NEXT_PUBLIC_WS_URL: WS_URL,
       NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "true",
       NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN: accessToken,
       NEXT_PUBLIC_BUBLI_PREVIEW_DATA: "false",
@@ -138,6 +140,12 @@ function spawnTauri(reportUrl, accessToken, phase) {
   });
 
   return child;
+}
+
+function resolveWsUrl(apiBaseUrl) {
+  const url = new URL("/ws", apiBaseUrl);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
 }
 
 function startReportServer() {

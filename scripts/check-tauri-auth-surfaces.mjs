@@ -182,6 +182,11 @@ assertContains(
   "Windows Tauri runtime smoke must run the preflight before seeding or launching Tauri.",
 );
 assertContains(
+  windowsRuntimeSmoke,
+  /const WS_URL = process\.env\.NEXT_PUBLIC_WS_URL \?\? resolveWsUrl\(API_BASE_URL\);[\s\S]*NEXT_PUBLIC_WS_URL: WS_URL/,
+  "Windows Tauri runtime smoke must provide the real backend STOMP /ws URL to the Tauri runtime.",
+);
+assertContains(
   runtimePreflight,
   /process\.platform !== "win32"[\s\S]*Tauri runtime preflight skipped/,
   "Tauri runtime preflight must remain Windows-only so macOS/Linux CI is not affected.",
@@ -322,6 +327,21 @@ assertContains(
   runtimeSmokeRunner,
   /function verifyRealBackendRoomCommunication[\s\S]*projectRoomApi\.get\(smokeRoomId\)[\s\S]*projectRoomApi\.getMembers\(smokeRoomId\)[\s\S]*resourcesApi\.listRoomResources\(smokeRoomId\)[\s\S]*chatApi\.listRooms\(\)[\s\S]*chatApi\.sendMessage[\s\S]*chatApi\.getMessages[\s\S]*chatApi\.markRead[\s\S]*voiceApi\.createRoom[\s\S]*voiceApi\.getToken[\s\S]*voiceApi\.updateMicStatus[\s\S]*voiceApi\.leave/,
   "TauriRuntimeSmokeRunner must verify project-room, chat send/read, resources list, and voice token flows against the real backend.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /import \{ getChatRealtimeClient \} from "@\/lib\/websocket\/chat-realtime";[\s\S]*import \{ websocketTopics \} from "@\/lib\/websocket\/topics";/,
+  "TauriRuntimeSmokeRunner must use the raw STOMP chat client because backend chat topics publish ChatMessageResponse payloads.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /openRealtimeChatMessageProbe[\s\S]*NEXT_PUBLIC_WS_URL[\s\S]*getChatRealtimeClient\(\)[\s\S]*websocketTopics\.chatRoom\(chatRoomId\)[\s\S]*client\.subscribe\(destination[\s\S]*client\.isOpen\(\)/,
+  "TauriRuntimeSmokeRunner must subscribe to the real chat STOMP topic before sending the runtime-smoke chat message.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /const realtimeProbe = await openRealtimeChatMessageProbe\(roomChat\.id, clientMessageId, assert\);[\s\S]*chatApi\.sendMessage\(roomChat\.id[\s\S]*const realtimeMessage = await realtimeProbe\.message;[\s\S]*real backend chat message delivered over STOMP/,
+  "TauriRuntimeSmokeRunner must prove the real backend chat message is delivered over STOMP, not only over HTTP readback.",
 );
 assertContains(
   runtimeSmokeRunner,
