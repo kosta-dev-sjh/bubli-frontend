@@ -341,6 +341,11 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /verifyRealBackendWidgetItemState[\s\S]*widgetApi\.updateItemState\(smokeTaskItemId[\s\S]*state: "PINNED"[\s\S]*widgetApi\.listItemStates\(\[smokeTaskItemId\]\)[\s\S]*real backend widget item state pinned readback from Tauri runtime[\s\S]*state: "VISIBLE"[\s\S]*real backend widget item state restored after Tauri runtime smoke/,
+  "TauriRuntimeSmokeRunner must verify widget item state PATCH and readback through the real backend from the Windows runtime.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /import \{ chatApi \} from "@\/features\/communication\/api\/chatApi";[\s\S]*import \{ voiceApi \} from "@\/features\/communication\/api\/voiceApi";[\s\S]*import \{ projectRoomApi \} from "@\/features\/project-room\/api\/projectRoomApi";[\s\S]*import \{ resourcesApi \} from "@\/features\/resources\/api\/resourcesApi";/,
   "TauriRuntimeSmokeRunner must use the real frontend API clients for room communication smoke checks.",
 );
@@ -421,8 +426,13 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /setWidgetWindowPosition\(\{[\s\S]*all bubble widget positions persisted with project room context[\s\S]*closeWidgetWindow\(\{ bubbleType, windowId: bubbleType \}\)[\s\S]*all bubble widget windows minimized without losing project room context[\s\S]*getWidgetWindowState\(\{ bubbleType: "bar", windowId: "bar" \}\)[\s\S]*widget bar remains visible after all bubble widgets are minimized[\s\S]*getWidgetBarItems\(\)[\s\S]*all minimized bubble widgets appear as bar restore items[\s\S]*openWidgetWindows\(\{[\s\S]*mode: "DEFAULT" as const[\s\S]*all minimized bubble widget windows restore with position and project room context/,
+  /setWidgetWindowPosition\(\{[\s\S]*all bubble widget positions persisted with project room context[\s\S]*setWidgetWindowMode\(\{[\s\S]*mode: "MINIMIZED"[\s\S]*all bubble widget windows minimized without losing project room context[\s\S]*getWidgetWindowState\(\{ bubbleType: "bar", windowId: "bar" \}\)[\s\S]*widget bar remains visible after all bubble widgets are minimized[\s\S]*getWidgetBarItems\(\)[\s\S]*all minimized bubble widgets appear as bar restore items[\s\S]*openWidgetWindows\(\{[\s\S]*mode: "DEFAULT" as const[\s\S]*all minimized bubble widget windows restore with position and project room context/,
   "TauriRuntimeSmokeRunner must verify all eight bubble widgets preserve position while minimizing to the bar and restoring with project-room context.",
+);
+assertContains(
+  widgetPage,
+  /const closeWindow = useCallback[\s\S]*setWidgetWindowMode\(\{[\s\S]*mode: "MINIMIZED"[\s\S]*selectedRoomId: selectedWidgetRoomId[\s\S]*eventType: "close:minimize"/,
+  "Desktop widget minimize control must use MINIMIZED mode so the bubble remains restorable from the bar.",
 );
 assertContains(
   runtimeSmokeRunner,
