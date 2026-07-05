@@ -1317,7 +1317,7 @@ function DesktopWidgetSurface() {
         const serverMode = getModeFromSetting(activeSetting);
         if (!isTauri && serverMode && requestedMode === "DEFAULT") {
           setMode(serverMode);
-          setClickThrough(serverMode === "GHOST");
+          setClickThrough(false);
           setWindowVisible(serverMode !== "MINIMIZED");
         }
 
@@ -1677,7 +1677,7 @@ function DesktopWidgetSurface() {
   const setWindowMode = useCallback(
     async (nextMode: WidgetWindowMode) => {
       setMode(nextMode);
-      setClickThrough(nextMode === "GHOST");
+      setClickThrough(false);
       setWindowVisible(nextMode !== "MINIMIZED");
 
       if (!isTauri) return;

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 
 import { useI18n } from "@/lib/i18n";
 
-import type { AgentCommandDefinition } from "../lib/agent-commands";
+import type { LocalizedAgentCommandDefinition } from "../lib/agent-commands";
 import styles from "./agent-command-autocomplete.module.css";
 
 // /bubli 명령어 자동완성 팝오버(컴포저 위 부착).
@@ -20,9 +20,9 @@ export function AgentCommandAutocomplete({
   tone,
 }: {
   activeIndex: number;
-  items: AgentCommandDefinition[];
+  items: LocalizedAgentCommandDefinition[];
   onHoverItem: (index: number) => void;
-  onPick: (item: AgentCommandDefinition) => void;
+  onPick: (item: LocalizedAgentCommandDefinition) => void;
   tone: "bubble" | "glass";
 }) {
   const { t } = useI18n();
