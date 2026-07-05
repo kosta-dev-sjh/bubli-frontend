@@ -2464,101 +2464,86 @@ fn oauth_error_html(message: &str) -> String {
 fn start_tauri_google_oauth_loopback(
     input: TauriGoogleOauthLoopbackInput,
 ) -> Result<TauriGoogleOauthLoopbackResult, String> {
-    #[cfg(target_os = "windows")]
+    if input.redirect_uri
+        != format!("http://{TAURI_OAUTH_LOOPBACK_BIND}{TAURI_OAUTH_LOOPBACK_PATH}")
     {
-        if input.redirect_uri
-            != format!("http://{TAURI_OAUTH_LOOPBACK_BIND}{TAURI_OAUTH_LOOPBACK_PATH}")
-        {
-            return Err("Tauri OAuth loopback redirect URI is not allowed".to_string());
-        }
-        validate_google_authorize_url(&input.authorize_url, &input.redirect_uri)?;
-
-        let listener = TcpListener::bind(TAURI_OAUTH_LOOPBACK_BIND)
-            .map_err(|error| format!("could not bind Tauri OAuth loopback listener: {error}"))?;
-        listener
-            .set_nonblocking(true)
-            .map_err(|error| error.to_string())?;
-
-        tauri_plugin_opener::open_url(&input.authorize_url, None::<&str>)
-            .map_err(|error| error.to_string())?;
-
-        let started_at = Instant::now();
-        loop {
-            if started_at.elapsed() > Duration::from_millis(TAURI_OAUTH_LOOPBACK_TIMEOUT_MS) {
-                return Err("Tauri OAuth loopback timed out".to_string());
-            }
-
-            match listener.accept() {
-                Ok((mut stream, _address)) => {
-                    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-                    let mut buffer = [0_u8; 8192];
-                    let bytes_read = stream
-                        .read(&mut buffer)
-                        .map_err(|error| error.to_string())?;
-                    let request = String::from_utf8_lossy(&buffer[..bytes_read]);
-                    let request_line = request.lines().next().unwrap_or_default();
-                    let path_and_query = request_line
-                        .strip_prefix("GET ")
-                        .and_then(|line| line.split_whitespace().next())
-                        .ok_or_else(|| {
-                            "Tauri OAuth loopback received an invalid request".to_string()
-                        })?;
-                    let (path, query) = path_and_query
-                        .split_once('?')
-                        .unwrap_or((path_and_query, ""));
-                    if path != TAURI_OAUTH_LOOPBACK_PATH {
-                        let _ = stream.write_all(
-                            oauth_error_html("Invalid Bubli login callback path.").as_bytes(),
-                        );
-                        return Err(
-                            "Tauri OAuth loopback received an invalid callback path".to_string()
-                        );
-                    }
-
-                    let code = query_value(query, "code").unwrap_or_default();
-                    let state = query_value(query, "state");
-                    let error = query_value(query, "error");
-                    if let Some(error) = error {
-                        let _ = stream.write_all(
-                            oauth_error_html("Google login was not completed.").as_bytes(),
-                        );
-                        return Err(format!("Google OAuth returned an error: {error}"));
-                    }
-                    if code.trim().is_empty() {
-                        let _ = stream.write_all(
-                            oauth_error_html("Google login code was missing.").as_bytes(),
-                        );
-                        return Err(
-                            "Tauri OAuth loopback callback did not include code".to_string()
-                        );
-                    }
-                    if let Some(expected_state) = input.expected_state.as_deref() {
-                        if state.as_deref() != Some(expected_state) {
-                            let _ = stream.write_all(
-                                oauth_error_html(
-                                    "Login state did not match the Bubli app request.",
-                                )
-                                .as_bytes(),
-                            );
-                            return Err("Tauri OAuth loopback state mismatch".to_string());
-                        }
-                    }
-
-                    let _ = stream.write_all(oauth_response_html("Login confirmed.").as_bytes());
-                    return Ok(TauriGoogleOauthLoopbackResult { code, state });
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                    thread::sleep(Duration::from_millis(50));
-                }
-                Err(error) => return Err(error.to_string()),
-            }
-        }
+        return Err("Tauri OAuth loopback redirect URI is not allowed".to_string());
     }
+    validate_google_authorize_url(&input.authorize_url, &input.redirect_uri)?;
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = input;
-        Err("Tauri OAuth loopback is only enabled on Windows in this build".to_string())
+    let listener = TcpListener::bind(TAURI_OAUTH_LOOPBACK_BIND)
+        .map_err(|error| format!("could not bind Tauri OAuth loopback listener: {error}"))?;
+    listener
+        .set_nonblocking(true)
+        .map_err(|error| error.to_string())?;
+
+    tauri_plugin_opener::open_url(&input.authorize_url, None::<&str>)
+        .map_err(|error| error.to_string())?;
+
+    let started_at = Instant::now();
+    loop {
+        if started_at.elapsed() > Duration::from_millis(TAURI_OAUTH_LOOPBACK_TIMEOUT_MS) {
+            return Err("Tauri OAuth loopback timed out".to_string());
+        }
+
+        match listener.accept() {
+            Ok((mut stream, _address)) => {
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                let mut buffer = [0_u8; 8192];
+                let bytes_read = stream
+                    .read(&mut buffer)
+                    .map_err(|error| error.to_string())?;
+                let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+                let request_line = request.lines().next().unwrap_or_default();
+                let path_and_query = request_line
+                    .strip_prefix("GET ")
+                    .and_then(|line| line.split_whitespace().next())
+                    .ok_or_else(|| {
+                        "Tauri OAuth loopback received an invalid request".to_string()
+                    })?;
+                let (path, query) = path_and_query
+                    .split_once('?')
+                    .unwrap_or((path_and_query, ""));
+                if path != TAURI_OAUTH_LOOPBACK_PATH {
+                    let _ = stream.write_all(
+                        oauth_error_html("Invalid Bubli login callback path.").as_bytes(),
+                    );
+                    return Err(
+                        "Tauri OAuth loopback received an invalid callback path".to_string()
+                    );
+                }
+
+                let code = query_value(query, "code").unwrap_or_default();
+                let state = query_value(query, "state");
+                let error = query_value(query, "error");
+                if let Some(error) = error {
+                    let _ = stream
+                        .write_all(oauth_error_html("Google login was not completed.").as_bytes());
+                    return Err(format!("Google OAuth returned an error: {error}"));
+                }
+                if code.trim().is_empty() {
+                    let _ = stream
+                        .write_all(oauth_error_html("Google login code was missing.").as_bytes());
+                    return Err("Tauri OAuth loopback callback did not include code".to_string());
+                }
+                if let Some(expected_state) = input.expected_state.as_deref() {
+                    if state.as_deref() != Some(expected_state) {
+                        let _ = stream.write_all(
+                            oauth_error_html("Login state did not match the Bubli app request.")
+                                .as_bytes(),
+                        );
+                        return Err("Tauri OAuth loopback state mismatch".to_string());
+                    }
+                }
+
+                let _ = stream.write_all(oauth_response_html("Login confirmed.").as_bytes());
+                return Ok(TauriGoogleOauthLoopbackResult { code, state });
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                thread::sleep(Duration::from_millis(50));
+            }
+            Err(error) => return Err(error.to_string()),
+        }
     }
 }
 

@@ -21,6 +21,7 @@ import {
   type Range,
 } from "@/components/ui/gantt";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
+import { startGoogleCalendarConnect } from "@/features/calendar/api/googleCalendarAuth";
 import { useRoomCalendarAutoPush } from "@/features/calendar/api/use-room-calendar-auto-push";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
@@ -304,11 +305,22 @@ export function WbsGanttPanel({
     setIsConnectingGoogle(true);
 
     try {
-      const response = await calendarApi.requestGoogleConnectUrl();
-      window.location.href = response.authorizeUrl;
+      const connection = await startGoogleCalendarConnect();
+      if (connection?.status === "ACTIVE") {
+        setCalendarSync("recording");
+        setGoogleAccountEmail(connection.googleAccountEmail ?? null);
+        const roomCalendar = await calendarApi.getRoomCalendar(roomId);
+        setRoomCalendarByRoom((current) => ({ ...current, [roomId]: roomCalendar }));
+        onNotice(
+          roomCalendar.needsReconsent
+            ? t("wbs.gantt.sync.roomCalendarReconsent")
+            : t("wbs.gantt.sync.recording"),
+        );
+      }
     } catch {
-      setIsConnectingGoogle(false);
       onNotice(t("wbs.gantt.sync.connectFailed"));
+    } finally {
+      setIsConnectingGoogle(false);
     }
   };
 
@@ -318,11 +330,22 @@ export function WbsGanttPanel({
 
     try {
       await calendarApi.disconnectGoogleConnection().catch(() => undefined);
-      const response = await calendarApi.requestGoogleConnectUrl();
-      window.location.href = response.authorizeUrl;
+      const connection = await startGoogleCalendarConnect();
+      if (connection?.status === "ACTIVE") {
+        setCalendarSync("recording");
+        setGoogleAccountEmail(connection.googleAccountEmail ?? null);
+        const roomCalendar = await calendarApi.getRoomCalendar(roomId);
+        setRoomCalendarByRoom((current) => ({ ...current, [roomId]: roomCalendar }));
+        onNotice(
+          roomCalendar.needsReconsent
+            ? t("wbs.gantt.sync.roomCalendarReconsent")
+            : t("wbs.gantt.sync.recording"),
+        );
+      }
     } catch {
-      setIsConnectingGoogle(false);
       onNotice(t("wbs.gantt.sync.connectFailed"));
+    } finally {
+      setIsConnectingGoogle(false);
     }
   };
 
