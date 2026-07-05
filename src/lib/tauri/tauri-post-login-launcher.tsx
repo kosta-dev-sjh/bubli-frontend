@@ -9,6 +9,8 @@ import {
   AUTH_SESSION_CHANGE_EVENT,
   clearStoredAuthSession,
   getStoredAuthSession,
+  getStoredAuthSessionDiagnostics,
+  readTauriAuthSessionDiagnostics,
   restoreStoredAuthSessionFromTauri,
 } from "@/lib/auth/auth-session";
 import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
@@ -16,6 +18,16 @@ import { startWidgetDataChangedBridge } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 const runtimeSmokeEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
+const authDiagnosticsEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS === "true";
+
+declare global {
+  interface Window {
+    __BUBLI_TAURI_AUTH_QA__?: {
+      getLocalSessionDiagnostics: typeof getStoredAuthSessionDiagnostics;
+      readTauriMirrorDiagnostics: typeof readTauriAuthSessionDiagnostics;
+    };
+  }
+}
 
 export function TauriPostLoginLauncher() {
   const pathname = usePathname();
@@ -88,6 +100,27 @@ export function TauriPostLoginLauncher() {
       disposed = true;
       validationRun += 1;
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
+    };
+  }, [isDesktopWidgetSurface]);
+
+  useEffect(() => {
+    if (
+      process.env.NODE_ENV !== "development" ||
+      !authDiagnosticsEnabled ||
+      !isTauriRuntime() ||
+      isDesktopWidgetSurface ||
+      runtimeSmokeEnabled
+    ) {
+      return;
+    }
+
+    window.__BUBLI_TAURI_AUTH_QA__ = {
+      getLocalSessionDiagnostics: getStoredAuthSessionDiagnostics,
+      readTauriMirrorDiagnostics: readTauriAuthSessionDiagnostics,
+    };
+
+    return () => {
+      delete window.__BUBLI_TAURI_AUTH_QA__;
     };
   }, [isDesktopWidgetSurface]);
 

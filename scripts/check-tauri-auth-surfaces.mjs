@@ -59,6 +59,21 @@ function extractConstArray(source, constName) {
   return source.slice(arrayStart, arrayEnd + 2);
 }
 
+function extractTypeObject(source, typeName) {
+  const start = source.indexOf(`export type ${typeName}`);
+  if (start === -1) {
+    throw new Error(`Missing type ${typeName}.`);
+  }
+
+  const objectStart = source.indexOf("{", start);
+  const objectEnd = source.indexOf("};", objectStart);
+  if (objectStart === -1 || objectEnd === -1) {
+    throw new Error(`Could not parse ${typeName} type.`);
+  }
+
+  return source.slice(objectStart, objectEnd + 2);
+}
+
 const layout = read(files.layout);
 const launcher = read(files.postLoginLauncher);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
@@ -82,6 +97,7 @@ const desktopCommunicationRoute = read(files.desktopCommunicationRoute);
 const devWidgetRealBackend = read(files.devWidgetRealBackend);
 const projectRoomChatRoute = read(files.projectRoomChatRoute);
 const windowsRuntimeSmoke = read(files.windowsRuntimeSmoke);
+const authSessionDiagnosticsType = extractTypeObject(authSession, "AuthSessionDiagnostics");
 
 assertContains(
   layout,
@@ -365,6 +381,21 @@ assertContains(
   /window\.addEventListener\(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange\)/,
   "TauriPostLoginLauncher must react to auth session changes.",
 );
+assertContains(
+  launcher,
+  /const authDiagnosticsEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS === "true";[\s\S]*process\.env\.NODE_ENV !== "development"[\s\S]*!authDiagnosticsEnabled[\s\S]*window\.__BUBLI_TAURI_AUTH_QA__ = \{[\s\S]*getLocalSessionDiagnostics: getStoredAuthSessionDiagnostics[\s\S]*readTauriMirrorDiagnostics: readTauriAuthSessionDiagnostics/,
+  "TauriPostLoginLauncher must expose only explicitly enabled development-only redacted auth diagnostics for manual QA.",
+);
+assertContains(
+  launcher,
+  /delete window\.__BUBLI_TAURI_AUTH_QA__/,
+  "TauriPostLoginLauncher must clean up the development-only auth QA helper on unmount.",
+);
+assertNotContains(
+  launcher,
+  /__BUBLI_TAURI_AUTH_QA__[\s\S]{0,400}accessToken|__BUBLI_TAURI_AUTH_QA__[\s\S]{0,400}refreshToken|__BUBLI_TAURI_AUTH_QA__[\s\S]{0,400}sessionJson/,
+  "Tauri auth QA helper must not expose raw tokens or mirrored session JSON through the window global.",
+);
 
 const startupWindows = extractConstArray(surfaces, "loginStartupWindows");
 assertContains(
@@ -547,6 +578,26 @@ assertContains(
   authSession,
   /const DEV_REFRESH_TOKEN_PREFIX = "dev-refresh-token:";[\s\S]*function shouldRejectStoredAuthSession\(session: StoredAuthSession\)[\s\S]*isDevAccessTokenSession\(session\) && !isDevAccessTokenSessionAllowed\(\)/,
   "Stored synthetic dev-token sessions must be rejected unless the explicit development-only Tauri dev-login flag is set.",
+);
+assertContains(
+  authSessionDiagnosticsType,
+  /isDevAccessTokenSession\?: boolean;[\s\S]*wouldRejectDevAccessTokenSession\?: boolean;[\s\S]*refreshTokenExpired\?: boolean;/,
+  "AuthSessionDiagnostics must expose redacted real-vs-dev session booleans for manual Tauri OAuth QA.",
+);
+assertNotContains(
+  authSessionDiagnosticsType,
+  /accessToken\s*[?:]:|refreshToken\s*[?:]:|sessionJson\s*[?:]:|userId\s*[?:]:|userName\s*[?:]:|userBubliId\s*[?:]:/,
+  "AuthSessionDiagnostics must not expose raw access tokens, refresh tokens, mirrored session JSON, or user identifiers.",
+);
+assertContains(
+  authSession,
+  /export function getStoredAuthSessionDiagnostics\(\): AuthSessionDiagnostics[\s\S]*createAuthSessionDiagnostics\([\s\S]*"localStorage"/,
+  "Manual Tauri OAuth QA must be able to inspect a redacted localStorage auth session snapshot.",
+);
+assertContains(
+  authSession,
+  /export async function readTauriAuthSessionDiagnostics\(\): Promise<AuthSessionDiagnostics>[\s\S]*tauriCommands\.readTauriAuthSession\(\)[\s\S]*createAuthSessionDiagnostics\("tauriMirror"/,
+  "Manual Tauri OAuth QA must be able to inspect a redacted Tauri SQLite auth mirror snapshot.",
 );
 assertContains(
   authSession,
