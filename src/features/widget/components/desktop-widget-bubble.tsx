@@ -1740,7 +1740,10 @@ function useBubbleWindowResize(
 function GhostSignal({ bubble }: { bubble: WidgetPreviewBubble }) {
   const { t } = useI18n();
   return (
-    <div className={styles.ghostSignal} aria-label={t("widget.ghostAria", { label: t(bubble.label as MessageKey) })}>
+    <div
+      className={styles.ghostSignal}
+      aria-label={t("widget.ghostAria", { label: t(bubble.label as MessageKey) })}
+    >
       <span>{bubble.metric}</span>
       <strong>{t(bubble.compactLabel as MessageKey)}</strong>
       <small>{t(bubble.notificationLabel as MessageKey)}</small>
@@ -1883,7 +1886,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
       <section
         className={shellClassName}
         aria-label={t("widget.bubble.suffix", { label: activeLabel })}
-        data-bubli-interactive="true"
+        data-bubli-interactive={mode === "GHOST" ? undefined : "true"}
         onPointerLeave={tiltEnabled ? clearShellTilt : undefined}
         onPointerMove={tiltEnabled ? handleShellTiltMove : undefined}
         ref={shellRef}
@@ -1906,7 +1909,11 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
           </button>
         ) : (
           <>
-            <header className={styles.head} onMouseDown={handleHeaderMouseDown}>
+            <header
+              className={styles.head}
+              data-bubli-interactive={mode === "GHOST" ? "true" : undefined}
+              onMouseDown={handleHeaderMouseDown}
+            >
               <div className={styles.title} data-tauri-drag-region>
                 {/* 28px accent 아이콘 타일이 버블 아이덴티티의 앵커다. */}
                 <span className={styles.iconTile} aria-hidden="true">
