@@ -140,6 +140,20 @@ async function triggerManagedFolderMutation() {
   return response.json().catch(() => null) as Promise<unknown>;
 }
 
+async function triggerIndexedFileMutation() {
+  const mutationUrl = smokeControlUrl("/mutate-indexed-file");
+  if (!mutationUrl) {
+    throw new Error("runtime smoke indexed-file mutation endpoint is not configured");
+  }
+
+  const response = await fetch(mutationUrl, { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`runtime smoke indexed-file mutation failed: ${response.status}`);
+  }
+
+  return response.json().catch(() => null) as Promise<{ marker?: string; updatedFileName?: string } | null>;
+}
+
 async function triggerManualOutboxFileCreation() {
   const mutationUrl = smokeControlUrl("/create-manual-outbox-file");
   if (!mutationUrl) {
@@ -1087,8 +1101,12 @@ async function runSmoke() {
       const search = await tauriCommands.searchLocalFiles({ limit: 5, query: "runtime smoke" });
       assert(search.items.length >= 1, "local file search returned indexed temp file", search);
 
+      const noteSearch = await tauriCommands.searchLocalFiles({ limit: 5, query: "runtime-smoke-note" });
+      const noteFile = noteSearch.items.find((item) => item.name === "runtime-smoke-note.txt") ?? noteSearch.items[0];
+      assert(noteFile?.localFileId, "managed folder note file resolved for reindex smoke", noteSearch);
+
       const preview = await tauriCommands.readLocalFilePreview({
-        localFileId: search.items[0].localFileId,
+        localFileId: noteFile.localFileId,
         maxChars: 500,
       });
       assert(preview.status === "READY", "local file preview is readable", preview);
@@ -1107,6 +1125,57 @@ async function runSmoke() {
         "local file event sync marked SQLite rows as SYNCED",
         initialSync,
       );
+
+      const indexedMutation = await triggerIndexedFileMutation();
+      const reindex = await tauriCommands.reindexFile({ localFileId: noteFile.localFileId });
+      assert(
+        reindex.changed &&
+          reindex.status === "REINDEXED" &&
+          reindex.localFileId === noteFile.localFileId &&
+          reindex.name === "runtime-smoke-note.txt",
+        "local file reindex refreshed changed temp file",
+        { indexedMutation, reindex },
+      );
+      const reindexedSearch = await tauriCommands.searchLocalFiles({ limit: 5, query: "ReindexSignal" });
+      assert(
+        reindexedSearch.items.some((item) => item.localFileId === noteFile.localFileId),
+        "local file reindex refreshed SQLite FTS search",
+        reindexedSearch,
+      );
+      const reindexedPreview = await tauriCommands.readLocalFilePreview({
+        localFileId: noteFile.localFileId,
+        maxChars: 1_000,
+      });
+      assert(
+        reindexedPreview.status === "READY" &&
+          Boolean(reindexedPreview.previewText?.includes("ReindexSignal")),
+        "local file reindex refreshed readable preview",
+        reindexedPreview,
+      );
+      const reindexedEvents = await tauriCommands.stageLocalFileEventsForSync({
+        limit: 10,
+        localFolderId: folder.localFolderId,
+      });
+      const reindexedNoteEvents = reindexedEvents.events.filter(
+        (event) => event.localFileId === noteFile.localFileId && event.eventType === "UPDATED",
+      );
+      assert(
+        reindexedNoteEvents.length >= 1 && reindexedNoteEvents.every((event) => event.resourceId),
+        "local file reindex staged update event with backend resource",
+        reindexedEvents,
+      );
+      const reindexSync = await syncStagedLocalFileEventsToBackend({
+        ...reindexedEvents,
+        events: reindexedNoteEvents,
+      });
+      assert(
+        reindexSync.response.results.every((result) => result.status === "SYNCED") &&
+          reindexSync.markResult.failedCount === 0 &&
+          reindexSync.markResult.syncedCount >= 1,
+        "local file reindex update event synced to backend",
+        reindexSync,
+      );
+
       const analysisCandidate = findSyncedLocalFileAnalysisCandidate(stagedFiles, initialSync);
       assert(analysisCandidate, "synced structured or RTF local file has backend resource for analysis", {
         initialSync,

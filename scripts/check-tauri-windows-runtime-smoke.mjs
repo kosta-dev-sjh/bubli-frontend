@@ -182,6 +182,19 @@ function startReportServer() {
       return;
     }
 
+    if (request.method === "POST" && request.url === "/mutate-indexed-file") {
+      try {
+        const mutated = mutateIndexedFile();
+        response.setHeader("Content-Type", "application/json");
+        response.writeHead(200);
+        response.end(JSON.stringify(mutated));
+      } catch (error) {
+        response.writeHead(500);
+        response.end(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
     if (request.method === "POST" && request.url === "/create-manual-outbox-file") {
       try {
         const created = createManualOutboxFile();
@@ -250,6 +263,16 @@ function mutateManagedFolder() {
 
   return {
     deletedFileName: "runtime-smoke-delete.txt",
+    updatedFileName: "runtime-smoke-note.txt",
+  };
+}
+
+function mutateIndexedFile() {
+  const marker = `ReindexSignal ${new Date().toISOString()}`;
+  appendFileSync(managedFolderNotePath, `\n${marker}.`);
+
+  return {
+    marker,
     updatedFileName: "runtime-smoke-note.txt",
   };
 }
