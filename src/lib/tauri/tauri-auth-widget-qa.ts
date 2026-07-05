@@ -55,9 +55,9 @@ export type TauriAuthWidgetQaSnapshot = {
   widgetRuntime: {
     allExpectedWindowsVisible: boolean;
     allWindowRoomContextMatchesActive: boolean;
-    barItems: {
+    barRestoreItems: {
       count: number;
-      ok: boolean;
+      allMatchActiveRoom: boolean;
       selectedRoomIds: Array<string | null>;
       windowIds: string[];
     };
@@ -174,9 +174,9 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
       allWindowRoomContextMatchesActive: WIDGET_BUBBLE_TYPES.every(
         (bubbleType) => windows[bubbleType]?.selectedRoomMatchesActiveRoom,
       ),
-      barItems: {
+      barRestoreItems: {
         count: barItems.length,
-        ok: barItems.length >= WIDGET_BUBBLE_TYPES.length,
+        allMatchActiveRoom: barItems.every((item) => roomMatches(item.selectedRoomId, selectedRoomId ?? null)),
         selectedRoomIds: [...new Set(barItems.map((item) => item.selectedRoomId ?? null))],
         windowIds: barItems.map((item) => item.windowId ?? item.activeBubble),
       },
