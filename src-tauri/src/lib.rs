@@ -2371,7 +2371,7 @@ struct TauriGoogleOauthLoopbackInput {
     redirect_uri: String,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TauriGoogleOauthLoopbackResult {
     code: String,
@@ -2460,6 +2460,39 @@ fn oauth_error_html(message: &str) -> String {
     )
 }
 
+fn parse_tauri_oauth_callback_request_line(
+    request_line: &str,
+    expected_state: Option<&str>,
+) -> Result<TauriGoogleOauthLoopbackResult, String> {
+    let path_and_query = request_line
+        .strip_prefix("GET ")
+        .and_then(|line| line.split_whitespace().next())
+        .ok_or_else(|| "Tauri OAuth loopback received an invalid request".to_string())?;
+    let (path, query) = path_and_query
+        .split_once('?')
+        .unwrap_or((path_and_query, ""));
+    if path != TAURI_OAUTH_LOOPBACK_PATH {
+        return Err("Tauri OAuth loopback received an invalid callback path".to_string());
+    }
+
+    let code = query_value(query, "code").unwrap_or_default();
+    let state = query_value(query, "state");
+    let error = query_value(query, "error");
+    if let Some(error) = error {
+        return Err(format!("Google OAuth returned an error: {error}"));
+    }
+    if code.trim().is_empty() {
+        return Err("Tauri OAuth loopback callback did not include code".to_string());
+    }
+    if let Some(expected_state) = expected_state {
+        if state.as_deref() != Some(expected_state) {
+            return Err("Tauri OAuth loopback state mismatch".to_string());
+        }
+    }
+
+    Ok(TauriGoogleOauthLoopbackResult { code, state })
+}
+
 #[tauri::command]
 fn start_tauri_google_oauth_loopback(
     input: TauriGoogleOauthLoopbackInput,
@@ -2495,49 +2528,32 @@ fn start_tauri_google_oauth_loopback(
                     .map_err(|error| error.to_string())?;
                 let request = String::from_utf8_lossy(&buffer[..bytes_read]);
                 let request_line = request.lines().next().unwrap_or_default();
-                let path_and_query = request_line
-                    .strip_prefix("GET ")
-                    .and_then(|line| line.split_whitespace().next())
-                    .ok_or_else(|| {
-                        "Tauri OAuth loopback received an invalid request".to_string()
-                    })?;
-                let (path, query) = path_and_query
-                    .split_once('?')
-                    .unwrap_or((path_and_query, ""));
-                if path != TAURI_OAUTH_LOOPBACK_PATH {
-                    let _ = stream.write_all(
-                        oauth_error_html("Invalid Bubli login callback path.").as_bytes(),
-                    );
-                    return Err(
-                        "Tauri OAuth loopback received an invalid callback path".to_string()
-                    );
-                }
-
-                let code = query_value(query, "code").unwrap_or_default();
-                let state = query_value(query, "state");
-                let error = query_value(query, "error");
-                if let Some(error) = error {
-                    let _ = stream
-                        .write_all(oauth_error_html("Google login was not completed.").as_bytes());
-                    return Err(format!("Google OAuth returned an error: {error}"));
-                }
-                if code.trim().is_empty() {
-                    let _ = stream
-                        .write_all(oauth_error_html("Google login code was missing.").as_bytes());
-                    return Err("Tauri OAuth loopback callback did not include code".to_string());
-                }
-                if let Some(expected_state) = input.expected_state.as_deref() {
-                    if state.as_deref() != Some(expected_state) {
-                        let _ = stream.write_all(
-                            oauth_error_html("Login state did not match the Bubli app request.")
-                                .as_bytes(),
-                        );
-                        return Err("Tauri OAuth loopback state mismatch".to_string());
+                let parsed = parse_tauri_oauth_callback_request_line(
+                    request_line,
+                    input.expected_state.as_deref(),
+                );
+                match parsed {
+                    Ok(result) => {
+                        let _ =
+                            stream.write_all(oauth_response_html("Login confirmed.").as_bytes());
+                        return Ok(result);
+                    }
+                    Err(error) => {
+                        let message = if error.contains("invalid callback path") {
+                            "Invalid Bubli login callback path."
+                        } else if error.contains("did not include code") {
+                            "Google login code was missing."
+                        } else if error.contains("state mismatch") {
+                            "Login state did not match the Bubli app request."
+                        } else if error.contains("Google OAuth returned an error") {
+                            "Google login was not completed."
+                        } else {
+                            "Bubli login callback could not be processed."
+                        };
+                        let _ = stream.write_all(oauth_error_html(message).as_bytes());
+                        return Err(error);
                     }
                 }
-
-                let _ = stream.write_all(oauth_response_html("Login confirmed.").as_bytes());
-                return Ok(TauriGoogleOauthLoopbackResult { code, state });
             }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                 thread::sleep(Duration::from_millis(50));
@@ -3333,6 +3349,43 @@ mod widget_runtime_tests {
             query_value_from_url(authorize_url, "redirect_uri").as_deref(),
             Some(redirect_uri)
         );
+    }
+
+    #[test]
+    fn tauri_oauth_callback_request_line_requires_valid_path_code_and_state() {
+        let parsed = parse_tauri_oauth_callback_request_line(
+            "GET /auth/callback?code=abc123&state=nonce-1 HTTP/1.1",
+            Some("nonce-1"),
+        )
+        .expect("valid callback");
+
+        assert_eq!(parsed.code, "abc123");
+        assert_eq!(parsed.state.as_deref(), Some("nonce-1"));
+
+        assert!(parse_tauri_oauth_callback_request_line(
+            "GET /wrong/callback?code=abc123&state=nonce-1 HTTP/1.1",
+            Some("nonce-1"),
+        )
+        .expect_err("invalid path")
+        .contains("invalid callback path"));
+        assert!(parse_tauri_oauth_callback_request_line(
+            "GET /auth/callback?state=nonce-1 HTTP/1.1",
+            Some("nonce-1"),
+        )
+        .expect_err("missing code")
+        .contains("did not include code"));
+        assert!(parse_tauri_oauth_callback_request_line(
+            "GET /auth/callback?code=abc123&state=other HTTP/1.1",
+            Some("nonce-1"),
+        )
+        .expect_err("state mismatch")
+        .contains("state mismatch"));
+        assert!(parse_tauri_oauth_callback_request_line(
+            "GET /auth/callback?error=access_denied&state=nonce-1 HTTP/1.1",
+            Some("nonce-1"),
+        )
+        .expect_err("google error")
+        .contains("Google OAuth returned an error"));
     }
 
     #[test]

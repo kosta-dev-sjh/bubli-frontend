@@ -525,8 +525,8 @@ assertContains(
 );
 assertContains(
   authPanel,
-  /TAURI_LOOPBACK_REDIRECT_URI = "http:\/\/127\.0\.0\.1:3791\/auth\/callback"[\s\S]*isTauriRuntime\(\)[\s\S]*startTauriGoogleOauthLoopback\(\{[\s\S]*authApi\.callbackGoogle\(\{[\s\S]*clientType: "TAURI"/,
-  "Tauri login should try the Windows loopback OAuth bridge before falling back to the WebView OAuth path.",
+  /function createTauriLoginState\(\) \{[\s\S]*crypto\.randomUUID\(\)[\s\S]*return btoa\(JSON\.stringify\(\{ nonce, returnTo: "\/app" \}\)\);[\s\S]*const state = createTauriLoginState\(\);[\s\S]*authApi\.getGoogleAuthorizationUrl\(\{[\s\S]*clientType: "TAURI"[\s\S]*redirectUri: TAURI_LOOPBACK_REDIRECT_URI[\s\S]*state,[\s\S]*startTauriGoogleOauthLoopback\(\{[\s\S]*authorizeUrl,[\s\S]*expectedState: state,[\s\S]*redirectUri: TAURI_LOOPBACK_REDIRECT_URI[\s\S]*authApi\.callbackGoogle\(\{[\s\S]*clientType: "TAURI"[\s\S]*code: result\.code[\s\S]*redirectUri: TAURI_LOOPBACK_REDIRECT_URI/,
+  "Tauri login must use a nonce state, pass it to backend authorize, and require the same expectedState from the loopback callback before token exchange.",
 );
 assertContains(
   authPanel,
