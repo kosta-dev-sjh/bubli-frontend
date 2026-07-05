@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Check, Copy, Download, Inbox, LogOut, Mic, MicOff, Paperclip, Phone, Search, Send, Smile, Square, UserPlus, UsersRound, X } from "lucide-react";
+import { AtSign, Check, Copy, CornerUpLeft, Download, Flag, Inbox, LogOut, Mic, MicOff, MoreHorizontal, Paperclip, Phone, Search, Send, Smile, Square, Trash2, UserPlus, UsersRound, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -36,6 +36,7 @@ import { websocketTopics } from "@/lib/websocket/topics";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { readCachedRoomMessages, syncCachedRoomMessages } from "@/lib/local";
+import { voiceStore } from "@/lib/voice-store";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -400,7 +401,7 @@ function ChatPageContent() {
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
   const [copiedBubliId, setCopiedBubliId] = useState(false);
   const [voiceExpanded, setVoiceExpanded] = useState(() => _voiceCache?.expanded ?? false);
-  const [voiceMicMuted, setVoiceMicMuted] = useState(false);
+  const [voiceMicMuted, setVoiceMicMuted] = useState(() => voiceStore.getSnapshot().micStatus === "MUTED");
   const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
   const [roomInviteState, setRoomInviteState] = useState<RoomInviteState>({ kind: "idle" });
   const [chatRoomInviteState, setChatRoomInviteState] = useState<ChatRoomInviteState>({ kind: "idle" });
@@ -421,6 +422,10 @@ function ChatPageContent() {
   const [sending, setSending] = useState(false);
   const [agentCommandNotice, setAgentCommandNotice] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [messageMenuId, setMessageMenuId] = useState<string | null>(null);
+  const [reportedMessageId, setReportedMessageId] = useState<string | null>(null);
+  const [replyToMessage, setReplyToMessage] = useState<ChatMessageResponse | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
   const emojiButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -1348,6 +1353,7 @@ function ChatPageContent() {
     setVoiceState({ kind: "starting" });
     setVoiceAction(null);
     setVoiceMicMuted(false);
+    voiceStore.update({ micStatus: "UNMUTED" });
     setVoiceNotice(null);
 
     try {
@@ -1378,6 +1384,7 @@ function ChatPageContent() {
       const room = await voiceApi.getRoom(activeVoiceRoom.id);
       setVoiceState({ kind: "ready", room });
       setVoiceMicMuted(false);
+      voiceStore.update({ micStatus: "UNMUTED" });
       setVoiceExpanded(true);
       setVoiceNotice(null);
     } catch (error) {
@@ -1401,6 +1408,7 @@ function ChatPageContent() {
     try {
       await voiceApi.updateMicStatus(activeVoiceRoom.id, { micStatus: nextMicStatus });
       setVoiceMicMuted(nextMuted);
+      voiceStore.update({ micStatus: nextMicStatus });
       setVoiceState((state) => {
         if (state.kind !== "ready" || !currentUser) return state;
 
@@ -1579,9 +1587,12 @@ function ChatPageContent() {
       }
 
       const messageType = selectedAttachment && !text ? "FILE" : "TEXT";
+      const replyTo = replyToMessage
+        ? { messageId: replyToMessage.id, senderName: replyToMessage.sender.name, text: displayMessageText(t, replyToMessage) }
+        : undefined;
       const messageBody = selectedAttachment
-        ? { attachmentName: selectedAttachment.name, text: text || selectedAttachment.name }
-        : { text };
+        ? { attachmentName: selectedAttachment.name, text: text || selectedAttachment.name, ...(replyTo ? { replyTo } : {}) }
+        : { text, ...(replyTo ? { replyTo } : {}) };
 
       const response = await chatApi.sendMessage(activeChatRoomId, {
         body: messageBody,
@@ -1599,12 +1610,13 @@ function ChatPageContent() {
       setDraft("");
       setSelectedAttachment(null);
       setEmoticonOpen(false);
+      setReplyToMessage(null);
     } catch {
       setAgentCommandNotice(t("chat.notice.sendFailed"));
     } finally {
       setSending(false);
     }
-  }, [activeChatRoomId, appendMessage, draft, maybeSplashEmojiMessage, selectedAttachment, selectedAgentRoomId, selectedRoom, stopTypingPublish, t]);
+  }, [activeChatRoomId, appendMessage, draft, maybeSplashEmojiMessage, replyToMessage, selectedAttachment, selectedAgentRoomId, selectedRoom, stopTypingPublish, t]);
 
   const handleDownload = useCallback(async (resourceId: string, fallbackName?: string) => {
     setDownloadingResourceId(resourceId);
@@ -1881,11 +1893,100 @@ function ChatPageContent() {
                         <strong>{message.sender.name}</strong>
                         <span>{messageTime(message.createdAt)}</span>
                         <span className="workspace-route__message-tools">
-                          <button aria-label={t("chat.messages.copy")} onClick={() => void navigator.clipboard.writeText(text)} type="button">
+                          <button
+                            aria-label={t("chat.messages.copy")}
+                            onClick={() => {
+                              void navigator.clipboard.writeText(text).then(() => {
+                                setCopiedMessageId(message.id);
+                                setTimeout(() => setCopiedMessageId((id) => (id === message.id ? null : id)), 1600);
+                              });
+                            }}
+                            type="button"
+                          >
                             <Copy aria-hidden size={13} strokeWidth={2} />
                           </button>
+                          <span className="workspace-route__message-more-wrap">
+                            <button
+                              aria-label="더보기"
+                              onClick={() => setMessageMenuId((id) => (id === message.id ? null : message.id))}
+                              type="button"
+                            >
+                              <MoreHorizontal aria-hidden size={13} strokeWidth={2} />
+                            </button>
+                            {messageMenuId === message.id ? (
+                              <>
+                                <button
+                                  aria-hidden
+                                  className="workspace-route__message-menu-backdrop"
+                                  onClick={() => setMessageMenuId(null)}
+                                  type="button"
+                                />
+                                <ul className="workspace-route__message-menu" role="menu">
+                                  <li role="none">
+                                    <button
+                                      className="workspace-route__message-menu-item"
+                                      onClick={() => { setReplyToMessage(message); setMessageMenuId(null); }}
+                                      role="menuitem"
+                                      type="button"
+                                    >
+                                      <CornerUpLeft aria-hidden size={13} strokeWidth={2} />
+                                      {t("chat.messages.menuReply")}
+                                    </button>
+                                  </li>
+                                  {isMine ? (
+                                    <li role="none">
+                                      <button
+                                        className="workspace-route__message-menu-item workspace-route__message-menu-item--danger"
+                                        onClick={() => {
+                                          setMessagesState((s) =>
+                                            s.kind === "ready"
+                                              ? { kind: "ready", messages: s.messages.filter((m) => m.id !== message.id) }
+                                              : s,
+                                          );
+                                          setMessageMenuId(null);
+                                        }}
+                                        role="menuitem"
+                                        type="button"
+                                      >
+                                        <Trash2 aria-hidden size={13} strokeWidth={2} />
+                                        {t("chat.messages.menuDelete")}
+                                      </button>
+                                    </li>
+                                  ) : (
+                                    <li role="none">
+                                      <button
+                                        className="workspace-route__message-menu-item"
+                                        onClick={() => {
+                                          setReportedMessageId(message.id);
+                                          setMessageMenuId(null);
+                                          setTimeout(() => setReportedMessageId((id) => (id === message.id ? null : id)), 2000);
+                                        }}
+                                        role="menuitem"
+                                        type="button"
+                                      >
+                                        <Flag aria-hidden size={13} strokeWidth={2} />
+                                        {t("chat.messages.menuReport")}
+                                      </button>
+                                    </li>
+                                  )}
+                                </ul>
+                              </>
+                            ) : null}
+                          </span>
                         </span>
+                        {copiedMessageId === message.id ? (
+                          <span className="workspace-route__message-copied">{t("chat.messages.copied")}</span>
+                        ) : null}
+                        {reportedMessageId === message.id ? (
+                          <span className="workspace-route__message-copied">{t("chat.messages.menuReported")}</span>
+                        ) : null}
                       </div>
+                      {typeof message.body.replyTo === "object" && message.body.replyTo !== null ? (
+                        <blockquote className="workspace-route__message-reply-quote">
+                          <strong>{(message.body.replyTo as { senderName?: string }).senderName}</strong>
+                          <span>{(message.body.replyTo as { text?: string }).text}</span>
+                        </blockquote>
+                      ) : null}
                       {message.messageType === "FILE" && message.resourceId ? (
                         <button
                           className="workspace-route__file-download"
@@ -1932,6 +2033,22 @@ function ChatPageContent() {
                   void sendMessage();
                 }}
               >
+                {replyToMessage ? (
+                  <div className="workspace-route__reply-preview">
+                    <span>
+                      <CornerUpLeft aria-hidden size={13} strokeWidth={2} />
+                      {t("chat.reply.replyingTo", { name: replyToMessage.sender.name })}
+                    </span>
+                    <span className="workspace-route__reply-preview-text">{displayMessageText(t, replyToMessage)}</span>
+                    <button
+                      aria-label={t("chat.reply.cancelAria")}
+                      onClick={() => setReplyToMessage(null)}
+                      type="button"
+                    >
+                      <X aria-hidden size={13} strokeWidth={2} />
+                    </button>
+                  </div>
+                ) : null}
                 {agentAutocomplete.open ? (
                   <AgentCommandAutocomplete
                     activeIndex={agentAutocomplete.activeIndex}
