@@ -1737,11 +1737,12 @@ mod tests {
         list_local_sqlite_backups_for_conn, mark_activity_context_synced_conn, now_ms,
         queue_local_sqlite_restore_for_conn, read_active_project_room_for_conn,
         read_auth_session_json, read_room_messages_for_conn, read_widget_bubble_sizes_for_conn,
-        read_widget_summary_cache_for_conn, record_activity_context_conn,
-        record_timer_state_for_conn, recover_timer_state_for_conn, restore_request_path,
-        stage_activity_contexts_for_sync_conn, store_active_project_room_for_conn,
-        read_widget_pref_for_conn, store_auth_session_json, store_widget_bubble_size_for_conn,
-        store_widget_pref_for_conn, store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
+        read_widget_pref_for_conn, read_widget_summary_cache_for_conn,
+        record_activity_context_conn, record_timer_state_for_conn, recover_timer_state_for_conn,
+        restore_request_path, stage_activity_contexts_for_sync_conn,
+        store_active_project_room_for_conn, store_auth_session_json,
+        store_widget_bubble_size_for_conn, store_widget_pref_for_conn,
+        store_widget_summary_cache_for_conn, sync_room_messages_for_conn,
         validate_auth_session_json, validate_widget_summary_json,
         write_pending_sqlite_restore_to_path, ActiveProjectRoomStoreInput,
         ActivityContextRecordInput, ActivityContextSyncInput, LocalRoomMessageCacheInput,
@@ -2384,8 +2385,13 @@ mod tests {
         conn.execute_batch(SCHEMA_SQL).expect("migrate schema");
 
         // Same cache_key, different kind: independent rows.
-        store_widget_pref_for_conn(&conn, "sub:user-one:personal", "timer_mode", r#"{"mode":"pomodoro"}"#)
-            .expect("store timer mode");
+        store_widget_pref_for_conn(
+            &conn,
+            "sub:user-one:personal",
+            "timer_mode",
+            r#"{"mode":"pomodoro"}"#,
+        )
+        .expect("store timer mode");
         store_widget_pref_for_conn(
             &conn,
             "sub:user-one:personal",
@@ -2394,8 +2400,13 @@ mod tests {
         )
         .expect("store pomodoro state");
         // Same kind, different cache_key (room context): isolated from personal.
-        store_widget_pref_for_conn(&conn, "sub:user-one:room:room-1", "timer_mode", r#"{"mode":"work"}"#)
-            .expect("store room timer mode");
+        store_widget_pref_for_conn(
+            &conn,
+            "sub:user-one:room:room-1",
+            "timer_mode",
+            r#"{"mode":"work"}"#,
+        )
+        .expect("store room timer mode");
 
         let personal_mode = read_widget_pref_for_conn(&conn, "sub:user-one:personal", "timer_mode")
             .expect("read personal timer mode")
@@ -2420,15 +2431,22 @@ mod tests {
         );
 
         // Upsert on the same (cache_key, kind) overwrites in place.
-        store_widget_pref_for_conn(&conn, "sub:user-one:personal", "timer_mode", r#"{"mode":"clock"}"#)
-            .expect("overwrite timer mode");
+        store_widget_pref_for_conn(
+            &conn,
+            "sub:user-one:personal",
+            "timer_mode",
+            r#"{"mode":"clock"}"#,
+        )
+        .expect("overwrite timer mode");
         let overwritten = read_widget_pref_for_conn(&conn, "sub:user-one:personal", "timer_mode")
             .expect("read overwritten timer mode")
             .expect("overwritten timer mode exists");
         assert_eq!(overwritten.value_json, r#"{"mode":"clock"}"#);
 
         let row_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM local_widget_pref", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM local_widget_pref", [], |row| {
+                row.get(0)
+            })
             .expect("count widget pref rows");
         assert_eq!(row_count, 3);
     }
