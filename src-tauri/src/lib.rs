@@ -287,7 +287,7 @@ fn note_widget_ignore_applied(label: &str, ignoring: bool) {
     });
 }
 
-/// 사용자가 수동으로 켠 클릭 통과(GHOST 모드 포함)는 폴러보다 우선한다.
+/// 사용자가 수동으로 켠 클릭 통과는 폴러보다 우선한다.
 fn widget_manual_click_through(app: &AppHandle, label: &str) -> bool {
     let state = app.state::<WidgetState>();
     let Ok(guard) = state.lock() else {
@@ -891,7 +891,9 @@ fn apply_widget_window_mode_update(
     selected_room_id: Option<String>,
 ) {
     widget.mode = normalize_widget_mode(mode);
-    widget.click_through = widget.mode == "GHOST";
+    // GHOST는 시각 모드일 뿐 영구 OS click-through로 저장하지 않는다.
+    // true로 두면 set_ignore_cursor_events(true)가 창 전체에 걸려 고스트 해제 클릭도 받을 수 없다.
+    widget.click_through = false;
     widget.dock_orb_visible = false;
     if let Some(selected_room_id) = selected_room_id {
         widget.selected_room_id = Some(selected_room_id);
@@ -905,7 +907,13 @@ fn apply_open_widget_window_update(
     selected_room_id: Option<String>,
 ) {
     widget.mode = next_mode;
-    widget.click_through = widget.mode == "GHOST";
+    widget.click_through = false;
+    #[cfg(target_os = "macos")]
+    {
+        if widget.active_bubble != "bar" && widget.active_bubble != "menu" {
+            widget.always_on_top = true;
+        }
+    }
     widget.dock_orb_visible = false;
     if let Some(selected_room_id) = selected_room_id {
         widget.selected_room_id = Some(selected_room_id);
@@ -963,7 +971,9 @@ fn widget_window_store_from_layout(layout: StoredWidgetWindowLayout) -> WidgetWi
     for mut widget in layout.bubbles {
         widget.active_bubble = normalize_bubble_type(Some(widget.active_bubble));
         widget.mode = normalize_widget_mode(widget.mode);
-        widget.click_through = widget.click_through || widget.mode == "GHOST";
+        if widget.mode == "GHOST" {
+            widget.click_through = false;
+        }
         if widget.active_bubble != "bar" && widget.mode == "MINIMIZED" {
             widget.window_visible = false;
         }
@@ -1920,6 +1930,23 @@ fn schedule_widget_window_build(
     _monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
+    schedule_widget_window_build_with_options(app, _monitor_state, widget, false)
+}
+
+fn schedule_widget_window_build_and_raise(
+    app: &AppHandle,
+    _monitor_state: &AppMonitorState,
+    widget: &WidgetWindowState,
+) -> Result<WidgetWindowState, String> {
+    schedule_widget_window_build_with_options(app, _monitor_state, widget, true)
+}
+
+fn schedule_widget_window_build_with_options(
+    app: &AppHandle,
+    _monitor_state: &AppMonitorState,
+    widget: &WidgetWindowState,
+    raise_after_build: bool,
+) -> Result<WidgetWindowState, String> {
     #[cfg(target_os = "macos")]
     {
         let app_for_build = app.clone();
@@ -1933,6 +1960,8 @@ fn schedule_widget_window_build(
                     build_widget_window(&app_for_build, &monitor_state, &widget_for_build)
                 {
                     eprintln!("failed to build widget window {label}: {error}");
+                } else if raise_after_build {
+                    raise_widget_window(&app_for_build, &widget_for_build);
                 }
             })
             .map_err(|error| error.to_string())?;
@@ -1941,7 +1970,30 @@ fn schedule_widget_window_build(
     }
 
     #[cfg(not(target_os = "macos"))]
-    build_widget_window(app, _monitor_state, widget)
+    {
+        let _ = raise_after_build;
+        build_widget_window(app, _monitor_state, widget)
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn raise_widget_window(app: &AppHandle, widget: &WidgetWindowState) {
+    if !widget.window_visible {
+        return;
+    }
+
+    let label = widget_window_label(widget);
+    let Some(window) = app.get_webview_window(&label) else {
+        return;
+    };
+
+    if widget.always_on_top {
+        let _ = window.set_always_on_top(false);
+        let _ = window.set_always_on_top(true);
+    }
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
 }
 
 #[tauri::command]
@@ -3339,7 +3391,7 @@ async fn open_widget_window(
     require_authenticated_surfaces_enabled(&auth_state)?;
     let widget = prepare_open_widget_window(&app, &state, input.unwrap_or_default())?;
     persist_widget_window_state(&app, &state)?;
-    let result = schedule_widget_window_build(&app, &monitor_state, &widget)?;
+    let result = schedule_widget_window_build_and_raise(&app, &monitor_state, &widget)?;
     // 바에서 버블을 복원한 뒤 바 창 상태(가시성)를 동기화한다. 바 크기는 고정이라 리사이즈는 없다.
     refresh_widget_bar_window(&app, &monitor_state, &state)?;
     Ok(result)
@@ -4051,6 +4103,22 @@ mod widget_runtime_tests {
         );
 
         assert_eq!(widget.selected_room_id.as_deref(), Some("room-2"));
+    }
+
+    #[test]
+    fn ghost_mode_remains_clickable_for_exit_actions() {
+        let mut widget = default_widget_window_state("todo", Some("todo".to_string()));
+
+        apply_widget_window_mode_update(&mut widget, "GHOST".to_string(), None);
+
+        assert_eq!(widget.mode, "GHOST");
+        assert!(!widget.click_through);
+
+        widget.click_through = true;
+        apply_open_widget_window_update(&mut widget, "GHOST".to_string(), None);
+
+        assert_eq!(widget.mode, "GHOST");
+        assert!(!widget.click_through);
     }
 
     #[test]

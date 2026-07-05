@@ -1736,7 +1736,10 @@ function useBubbleWindowResize(
 function GhostSignal({ bubble }: { bubble: WidgetPreviewBubble }) {
   const { t } = useI18n();
   return (
-    <div className={styles.ghostSignal} aria-label={t("widget.ghostAria", { label: t(bubble.label as MessageKey) })}>
+    <div
+      className={styles.ghostSignal}
+      aria-label={t("widget.ghostAria", { label: t(bubble.label as MessageKey) })}
+    >
       <span>{bubble.metric}</span>
       <strong>{t(bubble.compactLabel as MessageKey)}</strong>
       <small>{t(bubble.notificationLabel as MessageKey)}</small>
@@ -1879,7 +1882,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
       <section
         className={shellClassName}
         aria-label={t("widget.bubble.suffix", { label: activeLabel })}
-        data-bubli-interactive="true"
+        data-bubli-interactive={mode === "GHOST" ? undefined : "true"}
         onPointerLeave={tiltEnabled ? clearShellTilt : undefined}
         onPointerMove={tiltEnabled ? handleShellTiltMove : undefined}
         ref={shellRef}
@@ -1902,7 +1905,11 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
           </button>
         ) : (
           <>
-            <header className={styles.head} onMouseDown={handleHeaderMouseDown}>
+            <header
+              className={styles.head}
+              data-bubli-interactive={mode === "GHOST" ? "true" : undefined}
+              onMouseDown={handleHeaderMouseDown}
+            >
               <div className={styles.title} data-tauri-drag-region>
                 {/* 28px accent 아이콘 타일이 버블 아이덴티티의 앵커다. */}
                 <span className={styles.iconTile} aria-hidden="true">
@@ -2325,6 +2332,10 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
     return () => window.clearTimeout(timeoutId);
   }, [gooPop]);
   const gooPopVisible = Boolean(gooPop && gooPop.title.trim());
+  const openNoticeBubble = useCallback(() => {
+    setGooPop(null);
+    onRestoreBubble("alert");
+  }, [onRestoreBubble]);
 
   // idle 페이드: 8초 무상호작용 → pill(nav)만 옅게(0.85), 상호작용 → 즉시 1.0(CSS 200ms).
   // 프리뷰/알림 구이가 떠 있으면 페이드를 완전히 정지한다(즉시 불투명) —
@@ -2714,6 +2725,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
               onFocus={() => showPreview("notice")}
               onMouseEnter={() => showPreview("notice")}
               onMouseLeave={() => hidePreview("notice")}
+              onClick={openNoticeBubble}
               type="button"
               whileHover={chipWhileHover}
               whileTap={chipWhileTap}
@@ -2735,10 +2747,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
                   exit={gooExit}
                   initial={gooEnter}
                   key={gooPop.id}
-                  onClick={() => {
-                    setGooPop(null);
-                    onRestoreBubble("alert");
-                  }}
+                  onClick={openNoticeBubble}
                   transition={gooPopSpring}
                   type="button"
                 >
