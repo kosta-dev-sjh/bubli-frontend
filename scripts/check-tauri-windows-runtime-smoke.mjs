@@ -16,6 +16,8 @@ if (process.platform !== "win32") {
 const smokeRoot = mkdtempSync(join(tmpdir(), "bubli-tauri-runtime-smoke-"));
 const managedFolderPath = join(smokeRoot, "managed-folder");
 const managedFolderNotePath = join(managedFolderPath, "runtime-smoke-note.txt");
+const managedFolderStructuredPath = join(managedFolderPath, "runtime-smoke-structured.json");
+const managedFolderRichPath = join(managedFolderPath, "runtime-smoke-rich.rtf");
 const managedFolderDeletePath = join(managedFolderPath, "runtime-smoke-delete.txt");
 const managedFolderManualOutboxPath = join(managedFolderPath, "runtime-smoke-manual-outbox.dat");
 writeFileSync(join(smokeRoot, "README.txt"), "Bubli Tauri runtime smoke workspace.");
@@ -23,6 +25,21 @@ await import("node:fs/promises").then((fs) => fs.mkdir(managedFolderPath, { recu
 writeFileSync(
   managedFolderNotePath,
   "Codex runtime smoke verifies local file scan, preview, search, and staging.",
+);
+writeFileSync(
+  managedFolderStructuredPath,
+  JSON.stringify(
+    {
+      check: "Codex runtime smoke structured JSON local file analysis",
+      requirements: ["scan", "sync", "key sentence analysis", "SQLite ledger"],
+    },
+    null,
+    2,
+  ),
+);
+writeFileSync(
+  managedFolderRichPath,
+  "{\\rtf1\\ansi Codex runtime smoke rich text local file analysis.\\par It verifies RTF extraction reaches backend analysis.}",
 );
 writeFileSync(managedFolderDeletePath, "Codex runtime smoke verifies watcher delete events.");
 
