@@ -14,7 +14,16 @@ import type { AuthUser } from "@/types/api/auth";
 export const DATA_CHANGED_EVENT = "bubli:data-changed";
 export const USER_UPDATED_EVENT = "bubli:user-updated";
 
-export type DataChangedDomain = "memo" | "project-room" | "resource" | "schedule" | "todo";
+export type DataChangedDomain =
+  | "agent"
+  | "chat"
+  | "memo"
+  | "notification"
+  | "project-room"
+  | "resource"
+  | "schedule"
+  | "timer"
+  | "todo";
 
 export type DataChangedDetail = {
   domain: DataChangedDomain;

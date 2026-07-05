@@ -623,6 +623,7 @@
 .timelineRow a,
 .chatHead span,
 .handoffBubble span,
+.alertRow a,
 .alertRow strong,
 .message {
   min-width: 0;
@@ -640,6 +641,7 @@
 .fileRow span,
 .timelineRow span,
 .handoffBubble span,
+.alertRow a,
 .alertRow strong {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -687,6 +689,24 @@
   border-radius: 999px;
   background: var(--acc);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--acc) 16%, transparent);
+}
+
+.alertCheck {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--acc) 34%, transparent);
+  border-radius: 999px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+  cursor: pointer;
+}
+
+.alertCheck:hover {
+  border-color: color-mix(in srgb, var(--acc) 48%, transparent);
+  background: color-mix(in srgb, var(--acc) 20%, transparent);
 }
 
 /* ---------- TODO: 카운트 링 + 요약 카피 ---------- */
@@ -1374,6 +1394,12 @@
   opacity: 1;
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 14%, transparent);
+}
+
+.itemActions button[aria-pressed="true"] {
+  opacity: 1;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 18%, transparent);
 }
 
 .itemActions {

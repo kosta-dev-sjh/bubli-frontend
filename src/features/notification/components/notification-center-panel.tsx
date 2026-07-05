@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { notificationApi } from "../api/notificationApi";
@@ -45,6 +46,7 @@ type NotificationCenterPanelProps = {
   autoLoad?: boolean;
   initialNotifications?: NotificationResponse[];
 };
+const NOTIFICATION_CENTER_EVENT_SOURCE = "notification-center";
 
 function toNotificationKind(sourceType: NotificationResponse["sourceType"]): NotificationKind {
   if (sourceType === "AGENT") return "agent";
@@ -174,6 +176,24 @@ export function NotificationCenterPanel({ autoLoad = true, initialNotifications 
     };
   }, [autoLoad]);
 
+  const refreshNotifications = useCallback(() => {
+    if (!autoLoad) return;
+
+    void notificationApi
+      .list({ size: 20 })
+      .then((response) => {
+        setNotifications(response.items);
+        setHasLoadError(false);
+      })
+      .catch(() => undefined);
+  }, [autoLoad]);
+
+  useDataRefresh({
+    domains: ["notification"],
+    ignoreSource: NOTIFICATION_CENTER_EVENT_SOURCE,
+    onRefresh: refreshNotifications,
+  });
+
   const notificationItems = useMemo(
     () =>
       [...notifications]
@@ -210,6 +230,7 @@ export function NotificationCenterPanel({ autoLoad = true, initialNotifications 
 
       try {
         await notificationApi.markRead(item.id);
+        notifyDataChanged("notification", { source: NOTIFICATION_CENTER_EVENT_SOURCE });
       } catch {
         replaceNotification(item.id, "UNREAD");
       } finally {
@@ -234,6 +255,7 @@ export function NotificationCenterPanel({ autoLoad = true, initialNotifications 
 
       try {
         await notificationApi.archive(item.id);
+        notifyDataChanged("notification", { source: NOTIFICATION_CENTER_EVENT_SOURCE });
       } catch {
         replaceNotification(item.id, previous);
       } finally {
