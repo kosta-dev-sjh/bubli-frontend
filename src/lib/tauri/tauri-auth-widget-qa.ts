@@ -98,10 +98,13 @@ type TauriRealOAuthLocalSyncProbe = {
     activitySentCount?: number;
     activityStagedCount?: number;
     failedCount?: number;
+    failedCountScope?: string;
     fileFailedCount?: number;
+    fileScopeLocalFolderId?: string;
     fileSentCount?: number;
     fileSyncedCount?: number;
     pendingCount?: number;
+    pendingCountScope?: string;
     sentCount?: number;
     status: string;
     syncedAt?: string;
@@ -569,7 +572,10 @@ async function runRealOAuthLocalSyncProbe(roomId: string | null): Promise<TauriR
       itemType: "TASK",
       occurredAt: occurredAt.toISOString(),
     });
-    const outbox = await syncAllLocalOutboxToServer({ limit: 50 });
+    const outbox = await syncAllLocalOutboxToServer({
+      limit: 50,
+      localFolderId: localFiles.localFolderId,
+    });
 
     return {
       enabled: true,
@@ -591,10 +597,13 @@ async function runRealOAuthLocalSyncProbe(roomId: string | null): Promise<TauriR
               activitySentCount: outbox.data.activitySentCount,
               activityStagedCount: outbox.data.activityStagedCount,
               failedCount: outbox.data.failedCount,
+              failedCountScope: "current-sync-attempt",
               fileFailedCount: outbox.data.fileFailedCount,
+              fileScopeLocalFolderId: localFiles.localFolderId,
               fileSentCount: outbox.data.fileSentCount,
               fileSyncedCount: outbox.data.fileSyncedCount,
               pendingCount: outbox.data.pendingCount,
+              pendingCountScope: "global-sqlite-backlog",
               sentCount: outbox.data.sentCount,
               status: outbox.status,
               syncedAt: outbox.data.syncedAt,
