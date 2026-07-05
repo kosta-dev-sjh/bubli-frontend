@@ -9,6 +9,7 @@ import { managedFolderApi } from "@/features/managed-folder/api/managedFolderApi
 import { agentApi } from "@/features/agent/api/agentApi";
 import { activityApi } from "@/features/activity/api/activityApi";
 import { authApi } from "@/features/auth/api/authApi";
+import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
@@ -586,6 +587,43 @@ async function verifyRealBackendRoomCommunication(smokeRoomId: string, assert: S
 
   const roomResources = await resourcesApi.listRoomResources(smokeRoomId);
   assert(Array.isArray(roomResources.items), "real backend room resources endpoint loaded", roomResources);
+
+  const roomEvents = await calendarApi.getProjectRoomEvents(smokeRoomId, { afterSequence: 0, limit: 100 });
+  assert(
+    Array.isArray(roomEvents.items) &&
+      typeof roomEvents.latestSequence === "number" &&
+      (roomEvents.lastReceivedSequence === null || typeof roomEvents.lastReceivedSequence === "number") &&
+      typeof roomEvents.hasNext === "boolean",
+    "real backend project room event catch-up returned sequence list shape",
+    roomEvents,
+  );
+  const seededRoomEvent = roomEvents.items.find(
+    (event) =>
+      event.roomId === smokeRoomId &&
+      event.sequence === 1 &&
+      event.eventType === "ROOM_UPDATED" &&
+      event.actor?.type === "USER" &&
+      event.actor?.id === "11111111-1111-4111-8111-111111111111" &&
+      event.payload?.source === "codex-local-seed",
+  );
+  assert(
+    Boolean(seededRoomEvent) && roomEvents.latestSequence >= 1 && (roomEvents.lastReceivedSequence ?? 0) >= 1,
+    "real backend project room event catch-up loaded seeded history",
+    roomEvents,
+  );
+  const firstLastReceivedSequence = roomEvents.lastReceivedSequence ?? 0;
+  const incrementalRoomEvents = await calendarApi.getProjectRoomEvents(smokeRoomId, {
+    afterSequence: firstLastReceivedSequence,
+    limit: 10,
+  });
+  assert(
+    incrementalRoomEvents.items.every((event) => event.sequence > firstLastReceivedSequence) &&
+      incrementalRoomEvents.latestSequence >= roomEvents.latestSequence &&
+      (incrementalRoomEvents.lastReceivedSequence === null ||
+        incrementalRoomEvents.lastReceivedSequence > firstLastReceivedSequence),
+    "real backend project room event catch-up skipped already received sequences",
+    incrementalRoomEvents,
+  );
 
   const chatRooms = await chatApi.listRooms();
   const roomChat = chatRooms.items.find((room) => room.roomId === smokeRoomId);

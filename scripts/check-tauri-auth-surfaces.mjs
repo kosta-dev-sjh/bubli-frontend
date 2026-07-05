@@ -590,6 +590,11 @@ assertContains(
   "Real backend widget smoke must seed and verify project-room event history catch-up.",
 );
 assertContains(
+  runtimeSmokeRunner,
+  /calendarApi\.getProjectRoomEvents\(smokeRoomId, \{ afterSequence: 0, limit: 100 \}\)[\s\S]*real backend project room event catch-up returned sequence list shape[\s\S]*event\.eventType === "ROOM_UPDATED"[\s\S]*event\.actor\?\.id === "11111111-1111-4111-8111-111111111111"[\s\S]*event\.payload\?\.source === "codex-local-seed"[\s\S]*real backend project room event catch-up loaded seeded history[\s\S]*calendarApi\.getProjectRoomEvents\(smokeRoomId, \{[\s\S]*afterSequence: firstLastReceivedSequence[\s\S]*event\.sequence > firstLastReceivedSequence[\s\S]*real backend project room event catch-up skipped already received sequences/,
+  "TauriRuntimeSmokeRunner must verify project-room event catch-up sequence shape, seeded ROOM_UPDATED history, and incremental afterSequence filtering.",
+);
+assertContains(
   devWidgetRealBackend,
   /apiPatch\("\/api\/widget\/settings"[\s\S]*bubbleType: "TODO"[\s\S]*opacity: 0\.88[\s\S]*widget settings PATCH did not persist TODO layout and flags[\s\S]*apiGet\("\/api\/widget\/settings"[\s\S]*widget settings GET did not read back the patched TODO layout[\s\S]*todoSettingBefore\.alertEnabled/,
   "Real backend widget smoke must verify widget settings PATCH persistence, GET readback, and restoration.",
