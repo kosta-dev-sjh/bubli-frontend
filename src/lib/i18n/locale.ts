@@ -27,24 +27,53 @@ function canUseStorage() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
-// 초기 로케일 우선순위: localStorage(bubli-locale) → 저장된 auth session의 user.locale → ko
-// 서버 렌더/하이드레이션 스냅샷은 항상 DEFAULT_LOCALE이므로 useSyncExternalStore로 안전하게 동기화한다.
-export function readStoredLocale(): Locale {
-  if (!canUseStorage()) {
+function readBrowserPreferredLocale(): Locale {
+  if (typeof navigator === "undefined") {
     return DEFAULT_LOCALE;
   }
 
-  try {
-    const raw = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-    if (isLocale(raw)) {
-      return raw;
+  const languageCandidates = [
+    ...(Array.isArray(navigator.languages) ? navigator.languages : []),
+    navigator.language,
+  ];
+
+  for (const language of languageCandidates) {
+    const baseLanguage = language?.toLowerCase().split("-")[0];
+    if (baseLanguage === "ko") {
+      return "ko";
     }
-  } catch {
-    // localStorage 접근이 막힌 환경은 세션/기본값으로 대체한다.
+    if (baseLanguage === "ja") {
+      return "ja";
+    }
+  }
+
+  return "en";
+}
+
+// 초기 로케일 우선순위: localStorage(bubli-locale) → 저장된 auth session의 user.locale → 브라우저 선호 언어(ko/ja/en)
+// 서버 렌더/하이드레이션 스냅샷은 항상 DEFAULT_LOCALE이므로 useSyncExternalStore로 안전하게 동기화한다.
+export function readStoredLocale(): Locale {
+  if (typeof window === "undefined") {
+    return DEFAULT_LOCALE;
+  }
+
+  if (canUseStorage()) {
+    try {
+      const raw = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+      if (isLocale(raw)) {
+        return raw;
+      }
+    } catch {
+      // localStorage 접근이 막힌 환경은 세션/기본값으로 대체한다.
+    }
   }
 
   const sessionLocale = getStoredAuthSession()?.user?.locale;
-  return normalizeLocale(sessionLocale);
+  if (isLocale(sessionLocale)) {
+    return sessionLocale;
+  }
+
+  return readBrowserPreferredLocale();
 }
 
 export function writeStoredLocale(locale: Locale) {
