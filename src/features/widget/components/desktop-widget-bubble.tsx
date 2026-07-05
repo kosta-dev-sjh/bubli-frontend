@@ -62,7 +62,8 @@ import {
   type PomodoroState,
   type WidgetTimerMode,
 } from "@/lib/widget/widget-pref-client";
-import { startWidgetWindowDragging, tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 import styles from "./desktop-widget-bubble.module.css";
 
@@ -110,6 +111,10 @@ const accentClassNames: Record<BubbleMeta["accent"], string> = {
   sand: styles.accSand,
   sky: styles.accSky,
 };
+
+const BAR_ROOT_PADDING_PX = 4;
+const BAR_PREVIEW_FLIP_THRESHOLD_PX = 188;
+type BarPreviewPlacement = "above" | "below";
 
 // 서버 부분 동기화 실패는 회색 웰 대신 헤더 아래 얇은 상태 한 줄로만 알린다.
 function isBubbleSyncPending(bubble: WidgetPreviewBubble) {
@@ -202,6 +207,10 @@ export const widgetInteractiveRectSelector = "[data-bubli-interactive]";
 
 // 드래그 시작에서 제외할 조작 요소. 여기서 시작한 mousedown은 클릭/입력으로 처리한다.
 const widgetDragIgnoreSelector = "button, input, a, textarea, select, [contenteditable='true']";
+
+function isMacTauriRuntime() {
+  return isTauriRuntime() && typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("mac");
+}
 
 // 헤더/드래그 스트립/pill 빈 영역용: 조작 요소가 아니면 즉시 창 드래그를 시작한다.
 // data-tauri-drag-region은 target 요소 자체에만 반응해 자식(아이콘/텍스트)에서 끊기므로
@@ -2307,6 +2316,9 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   // 바 창 안의 어떤 상호작용(포인터 이동/다운·포커스 이동·키 입력)이든 타이머를 재무장한다.
   // pill 밖 투명 영역(팝오버/패널 포함)까지 들어야 하므로 nav가 아니라 바 루트에서 듣는다.
   const barRootRef = useRef<HTMLDivElement | null>(null);
+  const barNavRef = useRef<HTMLElement | null>(null);
+  const suppressNextBarClickRef = useRef(false);
+  const [barPreviewPlacement, setBarPreviewPlacement] = useState<BarPreviewPlacement>("above");
   useEffect(() => {
     const rootElement = barRootRef.current;
     if (!rootElement) return;
@@ -2317,8 +2329,186 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
     };
   }, [armIdleTimer]);
 
+  const syncBarPreviewPlacement = useCallback(async () => {
+    if (!isMacTauriRuntime()) return;
+    const rootElement = barRootRef.current;
+    const navElement = barNavRef.current;
+    if (!rootElement || !navElement) return;
+
+    try {
+      const monitorState = await readCurrentTauriWindowMonitorState();
+      if (!monitorState) return;
+      const { outerPosition, monitor } = monitorState;
+      const scale = monitor?.scaleFactor ?? (window.devicePixelRatio || 1);
+      const originY = (monitor?.position.y ?? 0) / scale;
+      const windowY = outerPosition.y / scale - originY;
+      const workAreaTop = monitor ? monitor.workArea.position.y / scale - originY : 0;
+      const rootRect = rootElement.getBoundingClientRect();
+      const navRect = navElement.getBoundingClientRect();
+      const currentOffsetTop = navRect.top - rootRect.top;
+      const visibleY = windowY + currentOffsetTop;
+      const nextPlacement: BarPreviewPlacement =
+        visibleY < workAreaTop + BAR_PREVIEW_FLIP_THRESHOLD_PX ? "below" : "above";
+
+      if (nextPlacement === barPreviewPlacement) return;
+      setBarPreviewPlacement(nextPlacement);
+
+      const nextOffsetTop =
+        nextPlacement === "below" ? BAR_ROOT_PADDING_PX : rootRect.height - navRect.height - BAR_ROOT_PADDING_PX;
+      await tauriCommands.setWidgetBarPreviewPlacement({
+        currentOffsetTop,
+        navHeight: navRect.height,
+        nextOffsetTop,
+        placement: nextPlacement,
+      });
+    } catch {
+      // Browser preview fallback and older Tauri runtimes keep the default above placement.
+    }
+  }, [barPreviewPlacement]);
+
+  useEffect(() => {
+    if (!isMacTauriRuntime()) return;
+    if (!barRootRef.current || !barNavRef.current) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      await syncBarPreviewPlacement();
+      if (cancelled) return;
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [syncBarPreviewPlacement]);
+
+  const moveBarToCursor = useCallback(
+    async (
+      grab: { x: number; y: number },
+      metrics: { rootHeight: number; rootWidth: number; navHeight: number; navWidth: number },
+    ) => {
+      const result = await tauriCommands.dragWidgetBarWindow({
+        grabX: grab.x,
+        grabY: grab.y,
+        navHeight: metrics.navHeight,
+        navWidth: metrics.navWidth,
+        rootHeight: metrics.rootHeight,
+        rootWidth: metrics.rootWidth,
+      });
+      setBarPreviewPlacement((current) => (current === result.placement ? current : result.placement));
+    },
+    [],
+  );
+
+  const handleBarPointerDownCapture = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      if (event.button !== 0) return;
+      const rootElement = barRootRef.current;
+      const navElement = barNavRef.current;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(widgetDragIgnoreSelector)) return;
+      if (!rootElement || !navElement || !isMacTauriRuntime()) {
+        return;
+      }
+
+      let disposed = false;
+      let framePending = false;
+      let dragStarted = false;
+      let latestCursor: { x: number; y: number } | null = null;
+
+      const rootRect = rootElement.getBoundingClientRect();
+      const navRect = navElement.getBoundingClientRect();
+      const startClientX = event.clientX;
+      const startClientY = event.clientY;
+      const grabX = event.clientX - navRect.left;
+      const grabY = event.clientY - navRect.top;
+      const pointerId = event.pointerId;
+      try {
+        navElement.setPointerCapture(pointerId);
+      } catch {
+        // Pointer capture is best-effort; window-level listeners still handle most cases.
+      }
+      const metrics = {
+        navHeight: navRect.height,
+        navWidth: navRect.width,
+        rootHeight: rootRect.height,
+        rootWidth: rootRect.width,
+      };
+
+      const cleanup = () => {
+        disposed = true;
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerup", cleanup);
+        window.removeEventListener("pointercancel", cleanup);
+        try {
+          navElement.releasePointerCapture(pointerId);
+        } catch {
+          // Pointer capture may already be released by the browser.
+        }
+      };
+
+      const scheduleMove = () => {
+        if (framePending || disposed || !latestCursor) return;
+        framePending = true;
+        window.requestAnimationFrame(() => {
+          framePending = false;
+          void (async () => {
+            if (disposed || !latestCursor) return;
+            try {
+              void tauriCommands.notifyWidgetDragStarted().catch(() => undefined);
+              await moveBarToCursor({ x: grabX, y: grabY }, metrics);
+            } catch {
+              cleanup();
+            }
+          })();
+        });
+      };
+
+      const onPointerMove = (moveEvent: globalThis.PointerEvent) => {
+        if (!dragStarted) {
+          const distance = Math.abs(moveEvent.clientX - startClientX) + Math.abs(moveEvent.clientY - startClientY);
+          if (distance < 4) return;
+          dragStarted = true;
+          suppressNextBarClickRef.current = true;
+          void tauriCommands.notifyWidgetDragStarted().catch(() => undefined);
+        }
+        latestCursor = { x: moveEvent.screenX, y: moveEvent.screenY };
+        scheduleMove();
+      };
+
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", cleanup, { once: true });
+      window.addEventListener("pointercancel", cleanup, { once: true });
+    },
+    [moveBarToCursor],
+  );
+
+  const handleBarClickCapture = useCallback((event: MouseEvent<HTMLElement>) => {
+    if (!suppressNextBarClickRef.current) return;
+    suppressNextBarClickRef.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }, []);
+
+  const handleBarMouseDown = useCallback(
+    (event: MouseEvent<HTMLElement>) => {
+      if (event.button !== 0) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(widgetDragIgnoreSelector)) return;
+      if (isMacTauriRuntime()) return;
+      handleWidgetDragMouseDown(event);
+    },
+    [],
+  );
+
   // memo 칩에 그대로 내려가는 콜백 — 참조가 안정해야 칩 memo가 작동한다.
-  const showPreview = useCallback((target: WidgetBubbleType | "notice") => setPreviewTarget(target), []);
+  const showPreview = useCallback(
+    (target: WidgetBubbleType | "notice") => {
+      void syncBarPreviewPlacement();
+      setPreviewTarget(target);
+    },
+    [syncBarPreviewPlacement],
+  );
   const hidePreview = useCallback(
     (target: WidgetBubbleType | "notice") => setPreviewTarget((current) => (current === target ? null : current)),
     [],
@@ -2373,7 +2563,13 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
     <MotionConfig reducedMotion="user">
       {/* memo된 형제(칩)들 사이에서 layoutId 프로젝션이 함께 갱신되도록 LayoutGroup으로 묶는다. */}
       <LayoutGroup>
-      <div className={[styles.root, styles.barRoot].join(" ")} data-bubli-desktop-widget ref={barRootRef}>
+      <div
+        className={[styles.root, styles.barRoot, barPreviewPlacement === "below" ? styles.barRootBelow : ""]
+          .filter(Boolean)
+          .join(" ")}
+        data-bubli-desktop-widget
+        ref={barRootRef}
+      >
         <GooeyFilter />
         {/* hover 프리뷰 팝오버: 칩 accent를 물려받고 pill 위에서 스프링 스케일 인(하단 앵커). */}
         <AnimatePresence>
@@ -2428,7 +2624,10 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
           // 창 드래그는 pill 빈 영역/구분선의 non-capture 핸들러만 담당한다. capture 단계의
           // deferred 드래그는 칩/브랜드 버튼 mousedown까지 가로채 4px 지터만으로 macOS 웹뷰
           // 네이티브 창 드래그를 시작시켜 click을 삼켰다(브랜드 칩 메뉴가 안 열리던 라이브 버그).
-          onMouseDown={handleWidgetDragMouseDown}
+          onClickCapture={handleBarClickCapture}
+          onMouseDown={handleBarMouseDown}
+          onPointerDownCapture={handleBarPointerDownCapture}
+          ref={barNavRef}
         >
           {/* 알림은 바에 고정된 요소라 맨 왼쪽에 둔다. 접힌 버블 칩과는 구분선으로 분리.
               새 알림이 늘면 칩 위로 goo 버블(제목 1줄)이 솟았다가 3초 뒤 흡수된다. */}
@@ -2491,7 +2690,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
               ) : null}
             </AnimatePresence>
           </span>
-          <span className={styles.barDivider} aria-hidden="true" data-bubli-interactive="true" data-tauri-drag-region />
+          <span className={styles.barDivider} aria-hidden="true" data-bubli-interactive="true" />
           <AnimatePresence initial={false} mode="popLayout">
             {visibleItems.map((item) => {
               const bubbleType = item.activeBubble as WidgetBubbleType;

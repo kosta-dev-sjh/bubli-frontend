@@ -1314,7 +1314,7 @@ function DesktopWidgetSurface() {
         const backendBubbleType = apiBubbleTypeMap[requestedBubble];
         const activeSetting = backendBubbleType ? settings.find((item) => item.bubbleType === backendBubbleType) : undefined;
         const serverMode = getModeFromSetting(activeSetting);
-        if (serverMode && requestedMode === "DEFAULT") {
+        if (!isTauri && serverMode && requestedMode === "DEFAULT") {
           setMode(serverMode);
           setClickThrough(serverMode === "GHOST");
           setWindowVisible(serverMode !== "MINIMIZED");
@@ -1330,7 +1330,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, widgetSessionReady]);
+  }, [isTauri, isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, widgetSessionReady]);
 
   useEffect(() => {
     if (!isTauri) return;
@@ -1849,12 +1849,29 @@ function DesktopWidgetSurface() {
       try {
         // windowId는 항상 버블 타입으로 고정한다. 바 칩이 들고 있던 저장 windowId를 그대로
         // 넘기면(레거시 "todo-…" 등) Rust 스토어 키가 갈라져 같은 버블 창이 두 개 열렸다.
-        await tauriCommands.openWidgetWindow({
+        const state = await tauriCommands.openWidgetWindow({
           bubbleType,
           mode: "DEFAULT",
           selectedRoomId: selectedWidgetRoomId,
           windowId: bubbleType,
         });
+        const settingPatch = getSettingPatch(bubbleType, state.mode);
+        if (settingPatch) {
+          const size = getWidgetWindowSize(bubbleType, state.mode);
+          void widgetApi
+            .updateSettings({
+              bubbles: [
+                {
+                  ...settingPatch,
+                  height: size.height,
+                  width: size.width,
+                  x: widgetSettingCoordinate(state.position.x),
+                  y: widgetSettingCoordinate(state.position.y),
+                },
+              ],
+            })
+            .catch(() => undefined);
+        }
         const items = await tauriCommands.getWidgetBarItems();
         const next = items.filter((item) => isDesktopWidgetBubble(item.activeBubble));
         setBarItems((current) => keepIfDeepEqual(current, next));
