@@ -1524,6 +1524,9 @@ fn extract_text_preview(path: &Path) -> Option<String> {
     if is_supported_docx_file(path) {
         return extract_docx_text(path).ok().filter(|text| !text.is_empty());
     }
+    if is_supported_pptx_file(path) {
+        return extract_pptx_text(path).ok().filter(|text| !text.is_empty());
+    }
     if is_supported_pdf_file(path) {
         return extract_pdf_text(path).ok().filter(|text| !text.is_empty());
     }
@@ -1552,6 +1555,7 @@ fn extract_text_preview(path: &Path) -> Option<String> {
 fn is_supported_text_file(path: &Path) -> bool {
     is_supported_plain_text_file(path)
         || is_supported_docx_file(path)
+        || is_supported_pptx_file(path)
         || is_supported_pdf_file(path)
 }
 
@@ -1575,6 +1579,12 @@ fn is_supported_docx_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+fn is_supported_pptx_file(path: &Path) -> bool {
+    path.extension()
+        .map(|value| value.to_string_lossy().eq_ignore_ascii_case("pptx"))
+        .unwrap_or(false)
+}
+
 fn is_supported_pdf_file(path: &Path) -> bool {
     path.extension()
         .map(|value| value.to_string_lossy().eq_ignore_ascii_case("pdf"))
@@ -1594,6 +1604,36 @@ fn extract_docx_text(path: &Path) -> Result<String, String> {
     let document_xml = read_zip_entry(&bytes, "word/document.xml")?;
     let xml = String::from_utf8_lossy(&document_xml);
     let text = extract_docx_xml_text(&xml);
+    if text.is_empty() {
+        return Err("EMPTY".to_string());
+    }
+
+    Ok(text)
+}
+
+fn extract_pptx_text(path: &Path) -> Result<String, String> {
+    let metadata = match std::fs::metadata(path) {
+        Ok(value) if value.is_file() => value,
+        _ => return Err("MISSING".to_string()),
+    };
+    if metadata.len() > MAX_EXTRACT_BYTES {
+        return Err("TOO_LARGE".to_string());
+    }
+
+    let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
+    let mut slide_entries = read_zip_entries_with_prefix(&bytes, "ppt/slides/slide", ".xml")?;
+    slide_entries.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let mut slides = Vec::new();
+    for (_name, xml_bytes) in slide_entries {
+        let xml = String::from_utf8_lossy(&xml_bytes);
+        let slide_text = extract_pptx_xml_text(&xml);
+        if !slide_text.trim().is_empty() {
+            slides.push(slide_text);
+        }
+    }
+
+    let text = slides.join("\n").trim().to_string();
     if text.is_empty() {
         return Err("EMPTY".to_string());
     }
@@ -1793,6 +1833,19 @@ fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 }
 
 fn read_zip_entry(bytes: &[u8], entry_name: &str) -> Result<Vec<u8>, String> {
+    let mut entries = read_zip_entries_with_prefix(bytes, entry_name, "")?;
+    if let Some((_, data)) = entries.pop() {
+        return Ok(data);
+    }
+
+    Err(format!("docx entry not found: {entry_name}"))
+}
+
+fn read_zip_entries_with_prefix(
+    bytes: &[u8],
+    entry_prefix: &str,
+    entry_suffix: &str,
+) -> Result<Vec<(String, Vec<u8>)>, String> {
     let Some(eocd_offset) = find_eocd_offset(bytes) else {
         return Err("invalid docx zip: EOCD not found".to_string());
     };
@@ -1803,6 +1856,7 @@ fn read_zip_entry(bytes: &[u8], entry_name: &str) -> Result<Vec<u8>, String> {
     let entry_count = read_u16_le(bytes, eocd_offset + 10)? as usize;
     let central_directory_offset = read_u32_le(bytes, eocd_offset + 16)? as usize;
     let mut offset = central_directory_offset;
+    let mut entries = Vec::new();
 
     for _ in 0..entry_count {
         if offset + 46 > bytes.len() || read_u32_le(bytes, offset)? != 0x0201_4b50 {
@@ -1822,19 +1876,25 @@ fn read_zip_entry(bytes: &[u8], entry_name: &str) -> Result<Vec<u8>, String> {
         }
 
         let name = String::from_utf8_lossy(&bytes[name_start..name_end]);
-        if name == entry_name {
-            return read_zip_local_entry(
+        let matches_entry = if entry_suffix.is_empty() {
+            name == entry_prefix
+        } else {
+            name.starts_with(entry_prefix) && name.ends_with(entry_suffix)
+        };
+        if matches_entry {
+            let data = read_zip_local_entry(
                 bytes,
                 local_header_offset,
                 compressed_size,
                 compression_method,
-            );
+            )?;
+            entries.push((name.to_string(), data));
         }
 
         offset = name_end + extra_length + comment_length;
     }
 
-    Err(format!("docx entry not found: {entry_name}"))
+    Ok(entries)
 }
 
 fn read_zip_local_entry(
@@ -1911,6 +1971,29 @@ fn extract_docx_xml_text(xml: &str) -> String {
     }
 
     paragraphs.join("\n")
+}
+
+fn extract_pptx_xml_text(xml: &str) -> String {
+    let mut runs = Vec::new();
+    let mut rest = xml;
+
+    while let Some(text_start) = rest.find("<a:t") {
+        rest = &rest[text_start..];
+        let Some(tag_end) = rest.find('>') else {
+            break;
+        };
+        rest = &rest[tag_end + 1..];
+        let Some(text_end) = rest.find("</a:t>") else {
+            break;
+        };
+        let run = clean_sentence(&xml_unescape(&rest[..text_end]));
+        if !run.trim().is_empty() {
+            runs.push(run);
+        }
+        rest = &rest[text_end + "</a:t>".len()..];
+    }
+
+    runs.join(" ")
 }
 
 fn extract_docx_text_runs(xml: &str) -> String {
@@ -1998,6 +2081,28 @@ fn read_local_text_preview(
         };
         return Ok((Some(preview_text), "READY".to_string(), truncated));
     }
+    if is_supported_pptx_file(path) {
+        let text = match extract_pptx_text(path) {
+            Ok(value) => value,
+            Err(status)
+                if matches!(
+                    status.as_str(),
+                    "MISSING" | "TOO_LARGE" | "EMPTY" | "UNSUPPORTED"
+                ) =>
+            {
+                return Ok((None, status, false));
+            }
+            Err(error) => return Err(error),
+        };
+        let total_chars = text.chars().count();
+        let truncated = total_chars > max_chars;
+        let preview_text = if truncated {
+            text.chars().take(max_chars).collect::<String>()
+        } else {
+            text
+        };
+        return Ok((Some(preview_text), "READY".to_string(), truncated));
+    }
     if is_supported_pdf_file(path) {
         let text = match extract_pdf_text(path) {
             Ok(value) => value,
@@ -2054,6 +2159,20 @@ fn read_local_text_for_key_sentences(path: &Path) -> Result<(Option<String>, Str
         return match extract_docx_text(path) {
             Ok(value) => Ok((Some(value), "READY".to_string())),
             Err(status) if matches!(status.as_str(), "MISSING" | "TOO_LARGE" | "EMPTY") => {
+                Ok((None, status))
+            }
+            Err(error) => Err(error),
+        };
+    }
+    if is_supported_pptx_file(path) {
+        return match extract_pptx_text(path) {
+            Ok(value) => Ok((Some(value), "READY".to_string())),
+            Err(status)
+                if matches!(
+                    status.as_str(),
+                    "MISSING" | "TOO_LARGE" | "EMPTY" | "UNSUPPORTED"
+                ) =>
+            {
                 Ok((None, status))
             }
             Err(error) => Err(error),
@@ -3737,6 +3856,66 @@ mod tests {
         bytes
     }
 
+    fn minimal_pptx_bytes(slide_text: &str) -> Vec<u8> {
+        let escaped = slide_text
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;");
+        let slide_xml = format!(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>{escaped}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>"#
+        );
+        let name = b"ppt/slides/slide1.xml";
+        let data = slide_xml.as_bytes();
+        let mut bytes = Vec::new();
+
+        let local_header_offset = bytes.len() as u32;
+        push_u32(&mut bytes, 0x0403_4b50);
+        push_u16(&mut bytes, 20);
+        push_u16(&mut bytes, 0);
+        push_u16(&mut bytes, 0);
+        push_u16(&mut bytes, 0);
+        push_u16(&mut bytes, 0);
+        push_u32(&mut bytes, 0);
+        push_u32(&mut bytes, data.len() as u32);
+        push_u32(&mut bytes, data.len() as u32);
+        push_u16(&mut bytes, name.len() as u16);
+        push_u16(&mut bytes, 0);
+        bytes.extend_from_slice(name);
+        bytes.extend_from_slice(data);
+
+        let central_directory_offset = bytes.len() as u32;
+        push_u32(&mut bytes, 0x0201_4b50);
+        push_u16(&mut bytes, 20);
+        push_u16(&mut bytes, 20);
+        push_u16(&mut bytes, 0);
+        push_u16(&mut bytes, 0);
+        push_u16(&mut bytes, 0);
+        push_u16(&mut bytes, 0);
+        push_u32(&mut bytes, 0);
+        push_u32(&mut bytes, data.len() as u32);
+        push_u32(&mut bytes, data.len() as u32);
+        push_u16(&mut bytes, name.len() as u16);
+        push_u16(&mut bytes, 0);
+        push_u16(&mut bytes, 0);
+        push_u16(&mut bytes, 0);
+        push_u16(&mut bytes, 0);
+        push_u32(&mut bytes, 0);
+        push_u32(&mut bytes, local_header_offset);
+        bytes.extend_from_slice(name);
+
+        let central_directory_size = bytes.len() as u32 - central_directory_offset;
+        push_u32(&mut bytes, 0x0605_4b50);
+        push_u16(&mut bytes, 0);
+        push_u16(&mut bytes, 0);
+        push_u16(&mut bytes, 1);
+        push_u16(&mut bytes, 1);
+        push_u32(&mut bytes, central_directory_size);
+        push_u32(&mut bytes, central_directory_offset);
+        push_u16(&mut bytes, 0);
+
+        bytes
+    }
+
     fn minimal_pdf_bytes(document_text: &str) -> Vec<u8> {
         let escaped = document_text
             .replace('\\', "\\\\")
@@ -5060,6 +5239,39 @@ mod tests {
     }
 
     #[test]
+    fn reads_pptx_text_for_preview_and_key_sentence_extraction() {
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-pptx-test-{}.pptx", Uuid::new_v4()));
+        std::fs::write(
+            &path,
+            minimal_pptx_bytes(
+                "Launch roadmap milestone includes widget sync and local file tracking handoff.",
+            ),
+        )
+        .expect("write temp pptx");
+
+        let (preview, status, truncated) =
+            read_local_text_preview(&path, 500).expect("read pptx preview");
+        let text = read_local_text_for_key_sentences(&path)
+            .expect("read pptx text")
+            .0
+            .expect("pptx text");
+        let sentences = extract_key_sentences(&text, 3, 300);
+
+        assert_eq!(status, "READY");
+        assert!(!truncated);
+        assert!(preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Launch roadmap milestone"));
+        assert!(sentences
+            .iter()
+            .any(|sentence| sentence.text.contains("local file tracking")));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn reads_pdf_text_for_preview_and_key_sentence_extraction() {
         let path =
             std::env::temp_dir().join(format!("bubli-local-pdf-test-{}.pdf", Uuid::new_v4()));
@@ -5213,6 +5425,49 @@ mod tests {
         assert_eq!(csv_search.items[0].name, "budget.csv");
         assert_eq!(tsv_search.items.len(), 1);
         assert_eq!(tsv_search.items[0].name, "risks.tsv");
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
+    fn scans_pptx_content_into_local_file_search_index() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-local-pptx-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        std::fs::write(
+            folder_path.join("roadmap.pptx"),
+            minimal_pptx_bytes("PresentationSignal captures roadmap and widget rollout details."),
+        )
+        .expect("write temp pptx file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-pptx', 'Deck Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let scan = scan_managed_folder_for_conn(
+            &conn,
+            ManagedFolderCommandInput {
+                local_folder_id: "folder-pptx".to_string(),
+            },
+        )
+        .expect("scan managed folder");
+        assert_eq!(scan.changed_count, 1);
+
+        let pptx_search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "PresentationSignal".to_string(),
+            },
+        )
+        .expect("search pptx content");
+
+        assert_eq!(pptx_search.items.len(), 1);
+        assert_eq!(pptx_search.items[0].name, "roadmap.pptx");
 
         let _ = std::fs::remove_dir_all(folder_path);
     }
