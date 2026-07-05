@@ -136,10 +136,15 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     let mounted = true;
+    let loadShellRun = 0;
 
     async function loadShell() {
+      const runId = ++loadShellRun;
+      const isCurrentRun = () => mounted && runId === loadShellRun;
+
       try {
         const restoredSession = await restoreStoredAuthSessionFromTauri();
+        if (!isCurrentRun()) return;
 
         if (!restoredSession) {
           if (shouldUseWorkspacePreviewData()) {
@@ -155,6 +160,8 @@ export function AppShell({ children }: AppShellProps) {
         try {
           user = await authApi.getMe();
         } catch (error) {
+          if (!isCurrentRun()) return;
+
           if (error instanceof ApiClientError && error.status === 401) {
             setState({ kind: "auth" });
             return;
@@ -163,16 +170,14 @@ export function AppShell({ children }: AppShellProps) {
           setState({ kind: "offline" });
           return;
         }
+        if (!isCurrentRun()) return;
 
-        const [roomPageResult, notificationPageResult, invitationPageResult, widgetContextResult] =
-          await Promise.allSettled([
-            projectRoomApi.list(),
-            notificationApi.list(),
-            projectRoomApi.getMyInvitations("PENDING"),
-            widgetApi.getContext(),
-          ]);
+        const [roomPageResult, widgetContextResult] = await Promise.allSettled([
+          projectRoomApi.list(),
+          widgetApi.getContext(),
+        ]);
 
-        if (!mounted) return;
+        if (!isCurrentRun()) return;
 
         if (roomPageResult.status === "rejected") {
           if (roomPageResult.reason instanceof ApiClientError && roomPageResult.reason.status === 401) {
@@ -185,22 +190,13 @@ export function AppShell({ children }: AppShellProps) {
         }
 
         const roomPage = roomPageResult.value;
-        let notifications: NotificationResponse[] = [];
-
-        if (notificationPageResult.status === "fulfilled") {
-          notifications = notificationPageResult.value.items;
-        }
-
-        // 받은 초대함 (backend PR 189): 실패해도 셸 로드는 계속한다.
-        setMyInvitations(invitationPageResult.status === "fulfilled" ? invitationPageResult.value.items : []);
-
         const widgetContext = widgetContextResult.status === "fulfilled" ? widgetContextResult.value : null;
         const contextRoom = widgetContext?.selectedRoomId
           ? roomPage.items.find((room) => room.id === widgetContext.selectedRoomId)
           : undefined;
         if (contextRoom) {
           seedActiveProjectRoomId(contextRoom.id, contextRoom.name);
-          if (mounted) {
+          if (isCurrentRun()) {
             setSelectedRoomId(contextRoom.id);
             setSelectedRoomLabel(contextRoom.name);
           }
@@ -208,20 +204,37 @@ export function AppShell({ children }: AppShellProps) {
 
         if (!contextRoom) {
           await restoreActiveProjectRoomFromTauri();
+          if (!isCurrentRun()) return;
           const restoredRoomId = getActiveProjectRoomId();
           const restoredRoom = restoredRoomId ? roomPage.items.find((room) => room.id === restoredRoomId) : undefined;
           if (restoredRoom) {
             seedActiveProjectRoomId(restoredRoom.id, restoredRoom.name);
-            if (mounted) {
+            if (isCurrentRun()) {
               setSelectedRoomId(restoredRoom.id);
               setSelectedRoomLabel(restoredRoom.name);
             }
           }
         }
 
-        if (mounted) setState({ kind: "ready", notifications, rooms: roomPage.items, user });
+        if (isCurrentRun()) setState({ kind: "ready", notifications: [], rooms: roomPage.items, user });
+
+        void Promise.allSettled([notificationApi.list(), projectRoomApi.getMyInvitations("PENDING")]).then(
+          ([notificationPageResult, invitationPageResult]) => {
+            if (!isCurrentRun()) return;
+
+            if (notificationPageResult.status === "fulfilled") {
+              setState((current) =>
+                current.kind === "ready" ? { ...current, notifications: notificationPageResult.value.items } : current,
+              );
+            }
+
+            if (invitationPageResult.status === "fulfilled") {
+              setMyInvitations(invitationPageResult.value.items);
+            }
+          },
+        );
       } catch (error) {
-        if (!mounted) return;
+        if (!isCurrentRun()) return;
         if (error instanceof ApiClientError && error.status === 401) {
           setState({ kind: "auth" });
           return;

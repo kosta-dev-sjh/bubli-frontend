@@ -2,6 +2,18 @@ import { invokeTauri } from "@/lib/tauri/ipc";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { AuthTokenResponse } from "@/types/api/auth";
 
+function localDateFromIso(isoValue: string) {
+  const date = new Date(isoValue);
+  if (!Number.isFinite(date.getTime())) {
+    return isoValue.slice(0, 10);
+  }
+
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export const TAURI_COMMANDS = {
   appReady: "app_ready",
   arrangeWidgetWindows: "arrange_widget_windows",
@@ -615,6 +627,7 @@ export type WidgetUsageEventInput = {
   itemId?: string;
   itemType?: string;
   occurredAt: string;
+  summaryDate?: string;
 };
 
 export type WidgetUsageEventRecordResult = {
@@ -1377,7 +1390,12 @@ export const tauriCommands = {
     return invokeTauri<TimerStateRecordResult>(TAURI_COMMANDS.recordTimerState, { input });
   },
   recordWidgetUsageEvent(input: WidgetUsageEventInput) {
-    const promise = invokeTauri<WidgetUsageEventRecordResult>(TAURI_COMMANDS.recordWidgetUsageEvent, { input });
+    const promise = invokeTauri<WidgetUsageEventRecordResult>(TAURI_COMMANDS.recordWidgetUsageEvent, {
+      input: {
+        ...input,
+        summaryDate: input.summaryDate ?? localDateFromIso(input.occurredAt),
+      },
+    });
     pendingWidgetUsageEventRecords.add(promise);
     promise.then(
       () => pendingWidgetUsageEventRecords.delete(promise),
