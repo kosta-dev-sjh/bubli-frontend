@@ -425,8 +425,8 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /selectManagedFolder\(\{ path: smokeFolderPath \}\)[\s\S]*scanManagedFolder[\s\S]*searchLocalFiles[\s\S]*readLocalFilePreview[\s\S]*stageLocalFileEventsForSync[\s\S]*watchManagedFolder[\s\S]*triggerManagedFolderMutation[\s\S]*managed folder watcher staged update and delete events/,
-  "TauriRuntimeSmokeRunner must verify managed-folder scan/search/preview/event staging and live watcher update/delete events against a temp folder.",
+  /selectManagedFolder\(\{ path: smokeFolderPath \}\)[\s\S]*scanManagedFolder[\s\S]*searchLocalFiles[\s\S]*readLocalFilePreview[\s\S]*stageLocalFileEventsForSync[\s\S]*local file event sync marked SQLite rows as SYNCED[\s\S]*triggerIndexedFileMutation\(\)[\s\S]*reindexFile\(\{ localFileId: noteFile\.localFileId \}\)[\s\S]*local file reindex refreshed SQLite FTS search[\s\S]*local file reindex refreshed readable preview[\s\S]*local file reindex staged update event with backend resource[\s\S]*local file reindex update event synced to backend[\s\S]*watchManagedFolder[\s\S]*triggerManagedFolderMutation[\s\S]*managed folder watcher staged update and delete events/,
+  "TauriRuntimeSmokeRunner must verify managed-folder scan/search/preview, manual reindex refresh, event staging, and live watcher update/delete events against a temp folder.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -459,6 +459,11 @@ assertContains(
   "TauriRuntimeSmokeRunner must ask the Node smoke server to mutate watched files and poll for UPDATED/DELETED events.",
 );
 assertContains(
+  runtimeSmokeRunner,
+  /function triggerIndexedFileMutation[\s\S]*\/mutate-indexed-file/,
+  "TauriRuntimeSmokeRunner must ask the Node smoke server to mutate an indexed file before reindexing it.",
+);
+assertContains(
   windowsRuntimeSmoke,
   /runRuntimeSmokePhase\("full", accessToken\)[\s\S]*runRuntimeSmokePhase\("restore-verify", accessToken\)[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_PHASE: phase/,
   "Windows runtime smoke script must relaunch Tauri for the SQLite restore verification phase.",
@@ -467,6 +472,11 @@ assertContains(
   windowsRuntimeSmoke,
   /runtime-smoke-structured\.json[\s\S]*runtime-smoke-rich\.rtf[\s\S]*runtime-smoke-delete\.txt[\s\S]*request\.method === "POST" && request\.url === "\/mutate-folder"[\s\S]*appendFileSync[\s\S]*rmSync/,
   "Windows runtime smoke server must mutate and delete real temp files after the Tauri watcher starts.",
+);
+assertContains(
+  windowsRuntimeSmoke,
+  /request\.method === "POST" && request\.url === "\/mutate-indexed-file"[\s\S]*mutateIndexedFile[\s\S]*ReindexSignal/,
+  "Windows runtime smoke server must mutate an already indexed temp file for reindex verification.",
 );
 assertContains(
   windowsRuntimeSmoke,
