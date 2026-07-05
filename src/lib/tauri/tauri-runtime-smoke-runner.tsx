@@ -1747,6 +1747,12 @@ async function runSmoke() {
       authWidgetQaSnapshot.widgetRuntime,
     );
     await stopTauriAuthenticatedSurfaces();
+    const stoppedActiveProjectRoom = await tauriCommands.readActiveProjectRoom();
+    assert(
+      stoppedActiveProjectRoom === null,
+      "post-login stop cleared active project room context",
+      stoppedActiveProjectRoom,
+    );
     const stoppedWidgetStates = await Promise.all(
       smokeWidgetBubbles.map((bubbleType) =>
         tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),

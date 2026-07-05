@@ -6,7 +6,12 @@ import { widgetApi } from "@/features/widget/api/widgetApi";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { startWidgetUsageAutoSync, stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
-import { getActiveProjectRoomId, restoreActiveProjectRoomFromTauri, seedActiveProjectRoomId } from "@/lib/workspace-active-room";
+import {
+  clearActiveProjectRoomId,
+  getActiveProjectRoomId,
+  restoreActiveProjectRoomFromTauri,
+  seedActiveProjectRoomId,
+} from "@/lib/workspace-active-room";
 import type { WidgetBubbleSettingResponse, WidgetBubbleType as ApiWidgetBubbleType } from "@/types/api/widget";
 
 let launchRequested = false;
@@ -339,6 +344,9 @@ export async function stopTauriAuthenticatedSurfaces() {
 
   if (!isTauriRuntime()) return;
 
+  clearActiveProjectRoomId();
+  await tauriCommands.clearActiveProjectRoom().catch(() => undefined);
+  await tauriCommands.setWidgetRoomContext({ selectedRoomId: null }).catch(() => undefined);
   await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
   await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
 }
