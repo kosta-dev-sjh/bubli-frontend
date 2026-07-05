@@ -14,7 +14,7 @@
   - `restore-verify`: relaunch Tauri and prove the queued SQLite restore was applied after app restart.
 - SQLite restore verification uses `syncRoomMessages` / `readRoomMessages` as a stable local DB marker, because AppShell can legitimately update the active-room row during `/app` startup.
 - Activity smoke no longer stops at local staging. It sends the staged activity row through `activityApi.recordCurrentApp`, marks the exact SQLite row `SYNCED`, then verifies the row is no longer returned by staging.
-- Widget usage smoke no longer stops at local rollup. It syncs the exact daily `todo` rollup through `syncLocalWidgetUsageSummaryToServer`, verifies one backend send and one local `SYNCED` mark, then verifies the rollup is no longer pending.
+- Widget usage smoke no longer stops at local rollup. It syncs the exact daily rollups for all eight bubble widgets through `syncLocalWidgetUsageSummaryToServer`, verifies eight backend sends and eight local `SYNCED` marks, then verifies the rollups are no longer pending.
 - Widget usage rollup refresh now moves an already-synced rollup back to `LOCAL_ONLY` when new source events change the aggregate count, so same-day widget interactions are not silently skipped.
 - The native widget shortcut command now registers the requested accelerator with `tauri-plugin-global-shortcut`; the runtime smoke verifies `CommandOrControl+Shift+B` is accepted by the real Windows Tauri runtime.
 - The runtime smoke now verifies real backend project-room communication data from inside the Tauri app: project-room detail, members, room resources, chat room resolution, chat send/read/read-marker, voice room open, voice token issuance, mic status update, and leave.

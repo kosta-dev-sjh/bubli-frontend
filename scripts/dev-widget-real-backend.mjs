@@ -17,6 +17,7 @@ const SEED_USER_ID = "11111111-1111-4111-8111-111111111111";
 const SEED_ROOM_ID = "22222222-2222-4222-8222-222222222222";
 const SEED_TASK_ID = "66666666-6666-4666-8666-666666666661";
 const SEED_WIDGET_TASK_ITEM_STATE_ID = "12121212-1212-4121-8121-121212121212";
+const REQUIRED_WIDGET_BUBBLES = ["TODO", "AGENT", "CHAT", "TIMER", "MEMO", "SCHEDULE", "RESOURCE", "ALERT"];
 
 if (!["seed", "token", "tauri"].includes(COMMAND)) {
   console.error("Usage: node scripts/dev-widget-real-backend.mjs [seed|token|tauri]");
@@ -103,7 +104,11 @@ async function smokeBackend(accessToken) {
   const agentSummaries = summary.agentSuggestionSummary ?? [];
 
   assert(summary.context?.selectedRoomId === SEED_ROOM_ID, "widget summary selected room did not match the seed room");
-  assert(settings.bubbles?.length >= 6, "widget settings did not include the six backend-supported bubbles");
+  const actualWidgetBubbleTypes = new Set((settings.bubbles ?? []).map((bubble) => bubble.bubbleType));
+  assert(
+    REQUIRED_WIDGET_BUBBLES.every((bubbleType) => actualWidgetBubbleTypes.has(bubbleType)),
+    "widget settings did not include all eight backend-supported bubbles",
+  );
   assert(taskTitles.includes("Tauri widget real API smoke task"), "widget summary did not include the seeded task");
   assert(scheduleTitles.includes("Desktop widget backend sync check"), "widget summary did not include the seeded schedule");
   assert(
@@ -605,7 +610,9 @@ VALUES
 ('55555555-5555-4555-8555-555555555553', '${SEED_USER_ID}', 'AGENT', true, 40, 332, 320, 220, false, 0.94, false, true, now(), now()),
 ('55555555-5555-4555-8555-555555555554', '${SEED_USER_ID}', 'CHAT', true, 380, 332, 320, 220, false, 0.94, false, true, now(), now()),
 ('55555555-5555-4555-8555-555555555555', '${SEED_USER_ID}', 'TIMER', true, 720, 48, 280, 200, false, 0.94, false, true, now(), now()),
-('55555555-5555-4555-8555-555555555556', '${SEED_USER_ID}', 'MEMO', true, 720, 272, 280, 200, false, 0.94, false, true, now(), now())
+('55555555-5555-4555-8555-555555555556', '${SEED_USER_ID}', 'MEMO', true, 720, 272, 280, 200, false, 0.94, false, true, now(), now()),
+('55555555-5555-4555-8555-555555555557', '${SEED_USER_ID}', 'RESOURCE', true, 1024, 48, 300, 220, false, 0.94, false, true, now(), now()),
+('55555555-5555-4555-8555-555555555558', '${SEED_USER_ID}', 'ALERT', true, 1024, 292, 300, 180, false, 0.94, false, true, now(), now())
 ON CONFLICT (user_id, bubble_type) DO UPDATE SET enabled = EXCLUDED.enabled, x = EXCLUDED.x, y = EXCLUDED.y, width = EXCLUDED.width, height = EXCLUDED.height, minimized = EXCLUDED.minimized, opacity = EXCLUDED.opacity, ghost_mode = EXCLUDED.ghost_mode, alert_enabled = EXCLUDED.alert_enabled, updated_at = now();
 
 INSERT INTO tasks (id, owner_user_id, assignee_user_id, room_id, wbs_item_id, title, description, status, due_at, created_at, updated_at)

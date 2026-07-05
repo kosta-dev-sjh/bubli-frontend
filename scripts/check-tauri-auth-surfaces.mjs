@@ -286,6 +286,11 @@ assertContains(
 );
 assertContains(
   devWidgetRealBackend,
+  /REQUIRED_WIDGET_BUBBLES = \["TODO", "AGENT", "CHAT", "TIMER", "MEMO", "SCHEDULE", "RESOURCE", "ALERT"\][\s\S]*REQUIRED_WIDGET_BUBBLES\.every[\s\S]*widget settings did not include all eight backend-supported bubbles[\s\S]*'RESOURCE'[\s\S]*'ALERT'/,
+  "Real backend widget seed must require and insert all eight backend-supported bubbles.",
+);
+assertContains(
+  devWidgetRealBackend,
   /Desktop widget backend sync check[\s\S]*date_trunc\('day', now\(\)\) \+ interval '12 hours'[\s\S]*date_trunc\('day', now\(\)\) \+ interval '13 hours'/,
   "Real backend widget seed schedule must stay inside the backend widget summary's current UTC day window.",
 );
