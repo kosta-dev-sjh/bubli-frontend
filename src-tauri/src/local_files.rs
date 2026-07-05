@@ -1654,11 +1654,25 @@ fn extract_hwpx_text(path: &Path) -> Result<String, String> {
     }
 
     let text = sections.join("\n").trim().to_string();
-    if text.is_empty() {
-        return Err("EMPTY".to_string());
+    if !text.is_empty() {
+        return Ok(text);
     }
 
-    Ok(text)
+    match read_zip_entry(&bytes, "Preview/PrvText.txt") {
+        Ok(preview_bytes) => {
+            let preview_text = String::from_utf8_lossy(&preview_bytes)
+                .replace('\0', " ")
+                .replace('\r', "\n")
+                .trim()
+                .to_string();
+            if preview_text.is_empty() {
+                Err("EMPTY".to_string())
+            } else {
+                Ok(preview_text)
+            }
+        }
+        Err(_) => Err("EMPTY".to_string()),
+    }
 }
 
 fn extract_xlsx_text(path: &Path) -> Result<String, String> {
@@ -4233,6 +4247,13 @@ mod tests {
         )])
     }
 
+    fn minimal_hwpx_preview_bytes(preview_text: &str) -> Vec<u8> {
+        minimal_zip_bytes(vec![(
+            "Preview/PrvText.txt",
+            preview_text.as_bytes().to_vec(),
+        )])
+    }
+
     fn minimal_xlsx_bytes(shared_text: &str, inline_text: &str, number_text: &str) -> Vec<u8> {
         let shared_escaped = shared_text
             .replace('&', "&amp;")
@@ -5702,6 +5723,40 @@ mod tests {
     }
 
     #[test]
+    fn reads_hwpx_preview_text_when_sections_are_missing() {
+        let path = std::env::temp_dir().join(format!(
+            "bubli-local-hwpx-preview-test-{}.hwpx",
+            Uuid::new_v4()
+        ));
+        std::fs::write(
+            &path,
+            minimal_hwpx_preview_bytes(
+                "HwpxPreviewFallbackSignal preserves preview text for local search.",
+            ),
+        )
+        .expect("write temp hwpx preview file");
+
+        let (preview, status, truncated) =
+            read_local_text_preview(&path, 500).expect("read hwpx preview fallback");
+        let text = read_local_text_for_key_sentences(&path)
+            .expect("read hwpx preview fallback text")
+            .0
+            .expect("hwpx preview fallback text");
+
+        assert_eq!(status, "READY");
+        assert!(!truncated);
+        assert!(preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("HwpxPreviewFallbackSignal"));
+        assert!(extract_key_sentences(&text, 2, 200)
+            .iter()
+            .any(|sentence| sentence.text.contains("preview text")));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn reads_xlsx_text_for_preview_and_key_sentence_extraction() {
         let path =
             std::env::temp_dir().join(format!("bubli-local-xlsx-test-{}.xlsx", Uuid::new_v4()));
@@ -5972,6 +6027,49 @@ mod tests {
 
         assert_eq!(hwpx_search.items.len(), 1);
         assert_eq!(hwpx_search.items[0].name, "contract.hwpx");
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
+    fn scans_hwpx_preview_fallback_into_local_file_search_index() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-local-hwpx-preview-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        std::fs::write(
+            folder_path.join("preview-only.hwpx"),
+            minimal_hwpx_preview_bytes("HwpxFallbackSearchSignal captures preview fallback text."),
+        )
+        .expect("write temp hwpx preview file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-hwpx-preview', 'HWPX Preview Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let scan = scan_managed_folder_for_conn(
+            &conn,
+            ManagedFolderCommandInput {
+                local_folder_id: "folder-hwpx-preview".to_string(),
+            },
+        )
+        .expect("scan managed folder");
+        assert_eq!(scan.changed_count, 1);
+
+        let hwpx_search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "HwpxFallbackSearchSignal".to_string(),
+            },
+        )
+        .expect("search hwpx preview fallback content");
+
+        assert_eq!(hwpx_search.items.len(), 1);
+        assert_eq!(hwpx_search.items[0].name, "preview-only.hwpx");
 
         let _ = std::fs::remove_dir_all(folder_path);
     }
