@@ -1354,17 +1354,16 @@ fn clamp_widget_local_position(
     // 기본(위쪽 프리뷰) 배치에서는 pill이 창 하단에 붙는다. 따라서 화면 상단에서는
     // native window y가 음수가 될 수 있어야 보이는 pill이 실제 상단까지 올라간다.
     let visible_top_offset = (size.height - WIDGET_BAR_VISIBLE_HEIGHT).max(0.0);
-    let visible_bottom_offset = (size.height - WIDGET_BAR_ROOT_PADDING).max(WIDGET_BAR_VISIBLE_HEIGHT);
+    let visible_bottom_offset =
+        (size.height - WIDGET_BAR_ROOT_PADDING).max(WIDGET_BAR_VISIBLE_HEIGHT);
     let min_y = work_area_y + WIDGET_DEFAULT_MARGIN - visible_top_offset;
-    let max_y = (work_area_y + work_area_height - WIDGET_DEFAULT_MARGIN - visible_bottom_offset).max(min_y);
+    let max_y =
+        (work_area_y + work_area_height - WIDGET_DEFAULT_MARGIN - visible_bottom_offset).max(min_y);
 
     (x.clamp(min_x, max_x), y.clamp(min_y, max_y))
 }
 
-fn monitor_work_area_logical(
-    monitor: Option<&Monitor>,
-    scale: f64,
-) -> (f64, f64, f64, f64) {
+fn monitor_work_area_logical(monitor: Option<&Monitor>, scale: f64) -> (f64, f64, f64, f64) {
     if let Some(monitor) = monitor {
         #[cfg(not(target_os = "macos"))]
         {
@@ -1378,16 +1377,16 @@ fn monitor_work_area_logical(
 
         #[cfg(target_os = "macos")]
         {
-        let origin = monitor.position();
-        let work_area = monitor.work_area();
-        let work_height = work_area.size.height as f64 / scale;
-        let dock_guard = macos_dock_guard_logical(monitor, work_height, scale);
-        return (
-            (work_area.position.x - origin.x) as f64 / scale,
-            (work_area.position.y - origin.y) as f64 / scale,
-            work_area.size.width as f64 / scale,
-            (work_height - dock_guard).max(WIDGET_BAR_VISIBLE_HEIGHT + WIDGET_DEFAULT_MARGIN),
-        );
+            let origin = monitor.position();
+            let work_area = monitor.work_area();
+            let work_height = work_area.size.height as f64 / scale;
+            let dock_guard = macos_dock_guard_logical(monitor, work_height, scale);
+            return (
+                (work_area.position.x - origin.x) as f64 / scale,
+                (work_area.position.y - origin.y) as f64 / scale,
+                work_area.size.width as f64 / scale,
+                (work_height - dock_guard).max(WIDGET_BAR_VISIBLE_HEIGHT + WIDGET_DEFAULT_MARGIN),
+            );
         }
     }
 
@@ -1516,6 +1515,31 @@ fn position_main_window_on_preferred_monitor(
     let _ = window.set_focus();
 
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn local_auto_sync_runtime_smoke_requested() -> bool {
+    env::var("NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE")
+        .ok()
+        .as_deref()
+        == Some("true")
+        && env::var("NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_PHASE")
+            .ok()
+            .as_deref()
+            == Some("local-auto-sync")
+}
+
+#[cfg(not(target_os = "windows"))]
+fn local_auto_sync_runtime_smoke_requested() -> bool {
+    false
+}
+
+fn hide_main_window_for_local_auto_sync_smoke(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        if let Err(error) = window.hide() {
+            eprintln!("failed to hide main window for local auto-sync smoke: {error}");
+        }
+    }
 }
 
 fn normalize_main_window_route(route: &str) -> Result<String, String> {
@@ -1663,7 +1687,7 @@ fn build_widget_qa_windows(
 
 fn apply_widget_window_state(
     app: &AppHandle,
-    monitor_state: &AppMonitorState,
+    _monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
     let label = widget_window_label(widget);
@@ -1733,7 +1757,7 @@ fn apply_widget_window_state(
         }
         #[cfg(not(target_os = "macos"))]
         {
-            let position = widget_screen_position(app, monitor_state, widget)?;
+            let position = widget_screen_position(app, _monitor_state, widget)?;
             let position_key = (position.x.round() as i64, position.y.round() as i64);
             let position_changed = with_widget_applied_window_state(&label, |applied| {
                 if applied.position == Some(position_key) {
@@ -1859,27 +1883,6 @@ fn schedule_widget_window_build(
     monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
-    #[cfg(target_os = "macos")]
-    {
-        let app_for_build = app.clone();
-        let widget_for_build = widget.clone();
-        let label = widget_window_label(widget);
-        thread::Builder::new()
-            .name(format!("bubli-widget-build-{label}"))
-            .spawn(move || {
-                let monitor_state = app_for_build.state::<AppMonitorState>();
-                if let Err(error) =
-                    build_widget_window(&app_for_build, &monitor_state, &widget_for_build)
-                {
-                    eprintln!("failed to build widget window {label}: {error}");
-                }
-            })
-            .map_err(|error| error.to_string())?;
-
-        Ok(widget.clone())
-    }
-
-    #[cfg(not(target_os = "macos"))]
     build_widget_window(app, monitor_state, widget)
 }
 
@@ -2186,6 +2189,17 @@ fn set_widget_window_position(
         };
     })?;
     persist_widget_window_state(&app, &state)?;
+    #[cfg(target_os = "macos")]
+    {
+        let label = widget_window_label(&widget);
+        if let Some(window) = app.get_webview_window(&label) {
+            let position = widget_screen_position(&app, &monitor_state, &widget)?;
+            note_widget_window_moved(&label);
+            window
+                .set_position(Position::Logical(position))
+                .map_err(|error| error.to_string())?;
+        }
+    }
     apply_widget_window_state(&app, &monitor_state, &widget)
 }
 
@@ -2201,32 +2215,40 @@ fn drag_widget_bar_window(
         return Err("drag_widget_bar_window can only be called from the bar widget".to_string());
     }
 
-    let scale = window.scale_factor().map_err(|error| error.to_string())?.max(0.5);
-    let cursor = window.cursor_position().map_err(|error| error.to_string())?;
-    let monitor = window.current_monitor().map_err(|error| error.to_string())?;
-    let (origin_x, origin_y, work_x, work_y, work_width, work_height) =
-        if let Some(monitor) = monitor.as_ref() {
-            let origin = monitor.position();
-            let work_area = monitor.work_area();
-            let dock_guard = macos_dock_guard_physical(monitor, work_area.size.height as f64, scale);
-            (
-                origin.x as f64,
-                origin.y as f64,
-                work_area.position.x as f64,
-                work_area.position.y as f64,
-                work_area.size.width as f64,
-                (work_area.size.height as f64 - dock_guard).max(WIDGET_BAR_VISIBLE_HEIGHT * scale),
-            )
-        } else {
-            (
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                WIDGET_FALLBACK_MONITOR_WIDTH * scale,
-                WIDGET_FALLBACK_MONITOR_HEIGHT * scale,
-            )
-        };
+    let scale = window
+        .scale_factor()
+        .map_err(|error| error.to_string())?
+        .max(0.5);
+    let cursor = window
+        .cursor_position()
+        .map_err(|error| error.to_string())?;
+    let monitor = window
+        .current_monitor()
+        .map_err(|error| error.to_string())?;
+    let (origin_x, origin_y, work_x, work_y, work_width, work_height) = if let Some(monitor) =
+        monitor.as_ref()
+    {
+        let origin = monitor.position();
+        let work_area = monitor.work_area();
+        let dock_guard = macos_dock_guard_physical(monitor, work_area.size.height as f64, scale);
+        (
+            origin.x as f64,
+            origin.y as f64,
+            work_area.position.x as f64,
+            work_area.position.y as f64,
+            work_area.size.width as f64,
+            (work_area.size.height as f64 - dock_guard).max(WIDGET_BAR_VISIBLE_HEIGHT * scale),
+        )
+    } else {
+        (
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            WIDGET_FALLBACK_MONITOR_WIDTH * scale,
+            WIDGET_FALLBACK_MONITOR_HEIGHT * scale,
+        )
+    };
 
     let padding = WIDGET_BAR_ROOT_PADDING * scale;
     let grab_x = input.grab_x * scale;
@@ -2265,12 +2287,17 @@ fn drag_widget_bar_window(
         )))
         .map_err(|error| error.to_string())?;
 
-    let widget = with_widget_state(&state, Some("bar".to_string()), Some("bar".to_string()), |widget| {
-        widget.position = WidgetWindowPosition {
-            x: ((next_x - origin_x) / scale).round() as i32,
-            y: ((next_y - origin_y) / scale).round() as i32,
-        };
-    })?;
+    let widget = with_widget_state(
+        &state,
+        Some("bar".to_string()),
+        Some("bar".to_string()),
+        |widget| {
+            widget.position = WidgetWindowPosition {
+                x: ((next_x - origin_x) / scale).round() as i32,
+                y: ((next_y - origin_y) / scale).round() as i32,
+            };
+        },
+    )?;
     persist_widget_window_state(&app, &state)?;
 
     Ok(WidgetBarDragResult {
@@ -2288,15 +2315,22 @@ fn set_widget_bar_preview_placement(
 ) -> Result<WidgetBarDragResult, String> {
     let label = window.label().to_string();
     if !is_widget_window_label(&label) || !label.ends_with("-bar") {
-        return Err("set_widget_bar_preview_placement can only be called from the bar widget".to_string());
+        return Err(
+            "set_widget_bar_preview_placement can only be called from the bar widget".to_string(),
+        );
     }
     if input.placement != "above" && input.placement != "below" {
         return Err("widget bar preview placement must be above or below".to_string());
     }
 
-    let scale = window.scale_factor().map_err(|error| error.to_string())?.max(0.5);
+    let scale = window
+        .scale_factor()
+        .map_err(|error| error.to_string())?
+        .max(0.5);
     let current_position = window.outer_position().map_err(|error| error.to_string())?;
-    let monitor = window.current_monitor().map_err(|error| error.to_string())?;
+    let monitor = window
+        .current_monitor()
+        .map_err(|error| error.to_string())?;
     let (origin_x, origin_y, work_y, work_height) = if let Some(monitor) = monitor.as_ref() {
         let origin = monitor.position();
         let work_area = monitor.work_area();
@@ -2308,12 +2342,7 @@ fn set_widget_bar_preview_placement(
             (work_area.size.height as f64 - dock_guard).max(WIDGET_BAR_VISIBLE_HEIGHT * scale),
         )
     } else {
-        (
-            0.0,
-            0.0,
-            0.0,
-            WIDGET_FALLBACK_MONITOR_HEIGHT * scale,
-        )
+        (0.0, 0.0, 0.0, WIDGET_FALLBACK_MONITOR_HEIGHT * scale)
     };
 
     let padding = WIDGET_BAR_ROOT_PADDING * scale;
@@ -2332,12 +2361,17 @@ fn set_widget_bar_preview_placement(
         )))
         .map_err(|error| error.to_string())?;
 
-    let widget = with_widget_state(&state, Some("bar".to_string()), Some("bar".to_string()), |widget| {
-        widget.position = WidgetWindowPosition {
-            x: ((current_position.x as f64 - origin_x) / scale).round() as i32,
-            y: ((next_y - origin_y) / scale).round() as i32,
-        };
-    })?;
+    let widget = with_widget_state(
+        &state,
+        Some("bar".to_string()),
+        Some("bar".to_string()),
+        |widget| {
+            widget.position = WidgetWindowPosition {
+                x: ((current_position.x as f64 - origin_x) / scale).round() as i32,
+                y: ((next_y - origin_y) / scale).round() as i32,
+            };
+        },
+    )?;
     persist_widget_window_state(&app, &state)?;
 
     Ok(WidgetBarDragResult {
@@ -2832,7 +2866,12 @@ p{{font-size:14.5px;line-height:1.62;color:#5B6B7A;word-break:keep-all}}\
 fn oauth_response_html(message: &str) -> String {
     format!(
         "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n{}",
-        oauth_result_page("로그인 완료", message, "이 창을 닫고 Bubli 앱으로 돌아가세요.", true)
+        oauth_result_page(
+            "로그인 완료",
+            message,
+            "이 창을 닫고 Bubli 앱으로 돌아가세요.",
+            true
+        )
     )
 }
 
@@ -2917,8 +2956,8 @@ fn start_tauri_google_oauth_loopback(
                 );
                 match parsed {
                     Ok(result) => {
-                        let _ =
-                            stream.write_all(oauth_response_html("로그인이 확인됐어요.").as_bytes());
+                        let _ = stream
+                            .write_all(oauth_response_html("로그인이 확인됐어요.").as_bytes());
                         return Ok(result);
                     }
                     Err(error) => {
@@ -3138,7 +3177,10 @@ fn close_widget_window(
     let bubble_type = input.as_ref().and_then(|value| value.bubble_type.clone());
     let window_id = input.and_then(|value| value.window_id);
     let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
-        widget.mode = "MINIMIZED".to_string();
+        // 닫기(X)는 최소화와 달리 "완전히 닫기"다. 최소화는 MINIMIZED로 두어 바 칩으로 남지만,
+        // 닫기는 DEFAULT(=바 필터 MINIMIZED 조건에서 제외) + 창 숨김으로 바에서도 사라지게 한다.
+        // 다시 열기는 메뉴(런처)에서 수행한다.
+        widget.mode = "DEFAULT".to_string();
         widget.click_through = false;
         widget.dock_orb_visible = false;
         widget.window_visible = false;
@@ -3605,6 +3647,11 @@ pub fn run() {
 
     app.run(|app_handle, event| match event {
         tauri::RunEvent::Ready => {
+            if local_auto_sync_runtime_smoke_requested() {
+                hide_main_window_for_local_auto_sync_smoke(app_handle);
+                return;
+            }
+
             let monitor_state = app_handle.state::<AppMonitorState>();
             if let Err(error) =
                 position_main_window_on_preferred_monitor(app_handle, &monitor_state)

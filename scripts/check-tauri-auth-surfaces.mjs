@@ -453,6 +453,11 @@ assertContains(
   "Activity auto-capture interval override must be limited to development runtime smoke.",
 );
 assertContains(
+  activityAutoCapture,
+  /captureIntervalId = null;[\s\S]*if \(input\?\.flush\) \{[\s\S]*await flushActivityAutoCapture\(\);[\s\S]*updateActivityAutoCaptureStatus\(\{ lastStatus: "stopped", running: false \}\);[\s\S]*await mirrorNativeActivityConsent\(false\);/,
+  "stopActivityAutoCapture must leave status stopped after flush so local-auto-sync smoke does not see a stale running state.",
+);
+assertContains(
   managedFolderAutoSync,
   /export type ManagedFolderAutoSyncStatus[\s\S]*lastSyncedFolderId[\s\S]*lastWatchEventFolderId[\s\S]*lastWatchedCount[\s\S]*pendingFolderCount[\s\S]*export function getManagedFolderAutoSyncStatus\(\)[\s\S]*updateManagedFolderAutoSyncStatus/,
   "Managed folder auto-sync must expose a non-UI status snapshot for runtime QA.",
@@ -549,6 +554,16 @@ assertContains(
 );
 assertContains(
   tauriLib,
+  /#\[cfg\(target_os = "windows"\)\][\s\S]*fn local_auto_sync_runtime_smoke_requested\(\)[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_PHASE[\s\S]*local-auto-sync[\s\S]*fn hide_main_window_for_local_auto_sync_smoke[\s\S]*window\.hide\(\)/,
+  "Windows local-auto-sync runtime smoke must be able to hide the main app window without opening widgets.",
+);
+assertContains(
+  tauriLib,
+  /tauri::RunEvent::Ready => \{[\s\S]*if local_auto_sync_runtime_smoke_requested\(\) \{[\s\S]*hide_main_window_for_local_auto_sync_smoke\(app_handle\);[\s\S]*return;[\s\S]*position_main_window_on_preferred_monitor/,
+  "Windows local-auto-sync runtime smoke must skip main-window show/focus positioning.",
+);
+assertContains(
+  tauriLib,
   /fn register_native_widget_shortcut[\s\S]*on_shortcut[\s\S]*toggle_widget_window_from_shortcut/,
   "Tauri register_widget_shortcut must register a native global shortcut that toggles a widget window.",
 );
@@ -620,8 +635,8 @@ assertContains(
 );
 assertContains(
   authWidgetQa,
-  /snapshot\.backend\.me\.ok[\s\S]*snapshot\.backend\.widgetContext\.ok[\s\S]*snapshot\.backend\.widgetSummary\.ok[\s\S]*snapshot\.widgetRuntime\.allExpectedWindowsVisible[\s\S]*snapshot\.widgetRuntime\.allWindowRoomContextMatchesActive[\s\S]*snapshot\.widgetRuntime\.barRestoreItems\.allMatchActiveRoom/,
-  "Actual Google OAuth QA assertion must verify real backend widget APIs and widget runtime state.",
+  /snapshot\.backend\.me\.ok[\s\S]*snapshot\.backend\.widgetContext\.ok[\s\S]*snapshot\.backend\.widgetSummary\.ok[\s\S]*snapshot\.activeProjectRoom\.hasSelectedRoom[\s\S]*snapshot\.widgetRuntime\.allExpectedWindowsVisible[\s\S]*snapshot\.widgetRuntime\.allWindowRoomContextMatchesActive[\s\S]*snapshot\.widgetRuntime\.allWindowRoomContextMatchesServer[\s\S]*snapshot\.widgetRuntime\.barRestoreItems\.allMatchActiveRoom[\s\S]*snapshot\.syncRuntime\.allAutoSyncLoopsRunning/,
+  "Actual Google OAuth QA assertion must verify real backend widget APIs, a selected project room, widget runtime state, and post-login auto-sync loops.",
 );
 assertContains(
   authWidgetQa,
@@ -645,8 +660,13 @@ assertContains(
 );
 assertContains(
   authWidgetQa,
-  /WIDGET_BUBBLE_TYPES\.map[\s\S]*missingVisibleBubbles[\s\S]*allExpectedWindowsVisible[\s\S]*allWindowRoomContextMatchesActive[\s\S]*barRestoreItems/,
-  "Tauri auth/widget QA snapshot must cover all eight expected bubble windows and room-context consistency.",
+  /WIDGET_BUBBLE_TYPES\.map[\s\S]*missingVisibleBubbles[\s\S]*allExpectedWindowsVisible[\s\S]*allWindowRoomContextMatchesActive[\s\S]*allWindowRoomContextMatchesServer[\s\S]*barRestoreItems/,
+  "Tauri auth/widget QA snapshot must cover all eight expected bubble windows and active/server room-context consistency.",
+);
+assertContains(
+  authWidgetQa,
+  /isActivityAutoCaptureRunning[\s\S]*isManagedFolderAutoSyncRunning[\s\S]*isWidgetUsageAutoSyncRunning[\s\S]*syncRuntime:[\s\S]*activityAutoCaptureRunning[\s\S]*allAutoSyncLoopsRunning[\s\S]*managedFolderAutoSyncRunning[\s\S]*widgetUsageAutoSyncRunning/,
+  "Tauri auth/widget QA snapshot must include post-login activity, managed-folder, and widget-usage sync loop state.",
 );
 assertNotContains(
   authWidgetQa,

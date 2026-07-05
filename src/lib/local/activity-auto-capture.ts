@@ -63,12 +63,12 @@ export async function stopActivityAutoCapture(input?: ActivityAutoCaptureStopInp
   }
 
   captureIntervalId = null;
-  updateActivityAutoCaptureStatus({ lastStatus: "stopped", running: false });
 
   if (input?.flush) {
     await flushActivityAutoCapture();
   }
 
+  updateActivityAutoCaptureStatus({ lastStatus: "stopped", running: false });
   await mirrorNativeActivityConsent(false);
 
   captureInFlight = false;

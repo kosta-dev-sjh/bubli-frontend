@@ -2125,41 +2125,23 @@
   cursor: pointer;
 }
 
-/* 오브 본체: 유리 버블 단독은 '사탕'처럼 읽혀서, 웹앱 브랜드와 같은 sky→lilac 그라디언트
-   타일(44px, radius 14 = 미니 앱 아이콘 문법) 위에 버블 마크를 얹는다.
-   hairline 1px + 상단 인셋 하이라이트 + 부드러운 드롭 섀도로 "Bubli 앱 메뉴"로 읽히게 한다. */
-.menuOrbTile {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  border-radius: 14px;
-  background:
-    radial-gradient(ellipse 82% 54% at 22% 10%, rgba(255, 255, 255, 0.5), transparent 64%),
-    linear-gradient(135deg, #9ED8FF 0%, #6FB8F2 48%, #B0A8E0 100%);
-  box-shadow:
-    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
-    0 10px 22px -12px rgba(58, 120, 184, 0.5);
-}
-
-/* 타일 위 버블 마크(30px) — 조합 셀렉터로 전역 .bubli-mark--md(28px)보다 우선한다. */
+/* 오브 본체는 영롱한 유리 버블 이미지를 그대로 사용한다. */
 .menuOrb .menuOrbMark {
   display: block;
-  width: 30px;
-  height: 30px;
-  filter: drop-shadow(0 4px 8px rgba(35, 48, 59, 0.28));
+  width: 52px;
+  height: 52px;
+  filter: drop-shadow(0 6px 14px rgba(58, 120, 184, 0.45));
 }
 
 /* 잔잔한 bob 부유(3s, ±3px) + hover/포커스 워블·scale 1.06 — reduced-motion에서는 정지.
-   애니메이션은 타일 전체에 건다(마크만 흔들리면 아이콘이 아니라 사탕처럼 다시 읽힌다). */
+   애니메이션은 버블 본체에 건다(원형 실루엣을 흐트리지지 않게). */
 @media (prefers-reduced-motion: no-preference) {
-  .menuOrbTile {
+  .menuOrbMark {
     animation: bubble-orb-bob 3s ease-in-out infinite;
   }
 
-  .menuOrb:hover .menuOrbTile,
-  .menuOrb:focus-visible .menuOrbTile {
+  .menuOrb:hover .menuOrbMark,
+  .menuOrb:focus-visible .menuOrbMark {
     animation: bubble-orb-wobble 700ms ease-in-out;
     transform: scale(1.06);
   }
@@ -2636,19 +2618,9 @@
   box-shadow: var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
 }
 
-/* 다크: 타일은 더 깊은 sky→lilac + 어두운 섀도, hairline은 다크 rim 톤으로. */
-:global([data-theme="dark"]) .menuOrbTile {
-  border-color: rgba(150, 170, 215, 0.32);
-  background:
-    radial-gradient(ellipse 82% 54% at 22% 10%, rgba(220, 240, 255, 0.22), transparent 64%),
-    linear-gradient(135deg, #3A78B8 0%, #4C91CD 48%, #6E63B8 100%);
-  box-shadow:
-    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.24)),
-    0 12px 24px -12px rgba(0, 0, 0, 0.55);
-}
-
+/* 다크: 버블 글로우는 다크 표면에서 덜 과장되게만 유지한다. */
 :global([data-theme="dark"]) .menuOrbMark {
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.45));
 }
 
 :global([data-theme="dark"]) .menuPanel {

@@ -566,6 +566,11 @@ export type AppMonitorPosition = {
   y: number;
 };
 
+export type AppMonitorWorkArea = {
+  position: AppMonitorPosition;
+  size: AppMonitorSize;
+};
+
 export type AppMonitorSize = {
   height: number;
   width: number;
@@ -583,6 +588,15 @@ export type AppMonitorInfo = {
 export type AppMonitorPreference = {
   monitors: AppMonitorInfo[];
   preferredMonitorId: string;
+};
+
+export type CurrentTauriWindowMonitorState = {
+  monitor: {
+    position: AppMonitorPosition;
+    scaleFactor: number;
+    workArea: AppMonitorWorkArea;
+  } | null;
+  outerPosition: AppMonitorPosition;
 };
 
 export type AppMonitorPreferenceInput = {
@@ -1454,4 +1468,23 @@ export async function startWidgetWindowDragging(): Promise<void> {
   void tauriCommands.notifyWidgetDragStarted().catch(() => undefined);
   const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
   await getCurrentWebviewWindow().startDragging();
+}
+
+export async function readCurrentTauriWindowMonitorState(): Promise<CurrentTauriWindowMonitorState | null> {
+  if (!isTauriRuntime()) return null;
+
+  const { currentMonitor, getCurrentWindow } = await import("@tauri-apps/api/window");
+  const windowApi = getCurrentWindow();
+  const [outerPosition, monitor] = await Promise.all([windowApi.outerPosition(), currentMonitor()]);
+
+  return {
+    monitor: monitor
+      ? {
+          position: monitor.position,
+          scaleFactor: monitor.scaleFactor,
+          workArea: monitor.workArea,
+        }
+      : null,
+    outerPosition,
+  };
 }
