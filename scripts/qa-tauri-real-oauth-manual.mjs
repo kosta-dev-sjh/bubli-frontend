@@ -188,7 +188,7 @@ function runContractCheck() {
     {
       name: "script validates redacted QA reports before accepting pass",
       pattern:
-        /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1/,
+        /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1/,
       source: scriptSource,
     },
     {
@@ -206,7 +206,7 @@ function runContractCheck() {
     {
       name: "real OAuth assertion rejects dev tokens and requires widgets sync loops plus local sync probe",
       pattern:
-        /diagnostics\.clientType === "TAURI"[\s\S]*diagnostics\.isDevAccessTokenSession === false[\s\S]*diagnostics\.refreshTokenExpired === false[\s\S]*widgets:allExpectedWindowsVisible[\s\S]*sync:allAutoSyncLoopsRunning[\s\S]*sync:managedFolderStatusMatchesRunningFlag[\s\S]*sync:managedFolderStatusNotFailed[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:widgetUsageReachedBackend/,
+        /diagnostics\.clientType === "TAURI"[\s\S]*diagnostics\.isDevAccessTokenSession === false[\s\S]*diagnostics\.refreshTokenExpired === false[\s\S]*widgets:allExpectedWindowsVisible[\s\S]*sync:allAutoSyncLoopsRunning[\s\S]*sync:managedFolderStatusMatchesRunningFlag[\s\S]*sync:managedFolderStatusNotFailed[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:widgetUsageReachedBackend[\s\S]*localSyncProbe:activityReachedBackend/,
       source: qaSource,
     },
   ];
@@ -296,6 +296,17 @@ function validateRealOAuthQaReport(report) {
     snapshot.localSyncProbe.outbox?.widgetFailedCount === 0,
     "Passed QA local sync probe must not fail widget usage sync.",
   );
+  if (snapshot.localSyncProbe.activity?.consentGranted) {
+    assert(snapshot.localSyncProbe.activity.queued, "Passed QA local sync probe must queue activity when consent is on.");
+    assert(
+      (snapshot.localSyncProbe.outbox?.activitySentCount ?? 0) >= 1,
+      "Passed QA local sync probe must send activity to backend when consent is on.",
+    );
+    assert(
+      snapshot.localSyncProbe.outbox?.activityFailedCount === 0,
+      "Passed QA local sync probe must not fail activity sync when consent is on.",
+    );
+  }
 }
 
 function forbiddenReportFieldPattern() {

@@ -191,13 +191,13 @@ assertContains(
 );
 assertContains(
   realOAuthQaScript,
-  /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1/,
-  "Manual real OAuth QA script must prove redaction, real TAURI sessions, visible widgets, sync loops, managed-folder watcher status, and local SQLite/outbox sync for passed reports.",
+  /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1/,
+  "Manual real OAuth QA script must prove redaction, real TAURI sessions, visible widgets, sync loops, managed-folder watcher status, and local SQLite/widget/activity outbox sync for passed reports.",
 );
 assertContains(
   authWidgetQa,
-  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA === "true"[\s\S]*checkLocalSqliteIntegrity\(\)[\s\S]*recordWidgetUsageEvent\([\s\S]*syncAllLocalOutboxToServer\(\{ limit: 50 \}\)[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:widgetUsageReachedBackend/,
-  "Real OAuth widget QA must include an opt-in local SQLite and widget outbox sync probe.",
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA === "true"[\s\S]*settingsApi\.getPrivacyConsents\(\)[\s\S]*recordActivityContext\(\{[\s\S]*recordWidgetUsageEvent\([\s\S]*syncAllLocalOutboxToServer\(\{ limit: 50 \}\)[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:widgetUsageReachedBackend[\s\S]*localSyncProbe:activityReachedBackend/,
+  "Real OAuth widget QA must include an opt-in local SQLite, widget outbox, and activity outbox sync probe.",
 );
 assertContains(
   authWidgetQa,
