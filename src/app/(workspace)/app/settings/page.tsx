@@ -12,7 +12,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { activityApi } from "@/features/activity/api/activityApi";
 import { ActivityDetectionPanel } from "@/features/activity/components";
 import { authApi } from "@/features/auth/api/authApi";
-import { calendarApi, googleCalendarRedirectUri } from "@/features/calendar/api/calendarApi";
+import { calendarApi } from "@/features/calendar/api/calendarApi";
+import { startGoogleCalendarConnect } from "@/features/calendar/api/googleCalendarAuth";
 import { OPEN_TUTORIAL_EVENT } from "@/features/onboarding";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
@@ -719,10 +720,10 @@ export default function SettingsPage() {
     if (state.kind !== "ready") return;
 
     try {
-      // 연결 URL은 JSON API 응답(authorizeUrl)에서 받아 이동한다 — API 주소로 직접 이동하면
-      // 인증 헤더 없는 JSON 화면에 떨어진다. 일정 페이지의 connect 흐름과 같은 계약이다.
-      const response = await calendarApi.requestGoogleConnectUrl(googleCalendarRedirectUri());
-      window.location.assign(response.authorizeUrl);
+      const connection = await startGoogleCalendarConnect();
+      if (connection?.status === "ACTIVE") {
+        setMessage({ text: t("calendar.google.connected"), tone: "approved" });
+      }
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
