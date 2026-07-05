@@ -1536,6 +1536,9 @@ fn extract_text_preview(path: &Path) -> Option<String> {
     if is_supported_pdf_file(path) {
         return extract_pdf_text(path).ok().filter(|text| !text.is_empty());
     }
+    if is_supported_rtf_file(path) {
+        return extract_rtf_text(path).ok().filter(|text| !text.is_empty());
+    }
 
     if !is_supported_plain_text_file(path) {
         return None;
@@ -1562,6 +1565,7 @@ fn is_supported_text_file(path: &Path) -> bool {
         || is_supported_xlsx_file(path)
         || is_supported_pptx_file(path)
         || is_supported_pdf_file(path)
+        || is_supported_rtf_file(path)
 }
 
 fn is_supported_plain_text_file(path: &Path) -> bool {
@@ -1605,6 +1609,12 @@ fn is_supported_pptx_file(path: &Path) -> bool {
 fn is_supported_pdf_file(path: &Path) -> bool {
     path.extension()
         .map(|value| value.to_string_lossy().eq_ignore_ascii_case("pdf"))
+        .unwrap_or(false)
+}
+
+fn is_supported_rtf_file(path: &Path) -> bool {
+    path.extension()
+        .map(|value| value.to_string_lossy().eq_ignore_ascii_case("rtf"))
         .unwrap_or(false)
 }
 
@@ -1773,6 +1783,25 @@ fn extract_pdf_text(path: &Path) -> Result<String, String> {
     Ok(text)
 }
 
+fn extract_rtf_text(path: &Path) -> Result<String, String> {
+    let metadata = match std::fs::metadata(path) {
+        Ok(value) if value.is_file() => value,
+        _ => return Err("MISSING".to_string()),
+    };
+    if metadata.len() > MAX_EXTRACT_BYTES {
+        return Err("TOO_LARGE".to_string());
+    }
+
+    let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
+    let source = decode_text_bytes(&bytes);
+    let text = extract_rtf_plain_text(&source);
+    if text.is_empty() {
+        return Err("EMPTY".to_string());
+    }
+
+    Ok(text)
+}
+
 fn extract_pdf_text_lossy(bytes: &[u8]) -> String {
     let mut extracted = String::new();
     let mut cursor = 0usize;
@@ -1878,6 +1907,240 @@ fn decode_utf16_bytes(bytes: &[u8], little_endian: bool) -> String {
         })
         .collect::<Vec<_>>();
     String::from_utf16_lossy(&units)
+}
+
+fn extract_rtf_plain_text(source: &str) -> String {
+    let chars = source.chars().collect::<Vec<_>>();
+    let mut output = String::new();
+    let mut group_skip_stack = vec![false];
+    let mut index = 0usize;
+    let mut unicode_fallback_skip = 0usize;
+    let mut unicode_skip_count = 1usize;
+
+    while index < chars.len() {
+        match chars[index] {
+            '{' => {
+                let parent_skip = *group_skip_stack.last().unwrap_or(&false);
+                group_skip_stack.push(parent_skip);
+                index += 1;
+            }
+            '}' => {
+                if group_skip_stack.len() > 1 {
+                    group_skip_stack.pop();
+                }
+                index += 1;
+            }
+            '\\' => {
+                index += 1;
+                if index >= chars.len() {
+                    break;
+                }
+
+                let token = chars[index];
+                if token == '\'' {
+                    if let Some(byte) = read_rtf_hex_byte(&chars, index + 1) {
+                        push_rtf_literal_char(
+                            char::from(byte),
+                            &mut output,
+                            &mut unicode_fallback_skip,
+                            rtf_group_is_skipped(&group_skip_stack),
+                        );
+                        index += 3;
+                    } else {
+                        index += 1;
+                    }
+                    continue;
+                }
+
+                if token.is_ascii_alphabetic() {
+                    let word_start = index;
+                    while index < chars.len() && chars[index].is_ascii_alphabetic() {
+                        index += 1;
+                    }
+                    let word = chars[word_start..index].iter().collect::<String>();
+
+                    let mut sign = 1i32;
+                    if index < chars.len() && chars[index] == '-' {
+                        sign = -1;
+                        index += 1;
+                    }
+
+                    let number_start = index;
+                    while index < chars.len() && chars[index].is_ascii_digit() {
+                        index += 1;
+                    }
+                    let number = if number_start < index {
+                        chars[number_start..index]
+                            .iter()
+                            .collect::<String>()
+                            .parse::<i32>()
+                            .ok()
+                            .map(|value| value * sign)
+                    } else {
+                        None
+                    };
+
+                    if index < chars.len() && chars[index] == ' ' {
+                        index += 1;
+                    }
+
+                    handle_rtf_control_word(
+                        &word,
+                        number,
+                        &mut output,
+                        &mut group_skip_stack,
+                        &mut unicode_fallback_skip,
+                        &mut unicode_skip_count,
+                    );
+                    continue;
+                }
+
+                index += 1;
+                handle_rtf_control_symbol(
+                    token,
+                    &mut output,
+                    &mut group_skip_stack,
+                    &mut unicode_fallback_skip,
+                );
+            }
+            ch => {
+                push_rtf_literal_char(
+                    ch,
+                    &mut output,
+                    &mut unicode_fallback_skip,
+                    rtf_group_is_skipped(&group_skip_stack),
+                );
+                index += 1;
+            }
+        }
+    }
+
+    output
+        .lines()
+        .map(clean_sentence)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn handle_rtf_control_word(
+    word: &str,
+    number: Option<i32>,
+    output: &mut String,
+    group_skip_stack: &mut [bool],
+    unicode_fallback_skip: &mut usize,
+    unicode_skip_count: &mut usize,
+) {
+    if should_skip_rtf_destination(word) {
+        if let Some(current) = group_skip_stack.last_mut() {
+            *current = true;
+        }
+        return;
+    }
+
+    if rtf_group_is_skipped(group_skip_stack) {
+        return;
+    }
+
+    match word {
+        "par" | "line" => output.push('\n'),
+        "tab" => output.push('\t'),
+        "uc" => {
+            if let Some(value) = number {
+                *unicode_skip_count = value.max(0) as usize;
+            }
+        }
+        "u" => {
+            if let Some(value) = number.and_then(rtf_unicode_char) {
+                output.push(value);
+                *unicode_fallback_skip = *unicode_skip_count;
+            }
+        }
+        _ => {}
+    }
+}
+
+fn handle_rtf_control_symbol(
+    token: char,
+    output: &mut String,
+    group_skip_stack: &mut [bool],
+    unicode_fallback_skip: &mut usize,
+) {
+    if token == '*' {
+        if let Some(current) = group_skip_stack.last_mut() {
+            *current = true;
+        }
+        return;
+    }
+
+    let skipped = rtf_group_is_skipped(group_skip_stack);
+    match token {
+        '\\' | '{' | '}' => push_rtf_literal_char(token, output, unicode_fallback_skip, skipped),
+        '~' => push_rtf_literal_char(' ', output, unicode_fallback_skip, skipped),
+        '-' | '_' => push_rtf_literal_char('-', output, unicode_fallback_skip, skipped),
+        _ => {}
+    }
+}
+
+fn push_rtf_literal_char(
+    ch: char,
+    output: &mut String,
+    unicode_fallback_skip: &mut usize,
+    skipped: bool,
+) {
+    if *unicode_fallback_skip > 0 {
+        *unicode_fallback_skip -= 1;
+        return;
+    }
+    if !skipped {
+        output.push(ch);
+    }
+}
+
+fn read_rtf_hex_byte(chars: &[char], start: usize) -> Option<u8> {
+    if start + 1 >= chars.len() {
+        return None;
+    }
+    let high = chars[start].to_digit(16)?;
+    let low = chars[start + 1].to_digit(16)?;
+    Some(((high << 4) | low) as u8)
+}
+
+fn rtf_unicode_char(value: i32) -> Option<char> {
+    let code_point = if value < 0 {
+        (value + 65_536) as u32
+    } else {
+        value as u32
+    };
+    char::from_u32(code_point)
+}
+
+fn rtf_group_is_skipped(group_skip_stack: &[bool]) -> bool {
+    *group_skip_stack.last().unwrap_or(&false)
+}
+
+fn should_skip_rtf_destination(word: &str) -> bool {
+    matches!(
+        word,
+        "colortbl"
+            | "datastore"
+            | "fonttbl"
+            | "footer"
+            | "footerf"
+            | "footerl"
+            | "footerr"
+            | "header"
+            | "headerf"
+            | "headerl"
+            | "headerr"
+            | "info"
+            | "nonshppict"
+            | "object"
+            | "pict"
+            | "stylesheet"
+            | "themedata"
+            | "xmlnstbl"
+    )
 }
 
 fn read_pdf_literal_string(bytes: &[u8], start: usize) -> (String, usize) {
@@ -2436,6 +2699,28 @@ fn read_local_text_preview(
         };
         return Ok((Some(preview_text), "READY".to_string(), truncated));
     }
+    if is_supported_rtf_file(path) {
+        let text = match extract_rtf_text(path) {
+            Ok(value) => value,
+            Err(status)
+                if matches!(
+                    status.as_str(),
+                    "MISSING" | "TOO_LARGE" | "EMPTY" | "UNSUPPORTED"
+                ) =>
+            {
+                return Ok((None, status, false));
+            }
+            Err(error) => return Err(error),
+        };
+        let total_chars = text.chars().count();
+        let truncated = total_chars > max_chars;
+        let preview_text = if truncated {
+            text.chars().take(max_chars).collect::<String>()
+        } else {
+            text
+        };
+        return Ok((Some(preview_text), "READY".to_string(), truncated));
+    }
 
     if !is_supported_text_file(path) {
         return Ok((None, "UNSUPPORTED".to_string(), false));
@@ -2516,6 +2801,20 @@ fn read_local_text_for_key_sentences(path: &Path) -> Result<(Option<String>, Str
     }
     if is_supported_pdf_file(path) {
         return match extract_pdf_text(path) {
+            Ok(value) => Ok((Some(value), "READY".to_string())),
+            Err(status)
+                if matches!(
+                    status.as_str(),
+                    "MISSING" | "TOO_LARGE" | "EMPTY" | "UNSUPPORTED"
+                ) =>
+            {
+                Ok((None, status))
+            }
+            Err(error) => Err(error),
+        };
+    }
+    if is_supported_rtf_file(path) {
+        return match extract_rtf_text(path) {
             Ok(value) => Ok((Some(value), "READY".to_string())),
             Err(status)
                 if matches!(
@@ -4034,6 +4333,7 @@ fn guess_mime_type(file_name: &str) -> Option<String> {
         "png" => "image/png",
         "ppt" => "application/vnd.ms-powerpoint",
         "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "rtf" => "application/rtf",
         "txt" => "text/plain",
         "tsv" => "text/tab-separated-values",
         "xls" => "application/vnd.ms-excel",
@@ -4391,6 +4691,10 @@ mod tests {
             escaped
         )
         .into_bytes()
+    }
+
+    fn minimal_rtf_bytes() -> Vec<u8> {
+        br"{\rtf1\ansi\uc1{\fonttbl{\f0 Arial;}}\f0 RtfPreviewSignal captures rich text notes.\par Unicode: \u54620?\u44544? \tab Hex: \'41}".to_vec()
     }
 
     fn push_u16(bytes: &mut Vec<u8>, value: u16) {
@@ -5916,6 +6220,34 @@ mod tests {
     }
 
     #[test]
+    fn reads_rtf_text_for_preview_and_key_sentence_extraction() {
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-rtf-test-{}.rtf", Uuid::new_v4()));
+        std::fs::write(&path, minimal_rtf_bytes()).expect("write temp rtf");
+
+        let (preview, status, truncated) =
+            read_local_text_preview(&path, 500).expect("read rtf preview");
+        let text = read_local_text_for_key_sentences(&path)
+            .expect("read rtf text")
+            .0
+            .expect("rtf text");
+        let sentences = extract_key_sentences(&text, 3, 300);
+
+        assert_eq!(status, "READY");
+        assert!(!truncated);
+        assert!(preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("RtfPreviewSignal"));
+        assert!(preview.as_deref().unwrap_or_default().contains("한글"));
+        assert!(sentences
+            .iter()
+            .any(|sentence| sentence.text.contains("RtfPreviewSignal")));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn reads_bounded_preview_for_registered_text_file() {
         let path =
             std::env::temp_dir().join(format!("bubli-local-preview-test-{}.md", Uuid::new_v4()));
@@ -6223,6 +6555,46 @@ mod tests {
         assert_eq!(csv_search.items[0].name, "windows-table.csv");
         assert_eq!(tsv_search.items.len(), 1);
         assert_eq!(tsv_search.items[0].name, "windows-table.tsv");
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
+    fn scans_rtf_content_into_local_file_search_index() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-local-rtf-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        std::fs::write(folder_path.join("rich-note.rtf"), minimal_rtf_bytes())
+            .expect("write temp rtf file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-rtf', 'RTF Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let scan = scan_managed_folder_for_conn(
+            &conn,
+            ManagedFolderCommandInput {
+                local_folder_id: "folder-rtf".to_string(),
+            },
+        )
+        .expect("scan managed folder");
+        assert_eq!(scan.changed_count, 1);
+
+        let search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "RtfPreviewSignal".to_string(),
+            },
+        )
+        .expect("search rtf content");
+
+        assert_eq!(search.items.len(), 1);
+        assert_eq!(search.items[0].name, "rich-note.rtf");
 
         let _ = std::fs::remove_dir_all(folder_path);
     }
