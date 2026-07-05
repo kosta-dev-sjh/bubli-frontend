@@ -641,6 +641,11 @@ assertContains(
 );
 assertContains(
   surfaces,
+  /if \(startupBubbles\.length === 0\) return loginStartupWindows;/,
+  "Tauri login must open the default widget set when a real account has no enabled widget settings yet.",
+);
+assertContains(
+  surfaces,
   /await tauriCommands\.setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\);/,
   "launchTauriAuthenticatedSurfaces must open the native auth gate before widget windows.",
 );
@@ -676,7 +681,7 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*if \(openedWindows\.length === 0\)/,
+  /openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*if \(openedWindows\.length < startupWindows\.length\)/,
   "launchTauriAuthenticatedSurfaces must cancel cleanly after bubble window attempts and before marking the launch active.",
 );
 assertContains(
@@ -686,8 +691,8 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /openedWindows\.length === 0[\s\S]*throw rejectedReasons\[0\][\s\S]*launchedAuthenticatedSurfaces = true;[\s\S]*launchRequested = true;/,
-  "A partially opened widget session must be treated as launched so auth/shell events do not repeatedly raise visible widgets.",
+  /openedWindows\.length < startupWindows\.length[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*Some Tauri widgets failed to open after login[\s\S]*launchedAuthenticatedSurfaces = true;[\s\S]*launchRequested = true;/,
+  "A partially opened widget session must fail closed so bar-only startup does not hide a failed bubble batch.",
 );
 assertContains(
   surfaces,

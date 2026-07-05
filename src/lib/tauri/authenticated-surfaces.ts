@@ -169,7 +169,7 @@ export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInpu
   }
 
   const startupBubbles = getLoginStartupBubbles(settings.bubbles);
-  if (startupBubbles.length === 0) return [loginStartupBarWindow];
+  if (startupBubbles.length === 0) return loginStartupWindows;
 
   return [loginStartupBarWindow, ...startupBubbles];
 }
@@ -246,12 +246,12 @@ export function launchTauriAuthenticatedSurfaces() {
       return;
     }
 
-    if (openedWindows.length === 0) {
+    if (openedWindows.length < startupWindows.length) {
       launchRequested = false;
       launchedAuthenticatedSurfaces = false;
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
       await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
-      throw rejectedReasons[0] ?? new Error("No Tauri widgets opened");
+      throw rejectedReasons[0] ?? new Error("Some Tauri widgets failed to open after login");
     }
 
     void tauriCommands
@@ -273,9 +273,9 @@ export function launchTauriAuthenticatedSurfaces() {
     startActivityAutoCapture();
     startManagedFolderAutoSync();
     startWidgetUsageAutoSync();
-    // If at least the bar or one bubble opened, this login cycle is active.
-    // Leaving the launch flags false on a partial failure makes later shell/auth
-    // events re-open already visible widgets, which appears as sequential flicker.
+    // All requested windows opened; this login cycle is active.
+    // Partial launches are cleaned up above so bar-only startup cannot hide a
+    // failed bubble batch.
     launchedAuthenticatedSurfaces = true;
     launchRequested = true;
   })()
