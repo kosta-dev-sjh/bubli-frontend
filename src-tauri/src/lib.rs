@@ -2448,15 +2448,50 @@ fn validate_google_authorize_url(authorize_url: &str, redirect_uri: &str) -> Res
     Ok(())
 }
 
+/// 로그인 루프백 결과 페이지(외부 브라우저에 뜨는 화면)를 앱 디자인 톤(Sky Opal)으로 렌더한다.
+/// 외부 브라우저라 앱 CSS를 못 쓰므로 모든 스타일을 인라인으로 담는다.
+fn oauth_result_page(title: &str, message: &str, hint: &str, ok: bool) -> String {
+    let icon_bg = if ok {
+        "linear-gradient(135deg,rgba(216,240,255,0.95),rgba(220,216,248,0.85))"
+    } else {
+        "linear-gradient(135deg,rgba(255,225,231,0.95),rgba(255,236,214,0.85))"
+    };
+    let icon = if ok {
+        "<svg viewBox='0 0 24 24' fill='none' stroke='#3A78B8' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>"
+    } else {
+        "<svg viewBox='0 0 24 24' fill='none' stroke='#C4587A' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'><path d='M12 8v5'/><path d='M12 16.5h0.01'/></svg>"
+    };
+    let hint_html = if hint.is_empty() {
+        String::new()
+    } else {
+        format!("<p class='hint'>{hint}</p>")
+    };
+    format!(
+        "<!doctype html><html lang='ko'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Bubli</title><style>\
+*{{box-sizing:border-box;margin:0}}html,body{{height:100%}}\
+body{{display:grid;place-items:center;padding:24px;font-family:'Pretendard',system-ui,-apple-system,'Segoe UI',sans-serif;color:#23303B;background:radial-gradient(1200px 700px at 50% -12%,#EAF3FC 0%,#F5F9FD 46%,#FBFCFE 100%)}}\
+.card{{width:min(420px,100%);text-align:center;padding:40px 32px;border-radius:26px;background:rgba(255,255,255,0.82);border:1px solid rgba(213,228,240,0.72);box-shadow:0 26px 60px -34px rgba(47,124,193,0.34),inset 0 1px 0 rgba(255,255,255,0.9);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}}\
+.brand{{font-size:22px;font-weight:860;letter-spacing:-0.01em;background:linear-gradient(105deg,#3A78B8,#6FB8F2 58%,#6E63B8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}}\
+.mark{{width:58px;height:58px;margin:22px auto 18px;display:grid;place-items:center;border-radius:18px;background:{icon_bg};box-shadow:inset 0 1px 0 rgba(255,255,255,0.9)}}\
+.mark svg{{width:28px;height:28px}}\
+h1{{font-size:20px;font-weight:820;letter-spacing:-0.01em;margin-bottom:10px}}\
+p{{font-size:14.5px;line-height:1.62;color:#5B6B7A;word-break:keep-all}}\
+.hint{{margin-top:8px;font-size:13px;color:#93A2B1}}\
+</style></head><body><main class='card'><div class='brand'>Bubli</div><div class='mark'>{icon}</div><h1>{title}</h1><p>{message}</p>{hint_html}</main></body></html>"
+    )
+}
+
 fn oauth_response_html(message: &str) -> String {
     format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<!doctype html><meta charset=\"utf-8\"><title>Bubli login</title><body style=\"font-family: system-ui, sans-serif; padding: 32px;\"><h1>Bubli login</h1><p>{message}</p><p>You can close this browser tab and return to the Bubli app.</p></body>"
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n{}",
+        oauth_result_page("로그인 완료", message, "이 창을 닫고 Bubli 앱으로 돌아가세요.", true)
     )
 }
 
 fn oauth_error_html(message: &str) -> String {
     format!(
-        "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<!doctype html><meta charset=\"utf-8\"><title>Bubli login failed</title><body style=\"font-family: system-ui, sans-serif; padding: 32px;\"><h1>Bubli login failed</h1><p>{message}</p></body>"
+        "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n{}",
+        oauth_result_page("로그인 실패", message, "", false)
     )
 }
 
@@ -2535,7 +2570,7 @@ fn start_tauri_google_oauth_loopback(
                 match parsed {
                     Ok(result) => {
                         let _ =
-                            stream.write_all(oauth_response_html("Login confirmed.").as_bytes());
+                            stream.write_all(oauth_response_html("로그인이 확인됐어요.").as_bytes());
                         return Ok(result);
                     }
                     Err(error) => {
