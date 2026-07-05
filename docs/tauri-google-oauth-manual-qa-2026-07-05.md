@@ -97,3 +97,22 @@ Tauri DevTools 또는 검사 가능한 localStorage에서 `bubli-auth-session`�
 | 재시작 후 세션 복원 | pass / fail |
 | logout 정리 | pass / fail |
 | 남은 이슈 | |
+
+## 2026-07-05 추가: redacted 세션 진단
+
+개발 실행에서 명시적으로 `NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS=true`를 켠 뒤, Tauri 메인 앱에서 아래 명령으로 실제 Google OAuth 세션인지 확인한다. 이 헬퍼는 `accessToken`, `refreshToken`, `sessionJson`, 사용자 식별자 원문을 반환하지 않는다.
+
+```js
+window.__BUBLI_TAURI_AUTH_QA__?.getLocalSessionDiagnostics()
+await window.__BUBLI_TAURI_AUTH_QA__?.readTauriMirrorDiagnostics()
+```
+
+통과 기준:
+
+- `hasSession`이 둘 다 `true`다.
+- `clientType`이 `TAURI`다.
+- `isTauriClient`가 `true`다.
+- `isDevAccessTokenSession`이 `false`다.
+- `wouldRejectDevAccessTokenSession`이 `false`다.
+- `refreshTokenExpired`가 `false`다.
+- `/api/me`, `/api/widget/context`, `/api/widget/summary`가 같은 로그인 상태로 성공한다.

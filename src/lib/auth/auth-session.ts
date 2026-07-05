@@ -20,6 +20,27 @@ export type AuthSessionInput = AuthTokenResponse & {
   clientType: AuthClientType;
 };
 
+export type AuthSessionDiagnosticsSource = "localStorage" | "tauriMirror";
+
+export type AuthSessionDiagnostics = {
+  source: AuthSessionDiagnosticsSource;
+  hasRawSession: boolean;
+  hasSession: boolean;
+  clientType?: AuthClientType;
+  isTauriClient?: boolean;
+  isDevAccessTokenSession?: boolean;
+  wouldRejectDevAccessTokenSession?: boolean;
+  accessTokenExpiringSoon?: boolean;
+  refreshTokenExpired?: boolean;
+  savedAt?: string;
+  savedAtMs?: number;
+  tauriMirrorSavedAt?: string;
+  expiresAt?: string;
+  refreshTokenExpiresAt?: string;
+  tokenType?: string;
+  parseError?: "missing" | "invalid";
+};
+
 function canUseStorage() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
@@ -82,6 +103,51 @@ function shouldRejectStoredAuthSession(session: StoredAuthSession) {
   return isDevAccessTokenSession(session) && !isDevAccessTokenSessionAllowed();
 }
 
+function createAuthSessionDiagnostics(
+  source: AuthSessionDiagnosticsSource,
+  raw: string | null | undefined,
+  tauriMirrorSavedAt?: string,
+): AuthSessionDiagnostics {
+  if (!raw) {
+    return {
+      source,
+      hasRawSession: false,
+      hasSession: false,
+      tauriMirrorSavedAt,
+      parseError: "missing",
+    };
+  }
+
+  const session = parseStoredAuthSession(raw);
+  if (!session) {
+    return {
+      source,
+      hasRawSession: true,
+      hasSession: false,
+      tauriMirrorSavedAt,
+      parseError: "invalid",
+    };
+  }
+
+  return {
+    source,
+    hasRawSession: true,
+    hasSession: true,
+    clientType: session.clientType,
+    isTauriClient: session.clientType === "TAURI",
+    isDevAccessTokenSession: isDevAccessTokenSession(session),
+    wouldRejectDevAccessTokenSession: shouldRejectStoredAuthSession(session),
+    accessTokenExpiringSoon: isAccessTokenExpiringSoon(session),
+    refreshTokenExpired: isExpired(session.refreshTokenExpiresAt),
+    savedAt: session.savedAt,
+    savedAtMs: sessionSavedAtMs(session),
+    tauriMirrorSavedAt,
+    expiresAt: session.expiresAt,
+    refreshTokenExpiresAt: session.refreshTokenExpiresAt,
+    tokenType: session.tokenType,
+  };
+}
+
 function sameAuthSession(left: StoredAuthSession | null, right: AuthSessionInput) {
   if (!left) return false;
 
@@ -133,6 +199,54 @@ export function getStoredAuthSession(): StoredAuthSession | null {
   } catch {
     clearStoredAuthSession();
     return null;
+  }
+}
+
+export function getStoredAuthSessionDiagnostics(): AuthSessionDiagnostics {
+  if (!canUseStorage()) {
+    return {
+      source: "localStorage",
+      hasRawSession: false,
+      hasSession: false,
+      parseError: "missing",
+    };
+  }
+
+  try {
+    return createAuthSessionDiagnostics(
+      "localStorage",
+      window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY),
+    );
+  } catch {
+    return {
+      source: "localStorage",
+      hasRawSession: false,
+      hasSession: false,
+      parseError: "invalid",
+    };
+  }
+}
+
+export async function readTauriAuthSessionDiagnostics(): Promise<AuthSessionDiagnostics> {
+  if (!isTauriRuntime()) {
+    return {
+      source: "tauriMirror",
+      hasRawSession: false,
+      hasSession: false,
+      parseError: "missing",
+    };
+  }
+
+  try {
+    const restored = await tauriCommands.readTauriAuthSession();
+    return createAuthSessionDiagnostics("tauriMirror", restored?.sessionJson, restored?.savedAt);
+  } catch {
+    return {
+      source: "tauriMirror",
+      hasRawSession: false,
+      hasSession: false,
+      parseError: "invalid",
+    };
   }
 }
 
