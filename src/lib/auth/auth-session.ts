@@ -41,6 +41,15 @@ export type AuthSessionDiagnostics = {
   parseError?: "missing" | "invalid";
 };
 
+export type AuthSessionRestoreProbeDiagnostics = {
+  browserSessionCleared?: boolean;
+  error?: string;
+  restoredLocalSession?: boolean;
+  restoredRealOAuthSession?: boolean;
+  restoredTauriClient?: boolean;
+  restoredTokenLive?: boolean;
+};
+
 function canUseStorage() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
@@ -336,6 +345,47 @@ export async function restoreStoredAuthSessionFromTauri() {
     return current;
   } catch {
     return current;
+  }
+}
+
+export async function probeStoredAuthSessionRestoreFromTauriMirrorForQa(): Promise<AuthSessionRestoreProbeDiagnostics> {
+  if (!canUseStorage() || !isTauriRuntime()) {
+    return { error: "not_tauri_storage_runtime" };
+  }
+
+  const originalRawSession = window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY);
+
+  try {
+    if (!originalRawSession) {
+      return { error: "missing_local_session" };
+    }
+
+    window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+    const clearedSession = getStoredAuthSessionDiagnostics();
+    const restored = await restoreStoredAuthSessionFromTauri();
+    const restoredSession = getStoredAuthSessionDiagnostics();
+
+    if (!restoredSession.hasSession && originalRawSession) {
+      window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, originalRawSession);
+    }
+
+    return {
+      browserSessionCleared: !clearedSession.hasSession,
+      restoredLocalSession: Boolean(restored) && restoredSession.hasSession,
+      restoredRealOAuthSession:
+        restoredSession.isDevAccessTokenSession === false &&
+        restoredSession.wouldRejectDevAccessTokenSession === false,
+      restoredTauriClient: restoredSession.clientType === "TAURI" && restoredSession.isTauriClient,
+      restoredTokenLive: restoredSession.refreshTokenExpired === false,
+    };
+  } catch (error) {
+    if (originalRawSession) {
+      window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, originalRawSession);
+    }
+
+    return {
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
