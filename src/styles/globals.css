@@ -10101,7 +10101,7 @@ html {
   position: relative;
   z-index: 2;
   width: 100%;
-  max-width: 1240px;
+  max-width: min(1440px, 100%);
   margin: 0 auto;
 }
 
@@ -11495,14 +11495,17 @@ html {
 }
 
 .public-hero__copy h1 span:first-child {
-  display: inline-block;
-  width: fit-content;
+  display: block;
+  width: auto;
+  max-width: 100%;
   color: transparent;
   background:
     linear-gradient(100deg, var(--blue-ink), var(--bubble-blue) 46%, var(--lilac-ink));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  line-height: 1.2;
+  padding-block: 0.14em 0.02em;
   text-shadow: 0 18px 40px rgba(111, 184, 242, 0.14);
 }
 
@@ -11511,7 +11514,7 @@ html {
   display: block;
   width: 72%;
   height: 8px;
-  margin-top: -4px;
+  margin-top: -0.02em;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(158, 216, 255, 0.34), rgba(220, 216, 248, 0.28));
 }
@@ -15511,13 +15514,18 @@ html {
 
 .public-hero {
   min-height: auto;
-  grid-template-columns: minmax(390px, 0.78fr) minmax(520px, 1.22fr);
-  gap: clamp(42px, 5vw, 72px);
+  isolation: isolate;
+  grid-template-columns: minmax(0, 0.98fr) minmax(420px, 0.86fr);
+  gap: clamp(32px, 4vw, 64px);
+  overflow: visible;
 }
 
 .public-hero__copy {
   align-content: center;
   gap: 22px;
+  position: relative;
+  z-index: 2;
+  min-width: 0;
 }
 
 .public-hero__eyebrow {
@@ -15527,13 +15535,14 @@ html {
 }
 
 .public-hero__copy h1 {
-  max-width: 700px;
+  max-width: min(760px, 100%);
   font-size: clamp(52px, 5.8vw, 82px);
-  line-height: 0.94;
+  line-height: 1.12;
+  overflow: visible;
 }
 
 .public-hero__copy h1 span:first-child {
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .public-hero__copy p {
@@ -16300,6 +16309,8 @@ html {
 
 .public-orbit-preview {
   position: relative;
+  z-index: 1;
+  min-width: 0;
   min-height: 590px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.82);
