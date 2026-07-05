@@ -14,10 +14,9 @@ export type RouteContractEntry = {
   role: string;
 };
 
-/** Public site only handles intro, desktop app guidance, download, sign-in entry. */
+/** Public site only handles intro, direct installer download CTA, and sign-in entry. */
 export const publicRoutes: readonly RouteContractEntry[] = [
   { path: "/", surface: "PUBLIC_SITE", role: "Service intro and download CTA" },
-  { path: "/download", surface: "PUBLIC_SITE", role: "Desktop app download (macOS, Windows)" },
   { path: "/login", surface: "AUTH_ENTRY", role: "Google sign-in entry" },
 ] as const;
 
@@ -29,7 +28,7 @@ export const tauriWidgetRoute = "/desktop-widget" as const;
 
 /** Public CTAs: download and sign-in only — no member feature detail on the public site. */
 export const publicCallToActions = [
-  { id: "download", role: "Get the desktop app", target: "/download" },
+  { id: "download", role: "Get the Windows desktop app", target: "/downloads/windows/Bubli-Windows-latest.exe" },
   { id: "sign-in", role: "Go to sign-in entry", target: "/login" },
 ] as const;
 
@@ -73,12 +72,6 @@ export const routeContractGaps: readonly RouteGap[] = [
     target: "/app/agent",
     status: "EXTRA_IN_CODE",
     note: "Route spec consolidates suggestions under /app/agent.",
-  },
-  {
-    current: null,
-    target: "/download",
-    status: "MISSING_IN_CODE",
-    note: "Download page route not present yet (directory only).",
   },
   {
     current: "/app/desktop/communication",
