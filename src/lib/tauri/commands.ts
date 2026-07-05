@@ -10,6 +10,8 @@ export const TAURI_COMMANDS = {
   clearTauriAuthSession: "clear_tauri_auth_session",
   closeAllWidgetWindows: "close_all_widget_windows",
   closeWidgetWindow: "close_widget_window",
+  dragWidgetBarWindow: "drag_widget_bar_window",
+  setWidgetBarPreviewPlacement: "set_widget_bar_preview_placement",
   extractLocalFileKeySentences: "extract_local_file_key_sentences",
   findLocalFileByResourceId: "find_local_file_by_resource_id",
   flushSyncOutbox: "flush_sync_outbox",
@@ -566,6 +568,11 @@ export type AppMonitorPosition = {
   y: number;
 };
 
+export type AppMonitorWorkArea = {
+  position: AppMonitorPosition;
+  size: AppMonitorSize;
+};
+
 export type AppMonitorSize = {
   height: number;
   width: number;
@@ -583,6 +590,15 @@ export type AppMonitorInfo = {
 export type AppMonitorPreference = {
   monitors: AppMonitorInfo[];
   preferredMonitorId: string;
+};
+
+export type CurrentTauriWindowMonitorState = {
+  monitor: {
+    position: AppMonitorPosition;
+    scaleFactor: number;
+    workArea: AppMonitorWorkArea;
+  } | null;
+  outerPosition: AppMonitorPosition;
 };
 
 export type AppMonitorPreferenceInput = {
@@ -699,6 +715,27 @@ export type WidgetWindowModeInput = {
 export type WidgetWindowPositionInput = WidgetWindowPosition & {
   bubbleType?: WidgetWindowBubbleType;
   windowId?: string;
+};
+
+export type WidgetBarDragInput = {
+  grabX: number;
+  grabY: number;
+  navHeight: number;
+  navWidth: number;
+  rootHeight: number;
+  rootWidth: number;
+};
+
+export type WidgetBarDragResult = {
+  placement: "above" | "below";
+  state: WidgetWindowState;
+};
+
+export type WidgetBarPreviewPlacementInput = {
+  currentOffsetTop: number;
+  navHeight: number;
+  nextOffsetTop: number;
+  placement: "above" | "below";
 };
 
 // 사용자 코너 드래그 리사이즈 입력(논리 px). Rust가 버블별 [기본, 기본×1.6]으로 클램프하고,
@@ -837,6 +874,14 @@ export type TauriCommandContract = {
   close_widget_window: {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
+  };
+  drag_widget_bar_window: {
+    args: WidgetBarDragInput;
+    result: WidgetBarDragResult;
+  };
+  set_widget_bar_preview_placement: {
+    args: WidgetBarPreviewPlacementInput;
+    result: WidgetBarDragResult;
   };
   extract_local_file_key_sentences: {
     args: LocalFileKeySentenceInput;
@@ -1175,6 +1220,12 @@ export const tauriCommands = {
   closeOnboardingOverlay() {
     return invokeTauri<null>(TAURI_COMMANDS.closeOnboardingOverlay);
   },
+  dragWidgetBarWindow(input: WidgetBarDragInput) {
+    return invokeTauri<WidgetBarDragResult>(TAURI_COMMANDS.dragWidgetBarWindow, { input });
+  },
+  setWidgetBarPreviewPlacement(input: WidgetBarPreviewPlacementInput) {
+    return invokeTauri<WidgetBarDragResult>(TAURI_COMMANDS.setWidgetBarPreviewPlacement, { input });
+  },
   extractLocalFileKeySentences(input: LocalFileKeySentenceInput) {
     return invokeTauri<LocalFileKeySentenceResult>(TAURI_COMMANDS.extractLocalFileKeySentences, { input });
   },
@@ -1440,4 +1491,23 @@ export async function startWidgetWindowDragging(): Promise<void> {
   void tauriCommands.notifyWidgetDragStarted().catch(() => undefined);
   const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
   await getCurrentWebviewWindow().startDragging();
+}
+
+export async function readCurrentTauriWindowMonitorState(): Promise<CurrentTauriWindowMonitorState | null> {
+  if (!isTauriRuntime()) return null;
+
+  const { currentMonitor, getCurrentWindow } = await import("@tauri-apps/api/window");
+  const windowApi = getCurrentWindow();
+  const [outerPosition, monitor] = await Promise.all([windowApi.outerPosition(), currentMonitor()]);
+
+  return {
+    monitor: monitor
+      ? {
+          position: monitor.position,
+          scaleFactor: monitor.scaleFactor,
+          workArea: monitor.workArea,
+        }
+      : null,
+    outerPosition,
+  };
 }

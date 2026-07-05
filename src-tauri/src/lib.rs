@@ -12,8 +12,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 use tauri::utils::config::Color;
 use tauri::{
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Monitor, Position, Size, WebviewUrl,
-    WebviewWindow, WebviewWindowBuilder,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Monitor, PhysicalPosition, Position,
+    Size, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
@@ -49,6 +49,16 @@ const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 // 통과시키므로 창이 커도 무해하다.
 const WIDGET_BAR_WIDTH: f64 = 640.0;
 const WIDGET_BAR_HEIGHT: f64 = 430.0;
+// 바 창은 투명 여유를 포함하므로 native top-left가 화면 밖으로 일부 나갈 수 있다.
+// 그래도 복원 시 사용자가 찾을 수 있도록 최소한 이 폭만큼은 선호 모니터 안에 남긴다.
+const WIDGET_BAR_MIN_VISIBLE_WIDTH: f64 = 320.0;
+// desktop-widget-bubble.module.css .bubbleBar 높이(칩 36 + padding 16 + border 2)와
+// .barRoot padding 4를 합친 보이는 pill의 대략적 세로 예산.
+const WIDGET_BAR_VISIBLE_HEIGHT: f64 = 58.0;
+const WIDGET_BAR_ROOT_PADDING: f64 = 4.0;
+// 일부 macOS/Tauri 조합에서는 monitor.work_area()가 Dock 영역을 충분히 제외하지 못한다.
+// 이때만 하단에 보수적인 안전 여백을 둬 bar pill이 Dock 아래로 사라지지 않게 한다.
+const WIDGET_MACOS_DOCK_GUARD: f64 = 92.0;
 // 직전 릴리스의 바 창 높이. 저장 레이아웃에 barLayoutHeight가 없으면 이 값으로 간주하고,
 // 바 pill이 창 하단 고정이므로 높이 델타만큼 저장 y를 위로 당겨 pill의 화면 위치를 유지한다.
 const WIDGET_BAR_LEGACY_HEIGHT: f64 = 220.0;
@@ -543,6 +553,33 @@ struct WidgetWindowPositionInput {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct WidgetBarDragInput {
+    grab_x: f64,
+    grab_y: f64,
+    nav_height: f64,
+    nav_width: f64,
+    root_height: f64,
+    root_width: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WidgetBarPreviewPlacementInput {
+    current_offset_top: f64,
+    nav_height: f64,
+    next_offset_top: f64,
+    placement: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WidgetBarDragResult {
+    placement: String,
+    state: WidgetWindowState,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct WidgetWindowResizeInput {
     bubble_type: Option<String>,
     // true면(드래그 종료) 클램프된 최종 크기를 SQLite에 저장한다.
@@ -1027,6 +1064,8 @@ fn remember_widget_window_absolute_position(
     let origin = monitor.as_ref().map(|monitor| monitor.position());
     let origin_x = origin.map_or(0, |position| position.x);
     let origin_y = origin.map_or(0, |position| position.y);
+    let (work_area_x, work_area_y, work_area_width, work_area_height) =
+        monitor_work_area_logical(monitor.as_ref(), scale);
     // Moved 이벤트 좌표는 물리 px이므로 논리 px(모니터-로컬)로 환산해 저장한다.
     // widget_screen_position이 같은 단위로 복원하므로 HiDPI에서도 위치가 두 배로 밀리지 않는다.
     let relative_x = ((absolute_x - origin_x) as f64 / scale).round() as i32;
@@ -1045,9 +1084,20 @@ fn remember_widget_window_absolute_position(
             return Ok(());
         };
 
+        let size = widget_window_size(widget);
+        let (clamped_x, clamped_y) = clamp_widget_local_position(
+            widget,
+            &size,
+            work_area_x,
+            work_area_y,
+            work_area_width,
+            work_area_height,
+            relative_x as f64,
+            relative_y as f64,
+        );
         widget.position = WidgetWindowPosition {
-            x: relative_x,
-            y: relative_y,
+            x: clamped_x.round() as i32,
+            y: clamped_y.round() as i32,
         };
         stored_widget_window_layout(&guard)
     };
@@ -1303,6 +1353,118 @@ fn widget_default_local_position(
     }
 }
 
+fn clamp_widget_local_position(
+    widget: &WidgetWindowState,
+    size: &LogicalSize<f64>,
+    work_area_x: f64,
+    work_area_y: f64,
+    work_area_width: f64,
+    work_area_height: f64,
+    x: f64,
+    y: f64,
+) -> (f64, f64) {
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (
+            widget,
+            size,
+            work_area_x,
+            work_area_y,
+            work_area_width,
+            work_area_height,
+        );
+        return (x, y);
+    }
+
+    if widget.active_bubble != "bar" {
+        return (x, y);
+    }
+
+    let min_x = work_area_x - (size.width - WIDGET_BAR_MIN_VISIBLE_WIDTH).max(0.0);
+    let max_x = (work_area_x + work_area_width - WIDGET_BAR_MIN_VISIBLE_WIDTH).max(min_x);
+    // 기본(위쪽 프리뷰) 배치에서는 pill이 창 하단에 붙는다. 따라서 화면 상단에서는
+    // native window y가 음수가 될 수 있어야 보이는 pill이 실제 상단까지 올라간다.
+    let visible_top_offset = (size.height - WIDGET_BAR_VISIBLE_HEIGHT).max(0.0);
+    let visible_bottom_offset =
+        (size.height - WIDGET_BAR_ROOT_PADDING).max(WIDGET_BAR_VISIBLE_HEIGHT);
+    let min_y = work_area_y + WIDGET_DEFAULT_MARGIN - visible_top_offset;
+    let max_y =
+        (work_area_y + work_area_height - WIDGET_DEFAULT_MARGIN - visible_bottom_offset).max(min_y);
+
+    (x.clamp(min_x, max_x), y.clamp(min_y, max_y))
+}
+
+fn monitor_work_area_logical(monitor: Option<&Monitor>, scale: f64) -> (f64, f64, f64, f64) {
+    if let Some(monitor) = monitor {
+        #[cfg(not(target_os = "macos"))]
+        {
+            return (
+                0.0,
+                0.0,
+                monitor.size().width as f64 / scale,
+                monitor.size().height as f64 / scale,
+            );
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            let origin = monitor.position();
+            let work_area = monitor.work_area();
+            let work_height = work_area.size.height as f64 / scale;
+            let dock_guard = macos_dock_guard_logical(monitor, work_height, scale);
+            return (
+                (work_area.position.x - origin.x) as f64 / scale,
+                (work_area.position.y - origin.y) as f64 / scale,
+                work_area.size.width as f64 / scale,
+                (work_height - dock_guard).max(WIDGET_BAR_VISIBLE_HEIGHT + WIDGET_DEFAULT_MARGIN),
+            );
+        }
+    }
+
+    (
+        0.0,
+        0.0,
+        WIDGET_FALLBACK_MONITOR_WIDTH,
+        WIDGET_FALLBACK_MONITOR_HEIGHT,
+    )
+}
+
+fn macos_dock_guard_logical(monitor: &Monitor, work_area_height: f64, scale: f64) -> f64 {
+    #[cfg(target_os = "macos")]
+    {
+        let monitor_height = monitor.size().height as f64 / scale;
+        let excluded_height = (monitor_height - work_area_height).max(0.0);
+        if excluded_height < 48.0 {
+            return WIDGET_MACOS_DOCK_GUARD;
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (monitor, work_area_height, scale);
+    }
+
+    0.0
+}
+
+fn macos_dock_guard_physical(monitor: &Monitor, work_area_height: f64, scale: f64) -> f64 {
+    #[cfg(target_os = "macos")]
+    {
+        let monitor_height = monitor.size().height as f64;
+        let excluded_height = (monitor_height - work_area_height).max(0.0);
+        if excluded_height < 48.0 * scale {
+            return WIDGET_MACOS_DOCK_GUARD * scale;
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (monitor, work_area_height, scale);
+    }
+
+    0.0
+}
+
 fn widget_screen_position(
     app: &AppHandle,
     monitor_state: &AppMonitorState,
@@ -1319,25 +1481,28 @@ fn widget_screen_position(
     let origin = monitor.as_ref().map(|monitor| monitor.position());
     let origin_x = origin.map_or(0.0, |position| position.x as f64 / scale);
     let origin_y = origin.map_or(0.0, |position| position.y as f64 / scale);
+    let (work_area_x, work_area_y, work_area_width, work_area_height) =
+        monitor_work_area_logical(monitor.as_ref(), scale);
+    let size = widget_window_size(widget);
 
     if !widget_position_is_unset(&widget.position) {
-        return Ok(LogicalPosition::new(
-            origin_x + widget.position.x as f64,
-            origin_y + widget.position.y as f64,
-        ));
+        let (local_x, local_y) = clamp_widget_local_position(
+            widget,
+            &size,
+            work_area_x,
+            work_area_y,
+            work_area_width,
+            work_area_height,
+            widget.position.x as f64,
+            widget.position.y as f64,
+        );
+        return Ok(LogicalPosition::new(origin_x + local_x, origin_y + local_y));
     }
 
-    let monitor_width = monitor
-        .as_ref()
-        .map(|monitor| monitor.size().width as f64 / scale)
-        .unwrap_or(WIDGET_FALLBACK_MONITOR_WIDTH);
-    let monitor_height = monitor
-        .as_ref()
-        .map(|monitor| monitor.size().height as f64 / scale)
-        .unwrap_or(WIDGET_FALLBACK_MONITOR_HEIGHT);
-    let size = widget_window_size(widget);
-    let (local_x, local_y) =
-        widget_default_local_position(widget, &size, monitor_width, monitor_height);
+    let (default_x, default_y) =
+        widget_default_local_position(widget, &size, work_area_width, work_area_height);
+    let local_x = work_area_x + default_x;
+    let local_y = work_area_y + default_y;
 
     Ok(LogicalPosition::new(origin_x + local_x, origin_y + local_y))
 }
@@ -1623,7 +1788,7 @@ fn apply_widget_window_state(
         }
         #[cfg(not(target_os = "macos"))]
         {
-            let position = widget_screen_position(app, monitor_state, widget)?;
+            let position = widget_screen_position(app, _monitor_state, widget)?;
             let position_key = (position.x.round() as i64, position.y.round() as i64);
             let position_changed = with_widget_applied_window_state(&label, |applied| {
                 if applied.position == Some(position_key) {
@@ -1776,7 +1941,7 @@ fn schedule_widget_window_build(
     }
 
     #[cfg(not(target_os = "macos"))]
-    build_widget_window(app, monitor_state, widget)
+    build_widget_window(app, _monitor_state, widget)
 }
 
 #[tauri::command]
@@ -2054,14 +2219,216 @@ fn set_widget_window_position(
     state: tauri::State<'_, WidgetState>,
     input: WidgetWindowPositionInput,
 ) -> Result<WidgetWindowState, String> {
+    let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
+    let monitor = resolve_preferred_monitor(&app, &preferred_monitor_id)?;
+    let scale = monitor
+        .as_ref()
+        .map(|monitor| monitor.scale_factor())
+        .unwrap_or(1.0)
+        .max(0.5);
+    let (work_area_x, work_area_y, work_area_width, work_area_height) =
+        monitor_work_area_logical(monitor.as_ref(), scale);
+
     let widget = with_widget_state(&state, input.bubble_type, input.window_id, |widget| {
+        let size = widget_window_size(widget);
+        let (x, y) = clamp_widget_local_position(
+            widget,
+            &size,
+            work_area_x,
+            work_area_y,
+            work_area_width,
+            work_area_height,
+            input.x as f64,
+            input.y as f64,
+        );
         widget.position = WidgetWindowPosition {
-            x: input.x,
-            y: input.y,
+            x: x.round() as i32,
+            y: y.round() as i32,
         };
     })?;
     persist_widget_window_state(&app, &state)?;
     apply_widget_window_state(&app, &monitor_state, &widget)
+}
+
+#[tauri::command]
+fn drag_widget_bar_window(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: tauri::State<'_, WidgetState>,
+    input: WidgetBarDragInput,
+) -> Result<WidgetBarDragResult, String> {
+    let label = window.label().to_string();
+    if !is_widget_window_label(&label) || !label.ends_with("-bar") {
+        return Err("drag_widget_bar_window can only be called from the bar widget".to_string());
+    }
+
+    let scale = window
+        .scale_factor()
+        .map_err(|error| error.to_string())?
+        .max(0.5);
+    let cursor = window
+        .cursor_position()
+        .map_err(|error| error.to_string())?;
+    let monitor = window
+        .current_monitor()
+        .map_err(|error| error.to_string())?;
+    let (origin_x, origin_y, work_x, work_y, work_width, work_height) = if let Some(monitor) =
+        monitor.as_ref()
+    {
+        let origin = monitor.position();
+        let work_area = monitor.work_area();
+        let dock_guard = macos_dock_guard_physical(monitor, work_area.size.height as f64, scale);
+        (
+            origin.x as f64,
+            origin.y as f64,
+            work_area.position.x as f64,
+            work_area.position.y as f64,
+            work_area.size.width as f64,
+            (work_area.size.height as f64 - dock_guard).max(WIDGET_BAR_VISIBLE_HEIGHT * scale),
+        )
+    } else {
+        (
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            WIDGET_FALLBACK_MONITOR_WIDTH * scale,
+            WIDGET_FALLBACK_MONITOR_HEIGHT * scale,
+        )
+    };
+
+    let padding = WIDGET_BAR_ROOT_PADDING * scale;
+    let grab_x = input.grab_x * scale;
+    let grab_y = input.grab_y * scale;
+    let nav_width = input.nav_width * scale;
+    let nav_height = input.nav_height * scale;
+    let root_width = input.root_width * scale;
+    let root_height = input.root_height * scale;
+    let work_right = work_x + work_width;
+    let work_bottom = work_y + work_height;
+
+    let visible_x = (cursor.x - grab_x)
+        .max(work_x + padding)
+        .min((work_right - nav_width - padding).max(work_x + padding));
+    let visible_y = (cursor.y - grab_y)
+        .max(work_y + padding)
+        .min((work_bottom - nav_height - padding).max(work_y + padding));
+    let placement = if visible_y < work_y + bar_preview_flip_threshold_physical(scale) {
+        "below"
+    } else {
+        "above"
+    };
+    let offset_top = if placement == "below" {
+        padding
+    } else {
+        root_height - nav_height - padding
+    };
+    let next_x = visible_x + nav_width / 2.0 - root_width / 2.0;
+    let next_y = visible_y - offset_top;
+
+    note_widget_window_moved(&label);
+    window
+        .set_position(Position::Physical(PhysicalPosition::new(
+            next_x.round() as i32,
+            next_y.round() as i32,
+        )))
+        .map_err(|error| error.to_string())?;
+
+    let widget = with_widget_state(
+        &state,
+        Some("bar".to_string()),
+        Some("bar".to_string()),
+        |widget| {
+            widget.position = WidgetWindowPosition {
+                x: ((next_x - origin_x) / scale).round() as i32,
+                y: ((next_y - origin_y) / scale).round() as i32,
+            };
+        },
+    )?;
+    persist_widget_window_state(&app, &state)?;
+
+    Ok(WidgetBarDragResult {
+        placement: placement.to_string(),
+        state: widget,
+    })
+}
+
+#[tauri::command]
+fn set_widget_bar_preview_placement(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: tauri::State<'_, WidgetState>,
+    input: WidgetBarPreviewPlacementInput,
+) -> Result<WidgetBarDragResult, String> {
+    let label = window.label().to_string();
+    if !is_widget_window_label(&label) || !label.ends_with("-bar") {
+        return Err(
+            "set_widget_bar_preview_placement can only be called from the bar widget".to_string(),
+        );
+    }
+    if input.placement != "above" && input.placement != "below" {
+        return Err("widget bar preview placement must be above or below".to_string());
+    }
+
+    let scale = window
+        .scale_factor()
+        .map_err(|error| error.to_string())?
+        .max(0.5);
+    let current_position = window.outer_position().map_err(|error| error.to_string())?;
+    let monitor = window
+        .current_monitor()
+        .map_err(|error| error.to_string())?;
+    let (origin_x, origin_y, work_y, work_height) = if let Some(monitor) = monitor.as_ref() {
+        let origin = monitor.position();
+        let work_area = monitor.work_area();
+        let dock_guard = macos_dock_guard_physical(monitor, work_area.size.height as f64, scale);
+        (
+            origin.x as f64,
+            origin.y as f64,
+            work_area.position.y as f64,
+            (work_area.size.height as f64 - dock_guard).max(WIDGET_BAR_VISIBLE_HEIGHT * scale),
+        )
+    } else {
+        (0.0, 0.0, 0.0, WIDGET_FALLBACK_MONITOR_HEIGHT * scale)
+    };
+
+    let padding = WIDGET_BAR_ROOT_PADDING * scale;
+    let nav_height = input.nav_height * scale;
+    let work_bottom = work_y + work_height;
+    let visible_y = (current_position.y as f64 + input.current_offset_top * scale)
+        .max(work_y + padding)
+        .min((work_bottom - nav_height - padding).max(work_y + padding));
+    let next_y = visible_y - input.next_offset_top * scale;
+
+    note_widget_window_moved(&label);
+    window
+        .set_position(Position::Physical(PhysicalPosition::new(
+            current_position.x,
+            next_y.round() as i32,
+        )))
+        .map_err(|error| error.to_string())?;
+
+    let widget = with_widget_state(
+        &state,
+        Some("bar".to_string()),
+        Some("bar".to_string()),
+        |widget| {
+            widget.position = WidgetWindowPosition {
+                x: ((current_position.x as f64 - origin_x) / scale).round() as i32,
+                y: ((next_y - origin_y) / scale).round() as i32,
+            };
+        },
+    )?;
+    persist_widget_window_state(&app, &state)?;
+
+    Ok(WidgetBarDragResult {
+        placement: input.placement,
+        state: widget,
+    })
+}
+
+fn bar_preview_flip_threshold_physical(scale: f64) -> f64 {
+    188.0 * scale
 }
 
 /// 사용자 코너 드래그 리사이즈. 버블별 [기본 크기, 기본 × 1.6]으로 클램프해 창 크기를
@@ -3378,6 +3745,7 @@ pub fn run() {
             arrange_widget_windows,
             close_all_widget_windows,
             close_widget_window,
+            drag_widget_bar_window,
             get_widget_bar_items,
             get_preferred_app_monitor,
             get_widget_window_state,
@@ -3394,6 +3762,7 @@ pub fn run() {
             set_authenticated_surfaces_enabled,
             show_main_window,
             start_tauri_google_oauth_loopback,
+            set_widget_bar_preview_placement,
             open_onboarding_overlay,
             close_onboarding_overlay,
             set_preferred_app_monitor,
