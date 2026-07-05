@@ -22,6 +22,7 @@ import {
   type WidgetWindowBubbleType,
   type WidgetWindowState,
 } from "@/lib/tauri/commands";
+import { stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { isWidgetUsageAutoSyncRunning } from "@/lib/widget/widget-usage-auto-sync";
 import { WIDGET_BUBBLE_TYPES } from "@/lib/widget/widget-types";
@@ -60,6 +61,15 @@ type TauriRealOAuthLocalSyncProbe = {
   widgetUsageQueued?: boolean;
 };
 
+type TauriRealOAuthStopCleanupProbe = {
+  activeProjectRoomCleared?: boolean;
+  allExpectedWindowsHidden?: boolean;
+  barWindowHidden?: boolean;
+  enabled: boolean;
+  error?: string;
+  syncLoopsStopped?: boolean;
+};
+
 export type TauriWidgetWindowQaState = Pick<WidgetWindowState, "mode" | "selectedRoomId" | "windowVisible"> & {
   bubbleType: WidgetWindowBubbleType;
   selectedRoomMatchesActiveRoom: boolean;
@@ -89,6 +99,7 @@ export type TauriAuthWidgetQaSnapshot = {
   expectedBubbleTypes: readonly WidgetBubbleType[];
   localSession: AuthSessionDiagnostics;
   localSyncProbe: TauriRealOAuthLocalSyncProbe;
+  stopCleanupProbe: TauriRealOAuthStopCleanupProbe;
   syncRuntime: {
     activityAutoCaptureRunning: boolean;
     allAutoSyncLoopsRunning: boolean;
@@ -168,6 +179,10 @@ function shouldRunRealOAuthLocalSyncProbe() {
   return process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA === "true";
 }
 
+function shouldRunRealOAuthStopCleanupProbe() {
+  return process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA === "true";
+}
+
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -236,6 +251,46 @@ async function runRealOAuthLocalSyncProbe(roomId: string | null): Promise<TauriR
         ok: sqlite.ok,
       },
       widgetUsageQueued: true,
+    };
+  } catch (error) {
+    return {
+      enabled: true,
+      error: errorMessage(error),
+    };
+  }
+}
+
+async function runRealOAuthStopCleanupProbe(): Promise<TauriRealOAuthStopCleanupProbe> {
+  if (!shouldRunRealOAuthStopCleanupProbe()) {
+    return { enabled: false };
+  }
+
+  if (!isTauriRuntime()) {
+    return { enabled: true, error: "not_tauri_runtime" };
+  }
+
+  try {
+    await stopTauriAuthenticatedSurfaces();
+
+    const activeProjectRoom = await tauriCommands.readActiveProjectRoom().catch(() => null);
+    const barWindow = await readWindowState("bar", null, null);
+    const windowEntries = await Promise.all(
+      WIDGET_BUBBLE_TYPES.map(async (bubbleType) => [
+        bubbleType,
+        await readWindowState(bubbleType, null, null),
+      ] as const),
+    );
+    const windows = Object.fromEntries(windowEntries) as Record<WidgetBubbleType, TauriWidgetWindowQaState | null>;
+
+    return {
+      activeProjectRoomCleared: activeProjectRoom === null,
+      allExpectedWindowsHidden: WIDGET_BUBBLE_TYPES.every((bubbleType) => !windows[bubbleType]?.windowVisible),
+      barWindowHidden: !barWindow?.windowVisible,
+      enabled: true,
+      syncLoopsStopped:
+        !isActivityAutoCaptureRunning() &&
+        !isManagedFolderAutoSyncRunning() &&
+        !isWidgetUsageAutoSyncRunning(),
     };
   } catch (error) {
     return {
@@ -334,6 +389,21 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
       );
     }
   }
+  if (snapshot.stopCleanupProbe.enabled) {
+    addCheck(failedChecks, !snapshot.stopCleanupProbe.error, "stopCleanupProbe:noError");
+    addCheck(
+      failedChecks,
+      snapshot.stopCleanupProbe.activeProjectRoomCleared,
+      "stopCleanupProbe:activeProjectRoomCleared",
+    );
+    addCheck(
+      failedChecks,
+      snapshot.stopCleanupProbe.allExpectedWindowsHidden,
+      "stopCleanupProbe:allExpectedWindowsHidden",
+    );
+    addCheck(failedChecks, snapshot.stopCleanupProbe.barWindowHidden, "stopCleanupProbe:barWindowHidden");
+    addCheck(failedChecks, snapshot.stopCleanupProbe.syncLoopsStopped, "stopCleanupProbe:syncLoopsStopped");
+  }
 
   return {
     failedChecks,
@@ -381,6 +451,17 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
   const windows = Object.fromEntries(windowEntries) as Record<WidgetBubbleType, TauriWidgetWindowQaState | null>;
   const missingVisibleBubbles = WIDGET_BUBBLE_TYPES.filter((bubbleType) => !windows[bubbleType]?.windowVisible);
   const managedFolderStatus = getManagedFolderAutoSyncStatus();
+  const syncRuntime = {
+    activityAutoCaptureRunning: isActivityAutoCaptureRunning(),
+    allAutoSyncLoopsRunning:
+      isActivityAutoCaptureRunning() &&
+      isManagedFolderAutoSyncRunning() &&
+      isWidgetUsageAutoSyncRunning(),
+    managedFolderAutoSyncRunning: isManagedFolderAutoSyncRunning(),
+    managedFolderStatus,
+    widgetUsageAutoSyncRunning: isWidgetUsageAutoSyncRunning(),
+  };
+  const stopCleanupProbe = await runRealOAuthStopCleanupProbe();
 
   return {
     activeProjectRoom: {
@@ -408,16 +489,8 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
     expectedBubbleTypes: WIDGET_BUBBLE_TYPES,
     localSession,
     localSyncProbe,
-    syncRuntime: {
-      activityAutoCaptureRunning: isActivityAutoCaptureRunning(),
-      allAutoSyncLoopsRunning:
-        isActivityAutoCaptureRunning() &&
-        isManagedFolderAutoSyncRunning() &&
-        isWidgetUsageAutoSyncRunning(),
-      managedFolderAutoSyncRunning: isManagedFolderAutoSyncRunning(),
-      managedFolderStatus,
-      widgetUsageAutoSyncRunning: isWidgetUsageAutoSyncRunning(),
-    },
+    stopCleanupProbe,
+    syncRuntime,
     tauriMirrorSession,
     widgetRuntime: {
       allExpectedWindowsVisible: missingVisibleBubbles.length === 0,
