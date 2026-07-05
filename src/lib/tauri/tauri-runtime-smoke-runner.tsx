@@ -1430,13 +1430,46 @@ async function runSmoke() {
       });
       assert(preview.status === "READY", "local file preview is readable", preview);
 
+      const csvSearch = await tauriCommands.searchLocalFiles({ limit: 5, query: "Runtime smoke CSV" });
+      const csvFile = csvSearch.items.find((item) => item.name === "runtime-smoke-table.csv");
+      assert(csvFile?.localFileId, "managed folder CSV file resolved for tabular preview", csvSearch);
+      const csvPreview = await tauriCommands.readLocalFilePreview({
+        localFileId: csvFile.localFileId,
+        maxChars: 500,
+      });
+      assert(
+        csvPreview.status === "READY" &&
+          Boolean(csvPreview.previewText?.includes("Runtime smoke CSV")) &&
+          Boolean(csvPreview.previewText?.includes("Managed folder table")),
+        "managed folder CSV preview is readable",
+        csvPreview,
+      );
+
       const stagedFiles = await tauriCommands.stageLocalFileEventsForSync({
-        limit: 10,
+        limit: 20,
         localFolderId: folder.localFolderId,
       });
       assert(stagedFiles.events.length >= 1, "local file events staged for backend sync", stagedFiles);
+      const stagedFileNames = localFileEventNames(stagedFiles.events);
+      assert(
+        stagedFileNames.has("runtime-smoke-table.csv") && !stagedFileNames.has("~$runtime-smoke-temp.csv"),
+        "managed folder temp CSV stayed ignored during initial scan",
+        stagedFiles,
+      );
 
       const initialSync = await syncStagedLocalFileEventsToBackend(stagedFiles);
+      const csvSyncIndex = stagedFiles.events.findIndex((event) => event.fileName === "runtime-smoke-table.csv");
+      const csvSyncResult =
+        csvSyncIndex >= 0
+          ? initialSync.response.results.find(
+              (result) => result.localEventId === stagedFiles.events[csvSyncIndex]?.localEventId,
+            ) ?? initialSync.response.results[csvSyncIndex]
+          : null;
+      assert(
+        csvSyncResult?.status === "SYNCED" && Boolean(csvSyncResult.resourceId),
+        "local CSV file event reached backend sync batch",
+        { csvSyncResult, stagedFiles },
+      );
       assert(
         initialSync.response.results.every((result) => result.status === "SYNCED") &&
           initialSync.markResult.failedCount === 0 &&
