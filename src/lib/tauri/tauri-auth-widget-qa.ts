@@ -26,13 +26,20 @@ import {
   type WidgetWindowBubbleType,
   type WidgetWindowState,
 } from "@/lib/tauri/commands";
-import { stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
+import {
+  readTauriAuthenticatedSurfacesLaunchTimeline,
+  stopTauriAuthenticatedSurfaces,
+  type TauriAuthenticatedSurfaceLaunchTimeline,
+} from "@/lib/tauri/authenticated-surfaces";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { isWidgetUsageAutoSyncRunning } from "@/lib/widget/widget-usage-auto-sync";
 import { WIDGET_BUBBLE_TYPES } from "@/lib/widget/widget-types";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 
 const REAL_OAUTH_LOCAL_SYNC_FOLDER_MARKER = "bubli-real-oauth-local-sync-";
+const REAL_OAUTH_LOCAL_SYNC_INITIAL_SEARCH_QUERY = "RealOAuthLocalSyncInitial";
+const REAL_OAUTH_LOCAL_SYNC_UPDATED_MARKER = "RealOAuthLocalSyncUpdated";
+const REAL_OAUTH_LOCAL_SYNC_UPDATED_SEARCH_QUERY = "searchable marker";
 
 type RealOAuthQaPrivacyConsents = {
   activityDetectionEnabled: boolean;
@@ -194,6 +201,7 @@ export type TauriAuthWidgetQaSnapshot = {
   expectedBubbleTypes: readonly WidgetBubbleType[];
   localSession: AuthSessionDiagnostics;
   localSyncProbe: TauriRealOAuthLocalSyncProbe;
+  launchTimeline: TauriAuthenticatedSurfaceLaunchTimeline;
   sessionRestoreProbe: TauriRealOAuthSessionRestoreProbe;
   stabilityProbe: TauriRealOAuthStabilityProbe;
   stopCleanupProbe: TauriRealOAuthStopCleanupProbe;
@@ -261,6 +269,18 @@ function addCheck(failedChecks: string[], condition: unknown, name: string) {
   if (!condition) {
     failedChecks.push(name);
   }
+}
+
+function timestampMs(value?: string) {
+  if (!value) return null;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function timestampOrder(left?: string, right?: string) {
+  const leftMs = timestampMs(left);
+  const rightMs = timestampMs(right);
+  return leftMs !== null && rightMs !== null && leftMs <= rightMs;
 }
 
 function shouldRunRealOAuthLocalSyncProbe() {
@@ -422,7 +442,10 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
     localFolderId = folder.localFolderId;
     await tauriCommands.setFolderSync({ enabled: true, localFolderId: folder.localFolderId });
     const scan = await tauriCommands.scanManagedFolder({ localFolderId: folder.localFolderId });
-    const initialSearch = await tauriCommands.searchLocalFiles({ limit: 10, query: "RealOAuthLocalSyncInitial" });
+    const initialSearch = await tauriCommands.searchLocalFiles({
+      limit: 10,
+      query: REAL_OAUTH_LOCAL_SYNC_INITIAL_SEARCH_QUERY,
+    });
     const noteFile = initialSearch.items.find((item) => item.name === fixtureFileName) ?? initialSearch.items[0];
     if (!noteFile?.localFileId) {
       return {
@@ -462,12 +485,12 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
       mutationRequested = true;
     }
 
+    const updatedPreview = await readLocalFilePreviewUntilMarker(noteFile.localFileId, REAL_OAUTH_LOCAL_SYNC_UPDATED_MARKER);
     const reindex = await tauriCommands.reindexFile({ localFileId: noteFile.localFileId });
-    const updatedSearch = await tauriCommands.searchLocalFiles({ limit: 10, query: "RealOAuthLocalSyncUpdated" });
-    const updatedPreview = await tauriCommands.readLocalFilePreview({
-      localFileId: noteFile.localFileId,
-      maxChars: 1_000,
-    });
+    const updatedSearch = await searchLocalFilesUntilMatch(
+      noteFile.localFileId,
+      REAL_OAUTH_LOCAL_SYNC_UPDATED_SEARCH_QUERY,
+    );
     const updatedEvents = await stageQaLocalFileEventsUntil(folder.localFolderId, (stage) =>
       stage.events.some((event) => event.localFileId === noteFile.localFileId && event.eventType === "UPDATED"),
     );
@@ -508,7 +531,7 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
       stagedUpdatedCount: qaUpdatedEvents.length,
       stagedUpdatedEventTypes: updatedEvents.events.map((event) => event.eventType),
       stagedUpdatedFileNames: updatedEvents.events.map((event) => event.fileName),
-      updatedPreviewIncludesMarker: Boolean(updatedPreview.previewText?.includes("RealOAuthLocalSyncUpdated")),
+      updatedPreviewIncludesMarker: Boolean(updatedPreview.previewText?.includes(REAL_OAUTH_LOCAL_SYNC_UPDATED_MARKER)),
       updatedPreviewReady: updatedPreview.status === "READY",
       updatedSearchMatched: updatedSearch.items.some((item) => item.localFileId === noteFile.localFileId),
       updateSyncFailedCount: updateSync.status === "ready" ? updateSync.data.failedCount : undefined,
@@ -527,6 +550,30 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
       await tauriCommands.removeManagedFolder({ localFolderId }).catch(() => undefined);
     }
   }
+}
+
+async function searchLocalFilesUntilMatch(localFileId: string, query: string, timeoutMs = 3_000) {
+  const startedAt = Date.now();
+  let latest = await tauriCommands.searchLocalFiles({ limit: 10, query });
+
+  while (!latest.items.some((item) => item.localFileId === localFileId) && Date.now() - startedAt < timeoutMs) {
+    await waitForMs(250);
+    latest = await tauriCommands.searchLocalFiles({ limit: 10, query });
+  }
+
+  return latest;
+}
+
+async function readLocalFilePreviewUntilMarker(localFileId: string, marker: string, timeoutMs = 3_000) {
+  const startedAt = Date.now();
+  let latest = await tauriCommands.readLocalFilePreview({ localFileId, maxChars: 1_000 });
+
+  while (!latest.previewText?.includes(marker) && Date.now() - startedAt < timeoutMs) {
+    await waitForMs(250);
+    latest = await tauriCommands.readLocalFilePreview({ localFileId, maxChars: 1_000 });
+  }
+
+  return latest;
 }
 
 async function runRealOAuthLocalSyncProbe(roomId: string | null): Promise<TauriRealOAuthLocalSyncProbe> {
@@ -758,6 +805,33 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
   assertRealGoogleSessionDiagnostics(failedChecks, snapshot.localSession, "local");
   assertRealGoogleSessionDiagnostics(failedChecks, snapshot.tauriMirrorSession, "tauriMirror");
   addCheck(failedChecks, snapshot.backend.me.ok, "backend:/api/me");
+  addCheck(failedChecks, snapshot.launchTimeline.completed, "launchTimeline:completed");
+  addCheck(failedChecks, !snapshot.launchTimeline.lastError, "launchTimeline:noError");
+  addCheck(
+    failedChecks,
+    snapshot.launchTimeline.authGateAfterBackendAuth,
+    "launchTimeline:authGateAfterBackendAuth",
+  );
+  addCheck(
+    failedChecks,
+    snapshot.launchTimeline.firstWidgetOpenAfterBackendAuth,
+    "launchTimeline:firstWidgetOpenAfterBackendAuth",
+  );
+  addCheck(
+    failedChecks,
+    timestampOrder(snapshot.launchTimeline.sessionMirrorStoredAt, snapshot.launchTimeline.barWindowOpenedAt),
+    "launchTimeline:mirrorStoredBeforeBar",
+  );
+  addCheck(
+    failedChecks,
+    timestampOrder(snapshot.launchTimeline.barWindowOpenedAt, snapshot.launchTimeline.bubbleWindowsOpenedAt),
+    "launchTimeline:barBeforeBubbles",
+  );
+  addCheck(
+    failedChecks,
+    timestampOrder(snapshot.launchTimeline.bubbleWindowsOpenedAt, snapshot.launchTimeline.syncLoopsStartedAt),
+    "launchTimeline:syncLoopsAfterWidgets",
+  );
   addCheck(failedChecks, snapshot.backend.widgetContext.ok, "backend:/api/widget/context");
   addCheck(failedChecks, snapshot.backend.widgetSummary.ok, "backend:/api/widget/summary");
   addCheck(failedChecks, snapshot.activeProjectRoom.hasSelectedRoom, "room:hasSelectedProjectRoom");
@@ -1035,6 +1109,7 @@ export async function readTauriAuthWidgetQaSnapshot(
     widgetUsageAutoSyncRunning: isWidgetUsageAutoSyncRunning(),
   };
   const stabilityProbe = await runRealOAuthStabilityProbe(selectedRoomId ?? null, serverSelectedRoomId);
+  const launchTimeline = readTauriAuthenticatedSurfacesLaunchTimeline();
   const sessionRestoreProbe = await runRealOAuthSessionRestoreProbe();
   const stopCleanupProbe =
     options.runStopCleanupProbe === false ? { enabled: false } : await runRealOAuthStopCleanupProbe();
@@ -1065,6 +1140,7 @@ export async function readTauriAuthWidgetQaSnapshot(
     expectedBubbleTypes: WIDGET_BUBBLE_TYPES,
     localSession,
     localSyncProbe,
+    launchTimeline,
     sessionRestoreProbe,
     stabilityProbe,
     stopCleanupProbe,

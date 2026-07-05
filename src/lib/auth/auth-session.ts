@@ -192,6 +192,32 @@ function clearTauriAuthSessionMirror() {
   void tauriCommands.clearTauriAuthSession().catch(() => undefined);
 }
 
+function clearLocalAuthSessionOnly() {
+  if (!canUseStorage()) {
+    return false;
+  }
+
+  try {
+    const hadStoredSession = Boolean(window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY));
+    window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+    if (hadStoredSession) {
+      emitAuthSessionChange();
+    }
+    return hadStoredSession;
+  } catch {
+    return false;
+  }
+}
+
+function clearRejectedStoredAuthSession() {
+  if (isTauriRuntime()) {
+    clearLocalAuthSessionOnly();
+    return;
+  }
+
+  clearStoredAuthSession();
+}
+
 export function getStoredAuthSession(): StoredAuthSession | null {
   if (!canUseStorage()) {
     return null;
@@ -205,17 +231,17 @@ export function getStoredAuthSession(): StoredAuthSession | null {
 
     const parsed = parseStoredAuthSession(raw);
     if (!parsed) {
-      clearStoredAuthSession();
+      clearRejectedStoredAuthSession();
       return null;
     }
     if (shouldRejectStoredAuthSession(parsed)) {
-      clearStoredAuthSession();
+      clearRejectedStoredAuthSession();
       return null;
     }
 
     return parsed;
   } catch {
-    clearStoredAuthSession();
+    clearRejectedStoredAuthSession();
     return null;
   }
 }

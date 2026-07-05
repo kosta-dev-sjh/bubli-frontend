@@ -7,7 +7,6 @@ import { authApi } from "@/features/auth/api/authApi";
 import { ApiClientError } from "@/lib/api/errors";
 import {
   AUTH_SESSION_CHANGE_EVENT,
-  clearStoredAuthSession,
   getStoredAuthSession,
   getStoredAuthSessionDiagnostics,
   readTauriAuthSessionDiagnostics,
@@ -83,7 +82,6 @@ export function TauriPostLoginLauncher() {
 
         if (error instanceof ApiClientError && error.status === 401) {
           await stopTauriAuthenticatedSurfaces();
-          clearStoredAuthSession();
         }
         return;
       }

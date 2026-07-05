@@ -3423,6 +3423,58 @@ fn search_local_files_fts(
     Ok(items)
 }
 
+fn search_local_files_content_like(
+    conn: &Connection,
+    query: &str,
+    limit: i64,
+) -> Result<Vec<LocalFileSearchItem>, String> {
+    let needle = format!("%{}%", query);
+    let mut stmt = conn
+        .prepare(
+            "SELECT f.id, f.file_name, f.local_path, f.updated_at, local_file_fts.content \
+             FROM local_file_fts \
+             JOIN local_files f ON f.id = local_file_fts.local_file_id \
+             WHERE local_file_fts.content LIKE ?1 \
+             ORDER BY f.updated_at DESC \
+             LIMIT ?2",
+        )
+        .map_err(|error| error.to_string())?;
+
+    let rows = stmt
+        .query_map(params![needle, limit], |row| {
+            let content: Option<String> = row.get(4)?;
+            Ok(LocalFileSearchItem {
+                local_file_id: row.get(0)?,
+                name: row.get(1)?,
+                path: row.get(2)?,
+                updated_at: ms_to_iso(row.get::<_, i64>(3)?),
+                matched_text: content
+                    .and_then(|value| find_content_like_snippet(&value, query))
+                    .filter(|value| !value.trim().is_empty()),
+            })
+        })
+        .map_err(|error| error.to_string())?;
+
+    let mut items = Vec::new();
+    for row in rows {
+        items.push(row.map_err(|error| error.to_string())?);
+    }
+    Ok(items)
+}
+
+fn find_content_like_snippet(content: &str, query: &str) -> Option<String> {
+    let query = query.trim();
+    if query.is_empty() {
+        return None;
+    }
+
+    let lower_query = query.to_lowercase();
+    content
+        .lines()
+        .find(|line| line.to_lowercase().contains(&lower_query))
+        .map(|line| truncate_chars(line.trim(), 180))
+}
+
 fn escape_fts_query(query: &str) -> String {
     format!("\"{}\"", query.replace('"', "\"\""))
 }
@@ -3449,6 +3501,14 @@ fn search_local_files_for_conn(
             Ok(_) => {}
             Err(error) => {
                 eprintln!("local file FTS search failed; falling back to LIKE: {error}");
+            }
+        }
+
+        match search_local_files_content_like(&conn, &query, limit) {
+            Ok(items) if !items.is_empty() => return Ok(LocalFileSearchResult { items }),
+            Ok(_) => {}
+            Err(error) => {
+                eprintln!("local file content LIKE search failed; falling back to file name/path: {error}");
             }
         }
     }

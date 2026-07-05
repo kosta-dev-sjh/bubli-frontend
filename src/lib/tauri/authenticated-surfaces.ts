@@ -22,9 +22,39 @@ let launchPromise: Promise<void> | null = null;
 let launchGeneration = 0;
 let launchedAuthenticatedSurfaces = false;
 
+export type TauriAuthenticatedSurfaceLaunchTimeline = {
+  authGateAfterBackendAuth?: boolean;
+  authGateEnabledAt?: string;
+  barWindowOpenedAt?: string;
+  backendAuthValidationSource?: "caller" | "launcher";
+  backendAuthValidatedAt?: string;
+  bubbleWindowsOpenedAt?: string;
+  completed: boolean;
+  firstWidgetOpenAfterBackendAuth?: boolean;
+  launchCompletedAt?: string;
+  launchStartedAt?: string;
+  lastError?: string;
+  reusedExistingWindowsAt?: string;
+  selectedRoomResolvedAt?: string;
+  sessionMirrorStoredAt?: string;
+  startupWindowsResolvedAt?: string;
+  stoppedAt?: string;
+  syncLoopsStartedAt?: string;
+};
+
 type LaunchTauriAuthenticatedSurfacesOptions = {
   sessionAlreadyValidated?: boolean;
 };
+
+let lastLaunchTimeline: TauriAuthenticatedSurfaceLaunchTimeline = { completed: false };
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+export function readTauriAuthenticatedSurfacesLaunchTimeline(): TauriAuthenticatedSurfaceLaunchTimeline {
+  return { ...lastLaunchTimeline };
+}
 
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
 // 메뉴 오브 창도 로그인 시 자동 실행 목록에 함께 띄운다.
@@ -256,6 +286,13 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
   launchRequested = true;
   const generation = ++launchGeneration;
   launchPromise = (async () => {
+    const launchStartedAt = nowIso();
+    const timeline: TauriAuthenticatedSurfaceLaunchTimeline = {
+      completed: false,
+      launchStartedAt,
+    };
+    lastLaunchTimeline = timeline;
+
     const initialSession = getStoredAuthSession();
     if (!initialSession) {
       throw new Error("Tauri authenticated surfaces require a stored auth session");
@@ -264,23 +301,55 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
     if (!options.sessionAlreadyValidated) {
       await authApi.getMe();
     }
+    timeline.backendAuthValidationSource = options.sessionAlreadyValidated ? "caller" : "launcher";
+    timeline.backendAuthValidatedAt = nowIso();
 
     const verifiedSession = getStoredAuthSession() ?? initialSession;
     if (verifiedSession) {
       await setStoredAuthSessionAndWaitForTauriMirror(verifiedSession);
     }
+    timeline.sessionMirrorStoredAt = nowIso();
 
     const startupWindows = await resolveLoginStartupWindows();
+    timeline.startupWindowsResolvedAt = nowIso();
     if (launchedAuthenticatedSurfaces) {
       const ready = await authenticatedStartupWindowsReady(startupWindows);
-      if (ready) return;
+      if (ready) {
+        await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true }).catch(() => undefined);
+        timeline.authGateEnabledAt = nowIso();
+        timeline.authGateAfterBackendAuth = Boolean(
+          timeline.backendAuthValidatedAt &&
+            new Date(timeline.authGateEnabledAt).getTime() >= new Date(timeline.backendAuthValidatedAt).getTime(),
+        );
+        startActivityAutoCapture();
+        startManagedFolderAutoSync();
+        startWidgetUsageAutoSync();
+        timeline.completed = true;
+        timeline.reusedExistingWindowsAt = nowIso();
+        timeline.barWindowOpenedAt = timeline.reusedExistingWindowsAt;
+        timeline.bubbleWindowsOpenedAt = timeline.reusedExistingWindowsAt;
+        timeline.firstWidgetOpenAfterBackendAuth = Boolean(
+          timeline.backendAuthValidatedAt &&
+            new Date(timeline.reusedExistingWindowsAt).getTime() >=
+              new Date(timeline.backendAuthValidatedAt).getTime(),
+        );
+        timeline.syncLoopsStartedAt = timeline.reusedExistingWindowsAt;
+        timeline.launchCompletedAt = timeline.reusedExistingWindowsAt;
+        return;
+      }
 
       launchedAuthenticatedSurfaces = false;
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
     }
 
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true });
+    timeline.authGateEnabledAt = nowIso();
+    timeline.authGateAfterBackendAuth = Boolean(
+      timeline.backendAuthValidatedAt &&
+        new Date(timeline.authGateEnabledAt).getTime() >= new Date(timeline.backendAuthValidatedAt).getTime(),
+    );
     const selectedRoomId = await resolveLaunchSelectedRoomId();
+    timeline.selectedRoomResolvedAt = nowIso();
     if (generation !== launchGeneration) {
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
       await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
@@ -302,6 +371,11 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
       const barResult = await openWidgetWindowWithRetry(barWindow, selectedRoomId, shouldContinueLaunch);
       if (barResult.status === "fulfilled") {
         openedWindows.push(barWindow);
+        timeline.barWindowOpenedAt = nowIso();
+        timeline.firstWidgetOpenAfterBackendAuth = Boolean(
+          timeline.backendAuthValidatedAt &&
+            new Date(timeline.barWindowOpenedAt).getTime() >= new Date(timeline.backendAuthValidatedAt).getTime(),
+        );
       } else {
         rejectedReasons.push(barResult.reason);
       }
@@ -314,9 +388,14 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
     }
 
     const bubbleResults = await openWidgetWindowsWithRetry(bubbleWindows, selectedRoomId, shouldContinueLaunch);
+    timeline.bubbleWindowsOpenedAt = nowIso();
     for (const result of bubbleResults) {
       if (result.status === "fulfilled") {
         openedWindows.push(result.input);
+        timeline.firstWidgetOpenAfterBackendAuth ??= Boolean(
+          timeline.backendAuthValidatedAt &&
+            new Date(timeline.bubbleWindowsOpenedAt).getTime() >= new Date(timeline.backendAuthValidatedAt).getTime(),
+        );
       } else {
         rejectedReasons.push(result.reason);
       }
@@ -355,14 +434,22 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
     startActivityAutoCapture();
     startManagedFolderAutoSync();
     startWidgetUsageAutoSync();
+    timeline.syncLoopsStartedAt = nowIso();
     // All requested windows opened; this login cycle is active.
     // Partial launches are cleaned up above so bar-only startup cannot hide a
     // failed bubble batch.
     launchedAuthenticatedSurfaces = true;
     launchRequested = true;
+    timeline.completed = true;
+    timeline.launchCompletedAt = nowIso();
   })()
     .catch(async (error) => {
       launchRequested = false;
+      lastLaunchTimeline = {
+        ...lastLaunchTimeline,
+        completed: false,
+        lastError: error instanceof Error ? error.message : String(error),
+      };
       await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
       throw error;
     })
@@ -378,6 +465,11 @@ export async function stopTauriAuthenticatedSurfaces() {
   launchRequested = false;
   launchPromise = null;
   launchedAuthenticatedSurfaces = false;
+  lastLaunchTimeline = {
+    ...lastLaunchTimeline,
+    completed: false,
+    stoppedAt: nowIso(),
+  };
   await stopActivityAutoCapture({ flush: true });
   await stopManagedFolderAutoSync({ flush: true });
   await stopWidgetUsageAutoSync({ flush: true });

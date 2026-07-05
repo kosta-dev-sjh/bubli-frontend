@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 import { AUTH_SESSION_CHANGE_EVENT } from "@/lib/auth/auth-session";
@@ -18,7 +18,26 @@ type RealOAuthQaReport = {
   finishedAt: string;
   platform: string;
   reason: string;
+  routeProbe: RealOAuthQaRouteProbe;
   status: "failed" | "passed";
+};
+
+type RealOAuthQaRouteEntry = {
+  hasAuthGate: boolean;
+  hasLoginSurface: boolean;
+  pathname: string;
+  timestamp: string;
+};
+
+type RealOAuthQaRouteProbe = {
+  expectedPathPrefix: "/app";
+  finalPathname: string;
+  history: RealOAuthQaRouteEntry[];
+  ok: boolean;
+  sawAuthGateAfterGrace: boolean;
+  sawLoginPathAfterGrace: boolean;
+  sawLoginSurfaceAfterGrace: boolean;
+  sampleCount: number;
 };
 
 type RealOAuthQaEvent = {
@@ -50,6 +69,8 @@ const realOAuthQaIntervalMs = readPositiveNumber(
   process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_INTERVAL_MS,
   2_000,
 );
+const routeProbeGraceMs = 1_500;
+const routeProbeMaxHistory = 40;
 
 function readPositiveNumber(value: string | undefined, fallback: number) {
   const parsed = Number(value);
@@ -111,11 +132,31 @@ function postRealOAuthQaEvent(event: Omit<RealOAuthQaEvent, "timestamp">) {
   }).catch(() => undefined);
 }
 
+function currentPathname(fallback: string) {
+  if (typeof window === "undefined") return fallback;
+  return window.location.pathname || fallback;
+}
+
+function readRouteEntry(pathname: string): RealOAuthQaRouteEntry {
+  return {
+    hasAuthGate: typeof document !== "undefined" && Boolean(document.querySelector(".bubli-auth-gate")),
+    hasLoginSurface: typeof document !== "undefined" && Boolean(document.querySelector(".auth-page .auth-card__submit")),
+    pathname,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function pruneRouteHistory(history: RealOAuthQaRouteEntry[]) {
+  if (history.length <= routeProbeMaxHistory) return history;
+  return history.slice(history.length - routeProbeMaxHistory);
+}
+
 function reportPayload(
   status: RealOAuthQaReport["status"],
   startedAt: number,
   reason: string,
   attemptCount: number,
+  routeProbe: RealOAuthQaRouteProbe,
   assertion?: TauriRealGoogleAuthWidgetQaAssertion,
   error?: string,
 ): RealOAuthQaReport {
@@ -127,6 +168,7 @@ function reportPayload(
     finishedAt: new Date().toISOString(),
     platform: navigator.userAgent,
     reason,
+    routeProbe,
     status,
   };
 }
@@ -134,6 +176,58 @@ function reportPayload(
 export function TauriRealOAuthQaReporter() {
   const pathname = usePathname();
   const isDesktopWidgetSurface = pathname === "/desktop-widget" || pathname.startsWith("/desktop-widget/");
+  const routeHistoryRef = useRef<RealOAuthQaRouteEntry[]>([]);
+  const routeProbeStateRef = useRef({
+    runStartedAt: 0,
+    sampleCount: 0,
+    sawAuthGateAfterGrace: false,
+    sawLoginPathAfterGrace: false,
+    sawLoginSurfaceAfterGrace: false,
+  });
+
+  const recordRouteSample = useCallback((nextPathname = currentPathname(pathname)) => {
+    const entry = readRouteEntry(nextPathname);
+    routeHistoryRef.current = pruneRouteHistory([...routeHistoryRef.current, entry]);
+
+    const runStartedAt = routeProbeStateRef.current.runStartedAt;
+    const afterGrace = runStartedAt > 0 && Date.now() - runStartedAt >= routeProbeGraceMs;
+    routeProbeStateRef.current.sampleCount += 1;
+    if (afterGrace) {
+      routeProbeStateRef.current.sawAuthGateAfterGrace ||= entry.hasAuthGate;
+      routeProbeStateRef.current.sawLoginPathAfterGrace ||= entry.pathname === "/login";
+      routeProbeStateRef.current.sawLoginSurfaceAfterGrace ||= entry.hasLoginSurface;
+    }
+
+    return entry;
+  }, [pathname]);
+
+  const buildRouteProbe = useCallback((): RealOAuthQaRouteProbe => {
+    const finalPathname = currentPathname(pathname);
+    const finalEntry = recordRouteSample(finalPathname);
+    const state = routeProbeStateRef.current;
+    const history = pruneRouteHistory([...routeHistoryRef.current]);
+
+    return {
+      expectedPathPrefix: "/app",
+      finalPathname,
+      history,
+      ok:
+        finalPathname.startsWith("/app") &&
+        !state.sawAuthGateAfterGrace &&
+        !state.sawLoginPathAfterGrace &&
+        !state.sawLoginSurfaceAfterGrace &&
+        !finalEntry.hasAuthGate &&
+        !finalEntry.hasLoginSurface,
+      sawAuthGateAfterGrace: state.sawAuthGateAfterGrace,
+      sawLoginPathAfterGrace: state.sawLoginPathAfterGrace,
+      sawLoginSurfaceAfterGrace: state.sawLoginSurfaceAfterGrace,
+      sampleCount: state.sampleCount,
+    };
+  }, [pathname, recordRouteSample]);
+
+  useEffect(() => {
+    recordRouteSample(pathname);
+  }, [pathname, recordRouteSample]);
 
   useEffect(() => {
     const isTauri = isTauriRuntime();
@@ -191,6 +285,14 @@ export function TauriRealOAuthQaReporter() {
       const startedAt = Date.now();
       let attemptCount = 0;
       let latestAssertion: TauriRealGoogleAuthWidgetQaAssertion | undefined;
+      routeProbeStateRef.current = {
+        runStartedAt: startedAt,
+        sampleCount: 0,
+        sawAuthGateAfterGrace: false,
+        sawLoginPathAfterGrace: false,
+        sawLoginSurfaceAfterGrace: false,
+      };
+      const routeProbeTimer = window.setInterval(() => recordRouteSample(), 250);
 
       try {
         postRealOAuthQaEvent({ pathname, reason, stage: "run-start" });
@@ -210,7 +312,7 @@ export function TauriRealOAuthQaReporter() {
           }
 
           if (latestAssertion.ok) {
-            const report = reportPayload("passed", startedAt, reason, attemptCount, latestAssertion);
+            const report = reportPayload("passed", startedAt, reason, attemptCount, buildRouteProbe(), latestAssertion);
             await postRealOAuthQaReport(report);
             postRealOAuthQaEvent({ attemptCount, ok: true, pathname, reason, stage: "report-posted" });
             reported = true;
@@ -226,6 +328,7 @@ export function TauriRealOAuthQaReporter() {
             startedAt,
             reason,
             attemptCount,
+            buildRouteProbe(),
             latestAssertion,
             "Timed out waiting for a real Google TAURI session with all widgets ready.",
           );
@@ -249,6 +352,7 @@ export function TauriRealOAuthQaReporter() {
             startedAt,
             reason,
             attemptCount,
+            buildRouteProbe(),
             latestAssertion,
             error instanceof Error ? error.message : String(error),
           );
@@ -256,6 +360,7 @@ export function TauriRealOAuthQaReporter() {
           reported = true;
         }
       } finally {
+        window.clearInterval(routeProbeTimer);
         running = false;
       }
     }
@@ -270,7 +375,7 @@ export function TauriRealOAuthQaReporter() {
       window.clearTimeout(initialTimer);
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
     };
-  }, [isDesktopWidgetSurface, pathname]);
+  }, [buildRouteProbe, isDesktopWidgetSurface, pathname, recordRouteSample]);
 
   return null;
 }
