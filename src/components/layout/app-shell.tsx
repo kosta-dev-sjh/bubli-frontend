@@ -131,6 +131,7 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isDesktopRuntime = isTauriRuntime();
   const [state, setState] = useState<ShellState>({ kind: "loading" });
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(() => getActiveProjectRoomId());
   const [selectedRoomLabel, setSelectedRoomLabel] = useState<string | null>(() => getActiveProjectRoomLabel());
@@ -199,6 +200,12 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
         if (!isCurrentRun()) return;
+
+        setState((current) =>
+          current.kind === "ready"
+            ? { ...current, user }
+            : { kind: "ready", notifications: [], rooms: roomsRef.current, user },
+        );
 
         const [roomPageResult, widgetContextResult] = await Promise.allSettled([
           projectRoomApi.list(),
@@ -353,14 +360,14 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     if (state.kind === "auth") {
-      if (isTauriRuntime()) {
+      if (isDesktopRuntime) {
         void stopTauriAuthenticatedSurfaces().catch((error) => {
           console.warn("Failed to stop Tauri authenticated surfaces after auth reset.", error);
         });
       }
       router.replace("/login");
     }
-  }, [router, state.kind]);
+  }, [isDesktopRuntime, router, state.kind]);
 
   useEffect(() => {
     roomsRef.current = state.kind === "ready" ? state.rooms : [];
@@ -484,6 +491,14 @@ export function AppShell({ children }: AppShellProps) {
     }
 
     if (state.kind === "auth") {
+      if (isDesktopRuntime) {
+        return {
+          description: t("layout.project.checking"),
+          name: t("layout.project.selectRoom"),
+          statusLabel: "",
+        };
+      }
+
       return {
         description: t("layout.project.loginToStart"),
         name: t("layout.project.loginRequired"),
@@ -514,7 +529,7 @@ export function AppShell({ children }: AppShellProps) {
     }
 
     return routeFallbackProject(t);
-  }, [activeRoom, selectedRoom, selectedRoomId, selectedRoomLabel, state, t]);
+  }, [activeRoom, isDesktopRuntime, selectedRoom, selectedRoomId, selectedRoomLabel, state, t]);
 
   const topbarUser = useMemo(() => {
     if (state.kind === "offline" && state.user) {
@@ -528,7 +543,7 @@ export function AppShell({ children }: AppShellProps) {
 
     if (state.kind !== "ready") {
       return {
-        displayName: state.kind === "auth" ? t("common.login") : "Bubli",
+        displayName: state.kind === "auth" && !isDesktopRuntime ? t("common.login") : "Bubli",
         email: state.kind === "offline" ? t("layout.user.serverWaiting") : t("layout.user.checking"),
         initials: "B",
       };
@@ -540,7 +555,7 @@ export function AppShell({ children }: AppShellProps) {
       email: state.user.email ?? (state.user.bubliId ? `@${state.user.bubliId}` : t("layout.user.loggedIn")),
       initials: initialsFromName(state.user.name),
     };
-  }, [state, t]);
+  }, [isDesktopRuntime, state, t]);
 
   const closeTopbarMenus = useCallback(() => {
     setTopbarMenu(null);

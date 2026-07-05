@@ -1075,6 +1075,16 @@ assertContains(
 );
 assertContains(
   appShell,
+  /user = await authApi\.getMe\(\);[\s\S]*setState\(\(current\) =>[\s\S]*\{ kind: "ready", notifications: \[\], rooms: roomsRef\.current, user \}[\s\S]*projectRoomApi\.list\(\),[\s\S]*widgetApi\.getContext\(\),/,
+  "AppShell must open the authenticated Tauri shell immediately after /api/me before slower room and widget context hydration.",
+);
+assertContains(
+  appShell,
+  /if \(state\.kind === "auth"\) \{[\s\S]*if \(isDesktopRuntime\) \{[\s\S]*description: t\("layout\.project\.checking"\)[\s\S]*name: t\("layout\.project\.selectRoom"\)/,
+  "Hybrid Tauri app must keep the topbar in a checking state instead of flashing login-required labels during auth recovery.",
+);
+assertContains(
+  appShell,
   /if \(isTauriRuntime\(\) && !getActiveProjectRoomId\(\) && roomPage\.items\[0\]\) \{[\s\S]*widgetApi\.updateContext\(\{ selectedRoomId: firstRoom\.id \}\)/,
   "AppShell first-room fallback must stay Tauri-only so the web shell does not silently change widget context.",
 );
@@ -1143,6 +1153,11 @@ assertContains(
   authApi,
   /async loginWithDevAccessToken\(accessToken: string\) \{[\s\S]*assertDevAccessTokenLoginAllowed\(\);/,
   "authApi.loginWithDevAccessToken must enforce the dev-login guard before calling /api/me.",
+);
+assertContains(
+  authApi,
+  /async callbackGoogle\(input: GoogleCallbackRequest\)[\s\S]*if \(input\.clientType === "TAURI"\) \{[\s\S]*await setStoredAuthSessionAndWaitForTauriMirror\(\{ \.\.\.token, clientType: input\.clientType \}\)[\s\S]*\} else \{[\s\S]*setStoredAuthSession\(\{ \.\.\.token, clientType: input\.clientType \}\)/,
+  "Shared Google OAuth callback must wait for the Tauri auth mirror before redirecting when the client type is TAURI.",
 );
 assertContains(
   authSession,
