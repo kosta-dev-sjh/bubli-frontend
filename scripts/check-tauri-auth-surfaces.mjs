@@ -450,6 +450,11 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /closeWidgetWindow\(\{ bubbleType: "chat", windowId: "chat" \}\)[\s\S]*post-login relaunch setup closed one bubble widget[\s\S]*launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher reopened stale or missing bubble widget windows/,
+  "TauriRuntimeSmokeRunner must prove the post-login launcher recovers stale launched state when a bubble window disappears.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /const authWidgetQaSnapshot = await readTauriAuthWidgetQaSnapshot\(\);[\s\S]*post-login QA snapshot confirmed Tauri auth session without raw tokens[\s\S]*post-login QA snapshot confirmed real backend auth and widget APIs[\s\S]*post-login QA snapshot confirmed project room context across memory Tauri and backend[\s\S]*post-login QA snapshot confirmed all widget windows and restore items[\s\S]*stopTauriAuthenticatedSurfaces\(\)/,
   "TauriRuntimeSmokeRunner must verify the redacted QA snapshot after the post-login launcher opens authenticated widgets.",
 );
@@ -651,12 +656,22 @@ assertContains(
 );
 assertContains(
   surfaces,
+  /authenticatedStartupWindowsReady[\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*state\.windowVisible/,
+  "launchTauriAuthenticatedSurfaces must verify already-launched widget windows are still visible.",
+);
+assertContains(
+  surfaces,
+  /if \(launchedAuthenticatedSurfaces\) \{[\s\S]*authenticatedStartupWindowsReady\(startupWindows\)[\s\S]*if \(ready\) return;[\s\S]*launchedAuthenticatedSurfaces = false;[\s\S]*closeAllWidgetWindows\(\)/,
+  "launchTauriAuthenticatedSurfaces must recover stale launched state when login widgets were closed or disappeared.",
+);
+assertContains(
+  surfaces,
   /const selectedRoomId = await resolveLaunchSelectedRoomId\(\);/,
   "launchTauriAuthenticatedSurfaces must resolve active project-room context before opening widgets.",
 );
 assertContains(
   surfaces,
-  /const selectedRoomId = await resolveLaunchSelectedRoomId\(\);[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*const startupWindows = await resolveLoginStartupWindows\(\);/,
+  /const startupWindows = await resolveLoginStartupWindows\(\);[\s\S]*const selectedRoomId = await resolveLaunchSelectedRoomId\(\);[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;/,
   "launchTauriAuthenticatedSurfaces must cancel cleanly if auth/session state changes after resolving the project-room context.",
 );
 assertContains(

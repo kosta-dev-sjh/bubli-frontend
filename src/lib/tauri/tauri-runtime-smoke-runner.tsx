@@ -1334,6 +1334,20 @@ async function runSmoke() {
       "post-login launcher opened all bubble widgets with project room context",
       launcherWidgetStates,
     );
+    await tauriCommands.closeWidgetWindow({ bubbleType: "chat", windowId: "chat" });
+    const closedChatWidgetState = await tauriCommands.getWidgetWindowState({ bubbleType: "chat", windowId: "chat" });
+    assert(!closedChatWidgetState.windowVisible, "post-login relaunch setup closed one bubble widget", closedChatWidgetState);
+    await launchTauriAuthenticatedSurfaces();
+    const relaunchedWidgetStates = await Promise.all(
+      smokeWidgetBubbles.map((bubbleType) =>
+        tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
+      ),
+    );
+    assert(
+      relaunchedWidgetStates.every((widget) => widget.windowVisible && widget.selectedRoomId === smokeRoomId),
+      "post-login launcher reopened stale or missing bubble widget windows",
+      relaunchedWidgetStates,
+    );
     assert(
       isActivityAutoCaptureRunning() &&
         isManagedFolderAutoSyncRunning() &&
