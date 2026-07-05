@@ -16,6 +16,7 @@ const files = {
   projectRoomChatRoute: "src/app/(workspace)/app/project-rooms/[roomId]/chat/page.tsx",
   layout: "src/app/layout.tsx",
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
+  realOAuthQaReporter: "src/lib/tauri/tauri-real-oauth-qa-reporter.tsx",
   authWidgetQa: "src/lib/tauri/tauri-auth-widget-qa.ts",
   runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
   tauriCapability: "src-tauri/capabilities/default.json",
@@ -23,6 +24,7 @@ const files = {
   tauriDevtoolsGuard: "src/lib/tauri/tauri-devtools-guard.tsx",
   tauriLib: "src-tauri/src/lib.rs",
   runtimePreflight: "scripts/check-tauri-runtime-preflight.mjs",
+  realOAuthQaScript: "scripts/qa-tauri-real-oauth-manual.mjs",
   windowsRuntimeSmoke: "scripts/check-tauri-windows-runtime-smoke.mjs",
   widgetAuthHeaders: "src/features/widget/api/widgetAuthHeaders.ts",
   workspaceActiveRoom: "src/lib/workspace-active-room.ts",
@@ -80,6 +82,7 @@ function extractTypeObject(source, typeName) {
 const layout = read(files.layout);
 const packageJson = read(files.packageJson);
 const launcher = read(files.postLoginLauncher);
+const realOAuthQaReporter = read(files.realOAuthQaReporter);
 const authWidgetQa = read(files.authWidgetQa);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
 const tauriCapability = read(files.tauriCapability);
@@ -87,6 +90,7 @@ const tauriConf = read(files.tauriConf);
 const tauriDevtoolsGuard = read(files.tauriDevtoolsGuard);
 const tauriLib = read(files.tauriLib);
 const runtimePreflight = read(files.runtimePreflight);
+const realOAuthQaScript = read(files.realOAuthQaScript);
 const surfaces = read(files.authenticatedSurfaces);
 const chatWidgetRouting = read(files.chatWidgetRouting);
 const appNav = read(files.appNav);
@@ -109,6 +113,46 @@ assertContains(
   packageJson,
   /"check:tauri-runtime-preflight":\s*"node scripts\/check-tauri-runtime-preflight\.mjs"/,
   "package.json must expose the Windows Tauri runtime preflight script.",
+);
+assertContains(
+  packageJson,
+  /"qa:tauri-real-oauth":\s*"node scripts\/qa-tauri-real-oauth-manual\.mjs"/,
+  "package.json must expose the manual-assisted Tauri real Google OAuth QA script.",
+);
+assertContains(
+  layout,
+  /<TauriRealOAuthQaReporter\s*\/>/,
+  "Root layout must mount TauriRealOAuthQaReporter so manual real Google OAuth QA can collect a redacted report.",
+);
+assertContains(
+  realOAuthQaReporter,
+  /process\.env\.NODE_ENV === "development"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL/,
+  "TauriRealOAuthQaReporter must require the explicit development-only real OAuth QA env flag and report URL.",
+);
+assertContains(
+  realOAuthQaReporter,
+  /AUTH_SESSION_CHANGE_EVENT[\s\S]*assertTauriRealGoogleAuthWidgetQa\(\)[\s\S]*postRealOAuthQaReport/,
+  "TauriRealOAuthQaReporter must run the redacted real Google OAuth widget assertion after auth changes and POST the report.",
+);
+assertContains(
+  realOAuthQaReporter,
+  /runtimeSmokeEnabled[\s\S]*!realOAuthQaEnabled/,
+  "TauriRealOAuthQaReporter must stay disabled during runtime smoke and unless the real OAuth QA flag is enabled.",
+);
+assertNotContains(
+  realOAuthQaReporter,
+  /NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN|accessToken\s*[?:]:|refreshToken\s*[?:]:|sessionJson\s*[?:]:/,
+  "TauriRealOAuthQaReporter must not depend on dev tokens or expose raw auth secrets.",
+);
+assertContains(
+  realOAuthQaScript,
+  /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN:\s*"false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL/,
+  "Manual real OAuth QA script must launch Tauri with dev-login disabled and the real OAuth QA report bridge enabled.",
+);
+assertNotContains(
+  realOAuthQaScript,
+  /NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN/,
+  "Manual real OAuth QA script must not inject a dev access token.",
 );
 assertContains(
   windowsRuntimeSmoke,

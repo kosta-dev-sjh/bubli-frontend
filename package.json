@@ -29,7 +29,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:dev:backend": "node scripts/dev-widget-real-backend.mjs tauri",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "qa:tauri-real-oauth": "node scripts/qa-tauri-real-oauth-manual.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

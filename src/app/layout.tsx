@@ -7,6 +7,7 @@ import { siteConfig } from "@/config/site";
 import { Providers } from "@/app/providers";
 import { TauriDevtoolsGuard } from "@/lib/tauri/tauri-devtools-guard";
 import { TauriPostLoginLauncher } from "@/lib/tauri/tauri-post-login-launcher";
+import { TauriRealOAuthQaReporter } from "@/lib/tauri/tauri-real-oauth-qa-reporter";
 import { TauriRuntimeSmokeRunner } from "@/lib/tauri/tauri-runtime-smoke-runner";
 
 export const metadata: Metadata = {
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         <Providers>
           <TauriDevtoolsGuard />
           <TauriPostLoginLauncher />
+          <TauriRealOAuthQaReporter />
           <TauriRuntimeSmokeRunner />
           {children}
         </Providers>
