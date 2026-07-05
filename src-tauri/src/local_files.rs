@@ -1524,6 +1524,9 @@ fn extract_text_preview(path: &Path) -> Option<String> {
     if is_supported_docx_file(path) {
         return extract_docx_text(path).ok().filter(|text| !text.is_empty());
     }
+    if is_supported_hwpx_file(path) {
+        return extract_hwpx_text(path).ok().filter(|text| !text.is_empty());
+    }
     if is_supported_xlsx_file(path) {
         return extract_xlsx_text(path).ok().filter(|text| !text.is_empty());
     }
@@ -1558,6 +1561,7 @@ fn extract_text_preview(path: &Path) -> Option<String> {
 fn is_supported_text_file(path: &Path) -> bool {
     is_supported_plain_text_file(path)
         || is_supported_docx_file(path)
+        || is_supported_hwpx_file(path)
         || is_supported_xlsx_file(path)
         || is_supported_pptx_file(path)
         || is_supported_pdf_file(path)
@@ -1580,6 +1584,12 @@ fn is_supported_plain_text_file(path: &Path) -> bool {
 fn is_supported_docx_file(path: &Path) -> bool {
     path.extension()
         .map(|value| value.to_string_lossy().eq_ignore_ascii_case("docx"))
+        .unwrap_or(false)
+}
+
+fn is_supported_hwpx_file(path: &Path) -> bool {
+    path.extension()
+        .map(|value| value.to_string_lossy().eq_ignore_ascii_case("hwpx"))
         .unwrap_or(false)
 }
 
@@ -1614,6 +1624,36 @@ fn extract_docx_text(path: &Path) -> Result<String, String> {
     let document_xml = read_zip_entry(&bytes, "word/document.xml")?;
     let xml = String::from_utf8_lossy(&document_xml);
     let text = extract_docx_xml_text(&xml);
+    if text.is_empty() {
+        return Err("EMPTY".to_string());
+    }
+
+    Ok(text)
+}
+
+fn extract_hwpx_text(path: &Path) -> Result<String, String> {
+    let metadata = match std::fs::metadata(path) {
+        Ok(value) if value.is_file() => value,
+        _ => return Err("MISSING".to_string()),
+    };
+    if metadata.len() > MAX_EXTRACT_BYTES {
+        return Err("TOO_LARGE".to_string());
+    }
+
+    let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
+    let mut section_entries = read_zip_entries_with_prefix(&bytes, "Contents/section", ".xml")?;
+    section_entries.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let mut sections = Vec::new();
+    for (_name, xml_bytes) in section_entries {
+        let xml = String::from_utf8_lossy(&xml_bytes);
+        let section_text = extract_hwpx_xml_text(&xml);
+        if !section_text.trim().is_empty() {
+            sections.push(section_text);
+        }
+    }
+
+    let text = sections.join("\n").trim().to_string();
     if text.is_empty() {
         return Err("EMPTY".to_string());
     }
@@ -2043,6 +2083,15 @@ fn extract_pptx_xml_text(xml: &str) -> String {
     runs.join(" ")
 }
 
+fn extract_hwpx_xml_text(xml: &str) -> String {
+    extract_xml_text_runs_by_local_name(xml, "t")
+        .into_iter()
+        .map(|run| clean_sentence(&run))
+        .filter(|run| !run.trim().is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 fn extract_xlsx_shared_strings(xml: &str) -> Vec<String> {
     let mut items = Vec::new();
     let mut rest = xml;
@@ -2132,6 +2181,50 @@ fn extract_first_xml_text(xml: &str, tag_name: &str) -> Option<String> {
     Some(xml_unescape(&rest[..text_end]))
 }
 
+fn extract_xml_text_runs_by_local_name(xml: &str, local_name: &str) -> Vec<String> {
+    let mut runs = Vec::new();
+    let mut cursor = 0usize;
+
+    while let Some(relative_start) = xml[cursor..].find('<') {
+        let tag_start = cursor + relative_start;
+        let Some(after_lt) = xml.get(tag_start + 1..) else {
+            break;
+        };
+        if after_lt.starts_with('/') || after_lt.starts_with('!') || after_lt.starts_with('?') {
+            cursor = tag_start + 1;
+            continue;
+        }
+        let Some(tag_end_relative) = xml[tag_start..].find('>') else {
+            break;
+        };
+        let tag_end = tag_start + tag_end_relative;
+        let tag_body = &xml[tag_start + 1..tag_end];
+        let tag_name = tag_body
+            .split(|value: char| value.is_whitespace() || value == '/' || value == '>')
+            .next()
+            .unwrap_or_default();
+        let tag_local_name = tag_name.rsplit(':').next().unwrap_or(tag_name);
+        if tag_local_name != local_name || tag_body.trim_end().ends_with('/') {
+            cursor = tag_end + 1;
+            continue;
+        }
+        let close_pattern = format!("</{tag_name}>");
+        let content_start = tag_end + 1;
+        let Some(content_rest) = xml.get(content_start..) else {
+            break;
+        };
+        let Some(close_relative) = content_rest.find(&close_pattern) else {
+            cursor = tag_end + 1;
+            continue;
+        };
+        let content_end = content_start + close_relative;
+        runs.push(xml_unescape(&xml[content_start..content_end]));
+        cursor = content_end + close_pattern.len();
+    }
+
+    runs
+}
+
 fn extract_docx_text_runs(xml: &str) -> String {
     let mut text = String::new();
     let mut rest = xml;
@@ -2204,6 +2297,28 @@ fn read_local_text_preview(
         let text = match extract_docx_text(path) {
             Ok(value) => value,
             Err(status) if matches!(status.as_str(), "MISSING" | "TOO_LARGE" | "EMPTY") => {
+                return Ok((None, status, false));
+            }
+            Err(error) => return Err(error),
+        };
+        let total_chars = text.chars().count();
+        let truncated = total_chars > max_chars;
+        let preview_text = if truncated {
+            text.chars().take(max_chars).collect::<String>()
+        } else {
+            text
+        };
+        return Ok((Some(preview_text), "READY".to_string(), truncated));
+    }
+    if is_supported_hwpx_file(path) {
+        let text = match extract_hwpx_text(path) {
+            Ok(value) => value,
+            Err(status)
+                if matches!(
+                    status.as_str(),
+                    "MISSING" | "TOO_LARGE" | "EMPTY" | "UNSUPPORTED"
+                ) =>
+            {
                 return Ok((None, status, false));
             }
             Err(error) => return Err(error),
@@ -2317,6 +2432,20 @@ fn read_local_text_for_key_sentences(path: &Path) -> Result<(Option<String>, Str
         return match extract_docx_text(path) {
             Ok(value) => Ok((Some(value), "READY".to_string())),
             Err(status) if matches!(status.as_str(), "MISSING" | "TOO_LARGE" | "EMPTY") => {
+                Ok((None, status))
+            }
+            Err(error) => Err(error),
+        };
+    }
+    if is_supported_hwpx_file(path) {
+        return match extract_hwpx_text(path) {
+            Ok(value) => Ok((Some(value), "READY".to_string())),
+            Err(status)
+                if matches!(
+                    status.as_str(),
+                    "MISSING" | "TOO_LARGE" | "EMPTY" | "UNSUPPORTED"
+                ) =>
+            {
                 Ok((None, status))
             }
             Err(error) => Err(error),
@@ -3866,6 +3995,7 @@ fn guess_mime_type(file_name: &str) -> Option<String> {
         "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "gif" => "image/gif",
         "htm" | "html" => "text/html",
+        "hwpx" => "application/vnd.hancom.hwpx",
         "jpg" | "jpeg" => "image/jpeg",
         "json" => "application/json",
         "md" => "text/markdown",
@@ -4086,6 +4216,21 @@ mod tests {
         push_u16(&mut bytes, 0);
 
         bytes
+    }
+
+    fn minimal_hwpx_bytes(section_text: &str) -> Vec<u8> {
+        let escaped = section_text
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;");
+        let section_xml = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?><hs:sec xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"><hp:p><hp:run><hp:t>{escaped}</hp:t></hp:run></hp:p></hs:sec>"#
+        );
+
+        minimal_zip_bytes(vec![(
+            "Contents/section0.xml",
+            section_xml.as_bytes().to_vec(),
+        )])
     }
 
     fn minimal_xlsx_bytes(shared_text: &str, inline_text: &str, number_text: &str) -> Vec<u8> {
@@ -5524,6 +5669,39 @@ mod tests {
     }
 
     #[test]
+    fn reads_hwpx_text_for_preview_and_key_sentence_extraction() {
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-hwpx-test-{}.hwpx", Uuid::new_v4()));
+        std::fs::write(
+            &path,
+            minimal_hwpx_bytes(
+                "HwpxContractSignal includes local file tracking and widget handoff notes.",
+            ),
+        )
+        .expect("write temp hwpx");
+
+        let (preview, status, truncated) =
+            read_local_text_preview(&path, 500).expect("read hwpx preview");
+        let text = read_local_text_for_key_sentences(&path)
+            .expect("read hwpx text")
+            .0
+            .expect("hwpx text");
+        let sentences = extract_key_sentences(&text, 3, 300);
+
+        assert_eq!(status, "READY");
+        assert!(!truncated);
+        assert!(preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("HwpxContractSignal"));
+        assert!(sentences
+            .iter()
+            .any(|sentence| sentence.text.contains("local file tracking")));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn reads_xlsx_text_for_preview_and_key_sentence_extraction() {
         let path =
             std::env::temp_dir().join(format!("bubli-local-xlsx-test-{}.xlsx", Uuid::new_v4()));
@@ -5751,6 +5929,49 @@ mod tests {
 
         assert_eq!(pptx_search.items.len(), 1);
         assert_eq!(pptx_search.items[0].name, "roadmap.pptx");
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
+    fn scans_hwpx_content_into_local_file_search_index() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-local-hwpx-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        std::fs::write(
+            folder_path.join("contract.hwpx"),
+            minimal_hwpx_bytes("HwpxSearchSignal captures approval workflow details."),
+        )
+        .expect("write temp hwpx file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-hwpx', 'HWPX Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let scan = scan_managed_folder_for_conn(
+            &conn,
+            ManagedFolderCommandInput {
+                local_folder_id: "folder-hwpx".to_string(),
+            },
+        )
+        .expect("scan managed folder");
+        assert_eq!(scan.changed_count, 1);
+
+        let hwpx_search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "HwpxSearchSignal".to_string(),
+            },
+        )
+        .expect("search hwpx content");
+
+        assert_eq!(hwpx_search.items.len(), 1);
+        assert_eq!(hwpx_search.items[0].name, "contract.hwpx");
 
         let _ = std::fs::remove_dir_all(folder_path);
     }
