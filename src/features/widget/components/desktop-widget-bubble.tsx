@@ -62,7 +62,7 @@ import {
   type PomodoroState,
   type WidgetTimerMode,
 } from "@/lib/widget/widget-pref-client";
-import { startWidgetWindowDragging, tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 
 import styles from "./desktop-widget-bubble.module.css";
 
@@ -2035,7 +2035,7 @@ function barChipBadge(metric: string) {
 // 버블 바로가기 그리드 + 자동 정렬/룸 전환/메인 앱/설정/종료 + 오늘 사용 요약 한 줄.
 export type WidgetMenuContentProps = {
   hasRoomContext?: boolean;
-  onArrangeBubbles?: () => void;
+  onArrangeBubbles?: (layout?: WidgetArrangeLayout) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onOpenMainApp?: () => void;
   onOpenSettings?: () => void;
@@ -2043,6 +2043,14 @@ export type WidgetMenuContentProps = {
   onToggleRoomContext?: () => void;
   usageSummary?: string | null;
 };
+
+// 자동 정렬 프리셋: 격자(기본)/세로 한 열/가로 한 줄/계단식.
+const arrangePresets: { labelKey: MessageKey; layout: WidgetArrangeLayout }[] = [
+  { labelKey: "widget.menu.arrangeGrid", layout: "grid" },
+  { labelKey: "widget.menu.arrangeColumn", layout: "column" },
+  { labelKey: "widget.menu.arrangeRow", layout: "row" },
+  { labelKey: "widget.menu.arrangeCascade", layout: "cascade" },
+];
 
 export function WidgetMenuPanelContent({
   hasRoomContext = false,
@@ -2055,9 +2063,8 @@ export function WidgetMenuPanelContent({
   usageSummary,
 }: WidgetMenuContentProps) {
   const { t } = useI18n();
-  // 룸 전환은 상단 컨텍스트 행으로 옮겨 "지금 개인/룸 어느 모드인지"를 명확히 보여준다.
+  // 룸 전환은 상단 컨텍스트 행으로, 자동정렬은 프리셋 행으로 분리한다.
   const actionItems: Array<{ Icon: typeof Repeat; label: string; onSelect?: () => void }> = [
-    { Icon: LayoutGrid, label: t("widget.menu.arrange"), onSelect: onArrangeBubbles },
     { Icon: ExternalLink, label: t("widget.menu.openMainApp"), onSelect: onOpenMainApp },
     { Icon: Settings, label: t("widget.menu.openSettings"), onSelect: onOpenSettings },
     { Icon: Power, label: t("widget.menu.quit"), onSelect: onQuit },
@@ -2120,6 +2127,26 @@ export function WidgetMenuPanelContent({
             </button>
           );
         })}
+      </div>
+      {/* 자동 정렬 프리셋 — 격자/세로/가로/계단 중 골라 열린 버블 창을 정돈한다. */}
+      <div className={styles.menuArrange} role="group" aria-label={t("widget.menu.arrange")}>
+        <span className={styles.menuArrangeLabel}>
+          <LayoutGrid size={13} strokeWidth={2.1} aria-hidden="true" />
+          {t("widget.menu.arrange")}
+        </span>
+        <div className={styles.menuArrangeRow}>
+          {arrangePresets.map(({ labelKey, layout }) => (
+            <button
+              className={styles.menuArrangeChip}
+              disabled={!onArrangeBubbles}
+              key={layout}
+              onClick={() => onArrangeBubbles?.(layout)}
+              type="button"
+            >
+              {t(labelKey)}
+            </button>
+          ))}
+        </div>
       </div>
       <div className={styles.menuActions}>
         {actionItems.map(({ Icon, label, onSelect }) => (
@@ -2257,7 +2284,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   hasRoomContext?: boolean;
   minimizedItems: WidgetWindowState[];
   notificationSignal?: WidgetNotificationSignal;
-  onArrangeBubbles?: () => void;
+  onArrangeBubbles?: (layout?: WidgetArrangeLayout) => void;
   onOpenMainApp?: () => void;
   onOpenSettings?: () => void;
   onQuit?: () => void;

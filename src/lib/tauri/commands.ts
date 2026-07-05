@@ -709,6 +709,13 @@ export type WidgetWindowResizeInput = {
   windowId?: string;
 };
 
+// 자동 정렬 프리셋: 격자(기본)/세로 한 열/가로 한 줄/계단식.
+export type WidgetArrangeLayout = "grid" | "column" | "row" | "cascade";
+
+export type WidgetArrangeInput = {
+  layout?: WidgetArrangeLayout;
+};
+
 export type WidgetWindowOpenInput = {
   bubbleType?: WidgetWindowBubbleType;
   mode?: WidgetWindowMode;
@@ -798,7 +805,7 @@ export type TauriCommandContract = {
     result: string;
   };
   arrange_widget_windows: {
-    args: undefined;
+    args: WidgetArrangeInput;
     result: WidgetWindowState[];
   };
   backup_local_sqlite: {
@@ -1134,8 +1141,8 @@ export const tauriCommands = {
   appReady(input?: AppReadyInput) {
     return invokeTauri<string>(TAURI_COMMANDS.appReady, input ? { input } : undefined);
   },
-  arrangeWidgetWindows() {
-    return invokeTauri<WidgetWindowState[]>(TAURI_COMMANDS.arrangeWidgetWindows);
+  arrangeWidgetWindows(input?: WidgetArrangeInput) {
+    return invokeTauri<WidgetWindowState[]>(TAURI_COMMANDS.arrangeWidgetWindows, input ? { input } : undefined);
   },
   backupLocalSqlite() {
     return invokeTauri<LocalBackupResult>(TAURI_COMMANDS.backupLocalSqlite);
