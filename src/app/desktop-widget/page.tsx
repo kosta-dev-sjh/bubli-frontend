@@ -814,6 +814,9 @@ function buildDisplayBubbles(input: {
               kind: "time",
               label: activeTimer.timerType === "WORK" ? t("widget.timer.workTimer") : t("widget.timer.generalTimer"),
               status: activeTimer.status,
+              timerDurationSeconds: activeTimer.durationSeconds ?? null,
+              timerLastStartedAt: activeTimer.lastStartedAt ?? null,
+              timerStartedAt: activeTimer.startedAt,
             },
           ]
         : [],
@@ -1373,10 +1376,14 @@ function DesktopWidgetSurface() {
     const pendingDomains = pendingDataChangedDomainsRef.current;
 
     const bumpRevisionByDomain: Record<DataChangedDomain, () => void> = {
+      agent: () => setAgentRevision((current) => current + 1),
+      chat: () => setCommunicationRevision((current) => current + 1),
       memo: () => setMemoRevision((current) => current + 1),
+      notification: () => setNotificationRevision((current) => current + 1),
       "project-room": () => setCommunicationRevision((current) => current + 1),
       resource: () => setResourceRevision((current) => current + 1),
       schedule: () => setScheduleRevision((current) => current + 1),
+      timer: () => setTimerRevision((current) => current + 1),
       todo: () => setTodoRevision((current) => current + 1),
     };
 
@@ -1940,14 +1947,17 @@ function DesktopWidgetSurface() {
         if (activeBubble === "alert" && state === "CONFIRMED") {
           await notificationApi.markRead(item.id);
           setNotificationRevision((current) => current + 1);
+          publishWidgetDataChanged("notification");
         }
         if (activeBubble === "alert" && state === "HIDDEN") {
           await notificationApi.archive(item.id);
           setNotificationRevision((current) => current + 1);
+          publishWidgetDataChanged("notification");
         }
         if (activeBubble === "agent" && item.kind === "agent" && state === "CONFIRMED") {
           await agentApi.updateSuggestion(item.id, { action: "APPROVE" });
           setAgentRevision((current) => current + 1);
+          publishWidgetDataChanged("agent");
         }
         applyLocalState();
       }
@@ -2035,6 +2045,7 @@ function DesktopWidgetSurface() {
       setResourceRevision((current) => current + 1);
       setAgentRevision((current) => current + 1);
       publishWidgetDataChanged("resource");
+      publishWidgetDataChanged("agent");
     },
     [isTauri, publishWidgetDataChanged],
   );
@@ -2067,6 +2078,8 @@ function DesktopWidgetSurface() {
 
         setAgentRevision((current) => current + 1);
         setCommunicationRevision((current) => current + 1);
+        publishWidgetDataChanged("agent");
+        publishWidgetDataChanged("chat");
         return;
       }
 
@@ -2097,8 +2110,9 @@ function DesktopWidgetSurface() {
           .catch(() => undefined);
       }
       setCommunicationRevision((current) => current + 1);
+      publishWidgetDataChanged("chat");
     },
-    [isTauri, t],
+    [isTauri, publishWidgetDataChanged, t],
   );
 
   const sendWidgetAgentCommand = useCallback(
@@ -2128,12 +2142,14 @@ function DesktopWidgetSurface() {
 
       setAgentRevision((current) => current + 1);
       setCommunicationRevision((current) => current + 1);
+      publishWidgetDataChanged("agent");
+      publishWidgetDataChanged("chat");
 
       // 에이전트 응답 본문을 돌려줘 버블 내 미니 대화에 응답 말풍선으로 붙인다.
       const responseBody = result.message.body as Record<string, unknown>;
       return typeof responseBody.text === "string" ? responseBody.text : undefined;
     },
-    [isTauri, widgetContext?.selectedRoomId],
+    [isTauri, publishWidgetDataChanged, widgetContext?.selectedRoomId],
   );
 
   const markWidgetChatRead = useCallback(
@@ -2153,8 +2169,9 @@ function DesktopWidgetSurface() {
           .catch(() => undefined);
       }
       setCommunicationRevision((current) => current + 1);
+      publishWidgetDataChanged("chat");
     },
-    [isTauri],
+    [isTauri, publishWidgetDataChanged],
   );
 
   const createWidgetMemo = useCallback(
@@ -2235,8 +2252,8 @@ function DesktopWidgetSurface() {
   );
 
   const createWidgetTodo = useCallback(
-    async (bubble: WidgetPreviewBubble) => {
-      const title = window.prompt(t(bubble.actionLabel as MessageKey))?.trim();
+    async (bubble: WidgetPreviewBubble, inlineTitle?: string) => {
+      const title = (inlineTitle ?? window.prompt(t(bubble.actionLabel as MessageKey)) ?? "").trim();
       if (!title) return;
 
       const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
@@ -2263,8 +2280,8 @@ function DesktopWidgetSurface() {
   );
 
   const createWidgetSchedule = useCallback(
-    async (bubble: WidgetPreviewBubble) => {
-      const title = window.prompt(t("widget.schedule.prompt"))?.trim();
+    async (bubble: WidgetPreviewBubble, inlineTitle?: string) => {
+      const title = (inlineTitle ?? window.prompt(t("widget.schedule.prompt")) ?? "").trim();
       if (!title) return;
 
       const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
@@ -2391,8 +2408,9 @@ function DesktopWidgetSurface() {
       const timeLog = await timerApi.pause(timeLogId);
       applyTimerResult(timeLog);
       recordTimerUsage("timer:pause", timeLog.id);
+      publishWidgetDataChanged("timer");
     },
-    [applyTimerResult, recordTimerUsage],
+    [applyTimerResult, publishWidgetDataChanged, recordTimerUsage],
   );
 
   const runPrimaryTimerAction = useCallback(
@@ -2403,6 +2421,7 @@ function DesktopWidgetSurface() {
         const timeLog = await timerApi.stop(currentTimer.id);
         applyTimerResult(timeLog);
         recordTimerUsage("timer:stop", timeLog.id);
+        publishWidgetDataChanged("timer");
         return;
       }
 
@@ -2410,6 +2429,7 @@ function DesktopWidgetSurface() {
         const timeLog = await timerApi.resume(currentTimer.id);
         applyTimerResult(timeLog);
         recordTimerUsage("timer:resume", timeLog.id);
+        publishWidgetDataChanged("timer");
         return;
       }
 
@@ -2421,8 +2441,9 @@ function DesktopWidgetSurface() {
       });
       applyTimerResult(timeLog);
       recordTimerUsage("timer:start", timeLog.id);
+      publishWidgetDataChanged("timer");
     },
-    [applyTimerResult, recordTimerUsage, widgetContext?.selectedRoomId],
+    [applyTimerResult, publishWidgetDataChanged, recordTimerUsage, widgetContext?.selectedRoomId],
   );
 
   const startWidgetVoice = useCallback(
@@ -2477,8 +2498,9 @@ function DesktopWidgetSurface() {
       }
 
       setCommunicationRevision((current) => current + 1);
+      publishWidgetDataChanged("chat");
     },
-    [activeVoiceRoomId, isTauri],
+    [activeVoiceRoomId, isTauri, publishWidgetDataChanged],
   );
 
   const toggleWidgetVoiceMic = useCallback(
@@ -2505,8 +2527,9 @@ function DesktopWidgetSurface() {
       }
 
       setCommunicationRevision((current) => current + 1);
+      publishWidgetDataChanged("chat");
     },
-    [activeVoiceRoomId, isTauri, voiceMicMuted],
+    [activeVoiceRoomId, isTauri, publishWidgetDataChanged, voiceMicMuted],
   );
 
   const leaveWidgetVoice = useCallback(
@@ -2534,8 +2557,9 @@ function DesktopWidgetSurface() {
       }
 
       setCommunicationRevision((current) => current + 1);
+      publishWidgetDataChanged("chat");
     },
-    [activeVoiceRoomId, isTauri],
+    [activeVoiceRoomId, isTauri, publishWidgetDataChanged],
   );
 
   // 바/메뉴 화면에서 공통 서버 사용 롤업(usage-summaries/today)을 한 줄 요약으로 보여준다.

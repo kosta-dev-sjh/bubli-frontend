@@ -29,6 +29,7 @@ import { agentApi } from "@/features/agent/api/agentApi";
 import { chatApi } from "@/features/communication/api/chatApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { useActiveProjectRoom } from "@/lib/use-active-project-room";
@@ -277,6 +278,7 @@ const LOCALE_TAGS: Record<string, string> = {
   ja: "ja-JP",
   ko: "ko-KR",
 };
+const AGENT_PAGE_EVENT_SOURCE = "agent-page";
 
 // 진행 중 AI 작업은 5초 간격으로 자동 확인한다(수동 확인 버튼은 보조 수단).
 const JOB_POLL_INTERVAL_MS = 5000;
@@ -443,6 +445,13 @@ function AgentPageContent() {
 
     return () => window.clearTimeout(timeoutId);
   }, [activeRoomId, load, searchParams]);
+
+  const refreshAgent = useCallback(() => {
+    const roomId = state.kind === "ready" ? state.selectedRoomId : searchParams.get("roomId") ?? activeRoomId;
+    void load(roomId);
+  }, [activeRoomId, load, searchParams, state]);
+
+  useDataRefresh({ domains: ["agent"], ignoreSource: AGENT_PAGE_EVENT_SOURCE, onRefresh: refreshAgent });
 
   // 화면의 모든 항목을 알림 피드 하나로 합친다(최신순).
   const feedItems = useMemo<FeedItem[]>(() => {
@@ -737,6 +746,7 @@ function AgentPageContent() {
     try {
       await agentApi.updateSuggestion(suggestionId, { action });
       await load(selectedRoomId);
+      notifyDataChanged("agent", { source: AGENT_PAGE_EVENT_SOURCE });
       setNotice(t(reviewNoticeKeys[action]));
     } catch (error) {
       if (!shouldUseWorkspacePreviewData()) {
@@ -776,6 +786,7 @@ function AgentPageContent() {
     try {
       await agentApi.updateDailySummary(summaryId, { action: "APPROVE" });
       await load(selectedRoomId);
+      notifyDataChanged("agent", { source: AGENT_PAGE_EVENT_SOURCE });
     } catch (error) {
       setState({
         kind: "offline",
@@ -792,6 +803,7 @@ function AgentPageContent() {
       const job = await agentApi.summarizeDay({ summaryDate: todayDateKey() });
       setActiveJob({ jobId: job.jobId, status: job.status });
       setJobEventMessage(null);
+      notifyDataChanged("agent", { source: AGENT_PAGE_EVENT_SOURCE });
       setNotice(t("agent.page.summaryStarted"));
     } catch (error) {
       setState({
@@ -811,6 +823,7 @@ function AgentPageContent() {
       const job = await agentApi.generateRequirements({ roomId: selectedRoomId });
       setActiveJob({ jobId: job.jobId, status: job.status });
       setJobEventMessage(null);
+      notifyDataChanged("agent", { source: AGENT_PAGE_EVENT_SOURCE });
       setNotice(t("agent.page.generateStarted"));
     } catch (error) {
       setState({

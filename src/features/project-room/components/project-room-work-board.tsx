@@ -471,9 +471,11 @@ function ProjectRoomWorkBoardContent({
         ...current,
         [kind]: current[kind].filter((suggestion) => suggestion.suggestionId !== suggestionId),
       }));
+      notifyDataChanged("agent");
 
       if (action === "APPROVE") {
         await onBoardReload?.();
+        notifyDataChanged("todo");
       }
     } catch (error) {
       setCandidateGeneration({
@@ -755,6 +757,7 @@ function ProjectRoomWorkBoardContent({
         status: "success",
       });
       await loadCandidateSuggestions(kind);
+      notifyDataChanged("agent");
     } catch (error) {
       setCandidateGeneration({
         kind,

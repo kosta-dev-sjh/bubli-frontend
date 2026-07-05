@@ -3416,7 +3416,11 @@ async fn open_widget_windows(
 
     let mut results = Vec::with_capacity(widgets.len());
     for widget in widgets {
-        results.push(schedule_widget_window_build(&app, &monitor_state, &widget)?);
+        results.push(schedule_widget_window_build_and_raise(
+            &app,
+            &monitor_state,
+            &widget,
+        )?);
     }
 
     refresh_widget_bar_window(&app, &monitor_state, &state)?;

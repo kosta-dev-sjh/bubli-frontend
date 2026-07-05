@@ -1006,6 +1006,10 @@
   gap: 8px;
 }
 
+.timerActionsSingle {
+  grid-template-columns: 1fr;
+}
+
 .timerPrimary,
 .timerGhost {
   display: inline-flex;
