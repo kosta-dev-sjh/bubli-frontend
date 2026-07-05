@@ -556,8 +556,8 @@ assertContains(
 );
 assertContains(
   windowsRuntimeSmoke,
-  /const CONTRACT_ONLY = process\.argv\.includes\("--contract"\)[\s\S]*if \(CONTRACT_ONLY\) \{[\s\S]*mode: "contract"[\s\S]*process\.exit\(0\);/,
-  "Windows runtime smoke script must support a no-window --contract mode.",
+  /const CONTRACT_ONLY = process\.argv\.includes\("--contract"\)[\s\S]*if \(CONTRACT_ONLY\) \{[\s\S]*const contractChecks = runContractCheck\(\);[\s\S]*checks: contractChecks[\s\S]*mode: "contract"[\s\S]*process\.exit\(0\);[\s\S]*function runContractCheck\(\)[\s\S]*runner verifies post-login bar and all bubble widgets with room context[\s\S]*runner verifies real backend widget context and settings persistence[\s\S]*runner verifies SQLite backup creation and restore queueing[\s\S]*runner verifies local file scan reindex watch sync and analysis backfill/,
+  "Windows runtime smoke --contract mode must statically verify key runtime smoke functional assertions before reporting pass.",
 );
 assertContains(
   windowsRuntimeSmoke,
