@@ -15,6 +15,7 @@ const files = {
   projectRoomChatRoute: "src/app/(workspace)/app/project-rooms/[roomId]/chat/page.tsx",
   layout: "src/app/layout.tsx",
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
+  authWidgetQa: "src/lib/tauri/tauri-auth-widget-qa.ts",
   runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
   tauriCapability: "src-tauri/capabilities/default.json",
   tauriConf: "src-tauri/tauri.conf.json",
@@ -76,6 +77,7 @@ function extractTypeObject(source, typeName) {
 
 const layout = read(files.layout);
 const launcher = read(files.postLoginLauncher);
+const authWidgetQa = read(files.authWidgetQa);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
 const tauriCapability = read(files.tauriCapability);
 const tauriConf = read(files.tauriConf);
@@ -383,7 +385,7 @@ assertContains(
 );
 assertContains(
   launcher,
-  /const authDiagnosticsEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS === "true";[\s\S]*process\.env\.NODE_ENV !== "development"[\s\S]*!authDiagnosticsEnabled[\s\S]*window\.__BUBLI_TAURI_AUTH_QA__ = \{[\s\S]*getLocalSessionDiagnostics: getStoredAuthSessionDiagnostics[\s\S]*readTauriMirrorDiagnostics: readTauriAuthSessionDiagnostics/,
+  /const authDiagnosticsEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS === "true";[\s\S]*process\.env\.NODE_ENV !== "development"[\s\S]*!authDiagnosticsEnabled[\s\S]*window\.__BUBLI_TAURI_AUTH_QA__ = \{[\s\S]*getLocalSessionDiagnostics: getStoredAuthSessionDiagnostics[\s\S]*readAuthWidgetSnapshot: readTauriAuthWidgetQaSnapshot[\s\S]*readTauriMirrorDiagnostics: readTauriAuthSessionDiagnostics/,
   "TauriPostLoginLauncher must expose only explicitly enabled development-only redacted auth diagnostics for manual QA.",
 );
 assertContains(
@@ -395,6 +397,41 @@ assertNotContains(
   launcher,
   /__BUBLI_TAURI_AUTH_QA__[\s\S]{0,400}accessToken|__BUBLI_TAURI_AUTH_QA__[\s\S]{0,400}refreshToken|__BUBLI_TAURI_AUTH_QA__[\s\S]{0,400}sessionJson/,
   "Tauri auth QA helper must not expose raw tokens or mirrored session JSON through the window global.",
+);
+assertContains(
+  authWidgetQa,
+  /export async function readTauriAuthWidgetQaSnapshot\(\): Promise<TauriAuthWidgetQaSnapshot>/,
+  "Tauri auth/widget QA must provide one redacted snapshot entrypoint for manual post-login verification.",
+);
+assertContains(
+  authWidgetQa,
+  /authApi\.getMe\(\)[\s\S]*widgetApi\.getContext\(\)[\s\S]*widgetApi\.getSummary\(selectedRoomId\)/,
+  "Tauri auth/widget QA snapshot must verify real backend auth, widget context, and widget summary APIs.",
+);
+assertContains(
+  authWidgetQa,
+  /tauriCommands\.readActiveProjectRoom\(\)/,
+  "Tauri auth/widget QA snapshot must inspect the native active project room.",
+);
+assertContains(
+  authWidgetQa,
+  /tauriCommands\.getWidgetBarItems\(\)/,
+  "Tauri auth/widget QA snapshot must inspect native widget bar items.",
+);
+assertContains(
+  authWidgetQa,
+  /tauriCommands\.getWidgetWindowState\(\{ bubbleType, windowId: bubbleType \}\)/,
+  "Tauri auth/widget QA snapshot must inspect each native widget window state.",
+);
+assertContains(
+  authWidgetQa,
+  /WIDGET_BUBBLE_TYPES\.map[\s\S]*missingVisibleBubbles[\s\S]*allExpectedWindowsVisible[\s\S]*allWindowRoomContextMatchesActive/,
+  "Tauri auth/widget QA snapshot must cover all eight expected bubble windows and room-context consistency.",
+);
+assertNotContains(
+  authWidgetQa,
+  /accessToken|refreshToken|sessionJson|userId|userName|userBubliId|email|googleSub/,
+  "Tauri auth/widget QA snapshot must not expose raw tokens, mirrored session JSON, or user identifiers.",
 );
 
 const startupWindows = extractConstArray(surfaces, "loginStartupWindows");
