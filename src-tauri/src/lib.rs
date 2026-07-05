@@ -1352,6 +1352,31 @@ fn position_main_window_on_preferred_monitor(
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
+fn local_auto_sync_runtime_smoke_requested() -> bool {
+    env::var("NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE")
+        .ok()
+        .as_deref()
+        == Some("true")
+        && env::var("NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_PHASE")
+            .ok()
+            .as_deref()
+            == Some("local-auto-sync")
+}
+
+#[cfg(not(target_os = "windows"))]
+fn local_auto_sync_runtime_smoke_requested() -> bool {
+    false
+}
+
+fn hide_main_window_for_local_auto_sync_smoke(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        if let Err(error) = window.hide() {
+            eprintln!("failed to hide main window for local auto-sync smoke: {error}");
+        }
+    }
+}
+
 fn normalize_main_window_route(route: &str) -> Result<String, String> {
     let trimmed = route.trim();
     if trimmed.is_empty()
@@ -2484,7 +2509,12 @@ p{{font-size:14.5px;line-height:1.62;color:#5B6B7A;word-break:keep-all}}\
 fn oauth_response_html(message: &str) -> String {
     format!(
         "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n{}",
-        oauth_result_page("로그인 완료", message, "이 창을 닫고 Bubli 앱으로 돌아가세요.", true)
+        oauth_result_page(
+            "로그인 완료",
+            message,
+            "이 창을 닫고 Bubli 앱으로 돌아가세요.",
+            true
+        )
     )
 }
 
@@ -2569,8 +2599,8 @@ fn start_tauri_google_oauth_loopback(
                 );
                 match parsed {
                     Ok(result) => {
-                        let _ =
-                            stream.write_all(oauth_response_html("로그인이 확인됐어요.").as_bytes());
+                        let _ = stream
+                            .write_all(oauth_response_html("로그인이 확인됐어요.").as_bytes());
                         return Ok(result);
                     }
                     Err(error) => {
@@ -3258,6 +3288,11 @@ pub fn run() {
 
     app.run(|app_handle, event| match event {
         tauri::RunEvent::Ready => {
+            if local_auto_sync_runtime_smoke_requested() {
+                hide_main_window_for_local_auto_sync_smoke(app_handle);
+                return;
+            }
+
             let monitor_state = app_handle.state::<AppMonitorState>();
             if let Err(error) =
                 position_main_window_on_preferred_monitor(app_handle, &monitor_state)
