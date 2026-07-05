@@ -1,52 +1,70 @@
-type VoiceState = {
-  voiceRoomId: string | null;
-  participantId: string | null;
-  micStatus: "MUTED" | "UNMUTED";
-  status: "idle" | "joining" | "joined";
+import type { VoiceRoomResponse } from "@/types/api/voice";
+
+export type VoiceStoreVoiceState =
+  | { kind: "idle" }
+  | { kind: "starting" }
+  | { kind: "ready"; room: VoiceRoomResponse }
+  | { kind: "blocked"; message: string };
+
+type VoiceStoreSnapshot = {
+  expanded: boolean;
+  selectedChatRoomId: string | null;
+  voice: VoiceStoreVoiceState;
+  micMuted: boolean;
+  isSpeaking: boolean;
 };
 
-const STORAGE_KEY = "bubli_voice_state";
+const STORAGE_KEY = "bubli:voice-store";
 
-const defaultState: VoiceState = {
-  voiceRoomId: null,
-  participantId: null,
-  micStatus: "UNMUTED",
-  status: "idle",
-};
-
-function loadFromStorage(): VoiceState {
+function readStorage(): VoiceStoreSnapshot | null {
+  if (typeof window === "undefined") return null;
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...defaultState, ...JSON.parse(raw) };
-  } catch {}
-  return defaultState;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as VoiceStoreSnapshot;
+    if (parsed.voice?.kind !== "ready") return null;
+    return { ...parsed, isSpeaking: false };
+  } catch {
+    return null;
+  }
 }
 
-function saveToStorage(state: VoiceState) {
+function writeStorage(snapshot: VoiceStoreSnapshot): void {
+  if (typeof window === "undefined") return;
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (snapshot.voice.kind === "ready") {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+    } else {
+      sessionStorage.removeItem(STORAGE_KEY);
+    }
   } catch {}
 }
 
-function createVoiceStore() {
-  let state: VoiceState = loadFromStorage();
-  const listeners = new Set<() => void>();
+const _default: VoiceStoreSnapshot = {
+  expanded: false,
+  selectedChatRoomId: null,
+  voice: { kind: "idle" },
+  micMuted: false,
+  isSpeaking: false,
+};
+const _serverSnapshot: VoiceStoreSnapshot = _default;
+let _snapshot: VoiceStoreSnapshot = readStorage() ?? _default;
+const _listeners = new Set<() => void>();
 
-  return {
-    subscribe(listener: () => void) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    getSnapshot(): VoiceState {
-      return state;
-    },
-    update(partial: Partial<VoiceState>) {
-      state = { ...state, ...partial };
-      saveToStorage(state);
-      listeners.forEach((l) => l());
-    },
-  };
-}
-
-export const voiceStore = createVoiceStore();
-export type { VoiceState };
+export const voiceStore = {
+  subscribe(listener: () => void): () => void {
+    _listeners.add(listener);
+    return () => void _listeners.delete(listener);
+  },
+  getSnapshot(): VoiceStoreSnapshot {
+    return _snapshot;
+  },
+  getServerSnapshot(): VoiceStoreSnapshot {
+    return _serverSnapshot;
+  },
+  update(patch: Partial<VoiceStoreSnapshot>): void {
+    _snapshot = { ..._snapshot, ...patch };
+    writeStorage(_snapshot);
+    _listeners.forEach((l) => l());
+  },
+};

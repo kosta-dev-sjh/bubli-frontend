@@ -44,6 +44,12 @@ const ko = {
   "layout.profileMenu.logout": "로그아웃",
   "layout.profileMenu.loggingOut": "로그아웃 중",
 
+  // 보이스 통화 플로팅 패널
+  "layout.voice.active": "보이스 통화 중",
+  "layout.voice.goToChat": "소통으로 이동",
+  "layout.voice.end": "통화 종료",
+  "layout.voice.ending": "종료 중",
+
   // 상단바 알림 패널
   "layout.notifications.aria": "알림 패널",
   "layout.gate.redirecting": "로그인이 필요해요. 로그인 화면으로 이동 중…",
@@ -126,6 +132,11 @@ const en: Record<Key, string> = {
   "layout.profileMenu.logout": "Log out",
   "layout.profileMenu.loggingOut": "Logging out",
 
+  "layout.voice.active": "Voice call active",
+  "layout.voice.goToChat": "Go to chat",
+  "layout.voice.end": "End call",
+  "layout.voice.ending": "Ending",
+
   "layout.notifications.aria": "Notifications panel",
   "layout.gate.redirecting": "Sign-in required. Redirecting to login…",
   "layout.invites.title": "Invitations",
@@ -203,6 +214,11 @@ const ja: Record<Key, string> = {
   "layout.profileMenu.theme": "テーマ",
   "layout.profileMenu.logout": "ログアウト",
   "layout.profileMenu.loggingOut": "ログアウト中",
+
+  "layout.voice.active": "ボイス通話中",
+  "layout.voice.goToChat": "コミュニケーションへ",
+  "layout.voice.end": "通話終了",
+  "layout.voice.ending": "終了中",
 
   "layout.notifications.aria": "通知パネル",
   "layout.gate.redirecting": "ログインが必要です。ログイン画面へ移動中…",

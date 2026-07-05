@@ -379,10 +379,6 @@ function parseBubliCommand(t: TranslateFn, text: string): AgentCommandDraft | nu
   return { message, mode: inferAgentCommandMode(message) };
 }
 
-// 소통 탭 내에서의 다른 페이지(설정, 자료보드 등)로 이동 후 돌아올 때 voice 상태를 유지.
-// 모듈 변수는 클라이언트 측 내비게이션 사이에서 살아남지만 하드 새로고침 시 초기화됨.
-let _voiceCache: { expanded: boolean; state: VoiceState } | null = null;
-
 function ChatPageContent() {
   const { t } = useI18n();
   const router = useRouter();
@@ -394,14 +390,17 @@ function ChatPageContent() {
   const [socialState, setSocialState] = useState<SocialState>({ kind: "loading" });
   const [profileState, setProfileState] = useState<ProfileState>({ kind: "loading" });
   const [friendSearchState, setFriendSearchState] = useState<FriendSearchState>({ kind: "idle" });
-  const [voiceState, setVoiceState] = useState<VoiceState>(() => _voiceCache?.state ?? { kind: "idle" });
+  const [voiceState, setVoiceState] = useState<VoiceState>(() => {
+    const s = voiceStore.getSnapshot().voice;
+    return s.kind === "starting" ? { kind: "idle" } : s;
+  });
   const [voiceAction, setVoiceAction] = useState<VoiceAction | null>(null);
-  const [selectedChatRoomId, setSelectedChatRoomId] = useState<string | null>(null);
+  const [selectedChatRoomId, setSelectedChatRoomId] = useState<string | null>(() => voiceStore.getSnapshot().selectedChatRoomId);
   const [draft, setDraft] = useState("");
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
   const [copiedBubliId, setCopiedBubliId] = useState(false);
-  const [voiceExpanded, setVoiceExpanded] = useState(() => _voiceCache?.expanded ?? false);
-  const [voiceMicMuted, setVoiceMicMuted] = useState(() => voiceStore.getSnapshot().micStatus === "MUTED");
+  const [voiceExpanded, setVoiceExpanded] = useState(() => voiceStore.getSnapshot().expanded);
+  const [voiceMicMuted, setVoiceMicMuted] = useState(() => voiceStore.getSnapshot().micMuted);
   const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
   const [roomInviteState, setRoomInviteState] = useState<RoomInviteState>({ kind: "idle" });
   const [chatRoomInviteState, setChatRoomInviteState] = useState<ChatRoomInviteState>({ kind: "idle" });
@@ -894,10 +893,16 @@ function ChatPageContent() {
     };
   }, [loadRoomInvitations]);
 
-  // voice 상태를 모듈 캐시에 동기화 (다른 탭 갔다와도 복원)
+  // voice 상태를 전역 store에 동기화 — AppShell 영구 바 + 탭 복귀 복원 모두 여기서
   useEffect(() => {
-    _voiceCache = { expanded: voiceExpanded, state: voiceState };
-  }, [voiceState, voiceExpanded]);
+    voiceStore.update({
+      expanded: voiceExpanded,
+      selectedChatRoomId,
+      voice: voiceState.kind === "starting" || voiceState.kind === "blocked"
+        ? { kind: "idle" }
+        : voiceState,
+    });
+  }, [voiceState, voiceExpanded, selectedChatRoomId]);
 
   // 열린 보이스룸의 참여자 상태를 주기적으로 갱신 (다른 멤버의 참여/퇴장 반영)
   const openVoiceRoomDbId = voiceState.kind === "ready" && voiceState.room.status === "OPEN" ? voiceState.room.id : null;
@@ -1353,7 +1358,7 @@ function ChatPageContent() {
     setVoiceState({ kind: "starting" });
     setVoiceAction(null);
     setVoiceMicMuted(false);
-    voiceStore.update({ micStatus: "UNMUTED" });
+    voiceStore.update({ micMuted: false });
     setVoiceNotice(null);
 
     try {
@@ -1384,7 +1389,7 @@ function ChatPageContent() {
       const room = await voiceApi.getRoom(activeVoiceRoom.id);
       setVoiceState({ kind: "ready", room });
       setVoiceMicMuted(false);
-      voiceStore.update({ micStatus: "UNMUTED" });
+      voiceStore.update({ micMuted: false });
       setVoiceExpanded(true);
       setVoiceNotice(null);
     } catch (error) {
@@ -1408,7 +1413,7 @@ function ChatPageContent() {
     try {
       await voiceApi.updateMicStatus(activeVoiceRoom.id, { micStatus: nextMicStatus });
       setVoiceMicMuted(nextMuted);
-      voiceStore.update({ micStatus: nextMicStatus });
+      voiceStore.update({ micMuted: nextMuted });
       setVoiceState((state) => {
         if (state.kind !== "ready" || !currentUser) return state;
 

@@ -1,9 +1,10 @@
 "use client";
 
+import { Phone } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { AppNav } from "@/components/layout/app-nav";
 import { TopbarNotificationsPanel } from "@/components/layout/topbar-notifications-panel";
@@ -25,6 +26,7 @@ import { notifyDataChanged, readUserUpdatedDetail, useDataRefresh, USER_UPDATED_
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
+import { voiceStore } from "@/lib/voice-store";
 import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
@@ -116,6 +118,55 @@ export function AppShell({ children }: AppShellProps) {
   const [myInvitations, setMyInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
   const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null);
   const roomsRef = useRef<ProjectRoomResponse[]>([]);
+
+  const voiceSnap = useSyncExternalStore(voiceStore.subscribe, voiceStore.getSnapshot, voiceStore.getServerSnapshot);
+  const persistVoice = voiceSnap.voice.kind === "ready" ? voiceSnap.voice : null;
+  const showVoiceFloat = persistVoice !== null && persistVoice.room.status === "OPEN";
+  const voiceChatLink = persistVoice
+    ? persistVoice.room.roomId
+      ? `/app/chat?roomId=${persistVoice.room.roomId}`
+      : `/app/chat?mode=direct`
+    : "/app/chat";
+
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    function stopAll() {
+      active = false;
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+      analyserRef.current = null;
+      if (voiceStore.getSnapshot().isSpeaking) voiceStore.update({ isSpeaking: false });
+    }
+    if (!showVoiceFloat || voiceSnap.micMuted) { stopAll(); return; }
+    if (typeof navigator === "undefined" || !navigator.mediaDevices) return;
+
+    void (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!active) { stream.getTracks().forEach((t) => t.stop()); return; }
+        const ctx = new AudioContext();
+        audioCtxRef.current = ctx;
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        analyserRef.current = analyser;
+        ctx.createMediaStreamSource(stream).connect(analyser);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        const tick = () => {
+          if (!active || !analyserRef.current) return;
+          analyserRef.current.getByteFrequencyData(data);
+          const speaking = data.some((v) => v > 20);
+          if (speaking !== voiceStore.getSnapshot().isSpeaking) voiceStore.update({ isSpeaking: speaking });
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      } catch { voiceStore.update({ isSpeaking: false }); }
+    })();
+
+    return () => stopAll();
+  }, [showVoiceFloat, voiceSnap.micMuted]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -820,6 +871,16 @@ export function AppShell({ children }: AppShellProps) {
         {/* 첫 사용 경험(직군 온보딩 + 튜토리얼) — 인증 완료 후에만, 홈 위 오버레이로 렌더한다. */}
         {state.kind === "ready" ? <FirstRunController user={state.user} /> : null}
       </main>
+      {showVoiceFloat ? (
+        <div className="voice-float" role="status" aria-label={t("layout.voice.active")}>
+          <Link className="voice-float__btn" href={voiceChatLink} title={t("layout.voice.goToChat")}>
+            <Phone aria-hidden size={21} strokeWidth={2} />
+            <span className="voice-float__ring" aria-hidden />
+            <span className="voice-float__ring voice-float__ring--2" aria-hidden />
+          </Link>
+          <span className="voice-float__label">{t("layout.voice.active")}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
