@@ -253,23 +253,29 @@ export default function HomePage() {
         </section>
       </Reveal>
 
-      <Reveal>
-        <section className="landing-section landing-faq" id="faq">
-          <DecorBubble floating size="md" style={{ top: "10%", right: "5%" }} />
+      <section className="landing-section landing-faq" id="faq">
+        <DecorBubble floating size="md" style={{ top: "10%", right: "5%" }} />
+        <Reveal>
           <header className="landing-section__head">
             <Chip>{t("public.home.faqChip")}</Chip>
             <h2>{t("public.home.faqTitle")}</h2>
           </header>
-          <div className="landing-faq__list">
-            {faqItems.map((item) => (
-              <GlassPanel className="landing-faq__item" key={item.qKey}>
-                <h3>{t(item.qKey)}</h3>
+        </Reveal>
+        {/* 카드가 순서대로 계단식으로 떠오르고(스태거), Q 배지로 톤을 통일한다. */}
+        <div className="landing-faq__list">
+          {faqItems.map((item, index) => (
+            <Reveal key={item.qKey} delay={120 + index * 110} className="landing-faq__cell">
+              <GlassPanel className="landing-faq__item">
+                <h3>
+                  <span className="landing-faq__q" aria-hidden="true">Q</span>
+                  {t(item.qKey)}
+                </h3>
                 <p>{t(item.aKey)}</p>
               </GlassPanel>
-            ))}
-          </div>
-        </section>
-      </Reveal>
+            </Reveal>
+          ))}
+        </div>
+      </section>
 
       <footer className="landing-footer">
         <span className="landing-footer__brand bubli-wordmark">Bubli</span>
