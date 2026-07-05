@@ -44,8 +44,6 @@ import {
   type WidgetPreviewBubble,
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
-// 웹앱과 같은 브랜드 버블 마크(읽기 전용 import) — 바 Bubli 칩(28px)과 메뉴 오브(48px)가 공유한다.
-import { BubbleMark } from "@/components/bubbles";
 // /bubli 명령 문법·자동완성은 웹 소통창과 같은 공용 모듈을 쓴다(계약 단일 출처).
 import { AgentCommandAutocomplete } from "@/features/communication/components/agent-command-autocomplete";
 import { stripAgentCommandPrefix } from "@/features/communication/lib/agent-commands";
@@ -242,8 +240,6 @@ function getBubbleMeta(bubbleType: WidgetBubbleType) {
 }
 
 // ---------- 바/메뉴 모션 사양(motion/react) ----------
-// 메뉴 morph(PopoverForm 문법): 바 Bubli 칩 → 위 패널로 layoutId 스프링 morph.
-const menuMorphSpring = { damping: 17, mass: 0.85, stiffness: 220, type: "spring" as const };
 // 바 칩 등장/퇴장·레이아웃 이동(OverflowActions 문법): 살짝 단단한 스프링.
 const barChipSpring = { damping: 22, mass: 0.9, stiffness: 320, type: "spring" as const };
 // 알림 구이(gooey) 팝: 칩에서 위로 솟는 말랑 스프링.
@@ -2030,7 +2026,7 @@ function barChipBadge(metric: string) {
   return count > 99 ? "99+" : String(count);
 }
 
-// Bubli 메뉴 패널 본문: 바 인라인 패널(기본)과 (deprecated) 메뉴 오브 창이 같은 내용을 공유한다.
+// Bubli 메뉴 패널 본문: 바와 메뉴 오브가 공유하는 동일한 바로가기 레이아웃.
 // 버블 바로가기 그리드 + 자동 정렬/룸 전환/메인 앱/설정/종료 + 오늘 사용 요약 한 줄.
 export type WidgetMenuContentProps = {
   hasRoomContext?: boolean;
@@ -2108,9 +2104,6 @@ export function WidgetMenuPanelContent({
     </>
   );
 }
-
-// 바 Bubli 칩 ↔ 위 패널이 공유하는 morph layoutId(PopoverForm 문법).
-const BAR_MENU_MORPH_ID = "bubli-bar-menu-morph";
 
 // 모션 프리셋은 모듈 상수로 둔다 — 렌더마다 새 객체가 만들어져 memo 칩의 props 안정성을
 // 깨뜨리지 않게 하고, reduced-motion 여부에 따라 참조만 골라 쓴다.
@@ -2218,7 +2211,6 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   minimizedItems,
   notificationSignal = widgetNotificationSignal,
   onArrangeBubbles,
-  onOpenBubble,
   onOpenMainApp,
   onOpenSettings,
   onQuit,
@@ -2231,7 +2223,6 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   minimizedItems: WidgetWindowState[];
   notificationSignal?: WidgetNotificationSignal;
   onArrangeBubbles?: () => void;
-  onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onOpenMainApp?: () => void;
   onOpenSettings?: () => void;
   onQuit?: () => void;
@@ -2247,36 +2238,6 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   // 알림 버블 칩만 제외(고정 알림 칩과 중복)하고 접힌 칩은 전부 노출한다.
   // 4초 폴링이 같은 목록을 유지하면(참조 동일) 필터 결과도 재사용한다.
   const visibleItems = useMemo(() => collectBarFoldedItems(minimizedItems), [minimizedItems]);
-
-  // Bubli 메뉴는 별도 오브 창이 아니라 바 창 안 인라인 패널이다: 브랜드 칩이 앵커,
-  // 클릭하면 pill 위 투명 영역으로 layoutId morph(스프링) — 바깥 클릭/ESC로 닫힌다.
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuAnchorRef = useRef<HTMLButtonElement | null>(null);
-  const menuPanelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-      if (!target) return;
-      if (menuPanelRef.current?.contains(target) || menuAnchorRef.current?.contains(target)) return;
-      setMenuOpen(false);
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [menuOpen]);
-  const closeMenuAnd = (action?: () => void) => {
-    setMenuOpen(false);
-    action?.();
-  };
 
   // 알림 구이(gooey) 팝: 미확인 알림 수가 "증가"할 때만 알림 칩에서 제목 버블이 솟는다.
   // 첫 데이터 수신(baseline)은 팝하지 않고, 3초 유지 후 칩으로 다시 흡수된다.
@@ -2300,8 +2261,8 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   const gooPopVisible = Boolean(gooPop && gooPop.title.trim());
 
   // idle 페이드: 8초 무상호작용 → pill(nav)만 옅게(0.85), 상호작용 → 즉시 1.0(CSS 200ms).
-  // 메뉴 패널/hover 프리뷰/goo 팝이 하나라도 떠 있으면 페이드를 완전히 정지한다(즉시 불투명) —
-  // goo 팝은 nav 안에 살아서 pill 페이드에 같이 씻겨 나가면 안 되고, 패널/팝오버 내용도 마찬가지다.
+  // 프리뷰/알림 구이가 떠 있으면 페이드를 완전히 정지한다(즉시 불투명) —
+  // goo 팝은 nav 안에 살아서 pill 페이드에 같이 씻겨 나가면 안 되고, 패널 외부 내용도 마찬가지다.
   const [barIdle, setBarIdle] = useState(false);
   // 현재 idle 여부의 ref 미러 — pointermove마다 도는 armIdleTimer가 이미 non-idle일 때는
   // setState 자체를 건너뛰어(타이머 재무장만) 리렌더 경로를 아예 타지 않게 한다.
@@ -2322,7 +2283,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
       setBarIdle(true);
     }, BAR_IDLE_FADE_MS);
   }, []);
-  const barFadeSuspended = menuOpen || previewTarget !== null || gooPopVisible;
+  const barFadeSuspended = previewTarget !== null || gooPopVisible;
   // 정지 상태가 바뀌는 순간(특히 해제 직후) stale barIdle을 지운다 — effect 내 동기 setState 금지
   // 규칙이 있어 렌더 중 상태 보정 패턴(seenPanelSignal과 동일)으로 처리한다.
   const [seenFadeSuspended, setSeenFadeSuspended] = useState(barFadeSuspended);
@@ -2416,7 +2377,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
         <GooeyFilter />
         {/* hover 프리뷰 팝오버: 칩 accent를 물려받고 pill 위에서 스프링 스케일 인(하단 앵커). */}
         <AnimatePresence>
-          {preview && PreviewIcon && !menuOpen ? (
+          {preview && PreviewIcon ? (
             <motion.div
               // key는 반드시 spread 앞에 둔다: key가 spread 뒤면 SWC가 jsxDEV 대신
               // createElement(config.children) 폴백으로 컴파일해 정적 자식이 "동적 배열"로 취급되고,
@@ -2455,42 +2416,6 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
                   ) : null}
                 </ul>
               ) : null}
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-        {/* Bubli 메뉴: 브랜드 칩에서 pill 위 280px 패널로 morph(스프링 220/17/0.85). 본문은 blur 페이드 인. */}
-        <AnimatePresence>
-          {menuOpen ? (
-            <motion.div
-              aria-label={t("widget.menu.title")}
-              className={styles.barMenuPanel}
-              data-bubli-interactive="true"
-              key="bubli-bar-menu"
-              layoutId={BAR_MENU_MORPH_ID}
-              onMouseDown={handleWidgetDragMouseDown}
-              ref={menuPanelRef}
-              role="menu"
-              style={{ borderRadius: 20 }}
-              transition={menuMorphSpring}
-            >
-              <motion.div
-                animate={prefersReducedMotion ? { opacity: 1 } : { filter: "blur(0px)", opacity: 1, y: 0 }}
-                className={styles.barMenuInner}
-                exit={prefersReducedMotion ? { opacity: 0 } : { filter: "blur(4px)", opacity: 0, y: 6 }}
-                initial={prefersReducedMotion ? { opacity: 0 } : { filter: "blur(6px)", opacity: 0, y: 8 }}
-                transition={{ duration: 0.18, ease: "easeOut" }}
-              >
-                <WidgetMenuPanelContent
-                  hasRoomContext={hasRoomContext}
-                  onArrangeBubbles={onArrangeBubbles ? () => closeMenuAnd(onArrangeBubbles) : undefined}
-                  onOpenBubble={onOpenBubble ? (bubbleType) => closeMenuAnd(() => onOpenBubble(bubbleType)) : undefined}
-                  onOpenMainApp={onOpenMainApp ? () => closeMenuAnd(onOpenMainApp) : undefined}
-                  onOpenSettings={onOpenSettings ? () => closeMenuAnd(onOpenSettings) : undefined}
-                  onQuit={onQuit ? () => closeMenuAnd(onQuit) : undefined}
-                  onToggleRoomContext={onToggleRoomContext ? () => closeMenuAnd(onToggleRoomContext) : undefined}
-                  usageSummary={usageSummary}
-                />
-              </motion.div>
             </motion.div>
           ) : null}
         </AnimatePresence>
@@ -2567,30 +2492,6 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
             </AnimatePresence>
           </span>
           <span className={styles.barDivider} aria-hidden="true" data-bubli-interactive="true" data-tauri-drag-region />
-          {/* Bubli 브랜드 칩: 웹앱과 같은 28px 버블 마크 + 메뉴 morph 앵커(layoutId 공유).
-              PopoverForm 원형처럼 패널과 "동시 마운트"하지 않고 조건부로 스왑해야 morph가 진행된다
-              — 둘 다 마운트하면 layoutId 크로스페이드가 opacity 0에서 얼어붙는다(라이브 버그).
-              칩이 빠진 pill 틈은 형제 칩들의 layout 애니메이션이 자연스럽게 메운다. */}
-          {!menuOpen ? (
-            <motion.button
-              className={styles.barBrand}
-              aria-expanded={menuOpen}
-              aria-haspopup="menu"
-              aria-label={t("widget.menu.openAria")}
-              layout
-              layoutId={BAR_MENU_MORPH_ID}
-              onClick={() => setMenuOpen(true)}
-              ref={menuAnchorRef}
-              style={{ borderRadius: 12 }}
-              title={t("widget.menu.openAria")}
-              transition={menuMorphSpring}
-              type="button"
-              whileHover={chipWhileHover}
-              whileTap={chipWhileTap}
-            >
-              <BubbleMark size="md" />
-            </motion.button>
-          ) : null}
           <AnimatePresence initial={false} mode="popLayout">
             {visibleItems.map((item) => {
               const bubbleType = item.activeBubble as WidgetBubbleType;
@@ -2617,5 +2518,4 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   );
 });
 
-// (deprecated) 별도 메뉴(오브) 창 UI는 desktop-widget-menu-orb.tsx로 분리했다 —
-// ?bubble=menu 수동 경로에서만 쓰이므로 page.tsx가 next/dynamic으로 지연 로드한다.
+// 메뉴 오브 창의 본문 렌더도 동일 타입으로 분기 없이 재사용한다.

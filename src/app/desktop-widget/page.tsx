@@ -48,7 +48,7 @@ import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession
 import { notifyDataChanged, type DataChangedDomain } from "@/lib/data-changed";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { tauriCommands, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
-import { emitWidgetDataChanged, listenWidgetDataChanged, listenWidgetMenuPanelRequested, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
+import { emitWidgetDataChanged, listenWidgetDataChanged, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readCachedWidgetRoomNames, readWidgetSummary, writeCachedWidgetRoomNames, type WidgetRoomNameMap } from "@/lib/widget";
 import { syncActiveProjectRoomFromWidgetContext } from "@/lib/workspace-active-room";
@@ -59,7 +59,7 @@ import type { WidgetSummaryResponse } from "@/types/api/widget";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
-// (deprecated) 메뉴 오브 창은 ?bubble=menu 수동 경로에서만 렌더된다 — 버블/바 창이 쓰는
+// 메뉴 오브 창은 ?bubble=menu 경로에서 렌더되어 바 메뉴 분리 동작을 담당한다.
 // 기본 청크에서 제외하기 위해 next/dynamic으로 지연 로드한다(단일 라우트라 유일한 분할 지점).
 const DesktopWidgetMenuOrb = dynamic(
   () => import("@/features/widget/components/desktop-widget-menu-orb").then((mod) => mod.DesktopWidgetMenuOrb),
@@ -1085,8 +1085,6 @@ function DesktopWidgetSurface() {
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(() => widgetDisplayLoadSignal("loading"));
   const [menuUsageSummary, setMenuUsageSummary] = useState<string | null>(null);
-  // 바 창의 Bubli 버튼이 보낸 "패널 열기" 요청 수신 카운터(메뉴 창 전용).
-  const [menuPanelSignal, setMenuPanelSignal] = useState(0);
   const liveKitRoomRef = useRef<Room | null>(null);
   const surfaceReadySentRef = useRef(false);
   const appReadySentRef = useRef(false);
@@ -2518,8 +2516,7 @@ function DesktopWidgetSurface() {
     [activeVoiceRoomId, isTauri],
   );
 
-  // 바(인라인 Bubli 메뉴)와 (deprecated) 메뉴 창에서 서버 사용 롤업(usage-summaries/today)을
-  // 읽어 한 줄 요약으로 보여준다.
+  // 바/메뉴 화면에서 공통 서버 사용 롤업(usage-summaries/today)을 한 줄 요약으로 보여준다.
   useEffect(() => {
     if (!widgetSessionReady || !isWidgetChrome) return;
 
@@ -2545,31 +2542,6 @@ function DesktopWidgetSurface() {
       cancelled = true;
     };
   }, [isWidgetChrome, t, widgetSessionReady]);
-
-  // (deprecated) 메뉴 창: 과거 바 Bubli 버튼이 보내던 패널 열기 요청을 계속 수신한다.
-  // Bubli 메뉴는 이제 바 창 인라인 morph 패널이라 이 이벤트를 emit하는 곳은 없지만,
-  // ?bubble=menu 창을 수동으로 열면 기존 경로가 그대로 동작한다.
-  useEffect(() => {
-    if (!isTauri || !isMenuOrb) return;
-
-    let unlisten: (() => void) | null = null;
-    let cancelled = false;
-
-    void listenWidgetMenuPanelRequested(() => {
-      setMenuPanelSignal((current) => current + 1);
-    }).then((nextUnlisten) => {
-      if (cancelled) {
-        nextUnlisten();
-        return;
-      }
-      unlisten = nextUnlisten;
-    });
-
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, [isMenuOrb, isTauri]);
 
   const openMainApp = useCallback(
     async (route?: "settings") => {
@@ -2642,14 +2614,13 @@ function DesktopWidgetSurface() {
         onOpenSettings={openMainAppSettings}
         onQuit={quitDesktopApp}
         onToggleRoomContext={toggleWidgetRoomContext}
-        panelOpenSignal={menuPanelSignal}
         usageSummary={menuUsageSummary}
       />
     );
   }
 
   if (isBubbleBar) {
-    // Bubli 메뉴는 바 창 안 인라인 morph 패널이다(별도 메뉴 창 자동 실행 없음).
+    // 바에는 접은 버블/알림/버튼만 두고 메뉴 오브는 별도 창에서 처리한다.
     return (
       <DesktopWidgetBubbleBar
         bubbleDataByType={displayBubbles}
@@ -2657,7 +2628,6 @@ function DesktopWidgetSurface() {
         minimizedItems={barItems}
         notificationSignal={notificationSignal}
         onArrangeBubbles={arrangeWidgetBubbles}
-        onOpenBubble={restoreBubbleFromBar}
         onOpenMainApp={openMainApp}
         onOpenSettings={openMainAppSettings}
         onQuit={quitDesktopApp}
