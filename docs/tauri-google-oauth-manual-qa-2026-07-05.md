@@ -105,6 +105,7 @@ Tauri DevTools 또는 검사 가능한 localStorage에서 `bubli-auth-session`�
 ```js
 window.__BUBLI_TAURI_AUTH_QA__?.getLocalSessionDiagnostics()
 await window.__BUBLI_TAURI_AUTH_QA__?.readTauriMirrorDiagnostics()
+await window.__BUBLI_TAURI_AUTH_QA__?.readAuthWidgetSnapshot()
 ```
 
 통과 기준:
@@ -116,3 +117,5 @@ await window.__BUBLI_TAURI_AUTH_QA__?.readTauriMirrorDiagnostics()
 - `wouldRejectDevAccessTokenSession`이 `false`다.
 - `refreshTokenExpired`가 `false`다.
 - `/api/me`, `/api/widget/context`, `/api/widget/summary`가 같은 로그인 상태로 성공한다.
+- 통합 스냅샷의 `backend.me.ok`, `backend.widgetContext.ok`, `backend.widgetSummary.ok`가 모두 `true`다.
+- `widgetRuntime.allExpectedWindowsVisible`과 `widgetRuntime.allWindowRoomContextMatchesActive`가 모두 `true`다.
