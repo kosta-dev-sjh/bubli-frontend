@@ -59,6 +59,32 @@ function delay(ms: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 }
 
+function widgetTargetFromInput(input: WidgetWindowOpenInput) {
+  return {
+    bubbleType: input.bubbleType,
+    windowId: input.windowId ?? input.bubbleType,
+  };
+}
+
+function startupWindowRequiresVisibleWindow(input: WidgetWindowOpenInput) {
+  return input.mode !== "MINIMIZED";
+}
+
+async function authenticatedStartupWindowsReady(startupWindows: WidgetWindowOpenInput[]) {
+  for (const input of startupWindows) {
+    if (!startupWindowRequiresVisibleWindow(input)) continue;
+
+    try {
+      const state = await tauriCommands.getWidgetWindowState(widgetTargetFromInput(input));
+      if (!state.windowVisible) return false;
+    } catch {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 async function openWidgetWindowWithRetry(
   input: WidgetWindowOpenInput,
   selectedRoomId: string | null,
@@ -190,12 +216,20 @@ async function resolveLaunchSelectedRoomId() {
 
 export function launchTauriAuthenticatedSurfaces() {
   if (!isTauriRuntime()) return Promise.resolve();
-  if (launchedAuthenticatedSurfaces) return Promise.resolve();
   if (launchRequested && launchPromise) return launchPromise;
 
   launchRequested = true;
   const generation = ++launchGeneration;
   launchPromise = (async () => {
+    const startupWindows = await resolveLoginStartupWindows();
+    if (launchedAuthenticatedSurfaces) {
+      const ready = await authenticatedStartupWindowsReady(startupWindows);
+      if (ready) return;
+
+      launchedAuthenticatedSurfaces = false;
+      await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
+    }
+
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true });
     const selectedRoomId = await resolveLaunchSelectedRoomId();
     if (generation !== launchGeneration) {
@@ -204,7 +238,6 @@ export function launchTauriAuthenticatedSurfaces() {
       return;
     }
 
-    const startupWindows = await resolveLoginStartupWindows();
     const [barWindow, ...bubbleWindows] = startupWindows;
     const openedWindows: WidgetWindowOpenInput[] = [];
     const rejectedReasons: unknown[] = [];
