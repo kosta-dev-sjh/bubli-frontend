@@ -67,6 +67,12 @@ export type TauriAuthWidgetQaSnapshot = {
   };
 };
 
+export type TauriRealGoogleAuthWidgetQaAssertion = {
+  failedChecks: string[];
+  ok: boolean;
+  snapshot: TauriAuthWidgetQaSnapshot;
+};
+
 function toProbe(error: unknown): QaProbe {
   if (error instanceof ApiClientError) {
     return { code: error.code, ok: false, status: error.status };
@@ -103,6 +109,63 @@ function toWindowQaState(
     selectedRoomMatchesActiveRoom: roomMatches(state.selectedRoomId, activeRoomId),
     selectedRoomMatchesServerContext: roomMatches(state.selectedRoomId, serverSelectedRoomId),
     windowVisible: state.windowVisible,
+  };
+}
+
+function addCheck(failedChecks: string[], condition: unknown, name: string) {
+  if (!condition) {
+    failedChecks.push(name);
+  }
+}
+
+function assertRealGoogleSessionDiagnostics(
+  failedChecks: string[],
+  diagnostics: AuthSessionDiagnostics,
+  prefix: "local" | "tauriMirror",
+) {
+  addCheck(failedChecks, diagnostics.hasSession, `${prefix}:hasSession`);
+  addCheck(failedChecks, diagnostics.clientType === "TAURI", `${prefix}:clientType=TAURI`);
+  addCheck(failedChecks, diagnostics.isTauriClient, `${prefix}:isTauriClient`);
+  addCheck(failedChecks, diagnostics.isDevAccessTokenSession === false, `${prefix}:notDevAccessTokenSession`);
+  addCheck(
+    failedChecks,
+    diagnostics.wouldRejectDevAccessTokenSession === false,
+    `${prefix}:wouldNotRejectAsDevToken`,
+  );
+  addCheck(failedChecks, diagnostics.refreshTokenExpired === false, `${prefix}:refreshLive`);
+}
+
+export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoogleAuthWidgetQaAssertion> {
+  const snapshot = await readTauriAuthWidgetQaSnapshot();
+  const failedChecks: string[] = [];
+
+  assertRealGoogleSessionDiagnostics(failedChecks, snapshot.localSession, "local");
+  assertRealGoogleSessionDiagnostics(failedChecks, snapshot.tauriMirrorSession, "tauriMirror");
+  addCheck(failedChecks, snapshot.backend.me.ok, "backend:/api/me");
+  addCheck(failedChecks, snapshot.backend.widgetContext.ok, "backend:/api/widget/context");
+  addCheck(failedChecks, snapshot.backend.widgetSummary.ok, "backend:/api/widget/summary");
+  addCheck(failedChecks, snapshot.activeProjectRoom.tauriMatchesMemory, "room:tauriMatchesMemory");
+  addCheck(
+    failedChecks,
+    snapshot.activeProjectRoom.tauriMatchesServerContext,
+    "room:tauriMatchesServerContext",
+  );
+  addCheck(failedChecks, snapshot.widgetRuntime.allExpectedWindowsVisible, "widgets:allExpectedWindowsVisible");
+  addCheck(
+    failedChecks,
+    snapshot.widgetRuntime.allWindowRoomContextMatchesActive,
+    "widgets:allWindowRoomContextMatchesActive",
+  );
+  addCheck(
+    failedChecks,
+    snapshot.widgetRuntime.barRestoreItems.allMatchActiveRoom,
+    "widgets:barRestoreItemsMatchActiveRoom",
+  );
+
+  return {
+    failedChecks,
+    ok: failedChecks.length === 0,
+    snapshot,
   };
 }
 

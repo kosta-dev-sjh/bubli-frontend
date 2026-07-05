@@ -395,7 +395,7 @@ assertContains(
 );
 assertContains(
   launcher,
-  /const authDiagnosticsEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS === "true";[\s\S]*process\.env\.NODE_ENV !== "development"[\s\S]*!authDiagnosticsEnabled[\s\S]*window\.__BUBLI_TAURI_AUTH_QA__ = \{[\s\S]*getLocalSessionDiagnostics: getStoredAuthSessionDiagnostics[\s\S]*readAuthWidgetSnapshot: readTauriAuthWidgetQaSnapshot[\s\S]*readTauriMirrorDiagnostics: readTauriAuthSessionDiagnostics/,
+  /const authDiagnosticsEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS === "true";[\s\S]*process\.env\.NODE_ENV !== "development"[\s\S]*!authDiagnosticsEnabled[\s\S]*window\.__BUBLI_TAURI_AUTH_QA__ = \{[\s\S]*assertRealGoogleAuthWidgetSnapshot: assertTauriRealGoogleAuthWidgetQa[\s\S]*getLocalSessionDiagnostics: getStoredAuthSessionDiagnostics[\s\S]*readAuthWidgetSnapshot: readTauriAuthWidgetQaSnapshot[\s\S]*readTauriMirrorDiagnostics: readTauriAuthSessionDiagnostics/,
   "TauriPostLoginLauncher must expose only explicitly enabled development-only redacted auth diagnostics for manual QA.",
 );
 assertContains(
@@ -405,13 +405,28 @@ assertContains(
 );
 assertNotContains(
   launcher,
-  /__BUBLI_TAURI_AUTH_QA__[\s\S]{0,400}accessToken|__BUBLI_TAURI_AUTH_QA__[\s\S]{0,400}refreshToken|__BUBLI_TAURI_AUTH_QA__[\s\S]{0,400}sessionJson/,
+  /__BUBLI_TAURI_AUTH_QA__[\s\S]{0,500}accessToken|__BUBLI_TAURI_AUTH_QA__[\s\S]{0,500}refreshToken|__BUBLI_TAURI_AUTH_QA__[\s\S]{0,500}sessionJson/,
   "Tauri auth QA helper must not expose raw tokens or mirrored session JSON through the window global.",
 );
 assertContains(
   authWidgetQa,
   /export async function readTauriAuthWidgetQaSnapshot\(\): Promise<TauriAuthWidgetQaSnapshot>/,
   "Tauri auth/widget QA must provide one redacted snapshot entrypoint for manual post-login verification.",
+);
+assertContains(
+  authWidgetQa,
+  /export async function assertTauriRealGoogleAuthWidgetQa\(\): Promise<TauriRealGoogleAuthWidgetQaAssertion>[\s\S]*assertRealGoogleSessionDiagnostics\(failedChecks, snapshot\.localSession, "local"\)[\s\S]*assertRealGoogleSessionDiagnostics\(failedChecks, snapshot\.tauriMirrorSession, "tauriMirror"\)/,
+  "Tauri auth/widget QA must provide one redacted pass/fail assertion helper for actual Google OAuth manual QA.",
+);
+assertContains(
+  authWidgetQa,
+  /diagnostics\.clientType === "TAURI"[\s\S]*diagnostics\.isTauriClient[\s\S]*diagnostics\.isDevAccessTokenSession === false[\s\S]*diagnostics\.wouldRejectDevAccessTokenSession === false[\s\S]*diagnostics\.refreshTokenExpired === false/,
+  "Actual Google OAuth QA assertion must reject dev-token sessions and expired refresh tokens.",
+);
+assertContains(
+  authWidgetQa,
+  /snapshot\.backend\.me\.ok[\s\S]*snapshot\.backend\.widgetContext\.ok[\s\S]*snapshot\.backend\.widgetSummary\.ok[\s\S]*snapshot\.widgetRuntime\.allExpectedWindowsVisible[\s\S]*snapshot\.widgetRuntime\.allWindowRoomContextMatchesActive[\s\S]*snapshot\.widgetRuntime\.barRestoreItems\.allMatchActiveRoom/,
+  "Actual Google OAuth QA assertion must verify real backend widget APIs and widget runtime state.",
 );
 assertContains(
   authWidgetQa,
@@ -440,8 +455,13 @@ assertContains(
 );
 assertNotContains(
   authWidgetQa,
-  /accessToken|refreshToken|sessionJson|userId|userName|userBubliId|email|googleSub/,
+  /accessToken\s*[?:]:|refreshToken\s*[?:]:|sessionJson\s*[?:]:|userId\s*[?:]:|userName\s*[?:]:|userBubliId\s*[?:]:|email\s*[?:]:|googleSub\s*[?:]:/,
   "Tauri auth/widget QA snapshot must not expose raw tokens, mirrored session JSON, or user identifiers.",
+);
+assertNotContains(
+  authWidgetQa,
+  /failedChecks\.push\([^)]*(accessToken|refreshToken|sessionJson|userId|userName|userBubliId|email|googleSub)/,
+  "Tauri auth/widget QA assertion failure labels must stay redacted.",
 );
 
 const startupWindows = extractConstArray(surfaces, "loginStartupWindows");

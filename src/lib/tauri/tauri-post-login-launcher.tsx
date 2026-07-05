@@ -14,7 +14,10 @@ import {
   restoreStoredAuthSessionFromTauri,
 } from "@/lib/auth/auth-session";
 import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
-import { readTauriAuthWidgetQaSnapshot } from "@/lib/tauri/tauri-auth-widget-qa";
+import {
+  assertTauriRealGoogleAuthWidgetQa,
+  readTauriAuthWidgetQaSnapshot,
+} from "@/lib/tauri/tauri-auth-widget-qa";
 import { startWidgetDataChangedBridge } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
@@ -26,6 +29,7 @@ const authDiagnosticsEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOST
 declare global {
   interface Window {
     __BUBLI_TAURI_AUTH_QA__?: {
+      assertRealGoogleAuthWidgetSnapshot: typeof assertTauriRealGoogleAuthWidgetQa;
       getLocalSessionDiagnostics: typeof getStoredAuthSessionDiagnostics;
       readAuthWidgetSnapshot: typeof readTauriAuthWidgetQaSnapshot;
       readTauriMirrorDiagnostics: typeof readTauriAuthSessionDiagnostics;
@@ -119,6 +123,7 @@ export function TauriPostLoginLauncher() {
     }
 
     window.__BUBLI_TAURI_AUTH_QA__ = {
+      assertRealGoogleAuthWidgetSnapshot: assertTauriRealGoogleAuthWidgetQa,
       getLocalSessionDiagnostics: getStoredAuthSessionDiagnostics,
       readAuthWidgetSnapshot: readTauriAuthWidgetQaSnapshot,
       readTauriMirrorDiagnostics: readTauriAuthSessionDiagnostics,
