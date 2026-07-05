@@ -367,11 +367,10 @@ function WidgetControls({
       <button aria-pressed={mode === "GHOST"} aria-label={t("widget.control.ghost")} onClick={() => onMode(mode === "GHOST" ? "DEFAULT" : "GHOST")} type="button">
         <Ghost size={14} strokeWidth={2} />
       </button>
-      {presentation === "preview" ? (
-        <button aria-pressed={mode === "TRANSLUCENT"} aria-label={t("widget.control.translucent")} onClick={() => onMode(mode === "TRANSLUCENT" ? "DEFAULT" : "TRANSLUCENT")} type="button">
-          <CircleDashed size={14} strokeWidth={2} />
-        </button>
-      ) : null}
+      {/* 반투명(투명도) 토글은 실제 앱에서도 노출한다 — 이전엔 preview 전용이라 사용자가 못 찾았다. */}
+      <button aria-pressed={mode === "TRANSLUCENT"} aria-label={t("widget.control.translucent")} onClick={() => onMode(mode === "TRANSLUCENT" ? "DEFAULT" : "TRANSLUCENT")} type="button">
+        <CircleDashed size={14} strokeWidth={2} />
+      </button>
       <button aria-label={t("widget.control.close")} onClick={onClose} type="button">
         <X size={14} strokeWidth={2} />
       </button>
