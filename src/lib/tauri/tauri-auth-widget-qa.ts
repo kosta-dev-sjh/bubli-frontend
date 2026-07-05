@@ -9,7 +9,11 @@ import {
 } from "@/lib/auth/auth-session";
 import { ApiClientError } from "@/lib/api/errors";
 import { isActivityAutoCaptureRunning } from "@/lib/local/activity-auto-capture";
-import { isManagedFolderAutoSyncRunning } from "@/lib/local/managed-folder-auto-sync";
+import {
+  getManagedFolderAutoSyncStatus,
+  isManagedFolderAutoSyncRunning,
+  type ManagedFolderAutoSyncStatus,
+} from "@/lib/local/managed-folder-auto-sync";
 import { syncAllLocalOutboxToServer } from "@/lib/sync/local-sync-client";
 import {
   tauriCommands,
@@ -79,6 +83,7 @@ export type TauriAuthWidgetQaSnapshot = {
     activityAutoCaptureRunning: boolean;
     allAutoSyncLoopsRunning: boolean;
     managedFolderAutoSyncRunning: boolean;
+    managedFolderStatus: ManagedFolderAutoSyncStatus;
     widgetUsageAutoSyncRunning: boolean;
   };
   tauriMirrorSession: AuthSessionDiagnostics;
@@ -257,6 +262,16 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
     "widgets:barRestoreItemsMatchActiveRoom",
   );
   addCheck(failedChecks, snapshot.syncRuntime.allAutoSyncLoopsRunning, "sync:allAutoSyncLoopsRunning");
+  addCheck(
+    failedChecks,
+    snapshot.syncRuntime.managedFolderStatus.running === snapshot.syncRuntime.managedFolderAutoSyncRunning,
+    "sync:managedFolderStatusMatchesRunningFlag",
+  );
+  addCheck(
+    failedChecks,
+    snapshot.syncRuntime.managedFolderStatus.lastStatus !== "failed",
+    "sync:managedFolderStatusNotFailed",
+  );
   if (snapshot.localSyncProbe.enabled) {
     addCheck(failedChecks, !snapshot.localSyncProbe.error, "localSyncProbe:noError");
     addCheck(failedChecks, snapshot.localSyncProbe.sqlite?.ok, "localSyncProbe:sqliteQuickCheck");
@@ -319,6 +334,7 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
   );
   const windows = Object.fromEntries(windowEntries) as Record<WidgetBubbleType, TauriWidgetWindowQaState | null>;
   const missingVisibleBubbles = WIDGET_BUBBLE_TYPES.filter((bubbleType) => !windows[bubbleType]?.windowVisible);
+  const managedFolderStatus = getManagedFolderAutoSyncStatus();
 
   return {
     activeProjectRoom: {
@@ -353,6 +369,7 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
         isManagedFolderAutoSyncRunning() &&
         isWidgetUsageAutoSyncRunning(),
       managedFolderAutoSyncRunning: isManagedFolderAutoSyncRunning(),
+      managedFolderStatus,
       widgetUsageAutoSyncRunning: isWidgetUsageAutoSyncRunning(),
     },
     tauriMirrorSession,
