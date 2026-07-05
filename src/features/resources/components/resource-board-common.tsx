@@ -247,6 +247,7 @@ export const SUPPORTED_RESOURCE_UPLOAD_ACCEPT = [
   ".txt",
   ".md",
   ".markdown",
+  ".rtf",
   ".hwp",
   ".hwpx",
   ".png",
@@ -266,6 +267,7 @@ export const SUPPORTED_RESOURCE_UPLOAD_ACCEPT = [
   "text/tab-separated-values",
   "text/plain",
   "text/markdown",
+  "application/rtf",
   "image/png",
   "image/jpeg",
   "image/webp",
@@ -291,7 +293,8 @@ function getResourcePreviewKind(resource: ResourceResponse): ResourcePreviewKind
     mimeType.includes("word") ||
     mimeType.includes("msword") ||
     mimeType.includes("officedocument.wordprocessingml") ||
-    /\.(doc|docx)$/.test(fileName)
+    mimeType.includes("rtf") ||
+    /\.(doc|docx|rtf)$/.test(fileName)
   ) {
     return "word";
   }
