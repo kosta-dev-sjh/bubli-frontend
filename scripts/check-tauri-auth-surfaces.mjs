@@ -187,6 +187,11 @@ assertContains(
   "Windows Tauri runtime smoke must provide the real backend STOMP /ws URL to the Tauri runtime.",
 );
 assertContains(
+  windowsRuntimeSmoke,
+  /NEXT_PUBLIC_CHAT_TYPING_RELAY:\s*"true"/,
+  "Windows Tauri runtime smoke must explicitly enable the backend chat typing STOMP relay check.",
+);
+assertContains(
   runtimePreflight,
   /process\.platform !== "win32"[\s\S]*Tauri runtime preflight skipped/,
   "Tauri runtime preflight must remain Windows-only so macOS/Linux CI is not affected.",
@@ -330,8 +335,13 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /import \{ getChatRealtimeClient \} from "@\/lib\/websocket\/chat-realtime";[\s\S]*import \{ websocketTopics \} from "@\/lib\/websocket\/topics";/,
+  /import \{ chatTypingDestinations, getChatRealtimeClient \} from "@\/lib\/websocket\/chat-realtime";[\s\S]*import \{ websocketTopics \} from "@\/lib\/websocket\/topics";/,
   "TauriRuntimeSmokeRunner must use the raw STOMP chat client because backend chat topics publish ChatMessageResponse payloads.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /import \{ chatTypingDestinations, getChatRealtimeClient \} from "@\/lib\/websocket\/chat-realtime";/,
+  "TauriRuntimeSmokeRunner must use the backend chat typing STOMP destinations for typing relay smoke coverage.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -342,6 +352,21 @@ assertContains(
   runtimeSmokeRunner,
   /const realtimeProbe = await openRealtimeChatMessageProbe\(roomChat\.id, clientMessageId, assert\);[\s\S]*chatApi\.sendMessage\(roomChat\.id[\s\S]*const realtimeMessage = await realtimeProbe\.message;[\s\S]*real backend chat message delivered over STOMP/,
   "TauriRuntimeSmokeRunner must prove the real backend chat message is delivered over STOMP, not only over HTTP readback.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /openRealtimeTypingProbe[\s\S]*NEXT_PUBLIC_CHAT_TYPING_RELAY[\s\S]*chatTypingDestinations\.subscribe\(chatRoomId\)[\s\S]*client\.subscribe\(destination[\s\S]*client\.isOpen\(\)/,
+  "TauriRuntimeSmokeRunner must subscribe to the real backend chat typing topic before sending the typing STOMP command.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /const typingProbe = await openRealtimeTypingProbe\(roomChat\.id, true, assert\);[\s\S]*getChatRealtimeClient\(\)\.publish\(chatTypingDestinations\.publish\(roomChat\.id\)[\s\S]*real backend chat typing event sent over STOMP[\s\S]*const typingEvent = await typingProbe\.message;[\s\S]*real backend chat typing event relayed over STOMP/,
+  "TauriRuntimeSmokeRunner must prove the backend relays a STOMP typing command back over the typing topic.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /const typingStopProbe = await openRealtimeTypingProbe\(roomChat\.id, false, assert\);[\s\S]*real backend chat typing stop event sent over STOMP[\s\S]*const typingStopEvent = await typingStopProbe\.message;[\s\S]*real backend chat typing stop event relayed over STOMP/,
+  "TauriRuntimeSmokeRunner must prove the backend also relays the STOMP typing stop command.",
 );
 assertContains(
   runtimeSmokeRunner,

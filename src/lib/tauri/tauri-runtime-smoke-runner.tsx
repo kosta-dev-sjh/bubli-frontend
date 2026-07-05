@@ -28,7 +28,7 @@ import type { LocalFileEventsSyncStageResult } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { isWidgetUsageAutoSyncRunning } from "@/lib/widget/widget-usage-auto-sync";
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
-import { getChatRealtimeClient } from "@/lib/websocket/chat-realtime";
+import { chatTypingDestinations, getChatRealtimeClient } from "@/lib/websocket/chat-realtime";
 import { websocketTopics } from "@/lib/websocket/topics";
 
 type SmokeCheck = {
@@ -99,6 +99,20 @@ function isRealtimeChatMessageFor(
     value.chatRoomId === chatRoomId &&
     value.clientMessageId === clientMessageId &&
     (value.roomSequence === undefined || typeof value.roomSequence === "number")
+  );
+}
+
+function isRealtimeTypingEventFor(
+  value: unknown,
+  chatRoomId: string,
+  typing: boolean,
+): value is { chatRoomId: string; typing: boolean; userId?: string; userName?: string } {
+  return (
+    isObject(value) &&
+    value.chatRoomId === chatRoomId &&
+    value.typing === typing &&
+    (value.userId === undefined || typeof value.userId === "string") &&
+    (value.userName === undefined || typeof value.userName === "string")
   );
 }
 
@@ -400,6 +414,76 @@ async function openRealtimeChatMessageProbe(
   throw new Error(`Timed out waiting for runtime smoke STOMP connection to ${destination}.`);
 }
 
+async function openRealtimeTypingProbe(chatRoomId: string, typing: boolean, assert: SmokeAssert) {
+  assert(
+    process.env.NEXT_PUBLIC_CHAT_TYPING_RELAY === "true",
+    "real backend chat typing relay enabled for runtime smoke",
+    { typingRelayEnabled: process.env.NEXT_PUBLIC_CHAT_TYPING_RELAY === "true" },
+  );
+
+  const client = getChatRealtimeClient();
+  const destination = chatTypingDestinations.subscribe(chatRoomId);
+  const startedAt = Date.now();
+  let settled = false;
+  let unsubscribe: () => void = () => undefined;
+  let timeout: number | null = null;
+
+  const messagePromise = new Promise<{ chatRoomId: string; typing: boolean; userId?: string; userName?: string }>(
+    (resolve, reject) => {
+      timeout = window.setTimeout(() => {
+        finish(
+          null,
+          new Error(
+            `Timed out waiting for runtime smoke STOMP typing relay after ${Date.now() - startedAt}ms.`,
+          ),
+        );
+      }, 10000);
+
+      unsubscribe = client.subscribe(destination, (message) => {
+        if (!isRealtimeTypingEventFor(message, chatRoomId, typing)) {
+          return;
+        }
+        finish(message);
+      });
+
+      function finish(
+        message: { chatRoomId: string; typing: boolean; userId?: string; userName?: string } | null,
+        error?: Error,
+      ) {
+        if (settled) return;
+        settled = true;
+        if (timeout) window.clearTimeout(timeout);
+        unsubscribe();
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(message as { chatRoomId: string; typing: boolean; userId?: string; userName?: string });
+      }
+    },
+  );
+
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (client.isOpen()) {
+      await sleep(150);
+      return {
+        cancel() {
+          if (settled) return;
+          settled = true;
+          if (timeout) window.clearTimeout(timeout);
+          unsubscribe();
+        },
+        message: messagePromise,
+      };
+    }
+    await sleep(125);
+  }
+
+  if (timeout) window.clearTimeout(timeout);
+  unsubscribe();
+  throw new Error(`Timed out waiting for runtime smoke STOMP connection to ${destination}.`);
+}
+
 async function verifyRealBackendRoomCommunication(smokeRoomId: string, assert: SmokeAssert) {
   const projectRoom = await projectRoomApi.get(smokeRoomId);
   assert(
@@ -469,6 +553,67 @@ async function verifyRealBackendRoomCommunication(smokeRoomId: string, assert: S
     "real backend chat read marker updated",
     readMarker,
   );
+
+  const typingProbe = await openRealtimeTypingProbe(roomChat.id, true, assert);
+  try {
+    const published = getChatRealtimeClient().publish(chatTypingDestinations.publish(roomChat.id), {
+      typing: true,
+    });
+    assert(
+      published,
+      "real backend chat typing event sent over STOMP",
+      { chatRoomId: roomChat.id, typing: true },
+    );
+    const typingEvent = await typingProbe.message;
+    assert(
+      typingEvent.chatRoomId === roomChat.id &&
+        typingEvent.typing === true &&
+        typingEvent.userId === "11111111-1111-4111-8111-111111111111" &&
+        typeof typingEvent.userName === "string" &&
+        typingEvent.userName.length > 0,
+      "real backend chat typing event relayed over STOMP",
+      {
+        chatRoomId: typingEvent.chatRoomId,
+        typing: typingEvent.typing,
+        userId: typingEvent.userId,
+        userNamePresent: Boolean(typingEvent.userName),
+      },
+    );
+  } catch (error) {
+    typingProbe.cancel();
+    getChatRealtimeClient().publish(chatTypingDestinations.publish(roomChat.id), { typing: false });
+    throw error;
+  }
+
+  const typingStopProbe = await openRealtimeTypingProbe(roomChat.id, false, assert);
+  try {
+    const stopped = getChatRealtimeClient().publish(chatTypingDestinations.publish(roomChat.id), {
+      typing: false,
+    });
+    assert(
+      stopped,
+      "real backend chat typing stop event sent over STOMP",
+      { chatRoomId: roomChat.id, typing: false },
+    );
+    const typingStopEvent = await typingStopProbe.message;
+    assert(
+      typingStopEvent.chatRoomId === roomChat.id &&
+        typingStopEvent.typing === false &&
+        typingStopEvent.userId === "11111111-1111-4111-8111-111111111111" &&
+        typeof typingStopEvent.userName === "string" &&
+        typingStopEvent.userName.length > 0,
+      "real backend chat typing stop event relayed over STOMP",
+      {
+        chatRoomId: typingStopEvent.chatRoomId,
+        typing: typingStopEvent.typing,
+        userId: typingStopEvent.userId,
+        userNamePresent: Boolean(typingStopEvent.userName),
+      },
+    );
+  } catch (error) {
+    typingStopProbe.cancel();
+    throw error;
+  }
 
   const voiceRoom = await voiceApi.createRoom({ roomId: smokeRoomId });
   assert(

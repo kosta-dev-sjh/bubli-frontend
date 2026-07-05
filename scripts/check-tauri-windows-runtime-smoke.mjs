@@ -119,6 +119,7 @@ function spawnTauri(reportUrl, accessToken, phase) {
       ...process.env,
       NEXT_PUBLIC_API_BASE_URL: API_BASE_URL,
       NEXT_PUBLIC_WS_URL: WS_URL,
+      NEXT_PUBLIC_CHAT_TYPING_RELAY: "true",
       NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "true",
       NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN: accessToken,
       NEXT_PUBLIC_BUBLI_PREVIEW_DATA: "false",
