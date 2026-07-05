@@ -25,6 +25,7 @@ const files = {
   tauriLib: "src-tauri/src/lib.rs",
   runtimePreflight: "scripts/check-tauri-runtime-preflight.mjs",
   realOAuthQaScript: "scripts/qa-tauri-real-oauth-manual.mjs",
+  windowsRuntimeSoak: "scripts/check-tauri-windows-runtime-soak.mjs",
   windowsRuntimeSmoke: "scripts/check-tauri-windows-runtime-smoke.mjs",
   widgetAuthHeaders: "src/features/widget/api/widgetAuthHeaders.ts",
   workspaceActiveRoom: "src/lib/workspace-active-room.ts",
@@ -91,6 +92,7 @@ const tauriDevtoolsGuard = read(files.tauriDevtoolsGuard);
 const tauriLib = read(files.tauriLib);
 const runtimePreflight = read(files.runtimePreflight);
 const realOAuthQaScript = read(files.realOAuthQaScript);
+const windowsRuntimeSoak = read(files.windowsRuntimeSoak);
 const surfaces = read(files.authenticatedSurfaces);
 const chatWidgetRouting = read(files.chatWidgetRouting);
 const appNav = read(files.appNav);
@@ -118,6 +120,11 @@ assertContains(
   packageJson,
   /"qa:tauri-real-oauth":\s*"node scripts\/qa-tauri-real-oauth-manual\.mjs"/,
   "package.json must expose the manual-assisted Tauri real Google OAuth QA script.",
+);
+assertContains(
+  packageJson,
+  /"check:tauri-windows-runtime-soak":\s*"node scripts\/check-tauri-windows-runtime-soak\.mjs"/,
+  "package.json must expose the Windows Tauri runtime soak QA script.",
 );
 assertContains(
   layout,
@@ -153,6 +160,21 @@ assertNotContains(
   realOAuthQaScript,
   /NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN/,
   "Manual real OAuth QA script must not inject a dev access token.",
+);
+assertContains(
+  windowsRuntimeSoak,
+  /process\.platform !== "win32"[\s\S]*Windows Tauri runtime soak skipped/,
+  "Windows Tauri runtime soak must remain Windows-only so macOS/Linux CI is not affected.",
+);
+assertContains(
+  windowsRuntimeSoak,
+  /BUBLI_TAURI_RUNTIME_SOAK_ITERATIONS[\s\S]*scripts\/check-tauri-windows-runtime-smoke\.mjs[\s\S]*BUBLI_TAURI_RUNTIME_SOAK_ITERATION/,
+  "Windows Tauri runtime soak must repeat the existing full runtime smoke with iteration metadata.",
+);
+assertContains(
+  windowsRuntimeSoak,
+  /CONTRACT_ONLY[\s\S]*mode: "contract"/,
+  "Windows Tauri runtime soak must support a no-window contract mode for fast static verification.",
 );
 assertContains(
   windowsRuntimeSmoke,
