@@ -1539,6 +1539,9 @@ fn extract_text_preview(path: &Path) -> Option<String> {
     if is_supported_rtf_file(path) {
         return extract_rtf_text(path).ok().filter(|text| !text.is_empty());
     }
+    if is_supported_html_file(path) {
+        return extract_html_text(path).ok().filter(|text| !text.is_empty());
+    }
 
     if !is_supported_plain_text_file(path) {
         return None;
@@ -1566,6 +1569,7 @@ fn is_supported_text_file(path: &Path) -> bool {
         || is_supported_pptx_file(path)
         || is_supported_pdf_file(path)
         || is_supported_rtf_file(path)
+        || is_supported_html_file(path)
 }
 
 fn is_supported_plain_text_file(path: &Path) -> bool {
@@ -1578,7 +1582,7 @@ fn is_supported_plain_text_file(path: &Path) -> bool {
 
     matches!(
         extension.as_str(),
-        "csv" | "md" | "markdown" | "tsv" | "txt"
+        "csv" | "json" | "jsonl" | "md" | "markdown" | "tsv" | "txt" | "yaml" | "yml"
     )
 }
 
@@ -1615,6 +1619,15 @@ fn is_supported_pdf_file(path: &Path) -> bool {
 fn is_supported_rtf_file(path: &Path) -> bool {
     path.extension()
         .map(|value| value.to_string_lossy().eq_ignore_ascii_case("rtf"))
+        .unwrap_or(false)
+}
+
+fn is_supported_html_file(path: &Path) -> bool {
+    path.extension()
+        .map(|value| {
+            let value = value.to_string_lossy();
+            value.eq_ignore_ascii_case("html") || value.eq_ignore_ascii_case("htm")
+        })
         .unwrap_or(false)
 }
 
@@ -1795,6 +1808,25 @@ fn extract_rtf_text(path: &Path) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
     let source = decode_text_bytes(&bytes);
     let text = extract_rtf_plain_text(&source);
+    if text.is_empty() {
+        return Err("EMPTY".to_string());
+    }
+
+    Ok(text)
+}
+
+fn extract_html_text(path: &Path) -> Result<String, String> {
+    let metadata = match std::fs::metadata(path) {
+        Ok(value) if value.is_file() => value,
+        _ => return Err("MISSING".to_string()),
+    };
+    if metadata.len() > MAX_EXTRACT_BYTES {
+        return Err("TOO_LARGE".to_string());
+    }
+
+    let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
+    let source = decode_text_bytes(&bytes);
+    let text = extract_html_plain_text(&source);
     if text.is_empty() {
         return Err("EMPTY".to_string());
     }
@@ -2141,6 +2173,65 @@ fn should_skip_rtf_destination(word: &str) -> bool {
             | "themedata"
             | "xmlnstbl"
     )
+}
+
+fn extract_html_plain_text(source: &str) -> String {
+    let source = strip_html_block(source, "script");
+    let source = strip_html_block(&source, "style");
+    let source = strip_html_block(&source, "noscript");
+    let mut output = String::new();
+    let mut in_tag = false;
+
+    for ch in source.chars() {
+        match ch {
+            '<' => {
+                in_tag = true;
+                if !string_ends_with_whitespace(&output) {
+                    output.push(' ');
+                }
+            }
+            '>' => {
+                in_tag = false;
+                if !string_ends_with_whitespace(&output) {
+                    output.push(' ');
+                }
+            }
+            _ if in_tag => {}
+            _ => output.push(ch),
+        }
+    }
+
+    xml_unescape(&output.replace("&nbsp;", " "))
+        .lines()
+        .map(clean_sentence)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn strip_html_block(source: &str, tag_name: &str) -> String {
+    let mut output = source.to_string();
+    let open_pattern = format!("<{tag_name}");
+    let close_pattern = format!("</{tag_name}>");
+
+    loop {
+        let lower = output.to_ascii_lowercase();
+        let Some(start) = lower.find(&open_pattern) else {
+            break;
+        };
+        let Some(close_relative) = lower[start..].find(&close_pattern) else {
+            output.truncate(start);
+            break;
+        };
+        let end = start + close_relative + close_pattern.len();
+        output.replace_range(start..end, " ");
+    }
+
+    output
+}
+
+fn string_ends_with_whitespace(value: &str) -> bool {
+    value.chars().last().is_some_and(|ch| ch.is_whitespace())
 }
 
 fn read_pdf_literal_string(bytes: &[u8], start: usize) -> (String, usize) {
@@ -2721,6 +2812,28 @@ fn read_local_text_preview(
         };
         return Ok((Some(preview_text), "READY".to_string(), truncated));
     }
+    if is_supported_html_file(path) {
+        let text = match extract_html_text(path) {
+            Ok(value) => value,
+            Err(status)
+                if matches!(
+                    status.as_str(),
+                    "MISSING" | "TOO_LARGE" | "EMPTY" | "UNSUPPORTED"
+                ) =>
+            {
+                return Ok((None, status, false));
+            }
+            Err(error) => return Err(error),
+        };
+        let total_chars = text.chars().count();
+        let truncated = total_chars > max_chars;
+        let preview_text = if truncated {
+            text.chars().take(max_chars).collect::<String>()
+        } else {
+            text
+        };
+        return Ok((Some(preview_text), "READY".to_string(), truncated));
+    }
 
     if !is_supported_text_file(path) {
         return Ok((None, "UNSUPPORTED".to_string(), false));
@@ -2815,6 +2928,20 @@ fn read_local_text_for_key_sentences(path: &Path) -> Result<(Option<String>, Str
     }
     if is_supported_rtf_file(path) {
         return match extract_rtf_text(path) {
+            Ok(value) => Ok((Some(value), "READY".to_string())),
+            Err(status)
+                if matches!(
+                    status.as_str(),
+                    "MISSING" | "TOO_LARGE" | "EMPTY" | "UNSUPPORTED"
+                ) =>
+            {
+                Ok((None, status))
+            }
+            Err(error) => Err(error),
+        };
+    }
+    if is_supported_html_file(path) {
+        return match extract_html_text(path) {
             Ok(value) => Ok((Some(value), "READY".to_string())),
             Err(status)
                 if matches!(
@@ -4328,6 +4455,7 @@ fn guess_mime_type(file_name: &str) -> Option<String> {
         "hwpx" => "application/vnd.hancom.hwpx",
         "jpg" | "jpeg" => "image/jpeg",
         "json" => "application/json",
+        "jsonl" => "application/x-ndjson",
         "md" => "text/markdown",
         "pdf" => "application/pdf",
         "png" => "image/png",
@@ -4338,6 +4466,7 @@ fn guess_mime_type(file_name: &str) -> Option<String> {
         "tsv" => "text/tab-separated-values",
         "xls" => "application/vnd.ms-excel",
         "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "yaml" | "yml" => "application/yaml",
         _ => return None,
     };
     Some(mime.to_string())
@@ -4695,6 +4824,10 @@ mod tests {
 
     fn minimal_rtf_bytes() -> Vec<u8> {
         br"{\rtf1\ansi\uc1{\fonttbl{\f0 Arial;}}\f0 RtfPreviewSignal captures rich text notes.\par Unicode: \u54620?\u44544? \tab Hex: \'41}".to_vec()
+    }
+
+    fn minimal_html_bytes() -> Vec<u8> {
+        br#"<!doctype html><html><head><style>.hidden{display:none}</style><script>const hidden = "NoIndexSignal";</script></head><body><h1>HtmlPreviewSignal</h1><p>Visible planning notes &amp; project context.</p></body></html>"#.to_vec()
     }
 
     fn push_u16(bytes: &mut Vec<u8>, value: u16) {
@@ -6318,6 +6451,86 @@ mod tests {
     }
 
     #[test]
+    fn reads_structured_text_for_preview_and_key_sentence_extraction() {
+        let json_path =
+            std::env::temp_dir().join(format!("bubli-local-json-test-{}.json", Uuid::new_v4()));
+        let yaml_path =
+            std::env::temp_dir().join(format!("bubli-local-yaml-test-{}.yml", Uuid::new_v4()));
+        let html_path =
+            std::env::temp_dir().join(format!("bubli-local-html-test-{}.html", Uuid::new_v4()));
+        std::fs::write(
+            &json_path,
+            r#"{"title":"JsonPreviewSignal","body":"Structured local notes"}"#,
+        )
+        .expect("write temp json file");
+        std::fs::write(
+            &yaml_path,
+            "title: YamlPreviewSignal\nbody: Structured local notes\n",
+        )
+        .expect("write temp yaml file");
+        std::fs::write(&html_path, minimal_html_bytes()).expect("write temp html file");
+
+        let (json_preview, json_status, json_truncated) =
+            read_local_text_preview(&json_path, 500).expect("read json preview");
+        let json_text = read_local_text_for_key_sentences(&json_path)
+            .expect("read json text")
+            .0
+            .expect("json text");
+        let (yaml_preview, yaml_status, yaml_truncated) =
+            read_local_text_preview(&yaml_path, 500).expect("read yaml preview");
+        let yaml_text = read_local_text_for_key_sentences(&yaml_path)
+            .expect("read yaml text")
+            .0
+            .expect("yaml text");
+        let (html_preview, html_status, html_truncated) =
+            read_local_text_preview(&html_path, 500).expect("read html preview");
+        let html_text = read_local_text_for_key_sentences(&html_path)
+            .expect("read html text")
+            .0
+            .expect("html text");
+
+        assert_eq!(json_status, "READY");
+        assert_eq!(yaml_status, "READY");
+        assert_eq!(html_status, "READY");
+        assert!(!json_truncated);
+        assert!(!yaml_truncated);
+        assert!(!html_truncated);
+        assert!(json_preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("JsonPreviewSignal"));
+        assert!(yaml_preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("YamlPreviewSignal"));
+        assert!(html_preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("HtmlPreviewSignal"));
+        assert!(html_preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Visible planning notes & project context."));
+        assert!(!html_preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("NoIndexSignal"));
+        assert!(extract_key_sentences(&json_text, 2, 200)
+            .iter()
+            .any(|sentence| sentence.text.contains("JsonPreviewSignal")));
+        assert!(extract_key_sentences(&yaml_text, 2, 200)
+            .iter()
+            .any(|sentence| sentence.text.contains("YamlPreviewSignal")));
+        assert!(extract_key_sentences(&html_text, 2, 200)
+            .iter()
+            .any(|sentence| sentence.text.contains("HtmlPreviewSignal")));
+
+        let _ = std::fs::remove_file(json_path);
+        let _ = std::fs::remove_file(yaml_path);
+        let _ = std::fs::remove_file(html_path);
+    }
+
+    #[test]
     fn reads_utf16_plain_text_for_preview_and_key_sentence_extraction() {
         let le_path =
             std::env::temp_dir().join(format!("bubli-local-utf16-le-{}.txt", Uuid::new_v4()));
@@ -6595,6 +6808,68 @@ mod tests {
 
         assert_eq!(search.items.len(), 1);
         assert_eq!(search.items[0].name, "rich-note.rtf");
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
+    fn scans_structured_text_content_into_local_file_search_index() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-local-structured-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        std::fs::write(
+            folder_path.join("config.json"),
+            r#"{"title":"JsonSearchSignal","body":"Structured local notes"}"#,
+        )
+        .expect("write temp json file");
+        std::fs::write(
+            folder_path.join("events.jsonl"),
+            "{\"title\":\"JsonlSearchSignal\"}\n",
+        )
+        .expect("write temp jsonl file");
+        std::fs::write(
+            folder_path.join("settings.yaml"),
+            "title: YamlSearchSignal\nbody: Structured local notes\n",
+        )
+        .expect("write temp yaml file");
+        std::fs::write(folder_path.join("brief.html"), minimal_html_bytes())
+            .expect("write temp html file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-structured', 'Structured Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let scan = scan_managed_folder_for_conn(
+            &conn,
+            ManagedFolderCommandInput {
+                local_folder_id: "folder-structured".to_string(),
+            },
+        )
+        .expect("scan managed folder");
+        assert_eq!(scan.changed_count, 4);
+
+        for (query, expected_name) in [
+            ("JsonSearchSignal", "config.json"),
+            ("JsonlSearchSignal", "events.jsonl"),
+            ("YamlSearchSignal", "settings.yaml"),
+            ("HtmlPreviewSignal", "brief.html"),
+        ] {
+            let search = search_local_files_for_conn(
+                &conn,
+                LocalFileSearchInput {
+                    limit: Some(10),
+                    query: query.to_string(),
+                },
+            )
+            .expect("search structured content");
+
+            assert_eq!(search.items.len(), 1);
+            assert_eq!(search.items[0].name, expected_name);
+        }
 
         let _ = std::fs::remove_dir_all(folder_path);
     }
