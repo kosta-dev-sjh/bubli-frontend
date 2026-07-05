@@ -64,7 +64,7 @@ import {
   type WidgetTimerMode,
 } from "@/lib/widget/widget-pref-client";
 import { readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
-import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { isMacTauriRuntime } from "@/lib/tauri/platform";
 
 import styles from "./desktop-widget-bubble.module.css";
 
@@ -213,10 +213,6 @@ export const widgetInteractiveRectSelector = "[data-bubli-interactive]";
 
 // 드래그 시작에서 제외할 조작 요소. 여기서 시작한 mousedown은 클릭/입력으로 처리한다.
 const widgetDragIgnoreSelector = "button, input, a, textarea, select, [contenteditable='true']";
-
-function isMacTauriRuntime() {
-  return isTauriRuntime() && typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("mac");
-}
 
 // 헤더/드래그 스트립/pill 빈 영역용: 조작 요소가 아니면 즉시 창 드래그를 시작한다.
 // data-tauri-drag-region은 target 요소 자체에만 반응해 자식(아이콘/텍스트)에서 끊기므로

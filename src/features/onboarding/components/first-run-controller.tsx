@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 
 import { completeOnboarding, completeTutorial, hasCompletedOnboarding, readStoredOnboarding } from "@/features/onboarding/lib/onboarding-storage";
 import { tauriCommands } from "@/lib/tauri/commands";
-import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { isMacTauriRuntime } from "@/lib/tauri/platform";
 import type { AuthUser } from "@/types/api/auth";
 
 import type { RoleOnboardingResult } from "./role-onboarding-overlay";
@@ -35,14 +35,14 @@ export function FirstRunController({ user }: FirstRunControllerProps) {
   const [phase, setPhase] = useState<FirstRunPhase>("idle");
 
   const triggerOnboardingOverlay = () => {
-    if (!isTauriRuntime()) return;
+    if (!isMacTauriRuntime()) return false;
 
     void tauriCommands.openOnboardingOverlay();
+    return true;
   };
 
   const showTour = () => {
-    if (isTauriRuntime()) {
-      triggerOnboardingOverlay();
+    if (triggerOnboardingOverlay()) {
       setPhase("idle");
       return;
     }
@@ -74,8 +74,7 @@ export function FirstRunController({ user }: FirstRunControllerProps) {
   // 설정 > 표시 "튜토리얼 다시 보기" — AppShell에 상주하므로 어느 화면에서든 받는다.
   useEffect(() => {
     function openTutorial() {
-      if (isTauriRuntime()) {
-        triggerOnboardingOverlay();
+      if (triggerOnboardingOverlay()) {
         setPhase("idle");
         return;
       }
@@ -108,7 +107,7 @@ export function FirstRunController({ user }: FirstRunControllerProps) {
   }
 
   if (phase === "tour") {
-    if (isTauriRuntime()) {
+    if (isMacTauriRuntime()) {
       return null;
     }
 

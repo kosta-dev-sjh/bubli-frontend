@@ -81,7 +81,7 @@ type ActiveJobState = {
 // 알림 피드의 분야(모바일 알림창의 앱 아이콘처럼 항목마다 하나씩 붙는다).
 type FeedCategory = "daily" | "document" | "requirement" | "schedule" | "task";
 
-type FeedFilter = FeedCategory | "ALL" | "HELD";
+type FeedFilter = FeedCategory | "ALL" | "APPLIED" | "HELD";
 
 type FeedItem = {
   badge: { label: string; tone: StatusTone } | null;
@@ -144,7 +144,7 @@ const categoryIcons: Record<FeedCategory, LucideIcon> = {
   task: ListChecks,
 };
 
-const filterLabelKeys: Record<Exclude<FeedFilter, "ALL" | "HELD">, MessageKey> = {
+const filterLabelKeys: Record<Exclude<FeedFilter, "ALL" | "APPLIED" | "HELD">, MessageKey> = {
   daily: "agent.page.filterDaily",
   document: "agent.page.filterDocument",
   requirement: "agent.page.filterRequirement",
@@ -704,22 +704,31 @@ function AgentPageContent() {
       .sort((a, b) => b.sortAt - a.sortAt);
   }, [relativeDate, state, t]);
 
+  const queueItems = useMemo(
+    () => feedItems.filter((item) => item.kind !== "aiDocument" && item.kind !== "confirmed" && item.kind !== "generatedDocument"),
+    [feedItems],
+  );
+
+  const appliedItems = useMemo(() => feedItems.filter((item) => item.kind === "confirmed"), [feedItems]);
+
   const filterChips = useMemo(() => {
-    const countOf = (category: FeedCategory) => feedItems.filter((item) => item.category === category).length;
+    const countOf = (category: FeedCategory) => queueItems.filter((item) => item.category === category).length;
     const categories: FeedCategory[] = ["requirement", "task", "schedule", "document", "daily"];
 
     return [
-      { count: feedItems.length, key: "ALL" as FeedFilter, label: t("agent.page.filterAll") },
+      { count: queueItems.length, key: "ALL" as FeedFilter, label: t("agent.page.filterAll") },
       ...categories.map((category) => ({ count: countOf(category), key: category as FeedFilter, label: t(filterLabelKeys[category]) })),
       { count: heldItems.length, key: "HELD" as FeedFilter, label: t("agent.page.filterHeld") },
+      { count: appliedItems.length, key: "APPLIED" as FeedFilter, label: t("agent.page.statusApprovedLabel") },
     ];
-  }, [feedItems, heldItems, t]);
+  }, [appliedItems, heldItems, queueItems, t]);
 
   const visibleItems = useMemo(() => {
     if (filter === "HELD") return heldItems;
-    if (filter === "ALL") return feedItems;
-    return feedItems.filter((item) => item.category === filter);
-  }, [feedItems, filter, heldItems]);
+    if (filter === "APPLIED") return appliedItems;
+    if (filter === "ALL") return queueItems;
+    return queueItems.filter((item) => item.category === filter);
+  }, [appliedItems, filter, heldItems, queueItems]);
 
   // 카드가 목록에서 사라진 뒤에도 무슨 일이 일어났는지 알 수 있게 처리 결과를 안내한다.
   const reviewNoticeKeys: Record<"APPROVE" | "HOLD" | "REJECT", MessageKey> = useMemo(

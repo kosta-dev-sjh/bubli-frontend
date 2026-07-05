@@ -287,7 +287,7 @@ fn note_widget_ignore_applied(label: &str, ignoring: bool) {
     });
 }
 
-/// 사용자가 수동으로 켠 클릭 통과(GHOST 모드 포함)는 폴러보다 우선한다.
+/// 사용자가 수동으로 켠 클릭 통과는 폴러보다 우선한다.
 fn widget_manual_click_through(app: &AppHandle, label: &str) -> bool {
     let state = app.state::<WidgetState>();
     let Ok(guard) = state.lock() else {
@@ -891,16 +891,9 @@ fn apply_widget_window_mode_update(
     selected_room_id: Option<String>,
 ) {
     widget.mode = normalize_widget_mode(mode);
-    #[cfg(target_os = "macos")]
-    {
-        // macOS GHOST는 시각 모드일 뿐 영구 OS click-through로 저장하지 않는다.
-        // true로 두면 set_ignore_cursor_events(true)가 창 전체에 걸려 고스트 해제 클릭도 받을 수 없다.
-        widget.click_through = false;
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        widget.click_through = widget.mode == "GHOST";
-    }
+    // GHOST는 시각 모드일 뿐 영구 OS click-through로 저장하지 않는다.
+    // true로 두면 set_ignore_cursor_events(true)가 창 전체에 걸려 고스트 해제 클릭도 받을 수 없다.
+    widget.click_through = false;
     widget.dock_orb_visible = false;
     if let Some(selected_room_id) = selected_room_id {
         widget.selected_room_id = Some(selected_room_id);
@@ -914,16 +907,12 @@ fn apply_open_widget_window_update(
     selected_room_id: Option<String>,
 ) {
     widget.mode = next_mode;
+    widget.click_through = false;
     #[cfg(target_os = "macos")]
     {
-        widget.click_through = false;
         if widget.active_bubble != "bar" && widget.active_bubble != "menu" {
             widget.always_on_top = true;
         }
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        widget.click_through = widget.mode == "GHOST";
     }
     widget.dock_orb_visible = false;
     if let Some(selected_room_id) = selected_room_id {
@@ -982,15 +971,8 @@ fn widget_window_store_from_layout(layout: StoredWidgetWindowLayout) -> WidgetWi
     for mut widget in layout.bubbles {
         widget.active_bubble = normalize_bubble_type(Some(widget.active_bubble));
         widget.mode = normalize_widget_mode(widget.mode);
-        #[cfg(target_os = "macos")]
-        {
-            if widget.mode == "GHOST" {
-                widget.click_through = false;
-            }
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            widget.click_through = widget.click_through || widget.mode == "GHOST";
+        if widget.mode == "GHOST" {
+            widget.click_through = false;
         }
         if widget.active_bubble != "bar" && widget.mode == "MINIMIZED" {
             widget.window_visible = false;
@@ -3195,50 +3177,69 @@ fn open_onboarding_overlay(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
 ) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window(ONBOARDING_OVERLAY_WINDOW_LABEL) {
-        let _ = window.unminimize();
-        let _ = window.show();
-        return window.set_focus().map_err(|error| error.to_string());
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        let _ = monitor_state;
+        return Ok(());
     }
 
-    let (position, size) = onboarding_overlay_window_geometry(&app, &monitor_state)?;
-    let window = WebviewWindowBuilder::new(
-        &app,
-        ONBOARDING_OVERLAY_WINDOW_LABEL,
-        WebviewUrl::App(ONBOARDING_OVERLAY_WINDOW_URL.into()),
-    )
-    .title("Bubli onboarding")
-    .inner_size(size.width, size.height)
-    .min_inner_size(size.width, size.height)
-    .max_inner_size(size.width, size.height)
-    .position(position.x, position.y)
-    .decorations(false)
-    .transparent(true)
-    .background_color(Color(0, 0, 0, 0))
-    .devtools(false)
-    .shadow(false)
-    .resizable(false)
-    .always_on_top(true)
-    .skip_taskbar(true)
-    .focused(true)
-    .visible(true)
-    .build()
-    .map_err(|error| error.to_string())?;
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(window) = app.get_webview_window(ONBOARDING_OVERLAY_WINDOW_LABEL) {
+            let _ = window.unminimize();
+            let _ = window.show();
+            return window.set_focus().map_err(|error| error.to_string());
+        }
 
-    window
-        .set_ignore_cursor_events(false)
+        let (position, size) = onboarding_overlay_window_geometry(&app, &monitor_state)?;
+        let window = WebviewWindowBuilder::new(
+            &app,
+            ONBOARDING_OVERLAY_WINDOW_LABEL,
+            WebviewUrl::App(ONBOARDING_OVERLAY_WINDOW_URL.into()),
+        )
+        .title("Bubli onboarding")
+        .inner_size(size.width, size.height)
+        .min_inner_size(size.width, size.height)
+        .max_inner_size(size.width, size.height)
+        .position(position.x, position.y)
+        .decorations(false)
+        .transparent(true)
+        .background_color(Color(0, 0, 0, 0))
+        .devtools(false)
+        .shadow(false)
+        .resizable(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .focused(true)
+        .visible(true)
+        .build()
         .map_err(|error| error.to_string())?;
 
-    Ok(())
+        window
+            .set_ignore_cursor_events(false)
+            .map_err(|error| error.to_string())?;
+
+        Ok(())
+    }
 }
 
 #[tauri::command]
 fn close_onboarding_overlay(app: AppHandle) -> Result<(), String> {
-    let Some(window) = app.get_webview_window(ONBOARDING_OVERLAY_WINDOW_LABEL) else {
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
         return Ok(());
-    };
+    }
 
-    window.close().map_err(|error| error.to_string())
+    #[cfg(target_os = "macos")]
+    {
+        let Some(window) = app.get_webview_window(ONBOARDING_OVERLAY_WINDOW_LABEL) else {
+            return Ok(());
+        };
+
+        window.close().map_err(|error| error.to_string())
+    }
 }
 
 /// 위젯 메뉴에서 메인 앱을 열 때 이동을 허용하는 경로 화이트리스트.
@@ -4115,13 +4116,13 @@ mod widget_runtime_tests {
         apply_widget_window_mode_update(&mut widget, "GHOST".to_string(), None);
 
         assert_eq!(widget.mode, "GHOST");
-        assert_eq!(widget.click_through, !cfg!(target_os = "macos"));
+        assert!(!widget.click_through);
 
         widget.click_through = true;
         apply_open_widget_window_update(&mut widget, "GHOST".to_string(), None);
 
         assert_eq!(widget.mode, "GHOST");
-        assert_eq!(widget.click_through, !cfg!(target_os = "macos"));
+        assert!(!widget.click_through);
     }
 
     #[test]
