@@ -568,7 +568,7 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /verifyLocalAutoSyncLoops[\s\S]*startActivityAutoCapture\(\)[\s\S]*startManagedFolderAutoSync\(\)[\s\S]*getActivityAutoCaptureStatus[\s\S]*local auto-sync activity loop repeated on smoke interval[\s\S]*getManagedFolderAutoSyncStatus[\s\S]*local auto-sync managed folder watcher restored active folders[\s\S]*triggerManagedFolderMutation[\s\S]*local auto-sync managed folder events drained through backend sync[\s\S]*stopActivityAutoCapture\(\{ flush: true \}\)[\s\S]*stopManagedFolderAutoSync\(\{ flush: true \}\)/,
+  /verifyLocalAutoSyncLoops[\s\S]*startActivityAutoCapture\(\)[\s\S]*startManagedFolderAutoSync\(\)[\s\S]*getActivityAutoCaptureStatus[\s\S]*local auto-sync activity loop repeated on smoke interval[\s\S]*getManagedFolderAutoSyncStatus[\s\S]*local auto-sync managed folder watcher restored active folders[\s\S]*triggerManagedFolderMutation[\s\S]*lastFileEventSentCount[\s\S]*lastFileEventSyncedCount[\s\S]*lastFileAnalysisFailedCount[\s\S]*local auto-sync managed folder events drained through backend sync[\s\S]*stopActivityAutoCapture\(\{ flush: true \}\)[\s\S]*stopManagedFolderAutoSync\(\{ flush: true \}\)/,
   "TauriRuntimeSmokeRunner must provide a UI-free local-auto-sync phase for activity and managed-folder loops.",
 );
 assertContains(

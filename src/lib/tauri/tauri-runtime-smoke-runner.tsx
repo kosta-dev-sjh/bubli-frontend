@@ -928,6 +928,9 @@ async function verifyLocalAutoSyncLoops(assert: SmokeAssert) {
     assert(
       !drainedNames.has("runtime-smoke-note.txt") &&
         !drainedNames.has("runtime-smoke-delete.txt") &&
+        (drainedStatus.lastFileEventSentCount ?? 0) >= 1 &&
+        (drainedStatus.lastFileEventSyncedCount ?? 0) >= 1 &&
+        (drainedStatus.lastFileAnalysisFailedCount ?? 0) === 0 &&
         drainedStatus.lastStatus !== "failed",
       "local auto-sync managed folder events drained through backend sync",
       { drainedEvents, drainedStatus },
