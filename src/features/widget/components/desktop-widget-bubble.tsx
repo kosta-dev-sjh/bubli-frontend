@@ -44,6 +44,7 @@ import {
   type WidgetPreviewBubble,
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
+import { BubbleMark } from "@/components/bubbles";
 // /bubli 명령 문법·자동완성은 웹 소통창과 같은 공용 모듈을 쓴다(계약 단일 출처).
 import { AgentCommandAutocomplete } from "@/features/communication/components/agent-command-autocomplete";
 import { stripAgentCommandPrefix } from "@/features/communication/lib/agent-commands";
@@ -85,7 +86,7 @@ const bubbleMeta: BubbleMeta[] = [
   { Icon: CheckCircle2, accent: "sky", id: "todo", label: "widget.kind.todo", scope: "both" },
   { Icon: Sparkles, accent: "sage", id: "agent", label: "widget.kind.agent", scope: "both" },
   { Icon: MessageSquare, accent: "rose", id: "chat", label: "widget.kind.chat", scope: "room" },
-  { Icon: Timer, accent: "amber", id: "timer", label: "widget.kind.timer", scope: "personal" },
+  { Icon: Timer, accent: "amber", id: "timer", label: "widget.kind.timer", scope: "both" },
   { Icon: StickyNote, accent: "cream", id: "memo", label: "widget.kind.memo", scope: "personal" },
   { Icon: Clock3, accent: "blue", id: "schedule", label: "widget.kind.schedule", scope: "both" },
   { Icon: FileText, accent: "sand", id: "resource", label: "widget.kind.resource", scope: "both" },
@@ -178,8 +179,8 @@ export type DesktopWidgetBubbleProps = {
   onModeChange: (mode: WidgetWindowMode) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onCreateMemo?: (bubble: WidgetPreviewBubble, body?: string) => Promise<void> | void;
-  onCreateSchedule?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
-  onCreateTodo?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  onCreateSchedule?: (bubble: WidgetPreviewBubble, title?: string) => Promise<void> | void;
+  onCreateTodo?: (bubble: WidgetPreviewBubble, title?: string) => Promise<void> | void;
   onDeleteMemo?: (item: WidgetPreviewItem) => Promise<void> | void;
   onEditMemo?: (item: WidgetPreviewItem) => Promise<void> | void;
   onAnalyzeResource?: (item: WidgetPreviewItem) => Promise<void> | void;
@@ -554,6 +555,22 @@ function TodoBody({
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
   const { t } = useI18n();
+  const [draft, setDraft] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const saveDraftTodo = async () => {
+    const title = draft.trim();
+    if (!title || !onCreateTodo || submitting) return;
+
+    setSubmitting(true);
+    try {
+      await onCreateTodo(bubble, title);
+      setDraft("");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className={styles.body}>
       {/* 카운트 링은 중앙 부유 대신 요약 카피와 나란히 — 본문이 위에서부터 콘텐츠로 채워진다.
@@ -569,10 +586,26 @@ function TodoBody({
         </div>
       </div>
       <TodoRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
-      <button className={styles.wideAction} onClick={() => void onCreateTodo?.(bubble)} type="button">
+      <form
+        className={styles.input}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void saveDraftTodo();
+        }}
+      >
         <Plus size={14} strokeWidth={2} />
-        {t(bubble.actionLabel as MessageKey)}
-      </button>
+        <input
+          aria-label={t(bubble.actionLabel as MessageKey)}
+          disabled={submitting}
+          maxLength={200}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : t(bubble.actionLabel as MessageKey)}
+          value={draft}
+        />
+        <button aria-label={t(bubble.actionLabel as MessageKey)} disabled={submitting || !draft.trim()} type="submit">
+          <Plus size={13} strokeWidth={2.1} />
+        </button>
+      </form>
     </div>
   );
 }
@@ -1005,6 +1038,21 @@ function formatMinutesSeconds(totalSeconds: number): string {
   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }
 
+function elapsedWidgetTimerLabel(item?: WidgetPreviewItem, fallback = "00:00") {
+  if (!item) return fallback;
+
+  const baseSeconds = item.timerDurationSeconds ?? 0;
+  if (item.status !== "RUNNING") {
+    return formatMinutesSeconds(baseSeconds);
+  }
+
+  const startedAt = new Date(item.timerLastStartedAt ?? item.timerStartedAt ?? "").getTime();
+  if (Number.isNaN(startedAt)) return fallback;
+
+  const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
+  return formatMinutesSeconds(baseSeconds + Math.max(0, elapsedSeconds));
+}
+
 // 시계 모드: HH:MM:SS 라이브(1s 인터벌) + 날짜 한 줄. start/stop 컨트롤 없음.
 // reduced-motion과 무관하게 텍스트만 갱신하므로 애니메이션 정책의 영향을 받지 않는다.
 function ClockView() {
@@ -1041,28 +1089,49 @@ function WorkView({
   onPrimaryTimerAction?: DesktopWidgetBubbleProps["onPrimaryTimerAction"];
 }) {
   const { t } = useI18n();
-  const timerStatus = bubble.rows[0]?.status;
+  const timerItem = bubble.rows[0];
+  const timerStatus = timerItem?.status;
   const canPause = timerStatus === "RUNNING";
   const PrimaryIcon = timerStatus === "RUNNING" ? Square : Play;
   const contextLabel = bubble.roomId ? t("widget.timer.workTimer") : t("widget.timer.generalTimer");
+  const primaryLabel =
+    timerStatus === "RUNNING"
+      ? t("widget.timerAction.stop")
+      : timerStatus === "PAUSED"
+        ? t("widget.timerAction.resume")
+        : t("widget.timerAction.start");
+  const [, setTimerTick] = useState(0);
+
+  useEffect(() => {
+    if (timerStatus !== "RUNNING") return;
+
+    const intervalId = window.setInterval(() => {
+      setTimerTick((current) => current + 1);
+    }, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [timerStatus]);
+
+  const liveMetric = elapsedWidgetTimerLabel(timerItem, bubble.metric);
 
   return (
     <>
       <div className={styles.timer}>
-        <strong>{bubble.metric}</strong>
+        <strong>{liveMetric}</strong>
         <span>{t(bubble.metricLabel as MessageKey)}</span>
       </div>
       <p className={styles.timerScopeNote}>{contextLabel}</p>
-      <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} />
-      <div className={styles.timerActions}>
-        <button className={styles.timerPrimary} onClick={() => void onPrimaryTimerAction?.(bubble)} type="button">
+      {timerItem ? <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} /> : null}
+      <div className={canPause ? styles.timerActions : [styles.timerActions, styles.timerActionsSingle].join(" ")}>
+        <button aria-label={primaryLabel} className={styles.timerPrimary} onClick={() => void onPrimaryTimerAction?.(bubble)} type="button">
           <PrimaryIcon size={13} />
-          {t(bubble.actionLabel as MessageKey)}
+          {primaryLabel}
         </button>
-        <button className={styles.timerGhost} disabled={!canPause} onClick={() => void onPauseTimer?.(bubble)} type="button">
-          <Pause size={13} />
-          {timerStatus === "PAUSED" ? t("widget.timer.paused") : t("widget.timer.pause")}
-        </button>
+        {canPause ? (
+          <button className={styles.timerGhost} onClick={() => void onPauseTimer?.(bubble)} type="button">
+            <Pause size={13} />
+            {t("widget.timer.pause")}
+          </button>
+        ) : null}
       </div>
     </>
   );
@@ -1217,24 +1286,34 @@ function TimerBody({
 }) {
   const { t } = useI18n();
   const selectedRoomId = bubble.roomId?.trim() || null;
+  const hasWorkTimer = bubble.rows.length > 0;
   const [mode, setMode] = useState<WidgetTimerMode>("work");
 
-  // 선택 모드 복원(재오픈) — 컨텍스트별로 저장된 모드를 읽어온다.
+  // 선택 모드 복원(재오픈). 서버 작업 타이머 제어는 작업 탭에만 두므로
+  // 실행 중/일시정지 타이머가 있거나 저장 모드가 clock이면 작업 탭으로 진입한다.
   useEffect(() => {
     let cancelled = false;
+    if (hasWorkTimer) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
     void readWidgetTimerMode(selectedRoomId).then((stored) => {
-      if (!cancelled && stored) setMode(stored);
+      if (cancelled) return;
+      setMode(stored && stored !== "clock" ? stored : "work");
     });
     return () => {
       cancelled = true;
     };
-  }, [selectedRoomId]);
+  }, [hasWorkTimer, selectedRoomId]);
 
   const changeMode = (index: number) => {
     const next = TIMER_MODE_ORDER[index] ?? "work";
     setMode(next);
     void writeWidgetTimerMode(next, selectedRoomId);
   };
+  const displayedMode: WidgetTimerMode = hasWorkTimer ? "work" : mode;
 
   return (
     <div className={styles.body}>
@@ -1243,20 +1322,20 @@ function TimerBody({
         ariaLabel={t("widget.timer.modeAria")}
         labels={[t("widget.timer.tabClock"), t("widget.timer.tabWork"), t("widget.timer.tabPomodoro")]}
         onChange={changeMode}
-        value={TIMER_MODE_ORDER.indexOf(mode)}
+        value={TIMER_MODE_ORDER.indexOf(displayedMode)}
       />
       {/* 서버 동기화 상태는 서버에 기록하는 작업 모드에서만 의미가 있다. */}
-      {mode === "work" && isBubbleSyncPending(bubble) ? (
+      {displayedMode === "work" && isBubbleSyncPending(bubble) ? (
         <div className={styles.syncLine} role="status">
           <RefreshCw size={12} strokeWidth={2.2} />
           <span>{t("widget.data.syncPending")}</span>
         </div>
       ) : null}
-      {mode === "clock" ? <ClockView /> : null}
-      {mode === "work" ? (
+      {displayedMode === "clock" ? <ClockView /> : null}
+      {displayedMode === "work" ? (
         <WorkView bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />
       ) : null}
-      {mode === "pomodoro" ? <PomodoroView selectedRoomId={selectedRoomId} /> : null}
+      {displayedMode === "pomodoro" ? <PomodoroView selectedRoomId={selectedRoomId} /> : null}
     </div>
   );
 }
@@ -1393,6 +1472,22 @@ function ScheduleBody({
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
   const { t } = useI18n();
+  const [draft, setDraft] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const saveDraftSchedule = async () => {
+    const title = draft.trim();
+    if (!title || !onCreateSchedule || submitting) return;
+
+    setSubmitting(true);
+    try {
+      await onCreateSchedule(bubble, title);
+      setDraft("");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
     if (!item.handoffUrl || !onOpenHandoff) return;
 
@@ -1442,10 +1537,26 @@ function ScheduleBody({
           ))}
         </div>
       ) : null}
-      <button className={styles.wideAction} onClick={() => void onCreateSchedule?.(bubble)} type="button">
+      <form
+        className={styles.input}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void saveDraftSchedule();
+        }}
+      >
         <Plus size={14} strokeWidth={2} />
-        {t("widget.schedule.quickAdd")}
-      </button>
+        <input
+          aria-label={t("widget.schedule.quickAdd")}
+          disabled={submitting}
+          maxLength={200}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : t("widget.schedule.prompt")}
+          value={draft}
+        />
+        <button aria-label={t("widget.schedule.quickAdd")} disabled={submitting || !draft.trim()} type="submit">
+          <Plus size={13} strokeWidth={2.1} />
+        </button>
+      </form>
     </div>
   );
 }
@@ -1892,13 +2003,11 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
         ref={shellRef}
       >
         {!windowVisible ? (
-          isPreview ? (
-            <button className={styles.hiddenCard} onClick={onRestore ?? (() => onModeChange("DEFAULT"))} type="button">
-              <span>{t("widget.hidden")}</span>
-              <b>{t("widget.restoreBubble", { label: t(activeData.label as MessageKey) })}</b>
-              <small>{t(activeData.notificationLabel as MessageKey)}</small>
-            </button>
-          ) : null
+          <button className={styles.hiddenCard} onClick={onRestore ?? (() => onModeChange("DEFAULT"))} type="button">
+            <span>{t("widget.hidden")}</span>
+            <b>{t("widget.restoreBubble", { label: t(activeData.label as MessageKey) })}</b>
+            <small>{t(activeData.notificationLabel as MessageKey)}</small>
+          </button>
         ) : mode === "MINIMIZED" ? (
           <button className={styles.dockOrb} onClick={() => onModeChange("DEFAULT")} type="button">
             <span className={styles.dockBubble} aria-hidden="true" />
@@ -2312,6 +2421,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   const prefersReducedMotion = useReducedMotion();
   // 접힌 칩에 hover/포커스하면 pill 위 투명 영역에 요약 팝오버를 띄운다.
   const [previewTarget, setPreviewTarget] = useState<WidgetBubbleType | "notice" | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   // 알림 버블 칩만 제외(고정 알림 칩과 중복)하고 접힌 칩은 전부 노출한다.
   // 4초 폴링이 같은 목록을 유지하면(참조 동일) 필터 결과도 재사용한다.
   const visibleItems = useMemo(() => collectBarFoldedItems(minimizedItems), [minimizedItems]);
@@ -2337,9 +2447,17 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   }, [gooPop]);
   const gooPopVisible = Boolean(gooPop && gooPop.title.trim());
   const openNoticeBubble = useCallback(() => {
+    setMenuOpen(false);
     setGooPop(null);
     onRestoreBubble("alert");
   }, [onRestoreBubble]);
+  const openBubbleFromMenu = useCallback(
+    (bubbleType: WidgetBubbleType) => {
+      setMenuOpen(false);
+      onRestoreBubble(bubbleType);
+    },
+    [onRestoreBubble],
+  );
 
   // idle 페이드: 8초 무상호작용 → pill(nav)만 옅게(0.85), 상호작용 → 즉시 1.0(CSS 200ms).
   // 프리뷰/알림 구이가 떠 있으면 페이드를 완전히 정지한다(즉시 불투명) —
@@ -2364,7 +2482,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
       setBarIdle(true);
     }, BAR_IDLE_FADE_MS);
   }, []);
-  const barFadeSuspended = previewTarget !== null || gooPopVisible;
+  const barFadeSuspended = menuOpen || previewTarget !== null || gooPopVisible;
   // 정지 상태가 바뀌는 순간(특히 해제 직후) stale barIdle을 지운다 — effect 내 동기 setState 금지
   // 규칙이 있어 렌더 중 상태 보정 패턴(seenPanelSignal과 동일)으로 처리한다.
   const [seenFadeSuspended, setSeenFadeSuspended] = useState(barFadeSuspended);
@@ -2643,6 +2761,33 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
         ref={barRootRef}
       >
         <GooeyFilter />
+        <AnimatePresence>
+          {menuOpen ? (
+            <motion.div
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className={styles.barMenuPanel}
+              data-bubli-interactive="true"
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              key="bubli-bar-menu"
+              role="menu"
+              transition={prefersReducedMotion ? { duration: 0 } : barChipSpring}
+            >
+              <div className={styles.barMenuInner}>
+                <WidgetMenuPanelContent
+                  hasRoomContext={hasRoomContext}
+                  onArrangeBubbles={onArrangeBubbles}
+                  onOpenBubble={openBubbleFromMenu}
+                  onOpenMainApp={onOpenMainApp}
+                  onOpenSettings={onOpenSettings}
+                  onQuit={onQuit}
+                  onToggleRoomContext={onToggleRoomContext}
+                  usageSummary={usageSummary}
+                />
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
         {/* hover 프리뷰 팝오버: 칩 accent를 물려받고 pill 위에서 스프링 스케일 인(하단 앵커). */}
         <AnimatePresence>
           {preview && PreviewIcon ? (
@@ -2760,6 +2905,23 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
               ) : null}
             </AnimatePresence>
           </span>
+          <motion.button
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            aria-label={t("widget.menu.openAria")}
+            className={styles.barBrand}
+            onClick={() => {
+              setGooPop(null);
+              setPreviewTarget(null);
+              setMenuOpen((current) => !current);
+            }}
+            title={t("widget.menu.openAria")}
+            type="button"
+            whileHover={chipWhileHover}
+            whileTap={chipWhileTap}
+          >
+            <BubbleMark aria-hidden="true" className={styles.menuOrbMark} />
+          </motion.button>
           <span className={styles.barDivider} aria-hidden="true" data-bubli-interactive="true" />
           <AnimatePresence initial={false} mode="popLayout">
             {visibleItems.map((item) => {

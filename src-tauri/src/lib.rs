@@ -287,7 +287,7 @@ fn note_widget_ignore_applied(label: &str, ignoring: bool) {
     });
 }
 
-/// 사용자가 수동으로 켠 클릭 통과는 폴러보다 우선한다.
+/// 사용자가 수동으로 켠 클릭 통과(GHOST 모드 포함)는 폴러보다 우선한다.
 fn widget_manual_click_through(app: &AppHandle, label: &str) -> bool {
     let state = app.state::<WidgetState>();
     let Ok(guard) = state.lock() else {
@@ -891,9 +891,16 @@ fn apply_widget_window_mode_update(
     selected_room_id: Option<String>,
 ) {
     widget.mode = normalize_widget_mode(mode);
-    // GHOST는 시각 모드일 뿐 영구 OS click-through로 저장하지 않는다.
-    // true로 두면 set_ignore_cursor_events(true)가 창 전체에 걸려 고스트 해제 클릭도 받을 수 없다.
-    widget.click_through = false;
+    #[cfg(target_os = "macos")]
+    {
+        // macOS GHOST는 시각 모드일 뿐 영구 OS click-through로 저장하지 않는다.
+        // true로 두면 set_ignore_cursor_events(true)가 창 전체에 걸려 고스트 해제 클릭도 받을 수 없다.
+        widget.click_through = false;
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        widget.click_through = widget.mode == "GHOST";
+    }
     widget.dock_orb_visible = false;
     if let Some(selected_room_id) = selected_room_id {
         widget.selected_room_id = Some(selected_room_id);
@@ -907,12 +914,16 @@ fn apply_open_widget_window_update(
     selected_room_id: Option<String>,
 ) {
     widget.mode = next_mode;
-    widget.click_through = false;
     #[cfg(target_os = "macos")]
     {
+        widget.click_through = false;
         if widget.active_bubble != "bar" && widget.active_bubble != "menu" {
             widget.always_on_top = true;
         }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        widget.click_through = widget.mode == "GHOST";
     }
     widget.dock_orb_visible = false;
     if let Some(selected_room_id) = selected_room_id {
@@ -971,8 +982,15 @@ fn widget_window_store_from_layout(layout: StoredWidgetWindowLayout) -> WidgetWi
     for mut widget in layout.bubbles {
         widget.active_bubble = normalize_bubble_type(Some(widget.active_bubble));
         widget.mode = normalize_widget_mode(widget.mode);
-        if widget.mode == "GHOST" {
-            widget.click_through = false;
+        #[cfg(target_os = "macos")]
+        {
+            if widget.mode == "GHOST" {
+                widget.click_through = false;
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            widget.click_through = widget.click_through || widget.mode == "GHOST";
         }
         if widget.active_bubble != "bar" && widget.mode == "MINIMIZED" {
             widget.window_visible = false;
@@ -3397,7 +3415,11 @@ async fn open_widget_windows(
 
     let mut results = Vec::with_capacity(widgets.len());
     for widget in widgets {
-        results.push(schedule_widget_window_build(&app, &monitor_state, &widget)?);
+        results.push(schedule_widget_window_build_and_raise(
+            &app,
+            &monitor_state,
+            &widget,
+        )?);
     }
 
     refresh_widget_bar_window(&app, &monitor_state, &state)?;
@@ -4093,13 +4115,13 @@ mod widget_runtime_tests {
         apply_widget_window_mode_update(&mut widget, "GHOST".to_string(), None);
 
         assert_eq!(widget.mode, "GHOST");
-        assert!(!widget.click_through);
+        assert_eq!(widget.click_through, !cfg!(target_os = "macos"));
 
         widget.click_through = true;
         apply_open_widget_window_update(&mut widget, "GHOST".to_string(), None);
 
         assert_eq!(widget.mode, "GHOST");
-        assert!(!widget.click_through);
+        assert_eq!(widget.click_through, !cfg!(target_os = "macos"));
     }
 
     #[test]
