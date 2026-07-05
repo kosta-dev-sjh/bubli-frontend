@@ -71,12 +71,7 @@ export function DesktopWidgetMenuOrb({
         title={t("widget.menu.openAria")}
         type="button"
       >
-        {/* 미니 앱 아이콘 오브(44px, radius 14): 유리 버블 단독은 '사탕'처럼 읽혀서,
-            하이브리드 앱 브랜드 톤(sky→lilac 그라디언트 타일) 위에 버블 마크를 얹은
-            앱 아이콘 구성으로 바꿨다 — 잔잔한 bob 부유 + hover 워블(reduced-motion 존중). */}
-        <span aria-hidden="true" className={styles.menuOrbTile}>
-          <BubbleMark className={styles.menuOrbMark} />
-        </span>
+        <BubbleMark aria-hidden="true" className={styles.menuOrbMark} />
       </button>
       {open ? (
         <div
