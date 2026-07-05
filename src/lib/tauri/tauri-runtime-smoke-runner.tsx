@@ -14,8 +14,20 @@ import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { clearStoredAuthSession, getStoredAuthSession } from "@/lib/auth/auth-session";
-import { isActivityAutoCaptureRunning } from "@/lib/local/activity-auto-capture";
-import { isManagedFolderAutoSyncRunning } from "@/lib/local/managed-folder-auto-sync";
+import {
+  flushActivityAutoCapture,
+  getActivityAutoCaptureStatus,
+  isActivityAutoCaptureRunning,
+  startActivityAutoCapture,
+  stopActivityAutoCapture,
+} from "@/lib/local/activity-auto-capture";
+import {
+  flushManagedFolderAutoSync,
+  getManagedFolderAutoSyncStatus,
+  isManagedFolderAutoSyncRunning,
+  startManagedFolderAutoSync,
+  stopManagedFolderAutoSync,
+} from "@/lib/local/managed-folder-auto-sync";
 import {
   analyzePersonalLocalFileWithKeySentences,
   getPersonalLocalFileAnalysisStatus,
@@ -182,6 +194,24 @@ async function waitForManagedFolderEvents(
 
     await sleep(250);
     latest = await tauriCommands.stageLocalFileEventsForSync({ limit: 20, localFolderId });
+  }
+
+  return latest;
+}
+
+async function waitForLocalAutoSyncCondition<T>(
+  read: () => T,
+  matches: (value: T) => boolean,
+  input?: { attempts?: number; delayMs?: number },
+) {
+  const attempts = input?.attempts ?? 30;
+  const delayMs = input?.delayMs ?? 500;
+  let latest = read();
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (matches(latest)) return latest;
+    await sleep(delayMs);
+    latest = read();
   }
 
   return latest;
@@ -658,6 +688,112 @@ async function verifyRealBackendRoomCommunication(smokeRoomId: string, assert: S
   assert(leftVoiceRoom.id === voiceRoom.id, "real backend voice room left", leftVoiceRoom);
 }
 
+async function verifyLocalAutoSyncLoops(assert: SmokeAssert) {
+  if (!smokeFolderPath) {
+    throw new Error("runtime smoke local-auto-sync phase requires NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_FOLDER");
+  }
+
+  const folder = await tauriCommands.selectManagedFolder({ path: smokeFolderPath });
+  await tauriCommands.setFolderSync({ enabled: true, localFolderId: folder.localFolderId });
+  await tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
+
+  try {
+    startActivityAutoCapture();
+    startManagedFolderAutoSync();
+
+    const firstActivityStatus = await waitForLocalAutoSyncCondition(
+      getActivityAutoCaptureStatus,
+      (status) => Boolean(status.lastAttemptAt) && status.lastStatus !== "capturing",
+      { attempts: 20, delayMs: 500 },
+    );
+    assert(
+      firstActivityStatus.running &&
+        Boolean(firstActivityStatus.lastAttemptAt) &&
+        firstActivityStatus.lastStatus !== "failed",
+      "local auto-sync activity loop captured first status",
+      firstActivityStatus,
+    );
+
+    const secondActivityStatus = await waitForLocalAutoSyncCondition(
+      getActivityAutoCaptureStatus,
+      (status) =>
+        Boolean(status.lastAttemptAt) &&
+        status.lastAttemptAt !== firstActivityStatus.lastAttemptAt &&
+        status.lastStatus !== "capturing",
+      { attempts: 20, delayMs: 500 },
+    );
+    assert(
+      secondActivityStatus.running &&
+        Boolean(secondActivityStatus.lastAttemptAt) &&
+        secondActivityStatus.lastAttemptAt !== firstActivityStatus.lastAttemptAt &&
+        secondActivityStatus.lastStatus !== "failed",
+      "local auto-sync activity loop repeated on smoke interval",
+      secondActivityStatus,
+    );
+
+    const watchedStatus = await waitForLocalAutoSyncCondition(
+      getManagedFolderAutoSyncStatus,
+      (status) => (status.lastWatchedCount ?? 0) >= 1,
+      { attempts: 20, delayMs: 500 },
+    );
+    assert(
+      watchedStatus.running && (watchedStatus.lastWatchedCount ?? 0) >= 1,
+      "local auto-sync managed folder watcher restored active folders",
+      watchedStatus,
+    );
+
+    const mutation = await triggerManagedFolderMutation();
+    const eventStatus = await waitForLocalAutoSyncCondition(
+      getManagedFolderAutoSyncStatus,
+      (status) => status.lastWatchEventFolderId === folder.localFolderId,
+      { attempts: 20, delayMs: 500 },
+    );
+    assert(
+      eventStatus.lastWatchEventFolderId === folder.localFolderId,
+      "local auto-sync managed folder listener observed file change",
+      { eventStatus, mutation },
+    );
+
+    await flushManagedFolderAutoSync();
+    const drainedEvents = await tauriCommands.stageLocalFileEventsForSync({
+      limit: 20,
+      localFolderId: folder.localFolderId,
+    });
+    const drainedNames = localFileEventNames(drainedEvents.events);
+    const drainedStatus = getManagedFolderAutoSyncStatus();
+    assert(
+      !drainedNames.has("runtime-smoke-note.txt") &&
+        !drainedNames.has("runtime-smoke-delete.txt") &&
+        drainedStatus.lastStatus !== "failed",
+      "local auto-sync managed folder events drained through backend sync",
+      { drainedEvents, drainedStatus },
+    );
+
+    await flushActivityAutoCapture();
+    const flushedActivityStatus = getActivityAutoCaptureStatus();
+    assert(
+      flushedActivityStatus.lastStatus !== "failed",
+      "local auto-sync activity flush completed without failure",
+      flushedActivityStatus,
+    );
+  } finally {
+    await stopActivityAutoCapture({ flush: true });
+    await stopManagedFolderAutoSync({ flush: true });
+    await tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
+  }
+
+  const stoppedActivityStatus = getActivityAutoCaptureStatus();
+  const stoppedFolderStatus = getManagedFolderAutoSyncStatus();
+  assert(
+    !isActivityAutoCaptureRunning() &&
+      !isManagedFolderAutoSyncRunning() &&
+      stoppedActivityStatus.running === false &&
+      stoppedFolderStatus.running === false,
+    "local auto-sync loops stopped cleanly after smoke",
+    { stoppedActivityStatus, stoppedFolderStatus },
+  );
+}
+
 async function postReport(report: SmokeReport) {
   if (!smokeReportUrl) return;
 
@@ -759,6 +895,18 @@ async function runSmoke() {
     await tauriCommands.setWidgetRoomContext({ selectedRoomId: smokeRoomId });
     const restoredRoom = await tauriCommands.readActiveProjectRoom();
     assert(restoredRoom?.roomId === smokeRoomId, "active project room persisted to SQLite", restoredRoom);
+    if (smokePhase === "local-auto-sync") {
+      await verifyLocalAutoSyncLoops(assert);
+      await postReport({
+        checks,
+        durationMs: Date.now() - startedAt,
+        finishedAt: new Date().toISOString(),
+        platform: navigator.userAgent,
+        status: "passed",
+      });
+      return;
+    }
+
     const serverWidgetContext = await widgetApi.updateContext({ selectedRoomId: smokeRoomId });
     assert(
       serverWidgetContext.selectedRoomId === smokeRoomId && serverWidgetContext.mode === "ROOM",
