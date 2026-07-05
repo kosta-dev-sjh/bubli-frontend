@@ -186,13 +186,23 @@ assertContains(
 );
 assertContains(
   realOAuthQaScript,
-  /const report = await Promise\.race[\s\S]*validateRealOAuthQaReport\(report\)[\s\S]*const outputPath = writeReport\(report\)/,
-  "Manual real OAuth QA script must validate the final report before writing it.",
+  /const report = await Promise\.race[\s\S]*validateRealOAuthQaReport\(report\)[\s\S]*const outputPaths = writeReport\(report\)[\s\S]*JSON\.stringify\(\{ \.\.\.outputPaths, \.\.\.report \}/,
+  "Manual real OAuth QA script must validate the final report before writing JSON and markdown evidence outputs.",
 );
 assertContains(
   realOAuthQaScript,
   /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1[\s\S]*snapshot\.stabilityProbe\?\.enabled[\s\S]*snapshot\.stabilityProbe\.allExpectedWindowsVisible[\s\S]*snapshot\.stabilityProbe\.allAutoSyncLoopsRunning[\s\S]*snapshot\.sessionRestoreProbe\?\.enabled[\s\S]*snapshot\.sessionRestoreProbe\.restoredLocalSession[\s\S]*snapshot\.sessionRestoreProbe\.backendMeOk[\s\S]*snapshot\.stopCleanupProbe\?\.enabled[\s\S]*snapshot\.stopCleanupProbe\.activeProjectRoomCleared[\s\S]*snapshot\.stopCleanupProbe\.allExpectedWindowsHidden[\s\S]*snapshot\.stopCleanupProbe\.barWindowHidden[\s\S]*snapshot\.stopCleanupProbe\.syncLoopsStopped/,
   "Manual real OAuth QA script must prove redaction, real TAURI sessions, visible widgets, sync loops, managed-folder watcher status, local SQLite/widget/activity outbox sync, stability dwell, session restore, and stop cleanup for passed reports.",
+);
+assertContains(
+  realOAuthQaScript,
+  /function writeReport\(report\)[\s\S]*const reportPath = join\(directory, `tauri-real-oauth-qa-\$\{timestamp\}\.json`\)[\s\S]*const summaryPath = join\(directory, `tauri-real-oauth-qa-\$\{timestamp\}\.md`\)[\s\S]*writeFileSync\(reportPath, JSON\.stringify\(report, null, 2\)\)[\s\S]*writeFileSync\(summaryPath, renderEvidenceSummary\(report, reportPath\)\)[\s\S]*return \{ reportPath, summaryPath \}/,
+  "Manual real OAuth QA script must persist both the redacted JSON report and a markdown evidence summary.",
+);
+assertContains(
+  realOAuthQaScript,
+  /function renderEvidenceSummary\(report, reportPath\)[\s\S]*Redacted Proof[\s\S]*Real TAURI local session[\s\S]*Backend \/api\/me[\s\S]*All widget windows visible[\s\S]*Stability dwell ms[\s\S]*Session restored from Tauri mirror[\s\S]*Stop cleanup closed widgets and loops[\s\S]*Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded/,
+  "Manual real OAuth QA evidence summary must stay redacted and list the core auth, backend, widget, stability, restore, and cleanup proofs.",
 );
 assertContains(
   authWidgetQa,
