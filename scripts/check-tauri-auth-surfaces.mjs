@@ -164,13 +164,38 @@ assertNotContains(
 );
 assertContains(
   realOAuthQaScript,
-  /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN:\s*"false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL/,
-  "Manual real OAuth QA script must launch Tauri with dev-login disabled and the real OAuth QA report bridge enabled.",
+  /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN:\s*"false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL/,
+  "Manual real OAuth QA script must launch Tauri with dev-login disabled, local-sync probe enabled, and the real OAuth QA report bridge enabled.",
 );
 assertNotContains(
   realOAuthQaScript,
   /NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN/,
   "Manual real OAuth QA script must not inject a dev access token.",
+);
+assertContains(
+  realOAuthQaScript,
+  /if \(CONTRACT_ONLY\) \{[\s\S]*const contractChecks = runContractCheck\(\);[\s\S]*checks: contractChecks[\s\S]*function runContractCheck\(\)/,
+  "Manual real OAuth QA script contract mode must run real static checks before reporting pass.",
+);
+assertContains(
+  realOAuthQaScript,
+  /request\.on\("end"[\s\S]*const report = JSON\.parse\(body\);[\s\S]*validateRealOAuthQaReport\(report\)[\s\S]*resolveReport\(report\)/,
+  "Manual real OAuth QA script must validate posted reports before accepting them.",
+);
+assertContains(
+  realOAuthQaScript,
+  /const report = await Promise\.race[\s\S]*validateRealOAuthQaReport\(report\)[\s\S]*const outputPath = writeReport\(report\)/,
+  "Manual real OAuth QA script must validate the final report before writing it.",
+);
+assertContains(
+  realOAuthQaScript,
+  /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1/,
+  "Manual real OAuth QA script must prove redaction, real TAURI sessions, visible widgets, sync loops, and local SQLite/outbox sync for passed reports.",
+);
+assertContains(
+  authWidgetQa,
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA === "true"[\s\S]*checkLocalSqliteIntegrity\(\)[\s\S]*recordWidgetUsageEvent\([\s\S]*syncAllLocalOutboxToServer\(\{ limit: 50 \}\)[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:widgetUsageReachedBackend/,
+  "Real OAuth widget QA must include an opt-in local SQLite and widget outbox sync probe.",
 );
 assertContains(
   windowsRuntimeSoak,

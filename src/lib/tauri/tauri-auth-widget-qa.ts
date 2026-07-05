@@ -10,6 +10,7 @@ import {
 import { ApiClientError } from "@/lib/api/errors";
 import { isActivityAutoCaptureRunning } from "@/lib/local/activity-auto-capture";
 import { isManagedFolderAutoSyncRunning } from "@/lib/local/managed-folder-auto-sync";
+import { syncAllLocalOutboxToServer } from "@/lib/sync/local-sync-client";
 import {
   tauriCommands,
   type WidgetBubbleType,
@@ -25,6 +26,24 @@ type QaProbe = {
   code?: string;
   ok: boolean;
   status?: number;
+};
+
+type TauriRealOAuthLocalSyncProbe = {
+  enabled: boolean;
+  error?: string;
+  outbox?: {
+    failedCount?: number;
+    pendingCount?: number;
+    sentCount?: number;
+    status: string;
+    syncedAt?: string;
+    widgetFailedCount?: number;
+    widgetSentCount?: number;
+  };
+  sqlite?: {
+    ok: boolean;
+  };
+  widgetUsageQueued?: boolean;
 };
 
 export type TauriWidgetWindowQaState = Pick<WidgetWindowState, "mode" | "selectedRoomId" | "windowVisible"> & {
@@ -55,6 +74,7 @@ export type TauriAuthWidgetQaSnapshot = {
   collectedAt: string;
   expectedBubbleTypes: readonly WidgetBubbleType[];
   localSession: AuthSessionDiagnostics;
+  localSyncProbe: TauriRealOAuthLocalSyncProbe;
   syncRuntime: {
     activityAutoCaptureRunning: boolean;
     allAutoSyncLoopsRunning: boolean;
@@ -129,6 +149,64 @@ function addCheck(failedChecks: string[], condition: unknown, name: string) {
   }
 }
 
+function shouldRunRealOAuthLocalSyncProbe() {
+  return process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA === "true";
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function runRealOAuthLocalSyncProbe(): Promise<TauriRealOAuthLocalSyncProbe> {
+  if (!shouldRunRealOAuthLocalSyncProbe()) {
+    return { enabled: false };
+  }
+
+  if (!isTauriRuntime()) {
+    return { enabled: true, error: "not_tauri_runtime" };
+  }
+
+  try {
+    const sqlite = await tauriCommands.checkLocalSqliteIntegrity();
+    const occurredAt = new Date();
+    await tauriCommands.recordWidgetUsageEvent({
+      bubbleType: "todo",
+      eventType: "real-oauth-qa:local-sync",
+      itemId: `real-oauth-qa-${occurredAt.getTime()}`,
+      itemType: "TASK",
+      occurredAt: occurredAt.toISOString(),
+    });
+    const outbox = await syncAllLocalOutboxToServer({ limit: 50 });
+
+    return {
+      enabled: true,
+      outbox:
+        outbox.status === "ready"
+          ? {
+              failedCount: outbox.data.failedCount,
+              pendingCount: outbox.data.pendingCount,
+              sentCount: outbox.data.sentCount,
+              status: outbox.status,
+              syncedAt: outbox.data.syncedAt,
+              widgetFailedCount: outbox.data.widgetFailedCount,
+              widgetSentCount: outbox.data.widgetSentCount,
+            }
+          : {
+              status: outbox.status,
+            },
+      sqlite: {
+        ok: sqlite.ok,
+      },
+      widgetUsageQueued: true,
+    };
+  } catch (error) {
+    return {
+      enabled: true,
+      error: errorMessage(error),
+    };
+  }
+}
+
 function assertRealGoogleSessionDiagnostics(
   failedChecks: string[],
   diagnostics: AuthSessionDiagnostics,
@@ -179,6 +257,22 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
     "widgets:barRestoreItemsMatchActiveRoom",
   );
   addCheck(failedChecks, snapshot.syncRuntime.allAutoSyncLoopsRunning, "sync:allAutoSyncLoopsRunning");
+  if (snapshot.localSyncProbe.enabled) {
+    addCheck(failedChecks, !snapshot.localSyncProbe.error, "localSyncProbe:noError");
+    addCheck(failedChecks, snapshot.localSyncProbe.sqlite?.ok, "localSyncProbe:sqliteQuickCheck");
+    addCheck(failedChecks, snapshot.localSyncProbe.widgetUsageQueued, "localSyncProbe:widgetUsageQueued");
+    addCheck(failedChecks, snapshot.localSyncProbe.outbox?.status === "ready", "localSyncProbe:outboxReady");
+    addCheck(
+      failedChecks,
+      (snapshot.localSyncProbe.outbox?.widgetSentCount ?? 0) >= 1,
+      "localSyncProbe:widgetUsageReachedBackend",
+    );
+    addCheck(
+      failedChecks,
+      snapshot.localSyncProbe.outbox?.widgetFailedCount === 0,
+      "localSyncProbe:widgetUsageNoFailedSync",
+    );
+  }
 
   return {
     failedChecks,
@@ -211,6 +305,7 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
   const serverSelectedRoomId = backendContext.data?.selectedRoomId ?? null;
   const selectedRoomId = memoryRoomId ?? tauriRoom?.roomId ?? serverSelectedRoomId;
   const backendSummary = await probeBackend(() => widgetApi.getSummary(selectedRoomId));
+  const localSyncProbe = await runRealOAuthLocalSyncProbe();
 
   const barItems = isTauriRuntime() ? await tauriCommands.getWidgetBarItems().catch(() => [] as WidgetWindowState[]) : [];
   const barWindow = isTauriRuntime()
@@ -250,6 +345,7 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
     collectedAt: new Date().toISOString(),
     expectedBubbleTypes: WIDGET_BUBBLE_TYPES,
     localSession,
+    localSyncProbe,
     syncRuntime: {
       activityAutoCaptureRunning: isActivityAutoCaptureRunning(),
       allAutoSyncLoopsRunning:
