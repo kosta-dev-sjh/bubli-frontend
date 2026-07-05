@@ -960,7 +960,7 @@ export function WorkspaceDashboard() {
 
   // memo 도메인은 제외 — 메모 카드는 자체 조회를 갖고 있어(MemoDashboardCard) 스스로 갱신한다.
   useDataRefresh({
-    domains: ["project-room", "resource", "schedule", "todo"],
+    domains: ["agent", "chat", "notification", "project-room", "resource", "schedule", "timer", "todo"],
     ignoreSource: DASHBOARD_EVENT_SOURCE,
     minFocusIntervalMs: 30_000,
     onRefresh: refreshDashboard,
