@@ -165,8 +165,13 @@ assertContains(
 );
 assertContains(
   realOAuthQaReporter,
-  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL[\s\S]*timeoutAfter[\s\S]*assertTauriRealGoogleAuthWidgetQaBeforeTimeout[\s\S]*latestAssertion = await assertTauriRealGoogleAuthWidgetQaBeforeTimeout\(startedAt\)[\s\S]*failedChecks: latestAssertion\.failedChecks[\s\S]*stage: "assertion"[\s\S]*stage: "report-posted"[\s\S]*stage: "report-error"/,
-  "TauriRealOAuthQaReporter must emit redacted lifecycle diagnostics for release QA timeouts.",
+  /type RealOAuthQaRouteProbe[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL[\s\S]*const routeProbeGraceMs[\s\S]*assertTauriRealGoogleAuthWidgetQaBeforeTimeout[\s\S]*const recordRouteSample[\s\S]*const buildRouteProbe[\s\S]*latestAssertion = await assertTauriRealGoogleAuthWidgetQaBeforeTimeout\(startedAt\)[\s\S]*failedChecks: latestAssertion\.failedChecks[\s\S]*stage: "assertion"[\s\S]*stage: "report-posted"[\s\S]*stage: "report-error"/,
+  "TauriRealOAuthQaReporter must emit redacted lifecycle diagnostics and route/paint probes for release QA timeouts.",
+);
+assertContains(
+  realOAuthQaReporter,
+  /finalPathname\.startsWith\("\/app"\)[\s\S]*!state\.sawAuthGateAfterGrace[\s\S]*!state\.sawLoginPathAfterGrace[\s\S]*!state\.sawLoginSurfaceAfterGrace[\s\S]*!finalEntry\.hasAuthGate[\s\S]*!finalEntry\.hasLoginSurface/,
+  "TauriRealOAuthQaReporter route probe must fail if the app auth gate or login surface remains visible after grace.",
 );
 assertNotContains(
   realOAuthQaReporter,
@@ -833,8 +838,13 @@ assertContains(
 );
 assertContains(
   launcher,
-  /error instanceof ApiClientError && error\.status === 401[\s\S]*await stopTauriAuthenticatedSurfaces\(\);[\s\S]*clearStoredAuthSession\(\);/,
-  "TauriPostLoginLauncher must close widgets and clear session on 401.",
+  /error instanceof ApiClientError && error\.status === 401[\s\S]*await stopTauriAuthenticatedSurfaces\(\);[\s\S]*return;/,
+  "TauriPostLoginLauncher must close widgets on 401 while leaving auth invalidation to the API refresh and app shell path.",
+);
+assertNotContains(
+  launcher,
+  /clearStoredAuthSession\(\)/,
+  "TauriPostLoginLauncher must not clear the mirrored desktop auth session directly.",
 );
 assertContains(
   launcher,
@@ -880,6 +890,11 @@ assertContains(
   authWidgetQa,
   /snapshot\.backend\.me\.ok[\s\S]*snapshot\.backend\.widgetContext\.ok[\s\S]*snapshot\.backend\.widgetSummary\.ok[\s\S]*snapshot\.activeProjectRoom\.hasSelectedRoom[\s\S]*snapshot\.widgetRuntime\.allExpectedWindowsVisible[\s\S]*snapshot\.widgetRuntime\.allWindowRoomContextMatchesActive[\s\S]*snapshot\.widgetRuntime\.allWindowRoomContextMatchesServer[\s\S]*snapshot\.widgetRuntime\.barRestoreItems\.allMatchActiveRoom[\s\S]*snapshot\.syncRuntime\.allAutoSyncLoopsRunning/,
   "Actual Google OAuth QA assertion must verify real backend widget APIs, a selected project room, widget runtime state, and post-login auto-sync loops.",
+);
+assertContains(
+  authWidgetQa,
+  /readTauriAuthenticatedSurfacesLaunchTimeline[\s\S]*launchTimeline: TauriAuthenticatedSurfaceLaunchTimeline[\s\S]*snapshot\.launchTimeline\.completed[\s\S]*launchTimeline:authGateAfterBackendAuth[\s\S]*launchTimeline:firstWidgetOpenAfterBackendAuth[\s\S]*launchTimeline:mirrorStoredBeforeBar[\s\S]*launchTimeline:barBeforeBubbles[\s\S]*launchTimeline:syncLoopsAfterWidgets/,
+  "Actual Google OAuth QA assertion must prove auth/session launch ordering before widgets and sync loops.",
 );
 assertContains(
   authWidgetQa,
@@ -958,7 +973,12 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /launchTauriAuthenticatedSurfaces\(options: LaunchTauriAuthenticatedSurfacesOptions = \{\}\)[\s\S]*if \(!options\.sessionAlreadyValidated\) \{[\s\S]*await authApi\.getMe\(\);[\s\S]*\}[\s\S]*const startupWindows = await resolveLoginStartupWindows\(\);/,
+  /export type TauriAuthenticatedSurfaceLaunchTimeline[\s\S]*authGateAfterBackendAuth\?: boolean[\s\S]*backendAuthValidationSource\?: "caller" \| "launcher"[\s\S]*firstWidgetOpenAfterBackendAuth\?: boolean[\s\S]*export function readTauriAuthenticatedSurfacesLaunchTimeline\(\)/,
+  "Tauri authenticated surface launcher must expose a redacted launch timeline for real OAuth QA ordering proof.",
+);
+assertContains(
+  surfaces,
+  /launchTauriAuthenticatedSurfaces\(options: LaunchTauriAuthenticatedSurfacesOptions = \{\}\)[\s\S]*if \(!options\.sessionAlreadyValidated\) \{[\s\S]*await authApi\.getMe\(\);[\s\S]*\}[\s\S]*timeline\.backendAuthValidationSource = options\.sessionAlreadyValidated \? "caller" : "launcher"[\s\S]*timeline\.backendAuthValidatedAt = nowIso\(\);[\s\S]*const startupWindows = await resolveLoginStartupWindows\(\);/,
   "launchTauriAuthenticatedSurfaces must verify the live backend auth session unless the caller already validated it before opening widgets.",
 );
 assertContains(
@@ -973,7 +993,7 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /if \(launchedAuthenticatedSurfaces\) \{[\s\S]*authenticatedStartupWindowsReady\(startupWindows\)[\s\S]*if \(ready\) return;[\s\S]*launchedAuthenticatedSurfaces = false;[\s\S]*closeAllWidgetWindows\(\)/,
+  /if \(launchedAuthenticatedSurfaces\) \{[\s\S]*authenticatedStartupWindowsReady\(startupWindows\)[\s\S]*if \(ready\) \{[\s\S]*timeline\.completed = true[\s\S]*return;[\s\S]*\}[\s\S]*launchedAuthenticatedSurfaces = false;[\s\S]*closeAllWidgetWindows\(\)/,
   "launchTauriAuthenticatedSurfaces must recover stale launched state when login widgets were closed or disappeared.",
 );
 assertContains(
@@ -1163,6 +1183,11 @@ assertContains(
   authSession,
   /const DEV_REFRESH_TOKEN_PREFIX = "dev-refresh-token:";[\s\S]*function shouldRejectStoredAuthSession\(session: StoredAuthSession\)[\s\S]*isDevAccessTokenSession\(session\) && !isDevAccessTokenSessionAllowed\(\)/,
   "Stored synthetic dev-token sessions must be rejected unless the explicit development-only Tauri dev-login flag is set.",
+);
+assertContains(
+  authSession,
+  /function clearLocalAuthSessionOnly\(\)[\s\S]*window\.localStorage\.removeItem\(AUTH_SESSION_STORAGE_KEY\)[\s\S]*function clearRejectedStoredAuthSession\(\)[\s\S]*if \(isTauriRuntime\(\)\) \{[\s\S]*clearLocalAuthSessionOnly\(\);[\s\S]*return;[\s\S]*\}[\s\S]*clearStoredAuthSession\(\);[\s\S]*if \(!parsed\) \{[\s\S]*clearRejectedStoredAuthSession\(\);[\s\S]*if \(shouldRejectStoredAuthSession\(parsed\)\) \{[\s\S]*clearRejectedStoredAuthSession\(\);/,
+  "Tauri auth restore must not erase the mirrored desktop session before it can recover from invalid localStorage.",
 );
 assertContains(
   authSessionDiagnosticsType,

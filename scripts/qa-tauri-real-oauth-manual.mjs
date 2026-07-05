@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -193,6 +193,11 @@ function createLocalSyncFixture() {
   let prepareCount = 0;
   const prepare = () => {
     prepareCount += 1;
+    for (const entry of readdirSync(folderPath, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.startsWith("real-oauth-local-sync-note-")) {
+        rmSync(join(folderPath, entry.name), { force: true });
+      }
+    }
     currentFileName = `real-oauth-local-sync-note-${prepareCount}-${Date.now()}.txt`;
     currentNotePath = join(folderPath, currentFileName);
     writeFileSync(
@@ -221,6 +226,7 @@ function createLocalSyncFixture() {
         currentNotePath,
         [
           marker,
+          "Updated searchable marker for the Windows Tauri local SQLite index.",
           "The QA server mutated this file after the initial backend sync.",
           "The Tauri app must reindex this changed content and sync an UPDATED event.",
           "",
@@ -421,6 +427,8 @@ function renderEvidenceSummary(report, reportPath) {
   const stability = snapshot.stabilityProbe ?? {};
   const sessionRestore = snapshot.sessionRestoreProbe ?? {};
   const stopCleanup = snapshot.stopCleanupProbe ?? {};
+  const launchTimeline = snapshot.launchTimeline ?? {};
+  const routeProbe = report.routeProbe ?? {};
 
   lines.push(
     `- Real TAURI local session: ${Boolean(snapshot.localSession?.hasSession && snapshot.localSession?.clientType === "TAURI" && snapshot.localSession?.isDevAccessTokenSession === false)}`,
@@ -444,6 +452,9 @@ function renderEvidenceSummary(report, reportPath) {
     `- Stability widgets/sync/backend healthy: ${Boolean(stability.allExpectedWindowsVisible && stability.allAutoSyncLoopsRunning && stability.backendWidgetSummaryOk)}`,
     `- Session restored from Tauri mirror: ${Boolean(sessionRestore.restoredLocalSession && sessionRestore.restoredTauriClient && sessionRestore.backendMeOk)}`,
     `- Stop cleanup closed widgets and loops: ${Boolean(stopCleanup.activeProjectRoomCleared && stopCleanup.allExpectedWindowsHidden && stopCleanup.syncLoopsStopped)}`,
+    `- OAuth returned to app route without login repaint: ${Boolean(routeProbe.ok)}`,
+    `- Auth validated before widget launch: ${Boolean(launchTimeline.authGateAfterBackendAuth && launchTimeline.firstWidgetOpenAfterBackendAuth)}`,
+    `- Widget launch order: ${Boolean(launchTimeline.completed && launchTimeline.barWindowOpenedAt && launchTimeline.bubbleWindowsOpenedAt && launchTimeline.syncLoopsStartedAt)}`,
     "",
     "Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded by the report validator.",
     "",
@@ -496,7 +507,7 @@ function runContractCheck() {
     {
       name: "script validates redacted QA reports before accepting pass",
       pattern:
-        /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.localFiles\?\.enabled[\s\S]*initialPreviewIncludesMarker[\s\S]*initialSyncSyncedCount[\s\S]*mutationRequested[\s\S]*reindexStatus === "REINDEXED"[\s\S]*updatedPreviewIncludesMarker[\s\S]*updateSyncSyncedCount[\s\S]*remainingQaEvents === 0[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.activity\.nativeCaptured[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1[\s\S]*snapshot\.stabilityProbe\?\.enabled[\s\S]*snapshot\.stabilityProbe\.allExpectedWindowsVisible[\s\S]*snapshot\.stabilityProbe\.allAutoSyncLoopsRunning[\s\S]*snapshot\.sessionRestoreProbe\?\.enabled[\s\S]*snapshot\.sessionRestoreProbe\.restoredLocalSession[\s\S]*snapshot\.sessionRestoreProbe\.backendMeOk[\s\S]*snapshot\.stopCleanupProbe\?\.enabled[\s\S]*snapshot\.stopCleanupProbe\.activeProjectRoomCleared[\s\S]*snapshot\.stopCleanupProbe\.allExpectedWindowsHidden[\s\S]*snapshot\.stopCleanupProbe\.barWindowHidden[\s\S]*snapshot\.stopCleanupProbe\.syncLoopsStopped/,
+        /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.routeProbe\?\.ok[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.launchTimeline\?\.completed[\s\S]*authGateAfterBackendAuth[\s\S]*firstWidgetOpenAfterBackendAuth[\s\S]*barWindowOpenedAt[\s\S]*bubbleWindowsOpenedAt[\s\S]*syncLoopsStartedAt[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.localFiles\?\.enabled[\s\S]*initialPreviewIncludesMarker[\s\S]*initialSyncSyncedCount[\s\S]*mutationRequested[\s\S]*reindexStatus === "REINDEXED"[\s\S]*updatedPreviewIncludesMarker[\s\S]*updateSyncSyncedCount[\s\S]*remainingQaEvents === 0[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.activity\.nativeCaptured[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1[\s\S]*snapshot\.stabilityProbe\?\.enabled[\s\S]*snapshot\.stabilityProbe\.allExpectedWindowsVisible[\s\S]*snapshot\.stabilityProbe\.allAutoSyncLoopsRunning[\s\S]*snapshot\.sessionRestoreProbe\?\.enabled[\s\S]*snapshot\.sessionRestoreProbe\.restoredLocalSession[\s\S]*snapshot\.sessionRestoreProbe\.backendMeOk[\s\S]*snapshot\.stopCleanupProbe\?\.enabled[\s\S]*snapshot\.stopCleanupProbe\.activeProjectRoomCleared[\s\S]*snapshot\.stopCleanupProbe\.allExpectedWindowsHidden[\s\S]*snapshot\.stopCleanupProbe\.barWindowHidden[\s\S]*snapshot\.stopCleanupProbe\.syncLoopsStopped/,
       source: scriptSource,
     },
     {
@@ -508,7 +519,7 @@ function runContractCheck() {
     {
       name: "script evidence summary stays redacted and records key real OAuth probes",
       pattern:
-        /function renderEvidenceSummary\(report, reportPath\)[\s\S]*Redacted Proof[\s\S]*Real TAURI local session[\s\S]*Backend \/api\/me[\s\S]*All widget windows visible[\s\S]*Local file scan\/read initial sync[\s\S]*Local file update\/reindex sync[\s\S]*Stability dwell ms[\s\S]*Session restored from Tauri mirror[\s\S]*Stop cleanup closed widgets and loops[\s\S]*Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded/,
+        /function renderEvidenceSummary\(report, reportPath\)[\s\S]*Redacted Proof[\s\S]*Real TAURI local session[\s\S]*Backend \/api\/me[\s\S]*All widget windows visible[\s\S]*Local file scan\/read initial sync[\s\S]*Local file update\/reindex sync[\s\S]*Stability dwell ms[\s\S]*Session restored from Tauri mirror[\s\S]*Stop cleanup closed widgets and loops[\s\S]*OAuth returned to app route without login repaint[\s\S]*Auth validated before widget launch[\s\S]*Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded/,
       source: scriptSource,
     },
     {
@@ -526,13 +537,13 @@ function runContractCheck() {
     {
       name: "reporter posts redacted lifecycle events before and during real OAuth QA",
       pattern:
-        /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL[\s\S]*postRealOAuthQaEvent[\s\S]*stage: "mounted"[\s\S]*stage: "skipped"[\s\S]*stage: "run-start"[\s\S]*stage: "assertion"[\s\S]*stage: "report-posted"[\s\S]*stage: "report-error"/,
+        /RealOAuthQaRouteProbe[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL[\s\S]*const routeProbeGraceMs[\s\S]*const recordRouteSample[\s\S]*const buildRouteProbe[\s\S]*postRealOAuthQaEvent[\s\S]*stage: "mounted"[\s\S]*stage: "skipped"[\s\S]*stage: "run-start"[\s\S]*stage: "assertion"[\s\S]*stage: "report-posted"[\s\S]*stage: "report-error"/,
       source: reporterSource,
     },
     {
       name: "real OAuth assertion rejects dev tokens and requires widgets sync loops plus local sync stability restore and stop cleanup probes",
       pattern:
-        /diagnostics\.clientType === "TAURI"[\s\S]*diagnostics\.isDevAccessTokenSession === false[\s\S]*diagnostics\.refreshTokenExpired === false[\s\S]*widgets:allExpectedWindowsVisible[\s\S]*sync:allAutoSyncLoopsRunning[\s\S]*sync:managedFolderStatusMatchesRunningFlag[\s\S]*sync:managedFolderStatusNotFailed[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:localFileInitialPreviewMarker[\s\S]*localSyncProbe:localFileCreatedSynced[\s\S]*localSyncProbe:localFileUpdatedPreviewMarker[\s\S]*localSyncProbe:localFileUpdatedSynced[\s\S]*localSyncProbe:widgetUsageReachedBackend[\s\S]*localSyncProbe:activityNativeCaptured[\s\S]*localSyncProbe:activityReachedBackend[\s\S]*sessionRestoreProbe:restoredLocalSession[\s\S]*sessionRestoreProbe:backendMeAfterRestore[\s\S]*stabilityProbe:allExpectedWindowsVisible[\s\S]*stabilityProbe:syncLoopsStillRunning[\s\S]*stopCleanupProbe:activeProjectRoomCleared[\s\S]*stopCleanupProbe:allExpectedWindowsHidden[\s\S]*stopCleanupProbe:syncLoopsStopped/,
+        /diagnostics\.clientType === "TAURI"[\s\S]*diagnostics\.isDevAccessTokenSession === false[\s\S]*diagnostics\.refreshTokenExpired === false[\s\S]*launchTimeline:completed[\s\S]*launchTimeline:authGateAfterBackendAuth[\s\S]*launchTimeline:firstWidgetOpenAfterBackendAuth[\s\S]*launchTimeline:mirrorStoredBeforeBar[\s\S]*launchTimeline:barBeforeBubbles[\s\S]*launchTimeline:syncLoopsAfterWidgets[\s\S]*widgets:allExpectedWindowsVisible[\s\S]*sync:allAutoSyncLoopsRunning[\s\S]*sync:managedFolderStatusMatchesRunningFlag[\s\S]*sync:managedFolderStatusNotFailed[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:localFileInitialPreviewMarker[\s\S]*localSyncProbe:localFileCreatedSynced[\s\S]*localSyncProbe:localFileUpdatedPreviewMarker[\s\S]*localSyncProbe:localFileUpdatedSynced[\s\S]*localSyncProbe:widgetUsageReachedBackend[\s\S]*localSyncProbe:activityNativeCaptured[\s\S]*localSyncProbe:activityReachedBackend[\s\S]*sessionRestoreProbe:restoredLocalSession[\s\S]*sessionRestoreProbe:backendMeAfterRestore[\s\S]*stabilityProbe:allExpectedWindowsVisible[\s\S]*stabilityProbe:syncLoopsStillRunning[\s\S]*stopCleanupProbe:activeProjectRoomCleared[\s\S]*stopCleanupProbe:allExpectedWindowsHidden[\s\S]*stopCleanupProbe:syncLoopsStopped/,
       source: qaSource,
     },
   ];
@@ -576,6 +587,27 @@ function validateRealOAuthQaReport(report) {
     return;
   }
 
+  assert(report.routeProbe?.ok, "Passed QA report must prove OAuth returned to /app without login repaint after grace.");
+  assert(
+    report.routeProbe.finalPathname?.startsWith("/app"),
+    "Passed QA report final pathname must be an authenticated app route.",
+  );
+  assert(
+    report.routeProbe.sawLoginPathAfterGrace === false,
+    "Passed QA report must not observe /login after the route probe grace period.",
+  );
+  assert(
+    report.routeProbe.sawAuthGateAfterGrace === false,
+    "Passed QA report must not observe the authenticated app gate after the route probe grace period.",
+  );
+  assert(
+    report.routeProbe.sawLoginSurfaceAfterGrace === false,
+    "Passed QA report must not observe the login surface after the route probe grace period.",
+  );
+  assert(
+    Array.isArray(report.routeProbe.history) && report.routeProbe.history.length >= 1,
+    "Passed QA report must include redacted route history.",
+  );
   assert(report.error === undefined, "Passed QA report must not include an error.");
   assert(report.assertion?.ok === true, "Passed QA report must include assertion.ok=true.");
   assert(
@@ -597,6 +629,37 @@ function validateRealOAuthQaReport(report) {
   );
   assert(snapshot.tauriMirrorSession.refreshTokenExpired === false, "Passed QA Tauri mirror refresh token must be live.");
   assert(snapshot.backend?.me?.ok, "Passed QA report must prove /api/me.");
+  assert(snapshot.launchTimeline?.completed, "Passed QA report must prove authenticated surface launch completed.");
+  assert(!snapshot.launchTimeline.lastError, "Passed QA launch timeline must not include an error.");
+  assert(
+    snapshot.launchTimeline.authGateAfterBackendAuth,
+    "Passed QA launch timeline must prove auth gate enabled after backend auth validation.",
+  );
+  assert(
+    snapshot.launchTimeline.firstWidgetOpenAfterBackendAuth,
+    "Passed QA launch timeline must prove widgets opened after backend auth validation.",
+  );
+  assert(
+    snapshot.launchTimeline.sessionMirrorStoredAt &&
+      snapshot.launchTimeline.barWindowOpenedAt &&
+      new Date(snapshot.launchTimeline.sessionMirrorStoredAt).getTime() <=
+        new Date(snapshot.launchTimeline.barWindowOpenedAt).getTime(),
+    "Passed QA launch timeline must prove Tauri session mirror was stored before the widget bar opened.",
+  );
+  assert(
+    snapshot.launchTimeline.barWindowOpenedAt &&
+      snapshot.launchTimeline.bubbleWindowsOpenedAt &&
+      new Date(snapshot.launchTimeline.barWindowOpenedAt).getTime() <=
+        new Date(snapshot.launchTimeline.bubbleWindowsOpenedAt).getTime(),
+    "Passed QA launch timeline must prove the widget bar opened before bubble windows.",
+  );
+  assert(
+    snapshot.launchTimeline.bubbleWindowsOpenedAt &&
+      snapshot.launchTimeline.syncLoopsStartedAt &&
+      new Date(snapshot.launchTimeline.bubbleWindowsOpenedAt).getTime() <=
+        new Date(snapshot.launchTimeline.syncLoopsStartedAt).getTime(),
+    "Passed QA launch timeline must prove sync loops started after widget windows.",
+  );
   assert(snapshot.backend?.widgetContext?.ok, "Passed QA report must prove /api/widget/context.");
   assert(snapshot.backend?.widgetSummary?.ok, "Passed QA report must prove /api/widget/summary.");
   assert(snapshot.activeProjectRoom?.hasSelectedRoom, "Passed QA report must have a selected project room.");
