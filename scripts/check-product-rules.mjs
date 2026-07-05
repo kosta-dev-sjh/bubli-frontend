@@ -155,6 +155,26 @@ if (existsSync(managedFolderClientPath)) {
       "src/lib/local/managed-folder-client.ts: native folder watch is implemented; do not mask watch_managed_folder failures as a pending/not-wired state.",
     );
   }
+  const analyzableExtensionsBlock = text.match(
+    /const ANALYZABLE_LOCAL_FILE_EXTENSIONS = new Set\(\[([\s\S]*?)\]\);/,
+  )?.[1];
+  if (!analyzableExtensionsBlock) {
+    failures.push(
+      "src/lib/local/managed-folder-client.ts: local-file analysis candidate extension set must stay explicit.",
+    );
+  }
+  for (const extension of ["json", "jsonl", "yaml", "yml", "html", "htm", "rtf"]) {
+    if (!analyzableExtensionsBlock?.includes(`"${extension}"`)) {
+      failures.push(
+        `src/lib/local/managed-folder-client.ts: local-file analysis candidates must include .${extension} after Tauri extraction support was added.`,
+      );
+    }
+  }
+  if (!/function isAnalyzableLocalFileName[\s\S]*ANALYZABLE_LOCAL_FILE_EXTENSIONS\.has\(extension\)/.test(text)) {
+    failures.push(
+      "src/lib/local/managed-folder-client.ts: isAnalyzableLocalFileName must use ANALYZABLE_LOCAL_FILE_EXTENSIONS for sync-time analysis filtering.",
+    );
+  }
 }
 
 if (existsSync(globalsCssPath)) {
@@ -262,6 +282,21 @@ if (existsSync(localFilesRustPath)) {
     failures.push(
       "src-tauri/src/local_files.rs: flush_sync_outbox must summarize durable file, activity, and widget usage backlog without double-counting staged outbox rows.",
     );
+  }
+  for (const required of [
+    '"json" | "jsonl"',
+    '"yaml" | "yml"',
+    "is_supported_html_file",
+    "is_supported_rtf_file",
+    '"jsonl" => "application/x-ndjson"',
+    '"yaml" | "yml" => "application/yaml"',
+    "analysis_backfill_stages_structured_and_rtf_file_types",
+  ]) {
+    if (!text.includes(required)) {
+      failures.push(
+        `src-tauri/src/local_files.rs: local structured/RTF file analysis support must keep ${required}.`,
+      );
+    }
   }
 }
 
