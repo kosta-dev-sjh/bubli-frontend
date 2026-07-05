@@ -2336,6 +2336,10 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
     return () => window.clearTimeout(timeoutId);
   }, [gooPop]);
   const gooPopVisible = Boolean(gooPop && gooPop.title.trim());
+  const openNoticeBubble = useCallback(() => {
+    setGooPop(null);
+    onRestoreBubble("alert");
+  }, [onRestoreBubble]);
 
   // idle 페이드: 8초 무상호작용 → pill(nav)만 옅게(0.85), 상호작용 → 즉시 1.0(CSS 200ms).
   // 프리뷰/알림 구이가 떠 있으면 페이드를 완전히 정지한다(즉시 불투명) —
@@ -2725,6 +2729,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
               onFocus={() => showPreview("notice")}
               onMouseEnter={() => showPreview("notice")}
               onMouseLeave={() => hidePreview("notice")}
+              onClick={openNoticeBubble}
               type="button"
               whileHover={chipWhileHover}
               whileTap={chipWhileTap}
@@ -2746,10 +2751,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
                   exit={gooExit}
                   initial={gooEnter}
                   key={gooPop.id}
-                  onClick={() => {
-                    setGooPop(null);
-                    onRestoreBubble("alert");
-                  }}
+                  onClick={openNoticeBubble}
                   transition={gooPopSpring}
                   type="button"
                 >

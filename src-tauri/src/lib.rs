@@ -908,6 +908,12 @@ fn apply_open_widget_window_update(
 ) {
     widget.mode = next_mode;
     widget.click_through = false;
+    #[cfg(target_os = "macos")]
+    {
+        if widget.active_bubble != "bar" && widget.active_bubble != "menu" {
+            widget.always_on_top = true;
+        }
+    }
     widget.dock_orb_visible = false;
     if let Some(selected_room_id) = selected_room_id {
         widget.selected_room_id = Some(selected_room_id);
@@ -1924,6 +1930,23 @@ fn schedule_widget_window_build(
     _monitor_state: &AppMonitorState,
     widget: &WidgetWindowState,
 ) -> Result<WidgetWindowState, String> {
+    schedule_widget_window_build_with_options(app, _monitor_state, widget, false)
+}
+
+fn schedule_widget_window_build_and_raise(
+    app: &AppHandle,
+    _monitor_state: &AppMonitorState,
+    widget: &WidgetWindowState,
+) -> Result<WidgetWindowState, String> {
+    schedule_widget_window_build_with_options(app, _monitor_state, widget, true)
+}
+
+fn schedule_widget_window_build_with_options(
+    app: &AppHandle,
+    _monitor_state: &AppMonitorState,
+    widget: &WidgetWindowState,
+    raise_after_build: bool,
+) -> Result<WidgetWindowState, String> {
     #[cfg(target_os = "macos")]
     {
         let app_for_build = app.clone();
@@ -1937,6 +1960,8 @@ fn schedule_widget_window_build(
                     build_widget_window(&app_for_build, &monitor_state, &widget_for_build)
                 {
                     eprintln!("failed to build widget window {label}: {error}");
+                } else if raise_after_build {
+                    raise_widget_window(&app_for_build, &widget_for_build);
                 }
             })
             .map_err(|error| error.to_string())?;
@@ -1945,7 +1970,30 @@ fn schedule_widget_window_build(
     }
 
     #[cfg(not(target_os = "macos"))]
-    build_widget_window(app, _monitor_state, widget)
+    {
+        let _ = raise_after_build;
+        build_widget_window(app, _monitor_state, widget)
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn raise_widget_window(app: &AppHandle, widget: &WidgetWindowState) {
+    if !widget.window_visible {
+        return;
+    }
+
+    let label = widget_window_label(widget);
+    let Some(window) = app.get_webview_window(&label) else {
+        return;
+    };
+
+    if widget.always_on_top {
+        let _ = window.set_always_on_top(false);
+        let _ = window.set_always_on_top(true);
+    }
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
 }
 
 #[tauri::command]
@@ -3324,7 +3372,7 @@ async fn open_widget_window(
     require_authenticated_surfaces_enabled(&auth_state)?;
     let widget = prepare_open_widget_window(&app, &state, input.unwrap_or_default())?;
     persist_widget_window_state(&app, &state)?;
-    let result = schedule_widget_window_build(&app, &monitor_state, &widget)?;
+    let result = schedule_widget_window_build_and_raise(&app, &monitor_state, &widget)?;
     // 바에서 버블을 복원한 뒤 바 창 상태(가시성)를 동기화한다. 바 크기는 고정이라 리사이즈는 없다.
     refresh_widget_bar_window(&app, &monitor_state, &state)?;
     Ok(result)
