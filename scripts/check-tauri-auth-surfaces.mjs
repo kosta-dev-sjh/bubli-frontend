@@ -554,6 +554,16 @@ assertContains(
 );
 assertContains(
   devWidgetRealBackend,
+  /const localFileSyncReplay = await apiPost\("\/api\/local-file-events\/sync"[\s\S]*localEventId: createdLocalEventId[\s\S]*local file event duplicate localEventId did not replay the original result/,
+  "Real backend widget smoke must verify duplicate localEventId replay returns the original local file sync result.",
+);
+assertContains(
+  devWidgetRealBackend,
+  /const localActivityId = `codex-activity-\$\{Date\.now\(\)\}`[\s\S]*localActivityId,[\s\S]*const activityReplay = await apiPost\("\/api\/activity\/current-app"[\s\S]*activityReplay\.id === activitySmoke\.id[\s\S]*activity duplicate localActivityId replay unexpectedly changed the original row/,
+  "Real backend widget smoke must verify duplicate localActivityId replay returns the original activity row.",
+);
+assertContains(
+  devWidgetRealBackend,
   /Desktop widget backend sync check[\s\S]*date_trunc\('day', now\(\)\) \+ interval '12 hours'[\s\S]*date_trunc\('day', now\(\)\) \+ interval '13 hours'/,
   "Real backend widget seed schedule must stay inside the backend widget summary's current UTC day window.",
 );
