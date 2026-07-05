@@ -256,8 +256,13 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /runtimeSmokeAnalysisFilePattern[\s\S]*runtime-smoke-\(structured\|rich\)[\s\S]*analyzableRuntimeSmokeFilePattern[\s\S]*findSyncedLocalFileAnalysisCandidate[\s\S]*runtimeSmokeAnalysisFilePattern\.test\(candidate\.fileName\)[\s\S]*synced structured or RTF local file has backend resource for analysis/,
+  "TauriRuntimeSmokeRunner must choose a structured JSON or RTF runtime-smoke file for backend local-file analysis.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /syncStagedLocalFileEventsToBackend[\s\S]*managedFolderApi\.syncApprovedLocalFileEvents[\s\S]*markLocalFileEventsSynced[\s\S]*local file event sync marked SQLite rows as SYNCED[\s\S]*analyzePersonalLocalFileWithKeySentences\(\{[\s\S]*local file key-sentence analysis reached real backend job[\s\S]*agentApi\.getJob\(localFileAnalysis\.data\.job\.jobId\)[\s\S]*local file analysis backend job read back[\s\S]*getPersonalLocalFileAnalysisStatus\(\{[\s\S]*local file analysis ledger marked SYNCED in SQLite[\s\S]*stageLocalFileAnalysisBackfill\(\{[\s\S]*synced local file analysis no longer remains pending[\s\S]*watched file event sync marked SQLite rows as SYNCED[\s\S]*synced watched file events no longer remain pending/,
-  "TauriRuntimeSmokeRunner must send staged and watched local file events to the backend, request local-file analysis, read back the agent job, and verify local SQLite rows are no longer pending.",
+  "TauriRuntimeSmokeRunner must send staged and watched local file events to the backend, request structured/RTF local-file analysis, read back the agent job, and verify local SQLite rows are no longer pending.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -281,7 +286,7 @@ assertContains(
 );
 assertContains(
   windowsRuntimeSmoke,
-  /runtime-smoke-delete\.txt[\s\S]*request\.method === "POST" && request\.url === "\/mutate-folder"[\s\S]*appendFileSync[\s\S]*rmSync/,
+  /runtime-smoke-structured\.json[\s\S]*runtime-smoke-rich\.rtf[\s\S]*runtime-smoke-delete\.txt[\s\S]*request\.method === "POST" && request\.url === "\/mutate-folder"[\s\S]*appendFileSync[\s\S]*rmSync/,
   "Windows runtime smoke server must mutate and delete real temp files after the Tauri watcher starts.",
 );
 assertContains(

@@ -136,6 +136,10 @@ function localFileEventNames(events: Array<{ fileName: string }>) {
   return new Set(events.map((event) => event.fileName));
 }
 
+const runtimeSmokeAnalysisFilePattern = /^runtime-smoke-(structured|rich)\.(json|rtf)$/i;
+const analyzableRuntimeSmokeFilePattern =
+  /\.(csv|docx|htm|html|hwpx|json|jsonl|markdown|md|pdf|pptx|rtf|tsv|txt|xlsx|ya?ml)$/i;
+
 async function syncStagedLocalFileEventsToBackend(staged: LocalFileEventsSyncStageResult) {
   const response = await managedFolderApi.syncApprovedLocalFileEvents({
     events: staged.events.map((event) => ({
@@ -169,27 +173,28 @@ function findSyncedLocalFileAnalysisCandidate(
   staged: LocalFileEventsSyncStageResult,
   syncResult: Awaited<ReturnType<typeof syncStagedLocalFileEventsToBackend>>,
 ) {
+  const candidates = [];
+
   for (const [index, result] of syncResult.response.results.entries()) {
     const localEvent =
       staged.events.find((event) => event.localEventId === result.localEventId) ?? staged.events[index];
-    const isAnalyzableTextFile = /\.(md|markdown|txt)$/i.test(localEvent?.fileName ?? "");
 
     if (
       result.status === "SYNCED" &&
       result.resourceId &&
       localEvent?.eventType !== "DELETED" &&
       localEvent?.localFileId &&
-      isAnalyzableTextFile
+      analyzableRuntimeSmokeFilePattern.test(localEvent.fileName)
     ) {
-      return {
+      candidates.push({
         fileName: localEvent.fileName,
         localFileId: localEvent.localFileId,
         resourceId: result.resourceId,
-      };
+      });
     }
   }
 
-  return null;
+  return candidates.find((candidate) => runtimeSmokeAnalysisFilePattern.test(candidate.fileName)) ?? null;
 }
 
 async function seedDevAuthSession() {
@@ -657,7 +662,7 @@ async function runSmoke() {
         initialSync,
       );
       const analysisCandidate = findSyncedLocalFileAnalysisCandidate(stagedFiles, initialSync);
-      assert(analysisCandidate, "synced local file has backend resource for analysis", {
+      assert(analysisCandidate, "synced structured or RTF local file has backend resource for analysis", {
         initialSync,
         stagedFiles,
       });
