@@ -17,6 +17,7 @@ const smokeRoot = mkdtempSync(join(tmpdir(), "bubli-tauri-runtime-smoke-"));
 const managedFolderPath = join(smokeRoot, "managed-folder");
 const managedFolderNotePath = join(managedFolderPath, "runtime-smoke-note.txt");
 const managedFolderDeletePath = join(managedFolderPath, "runtime-smoke-delete.txt");
+const managedFolderManualOutboxPath = join(managedFolderPath, "runtime-smoke-manual-outbox.dat");
 writeFileSync(join(smokeRoot, "README.txt"), "Bubli Tauri runtime smoke workspace.");
 await import("node:fs/promises").then((fs) => fs.mkdir(managedFolderPath, { recursive: true }));
 writeFileSync(
@@ -150,6 +151,19 @@ function startReportServer() {
       return;
     }
 
+    if (request.method === "POST" && request.url === "/create-manual-outbox-file") {
+      try {
+        const created = createManualOutboxFile();
+        response.setHeader("Content-Type", "application/json");
+        response.writeHead(200);
+        response.end(JSON.stringify(created));
+      } catch (error) {
+        response.writeHead(500);
+        response.end(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
     if (request.method !== "POST" || request.url !== "/report") {
       response.writeHead(404);
       response.end();
@@ -206,6 +220,14 @@ function mutateManagedFolder() {
   return {
     deletedFileName: "runtime-smoke-delete.txt",
     updatedFileName: "runtime-smoke-note.txt",
+  };
+}
+
+function createManualOutboxFile() {
+  writeFileSync(managedFolderManualOutboxPath, `Manual outbox sync ${new Date().toISOString()}.`);
+
+  return {
+    createdFileName: "runtime-smoke-manual-outbox.dat",
   };
 }
 

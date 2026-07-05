@@ -241,6 +241,11 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /triggerManualOutboxFileCreation[\s\S]*recordActivityContext\(\{[\s\S]*recordWidgetUsageEvent\(\{[\s\S]*syncAllLocalOutboxToServer\(\{ limit: 50 \}\)[\s\S]*manual integrated outbox sync sent file activity and widget usage[\s\S]*manual outbox activity no longer remains pending[\s\S]*manual outbox widget usage no longer remains pending[\s\S]*manual outbox file event no longer remains pending/,
+  "TauriRuntimeSmokeRunner must verify the manual integrated local outbox path sends file, activity, and widget usage together.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /function smokeControlUrl[\s\S]*\/mutate-folder[\s\S]*function waitForManagedFolderEvents[\s\S]*"UPDATED"[\s\S]*"DELETED"/,
   "TauriRuntimeSmokeRunner must ask the Node smoke server to mutate watched files and poll for UPDATED/DELETED events.",
 );
@@ -253,6 +258,11 @@ assertContains(
   windowsRuntimeSmoke,
   /runtime-smoke-delete\.txt[\s\S]*request\.method === "POST" && request\.url === "\/mutate-folder"[\s\S]*appendFileSync[\s\S]*rmSync/,
   "Windows runtime smoke server must mutate and delete real temp files after the Tauri watcher starts.",
+);
+assertContains(
+  windowsRuntimeSmoke,
+  /runtime-smoke-manual-outbox\.dat[\s\S]*request\.method === "POST" && request\.url === "\/create-manual-outbox-file"[\s\S]*writeFileSync/,
+  "Windows runtime smoke server must create a real temp file for manual integrated outbox sync.",
 );
 assertContains(
   devWidgetRealBackend,
