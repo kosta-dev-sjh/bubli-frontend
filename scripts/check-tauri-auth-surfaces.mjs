@@ -346,6 +346,11 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /verifyRealBackendWidgetSettings[\s\S]*widgetApi\.getSettings\(\)[\s\S]*real backend widget settings included TODO bubble before Tauri patch[\s\S]*widgetApi\.updateSettings\(\{[\s\S]*bubbleType: "TODO"[\s\S]*opacity: 0\.88[\s\S]*real backend widget settings PATCH persisted TODO layout and flags in Tauri runtime[\s\S]*real backend widget settings GET read back patched TODO layout in Tauri runtime[\s\S]*real backend widget settings restored after Tauri runtime patch[\s\S]*await verifyRealBackendWidgetSettings\(assert\)/,
+  "TauriRuntimeSmokeRunner must verify widget settings PATCH, GET readback, and restore through the real backend from the Windows runtime.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /import \{ chatApi \} from "@\/features\/communication\/api\/chatApi";[\s\S]*import \{ voiceApi \} from "@\/features\/communication\/api\/voiceApi";[\s\S]*import \{ projectRoomApi \} from "@\/features\/project-room\/api\/projectRoomApi";[\s\S]*import \{ resourcesApi \} from "@\/features\/resources\/api\/resourcesApi";/,
   "TauriRuntimeSmokeRunner must use the real frontend API clients for room communication smoke checks.",
 );

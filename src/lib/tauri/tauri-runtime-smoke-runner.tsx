@@ -570,6 +570,91 @@ async function verifyRealBackendWidgetItemState(assert: SmokeAssert) {
   );
 }
 
+async function verifyRealBackendWidgetSettings(assert: SmokeAssert) {
+  const originalSettings = await widgetApi.getSettings();
+  const originalTodoSetting = originalSettings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
+  assert(originalTodoSetting?.id, "real backend widget settings included TODO bubble before Tauri patch", originalSettings);
+
+  const restoreTodoSetting = {
+    alertEnabled: originalTodoSetting.alertEnabled,
+    bubbleType: "TODO" as const,
+    enabled: originalTodoSetting.enabled,
+    ghostMode: originalTodoSetting.ghostMode,
+    height: originalTodoSetting.height ?? null,
+    minimized: originalTodoSetting.minimized,
+    opacity: originalTodoSetting.opacity ?? null,
+    width: originalTodoSetting.width ?? null,
+    x: originalTodoSetting.x ?? null,
+    y: originalTodoSetting.y ?? null,
+  };
+
+  try {
+    const patchedSettings = await widgetApi.updateSettings({
+      bubbles: [
+        {
+          alertEnabled: false,
+          bubbleType: "TODO",
+          enabled: true,
+          ghostMode: true,
+          height: 333,
+          minimized: false,
+          opacity: 0.88,
+          width: 321,
+          x: 77,
+          y: 88,
+        },
+      ],
+    });
+    const patchedTodoSetting = patchedSettings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
+    assert(
+      patchedTodoSetting?.id === originalTodoSetting.id &&
+        patchedTodoSetting.enabled === true &&
+        patchedTodoSetting.x === 77 &&
+        patchedTodoSetting.y === 88 &&
+        patchedTodoSetting.width === 321 &&
+        patchedTodoSetting.height === 333 &&
+        patchedTodoSetting.minimized === false &&
+        Number(patchedTodoSetting.opacity) === 0.88 &&
+        patchedTodoSetting.ghostMode === true &&
+        patchedTodoSetting.alertEnabled === false,
+      "real backend widget settings PATCH persisted TODO layout and flags in Tauri runtime",
+      patchedTodoSetting,
+    );
+
+    const readBackSettings = await widgetApi.getSettings();
+    const readBackTodoSetting = readBackSettings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
+    assert(
+      readBackTodoSetting?.id === originalTodoSetting.id &&
+        readBackTodoSetting.x === 77 &&
+        readBackTodoSetting.y === 88 &&
+        readBackTodoSetting.width === 321 &&
+        readBackTodoSetting.height === 333 &&
+        Number(readBackTodoSetting.opacity) === 0.88 &&
+        readBackTodoSetting.ghostMode === true &&
+        readBackTodoSetting.alertEnabled === false,
+      "real backend widget settings GET read back patched TODO layout in Tauri runtime",
+      readBackTodoSetting,
+    );
+  } finally {
+    const restoredSettings = await widgetApi.updateSettings({ bubbles: [restoreTodoSetting] });
+    const restoredTodoSetting = restoredSettings.bubbles.find((bubble) => bubble.bubbleType === "TODO");
+    assert(
+      restoredTodoSetting?.id === originalTodoSetting.id &&
+        restoredTodoSetting.enabled === originalTodoSetting.enabled &&
+        (restoredTodoSetting.x ?? null) === (originalTodoSetting.x ?? null) &&
+        (restoredTodoSetting.y ?? null) === (originalTodoSetting.y ?? null) &&
+        (restoredTodoSetting.width ?? null) === (originalTodoSetting.width ?? null) &&
+        (restoredTodoSetting.height ?? null) === (originalTodoSetting.height ?? null) &&
+        restoredTodoSetting.minimized === originalTodoSetting.minimized &&
+        (restoredTodoSetting.opacity ?? null) === (originalTodoSetting.opacity ?? null) &&
+        restoredTodoSetting.ghostMode === originalTodoSetting.ghostMode &&
+        restoredTodoSetting.alertEnabled === originalTodoSetting.alertEnabled,
+      "real backend widget settings restored after Tauri runtime patch",
+      restoredTodoSetting,
+    );
+  }
+}
+
 async function verifyRealBackendRoomCommunication(smokeRoomId: string, assert: SmokeAssert) {
   const projectRoom = await projectRoomApi.get(smokeRoomId);
   assert(
@@ -1006,6 +1091,7 @@ async function runSmoke() {
       "real backend widget summary uses selected project room",
       serverWidgetSummary.context,
     );
+    await verifyRealBackendWidgetSettings(assert);
     await verifyRealBackendWidgetItemState(assert);
     await verifyRealBackendRoomCommunication(smokeRoomId, assert);
 
