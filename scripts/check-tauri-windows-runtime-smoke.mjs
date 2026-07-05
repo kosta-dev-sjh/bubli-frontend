@@ -201,7 +201,7 @@ function runContractCheck() {
     {
       name: "runner keeps UI-free local auto sync phase",
       pattern:
-        /verifyLocalAutoSyncLoops[\s\S]*local auto-sync activity loop repeated on smoke interval[\s\S]*local auto-sync managed folder events drained through backend sync[\s\S]*if \(smokePhase === "local-auto-sync"\) \{[\s\S]*verifyLocalAutoSyncLoops\(assert\)[\s\S]*status: "passed"[\s\S]*return;/,
+        /verifyLocalAutoSyncLoops[\s\S]*local auto-sync activity loop repeated on smoke interval[\s\S]*lastFileEventSentCount[\s\S]*lastFileEventSyncedCount[\s\S]*lastFileAnalysisFailedCount[\s\S]*local auto-sync managed folder events drained through backend sync[\s\S]*if \(smokePhase === "local-auto-sync"\) \{[\s\S]*verifyLocalAutoSyncLoops\(assert\)[\s\S]*status: "passed"[\s\S]*return;/,
       source: runtimeSmokeRunner,
     },
   ];
