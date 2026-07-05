@@ -21,10 +21,26 @@ type RealOAuthQaReport = {
   status: "failed" | "passed";
 };
 
+type RealOAuthQaEvent = {
+  attemptCount?: number;
+  failedCheckCount?: number;
+  failedChecks?: string[];
+  hasReportUrl?: boolean;
+  isDesktopWidgetSurface?: boolean;
+  isTauri?: boolean;
+  ok?: boolean;
+  pathname: string;
+  reason: string;
+  runtimeSmokeEnabled?: boolean;
+  stage: "assertion" | "disposed" | "mounted" | "report-error" | "report-posted" | "run-start" | "skipped";
+  timestamp: string;
+};
+
 const runtimeSmokeEnabled =
   process.env.NODE_ENV === "development" &&
   process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
 const realOAuthQaEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true";
+const realOAuthQaEventUrl = process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL;
 const realOAuthQaReportUrl = process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL;
 const realOAuthQaTimeoutMs = readPositiveNumber(
   process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS,
@@ -44,6 +60,29 @@ function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function timeoutAfter<T>(ms: number, message: string) {
+  return new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error(message)), ms));
+}
+
+function remainingQaMs(startedAt: number) {
+  return Math.max(0, realOAuthQaTimeoutMs - (Date.now() - startedAt));
+}
+
+async function assertTauriRealGoogleAuthWidgetQaBeforeTimeout(startedAt: number) {
+  const remainingMs = remainingQaMs(startedAt);
+  if (remainingMs <= 0) {
+    throw new Error("Timed out before starting the next real OAuth QA assertion.");
+  }
+
+  return Promise.race([
+    assertTauriRealGoogleAuthWidgetQa(),
+    timeoutAfter<TauriRealGoogleAuthWidgetQaAssertion>(
+      remainingMs,
+      "Timed out while waiting for one real OAuth QA assertion to finish.",
+    ),
+  ]);
+}
+
 async function postRealOAuthQaReport(report: RealOAuthQaReport) {
   if (!realOAuthQaReportUrl) {
     throw new Error("Tauri real OAuth QA report URL is not configured.");
@@ -58,6 +97,18 @@ async function postRealOAuthQaReport(report: RealOAuthQaReport) {
   if (!response.ok) {
     throw new Error(`Tauri real OAuth QA report failed with HTTP ${response.status}.`);
   }
+}
+
+function postRealOAuthQaEvent(event: Omit<RealOAuthQaEvent, "timestamp">) {
+  if (!realOAuthQaEventUrl) {
+    return;
+  }
+
+  void fetch(realOAuthQaEventUrl, {
+    body: JSON.stringify({ ...event, timestamp: new Date().toISOString() }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  }).catch(() => undefined);
 }
 
 function reportPayload(
@@ -85,13 +136,45 @@ export function TauriRealOAuthQaReporter() {
   const isDesktopWidgetSurface = pathname === "/desktop-widget" || pathname.startsWith("/desktop-widget/");
 
   useEffect(() => {
+    const isTauri = isTauriRuntime();
+    const skipReasons = [
+      !isTauri ? "not-tauri-runtime" : null,
+      isDesktopWidgetSurface ? "desktop-widget-surface" : null,
+      runtimeSmokeEnabled ? "runtime-smoke-enabled" : null,
+      !realOAuthQaEnabled ? "real-oauth-qa-disabled" : null,
+      !realOAuthQaReportUrl ? "missing-report-url" : null,
+    ].filter((reason): reason is string => Boolean(reason));
+
+    if (realOAuthQaEnabled) {
+      postRealOAuthQaEvent({
+        hasReportUrl: Boolean(realOAuthQaReportUrl),
+        isDesktopWidgetSurface,
+        isTauri,
+        pathname,
+        reason: "effect-mounted",
+        runtimeSmokeEnabled,
+        stage: "mounted",
+      });
+    }
+
     if (
-      !isTauriRuntime() ||
+      !isTauri ||
       isDesktopWidgetSurface ||
       runtimeSmokeEnabled ||
       !realOAuthQaEnabled ||
       !realOAuthQaReportUrl
     ) {
+      if (realOAuthQaEnabled) {
+        postRealOAuthQaEvent({
+          hasReportUrl: Boolean(realOAuthQaReportUrl),
+          isDesktopWidgetSurface,
+          isTauri,
+          pathname,
+          reason: skipReasons.join(",") || "unknown",
+          runtimeSmokeEnabled,
+          stage: "skipped",
+        });
+      }
       return;
     }
 
@@ -110,13 +193,26 @@ export function TauriRealOAuthQaReporter() {
       let latestAssertion: TauriRealGoogleAuthWidgetQaAssertion | undefined;
 
       try {
+        postRealOAuthQaEvent({ pathname, reason, stage: "run-start" });
         while (!disposed && Date.now() - startedAt <= realOAuthQaTimeoutMs) {
           attemptCount += 1;
-          latestAssertion = await assertTauriRealGoogleAuthWidgetQa();
+          latestAssertion = await assertTauriRealGoogleAuthWidgetQaBeforeTimeout(startedAt);
+          if (attemptCount === 1 || latestAssertion.ok) {
+            postRealOAuthQaEvent({
+              attemptCount,
+              failedCheckCount: latestAssertion.failedChecks.length,
+              failedChecks: latestAssertion.failedChecks,
+              ok: latestAssertion.ok,
+              pathname,
+              reason,
+              stage: "assertion",
+            });
+          }
 
           if (latestAssertion.ok) {
             const report = reportPayload("passed", startedAt, reason, attemptCount, latestAssertion);
             await postRealOAuthQaReport(report);
+            postRealOAuthQaEvent({ attemptCount, ok: true, pathname, reason, stage: "report-posted" });
             reported = true;
             return;
           }
@@ -134,10 +230,20 @@ export function TauriRealOAuthQaReporter() {
             "Timed out waiting for a real Google TAURI session with all widgets ready.",
           );
           await postRealOAuthQaReport(report);
+          postRealOAuthQaEvent({ attemptCount, ok: false, pathname, reason, stage: "report-posted" });
           reported = true;
         }
       } catch (error) {
         if (!disposed) {
+          postRealOAuthQaEvent({
+            attemptCount,
+            failedChecks: latestAssertion?.failedChecks,
+            failedCheckCount: latestAssertion?.failedChecks.length,
+            ok: latestAssertion?.ok,
+            pathname,
+            reason: error instanceof Error ? error.message : String(error),
+            stage: "report-error",
+          });
           const report = reportPayload(
             "failed",
             startedAt,
@@ -160,10 +266,11 @@ export function TauriRealOAuthQaReporter() {
 
     return () => {
       disposed = true;
+      postRealOAuthQaEvent({ pathname, reason: "effect-disposed", stage: "disposed" });
       window.clearTimeout(initialTimer);
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
     };
-  }, [isDesktopWidgetSurface]);
+  }, [isDesktopWidgetSurface, pathname]);
 
   return null;
 }

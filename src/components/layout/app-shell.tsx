@@ -24,7 +24,7 @@ import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, readUserUpdatedDetail, useDataRefresh, USER_UPDATED_EVENT } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
-import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
+import { AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
@@ -47,6 +47,8 @@ import type { ContractDocumentType, ProjectRoomInvitationResponse, ProjectRoomRe
 const runtimeSmokeEnabled =
   process.env.NODE_ENV === "development" &&
   process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
+const TAURI_SESSION_RESTORE_GRACE_ATTEMPTS = 6;
+const TAURI_SESSION_RESTORE_GRACE_DELAY_MS = 250;
 
 type AppShellProps = {
   children: ReactNode;
@@ -98,6 +100,32 @@ function inferContractDocumentType(file: File): ContractDocumentType {
   return name.includes("requirement") || name.includes("요구") || name.includes("요건") ? "REQUIREMENT" : "CONTRACT";
 }
 
+function waitForMs(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function restoreInitialWorkspaceSession() {
+  const storedSession = getStoredAuthSession();
+  if (storedSession) {
+    return storedSession;
+  }
+
+  let restoredSession = await restoreStoredAuthSessionFromTauri();
+  if (restoredSession || !isTauriRuntime()) {
+    return restoredSession;
+  }
+
+  for (let attempt = 0; attempt < TAURI_SESSION_RESTORE_GRACE_ATTEMPTS; attempt += 1) {
+    await waitForMs(TAURI_SESSION_RESTORE_GRACE_DELAY_MS);
+    restoredSession = await restoreStoredAuthSessionFromTauri();
+    if (restoredSession) {
+      return restoredSession;
+    }
+  }
+
+  return null;
+}
+
 export function AppShell({ children }: AppShellProps) {
   const { t } = useI18n();
   const pathname = usePathname();
@@ -143,7 +171,7 @@ export function AppShell({ children }: AppShellProps) {
       const isCurrentRun = () => mounted && runId === loadShellRun;
 
       try {
-        const restoredSession = await restoreStoredAuthSessionFromTauri();
+        const restoredSession = await restoreInitialWorkspaceSession();
         if (!isCurrentRun()) return;
 
         if (!restoredSession) {
@@ -209,11 +237,21 @@ export function AppShell({ children }: AppShellProps) {
           const restoredRoom = restoredRoomId ? roomPage.items.find((room) => room.id === restoredRoomId) : undefined;
           if (restoredRoom) {
             seedActiveProjectRoomId(restoredRoom.id, restoredRoom.name);
+            await widgetApi.updateContext({ selectedRoomId: restoredRoom.id }).catch(() => undefined);
             if (isCurrentRun()) {
               setSelectedRoomId(restoredRoom.id);
               setSelectedRoomLabel(restoredRoom.name);
             }
           }
+        }
+
+        if (isTauriRuntime() && !getActiveProjectRoomId() && roomPage.items[0]) {
+          const firstRoom = roomPage.items[0];
+          seedActiveProjectRoomId(firstRoom.id, firstRoom.name);
+          await widgetApi.updateContext({ selectedRoomId: firstRoom.id }).catch(() => undefined);
+          if (!isCurrentRun()) return;
+          setSelectedRoomId(firstRoom.id);
+          setSelectedRoomLabel(firstRoom.name);
         }
 
         if (isCurrentRun()) setState({ kind: "ready", notifications: [], rooms: roomPage.items, user });
@@ -847,7 +885,7 @@ export function AppShell({ children }: AppShellProps) {
           ) : (
             // 비로그인 상태에서는 회원 전용 콘텐츠를 렌더하지 않는다. (로그인 페이지로 리다이렉트 중)
             <div className="bubli-auth-gate" role="status">
-              {state.kind === "loading" ? t("common.loading") : t("layout.gate.redirecting")}
+              {state.kind === "loading" || isTauriRuntime() ? t("common.loading") : t("layout.gate.redirecting")}
             </div>
           )}
         </div>
