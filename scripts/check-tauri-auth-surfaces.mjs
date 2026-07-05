@@ -159,8 +159,8 @@ assertContains(
 
 assertContains(
   runtimeSmokeRunner,
-  /NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true"/,
-  "TauriRuntimeSmokeRunner must be disabled unless the explicit runtime-smoke env flag is enabled.",
+  /const smokeEnabled =[\s\S]*process\.env\.NODE_ENV === "development"[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true"/,
+  "TauriRuntimeSmokeRunner must be disabled unless the explicit development runtime-smoke env flag is enabled.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -365,8 +365,8 @@ assertContains(
 );
 assertContains(
   launcher,
-  /const runtimeSmokeEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";/,
-  "TauriPostLoginLauncher must know when the Windows runtime smoke owns widget launch.",
+  /const runtimeSmokeEnabled =[\s\S]*process\.env\.NODE_ENV === "development"[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true"/,
+  "TauriPostLoginLauncher must only let development runtime smoke own widget launch.",
 );
 assertContains(
   launcher,
@@ -552,8 +552,8 @@ assertContains(
 
 assertContains(
   appShell,
-  /const runtimeSmokeEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";/,
-  "AppShell must know when the Windows runtime smoke owns widget launch.",
+  /const runtimeSmokeEnabled =[\s\S]*process\.env\.NODE_ENV === "development"[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true"/,
+  "AppShell must only let development runtime smoke own widget launch.",
 );
 assertContains(
   appShell,
@@ -710,8 +710,13 @@ assertContains(
 );
 assertContains(
   workspaceActiveRoom,
-  /const runtimeSmokeEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";[\s\S]*function mirrorActiveProjectRoomToServer[\s\S]*if \(runtimeSmokeEnabled\) return;/,
+  /const runtimeSmokeEnabled =[\s\S]*process\.env\.NODE_ENV === "development"[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";[\s\S]*function mirrorActiveProjectRoomToServer[\s\S]*if \(runtimeSmokeEnabled\) return;/,
   "Windows runtime smoke must not let stale AppShell active-room restore calls mirror project-room context to the backend.",
+);
+assertContains(
+  widgetPage,
+  /const devVoiceRoomId =[\s\S]*process\.env\.NODE_ENV === "development"[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID[\s\S]*useState<string \| null>\(devVoiceRoomId\)/,
+  "Desktop widget must ignore the dev voice room public env outside development builds.",
 );
 
 console.log("Tauri authenticated surface contract check passed.");

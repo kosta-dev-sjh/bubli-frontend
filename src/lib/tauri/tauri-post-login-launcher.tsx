@@ -18,7 +18,9 @@ import { readTauriAuthWidgetQaSnapshot } from "@/lib/tauri/tauri-auth-widget-qa"
 import { startWidgetDataChangedBridge } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
-const runtimeSmokeEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
+const runtimeSmokeEnabled =
+  process.env.NODE_ENV === "development" &&
+  process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
 const authDiagnosticsEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS === "true";
 
 declare global {

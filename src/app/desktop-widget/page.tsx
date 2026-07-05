@@ -88,6 +88,11 @@ const apiItemBubbleTypeMap: Partial<Record<WidgetBubbleType, BackendWidgetBubble
   todo: "TODO",
 };
 
+const devVoiceRoomId =
+  process.env.NODE_ENV === "development"
+    ? process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID ?? null
+    : null;
+
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
 type WidgetItemStateAction = "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED";
 
@@ -1064,7 +1069,7 @@ function DesktopWidgetSurface() {
   const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>(() =>
     withWidgetDisplayLoadState(buildEmptyDisplayBubbles(t, requestedRoomId), "loading"),
   );
-  const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID ?? null);
+  const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(devVoiceRoomId);
   const [agentRevision, setAgentRevision] = useState(0);
   const [communicationRevision, setCommunicationRevision] = useState(0);
   const [itemStateOverrides, setItemStateOverrides] = useState<Record<string, WidgetItemStateAction>>({});
