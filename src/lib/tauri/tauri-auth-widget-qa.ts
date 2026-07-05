@@ -1,6 +1,7 @@
 "use client";
 
 import { authApi } from "@/features/auth/api/authApi";
+import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import {
   getStoredAuthSessionDiagnostics,
@@ -33,9 +34,18 @@ type QaProbe = {
 };
 
 type TauriRealOAuthLocalSyncProbe = {
+  activity?: {
+    consentGranted: boolean;
+    localActivityId?: string;
+    queued: boolean;
+    syncStatus?: string;
+  };
   enabled: boolean;
   error?: string;
   outbox?: {
+    activityFailedCount?: number;
+    activitySentCount?: number;
+    activityStagedCount?: number;
     failedCount?: number;
     pendingCount?: number;
     sentCount?: number;
@@ -162,7 +172,7 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function runRealOAuthLocalSyncProbe(): Promise<TauriRealOAuthLocalSyncProbe> {
+async function runRealOAuthLocalSyncProbe(roomId: string | null): Promise<TauriRealOAuthLocalSyncProbe> {
   if (!shouldRunRealOAuthLocalSyncProbe()) {
     return { enabled: false };
   }
@@ -172,8 +182,22 @@ async function runRealOAuthLocalSyncProbe(): Promise<TauriRealOAuthLocalSyncProb
   }
 
   try {
+    const privacyConsents = await settingsApi.getPrivacyConsents();
     const sqlite = await tauriCommands.checkLocalSqliteIntegrity();
     const occurredAt = new Date();
+    const activityStartedAt = new Date(occurredAt.getTime() - 30_000).toISOString();
+    const activity =
+      privacyConsents.activityDetectionEnabled
+        ? await tauriCommands.recordActivityContext({
+            appName: "Bubli real OAuth QA",
+            capturedAt: occurredAt.toISOString(),
+            durationSeconds: 30,
+            endedAt: occurredAt.toISOString(),
+            roomId,
+            startedAt: activityStartedAt,
+            windowTitle: "Real OAuth local sync probe",
+          })
+        : null;
     await tauriCommands.recordWidgetUsageEvent({
       bubbleType: "todo",
       eventType: "real-oauth-qa:local-sync",
@@ -185,9 +209,18 @@ async function runRealOAuthLocalSyncProbe(): Promise<TauriRealOAuthLocalSyncProb
 
     return {
       enabled: true,
+      activity: {
+        consentGranted: privacyConsents.activityDetectionEnabled,
+        localActivityId: activity?.localActivityId,
+        queued: Boolean(activity?.localActivityId),
+        syncStatus: activity?.syncStatus,
+      },
       outbox:
         outbox.status === "ready"
           ? {
+              activityFailedCount: outbox.data.activityFailedCount,
+              activitySentCount: outbox.data.activitySentCount,
+              activityStagedCount: outbox.data.activityStagedCount,
               failedCount: outbox.data.failedCount,
               pendingCount: outbox.data.pendingCount,
               sentCount: outbox.data.sentCount,
@@ -287,6 +320,19 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
       snapshot.localSyncProbe.outbox?.widgetFailedCount === 0,
       "localSyncProbe:widgetUsageNoFailedSync",
     );
+    if (snapshot.localSyncProbe.activity?.consentGranted) {
+      addCheck(failedChecks, snapshot.localSyncProbe.activity.queued, "localSyncProbe:activityQueued");
+      addCheck(
+        failedChecks,
+        (snapshot.localSyncProbe.outbox?.activitySentCount ?? 0) >= 1,
+        "localSyncProbe:activityReachedBackend",
+      );
+      addCheck(
+        failedChecks,
+        snapshot.localSyncProbe.outbox?.activityFailedCount === 0,
+        "localSyncProbe:activityNoFailedSync",
+      );
+    }
   }
 
   return {
@@ -320,7 +366,7 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
   const serverSelectedRoomId = backendContext.data?.selectedRoomId ?? null;
   const selectedRoomId = memoryRoomId ?? tauriRoom?.roomId ?? serverSelectedRoomId;
   const backendSummary = await probeBackend(() => widgetApi.getSummary(selectedRoomId));
-  const localSyncProbe = await runRealOAuthLocalSyncProbe();
+  const localSyncProbe = await runRealOAuthLocalSyncProbe(selectedRoomId ?? null);
 
   const barItems = isTauriRuntime() ? await tauriCommands.getWidgetBarItems().catch(() => [] as WidgetWindowState[]) : [];
   const barWindow = isTauriRuntime()
