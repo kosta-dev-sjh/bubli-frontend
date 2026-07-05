@@ -5,6 +5,7 @@ import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import {
   getStoredAuthSessionDiagnostics,
+  probeStoredAuthSessionRestoreFromTauriMirrorForQa,
   readTauriAuthSessionDiagnostics,
   type AuthSessionDiagnostics,
 } from "@/lib/auth/auth-session";
@@ -70,6 +71,17 @@ type TauriRealOAuthStopCleanupProbe = {
   syncLoopsStopped?: boolean;
 };
 
+type TauriRealOAuthSessionRestoreProbe = {
+  backendMeOk?: boolean;
+  enabled: boolean;
+  error?: string;
+  browserSessionCleared?: boolean;
+  restoredLocalSession?: boolean;
+  restoredRealOAuthSession?: boolean;
+  restoredTauriClient?: boolean;
+  restoredTokenLive?: boolean;
+};
+
 export type TauriWidgetWindowQaState = Pick<WidgetWindowState, "mode" | "selectedRoomId" | "windowVisible"> & {
   bubbleType: WidgetWindowBubbleType;
   selectedRoomMatchesActiveRoom: boolean;
@@ -99,6 +111,7 @@ export type TauriAuthWidgetQaSnapshot = {
   expectedBubbleTypes: readonly WidgetBubbleType[];
   localSession: AuthSessionDiagnostics;
   localSyncProbe: TauriRealOAuthLocalSyncProbe;
+  sessionRestoreProbe: TauriRealOAuthSessionRestoreProbe;
   stopCleanupProbe: TauriRealOAuthStopCleanupProbe;
   syncRuntime: {
     activityAutoCaptureRunning: boolean;
@@ -181,6 +194,10 @@ function shouldRunRealOAuthLocalSyncProbe() {
 
 function shouldRunRealOAuthStopCleanupProbe() {
   return process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA === "true";
+}
+
+function shouldRunRealOAuthSessionRestoreProbe() {
+  return process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA === "true";
 }
 
 function errorMessage(error: unknown) {
@@ -300,6 +317,32 @@ async function runRealOAuthStopCleanupProbe(): Promise<TauriRealOAuthStopCleanup
   }
 }
 
+async function runRealOAuthSessionRestoreProbe(): Promise<TauriRealOAuthSessionRestoreProbe> {
+  if (!shouldRunRealOAuthSessionRestoreProbe()) {
+    return { enabled: false };
+  }
+
+  if (!isTauriRuntime()) {
+    return { enabled: true, error: "not_tauri_storage_runtime" };
+  }
+
+  try {
+    const restoreProbe = await probeStoredAuthSessionRestoreFromTauriMirrorForQa();
+    const backendMe = await probeBackend(() => authApi.getMe());
+
+    return {
+      backendMeOk: backendMe.probe.ok,
+      enabled: true,
+      ...restoreProbe,
+    };
+  } catch (error) {
+    return {
+      enabled: true,
+      error: errorMessage(error),
+    };
+  }
+}
+
 function assertRealGoogleSessionDiagnostics(
   failedChecks: string[],
   diagnostics: AuthSessionDiagnostics,
@@ -389,6 +432,31 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
       );
     }
   }
+  if (snapshot.sessionRestoreProbe.enabled) {
+    addCheck(failedChecks, !snapshot.sessionRestoreProbe.error, "sessionRestoreProbe:noError");
+    addCheck(
+      failedChecks,
+      snapshot.sessionRestoreProbe.browserSessionCleared,
+      "sessionRestoreProbe:browserSessionCleared",
+    );
+    addCheck(
+      failedChecks,
+      snapshot.sessionRestoreProbe.restoredLocalSession,
+      "sessionRestoreProbe:restoredLocalSession",
+    );
+    addCheck(
+      failedChecks,
+      snapshot.sessionRestoreProbe.restoredTauriClient,
+      "sessionRestoreProbe:restoredTauriClient",
+    );
+    addCheck(
+      failedChecks,
+      snapshot.sessionRestoreProbe.restoredRealOAuthSession,
+      "sessionRestoreProbe:restoredRealOAuthSession",
+    );
+    addCheck(failedChecks, snapshot.sessionRestoreProbe.restoredTokenLive, "sessionRestoreProbe:restoredTokenLive");
+    addCheck(failedChecks, snapshot.sessionRestoreProbe.backendMeOk, "sessionRestoreProbe:backendMeAfterRestore");
+  }
   if (snapshot.stopCleanupProbe.enabled) {
     addCheck(failedChecks, !snapshot.stopCleanupProbe.error, "stopCleanupProbe:noError");
     addCheck(
@@ -461,6 +529,7 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
     managedFolderStatus,
     widgetUsageAutoSyncRunning: isWidgetUsageAutoSyncRunning(),
   };
+  const sessionRestoreProbe = await runRealOAuthSessionRestoreProbe();
   const stopCleanupProbe = await runRealOAuthStopCleanupProbe();
 
   return {
@@ -489,6 +558,7 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
     expectedBubbleTypes: WIDGET_BUBBLE_TYPES,
     localSession,
     localSyncProbe,
+    sessionRestoreProbe,
     stopCleanupProbe,
     syncRuntime,
     tauriMirrorSession,
