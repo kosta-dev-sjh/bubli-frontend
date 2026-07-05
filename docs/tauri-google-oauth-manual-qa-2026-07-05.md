@@ -119,3 +119,4 @@ await window.__BUBLI_TAURI_AUTH_QA__?.readAuthWidgetSnapshot()
 - `/api/me`, `/api/widget/context`, `/api/widget/summary`가 같은 로그인 상태로 성공한다.
 - 통합 스냅샷의 `backend.me.ok`, `backend.widgetContext.ok`, `backend.widgetSummary.ok`가 모두 `true`다.
 - `widgetRuntime.allExpectedWindowsVisible`과 `widgetRuntime.allWindowRoomContextMatchesActive`가 모두 `true`다.
+- `widgetRuntime.barRestoreItems`는 최소화/숨김 위젯의 복원 항목 상태다. 로그인 직후 모든 위젯이 visible이면 `count`가 0이어도 정상이고, 최소화 QA에서는 `allMatchActiveRoom`이 `true`여야 한다.

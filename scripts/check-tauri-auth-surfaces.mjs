@@ -309,7 +309,7 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /const authWidgetQaSnapshot = await readTauriAuthWidgetQaSnapshot\(\);[\s\S]*post-login QA snapshot confirmed Tauri auth session without raw tokens[\s\S]*post-login QA snapshot confirmed real backend auth and widget APIs[\s\S]*post-login QA snapshot confirmed project room context across memory Tauri and backend[\s\S]*post-login QA snapshot confirmed all widget windows and bar items[\s\S]*stopTauriAuthenticatedSurfaces\(\)/,
+  /const authWidgetQaSnapshot = await readTauriAuthWidgetQaSnapshot\(\);[\s\S]*post-login QA snapshot confirmed Tauri auth session without raw tokens[\s\S]*post-login QA snapshot confirmed real backend auth and widget APIs[\s\S]*post-login QA snapshot confirmed project room context across memory Tauri and backend[\s\S]*post-login QA snapshot confirmed all widget windows and restore items[\s\S]*stopTauriAuthenticatedSurfaces\(\)/,
   "TauriRuntimeSmokeRunner must verify the redacted QA snapshot after the post-login launcher opens authenticated widgets.",
 );
 assertContains(
@@ -435,7 +435,7 @@ assertContains(
 );
 assertContains(
   authWidgetQa,
-  /WIDGET_BUBBLE_TYPES\.map[\s\S]*missingVisibleBubbles[\s\S]*allExpectedWindowsVisible[\s\S]*allWindowRoomContextMatchesActive/,
+  /WIDGET_BUBBLE_TYPES\.map[\s\S]*missingVisibleBubbles[\s\S]*allExpectedWindowsVisible[\s\S]*allWindowRoomContextMatchesActive[\s\S]*barRestoreItems/,
   "Tauri auth/widget QA snapshot must cover all eight expected bubble windows and room-context consistency.",
 );
 assertNotContains(

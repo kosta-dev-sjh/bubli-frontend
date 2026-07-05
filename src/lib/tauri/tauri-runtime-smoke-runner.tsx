@@ -1045,8 +1045,8 @@ async function runSmoke() {
     assert(
       authWidgetQaSnapshot.widgetRuntime.allExpectedWindowsVisible &&
         authWidgetQaSnapshot.widgetRuntime.allWindowRoomContextMatchesActive &&
-        authWidgetQaSnapshot.widgetRuntime.barItems.ok,
-      "post-login QA snapshot confirmed all widget windows and bar items",
+        authWidgetQaSnapshot.widgetRuntime.barRestoreItems.allMatchActiveRoom,
+      "post-login QA snapshot confirmed all widget windows and restore items",
       authWidgetQaSnapshot.widgetRuntime,
     );
     await stopTauriAuthenticatedSurfaces();
