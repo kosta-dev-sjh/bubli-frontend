@@ -82,10 +82,38 @@ type TauriRealOAuthSessionRestoreProbe = {
   restoredTokenLive?: boolean;
 };
 
+type TauriRealOAuthStabilityProbe = {
+  allAutoSyncLoopsRunning?: boolean;
+  allExpectedWindowsVisible?: boolean;
+  allWindowRoomContextMatchesActive?: boolean;
+  allWindowRoomContextMatchesServer?: boolean;
+  backendWidgetSummaryOk?: boolean;
+  barRestoreItemsMatchActiveRoom?: boolean;
+  dwellMs?: number;
+  enabled: boolean;
+  error?: string;
+  managedFolderStatusNotFailed?: boolean;
+};
+
 export type TauriWidgetWindowQaState = Pick<WidgetWindowState, "mode" | "selectedRoomId" | "windowVisible"> & {
   bubbleType: WidgetWindowBubbleType;
   selectedRoomMatchesActiveRoom: boolean;
   selectedRoomMatchesServerContext: boolean;
+};
+
+type TauriWidgetRuntimeQaSnapshot = {
+  allExpectedWindowsVisible: boolean;
+  allWindowRoomContextMatchesActive: boolean;
+  allWindowRoomContextMatchesServer: boolean;
+  barRestoreItems: {
+    count: number;
+    allMatchActiveRoom: boolean;
+    selectedRoomIds: Array<string | null>;
+    windowIds: string[];
+  };
+  barWindow: TauriWidgetWindowQaState | null;
+  missingVisibleBubbles: WidgetBubbleType[];
+  windows: Record<WidgetBubbleType, TauriWidgetWindowQaState | null>;
 };
 
 export type TauriAuthWidgetQaSnapshot = {
@@ -112,6 +140,7 @@ export type TauriAuthWidgetQaSnapshot = {
   localSession: AuthSessionDiagnostics;
   localSyncProbe: TauriRealOAuthLocalSyncProbe;
   sessionRestoreProbe: TauriRealOAuthSessionRestoreProbe;
+  stabilityProbe: TauriRealOAuthStabilityProbe;
   stopCleanupProbe: TauriRealOAuthStopCleanupProbe;
   syncRuntime: {
     activityAutoCaptureRunning: boolean;
@@ -121,20 +150,7 @@ export type TauriAuthWidgetQaSnapshot = {
     widgetUsageAutoSyncRunning: boolean;
   };
   tauriMirrorSession: AuthSessionDiagnostics;
-  widgetRuntime: {
-    allExpectedWindowsVisible: boolean;
-    allWindowRoomContextMatchesActive: boolean;
-    allWindowRoomContextMatchesServer: boolean;
-    barRestoreItems: {
-      count: number;
-      allMatchActiveRoom: boolean;
-      selectedRoomIds: Array<string | null>;
-      windowIds: string[];
-    };
-    barWindow: TauriWidgetWindowQaState | null;
-    missingVisibleBubbles: WidgetBubbleType[];
-    windows: Record<WidgetBubbleType, TauriWidgetWindowQaState | null>;
-  };
+  widgetRuntime: TauriWidgetRuntimeQaSnapshot;
 };
 
 export type TauriRealGoogleAuthWidgetQaAssertion = {
@@ -200,8 +216,22 @@ function shouldRunRealOAuthSessionRestoreProbe() {
   return process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA === "true";
 }
 
+function resolveRealOAuthStabilityDwellMs() {
+  const raw = process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS;
+  const parsed = raw ? Number.parseInt(raw, 10) : 0;
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 0;
+  }
+
+  return Math.min(Math.max(parsed, 1_000), 60_000);
+}
+
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function waitForMs(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 async function runRealOAuthLocalSyncProbe(roomId: string | null): Promise<TauriRealOAuthLocalSyncProbe> {
@@ -343,6 +373,48 @@ async function runRealOAuthSessionRestoreProbe(): Promise<TauriRealOAuthSessionR
   }
 }
 
+async function runRealOAuthStabilityProbe(
+  selectedRoomId: string | null,
+  serverSelectedRoomId: string | null,
+): Promise<TauriRealOAuthStabilityProbe> {
+  const dwellMs = resolveRealOAuthStabilityDwellMs();
+  if (dwellMs <= 0) {
+    return { enabled: false };
+  }
+
+  if (!isTauriRuntime()) {
+    return { dwellMs, enabled: true, error: "not_tauri_runtime" };
+  }
+
+  try {
+    await waitForMs(dwellMs);
+    const widgetRuntime = await readWidgetRuntimeState(selectedRoomId, serverSelectedRoomId);
+    const backendSummary = await probeBackend(() => widgetApi.getSummary(selectedRoomId));
+    const allAutoSyncLoopsRunning =
+      isActivityAutoCaptureRunning() &&
+      isManagedFolderAutoSyncRunning() &&
+      isWidgetUsageAutoSyncRunning();
+
+    return {
+      allAutoSyncLoopsRunning,
+      allExpectedWindowsVisible: widgetRuntime.allExpectedWindowsVisible,
+      allWindowRoomContextMatchesActive: widgetRuntime.allWindowRoomContextMatchesActive,
+      allWindowRoomContextMatchesServer: widgetRuntime.allWindowRoomContextMatchesServer,
+      backendWidgetSummaryOk: backendSummary.probe.ok,
+      barRestoreItemsMatchActiveRoom: widgetRuntime.barRestoreItems.allMatchActiveRoom,
+      dwellMs,
+      enabled: true,
+      managedFolderStatusNotFailed: getManagedFolderAutoSyncStatus().lastStatus !== "failed",
+    };
+  } catch (error) {
+    return {
+      dwellMs,
+      enabled: true,
+      error: errorMessage(error),
+    };
+  }
+}
+
 function assertRealGoogleSessionDiagnostics(
   failedChecks: string[],
   diagnostics: AuthSessionDiagnostics,
@@ -457,6 +529,37 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
     addCheck(failedChecks, snapshot.sessionRestoreProbe.restoredTokenLive, "sessionRestoreProbe:restoredTokenLive");
     addCheck(failedChecks, snapshot.sessionRestoreProbe.backendMeOk, "sessionRestoreProbe:backendMeAfterRestore");
   }
+  if (snapshot.stabilityProbe.enabled) {
+    addCheck(failedChecks, !snapshot.stabilityProbe.error, "stabilityProbe:noError");
+    addCheck(failedChecks, (snapshot.stabilityProbe.dwellMs ?? 0) >= 1_000, "stabilityProbe:dwellMs");
+    addCheck(
+      failedChecks,
+      snapshot.stabilityProbe.allExpectedWindowsVisible,
+      "stabilityProbe:allExpectedWindowsVisible",
+    );
+    addCheck(
+      failedChecks,
+      snapshot.stabilityProbe.allWindowRoomContextMatchesActive,
+      "stabilityProbe:allWindowRoomContextMatchesActive",
+    );
+    addCheck(
+      failedChecks,
+      snapshot.stabilityProbe.allWindowRoomContextMatchesServer,
+      "stabilityProbe:allWindowRoomContextMatchesServer",
+    );
+    addCheck(
+      failedChecks,
+      snapshot.stabilityProbe.barRestoreItemsMatchActiveRoom,
+      "stabilityProbe:barRestoreItemsMatchActiveRoom",
+    );
+    addCheck(failedChecks, snapshot.stabilityProbe.allAutoSyncLoopsRunning, "stabilityProbe:syncLoopsStillRunning");
+    addCheck(
+      failedChecks,
+      snapshot.stabilityProbe.managedFolderStatusNotFailed,
+      "stabilityProbe:managedFolderStatusNotFailed",
+    );
+    addCheck(failedChecks, snapshot.stabilityProbe.backendWidgetSummaryOk, "stabilityProbe:backendWidgetSummary");
+  }
   if (snapshot.stopCleanupProbe.enabled) {
     addCheck(failedChecks, !snapshot.stopCleanupProbe.error, "stopCleanupProbe:noError");
     addCheck(
@@ -493,6 +596,43 @@ async function readWindowState(
   }
 }
 
+async function readWidgetRuntimeState(
+  selectedRoomId: string | null,
+  serverSelectedRoomId: string | null,
+): Promise<TauriWidgetRuntimeQaSnapshot> {
+  const barItems = isTauriRuntime() ? await tauriCommands.getWidgetBarItems().catch(() => [] as WidgetWindowState[]) : [];
+  const barWindow = isTauriRuntime()
+    ? await readWindowState("bar", selectedRoomId, serverSelectedRoomId)
+    : null;
+  const windowEntries = await Promise.all(
+    WIDGET_BUBBLE_TYPES.map(async (bubbleType) => [
+      bubbleType,
+      isTauriRuntime() ? await readWindowState(bubbleType, selectedRoomId, serverSelectedRoomId) : null,
+    ] as const),
+  );
+  const windows = Object.fromEntries(windowEntries) as Record<WidgetBubbleType, TauriWidgetWindowQaState | null>;
+  const missingVisibleBubbles = WIDGET_BUBBLE_TYPES.filter((bubbleType) => !windows[bubbleType]?.windowVisible);
+
+  return {
+    allExpectedWindowsVisible: missingVisibleBubbles.length === 0,
+    allWindowRoomContextMatchesActive: WIDGET_BUBBLE_TYPES.every(
+      (bubbleType) => windows[bubbleType]?.selectedRoomMatchesActiveRoom,
+    ),
+    allWindowRoomContextMatchesServer: WIDGET_BUBBLE_TYPES.every(
+      (bubbleType) => windows[bubbleType]?.selectedRoomMatchesServerContext,
+    ),
+    barRestoreItems: {
+      count: barItems.length,
+      allMatchActiveRoom: barItems.every((item) => roomMatches(item.selectedRoomId, selectedRoomId)),
+      selectedRoomIds: [...new Set(barItems.map((item) => item.selectedRoomId ?? null))],
+      windowIds: barItems.map((item) => item.windowId ?? item.activeBubble),
+    },
+    barWindow,
+    missingVisibleBubbles,
+    windows,
+  };
+}
+
 export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQaSnapshot> {
   const localSession = getStoredAuthSessionDiagnostics();
   const tauriMirrorSession = await readTauriAuthSessionDiagnostics();
@@ -505,19 +645,7 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
   const selectedRoomId = memoryRoomId ?? tauriRoom?.roomId ?? serverSelectedRoomId;
   const backendSummary = await probeBackend(() => widgetApi.getSummary(selectedRoomId));
   const localSyncProbe = await runRealOAuthLocalSyncProbe(selectedRoomId ?? null);
-
-  const barItems = isTauriRuntime() ? await tauriCommands.getWidgetBarItems().catch(() => [] as WidgetWindowState[]) : [];
-  const barWindow = isTauriRuntime()
-    ? await readWindowState("bar", selectedRoomId ?? null, serverSelectedRoomId)
-    : null;
-  const windowEntries = await Promise.all(
-    WIDGET_BUBBLE_TYPES.map(async (bubbleType) => [
-      bubbleType,
-      isTauriRuntime() ? await readWindowState(bubbleType, selectedRoomId ?? null, serverSelectedRoomId) : null,
-    ] as const),
-  );
-  const windows = Object.fromEntries(windowEntries) as Record<WidgetBubbleType, TauriWidgetWindowQaState | null>;
-  const missingVisibleBubbles = WIDGET_BUBBLE_TYPES.filter((bubbleType) => !windows[bubbleType]?.windowVisible);
+  const widgetRuntime = await readWidgetRuntimeState(selectedRoomId ?? null, serverSelectedRoomId);
   const managedFolderStatus = getManagedFolderAutoSyncStatus();
   const syncRuntime = {
     activityAutoCaptureRunning: isActivityAutoCaptureRunning(),
@@ -529,6 +657,7 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
     managedFolderStatus,
     widgetUsageAutoSyncRunning: isWidgetUsageAutoSyncRunning(),
   };
+  const stabilityProbe = await runRealOAuthStabilityProbe(selectedRoomId ?? null, serverSelectedRoomId);
   const sessionRestoreProbe = await runRealOAuthSessionRestoreProbe();
   const stopCleanupProbe = await runRealOAuthStopCleanupProbe();
 
@@ -559,26 +688,10 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
     localSession,
     localSyncProbe,
     sessionRestoreProbe,
+    stabilityProbe,
     stopCleanupProbe,
     syncRuntime,
     tauriMirrorSession,
-    widgetRuntime: {
-      allExpectedWindowsVisible: missingVisibleBubbles.length === 0,
-      allWindowRoomContextMatchesActive: WIDGET_BUBBLE_TYPES.every(
-        (bubbleType) => windows[bubbleType]?.selectedRoomMatchesActiveRoom,
-      ),
-      allWindowRoomContextMatchesServer: WIDGET_BUBBLE_TYPES.every(
-        (bubbleType) => windows[bubbleType]?.selectedRoomMatchesServerContext,
-      ),
-      barRestoreItems: {
-        count: barItems.length,
-        allMatchActiveRoom: barItems.every((item) => roomMatches(item.selectedRoomId, selectedRoomId ?? null)),
-        selectedRoomIds: [...new Set(barItems.map((item) => item.selectedRoomId ?? null))],
-        windowIds: barItems.map((item) => item.windowId ?? item.activeBubble),
-      },
-      barWindow,
-      missingVisibleBubbles,
-      windows,
-    },
+    widgetRuntime,
   };
 }
