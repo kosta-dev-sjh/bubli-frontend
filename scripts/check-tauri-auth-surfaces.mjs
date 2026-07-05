@@ -8,6 +8,7 @@ const files = {
   authApi: "src/features/auth/api/authApi.ts",
   authPanel: "src/features/auth/components/auth-panel.tsx",
   authSession: "src/lib/auth/auth-session.ts",
+  activityAutoCapture: "src/lib/local/activity-auto-capture.ts",
   authenticatedSurfaces: "src/lib/tauri/authenticated-surfaces.ts",
   chatWidgetRouting: "src/lib/tauri/chat-widget-routing.ts",
   desktopWidgetPage: "src/app/desktop-widget/page.tsx",
@@ -18,6 +19,7 @@ const files = {
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
   realOAuthQaReporter: "src/lib/tauri/tauri-real-oauth-qa-reporter.tsx",
   authWidgetQa: "src/lib/tauri/tauri-auth-widget-qa.ts",
+  managedFolderAutoSync: "src/lib/local/managed-folder-auto-sync.ts",
   runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
   tauriCapability: "src-tauri/capabilities/default.json",
   tauriConf: "src-tauri/tauri.conf.json",
@@ -85,6 +87,7 @@ const packageJson = read(files.packageJson);
 const launcher = read(files.postLoginLauncher);
 const realOAuthQaReporter = read(files.realOAuthQaReporter);
 const authWidgetQa = read(files.authWidgetQa);
+const managedFolderAutoSync = read(files.managedFolderAutoSync);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
 const tauriCapability = read(files.tauriCapability);
 const tauriConf = read(files.tauriConf);
@@ -101,6 +104,7 @@ const appChat = read(files.appChat);
 const authApi = read(files.authApi);
 const authPanel = read(files.authPanel);
 const authSession = read(files.authSession);
+const activityAutoCapture = read(files.activityAutoCapture);
 const widgetPage = read(files.desktopWidgetPage);
 const widgetAuthHeaders = read(files.widgetAuthHeaders);
 const workspaceActiveRoom = read(files.workspaceActiveRoom);
@@ -444,6 +448,21 @@ assertContains(
   "TauriRuntimeSmokeRunner must verify the manual integrated local outbox path sends file, activity, and widget usage together.",
 );
 assertContains(
+  activityAutoCapture,
+  /DEFAULT_ACTIVITY_CAPTURE_INTERVAL_MS = 30_000[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_ACTIVITY_CAPTURE_INTERVAL_MS[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true"[\s\S]*configured >= 1_000[\s\S]*configured <= DEFAULT_ACTIVITY_CAPTURE_INTERVAL_MS/,
+  "Activity auto-capture interval override must be limited to development runtime smoke.",
+);
+assertContains(
+  managedFolderAutoSync,
+  /export type ManagedFolderAutoSyncStatus[\s\S]*lastSyncedFolderId[\s\S]*lastWatchEventFolderId[\s\S]*lastWatchedCount[\s\S]*pendingFolderCount[\s\S]*export function getManagedFolderAutoSyncStatus\(\)[\s\S]*updateManagedFolderAutoSyncStatus/,
+  "Managed folder auto-sync must expose a non-UI status snapshot for runtime QA.",
+);
+assertContains(
+  managedFolderAutoSync,
+  /watchAllManagedFolders\(\)\.catch\(\(\) => null\)[\s\S]*lastSkippedCount: watchResult\.skippedCount[\s\S]*lastWatchedCount: watchResult\.watchedCount/,
+  "Managed folder auto-sync status must retain native watchAllManagedFolders results.",
+);
+assertContains(
   runtimeSmokeRunner,
   /launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened all bubble widgets with project room context[\s\S]*isActivityAutoCaptureRunning\(\)[\s\S]*isManagedFolderAutoSyncRunning\(\)[\s\S]*isWidgetUsageAutoSyncRunning\(\)[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*stopTauriAuthenticatedSurfaces\(\)[\s\S]*post-login stop closed all bubble widget windows[\s\S]*post-login stop stopped activity folder and widget sync loops/,
   "TauriRuntimeSmokeRunner must prove the real post-login authenticated launcher opens widgets, starts sync loops, and stops both widgets and loops.",
@@ -460,6 +479,16 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /verifyLocalAutoSyncLoops[\s\S]*startActivityAutoCapture\(\)[\s\S]*startManagedFolderAutoSync\(\)[\s\S]*getActivityAutoCaptureStatus[\s\S]*local auto-sync activity loop repeated on smoke interval[\s\S]*getManagedFolderAutoSyncStatus[\s\S]*local auto-sync managed folder watcher restored active folders[\s\S]*triggerManagedFolderMutation[\s\S]*local auto-sync managed folder events drained through backend sync[\s\S]*stopActivityAutoCapture\(\{ flush: true \}\)[\s\S]*stopManagedFolderAutoSync\(\{ flush: true \}\)/,
+  "TauriRuntimeSmokeRunner must provide a UI-free local-auto-sync phase for activity and managed-folder loops.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /if \(smokePhase === "local-auto-sync"\) \{[\s\S]*verifyLocalAutoSyncLoops\(assert\)[\s\S]*postReport\(\{[\s\S]*status: "passed"[\s\S]*return;/,
+  "TauriRuntimeSmokeRunner local-auto-sync phase must return before widget launch and communication UI checks.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /function smokeControlUrl[\s\S]*\/mutate-folder[\s\S]*function waitForManagedFolderEvents[\s\S]*"UPDATED"[\s\S]*"DELETED"/,
   "TauriRuntimeSmokeRunner must ask the Node smoke server to mutate watched files and poll for UPDATED/DELETED events.",
 );
@@ -470,8 +499,18 @@ assertContains(
 );
 assertContains(
   windowsRuntimeSmoke,
-  /runRuntimeSmokePhase\("full", accessToken\)[\s\S]*runRuntimeSmokePhase\("restore-verify", accessToken\)[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_PHASE: phase/,
-  "Windows runtime smoke script must relaunch Tauri for the SQLite restore verification phase.",
+  /const DEFAULT_PHASES = \["full", "restore-verify"\][\s\S]*parseRequestedPhases\(process\.env\.BUBLI_TAURI_RUNTIME_SMOKE_PHASES\)[\s\S]*for \(const phase of REQUESTED_PHASES\)[\s\S]*runRuntimeSmokePhase\(phase, accessToken\)[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_PHASE: phase/,
+  "Windows runtime smoke script must default to full plus restore and allow a selected local-auto-sync phase.",
+);
+assertContains(
+  windowsRuntimeSmoke,
+  /const CONTRACT_ONLY = process\.argv\.includes\("--contract"\)[\s\S]*if \(CONTRACT_ONLY\) \{[\s\S]*mode: "contract"[\s\S]*process\.exit\(0\);/,
+  "Windows runtime smoke script must support a no-window --contract mode.",
+);
+assertContains(
+  windowsRuntimeSmoke,
+  /NEXT_PUBLIC_BUBLI_TAURI_ACTIVITY_CAPTURE_INTERVAL_MS: "1000"/,
+  "Windows runtime smoke script must shorten activity auto-capture only in runtime smoke mode.",
 );
 assertContains(
   windowsRuntimeSmoke,

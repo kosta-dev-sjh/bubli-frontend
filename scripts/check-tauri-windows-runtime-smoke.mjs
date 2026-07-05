@@ -8,9 +8,28 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? resolveWsUrl(API_BASE_URL);
 const ROOM_ID = "22222222-2222-4222-8222-222222222222";
 const TIMEOUT_MS = Number(process.env.BUBLI_TAURI_RUNTIME_SMOKE_TIMEOUT_MS ?? 240_000);
+const DEFAULT_PHASES = ["full", "restore-verify"];
+const REQUESTED_PHASES = parseRequestedPhases(process.env.BUBLI_TAURI_RUNTIME_SMOKE_PHASES);
+const CONTRACT_ONLY = process.argv.includes("--contract");
 
 if (process.platform !== "win32") {
   console.log("Windows Tauri runtime smoke skipped: this check is Windows-only.");
+  process.exit(0);
+}
+
+if (CONTRACT_ONLY) {
+  console.log(
+    JSON.stringify(
+      {
+        mode: "contract",
+        phases: REQUESTED_PHASES,
+        result: "passed",
+        script: "check-tauri-windows-runtime-smoke",
+      },
+      null,
+      2,
+    ),
+  );
   process.exit(0);
 }
 
@@ -61,9 +80,11 @@ if (!accessToken) {
   throw new Error("Could not create local dev access token for Tauri runtime smoke.");
 }
 
-const fullReport = await runRuntimeSmokePhase("full", accessToken);
-const restoreReport = await runRuntimeSmokePhase("restore-verify", accessToken);
-console.log(JSON.stringify({ phases: [fullReport, restoreReport] }, null, 2));
+const reports = [];
+for (const phase of REQUESTED_PHASES) {
+  reports.push(await runRuntimeSmokePhase(phase, accessToken));
+}
+console.log(JSON.stringify({ phases: reports }, null, 2));
 console.log("Windows Tauri runtime smoke passed.");
 
 function runNodeScript(args, extraEnv = {}) {
@@ -123,6 +144,7 @@ function spawnTauri(reportUrl, accessToken, phase) {
       NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "true",
       NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN: accessToken,
       NEXT_PUBLIC_BUBLI_PREVIEW_DATA: "false",
+      NEXT_PUBLIC_BUBLI_TAURI_ACTIVITY_CAPTURE_INTERVAL_MS: "1000",
       NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "true",
       NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_FOLDER: managedFolderPath,
       NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_PHASE: phase,
@@ -147,6 +169,23 @@ function resolveWsUrl(apiBaseUrl) {
   const url = new URL("/ws", apiBaseUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return url.toString();
+}
+
+function parseRequestedPhases(value) {
+  if (!value?.trim()) return DEFAULT_PHASES;
+
+  const phases = value
+    .split(",")
+    .map((phase) => phase.trim())
+    .filter(Boolean);
+  const allowed = new Set([...DEFAULT_PHASES, "local-auto-sync"]);
+  for (const phase of phases) {
+    if (!allowed.has(phase)) {
+      throw new Error(`Unsupported Tauri runtime smoke phase: ${phase}`);
+    }
+  }
+
+  return phases.length > 0 ? phases : DEFAULT_PHASES;
 }
 
 function startReportServer() {

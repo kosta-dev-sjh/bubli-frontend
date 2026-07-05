@@ -12,7 +12,8 @@ import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import type { ActivityContextRecordAdapterResult } from "@/types/local";
 
-const ACTIVITY_CAPTURE_INTERVAL_MS = 30_000;
+const DEFAULT_ACTIVITY_CAPTURE_INTERVAL_MS = 30_000;
+const ACTIVITY_CAPTURE_INTERVAL_MS = resolveActivityCaptureIntervalMs();
 const CONSENT_REFRESH_INTERVAL_MS = 60_000;
 
 let captureIntervalId: number | null = null;
@@ -283,4 +284,19 @@ function updateActivityAutoCaptureStatus(next: Partial<ActivityAutoCaptureStatus
 
 function isAutoCaptureActive() {
   return captureIntervalId !== null || captureInFlight;
+}
+
+function resolveActivityCaptureIntervalMs() {
+  const configured = Number(process.env.NEXT_PUBLIC_BUBLI_TAURI_ACTIVITY_CAPTURE_INTERVAL_MS);
+  if (
+    process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true" &&
+    Number.isFinite(configured) &&
+    configured >= 1_000 &&
+    configured <= DEFAULT_ACTIVITY_CAPTURE_INTERVAL_MS
+  ) {
+    return configured;
+  }
+
+  return DEFAULT_ACTIVITY_CAPTURE_INTERVAL_MS;
 }
