@@ -14,14 +14,18 @@ import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { clearStoredAuthSession, getStoredAuthSession } from "@/lib/auth/auth-session";
+import { isActivityAutoCaptureRunning } from "@/lib/local/activity-auto-capture";
+import { isManagedFolderAutoSyncRunning } from "@/lib/local/managed-folder-auto-sync";
 import {
   analyzePersonalLocalFileWithKeySentences,
   getPersonalLocalFileAnalysisStatus,
 } from "@/lib/local/managed-folder-client";
 import { syncAllLocalOutboxToServer } from "@/lib/sync/local-sync-client";
+import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { tauriCommands } from "@/lib/tauri/commands";
 import type { LocalFileEventsSyncStageResult } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { isWidgetUsageAutoSyncRunning } from "@/lib/widget/widget-usage-auto-sync";
 import { syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 
 type SmokeCheck = {
@@ -797,6 +801,32 @@ async function runSmoke() {
       );
     }
 
+    await tauriCommands.closeAllWidgetWindows();
+    await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false });
+    await launchTauriAuthenticatedSurfaces();
+    const launcherWidgetStates = await Promise.all(
+      smokeWidgetBubbles.map((bubbleType) =>
+        tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
+      ),
+    );
+    assert(
+      launcherWidgetStates.every((widget) => widget.windowVisible && widget.selectedRoomId === smokeRoomId),
+      "post-login launcher opened all bubble widgets with project room context",
+      launcherWidgetStates,
+    );
+    assert(
+      isActivityAutoCaptureRunning() &&
+        isManagedFolderAutoSyncRunning() &&
+        isWidgetUsageAutoSyncRunning(),
+      "post-login launcher started activity folder and widget sync loops",
+      {
+        activityAutoCaptureRunning: isActivityAutoCaptureRunning(),
+        managedFolderAutoSyncRunning: isManagedFolderAutoSyncRunning(),
+        widgetUsageAutoSyncRunning: isWidgetUsageAutoSyncRunning(),
+      },
+    );
+    await stopTauriAuthenticatedSurfaces();
+
     const closedCount = await tauriCommands.closeAllWidgetWindows();
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false });
     addCheck("widget windows cleaned up", { closedCount });
@@ -809,6 +839,7 @@ async function runSmoke() {
       status: "passed",
     });
   } catch (error) {
+    await stopTauriAuthenticatedSurfaces().catch(() => undefined);
     await tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
     await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);

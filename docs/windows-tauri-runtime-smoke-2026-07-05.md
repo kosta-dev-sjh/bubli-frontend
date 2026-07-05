@@ -79,7 +79,8 @@ Full phase:
 - Watched `UPDATED` and `DELETED` events reached the real backend and were marked locally as `SYNCED`.
 - A follow-up stage returned no remaining pending watched file events.
 - The smoke then creates one more real local file event plus local-only activity and widget usage rows, calls the same `syncAllLocalOutboxToServer` path used by the settings manual-send button, and verifies file/activity/widget server sent counts plus empty follow-up pending state for the newly created manual activity/widget/file items.
-- Widget windows were cleaned up at the end.
+- The manually opened widget windows were cleaned up before the launcher-path probe.
+- The smoke then exercised the same `launchTauriAuthenticatedSurfaces()` path used after a real login, verified all eight bubble widgets reopened with the selected project room, and asserted that activity capture, managed-folder auto sync, and widget-usage auto sync loops were running before stopping the authenticated surfaces.
 
 Restore verification phase:
 

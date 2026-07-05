@@ -266,6 +266,11 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened all bubble widgets with project room context[\s\S]*isActivityAutoCaptureRunning\(\)[\s\S]*isManagedFolderAutoSyncRunning\(\)[\s\S]*isWidgetUsageAutoSyncRunning\(\)[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*stopTauriAuthenticatedSurfaces\(\)/,
+  "TauriRuntimeSmokeRunner must prove the real post-login authenticated launcher opens widgets and starts all local sync loops.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /function smokeControlUrl[\s\S]*\/mutate-folder[\s\S]*function waitForManagedFolderEvents[\s\S]*"UPDATED"[\s\S]*"DELETED"/,
   "TauriRuntimeSmokeRunner must ask the Node smoke server to mutate watched files and poll for UPDATED/DELETED events.",
 );
