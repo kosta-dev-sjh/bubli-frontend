@@ -1718,6 +1718,10 @@
   padding: 4px;
 }
 
+.barRootBelow {
+  align-content: start;
+}
+
 .barPopover {
   position: absolute;
   /* pill(36px 칩 + 패딩 ≈ 54px) + 루트 패딩 4 + 여백 10 — pill 위 투명 영역에 뜨므로
@@ -1740,6 +1744,12 @@
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
     var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
   pointer-events: none;
+}
+
+.barRootBelow .barPopover {
+  top: 68px;
+  bottom: auto;
+  transform-origin: 50% 0%;
 }
 
 .barPopoverHead {
@@ -1990,6 +2000,11 @@
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
     var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
   scrollbar-width: none;
+}
+
+.barRootBelow .barMenuPanel {
+  top: 68px;
+  bottom: auto;
 }
 
 .barRoot,

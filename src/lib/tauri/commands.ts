@@ -10,6 +10,8 @@ export const TAURI_COMMANDS = {
   clearTauriAuthSession: "clear_tauri_auth_session",
   closeAllWidgetWindows: "close_all_widget_windows",
   closeWidgetWindow: "close_widget_window",
+  dragWidgetBarWindow: "drag_widget_bar_window",
+  setWidgetBarPreviewPlacement: "set_widget_bar_preview_placement",
   extractLocalFileKeySentences: "extract_local_file_key_sentences",
   findLocalFileByResourceId: "find_local_file_by_resource_id",
   flushSyncOutbox: "flush_sync_outbox",
@@ -699,6 +701,27 @@ export type WidgetWindowPositionInput = WidgetWindowPosition & {
   windowId?: string;
 };
 
+export type WidgetBarDragInput = {
+  grabX: number;
+  grabY: number;
+  navHeight: number;
+  navWidth: number;
+  rootHeight: number;
+  rootWidth: number;
+};
+
+export type WidgetBarDragResult = {
+  placement: "above" | "below";
+  state: WidgetWindowState;
+};
+
+export type WidgetBarPreviewPlacementInput = {
+  currentOffsetTop: number;
+  navHeight: number;
+  nextOffsetTop: number;
+  placement: "above" | "below";
+};
+
 // 사용자 코너 드래그 리사이즈 입력(논리 px). Rust가 버블별 [기본, 기본×1.6]으로 클램프하고,
 // commit=true(드래그 종료)일 때만 SQLite local_widget_bubble_sizes에 저장한다.
 export type WidgetWindowResizeInput = {
@@ -824,6 +847,14 @@ export type TauriCommandContract = {
   close_widget_window: {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
+  };
+  drag_widget_bar_window: {
+    args: WidgetBarDragInput;
+    result: WidgetBarDragResult;
+  };
+  set_widget_bar_preview_placement: {
+    args: WidgetBarPreviewPlacementInput;
+    result: WidgetBarDragResult;
   };
   extract_local_file_key_sentences: {
     args: LocalFileKeySentenceInput;
@@ -1154,6 +1185,12 @@ export const tauriCommands = {
   },
   closeWidgetWindow(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.closeWidgetWindow, input ? { input } : undefined);
+  },
+  dragWidgetBarWindow(input: WidgetBarDragInput) {
+    return invokeTauri<WidgetBarDragResult>(TAURI_COMMANDS.dragWidgetBarWindow, { input });
+  },
+  setWidgetBarPreviewPlacement(input: WidgetBarPreviewPlacementInput) {
+    return invokeTauri<WidgetBarDragResult>(TAURI_COMMANDS.setWidgetBarPreviewPlacement, { input });
   },
   extractLocalFileKeySentences(input: LocalFileKeySentenceInput) {
     return invokeTauri<LocalFileKeySentenceResult>(TAURI_COMMANDS.extractLocalFileKeySentences, { input });
