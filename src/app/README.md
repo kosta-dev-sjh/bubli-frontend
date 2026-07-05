@@ -4,7 +4,7 @@ Next.js App Router 화면을 둔다.
 
 | 라우트 그룹 | 역할 |
 |---|---|
-| `(public)` | 비회원 공개 사이트. 실제 URL은 `/`, `/features`, `/download`, `/faq` |
+| `(public)` | 비회원 공개 사이트. 실제 URL은 `/`, `/features`, `/faq`이며 Windows 앱은 랜딩 CTA에서 직접 다운로드한다. |
 | `(auth)` | 구글 OAuth 로그인 진입. 실제 URL은 `/login` |
 | `(workspace)/app` | 로그인 후 회원 앱. 실제 URL은 `/app` 아래 |
 

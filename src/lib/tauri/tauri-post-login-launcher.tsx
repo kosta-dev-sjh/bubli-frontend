@@ -96,7 +96,7 @@ export function TauriPostLoginLauncher() {
         return;
       }
 
-      void launchTauriAuthenticatedSurfaces().catch(() => undefined);
+      void launchTauriAuthenticatedSurfaces({ sessionAlreadyValidated: true }).catch(() => undefined);
     }
 
     const handleAuthSessionChange = () => void launchAuthenticatedSurfaces();

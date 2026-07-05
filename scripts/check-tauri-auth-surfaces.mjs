@@ -778,8 +778,8 @@ assertContains(
 );
 assertContains(
   launcher,
-  /void launchTauriAuthenticatedSurfaces\(\)\.catch\(\(\) => undefined\);/,
-  "TauriPostLoginLauncher must launch authenticated native surfaces after a valid session.",
+  /void launchTauriAuthenticatedSurfaces\(\{ sessionAlreadyValidated: true \}\)\.catch\(\(\) => undefined\);/,
+  "TauriPostLoginLauncher must launch authenticated native surfaces without repeating getMe after a valid session.",
 );
 assertContains(
   launcher,
@@ -893,8 +893,8 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /launchTauriAuthenticatedSurfaces\(\)[\s\S]*await authApi\.getMe\(\);[\s\S]*const startupWindows = await resolveLoginStartupWindows\(\);/,
-  "launchTauriAuthenticatedSurfaces must verify the live backend auth session before resolving or opening login widgets.",
+  /launchTauriAuthenticatedSurfaces\(options: LaunchTauriAuthenticatedSurfacesOptions = \{\}\)[\s\S]*if \(!options\.sessionAlreadyValidated\) \{[\s\S]*await authApi\.getMe\(\);[\s\S]*\}[\s\S]*const startupWindows = await resolveLoginStartupWindows\(\);/,
+  "launchTauriAuthenticatedSurfaces must verify the live backend auth session unless the caller already validated it before opening widgets.",
 );
 assertContains(
   surfaces,
@@ -1000,8 +1000,8 @@ assertContains(
 );
 assertContains(
   appShell,
-  /void launchTauriAuthenticatedSurfaces\(\)\.catch/,
-  "AppShell must trigger authenticated native surfaces after shell readiness.",
+  /void launchTauriAuthenticatedSurfaces\(\{ sessionAlreadyValidated: true \}\)\.catch/,
+  "AppShell must trigger authenticated native surfaces after shell readiness without repeating getMe.",
 );
 assertContains(
   appShell,

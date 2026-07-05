@@ -151,13 +151,31 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
 
-        const user = await authApi.getMe();
-        let roomPage: Awaited<ReturnType<typeof projectRoomApi.list>>;
-
+        let user: AuthUser;
         try {
-          roomPage = await projectRoomApi.list();
+          user = await authApi.getMe();
         } catch (error) {
           if (error instanceof ApiClientError && error.status === 401) {
+            setState({ kind: "auth" });
+            return;
+          }
+
+          setState({ kind: "offline" });
+          return;
+        }
+
+        const [roomPageResult, notificationPageResult, invitationPageResult, widgetContextResult] =
+          await Promise.allSettled([
+            projectRoomApi.list(),
+            notificationApi.list(),
+            projectRoomApi.getMyInvitations("PENDING"),
+            widgetApi.getContext(),
+          ]);
+
+        if (!mounted) return;
+
+        if (roomPageResult.status === "rejected") {
+          if (roomPageResult.reason instanceof ApiClientError && roomPageResult.reason.status === 401) {
             setState({ kind: "auth" });
             return;
           }
@@ -166,20 +184,17 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
 
+        const roomPage = roomPageResult.value;
         let notifications: NotificationResponse[] = [];
 
-        try {
-          const notificationPage = await notificationApi.list();
-          notifications = notificationPage.items;
-        } catch {
-          notifications = [];
+        if (notificationPageResult.status === "fulfilled") {
+          notifications = notificationPageResult.value.items;
         }
 
         // 받은 초대함 (backend PR 189): 실패해도 셸 로드는 계속한다.
-        const invitationPage = await projectRoomApi.getMyInvitations("PENDING").catch(() => null);
-        if (mounted) setMyInvitations(invitationPage?.items ?? []);
+        setMyInvitations(invitationPageResult.status === "fulfilled" ? invitationPageResult.value.items : []);
 
-        const widgetContext = await widgetApi.getContext().catch(() => null);
+        const widgetContext = widgetContextResult.status === "fulfilled" ? widgetContextResult.value : null;
         const contextRoom = widgetContext?.selectedRoomId
           ? roomPage.items.find((room) => room.id === widgetContext.selectedRoomId)
           : undefined;
@@ -303,7 +318,7 @@ export function AppShell({ children }: AppShellProps) {
   useEffect(() => {
     if (state.kind !== "ready" || !isTauriRuntime() || runtimeSmokeEnabled) return;
 
-    void launchTauriAuthenticatedSurfaces().catch((error) => {
+    void launchTauriAuthenticatedSurfaces({ sessionAlreadyValidated: true }).catch((error) => {
       console.warn("Failed to launch Tauri authenticated surfaces after shell ready.", error);
     });
   }, [state.kind, readyUserId]);
@@ -814,12 +829,12 @@ export function AppShell({ children }: AppShellProps) {
           </>
         ) : null}
         <div className="bubli-main-scroll">
-          {state.kind === "ready" || (state.kind === "offline" && state.user) ? (
+          {state.kind === "ready" || state.kind === "offline" ? (
             children
           ) : (
             // 비로그인 상태에서는 회원 전용 콘텐츠를 렌더하지 않는다. (로그인 페이지로 리다이렉트 중)
             <div className="bubli-auth-gate" role="status">
-              {t("layout.gate.redirecting")}
+              {state.kind === "loading" ? t("common.loading") : t("layout.gate.redirecting")}
             </div>
           )}
         </div>

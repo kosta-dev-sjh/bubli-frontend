@@ -21,6 +21,10 @@ let launchPromise: Promise<void> | null = null;
 let launchGeneration = 0;
 let launchedAuthenticatedSurfaces = false;
 
+type LaunchTauriAuthenticatedSurfacesOptions = {
+  sessionAlreadyValidated?: boolean;
+};
+
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
 // 메뉴 오브 창도 로그인 시 자동 실행 목록에 함께 띄운다.
 const loginStartupMenuWindow: WidgetWindowOpenInput = { bubbleType: "menu", mode: "DEFAULT", windowId: "menu" };
@@ -228,15 +232,23 @@ async function resolveLaunchSelectedRoomId() {
   return restored?.roomId ?? null;
 }
 
-export function launchTauriAuthenticatedSurfaces() {
+export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticatedSurfacesOptions = {}) {
   if (!isTauriRuntime()) return Promise.resolve();
   if (launchRequested && launchPromise) return launchPromise;
 
   launchRequested = true;
   const generation = ++launchGeneration;
   launchPromise = (async () => {
-    await authApi.getMe();
-    const verifiedSession = getStoredAuthSession();
+    const initialSession = getStoredAuthSession();
+    if (!initialSession) {
+      throw new Error("Tauri authenticated surfaces require a stored auth session");
+    }
+
+    if (!options.sessionAlreadyValidated) {
+      await authApi.getMe();
+    }
+
+    const verifiedSession = getStoredAuthSession() ?? initialSession;
     if (verifiedSession) {
       await setStoredAuthSessionAndWaitForTauriMirror(verifiedSession);
     }

@@ -298,7 +298,7 @@ export async function setStoredAuthSessionAndWaitForTauriMirror(session: AuthSes
   window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, nextRaw);
 
   await storeAuthSessionToTauriMirror(next).catch(() => undefined);
-  if (currentRaw !== nextRaw || isTauriRuntime()) {
+  if (currentRaw !== nextRaw) {
     emitAuthSessionChange();
   }
 
