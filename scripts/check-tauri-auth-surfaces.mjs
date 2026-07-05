@@ -191,6 +191,16 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /import \{ agentApi \} from "@\/features\/agent\/api\/agentApi";/,
+  "TauriRuntimeSmokeRunner must use the real agent API client for local-file analysis job readback checks.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /import \{[\s\S]*analyzePersonalLocalFileWithKeySentences[\s\S]*getPersonalLocalFileAnalysisStatus[\s\S]*\} from "@\/lib\/local\/managed-folder-client";/,
+  "TauriRuntimeSmokeRunner must use the real managed-folder local analysis adapter for backend analysis job checks.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /function verifyRealBackendRoomCommunication[\s\S]*projectRoomApi\.get\(smokeRoomId\)[\s\S]*projectRoomApi\.getMembers\(smokeRoomId\)[\s\S]*resourcesApi\.listRoomResources\(smokeRoomId\)[\s\S]*chatApi\.listRooms\(\)[\s\S]*chatApi\.sendMessage[\s\S]*chatApi\.getMessages[\s\S]*chatApi\.markRead[\s\S]*voiceApi\.createRoom[\s\S]*voiceApi\.getToken[\s\S]*voiceApi\.updateMicStatus[\s\S]*voiceApi\.leave/,
   "TauriRuntimeSmokeRunner must verify project-room, chat send/read, resources list, and voice token flows against the real backend.",
 );
@@ -246,8 +256,8 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /syncStagedLocalFileEventsToBackend[\s\S]*managedFolderApi\.syncApprovedLocalFileEvents[\s\S]*markLocalFileEventsSynced[\s\S]*local file event sync marked SQLite rows as SYNCED[\s\S]*watched file event sync marked SQLite rows as SYNCED[\s\S]*synced watched file events no longer remain pending/,
-  "TauriRuntimeSmokeRunner must send staged and watched local file events to the backend and verify local SQLite rows are no longer pending.",
+  /syncStagedLocalFileEventsToBackend[\s\S]*managedFolderApi\.syncApprovedLocalFileEvents[\s\S]*markLocalFileEventsSynced[\s\S]*local file event sync marked SQLite rows as SYNCED[\s\S]*analyzePersonalLocalFileWithKeySentences\(\{[\s\S]*local file key-sentence analysis reached real backend job[\s\S]*agentApi\.getJob\(localFileAnalysis\.data\.job\.jobId\)[\s\S]*local file analysis backend job read back[\s\S]*getPersonalLocalFileAnalysisStatus\(\{[\s\S]*local file analysis ledger marked SYNCED in SQLite[\s\S]*stageLocalFileAnalysisBackfill\(\{[\s\S]*synced local file analysis no longer remains pending[\s\S]*watched file event sync marked SQLite rows as SYNCED[\s\S]*synced watched file events no longer remain pending/,
+  "TauriRuntimeSmokeRunner must send staged and watched local file events to the backend, request local-file analysis, read back the agent job, and verify local SQLite rows are no longer pending.",
 );
 assertContains(
   runtimeSmokeRunner,

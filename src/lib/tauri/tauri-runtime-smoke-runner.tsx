@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { chatApi } from "@/features/communication/api/chatApi";
 import { voiceApi } from "@/features/communication/api/voiceApi";
 import { managedFolderApi } from "@/features/managed-folder/api/managedFolderApi";
+import { agentApi } from "@/features/agent/api/agentApi";
 import { activityApi } from "@/features/activity/api/activityApi";
 import { authApi } from "@/features/auth/api/authApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
@@ -13,6 +14,10 @@ import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { clearStoredAuthSession, getStoredAuthSession } from "@/lib/auth/auth-session";
+import {
+  analyzePersonalLocalFileWithKeySentences,
+  getPersonalLocalFileAnalysisStatus,
+} from "@/lib/local/managed-folder-client";
 import { syncAllLocalOutboxToServer } from "@/lib/sync/local-sync-client";
 import { tauriCommands } from "@/lib/tauri/commands";
 import type { LocalFileEventsSyncStageResult } from "@/lib/tauri/commands";
@@ -143,6 +148,33 @@ async function syncStagedLocalFileEventsToBackend(staged: LocalFileEventsSyncSta
   });
 
   return { markResult, response };
+}
+
+function findSyncedLocalFileAnalysisCandidate(
+  staged: LocalFileEventsSyncStageResult,
+  syncResult: Awaited<ReturnType<typeof syncStagedLocalFileEventsToBackend>>,
+) {
+  for (const [index, result] of syncResult.response.results.entries()) {
+    const localEvent =
+      staged.events.find((event) => event.localEventId === result.localEventId) ?? staged.events[index];
+    const isAnalyzableTextFile = /\.(md|markdown|txt)$/i.test(localEvent?.fileName ?? "");
+
+    if (
+      result.status === "SYNCED" &&
+      result.resourceId &&
+      localEvent?.eventType !== "DELETED" &&
+      localEvent?.localFileId &&
+      isAnalyzableTextFile
+    ) {
+      return {
+        fileName: localEvent.fileName,
+        localFileId: localEvent.localFileId,
+        resourceId: result.resourceId,
+      };
+    }
+  }
+
+  return null;
 }
 
 async function seedDevAuthSession() {
@@ -570,6 +602,56 @@ async function runSmoke() {
           initialSync.markResult.syncedCount >= 1,
         "local file event sync marked SQLite rows as SYNCED",
         initialSync,
+      );
+      const analysisCandidate = findSyncedLocalFileAnalysisCandidate(stagedFiles, initialSync);
+      assert(analysisCandidate, "synced local file has backend resource for analysis", {
+        initialSync,
+        stagedFiles,
+      });
+      const localFileAnalysis = await analyzePersonalLocalFileWithKeySentences({
+        consentGranted: true,
+        localFileId: analysisCandidate.localFileId,
+        maxChars: 1_200,
+        maxSentenceChars: 240,
+        maxSentences: 3,
+        resourceId: analysisCandidate.resourceId,
+      });
+      assert(
+        localFileAnalysis.status === "ready" &&
+          localFileAnalysis.data.extraction.keySentences.length >= 1 &&
+          localFileAnalysis.data.job.jobType === "ANALYZE_RESOURCE" &&
+          localFileAnalysis.data.job.jobId &&
+          localFileAnalysis.data.job.resourceId === analysisCandidate.resourceId,
+        "local file key-sentence analysis reached real backend job",
+        localFileAnalysis,
+      );
+      const localFileAnalysisJobReadback = await agentApi.getJob(localFileAnalysis.data.job.jobId);
+      assert(
+        localFileAnalysisJobReadback.jobId === localFileAnalysis.data.job.jobId &&
+          localFileAnalysisJobReadback.jobType === "ANALYZE_RESOURCE" &&
+          localFileAnalysisJobReadback.resourceId === analysisCandidate.resourceId,
+        "local file analysis backend job read back",
+        localFileAnalysisJobReadback,
+      );
+      const localFileAnalysisStatus = await getPersonalLocalFileAnalysisStatus({
+        consentGranted: true,
+        maxAttempts: 3,
+      });
+      assert(
+        localFileAnalysisStatus.status === "ready" && localFileAnalysisStatus.data.syncedCount >= 1,
+        "local file analysis ledger marked SYNCED in SQLite",
+        localFileAnalysisStatus,
+      );
+      const remainingAnalysisBackfill = await tauriCommands.stageLocalFileAnalysisBackfill({
+        limit: 20,
+        maxAttempts: 3,
+      });
+      assert(
+        !remainingAnalysisBackfill.candidates.some(
+          (candidate) => candidate.localFileId === analysisCandidate.localFileId,
+        ),
+        "synced local file analysis no longer remains pending",
+        remainingAnalysisBackfill,
       );
 
       const watch = await tauriCommands.watchManagedFolder({ localFolderId: folder.localFolderId });

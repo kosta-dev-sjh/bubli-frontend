@@ -73,6 +73,8 @@ Full phase:
 - The synced widget usage row was read back from `GET /api/widget/usage-summaries/today` inside the Tauri WebView runtime.
 - Managed folder scan/search/preview/event staging passed against a temp folder.
 - Initial `CREATED` file events reached the real backend and were marked locally as `SYNCED`.
+- A synced local text file was analyzed through the Tauri key-sentence adapter, `POST /api/local-file-analyses` created an `ANALYZE_RESOURCE` job, and `GET /api/agent-jobs/{jobId}` read it back.
+- The local file analysis ledger was marked `SYNCED`, and follow-up backfill staging no longer returned the analyzed local file.
 - `watchManagedFolder` observed real `UPDATED` and `DELETED` file changes from the Node smoke control server.
 - Watched `UPDATED` and `DELETED` events reached the real backend and were marked locally as `SYNCED`.
 - A follow-up stage returned no remaining pending watched file events.
