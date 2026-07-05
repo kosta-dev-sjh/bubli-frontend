@@ -73,6 +73,7 @@ const smokeShouldQuit = process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_QUIT =
 const smokeRestoreSnapshotRoomId = "33333333-3333-4333-8333-333333333333";
 const smokeRestoreSnapshotMessageId = "codex-restore-snapshot-message";
 const smokeRestoreDirtyMessageId = "codex-restore-dirty-message";
+const smokeTaskItemId = "66666666-6666-4666-8666-666666666661";
 const smokeWidgetBubbles: SmokeWidgetBubble[] = [
   "todo",
   "agent",
@@ -528,6 +529,46 @@ async function openRealtimeTypingProbe(chatRoomId: string, typing: boolean, asse
   throw new Error(`Timed out waiting for runtime smoke STOMP connection to ${destination}.`);
 }
 
+async function verifyRealBackendWidgetItemState(assert: SmokeAssert) {
+  await widgetApi.updateItemState(smokeTaskItemId, {
+    bubbleType: "TODO",
+    itemId: smokeTaskItemId,
+    itemType: "TASK",
+    state: "PINNED",
+  });
+  const pinnedStates = await widgetApi.listItemStates([smokeTaskItemId]);
+  assert(
+    pinnedStates.some(
+      (itemState) =>
+        itemState.itemId === smokeTaskItemId &&
+        itemState.bubbleType === "TODO" &&
+        itemState.itemType === "TASK" &&
+        itemState.state === "PINNED",
+    ),
+    "real backend widget item state pinned readback from Tauri runtime",
+    pinnedStates,
+  );
+
+  await widgetApi.updateItemState(smokeTaskItemId, {
+    bubbleType: "TODO",
+    itemId: smokeTaskItemId,
+    itemType: "TASK",
+    state: "VISIBLE",
+  });
+  const restoredStates = await widgetApi.listItemStates([smokeTaskItemId]);
+  assert(
+    restoredStates.some(
+      (itemState) =>
+        itemState.itemId === smokeTaskItemId &&
+        itemState.bubbleType === "TODO" &&
+        itemState.itemType === "TASK" &&
+        itemState.state === "VISIBLE",
+    ),
+    "real backend widget item state restored after Tauri runtime smoke",
+    restoredStates,
+  );
+}
+
 async function verifyRealBackendRoomCommunication(smokeRoomId: string, assert: SmokeAssert) {
   const projectRoom = await projectRoomApi.get(smokeRoomId);
   assert(
@@ -927,6 +968,7 @@ async function runSmoke() {
       "real backend widget summary uses selected project room",
       serverWidgetSummary.context,
     );
+    await verifyRealBackendWidgetItemState(assert);
     await verifyRealBackendRoomCommunication(smokeRoomId, assert);
 
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true });
@@ -994,7 +1036,12 @@ async function runSmoke() {
     );
     const minimizedWidgetStates = await Promise.all(
       smokeWidgetBubbles.map((bubbleType) =>
-        tauriCommands.closeWidgetWindow({ bubbleType, windowId: bubbleType }),
+        tauriCommands.setWidgetWindowMode({
+          bubbleType,
+          mode: "MINIMIZED",
+          selectedRoomId: smokeRoomId,
+          windowId: bubbleType,
+        }),
       ),
     );
     assert(

@@ -1808,7 +1808,12 @@ function DesktopWidgetSurface() {
     if (!isTauri) return;
 
     try {
-      const state = await tauriCommands.closeWidgetWindow({ bubbleType: activeBubble, windowId });
+      const state = await tauriCommands.setWidgetWindowMode({
+        bubbleType: activeBubble,
+        mode: "MINIMIZED",
+        selectedRoomId: selectedWidgetRoomId,
+        windowId,
+      });
       const settingPatch = getSettingPatch(activeBubble, state.mode);
       if (settingPatch) {
         const size = getWidgetWindowSize(activeBubble, state.mode);
@@ -1840,7 +1845,7 @@ function DesktopWidgetSurface() {
     } catch {
       // Browser preview fallback.
     }
-  }, [activeBubble, isTauri, windowId]);
+  }, [activeBubble, isTauri, selectedWidgetRoomId, windowId]);
 
   const restoreBubbleFromBar = useCallback(
     async (bubbleType: WidgetBubbleType) => {
