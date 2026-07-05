@@ -2382,35 +2382,105 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
     };
   }, [syncBarPreviewPlacement]);
 
-  const clampBarWindowAfterNativeDrag = useCallback(async () => {
-    const monitorState = await readCurrentTauriWindowMonitorState();
-    if (!monitorState) return;
-    const { outerPosition, monitor } = monitorState;
-    const scale = monitor?.scaleFactor ?? (window.devicePixelRatio || 1);
-    const originX = (monitor?.position.x ?? 0) / scale;
-    const originY = (monitor?.position.y ?? 0) / scale;
-    await tauriCommands.setWidgetWindowPosition({
-      bubbleType: "bar",
-      windowId: "bar",
-      x: Math.round(outerPosition.x / scale - originX),
-      y: Math.round(outerPosition.y / scale - originY),
-    });
-    await syncBarPreviewPlacement();
-  }, [syncBarPreviewPlacement]);
+  const moveBarToCursor = useCallback(
+    async (
+      grab: { x: number; y: number },
+      metrics: { rootHeight: number; rootWidth: number; navHeight: number; navWidth: number },
+    ) => {
+      const result = await tauriCommands.dragWidgetBarWindow({
+        grabX: grab.x,
+        grabY: grab.y,
+        navHeight: metrics.navHeight,
+        navWidth: metrics.navWidth,
+        rootHeight: metrics.rootHeight,
+        rootWidth: metrics.rootWidth,
+      });
+      setBarPreviewPlacement((current) => (current === result.placement ? current : result.placement));
+    },
+    [],
+  );
 
   const handleBarPointerDownCapture = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
       if (event.button !== 0) return;
+      const rootElement = barRootRef.current;
+      const navElement = barNavRef.current;
       const target = event.target as HTMLElement | null;
       if (target?.closest(widgetDragIgnoreSelector)) return;
-      if (!barNavRef.current || !isMacTauriRuntime()) return;
+      if (!rootElement || !navElement || !isMacTauriRuntime()) {
+        return;
+      }
 
-      suppressNextBarClickRef.current = true;
-      void startWidgetWindowDragging()
-        .then(() => clampBarWindowAfterNativeDrag())
-        .catch(() => undefined);
+      let disposed = false;
+      let framePending = false;
+      let dragStarted = false;
+      let latestCursor: { x: number; y: number } | null = null;
+
+      const rootRect = rootElement.getBoundingClientRect();
+      const navRect = navElement.getBoundingClientRect();
+      const startClientX = event.clientX;
+      const startClientY = event.clientY;
+      const grabX = event.clientX - navRect.left;
+      const grabY = event.clientY - navRect.top;
+      const pointerId = event.pointerId;
+      try {
+        navElement.setPointerCapture(pointerId);
+      } catch {
+        // Pointer capture is best-effort; window-level listeners still handle most cases.
+      }
+      const metrics = {
+        navHeight: navRect.height,
+        navWidth: navRect.width,
+        rootHeight: rootRect.height,
+        rootWidth: rootRect.width,
+      };
+
+      const cleanup = () => {
+        disposed = true;
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerup", cleanup);
+        window.removeEventListener("pointercancel", cleanup);
+        try {
+          navElement.releasePointerCapture(pointerId);
+        } catch {
+          // Pointer capture may already be released by the browser.
+        }
+      };
+
+      const scheduleMove = () => {
+        if (framePending || disposed || !latestCursor) return;
+        framePending = true;
+        window.requestAnimationFrame(() => {
+          framePending = false;
+          void (async () => {
+            if (disposed || !latestCursor) return;
+            try {
+              void tauriCommands.notifyWidgetDragStarted().catch(() => undefined);
+              await moveBarToCursor({ x: grabX, y: grabY }, metrics);
+            } catch {
+              cleanup();
+            }
+          })();
+        });
+      };
+
+      const onPointerMove = (moveEvent: globalThis.PointerEvent) => {
+        if (!dragStarted) {
+          const distance = Math.abs(moveEvent.clientX - startClientX) + Math.abs(moveEvent.clientY - startClientY);
+          if (distance < 4) return;
+          dragStarted = true;
+          suppressNextBarClickRef.current = true;
+          void tauriCommands.notifyWidgetDragStarted().catch(() => undefined);
+        }
+        latestCursor = { x: moveEvent.screenX, y: moveEvent.screenY };
+        scheduleMove();
+      };
+
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", cleanup, { once: true });
+      window.addEventListener("pointercancel", cleanup, { once: true });
     },
-    [clampBarWindowAfterNativeDrag],
+    [moveBarToCursor],
   );
 
   const handleBarClickCapture = useCallback((event: MouseEvent<HTMLElement>) => {

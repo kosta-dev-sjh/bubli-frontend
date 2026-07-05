@@ -2189,17 +2189,6 @@ fn set_widget_window_position(
         };
     })?;
     persist_widget_window_state(&app, &state)?;
-    #[cfg(target_os = "macos")]
-    {
-        let label = widget_window_label(&widget);
-        if let Some(window) = app.get_webview_window(&label) {
-            let position = widget_screen_position(&app, &monitor_state, &widget)?;
-            note_widget_window_moved(&label);
-            window
-                .set_position(Position::Logical(position))
-                .map_err(|error| error.to_string())?;
-        }
-    }
     apply_widget_window_state(&app, &monitor_state, &widget)
 }
 
