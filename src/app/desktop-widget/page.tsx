@@ -46,6 +46,7 @@ import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { notifyDataChanged, type DataChangedDomain } from "@/lib/data-changed";
+import { projectRoomRoute } from "@/lib/project-room-routes";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { emitWidgetDataChanged, listenWidgetDataChanged, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
@@ -101,11 +102,11 @@ function roomQuery(roomId?: string | null) {
 }
 
 function roomWorkRoute(roomId?: string | null) {
-  return roomId ? `/app/project-rooms/${encodeURIComponent(roomId)}/work` : "/app";
+  return roomId ? projectRoomRoute(roomId, "work") : "/app";
 }
 
 function roomResourceRoute(roomId?: string | null) {
-  return roomId ? `/app/project-rooms/${encodeURIComponent(roomId)}/resources` : "/app/resources";
+  return roomId ? projectRoomRoute(roomId, "resources") : "/app/resources";
 }
 
 function roomScopedRoute(path: string, roomId?: string | null) {

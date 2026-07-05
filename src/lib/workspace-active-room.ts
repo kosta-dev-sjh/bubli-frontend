@@ -1,4 +1,5 @@
 import { widgetApi } from "@/features/widget/api/widgetApi";
+import { getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
@@ -87,9 +88,12 @@ function mirrorActiveProjectRoomToServer(roomId: string | null) {
   if (runtimeSmokeEnabled) return;
   if (typeof window === "undefined") return;
 
-  void widgetApi
-    .updateContext({ selectedRoomId: roomId })
-    .catch((error) => reportActiveProjectRoomSyncFailure("server-widget-context", error));
+  void (async () => {
+    const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
+    if (!session) return;
+
+    await widgetApi.updateContext({ selectedRoomId: roomId });
+  })().catch((error) => reportActiveProjectRoomSyncFailure("server-widget-context", error));
 }
 
 function publishActiveProjectRoom(roomId: string, roomLabel?: string | null) {

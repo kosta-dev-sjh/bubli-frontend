@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react";
 
 import { authApi } from "@/features/auth/api/authApi";
-import { AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession } from "@/lib/auth/auth-session";
+import {
+  AUTH_SESSION_CHANGE_EVENT,
+  getStoredAuthSession,
+  restoreStoredAuthSessionFromTauri,
+} from "@/lib/auth/auth-session";
 import type { AuthUser } from "@/types/api/auth";
 
 // 공개 페이지(랜딩/로그인)에서 살아 있는 세션을 조용히 감지한다.
@@ -17,7 +21,8 @@ export function useLiveAuthUser() {
     let cancelled = false;
 
     async function checkSession() {
-      if (!getStoredAuthSession()) {
+      const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
+      if (!session) {
         if (!cancelled) {
           setUser(null);
         }

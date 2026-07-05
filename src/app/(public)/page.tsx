@@ -25,6 +25,8 @@ const faqItems: { qKey: MessageKey; aKey: MessageKey }[] = [
   { qKey: "public.home.faq4Q", aKey: "public.home.faq4A" },
 ];
 
+const windowsInstallerHref = "/downloads/windows/Bubli-Windows-latest.exe";
+
 export default function HomePage() {
   const { t } = useI18n();
 
@@ -107,7 +109,7 @@ export default function HomePage() {
                 {t("public.home.desktopList3")}
               </li>
             </ul>
-            <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/#download">
+            <Link className="bubli-button bubli-button--primary bubli-button--lg" download href={windowsInstallerHref}>
               {t("public.home.desktopCta")}
             </Link>
           </div>
@@ -227,7 +229,7 @@ export default function HomePage() {
                   </div>
                 </div>
               </article>
-              <Link aria-label={t("public.home.downloadMacAria")} className="landing-download__float landing-download__float--primary" href="/download">
+              <Link aria-label={t("public.home.downloadMacAria")} className="landing-download__float landing-download__float--primary" href="/#download">
                 <span className="landing-download__float-os" aria-hidden="true">
                   <Apple size={24} strokeWidth={2.15} />
                 </span>
@@ -236,7 +238,12 @@ export default function HomePage() {
                   <Download size={20} strokeWidth={2.2} />
                 </span>
               </Link>
-              <Link aria-label={t("public.home.downloadWinAria")} className="landing-download__float landing-download__float--soft" href="/download">
+              <Link
+                aria-label={t("public.home.downloadWinAria")}
+                className="landing-download__float landing-download__float--soft"
+                download
+                href={windowsInstallerHref}
+              >
                 <span className="landing-download__float-os" aria-hidden="true">
                   <MonitorDown size={23} strokeWidth={2.1} />
                 </span>

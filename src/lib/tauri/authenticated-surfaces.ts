@@ -2,7 +2,9 @@
 
 import { startActivityAutoCapture, stopActivityAutoCapture } from "@/lib/local/activity-auto-capture";
 import { startManagedFolderAutoSync, stopManagedFolderAutoSync } from "@/lib/local/managed-folder-auto-sync";
+import { authApi } from "@/features/auth/api/authApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
+import { getStoredAuthSession, setStoredAuthSessionAndWaitForTauriMirror } from "@/lib/auth/auth-session";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { startWidgetUsageAutoSync, stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
@@ -18,6 +20,10 @@ let launchRequested = false;
 let launchPromise: Promise<void> | null = null;
 let launchGeneration = 0;
 let launchedAuthenticatedSurfaces = false;
+
+type LaunchTauriAuthenticatedSurfacesOptions = {
+  sessionAlreadyValidated?: boolean;
+};
 
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
 // 메뉴 오브 창도 로그인 시 자동 실행 목록에 함께 띄운다.
@@ -213,6 +219,9 @@ async function resolveLaunchSelectedRoomId() {
   const context = await widgetApi.getContext().catch(() => null);
   if (context?.selectedRoomId) {
     seedActiveProjectRoomId(context.selectedRoomId);
+    await tauriCommands
+      .storeActiveProjectRoom({ roomId: context.selectedRoomId, roomLabel: null })
+      .catch(() => undefined);
     return context.selectedRoomId;
   }
 
@@ -223,13 +232,27 @@ async function resolveLaunchSelectedRoomId() {
   return restored?.roomId ?? null;
 }
 
-export function launchTauriAuthenticatedSurfaces() {
+export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticatedSurfacesOptions = {}) {
   if (!isTauriRuntime()) return Promise.resolve();
   if (launchRequested && launchPromise) return launchPromise;
 
   launchRequested = true;
   const generation = ++launchGeneration;
   launchPromise = (async () => {
+    const initialSession = getStoredAuthSession();
+    if (!initialSession) {
+      throw new Error("Tauri authenticated surfaces require a stored auth session");
+    }
+
+    if (!options.sessionAlreadyValidated) {
+      await authApi.getMe();
+    }
+
+    const verifiedSession = getStoredAuthSession() ?? initialSession;
+    if (verifiedSession) {
+      await setStoredAuthSessionAndWaitForTauriMirror(verifiedSession);
+    }
+
     const startupWindows = await resolveLoginStartupWindows();
     if (launchedAuthenticatedSurfaces) {
       const ready = await authenticatedStartupWindowsReady(startupWindows);

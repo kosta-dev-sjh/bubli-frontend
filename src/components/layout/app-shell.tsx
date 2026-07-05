@@ -25,7 +25,8 @@ import { notifyDataChanged, readUserUpdatedDetail, useDataRefresh, USER_UPDATED_
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
-import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
+import { projectRoomRoute } from "@/lib/project-room-routes";
+import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -150,13 +151,31 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
 
-        const user = await authApi.getMe();
-        let roomPage: Awaited<ReturnType<typeof projectRoomApi.list>>;
-
+        let user: AuthUser;
         try {
-          roomPage = await projectRoomApi.list();
+          user = await authApi.getMe();
         } catch (error) {
           if (error instanceof ApiClientError && error.status === 401) {
+            setState({ kind: "auth" });
+            return;
+          }
+
+          setState({ kind: "offline" });
+          return;
+        }
+
+        const [roomPageResult, notificationPageResult, invitationPageResult, widgetContextResult] =
+          await Promise.allSettled([
+            projectRoomApi.list(),
+            notificationApi.list(),
+            projectRoomApi.getMyInvitations("PENDING"),
+            widgetApi.getContext(),
+          ]);
+
+        if (!mounted) return;
+
+        if (roomPageResult.status === "rejected") {
+          if (roomPageResult.reason instanceof ApiClientError && roomPageResult.reason.status === 401) {
             setState({ kind: "auth" });
             return;
           }
@@ -165,20 +184,17 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
 
+        const roomPage = roomPageResult.value;
         let notifications: NotificationResponse[] = [];
 
-        try {
-          const notificationPage = await notificationApi.list();
-          notifications = notificationPage.items;
-        } catch {
-          notifications = [];
+        if (notificationPageResult.status === "fulfilled") {
+          notifications = notificationPageResult.value.items;
         }
 
         // 받은 초대함 (backend PR 189): 실패해도 셸 로드는 계속한다.
-        const invitationPage = await projectRoomApi.getMyInvitations("PENDING").catch(() => null);
-        if (mounted) setMyInvitations(invitationPage?.items ?? []);
+        setMyInvitations(invitationPageResult.status === "fulfilled" ? invitationPageResult.value.items : []);
 
-        const widgetContext = await widgetApi.getContext().catch(() => null);
+        const widgetContext = widgetContextResult.status === "fulfilled" ? widgetContextResult.value : null;
         const contextRoom = widgetContext?.selectedRoomId
           ? roomPage.items.find((room) => room.id === widgetContext.selectedRoomId)
           : undefined;
@@ -286,6 +302,11 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     if (state.kind === "auth") {
+      if (isTauriRuntime()) {
+        void stopTauriAuthenticatedSurfaces().catch((error) => {
+          console.warn("Failed to stop Tauri authenticated surfaces after auth reset.", error);
+        });
+      }
       router.replace("/login");
     }
   }, [router, state.kind]);
@@ -297,7 +318,7 @@ export function AppShell({ children }: AppShellProps) {
   useEffect(() => {
     if (state.kind !== "ready" || !isTauriRuntime() || runtimeSmokeEnabled) return;
 
-    void launchTauriAuthenticatedSurfaces().catch((error) => {
+    void launchTauriAuthenticatedSurfaces({ sessionAlreadyValidated: true }).catch((error) => {
       console.warn("Failed to launch Tauri authenticated surfaces after shell ready.", error);
     });
   }, [state.kind, readyUserId]);
@@ -516,7 +537,7 @@ export function AppShell({ children }: AppShellProps) {
     }
     if (notification.sourceType === "MESSAGE") {
       const fallbackRoute = sourceId
-        ? `/app/project-rooms/${encodeURIComponent(sourceId)}/work`
+        ? projectRoomRoute(sourceId, "work")
         : "/app";
 
       if (isTauriRuntime()) {
@@ -538,7 +559,7 @@ export function AppShell({ children }: AppShellProps) {
         const resource = await resourcesApi.get(sourceId);
         router.push(
           resource.roomId
-            ? `/app/project-rooms/${resource.roomId}/resources?resourceId=${encodeURIComponent(resource.id)}`
+            ? `${projectRoomRoute(resource.roomId, "resources")}&resourceId=${encodeURIComponent(resource.id)}`
             : `/app/resources?resourceId=${encodeURIComponent(resource.id)}`,
         );
       } catch {
@@ -566,7 +587,7 @@ export function AppShell({ children }: AppShellProps) {
       // 같은 창에 떠 있는 홈 카드/룸 목록 화면에도 즉시 알린다(셸 자신은 위에서 이미 갱신).
       notifyDataChanged("project-room", { source: "app-shell" });
       setTopbarMenu(null);
-      router.push(`/app/project-rooms/${invitation.roomId}`);
+      router.push(projectRoomRoute(invitation.roomId, "work"));
     } catch {
       // 만료/취소된 초대일 수 있으므로 목록에서만 제거하지 않고 다음 로드에서 동기화한다.
     } finally {
@@ -632,7 +653,7 @@ export function AppShell({ children }: AppShellProps) {
     setProjectSwitcherOpen(false);
     // 홈 카드/룸 목록 화면 등 같은 창의 다른 표면에 생성 사실을 즉시 알린다.
     notifyDataChanged("project-room", { source: "app-shell" });
-    router.push(`/app/project-rooms/${createdRoom.id}`);
+    router.push(projectRoomRoute(createdRoom.id, "work"));
   }
 
   async function handleCreateRoom(event: FormEvent<HTMLFormElement>) {
@@ -808,12 +829,12 @@ export function AppShell({ children }: AppShellProps) {
           </>
         ) : null}
         <div className="bubli-main-scroll">
-          {state.kind === "ready" || (state.kind === "offline" && state.user) ? (
+          {state.kind === "ready" || state.kind === "offline" ? (
             children
           ) : (
             // 비로그인 상태에서는 회원 전용 콘텐츠를 렌더하지 않는다. (로그인 페이지로 리다이렉트 중)
             <div className="bubli-auth-gate" role="status">
-              {t("layout.gate.redirecting")}
+              {state.kind === "loading" ? t("common.loading") : t("layout.gate.redirecting")}
             </div>
           )}
         </div>

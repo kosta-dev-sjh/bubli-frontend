@@ -11,6 +11,7 @@ import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
+import { projectRoomRoute } from "@/lib/project-room-routes";
 import {
   findPersonalLocalFileByResourceId,
   listPersonalManagedFolders,
@@ -500,7 +501,7 @@ export function PersonalResourceWorkspace() {
   }, [isTauri, loadResources, localFolderConsent, localFolders, t]);
 
   const selectedResource = selectedResourceId ? filteredResources.find((resource) => resource.id === selectedResourceId) ?? null : null;
-  const roomBoardHref = activeRoomId ? `/app/project-rooms/${activeRoomId}/resources` : "/app/project-rooms";
+  const roomBoardHref = activeRoomId ? projectRoomRoute(activeRoomId, "resources") : "/app/project-rooms";
   const latestScannedAt = resources.reduce<string | null>((latest, resource) => {
     if (!resource.updatedAt) {
       return latest;
@@ -714,7 +715,7 @@ export function PersonalResourceWorkspace() {
                     <Link className="bubli-button bubli-button--primary bubli-button--sm" href={roomBoardHref}>
                       {t("resources.workspace.emptyPersonalGoRoomBoard")}
                     </Link>
-                    <Link className="bubli-button bubli-button--sm" href="/download">
+                    <Link className="bubli-button bubli-button--sm" href="/#download">
                       {t("resources.workspace.emptyPersonalGetDesktop")}
                     </Link>
                   </div>

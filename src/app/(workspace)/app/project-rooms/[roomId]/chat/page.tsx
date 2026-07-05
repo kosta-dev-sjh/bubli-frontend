@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
 
+import { projectRoomRoute } from "@/lib/project-room-routes";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
@@ -30,8 +31,8 @@ export default function ProjectRoomChatPage() {
     }
 
     void openTauriChatWidget({ eventType: "handoff:room-chat-route", roomId })
-      .then(() => router.replace(`/app/project-rooms/${encodeURIComponent(roomId)}/work`))
-      .catch(() => router.replace(`/app/project-rooms/${encodeURIComponent(roomId)}/work`));
+      .then(() => router.replace(projectRoomRoute(roomId, "work")))
+      .catch(() => router.replace(projectRoomRoute(roomId, "work")));
   }, [roomId, router]);
 
   return null;

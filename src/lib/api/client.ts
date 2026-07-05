@@ -10,7 +10,8 @@ import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { AuthTokenResponse } from "@/types/api/auth";
 import type { ApiFailure, ApiResponse } from "@/types/api/common";
 
-const DEFAULT_API_BASE_URL = "http://localhost:8080";
+const DEFAULT_LOCAL_API_BASE_URL = "http://localhost:8080";
+const DEFAULT_PRODUCTION_API_BASE_URL = "https://bubli.n-e.kr";
 const DEFAULT_API_TIMEOUT_MS = 15000;
 const PREVIEW_API_TIMEOUT_MS = 1200;
 
@@ -21,7 +22,10 @@ export type ApiRequestOptions = Omit<RequestInit, "body"> & {
 };
 
 export function getApiBaseUrl() {
-  return process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL;
+  return (
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    (process.env.NODE_ENV === "production" ? DEFAULT_PRODUCTION_API_BASE_URL : DEFAULT_LOCAL_API_BASE_URL)
+  );
 }
 
 function getApiTimeoutMs() {

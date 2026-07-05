@@ -1,5 +1,6 @@
 import { invokeTauri } from "@/lib/tauri/ipc";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import type { AuthTokenResponse } from "@/types/api/auth";
 
 export const TAURI_COMMANDS = {
   appReady: "app_ready",
@@ -10,6 +11,8 @@ export const TAURI_COMMANDS = {
   clearTauriAuthSession: "clear_tauri_auth_session",
   closeAllWidgetWindows: "close_all_widget_windows",
   closeWidgetWindow: "close_widget_window",
+  callbackTauriGoogleOauth: "callback_tauri_google_oauth",
+  completeTauriGoogleOauth: "complete_tauri_google_oauth",
   dragWidgetBarWindow: "drag_widget_bar_window",
   setWidgetBarPreviewPlacement: "set_widget_bar_preview_placement",
   extractLocalFileKeySentences: "extract_local_file_key_sentences",
@@ -19,6 +22,7 @@ export const TAURI_COMMANDS = {
   getLocalFileAnalysisStatus: "get_local_file_analysis_status",
   getOrCreateWidgetUsageDeviceId: "get_or_create_widget_usage_device_id",
   getPreferredAppMonitor: "get_preferred_app_monitor",
+  getTauriGoogleAuthorizationUrl: "get_tauri_google_authorization_url",
   getWidgetBarItems: "get_widget_bar_items",
   getWidgetWindowState: "get_widget_window_state",
   listAppMonitors: "list_app_monitors",
@@ -805,9 +809,29 @@ export type TauriGoogleOauthLoopbackInput = {
   redirectUri: string;
 };
 
+export type TauriGoogleCompleteOauthInput = TauriGoogleOauthLoopbackInput & {
+  apiBaseUrl: string;
+};
+
 export type TauriGoogleOauthLoopbackResult = {
   code: string;
   state?: string | null;
+};
+
+export type TauriGoogleApiInput = {
+  apiBaseUrl: string;
+  redirectUri: string;
+  state?: string | null;
+};
+
+export type TauriGoogleCallbackInput = {
+  apiBaseUrl: string;
+  code: string;
+  redirectUri: string;
+};
+
+export type TauriGoogleAuthorizeResponse = {
+  authorizeUrl: string;
 };
 
 export type SyncOutboxFlushResult = {
@@ -875,6 +899,14 @@ export type TauriCommandContract = {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
   };
+  callback_tauri_google_oauth: {
+    args: TauriGoogleCallbackInput;
+    result: AuthTokenResponse;
+  };
+  complete_tauri_google_oauth: {
+    args: TauriGoogleCompleteOauthInput;
+    result: AuthTokenResponse;
+  };
   drag_widget_bar_window: {
     args: WidgetBarDragInput;
     result: WidgetBarDragResult;
@@ -906,6 +938,10 @@ export type TauriCommandContract = {
   get_preferred_app_monitor: {
     args: undefined;
     result: AppMonitorPreference;
+  };
+  get_tauri_google_authorization_url: {
+    args: TauriGoogleApiInput;
+    result: TauriGoogleAuthorizeResponse;
   };
   get_widget_window_state: {
     args: WidgetWindowTargetInput | undefined;
@@ -1217,6 +1253,12 @@ export const tauriCommands = {
   closeWidgetWindow(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.closeWidgetWindow, input ? { input } : undefined);
   },
+  callbackTauriGoogleOauth(input: TauriGoogleCallbackInput) {
+    return invokeTauri<AuthTokenResponse>(TAURI_COMMANDS.callbackTauriGoogleOauth, { input });
+  },
+  completeTauriGoogleOauth(input: TauriGoogleCompleteOauthInput) {
+    return invokeTauri<AuthTokenResponse>(TAURI_COMMANDS.completeTauriGoogleOauth, { input });
+  },
   closeOnboardingOverlay() {
     return invokeTauri<null>(TAURI_COMMANDS.closeOnboardingOverlay);
   },
@@ -1246,6 +1288,9 @@ export const tauriCommands = {
   },
   getPreferredAppMonitor() {
     return invokeTauri<AppMonitorPreference>(TAURI_COMMANDS.getPreferredAppMonitor);
+  },
+  getTauriGoogleAuthorizationUrl(input: TauriGoogleApiInput) {
+    return invokeTauri<TauriGoogleAuthorizeResponse>(TAURI_COMMANDS.getTauriGoogleAuthorizationUrl, { input });
   },
   getWidgetWindowState(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.getWidgetWindowState, input ? { input } : undefined);
