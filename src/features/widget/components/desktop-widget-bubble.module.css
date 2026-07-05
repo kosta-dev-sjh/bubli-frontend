@@ -2215,17 +2215,17 @@
 
 .menuGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
+  grid-template-columns: 1fr;
+  gap: 1px;
 }
 
 .menuShortcut {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 9px;
   min-width: 0;
-  min-height: 26px;
-  padding: 1px 4px;
+  min-height: 28px;
+  padding: 2px 6px;
   border: 0;
   border-radius: 9px;
   background: transparent;
@@ -2258,6 +2258,96 @@
   border-radius: 9px;
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 16%, transparent);
+}
+
+/* 현재 컨텍스트(개인/프로젝트룸) 행 — 지금 어느 모드인지 보여주고 여기서 전환한다. */
+.menuContext {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 6px 0 4px;
+  padding: 7px 10px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 11px;
+  background: rgba(120, 140, 165, 0.08);
+  color: var(--widget-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.menuContext[data-room="true"] {
+  border-color: rgba(111, 184, 242, 0.45);
+  background: rgba(216, 240, 255, 0.5);
+}
+
+.menuContextDot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--widget-faint);
+}
+
+.menuContext[data-room="true"] .menuContextDot {
+  background: var(--acc-ink);
+  box-shadow: 0 0 0 3px rgba(111, 184, 242, 0.3);
+}
+
+.menuContextLabel {
+  flex: 1 1 auto;
+  font-size: 14px;
+  font-weight: 820;
+}
+
+.menuContextSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  color: var(--acc-ink);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.menuContext:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* 라벨은 늘어나고, 소속 배지는 고정 크기로 오른쪽에 붙는다. */
+.menuShortcutLabel {
+  flex: 1 1 auto;
+}
+
+.menuScope {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: var(--widget-muted);
+  background: rgba(120, 140, 165, 0.16);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.menuScope[data-scope="room"] {
+  color: #36729a;
+  background: rgba(216, 240, 255, 0.7);
+}
+
+/* 룸 미선택 시 room 버블은 비활성(흐리게 + 클릭 불가), 배지는 '룸 필요' 경고 톤. */
+.menuShortcut:disabled {
+  cursor: default;
+}
+
+.menuShortcut[data-locked="true"] {
+  opacity: 0.5;
+}
+
+.menuShortcut[data-locked="true"] .menuScope {
+  color: #9b6a35;
+  background: rgba(241, 215, 184, 0.6);
 }
 
 .menuActions {

@@ -55,7 +55,9 @@ const WIDGET_BAR_LEGACY_HEIGHT: f64 = 220.0;
 // (deprecated) 메뉴 창: Bubli 메뉴가 바 인라인 패널로 통합되면서 로그인 자동 실행 목록에서
 // 빠졌다. ?bubble=menu 창을 수동으로 열면 기존 크기/동작이 그대로 유지된다.
 const WIDGET_MENU_WIDTH: f64 = 248.0;
-const WIDGET_MENU_HEIGHT: f64 = 424.0;
+// 메뉴 패널이 개인/룸 컨텍스트 행 + 8개 버블(1열) + 액션까지 담도록 높이를 넉넉히.
+// 닫힘 상태(오브만)에서는 그림자를 껐고 투명 영역이라 큰 창이 보이지 않는다.
+const WIDGET_MENU_HEIGHT: f64 = 524.0;
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
 const PRIMARY_MONITOR_ID: &str = "primary";
