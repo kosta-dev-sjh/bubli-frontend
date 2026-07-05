@@ -5781,6 +5781,138 @@ mod tests {
     }
 
     #[test]
+    fn analysis_backfill_stages_structured_and_rtf_file_types() {
+        let conn = test_connection();
+        let folder_path = std::env::temp_dir().join(format!(
+            "bubli-analysis-backfill-extensions-test-{}",
+            Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        let supported_files = [
+            (
+                "file-json",
+                "resource-json",
+                "config.json",
+                r#"{"title":"JsonBackfillSignal"}"#,
+            ),
+            (
+                "file-jsonl",
+                "resource-jsonl",
+                "events.jsonl",
+                "{\"title\":\"JsonlBackfillSignal\"}\n",
+            ),
+            (
+                "file-yaml",
+                "resource-yaml",
+                "settings.yaml",
+                "title: YamlBackfillSignal\n",
+            ),
+            (
+                "file-yml",
+                "resource-yml",
+                "settings.yml",
+                "title: YmlBackfillSignal\n",
+            ),
+            (
+                "file-html",
+                "resource-html",
+                "brief.html",
+                "<html><body><h1>HtmlBackfillSignal</h1></body></html>",
+            ),
+            (
+                "file-htm",
+                "resource-htm",
+                "brief.htm",
+                "<html><body><h1>HtmBackfillSignal</h1></body></html>",
+            ),
+            (
+                "file-rtf",
+                "resource-rtf",
+                "rich-note.rtf",
+                r"{\rtf1\ansi RtfBackfillSignal}",
+            ),
+        ];
+        for (_, _, file_name, content) in supported_files {
+            std::fs::write(folder_path.join(file_name), content).expect("write supported file");
+        }
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-backfill-ext', 'Backfill Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        for (index, (local_file_id, resource_id, file_name, _)) in
+            supported_files.iter().enumerate()
+        {
+            let path = folder_path.join(file_name);
+            conn.execute(
+                "INSERT INTO local_files \
+                 (id, local_folder_id, file_name, local_path, resource_id, checksum, sync_status, updated_at) \
+                 VALUES (?1, 'folder-backfill-ext', ?2, ?3, ?4, ?5, 'SYNCED', ?6)",
+                params![
+                    local_file_id,
+                    file_name,
+                    path.to_string_lossy().to_string(),
+                    resource_id,
+                    format!("checksum-{index}"),
+                    index as i64 + 1,
+                ],
+            )
+            .expect("insert synced file");
+        }
+
+        let staged = stage_local_file_analysis_backfill_for_conn(&conn, 20, 3)
+            .expect("stage structured backfill");
+        let staged_names = staged
+            .candidates
+            .iter()
+            .map(|candidate| candidate.file_name.as_str())
+            .collect::<HashSet<_>>();
+        let staged_mime_types = staged
+            .candidates
+            .iter()
+            .map(|candidate| (candidate.file_name.as_str(), candidate.mime_type.as_deref()))
+            .collect::<HashMap<_, _>>();
+
+        assert_eq!(staged.candidates.len(), supported_files.len());
+        for (_, _, file_name, _) in supported_files {
+            assert!(
+                staged_names.contains(file_name),
+                "{file_name} should be staged"
+            );
+        }
+        assert_eq!(
+            staged_mime_types.get("config.json"),
+            Some(&Some("application/json"))
+        );
+        assert_eq!(
+            staged_mime_types.get("events.jsonl"),
+            Some(&Some("application/x-ndjson"))
+        );
+        assert_eq!(
+            staged_mime_types.get("settings.yaml"),
+            Some(&Some("application/yaml"))
+        );
+        assert_eq!(
+            staged_mime_types.get("settings.yml"),
+            Some(&Some("application/yaml"))
+        );
+        assert_eq!(
+            staged_mime_types.get("brief.html"),
+            Some(&Some("text/html"))
+        );
+        assert_eq!(staged_mime_types.get("brief.htm"), Some(&Some("text/html")));
+        assert_eq!(
+            staged_mime_types.get("rich-note.rtf"),
+            Some(&Some("application/rtf"))
+        );
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
     fn local_file_analysis_status_summarizes_retry_ledger() {
         let conn = test_connection();
         conn.execute(
