@@ -7050,6 +7050,49 @@ mod tests {
     }
 
     #[test]
+    fn scans_docx_content_into_local_file_search_index() {
+        let conn = test_connection();
+        let folder_path =
+            std::env::temp_dir().join(format!("bubli-local-docx-scan-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        std::fs::write(
+            folder_path.join("handoff.docx"),
+            minimal_docx_bytes("DocxSearchSignal captures local file tracking handoff details."),
+        )
+        .expect("write temp docx file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-docx-scan', 'DOCX Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let scan = scan_managed_folder_for_conn(
+            &conn,
+            ManagedFolderCommandInput {
+                local_folder_id: "folder-docx-scan".to_string(),
+            },
+        )
+        .expect("scan managed folder");
+        assert_eq!(scan.changed_count, 1);
+
+        let docx_search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "DocxSearchSignal".to_string(),
+            },
+        )
+        .expect("search docx content");
+
+        assert_eq!(docx_search.items.len(), 1);
+        assert_eq!(docx_search.items[0].name, "handoff.docx");
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
     fn scans_hwpx_content_into_local_file_search_index() {
         let conn = test_connection();
         let folder_path =
