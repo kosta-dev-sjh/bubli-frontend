@@ -2107,6 +2107,7 @@ fn arrange_widget_windows(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
+    input: Option<ArrangeWidgetWindowsInput>,
 ) -> Result<Vec<WidgetWindowState>, String> {
     let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
     let monitor = resolve_preferred_monitor(&app, &preferred_monitor_id)?;
@@ -2155,7 +2156,17 @@ fn arrange_widget_windows(
         })
     });
 
-    let placements = arrange_widget_grid_placements(&targets, monitor_width);
+    // 정렬 프리셋: 격자(기본)/세로 한 열/가로 한 줄/계단식.
+    let layout = input
+        .as_ref()
+        .and_then(|value| value.layout.as_deref())
+        .unwrap_or("grid");
+    let placements = match layout {
+        "column" => arrange_widget_column_placements(&targets, monitor_width),
+        "row" => arrange_widget_row_placements(&targets, monitor_width),
+        "cascade" => arrange_widget_cascade_placements(&targets, monitor_width),
+        _ => arrange_widget_grid_placements(&targets, monitor_width),
+    };
 
     // store 좌표 갱신 + 정렬된 위젯 목록 스냅샷.
     let arranged = {
@@ -2236,6 +2247,83 @@ fn arrange_widget_grid_placements(
         column_right = column_x - WIDGET_ARRANGE_GAP;
     }
 
+    placements
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ArrangeWidgetWindowsInput {
+    #[serde(default)]
+    layout: Option<String>,
+}
+
+/// 세로 정렬: 오른쪽에 한 열로 위→아래로 쌓는다.
+fn arrange_widget_column_placements(
+    targets: &[WidgetWindowState],
+    monitor_width: f64,
+) -> Vec<(String, WidgetWindowPosition)> {
+    let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
+    let column_width = targets
+        .iter()
+        .map(|widget| widget_window_size(widget).width)
+        .fold(0.0_f64, f64::max);
+    let column_x = (monitor_width - WIDGET_ARRANGE_GAP - column_width).max(WIDGET_ARRANGE_GAP);
+    let mut row_y = WIDGET_ARRANGE_GAP;
+    for widget in targets {
+        placements.push((
+            widget_window_label(widget),
+            WidgetWindowPosition {
+                x: column_x.round() as i32,
+                y: row_y.round() as i32,
+            },
+        ));
+        row_y += widget_window_size(widget).height + WIDGET_ARRANGE_GAP;
+    }
+    placements
+}
+
+/// 가로 정렬: 상단에 한 줄로 왼쪽→오른쪽으로 늘어놓는다.
+fn arrange_widget_row_placements(
+    targets: &[WidgetWindowState],
+    _monitor_width: f64,
+) -> Vec<(String, WidgetWindowPosition)> {
+    let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
+    let mut col_x = WIDGET_ARRANGE_GAP;
+    for widget in targets {
+        placements.push((
+            widget_window_label(widget),
+            WidgetWindowPosition {
+                x: col_x.round() as i32,
+                y: WIDGET_ARRANGE_GAP.round() as i32,
+            },
+        ));
+        col_x += widget_window_size(widget).width + WIDGET_ARRANGE_GAP;
+    }
+    placements
+}
+
+/// 계단식: 오른쪽 위에서 대각선으로 겹쳐 쌓는다(카드 덱 느낌).
+fn arrange_widget_cascade_placements(
+    targets: &[WidgetWindowState],
+    monitor_width: f64,
+) -> Vec<(String, WidgetWindowPosition)> {
+    let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
+    let step = 36.0_f64;
+    let base_width = targets
+        .iter()
+        .map(|widget| widget_window_size(widget).width)
+        .fold(0.0_f64, f64::max);
+    let base_x = (monitor_width - WIDGET_ARRANGE_GAP - base_width).max(WIDGET_ARRANGE_GAP);
+    for (index, widget) in targets.iter().enumerate() {
+        let offset = step * index as f64;
+        placements.push((
+            widget_window_label(widget),
+            WidgetWindowPosition {
+                x: (base_x - offset).max(WIDGET_ARRANGE_GAP).round() as i32,
+                y: (WIDGET_ARRANGE_GAP + offset).round() as i32,
+            },
+        ));
+    }
     placements
 }
 
