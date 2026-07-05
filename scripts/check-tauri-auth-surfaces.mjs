@@ -150,8 +150,8 @@ assertContains(
 );
 assertContains(
   realOAuthQaReporter,
-  /process\.env\.NODE_ENV === "development"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL/,
-  "TauriRealOAuthQaReporter must require the explicit development-only real OAuth QA env flag and report URL.",
+  /const realOAuthQaEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true";[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL/,
+  "TauriRealOAuthQaReporter must require the explicit real OAuth QA env flag and report URL, including QA-instrumented release builds.",
 );
 assertContains(
   realOAuthQaReporter,
@@ -162,6 +162,21 @@ assertContains(
   realOAuthQaReporter,
   /runtimeSmokeEnabled[\s\S]*!realOAuthQaEnabled/,
   "TauriRealOAuthQaReporter must stay disabled during runtime smoke and unless the real OAuth QA flag is enabled.",
+);
+assertNotContains(
+  realOAuthQaReporter,
+  /const realOAuthQaEnabled =[\s\S]*process\.env\.NODE_ENV === "development"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true"/,
+  "TauriRealOAuthQaReporter must not be development-only because release-exe QA needs the report bridge in a production bundle.",
+);
+assertContains(
+  launcher,
+  /const realOAuthQaEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true";[\s\S]*!\(authDiagnosticsEnabled \|\| realOAuthQaEnabled\)/,
+  "Tauri auth diagnostics globals must stay available for explicit real OAuth QA release builds.",
+);
+assertNotContains(
+  launcher,
+  /process\.env\.NODE_ENV !== "development"[\s\S]*!\(authDiagnosticsEnabled \|\| realOAuthQaEnabled\)/,
+  "Tauri auth diagnostics globals must not be development-only because release-exe QA needs them in a production bundle.",
 );
 assertNotContains(
   realOAuthQaReporter,
@@ -197,6 +212,21 @@ assertContains(
   realOAuthQaScript,
   /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.localFiles\?\.enabled[\s\S]*initialPreviewIncludesMarker[\s\S]*initialSyncSyncedCount[\s\S]*mutationRequested[\s\S]*reindexStatus === "REINDEXED"[\s\S]*updatedPreviewIncludesMarker[\s\S]*updateSyncSyncedCount[\s\S]*remainingQaEvents === 0[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.activity\.nativeCaptured[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1[\s\S]*snapshot\.stabilityProbe\?\.enabled[\s\S]*snapshot\.stabilityProbe\.allExpectedWindowsVisible[\s\S]*snapshot\.stabilityProbe\.allAutoSyncLoopsRunning[\s\S]*snapshot\.sessionRestoreProbe\?\.enabled[\s\S]*snapshot\.sessionRestoreProbe\.restoredLocalSession[\s\S]*snapshot\.sessionRestoreProbe\.backendMeOk[\s\S]*snapshot\.stopCleanupProbe\?\.enabled[\s\S]*snapshot\.stopCleanupProbe\.activeProjectRoomCleared[\s\S]*snapshot\.stopCleanupProbe\.allExpectedWindowsHidden[\s\S]*snapshot\.stopCleanupProbe\.barWindowHidden[\s\S]*snapshot\.stopCleanupProbe\.syncLoopsStopped/,
   "Manual real OAuth QA script must prove redaction, real TAURI sessions, visible widgets, sync loops, managed-folder watcher status, local SQLite/file/widget/native-activity sync, stability dwell, session restore, and stop cleanup for passed reports.",
+);
+assertContains(
+  realOAuthQaScript,
+  /const RELEASE_MODE[\s\S]*process\.argv\.includes\("--release"\)[\s\S]*const RELEASE_EXE_PATH = join\("src-tauri", "target", "release", "bubli\.exe"\)[\s\S]*const DEFAULT_API_BASE_URL = RELEASE_MODE \? "https:\/\/bubli\.n-e\.kr" : "http:\/\/localhost:8080"[\s\S]*if \(RELEASE_MODE\) \{[\s\S]*buildReleaseTauri\(qaEnv\)[\s\S]*spawn\(RELEASE_EXE_PATH[\s\S]*function buildReleaseTauri\(qaEnv\)[\s\S]*stopExistingReleaseExe\(\)[\s\S]*"npm\.cmd run tauri -- build --no-bundle"/,
+  "Manual real OAuth QA script must support a QA-instrumented release exe mode without publishing the installer.",
+);
+assertContains(
+  realOAuthQaScript,
+  /function stopExistingReleaseExe\(\)[\s\S]*GetFullPath\(\$env:BUBLI_QA_RELEASE_EXE_PATH\);[\s\S]*Get-CimInstance Win32_Process[\s\S]*ExecutablePath -eq \$target[\s\S]*Stop-Process[\s\S]*BUBLI_QA_RELEASE_EXE_PATH: RELEASE_EXE_ABSOLUTE_PATH/,
+  "Manual real OAuth QA release builds must stop only the existing raw release QA exe before rebuilding.",
+);
+assertContains(
+  realOAuthQaScript,
+  /CARGO_BUILD_JOBS: process\.env\.CARGO_BUILD_JOBS \?\? "1"[\s\S]*CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process\.env\.CARGO_PROFILE_RELEASE_CODEGEN_UNITS \?\? "256"[\s\S]*CARGO_PROFILE_RELEASE_OPT_LEVEL: process\.env\.CARGO_PROFILE_RELEASE_OPT_LEVEL \?\? "1"/,
+  "Manual real OAuth QA release builds must use memory-safe Cargo defaults unless the caller overrides them.",
 );
 assertContains(
   realOAuthQaScript,
@@ -788,13 +818,13 @@ assertContains(
 );
 assertContains(
   launcher,
-  /const authDiagnosticsEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS === "true";[\s\S]*process\.env\.NODE_ENV !== "development"[\s\S]*!authDiagnosticsEnabled[\s\S]*window\.__BUBLI_TAURI_AUTH_QA__ = \{[\s\S]*assertRealGoogleAuthWidgetSnapshot: assertTauriRealGoogleAuthWidgetQa[\s\S]*getLocalSessionDiagnostics: getStoredAuthSessionDiagnostics[\s\S]*readAuthWidgetSnapshot: readTauriAuthWidgetQaSnapshot[\s\S]*readTauriMirrorDiagnostics: readTauriAuthSessionDiagnostics/,
-  "TauriPostLoginLauncher must expose only explicitly enabled development-only redacted auth diagnostics for manual QA.",
+  /const authDiagnosticsEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS === "true";[\s\S]*const realOAuthQaEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true";[\s\S]*!\(authDiagnosticsEnabled \|\| realOAuthQaEnabled\)[\s\S]*window\.__BUBLI_TAURI_AUTH_QA__ = \{[\s\S]*assertRealGoogleAuthWidgetSnapshot: assertTauriRealGoogleAuthWidgetQa[\s\S]*getLocalSessionDiagnostics: getStoredAuthSessionDiagnostics[\s\S]*readAuthWidgetSnapshot: readTauriAuthWidgetQaSnapshot[\s\S]*readTauriMirrorDiagnostics: readTauriAuthSessionDiagnostics/,
+  "TauriPostLoginLauncher must expose only explicitly enabled redacted auth diagnostics for manual QA and QA-instrumented release builds.",
 );
 assertContains(
   launcher,
   /delete window\.__BUBLI_TAURI_AUTH_QA__/,
-  "TauriPostLoginLauncher must clean up the development-only auth QA helper on unmount.",
+  "TauriPostLoginLauncher must clean up the auth QA helper on unmount.",
 );
 assertNotContains(
   launcher,
@@ -1043,6 +1073,11 @@ assertContains(
   authPanel,
   /const TAURI_MEMBER_APP_ROUTE = "\/app\/";[\s\S]*function createTauriLoginState\(\) \{[\s\S]*crypto\.randomUUID\(\)[\s\S]*return btoa\(JSON\.stringify\(\{ nonce, returnTo: TAURI_MEMBER_APP_ROUTE \}\)\);[\s\S]*async function runTauriLoginStep<T>[\s\S]*throw new Error\(`\$\{stage\}: \$\{getErrorMessage\(error\)\}`\)[\s\S]*const state = createTauriLoginState\(\);[\s\S]*runTauriLoginStep\("authorize"[\s\S]*tauriCommands\.getTauriGoogleAuthorizationUrl\(\{[\s\S]*apiBaseUrl: getApiBaseUrl\(\)[\s\S]*redirectUri: TAURI_LOOPBACK_REDIRECT_URI[\s\S]*state,[\s\S]*runTauriLoginStep\("complete-oauth"[\s\S]*tauriCommands\.completeTauriGoogleOauth\(\{[\s\S]*apiBaseUrl: getApiBaseUrl\(\)[\s\S]*authorizeUrl,[\s\S]*expectedState: state,[\s\S]*redirectUri: TAURI_LOOPBACK_REDIRECT_URI[\s\S]*runTauriLoginStep\("store-session"[\s\S]*setStoredAuthSessionAndWaitForTauriMirror\(\{ \.\.\.token, clientType: "TAURI" \}\)[\s\S]*tauriCommands\.openMainWindowRoute\(\{ route: TAURI_MEMBER_APP_ROUTE \}\)[\s\S]*router\.replace\(TAURI_MEMBER_APP_ROUTE\)/,
   "Tauri login must use the native complete OAuth command with a nonce state, persist the TAURI session mirror, and open the packaged /app/ member route after token exchange.",
+);
+assertContains(
+  authPanel,
+  /const liveAuth = useLiveAuthState\(\);[\s\S]*const isCheckingExistingSession = liveAuth\.status === "checking";[\s\S]*disabled=\{isStartingLogin \|\| isCheckingExistingSession\}[\s\S]*isCheckingExistingSession[\s\S]*t\("common\.loading"\)/,
+  "Tauri login must keep the Google login CTA disabled while restoring an existing session so release startup does not flash an unauthenticated login state.",
 );
 assertNotContains(
   authPanel,

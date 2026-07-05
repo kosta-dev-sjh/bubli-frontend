@@ -1,12 +1,18 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
-const API_BASE_URL = stripTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080");
-const TIMEOUT_MS = Number(process.env.BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS ?? 300_000);
 const CONTRACT_ONLY = process.argv.includes("--contract");
+const RELEASE_MODE =
+  process.argv.includes("--release") || process.env.BUBLI_TAURI_REAL_OAUTH_QA_MODE === "release";
+const RUNTIME_MODE = RELEASE_MODE ? "release" : "dev";
+const RELEASE_EXE_PATH = join("src-tauri", "target", "release", "bubli.exe");
+const RELEASE_EXE_ABSOLUTE_PATH = resolve(RELEASE_EXE_PATH);
+const DEFAULT_API_BASE_URL = RELEASE_MODE ? "https://bubli.n-e.kr" : "http://localhost:8080";
+const API_BASE_URL = stripTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL);
+const TIMEOUT_MS = Number(process.env.BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS ?? 300_000);
 
 if (process.platform !== "win32") {
   console.log("Tauri real OAuth manual QA skipped: this script is Windows-only.");
@@ -22,6 +28,7 @@ if (CONTRACT_ONLY) {
         checks: contractChecks,
         mode: "contract",
         result: "passed",
+        runtimeMode: RUNTIME_MODE,
         script: "qa-tauri-real-oauth-manual",
         timeoutMs: TIMEOUT_MS,
       },
@@ -34,17 +41,20 @@ if (CONTRACT_ONLY) {
 
 const localSyncFixture = createLocalSyncFixture();
 const { closeServer, mutateUrl, reportPromise, reportUrl } = await startReportServer(localSyncFixture);
-const child = spawnTauri(reportUrl, localSyncFixture.folderPath, mutateUrl);
+const qaEnv = createQaEnv(reportUrl, localSyncFixture.folderPath, mutateUrl);
+let child = null;
 let timeout = null;
 
 console.log("");
 console.log("Tauri real Google OAuth manual QA is waiting for a login.");
+console.log(`Runtime mode: ${RUNTIME_MODE}`);
 console.log("1. Complete Google login in the Bubli Tauri app.");
 console.log("2. Keep the app open until this script prints the redacted QA report.");
 console.log("3. This script does not pass a dev access token.");
 console.log("");
 
 try {
+  child = spawnTauri(qaEnv);
   const report = await Promise.race([
     reportPromise,
     new Promise((_, reject) => {
@@ -67,29 +77,50 @@ try {
 } finally {
   if (timeout) clearTimeout(timeout);
   closeServer();
-  stopProcessTree(child.pid);
+  stopProcessTree(child?.pid);
   localSyncFixture.cleanup();
 }
 
-function spawnTauri(reportUrl, localSyncFolderPath, localSyncMutateUrl) {
+function createQaEnv(reportUrl, localSyncFolderPath, localSyncMutateUrl) {
+  return {
+    ...process.env,
+    CARGO_BUILD_JOBS: process.env.CARGO_BUILD_JOBS ?? "1",
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process.env.CARGO_PROFILE_RELEASE_CODEGEN_UNITS ?? "256",
+    CARGO_PROFILE_RELEASE_OPT_LEVEL: process.env.CARGO_PROFILE_RELEASE_OPT_LEVEL ?? "1",
+    NEXT_PUBLIC_API_BASE_URL: API_BASE_URL,
+    NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "false",
+    NEXT_PUBLIC_BUBLI_PREVIEW_DATA: "false",
+    NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS: "true",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_FOLDER: localSyncFolderPath,
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL: localSyncMutateUrl,
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA: "true",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA: "true",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS: "15000",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA: "true",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA: "true",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL: reportUrl,
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS: String(TIMEOUT_MS),
+    NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "false",
+  };
+}
+
+function spawnTauri(qaEnv) {
+  if (RELEASE_MODE) {
+    buildReleaseTauri(qaEnv);
+
+    if (!existsSync(RELEASE_EXE_PATH)) {
+      throw new Error(`Missing Tauri release executable: ${RELEASE_EXE_PATH}`);
+    }
+
+    return spawn(RELEASE_EXE_PATH, [], {
+      env: qaEnv,
+      shell: false,
+      stdio: "inherit",
+    });
+  }
+
   const child = spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "npm.cmd run tauri:dev"], {
-    env: {
-      ...process.env,
-      NEXT_PUBLIC_API_BASE_URL: API_BASE_URL,
-      NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "false",
-      NEXT_PUBLIC_BUBLI_PREVIEW_DATA: "false",
-      NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS: "true",
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_FOLDER: localSyncFolderPath,
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL: localSyncMutateUrl,
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA: "true",
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA: "true",
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS: "15000",
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA: "true",
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA: "true",
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL: reportUrl,
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS: String(TIMEOUT_MS),
-      NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "false",
-    },
+    env: qaEnv,
     shell: false,
     stdio: "inherit",
   });
@@ -101,6 +132,47 @@ function spawnTauri(reportUrl, localSyncFolderPath, localSyncMutateUrl) {
   });
 
   return child;
+}
+
+function buildReleaseTauri(qaEnv) {
+  console.log("Building QA-instrumented Tauri release executable...");
+  stopExistingReleaseExe();
+  const result = spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "npm.cmd run tauri -- build --no-bundle"], {
+    env: qaEnv,
+    shell: false,
+    stdio: "inherit",
+  });
+
+  if (result.status !== 0) {
+    throw new Error(`Tauri release build failed with exit code ${result.status ?? "unknown"}.`);
+  }
+}
+
+function stopExistingReleaseExe() {
+  if (process.platform !== "win32") {
+    return;
+  }
+
+  spawnSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      [
+        "$target = [System.IO.Path]::GetFullPath($env:BUBLI_QA_RELEASE_EXE_PATH);",
+        "Get-CimInstance Win32_Process |",
+        "Where-Object { $_.ExecutablePath -eq $target } |",
+        "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+      ].join(" "),
+    ],
+    {
+      env: { ...process.env, BUBLI_QA_RELEASE_EXE_PATH: RELEASE_EXE_ABSOLUTE_PATH },
+      shell: false,
+      stdio: "inherit",
+    },
+  );
 }
 
 function createLocalSyncFixture() {
@@ -302,6 +374,24 @@ function runContractCheck() {
       name: "script launches real OAuth QA with local sync stability session restore and stop cleanup probes without dev token",
       pattern:
         /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_FOLDER: localSyncFolderPath[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL: localSyncMutateUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS: "15000"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL: reportUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "false"/,
+      source: scriptSource,
+    },
+    {
+      name: "script can build and launch a QA-instrumented release exe without publishing the installer",
+      pattern:
+        /const RELEASE_MODE[\s\S]*process\.argv\.includes\("--release"\)[\s\S]*const RELEASE_EXE_PATH = join\("src-tauri", "target", "release", "bubli\.exe"\)[\s\S]*const DEFAULT_API_BASE_URL = RELEASE_MODE \? "https:\/\/bubli\.n-e\.kr" : "http:\/\/localhost:8080"[\s\S]*if \(RELEASE_MODE\) \{[\s\S]*buildReleaseTauri\(qaEnv\)[\s\S]*spawn\(RELEASE_EXE_PATH[\s\S]*function buildReleaseTauri\(qaEnv\)[\s\S]*stopExistingReleaseExe\(\)[\s\S]*"npm\.cmd run tauri -- build --no-bundle"/,
+      source: scriptSource,
+    },
+    {
+      name: "script stops only the existing raw release QA exe before rebuilding",
+      pattern:
+        /function stopExistingReleaseExe\(\)[\s\S]*GetFullPath\(\$env:BUBLI_QA_RELEASE_EXE_PATH\);[\s\S]*Get-CimInstance Win32_Process[\s\S]*ExecutablePath -eq \$target[\s\S]*Stop-Process[\s\S]*BUBLI_QA_RELEASE_EXE_PATH: RELEASE_EXE_ABSOLUTE_PATH/,
+      source: scriptSource,
+    },
+    {
+      name: "script uses memory-safe Cargo release profile defaults for QA builds",
+      pattern:
+        /CARGO_BUILD_JOBS: process\.env\.CARGO_BUILD_JOBS \?\? "1"[\s\S]*CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process\.env\.CARGO_PROFILE_RELEASE_CODEGEN_UNITS \?\? "256"[\s\S]*CARGO_PROFILE_RELEASE_OPT_LEVEL: process\.env\.CARGO_PROFILE_RELEASE_OPT_LEVEL \?\? "1"/,
       source: scriptSource,
     },
     {
