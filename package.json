@@ -14,6 +14,7 @@
     "check:tauri-command-contract": "node scripts/check-tauri-command-contract.mjs",
     "check:tauri-windows-runtime-smoke": "node scripts/check-tauri-windows-runtime-smoke.mjs",
     "check:tauri-auth-surfaces": "node scripts/check-tauri-auth-surfaces.mjs",
+    "check:tauri-oauth-live-contract": "node scripts/check-tauri-oauth-live-contract.mjs",
     "check:tauri-boundaries": "node scripts/check-tauri-boundaries.mjs",
     "check:i18n": "node scripts/check-i18n-messages.mjs",
     "dev:widget:backend": "node scripts/dev-widget-real-backend.mjs seed",
