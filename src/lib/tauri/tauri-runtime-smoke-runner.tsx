@@ -447,6 +447,101 @@ async function runSmoke() {
       "project room context propagated to all bubble widgets",
       widgetStates,
     );
+    const widgetPositionTargets = new Map(
+      smokeWidgetBubbles.map((bubbleType, index) => [
+        bubbleType,
+        { x: 120 + index * 12, y: 96 + index * 10 },
+      ]),
+    );
+    const positionedWidgetStates = await Promise.all(
+      smokeWidgetBubbles.map((bubbleType) => {
+        const position = widgetPositionTargets.get(bubbleType);
+        assert(position, `runtime smoke position target exists for ${bubbleType}`);
+        return tauriCommands.setWidgetWindowPosition({
+          bubbleType,
+          windowId: bubbleType,
+          x: position.x,
+          y: position.y,
+        });
+      }),
+    );
+    assert(
+      positionedWidgetStates.every((widget) => {
+        const expected = widgetPositionTargets.get(widget.activeBubble as SmokeWidgetBubble);
+        return (
+          expected &&
+          widget.position.x === expected.x &&
+          widget.position.y === expected.y &&
+          widget.selectedRoomId === smokeRoomId
+        );
+      }),
+      "all bubble widget positions persisted with project room context",
+      positionedWidgetStates,
+    );
+    const minimizedWidgetStates = await Promise.all(
+      smokeWidgetBubbles.map((bubbleType) =>
+        tauriCommands.closeWidgetWindow({ bubbleType, windowId: bubbleType }),
+      ),
+    );
+    assert(
+      minimizedWidgetStates.every(
+        (widget) =>
+          widget.mode === "MINIMIZED" &&
+          !widget.windowVisible &&
+          widget.selectedRoomId === smokeRoomId,
+      ),
+      "all bubble widget windows minimized without losing project room context",
+      minimizedWidgetStates,
+    );
+    const barAfterMinimize = await tauriCommands.getWidgetWindowState({ bubbleType: "bar", windowId: "bar" });
+    assert(
+      barAfterMinimize.windowVisible,
+      "widget bar remains visible after all bubble widgets are minimized",
+      barAfterMinimize,
+    );
+    const minimizedBarItems = await tauriCommands.getWidgetBarItems();
+    const minimizedBarItemIds = new Set(minimizedBarItems.map((widget) => widget.windowId ?? widget.activeBubble));
+    assert(
+      smokeWidgetBubbles.every((bubbleType) => minimizedBarItemIds.has(bubbleType)) &&
+        minimizedBarItems.every(
+          (widget) =>
+            widget.mode === "MINIMIZED" &&
+            !widget.windowVisible &&
+            widget.selectedRoomId === smokeRoomId,
+        ),
+      "all minimized bubble widgets appear as bar restore items",
+      minimizedBarItems,
+    );
+    await tauriCommands.openWidgetWindows({
+      windows: smokeWidgetBubbles.map((bubbleType) => ({
+        bubbleType,
+        mode: "DEFAULT" as const,
+        selectedRoomId: smokeRoomId,
+        windowId: bubbleType,
+      })),
+    });
+    const restoredWidgetStates = await Promise.all(
+      smokeWidgetBubbles.map((bubbleType) =>
+        tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
+      ),
+    );
+    assert(
+      restoredWidgetStates.every(
+        (widget) => {
+          const expected = widgetPositionTargets.get(widget.activeBubble as SmokeWidgetBubble);
+          return (
+            expected &&
+            widget.mode === "DEFAULT" &&
+            widget.windowVisible &&
+            widget.selectedRoomId === smokeRoomId &&
+            widget.position.x === expected.x &&
+            widget.position.y === expected.y
+          );
+        },
+      ),
+      "all minimized bubble widget windows restore with position and project room context",
+      restoredWidgetStates,
+    );
 
     const shortcut = await tauriCommands.registerWidgetShortcut({ shortcut: "CommandOrControl+Shift+B" });
     assert(
