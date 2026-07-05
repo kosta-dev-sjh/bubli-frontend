@@ -539,6 +539,21 @@ assertContains(
 );
 assertContains(
   devWidgetRealBackend,
+  /apiGet\("\/api\/project-rooms\?page=0&size=20"[\s\S]*apiGet\("\/api\/me\/project-rooms\?page=0&size=20"[\s\S]*assertProjectRoomListContainsSeed\(projectRooms[\s\S]*assertProjectRoomListContainsSeed\(myProjectRooms/,
+  "Real backend widget smoke must verify both project-room list bootstrap endpoints include the active seed room.",
+);
+assertContains(
+  devWidgetRealBackend,
+  /\/api\/project-rooms\/\$\{SEED_ROOM_ID\}\/events\?afterSequence=0&limit=100[\s\S]*ROOM_UPDATED[\s\S]*event\.sequence === 1[\s\S]*event\.payload\?\.source === "codex-local-seed"[\s\S]*project room event backfill did not include the seeded ROOM_UPDATED event[\s\S]*INSERT INTO project_room_events/,
+  "Real backend widget smoke must seed and verify project-room event history catch-up.",
+);
+assertContains(
+  devWidgetRealBackend,
+  /apiPatch\("\/api\/widget\/settings"[\s\S]*bubbleType: "TODO"[\s\S]*opacity: 0\.88[\s\S]*widget settings PATCH did not persist TODO layout and flags[\s\S]*apiGet\("\/api\/widget\/settings"[\s\S]*widget settings GET did not read back the patched TODO layout[\s\S]*todoSettingBefore\.alertEnabled/,
+  "Real backend widget smoke must verify widget settings PATCH persistence, GET readback, and restoration.",
+);
+assertContains(
+  devWidgetRealBackend,
   /Desktop widget backend sync check[\s\S]*date_trunc\('day', now\(\)\) \+ interval '12 hours'[\s\S]*date_trunc\('day', now\(\)\) \+ interval '13 hours'/,
   "Real backend widget seed schedule must stay inside the backend widget summary's current UTC day window.",
 );
