@@ -453,6 +453,11 @@ assertContains(
   "Activity auto-capture interval override must be limited to development runtime smoke.",
 );
 assertContains(
+  activityAutoCapture,
+  /captureIntervalId = null;[\s\S]*if \(input\?\.flush\) \{[\s\S]*await flushActivityAutoCapture\(\);[\s\S]*updateActivityAutoCaptureStatus\(\{ lastStatus: "stopped", running: false \}\);[\s\S]*await mirrorNativeActivityConsent\(false\);/,
+  "stopActivityAutoCapture must leave status stopped after flush so local-auto-sync smoke does not see a stale running state.",
+);
+assertContains(
   managedFolderAutoSync,
   /export type ManagedFolderAutoSyncStatus[\s\S]*lastSyncedFolderId[\s\S]*lastWatchEventFolderId[\s\S]*lastWatchedCount[\s\S]*pendingFolderCount[\s\S]*export function getManagedFolderAutoSyncStatus\(\)[\s\S]*updateManagedFolderAutoSyncStatus/,
   "Managed folder auto-sync must expose a non-UI status snapshot for runtime QA.",
@@ -546,6 +551,16 @@ assertContains(
   tauriLib,
   /tauri_plugin_global_shortcut::Builder::new\(\)\.build\(\)/,
   "Tauri must install the native global shortcut plugin.",
+);
+assertContains(
+  tauriLib,
+  /#\[cfg\(target_os = "windows"\)\][\s\S]*fn local_auto_sync_runtime_smoke_requested\(\)[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_PHASE[\s\S]*local-auto-sync[\s\S]*fn hide_main_window_for_local_auto_sync_smoke[\s\S]*window\.hide\(\)/,
+  "Windows local-auto-sync runtime smoke must be able to hide the main app window without opening widgets.",
+);
+assertContains(
+  tauriLib,
+  /tauri::RunEvent::Ready => \{[\s\S]*if local_auto_sync_runtime_smoke_requested\(\) \{[\s\S]*hide_main_window_for_local_auto_sync_smoke\(app_handle\);[\s\S]*return;[\s\S]*position_main_window_on_preferred_monitor/,
+  "Windows local-auto-sync runtime smoke must skip main-window show/focus positioning.",
 );
 assertContains(
   tauriLib,
