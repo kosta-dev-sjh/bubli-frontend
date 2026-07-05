@@ -24,9 +24,7 @@ type RealOAuthQaReport = {
 const runtimeSmokeEnabled =
   process.env.NODE_ENV === "development" &&
   process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
-const realOAuthQaEnabled =
-  process.env.NODE_ENV === "development" &&
-  process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true";
+const realOAuthQaEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true";
 const realOAuthQaReportUrl = process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL;
 const realOAuthQaTimeoutMs = readPositiveNumber(
   process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS,
