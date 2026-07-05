@@ -176,8 +176,18 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /widgetApi\.updateContext\(\{ selectedRoomId: smokeRoomId \}\)[\s\S]*real backend widget context saved from Tauri runtime[\s\S]*widgetApi\.getContext\(\)[\s\S]*real backend widget context read back in Tauri runtime[\s\S]*widgetApi\.getSummary\(smokeRoomId\)[\s\S]*real backend widget summary uses selected project room/,
+  "TauriRuntimeSmokeRunner must verify selected project-room context reaches the real backend widget context and summary APIs.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /import \{ chatApi \} from "@\/features\/communication\/api\/chatApi";[\s\S]*import \{ voiceApi \} from "@\/features\/communication\/api\/voiceApi";[\s\S]*import \{ projectRoomApi \} from "@\/features\/project-room\/api\/projectRoomApi";[\s\S]*import \{ resourcesApi \} from "@\/features\/resources\/api\/resourcesApi";/,
   "TauriRuntimeSmokeRunner must use the real frontend API clients for room communication smoke checks.",
+);
+assertContains(
+  runtimeSmokeRunner,
+  /import \{ widgetApi \} from "@\/features\/widget\/api\/widgetApi";/,
+  "TauriRuntimeSmokeRunner must use the real widget API client for server context and usage readback checks.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -221,13 +231,13 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /setActivityContextConsent\(\{ enabled: true \}\)[\s\S]*readActivityContext\(\)[\s\S]*native foreground activity captured[\s\S]*recordActivityContext\(\{[\s\S]*stageActivityContextsForSync\(\{ limit: 50 \}\)[\s\S]*activityApi\.recordCurrentApp[\s\S]*markActivityContextSynced[\s\S]*activity buffer sync marked SQLite row as SYNCED[\s\S]*synced activity capture no longer remains pending/,
-  "TauriRuntimeSmokeRunner must verify native activity capture, backend sync, and local SQLite SYNCED marking.",
+  /setActivityContextConsent\(\{ enabled: true \}\)[\s\S]*readActivityContext\(\)[\s\S]*native foreground activity captured[\s\S]*recordActivityContext\(\{[\s\S]*stageActivityContextsForSync\(\{ limit: 50 \}\)[\s\S]*activityApi\.recordCurrentApp[\s\S]*markActivityContextSynced[\s\S]*activity buffer sync marked SQLite row as SYNCED[\s\S]*synced activity capture no longer remains pending[\s\S]*activityApi\.getToday\(\)[\s\S]*synced activity appears in real backend today readback/,
+  "TauriRuntimeSmokeRunner must verify native activity capture, backend sync, local SQLite SYNCED marking, and server today readback.",
 );
 assertContains(
   runtimeSmokeRunner,
-  /recordWidgetUsageEvent\(\{[\s\S]*rollupWidgetUsage\(\{ summaryDate: widgetUsageSummaryDate \}\)[\s\S]*syncLocalWidgetUsageSummaryToServer[\s\S]*widget usage summary reached backend sync API[\s\S]*widget usage summary marked SQLite rollups as SYNCED[\s\S]*synced widget usage rollup no longer remains pending/,
-  "TauriRuntimeSmokeRunner must verify widget usage rollups reach the backend and leave local SQLite pending state.",
+  /recordWidgetUsageEvent\(\{[\s\S]*rollupWidgetUsage\(\{ summaryDate: widgetUsageSummaryDate \}\)[\s\S]*syncLocalWidgetUsageSummaryToServer[\s\S]*widget usage summary reached backend sync API[\s\S]*widget usage summary marked SQLite rollups as SYNCED[\s\S]*synced widget usage rollup no longer remains pending[\s\S]*widgetApi\.getTodayUsageRollups\(\)[\s\S]*synced widget usage appears in real backend today readback/,
+  "TauriRuntimeSmokeRunner must verify widget usage rollups reach the backend, leave local SQLite pending state, and appear in server today readback.",
 );
 assertContains(
   runtimeSmokeRunner,

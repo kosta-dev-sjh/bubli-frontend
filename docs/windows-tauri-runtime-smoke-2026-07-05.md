@@ -48,6 +48,7 @@ Full phase:
 
 - Dev access token resolved backend seed user `11111111-1111-4111-8111-111111111111`.
 - Backend privacy consent was enabled for `ACTIVITY_CONTEXT` and `MANAGED_FOLDER`.
+- The selected project room was saved through the real backend widget context API, read back through `GET /api/widget/context`, and confirmed again through `/api/widget/summary`.
 - Real backend project-room detail loaded for `22222222-2222-4222-8222-222222222222`.
 - Real backend project-room members included the dev-token seed user.
 - Real backend room resources endpoint returned room-scoped resources.
@@ -65,9 +66,11 @@ Full phase:
 - Native foreground activity was captured from Windows as `appName = bubli`, `windowTitle = Bubli`, then staged from SQLite.
 - The staged activity row reached the real backend and was marked locally as `SYNCED`.
 - A follow-up activity stage returned no remaining pending row for the synced activity.
+- The synced activity was read back from `GET /api/activity/today` inside the Tauri WebView runtime.
 - Widget usage rollup was created for the smoke date and `todo` bubble.
 - The widget usage rollup reached the real backend and was marked locally as `SYNCED`.
 - A follow-up widget usage stage returned no remaining pending rollup for the synced key.
+- The synced widget usage row was read back from `GET /api/widget/usage-summaries/today` inside the Tauri WebView runtime.
 - Managed folder scan/search/preview/event staging passed against a temp folder.
 - Initial `CREATED` file events reached the real backend and were marked locally as `SYNCED`.
 - `watchManagedFolder` observed real `UPDATED` and `DELETED` file changes from the Node smoke control server.

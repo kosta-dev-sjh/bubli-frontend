@@ -11,6 +11,7 @@ import { authApi } from "@/features/auth/api/authApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
+import { widgetApi } from "@/features/widget/api/widgetApi";
 import { clearStoredAuthSession, getStoredAuthSession } from "@/lib/auth/auth-session";
 import { syncAllLocalOutboxToServer } from "@/lib/sync/local-sync-client";
 import { tauriCommands } from "@/lib/tauri/commands";
@@ -330,6 +331,26 @@ async function runSmoke() {
     await tauriCommands.setWidgetRoomContext({ selectedRoomId: smokeRoomId });
     const restoredRoom = await tauriCommands.readActiveProjectRoom();
     assert(restoredRoom?.roomId === smokeRoomId, "active project room persisted to SQLite", restoredRoom);
+    const serverWidgetContext = await widgetApi.updateContext({ selectedRoomId: smokeRoomId });
+    assert(
+      serverWidgetContext.selectedRoomId === smokeRoomId && serverWidgetContext.mode === "ROOM",
+      "real backend widget context saved from Tauri runtime",
+      serverWidgetContext,
+    );
+    const serverWidgetContextReadback = await widgetApi.getContext();
+    assert(
+      serverWidgetContextReadback.selectedRoomId === smokeRoomId &&
+        serverWidgetContextReadback.mode === "ROOM",
+      "real backend widget context read back in Tauri runtime",
+      serverWidgetContextReadback,
+    );
+    const serverWidgetSummary = await widgetApi.getSummary(smokeRoomId);
+    assert(
+      serverWidgetSummary.context.selectedRoomId === smokeRoomId &&
+        serverWidgetSummary.context.mode === "ROOM",
+      "real backend widget summary uses selected project room",
+      serverWidgetSummary.context,
+    );
     await verifyRealBackendRoomCommunication(smokeRoomId, assert);
 
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true });
@@ -462,6 +483,12 @@ async function runSmoke() {
       "synced activity capture no longer remains pending",
       remainingActivity,
     );
+    const todayActivities = await activityApi.getToday();
+    assert(
+      todayActivities.some((item) => item.id === syncedCurrentActivity?.recordedActivity.id),
+      "synced activity appears in real backend today readback",
+      todayActivities,
+    );
 
     const widgetUsageOccurredAt = new Date().toISOString();
     const widgetUsageSummaryDate = widgetUsageOccurredAt.slice(0, 10);
@@ -501,6 +528,15 @@ async function runSmoke() {
       remainingWidgetUsage.rollups.length === 0 && remainingWidgetUsage.sentCount === 0,
       "synced widget usage rollup no longer remains pending",
       remainingWidgetUsage,
+    );
+    const todayWidgetUsage = await widgetApi.getTodayUsageRollups();
+    assert(
+      widgetUsageSync.status === "ready" &&
+        widgetUsageSync.data.responses.some((response) =>
+          todayWidgetUsage.byDevice.some((item) => item.id === response.id),
+        ),
+      "synced widget usage appears in real backend today readback",
+      todayWidgetUsage,
     );
 
     let manualOutboxFileExpected = false;
