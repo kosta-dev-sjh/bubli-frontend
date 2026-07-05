@@ -675,6 +675,10 @@ function validateRealOAuthQaReport(report) {
   assert(snapshot.localSyncProbe.widgetUsageQueued, "Passed QA local sync probe must queue widget usage.");
   assert(snapshot.localSyncProbe.outbox?.status === "ready", "Passed QA local sync probe must finish outbox sync.");
   assert(
+    snapshot.localSyncProbe.outbox?.fileFailedCount === 0,
+    "Passed QA local sync probe must not mix stale failed local file events into the scoped file outbox sync.",
+  );
+  assert(
     (snapshot.localSyncProbe.outbox?.widgetSentCount ?? 0) >= 1,
     "Passed QA local sync probe must send widget usage to backend.",
   );
