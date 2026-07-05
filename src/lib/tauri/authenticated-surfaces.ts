@@ -17,7 +17,9 @@ let launchedAuthenticatedSurfaces = false;
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
 // 메뉴 오브 창도 로그인 시 자동 실행 목록에 함께 띄운다.
 const loginStartupMenuWindow: WidgetWindowOpenInput = { bubbleType: "menu", mode: "DEFAULT", windowId: "menu" };
-const loginStartupBubbleWindows: WidgetWindowOpenInput[] = [
+const loginStartupWindows: WidgetWindowOpenInput[] = [
+  loginStartupBarWindow,
+  loginStartupMenuWindow,
   { bubbleType: "agent", mode: "DEFAULT", windowId: "agent" },
   { bubbleType: "alert", mode: "DEFAULT", windowId: "alert" },
   { bubbleType: "chat", mode: "DEFAULT", windowId: "chat" },
@@ -26,11 +28,6 @@ const loginStartupBubbleWindows: WidgetWindowOpenInput[] = [
   { bubbleType: "schedule", mode: "DEFAULT", windowId: "schedule" },
   { bubbleType: "timer", mode: "DEFAULT", windowId: "timer" },
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
-];
-const loginStartupWindows: WidgetWindowOpenInput[] = [
-  loginStartupBarWindow,
-  loginStartupMenuWindow,
-  ...loginStartupBubbleWindows,
 ];
 const backendBubbleToLocal: Record<ApiWidgetBubbleType, Exclude<WidgetBubbleType, "bar" | "menu">> = {
   AGENT: "agent",
