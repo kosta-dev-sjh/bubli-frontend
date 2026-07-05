@@ -822,6 +822,9 @@ function buildDisplayBubbles(input: {
               kind: "time",
               label: activeTimer.timerType === "WORK" ? t("widget.timer.workTimer") : t("widget.timer.generalTimer"),
               status: activeTimer.status,
+              timerDurationSeconds: activeTimer.durationSeconds ?? null,
+              timerLastStartedAt: activeTimer.lastStartedAt ?? null,
+              timerStartedAt: activeTimer.startedAt,
             },
           ]
         : [],
@@ -1322,7 +1325,7 @@ function DesktopWidgetSurface() {
         const serverMode = getModeFromSetting(activeSetting);
         if (!isTauri && serverMode && requestedMode === "DEFAULT") {
           setMode(serverMode);
-          setClickThrough(serverMode === "GHOST");
+          setClickThrough(false);
           setWindowVisible(serverMode !== "MINIMIZED");
         }
 
@@ -1684,7 +1687,7 @@ function DesktopWidgetSurface() {
   const setWindowMode = useCallback(
     async (nextMode: WidgetWindowMode) => {
       setMode(nextMode);
-      setClickThrough(nextMode === "GHOST");
+      setClickThrough(false);
       setWindowVisible(nextMode !== "MINIMIZED");
 
       if (!isTauri) return;
@@ -2249,8 +2252,8 @@ function DesktopWidgetSurface() {
   );
 
   const createWidgetTodo = useCallback(
-    async (bubble: WidgetPreviewBubble) => {
-      const title = window.prompt(t(bubble.actionLabel as MessageKey))?.trim();
+    async (bubble: WidgetPreviewBubble, inlineTitle?: string) => {
+      const title = (inlineTitle ?? window.prompt(t(bubble.actionLabel as MessageKey)) ?? "").trim();
       if (!title) return;
 
       const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
@@ -2277,8 +2280,8 @@ function DesktopWidgetSurface() {
   );
 
   const createWidgetSchedule = useCallback(
-    async (bubble: WidgetPreviewBubble) => {
-      const title = window.prompt(t("widget.schedule.prompt"))?.trim();
+    async (bubble: WidgetPreviewBubble, inlineTitle?: string) => {
+      const title = (inlineTitle ?? window.prompt(t("widget.schedule.prompt")) ?? "").trim();
       if (!title) return;
 
       const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
