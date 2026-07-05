@@ -2790,7 +2790,10 @@ fn close_widget_window(
     let bubble_type = input.as_ref().and_then(|value| value.bubble_type.clone());
     let window_id = input.and_then(|value| value.window_id);
     let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
-        widget.mode = "MINIMIZED".to_string();
+        // 닫기(X)는 최소화와 달리 "완전히 닫기"다. 최소화는 MINIMIZED로 두어 바 칩으로 남지만,
+        // 닫기는 DEFAULT(=바 필터 MINIMIZED 조건에서 제외) + 창 숨김으로 바에서도 사라지게 한다.
+        // 다시 열기는 메뉴(런처)에서 수행한다.
+        widget.mode = "DEFAULT".to_string();
         widget.click_through = false;
         widget.dock_orb_visible = false;
         widget.window_visible = false;
