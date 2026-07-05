@@ -246,8 +246,8 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /recordWidgetUsageEvent\(\{[\s\S]*rollupWidgetUsage\(\{ summaryDate: widgetUsageSummaryDate \}\)[\s\S]*syncLocalWidgetUsageSummaryToServer[\s\S]*widget usage summary reached backend sync API[\s\S]*widget usage summary marked SQLite rollups as SYNCED[\s\S]*synced widget usage rollup no longer remains pending[\s\S]*widgetApi\.getTodayUsageRollups\(\)[\s\S]*synced widget usage appears in real backend today readback/,
-  "TauriRuntimeSmokeRunner must verify widget usage rollups reach the backend, leave local SQLite pending state, and appear in server today readback.",
+  /for \(const bubbleType of smokeWidgetBubbles\) \{[\s\S]*recordWidgetUsageEvent\(\{[\s\S]*all bubble widget usage rollups created[\s\S]*syncLocalWidgetUsageSummaryToServer\(\{[\s\S]*rollupKeys: smokeRollupKeys[\s\S]*widget usage summary reached backend sync API[\s\S]*all bubble widget usage summaries marked SQLite rollups as SYNCED[\s\S]*synced all bubble widget usage rollups no longer remain pending[\s\S]*widgetApi\.getTodayUsageRollups\(\)[\s\S]*synced all bubble widget usage appears in real backend today readback/,
+  "TauriRuntimeSmokeRunner must verify all bubble widget usage rollups reach the backend, leave local SQLite pending state, and appear in server today readback.",
 );
 assertContains(
   runtimeSmokeRunner,

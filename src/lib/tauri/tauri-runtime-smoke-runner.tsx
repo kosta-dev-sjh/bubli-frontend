@@ -562,50 +562,61 @@ async function runSmoke() {
 
     const widgetUsageOccurredAt = new Date().toISOString();
     const widgetUsageSummaryDate = widgetUsageOccurredAt.slice(0, 10);
-    await tauriCommands.recordWidgetUsageEvent({
-      bubbleType: "todo",
-      eventType: "runtime-smoke:click",
-      itemId: "codex-runtime-smoke",
-      itemType: "TASK",
-      occurredAt: widgetUsageOccurredAt,
-    });
+    for (const bubbleType of smokeWidgetBubbles) {
+      await tauriCommands.recordWidgetUsageEvent({
+        bubbleType,
+        eventType: "runtime-smoke:click",
+        itemId: `codex-runtime-smoke-${bubbleType}`,
+        itemType: bubbleType === "chat" ? "MESSAGE" : "TASK",
+        occurredAt: widgetUsageOccurredAt,
+      });
+    }
     const rollups = await tauriCommands.rollupWidgetUsage({ summaryDate: widgetUsageSummaryDate });
-    const smokeRollup = rollups.find(
-      (rollup) => rollup.rollupKey === `${widgetUsageSummaryDate}:todo` && rollup.bubbleType === "todo",
-    );
+    const smokeRollups = smokeWidgetBubbles
+      .map((bubbleType) =>
+        rollups.find(
+          (rollup) =>
+            rollup.rollupKey === `${widgetUsageSummaryDate}:${bubbleType}` &&
+            rollup.bubbleType === bubbleType,
+        ),
+      )
+      .filter((rollup): rollup is NonNullable<typeof rollup> => rollup !== undefined);
     assert(
-      smokeRollup && smokeRollup.sourceEventCount >= 1 && smokeRollup.interactionCount >= 1,
-      "widget usage rollup created",
-      smokeRollup ?? rollups,
+      smokeRollups.length === smokeWidgetBubbles.length &&
+        smokeRollups.every((rollup) => rollup.sourceEventCount >= 1 && rollup.interactionCount >= 1),
+      "all bubble widget usage rollups created",
+      { rollups, smokeRollups },
     );
+    const smokeRollupKeys = smokeRollups.map((rollup) => rollup.rollupKey);
     const widgetUsageSync = await syncLocalWidgetUsageSummaryToServer({
-      rollupKeys: [smokeRollup.rollupKey],
+      rollupKeys: smokeRollupKeys,
     });
     assert(widgetUsageSync.status === "ready", "widget usage summary reached backend sync API", widgetUsageSync);
     assert(
       widgetUsageSync.status === "ready" &&
         widgetUsageSync.data.failedCount === 0 &&
-        widgetUsageSync.data.markedSyncedCount === 1 &&
-        widgetUsageSync.data.sentCount === 1 &&
-        widgetUsageSync.data.stagedCount === 1,
-      "widget usage summary marked SQLite rollups as SYNCED",
+        widgetUsageSync.data.markedSyncedCount === smokeWidgetBubbles.length &&
+        widgetUsageSync.data.sentCount === smokeWidgetBubbles.length &&
+        widgetUsageSync.data.stagedCount === smokeWidgetBubbles.length,
+      "all bubble widget usage summaries marked SQLite rollups as SYNCED",
       widgetUsageSync,
     );
     const remainingWidgetUsage = await tauriCommands.syncWidgetUsageSummary({
-      rollupKeys: [smokeRollup.rollupKey],
+      rollupKeys: smokeRollupKeys,
     });
     assert(
       remainingWidgetUsage.rollups.length === 0 && remainingWidgetUsage.sentCount === 0,
-      "synced widget usage rollup no longer remains pending",
+      "synced all bubble widget usage rollups no longer remain pending",
       remainingWidgetUsage,
     );
     const todayWidgetUsage = await widgetApi.getTodayUsageRollups();
     assert(
       widgetUsageSync.status === "ready" &&
-        widgetUsageSync.data.responses.some((response) =>
+        widgetUsageSync.data.responses.length === smokeWidgetBubbles.length &&
+        widgetUsageSync.data.responses.every((response) =>
           todayWidgetUsage.byDevice.some((item) => item.id === response.id),
         ),
-      "synced widget usage appears in real backend today readback",
+      "synced all bubble widget usage appears in real backend today readback",
       todayWidgetUsage,
     );
 

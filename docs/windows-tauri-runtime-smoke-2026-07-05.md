@@ -67,10 +67,10 @@ Full phase:
 - The staged activity row reached the real backend and was marked locally as `SYNCED`.
 - A follow-up activity stage returned no remaining pending row for the synced activity.
 - The synced activity was read back from `GET /api/activity/today` inside the Tauri WebView runtime.
-- Widget usage rollup was created for the smoke date and `todo` bubble.
-- The widget usage rollup reached the real backend and was marked locally as `SYNCED`.
-- A follow-up widget usage stage returned no remaining pending rollup for the synced key.
-- The synced widget usage row was read back from `GET /api/widget/usage-summaries/today` inside the Tauri WebView runtime.
+- Widget usage rollups were created for the smoke date and all eight bubble widgets.
+- All eight widget usage rollups reached the real backend and were marked locally as `SYNCED`.
+- A follow-up widget usage stage returned no remaining pending rollups for the synced keys.
+- The synced widget usage rows were read back from `GET /api/widget/usage-summaries/today` inside the Tauri WebView runtime.
 - Managed folder scan/search/preview/event staging passed against a temp folder.
 - Initial `CREATED` file events reached the real backend and were marked locally as `SYNCED`.
 - A synced local text file was analyzed through the Tauri key-sentence adapter, `POST /api/local-file-analyses` created an `ANALYZE_RESOURCE` job, and `GET /api/agent-jobs/{jobId}` read it back.
