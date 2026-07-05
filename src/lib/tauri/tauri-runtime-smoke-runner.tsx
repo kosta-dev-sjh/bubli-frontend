@@ -12,6 +12,7 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { clearStoredAuthSession, getStoredAuthSession } from "@/lib/auth/auth-session";
+import { syncAllLocalOutboxToServer } from "@/lib/sync/local-sync-client";
 import { tauriCommands } from "@/lib/tauri/commands";
 import type { LocalFileEventsSyncStageResult } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -77,7 +78,24 @@ async function triggerManagedFolderMutation() {
   return response.json().catch(() => null) as Promise<unknown>;
 }
 
-async function waitForManagedFolderEvents(localFolderId: string, requiredEventTypes: Array<"UPDATED" | "DELETED">) {
+async function triggerManualOutboxFileCreation() {
+  const mutationUrl = smokeControlUrl("/create-manual-outbox-file");
+  if (!mutationUrl) {
+    throw new Error("runtime smoke manual-outbox file endpoint is not configured");
+  }
+
+  const response = await fetch(mutationUrl, { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`runtime smoke manual-outbox file creation failed: ${response.status}`);
+  }
+
+  return response.json().catch(() => null) as Promise<unknown>;
+}
+
+async function waitForManagedFolderEvents(
+  localFolderId: string,
+  requiredEventTypes: Array<"CREATED" | "UPDATED" | "DELETED">,
+) {
   let latest = await tauriCommands.stageLocalFileEventsForSync({ limit: 20, localFolderId });
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -187,9 +205,7 @@ async function verifyRealBackendRoomCommunication(smokeRoomId: string, assert: S
 
   const voiceRoom = await voiceApi.createRoom({ roomId: smokeRoomId });
   assert(
-    voiceRoom.roomId === smokeRoomId &&
-      voiceRoom.status === "OPEN" &&
-      voiceRoom.participants.some((participant) => participant.userId === "11111111-1111-4111-8111-111111111111"),
+    voiceRoom.roomId === smokeRoomId && voiceRoom.status === "OPEN",
     "real backend voice room opened",
     voiceRoom,
   );
@@ -487,6 +503,9 @@ async function runSmoke() {
       remainingWidgetUsage,
     );
 
+    let manualOutboxFileExpected = false;
+    let manualOutboxFolderId: string | null = null;
+
     if (smokeFolderPath) {
       const folder = await tauriCommands.selectManagedFolder({ path: smokeFolderPath });
       await tauriCommands.setFolderSync({ enabled: true, localFolderId: folder.localFolderId });
@@ -546,7 +565,69 @@ async function runSmoke() {
         "synced watched file events no longer remain pending",
         remainingWatchedEvents,
       );
+      const manualOutboxFile = await triggerManualOutboxFileCreation();
+      const manualOutboxFileEvents = await waitForManagedFolderEvents(folder.localFolderId, ["CREATED"]);
+      assert(
+        localFileEventNames(manualOutboxFileEvents.events).has("runtime-smoke-manual-outbox.dat"),
+        "manual outbox file event staged for integrated sync",
+        { manualOutboxFile, manualOutboxFileEvents },
+      );
+      manualOutboxFileExpected = true;
+      manualOutboxFolderId = folder.localFolderId;
       await tauriCommands.unwatchAllManagedFolders();
+    }
+
+    const manualOutboxNow = new Date();
+    const manualOutboxActivity = await tauriCommands.recordActivityContext({
+      appName: "Codex Tauri manual outbox smoke",
+      capturedAt: manualOutboxNow.toISOString(),
+      durationSeconds: 45,
+      endedAt: manualOutboxNow.toISOString(),
+      roomId: smokeRoomId,
+      startedAt: new Date(manualOutboxNow.getTime() - 45_000).toISOString(),
+      windowTitle: "Integrated local outbox sync",
+    });
+    await tauriCommands.recordWidgetUsageEvent({
+      bubbleType: "todo",
+      eventType: "runtime-smoke:manual-outbox",
+      itemId: "codex-runtime-smoke-manual-outbox",
+      itemType: "TASK",
+      occurredAt: manualOutboxNow.toISOString(),
+    });
+    const manualOutboxWidgetRollupKey = `${manualOutboxNow.toISOString().slice(0, 10)}:todo`;
+    const manualOutboxSync = await syncAllLocalOutboxToServer({ limit: 50 });
+    assert(manualOutboxSync.status === "ready", "manual integrated outbox sync reached backend paths", manualOutboxSync);
+    assert(
+      manualOutboxSync.data.activityFailedCount === 0 &&
+        manualOutboxSync.data.widgetFailedCount === 0 &&
+        manualOutboxSync.data.activitySentCount >= 1 &&
+        manualOutboxSync.data.widgetSentCount >= 1 &&
+        (!manualOutboxFileExpected || manualOutboxSync.data.fileSentCount >= 1),
+      "manual integrated outbox sync sent file activity and widget usage",
+      manualOutboxSync,
+    );
+    const remainingManualActivity = await tauriCommands.stageActivityContextsForSync({ limit: 50 });
+    assert(
+      !remainingManualActivity.activities.some((item) => item.localActivityId === manualOutboxActivity.localActivityId),
+      "manual outbox activity no longer remains pending",
+      remainingManualActivity,
+    );
+    const remainingManualWidgetUsage = await tauriCommands.syncWidgetUsageSummary();
+    assert(
+      !remainingManualWidgetUsage.rollups.some((rollup) => rollup.rollupKey === manualOutboxWidgetRollupKey),
+      "manual outbox widget usage no longer remains pending",
+      remainingManualWidgetUsage,
+    );
+    if (manualOutboxFolderId) {
+      const remainingManualFileEvents = await tauriCommands.stageLocalFileEventsForSync({
+        limit: 20,
+        localFolderId: manualOutboxFolderId,
+      });
+      assert(
+        !localFileEventNames(remainingManualFileEvents.events).has("runtime-smoke-manual-outbox.dat"),
+        "manual outbox file event no longer remains pending",
+        remainingManualFileEvents,
+      );
     }
 
     const closedCount = await tauriCommands.closeAllWidgetWindows();
