@@ -1660,11 +1660,7 @@ fn extract_hwpx_text(path: &Path) -> Result<String, String> {
 
     match read_zip_entry(&bytes, "Preview/PrvText.txt") {
         Ok(preview_bytes) => {
-            let preview_text = String::from_utf8_lossy(&preview_bytes)
-                .replace('\0', " ")
-                .replace('\r', "\n")
-                .trim()
-                .to_string();
+            let preview_text = decode_text_bytes(&preview_bytes);
             if preview_text.is_empty() {
                 Err("EMPTY".to_string())
             } else {
@@ -1854,6 +1850,37 @@ fn extract_pdf_stream_text(bytes: &[u8]) -> String {
     }
 
     text
+}
+
+fn decode_text_bytes(bytes: &[u8]) -> String {
+    let text = if bytes.starts_with(&[0xff, 0xfe]) {
+        decode_utf16_bytes(&bytes[2..], true)
+    } else if bytes.starts_with(&[0xfe, 0xff]) {
+        decode_utf16_bytes(&bytes[2..], false)
+    } else if bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
+        String::from_utf8_lossy(&bytes[3..]).to_string()
+    } else {
+        String::from_utf8_lossy(bytes).to_string()
+    };
+
+    text.replace('\0', " ")
+        .replace('\r', "\n")
+        .trim()
+        .to_string()
+}
+
+fn decode_utf16_bytes(bytes: &[u8], little_endian: bool) -> String {
+    let units = bytes
+        .chunks_exact(2)
+        .map(|chunk| {
+            if little_endian {
+                u16::from_le_bytes([chunk[0], chunk[1]])
+            } else {
+                u16::from_be_bytes([chunk[0], chunk[1]])
+            }
+        })
+        .collect::<Vec<_>>();
+    String::from_utf16_lossy(&units)
 }
 
 fn read_pdf_literal_string(bytes: &[u8], start: usize) -> (String, usize) {
@@ -4254,6 +4281,24 @@ mod tests {
         )])
     }
 
+    fn minimal_hwpx_utf16_preview_bytes(preview_text: &str, little_endian: bool) -> Vec<u8> {
+        let mut preview_bytes = if little_endian {
+            vec![0xff, 0xfe]
+        } else {
+            vec![0xfe, 0xff]
+        };
+        for unit in preview_text.encode_utf16() {
+            let bytes = if little_endian {
+                unit.to_le_bytes()
+            } else {
+                unit.to_be_bytes()
+            };
+            preview_bytes.extend_from_slice(&bytes);
+        }
+
+        minimal_zip_bytes(vec![("Preview/PrvText.txt", preview_bytes)])
+    }
+
     fn minimal_xlsx_bytes(shared_text: &str, inline_text: &str, number_text: &str) -> Vec<u8> {
         let shared_escaped = shared_text
             .replace('&', "&amp;")
@@ -5757,6 +5802,62 @@ mod tests {
     }
 
     #[test]
+    fn reads_hwpx_utf16_preview_text_when_sections_are_missing() {
+        let le_path = std::env::temp_dir().join(format!(
+            "bubli-local-hwpx-utf16le-preview-test-{}.hwpx",
+            Uuid::new_v4()
+        ));
+        let be_path = std::env::temp_dir().join(format!(
+            "bubli-local-hwpx-utf16be-preview-test-{}.hwpx",
+            Uuid::new_v4()
+        ));
+        std::fs::write(
+            &le_path,
+            minimal_hwpx_utf16_preview_bytes(
+                "HwpxUtf16FallbackSignal preserves Korean preview text.",
+                true,
+            ),
+        )
+        .expect("write temp utf16 le hwpx preview file");
+        std::fs::write(
+            &be_path,
+            minimal_hwpx_utf16_preview_bytes(
+                "HwpxUtf16BigEndianSignal preserves preview text.",
+                false,
+            ),
+        )
+        .expect("write temp utf16 be hwpx preview file");
+
+        let (le_preview, le_status, le_truncated) =
+            read_local_text_preview(&le_path, 500).expect("read utf16 le hwpx preview fallback");
+        let (be_preview, be_status, be_truncated) =
+            read_local_text_preview(&be_path, 500).expect("read utf16 be hwpx preview fallback");
+        let le_text = read_local_text_for_key_sentences(&le_path)
+            .expect("read utf16 le hwpx preview fallback text")
+            .0
+            .expect("utf16 le hwpx preview fallback text");
+
+        assert_eq!(le_status, "READY");
+        assert_eq!(be_status, "READY");
+        assert!(!le_truncated);
+        assert!(!be_truncated);
+        assert!(le_preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("HwpxUtf16FallbackSignal"));
+        assert!(be_preview
+            .as_deref()
+            .unwrap_or_default()
+            .contains("HwpxUtf16BigEndianSignal"));
+        assert!(extract_key_sentences(&le_text, 2, 200)
+            .iter()
+            .any(|sentence| sentence.text.contains("Korean preview text")));
+
+        let _ = std::fs::remove_file(le_path);
+        let _ = std::fs::remove_file(be_path);
+    }
+
+    #[test]
     fn reads_xlsx_text_for_preview_and_key_sentence_extraction() {
         let path =
             std::env::temp_dir().join(format!("bubli-local-xlsx-test-{}.xlsx", Uuid::new_v4()));
@@ -6070,6 +6171,54 @@ mod tests {
 
         assert_eq!(hwpx_search.items.len(), 1);
         assert_eq!(hwpx_search.items[0].name, "preview-only.hwpx");
+
+        let _ = std::fs::remove_dir_all(folder_path);
+    }
+
+    #[test]
+    fn scans_hwpx_utf16_preview_fallback_into_local_file_search_index() {
+        let conn = test_connection();
+        let folder_path = std::env::temp_dir().join(format!(
+            "bubli-local-hwpx-utf16-preview-test-{}",
+            Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&folder_path).expect("create temp folder");
+        std::fs::write(
+            folder_path.join("utf16-preview.hwpx"),
+            minimal_hwpx_utf16_preview_bytes(
+                "HwpxUtf16SearchSignal captures preview fallback text.",
+                true,
+            ),
+        )
+        .expect("write temp utf16 hwpx preview file");
+
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-hwpx-utf16-preview', 'HWPX UTF16 Preview Docs', ?1, 'ACTIVE', 1, 1, 1)",
+            params![folder_path.to_string_lossy().to_string()],
+        )
+        .expect("insert managed folder");
+
+        let scan = scan_managed_folder_for_conn(
+            &conn,
+            ManagedFolderCommandInput {
+                local_folder_id: "folder-hwpx-utf16-preview".to_string(),
+            },
+        )
+        .expect("scan managed folder");
+        assert_eq!(scan.changed_count, 1);
+
+        let hwpx_search = search_local_files_for_conn(
+            &conn,
+            LocalFileSearchInput {
+                limit: Some(10),
+                query: "HwpxUtf16SearchSignal".to_string(),
+            },
+        )
+        .expect("search utf16 hwpx preview fallback content");
+
+        assert_eq!(hwpx_search.items.len(), 1);
+        assert_eq!(hwpx_search.items[0].name, "utf16-preview.hwpx");
 
         let _ = std::fs::remove_dir_all(folder_path);
     }
