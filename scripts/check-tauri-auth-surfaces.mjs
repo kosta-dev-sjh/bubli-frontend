@@ -635,8 +635,8 @@ assertContains(
 );
 assertContains(
   authWidgetQa,
-  /snapshot\.backend\.me\.ok[\s\S]*snapshot\.backend\.widgetContext\.ok[\s\S]*snapshot\.backend\.widgetSummary\.ok[\s\S]*snapshot\.widgetRuntime\.allExpectedWindowsVisible[\s\S]*snapshot\.widgetRuntime\.allWindowRoomContextMatchesActive[\s\S]*snapshot\.widgetRuntime\.barRestoreItems\.allMatchActiveRoom/,
-  "Actual Google OAuth QA assertion must verify real backend widget APIs and widget runtime state.",
+  /snapshot\.backend\.me\.ok[\s\S]*snapshot\.backend\.widgetContext\.ok[\s\S]*snapshot\.backend\.widgetSummary\.ok[\s\S]*snapshot\.activeProjectRoom\.hasSelectedRoom[\s\S]*snapshot\.widgetRuntime\.allExpectedWindowsVisible[\s\S]*snapshot\.widgetRuntime\.allWindowRoomContextMatchesActive[\s\S]*snapshot\.widgetRuntime\.allWindowRoomContextMatchesServer[\s\S]*snapshot\.widgetRuntime\.barRestoreItems\.allMatchActiveRoom[\s\S]*snapshot\.syncRuntime\.allAutoSyncLoopsRunning/,
+  "Actual Google OAuth QA assertion must verify real backend widget APIs, a selected project room, widget runtime state, and post-login auto-sync loops.",
 );
 assertContains(
   authWidgetQa,
@@ -660,8 +660,13 @@ assertContains(
 );
 assertContains(
   authWidgetQa,
-  /WIDGET_BUBBLE_TYPES\.map[\s\S]*missingVisibleBubbles[\s\S]*allExpectedWindowsVisible[\s\S]*allWindowRoomContextMatchesActive[\s\S]*barRestoreItems/,
-  "Tauri auth/widget QA snapshot must cover all eight expected bubble windows and room-context consistency.",
+  /WIDGET_BUBBLE_TYPES\.map[\s\S]*missingVisibleBubbles[\s\S]*allExpectedWindowsVisible[\s\S]*allWindowRoomContextMatchesActive[\s\S]*allWindowRoomContextMatchesServer[\s\S]*barRestoreItems/,
+  "Tauri auth/widget QA snapshot must cover all eight expected bubble windows and active/server room-context consistency.",
+);
+assertContains(
+  authWidgetQa,
+  /isActivityAutoCaptureRunning[\s\S]*isManagedFolderAutoSyncRunning[\s\S]*isWidgetUsageAutoSyncRunning[\s\S]*syncRuntime:[\s\S]*activityAutoCaptureRunning[\s\S]*allAutoSyncLoopsRunning[\s\S]*managedFolderAutoSyncRunning[\s\S]*widgetUsageAutoSyncRunning/,
+  "Tauri auth/widget QA snapshot must include post-login activity, managed-folder, and widget-usage sync loop state.",
 );
 assertNotContains(
   authWidgetQa,

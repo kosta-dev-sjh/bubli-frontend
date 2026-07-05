@@ -8,6 +8,8 @@ import {
   type AuthSessionDiagnostics,
 } from "@/lib/auth/auth-session";
 import { ApiClientError } from "@/lib/api/errors";
+import { isActivityAutoCaptureRunning } from "@/lib/local/activity-auto-capture";
+import { isManagedFolderAutoSyncRunning } from "@/lib/local/managed-folder-auto-sync";
 import {
   tauriCommands,
   type WidgetBubbleType,
@@ -15,6 +17,7 @@ import {
   type WidgetWindowState,
 } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { isWidgetUsageAutoSyncRunning } from "@/lib/widget/widget-usage-auto-sync";
 import { WIDGET_BUBBLE_TYPES } from "@/lib/widget/widget-types";
 import { getActiveProjectRoomId } from "@/lib/workspace-active-room";
 
@@ -32,6 +35,7 @@ export type TauriWidgetWindowQaState = Pick<WidgetWindowState, "mode" | "selecte
 
 export type TauriAuthWidgetQaSnapshot = {
   activeProjectRoom: {
+    hasSelectedRoom: boolean;
     memoryRoomId: string | null;
     serverSelectedRoomId: string | null;
     tauriRoomId: string | null;
@@ -51,10 +55,17 @@ export type TauriAuthWidgetQaSnapshot = {
   collectedAt: string;
   expectedBubbleTypes: readonly WidgetBubbleType[];
   localSession: AuthSessionDiagnostics;
+  syncRuntime: {
+    activityAutoCaptureRunning: boolean;
+    allAutoSyncLoopsRunning: boolean;
+    managedFolderAutoSyncRunning: boolean;
+    widgetUsageAutoSyncRunning: boolean;
+  };
   tauriMirrorSession: AuthSessionDiagnostics;
   widgetRuntime: {
     allExpectedWindowsVisible: boolean;
     allWindowRoomContextMatchesActive: boolean;
+    allWindowRoomContextMatchesServer: boolean;
     barRestoreItems: {
       count: number;
       allMatchActiveRoom: boolean;
@@ -144,6 +155,7 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
   addCheck(failedChecks, snapshot.backend.me.ok, "backend:/api/me");
   addCheck(failedChecks, snapshot.backend.widgetContext.ok, "backend:/api/widget/context");
   addCheck(failedChecks, snapshot.backend.widgetSummary.ok, "backend:/api/widget/summary");
+  addCheck(failedChecks, snapshot.activeProjectRoom.hasSelectedRoom, "room:hasSelectedProjectRoom");
   addCheck(failedChecks, snapshot.activeProjectRoom.tauriMatchesMemory, "room:tauriMatchesMemory");
   addCheck(
     failedChecks,
@@ -158,9 +170,15 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
   );
   addCheck(
     failedChecks,
+    snapshot.widgetRuntime.allWindowRoomContextMatchesServer,
+    "widgets:allWindowRoomContextMatchesServer",
+  );
+  addCheck(
+    failedChecks,
     snapshot.widgetRuntime.barRestoreItems.allMatchActiveRoom,
     "widgets:barRestoreItemsMatchActiveRoom",
   );
+  addCheck(failedChecks, snapshot.syncRuntime.allAutoSyncLoopsRunning, "sync:allAutoSyncLoopsRunning");
 
   return {
     failedChecks,
@@ -209,6 +227,7 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
 
   return {
     activeProjectRoom: {
+      hasSelectedRoom: Boolean(selectedRoomId),
       memoryRoomId,
       serverSelectedRoomId,
       tauriRoomId: tauriRoom?.roomId ?? null,
@@ -231,11 +250,23 @@ export async function readTauriAuthWidgetQaSnapshot(): Promise<TauriAuthWidgetQa
     collectedAt: new Date().toISOString(),
     expectedBubbleTypes: WIDGET_BUBBLE_TYPES,
     localSession,
+    syncRuntime: {
+      activityAutoCaptureRunning: isActivityAutoCaptureRunning(),
+      allAutoSyncLoopsRunning:
+        isActivityAutoCaptureRunning() &&
+        isManagedFolderAutoSyncRunning() &&
+        isWidgetUsageAutoSyncRunning(),
+      managedFolderAutoSyncRunning: isManagedFolderAutoSyncRunning(),
+      widgetUsageAutoSyncRunning: isWidgetUsageAutoSyncRunning(),
+    },
     tauriMirrorSession,
     widgetRuntime: {
       allExpectedWindowsVisible: missingVisibleBubbles.length === 0,
       allWindowRoomContextMatchesActive: WIDGET_BUBBLE_TYPES.every(
         (bubbleType) => windows[bubbleType]?.selectedRoomMatchesActiveRoom,
+      ),
+      allWindowRoomContextMatchesServer: WIDGET_BUBBLE_TYPES.every(
+        (bubbleType) => windows[bubbleType]?.selectedRoomMatchesServerContext,
       ),
       barRestoreItems: {
         count: barItems.length,
