@@ -26,6 +26,7 @@ const files = {
   tauriDevtoolsGuard: "src/lib/tauri/tauri-devtools-guard.tsx",
   tauriLib: "src-tauri/src/lib.rs",
   runtimePreflight: "scripts/check-tauri-runtime-preflight.mjs",
+  oauthLiveContract: "scripts/check-tauri-oauth-live-contract.mjs",
   realOAuthQaScript: "scripts/qa-tauri-real-oauth-manual.mjs",
   localAutoSyncSoak: "scripts/check-tauri-local-auto-sync-soak.mjs",
   windowsRuntimeSoak: "scripts/check-tauri-windows-runtime-soak.mjs",
@@ -95,6 +96,7 @@ const tauriConf = read(files.tauriConf);
 const tauriDevtoolsGuard = read(files.tauriDevtoolsGuard);
 const tauriLib = read(files.tauriLib);
 const runtimePreflight = read(files.runtimePreflight);
+const oauthLiveContract = read(files.oauthLiveContract);
 const realOAuthQaScript = read(files.realOAuthQaScript);
 const localAutoSyncSoak = read(files.localAutoSyncSoak);
 const windowsRuntimeSoak = read(files.windowsRuntimeSoak);
@@ -261,6 +263,11 @@ assertContains(
   runtimePreflight,
   /\/actuator\/health[\s\S]*checkOAuthLiveContract\(\)[\s\S]*scripts\/check-tauri-oauth-live-contract\.mjs/,
   "Tauri runtime preflight must verify backend health and the live Google OAuth authorize contract.",
+);
+assertContains(
+  oauthLiveContract,
+  /access_type"\) === "offline"[\s\S]*desktop sessions can receive refresh tokens/,
+  "Tauri OAuth live contract must require access_type=offline so real desktop sessions can refresh.",
 );
 assertContains(
   runtimePreflight,

@@ -89,6 +89,10 @@ function validateAuthorizePayload(payload, response) {
   assert(redirectUri === TAURI_LOOPBACK_REDIRECT_URI, "Tauri OAuth redirect_uri must match the loopback callback.");
   assert(responseType === "code", "Tauri OAuth response_type must be code.");
   assert(state === TEST_STATE, "Tauri OAuth authorizeUrl must preserve the requested state.");
+  assert(
+    authorizeUrl.searchParams.get("access_type") === "offline",
+    "Tauri OAuth access_type must be offline so desktop sessions can receive refresh tokens.",
+  );
   assert(includeGrantedScopes === "true", "Tauri OAuth include_granted_scopes must be true.");
   assert(prompt === "select_account", "Tauri OAuth prompt must be select_account.");
 
