@@ -67,6 +67,11 @@ const smokeWidgetBubbles: SmokeWidgetBubble[] = [
   "alert",
 ];
 
+function runtimeSmokeWidgetPosition(bubbleType: SmokeWidgetBubble) {
+  const index = smokeWidgetBubbles.indexOf(bubbleType);
+  return { x: 120 + index * 12, y: 96 + index * 10 };
+}
+
 function isWindowsRuntime() {
   return typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("windows");
 }
@@ -139,6 +144,100 @@ function localFileEventNames(events: Array<{ fileName: string }>) {
 const runtimeSmokeAnalysisFilePattern = /^runtime-smoke-(structured|rich)\.(json|rtf)$/i;
 const analyzableRuntimeSmokeFilePattern =
   /\.(csv|docx|htm|html|hwpx|json|jsonl|markdown|md|pdf|pptx|rtf|tsv|txt|xlsx|ya?ml)$/i;
+
+async function verifyWidgetRestartLayout(assert: SmokeAssert) {
+  const restartedWidgetStates = await Promise.all(
+    smokeWidgetBubbles.map((bubbleType) =>
+      tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
+    ),
+  );
+
+  assert(
+    restartedWidgetStates.every((widget) => {
+      const expected = runtimeSmokeWidgetPosition(widget.activeBubble as SmokeWidgetBubble);
+      return (
+        widget.mode === "DEFAULT" &&
+        widget.windowVisible &&
+        widget.selectedRoomId === smokeRoomId &&
+        widget.position.x === expected.x &&
+        widget.position.y === expected.y
+      );
+    }),
+    "widget layout restored visible positions after app restart",
+    restartedWidgetStates,
+  );
+  await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true });
+  await tauriCommands.openWidgetWindows({
+    windows: [
+      { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" },
+      ...smokeWidgetBubbles.map((bubbleType) => ({
+        bubbleType,
+        mode: "DEFAULT" as const,
+        windowId: bubbleType,
+      })),
+    ],
+  });
+  const rebuiltWidgetStates = await Promise.all(
+    smokeWidgetBubbles.map((bubbleType) =>
+      tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
+    ),
+  );
+
+  assert(
+    rebuiltWidgetStates.every((widget) => {
+      const expected = runtimeSmokeWidgetPosition(widget.activeBubble as SmokeWidgetBubble);
+      return (
+        widget.mode === "DEFAULT" &&
+        widget.windowVisible &&
+        widget.selectedRoomId === smokeRoomId &&
+        widget.position.x === expected.x &&
+        widget.position.y === expected.y
+      );
+    }),
+    "widget layout rebuilt native windows after app restart",
+    rebuiltWidgetStates,
+  );
+}
+
+async function persistWidgetRestartLayoutCheckpoint(assert: SmokeAssert) {
+  await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true });
+  await tauriCommands.openWidgetWindows({
+    windows: [
+      { bubbleType: "bar", mode: "DEFAULT", selectedRoomId: smokeRoomId, windowId: "bar" },
+      ...smokeWidgetBubbles.map((bubbleType) => ({
+        bubbleType,
+        mode: "DEFAULT" as const,
+        selectedRoomId: smokeRoomId,
+        windowId: bubbleType,
+      })),
+    ],
+  });
+  const checkpointStates = await Promise.all(
+    smokeWidgetBubbles.map((bubbleType) =>
+      tauriCommands.setWidgetWindowPosition({
+        bubbleType,
+        windowId: bubbleType,
+        ...runtimeSmokeWidgetPosition(bubbleType),
+      }),
+    ),
+  );
+
+  assert(
+    checkpointStates.every((widget) => {
+      const expected = runtimeSmokeWidgetPosition(widget.activeBubble as SmokeWidgetBubble);
+      return (
+        widget.mode === "DEFAULT" &&
+        widget.windowVisible &&
+        widget.selectedRoomId === smokeRoomId &&
+        widget.position.x === expected.x &&
+        widget.position.y === expected.y
+      );
+    }),
+    "widget restart layout checkpoint persisted before app restart",
+    checkpointStates,
+  );
+  await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false });
+}
 
 async function syncStagedLocalFileEventsToBackend(staged: LocalFileEventsSyncStageResult) {
   const response = await managedFolderApi.syncApprovedLocalFileEvents({
@@ -329,6 +428,9 @@ async function runSmoke() {
       return;
     }
 
+    if (smokePhase === "restore-verify") {
+      await verifyWidgetRestartLayout(assert);
+    }
     await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
     const devToken = await seedDevAuthSession();
@@ -447,29 +549,19 @@ async function runSmoke() {
       "project room context propagated to all bubble widgets",
       widgetStates,
     );
-    const widgetPositionTargets = new Map(
-      smokeWidgetBubbles.map((bubbleType, index) => [
-        bubbleType,
-        { x: 120 + index * 12, y: 96 + index * 10 },
-      ]),
-    );
     const positionedWidgetStates = await Promise.all(
       smokeWidgetBubbles.map((bubbleType) => {
-        const position = widgetPositionTargets.get(bubbleType);
-        assert(position, `runtime smoke position target exists for ${bubbleType}`);
         return tauriCommands.setWidgetWindowPosition({
           bubbleType,
           windowId: bubbleType,
-          x: position.x,
-          y: position.y,
+          ...runtimeSmokeWidgetPosition(bubbleType),
         });
       }),
     );
     assert(
       positionedWidgetStates.every((widget) => {
-        const expected = widgetPositionTargets.get(widget.activeBubble as SmokeWidgetBubble);
+        const expected = runtimeSmokeWidgetPosition(widget.activeBubble as SmokeWidgetBubble);
         return (
-          expected &&
           widget.position.x === expected.x &&
           widget.position.y === expected.y &&
           widget.selectedRoomId === smokeRoomId
@@ -528,9 +620,8 @@ async function runSmoke() {
     assert(
       restoredWidgetStates.every(
         (widget) => {
-          const expected = widgetPositionTargets.get(widget.activeBubble as SmokeWidgetBubble);
+          const expected = runtimeSmokeWidgetPosition(widget.activeBubble as SmokeWidgetBubble);
           return (
-            expected &&
             widget.mode === "DEFAULT" &&
             widget.windowVisible &&
             widget.selectedRoomId === smokeRoomId &&
@@ -926,10 +1017,7 @@ async function runSmoke() {
       },
     );
     await stopTauriAuthenticatedSurfaces();
-
-    const closedCount = await tauriCommands.closeAllWidgetWindows();
-    await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false });
-    addCheck("widget windows cleaned up", { closedCount });
+    await persistWidgetRestartLayoutCheckpoint(assert);
 
     await postReport({
       checks,
