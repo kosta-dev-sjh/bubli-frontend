@@ -113,9 +113,6 @@ const modeClassNames: Record<WidgetWindowMode, string> = {
   TRANSLUCENT: styles.translucentMode,
 };
 
-// TODO 카운트 링 둘레(r=42).
-const TODO_RING_CIRCUMFERENCE = 2 * Math.PI * 42;
-
 const accentClassNames: Record<BubbleMeta["accent"], string> = {
   amber: styles.accAmber,
   blue: styles.accBlue,
@@ -1128,13 +1125,13 @@ function FlipDigit({ digit }: { digit: string }) {
   const [previous, setPrevious] = useState(digit);
   const [flipping, setFlipping] = useState(false);
 
-  // 렌더 중 prop 변화에 맞춰 상태를 조정 — effect에서 setState하면 불필요한 추가 렌더가
-  // 발생하므로(react-hooks/set-state-in-effect), React 공식 권장 패턴대로 렌더 본문에서 처리한다.
-  if (digit !== current) {
-    setPrevious(current);
-    setCurrent(digit);
-    setFlipping(true);
-  }
+  useEffect(() => {
+    if (digit !== current) {
+      setPrevious(current);
+      setCurrent(digit);
+      setFlipping(true);
+    }
+  }, [digit, current]);
 
   if (prefersReducedMotion) {
     return (
