@@ -145,6 +145,8 @@ struct WidgetWindowState {
     click_through: bool,
     dock_orb_visible: bool,
     mode: String,
+    #[serde(default)]
+    monitor_id: Option<String>,
     position: WidgetWindowPosition,
     selected_room_id: Option<String>,
     shortcut: Option<String>,
@@ -671,6 +673,7 @@ fn default_widget_window_state(bubble_type: &str, window_id: Option<String>) -> 
         click_through: false,
         dock_orb_visible: false,
         mode: "DEFAULT".to_string(),
+        monitor_id: None,
         // 사용자가 옮기기 전까지는 좌표를 저장하지 않고(UNSET), 화면 크기 기반 기본 자리를 쓴다.
         position: WidgetWindowPosition {
             x: WIDGET_POSITION_UNSET,
@@ -1063,23 +1066,40 @@ fn remember_widget_window_absolute_position(
         return Ok(());
     }
 
-    let monitor_state = app.state::<AppMonitorState>();
-    let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
-    let monitor = resolve_preferred_monitor(app, &preferred_monitor_id)?;
+    let monitor = app
+        .get_webview_window(label)
+        .and_then(|window| window.current_monitor().ok().flatten())
+        .map(|monitor| {
+            let (monitors, _primary) = list_monitors(app)?;
+            let id = monitors
+                .iter()
+                .enumerate()
+                .find(|(_, candidate)| monitors_match(candidate, &monitor))
+                .map(|(index, candidate)| monitor_id(candidate, index))
+                .unwrap_or_else(|| PRIMARY_MONITOR_ID.to_string());
+            Ok::<(Monitor, String), String>((monitor, id))
+        })
+        .transpose()?
+        .or_else(|| {
+            monitor_nearest_physical_point(app, absolute_x as f64, absolute_y as f64)
+                .ok()
+                .flatten()
+        });
     let scale = monitor
         .as_ref()
-        .map(|monitor| monitor.scale_factor())
+        .map(|(monitor, _)| monitor.scale_factor())
         .unwrap_or(1.0)
         .max(0.5);
-    let origin = monitor.as_ref().map(|monitor| monitor.position());
+    let origin = monitor.as_ref().map(|(monitor, _)| monitor.position());
     let origin_x = origin.map_or(0, |position| position.x);
     let origin_y = origin.map_or(0, |position| position.y);
     let (work_area_x, work_area_y, work_area_width, work_area_height) =
-        monitor_work_area_logical(monitor.as_ref(), scale);
-    // Moved 이벤트 좌표는 물리 px이므로 논리 px(모니터-로컬)로 환산해 저장한다.
+        monitor_work_area_logical(monitor.as_ref().map(|(monitor, _)| monitor), scale);
+    // Moved 이벤트 좌표는 물리 px이므로 현재 창이 올라간 모니터의 논리 px(모니터-로컬)로 환산해 저장한다.
     // widget_screen_position이 같은 단위로 복원하므로 HiDPI에서도 위치가 두 배로 밀리지 않는다.
     let relative_x = ((absolute_x - origin_x) as f64 / scale).round() as i32;
     let relative_y = ((absolute_y - origin_y) as f64 / scale).round() as i32;
+    let next_monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
 
     let state = app.state::<WidgetState>();
     let layout = {
@@ -1109,6 +1129,7 @@ fn remember_widget_window_absolute_position(
             x: clamped_x.round() as i32,
             y: clamped_y.round() as i32,
         };
+        widget.monitor_id = next_monitor_id;
         stored_widget_window_layout(&guard)
     };
 
@@ -1249,6 +1270,101 @@ fn list_monitors(app: &AppHandle) -> Result<(Vec<Monitor>, Option<Monitor>), Str
         .map_err(|error| error.to_string())?;
     let primary = app.primary_monitor().map_err(|error| error.to_string())?;
     Ok((monitors, primary))
+}
+
+fn monitor_with_id(monitor: &Monitor, index: usize) -> (Monitor, String) {
+    (monitor.clone(), monitor_id(monitor, index))
+}
+
+fn primary_or_first_monitor_with_id(
+    monitors: &[Monitor],
+    primary: Option<Monitor>,
+) -> Option<(Monitor, String)> {
+    if let Some(primary_monitor) = primary {
+        let id = monitors
+            .iter()
+            .enumerate()
+            .find(|(_, monitor)| monitors_match(monitor, &primary_monitor))
+            .map(|(index, monitor)| monitor_id(monitor, index))
+            .unwrap_or_else(|| PRIMARY_MONITOR_ID.to_string());
+        return Some((primary_monitor, id));
+    }
+
+    monitors.first().map(|monitor| monitor_with_id(monitor, 0))
+}
+
+fn resolve_monitor_with_id(
+    app: &AppHandle,
+    monitor_id_value: &str,
+) -> Result<Option<(Monitor, String)>, String> {
+    let (monitors, primary) = list_monitors(app)?;
+    if monitor_id_value == PRIMARY_MONITOR_ID {
+        return Ok(primary_or_first_monitor_with_id(&monitors, primary));
+    }
+
+    Ok(monitors
+        .iter()
+        .enumerate()
+        .find(|(index, monitor)| monitor_id(monitor, *index) == monitor_id_value)
+        .map(|(index, monitor)| monitor_with_id(monitor, index))
+        .or_else(|| primary_or_first_monitor_with_id(&monitors, primary)))
+}
+
+fn monitor_nearest_physical_point(
+    app: &AppHandle,
+    x: f64,
+    y: f64,
+) -> Result<Option<(Monitor, String)>, String> {
+    let (monitors, primary) = list_monitors(app)?;
+    let primary_id = primary.as_ref().and_then(|primary_monitor| {
+        monitors
+            .iter()
+            .enumerate()
+            .find(|(_, monitor)| monitors_match(monitor, primary_monitor))
+            .map(|(index, monitor)| monitor_id(monitor, index))
+    });
+
+    let mut best: Option<(f64, bool, Monitor, String)> = None;
+    for (index, monitor) in monitors.iter().enumerate() {
+        let position = monitor.position();
+        let size = monitor.size();
+        let left = position.x as f64;
+        let top = position.y as f64;
+        let right = left + size.width as f64;
+        let bottom = top + size.height as f64;
+        let dx = if x < left {
+            left - x
+        } else if x > right {
+            x - right
+        } else {
+            0.0
+        };
+        let dy = if y < top {
+            top - y
+        } else if y > bottom {
+            y - bottom
+        } else {
+            0.0
+        };
+        let distance = dx * dx + dy * dy;
+        let id = monitor_id(monitor, index);
+        let is_primary = primary_id.as_ref().is_some_and(|value| value == &id);
+        let should_replace = best
+            .as_ref()
+            .map(|(best_distance, best_is_primary, _, _)| {
+                distance < *best_distance
+                    || ((distance - *best_distance).abs() < f64::EPSILON
+                        && is_primary
+                        && !*best_is_primary)
+            })
+            .unwrap_or(true);
+
+        if should_replace {
+            best = Some((distance, is_primary, monitor.clone(), id));
+        }
+    }
+
+    Ok(best.map(|(_, _, monitor, id)| (monitor, id)))
 }
 
 fn monitor_preference_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -1481,18 +1597,26 @@ fn widget_screen_position(
     widget: &WidgetWindowState,
 ) -> Result<LogicalPosition<f64>, String> {
     let preferred_monitor_id = get_preferred_monitor_id(monitor_state)?;
-    let monitor = resolve_preferred_monitor(app, &preferred_monitor_id)?;
+    let monitor = if let Some(widget_monitor_id) = widget.monitor_id.as_deref() {
+        resolve_monitor_with_id(app, widget_monitor_id)?.or_else(|| {
+            resolve_monitor_with_id(app, &preferred_monitor_id)
+                .ok()
+                .flatten()
+        })
+    } else {
+        resolve_monitor_with_id(app, &preferred_monitor_id)?
+    };
     let scale = monitor
         .as_ref()
-        .map(|monitor| monitor.scale_factor())
+        .map(|(monitor, _)| monitor.scale_factor())
         .unwrap_or(1.0)
         .max(0.5);
     // 모니터 원점/크기는 물리 px이므로 논리 px로 환산해 저장 좌표(논리, 모니터-로컬)와 합친다.
-    let origin = monitor.as_ref().map(|monitor| monitor.position());
+    let origin = monitor.as_ref().map(|(monitor, _)| monitor.position());
     let origin_x = origin.map_or(0.0, |position| position.x as f64 / scale);
     let origin_y = origin.map_or(0.0, |position| position.y as f64 / scale);
     let (work_area_x, work_area_y, work_area_width, work_area_height) =
-        monitor_work_area_logical(monitor.as_ref(), scale);
+        monitor_work_area_logical(monitor.as_ref().map(|(monitor, _)| monitor), scale);
     let size = widget_window_size(widget);
 
     if !widget_position_is_unset(&widget.position) {
@@ -2267,11 +2391,19 @@ fn set_preferred_app_monitor(
     position_main_window_on_preferred_monitor(&app, &monitor_state)?;
 
     let widgets: Vec<WidgetWindowState> = {
-        let guard = state
+        let mut guard = state
             .lock()
             .map_err(|_| "widget state lock failed".to_string())?;
+        for widget in guard.bubbles.values_mut() {
+            widget.monitor_id = if requested_monitor_id == PRIMARY_MONITOR_ID {
+                None
+            } else {
+                Some(requested_monitor_id.clone())
+            };
+        }
         guard.bubbles.values().cloned().collect()
     };
+    persist_widget_window_state(&app, &state)?;
 
     for widget in widgets {
         apply_widget_window_state(&app, &monitor_state, &widget)?;
@@ -2315,14 +2447,15 @@ fn set_widget_window_position(
     input: WidgetWindowPositionInput,
 ) -> Result<WidgetWindowState, String> {
     let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
-    let monitor = resolve_preferred_monitor(&app, &preferred_monitor_id)?;
+    let monitor = resolve_monitor_with_id(&app, &preferred_monitor_id)?;
     let scale = monitor
         .as_ref()
-        .map(|monitor| monitor.scale_factor())
+        .map(|(monitor, _)| monitor.scale_factor())
         .unwrap_or(1.0)
         .max(0.5);
     let (work_area_x, work_area_y, work_area_width, work_area_height) =
-        monitor_work_area_logical(monitor.as_ref(), scale);
+        monitor_work_area_logical(monitor.as_ref().map(|(monitor, _)| monitor), scale);
+    let next_monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
 
     let widget = with_widget_state(&state, input.bubble_type, input.window_id, |widget| {
         let size = widget_window_size(widget);
@@ -2340,6 +2473,7 @@ fn set_widget_window_position(
             x: x.round() as i32,
             y: y.round() as i32,
         };
+        widget.monitor_id = next_monitor_id;
     })?;
     persist_widget_window_state(&app, &state)?;
     apply_widget_window_state(&app, &monitor_state, &widget)
@@ -2364,10 +2498,8 @@ fn drag_widget_bar_window(
     let cursor = window
         .cursor_position()
         .map_err(|error| error.to_string())?;
-    let monitor = window
-        .current_monitor()
-        .map_err(|error| error.to_string())?;
-    let (origin_x, origin_y, work_x, work_y, work_width, work_height) = if let Some(monitor) =
+    let monitor = monitor_nearest_physical_point(&app, cursor.x, cursor.y)?;
+    let (origin_x, origin_y, work_x, work_y, work_width, work_height) = if let Some((monitor, _)) =
         monitor.as_ref()
     {
         let origin = monitor.position();
@@ -2438,6 +2570,7 @@ fn drag_widget_bar_window(
                 x: ((next_x - origin_x) / scale).round() as i32,
                 y: ((next_y - origin_y) / scale).round() as i32,
             };
+            widget.monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
         },
     )?;
     persist_widget_window_state(&app, &state)?;
@@ -2472,8 +2605,19 @@ fn set_widget_bar_preview_placement(
     let current_position = window.outer_position().map_err(|error| error.to_string())?;
     let monitor = window
         .current_monitor()
-        .map_err(|error| error.to_string())?;
-    let (origin_x, origin_y, work_y, work_height) = if let Some(monitor) = monitor.as_ref() {
+        .map_err(|error| error.to_string())?
+        .map(|monitor| {
+            let (monitors, _primary) = list_monitors(&app)?;
+            let id = monitors
+                .iter()
+                .enumerate()
+                .find(|(_, candidate)| monitors_match(candidate, &monitor))
+                .map(|(index, candidate)| monitor_id(candidate, index))
+                .unwrap_or_else(|| PRIMARY_MONITOR_ID.to_string());
+            Ok::<(Monitor, String), String>((monitor, id))
+        })
+        .transpose()?;
+    let (origin_x, origin_y, work_y, work_height) = if let Some((monitor, _)) = monitor.as_ref() {
         let origin = monitor.position();
         let work_area = monitor.work_area();
         let dock_guard = macos_dock_guard_physical(monitor, work_area.size.height as f64, scale);
@@ -2512,6 +2656,7 @@ fn set_widget_bar_preview_placement(
                 x: ((current_position.x as f64 - origin_x) / scale).round() as i32,
                 y: ((next_y - origin_y) / scale).round() as i32,
             };
+            widget.monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
         },
     )?;
     persist_widget_window_state(&app, &state)?;
@@ -2601,22 +2746,23 @@ fn arrange_widget_windows(
     input: Option<ArrangeWidgetWindowsInput>,
 ) -> Result<Vec<WidgetWindowState>, String> {
     let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
-    let monitor = resolve_preferred_monitor(&app, &preferred_monitor_id)?;
+    let monitor = resolve_monitor_with_id(&app, &preferred_monitor_id)?;
     let scale = monitor
         .as_ref()
-        .map(|monitor| monitor.scale_factor())
+        .map(|(monitor, _)| monitor.scale_factor())
         .unwrap_or(1.0)
         .max(0.5);
     let origin_x = monitor
         .as_ref()
-        .map_or(0.0, |monitor| monitor.position().x as f64 / scale);
+        .map_or(0.0, |(monitor, _)| monitor.position().x as f64 / scale);
     let origin_y = monitor
         .as_ref()
-        .map_or(0.0, |monitor| monitor.position().y as f64 / scale);
+        .map_or(0.0, |(monitor, _)| monitor.position().y as f64 / scale);
     let monitor_width = monitor
         .as_ref()
-        .map(|monitor| monitor.size().width as f64 / scale)
+        .map(|(monitor, _)| monitor.size().width as f64 / scale)
         .unwrap_or(WIDGET_FALLBACK_MONITOR_WIDTH);
+    let next_monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
 
     // 정렬 대상: 바/메뉴 제외, 실제 웹뷰가 떠 있는 보이는 버블 창(계단 인덱스 순 안정 정렬).
     let mut targets: Vec<WidgetWindowState> = {
@@ -2671,6 +2817,7 @@ fn arrange_widget_windows(
                 .find(|widget| widget_window_label(widget) == *label)
             {
                 widget.position = position.clone();
+                widget.monitor_id = next_monitor_id.clone();
             }
         }
         let placed_labels: HashSet<String> =
