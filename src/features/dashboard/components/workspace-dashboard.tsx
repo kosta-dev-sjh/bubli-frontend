@@ -45,7 +45,7 @@ import type { AgentSuggestionResponse, AgentSuggestionType } from "@/types/api/a
 import type { NotificationResponse } from "@/types/api/notification";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { ResourceResponse } from "@/types/api/resource";
-import type { DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
+import type { DashboardActivityHeatmapResponse, DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
 
 import styles from "./workspace-dashboard.module.css";
 
@@ -191,6 +191,16 @@ function formatFocusDuration(t: TranslateFn, seconds: number) {
   }
 
   return t("dashboard.common.minute", { minutes });
+}
+
+function formatHeatmapDate(locale: string, value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat(LOCALE_TAGS[locale] ?? "ko-KR", {
+    day: "numeric",
+    month: "numeric",
+  }).format(date);
 }
 
 function getWeekRange(base: Date) {
@@ -459,14 +469,24 @@ function RoomProgressWidget({
   );
 }
 
-function FocusStatsWidget({ logs, roomId }: { logs: ActivityLogResponse[] | null; roomId: string | null }) {
-  const { t } = useI18n();
+function FocusStatsWidget({
+  heatmap,
+  logs,
+  roomId,
+}: {
+  heatmap: DashboardActivityHeatmapResponse[] | null;
+  logs: ActivityLogResponse[] | null;
+  roomId: string | null;
+}) {
+  const { locale, t } = useI18n();
+  const visibleHeatmap = roomId ? [] : (heatmap ?? []).slice(-14);
+  const maxHeatmapMinutes = Math.max(1, ...visibleHeatmap.map((entry) => entry.focusMinutes));
 
-  if (!logs) {
+  if (!logs && visibleHeatmap.length === 0) {
     return <EmptyWidget message={t("dashboard.focus.empty")} />;
   }
 
-  const scoped = roomId ? logs.filter((log) => log.roomId === roomId) : logs;
+  const scoped = roomId ? (logs ?? []).filter((log) => log.roomId === roomId) : (logs ?? []);
   const logsByApp = new Map<string, ActivityLogResponse[]>();
 
   for (const log of scoped) {
@@ -480,7 +500,7 @@ function FocusStatsWidget({ logs, roomId }: { logs: ActivityLogResponse[] | null
   }
   const totalSeconds = getDeoverlappedActivityDurationSeconds(scoped);
 
-  if (scoped.length === 0 || totalSeconds === 0) {
+  if ((scoped.length === 0 || totalSeconds === 0) && visibleHeatmap.length === 0) {
     return <EmptyWidget message={t("dashboard.focus.empty")} />;
   }
 
@@ -489,21 +509,34 @@ function FocusStatsWidget({ logs, roomId }: { logs: ActivityLogResponse[] | null
 
   return (
     <div className={styles.statBlock}>
-      <p className={styles.statHeadline}>
-        <em>{t("dashboard.focus.total")}</em>
-        <b>{formatFocusDuration(t, totalSeconds)}</b>
-      </p>
-      <div aria-label={t("dashboard.focus.chartAria")} className={styles.appBars} role="img">
-        {topApps.map(([appName, seconds]) => (
-          <div className={styles.appBarRow} key={appName}>
-            <span className={styles.appBarName}>{appName}</span>
-            <span className={styles.appBarTrack}>
-              <i className={styles.appBarFill} style={{ width: `${Math.max(6, Math.round((seconds / topSeconds) * 100))}%` }} />
-            </span>
-            <b className={styles.appBarValue}>{formatFocusDuration(t, seconds)}</b>
+      {scoped.length > 0 && totalSeconds > 0 ? (
+        <>
+          <p className={styles.statHeadline}>
+            <em>{t("dashboard.focus.total")}</em>
+            <b>{formatFocusDuration(t, totalSeconds)}</b>
+          </p>
+          <div aria-label={t("dashboard.focus.chartAria")} className={styles.appBars} role="img">
+            {topApps.map(([appName, seconds]) => (
+              <div className={styles.appBarRow} key={appName}>
+                <span className={styles.appBarName}>{appName}</span>
+                <span className={styles.appBarTrack}>
+                  <i className={styles.appBarFill} style={{ width: `${Math.max(6, Math.round((seconds / topSeconds) * 100))}%` }} />
+                </span>
+                <b className={styles.appBarValue}>{formatFocusDuration(t, seconds)}</b>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      ) : null}
+      {visibleHeatmap.length > 0 ? (
+        <div aria-label={t("dashboard.focus.chartAria")} className={styles.focusHeatmap} role="img">
+          {visibleHeatmap.map((entry) => (
+            <span className={styles.focusHeatmapBar} key={entry.date} title={`${formatHeatmapDate(locale, entry.date)} - ${entry.focusMinutes}m - ${entry.count}`}>
+              <i style={{ height: `${Math.max(8, Math.round((entry.focusMinutes / maxHeatmapMinutes) * 100))}%` }} />
+            </span>
+          ))}
+        </div>
+      ) : null}
       <p className={styles.statCaption}>{t("dashboard.focus.autoNote")}</p>
     </div>
   );
@@ -784,6 +817,7 @@ export function WorkspaceDashboard() {
   const [personalResources, setPersonalResources] = useState<ResourceResponse[]>([]);
   const [roomResources, setRoomResources] = useState<Record<string, ResourceResponse[] | null>>({});
   const [weekSchedules, setWeekSchedules] = useState<ScheduleResponse[] | null>(null);
+  const [activityHeatmap, setActivityHeatmap] = useState<DashboardActivityHeatmapResponse[] | null>(null);
   const [todayActivityLogs, setTodayActivityLogs] = useState<ActivityLogResponse[] | null>(null);
   const [pendingSuggestions, setPendingSuggestions] = useState<AgentSuggestionResponse[] | null>(null);
   const [notifications, setNotifications] = useState<NotificationResponse[] | null>(null);
@@ -837,6 +871,7 @@ export function WorkspaceDashboard() {
         feedTaskResult,
         resourceResult,
         activityResult,
+        activityHeatmapResult,
         scheduleResult,
         suggestionResult,
         notificationResult,
@@ -846,6 +881,7 @@ export function WorkspaceDashboard() {
         dashboardApi.getTasks(),
         resourcesApi.listPersonal(),
         activityApi.getToday(),
+        dashboardApi.getActivityHeatmap({ days: 14 }),
         calendarApi.getEvents({ from: from.toISOString(), size: 100, to: to.toISOString() }),
         agentApi.listPersonalSuggestions({ status: "DRAFT" }),
         notificationApi.list({ size: 20 }),
@@ -857,6 +893,7 @@ export function WorkspaceDashboard() {
       setDashboardFeedTasks(feedTaskResult.status === "fulfilled" ? feedTaskResult.value.items : []);
       setPersonalResources(resourceResult.status === "fulfilled" ? resourceResult.value.items : []);
       setTodayActivityLogs(activityResult.status === "fulfilled" ? activityResult.value : null);
+      setActivityHeatmap(activityHeatmapResult.status === "fulfilled" ? activityHeatmapResult.value : null);
       setWeekSchedules(scheduleResult.status === "fulfilled" ? scheduleResult.value.items : null);
       setPendingSuggestions(suggestionResult.status === "fulfilled" ? suggestionResult.value : null);
       setNotifications(notificationResult.status === "fulfilled" ? notificationResult.value.items : null);
@@ -871,6 +908,7 @@ export function WorkspaceDashboard() {
         setRoomsLoaded(true);
         setPersonalResources([...workspacePreviewPersonalResources, ...workspacePreviewRoomResources]);
         setWeekSchedules(workspacePreviewDashboard.todaySchedules);
+        setActivityHeatmap([]);
         setTodayActivityLogs([]);
         setPendingSuggestions([]);
         setNotifications([]);
@@ -1196,7 +1234,7 @@ export function WorkspaceDashboard() {
         case "room-progress":
           return <RoomProgressWidget boards={wbsBoards} roomId={scopedRoomId} rooms={activeRooms} />;
         case "focus-stats":
-          return <FocusStatsWidget logs={todayActivityLogs} roomId={scopedRoomId} />;
+          return <FocusStatsWidget heatmap={activityHeatmap} logs={todayActivityLogs} roomId={scopedRoomId} />;
         case "agent-queue":
           return <AgentQueueWidget count={pendingSuggestionCount} />;
         case "project-rooms":
@@ -1233,6 +1271,7 @@ export function WorkspaceDashboard() {
     },
     [
       activeRooms,
+      activityHeatmap,
       allTasks,
       canShowBoard,
       createTodo,

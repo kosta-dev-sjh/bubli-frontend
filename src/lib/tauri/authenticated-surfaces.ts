@@ -62,8 +62,8 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function autoLaunchFailureKey(userId: string | undefined, selectedRoomId: string) {
-  return `${userId ?? "anonymous"}:${selectedRoomId}`;
+function autoLaunchFailureKey(userId: string | undefined, selectedRoomId: string | null) {
+  return `${userId ?? "anonymous"}:${selectedRoomId ?? "personal"}`;
 }
 
 function shouldApplyAutoLaunchCooldown(options: LaunchTauriAuthenticatedSurfacesOptions) {
@@ -373,12 +373,11 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
 
     const startupWindows = await resolveLoginStartupWindows();
     timeline.startupWindowsResolvedAt = nowIso();
-    const selectedRoomId = options.selectedRoomId ?? (await resolveLaunchSelectedRoomId());
+    const selectedRoomId = Object.prototype.hasOwnProperty.call(options, "selectedRoomId")
+      ? options.selectedRoomId ?? null
+      : await resolveLaunchSelectedRoomId();
     launchInFlightRoomId = selectedRoomId?.trim() || launchInFlightRoomId;
     timeline.selectedRoomResolvedAt = nowIso();
-    if (!selectedRoomId) {
-      throw new Error("Tauri authenticated surfaces require a selected project room");
-    }
     const launchFailureKey = autoLaunchFailureKey(verifiedSession?.user.id ?? initialSession.user.id, selectedRoomId);
     const applyAutoLaunchCooldown = shouldApplyAutoLaunchCooldown(options);
     if (applyAutoLaunchCooldown && shouldSuppressAutoLaunchRetry(launchFailureKey)) {
