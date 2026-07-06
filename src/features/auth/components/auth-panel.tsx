@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type CSSProperties, type PointerEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type CSSProperties, type PointerEvent } from "react";
 
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { siteConfig } from "@/config/site";
@@ -93,6 +93,18 @@ function shouldUseTauriDevLogin() {
 const TAURI_LOOPBACK_REDIRECT_URI = "http://127.0.0.1:3791/auth/callback";
 const TAURI_MEMBER_APP_ROUTE = "/app/";
 
+function subscribeClientSnapshot() {
+  return () => undefined;
+}
+
+function getClientSnapshot() {
+  return true;
+}
+
+function getServerSnapshot() {
+  return false;
+}
+
 function createTauriLoginState() {
   const nonce =
     typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -123,15 +135,17 @@ export function AuthPanel() {
   const liveUser = liveAuth.user;
   const [isStartingLogin, setIsStartingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const hasMounted = useSyncExternalStore(subscribeClientSnapshot, getClientSnapshot, getServerSnapshot);
   const isDevTauriLogin = shouldUseTauriDevLogin();
   const isCheckingExistingSession = liveAuth.status === "checking";
-  const submitLabel = isTauriRuntime()
-    ? t("auth.panel.googleLogin")
-    : isCheckingExistingSession
-      ? t("common.loading")
-      : isStartingLogin
-        ? t("auth.panel.googleRedirecting")
-        : t("auth.panel.googleLogin");
+  const submitLabel =
+    hasMounted && isTauriRuntime()
+      ? t("auth.panel.googleLogin")
+      : isCheckingExistingSession
+        ? t("common.loading")
+        : isStartingLogin
+          ? t("auth.panel.googleRedirecting")
+          : t("auth.panel.googleLogin");
 
   // 살아 있는 세션이면 다시 로그인하지 않고 곧바로 앱으로 보낸다.
   useEffect(() => {
