@@ -638,10 +638,8 @@ function buildDisplayBubbles(input: {
   } else {
     // 개인 컨텍스트: 오늘 작업(개인+할당) 우선, 모자라면 다가오는 마감으로 채운 뒤 귀속별로 나눈다.
     const todoSource = input.dashboard?.todayTasks.length ? input.dashboard.todayTasks : input.tasks;
-    const deadlineFill = (input.dashboard?.upcomingDeadlines ?? []).filter(
-      (deadline) => !todoSource.some((task) => task.id === deadline.id),
-    );
-    const merged = [...todoSource, ...deadlineFill].filter(isNotDoneTask);
+    // 미래 마감으로 채우지 않는다 — 오늘 남은 것만 센다(없으면 0).
+    const merged = todoSource.filter(isNotDoneTask);
     personalTodoTasks = merged.filter((task) => !task.roomId);
     roomTodoTasks = merged.filter((task) => Boolean(task.roomId));
   }
@@ -676,7 +674,11 @@ function buildDisplayBubbles(input: {
         ...personalTodoTasks.map((task) => todoTaskToRow(task, "personal")),
         ...roomTodoTasks.map((task) => todoTaskToRow(task, "room")),
       ];
-  const todoItems = todoRowsOrdered; // 전체 전달 — 위젯 목록은 todoScroll 내부 스크롤로 다 본다
+  // 완료 항목도 계속 보여준다(잘못 체크했으면 다시 눌러 되돌릴 수 있게). 남은 작업 뒤에 붙인다.
+  const todoDoneRows = todoTodaySource
+    .filter((task) => task.status === "DONE")
+    .map((task) => todoTaskToRow(task, task.roomId ? "room" : "personal"));
+  const todoItems = [...todoRowsOrdered, ...todoDoneRows];
 
   const scheduleItems = scheduleSource.slice(0, 3);
   const scheduleTimeLabel = (item: WidgetScheduleResponse) => (item.allDay ? t("widget.schedule.allDay") : formatShortTime(item.startsAt));
@@ -1960,7 +1962,7 @@ function DesktopWidgetSurface() {
 
       await persistItemState();
       if (activeBubble === "todo" && item.kind === "task" && state === "CONFIRMED") {
-        await todoApi.update(item.id, { status: "DONE" });
+        await todoApi.update(item.id, { status: item.checked ? "TODO" : "DONE" });
         setTodoRevision((current) => current + 1);
         publishWidgetDataChanged("todo");
       }
