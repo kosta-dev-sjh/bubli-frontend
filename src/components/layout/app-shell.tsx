@@ -561,7 +561,7 @@ export function AppShell({ children }: AppShellProps) {
 
     if (state.kind === "auth") {
       if (isDesktopRuntime) {
-        void stopTauriAuthenticatedSurfaces().catch((error) => {
+        void stopTauriAuthenticatedSurfaces({ flushSyncLoops: false }).catch((error) => {
           console.warn("Failed to stop Tauri authenticated surfaces after auth reset.", error);
         });
       }

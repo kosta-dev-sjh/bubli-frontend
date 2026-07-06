@@ -5,6 +5,8 @@ import type { ResourceDownloadUrlResponse } from "@/types/api/resource";
 import type { TimeLogResponse } from "@/types/api/timer";
 import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
 
+const WIDGET_MEMO_PAGE_SIZE = 100;
+
 export type WidgetTaskStatus = "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE" | "BLOCKED";
 export type WidgetResourceKind = "FILE" | "MEMO";
 export type WidgetResourceStatus = "UPLOADING" | "READY" | "ANALYZING" | "ANALYZED" | "FAILED";
@@ -262,11 +264,31 @@ export const widgetDisplayApi = {
     return widgetDisplayRequest<ResourceDownloadUrlResponse>(`/api/resources/${resourceId}/download-url`);
   },
 
-  listMemos(roomId?: string | null, size = 6) {
+  listMemos(roomId?: string | null, size = 6, page = 0) {
     if (roomId) {
-      return widgetDisplayRequest<PageResponse<WidgetMemoResponse>>(`/api/project-rooms/${roomId}/memos?page=0&size=${size}`);
+      return widgetDisplayRequest<PageResponse<WidgetMemoResponse>>(`/api/project-rooms/${roomId}/memos?page=${page}&size=${size}`);
     }
-    return widgetDisplayRequest<PageResponse<WidgetMemoResponse>>(`/api/memos?page=0&size=${size}`);
+    return widgetDisplayRequest<PageResponse<WidgetMemoResponse>>(`/api/memos?page=${page}&size=${size}`);
+  },
+
+  async listAllMemos(roomId?: string | null, size = WIDGET_MEMO_PAGE_SIZE) {
+    const items: WidgetMemoResponse[] = [];
+    let page = 0;
+    let lastPage: PageResponse<WidgetMemoResponse> | null = null;
+
+    do {
+      lastPage = await widgetDisplayApi.listMemos(roomId, size, page);
+      items.push(...lastPage.items);
+      page += 1;
+    } while (lastPage.hasNext);
+
+    return {
+      ...(lastPage ?? { hasNext: false, page: 0, size, totalPages: 0 }),
+      hasNext: false,
+      items,
+      page: 0,
+      size: items.length,
+    } satisfies PageResponse<WidgetMemoResponse>;
   },
 
   createMemo(body: string, roomId?: string | null) {

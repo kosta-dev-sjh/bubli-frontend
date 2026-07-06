@@ -7,6 +7,10 @@ import { tauriCommands } from "@/lib/tauri/commands";
 const AUTH_SESSION_STORAGE_KEY = "bubli-auth-session";
 const ACCESS_TOKEN_EXPIRY_BUFFER_MS = 30_000;
 const DEV_REFRESH_TOKEN_PREFIX = "dev-refresh-token:";
+const tauriAuthMirrorRestoreEnabled =
+  process.env.NEXT_PUBLIC_BUBLI_TAURI_AUTH_MIRROR_RESTORE === "true" ||
+  process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true" ||
+  process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true";
 
 export const AUTH_SESSION_CHANGE_EVENT = "bubli:auth-session-change";
 
@@ -360,6 +364,10 @@ export async function restoreStoredAuthSessionFromTauri() {
 
   if (current && !isExpired(current.refreshTokenExpiresAt)) {
     await mirrorAuthSessionToTauri(current);
+  }
+
+  if (!tauriAuthMirrorRestoreEnabled) {
+    return current;
   }
 
   try {

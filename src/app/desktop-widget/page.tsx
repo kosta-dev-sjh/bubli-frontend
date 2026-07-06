@@ -705,7 +705,7 @@ function buildDisplayBubbles(input: {
 
   const scheduleItems = scheduleSource.slice(0, 3);
   const scheduleTimeLabel = (item: WidgetScheduleResponse) => (item.allDay ? t("widget.schedule.allDay") : formatShortTime(item.startsAt));
-  const memoItems = input.memos.filter((item) => item.status === "ACTIVE").slice(0, 3);
+  const memoItems = input.memos.filter((item) => item.status === "ACTIVE");
   const fileItems = input.resources.filter((item) => item.kind !== "MEMO").slice(0, 3);
   const agentRows =
     input.suggestions.length > 0
@@ -1628,7 +1628,7 @@ function DesktopWidgetSurface() {
           loadTasks ? widgetDisplayApi.listTasks(selectedRoomId, 6) : Promise.resolve(null),
           loadSchedules ? widgetDisplayApi.listSchedules(selectedRoomId, 6) : Promise.resolve(null),
           loadResources ? widgetDisplayApi.listResources(selectedRoomId, 6) : Promise.resolve(null),
-          loadMemos ? widgetDisplayApi.listMemos(selectedRoomId, 6) : Promise.resolve(null),
+          loadMemos ? widgetDisplayApi.listAllMemos(selectedRoomId) : Promise.resolve(null),
           loadSuggestions ? widgetDisplayApi.listAgentSuggestions(selectedRoomId) : Promise.resolve(null),
           loadNotifications ? widgetDisplayApi.listNotifications(20) : Promise.resolve(null),
           loadChat ? widgetDisplayApi.listChatRooms(20) : Promise.resolve(null),
@@ -2345,9 +2345,9 @@ function DesktopWidgetSurface() {
   );
 
   const editWidgetMemo = useCallback(
-    async (item: WidgetPreviewItem) => {
+    async (item: WidgetPreviewItem, inlineBody?: string) => {
       const currentBody = item.memoBody ?? item.label;
-      const body = window.prompt(t("widget.memo.prompt"), currentBody)?.trim();
+      const body = (inlineBody ?? window.prompt(t("widget.memo.prompt"), currentBody) ?? "").trim();
       if (!body || body === currentBody) return;
 
       const memo = await widgetDisplayApi.updateMemo(item.id, body);

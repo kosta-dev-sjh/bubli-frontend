@@ -46,7 +46,12 @@ type LaunchTauriAuthenticatedSurfacesOptions = {
   sessionAlreadyValidated?: boolean;
 };
 
+type StopTauriAuthenticatedSurfacesOptions = {
+  flushSyncLoops?: boolean;
+};
+
 let lastLaunchTimeline: TauriAuthenticatedSurfaceLaunchTimeline = { completed: false };
+let stopPromise: Promise<void> | null = null;
 
 function nowIso() {
   return new Date().toISOString();
@@ -477,25 +482,34 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
   return launchPromise;
 }
 
-export async function stopTauriAuthenticatedSurfaces() {
-  launchGeneration += 1;
-  launchRequested = false;
-  launchPromise = null;
-  launchedAuthenticatedSurfaces = false;
-  lastLaunchTimeline = {
-    ...lastLaunchTimeline,
-    completed: false,
-    stoppedAt: nowIso(),
-  };
-  await stopActivityAutoCapture({ flush: true });
-  await stopManagedFolderAutoSync({ flush: true });
-  await stopWidgetUsageAutoSync({ flush: true });
+export async function stopTauriAuthenticatedSurfaces(options: StopTauriAuthenticatedSurfacesOptions = {}) {
+  if (stopPromise) return stopPromise;
 
-  if (!isTauriRuntime()) return;
+  const flushSyncLoops = options.flushSyncLoops ?? true;
+  stopPromise = (async () => {
+    launchGeneration += 1;
+    launchRequested = false;
+    launchPromise = null;
+    launchedAuthenticatedSurfaces = false;
+    lastLaunchTimeline = {
+      ...lastLaunchTimeline,
+      completed: false,
+      stoppedAt: nowIso(),
+    };
+    await stopActivityAutoCapture({ flush: flushSyncLoops });
+    await stopManagedFolderAutoSync({ flush: flushSyncLoops });
+    await stopWidgetUsageAutoSync({ flush: flushSyncLoops });
 
-  clearActiveProjectRoomId();
-  await tauriCommands.clearActiveProjectRoom().catch(() => undefined);
-  await tauriCommands.setWidgetRoomContext({ selectedRoomId: null }).catch(() => undefined);
-  await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
-  await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
+    if (!isTauriRuntime()) return;
+
+    clearActiveProjectRoomId();
+    await tauriCommands.clearActiveProjectRoom().catch(() => undefined);
+    await tauriCommands.setWidgetRoomContext({ selectedRoomId: null }).catch(() => undefined);
+    await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
+    await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
+  })().finally(() => {
+    stopPromise = null;
+  });
+
+  return stopPromise;
 }

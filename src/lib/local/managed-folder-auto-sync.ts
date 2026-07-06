@@ -92,7 +92,15 @@ export function startManagedFolderAutoSync() {
 }
 
 export async function stopManagedFolderAutoSync(input?: ManagedFolderAutoSyncStopInput) {
-  if (input?.flush) {
+  const shouldFlush =
+    Boolean(input?.flush) &&
+    (syncIntervalId !== null ||
+      syncInFlight ||
+      syncInFlightPromise !== null ||
+      pendingFullSyncRequested ||
+      pendingFolderSyncIds.size > 0);
+
+  if (shouldFlush) {
     await flushManagedFolderAutoSync();
   }
 

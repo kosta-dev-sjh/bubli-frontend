@@ -1608,6 +1608,7 @@ CREATE TABLE IF NOT EXISTS local_widget_usage_events (
     created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_widget_usage_occurred ON local_widget_usage_events(occurred_at);
+CREATE INDEX IF NOT EXISTS idx_widget_usage_bubble_occurred ON local_widget_usage_events(bubble_type, occurred_at);
 
 -- Per-date, per-bubble rollups; only these (not raw events) reach the server.
 CREATE TABLE IF NOT EXISTS local_widget_usage_rollups (

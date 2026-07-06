@@ -37,9 +37,9 @@ const WIDGET_DEFAULT_HEIGHT: f64 = 360.0;
 const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 // 바 창은 pill(하단 고정 64px)만 시각적으로 유지한다. Bubli 메뉴는 바 창 안에서
 // 브랜드 칩이 pill 위 투명 영역으로 morph해 열리는 인라인 패널이다(별도 menu 창 자동 실행 없음).
-// 창 높이는 pill 위 hover 요약 팝오버 + 메뉴 패널(280×≈352, bottom 68px 앵커)이 들어갈
+// 창 높이는 pill 위 hover 요약 팝오버 + 메뉴 패널(280×≈532, bottom 68px 앵커)이 들어갈
 // 투명 여유를 포함한다 — desktop-widget-bubble.module.css .barRoot/.barPopover/.barMenuPanel과
-// 동기화한다(68 + 352 + 여유 ≈ 430).
+// 동기화한다(68 + 532 + hover/그림자 여유 ≈ 640).
 // 창 너비는 최악 조합(고정 알림 칩 + 구분선 + 브랜드 버블 마크 + 접힌 칩 7개, 타이머 칩은
 // 시간 텍스트 포함)이 전부 들어가는 640 고정이다. 계산: 36px 칩 8개 + 타이머 시간 텍스트(~78px)
 // + gap 6×9 + pill 패딩/보더 ≈ 460px < 640. "+N" 접기와 잘림이 어떤 조합에서도 없다.
@@ -48,7 +48,7 @@ const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 // 붙고(desktop-widget-bubble.module.css .barRoot), pill 밖 투명 영역은 커서 폴러가 클릭
 // 통과시키므로 창이 커도 무해하다.
 const WIDGET_BAR_WIDTH: f64 = 640.0;
-const WIDGET_BAR_HEIGHT: f64 = 430.0;
+const WIDGET_BAR_HEIGHT: f64 = 640.0;
 // 바 창은 투명 여유를 포함하므로 native top-left가 화면 밖으로 일부 나갈 수 있다.
 // 그래도 복원 시 사용자가 찾을 수 있도록 최소한 이 폭만큼은 선호 모니터 안에 남긴다.
 const WIDGET_BAR_MIN_VISIBLE_WIDTH: f64 = 320.0;
@@ -4023,7 +4023,7 @@ mod tests {
     #[test]
     fn widget_layout_restore_shifts_legacy_bar_y_by_height_delta() {
         // barLayoutHeight가 없는 구버전(220) 레이아웃: 바 pill은 창 하단 고정이라
-        // 새 높이(430)와의 델타(210)만큼 y를 위로 당겨 pill 화면 위치를 유지한다.
+        // 현재 높이와의 델타만큼 y를 위로 당겨 pill 화면 위치를 유지한다.
         let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
             active_bubble: "bar".to_string(),
             bar_layout_height: None,

@@ -6,6 +6,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const NEXT_DIR = join(ROOT, ".next");
 const SERVER_APP_DIR = join(NEXT_DIR, "server", "app");
 const TAURI_DIST_DIR = join(ROOT, ".tauri-dist");
+const args = new Set(process.argv.slice(2));
+const includeDownloads = args.has("--include-downloads");
+const skippedPublicFiles = [];
 
 function copyRequiredFile(source, destination) {
   if (!existsSync(source)) {
@@ -16,10 +19,11 @@ function copyRequiredFile(source, destination) {
   cpSync(source, destination);
 }
 
-function copyIfExists(source, destination) {
+function copyIfExists(source, destination, options = {}) {
   if (!existsSync(source)) return;
   for (const file of walkFiles(source)) {
     const relativePath = relative(source, file);
+    if (options.shouldSkip?.(relativePath, file)) continue;
     copyRequiredFile(file, join(destination, relativePath));
   }
 }
@@ -35,6 +39,25 @@ function walkFiles(directory) {
 function routeHtmlDestination(relativePath) {
   if (relativePath === "index.html") return "index.html";
   return join(relativePath.slice(0, -extname(relativePath).length), "index.html");
+}
+
+function normalizePath(path) {
+  return path.split("\\").join("/");
+}
+
+function shouldSkipPublicFile(relativePath, file) {
+  const normalizedPath = normalizePath(relativePath);
+  const isDownloadFile = normalizedPath === "downloads" || normalizedPath.startsWith("downloads/");
+  if (!isDownloadFile || includeDownloads) return false;
+
+  skippedPublicFiles.push({ path: normalizedPath, size: statSync(file).size });
+  return true;
+}
+
+function formatBytes(bytes) {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
 }
 
 try {
@@ -56,10 +79,19 @@ try {
   copyIfExists(join(NEXT_DIR, "static"), join(TAURI_DIST_DIR, "_next", "static"));
   for (const source of walkFiles(join(ROOT, "public"))) {
     const relativePath = relative(join(ROOT, "public"), source);
+    if (shouldSkipPublicFile(relativePath, source)) continue;
     copyRequiredFile(source, join(TAURI_DIST_DIR, relativePath));
   }
 
   console.log(`Prepared Tauri static dist at ${TAURI_DIST_DIR}`);
+  if (skippedPublicFiles.length > 0) {
+    const skippedBytes = skippedPublicFiles.reduce((total, file) => total + file.size, 0);
+    console.log(
+      `Skipped ${skippedPublicFiles.length} public download file(s) from the desktop bundle (${formatBytes(
+        skippedBytes,
+      )}). Pass --include-downloads to package them intentionally.`,
+    );
+  }
 } catch (error) {
   console.error(error);
   process.exit(1);

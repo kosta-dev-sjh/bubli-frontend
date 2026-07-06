@@ -1,6 +1,7 @@
 # Node
 node_modules/
 dist/
+dist-tauri/
 build/
 .next/
 .tauri-dist/

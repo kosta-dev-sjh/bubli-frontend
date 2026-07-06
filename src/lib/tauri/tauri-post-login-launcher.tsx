@@ -69,7 +69,7 @@ export function TauriPostLoginLauncher() {
 
       const hasAuthenticatedSession = Boolean(session);
       if (!hasAuthenticatedSession) {
-        await stopTauriAuthenticatedSurfaces();
+        await stopTauriAuthenticatedSurfaces({ flushSyncLoops: false });
         return;
       }
 
@@ -81,7 +81,7 @@ export function TauriPostLoginLauncher() {
         }
 
         if (error instanceof ApiClientError && error.status === 401) {
-          await stopTauriAuthenticatedSurfaces();
+          await stopTauriAuthenticatedSurfaces({ flushSyncLoops: false });
         }
         return;
       }
@@ -91,7 +91,7 @@ export function TauriPostLoginLauncher() {
       }
 
       if (!getStoredAuthSession()) {
-        await stopTauriAuthenticatedSurfaces();
+        await stopTauriAuthenticatedSurfaces({ flushSyncLoops: false });
         return;
       }
 

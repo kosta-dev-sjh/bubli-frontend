@@ -18,6 +18,7 @@ const files = {
   projectRoomChatRoute: "src/app/(workspace)/app/project-rooms/[roomId]/chat/page.tsx",
   layout: "src/app/layout.tsx",
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
+  tauriRuntimeGates: "src/lib/tauri/tauri-runtime-gates.tsx",
   realOAuthQaReporter: "src/lib/tauri/tauri-real-oauth-qa-reporter.tsx",
   authWidgetQa: "src/lib/tauri/tauri-auth-widget-qa.ts",
   managedFolderAutoSync: "src/lib/local/managed-folder-auto-sync.ts",
@@ -25,6 +26,7 @@ const files = {
   runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
   tauriCapability: "src-tauri/capabilities/default.json",
   tauriConf: "src-tauri/tauri.conf.json",
+  tauriMacosConf: "src-tauri/tauri.macos.conf.json",
   tauriDevtoolsGuard: "src/lib/tauri/tauri-devtools-guard.tsx",
   tauriLib: "src-tauri/src/lib.rs",
   prepareTauriDist: "scripts/prepare-tauri-dist.mjs",
@@ -90,6 +92,7 @@ function extractTypeObject(source, typeName) {
 const layout = read(files.layout);
 const packageJson = read(files.packageJson);
 const launcher = read(files.postLoginLauncher);
+const tauriRuntimeGates = read(files.tauriRuntimeGates);
 const realOAuthQaReporter = read(files.realOAuthQaReporter);
 const authWidgetQa = read(files.authWidgetQa);
 const managedFolderAutoSync = read(files.managedFolderAutoSync);
@@ -97,6 +100,7 @@ const firstRunController = read(files.firstRunController);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
 const tauriCapability = read(files.tauriCapability);
 const tauriConf = read(files.tauriConf);
+const tauriMacosConf = read(files.tauriMacosConf);
 const tauriDevtoolsGuard = read(files.tauriDevtoolsGuard);
 const tauriLib = read(files.tauriLib);
 const prepareTauriDist = read(files.prepareTauriDist);
@@ -147,8 +151,13 @@ assertContains(
 );
 assertContains(
   layout,
-  /<TauriRealOAuthQaReporter\s*\/>/,
-  "Root layout must mount TauriRealOAuthQaReporter so manual real Google OAuth QA can collect a redacted report.",
+  /<TauriRuntimeGates\s*\/>/,
+  "Root layout must mount TauriRuntimeGates so Tauri guards and explicit QA runners stay available.",
+);
+assertContains(
+  tauriRuntimeGates,
+  /const realOAuthQaEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true";[\s\S]*import\("@\/lib\/tauri\/tauri-real-oauth-qa-reporter"\)[\s\S]*realOAuthQaEnabled \? <TauriRealOAuthQaReporter \/> : null/,
+  "TauriRuntimeGates must lazy-load TauriRealOAuthQaReporter only when the explicit real OAuth QA flag is enabled.",
 );
 assertContains(
   realOAuthQaReporter,
@@ -377,14 +386,14 @@ assertContains(
 );
 
 assertContains(
-  layout,
+  tauriRuntimeGates,
   /<TauriPostLoginLauncher\s*\/>/,
-  "Root layout must mount TauriPostLoginLauncher so hybrid app login can start native widgets.",
+  "TauriRuntimeGates must mount TauriPostLoginLauncher so hybrid app login can start native widgets.",
 );
 assertContains(
-  layout,
+  tauriRuntimeGates,
   /<TauriDevtoolsGuard\s*\/>/,
-  "Root layout must mount TauriDevtoolsGuard for hybrid/widget devtools hardening.",
+  "TauriRuntimeGates must mount TauriDevtoolsGuard for hybrid/widget devtools hardening.",
 );
 assertContains(
   tauriConf,
@@ -395,6 +404,11 @@ assertContains(
   tauriConf,
   /"beforeBuildCommand":\s*"npm run build && node scripts\/prepare-tauri-dist\.mjs"[\s\S]*"frontendDist":\s*"\.\.\/\.tauri-dist"/,
   "Tauri release builds must package the prepared .tauri-dist directory instead of raw .next server output.",
+);
+assertContains(
+  tauriMacosConf,
+  /"beforeBuildCommand":\s*"npm run build && node scripts\/prepare-tauri-dist\.mjs"[\s\S]*"frontendDist":\s*"\.\.\/\.tauri-dist"/,
+  "macOS Tauri release builds must use the optimized .tauri-dist directory instead of the legacy dist-tauri installer mirror.",
 );
 assertContains(
   tauriConf,
@@ -452,9 +466,9 @@ assertContains(
   "TauriDevtoolsGuard must stop blocked devtools/context-menu events before app handlers can re-open them.",
 );
 assertContains(
-  layout,
-  /<TauriRuntimeSmokeRunner\s*\/>/,
-  "Root layout must mount TauriRuntimeSmokeRunner so Windows runtime smoke can exercise real Tauri IPC.",
+  tauriRuntimeGates,
+  /const runtimeSmokeEnabled =[\s\S]*process\.env\.NODE_ENV === "development"[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";[\s\S]*import\("@\/lib\/tauri\/tauri-runtime-smoke-runner"\)[\s\S]*runtimeSmokeEnabled \? <TauriRuntimeSmokeRunner \/> : null/,
+  "TauriRuntimeGates must lazy-load TauriRuntimeSmokeRunner only for explicit development runtime smoke.",
 );
 
 assertContains(

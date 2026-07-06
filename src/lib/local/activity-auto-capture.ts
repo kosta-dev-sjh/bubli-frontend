@@ -58,13 +58,16 @@ export function startActivityAutoCapture() {
 }
 
 export async function stopActivityAutoCapture(input?: ActivityAutoCaptureStopInput) {
+  const shouldFlush =
+    Boolean(input?.flush) && (captureIntervalId !== null || captureInFlight || captureInFlightPromise !== null);
+
   if (captureIntervalId !== null) {
     window.clearInterval(captureIntervalId);
   }
 
   captureIntervalId = null;
 
-  if (input?.flush) {
+  if (shouldFlush) {
     await flushActivityAutoCapture();
   }
 

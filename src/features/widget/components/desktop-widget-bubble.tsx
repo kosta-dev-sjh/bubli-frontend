@@ -125,7 +125,7 @@ const accentClassNames: Record<BubbleMeta["accent"], string> = {
 };
 
 const BAR_ROOT_PADDING_PX = 4;
-const BAR_PREVIEW_FLIP_THRESHOLD_PX = 430;
+const BAR_PREVIEW_FLIP_THRESHOLD_PX = 640;
 type BarPreviewPlacement = "above" | "below";
 
 // 서버 부분 동기화 실패는 회색 웰 대신 헤더 아래 얇은 상태 한 줄로만 알린다.
@@ -188,7 +188,7 @@ export type DesktopWidgetBubbleProps = {
   onCreateSchedule?: (bubble: WidgetPreviewBubble, title?: string) => Promise<void> | void;
   onCreateTodo?: (bubble: WidgetPreviewBubble, title?: string) => Promise<void> | void;
   onDeleteMemo?: (item: WidgetPreviewItem) => Promise<void> | void;
-  onEditMemo?: (item: WidgetPreviewItem) => Promise<void> | void;
+  onEditMemo?: (item: WidgetPreviewItem, body?: string) => Promise<void> | void;
   onAnalyzeResource?: (item: WidgetPreviewItem) => Promise<void> | void;
   onDownloadResource?: (item: WidgetPreviewItem) => Promise<void> | void;
   onRestore?: () => void;
@@ -1580,6 +1580,10 @@ function autoGrowTextarea(node: HTMLTextAreaElement | null, maxHeight: number) {
   node.style.overflowY = node.scrollHeight > maxHeight ? "auto" : "hidden";
 }
 
+function memoItemBody(item: WidgetPreviewItem) {
+  return item.memoBody ?? item.label;
+}
+
 function MemoBody({
   bubble,
   onCreateMemo,
@@ -1594,16 +1598,67 @@ function MemoBody({
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  // 장문 메모 대응 — 목록은 2줄 미리보기로 접고, 탭하면 전체를 펼친다(다시 탭으로 접기).
-  const [expandedIds, setExpandedIds] = useState<string[]>([]);
+  const [selectedMemoId, setSelectedMemoId] = useState<string | null>(null);
+  const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const editRef = useRef<HTMLTextAreaElement | null>(null);
+  const selectedMemo = selectedMemoId ? bubble.rows.find((item) => item.id === selectedMemoId) ?? null : null;
+  const editingMemo = editingMemoId ? bubble.rows.find((item) => item.id === editingMemoId) ?? selectedMemo : null;
+  const selectedBody = selectedMemo ? memoItemBody(selectedMemo) : "";
+  const isEditingSelected = Boolean(selectedMemo && editingMemoId === selectedMemo.id);
 
   useEffect(() => {
     autoGrowTextarea(composerRef.current, MEMO_COMPOSER_MAX_HEIGHT);
   }, [draft]);
 
-  const toggleExpanded = (id: string) => {
-    setExpandedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  useEffect(() => {
+    autoGrowTextarea(editRef.current, 220);
+  }, [editBody, editingMemoId]);
+
+  const openMemo = (item: WidgetPreviewItem) => {
+    setSelectedMemoId(item.id);
+    setEditingMemoId(null);
+  };
+
+  const closeMemo = () => {
+    if (savingEdit) return;
+    setSelectedMemoId(null);
+    setEditingMemoId(null);
+    setEditBody("");
+  };
+
+  const startEditMemo = (item: WidgetPreviewItem) => {
+    setSelectedMemoId(item.id);
+    setEditingMemoId(item.id);
+    setEditBody(memoItemBody(item));
+  };
+
+  const cancelEditMemo = () => {
+    setEditingMemoId(null);
+    setEditBody("");
+  };
+
+  const saveEditMemo = async () => {
+    if (!editingMemo || !onEditMemo || savingEdit) return;
+
+    const body = editBody.trim();
+    const currentBody = memoItemBody(editingMemo);
+    if (!body || body === currentBody) {
+      cancelEditMemo();
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      await onEditMemo(editingMemo, body);
+      setEditingMemoId(null);
+      setSelectedMemoId(null);
+      setEditBody("");
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   // 단독 "메모 남기기" 버튼 대신 하단 인라인 컴포저(자동 확장 + 저장)로 바로 남긴다.
@@ -1623,17 +1678,15 @@ function MemoBody({
   return (
     <div className={styles.body}>
       {bubble.rows.length > 0 ? (
-        <div className={styles.rowList}>
-          {bubble.rows.slice(0, 4).map((item) => {
-            const expanded = expandedIds.includes(item.id);
-            const body = item.memoBody ?? item.label;
+        <div className={[styles.rowList, styles.memoPaperList].join(" ")}>
+          {bubble.rows.map((item) => {
+            const body = memoItemBody(item);
             return (
               <div className={[styles.memoRow, styles.memoRowStack].join(" ")} key={item.id}>
                 <button
-                  aria-expanded={expanded}
-                  aria-label={expanded ? t("widget.memo.collapseMemo") : t("widget.memo.expandMemo")}
-                  className={[styles.memoBodyButton, expanded ? "" : styles.memoBodyClamp].filter(Boolean).join(" ")}
-                  onClick={() => toggleExpanded(item.id)}
+                  aria-label={t("widget.memo.expandMemo")}
+                  className={[styles.memoBodyButton, styles.memoBodyClamp].join(" ")}
+                  onClick={() => openMemo(item)}
                   type="button"
                 >
                   {body}
@@ -1641,7 +1694,7 @@ function MemoBody({
                 <span className={styles.memoMetaRow}>
                   <span className={styles.memoTime}>{item.status}</span>
                   <span className={styles.memoActions}>
-                    <button aria-label={t("widget.memo.edit")} disabled={!onEditMemo} onClick={() => void onEditMemo?.(item)} type="button">
+                    <button aria-label={t("widget.memo.edit")} disabled={!onEditMemo} onClick={() => startEditMemo(item)} type="button">
                       <Pencil size={12} strokeWidth={2.1} />
                     </button>
                     <button aria-label={t("widget.memo.delete")} disabled={!onDeleteMemo} onClick={() => void onDeleteMemo?.(item)} type="button">
@@ -1656,6 +1709,59 @@ function MemoBody({
       ) : (
         <BubbleEmptyState bubble={bubble} />
       )}
+      {selectedMemo ? (
+        <div aria-label={t("widget.memo.expandMemo")} aria-modal="true" className={styles.memoDetailLayer} role="dialog">
+          <article className={styles.memoDetailPaper}>
+            <span aria-hidden="true" className={styles.memoDetailTape} />
+            <div className={styles.memoDetailTop}>
+              <span className={styles.memoTime}>{selectedMemo.status}</span>
+              <span className={styles.memoActions}>
+                {isEditingSelected ? (
+                  <>
+                    <button aria-label={t("common.cancel" as MessageKey)} disabled={savingEdit} onClick={cancelEditMemo} type="button">
+                      <X size={12} strokeWidth={2.1} />
+                    </button>
+                    <button aria-label={t("widget.memo.save")} disabled={savingEdit || !editBody.trim()} onClick={() => void saveEditMemo()} type="button">
+                      <CheckCircle2 size={12} strokeWidth={2.1} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button aria-label={t("widget.memo.edit")} disabled={!onEditMemo} onClick={() => startEditMemo(selectedMemo)} type="button">
+                      <Pencil size={12} strokeWidth={2.1} />
+                    </button>
+                    <button aria-label={t("common.close" as MessageKey)} onClick={closeMemo} type="button">
+                      <X size={12} strokeWidth={2.1} />
+                    </button>
+                  </>
+                )}
+              </span>
+            </div>
+            {isEditingSelected ? (
+              <textarea
+                aria-label={t("widget.memo.edit")}
+                className={styles.memoEditField}
+                disabled={savingEdit}
+                onChange={(event) => setEditBody(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                    event.preventDefault();
+                    void saveEditMemo();
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    cancelEditMemo();
+                  }
+                }}
+                ref={editRef}
+                value={editBody}
+              />
+            ) : (
+              <div className={styles.memoDetailBody}>{selectedBody}</div>
+            )}
+          </article>
+        </div>
+      ) : null}
       <form
         className={[styles.input, styles.memoComposer].join(" ")}
         onSubmit={(event) => {
@@ -3015,7 +3121,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   // 창 너비는 Rust(WIDGET_BAR_WIDTH)가 640 고정이고 칩이 아이콘 전용 36px 타일이라
   // 접힌 칩 전부(알림 버블 제외 최대 7개)가 어떤 조합에서도 창을 넘지 않는다 — "+N" 없음.
   // pill 위 투명 영역에는 hover 팝오버와 Bubli 메뉴 morph 패널이 뜬다(absolute라 pill이 밀리지 않는다).
-  // 창 높이는 Rust WIDGET_BAR_HEIGHT(430)가 패널(≈352px)을 수용한다.
+  // 창 높이는 Rust WIDGET_BAR_HEIGHT(640)가 패널(≈532px)과 hover preview 여유를 수용한다.
   return (
     <MotionConfig reducedMotion="user">
       {/* memo된 형제(칩)들 사이에서 layoutId 프로젝션이 함께 갱신되도록 LayoutGroup으로 묶는다. */}

@@ -159,22 +159,113 @@ fn read_usage_metrics(
     summary_date: &str,
     bubble_type: &str,
 ) -> Result<(i64, i64, i64), String> {
-    let (source_event_count, open_count): (i64, i64) = conn
-        .query_row(
-            "SELECT \
-               COUNT(*) AS source_event_count, \
-               COALESCE(SUM(CASE WHEN lower(event_type) LIKE 'open%' THEN 1 ELSE 0 END), 0) AS open_count \
-             FROM local_widget_usage_events \
-             WHERE substr(occurred_at, 1, 10) = ?1 AND bubble_type = ?2",
-            params![summary_date, bubble_type],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .map_err(|error| error.to_string())?;
+    let (source_event_count, open_count): (i64, i64) = if let Some(next_date) =
+        next_iso_calendar_date(summary_date)
+    {
+        conn.query_row(
+                "SELECT \
+                   COUNT(*) AS source_event_count, \
+                   COALESCE(SUM(CASE WHEN event_type LIKE 'open%' OR event_type LIKE 'OPEN%' THEN 1 ELSE 0 END), 0) AS open_count \
+                 FROM local_widget_usage_events \
+                 WHERE bubble_type = ?1 AND occurred_at >= ?2 AND occurred_at < ?3",
+                params![bubble_type, summary_date, next_date],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|error| error.to_string())?
+    } else {
+        conn.query_row(
+                "SELECT \
+                   COUNT(*) AS source_event_count, \
+                   COALESCE(SUM(CASE WHEN lower(event_type) LIKE 'open%' THEN 1 ELSE 0 END), 0) AS open_count \
+                 FROM local_widget_usage_events \
+                 WHERE substr(occurred_at, 1, 10) = ?1 AND bubble_type = ?2",
+                params![summary_date, bubble_type],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|error| error.to_string())?
+    };
 
     // Raw events stay local. The server only needs aggregate counters, so for
     // now every local event is counted as one interaction and one visible
     // second unless a later native dwell tracker supplies a real duration.
     Ok((source_event_count, open_count, source_event_count))
+}
+
+fn next_iso_calendar_date(value: &str) -> Option<String> {
+    chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d")
+        .ok()
+        .and_then(|date| date.succ_opt())
+        .map(|date| date.format("%Y-%m-%d").to_string())
+}
+
+fn collect_usage_groups(
+    conn: &Connection,
+    summary_date: Option<&String>,
+) -> Result<Vec<(String, String, i64)>, String> {
+    let mut grouped: Vec<(String, String, i64)> = Vec::new();
+    let map_row = |row: &rusqlite::Row<'_>| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+        ))
+    };
+
+    match summary_date {
+        Some(date) => {
+            if let Some(next_date) = next_iso_calendar_date(date) {
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT substr(occurred_at, 1, 10) AS d, bubble_type, COUNT(*) AS cnt \
+                         FROM local_widget_usage_events \
+                         WHERE occurred_at >= ?1 AND occurred_at < ?2 \
+                         GROUP BY d, bubble_type",
+                    )
+                    .map_err(|error| error.to_string())?;
+                let rows = stmt
+                    .query_map(params![date, next_date], map_row)
+                    .map_err(|error| error.to_string())?;
+
+                for row in rows {
+                    grouped.push(row.map_err(|error| error.to_string())?);
+                }
+            } else {
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT substr(occurred_at, 1, 10) AS d, bubble_type, COUNT(*) AS cnt \
+                         FROM local_widget_usage_events \
+                         WHERE substr(occurred_at, 1, 10) = ?1 \
+                         GROUP BY d, bubble_type",
+                    )
+                    .map_err(|error| error.to_string())?;
+                let rows = stmt
+                    .query_map(params![date], map_row)
+                    .map_err(|error| error.to_string())?;
+
+                for row in rows {
+                    grouped.push(row.map_err(|error| error.to_string())?);
+                }
+            }
+        }
+        None => {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT substr(occurred_at, 1, 10) AS d, bubble_type, COUNT(*) AS cnt \
+                     FROM local_widget_usage_events \
+                     GROUP BY d, bubble_type",
+                )
+                .map_err(|error| error.to_string())?;
+            let rows = stmt
+                .query_map([], map_row)
+                .map_err(|error| error.to_string())?;
+
+            for row in rows {
+                grouped.push(row.map_err(|error| error.to_string())?);
+            }
+        }
+    }
+
+    Ok(grouped)
 }
 
 /// Compress detail events into per-date, per-bubble rollups.
@@ -187,43 +278,7 @@ pub fn rollup_widget_usage(
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
 
     // Group events by calendar date (first 10 chars of ISO-8601) and bubble.
-    let mut grouped: Vec<(String, String, i64)> = Vec::new();
-    {
-        let (sql, has_filter) = match &summary_date {
-            Some(_) => (
-                "SELECT substr(occurred_at, 1, 10) AS d, bubble_type, COUNT(*) AS cnt \
-                 FROM local_widget_usage_events \
-                 WHERE substr(occurred_at, 1, 10) = ?1 \
-                 GROUP BY d, bubble_type",
-                true,
-            ),
-            None => (
-                "SELECT substr(occurred_at, 1, 10) AS d, bubble_type, COUNT(*) AS cnt \
-                 FROM local_widget_usage_events \
-                 GROUP BY d, bubble_type",
-                false,
-            ),
-        };
-
-        let mut stmt = conn.prepare(sql).map_err(|error| error.to_string())?;
-        let map_row = |row: &rusqlite::Row<'_>| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, i64>(2)?,
-            ))
-        };
-        let rows = if has_filter {
-            stmt.query_map(params![summary_date.as_ref().unwrap()], map_row)
-        } else {
-            stmt.query_map([], map_row)
-        }
-        .map_err(|error| error.to_string())?;
-
-        for row in rows {
-            grouped.push(row.map_err(|error| error.to_string())?);
-        }
-    }
+    let grouped = collect_usage_groups(&conn, summary_date.as_ref())?;
 
     let mut results = Vec::with_capacity(grouped.len());
     for (date, bubble_type, count) in grouped {
