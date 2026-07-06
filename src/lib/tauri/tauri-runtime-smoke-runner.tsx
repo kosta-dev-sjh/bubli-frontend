@@ -75,6 +75,7 @@ const smokeRestoreSnapshotRoomId = "33333333-3333-4333-8333-333333333333";
 const smokeRestoreSnapshotMessageId = "codex-restore-snapshot-message";
 const smokeRestoreDirtyMessageId = "codex-restore-dirty-message";
 const smokeTaskItemId = "66666666-6666-4666-8666-666666666661";
+const runtimeSmokeFolderMarker = "bubli-tauri-runtime-smoke-";
 const smokeWidgetBubbles: SmokeWidgetBubble[] = [
   "todo",
   "agent",
@@ -860,7 +861,9 @@ async function verifyLocalAutoSyncLoops(assert: SmokeAssert) {
     throw new Error("runtime smoke local-auto-sync phase requires NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE_FOLDER");
   }
 
+  await cleanupStaleRuntimeSmokeManagedFolders(smokeFolderPath);
   const folder = await tauriCommands.selectManagedFolder({ path: smokeFolderPath });
+  let localAutoSyncFolderId: string | null = folder.localFolderId;
   await tauriCommands.setFolderSync({ enabled: true, localFolderId: folder.localFolderId });
   await tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
 
@@ -952,6 +955,10 @@ async function verifyLocalAutoSyncLoops(assert: SmokeAssert) {
     await stopActivityAutoCapture({ flush: true });
     await stopManagedFolderAutoSync({ flush: true });
     await tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
+    if (localAutoSyncFolderId) {
+      await cleanupRuntimeSmokeManagedFolder(localAutoSyncFolderId).catch(() => undefined);
+      localAutoSyncFolderId = null;
+    }
   }
 
   const stoppedActivityStatus = getActivityAutoCaptureStatus();
@@ -979,6 +986,7 @@ async function postReport(report: SmokeReport) {
 async function runSmoke() {
   const startedAt = Date.now();
   const checks: SmokeCheck[] = [];
+  let runtimeSmokeManagedFolderId: string | null = null;
   const addCheck = (name: string, detail?: unknown) => checks.push({ detail, name });
   const assert: SmokeAssert = (condition, name, detail) => {
     if (!condition) {
@@ -1422,7 +1430,9 @@ async function runSmoke() {
     let manualOutboxFolderId: string | null = null;
 
     if (smokeFolderPath) {
+      await cleanupStaleRuntimeSmokeManagedFolders(smokeFolderPath);
       const folder = await tauriCommands.selectManagedFolder({ path: smokeFolderPath });
+      runtimeSmokeManagedFolderId = folder.localFolderId;
       await tauriCommands.setFolderSync({ enabled: true, localFolderId: folder.localFolderId });
       const scan = await tauriCommands.scanManagedFolder({ localFolderId: folder.localFolderId });
       assert(scan.changedCount >= 1, "managed folder scan indexed temp file", scan);
@@ -1794,6 +1804,16 @@ async function runSmoke() {
     );
     await persistWidgetRestartLayoutCheckpoint(assert);
 
+    const managedFolderCleanup = await cleanupRuntimeSmokeManagedFolder(runtimeSmokeManagedFolderId);
+    runtimeSmokeManagedFolderId = null;
+    if (managedFolderCleanup) {
+      assert(
+        managedFolderCleanup.status === "REMOVED",
+        "runtime smoke managed folder removed after Windows QA",
+        managedFolderCleanup,
+      );
+    }
+
     await postReport({
       checks,
       durationMs: Date.now() - startedAt,
@@ -1804,6 +1824,8 @@ async function runSmoke() {
   } catch (error) {
     await stopTauriAuthenticatedSurfaces().catch(() => undefined);
     await tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
+    await cleanupRuntimeSmokeManagedFolder(runtimeSmokeManagedFolderId).catch(() => undefined);
+    runtimeSmokeManagedFolderId = null;
     await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
     await postReport({
@@ -1819,6 +1841,32 @@ async function runSmoke() {
       await tauriCommands.quitApp().catch(() => undefined);
     }
   }
+}
+
+async function cleanupRuntimeSmokeManagedFolder(localFolderId: string | null) {
+  if (!localFolderId) return null;
+
+  await tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
+  return tauriCommands.removeManagedFolder({ localFolderId });
+}
+
+async function cleanupStaleRuntimeSmokeManagedFolders(currentSmokeFolderPath: string) {
+  const folders = await tauriCommands.listManagedFolders().catch(() => null);
+  if (!folders) return 0;
+
+  const staleFolders = folders.folders.filter((folder) => {
+    return (
+      folder.path.includes(runtimeSmokeFolderMarker) &&
+      folder.path !== currentSmokeFolderPath &&
+      folder.status !== "REMOVED"
+    );
+  });
+
+  const results = await Promise.allSettled(
+    staleFolders.map((folder) => tauriCommands.removeManagedFolder({ localFolderId: folder.localFolderId })),
+  );
+
+  return results.filter((result) => result.status === "fulfilled").length;
 }
 
 export function TauriRuntimeSmokeRunner() {
