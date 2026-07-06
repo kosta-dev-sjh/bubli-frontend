@@ -1041,7 +1041,7 @@
 
 .clockTime {
   color: var(--widget-text);
-  font-size: 58px;
+  font-size: 44px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;

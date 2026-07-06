@@ -646,9 +646,6 @@ function buildDisplayBubbles(input: {
     roomTodoTasks = merged.filter((task) => Boolean(task.roomId));
   }
   const todoTotalCount = personalTodoTasks.length + roomTodoTasks.length;
-  const todoTodaySource = isRoomScoped ? input.tasks : (input.dashboard?.todayTasks ?? input.tasks);
-  const todoDoneCount = todoTodaySource.filter((task) => task.status === "DONE").length;
-  const todoProgressRatio = todoDoneCount + todoTotalCount > 0 ? todoDoneCount / (todoDoneCount + todoTotalCount) : 0;
   const todoTaskToRow = (task: WidgetTaskResponse, sourceKind: "personal" | "room"): WidgetPreviewItem => ({
     checked: task.status === "DONE",
     dueTone: widgetDueTone(task.dueAt),
@@ -676,7 +673,7 @@ function buildDisplayBubbles(input: {
         ...personalTodoTasks.map((task) => todoTaskToRow(task, "personal")),
         ...roomTodoTasks.map((task) => todoTaskToRow(task, "room")),
       ];
-  const todoItems = todoRowsOrdered; // 전체 전달 — 위젯 목록은 todoScroll 내부 스크롤로 다 본다
+  const todoItems = todoRowsOrdered.slice(0, 4);
 
   const scheduleItems = scheduleSource.slice(0, 3);
   const scheduleTimeLabel = (item: WidgetScheduleResponse) => (item.allDay ? t("widget.schedule.allDay") : formatShortTime(item.startsAt));
@@ -853,7 +850,6 @@ function buildDisplayBubbles(input: {
         : [],
     }),
     todo: withBubble("todo", {
-      progressRatio: todoProgressRatio,
       // 카운트 링/칩은 잘린 표시 행이 아니라 병합된 전체 남은 개수를 반영한다.
       compactLabel: t("widget.todo.count", { count: todoTotalCount }),
       metric: String(todoTotalCount),
