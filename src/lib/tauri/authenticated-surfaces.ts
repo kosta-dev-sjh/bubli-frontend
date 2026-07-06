@@ -127,6 +127,23 @@ async function authenticatedStartupWindowsReady(startupWindows: WidgetWindowOpen
   return true;
 }
 
+async function authenticatedSurfaceAnchorReady() {
+  for (const input of [loginStartupBarWindow, loginStartupMenuWindow]) {
+    try {
+      const state = await tauriCommands.getWidgetWindowState(widgetTargetFromInput(input));
+      if (state.windowVisible) return true;
+    } catch {
+      // If the native store has no anchor yet, this is the first launch for the current app run.
+    }
+  }
+
+  return false;
+}
+
+async function authenticatedSurfacesAlreadyEnabled() {
+  return tauriCommands.getAuthenticatedSurfacesEnabled().catch(() => false);
+}
+
 async function openWidgetWindowWithRetry(
   input: WidgetWindowOpenInput,
   selectedRoomId: string | null,
@@ -312,6 +329,31 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
 
     const startupWindows = await resolveLoginStartupWindows();
     timeline.startupWindowsResolvedAt = nowIso();
+
+    if (await authenticatedSurfacesAlreadyEnabled()) {
+      launchedAuthenticatedSurfaces = true;
+      startActivityAutoCapture();
+      startManagedFolderAutoSync();
+      startWidgetUsageAutoSync();
+      timeline.completed = true;
+      timeline.reusedExistingWindowsAt = nowIso();
+      timeline.syncLoopsStartedAt = timeline.reusedExistingWindowsAt;
+      timeline.launchCompletedAt = timeline.reusedExistingWindowsAt;
+      return;
+    }
+
+    if (!launchedAuthenticatedSurfaces && (await authenticatedSurfaceAnchorReady())) {
+      launchedAuthenticatedSurfaces = true;
+      startActivityAutoCapture();
+      startManagedFolderAutoSync();
+      startWidgetUsageAutoSync();
+      timeline.completed = true;
+      timeline.reusedExistingWindowsAt = nowIso();
+      timeline.syncLoopsStartedAt = timeline.reusedExistingWindowsAt;
+      timeline.launchCompletedAt = timeline.reusedExistingWindowsAt;
+      return;
+    }
+
     if (launchedAuthenticatedSurfaces) {
       const ready = await authenticatedStartupWindowsReady(startupWindows);
       if (ready) {

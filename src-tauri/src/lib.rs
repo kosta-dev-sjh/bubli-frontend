@@ -2690,7 +2690,7 @@ fn set_widget_bar_preview_placement(
 }
 
 fn bar_preview_flip_threshold_physical(scale: f64) -> f64 {
-    188.0 * scale
+    (WIDGET_BAR_HEIGHT - WIDGET_BAR_VISIBLE_HEIGHT) * scale
 }
 
 /// 사용자 코너 드래그 리사이즈. 버블별 [기본 크기, 기본 × 1.6]으로 클램프해 창 크기를
@@ -3753,6 +3753,13 @@ fn app_ready(
 }
 
 #[tauri::command]
+fn get_authenticated_surfaces_enabled(
+    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
+) -> Result<bool, String> {
+    authenticated_surfaces_enabled(&auth_state)
+}
+
+#[tauri::command]
 fn set_authenticated_surfaces_enabled(
     auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
     input: AuthenticatedSurfacesInput,
@@ -4234,6 +4241,7 @@ pub fn run() {
             close_all_widget_windows,
             close_widget_window,
             drag_widget_bar_window,
+            get_authenticated_surfaces_enabled,
             get_widget_bar_items,
             get_preferred_app_monitor,
             get_tauri_google_authorization_url,

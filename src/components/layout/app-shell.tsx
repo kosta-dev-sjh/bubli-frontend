@@ -433,7 +433,7 @@ export function AppShell({ children }: AppShellProps) {
     });
   }, [state.kind]);
 
-  // 룸 생성/이름 변경/종료/다시 열기/멤버 변경이 어디에서 일어나든 스위처·탑바에 즉시 반영하고,
+  // 룸 생성/이름 변경/종료/다시 열기/멤버 변경과 알림 상태 변경이 어디에서 일어나든 스위처·탑바에 즉시 반영하고,
   // 창 포커스 복귀 시에도(데스크톱 위젯/다른 탭에서의 변경 대비) 스로틀을 걸어 재검증한다.
   useDataRefresh({
     domains: ["project-room", "notification"],
@@ -663,7 +663,10 @@ export function AppShell({ children }: AppShellProps) {
           }
         : current,
     );
-    void notificationApi.markRead(notificationId).catch(() => undefined);
+    void notificationApi
+      .markRead(notificationId)
+      .then(() => notifyDataChanged("notification", { source: "app-shell" }))
+      .catch(() => undefined);
   }
 
   // 알림 "보러가기" 딥링크 — sourceType별 이동 경로(백엔드 NotificationResponse 계약: sourceType + sourceId):
@@ -759,7 +762,10 @@ export function AppShell({ children }: AppShellProps) {
           }
         : current,
     );
-    void notificationApi.archive(notificationId).catch(() => undefined);
+    void notificationApi
+      .archive(notificationId)
+      .then(() => notifyDataChanged("notification", { source: "app-shell" }))
+      .catch(() => undefined);
   }
 
   async function handleLogout() {

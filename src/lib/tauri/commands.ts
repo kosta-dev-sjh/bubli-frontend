@@ -30,6 +30,7 @@ export const TAURI_COMMANDS = {
   extractLocalFileKeySentences: "extract_local_file_key_sentences",
   findLocalFileByResourceId: "find_local_file_by_resource_id",
   flushSyncOutbox: "flush_sync_outbox",
+  getAuthenticatedSurfacesEnabled: "get_authenticated_surfaces_enabled",
   getIndexProgress: "get_index_progress",
   getLocalFileAnalysisStatus: "get_local_file_analysis_status",
   getOrCreateWidgetUsageDeviceId: "get_or_create_widget_usage_device_id",
@@ -957,6 +958,10 @@ export type TauriCommandContract = {
     args: TauriGoogleApiInput;
     result: TauriGoogleAuthorizeResponse;
   };
+  get_authenticated_surfaces_enabled: {
+    args: undefined;
+    result: boolean;
+  };
   get_widget_window_state: {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
@@ -1305,6 +1310,9 @@ export const tauriCommands = {
   },
   getTauriGoogleAuthorizationUrl(input: TauriGoogleApiInput) {
     return invokeTauri<TauriGoogleAuthorizeResponse>(TAURI_COMMANDS.getTauriGoogleAuthorizationUrl, { input });
+  },
+  getAuthenticatedSurfacesEnabled() {
+    return invokeTauri<boolean>(TAURI_COMMANDS.getAuthenticatedSurfacesEnabled);
   },
   getWidgetWindowState(input?: WidgetWindowTargetInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.getWidgetWindowState, input ? { input } : undefined);

@@ -122,7 +122,7 @@ const accentClassNames: Record<BubbleMeta["accent"], string> = {
 };
 
 const BAR_ROOT_PADDING_PX = 4;
-const BAR_PREVIEW_FLIP_THRESHOLD_PX = 188;
+const BAR_PREVIEW_FLIP_THRESHOLD_PX = 372;
 type BarPreviewPlacement = "above" | "below";
 
 // 서버 부분 동기화 실패는 회색 웰 대신 헤더 아래 얇은 상태 한 줄로만 알린다.
