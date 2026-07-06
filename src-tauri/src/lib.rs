@@ -2690,7 +2690,15 @@ fn set_widget_bar_preview_placement(
 }
 
 fn bar_preview_flip_threshold_physical(scale: f64) -> f64 {
-    (WIDGET_BAR_HEIGHT - WIDGET_BAR_VISIBLE_HEIGHT) * scale
+    #[cfg(target_os = "macos")]
+    {
+        WIDGET_BAR_HEIGHT * scale
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        188.0 * scale
+    }
 }
 
 /// 사용자 코너 드래그 리사이즈. 버블별 [기본 크기, 기본 × 1.6]으로 클램프해 창 크기를
@@ -3935,6 +3943,7 @@ mod tests {
             click_through: false,
             dock_orb_visible: false,
             mode: "DEFAULT".to_string(),
+            monitor_id: None,
             position: WidgetWindowPosition { x, y },
             selected_room_id: None,
             shortcut: Some("CommandOrControl+Shift+B".to_string()),

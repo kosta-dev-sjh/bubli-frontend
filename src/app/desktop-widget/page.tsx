@@ -94,8 +94,30 @@ const devVoiceRoomId =
     ? process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID ?? null
     : null;
 
+const WIDGET_SESSION_RESTORE_GRACE_ATTEMPTS = 6;
+const WIDGET_SESSION_RESTORE_GRACE_DELAY_MS = 250;
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
 type WidgetItemStateAction = "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED";
+
+function waitForWidgetSessionRestore(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function restoreWidgetStoredAuthSessionWithGrace() {
+  const storedSession = getStoredAuthSession();
+  if (storedSession) return storedSession;
+
+  let restoredSession = await restoreStoredAuthSessionFromTauri();
+  if (restoredSession || !isTauriRuntime()) return restoredSession;
+
+  for (let attempt = 0; attempt < WIDGET_SESSION_RESTORE_GRACE_ATTEMPTS; attempt += 1) {
+    await waitForWidgetSessionRestore(WIDGET_SESSION_RESTORE_GRACE_DELAY_MS);
+    restoredSession = await restoreStoredAuthSessionFromTauri();
+    if (restoredSession) return restoredSession;
+  }
+
+  return null;
+}
 
 function roomQuery(roomId?: string | null) {
   return roomId ? `?roomId=${encodeURIComponent(roomId)}` : "";
@@ -1162,7 +1184,7 @@ function DesktopWidgetSurface() {
   }, [isTauri]);
 
   const validateWidgetAuthSession = useCallback(async () => {
-    const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
+    const session = await restoreWidgetStoredAuthSessionWithGrace();
     if (!session) {
       return false;
     }
@@ -1173,9 +1195,12 @@ function DesktopWidgetSurface() {
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         clearStoredAuthSession();
+        return false;
       }
 
-      return false;
+      // A transient backend/network failure should not close a freshly opened widget window.
+      // Later data requests will show their own loading/error state while the session mirror remains valid.
+      return true;
     }
   }, []);
 

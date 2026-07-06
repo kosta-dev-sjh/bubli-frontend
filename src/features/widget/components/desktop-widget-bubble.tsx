@@ -122,7 +122,7 @@ const accentClassNames: Record<BubbleMeta["accent"], string> = {
 };
 
 const BAR_ROOT_PADDING_PX = 4;
-const BAR_PREVIEW_FLIP_THRESHOLD_PX = 372;
+const BAR_PREVIEW_FLIP_THRESHOLD_PX = 430;
 type BarPreviewPlacement = "above" | "below";
 
 // 서버 부분 동기화 실패는 회색 웰 대신 헤더 아래 얇은 상태 한 줄로만 알린다.
@@ -3111,7 +3111,11 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
             onClick={() => {
               setGooPop(null);
               setPreviewTarget(null);
-              setMenuOpen((current) => !current);
+              if (menuOpen) {
+                setMenuOpen(false);
+                return;
+              }
+              void syncBarPreviewPlacement().finally(() => setMenuOpen(true));
             }}
             title={t("widget.menu.openAria")}
             type="button"

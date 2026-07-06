@@ -2186,7 +2186,7 @@
 
 /* Bubli 브랜드 칩: 텍스트 워드마크 대신 웹앱과 같은 28px 버블 마크. */
 .barBrand {
-  overflow: hidden;
+  overflow: visible;
   display: inline-grid;
   flex: none;
   place-items: center;
@@ -2198,6 +2198,11 @@
   background: rgba(255, 255, 255, 0.76);
   cursor: pointer;
   transition: background-color 140ms ease, width 200ms ease, margin-left 200ms ease, border-width 200ms ease;
+}
+
+.barBrand .menuOrbMark {
+  animation: none;
+  transform: none;
 }
 
 
@@ -2380,7 +2385,7 @@
 /* 잔잔한 bob 부유(3s, ±3px) + hover/포커스 워블·scale 1.06 — reduced-motion에서는 정지.
    애니메이션은 버블 본체에 건다(원형 실루엣을 흐트리지지 않게). */
 @media (prefers-reduced-motion: no-preference) {
-  .menuOrbMark {
+  .menuOrb .menuOrbMark {
     animation: bubble-orb-bob 3s ease-in-out infinite;
   }
 
