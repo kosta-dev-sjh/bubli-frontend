@@ -22585,3 +22585,84 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   transform: translateY(-1px);
   background: rgba(255, 255, 255, 0.92);
 }
+
+.message-toast-stack {
+  position: fixed;
+  right: 20px;
+  bottom: 108px;
+  z-index: 9998;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  width: min(320px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.message-toast {
+  pointer-events: all;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  border-radius: 18px;
+  border: 1px solid rgba(142, 205, 246, 0.45);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(250, 253, 255, 0.9)),
+    rgba(255, 255, 255, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 16px 34px -16px rgba(47, 124, 193, 0.38);
+  -webkit-backdrop-filter: blur(14px) saturate(1.18);
+  backdrop-filter: blur(14px) saturate(1.18);
+  animation: message-toast-in 220ms var(--ease-out, ease-out);
+}
+
+@keyframes message-toast-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.message-toast__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 8px 12px 14px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.message-toast__sender {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--blue-ink);
+}
+
+.message-toast__text {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-toast__close {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin: 8px 8px 0 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.message-toast__close:hover {
+  background: rgba(190, 213, 230, 0.35);
+}

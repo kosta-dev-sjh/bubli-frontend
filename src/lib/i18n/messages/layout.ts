@@ -58,6 +58,9 @@ const ko = {
   "layout.voiceCall.later": "이따 참여",
   "layout.voiceCall.decline": "거절",
 
+  // 새 메시지 미리보기 토스트
+  "layout.messageToast.dismiss": "닫기",
+
   // 상단바 알림 패널
   "layout.notifications.aria": "알림 패널",
   "layout.gate.redirecting": "로그인이 필요해요. 로그인 화면으로 이동 중…",
@@ -152,6 +155,8 @@ const en: Record<Key, string> = {
   "layout.voiceCall.later": "Join later",
   "layout.voiceCall.decline": "Decline",
 
+  "layout.messageToast.dismiss": "Dismiss",
+
   "layout.notifications.aria": "Notifications panel",
   "layout.gate.redirecting": "Sign-in required. Redirecting to login…",
   "layout.invites.title": "Invitations",
@@ -241,6 +246,8 @@ const ja: Record<Key, string> = {
   "layout.voiceCall.connecting": "接続中",
   "layout.voiceCall.later": "後で参加",
   "layout.voiceCall.decline": "拒否",
+
+  "layout.messageToast.dismiss": "閉じる",
 
   "layout.notifications.aria": "通知パネル",
   "layout.gate.redirecting": "ログインが必要です。ログイン画面へ移動中…",

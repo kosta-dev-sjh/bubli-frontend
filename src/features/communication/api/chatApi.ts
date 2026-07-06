@@ -23,8 +23,9 @@ export type SendChatMessageRequest = {
 };
 
 export const chatApi = {
-  listRooms() {
-    return apiRequest<ChatRoomPageResponse>("/api/chat/rooms");
+  listRooms(params: { size?: number } = {}) {
+    const query = params.size !== undefined ? `?size=${params.size}` : "";
+    return apiRequest<ChatRoomPageResponse>(`/api/chat/rooms${query}`);
   },
 
   getOrCreateDirectRoom(body: DirectChatRoomRequest) {

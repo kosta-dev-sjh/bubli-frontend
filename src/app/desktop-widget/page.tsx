@@ -1,6 +1,7 @@
 "use client";
 
-import { Room } from "livekit-client";
+import { Room, RoomEvent, Track } from "livekit-client";
+import type { RemoteTrack } from "livekit-client";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -99,6 +100,24 @@ type WidgetItemStateAction = "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED";
 
 function roomQuery(roomId?: string | null) {
   return roomId ? `?roomId=${encodeURIComponent(roomId)}` : "";
+}
+
+// LiveKit은 원격 트랙을 구독해도 오디오를 자동 재생하지 않는다 —
+// TrackSubscribed에서 직접 <audio> 엘리먼트를 만들어 DOM에 붙여야 실제로 들린다.
+function attachWidgetRemoteAudioTrack(track: RemoteTrack) {
+  if (track.kind !== Track.Kind.Audio) return;
+  const element = track.attach();
+  element.dataset.livekitAudioTrack = track.sid ?? "";
+  element.autoplay = true;
+  document.body.appendChild(element);
+}
+
+function detachWidgetRemoteAudio(room: Room) {
+  room.remoteParticipants.forEach((participant) => {
+    participant.trackPublications.forEach((publication) => {
+      publication.track?.detach().forEach((element) => element.remove());
+    });
+  });
 }
 
 function roomWorkRoute(roomId?: string | null) {
@@ -1436,7 +1455,10 @@ function DesktopWidgetSurface() {
 
   useEffect(() => {
     return () => {
-      liveKitRoomRef.current?.disconnect();
+      if (liveKitRoomRef.current) {
+        detachWidgetRemoteAudio(liveKitRoomRef.current);
+        liveKitRoomRef.current.disconnect();
+      }
       liveKitRoomRef.current = null;
     };
   }, []);
@@ -2509,7 +2531,14 @@ function DesktopWidgetSurface() {
 
       if (token.serverUrl && token.token) {
         const liveKitRoom = new Room();
-        liveKitRoomRef.current?.disconnect();
+        liveKitRoom.on(RoomEvent.TrackSubscribed, (track) => attachWidgetRemoteAudioTrack(track));
+        liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
+          track.detach().forEach((element) => element.remove());
+        });
+        if (liveKitRoomRef.current) {
+          detachWidgetRemoteAudio(liveKitRoomRef.current);
+          liveKitRoomRef.current.disconnect();
+        }
         liveKitRoomRef.current = liveKitRoom;
 
         try {
@@ -2574,7 +2603,10 @@ function DesktopWidgetSurface() {
       const voiceRoomId = bubble.voiceRoomId ?? activeVoiceRoomId;
       if (!voiceRoomId) return;
 
-      liveKitRoomRef.current?.disconnect();
+      if (liveKitRoomRef.current) {
+        detachWidgetRemoteAudio(liveKitRoomRef.current);
+        liveKitRoomRef.current.disconnect();
+      }
       liveKitRoomRef.current = null;
       await widgetCommunicationApi.leaveVoiceRoom(voiceRoomId);
       setActiveVoiceRoomId(null);

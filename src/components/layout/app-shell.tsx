@@ -16,6 +16,7 @@ import {
 } from "@/components/layout/workspace-topbar";
 import { siteConfig } from "@/config/site";
 import { authApi } from "@/features/auth/api/authApi";
+import { chatApi } from "@/features/communication/api/chatApi";
 import { voiceApi } from "@/features/communication/api/voiceApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
 import { FirstRunController } from "@/features/onboarding";
@@ -187,9 +188,18 @@ export function AppShell({ children }: AppShellProps) {
   } | null>(null);
   const [voiceCallResponding, setVoiceCallResponding] = useState(false);
 
+  // 카카오톡 스타일 새 메시지 미리보기 토스트 — 화면 어디에 있든 우측 하단에 쌓이고, 클릭하면 해당 채팅방으로 이동한다.
+  const [messageToasts, setMessageToasts] = useState<
+    { chatRoomId: string; id: string; senderName: string; text: string }[]
+  >([]);
+
   const voiceSnap = useSyncExternalStore(voiceStore.subscribe, voiceStore.getSnapshot, voiceStore.getServerSnapshot);
   const persistVoice = voiceSnap.voice.kind === "ready" ? voiceSnap.voice : null;
-  const showVoiceFloat = persistVoice !== null && persistVoice.room.status === "OPEN";
+  // 방 자체가 열려 있어도 내가 나간 상태(다른 사람은 통화 중)라면 내 화면에서는 통화 중으로 보이면 안 된다.
+  const showVoiceFloat =
+    persistVoice !== null &&
+    persistVoice.room.status === "OPEN" &&
+    persistVoice.room.participants.some((p) => p.userId === readyUserId && p.status === "JOINED");
   const voiceChatLink = persistVoice
     ? persistVoice.room.roomId
       ? `/app/chat?roomId=${persistVoice.room.roomId}`
@@ -198,6 +208,7 @@ export function AppShell({ children }: AppShellProps) {
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -206,6 +217,10 @@ export function AppShell({ children }: AppShellProps) {
       audioCtxRef.current?.close().catch(() => {});
       audioCtxRef.current = null;
       analyserRef.current = null;
+      // AudioContext를 닫아도 getUserMedia로 받은 트랙 자체는 살아있으므로
+      // 명시적으로 stop()하지 않으면 마이크가 새로고침 전까지 계속 점유된다.
+      micStreamRef.current?.getTracks().forEach((track) => track.stop());
+      micStreamRef.current = null;
       if (voiceStore.getSnapshot().isSpeaking) voiceStore.update({ isSpeaking: false });
     }
     if (!showVoiceFloat || voiceSnap.micMuted) { stopAll(); return; }
@@ -215,6 +230,7 @@ export function AppShell({ children }: AppShellProps) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         if (!active) { stream.getTracks().forEach((t) => t.stop()); return; }
+        micStreamRef.current = stream;
         const ctx = new AudioContext();
         audioCtxRef.current = ctx;
         const analyser = ctx.createAnalyser();
@@ -464,6 +480,18 @@ export function AppShell({ children }: AppShellProps) {
           chatRoomId: notification.sourceId,
           notificationId: notification.id,
         });
+      }
+
+      if (notification.sourceType === "MESSAGE" && notification.sourceId) {
+        const toastId = notification.id;
+        const chatRoomId = notification.sourceId;
+        setMessageToasts((current) => [
+          ...current.filter((toast) => toast.id !== toastId),
+          { chatRoomId, id: toastId, senderName: notification.title, text: notification.body ?? "" },
+        ]);
+        window.setTimeout(() => {
+          setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
+        }, 6_000);
       }
 
       if (typeof window === "undefined" || document.visibilityState !== "hidden" || !("Notification" in window)) {
@@ -758,11 +786,39 @@ export function AppShell({ children }: AppShellProps) {
     void notificationApi.markRead(notificationId).catch(() => undefined);
   }
 
+  // MESSAGE 알림의 sourceId는 항상 chat_rooms.id(채팅방 ID)다 — 프로젝트룸 채팅이면
+  // 그 채팅방에 연결된 project room의 roomId로, 1:1/그룹이면 chatRoomId로 이동해야 한다.
+  // (과거엔 이 둘을 구분 안 하고 항상 projectRoomRoute(sourceId, ...)로 보내 1:1/그룹
+  //  알림 클릭 시 엉뚱한 화면으로 이동하던 버그가 있었다.)
+  async function resolveChatRoomRoute(chatRoomId: string): Promise<{ isProjectRoom: boolean; roomId?: string; route: string }> {
+    try {
+      const page = await chatApi.listRooms({ size: 100 });
+      const room = page.items.find((item) => item.id === chatRoomId);
+      if (room?.chatType === "ROOM" && room.roomId) {
+        return { isProjectRoom: true, roomId: room.roomId, route: projectRoomRoute(room.roomId, "chat") };
+      }
+    } catch {
+      // 조회 실패 시 1:1/그룹으로 간주하고 진행 — 최소한 소통 화면까지는 이동시킨다
+    }
+    voiceStore.update({ selectedChatRoomId: chatRoomId });
+    return { isProjectRoom: false, route: "/app/chat?mode=direct" };
+  }
+
+  function dismissMessageToast(toastId: string) {
+    setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
+  }
+
+  async function openMessageToast(toast: { chatRoomId: string; id: string }) {
+    dismissMessageToast(toast.id);
+    const target = await resolveChatRoomRoute(toast.chatRoomId);
+    router.push(target.route);
+  }
+
   // 알림 "보러가기" 딥링크 — sourceType별 이동 경로(백엔드 NotificationResponse 계약: sourceType + sourceId):
   // - COMMENT/RESOURCE: sourceId를 자료 ID로 보고 자료를 조회해 룸 자료보드(?resourceId=)로,
   //   룸 정보가 없으면 개인 자료보드로 이동한다(조회 실패 시에도 개인 보드 폴백).
   //   자료보드는 ?resourceId=로 해당 자료 상세를 열고, 댓글 섹션은 기본 펼침(<details open>)이다.
-  // - MESSAGE: 소통 화면으로(sourceId가 있으면 ?roomId=로 해당 룸 스코프).
+  // - MESSAGE: 채팅방 종류에 맞는 소통 화면으로 이동(resolveChatRoomRoute 참고).
   // - AGENT: AI 요청함으로.
   // 클릭 즉시 읽음 처리(낙관적)하고 알림 패널을 닫는다.
   async function handleOpenNotification(notification: NotificationResponse) {
@@ -778,9 +834,12 @@ export function AppShell({ children }: AppShellProps) {
       return;
     }
     if (notification.sourceType === "MESSAGE") {
-      const fallbackRoute = sourceId
-        ? projectRoomRoute(sourceId, "work")
-        : "/app";
+      if (!sourceId) {
+        router.push("/app/chat");
+        return;
+      }
+      const target = await resolveChatRoomRoute(sourceId);
+      const fallbackRoute = target.route;
 
       if (isTauriRuntime()) {
         const opened = await openTauriChatWidget({ eventType: "handoff:notification", roomId: sourceId });
@@ -789,7 +848,7 @@ export function AppShell({ children }: AppShellProps) {
         }
         return;
       }
-      router.push(sourceId ? `/app/chat?roomId=${encodeURIComponent(sourceId)}` : "/app/chat");
+      router.push(fallbackRoute);
       return;
     }
     if (notification.sourceType === "COMMENT" || notification.sourceType === "RESOURCE") {
@@ -1118,6 +1177,26 @@ export function AppShell({ children }: AppShellProps) {
               </button>
             </div>
           </div>
+        </div>
+      ) : null}
+      {messageToasts.length > 0 ? (
+        <div className="message-toast-stack" aria-live="polite">
+          {messageToasts.map((toast) => (
+            <div className="message-toast" key={toast.id} role="status">
+              <button className="message-toast__body" onClick={() => void openMessageToast(toast)} type="button">
+                <strong className="message-toast__sender">{toast.senderName}</strong>
+                <span className="message-toast__text">{toast.text}</span>
+              </button>
+              <button
+                aria-label={t("layout.messageToast.dismiss")}
+                className="message-toast__close"
+                onClick={() => dismissMessageToast(toast.id)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+          ))}
         </div>
       ) : null}
     </div>
