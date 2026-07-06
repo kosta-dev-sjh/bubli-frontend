@@ -466,7 +466,7 @@ export function AppShell({ children }: AppShellProps) {
 
   // 룸 목록/알림/초대함만 가볍게 재조회한다(셸 전체 리로드 없이 스위처·벨 배지를 최신으로 유지).
   const shellReady = state.kind === "ready";
-  const shellContextReady = state.kind === "ready" && state.rooms.length > 0;
+  const shellContextReady = state.kind === "ready";
   const refreshShellLists = useCallback(async () => {
     if (!shellReady) return;
 
@@ -650,7 +650,6 @@ export function AppShell({ children }: AppShellProps) {
     if (!shellContextReady || !isTauriRuntime() || runtimeSmokeEnabled) return;
 
     const launchSelectedRoomId = selectedRoomId ?? getActiveProjectRoomId();
-    if (!launchSelectedRoomId) return;
 
     void launchTauriAuthenticatedSurfaces({
       retryPolicy: "cooldown",

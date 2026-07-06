@@ -1319,8 +1319,8 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /let lastAutoLaunchFailure: \{ failedAtMs: number; key: string \} \| null = null[\s\S]*const AUTO_LAUNCH_FAILURE_COOLDOWN_MS = 15_000[\s\S]*function autoLaunchFailureKey\(userId: string \| undefined, selectedRoomId: string\)[\s\S]*`\$\{userId \?\? "anonymous"\}:\$\{selectedRoomId\}`[\s\S]*function shouldApplyAutoLaunchCooldown\(options: LaunchTauriAuthenticatedSurfacesOptions\)[\s\S]*options\.retryPolicy === "cooldown"[\s\S]*function shouldSuppressAutoLaunchRetry\(key: string\)/,
-  "Tauri widget auto-launch retry suppression must be keyed by user id and room id without exposing tokens.",
+  /let lastAutoLaunchFailure: \{ failedAtMs: number; key: string \} \| null = null[\s\S]*const AUTO_LAUNCH_FAILURE_COOLDOWN_MS = 15_000[\s\S]*function autoLaunchFailureKey\(userId: string \| undefined, selectedRoomId: string \| null\)[\s\S]*selectedRoomId \?\? "personal"[\s\S]*function shouldApplyAutoLaunchCooldown\(options: LaunchTauriAuthenticatedSurfacesOptions\)[\s\S]*options\.retryPolicy === "cooldown"[\s\S]*function shouldSuppressAutoLaunchRetry\(key: string\)/,
+  "Tauri widget auto-launch retry suppression must be keyed by user id and room id or personal mode without exposing tokens.",
 );
 assertContains(
   surfaces,
@@ -1354,17 +1354,17 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /type LaunchTauriAuthenticatedSurfacesOptions = \{[\s\S]*retryPolicy\?: "cooldown" \| "force";[\s\S]*sessionAlreadyValidated\?: boolean;[\s\S]*selectedRoomId\?: string \| null;[\s\S]*const selectedRoomId = options\.selectedRoomId \?\? \(await resolveLaunchSelectedRoomId\(\)\);/,
-  "launchTauriAuthenticatedSurfaces must reuse caller-resolved project-room context and keep cooldown opt-in before falling back to extra API lookups.",
+  /type LaunchTauriAuthenticatedSurfacesOptions = \{[\s\S]*retryPolicy\?: "cooldown" \| "force";[\s\S]*sessionAlreadyValidated\?: boolean;[\s\S]*selectedRoomId\?: string \| null;[\s\S]*Object\.prototype\.hasOwnProperty\.call\(options, "selectedRoomId"\)[\s\S]*options\.selectedRoomId \?\? null[\s\S]*await resolveLaunchSelectedRoomId\(\)/,
+  "launchTauriAuthenticatedSurfaces must reuse caller-resolved project-room context, preserve explicit null personal mode, and keep cooldown opt-in before falling back to extra API lookups.",
 );
 assertContains(
   surfaces,
-  /const selectedRoomId = options\.selectedRoomId \?\? \(await resolveLaunchSelectedRoomId\(\)\);[\s\S]*if \(!selectedRoomId\) \{[\s\S]*Tauri authenticated surfaces require a selected project room[\s\S]*const launchFailureKey = autoLaunchFailureKey\(verifiedSession\?\.user\.id \?\? initialSession\.user\.id, selectedRoomId\)[\s\S]*const applyAutoLaunchCooldown = shouldApplyAutoLaunchCooldown\(options\)[\s\S]*if \(applyAutoLaunchCooldown && shouldSuppressAutoLaunchRetry\(launchFailureKey\)\)[\s\S]*retrySuppressedAt[\s\S]*await tauriCommands\.setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\);/,
-  "launchTauriAuthenticatedSurfaces must refuse to open authenticated widgets until a project-room context exists and suppress only opt-in auto retries.",
+  /const selectedRoomId = Object\.prototype\.hasOwnProperty\.call\(options, "selectedRoomId"\)[\s\S]*const launchFailureKey = autoLaunchFailureKey\(verifiedSession\?\.user\.id \?\? initialSession\.user\.id, selectedRoomId\)[\s\S]*const applyAutoLaunchCooldown = shouldApplyAutoLaunchCooldown\(options\)[\s\S]*if \(applyAutoLaunchCooldown && shouldSuppressAutoLaunchRetry\(launchFailureKey\)\)[\s\S]*retrySuppressedAt[\s\S]*await tauriCommands\.setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\);/,
+  "launchTauriAuthenticatedSurfaces must allow personal-mode widgets when no project-room context exists and suppress only opt-in auto retries.",
 );
 assertContains(
   surfaces,
-  /const startupWindows = await resolveLoginStartupWindows\(\);[\s\S]*const selectedRoomId = options\.selectedRoomId \?\? \(await resolveLaunchSelectedRoomId\(\)\);[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;/,
+  /const startupWindows = await resolveLoginStartupWindows\(\);[\s\S]*const selectedRoomId = Object\.prototype\.hasOwnProperty\.call\(options, "selectedRoomId"\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;/,
   "launchTauriAuthenticatedSurfaces must cancel cleanly if auth/session state changes after resolving the project-room context.",
 );
 assertContains(
@@ -1446,8 +1446,8 @@ assertContains(
 );
 assertContains(
   appShell,
-  /const shellContextReady = state\.kind === "ready" && state\.rooms\.length > 0[\s\S]*if \(!shellContextReady \|\| !isTauriRuntime\(\) \|\| runtimeSmokeEnabled\) return;/,
-  "AppShell must launch native surfaces only after authenticated room context is ready and must not race the runtime smoke.",
+  /const shellContextReady = state\.kind === "ready"[\s\S]*if \(!shellContextReady \|\| !isTauriRuntime\(\) \|\| runtimeSmokeEnabled\) return;/,
+  "AppShell must launch native surfaces after the authenticated shell is ready and must not block personal widgets when no project room exists.",
 );
 assertContains(
   appShell,
@@ -1491,8 +1491,8 @@ assertContains(
 );
 assertContains(
   appShell,
-  /const launchSelectedRoomId = selectedRoomId \?\? getActiveProjectRoomId\(\);[\s\S]*if \(!launchSelectedRoomId\) return;[\s\S]*launchTauriAuthenticatedSurfaces\(\{[\s\S]*retryPolicy: "cooldown"[\s\S]*selectedRoomId: launchSelectedRoomId[\s\S]*sessionAlreadyValidated: true/,
-  "AppShell must pass its resolved project-room context into Tauri widget launch to avoid duplicate startup context lookups and repeated auto-launch flicker.",
+  /const launchSelectedRoomId = selectedRoomId \?\? getActiveProjectRoomId\(\);[\s\S]*launchTauriAuthenticatedSurfaces\(\{[\s\S]*retryPolicy: "cooldown"[\s\S]*selectedRoomId: launchSelectedRoomId[\s\S]*sessionAlreadyValidated: true/,
+  "AppShell must pass its resolved project-room context, including null personal mode, into Tauri widget launch to avoid duplicate startup context lookups and repeated auto-launch flicker.",
 );
 assertContains(
   appShell,
