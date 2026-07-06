@@ -2133,8 +2133,11 @@
   font-weight: 800;
   -webkit-text-stroke: 0.3px rgba(0, 0, 0, 0.26);
   text-shadow:
-    0 0 1px rgba(0, 0, 0, 0.28),
-    0 1px 3px rgba(0, 0, 0, 0.28);
+    -1px -1px 0 rgba(0, 0, 0, 0.5),
+    1px -1px 0 rgba(0, 0, 0, 0.5),
+    -1px 1px 0 rgba(0, 0, 0, 0.5),
+    1px 1px 0 rgba(0, 0, 0, 0.5),
+    0 2px 5px rgba(0, 0, 0, 0.4);
 }
 
 /* ---------- 최소화 오브 / 숨김 카드 ---------- */
