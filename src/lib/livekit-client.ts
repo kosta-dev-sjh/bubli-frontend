@@ -1,4 +1,5 @@
-import { Room } from "livekit-client";
+import { Room, RoomEvent, Track } from "livekit-client";
+import type { RemoteTrack } from "livekit-client";
 
 import type { VoiceTokenResponse } from "@/types/api/voice";
 
@@ -18,6 +19,24 @@ export function getActiveLiveKitVoiceRoomId(): string | null {
   return activeVoiceRoomId;
 }
 
+// LiveKit은 원격 트랙을 구독해도 오디오를 자동 재생하지 않는다 —
+// TrackSubscribed에서 직접 <audio> 엘리먼트를 만들어 DOM에 붙여야 실제로 들린다.
+function attachRemoteAudioTrack(track: RemoteTrack) {
+  if (track.kind !== Track.Kind.Audio) return;
+  const element = track.attach();
+  element.dataset.livekitAudioTrack = track.sid ?? "";
+  element.autoplay = true;
+  document.body.appendChild(element);
+}
+
+function detachAllRemoteAudio(room: Room) {
+  room.remoteParticipants.forEach((participant) => {
+    participant.trackPublications.forEach((publication) => {
+      publication.track?.detach().forEach((element) => element.remove());
+    });
+  });
+}
+
 export async function connectLiveKitRoom(voiceRoomId: string, token: VoiceTokenResponse): Promise<Room> {
   if (activeRoom && activeVoiceRoomId === voiceRoomId) {
     return activeRoom;
@@ -26,6 +45,11 @@ export async function connectLiveKitRoom(voiceRoomId: string, token: VoiceTokenR
   await disconnectLiveKitRoom();
 
   const room = new Room();
+  room.on(RoomEvent.TrackSubscribed, (track) => attachRemoteAudioTrack(track));
+  room.on(RoomEvent.TrackUnsubscribed, (track) => {
+    track.detach().forEach((element) => element.remove());
+  });
+
   activeRoom = room;
   activeVoiceRoomId = voiceRoomId;
 
@@ -37,6 +61,7 @@ export async function connectLiveKitRoom(voiceRoomId: string, token: VoiceTokenR
       activeRoom = null;
       activeVoiceRoomId = null;
     }
+    detachAllRemoteAudio(room);
     room.disconnect();
     throw error;
   }
@@ -53,6 +78,7 @@ export async function disconnectLiveKitRoom(): Promise<void> {
   activeRoom = null;
   activeVoiceRoomId = null;
   if (room) {
+    detachAllRemoteAudio(room);
     await room.disconnect();
   }
 }
