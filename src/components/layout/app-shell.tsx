@@ -25,7 +25,7 @@ import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, readUserUpdatedDetail, useDataRefresh, USER_UPDATED_EVENT } from "@/lib/data-changed";
-import { playNotificationSound } from "@/lib/sound/notification-sound";
+import { playNotificationSound, primeNotificationSound } from "@/lib/sound/notification-sound";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import {
@@ -725,6 +725,28 @@ export function AppShell({ children }: AppShellProps) {
     if (getActiveProjectRoomId() === selectedRoom.id && getActiveProjectRoomLabel() === selectedRoom.name) return;
     setActiveProjectRoomId(selectedRoom.id, selectedRoom.name);
   }, [selectedRoom, state.kind]);
+
+  // 브라우저/WKWebView 자동재생 정책: 사용자 제스처가 한 번이라도 있어야 이후 알림음 재생이 허용된다.
+  // 최초 클릭/키입력/터치 시 한 번만 사전 로드해 두면, 실제 알림 시점에 소리가 막히지 않는다.
+  useEffect(() => {
+    let primed = false;
+    const prime = () => {
+      if (primed) return;
+      primed = true;
+      primeNotificationSound();
+      window.removeEventListener("pointerdown", prime);
+      window.removeEventListener("keydown", prime);
+      window.removeEventListener("touchstart", prime);
+    };
+    window.addEventListener("pointerdown", prime, { once: false });
+    window.addEventListener("keydown", prime, { once: false });
+    window.addEventListener("touchstart", prime, { once: false });
+    return () => {
+      window.removeEventListener("pointerdown", prime);
+      window.removeEventListener("keydown", prime);
+      window.removeEventListener("touchstart", prime);
+    };
+  }, []);
 
   // 새 알림(미읽음 증가) 도착 → 버블 알림음(뽑!).
   // 첫 준비(baseline)에는 울리지 않는다 — 기존 미읽음 로드로 인한 오탐을 막는다.

@@ -50,6 +50,7 @@ import {
 } from "@/lib/local/managed-folder-client";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { DesktopAppDownload } from "@/features/download/components/desktop-app-download";
 import {
   tauriCommands,
   type AppMonitorInfo,
@@ -79,7 +80,6 @@ import type { LocalAdapterResult } from "@/types/local";
 
 import styles from "./settings-page.module.css";
 
-const windowsInstallerHref = "/downloads/windows/Bubli-Windows-latest.exe";
 
 type SettingsData = {
   activityLogs: ActivityLogResponse[] | null;
@@ -1665,9 +1665,7 @@ export default function SettingsPage() {
                 <h2>{t("settings.nav.desktop")}</h2>
                 <p className={styles.sectionDesc}>{t("settings.desktop.webBody")}</p>
                 <div className={styles.sectionFoot}>
-                  <Link className="bubli-button bubli-button--primary" download href={windowsInstallerHref}>
-                    {t("settings.desktop.webDownloadCta")}
-                  </Link>
+                  <DesktopAppDownload />
                 </div>
               </GlassPanel>
             ) : null}

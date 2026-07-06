@@ -18,7 +18,7 @@ import type { MessageKey } from "@/lib/i18n";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import type { ProjectRoomUpsertRequest } from "@/types/api/projectRoom";
 
-type SubmitState = "idle" | "submitting" | "auth" | "error";
+type SubmitState = "idle" | "submitting" | "auth" | "error" | "partial";
 
 type RoomDraft = {
   clientName: string;
@@ -87,8 +87,10 @@ export default function NewProjectRoomPage() {
     setAttachedFiles((files) => files.filter((file) => file.name !== fileName));
   }
 
-  async function uploadRoomFiles(roomId: string, files: File[]) {
-    await Promise.all(
+  // 업로드는 파일별로 독립 처리한다 — 하나가 실패해도 나머지는 올라가고, 실패분만 돌려준다.
+  // 계약서 자동 검토는 업로드 성공/실패와 분리해(자체 try) 성공한 업로드를 덮지 않게 한다.
+  async function uploadRoomFiles(roomId: string, files: File[]): Promise<File[]> {
+    const results = await Promise.allSettled(
       files.map((file) => {
         const body = new FormData();
         body.append("title", file.name);
@@ -100,8 +102,17 @@ export default function NewProjectRoomPage() {
         return resourcesApi.upload(body);
       }),
     );
+    const failed = files.filter((_, index) => results[index]?.status === "rejected");
 
-    await agentApi.reviewContractDocuments({ roomId });
+    // 계약서 검토는 최소 한 개라도 올라갔을 때만 호출하고, 실패해도 업로드 결과엔 영향 주지 않는다.
+    if (failed.length < files.length) {
+      try {
+        await agentApi.reviewContractDocuments({ roomId });
+      } catch {
+        // 검토 트리거 실패는 자료보드에서 재분석으로 이어갈 수 있어 조용히 넘긴다.
+      }
+    }
+    return failed;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -133,12 +144,18 @@ export default function NewProjectRoomPage() {
       // 셸 스위처/탑바가 새 룸을 즉시 반영하도록 알린다(자료 업로드 결과와 무관).
       notifyDataChanged("project-room");
       if (attachedFiles.length > 0) {
-        try {
-          await uploadRoomFiles(room.id, attachedFiles);
-          notifyDataChanged("resource");
-        } catch {
-          // 프로젝트룸 생성은 유지하고, 자료 업로드/분석은 룸 자료보드에서 다시 이어갈 수 있게 한다.
+        const failed = await uploadRoomFiles(room.id, attachedFiles);
+        notifyDataChanged("resource");
+        if (failed.length > 0) {
+          // 룸은 만들어졌지만 일부 파일이 실패 → 조용히 넘기지 않고 알리고, 자료보드로 보내 재시도하게 한다.
+          setSubmitState("partial");
+          setMessage(t("room.new.errorPartialUpload", { count: failed.length }));
+          router.push(projectRoomRoute(room.id, "resources"));
+          return;
         }
+        // 자료를 올렸으면 자료보드로 이동해 업로드·분석 결과를 바로 확인하게 한다.
+        router.push(projectRoomRoute(room.id, "resources"));
+        return;
       }
       router.push(projectRoomRoute(room.id, "work"));
     } catch (error) {
@@ -307,7 +324,7 @@ export default function NewProjectRoomPage() {
           </div>
 
           {message ? (
-            <p className="workspace-route__form-message" role={submitState === "error" || submitState === "auth" ? "alert" : undefined}>
+            <p className="workspace-route__form-message" role={submitState === "error" || submitState === "auth" || submitState === "partial" ? "alert" : undefined}>
               <AlertCircle aria-hidden size={16} strokeWidth={2} />
               {message}
             </p>
