@@ -30,6 +30,7 @@ const files = {
   projectRoomChatRoute: "src/app/(workspace)/app/project-rooms/[roomId]/chat/page.tsx",
   layout: "src/app/layout.tsx",
   postLoginLauncher: "src/lib/tauri/tauri-post-login-launcher.tsx",
+  tauriRuntimeGates: "src/lib/tauri/tauri-runtime-gates.tsx",
   realOAuthQaReporter: "src/lib/tauri/tauri-real-oauth-qa-reporter.tsx",
   authWidgetQa: "src/lib/tauri/tauri-auth-widget-qa.ts",
   managedFolderAutoSync: "src/lib/local/managed-folder-auto-sync.ts",
@@ -37,6 +38,7 @@ const files = {
   runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
   tauriCapability: "src-tauri/capabilities/default.json",
   tauriConf: "src-tauri/tauri.conf.json",
+  tauriMacosConf: "src-tauri/tauri.macos.conf.json",
   tauriMain: "src-tauri/src/main.rs",
   tauriIconIco: "src-tauri/icons/icon.ico",
   tauriIconPng: "src-tauri/icons/icon.png",
@@ -162,6 +164,7 @@ const desktopAppDownload = read(files.desktopAppDownload);
 const settingsPage = read(files.settingsPage);
 const frontendSmoke = read(files.frontendSmoke);
 const launcher = read(files.postLoginLauncher);
+const tauriRuntimeGates = read(files.tauriRuntimeGates);
 const realOAuthQaReporter = read(files.realOAuthQaReporter);
 const authWidgetQa = read(files.authWidgetQa);
 const managedFolderAutoSync = read(files.managedFolderAutoSync);
@@ -169,6 +172,7 @@ const firstRunController = read(files.firstRunController);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
 const tauriCapability = read(files.tauriCapability);
 const tauriConf = read(files.tauriConf);
+const tauriMacosConf = read(files.tauriMacosConf);
 const tauriMain = read(files.tauriMain);
 const tauriIconIco = readBuffer(files.tauriIconIco);
 const tauriIconPng = readBuffer(files.tauriIconPng);
@@ -301,8 +305,13 @@ assertContains(
 );
 assertContains(
   layout,
-  /<TauriRealOAuthQaReporter\s*\/>/,
-  "Root layout must mount TauriRealOAuthQaReporter so manual real Google OAuth QA can collect a redacted report.",
+  /<TauriRuntimeGates\s*\/>/,
+  "Root layout must mount TauriRuntimeGates so Tauri guards and explicit QA runners stay available.",
+);
+assertContains(
+  tauriRuntimeGates,
+  /const realOAuthQaEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true";[\s\S]*import\("@\/lib\/tauri\/tauri-real-oauth-qa-reporter"\)[\s\S]*realOAuthQaEnabled \? <TauriRealOAuthQaReporter \/> : null/,
+  "TauriRuntimeGates must lazy-load TauriRealOAuthQaReporter only when the explicit real OAuth QA flag is enabled.",
 );
 assertContains(
   realOAuthQaReporter,
@@ -605,14 +614,14 @@ assertContains(
 );
 
 assertContains(
-  layout,
+  tauriRuntimeGates,
   /<TauriPostLoginLauncher\s*\/>/,
-  "Root layout must mount TauriPostLoginLauncher so hybrid app login can start native widgets.",
+  "TauriRuntimeGates must mount TauriPostLoginLauncher so hybrid app login can start native widgets.",
 );
 assertContains(
-  layout,
+  tauriRuntimeGates,
   /<TauriDevtoolsGuard\s*\/>/,
-  "Root layout must mount TauriDevtoolsGuard for hybrid/widget devtools hardening.",
+  "TauriRuntimeGates must mount TauriDevtoolsGuard for hybrid/widget devtools hardening.",
 );
 assertContains(
   tauriConf,
@@ -628,6 +637,11 @@ assertContains(
   tauriConf,
   /"beforeBuildCommand":\s*"npm run build && node scripts\/prepare-tauri-dist\.mjs"[\s\S]*"frontendDist":\s*"\.\.\/\.tauri-dist"/,
   "Tauri release builds must package the prepared .tauri-dist directory instead of raw .next server output.",
+);
+assertContains(
+  tauriMacosConf,
+  /"beforeBuildCommand":\s*"npm run build && node scripts\/prepare-tauri-dist\.mjs"[\s\S]*"frontendDist":\s*"\.\.\/\.tauri-dist"/,
+  "macOS Tauri release builds must use the optimized .tauri-dist directory instead of the legacy dist-tauri installer mirror.",
 );
 assertContains(
   tauriConf,
@@ -674,7 +688,7 @@ assertContains(
 );
 assertContains(
   prepareTauriDist,
-  /function shouldSkipPublicAsset\(relativePath\)[\s\S]*relativePath === "downloads"[\s\S]*relativePath\.startsWith\(`downloads\\\\`\)[\s\S]*relativePath\.startsWith\("downloads\/"\)[\s\S]*if \(shouldSkipPublicAsset\(relativePath\)\) continue;/,
+  /function shouldSkipPublicFile\(relativePath, file\)[\s\S]*normalizedPath === "downloads"[\s\S]*normalizedPath\.startsWith\("downloads\/"\)[\s\S]*if \(shouldSkipPublicFile\(relativePath, source\)\) continue;/,
   "prepare-tauri-dist must exclude public/downloads so Windows installers are not recursively bundled inside the app.",
 );
 assertContains(
@@ -703,6 +717,11 @@ assertContains(
   "The Windows release main window must be shown before preferred-monitor resolution so stale monitor preferences cannot leave the installed app headless.",
 );
 assertContains(
+  tauriLib,
+  /fn close_widget_window[\s\S]*if cfg!\(target_os = "macos"\) \{[\s\S]*widget\.mode = "MINIMIZED"\.to_string\(\);[\s\S]*\} else \{[\s\S]*widget\.mode = "DEFAULT"\.to_string\(\);/,
+  "Desktop widget close must keep the macOS restore-bar behavior separate from the existing Windows close behavior.",
+);
+assertContains(
   tauriDevtoolsGuard,
   /event\.key === "F12"[\s\S]*event\.key === "ContextMenu"[\s\S]*event\.shiftKey && event\.key === "F10"[\s\S]*BLOCKED_DEVTOOLS_KEYS\.has\(event\.key\.toLowerCase\(\)\)/,
   "TauriDevtoolsGuard must block F12, keyboard context menu, Shift+F10, and Ctrl+Shift devtools shortcuts.",
@@ -718,9 +737,9 @@ assertContains(
   "TauriDevtoolsGuard must stop blocked devtools/context-menu events before app handlers can re-open them.",
 );
 assertContains(
-  layout,
-  /<TauriRuntimeSmokeRunner\s*\/>/,
-  "Root layout must mount TauriRuntimeSmokeRunner so Windows runtime smoke can exercise real Tauri IPC.",
+  tauriRuntimeGates,
+  /const runtimeSmokeEnabled =[\s\S]*process\.env\.NODE_ENV === "development"[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";[\s\S]*import\("@\/lib\/tauri\/tauri-runtime-smoke-runner"\)[\s\S]*runtimeSmokeEnabled \? <TauriRuntimeSmokeRunner \/> : null/,
+  "TauriRuntimeGates must lazy-load TauriRuntimeSmokeRunner only for explicit development runtime smoke.",
 );
 
 assertContains(
@@ -960,7 +979,7 @@ assertContains(
 );
 assertContains(
   activityAutoCapture,
-  /captureIntervalId = null;[\s\S]*if \(input\?\.flush\) \{[\s\S]*await flushActivityAutoCapture\(\);[\s\S]*updateActivityAutoCaptureStatus\(\{ lastStatus: "stopped", running: false \}\);[\s\S]*await mirrorNativeActivityConsent\(false\);/,
+  /const shouldFlush =[\s\S]*Boolean\(input\?\.flush\)[\s\S]*captureIntervalId = null;[\s\S]*if \(shouldFlush\) \{[\s\S]*await flushActivityAutoCapture\(\);[\s\S]*updateActivityAutoCaptureStatus\(\{ lastStatus: "stopped", running: false \}\);[\s\S]*await mirrorNativeActivityConsent\(false\);/,
   "stopActivityAutoCapture must leave status stopped after flush so local-auto-sync smoke does not see a stale running state.",
 );
 assertContains(
@@ -1015,8 +1034,8 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /closeWidgetWindow\(\{ bubbleType: "chat", windowId: "chat" \}\)[\s\S]*post-login relaunch setup closed one bubble widget[\s\S]*launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher reopened stale or missing bubble widget windows/,
-  "TauriRuntimeSmokeRunner must prove the post-login launcher recovers stale launched state when a bubble window disappears.",
+  /closeWidgetWindow\(\{ bubbleType: "chat", windowId: "chat" \}\)[\s\S]*post-login relaunch setup closed one bubble widget[\s\S]*if \(isMacRuntime\(\)\) \{[\s\S]*getWidgetBarItems\(\)[\s\S]*macOS closed chat widget remains restorable from the bar[\s\S]*openWidgetWindow\(\{[\s\S]*bubbleType: "chat"[\s\S]*macOS closed chat widget restored from the bar with project room context[\s\S]*closed chat widget reopened with project room context/,
+  "TauriRuntimeSmokeRunner must prove macOS close leaves a bar restore item while Windows can keep the existing reopen flow.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -1180,6 +1199,21 @@ assertNotContains(
   "TauriPostLoginLauncher must not clear the mirrored desktop auth session directly.",
 );
 assertContains(
+  apiClient,
+  /type AuthRefreshResult = "invalid" \| "refreshed" \| "unavailable";/,
+  "API client refresh result must model transient refresh outages separately from invalid sessions.",
+);
+assertContains(
+  apiClient,
+  /refreshed === "unavailable"[\s\S]*throw new Error\("Auth refresh is temporarily unavailable\."\)/,
+  "API client must distinguish transient auth-refresh outages from invalid sessions so Tauri does not log out on network jitter.",
+);
+assertContains(
+  apiClient,
+  /function isRefreshTokenRejected[\s\S]*AUTH_REFRESH_TOKEN_EXPIRED[\s\S]*AUTH_REFRESH_TOKEN_REUSED[\s\S]*AUTH_INVALID_TOKEN[\s\S]*catch \{[\s\S]*return "unavailable";/,
+  "API client must clear auth only for explicit refresh-token rejection, not for refresh fetch timeout or network errors.",
+);
+assertContains(
   launcher,
   /async function routeRestoredDesktopSession\(\)[\s\S]*const session = getStoredAuthSession\(\) \?\? \(await restoreStoredAuthSessionFromTauri\(\)\)[\s\S]*if \(!session\) \{[\s\S]*await stopTauriAuthenticatedSurfaces\(\);[\s\S]*return;[\s\S]*if \(!pathname\.startsWith\("\/app"\)\) \{[\s\S]*router\.replace\("\/app\/"\)/,
   "TauriPostLoginLauncher must only restore/route a desktop session while AppShell owns backend auth validation and room-context widget launch.",
@@ -1296,13 +1330,18 @@ assertContains(
   /bubbleType:\s*"todo"[\s\S]*windowId:\s*"todo"/,
   "Login startup windows must include the primary TODO bubble.",
 );
-for (const required of ["agent", "alert", "chat", "memo", "resource", "schedule", "timer"]) {
+for (const required of ["agent", "alert", "chat", "memo", "schedule", "timer"]) {
   assertContains(
     startupWindows,
     new RegExp(`bubbleType:\\s*"${required}"[\\s\\S]*windowId:\\s*"${required}"`),
     `Login startup windows must include the ${required} bubble so authenticated Tauri launches restore all widget surfaces.`,
   );
 }
+assertNotContains(
+  startupWindows,
+  /bubbleType:\s*"resource"|windowId:\s*"resource"/,
+  "Login startup windows must not open the legacy standalone resource bubble because drafts live in the AI Agent widget.",
+);
 
 assertContains(
   surfaces,
@@ -1594,7 +1633,7 @@ assertContains(
 );
 assertContains(
   apiClient,
-  /if \(isTauriRuntime\(\)\) \{[\s\S]*await setStoredAuthSessionAndWaitForTauriMirror\(\{ \.\.\.payload\.data, clientType \}\)[\s\S]*\} else \{[\s\S]*setStoredAuthSession\(\{ \.\.\.payload\.data, clientType \}\)[\s\S]*\}[\s\S]*return true;[\s\S]*\} catch \{[\s\S]*return false;/,
+  /if \(isTauriRuntime\(\)\) \{[\s\S]*await setStoredAuthSessionAndWaitForTauriMirror\(\{ \.\.\.payload\.data, clientType \}\)[\s\S]*\} else \{[\s\S]*setStoredAuthSession\(\{ \.\.\.payload\.data, clientType \}\)[\s\S]*\}[\s\S]*return "refreshed";[\s\S]*if \(isRefreshTokenRejected\(response\.status, payload\)\) \{[\s\S]*clearStoredAuthSession\(\);[\s\S]*return "invalid";[\s\S]*return "unavailable";[\s\S]*\} catch \{[\s\S]*return "unavailable";/,
   "API client refresh must mirror successful Tauri refreshes and must not erase the desktop mirror on transient refresh fetch failures.",
 );
 assertContains(

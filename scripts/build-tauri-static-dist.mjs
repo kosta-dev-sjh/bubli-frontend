@@ -9,6 +9,8 @@ const nextAppDir = path.join(root, ".next", "server", "app");
 const publicDir = path.join(root, "public");
 const args = new Set(process.argv.slice(2));
 const envFile = readArgValue("--env");
+const includeDownloads = args.has("--include-downloads");
+const skippedPublicFiles = [];
 
 if (args.has("--build")) {
   await runNextBuild(envFile);
@@ -17,7 +19,7 @@ if (args.has("--build")) {
 await rm(distDir, { force: true, recursive: true });
 await mkdir(distDir, { recursive: true });
 
-await copyIfExists(publicDir, distDir);
+await copyPublicAssets(publicDir, distDir);
 await copyIfExists(nextStaticDir, path.join(distDir, "_next", "static"));
 
 const htmlFiles = await listFiles(nextAppDir, ".html");
@@ -34,6 +36,14 @@ await copyIfExists(mainRoute, path.join(distDir, "index.html"));
 console.log(
   `Prepared Tauri static dist at ${path.relative(root, distDir)} with ${htmlFiles.length} prerendered route(s).`,
 );
+if (skippedPublicFiles.length > 0) {
+  const skippedBytes = skippedPublicFiles.reduce((total, file) => total + file.size, 0);
+  console.log(
+    `Skipped ${skippedPublicFiles.length} public download file(s) from the desktop bundle (${formatBytes(
+      skippedBytes,
+    )}). Pass --include-downloads to package them intentionally.`,
+  );
+}
 
 async function copyIfExists(source, target) {
   try {
@@ -78,6 +88,55 @@ async function listFiles(dir, extension) {
       }
     }
   }
+}
+
+async function copyPublicAssets(source, target) {
+  try {
+    await stat(source);
+  } catch (error) {
+    if (error?.code === "ENOENT") return;
+    throw error;
+  }
+
+  for (const file of await listAllFiles(source)) {
+    const relative = path.relative(source, file);
+    if (await shouldSkipPublicFile(relative, file)) continue;
+    await copyIfExists(file, path.join(target, relative));
+  }
+}
+
+async function listAllFiles(dir) {
+  const files = [];
+
+  await walk(dir);
+  return files;
+
+  async function walk(current) {
+    const entries = await readdir(current, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const entryPath = path.join(current, entry.name);
+
+      if (entry.isDirectory()) {
+        await walk(entryPath);
+        continue;
+      }
+
+      if (entry.isFile()) {
+        files.push(entryPath);
+      }
+    }
+  }
+}
+
+async function shouldSkipPublicFile(relative, file) {
+  const normalizedPath = relative.replaceAll(path.sep, "/");
+  const isDownloadFile = normalizedPath === "downloads" || normalizedPath.startsWith("downloads/");
+  if (!isDownloadFile || includeDownloads) return false;
+
+  const fileStats = await stat(file);
+  skippedPublicFiles.push({ path: normalizedPath, size: fileStats.size });
+  return true;
 }
 
 function toStaticHtmlTarget(relative) {
@@ -140,4 +199,10 @@ function stripOptionalQuotes(value) {
   }
 
   return value;
+}
+
+function formatBytes(bytes) {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
 }

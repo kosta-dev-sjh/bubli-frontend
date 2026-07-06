@@ -335,10 +335,11 @@
 .head {
   position: relative;
   z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 10px;
+  row-gap: 5px;
   min-width: 0;
   /* WKWebView(Tauri macOS)는 -webkit- 접두사가 없으면 선택이 안 막혀 헤더 글자가
      드래그 대신 선택돼 창이 안 움직인다 — 전 버블 헤더에 명시적으로 막는다. */
@@ -400,6 +401,115 @@
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.headerScopeRow {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.agentScopeToggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  width: min(174px, 100%);
+  min-width: 0;
+  min-height: 28px;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--acc) 18%, var(--widget-hairline));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--acc) 7%, rgba(255, 255, 255, 0.48));
+  cursor: default;
+}
+
+.agentScopeToggle button {
+  overflow: hidden;
+  min-width: 0;
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--widget-muted);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentScopeToggle button[data-active="true"] {
+  color: var(--acc-ink);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    0 3px 10px -8px color-mix(in srgb, var(--acc) 60%, transparent);
+}
+
+.scopeSelect {
+  position: relative;
+  display: inline-grid;
+  align-items: center;
+  width: min(126px, 100%);
+  min-width: 96px;
+  height: 30px;
+  border: 1px solid color-mix(in srgb, var(--acc) 38%, var(--widget-hairline));
+  border-radius: 8px;
+  color: var(--widget-text);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    0 4px 12px -10px color-mix(in srgb, var(--acc) 55%, transparent);
+  cursor: pointer;
+}
+
+.scopeSelect,
+.scopeSelect * {
+  cursor: pointer;
+}
+
+.scopeSelect select {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  padding: 0 25px 0 10px;
+  border: 0;
+  border-radius: inherit;
+  color: inherit;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 30px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scopeSelect select:focus-visible {
+  outline: none;
+}
+
+.scopeSelect svg {
+  position: absolute;
+  right: 8px;
+  z-index: 0;
+  color: var(--widget-muted);
+  pointer-events: none;
+}
+
+.scopeSelect:focus-within,
+.scopeSelect:hover {
+  border-color: color-mix(in srgb, var(--acc) 55%, var(--widget-hairline));
+  color: var(--acc-ink);
+  background: rgba(255, 255, 255, 0.88);
 }
 
 /* ---------- 창 컨트롤: 24px ghost circle, 고정 gap 6, .6→1 hover ----------
@@ -547,8 +657,19 @@
 
 .rowList {
   display: grid;
+  align-content: start;
   gap: 6px;
+  grid-auto-rows: max-content;
   min-width: 0;
+}
+
+.memoPaperList {
+  flex: 1 1 auto;
+  align-content: start;
+  gap: 11px;
+  grid-auto-rows: max-content;
+  min-height: 0;
+  padding: 7px 4px 3px;
 }
 
 /* TODO 목록 내부 스크롤 — 창을 늘리지 않고 항목이 많으면 여기서 스크롤한다. */
@@ -596,6 +717,7 @@
 .chatPeople,
 .voiceStrip,
 .reactionDock,
+.agentCandidateRow,
 .agentInlineRow {
   border: 1px solid var(--widget-hairline);
   border-radius: 12px;
@@ -609,13 +731,57 @@
 .timelineRow,
 .memoRow,
 .chatHead,
-.handoffBubble {
+.handoffBubble,
+.agentCandidateRow {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   min-height: 36px;
   padding: 4px 10px;
+}
+
+.agentCandidateRow {
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 58px;
+  padding: 8px 12px;
+}
+
+.fileRow {
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon title actions"
+    "icon meta actions";
+  align-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  column-gap: 7px;
+  overflow: hidden;
+  row-gap: 2px;
+  height: 56px;
+  min-height: 56px;
+  max-height: 56px;
+  padding: 7px 9px;
+}
+
+.fileRow .rowTile {
+  grid-area: icon;
+  align-self: center;
+}
+
+.fileRow .resourceTitle {
+  grid-area: title;
+}
+
+.fileRow .resourceMeta {
+  grid-area: meta;
+  justify-self: start;
+  max-width: 100%;
+}
+
+.fileRow .resourceControlGroup {
+  grid-area: actions;
+  align-self: center;
 }
 
 .timelineRow,
@@ -629,28 +795,22 @@
 .alertRow:hover,
 .timelineRow:hover,
 .memoRow:hover,
+.agentCandidateRow:hover,
 .agentInlineRow:hover {
   border-color: color-mix(in srgb, var(--acc) 22%, transparent);
   background: color-mix(in srgb, var(--acc) 7%, rgba(255, 255, 255, 0.6));
 }
 
-.checkRow input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--acc);
-  cursor: pointer;
-}
-
 .checkRow span,
 .checkRow a,
-.fileRow span,
-.fileRow a,
+.resourceTitle,
 .timelineRow span,
 .timelineRow a,
 .chatHead span,
 .handoffBubble span,
 .alertRow a,
 .alertRow strong,
+.agentCandidateTitle,
 .message {
   min-width: 0;
   color: var(--widget-text);
@@ -661,14 +821,14 @@
 }
 
 .checkRow a,
-.fileRow a,
 .timelineRow a,
 .checkRow span,
-.fileRow span,
+.resourceTitle,
 .timelineRow span,
 .handoffBubble span,
 .alertRow a,
-.alertRow strong {
+.alertRow strong,
+.agentCandidateTitle {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -678,7 +838,8 @@
 .fileRow b,
 .timelineRow b,
 .chatHead b,
-.handoffBubble b {
+.handoffBubble b,
+.agentCandidateRow b {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -692,6 +853,47 @@
   font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.agentReviewActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.agentReviewActions button {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--widget-muted) 24%, transparent);
+  border-radius: 999px;
+  color: var(--widget-muted);
+  background: transparent;
+}
+
+.agentReviewActions button[data-tone="approve"] {
+  border-color: color-mix(in srgb, #58CE86 42%, transparent);
+  color: #1E8A4E;
+  background: color-mix(in srgb, #58CE86 10%, transparent);
+}
+
+.agentReviewActions button[data-tone="hold"] {
+  border-color: color-mix(in srgb, #FFC20D 36%, transparent);
+  color: #713B00;
+  background: color-mix(in srgb, #FFC20D 10%, transparent);
+}
+
+.agentReviewActions button[data-tone="reject"] {
+  border-color: color-mix(in srgb, #F46E6E 26%, transparent);
+  color: #C1003D;
+  background: color-mix(in srgb, #F46E6E 7%, transparent);
+}
+
+.agentReviewActions button:hover {
+  transform: translateY(-1px);
 }
 
 /* 자료 행의 미니 accent 타일 */
@@ -717,7 +919,8 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--acc) 16%, transparent);
 }
 
-.alertCheck {
+.alertCheck,
+.rowCheck {
   display: inline-grid;
   place-items: center;
   width: 22px;
@@ -730,7 +933,8 @@
   cursor: pointer;
 }
 
-.alertCheck:hover {
+.alertCheck:hover,
+.rowCheck:hover {
   border-color: color-mix(in srgb, var(--acc) 48%, transparent);
   background: color-mix(in srgb, var(--acc) 20%, transparent);
 }
@@ -1848,6 +2052,126 @@
   font-variant-numeric: tabular-nums;
 }
 
+.agentAskPanel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.agentAskPanel > .agentThread {
+  flex: 1 1 auto;
+  max-height: none;
+}
+
+.agentAskPanel > .agentInput {
+  margin-top: auto;
+}
+
+.agentInput {
+  border-color: color-mix(in srgb, var(--widget-hairline) 78%, transparent);
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.agentInput input::placeholder {
+  color: color-mix(in srgb, var(--widget-muted) 72%, transparent);
+}
+
+.agentInput button:not(.composerSave) {
+  color: color-mix(in srgb, var(--acc-ink) 78%, var(--widget-muted));
+  background: color-mix(in srgb, var(--acc) 9%, transparent);
+}
+
+.agentTabPanel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.agentTabPanel > .rowList {
+  flex: 1 1 auto;
+  align-content: start;
+  grid-auto-rows: 56px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.agentTabPanel > .emptyState {
+  flex: 0 0 auto;
+}
+
+.agentTabPanel > .rowList::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.agentCandidatePanel {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.agentCandidatePanel > .rowList {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.agentCandidatePanel::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.agentCandidateSection {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agentCandidateSection .rowList {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.agentSectionHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 2px 6px;
+  color: var(--widget-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.agentSectionHead span {
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentSectionHead b {
+  display: inline-grid;
+  min-width: 26px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .agentInlineRow {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
@@ -1980,9 +2304,17 @@
   gap: 3px;
 }
 
+.resourceControlGroup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: max-content;
+  gap: 5px;
+}
+
 .resourceActions button {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   padding: 0;
 }
 
@@ -2294,8 +2626,8 @@
   width: fit-content;
 }
 
-/* 바 창(640×430 고정)은 pill보다 크다: pill(fit-content)을 하단 중앙에 고정하고
-   나머지 투명 영역은 hover 팝오버 + Bubli 메뉴 morph 패널(≈352px) 전용이다
+/* 바 창(640×640 고정)은 pill보다 크다: pill(fit-content)을 하단 중앙에 고정하고
+   나머지 투명 영역은 hover 팝오버 + Bubli 메뉴 morph 패널(≈532px) 전용이다
    (투명 영역 클릭은 Rust 폴러가 아래 앱으로 통과시킨다).
    창 크기는 src-tauri/src/lib.rs WIDGET_BAR_WIDTH/HEIGHT와 동기화한다. */
 .barRoot {
@@ -2313,6 +2645,7 @@
 
 .barPopover {
   position: absolute;
+  box-sizing: border-box;
   /* pill(36px 칩 + 패딩 ≈ 54px) + 루트 패딩 4 + 여백 10 — pill 위 투명 영역에 뜨므로
      pill 자체는 절대 밀리지 않는다. motion이 transform(스케일 인)을 소유하므로
      중앙 정렬은 translateX 대신 left/right + margin auto로 한다(하단 앵커 origin). */
@@ -2320,6 +2653,8 @@
   right: 4px;
   left: 4px;
   width: min(calc(100% - 8px), 440px);
+  max-height: min(532px, calc(100% - 108px));
+  overflow: hidden auto;
   margin: 0 auto;
   transform-origin: 50% 100%;
   display: grid;
@@ -2333,6 +2668,13 @@
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
     var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
   pointer-events: none;
+  scrollbar-width: none;
+}
+
+.barPopover::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .barRootBelow .barPopover {
@@ -2540,7 +2882,7 @@
 
 /* Bubli 브랜드 칩: 텍스트 워드마크 대신 웹앱과 같은 28px 버블 마크. */
 .barBrand {
-  overflow: hidden;
+  overflow: visible;
   display: inline-grid;
   flex: none;
   place-items: center;
@@ -2552,6 +2894,11 @@
   background: rgba(255, 255, 255, 0.76);
   cursor: pointer;
   transition: background-color 140ms ease, width 200ms ease, margin-left 200ms ease, border-width 200ms ease;
+}
+
+.barBrand .menuOrbMark {
+  animation: none;
+  transform: none;
 }
 
 
@@ -2567,9 +2914,9 @@
 
 /* ---------- 바 인라인 Bubli 메뉴 패널(브랜드 칩 ↔ 패널 layoutId morph) ----------
    pill 위 투명 영역(bottom 68px)에 280px 패널이 뜬다. motion이 transform을 소유하므로
-   중앙 정렬은 transform 대신 left 계산으로 한다. 창 높이 430(WIDGET_BAR_HEIGHT)과 동기화:
-   하단 앵커 68(pill 52 + 루트 패딩 4 + 여백 12) + max-height 352 = 420 ≤ 430이라 상단이
-   최소 10px 남아 절대 잘리지 않는다(예산 430 - 52 - 24 ≈ 354 이내). 내용이 더 길면
+   중앙 정렬은 transform 대신 left 계산으로 한다. 창 높이 640(WIDGET_BAR_HEIGHT)과 동기화:
+   하단 앵커 68(pill 52 + 루트 패딩 4 + 여백 12) + max-height 532 = 600 ≤ 640이라 상단이
+   최소 40px 남아 절대 잘리지 않는다(예산 640 - 68 - 40 = 532). 내용이 더 길면
    overflow auto가 패널 내부 스크롤로 흡수한다. */
 
 .barMenuPanel {
@@ -2579,9 +2926,7 @@
   left: calc(50% - 140px);
   z-index: 3;
   width: 280px;
-  /* 바 창(고정 430px) 안에서 pill 영역(≈68px + 여백)을 빼고도 넘치면 잘리지 않고
-     패널 내부에서 스크롤한다 — above/below 어느 방향으로 떠도 창 밖으로 잘리지 않는다. */
-  max-height: min(352px, calc(100vh - 84px));
+  max-height: min(532px, calc(100% - 108px));
   overflow: hidden auto;
   padding: 12px;
   border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
@@ -2736,7 +3081,7 @@
 /* 잔잔한 bob 부유(3s, ±3px) + hover/포커스 워블·scale 1.06 — reduced-motion에서는 정지.
    애니메이션은 버블 본체에 건다(원형 실루엣을 흐트리지지 않게). */
 @media (prefers-reduced-motion: no-preference) {
-  .menuOrbMark {
+  .menuOrb .menuOrbMark {
     animation: bubble-orb-bob 3s ease-in-out infinite;
   }
 
@@ -3165,6 +3510,7 @@
 :global([data-theme="dark"]) .chatPeople,
 :global([data-theme="dark"]) .voiceStrip,
 :global([data-theme="dark"]) .reactionDock,
+:global([data-theme="dark"]) .agentCandidateRow,
 :global([data-theme="dark"]) .agentInlineRow,
 :global([data-theme="dark"]) .message,
 :global([data-theme="dark"]) .input,
@@ -3205,6 +3551,7 @@
 :global([data-theme="dark"]) .alertRow:hover,
 :global([data-theme="dark"]) .timelineRow:hover,
 :global([data-theme="dark"]) .memoRow:hover,
+:global([data-theme="dark"]) .agentCandidateRow:hover,
 :global([data-theme="dark"]) .agentInlineRow:hover {
   border-color: color-mix(in srgb, var(--acc) 28%, transparent);
   background: color-mix(in srgb, var(--acc) 10%, rgba(18, 26, 40, 0.6));
@@ -3556,31 +3903,121 @@
 
 /* 메모 행 장문 대응: 본문(2줄 clamp/펼침) 위, 시간·액션 메타 아래의 세로 스택. */
 .memoRowStack {
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 4px;
-  padding: 7px 10px;
+  grid-template-rows: 44px 22px;
+  gap: 7px;
+  box-sizing: border-box;
+  height: 102px;
+  min-height: 102px;
+  max-height: 102px;
+  overflow: hidden;
+  padding: 18px 12px 10px;
+  border-color: rgba(255, 194, 13, 0.28);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.72)),
+    rgba(255, 248, 224, 0.9);
+  border-color: color-mix(in srgb, var(--acc) 18%, var(--widget-hairline));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.72)),
+    color-mix(in srgb, var(--acc) 10%, #FFFFFF);
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    0 10px 22px -18px rgba(35, 48, 59, 0.28);
+  transform: rotate(var(--memo-paper-tilt, -0.8deg));
+  transform-origin: 50% 14px;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 180ms ease;
+}
+
+.memoRowStack::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 0;
+  width: 74px;
+  height: 18px;
+  border: 1px solid rgba(255, 194, 13, 0.34);
+  border-radius: 5px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.18)),
+    rgba(255, 219, 87, 0.44);
+  border-color: color-mix(in srgb, var(--acc) 28%, rgba(255, 255, 255, 0.4));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.18)),
+    color-mix(in srgb, var(--acc) 22%, rgba(255, 255, 255, 0.62));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  pointer-events: none;
+  transform: translate(-50%, -42%) rotate(var(--memo-tape-tilt, 1.2deg));
+}
+
+.memoRowStack > * {
+  position: relative;
+  z-index: 1;
+}
+
+.memoPaperList .memoRowStack:nth-child(2n) {
+  --memo-paper-tilt: 0.7deg;
+  --memo-tape-tilt: -1.4deg;
+}
+
+.memoPaperList .memoRowStack:nth-child(3n) {
+  --memo-paper-tilt: -0.3deg;
+  --memo-tape-tilt: 0.6deg;
+}
+
+.memoRowStack:hover {
+  border-color: rgba(255, 194, 13, 0.36);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.78)),
+    rgba(255, 246, 214, 0.96);
+  border-color: color-mix(in srgb, var(--acc) 26%, var(--widget-hairline));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.78)),
+    color-mix(in srgb, var(--acc) 13%, #FFFFFF);
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.94)),
+    0 12px 24px -17px rgba(35, 48, 59, 0.32);
+  transform: rotate(0deg) translateY(-1px);
 }
 
 .memoBodyButton {
+  display: block;
   min-width: 0;
+  width: 100%;
+  max-height: 44px;
   margin: 0;
   padding: 0;
   border: 0;
+  overflow: hidden;
   background: transparent;
   color: var(--widget-text);
   font: inherit;
   font-size: 14px;
-  font-weight: 700;
-  line-height: 1.45;
+  font-weight: 650;
+  line-height: 1.52;
   text-align: left;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   cursor: pointer;
 }
 
+.memoBodyButton::first-line {
+  color: var(--widget-text);
+  font-size: 15px;
+  font-weight: 800;
+}
+
 .memoBodyClamp {
   display: -webkit-box;
+  max-height: 44px;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -3591,29 +4028,154 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-height: 22px;
+}
+
+.memoRowStack .memoTime {
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.memoRowStack .memoActions {
+  opacity: 0.76;
+}
+
+.memoRowStack:hover .memoActions,
+.memoRowStack:focus-within .memoActions {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .memoRowStack,
+  .memoRowStack:hover {
+    transform: none;
+    transition: none;
+  }
+}
+
+.memoDetailLayer {
+  position: absolute;
+  inset: 4px 8px 48px;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+}
+
+.memoDetailPaper {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(100%, 254px);
+  height: 100%;
+  min-height: 0;
+  padding: 20px 13px 12px;
+  border: 1px solid rgba(255, 194, 13, 0.34);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.78)),
+    rgba(255, 248, 224, 0.94);
+  border-color: color-mix(in srgb, var(--acc) 24%, var(--widget-hairline));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.78)),
+    color-mix(in srgb, var(--acc) 12%, #FFFFFF);
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.94)),
+    0 16px 28px -16px rgba(35, 48, 59, 0.34);
+  transform: rotate(-0.4deg);
+}
+
+.memoDetailTape {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 0;
+  width: 78px;
+  height: 18px;
+  border: 1px solid rgba(255, 194, 13, 0.34);
+  border-radius: 5px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.2)),
+    rgba(255, 219, 87, 0.48);
+  border-color: color-mix(in srgb, var(--acc) 30%, rgba(255, 255, 255, 0.4));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.2)),
+    color-mix(in srgb, var(--acc) 24%, rgba(255, 255, 255, 0.62));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  transform: translate(-50%, -44%) rotate(1deg);
+}
+
+.memoDetailTop {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 22px;
+}
+
+.memoDetailBody,
+.memoEditField {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  color: var(--widget-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.memoDetailBody::-webkit-scrollbar,
+.memoEditField::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.memoEditField {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
 }
 
 /* 메모 인라인 컴포저: textarea 자동 확장(1줄 시작, 최대 ~5줄 후 내부 스크롤). */
 .memoComposer {
-  align-items: flex-end;
+  align-items: center;
+  box-sizing: border-box;
   height: auto;
-  min-height: 38px;
-  padding: 6px 10px;
+  min-height: 42px;
+  padding: 7px 10px;
 }
 
 .memoComposer > svg {
   flex: none;
-  margin-bottom: 6px;
+  margin-bottom: 0;
 }
 
 .memoComposer .composerSave {
-  margin-bottom: 3px;
+  align-self: center;
+  margin-bottom: 0;
 }
 
 .memoComposerField {
   min-width: 0;
   flex: 1;
+  align-self: center;
   max-height: 106px;
+  min-height: 22px;
+  padding: 0;
   border: 0;
   outline: 0;
   resize: none;
@@ -3639,6 +4201,72 @@
   font-weight: 620;
   text-align: right;
   word-break: keep-all;
+}
+
+:global([data-theme="dark"]) .memoRowStack {
+  border-color: rgba(255, 194, 13, 0.24);
+  background:
+    linear-gradient(180deg, rgba(31, 40, 56, 0.86), rgba(18, 26, 40, 0.72)),
+    rgba(56, 48, 28, 0.72);
+  border-color: color-mix(in srgb, var(--acc) 22%, rgba(150, 170, 215, 0.14));
+  background:
+    linear-gradient(180deg, rgba(31, 40, 56, 0.86), rgba(18, 26, 40, 0.72)),
+    color-mix(in srgb, var(--acc) 8%, rgba(18, 26, 40, 0.82));
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    0 12px 24px -18px rgba(0, 0, 0, 0.48);
+}
+
+:global([data-theme="dark"]) .memoRowStack::before {
+  border-color: rgba(255, 194, 13, 0.32);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)),
+    rgba(124, 99, 31, 0.64);
+  border-color: color-mix(in srgb, var(--acc) 30%, rgba(150, 170, 215, 0.14));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)),
+    color-mix(in srgb, var(--acc) 24%, rgba(34, 46, 72, 0.64));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+:global([data-theme="dark"]) .memoRowStack:hover {
+  border-color: rgba(255, 194, 13, 0.34);
+  background:
+    linear-gradient(180deg, rgba(36, 47, 66, 0.9), rgba(20, 29, 44, 0.76)),
+    rgba(64, 54, 30, 0.76);
+  border-color: color-mix(in srgb, var(--acc) 30%, rgba(150, 170, 215, 0.18));
+  background:
+    linear-gradient(180deg, rgba(36, 47, 66, 0.9), rgba(20, 29, 44, 0.76)),
+    color-mix(in srgb, var(--acc) 11%, rgba(18, 26, 40, 0.82));
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.09)),
+    0 14px 26px -18px rgba(0, 0, 0, 0.54);
+}
+
+:global([data-theme="dark"]) .memoDetailPaper {
+  border-color: rgba(255, 194, 13, 0.3);
+  background:
+    linear-gradient(180deg, rgba(36, 47, 66, 0.9), rgba(20, 29, 44, 0.76)),
+    rgba(64, 54, 30, 0.76);
+  border-color: color-mix(in srgb, var(--acc) 28%, rgba(150, 170, 215, 0.16));
+  background:
+    linear-gradient(180deg, rgba(36, 47, 66, 0.9), rgba(20, 29, 44, 0.76)),
+    color-mix(in srgb, var(--acc) 11%, rgba(18, 26, 40, 0.82));
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.09)),
+    0 18px 30px -18px rgba(0, 0, 0, 0.58);
+}
+
+:global([data-theme="dark"]) .memoDetailTape {
+  border-color: rgba(255, 194, 13, 0.34);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)),
+    rgba(124, 99, 31, 0.68);
+  border-color: color-mix(in srgb, var(--acc) 32%, rgba(150, 170, 215, 0.14));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)),
+    color-mix(in srgb, var(--acc) 26%, rgba(34, 46, 72, 0.64));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 /* Night Bubble 다크 패리티 */

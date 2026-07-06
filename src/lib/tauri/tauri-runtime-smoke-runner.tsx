@@ -95,6 +95,10 @@ function isWindowsRuntime() {
   return typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("windows");
 }
 
+function isMacRuntime() {
+  return typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("mac");
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -1695,16 +1699,27 @@ async function runSmoke() {
     await tauriCommands.closeWidgetWindow({ bubbleType: "chat", windowId: "chat" });
     const closedChatWidgetState = await tauriCommands.getWidgetWindowState({ bubbleType: "chat", windowId: "chat" });
     assert(!closedChatWidgetState.windowVisible, "post-login relaunch setup closed one bubble widget", closedChatWidgetState);
-    await launchTauriAuthenticatedSurfaces();
-    const relaunchedWidgetStates = await Promise.all(
-      smokeWidgetBubbles.map((bubbleType) =>
-        tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
-      ),
-    );
+    if (isMacRuntime()) {
+      const barItemsAfterClose = await tauriCommands.getWidgetBarItems();
+      assert(
+        barItemsAfterClose.some((item) => item.activeBubble === "chat" && item.mode === "MINIMIZED" && !item.windowVisible),
+        "macOS closed chat widget remains restorable from the bar",
+        barItemsAfterClose,
+      );
+    }
+    await tauriCommands.openWidgetWindow({
+      bubbleType: "chat",
+      mode: "DEFAULT",
+      selectedRoomId: smokeRoomId,
+      windowId: "chat",
+    });
+    const restoredChatWidgetState = await tauriCommands.getWidgetWindowState({ bubbleType: "chat", windowId: "chat" });
     assert(
-      relaunchedWidgetStates.every((widget) => widget.windowVisible && widget.selectedRoomId === smokeRoomId),
-      "post-login launcher reopened stale or missing bubble widget windows",
-      relaunchedWidgetStates,
+      restoredChatWidgetState.windowVisible && restoredChatWidgetState.selectedRoomId === smokeRoomId,
+      isMacRuntime()
+        ? "macOS closed chat widget restored from the bar with project room context"
+        : "closed chat widget reopened with project room context",
+      restoredChatWidgetState,
     );
     assert(
       isActivityAutoCaptureRunning() &&

@@ -266,10 +266,12 @@ function EmptyWidget({ message }: { message?: string }) {
 }
 
 function WidgetRoomPicker({
+  emptyLabelKey = "dashboard.widget.scopeAll",
   onChange,
   rooms,
   value,
 }: {
+  emptyLabelKey?: MessageKey;
   onChange: (roomId: string | null) => void;
   rooms: ProjectRoomResponse[];
   value: string | null;
@@ -285,7 +287,7 @@ function WidgetRoomPicker({
       onChange={(event) => onChange(event.target.value || null)}
       value={value ?? ""}
     >
-      <option value="">{t("dashboard.widget.scopeAll")}</option>
+      <option value="">{t(emptyLabelKey)}</option>
       {rooms.map((room) => (
         <option key={room.id} value={room.id}>
           {room.name}
@@ -1618,6 +1620,7 @@ export function WorkspaceDashboard() {
                     >
                       {widget.roomScope ? (
                         <WidgetRoomPicker
+                          emptyLabelKey={widget.widgetId === "quick-memo" ? "dashboard.quickMemo.personalLabel" : undefined}
                           onChange={(roomId) => setWidgetScope(widget.widgetId, roomId)}
                           rooms={activeRooms}
                           value={widgetRoomScope[widget.widgetId] ?? null}

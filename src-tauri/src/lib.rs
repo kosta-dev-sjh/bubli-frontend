@@ -37,9 +37,9 @@ const WIDGET_DEFAULT_HEIGHT: f64 = 360.0;
 const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 // 바 창은 pill(하단 고정 64px)만 시각적으로 유지한다. Bubli 메뉴는 바 창 안에서
 // 브랜드 칩이 pill 위 투명 영역으로 morph해 열리는 인라인 패널이다(별도 menu 창 자동 실행 없음).
-// 창 높이는 pill 위 hover 요약 팝오버 + 메뉴 패널(280×≈352, bottom 68px 앵커)이 들어갈
+// 창 높이는 pill 위 hover 요약 팝오버 + 메뉴 패널(280×≈532, bottom 68px 앵커)이 들어갈
 // 투명 여유를 포함한다 — desktop-widget-bubble.module.css .barRoot/.barPopover/.barMenuPanel과
-// 동기화한다(68 + 352 + 여유 ≈ 430).
+// 동기화한다(68 + 532 + hover/그림자 여유 ≈ 640).
 // 창 너비는 최악 조합(고정 알림 칩 + 구분선 + 브랜드 버블 마크 + 접힌 칩 7개, 타이머 칩은
 // 시간 텍스트 포함)이 전부 들어가는 640 고정이다. 계산: 36px 칩 8개 + 타이머 시간 텍스트(~78px)
 // + gap 6×9 + pill 패딩/보더 ≈ 460px < 640. "+N" 접기와 잘림이 어떤 조합에서도 없다.
@@ -48,7 +48,7 @@ const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 // 붙고(desktop-widget-bubble.module.css .barRoot), pill 밖 투명 영역은 커서 폴러가 클릭
 // 통과시키므로 창이 커도 무해하다.
 const WIDGET_BAR_WIDTH: f64 = 640.0;
-const WIDGET_BAR_HEIGHT: f64 = 430.0;
+const WIDGET_BAR_HEIGHT: f64 = 640.0;
 // 바 창은 투명 여유를 포함하므로 native top-left가 화면 밖으로 일부 나갈 수 있다.
 // 그래도 복원 시 사용자가 찾을 수 있도록 최소한 이 폭만큼은 선호 모니터 안에 남긴다.
 #[cfg(target_os = "macos")]
@@ -94,8 +94,8 @@ const WIDGET_POINTER_DRAG_GRACE_MS: u128 = 400;
 // 웹뷰가 상호작용 표면 위에서 실제 마우스 이벤트를 받았다는 힌트가 이 시간 안에 있으면,
 // Retina 배율/좌표 드리프트로 rect 판정이 어긋나도 클릭 가능(통과 꺼짐)을 유지한다.
 const WIDGET_POINTER_SEEN_GRACE_MS: u128 = 500;
-const QA_ALL_WIDGET_BUBBLES: [&str; 8] = [
-    "todo", "agent", "chat", "timer", "memo", "schedule", "resource", "alert",
+const QA_ALL_WIDGET_BUBBLES: [&str; 7] = [
+    "todo", "agent", "chat", "timer", "memo", "schedule", "alert",
 ];
 // 사용자 크기 조절 클램프: 버블별 최소 = 현재 기본 크기, 최대 = 최소 × 1.6.
 // src/features/widget/components/desktop-widget-bubble.tsx 리사이즈 핸들과 동기화한다.
@@ -1278,7 +1278,7 @@ fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
 fn widget_default_bubble_size(bubble_type: &str) -> LogicalSize<f64> {
     match bubble_type {
         "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
-        "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 430.0 + WIDGET_WINDOW_GUTTER),
+        "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
         "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 400.0 + WIDGET_WINDOW_GUTTER),
         "resource" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 330.0 + WIDGET_WINDOW_GUTTER),
         "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 320.0 + WIDGET_WINDOW_GUTTER),
@@ -2283,7 +2283,10 @@ fn widget_bar_items_from_store(store: &WidgetWindowStore) -> Vec<WidgetWindowSta
         .bubbles
         .values()
         .filter(|widget| {
-            widget.active_bubble != "bar" && widget.mode == "MINIMIZED" && !widget.window_visible
+            widget.active_bubble != "bar"
+                && widget.active_bubble != "resource"
+                && widget.mode == "MINIMIZED"
+                && !widget.window_visible
         })
         .cloned()
         .collect();
@@ -2763,7 +2766,15 @@ fn set_widget_bar_preview_placement(
 }
 
 fn bar_preview_flip_threshold_physical(scale: f64) -> f64 {
-    188.0 * scale
+    #[cfg(target_os = "macos")]
+    {
+        WIDGET_BAR_HEIGHT * scale
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        188.0 * scale
+    }
 }
 
 /// 사용자 코너 드래그 리사이즈. 버블별 [기본 크기, 기본 × 1.6]으로 클램프해 창 크기를
@@ -3826,6 +3837,13 @@ fn app_ready(
 }
 
 #[tauri::command]
+fn get_authenticated_surfaces_enabled(
+    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
+) -> Result<bool, String> {
+    authenticated_surfaces_enabled(&auth_state)
+}
+
+#[tauri::command]
 fn set_authenticated_surfaces_enabled(
     auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
     input: AuthenticatedSurfacesInput,
@@ -4030,10 +4048,13 @@ fn close_widget_window(
     let bubble_type = input.as_ref().and_then(|value| value.bubble_type.clone());
     let window_id = input.and_then(|value| value.window_id);
     let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
-        // 닫기(X)는 최소화와 달리 "완전히 닫기"다. 최소화는 MINIMIZED로 두어 바 칩으로 남지만,
-        // 닫기는 DEFAULT(=바 필터 MINIMIZED 조건에서 제외) + 창 숨김으로 바에서도 사라지게 한다.
-        // 다시 열기는 메뉴(런처)에서 수행한다.
-        widget.mode = "DEFAULT".to_string();
+        // macOS 메뉴바 테스트에서는 닫기(X)가 네이티브 웹뷰를 내려도 바 복원 항목에 남아야 한다.
+        // Windows는 기존 닫기 의미(DEFAULT + hidden)를 유지해 런처에서 다시 여는 흐름을 건드리지 않는다.
+        if cfg!(target_os = "macos") {
+            widget.mode = "MINIMIZED".to_string();
+        } else {
+            widget.mode = "DEFAULT".to_string();
+        }
         widget.click_through = false;
         widget.dock_orb_visible = false;
         widget.window_visible = false;
@@ -4137,7 +4158,7 @@ mod tests {
     #[test]
     fn widget_layout_restore_shifts_legacy_bar_y_by_height_delta() {
         // barLayoutHeight가 없는 구버전(220) 레이아웃: 바 pill은 창 하단 고정이라
-        // 새 높이(430)와의 델타(210)만큼 y를 위로 당겨 pill 화면 위치를 유지한다.
+        // 현재 높이와의 델타만큼 y를 위로 당겨 pill 화면 위치를 유지한다.
         let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
             active_bubble: "bar".to_string(),
             bar_layout_height: None,
@@ -4218,6 +4239,32 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn closed_widget_state_remains_restorable_from_bar() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "chat".to_string(),
+            WidgetWindowState {
+                mode: "MINIMIZED".to_string(),
+                window_visible: false,
+                ..widget("chat", Some("chat"), 0, 0)
+            },
+        );
+        store.bubbles.insert(
+            "memo".to_string(),
+            WidgetWindowState {
+                mode: "DEFAULT".to_string(),
+                window_visible: false,
+                ..widget("memo", Some("memo"), 0, 0)
+            },
+        );
+
+        let items = widget_bar_items_from_store(&store);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].active_bubble, "chat");
     }
 
     #[test]
@@ -4414,6 +4461,7 @@ pub fn run() {
             close_all_widget_windows,
             close_widget_window,
             drag_widget_bar_window,
+            get_authenticated_surfaces_enabled,
             get_widget_bar_items,
             get_preferred_app_monitor,
             get_tauri_google_authorization_url,

@@ -5,8 +5,11 @@ import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } 
 import {
   Bell,
   CheckCircle2,
+  ChevronsUpDown,
   CircleDashed,
+  CirclePause,
   Clock3,
+  Download,
   ExternalLink,
   FileText,
   Ghost,
@@ -34,6 +37,7 @@ import {
   Trash2,
   Users,
   X,
+  type LucideIcon,
 } from "lucide-react";
 
 import {
@@ -94,11 +98,13 @@ const bubbleMeta: BubbleMeta[] = [
   { Icon: Sparkles, accent: "sage", id: "agent", label: "widget.kind.agent", scope: "both" },
   { Icon: MessageSquare, accent: "rose", id: "chat", label: "widget.kind.chat", scope: "room" },
   { Icon: Timer, accent: "amber", id: "timer", label: "widget.kind.timer", scope: "both" },
-  { Icon: StickyNote, accent: "cream", id: "memo", label: "widget.kind.memo", scope: "personal" },
+  { Icon: StickyNote, accent: "cream", id: "memo", label: "widget.kind.memo", scope: "both" },
   { Icon: Clock3, accent: "blue", id: "schedule", label: "widget.kind.schedule", scope: "both" },
   { Icon: FileText, accent: "sand", id: "resource", label: "widget.kind.resource", scope: "both" },
   { Icon: Bell, accent: "lilac", id: "alert", label: "widget.kind.notification", scope: "both" },
 ];
+const hiddenDesktopWidgetBubbleTypes = new Set<WidgetBubbleType>(["resource"]);
+const visibleBubbleMeta = bubbleMeta.filter((item) => !hiddenDesktopWidgetBubbleTypes.has(item.id));
 
 const modeLabels: Record<WidgetWindowMode, MessageKey> = {
   DEFAULT: "widget.mode.default",
@@ -129,7 +135,7 @@ const accentClassNames: Record<BubbleMeta["accent"], string> = {
 };
 
 const BAR_ROOT_PADDING_PX = 4;
-const BAR_PREVIEW_FLIP_THRESHOLD_PX = 188;
+const BAR_PREVIEW_FLIP_THRESHOLD_PX = 640;
 type BarPreviewPlacement = "above" | "below";
 
 // 서버 부분 동기화 실패는 회색 웰 대신 헤더 아래 얇은 상태 한 줄로만 알린다.
@@ -155,6 +161,10 @@ const emptyHintKeys: Record<WidgetBubbleType, MessageKey> = {
   todo: "widget.empty.todo",
 };
 
+function trimEmptyStateHint(copy: string) {
+  return copy.replace(/\s+(?:—|-)\s+.*$/, "").trim();
+}
+
 // 공통 엠티 스테이트 해부: 20px accent 아이콘 + 14px 한 줄 + 12px 패딩(모든 버블 동일).
 function BubbleEmptyState({ bubble }: { bubble: WidgetPreviewBubble }) {
   const { t } = useI18n();
@@ -165,7 +175,7 @@ function BubbleEmptyState({ bubble }: { bubble: WidgetPreviewBubble }) {
       <i aria-hidden="true" className={styles.emptyIcon}>
         <Icon size={20} strokeWidth={2} />
       </i>
-      <span>{t(hintKey as MessageKey)}</span>
+      <span>{trimEmptyStateHint(t(hintKey as MessageKey))}</span>
     </div>
   );
 }
@@ -184,6 +194,7 @@ export type DesktopWidgetBubbleProps = {
   onClose: () => void;
   onOpenHandoff?: (item: WidgetPreviewItem) => Promise<void> | void;
   onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
+  onReviewAgentSuggestion?: (item: WidgetPreviewItem, action: AgentSuggestionReviewAction) => Promise<void> | void;
   onLeaveVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onMarkChatRead?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onModeChange: (mode: WidgetWindowMode) => void;
@@ -193,7 +204,7 @@ export type DesktopWidgetBubbleProps = {
   onCreateTodo?: (bubble: WidgetPreviewBubble, title?: string) => Promise<void> | void;
   onEditTodo?: (item: WidgetPreviewItem, title: string) => Promise<void> | void;
   onDeleteMemo?: (item: WidgetPreviewItem) => Promise<void> | void;
-  onEditMemo?: (item: WidgetPreviewItem) => Promise<void> | void;
+  onEditMemo?: (item: WidgetPreviewItem, body?: string) => Promise<void> | void;
   onAnalyzeResource?: (item: WidgetPreviewItem) => Promise<void> | void;
   onDownloadResource?: (item: WidgetPreviewItem) => Promise<void> | void;
   onRestore?: () => void;
@@ -203,6 +214,7 @@ export type DesktopWidgetBubbleProps = {
   onStartVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onPauseTimer?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onPrimaryTimerAction?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  onSelectScopeRoom?: (roomId: string | null) => Promise<void> | void;
   onToggleAlwaysOnTop: () => void;
   onToggleVoiceMic?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   // 헤더 스코프 토글: 개인 ⇄ 활성 룸. 전역 위젯 컨텍스트를 전환한다(스펙: PATCH /api/widget/context는
@@ -210,13 +222,17 @@ export type DesktopWidgetBubbleProps = {
   // roomAvailable=false면 비활성(활성 룸 없음). 콜백이 없으면 기존 표시전용 라벨로 폴백한다.
   onToggleScope?: () => void;
   scope?: { isRoom: boolean; roomAvailable: boolean; roomLabel?: string };
+  scopeRoomOptions?: Array<{ id: string; label: string }>;
+  selectedScopeRoomId?: string | null;
   presentation?: "preview" | "tauri";
   // Tauri 창 식별자(리사이즈 커맨드 타깃). 프리뷰에서는 불필요.
   windowId?: string;
   windowVisible?: boolean;
 };
 
-export const desktopWidgetBubbleTypes = widgetPreviewBubbles.map((bubble) => bubble.id);
+export const desktopWidgetBubbleTypes = widgetPreviewBubbles
+  .map((bubble) => bubble.id)
+  .filter((id): id is WidgetBubbleType => !hiddenDesktopWidgetBubbleTypes.has(id));
 
 // 위젯 창은 보이는 콘텐츠보다 큰 투명 창이다. 마우스를 받아야 하는 표면(셸/pill/팝오버/메뉴)에만
 // data-bubli-interactive를 붙이고, desktop-widget page가 이 셀렉터로 rect를 수집해 Rust 폴러에 보고한다.
@@ -395,6 +411,44 @@ function WidgetControls({
   );
 }
 
+function WidgetScopeSelect({
+  disabled,
+  onSelect,
+  options,
+  selectedRoomId,
+}: {
+  disabled?: boolean;
+  onSelect?: (roomId: string | null) => Promise<void> | void;
+  options?: Array<{ id: string; label: string }>;
+  selectedRoomId?: string | null;
+}) {
+  const { t } = useI18n();
+  const value = selectedRoomId ?? "";
+  const roomOptions = options ?? [];
+
+  return (
+    <label className={styles.scopeSelect} onMouseDown={(event) => event.stopPropagation()}>
+      <select
+        aria-label={t("widget.scope.aria")}
+        disabled={disabled || !onSelect}
+        onChange={(event) => {
+          const nextRoomId = event.currentTarget.value.trim() || null;
+          void onSelect?.(nextRoomId);
+        }}
+        value={value}
+      >
+        {roomOptions.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+        <option value="">{t("widget.scope.personal")}</option>
+      </select>
+      <ChevronsUpDown size={12} strokeWidth={2.1} aria-hidden="true" />
+    </label>
+  );
+}
+
 function ItemActions({
   item,
   onItemStateChange,
@@ -457,12 +511,15 @@ const ItemRows = memo(function ItemRows({
     <div className={styles.rowList}>
       {bubble.rows.map((item) => (
         <div className={styles.checkRow} key={item.id}>
-          <input
+          <button
             aria-label={t("widget.item.confirm")}
-            checked={item.checked ?? false}
-            onChange={() => onItemStateChange?.(item, "CONFIRMED")}
-            type="checkbox"
-          />
+            aria-pressed={item.checked ?? false}
+            className={styles.rowCheck}
+            onClick={() => onItemStateChange?.(item, "CONFIRMED")}
+            type="button"
+          >
+            <CheckCircle2 size={13} strokeWidth={2.4} />
+          </button>
           {item.handoffUrl ? (
             <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
               {item.label}
@@ -472,6 +529,71 @@ const ItemRows = memo(function ItemRows({
           )}
           <b>{item.status}</b>
           <ItemActions item={item} onItemStateChange={onItemStateChange} />
+        </div>
+      ))}
+    </div>
+  );
+});
+
+const agentReviewActions: Array<{
+  action: AgentSuggestionReviewAction;
+  Icon: LucideIcon;
+  labelKey: MessageKey;
+  tone: "approve" | "hold" | "reject";
+}> = [
+  { action: "APPROVE", Icon: CheckCircle2, labelKey: "widget.agent.reviewApprove", tone: "approve" },
+  { action: "HOLD", Icon: CirclePause, labelKey: "widget.agent.reviewHold", tone: "hold" },
+  { action: "REJECT", Icon: X, labelKey: "widget.agent.reviewReject", tone: "reject" },
+];
+
+const AgentCandidateRows = memo(function AgentCandidateRows({
+  bubble,
+  onOpenHandoff,
+  onReviewAgentSuggestion,
+}: {
+  bubble: WidgetPreviewBubble;
+  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
+  onReviewAgentSuggestion?: DesktopWidgetBubbleProps["onReviewAgentSuggestion"];
+}) {
+  const { t } = useI18n();
+  const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
+    if (!item.handoffUrl || !onOpenHandoff) return;
+
+    event.preventDefault();
+    void onOpenHandoff(item);
+  };
+
+  if (bubble.rows.length === 0) {
+    return <BubbleEmptyState bubble={bubble} />;
+  }
+
+  return (
+    <div className={styles.rowList}>
+      {bubble.rows.map((item) => (
+        <div className={styles.agentCandidateRow} key={item.id}>
+          {item.handoffUrl ? (
+            <a className={styles.agentCandidateTitle} href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+              {item.label}
+            </a>
+          ) : (
+            <span className={styles.agentCandidateTitle}>{item.label}</span>
+          )}
+          {item.reviewable && onReviewAgentSuggestion ? (
+            <span className={styles.agentReviewActions}>
+              {agentReviewActions.map(({ Icon, action, labelKey, tone }) => (
+                <button
+                  aria-label={t(labelKey)}
+                  data-tone={tone}
+                  key={action}
+                  onClick={() => void onReviewAgentSuggestion(item, action)}
+                  title={t(labelKey)}
+                  type="button"
+                >
+                  <Icon size={12} strokeWidth={2.2} />
+                </button>
+              ))}
+            </span>
+          ) : null}
         </div>
       ))}
     </div>
@@ -824,24 +946,88 @@ type AgentThreadEntry = {
 };
 
 const AGENT_THREAD_LIMIT = 10;
+const EMPTY_WIDGET_ITEMS: WidgetPreviewItem[] = [];
+type WidgetContentScope = "personal" | "room";
+type AgentCandidateScope = WidgetContentScope;
+type AgentSuggestionReviewAction = "APPROVE" | "HOLD" | "REJECT";
+type AgentTab = "ask" | "candidates" | "resources";
+const agentTabs: AgentTab[] = ["ask", "candidates", "resources"];
+const headerScopedBubbleTypes = new Set<WidgetBubbleType>(["memo"]);
+
+function rowsForContentScope(bubble: WidgetPreviewBubble, scope: WidgetContentScope) {
+  if (!bubble.roomId) return bubble.rows;
+  if (scope === "room") {
+    return bubble.roomRows ?? bubble.rows.filter((item) => item.sourceKind === "room");
+  }
+  return bubble.personalRows ?? bubble.rows.filter((item) => item.sourceKind !== "room");
+}
+
+function bubbleForContentScope(bubble: WidgetPreviewBubble, scope: WidgetContentScope): WidgetPreviewBubble {
+  if (!bubble.roomId || !headerScopedBubbleTypes.has(bubble.id)) return bubble;
+
+  const rows = rowsForContentScope(bubble, scope);
+  const isRoom = scope === "room";
+  return {
+    ...bubble,
+    metric: bubble.id === "schedule" ? rows[0]?.status ?? "0" : String(rows.length),
+    notificationLabel: rows[0]?.label ?? bubble.notificationLabel,
+    roomId: isRoom ? bubble.roomId : null,
+    roomLabel: isRoom ? bubble.roomLabel : "widget.room.personal",
+    rows,
+  };
+}
 
 function AgentBody({
   bubble,
+  candidateScope,
+  onDownloadResource,
   onItemStateChange,
   onOpenHandoff,
+  onReviewAgentSuggestion,
   onSendAgentCommand,
 }: {
   bubble: WidgetPreviewBubble;
+  candidateScope: AgentCandidateScope;
+  onDownloadResource?: DesktopWidgetBubbleProps["onDownloadResource"];
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
+  onReviewAgentSuggestion?: DesktopWidgetBubbleProps["onReviewAgentSuggestion"];
   onSendAgentCommand?: DesktopWidgetBubbleProps["onSendAgentCommand"];
 }) {
   const { t } = useI18n();
+  const [activeTab, setActiveTab] = useState<AgentTab>("ask");
   const [draft, setDraft] = useState("");
   const [statusText, setStatusText] = useState<string | null>(null);
   const [thread, setThread] = useState<AgentThreadEntry[]>([]);
   const [pending, setPending] = useState(false);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const resourceEmptyBubble = useMemo<WidgetPreviewBubble>(
+    () => ({
+      ...getWidgetPreviewBubble("resource"),
+      roomId: candidateScope === "room" ? bubble.roomId : null,
+      roomLabel: candidateScope === "room" ? bubble.roomLabel : "widget.room.personal",
+      rows: [],
+    }),
+    [bubble.roomId, bubble.roomLabel, candidateScope],
+  );
+  const activeTabIndex = Math.max(0, agentTabs.indexOf(activeTab));
+  const resourceRows = bubble.resourceRows ?? [];
+  const personalResourceRows = bubble.personalResourceRows ?? EMPTY_WIDGET_ITEMS;
+  const scopedResourceRows = bubble.roomId && candidateScope === "personal" ? personalResourceRows : resourceRows;
+  const personalCandidateRows = bubble.personalCandidateRows ?? EMPTY_WIDGET_ITEMS;
+  const scopedCandidateRows = bubble.roomId && candidateScope === "personal" ? personalCandidateRows : bubble.rows;
+  const scopedCandidateLabel = candidateScope === "personal" ? t("widget.agent.personalCandidates") : t(bubble.panelLabel as MessageKey);
+  const scopedCandidateBubble = useMemo<WidgetPreviewBubble>(
+    () => ({
+      ...bubble,
+      metric: String(scopedCandidateRows.length),
+      notificationLabel: scopedCandidateLabel,
+      panelBody: "",
+      panelLabel: scopedCandidateLabel,
+      rows: scopedCandidateRows,
+    }),
+    [bubble, scopedCandidateLabel, scopedCandidateRows],
+  );
 
   const appendThreadEntry = (entry: AgentThreadEntry) => {
     setThread((current) => [...current, entry].slice(-AGENT_THREAD_LIMIT));
@@ -886,60 +1072,87 @@ function AgentBody({
 
   return (
     <div className={styles.body}>
-      {/* 큰 할로 장식 대신 얇은 요약 라인 — 승인 대기 수가 콘텐츠 첫 줄이 된다. */}
-      <div className={styles.agentSummary} aria-label={t("widget.agentSignal")}>
-        <span className={styles.agentDot} aria-hidden="true" />
-        <strong>{t(bubble.panelLabel as MessageKey)}</strong>
-        <b>{bubble.metric}</b>
-      </div>
-      <ItemRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
-      {thread.length > 0 || pending ? (
-        <div aria-label={t("widget.agent.threadAria")} aria-live="polite" className={styles.agentThread} ref={threadRef}>
-          {thread.map((entry) => (
-            <p
-              className={[
-                styles.message,
-                entry.role === "me" ? styles.messageMine : styles.agentReply,
-                entry.error ? styles.agentReplyError : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              key={entry.id}
-            >
-              {entry.text}
-            </p>
-          ))}
-          {pending ? (
-            <span className={styles.agentThinking} role="status">
-              <span className={styles.agentThinkingDots} aria-hidden="true">
-                <i />
-                <i />
-                <i />
-              </span>
-              {t("widget.agent.thinking")}
-            </span>
-          ) : null}
+      <SegmentedControl
+        ariaLabel={t("widget.agent.tabsAria")}
+        labels={[t("widget.agent.tabAsk"), t("widget.agent.tabCandidates"), t("widget.agent.tabResources")]}
+        onChange={(index) => setActiveTab(agentTabs[index] ?? "ask")}
+        value={activeTabIndex}
+      />
+      {activeTab === "candidates" ? (
+        <div className={[styles.agentTabPanel, styles.agentCandidatePanel].join(" ")}>
+          {/* 승인 대기 수는 승인 전 후보 탭에서만 보여준다. */}
+          <div className={styles.agentSummary} aria-label={t("widget.agentSignal")}>
+            <span className={styles.agentDot} aria-hidden="true" />
+            <strong>{scopedCandidateLabel}</strong>
+            <b>{scopedCandidateRows.length}</b>
+          </div>
+          <AgentCandidateRows
+            bubble={scopedCandidateBubble}
+            onOpenHandoff={onOpenHandoff}
+            onReviewAgentSuggestion={onReviewAgentSuggestion}
+          />
         </div>
-      ) : null}
-      <form
-        className={styles.input}
-        onSubmit={(event) => {
-          event.preventDefault();
-          void sendAgentCommand();
-        }}
-      >
-        <Sparkles size={14} strokeWidth={2} />
-        <input
-          disabled={pending}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : undefined}
-          value={draft}
-        />
-        <button aria-label={t("widget.chat.sendMessage")} disabled={pending || !stripAgentCommandPrefix(draft)} type="submit">
-          <Send size={13} strokeWidth={2.1} />
-        </button>
-      </form>
-      {statusText ? <span className={styles.statusText}>{statusText}</span> : null}
+      ) : activeTab === "resources" ? (
+        <div aria-label={t("widget.agent.resourcesAria")} className={styles.agentTabPanel}>
+          <ResourceRows
+            emptyBubble={resourceEmptyBubble}
+            items={scopedResourceRows}
+            onDownloadResource={onDownloadResource}
+            onItemStateChange={onItemStateChange}
+            onOpenHandoff={onOpenHandoff}
+          />
+        </div>
+      ) : (
+        <div className={styles.agentAskPanel}>
+          {thread.length > 0 || pending ? (
+            <div aria-label={t("widget.agent.threadAria")} aria-live="polite" className={styles.agentThread} ref={threadRef}>
+              {thread.map((entry) => (
+                <p
+                  className={[
+                    styles.message,
+                    entry.role === "me" ? styles.messageMine : styles.agentReply,
+                    entry.error ? styles.agentReplyError : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  key={entry.id}
+                >
+                  {entry.text}
+                </p>
+              ))}
+              {pending ? (
+                <span className={styles.agentThinking} role="status">
+                  <span className={styles.agentThinkingDots} aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  {t("widget.agent.thinking")}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          <form
+            className={[styles.input, styles.agentInput].join(" ")}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void sendAgentCommand();
+            }}
+          >
+            <Sparkles size={14} strokeWidth={2} />
+            <input
+              disabled={pending}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : undefined}
+              value={draft}
+            />
+            <button aria-label={t("widget.chat.sendMessage")} disabled={pending || !stripAgentCommandPrefix(draft)} type="submit">
+              <Send size={13} strokeWidth={2.1} />
+            </button>
+          </form>
+          {statusText ? <span className={styles.statusText}>{statusText}</span> : null}
+        </div>
+      )}
     </div>
   );
 }
@@ -1810,6 +2023,10 @@ function autoGrowTextarea(node: HTMLTextAreaElement | null, maxHeight: number) {
   node.style.overflowY = node.scrollHeight > maxHeight ? "auto" : "hidden";
 }
 
+function memoItemBody(item: WidgetPreviewItem) {
+  return item.memoBody ?? item.label;
+}
+
 function MemoBody({
   bubble,
   onCreateMemo,
@@ -1824,16 +2041,67 @@ function MemoBody({
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  // 장문 메모 대응 — 목록은 2줄 미리보기로 접고, 탭하면 전체를 펼친다(다시 탭으로 접기).
-  const [expandedIds, setExpandedIds] = useState<string[]>([]);
+  const [selectedMemoId, setSelectedMemoId] = useState<string | null>(null);
+  const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const editRef = useRef<HTMLTextAreaElement | null>(null);
+  const selectedMemo = selectedMemoId ? bubble.rows.find((item) => item.id === selectedMemoId) ?? null : null;
+  const editingMemo = editingMemoId ? bubble.rows.find((item) => item.id === editingMemoId) ?? selectedMemo : null;
+  const selectedBody = selectedMemo ? memoItemBody(selectedMemo) : "";
+  const isEditingSelected = Boolean(selectedMemo && editingMemoId === selectedMemo.id);
 
   useEffect(() => {
     autoGrowTextarea(composerRef.current, MEMO_COMPOSER_MAX_HEIGHT);
   }, [draft]);
 
-  const toggleExpanded = (id: string) => {
-    setExpandedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  useEffect(() => {
+    autoGrowTextarea(editRef.current, 220);
+  }, [editBody, editingMemoId]);
+
+  const openMemo = (item: WidgetPreviewItem) => {
+    setSelectedMemoId(item.id);
+    setEditingMemoId(null);
+  };
+
+  const closeMemo = () => {
+    if (savingEdit) return;
+    setSelectedMemoId(null);
+    setEditingMemoId(null);
+    setEditBody("");
+  };
+
+  const startEditMemo = (item: WidgetPreviewItem) => {
+    setSelectedMemoId(item.id);
+    setEditingMemoId(item.id);
+    setEditBody(memoItemBody(item));
+  };
+
+  const cancelEditMemo = () => {
+    setEditingMemoId(null);
+    setEditBody("");
+  };
+
+  const saveEditMemo = async () => {
+    if (!editingMemo || !onEditMemo || savingEdit) return;
+
+    const body = editBody.trim();
+    const currentBody = memoItemBody(editingMemo);
+    if (!body || body === currentBody) {
+      cancelEditMemo();
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      await onEditMemo(editingMemo, body);
+      setEditingMemoId(null);
+      setSelectedMemoId(null);
+      setEditBody("");
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   // 단독 "메모 남기기" 버튼 대신 하단 인라인 컴포저(자동 확장 + 저장)로 바로 남긴다.
@@ -1853,17 +2121,15 @@ function MemoBody({
   return (
     <div className={styles.body}>
       {bubble.rows.length > 0 ? (
-        <div className={styles.rowList}>
-          {bubble.rows.slice(0, 4).map((item) => {
-            const expanded = expandedIds.includes(item.id);
-            const body = item.memoBody ?? item.label;
+        <div className={[styles.rowList, styles.memoPaperList].join(" ")}>
+          {bubble.rows.map((item) => {
+            const body = memoItemBody(item);
             return (
               <div className={[styles.memoRow, styles.memoRowStack].join(" ")} key={item.id}>
                 <button
-                  aria-expanded={expanded}
-                  aria-label={expanded ? t("widget.memo.collapseMemo") : t("widget.memo.expandMemo")}
-                  className={[styles.memoBodyButton, expanded ? "" : styles.memoBodyClamp].filter(Boolean).join(" ")}
-                  onClick={() => toggleExpanded(item.id)}
+                  aria-label={t("widget.memo.expandMemo")}
+                  className={[styles.memoBodyButton, styles.memoBodyClamp].join(" ")}
+                  onClick={() => openMemo(item)}
                   type="button"
                 >
                   {body}
@@ -1871,7 +2137,7 @@ function MemoBody({
                 <span className={styles.memoMetaRow}>
                   <span className={styles.memoTime}>{item.status}</span>
                   <span className={styles.memoActions}>
-                    <button aria-label={t("widget.memo.edit")} disabled={!onEditMemo} onClick={() => void onEditMemo?.(item)} type="button">
+                    <button aria-label={t("widget.memo.edit")} disabled={!onEditMemo} onClick={() => startEditMemo(item)} type="button">
                       <Pencil size={12} strokeWidth={2.1} />
                     </button>
                     <button aria-label={t("widget.memo.delete")} disabled={!onDeleteMemo} onClick={() => void onDeleteMemo?.(item)} type="button">
@@ -1886,6 +2152,59 @@ function MemoBody({
       ) : (
         <BubbleEmptyState bubble={bubble} />
       )}
+      {selectedMemo ? (
+        <div aria-label={t("widget.memo.expandMemo")} aria-modal="true" className={styles.memoDetailLayer} role="dialog">
+          <article className={styles.memoDetailPaper}>
+            <span aria-hidden="true" className={styles.memoDetailTape} />
+            <div className={styles.memoDetailTop}>
+              <span className={styles.memoTime}>{selectedMemo.status}</span>
+              <span className={styles.memoActions}>
+                {isEditingSelected ? (
+                  <>
+                    <button aria-label={t("common.cancel" as MessageKey)} disabled={savingEdit} onClick={cancelEditMemo} type="button">
+                      <X size={12} strokeWidth={2.1} />
+                    </button>
+                    <button aria-label={t("widget.memo.save")} disabled={savingEdit || !editBody.trim()} onClick={() => void saveEditMemo()} type="button">
+                      <CheckCircle2 size={12} strokeWidth={2.1} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button aria-label={t("widget.memo.edit")} disabled={!onEditMemo} onClick={() => startEditMemo(selectedMemo)} type="button">
+                      <Pencil size={12} strokeWidth={2.1} />
+                    </button>
+                    <button aria-label={t("common.close" as MessageKey)} onClick={closeMemo} type="button">
+                      <X size={12} strokeWidth={2.1} />
+                    </button>
+                  </>
+                )}
+              </span>
+            </div>
+            {isEditingSelected ? (
+              <textarea
+                aria-label={t("widget.memo.edit")}
+                className={styles.memoEditField}
+                disabled={savingEdit}
+                onChange={(event) => setEditBody(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                    event.preventDefault();
+                    void saveEditMemo();
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    cancelEditMemo();
+                  }
+                }}
+                ref={editRef}
+                value={editBody}
+              />
+            ) : (
+              <div className={styles.memoDetailBody}>{selectedBody}</div>
+            )}
+          </article>
+        </div>
+      ) : null}
       <form
         className={[styles.input, styles.memoComposer].join(" ")}
         onSubmit={(event) => {
@@ -2021,6 +2340,60 @@ function ScheduleBody({
   );
 }
 
+function ResourceRows({
+  emptyBubble,
+  items,
+  onDownloadResource,
+  onItemStateChange,
+  onOpenHandoff,
+}: {
+  emptyBubble: WidgetPreviewBubble;
+  items: WidgetPreviewItem[];
+  onDownloadResource?: DesktopWidgetBubbleProps["onDownloadResource"];
+  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
+}) {
+  const { t } = useI18n();
+  const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
+    if (!item.handoffUrl || !onOpenHandoff) return;
+
+    event.preventDefault();
+    void onOpenHandoff(item);
+  };
+
+  if (items.length === 0) {
+    return <BubbleEmptyState bubble={emptyBubble} />;
+  }
+
+  return (
+    <div className={styles.rowList}>
+      {items.map((item) => (
+        <div className={styles.fileRow} key={item.id}>
+          <i className={styles.rowTile} aria-hidden="true">
+            <FileText size={14} strokeWidth={2} />
+          </i>
+          {item.handoffUrl ? (
+            <a className={styles.resourceTitle} href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+              {item.label}
+            </a>
+          ) : (
+            <span className={styles.resourceTitle}>{item.label}</span>
+          )}
+          <b className={styles.resourceMeta}>{item.status}</b>
+          <span className={styles.resourceControlGroup}>
+            <span className={styles.resourceActions}>
+              <button aria-label={t("resources.common.download")} onClick={() => void onDownloadResource?.(item)} type="button">
+                <Download size={13} strokeWidth={2.1} />
+              </button>
+            </span>
+            <ItemActions item={item} onItemStateChange={onItemStateChange} />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ResourceBody({
   bubble,
   onAnalyzeResource,
@@ -2035,13 +2408,6 @@ function ResourceBody({
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
   const { t } = useI18n();
-  const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
-    if (!item.handoffUrl || !onOpenHandoff) return;
-
-    event.preventDefault();
-    void onOpenHandoff(item);
-  };
-
   const openAll = () => {
     if (!onOpenHandoff) return;
     void onOpenHandoff({
@@ -2055,36 +2421,13 @@ function ResourceBody({
 
   return (
     <div className={styles.body}>
-      {bubble.rows.length > 0 ? (
-        <div className={styles.rowList}>
-          {bubble.rows.map((item) => (
-            <div className={styles.fileRow} key={item.id}>
-              <i className={styles.rowTile} aria-hidden="true">
-                <FileText size={14} strokeWidth={2} />
-              </i>
-              {item.handoffUrl ? (
-                <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
-                  {item.label}
-                </a>
-              ) : (
-                <span>{item.label}</span>
-              )}
-              <b>{item.status}</b>
-              <span className={styles.resourceActions}>
-                <button aria-label={t("resources.common.download")} onClick={() => void onDownloadResource?.(item)} type="button">
-                  <ExternalLink size={13} strokeWidth={2.1} />
-                </button>
-                <button aria-label={t("resources.common.analyzeRun")} onClick={() => void onAnalyzeResource?.(item)} type="button">
-                  <Sparkles size={13} strokeWidth={2.1} />
-                </button>
-              </span>
-              <ItemActions item={item} onItemStateChange={onItemStateChange} />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <BubbleEmptyState bubble={bubble} />
-      )}
+      <ResourceRows
+        emptyBubble={bubble}
+        items={bubble.rows}
+        onDownloadResource={onDownloadResource}
+        onItemStateChange={onItemStateChange}
+        onOpenHandoff={onOpenHandoff}
+      />
       <button className={styles.wideAction} onClick={openAll} type="button">
         <FileText size={14} strokeWidth={2} />
         {t(bubble.actionLabel as MessageKey)}
@@ -2095,6 +2438,7 @@ function ResourceBody({
 
 function BubbleBody({
   bubble,
+  agentCandidateScope,
   timerMode,
   onItemStateChange,
   onCreateMemo,
@@ -2103,13 +2447,14 @@ function BubbleBody({
   onEditTodo,
   onAnalyzeResource,
   onDeleteMemo,
-  onEditMemo,
   onDownloadResource,
+  onEditMemo,
   onLeaveVoice,
   onMarkChatRead,
   onOpenHandoff,
   onPauseTimer,
   onPrimaryTimerAction,
+  onReviewAgentSuggestion,
   onSendAgentCommand,
   onSendChatMessage,
   onStartVoice,
@@ -2117,21 +2462,23 @@ function BubbleBody({
   onTimerModeChange,
 }: {
   bubble: WidgetPreviewBubble;
+  agentCandidateScope: AgentCandidateScope;
   timerMode?: WidgetTimerMode | null;
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
   onCreateSchedule?: DesktopWidgetBubbleProps["onCreateSchedule"];
   onCreateTodo?: DesktopWidgetBubbleProps["onCreateTodo"];
   onEditTodo?: DesktopWidgetBubbleProps["onEditTodo"];
-  onDeleteMemo?: DesktopWidgetBubbleProps["onDeleteMemo"];
-  onEditMemo?: DesktopWidgetBubbleProps["onEditMemo"];
   onAnalyzeResource?: DesktopWidgetBubbleProps["onAnalyzeResource"];
+  onDeleteMemo?: DesktopWidgetBubbleProps["onDeleteMemo"];
   onDownloadResource?: DesktopWidgetBubbleProps["onDownloadResource"];
+  onEditMemo?: DesktopWidgetBubbleProps["onEditMemo"];
   onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
   onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
   onPauseTimer?: DesktopWidgetBubbleProps["onPauseTimer"];
   onPrimaryTimerAction?: DesktopWidgetBubbleProps["onPrimaryTimerAction"];
+  onReviewAgentSuggestion?: DesktopWidgetBubbleProps["onReviewAgentSuggestion"];
   onSendAgentCommand?: DesktopWidgetBubbleProps["onSendAgentCommand"];
   onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
   onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
@@ -2142,8 +2489,11 @@ function BubbleBody({
     return (
       <AgentBody
         bubble={bubble}
+        candidateScope={agentCandidateScope}
+        onDownloadResource={onDownloadResource}
         onItemStateChange={onItemStateChange}
         onOpenHandoff={onOpenHandoff}
+        onReviewAgentSuggestion={onReviewAgentSuggestion}
         onSendAgentCommand={onSendAgentCommand}
       />
     );
@@ -2489,13 +2839,15 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   onPauseTimer,
   onPrimaryTimerAction,
   onRestore,
+  onReviewAgentSuggestion,
+  onSelectScopeRoom,
   onSendAgentCommand,
   onSendChatMessage,
   onStartVoice,
   onToggleAlwaysOnTop,
-  onToggleScope,
   onToggleVoiceMic,
-  scope,
+  scopeRoomOptions,
+  selectedScopeRoomId,
   presentation = "tauri",
   windowId,
   windowVisible = true,
@@ -2506,6 +2858,10 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   const Icon = active.Icon;
   const isPreview = presentation === "preview";
   const activeLabel = t(active.label);
+  const contentScope: WidgetContentScope = activeData.roomId ? "room" : "personal";
+  const agentCandidateScope: AgentCandidateScope = activeData.roomId ? "room" : "personal";
+  const canSelectScope = activeBubble === "agent" || headerScopedBubbleTypes.has(activeBubble);
+  const showScopeSelect = !isPreview && canSelectScope && Boolean(onSelectScopeRoom);
   const shellRef = useRef<HTMLElement | null>(null);
   const [timerModeForGhost, setTimerModeForGhost] = useState<WidgetTimerMode | null>(null);
   const { onResizePointerDown, onResizePointerEnd, onResizePointerMove, resizing } = useBubbleWindowResize(
@@ -2595,6 +2951,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   ]
     .filter(Boolean)
     .join(" ");
+  const bodyData = useMemo(() => bubbleForContentScope(activeData, contentScope), [activeData, contentScope]);
 
   return (
     <div className={rootClassName} data-bubli-desktop-widget>
@@ -2637,25 +2994,19 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
                   <strong>{t(activeData.label as MessageKey)}</strong>
                   {isPreview ? (
                     <small>{`${t(modeLabels[mode])} · ${t(activeData.notificationLabel as MessageKey)}`}</small>
-                  ) : onToggleScope && scope ? (
-                    // 표시전용 라벨을 클릭 가능한 스코프 토글로 승격(개인 ⇄ 활성 룸).
-                    <button
-                      aria-pressed={scope.isRoom}
-                      className={styles.scopeToggle}
-                      disabled={!scope.roomAvailable && !scope.isRoom}
-                      onClick={onToggleScope}
-                      title={t("widget.scope.toggleHint")}
-                      type="button"
-                    >
-                      <Users size={11} strokeWidth={2.2} aria-hidden="true" />
-                      <span>{scope.isRoom ? scope.roomLabel ?? t("widget.scope.room") : t("widget.scope.personal")}</span>
-                    </button>
-                  ) : (
-                    <small>{t(activeData.roomLabel as MessageKey)}</small>
-                  )}
+                  ) : null}
                 </div>
               </div>
               <WidgetControls alwaysOnTop={alwaysOnTop} mode={mode} onClose={onClose} onMode={onModeChange} onPin={onToggleAlwaysOnTop} presentation={presentation} />
+              {showScopeSelect ? (
+                <div className={styles.headerScopeRow}>
+                  <WidgetScopeSelect
+                    onSelect={onSelectScopeRoom}
+                    options={scopeRoomOptions}
+                    selectedRoomId={selectedScopeRoomId === undefined ? activeData.roomId ?? null : selectedScopeRoomId}
+                  />
+                </div>
+              ) : null}
             </header>
 
             {/* 부분 동기화 실패는 회색 웰 대신 얇은 상태 한 줄로만.
@@ -2681,12 +3032,13 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
               <GhostSignal bubble={activeData} bubbleType={activeBubble} timerModeOverride={timerModeForGhost} />
             ) : (
               <BubbleBody
-                bubble={activeData}
+                agentCandidateScope={agentCandidateScope}
+                bubble={bodyData}
                 timerMode={timerModeForGhost}
                 onAnalyzeResource={onAnalyzeResource}
                 onDeleteMemo={onDeleteMemo}
-                onItemStateChange={onItemStateChange}
                 onDownloadResource={onDownloadResource}
+                onItemStateChange={onItemStateChange}
                 onEditMemo={onEditMemo}
                 onLeaveVoice={onLeaveVoice}
                 onMarkChatRead={onMarkChatRead}
@@ -2697,6 +3049,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
                 onOpenHandoff={onOpenHandoff}
                 onPauseTimer={onPauseTimer}
                 onPrimaryTimerAction={onPrimaryTimerAction}
+                onReviewAgentSuggestion={onReviewAgentSuggestion}
                 onSendAgentCommand={onSendAgentCommand}
                 onSendChatMessage={onSendChatMessage}
                 onStartVoice={onStartVoice}
@@ -2825,7 +3178,7 @@ export function WidgetMenuPanelContent({
         </span>
       </button>
       <div className={styles.menuGrid} aria-label={t("widget.menu.bubbles")}>
-        {bubbleMeta.map(({ Icon, accent, id, label, scope }) => {
+        {visibleBubbleMeta.map(({ Icon, accent, id, label, scope }) => {
           // 룸 귀속(room) 버블은 개인 모드(룸 미선택)에서 비활성 — 룸을 골라야 활성화된다.
           const roomLocked = scope === "room" && !hasRoomContext;
           const scopeLabel =
@@ -3357,7 +3710,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   // 창 너비는 Rust(WIDGET_BAR_WIDTH)가 640 고정이고 칩이 아이콘 전용 36px 타일이라
   // 접힌 칩 전부(알림 버블 제외 최대 7개)가 어떤 조합에서도 창을 넘지 않는다 — "+N" 없음.
   // pill 위 투명 영역에는 hover 팝오버와 Bubli 메뉴 morph 패널이 뜬다(absolute라 pill이 밀리지 않는다).
-  // 창 높이는 Rust WIDGET_BAR_HEIGHT(430)가 패널(≈352px)을 수용한다.
+  // 창 높이는 Rust WIDGET_BAR_HEIGHT(640)가 패널(≈532px)과 hover preview 여유를 수용한다.
   return (
     <MotionConfig reducedMotion="user">
       {/* memo된 형제(칩)들 사이에서 layoutId 프로젝션이 함께 갱신되도록 LayoutGroup으로 묶는다. */}
@@ -3522,12 +3875,11 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
             onClick={() => {
               setGooPop(null);
               setPreviewTarget(null);
-              setMenuOpen((current) => {
-                const next = !current;
-                // 메뉴를 열기 직전에 위치를 다시 계산해 화면 가장자리에서 above/below를 뒤집는다.
-                if (next) void syncBarPreviewPlacement();
-                return next;
-              });
+              if (menuOpen) {
+                setMenuOpen(false);
+                return;
+              }
+              void syncBarPreviewPlacement().finally(() => setMenuOpen(true));
             }}
             title={t("widget.menu.openAria")}
             type="button"

@@ -5,9 +5,14 @@ import { waitForPendingWidgetUsageEventRecords } from "@/lib/tauri/commands";
 import { rollupLocalWidgetUsage, syncLocalWidgetUsageSummaryToServer } from "@/lib/widget/widget-local-client";
 
 const WIDGET_USAGE_SYNC_INTERVAL_MS = 60_000;
+const WIDGET_USAGE_INITIAL_SYNC_DELAY_MS = 10_000;
 export const WIDGET_USAGE_SYNCED_EVENT = "bubli:widget-usage-synced";
+const widgetUsageAutoSyncEnabled =
+  process.env.NEXT_PUBLIC_BUBLI_WIDGET_USAGE_AUTO_SYNC === "true" ||
+  process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
 
 let syncIntervalId: number | null = null;
+let syncTimeoutId: number | null = null;
 let syncInFlight = false;
 let syncInFlightPromise: Promise<void> | null = null;
 let lifecycleListenersRegistered = false;
@@ -27,10 +32,14 @@ export type WidgetUsageSyncedEventDetail = {
 
 export function startWidgetUsageAutoSync() {
   if (!isTauriRuntime()) return;
+  if (!widgetUsageAutoSyncEnabled) return;
   if (syncIntervalId !== null) return;
 
   registerWidgetUsageLifecycleFlush();
-  void syncWidgetUsageOnce();
+  syncTimeoutId = window.setTimeout(() => {
+    syncTimeoutId = null;
+    void syncWidgetUsageOnce();
+  }, WIDGET_USAGE_INITIAL_SYNC_DELAY_MS);
   syncIntervalId = window.setInterval(() => {
     void syncWidgetUsageOnce();
   }, WIDGET_USAGE_SYNC_INTERVAL_MS);
@@ -44,8 +53,12 @@ export async function stopWidgetUsageAutoSync(input?: WidgetUsageAutoSyncStopInp
   if (syncIntervalId !== null) {
     window.clearInterval(syncIntervalId);
   }
+  if (syncTimeoutId !== null) {
+    window.clearTimeout(syncTimeoutId);
+  }
 
   syncIntervalId = null;
+  syncTimeoutId = null;
   syncInFlight = false;
   syncInFlightPromise = null;
   unregisterWidgetUsageLifecycleFlush();
@@ -53,6 +66,7 @@ export async function stopWidgetUsageAutoSync(input?: WidgetUsageAutoSyncStopInp
 
 export async function flushWidgetUsageAutoSync() {
   if (!isTauriRuntime()) return;
+  if (!widgetUsageAutoSyncEnabled) return;
   if (syncInFlightPromise) {
     await syncInFlightPromise.catch(() => undefined);
   }
@@ -60,7 +74,7 @@ export async function flushWidgetUsageAutoSync() {
 }
 
 export function isWidgetUsageAutoSyncRunning() {
-  return syncIntervalId !== null;
+  return widgetUsageAutoSyncEnabled && syncIntervalId !== null;
 }
 
 function registerWidgetUsageLifecycleFlush() {
@@ -97,8 +111,26 @@ async function syncWidgetUsageOnce() {
   syncInFlightPromise = (async () => {
     try {
       await waitForPendingWidgetUsageEventRecords();
-      await rollupLocalWidgetUsage();
-      const result = await syncLocalWidgetUsageSummaryToServer();
+      const rollupResult = await rollupLocalWidgetUsage({ summaryDate: getLocalSummaryDate() });
+      if (rollupResult.status !== "ready") {
+        notifyWidgetUsageSynced({ status: rollupResult.status });
+        return;
+      }
+
+      const rollupKeys = rollupResult.data.map((rollup) => rollup.rollupKey);
+      if (rollupKeys.length === 0) {
+        notifyWidgetUsageSynced({
+          failedCount: 0,
+          markedSyncedCount: 0,
+          sentCount: 0,
+          stagedCount: 0,
+          status: "ready",
+          syncedAt: new Date().toISOString(),
+        });
+        return;
+      }
+
+      const result = await syncLocalWidgetUsageSummaryToServer({ rollupKeys });
       notifyWidgetUsageSynced(
         result.status === "ready"
           ? {
@@ -125,6 +157,13 @@ async function syncWidgetUsageOnce() {
   })();
 
   return syncInFlightPromise;
+}
+
+function getLocalSummaryDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function notifyWidgetUsageSynced(detail: WidgetUsageSyncedEventDetail) {

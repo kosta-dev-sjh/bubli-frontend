@@ -12,10 +12,11 @@ export type WidgetPreviewItem = {
   handoffLabel?: string;
   handoffUrl?: string;
   id: string;
-  kind?: "agent" | "friend" | "memo" | "message" | "resource" | "schedule" | "task" | "time" | "voice";
+  kind?: "agent" | "document" | "friend" | "memo" | "message" | "resource" | "schedule" | "task" | "time" | "voice";
   label: string;
   memoBody?: string;
   pinned?: boolean;
+  reviewable?: boolean;
   /** 개인 컨텍스트에서 룸 태스크 행에 붙는 룸 칩 라벨(룸 이름). */
   roomName?: string;
   /** TODO 그룹핑: 내 개인 TODO(personal) vs 나에게 할당된 룸 태스크(room). */
@@ -53,8 +54,18 @@ export type WidgetPreviewBubble = {
   panelBody: string;
   panelLabel: string;
   participantLabels?: string[];
+  /** 룸 컨텍스트에서도 누락되지 않게 분리해서 보여주는 개인 승인 전 후보. */
+  personalCandidateRows?: WidgetPreviewItem[];
+  /** 룸 컨텍스트에서도 위젯 내부 토글로 볼 수 있는 개인 범위 행. */
+  personalRows?: WidgetPreviewItem[];
+  /** 룸 컨텍스트에서 위젯 내부 토글로 볼 수 있는 프로젝트룸 범위 행. */
+  roomRows?: WidgetPreviewItem[];
   roomId?: string | null;
   roomLabel: string;
+  /** AI 에이전트 탭 안에 흡수된 초안 생성 목록. resource 버블은 별도 노출하지 않는다. */
+  resourceRows?: WidgetPreviewItem[];
+  /** AI 에이전트 초안 생성 탭의 개인 범위 초안. */
+  personalResourceRows?: WidgetPreviewItem[];
   rows: WidgetPreviewItem[];
   voiceLabel?: string;
   voiceRoomId?: string;

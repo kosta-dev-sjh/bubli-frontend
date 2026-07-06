@@ -59,6 +59,7 @@ import { getChatRealtimeClient } from "@/lib/websocket/chat-realtime";
 import { websocketTopics } from "@/lib/websocket/topics";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import type { GeneratedDocumentResponse } from "@/types/api/agent";
 import type { TimeLogResponse } from "@/types/api/timer";
 import type { NotificationResponse } from "@/types/api/notification";
 import type { WidgetSummaryResponse } from "@/types/api/widget";
@@ -99,8 +100,33 @@ const devVoiceRoomId =
     ? process.env.NEXT_PUBLIC_BUBLI_WIDGET_DEV_VOICE_ROOM_ID ?? null
     : null;
 
+const WIDGET_SESSION_RESTORE_GRACE_ATTEMPTS = 6;
+const WIDGET_SESSION_RESTORE_GRACE_DELAY_MS = 250;
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
+const WIDGET_MOCK_GENERATED_DRAFT_ID = "widget-mock-generated-draft";
 type WidgetItemStateAction = "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED";
+type WidgetAgentSuggestionReviewAction = "APPROVE" | "HOLD" | "REJECT";
+type WidgetScopeRoomOption = { id: string; label: string };
+
+function waitForWidgetSessionRestore(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function restoreWidgetStoredAuthSessionWithGrace() {
+  const storedSession = getStoredAuthSession();
+  if (storedSession) return storedSession;
+
+  let restoredSession = await restoreStoredAuthSessionFromTauri();
+  if (restoredSession || !isTauriRuntime()) return restoredSession;
+
+  for (let attempt = 0; attempt < WIDGET_SESSION_RESTORE_GRACE_ATTEMPTS; attempt += 1) {
+    await waitForWidgetSessionRestore(WIDGET_SESSION_RESTORE_GRACE_DELAY_MS);
+    restoredSession = await restoreStoredAuthSessionFromTauri();
+    if (restoredSession) return restoredSession;
+  }
+
+  return null;
+}
 
 type NotificationToastKind = "chat-invite" | "friend-accepted" | "friend-request" | "message" | "room-invite";
 
@@ -167,6 +193,10 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+function isWidgetMockGeneratedDraftId(value: string) {
+  return value === WIDGET_MOCK_GENERATED_DRAFT_ID;
+}
+
 function getRequestedMode(value: string | null): WidgetWindowMode {
   if (value === "GHOST" || value === "MINIMIZED" || value === "TRANSLUCENT") return value;
   return "DEFAULT";
@@ -211,7 +241,7 @@ function getWidgetWindowSize(bubbleType: WidgetBubbleType, mode: WidgetWindowMod
   if (mode === "MINIMIZED") return { height: 92, width: 208 };
   if (mode === "GHOST") return { height: 212, width: 212 };
   if (bubbleType === "chat") return { height: 420 + WIDGET_WINDOW_GUTTER, width: 336 + WIDGET_WINDOW_GUTTER };
-  if (bubbleType === "agent") return { height: 484 + WIDGET_WINDOW_GUTTER, width: 332 + WIDGET_WINDOW_GUTTER };
+  if (bubbleType === "agent") return { height: 420 + WIDGET_WINDOW_GUTTER, width: 332 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "timer") return { height: 400 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "resource") return { height: 330 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "memo") return { height: 348 + WIDGET_WINDOW_GUTTER, width: 308 + WIDGET_WINDOW_GUTTER };
@@ -519,13 +549,36 @@ function applyItemStateActionToBubble(
 ): WidgetPreviewBubble | undefined {
   if (!bubble) return bubble;
   if (state === "CONFIRMED" || state === "HIDDEN" || state === "SNOOZED") {
-    return { ...bubble, rows: bubble.rows.filter((row) => row.id !== itemId) };
+    return {
+      ...bubble,
+      personalCandidateRows: bubble.personalCandidateRows?.filter((row) => row.id !== itemId),
+      personalResourceRows: bubble.personalResourceRows?.filter((row) => row.id !== itemId),
+      personalRows: bubble.personalRows?.filter((row) => row.id !== itemId),
+      resourceRows: bubble.resourceRows?.filter((row) => row.id !== itemId),
+      roomRows: bubble.roomRows?.filter((row) => row.id !== itemId),
+      rows: bubble.rows.filter((row) => row.id !== itemId),
+    };
   }
 
-  const target = bubble.rows.find((row) => row.id === itemId);
+  const target =
+    bubble.rows.find((row) => row.id === itemId) ??
+    bubble.resourceRows?.find((row) => row.id === itemId) ??
+    bubble.personalCandidateRows?.find((row) => row.id === itemId) ??
+    bubble.personalResourceRows?.find((row) => row.id === itemId) ??
+    bubble.personalRows?.find((row) => row.id === itemId) ??
+    bubble.roomRows?.find((row) => row.id === itemId);
   if (!target) return bubble;
   return {
     ...bubble,
+    personalCandidateRows: bubble.personalCandidateRows
+      ? pinnedRowsFirst(bubble.personalCandidateRows.map((row) => (row.id === itemId ? { ...row, pinned: true } : row)))
+      : undefined,
+    personalResourceRows: bubble.personalResourceRows
+      ? pinnedRowsFirst(bubble.personalResourceRows.map((row) => (row.id === itemId ? { ...row, pinned: true } : row)))
+      : undefined,
+    personalRows: bubble.personalRows ? pinnedRowsFirst(bubble.personalRows.map((row) => (row.id === itemId ? { ...row, pinned: true } : row))) : undefined,
+    resourceRows: bubble.resourceRows ? pinnedRowsFirst(bubble.resourceRows.map((row) => (row.id === itemId ? { ...row, pinned: true } : row))) : undefined,
+    roomRows: bubble.roomRows ? pinnedRowsFirst(bubble.roomRows.map((row) => (row.id === itemId ? { ...row, pinned: true } : row))) : undefined,
     rows: pinnedRowsFirst(bubble.rows.map((row) => (row.id === itemId ? { ...row, pinned: true } : row))),
   };
 }
@@ -552,11 +605,43 @@ function collectWidgetItemIds(bubbles: Partial<Record<WidgetBubbleType, WidgetPr
   return [
     ...new Set(
       Object.values(bubbles)
-        .flatMap((bubble) => bubble?.rows ?? [])
+        .flatMap((bubble) => [
+          ...(bubble?.rows ?? []),
+          ...(bubble?.roomRows ?? []),
+          ...(bubble?.personalRows ?? []),
+          ...(bubble?.resourceRows ?? []),
+          ...(bubble?.personalResourceRows ?? []),
+          ...(bubble?.personalCandidateRows ?? []),
+        ])
         .map((row) => row.id)
         .filter(isUuid),
     ),
   ];
+}
+
+function createWidgetMockGeneratedDraft(roomId?: string | null, userId?: string | null): GeneratedDocumentResponse {
+  const now = new Date().toISOString();
+  return {
+    contentMarkdown: "## 프로젝트 진행 요약\n\n- 핵심 요구사항 정리\n- 다음 검토 항목 초안화\n- 담당자 확인 필요",
+    createdAt: now,
+    documentType: "요약 초안",
+    id: WIDGET_MOCK_GENERATED_DRAFT_ID,
+    metadataJson: { widgetMock: true },
+    resourceId: null,
+    roomId: roomId ?? null,
+    suggestionId: null,
+    title: "프로젝트 진행 요약 초안",
+    updatedAt: now,
+    userId: userId ?? "widget-mock-user",
+  };
+}
+
+function withWidgetMockGeneratedDraft(
+  items: GeneratedDocumentResponse[],
+  roomId?: string | null,
+  userId?: string | null,
+) {
+  return items.length > 0 ? items : [createWidgetMockGeneratedDraft(roomId, userId)];
 }
 
 function itemStateResponseToOverrides(
@@ -577,12 +662,17 @@ function itemStateResponseToOverrides(
   );
 }
 
-function buildNotificationSignal(t: TranslateFn, notifications: WidgetNotificationResponse[]): WidgetNotificationSignal {
+function buildNotificationSignal(
+  t: TranslateFn,
+  notifications: WidgetNotificationResponse[],
+  unreadNotificationCount?: number,
+): WidgetNotificationSignal {
   const unread = notifications.filter((item) => item.status === "UNREAD");
+  const unreadCount = Math.max(unread.length, unreadNotificationCount ?? 0);
   return {
-    compactLabel: t("widget.signal.alertCount", { count: unread.length }),
-    metric: String(unread.length),
-    notificationLabel: unread.length > 0 ? t("widget.signal.newAlertCount", { count: unread.length }) : t("widget.signal.noNewAlert"),
+    compactLabel: t("widget.signal.alertCount", { count: unreadCount }),
+    metric: String(unreadCount),
+    notificationLabel: unreadCount > 0 ? t("widget.signal.newAlertCount", { count: unreadCount }) : t("widget.signal.noNewAlert"),
     rows: unread.slice(0, 3).map((item) => ({
       id: item.id,
       detail: item.body ?? undefined,
@@ -600,8 +690,19 @@ function buildDisplayBubbles(input: {
   memos: WidgetMemoResponse[];
   messages: WidgetChatMessageResponse[];
   notifications: WidgetNotificationResponse[];
+  unreadNotificationCount?: number;
+  /** AI 에이전트 초안 생성 탭의 현재 범위 초안. */
+  generatedDocuments?: GeneratedDocumentResponse[];
+  /** 룸 컨텍스트에서도 초안 생성 탭에서 분리해 보여줄 개인 초안. */
+  personalGeneratedDocuments?: GeneratedDocumentResponse[];
+  /** 룸 컨텍스트에서도 메모 버블 내부 토글로 보여줄 개인 메모. */
+  personalMemos?: WidgetMemoResponse[];
+  /** 룸 컨텍스트에서도 일정 버블 내부 토글로 보여줄 개인 일정. */
+  personalSchedules?: WidgetScheduleResponse[];
   /** 룸 컨텍스트에서도 개인 오늘 항목을 뒤이어 보여주기 위한 개인 범위 오늘 TODO. */
   personalTodayTasks?: WidgetTaskResponse[];
+  /** 룸 컨텍스트에서도 후보 탭에서 분리해 보여줄 개인 승인 전 후보. */
+  personalSuggestions?: WidgetAgentSuggestionResponse[];
   /** 내 할 일 탭: 개인 TODO + 나에게 배정된 룸 태스크(/api/tasks). '오늘' 필터 없이 전체. */
   myTasks?: WidgetTaskResponse[];
   /** 프로젝트룸 탭: 선택 룸 보드 전체(/api/project-rooms/{roomId}/tasks). */
@@ -625,10 +726,14 @@ function buildDisplayBubbles(input: {
   const chatRoute = input.roomId ? `/app/project-rooms/${encodeURIComponent(input.roomId)}/chat` : "/app/chat";
   const resourceRoute = roomResourceRoute(input.roomId);
   const scheduleRoute = roomScopedRoute("/app/calendar", input.roomId);
+  const personalScheduleRoute = roomScopedRoute("/app/calendar", null);
   // 작업(WORK) 타이머는 그 룸에만 귀속 — 전역(개인) 위젯에서는 룸 타이머를 숨기고 개인(roomId 없음) 타이머만 보인다.
   const runningFallback = input.dashboard?.runningTimer ?? null;
   const activeTimer = input.timer ?? (!isRoomScoped && runningFallback?.roomId == null ? runningFallback : null);
   const scheduleSource = isRoomScoped ? input.schedules : (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules);
+  const personalScheduleSource = isRoomScoped
+    ? (input.personalSchedules ?? [])
+    : (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules);
 
   // ---------- TODO: 개인 TODO + 나에게 할당된 룸 태스크 병합 ----------
   // 제품 모델: 룸 태스크에 내가 담당자로 지정되면 개인 TODO에도 따라온다(백엔드
@@ -702,7 +807,6 @@ function buildDisplayBubbles(input: {
     sourceKind,
     status: formatDue(t, task.dueAt) || taskStatusLabel(t, task.status),
   });
-
   // 내 할 일: 미완료(마감 섹션 정렬) → 완료(최근 수정순, 하단).
   const myOpenTasks = myTasksSource
     .filter((task) => !isDoneTask(task))
@@ -747,21 +851,66 @@ function buildDisplayBubbles(input: {
     roomName: input.roomId ? input.roomNames?.[input.roomId] ?? label : undefined,
   };
 
-  const scheduleItems = scheduleSource.slice(0, 3);
   const scheduleTimeLabel = (item: WidgetScheduleResponse) => (item.allDay ? t("widget.schedule.allDay") : formatShortTime(item.startsAt));
-  const memoItems = input.memos.filter((item) => item.status === "ACTIVE").slice(0, 3);
-  const fileItems = input.resources.filter((item) => item.kind !== "MEMO").slice(0, 3);
+  const scheduleToRow = (item: WidgetScheduleResponse, route: string): WidgetPreviewItem => ({
+    id: item.id,
+    handoffLabel: scheduleTimeLabel(item),
+    handoffUrl: route,
+    kind: "schedule",
+    label: item.title,
+    status: scheduleTimeLabel(item),
+  });
+  const scheduleItems = scheduleSource.map((item) => scheduleToRow(item, scheduleRoute));
+  const personalScheduleItems = personalScheduleSource.map((item) => scheduleToRow(item, personalScheduleRoute));
+  const memoItems = input.memos.filter((item) => item.status === "ACTIVE");
+  const personalMemoItems = (input.personalMemos ?? []).filter((item) => item.status === "ACTIVE");
+  const memoToRow = (item: WidgetMemoResponse, roomId?: string | null): WidgetPreviewItem => ({
+    id: item.id,
+    handoffLabel: formatShortTime(item.updatedAt),
+    handoffUrl: roomScopedRoute("/app", roomId),
+    kind: "memo",
+    label: memoTitle(t, item),
+    memoBody: item.body,
+    status: formatShortTime(item.updatedAt),
+  });
+  const fileItems = input.resources.filter((item) => item.kind !== "MEMO");
+  const resourceToRow = (item: WidgetResourceResponse, fallbackRoomId?: string | null): WidgetPreviewItem => ({
+    id: item.id,
+    handoffLabel: resourceStatusLabel(t, item.status),
+    handoffUrl: resourceDetailRoute(item.roomId ?? fallbackRoomId, item.id),
+    kind: "resource",
+    label: item.title,
+    status: resourceStatusLabel(t, item.status),
+  });
+  const generatedDocumentToRow = (
+    item: GeneratedDocumentResponse,
+    sourceKind: NonNullable<WidgetPreviewItem["sourceKind"]>,
+  ): WidgetPreviewItem => ({
+    handoffLabel: item.documentType || t("widget.agent.generatedDraft"),
+    id: item.id,
+    kind: "document",
+    label: item.title,
+    sourceKind,
+    status: item.documentType || t("widget.agent.generatedDraft"),
+  });
+  const suggestionToRow = (
+    item: WidgetAgentSuggestionResponse,
+    route: string,
+    sourceKind: NonNullable<WidgetPreviewItem["sourceKind"]>,
+  ): WidgetPreviewItem => ({
+    id: item.suggestionId,
+    kind: "agent",
+    handoffLabel: suggestionStatusLabel(t, item.status),
+    handoffUrl: route,
+    label: suggestionTitle(item),
+    reviewable: true,
+    sourceKind,
+    status: suggestionStatusLabel(t, item.status),
+  });
   const agentRows =
     input.suggestions.length > 0
-      ? input.suggestions.slice(0, 3).map((item) => ({
-          id: item.suggestionId,
-          kind: "agent" as const,
-          handoffLabel: suggestionStatusLabel(t, item.status),
-          handoffUrl: agentRoute,
-          label: suggestionTitle(item),
-          status: suggestionStatusLabel(t, item.status),
-        }))
-      : (input.dashboard?.agentSuggestionSummary ?? []).slice(0, 3).map((line, index) => ({
+      ? input.suggestions.map((item) => suggestionToRow(item, agentRoute, input.roomId ? "room" : "personal"))
+      : (input.dashboard?.agentSuggestionSummary ?? []).map((line, index) => ({
           id: `agent-summary-${index}`,
           kind: "agent" as const,
           handoffLabel: t("widget.suggestion.draft"),
@@ -769,9 +918,13 @@ function buildDisplayBubbles(input: {
           label: line,
           status: t("widget.suggestion.draft"),
         }));
+  const personalAgentRows = input.roomId
+    ? (input.personalSuggestions ?? []).map((item) => suggestionToRow(item, "/app/agent", "personal"))
+    : [];
   const unreadNotifications = input.notifications.filter((item) => item.status === "UNREAD").slice(0, 3);
   const unreadCount = Math.max(
     input.notifications.filter((item) => item.status === "UNREAD").length,
+    input.unreadNotificationCount ?? 0,
     input.dashboard?.unreadNotificationCount ?? 0,
   );
   const voiceParticipants = input.voiceRoom?.participants.filter((item) => item.status === "JOINED") ?? [];
@@ -782,6 +935,11 @@ function buildDisplayBubbles(input: {
       metric: String(agentRows.length),
       notificationLabel: agentRows.length > 0 ? t("widget.agent.waitingCandidates") : t("widget.agent.noWaitingCandidates"),
       panelBody: agentRows.length > 0 ? t("widget.agent.onlyBeforeApproval") : t("widget.agent.noWaiting"),
+      personalCandidateRows: personalAgentRows,
+      personalResourceRows: input.roomId
+        ? (input.personalGeneratedDocuments ?? []).map((item) => generatedDocumentToRow(item, "personal"))
+        : undefined,
+      resourceRows: (input.generatedDocuments ?? []).map((item) => generatedDocumentToRow(item, input.roomId ? "room" : "personal")),
       roomId: input.roomId,
       roomLabel: label,
       rows: agentRows,
@@ -854,17 +1012,11 @@ function buildDisplayBubbles(input: {
       metric: String(memoItems.length),
       notificationLabel: memoItems.length > 0 ? t("widget.memo.saved") : t("widget.memo.noneSaved"),
       panelBody: input.roomId ? t("widget.memo.roomBody") : t("widget.memo.personalBody"),
+      personalRows: isRoomScoped ? personalMemoItems.map((item) => memoToRow(item, null)) : undefined,
+      roomRows: isRoomScoped ? memoItems.map((item) => memoToRow(item, input.roomId)) : undefined,
       roomId: input.roomId,
       roomLabel: label,
-      rows: memoItems.map((item) => ({
-        id: item.id,
-        handoffLabel: formatShortTime(item.updatedAt),
-        handoffUrl: roomScopedRoute("/app", input.roomId),
-        kind: "memo",
-        label: memoTitle(t, item),
-        memoBody: item.body,
-        status: formatShortTime(item.updatedAt),
-      })),
+      rows: memoItems.map((item) => memoToRow(item, input.roomId)),
     }),
     resource: withBubble("resource", {
       compactLabel: t("widget.resource.count", { count: fileItems.length }),
@@ -873,30 +1025,18 @@ function buildDisplayBubbles(input: {
       panelBody: fileItems.length > 0 ? t("widget.resource.roomBody") : t("widget.resource.noneBody"),
       roomId: input.roomId,
       roomLabel: label,
-      rows: fileItems.map((item) => ({
-        id: item.id,
-        handoffLabel: resourceStatusLabel(t, item.status),
-        handoffUrl: resourceDetailRoute(item.roomId ?? input.roomId, item.id),
-        kind: "resource",
-        label: item.title,
-        status: resourceStatusLabel(t, item.status),
-      })),
+      rows: fileItems.map((item) => resourceToRow(item, input.roomId)),
     }),
     schedule: withBubble("schedule", {
       compactLabel: t("widget.schedule.count", { count: scheduleItems.length }),
-      metric: scheduleItems[0] ? scheduleTimeLabel(scheduleItems[0]) || "0" : "0",
-      notificationLabel: scheduleItems[0]?.title ?? t("widget.schedule.none"),
+      metric: scheduleItems[0]?.status || "0",
+      notificationLabel: scheduleItems[0]?.label ?? t("widget.schedule.none"),
       panelBody: t("widget.schedule.body"),
+      personalRows: isRoomScoped ? personalScheduleItems : undefined,
+      roomRows: isRoomScoped ? scheduleItems : undefined,
       roomId: input.roomId,
       roomLabel: label,
-      rows: scheduleItems.map((item) => ({
-        id: item.id,
-        handoffLabel: scheduleTimeLabel(item),
-        handoffUrl: scheduleRoute,
-        kind: "schedule",
-        label: item.title,
-        status: scheduleTimeLabel(item),
-      })),
+      rows: scheduleItems,
     }),
     timer: withBubble("timer", {
       actionLabel: timerActionLabel(t, activeTimer),
@@ -984,6 +1124,11 @@ function withWidgetDisplayLoadState(
             metric: state === "loading" ? "..." : "!",
             notificationLabel: labels.notification,
             panelBody: labels.body,
+            personalCandidateRows: [],
+            personalResourceRows: [],
+            personalRows: [],
+            resourceRows: [],
+            roomRows: [],
             rows: [],
           }
         : bubble,
@@ -1006,6 +1151,23 @@ function withFailedWidgetDisplayBubbles(
             notificationLabel: "widget.data.partialIssue",
             panelBody: "widget.data.partialIssueBody",
           }
+        : bubble,
+    ]),
+  ) as Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
+}
+
+function preserveFailedWidgetDisplayBubbles(
+  nextBubbles: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>,
+  currentBubbles: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>,
+  failedBubbles: Set<WidgetBubbleType>,
+): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
+  if (failedBubbles.size === 0) return nextBubbles;
+
+  return Object.fromEntries(
+    Object.entries(nextBubbles).map(([bubbleType, bubble]) => [
+      bubbleType,
+      failedBubbles.has(bubbleType as WidgetBubbleType)
+        ? (currentBubbles[bubbleType as WidgetBubbleType] ?? bubble)
         : bubble,
     ]),
   ) as Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
@@ -1078,6 +1240,11 @@ function normalizeWidgetRoomId(roomId?: string | null) {
   return roomId?.trim() || null;
 }
 
+function widgetContextForRoomId(roomId?: string | null): WidgetContextResponse {
+  const selectedRoomId = normalizeWidgetRoomId(roomId);
+  return selectedRoomId ? { mode: "ROOM", selectedRoomId } : { mode: "PERSONAL", selectedRoomId: null };
+}
+
 function nextWidgetScheduleStart() {
   const next = new Date();
   const minutes = next.getMinutes();
@@ -1100,6 +1267,10 @@ function resolveWidgetContextFromSummary(
   const requested = normalizeWidgetRoomId(requestedRoomId);
   if (requested && normalizeWidgetRoomId(summary.context.selectedRoomId) !== requested) {
     return current?.selectedRoomId === requested ? current : { mode: "ROOM" as const, selectedRoomId: requested };
+  }
+
+  if (!requested && current?.mode === "PERSONAL" && !normalizeWidgetRoomId(current.selectedRoomId)) {
+    return current;
   }
 
   if (summary.context.selectedRoomId || !requested) return summary.context;
@@ -1168,7 +1339,7 @@ function DesktopWidgetSurface() {
   const [clickThrough, setClickThrough] = useState(false);
   const [windowVisible, setWindowVisible] = useState(true);
   const [widgetContext, setWidgetContext] = useState<WidgetContextResponse | null>(
-    requestedRoomId ? { mode: "ROOM", selectedRoomId: requestedRoomId } : null,
+    requestedRoomId ? widgetContextForRoomId(requestedRoomId) : null,
   );
   const [barItems, setBarItems] = useState<WidgetWindowState[]>([]);
   const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>(() =>
@@ -1184,12 +1355,14 @@ function DesktopWidgetSurface() {
   const [scheduleRevision, setScheduleRevision] = useState(0);
   const [todoRevision, setTodoRevision] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
+  const [displayRefreshRevision, setDisplayRefreshRevision] = useState(0);
   const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
   const [activeTimerHeartbeatId, setActiveTimerHeartbeatId] = useState<string | null>(null);
   const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(() => widgetDisplayLoadSignal("loading"));
   const [menuUsageSummary, setMenuUsageSummary] = useState<string | null>(null);
+  const [scopeRoomOptions, setScopeRoomOptions] = useState<WidgetScopeRoomOption[]>([]);
   // 1:1/그룹 보이스 통화 실시간 "전화 옴" 알림 — 바 창(항상 떠 있는 표면)에서만 구독/표시한다.
   const [incomingVoiceCall, setIncomingVoiceCall] = useState<{
     callerName: string;
@@ -1206,8 +1379,12 @@ function DesktopWidgetSurface() {
   const appReadySentRef = useRef(false);
   // 첫 로드 성공 후의 배경 재조회 실패는 조용히 이전 데이터를 유지한다(에러 스켈레톤 스왑 금지).
   const displayLoadedOnceRef = useRef(false);
-  const selectedWidgetRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
+  const widgetContextInitialized = widgetContext !== null;
+  const selectedWidgetRoomId = widgetContext ? normalizeWidgetRoomId(widgetContext.selectedRoomId) : normalizeWidgetRoomId(requestedRoomId);
   const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
+  const requestDisplayRefresh = useCallback(() => {
+    setDisplayRefreshRevision((current) => current + 1);
+  }, []);
 
   // 창별 상호작용 rect 보고(투명 영역 클릭 통과). 브라우저 미리보기에서는 동작하지 않는다.
   useWidgetInteractiveRectReporting(isTauri && mounted);
@@ -1267,7 +1444,7 @@ function DesktopWidgetSurface() {
   }, [isTauri]);
 
   const validateWidgetAuthSession = useCallback(async () => {
-    const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
+    const session = await restoreWidgetStoredAuthSessionWithGrace();
     if (!session) {
       return false;
     }
@@ -1278,9 +1455,12 @@ function DesktopWidgetSurface() {
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         clearStoredAuthSession();
+        return false;
       }
 
-      return false;
+      // A transient backend/network failure should not close a freshly opened widget window.
+      // Later data requests will show their own loading/error state while the session mirror remains valid.
+      return true;
     }
   }, []);
 
@@ -1456,10 +1636,11 @@ function DesktopWidgetSurface() {
     void listenWidgetRoomContextChanged((payload) => {
       const roomId = payload.selectedRoomId?.trim() || null;
       syncActiveProjectRoomFromWidgetContext(roomId);
-      setWidgetContext(roomId ? { mode: "ROOM", selectedRoomId: roomId } : null);
+      setWidgetContext(widgetContextForRoomId(roomId));
       setCommunicationRevision((current) => current + 1);
       setMemoRevision((current) => current + 1);
       setTimerRevision((current) => current + 1);
+      requestDisplayRefresh();
     }).then((nextUnlisten) => {
       if (cancelled) {
         nextUnlisten();
@@ -1472,7 +1653,7 @@ function DesktopWidgetSurface() {
       cancelled = true;
       unlisten?.();
     };
-  }, [isTauri]);
+  }, [isTauri, requestDisplayRefresh]);
 
   // 메인(하이브리드) 창의 bubli:data-changed가 브릿지를 타고 tauri 이벤트로 도착하면
   // 해당 도메인 revision을 즉시 올려 조용한 재조회를 트리거한다(폴링 대기 없음 — 폴링은 fallback).
@@ -1493,7 +1674,7 @@ function DesktopWidgetSurface() {
       friend: () => setCommunicationRevision((current) => current + 1),
       memo: () => setMemoRevision((current) => current + 1),
       notification: () => setNotificationRevision((current) => current + 1),
-      "project-room": () => setCommunicationRevision((current) => current + 1),
+      "project-room": requestDisplayRefresh,
       resource: () => setResourceRevision((current) => current + 1),
       schedule: () => setScheduleRevision((current) => current + 1),
       timer: () => setTimerRevision((current) => current + 1),
@@ -1530,7 +1711,43 @@ function DesktopWidgetSurface() {
       pendingDomains.clear();
       unlisten?.();
     };
-  }, [isMenuOrb, isTauri]);
+  }, [isMenuOrb, isTauri, requestDisplayRefresh]);
+
+  useEffect(() => {
+    if (!widgetSessionReady || isMenuOrb) return;
+
+    let lastRefreshAt = 0;
+    const refreshVisibleWidget = () => {
+      if (document.visibilityState === "hidden") return;
+      const now = Date.now();
+      if (now - lastRefreshAt < 1500) return;
+      lastRefreshAt = now;
+      requestDisplayRefresh();
+    };
+
+    window.addEventListener("focus", refreshVisibleWidget);
+    document.addEventListener("visibilitychange", refreshVisibleWidget);
+
+    return () => {
+      window.removeEventListener("focus", refreshVisibleWidget);
+      document.removeEventListener("visibilitychange", refreshVisibleWidget);
+    };
+  }, [isMenuOrb, requestDisplayRefresh, widgetSessionReady]);
+
+  useEffect(() => {
+    if (!widgetSessionReady || isMenuOrb || displayLoadedOnceRef.current) return;
+
+    const retryDelays = [800, 2400, 5000];
+    const timeoutIds = retryDelays.map((delay) =>
+      window.setTimeout(() => {
+        if (!displayLoadedOnceRef.current) requestDisplayRefresh();
+      }, delay),
+    );
+
+    return () => {
+      for (const timeoutId of timeoutIds) window.clearTimeout(timeoutId);
+    };
+  }, [isMenuOrb, requestDisplayRefresh, widgetSessionReady]);
 
   // 버블 안 액션이 서버에 반영된 직후 같은 데이터 변경 이벤트를 발행한다 —
   // 같은 창은 window CustomEvent(notifyDataChanged), 다른 창(메인 앱·다른 버블)은
@@ -1557,25 +1774,25 @@ function DesktopWidgetSurface() {
     let cancelled = false;
 
     async function refreshWidgetContext() {
-      const summary = await readWidgetDisplaySummary(requestedRoomId).catch(() => null);
-      if (cancelled || !summary?.context) return;
+      const context = await widgetApi.getContext().catch(() => null);
+      if (cancelled || !context) return;
 
       setWidgetContext((current) => {
-        const nextContext = resolveWidgetContextFromSummary(summary, requestedRoomId, current);
+        const nextContext = widgetContextForRoomId(context.selectedRoomId);
         if (
-          current?.mode === nextContext.mode &&
-          current?.selectedRoomId === nextContext.selectedRoomId
+          current?.mode === nextContext?.mode &&
+          current?.selectedRoomId === nextContext?.selectedRoomId
         ) {
           return current;
         }
         return nextContext;
       });
-      // 5초 배경 갱신은 내용이 같으면 이전 참조를 유지해 리렌더/깜빡임을 만들지 않는다.
+      // 배경 갱신은 내용이 같으면 이전 참조를 유지해 리렌더/깜빡임을 만들지 않는다.
     }
 
     const intervalId = window.setInterval(() => {
       void refreshWidgetContext();
-    }, 5000);
+    }, 15000);
 
     return () => {
       cancelled = true;
@@ -1590,45 +1807,107 @@ function DesktopWidgetSurface() {
     let cancelled = false;
 
     async function loadDisplayApiState() {
-      let selectedRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
+      let selectedRoomId = selectedWidgetRoomId;
       const summary = await readWidgetDisplaySummary(selectedRoomId);
       if (summary?.context) {
-        selectedRoomId = selectedRoomId ?? normalizeWidgetRoomId(summary.context.selectedRoomId) ?? requestedRoomId ?? null;
+        selectedRoomId = selectedRoomId ?? (!widgetContextInitialized ? normalizeWidgetRoomId(summary.context.selectedRoomId) : null);
         if (!cancelled) {
           setWidgetContext((current) => resolveWidgetContextFromSummary(summary, selectedRoomId, current));
         }
       }
 
+      const loadFullDisplay = isBubbleBar;
+      const shouldLoadBubbleData = (...bubbleTypes: WidgetBubbleType[]) =>
+        loadFullDisplay || bubbleTypes.includes(activeBubble);
       const voiceRoomId = activeVoiceRoomId;
-      const [dashboardResult, tasksResult, schedulesResult, resourcesResult, memosResult, suggestionsResult, notificationsResult, chatRoomsResult, friendsResult, roomResult, voiceResult, projectRoomsResult, roomBoardResult] =
+      const loadDashboard = shouldLoadBubbleData("timer", "todo", "schedule", "agent", "alert");
+      const loadTasks = shouldLoadBubbleData("todo");
+      const loadSchedules = shouldLoadBubbleData("schedule");
+      const loadResources = shouldLoadBubbleData("resource");
+      const loadMemos = shouldLoadBubbleData("memo");
+      const loadSuggestions = shouldLoadBubbleData("agent");
+      const loadGeneratedDocuments = shouldLoadBubbleData("agent");
+      const loadNotifications = shouldLoadBubbleData("alert", "chat");
+      const loadChat = shouldLoadBubbleData("chat");
+      const loadRoom = Boolean(selectedRoomId) && (loadFullDisplay || activeBubble !== "alert");
+      const loadRoomBoard = Boolean(selectedRoomId) && shouldLoadBubbleData("todo");
+      const loadProjectRooms =
+        loadFullDisplay || activeBubble === "agent" || activeBubble === "todo" || activeBubble === "memo" || activeBubble === "schedule";
+      const [
+        dashboardResult,
+        tasksResult,
+        schedulesResult,
+        resourcesResult,
+        memosResult,
+        personalMemosResult,
+        suggestionsResult,
+        personalSuggestionsResult,
+        generatedDocumentsResult,
+        personalGeneratedDocumentsResult,
+        personalSchedulesResult,
+        notificationsResult,
+        chatRoomsResult,
+        friendsResult,
+        roomResult,
+        voiceResult,
+        projectRoomsResult,
+        roomBoardResult,
+      ] =
         await Promise.allSettled([
-          widgetDisplayApi.getDashboardWork(),
-          widgetDisplayApi.listMyTasks(30),
-          widgetDisplayApi.listSchedules(selectedRoomId, 6),
-          widgetDisplayApi.listResources(selectedRoomId, 6),
-          widgetDisplayApi.listMemos(selectedRoomId, 6),
-          widgetDisplayApi.listAgentSuggestions(selectedRoomId),
-          widgetDisplayApi.listNotifications(20),
-          widgetDisplayApi.listChatRooms(20),
-          widgetDisplayApi.listFriends(),
-          selectedRoomId ? widgetDisplayApi.getProjectRoom(selectedRoomId) : Promise.resolve(null),
-          voiceRoomId ? widgetDisplayApi.getVoiceRoom(voiceRoomId) : Promise.resolve(null),
-          widgetDisplayApi.listProjectRooms(),
-          selectedRoomId ? widgetDisplayApi.listRoomBoard(selectedRoomId, 50) : Promise.resolve(null),
+          loadDashboard ? widgetDisplayApi.getDashboardWork() : Promise.resolve(null),
+          loadTasks ? widgetDisplayApi.listMyTasks(30) : Promise.resolve(null),
+          loadSchedules ? widgetDisplayApi.listAllSchedules(selectedRoomId) : Promise.resolve(null),
+          loadResources ? widgetDisplayApi.listAllResources(selectedRoomId) : Promise.resolve(null),
+          loadMemos ? widgetDisplayApi.listAllMemos(selectedRoomId) : Promise.resolve(null),
+          loadMemos && selectedRoomId ? widgetDisplayApi.listAllMemos(null) : Promise.resolve(null),
+          loadSuggestions ? widgetDisplayApi.listAgentSuggestions(selectedRoomId) : Promise.resolve(null),
+          loadSuggestions && selectedRoomId ? widgetDisplayApi.listAgentSuggestions(null) : Promise.resolve(null),
+          loadGeneratedDocuments
+            ? selectedRoomId
+              ? agentApi.listRoomGeneratedDocuments(selectedRoomId)
+              : agentApi.listGeneratedDocuments()
+            : Promise.resolve(null),
+          loadGeneratedDocuments && selectedRoomId ? agentApi.listGeneratedDocuments() : Promise.resolve(null),
+          loadSchedules && selectedRoomId ? widgetDisplayApi.listAllSchedules(null) : Promise.resolve(null),
+          loadNotifications ? widgetDisplayApi.listNotifications(20) : Promise.resolve(null),
+          loadChat ? widgetDisplayApi.listChatRooms(20) : Promise.resolve(null),
+          loadChat ? widgetDisplayApi.listFriends() : Promise.resolve(null),
+          loadRoom && selectedRoomId ? widgetDisplayApi.getProjectRoom(selectedRoomId) : Promise.resolve(null),
+          loadChat && voiceRoomId ? widgetDisplayApi.getVoiceRoom(voiceRoomId) : Promise.resolve(null),
+          loadProjectRooms ? widgetDisplayApi.listProjectRooms() : Promise.resolve(null),
+          loadRoomBoard && selectedRoomId ? widgetDisplayApi.listRoomBoard(selectedRoomId, 50) : Promise.resolve(null),
         ]);
 
       if (cancelled) return;
 
-      const notifications = notificationsResult.status === "fulfilled" ? notificationsResult.value.items : [];
-      const rooms = chatRoomsResult.status === "fulfilled" ? chatRoomsResult.value.items : [];
+      const dashboardValue = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
+      const tasksValue = tasksResult.status === "fulfilled" ? tasksResult.value : null;
+      const schedulesValue = schedulesResult.status === "fulfilled" ? schedulesResult.value : null;
+      const resourcesValue = resourcesResult.status === "fulfilled" ? resourcesResult.value : null;
+      const memosValue = memosResult.status === "fulfilled" ? memosResult.value : null;
+      const personalMemosValue = personalMemosResult.status === "fulfilled" ? personalMemosResult.value : null;
+      const suggestionsValue = suggestionsResult.status === "fulfilled" ? suggestionsResult.value : null;
+      const personalSuggestionsValue = personalSuggestionsResult.status === "fulfilled" ? personalSuggestionsResult.value : null;
+      const generatedDocumentsValue = generatedDocumentsResult.status === "fulfilled" ? generatedDocumentsResult.value : null;
+      const personalGeneratedDocumentsValue =
+        personalGeneratedDocumentsResult.status === "fulfilled" ? personalGeneratedDocumentsResult.value : null;
+      const personalSchedulesValue = personalSchedulesResult.status === "fulfilled" ? personalSchedulesResult.value : null;
+      const notificationsValue = notificationsResult.status === "fulfilled" ? notificationsResult.value : null;
+      const chatRoomsValue = chatRoomsResult.status === "fulfilled" ? chatRoomsResult.value : null;
+      const friendsValue = friendsResult.status === "fulfilled" ? friendsResult.value : null;
+      const roomValue = roomResult.status === "fulfilled" ? roomResult.value : null;
+      const voiceValue = voiceResult.status === "fulfilled" ? voiceResult.value : null;
+      const projectRoomsValue = projectRoomsResult.status === "fulfilled" ? projectRoomsResult.value : null;
+      const notifications = notificationsValue?.items ?? [];
+      const rooms = chatRoomsValue?.items ?? [];
       let activeRoom = resolveActiveWidgetChatRoom(rooms, selectedRoomId);
-      if (selectedRoomId && !activeRoom) {
+      if (loadChat && selectedRoomId && !activeRoom) {
         activeRoom = await widgetDisplayApi.createProjectRoomChatRoom(selectedRoomId).catch(() => null);
       }
       if (cancelled) return;
-      const messages = activeRoom ? await widgetDisplayApi.listChatMessages(activeRoom.id, 6).catch(() => null) : null;
+      const messages = loadChat && activeRoom ? await widgetDisplayApi.listChatMessages(activeRoom.id, 6).catch(() => null) : null;
       const cachedMessages =
-        isTauri && activeRoom && !messages
+        loadChat && isTauri && activeRoom && !messages
           ? await tauriCommands
               .readRoomMessages({ limit: 6, roomId: activeRoom.id })
               .then((result) => parseCachedWidgetChatMessages(result.items))
@@ -1638,18 +1917,32 @@ function DesktopWidgetSurface() {
       if (cancelled) return;
 
       const failedBubbles = new Set<WidgetBubbleType>();
-      if (dashboardResult.status === "rejected") failedBubbles.add("timer");
-      if (tasksResult.status === "rejected") failedBubbles.add("todo");
-      if (schedulesResult.status === "rejected") failedBubbles.add("schedule");
-      if (resourcesResult.status === "rejected") failedBubbles.add("resource");
-      if (memosResult.status === "rejected") failedBubbles.add("memo");
-      if (suggestionsResult.status === "rejected") failedBubbles.add("agent");
-      if (notificationsResult.status === "rejected") failedBubbles.add("alert");
+      if (loadDashboard && dashboardResult.status === "rejected") {
+        failedBubbles.add("timer");
+        failedBubbles.add("todo");
+        failedBubbles.add("schedule");
+        failedBubbles.add("agent");
+        failedBubbles.add("alert");
+      }
+      if (loadTasks && tasksResult.status === "rejected") failedBubbles.add("todo");
+      if (loadSchedules && schedulesResult.status === "rejected") failedBubbles.add("schedule");
+      if (loadResources && resourcesResult.status === "rejected") {
+        failedBubbles.add("resource");
+      }
+      if (loadMemos && memosResult.status === "rejected") failedBubbles.add("memo");
+      if (loadMemos && selectedRoomId && personalMemosResult.status === "rejected") failedBubbles.add("memo");
+      if (loadSuggestions && suggestionsResult.status === "rejected") failedBubbles.add("agent");
+      if (loadSuggestions && selectedRoomId && personalSuggestionsResult.status === "rejected") failedBubbles.add("agent");
+      if (loadGeneratedDocuments && generatedDocumentsResult.status === "rejected") failedBubbles.add("agent");
+      if (loadGeneratedDocuments && selectedRoomId && personalGeneratedDocumentsResult.status === "rejected") failedBubbles.add("agent");
+      if (loadSchedules && selectedRoomId && personalSchedulesResult.status === "rejected") failedBubbles.add("schedule");
+      if (loadNotifications && notificationsResult.status === "rejected") failedBubbles.add("alert");
       if (
-        chatRoomsResult.status === "rejected" ||
-        friendsResult.status === "rejected" ||
-        (activeRoom && !messages) ||
-        (voiceRoomId && voiceResult.status === "rejected")
+        loadChat &&
+        (chatRoomsResult.status === "rejected" ||
+          friendsResult.status === "rejected" ||
+          (activeRoom && !messages) ||
+          (voiceRoomId && voiceResult.status === "rejected"))
       ) {
         failedBubbles.add("chat");
       }
@@ -1671,23 +1964,31 @@ function DesktopWidgetSurface() {
       // 룸 칩 라벨용 roomId → 룸 이름 매핑: 서버 목록 성공 시 로컬 캐시에 병합 저장하고,
       // 실패 시 Tauri 로컬 캐시(roomNames 필드)에서 복원한다. 선택 룸 단건 조회 결과도 합친다.
       let roomNames: WidgetRoomNameMap = {};
-      if (projectRoomsResult.status === "fulfilled") {
-        roomNames = Object.fromEntries(projectRoomsResult.value.items.map((room) => [room.id, room.name]));
+      if (projectRoomsValue) {
+        roomNames = Object.fromEntries(projectRoomsValue.items.map((room) => [room.id, room.name]));
         if (isTauri) void writeCachedWidgetRoomNames(roomNames, selectedRoomId).catch(() => undefined);
       } else if (isTauri) {
         roomNames = (await readCachedWidgetRoomNames(selectedRoomId).catch(() => null)) ?? {};
       }
-      if (roomResult.status === "fulfilled" && roomResult.value) {
-        roomNames = { ...roomNames, [roomResult.value.id]: roomResult.value.name };
+      if (roomValue) {
+        roomNames = { ...roomNames, [roomValue.id]: roomValue.name };
       }
       if (cancelled) return;
+      const nextScopeRoomOptionsBase = projectRoomsValue
+        ? projectRoomsValue.items.map((room) => ({ id: room.id, label: room.name }))
+        : Object.entries(roomNames).map(([id, label]) => ({ id, label }));
+      const nextScopeRoomOptions =
+        roomValue && !nextScopeRoomOptionsBase.some((option) => option.id === roomValue.id)
+          ? [{ id: roomValue.id, label: roomValue.name }, ...nextScopeRoomOptionsBase]
+          : nextScopeRoomOptionsBase;
+      setScopeRoomOptions((current) => keepIfDeepEqual(current, nextScopeRoomOptions));
 
       const summaryDashboard = dashboardFromWidgetSummary(summary);
-      const dashboard = selectedRoomId ? null : dashboardResult.status === "fulfilled" ? dashboardResult.value : summaryDashboard;
+      const dashboard = selectedRoomId ? null : dashboardValue ?? summaryDashboard;
       // 룸 컨텍스트에서도 개인 오늘 항목(할당 룸 태스크 제외)을 뒤이어 보여준다.
       const personalTodayTasks =
-        dashboardResult.status === "fulfilled"
-          ? dashboardResult.value.todayTasks
+        dashboardValue
+          ? dashboardValue.todayTasks
           : selectedRoomId
             ? []
             : (summaryDashboard?.todayTasks ?? []);
@@ -1704,57 +2005,80 @@ function DesktopWidgetSurface() {
               ? activeTimerCandidate
               : null;
       const messageItems = messages?.items ?? cachedMessages;
-      const schedules = schedulesResult.status === "fulfilled" ? schedulesResult.value.items : selectedRoomId ? [] : (summaryDashboard?.todaySchedules ?? []);
-      const tasks = tasksResult.status === "fulfilled" ? tasksResult.value.items : (summaryDashboard?.todayTasks ?? []);
+      const schedules = schedulesValue?.items ?? (selectedRoomId ? [] : (summaryDashboard?.todaySchedules ?? []));
+      const tasks = tasksValue?.items ?? (selectedRoomId ? [] : (summaryDashboard?.todayTasks ?? []));
       const roomBoardTasks =
         roomBoardResult.status === "fulfilled" && roomBoardResult.value ? roomBoardResult.value.items : [];
+      const dashboardUnreadNotificationCount = dashboardValue?.unreadNotificationCount ?? summaryDashboard?.unreadNotificationCount;
+      const generatedDocumentsForWidget =
+        loadGeneratedDocuments && generatedDocumentsResult.status === "fulfilled"
+          ? withWidgetMockGeneratedDraft(generatedDocumentsValue?.items ?? [], selectedRoomId, currentUserId)
+          : (generatedDocumentsValue?.items ?? []);
+      const personalGeneratedDocumentsForWidget =
+        loadGeneratedDocuments && selectedRoomId && personalGeneratedDocumentsResult.status === "fulfilled"
+          ? withWidgetMockGeneratedDraft(personalGeneratedDocumentsValue?.items ?? [], null, currentUserId)
+          : (personalGeneratedDocumentsValue?.items ?? []);
+      const hadLoadedDisplay = displayLoadedOnceRef.current;
       const nextNotificationSignal =
-        notificationsResult.status === "rejected"
+        loadNotifications && notificationsResult.status === "rejected"
           ? widgetDisplayLoadSignal("error")
-          : buildNotificationSignal(t, notifications);
-      setNotificationSignal((current) => keepIfDeepEqual(current, nextNotificationSignal));
+          : buildNotificationSignal(t, notifications, dashboardUnreadNotificationCount);
+      setNotificationSignal((current) =>
+        hadLoadedDisplay && loadNotifications && notificationsResult.status === "rejected"
+          ? current
+          : keepIfDeepEqual(current, nextNotificationSignal),
+      );
       setActiveTimerHeartbeatId(activeTimer?.status === "RUNNING" ? activeTimer.id : null);
 
       const nextDisplayBubbles = buildDisplayBubbles({
           chatRoom: activeRoom ?? null,
           currentUserId,
           dashboard,
-          friends: friendsResult.status === "fulfilled" ? friendsResult.value : [],
-          memos: memosResult.status === "fulfilled" ? memosResult.value.items : [],
+          friends: friendsValue ?? [],
+          generatedDocuments: generatedDocumentsForWidget,
+          memos: memosValue?.items ?? [],
           messages: messageItems,
           notifications,
+          personalGeneratedDocuments: personalGeneratedDocumentsForWidget,
+          personalMemos: personalMemosValue?.items ?? [],
+          personalSchedules: personalSchedulesValue?.items ?? [],
           personalTodayTasks,
-          resources: resourcesResult.status === "fulfilled" ? resourcesResult.value.items : [],
-          room: roomResult.status === "fulfilled" ? roomResult.value : null,
+          personalSuggestions: personalSuggestionsValue ?? [],
+          resources: resourcesValue?.items ?? [],
+          room: roomValue,
           roomId: selectedRoomId,
           roomNames,
           schedules,
-          suggestions: suggestionsResult.status === "fulfilled" ? suggestionsResult.value : [],
+          suggestions: suggestionsValue ?? [],
           tasks,
           myTasks: tasks,
           roomBoardTasks,
           timer: activeTimer,
+          unreadNotificationCount: dashboardUnreadNotificationCount,
           voiceConnectionLabel,
-          voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
+          voiceRoom: voiceValue,
         }, t);
       const persistedItemStates = await widgetApi
         .listItemStates(collectWidgetItemIds(nextDisplayBubbles))
         .catch(() => []);
       const persistedOverrides = itemStateResponseToOverrides(persistedItemStates);
-      const nextBubbles = withFailedWidgetDisplayBubbles(
-        applyItemStateOverrides(nextDisplayBubbles, { ...persistedOverrides, ...itemStateOverrides }),
-        failedBubbles,
-      );
+      const nextBubblesBase = applyItemStateOverrides(nextDisplayBubbles, { ...persistedOverrides, ...itemStateOverrides });
+      const nextBubbles = hadLoadedDisplay ? nextBubblesBase : withFailedWidgetDisplayBubbles(nextBubblesBase, failedBubbles);
       // 배경 재조회 결과가 기존과 같으면 이전 데이터를 그대로 유지하고(로딩 스켈레톤 재노출 없음),
       // 일부만 바뀌면 안 바뀐 버블의 참조를 보존한다 — memo된 셸/행이 바뀐 버블만 다시 그린다.
-      setDisplayBubbles((current) => keepBubbleMapIfDeepEqual(current, nextBubbles));
+      setDisplayBubbles((current) =>
+        keepBubbleMapIfDeepEqual(
+          current,
+          hadLoadedDisplay ? preserveFailedWidgetDisplayBubbles(nextBubbles, current, failedBubbles) : nextBubbles,
+        ),
+      );
       displayLoadedOnceRef.current = true;
     }
 
     void loadDisplayApiState().catch(() => {
       // 첫 로드 전 실패만 에러 상태로 바꾸고, 배경 재조회 실패는 이전 데이터를 유지한다.
       if (!cancelled && !displayLoadedOnceRef.current) {
-        setDisplayBubbles(withWidgetDisplayLoadState(buildEmptyDisplayBubbles(t, widgetContext?.selectedRoomId ?? requestedRoomId), "error"));
+        setDisplayBubbles(withWidgetDisplayLoadState(buildEmptyDisplayBubbles(t, selectedWidgetRoomId), "error"));
         setNotificationSignal(widgetDisplayLoadSignal("error"));
       }
     });
@@ -1762,7 +2086,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, agentRevision, communicationRevision, currentUserId, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, requestedRoomId, resourceRevision, scheduleRevision, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, communicationRevision, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedWidgetRoomId, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -1863,7 +2187,20 @@ function DesktopWidgetSurface() {
         setWindowVisible(previousWindowVisible);
       }
     },
-    [activeBubble, clickThrough, isTauri, mode, selectedWidgetRoomId, windowId, windowVisible],
+    [
+      activeBubble,
+      clickThrough,
+      isTauri,
+      mode,
+      selectedWidgetRoomId,
+      setActiveBubble,
+      setAlwaysOnTop,
+      setClickThrough,
+      setMode,
+      setWindowVisible,
+      windowId,
+      windowVisible,
+    ],
   );
 
   const toggleAlwaysOnTop = useCallback(async () => {
@@ -1879,7 +2216,7 @@ function DesktopWidgetSurface() {
     } catch {
       setAlwaysOnTop(previous);
     }
-  }, [activeBubble, alwaysOnTop, isTauri, windowId]);
+  }, [activeBubble, alwaysOnTop, isTauri, setAlwaysOnTop, windowId]);
 
   const restoreCurrentWindow = useCallback(async () => {
     const previousMode = mode;
@@ -1933,10 +2270,23 @@ function DesktopWidgetSurface() {
       setClickThrough(previousClickThrough);
       setWindowVisible(previousWindowVisible);
     }
-  }, [activeBubble, clickThrough, isTauri, mode, selectedWidgetRoomId, windowId, windowVisible]);
+  }, [
+    activeBubble,
+    clickThrough,
+    isTauri,
+    mode,
+    selectedWidgetRoomId,
+    setActiveBubble,
+    setAlwaysOnTop,
+    setClickThrough,
+    setMode,
+    setWindowVisible,
+    windowId,
+    windowVisible,
+  ]);
 
-  // 닫기(X)는 최소화와 다르다 — 완전히 닫아 바에서도 사라지고, 다시 열기는 메뉴(런처)에서 한다.
-  // (이전엔 setWidgetWindowMode(MINIMIZED)를 불러 최소화와 동작이 겹쳤다.)
+  // macOS에서는 닫기(X)가 웹뷰를 내려도 바 복원 항목에는 남는다.
+  // Windows는 네이티브 닫기 의미를 유지한다.
   const closeWindow = useCallback(async () => {
     const previousWindowVisible = windowVisible;
     setWindowVisible(false);
@@ -1962,7 +2312,7 @@ function DesktopWidgetSurface() {
     } catch {
       setWindowVisible(previousWindowVisible);
     }
-  }, [activeBubble, isTauri, windowId, windowVisible]);
+  }, [activeBubble, isTauri, setAlwaysOnTop, setClickThrough, setMode, setWindowVisible, windowId, windowVisible]);
 
   const restoreBubbleFromBar = useCallback(
     async (bubbleType: WidgetBubbleType) => {
@@ -2011,7 +2361,7 @@ function DesktopWidgetSurface() {
           ? "MESSAGE"
           : item.kind === "schedule"
             ? "SCHEDULE"
-            : item.kind === "resource" || item.kind === "agent"
+            : item.kind === "resource" || item.kind === "agent" || item.kind === "document"
               ? "NOTIFICATION"
               : "TASK";
 
@@ -2086,6 +2436,40 @@ function DesktopWidgetSurface() {
     [activeBubble, isTauri, publishWidgetDataChanged],
   );
 
+  const reviewWidgetAgentSuggestion = useCallback(
+    async (item: WidgetPreviewItem, action: WidgetAgentSuggestionReviewAction) => {
+      if (!item.reviewable) return;
+
+      await agentApi.updateSuggestion(item.id, { action });
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "agent",
+            eventType: `agent:${action.toLowerCase()}`,
+            itemId: item.id,
+            itemType: "NOTIFICATION",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setDisplayBubbles((current) => ({
+        ...current,
+        agent: applyItemStateActionToBubble(current.agent, item.id, "CONFIRMED"),
+      }));
+      setAgentRevision((current) => current + 1);
+      if (action === "APPROVE") {
+        setTodoRevision((current) => current + 1);
+        setScheduleRevision((current) => current + 1);
+        publishWidgetDataChanged("todo");
+        publishWidgetDataChanged("schedule");
+      }
+      publishWidgetDataChanged("agent");
+    },
+    [isTauri, publishWidgetDataChanged],
+  );
+
   const openWidgetHandoff = useCallback(
     async (item: WidgetPreviewItem) => {
       const route = item.handoffUrl?.trim();
@@ -2096,7 +2480,7 @@ function DesktopWidgetSurface() {
           ? "MESSAGE"
           : item.kind === "schedule"
             ? "SCHEDULE"
-            : item.kind === "resource" || item.kind === "agent"
+            : item.kind === "resource" || item.kind === "agent" || item.kind === "document"
               ? "NOTIFICATION"
               : "TASK";
 
@@ -2127,31 +2511,6 @@ function DesktopWidgetSurface() {
     [activeBubble, isTauri, selectedWidgetRoomId],
   );
 
-  const downloadWidgetResource = useCallback(
-    async (item: WidgetPreviewItem) => {
-      const result = await widgetDisplayApi.getResourceDownloadUrl(item.id);
-      // Tauri 웹뷰에서는 window.open(_blank)이 막히므로 OS 기본 브라우저로 연다(웹은 새 탭 유지).
-      if (isTauri) {
-        await tauriCommands.openExternalUrl(result.url).catch(() => undefined);
-      } else {
-        window.open(result.url, "_blank", "noopener,noreferrer");
-      }
-
-      if (isTauri) {
-        void tauriCommands
-          .recordWidgetUsageEvent({
-            bubbleType: "resource",
-            eventType: "resource:download",
-            itemId: item.id,
-            itemType: "NOTIFICATION",
-            occurredAt: new Date().toISOString(),
-          })
-          .catch(() => undefined);
-      }
-    },
-    [isTauri],
-  );
-
   const analyzeWidgetResource = useCallback(
     async (item: WidgetPreviewItem) => {
       const job = await widgetDisplayApi.analyzeResource(item.id);
@@ -2174,6 +2533,77 @@ function DesktopWidgetSurface() {
       publishWidgetDataChanged("agent");
     },
     [isTauri, publishWidgetDataChanged],
+  );
+
+  const downloadWidgetResource = useCallback(
+    async (item: WidgetPreviewItem) => {
+      if (item.kind === "document") {
+        if (isWidgetMockGeneratedDraftId(item.id)) {
+          const blob = new Blob(
+            [
+              "# 프로젝트 진행 요약 초안\n\n",
+              "- 핵심 요구사항 정리\n",
+              "- 다음 검토 항목 초안화\n",
+              "- 담당자 확인 필요\n",
+            ],
+            { type: "text/markdown;charset=utf-8" },
+          );
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement("a");
+          anchor.href = url;
+          anchor.download = "프로젝트_진행_요약_초안.md";
+          document.body.append(anchor);
+          anchor.click();
+          anchor.remove();
+          window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+          return;
+        }
+
+        const result = await agentApi.exportGeneratedDocument(item.id);
+        const url = URL.createObjectURL(result.blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = result.fileName;
+        document.body.append(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+        if (isTauri) {
+          void tauriCommands
+            .recordWidgetUsageEvent({
+              bubbleType: "agent",
+              eventType: "document:download",
+              itemId: item.id,
+              itemType: "NOTIFICATION",
+              occurredAt: new Date().toISOString(),
+            })
+            .catch(() => undefined);
+        }
+        return;
+      }
+
+      const result = await widgetDisplayApi.getResourceDownloadUrl(item.id);
+      // Tauri 웹뷰에서는 window.open(_blank)이 막히므로 OS 기본 브라우저로 연다(웹은 새 탭 유지).
+      if (isTauri) {
+        await tauriCommands.openExternalUrl(result.url).catch(() => undefined);
+      } else {
+        window.open(result.url, "_blank", "noopener,noreferrer");
+      }
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "resource",
+            eventType: "resource:download",
+            itemId: item.id,
+            itemType: "NOTIFICATION",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+    },
+    [isTauri],
   );
 
   const sendWidgetChatMessage = useCallback(
@@ -2306,7 +2736,7 @@ function DesktopWidgetSurface() {
       const body = (inlineBody ?? window.prompt(t("widget.memo.prompt")) ?? "").trim();
       if (!body) return;
 
-      const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
+      const roomId = bubble.roomId ?? null;
       const memo = await widgetDisplayApi.createMemo(body, roomId);
 
       if (isTauri) {
@@ -2324,13 +2754,13 @@ function DesktopWidgetSurface() {
       setMemoRevision((current) => current + 1);
       publishWidgetDataChanged("memo");
     },
-    [isTauri, publishWidgetDataChanged, t, widgetContext?.selectedRoomId],
+    [isTauri, publishWidgetDataChanged, t],
   );
 
   const editWidgetMemo = useCallback(
-    async (item: WidgetPreviewItem) => {
+    async (item: WidgetPreviewItem, inlineBody?: string) => {
       const currentBody = item.memoBody ?? item.label;
-      const body = window.prompt(t("widget.memo.prompt"), currentBody)?.trim();
+      const body = (inlineBody ?? window.prompt(t("widget.memo.prompt"), currentBody) ?? "").trim();
       if (!body || body === currentBody) return;
 
       const memo = await widgetDisplayApi.updateMemo(item.id, body);
@@ -2382,7 +2812,7 @@ function DesktopWidgetSurface() {
       const title = (inlineTitle ?? window.prompt(t(bubble.actionLabel as MessageKey)) ?? "").trim();
       if (!title) return;
 
-      const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
+      const roomId = bubble.roomId ?? null;
       const task = roomId
         ? await todoApi.createRoomTask(roomId, { status: "TODO", title })
         : await todoApi.create({ status: "TODO", title });
@@ -2402,7 +2832,7 @@ function DesktopWidgetSurface() {
       setTodoRevision((current) => current + 1);
       publishWidgetDataChanged("todo");
     },
-    [isTauri, publishWidgetDataChanged, t, widgetContext?.selectedRoomId],
+    [isTauri, publishWidgetDataChanged, t],
   );
 
   const editWidgetTodo = useCallback(
@@ -2435,7 +2865,7 @@ function DesktopWidgetSurface() {
       const title = (inlineTitle ?? window.prompt(t("widget.schedule.prompt")) ?? "").trim();
       if (!title) return;
 
-      const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
+      const roomId = bubble.roomId ?? null;
       const schedule = await calendarApi.createEvent({
         allDay: false,
         endsAt: null,
@@ -2459,7 +2889,7 @@ function DesktopWidgetSurface() {
       setScheduleRevision((current) => current + 1);
       publishWidgetDataChanged("schedule");
     },
-    [isTauri, publishWidgetDataChanged, t, widgetContext?.selectedRoomId],
+    [isTauri, publishWidgetDataChanged, t],
   );
 
   const recordTimerUsage = useCallback(
@@ -2802,7 +3232,7 @@ function DesktopWidgetSurface() {
         setActiveBubble("chat");
       }
     },
-    [dismissMessageToast, isTauri],
+    [dismissMessageToast, isTauri, setActiveBubble],
   );
 
   const startWidgetVoice = useCallback(
@@ -3018,6 +3448,27 @@ function DesktopWidgetSurface() {
     }
   }, [isTauri, selectedWidgetRoomId]);
 
+  const selectWidgetScopeRoom = useCallback(
+    async (roomId: string | null) => {
+      const selectedRoomId = roomId?.trim() || null;
+
+      try {
+        if (isTauri) {
+          await tauriCommands.setWidgetRoomContext({ selectedRoomId });
+          await widgetApi.updateContext({ selectedRoomId }).catch(() => undefined);
+        } else {
+          await widgetApi.updateContext({ selectedRoomId }).catch(() => undefined);
+        }
+        syncActiveProjectRoomFromWidgetContext(selectedRoomId);
+        setWidgetContext(widgetContextForRoomId(selectedRoomId));
+        requestDisplayRefresh();
+      } catch {
+        // Browser preview fallback.
+      }
+    },
+    [isTauri, requestDisplayRefresh],
+  );
+
   if (!mounted || !widgetSessionReady) {
     return null;
   }
@@ -3120,19 +3571,23 @@ function DesktopWidgetSurface() {
       onCreateTodo={createWidgetTodo}
       onEditTodo={editWidgetTodo}
       onDeleteMemo={deleteWidgetMemo}
+      onAnalyzeResource={analyzeWidgetResource}
+      onDownloadResource={downloadWidgetResource}
       onEditMemo={editWidgetMemo}
       onOpenHandoff={openWidgetHandoff}
       onPauseTimer={pauseWidgetTimer}
       onPrimaryTimerAction={runPrimaryTimerAction}
       onRestore={restoreCurrentWindow}
-      onAnalyzeResource={analyzeWidgetResource}
-      onDownloadResource={downloadWidgetResource}
+      onReviewAgentSuggestion={reviewWidgetAgentSuggestion}
+      onSelectScopeRoom={selectWidgetScopeRoom}
       onSendAgentCommand={sendWidgetAgentCommand}
       onSendChatMessage={sendWidgetChatMessage}
       onStartVoice={startWidgetVoice}
       onToggleAlwaysOnTop={toggleAlwaysOnTop}
       onToggleVoiceMic={toggleWidgetVoiceMic}
       presentation="tauri"
+      scopeRoomOptions={scopeRoomOptions}
+      selectedScopeRoomId={selectedWidgetRoomId}
       windowId={windowId}
       windowVisible={windowVisible}
     />

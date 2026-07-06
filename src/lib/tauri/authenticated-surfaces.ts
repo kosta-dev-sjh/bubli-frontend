@@ -97,7 +97,6 @@ const loginStartupWindows: WidgetWindowOpenInput[] = [
   { bubbleType: "alert", mode: "DEFAULT", windowId: "alert" },
   { bubbleType: "chat", mode: "DEFAULT", windowId: "chat" },
   { bubbleType: "memo", mode: "DEFAULT", windowId: "memo" },
-  { bubbleType: "resource", mode: "DEFAULT", windowId: "resource" },
   { bubbleType: "schedule", mode: "DEFAULT", windowId: "schedule" },
   { bubbleType: "timer", mode: "DEFAULT", windowId: "timer" },
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },

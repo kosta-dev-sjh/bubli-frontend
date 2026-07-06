@@ -71,7 +71,7 @@ export async function apiRequest<T>(
 
     if (first.response.status === 401 && !skipAuthRefresh) {
       const refreshed = await refreshAuthSession();
-      if (refreshed) {
+      if (refreshed === "refreshed") {
         const retry = await sendApiRequest<T>(path, {
           body,
           headers,
@@ -86,6 +86,10 @@ export async function apiRequest<T>(
         }
 
         throw new ApiClientError(retry.response.status, retry.payload as ApiFailure);
+      }
+
+      if (refreshed === "unavailable") {
+        throw new Error("Auth refresh is temporarily unavailable.");
       }
     }
 
@@ -162,7 +166,9 @@ function serializeBody(body: unknown, isFormData: boolean) {
   return isFormData ? (body as BodyInit) : JSON.stringify(body);
 }
 
-let refreshPromise: Promise<boolean> | null = null;
+type AuthRefreshResult = "invalid" | "refreshed" | "unavailable";
+
+let refreshPromise: Promise<AuthRefreshResult> | null = null;
 
 function refreshAuthSession() {
   refreshPromise ??= refreshAuthSessionOnce().finally(() => {
@@ -172,11 +178,18 @@ function refreshAuthSession() {
   return refreshPromise;
 }
 
+function isRefreshTokenRejected(status: number, payload: ApiResponse<AuthTokenResponse> | null) {
+  if (status === 401 || status === 403) return true;
+
+  const code = payload?.success === false ? payload.error.code : null;
+  return code === "AUTH_REFRESH_TOKEN_EXPIRED" || code === "AUTH_REFRESH_TOKEN_REUSED" || code === "AUTH_INVALID_TOKEN";
+}
+
 async function refreshAuthSessionOnce() {
   const refreshToken = getAuthRefreshToken();
   if (!refreshToken) {
     clearStoredAuthSession();
-    return false;
+    return "invalid";
   }
 
   const controller = new AbortController();
@@ -191,21 +204,25 @@ async function refreshAuthSessionOnce() {
       method: "POST",
       signal: controller.signal,
     });
-    const payload = (await response.json()) as ApiResponse<AuthTokenResponse>;
+    const payload = (await response.json().catch(() => null)) as ApiResponse<AuthTokenResponse> | null;
 
-    if (!response.ok || !payload.success) {
+    if (response.ok && payload?.success) {
+      if (isTauriRuntime()) {
+        await setStoredAuthSessionAndWaitForTauriMirror({ ...payload.data, clientType });
+      } else {
+        setStoredAuthSession({ ...payload.data, clientType });
+      }
+      return "refreshed";
+    }
+
+    if (isRefreshTokenRejected(response.status, payload)) {
       clearStoredAuthSession();
-      return false;
+      return "invalid";
     }
 
-    if (isTauriRuntime()) {
-      await setStoredAuthSessionAndWaitForTauriMirror({ ...payload.data, clientType });
-    } else {
-      setStoredAuthSession({ ...payload.data, clientType });
-    }
-    return true;
+    return "unavailable";
   } catch {
-    return false;
+    return "unavailable";
   } finally {
     clearTimeout(timeoutId);
   }

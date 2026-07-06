@@ -34,6 +34,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:dev:backend": "node scripts/dev-widget-real-backend.mjs tauri",
+    "tauri:build:macos": "node scripts/build-tauri-macos.mjs",
+    "tauri:build:macos:publish": "node scripts/build-tauri-macos.mjs --publish-download",
     "generate:tauri-installer-art": "node scripts/generate-tauri-installer-art.mjs",
     "tauri:build": "node scripts/build-tauri-windows-download.mjs",
     "publish:tauri-windows-download": "node scripts/publish-tauri-windows-download.mjs",

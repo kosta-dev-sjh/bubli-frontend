@@ -105,6 +105,18 @@ export function startManagedFolderAutoSync() {
 
 export async function stopManagedFolderAutoSync(input?: ManagedFolderAutoSyncStopInput) {
   stopRequested = true;
+  const shouldFlush =
+    Boolean(input?.flush) &&
+    (syncIntervalId !== null ||
+      syncInFlight ||
+      syncInFlightPromise !== null ||
+      pendingFullSyncRequested ||
+      pendingFolderSyncIds.size > 0);
+
+  if (shouldFlush) {
+    await flushManagedFolderAutoSync();
+  }
+
   if (syncIntervalId !== null) {
     window.clearInterval(syncIntervalId);
   }

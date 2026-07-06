@@ -1,6 +1,6 @@
 {
   "build": {
-    "beforeBuildCommand": "npm run build:tauri-static:macos",
-    "frontendDist": "../dist-tauri"
+    "beforeBuildCommand": "npm run build && node scripts/prepare-tauri-dist.mjs",
+    "frontendDist": "../.tauri-dist"
   }
 }
