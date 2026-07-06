@@ -151,15 +151,27 @@ const ALLOWED_HEX_COLORS = new Set(
     "#EEF5FB",
     "#F6F3FB",
     "#F4F9FF",
+    // color-mix로 accent를 어둡게 섞을 때 쓰는 순수 검정(위젯 버블 라벨 대비).
+    "#000",
   ].map((color) => color.toUpperCase()),
 );
+
+// PR 번호(예: #429)나 설명이 주석에 들어가면 3자리 hex 색으로 오탐된다.
+// 색 검사 전에 주석을 지운다 — 블록 주석은 모든 파일, 라인 주석은 JS/TS만(CSS url(//)의 //는 보존).
+function stripCommentsForColorScan(text, relativePath) {
+  let stripped = text.replace(/\/\*[\s\S]*?\*\//g, " ");
+  if (!relativePath.endsWith(".css")) {
+    stripped = stripped.replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+  }
+  return stripped;
+}
 
 const failures = [];
 
 for (const root of SCAN_ROOTS) {
   yieldFiles(join(ROOT, root), (filePath) => {
-    const text = readFileSync(filePath, "utf8");
     const relativePath = relative(ROOT, filePath).replaceAll("\\", "/");
+    const text = stripCommentsForColorScan(readFileSync(filePath, "utf8"), relativePath);
     const matches = text.matchAll(/#[0-9a-fA-F]{3,8}\b/g);
 
     for (const match of matches) {

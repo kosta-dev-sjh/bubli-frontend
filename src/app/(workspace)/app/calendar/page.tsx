@@ -150,18 +150,67 @@ function eventCoversDate(event: { startsAt: string; endsAt?: string | null }, da
   return day >= start.getTime() && day <= end.getTime();
 }
 
-// 멀티데이 이벤트가 주어진 날에서 시작/끝/중간 중 어디인지 — 막대 모서리 스타일에 쓴다.
-function eventSpanPosition(event: { startsAt: string; endsAt?: string | null }, date: Date) {
+// 멀티데이/종일 이벤트의 시작·끝 "날짜"(자정 기준)와 멀티데이 여부.
+function eventDayBounds(event: { startsAt: string; endsAt?: string | null }) {
   const start = startOfDay(new Date(event.startsAt));
   const endRaw = event.endsAt ? new Date(new Date(event.endsAt).getTime() - 1) : new Date(event.startsAt);
   const end = startOfDay(endRaw.getTime() >= start.getTime() ? endRaw : new Date(event.startsAt));
-  const isMultiDay = end.getTime() > start.getTime();
-  const day = startOfDay(date).getTime();
-  return {
-    isMultiDay,
-    isStart: day === start.getTime(),
-    isEnd: day === end.getTime(),
-  };
+  return { end, isMultiDay: end.getTime() > start.getTime(), start };
+}
+
+function dayIndexFrom(base: Date, target: Date) {
+  return Math.round((startOfDay(target).getTime() - startOfDay(base).getTime()) / 86_400_000);
+}
+
+// 달력 한 줄(월=주, 주뷰=그 주)의 "막대" 이벤트(멀티데이 또는 종일)를 레인으로 배치한다.
+// 주 경계에서 잘리고(startCol/endCol 클램프), 실제 시작/끝 날에만 라운딩한다. 겹치면 다음 레인으로.
+type CalendarSpanBar = {
+  endCol: number;
+  event: CalendarDisplayEvent;
+  key: string;
+  lane: number;
+  roundEnd: boolean;
+  roundStart: boolean;
+  startCol: number;
+};
+
+function computeRowSpanBars(rowDays: Date[], events: CalendarDisplayEvent[]): { bars: CalendarSpanBar[]; laneCount: number } {
+  if (rowDays.length === 0) return { bars: [], laneCount: 0 };
+  const rowStart = startOfDay(rowDays[0]);
+  const rowEnd = startOfDay(rowDays[rowDays.length - 1]);
+  const lastCol = rowDays.length - 1;
+
+  const spanning = events
+    .map((event) => ({ event, ...eventDayBounds(event) }))
+    .filter(({ event, start, end, isMultiDay }) => {
+      // 단일 시간 일정은 막대가 아니라 셀 칩으로 남긴다. 멀티데이·종일만 관통 막대로.
+      if (!isMultiDay && !event.allDay) return false;
+      return start.getTime() <= rowEnd.getTime() && end.getTime() >= rowStart.getTime();
+    })
+    .sort((a, b) => {
+      if (a.start.getTime() !== b.start.getTime()) return a.start.getTime() - b.start.getTime();
+      return b.end.getTime() - a.end.getTime();
+    });
+
+  const laneLastCol: number[] = [];
+  const bars: CalendarSpanBar[] = [];
+  for (const { event, start, end } of spanning) {
+    const startCol = Math.max(0, dayIndexFrom(rowStart, start));
+    const endCol = Math.min(lastCol, dayIndexFrom(rowStart, end));
+    let lane = 0;
+    while (lane < laneLastCol.length && laneLastCol[lane] >= startCol) lane += 1;
+    laneLastCol[lane] = endCol;
+    bars.push({
+      endCol,
+      event,
+      key: event.key,
+      lane,
+      roundEnd: end.getTime() <= rowEnd.getTime(),
+      roundStart: start.getTime() >= rowStart.getTime(),
+      startCol,
+    });
+  }
+  return { bars, laneCount: laneLastCol.length };
 }
 
 function startOfMonth(date: Date) {
@@ -202,6 +251,30 @@ function formatTimeRange(t: TranslateFn, localeTag: string, event: { allDay: boo
   if (Number.isNaN(end.getTime())) return startLabel;
   const endLabel = new Intl.DateTimeFormat(localeTag, { hour: "2-digit", minute: "2-digit" }).format(end);
   return `${startLabel} - ${endLabel}`;
+}
+
+// 단건 상세/hover용 날짜·시간 — 종일이면 날짜만, 시간 있으면 "2026. 6. 24. 오전 12:00"처럼.
+function formatEventMoment(localeTag: string, iso: string, allDay: boolean) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(
+    localeTag,
+    allDay ? { day: "numeric", month: "long", year: "numeric" } : { day: "numeric", hour: "2-digit", minute: "2-digit", month: "long", year: "numeric" },
+  ).format(date);
+}
+
+// 시작~끝 범위. 종일 endsAt은 배타적(다음날 0시)이라 1ms 빼서 마지막 날로 보정한다.
+function formatEventRange(localeTag: string, event: { allDay: boolean; endsAt?: string | null; startsAt: string }) {
+  const start = formatEventMoment(localeTag, event.startsAt, event.allDay);
+  if (!event.endsAt) return start;
+  const endIso = event.allDay ? new Date(new Date(event.endsAt).getTime() - 1).toISOString() : event.endsAt;
+  const end = formatEventMoment(localeTag, endIso, event.allDay);
+  return start === end ? start : `${start} ~ ${end}`;
+}
+
+// 막대/칩 hover title — 제목이 잘려도 전체 제목+일시를 툴팁으로 보여준다(#5).
+function eventPopoverTitle(localeTag: string, event: { allDay: boolean; endsAt?: string | null; startsAt: string; title: string }) {
+  return `${event.title} · ${formatEventRange(localeTag, event)}`;
 }
 
 function buildPreviewEvents(roomId: string | null) {
@@ -313,6 +386,8 @@ function CalendarPageContent() {
   const [expandedGoogleEventKey, setExpandedGoogleEventKey] = useState<string | null>(null);
   // 일정 상세를 하단 패널이 아니라 클릭한 날짜 칸 옆 팝오버로 띄운다(구글 캘린더식).
   const [dayPopover, setDayPopover] = useState<{ top: number; left: number } | null>(null);
+  // 단건 이벤트 상세 팝오버(#2) — 막대/칩을 클릭하면 그 일정 하나의 시작~끝·수정/삭제를 연다.
+  const [eventPopover, setEventPopover] = useState<{ event: CalendarDisplayEvent; left: number; top: number } | null>(null);
   const range = useMemo(() => {
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
@@ -560,13 +635,16 @@ function CalendarPageContent() {
   const reviewCount = events.filter((event) => event.syncStatus === "SYNC_FAILED").length;
 
   useEffect(() => {
-    if (!dayPopover) return;
+    if (!dayPopover && !eventPopover) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDayPopover(null);
+      if (event.key === "Escape") {
+        setDayPopover(null);
+        setEventPopover(null);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [dayPopover]);
+  }, [dayPopover, eventPopover]);
 
   const now = new Date();
   const monthLabel = new Intl.DateTimeFormat(localeTag, { month: "long", year: "numeric" }).format(currentMonth);
@@ -592,6 +670,17 @@ function CalendarPageContent() {
     });
   }, [selectedDate]);
   const visibleCalendarDays = viewMode === "week" ? weekDays : calendarDays;
+  // 달력을 주(7일) 단위 행으로 묶고, 각 행의 멀티데이/종일 이벤트를 관통 막대 레인으로 배치한다(#1).
+  const calendarRows = useMemo(() => {
+    const rows: Array<{ bars: CalendarSpanBar[]; days: Date[]; key: string; laneCount: number }> = [];
+    for (let index = 0; index < visibleCalendarDays.length; index += 7) {
+      const days = visibleCalendarDays.slice(index, index + 7);
+      if (days.length === 0) continue;
+      const { bars, laneCount } = computeRowSpanBars(days, visibleEvents);
+      rows.push({ bars, days, key: toDateValue(days[0]), laneCount });
+    }
+    return rows;
+  }, [visibleCalendarDays, visibleEvents]);
   const googleConnected = googleConnection.kind === "connected";
   // 연결 상태 라인 — 이메일만 보여주면 "연동 안 됨"으로 오해하기 쉬워 "연결됨 · {email}" 형태로 상태를 먼저 밝힌다.
   const googleConnectionLabel =
@@ -652,6 +741,15 @@ function CalendarPageContent() {
   };
 
   const closeDayPopover = () => setDayPopover(null);
+  // 단건 이벤트 상세 팝오버 열기(#2) — 클릭한 막대/칩 근처에 띄우고 화면 밖으로 안 나가게 클램프.
+  const openEventPopover = (event: CalendarDisplayEvent, anchor: DOMRect) => {
+    setDayPopover(null);
+    const width = 300;
+    const left = Math.max(8, Math.min(anchor.left, window.innerWidth - width - 8));
+    const top = Math.min(anchor.bottom + 6, Math.max(72, window.innerHeight - 240));
+    setEventPopover({ event, left, top });
+  };
+  const closeEventPopover = () => setEventPopover(null);
 
   const openCreateComposer = () => {
     setDayPopover(null);
@@ -1103,69 +1201,103 @@ function CalendarPageContent() {
                   <span key={day.value}>{t(day.labelKey)}</span>
                 ))}
               </div>
-              <div aria-label={t("calendar.grid.aria")} className={viewMode === "week" ? `${styles.grid} ${styles.gridWeek}` : styles.grid}>
-                {visibleCalendarDays.map((date) => {
-                  const dateValue = toDateValue(date);
-                  const outside = viewMode === "month" && date.getMonth() !== currentMonth.getMonth();
+              <div aria-label={t("calendar.grid.aria")} className={viewMode === "week" ? `${styles.rows} ${styles.rowsWeek}` : styles.rows}>
+                {calendarRows.map((row) => (
+                  <div className={styles.weekRow} key={row.key}>
+                    {/* 멀티데이/종일 관통 막대 — 셀 위 레인 영역에 주 경계 안에서 이어서 그린다(#1). */}
+                    {row.bars.length > 0 ? (
+                      <div className={styles.weekBars} style={{ gridTemplateRows: `repeat(${row.laneCount}, var(--span-bar-lane, 20px))` }}>
+                        {row.bars.map((bar) => {
+                          const source = bar.event.sourceKey === "room" ? "room" : bar.event.sourceKey === "personal" ? "personal" : "external";
+                          const barClassName = [
+                            styles.spanBar,
+                            styles[`eventChip_${source}`],
+                            bar.roundStart ? styles.spanRoundStart : "",
+                            bar.roundEnd ? styles.spanRoundEnd : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ");
+                          return (
+                            <button
+                              className={barClassName}
+                              key={bar.key}
+                              onClick={(clickEvent) => openEventPopover(bar.event, clickEvent.currentTarget.getBoundingClientRect())}
+                              style={{ gridColumn: `${bar.startCol + 1} / ${bar.endCol + 2}`, gridRow: bar.lane + 1 }}
+                              title={eventPopoverTitle(localeTag, bar.event)}
+                              type="button"
+                            >
+                              {bar.roundStart || bar.startCol === 0 ? <b>{bar.event.title}</b> : <b aria-hidden="true">&nbsp;</b>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                    <div className={styles.weekCells}>
+                      {row.days.map((date) => {
+                        const dateValue = toDateValue(date);
+                        const outside = viewMode === "month" && date.getMonth() !== currentMonth.getMonth();
+                        const cellPad = { paddingTop: `calc(${row.laneCount} * var(--span-bar-lane, 20px) + var(--span-bar-gap, 4px))` };
 
-                  if (outside) {
-                    return (
-                      <span className={`${styles.cell} ${styles.cellOutside}`} key={dateValue}>
-                        <span className={styles.cellDate}>{date.getDate()}</span>
-                      </span>
-                    );
-                  }
+                        if (outside) {
+                          return (
+                            <span className={`${styles.cell} ${styles.cellOutside}`} key={dateValue} style={cellPad}>
+                              <span className={styles.cellDate}>{date.getDate()}</span>
+                            </span>
+                          );
+                        }
 
-                  const dayEvents = visibleEvents
-                    .filter((event) => eventCoversDate(event, date))
-                    .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
-                  const count = dayEvents.length;
-                  const roomEventCount = roomEvents.filter((event) => sameDate(new Date(event.occurredAt), date)).length;
-                  const selected = dateValue === selectedDate;
-                  const today = sameDate(date, now);
-                  const weekend = date.getDay() === 0 || date.getDay() === 6;
-                  const className = [
-                    styles.cell,
-                    selected ? styles.cellSelected : "",
-                    today ? styles.cellToday : "",
-                    weekend ? styles.cellWeekend : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ");
+                        // 셀에는 단일 시간 일정(막대가 아닌 것)만 칩으로. 멀티데이/종일은 위 막대에서 이미 그려졌다.
+                        const timedEvents = visibleEvents
+                          .filter((event) => !event.allDay && !eventDayBounds(event).isMultiDay && eventCoversDate(event, date))
+                          .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
+                        const count = timedEvents.length;
+                        const roomEventCount = roomEvents.filter((event) => sameDate(new Date(event.occurredAt), date)).length;
+                        const selected = dateValue === selectedDate;
+                        const today = sameDate(date, now);
+                        const weekend = date.getDay() === 0 || date.getDay() === 6;
+                        const className = [
+                          styles.cell,
+                          selected ? styles.cellSelected : "",
+                          today ? styles.cellToday : "",
+                          weekend ? styles.cellWeekend : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ");
 
-                  return (
-                    <button aria-pressed={selected} className={className} key={dateValue} onClick={(clickEvent) => selectCalendarDate(date, count > 0, clickEvent.currentTarget.getBoundingClientRect())} type="button">
-                      <span className={styles.cellDate}>{date.getDate()}</span>
-                      {count > 0 ? (
-                        <ul aria-label={t("calendar.grid.dayEventsAria", { day: date.getDate() })} className={styles.cellEvents}>
-                          {dayEvents.slice(0, 3).map((event) => {
-                            const source = event.sourceKey === "room" ? "room" : event.sourceKey === "personal" ? "personal" : "external";
-                            const span = eventSpanPosition(event, date);
-                            // 멀티데이 일정은 시작/끝 날만 모서리를 둥글리고, 시간은 시작 날에만 표기해 막대처럼 보이게 한다.
-                            const chipClassName = [
-                              styles.eventChip,
-                              styles[`eventChip_${source}`],
-                              span.isMultiDay && !span.isStart ? styles.eventChipSpanMid : "",
-                              span.isMultiDay && !span.isEnd ? styles.eventChipSpanOpenEnd : "",
-                            ]
-                              .filter(Boolean)
-                              .join(" ");
-                            return (
-                              <li className={chipClassName} key={event.key}>
-                                {span.isMultiDay && !span.isStart ? null : <span>{formatTime(t, localeTag, event)}</span>}
-                                <b>{event.title}</b>
-                              </li>
-                            );
-                          })}
-                          {count > 3 ? <li className={styles.eventMore}>{t("calendar.grid.moreCount", { count: count - 3 })}</li> : null}
-                        </ul>
-                      ) : null}
-                      {roomEventCount > 0 ? (
-                        <i aria-label={t("calendar.grid.roomEventsAria", { count: roomEventCount })} className={styles.roomDot} />
-                      ) : null}
-                    </button>
-                  );
-                })}
+                        return (
+                          <button aria-pressed={selected} className={className} key={dateValue} onClick={(clickEvent) => selectCalendarDate(date, count > 0, clickEvent.currentTarget.getBoundingClientRect())} style={cellPad} type="button">
+                            <span className={styles.cellDate}>{date.getDate()}</span>
+                            {count > 0 ? (
+                              <ul aria-label={t("calendar.grid.dayEventsAria", { day: date.getDate() })} className={styles.cellEvents}>
+                                {timedEvents.slice(0, 3).map((event) => {
+                                  const source = event.sourceKey === "room" ? "room" : event.sourceKey === "personal" ? "personal" : "external";
+                                  return (
+                                    <li
+                                      className={[styles.eventChip, styles[`eventChip_${source}`]].filter(Boolean).join(" ")}
+                                      key={event.key}
+                                      onClick={(clickEvent) => {
+                                        clickEvent.stopPropagation();
+                                        openEventPopover(event, clickEvent.currentTarget.getBoundingClientRect());
+                                      }}
+                                      title={eventPopoverTitle(localeTag, event)}
+                                    >
+                                      <span>{formatTime(t, localeTag, event)}</span>
+                                      <b>{event.title}</b>
+                                    </li>
+                                  );
+                                })}
+                                {count > 3 ? <li className={styles.eventMore}>{t("calendar.grid.moreCount", { count: count - 3 })}</li> : null}
+                              </ul>
+                            ) : null}
+                            {roomEventCount > 0 ? (
+                              <i aria-label={t("calendar.grid.roomEventsAria", { count: roomEventCount })} className={styles.roomDot} />
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -1278,6 +1410,84 @@ function CalendarPageContent() {
               <button className={styles.detailAdd} onClick={openCreateComposer} type="button">
                 {t("calendar.selected.addForDate")}
               </button>
+            </section>
+            </div>
+            ) : null}
+
+            {eventPopover ? (
+            <div className={styles.dayPopoverLayer} role="presentation" onMouseDown={closeEventPopover}>
+            <section
+              aria-label={eventPopover.event.title}
+              className={styles.eventPopover}
+              onMouseDown={(popoverEvent) => popoverEvent.stopPropagation()}
+              style={{ left: eventPopover.left, top: eventPopover.top }}
+            >
+              <div className={styles.detailHead}>
+                <strong>{eventPopover.event.title}</strong>
+                <button aria-label={t("common.close")} className={styles.dayPopoverClose} onClick={closeEventPopover} type="button">
+                  <X size={15} strokeWidth={2.1} />
+                </button>
+              </div>
+              <p className={styles.eventPopoverWhen}>
+                <span>{t("calendar.event.whenLabel")}</span>
+                <b>{formatEventRange(localeTag, eventPopover.event)}</b>
+              </p>
+              <p className={styles.eventPopoverSource}>
+                {eventPopover.event.sourceKey.startsWith(GOOGLE_SOURCE_PREFIX) || eventPopover.event.sourceKey === "external" ? (
+                  <i aria-hidden="true" className={styles.chipDot} style={eventPopover.event.calendarColor ? { background: eventPopover.event.calendarColor } : undefined} />
+                ) : null}
+                <span>{eventPopover.event.sourceLabel}</span>
+                {/* 같은 이름 룸이 여럿일 수 있어 roomId로 실제 소속을 구분해 노출한다(#3). */}
+                {eventPopover.event.sourceKey === "room" && eventPopover.event.schedule?.roomId ? (
+                  <code className={styles.eventPopoverRoomId} title={eventPopover.event.schedule.roomId}>
+                    {eventPopover.event.schedule.roomId.slice(0, 8)}
+                  </code>
+                ) : null}
+              </p>
+              {eventPopover.event.schedule ? (
+                confirmingDeleteEventId === eventPopover.event.schedule.id ? (
+                  <div className={styles.eventPopoverActions}>
+                    <Button
+                      loading={deletingEventId === eventPopover.event.schedule.id}
+                      onClick={() => {
+                        const schedule = eventPopover.event.schedule;
+                        if (schedule) void handleDeleteEvent(schedule).then(() => setEventPopover(null));
+                      }}
+                      size="sm"
+                      variant="primary"
+                    >
+                      {t("calendar.delete.confirmDelete")}
+                    </Button>
+                    <Button disabled={deletingEventId === eventPopover.event.schedule.id} onClick={() => setConfirmingDeleteEventId(null)} size="sm" variant="quiet">
+                      {t("calendar.delete.confirmKeep")}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className={styles.eventPopoverActions}>
+                    <Button
+                      icon={<Pencil size={14} strokeWidth={2.1} />}
+                      onClick={() => {
+                        const schedule = eventPopover.event.schedule;
+                        if (!schedule) return;
+                        closeEventPopover();
+                        openEditComposer(schedule);
+                      }}
+                      size="sm"
+                      variant="quiet"
+                    >
+                      {t("calendar.event.edit")}
+                    </Button>
+                    <Button icon={<Trash2 size={14} strokeWidth={2.1} />} onClick={() => setConfirmingDeleteEventId(eventPopover.event.schedule?.id ?? null)} size="sm" variant="quiet">
+                      {t("calendar.event.delete")}
+                    </Button>
+                  </div>
+                )
+              ) : (
+                <p className={styles.eventPopoverReadonly}>
+                  <Lock size={13} strokeWidth={2.1} />
+                  <span>{t("calendar.google.readOnly")}</span>
+                </p>
+              )}
             </section>
             </div>
             ) : null}

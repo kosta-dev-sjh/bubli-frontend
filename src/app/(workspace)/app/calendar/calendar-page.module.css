@@ -603,6 +603,131 @@
   border-bottom-right-radius: 0;
 }
 
+/* ---------- 관통 막대(멀티데이/종일) 주 단위 레인 레이아웃 (#1) ---------- */
+.rows {
+  --span-bar-lane: 20px;
+  --span-bar-gap: 4px;
+  display: grid;
+}
+.weekRow {
+  position: relative;
+}
+.weekCells {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: minmax(96px, 1fr);
+}
+.rowsWeek .weekCells {
+  grid-auto-rows: minmax(150px, 1fr);
+}
+/* 막대 오버레이 — 셀 위 예약 영역(cell paddingTop)에 주 경계 안에서 이어 그린다.
+   7열 그리드가 셀과 정렬되고, 막대는 grid-column 스팬 + grid-row 레인으로 배치된다. */
+.weekBars {
+  position: absolute;
+  top: 3px;
+  right: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px 3px;
+  padding: 0 5px;
+  z-index: 2;
+  pointer-events: none;
+}
+.spanBar {
+  display: flex;
+  min-width: 0;
+  height: calc(var(--span-bar-lane) - 3px);
+  align-items: center;
+  border: 0;
+  border-radius: 0;
+  padding: 0 6px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.spanBar b {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--cal-ink);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spanRoundStart {
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+}
+.spanRoundEnd {
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+
+/* 단건 상세 팝오버(#2) — 막대/칩 클릭 시. 내부 스크롤로 전체가 보인다(#5). */
+.eventPopover {
+  position: fixed;
+  z-index: 40;
+  width: min(300px, calc(100vw - 24px));
+  max-height: min(60vh, 420px);
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--cal-hairline);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 18px 44px -24px rgba(35, 48, 59, 0.4);
+}
+.eventPopoverWhen {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+.eventPopoverWhen span {
+  color: var(--cal-ink-muted);
+  font-size: 12px;
+}
+.eventPopoverWhen b {
+  color: var(--cal-ink);
+  font-size: 14px;
+  font-weight: 650;
+  word-break: keep-all;
+}
+.eventPopoverSource {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  color: var(--cal-ink-muted);
+  font-size: 13px;
+}
+.eventPopoverRoomId {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(205, 216, 223, 0.32);
+  color: var(--cal-ink-accent);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.eventPopoverActions {
+  display: flex;
+  gap: 8px;
+}
+.eventPopoverReadonly {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--cal-ink-muted);
+  font-size: 12px;
+}
+
 /* 날짜 칸 옆에 뜨는 일정 상세 팝오버(하단 패널 대체) */
 .dayPopoverLayer {
   position: fixed;
