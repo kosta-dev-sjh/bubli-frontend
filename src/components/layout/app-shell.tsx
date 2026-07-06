@@ -28,7 +28,12 @@ import { notifyDataChanged, readUserUpdatedDetail, useDataRefresh, USER_UPDATED_
 import { playNotificationSound } from "@/lib/sound/notification-sound";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
-import { AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
+import {
+  AUTH_SESSION_CHANGE_EVENT,
+  clearStoredAuthSession,
+  getStoredAuthSession,
+  restoreStoredAuthSessionFromTauri,
+} from "@/lib/auth/auth-session";
 import { connectLiveKitRoom } from "@/lib/livekit-client";
 import { voiceStore } from "@/lib/voice-store";
 import { projectRoomRoute } from "@/lib/project-room-routes";
@@ -298,6 +303,7 @@ export function AppShell({ children }: AppShellProps) {
           if (!isCurrentRun()) return;
 
           if (error instanceof ApiClientError && error.status === 401) {
+            clearStoredAuthSession();
             setState({ kind: "auth" });
             return;
           }
@@ -322,7 +328,7 @@ export function AppShell({ children }: AppShellProps) {
 
         if (roomPageResult.status === "rejected") {
           if (roomPageResult.reason instanceof ApiClientError && roomPageResult.reason.status === 401) {
-            setState({ kind: "auth" });
+            setState({ kind: "offline", user });
             return;
           }
 
@@ -387,6 +393,7 @@ export function AppShell({ children }: AppShellProps) {
       } catch (error) {
         if (!isCurrentRun()) return;
         if (error instanceof ApiClientError && error.status === 401) {
+          clearStoredAuthSession();
           setState({ kind: "auth" });
           return;
         }
