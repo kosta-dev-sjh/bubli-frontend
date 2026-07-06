@@ -25,7 +25,7 @@
    todo=sky · schedule=blue · timer=amber · memo=cream · resource=sand ·
    chat=rose · alert=lilac · agent=sage(승인된 soft green). */
 /* 버블별 8색을 색상환에서 확실히 분리한다(겹치던 웜/블루 계열 제거).
-   todo=파랑 · schedule=청록 · timer=주황 · memo=노랑 · resource=갈색 · chat=핑크 · alert=보라 · agent=초록 */
+   todo=파랑 · schedule=파랑 · timer=주황 · memo=노랑 · resource=갈색 · chat=핑크 · alert=보라 · agent=초록 */
 .accSky {
   --acc: #2F9BFF;
   --acc-ink: #005EA6;
@@ -1243,7 +1243,7 @@
   --pomodoro-accent: #12BEC8;
 }
 
-/* ── 원형 SVG 진행 링 타이머 ── 깔끔한 링 + 중앙 시간(집중=coral / 휴식=청록 계열). */
+/* ── 원형 SVG 진행 링 타이머 ── 깔끔한 링 + 중앙 시간(집중=coral / 휴식=sky). */
 .pomodoroCircle {
   position: relative;
   align-self: center;
