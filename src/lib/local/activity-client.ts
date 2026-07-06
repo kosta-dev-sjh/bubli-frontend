@@ -36,11 +36,13 @@ type ActivityRecordSegment = {
 };
 
 let incrementalActivityCheckpoint: IncrementalActivityCheckpoint | null = null;
-const INCREMENTAL_ACTIVITY_CHECKPOINT_KEY = "bubli:activity-incremental-checkpoint:v1";
+const ACTIVITY_PREF_CACHE_KEY = "activity:local";
+const INCREMENTAL_ACTIVITY_CHECKPOINT_KIND = "activity_incremental_checkpoint";
+const ACTIVITY_RECORD_LOCK_KIND = "activity_record_lock";
 const INCREMENTAL_ACTIVITY_CHECKPOINT_STALE_MS = 120_000;
-const ACTIVITY_RECORD_LOCK_KEY = "bubli:activity-record-lock:v1";
 const ACTIVITY_RECORD_LOCK_TTL_MS = 30_000;
 let activityRecordInFlight = false;
+let activityRecordLock: { expiresAt: number; value: string } | null = null;
 
 export async function readCurrentActivityContext(
   input: ActivityContextReadInput,
@@ -86,7 +88,7 @@ export async function recordCurrentActivityContext(
   }
 
   activityRecordInFlight = true;
-  const recordLock = tryAcquireActivityRecordLock();
+  const recordLock = await tryAcquireActivityRecordLock();
   if (!recordLock) {
     activityRecordInFlight = false;
     return blocked(
@@ -111,7 +113,7 @@ export async function recordCurrentActivityContext(
     const durationSeconds = Math.max(0, Math.trunc(context.data.durationSeconds ?? 0));
     const incremental = input.recordMode === "incremental";
     const segment = incremental
-      ? resolveIncrementalActivitySegment(context.data.appName, context.data.windowTitle, durationSeconds, capturedAt)
+      ? await resolveIncrementalActivitySegment(context.data.appName, context.data.windowTitle, durationSeconds, capturedAt)
       : {
           durationSeconds,
           endedAt: capturedAt.toISOString(),
@@ -141,7 +143,7 @@ export async function recordCurrentActivityContext(
     if (localActivity.status !== "ready") {
       return localActivity;
     }
-    rememberIncrementalActivityCheckpoint(context.data.appName, context.data.windowTitle, durationSeconds);
+    await rememberIncrementalActivityCheckpoint(context.data.appName, context.data.windowTitle, durationSeconds);
 
     let recordedActivity;
     try {
@@ -299,14 +301,14 @@ function parseIsoDate(value: string) {
   return date;
 }
 
-function resolveIncrementalActivitySegment(
+async function resolveIncrementalActivitySegment(
   appName: string,
   windowTitle: string | undefined,
   durationSeconds: number,
   capturedAt: Date,
-): ActivityRecordSegment | null {
+): Promise<ActivityRecordSegment | null> {
   const focusKey = `${appName}\u0000${windowTitle ?? ""}`;
-  const checkpoint = readIncrementalActivityCheckpoint();
+  const checkpoint = await readIncrementalActivityCheckpoint();
   const sameCheckpoint = checkpoint?.focusKey === focusKey ? checkpoint : null;
   const checkpointAgeMs = sameCheckpoint ? Math.max(0, capturedAt.getTime() - sameCheckpoint.capturedAtMs) : 0;
   const staleCheckpoint = sameCheckpoint ? checkpointAgeMs > INCREMENTAL_ACTIVITY_CHECKPOINT_STALE_MS : false;
@@ -319,7 +321,7 @@ function resolveIncrementalActivitySegment(
 
   if (nextDuration <= 0) {
     if (staleCheckpoint) {
-      rememberIncrementalActivityCheckpoint(appName, windowTitle, durationSeconds);
+      await rememberIncrementalActivityCheckpoint(appName, windowTitle, durationSeconds);
     }
     return null;
   }
@@ -331,7 +333,7 @@ function resolveIncrementalActivitySegment(
   };
 }
 
-function rememberIncrementalActivityCheckpoint(
+async function rememberIncrementalActivityCheckpoint(
   appName: string,
   windowTitle: string | undefined,
   durationSeconds: number,
@@ -341,34 +343,29 @@ function rememberIncrementalActivityCheckpoint(
     focusKey: `${appName}\u0000${windowTitle ?? ""}`,
     recordedDurationSeconds: durationSeconds,
   };
-  writeIncrementalActivityCheckpoint(incrementalActivityCheckpoint);
+  await writeIncrementalActivityCheckpoint(incrementalActivityCheckpoint);
 }
 
 export function resetIncrementalActivityCheckpoint() {
   incrementalActivityCheckpoint = null;
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.removeItem(INCREMENTAL_ACTIVITY_CHECKPOINT_KEY);
-  } catch {
-    // localStorage can be unavailable in hardened/diagnostic surfaces.
-  }
+  void clearIncrementalActivityCheckpoint();
 }
 
-function readIncrementalActivityCheckpoint(): IncrementalActivityCheckpoint | null {
+async function readIncrementalActivityCheckpoint(): Promise<IncrementalActivityCheckpoint | null> {
   if (incrementalActivityCheckpoint) {
     return incrementalActivityCheckpoint;
   }
-  if (typeof window === "undefined") {
+  if (!isTauriRuntime()) {
     return null;
   }
 
   try {
-    const raw = window.localStorage.getItem(INCREMENTAL_ACTIVITY_CHECKPOINT_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<IncrementalActivityCheckpoint>;
+    const cached = await tauriCommands.readWidgetPref({
+      cacheKey: ACTIVITY_PREF_CACHE_KEY,
+      kind: INCREMENTAL_ACTIVITY_CHECKPOINT_KIND,
+    });
+    if (!cached) return null;
+    const parsed = JSON.parse(cached.valueJson) as Partial<IncrementalActivityCheckpoint>;
     if (
       typeof parsed.focusKey !== "string" ||
       typeof parsed.recordedDurationSeconds !== "number" ||
@@ -387,41 +384,65 @@ function readIncrementalActivityCheckpoint(): IncrementalActivityCheckpoint | nu
   }
 }
 
-function writeIncrementalActivityCheckpoint(checkpoint: IncrementalActivityCheckpoint) {
-  if (typeof window === "undefined") {
+async function writeIncrementalActivityCheckpoint(checkpoint: IncrementalActivityCheckpoint) {
+  if (!isTauriRuntime()) {
     return;
   }
 
   try {
-    window.localStorage.setItem(INCREMENTAL_ACTIVITY_CHECKPOINT_KEY, JSON.stringify(checkpoint));
+    await tauriCommands.storeWidgetPref({
+      cacheKey: ACTIVITY_PREF_CACHE_KEY,
+      kind: INCREMENTAL_ACTIVITY_CHECKPOINT_KIND,
+      valueJson: JSON.stringify(checkpoint),
+    });
   } catch {
-    // localStorage can be unavailable in hardened/diagnostic surfaces; the in-memory guard still works.
+    // SQLite writes are best-effort; the in-memory guard still works for the active session.
   }
 }
 
-function tryAcquireActivityRecordLock() {
+async function clearIncrementalActivityCheckpoint() {
+  if (!isTauriRuntime()) {
+    return;
+  }
+
+  try {
+    await tauriCommands.storeWidgetPref({
+      cacheKey: ACTIVITY_PREF_CACHE_KEY,
+      kind: INCREMENTAL_ACTIVITY_CHECKPOINT_KIND,
+      valueJson: "{}",
+    });
+  } catch {
+    // SQLite writes are best-effort; clearing memory already stops same-session reuse.
+  }
+}
+
+async function tryAcquireActivityRecordLock() {
   if (typeof window === "undefined") {
     return "server";
   }
 
   const token = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
   const now = Date.now();
-  try {
-    const current = window.localStorage.getItem(ACTIVITY_RECORD_LOCK_KEY);
-    if (current) {
-      const [expiresAtRaw] = current.split(":", 1);
-      const expiresAt = Number(expiresAtRaw);
-      if (Number.isFinite(expiresAt) && expiresAt > now) {
-        return null;
-      }
+  if (activityRecordLock && activityRecordLock.expiresAt > now) {
+    return null;
+  }
+
+  const value = `${now + ACTIVITY_RECORD_LOCK_TTL_MS}:${token}`;
+  if (isTauriRuntime()) {
+    const current = await readActivityRecordLockValue();
+    if (lockValueIsActive(current, now)) {
+      return null;
     }
 
-    const value = `${now + ACTIVITY_RECORD_LOCK_TTL_MS}:${token}`;
-    window.localStorage.setItem(ACTIVITY_RECORD_LOCK_KEY, value);
-    return window.localStorage.getItem(ACTIVITY_RECORD_LOCK_KEY) === value ? value : null;
-  } catch {
-    return token;
+    await writeActivityRecordLockValue(value);
+    const confirmed = await readActivityRecordLockValue();
+    if (confirmed !== value) {
+      return null;
+    }
   }
+
+  activityRecordLock = { expiresAt: now + ACTIVITY_RECORD_LOCK_TTL_MS, value };
+  return value;
 }
 
 function releaseActivityRecordLock(lock: string) {
@@ -429,12 +450,49 @@ function releaseActivityRecordLock(lock: string) {
     return;
   }
 
+  if (activityRecordLock?.value === lock) {
+    activityRecordLock = null;
+  }
+
+  if (isTauriRuntime()) {
+    void readActivityRecordLockValue().then((current) => {
+      if (current === lock) {
+        void writeActivityRecordLockValue(null);
+      }
+    });
+  }
+}
+
+function lockValueIsActive(value: string | null, now: number) {
+  if (!value) return false;
+  const [expiresAtRaw] = value.split(":", 1);
+  const expiresAt = Number(expiresAtRaw);
+  return Number.isFinite(expiresAt) && expiresAt > now;
+}
+
+async function readActivityRecordLockValue() {
   try {
-    if (window.localStorage.getItem(ACTIVITY_RECORD_LOCK_KEY) === lock) {
-      window.localStorage.removeItem(ACTIVITY_RECORD_LOCK_KEY);
-    }
+    const cached = await tauriCommands.readWidgetPref({
+      cacheKey: ACTIVITY_PREF_CACHE_KEY,
+      kind: ACTIVITY_RECORD_LOCK_KIND,
+    });
+    if (!cached) return null;
+    const parsed = JSON.parse(cached.valueJson) as { value?: unknown };
+    return typeof parsed.value === "string" ? parsed.value : null;
   } catch {
-    // Nothing to release if storage is unavailable.
+    return null;
+  }
+}
+
+async function writeActivityRecordLockValue(value: string | null) {
+  try {
+    await tauriCommands.storeWidgetPref({
+      cacheKey: ACTIVITY_PREF_CACHE_KEY,
+      kind: ACTIVITY_RECORD_LOCK_KIND,
+      valueJson: JSON.stringify({ value }),
+    });
+  } catch {
+    // SQLite lock writes are best-effort; activityRecordInFlight remains active.
   }
 }
 

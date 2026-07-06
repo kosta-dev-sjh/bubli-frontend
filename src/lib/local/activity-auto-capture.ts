@@ -15,7 +15,8 @@ import type { ActivityContextRecordAdapterResult } from "@/types/local";
 const DEFAULT_ACTIVITY_CAPTURE_INTERVAL_MS = 30_000;
 const ACTIVITY_CAPTURE_INTERVAL_MS = resolveActivityCaptureIntervalMs();
 const CONSENT_REFRESH_INTERVAL_MS = 60_000;
-const ACTIVITY_CAPTURE_LOCK_KEY = "bubli:activity-auto-capture-lock:v1";
+const ACTIVITY_CAPTURE_LOCK_CACHE_KEY = "activity:local";
+const ACTIVITY_CAPTURE_LOCK_KIND = "activity_auto_capture_lock";
 const ACTIVITY_CAPTURE_LOCK_TTL_MS = 25_000;
 
 let captureIntervalId: number | null = null;
@@ -24,6 +25,7 @@ let captureInFlightPromise: Promise<void> | null = null;
 let cachedConsent: boolean | null = null;
 let cachedConsentCheckedAt = 0;
 let activityConsentRevision = 0;
+let activityCaptureLock: { expiresAt: number; value: string } | null = null;
 
 type ActivityAutoCaptureStopInput = {
   flush?: boolean;
@@ -120,7 +122,7 @@ async function captureActivityOnce() {
     return captureInFlightPromise ?? Promise.resolve();
   }
 
-  const lock = tryAcquireActivityCaptureLock();
+  const lock = await tryAcquireActivityCaptureLock();
   if (!lock) {
     updateActivityAutoCaptureStatus({
       lastMessage: translate("local.activity.noNewDwell"),
@@ -174,29 +176,33 @@ async function captureActivityOnce() {
   return captureInFlightPromise;
 }
 
-function tryAcquireActivityCaptureLock() {
+async function tryAcquireActivityCaptureLock() {
   if (typeof window === "undefined") {
     return null;
   }
 
   const token = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
   const now = Date.now();
-  try {
-    const current = window.localStorage.getItem(ACTIVITY_CAPTURE_LOCK_KEY);
-    if (current) {
-      const [expiresAtRaw] = current.split(":", 1);
-      const expiresAt = Number(expiresAtRaw);
-      if (Number.isFinite(expiresAt) && expiresAt > now) {
-        return null;
-      }
+  if (activityCaptureLock && activityCaptureLock.expiresAt > now) {
+    return null;
+  }
+
+  const value = `${now + ACTIVITY_CAPTURE_LOCK_TTL_MS}:${token}`;
+  if (isTauriRuntime()) {
+    const current = await readActivityCaptureLockValue();
+    if (lockValueIsActive(current, now)) {
+      return null;
     }
 
-    const value = `${now + ACTIVITY_CAPTURE_LOCK_TTL_MS}:${token}`;
-    window.localStorage.setItem(ACTIVITY_CAPTURE_LOCK_KEY, value);
-    return window.localStorage.getItem(ACTIVITY_CAPTURE_LOCK_KEY) === value ? value : null;
-  } catch {
-    return token;
+    await writeActivityCaptureLockValue(value);
+    const confirmed = await readActivityCaptureLockValue();
+    if (confirmed !== value) {
+      return null;
+    }
   }
+
+  activityCaptureLock = { expiresAt: now + ACTIVITY_CAPTURE_LOCK_TTL_MS, value };
+  return value;
 }
 
 function releaseActivityCaptureLock(lock: string) {
@@ -204,12 +210,49 @@ function releaseActivityCaptureLock(lock: string) {
     return;
   }
 
+  if (activityCaptureLock?.value === lock) {
+    activityCaptureLock = null;
+  }
+
+  if (isTauriRuntime()) {
+    void readActivityCaptureLockValue().then((current) => {
+      if (current === lock) {
+        void writeActivityCaptureLockValue(null);
+      }
+    });
+  }
+}
+
+function lockValueIsActive(value: string | null, now: number) {
+  if (!value) return false;
+  const [expiresAtRaw] = value.split(":", 1);
+  const expiresAt = Number(expiresAtRaw);
+  return Number.isFinite(expiresAt) && expiresAt > now;
+}
+
+async function readActivityCaptureLockValue() {
   try {
-    if (window.localStorage.getItem(ACTIVITY_CAPTURE_LOCK_KEY) === lock) {
-      window.localStorage.removeItem(ACTIVITY_CAPTURE_LOCK_KEY);
-    }
+    const cached = await tauriCommands.readWidgetPref({
+      cacheKey: ACTIVITY_CAPTURE_LOCK_CACHE_KEY,
+      kind: ACTIVITY_CAPTURE_LOCK_KIND,
+    });
+    if (!cached) return null;
+    const parsed = JSON.parse(cached.valueJson) as { value?: unknown };
+    return typeof parsed.value === "string" ? parsed.value : null;
   } catch {
-    // Nothing to release if storage is unavailable.
+    return null;
+  }
+}
+
+async function writeActivityCaptureLockValue(value: string | null) {
+  try {
+    await tauriCommands.storeWidgetPref({
+      cacheKey: ACTIVITY_CAPTURE_LOCK_CACHE_KEY,
+      kind: ACTIVITY_CAPTURE_LOCK_KIND,
+      valueJson: JSON.stringify({ value }),
+    });
+  } catch {
+    // SQLite lock writes are best-effort; in-process captureInFlight remains active.
   }
 }
 
@@ -220,7 +263,7 @@ export async function flushActivityAutoCapture() {
   }
   if (captureInFlight) return;
 
-  const lock = tryAcquireActivityCaptureLock();
+  const lock = await tryAcquireActivityCaptureLock();
   if (!lock) {
     updateActivityAutoCaptureStatus({
       lastMessage: translate("local.activity.noNewDwell"),

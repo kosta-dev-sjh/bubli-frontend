@@ -958,13 +958,13 @@ assertContains(
 );
 assertContains(
   activityClient,
-  /let activityRecordInFlight = false;[\s\S]*export async function recordCurrentActivityContext[\s\S]*if \(activityRecordInFlight\) \{[\s\S]*activity_no_new_duration[\s\S]*activityRecordInFlight = true;[\s\S]*const recordLock = tryAcquireActivityRecordLock\(\);[\s\S]*if \(!recordLock\) \{[\s\S]*activityRecordInFlight = false;[\s\S]*releaseActivityRecordLock\(recordLock\);[\s\S]*activityRecordInFlight = false;/,
-  "Activity recording must use a shared in-process guard plus the localStorage record lock so manual, flush, and auto capture cannot create duplicate segments.",
+  /let activityRecordInFlight = false;[\s\S]*export async function recordCurrentActivityContext[\s\S]*if \(activityRecordInFlight\) \{[\s\S]*activity_no_new_duration[\s\S]*activityRecordInFlight = true;[\s\S]*const recordLock = await tryAcquireActivityRecordLock\(\);[\s\S]*if \(!recordLock\) \{[\s\S]*activityRecordInFlight = false;[\s\S]*releaseActivityRecordLock\(recordLock\);[\s\S]*activityRecordInFlight = false;/,
+  "Activity recording must use a shared in-process guard plus the SQLite-backed record lock so manual, flush, and auto capture cannot create duplicate segments.",
 );
 assertContains(
   activityClient,
-  /function tryAcquireActivityRecordLock\(\)[\s\S]*window\.localStorage\.getItem\(ACTIVITY_RECORD_LOCK_KEY\)[\s\S]*window\.localStorage\.setItem\(ACTIVITY_RECORD_LOCK_KEY, value\)[\s\S]*window\.localStorage\.getItem\(ACTIVITY_RECORD_LOCK_KEY\) === value[\s\S]*function releaseActivityRecordLock\(lock: string\)[\s\S]*window\.localStorage\.removeItem\(ACTIVITY_RECORD_LOCK_KEY\)/,
-  "Activity record lock must keep compare-after-write localStorage semantics across Tauri webviews.",
+  /async function tryAcquireActivityRecordLock\(\)[\s\S]*readActivityRecordLockValue\(\)[\s\S]*writeActivityRecordLockValue\(value\)[\s\S]*const confirmed = await readActivityRecordLockValue\(\)[\s\S]*confirmed !== value[\s\S]*function releaseActivityRecordLock\(lock: string\)[\s\S]*writeActivityRecordLockValue\(null\)/,
+  "Activity record lock must keep compare-after-write SQLite semantics across Tauri webviews.",
 );
 assertContains(
   managedFolderAutoSync,
