@@ -28,6 +28,7 @@ export type AnalyzeResourceRequest = {
 
 export type RoomAgentJobRequest = {
   roomId: string;
+  sourceResourceIds?: string[];
 };
 
 export type AgentSuggestionListParams = {
