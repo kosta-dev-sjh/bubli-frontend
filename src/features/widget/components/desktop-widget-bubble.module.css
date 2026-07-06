@@ -610,13 +610,6 @@
   background: color-mix(in srgb, var(--acc) 7%, rgba(255, 255, 255, 0.6));
 }
 
-.checkRow input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--acc);
-  cursor: pointer;
-}
-
 .checkRow span,
 .checkRow a,
 .fileRow span,
@@ -693,7 +686,8 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--acc) 16%, transparent);
 }
 
-.alertCheck {
+.alertCheck,
+.rowCheck {
   display: inline-grid;
   place-items: center;
   width: 22px;
@@ -706,7 +700,8 @@
   cursor: pointer;
 }
 
-.alertCheck:hover {
+.alertCheck:hover,
+.rowCheck:hover {
   border-color: color-mix(in srgb, var(--acc) 48%, transparent);
   background: color-mix(in srgb, var(--acc) 20%, transparent);
 }

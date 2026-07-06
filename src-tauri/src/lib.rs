@@ -3913,10 +3913,13 @@ fn close_widget_window(
     let bubble_type = input.as_ref().and_then(|value| value.bubble_type.clone());
     let window_id = input.and_then(|value| value.window_id);
     let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
-        // 닫기(X)는 최소화와 달리 "완전히 닫기"다. 최소화는 MINIMIZED로 두어 바 칩으로 남지만,
-        // 닫기는 DEFAULT(=바 필터 MINIMIZED 조건에서 제외) + 창 숨김으로 바에서도 사라지게 한다.
-        // 다시 열기는 메뉴(런처)에서 수행한다.
-        widget.mode = "DEFAULT".to_string();
+        // macOS 메뉴바 테스트에서는 닫기(X)가 네이티브 웹뷰를 내려도 바 복원 항목에 남아야 한다.
+        // Windows는 기존 닫기 의미(DEFAULT + hidden)를 유지해 런처에서 다시 여는 흐름을 건드리지 않는다.
+        if cfg!(target_os = "macos") {
+            widget.mode = "MINIMIZED".to_string();
+        } else {
+            widget.mode = "DEFAULT".to_string();
+        }
         widget.click_through = false;
         widget.dock_orb_visible = false;
         widget.window_visible = false;
@@ -4101,6 +4104,32 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn closed_widget_state_remains_restorable_from_bar() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "chat".to_string(),
+            WidgetWindowState {
+                mode: "MINIMIZED".to_string(),
+                window_visible: false,
+                ..widget("chat", Some("chat"), 0, 0)
+            },
+        );
+        store.bubbles.insert(
+            "memo".to_string(),
+            WidgetWindowState {
+                mode: "DEFAULT".to_string(),
+                window_visible: false,
+                ..widget("memo", Some("memo"), 0, 0)
+            },
+        );
+
+        let items = widget_bar_items_from_store(&store);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].active_bubble, "chat");
     }
 
     #[test]

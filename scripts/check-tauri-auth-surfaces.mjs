@@ -5,6 +5,7 @@ const files = {
   appNav: "src/components/layout/app-nav.tsx",
   appShell: "src/components/layout/app-shell.tsx",
   appChat: "src/app/(workspace)/app/chat/page.tsx",
+  apiClient: "src/lib/api/client.ts",
   authApi: "src/features/auth/api/authApi.ts",
   authPanel: "src/features/auth/components/auth-panel.tsx",
   authSession: "src/lib/auth/auth-session.ts",
@@ -109,6 +110,7 @@ const chatWidgetRouting = read(files.chatWidgetRouting);
 const appNav = read(files.appNav);
 const appShell = read(files.appShell);
 const appChat = read(files.appChat);
+const apiClient = read(files.apiClient);
 const authApi = read(files.authApi);
 const authPanel = read(files.authPanel);
 const authSession = read(files.authSession);
@@ -430,6 +432,11 @@ assertContains(
   "The Windows release main window must be shown before preferred-monitor resolution so stale monitor preferences cannot leave the installed app headless.",
 );
 assertContains(
+  tauriLib,
+  /fn close_widget_window[\s\S]*if cfg!\(target_os = "macos"\) \{[\s\S]*widget\.mode = "MINIMIZED"\.to_string\(\);[\s\S]*\} else \{[\s\S]*widget\.mode = "DEFAULT"\.to_string\(\);/,
+  "Desktop widget close must keep the macOS restore-bar behavior separate from the existing Windows close behavior.",
+);
+assertContains(
   tauriDevtoolsGuard,
   /event\.key === "F12"[\s\S]*event\.key === "ContextMenu"[\s\S]*event\.shiftKey && event\.key === "F10"[\s\S]*BLOCKED_DEVTOOLS_KEYS\.has\(event\.key\.toLowerCase\(\)\)/,
   "TauriDevtoolsGuard must block F12, keyboard context menu, Shift+F10, and Ctrl+Shift devtools shortcuts.",
@@ -608,7 +615,7 @@ assertContains(
 assertContains(
   widgetPage,
   /const closeWindow = useCallback[\s\S]*closeWidgetWindow\(\{[\s\S]*bubbleType: activeBubble[\s\S]*windowId[\s\S]*eventType: "close"/,
-  "Desktop widget close control must fully close the bubble instead of minimizing it to the bar.",
+  "Desktop widget close control must call the native close command and record the close event.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -692,8 +699,8 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /closeWidgetWindow\(\{ bubbleType: "chat", windowId: "chat" \}\)[\s\S]*post-login relaunch setup closed one bubble widget[\s\S]*launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher reopened stale or missing bubble widget windows/,
-  "TauriRuntimeSmokeRunner must prove the post-login launcher recovers stale launched state when a bubble window disappears.",
+  /closeWidgetWindow\(\{ bubbleType: "chat", windowId: "chat" \}\)[\s\S]*post-login relaunch setup closed one bubble widget[\s\S]*if \(isMacRuntime\(\)\) \{[\s\S]*getWidgetBarItems\(\)[\s\S]*macOS closed chat widget remains restorable from the bar[\s\S]*openWidgetWindow\(\{[\s\S]*bubbleType: "chat"[\s\S]*macOS closed chat widget restored from the bar with project room context[\s\S]*closed chat widget reopened with project room context/,
+  "TauriRuntimeSmokeRunner must prove macOS close leaves a bar restore item while Windows can keep the existing reopen flow.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -850,6 +857,21 @@ assertNotContains(
   launcher,
   /clearStoredAuthSession\(\)/,
   "TauriPostLoginLauncher must not clear the mirrored desktop auth session directly.",
+);
+assertContains(
+  apiClient,
+  /type AuthRefreshResult = "invalid" \| "refreshed" \| "unavailable";/,
+  "API client refresh result must model transient refresh outages separately from invalid sessions.",
+);
+assertContains(
+  apiClient,
+  /refreshed === "unavailable"[\s\S]*throw new Error\("Auth refresh is temporarily unavailable\."\)/,
+  "API client must distinguish transient auth-refresh outages from invalid sessions so Tauri does not log out on network jitter.",
+);
+assertContains(
+  apiClient,
+  /function isRefreshTokenRejected[\s\S]*AUTH_REFRESH_TOKEN_EXPIRED[\s\S]*AUTH_REFRESH_TOKEN_REUSED[\s\S]*AUTH_INVALID_TOKEN[\s\S]*catch \{[\s\S]*return "unavailable";/,
+  "API client must clear auth only for explicit refresh-token rejection, not for refresh fetch timeout or network errors.",
 );
 assertContains(
   launcher,

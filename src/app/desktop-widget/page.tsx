@@ -574,12 +574,17 @@ function itemStateResponseToOverrides(
   );
 }
 
-function buildNotificationSignal(t: TranslateFn, notifications: WidgetNotificationResponse[]): WidgetNotificationSignal {
+function buildNotificationSignal(
+  t: TranslateFn,
+  notifications: WidgetNotificationResponse[],
+  unreadNotificationCount?: number,
+): WidgetNotificationSignal {
   const unread = notifications.filter((item) => item.status === "UNREAD");
+  const unreadCount = Math.max(unread.length, unreadNotificationCount ?? 0);
   return {
-    compactLabel: t("widget.signal.alertCount", { count: unread.length }),
-    metric: String(unread.length),
-    notificationLabel: unread.length > 0 ? t("widget.signal.newAlertCount", { count: unread.length }) : t("widget.signal.noNewAlert"),
+    compactLabel: t("widget.signal.alertCount", { count: unreadCount }),
+    metric: String(unreadCount),
+    notificationLabel: unreadCount > 0 ? t("widget.signal.newAlertCount", { count: unreadCount }) : t("widget.signal.noNewAlert"),
     rows: unread.slice(0, 3).map((item) => ({
       id: item.id,
       detail: item.body ?? undefined,
@@ -597,6 +602,7 @@ function buildDisplayBubbles(input: {
   memos: WidgetMemoResponse[];
   messages: WidgetChatMessageResponse[];
   notifications: WidgetNotificationResponse[];
+  unreadNotificationCount?: number;
   /** 룸 컨텍스트에서도 개인 오늘 항목을 뒤이어 보여주기 위한 개인 범위 오늘 TODO. */
   personalTodayTasks?: WidgetTaskResponse[];
   resources: WidgetResourceResponse[];
@@ -703,6 +709,7 @@ function buildDisplayBubbles(input: {
   const unreadNotifications = input.notifications.filter((item) => item.status === "UNREAD").slice(0, 3);
   const unreadCount = Math.max(
     input.notifications.filter((item) => item.status === "UNREAD").length,
+    input.unreadNotificationCount ?? 0,
     input.dashboard?.unreadNotificationCount ?? 0,
   );
   const voiceParticipants = input.voiceRoom?.participants.filter((item) => item.status === "JOINED") ?? [];
@@ -939,6 +946,23 @@ function withFailedWidgetDisplayBubbles(
   ) as Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
 }
 
+function preserveFailedWidgetDisplayBubbles(
+  nextBubbles: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>,
+  currentBubbles: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>,
+  failedBubbles: Set<WidgetBubbleType>,
+): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
+  if (failedBubbles.size === 0) return nextBubbles;
+
+  return Object.fromEntries(
+    Object.entries(nextBubbles).map(([bubbleType, bubble]) => [
+      bubbleType,
+      failedBubbles.has(bubbleType as WidgetBubbleType)
+        ? (currentBubbles[bubbleType as WidgetBubbleType] ?? bubble)
+        : bubble,
+    ]),
+  ) as Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
+}
+
 function widgetDisplayLoadSignal(state: WidgetDisplayLoadState): WidgetNotificationSignal {
   const labels = widgetDisplayLoadLabels[state];
   return {
@@ -1112,6 +1136,7 @@ function DesktopWidgetSurface() {
   const [scheduleRevision, setScheduleRevision] = useState(0);
   const [todoRevision, setTodoRevision] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
+  const [displayRefreshRevision, setDisplayRefreshRevision] = useState(0);
   const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
   const [activeTimerHeartbeatId, setActiveTimerHeartbeatId] = useState<string | null>(null);
   const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
@@ -1125,6 +1150,9 @@ function DesktopWidgetSurface() {
   const displayLoadedOnceRef = useRef(false);
   const selectedWidgetRoomId = widgetContext?.selectedRoomId ?? requestedRoomId ?? null;
   const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
+  const requestDisplayRefresh = useCallback(() => {
+    setDisplayRefreshRevision((current) => current + 1);
+  }, []);
 
   // 창별 상호작용 rect 보고(투명 영역 클릭 통과). 브라우저 미리보기에서는 동작하지 않는다.
   useWidgetInteractiveRectReporting(isTauri && mounted);
@@ -1380,6 +1408,7 @@ function DesktopWidgetSurface() {
       setCommunicationRevision((current) => current + 1);
       setMemoRevision((current) => current + 1);
       setTimerRevision((current) => current + 1);
+      requestDisplayRefresh();
     }).then((nextUnlisten) => {
       if (cancelled) {
         nextUnlisten();
@@ -1392,7 +1421,7 @@ function DesktopWidgetSurface() {
       cancelled = true;
       unlisten?.();
     };
-  }, [isTauri]);
+  }, [isTauri, requestDisplayRefresh]);
 
   // 메인(하이브리드) 창의 bubli:data-changed가 브릿지를 타고 tauri 이벤트로 도착하면
   // 해당 도메인 revision을 즉시 올려 조용한 재조회를 트리거한다(폴링 대기 없음 — 폴링은 fallback).
@@ -1412,7 +1441,7 @@ function DesktopWidgetSurface() {
       chat: () => setCommunicationRevision((current) => current + 1),
       memo: () => setMemoRevision((current) => current + 1),
       notification: () => setNotificationRevision((current) => current + 1),
-      "project-room": () => setCommunicationRevision((current) => current + 1),
+      "project-room": requestDisplayRefresh,
       resource: () => setResourceRevision((current) => current + 1),
       schedule: () => setScheduleRevision((current) => current + 1),
       timer: () => setTimerRevision((current) => current + 1),
@@ -1449,7 +1478,43 @@ function DesktopWidgetSurface() {
       pendingDomains.clear();
       unlisten?.();
     };
-  }, [isMenuOrb, isTauri]);
+  }, [isMenuOrb, isTauri, requestDisplayRefresh]);
+
+  useEffect(() => {
+    if (!widgetSessionReady || isMenuOrb) return;
+
+    let lastRefreshAt = 0;
+    const refreshVisibleWidget = () => {
+      if (document.visibilityState === "hidden") return;
+      const now = Date.now();
+      if (now - lastRefreshAt < 1500) return;
+      lastRefreshAt = now;
+      requestDisplayRefresh();
+    };
+
+    window.addEventListener("focus", refreshVisibleWidget);
+    document.addEventListener("visibilitychange", refreshVisibleWidget);
+
+    return () => {
+      window.removeEventListener("focus", refreshVisibleWidget);
+      document.removeEventListener("visibilitychange", refreshVisibleWidget);
+    };
+  }, [isMenuOrb, requestDisplayRefresh, widgetSessionReady]);
+
+  useEffect(() => {
+    if (!widgetSessionReady || isMenuOrb || displayLoadedOnceRef.current) return;
+
+    const retryDelays = [800, 2400, 5000];
+    const timeoutIds = retryDelays.map((delay) =>
+      window.setTimeout(() => {
+        if (!displayLoadedOnceRef.current) requestDisplayRefresh();
+      }, delay),
+    );
+
+    return () => {
+      for (const timeoutId of timeoutIds) window.clearTimeout(timeoutId);
+    };
+  }, [isMenuOrb, requestDisplayRefresh, widgetSessionReady]);
 
   // 버블 안 액션이 서버에 반영된 직후 같은 데이터 변경 이벤트를 발행한다 —
   // 같은 창은 window CustomEvent(notifyDataChanged), 다른 창(메인 앱·다른 버블)은
@@ -1473,25 +1538,31 @@ function DesktopWidgetSurface() {
     let cancelled = false;
 
     async function refreshWidgetContext() {
-      const summary = await readWidgetDisplaySummary(requestedRoomId).catch(() => null);
-      if (cancelled || !summary?.context) return;
+      const context = await widgetApi.getContext().catch(() => null);
+      if (cancelled || !context) return;
 
       setWidgetContext((current) => {
-        const nextContext = resolveWidgetContextFromSummary(summary, requestedRoomId, current);
+        const nextContext = requestedRoomId
+          ? current?.selectedRoomId === requestedRoomId
+            ? current
+            : { mode: "ROOM" as const, selectedRoomId: requestedRoomId }
+          : context.selectedRoomId
+            ? context
+            : null;
         if (
-          current?.mode === nextContext.mode &&
-          current?.selectedRoomId === nextContext.selectedRoomId
+          current?.mode === nextContext?.mode &&
+          current?.selectedRoomId === nextContext?.selectedRoomId
         ) {
           return current;
         }
         return nextContext;
       });
-      // 5초 배경 갱신은 내용이 같으면 이전 참조를 유지해 리렌더/깜빡임을 만들지 않는다.
+      // 배경 갱신은 내용이 같으면 이전 참조를 유지해 리렌더/깜빡임을 만들지 않는다.
     }
 
     const intervalId = window.setInterval(() => {
       void refreshWidgetContext();
-    }, 5000);
+    }, 15000);
 
     return () => {
       cancelled = true;
@@ -1515,35 +1586,60 @@ function DesktopWidgetSurface() {
         }
       }
 
+      const loadFullDisplay = isBubbleBar;
+      const shouldLoadBubbleData = (...bubbleTypes: WidgetBubbleType[]) =>
+        loadFullDisplay || bubbleTypes.includes(activeBubble);
       const voiceRoomId = activeVoiceRoomId;
+      const loadDashboard = shouldLoadBubbleData("timer", "todo", "schedule", "agent", "alert");
+      const loadTasks = shouldLoadBubbleData("todo");
+      const loadSchedules = shouldLoadBubbleData("schedule");
+      const loadResources = shouldLoadBubbleData("resource");
+      const loadMemos = shouldLoadBubbleData("memo");
+      const loadSuggestions = shouldLoadBubbleData("agent");
+      const loadNotifications = shouldLoadBubbleData("alert", "chat");
+      const loadChat = shouldLoadBubbleData("chat");
+      const loadRoom = Boolean(selectedRoomId) && (loadFullDisplay || activeBubble !== "alert");
+      const loadProjectRooms = loadFullDisplay || activeBubble === "todo";
       const [dashboardResult, tasksResult, schedulesResult, resourcesResult, memosResult, suggestionsResult, notificationsResult, chatRoomsResult, friendsResult, roomResult, voiceResult, projectRoomsResult] =
         await Promise.allSettled([
-          widgetDisplayApi.getDashboardWork(),
-          widgetDisplayApi.listTasks(selectedRoomId, 6),
-          widgetDisplayApi.listSchedules(selectedRoomId, 6),
-          widgetDisplayApi.listResources(selectedRoomId, 6),
-          widgetDisplayApi.listMemos(selectedRoomId, 6),
-          widgetDisplayApi.listAgentSuggestions(selectedRoomId),
-          widgetDisplayApi.listNotifications(20),
-          widgetDisplayApi.listChatRooms(20),
-          widgetDisplayApi.listFriends(),
-          selectedRoomId ? widgetDisplayApi.getProjectRoom(selectedRoomId) : Promise.resolve(null),
-          voiceRoomId ? widgetDisplayApi.getVoiceRoom(voiceRoomId) : Promise.resolve(null),
-          widgetDisplayApi.listProjectRooms(),
+          loadDashboard ? widgetDisplayApi.getDashboardWork() : Promise.resolve(null),
+          loadTasks ? widgetDisplayApi.listTasks(selectedRoomId, 6) : Promise.resolve(null),
+          loadSchedules ? widgetDisplayApi.listSchedules(selectedRoomId, 6) : Promise.resolve(null),
+          loadResources ? widgetDisplayApi.listResources(selectedRoomId, 6) : Promise.resolve(null),
+          loadMemos ? widgetDisplayApi.listMemos(selectedRoomId, 6) : Promise.resolve(null),
+          loadSuggestions ? widgetDisplayApi.listAgentSuggestions(selectedRoomId) : Promise.resolve(null),
+          loadNotifications ? widgetDisplayApi.listNotifications(20) : Promise.resolve(null),
+          loadChat ? widgetDisplayApi.listChatRooms(20) : Promise.resolve(null),
+          loadChat ? widgetDisplayApi.listFriends() : Promise.resolve(null),
+          loadRoom && selectedRoomId ? widgetDisplayApi.getProjectRoom(selectedRoomId) : Promise.resolve(null),
+          loadChat && voiceRoomId ? widgetDisplayApi.getVoiceRoom(voiceRoomId) : Promise.resolve(null),
+          loadProjectRooms ? widgetDisplayApi.listProjectRooms() : Promise.resolve(null),
         ]);
 
       if (cancelled) return;
 
-      const notifications = notificationsResult.status === "fulfilled" ? notificationsResult.value.items : [];
-      const rooms = chatRoomsResult.status === "fulfilled" ? chatRoomsResult.value.items : [];
+      const dashboardValue = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
+      const tasksValue = tasksResult.status === "fulfilled" ? tasksResult.value : null;
+      const schedulesValue = schedulesResult.status === "fulfilled" ? schedulesResult.value : null;
+      const resourcesValue = resourcesResult.status === "fulfilled" ? resourcesResult.value : null;
+      const memosValue = memosResult.status === "fulfilled" ? memosResult.value : null;
+      const suggestionsValue = suggestionsResult.status === "fulfilled" ? suggestionsResult.value : null;
+      const notificationsValue = notificationsResult.status === "fulfilled" ? notificationsResult.value : null;
+      const chatRoomsValue = chatRoomsResult.status === "fulfilled" ? chatRoomsResult.value : null;
+      const friendsValue = friendsResult.status === "fulfilled" ? friendsResult.value : null;
+      const roomValue = roomResult.status === "fulfilled" ? roomResult.value : null;
+      const voiceValue = voiceResult.status === "fulfilled" ? voiceResult.value : null;
+      const projectRoomsValue = projectRoomsResult.status === "fulfilled" ? projectRoomsResult.value : null;
+      const notifications = notificationsValue?.items ?? [];
+      const rooms = chatRoomsValue?.items ?? [];
       let activeRoom = resolveActiveWidgetChatRoom(rooms, selectedRoomId);
-      if (selectedRoomId && !activeRoom) {
+      if (loadChat && selectedRoomId && !activeRoom) {
         activeRoom = await widgetDisplayApi.createProjectRoomChatRoom(selectedRoomId).catch(() => null);
       }
       if (cancelled) return;
-      const messages = activeRoom ? await widgetDisplayApi.listChatMessages(activeRoom.id, 6).catch(() => null) : null;
+      const messages = loadChat && activeRoom ? await widgetDisplayApi.listChatMessages(activeRoom.id, 6).catch(() => null) : null;
       const cachedMessages =
-        isTauri && activeRoom && !messages
+        loadChat && isTauri && activeRoom && !messages
           ? await tauriCommands
               .readRoomMessages({ limit: 6, roomId: activeRoom.id })
               .then((result) => parseCachedWidgetChatMessages(result.items))
@@ -1553,18 +1649,25 @@ function DesktopWidgetSurface() {
       if (cancelled) return;
 
       const failedBubbles = new Set<WidgetBubbleType>();
-      if (dashboardResult.status === "rejected") failedBubbles.add("timer");
-      if (tasksResult.status === "rejected") failedBubbles.add("todo");
-      if (schedulesResult.status === "rejected") failedBubbles.add("schedule");
-      if (resourcesResult.status === "rejected") failedBubbles.add("resource");
-      if (memosResult.status === "rejected") failedBubbles.add("memo");
-      if (suggestionsResult.status === "rejected") failedBubbles.add("agent");
-      if (notificationsResult.status === "rejected") failedBubbles.add("alert");
+      if (loadDashboard && dashboardResult.status === "rejected") {
+        failedBubbles.add("timer");
+        failedBubbles.add("todo");
+        failedBubbles.add("schedule");
+        failedBubbles.add("agent");
+        failedBubbles.add("alert");
+      }
+      if (loadTasks && tasksResult.status === "rejected") failedBubbles.add("todo");
+      if (loadSchedules && schedulesResult.status === "rejected") failedBubbles.add("schedule");
+      if (loadResources && resourcesResult.status === "rejected") failedBubbles.add("resource");
+      if (loadMemos && memosResult.status === "rejected") failedBubbles.add("memo");
+      if (loadSuggestions && suggestionsResult.status === "rejected") failedBubbles.add("agent");
+      if (loadNotifications && notificationsResult.status === "rejected") failedBubbles.add("alert");
       if (
-        chatRoomsResult.status === "rejected" ||
-        friendsResult.status === "rejected" ||
-        (activeRoom && !messages) ||
-        (voiceRoomId && voiceResult.status === "rejected")
+        loadChat &&
+        (chatRoomsResult.status === "rejected" ||
+          friendsResult.status === "rejected" ||
+          (activeRoom && !messages) ||
+          (voiceRoomId && voiceResult.status === "rejected"))
       ) {
         failedBubbles.add("chat");
       }
@@ -1586,69 +1689,79 @@ function DesktopWidgetSurface() {
       // 룸 칩 라벨용 roomId → 룸 이름 매핑: 서버 목록 성공 시 로컬 캐시에 병합 저장하고,
       // 실패 시 Tauri 로컬 캐시(roomNames 필드)에서 복원한다. 선택 룸 단건 조회 결과도 합친다.
       let roomNames: WidgetRoomNameMap = {};
-      if (projectRoomsResult.status === "fulfilled") {
-        roomNames = Object.fromEntries(projectRoomsResult.value.items.map((room) => [room.id, room.name]));
+      if (projectRoomsValue) {
+        roomNames = Object.fromEntries(projectRoomsValue.items.map((room) => [room.id, room.name]));
         if (isTauri) void writeCachedWidgetRoomNames(roomNames, selectedRoomId).catch(() => undefined);
       } else if (isTauri) {
         roomNames = (await readCachedWidgetRoomNames(selectedRoomId).catch(() => null)) ?? {};
       }
-      if (roomResult.status === "fulfilled" && roomResult.value) {
-        roomNames = { ...roomNames, [roomResult.value.id]: roomResult.value.name };
+      if (roomValue) {
+        roomNames = { ...roomNames, [roomValue.id]: roomValue.name };
       }
       if (cancelled) return;
 
       const summaryDashboard = dashboardFromWidgetSummary(summary);
-      const dashboard = selectedRoomId ? null : dashboardResult.status === "fulfilled" ? dashboardResult.value : summaryDashboard;
+      const dashboard = selectedRoomId ? null : dashboardValue ?? summaryDashboard;
       // 룸 컨텍스트에서도 개인 오늘 항목(할당 룸 태스크 제외)을 뒤이어 보여준다.
       const personalTodayTasks =
-        dashboardResult.status === "fulfilled"
-          ? dashboardResult.value.todayTasks
+        dashboardValue
+          ? dashboardValue.todayTasks
           : selectedRoomId
             ? []
             : (summaryDashboard?.todayTasks ?? []);
       const activeTimerCandidate = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
       const activeTimer = selectedRoomId && activeTimerCandidate?.roomId !== selectedRoomId ? null : activeTimerCandidate;
       const messageItems = messages?.items ?? cachedMessages;
-      const schedules = schedulesResult.status === "fulfilled" ? schedulesResult.value.items : selectedRoomId ? [] : (summaryDashboard?.todaySchedules ?? []);
-      const tasks = tasksResult.status === "fulfilled" ? tasksResult.value.items : selectedRoomId ? [] : (summaryDashboard?.todayTasks ?? []);
+      const schedules = schedulesValue?.items ?? (selectedRoomId ? [] : (summaryDashboard?.todaySchedules ?? []));
+      const tasks = tasksValue?.items ?? (selectedRoomId ? [] : (summaryDashboard?.todayTasks ?? []));
+      const dashboardUnreadNotificationCount = dashboardValue?.unreadNotificationCount ?? summaryDashboard?.unreadNotificationCount;
+      const hadLoadedDisplay = displayLoadedOnceRef.current;
       const nextNotificationSignal =
-        notificationsResult.status === "rejected"
+        loadNotifications && notificationsResult.status === "rejected"
           ? widgetDisplayLoadSignal("error")
-          : buildNotificationSignal(t, notifications);
-      setNotificationSignal((current) => keepIfDeepEqual(current, nextNotificationSignal));
+          : buildNotificationSignal(t, notifications, dashboardUnreadNotificationCount);
+      setNotificationSignal((current) =>
+        hadLoadedDisplay && loadNotifications && notificationsResult.status === "rejected"
+          ? current
+          : keepIfDeepEqual(current, nextNotificationSignal),
+      );
       setActiveTimerHeartbeatId(activeTimer?.status === "RUNNING" ? activeTimer.id : null);
 
       const nextDisplayBubbles = buildDisplayBubbles({
           chatRoom: activeRoom ?? null,
           currentUserId,
           dashboard,
-          friends: friendsResult.status === "fulfilled" ? friendsResult.value : [],
-          memos: memosResult.status === "fulfilled" ? memosResult.value.items : [],
+          friends: friendsValue ?? [],
+          memos: memosValue?.items ?? [],
           messages: messageItems,
           notifications,
           personalTodayTasks,
-          resources: resourcesResult.status === "fulfilled" ? resourcesResult.value.items : [],
-          room: roomResult.status === "fulfilled" ? roomResult.value : null,
+          resources: resourcesValue?.items ?? [],
+          room: roomValue,
           roomId: selectedRoomId,
           roomNames,
           schedules,
-          suggestions: suggestionsResult.status === "fulfilled" ? suggestionsResult.value : [],
+          suggestions: suggestionsValue ?? [],
           tasks,
           timer: activeTimer,
+          unreadNotificationCount: dashboardUnreadNotificationCount,
           voiceConnectionLabel,
-          voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
+          voiceRoom: voiceValue,
         }, t);
       const persistedItemStates = await widgetApi
         .listItemStates(collectWidgetItemIds(nextDisplayBubbles))
         .catch(() => []);
       const persistedOverrides = itemStateResponseToOverrides(persistedItemStates);
-      const nextBubbles = withFailedWidgetDisplayBubbles(
-        applyItemStateOverrides(nextDisplayBubbles, { ...persistedOverrides, ...itemStateOverrides }),
-        failedBubbles,
-      );
+      const nextBubblesBase = applyItemStateOverrides(nextDisplayBubbles, { ...persistedOverrides, ...itemStateOverrides });
+      const nextBubbles = hadLoadedDisplay ? nextBubblesBase : withFailedWidgetDisplayBubbles(nextBubblesBase, failedBubbles);
       // 배경 재조회 결과가 기존과 같으면 이전 데이터를 그대로 유지하고(로딩 스켈레톤 재노출 없음),
       // 일부만 바뀌면 안 바뀐 버블의 참조를 보존한다 — memo된 셸/행이 바뀐 버블만 다시 그린다.
-      setDisplayBubbles((current) => keepBubbleMapIfDeepEqual(current, nextBubbles));
+      setDisplayBubbles((current) =>
+        keepBubbleMapIfDeepEqual(
+          current,
+          hadLoadedDisplay ? preserveFailedWidgetDisplayBubbles(nextBubbles, current, failedBubbles) : nextBubbles,
+        ),
+      );
       displayLoadedOnceRef.current = true;
     }
 
@@ -1663,7 +1776,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeVoiceRoomId, agentRevision, communicationRevision, currentUserId, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, requestedRoomId, resourceRevision, scheduleRevision, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, communicationRevision, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, requestedRoomId, resourceRevision, scheduleRevision, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContext?.selectedRoomId, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -1823,8 +1936,8 @@ function DesktopWidgetSurface() {
     }
   }, [activeBubble, isTauri, selectedWidgetRoomId, windowId]);
 
-  // 닫기(X)는 최소화와 다르다 — 완전히 닫아 바에서도 사라지고, 다시 열기는 메뉴(런처)에서 한다.
-  // (이전엔 setWidgetWindowMode(MINIMIZED)를 불러 최소화와 동작이 겹쳤다.)
+  // macOS에서는 닫기(X)가 웹뷰를 내려도 바 복원 항목에는 남는다.
+  // Windows는 네이티브 닫기 의미를 유지한다.
   const closeWindow = useCallback(async () => {
     setWindowVisible(false);
 

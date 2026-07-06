@@ -447,12 +447,15 @@ const ItemRows = memo(function ItemRows({
     <div className={styles.rowList}>
       {bubble.rows.map((item) => (
         <div className={styles.checkRow} key={item.id}>
-          <input
+          <button
             aria-label={t("widget.item.confirm")}
-            checked={item.checked ?? false}
-            onChange={() => onItemStateChange?.(item, "CONFIRMED")}
-            type="checkbox"
-          />
+            aria-pressed={item.checked ?? false}
+            className={styles.rowCheck}
+            onClick={() => onItemStateChange?.(item, "CONFIRMED")}
+            type="button"
+          >
+            <CheckCircle2 size={13} strokeWidth={2.4} />
+          </button>
           {item.handoffUrl ? (
             <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
               {item.label}
