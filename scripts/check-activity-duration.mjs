@@ -153,16 +153,16 @@ function assertActivitySettingsSurfaceUsesPanel() {
 function assertActivityRecordingUsesCrossWindowLock() {
   const clientSource = readFileSync(join("src", "lib", "local", "activity-client.ts"), "utf8");
   assert(
-    clientSource.includes('const ACTIVITY_RECORD_LOCK_KEY = "bubli:activity-record-lock:v1"'),
-    "Activity recording must keep a shared localStorage record lock key for cross-window capture.",
+    clientSource.includes('const ACTIVITY_RECORD_LOCK_KIND = "activity_record_lock"'),
+    "Activity recording must keep a shared SQLite-backed record lock key for cross-window capture.",
   );
   assert(
-    /export async function recordCurrentActivityContext[\s\S]*const recordLock = tryAcquireActivityRecordLock\(\);[\s\S]*if \(!recordLock\)[\s\S]*releaseActivityRecordLock\(recordLock\);/.test(clientSource),
+    /export async function recordCurrentActivityContext[\s\S]*const recordLock = await tryAcquireActivityRecordLock\(\);[\s\S]*if \(!recordLock\)[\s\S]*releaseActivityRecordLock\(recordLock\);/.test(clientSource),
     "recordCurrentActivityContext must acquire and release the shared record lock around native/backend writes.",
   );
   assert(
-    /function tryAcquireActivityRecordLock\(\)[\s\S]*window\.localStorage\.getItem\(ACTIVITY_RECORD_LOCK_KEY\)[\s\S]*window\.localStorage\.setItem\(ACTIVITY_RECORD_LOCK_KEY, value\)[\s\S]*window\.localStorage\.getItem\(ACTIVITY_RECORD_LOCK_KEY\) === value/.test(clientSource),
-    "Activity record lock must use localStorage compare-after-write semantics shared by Tauri webviews.",
+    /async function tryAcquireActivityRecordLock\(\)[\s\S]*readActivityRecordLockValue\(\)[\s\S]*writeActivityRecordLockValue\(value\)[\s\S]*const confirmed = await readActivityRecordLockValue\(\)[\s\S]*confirmed !== value/.test(clientSource),
+    "Activity record lock must use SQLite-backed compare-after-write semantics shared by Tauri webviews.",
   );
 
   const autoCaptureSource = readFileSync(join("src", "lib", "local", "activity-auto-capture.ts"), "utf8");

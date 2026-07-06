@@ -16,8 +16,6 @@ const ALLOWED_LOCALSTORAGE_FILES = new Set([
   "src/features/onboarding/lib/onboarding-storage.ts",
   "src/lib/auth/auth-session.ts",
   "src/lib/i18n/locale.ts",
-  "src/lib/local/activity-auto-capture.ts",
-  "src/lib/local/activity-client.ts",
 ]);
 
 const BOUNDARY_RULES = [
