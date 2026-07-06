@@ -1,0 +1,8 @@
+{
+  "arch": "arm64",
+  "file": "/downloads/macos/Bubli-macOS-0.1.0-arm64.dmg",
+  "sizeBytes": 92359657,
+  "source": "src-tauri/target/release/bundle/dmg/Bubli_0.1.0_aarch64.dmg",
+  "updatedAt": "2026-07-06T06:03:01.580Z",
+  "version": "0.1.0"
+}

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 const navLinks: { href: string; id: string; labelKey: MessageKey }[] = [
   { href: "/#features", id: "features", labelKey: "public.nav.features" },
   { href: "/#desktop", id: "desktop", labelKey: "public.nav.desktop" },
-  { href: "/#download", id: "download", labelKey: "public.nav.download" },
+  { href: "/download", id: "download", labelKey: "public.nav.download" },
   { href: "/#faq", id: "faq", labelKey: "public.nav.faq" },
 ];
 
