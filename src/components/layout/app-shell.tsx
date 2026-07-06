@@ -839,15 +839,16 @@ export function AppShell({ children }: AppShellProps) {
         return;
       }
       const target = await resolveChatRoomRoute(sourceId);
+      const fallbackRoute = target.route;
 
-      if (isTauriRuntime() && target.isProjectRoom && target.roomId) {
-        const opened = await openTauriChatWidget({ eventType: "handoff:notification", roomId: target.roomId });
+      if (isTauriRuntime()) {
+        const opened = await openTauriChatWidget({ eventType: "handoff:notification", roomId: sourceId });
         if (!opened) {
-          router.replace(target.route);
+          router.replace(fallbackRoute);
         }
         return;
       }
-      router.push(target.route);
+      router.push(fallbackRoute);
       return;
     }
     if (notification.sourceType === "COMMENT" || notification.sourceType === "RESOURCE") {
