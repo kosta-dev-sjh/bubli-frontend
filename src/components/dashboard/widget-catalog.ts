@@ -28,6 +28,7 @@ export const WIDGET_CATALOG: DashboardWidgetDef[] = [
   { category: "work", descriptionKey: "dashboard.catalog.upcomingDeadlines.desc", roomScope: true, size: "M", titleKey: "dashboard.catalog.upcomingDeadlines.title", widgetId: "upcoming-deadlines" },
   { category: "agent", descriptionKey: "dashboard.catalog.pendingApproval.desc", size: "M", titleKey: "dashboard.catalog.pendingApproval.title", widgetId: "pending-approval" },
   { category: "info", descriptionKey: "dashboard.catalog.notifications.desc", size: "M", titleKey: "dashboard.catalog.notifications.title", widgetId: "notifications" },
+  { category: "time", descriptionKey: "dashboard.catalog.activityHeatmap.desc", size: "L", titleKey: "dashboard.catalog.activityHeatmap.title", widgetId: "activity-heatmap" },
 ];
 
 export const sizeToClass: Record<WidgetSize, string> = {
