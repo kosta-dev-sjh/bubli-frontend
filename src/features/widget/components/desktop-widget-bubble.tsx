@@ -59,14 +59,11 @@ import {
   POMODORO_FOCUS_MAX,
   POMODORO_FOCUS_MIN,
   readPomodoroState,
-  readWidgetTimerKind,
   readWidgetTimerMode,
   writePomodoroState,
-  writeWidgetTimerKind,
   writeWidgetTimerMode,
   type PomodoroPhase,
   type PomodoroState,
-  type WidgetTimerKind,
   type WidgetTimerMode,
 } from "@/lib/widget/widget-pref-client";
 import { readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
@@ -1367,98 +1364,64 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
   );
 }
 
-// 개인 타이머 빠른 설정(분). 저장하지 않는 임시 카운트다운이라 프리셋만 제공한다.
-const PERSONAL_TIMER_PRESETS_MIN = [1, 3, 5, 10, 25];
-
-// 개인 모드: 어디에도 저장하지 않는 로컬 임시 카운트다운(잠깐 쓰는 용도).
-// 서버/sqlite 모두 미기록 — 창을 닫으면 사라진다(스펙: 개인 타이머는 비영속).
+// 개인 모드: 어디에도 저장하지 않는 로컬 임시 스톱워치(잠깐 쓰는 용도).
+// 서버/sqlite 모두 미기록 — 창을 닫으면 사라진다. 화면은 딱 시작/정지/초기화만.
 function PersonalTimerView() {
   const { t } = useI18n();
-  const [totalSeconds, setTotalSeconds] = useState<number>(5 * 60);
-  const [remaining, setRemaining] = useState<number>(5 * 60);
+  const [elapsed, setElapsed] = useState<number>(0);
   const [running, setRunning] = useState<boolean>(false);
-  const endsAtRef = useRef<number | null>(null);
+  const startedAtRef = useRef<number | null>(null);
+  const baseRef = useRef<number>(0);
 
   useEffect(() => {
     if (!running) return;
 
+    startedAtRef.current = Date.now();
     const tick = () => {
-      const end = endsAtRef.current;
-      if (end == null) return;
-      const left = Math.round((end - Date.now()) / 1000);
-      if (left > 0) {
-        setRemaining(left);
-        return;
-      }
-      setRemaining(0);
-      setRunning(false);
-      endsAtRef.current = null;
+      const startedAt = startedAtRef.current;
+      if (startedAt == null) return;
+      setElapsed(baseRef.current + Math.floor((Date.now() - startedAt) / 1000));
     };
     tick();
     const intervalId = window.setInterval(tick, 250);
     return () => window.clearInterval(intervalId);
   }, [running]);
 
-  const startOrResume = () => {
-    if (remaining <= 0) return;
-    endsAtRef.current = Date.now() + remaining * 1000;
-    setRunning(true);
-  };
-  const pause = () => {
-    setRunning(false);
-    endsAtRef.current = null;
+  const toggle = () => {
+    if (running) {
+      // 정지: 누적 경과를 확정한다.
+      baseRef.current = elapsed;
+      startedAtRef.current = null;
+      setRunning(false);
+    } else {
+      setRunning(true);
+    }
   };
   const reset = () => {
     setRunning(false);
-    endsAtRef.current = null;
-    setRemaining(totalSeconds);
+    startedAtRef.current = null;
+    baseRef.current = 0;
+    setElapsed(0);
   };
-  const choosePreset = (minutes: number) => {
-    if (running) return;
-    setTotalSeconds(minutes * 60);
-    setRemaining(minutes * 60);
-  };
-
-  const done = !running && remaining === 0;
-  const statusLabel = running ? t("widget.timer.personalRunning") : done ? t("widget.timer.personalDone") : t("widget.timer.waiting");
 
   return (
     <>
       <div className={styles.timer}>
-        <strong>{formatMinutesSeconds(remaining)}</strong>
-        <span>{statusLabel}</span>
+        <strong>{formatMinutesSeconds(elapsed)}</strong>
+        <span>{running ? t("widget.timer.recording") : t("widget.timer.waiting")}</span>
       </div>
       <p className={styles.timerScopeNote}>{t("widget.timer.personalHint")}</p>
-      <div className={styles.timerPresetRow} role="group" aria-label={t("widget.timer.personalPresetsAria")}>
-        {PERSONAL_TIMER_PRESETS_MIN.map((minutes) => (
-          <button
-            aria-pressed={totalSeconds === minutes * 60}
-            className={styles.timerPresetChip}
-            disabled={running}
-            key={minutes}
-            onClick={() => choosePreset(minutes)}
-            type="button"
-          >
-            {t("widget.timer.minuteValue", { value: minutes })}
-          </button>
-        ))}
-      </div>
-      <div className={running ? styles.timerActions : [styles.timerActions, styles.timerActionsSingle].join(" ")}>
-        {running ? (
-          <button className={styles.timerPrimary} onClick={pause} type="button">
-            <Pause size={13} />
-            {t("widget.timer.pause")}
-          </button>
-        ) : (
-          <button className={styles.timerPrimary} disabled={remaining <= 0} onClick={startOrResume} type="button">
-            <Play size={13} />
-            {t("widget.timerAction.start")}
-          </button>
-        )}
-        <button className={styles.timerGhost} onClick={reset} type="button">
-          <RefreshCw size={13} />
-          {t("widget.timer.pomodoroReset")}
+      <div className={elapsed > 0 || running ? styles.timerActions : [styles.timerActions, styles.timerActionsSingle].join(" ")}>
+        <button className={styles.timerPrimary} onClick={toggle} type="button">
+          {running ? <Pause size={13} /> : <Play size={13} />}
+          {running ? t("widget.timer.pause") : t("widget.timerAction.start")}
         </button>
+        {elapsed > 0 || running ? (
+          <button className={styles.timerGhost} onClick={reset} type="button">
+            <RefreshCw size={13} />
+            {t("widget.timer.pomodoroReset")}
+          </button>
+        ) : null}
       </div>
     </>
   );
@@ -1479,10 +1442,8 @@ function TimerBody({
   const selectedRoomId = bubble.roomId?.trim() || null;
   const hasWorkTimer = bubble.rows.length > 0;
   const [mode, setMode] = useState<WidgetTimerMode>("work");
-  // 타이머 탭 하위 종류(작업↔개인). 룸 컨텍스트면 작업, 개인 모드면 개인이 기본이다.
-  const [timerKind, setTimerKind] = useState<WidgetTimerKind>(selectedRoomId ? "work" : "personal");
 
-  // 선택 모드 복원(재오픈). 실행 중/일시정지 서버 타이머가 있으면 타이머(작업) 탭으로 진입한다.
+  // 선택 모드 복원(재오픈). 실행 중/일시정지 서버 타이머가 있으면 타이머 탭으로 진입한다.
   useEffect(() => {
     let cancelled = false;
     if (hasWorkTimer) {
@@ -1495,10 +1456,6 @@ function TimerBody({
       if (cancelled) return;
       setMode(stored && stored !== "clock" ? stored : "work");
     });
-    void readWidgetTimerKind(selectedRoomId).then((stored) => {
-      if (cancelled) return;
-      if (stored) setTimerKind(stored);
-    });
     return () => {
       cancelled = true;
     };
@@ -1509,14 +1466,10 @@ function TimerBody({
     setMode(next);
     void writeWidgetTimerMode(next, selectedRoomId);
   };
-  const changeTimerKind = (index: number) => {
-    const next: WidgetTimerKind = index === 1 ? "personal" : "work";
-    setTimerKind(next);
-    void writeWidgetTimerKind(next, selectedRoomId);
-  };
   const displayedMode: WidgetTimerMode = hasWorkTimer ? "work" : mode;
-  // 실행 중 서버 타이머가 있으면 작업으로 고정(개인으로 못 벗어난다).
-  const displayedKind: WidgetTimerKind = hasWorkTimer ? "work" : timerKind;
+  // 타이머 탭은 별도 선택 없이 컨텍스트로 결정한다 — 룸이면 작업(누적), 개인(룸 없음)이면 임시 스톱워치.
+  // 서버 타이머가 실행 중이면 언제나 작업으로 본다. (작업/개인 토글은 혼란·버그를 만들어 제거)
+  const showWorkTimer = hasWorkTimer || Boolean(selectedRoomId);
 
   return (
     <div className={styles.body}>
@@ -1529,27 +1482,19 @@ function TimerBody({
       />
       {displayedMode === "clock" ? <ClockView /> : null}
       {displayedMode === "work" ? (
-        <>
-          {/* 타이머 탭 하위: 작업(서버 누적·룸 귀속) ↔ 개인(로컬 임시·저장 안 함). */}
-          <SegmentedControl
-            ariaLabel={t("widget.timer.kindAria")}
-            labels={[t("widget.timer.kindWork"), t("widget.timer.kindPersonal")]}
-            onChange={changeTimerKind}
-            value={displayedKind === "personal" ? 1 : 0}
-          />
-          {/* 서버 동기화 상태는 서버에 기록하는 작업 하위 종류에서만 의미가 있다. */}
-          {displayedKind === "work" && isBubbleSyncPending(bubble) ? (
-            <div className={styles.syncLine} role="status">
-              <RefreshCw size={12} strokeWidth={2.2} />
-              <span>{t("widget.data.syncPending")}</span>
-            </div>
-          ) : null}
-          {displayedKind === "work" ? (
+        showWorkTimer ? (
+          <>
+            {isBubbleSyncPending(bubble) ? (
+              <div className={styles.syncLine} role="status">
+                <RefreshCw size={12} strokeWidth={2.2} />
+                <span>{t("widget.data.syncPending")}</span>
+              </div>
+            ) : null}
             <WorkView bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />
-          ) : (
-            <PersonalTimerView />
-          )}
-        </>
+          </>
+        ) : (
+          <PersonalTimerView />
+        )
       ) : null}
       {displayedMode === "pomodoro" ? <PomodoroView selectedRoomId={selectedRoomId} /> : null}
     </div>
@@ -2064,14 +2009,51 @@ function useBubbleWindowResize(
   return { onResizePointerDown, onResizePointerEnd, onResizePointerMove, resizing };
 }
 
-function GhostSignal({ bubble }: { bubble: WidgetPreviewBubble }) {
+// 고스트 시계 — 타이머 버블을 시계 모드로 쓰던 사용자는 고스트에서도 시계를 본다.
+function GhostClock() {
+  const { locale } = useI18n();
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+  const dateLabel = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", weekday: "short" }).format(now);
+  return (
+    <div className={styles.ghostSignal} role="timer" aria-live="off">
+      <strong className={styles.ghostClock}>{formatClock(now)}</strong>
+      <small>{dateLabel}</small>
+    </div>
+  );
+}
+
+function GhostSignal({ bubble, bubbleType }: { bubble: WidgetPreviewBubble; bubbleType: WidgetBubbleType }) {
   const { t } = useI18n();
+  const isTimer = bubbleType === "timer";
+  const [timerMode, setTimerMode] = useState<WidgetTimerMode | null>(null);
+
+  // 타이머 버블이면 마지막으로 고른 탭(시계/타이머/뽀모도로)을 읽어 고스트에 반영한다.
+  useEffect(() => {
+    if (!isTimer) return;
+    let cancelled = false;
+    void readWidgetTimerMode(bubble.roomId?.trim() || null).then((stored) => {
+      if (!cancelled) setTimerMode(stored);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isTimer, bubble.roomId]);
+
+  // 시계 탭이면 고스트도 시계로 — "무조건 타이머 지표"가 아니라 선택을 반영한다.
+  if (isTimer && timerMode === "clock") {
+    return <GhostClock />;
+  }
+
   return (
     <div
       className={styles.ghostSignal}
       aria-label={t("widget.ghostAria", { label: t(bubble.label as MessageKey) })}
     >
-      <span>{bubble.metric}</span>
+      <span className={styles.ghostMetric}>{bubble.metric}</span>
       <strong>{t(bubble.compactLabel as MessageKey)}</strong>
       <small>{t(bubble.notificationLabel as MessageKey)}</small>
     </div>
@@ -2290,7 +2272,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
             ) : null}
 
             {mode === "GHOST" ? (
-              <GhostSignal bubble={activeData} />
+              <GhostSignal bubble={activeData} bubbleType={activeBubble} />
             ) : (
               <BubbleBody
                 bubble={activeData}
