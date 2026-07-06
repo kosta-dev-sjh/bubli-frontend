@@ -11,7 +11,8 @@ export type VoiceRoomStatus = "OPEN" | "ENDED";
 export type VoiceParticipantStatus = "JOINED" | "LEFT" | "DISCONNECTED";
 
 export type VoiceRoomCreateRequest = {
-  roomId: string;
+  roomId?: string;
+  chatRoomId?: string;
 };
 
 export type VoiceParticipantResponse = {
@@ -26,12 +27,13 @@ export type VoiceParticipantResponse = {
 };
 
 export type VoiceRoomResponse = {
+  chatRoomId?: string | null;
   createdAt?: string;
   createdByUserId?: string;
   id: string;
   livekitRoomName: string;
   participants: VoiceParticipantResponse[];
-  roomId: string;
+  roomId?: string | null;
   status: VoiceRoomStatus;
 };
 

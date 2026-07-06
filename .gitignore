@@ -3,6 +3,7 @@ node_modules/
 dist/
 build/
 .next/
+.tauri-dist/
 out/
 storybook-static/
 *.tsbuildinfo

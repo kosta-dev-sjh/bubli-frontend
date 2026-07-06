@@ -62,6 +62,7 @@ export async function stageWidgetUsageSummary(
 
 export async function syncAllLocalOutboxToServer(input?: {
   limit?: number;
+  localFolderId?: string;
 }): Promise<LocalOutboxServerSyncAdapterResult> {
   const commandName = TAURI_COMMANDS.flushSyncOutbox;
 
@@ -71,6 +72,7 @@ export async function syncAllLocalOutboxToServer(input?: {
     const fileResult = await syncPersonalLocalFileEventsToServer({
       consentGranted: consent.localFolderEnabled,
       limit,
+      localFolderId: input?.localFolderId,
     });
     const activityResult = await syncLocalActivityBufferToServer({
       consentGranted: consent.activityDetectionEnabled,

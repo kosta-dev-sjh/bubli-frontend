@@ -23,7 +23,7 @@ mod local_files;
 mod widget_usage;
 
 const WIDGET_WINDOW_LABEL_PREFIX: &str = "bubli-widget";
-const WIDGET_WINDOW_URL: &str = "desktop-widget";
+const WIDGET_WINDOW_URL: &str = "desktop-widget/";
 const WIDGET_ROOM_CONTEXT_CHANGED_EVENT: &str = "bubli-widget-room-context-changed";
 const MAIN_WINDOW_LABEL: &str = "main";
 const MAIN_WINDOW_DEFAULT_WIDTH: i32 = 1280;
@@ -69,7 +69,7 @@ const WIDGET_MENU_WIDTH: f64 = 248.0;
 // 닫힘 상태(오브만)에서는 그림자를 껐고 투명 영역이라 큰 창이 보이지 않는다.
 const WIDGET_MENU_HEIGHT: f64 = 540.0;
 const ONBOARDING_OVERLAY_WINDOW_LABEL: &str = "onboarding-overlay";
-const ONBOARDING_OVERLAY_WINDOW_URL: &str = "desktop-widget/onboarding";
+const ONBOARDING_OVERLAY_WINDOW_URL: &str = "desktop-widget/onboarding/";
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
 const PRIMARY_MONITOR_ID: &str = "primary";
@@ -145,6 +145,8 @@ struct WidgetWindowState {
     click_through: bool,
     dock_orb_visible: bool,
     mode: String,
+    #[serde(default)]
+    monitor_id: Option<String>,
     position: WidgetWindowPosition,
     selected_room_id: Option<String>,
     shortcut: Option<String>,
@@ -228,6 +230,7 @@ static WIDGET_POINTER_STATES: LazyLock<Mutex<HashMap<String, WidgetPointerState>
 #[derive(Default)]
 struct WidgetAppliedWindowState {
     always_on_top: Option<bool>,
+    shadow: Option<bool>,
     background_applied: bool,
     // macOS는 OS 드래그 좌표를 그대로 신뢰해 apply에서 위치를 다시 쓰지 않으므로 캐시도 두지 않는다.
     #[cfg(not(target_os = "macos"))]
@@ -417,6 +420,13 @@ fn spawn_widget_pointer_poller(app: &AppHandle, label: String) {
 
 fn widget_native_shadow_enabled() -> bool {
     !cfg!(target_os = "windows")
+}
+
+fn widget_native_shadow_for_state(widget: &WidgetWindowState) -> bool {
+    widget_native_shadow_enabled()
+        && widget.mode != "GHOST"
+        && widget.active_bubble != "bar"
+        && widget.active_bubble != "menu"
 }
 
 fn widget_waits_for_dom_ready_before_show() -> bool {
@@ -671,6 +681,7 @@ fn default_widget_window_state(bubble_type: &str, window_id: Option<String>) -> 
         click_through: false,
         dock_orb_visible: false,
         mode: "DEFAULT".to_string(),
+        monitor_id: None,
         // 사용자가 옮기기 전까지는 좌표를 저장하지 않고(UNSET), 화면 크기 기반 기본 자리를 쓴다.
         position: WidgetWindowPosition {
             x: WIDGET_POSITION_UNSET,
@@ -1063,23 +1074,40 @@ fn remember_widget_window_absolute_position(
         return Ok(());
     }
 
-    let monitor_state = app.state::<AppMonitorState>();
-    let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
-    let monitor = resolve_preferred_monitor(app, &preferred_monitor_id)?;
+    let monitor = app
+        .get_webview_window(label)
+        .and_then(|window| window.current_monitor().ok().flatten())
+        .map(|monitor| {
+            let (monitors, _primary) = list_monitors(app)?;
+            let id = monitors
+                .iter()
+                .enumerate()
+                .find(|(_, candidate)| monitors_match(candidate, &monitor))
+                .map(|(index, candidate)| monitor_id(candidate, index))
+                .unwrap_or_else(|| PRIMARY_MONITOR_ID.to_string());
+            Ok::<(Monitor, String), String>((monitor, id))
+        })
+        .transpose()?
+        .or_else(|| {
+            monitor_nearest_physical_point(app, absolute_x as f64, absolute_y as f64)
+                .ok()
+                .flatten()
+        });
     let scale = monitor
         .as_ref()
-        .map(|monitor| monitor.scale_factor())
+        .map(|(monitor, _)| monitor.scale_factor())
         .unwrap_or(1.0)
         .max(0.5);
-    let origin = monitor.as_ref().map(|monitor| monitor.position());
+    let origin = monitor.as_ref().map(|(monitor, _)| monitor.position());
     let origin_x = origin.map_or(0, |position| position.x);
     let origin_y = origin.map_or(0, |position| position.y);
     let (work_area_x, work_area_y, work_area_width, work_area_height) =
-        monitor_work_area_logical(monitor.as_ref(), scale);
-    // Moved 이벤트 좌표는 물리 px이므로 논리 px(모니터-로컬)로 환산해 저장한다.
+        monitor_work_area_logical(monitor.as_ref().map(|(monitor, _)| monitor), scale);
+    // Moved 이벤트 좌표는 물리 px이므로 현재 창이 올라간 모니터의 논리 px(모니터-로컬)로 환산해 저장한다.
     // widget_screen_position이 같은 단위로 복원하므로 HiDPI에서도 위치가 두 배로 밀리지 않는다.
     let relative_x = ((absolute_x - origin_x) as f64 / scale).round() as i32;
     let relative_y = ((absolute_y - origin_y) as f64 / scale).round() as i32;
+    let next_monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
 
     let state = app.state::<WidgetState>();
     let layout = {
@@ -1109,6 +1137,7 @@ fn remember_widget_window_absolute_position(
             x: clamped_x.round() as i32,
             y: clamped_y.round() as i32,
         };
+        widget.monitor_id = next_monitor_id;
         stored_widget_window_layout(&guard)
     };
 
@@ -1199,7 +1228,7 @@ fn widget_default_bubble_size(bubble_type: &str) -> LogicalSize<f64> {
     match bubble_type {
         "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
         "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 430.0 + WIDGET_WINDOW_GUTTER),
-        "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 352.0 + WIDGET_WINDOW_GUTTER),
+        "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 400.0 + WIDGET_WINDOW_GUTTER),
         "resource" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 330.0 + WIDGET_WINDOW_GUTTER),
         "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 320.0 + WIDGET_WINDOW_GUTTER),
         "schedule" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER),
@@ -1249,6 +1278,101 @@ fn list_monitors(app: &AppHandle) -> Result<(Vec<Monitor>, Option<Monitor>), Str
         .map_err(|error| error.to_string())?;
     let primary = app.primary_monitor().map_err(|error| error.to_string())?;
     Ok((monitors, primary))
+}
+
+fn monitor_with_id(monitor: &Monitor, index: usize) -> (Monitor, String) {
+    (monitor.clone(), monitor_id(monitor, index))
+}
+
+fn primary_or_first_monitor_with_id(
+    monitors: &[Monitor],
+    primary: Option<Monitor>,
+) -> Option<(Monitor, String)> {
+    if let Some(primary_monitor) = primary {
+        let id = monitors
+            .iter()
+            .enumerate()
+            .find(|(_, monitor)| monitors_match(monitor, &primary_monitor))
+            .map(|(index, monitor)| monitor_id(monitor, index))
+            .unwrap_or_else(|| PRIMARY_MONITOR_ID.to_string());
+        return Some((primary_monitor, id));
+    }
+
+    monitors.first().map(|monitor| monitor_with_id(monitor, 0))
+}
+
+fn resolve_monitor_with_id(
+    app: &AppHandle,
+    monitor_id_value: &str,
+) -> Result<Option<(Monitor, String)>, String> {
+    let (monitors, primary) = list_monitors(app)?;
+    if monitor_id_value == PRIMARY_MONITOR_ID {
+        return Ok(primary_or_first_monitor_with_id(&monitors, primary));
+    }
+
+    Ok(monitors
+        .iter()
+        .enumerate()
+        .find(|(index, monitor)| monitor_id(monitor, *index) == monitor_id_value)
+        .map(|(index, monitor)| monitor_with_id(monitor, index))
+        .or_else(|| primary_or_first_monitor_with_id(&monitors, primary)))
+}
+
+fn monitor_nearest_physical_point(
+    app: &AppHandle,
+    x: f64,
+    y: f64,
+) -> Result<Option<(Monitor, String)>, String> {
+    let (monitors, primary) = list_monitors(app)?;
+    let primary_id = primary.as_ref().and_then(|primary_monitor| {
+        monitors
+            .iter()
+            .enumerate()
+            .find(|(_, monitor)| monitors_match(monitor, primary_monitor))
+            .map(|(index, monitor)| monitor_id(monitor, index))
+    });
+
+    let mut best: Option<(f64, bool, Monitor, String)> = None;
+    for (index, monitor) in monitors.iter().enumerate() {
+        let position = monitor.position();
+        let size = monitor.size();
+        let left = position.x as f64;
+        let top = position.y as f64;
+        let right = left + size.width as f64;
+        let bottom = top + size.height as f64;
+        let dx = if x < left {
+            left - x
+        } else if x > right {
+            x - right
+        } else {
+            0.0
+        };
+        let dy = if y < top {
+            top - y
+        } else if y > bottom {
+            y - bottom
+        } else {
+            0.0
+        };
+        let distance = dx * dx + dy * dy;
+        let id = monitor_id(monitor, index);
+        let is_primary = primary_id.as_ref().is_some_and(|value| value == &id);
+        let should_replace = best
+            .as_ref()
+            .map(|(best_distance, best_is_primary, _, _)| {
+                distance < *best_distance
+                    || ((distance - *best_distance).abs() < f64::EPSILON
+                        && is_primary
+                        && !*best_is_primary)
+            })
+            .unwrap_or(true);
+
+        if should_replace {
+            best = Some((distance, is_primary, monitor.clone(), id));
+        }
+    }
+
+    Ok(best.map(|(_, _, monitor, id)| (monitor, id)))
 }
 
 fn monitor_preference_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -1481,18 +1605,26 @@ fn widget_screen_position(
     widget: &WidgetWindowState,
 ) -> Result<LogicalPosition<f64>, String> {
     let preferred_monitor_id = get_preferred_monitor_id(monitor_state)?;
-    let monitor = resolve_preferred_monitor(app, &preferred_monitor_id)?;
+    let monitor = if let Some(widget_monitor_id) = widget.monitor_id.as_deref() {
+        resolve_monitor_with_id(app, widget_monitor_id)?.or_else(|| {
+            resolve_monitor_with_id(app, &preferred_monitor_id)
+                .ok()
+                .flatten()
+        })
+    } else {
+        resolve_monitor_with_id(app, &preferred_monitor_id)?
+    };
     let scale = monitor
         .as_ref()
-        .map(|monitor| monitor.scale_factor())
+        .map(|(monitor, _)| monitor.scale_factor())
         .unwrap_or(1.0)
         .max(0.5);
     // 모니터 원점/크기는 물리 px이므로 논리 px로 환산해 저장 좌표(논리, 모니터-로컬)와 합친다.
-    let origin = monitor.as_ref().map(|monitor| monitor.position());
+    let origin = monitor.as_ref().map(|(monitor, _)| monitor.position());
     let origin_x = origin.map_or(0.0, |position| position.x as f64 / scale);
     let origin_y = origin.map_or(0.0, |position| position.y as f64 / scale);
     let (work_area_x, work_area_y, work_area_width, work_area_height) =
-        monitor_work_area_logical(monitor.as_ref(), scale);
+        monitor_work_area_logical(monitor.as_ref().map(|(monitor, _)| monitor), scale);
     let size = widget_window_size(widget);
 
     if !widget_position_is_unset(&widget.position) {
@@ -1524,8 +1656,12 @@ fn position_main_window_on_preferred_monitor(
     let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
         return Ok(());
     };
+    let _ = window.unminimize();
+    let _ = window.show();
+
     let preferred_monitor_id = get_preferred_monitor_id(monitor_state)?;
     let Some(monitor) = resolve_preferred_monitor(app, &preferred_monitor_id)? else {
+        let _ = window.set_focus();
         return Ok(());
     };
     let origin = monitor.position();
@@ -1551,8 +1687,6 @@ fn position_main_window_on_preferred_monitor(
         .set_position(position)
         .map_err(|error| error.to_string())?;
 
-    let _ = window.unminimize();
-    let _ = window.show();
     let _ = window.set_focus();
 
     Ok(())
@@ -1636,13 +1770,54 @@ fn route_targets_chat_widget(normalized_route: &str) -> bool {
         && segments[3] == "chat"
 }
 
+fn map_main_window_route_for_static_assets(normalized_route: &str) -> String {
+    let (route_without_hash, hash) = normalized_route
+        .split_once('#')
+        .map_or((normalized_route, None), |(path, hash)| (path, Some(hash)));
+    let (path, query) = route_without_hash
+        .split_once('?')
+        .map_or((route_without_hash, None), |(path, query)| {
+            (path, Some(query))
+        });
+    let trimmed_path = path.trim_end_matches('/');
+    let segments = trimmed_path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+
+    if segments.len() >= 3 && segments[0] == "app" && segments[1] == "project-rooms" {
+        let room_id = segments[2];
+        let static_path = match segments.get(3).copied() {
+            None | Some("work") => Some("/app/project-room-work"),
+            Some("resources") => Some("/app/project-room-resources"),
+            _ => None,
+        };
+
+        if let Some(static_path) = static_path {
+            let mut mapped = format!("{static_path}?roomId={room_id}");
+            if let Some(query) = query.filter(|value| !value.is_empty()) {
+                mapped.push('&');
+                mapped.push_str(query);
+            }
+            if let Some(hash) = hash.filter(|value| !value.is_empty()) {
+                mapped.push('#');
+                mapped.push_str(hash);
+            }
+            return mapped;
+        }
+    }
+
+    normalized_route.to_string()
+}
+
 #[tauri::command]
 fn open_main_window_route(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
     input: MainWindowRouteInput,
 ) -> Result<String, String> {
-    let route = normalize_main_window_route(&input.route)?;
+    let route =
+        map_main_window_route_for_static_assets(&normalize_main_window_route(&input.route)?);
     let window = app
         .get_webview_window(MAIN_WINDOW_LABEL)
         .ok_or_else(|| "main window not found".to_string())?;
@@ -1754,6 +1929,22 @@ fn apply_widget_window_state(
         if always_on_top_changed {
             window
                 .set_always_on_top(widget.always_on_top)
+                .map_err(|error| error.to_string())?;
+        }
+
+        let shadow = widget_native_shadow_for_state(widget);
+        let shadow_changed = with_widget_applied_window_state(&label, |applied| {
+            if applied.shadow == Some(shadow) {
+                false
+            } else {
+                applied.shadow = Some(shadow);
+                true
+            }
+        })
+        .unwrap_or(true);
+        if shadow_changed {
+            window
+                .set_shadow(shadow)
                 .map_err(|error| error.to_string())?;
         }
 
@@ -1878,11 +2069,8 @@ fn build_widget_window(
     .devtools(false)
     // 바/메뉴 창은 작은 콘텐츠(pill·오브)가 큰 투명창에 떠 있어, 네이티브 창 그림자가
     // 콘텐츠를 두르는 "창 테두리"처럼 보인다 → 이 두 창만 그림자를 끈다(버블 창은 유지).
-    .shadow(
-        widget_native_shadow_enabled()
-            && widget.active_bubble != "bar"
-            && widget.active_bubble != "menu",
-    )
+    // GHOST 모드도 콘텐츠만 떠야 하므로 런타임 전환 시 set_shadow(false)로 맞춘다.
+    .shadow(widget_native_shadow_for_state(widget))
     .resizable(false)
     .always_on_top(widget.always_on_top)
     .skip_taskbar(true)
@@ -1915,6 +2103,7 @@ fn build_widget_window(
     // 빌더가 이미 적용한 값을 캐시에 기록해, 바로 뒤의 apply가 같은 setter를 중복 호출하지 않게 한다.
     with_widget_applied_window_state(&label, |applied| {
         applied.always_on_top = Some(widget.always_on_top);
+        applied.shadow = Some(widget_native_shadow_for_state(widget));
         applied.background_applied = true;
         applied.size = Some((size.width.round() as i64, size.height.round() as i64));
         #[cfg(not(target_os = "macos"))]
@@ -2224,11 +2413,19 @@ fn set_preferred_app_monitor(
     position_main_window_on_preferred_monitor(&app, &monitor_state)?;
 
     let widgets: Vec<WidgetWindowState> = {
-        let guard = state
+        let mut guard = state
             .lock()
             .map_err(|_| "widget state lock failed".to_string())?;
+        for widget in guard.bubbles.values_mut() {
+            widget.monitor_id = if requested_monitor_id == PRIMARY_MONITOR_ID {
+                None
+            } else {
+                Some(requested_monitor_id.clone())
+            };
+        }
         guard.bubbles.values().cloned().collect()
     };
+    persist_widget_window_state(&app, &state)?;
 
     for widget in widgets {
         apply_widget_window_state(&app, &monitor_state, &widget)?;
@@ -2272,14 +2469,15 @@ fn set_widget_window_position(
     input: WidgetWindowPositionInput,
 ) -> Result<WidgetWindowState, String> {
     let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
-    let monitor = resolve_preferred_monitor(&app, &preferred_monitor_id)?;
+    let monitor = resolve_monitor_with_id(&app, &preferred_monitor_id)?;
     let scale = monitor
         .as_ref()
-        .map(|monitor| monitor.scale_factor())
+        .map(|(monitor, _)| monitor.scale_factor())
         .unwrap_or(1.0)
         .max(0.5);
     let (work_area_x, work_area_y, work_area_width, work_area_height) =
-        monitor_work_area_logical(monitor.as_ref(), scale);
+        monitor_work_area_logical(monitor.as_ref().map(|(monitor, _)| monitor), scale);
+    let next_monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
 
     let widget = with_widget_state(&state, input.bubble_type, input.window_id, |widget| {
         let size = widget_window_size(widget);
@@ -2297,6 +2495,7 @@ fn set_widget_window_position(
             x: x.round() as i32,
             y: y.round() as i32,
         };
+        widget.monitor_id = next_monitor_id;
     })?;
     persist_widget_window_state(&app, &state)?;
     apply_widget_window_state(&app, &monitor_state, &widget)
@@ -2321,10 +2520,8 @@ fn drag_widget_bar_window(
     let cursor = window
         .cursor_position()
         .map_err(|error| error.to_string())?;
-    let monitor = window
-        .current_monitor()
-        .map_err(|error| error.to_string())?;
-    let (origin_x, origin_y, work_x, work_y, work_width, work_height) = if let Some(monitor) =
+    let monitor = monitor_nearest_physical_point(&app, cursor.x, cursor.y)?;
+    let (origin_x, origin_y, work_x, work_y, work_width, work_height) = if let Some((monitor, _)) =
         monitor.as_ref()
     {
         let origin = monitor.position();
@@ -2395,6 +2592,7 @@ fn drag_widget_bar_window(
                 x: ((next_x - origin_x) / scale).round() as i32,
                 y: ((next_y - origin_y) / scale).round() as i32,
             };
+            widget.monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
         },
     )?;
     persist_widget_window_state(&app, &state)?;
@@ -2429,8 +2627,19 @@ fn set_widget_bar_preview_placement(
     let current_position = window.outer_position().map_err(|error| error.to_string())?;
     let monitor = window
         .current_monitor()
-        .map_err(|error| error.to_string())?;
-    let (origin_x, origin_y, work_y, work_height) = if let Some(monitor) = monitor.as_ref() {
+        .map_err(|error| error.to_string())?
+        .map(|monitor| {
+            let (monitors, _primary) = list_monitors(&app)?;
+            let id = monitors
+                .iter()
+                .enumerate()
+                .find(|(_, candidate)| monitors_match(candidate, &monitor))
+                .map(|(index, candidate)| monitor_id(candidate, index))
+                .unwrap_or_else(|| PRIMARY_MONITOR_ID.to_string());
+            Ok::<(Monitor, String), String>((monitor, id))
+        })
+        .transpose()?;
+    let (origin_x, origin_y, work_y, work_height) = if let Some((monitor, _)) = monitor.as_ref() {
         let origin = monitor.position();
         let work_area = monitor.work_area();
         let dock_guard = macos_dock_guard_physical(monitor, work_area.size.height as f64, scale);
@@ -2469,6 +2678,7 @@ fn set_widget_bar_preview_placement(
                 x: ((current_position.x as f64 - origin_x) / scale).round() as i32,
                 y: ((next_y - origin_y) / scale).round() as i32,
             };
+            widget.monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
         },
     )?;
     persist_widget_window_state(&app, &state)?;
@@ -2558,22 +2768,23 @@ fn arrange_widget_windows(
     input: Option<ArrangeWidgetWindowsInput>,
 ) -> Result<Vec<WidgetWindowState>, String> {
     let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
-    let monitor = resolve_preferred_monitor(&app, &preferred_monitor_id)?;
+    let monitor = resolve_monitor_with_id(&app, &preferred_monitor_id)?;
     let scale = monitor
         .as_ref()
-        .map(|monitor| monitor.scale_factor())
+        .map(|(monitor, _)| monitor.scale_factor())
         .unwrap_or(1.0)
         .max(0.5);
     let origin_x = monitor
         .as_ref()
-        .map_or(0.0, |monitor| monitor.position().x as f64 / scale);
+        .map_or(0.0, |(monitor, _)| monitor.position().x as f64 / scale);
     let origin_y = monitor
         .as_ref()
-        .map_or(0.0, |monitor| monitor.position().y as f64 / scale);
+        .map_or(0.0, |(monitor, _)| monitor.position().y as f64 / scale);
     let monitor_width = monitor
         .as_ref()
-        .map(|monitor| monitor.size().width as f64 / scale)
+        .map(|(monitor, _)| monitor.size().width as f64 / scale)
         .unwrap_or(WIDGET_FALLBACK_MONITOR_WIDTH);
+    let next_monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
 
     // 정렬 대상: 바/메뉴 제외, 실제 웹뷰가 떠 있는 보이는 버블 창(계단 인덱스 순 안정 정렬).
     let mut targets: Vec<WidgetWindowState> = {
@@ -2628,6 +2839,7 @@ fn arrange_widget_windows(
                 .find(|widget| widget_window_label(widget) == *label)
             {
                 widget.position = position.clone();
+                widget.monitor_id = next_monitor_id.clone();
             }
         }
         let placed_labels: HashSet<String> =
@@ -2940,11 +3152,170 @@ struct TauriGoogleOauthLoopbackInput {
     redirect_uri: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriGoogleCompleteOauthInput {
+    api_base_url: String,
+    authorize_url: String,
+    expected_state: Option<String>,
+    redirect_uri: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TauriGoogleOauthLoopbackResult {
     code: String,
     state: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriGoogleApiInput {
+    api_base_url: String,
+    redirect_uri: String,
+    state: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriGoogleCallbackInput {
+    api_base_url: String,
+    code: String,
+    redirect_uri: String,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriGoogleAuthorizeResponse {
+    authorize_url: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApiEnvelope<T> {
+    success: bool,
+    data: Option<T>,
+    error: Option<ApiEnvelopeError>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApiEnvelopeError {
+    code: Option<String>,
+    message: String,
+    trace_id: Option<String>,
+}
+
+fn normalize_tauri_api_base_url(api_base_url: &str) -> Result<String, String> {
+    let trimmed = api_base_url.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return Err("Tauri API base URL is required".to_string());
+    }
+    if trimmed.starts_with("https://")
+        || trimmed.starts_with("http://localhost:")
+        || trimmed.starts_with("http://127.0.0.1:")
+    {
+        return Ok(trimmed.to_string());
+    }
+
+    Err("Tauri API base URL must be HTTPS or a local development URL".to_string())
+}
+
+fn parse_api_envelope<T: for<'de> Deserialize<'de>>(
+    status: reqwest::StatusCode,
+    body: &str,
+) -> Result<T, String> {
+    let parsed: ApiEnvelope<T> = serde_json::from_str(body)
+        .map_err(|error| format!("Tauri auth API returned invalid JSON: {error}"))?;
+    if status.is_success() && parsed.success {
+        return parsed
+            .data
+            .ok_or_else(|| "Tauri auth API returned no data".to_string());
+    }
+
+    let message = parsed.error.map_or_else(
+        || format!("Tauri auth API request failed with HTTP {status}"),
+        |error| {
+            let code = error.code.unwrap_or_else(|| "UNKNOWN".to_string());
+            let trace_id = error.trace_id.unwrap_or_else(|| "no-trace".to_string());
+            format!(
+                "{} [{code}, traceId={trace_id}, HTTP {status}]",
+                error.message
+            )
+        },
+    );
+    Err(message)
+}
+
+#[tauri::command]
+fn get_tauri_google_authorization_url(
+    input: TauriGoogleApiInput,
+) -> Result<TauriGoogleAuthorizeResponse, String> {
+    let api_base_url = normalize_tauri_api_base_url(&input.api_base_url)?;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let mut request = client
+        .get(format!("{api_base_url}/api/auth/google/authorize"))
+        .query(&[
+            ("clientType", "TAURI"),
+            ("redirectUri", input.redirect_uri.as_str()),
+        ]);
+    if let Some(state) = input.state.as_deref() {
+        request = request.query(&[("state", state)]);
+    }
+    let response = request.send().map_err(|error| error.to_string())?;
+    let status = response.status();
+    let body = response.text().map_err(|error| error.to_string())?;
+    let result: TauriGoogleAuthorizeResponse = parse_api_envelope(status, &body)?;
+    validate_google_authorize_url(&result.authorize_url, &input.redirect_uri)?;
+    Ok(result)
+}
+
+#[tauri::command]
+fn callback_tauri_google_oauth(
+    input: TauriGoogleCallbackInput,
+) -> Result<serde_json::Value, String> {
+    let api_base_url = normalize_tauri_api_base_url(&input.api_base_url)?;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let response = client
+        .post(format!("{api_base_url}/api/auth/google/callback"))
+        .json(&serde_json::json!({
+            "clientType": "TAURI",
+            "code": input.code,
+            "redirectUri": input.redirect_uri,
+        }))
+        .send()
+        .map_err(|error| error.to_string())?;
+    let status = response.status();
+    let body = response.text().map_err(|error| error.to_string())?;
+    parse_api_envelope(status, &body)
+}
+
+fn build_tauri_auth_session_json(token: &serde_json::Value) -> Result<String, String> {
+    let mut session = token
+        .as_object()
+        .cloned()
+        .ok_or_else(|| "Tauri auth token response must be a JSON object".to_string())?;
+    let saved_at_ms = local_db::now_ms();
+    session.insert(
+        "clientType".to_string(),
+        serde_json::Value::String("TAURI".to_string()),
+    );
+    session.insert(
+        "savedAt".to_string(),
+        serde_json::Value::String(local_db::ms_to_iso(saved_at_ms)),
+    );
+    session.insert(
+        "savedAtMs".to_string(),
+        serde_json::Value::Number(saved_at_ms.into()),
+    );
+
+    serde_json::to_string(&serde_json::Value::Object(session)).map_err(|error| error.to_string())
 }
 
 fn percent_decode(input: &str) -> String {
@@ -3102,8 +3473,19 @@ fn parse_tauri_oauth_callback_request_line(
     Ok(TauriGoogleOauthLoopbackResult { code, state })
 }
 
+fn focus_main_window_after_oauth_callback(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return;
+    };
+
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
 #[tauri::command]
 fn start_tauri_google_oauth_loopback(
+    app: AppHandle,
     input: TauriGoogleOauthLoopbackInput,
 ) -> Result<TauriGoogleOauthLoopbackResult, String> {
     if input.redirect_uri
@@ -3145,6 +3527,7 @@ fn start_tauri_google_oauth_loopback(
                     Ok(result) => {
                         let _ = stream
                             .write_all(oauth_response_html("로그인이 확인됐어요.").as_bytes());
+                        focus_main_window_after_oauth_callback(&app);
                         return Ok(result);
                     }
                     Err(error) => {
@@ -3170,6 +3553,36 @@ fn start_tauri_google_oauth_loopback(
             Err(error) => return Err(error.to_string()),
         }
     }
+}
+
+#[tauri::command]
+fn complete_tauri_google_oauth(
+    app: AppHandle,
+    db: tauri::State<'_, local_db::Db>,
+    input: TauriGoogleCompleteOauthInput,
+) -> Result<serde_json::Value, String> {
+    let result = start_tauri_google_oauth_loopback(
+        app.clone(),
+        TauriGoogleOauthLoopbackInput {
+            authorize_url: input.authorize_url,
+            expected_state: input.expected_state,
+            redirect_uri: input.redirect_uri.clone(),
+        },
+    )?;
+    let token = callback_tauri_google_oauth(TauriGoogleCallbackInput {
+        api_base_url: input.api_base_url,
+        code: result.code,
+        redirect_uri: input.redirect_uri,
+    })?;
+    let session_json = build_tauri_auth_session_json(&token)?;
+    local_db::store_tauri_auth_session(
+        db,
+        local_db::AuthSessionStoreInput {
+            session_json: session_json.clone(),
+        },
+    )?;
+    focus_main_window_after_oauth_callback(&app);
+    Ok(token)
 }
 
 #[tauri::command]
@@ -3823,6 +4236,7 @@ pub fn run() {
             drag_widget_bar_window,
             get_widget_bar_items,
             get_preferred_app_monitor,
+            get_tauri_google_authorization_url,
             get_widget_window_state,
             list_app_monitors,
             notify_widget_drag_started,
@@ -3836,6 +4250,8 @@ pub fn run() {
             seed_widget_bar_items,
             set_authenticated_surfaces_enabled,
             show_main_window,
+            callback_tauri_google_oauth,
+            complete_tauri_google_oauth,
             start_tauri_google_oauth_loopback,
             set_widget_bar_preview_placement,
             open_onboarding_overlay,

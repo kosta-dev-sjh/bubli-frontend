@@ -113,8 +113,18 @@ function checkTauriConfig() {
       return;
     }
 
-    if (mainWindow?.url !== "/app") {
-      fail("Tauri config", "Main hybrid app window must open /app.");
+    if (mainWindow?.url !== "/app/") {
+      fail("Tauri config", "Main hybrid app window must open /app/ so packaged release assets resolve app/index.html.");
+      return;
+    }
+
+    if (config.build?.frontendDist !== "../.tauri-dist") {
+      fail("Tauri config", "build.frontendDist must use the prepared .tauri-dist release asset directory.");
+      return;
+    }
+
+    if (!config.build?.beforeBuildCommand?.includes("scripts/prepare-tauri-dist.mjs")) {
+      fail("Tauri config", "beforeBuildCommand must prepare the Tauri static asset dist after next build.");
       return;
     }
 

@@ -25,6 +25,7 @@ pub struct WidgetUsageEventInput {
     item_id: Option<String>,
     item_type: Option<String>,
     occurred_at: String,
+    summary_date: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -106,6 +107,8 @@ pub fn record_widget_usage_event(
     input: WidgetUsageEventInput,
 ) -> Result<WidgetUsageEventRecordResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let occurred_at =
+        normalize_widget_usage_occurred_at(&input.occurred_at, input.summary_date.as_deref());
     conn.execute(
         "INSERT INTO local_widget_usage_events \
          (id, bubble_type, event_type, item_id, item_type, occurred_at, created_at) \
@@ -116,7 +119,7 @@ pub fn record_widget_usage_event(
             input.event_type,
             input.item_id,
             input.item_type,
-            input.occurred_at,
+            occurred_at,
             now_ms(),
         ],
     )
@@ -125,6 +128,30 @@ pub fn record_widget_usage_event(
     Ok(WidgetUsageEventRecordResult {
         recorded_at: now_iso(),
     })
+}
+
+fn normalize_widget_usage_occurred_at(value: &str, summary_date: Option<&str>) -> String {
+    if let Some(date) = summary_date.filter(|date| is_iso_calendar_date(date)) {
+        if value.len() >= 10 && is_iso_calendar_date(&value[..10]) {
+            return format!("{}{}", date, &value[10..]);
+        }
+
+        return format!("{date}T00:00:00");
+    }
+
+    chrono::DateTime::parse_from_rfc3339(value)
+        .map(|parsed| parsed.with_timezone(&chrono::Local).to_rfc3339())
+        .unwrap_or_else(|_| value.to_string())
+}
+
+fn is_iso_calendar_date(value: &str) -> bool {
+    value.len() == 10
+        && value.as_bytes()[4] == b'-'
+        && value.as_bytes()[7] == b'-'
+        && value
+            .bytes()
+            .enumerate()
+            .all(|(index, byte)| index == 4 || index == 7 || byte.is_ascii_digit())
 }
 
 fn read_usage_metrics(
@@ -419,12 +446,45 @@ fn mark_widget_usage_summary_failed_for_conn(
 
 #[cfg(test)]
 mod tests {
-    use super::{mark_widget_usage_summary_failed_for_conn, PENDING_WIDGET_USAGE_ROLLUPS_SQL};
+    use super::{
+        mark_widget_usage_summary_failed_for_conn, normalize_widget_usage_occurred_at,
+        PENDING_WIDGET_USAGE_ROLLUPS_SQL,
+    };
     use rusqlite::Connection;
 
     #[test]
     fn staged_widget_usage_rollups_are_retry_candidates() {
         assert!(PENDING_WIDGET_USAGE_ROLLUPS_SQL.contains("'SYNC_PENDING'"));
+    }
+
+    #[test]
+    fn widget_usage_timestamp_is_stored_with_local_calendar_date() {
+        let utc_late_day = "2026-07-05T16:12:45.245Z";
+        let normalized = normalize_widget_usage_occurred_at(utc_late_day, None);
+        let expected_local_date = chrono::DateTime::parse_from_rfc3339(utc_late_day)
+            .expect("parse utc timestamp")
+            .with_timezone(&chrono::Local)
+            .format("%Y-%m-%d")
+            .to_string();
+
+        assert_eq!(&normalized[..10], expected_local_date);
+    }
+
+    #[test]
+    fn widget_usage_summary_date_overrides_os_timezone_for_rollups() {
+        let normalized =
+            normalize_widget_usage_occurred_at("2026-07-05T16:12:45.245Z", Some("2026-07-06"));
+
+        assert_eq!(&normalized[..10], "2026-07-06");
+        assert!(normalized.ends_with("T16:12:45.245Z"));
+    }
+
+    #[test]
+    fn invalid_widget_usage_timestamp_is_preserved_for_retry_visibility() {
+        assert_eq!(
+            normalize_widget_usage_occurred_at("not-a-date", None),
+            "not-a-date"
+        );
     }
 
     #[test]

@@ -1,11 +1,21 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
-const API_BASE_URL = stripTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080");
-const TIMEOUT_MS = Number(process.env.BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS ?? 300_000);
 const CONTRACT_ONLY = process.argv.includes("--contract");
+const RELEASE_MODE =
+  process.argv.includes("--release") || process.env.BUBLI_TAURI_REAL_OAUTH_QA_MODE === "release";
+const RUNTIME_MODE = RELEASE_MODE ? "release" : "dev";
+const RELEASE_EXE_PATH = join("src-tauri", "target", "release", "bubli.exe");
+const RELEASE_EXE_ABSOLUTE_PATH = resolve(RELEASE_EXE_PATH);
+const DEFAULT_API_BASE_URL = RELEASE_MODE ? "https://bubli.n-e.kr" : "http://localhost:8080";
+const API_BASE_URL = stripTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL);
+const TIMEOUT_MS = Number(process.env.BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS ?? 300_000);
+const REPORTER_TIMEOUT_MS = Number(
+  process.env.BUBLI_TAURI_REAL_OAUTH_QA_REPORTER_TIMEOUT_MS ?? Math.max(10_000, TIMEOUT_MS - 15_000),
+);
 
 if (process.platform !== "win32") {
   console.log("Tauri real OAuth manual QA skipped: this script is Windows-only.");
@@ -21,6 +31,8 @@ if (CONTRACT_ONLY) {
         checks: contractChecks,
         mode: "contract",
         result: "passed",
+        reporterTimeoutMs: REPORTER_TIMEOUT_MS,
+        runtimeMode: RUNTIME_MODE,
         script: "qa-tauri-real-oauth-manual",
         timeoutMs: TIMEOUT_MS,
       },
@@ -31,18 +43,23 @@ if (CONTRACT_ONLY) {
   process.exit(0);
 }
 
-const { closeServer, reportPromise, reportUrl } = await startReportServer();
-const child = spawnTauri(reportUrl);
+const localSyncFixture = createLocalSyncFixture();
+const { closeServer, eventUrl, mutateUrl, prepareUrl, qaEvents, reportPromise, reportUrl } = await startReportServer(localSyncFixture);
+const qaEnv = createQaEnv(reportUrl, eventUrl, localSyncFixture.folderPath, mutateUrl, prepareUrl);
+let child = null;
 let timeout = null;
 
 console.log("");
 console.log("Tauri real Google OAuth manual QA is waiting for a login.");
+console.log(`Runtime mode: ${RUNTIME_MODE}`);
+console.log(`Reporter timeout: ${REPORTER_TIMEOUT_MS}ms; harness timeout: ${TIMEOUT_MS}ms`);
 console.log("1. Complete Google login in the Bubli Tauri app.");
 console.log("2. Keep the app open until this script prints the redacted QA report.");
 console.log("3. This script does not pass a dev access token.");
 console.log("");
 
 try {
+  child = spawnTauri(qaEnv);
   const report = await Promise.race([
     reportPromise,
     new Promise((_, reject) => {
@@ -62,29 +79,59 @@ try {
   }
 
   console.log("Tauri real OAuth manual QA passed.");
+} catch (error) {
+  const outputPaths = writeDiagnostics(error, qaEvents);
+  console.log(JSON.stringify({ ...outputPaths, error: error instanceof Error ? error.message : String(error), qaEvents }, null, 2));
+  throw error;
 } finally {
   if (timeout) clearTimeout(timeout);
   closeServer();
-  stopProcessTree(child.pid);
+  stopProcessTree(child?.pid);
+  localSyncFixture.cleanup();
 }
 
-function spawnTauri(reportUrl) {
+function createQaEnv(reportUrl, eventUrl, localSyncFolderPath, localSyncMutateUrl, localSyncPrepareUrl) {
+  return {
+    ...process.env,
+    CARGO_BUILD_JOBS: process.env.CARGO_BUILD_JOBS ?? "1",
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process.env.CARGO_PROFILE_RELEASE_CODEGEN_UNITS ?? "256",
+    CARGO_PROFILE_RELEASE_OPT_LEVEL: process.env.CARGO_PROFILE_RELEASE_OPT_LEVEL ?? "1",
+    NEXT_PUBLIC_API_BASE_URL: API_BASE_URL,
+    NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "false",
+    NEXT_PUBLIC_BUBLI_PREVIEW_DATA: "false",
+    NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS: "true",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_FOLDER: localSyncFolderPath,
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL: localSyncMutateUrl,
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_PREPARE_URL: localSyncPrepareUrl,
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA: "true",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA: "true",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS: "15000",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA: "true",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA: "true",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL: eventUrl,
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL: reportUrl,
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS: String(REPORTER_TIMEOUT_MS),
+    NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "false",
+  };
+}
+
+function spawnTauri(qaEnv) {
+  if (RELEASE_MODE) {
+    buildReleaseTauri(qaEnv);
+
+    if (!existsSync(RELEASE_EXE_PATH)) {
+      throw new Error(`Missing Tauri release executable: ${RELEASE_EXE_PATH}`);
+    }
+
+    return spawn(RELEASE_EXE_PATH, [], {
+      env: qaEnv,
+      shell: false,
+      stdio: "inherit",
+    });
+  }
+
   const child = spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "npm.cmd run tauri:dev"], {
-    env: {
-      ...process.env,
-      NEXT_PUBLIC_API_BASE_URL: API_BASE_URL,
-      NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "false",
-      NEXT_PUBLIC_BUBLI_PREVIEW_DATA: "false",
-      NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS: "true",
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA: "true",
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA: "true",
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS: "15000",
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA: "true",
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA: "true",
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL: reportUrl,
-      NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS: String(TIMEOUT_MS),
-      NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "false",
-    },
+    env: qaEnv,
     shell: false,
     stdio: "inherit",
   });
@@ -98,8 +145,105 @@ function spawnTauri(reportUrl) {
   return child;
 }
 
-function startReportServer() {
+function buildReleaseTauri(qaEnv) {
+  console.log("Building QA-instrumented Tauri release executable...");
+  stopExistingReleaseExe();
+  const result = spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "npm.cmd run tauri -- build --no-bundle"], {
+    env: qaEnv,
+    shell: false,
+    stdio: "inherit",
+  });
+
+  if (result.status !== 0) {
+    throw new Error(`Tauri release build failed with exit code ${result.status ?? "unknown"}.`);
+  }
+}
+
+function stopExistingReleaseExe() {
+  if (process.platform !== "win32") {
+    return;
+  }
+
+  spawnSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      [
+        "$target = [System.IO.Path]::GetFullPath($env:BUBLI_QA_RELEASE_EXE_PATH);",
+        "Get-CimInstance Win32_Process |",
+        "Where-Object { $_.ExecutablePath -eq $target } |",
+        "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+      ].join(" "),
+    ],
+    {
+      env: { ...process.env, BUBLI_QA_RELEASE_EXE_PATH: RELEASE_EXE_ABSOLUTE_PATH },
+      shell: false,
+      stdio: "inherit",
+    },
+  );
+}
+
+function createLocalSyncFixture() {
+  const folderPath = mkdtempSync(join(tmpdir(), "bubli-real-oauth-local-sync-"));
+  let currentFileName = "";
+  let currentNotePath = "";
+  let prepareCount = 0;
+  const prepare = () => {
+    prepareCount += 1;
+    for (const entry of readdirSync(folderPath, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.startsWith("real-oauth-local-sync-note-")) {
+        rmSync(join(folderPath, entry.name), { force: true });
+      }
+    }
+    currentFileName = `real-oauth-local-sync-note-${prepareCount}-${Date.now()}.txt`;
+    currentNotePath = join(folderPath, currentFileName);
+    writeFileSync(
+      currentNotePath,
+      [
+        "RealOAuthLocalSyncInitial",
+        "Bubli Windows Tauri real OAuth local file tracking fixture.",
+        "This file must be scanned, previewed, synced, mutated, reindexed, and synced again.",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    return { fileName: currentFileName, notePath: currentNotePath };
+  };
+  prepare();
+
+  return {
+    folderPath,
+    prepare,
+    mutate() {
+      if (!currentNotePath) {
+        prepare();
+      }
+      const marker = `RealOAuthLocalSyncUpdated ${new Date().toISOString()}`;
+      writeFileSync(
+        currentNotePath,
+        [
+          marker,
+          "Updated searchable marker for the Windows Tauri local SQLite index.",
+          "The QA server mutated this file after the initial backend sync.",
+          "The Tauri app must reindex this changed content and sync an UPDATED event.",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      return { fileName: currentFileName, marker, notePath: currentNotePath };
+    },
+    cleanup() {
+      rmSync(folderPath, { force: true, recursive: true });
+    },
+  };
+}
+
+function startReportServer(localSyncFixture) {
   let settled = false;
+  const qaEvents = [];
   let resolveReport;
   let rejectReport;
   const reportPromise = new Promise((resolve, reject) => {
@@ -115,6 +259,53 @@ function startReportServer() {
     if (request.method === "OPTIONS") {
       response.writeHead(204);
       response.end();
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/mutate-local-file") {
+      try {
+        const mutation = localSyncFixture.mutate();
+        response.setHeader("Content-Type", "application/json");
+        response.writeHead(200);
+        response.end(JSON.stringify({ fileName: mutation.fileName, marker: mutation.marker }));
+      } catch (error) {
+        response.writeHead(500);
+        response.end(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/prepare-local-file") {
+      try {
+        const prepared = localSyncFixture.prepare();
+        response.setHeader("Content-Type", "application/json");
+        response.writeHead(200);
+        response.end(JSON.stringify({ fileName: prepared.fileName, notePath: prepared.notePath }));
+      } catch (error) {
+        response.writeHead(500);
+        response.end(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/event") {
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk) => {
+        body += chunk;
+      });
+      request.on("end", () => {
+        try {
+          const event = JSON.parse(body);
+          validateRealOAuthQaEvent(event);
+          qaEvents.push(event);
+          response.writeHead(204);
+          response.end();
+        } catch (error) {
+          response.writeHead(400);
+          response.end(error instanceof Error ? error.message : String(error));
+        }
+      });
       return;
     }
 
@@ -161,11 +352,40 @@ function startReportServer() {
           }
           server.close();
         },
+        eventUrl: `http://127.0.0.1:${address.port}/event`,
+        mutateUrl: `http://127.0.0.1:${address.port}/mutate-local-file`,
+        prepareUrl: `http://127.0.0.1:${address.port}/prepare-local-file`,
+        qaEvents,
         reportPromise,
         reportUrl: `http://127.0.0.1:${address.port}/report`,
       });
     });
   });
+}
+
+function writeDiagnostics(error, qaEvents) {
+  const directory = ".codex-runtime-logs";
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const reportPath = join(directory, `tauri-real-oauth-qa-diagnostics-${timestamp}.json`);
+  const summaryPath = join(directory, `tauri-real-oauth-qa-diagnostics-${timestamp}.md`);
+  const message = error instanceof Error ? error.message : String(error);
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(reportPath, JSON.stringify({ error: message, qaEvents }, null, 2));
+  writeFileSync(
+    summaryPath,
+    [
+      "# Tauri Real OAuth QA Diagnostics",
+      "",
+      `- Error: ${message}`,
+      `- Event count: ${qaEvents.length}`,
+      "",
+      "## Events",
+      "",
+      ...qaEvents.map((event, index) => `- ${index + 1}. ${event.stage}: ${event.reason}`),
+      "",
+    ].join("\n"),
+  );
+  return { reportPath, summaryPath };
 }
 
 function writeReport(report) {
@@ -203,9 +423,12 @@ function renderEvidenceSummary(report, reportPath) {
   }
 
   const localSync = snapshot.localSyncProbe ?? {};
+  const localFiles = localSync.localFiles ?? {};
   const stability = snapshot.stabilityProbe ?? {};
   const sessionRestore = snapshot.sessionRestoreProbe ?? {};
   const stopCleanup = snapshot.stopCleanupProbe ?? {};
+  const launchTimeline = snapshot.launchTimeline ?? {};
+  const routeProbe = report.routeProbe ?? {};
 
   lines.push(
     `- Real TAURI local session: ${Boolean(snapshot.localSession?.hasSession && snapshot.localSession?.clientType === "TAURI" && snapshot.localSession?.isDevAccessTokenSession === false)}`,
@@ -219,6 +442,8 @@ function renderEvidenceSummary(report, reportPath) {
     `- Auto-sync loops running: ${Boolean(snapshot.syncRuntime?.allAutoSyncLoopsRunning)}`,
     `- Managed-folder watcher not failed: ${snapshot.syncRuntime?.managedFolderStatus?.lastStatus !== "failed"}`,
     `- SQLite quick_check: ${Boolean(localSync.sqlite?.ok)}`,
+    `- Local file scan/read initial sync: ${Boolean(localFiles.initialSearchMatched && localFiles.initialPreviewReady && (localFiles.initialSyncSyncedCount ?? 0) >= 1)}`,
+    `- Local file update/reindex sync: ${Boolean(localFiles.mutationRequested && localFiles.reindexChanged && localFiles.updatedSearchMatched && (localFiles.updateSyncSyncedCount ?? 0) >= 1)}`,
     `- Widget usage reached backend: ${(localSync.outbox?.widgetSentCount ?? 0) >= 1}`,
     `- Activity reached backend when consented: ${
       localSync.activity?.consentGranted ? (localSync.outbox?.activitySentCount ?? 0) >= 1 : "not required"
@@ -227,6 +452,9 @@ function renderEvidenceSummary(report, reportPath) {
     `- Stability widgets/sync/backend healthy: ${Boolean(stability.allExpectedWindowsVisible && stability.allAutoSyncLoopsRunning && stability.backendWidgetSummaryOk)}`,
     `- Session restored from Tauri mirror: ${Boolean(sessionRestore.restoredLocalSession && sessionRestore.restoredTauriClient && sessionRestore.backendMeOk)}`,
     `- Stop cleanup closed widgets and loops: ${Boolean(stopCleanup.activeProjectRoomCleared && stopCleanup.allExpectedWindowsHidden && stopCleanup.syncLoopsStopped)}`,
+    `- OAuth returned to app route without login repaint: ${Boolean(routeProbe.ok)}`,
+    `- Auth validated before widget launch: ${Boolean(launchTimeline.authGateAfterBackendAuth && launchTimeline.firstWidgetOpenAfterBackendAuth)}`,
+    `- Widget launch order: ${Boolean(launchTimeline.completed && launchTimeline.barWindowOpenedAt && launchTimeline.bubbleWindowsOpenedAt && launchTimeline.syncLoopsStartedAt)}`,
     "",
     "Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded by the report validator.",
     "",
@@ -243,13 +471,43 @@ function runContractCheck() {
     {
       name: "script launches real OAuth QA with local sync stability session restore and stop cleanup probes without dev token",
       pattern:
-        /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS: "15000"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL: reportUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "false"/,
+        /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_FOLDER: localSyncFolderPath[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL: localSyncMutateUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_PREPARE_URL: localSyncPrepareUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS: "15000"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL: eventUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL: reportUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "false"/,
+      source: scriptSource,
+    },
+    {
+      name: "script collects redacted lifecycle events for release report timeouts",
+      pattern:
+        /eventUrl[\s\S]*qaEvents[\s\S]*request\.method === "POST" && request\.url === "\/event"[\s\S]*validateRealOAuthQaEvent\(event\)[\s\S]*writeDiagnostics\(error, qaEvents\)/,
+      source: scriptSource,
+    },
+    {
+      name: "script gives the reporter a shorter timeout than the harness",
+      pattern:
+        /const REPORTER_TIMEOUT_MS = Number\([\s\S]*Math\.max\(10_000, TIMEOUT_MS - 15_000\)[\s\S]*Reporter timeout: \$\{REPORTER_TIMEOUT_MS\}ms; harness timeout: \$\{TIMEOUT_MS\}ms[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS: String\(REPORTER_TIMEOUT_MS\)/,
+      source: scriptSource,
+    },
+    {
+      name: "script can build and launch a QA-instrumented release exe without publishing the installer",
+      pattern:
+        /const RELEASE_MODE[\s\S]*process\.argv\.includes\("--release"\)[\s\S]*const RELEASE_EXE_PATH = join\("src-tauri", "target", "release", "bubli\.exe"\)[\s\S]*const DEFAULT_API_BASE_URL = RELEASE_MODE \? "https:\/\/bubli\.n-e\.kr" : "http:\/\/localhost:8080"[\s\S]*if \(RELEASE_MODE\) \{[\s\S]*buildReleaseTauri\(qaEnv\)[\s\S]*spawn\(RELEASE_EXE_PATH[\s\S]*function buildReleaseTauri\(qaEnv\)[\s\S]*stopExistingReleaseExe\(\)[\s\S]*"npm\.cmd run tauri -- build --no-bundle"/,
+      source: scriptSource,
+    },
+    {
+      name: "script stops only the existing raw release QA exe before rebuilding",
+      pattern:
+        /function stopExistingReleaseExe\(\)[\s\S]*GetFullPath\(\$env:BUBLI_QA_RELEASE_EXE_PATH\);[\s\S]*Get-CimInstance Win32_Process[\s\S]*ExecutablePath -eq \$target[\s\S]*Stop-Process[\s\S]*BUBLI_QA_RELEASE_EXE_PATH: RELEASE_EXE_ABSOLUTE_PATH/,
+      source: scriptSource,
+    },
+    {
+      name: "script uses memory-safe Cargo release profile defaults for QA builds",
+      pattern:
+        /CARGO_BUILD_JOBS: process\.env\.CARGO_BUILD_JOBS \?\? "1"[\s\S]*CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process\.env\.CARGO_PROFILE_RELEASE_CODEGEN_UNITS \?\? "256"[\s\S]*CARGO_PROFILE_RELEASE_OPT_LEVEL: process\.env\.CARGO_PROFILE_RELEASE_OPT_LEVEL \?\? "1"/,
       source: scriptSource,
     },
     {
       name: "script validates redacted QA reports before accepting pass",
       pattern:
-        /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1[\s\S]*snapshot\.stabilityProbe\?\.enabled[\s\S]*snapshot\.stabilityProbe\.allExpectedWindowsVisible[\s\S]*snapshot\.stabilityProbe\.allAutoSyncLoopsRunning[\s\S]*snapshot\.sessionRestoreProbe\?\.enabled[\s\S]*snapshot\.sessionRestoreProbe\.restoredLocalSession[\s\S]*snapshot\.sessionRestoreProbe\.backendMeOk[\s\S]*snapshot\.stopCleanupProbe\?\.enabled[\s\S]*snapshot\.stopCleanupProbe\.activeProjectRoomCleared[\s\S]*snapshot\.stopCleanupProbe\.allExpectedWindowsHidden[\s\S]*snapshot\.stopCleanupProbe\.barWindowHidden[\s\S]*snapshot\.stopCleanupProbe\.syncLoopsStopped/,
+        /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.routeProbe\?\.ok[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.launchTimeline\?\.completed[\s\S]*authGateAfterBackendAuth[\s\S]*firstWidgetOpenAfterBackendAuth[\s\S]*barWindowOpenedAt[\s\S]*bubbleWindowsOpenedAt[\s\S]*syncLoopsStartedAt[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.localFiles\?\.enabled[\s\S]*initialPreviewIncludesMarker[\s\S]*initialSyncSyncedCount[\s\S]*mutationRequested[\s\S]*reindexStatus === "REINDEXED"[\s\S]*updatedPreviewIncludesMarker[\s\S]*updateSyncSyncedCount[\s\S]*remainingQaEvents === 0[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.activity\.nativeCaptured[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1[\s\S]*snapshot\.stabilityProbe\?\.enabled[\s\S]*snapshot\.stabilityProbe\.allExpectedWindowsVisible[\s\S]*snapshot\.stabilityProbe\.allAutoSyncLoopsRunning[\s\S]*snapshot\.sessionRestoreProbe\?\.enabled[\s\S]*snapshot\.sessionRestoreProbe\.restoredLocalSession[\s\S]*snapshot\.sessionRestoreProbe\.backendMeOk[\s\S]*snapshot\.stopCleanupProbe\?\.enabled[\s\S]*snapshot\.stopCleanupProbe\.activeProjectRoomCleared[\s\S]*snapshot\.stopCleanupProbe\.allExpectedWindowsHidden[\s\S]*snapshot\.stopCleanupProbe\.barWindowHidden[\s\S]*snapshot\.stopCleanupProbe\.syncLoopsStopped/,
       source: scriptSource,
     },
     {
@@ -261,7 +519,7 @@ function runContractCheck() {
     {
       name: "script evidence summary stays redacted and records key real OAuth probes",
       pattern:
-        /function renderEvidenceSummary\(report, reportPath\)[\s\S]*Redacted Proof[\s\S]*Real TAURI local session[\s\S]*Backend \/api\/me[\s\S]*All widget windows visible[\s\S]*Stability dwell ms[\s\S]*Session restored from Tauri mirror[\s\S]*Stop cleanup closed widgets and loops[\s\S]*Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded/,
+        /function renderEvidenceSummary\(report, reportPath\)[\s\S]*Redacted Proof[\s\S]*Real TAURI local session[\s\S]*Backend \/api\/me[\s\S]*All widget windows visible[\s\S]*Local file scan\/read initial sync[\s\S]*Local file update\/reindex sync[\s\S]*Stability dwell ms[\s\S]*Session restored from Tauri mirror[\s\S]*Stop cleanup closed widgets and loops[\s\S]*OAuth returned to app route without login repaint[\s\S]*Auth validated before widget launch[\s\S]*Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded/,
       source: scriptSource,
     },
     {
@@ -277,9 +535,15 @@ function runContractCheck() {
       source: reporterSource,
     },
     {
+      name: "reporter posts redacted lifecycle events before and during real OAuth QA",
+      pattern:
+        /RealOAuthQaRouteProbe[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL[\s\S]*const routeProbeGraceMs[\s\S]*const recordRouteSample[\s\S]*const buildRouteProbe[\s\S]*postRealOAuthQaEvent[\s\S]*stage: "mounted"[\s\S]*stage: "skipped"[\s\S]*stage: "run-start"[\s\S]*stage: "assertion"[\s\S]*stage: "report-posted"[\s\S]*stage: "report-error"/,
+      source: reporterSource,
+    },
+    {
       name: "real OAuth assertion rejects dev tokens and requires widgets sync loops plus local sync stability restore and stop cleanup probes",
       pattern:
-        /diagnostics\.clientType === "TAURI"[\s\S]*diagnostics\.isDevAccessTokenSession === false[\s\S]*diagnostics\.refreshTokenExpired === false[\s\S]*widgets:allExpectedWindowsVisible[\s\S]*sync:allAutoSyncLoopsRunning[\s\S]*sync:managedFolderStatusMatchesRunningFlag[\s\S]*sync:managedFolderStatusNotFailed[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:widgetUsageReachedBackend[\s\S]*localSyncProbe:activityReachedBackend[\s\S]*sessionRestoreProbe:restoredLocalSession[\s\S]*sessionRestoreProbe:backendMeAfterRestore[\s\S]*stabilityProbe:allExpectedWindowsVisible[\s\S]*stabilityProbe:syncLoopsStillRunning[\s\S]*stopCleanupProbe:activeProjectRoomCleared[\s\S]*stopCleanupProbe:allExpectedWindowsHidden[\s\S]*stopCleanupProbe:syncLoopsStopped/,
+        /diagnostics\.clientType === "TAURI"[\s\S]*diagnostics\.isDevAccessTokenSession === false[\s\S]*diagnostics\.refreshTokenExpired === false[\s\S]*launchTimeline:completed[\s\S]*launchTimeline:authGateAfterBackendAuth[\s\S]*launchTimeline:firstWidgetOpenAfterBackendAuth[\s\S]*launchTimeline:mirrorStoredBeforeBar[\s\S]*launchTimeline:barBeforeBubbles[\s\S]*launchTimeline:syncLoopsAfterWidgets[\s\S]*widgets:allExpectedWindowsVisible[\s\S]*sync:allAutoSyncLoopsRunning[\s\S]*sync:managedFolderStatusMatchesRunningFlag[\s\S]*sync:managedFolderStatusNotFailed[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:localFileInitialPreviewMarker[\s\S]*localSyncProbe:localFileCreatedSynced[\s\S]*localSyncProbe:localFileUpdatedPreviewMarker[\s\S]*localSyncProbe:localFileUpdatedSynced[\s\S]*localSyncProbe:widgetUsageReachedBackend[\s\S]*localSyncProbe:activityNativeCaptured[\s\S]*localSyncProbe:activityReachedBackend[\s\S]*sessionRestoreProbe:restoredLocalSession[\s\S]*sessionRestoreProbe:backendMeAfterRestore[\s\S]*stabilityProbe:allExpectedWindowsVisible[\s\S]*stabilityProbe:syncLoopsStillRunning[\s\S]*stopCleanupProbe:activeProjectRoomCleared[\s\S]*stopCleanupProbe:allExpectedWindowsHidden[\s\S]*stopCleanupProbe:syncLoopsStopped/,
       source: qaSource,
     },
   ];
@@ -291,6 +555,20 @@ function runContractCheck() {
   }
 
   return checks.map((check) => check.name);
+}
+
+function validateRealOAuthQaEvent(event) {
+  assert(event && typeof event === "object", "QA event must be an object.");
+  const serialized = JSON.stringify(event);
+  assert(!forbiddenReportFieldPattern().test(serialized), "QA event must not include raw tokens or user identifiers.");
+  assert(typeof event.stage === "string" && event.stage.length > 0, "QA event stage is required.");
+  assert(typeof event.reason === "string", "QA event reason is required.");
+  assert(typeof event.pathname === "string", "QA event pathname is required.");
+  assert(typeof event.timestamp === "string" && event.timestamp.length > 0, "QA event timestamp is required.");
+  if (event.failedChecks !== undefined) {
+    assert(Array.isArray(event.failedChecks), "QA event failedChecks must be an array when present.");
+    assert(event.failedChecks.every((name) => typeof name === "string"), "QA event failedChecks entries must be strings.");
+  }
 }
 
 function validateRealOAuthQaReport(report) {
@@ -309,6 +587,27 @@ function validateRealOAuthQaReport(report) {
     return;
   }
 
+  assert(report.routeProbe?.ok, "Passed QA report must prove OAuth returned to /app without login repaint after grace.");
+  assert(
+    report.routeProbe.finalPathname?.startsWith("/app"),
+    "Passed QA report final pathname must be an authenticated app route.",
+  );
+  assert(
+    report.routeProbe.sawLoginPathAfterGrace === false,
+    "Passed QA report must not observe /login after the route probe grace period.",
+  );
+  assert(
+    report.routeProbe.sawAuthGateAfterGrace === false,
+    "Passed QA report must not observe the authenticated app gate after the route probe grace period.",
+  );
+  assert(
+    report.routeProbe.sawLoginSurfaceAfterGrace === false,
+    "Passed QA report must not observe the login surface after the route probe grace period.",
+  );
+  assert(
+    Array.isArray(report.routeProbe.history) && report.routeProbe.history.length >= 1,
+    "Passed QA report must include redacted route history.",
+  );
   assert(report.error === undefined, "Passed QA report must not include an error.");
   assert(report.assertion?.ok === true, "Passed QA report must include assertion.ok=true.");
   assert(
@@ -330,6 +629,37 @@ function validateRealOAuthQaReport(report) {
   );
   assert(snapshot.tauriMirrorSession.refreshTokenExpired === false, "Passed QA Tauri mirror refresh token must be live.");
   assert(snapshot.backend?.me?.ok, "Passed QA report must prove /api/me.");
+  assert(snapshot.launchTimeline?.completed, "Passed QA report must prove authenticated surface launch completed.");
+  assert(!snapshot.launchTimeline.lastError, "Passed QA launch timeline must not include an error.");
+  assert(
+    snapshot.launchTimeline.authGateAfterBackendAuth,
+    "Passed QA launch timeline must prove auth gate enabled after backend auth validation.",
+  );
+  assert(
+    snapshot.launchTimeline.firstWidgetOpenAfterBackendAuth,
+    "Passed QA launch timeline must prove widgets opened after backend auth validation.",
+  );
+  assert(
+    snapshot.launchTimeline.sessionMirrorStoredAt &&
+      snapshot.launchTimeline.barWindowOpenedAt &&
+      new Date(snapshot.launchTimeline.sessionMirrorStoredAt).getTime() <=
+        new Date(snapshot.launchTimeline.barWindowOpenedAt).getTime(),
+    "Passed QA launch timeline must prove Tauri session mirror was stored before the widget bar opened.",
+  );
+  assert(
+    snapshot.launchTimeline.barWindowOpenedAt &&
+      snapshot.launchTimeline.bubbleWindowsOpenedAt &&
+      new Date(snapshot.launchTimeline.barWindowOpenedAt).getTime() <=
+        new Date(snapshot.launchTimeline.bubbleWindowsOpenedAt).getTime(),
+    "Passed QA launch timeline must prove the widget bar opened before bubble windows.",
+  );
+  assert(
+    snapshot.launchTimeline.bubbleWindowsOpenedAt &&
+      snapshot.launchTimeline.syncLoopsStartedAt &&
+      new Date(snapshot.launchTimeline.bubbleWindowsOpenedAt).getTime() <=
+        new Date(snapshot.launchTimeline.syncLoopsStartedAt).getTime(),
+    "Passed QA launch timeline must prove sync loops started after widget windows.",
+  );
   assert(snapshot.backend?.widgetContext?.ok, "Passed QA report must prove /api/widget/context.");
   assert(snapshot.backend?.widgetSummary?.ok, "Passed QA report must prove /api/widget/summary.");
   assert(snapshot.activeProjectRoom?.hasSelectedRoom, "Passed QA report must have a selected project room.");
@@ -359,8 +689,58 @@ function validateRealOAuthQaReport(report) {
   assert(snapshot.localSyncProbe?.enabled, "Passed QA report must include the real OAuth local sync probe.");
   assert(!snapshot.localSyncProbe.error, "Passed QA local sync probe must not include an error.");
   assert(snapshot.localSyncProbe.sqlite?.ok, "Passed QA local sync probe must prove SQLite quick_check.");
+  assert(snapshot.localSyncProbe.localFiles?.enabled, "Passed QA local sync probe must include local file tracking.");
+  assert(!snapshot.localSyncProbe.localFiles.error, "Passed QA local file probe must not include an error.");
+  assert(snapshot.localSyncProbe.localFiles.localFolderId, "Passed QA local file probe must select a managed folder.");
+  assert((snapshot.localSyncProbe.localFiles.scanFileCount ?? 0) >= 1, "Passed QA local file probe must scan files.");
+  assert(snapshot.localSyncProbe.localFiles.initialSearchMatched, "Passed QA local file probe must search the initial file.");
+  assert(snapshot.localSyncProbe.localFiles.initialPreviewReady, "Passed QA local file probe must read the initial preview.");
+  assert(
+    snapshot.localSyncProbe.localFiles.initialPreviewIncludesMarker,
+    "Passed QA local file probe must prove initial preview contents.",
+  );
+  assert(
+    (snapshot.localSyncProbe.localFiles.stagedCreatedCount ?? 0) >= 1,
+    "Passed QA local file probe must stage a CREATED event.",
+  );
+  assert(
+    (snapshot.localSyncProbe.localFiles.initialSyncSentCount ?? 0) >= 1 &&
+      (snapshot.localSyncProbe.localFiles.initialSyncSyncedCount ?? 0) >= 1 &&
+      snapshot.localSyncProbe.localFiles.initialSyncFailedCount === 0,
+    "Passed QA local file probe must sync the initial file event to backend.",
+  );
+  assert(snapshot.localSyncProbe.localFiles.mutationRequested, "Passed QA local file probe must mutate the fixture file.");
+  assert(
+    snapshot.localSyncProbe.localFiles.reindexStatus === "REINDEXED" &&
+      snapshot.localSyncProbe.localFiles.reindexChanged,
+    "Passed QA local file probe must reindex changed local content.",
+  );
+  assert(snapshot.localSyncProbe.localFiles.updatedSearchMatched, "Passed QA local file probe must search updated content.");
+  assert(snapshot.localSyncProbe.localFiles.updatedPreviewReady, "Passed QA local file probe must read updated preview.");
+  assert(
+    snapshot.localSyncProbe.localFiles.updatedPreviewIncludesMarker,
+    "Passed QA local file probe must prove updated preview contents.",
+  );
+  assert(
+    (snapshot.localSyncProbe.localFiles.stagedUpdatedCount ?? 0) >= 1,
+    "Passed QA local file probe must stage an UPDATED event.",
+  );
+  assert(
+    (snapshot.localSyncProbe.localFiles.updateSyncSentCount ?? 0) >= 1 &&
+      (snapshot.localSyncProbe.localFiles.updateSyncSyncedCount ?? 0) >= 1 &&
+      snapshot.localSyncProbe.localFiles.updateSyncFailedCount === 0,
+    "Passed QA local file probe must sync the updated file event to backend.",
+  );
+  assert(
+    snapshot.localSyncProbe.localFiles.remainingQaEvents === 0,
+    "Passed QA local file probe must leave no pending QA file events.",
+  );
   assert(snapshot.localSyncProbe.widgetUsageQueued, "Passed QA local sync probe must queue widget usage.");
   assert(snapshot.localSyncProbe.outbox?.status === "ready", "Passed QA local sync probe must finish outbox sync.");
+  assert(
+    snapshot.localSyncProbe.outbox?.fileFailedCount === 0,
+    "Passed QA local sync probe must not mix stale failed local file events into the scoped file outbox sync.",
+  );
   assert(
     (snapshot.localSyncProbe.outbox?.widgetSentCount ?? 0) >= 1,
     "Passed QA local sync probe must send widget usage to backend.",
@@ -370,6 +750,10 @@ function validateRealOAuthQaReport(report) {
     "Passed QA local sync probe must not fail widget usage sync.",
   );
   if (snapshot.localSyncProbe.activity?.consentGranted) {
+    assert(
+      snapshot.localSyncProbe.activity.nativeCaptured,
+      "Passed QA local sync probe must read the native foreground activity when consent is on.",
+    );
     assert(snapshot.localSyncProbe.activity.queued, "Passed QA local sync probe must queue activity when consent is on.");
     assert(
       (snapshot.localSyncProbe.outbox?.activitySentCount ?? 0) >= 1,

@@ -623,6 +623,7 @@
 .timelineRow a,
 .chatHead span,
 .handoffBubble span,
+.alertRow a,
 .alertRow strong,
 .message {
   min-width: 0;
@@ -640,6 +641,7 @@
 .fileRow span,
 .timelineRow span,
 .handoffBubble span,
+.alertRow a,
 .alertRow strong {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -687,6 +689,24 @@
   border-radius: 999px;
   background: var(--acc);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--acc) 16%, transparent);
+}
+
+.alertCheck {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--acc) 34%, transparent);
+  border-radius: 999px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+  cursor: pointer;
+}
+
+.alertCheck:hover {
+  border-color: color-mix(in srgb, var(--acc) 48%, transparent);
+  background: color-mix(in srgb, var(--acc) 20%, transparent);
 }
 
 /* ---------- TODO: 카운트 링 + 요약 카피 ---------- */
@@ -952,6 +972,204 @@
   font-size: 14px;
   font-weight: 700;
   line-height: 1.2;
+}
+
+/* ── 시계 모드 ── 큰 tabular-nums 시각 + 날짜 한 줄(세로 정렬).
+   클래스 자체가 없어 인라인으로 뭉개지던 것(시각·날짜 붙음)을 복구한다. */
+.clockFace {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 128px;
+  padding: 14px 0;
+}
+
+.clockTime {
+  color: var(--widget-text);
+  font-size: 44px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.clockDate {
+  color: var(--widget-muted);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* ── 뽀모도로 링 ── conic-gradient 진행 링 + 내부 시간. focus=따뜻한 accent / break=sky.
+   클래스 누락으로 링이 안 그려지던 것을 복구한다. */
+.pomodoroRing {
+  position: relative;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 150px;
+  border-radius: 999px;
+}
+
+.pomodoroFocus {
+  --pomodoro-accent: var(--acc);
+}
+
+.pomodoroBreak {
+  --pomodoro-accent: #6FB8F2;
+}
+
+.pomodoroRingTrack {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(
+    var(--pomodoro-accent) var(--pomodoro-progress, 0deg),
+    color-mix(in srgb, var(--pomodoro-accent) 16%, transparent) 0deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 11px), rgba(0, 0, 0, 1) calc(100% - 10px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 11px), rgba(0, 0, 0, 1) calc(100% - 10px));
+}
+
+.pomodoroRingInner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.pomodoroRingInner strong {
+  color: var(--widget-text);
+  font-size: 26px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.pomodoroRingInner span {
+  color: var(--widget-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pomodoroPop {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle, color-mix(in srgb, var(--pomodoro-accent) 40%, transparent), transparent 70%);
+  pointer-events: none;
+}
+
+/* ── 공통 스코프/힌트 문구(작업 컨텍스트 · 개인 임시 안내 · 사이클 수) ── */
+.timerScopeNote {
+  margin: 0;
+  text-align: center;
+  color: var(--widget-muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* ── 프리셋 칩(개인 타이머 빠른 분 · 뽀모도로 프리셋) ── */
+.timerPresetRow,
+.pomodoroPresetRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.timerPresetChip,
+.pomodoroPresetChip {
+  min-height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 999px;
+  color: var(--widget-muted);
+  background: color-mix(in srgb, var(--acc) 6%, transparent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.timerPresetChip[aria-pressed="true"],
+.pomodoroPresetChip[aria-pressed="true"] {
+  color: var(--acc-ink);
+  border-color: color-mix(in srgb, var(--acc) 40%, transparent);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.timerPresetChip:disabled,
+.pomodoroPresetChip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ── 뽀모도로 분 설정(집중/휴식 스텝퍼) — 대기 중에만 조작 ── */
+.pomodoroSettings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pomodoroSettings[aria-disabled="true"] {
+  opacity: 0.5;
+}
+
+.pomodoroStepperRow {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.pomodoroStepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--acc) 5%, transparent);
+}
+
+.pomodoroStepperLabel {
+  color: var(--widget-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pomodoroStepper b {
+  min-width: 42px;
+  text-align: center;
+  color: var(--widget-text);
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.pomodoroStepper button {
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 7px;
+  color: var(--widget-text);
+  background: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pomodoroStepper button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* 하나의 세그먼트 바(시계|작업|뽀모도로 · 주간|월간|WBS) — pill 3개 금지. */
@@ -1380,6 +1598,12 @@
   background: color-mix(in srgb, var(--acc) 14%, transparent);
 }
 
+.itemActions button[aria-pressed="true"] {
+  opacity: 1;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 18%, transparent);
+}
+
 .itemActions {
   display: inline-flex;
   align-items: center;
@@ -1586,53 +1810,60 @@
 
 /* ---------- Ghost signal ---------- */
 
+/* 고스트 시그널 — 깔끔한 프로스티드 원형 배지(어색한 245deg 부분 링 제거).
+   accent 틴트 유리 디스크에 지표를 크게, 라벨은 아래로 작게. */
 .ghostSignal {
   position: relative;
   z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 142px;
-  height: 142px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 138px;
+  height: 138px;
   align-self: center;
-  border: 1px solid rgba(255, 255, 255, 0.48);
+  border: 1px solid color-mix(in srgb, var(--acc) 45%, rgba(255, 255, 255, 0.5));
   border-radius: 999px;
   background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.42) 0 56%, transparent 57%),
-    conic-gradient(var(--acc) 0 245deg, color-mix(in srgb, var(--acc) 14%, transparent) 245deg 360deg);
+    radial-gradient(circle at 38% 30%, rgba(255, 255, 255, 0.9), transparent 62%),
+    color-mix(in srgb, var(--acc) 16%, rgba(255, 255, 255, 0.72));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.58),
-    0 0 0 1px rgba(255, 255, 255, 0.22);
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 8px 20px -12px color-mix(in srgb, var(--acc) 60%, transparent);
+  backdrop-filter: blur(8px) saturate(1.05);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
   pointer-events: none;
 }
 
-.ghostSignal span {
-  color: rgba(44, 53, 64, 0.78);
-  font-size: 28px;
-  font-weight: 900;
-  line-height: 1;
-  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.82);
+.ghostMetric,
+.ghostClock {
+  color: var(--acc-ink);
+  font-size: 26px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
 }
 
 .ghostSignal strong,
 .ghostSignal small {
-  max-width: 98px;
+  max-width: 110px;
   overflow: hidden;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.74);
 }
 
 .ghostSignal strong {
-  color: rgba(44, 53, 64, 0.74);
-  font-size: 14px;
-  font-weight: 900;
+  color: color-mix(in srgb, var(--widget-text) 82%, transparent);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .ghostSignal small {
-  color: rgba(90, 103, 114, 0.64);
-  font-size: 14px;
-  font-weight: 700;
+  color: var(--widget-muted);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* ---------- 최소화 오브 / 숨김 카드 ---------- */
@@ -2659,19 +2890,22 @@
 }
 
 :global([data-theme="dark"]) .ghostSignal {
-  border-color: rgba(150, 170, 215, 0.28);
+  border-color: color-mix(in srgb, var(--acc) 42%, rgba(150, 170, 215, 0.28));
   background:
-    radial-gradient(circle, rgba(19, 26, 40, 0.4) 0 56%, transparent 57%),
-    conic-gradient(var(--acc) 0 245deg, rgba(150, 170, 215, 0.14) 245deg 360deg);
+    radial-gradient(circle at 38% 30%, rgba(180, 205, 240, 0.16), transparent 62%),
+    color-mix(in srgb, var(--acc) 20%, rgba(19, 26, 40, 0.62));
   box-shadow:
     inset 0 1px 0 rgba(180, 205, 240, 0.14),
-    0 0 0 1px rgba(150, 170, 215, 0.12);
+    0 8px 20px -12px rgba(10, 16, 28, 0.6);
 }
 
-:global([data-theme="dark"]) .ghostSignal span,
+:global([data-theme="dark"]) .ghostMetric,
+:global([data-theme="dark"]) .ghostClock {
+  color: #EAF0F8;
+}
+
 :global([data-theme="dark"]) .ghostSignal strong {
   color: #EAF0F8;
-  text-shadow: 0 1px 10px rgba(10, 16, 28, 0.6);
 }
 
 :global([data-theme="dark"]) .ghostSignal small {

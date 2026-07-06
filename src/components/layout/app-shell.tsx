@@ -1,9 +1,10 @@
 "use client";
 
+import { Phone } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { AppNav } from "@/components/layout/app-nav";
 import { TopbarNotificationsPanel } from "@/components/layout/topbar-notifications-panel";
@@ -24,8 +25,10 @@ import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, readUserUpdatedDetail, useDataRefresh, USER_UPDATED_EVENT } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
-import { AUTH_SESSION_CHANGE_EVENT, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
-import { launchTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
+import { AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
+import { voiceStore } from "@/lib/voice-store";
+import { projectRoomRoute } from "@/lib/project-room-routes";
+import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -39,6 +42,8 @@ import {
   syncActiveProjectRoomFromWidgetContext,
 } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewRooms, workspacePreviewUser } from "@/lib/workspace-preview-data";
+import { getChatRealtimeClient } from "@/lib/websocket/chat-realtime";
+import { websocketTopics } from "@/lib/websocket/topics";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationResponse } from "@/types/api/notification";
 import type { ContractDocumentType, ProjectRoomInvitationResponse, ProjectRoomResponse } from "@/types/api/projectRoom";
@@ -46,6 +51,8 @@ import type { ContractDocumentType, ProjectRoomInvitationResponse, ProjectRoomRe
 const runtimeSmokeEnabled =
   process.env.NODE_ENV === "development" &&
   process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
+const TAURI_SESSION_RESTORE_GRACE_ATTEMPTS = 6;
+const TAURI_SESSION_RESTORE_GRACE_DELAY_MS = 250;
 
 type AppShellProps = {
   children: ReactNode;
@@ -97,11 +104,38 @@ function inferContractDocumentType(file: File): ContractDocumentType {
   return name.includes("requirement") || name.includes("요구") || name.includes("요건") ? "REQUIREMENT" : "CONTRACT";
 }
 
+function waitForMs(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function restoreInitialWorkspaceSession() {
+  const storedSession = getStoredAuthSession();
+  if (storedSession) {
+    return storedSession;
+  }
+
+  let restoredSession = await restoreStoredAuthSessionFromTauri();
+  if (restoredSession || !isTauriRuntime()) {
+    return restoredSession;
+  }
+
+  for (let attempt = 0; attempt < TAURI_SESSION_RESTORE_GRACE_ATTEMPTS; attempt += 1) {
+    await waitForMs(TAURI_SESSION_RESTORE_GRACE_DELAY_MS);
+    restoredSession = await restoreStoredAuthSessionFromTauri();
+    if (restoredSession) {
+      return restoredSession;
+    }
+  }
+
+  return null;
+}
+
 export function AppShell({ children }: AppShellProps) {
   const { t } = useI18n();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isDesktopRuntime = isTauriRuntime();
   const [state, setState] = useState<ShellState>({ kind: "loading" });
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(() => getActiveProjectRoomId());
   const [selectedRoomLabel, setSelectedRoomLabel] = useState<string | null>(() => getActiveProjectRoomLabel());
@@ -116,6 +150,55 @@ export function AppShell({ children }: AppShellProps) {
   const [myInvitations, setMyInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
   const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null);
   const roomsRef = useRef<ProjectRoomResponse[]>([]);
+
+  const voiceSnap = useSyncExternalStore(voiceStore.subscribe, voiceStore.getSnapshot, voiceStore.getServerSnapshot);
+  const persistVoice = voiceSnap.voice.kind === "ready" ? voiceSnap.voice : null;
+  const showVoiceFloat = persistVoice !== null && persistVoice.room.status === "OPEN";
+  const voiceChatLink = persistVoice
+    ? persistVoice.room.roomId
+      ? `/app/chat?roomId=${persistVoice.room.roomId}`
+      : `/app/chat?mode=direct`
+    : "/app/chat";
+
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    function stopAll() {
+      active = false;
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+      analyserRef.current = null;
+      if (voiceStore.getSnapshot().isSpeaking) voiceStore.update({ isSpeaking: false });
+    }
+    if (!showVoiceFloat || voiceSnap.micMuted) { stopAll(); return; }
+    if (typeof navigator === "undefined" || !navigator.mediaDevices) return;
+
+    void (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!active) { stream.getTracks().forEach((t) => t.stop()); return; }
+        const ctx = new AudioContext();
+        audioCtxRef.current = ctx;
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        analyserRef.current = analyser;
+        ctx.createMediaStreamSource(stream).connect(analyser);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        const tick = () => {
+          if (!active || !analyserRef.current) return;
+          analyserRef.current.getByteFrequencyData(data);
+          const speaking = data.some((v) => v > 20);
+          if (speaking !== voiceStore.getSnapshot().isSpeaking) voiceStore.update({ isSpeaking: speaking });
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      } catch { voiceStore.update({ isSpeaking: false }); }
+    })();
+
+    return () => stopAll();
+  }, [showVoiceFloat, voiceSnap.micMuted]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -135,10 +218,15 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     let mounted = true;
+    let loadShellRun = 0;
 
     async function loadShell() {
+      const runId = ++loadShellRun;
+      const isCurrentRun = () => mounted && runId === loadShellRun;
+
       try {
-        const restoredSession = await restoreStoredAuthSessionFromTauri();
+        const restoredSession = await restoreInitialWorkspaceSession();
+        if (!isCurrentRun()) return;
 
         if (!restoredSession) {
           if (shouldUseWorkspacePreviewData()) {
@@ -150,13 +238,37 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
 
-        const user = await authApi.getMe();
-        let roomPage: Awaited<ReturnType<typeof projectRoomApi.list>>;
-
+        let user: AuthUser;
         try {
-          roomPage = await projectRoomApi.list();
+          user = await authApi.getMe();
         } catch (error) {
+          if (!isCurrentRun()) return;
+
           if (error instanceof ApiClientError && error.status === 401) {
+            setState({ kind: "auth" });
+            return;
+          }
+
+          setState({ kind: "offline" });
+          return;
+        }
+        if (!isCurrentRun()) return;
+
+        setState((current) =>
+          current.kind === "ready"
+            ? { ...current, user }
+            : { kind: "ready", notifications: [], rooms: roomsRef.current, user },
+        );
+
+        const [roomPageResult, widgetContextResult] = await Promise.allSettled([
+          projectRoomApi.list(),
+          widgetApi.getContext(),
+        ]);
+
+        if (!isCurrentRun()) return;
+
+        if (roomPageResult.status === "rejected") {
+          if (roomPageResult.reason instanceof ApiClientError && roomPageResult.reason.status === 401) {
             setState({ kind: "auth" });
             return;
           }
@@ -165,26 +277,14 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
 
-        let notifications: NotificationResponse[] = [];
-
-        try {
-          const notificationPage = await notificationApi.list();
-          notifications = notificationPage.items;
-        } catch {
-          notifications = [];
-        }
-
-        // 받은 초대함 (backend PR 189): 실패해도 셸 로드는 계속한다.
-        const invitationPage = await projectRoomApi.getMyInvitations("PENDING").catch(() => null);
-        if (mounted) setMyInvitations(invitationPage?.items ?? []);
-
-        const widgetContext = await widgetApi.getContext().catch(() => null);
+        const roomPage = roomPageResult.value;
+        const widgetContext = widgetContextResult.status === "fulfilled" ? widgetContextResult.value : null;
         const contextRoom = widgetContext?.selectedRoomId
           ? roomPage.items.find((room) => room.id === widgetContext.selectedRoomId)
           : undefined;
         if (contextRoom) {
           seedActiveProjectRoomId(contextRoom.id, contextRoom.name);
-          if (mounted) {
+          if (isCurrentRun()) {
             setSelectedRoomId(contextRoom.id);
             setSelectedRoomLabel(contextRoom.name);
           }
@@ -192,20 +292,47 @@ export function AppShell({ children }: AppShellProps) {
 
         if (!contextRoom) {
           await restoreActiveProjectRoomFromTauri();
+          if (!isCurrentRun()) return;
           const restoredRoomId = getActiveProjectRoomId();
           const restoredRoom = restoredRoomId ? roomPage.items.find((room) => room.id === restoredRoomId) : undefined;
           if (restoredRoom) {
             seedActiveProjectRoomId(restoredRoom.id, restoredRoom.name);
-            if (mounted) {
+            await widgetApi.updateContext({ selectedRoomId: restoredRoom.id }).catch(() => undefined);
+            if (isCurrentRun()) {
               setSelectedRoomId(restoredRoom.id);
               setSelectedRoomLabel(restoredRoom.name);
             }
           }
         }
 
-        if (mounted) setState({ kind: "ready", notifications, rooms: roomPage.items, user });
+        if (isTauriRuntime() && !getActiveProjectRoomId() && roomPage.items[0]) {
+          const firstRoom = roomPage.items[0];
+          seedActiveProjectRoomId(firstRoom.id, firstRoom.name);
+          await widgetApi.updateContext({ selectedRoomId: firstRoom.id }).catch(() => undefined);
+          if (!isCurrentRun()) return;
+          setSelectedRoomId(firstRoom.id);
+          setSelectedRoomLabel(firstRoom.name);
+        }
+
+        if (isCurrentRun()) setState({ kind: "ready", notifications: [], rooms: roomPage.items, user });
+
+        void Promise.allSettled([notificationApi.list(), projectRoomApi.getMyInvitations("PENDING")]).then(
+          ([notificationPageResult, invitationPageResult]) => {
+            if (!isCurrentRun()) return;
+
+            if (notificationPageResult.status === "fulfilled") {
+              setState((current) =>
+                current.kind === "ready" ? { ...current, notifications: notificationPageResult.value.items } : current,
+              );
+            }
+
+            if (invitationPageResult.status === "fulfilled") {
+              setMyInvitations(invitationPageResult.value.items);
+            }
+          },
+        );
       } catch (error) {
-        if (!mounted) return;
+        if (!isCurrentRun()) return;
         if (error instanceof ApiClientError && error.status === 401) {
           setState({ kind: "auth" });
           return;
@@ -275,10 +402,41 @@ export function AppShell({ children }: AppShellProps) {
     void refreshShellLists();
   }, [refreshShellLists]);
 
+  // 새 채팅 메시지 등으로 생성된 알림을 실시간으로 받아 벨 배지/목록에 즉시 반영한다.
+  // 창이 백그라운드에 있으면(Notification API 지원 시) 데스크톱 알림도 함께 띄운다.
+  useEffect(() => {
+    if (state.kind !== "ready") return;
+
+    const client = getChatRealtimeClient();
+    return client.subscribe(websocketTopics.notifications, (data) => {
+      const notification = data as NotificationResponse | null;
+      if (!notification || typeof notification.id !== "string") return;
+
+      setState((current) =>
+        current.kind === "ready"
+          ? {
+              ...current,
+              notifications: [notification, ...current.notifications.filter((item) => item.id !== notification.id)],
+            }
+          : current,
+      );
+      notifyDataChanged("notification", { source: "app-shell" });
+
+      if (typeof window === "undefined" || document.visibilityState !== "hidden" || !("Notification" in window)) {
+        return;
+      }
+      if (Notification.permission === "granted") {
+        new Notification(notification.title, { body: notification.body ?? undefined });
+      } else if (Notification.permission === "default") {
+        void Notification.requestPermission();
+      }
+    });
+  }, [state.kind]);
+
   // 룸 생성/이름 변경/종료/다시 열기/멤버 변경이 어디에서 일어나든 스위처·탑바에 즉시 반영하고,
   // 창 포커스 복귀 시에도(데스크톱 위젯/다른 탭에서의 변경 대비) 스로틀을 걸어 재검증한다.
   useDataRefresh({
-    domains: ["project-room"],
+    domains: ["project-room", "notification"],
     ignoreSource: "app-shell",
     minFocusIntervalMs: 20_000,
     onRefresh: handleShellListsRefresh,
@@ -286,9 +444,14 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     if (state.kind === "auth") {
+      if (isDesktopRuntime) {
+        void stopTauriAuthenticatedSurfaces().catch((error) => {
+          console.warn("Failed to stop Tauri authenticated surfaces after auth reset.", error);
+        });
+      }
       router.replace("/login");
     }
-  }, [router, state.kind]);
+  }, [isDesktopRuntime, router, state.kind]);
 
   useEffect(() => {
     roomsRef.current = state.kind === "ready" ? state.rooms : [];
@@ -297,7 +460,7 @@ export function AppShell({ children }: AppShellProps) {
   useEffect(() => {
     if (state.kind !== "ready" || !isTauriRuntime() || runtimeSmokeEnabled) return;
 
-    void launchTauriAuthenticatedSurfaces().catch((error) => {
+    void launchTauriAuthenticatedSurfaces({ sessionAlreadyValidated: true }).catch((error) => {
       console.warn("Failed to launch Tauri authenticated surfaces after shell ready.", error);
     });
   }, [state.kind, readyUserId]);
@@ -412,6 +575,14 @@ export function AppShell({ children }: AppShellProps) {
     }
 
     if (state.kind === "auth") {
+      if (isDesktopRuntime) {
+        return {
+          description: t("layout.project.checking"),
+          name: t("layout.project.selectRoom"),
+          statusLabel: "",
+        };
+      }
+
       return {
         description: t("layout.project.loginToStart"),
         name: t("layout.project.loginRequired"),
@@ -442,7 +613,7 @@ export function AppShell({ children }: AppShellProps) {
     }
 
     return routeFallbackProject(t);
-  }, [activeRoom, selectedRoom, selectedRoomId, selectedRoomLabel, state, t]);
+  }, [activeRoom, isDesktopRuntime, selectedRoom, selectedRoomId, selectedRoomLabel, state, t]);
 
   const topbarUser = useMemo(() => {
     if (state.kind === "offline" && state.user) {
@@ -456,7 +627,7 @@ export function AppShell({ children }: AppShellProps) {
 
     if (state.kind !== "ready") {
       return {
-        displayName: state.kind === "auth" ? t("common.login") : "Bubli",
+        displayName: state.kind === "auth" && !isDesktopRuntime ? t("common.login") : "Bubli",
         email: state.kind === "offline" ? t("layout.user.serverWaiting") : t("layout.user.checking"),
         initials: "B",
       };
@@ -468,7 +639,7 @@ export function AppShell({ children }: AppShellProps) {
       email: state.user.email ?? (state.user.bubliId ? `@${state.user.bubliId}` : t("layout.user.loggedIn")),
       initials: initialsFromName(state.user.name),
     };
-  }, [state, t]);
+  }, [isDesktopRuntime, state, t]);
 
   const closeTopbarMenus = useCallback(() => {
     setTopbarMenu(null);
@@ -516,7 +687,7 @@ export function AppShell({ children }: AppShellProps) {
     }
     if (notification.sourceType === "MESSAGE") {
       const fallbackRoute = sourceId
-        ? `/app/project-rooms/${encodeURIComponent(sourceId)}/work`
+        ? projectRoomRoute(sourceId, "work")
         : "/app";
 
       if (isTauriRuntime()) {
@@ -538,7 +709,7 @@ export function AppShell({ children }: AppShellProps) {
         const resource = await resourcesApi.get(sourceId);
         router.push(
           resource.roomId
-            ? `/app/project-rooms/${resource.roomId}/resources?resourceId=${encodeURIComponent(resource.id)}`
+            ? `${projectRoomRoute(resource.roomId, "resources")}&resourceId=${encodeURIComponent(resource.id)}`
             : `/app/resources?resourceId=${encodeURIComponent(resource.id)}`,
         );
       } catch {
@@ -566,7 +737,7 @@ export function AppShell({ children }: AppShellProps) {
       // 같은 창에 떠 있는 홈 카드/룸 목록 화면에도 즉시 알린다(셸 자신은 위에서 이미 갱신).
       notifyDataChanged("project-room", { source: "app-shell" });
       setTopbarMenu(null);
-      router.push(`/app/project-rooms/${invitation.roomId}`);
+      router.push(projectRoomRoute(invitation.roomId, "work"));
     } catch {
       // 만료/취소된 초대일 수 있으므로 목록에서만 제거하지 않고 다음 로드에서 동기화한다.
     } finally {
@@ -632,7 +803,7 @@ export function AppShell({ children }: AppShellProps) {
     setProjectSwitcherOpen(false);
     // 홈 카드/룸 목록 화면 등 같은 창의 다른 표면에 생성 사실을 즉시 알린다.
     notifyDataChanged("project-room", { source: "app-shell" });
-    router.push(`/app/project-rooms/${createdRoom.id}`);
+    router.push(projectRoomRoute(createdRoom.id, "work"));
   }
 
   async function handleCreateRoom(event: FormEvent<HTMLFormElement>) {
@@ -808,18 +979,28 @@ export function AppShell({ children }: AppShellProps) {
           </>
         ) : null}
         <div className="bubli-main-scroll">
-          {state.kind === "ready" || (state.kind === "offline" && state.user) ? (
+          {state.kind === "ready" || state.kind === "offline" ? (
             children
           ) : (
             // 비로그인 상태에서는 회원 전용 콘텐츠를 렌더하지 않는다. (로그인 페이지로 리다이렉트 중)
             <div className="bubli-auth-gate" role="status">
-              {t("layout.gate.redirecting")}
+              {state.kind === "loading" || isTauriRuntime() ? t("common.loading") : t("layout.gate.redirecting")}
             </div>
           )}
         </div>
         {/* 첫 사용 경험(직군 온보딩 + 튜토리얼) — 인증 완료 후에만, 홈 위 오버레이로 렌더한다. */}
         {state.kind === "ready" ? <FirstRunController user={state.user} /> : null}
       </main>
+      {showVoiceFloat ? (
+        <div className="voice-float" role="status" aria-label={t("layout.voice.active")}>
+          <Link className="voice-float__btn" href={voiceChatLink} title={t("layout.voice.goToChat")}>
+            <Phone aria-hidden size={21} strokeWidth={2} />
+            <span className="voice-float__ring" aria-hidden />
+            <span className="voice-float__ring voice-float__ring--2" aria-hidden />
+          </Link>
+          <span className="voice-float__label">{t("layout.voice.active")}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

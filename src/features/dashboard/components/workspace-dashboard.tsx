@@ -31,6 +31,7 @@ import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import { projectRoomRoute } from "@/lib/project-room-routes";
 import {
   shouldUseWorkspacePreviewData,
   workspacePreviewDashboard,
@@ -554,7 +555,7 @@ function ProjectRoomsWidget({ rooms }: { rooms: ProjectRoomResponse[] }) {
             <Link
               aria-label={t("dashboard.rooms.enterAria", { room: room.name })}
               className="workspace-dashboard__room-link"
-              href={`/app/project-rooms/${room.id}`}
+              href={projectRoomRoute(room.id, "work")}
             >
               {room.name}
             </Link>

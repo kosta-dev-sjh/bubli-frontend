@@ -7,7 +7,7 @@
 // /desktop-widget 표면은 AppShell을 쓰지 않으므로 여기서 자동으로 제외된다.
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { completeOnboarding, completeTutorial, hasCompletedOnboarding, readStoredOnboarding } from "@/features/onboarding/lib/onboarding-storage";
 import { tauriCommands } from "@/lib/tauri/commands";
@@ -34,21 +34,21 @@ type FirstRunControllerProps = {
 export function FirstRunController({ user }: FirstRunControllerProps) {
   const [phase, setPhase] = useState<FirstRunPhase>("idle");
 
-  const triggerOnboardingOverlay = () => {
+  const triggerOnboardingOverlay = useCallback(() => {
     if (!isMacTauriRuntime()) return false;
 
     void tauriCommands.openOnboardingOverlay();
     return true;
-  };
+  }, []);
 
-  const showTour = () => {
+  const showTour = useCallback(() => {
     if (triggerOnboardingOverlay()) {
       setPhase("idle");
       return;
     }
 
     setPhase("tour");
-  };
+  }, [triggerOnboardingOverlay]);
 
   // 저장소 확인은 마운트 뒤에만 — SSR 하이드레이션 불일치를 피한다.
   useEffect(() => {
@@ -69,7 +69,7 @@ export function FirstRunController({ user }: FirstRunControllerProps) {
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [user.id]);
+  }, [showTour, user.id]);
 
   // 설정 > 표시 "튜토리얼 다시 보기" — AppShell에 상주하므로 어느 화면에서든 받는다.
   useEffect(() => {
@@ -84,7 +84,7 @@ export function FirstRunController({ user }: FirstRunControllerProps) {
 
     window.addEventListener(OPEN_TUTORIAL_EVENT, openTutorial);
     return () => window.removeEventListener(OPEN_TUTORIAL_EVENT, openTutorial);
-  }, []);
+  }, [triggerOnboardingOverlay]);
 
   const handleOnboardingFinish = (result: RoleOnboardingResult) => {
     // 적용/건너뛰기 공통으로 완료 기록(오버레이의 skip도 이 경로로 들어온다).
