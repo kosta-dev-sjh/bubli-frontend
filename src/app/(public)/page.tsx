@@ -231,7 +231,6 @@ export default function HomePage() {
                 </div>
               </article>
               <Link aria-label={t("public.home.downloadMacAria")} className="landing-download__float landing-download__float--primary" download href={macosInstallerHref}>
-              <Link aria-label={t("public.home.downloadMacAria")} className="landing-download__float landing-download__float--primary" download href={macosInstallerHref}>
                 <span className="landing-download__float-os" aria-hidden="true">
                   <Apple size={24} strokeWidth={2.15} />
                 </span>
