@@ -53,6 +53,7 @@ const runtimeSmokeEnabled =
   process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
 const TAURI_SESSION_RESTORE_GRACE_ATTEMPTS = 6;
 const TAURI_SESSION_RESTORE_GRACE_DELAY_MS = 250;
+const TAURI_SESSION_RESTORE_COMMAND_TIMEOUT_MS = 1_000;
 
 type AppShellProps = {
   children: ReactNode;
@@ -108,20 +109,45 @@ function waitForMs(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+async function withTimeout<T>(task: Promise<T>, timeoutMs: number, fallback: T) {
+  let timeoutId: number | null = null;
+
+  try {
+    return await Promise.race([
+      task,
+      new Promise<T>((resolve) => {
+        timeoutId = window.setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+    }
+  }
+}
+
 async function restoreInitialWorkspaceSession() {
   const storedSession = getStoredAuthSession();
   if (storedSession) {
     return storedSession;
   }
 
-  let restoredSession = await restoreStoredAuthSessionFromTauri();
+  let restoredSession = await withTimeout(
+    restoreStoredAuthSessionFromTauri(),
+    TAURI_SESSION_RESTORE_COMMAND_TIMEOUT_MS,
+    null,
+  );
   if (restoredSession || !isTauriRuntime()) {
     return restoredSession;
   }
 
   for (let attempt = 0; attempt < TAURI_SESSION_RESTORE_GRACE_ATTEMPTS; attempt += 1) {
     await waitForMs(TAURI_SESSION_RESTORE_GRACE_DELAY_MS);
-    restoredSession = await restoreStoredAuthSessionFromTauri();
+    restoredSession = await withTimeout(
+      restoreStoredAuthSessionFromTauri(),
+      TAURI_SESSION_RESTORE_COMMAND_TIMEOUT_MS,
+      null,
+    );
     if (restoredSession) {
       return restoredSession;
     }
@@ -443,14 +469,28 @@ export function AppShell({ children }: AppShellProps) {
   });
 
   useEffect(() => {
+    let redirectFallbackId: number | null = null;
+
     if (state.kind === "auth") {
       if (isDesktopRuntime) {
         void stopTauriAuthenticatedSurfaces().catch((error) => {
           console.warn("Failed to stop Tauri authenticated surfaces after auth reset.", error);
         });
       }
+
       router.replace("/login");
+      redirectFallbackId = window.setTimeout(() => {
+        if (window.location.pathname !== "/login") {
+          window.location.assign("/login");
+        }
+      }, 500);
     }
+
+    return () => {
+      if (redirectFallbackId !== null) {
+        window.clearTimeout(redirectFallbackId);
+      }
+    };
   }, [isDesktopRuntime, router, state.kind]);
 
   useEffect(() => {
@@ -575,14 +615,6 @@ export function AppShell({ children }: AppShellProps) {
     }
 
     if (state.kind === "auth") {
-      if (isDesktopRuntime) {
-        return {
-          description: t("layout.project.checking"),
-          name: t("layout.project.selectRoom"),
-          statusLabel: "",
-        };
-      }
-
       return {
         description: t("layout.project.loginToStart"),
         name: t("layout.project.loginRequired"),
@@ -984,7 +1016,7 @@ export function AppShell({ children }: AppShellProps) {
           ) : (
             // 비로그인 상태에서는 회원 전용 콘텐츠를 렌더하지 않는다. (로그인 페이지로 리다이렉트 중)
             <div className="bubli-auth-gate" role="status">
-              {state.kind === "loading" || isTauriRuntime() ? t("common.loading") : t("layout.gate.redirecting")}
+              {state.kind === "loading" ? t("common.loading") : t("layout.gate.redirecting")}
             </div>
           )}
         </div>
