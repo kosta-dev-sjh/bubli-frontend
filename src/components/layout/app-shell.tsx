@@ -31,7 +31,7 @@ import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import {
   AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession, restoreStoredAuthSessionFromTauri, clearStoredAuthSession,
 } from "@/lib/auth/auth-session";
-import { connectLiveKitRoom } from "@/lib/livekit-client";
+import { connectLiveKitRoom, onActiveSpeakersChanged } from "@/lib/livekit-client";
 import { voiceStore } from "@/lib/voice-store";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
@@ -210,51 +210,17 @@ export function AppShell({ children }: AppShellProps) {
       : `/app/chat?mode=direct`
     : "/app/chat";
 
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-
+  // "말하는 중" 표시 — LiveKit이 로컬/원격 참여자 전원의 오디오 레벨을 추적해 알려주므로
+  // 별도로 마이크 스트림을 열어 분석할 필요가 없다.
   useEffect(() => {
-    let active = true;
-    function stopAll() {
-      active = false;
-      audioCtxRef.current?.close().catch(() => {});
-      audioCtxRef.current = null;
-      analyserRef.current = null;
-      // AudioContext를 닫아도 getUserMedia로 받은 트랙 자체는 살아있으므로
-      // 명시적으로 stop()하지 않으면 마이크가 새로고침 전까지 계속 점유된다.
-      micStreamRef.current?.getTracks().forEach((track) => track.stop());
-      micStreamRef.current = null;
-      if (voiceStore.getSnapshot().isSpeaking) voiceStore.update({ isSpeaking: false });
+    if (!showVoiceFloat) {
+      voiceStore.update({ isSpeaking: false });
+      return;
     }
-    if (!showVoiceFloat || voiceSnap.micMuted) { stopAll(); return; }
-    if (typeof navigator === "undefined" || !navigator.mediaDevices) return;
-
-    void (async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        if (!active) { stream.getTracks().forEach((t) => t.stop()); return; }
-        micStreamRef.current = stream;
-        const ctx = new AudioContext();
-        audioCtxRef.current = ctx;
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        analyserRef.current = analyser;
-        ctx.createMediaStreamSource(stream).connect(analyser);
-        const data = new Uint8Array(analyser.frequencyBinCount);
-        const tick = () => {
-          if (!active || !analyserRef.current) return;
-          analyserRef.current.getByteFrequencyData(data);
-          const speaking = data.some((v) => v > 20);
-          if (speaking !== voiceStore.getSnapshot().isSpeaking) voiceStore.update({ isSpeaking: speaking });
-          requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      } catch { voiceStore.update({ isSpeaking: false }); }
-    })();
-
-    return () => stopAll();
-  }, [showVoiceFloat, voiceSnap.micMuted]);
+    return onActiveSpeakersChanged((speakingUserIds) => {
+      voiceStore.update({ isSpeaking: Boolean(readyUserId && speakingUserIds.has(readyUserId)) });
+    });
+  }, [showVoiceFloat, readyUserId]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -1247,9 +1213,6 @@ export function AppShell({ children }: AppShellProps) {
                 type="button"
               >
                 {voiceCallResponding ? t("layout.voiceCall.connecting") : t("layout.voiceCall.accept")}
-              </button>
-              <button className="voice-call-invite__later" disabled={voiceCallResponding} onClick={dismissIncomingVoiceCall} type="button">
-                {t("layout.voiceCall.later")}
               </button>
               <button className="voice-call-invite__decline" disabled={voiceCallResponding} onClick={dismissIncomingVoiceCall} type="button">
                 {t("layout.voiceCall.decline")}
