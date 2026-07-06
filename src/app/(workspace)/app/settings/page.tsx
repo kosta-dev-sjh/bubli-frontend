@@ -198,13 +198,6 @@ function byteLabel(value: number | null | undefined, fallback = "—") {
   return `${Math.round(value / 1024)}KB`;
 }
 
-// 백엔드 StorageUsageResponse 합계 필드는 totalUsedBytes/totalLimitBytes다(usedBytes/limitBytes 아님).
-function storageLabel(t: TranslateFn, storage: StorageUsageResponse | null) {
-  const beforeCheck = t("settings.value.beforeCheck");
-  if (!storage) return beforeCheck;
-  if (!Number.isFinite(storage.totalUsedBytes) || !Number.isFinite(storage.totalLimitBytes)) return beforeCheck;
-  return `${byteLabel(storage.totalUsedBytes, beforeCheck)} / ${byteLabel(storage.totalLimitBytes, beforeCheck)}`;
-}
 
 function localSqliteDiagnosticsLabel(result: SqliteIntegrityResult) {
   const freePages = Math.max(0, result.freelistCount);
@@ -757,11 +750,25 @@ export default function SettingsPage() {
   const selectManagedFolder = useCallback(async () => {
     if (state.kind !== "ready") return;
 
-    const consentGranted = Boolean(state.settings.privacy?.localFolderEnabled);
+    // 폴더 선택 클릭 자체가 로컬 폴더 사용 "동의" 행위다 — 별도 토글을 먼저 켜지 않아도
+    // 맥/윈도우 모두에서 클릭 즉시 OS 폴더 피커가 열려야 한다. 선택 성공 시 동의를 서버에 기록한다.
+    const alreadyConsented = Boolean(state.settings.privacy?.localFolderEnabled);
+    const consentGranted = true;
     const result = await selectPersonalManagedFolder({ consentGranted });
     if (result.status !== "ready") {
       setMessage({ text: localResultMessage(t, result), tone: "warning" });
       return;
+    }
+
+    // 아직 동의 기록이 없었다면 폴더 선택을 동의로 간주해 서버에 반영한다(감시 루프도 깨운다).
+    if (!alreadyConsented) {
+      try {
+        const savedPrivacy = await settingsApi.updatePrivacyConsents({ localFolderEnabled: true });
+        updateReadyState((ready) => ({ ...ready, settings: { ...ready.settings, privacy: savedPrivacy } }));
+        notifyManagedFolderConsentChanged(true);
+      } catch {
+        // 동의 기록 실패는 폴더 선택 자체를 막지 않는다(다음 진입 시 재시도).
+      }
     }
 
     const folder = result.data;
@@ -1334,13 +1341,8 @@ export default function SettingsPage() {
                     </Button>
                   </div>
                 </div>
-                <div className={styles.row}>
-                  <div className={styles.rowText}>
-                    <strong>{t("settings.card.storage")}</strong>
-                    <p>{t("settings.value.serverUsage")}</p>
-                  </div>
-                  <span className={styles.rowValue}>{storageLabel(t, readySettings.storage)}</span>
-                </div>
+                {/* 저장공간(서버 사용량)은 개인/프로젝트룸마다 다르므로 설정이 아니라
+                    자료보드에서 보여준다 — 여기서는 제거. */}
                 <div className={styles.row}>
                   <div className={styles.rowText}>
                     <strong>{t("common.logout")}</strong>
