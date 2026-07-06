@@ -2896,9 +2896,11 @@ function GhostSignal({
                   key={row.id}
                 >
                   {row.checked ? (
-                    <CheckCircle2 aria-hidden="true" size={12} strokeWidth={2.6} />
+                    <span aria-hidden="true" className={[styles.ghostTodoBox, styles.ghostTodoBoxDone].join(" ")}>
+                      <Check size={12} strokeWidth={3.4} />
+                    </span>
                   ) : (
-                    <i aria-hidden="true" className={styles.ghostTodoDot} />
+                    <span aria-hidden="true" className={styles.ghostTodoBox} />
                   )}
                   <span>{row.label}</span>
                 </li>

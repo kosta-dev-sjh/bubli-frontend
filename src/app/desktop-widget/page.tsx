@@ -802,8 +802,11 @@ function buildDisplayBubbles(input: {
     kanbanTone: withKanban ? task.status : undefined,
     kind: "task",
     label: task.title,
+    // "내 할 일" 탭(withKanban=false)에서 룸에서 부여된 항목은 룸 이름 태그로 구분한다.
+    // 룸 컨텍스트(isRoomScoped)에서도 태그를 보여준다. 프로젝트룸 탭(withKanban=true)은
+    // 전부 그 룸이라 태그가 군더더기라 생략한다.
     roomName:
-      sourceKind === "room" && !isRoomScoped && task.roomId
+      sourceKind === "room" && !withKanban && task.roomId
         ? input.roomNames?.[task.roomId] ?? t("widget.todo.roomFallback")
         : undefined,
     sourceKind,
