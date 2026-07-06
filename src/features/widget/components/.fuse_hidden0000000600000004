@@ -1275,8 +1275,6 @@ const POMODORO_PRESETS: Array<{ breakMinutes: number; focusMinutes: number; labe
 // 집중/휴식 분을 직접 입력하는 필드 — 숫자만 허용, 범위로 클램프. +/− 스텝퍼와 함께 쓴다.
 // 진행 링 둘레(r=54): 2πr. strokeDashoffset = 둘레 × 경과비율(시간이 지날수록 링이 줄어든다).
 const POMODORO_RING_CIRCUMFERENCE = 2 * Math.PI * 54;
-// TODO 카운트 링 둘레(r=42).
-const TODO_RING_CIRCUMFERENCE = 2 * Math.PI * 42;
 
 // 작업/개인 카운트업 타이머용 원형 링 — 뽀모도로와 같은 디자인, 색만 다르게(파랑).
 // progress(0~1)는 현재 1분 내 진행(초/60)이라 매 분 한 바퀴 스윕한다.
