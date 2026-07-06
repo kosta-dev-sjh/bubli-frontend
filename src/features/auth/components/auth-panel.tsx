@@ -120,7 +120,6 @@ export function AuthPanel() {
   const [isStartingLogin, setIsStartingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const isDevTauriLogin = shouldUseTauriDevLogin();
-  const isCheckingExistingSession = liveAuth.status === "checking";
 
   // 살아 있는 세션이면 다시 로그인하지 않고 곧바로 앱으로 보낸다.
   useEffect(() => {
@@ -225,7 +224,7 @@ export function AuthPanel() {
           ) : null}
           <button
             className="bubli-button bubli-button--primary bubli-button--lg auth-card__submit"
-            disabled={isStartingLogin || isCheckingExistingSession}
+            disabled={isStartingLogin}
             onClick={handleGoogleLogin}
             onPointerLeave={handleSubmitPointerLeave}
             onPointerMove={handleSubmitPointerMove}
@@ -242,11 +241,7 @@ export function AuthPanel() {
             type="button"
           >
             <GoogleIcon />
-            {isCheckingExistingSession
-              ? t("common.loading")
-              : isStartingLogin
-                ? t("auth.panel.googleRedirecting")
-                : t("auth.panel.googleLogin")}
+            {isStartingLogin ? t("auth.panel.googleRedirecting") : t("auth.panel.googleLogin")}
           </button>
           {loginError ? <p className="auth-card__error">{loginError}</p> : null}
         </div>
