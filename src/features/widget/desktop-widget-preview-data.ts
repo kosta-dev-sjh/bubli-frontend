@@ -38,6 +38,7 @@ export type WidgetPreviewBubble = {
   lastMessageSequence?: number;
   metric: string;
   metricLabel: string;
+  progressRatio?: number;
   notificationLabel: string;
   panelBody: string;
   panelLabel: string;

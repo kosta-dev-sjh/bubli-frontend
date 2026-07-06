@@ -595,20 +595,20 @@ function TodoBody({
       <div className={styles.summaryRow}>
         {/* 실제 SVG 도넛(이미지 아님) — 원호가 남은 개수에 비례해 채워진다. */}
         <div className={styles.countRing}>
-          <svg className={styles.countRingSvg} viewBox="0 0 96 96" aria-hidden="true">
-            <circle className={styles.countRingTrack} cx="48" cy="48" r="42" />
-            <circle
-              className={styles.countRingArc}
-              cx="48"
-              cy="48"
-              r="42"
-              style={{ strokeDasharray: TODO_RING_CIRCUMFERENCE, strokeDashoffset: TODO_RING_CIRCUMFERENCE * (1 - Math.min((Number.parseInt(bubble.metric, 10) || 0) / 6, 1)) }}
-            />
-          </svg>
-          <div className={styles.countRingText}>
-            <span>{bubble.metric}</span>
-            <b>{t(bubble.metricLabel as MessageKey)}</b>
+          <div className={styles.countRingDial}>
+            <svg className={styles.countRingSvg} viewBox="0 0 96 96" aria-hidden="true">
+              <circle className={styles.countRingTrack} cx="48" cy="48" r="42" />
+              <circle
+                className={styles.countRingArc}
+                cx="48"
+                cy="48"
+                r="42"
+                style={{ strokeDasharray: TODO_RING_CIRCUMFERENCE, strokeDashoffset: TODO_RING_CIRCUMFERENCE * (1 - Math.max(0, Math.min(1, bubble.progressRatio ?? 0))) }}
+              />
+            </svg>
+            <span className={styles.countRingNum}>{bubble.metric}</span>
           </div>
+          <b className={styles.countRingLabel}>{t(bubble.metricLabel as MessageKey)}</b>
         </div>
         <div className={styles.summaryCopy}>
           <strong>{t(bubble.panelLabel as MessageKey)}</strong>
@@ -2294,6 +2294,24 @@ function GhostSignal({
   }
   if (isTimer && resolvedTimerMode === "pomodoro") {
     return <GhostPomodoro roomId={roomId} />;
+  }
+
+  // TODO 고스트는 숫자만이 아니라 "무엇이 남았는지" 제목을 보여준다(남은 항목 상위 몇 개).
+  if (bubbleType === "todo") {
+    const remaining = bubble.rows.filter((row) => !row.checked).slice(0, 4);
+    return (
+      <div className={styles.ghostSignal} aria-label={t("widget.ghostAria", { label: t(bubble.label as MessageKey) })}>
+        {remaining.length === 0 ? (
+          <span className={styles.ghostSub}>{t("widget.todo.none")}</span>
+        ) : (
+          <ul className={styles.ghostList}>
+            {remaining.map((row) => (
+              <li className={styles.ghostListItem} key={row.id}>{row.label}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
   }
 
   return (

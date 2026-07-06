@@ -642,14 +642,15 @@ function buildDisplayBubbles(input: {
   } else {
     // 개인 컨텍스트: 오늘 작업(개인+할당) 우선, 모자라면 다가오는 마감으로 채운 뒤 귀속별로 나눈다.
     const todoSource = input.dashboard?.todayTasks.length ? input.dashboard.todayTasks : input.tasks;
-    const deadlineFill = (input.dashboard?.upcomingDeadlines ?? []).filter(
-      (deadline) => !todoSource.some((task) => task.id === deadline.id),
-    );
-    const merged = [...todoSource, ...deadlineFill].filter(isNotDoneTask);
+    // 미래 마감으로 채우지 않는다 — 오늘 남은 것만 센다(없으면 0).
+    const merged = todoSource.filter(isNotDoneTask);
     personalTodoTasks = merged.filter((task) => !task.roomId);
     roomTodoTasks = merged.filter((task) => Boolean(task.roomId));
   }
   const todoTotalCount = personalTodoTasks.length + roomTodoTasks.length;
+  const todoTodaySource = isRoomScoped ? input.tasks : (input.dashboard?.todayTasks ?? input.tasks);
+  const todoDoneCount = todoTodaySource.filter((task) => task.status === "DONE").length;
+  const todoProgressRatio = todoDoneCount + todoTotalCount > 0 ? todoDoneCount / (todoDoneCount + todoTotalCount) : 0;
   const todoTaskToRow = (task: WidgetTaskResponse, sourceKind: "personal" | "room"): WidgetPreviewItem => ({
     checked: task.status === "DONE",
     dueTone: widgetDueTone(task.dueAt),
@@ -677,7 +678,11 @@ function buildDisplayBubbles(input: {
         ...personalTodoTasks.map((task) => todoTaskToRow(task, "personal")),
         ...roomTodoTasks.map((task) => todoTaskToRow(task, "room")),
       ];
-  const todoItems = todoRowsOrdered.slice(0, 4);
+  // 완료 항목도 계속 보여준다(잘못 체크했으면 다시 눌러 되돌릴 수 있게). 남은 작업 뒤에 붙인다.
+  const todoDoneRows = todoTodaySource
+    .filter((task) => task.status === "DONE")
+    .map((task) => todoTaskToRow(task, task.roomId ? "room" : "personal"));
+  const todoItems = [...todoRowsOrdered, ...todoDoneRows];
 
   const scheduleItems = scheduleSource.slice(0, 3);
   const scheduleTimeLabel = (item: WidgetScheduleResponse) => (item.allDay ? t("widget.schedule.allDay") : formatShortTime(item.startsAt));
@@ -854,6 +859,7 @@ function buildDisplayBubbles(input: {
         : [],
     }),
     todo: withBubble("todo", {
+      progressRatio: todoProgressRatio,
       // 카운트 링/칩은 잘린 표시 행이 아니라 병합된 전체 남은 개수를 반영한다.
       compactLabel: t("widget.todo.count", { count: todoTotalCount }),
       metric: String(todoTotalCount),
@@ -1985,7 +1991,7 @@ function DesktopWidgetSurface() {
 
       await persistItemState();
       if (activeBubble === "todo" && item.kind === "task" && state === "CONFIRMED") {
-        await todoApi.update(item.id, { status: "DONE" });
+        await todoApi.update(item.id, { status: item.checked ? "TODO" : "DONE" });
         setTodoRevision((current) => current + 1);
         publishWidgetDataChanged("todo");
       }
