@@ -2203,7 +2203,7 @@ function GhostClock() {
   const dateLabel = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", weekday: "short" }).format(now);
   return (
     <div className={styles.ghostSignal} role="timer" aria-live="off">
-      <strong className={styles.ghostClock}>{formatClock(now)}</strong>
+      <strong className={styles.ghostClock}>{`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`}</strong>
       <small>{dateLabel}</small>
     </div>
   );
@@ -2290,7 +2290,6 @@ function GhostSignal({
       aria-label={t("widget.ghostAria", { label: t(bubble.label as MessageKey) })}
     >
       <span className={styles.ghostMetric}>{bubble.metric}</span>
-      <small className={styles.ghostSub}>{t(bubble.compactLabel as MessageKey)}</small>
     </div>
   );
 }
