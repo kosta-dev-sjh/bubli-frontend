@@ -1471,10 +1471,15 @@ assertContains(
   /user = await authApi\.getMe\(\);[\s\S]*setState\(\(current\) =>[\s\S]*\{ kind: "ready", notifications: \[\], rooms: roomsRef\.current, user \}[\s\S]*projectRoomApi\.list\(\),[\s\S]*widgetApi\.getContext\(\),/,
   "AppShell must open the authenticated Tauri shell immediately after /api/me before slower room and widget context hydration.",
 );
-assertContains(
+assertNotContains(
   appShell,
   /if \(isTauriRuntime\(\)\) \{[\s\S]*restoredSession\.user[\s\S]*\{ kind: "ready", notifications: \[\], rooms: roomsRef\.current, user: restoredSession\.user \}[\s\S]*user = await authApi\.getMe\(\);/,
-  "Hybrid Tauri app must paint the member shell from the restored OAuth session before waiting on /api/me validation.",
+  "Hybrid Tauri app must not paint the member shell from a restored OAuth session before /api/me validates it.",
+);
+assertContains(
+  appShell,
+  /if \(state\.kind === "loading" \|\| state\.kind === "auth"\) \{[\s\S]*className="bubli-auth-gate bubli-auth-gate--standalone"[\s\S]*t\("common\.loading"\)[\s\S]*t\("layout\.gate\.redirecting"\)/,
+  "Hybrid Tauri app must render a standalone auth gate instead of leaking the member shell while auth is loading or redirecting.",
 );
 assertContains(
   appShell,
@@ -1544,7 +1549,7 @@ assertContains(
 );
 assertContains(
   authPanel,
-  /const liveAuth = useLiveAuthState\(\);[\s\S]*const isCheckingExistingSession = liveAuth\.status === "checking";[\s\S]*const submitLabel = isTauriRuntime\(\)[\s\S]*t\("auth\.panel\.googleLogin"\)[\s\S]*isCheckingExistingSession[\s\S]*t\("common\.loading"\)[\s\S]*aria-busy=\{isStartingLogin \|\| isCheckingExistingSession\}[\s\S]*disabled=\{isStartingLogin \|\| isCheckingExistingSession\}[\s\S]*\{submitLabel\}/,
+  /const liveAuth = useLiveAuthState\(\);[\s\S]*const hasMounted = useSyncExternalStore\(subscribeClientSnapshot, getClientSnapshot, getServerSnapshot\);[\s\S]*const isCheckingExistingSession = liveAuth\.status === "checking";[\s\S]*const submitLabel =[\s\S]*hasMounted && isTauriRuntime\(\)[\s\S]*t\("auth\.panel\.googleLogin"\)[\s\S]*isCheckingExistingSession[\s\S]*t\("common\.loading"\)[\s\S]*aria-busy=\{isStartingLogin \|\| isCheckingExistingSession\}[\s\S]*disabled=\{isStartingLogin \|\| isCheckingExistingSession\}[\s\S]*\{submitLabel\}/,
   "Tauri login must keep the visible Google login CTA stable while using disabled/aria-busy for session restore and OAuth progress.",
 );
 assertContains(

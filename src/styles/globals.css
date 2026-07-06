@@ -22309,6 +22309,14 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   font-weight: 600;
 }
 
+.bubli-auth-gate--standalone {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 20% 18%, rgba(111, 184, 242, 0.16), transparent 34%),
+    radial-gradient(circle at 78% 24%, rgba(198, 171, 255, 0.14), transparent 30%),
+    var(--color-background);
+}
+
 /* ── 홈 대시보드 추가 카드(프로젝트룸 바로가기) 링크 — __line 타이포와 맞춘다 ── */
 .workspace-dashboard__room-link {
   min-width: 0;

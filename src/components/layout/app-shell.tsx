@@ -277,14 +277,6 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
 
-        if (isTauriRuntime()) {
-          setState((current) =>
-            current.kind === "ready"
-              ? { ...current, user: restoredSession.user }
-              : { kind: "ready", notifications: [], rooms: roomsRef.current, user: restoredSession.user },
-          );
-        }
-
         let user: AuthUser;
         try {
           user = await authApi.getMe();
@@ -1125,6 +1117,14 @@ export function AppShell({ children }: AppShellProps) {
     setProjectSwitcherOpen(false);
   }
 
+  if (state.kind === "loading" || state.kind === "auth") {
+    return (
+      <main className="bubli-auth-gate bubli-auth-gate--standalone" role="status">
+        {state.kind === "loading" ? t("common.loading") : t("layout.gate.redirecting")}
+      </main>
+    );
+  }
+
   return (
     <div className="bubli-app-layout">
       <aside className="bubli-sidebar" data-tour="sidebar">
@@ -1268,16 +1268,7 @@ export function AppShell({ children }: AppShellProps) {
             </section>
           </>
         ) : null}
-        <div className="bubli-main-scroll">
-          {state.kind === "ready" || state.kind === "offline" ? (
-            children
-          ) : (
-            // 비로그인 상태에서는 회원 전용 콘텐츠를 렌더하지 않는다. (로그인 페이지로 리다이렉트 중)
-            <div className="bubli-auth-gate" role="status">
-              {state.kind === "loading" ? t("common.loading") : t("layout.gate.redirecting")}
-            </div>
-          )}
-        </div>
+        <div className="bubli-main-scroll">{children}</div>
         {/* 첫 사용 경험(직군 온보딩 + 튜토리얼) — 인증 완료 후에만, 홈 위 오버레이로 렌더한다. */}
         {state.kind === "ready" ? <FirstRunController user={state.user} /> : null}
       </main>

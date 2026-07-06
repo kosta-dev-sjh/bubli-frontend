@@ -369,7 +369,7 @@ export function clearStoredAuthSession() {
   invalidateTauriAuthSessionRead();
   window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
   clearTauriAuthSessionMirror();
-  if (hadStoredSession || isTauriRuntime()) {
+  if (hadStoredSession) {
     emitAuthSessionChange();
   }
 }
