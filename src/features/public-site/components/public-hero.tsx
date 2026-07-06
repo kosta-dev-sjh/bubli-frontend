@@ -34,13 +34,13 @@ export function PublicHero() {
               <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/app">
                 {t("public.session.openApp")}
               </Link>
-              <Link className="bubli-button bubli-button--lg" href="/#download">
+              <Link className="bubli-button bubli-button--lg" href="/download">
                 {t("public.hero.download")}
               </Link>
             </>
           ) : (
             <>
-              <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/#download">
+              <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/download">
                 {t("public.hero.download")}
               </Link>
               <Link className="bubli-button bubli-button--lg" href="/login">

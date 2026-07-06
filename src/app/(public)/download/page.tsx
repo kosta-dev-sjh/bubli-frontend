@@ -1,6 +1,6 @@
 "use client";
 
-import { Apple, MonitorDown } from "lucide-react";
+import { Apple, Download, MonitorDown } from "lucide-react";
 import Link from "next/link";
 
 import { DecorBubble } from "@/components/bubbles";
@@ -11,11 +11,33 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 
-// 공개 라우트 계약(/download)의 실제 페이지.
-// 설치 파일 배포 전에는 플랫폼 안내 + 로그인/기능 진입만 제공한다.
-const platforms: { icon: typeof Apple; titleKey: MessageKey; bodyKey: MessageKey }[] = [
-  { icon: Apple, titleKey: "public.download.macTitle", bodyKey: "public.download.macBody" },
-  { icon: MonitorDown, titleKey: "public.download.winTitle", bodyKey: "public.download.winBody" },
+const macosInstallerHref = "/downloads/macos/Bubli-macOS-0.1.0-arm64.dmg";
+const windowsInstallerHref = "/downloads/windows/Bubli-Windows-latest.exe";
+
+const platforms: {
+  bodyKey: MessageKey;
+  ctaKey: MessageKey;
+  href: string;
+  icon: typeof Apple;
+  metaKey: MessageKey;
+  titleKey: MessageKey;
+}[] = [
+  {
+    bodyKey: "public.download.macBody",
+    ctaKey: "public.download.ctaMac",
+    href: macosInstallerHref,
+    icon: Apple,
+    metaKey: "public.download.macMeta",
+    titleKey: "public.download.macTitle",
+  },
+  {
+    bodyKey: "public.download.winBody",
+    ctaKey: "public.download.ctaWin",
+    href: windowsInstallerHref,
+    icon: MonitorDown,
+    metaKey: "public.download.winMeta",
+    titleKey: "public.download.winTitle",
+  },
 ];
 
 export default function DownloadPage() {
@@ -42,21 +64,32 @@ export default function DownloadPage() {
             const Icon = platform.icon;
 
             return (
-              <GlassPanel as="article" className="public-download__item" key={platform.titleKey}>
+              <GlassPanel as="article" className="public-download__item" key={platform.href}>
                 <span className="bubli-icon-tile" aria-hidden="true">
                   <Icon size={18} strokeWidth={2.1} />
                 </span>
                 <div>
                   <div className="public-download__item-head">
                     <h3>{t(platform.titleKey)}</h3>
-                    <StatusBadge tone="personal">{t("public.download.statusPreparing")}</StatusBadge>
+                    <StatusBadge tone="approved">{t("public.download.statusAvailable")}</StatusBadge>
                   </div>
                   <p>{t(platform.bodyKey)}</p>
+                  <span className="public-download__file-link">{t(platform.metaKey)}</span>
+                  <Link className="bubli-button bubli-button--primary bubli-button--sm" download href={platform.href}>
+                    <Download size={15} strokeWidth={2.15} />
+                    {t(platform.ctaKey)}
+                  </Link>
                 </div>
               </GlassPanel>
             );
           })}
         </div>
+
+        <GlassPanel className="public-download__intro">
+          <Chip>{t("public.download.securityChip")}</Chip>
+          <h2>{t("public.download.securityTitle")}</h2>
+          <p>{t("public.download.securityBody")}</p>
+        </GlassPanel>
       </section>
     </div>
   );

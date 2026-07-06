@@ -25,6 +25,9 @@ const faqItems: { qKey: MessageKey; aKey: MessageKey }[] = [
   { qKey: "public.home.faq4Q", aKey: "public.home.faq4A" },
 ];
 
+const macosInstallerHref = "/downloads/macos/Bubli-macOS-0.1.0-arm64.dmg";
+const windowsInstallerHref = "/downloads/windows/Bubli-Windows-latest.exe";
+
 export default function HomePage() {
   const { t } = useI18n();
 
@@ -107,7 +110,7 @@ export default function HomePage() {
                 {t("public.home.desktopList3")}
               </li>
             </ul>
-            <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/#download">
+            <Link className="bubli-button bubli-button--primary bubli-button--lg" download href={windowsInstallerHref}>
               {t("public.home.desktopCta")}
             </Link>
           </div>
@@ -227,7 +230,7 @@ export default function HomePage() {
                   </div>
                 </div>
               </article>
-              <Link aria-label={t("public.home.downloadMacAria")} className="landing-download__float landing-download__float--primary" href="/download">
+              <Link aria-label={t("public.home.downloadMacAria")} className="landing-download__float landing-download__float--primary" download href={macosInstallerHref}>
                 <span className="landing-download__float-os" aria-hidden="true">
                   <Apple size={24} strokeWidth={2.15} />
                 </span>
@@ -236,7 +239,12 @@ export default function HomePage() {
                   <Download size={20} strokeWidth={2.2} />
                 </span>
               </Link>
-              <Link aria-label={t("public.home.downloadWinAria")} className="landing-download__float landing-download__float--soft" href="/download">
+              <Link
+                aria-label={t("public.home.downloadWinAria")}
+                className="landing-download__float landing-download__float--soft"
+                download
+                href={windowsInstallerHref}
+              >
                 <span className="landing-download__float-os" aria-hidden="true">
                   <MonitorDown size={23} strokeWidth={2.1} />
                 </span>
@@ -282,7 +290,7 @@ export default function HomePage() {
         <span className="landing-footer__copy">{t("public.footer.tagline")}</span>
         <nav aria-label={t("public.footer.navAria")} className="landing-footer__links">
           <Link href="/#features">{t("public.footer.features")}</Link>
-          <Link href="/#download">{t("public.footer.download")}</Link>
+          <Link href="/download">{t("public.footer.download")}</Link>
           <Link href="/#faq">{t("public.footer.faq")}</Link>
           <Link href="/login">{t("public.footer.login")}</Link>
         </nav>
