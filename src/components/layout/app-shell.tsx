@@ -42,6 +42,8 @@ import {
   syncActiveProjectRoomFromWidgetContext,
 } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewRooms, workspacePreviewUser } from "@/lib/workspace-preview-data";
+import { getChatRealtimeClient } from "@/lib/websocket/chat-realtime";
+import { websocketTopics } from "@/lib/websocket/topics";
 import type { AuthUser } from "@/types/api/auth";
 import type { NotificationResponse } from "@/types/api/notification";
 import type { ContractDocumentType, ProjectRoomInvitationResponse, ProjectRoomResponse } from "@/types/api/projectRoom";
@@ -400,10 +402,41 @@ export function AppShell({ children }: AppShellProps) {
     void refreshShellLists();
   }, [refreshShellLists]);
 
+  // 새 채팅 메시지 등으로 생성된 알림을 실시간으로 받아 벨 배지/목록에 즉시 반영한다.
+  // 창이 백그라운드에 있으면(Notification API 지원 시) 데스크톱 알림도 함께 띄운다.
+  useEffect(() => {
+    if (state.kind !== "ready") return;
+
+    const client = getChatRealtimeClient();
+    return client.subscribe(websocketTopics.notifications, (data) => {
+      const notification = data as NotificationResponse | null;
+      if (!notification || typeof notification.id !== "string") return;
+
+      setState((current) =>
+        current.kind === "ready"
+          ? {
+              ...current,
+              notifications: [notification, ...current.notifications.filter((item) => item.id !== notification.id)],
+            }
+          : current,
+      );
+      notifyDataChanged("notification", { source: "app-shell" });
+
+      if (typeof window === "undefined" || document.visibilityState !== "hidden" || !("Notification" in window)) {
+        return;
+      }
+      if (Notification.permission === "granted") {
+        new Notification(notification.title, { body: notification.body ?? undefined });
+      } else if (Notification.permission === "default") {
+        void Notification.requestPermission();
+      }
+    });
+  }, [state.kind]);
+
   // 룸 생성/이름 변경/종료/다시 열기/멤버 변경이 어디에서 일어나든 스위처·탑바에 즉시 반영하고,
   // 창 포커스 복귀 시에도(데스크톱 위젯/다른 탭에서의 변경 대비) 스로틀을 걸어 재검증한다.
   useDataRefresh({
-    domains: ["project-room"],
+    domains: ["project-room", "notification"],
     ignoreSource: "app-shell",
     minFocusIntervalMs: 20_000,
     onRefresh: handleShellListsRefresh,

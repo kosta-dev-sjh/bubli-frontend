@@ -3129,6 +3129,11 @@ select {
   text-align: left;
 }
 
+.workspace-route__chat-room-select {
+  display: contents;
+  cursor: pointer;
+}
+
 .workspace-route__chat-room--active {
   border-color: rgba(55, 140, 220, 0.9);
   background: rgba(210, 235, 255, 0.88);
