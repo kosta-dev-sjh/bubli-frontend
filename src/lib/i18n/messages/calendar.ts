@@ -61,6 +61,9 @@ const ko = {
   "calendar.google.retry": "다시 시도",
   "calendar.google.readOnlyBadge": "읽기 전용",
   "calendar.google.readOnly": "구글 캘린더 원본 일정은 여기서 수정할 수 없습니다. 구글 캘린더에서 바꾸면 이 화면에도 반영됩니다.",
+  "calendar.event.whenLabel": "일시",
+  "calendar.event.edit": "수정",
+  "calendar.event.delete": "삭제",
 
   // 구글 OAuth 콜백 페이지(/calendar/google/callback)
   "calendar.googleCallback.pageAria": "구글 캘린더 연결 처리",
@@ -307,6 +310,9 @@ const en: Record<Key, string> = {
   "calendar.google.retry": "Try again",
   "calendar.google.readOnlyBadge": "Read-only",
   "calendar.google.readOnly": "Google Calendar source events can't be edited here. Changes made in Google Calendar are reflected on this screen.",
+  "calendar.event.whenLabel": "When",
+  "calendar.event.edit": "Edit",
+  "calendar.event.delete": "Delete",
 
   "calendar.googleCallback.pageAria": "Completing Google Calendar connection",
   "calendar.googleCallback.heading": "Google Calendar connection",
@@ -539,6 +545,9 @@ const ja: Record<Key, string> = {
   "calendar.google.retry": "再試行",
   "calendar.google.readOnlyBadge": "読み取り専用",
   "calendar.google.readOnly": "Google カレンダー原本の予定はここでは編集できません。Google カレンダーで変更するとこの画面にも反映されます。",
+  "calendar.event.whenLabel": "日時",
+  "calendar.event.edit": "編集",
+  "calendar.event.delete": "削除",
 
   "calendar.googleCallback.pageAria": "Google カレンダー連携の処理",
   "calendar.googleCallback.heading": "Google カレンダー連携",
