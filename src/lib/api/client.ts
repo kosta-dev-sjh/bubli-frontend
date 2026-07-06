@@ -178,6 +178,9 @@ async function refreshAuthSessionOnce() {
     return false;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), getApiTimeoutMs());
+
   try {
     const clientType = getAuthClientType();
     const response = await fetch(`${getApiBaseUrl()}/api/auth/refresh`, {
@@ -185,6 +188,7 @@ async function refreshAuthSessionOnce() {
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       method: "POST",
+      signal: controller.signal,
     });
     const payload = (await response.json()) as ApiResponse<AuthTokenResponse>;
 
@@ -198,5 +202,7 @@ async function refreshAuthSessionOnce() {
   } catch {
     clearStoredAuthSession();
     return false;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
