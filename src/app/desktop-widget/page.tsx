@@ -48,6 +48,8 @@ import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { AUTH_SESSION_CHANGE_EVENT, clearStoredAuthSession, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { notifyDataChanged, type DataChangedDomain } from "@/lib/data-changed";
+import { playNotificationSound } from "@/lib/sound/notification-sound";
+import { startCallRingtone, stopCallRingtone } from "@/lib/sound/call-sound";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
@@ -800,8 +802,11 @@ function buildDisplayBubbles(input: {
     kanbanTone: withKanban ? task.status : undefined,
     kind: "task",
     label: task.title,
+    // "내 할 일" 탭(withKanban=false)에서 룸에서 부여된 항목은 룸 이름 태그로 구분한다.
+    // 룸 컨텍스트(isRoomScoped)에서도 태그를 보여준다. 프로젝트룸 탭(withKanban=true)은
+    // 전부 그 룸이라 태그가 군더더기라 생략한다.
     roomName:
-      sourceKind === "room" && !isRoomScoped && task.roomId
+      sourceKind === "room" && !withKanban && task.roomId
         ? input.roomNames?.[task.roomId] ?? t("widget.todo.roomFallback")
         : undefined,
     sourceKind,
@@ -2808,11 +2813,13 @@ function DesktopWidgetSurface() {
   );
 
   const createWidgetTodo = useCallback(
-    async (bubble: WidgetPreviewBubble, inlineTitle?: string) => {
+    async (bubble: WidgetPreviewBubble, inlineTitle?: string, options?: { forcePersonal?: boolean }) => {
       const title = (inlineTitle ?? window.prompt(t(bubble.actionLabel as MessageKey)) ?? "").trim();
       if (!title) return;
 
-      const roomId = bubble.roomId ?? null;
+      // "내 할 일" 탭은 forcePersonal=true로 항상 개인 투두에 저장한다(룸 컨텍스트 무시).
+      // 그 외에는 #433 기준대로 버블의 룸을 따른다.
+      const roomId = options?.forcePersonal ? null : (bubble.roomId ?? null);
       const task = roomId
         ? await todoApi.createRoomTask(roomId, { status: "TODO", title })
         : await todoApi.create({ status: "TODO", title });
@@ -2858,6 +2865,30 @@ function DesktopWidgetSurface() {
       publishWidgetDataChanged("todo");
     },
     [isTauri, publishWidgetDataChanged],
+  );
+
+  const deleteWidgetTodo = useCallback(
+    async (item: WidgetPreviewItem) => {
+      if (!window.confirm(t("widget.todo.deleteConfirm", { label: item.label }))) return;
+
+      await todoApi.delete(item.id);
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "todo",
+            eventType: "todo:delete",
+            itemId: item.id,
+            itemType: "TASK",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setTodoRevision((current) => current + 1);
+      publishWidgetDataChanged("todo");
+    },
+    [isTauri, publishWidgetDataChanged, t],
   );
 
   const createWidgetSchedule = useCallback(
@@ -3091,6 +3122,9 @@ function DesktopWidgetSurface() {
       const notification = data as NotificationResponse | null;
       if (!notification || typeof notification.id !== "string") return;
 
+      // 데스크탑 위젯에서도 새 알림 도착 시 소리로 알린다(웹앱과 동일).
+      playNotificationSound();
+
       if (notification.sourceType === "VOICE_CALL" && notification.sourceId) {
         setIncomingVoiceCall({
           callerName: notification.title,
@@ -3133,6 +3167,13 @@ function DesktopWidgetSurface() {
     if (!incomingVoiceCall) return;
     const timeoutId = window.setTimeout(() => setIncomingVoiceCall(null), 30_000);
     return () => window.clearTimeout(timeoutId);
+  }, [incomingVoiceCall]);
+
+  // 수신 전화 UI가 떠 있는 동안 통화음을 반복 재생한다(응답/거절/타임아웃 시 정지).
+  useEffect(() => {
+    if (!incomingVoiceCall) return;
+    startCallRingtone();
+    return () => stopCallRingtone();
   }, [incomingVoiceCall]);
 
   const dismissIncomingVoiceCall = useCallback(() => {
@@ -3570,6 +3611,7 @@ function DesktopWidgetSurface() {
       onCreateSchedule={createWidgetSchedule}
       onCreateTodo={createWidgetTodo}
       onEditTodo={editWidgetTodo}
+      onDeleteTodo={deleteWidgetTodo}
       onDeleteMemo={deleteWidgetMemo}
       onAnalyzeResource={analyzeWidgetResource}
       onDownloadResource={downloadWidgetResource}

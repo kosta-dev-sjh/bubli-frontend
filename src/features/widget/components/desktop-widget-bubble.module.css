@@ -1128,9 +1128,15 @@
   background: color-mix(in srgb, var(--acc) 16%, transparent);
 }
 
+/* 완료 표시는 이중 원(원 안의 원-체크) 대신 accent로 꽉 찬 원 + 흰 체크로 깔끔하게. */
 .todoCheck[aria-pressed="true"] {
   border-color: var(--acc);
-  background: color-mix(in srgb, var(--acc) 22%, transparent);
+  background: var(--acc);
+  color: #ffffff;
+}
+
+.todoCheck[aria-pressed="true"]:hover {
+  background: color-mix(in srgb, var(--acc) 88%, #000);
 }
 
 /* 룸 칩: 개인 컨텍스트에서 룸 태스크 귀속을 알리는 accent 타일(.rowTile 계열).
@@ -2521,8 +2527,11 @@
 
 /* 어떤 배경에서도 읽히도록 자막 방식 — 흰 글자 + 진한 4방향 외곽선 + 부드러운 그림자.
    색은 흰색으로 모든 버블 일관. (밝은 배경=진한 외곽선이, 어두운 배경=흰 글자가 살린다) */
-.ghostMetric,
-.ghostClock {
+/* 고스트 큰 숫자(타이머/시계/뽀모도로)는 항상 같은 크기여야 한다.
+   .ghostClock는 <strong>에 붙어 아래 `.ghostSignal strong`(15px) 규칙에 특이도로 눌리므로,
+   .ghostSignal 하위 선택자로 특이도를 올려 58px가 이기게 한다(타이머·시계=뽀모도로 크기). */
+.ghostSignal .ghostMetric,
+.ghostSignal .ghostClock {
   color: rgba(255, 255, 255, 0.98);
   font-size: 58px;
   font-weight: 900;
@@ -4305,4 +4314,40 @@
   text-shadow:
     0 0 2px rgba(0, 0, 0, 0.7),
     0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* 고스트 TODO 항목: 빈 네모(미완료)/채운 네모(완료) 체크박스. 완료는 흐리게 + 취소선.
+   고스트에서 잘 읽히도록 16px로 키운다. */
+.ghostTodoItem {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  font-size: 16px;
+}
+.ghostTodoItem span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ghostTodoBox {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  color: transparent;
+}
+.ghostTodoBoxDone {
+  color: rgba(30, 41, 59, 0.95);
+  background: rgba(255, 255, 255, 0.96);
+}
+.ghostTodoDone {
+  opacity: 0.72;
+}
+.ghostTodoDone span {
+  text-decoration: line-through;
 }

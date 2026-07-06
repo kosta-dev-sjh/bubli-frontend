@@ -26,6 +26,7 @@ import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, readUserUpdatedDetail, useDataRefresh, USER_UPDATED_EVENT } from "@/lib/data-changed";
 import { playNotificationSound, primeNotificationSound } from "@/lib/sound/notification-sound";
+import { startCallRingtone, stopCallRingtone } from "@/lib/sound/call-sound";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import {
@@ -483,6 +484,10 @@ export function AppShell({ children }: AppShellProps) {
       );
       notifyDataChanged("notification", { source: "app-shell" });
 
+      // 새 알림이 도착하면 사용자가 어디에 있든 즉시 소리로 알린다(미읽음 카운트 변화와 무관).
+      // 자동재생 정책상 최초 사용자 제스처 전에는 조용히 무시된다(sound 모듈 내부 처리).
+      playNotificationSound();
+
       if (notification.sourceType === "VOICE_CALL" && notification.sourceId) {
         setIncomingVoiceCall({
           callerName: notification.title,
@@ -509,7 +514,12 @@ export function AppShell({ children }: AppShellProps) {
         notifyDataChanged("friend", { source: "app-shell" });
       }
 
-      if (typeof window === "undefined" || document.visibilityState !== "hidden" || !("Notification" in window)) {
+      // 탭이 숨겨졌거나 창이 포커스를 잃은 상태(다른 작업 중)면 OS 알림으로도 띄운다.
+      if (typeof window === "undefined" || !("Notification" in window)) {
+        return;
+      }
+      const userIsElsewhere = document.visibilityState === "hidden" || !document.hasFocus();
+      if (!userIsElsewhere) {
         return;
       }
       if (Notification.permission === "granted") {
@@ -525,6 +535,13 @@ export function AppShell({ children }: AppShellProps) {
     if (!incomingVoiceCall) return;
     const timeoutId = window.setTimeout(() => setIncomingVoiceCall(null), 30_000);
     return () => window.clearTimeout(timeoutId);
+  }, [incomingVoiceCall]);
+
+  // 수신 전화 UI가 떠 있는 동안 통화음을 반복 재생하고, 사라지면(응답/거절/타임아웃) 멈춘다.
+  useEffect(() => {
+    if (!incomingVoiceCall) return;
+    startCallRingtone();
+    return () => stopCallRingtone();
   }, [incomingVoiceCall]);
 
   const dismissIncomingVoiceCall = useCallback(() => {
