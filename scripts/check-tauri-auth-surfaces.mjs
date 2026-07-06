@@ -1286,6 +1286,11 @@ assertContains(
   "loginStartupBarWindow",
   "Login startup windows must include the Bubli bar.",
 );
+assertNotContains(
+  startupWindows,
+  /bubbleType:\s*"menu"|loginStartupMenuWindow/,
+  "Login startup windows must not open the legacy standalone menu window while the Bubli menu lives inside the bar.",
+);
 assertContains(
   startupWindows,
   /bubbleType:\s*"todo"[\s\S]*windowId:\s*"todo"/,
@@ -1311,8 +1316,8 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /for \(const setting of settings\)[\s\S]*if \(!setting\.enabled\) continue;[\s\S]*enabledByBubble\.set\(localType, setting\);[\s\S]*if \(enabledByBubble\.size === 0\) return \[\];[\s\S]*const startupBubbles: WidgetWindowOpenInput\[\] = \[loginStartupMenuWindow\];/,
-  "Tauri login startup must not treat the menu window as an enabled bubble; no enabled bubbles must fall back to the full default set.",
+  /for \(const setting of settings\)[\s\S]*if \(!setting\.enabled\) continue;[\s\S]*enabledByBubble\.set\(localType, setting\);[\s\S]*if \(enabledByBubble\.size === 0\) return \[\];[\s\S]*const startupBubbles: WidgetWindowOpenInput\[\] = \[\];/,
+  "Tauri login startup must not treat the legacy menu window as an enabled bubble.",
 );
 assertContains(
   surfaces,
