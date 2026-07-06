@@ -6,7 +6,9 @@ import {
   FileImage,
   FileText,
   FileType,
+  GitBranch,
   HardDrive,
+  KanbanSquare,
   MessageSquareText,
   Pencil,
   Presentation,
@@ -55,6 +57,14 @@ export type ResourceBoardScope = "personal" | "room";
 export type ResourcePreviewIntent = { kind: "delete" | "rename"; token: number };
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
+
+type ResourceWorkGenerationKind = "kanban" | "wbs";
+
+type ResourceWorkGenerationState =
+  | { kind: "idle" }
+  | { jobId: string; kind: "started"; target: ResourceWorkGenerationKind }
+  | { kind: "running"; target: ResourceWorkGenerationKind }
+  | { kind: "error"; message: string; target: ResourceWorkGenerationKind };
 
 const statusCopyKey: Record<ResourceStatus, MessageKey> = {
   ANALYZED: "resources.common.statusAnalyzed",
@@ -194,7 +204,9 @@ function extractSummaryText(summary?: ResourceSummaryResponse | null) {
       return preferredValue.trim();
     }
   } catch {
-    const matched = summary.summaryJson.match(/(?:summary|description|title)=([^,}]+)/i);
+    const matched = summary.summaryJson.match(
+      /(?:summary|description|title|raw)=([\s\S]*?)(?=,\s*(?:source|documentType|originalName|mimeType|pageCount|characterCount|lineCount|analysis|keywords|risks|checklist|schemaVersion|model)=|}$)/i,
+    );
     if (matched?.[1]?.trim()) {
       return matched[1].trim();
     }
@@ -571,6 +583,7 @@ export function ResourcePreview({
   const [draftState, setDraftState] = useState<{ kind: "idle" } | { kind: "running" } | { jobId: string; kind: "started" } | { kind: "error"; message: string }>({
     kind: "idle",
   });
+  const [workGenerationState, setWorkGenerationState] = useState<ResourceWorkGenerationState>({ kind: "idle" });
   const [related, setRelated] = useState<ResourceRelationResponse[]>([]);
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -603,6 +616,7 @@ export function ResourcePreview({
         setAnalysisState({ kind: "idle" });
         setQuestionState({ kind: "idle" });
         setDraftState({ kind: "idle" });
+        setWorkGenerationState({ kind: "idle" });
         setRenameOpen(false);
         setRenameState({ kind: "idle" });
         setVersionState({ kind: "idle" });
@@ -623,6 +637,7 @@ export function ResourcePreview({
       setAnalysisState({ kind: "idle" });
       setQuestionState({ kind: "idle" });
       setDraftState({ kind: "idle" });
+      setWorkGenerationState({ kind: "idle" });
       setEditingCommentId(null);
       setEditingCommentBody("");
       setRenameOpen(false);
@@ -902,6 +917,26 @@ export function ResourcePreview({
     }
   }, [activeResource, draftState.kind, roomId, t]);
 
+  const handleGenerateWork = useCallback(
+    async (target: ResourceWorkGenerationKind) => {
+      if (!activeResource || !roomId || (workGenerationState.kind === "running" && workGenerationState.target === target)) {
+        return;
+      }
+
+      setWorkGenerationState({ kind: "running", target });
+
+      try {
+        const body = { roomId, sourceResourceIds: [activeResource.id] };
+        const job = target === "wbs" ? await agentApi.generateWbs(body) : await agentApi.generateTasks(body);
+        setWorkGenerationState({ jobId: job.jobId, kind: "started", target });
+        notifyDataChanged("agent");
+      } catch (error) {
+        setWorkGenerationState({ kind: "error", message: getErrorMessage(error, t), target });
+      }
+    },
+    [activeResource, roomId, t, workGenerationState],
+  );
+
   const handleCreateComment = useCallback(async () => {
     const body = commentBody.trim();
     if (!activeResource || !body) {
@@ -1172,6 +1207,26 @@ export function ResourcePreview({
                   <FileText aria-hidden size={14} strokeWidth={2} />
                   {draftState.kind === "running" ? t("resources.common.draftRunning") : t("resources.common.documentDraft")}
                 </button>
+                <button
+                  aria-label="선택 문서로 WBS 생성"
+                  className={styles.actionButton}
+                  disabled={workGenerationState.kind === "running" && workGenerationState.target === "wbs"}
+                  onClick={() => void handleGenerateWork("wbs")}
+                  type="button"
+                >
+                  <GitBranch aria-hidden size={14} strokeWidth={2} />
+                  {workGenerationState.kind === "running" && workGenerationState.target === "wbs" ? "WBS 생성 중" : "WBS 생성"}
+                </button>
+                <button
+                  aria-label="선택 문서로 칸반 생성"
+                  className={styles.actionButton}
+                  disabled={workGenerationState.kind === "running" && workGenerationState.target === "kanban"}
+                  onClick={() => void handleGenerateWork("kanban")}
+                  type="button"
+                >
+                  <KanbanSquare aria-hidden size={14} strokeWidth={2} />
+                  {workGenerationState.kind === "running" && workGenerationState.target === "kanban" ? "칸반 생성 중" : "칸반 생성"}
+                </button>
               </>
             ) : null}
             <button
@@ -1199,6 +1254,19 @@ export function ResourcePreview({
           {draftState.kind === "started" ? <p className={styles.noticeInline}>{t("resources.common.draftStarted", { jobId: draftState.jobId.slice(0, 8) })}</p> : null}
           {draftState.kind === "running" ? <p className={styles.noticeInline}>{t("resources.common.draftRunningNotice")}</p> : null}
           {draftState.kind === "error" ? <p className={styles.errorInline}>{t("resources.common.draftFailed", { message: draftState.message })}</p> : null}
+          {workGenerationState.kind === "started" ? (
+            <p className={styles.noticeInline}>
+              {workGenerationState.target === "wbs" ? "WBS" : "칸반"} 생성 요청 완료. 작업 ID: {workGenerationState.jobId.slice(0, 8)}
+            </p>
+          ) : null}
+          {workGenerationState.kind === "running" ? (
+            <p className={styles.noticeInline}>{workGenerationState.target === "wbs" ? "WBS" : "칸반"} 생성 요청 중입니다.</p>
+          ) : null}
+          {workGenerationState.kind === "error" ? (
+            <p className={styles.errorInline}>
+              {workGenerationState.target === "wbs" ? "WBS" : "칸반"} 생성 실패: {workGenerationState.message}
+            </p>
+          ) : null}
           {aiDocState.kind === "error" ? <p className={styles.errorInline}>{aiDocState.message}</p> : null}
 
           {aiDocState.kind === "open" ? (

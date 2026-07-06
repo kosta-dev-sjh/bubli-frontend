@@ -1,8 +1,8 @@
 "use client";
 
-import { Building2, Crown, DoorClosed, FileUp, UserCheck, UserPlus, UsersRound, Wallet, X } from "lucide-react";
+import { Building2, Crown, DoorClosed, UserCheck, UserPlus, UsersRound, Wallet, X } from "lucide-react";
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -13,14 +13,7 @@ import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
-import type {
-  ContractDocumentType,
-  ProjectRoomInvitationResponse,
-  ProjectRoomMemberResponse,
-  ProjectRoomPaymentStatus,
-  ProjectRoomResponse,
-  ProjectRoomRole,
-} from "@/types/api/projectRoom";
+import type { ProjectRoomInvitationResponse, ProjectRoomMemberResponse, ProjectRoomPaymentStatus, ProjectRoomResponse, ProjectRoomRole } from "@/types/api/projectRoom";
 
 import styles from "./project-room-settings-panel.module.css";
 
@@ -38,17 +31,10 @@ const paymentStatusOptions: Array<{ labelKey: MessageKey; value: ProjectRoomPaym
   { labelKey: "room.settings.paymentStatus.overdue", value: "OVERDUE" },
 ];
 
-const documentTypeOptions: Array<{ labelKey: MessageKey; value: ContractDocumentType }> = [
-  { labelKey: "room.settings.documentType.contract", value: "CONTRACT" },
-  { labelKey: "room.settings.documentType.requirement", value: "REQUIREMENT" },
-];
-
 const roleOptions: Array<{ labelKey: MessageKey; value: ProjectRoomRole }> = [
   { labelKey: "room.board.roleLeader", value: "PROJECT_LEADER" },
   { labelKey: "room.board.roleMember", value: "MEMBER" },
 ];
-
-const CONTRACT_UPLOAD_ACCEPT = ".pdf,.txt,.md,.doc,.docx";
 
 function toDateInputValue(value?: string | null) {
   if (!value) return "";
@@ -86,7 +72,6 @@ export function ProjectRoomSettingsPanel({
   room: ProjectRoomResponse;
 }) {
   const { t } = useI18n();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [notice, setNotice] = useState<PanelNotice | null>(null);
   const [infoDraft, setInfoDraft] = useState({ clientName: room.clientName ?? "", name: room.name });
   const [isSavingInfo, setIsSavingInfo] = useState(false);
@@ -97,8 +82,6 @@ export function ProjectRoomSettingsPanel({
     paymentStatus: room.paymentStatus ?? "NOT_RECORDED",
   });
   const [isSavingPayment, setIsSavingPayment] = useState(false);
-  const [documentType, setDocumentType] = useState<ContractDocumentType>("CONTRACT");
-  const [isUploading, setIsUploading] = useState(false);
   const [busyMemberId, setBusyMemberId] = useState<string | null>(null);
   const [pendingRemoveUserId, setPendingRemoveUserId] = useState<string | null>(null);
   const [isCloseConfirming, setIsCloseConfirming] = useState(false);
@@ -192,26 +175,6 @@ export function ProjectRoomSettingsPanel({
       }
     } finally {
       setIsSavingPayment(false);
-    }
-  };
-
-  const handleUploadFile = async (file: File) => {
-    setIsUploading(true);
-
-    try {
-      await projectRoomApi.uploadContractDocument(room.id, file, documentType);
-      setNotice({ text: t("room.settings.uploadDone", { name: file.name }), tone: "ok" });
-    } catch (error) {
-      if (shouldUseWorkspacePreviewData()) {
-        setNotice({ text: t("room.settings.uploadDone", { name: file.name }), tone: "ok" });
-      } else {
-        setNotice({ text: requestErrorText(t, error), tone: "error" });
-      }
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     }
   };
 
@@ -481,50 +444,6 @@ export function ProjectRoomSettingsPanel({
               </Button>
             </div>
           </form>
-        </section>
-
-        <section aria-label={t("room.settings.contractTitle")} className={styles.section}>
-          <h3>
-            <FileUp aria-hidden="true" size={15} strokeWidth={1.9} />
-            {t("room.settings.contractTitle")}
-          </h3>
-          <p className={styles.hint}>{t("room.settings.contractHint")}</p>
-          <label className={styles.field}>
-            <span>{t("room.settings.documentTypeLabel")}</span>
-            <select
-              disabled={!canManage || isUploading}
-              onChange={(event) => setDocumentType(event.target.value as ContractDocumentType)}
-              value={documentType}
-            >
-              {documentTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {t(option.labelKey)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <input
-            accept={CONTRACT_UPLOAD_ACCEPT}
-            className={styles.hiddenFile}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void handleUploadFile(file);
-            }}
-            ref={fileInputRef}
-            type="file"
-          />
-          <div className={styles.fieldActions}>
-            <Button
-              disabled={!canManage}
-              icon={<FileUp size={14} strokeWidth={1.9} />}
-              loading={isUploading}
-              onClick={() => fileInputRef.current?.click()}
-              size="sm"
-              variant="secondary"
-            >
-              {isUploading ? t("room.settings.uploading") : t("room.settings.upload")}
-            </Button>
-          </div>
         </section>
 
         <section aria-label={t("room.settings.membersTitle")} className={styles.section}>
