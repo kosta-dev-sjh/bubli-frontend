@@ -7,6 +7,7 @@ import {
   setStoredAuthSession,
   setStoredAuthSessionAndWaitForTauriMirror,
 } from "@/lib/auth/auth-session";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type {
   AuthClientType,
   AuthRefreshResponse,
@@ -168,7 +169,11 @@ export const authApi = {
       skipAuth: true,
       skipAuthRefresh: true,
     });
-    setStoredAuthSession({ ...token, clientType });
+    if (isTauriRuntime()) {
+      await setStoredAuthSessionAndWaitForTauriMirror({ ...token, clientType });
+    } else {
+      setStoredAuthSession({ ...token, clientType });
+    }
     return token;
   },
 

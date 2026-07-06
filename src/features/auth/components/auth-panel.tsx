@@ -9,7 +9,11 @@ import { siteConfig } from "@/config/site";
 import { AuthConfigurationError, authApi } from "@/features/auth/api/authApi";
 import { useLiveAuthState } from "@/features/auth/hooks/use-live-auth-user";
 import { getApiBaseUrl } from "@/lib/api/client";
-import { setStoredAuthSessionAndWaitForTauriMirror } from "@/lib/auth/auth-session";
+import {
+  getStoredAuthSession,
+  restoreStoredAuthSessionFromTauri,
+  setStoredAuthSessionAndWaitForTauriMirror,
+} from "@/lib/auth/auth-session";
 import { useI18n } from "@/lib/i18n";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -121,8 +125,36 @@ export function AuthPanel() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const isDevTauriLogin = shouldUseTauriDevLogin();
   const isCheckingExistingSession = liveAuth.status === "checking";
+  const submitLabel = isTauriRuntime()
+    ? t("auth.panel.googleLogin")
+    : isCheckingExistingSession
+      ? t("common.loading")
+      : isStartingLogin
+        ? t("auth.panel.googleRedirecting")
+        : t("auth.panel.googleLogin");
 
   // 살아 있는 세션이면 다시 로그인하지 않고 곧바로 앱으로 보낸다.
+  useEffect(() => {
+    if (!isTauriRuntime()) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function openStoredTauriSession() {
+      const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
+      if (!cancelled && session) {
+        router.replace(TAURI_MEMBER_APP_ROUTE);
+      }
+    }
+
+    void openStoredTauriSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
   useEffect(() => {
     if (liveUser) {
       router.replace(isTauriRuntime() ? TAURI_MEMBER_APP_ROUTE : "/app");
@@ -225,6 +257,7 @@ export function AuthPanel() {
           ) : null}
           <button
             className="bubli-button bubli-button--primary bubli-button--lg auth-card__submit"
+            aria-busy={isStartingLogin || isCheckingExistingSession}
             disabled={isStartingLogin || isCheckingExistingSession}
             onClick={handleGoogleLogin}
             onPointerLeave={handleSubmitPointerLeave}
@@ -242,11 +275,7 @@ export function AuthPanel() {
             type="button"
           >
             <GoogleIcon />
-            {isCheckingExistingSession
-              ? t("common.loading")
-              : isStartingLogin
-                ? t("auth.panel.googleRedirecting")
-                : t("auth.panel.googleLogin")}
+            {submitLabel}
           </button>
           {loginError ? <p className="auth-card__error">{loginError}</p> : null}
         </div>

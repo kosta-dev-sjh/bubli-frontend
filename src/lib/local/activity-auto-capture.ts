@@ -15,6 +15,8 @@ import type { ActivityContextRecordAdapterResult } from "@/types/local";
 const DEFAULT_ACTIVITY_CAPTURE_INTERVAL_MS = 30_000;
 const ACTIVITY_CAPTURE_INTERVAL_MS = resolveActivityCaptureIntervalMs();
 const CONSENT_REFRESH_INTERVAL_MS = 60_000;
+const ACTIVITY_CAPTURE_LOCK_KEY = "bubli:activity-auto-capture-lock:v1";
+const ACTIVITY_CAPTURE_LOCK_TTL_MS = 25_000;
 
 let captureIntervalId: number | null = null;
 let captureInFlight = false;
@@ -118,6 +120,16 @@ async function captureActivityOnce() {
     return captureInFlightPromise ?? Promise.resolve();
   }
 
+  const lock = tryAcquireActivityCaptureLock();
+  if (!lock) {
+    updateActivityAutoCaptureStatus({
+      lastMessage: translate("local.activity.noNewDwell"),
+      lastStatus: "waiting",
+      running: isAutoCaptureActive(),
+    });
+    return;
+  }
+
   captureInFlight = true;
   updateActivityAutoCaptureStatus({
     lastAttemptAt: new Date().toISOString(),
@@ -153,6 +165,7 @@ async function captureActivityOnce() {
         running: isAutoCaptureActive(),
       });
     } finally {
+      releaseActivityCaptureLock(lock);
       captureInFlight = false;
       captureInFlightPromise = null;
     }
@@ -161,12 +174,61 @@ async function captureActivityOnce() {
   return captureInFlightPromise;
 }
 
+function tryAcquireActivityCaptureLock() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const token = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  const now = Date.now();
+  try {
+    const current = window.localStorage.getItem(ACTIVITY_CAPTURE_LOCK_KEY);
+    if (current) {
+      const [expiresAtRaw] = current.split(":", 1);
+      const expiresAt = Number(expiresAtRaw);
+      if (Number.isFinite(expiresAt) && expiresAt > now) {
+        return null;
+      }
+    }
+
+    const value = `${now + ACTIVITY_CAPTURE_LOCK_TTL_MS}:${token}`;
+    window.localStorage.setItem(ACTIVITY_CAPTURE_LOCK_KEY, value);
+    return window.localStorage.getItem(ACTIVITY_CAPTURE_LOCK_KEY) === value ? value : null;
+  } catch {
+    return token;
+  }
+}
+
+function releaseActivityCaptureLock(lock: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    if (window.localStorage.getItem(ACTIVITY_CAPTURE_LOCK_KEY) === lock) {
+      window.localStorage.removeItem(ACTIVITY_CAPTURE_LOCK_KEY);
+    }
+  } catch {
+    // Nothing to release if storage is unavailable.
+  }
+}
+
 export async function flushActivityAutoCapture() {
   if (!isTauriRuntime()) return;
   if (captureInFlightPromise) {
     await captureInFlightPromise.catch(() => undefined);
   }
   if (captureInFlight) return;
+
+  const lock = tryAcquireActivityCaptureLock();
+  if (!lock) {
+    updateActivityAutoCaptureStatus({
+      lastMessage: translate("local.activity.noNewDwell"),
+      lastStatus: "waiting",
+      running: isAutoCaptureActive(),
+    });
+    return;
+  }
 
   captureInFlight = true;
   updateActivityAutoCaptureStatus({
@@ -201,6 +263,7 @@ export async function flushActivityAutoCapture() {
         running: isAutoCaptureActive(),
       });
     } finally {
+      releaseActivityCaptureLock(lock);
       captureInFlight = false;
       captureInFlightPromise = null;
     }

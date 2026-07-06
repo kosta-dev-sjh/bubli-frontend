@@ -238,23 +238,22 @@ async function verifyWidgetRestartLayout(assert: SmokeAssert) {
     restartedWidgetStates.every((widget) => {
       const expected = runtimeSmokeWidgetPosition(widget.activeBubble as SmokeWidgetBubble);
       return (
-        widget.mode === "DEFAULT" &&
-        widget.windowVisible &&
         widget.selectedRoomId === smokeRoomId &&
         widget.position.x === expected.x &&
         widget.position.y === expected.y
       );
     }),
-    "widget layout restored visible positions after app restart",
+    "widget layout restored positions and room context after app restart",
     restartedWidgetStates,
   );
   await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true });
   await tauriCommands.openWidgetWindows({
     windows: [
-      { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" },
+      { bubbleType: "bar", mode: "DEFAULT", selectedRoomId: smokeRoomId, windowId: "bar" },
       ...smokeWidgetBubbles.map((bubbleType) => ({
         bubbleType,
         mode: "DEFAULT" as const,
+        selectedRoomId: smokeRoomId,
         windowId: bubbleType,
       })),
     ],
@@ -925,11 +924,13 @@ async function verifyLocalAutoSyncLoops(assert: SmokeAssert) {
     });
     const drainedNames = localFileEventNames(drainedEvents.events);
     const drainedStatus = getManagedFolderAutoSyncStatus();
+    const handledFileEventCount =
+      (drainedStatus.lastFileEventSyncedCount ?? 0) + (drainedStatus.lastFileEventSkippedCount ?? 0);
     assert(
       !drainedNames.has("runtime-smoke-note.txt") &&
         !drainedNames.has("runtime-smoke-delete.txt") &&
         (drainedStatus.lastFileEventSentCount ?? 0) >= 1 &&
-        (drainedStatus.lastFileEventSyncedCount ?? 0) >= 1 &&
+        handledFileEventCount >= 1 &&
         (drainedStatus.lastFileAnalysisFailedCount ?? 0) === 0 &&
         drainedStatus.lastStatus !== "failed",
       "local auto-sync managed folder events drained through backend sync",

@@ -24,6 +24,10 @@ export const resourcesApi = {
     return apiRequest<ResourcePageResponse>(`/api/project-rooms/${roomId}/resources`);
   },
 
+  listRoomResourcesPage(roomId: string, page = 0, size = 100) {
+    return apiRequest<ResourcePageResponse>(`/api/project-rooms/${roomId}/resources?page=${page}&size=${size}`);
+  },
+
   upload(body: ResourceUploadRequest) {
     return apiRequest<ResourceResponse>("/api/resources", {
       body,

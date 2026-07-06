@@ -31,6 +31,9 @@ jobs:
       - name: Product rules
         run: npm run check:product-rules
 
+      - name: Activity duration
+        run: npm run check:activity-duration
+
       - name: Design tokens
         run: npm run check:design-tokens
 

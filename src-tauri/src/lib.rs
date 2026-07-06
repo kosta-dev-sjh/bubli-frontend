@@ -51,6 +51,7 @@ const WIDGET_BAR_WIDTH: f64 = 640.0;
 const WIDGET_BAR_HEIGHT: f64 = 430.0;
 // 바 창은 투명 여유를 포함하므로 native top-left가 화면 밖으로 일부 나갈 수 있다.
 // 그래도 복원 시 사용자가 찾을 수 있도록 최소한 이 폭만큼은 선호 모니터 안에 남긴다.
+#[cfg(target_os = "macos")]
 const WIDGET_BAR_MIN_VISIBLE_WIDTH: f64 = 320.0;
 // desktop-widget-bubble.module.css .bubbleBar 높이(칩 36 + padding 16 + border 2)와
 // .barRoot padding 4를 합친 보이는 pill의 대략적 세로 예산.
@@ -58,6 +59,7 @@ const WIDGET_BAR_VISIBLE_HEIGHT: f64 = 58.0;
 const WIDGET_BAR_ROOT_PADDING: f64 = 4.0;
 // 일부 macOS/Tauri 조합에서는 monitor.work_area()가 Dock 영역을 충분히 제외하지 못한다.
 // 이때만 하단에 보수적인 안전 여백을 둬 bar pill이 Dock 아래로 사라지지 않게 한다.
+#[cfg(target_os = "macos")]
 const WIDGET_MACOS_DOCK_GUARD: f64 = 92.0;
 // 직전 릴리스의 바 창 높이. 저장 레이아웃에 barLayoutHeight가 없으면 이 값으로 간주하고,
 // 바 pill이 창 하단 고정이므로 높이 델타만큼 저장 y를 위로 당겨 pill의 화면 위치를 유지한다.
@@ -69,6 +71,7 @@ const WIDGET_MENU_WIDTH: f64 = 248.0;
 // 닫힘 상태(오브만)에서는 그림자를 껐고 투명 영역이라 큰 창이 보이지 않는다.
 const WIDGET_MENU_HEIGHT: f64 = 540.0;
 const ONBOARDING_OVERLAY_WINDOW_LABEL: &str = "onboarding-overlay";
+#[cfg(target_os = "macos")]
 const ONBOARDING_OVERLAY_WINDOW_URL: &str = "desktop-widget/onboarding/";
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
@@ -1220,6 +1223,7 @@ fn widget_window_url(widget: &WidgetWindowState) -> String {
     url
 }
 
+#[cfg(target_os = "macos")]
 fn onboarding_overlay_window_geometry(
     app: &AppHandle,
     monitor_state: &AppMonitorState,
@@ -1557,22 +1561,26 @@ fn clamp_widget_local_position(
         return (x, y);
     }
 
-    if widget.active_bubble != "bar" {
-        return (x, y);
+    #[cfg(target_os = "macos")]
+    {
+        if widget.active_bubble != "bar" {
+            return (x, y);
+        }
+
+        let min_x = work_area_x - (size.width - WIDGET_BAR_MIN_VISIBLE_WIDTH).max(0.0);
+        let max_x = (work_area_x + work_area_width - WIDGET_BAR_MIN_VISIBLE_WIDTH).max(min_x);
+        // 기본(위쪽 프리뷰) 배치에서는 pill이 창 하단에 붙는다. 따라서 화면 상단에서는
+        // native window y가 음수가 될 수 있어야 보이는 pill이 실제 상단까지 올라간다.
+        let visible_top_offset = (size.height - WIDGET_BAR_VISIBLE_HEIGHT).max(0.0);
+        let visible_bottom_offset =
+            (size.height - WIDGET_BAR_ROOT_PADDING).max(WIDGET_BAR_VISIBLE_HEIGHT);
+        let min_y = work_area_y + WIDGET_DEFAULT_MARGIN - visible_top_offset;
+        let max_y =
+            (work_area_y + work_area_height - WIDGET_DEFAULT_MARGIN - visible_bottom_offset)
+                .max(min_y);
+
+        (x.clamp(min_x, max_x), y.clamp(min_y, max_y))
     }
-
-    let min_x = work_area_x - (size.width - WIDGET_BAR_MIN_VISIBLE_WIDTH).max(0.0);
-    let max_x = (work_area_x + work_area_width - WIDGET_BAR_MIN_VISIBLE_WIDTH).max(min_x);
-    // 기본(위쪽 프리뷰) 배치에서는 pill이 창 하단에 붙는다. 따라서 화면 상단에서는
-    // native window y가 음수가 될 수 있어야 보이는 pill이 실제 상단까지 올라간다.
-    let visible_top_offset = (size.height - WIDGET_BAR_VISIBLE_HEIGHT).max(0.0);
-    let visible_bottom_offset =
-        (size.height - WIDGET_BAR_ROOT_PADDING).max(WIDGET_BAR_VISIBLE_HEIGHT);
-    let min_y = work_area_y + WIDGET_DEFAULT_MARGIN - visible_top_offset;
-    let max_y =
-        (work_area_y + work_area_height - WIDGET_DEFAULT_MARGIN - visible_bottom_offset).max(min_y);
-
-    (x.clamp(min_x, max_x), y.clamp(min_y, max_y))
 }
 
 fn monitor_work_area_logical(monitor: Option<&Monitor>, scale: f64) -> (f64, f64, f64, f64) {
@@ -1610,6 +1618,7 @@ fn monitor_work_area_logical(monitor: Option<&Monitor>, scale: f64) -> (f64, f64
     )
 }
 
+#[cfg(target_os = "macos")]
 fn macos_dock_guard_logical(monitor: &Monitor, work_area_height: f64, scale: f64) -> f64 {
     #[cfg(target_os = "macos")]
     {
@@ -3857,6 +3866,75 @@ async fn open_widget_window(
     Ok(result)
 }
 
+fn snapshot_widget_window_store(state: &WidgetState) -> Result<WidgetWindowStore, String> {
+    let guard = state
+        .lock()
+        .map_err(|_| "widget state lock failed".to_string())?;
+    Ok(guard.clone())
+}
+
+fn restore_widget_window_store(
+    app: &AppHandle,
+    state: &WidgetState,
+    snapshot: WidgetWindowStore,
+) -> Result<(), String> {
+    {
+        let mut guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        *guard = snapshot;
+    }
+    persist_widget_window_state(app, state)
+}
+
+fn snapshot_widget_for_label(
+    snapshot: &WidgetWindowStore,
+    label: &str,
+) -> Option<WidgetWindowState> {
+    snapshot
+        .bubbles
+        .values()
+        .find(|widget| widget_window_label(widget) == label)
+        .cloned()
+}
+
+fn rollback_open_widget_windows_failure(
+    app: &AppHandle,
+    monitor_state: &AppMonitorState,
+    state: &WidgetState,
+    snapshot: WidgetWindowStore,
+    widgets: &[WidgetWindowState],
+    error: String,
+) -> String {
+    if let Err(rollback_error) = restore_widget_window_store(app, state, snapshot.clone()) {
+        eprintln!("failed to restore widget store after batch open failure: {rollback_error}");
+    }
+
+    let mut restored_labels = HashSet::new();
+    for widget in widgets {
+        let label = widget_window_label(widget);
+        if !restored_labels.insert(label.clone()) {
+            continue;
+        }
+
+        if let Some(restored_widget) = snapshot_widget_for_label(&snapshot, &label) {
+            if let Err(restore_error) =
+                apply_widget_window_state(app, monitor_state, &restored_widget)
+            {
+                eprintln!("failed to restore widget window {label} after batch open failure: {restore_error}");
+            }
+        } else if let Some(window) = app.get_webview_window(&label) {
+            reset_widget_window_dom_ready(&label);
+            reset_widget_applied_window_state(&label);
+            if let Err(destroy_error) = window.destroy() {
+                eprintln!("failed to destroy widget window {label} after batch open failure: {destroy_error}");
+            }
+        }
+    }
+
+    error
+}
+
 #[tauri::command]
 async fn open_widget_windows(
     app: AppHandle,
@@ -3867,23 +3945,60 @@ async fn open_widget_windows(
 ) -> Result<Vec<WidgetWindowState>, String> {
     require_authenticated_surfaces_enabled(&auth_state)?;
 
+    let snapshot = snapshot_widget_window_store(&state)?;
     let mut widgets = Vec::with_capacity(input.windows.len());
     for window in input.windows {
-        widgets.push(prepare_open_widget_window(&app, &state, window)?);
+        let widget = prepare_open_widget_window(&app, &state, window).map_err(|error| {
+            rollback_open_widget_windows_failure(
+                &app,
+                &monitor_state,
+                &state,
+                snapshot.clone(),
+                &widgets,
+                error,
+            )
+        })?;
+        widgets.push(widget);
     }
 
-    persist_widget_window_state(&app, &state)?;
-
-    let mut results = Vec::with_capacity(widgets.len());
-    for widget in widgets {
-        results.push(schedule_widget_window_build_and_raise(
+    persist_widget_window_state(&app, &state).map_err(|error| {
+        rollback_open_widget_windows_failure(
             &app,
             &monitor_state,
-            &widget,
-        )?);
+            &state,
+            snapshot.clone(),
+            &widgets,
+            error,
+        )
+    })?;
+
+    let mut results = Vec::with_capacity(widgets.len());
+    for widget in &widgets {
+        let result = schedule_widget_window_build_and_raise(&app, &monitor_state, widget).map_err(
+            |error| {
+                rollback_open_widget_windows_failure(
+                    &app,
+                    &monitor_state,
+                    &state,
+                    snapshot.clone(),
+                    &widgets,
+                    error,
+                )
+            },
+        )?;
+        results.push(result);
     }
 
-    refresh_widget_bar_window(&app, &monitor_state, &state)?;
+    refresh_widget_bar_window(&app, &monitor_state, &state).map_err(|error| {
+        rollback_open_widget_windows_failure(
+            &app,
+            &monitor_state,
+            &state,
+            snapshot,
+            &widgets,
+            error,
+        )
+    })?;
     Ok(results)
 }
 

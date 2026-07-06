@@ -5,6 +5,7 @@ import {
   getAuthClientType,
   getAuthRefreshToken,
   setStoredAuthSession,
+  setStoredAuthSessionAndWaitForTauriMirror,
 } from "@/lib/auth/auth-session";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { AuthTokenResponse } from "@/types/api/auth";
@@ -197,10 +198,13 @@ async function refreshAuthSessionOnce() {
       return false;
     }
 
-    setStoredAuthSession({ ...payload.data, clientType });
+    if (isTauriRuntime()) {
+      await setStoredAuthSessionAndWaitForTauriMirror({ ...payload.data, clientType });
+    } else {
+      setStoredAuthSession({ ...payload.data, clientType });
+    }
     return true;
   } catch {
-    clearStoredAuthSession();
     return false;
   } finally {
     clearTimeout(timeoutId);
