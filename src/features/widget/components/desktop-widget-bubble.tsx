@@ -104,7 +104,7 @@ const bubbleMeta: BubbleMeta[] = [
   { Icon: FileText, accent: "sand", id: "resource", label: "widget.kind.resource", scope: "both" },
   { Icon: Bell, accent: "lilac", id: "alert", label: "widget.kind.notification", scope: "both" },
 ];
-const hiddenDesktopWidgetBubbleTypes = new Set<WidgetBubbleType>(["resource"]);
+const hiddenDesktopWidgetBubbleTypes = new Set<WidgetBubbleType>();
 const visibleBubbleMeta = bubbleMeta.filter((item) => !hiddenDesktopWidgetBubbleTypes.has(item.id));
 
 const modeLabels: Record<WidgetWindowMode, MessageKey> = {

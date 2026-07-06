@@ -2283,10 +2283,7 @@ fn widget_bar_items_from_store(store: &WidgetWindowStore) -> Vec<WidgetWindowSta
         .bubbles
         .values()
         .filter(|widget| {
-            widget.active_bubble != "bar"
-                && widget.active_bubble != "resource"
-                && widget.mode == "MINIMIZED"
-                && !widget.window_visible
+            widget.active_bubble != "bar" && widget.mode == "MINIMIZED" && !widget.window_visible
         })
         .cloned()
         .collect();
@@ -4265,6 +4262,24 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].active_bubble, "chat");
+    }
+
+    #[test]
+    fn resource_widget_state_remains_restorable_from_bar() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "resource".to_string(),
+            WidgetWindowState {
+                mode: "MINIMIZED".to_string(),
+                window_visible: false,
+                ..widget("resource", Some("resource"), 0, 0)
+            },
+        );
+
+        let items = widget_bar_items_from_store(&store);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].active_bubble, "resource");
     }
 
     #[test]
