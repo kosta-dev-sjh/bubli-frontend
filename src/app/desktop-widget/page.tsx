@@ -600,6 +600,10 @@ function buildDisplayBubbles(input: {
   notifications: WidgetNotificationResponse[];
   /** 룸 컨텍스트에서도 개인 오늘 항목을 뒤이어 보여주기 위한 개인 범위 오늘 TODO. */
   personalTodayTasks?: WidgetTaskResponse[];
+  /** 내 할 일 탭: 개인 TODO + 나에게 배정된 룸 태스크(/api/tasks). '오늘' 필터 없이 전체. */
+  myTasks?: WidgetTaskResponse[];
+  /** 프로젝트룸 탭: 선택 룸 보드 전체(/api/project-rooms/{roomId}/tasks). */
+  roomBoardTasks?: WidgetTaskResponse[];
   resources: WidgetResourceResponse[];
   room?: WidgetProjectRoomResponse | null;
   /** 룸 태스크 행의 룸 칩 라벨용 roomId → 룸 이름 매핑(서버 목록 또는 로컬 캐시). */
@@ -619,48 +623,76 @@ function buildDisplayBubbles(input: {
   const chatRoute = input.roomId ? `/app/project-rooms/${encodeURIComponent(input.roomId)}/chat` : "/app/chat";
   const resourceRoute = roomResourceRoute(input.roomId);
   const scheduleRoute = roomScopedRoute("/app/calendar", input.roomId);
-  const activeTimer = input.timer ?? (!isRoomScoped ? input.dashboard?.runningTimer ?? null : null);
+  // 작업(WORK) 타이머는 그 룸에만 귀속 — 전역(개인) 위젯에서는 룸 타이머를 숨기고 개인(roomId 없음) 타이머만 보인다.
+  const runningFallback = input.dashboard?.runningTimer ?? null;
+  const activeTimer = input.timer ?? (!isRoomScoped && runningFallback?.roomId == null ? runningFallback : null);
   const scheduleSource = isRoomScoped ? input.schedules : (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules);
 
   // ---------- TODO: 개인 TODO + 나에게 할당된 룸 태스크 병합 ----------
   // 제품 모델: 룸 태스크에 내가 담당자로 지정되면 개인 TODO에도 따라온다(백엔드
   // /api/tasks scope=personal · /api/dashboard/tasks · /api/dashboard/work가 이미
   // "내 개인 TODO + 내가 담당자인 룸 태스크"를 내려준다 — roomId로 귀속을 구분).
-  const isNotDoneTask = (task: WidgetTaskResponse) => task.status !== "DONE";
-  let personalTodoTasks: WidgetTaskResponse[];
-  let roomTodoTasks: WidgetTaskResponse[];
-  if (isRoomScoped) {
-    // 룸 컨텍스트: 이 룸의 태스크 중 내 담당을 먼저, 나머지 룸 태스크를 뒤에 —
-    // 그 다음 개인 오늘 항목(roomId 없음)을 이어 붙인다(03_Tauri 명세: "오늘 내 TODO, 선택 프로젝트룸 TODO 요약").
-    const roomTasks = input.tasks.filter(isNotDoneTask);
-    const mine = input.currentUserId ? roomTasks.filter((task) => task.assigneeUserId === input.currentUserId) : [];
-    const rest = input.currentUserId ? roomTasks.filter((task) => task.assigneeUserId !== input.currentUserId) : roomTasks;
-    roomTodoTasks = [...mine, ...rest];
-    personalTodoTasks = (input.personalTodayTasks ?? []).filter(
-      (task) => !task.roomId && isNotDoneTask(task) && !roomTodoTasks.some((roomTask) => roomTask.id === task.id),
-    );
-  } else {
-    // 개인 컨텍스트: 오늘 작업(개인+할당) 우선, 모자라면 다가오는 마감으로 채운 뒤 귀속별로 나눈다.
-    const todoSource = input.dashboard?.todayTasks.length ? input.dashboard.todayTasks : input.tasks;
-    // 미래 마감으로 채우지 않는다 — 오늘 남은 것만 센다(없으면 0).
-    const merged = todoSource.filter(isNotDoneTask);
-    personalTodoTasks = merged.filter((task) => !task.roomId);
-    roomTodoTasks = merged.filter((task) => Boolean(task.roomId));
-  }
-  const todoTotalCount = personalTodoTasks.length + roomTodoTasks.length;
-  const todoTodaySource = isRoomScoped ? input.tasks : (input.dashboard?.todayTasks ?? input.tasks);
-  const todoDoneCount = todoTodaySource.filter((task) => task.status === "DONE").length;
-  const todoProgressRatio = todoDoneCount + todoTotalCount > 0 ? todoDoneCount / (todoDoneCount + todoTotalCount) : 0;
-  const todoTaskToRow = (task: WidgetTaskResponse, sourceKind: "personal" | "room"): WidgetPreviewItem => ({
+  // ---------- TODO: 2탭(내 할 일 / 프로젝트룸) ----------
+  // 내 할 일 = /api/tasks(개인 + 나에게 배정된 룸 태스크). '오늘 마감'으로 거르지 않고
+  // 미완료 전체를 마감 섹션(지남/오늘/내일/이후/없음)으로 정렬 — 마감 없는 새 할 일도 바로 뜬다.
+  // 프로젝트룸 = 선택 룸 보드에서 담당자 미지정 또는 나에게 배정된 태스크 + 칸반 상태칩.
+  const isDoneTask = (task: WidgetTaskResponse) => task.status === "DONE";
+  const meId = input.currentUserId ?? null;
+  const myTasksSource = input.myTasks ?? input.tasks;
+  const roomBoardSource = input.roomBoardTasks ?? (isRoomScoped ? input.tasks : []);
+
+  const dueSectionRank = (tone: WidgetPreviewItem["dueTone"]): number => {
+    switch (tone) {
+      case "overdue":
+        return 0;
+      case "today":
+        return 1;
+      case "tomorrow":
+        return 2;
+      case "later":
+        return 3;
+      default:
+        return 4;
+    }
+  };
+  const kanbanRank: Record<WidgetTaskResponse["status"], number> = {
+    IN_PROGRESS: 0,
+    REVIEW: 1,
+    TODO: 2,
+    BLOCKED: 3,
+    DONE: 4,
+  };
+  const dueMillis = (value?: string | null): number => {
+    if (!value) return Number.POSITIVE_INFINITY;
+    const ms = new Date(value).getTime();
+    return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms;
+  };
+  const updatedMillis = (value?: string | null): number => {
+    if (!value) return 0;
+    const ms = new Date(value).getTime();
+    return Number.isNaN(ms) ? 0 : ms;
+  };
+  const byDueThenRecent = (a: WidgetTaskResponse, b: WidgetTaskResponse): number => {
+    const ad = dueMillis(a.dueAt);
+    const bd = dueMillis(b.dueAt);
+    if (ad !== bd) return ad - bd;
+    return updatedMillis(b.updatedAt) - updatedMillis(a.updatedAt);
+  };
+  const todoTaskToRow = (
+    task: WidgetTaskResponse,
+    sourceKind: "personal" | "room",
+    withKanban: boolean,
+  ): WidgetPreviewItem => ({
     checked: task.status === "DONE",
     dueTone: widgetDueTone(task.dueAt),
     handoffLabel: formatDue(t, task.dueAt) || taskStatusLabel(t, task.status),
-    // 룸 태스크는 그 룸의 작업 보드로, 개인 TODO는 개인 홈으로 넘어간다.
+    // 룸 태스크는 그 룸의 작업 보드로, 개인 TODO는 개인 홈으로 넘어간다(상세는 사이트에서).
     handoffUrl: roomWorkRoute(task.roomId ?? (isRoomScoped ? input.roomId : null)),
     id: task.id,
+    kanbanLabel: withKanban ? taskStatusLabel(t, task.status) : undefined,
+    kanbanTone: withKanban ? task.status : undefined,
     kind: "task",
     label: task.title,
-    // 룸 칩은 개인 컨텍스트의 룸 태스크에만 붙인다(룸 컨텍스트는 헤더가 룸 라벨을 이미 보여준다).
     roomName:
       sourceKind === "room" && !isRoomScoped && task.roomId
         ? input.roomNames?.[task.roomId] ?? t("widget.todo.roomFallback")
@@ -668,21 +700,50 @@ function buildDisplayBubbles(input: {
     sourceKind,
     status: formatDue(t, task.dueAt) || taskStatusLabel(t, task.status),
   });
-  // 행 순서 = 그룹 순서: 개인 컨텍스트는 내 할 일 → 룸에서 할당됨, 룸 컨텍스트는 룸 태스크 → 내 할 일.
-  const todoRowsOrdered = isRoomScoped
-    ? [
-        ...roomTodoTasks.map((task) => todoTaskToRow(task, "room")),
-        ...personalTodoTasks.map((task) => todoTaskToRow(task, "personal")),
-      ]
-    : [
-        ...personalTodoTasks.map((task) => todoTaskToRow(task, "personal")),
-        ...roomTodoTasks.map((task) => todoTaskToRow(task, "room")),
-      ];
-  // 완료 항목도 계속 보여준다(잘못 체크했으면 다시 눌러 되돌릴 수 있게). 남은 작업 뒤에 붙인다.
-  const todoDoneRows = todoTodaySource
-    .filter((task) => task.status === "DONE")
-    .map((task) => todoTaskToRow(task, task.roomId ? "room" : "personal"));
-  const todoItems = [...todoRowsOrdered, ...todoDoneRows];
+
+  // 내 할 일: 미완료(마감 섹션 정렬) → 완료(최근 수정순, 하단).
+  const myOpenTasks = myTasksSource
+    .filter((task) => !isDoneTask(task))
+    .sort((a, b) => {
+      const rank = dueSectionRank(widgetDueTone(a.dueAt)) - dueSectionRank(widgetDueTone(b.dueAt));
+      return rank !== 0 ? rank : byDueThenRecent(a, b);
+    });
+  const myDoneTasks = myTasksSource
+    .filter(isDoneTask)
+    .sort((a, b) => updatedMillis(b.updatedAt) - updatedMillis(a.updatedAt));
+  const myRows = [
+    ...myOpenTasks.map((task) => todoTaskToRow(task, task.roomId ? "room" : "personal", false)),
+    ...myDoneTasks.map((task) => todoTaskToRow(task, task.roomId ? "room" : "personal", false)),
+  ];
+
+  // 프로젝트룸: 담당자 미지정 또는 나에게 배정된 것만(남의 담당 상세는 사이트에서 확인).
+  const roomRelevantTasks = roomBoardSource.filter(
+    (task) => task.assigneeUserId == null || (meId != null && task.assigneeUserId === meId),
+  );
+  const roomOpenTasks = roomRelevantTasks
+    .filter((task) => !isDoneTask(task))
+    .sort((a, b) => {
+      const rank = kanbanRank[a.status] - kanbanRank[b.status];
+      return rank !== 0 ? rank : byDueThenRecent(a, b);
+    });
+  const roomDoneTasks = roomRelevantTasks
+    .filter(isDoneTask)
+    .sort((a, b) => updatedMillis(b.updatedAt) - updatedMillis(a.updatedAt));
+  const roomRows = [
+    ...roomOpenTasks.map((task) => todoTaskToRow(task, "room", true)),
+    ...roomDoneTasks.map((task) => todoTaskToRow(task, "room", true)),
+  ];
+
+  const todoOpenCount = myOpenTasks.length;
+  const todoDoneCount = myDoneTasks.length;
+  const todoProgressRatio =
+    todoOpenCount + todoDoneCount > 0 ? todoDoneCount / (todoOpenCount + todoDoneCount) : 0;
+  const todoView: NonNullable<WidgetPreviewBubble["todoView"]> = {
+    hasRoom: Boolean(input.roomId),
+    mine: myRows,
+    room: roomRows,
+    roomName: input.roomId ? input.roomNames?.[input.roomId] ?? label : undefined,
+  };
 
   const scheduleItems = scheduleSource.slice(0, 3);
   const scheduleTimeLabel = (item: WidgetScheduleResponse) => (item.allDay ? t("widget.schedule.allDay") : formatShortTime(item.startsAt));
@@ -860,14 +921,16 @@ function buildDisplayBubbles(input: {
     }),
     todo: withBubble("todo", {
       progressRatio: todoProgressRatio,
-      // 카운트 링/칩은 잘린 표시 행이 아니라 병합된 전체 남은 개수를 반영한다.
-      compactLabel: t("widget.todo.count", { count: todoTotalCount }),
-      metric: String(todoTotalCount),
-      notificationLabel: todoItems[0] ? todoItems[0].label : t("widget.todo.none"),
+      // 카운트/링은 '내 할 일'의 미완료 개수를 가리킨다(없으면 0 — 유령 카운트 없음).
+      compactLabel: t("widget.todo.count", { count: todoOpenCount }),
+      metric: String(todoOpenCount),
+      notificationLabel: myOpenTasks.length ? myRows[0].label : t("widget.todo.none"),
       panelBody: t("widget.todo.body"),
       roomId: input.roomId,
       roomLabel: label,
-      rows: todoItems,
+      // rows는 고스트·바 표시용(내 할 일). 본문 2탭은 todoView로 렌더한다.
+      rows: myRows,
+      todoView,
     }),
   };
 }
@@ -1534,10 +1597,10 @@ function DesktopWidgetSurface() {
       }
 
       const voiceRoomId = activeVoiceRoomId;
-      const [dashboardResult, tasksResult, schedulesResult, resourcesResult, memosResult, suggestionsResult, notificationsResult, chatRoomsResult, friendsResult, roomResult, voiceResult, projectRoomsResult] =
+      const [dashboardResult, tasksResult, schedulesResult, resourcesResult, memosResult, suggestionsResult, notificationsResult, chatRoomsResult, friendsResult, roomResult, voiceResult, projectRoomsResult, roomBoardResult] =
         await Promise.allSettled([
           widgetDisplayApi.getDashboardWork(),
-          widgetDisplayApi.listTasks(selectedRoomId, 6),
+          widgetDisplayApi.listMyTasks(30),
           widgetDisplayApi.listSchedules(selectedRoomId, 6),
           widgetDisplayApi.listResources(selectedRoomId, 6),
           widgetDisplayApi.listMemos(selectedRoomId, 6),
@@ -1548,6 +1611,7 @@ function DesktopWidgetSurface() {
           selectedRoomId ? widgetDisplayApi.getProjectRoom(selectedRoomId) : Promise.resolve(null),
           voiceRoomId ? widgetDisplayApi.getVoiceRoom(voiceRoomId) : Promise.resolve(null),
           widgetDisplayApi.listProjectRooms(),
+          selectedRoomId ? widgetDisplayApi.listRoomBoard(selectedRoomId, 50) : Promise.resolve(null),
         ]);
 
       if (cancelled) return;
@@ -1625,10 +1689,22 @@ function DesktopWidgetSurface() {
             ? []
             : (summaryDashboard?.todayTasks ?? []);
       const activeTimerCandidate = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
-      const activeTimer = selectedRoomId && activeTimerCandidate?.roomId !== selectedRoomId ? null : activeTimerCandidate;
+      // 룸 컨텍스트: 그 룸 타이머만. 개인 컨텍스트: 룸에 귀속되지 않은(개인) 타이머만 — 룸 작업타이머는 전역에 노출하지 않는다.
+      const activeTimer =
+        activeTimerCandidate == null
+          ? null
+          : selectedRoomId
+            ? activeTimerCandidate.roomId === selectedRoomId
+              ? activeTimerCandidate
+              : null
+            : activeTimerCandidate.roomId == null
+              ? activeTimerCandidate
+              : null;
       const messageItems = messages?.items ?? cachedMessages;
       const schedules = schedulesResult.status === "fulfilled" ? schedulesResult.value.items : selectedRoomId ? [] : (summaryDashboard?.todaySchedules ?? []);
-      const tasks = tasksResult.status === "fulfilled" ? tasksResult.value.items : selectedRoomId ? [] : (summaryDashboard?.todayTasks ?? []);
+      const tasks = tasksResult.status === "fulfilled" ? tasksResult.value.items : (summaryDashboard?.todayTasks ?? []);
+      const roomBoardTasks =
+        roomBoardResult.status === "fulfilled" && roomBoardResult.value ? roomBoardResult.value.items : [];
       const nextNotificationSignal =
         notificationsResult.status === "rejected"
           ? widgetDisplayLoadSignal("error")
@@ -1652,6 +1728,8 @@ function DesktopWidgetSurface() {
           schedules,
           suggestions: suggestionsResult.status === "fulfilled" ? suggestionsResult.value : [],
           tasks,
+          myTasks: tasks,
+          roomBoardTasks,
           timer: activeTimer,
           voiceConnectionLabel,
           voiceRoom: voiceResult.status === "fulfilled" ? voiceResult.value : null,
@@ -2319,6 +2397,31 @@ function DesktopWidgetSurface() {
     [isTauri, publishWidgetDataChanged, t, widgetContext?.selectedRoomId],
   );
 
+  const editWidgetTodo = useCallback(
+    async (item: WidgetPreviewItem, title: string) => {
+      const next = title.trim();
+      if (!next || next === item.label) return;
+
+      const task = await todoApi.update(item.id, { title: next });
+
+      if (isTauri) {
+        void tauriCommands
+          .recordWidgetUsageEvent({
+            bubbleType: "todo",
+            eventType: "todo:update",
+            itemId: task.id,
+            itemType: "TASK",
+            occurredAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+
+      setTodoRevision((current) => current + 1);
+      publishWidgetDataChanged("todo");
+    },
+    [isTauri, publishWidgetDataChanged],
+  );
+
   const createWidgetSchedule = useCallback(
     async (bubble: WidgetPreviewBubble, inlineTitle?: string) => {
       const title = (inlineTitle ?? window.prompt(t("widget.schedule.prompt")) ?? "").trim();
@@ -2974,6 +3077,7 @@ function DesktopWidgetSurface() {
       onCreateMemo={createWidgetMemo}
       onCreateSchedule={createWidgetSchedule}
       onCreateTodo={createWidgetTodo}
+      onEditTodo={editWidgetTodo}
       onDeleteMemo={deleteWidgetMemo}
       onEditMemo={editWidgetMemo}
       onOpenHandoff={openWidgetHandoff}

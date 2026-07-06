@@ -871,6 +871,39 @@
   word-break: break-word;
 }
 
+/* 탭 목록이 비었을 때(예: 내 담당·미배정 룸 작업 없음) 한 줄 안내. */
+.todoEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 10px 12px;
+  color: color-mix(in srgb, var(--widget-text) 62%, transparent);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* 인라인 제목 수정: 더블클릭 시 행 제목이 입력으로 바뀐다 — 창 크기/레이아웃은 그대로 유지. */
+.todoEditInput {
+  min-width: 0;
+  width: 100%;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--acc) 45%, transparent);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--widget-text);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.todoEditInput:focus {
+  outline: none;
+  border-color: var(--acc);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 22%, transparent);
+}
+
 /* 완료 체크 어포던스: accent 링 원형 버튼 — 누르면 완료(CONFIRMED) 처리로 이어진다. */
 .todoCheck {
   display: inline-grid;
@@ -1087,7 +1120,7 @@
 
 .timerPlainValue {
   color: var(--widget-text);
-  font-size: 44px;
+  font-size: 58px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
@@ -1288,7 +1321,7 @@
 
 .pomodoroCircleContent strong {
   color: var(--widget-text);
-  font-size: 30px;
+  font-size: 40px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -2159,7 +2192,7 @@
 .ghostMetric,
 .ghostClock {
   color: rgba(255, 255, 255, 0.98);
-  font-size: 52px;
+  font-size: 58px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
   line-height: 1.05;

@@ -10,6 +10,7 @@ const files = {
   publicHero: "src/features/public-site/components/public-hero.tsx",
   publicLandingNav: "src/features/public-site/components/landing-nav.tsx",
   personalResourceWorkspace: "src/features/resources/components/personal-resource-workspace.tsx",
+  desktopAppDownload: "src/features/download/components/desktop-app-download.tsx",
   settingsPage: "src/app/(workspace)/app/settings/page.tsx",
   frontendSmoke: "scripts/check-frontend-smoke.mjs",
   appNav: "src/components/layout/app-nav.tsx",
@@ -157,6 +158,7 @@ const publicSiteConfig = read(files.publicSiteConfig);
 const publicHero = read(files.publicHero);
 const publicLandingNav = read(files.publicLandingNav);
 const personalResourceWorkspace = read(files.personalResourceWorkspace);
+const desktopAppDownload = read(files.desktopAppDownload);
 const settingsPage = read(files.settingsPage);
 const frontendSmoke = read(files.frontendSmoke);
 const launcher = read(files.postLoginLauncher);
@@ -279,7 +281,12 @@ assertContains(
 );
 assertContains(
   settingsPage,
-  /const windowsInstallerHref = "\/downloads\/windows\/Bubli-Windows-latest\.exe";[\s\S]*download href=\{windowsInstallerHref\}/,
+  /import \{ DesktopAppDownload \} from "@\/features\/download\/components\/desktop-app-download";[\s\S]*<DesktopAppDownload \/>/,
+  "Settings desktop tab must render the direct desktop installer download component.",
+);
+assertContains(
+  desktopAppDownload,
+  /const WINDOWS_FALLBACK_HREF = "\/downloads\/windows\/Bubli-Windows-latest\.exe";[\s\S]*download[\s\S]*href=\{windowsHref\}/,
   "Settings desktop CTA must directly download the Windows installer instead of navigating to /download.",
 );
 assertContains(

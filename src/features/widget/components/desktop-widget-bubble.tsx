@@ -190,6 +190,7 @@ export type DesktopWidgetBubbleProps = {
   onCreateMemo?: (bubble: WidgetPreviewBubble, body?: string) => Promise<void> | void;
   onCreateSchedule?: (bubble: WidgetPreviewBubble, title?: string) => Promise<void> | void;
   onCreateTodo?: (bubble: WidgetPreviewBubble, title?: string) => Promise<void> | void;
+  onEditTodo?: (item: WidgetPreviewItem, title: string) => Promise<void> | void;
   onDeleteMemo?: (item: WidgetPreviewItem) => Promise<void> | void;
   onEditMemo?: (item: WidgetPreviewItem) => Promise<void> | void;
   onAnalyzeResource?: (item: WidgetPreviewItem) => Promise<void> | void;
@@ -487,16 +488,38 @@ const todoDueToneClassNames: Record<NonNullable<WidgetPreviewItem["dueTone"]>, s
 // TODO 전용 행 목록: [체크 어포던스][제목 1줄][룸 칩(있으면)][마감 칩] + 고정/숨김.
 // 개인 TODO(sourceKind=personal)와 나에게 할당된 룸 태스크(sourceKind=room)가 함께 있으면
 // "내 할 일" / "룸에서 할당됨" 그룹 헤더로 나눈다(그룹 순서는 rows 배열 순서를 따른다).
-const TodoRows = memo(function TodoRows({
-  bubble,
+function TodoRows({
+  sections,
+  emptyLabel,
   onItemStateChange,
   onOpenHandoff,
+  onEditTodo,
 }: {
-  bubble: WidgetPreviewBubble;
+  sections: Array<{ key: string; label: string; rows: WidgetPreviewItem[] }>;
+  emptyLabel: string;
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
+  onEditTodo?: DesktopWidgetBubbleProps["onEditTodo"];
 }) {
   const { t } = useI18n();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+
+  const beginEdit = (item: WidgetPreviewItem) => {
+    if (!onEditTodo) return;
+    setEditingId(item.id);
+    setEditingValue(item.label);
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingValue("");
+  };
+  const commitEdit = async (item: WidgetPreviewItem) => {
+    const next = editingValue.trim();
+    cancelEdit();
+    if (!onEditTodo || !next || next === item.label) return;
+    await onEditTodo(item, next);
+  };
   const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
     if (!item.handoffUrl || !onOpenHandoff) return;
 
@@ -504,20 +527,12 @@ const TodoRows = memo(function TodoRows({
     void onOpenHandoff(item);
   };
 
-  if (bubble.rows.length === 0) {
-    return <BubbleEmptyState bubble={bubble} />;
+  const visible = sections.filter((section) => section.rows.length > 0);
+  if (visible.length === 0) {
+    return <div className={styles.todoEmpty}>{emptyLabel}</div>;
   }
-
-  const personalRows = bubble.rows.filter((item) => item.sourceKind !== "room");
-  const roomRows = bubble.rows.filter((item) => item.sourceKind === "room");
-  const showGroupHeads = personalRows.length > 0 && roomRows.length > 0;
-  // 룸 컨텍스트면 룸 태스크 그룹을 먼저 — 고정(PINNED)으로 행 순서가 섞여도 그룹 순서는 유지한다.
-  const roomFirst = Boolean(bubble.roomId);
-  const groups: Array<{ key: string; labelKey: MessageKey; rows: WidgetPreviewItem[] }> = [
-    { key: "personal", labelKey: "widget.todo.groupMine", rows: personalRows },
-    { key: "room", labelKey: "widget.todo.groupRoom", rows: roomRows },
-  ];
-  if (roomFirst) groups.reverse();
+  // 섹션이 둘 이상일 때만 헤더를 보인다 — 한 섹션뿐이면 헤더는 군더더기.
+  const showHeads = visible.length > 1;
 
   const renderRow = (item: WidgetPreviewItem) => (
     <div className={styles.todoRow} key={item.id}>
@@ -530,12 +545,39 @@ const TodoRows = memo(function TodoRows({
       >
         {item.checked ? <CheckCircle2 size={13} strokeWidth={2.4} /> : null}
       </button>
-      {item.handoffUrl ? (
-        <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank" title={item.label}>
+      {editingId === item.id ? (
+        <input
+          autoFocus
+          className={styles.todoEditInput}
+          maxLength={200}
+          onBlur={() => void commitEdit(item)}
+          onChange={(event) => setEditingValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void commitEdit(item);
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              cancelEdit();
+            }
+          }}
+          value={editingValue}
+        />
+      ) : item.handoffUrl ? (
+        <a
+          href={item.handoffUrl}
+          onClick={(event) => openHandoff(event, item)}
+          onDoubleClick={() => beginEdit(item)}
+          rel="noreferrer"
+          target="_blank"
+          title={onEditTodo ? t("widget.todo.editHint") : item.label}
+        >
           {item.label}
         </a>
       ) : (
-        <span title={item.label}>{item.label}</span>
+        <span onDoubleClick={() => beginEdit(item)} title={onEditTodo ? t("widget.todo.editHint") : item.label}>
+          {item.label}
+        </span>
       )}
       {item.roomName ? <i className={styles.roomChip}>{item.roomName}</i> : null}
       {/* 마감이 있는 항목만 마감칩을 보인다 — 마감 없는 항목의 "대기" 칩은 군더더기라 숨긴다. */}
@@ -548,32 +590,86 @@ const TodoRows = memo(function TodoRows({
 
   return (
     <div className={styles.rowList}>
-      {groups.map((group) =>
-        group.rows.length > 0 ? (
-          <Fragment key={group.key}>
-            {showGroupHeads ? <span className={styles.todoGroupHead}>{t(group.labelKey)}</span> : null}
-            {group.rows.map(renderRow)}
-          </Fragment>
-        ) : null,
-      )}
+      {visible.map((section) => (
+        <Fragment key={section.key}>
+          {showHeads ? <span className={styles.todoGroupHead}>{section.label}</span> : null}
+          {section.rows.map(renderRow)}
+        </Fragment>
+      ))}
     </div>
   );
-});
+}
+
+// 내 할 일 탭: 미완료를 마감 섹션으로 나눈다(지남/오늘/내일/이후/마감 없음).
+const TODO_DUE_SECTIONS: Array<{ key: string; tone: NonNullable<WidgetPreviewItem["dueTone"]> | "none"; labelKey: MessageKey }> = [
+  { key: "overdue", tone: "overdue", labelKey: "widget.todo.secOverdue" },
+  { key: "today", tone: "today", labelKey: "widget.todo.secToday" },
+  { key: "tomorrow", tone: "tomorrow", labelKey: "widget.todo.secTomorrow" },
+  { key: "later", tone: "later", labelKey: "widget.todo.secLater" },
+  { key: "none", tone: "none", labelKey: "widget.todo.secNoDue" },
+];
+// 프로젝트룸 탭: 미완료를 칸반 상태로 나눈다(진행 중/검토/할 일/보류).
+const TODO_KANBAN_SECTIONS: Array<{ key: string; labelKey: MessageKey }> = [
+  { key: "IN_PROGRESS", labelKey: "widget.task.inProgress" },
+  { key: "REVIEW", labelKey: "widget.task.review" },
+  { key: "TODO", labelKey: "widget.task.todo" },
+  { key: "BLOCKED", labelKey: "widget.task.blocked" },
+];
 
 function TodoBody({
   bubble,
   onCreateTodo,
+  onEditTodo,
   onItemStateChange,
   onOpenHandoff,
 }: {
   bubble: WidgetPreviewBubble;
   onCreateTodo?: DesktopWidgetBubbleProps["onCreateTodo"];
+  onEditTodo?: DesktopWidgetBubbleProps["onEditTodo"];
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // 활성 탭은 데이터 갱신에도 유지된다(컴포넌트가 계속 마운트되어 있음). 0=내 할 일, 1=프로젝트룸.
+  const [activeTab, setActiveTab] = useState(0);
+
+  const view = bubble.todoView ?? { hasRoom: false, mine: bubble.rows, room: [] as WidgetPreviewItem[] };
+  const activeList = activeTab === 1 ? view.room : view.mine;
+  const openItems = activeList.filter((item) => !item.checked);
+  const doneItems = activeList.filter((item) => item.checked);
+
+  const sections: Array<{ key: string; label: string; rows: WidgetPreviewItem[] }> = [];
+  if (activeTab === 1) {
+    for (const section of TODO_KANBAN_SECTIONS) {
+      const rows = openItems.filter((item) => (item.kanbanTone ?? "TODO") === section.key);
+      if (rows.length) sections.push({ key: section.key, label: t(section.labelKey), rows });
+    }
+  } else {
+    for (const section of TODO_DUE_SECTIONS) {
+      const rows = openItems.filter((item) => (item.dueTone ?? "none") === section.tone);
+      if (rows.length) sections.push({ key: section.key, label: t(section.labelKey), rows });
+    }
+  }
+  if (doneItems.length) sections.push({ key: "done", label: t("widget.todo.secDone"), rows: doneItems });
+
+  const openCount = openItems.length;
+  const doneCount = doneItems.length;
+  const progress = openCount + doneCount > 0 ? doneCount / (openCount + doneCount) : 0;
+  const mineOpen = view.mine.filter((item) => !item.checked).length;
+  const roomOpen = view.room.filter((item) => !item.checked).length;
+  const tabLabels = [
+    mineOpen ? `${t("widget.todo.tabMine")} ${mineOpen}` : t("widget.todo.tabMine"),
+    roomOpen ? `${t("widget.todo.tabRoom")} ${roomOpen}` : t("widget.todo.tabRoom"),
+  ];
+  const emptyLabel =
+    activeTab === 1
+      ? view.hasRoom
+        ? t("widget.todo.roomNone")
+        : t("widget.todo.roomEmpty")
+      : t("widget.empty.todo");
+  const summaryTitle = activeTab === 1 ? view.roomName ?? t("widget.todo.tabRoom") : t("widget.todo.tabMine");
 
   const saveDraftTodo = async () => {
     const title = draft.trim();
@@ -590,10 +686,15 @@ function TodoBody({
 
   return (
     <div className={styles.body}>
-      {/* 카운트 링은 중앙 부유 대신 요약 카피와 나란히 — 본문이 위에서부터 콘텐츠로 채워진다.
-          링 숫자는 표시 행이 아니라 병합된(개인 + 룸 할당) 남은 개수 전체를 가리킨다. */}
+      {/* 2탭: 내 할 일(개인 + 나 배정) / 프로젝트룸(선택 룸 보드, 미배정·나 배정 + 칸반 상태). */}
+      <SegmentedControl
+        ariaLabel={t("widget.todo.tabsAria")}
+        labels={tabLabels}
+        onChange={setActiveTab}
+        value={activeTab}
+      />
+      {/* 카운트 링은 활성 탭 기준: 숫자=미완료 개수(없으면 0), 원호=완료 비율. */}
       <div className={styles.summaryRow}>
-        {/* 실제 SVG 도넛(이미지 아님) — 원호가 남은 개수에 비례해 채워진다. */}
         <div className={styles.countRing}>
           <div className={styles.countRingDial}>
             <svg className={styles.countRingSvg} viewBox="0 0 96 96" aria-hidden="true">
@@ -603,21 +704,27 @@ function TodoBody({
                 cx="48"
                 cy="48"
                 r="42"
-                style={{ strokeDasharray: TODO_RING_CIRCUMFERENCE, strokeDashoffset: TODO_RING_CIRCUMFERENCE * (1 - Math.max(0, Math.min(1, bubble.progressRatio ?? 0))) }}
+                style={{ strokeDasharray: TODO_RING_CIRCUMFERENCE, strokeDashoffset: TODO_RING_CIRCUMFERENCE * (1 - Math.max(0, Math.min(1, progress))) }}
               />
             </svg>
-            <span className={styles.countRingNum}>{bubble.metric}</span>
+            <span className={styles.countRingNum}>{openCount}</span>
           </div>
           <b className={styles.countRingLabel}>{t(bubble.metricLabel as MessageKey)}</b>
         </div>
         <div className={styles.summaryCopy}>
-          <strong>{t(bubble.panelLabel as MessageKey)}</strong>
-          <span>{t(bubbleEmptyLabel(bubble) as MessageKey)}</span>
+          <strong>{summaryTitle}</strong>
+          <span>{t("widget.todo.remainSummary", { open: openCount, done: doneCount })}</span>
         </div>
       </div>
-      {/* 목록은 창을 늘리지 않고 내부에서 스크롤한다 — 항목이 많아도 요약/입력줄은 고정. */}
+      {/* 목록은 창을 늘리지 않고 내부에서 스크롤한다 — 항목이 많아도 탭/요약/입력줄은 고정. */}
       <div className={styles.todoScroll}>
-        <TodoRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
+        <TodoRows
+          emptyLabel={emptyLabel}
+          onEditTodo={onEditTodo}
+          onItemStateChange={onItemStateChange}
+          onOpenHandoff={onOpenHandoff}
+          sections={sections}
+        />
       </div>
       <form
         className={styles.input}
@@ -1992,6 +2099,7 @@ function BubbleBody({
   onCreateMemo,
   onCreateSchedule,
   onCreateTodo,
+  onEditTodo,
   onAnalyzeResource,
   onDeleteMemo,
   onEditMemo,
@@ -2013,6 +2121,7 @@ function BubbleBody({
   onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
   onCreateSchedule?: DesktopWidgetBubbleProps["onCreateSchedule"];
   onCreateTodo?: DesktopWidgetBubbleProps["onCreateTodo"];
+  onEditTodo?: DesktopWidgetBubbleProps["onEditTodo"];
   onDeleteMemo?: DesktopWidgetBubbleProps["onDeleteMemo"];
   onEditMemo?: DesktopWidgetBubbleProps["onEditMemo"];
   onAnalyzeResource?: DesktopWidgetBubbleProps["onAnalyzeResource"];
@@ -2075,7 +2184,7 @@ function BubbleBody({
       />
     );
   }
-  return <TodoBody bubble={bubble} onCreateTodo={onCreateTodo} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
+  return <TodoBody bubble={bubble} onCreateTodo={onCreateTodo} onEditTodo={onEditTodo} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
 }
 
 // 리사이즈 중 말랑(jelly) 오버슈트 스케일의 스텝당 최대치. CSS --jelly-sx/--jelly-sy로 전달되고
@@ -2205,6 +2314,32 @@ function useBubbleWindowResize(
 }
 
 // 고스트 시계 — 타이머 버블을 시계 모드로 쓰던 사용자는 고스트에서도 시계를 본다.
+// 고스트 작업/개인 타이머 — 평소 뷰와 동일하게 실행 중이면 초 단위로 갱신되는 카운트업.
+function GhostWorkTimer({ bubble }: { bubble: WidgetPreviewBubble }) {
+  const { t } = useI18n();
+  const timerItem = bubble.rows[0];
+  const running = timerItem?.status === "RUNNING";
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!running) return;
+    const intervalId = window.setInterval(() => setTick((current) => current + 1), 1000);
+    return () => window.clearInterval(intervalId);
+  }, [running]);
+
+  const live = elapsedWidgetTimerLabel(timerItem, bubble.metric);
+  const label = !timerItem
+    ? t("widget.timer.waiting")
+    : bubble.roomId
+      ? t("widget.timer.workTimer")
+      : t("widget.timer.generalTimer");
+  return (
+    <div className={styles.ghostSignal} role="timer" aria-live="off">
+      <strong className={styles.ghostClock}>{live}</strong>
+      <small className={styles.ghostSub}>{label}</small>
+    </div>
+  );
+}
+
 function GhostClock() {
   const { locale } = useI18n();
   const [now, setNow] = useState<Date>(() => new Date());
@@ -2215,7 +2350,7 @@ function GhostClock() {
   const dateLabel = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", weekday: "short" }).format(now);
   return (
     <div className={styles.ghostSignal} role="timer" aria-live="off">
-      <strong className={styles.ghostClock}>{`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`}</strong>
+      <strong className={styles.ghostClock}>{formatClock(now)}</strong>
       <small>{dateLabel}</small>
     </div>
   );
@@ -2295,6 +2430,10 @@ function GhostSignal({
   if (isTimer && resolvedTimerMode === "pomodoro") {
     return <GhostPomodoro roomId={roomId} />;
   }
+  // 작업/개인 카운트업 타이머: 고스트에서도 평소처럼 초 단위로 살아 움직여야 한다(정적 숫자 금지).
+  if (isTimer) {
+    return <GhostWorkTimer bubble={bubble} />;
+  }
 
   // TODO 고스트는 숫자만이 아니라 "무엇이 남았는지" 제목을 보여준다(남은 항목 상위 몇 개).
   if (bubbleType === "todo") {
@@ -2344,6 +2483,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   onCreateMemo,
   onCreateSchedule,
   onCreateTodo,
+  onEditTodo,
   onOpenHandoff,
   onPauseTimer,
   onPrimaryTimerAction,
@@ -2552,6 +2692,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
                 onCreateMemo={onCreateMemo}
                 onCreateSchedule={onCreateSchedule}
                 onCreateTodo={onCreateTodo}
+                onEditTodo={onEditTodo}
                 onOpenHandoff={onOpenHandoff}
                 onPauseTimer={onPauseTimer}
                 onPrimaryTimerAction={onPrimaryTimerAction}
