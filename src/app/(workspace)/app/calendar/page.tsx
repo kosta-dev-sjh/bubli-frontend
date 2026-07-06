@@ -135,6 +135,37 @@ function sameDate(left: Date, right: Date) {
   return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate();
 }
 
+function startOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+// 이벤트(멀티데이 포함)가 특정 날짜(하루)를 걸치는지. WBS/긴 일정이 여러 날에 막대로 보이게 한다.
+function eventCoversDate(event: { startsAt: string; endsAt?: string | null }, date: Date) {
+  const start = startOfDay(new Date(event.startsAt));
+  if (Number.isNaN(start.getTime())) return false;
+  // 종일 일정의 endsAt은 배타적(다음날 0시)인 경우가 많아 1ms 빼서 마지막 날을 넘기지 않게 한다.
+  const endRaw = event.endsAt ? new Date(new Date(event.endsAt).getTime() - 1) : new Date(event.startsAt);
+  const end = startOfDay(endRaw.getTime() >= start.getTime() ? endRaw : new Date(event.startsAt));
+  const day = startOfDay(date).getTime();
+  return day >= start.getTime() && day <= end.getTime();
+}
+
+// 멀티데이 이벤트가 주어진 날에서 시작/끝/중간 중 어디인지 — 막대 모서리 스타일에 쓴다.
+function eventSpanPosition(event: { startsAt: string; endsAt?: string | null }, date: Date) {
+  const start = startOfDay(new Date(event.startsAt));
+  const endRaw = event.endsAt ? new Date(new Date(event.endsAt).getTime() - 1) : new Date(event.startsAt);
+  const end = startOfDay(endRaw.getTime() >= start.getTime() ? endRaw : new Date(event.startsAt));
+  const isMultiDay = end.getTime() > start.getTime();
+  const day = startOfDay(date).getTime();
+  return {
+    isMultiDay,
+    isStart: day === start.getTime(),
+    isEnd: day === end.getTime(),
+  };
+}
+
 function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
@@ -282,6 +313,8 @@ function CalendarPageContent() {
   const [googleEventsLoading, setGoogleEventsLoading] = useState(false);
   const [googleEventsError, setGoogleEventsError] = useState(false);
   const [expandedGoogleEventKey, setExpandedGoogleEventKey] = useState<string | null>(null);
+  // 일정 상세를 하단 패널이 아니라 클릭한 날짜 칸 옆 팝오버로 띄운다(구글 캘린더식).
+  const [dayPopover, setDayPopover] = useState<{ top: number; left: number } | null>(null);
   const range = useMemo(() => {
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
@@ -521,12 +554,22 @@ function CalendarPageContent() {
     () => {
       const selectedDay = toSelectedDay(selectedDate);
       return visibleEvents
-        .filter((event) => sameDate(new Date(event.startsAt), selectedDay))
+        .filter((event) => eventCoversDate(event, selectedDay))
         .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
     },
     [visibleEvents, selectedDate],
   );
   const reviewCount = events.filter((event) => event.syncStatus === "SYNC_FAILED").length;
+
+  useEffect(() => {
+    if (!dayPopover) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDayPopover(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dayPopover]);
+
   const now = new Date();
   const monthLabel = new Intl.DateTimeFormat(localeTag, { month: "long", year: "numeric" }).format(currentMonth);
   const selectedDayLabel = new Intl.DateTimeFormat(localeTag, { day: "numeric", month: "long", weekday: "long" }).format(toSelectedDay(selectedDate));
@@ -574,18 +617,20 @@ function CalendarPageContent() {
         : styles.syncDotOff;
 
   const goToToday = () => {
+    setDayPopover(null);
     const today = new Date();
     setCurrentMonth(startOfMonth(today));
     setSelectedDate(toDateValue(today));
   };
 
   const moveMonth = (offset: number) => {
+    setDayPopover(null);
     const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + offset, 1);
     setCurrentMonth(nextMonth);
     setSelectedDate(toDateValue(nextMonth));
   };
 
-  const selectCalendarDate = (date: Date, hasEvents: boolean) => {
+  const selectCalendarDate = (date: Date, hasEvents: boolean, anchor?: DOMRect) => {
     setSelectedDate(toDateValue(date));
     setExpandedGoogleEventKey(null);
     setEditingEventId(null);
@@ -595,11 +640,23 @@ function CalendarPageContent() {
     setDraftNotice(null);
     // 룸을 띄워둔 상태면 기본 저장 대상을 그 룸으로 둔다(개인은 토글로 전환).
     setDraftTarget(selectedRoomId ? "room" : "personal");
-    // 일정이 있는 날짜는 하단 선택 일정 패널에서 바로 확인/수정하고, 빈 날짜는 새 일정 작성기를 연다.
-    setComposerOpen(!hasEvents);
+    // 일정이 있는 날짜는 클릭한 칸 옆 팝오버로 상세를 띄우고, 빈 날짜는 새 일정 작성기를 연다.
+    if (hasEvents && anchor) {
+      const width = 320;
+      const left = Math.max(12, Math.min(anchor.left, window.innerWidth - width - 12));
+      const top = Math.min(anchor.bottom + 6, Math.max(72, window.innerHeight - 120));
+      setDayPopover({ left, top });
+      setComposerOpen(false);
+    } else {
+      setDayPopover(null);
+      setComposerOpen(!hasEvents);
+    }
   };
 
+  const closeDayPopover = () => setDayPopover(null);
+
   const openCreateComposer = () => {
+    setDayPopover(null);
     setEditingEventId(null);
     setDraftTitle("");
     setDraftStartTime("10:30");
@@ -611,6 +668,7 @@ function CalendarPageContent() {
   };
 
   const openEditComposer = (event: ScheduleResponse) => {
+    setDayPopover(null);
     const startDate = new Date(event.startsAt);
     const endDate = event.endsAt ? new Date(event.endsAt) : null;
     setSelectedDate(toDateValue(startDate));
@@ -648,6 +706,21 @@ function CalendarPageContent() {
 
       return { ...current, events: Array.from(byId.values()) };
     });
+  };
+
+  // 구글 연동이 활성이면 "보내기"를 누르지 않아도 새/미동기 일정을 자동으로 구글에 올린다(백그라운드).
+  // 룸 일정은 백엔드 ensureRoomCalendar가 룸 전용 캘린더를 지연 생성해 그쪽으로 보낸다.
+  const autoSyncToGoogle = () => {
+    if (!googleConnected) return;
+    void calendarApi
+      .pushUnsyncedGoogleEvents({ from: range.start, to: range.end })
+      .then((pushed) => {
+        if (pushed.length > 0) {
+          mergeSyncedEvents(pushed);
+          void loadGoogleEvents();
+        }
+      })
+      .catch(() => undefined);
   };
 
   const runGoogleAction = async (action: SyncAction) => {
@@ -782,6 +855,8 @@ function CalendarPageContent() {
           return;
         }
         setDraftNotice(t("calendar.draft.added"));
+        // 동의(연동)된 상태면 수동 "보내기" 없이 자동으로 구글에 반영한다.
+        autoSyncToGoogle();
       }
       closeComposer();
     } catch (error) {
@@ -1045,7 +1120,7 @@ function CalendarPageContent() {
                   }
 
                   const dayEvents = visibleEvents
-                    .filter((event) => sameDate(new Date(event.startsAt), date))
+                    .filter((event) => eventCoversDate(event, date))
                     .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
                   const count = dayEvents.length;
                   const roomEventCount = roomEvents.filter((event) => sameDate(new Date(event.occurredAt), date)).length;
@@ -1062,15 +1137,25 @@ function CalendarPageContent() {
                     .join(" ");
 
                   return (
-                    <button aria-pressed={selected} className={className} key={dateValue} onClick={() => selectCalendarDate(date, count > 0)} type="button">
+                    <button aria-pressed={selected} className={className} key={dateValue} onClick={(clickEvent) => selectCalendarDate(date, count > 0, clickEvent.currentTarget.getBoundingClientRect())} type="button">
                       <span className={styles.cellDate}>{date.getDate()}</span>
                       {count > 0 ? (
                         <ul aria-label={t("calendar.grid.dayEventsAria", { day: date.getDate() })} className={styles.cellEvents}>
                           {dayEvents.slice(0, 3).map((event) => {
                             const source = event.sourceKey === "room" ? "room" : event.sourceKey === "personal" ? "personal" : "external";
+                            const span = eventSpanPosition(event, date);
+                            // 멀티데이 일정은 시작/끝 날만 모서리를 둥글리고, 시간은 시작 날에만 표기해 막대처럼 보이게 한다.
+                            const chipClassName = [
+                              styles.eventChip,
+                              styles[`eventChip_${source}`],
+                              span.isMultiDay && !span.isStart ? styles.eventChipSpanMid : "",
+                              span.isMultiDay && !span.isEnd ? styles.eventChipSpanOpenEnd : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ");
                             return (
-                              <li className={`${styles.eventChip} ${styles[`eventChip_${source}`]}`} key={event.key}>
-                                <span>{formatTime(t, localeTag, event)}</span>
+                              <li className={chipClassName} key={event.key}>
+                                {span.isMultiDay && !span.isStart ? null : <span>{formatTime(t, localeTag, event)}</span>}
                                 <b>{event.title}</b>
                               </li>
                             );
@@ -1087,10 +1172,20 @@ function CalendarPageContent() {
               </div>
             </div>
 
-            <section aria-label={t("calendar.selected.aria")} className={styles.detail}>
+            {dayPopover ? (
+            <div className={styles.dayPopoverLayer} role="presentation" onMouseDown={closeDayPopover}>
+            <section
+              aria-label={t("calendar.selected.aria")}
+              className={styles.dayPopover}
+              onMouseDown={(popoverEvent) => popoverEvent.stopPropagation()}
+              style={{ left: dayPopover.left, top: dayPopover.top }}
+            >
               <div className={styles.detailHead}>
                 <strong>{selectedDayLabel}</strong>
                 <span>{selectedEvents.length > 0 ? t("calendar.selected.count", { count: selectedEvents.length }) : t("calendar.summary.noEvent")}</span>
+                <button aria-label={t("common.close")} className={styles.dayPopoverClose} onClick={closeDayPopover} type="button">
+                  <X size={15} strokeWidth={2.1} />
+                </button>
               </div>
               {deleteNotice ? <p className={styles.notice}>{deleteNotice}</p> : null}
               {selectedEvents.length > 0 ? (
@@ -1187,6 +1282,8 @@ function CalendarPageContent() {
                 {t("calendar.selected.addForDate")}
               </button>
             </section>
+            </div>
+            ) : null}
           </GlassPanel>
 
           {composerOpen ? (

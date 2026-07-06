@@ -592,6 +592,56 @@
   background: rgba(205, 216, 223, 0.26);
 }
 
+/* 멀티데이(여러 날 걸친) 일정 막대 — 시작/끝이 아닌 날은 모서리를 각지게 해 이어지는 막대처럼 보이게 한다. */
+.eventChipSpanMid {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  box-shadow: none;
+}
+.eventChipSpanOpenEnd {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* 날짜 칸 옆에 뜨는 일정 상세 팝오버(하단 패널 대체) */
+.dayPopoverLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+.dayPopover {
+  position: fixed;
+  z-index: 71;
+  display: grid;
+  gap: 8px;
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(60vh, 420px);
+  overflow: auto;
+  padding: 12px 14px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--cal-hairline, rgba(35, 48, 59, 0.12));
+  background: var(--cal-surface, #ffffff);
+  box-shadow:
+    0 18px 40px -18px rgba(35, 48, 59, 0.4),
+    0 2px 8px -4px rgba(35, 48, 59, 0.2);
+}
+.dayPopoverClose {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cal-ink-muted);
+  cursor: pointer;
+}
+.dayPopoverClose:hover {
+  background: rgba(35, 48, 59, 0.08);
+}
+
 .eventMore {
   padding-left: 7px;
   color: var(--cal-ink-muted);
