@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, GitBranch, KanbanSquare, Pause, Sparkles, X } from "lucide-react";
+import { Check, GitBranch, KanbanSquare, Pause, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -270,7 +270,6 @@ function ProjectRoomWorkBoardContent({
     wbsId: initialWbs?.id ?? null,
   }));
   const [candidateGeneration, setCandidateGeneration] = useState<CandidateGenerationState | null>(null);
-  const [candidateLoadingKind, setCandidateLoadingKind] = useState<CandidateGenerationKind | null>(null);
   const [candidateReviewingId, setCandidateReviewingId] = useState<string | null>(null);
   const [candidateSuggestions, setCandidateSuggestions] = useState<CandidateSuggestionMap>({
     tasks: [],
@@ -400,32 +399,6 @@ function ProjectRoomWorkBoardContent({
       }
     },
     [roomId],
-  );
-
-  const loadCandidateSuggestions = useCallback(
-    async (kind: CandidateGenerationKind) => {
-      setCandidateLoadingKind(kind);
-
-      try {
-        const suggestions = await fetchCandidateSuggestions(kind);
-        setCandidateSuggestions((current) => ({
-          ...current,
-          [kind]: suggestions,
-        }));
-      } catch (error) {
-        setCandidateGeneration({
-          kind,
-          message: t("room.workBoard.candidateLoadError", {
-            label: candidateKindLabel(t, kind),
-            message: generationErrorMessage(t, error),
-          }),
-          status: "error",
-        });
-      } finally {
-        setCandidateLoadingKind(null);
-      }
-    },
-    [fetchCandidateSuggestions, t],
   );
 
   useEffect(() => {
@@ -738,48 +711,18 @@ function ProjectRoomWorkBoardContent({
     }
   };
 
-  const handleGenerateCandidates = async (kind: CandidateGenerationKind) => {
-    const label = candidateKindLabel(t, kind);
-
-    setCandidateGeneration({
-      kind,
-      message: t("room.workBoard.generateRequesting", { label }),
-      status: "pending",
-    });
-
-    try {
-      const job = kind === "wbs" ? await agentApi.generateWbs({ roomId }) : await agentApi.generateTasks({ roomId });
-      const jobLabel = job.jobId ? t("room.workBoard.generateJobSuffix", { job: job.jobId.slice(0, 8) }) : "";
-
-      setCandidateGeneration({
-        kind,
-        message: t("room.workBoard.generateRequested", { label, suffix: jobLabel }),
-        status: "success",
-      });
-      await loadCandidateSuggestions(kind);
-      notifyDataChanged("agent");
-    } catch (error) {
-      setCandidateGeneration({
-        kind,
-        message: t("room.workBoard.generateFailed", { label, message: generationErrorMessage(t, error) }),
-        status: "error",
-      });
-    }
-  };
-
   const renderCandidateTray = (kind: CandidateGenerationKind) => {
     const suggestions = candidateSuggestions[kind];
-    const isLoading = candidateLoadingKind === kind;
     const label = candidateKindLabel(t, kind);
 
-    if (suggestions.length === 0 && !isLoading) return null;
+    if (suggestions.length === 0) return null;
 
     return (
       <section className={styles.suggestionTray} aria-label={t("room.workBoard.candidateTrayAria", { label })}>
         <div className={styles.candidateTrayHead}>
           <strong>{label}</strong>
           <StatusBadge tone={suggestions.length > 0 ? "agent" : "neutral"}>
-            {isLoading && suggestions.length === 0 ? t("room.workBoard.candidateChecking") : t("room.workBoard.candidateCount", { count: suggestions.length })}
+            {t("room.workBoard.candidateCount", { count: suggestions.length })}
           </StatusBadge>
         </div>
         {suggestions.length > 0 ? (
@@ -862,17 +805,6 @@ function ProjectRoomWorkBoardContent({
               <WbsGanttPanel
                 onNotice={setSaveNotice}
                 toolbarLeading={viewSwitch}
-                toolbarTrailing={
-                  <button
-                    className={styles.generateButton}
-                    disabled={wbsGeneration?.status === "pending"}
-                    onClick={() => void handleGenerateCandidates("wbs")}
-                    type="button"
-                  >
-                    <Sparkles aria-hidden="true" size={14} strokeWidth={1.9} />
-                    {wbsGeneration?.status === "pending" ? t("room.workBoard.generating") : t("room.workBoard.generateWbs")}
-                  </button>
-                }
                 onOpenSettings={openWbsSettings}
                 onRangesResolved={handleWbsRangesResolved}
                 onSelectItem={setSelectedWbsId}
@@ -1064,17 +996,6 @@ function ProjectRoomWorkBoardContent({
           <section className={styles.kanbanPane} aria-label={t("room.workBoard.kanbanPaneAria")}>
             <div className={styles.boardToolbar}>
               {viewSwitch}
-              <div className={styles.paneActions}>
-                <button
-                  className={styles.generateButton}
-                  disabled={taskGeneration?.status === "pending"}
-                  onClick={() => void handleGenerateCandidates("tasks")}
-                  type="button"
-                >
-                  <Sparkles aria-hidden="true" size={14} strokeWidth={1.9} />
-                  {taskGeneration?.status === "pending" ? t("room.workBoard.generating") : t("room.workBoard.generateKanban")}
-                </button>
-              </div>
             </div>
             {taskGeneration ? (
               <p className={taskGeneration.status === "error" ? styles.generateError : styles.generateNotice}>

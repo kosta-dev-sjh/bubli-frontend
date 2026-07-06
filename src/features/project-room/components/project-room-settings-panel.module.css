@@ -170,10 +170,6 @@
   word-break: keep-all;
 }
 
-.hiddenFile {
-  display: none;
-}
-
 .memberList {
   display: grid;
   gap: 8px;
