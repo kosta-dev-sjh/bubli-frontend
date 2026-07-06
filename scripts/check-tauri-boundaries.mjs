@@ -10,12 +10,15 @@ const ALLOWED_TAURI_GLOBAL_FILES = new Set(["src/lib/tauri/is-tauri.ts"]);
 const ALLOWED_INVOKE_FILES = new Set(["src/lib/tauri/ipc.ts"]);
 // 테마·로케일 영속화는 user_preferences API 연결 전까지 각 Provider 한 곳에서만 localStorage를 쓴다.
 // 홈 위젯 보드 배치도 전용 layout API가 생기기 전까지 board-storage 모듈 한 곳만 허용한다.
+// activity-client/auto-capture는 창 간 잠금·체크포인트를 localStorage로 구현했다(SQLite/outbox 전환 전 임시).
 const ALLOWED_LOCALSTORAGE_FILES = new Set([
   "src/components/theme/theme-provider.tsx",
   "src/features/dashboard/lib/board-storage.ts",
   "src/features/onboarding/lib/onboarding-storage.ts",
   "src/lib/auth/auth-session.ts",
   "src/lib/i18n/locale.ts",
+  "src/lib/local/activity-auto-capture.ts",
+  "src/lib/local/activity-client.ts",
 ]);
 
 const BOUNDARY_RULES = [

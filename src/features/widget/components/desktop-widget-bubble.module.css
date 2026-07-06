@@ -1243,7 +1243,7 @@
   --pomodoro-accent: #12BEC8;
 }
 
-/* ── 원형 SVG 진행 링 타이머 ── 깔끔한 링 + 중앙 시간(집중=coral / 휴식=teal). */
+/* ── 원형 SVG 진행 링 타이머 ── 깔끔한 링 + 중앙 시간(집중=coral / 휴식=청록 계열). */
 .pomodoroCircle {
   position: relative;
   align-self: center;

@@ -1464,7 +1464,7 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
 
   return (
     <>
-      {/* 깔끔한 원형 SVG 진행 링 — 남은 시간만큼 링이 차고, 시간이 지날수록 줄어든다(집중=coral / 휴식=teal). */}
+      {/* 깔끔한 원형 SVG 진행 링 — 남은 시간만큼 링이 차고, 시간이 지날수록 줄어든다(집중=coral / 휴식=청록 계열). */}
       <div className={[styles.pomodoroCircle, phaseClass].join(" ")}>
         <svg className={styles.pomodoroSvg} viewBox="0 0 120 120" aria-hidden="true">
           <circle className={styles.pomodoroTrack} cx="60" cy="60" r="54" />
