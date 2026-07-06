@@ -5,6 +5,7 @@ import { BellOff, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { formatNotificationContent } from "@/features/notification/format-notification";
 import type { NotificationResponse } from "@/types/api/notification";
 import type { ProjectRoomInvitationResponse } from "@/types/api/projectRoom";
 
@@ -103,10 +104,12 @@ export function TopbarNotificationsPanel({
           {visibleItems.map((item) => {
             // sourceType이 있으면 "보러가기" 딥링크로 이동 가능한 알림이다(라우팅은 app-shell 담당).
             const openable = Boolean(onOpen && item.sourceType);
+            // 백엔드 원시 잡 메타데이터("jobType=…, jobId=…")를 사람이 읽을 문구로 정리한다.
+            const display = formatNotificationContent(t, item);
             const bodyContent = (
               <>
-                <strong>{item.title}</strong>
-                {item.body ? <p>{item.body}</p> : null}
+                <strong>{display.title}</strong>
+                {display.body ? <p>{display.body}</p> : null}
                 <time dateTime={item.createdAt}>{formatTime(item.createdAt)}</time>
               </>
             );
@@ -119,7 +122,7 @@ export function TopbarNotificationsPanel({
             >
               {openable ? (
                 <button
-                  aria-label={t("layout.notifications.openAria", { title: item.title })}
+                  aria-label={t("layout.notifications.openAria", { title: display.title })}
                   className={cn(styles.notificationBody, styles.notificationOpenButton)}
                   onClick={() => onOpen?.(item)}
                   type="button"
@@ -132,7 +135,7 @@ export function TopbarNotificationsPanel({
               <div className={styles.notificationActions}>
                 {item.status === "UNREAD" ? (
                   <Button
-                    aria-label={t("layout.notifications.markReadAria", { title: item.title })}
+                    aria-label={t("layout.notifications.markReadAria", { title: display.title })}
                     className={styles.notificationReadButton}
                     onClick={() => onMarkRead(item.id)}
                     size="sm"
@@ -142,7 +145,7 @@ export function TopbarNotificationsPanel({
                   </Button>
                 ) : null}
                 <Button
-                  aria-label={t("layout.notifications.archiveAria", { title: item.title })}
+                  aria-label={t("layout.notifications.archiveAria", { title: display.title })}
                   className={styles.notificationReadButton}
                   onClick={() => onArchive(item.id)}
                   size="sm"

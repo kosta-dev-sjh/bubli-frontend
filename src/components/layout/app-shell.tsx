@@ -724,6 +724,12 @@ export function AppShell({ children }: AppShellProps) {
     setSelectedRoomId(room.id);
     setSelectedRoomLabel(room.name);
     setActiveProjectRoomId(room.id, room.name);
+    // 룸 채팅(/app/chat?mode=room)을 보는 중에 룸을 바꾸면 채팅 URL의 roomId도 새 룸으로 옮긴다.
+    // 안 그러면 이전 roomId가 URL에 고정돼(scopedProjectRoomId = queryRoomId ?? ...) 이전 룸 대화 로그가 계속 보인다.
+    // 이 경로는 스위처·룸 생성·보이스 조인 같은 실제 사용자 전환에서만 불리므로, 마운트 시 동기화(딥링크)와 충돌하지 않는다.
+    if (pathname === "/app/chat" && searchParams.get("mode") !== "direct" && searchParams.get("roomId") !== room.id) {
+      router.replace(`/app/chat?mode=room&roomId=${encodeURIComponent(room.id)}`);
+    }
   }
 
   useEffect(() => {

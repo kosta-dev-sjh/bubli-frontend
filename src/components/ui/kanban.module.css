@@ -360,6 +360,16 @@
   inline-size: min(260px, calc(100vw - 48px));
 }
 
+/* 드롭다운 상단 한 줄 안내 — 이 메뉴가 무엇을 고르는지 바로 알 수 있게 한다. */
+.menuHint {
+  padding: 4px 8px 6px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: rgba(44, 53, 64, 0.55);
+  border-block-end: 1px solid rgba(44, 53, 64, 0.08);
+  margin-block-end: 2px;
+}
+
 .assigneeOption,
 .wbsOption {
   align-items: center;

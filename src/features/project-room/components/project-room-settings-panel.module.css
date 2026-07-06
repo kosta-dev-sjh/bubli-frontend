@@ -1,7 +1,8 @@
 .panel {
-  --settings-border: rgba(205, 216, 223, 0.62);
-  --settings-ink: #2c3540;
-  --settings-muted: #5a6772;
+  /* 앱 공용 토큰에 맞춘다 — 이 패널만 톤이 튀지 않도록 (다크는 아래 [data-theme="dark"]에서 뒤집는다). */
+  --settings-border: var(--color-border, rgba(205, 216, 223, 0.62));
+  --settings-ink: var(--ink, #23303b);
+  --settings-muted: var(--ink-soft, #586978);
 
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(250, 253, 255, 0.74)),
@@ -301,4 +302,48 @@
 [data-theme="dark"] .memberIcon {
   color: #BFD6F5;
   background: rgba(70, 110, 165, 0.4);
+}
+
+/* 계약서에서 불러오기 — 입금 섹션 안의 프리필 도우미 */
+.contractFill {
+  border-top: 1px dashed var(--settings-border);
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.contractFillHead {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.contractFillHead .hint {
+  flex: 1 1 160px;
+}
+
+.contractFillPreview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.contractFillTag {
+  background: rgba(215, 234, 244, 0.5);
+  border: 1px solid rgba(111, 184, 242, 0.28);
+  border-radius: 999px;
+  color: var(--settings-ink);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+  padding: 3px 9px;
+  word-break: keep-all;
+}
+
+[data-theme="dark"] .contractFillTag {
+  background: rgba(70, 110, 165, 0.3);
+  border-color: rgba(158, 216, 255, 0.24);
+  color: #EAF0F8;
 }

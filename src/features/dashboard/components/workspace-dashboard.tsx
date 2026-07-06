@@ -23,6 +23,7 @@ import type { WidgetRoomScope } from "@/features/dashboard/lib/board-storage";
 import { useHomeBoardPresetListener } from "@/features/dashboard/lib/home-board-preset";
 import { MemoDashboardCard } from "@/features/memo/components";
 import { notificationApi } from "@/features/notification/api/notificationApi";
+import { formatNotificationContent } from "@/features/notification/format-notification";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { todoApi } from "@/features/todo/api/todoApi";
@@ -817,7 +818,7 @@ function NotificationsWidget({ notifications }: { notifications: NotificationRes
     <DashboardLineList>
       {unread.map((notification) => (
         <StatusLine key={notification.id} meta={notificationKindLabel(t, notification.sourceType)}>
-          {notification.title.trim() || notificationKindLabel(t, notification.sourceType)}
+          {formatNotificationContent(t, notification).title || notificationKindLabel(t, notification.sourceType)}
         </StatusLine>
       ))}
     </DashboardLineList>

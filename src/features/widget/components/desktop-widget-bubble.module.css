@@ -2579,7 +2579,9 @@
   left: calc(50% - 140px);
   z-index: 3;
   width: 280px;
-  max-height: 352px;
+  /* 바 창(고정 430px) 안에서 pill 영역(≈68px + 여백)을 빼고도 넘치면 잘리지 않고
+     패널 내부에서 스크롤한다 — above/below 어느 방향으로 떠도 창 밖으로 잘리지 않는다. */
+  max-height: min(352px, calc(100vh - 84px));
   overflow: hidden auto;
   padding: 12px;
   border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
@@ -3014,7 +3016,7 @@
   align-items: center;
   gap: 6px;
   color: var(--widget-muted);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 780;
 }
 
