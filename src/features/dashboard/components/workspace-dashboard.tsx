@@ -27,6 +27,7 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
+import { getDeoverlappedActivityDurationSeconds } from "@/lib/activity/activity-duration";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
@@ -190,18 +191,6 @@ function formatFocusDuration(t: TranslateFn, seconds: number) {
   }
 
   return t("dashboard.common.minute", { minutes });
-}
-
-function getActivitySeconds(activity: ActivityLogResponse) {
-  if (typeof activity.durationSeconds === "number" && activity.durationSeconds >= 0) {
-    return activity.durationSeconds;
-  }
-
-  const started = new Date(activity.startedAt).getTime();
-  const ended = activity.endedAt ? new Date(activity.endedAt).getTime() : NaN;
-  if (Number.isNaN(started) || Number.isNaN(ended) || ended <= started) return 0;
-
-  return Math.floor((ended - started) / 1000);
 }
 
 function getWeekRange(base: Date) {
@@ -478,15 +467,18 @@ function FocusStatsWidget({ logs, roomId }: { logs: ActivityLogResponse[] | null
   }
 
   const scoped = roomId ? logs.filter((log) => log.roomId === roomId) : logs;
-  const byApp = new Map<string, number>();
-  let totalSeconds = 0;
+  const logsByApp = new Map<string, ActivityLogResponse[]>();
 
   for (const log of scoped) {
-    const seconds = getActivitySeconds(log);
-    totalSeconds += seconds;
     const appName = log.appName?.trim() || t("dashboard.activity.appFallback");
-    byApp.set(appName, (byApp.get(appName) ?? 0) + seconds);
+    logsByApp.set(appName, [...(logsByApp.get(appName) ?? []), log]);
   }
+
+  const byApp = new Map<string, number>();
+  for (const [appName, appLogs] of logsByApp) {
+    byApp.set(appName, getDeoverlappedActivityDurationSeconds(appLogs));
+  }
+  const totalSeconds = getDeoverlappedActivityDurationSeconds(scoped);
 
   if (scoped.length === 0 || totalSeconds === 0) {
     return <EmptyWidget message={t("dashboard.focus.empty")} />;
@@ -973,7 +965,7 @@ export function WorkspaceDashboard() {
   );
 
   const totalFocusSeconds = useMemo(
-    () => (todayActivityLogs ?? []).reduce((sum, log) => sum + getActivitySeconds(log), 0),
+    () => getDeoverlappedActivityDurationSeconds(todayActivityLogs ?? []),
     [todayActivityLogs],
   );
 

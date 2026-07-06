@@ -1724,6 +1724,10 @@ function DesktopWidgetSurface() {
 
   const setWindowMode = useCallback(
     async (nextMode: WidgetWindowMode) => {
+      const previousMode = mode;
+      const previousClickThrough = clickThrough;
+      const previousWindowVisible = windowVisible;
+
       setMode(nextMode);
       setClickThrough(false);
       setWindowVisible(nextMode !== "MINIMIZED");
@@ -1767,10 +1771,12 @@ function DesktopWidgetSurface() {
         setClickThrough(state.clickThrough);
         setWindowVisible(state.windowVisible);
       } catch {
-        // Browser preview fallback.
+        setMode(previousMode);
+        setClickThrough(previousClickThrough);
+        setWindowVisible(previousWindowVisible);
       }
     },
-    [activeBubble, isTauri, selectedWidgetRoomId, windowId],
+    [activeBubble, clickThrough, isTauri, mode, selectedWidgetRoomId, windowId, windowVisible],
   );
 
   const toggleAlwaysOnTop = useCallback(async () => {
@@ -1789,7 +1795,12 @@ function DesktopWidgetSurface() {
   }, [activeBubble, alwaysOnTop, isTauri, windowId]);
 
   const restoreCurrentWindow = useCallback(async () => {
+    const previousMode = mode;
+    const previousClickThrough = clickThrough;
+    const previousWindowVisible = windowVisible;
+
     setMode("DEFAULT");
+    setClickThrough(false);
     setWindowVisible(true);
 
     if (!isTauri) return;
@@ -1831,13 +1842,16 @@ function DesktopWidgetSurface() {
       setClickThrough(state.clickThrough);
       setWindowVisible(state.windowVisible);
     } catch {
-      // Browser preview fallback.
+      setMode(previousMode);
+      setClickThrough(previousClickThrough);
+      setWindowVisible(previousWindowVisible);
     }
-  }, [activeBubble, isTauri, selectedWidgetRoomId, windowId]);
+  }, [activeBubble, clickThrough, isTauri, mode, selectedWidgetRoomId, windowId, windowVisible]);
 
   // 닫기(X)는 최소화와 다르다 — 완전히 닫아 바에서도 사라지고, 다시 열기는 메뉴(런처)에서 한다.
   // (이전엔 setWidgetWindowMode(MINIMIZED)를 불러 최소화와 동작이 겹쳤다.)
   const closeWindow = useCallback(async () => {
+    const previousWindowVisible = windowVisible;
     setWindowVisible(false);
 
     if (!isTauri) return;
@@ -1859,9 +1873,9 @@ function DesktopWidgetSurface() {
       setClickThrough(state.clickThrough);
       setWindowVisible(state.windowVisible);
     } catch {
-      // Browser preview fallback.
+      setWindowVisible(previousWindowVisible);
     }
-  }, [activeBubble, isTauri, windowId]);
+  }, [activeBubble, isTauri, windowId, windowVisible]);
 
   const restoreBubbleFromBar = useCallback(
     async (bubbleType: WidgetBubbleType) => {

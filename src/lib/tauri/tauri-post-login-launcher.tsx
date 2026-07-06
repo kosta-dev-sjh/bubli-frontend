@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
-import { authApi } from "@/features/auth/api/authApi";
-import { ApiClientError } from "@/lib/api/errors";
 import {
   AUTH_SESSION_CHANGE_EVENT,
   getStoredAuthSession,
@@ -12,7 +10,7 @@ import {
   readTauriAuthSessionDiagnostics,
   restoreStoredAuthSessionFromTauri,
 } from "@/lib/auth/auth-session";
-import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
+import { stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import {
   assertTauriRealGoogleAuthWidgetQa,
   readTauriAuthWidgetQaSnapshot,
@@ -39,6 +37,7 @@ declare global {
 
 export function TauriPostLoginLauncher() {
   const pathname = usePathname();
+  const router = useRouter();
   const isDesktopWidgetSurface = pathname === "/desktop-widget" || pathname.startsWith("/desktop-widget/");
 
   // 메인(하이브리드) 창 ↔ 위젯 버블 창 데이터 변경 이벤트 브릿지:
@@ -58,57 +57,69 @@ export function TauriPostLoginLauncher() {
     }
 
     let disposed = false;
-    let validationRun = 0;
+    let routingRun = 0;
 
-    async function launchAuthenticatedSurfaces() {
-      const currentRun = ++validationRun;
+    async function routeRestoredDesktopSession() {
+      const currentRun = ++routingRun;
       const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
-      if (disposed || currentRun !== validationRun) {
+      if (disposed || currentRun !== routingRun) {
         return;
       }
 
-      const hasAuthenticatedSession = Boolean(session);
-      if (!hasAuthenticatedSession) {
+      if (!session) {
         await stopTauriAuthenticatedSurfaces();
         return;
       }
 
-      try {
-        await authApi.getMe();
-      } catch (error) {
-        if (disposed || currentRun !== validationRun) {
-          return;
-        }
-
-        if (error instanceof ApiClientError && error.status === 401) {
-          await stopTauriAuthenticatedSurfaces();
-        }
-        return;
+      if (!pathname.startsWith("/app")) {
+        router.replace("/app/");
       }
-
-      if (disposed || currentRun !== validationRun) {
-        return;
-      }
-
-      if (!getStoredAuthSession()) {
-        await stopTauriAuthenticatedSurfaces();
-        return;
-      }
-
-      void launchTauriAuthenticatedSurfaces({ sessionAlreadyValidated: true }).catch(() => undefined);
     }
 
-    const handleAuthSessionChange = () => void launchAuthenticatedSurfaces();
+    const handleAuthSessionChange = () => void routeRestoredDesktopSession();
 
-    void launchAuthenticatedSurfaces();
+    void routeRestoredDesktopSession();
     window.addEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
 
     return () => {
       disposed = true;
-      validationRun += 1;
+      routingRun += 1;
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
     };
-  }, [isDesktopWidgetSurface]);
+  }, [isDesktopWidgetSurface, pathname, router]);
+
+  useEffect(() => {
+    if (!isTauriRuntime() || isDesktopWidgetSurface || runtimeSmokeEnabled || !pathname.startsWith("/app")) {
+      return;
+    }
+
+    let disposed = false;
+
+    async function redirectMissingSessionToLogin() {
+      const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
+      if (disposed || session) {
+        return;
+      }
+
+      await stopTauriAuthenticatedSurfaces().catch(() => undefined);
+      if (disposed) {
+        return;
+      }
+
+      router.replace("/login");
+      window.setTimeout(() => {
+        if (!disposed && window.location.pathname.startsWith("/app")) {
+          window.location.replace("/login");
+        }
+      }, 250);
+    }
+
+    void redirectMissingSessionToLogin();
+
+    return () => {
+      disposed = true;
+    };
+  }, [isDesktopWidgetSurface, pathname, router]);
 
   useEffect(() => {
     if (
