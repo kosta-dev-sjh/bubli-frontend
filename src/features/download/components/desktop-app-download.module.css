@@ -1,0 +1,61 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ctaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* 보조(다른 OS) 링크 — 주 버튼보다 가벼운 고스트 톤. */
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 15px;
+  border: 1px solid color-mix(in srgb, var(--blue-ink) 22%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--blue-ink) 5%, transparent);
+  color: var(--blue-ink);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.secondary:hover {
+  background: color-mix(in srgb, var(--blue-ink) 11%, transparent);
+}
+
+.detected {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.guideToggle {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--blue-ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.guide {
+  margin: 2px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}

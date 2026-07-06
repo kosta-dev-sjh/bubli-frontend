@@ -9,7 +9,7 @@
 
 const SOUND_SRC = "/sounds/bubble-pop-soft.mp3";
 const MIN_INTERVAL_MS = 700;
-const DEFAULT_VOLUME = 0.5;
+const DEFAULT_VOLUME = 0.85;
 
 let baseAudio: HTMLAudioElement | null = null;
 let lastPlayedAt = 0;
