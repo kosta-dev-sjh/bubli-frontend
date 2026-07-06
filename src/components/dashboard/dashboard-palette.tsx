@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   FileSearch,
   FileText,
+  Flame,
   FolderKanban,
   Gauge,
   NotebookPen,
@@ -39,6 +40,7 @@ const ICONS: Record<string, ComponentType<{ size?: number }>> = {
   notifications: Bell,
   "recent-resources": FileSearch,
   "quick-memo": NotebookPen,
+  "activity-heatmap": Flame,
 };
 
 export function widgetIcon(widgetId: string) {

@@ -22,6 +22,12 @@ export const notificationApi = {
     });
   },
 
+  markAllRead() {
+    return apiRequest<unknown>("/api/notifications/read-all", {
+      method: "PATCH",
+    });
+  },
+
   archive(notificationId: string) {
     return apiRequest<unknown>(`/api/notifications/${notificationId}/archive`, {
       method: "PATCH",

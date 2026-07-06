@@ -1,5 +1,10 @@
 import { apiRequest } from "@/lib/api/client";
-import type { ActivityCurrentAppRequest, ActivityLogResponse, ActivityLogsTodayResponse } from "@/types/api/activity";
+import type {
+  ActivityCurrentAppRequest,
+  ActivityLogResponse,
+  ActivityLogsByDateResponse,
+  ActivityLogsTodayResponse,
+} from "@/types/api/activity";
 
 // Endpoints follow 10_API-Design 14.6: /api/activity/* (not /api/activity-logs/*).
 export const activityApi = {
@@ -12,6 +17,10 @@ export const activityApi = {
 
   getToday() {
     return apiRequest<ActivityLogsTodayResponse>("/api/activity/today");
+  },
+
+  getByDate(date: string) {
+    return apiRequest<ActivityLogsByDateResponse>(`/api/activity/logs?date=${encodeURIComponent(date)}`);
   },
 
   delete(activityLogId: string) {

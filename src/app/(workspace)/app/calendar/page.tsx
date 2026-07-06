@@ -593,7 +593,8 @@ function CalendarPageContent() {
     setDraftStartTime("10:30");
     setDraftEndTime("11:00");
     setDraftNotice(null);
-    setDraftTarget("personal");
+    // 룸을 띄워둔 상태면 기본 저장 대상을 그 룸으로 둔다(개인은 토글로 전환).
+    setDraftTarget(selectedRoomId ? "room" : "personal");
     // 일정이 있는 날짜는 하단 선택 일정 패널에서 바로 확인/수정하고, 빈 날짜는 새 일정 작성기를 연다.
     setComposerOpen(!hasEvents);
   };
@@ -604,7 +605,8 @@ function CalendarPageContent() {
     setDraftStartTime("10:30");
     setDraftEndTime("11:00");
     setDraftNotice(null);
-    setDraftTarget("personal");
+    // 룸을 띄워둔 상태면 기본 저장 대상을 그 룸으로 둔다(개인은 토글로 전환).
+    setDraftTarget(selectedRoomId ? "room" : "personal");
     setComposerOpen(true);
   };
 
@@ -773,6 +775,12 @@ function CalendarPageContent() {
         });
         updateEventInState(created);
         notifyDataChanged("schedule", { source: CALENDAR_PAGE_EVENT_SOURCE });
+        // 룸 일정인데 구글 연동은 됐지만 동기화가 실패했다면(대개 룸 캘린더 생성 권한 없음),
+        // 재연결 안내를 띄우고 작성기를 닫지 않는다 — 룸 이름의 구글 캘린더가 안 만들어지는 원인.
+        if (created.roomId && googleConnected && created.syncStatus === "SYNC_FAILED") {
+          setDraftNotice(t("calendar.draft.roomSyncReconsent"));
+          return;
+        }
         setDraftNotice(t("calendar.draft.added"));
       }
       closeComposer();

@@ -405,6 +405,12 @@ button.profileButton {
   font-weight: 800;
 }
 
+.notificationsHeadMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .notificationsList {
   display: grid;
   max-height: 340px;

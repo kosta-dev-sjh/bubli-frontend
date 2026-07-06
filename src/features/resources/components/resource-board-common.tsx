@@ -29,12 +29,14 @@ import { agentApi } from "@/features/agent/api/agentApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged } from "@/lib/data-changed";
+import { documentTypeLabelKey } from "@/lib/document-type-label";
 import { useI18n } from "@/lib/i18n";
 import {
   analyzePersonalLocalFileWithKeySentences,
   findPersonalLocalFileByResourceId,
 } from "@/lib/local/managed-folder-client";
-import type { LocalFileByResourceIdResult } from "@/lib/tauri/commands";
+import { tauriCommands, type LocalFileByResourceIdResult } from "@/lib/tauri/commands";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type {
@@ -95,6 +97,13 @@ const personalStatusCopyKey: Partial<Record<ResourceStatus, MessageKey>> = {
 function statusLabel(t: TranslateFn, scope: ResourceBoardScope, status: ResourceStatus) {
   const personalKey = scope === "personal" ? personalStatusCopyKey[status] : undefined;
   return t(personalKey ?? statusCopyKey[status]);
+}
+
+// AI 분석 문서의 documentType(백엔드 enum 코드)을 사람이 읽는 라벨로 바꾼다.
+function aiDocumentTypeText(t: TranslateFn, type: string | null | undefined) {
+  const key = documentTypeLabelKey(type);
+  if (key) return t(key);
+  return type?.trim() || t("resources.common.pending");
 }
 
 function displayStatusRank(status: ResourceStatus) {
@@ -429,9 +438,17 @@ export function toneForStatus(status: ResourceStatus) {
   return "neutral";
 }
 
-// 권한 확인 뒤 발급된 다운로드 주소를 새 탭으로 연다. 실패는 호출부에서 알린다.
+// 권한 확인 뒤 발급된 다운로드 주소를 연다. 실패는 호출부에서 알린다.
+// Tauri 웹뷰에서는 window.open(_blank)이 막혀 다운로드가 시작되지 않으므로,
+// 데스크탑 앱에서는 OS 기본 브라우저로 여는 네이티브 커맨드를 사용한다(웹은 새 탭 유지).
 export async function openResourceDownload(resourceId: string) {
   const response = await resourcesApi.getDownloadUrl(resourceId);
+
+  if (isTauriRuntime()) {
+    await tauriCommands.openExternalUrl(response.url);
+    return;
+  }
+
   window.open(response.url, "_blank", "noopener,noreferrer");
 }
 
@@ -1327,18 +1344,25 @@ export function ResourcePreview({
               <dl className={styles.aiDocList}>
                 <div>
                   <dt>{t("resources.common.aiDocType")}</dt>
-                  <dd>{aiDocState.document.documentType ?? t("resources.common.pending")}</dd>
+                  <dd>{aiDocumentTypeText(t, aiDocState.document.documentType)}</dd>
                 </div>
                 <div>
                   <dt>{t("resources.common.aiDocStatusLabel")}</dt>
                   <dd>{t(aiDocumentStatusCopyKey[aiDocState.document.status])}</dd>
                 </div>
+                {/* AI 추출 필드는 사람이 읽을 수 있는 값(문자열·숫자)만 보여준다.
+                    중첩 객체·배열은 JSON 원문이 그대로 노출되므로 화면에 내보내지 않는다. */}
                 {Object.entries(aiDocState.document.fields ?? {})
+                  .filter(
+                    ([, fieldValue]) =>
+                      (typeof fieldValue === "string" && fieldValue.trim().length > 0) ||
+                      typeof fieldValue === "number",
+                  )
                   .slice(0, 8)
                   .map(([fieldKey, fieldValue]) => (
                     <div key={fieldKey}>
                       <dt>{fieldKey}</dt>
-                      <dd>{typeof fieldValue === "string" || typeof fieldValue === "number" ? String(fieldValue) : JSON.stringify(fieldValue)}</dd>
+                      <dd>{String(fieldValue)}</dd>
                     </div>
                   ))}
               </dl>

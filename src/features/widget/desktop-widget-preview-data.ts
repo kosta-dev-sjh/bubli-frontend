@@ -21,6 +21,9 @@ export type WidgetPreviewItem = {
   roomName?: string;
   /** TODO 그룹핑: 내 개인 TODO(personal) vs 나에게 할당된 룸 태스크(room). */
   sourceKind?: "personal" | "room";
+  /** 프로젝트룸 탭 칸반 상태칩(할 일/진행 중/검토/완료/보류). 내 할 일 탭에서는 미사용. */
+  kanbanTone?: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE" | "BLOCKED";
+  kanbanLabel?: string;
   stateId?: string;
   status: string;
   timerDurationSeconds?: number | null;
@@ -39,7 +42,15 @@ export type WidgetPreviewBubble = {
   lastMessageSequence?: number;
   metric: string;
   metricLabel: string;
+  progressRatio?: number;
   notificationLabel: string;
+  /** TODO 버블 2탭 데이터: 내 할 일 / 프로젝트룸(선택 룸 보드). rows는 고스트·바 표시용(내 할 일)과 동일. */
+  todoView?: {
+    hasRoom: boolean;
+    mine: WidgetPreviewItem[];
+    room: WidgetPreviewItem[];
+    roomName?: string;
+  };
   panelBody: string;
   panelLabel: string;
   participantLabels?: string[];

@@ -6,6 +6,8 @@ import { useLiveAuthUser } from "@/features/auth/hooks/use-live-auth-user";
 import { PublicOrbitPreview } from "@/features/public-site/components/public-orbit-preview";
 import { useI18n } from "@/lib/i18n";
 
+const windowsInstallerHref = "/downloads/windows/Bubli-Windows-latest.exe";
+
 export function PublicHero() {
   const { t } = useI18n();
   const authUser = useLiveAuthUser();
@@ -34,13 +36,13 @@ export function PublicHero() {
               <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/app">
                 {t("public.session.openApp")}
               </Link>
-              <Link className="bubli-button bubli-button--lg" href="/download">
+              <Link className="bubli-button bubli-button--lg" download href={windowsInstallerHref}>
                 {t("public.hero.download")}
               </Link>
             </>
           ) : (
             <>
-              <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/download">
+              <Link className="bubli-button bubli-button--primary bubli-button--lg" download href={windowsInstallerHref}>
                 {t("public.hero.download")}
               </Link>
               <Link className="bubli-button bubli-button--lg" href="/login">

@@ -47,29 +47,34 @@ export function useLiveAuthState(): LiveAuthState {
 
   useEffect(() => {
     let cancelled = false;
+    let resolvedOnce = false;
+
+    function commit(next: LiveAuthState) {
+      if (cancelled) return;
+      resolvedOnce = true;
+      setState((current) =>
+        current.status === next.status && (current.user?.id ?? null) === (next.user?.id ?? null)
+          ? current
+          : next,
+      );
+    }
 
     async function checkSession() {
-      if (!cancelled) {
+      if (!cancelled && !resolvedOnce) {
         setState((current) => (current.status === "checking" ? current : { status: "checking", user: current.user }));
       }
 
       const session = await restoreSessionForLiveAuth();
       if (!session) {
-        if (!cancelled) {
-          setState({ status: "unauthenticated", user: null });
-        }
+        commit({ status: "unauthenticated", user: null });
         return;
       }
 
       try {
         const me = await authApi.getMe();
-        if (!cancelled) {
-          setState({ status: "authenticated", user: me });
-        }
+        commit({ status: "authenticated", user: me });
       } catch {
-        if (!cancelled) {
-          setState({ status: "unauthenticated", user: null });
-        }
+        commit({ status: "unauthenticated", user: null });
       }
     }
 

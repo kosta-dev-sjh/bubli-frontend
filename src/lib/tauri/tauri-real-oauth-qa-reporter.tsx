@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
-import { AUTH_SESSION_CHANGE_EVENT } from "@/lib/auth/auth-session";
+import {
+  AUTH_SESSION_CHANGE_EVENT,
+  getStoredAuthSessionDiagnostics,
+  readTauriAuthSessionDiagnostics,
+} from "@/lib/auth/auth-session";
 import {
   assertTauriRealGoogleAuthWidgetQa,
   type TauriRealGoogleAuthWidgetQaAssertion,
@@ -69,8 +73,15 @@ const realOAuthQaIntervalMs = readPositiveNumber(
   process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_INTERVAL_MS,
   2_000,
 );
+const realOAuthQaAttemptTimeoutMs = readPositiveNumber(
+  process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_ATTEMPT_TIMEOUT_MS,
+  60_000,
+);
 const routeProbeGraceMs = 1_500;
 const routeProbeMaxHistory = 40;
+const missingAuthSessionReportAttempts = 3;
+let realOAuthQaRunActive = false;
+let realOAuthQaReportPosted = false;
 
 function readPositiveNumber(value: string | undefined, fallback: number) {
   const parsed = Number(value);
@@ -98,10 +109,24 @@ async function assertTauriRealGoogleAuthWidgetQaBeforeTimeout(startedAt: number)
   return Promise.race([
     assertTauriRealGoogleAuthWidgetQa(),
     timeoutAfter<TauriRealGoogleAuthWidgetQaAssertion>(
-      remainingMs,
+      Math.min(remainingMs, realOAuthQaAttemptTimeoutMs),
       "Timed out while waiting for one real OAuth QA assertion to finish.",
     ),
   ]);
+}
+
+function isQaAssertionAttemptTimeout(error: unknown) {
+  return error instanceof Error && error.message.includes("Timed out while waiting for one real OAuth QA assertion");
+}
+
+async function hasAnyStoredAuthSessionForQa() {
+  const localSession = getStoredAuthSessionDiagnostics();
+  if (localSession.hasSession) {
+    return true;
+  }
+
+  const tauriMirrorSession = await readTauriAuthSessionDiagnostics();
+  return tauriMirrorSession.hasSession;
 }
 
 async function postRealOAuthQaReport(report: RealOAuthQaReport) {
@@ -176,6 +201,7 @@ function reportPayload(
 export function TauriRealOAuthQaReporter() {
   const pathname = usePathname();
   const isDesktopWidgetSurface = pathname === "/desktop-widget" || pathname.startsWith("/desktop-widget/");
+  const pathnameRef = useRef(pathname);
   const routeHistoryRef = useRef<RealOAuthQaRouteEntry[]>([]);
   const routeProbeStateRef = useRef({
     runStartedAt: 0,
@@ -185,7 +211,7 @@ export function TauriRealOAuthQaReporter() {
     sawLoginSurfaceAfterGrace: false,
   });
 
-  const recordRouteSample = useCallback((nextPathname = currentPathname(pathname)) => {
+  const recordRouteSample = useCallback((nextPathname = currentPathname(pathnameRef.current)) => {
     const entry = readRouteEntry(nextPathname);
     routeHistoryRef.current = pruneRouteHistory([...routeHistoryRef.current, entry]);
 
@@ -199,10 +225,10 @@ export function TauriRealOAuthQaReporter() {
     }
 
     return entry;
-  }, [pathname]);
+  }, []);
 
   const buildRouteProbe = useCallback((): RealOAuthQaRouteProbe => {
-    const finalPathname = currentPathname(pathname);
+    const finalPathname = currentPathname(pathnameRef.current);
     const finalEntry = recordRouteSample(finalPathname);
     const state = routeProbeStateRef.current;
     const history = pruneRouteHistory([...routeHistoryRef.current]);
@@ -223,9 +249,10 @@ export function TauriRealOAuthQaReporter() {
       sawLoginSurfaceAfterGrace: state.sawLoginSurfaceAfterGrace,
       sampleCount: state.sampleCount,
     };
-  }, [pathname, recordRouteSample]);
+  }, [recordRouteSample]);
 
   useEffect(() => {
+    pathnameRef.current = pathname;
     recordRouteSample(pathname);
   }, [pathname, recordRouteSample]);
 
@@ -244,7 +271,7 @@ export function TauriRealOAuthQaReporter() {
         hasReportUrl: Boolean(realOAuthQaReportUrl),
         isDesktopWidgetSurface,
         isTauri,
-        pathname,
+        pathname: pathnameRef.current,
         reason: "effect-mounted",
         runtimeSmokeEnabled,
         stage: "mounted",
@@ -263,7 +290,7 @@ export function TauriRealOAuthQaReporter() {
           hasReportUrl: Boolean(realOAuthQaReportUrl),
           isDesktopWidgetSurface,
           isTauri,
-          pathname,
+          pathname: pathnameRef.current,
           reason: skipReasons.join(",") || "unknown",
           runtimeSmokeEnabled,
           stage: "skipped",
@@ -277,13 +304,15 @@ export function TauriRealOAuthQaReporter() {
     let reported = false;
 
     async function runRealOAuthQa(reason: string) {
-      if (running || reported || disposed) {
+      if (running || reported || disposed || realOAuthQaRunActive || realOAuthQaReportPosted) {
         return;
       }
 
       running = true;
+      realOAuthQaRunActive = true;
       const startedAt = Date.now();
       let attemptCount = 0;
+      let missingAuthSessionCount = 0;
       let latestAssertion: TauriRealGoogleAuthWidgetQaAssertion | undefined;
       routeProbeStateRef.current = {
         runStartedAt: startedAt,
@@ -295,17 +324,40 @@ export function TauriRealOAuthQaReporter() {
       const routeProbeTimer = window.setInterval(() => recordRouteSample(), 250);
 
       try {
-        postRealOAuthQaEvent({ pathname, reason, stage: "run-start" });
+        postRealOAuthQaEvent({ pathname: pathnameRef.current, reason, stage: "run-start" });
         while (!disposed && Date.now() - startedAt <= realOAuthQaTimeoutMs) {
           attemptCount += 1;
-          latestAssertion = await assertTauriRealGoogleAuthWidgetQaBeforeTimeout(startedAt);
-          if (attemptCount === 1 || latestAssertion.ok) {
+          try {
+            latestAssertion = await assertTauriRealGoogleAuthWidgetQaBeforeTimeout(startedAt);
+          } catch (error) {
+            if (!isQaAssertionAttemptTimeout(error)) {
+              throw error;
+            }
+            const reasonMessage = error instanceof Error ? error.message : String(error);
+            postRealOAuthQaEvent({
+              attemptCount,
+              failedChecks: latestAssertion?.failedChecks,
+              failedCheckCount: latestAssertion?.failedChecks.length,
+              ok: latestAssertion?.ok,
+              pathname: pathnameRef.current,
+              reason: reasonMessage,
+              stage: "assertion",
+            });
+            await sleep(realOAuthQaIntervalMs);
+            continue;
+          }
+          if (await hasAnyStoredAuthSessionForQa()) {
+            missingAuthSessionCount = 0;
+          } else {
+            missingAuthSessionCount += 1;
+          }
+          if (attemptCount === 1 || latestAssertion.ok || attemptCount % 3 === 0) {
             postRealOAuthQaEvent({
               attemptCount,
               failedCheckCount: latestAssertion.failedChecks.length,
               failedChecks: latestAssertion.failedChecks,
               ok: latestAssertion.ok,
-              pathname,
+              pathname: pathnameRef.current,
               reason,
               stage: "assertion",
             });
@@ -314,8 +366,32 @@ export function TauriRealOAuthQaReporter() {
           if (latestAssertion.ok) {
             const report = reportPayload("passed", startedAt, reason, attemptCount, buildRouteProbe(), latestAssertion);
             await postRealOAuthQaReport(report);
-            postRealOAuthQaEvent({ attemptCount, ok: true, pathname, reason, stage: "report-posted" });
+            postRealOAuthQaEvent({ attemptCount, ok: true, pathname: pathnameRef.current, reason, stage: "report-posted" });
             reported = true;
+            realOAuthQaReportPosted = true;
+            return;
+          }
+
+          if (missingAuthSessionCount >= missingAuthSessionReportAttempts) {
+            const report = reportPayload(
+              "failed",
+              startedAt,
+              reason,
+              attemptCount,
+              buildRouteProbe(),
+              latestAssertion,
+              "Missing a real Google TAURI session; complete Google login before running release QA.",
+            );
+            await postRealOAuthQaReport(report);
+            postRealOAuthQaEvent({
+              attemptCount,
+              ok: false,
+              pathname: pathnameRef.current,
+              reason: "missing-auth-session",
+              stage: "report-posted",
+            });
+            reported = true;
+            realOAuthQaReportPosted = true;
             return;
           }
 
@@ -333,8 +409,9 @@ export function TauriRealOAuthQaReporter() {
             "Timed out waiting for a real Google TAURI session with all widgets ready.",
           );
           await postRealOAuthQaReport(report);
-          postRealOAuthQaEvent({ attemptCount, ok: false, pathname, reason, stage: "report-posted" });
+          postRealOAuthQaEvent({ attemptCount, ok: false, pathname: pathnameRef.current, reason, stage: "report-posted" });
           reported = true;
+          realOAuthQaReportPosted = true;
         }
       } catch (error) {
         if (!disposed) {
@@ -343,7 +420,7 @@ export function TauriRealOAuthQaReporter() {
             failedChecks: latestAssertion?.failedChecks,
             failedCheckCount: latestAssertion?.failedChecks.length,
             ok: latestAssertion?.ok,
-            pathname,
+            pathname: pathnameRef.current,
             reason: error instanceof Error ? error.message : String(error),
             stage: "report-error",
           });
@@ -358,10 +435,12 @@ export function TauriRealOAuthQaReporter() {
           );
           await postRealOAuthQaReport(report).catch(() => undefined);
           reported = true;
+          realOAuthQaReportPosted = true;
         }
       } finally {
         window.clearInterval(routeProbeTimer);
         running = false;
+        realOAuthQaRunActive = false;
       }
     }
 
@@ -370,12 +449,14 @@ export function TauriRealOAuthQaReporter() {
     window.addEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
 
     return () => {
-      disposed = true;
-      postRealOAuthQaEvent({ pathname, reason: "effect-disposed", stage: "disposed" });
+      if (!running) {
+        disposed = true;
+      }
+      postRealOAuthQaEvent({ pathname: pathnameRef.current, reason: "effect-disposed", stage: "disposed" });
       window.clearTimeout(initialTimer);
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, handleAuthSessionChange);
     };
-  }, [buildRouteProbe, isDesktopWidgetSurface, pathname, recordRouteSample]);
+    }, [buildRouteProbe, isDesktopWidgetSurface, recordRouteSample]);
 
   return null;
 }

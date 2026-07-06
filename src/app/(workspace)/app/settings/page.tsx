@@ -50,6 +50,7 @@ import {
 } from "@/lib/local/managed-folder-client";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { DesktopAppDownload } from "@/features/download/components/desktop-app-download";
 import {
   tauriCommands,
   type AppMonitorInfo,
@@ -78,6 +79,7 @@ import type { WidgetBubbleSettingResponse, WidgetBubbleType } from "@/types/api/
 import type { LocalAdapterResult } from "@/types/local";
 
 import styles from "./settings-page.module.css";
+
 
 type SettingsData = {
   activityLogs: ActivityLogResponse[] | null;
@@ -1010,6 +1012,7 @@ export default function SettingsPage() {
     try {
       const result = await recordCurrentActivityContext({
         consentGranted,
+        recordMode: "incremental",
         roomId: getActiveProjectRoomId(),
       });
       if (result.status === "ready") {
@@ -1662,9 +1665,7 @@ export default function SettingsPage() {
                 <h2>{t("settings.nav.desktop")}</h2>
                 <p className={styles.sectionDesc}>{t("settings.desktop.webBody")}</p>
                 <div className={styles.sectionFoot}>
-                  <Link className="bubli-button bubli-button--primary" href="/download">
-                    {t("settings.desktop.webDownloadCta")}
-                  </Link>
+                  <DesktopAppDownload />
                 </div>
               </GlassPanel>
             ) : null}

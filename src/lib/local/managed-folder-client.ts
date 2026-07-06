@@ -51,6 +51,7 @@ export type PersonalLocalFileEventsSyncResult = {
   skippedCount: number;
   syncedAt: string;
   syncedCount: number;
+  syncedResourceIds: string[];
 };
 
 export type PersonalLocalFileAnalysisBackfillResult = {
@@ -523,6 +524,7 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
         skippedCount: 0,
         syncedAt: staged.data.stagedAt,
         syncedCount: 0,
+        syncedResourceIds: [],
       },
       commandName,
       translate("local.folder.noChanges"),
@@ -556,6 +558,13 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
       results: markResults,
     });
     const skippedCount = response.results.filter((result) => result.status === "SKIPPED").length;
+    const syncedResourceIds = [
+      ...new Set(
+        response.results
+          .filter((result) => result.status === "SYNCED" && typeof result.resourceId === "string")
+          .map((result) => result.resourceId as string),
+      ),
+    ];
     const syncedAnalysisEvents = response.results
       .map((result, index) => ({
         localEvent: staged.data.events[index],
@@ -599,6 +608,7 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
       skippedCount,
       syncedAt: markResult.completedAt,
       syncedCount: markResult.syncedCount,
+      syncedResourceIds,
     };
     notifyPersonalResourcesChanged(syncResult);
 
@@ -720,6 +730,7 @@ export async function backfillPersonalLocalFileAnalyses(input?: {
     skippedCount: 0,
     syncedAt: markResult.completedAt,
     syncedCount: 0,
+    syncedResourceIds: [],
   });
 
   return ready(

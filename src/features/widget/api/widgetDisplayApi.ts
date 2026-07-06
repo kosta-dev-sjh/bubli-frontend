@@ -223,6 +223,17 @@ export const widgetDisplayApi = {
     return widgetDisplayApi.listDashboardTasks(size);
   },
 
+  // 내 할 일 탭: 개인 TODO + 나에게 배정된 룸 태스크(백엔드 /api/tasks = findVisibleTasksForUser).
+  // '오늘 마감'으로 거르지 않는다 — 마감 없는 새 할 일도 포함해야 하므로 대시보드 today가 아닌 전체 목록을 받는다.
+  listMyTasks(size = 30) {
+    return widgetDisplayRequest<PageResponse<WidgetTaskResponse>>(`/api/tasks?page=0&size=${size}`);
+  },
+
+  // 프로젝트룸 탭: 선택 룸 보드 전체(담당자 미지정 칸반 포함). 표시 필터는 프론트에서.
+  listRoomBoard(roomId: string, size = 50) {
+    return widgetDisplayRequest<PageResponse<WidgetTaskResponse>>(`/api/project-rooms/${roomId}/tasks?page=0&size=${size}`);
+  },
+
   getProjectRoom(roomId: string) {
     return widgetDisplayRequest<WidgetProjectRoomResponse>(`/api/project-rooms/${roomId}`);
   },

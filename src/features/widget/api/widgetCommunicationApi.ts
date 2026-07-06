@@ -68,9 +68,9 @@ export const widgetCommunicationApi = {
     });
   },
 
-  createVoiceRoom(roomId: string) {
+  createVoiceRoom(params: { chatRoomId?: string; roomId?: string }) {
     return widgetCommunicationRequest<VoiceRoomResponse>("/api/voice/rooms", {
-      body: { roomId },
+      body: params,
       method: "POST",
     });
   },

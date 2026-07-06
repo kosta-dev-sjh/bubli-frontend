@@ -408,6 +408,7 @@ export function KanbanBoard({
 
                         {isWbsMenuOpen ? (
                           <div aria-label={t("ui.kanban.wbsMenu")} className={styles.wbsMenu} role="listbox">
+                            <p className={styles.menuHint}>{t("ui.kanban.wbsMenuHint")}</p>
                             <button
                               aria-selected={!task.wbsItemId}
                               className={styles.wbsOption}
@@ -479,6 +480,7 @@ export function KanbanBoard({
 
                         {isAssigneeMenuOpen ? (
                           <div aria-label={t("ui.kanban.selectAssignee")} className={styles.assigneeMenu} role="listbox">
+                            <p className={styles.menuHint}>{t("ui.kanban.assigneeMenuHint")}</p>
                             <button
                               aria-selected={!task.assigneeId}
                               className={styles.assigneeOption}

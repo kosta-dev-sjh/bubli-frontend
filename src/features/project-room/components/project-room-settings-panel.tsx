@@ -1,21 +1,127 @@
 "use client";
 
-import { Building2, Crown, DoorClosed, UserCheck, UserPlus, UsersRound, Wallet, X } from "lucide-react";
+import { Building2, Crown, DoorClosed, FileText, UserCheck, UserPlus, UsersRound, Wallet, X } from "lucide-react";
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { agentApi } from "@/features/agent/api/agentApi";
 import { friendApi } from "@/features/communication/api/friendApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
+import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
+import type { AgentSuggestionResponse } from "@/types/api/agent";
+import type { FriendResponse } from "@/types/api/friend";
 import type { ProjectRoomInvitationResponse, ProjectRoomMemberResponse, ProjectRoomPaymentStatus, ProjectRoomResponse, ProjectRoomRole } from "@/types/api/projectRoom";
+import type { ResourceResponse } from "@/types/api/resource";
 
 import styles from "./project-room-settings-panel.module.css";
+
+type ContractFillFields = {
+  clientName?: string;
+  contractAmount?: string;
+  paidAt?: string;
+  paymentDueDate?: string;
+};
+
+type ContractFillOption = {
+  fields: ContractFillFields;
+  name: string;
+  resourceId: string;
+};
+
+// 계약서 추출 필드(payloadJson.fieldKey/value)를 입금 폼 슬롯으로 매핑한다.
+// 표준 fieldKey(contract_amount 등)를 우선하되, 옛 자유 문자열·한글 라벨도 관대하게 흡수한다.
+function classifyContractField(fieldKey: string, label: string): keyof ContractFillFields | null {
+  const key = `${fieldKey} ${label}`.toLowerCase();
+  if (/contract_amount|\bamount\b|금액|견적|계약금|대금/.test(key)) return "contractAmount";
+  if (/payment_due_date|due|예정일|마감|deadline/.test(key)) return "paymentDueDate";
+  if (/payment_date|paid|입금일|지급일|결제일/.test(key)) return "paidAt";
+  if (/client_name|client|클라이언트|고객|발주|거래처|company|회사/.test(key)) return "clientName";
+  return null;
+}
+
+function normalizeAmountValue(raw: string): string | null {
+  const digits = raw.replace(/[^\d]/g, "");
+  return digits.length > 0 ? digits : null;
+}
+
+function normalizeDateValue(raw: string): string | null {
+  const iso = raw.match(/(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})/);
+  if (iso) {
+    const [, year, month, day] = iso;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+  const parsed = new Date(raw.trim());
+  if (!Number.isNaN(parsed.getTime())) {
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${parsed.getFullYear()}-${month}-${day}`;
+  }
+  return null;
+}
+
+function confidenceOf(reference: AgentSuggestionResponse): number {
+  const value = reference.payloadJson?.confidence;
+  return typeof value === "number" ? value : 0;
+}
+
+// 룸의 계약 참고값을 자료(계약서)별로 묶어, 채울 값이 하나라도 있는 계약서만 선택지로 만든다.
+function buildContractFillOptions(
+  references: AgentSuggestionResponse[],
+  resources: ResourceResponse[],
+  fallbackName: string,
+): ContractFillOption[] {
+  const nameById = new Map(resources.map((resource) => [resource.id, resource.title] as const));
+  const grouped = new Map<string, AgentSuggestionResponse[]>();
+
+  for (const reference of references) {
+    const resourceId = reference.resourceId;
+    if (!resourceId) continue;
+    const bucket = grouped.get(resourceId);
+    if (bucket) bucket.push(reference);
+    else grouped.set(resourceId, [reference]);
+  }
+
+  const options: ContractFillOption[] = [];
+
+  for (const [resourceId, group] of grouped) {
+    const sorted = [...group].sort((a, b) => confidenceOf(b) - confidenceOf(a));
+    const fields: ContractFillFields = {};
+
+    for (const reference of sorted) {
+      const payload = reference.payloadJson ?? {};
+      const value = String(payload.value ?? "").trim();
+      if (!value) continue;
+      const slot = classifyContractField(String(payload.fieldKey ?? ""), String(payload.title ?? ""));
+      if (!slot || fields[slot]) continue;
+
+      if (slot === "contractAmount") {
+        const amount = normalizeAmountValue(value);
+        if (amount) fields.contractAmount = amount;
+      } else if (slot === "paymentDueDate") {
+        const date = normalizeDateValue(value);
+        if (date) fields.paymentDueDate = date;
+      } else if (slot === "paidAt") {
+        const date = normalizeDateValue(value);
+        if (date) fields.paidAt = date;
+      } else {
+        fields.clientName = value;
+      }
+    }
+
+    if (fields.contractAmount || fields.paymentDueDate || fields.paidAt || fields.clientName) {
+      options.push({ fields, name: nameById.get(resourceId) ?? fallbackName, resourceId });
+    }
+  }
+
+  return options;
+}
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
@@ -52,6 +158,14 @@ function requestErrorText(t: TranslateFn, error: unknown) {
   if (error instanceof ApiClientError && error.message) return error.message;
   if (error instanceof Error && error.message && error.message !== "Failed to fetch") return error.message;
   return t("room.settings.genericError");
+}
+
+// 초대는 수락한 친구에게만 보낼 수 있다(백엔드 PROJECT_403_003). 그 경우만 쉬운 안내로 바꾼다.
+function inviteErrorText(t: TranslateFn, error: unknown) {
+  if (error instanceof ApiClientError && error.code === "PROJECT_403_003") {
+    return t("room.settings.inviteFriendOnly");
+  }
+  return requestErrorText(t, error);
 }
 
 export function ProjectRoomSettingsPanel({
@@ -91,6 +205,13 @@ export function ProjectRoomSettingsPanel({
   const [isInviting, setIsInviting] = useState(false);
   const [pendingInvitations, setPendingInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
   const [cancelingInvitationId, setCancelingInvitationId] = useState<string | null>(null);
+  const [contractFillOpen, setContractFillOpen] = useState(false);
+  const [contractOptions, setContractOptions] = useState<ContractFillOption[]>([]);
+  const [selectedContractId, setSelectedContractId] = useState("");
+  const [isLoadingContracts, setIsLoadingContracts] = useState(false);
+  const [friends, setFriends] = useState<FriendResponse[]>([]);
+  const [isLoadingFriends, setIsLoadingFriends] = useState(false);
+  const [invitingFriendId, setInvitingFriendId] = useState<string | null>(null);
 
   const activeMembers = useMemo(() => members.filter((member) => member.status === "ACTIVE"), [members]);
   const canManage = useMemo(() => {
@@ -178,6 +299,73 @@ export function ProjectRoomSettingsPanel({
     }
   };
 
+  const selectedContract = useMemo(
+    () => contractOptions.find((option) => option.resourceId === selectedContractId) ?? null,
+    [contractOptions, selectedContractId],
+  );
+
+  // 선택한 계약서가 채울 값을 사람이 읽을 수 있는 미리보기 칩으로 만든다 (저장 전 확인용).
+  const contractFillPreviewTags = useMemo(() => {
+    if (!selectedContract) return [] as string[];
+    const { clientName, contractAmount, paidAt, paymentDueDate } = selectedContract.fields;
+    const tags: string[] = [];
+    if (contractAmount) tags.push(`${t("room.settings.amountLabel")} ${Number(contractAmount).toLocaleString()}`);
+    if (paymentDueDate) tags.push(`${t("room.settings.dueLabel")} ${paymentDueDate}`);
+    if (paidAt) tags.push(`${t("room.settings.paidAtLabel")} ${paidAt}`);
+    if (clientName) tags.push(`${t("room.settings.clientLabel")} ${clientName}`);
+    return tags;
+  }, [selectedContract, t]);
+
+  // 계약서에서 불러오기: 룸의 계약 참고값 + 자료 목록을 함께 받아 계약서별 선택지를 만든다.
+  const handleToggleContractFill = async () => {
+    if (contractFillOpen) {
+      setContractFillOpen(false);
+      return;
+    }
+
+    setIsLoadingContracts(true);
+
+    try {
+      const [references, resourcePage] = await Promise.all([
+        agentApi.listRoomContractReferences(room.id),
+        resourcesApi.listRoomResources(room.id),
+      ]);
+      const options = buildContractFillOptions(references, resourcePage.items, t("room.settings.contractFillUnnamed"));
+      setContractOptions(options);
+      setSelectedContractId(options[0]?.resourceId ?? "");
+      setContractFillOpen(true);
+    } catch (error) {
+      setContractOptions([]);
+      setSelectedContractId("");
+      setContractFillOpen(true);
+      setNotice({ text: requestErrorText(t, error), tone: "error" });
+    } finally {
+      setIsLoadingContracts(false);
+    }
+  };
+
+  // 프리필만 한다 — 저장은 사용자가 값을 확인한 뒤 기존 저장 버튼으로 직접 한다.
+  const handleApplyContract = () => {
+    if (!selectedContract) return;
+
+    const { clientName, contractAmount, paidAt, paymentDueDate } = selectedContract.fields;
+
+    if (contractAmount || paidAt || paymentDueDate) {
+      setPaymentDraft((current) => ({
+        ...current,
+        contractAmount: contractAmount ?? current.contractAmount,
+        paidAt: paidAt ?? current.paidAt,
+        paymentDueDate: paymentDueDate ?? current.paymentDueDate,
+      }));
+    }
+    if (clientName) {
+      setInfoDraft((current) => ({ ...current, clientName }));
+    }
+
+    setContractFillOpen(false);
+    setNotice({ text: t("room.settings.contractFillApplied", { name: selectedContract.name }), tone: "ok" });
+  };
+
   // 대기 중 초대 목록 — 채팅 페이지와 같은 projectRoomApi.getInvitations 계약을 그대로 쓴다.
   const loadInvitations = useCallback(async () => {
     try {
@@ -188,13 +376,33 @@ export function ProjectRoomSettingsPanel({
     }
   }, [room.id]);
 
+  // 친구 목록 — 초대는 친구에게만 보낼 수 있으므로, 골라 초대할 후보로 쓴다.
+  const loadFriends = useCallback(async () => {
+    setIsLoadingFriends(true);
+    try {
+      setFriends(await friendApi.listFriends());
+    } catch {
+      // 친구 목록 로드 실패는 조용히 넘긴다. Bubli ID 직접 초대는 그대로 쓸 수 있다.
+    } finally {
+      setIsLoadingFriends(false);
+    }
+  }, []);
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       void loadInvitations();
+      void loadFriends();
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [loadInvitations]);
+  }, [loadInvitations, loadFriends]);
+
+  // 이미 멤버이거나 초대 대기 중인 친구는 후보에서 뺀다.
+  const invitableFriends = useMemo(() => {
+    const memberIds = new Set(activeMembers.map((member) => member.userId));
+    const pendingIds = new Set(pendingInvitations.map((invitation) => invitation.inviteeUserId));
+    return friends.filter((friend) => !memberIds.has(friend.friendUserId) && !pendingIds.has(friend.friendUserId));
+  }, [friends, activeMembers, pendingInvitations]);
 
   const handleInvite = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -220,9 +428,25 @@ export function ProjectRoomSettingsPanel({
       setNotice({ text: t("room.settings.inviteSent", { name: target.name }), tone: "ok" });
       await loadInvitations();
     } catch (error) {
-      setNotice({ text: requestErrorText(t, error), tone: "error" });
+      setNotice({ text: inviteErrorText(t, error), tone: "error" });
     } finally {
       setIsInviting(false);
+    }
+  };
+
+  const handleInviteFriend = async (friend: FriendResponse) => {
+    if (invitingFriendId) return;
+
+    setInvitingFriendId(friend.friendUserId);
+
+    try {
+      await projectRoomApi.createInvitation(room.id, { inviteeUserId: friend.friendUserId, role: "MEMBER" });
+      setNotice({ text: t("room.settings.inviteSent", { name: friend.name }), tone: "ok" });
+      await loadInvitations();
+    } catch (error) {
+      setNotice({ text: inviteErrorText(t, error), tone: "error" });
+    } finally {
+      setInvitingFriendId(null);
     }
   };
 
@@ -391,6 +615,61 @@ export function ProjectRoomSettingsPanel({
             <Wallet aria-hidden="true" size={15} strokeWidth={1.9} />
             {t("room.settings.paymentTitle")}
           </h3>
+
+          {canManage ? (
+            <div className={styles.contractFill}>
+              <div className={styles.contractFillHead}>
+                <p className={styles.hint}>{t("room.settings.contractFillHint")}</p>
+                <Button
+                  icon={<FileText aria-hidden="true" size={14} strokeWidth={1.9} />}
+                  loading={isLoadingContracts}
+                  onClick={() => void handleToggleContractFill()}
+                  size="sm"
+                  variant="quiet"
+                >
+                  {contractFillOpen ? t("room.settings.contractFillClose") : t("room.settings.contractFillOpen")}
+                </Button>
+              </div>
+
+              {contractFillOpen ? (
+                contractOptions.length === 0 ? (
+                  <p className={styles.hint}>{t("room.settings.contractFillEmpty")}</p>
+                ) : (
+                  <>
+                    <label className={styles.field}>
+                      <span>{t("room.settings.contractFillPick")}</span>
+                      <select onChange={(event) => setSelectedContractId(event.target.value)} value={selectedContractId}>
+                        {contractOptions.map((option) => (
+                          <option key={option.resourceId} value={option.resourceId}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {contractFillPreviewTags.length > 0 ? (
+                      <div className={styles.contractFillPreview}>
+                        {contractFillPreviewTags.map((tag) => (
+                          <span className={styles.contractFillTag} key={tag}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className={styles.hint}>{t("room.settings.contractFillNoFields")}</p>
+                    )}
+
+                    <div className={styles.fieldActions}>
+                      <Button disabled={contractFillPreviewTags.length === 0} onClick={handleApplyContract} size="sm" variant="primary">
+                        {t("room.settings.contractFillApply")}
+                      </Button>
+                    </div>
+                  </>
+                )
+              ) : null}
+            </div>
+          ) : null}
+
           <form className={styles.fieldGrid} onSubmit={handleSavePayment}>
             <label className={styles.field}>
               <span>{t("room.settings.paymentStatusLabel")}</span>
@@ -518,6 +797,40 @@ export function ProjectRoomSettingsPanel({
             ) : null}
           </h3>
           <p className={styles.hint}>{t("room.settings.inviteHint")}</p>
+
+          {canManage ? (
+            isLoadingFriends && friends.length === 0 ? (
+              <p className={styles.hint}>{t("room.settings.inviteFriendLoading")}</p>
+            ) : invitableFriends.length === 0 ? (
+              <p className={styles.hint}>{t("room.settings.inviteFriendEmpty")}</p>
+            ) : (
+              <div className={styles.memberList}>
+                {invitableFriends.map((friend) => (
+                  <article className={styles.memberRow} key={friend.friendUserId}>
+                    <span aria-hidden="true" className={styles.memberIcon}>
+                      <UserCheck size={14} strokeWidth={1.9} />
+                    </span>
+                    <span className={styles.memberName}>
+                      <strong>{friend.name}</strong>
+                      <small>@{friend.bubliId}</small>
+                    </span>
+                    <span className={styles.memberActions}>
+                      <Button
+                        loading={invitingFriendId === friend.friendUserId}
+                        onClick={() => void handleInviteFriend(friend)}
+                        size="sm"
+                        variant="quiet"
+                      >
+                        {t("room.settings.inviteFriendAction")}
+                      </Button>
+                    </span>
+                  </article>
+                ))}
+              </div>
+            )
+          ) : null}
+
+          <p className={styles.hint}>{t("room.settings.inviteIdHint")}</p>
           <form className={styles.fieldGrid} onSubmit={handleInvite}>
             <label className={styles.field}>
               <span>{t("room.settings.inviteLabel")}</span>

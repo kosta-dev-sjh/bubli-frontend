@@ -55,7 +55,6 @@ const ko = {
   "layout.voiceCall.hint": "보이스 통화를 시작했어요",
   "layout.voiceCall.accept": "수락",
   "layout.voiceCall.connecting": "연결 중",
-  "layout.voiceCall.later": "이따 참여",
   "layout.voiceCall.decline": "거절",
 
   // 새 메시지 미리보기 토스트
@@ -72,6 +71,7 @@ const ko = {
   "layout.invites.inviterFallback": "멤버",
   "layout.notifications.title": "알림",
   "layout.notifications.unreadCount": "안 읽음 {count}개",
+  "layout.notifications.markAllRead": "모두 읽음 처리",
   "layout.notifications.empty": "알림이 없습니다",
   "layout.notifications.markRead": "읽음 처리",
   "layout.notifications.markReadAria": "{title} 알림 읽음 처리",
@@ -152,7 +152,6 @@ const en: Record<Key, string> = {
   "layout.voiceCall.hint": "started a voice call",
   "layout.voiceCall.accept": "Accept",
   "layout.voiceCall.connecting": "Connecting",
-  "layout.voiceCall.later": "Join later",
   "layout.voiceCall.decline": "Decline",
 
   "layout.messageToast.dismiss": "Dismiss",
@@ -167,6 +166,7 @@ const en: Record<Key, string> = {
   "layout.invites.inviterFallback": "A member",
   "layout.notifications.title": "Notifications",
   "layout.notifications.unreadCount": "{count} unread",
+  "layout.notifications.markAllRead": "Mark all as read",
   "layout.notifications.empty": "No notifications",
   "layout.notifications.markRead": "Mark as read",
   "layout.notifications.markReadAria": "Mark notification {title} as read",
@@ -244,7 +244,6 @@ const ja: Record<Key, string> = {
   "layout.voiceCall.hint": "ボイス通話を開始しました",
   "layout.voiceCall.accept": "応答",
   "layout.voiceCall.connecting": "接続中",
-  "layout.voiceCall.later": "後で参加",
   "layout.voiceCall.decline": "拒否",
 
   "layout.messageToast.dismiss": "閉じる",
@@ -259,6 +258,7 @@ const ja: Record<Key, string> = {
   "layout.invites.inviterFallback": "メンバー",
   "layout.notifications.title": "通知",
   "layout.notifications.unreadCount": "未読{count}件",
+  "layout.notifications.markAllRead": "すべて既読にする",
   "layout.notifications.empty": "通知はありません",
   "layout.notifications.markRead": "既読にする",
   "layout.notifications.markReadAria": "通知「{title}」を既読にする",

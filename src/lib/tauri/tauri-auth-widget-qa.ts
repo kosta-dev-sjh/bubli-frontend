@@ -1,6 +1,7 @@
 "use client";
 
 import { authApi } from "@/features/auth/api/authApi";
+import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import {
@@ -27,6 +28,7 @@ import {
   type WidgetWindowState,
 } from "@/lib/tauri/commands";
 import {
+  launchTauriAuthenticatedSurfaces,
   readTauriAuthenticatedSurfacesLaunchTimeline,
   stopTauriAuthenticatedSurfaces,
   type TauriAuthenticatedSurfaceLaunchTimeline,
@@ -40,6 +42,7 @@ const REAL_OAUTH_LOCAL_SYNC_FOLDER_MARKER = "bubli-real-oauth-local-sync-";
 const REAL_OAUTH_LOCAL_SYNC_INITIAL_SEARCH_QUERY = "RealOAuthLocalSyncInitial";
 const REAL_OAUTH_LOCAL_SYNC_UPDATED_MARKER = "RealOAuthLocalSyncUpdated";
 const REAL_OAUTH_LOCAL_SYNC_UPDATED_SEARCH_QUERY = "searchable marker";
+const REAL_OAUTH_LOCAL_SYNC_WATCH_INITIAL_QUERY = "RealOAuthLocalWatchInitial";
 
 type RealOAuthQaPrivacyConsents = {
   activityDetectionEnabled: boolean;
@@ -75,11 +78,39 @@ type TauriRealOAuthLocalSyncProbe = {
     initialPreviewIncludesMarker?: boolean;
     initialPreviewReady?: boolean;
     initialSearchMatched?: boolean;
+    initialSyncAnalysisFailedCount?: number;
+    initialSyncAnalysisRequestedCount?: number;
     initialSyncFailedCount?: number;
     initialSyncSentCount?: number;
     initialSyncSyncedCount?: number;
+    initialSyncedResourceNotInSelectedRoomResources?: boolean;
+    initialSyncedResourcePersonal?: boolean;
+    initialSyncedResourceResolved?: boolean;
+    initialSyncedResourceRoomIdAbsent?: boolean;
+    initialSyncedResourceRoomListChecked?: boolean;
+    initialSyncedResourceRoomListShapeOk?: boolean;
     fixtureFileName?: string;
     localFolderId?: string;
+    deleteRequested?: boolean;
+    deletedSearchCleared?: boolean;
+    deleteSyncFailedCount?: number;
+    deleteSyncSentCount?: number;
+    deleteSyncSyncedCount?: number;
+    nativeWatchCreateSyncFailedCount?: number;
+    nativeWatchCreateSyncSentCount?: number;
+    nativeWatchCreateSyncSyncedCount?: number;
+    nativeWatchDeleteRequested?: boolean;
+    nativeWatchDeleteSyncFailedCount?: number;
+    nativeWatchDeleteSyncSentCount?: number;
+    nativeWatchDeleteSyncSyncedCount?: number;
+    nativeWatchFileName?: string;
+    nativeWatchInitialSearchMatched?: boolean;
+    nativeWatchMutationRequested?: boolean;
+    nativeWatchStarted?: boolean;
+    nativeWatchUpdateSyncFailedCount?: number;
+    nativeWatchUpdateSyncSentCount?: number;
+    nativeWatchUpdateSyncSyncedCount?: number;
+    nativeWatchUpdatedSearchMatched?: boolean;
     mutationRequested?: boolean;
     prepareRequested?: boolean;
     reindexChanged?: boolean;
@@ -90,12 +121,22 @@ type TauriRealOAuthLocalSyncProbe = {
     stagedCreatedCount?: number;
     stagedCreatedEventTypes?: string[];
     stagedCreatedFileNames?: string[];
+    stagedDeletedCount?: number;
+    stagedDeletedEventTypes?: string[];
+    stagedDeletedFileNames?: string[];
+    stagedNativeWatchCreatedCount?: number;
+    stagedNativeWatchDeletedCount?: number;
+    stagedNativeWatchEventTypes?: string[];
+    stagedNativeWatchFileNames?: string[];
+    stagedNativeWatchUpdatedCount?: number;
     stagedUpdatedCount?: number;
     stagedUpdatedEventTypes?: string[];
     stagedUpdatedFileNames?: string[];
     updatedPreviewIncludesMarker?: boolean;
     updatedPreviewReady?: boolean;
     updatedSearchMatched?: boolean;
+    updateSyncAnalysisFailedCount?: number;
+    updateSyncAnalysisRequestedCount?: number;
     updateSyncFailedCount?: number;
     updateSyncSentCount?: number;
     updateSyncSyncedCount?: number;
@@ -223,6 +264,7 @@ export type TauriRealGoogleAuthWidgetQaAssertion = {
 };
 
 type ReadTauriAuthWidgetQaSnapshotOptions = {
+  ensureAuthenticatedSurfaces?: boolean;
   runStopCleanupProbe?: boolean;
 };
 
@@ -234,12 +276,30 @@ function toProbe(error: unknown): QaProbe {
   return { ok: false };
 }
 
-async function probeBackend<T>(read: () => Promise<T>): Promise<{ data?: T; probe: QaProbe }> {
-  try {
-    return { data: await read(), probe: { ok: true } };
-  } catch (error) {
-    return { probe: toProbe(error) };
+function shouldRetryBackendProbe(error: unknown) {
+  if (error instanceof ApiClientError) {
+    return error.status === 408 || error.status === 429 || error.status >= 500;
   }
+
+  return true;
+}
+
+async function probeBackend<T>(read: () => Promise<T>, attempts = 3): Promise<{ data?: T; probe: QaProbe }> {
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return { data: await read(), probe: { ok: true } };
+    } catch (error) {
+      lastError = error;
+      if (attempt >= attempts - 1 || !shouldRetryBackendProbe(error)) {
+        break;
+      }
+      await waitForMs(500 * (attempt + 1));
+    }
+  }
+
+  return { probe: toProbe(lastError) };
 }
 
 function roomMatches(actual: string | null | undefined, expected: string | null) {
@@ -294,6 +354,26 @@ function resolveRealOAuthLocalSyncFolderPath() {
 
 function resolveRealOAuthLocalSyncMutateUrl() {
   const value = process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL;
+  return value?.trim() || null;
+}
+
+function resolveRealOAuthLocalSyncDeleteUrl() {
+  const value = process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_DELETE_URL;
+  return value?.trim() || null;
+}
+
+function resolveRealOAuthLocalSyncWatchCreateUrl() {
+  const value = process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_CREATE_URL;
+  return value?.trim() || null;
+}
+
+function resolveRealOAuthLocalSyncWatchDeleteUrl() {
+  const value = process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_DELETE_URL;
+  return value?.trim() || null;
+}
+
+function resolveRealOAuthLocalSyncWatchMutateUrl() {
+  const value = process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_MUTATE_URL;
   return value?.trim() || null;
 }
 
@@ -377,7 +457,7 @@ async function stageQaLocalFileEventsUntil(
     return latestStage;
   }
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
     await waitForMs(250);
     latestStage = await tauriCommands.stageLocalFileEventsForSync({
       limit: 20,
@@ -389,6 +469,14 @@ async function stageQaLocalFileEventsUntil(
   }
 
   return latestStage;
+}
+
+async function fetchQaFixtureJson<T>(url: string, label: string): Promise<T> {
+  const response = await fetch(url, { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`${label} failed: ${response.status}`);
+  }
+  return (await response.json().catch(() => ({}))) as T;
 }
 
 async function cleanupStaleRealOAuthQaManagedFolders(currentFixturePath: string) {
@@ -409,7 +497,51 @@ async function cleanupStaleRealOAuthQaManagedFolders(currentFixturePath: string)
   return removed.filter((result) => result.status === "fulfilled").length;
 }
 
-async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonNullable<TauriRealOAuthLocalSyncProbe["localFiles"]>> {
+async function verifySyncedPersonalResourceIsolation(resourceId: string | undefined, selectedRoomId: string | null) {
+  if (!resourceId) {
+    return {
+      initialSyncedResourceNotInSelectedRoomResources: false,
+      initialSyncedResourcePersonal: false,
+      initialSyncedResourceResolved: false,
+      initialSyncedResourceRoomIdAbsent: false,
+      initialSyncedResourceRoomListChecked: false,
+      initialSyncedResourceRoomListShapeOk: false,
+    };
+  }
+
+  const resource = await resourcesApi.get(resourceId);
+  const roomItems = [];
+  let roomListShapeOk = false;
+  if (selectedRoomId) {
+    for (let page = 0; page < 5; page += 1) {
+      const roomResources = await resourcesApi.listRoomResourcesPage(selectedRoomId, page, 100);
+      if (!Array.isArray(roomResources.items)) {
+        roomListShapeOk = false;
+        break;
+      }
+      roomListShapeOk = true;
+      roomItems.push(...roomResources.items);
+      if (!roomResources.hasNext) {
+        break;
+      }
+    }
+  }
+
+  return {
+    initialSyncedResourceNotInSelectedRoomResources:
+      roomListShapeOk && !roomItems.some((item) => item.id === resourceId),
+    initialSyncedResourcePersonal: resource.visibility === "PERSONAL",
+    initialSyncedResourceResolved: resource.id === resourceId,
+    initialSyncedResourceRoomIdAbsent: resource.roomId === null || resource.roomId === undefined,
+    initialSyncedResourceRoomListChecked: Boolean(selectedRoomId),
+    initialSyncedResourceRoomListShapeOk: roomListShapeOk,
+  };
+}
+
+async function runRealOAuthLocalFileProbe(
+  consentGranted: boolean,
+  selectedRoomId: string | null,
+): Promise<NonNullable<TauriRealOAuthLocalSyncProbe["localFiles"]>> {
   const fixturePath = resolveRealOAuthLocalSyncFolderPath();
   if (!fixturePath) {
     return { enabled: false };
@@ -474,23 +606,29 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
       limit: 20,
       localFolderId: folder.localFolderId,
     });
+    const initialSyncedResourceIsolation =
+      initialSync.status === "ready"
+        ? await verifySyncedPersonalResourceIsolation(initialSync.data.syncedResourceIds[0], selectedRoomId)
+        : await verifySyncedPersonalResourceIsolation(undefined, selectedRoomId);
 
     const mutateUrl = resolveRealOAuthLocalSyncMutateUrl();
     let mutationRequested = false;
+    let updatedSearchQuery = REAL_OAUTH_LOCAL_SYNC_UPDATED_SEARCH_QUERY;
     if (mutateUrl) {
       const response = await fetch(mutateUrl, { method: "POST" });
       if (!response.ok) {
         throw new Error(`fixture mutation failed: ${response.status}`);
       }
+      const mutation = (await response.json().catch(() => null)) as { marker?: unknown } | null;
+      if (typeof mutation?.marker === "string" && mutation.marker.trim()) {
+        updatedSearchQuery = mutation.marker.trim();
+      }
       mutationRequested = true;
     }
 
-    const updatedPreview = await readLocalFilePreviewUntilMarker(noteFile.localFileId, REAL_OAUTH_LOCAL_SYNC_UPDATED_MARKER);
     const reindex = await tauriCommands.reindexFile({ localFileId: noteFile.localFileId });
-    const updatedSearch = await searchLocalFilesUntilMatch(
-      noteFile.localFileId,
-      REAL_OAUTH_LOCAL_SYNC_UPDATED_SEARCH_QUERY,
-    );
+    const updatedPreview = await readLocalFilePreviewUntilMarker(noteFile.localFileId, REAL_OAUTH_LOCAL_SYNC_UPDATED_MARKER);
+    const updatedSearch = await searchLocalFilesUntilMatch(noteFile.localFileId, updatedSearchQuery);
     const updatedEvents = await stageQaLocalFileEventsUntil(folder.localFolderId, (stage) =>
       stage.events.some((event) => event.localFileId === noteFile.localFileId && event.eventType === "UPDATED"),
     );
@@ -502,10 +640,122 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
       limit: 20,
       localFolderId: folder.localFolderId,
     });
+
+    const deleteUrl = resolveRealOAuthLocalSyncDeleteUrl();
+    let deleteRequested = false;
+    if (deleteUrl) {
+      const response = await fetch(deleteUrl, { method: "POST" });
+      if (!response.ok) {
+        throw new Error(`fixture delete failed: ${response.status}`);
+      }
+      deleteRequested = true;
+    }
+
+    await tauriCommands.scanManagedFolder({ localFolderId: folder.localFolderId });
+    const deletedEvents = await stageQaLocalFileEventsUntil(folder.localFolderId, (stage) =>
+      stage.events.some((event) => event.localFileId === noteFile.localFileId && event.eventType === "DELETED"),
+    );
+    const qaDeletedEvents = deletedEvents.events.filter(
+      (event) => event.localFileId === noteFile.localFileId && event.eventType === "DELETED",
+    );
+    const deleteSync = await syncPersonalLocalFileEventsToServer({
+      consentGranted,
+      limit: 20,
+      localFolderId: folder.localFolderId,
+    });
+    const deletedSearch = await searchLocalFilesUntilMissing(noteFile.localFileId, updatedSearchQuery);
+
+    let nativeWatchCreateSync = null as Awaited<ReturnType<typeof syncPersonalLocalFileEventsToServer>> | null;
+    let nativeWatchDeleteRequested = false;
+    let nativeWatchDeleteSync = null as Awaited<ReturnType<typeof syncPersonalLocalFileEventsToServer>> | null;
+    let nativeWatchFileName: string | undefined;
+    let nativeWatchInitialSearch = null as Awaited<ReturnType<typeof tauriCommands.searchLocalFiles>> | null;
+    let nativeWatchLocalFileId: string | null = null;
+    let nativeWatchMutationRequested = false;
+    let nativeWatchStarted = false;
+    let nativeWatchUpdatedSearch = null as Awaited<ReturnType<typeof tauriCommands.searchLocalFiles>> | null;
+    let nativeWatchUpdateSync = null as Awaited<ReturnType<typeof syncPersonalLocalFileEventsToServer>> | null;
+    let watchedCreatedEvents: LocalFileEventsSyncStageResult | null = null;
+    let watchedDeletedEvents: LocalFileEventsSyncStageResult | null = null;
+    let watchedUpdatedEvents: LocalFileEventsSyncStageResult | null = null;
+
+    const watchCreateUrl = resolveRealOAuthLocalSyncWatchCreateUrl();
+    const watchDeleteUrl = resolveRealOAuthLocalSyncWatchDeleteUrl();
+    const watchMutateUrl = resolveRealOAuthLocalSyncWatchMutateUrl();
+    if (watchCreateUrl && watchDeleteUrl && watchMutateUrl) {
+      const watch = await tauriCommands.watchManagedFolder({ localFolderId: folder.localFolderId });
+      nativeWatchStarted = watch.watching;
+
+      const watchedCreated = await fetchQaFixtureJson<{ fileName?: unknown; marker?: unknown }>(
+        watchCreateUrl,
+        "fixture native watch create",
+      );
+      if (typeof watchedCreated.fileName !== "string" || !watchedCreated.fileName.trim()) {
+        throw new Error("fixture native watch create did not return fileName");
+      }
+      nativeWatchFileName = watchedCreated.fileName.trim();
+      const nativeWatchInitialQuery =
+        typeof watchedCreated.marker === "string" && watchedCreated.marker.trim()
+          ? watchedCreated.marker.trim()
+          : REAL_OAUTH_LOCAL_SYNC_WATCH_INITIAL_QUERY;
+      watchedCreatedEvents = await stageQaLocalFileEventsUntil(folder.localFolderId, (stage) =>
+        stage.events.some((event) => event.fileName === nativeWatchFileName && event.eventType === "CREATED"),
+      );
+      nativeWatchLocalFileId =
+        watchedCreatedEvents.events.find(
+          (event) => event.fileName === nativeWatchFileName && event.eventType === "CREATED",
+        )?.localFileId ?? null;
+      if (!nativeWatchLocalFileId) {
+        throw new Error("fixture native watch create did not stage localFileId");
+      }
+      nativeWatchInitialSearch = await searchLocalFilesUntilMatch(nativeWatchLocalFileId, nativeWatchInitialQuery);
+      nativeWatchCreateSync = await syncPersonalLocalFileEventsToServer({
+        consentGranted,
+        limit: 20,
+        localFolderId: folder.localFolderId,
+      });
+
+      const watchedMutation = await fetchQaFixtureJson<{ fileName?: unknown; marker?: unknown }>(
+        watchMutateUrl,
+        "fixture native watch mutation",
+      );
+      const nativeWatchUpdatedQuery =
+        typeof watchedMutation.marker === "string" && watchedMutation.marker.trim()
+          ? watchedMutation.marker.trim()
+          : REAL_OAUTH_LOCAL_SYNC_WATCH_INITIAL_QUERY;
+      nativeWatchMutationRequested = true;
+      watchedUpdatedEvents = await stageQaLocalFileEventsUntil(folder.localFolderId, (stage) =>
+        stage.events.some((event) => event.localFileId === nativeWatchLocalFileId && event.eventType === "UPDATED"),
+      );
+      nativeWatchUpdatedSearch = await searchLocalFilesUntilMatch(nativeWatchLocalFileId, nativeWatchUpdatedQuery);
+      nativeWatchUpdateSync = await syncPersonalLocalFileEventsToServer({
+        consentGranted,
+        limit: 20,
+        localFolderId: folder.localFolderId,
+      });
+
+      await fetchQaFixtureJson<{ fileName?: unknown; notePath?: unknown }>(
+        watchDeleteUrl,
+        "fixture native watch delete",
+      );
+      nativeWatchDeleteRequested = true;
+      watchedDeletedEvents = await stageQaLocalFileEventsUntil(folder.localFolderId, (stage) =>
+        stage.events.some((event) => event.localFileId === nativeWatchLocalFileId && event.eventType === "DELETED"),
+      );
+      nativeWatchDeleteSync = await syncPersonalLocalFileEventsToServer({
+        consentGranted,
+        limit: 20,
+        localFolderId: folder.localFolderId,
+      });
+    }
+
     const remainingEvents = await tauriCommands.stageLocalFileEventsForSync({
       limit: 20,
       localFolderId: folder.localFolderId,
     });
+    const remainingQaEvents = remainingEvents.events.filter(
+      (event) => event.fileName === fixtureFileName || event.fileName === nativeWatchFileName,
+    );
 
     return {
       enabled: true,
@@ -514,26 +764,83 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
       initialPreviewIncludesMarker: Boolean(initialPreview.previewText?.includes("RealOAuthLocalSyncInitial")),
       initialPreviewReady: initialPreview.status === "READY",
       initialSearchMatched: initialSearch.items.some((item) => item.localFileId === noteFile.localFileId),
+      initialSyncAnalysisFailedCount: initialSync.status === "ready" ? initialSync.data.analysisFailedCount : undefined,
+      initialSyncAnalysisRequestedCount: initialSync.status === "ready" ? initialSync.data.analysisRequestedCount : undefined,
       initialSyncFailedCount: initialSync.status === "ready" ? initialSync.data.failedCount : undefined,
       initialSyncSentCount: initialSync.status === "ready" ? initialSync.data.sentCount : undefined,
       initialSyncSyncedCount: initialSync.status === "ready" ? initialSync.data.syncedCount : undefined,
+      ...initialSyncedResourceIsolation,
       localFolderId: folder.localFolderId,
+      deleteRequested,
+      deletedSearchCleared: !deletedSearch.items.some((item) => item.localFileId === noteFile.localFileId),
+      deleteSyncFailedCount: deleteSync.status === "ready" ? deleteSync.data.failedCount : undefined,
+      deleteSyncSentCount: deleteSync.status === "ready" ? deleteSync.data.sentCount : undefined,
+      deleteSyncSyncedCount: deleteSync.status === "ready" ? deleteSync.data.syncedCount : undefined,
+      nativeWatchCreateSyncFailedCount: nativeWatchCreateSync?.status === "ready" ? nativeWatchCreateSync.data.failedCount : undefined,
+      nativeWatchCreateSyncSentCount: nativeWatchCreateSync?.status === "ready" ? nativeWatchCreateSync.data.sentCount : undefined,
+      nativeWatchCreateSyncSyncedCount: nativeWatchCreateSync?.status === "ready" ? nativeWatchCreateSync.data.syncedCount : undefined,
+      nativeWatchDeleteRequested,
+      nativeWatchDeleteSyncFailedCount: nativeWatchDeleteSync?.status === "ready" ? nativeWatchDeleteSync.data.failedCount : undefined,
+      nativeWatchDeleteSyncSentCount: nativeWatchDeleteSync?.status === "ready" ? nativeWatchDeleteSync.data.sentCount : undefined,
+      nativeWatchDeleteSyncSyncedCount: nativeWatchDeleteSync?.status === "ready" ? nativeWatchDeleteSync.data.syncedCount : undefined,
+      nativeWatchFileName,
+      nativeWatchInitialSearchMatched: nativeWatchInitialSearch?.items.some(
+        (item) => item.localFileId === nativeWatchLocalFileId,
+      ),
+      nativeWatchMutationRequested,
+      nativeWatchStarted,
+      nativeWatchUpdateSyncFailedCount:
+        nativeWatchUpdateSync?.status === "ready" ? nativeWatchUpdateSync.data.failedCount : undefined,
+      nativeWatchUpdateSyncSentCount:
+        nativeWatchUpdateSync?.status === "ready" ? nativeWatchUpdateSync.data.sentCount : undefined,
+      nativeWatchUpdateSyncSyncedCount:
+        nativeWatchUpdateSync?.status === "ready" ? nativeWatchUpdateSync.data.syncedCount : undefined,
+      nativeWatchUpdatedSearchMatched: nativeWatchUpdatedSearch?.items.some(
+        (item) => item.localFileId === nativeWatchLocalFileId,
+      ),
       mutationRequested,
       prepareRequested,
       reindexChanged: reindex.changed,
       reindexStatus: reindex.status,
-      remainingQaEvents: remainingEvents.events.filter((event) => event.fileName === fixtureFileName).length,
+      remainingQaEvents: remainingQaEvents.length,
       scanFileCount: scan.changedCount,
       staleQaFolderRemovedCount,
       stagedCreatedCount: qaCreatedEvents.length,
       stagedCreatedEventTypes: createdEvents.events.map((event) => event.eventType),
       stagedCreatedFileNames: createdEvents.events.map((event) => event.fileName),
+      stagedDeletedCount: qaDeletedEvents.length,
+      stagedDeletedEventTypes: deletedEvents.events.map((event) => event.eventType),
+      stagedDeletedFileNames: deletedEvents.events.map((event) => event.fileName),
+      stagedNativeWatchCreatedCount:
+        watchedCreatedEvents?.events.filter(
+          (event) => event.fileName === nativeWatchFileName && event.eventType === "CREATED",
+        ).length,
+      stagedNativeWatchDeletedCount:
+        watchedDeletedEvents?.events.filter(
+          (event) => event.localFileId === nativeWatchLocalFileId && event.eventType === "DELETED",
+        ).length,
+      stagedNativeWatchEventTypes: [
+        ...(watchedCreatedEvents?.events.map((event) => event.eventType) ?? []),
+        ...(watchedUpdatedEvents?.events.map((event) => event.eventType) ?? []),
+        ...(watchedDeletedEvents?.events.map((event) => event.eventType) ?? []),
+      ],
+      stagedNativeWatchFileNames: [
+        ...(watchedCreatedEvents?.events.map((event) => event.fileName) ?? []),
+        ...(watchedUpdatedEvents?.events.map((event) => event.fileName) ?? []),
+        ...(watchedDeletedEvents?.events.map((event) => event.fileName) ?? []),
+      ],
+      stagedNativeWatchUpdatedCount:
+        watchedUpdatedEvents?.events.filter(
+          (event) => event.localFileId === nativeWatchLocalFileId && event.eventType === "UPDATED",
+        ).length,
       stagedUpdatedCount: qaUpdatedEvents.length,
       stagedUpdatedEventTypes: updatedEvents.events.map((event) => event.eventType),
       stagedUpdatedFileNames: updatedEvents.events.map((event) => event.fileName),
       updatedPreviewIncludesMarker: Boolean(updatedPreview.previewText?.includes(REAL_OAUTH_LOCAL_SYNC_UPDATED_MARKER)),
       updatedPreviewReady: updatedPreview.status === "READY",
       updatedSearchMatched: updatedSearch.items.some((item) => item.localFileId === noteFile.localFileId),
+      updateSyncAnalysisFailedCount: updateSync.status === "ready" ? updateSync.data.analysisFailedCount : undefined,
+      updateSyncAnalysisRequestedCount: updateSync.status === "ready" ? updateSync.data.analysisRequestedCount : undefined,
       updateSyncFailedCount: updateSync.status === "ready" ? updateSync.data.failedCount : undefined,
       updateSyncSentCount: updateSync.status === "ready" ? updateSync.data.sentCount : undefined,
       updateSyncSyncedCount: updateSync.status === "ready" ? updateSync.data.syncedCount : undefined,
@@ -552,7 +859,7 @@ async function runRealOAuthLocalFileProbe(consentGranted: boolean): Promise<NonN
   }
 }
 
-async function searchLocalFilesUntilMatch(localFileId: string, query: string, timeoutMs = 3_000) {
+async function searchLocalFilesUntilMatch(localFileId: string, query: string, timeoutMs = 12_000) {
   const startedAt = Date.now();
   let latest = await tauriCommands.searchLocalFiles({ limit: 10, query });
 
@@ -564,7 +871,19 @@ async function searchLocalFilesUntilMatch(localFileId: string, query: string, ti
   return latest;
 }
 
-async function readLocalFilePreviewUntilMarker(localFileId: string, marker: string, timeoutMs = 3_000) {
+async function searchLocalFilesUntilMissing(localFileId: string, query: string, timeoutMs = 12_000) {
+  const startedAt = Date.now();
+  let latest = await tauriCommands.searchLocalFiles({ limit: 10, query });
+
+  while (latest.items.some((item) => item.localFileId === localFileId) && Date.now() - startedAt < timeoutMs) {
+    await waitForMs(250);
+    latest = await tauriCommands.searchLocalFiles({ limit: 10, query });
+  }
+
+  return latest;
+}
+
+async function readLocalFilePreviewUntilMarker(localFileId: string, marker: string, timeoutMs = 12_000) {
   const startedAt = Date.now();
   let latest = await tauriCommands.readLocalFilePreview({ localFileId, maxChars: 1_000 });
 
@@ -588,7 +907,7 @@ async function runRealOAuthLocalSyncProbe(roomId: string | null): Promise<TauriR
   try {
     const privacyConsents = await enableRealOAuthQaPrivacyConsents();
     const sqlite = await tauriCommands.checkLocalSqliteIntegrity();
-    const localFiles = await runRealOAuthLocalFileProbe(privacyConsents.localFolderEnabled);
+    const localFiles = await runRealOAuthLocalFileProbe(privacyConsents.localFolderEnabled, roomId);
     const occurredAt = new Date();
     const nativeActivity = privacyConsents.activityDetectionEnabled
       ? await tauriCommands
@@ -684,6 +1003,7 @@ async function runRealOAuthStopCleanupProbe(): Promise<TauriRealOAuthStopCleanup
 
   try {
     await stopTauriAuthenticatedSurfaces();
+    await waitForRealOAuthAutoSyncLoopsStopped();
 
     const activeProjectRoom = await tauriCommands.readActiveProjectRoom().catch(() => null);
     const barWindow = await readWindowState("bar", null, null);
@@ -756,10 +1076,7 @@ async function runRealOAuthStabilityProbe(
     await waitForMs(dwellMs);
     const widgetRuntime = await readWidgetRuntimeState(selectedRoomId, serverSelectedRoomId);
     const backendSummary = await probeBackend(() => widgetApi.getSummary(selectedRoomId));
-    const allAutoSyncLoopsRunning =
-      isActivityAutoCaptureRunning() &&
-      isManagedFolderAutoSyncRunning() &&
-      isWidgetUsageAutoSyncRunning();
+    const allAutoSyncLoopsRunning = realOAuthAutoSyncLoopsRunning();
 
     return {
       allAutoSyncLoopsRunning,
@@ -868,6 +1185,12 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
     snapshot.syncRuntime.managedFolderStatus.lastStatus !== "failed",
     "sync:managedFolderStatusNotFailed",
   );
+  addCheck(
+    failedChecks,
+    snapshot.syncRuntime.managedFolderStatus.lastFileAnalysisFailedCountScope === "global-auto-sync-drain" ||
+      snapshot.syncRuntime.managedFolderStatus.lastFileAnalysisFailedCountScope === "folder-auto-sync-drain",
+    "sync:managedFolderAnalysisScopeKnown",
+  );
   if (snapshot.localSyncProbe.enabled) {
     addCheck(failedChecks, !snapshot.localSyncProbe.error, "localSyncProbe:noError");
     addCheck(failedChecks, snapshot.localSyncProbe.sqlite?.ok, "localSyncProbe:sqliteQuickCheck");
@@ -883,6 +1206,38 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
       addCheck(failedChecks, (localFiles.initialSyncSentCount ?? 0) >= 1, "localSyncProbe:localFileCreatedSent");
       addCheck(failedChecks, (localFiles.initialSyncSyncedCount ?? 0) >= 1, "localSyncProbe:localFileCreatedSynced");
       addCheck(failedChecks, localFiles.initialSyncFailedCount === 0, "localSyncProbe:localFileCreatedNoFailures");
+      addCheck(failedChecks, localFiles.initialSyncedResourceResolved, "localSyncProbe:localFileResourceResolved");
+      addCheck(failedChecks, localFiles.initialSyncedResourcePersonal, "localSyncProbe:localFileResourcePersonal");
+      addCheck(
+        failedChecks,
+        localFiles.initialSyncedResourceRoomIdAbsent,
+        "localSyncProbe:localFileResourceNoRoomId",
+      );
+      addCheck(
+        failedChecks,
+        localFiles.initialSyncedResourceRoomListChecked,
+        "localSyncProbe:localFileResourceRoomListChecked",
+      );
+      addCheck(
+        failedChecks,
+        localFiles.initialSyncedResourceRoomListShapeOk,
+        "localSyncProbe:localFileResourceRoomListShape",
+      );
+      addCheck(
+        failedChecks,
+        localFiles.initialSyncedResourceNotInSelectedRoomResources,
+        "localSyncProbe:localFileResourceNotInSelectedRoom",
+      );
+      addCheck(
+        failedChecks,
+        (localFiles.initialSyncAnalysisRequestedCount ?? 0) >= 1,
+        "localSyncProbe:localFileCreatedAnalysisRequested",
+      );
+      addCheck(
+        failedChecks,
+        localFiles.initialSyncAnalysisFailedCount === 0,
+        "localSyncProbe:localFileCreatedAnalysisNoFailures",
+      );
       addCheck(failedChecks, localFiles.mutationRequested, "localSyncProbe:localFileMutationRequested");
       addCheck(failedChecks, localFiles.reindexStatus === "REINDEXED", "localSyncProbe:localFileReindexed");
       addCheck(failedChecks, localFiles.reindexChanged, "localSyncProbe:localFileReindexChanged");
@@ -893,6 +1248,88 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
       addCheck(failedChecks, (localFiles.updateSyncSentCount ?? 0) >= 1, "localSyncProbe:localFileUpdatedSent");
       addCheck(failedChecks, (localFiles.updateSyncSyncedCount ?? 0) >= 1, "localSyncProbe:localFileUpdatedSynced");
       addCheck(failedChecks, localFiles.updateSyncFailedCount === 0, "localSyncProbe:localFileUpdatedNoFailures");
+      addCheck(
+        failedChecks,
+        (localFiles.updateSyncAnalysisRequestedCount ?? 0) >= 1,
+        "localSyncProbe:localFileUpdatedAnalysisRequested",
+      );
+      addCheck(
+        failedChecks,
+        localFiles.updateSyncAnalysisFailedCount === 0,
+        "localSyncProbe:localFileUpdatedAnalysisNoFailures",
+      );
+      addCheck(failedChecks, localFiles.deleteRequested, "localSyncProbe:localFileDeleteRequested");
+      addCheck(failedChecks, (localFiles.stagedDeletedCount ?? 0) >= 1, "localSyncProbe:localFileDeletedStaged");
+      addCheck(failedChecks, (localFiles.deleteSyncSentCount ?? 0) >= 1, "localSyncProbe:localFileDeletedSent");
+      addCheck(failedChecks, (localFiles.deleteSyncSyncedCount ?? 0) >= 1, "localSyncProbe:localFileDeletedSynced");
+      addCheck(failedChecks, localFiles.deleteSyncFailedCount === 0, "localSyncProbe:localFileDeletedNoFailures");
+      addCheck(failedChecks, localFiles.deletedSearchCleared, "localSyncProbe:localFileDeletedSearchCleared");
+      addCheck(failedChecks, localFiles.nativeWatchStarted, "localSyncProbe:nativeWatchStarted");
+      addCheck(failedChecks, Boolean(localFiles.nativeWatchFileName), "localSyncProbe:nativeWatchFileCreated");
+      addCheck(
+        failedChecks,
+        (localFiles.stagedNativeWatchCreatedCount ?? 0) >= 1,
+        "localSyncProbe:nativeWatchCreatedStaged",
+      );
+      addCheck(
+        failedChecks,
+        (localFiles.nativeWatchCreateSyncSentCount ?? 0) >= 1,
+        "localSyncProbe:nativeWatchCreatedSent",
+      );
+      addCheck(
+        failedChecks,
+        (localFiles.nativeWatchCreateSyncSyncedCount ?? 0) >= 1,
+        "localSyncProbe:nativeWatchCreatedSynced",
+      );
+      addCheck(
+        failedChecks,
+        localFiles.nativeWatchCreateSyncFailedCount === 0,
+        "localSyncProbe:nativeWatchCreatedNoFailures",
+      );
+      addCheck(failedChecks, localFiles.nativeWatchInitialSearchMatched, "localSyncProbe:nativeWatchInitialSearch");
+      addCheck(failedChecks, localFiles.nativeWatchMutationRequested, "localSyncProbe:nativeWatchMutationRequested");
+      addCheck(
+        failedChecks,
+        (localFiles.stagedNativeWatchUpdatedCount ?? 0) >= 1,
+        "localSyncProbe:nativeWatchUpdatedStaged",
+      );
+      addCheck(
+        failedChecks,
+        (localFiles.nativeWatchUpdateSyncSentCount ?? 0) >= 1,
+        "localSyncProbe:nativeWatchUpdatedSent",
+      );
+      addCheck(
+        failedChecks,
+        (localFiles.nativeWatchUpdateSyncSyncedCount ?? 0) >= 1,
+        "localSyncProbe:nativeWatchUpdatedSynced",
+      );
+      addCheck(
+        failedChecks,
+        localFiles.nativeWatchUpdateSyncFailedCount === 0,
+        "localSyncProbe:nativeWatchUpdatedNoFailures",
+      );
+      addCheck(failedChecks, localFiles.nativeWatchUpdatedSearchMatched, "localSyncProbe:nativeWatchUpdatedSearch");
+      addCheck(failedChecks, localFiles.nativeWatchDeleteRequested, "localSyncProbe:nativeWatchDeleteRequested");
+      addCheck(
+        failedChecks,
+        (localFiles.stagedNativeWatchDeletedCount ?? 0) >= 1,
+        "localSyncProbe:nativeWatchDeletedStaged",
+      );
+      addCheck(
+        failedChecks,
+        (localFiles.nativeWatchDeleteSyncSentCount ?? 0) >= 1,
+        "localSyncProbe:nativeWatchDeletedSent",
+      );
+      addCheck(
+        failedChecks,
+        (localFiles.nativeWatchDeleteSyncSyncedCount ?? 0) >= 1,
+        "localSyncProbe:nativeWatchDeletedSynced",
+      );
+      addCheck(
+        failedChecks,
+        localFiles.nativeWatchDeleteSyncFailedCount === 0,
+        "localSyncProbe:nativeWatchDeletedNoFailures",
+      );
       addCheck(failedChecks, localFiles.remainingQaEvents === 0, "localSyncProbe:localFileNoRemainingEvents");
     }
     addCheck(failedChecks, snapshot.localSyncProbe.widgetUsageQueued, "localSyncProbe:widgetUsageQueued");
@@ -1082,41 +1519,95 @@ async function readWidgetRuntimeState(
   };
 }
 
+function realOAuthAutoSyncLoopsRunning() {
+  return isActivityAutoCaptureRunning() && isManagedFolderAutoSyncRunning() && isWidgetUsageAutoSyncRunning();
+}
+
+function realOAuthAutoSyncLoopsStopped() {
+  return !isActivityAutoCaptureRunning() && !isManagedFolderAutoSyncRunning() && !isWidgetUsageAutoSyncRunning();
+}
+
+async function waitForRealOAuthAutoSyncLoops(timeoutMs = 5_000) {
+  const startedAt = Date.now();
+  while (!realOAuthAutoSyncLoopsRunning() && Date.now() - startedAt < timeoutMs) {
+    await waitForMs(250);
+  }
+}
+
+async function waitForRealOAuthAutoSyncLoopsStopped(timeoutMs = 5_000) {
+  const startedAt = Date.now();
+  while (!realOAuthAutoSyncLoopsStopped() && Date.now() - startedAt < timeoutMs) {
+    await waitForMs(250);
+  }
+}
+
+async function ensureTauriAuthenticatedSurfacesForQa(localSession: AuthSessionDiagnostics) {
+  if (!isTauriRuntime() || !localSession.hasSession) {
+    return;
+  }
+
+  const timeline = readTauriAuthenticatedSurfacesLaunchTimeline();
+  if (timeline.completed && realOAuthAutoSyncLoopsRunning()) {
+    return;
+  }
+
+  await launchTauriAuthenticatedSurfaces({ retryPolicy: "force", sessionAlreadyValidated: true }).catch(() => undefined);
+  await waitForRealOAuthAutoSyncLoops();
+}
+
 export async function readTauriAuthWidgetQaSnapshot(
   options: ReadTauriAuthWidgetQaSnapshotOptions = {},
 ): Promise<TauriAuthWidgetQaSnapshot> {
-  const localSession = getStoredAuthSessionDiagnostics();
-  const tauriMirrorSession = await readTauriAuthSessionDiagnostics();
+  let localSession = getStoredAuthSessionDiagnostics();
+  let tauriMirrorSession = await readTauriAuthSessionDiagnostics();
+  if (options.ensureAuthenticatedSurfaces !== false) {
+    await ensureTauriAuthenticatedSurfacesForQa(localSession);
+    localSession = getStoredAuthSessionDiagnostics();
+    tauriMirrorSession = await readTauriAuthSessionDiagnostics();
+  }
 
   const memoryRoomId = getActiveProjectRoomId();
   const tauriRoom = isTauriRuntime() ? await tauriCommands.readActiveProjectRoom().catch(() => null) : null;
-  const backendMe = await probeBackend(() => authApi.getMe());
-  const backendContext = await probeBackend(() => widgetApi.getContext());
-  const serverSelectedRoomId = backendContext.data?.selectedRoomId ?? null;
-  const selectedRoomId = memoryRoomId ?? tauriRoom?.roomId ?? serverSelectedRoomId;
-  const backendSummary = await probeBackend(() => widgetApi.getSummary(selectedRoomId));
-  const localSyncProbe = await runRealOAuthLocalSyncProbe(selectedRoomId ?? null);
-  const widgetRuntime = await readWidgetRuntimeState(selectedRoomId ?? null, serverSelectedRoomId);
+  const hasAuthSession = localSession.hasSession || tauriMirrorSession.hasSession;
+  const missingSessionProbe: QaProbe = { code: "MISSING_AUTH_SESSION", ok: false, status: 401 };
+  const backendMe = hasAuthSession
+    ? await probeBackend(() => authApi.getMe())
+    : { probe: missingSessionProbe };
+  const backendContext = hasAuthSession
+    ? await probeBackend(() => widgetApi.getContext())
+    : { probe: missingSessionProbe };
+  const contextSelectedRoomId = backendContext.data?.selectedRoomId ?? null;
+  const selectedRoomId = memoryRoomId ?? tauriRoom?.roomId ?? contextSelectedRoomId;
+  const backendSummary = hasAuthSession
+    ? await probeBackend(() => widgetApi.getSummary(selectedRoomId))
+    : { probe: missingSessionProbe };
+  const serverSelectedRoomId = contextSelectedRoomId ?? backendSummary.data?.context.selectedRoomId ?? null;
+  const effectiveSelectedRoomId = memoryRoomId ?? tauriRoom?.roomId ?? serverSelectedRoomId;
+  const localSyncProbe = hasAuthSession
+    ? await runRealOAuthLocalSyncProbe(effectiveSelectedRoomId ?? null)
+    : { enabled: false };
+  const widgetRuntime = await readWidgetRuntimeState(effectiveSelectedRoomId ?? null, serverSelectedRoomId);
   const managedFolderStatus = getManagedFolderAutoSyncStatus();
   const syncRuntime = {
     activityAutoCaptureRunning: isActivityAutoCaptureRunning(),
-    allAutoSyncLoopsRunning:
-      isActivityAutoCaptureRunning() &&
-      isManagedFolderAutoSyncRunning() &&
-      isWidgetUsageAutoSyncRunning(),
+    allAutoSyncLoopsRunning: realOAuthAutoSyncLoopsRunning(),
     managedFolderAutoSyncRunning: isManagedFolderAutoSyncRunning(),
     managedFolderStatus,
     widgetUsageAutoSyncRunning: isWidgetUsageAutoSyncRunning(),
   };
-  const stabilityProbe = await runRealOAuthStabilityProbe(selectedRoomId ?? null, serverSelectedRoomId);
+  const stabilityProbe = hasAuthSession
+    ? await runRealOAuthStabilityProbe(effectiveSelectedRoomId ?? null, serverSelectedRoomId)
+    : { enabled: false };
   const launchTimeline = readTauriAuthenticatedSurfacesLaunchTimeline();
-  const sessionRestoreProbe = await runRealOAuthSessionRestoreProbe();
+  const sessionRestoreProbe = hasAuthSession
+    ? await runRealOAuthSessionRestoreProbe()
+    : { enabled: true, error: "missing_auth_session" };
   const stopCleanupProbe =
     options.runStopCleanupProbe === false ? { enabled: false } : await runRealOAuthStopCleanupProbe();
 
   return {
     activeProjectRoom: {
-      hasSelectedRoom: Boolean(selectedRoomId),
+      hasSelectedRoom: Boolean(effectiveSelectedRoomId),
       memoryRoomId,
       serverSelectedRoomId,
       tauriRoomId: tauriRoom?.roomId ?? null,

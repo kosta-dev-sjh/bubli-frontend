@@ -23,10 +23,12 @@ import type { WidgetRoomScope } from "@/features/dashboard/lib/board-storage";
 import { useHomeBoardPresetListener } from "@/features/dashboard/lib/home-board-preset";
 import { MemoDashboardCard } from "@/features/memo/components";
 import { notificationApi } from "@/features/notification/api/notificationApi";
+import { formatNotificationContent } from "@/features/notification/format-notification";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { todoApi } from "@/features/todo/api/todoApi";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
+import { getDeoverlappedActivityDurationSeconds } from "@/lib/activity/activity-duration";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
@@ -44,7 +46,7 @@ import type { AgentSuggestionResponse, AgentSuggestionType } from "@/types/api/a
 import type { NotificationResponse } from "@/types/api/notification";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { ResourceResponse } from "@/types/api/resource";
-import type { DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
+import type { DashboardActivityHeatmapResponse, DashboardWorkResponse, ScheduleResponse, TaskResponse } from "@/types/api/work";
 
 import styles from "./workspace-dashboard.module.css";
 
@@ -79,6 +81,7 @@ const connectedWidgetIds = [
   "upcoming-deadlines",
   "pending-approval",
   "notifications",
+  "activity-heatmap",
 ];
 // 기본 보드는 과밀하지 않게 기존 8개만 둔다(새 카드는 opt-in).
 const defaultWidgetIds = connectedWidgetIds.slice(0, 8);
@@ -192,16 +195,14 @@ function formatFocusDuration(t: TranslateFn, seconds: number) {
   return t("dashboard.common.minute", { minutes });
 }
 
-function getActivitySeconds(activity: ActivityLogResponse) {
-  if (typeof activity.durationSeconds === "number" && activity.durationSeconds >= 0) {
-    return activity.durationSeconds;
-  }
+function formatHeatmapDate(locale: string, value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
 
-  const started = new Date(activity.startedAt).getTime();
-  const ended = activity.endedAt ? new Date(activity.endedAt).getTime() : NaN;
-  if (Number.isNaN(started) || Number.isNaN(ended) || ended <= started) return 0;
-
-  return Math.floor((ended - started) / 1000);
+  return new Intl.DateTimeFormat(LOCALE_TAGS[locale] ?? "ko-KR", {
+    day: "numeric",
+    month: "numeric",
+  }).format(date);
 }
 
 function getWeekRange(base: Date) {
@@ -218,6 +219,32 @@ function getWeekRange(base: Date) {
 
 function dedupeTasks(tasks: TaskResponse[]) {
   return tasks.filter((task, index, source) => source.findIndex((item) => item.id === task.id) === index);
+}
+
+// 로컬 달력 기준 YYYY-MM-DD 키. toISOString()은 UTC로 변환돼 자정 근처 날짜가 하루 밀릴 수 있어 쓰지 않는다.
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+// 히트맵 그리드는 월요일 시작 열이어야 하므로, 첫 데이터 앞에 몇 칸을 비워야 하는지 계산한다.
+function mondayIndex(dateKey: string) {
+  return (parseDateKey(dateKey).getDay() + 6) % 7;
+}
+
+function heatmapLevel(count: number) {
+  if (count <= 0) return 0;
+  if (count <= 2) return 1;
+  if (count <= 4) return 2;
+  if (count <= 7) return 3;
+  return 4;
 }
 
 function StatusLine({ children, meta }: { children: string; meta?: string }) {
@@ -472,26 +499,97 @@ function RoomProgressWidget({
   );
 }
 
-function FocusStatsWidget({ logs, roomId }: { logs: ActivityLogResponse[] | null; roomId: string | null }) {
-  const { t } = useI18n();
+function FocusStatsWidget({
+  date,
+  heatmap,
+  loading,
+  logs,
+  maxDate,
+  onDateChange,
+  roomId,
+}: {
+  date: string | null;
+  heatmap: DashboardActivityHeatmapResponse[] | null;
+  loading: boolean;
+  logs: ActivityLogResponse[] | null;
+  maxDate: string | null;
+  onDateChange: (date: string) => void;
+  roomId: string | null;
+}) {
+  const { locale, t } = useI18n();
+  const isToday = date !== null && date === maxDate;
+  const dateLabel = date
+    ? new Intl.DateTimeFormat(LOCALE_TAGS[locale] ?? "ko-KR", { day: "numeric", month: "long" }).format(parseDateKey(date))
+    : "";
+  const visibleHeatmap = roomId ? [] : (heatmap ?? []).slice(-14);
+  const maxHeatmapMinutes = Math.max(1, ...visibleHeatmap.map((entry) => entry.focusMinutes));
 
-  if (!logs) {
-    return <EmptyWidget message={t("dashboard.focus.empty")} />;
+  const datePicker = date ? (
+    <div className={styles.focusDateRow}>
+      <input
+        aria-label={t("dashboard.focus.datePickerAria")}
+        className={styles.focusDateInput}
+        max={maxDate ?? undefined}
+        onChange={(event) => {
+          if (event.target.value) onDateChange(event.target.value);
+        }}
+        type="date"
+        value={date}
+      />
+    </div>
+  ) : null;
+
+  const heatmapStrip =
+    visibleHeatmap.length > 0 ? (
+      <div aria-label={t("dashboard.focus.chartAria")} className={styles.focusHeatmap} role="img">
+        {visibleHeatmap.map((entry) => (
+          <span className={styles.focusHeatmapBar} key={entry.date} title={`${formatHeatmapDate(locale, entry.date)} - ${entry.focusMinutes}m - ${entry.count}`}>
+            <i style={{ height: `${Math.max(8, Math.round((entry.focusMinutes / maxHeatmapMinutes) * 100))}%` }} />
+          </span>
+        ))}
+      </div>
+    ) : null;
+
+  if (loading) {
+    return (
+      <div className={styles.statBlock}>
+        {datePicker}
+        <EmptyWidget message={t("dashboard.focus.loading")} />
+        {heatmapStrip}
+      </div>
+    );
   }
 
-  const scoped = roomId ? logs.filter((log) => log.roomId === roomId) : logs;
-  const byApp = new Map<string, number>();
-  let totalSeconds = 0;
+  if (!logs && visibleHeatmap.length === 0) {
+    return (
+      <div className={styles.statBlock}>
+        {datePicker}
+        <EmptyWidget message={t(isToday ? "dashboard.focus.empty" : "dashboard.focus.emptyForDate")} />
+      </div>
+    );
+  }
+
+  const scoped = roomId ? (logs ?? []).filter((log) => log.roomId === roomId) : (logs ?? []);
+  const logsByApp = new Map<string, ActivityLogResponse[]>();
 
   for (const log of scoped) {
-    const seconds = getActivitySeconds(log);
-    totalSeconds += seconds;
     const appName = log.appName?.trim() || t("dashboard.activity.appFallback");
-    byApp.set(appName, (byApp.get(appName) ?? 0) + seconds);
+    logsByApp.set(appName, [...(logsByApp.get(appName) ?? []), log]);
   }
 
-  if (scoped.length === 0 || totalSeconds === 0) {
-    return <EmptyWidget message={t("dashboard.focus.empty")} />;
+  const byApp = new Map<string, number>();
+  for (const [appName, appLogs] of logsByApp) {
+    byApp.set(appName, getDeoverlappedActivityDurationSeconds(appLogs));
+  }
+  const totalSeconds = getDeoverlappedActivityDurationSeconds(scoped);
+
+  if ((scoped.length === 0 || totalSeconds === 0) && visibleHeatmap.length === 0) {
+    return (
+      <div className={styles.statBlock}>
+        {datePicker}
+        <EmptyWidget message={t(isToday ? "dashboard.focus.empty" : "dashboard.focus.emptyForDate")} />
+      </div>
+    );
   }
 
   const topApps = [...byApp.entries()].sort((left, right) => right[1] - left[1]).slice(0, 3);
@@ -499,22 +597,103 @@ function FocusStatsWidget({ logs, roomId }: { logs: ActivityLogResponse[] | null
 
   return (
     <div className={styles.statBlock}>
-      <p className={styles.statHeadline}>
-        <em>{t("dashboard.focus.total")}</em>
-        <b>{formatFocusDuration(t, totalSeconds)}</b>
-      </p>
-      <div aria-label={t("dashboard.focus.chartAria")} className={styles.appBars} role="img">
-        {topApps.map(([appName, seconds]) => (
-          <div className={styles.appBarRow} key={appName}>
-            <span className={styles.appBarName}>{appName}</span>
-            <span className={styles.appBarTrack}>
-              <i className={styles.appBarFill} style={{ width: `${Math.max(6, Math.round((seconds / topSeconds) * 100))}%` }} />
-            </span>
-            <b className={styles.appBarValue}>{formatFocusDuration(t, seconds)}</b>
+      {datePicker}
+      {scoped.length > 0 && totalSeconds > 0 ? (
+        <>
+          <p className={styles.statHeadline}>
+            <em>{t(isToday ? "dashboard.focus.total" : "dashboard.focus.totalForDate", { date: dateLabel })}</em>
+            <b>{formatFocusDuration(t, totalSeconds)}</b>
+          </p>
+          <div aria-label={t("dashboard.focus.chartAria")} className={styles.appBars} role="img">
+            {topApps.map(([appName, seconds]) => (
+              <div className={styles.appBarRow} key={appName}>
+                <span className={styles.appBarName}>{appName}</span>
+                <span className={styles.appBarTrack}>
+                  <i className={styles.appBarFill} style={{ width: `${Math.max(6, Math.round((seconds / topSeconds) * 100))}%` }} />
+                </span>
+                <b className={styles.appBarValue}>{formatFocusDuration(t, seconds)}</b>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      ) : null}
+      {heatmapStrip}
       <p className={styles.statCaption}>{t("dashboard.focus.autoNote")}</p>
+    </div>
+  );
+}
+
+function ActivityHeatmapWidget({
+  entries,
+  onSelectDate,
+  selectedDate,
+}: {
+  entries: DashboardActivityHeatmapResponse[] | null;
+  onSelectDate: (date: string) => void;
+  selectedDate: string | null;
+}) {
+  const { locale, t } = useI18n();
+
+  if (!entries) {
+    return <EmptyWidget message={t("dashboard.heatmap.loading")} />;
+  }
+  if (entries.length === 0) {
+    return <EmptyWidget message={t("dashboard.heatmap.empty")} />;
+  }
+
+  const cells: Array<{ entry?: DashboardActivityHeatmapResponse; key: string }> = [];
+  const leadingPad = mondayIndex(entries[0].date);
+  for (let index = 0; index < leadingPad; index += 1) {
+    cells.push({ key: `pad-${index}` });
+  }
+  for (const entry of entries) {
+    cells.push({ entry, key: entry.date });
+  }
+
+  const dateFormatter = new Intl.DateTimeFormat(LOCALE_TAGS[locale] ?? "ko-KR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  return (
+    <div className={styles.heatmapBlock}>
+      <div className={styles.heatmapScroll}>
+        <div aria-label={t("dashboard.heatmap.chartAria")} className={styles.heatmapGrid} role="img">
+          {cells.map((cell) => {
+            if (!cell.entry) {
+              return <span aria-hidden className={styles.heatmapCellPad} key={cell.key} />;
+            }
+
+            const { count, date, focusMinutes } = cell.entry;
+            const label = t("dashboard.heatmap.cellTooltip", {
+              count,
+              date: dateFormatter.format(parseDateKey(date)),
+              minutes: focusMinutes,
+            });
+
+            return (
+              <button
+                aria-label={label}
+                className={styles.heatmapCell}
+                data-level={heatmapLevel(count)}
+                data-selected={date === selectedDate}
+                key={cell.key}
+                onClick={() => onSelectDate(date)}
+                title={label}
+                type="button"
+              />
+            );
+          })}
+        </div>
+      </div>
+      <div className={styles.heatmapLegend}>
+        <span>{t("dashboard.heatmap.less")}</span>
+        {[0, 1, 2, 3, 4].map((level) => (
+          <i className={styles.heatmapSwatch} data-level={level} key={level} />
+        ))}
+        <span>{t("dashboard.heatmap.more")}</span>
+      </div>
     </div>
   );
 }
@@ -641,7 +820,7 @@ function NotificationsWidget({ notifications }: { notifications: NotificationRes
     <DashboardLineList>
       {unread.map((notification) => (
         <StatusLine key={notification.id} meta={notificationKindLabel(t, notification.sourceType)}>
-          {notification.title.trim() || notificationKindLabel(t, notification.sourceType)}
+          {formatNotificationContent(t, notification).title || notificationKindLabel(t, notification.sourceType)}
         </StatusLine>
       ))}
     </DashboardLineList>
@@ -794,7 +973,12 @@ export function WorkspaceDashboard() {
   const [personalResources, setPersonalResources] = useState<ResourceResponse[]>([]);
   const [roomResources, setRoomResources] = useState<Record<string, ResourceResponse[] | null>>({});
   const [weekSchedules, setWeekSchedules] = useState<ScheduleResponse[] | null>(null);
+  const [activityHeatmap, setActivityHeatmap] = useState<DashboardActivityHeatmapResponse[] | null>(null);
   const [todayActivityLogs, setTodayActivityLogs] = useState<ActivityLogResponse[] | null>(null);
+  // null이면 "오늘"을 그대로 쓴다 — 히트맵 클릭이나 날짜 피커가 이 값을 채운다.
+  const [focusDateOverride, setFocusDateOverride] = useState<string | null>(null);
+  const [focusDateLogs, setFocusDateLogs] = useState<ActivityLogResponse[] | null>(null);
+  const [focusDateLoading, setFocusDateLoading] = useState(false);
   const [pendingSuggestions, setPendingSuggestions] = useState<AgentSuggestionResponse[] | null>(null);
   const [notifications, setNotifications] = useState<NotificationResponse[] | null>(null);
   const [wbsBoards, setWbsBoards] = useState<Record<string, WbsProgress | null>>({});
@@ -847,6 +1031,7 @@ export function WorkspaceDashboard() {
         feedTaskResult,
         resourceResult,
         activityResult,
+        activityHeatmapResult,
         scheduleResult,
         suggestionResult,
         notificationResult,
@@ -856,6 +1041,8 @@ export function WorkspaceDashboard() {
         dashboardApi.getTasks(),
         resourcesApi.listPersonal(),
         activityApi.getToday(),
+        // 365일치를 한 번에 받아 집중 시간 카드의 14일 미니 그래프와 활동 히트맵 카드가 함께 재사용한다.
+        dashboardApi.getActivityHeatmap({ days: 365 }),
         calendarApi.getEvents({ from: from.toISOString(), size: 100, to: to.toISOString() }),
         agentApi.listPersonalSuggestions({ status: "DRAFT" }),
         notificationApi.list({ size: 20 }),
@@ -867,6 +1054,7 @@ export function WorkspaceDashboard() {
       setDashboardFeedTasks(feedTaskResult.status === "fulfilled" ? feedTaskResult.value.items : []);
       setPersonalResources(resourceResult.status === "fulfilled" ? resourceResult.value.items : []);
       setTodayActivityLogs(activityResult.status === "fulfilled" ? activityResult.value : null);
+      setActivityHeatmap(activityHeatmapResult.status === "fulfilled" ? activityHeatmapResult.value : null);
       setWeekSchedules(scheduleResult.status === "fulfilled" ? scheduleResult.value.items : null);
       setPendingSuggestions(suggestionResult.status === "fulfilled" ? suggestionResult.value : null);
       setNotifications(notificationResult.status === "fulfilled" ? notificationResult.value.items : null);
@@ -881,6 +1069,7 @@ export function WorkspaceDashboard() {
         setRoomsLoaded(true);
         setPersonalResources([...workspacePreviewPersonalResources, ...workspacePreviewRoomResources]);
         setWeekSchedules(workspacePreviewDashboard.todaySchedules);
+        setActivityHeatmap([]);
         setTodayActivityLogs([]);
         setPendingSuggestions([]);
         setNotifications([]);
@@ -905,6 +1094,37 @@ export function WorkspaceDashboard() {
   const activeRooms = useMemo(() => rooms.filter((room) => room.status === "ACTIVE"), [rooms]);
   const realData = state.kind === "ready" || state.kind === "empty" ? state.data : emptyDashboard;
   const canShowBoard = state.kind === "ready" || state.kind === "empty";
+
+  // now는 마운트 후에만 채워진다(하이드레이션 안전) — 오늘 날짜 키도 같은 시점에만 확정된다.
+  const todayKey = useMemo(() => (now ? toDateKey(now) : null), [now]);
+  const effectiveFocusDate = focusDateOverride ?? todayKey;
+
+  // 오늘 이외의 날짜가 선택되면 그날의 앱별 사용 시간을 별도로 가져온다(오늘은 todayActivityLogs 재사용).
+  useEffect(() => {
+    if (!effectiveFocusDate || !todayKey || effectiveFocusDate === todayKey) return;
+    if (!widgetIds.includes("focus-stats")) return;
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      setFocusDateLoading(true);
+      void activityApi
+        .getByDate(effectiveFocusDate)
+        .then((logs) => {
+          if (!cancelled) setFocusDateLogs(logs);
+        })
+        .catch(() => {
+          if (!cancelled) setFocusDateLogs([]);
+        })
+        .finally(() => {
+          if (!cancelled) setFocusDateLoading(false);
+        });
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [effectiveFocusDate, todayKey, widgetIds]);
 
   // 진행률 위젯이 참조하는 프로젝트룸의 WBS 보드를 필요할 때만 가져와 캐시한다.
   const requestedWbsRoomsRef = useRef(new Set<string>());
@@ -975,7 +1195,7 @@ export function WorkspaceDashboard() {
   );
 
   const totalFocusSeconds = useMemo(
-    () => (todayActivityLogs ?? []).reduce((sum, log) => sum + getActivitySeconds(log), 0),
+    () => getDeoverlappedActivityDurationSeconds(todayActivityLogs ?? []),
     [todayActivityLogs],
   );
 
@@ -1205,8 +1425,22 @@ export function WorkspaceDashboard() {
         }
         case "room-progress":
           return <RoomProgressWidget boards={wbsBoards} roomId={scopedRoomId} rooms={activeRooms} />;
-        case "focus-stats":
-          return <FocusStatsWidget logs={todayActivityLogs} roomId={scopedRoomId} />;
+        case "focus-stats": {
+          const isToday = effectiveFocusDate === todayKey;
+          return (
+            <FocusStatsWidget
+              date={effectiveFocusDate}
+              heatmap={activityHeatmap}
+              loading={!isToday && focusDateLoading}
+              logs={isToday ? todayActivityLogs : focusDateLogs}
+              maxDate={todayKey}
+              onDateChange={setFocusDateOverride}
+              roomId={scopedRoomId}
+            />
+          );
+        }
+        case "activity-heatmap":
+          return <ActivityHeatmapWidget entries={activityHeatmap} onSelectDate={setFocusDateOverride} selectedDate={effectiveFocusDate} />;
         case "agent-queue":
           return <AgentQueueWidget count={pendingSuggestionCount} />;
         case "project-rooms":
@@ -1243,12 +1477,16 @@ export function WorkspaceDashboard() {
     },
     [
       activeRooms,
+      activityHeatmap,
       allTasks,
       canShowBoard,
       createTodo,
       creatingTodo,
       deleteTodo,
       deletingTodoId,
+      effectiveFocusDate,
+      focusDateLoading,
+      focusDateLogs,
       locale,
       notifications,
       pendingSuggestionCount,
@@ -1258,6 +1496,7 @@ export function WorkspaceDashboard() {
       rooms,
       scheduleItems,
       todayActivityLogs,
+      todayKey,
       todoNotice,
       totalFocusSeconds,
       wbsBoards,

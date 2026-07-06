@@ -2,7 +2,7 @@
 
 import type { AuthClientType, AuthTokenResponse } from "@/types/api/auth";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { tauriCommands } from "@/lib/tauri/commands";
+import { tauriCommands, type TauriAuthSessionReadResult } from "@/lib/tauri/commands";
 
 const AUTH_SESSION_STORAGE_KEY = "bubli-auth-session";
 const ACCESS_TOKEN_EXPIRY_BUFFER_MS = 30_000;
@@ -13,6 +13,9 @@ const tauriAuthMirrorRestoreEnabled =
   process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true";
 
 export const AUTH_SESSION_CHANGE_EVENT = "bubli:auth-session-change";
+
+let tauriAuthSessionReadPromise: Promise<TauriAuthSessionReadResult | null> | null = null;
+let tauriAuthSessionMutationEpoch = 0;
 
 export type StoredAuthSession = AuthTokenResponse & {
   clientType: AuthClientType;
@@ -184,6 +187,7 @@ function createStoredAuthSession(session: AuthSessionInput): StoredAuthSession {
 
 function storeAuthSessionToTauriMirror(session: StoredAuthSession) {
   if (!isTauriRuntime()) return Promise.resolve();
+  invalidateTauriAuthSessionRead();
   return tauriCommands.storeTauriAuthSession({ sessionJson: JSON.stringify(session) }).then(() => undefined);
 }
 
@@ -193,7 +197,29 @@ function mirrorAuthSessionToTauri(session: StoredAuthSession) {
 
 function clearTauriAuthSessionMirror() {
   if (!isTauriRuntime()) return;
+  invalidateTauriAuthSessionRead();
   void tauriCommands.clearTauriAuthSession().catch(() => undefined);
+}
+
+function invalidateTauriAuthSessionRead() {
+  tauriAuthSessionMutationEpoch += 1;
+  tauriAuthSessionReadPromise = null;
+}
+
+function readTauriAuthSessionOnce() {
+  if (!tauriAuthSessionReadPromise) {
+    tauriAuthSessionReadPromise = tauriCommands.readTauriAuthSession().finally(() => {
+      tauriAuthSessionReadPromise = null;
+    });
+  }
+
+  return tauriAuthSessionReadPromise;
+}
+
+async function readTauriAuthSessionForRestore() {
+  const readEpoch = tauriAuthSessionMutationEpoch;
+  const restored = await readTauriAuthSessionOnce();
+  return readEpoch === tauriAuthSessionMutationEpoch ? restored : null;
 }
 
 function clearLocalAuthSessionOnly() {
@@ -203,6 +229,7 @@ function clearLocalAuthSessionOnly() {
 
   try {
     const hadStoredSession = Boolean(window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY));
+    invalidateTauriAuthSessionRead();
     window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
     if (hadStoredSession) {
       emitAuthSessionChange();
@@ -286,7 +313,7 @@ export async function readTauriAuthSessionDiagnostics(): Promise<AuthSessionDiag
   }
 
   try {
-    const restored = await tauriCommands.readTauriAuthSession();
+    const restored = await readTauriAuthSessionForRestore();
     return createAuthSessionDiagnostics("tauriMirror", restored?.sessionJson, restored?.savedAt);
   } catch {
     return {
@@ -343,9 +370,10 @@ export function clearStoredAuthSession() {
 
   const hadStoredSession = Boolean(window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY));
 
+  invalidateTauriAuthSessionRead();
   window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
   clearTauriAuthSessionMirror();
-  if (hadStoredSession || isTauriRuntime()) {
+  if (hadStoredSession) {
     emitAuthSessionChange();
   }
 }
@@ -371,7 +399,7 @@ export async function restoreStoredAuthSessionFromTauri() {
   }
 
   try {
-    const restored = await tauriCommands.readTauriAuthSession();
+    const restored = await readTauriAuthSessionForRestore();
     if (!restored?.sessionJson) {
       return current;
     }
@@ -413,20 +441,18 @@ export async function probeStoredAuthSessionRestoreFromTauriMirrorForQa(): Promi
   }
 
   const originalRawSession = window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY);
+  const originalSession = originalRawSession ? parseStoredAuthSession(originalRawSession) : null;
 
   try {
     if (!originalRawSession) {
       return { error: "missing_local_session" };
     }
 
+    invalidateTauriAuthSessionRead();
     window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
     const clearedSession = getStoredAuthSessionDiagnostics();
     const restored = await restoreStoredAuthSessionFromTauri();
     const restoredSession = getStoredAuthSessionDiagnostics();
-
-    if (!restoredSession.hasSession && originalRawSession) {
-      window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, originalRawSession);
-    }
 
     return {
       browserSessionCleared: !clearedSession.hasSession,
@@ -438,13 +464,16 @@ export async function probeStoredAuthSessionRestoreFromTauriMirrorForQa(): Promi
       restoredTokenLive: restoredSession.refreshTokenExpired === false,
     };
   } catch (error) {
-    if (originalRawSession) {
-      window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, originalRawSession);
-    }
-
     return {
       error: error instanceof Error ? error.message : String(error),
     };
+  } finally {
+    if (originalSession && !shouldRejectStoredAuthSession(originalSession) && !isExpired(originalSession.refreshTokenExpiresAt)) {
+      await setStoredAuthSessionAndWaitForTauriMirror(originalSession);
+    } else if (originalRawSession) {
+      invalidateTauriAuthSessionRead();
+      window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, originalRawSession);
+    }
   }
 }
 

@@ -60,7 +60,7 @@
 
 .summaryCard em {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-style: normal;
   font-weight: 760;
 }
@@ -219,7 +219,7 @@
   display: -webkit-box;
   overflow: hidden;
   color: var(--color-muted);
-  font-size: 12.3px;
+  font-size: 14px;
   line-height: 1.45;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -280,7 +280,7 @@
 .policyGrid p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 12.4px;
+  font-size: 14px;
   line-height: 1.5;
 }
 

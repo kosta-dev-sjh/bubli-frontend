@@ -23,7 +23,7 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
       <body>
         <div className={styles.wrap}>
           <div className={styles.card} role="alert" aria-live="assertive">
-            <div className={styles.bubble} aria-hidden="true">🫧</div>
+            <img className={styles.bubble} src="/brand/bubble-sky.png" alt="" aria-hidden="true" />
             <p className={styles.code}>Internal Server Error</p>
             <h1 className={styles.title}>서버에 문제가 생겼어요</h1>
             <p className={styles.desc}>

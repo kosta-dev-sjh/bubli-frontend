@@ -23,6 +23,7 @@ let syncInFlightPromise: Promise<void> | null = null;
 let analysisBackfillHasRun = false;
 let startupScanHasRun = false;
 let pendingFullSyncRequested = false;
+let stopRequested = false;
 const pendingFolderSyncIds = new Set<string>();
 let watchUnlisten: (() => void) | null = null;
 let watchUnlistenPromise: Promise<() => void> | null = null;
@@ -37,7 +38,9 @@ type ManagedFolderAutoSyncStopInput = {
 };
 
 export type ManagedFolderAutoSyncStatus = {
+  lastFileAnalysisFailedCountScope?: "folder-auto-sync-drain" | "global-auto-sync-drain";
   lastAttemptAt?: string;
+  lastFileEventFailedCount?: number;
   lastFileAnalysisFailedCount?: number;
   lastFileAnalysisRequestedCount?: number;
   lastFileEventSentCount?: number;
@@ -46,6 +49,7 @@ export type ManagedFolderAutoSyncStatus = {
   lastErrorMessage?: string;
   lastSkippedCount?: number;
   lastSkippedFolderIds?: string[];
+  lastStartupScanFailedCount?: number;
   lastStatus: "idle" | "syncing" | "synced" | "waiting" | "failed" | "stopped";
   lastSuccessAt?: string;
   lastSyncedFolderId?: string | null;
@@ -67,6 +71,8 @@ let autoSyncStatus: ManagedFolderAutoSyncStatus = {
 type ManagedFolderDrainSummary = {
   analysisFailedCount: number;
   analysisRequestedCount: number;
+  errorMessage?: string;
+  failedCount: number;
   sentCount: number;
   skippedCount: number;
   syncedCount: number;
@@ -75,15 +81,21 @@ type ManagedFolderDrainSummary = {
 const emptyManagedFolderDrainSummary = (): ManagedFolderDrainSummary => ({
   analysisFailedCount: 0,
   analysisRequestedCount: 0,
+  failedCount: 0,
   sentCount: 0,
   skippedCount: 0,
   syncedCount: 0,
 });
 
+function managedFolderDrainStatus(drained: ManagedFolderDrainSummary) {
+  return drained.failedCount > 0 ? "failed" : "synced";
+}
+
 export function startManagedFolderAutoSync() {
   if (!isTauriRuntime()) return;
   if (syncIntervalId !== null) return;
 
+  stopRequested = false;
   updateManagedFolderAutoSyncStatus({ lastErrorMessage: undefined, lastStatus: "syncing", running: true });
   void syncManagedFolderEventsOnce();
   syncIntervalId = window.setInterval(() => {
@@ -92,6 +104,7 @@ export function startManagedFolderAutoSync() {
 }
 
 export async function stopManagedFolderAutoSync(input?: ManagedFolderAutoSyncStopInput) {
+  stopRequested = true;
   const shouldFlush =
     Boolean(input?.flush) &&
     (syncIntervalId !== null ||
@@ -109,6 +122,16 @@ export async function stopManagedFolderAutoSync(input?: ManagedFolderAutoSyncSto
   }
 
   syncIntervalId = null;
+  clearPendingWatchEventSyncs();
+  detachManagedFolderWatchListener();
+  if (isTauriRuntime()) {
+    await tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
+  }
+
+  if (input?.flush) {
+    await flushManagedFolderAutoSync();
+  }
+
   syncInFlight = false;
   syncInFlightPromise = null;
   analysisBackfillHasRun = false;
@@ -118,10 +141,6 @@ export async function stopManagedFolderAutoSync(input?: ManagedFolderAutoSyncSto
   clearPendingWatchEventSyncs();
   cachedConsent = null;
   cachedConsentCheckedAt = 0;
-  detachManagedFolderWatchListener();
-  if (isTauriRuntime()) {
-    void tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
-  }
   updateManagedFolderAutoSyncStatus({ lastStatus: "stopped", running: false });
 }
 
@@ -258,8 +277,9 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
       }
 
       if (!startupScanHasRun) {
-        await scanSyncEnabledManagedFoldersOnce(consentGranted);
-        startupScanHasRun = true;
+        const startupScanFailedCount = await scanSyncEnabledManagedFoldersOnce(consentGranted);
+        startupScanHasRun = startupScanFailedCount === 0;
+        updateManagedFolderAutoSyncStatus({ lastStartupScanFailedCount: startupScanFailedCount });
         pendingFullSyncRequested = true;
       }
 
@@ -270,12 +290,15 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
           const drained = await drainPersonalLocalFileEvents({ consentGranted });
           updateManagedFolderAutoSyncStatus({
             lastFileAnalysisFailedCount: drained.analysisFailedCount,
+            lastFileAnalysisFailedCountScope: "global-auto-sync-drain",
             lastFileAnalysisRequestedCount: drained.analysisRequestedCount,
+            lastFileEventFailedCount: drained.failedCount,
             lastFileEventSentCount: drained.sentCount,
             lastFileEventSkippedCount: drained.skippedCount,
             lastFileEventSyncedCount: drained.syncedCount,
-            lastStatus: "synced",
-            lastSuccessAt: new Date().toISOString(),
+            lastErrorMessage: drained.errorMessage,
+            lastStatus: managedFolderDrainStatus(drained),
+            lastSuccessAt: drained.failedCount > 0 ? undefined : new Date().toISOString(),
             lastSyncedFolderId: null,
           });
           continue;
@@ -287,12 +310,15 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
         const drained = await drainPersonalLocalFileEvents({ consentGranted, localFolderId: folderId });
         updateManagedFolderAutoSyncStatus({
           lastFileAnalysisFailedCount: drained.analysisFailedCount,
+          lastFileAnalysisFailedCountScope: "folder-auto-sync-drain",
           lastFileAnalysisRequestedCount: drained.analysisRequestedCount,
+          lastFileEventFailedCount: drained.failedCount,
           lastFileEventSentCount: drained.sentCount,
           lastFileEventSkippedCount: drained.skippedCount,
           lastFileEventSyncedCount: drained.syncedCount,
-          lastStatus: "synced",
-          lastSuccessAt: new Date().toISOString(),
+          lastErrorMessage: drained.errorMessage,
+          lastStatus: managedFolderDrainStatus(drained),
+          lastSuccessAt: drained.failedCount > 0 ? undefined : new Date().toISOString(),
           lastSyncedFolderId: folderId,
         });
       }
@@ -318,7 +344,7 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
       syncInFlight = false;
       syncInFlightPromise = null;
       updateManagedFolderAutoSyncStatus({});
-      if (pendingFullSyncRequested || pendingFolderSyncIds.size > 0) {
+      if (!stopRequested && (pendingFullSyncRequested || pendingFolderSyncIds.size > 0)) {
         await syncManagedFolderEventsOnce();
       }
     }
@@ -329,15 +355,20 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
 
 async function scanSyncEnabledManagedFoldersOnce(consentGranted: boolean) {
   const folders = await listPersonalManagedFolders();
-  if (folders.status !== "ready") return;
+  if (folders.status !== "ready") return 1;
 
+  let failedCount = 0;
   for (const folder of folders.data.folders) {
     if (folder.status !== "ACTIVE" || !folder.syncEnabled) continue;
-    await scanPersonalManagedFolder({
+    const result = await scanPersonalManagedFolder({
       consentGranted,
       localFolderId: folder.localFolderId,
-    }).catch(() => undefined);
+    }).catch(() => null);
+    if (!result || result.status !== "ready") {
+      failedCount += 1;
+    }
   }
+  return failedCount;
 }
 
 async function drainPersonalLocalFileEvents(input: {
@@ -354,11 +385,14 @@ async function drainPersonalLocalFileEvents(input: {
     });
 
     if (result.status !== "ready") {
+      summary.failedCount += 1;
+      summary.errorMessage = result.message;
       return summary;
     }
 
     summary.analysisFailedCount += result.data.analysisFailedCount;
     summary.analysisRequestedCount += result.data.analysisRequestedCount;
+    summary.failedCount += result.data.failedCount;
     summary.sentCount += result.data.sentCount;
     summary.skippedCount += result.data.skippedCount;
     summary.syncedCount += result.data.syncedCount;
@@ -379,15 +413,17 @@ async function ensureManagedFolderRuntimeConsent() {
     return false;
   }
 
-  attachManagedFolderWatchListener();
-  const watchResult = await tauriCommands.watchAllManagedFolders().catch(() => null);
-  if (watchResult) {
-    updateManagedFolderAutoSyncStatus({
-      lastSkippedCount: watchResult.skippedCount,
-      lastSkippedFolderIds: watchResult.skippedFolderIds,
-      lastWatchedCount: watchResult.watchedCount,
-      lastWatchedFolderIds: watchResult.watchedFolderIds,
-    });
+  if (!stopRequested) {
+    attachManagedFolderWatchListener();
+    const watchResult = await tauriCommands.watchAllManagedFolders().catch(() => null);
+    if (watchResult) {
+      updateManagedFolderAutoSyncStatus({
+        lastSkippedCount: watchResult.skippedCount,
+        lastSkippedFolderIds: watchResult.skippedFolderIds,
+        lastWatchedCount: watchResult.watchedCount,
+        lastWatchedFolderIds: watchResult.watchedFolderIds,
+      });
+    }
   }
   return true;
 }

@@ -15,6 +15,9 @@ import type { ActivityContextRecordAdapterResult } from "@/types/local";
 const DEFAULT_ACTIVITY_CAPTURE_INTERVAL_MS = 30_000;
 const ACTIVITY_CAPTURE_INTERVAL_MS = resolveActivityCaptureIntervalMs();
 const CONSENT_REFRESH_INTERVAL_MS = 60_000;
+const ACTIVITY_CAPTURE_LOCK_CACHE_KEY = "activity:local";
+const ACTIVITY_CAPTURE_LOCK_KIND = "activity_auto_capture_lock";
+const ACTIVITY_CAPTURE_LOCK_TTL_MS = 25_000;
 
 let captureIntervalId: number | null = null;
 let captureInFlight = false;
@@ -22,6 +25,7 @@ let captureInFlightPromise: Promise<void> | null = null;
 let cachedConsent: boolean | null = null;
 let cachedConsentCheckedAt = 0;
 let activityConsentRevision = 0;
+let activityCaptureLock: { expiresAt: number; value: string } | null = null;
 
 type ActivityAutoCaptureStopInput = {
   flush?: boolean;
@@ -121,6 +125,16 @@ async function captureActivityOnce() {
     return captureInFlightPromise ?? Promise.resolve();
   }
 
+  const lock = await tryAcquireActivityCaptureLock();
+  if (!lock) {
+    updateActivityAutoCaptureStatus({
+      lastMessage: translate("local.activity.noNewDwell"),
+      lastStatus: "waiting",
+      running: isAutoCaptureActive(),
+    });
+    return;
+  }
+
   captureInFlight = true;
   updateActivityAutoCaptureStatus({
     lastAttemptAt: new Date().toISOString(),
@@ -156,6 +170,7 @@ async function captureActivityOnce() {
         running: isAutoCaptureActive(),
       });
     } finally {
+      releaseActivityCaptureLock(lock);
       captureInFlight = false;
       captureInFlightPromise = null;
     }
@@ -164,12 +179,102 @@ async function captureActivityOnce() {
   return captureInFlightPromise;
 }
 
+async function tryAcquireActivityCaptureLock() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const token = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  const now = Date.now();
+  if (activityCaptureLock && activityCaptureLock.expiresAt > now) {
+    return null;
+  }
+
+  const value = `${now + ACTIVITY_CAPTURE_LOCK_TTL_MS}:${token}`;
+  if (isTauriRuntime()) {
+    const current = await readActivityCaptureLockValue();
+    if (lockValueIsActive(current, now)) {
+      return null;
+    }
+
+    await writeActivityCaptureLockValue(value);
+    const confirmed = await readActivityCaptureLockValue();
+    if (confirmed !== value) {
+      return null;
+    }
+  }
+
+  activityCaptureLock = { expiresAt: now + ACTIVITY_CAPTURE_LOCK_TTL_MS, value };
+  return value;
+}
+
+function releaseActivityCaptureLock(lock: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (activityCaptureLock?.value === lock) {
+    activityCaptureLock = null;
+  }
+
+  if (isTauriRuntime()) {
+    void readActivityCaptureLockValue().then((current) => {
+      if (current === lock) {
+        void writeActivityCaptureLockValue(null);
+      }
+    });
+  }
+}
+
+function lockValueIsActive(value: string | null, now: number) {
+  if (!value) return false;
+  const [expiresAtRaw] = value.split(":", 1);
+  const expiresAt = Number(expiresAtRaw);
+  return Number.isFinite(expiresAt) && expiresAt > now;
+}
+
+async function readActivityCaptureLockValue() {
+  try {
+    const cached = await tauriCommands.readWidgetPref({
+      cacheKey: ACTIVITY_CAPTURE_LOCK_CACHE_KEY,
+      kind: ACTIVITY_CAPTURE_LOCK_KIND,
+    });
+    if (!cached) return null;
+    const parsed = JSON.parse(cached.valueJson) as { value?: unknown };
+    return typeof parsed.value === "string" ? parsed.value : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeActivityCaptureLockValue(value: string | null) {
+  try {
+    await tauriCommands.storeWidgetPref({
+      cacheKey: ACTIVITY_CAPTURE_LOCK_CACHE_KEY,
+      kind: ACTIVITY_CAPTURE_LOCK_KIND,
+      valueJson: JSON.stringify({ value }),
+    });
+  } catch {
+    // SQLite lock writes are best-effort; in-process captureInFlight remains active.
+  }
+}
+
 export async function flushActivityAutoCapture() {
   if (!isTauriRuntime()) return;
   if (captureInFlightPromise) {
     await captureInFlightPromise.catch(() => undefined);
   }
   if (captureInFlight) return;
+
+  const lock = await tryAcquireActivityCaptureLock();
+  if (!lock) {
+    updateActivityAutoCaptureStatus({
+      lastMessage: translate("local.activity.noNewDwell"),
+      lastStatus: "waiting",
+      running: isAutoCaptureActive(),
+    });
+    return;
+  }
 
   captureInFlight = true;
   updateActivityAutoCaptureStatus({
@@ -204,6 +309,7 @@ export async function flushActivityAutoCapture() {
         running: isAutoCaptureActive(),
       });
     } finally {
+      releaseActivityCaptureLock(lock);
       captureInFlight = false;
       captureInFlightPromise = null;
     }
