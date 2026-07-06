@@ -51,22 +51,22 @@
   --surface: #FFFFFF;
   --pearl: #F8F6F4;
   --mist: #F2F7FC;
-  --sky-light: #D8F0FF;
-  --sky: #9ED8FF;
-  --bubble-blue: #6FB8F2;
-  --blue-ink: #3A78B8;
-  --opal-lilac: #DCD8F8;
-  --lilac-ink: #6E63B8;
-  --soft-pink: #F6DDEB;
+  --sky-light: #B9E4FF;
+  --sky: #7FCCFF;
+  --bubble-blue: #43ACFF;
+  --blue-ink: #1B68B8;
+  --opal-lilac: #BEB6FC;
+  --lilac-ink: #4733C9;
+  --soft-pink: #F8BDDE;
   --ink: #23303B;
   --ink-soft: #586978;
   --ink-faint: #98A5AF;
   /* signal: dot/ring/outline 전용(면 채움 금지) */
-  --signal-todo: #7CC4F5;
-  --signal-agent: #B0A8E0;
-  --signal-memo: #E6C49C;
-  --signal-alert: #E79BB0;
-  --signal-ok: #93CFA8;
+  --signal-todo: #53BAFF;
+  --signal-agent: #9081E8;
+  --signal-memo: #F1B773;
+  --signal-alert: #F27195;
+  --signal-ok: #69DA91;
   --google-blue: rgb(66 133 244);
   --google-green: rgb(52 168 83);
   --google-yellow: rgb(251 188 5);
@@ -76,7 +76,7 @@
   --color-text: var(--ink);
   --color-muted: var(--ink-soft);
   --color-faint: var(--ink-faint);
-  --color-water-blue: #D7EAF4;
+  --color-water-blue: #B6E0F6;
   --color-brand: var(--blue-ink);
   --color-todo: var(--signal-todo);
   --color-pearl: var(--signal-memo);
@@ -85,11 +85,11 @@
   --color-rain-gray: #CDD8DF;
   --color-border: #E5E7EB;
   --color-blue: var(--bubble-blue);
-  --color-blue-soft: #A8DBFA;
+  --color-blue-soft: #84D1FF;
   --color-blue-deep: var(--blue-ink);
   --color-agent: var(--opal-lilac);
   --color-success: var(--signal-ok);
-  --color-warning: #F1D7B8;
+  --color-warning: #F9CA92;
   --glass: rgba(255, 255, 255, 0.84);
   --glass-strong: rgba(255, 255, 255, 0.92);
   --widget-glass: rgba(255, 255, 255, 0.58);
@@ -863,7 +863,7 @@ select {
   display: grid;
   place-items: center;
   border-radius: 999px;
-  background: #E79BB0;
+  background: #F27195;
   color: #fff;
   font-size: 12px;
   font-weight: 800;
@@ -4669,7 +4669,7 @@ button.workspace-route__friend-row:hover {
 
 [data-theme="dark"] .workspace-switcher__create button {
   border-color: rgba(158, 216, 255, 0.34);
-  color: #9ED8FF;
+  color: #7FCCFF;
   background: rgba(54, 72, 110, 0.5);
   box-shadow: var(--inner-highlight-dark);
 }
@@ -4841,7 +4841,7 @@ button.workspace-route__friend-row:hover {
 [data-theme="dark"] .workspace-route__upload-icon,
 [data-theme="dark"] .workspace-route__upload-clear {
   border-color: rgba(150, 170, 215, 0.15);
-  color: #9ed8ff;
+  color: #7FCCFF;
   background: rgba(44, 60, 92, 0.44);
 }
 
@@ -6201,7 +6201,7 @@ button.workspace-route__friend-row:hover {
 
 [data-theme="dark"] .resource-board__note {
   border-color: rgba(230, 196, 156, 0.3);
-  color: #E6C49C;
+  color: #F1B773;
   background: rgba(230, 196, 156, 0.1);
 }
 
@@ -6881,7 +6881,7 @@ button.workspace-route__friend-row:hover {
 }
 
 .agent-job-status__summary strong {
-  color: #6f58c9;
+  color: #4B25DD;
   font-size: 42px;
   font-weight: 900;
   letter-spacing: 0;
@@ -7003,7 +7003,7 @@ button.workspace-route__friend-row:hover {
 }
 
 .agent-job-row__failure span {
-  color: #9b6a35;
+  color: #985B1A;
   background: rgba(255, 255, 255, 0.58);
 }
 
@@ -8129,7 +8129,7 @@ button.workspace-route__friend-row:hover {
 .bubli-chat-message--failed .bubli-chat-message__bubble {
   border-color: rgba(232, 155, 176, 0.6); /* rose rim 신호 */
 }
-.bubli-chat-message--failed .bubli-chat-message__author { color: #C56B85; }
+.bubli-chat-message--failed .bubli-chat-message__author { color: #D63B68; }
 
 [data-theme="dark"] .bubli-chat-message__bubble {
   background: var(--surface-bg-dark);
@@ -8357,7 +8357,7 @@ button.workspace-route__friend-row:hover {
   color: var(--blue-ink);
   box-shadow: 0 0 0 3px rgba(111, 184, 242, 0.14);
 }
-.bubli-dash-dropzone--invalid { border-color: rgba(232, 155, 176, 0.7); color: #C56B85; background: rgba(246, 221, 235, 0.4); }
+.bubli-dash-dropzone--invalid { border-color: rgba(232, 155, 176, 0.7); color: #D63B68; background: rgba(246, 221, 235, 0.4); }
 
 /* Dark (Night Bubble) */
 [data-theme="dark"] .bubli-dash-tile,
@@ -10762,7 +10762,7 @@ html {
   border-radius: 18px;
   padding: 14px 16px;
   color: #fff;
-  background: linear-gradient(145deg, #6FB8F2, #4C91CD);
+  background: linear-gradient(145deg, #43ACFF, #1B84DF);
   box-shadow: 0 18px 36px rgba(76, 145, 205, 0.22);
   font-weight: 780;
 }
@@ -15049,8 +15049,8 @@ html {
 }
 
 .bubli-seg__item.is-active {
-  color: var(--blue-ink, #3a78b8);
-  border-color: var(--sky, #9ed8ff);
+  color: var(--blue-ink, #1B68B8);
+  border-color: var(--sky, #7FCCFF);
   background: var(--surface, #ffffff);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.9) inset,
@@ -15059,8 +15059,8 @@ html {
 
 .bubli-seg__item:focus-visible {
   outline: none;
-  border-color: var(--sky, #9ed8ff);
-  box-shadow: 0 0 0 3px var(--sky-light, #d8f0ff);
+  border-color: var(--sky, #7FCCFF);
+  box-shadow: 0 0 0 3px var(--sky-light, #B9E4FF);
 }
 
 [data-theme="dark"] .bubli-seg {
@@ -15077,7 +15077,7 @@ html {
 }
 
 [data-theme="dark"] .bubli-seg__item.is-active {
-  color: var(--sky, #9ed8ff);
+  color: var(--sky, #7FCCFF);
   border-color: rgba(158, 216, 255, 0.45);
   background: rgba(54, 72, 110, 0.55);
   box-shadow: 0 6px 16px -12px rgba(0, 0, 0, 0.6);
@@ -15169,7 +15169,7 @@ html {
   height: 10px;
   margin-top: 5px;
   border-radius: 999px;
-  background: var(--opal-lilac, #dcd8f8);
+  background: var(--opal-lilac, #BEB6FC);
   box-shadow: 0 0 0 5px rgba(220, 216, 248, 0.34);
 }
 
@@ -15328,8 +15328,8 @@ html {
   padding: 26px 22px;
   overflow: hidden;
   background:
-    radial-gradient(120% 100% at 80% 0%, var(--sky-light, #d8f0ff) 0%, transparent 58%),
-    radial-gradient(120% 120% at 0% 100%, var(--opal-lilac, #dcd8f8) 0%, transparent 58%),
+    radial-gradient(120% 100% at 80% 0%, var(--sky-light, #B9E4FF) 0%, transparent 58%),
+    radial-gradient(120% 120% at 0% 100%, var(--opal-lilac, #BEB6FC) 0%, transparent 58%),
     var(--mist, #f2f7fc);
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.82));
 }
@@ -20956,19 +20956,19 @@ html {
 }
 
 .desktop-widget__bubble--blue .desktop-widget__signal {
-  background: #8ecdf6;
+  background: #66C3FF;
 }
 
 .desktop-widget__bubble--lilac .desktop-widget__signal {
-  background: #e6ddf8;
+  background: #D1BCFB;
 }
 
 .desktop-widget__bubble--rose .desktop-widget__signal {
-  background: #e89898;
+  background: #F46E6E;
 }
 
 .desktop-widget__bubble--pearl .desktop-widget__signal {
-  background: #e8c4a0;
+  background: #F2B577;
 }
 
 .desktop-widget__bubble-head {
@@ -22395,7 +22395,7 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: linear-gradient(145deg, var(--sky, #9ED8FF) 0%, var(--bubble-blue, #6FB8F2) 100%);
+  background: linear-gradient(145deg, var(--sky, #7FCCFF) 0%, var(--bubble-blue, #43ACFF) 100%);
   border: 1.5px solid rgba(142, 205, 246, 0.55);
   display: flex;
   align-items: center;
@@ -22429,14 +22429,14 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   position: absolute;
   inset: -7px;
   border-radius: 50%;
-  border: 2px solid var(--bubble-blue, #6FB8F2);
+  border: 2px solid var(--bubble-blue, #43ACFF);
   animation: voice-float-ripple 2.4s ease-out infinite;
   pointer-events: none;
 }
 
 .voice-float__ring--2 {
   inset: -7px;
-  border-color: var(--sky, #9ED8FF);
+  border-color: var(--sky, #7FCCFF);
   animation-delay: 0.9s;
 }
 
@@ -22504,7 +22504,7 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   align-items: center;
   justify-content: center;
   color: #fff;
-  background: linear-gradient(145deg, var(--sky, #9ED8FF) 0%, var(--bubble-blue, #6FB8F2) 100%);
+  background: linear-gradient(145deg, var(--sky, #7FCCFF) 0%, var(--bubble-blue, #43ACFF) 100%);
   box-shadow: 0 8px 22px -6px rgba(58, 120, 184, 0.42);
 }
 
@@ -22514,12 +22514,12 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   position: absolute;
   inset: -8px;
   border-radius: 50%;
-  border: 2px solid var(--bubble-blue, #6FB8F2);
+  border: 2px solid var(--bubble-blue, #43ACFF);
   animation: voice-float-ripple 2.4s ease-out infinite;
 }
 
 .voice-call-invite__avatar::after {
-  border-color: var(--sky, #9ED8FF);
+  border-color: var(--sky, #7FCCFF);
   animation-delay: 0.9s;
 }
 
@@ -22560,7 +22560,7 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
 .voice-call-invite__accept {
   border: none;
   color: #fff;
-  background: linear-gradient(145deg, var(--sky, #9ED8FF) 0%, var(--bubble-blue, #6FB8F2) 100%);
+  background: linear-gradient(145deg, var(--sky, #7FCCFF) 0%, var(--bubble-blue, #43ACFF) 100%);
   box-shadow: 0 10px 22px -8px rgba(58, 120, 184, 0.5);
 }
 

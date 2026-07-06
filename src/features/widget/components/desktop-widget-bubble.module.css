@@ -13,9 +13,9 @@
   --widget-border: rgba(107, 143, 168, 0.14);
   --widget-hairline: rgba(107, 143, 168, 0.12);
   /* accent 기본값(todo sky) — 버블별 acc* 클래스가 덮어쓴다. */
-  --acc: #6FB8F2;
-  --acc-ink: #36729A;
-  --sync-ink: #9B6A35;
+  --acc: #43ACFF;
+  --acc-ink: #1B6597;
+  --sync-ink: #985B1A;
   color: var(--widget-text);
   background: transparent;
   font-family: var(--font-line-seed, "LINE Seed Sans KR", Pretendard, system-ui, sans-serif);
@@ -24,44 +24,46 @@
 /* 버블 아이덴티티 팔레트 — 전부 디자인 토큰 allowlist 색만 사용한다.
    todo=sky · schedule=blue · timer=amber · memo=cream · resource=sand ·
    chat=rose · alert=lilac · agent=sage(승인된 soft green). */
+/* 버블별 8색을 색상환에서 확실히 분리한다(겹치던 웜/블루 계열 제거).
+   todo=파랑 · schedule=청록 · timer=주황 · memo=노랑 · resource=갈색 · chat=핑크 · alert=보라 · agent=초록 */
 .accSky {
-  --acc: #6FB8F2;
-  --acc-ink: #36729A;
+  --acc: #2F9BFF;
+  --acc-ink: #005EA6;
 }
 
 .accBlue {
-  --acc: #4C91CD;
-  --acc-ink: #36729A;
+  --acc: #12BEC8;
+  --acc-ink: #067A80;
 }
 
 .accAmber {
-  --acc: #E8C4A0;
-  --acc-ink: #9B6A35;
+  --acc: #FF6B3D;
+  --acc-ink: #AE3009;
 }
 
 .accCream {
-  --acc: #F1D7B8;
-  --acc-ink: #9B6A35;
+  --acc: #FFC20D;
+  --acc-ink: #715500;
 }
 
 .accSand {
-  --acc: #E6C49C;
-  --acc-ink: #9B6A35;
+  --acc: #C37124;
+  --acc-ink: #603507;
 }
 
 .accRose {
-  --acc: #E79BB0;
-  --acc-ink: #C56B85;
+  --acc: #F55E8B;
+  --acc-ink: #C21E52;
 }
 
 .accLilac {
-  --acc: #B0A8E0;
-  --acc-ink: #6F58C9;
+  --acc: #9B7BF0;
+  --acc-ink: #5B34C9;
 }
 
 .accSage {
-  --acc: #93CFA8;
-  --acc-ink: color-mix(in srgb, #93CFA8 46%, #23303B 54%);
+  --acc: #58CE86;
+  --acc-ink: #1E8A4E;
 }
 
 /* ---------- 포커스 링: 모든 조작 요소 공통 — accent 40% 2px, 요소 radius를 그대로 따른다 ---------- */
@@ -886,10 +888,10 @@
   background: color-mix(in srgb, var(--acc) 14%, transparent);
 }
 
-/* 지난 마감: 승인 팔레트의 soft red(#E89898)를 잉크와 섞어 경고 톤을 만든다. */
+/* 지난 마감: 승인 팔레트의 soft red(#F46E6E)를 잉크와 섞어 경고 톤을 만든다. */
 .dueOverdue {
-  color: color-mix(in srgb, #E89898 52%, #23303B 48%);
-  background: color-mix(in srgb, #E89898 26%, transparent);
+  color: color-mix(in srgb, #F46E6E 52%, #23303B 48%);
+  background: color-mix(in srgb, #F46E6E 26%, transparent);
 }
 
 .dueLater {
@@ -1019,7 +1021,7 @@
 }
 
 .pomodoroBreak {
-  --pomodoro-accent: #6FB8F2;
+  --pomodoro-accent: #43ACFF;
 }
 
 .pomodoroRingTrack {
@@ -1170,6 +1172,43 @@
 .pomodoroStepper button:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+/* 분 직접 입력 필드(숫자만) — 스텝퍼 가운데 값을 편집 가능한 인풋으로. */
+.pomodoroMinuteField {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.pomodoroMinuteInput {
+  width: 24px;
+  padding: 2px 0;
+  border: none;
+  border-bottom: 1px solid var(--widget-hairline);
+  border-radius: 0;
+  background: transparent;
+  color: var(--widget-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.pomodoroMinuteInput:focus-visible {
+  outline: none;
+  border-bottom-color: var(--acc);
+}
+
+.pomodoroMinuteInput:disabled {
+  opacity: 0.5;
+}
+
+.pomodoroMinuteUnit {
+  color: var(--widget-muted);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 /* 하나의 세그먼트 바(시계|작업|뽀모도로 · 주간|월간|WBS) — pill 3개 금지. */
@@ -1823,16 +1862,17 @@
   width: 138px;
   height: 138px;
   align-self: center;
-  border: 1px solid color-mix(in srgb, var(--acc) 45%, rgba(255, 255, 255, 0.5));
+  /* 고스트가 너무 연해 안 보이던 문제 — accent 틴트/불투명도/테두리를 높여 또렷하게. */
+  border: 2px solid color-mix(in srgb, var(--acc) 66%, rgba(255, 255, 255, 0.5));
   border-radius: 999px;
   background:
-    radial-gradient(circle at 38% 30%, rgba(255, 255, 255, 0.9), transparent 62%),
-    color-mix(in srgb, var(--acc) 16%, rgba(255, 255, 255, 0.72));
+    radial-gradient(circle at 38% 28%, rgba(255, 255, 255, 0.96), transparent 58%),
+    color-mix(in srgb, var(--acc) 42%, rgba(255, 255, 255, 0.92));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.7),
-    0 8px 20px -12px color-mix(in srgb, var(--acc) 60%, transparent);
-  backdrop-filter: blur(8px) saturate(1.05);
-  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    0 10px 26px -10px color-mix(in srgb, var(--acc) 78%, transparent);
+  backdrop-filter: blur(6px) saturate(1.12);
+  -webkit-backdrop-filter: blur(6px) saturate(1.12);
   pointer-events: none;
 }
 
@@ -2203,12 +2243,12 @@
 
 .barBrand:hover,
 .barBrand:focus-visible {
-  background: color-mix(in srgb, #6FB8F2 14%, transparent);
+  background: color-mix(in srgb, #43ACFF 14%, transparent);
 }
 
 .barBrand[aria-expanded="true"] {
-  border-color: color-mix(in srgb, #6FB8F2 34%, transparent);
-  background: color-mix(in srgb, #6FB8F2 14%, transparent);
+  border-color: color-mix(in srgb, #43ACFF 34%, transparent);
+  background: color-mix(in srgb, #43ACFF 14%, transparent);
 }
 
 /* ---------- 바 인라인 Bubli 메뉴 패널(브랜드 칩 ↔ 패널 layoutId morph) ----------
@@ -2297,7 +2337,7 @@
   height: 28px;
   translate: -50% 0;
   border-radius: 50%;
-  background: color-mix(in srgb, #E6DDF8 55%, #FFFFFF);
+  background: color-mix(in srgb, #D1BCFB 55%, #FFFFFF);
 }
 
 /* 블롭은 gooLabel과 같은 타이포/패딩의 투명 텍스트로 크기를 맞춘다(텍스트는 label이 그린다). */
@@ -2322,7 +2362,7 @@
 
 .gooBlob {
   color: transparent;
-  background: color-mix(in srgb, #E6DDF8 55%, #FFFFFF);
+  background: color-mix(in srgb, #D1BCFB 55%, #FFFFFF);
 }
 
 /* 클릭 타깃 + 또렷한 제목 1줄(필터 밖). 배경은 블롭이 담당하므로 투명. */
@@ -2425,6 +2465,10 @@
   display: grid;
   gap: 6px;
   width: 232px;
+  /* 창 높이를 넘으면 잘리지 않고 패널 안에서 스크롤한다(메뉴 잘림 수정). */
+  max-height: calc(100vh - 12px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 12px;
   border: 1px solid color-mix(in srgb, #E5E7EB 92%, transparent);
   border-radius: 20px;
@@ -2432,6 +2476,48 @@
   box-shadow:
     var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
     var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+}
+
+.menuPanel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.menuPanel::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(107, 143, 168, 0.28);
+}
+
+/* 메뉴 아이콘 가시성 — accent 잉크를 채도 100·명도 -6으로 끌어올린다(메뉴 한정, 8색 각각). */
+.menuShortcut.accSky {
+  --acc-ink: #004D87;
+}
+
+.menuShortcut.accBlue {
+  --acc-ink: #006267;
+}
+
+.menuShortcut.accAmber {
+  --acc-ink: #982400;
+}
+
+.menuShortcut.accCream {
+  --acc-ink: #523E00;
+}
+
+.menuShortcut.accSand {
+  --acc-ink: #482500;
+}
+
+.menuShortcut.accRose {
+  --acc-ink: #C1003D;
+}
+
+.menuShortcut.accLilac {
+  --acc-ink: #3A00DE;
+}
+
+.menuShortcut.accSage {
+  --acc-ink: #00893D;
 }
 
 .menuHead {
@@ -2442,7 +2528,7 @@
 
 .menuWordmark {
   width: fit-content;
-  background: linear-gradient(96deg, #6FB8F2, #B0A8E0 62%, #E79BB0);
+  background: linear-gradient(96deg, #43ACFF, #9081E8 62%, #F27195);
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
@@ -2582,7 +2668,7 @@
 }
 
 .menuScope[data-scope="room"] {
-  color: #36729a;
+  color: #1B6597;
   background: rgba(216, 240, 255, 0.7);
 }
 
@@ -2596,7 +2682,7 @@
 }
 
 .menuShortcut[data-locked="true"] .menuScope {
-  color: #9b6a35;
+  color: #985B1A;
   background: rgba(241, 215, 184, 0.6);
 }
 
@@ -2675,7 +2761,7 @@
 
 .menuActionRow:hover,
 .menuActionRow:focus-visible {
-  background: color-mix(in srgb, #6FB8F2 10%, transparent);
+  background: color-mix(in srgb, #43ACFF 10%, transparent);
 }
 
 .menuActionRow:disabled {
@@ -2701,7 +2787,7 @@
   --widget-faint: #98A5AF;
   --widget-border: rgba(150, 170, 215, 0.18);
   --widget-hairline: rgba(150, 170, 215, 0.14);
-  --sync-ink: color-mix(in srgb, #E6C49C 82%, #EAF0F8 18%);
+  --sync-ink: color-mix(in srgb, #F1B773 82%, #EAF0F8 18%);
 }
 
 /* 다크에서는 accent ink를 밝힌다(칩/타일/CTA 텍스트 가독성). */
@@ -2788,8 +2874,8 @@
 
 /* 다크 마감/룸 칩: 어두운 표면 위에서 accent 틴트를 살짝 올리고, 지난 마감은 밝은 soft red 잉크로. */
 :global([data-theme="dark"]) .dueOverdue {
-  color: #E89898;
-  background: color-mix(in srgb, #E89898 20%, transparent);
+  color: #F46E6E;
+  background: color-mix(in srgb, #F46E6E 20%, transparent);
 }
 
 :global([data-theme="dark"]) .dueLater {
@@ -2890,13 +2976,13 @@
 }
 
 :global([data-theme="dark"]) .ghostSignal {
-  border-color: color-mix(in srgb, var(--acc) 42%, rgba(150, 170, 215, 0.28));
+  border-color: color-mix(in srgb, var(--acc) 66%, rgba(150, 170, 215, 0.3));
   background:
-    radial-gradient(circle at 38% 30%, rgba(180, 205, 240, 0.16), transparent 62%),
-    color-mix(in srgb, var(--acc) 20%, rgba(19, 26, 40, 0.62));
+    radial-gradient(circle at 38% 28%, rgba(180, 205, 240, 0.22), transparent 58%),
+    color-mix(in srgb, var(--acc) 46%, rgba(19, 26, 40, 0.82));
   box-shadow:
-    inset 0 1px 0 rgba(180, 205, 240, 0.14),
-    0 8px 20px -12px rgba(10, 16, 28, 0.6);
+    inset 0 1px 0 rgba(180, 205, 240, 0.18),
+    0 10px 26px -10px rgba(10, 16, 28, 0.7);
 }
 
 :global([data-theme="dark"]) .ghostMetric,
@@ -2996,7 +3082,7 @@
 /* 다크: goo 블롭/seed는 다크 표면 톤(라일락 살짝) — 라벨 텍스트는 --widget-text가 처리. */
 :global([data-theme="dark"]) .gooSeed,
 :global([data-theme="dark"]) .gooBlob {
-  background: color-mix(in srgb, #6E63B8 26%, rgba(22, 30, 46, 0.97));
+  background: color-mix(in srgb, #4733C9 26%, rgba(22, 30, 46, 0.97));
 }
 
 :global([data-theme="dark"]) .gooLabel {
@@ -3017,7 +3103,7 @@
 }
 
 :global([data-theme="dark"]) .menuWordmark {
-  background: linear-gradient(96deg, #7CC4F5, #B0A8E0 62%, #E79BB0);
+  background: linear-gradient(96deg, #53BAFF, #9081E8 62%, #F27195);
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
@@ -3109,9 +3195,9 @@
 }
 
 .agentReplyError {
-  border-color: color-mix(in srgb, #E79BB0 45%, transparent);
-  color: color-mix(in srgb, #C56B85 72%, var(--widget-text) 28%);
-  background: color-mix(in srgb, #E79BB0 10%, transparent);
+  border-color: color-mix(in srgb, #F27195 45%, transparent);
+  color: color-mix(in srgb, #D63B68 72%, var(--widget-text) 28%);
+  background: color-mix(in srgb, #F27195 10%, transparent);
 }
 
 /* "Bubli가 생각 중…" — 웹 소통창 typing-line 점 애니메이션과 같은 리듬. */
@@ -3268,7 +3354,7 @@
 }
 
 :global([data-theme="dark"]) .agentReplyError {
-  border-color: color-mix(in srgb, #E79BB0 40%, transparent);
-  color: color-mix(in srgb, #E79BB0 70%, #EAF0F8 30%);
-  background: color-mix(in srgb, #E79BB0 14%, transparent);
+  border-color: color-mix(in srgb, #F27195 40%, transparent);
+  color: color-mix(in srgb, #F27195 70%, #EAF0F8 30%);
+  background: color-mix(in srgb, #F27195 14%, transparent);
 }

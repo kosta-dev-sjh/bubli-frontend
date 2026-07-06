@@ -174,7 +174,7 @@
 }
 
 .iconTile[data-category="requirement"] {
-  color: #36729A;
+  color: #1B6597;
   background: rgba(216, 240, 255, 0.85);
 }
 
@@ -184,17 +184,17 @@
 }
 
 .iconTile[data-category="schedule"] {
-  color: #9B6A35;
+  color: #985B1A;
   background: rgba(241, 215, 184, 0.55);
 }
 
 .iconTile[data-category="document"] {
-  color: #6E63B8;
+  color: #4733C9;
   background: rgba(220, 216, 248, 0.6);
 }
 
 .iconTile[data-category="daily"] {
-  color: #C56B85;
+  color: #D63B68;
   background: rgba(246, 221, 235, 0.7);
 }
 
@@ -370,7 +370,7 @@
 }
 
 .tag[data-category="requirement"] {
-  color: #36729A;
+  color: #1B6597;
   background: rgba(216, 240, 255, 0.72);
 }
 
@@ -380,17 +380,17 @@
 }
 
 .tag[data-category="schedule"] {
-  color: #9B6A35;
+  color: #985B1A;
   background: rgba(241, 215, 184, 0.48);
 }
 
 .tag[data-category="document"] {
-  color: #6E63B8;
+  color: #4733C9;
   background: rgba(220, 216, 248, 0.52);
 }
 
 .tag[data-category="daily"] {
-  color: #C56B85;
+  color: #D63B68;
   background: rgba(246, 221, 235, 0.6);
 }
 
@@ -656,52 +656,52 @@
 }
 
 [data-theme="dark"] .iconTile[data-category="requirement"] {
-  color: #7CC4F5;
+  color: #53BAFF;
   background: rgba(70, 110, 165, 0.38);
 }
 
 [data-theme="dark"] .iconTile[data-category="task"] {
-  color: #93CFA8;
+  color: #69DA91;
   background: rgba(60, 110, 85, 0.36);
 }
 
 [data-theme="dark"] .iconTile[data-category="schedule"] {
-  color: #E6C49C;
+  color: #F1B773;
   background: rgba(120, 90, 50, 0.36);
 }
 
 [data-theme="dark"] .iconTile[data-category="document"] {
-  color: #B0A8E0;
+  color: #9081E8;
   background: rgba(90, 80, 140, 0.4);
 }
 
 [data-theme="dark"] .iconTile[data-category="daily"] {
-  color: #E79BB0;
+  color: #F27195;
   background: rgba(140, 75, 100, 0.36);
 }
 
 [data-theme="dark"] .tag[data-category="requirement"] {
-  color: #7CC4F5;
+  color: #53BAFF;
   background: rgba(70, 110, 165, 0.32);
 }
 
 [data-theme="dark"] .tag[data-category="task"] {
-  color: #93CFA8;
+  color: #69DA91;
   background: rgba(60, 110, 85, 0.3);
 }
 
 [data-theme="dark"] .tag[data-category="schedule"] {
-  color: #E6C49C;
+  color: #F1B773;
   background: rgba(120, 90, 50, 0.3);
 }
 
 [data-theme="dark"] .tag[data-category="document"] {
-  color: #B0A8E0;
+  color: #9081E8;
   background: rgba(90, 80, 140, 0.34);
 }
 
 [data-theme="dark"] .tag[data-category="daily"] {
-  color: #E79BB0;
+  color: #F27195;
   background: rgba(140, 75, 100, 0.3);
 }
 

@@ -129,7 +129,7 @@
 }
 
 .memoDeleteConfirm {
-  color: color-mix(in srgb, var(--signal-alert, #E79BB0) 62%, var(--ink, #2C3540) 38%);
+  color: color-mix(in srgb, var(--signal-alert, #F27195) 62%, var(--ink, #2C3540) 38%);
 }
 
 .editForm {

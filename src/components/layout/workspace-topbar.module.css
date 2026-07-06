@@ -570,7 +570,7 @@ button.profileButton {
   color: #0e1626;
   background:
     radial-gradient(circle at 30% 18%, rgba(180, 210, 255, 0.9), transparent 40%),
-    linear-gradient(145deg, #9ed8ff, rgba(110, 160, 210, 0.6));
+    linear-gradient(145deg, #7FCCFF, rgba(110, 160, 210, 0.6));
 }
 
 [data-theme="dark"] .menuPopover {
@@ -605,7 +605,7 @@ button.profileButton {
   background: rgba(158, 216, 255, 0.12);
 }
 
-/* 로그아웃 행 — 라이트의 로즈 톤(#E79BB0)은 유지하되, 다크에서는 더 밝은 로즈로 대비를 확보한다. */
+/* 로그아웃 행 — 라이트의 로즈 톤(#F27195)은 유지하되, 다크에서는 더 밝은 로즈로 대비를 확보한다. */
 [data-theme="dark"] .menuItemDanger {
   color: #F2BBD2;
 }
@@ -626,7 +626,7 @@ button.profileButton {
 
 [data-theme="dark"] .menuLocaleButton[data-active="true"] {
   border-color: rgba(158, 216, 255, 0.42);
-  color: #9ed8ff;
+  color: #7FCCFF;
   background: rgba(158, 216, 255, 0.14);
 }
 
@@ -647,13 +647,13 @@ button.profileButton {
 
 [data-theme="dark"] .menuThemeRow :global(.bubli-seg__item.is-active) {
   border-color: rgba(158, 216, 255, 0.42);
-  color: #9ed8ff;
+  color: #7FCCFF;
   background: rgba(158, 216, 255, 0.14);
   box-shadow: none;
 }
 
 [data-theme="dark"] .notificationsHead span {
-  color: #9ed8ff;
+  color: #7FCCFF;
 }
 
 [data-theme="dark"] .notificationItem[data-unread="true"] {
@@ -854,7 +854,7 @@ button.profileButton {
   margin-top: 2px;
   border-radius: 10px;
   background: rgba(111, 184, 242, 0.16);
-  color: #3A78B8;
+  color: #1B68B8;
 }
 
 :global([data-theme="dark"]) .invitesSection {
@@ -867,5 +867,5 @@ button.profileButton {
 
 :global([data-theme="dark"]) .inviteIcon {
   background: rgba(158, 216, 255, 0.14);
-  color: #9ED8FF;
+  color: #7FCCFF;
 }

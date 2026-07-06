@@ -44,8 +44,8 @@ export const ProjectTime: Story = {
         label="오늘 기록"
         metric="2h15m"
         segments={[
-          { color: "#6FB8F2", label: "ClientA", value: 86 },
-          { color: "#B0A8E0", label: "자료 정리", value: 32 },
+          { color: "#43ACFF", label: "ClientA", value: 86 },
+          { color: "#9081E8", label: "자료 정리", value: 32 },
           { color: "#CBD8DC", label: "미분류", value: 17 },
         ]}
         size={120}
@@ -53,11 +53,11 @@ export const ProjectTime: Story = {
       />
       <div style={{ display: "grid", gap: 5 }}>
         <span style={legendItem}>
-          <Dot c="#6FB8F2" />
+          <Dot c="#43ACFF" />
           ClientA <b style={{ marginLeft: "auto" }}>1h26</b>
         </span>
         <span style={legendItem}>
-          <Dot c="#B0A8E0" />
+          <Dot c="#9081E8" />
           자료 정리 <b style={{ marginLeft: "auto" }}>32m</b>
         </span>
         <span style={legendItem}>
@@ -76,10 +76,10 @@ export const Segmented: Story = {
         label="비율"
         metric="100%"
         segments={[
-          { color: "#6FB8F2", value: 4 },
-          { color: "#B0A8E0", value: 3 },
+          { color: "#43ACFF", value: 4 },
+          { color: "#9081E8", value: 3 },
           { color: "#F2BBD2", value: 2 },
-          { color: "#9ED8FF", value: 2 },
+          { color: "#7FCCFF", value: 2 },
         ]}
       />
     </div>
@@ -131,7 +131,7 @@ export const Dark: Story = {
   render: () => (
     <DarkFrame>
       <div style={row}>
-        <Ring label="오늘 기록" metric="2h15m" segments={[{ color: "#6FB8F2", value: 86 }, { color: "#B0A8E0", value: 32 }, { color: "#3B4A66", value: 17 }]} size={110} thickness={11} />
+        <Ring label="오늘 기록" metric="2h15m" segments={[{ color: "#43ACFF", value: 86 }, { color: "#9081E8", value: 32 }, { color: "#3B4A66", value: 17 }]} size={110} thickness={11} />
         <Ring label="집중" metric="25:00" value={42} />
       </div>
     </DarkFrame>
