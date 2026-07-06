@@ -85,6 +85,7 @@ const WIDGET_FALLBACK_MONITOR_HEIGHT: f64 = 900.0;
 // 판정해 투명 영역 클릭만 아래 앱으로 통과시킨다(macOS/Windows 공통 패턴).
 const WIDGET_POINTER_POLL_INTERVAL_MS: u64 = 80;
 const WIDGET_POINTER_RECT_PADDING: f64 = 4.0;
+const WIDGET_POINTER_WINDOW_BOUNDS_TOLERANCE: f64 = 32.0;
 // 드래그(data-tauri-drag-region) 직후 Moved 이벤트가 이 시간 안에 있으면 통과를 켜지 않는다.
 const WIDGET_POINTER_DRAG_GRACE_MS: u128 = 400;
 // 웹뷰가 상호작용 표면 위에서 실제 마우스 이벤트를 받았다는 힌트가 이 시간 안에 있으면,
@@ -314,6 +315,40 @@ fn widget_pointer_inside_rects(rects: &[WidgetInteractiveRect], x: f64, y: f64) 
     })
 }
 
+fn widget_pointer_scale(window: &WebviewWindow) -> f64 {
+    window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .map(|monitor| monitor.scale_factor())
+        .or_else(|| window.scale_factor().ok())
+        .unwrap_or(1.0)
+        .max(0.5)
+}
+
+fn widget_pointer_local_position(
+    cursor: &PhysicalPosition<f64>,
+    origin: &PhysicalPosition<i32>,
+    scale: f64,
+) -> (f64, f64) {
+    (
+        (cursor.x - origin.x as f64) / scale,
+        (cursor.y - origin.y as f64) / scale,
+    )
+}
+
+fn widget_pointer_position_is_plausible(
+    local_x: f64,
+    local_y: f64,
+    width: f64,
+    height: f64,
+) -> bool {
+    local_x >= -WIDGET_POINTER_WINDOW_BOUNDS_TOLERANCE
+        && local_x <= width + WIDGET_POINTER_WINDOW_BOUNDS_TOLERANCE
+        && local_y >= -WIDGET_POINTER_WINDOW_BOUNDS_TOLERANCE
+        && local_y <= height + WIDGET_POINTER_WINDOW_BOUNDS_TOLERANCE
+}
+
 /// 전역 커서 위치를 창-로컬 논리 좌표로 바꿔 보고된 rect 안팎을 판정한다.
 /// rect 미보고·드래그 직후·API 실패 시에는 통과를 켜지 않는 안전한 기본값을 쓴다.
 fn widget_pointer_should_ignore(window: &WebviewWindow, label: &str) -> bool {
@@ -346,9 +381,20 @@ fn widget_pointer_should_ignore(window: &WebviewWindow, label: &str) -> bool {
     let Ok(origin) = window.outer_position() else {
         return false;
     };
-    let scale = window.scale_factor().unwrap_or(1.0).max(0.5);
-    let local_x = (cursor.x - origin.x as f64) / scale;
-    let local_y = (cursor.y - origin.y as f64) / scale;
+    let scale = widget_pointer_scale(window);
+    let Ok(size) = window.outer_size() else {
+        return false;
+    };
+    let (local_x, local_y) = widget_pointer_local_position(&cursor, &origin, scale);
+    let width = size.width as f64 / scale;
+    let height = size.height as f64 / scale;
+
+    // 멀티 모니터/배율 전환 직후에는 OS가 커서·창 원점·scale을 한 틱 동안 서로 다른
+    // 좌표계로 줄 수 있다. 이때 투명 영역으로 오판해 ignore=true를 걸면 창 조작이 죽으므로
+    // 창 범위 밖으로 크게 튄 좌표는 안전하게 "클릭 가능"으로 실패시킨다.
+    if !widget_pointer_position_is_plausible(local_x, local_y, width, height) {
+        return false;
+    }
 
     !widget_pointer_inside_rects(&rects, local_x, local_y)
 }
@@ -3928,6 +3974,7 @@ mod tests {
             click_through: false,
             dock_orb_visible: false,
             mode: "DEFAULT".to_string(),
+            monitor_id: None,
             position: WidgetWindowPosition { x, y },
             selected_room_id: None,
             shortcut: Some("CommandOrControl+Shift+B".to_string()),
@@ -4728,6 +4775,33 @@ mod widget_runtime_tests {
         assert!(!widget_pointer_inside_rects(&rects, 10.0, 10.0));
         assert!(!widget_pointer_inside_rects(&rects, 180.0, 40.0));
         assert!(!widget_pointer_inside_rects(&[], 24.0, 160.0));
+    }
+
+    #[test]
+    fn widget_pointer_local_position_uses_active_monitor_scale() {
+        let cursor = PhysicalPosition::new(1800.0, 540.0);
+        let origin = PhysicalPosition::new(1700, 460);
+
+        let (local_x, local_y) = widget_pointer_local_position(&cursor, &origin, 2.0);
+
+        assert_eq!(local_x, 50.0);
+        assert_eq!(local_y, 40.0);
+    }
+
+    #[test]
+    fn widget_pointer_plausibility_rejects_coordinate_drift() {
+        assert!(widget_pointer_position_is_plausible(
+            12.0, 18.0, 320.0, 360.0
+        ));
+        assert!(widget_pointer_position_is_plausible(
+            -16.0, 18.0, 320.0, 360.0
+        ));
+        assert!(!widget_pointer_position_is_plausible(
+            -2400.0, 18.0, 320.0, 360.0
+        ));
+        assert!(!widget_pointer_position_is_plausible(
+            12.0, 1800.0, 320.0, 360.0
+        ));
     }
 
     #[test]
