@@ -102,6 +102,8 @@ const devVoiceRoomId =
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
 type WidgetItemStateAction = "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED";
 
+type NotificationToastKind = "chat-invite" | "friend-accepted" | "friend-request" | "message" | "room-invite";
+
 function roomQuery(roomId?: string | null) {
   return roomId ? `?roomId=${encodeURIComponent(roomId)}` : "";
 }
@@ -1132,9 +1134,9 @@ function DesktopWidgetSurface() {
     notificationId: string;
   } | null>(null);
   const [voiceCallResponding, setVoiceCallResponding] = useState(false);
-  // 카카오톡 스타일 새 메시지 미리보기 토스트.
+  // 카카오톡 스타일 실시간 미리보기 토스트 — 메시지뿐 아니라 친구 요청/수락, 룸 초대, 1:1·그룹 초대도 표시한다.
   const [messageToasts, setMessageToasts] = useState<
-    { chatRoomId: string; id: string; senderName: string; text: string }[]
+    { chatRoomId?: string; id: string; kind: NotificationToastKind; senderName: string; text: string }[]
   >([]);
   const liveKitRoomRef = useRef<Room | null>(null);
   const surfaceReadySentRef = useRef(false);
@@ -1425,6 +1427,7 @@ function DesktopWidgetSurface() {
     const bumpRevisionByDomain: Record<DataChangedDomain, () => void> = {
       agent: () => setAgentRevision((current) => current + 1),
       chat: () => setCommunicationRevision((current) => current + 1),
+      friend: () => setCommunicationRevision((current) => current + 1),
       memo: () => setMemoRevision((current) => current + 1),
       notification: () => setNotificationRevision((current) => current + 1),
       "project-room": () => setCommunicationRevision((current) => current + 1),
@@ -2558,16 +2561,31 @@ function DesktopWidgetSurface() {
         });
       }
 
-      if (notification.sourceType === "MESSAGE" && notification.sourceId) {
+      const pushToast = (kind: NotificationToastKind, chatRoomId?: string) => {
         const toastId = notification.id;
-        const chatRoomId = notification.sourceId;
         setMessageToasts((current) => [
           ...current.filter((toast) => toast.id !== toastId),
-          { chatRoomId, id: toastId, senderName: notification.title, text: notification.body ?? "" },
+          { chatRoomId, id: toastId, kind, senderName: notification.title, text: notification.body ?? "" },
         ]);
         window.setTimeout(() => {
           setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
         }, 6_000);
+      };
+
+      if (notification.sourceType === "MESSAGE" && notification.sourceId) {
+        pushToast("message", notification.sourceId);
+      }
+      if (notification.sourceType === "CHAT_INVITE" && notification.sourceId) {
+        pushToast("chat-invite", notification.sourceId);
+      }
+      if (notification.sourceType === "ROOM_INVITE") {
+        pushToast("room-invite");
+      }
+      if (notification.sourceType === "FRIEND_REQUEST") {
+        pushToast("friend-request");
+      }
+      if (notification.sourceType === "FRIEND_ACCEPTED") {
+        pushToast("friend-accepted");
       }
     });
   }, [isBubbleBar, widgetSessionReady]);
@@ -2643,8 +2661,26 @@ function DesktopWidgetSurface() {
   }, []);
 
   const openMessageToast = useCallback(
-    async (toast: { chatRoomId: string; id: string }) => {
+    async (toast: { chatRoomId?: string; id: string; kind: NotificationToastKind }) => {
       dismissMessageToast(toast.id);
+
+      if (toast.kind === "friend-request" || toast.kind === "friend-accepted") {
+        if (isTauri) {
+          await tauriCommands.openMainWindowRoute({ route: "/app/chat?mode=direct&friends=1" }).catch(() => undefined);
+        } else {
+          window.open("/app/chat?mode=direct&friends=1", "_blank", "noopener,noreferrer");
+        }
+        return;
+      }
+      if (toast.kind === "room-invite") {
+        if (isTauri) {
+          await tauriCommands.openMainWindowRoute({ route: "/app/project-rooms" }).catch(() => undefined);
+        } else {
+          window.open("/app/project-rooms", "_blank", "noopener,noreferrer");
+        }
+        return;
+      }
+      if (!toast.chatRoomId) return;
       if (isTauri) {
         await tauriCommands
           .openWidgetWindow({

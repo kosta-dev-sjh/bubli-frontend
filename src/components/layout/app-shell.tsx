@@ -73,6 +73,8 @@ type ShellState =
 
 type TopbarMenu = "notifications" | "profile" | null;
 
+type NotificationToastKind = "chat-invite" | "friend-accepted" | "friend-request" | "message" | "room-invite";
+
 function initialsFromName(name?: string | null) {
   const cleanName = name?.trim();
 
@@ -192,9 +194,10 @@ export function AppShell({ children }: AppShellProps) {
   } | null>(null);
   const [voiceCallResponding, setVoiceCallResponding] = useState(false);
 
-  // 카카오톡 스타일 새 메시지 미리보기 토스트 — 화면 어디에 있든 우측 하단에 쌓이고, 클릭하면 해당 채팅방으로 이동한다.
+  // 카카오톡 스타일 실시간 미리보기 토스트 — 메시지뿐 아니라 친구 요청/수락, 룸 초대, 1:1·그룹 초대도
+  // 화면 어디에 있든 우측 하단에 쌓이고, 클릭하면 종류에 맞는 화면으로 이동한다.
   const [messageToasts, setMessageToasts] = useState<
-    { chatRoomId: string; id: string; senderName: string; text: string }[]
+    { chatRoomId?: string; id: string; kind: NotificationToastKind; senderName: string; text: string }[]
   >([]);
 
   const voiceSnap = useSyncExternalStore(voiceStore.subscribe, voiceStore.getSnapshot, voiceStore.getServerSnapshot);
@@ -457,6 +460,17 @@ export function AppShell({ children }: AppShellProps) {
     void refreshShellLists();
   }, [refreshShellLists]);
 
+  function pushNotificationToast(kind: NotificationToastKind, notification: NotificationResponse, chatRoomId?: string) {
+    const toastId = notification.id;
+    setMessageToasts((current) => [
+      ...current.filter((toast) => toast.id !== toastId),
+      { chatRoomId, id: toastId, kind, senderName: notification.title, text: notification.body ?? "" },
+    ]);
+    window.setTimeout(() => {
+      setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
+    }, 6_000);
+  }
+
   // 새 채팅 메시지 등으로 생성된 알림을 실시간으로 받아 벨 배지/목록에 즉시 반영한다.
   // 창이 백그라운드에 있으면(Notification API 지원 시) 데스크톱 알림도 함께 띄운다.
   useEffect(() => {
@@ -486,15 +500,21 @@ export function AppShell({ children }: AppShellProps) {
       }
 
       if (notification.sourceType === "MESSAGE" && notification.sourceId) {
-        const toastId = notification.id;
-        const chatRoomId = notification.sourceId;
-        setMessageToasts((current) => [
-          ...current.filter((toast) => toast.id !== toastId),
-          { chatRoomId, id: toastId, senderName: notification.title, text: notification.body ?? "" },
-        ]);
-        window.setTimeout(() => {
-          setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
-        }, 6_000);
+        pushNotificationToast("message", notification, notification.sourceId);
+      }
+      if (notification.sourceType === "CHAT_INVITE" && notification.sourceId) {
+        pushNotificationToast("chat-invite", notification, notification.sourceId);
+      }
+      if (notification.sourceType === "ROOM_INVITE") {
+        pushNotificationToast("room-invite", notification);
+      }
+      if (notification.sourceType === "FRIEND_REQUEST") {
+        pushNotificationToast("friend-request", notification);
+        notifyDataChanged("friend", { source: "app-shell" });
+      }
+      if (notification.sourceType === "FRIEND_ACCEPTED") {
+        pushNotificationToast("friend-accepted", notification);
+        notifyDataChanged("friend", { source: "app-shell" });
       }
 
       if (typeof window === "undefined" || document.visibilityState !== "hidden" || !("Notification" in window)) {
@@ -831,6 +851,21 @@ export function AppShell({ children }: AppShellProps) {
     void notificationApi.markRead(notificationId).catch(() => undefined);
   }
 
+  function handleMarkAllNotificationsRead() {
+    // 낙관적으로 전부 읽음 처리해 배지를 바로 비우고, 서버 반영 실패는 다음 로드에서 복구된다.
+    setState((current) =>
+      current.kind === "ready"
+        ? {
+            ...current,
+            notifications: current.notifications.map((item) =>
+              item.status === "UNREAD" ? { ...item, readAt: new Date().toISOString(), status: "READ" as const } : item,
+            ),
+          }
+        : current,
+    );
+    void notificationApi.markAllRead().catch(() => undefined);
+  }
+
   // MESSAGE 알림의 sourceId는 항상 chat_rooms.id(채팅방 ID)다 — 프로젝트룸 채팅이면
   // 그 채팅방에 연결된 project room의 roomId로, 1:1/그룹이면 chatRoomId로 이동해야 한다.
   // (과거엔 이 둘을 구분 안 하고 항상 projectRoomRoute(sourceId, ...)로 보내 1:1/그룹
@@ -853,8 +888,18 @@ export function AppShell({ children }: AppShellProps) {
     setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
   }
 
-  async function openMessageToast(toast: { chatRoomId: string; id: string }) {
+  async function openMessageToast(toast: { chatRoomId?: string; id: string; kind: NotificationToastKind }) {
     dismissMessageToast(toast.id);
+
+    if (toast.kind === "friend-request" || toast.kind === "friend-accepted") {
+      router.push("/app/chat?mode=direct&friends=1");
+      return;
+    }
+    if (toast.kind === "room-invite") {
+      setTopbarMenu("notifications");
+      return;
+    }
+    if (!toast.chatRoomId) return;
     const target = await resolveChatRoomRoute(toast.chatRoomId);
     router.push(target.route);
   }
@@ -894,6 +939,32 @@ export function AppShell({ children }: AppShellProps) {
         return;
       }
       router.push(fallbackRoute);
+      return;
+    }
+    if (notification.sourceType === "CHAT_INVITE") {
+      if (!sourceId) {
+        router.push("/app/chat");
+        return;
+      }
+      const target = await resolveChatRoomRoute(sourceId);
+      const fallbackRoute = target.route;
+
+      if (isTauriRuntime()) {
+        const opened = await openTauriChatWidget({ eventType: "handoff:notification", roomId: sourceId });
+        if (!opened) {
+          router.replace(fallbackRoute);
+        }
+        return;
+      }
+      router.push(fallbackRoute);
+      return;
+    }
+    if (notification.sourceType === "FRIEND_REQUEST" || notification.sourceType === "FRIEND_ACCEPTED") {
+      router.push("/app/chat?mode=direct&friends=1");
+      return;
+    }
+    if (notification.sourceType === "ROOM_INVITE") {
+      setTopbarMenu("notifications");
       return;
     }
     if (notification.sourceType === "COMMENT" || notification.sourceType === "RESOURCE") {
@@ -1056,6 +1127,7 @@ export function AppShell({ children }: AppShellProps) {
                 items={notifications}
                 onAcceptInvitation={(invitation) => void handleAcceptInvitation(invitation)}
                 onArchive={handleArchiveNotification}
+                onMarkAllRead={handleMarkAllNotificationsRead}
                 onMarkRead={handleMarkNotificationRead}
                 onOpen={(notification) => void handleOpenNotification(notification)}
               />
