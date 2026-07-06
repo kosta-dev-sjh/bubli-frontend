@@ -17,6 +17,8 @@ const ko = {
   "resources.common.loadError": "자료를 불러오지 못했습니다",
   "resources.common.dateUnknown": "날짜 미정",
   "resources.common.roomFallback": "프로젝트룸",
+  "resources.common.storageUsage": "저장 용량",
+  "resources.common.storageOf": "{used} / {limit}",
 
   // 파일 종류 라벨 (getKindLabel)
   "resources.common.kindImage": "이미지",
@@ -680,6 +682,8 @@ const en: Record<Key, string> = {
   "resources.common.loadError": "Couldn't load resources",
   "resources.common.dateUnknown": "No date",
   "resources.common.roomFallback": "Project room",
+  "resources.common.storageUsage": "Storage usage",
+  "resources.common.storageOf": "{used} / {limit}",
 
   "resources.common.kindImage": "Image",
   "resources.common.kindSheet": "Sheet",
@@ -1321,6 +1325,8 @@ const ja: Record<Key, string> = {
   "resources.common.loadError": "資料を読み込めませんでした",
   "resources.common.dateUnknown": "日付未定",
   "resources.common.roomFallback": "プロジェクトルーム",
+  "resources.common.storageUsage": "ストレージ使用量",
+  "resources.common.storageOf": "{used} / {limit}",
 
   "resources.common.kindImage": "画像",
   "resources.common.kindSheet": "表",

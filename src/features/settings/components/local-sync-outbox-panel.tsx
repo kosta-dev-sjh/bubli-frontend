@@ -1,17 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  AlertCircle,
-  ArrowRight,
-  CheckCircle2,
-  Clock3,
-  FileClock,
-  RefreshCw,
-  RotateCcw,
-  UploadCloud,
-  WifiOff,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, FileClock, RefreshCw, UploadCloud, WifiOff } from "lucide-react";
 
 import { Button, Chip, GlassPanel, StatusBadge } from "@/components/ui";
 import { settingsApi } from "@/features/settings/api/settingsApi";
@@ -226,17 +216,7 @@ export function LocalSyncOutboxPanel({ autoLoad = true, initialConsentGranted = 
         </div>
       </GlassPanel>
 
-      <div className={styles.flow} aria-label={t("settings.lso.flowAria")}>
-        <span>{t("settings.lso.flow.record")}</span>
-        <ArrowRight size={15} strokeWidth={2.1} />
-        <span>{t("settings.lso.flow.dedupe")}</span>
-        <ArrowRight size={15} strokeWidth={2.1} />
-        <span>{t("settings.lso.flow.send")}</span>
-        <ArrowRight size={15} strokeWidth={2.1} />
-        <span>{t("settings.lso.flow.confirm")}</span>
-      </div>
-
-      <div className={styles.grid}>
+      <div className={styles.body}>
         <GlassPanel className={styles.queuePanel}>
           <div className={styles.toolbar}>
             <div>
@@ -253,26 +233,6 @@ export function LocalSyncOutboxPanel({ autoLoad = true, initialConsentGranted = 
               <OutboxRow key={row.status} row={row} t={t} />
             ))}
           </div>
-        </GlassPanel>
-
-        <GlassPanel className={styles.policyPanel}>
-          <h3>{t("settings.lso.policyTitle")}</h3>
-          <article>
-            <RefreshCw size={17} strokeWidth={2.1} />
-            <p>{t("settings.lso.policy1")}</p>
-          </article>
-          <article>
-            <Clock3 size={17} strokeWidth={2.1} />
-            <p>{t("settings.lso.policy2")}</p>
-          </article>
-          <article>
-            <RotateCcw size={17} strokeWidth={2.1} />
-            <p>{t("settings.lso.policy3")}</p>
-          </article>
-          <article>
-            <AlertCircle size={17} strokeWidth={2.1} />
-            <p>{t("settings.lso.policy4")}</p>
-          </article>
         </GlassPanel>
       </div>
 

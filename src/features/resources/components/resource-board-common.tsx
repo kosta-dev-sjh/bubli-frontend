@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
+import { settingsApi } from "@/features/settings/api/settingsApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged } from "@/lib/data-changed";
 import { documentTypeLabelKey } from "@/lib/document-type-label";
@@ -484,6 +485,74 @@ export function ResourceScopeSwitch({
         {roomLabel ?? t("resources.common.roomFallback")}
       </Link>
     </nav>
+  );
+}
+
+/* ---------- 저장 용량: 사용량 / 한도 + 얇은 진행바 ---------- */
+
+// 저장 용량 표시는 0바이트와 GB 단위까지 다뤄야 해서 formatSize(파일 행용)와 별도 헬퍼를 쓴다.
+function formatStorageBytes(value: number) {
+  if (!Number.isFinite(value) || value < 0) {
+    return "0KB";
+  }
+
+  const kb = 1024;
+  const mb = kb * 1024;
+  const gb = mb * 1024;
+
+  if (value >= gb) {
+    return `${(value / gb).toFixed(1)}GB`;
+  }
+  if (value >= mb) {
+    return `${(value / mb).toFixed(1)}MB`;
+  }
+  return `${Math.max(0, Math.round(value / kb))}KB`;
+}
+
+export function ResourceStorageUsage({ roomId }: { roomId?: string }) {
+  const { t } = useI18n();
+  const [usage, setUsage] = useState<{ limit: number; used: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    settingsApi
+      .getStorageUsage(roomId ? { roomId } : undefined)
+      .then((response) => {
+        if (cancelled) return;
+        const used = response.totalUsedBytes;
+        const limit = response.totalLimitBytes;
+        if (!Number.isFinite(used) || !Number.isFinite(limit) || used < 0 || limit <= 0) {
+          setUsage(null);
+          return;
+        }
+        setUsage({ limit, used });
+      })
+      .catch(() => {
+        if (!cancelled) setUsage(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId]);
+
+  if (!usage) {
+    return null;
+  }
+
+  const ratio = Math.min(1, Math.max(0, usage.used / usage.limit));
+
+  return (
+    <div className={styles.storageUsage} title={t("resources.common.storageUsage")}>
+      <HardDrive aria-hidden className={styles.storageUsageIcon} size={13} strokeWidth={2} />
+      <span className={styles.storageUsageText}>
+        {t("resources.common.storageOf", { used: formatStorageBytes(usage.used), limit: formatStorageBytes(usage.limit) })}
+      </span>
+      <span aria-hidden="true" className={styles.storageUsageTrack}>
+        <span className={styles.storageUsageFill} style={{ width: `${Math.round(ratio * 100)}%` }} />
+      </span>
+    </div>
   );
 }
 
