@@ -36,35 +36,6 @@
   z-index: 20;
 }
 
-.generateButton {
-  align-items: center;
-  appearance: none;
-  background: transparent;
-  border: 0;
-  border-radius: 8px;
-  color: var(--work-muted);
-  cursor: pointer;
-  display: inline-flex;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 650;
-  gap: 6px;
-  min-height: 32px;
-  padding: 0 10px;
-  transition: background-color 140ms ease, color 140ms ease;
-  white-space: nowrap;
-}
-
-.generateButton:hover:not(:disabled) {
-  background: rgba(44, 53, 64, 0.06);
-  color: var(--work-ink);
-}
-
-.generateButton:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
-
 .boardToolbar {
   align-items: center;
   display: flex;
@@ -73,15 +44,6 @@
   justify-content: space-between;
   margin-block-end: 12px;
   min-block-size: 36px;
-}
-
-.paneActions {
-  align-items: center;
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-  min-inline-size: 0;
 }
 
 .generateNotice,
@@ -650,10 +612,6 @@
     min-height: 34px;
   }
 
-  .generateButton {
-    min-height: 36px;
-  }
-
   .candidateActions button {
     min-block-size: 34px;
   }
@@ -683,15 +641,6 @@
 [data-theme="dark"] .saveNotice {
   background: rgba(234, 240, 248, 0.92);
   color: #121A28;
-}
-
-[data-theme="dark"] .generateButton {
-  color: #A7B6CC;
-}
-
-[data-theme="dark"] .generateButton:hover:not(:disabled) {
-  background: rgba(150, 170, 215, 0.14);
-  color: #EAF0F8;
 }
 
 [data-theme="dark"] .generateNotice {
@@ -858,7 +807,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .viewSwitch button,
-  .generateButton,
   .inspectorClose,
   .candidateActions button,
   .wbsFormGrid input,
