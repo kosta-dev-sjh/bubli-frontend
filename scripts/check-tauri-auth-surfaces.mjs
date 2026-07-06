@@ -25,6 +25,7 @@ const files = {
   authenticatedSurfaces: "src/lib/tauri/authenticated-surfaces.ts",
   chatWidgetRouting: "src/lib/tauri/chat-widget-routing.ts",
   desktopWidgetPage: "src/app/desktop-widget/page.tsx",
+  desktopWidgetBubble: "src/features/widget/components/desktop-widget-bubble.tsx",
   desktopCommunicationRoute: "src/app/(workspace)/app/desktop/communication/page.tsx",
   devWidgetRealBackend: "scripts/dev-widget-real-backend.mjs",
   projectRoomChatRoute: "src/app/(workspace)/app/project-rooms/[roomId]/chat/page.tsx",
@@ -203,6 +204,7 @@ const authSession = read(files.authSession);
 const activityAutoCapture = read(files.activityAutoCapture);
 const activityClient = read(files.activityClient);
 const widgetPage = read(files.desktopWidgetPage);
+const widgetBubble = read(files.desktopWidgetBubble);
 const widgetAuthHeaders = read(files.widgetAuthHeaders);
 const workspaceActiveRoom = read(files.workspaceActiveRoom);
 const workspacePreviewData = read(files.workspacePreviewData);
@@ -903,6 +905,26 @@ assertContains(
   runtimeSmokeRunner,
   /setWidgetWindowPosition\(\{[\s\S]*all bubble widget positions persisted with project room context[\s\S]*setWidgetWindowMode\(\{[\s\S]*mode: "MINIMIZED"[\s\S]*all bubble widget windows minimized without losing project room context[\s\S]*getWidgetWindowState\(\{ bubbleType: "bar", windowId: "bar" \}\)[\s\S]*widget bar remains visible after all bubble widgets are minimized[\s\S]*getWidgetBarItems\(\)[\s\S]*all minimized bubble widgets appear as bar restore items[\s\S]*openWidgetWindows\(\{[\s\S]*mode: "DEFAULT" as const[\s\S]*all minimized bubble widget windows restore with position and project room context/,
   "TauriRuntimeSmokeRunner must verify all eight bubble widgets preserve position while minimizing to the bar and restoring with project-room context.",
+);
+assertContains(
+  tauriLib,
+  /fn widget_bar_items_from_store\(store: &WidgetWindowStore\)[\s\S]*widget\.active_bubble != "bar" && widget\.mode == "MINIMIZED" && !widget\.window_visible/,
+  "Native widget bar items must include every minimized bubble, including resource, while excluding only the bar window.",
+);
+assertNotContains(
+  tauriLib,
+  /widget\.active_bubble != "resource"/,
+  "Native widget bar items must not exclude the resource bubble from restore chips.",
+);
+assertNotContains(
+  widgetBubble,
+  /new Set<WidgetBubbleType>\(\[\s*"resource"\s*\]\)/,
+  "Desktop widget UI must not hide the resource bubble from widget menus or restore chips.",
+);
+assertContains(
+  widgetBubble,
+  /const hiddenDesktopWidgetBubbleTypes = new Set<WidgetBubbleType>\(\);/,
+  "Desktop widget hidden-bubble set must stay empty so all eight widgets can be restored from the bar.",
 );
 assertContains(
   widgetPage,
