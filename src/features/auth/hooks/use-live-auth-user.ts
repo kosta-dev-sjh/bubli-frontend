@@ -15,6 +15,29 @@ type LiveAuthState = {
   user: AuthUser | null;
 };
 
+const TAURI_LIVE_AUTH_RESTORE_TIMEOUT_MS = 1_000;
+
+async function restoreSessionForLiveAuth() {
+  const storedSession = getStoredAuthSession();
+  if (storedSession) {
+    return storedSession;
+  }
+
+  let timeoutId: number | null = null;
+  try {
+    return await Promise.race([
+      restoreStoredAuthSessionFromTauri(),
+      new Promise<null>((resolve) => {
+        timeoutId = window.setTimeout(() => resolve(null), TAURI_LIVE_AUTH_RESTORE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+    }
+  }
+}
+
 // 공개 페이지(랜딩/로그인)에서 살아 있는 세션을 조용히 감지한다.
 // - 저장된 세션이 없으면 네트워크 요청 없이 즉시 비로그인으로 처리한다.
 // - 저장된 세션이 있으면 getMe()로 실제 유효성을 확인한다(만료 시 apiRequest가 자동 갱신).
@@ -30,7 +53,7 @@ export function useLiveAuthState(): LiveAuthState {
         setState((current) => (current.status === "checking" ? current : { status: "checking", user: current.user }));
       }
 
-      const session = getStoredAuthSession() ?? (await restoreStoredAuthSessionFromTauri());
+      const session = await restoreSessionForLiveAuth();
       if (!session) {
         if (!cancelled) {
           setState({ status: "unauthenticated", user: null });
