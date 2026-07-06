@@ -394,11 +394,14 @@ function ItemActions({
   item,
   onItemStateChange,
   showConfirm = true,
+  showPin = true,
 }: {
   item: WidgetPreviewItem;
   onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
   /** TODO 행처럼 별도 체크 어포던스가 확인을 담당하면 확인 버튼을 숨긴다. */
   showConfirm?: boolean;
+  /** TODO 행은 항목 고정핀이 쓸모없어 숨긴다. */
+  showPin?: boolean;
 }) {
   const { t } = useI18n();
   if (!onItemStateChange) return null;
@@ -410,9 +413,11 @@ function ItemActions({
           <CheckCircle2 size={12} strokeWidth={2} />
         </button>
       ) : null}
-      <button aria-label={t("widget.item.pin")} aria-pressed={item.pinned ?? false} onClick={() => onItemStateChange(item, "PINNED")} type="button">
-        <Pin size={12} strokeWidth={2} />
-      </button>
+      {showPin ? (
+        <button aria-label={t("widget.item.pin")} aria-pressed={item.pinned ?? false} onClick={() => onItemStateChange(item, "PINNED")} type="button">
+          <Pin size={12} strokeWidth={2} />
+        </button>
+      ) : null}
       <button aria-label={t("widget.item.hide")} onClick={() => onItemStateChange(item, "HIDDEN")} type="button">
         <X size={12} strokeWidth={2} />
       </button>
@@ -523,17 +528,18 @@ const TodoRows = memo(function TodoRows({
         {item.checked ? <CheckCircle2 size={13} strokeWidth={2.4} /> : null}
       </button>
       {item.handoffUrl ? (
-        <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+        <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank" title={item.label}>
           {item.label}
         </a>
       ) : (
-        <span>{item.label}</span>
+        <span title={item.label}>{item.label}</span>
       )}
       {item.roomName ? <i className={styles.roomChip}>{item.roomName}</i> : null}
-      <b className={item.dueTone ? [styles.dueChip, todoDueToneClassNames[item.dueTone]].join(" ") : styles.dueChip}>
-        {item.status}
-      </b>
-      <ItemActions item={item} onItemStateChange={onItemStateChange} showConfirm={false} />
+      {/* 마감이 있는 항목만 마감칩을 보인다 — 마감 없는 항목의 "대기" 칩은 군더더기라 숨긴다. */}
+      {item.dueTone ? (
+        <b className={[styles.dueChip, todoDueToneClassNames[item.dueTone]].join(" ")}>{item.status}</b>
+      ) : null}
+      <ItemActions item={item} onItemStateChange={onItemStateChange} showConfirm={false} showPin={false} />
     </div>
   );
 

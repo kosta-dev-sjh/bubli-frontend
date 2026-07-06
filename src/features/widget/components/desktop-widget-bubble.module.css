@@ -818,8 +818,12 @@
   font-weight: 700;
   line-height: 1.35;
   text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* 긴 제목도 보이게 — 한 줄 말줄임 대신 최대 2줄까지 표시(넘치면 …, 전체는 hover 툴팁). */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  word-break: break-word;
 }
 
 /* 완료 체크 어포던스: accent 링 원형 버튼 — 누르면 완료(CONFIRMED) 처리로 이어진다. */
