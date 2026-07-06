@@ -34,6 +34,7 @@ const files = {
   realOAuthQaReporter: "src/lib/tauri/tauri-real-oauth-qa-reporter.tsx",
   authWidgetQa: "src/lib/tauri/tauri-auth-widget-qa.ts",
   managedFolderAutoSync: "src/lib/local/managed-folder-auto-sync.ts",
+  widgetUsageAutoSync: "src/lib/widget/widget-usage-auto-sync.ts",
   firstRunController: "src/features/onboarding/components/first-run-controller.tsx",
   runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
   tauriCapability: "src-tauri/capabilities/default.json",
@@ -168,6 +169,7 @@ const tauriRuntimeGates = read(files.tauriRuntimeGates);
 const realOAuthQaReporter = read(files.realOAuthQaReporter);
 const authWidgetQa = read(files.authWidgetQa);
 const managedFolderAutoSync = read(files.managedFolderAutoSync);
+const widgetUsageAutoSync = read(files.widgetUsageAutoSync);
 const firstRunController = read(files.firstRunController);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
 const tauriCapability = read(files.tauriCapability);
@@ -1335,17 +1337,17 @@ assertContains(
   /bubbleType:\s*"todo"[\s\S]*windowId:\s*"todo"/,
   "Login startup windows must include the primary TODO bubble.",
 );
-for (const required of ["agent", "alert", "chat", "memo", "schedule", "timer"]) {
+for (const required of ["agent", "alert", "chat", "memo", "resource", "schedule", "timer"]) {
   assertContains(
     startupWindows,
     new RegExp(`bubbleType:\\s*"${required}"[\\s\\S]*windowId:\\s*"${required}"`),
     `Login startup windows must include the ${required} bubble so authenticated Tauri launches restore all widget surfaces.`,
   );
 }
-assertNotContains(
+assertContains(
   startupWindows,
-  /bubbleType:\s*"resource"|windowId:\s*"resource"/,
-  "Login startup windows must not open the legacy standalone resource bubble because drafts live in the AI Agent widget.",
+  /bubbleType:\s*"resource"[\s\S]*mode:\s*"DEFAULT"[\s\S]*windowId:\s*"resource"/,
+  "Login startup windows must open the resource bubble visibly so installed real-OAuth QA gets all eight expected widget windows.",
 );
 
 assertContains(
@@ -1360,13 +1362,13 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /for \(const setting of settings\)[\s\S]*if \(!setting\.enabled\) continue;[\s\S]*enabledByBubble\.set\(localType, setting\);[\s\S]*if \(enabledByBubble\.size === 0\) return \[\];[\s\S]*const startupBubbles: WidgetWindowOpenInput\[\] = \[loginStartupMenuWindow\];/,
-  "Tauri login startup seeds the orb menu window alongside enabled bubbles (coexists with inline bar menu).",
+  /for \(const setting of settings\)[\s\S]*enabledByBubble\.set\(localType, setting\);[\s\S]*const startupBubbles: WidgetWindowOpenInput\[\] = \[loginStartupMenuWindow\];[\s\S]*for \(const bubble of sortedStartupBubbles\)[\s\S]*mode: setting\?\.enabled \? getVisibleLoginStartupModeFromSetting\(setting\) : "DEFAULT"/,
+  "Tauri login startup seeds the orb menu plus every expected bubble, while preserving visible prefs only for enabled backend settings.",
 );
 assertContains(
   surfaces,
-  /function getVisibleLoginStartupModeFromSetting\(setting: WidgetBubbleSettingResponse\): WidgetWindowMode[\s\S]*Login startup opens enabled widgets visibly[\s\S]*if \(setting\.ghostMode\) return "GHOST"[\s\S]*mode: getVisibleLoginStartupModeFromSetting\(setting\)/,
-  "Tauri login startup must intentionally open enabled widgets visibly while preserving ghost/translucent modes.",
+  /function getVisibleLoginStartupModeFromSetting\(setting: WidgetBubbleSettingResponse\): WidgetWindowMode[\s\S]*Login startup opens enabled widgets visibly[\s\S]*if \(setting\.ghostMode\) return "GHOST"[\s\S]*mode: setting\?\.enabled \? getVisibleLoginStartupModeFromSetting\(setting\) : "DEFAULT"/,
+  "Tauri login startup must intentionally open all expected widgets visibly while preserving ghost/translucent modes only for enabled settings.",
 );
 assertContains(
   surfaces,
@@ -1467,6 +1469,16 @@ assertContains(
   surfaces,
   /startActivityAutoCapture\(\);[\s\S]*startManagedFolderAutoSync\(\);[\s\S]*startWidgetUsageAutoSync\(\);/,
   "launchTauriAuthenticatedSurfaces must start activity, folder, and widget sync loops together.",
+);
+assertContains(
+  widgetUsageAutoSync,
+  /const widgetUsageAutoSyncEnabled =[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_WIDGET_USAGE_AUTO_SYNC !== "false"[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true"[\s\S]*process\.env\.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true"/,
+  "Widget usage auto-sync must default on for installed Tauri sessions unless explicitly disabled, so real OAuth release QA proves the loop is running.",
+);
+assertContains(
+  widgetUsageAutoSync,
+  /export function startWidgetUsageAutoSync\(\) \{[\s\S]*if \(!isTauriRuntime\(\)\) return;[\s\S]*if \(!widgetUsageAutoSyncEnabled\) return;[\s\S]*registerWidgetUsageLifecycleFlush\(\);[\s\S]*syncIntervalId = window\.setInterval/,
+  "Widget usage auto-sync must still be Tauri-only and must register a periodic sync loop when enabled.",
 );
 assertContains(
   surfaces,

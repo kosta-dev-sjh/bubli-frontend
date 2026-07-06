@@ -8,7 +8,8 @@ const WIDGET_USAGE_SYNC_INTERVAL_MS = 60_000;
 const WIDGET_USAGE_INITIAL_SYNC_DELAY_MS = 10_000;
 export const WIDGET_USAGE_SYNCED_EVENT = "bubli:widget-usage-synced";
 const widgetUsageAutoSyncEnabled =
-  process.env.NEXT_PUBLIC_BUBLI_WIDGET_USAGE_AUTO_SYNC === "true" ||
+  process.env.NEXT_PUBLIC_BUBLI_WIDGET_USAGE_AUTO_SYNC !== "false" ||
+  process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true" ||
   process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
 
 let syncIntervalId: number | null = null;

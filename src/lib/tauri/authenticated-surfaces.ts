@@ -100,6 +100,7 @@ const loginStartupWindows: WidgetWindowOpenInput[] = [
   { bubbleType: "alert", mode: "DEFAULT", windowId: "alert" },
   { bubbleType: "chat", mode: "DEFAULT", windowId: "chat" },
   { bubbleType: "memo", mode: "DEFAULT", windowId: "memo" },
+  { bubbleType: "resource", mode: "DEFAULT", windowId: "resource" },
   { bubbleType: "schedule", mode: "DEFAULT", windowId: "schedule" },
   { bubbleType: "timer", mode: "DEFAULT", windowId: "timer" },
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
@@ -247,21 +248,17 @@ function getLoginStartupBubbles(settings: WidgetBubbleSettingResponse[]): Widget
   }
 
   for (const setting of settings) {
-    if (!setting.enabled) continue;
     const localType = backendBubbleToLocal[setting.bubbleType];
     if (!localType) continue;
     enabledByBubble.set(localType, setting);
   }
 
-  if (enabledByBubble.size === 0) return [];
-
   const startupBubbles: WidgetWindowOpenInput[] = [loginStartupMenuWindow];
   for (const bubble of sortedStartupBubbles) {
     const setting = enabledByBubble.get(bubble.bubbleType);
-    if (!setting) continue;
     startupBubbles.push({
       bubbleType: bubble.bubbleType,
-      mode: getVisibleLoginStartupModeFromSetting(setting),
+      mode: setting?.enabled ? getVisibleLoginStartupModeFromSetting(setting) : "DEFAULT",
       windowId: bubble.windowId,
     });
   }
