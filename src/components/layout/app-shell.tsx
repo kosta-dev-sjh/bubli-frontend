@@ -16,6 +16,7 @@ import {
 } from "@/components/layout/workspace-topbar";
 import { siteConfig } from "@/config/site";
 import { authApi } from "@/features/auth/api/authApi";
+import { voiceApi } from "@/features/communication/api/voiceApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
 import { FirstRunController } from "@/features/onboarding";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
@@ -26,6 +27,7 @@ import { notifyDataChanged, readUserUpdatedDetail, useDataRefresh, USER_UPDATED_
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
+import { connectLiveKitRoom } from "@/lib/livekit-client";
 import { voiceStore } from "@/lib/voice-store";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
@@ -150,6 +152,14 @@ export function AppShell({ children }: AppShellProps) {
   const [myInvitations, setMyInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
   const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null);
   const roomsRef = useRef<ProjectRoomResponse[]>([]);
+
+  // 1:1/그룹 보이스 통화 시작 시 수신되는 실시간 "전화 옴" 알림 — 수락/이따 참여/거절.
+  const [incomingVoiceCall, setIncomingVoiceCall] = useState<{
+    callerName: string;
+    chatRoomId: string;
+    notificationId: string;
+  } | null>(null);
+  const [voiceCallResponding, setVoiceCallResponding] = useState(false);
 
   const voiceSnap = useSyncExternalStore(voiceStore.subscribe, voiceStore.getSnapshot, voiceStore.getServerSnapshot);
   const persistVoice = voiceSnap.voice.kind === "ready" ? voiceSnap.voice : null;
@@ -422,6 +432,14 @@ export function AppShell({ children }: AppShellProps) {
       );
       notifyDataChanged("notification", { source: "app-shell" });
 
+      if (notification.sourceType === "VOICE_CALL" && notification.sourceId) {
+        setIncomingVoiceCall({
+          callerName: notification.title,
+          chatRoomId: notification.sourceId,
+          notificationId: notification.id,
+        });
+      }
+
       if (typeof window === "undefined" || document.visibilityState !== "hidden" || !("Notification" in window)) {
         return;
       }
@@ -432,6 +450,48 @@ export function AppShell({ children }: AppShellProps) {
       }
     });
   }, [state.kind]);
+
+  // 전화처럼 일정 시간 응답이 없으면 자동으로 닫는다 — 채팅방의 "보이스 참여" 버튼으로는 계속 참여 가능.
+  useEffect(() => {
+    if (!incomingVoiceCall) return;
+    const timeoutId = window.setTimeout(() => setIncomingVoiceCall(null), 30_000);
+    return () => window.clearTimeout(timeoutId);
+  }, [incomingVoiceCall]);
+
+  const dismissIncomingVoiceCall = useCallback(() => {
+    if (!incomingVoiceCall) return;
+    void notificationApi.markRead(incomingVoiceCall.notificationId).catch(() => undefined);
+    setIncomingVoiceCall(null);
+  }, [incomingVoiceCall]);
+
+  const acceptIncomingVoiceCall = useCallback(async () => {
+    if (!incomingVoiceCall || voiceCallResponding) return;
+    const call = incomingVoiceCall;
+    setVoiceCallResponding(true);
+    try {
+      const room = await voiceApi.createRoom({ chatRoomId: call.chatRoomId });
+      // DB상 참여 상태는 실제 오디오 연결 성패와 무관하게 즉시 반영한다 —
+      // LiveKit 연결이 실패해도 채팅방의 "보이스 참여" 버튼으로 재시도할 수 있어야 하므로.
+      voiceStore.update({
+        expanded: true,
+        selectedChatRoomId: call.chatRoomId,
+        voice: { kind: "ready", room },
+      });
+      try {
+        const token = await voiceApi.getToken(room.id);
+        await connectLiveKitRoom(room.id, token);
+      } catch {
+        // 오디오 연결 실패는 조용히 무시 — 채팅방에서 "보이스 참여" 버튼으로 재시도 가능
+      }
+    } catch {
+      // 룸 생성/조회 자체가 실패한 경우 — 채팅방으로 이동해 상태 확인하도록 둔다
+    } finally {
+      setVoiceCallResponding(false);
+      void notificationApi.markRead(call.notificationId).catch(() => undefined);
+      setIncomingVoiceCall(null);
+      router.push("/app/chat?mode=direct");
+    }
+  }, [incomingVoiceCall, router, voiceCallResponding]);
 
   // 룸 생성/이름 변경/종료/다시 열기/멤버 변경이 어디에서 일어나든 스위처·탑바에 즉시 반영하고,
   // 창 포커스 복귀 시에도(데스크톱 위젯/다른 탭에서의 변경 대비) 스로틀을 걸어 재검증한다.
@@ -999,6 +1059,33 @@ export function AppShell({ children }: AppShellProps) {
             <span className="voice-float__ring voice-float__ring--2" aria-hidden />
           </Link>
           <span className="voice-float__label">{t("layout.voice.active")}</span>
+        </div>
+      ) : null}
+      {incomingVoiceCall ? (
+        <div className="voice-call-invite" role="dialog" aria-modal="true" aria-label={t("layout.voiceCall.aria")}>
+          <div className="voice-call-invite__card">
+            <div className="voice-call-invite__avatar" aria-hidden="true">
+              <Phone size={26} strokeWidth={2} />
+            </div>
+            <strong className="voice-call-invite__caller">{incomingVoiceCall.callerName}</strong>
+            <span className="voice-call-invite__hint">{t("layout.voiceCall.hint")}</span>
+            <div className="voice-call-invite__actions">
+              <button
+                className="voice-call-invite__accept"
+                disabled={voiceCallResponding}
+                onClick={() => void acceptIncomingVoiceCall()}
+                type="button"
+              >
+                {voiceCallResponding ? t("layout.voiceCall.connecting") : t("layout.voiceCall.accept")}
+              </button>
+              <button className="voice-call-invite__later" disabled={voiceCallResponding} onClick={dismissIncomingVoiceCall} type="button">
+                {t("layout.voiceCall.later")}
+              </button>
+              <button className="voice-call-invite__decline" disabled={voiceCallResponding} onClick={dismissIncomingVoiceCall} type="button">
+                {t("layout.voiceCall.decline")}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>
