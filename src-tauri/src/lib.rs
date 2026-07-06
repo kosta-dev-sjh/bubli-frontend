@@ -1888,6 +1888,23 @@ fn open_main_window_route(
     Ok(route)
 }
 
+// 자료 다운로드 등 발급된 외부(http/https) URL을 OS 기본 브라우저로 연다.
+// Tauri 웹뷰에서는 window.open(_blank)이 막혀 다운로드가 시작되지 않으므로 이 경로를 쓴다.
+// 보안상 http/https 스킴만 허용한다(file:, javascript: 등 차단).
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let trimmed = url.trim();
+    let is_web_url = {
+        let lowered = trimmed.to_ascii_lowercase();
+        lowered.starts_with("https://") || lowered.starts_with("http://")
+    };
+    if !is_web_url {
+        return Err("only http/https URLs may be opened externally".to_string());
+    }
+
+    tauri_plugin_opener::open_url(trimmed, None::<&str>).map_err(|error| error.to_string())
+}
+
 fn widget_keeps_webview_when_hidden(widget: &WidgetWindowState) -> bool {
     widget.active_bubble == "bar" || widget.active_bubble == "menu"
 }
@@ -4404,6 +4421,7 @@ pub fn run() {
             list_app_monitors,
             notify_widget_drag_started,
             notify_widget_pointer_seen,
+            open_external_url,
             open_main_window_route,
             open_widget_window,
             open_widget_windows,

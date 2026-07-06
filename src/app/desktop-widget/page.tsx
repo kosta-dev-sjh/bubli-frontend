@@ -2130,7 +2130,12 @@ function DesktopWidgetSurface() {
   const downloadWidgetResource = useCallback(
     async (item: WidgetPreviewItem) => {
       const result = await widgetDisplayApi.getResourceDownloadUrl(item.id);
-      window.open(result.url, "_blank", "noopener,noreferrer");
+      // Tauri 웹뷰에서는 window.open(_blank)이 막히므로 OS 기본 브라우저로 연다(웹은 새 탭 유지).
+      if (isTauri) {
+        await tauriCommands.openExternalUrl(result.url).catch(() => undefined);
+      } else {
+        window.open(result.url, "_blank", "noopener,noreferrer");
+      }
 
       if (isTauri) {
         void tauriCommands

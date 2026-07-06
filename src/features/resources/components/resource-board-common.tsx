@@ -34,7 +34,8 @@ import {
   analyzePersonalLocalFileWithKeySentences,
   findPersonalLocalFileByResourceId,
 } from "@/lib/local/managed-folder-client";
-import type { LocalFileByResourceIdResult } from "@/lib/tauri/commands";
+import { tauriCommands, type LocalFileByResourceIdResult } from "@/lib/tauri/commands";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type {
@@ -426,9 +427,17 @@ export function toneForStatus(status: ResourceStatus) {
   return "neutral";
 }
 
-// 권한 확인 뒤 발급된 다운로드 주소를 새 탭으로 연다. 실패는 호출부에서 알린다.
+// 권한 확인 뒤 발급된 다운로드 주소를 연다. 실패는 호출부에서 알린다.
+// Tauri 웹뷰에서는 window.open(_blank)이 막혀 다운로드가 시작되지 않으므로,
+// 데스크탑 앱에서는 OS 기본 브라우저로 여는 네이티브 커맨드를 사용한다(웹은 새 탭 유지).
 export async function openResourceDownload(resourceId: string) {
   const response = await resourcesApi.getDownloadUrl(resourceId);
+
+  if (isTauriRuntime()) {
+    await tauriCommands.openExternalUrl(response.url);
+    return;
+  }
+
   window.open(response.url, "_blank", "noopener,noreferrer");
 }
 

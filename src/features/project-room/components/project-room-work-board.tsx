@@ -632,6 +632,10 @@ function ProjectRoomWorkBoardContent({
       .catch(() => setSaveNotice(t("room.workBoard.noticeTaskServerPending")));
   };
 
+  // 담당자/WBS "없음"은 null을 PATCH로 보낸다(client.ts가 JSON.stringify로 null을 유지).
+  // 되돌리기(없음으로 복귀)가 반영되지 않는다면 백엔드가 null을 "변경 없음"으로 무시하고
+  // 기존 값을 그대로 응답에 담아 되돌리는 것이 원인이다 — PATCH에서 명시적 null을 필드
+  // 해제로 처리하고 응답에 null을 반영하도록 서버가 수정되어야 한다(프론트는 이미 null 전송).
   const updateTaskAssignee = (taskId: string, assigneeUserId: string | null) => {
     const previousTasks = tasks;
 

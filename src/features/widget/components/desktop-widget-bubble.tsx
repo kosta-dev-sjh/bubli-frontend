@@ -71,6 +71,7 @@ import {
 } from "@/lib/widget/widget-pref-client";
 import { readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { isMacTauriRuntime } from "@/lib/tauri/platform";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 import styles from "./desktop-widget-bubble.module.css";
 
@@ -3126,7 +3127,9 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   }, [armIdleTimer]);
 
   const syncBarPreviewPlacement = useCallback(async () => {
-    if (!isMacTauriRuntime()) return;
+    // 위치 기반 above/below 플립은 Windows·macOS 모두에서 동작해야 한다(메뉴가 화면 위로
+    // 뜰 때 잘리지 않도록). Rust 커맨드(set_widget_bar_preview_placement)는 크로스플랫폼이다.
+    if (!isTauriRuntime()) return;
     const rootElement = barRootRef.current;
     const navElement = barNavRef.current;
     if (!rootElement || !navElement) return;
@@ -3163,7 +3166,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   }, [barPreviewPlacement]);
 
   useEffect(() => {
-    if (!isMacTauriRuntime()) return;
+    if (!isTauriRuntime()) return;
     if (!barRootRef.current || !barNavRef.current) return;
 
     let cancelled = false;
@@ -3519,7 +3522,12 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
             onClick={() => {
               setGooPop(null);
               setPreviewTarget(null);
-              setMenuOpen((current) => !current);
+              setMenuOpen((current) => {
+                const next = !current;
+                // 메뉴를 열기 직전에 위치를 다시 계산해 화면 가장자리에서 above/below를 뒤집는다.
+                if (next) void syncBarPreviewPlacement();
+                return next;
+              });
             }}
             title={t("widget.menu.openAria")}
             type="button"

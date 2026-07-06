@@ -45,6 +45,7 @@ export const TAURI_COMMANDS = {
   listManagedFolders: "list_managed_folders",
   notifyWidgetDragStarted: "notify_widget_drag_started",
   notifyWidgetPointerSeen: "notify_widget_pointer_seen",
+  openExternalUrl: "open_external_url",
   openMainWindowRoute: "open_main_window_route",
   openWidgetWindow: "open_widget_window",
   openWidgetWindows: "open_widget_windows",
@@ -1089,6 +1090,10 @@ export type TauriCommandContract = {
     args: LocalFileOpenInput;
     result: LocalFileOpenResult;
   };
+  open_external_url: {
+    args: { url: string };
+    result: null;
+  };
   open_main_window_route: {
     args: MainWindowRouteInput;
     result: string;
@@ -1338,6 +1343,9 @@ export const tauriCommands = {
   },
   openMainWindowRoute(input: MainWindowRouteInput) {
     return invokeTauri<string>(TAURI_COMMANDS.openMainWindowRoute, { input });
+  },
+  openExternalUrl(url: string) {
+    return invokeTauri<null>(TAURI_COMMANDS.openExternalUrl, { url });
   },
   openOnboardingOverlay() {
     return invokeTauri<null>(TAURI_COMMANDS.openOnboardingOverlay);

@@ -11,6 +11,7 @@ import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { notificationApi } from "../api/notificationApi";
+import { formatNotificationContent } from "../format-notification";
 import type { NotificationResponse, NotificationStatus } from "@/types/api/notification";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
@@ -65,16 +66,17 @@ function toNotificationItem(t: TranslateFn, notification: NotificationResponse):
   const createdAt = new Date(notification.createdAt);
   const time = Number.isNaN(createdAt.getTime()) ? t("notification.center.timeFallback") : createdAt.toLocaleString();
   const sourceType = notification.sourceType ?? "SYSTEM";
+  const formatted = formatNotificationContent(t, notification);
 
   return {
-    description: notification.body?.trim() || t("notification.center.bodyFallback"),
+    description: formatted.body || t("notification.center.bodyFallback"),
     id: notification.id,
     kind: toNotificationKind(notification.sourceType),
     originLabel: notification.sourceId?.trim() || t("notification.center.sourceType", { type: sourceType }),
     projectRoom: t("notification.center.serverQueue"),
     state: toNotificationState(notification.status),
     time,
-    title: notification.title.trim() || t("notification.center.titleFallback"),
+    title: formatted.title || t("notification.center.titleFallback"),
   };
 }
 
