@@ -1136,7 +1136,7 @@
 }
 
 .todoCheck[aria-pressed="true"]:hover {
-  background: color-mix(in srgb, var(--acc) 88%, #000);
+  background: color-mix(in srgb, var(--acc) 88%, var(--widget-text));
 }
 
 /* 룸 칩: 개인 컨텍스트에서 룸 태스크 귀속을 알리는 accent 타일(.rowTile 계열).

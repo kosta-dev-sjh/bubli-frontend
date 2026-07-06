@@ -193,6 +193,12 @@ function runContractCheck() {
       source: runtimeSmokeRunner,
     },
     {
+      name: "runner removes runtime smoke managed folders after QA",
+      pattern:
+        /const runtimeSmokeFolderMarker = "bubli-tauri-runtime-smoke-"[\s\S]*cleanupStaleRuntimeSmokeManagedFolders\(smokeFolderPath\)[\s\S]*runtimeSmokeManagedFolderId = folder\.localFolderId[\s\S]*cleanupRuntimeSmokeManagedFolder\(runtimeSmokeManagedFolderId\)[\s\S]*runtime smoke managed folder removed after Windows QA[\s\S]*cleanupStaleRuntimeSmokeManagedFolders\(currentSmokeFolderPath: string\)[\s\S]*folder\.path\.includes\(runtimeSmokeFolderMarker\)[\s\S]*tauriCommands\.removeManagedFolder\(\{ localFolderId: folder\.localFolderId \}\)/,
+      source: runtimeSmokeRunner,
+    },
+    {
       name: "runner verifies integrated outbox and post-login sync loops",
       pattern:
         /syncAllLocalOutboxToServer\(\{ limit: 50 \}\)[\s\S]*manual integrated outbox sync sent file activity and widget usage[\s\S]*launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened all bubble widgets with project room context[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*post-login stop cleared active project room context[\s\S]*post-login stop stopped activity folder and widget sync loops/,

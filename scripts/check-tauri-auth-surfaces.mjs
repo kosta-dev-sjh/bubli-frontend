@@ -959,6 +959,11 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
+  /const runtimeSmokeFolderMarker = "bubli-tauri-runtime-smoke-"[\s\S]*cleanupStaleRuntimeSmokeManagedFolders\(smokeFolderPath\)[\s\S]*runtimeSmokeManagedFolderId = folder\.localFolderId[\s\S]*cleanupRuntimeSmokeManagedFolder\(runtimeSmokeManagedFolderId\)[\s\S]*runtime smoke managed folder removed after Windows QA[\s\S]*cleanupStaleRuntimeSmokeManagedFolders\(currentSmokeFolderPath: string\)[\s\S]*folder\.path\.includes\(runtimeSmokeFolderMarker\)[\s\S]*tauriCommands\.removeManagedFolder\(\{ localFolderId: folder\.localFolderId \}\)/,
+  "TauriRuntimeSmokeRunner must remove runtime-smoke managed folders so Windows QA does not leave temp folders ACTIVE in local SQLite.",
+);
+assertContains(
+  runtimeSmokeRunner,
   /runtimeSmokeAnalysisFilePattern[\s\S]*runtime-smoke-\(structured\|rich\)[\s\S]*analyzableRuntimeSmokeFilePattern[\s\S]*findSyncedLocalFileAnalysisCandidate[\s\S]*runtimeSmokeAnalysisFilePattern\.test\(candidate\.fileName\)[\s\S]*synced structured or RTF local file has backend resource for analysis/,
   "TauriRuntimeSmokeRunner must choose a structured JSON or RTF runtime-smoke file for backend local-file analysis.",
 );

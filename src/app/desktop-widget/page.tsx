@@ -2818,7 +2818,7 @@ function DesktopWidgetSurface() {
       if (!title) return;
 
       // "내 할 일" 탭은 forcePersonal=true로 항상 개인 투두에 저장한다(룸 컨텍스트 무시).
-      // 그 외에는 #433 기준대로 버블의 룸을 따른다.
+      // 그 외에는 PR 433 기준대로 버블의 룸을 따른다.
       const roomId = options?.forcePersonal ? null : (bubble.roomId ?? null);
       const task = roomId
         ? await todoApi.createRoomTask(roomId, { status: "TODO", title })
