@@ -54,13 +54,19 @@ import type { MessageKey } from "@/lib/i18n";
 import {
   createIdlePomodoroState,
   phaseDurationSeconds,
-  POMODORO_FOCUS_SECONDS,
+  POMODORO_BREAK_MAX,
+  POMODORO_BREAK_MIN,
+  POMODORO_FOCUS_MAX,
+  POMODORO_FOCUS_MIN,
   readPomodoroState,
+  readWidgetTimerKind,
   readWidgetTimerMode,
   writePomodoroState,
+  writeWidgetTimerKind,
   writeWidgetTimerMode,
   type PomodoroPhase,
   type PomodoroState,
+  type WidgetTimerKind,
   type WidgetTimerMode,
 } from "@/lib/widget/widget-pref-client";
 import { readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
@@ -1173,11 +1179,18 @@ function WorkView({
 
 // 뽀모도로 모드: 로컬 전용 25/5 사이클. 서버 기록 없음. 진행 상태는 sqlite에 저장돼
 // 창을 닫아도 복원된다(집중↔휴식 자동전환, 사이클 카운트). 완료 시 goo 팝 신호를 재사용한다.
+// 집중/휴식 분 프리셋(집중·휴식). 선택 시 두 값을 함께 적용한다.
+const POMODORO_PRESETS: Array<{ breakMinutes: number; focusMinutes: number; labelKey: MessageKey }> = [
+  { breakMinutes: 5, focusMinutes: 25, labelKey: "widget.timer.pomodoroPreset25" },
+  { breakMinutes: 10, focusMinutes: 50, labelKey: "widget.timer.pomodoroPreset50" },
+  { breakMinutes: 3, focusMinutes: 15, labelKey: "widget.timer.pomodoroPreset15" },
+];
+
 function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
   const { t } = useI18n();
   const prefersReducedMotion = useReducedMotion();
   const [state, setState] = useState<PomodoroState>(() => createIdlePomodoroState());
-  const [remaining, setRemaining] = useState<number>(POMODORO_FOCUS_SECONDS);
+  const [remaining, setRemaining] = useState<number>(() => createIdlePomodoroState().remainingSeconds ?? 25 * 60);
   const [popKey, setPopKey] = useState<number | null>(null);
   const stateRef = useRef(state);
   useEffect(() => {
@@ -1193,7 +1206,7 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
       if (stored.running && stored.phaseEndsAt) {
         setRemaining(Math.max(0, Math.round((stored.phaseEndsAt - Date.now()) / 1000)));
       } else {
-        setRemaining(stored.remainingSeconds ?? phaseDurationSeconds(stored.phase));
+        setRemaining(stored.remainingSeconds ?? phaseDurationSeconds(stored.phase, stored.focusMinutes, stored.breakMinutes));
       }
     });
     return () => {
@@ -1224,8 +1237,9 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
       // 페이즈 종료 → 자동 전환.
       const nextPhase: PomodoroPhase = current.phase === "focus" ? "break" : "focus";
       const nextCycles = current.phase === "focus" ? current.cyclesCompleted + 1 : current.cyclesCompleted;
-      const nextDuration = phaseDurationSeconds(nextPhase);
+      const nextDuration = phaseDurationSeconds(nextPhase, current.focusMinutes, current.breakMinutes);
       const next: PomodoroState = {
+        ...current,
         cyclesCompleted: nextCycles,
         phase: nextPhase,
         phaseEndsAt: Date.now() + nextDuration * 1000,
@@ -1243,7 +1257,7 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
   }, [persist, state.phaseEndsAt, state.running]);
 
   const start = () => {
-    const duration = phaseDurationSeconds(state.phase);
+    const duration = phaseDurationSeconds(state.phase, state.focusMinutes, state.breakMinutes);
     const base = remaining > 0 && remaining < duration ? remaining : duration;
     persist({ ...state, phaseEndsAt: Date.now() + base * 1000, remainingSeconds: null, running: true });
     setRemaining(base);
@@ -1254,12 +1268,24 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
   };
 
   const reset = () => {
-    const idle = createIdlePomodoroState();
+    // 초기화는 진행/사이클만 비우고 사용자가 설정한 집중/휴식 분은 보존한다.
+    const idle = createIdlePomodoroState(state.focusMinutes, state.breakMinutes);
     persist(idle);
-    setRemaining(POMODORO_FOCUS_SECONDS);
+    setRemaining(idle.remainingSeconds ?? state.focusMinutes * 60);
   };
 
-  const totalPhase = phaseDurationSeconds(state.phase);
+  // 대기 중일 때만 분 설정 변경 허용 — 진행 중 변경은 링이 튀므로 막는다.
+  const applyMinutes = (focusMinutes: number, breakMinutes: number) => {
+    if (state.running) return;
+    const focus = Math.min(POMODORO_FOCUS_MAX, Math.max(POMODORO_FOCUS_MIN, Math.round(focusMinutes)));
+    const brk = Math.min(POMODORO_BREAK_MAX, Math.max(POMODORO_BREAK_MIN, Math.round(breakMinutes)));
+    const next: PomodoroState = { ...state, focusMinutes: focus, breakMinutes: brk };
+    persist(next);
+    setRemaining(phaseDurationSeconds(next.phase, focus, brk));
+  };
+
+  const totalPhase = phaseDurationSeconds(state.phase, state.focusMinutes, state.breakMinutes);
+  const settingsDisabled = state.running;
   const progress = totalPhase > 0 ? 1 - remaining / totalPhase : 0;
   const phaseClass = state.phase === "focus" ? styles.pomodoroFocus : styles.pomodoroBreak;
   const phaseLabel = state.phase === "focus" ? t("widget.timer.pomodoroFocus") : t("widget.timer.pomodoroBreak");
@@ -1286,6 +1312,40 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
         ) : null}
       </div>
       <p className={styles.timerScopeNote}>{t("widget.timer.pomodoroCycles", { value: state.cyclesCompleted })}</p>
+      {/* 분 설정 — 대기 중에만 조작 가능. 프리셋 + 집중/휴식 스텝퍼. */}
+      <div className={styles.pomodoroSettings} aria-disabled={settingsDisabled}>
+        <div className={styles.pomodoroPresetRow} role="group" aria-label={t("widget.timer.pomodoroSettings")}>
+          {POMODORO_PRESETS.map((preset) => {
+            const active = state.focusMinutes === preset.focusMinutes && state.breakMinutes === preset.breakMinutes;
+            return (
+              <button
+                aria-pressed={active}
+                className={styles.pomodoroPresetChip}
+                disabled={settingsDisabled}
+                key={preset.labelKey}
+                onClick={() => applyMinutes(preset.focusMinutes, preset.breakMinutes)}
+                type="button"
+              >
+                {t(preset.labelKey)}
+              </button>
+            );
+          })}
+        </div>
+        <div className={styles.pomodoroStepperRow}>
+          <div className={styles.pomodoroStepper}>
+            <span className={styles.pomodoroStepperLabel}>{t("widget.timer.pomodoroFocus")}</span>
+            <button aria-label={t("widget.timer.pomodoroFocusDown")} disabled={settingsDisabled || state.focusMinutes <= POMODORO_FOCUS_MIN} onClick={() => applyMinutes(state.focusMinutes - 5, state.breakMinutes)} type="button">−</button>
+            <b>{t("widget.timer.minuteValue", { value: state.focusMinutes })}</b>
+            <button aria-label={t("widget.timer.pomodoroFocusUp")} disabled={settingsDisabled || state.focusMinutes >= POMODORO_FOCUS_MAX} onClick={() => applyMinutes(state.focusMinutes + 5, state.breakMinutes)} type="button">+</button>
+          </div>
+          <div className={styles.pomodoroStepper}>
+            <span className={styles.pomodoroStepperLabel}>{t("widget.timer.pomodoroBreak")}</span>
+            <button aria-label={t("widget.timer.pomodoroBreakDown")} disabled={settingsDisabled || state.breakMinutes <= POMODORO_BREAK_MIN} onClick={() => applyMinutes(state.focusMinutes, state.breakMinutes - 1)} type="button">−</button>
+            <b>{t("widget.timer.minuteValue", { value: state.breakMinutes })}</b>
+            <button aria-label={t("widget.timer.pomodoroBreakUp")} disabled={settingsDisabled || state.breakMinutes >= POMODORO_BREAK_MAX} onClick={() => applyMinutes(state.focusMinutes, state.breakMinutes + 1)} type="button">+</button>
+          </div>
+        </div>
+      </div>
       <div className={styles.timerActions}>
         {state.running ? (
           <button className={styles.timerPrimary} onClick={pause} type="button">
@@ -1294,6 +1354,103 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
           </button>
         ) : (
           <button className={styles.timerPrimary} onClick={start} type="button">
+            <Play size={13} />
+            {t("widget.timerAction.start")}
+          </button>
+        )}
+        <button className={styles.timerGhost} onClick={reset} type="button">
+          <RefreshCw size={13} />
+          {t("widget.timer.pomodoroReset")}
+        </button>
+      </div>
+    </>
+  );
+}
+
+// 개인 타이머 빠른 설정(분). 저장하지 않는 임시 카운트다운이라 프리셋만 제공한다.
+const PERSONAL_TIMER_PRESETS_MIN = [1, 3, 5, 10, 25];
+
+// 개인 모드: 어디에도 저장하지 않는 로컬 임시 카운트다운(잠깐 쓰는 용도).
+// 서버/sqlite 모두 미기록 — 창을 닫으면 사라진다(스펙: 개인 타이머는 비영속).
+function PersonalTimerView() {
+  const { t } = useI18n();
+  const [totalSeconds, setTotalSeconds] = useState<number>(5 * 60);
+  const [remaining, setRemaining] = useState<number>(5 * 60);
+  const [running, setRunning] = useState<boolean>(false);
+  const endsAtRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!running) return;
+
+    const tick = () => {
+      const end = endsAtRef.current;
+      if (end == null) return;
+      const left = Math.round((end - Date.now()) / 1000);
+      if (left > 0) {
+        setRemaining(left);
+        return;
+      }
+      setRemaining(0);
+      setRunning(false);
+      endsAtRef.current = null;
+    };
+    tick();
+    const intervalId = window.setInterval(tick, 250);
+    return () => window.clearInterval(intervalId);
+  }, [running]);
+
+  const startOrResume = () => {
+    if (remaining <= 0) return;
+    endsAtRef.current = Date.now() + remaining * 1000;
+    setRunning(true);
+  };
+  const pause = () => {
+    setRunning(false);
+    endsAtRef.current = null;
+  };
+  const reset = () => {
+    setRunning(false);
+    endsAtRef.current = null;
+    setRemaining(totalSeconds);
+  };
+  const choosePreset = (minutes: number) => {
+    if (running) return;
+    setTotalSeconds(minutes * 60);
+    setRemaining(minutes * 60);
+  };
+
+  const done = !running && remaining === 0;
+  const statusLabel = running ? t("widget.timer.personalRunning") : done ? t("widget.timer.personalDone") : t("widget.timer.waiting");
+
+  return (
+    <>
+      <div className={styles.timer}>
+        <strong>{formatMinutesSeconds(remaining)}</strong>
+        <span>{statusLabel}</span>
+      </div>
+      <p className={styles.timerScopeNote}>{t("widget.timer.personalHint")}</p>
+      <div className={styles.timerPresetRow} role="group" aria-label={t("widget.timer.personalPresetsAria")}>
+        {PERSONAL_TIMER_PRESETS_MIN.map((minutes) => (
+          <button
+            aria-pressed={totalSeconds === minutes * 60}
+            className={styles.timerPresetChip}
+            disabled={running}
+            key={minutes}
+            onClick={() => choosePreset(minutes)}
+            type="button"
+          >
+            {t("widget.timer.minuteValue", { value: minutes })}
+          </button>
+        ))}
+      </div>
+      <div className={running ? styles.timerActions : [styles.timerActions, styles.timerActionsSingle].join(" ")}>
+        {running ? (
+          <button className={styles.timerPrimary} onClick={pause} type="button">
+            <Pause size={13} />
+            {t("widget.timer.pause")}
+          </button>
+        ) : (
+          <button className={styles.timerPrimary} disabled={remaining <= 0} onClick={startOrResume} type="button">
             <Play size={13} />
             {t("widget.timerAction.start")}
           </button>
@@ -1322,9 +1479,10 @@ function TimerBody({
   const selectedRoomId = bubble.roomId?.trim() || null;
   const hasWorkTimer = bubble.rows.length > 0;
   const [mode, setMode] = useState<WidgetTimerMode>("work");
+  // 타이머 탭 하위 종류(작업↔개인). 룸 컨텍스트면 작업, 개인 모드면 개인이 기본이다.
+  const [timerKind, setTimerKind] = useState<WidgetTimerKind>(selectedRoomId ? "work" : "personal");
 
-  // 선택 모드 복원(재오픈). 서버 작업 타이머 제어는 작업 탭에만 두므로
-  // 실행 중/일시정지 타이머가 있거나 저장 모드가 clock이면 작업 탭으로 진입한다.
+  // 선택 모드 복원(재오픈). 실행 중/일시정지 서버 타이머가 있으면 타이머(작업) 탭으로 진입한다.
   useEffect(() => {
     let cancelled = false;
     if (hasWorkTimer) {
@@ -1337,6 +1495,10 @@ function TimerBody({
       if (cancelled) return;
       setMode(stored && stored !== "clock" ? stored : "work");
     });
+    void readWidgetTimerKind(selectedRoomId).then((stored) => {
+      if (cancelled) return;
+      if (stored) setTimerKind(stored);
+    });
     return () => {
       cancelled = true;
     };
@@ -1347,27 +1509,47 @@ function TimerBody({
     setMode(next);
     void writeWidgetTimerMode(next, selectedRoomId);
   };
+  const changeTimerKind = (index: number) => {
+    const next: WidgetTimerKind = index === 1 ? "personal" : "work";
+    setTimerKind(next);
+    void writeWidgetTimerKind(next, selectedRoomId);
+  };
   const displayedMode: WidgetTimerMode = hasWorkTimer ? "work" : mode;
+  // 실행 중 서버 타이머가 있으면 작업으로 고정(개인으로 못 벗어난다).
+  const displayedKind: WidgetTimerKind = hasWorkTimer ? "work" : timerKind;
 
   return (
     <div className={styles.body}>
-      {/* 모드 전환은 pill 3개가 아니라 하나의 세그먼트 바로 읽혀야 한다. */}
+      {/* 상위 탭: 시계 · 타이머 · 뽀모도로. 하나의 세그먼트 바로 읽혀야 한다(pill 3개 금지). */}
       <SegmentedControl
         ariaLabel={t("widget.timer.modeAria")}
-        labels={[t("widget.timer.tabClock"), t("widget.timer.tabWork"), t("widget.timer.tabPomodoro")]}
+        labels={[t("widget.timer.tabClock"), t("widget.timer.tabTimer"), t("widget.timer.tabPomodoro")]}
         onChange={changeMode}
         value={TIMER_MODE_ORDER.indexOf(displayedMode)}
       />
-      {/* 서버 동기화 상태는 서버에 기록하는 작업 모드에서만 의미가 있다. */}
-      {displayedMode === "work" && isBubbleSyncPending(bubble) ? (
-        <div className={styles.syncLine} role="status">
-          <RefreshCw size={12} strokeWidth={2.2} />
-          <span>{t("widget.data.syncPending")}</span>
-        </div>
-      ) : null}
       {displayedMode === "clock" ? <ClockView /> : null}
       {displayedMode === "work" ? (
-        <WorkView bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />
+        <>
+          {/* 타이머 탭 하위: 작업(서버 누적·룸 귀속) ↔ 개인(로컬 임시·저장 안 함). */}
+          <SegmentedControl
+            ariaLabel={t("widget.timer.kindAria")}
+            labels={[t("widget.timer.kindWork"), t("widget.timer.kindPersonal")]}
+            onChange={changeTimerKind}
+            value={displayedKind === "personal" ? 1 : 0}
+          />
+          {/* 서버 동기화 상태는 서버에 기록하는 작업 하위 종류에서만 의미가 있다. */}
+          {displayedKind === "work" && isBubbleSyncPending(bubble) ? (
+            <div className={styles.syncLine} role="status">
+              <RefreshCw size={12} strokeWidth={2.2} />
+              <span>{t("widget.data.syncPending")}</span>
+            </div>
+          ) : null}
+          {displayedKind === "work" ? (
+            <WorkView bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />
+          ) : (
+            <PersonalTimerView />
+          )}
+        </>
       ) : null}
       {displayedMode === "pomodoro" ? <PomodoroView selectedRoomId={selectedRoomId} /> : null}
     </div>
