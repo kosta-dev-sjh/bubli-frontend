@@ -1,6 +1,6 @@
 // 타이머/메모/알림/다운로드/활동 소기능 묶음 네임스페이스.
 const ko = {
-  // timer — 공통 상태 라벨
+  // timer, 공통 상태 라벨
   "timer.status.idle": "대기",
   "timer.status.paused": "일시정지",
   "timer.status.recoveryNeeded": "복구 확인",
@@ -119,7 +119,7 @@ const ko = {
   "timer.recovery.defaultTask": "자료보드 검수",
   "timer.recovery.defaultServerStatus": "마지막 연결 확인 42초 전",
 
-  // memo — 상태 라벨
+  // memo, 상태 라벨
   "memo.status.draft": "작성 중",
   "memo.status.pinned": "고정",
   "memo.status.saved": "저장됨",
@@ -203,7 +203,7 @@ const ko = {
     "작업 전 떠오른 질문을 개인 메모로 남기고, 필요하면 프로젝트룸 자료와 연결합니다.",
   "memo.list.sample.question.updated": "서버 저장 오늘 13:40",
 
-  // notification — 종류/상태 라벨
+  // notification, 종류/상태 라벨
   "notification.kind.agent": "에이전트",
   "notification.kind.communication": "소통",
   "notification.kind.resource": "자료",
@@ -417,7 +417,7 @@ const ko = {
   "activity.detection.autoCapture.noStatus": "아직 자동 캡처 결과가 없습니다.",
   "activity.detection.autoCapture.lastAttempt": "마지막 자동 캡처를 시도했습니다.",
   "activity.detection.autoCapture.lastApp": "마지막 기록: {app}",
-  "activity.detection.autoCapture.lastWindow": "마지막 기록: {app} · {window}",
+  "activity.detection.autoCapture.lastWindow": "마지막 기록: {app}, {window}",
   "activity.detection.autoCapture.captureFailedMessage": "활성 앱을 읽기 전에 자동 캡처가 실패했습니다.",
   "activity.detection.autoCapture.flushFailedMessage": "로컬 활동 버퍼를 동기화하기 전에 자동 캡처 정리가 실패했습니다.",
   "activity.detection.autoCapture.nativeConsentFailedMessage": "Tauri 런타임에 활동 감지 동의 상태를 반영하지 못했습니다.",
@@ -460,7 +460,7 @@ const ko = {
   // memo-dashboard-card (대시보드 빠른 메모 위젯)
   "memo.card.composeAria": "새 메모 입력",
   "memo.card.placeholder": "메모를 입력하세요",
-  "memo.card.composerHint": "Enter 줄바꿈 · ⌘/Ctrl+Enter 저장",
+  "memo.card.composerHint": "Enter 줄바꿈, ⌘/Ctrl+Enter 저장",
   "memo.card.save": "저장",
   "memo.card.saving": "저장 중",
   "memo.card.loading": "메모를 불러오는 중입니다",
@@ -891,7 +891,7 @@ const en: Record<Key, string> = {
   "activity.detection.autoCapture.noStatus": "No auto capture result yet.",
   "activity.detection.autoCapture.lastAttempt": "Last auto capture was attempted.",
   "activity.detection.autoCapture.lastApp": "Last record: {app}",
-  "activity.detection.autoCapture.lastWindow": "Last record: {app} · {window}",
+  "activity.detection.autoCapture.lastWindow": "Last record: {app}, {window}",
   "activity.detection.autoCapture.captureFailedMessage": "Auto capture failed before reading the active app.",
   "activity.detection.autoCapture.flushFailedMessage": "Auto capture cleanup failed before syncing the local activity buffer.",
   "activity.detection.autoCapture.nativeConsentFailedMessage": "Could not mirror activity consent to the Tauri runtime.",
@@ -933,7 +933,7 @@ const en: Record<Key, string> = {
 
   "memo.card.composeAria": "Write a new memo",
   "memo.card.placeholder": "Write a memo",
-  "memo.card.composerHint": "Enter for a new line · ⌘/Ctrl+Enter to save",
+  "memo.card.composerHint": "Enter for a new line, ⌘/Ctrl+Enter to save",
   "memo.card.save": "Save",
   "memo.card.saving": "Saving",
   "memo.card.loading": "Loading memos",
@@ -1362,7 +1362,7 @@ const ja: Record<Key, string> = {
   "activity.detection.autoCapture.noStatus": "まだ自動キャプチャ結果がありません。",
   "activity.detection.autoCapture.lastAttempt": "最後の自動キャプチャを試行しました。",
   "activity.detection.autoCapture.lastApp": "最後の記録: {app}",
-  "activity.detection.autoCapture.lastWindow": "最後の記録: {app} · {window}",
+  "activity.detection.autoCapture.lastWindow": "最後の記録: {app}, {window}",
   "activity.detection.autoCapture.captureFailedMessage": "アクティブアプリを読み取る前に自動キャプチャが失敗しました。",
   "activity.detection.autoCapture.flushFailedMessage": "ローカルアクティビティバッファを同期する前に自動キャプチャの整理が失敗しました。",
   "activity.detection.autoCapture.nativeConsentFailedMessage": "Tauriランタイムにアクティビティ検知の同意状態を反映できませんでした。",
@@ -1404,7 +1404,7 @@ const ja: Record<Key, string> = {
 
   "memo.card.composeAria": "新しいメモを入力",
   "memo.card.placeholder": "メモを入力してください",
-  "memo.card.composerHint": "Enterで改行 · ⌘/Ctrl+Enterで保存",
+  "memo.card.composerHint": "Enterで改行, ⌘/Ctrl+Enterで保存",
   "memo.card.save": "保存",
   "memo.card.saving": "保存中",
   "memo.card.loading": "メモを読み込み中です",

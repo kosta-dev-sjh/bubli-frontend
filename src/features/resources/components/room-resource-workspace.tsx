@@ -25,6 +25,7 @@ import {
   ResourcePreview,
   ResourceRow,
   ResourceScopeSwitch,
+  ResourceStorageUsage,
   SUPPORTED_RESOURCE_UPLOAD_ACCEPT,
   type ResourcePreviewIntent,
 } from "./resource-board-common";
@@ -235,6 +236,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
           </span>
           <span className={styles.headerSpacer} aria-hidden="true" />
           <ResourceScopeSwitch activeScope="room" roomHref={projectRoomRoute(roomId, "resources")} roomLabel={t("resources.common.roomFallback")} />
+          <ResourceStorageUsage roomId={roomId} />
           <label className={styles.search}>
             <Search aria-hidden size={15} strokeWidth={2} />
             <input

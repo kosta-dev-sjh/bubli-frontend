@@ -108,6 +108,43 @@
   box-shadow: var(--shadow-surface-light);
 }
 
+.storageUsage {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--rb-ink-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.storageUsageIcon {
+  flex: none;
+  opacity: 0.75;
+}
+
+.storageUsageText {
+  min-width: 0;
+}
+
+.storageUsageTrack {
+  display: inline-block;
+  width: 54px;
+  height: 4px;
+  flex: none;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--rb-hairline-strong);
+}
+
+.storageUsageFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--rb-ink-accent);
+}
+
 .search {
   position: relative;
   display: inline-flex;

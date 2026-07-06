@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Database, HardDrive, RefreshCw, RotateCcw, ShieldCheck, UploadCloud } from "lucide-react";
+import { HardDrive, RefreshCw, UploadCloud } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -224,7 +224,7 @@ export function TauriSyncStatusPanel() {
         </div>
       </GlassPanel>
 
-      <div className="tauri-sync__grid">
+      <div className="tauri-sync__body">
         <GlassPanel className="tauri-sync__panel">
           <div className="tauri-sync__panel-header">
             <div>
@@ -264,42 +264,7 @@ export function TauriSyncStatusPanel() {
             </div>
           ) : null}
         </GlassPanel>
-
-        <GlassPanel className="tauri-sync__policy">
-          <h3>{t("settings.tss.policyTitle")}</h3>
-          <div>
-            <span className="bubli-icon-tile" aria-hidden="true">
-              <Database size={16} strokeWidth={2.1} />
-            </span>
-            <p>{t("settings.tss.policy1")}</p>
-          </div>
-          <div>
-            <span className="bubli-icon-tile" aria-hidden="true">
-              <RotateCcw size={16} strokeWidth={2.1} />
-            </span>
-            <p>{t("settings.tss.policy2")}</p>
-          </div>
-          <div>
-            <span className="bubli-icon-tile" aria-hidden="true">
-              <AlertCircle size={16} strokeWidth={2.1} />
-            </span>
-            <p>{t("settings.tss.policy3")}</p>
-          </div>
-          <div>
-            <span className="bubli-icon-tile" aria-hidden="true">
-              <ShieldCheck size={16} strokeWidth={2.1} />
-            </span>
-            <p>{t("settings.tss.policy4")}</p>
-          </div>
-        </GlassPanel>
       </div>
-
-      <GlassPanel className="tauri-sync__footer">
-        <span className="bubli-icon-tile" aria-hidden="true">
-          <CheckCircle2 size={16} strokeWidth={2.1} />
-        </span>
-        <p>{t("settings.tss.footer")}</p>
-      </GlassPanel>
     </section>
   );
 }

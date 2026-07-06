@@ -60,30 +60,8 @@
   font-weight: 840;
 }
 
-.flow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--glass-border);
-  border-radius: 18px;
-  padding: 12px;
-  color: var(--color-blue-deep);
-  background: rgba(215, 234, 244, 0.48);
-}
-
-.flow span {
-  border-radius: var(--radius-pill);
-  padding: 7px 10px;
-  color: var(--color-text);
-  background: rgba(255, 255, 255, 0.68);
-  font-size: 14px;
-  font-weight: 790;
-}
-
-.grid {
+.body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(330px, 0.34fr);
   gap: 16px;
 }
 
@@ -254,8 +232,7 @@
 }
 
 @media (max-width: 940px) {
-  .hero,
-  .grid {
+  .hero {
     grid-template-columns: 1fr;
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Archive, CheckCircle2, CloudOff, DatabaseBackup, HardDrive, RotateCcw, ShieldCheck } from "lucide-react";
+import { Archive, DatabaseBackup, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -247,38 +247,9 @@ export function LocalBackupRecoveryPanel({ autoLoad = true, initialIntegrity = n
 
         <GlassPanel className="local-backup__recovery">
           <h3>{t("settings.lbr.recoveryTitle")}</h3>
-          <div>
-            <ShieldCheck size={17} strokeWidth={2.1} />
-            <p>{t("settings.lbr.recovery1")}</p>
-          </div>
-          <div>
-            <HardDrive size={17} strokeWidth={2.1} />
-            <p>{t("settings.lbr.recovery2")}</p>
-          </div>
-          <div>
-            <CloudOff size={17} strokeWidth={2.1} />
-            <p>{t("settings.lbr.recovery3")}</p>
-          </div>
-          <div>
-            <RotateCcw size={17} strokeWidth={2.1} />
-            <p>{t("settings.lbr.recovery4")}</p>
-          </div>
           <Button disabled={action !== null} icon={<ShieldCheck size={15} />} loading={action === "integrity"} onClick={() => void checkIntegrity()} size="sm" variant="quiet">
             {t("settings.lbr.checkIntegrity")}
           </Button>
-        </GlassPanel>
-      </div>
-
-      <div className="local-backup__policy">
-        <GlassPanel>
-          <CheckCircle2 size={18} strokeWidth={2.1} />
-          <h3>{t("settings.lbr.serverTitle")}</h3>
-          <p>{t("settings.lbr.serverBody")}</p>
-        </GlassPanel>
-        <GlassPanel>
-          <AlertTriangle size={18} strokeWidth={2.1} />
-          <h3>{t("settings.lbr.localTitle")}</h3>
-          <p>{t("settings.lbr.localBody")}</p>
         </GlassPanel>
       </div>
     </section>

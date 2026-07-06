@@ -2,8 +2,8 @@
 const ko = {
   // 버블(에이전트/바/카드)
   "bubble.agentAria": "에이전트 {state}",
-  "bubble.bar.todos": "· 떠 있는 일 {count}",
-  "bubble.bar.schedules": " · 일정 {count}",
+  "bubble.bar.todos": ", 떠 있는 일 {count}",
+  "bubble.bar.schedules": ", 일정 {count}",
   "bubble.todo.label": "TODO 버블",
   "bubble.todo.status": "오늘 할 일",
   "bubble.agent.label": "에이전트 버블",
@@ -142,8 +142,8 @@ type Key = keyof typeof ko;
 
 const en: Record<Key, string> = {
   "bubble.agentAria": "Agent {state}",
-  "bubble.bar.todos": "· {count} floating tasks",
-  "bubble.bar.schedules": " · {count} events",
+  "bubble.bar.todos": ", {count} floating tasks",
+  "bubble.bar.schedules": ", {count} events",
   "bubble.todo.label": "TODO bubble",
   "bubble.todo.status": "Today's tasks",
   "bubble.agent.label": "Agent bubble",
@@ -276,8 +276,8 @@ const en: Record<Key, string> = {
 
 const ja: Record<Key, string> = {
   "bubble.agentAria": "エージェント {state}",
-  "bubble.bar.todos": "· 浮いているタスク {count}",
-  "bubble.bar.schedules": " · 予定 {count}",
+  "bubble.bar.todos": ", 浮いているタスク {count}",
+  "bubble.bar.schedules": ", 予定 {count}",
   "bubble.todo.label": "TODOバブル",
   "bubble.todo.status": "今日のタスク",
   "bubble.agent.label": "エージェントバブル",

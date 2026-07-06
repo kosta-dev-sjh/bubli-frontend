@@ -42,6 +42,7 @@ import {
   ResourcePreview,
   ResourceRow,
   ResourceScopeSwitch,
+  ResourceStorageUsage,
   type ResourcePreviewIntent,
 } from "./resource-board-common";
 import styles from "./resource-workspace.module.css";
@@ -539,6 +540,7 @@ export function PersonalResourceWorkspace() {
           </span>
           <span className={styles.headerSpacer} aria-hidden="true" />
           <ResourceScopeSwitch activeScope="personal" roomHref={roomBoardHref} roomLabel={t("resources.common.roomFallback")} />
+          <ResourceStorageUsage />
           <label className={styles.search}>
             <Search aria-hidden size={15} strokeWidth={2} />
             <input

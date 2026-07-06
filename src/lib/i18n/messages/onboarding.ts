@@ -1,4 +1,4 @@
-// 첫 사용 경험 네임스페이스 — 직군 온보딩 오버레이 + 워크스페이스 튜토리얼(코치 마크).
+// 첫 사용 경험 네임스페이스, 직군 온보딩 오버레이 + 워크스페이스 튜토리얼(코치 마크).
 const ko = {
   // 직군 온보딩 오버레이
   "onboarding.aria": "첫 사용 설정",
@@ -16,9 +16,9 @@ const ko = {
   "onboarding.role.gridAria": "직군 선택",
   "onboarding.role.developer": "개발자",
   "onboarding.role.designer": "디자이너",
-  "onboarding.role.pm": "PM·기획",
+  "onboarding.role.pm": "PM, 기획",
   "onboarding.role.marketer": "마케터",
-  "onboarding.role.writer": "작가·콘텐츠",
+  "onboarding.role.writer": "작가, 콘텐츠",
   "onboarding.role.etc": "기타",
   "onboarding.preset.title": "{role} 맞춤 세팅이 준비됐어요",
   "onboarding.preset.body": "아래 구성으로 홈을 시작해요. 홈의 카드 편집에서 언제든 바꿀 수 있어요.",
@@ -37,12 +37,12 @@ const ko = {
   "onboarding.desktopOverlay.done": "시작하기",
   "onboarding.desktopOverlay.welcome.title": "버블리에 오신 걸 환영해요",
   "onboarding.desktopOverlay.welcome.body": "일을 방해하지 않는 데스크탑 도우미예요. 30초면 핵심만 짚어드릴게요.",
-  "onboarding.desktopOverlay.bubble.title": "방울 — 언제나 떠 있는 시작점",
+  "onboarding.desktopOverlay.bubble.title": "방울, 언제나 떠 있는 시작점",
   "onboarding.desktopOverlay.bubble.body": "화면 위를 둥둥 떠다니는 동그란 방울이에요. 클릭하면 메뉴가 열려요.",
-  "onboarding.desktopOverlay.bar.title": "바 — 접어둔 위젯이 모이는 곳",
+  "onboarding.desktopOverlay.bar.title": "바, 접어둔 위젯이 모이는 곳",
   "onboarding.desktopOverlay.bar.body": "최소화한 위젯은 여기 담겨요. 클릭하면 펼쳐지고, 올려두면 미리보기만 떠요. (알림은 예외로 바로 떠요.)",
   "onboarding.desktopOverlay.room.title": "개인과 프로젝트룸, 구분돼요",
-  "onboarding.desktopOverlay.room.body": "타이머·메모는 개인 전용이에요. 소통 같은 위젯은 프로젝트룸에 속하고요. 룸은 꼭 고르지 않아도 괜찮아요.",
+  "onboarding.desktopOverlay.room.body": "타이머, 메모는 개인 전용이에요. 소통 같은 위젯은 프로젝트룸에 속하고요. 룸은 꼭 고르지 않아도 괜찮아요.",
   "onboarding.desktopOverlay.ready.title": "준비 끝!",
   "onboarding.desktopOverlay.ready.body": "필요하면 설정 > 표시에서 다시 볼 수 있어요.",
 
@@ -64,7 +64,7 @@ const ko = {
   "tour.desktop.title": "데스크톱 버블",
   "tour.desktop.body": "데스크톱 앱을 설치하면 타이머, 메모, 할 일 버블을 화면 위에 띄울 수 있어요. 설정의 데스크톱 탭에서 관리해요.",
 
-  // 설정 > 표시 — 튜토리얼 다시 보기
+  // 설정 > 표시, 튜토리얼 다시 보기
   "onboarding.settings.replayTitle": "튜토리얼 다시 보기",
   "onboarding.settings.replayDesc": "워크스페이스 안내(사이드바, 프로젝트룸, 홈 카드, AI 후보함)를 처음부터 다시 봅니다.",
   "onboarding.settings.replayCta": "다시 보기",
@@ -88,9 +88,9 @@ const en: Record<Key, string> = {
   "onboarding.role.gridAria": "Choose your role",
   "onboarding.role.developer": "Developer",
   "onboarding.role.designer": "Designer",
-  "onboarding.role.pm": "PM · Planner",
+  "onboarding.role.pm": "PM, Planner",
   "onboarding.role.marketer": "Marketer",
-  "onboarding.role.writer": "Writer · Content",
+  "onboarding.role.writer": "Writer, Content",
   "onboarding.role.etc": "Other",
   "onboarding.preset.title": "Your {role} setup is ready",
   "onboarding.preset.body": "Your home starts with the layout below. You can change it anytime with Edit cards on home.",
@@ -108,9 +108,9 @@ const en: Record<Key, string> = {
   "onboarding.desktopOverlay.done": "Get started",
   "onboarding.desktopOverlay.welcome.title": "Welcome to Bubli",
   "onboarding.desktopOverlay.welcome.body": "It's a desktop assistant that doesn't get in your way. We'll cover the essentials in 30 seconds.",
-  "onboarding.desktopOverlay.bubble.title": "Bubble — your always-visible anchor",
+  "onboarding.desktopOverlay.bubble.title": "Bubble, your always-visible anchor",
   "onboarding.desktopOverlay.bubble.body": "A soft round orb that always floats on top. Click it to open the menu.",
-  "onboarding.desktopOverlay.bar.title": "Bar — where minimized bubbles gather",
+  "onboarding.desktopOverlay.bar.title": "Bar, where minimized bubbles gather",
   "onboarding.desktopOverlay.bar.body": "Minimized bubbles are collected here. Click to expand, hover to only preview. (Alerts pop open immediately.)",
   "onboarding.desktopOverlay.room.title": "Personal and project room modes are separate",
   "onboarding.desktopOverlay.room.body": "Timer and memo are personal-only. Communication like chat belongs to your project room. You can skip selecting a room.",
@@ -175,9 +175,9 @@ const ja: Record<Key, string> = {
   "onboarding.desktopOverlay.done": "はじめる",
   "onboarding.desktopOverlay.welcome.title": "Bubliへようこそ",
   "onboarding.desktopOverlay.welcome.body": "作業を邪魔しないデスクトップヘルパーです。30秒でポイントを確認できます。",
-  "onboarding.desktopOverlay.bubble.title": "オーブ — 常に表示される起点",
+  "onboarding.desktopOverlay.bubble.title": "オーブ, 常に表示される起点",
   "onboarding.desktopOverlay.bubble.body": "画面上をゆっくり漂う丸いオーブです。タップするとメニューが開きます。",
-  "onboarding.desktopOverlay.bar.title": "バー — 最小化したバブルをまとめる場所",
+  "onboarding.desktopOverlay.bar.title": "バー, 最小化したバブルをまとめる場所",
   "onboarding.desktopOverlay.bar.body": "最小化したバブルはここに収納されます。タップすると展開し、ホバーするとプレビューだけが表示されます（通知だけは即座に開きます）。",
   "onboarding.desktopOverlay.room.title": "個人とプロジェクトルームを分けています",
   "onboarding.desktopOverlay.room.body": "タイマー・メモは個人用です。コミュニケーションのようなウィジェットはプロジェクトルームに属します。ルーム選択は必須ではありません。",

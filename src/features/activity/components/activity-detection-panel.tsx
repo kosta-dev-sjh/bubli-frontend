@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, AppWindow, Clock3, Database, EyeOff, ListChecks, RefreshCw, ShieldCheck } from "lucide-react";
+import { Activity, AppWindow, Clock3, ListChecks, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -296,7 +296,7 @@ export function ActivityDetectionPanel({
         </div>
       </GlassPanel>
 
-      <div className="activity-detection__grid">
+      <div className="activity-detection__body">
         <GlassPanel className="activity-detection__panel">
           <div className="activity-detection__panel-header">
             <div>
@@ -342,28 +342,6 @@ export function ActivityDetectionPanel({
             ) : (
               <p className="activity-detection__empty">{t("activity.detection.empty")}</p>
             )}
-          </div>
-        </GlassPanel>
-
-        <GlassPanel className="activity-detection__policy">
-          <h3>{t("activity.detection.policyTitle")}</h3>
-          <div>
-            <span className="bubli-icon-tile" aria-hidden="true">
-              <ShieldCheck size={16} strokeWidth={2.1} />
-            </span>
-            <p>{t("activity.detection.policyConsent")}</p>
-          </div>
-          <div>
-            <span className="bubli-icon-tile" aria-hidden="true">
-              <Database size={16} strokeWidth={2.1} />
-            </span>
-            <p>{t("activity.detection.policyLocal")}</p>
-          </div>
-          <div>
-            <span className="bubli-icon-tile" aria-hidden="true">
-              <EyeOff size={16} strokeWidth={2.1} />
-            </span>
-            <p>{t("activity.detection.policyExcluded")}</p>
           </div>
         </GlassPanel>
       </div>
