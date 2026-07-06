@@ -875,21 +875,21 @@
 }
 
 .agentReviewActions button[data-tone="approve"] {
-  border-color: color-mix(in srgb, #22C55E 42%, transparent);
-  color: #16833E;
-  background: color-mix(in srgb, #22C55E 10%, transparent);
+  border-color: color-mix(in srgb, #58CE86 42%, transparent);
+  color: #1E8A4E;
+  background: color-mix(in srgb, #58CE86 10%, transparent);
 }
 
 .agentReviewActions button[data-tone="hold"] {
-  border-color: color-mix(in srgb, #F59E0B 36%, transparent);
-  color: #A15C00;
-  background: color-mix(in srgb, #F59E0B 10%, transparent);
+  border-color: color-mix(in srgb, #FFC20D 36%, transparent);
+  color: #713B00;
+  background: color-mix(in srgb, #FFC20D 10%, transparent);
 }
 
 .agentReviewActions button[data-tone="reject"] {
-  border-color: color-mix(in srgb, #EF4444 26%, transparent);
-  color: #9F2D2D;
-  background: color-mix(in srgb, #EF4444 7%, transparent);
+  border-color: color-mix(in srgb, #F46E6E 26%, transparent);
+  color: #C1003D;
+  background: color-mix(in srgb, #F46E6E 7%, transparent);
 }
 
 .agentReviewActions button:hover {
