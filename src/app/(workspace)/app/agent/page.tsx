@@ -675,7 +675,7 @@ function AgentPageContent() {
     if (state.kind !== "ready") return [];
 
     return state.heldSuggestions
-      .map((suggestion): FeedItem => {
+      .map((suggestion): FeedItem | null => {
         const typeLabel = t(typeLabelKeys[suggestion.suggestionType]);
         if (isUnusableCommandCandidate(suggestion, typeLabel)) return null;
 
