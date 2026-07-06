@@ -700,6 +700,7 @@ export type WidgetWindowState = {
   clickThrough: boolean;
   dockOrbVisible: boolean;
   mode: WidgetWindowMode;
+  monitorId?: string | null;
   position: WidgetWindowPosition;
   selectedRoomId?: string | null;
   shortcut?: string;
