@@ -24,7 +24,7 @@ type RingProps = {
 };
 
 // Sky Opal 전용 — Sky / Bubble Blue / Opal Lilac / Soft Pink / rain (청록/민트 없음)
-const RING_COLORS = ["#6FB8F2", "#B0A8E0", "#F2BBD2", "#9ED8FF", "#CBD8DC"];
+const RING_COLORS = ["#43ACFF", "#9081E8", "#F2BBD2", "#7FCCFF", "#CBD8DC"];
 const R = 42;
 const C = 2 * Math.PI * R; // ≈ 263.9
 const TRACK = "rgba(120, 150, 180, 0.16)";
@@ -69,8 +69,8 @@ export function Ring({
       <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label={label ?? metric ?? "ring"}>
         <defs>
           <linearGradient id={`ring-${gid}`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#6FB8F2" />
-            <stop offset="100%" stopColor="#DCD8F8" />
+            <stop offset="0%" stopColor="#43ACFF" />
+            <stop offset="100%" stopColor="#BEB6FC" />
           </linearGradient>
         </defs>
         <circle cx="50" cy="50" r={R} fill="none" stroke={TRACK} strokeWidth={thickness} />

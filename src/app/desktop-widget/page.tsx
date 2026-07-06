@@ -1798,40 +1798,22 @@ function DesktopWidgetSurface() {
     }
   }, [activeBubble, isTauri, selectedWidgetRoomId, windowId]);
 
+  // 닫기(X)는 최소화와 다르다 — 완전히 닫아 바에서도 사라지고, 다시 열기는 메뉴(런처)에서 한다.
+  // (이전엔 setWidgetWindowMode(MINIMIZED)를 불러 최소화와 동작이 겹쳤다.)
   const closeWindow = useCallback(async () => {
-    setMode("MINIMIZED");
     setWindowVisible(false);
 
     if (!isTauri) return;
 
     try {
-      const state = await tauriCommands.setWidgetWindowMode({
+      const state = await tauriCommands.closeWidgetWindow({
         bubbleType: activeBubble,
-        mode: "MINIMIZED",
-        selectedRoomId: selectedWidgetRoomId,
         windowId,
       });
-      const settingPatch = getSettingPatch(activeBubble, state.mode);
-      if (settingPatch) {
-        const size = getWidgetWindowSize(activeBubble, state.mode);
-        void widgetApi
-          .updateSettings({
-            bubbles: [
-              {
-                ...settingPatch,
-                height: size.height,
-                width: size.width,
-                x: widgetSettingCoordinate(state.position.x),
-                y: widgetSettingCoordinate(state.position.y),
-              },
-            ],
-          })
-          .catch(() => undefined);
-      }
       void tauriCommands
         .recordWidgetUsageEvent({
           bubbleType: activeBubble,
-          eventType: "close:minimize",
+          eventType: "close",
           occurredAt: new Date().toISOString(),
         })
         .catch(() => undefined);
@@ -1842,7 +1824,7 @@ function DesktopWidgetSurface() {
     } catch {
       // Browser preview fallback.
     }
-  }, [activeBubble, isTauri, selectedWidgetRoomId, windowId]);
+  }, [activeBubble, isTauri, windowId]);
 
   const restoreBubbleFromBar = useCallback(
     async (bubbleType: WidgetBubbleType) => {

@@ -722,7 +722,9 @@ fn widget_default_cascade_index(bubble_type: &str) -> f64 {
 
 fn default_widget_window_state(bubble_type: &str, window_id: Option<String>) -> WidgetWindowState {
     WidgetWindowState {
-        always_on_top: true,
+        // 기본은 비고정 — 위젯/메뉴가 처음부터 다른 앱 위에 고정돼 불편하던 것을 개선한다.
+        // 바(dock)만 접근성상 고정 유지(잃어버려도 우클릭 복구가 별도로 있다).
+        always_on_top: bubble_type == "bar",
         active_bubble: bubble_type.to_string(),
         click_through: false,
         dock_orb_visible: false,
@@ -951,6 +953,10 @@ fn apply_widget_window_mode_update(
     // GHOST는 시각 모드일 뿐 영구 OS click-through로 저장하지 않는다.
     // true로 두면 set_ignore_cursor_events(true)가 창 전체에 걸려 고스트 해제 클릭도 받을 수 없다.
     widget.click_through = false;
+    // 고스트는 항상 최상단에 떠야 한다 — 핀이 안 된 위젯이 다른 창 뒤로 묻히는 문제 수정.
+    if widget.mode == "GHOST" {
+        widget.always_on_top = true;
+    }
     widget.dock_orb_visible = false;
     if let Some(selected_room_id) = selected_room_id {
         widget.selected_room_id = Some(selected_room_id);
@@ -965,12 +971,7 @@ fn apply_open_widget_window_update(
 ) {
     widget.mode = next_mode;
     widget.click_through = false;
-    #[cfg(target_os = "macos")]
-    {
-        if widget.active_bubble != "bar" && widget.active_bubble != "menu" {
-            widget.always_on_top = true;
-        }
-    }
+    // 열 때 자동으로 고정핀을 걸지 않는다 — 사용자가 원할 때만 핀을 켠다(기본 비고정).
     widget.dock_orb_visible = false;
     if let Some(selected_room_id) = selected_room_id {
         widget.selected_room_id = Some(selected_room_id);

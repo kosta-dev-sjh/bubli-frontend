@@ -418,33 +418,33 @@
   align-items: center;
   justify-content: center;
   border-radius: 9px;
-  color: #36729A;
+  color: #1B6597;
   background: rgba(205, 216, 223, 0.26);
 }
 
 .glyphPdf {
-  color: #C56B85;
+  color: #D63B68;
   background: rgba(246, 221, 235, 0.6);
 }
 
 .glyphSlide {
-  color: #9B6A35;
+  color: #985B1A;
   background: rgba(241, 215, 184, 0.4);
 }
 
 .glyphImage {
-  color: #6E63B8;
+  color: #4733C9;
   background: rgba(220, 216, 248, 0.44);
 }
 
 .glyphSheet {
-  color: #36729A;
+  color: #1B6597;
   background: rgba(167, 216, 190, 0.3);
 }
 
 .glyphWord,
 .glyphHwp {
-  color: #3A78B8;
+  color: #1B68B8;
   background: rgba(216, 240, 255, 0.55);
 }
 
@@ -1367,33 +1367,33 @@
 }
 
 [data-theme="dark"] .glyph {
-  color: #7CC4F5;
+  color: #53BAFF;
   background: rgba(34, 46, 72, 0.7);
 }
 
 [data-theme="dark"] .glyphPdf {
-  color: #E79BB0;
+  color: #F27195;
   background: rgba(231, 155, 176, 0.14);
 }
 
 [data-theme="dark"] .glyphSlide {
-  color: #E6C49C;
+  color: #F1B773;
   background: rgba(230, 196, 156, 0.14);
 }
 
 [data-theme="dark"] .glyphImage {
-  color: #B0A8E0;
+  color: #9081E8;
   background: rgba(176, 168, 224, 0.16);
 }
 
 [data-theme="dark"] .glyphSheet {
-  color: #93CFA8;
+  color: #69DA91;
   background: rgba(147, 207, 168, 0.14);
 }
 
 [data-theme="dark"] .glyphWord,
 [data-theme="dark"] .glyphHwp {
-  color: #7CC4F5;
+  color: #53BAFF;
   background: rgba(124, 196, 245, 0.14);
 }
 
@@ -1408,7 +1408,7 @@
 [data-theme="dark"] .actionDanger:hover,
 [data-theme="dark"] .iconDanger:hover {
   border-color: rgba(231, 155, 176, 0.4);
-  color: #E79BB0;
+  color: #F27195;
   background: rgba(231, 155, 176, 0.1);
 }
 

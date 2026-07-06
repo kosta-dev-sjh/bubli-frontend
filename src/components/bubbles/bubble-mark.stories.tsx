@@ -14,7 +14,7 @@ const meta = {
           display: "inline-flex",
           padding: 28,
           borderRadius: 20,
-          background: "radial-gradient(120% 120% at 30% 20%, #D8F0FF 0%, #F2F7FC 45%, #E6DDF8 100%)",
+          background: "radial-gradient(120% 120% at 30% 20%, #B9E4FF 0%, #F2F7FC 45%, #D1BCFB 100%)",
         }}
       >
         <Story />
