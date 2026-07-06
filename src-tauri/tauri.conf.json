@@ -6,8 +6,8 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "npm run build:tauri-static",
-    "frontendDist": "../dist-tauri"
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../.next"
   },
   "app": {
     "macOSPrivateApi": true,

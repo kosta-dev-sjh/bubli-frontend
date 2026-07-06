@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:tauri-static": "next build && node scripts/build-tauri-static-dist.mjs",
+    "build:tauri-static:macos": "node scripts/build-tauri-static-dist.mjs --build --env .env.macos.production",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

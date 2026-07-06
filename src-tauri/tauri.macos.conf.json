@@ -1,0 +1,6 @@
+{
+  "build": {
+    "beforeBuildCommand": "npm run build:tauri-static:macos",
+    "frontendDist": "../dist-tauri"
+  }
+}
