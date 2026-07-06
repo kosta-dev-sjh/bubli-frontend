@@ -1320,10 +1320,10 @@ assertContains(
   "loginStartupBarWindow",
   "Login startup windows must include the Bubli bar.",
 );
-assertNotContains(
+assertContains(
   startupWindows,
-  /bubbleType:\s*"menu"|loginStartupMenuWindow/,
-  "Login startup windows must not open the legacy standalone menu window while the Bubli menu lives inside the bar.",
+  /loginStartupMenuWindow/,
+  "Login startup windows must open the standalone orb menu window (coexists with the inline bar menu; reinstated after #429).",
 );
 assertContains(
   startupWindows,
@@ -1355,8 +1355,8 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /for \(const setting of settings\)[\s\S]*if \(!setting\.enabled\) continue;[\s\S]*enabledByBubble\.set\(localType, setting\);[\s\S]*if \(enabledByBubble\.size === 0\) return \[\];[\s\S]*const startupBubbles: WidgetWindowOpenInput\[\] = \[\];/,
-  "Tauri login startup must not treat the legacy menu window as an enabled bubble.",
+  /for \(const setting of settings\)[\s\S]*if \(!setting\.enabled\) continue;[\s\S]*enabledByBubble\.set\(localType, setting\);[\s\S]*if \(enabledByBubble\.size === 0\) return \[\];[\s\S]*const startupBubbles: WidgetWindowOpenInput\[\] = \[loginStartupMenuWindow\];/,
+  "Tauri login startup seeds the orb menu window alongside enabled bubbles (coexists with inline bar menu).",
 );
 assertContains(
   surfaces,

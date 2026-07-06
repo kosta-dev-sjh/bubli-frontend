@@ -91,8 +91,11 @@ export function readTauriAuthenticatedSurfacesLaunchTimeline(): TauriAuthenticat
 }
 
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
+// 원형 오브 메뉴 창도 로그인 시 함께 띄운다 — 인라인 바 메뉴와 공존한다(팀 재논의로 #429의 제거를 되돌림).
+const loginStartupMenuWindow: WidgetWindowOpenInput = { bubbleType: "menu", mode: "DEFAULT", windowId: "menu" };
 const loginStartupWindows: WidgetWindowOpenInput[] = [
   loginStartupBarWindow,
+  loginStartupMenuWindow,
   { bubbleType: "agent", mode: "DEFAULT", windowId: "agent" },
   { bubbleType: "alert", mode: "DEFAULT", windowId: "alert" },
   { bubbleType: "chat", mode: "DEFAULT", windowId: "chat" },
@@ -252,7 +255,7 @@ function getLoginStartupBubbles(settings: WidgetBubbleSettingResponse[]): Widget
 
   if (enabledByBubble.size === 0) return [];
 
-  const startupBubbles: WidgetWindowOpenInput[] = [];
+  const startupBubbles: WidgetWindowOpenInput[] = [loginStartupMenuWindow];
   for (const bubble of sortedStartupBubbles) {
     const setting = enabledByBubble.get(bubble.bubbleType);
     if (!setting) continue;
