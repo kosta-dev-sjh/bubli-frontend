@@ -551,25 +551,6 @@
   min-width: 0;
 }
 
-/* TODO 목록 내부 스크롤 — 창을 늘리지 않고 항목이 많으면 여기서 스크롤한다. */
-.todoScroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  margin: 0 -2px;
-  padding: 0 2px;
-}
-
-.todoScroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.todoScroll::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(107, 143, 168, 0.28);
-}
-
 /* 행이 창 높이 예산을 넘으면(예: TODO 개인+룸 그룹) 목록만 조용히 스크롤하고
    하단 주 액션(CTA)은 항상 보이게 한다 — 스크롤바는 위젯 표면이라 숨긴다. */
 .body > .rowList {

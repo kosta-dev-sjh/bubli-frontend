@@ -590,7 +590,11 @@ function TodoBody({
       {/* 카운트 링은 중앙 부유 대신 요약 카피와 나란히 — 본문이 위에서부터 콘텐츠로 채워진다.
           링 숫자는 표시 행이 아니라 병합된(개인 + 룸 할당) 남은 개수 전체를 가리킨다. */}
       <div className={styles.summaryRow}>
-        <div className={styles.countRing}>
+        {/* 원호는 하드코딩이 아니라 실제 남은 개수에 비례해 채워진다(할 일이 많을수록 링이 찬다). */}
+        <div
+          className={styles.countRing}
+          style={{ ["--ring-deg" as string]: `${Math.round(Math.min((Number.parseInt(bubble.metric, 10) || 0) / 6, 1) * 360)}deg` }}
+        >
           <span>{bubble.metric}</span>
           <b>{t(bubble.metricLabel as MessageKey)}</b>
         </div>
@@ -599,7 +603,10 @@ function TodoBody({
           <span>{t(bubbleEmptyLabel(bubble) as MessageKey)}</span>
         </div>
       </div>
-      <TodoRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
+      {/* 목록은 창을 늘리지 않고 내부에서 스크롤한다 — 항목이 많아도 요약/입력줄은 고정. */}
+      <div className={styles.todoScroll}>
+        <TodoRows bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />
+      </div>
       <form
         className={styles.input}
         onSubmit={(event) => {
