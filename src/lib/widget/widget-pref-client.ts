@@ -8,6 +8,9 @@ import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 export type WidgetTimerMode = "clock" | "work" | "pomodoro";
 
+// 타이머 탭 내부의 하위 종류. work=서버 누적(룸 귀속), personal=로컬 임시(저장 안 함).
+export type WidgetTimerKind = "work" | "personal";
+
 export type PomodoroPhase = "focus" | "break";
 
 // 로컬 전용 뽀모도로 진행 상태. running 중에는 phaseEndsAt(에폭 ms)로 남은 시간을 복원한다.
@@ -20,12 +23,23 @@ export type PomodoroState = {
   // 일시정지 시 남은 초. 실행 중이면 null.
   remainingSeconds: number | null;
   running: boolean;
+  // 사용자가 설정한 집중/휴식 길이(분). 예전 저장본에는 없어 읽을 때 기본값으로 채운다.
+  focusMinutes: number;
+  breakMinutes: number;
 };
 
-export const POMODORO_FOCUS_SECONDS = 25 * 60;
-export const POMODORO_BREAK_SECONDS = 5 * 60;
+export const POMODORO_DEFAULT_FOCUS_MINUTES = 25;
+export const POMODORO_DEFAULT_BREAK_MINUTES = 5;
+// 설정 가능한 분 범위(집중 5~90, 휴식 1~30) — UI 스텝퍼와 공유한다.
+export const POMODORO_FOCUS_MIN = 5;
+export const POMODORO_FOCUS_MAX = 90;
+export const POMODORO_BREAK_MIN = 1;
+export const POMODORO_BREAK_MAX = 30;
+export const POMODORO_FOCUS_SECONDS = POMODORO_DEFAULT_FOCUS_MINUTES * 60;
+export const POMODORO_BREAK_SECONDS = POMODORO_DEFAULT_BREAK_MINUTES * 60;
 
 const TIMER_MODE_KIND = "timer_mode";
+const TIMER_SUBKIND_KIND = "timer_kind";
 const POMODORO_KIND = "pomodoro_state";
 
 const TIMER_MODES: readonly WidgetTimerMode[] = ["clock", "work", "pomodoro"];
@@ -83,7 +97,37 @@ export async function writeWidgetTimerMode(mode: WidgetTimerMode, selectedRoomId
   }
 }
 
-function isPomodoroState(value: unknown): value is PomodoroState {
+function isTimerKind(value: unknown): value is WidgetTimerKind {
+  return value === "work" || value === "personal";
+}
+
+export async function readWidgetTimerKind(selectedRoomId?: string | null): Promise<WidgetTimerKind | null> {
+  if (!isTauriRuntime()) return null;
+  try {
+    const cached = await tauriCommands.readWidgetPref({ cacheKey: resolvePrefCacheKey(selectedRoomId), kind: TIMER_SUBKIND_KIND });
+    if (!cached) return null;
+    const parsed: unknown = JSON.parse(cached.valueJson);
+    const kind = (parsed as { kind?: unknown })?.kind;
+    return isTimerKind(kind) ? kind : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeWidgetTimerKind(kind: WidgetTimerKind, selectedRoomId?: string | null): Promise<void> {
+  if (!isTauriRuntime()) return;
+  try {
+    await tauriCommands.storeWidgetPref({
+      cacheKey: resolvePrefCacheKey(selectedRoomId),
+      kind: TIMER_SUBKIND_KIND,
+      valueJson: JSON.stringify({ kind }),
+    });
+  } catch {
+    // best-effort
+  }
+}
+
+function isPomodoroState(value: unknown): value is Partial<PomodoroState> {
   if (!value || typeof value !== "object") return false;
   const state = value as Partial<PomodoroState>;
   return (
@@ -93,13 +137,28 @@ function isPomodoroState(value: unknown): value is PomodoroState {
   );
 }
 
+function clampMinutes(value: unknown, fallback: number, min: number, max: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
 export async function readPomodoroState(selectedRoomId?: string | null): Promise<PomodoroState | null> {
   if (!isTauriRuntime()) return null;
   try {
     const cached = await tauriCommands.readWidgetPref({ cacheKey: resolvePrefCacheKey(selectedRoomId), kind: POMODORO_KIND });
     if (!cached) return null;
     const parsed: unknown = JSON.parse(cached.valueJson);
-    return isPomodoroState(parsed) ? parsed : null;
+    if (!isPomodoroState(parsed)) return null;
+    // 예전 저장본(분 필드 없음)은 기본 25/5로 채워 하위호환한다.
+    return {
+      cyclesCompleted: parsed.cyclesCompleted ?? 0,
+      phase: parsed.phase ?? "focus",
+      phaseEndsAt: parsed.phaseEndsAt ?? null,
+      remainingSeconds: parsed.remainingSeconds ?? null,
+      running: parsed.running ?? false,
+      focusMinutes: clampMinutes(parsed.focusMinutes, POMODORO_DEFAULT_FOCUS_MINUTES, POMODORO_FOCUS_MIN, POMODORO_FOCUS_MAX),
+      breakMinutes: clampMinutes(parsed.breakMinutes, POMODORO_DEFAULT_BREAK_MINUTES, POMODORO_BREAK_MIN, POMODORO_BREAK_MAX),
+    };
   } catch {
     return null;
   }
@@ -118,16 +177,28 @@ export async function writePomodoroState(state: PomodoroState, selectedRoomId?: 
   }
 }
 
-export function createIdlePomodoroState(): PomodoroState {
+// 설정한 분(focus/break)을 유지한 채 idle 상태를 만든다. reset 시 사용자의 분 설정을 보존한다.
+export function createIdlePomodoroState(
+  focusMinutes: number = POMODORO_DEFAULT_FOCUS_MINUTES,
+  breakMinutes: number = POMODORO_DEFAULT_BREAK_MINUTES,
+): PomodoroState {
+  const focus = clampMinutes(focusMinutes, POMODORO_DEFAULT_FOCUS_MINUTES, POMODORO_FOCUS_MIN, POMODORO_FOCUS_MAX);
+  const brk = clampMinutes(breakMinutes, POMODORO_DEFAULT_BREAK_MINUTES, POMODORO_BREAK_MIN, POMODORO_BREAK_MAX);
   return {
     cyclesCompleted: 0,
     phase: "focus",
     phaseEndsAt: null,
-    remainingSeconds: POMODORO_FOCUS_SECONDS,
+    remainingSeconds: focus * 60,
     running: false,
+    focusMinutes: focus,
+    breakMinutes: brk,
   };
 }
 
-export function phaseDurationSeconds(phase: PomodoroPhase): number {
-  return phase === "focus" ? POMODORO_FOCUS_SECONDS : POMODORO_BREAK_SECONDS;
+export function phaseDurationSeconds(
+  phase: PomodoroPhase,
+  focusMinutes: number = POMODORO_DEFAULT_FOCUS_MINUTES,
+  breakMinutes: number = POMODORO_DEFAULT_BREAK_MINUTES,
+): number {
+  return (phase === "focus" ? focusMinutes : breakMinutes) * 60;
 }
