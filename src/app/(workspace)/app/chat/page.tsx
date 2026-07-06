@@ -25,7 +25,7 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { getApiBaseUrl } from "@/lib/api/client";
 import { ApiClientError } from "@/lib/api/errors";
 import { getAuthAccessToken } from "@/lib/auth/auth-session";
-import { notifyDataChanged } from "@/lib/data-changed";
+import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -489,6 +489,7 @@ function ChatPageContent() {
   const [downloadingResourceId, setDownloadingResourceId] = useState<string | null>(null);
   const [emoticonOpen, setEmoticonOpen] = useState(false);
   const [friendsOpen, setFriendsOpen] = useState(false);
+  const [appliedFriendsParam, setAppliedFriendsParam] = useState(false);
   const [newRoomPickerOpen, setNewRoomPickerOpen] = useState(false);
   const [groupRoomName, setGroupRoomName] = useState("");
   const [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState<string[]>([]);
@@ -940,6 +941,21 @@ function ChatPageContent() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadSocial]);
+
+  // 친구 요청 발신/수락은 실시간 알림(app-shell의 웹소켓 구독)이 도착하는 즉시 반영한다 —
+  // 이전에는 12초 폴링에 의존해 상대방 쪽에서 "새로고침해야 반영"되는 문제가 있었다.
+  useDataRefresh({
+    domains: ["friend"],
+    onRefresh: () => void loadSocial(),
+  });
+
+  // 알림 토스트/알림함에서 "친구 관리" 클릭 시(?friends=1) 자동으로 패널을 연다 — 한 번만 적용하고
+  // (렌더 중 상태 조정 — refs는 렌더 중 접근할 수 없어 useState로 "적용 여부"를 추적한다)
+  // 이후엔 사용자가 자유롭게 닫을 수 있어야 한다.
+  if (!appliedFriendsParam && searchParams.get("friends") === "1") {
+    setAppliedFriendsParam(true);
+    setFriendsOpen(true);
+  }
 
   // 룸 모드 자동 진입: 활성 프로젝트룸의 채팅방이 없으면 만들어서 바로 연다.
   useEffect(() => {

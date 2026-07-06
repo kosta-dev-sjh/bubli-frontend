@@ -17,6 +17,7 @@ export const USER_UPDATED_EVENT = "bubli:user-updated";
 export type DataChangedDomain =
   | "agent"
   | "chat"
+  | "friend"
   | "memo"
   | "notification"
   | "project-room"

@@ -2871,6 +2871,13 @@ select {
   flex-direction: column;
 }
 
+/* 1:1/그룹(목록 있는) 모드: 답장 미리보기·타이핑 표시·이모지 피커 등이 여닫혀도
+   스레드 패널 전체 높이는 고정하고, 메시지 뷰포트(flex:1 1 auto + min-height:0)가
+   남는 공간만 흡수하도록 한다 — 그렇지 않으면 패널이 미세하게 커졌다 작아졌다 한다. */
+.workspace-route__chat:not(.workspace-route__chat--room-scope) .workspace-route__thread {
+  max-height: min(680px, calc(100vh - 210px));
+}
+
 .workspace-route__chat .workspace-route__messages {
   flex: 1 1 auto;
 }
