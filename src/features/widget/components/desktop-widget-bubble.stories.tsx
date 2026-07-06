@@ -74,7 +74,29 @@ const memoBubble: WidgetPreviewBubble = {
   ],
 };
 
-const barItems: WidgetWindowState[] = ["todo", "memo", "timer", "schedule", "resource", "chat", "agent"].map((activeBubble) => ({
+const agentBubble: WidgetPreviewBubble = {
+  ...getWidgetPreviewBubble("agent"),
+  compactLabel: "후보 7",
+  metric: "7",
+  notificationLabel: "승인 대기 후보",
+  panelBody: "승인 전 후보만 표시합니다.",
+  roomId: "room-design",
+  roomLabel: "디자인룸",
+  rows: Array.from({ length: 7 }, (_, index) => ({
+    id: `candidate-${index + 1}`,
+    kind: "agent",
+    label: `검토 후보 ${index + 1} - 승인 전에 확인할 작업 제안`,
+    status: "대기",
+  })),
+  resourceRows: Array.from({ length: 9 }, (_, index) => ({
+    id: `generated-document-${index + 1}`,
+    kind: "document",
+    label: `초안 생성 ${index + 1}_프로젝트_정리`,
+    status: index % 3 === 0 ? "DOCUMENT_DRAFT" : "markdown",
+  })),
+};
+
+const barItems: WidgetWindowState[] = ["todo", "memo", "timer", "schedule", "chat", "agent"].map((activeBubble) => ({
   activeBubble: activeBubble as WidgetWindowState["activeBubble"],
   alwaysOnTop: activeBubble === "bar",
   clickThrough: false,
@@ -109,11 +131,13 @@ export const Minimized: Story = {
   },
 };
 
-export const ResourceSuggestion: Story = {
+export const AiAgent: Story = {
   args: {
     ...baseArgs,
-    activeBubble: "resource",
-    mode: "TRANSLUCENT",
+    activeBubble: "agent",
+    bubble: agentBubble,
+    mode: "DEFAULT",
+    onDownloadResource: () => undefined,
   },
 };
 
@@ -138,6 +162,7 @@ export const BarHoverPreview: Story = {
     <div style={{ height: 640, width: 640 }}>
       <DesktopWidgetBubbleBar
         bubbleDataByType={{
+          agent: agentBubble,
           memo: memoBubble,
         }}
         minimizedItems={barItems}

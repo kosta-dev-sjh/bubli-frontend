@@ -66,6 +66,9 @@ type ResourceWorkGenerationState =
   | { kind: "running"; target: ResourceWorkGenerationKind }
   | { kind: "error"; message: string; target: ResourceWorkGenerationKind };
 
+const RESOURCE_ANALYSIS_JOB_POLL_ATTEMPTS = 24;
+const RESOURCE_ANALYSIS_JOB_POLL_INTERVAL_MS = 2500;
+
 const statusCopyKey: Record<ResourceStatus, MessageKey> = {
   ANALYZED: "resources.common.statusAnalyzed",
   ANALYZING: "resources.common.statusAnalyzing",
@@ -596,6 +599,54 @@ export function ResourcePreview({
   });
   const versionInputRef = useRef<HTMLInputElement | null>(null);
   const handledIntentTokenRef = useRef(0);
+  const analysisPollTimeoutRef = useRef<number | null>(null);
+
+  const clearAnalysisPoll = useCallback(() => {
+    if (analysisPollTimeoutRef.current === null) return;
+    window.clearTimeout(analysisPollTimeoutRef.current);
+    analysisPollTimeoutRef.current = null;
+  }, []);
+
+  const notifyAnalysisSurfacesChanged = useCallback(() => {
+    onUpdated?.();
+    notifyDataChanged("resource");
+    notifyDataChanged("agent");
+  }, [onUpdated]);
+
+  const watchAnalysisJob = useCallback(
+    (jobId: string) => {
+      clearAnalysisPoll();
+
+      let attempt = 0;
+      const poll = async () => {
+        attempt += 1;
+
+        try {
+          const job = await agentApi.getJob(jobId);
+          if (job.status === "SUCCEEDED" || job.status === "FAILED" || job.status === "CANCELED") {
+            analysisPollTimeoutRef.current = null;
+            notifyAnalysisSurfacesChanged();
+            return;
+          }
+        } catch {
+          // 분석 요청은 이미 시작됐으므로 상태 확인 실패만으로 사용자 흐름을 막지 않는다.
+        }
+
+        if (attempt >= RESOURCE_ANALYSIS_JOB_POLL_ATTEMPTS) {
+          analysisPollTimeoutRef.current = null;
+          notifyAnalysisSurfacesChanged();
+          return;
+        }
+
+        analysisPollTimeoutRef.current = window.setTimeout(poll, RESOURCE_ANALYSIS_JOB_POLL_INTERVAL_MS);
+      };
+
+      analysisPollTimeoutRef.current = window.setTimeout(poll, RESOURCE_ANALYSIS_JOB_POLL_INTERVAL_MS);
+    },
+    [clearAnalysisPoll, notifyAnalysisSurfacesChanged],
+  );
+
+  useEffect(() => clearAnalysisPoll, [clearAnalysisPoll]);
 
   useEffect(() => {
     let cancelled = false;
@@ -864,7 +915,8 @@ export function ResourcePreview({
 
           setAnalysisState({ jobId: localAnalysisResult.data.job.jobId, kind: "started" });
           setDetailResource((current) => (current && current.id === activeResource.id ? { ...current, status: "ANALYZING" } : current));
-          onUpdated?.();
+          notifyAnalysisSurfacesChanged();
+          watchAnalysisJob(localAnalysisResult.data.job.jobId);
           return;
         }
       }
@@ -875,12 +927,13 @@ export function ResourcePreview({
       });
       setAnalysisState({ jobId: job.jobId, kind: "started" });
       setDetailResource((current) => (current && current.id === activeResource.id ? { ...current, status: "ANALYZING" } : current));
-      onUpdated?.();
+      notifyAnalysisSurfacesChanged();
+      watchAnalysisJob(job.jobId);
     } catch (error) {
       const message = getErrorMessage(error, t);
       setAnalysisState({ kind: "error", message });
     }
-  }, [activeResource, analysisState.kind, localFolderConsent, onUpdated, scope, t]);
+  }, [activeResource, analysisState.kind, localFolderConsent, notifyAnalysisSurfacesChanged, scope, t, watchAnalysisJob]);
 
   const handleGenerateQuestions = useCallback(async () => {
     if (!roomId || questionState.kind === "running") {

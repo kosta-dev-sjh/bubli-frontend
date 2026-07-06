@@ -62,6 +62,7 @@ const bubbleMeta: Record<WidgetBubbleType, { detail: MessageKey; name: MessageKe
     source: "widget.settings.todo.source",
   },
 };
+const hiddenWidgetSettingBubbleTypes = new Set<WidgetBubbleType>(["RESOURCE"]);
 
 const stateMeta: Record<BubbleSettingView["state"], { label: MessageKey; tone: "success" | "pending" | "personal" }> = {
   enabled: { label: "widget.settings.state.enabled", tone: "success" },
@@ -156,7 +157,10 @@ export function WidgetSettingsPanel({ autoLoad = true, initialBubbles = [], onBu
     };
   }, [autoLoad]);
 
-  const bubbleViews = useMemo(() => loadedBubbles.map(toBubbleView), [loadedBubbles]);
+  const bubbleViews = useMemo(
+    () => loadedBubbles.filter((bubble) => !hiddenWidgetSettingBubbleTypes.has(bubble.bubbleType)).map(toBubbleView),
+    [loadedBubbles],
+  );
   const activeBubbleCount = bubbleViews.filter((bubble) => bubble.enabled).length;
   const syncProgress = isLoading || savingBubbleId ? 100 : hasLoadError ? 0 : 100;
 

@@ -91,8 +91,8 @@ const WIDGET_POINTER_DRAG_GRACE_MS: u128 = 400;
 // 웹뷰가 상호작용 표면 위에서 실제 마우스 이벤트를 받았다는 힌트가 이 시간 안에 있으면,
 // Retina 배율/좌표 드리프트로 rect 판정이 어긋나도 클릭 가능(통과 꺼짐)을 유지한다.
 const WIDGET_POINTER_SEEN_GRACE_MS: u128 = 500;
-const QA_ALL_WIDGET_BUBBLES: [&str; 8] = [
-    "todo", "agent", "chat", "timer", "memo", "schedule", "resource", "alert",
+const QA_ALL_WIDGET_BUBBLES: [&str; 7] = [
+    "todo", "agent", "chat", "timer", "memo", "schedule", "alert",
 ];
 // 사용자 크기 조절 클램프: 버블별 최소 = 현재 기본 크기, 최대 = 최소 × 1.6.
 // src/features/widget/components/desktop-widget-bubble.tsx 리사이즈 핸들과 동기화한다.
@@ -1274,7 +1274,7 @@ fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
 fn widget_default_bubble_size(bubble_type: &str) -> LogicalSize<f64> {
     match bubble_type {
         "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
-        "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 430.0 + WIDGET_WINDOW_GUTTER),
+        "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
         "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 400.0 + WIDGET_WINDOW_GUTTER),
         "resource" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 330.0 + WIDGET_WINDOW_GUTTER),
         "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 320.0 + WIDGET_WINDOW_GUTTER),
@@ -2257,7 +2257,10 @@ fn widget_bar_items_from_store(store: &WidgetWindowStore) -> Vec<WidgetWindowSta
         .bubbles
         .values()
         .filter(|widget| {
-            widget.active_bubble != "bar" && widget.mode == "MINIMIZED" && !widget.window_visible
+            widget.active_bubble != "bar"
+                && widget.active_bubble != "resource"
+                && widget.mode == "MINIMIZED"
+                && !widget.window_visible
         })
         .cloned()
         .collect();

@@ -335,10 +335,11 @@
 .head {
   position: relative;
   z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 10px;
+  row-gap: 5px;
   min-width: 0;
   user-select: none;
 }
@@ -395,6 +396,115 @@
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.headerScopeRow {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.agentScopeToggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  width: min(174px, 100%);
+  min-width: 0;
+  min-height: 28px;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--acc) 18%, var(--widget-hairline));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--acc) 7%, rgba(255, 255, 255, 0.48));
+  cursor: default;
+}
+
+.agentScopeToggle button {
+  overflow: hidden;
+  min-width: 0;
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--widget-muted);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentScopeToggle button[data-active="true"] {
+  color: var(--acc-ink);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    0 3px 10px -8px color-mix(in srgb, var(--acc) 60%, transparent);
+}
+
+.scopeSelect {
+  position: relative;
+  display: inline-grid;
+  align-items: center;
+  width: min(126px, 100%);
+  min-width: 96px;
+  height: 30px;
+  border: 1px solid color-mix(in srgb, var(--acc) 38%, var(--widget-hairline));
+  border-radius: 8px;
+  color: var(--widget-text);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    0 4px 12px -10px color-mix(in srgb, var(--acc) 55%, transparent);
+  cursor: pointer;
+}
+
+.scopeSelect,
+.scopeSelect * {
+  cursor: pointer;
+}
+
+.scopeSelect select {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  padding: 0 25px 0 10px;
+  border: 0;
+  border-radius: inherit;
+  color: inherit;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 30px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scopeSelect select:focus-visible {
+  outline: none;
+}
+
+.scopeSelect svg {
+  position: absolute;
+  right: 8px;
+  z-index: 0;
+  color: var(--widget-muted);
+  pointer-events: none;
+}
+
+.scopeSelect:focus-within,
+.scopeSelect:hover {
+  border-color: color-mix(in srgb, var(--acc) 55%, var(--widget-hairline));
+  color: var(--acc-ink);
+  background: rgba(255, 255, 255, 0.88);
 }
 
 /* ---------- 창 컨트롤: 24px ghost circle, 고정 gap 6, .6→1 hover ----------
@@ -542,7 +652,9 @@
 
 .rowList {
   display: grid;
+  align-content: start;
   gap: 6px;
+  grid-auto-rows: max-content;
   min-width: 0;
 }
 
@@ -581,6 +693,7 @@
 .chatPeople,
 .voiceStrip,
 .reactionDock,
+.agentCandidateRow,
 .agentInlineRow {
   border: 1px solid var(--widget-hairline);
   border-radius: 12px;
@@ -594,13 +707,57 @@
 .timelineRow,
 .memoRow,
 .chatHead,
-.handoffBubble {
+.handoffBubble,
+.agentCandidateRow {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   min-height: 36px;
   padding: 4px 10px;
+}
+
+.agentCandidateRow {
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 58px;
+  padding: 8px 12px;
+}
+
+.fileRow {
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon title actions"
+    "icon meta actions";
+  align-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  column-gap: 7px;
+  overflow: hidden;
+  row-gap: 2px;
+  height: 56px;
+  min-height: 56px;
+  max-height: 56px;
+  padding: 7px 9px;
+}
+
+.fileRow .rowTile {
+  grid-area: icon;
+  align-self: center;
+}
+
+.fileRow .resourceTitle {
+  grid-area: title;
+}
+
+.fileRow .resourceMeta {
+  grid-area: meta;
+  justify-self: start;
+  max-width: 100%;
+}
+
+.fileRow .resourceControlGroup {
+  grid-area: actions;
+  align-self: center;
 }
 
 .timelineRow,
@@ -614,6 +771,7 @@
 .alertRow:hover,
 .timelineRow:hover,
 .memoRow:hover,
+.agentCandidateRow:hover,
 .agentInlineRow:hover {
   border-color: color-mix(in srgb, var(--acc) 22%, transparent);
   background: color-mix(in srgb, var(--acc) 7%, rgba(255, 255, 255, 0.6));
@@ -621,14 +779,14 @@
 
 .checkRow span,
 .checkRow a,
-.fileRow span,
-.fileRow a,
+.resourceTitle,
 .timelineRow span,
 .timelineRow a,
 .chatHead span,
 .handoffBubble span,
 .alertRow a,
 .alertRow strong,
+.agentCandidateTitle,
 .message {
   min-width: 0;
   color: var(--widget-text);
@@ -639,14 +797,14 @@
 }
 
 .checkRow a,
-.fileRow a,
 .timelineRow a,
 .checkRow span,
-.fileRow span,
+.resourceTitle,
 .timelineRow span,
 .handoffBubble span,
 .alertRow a,
-.alertRow strong {
+.alertRow strong,
+.agentCandidateTitle {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -656,7 +814,8 @@
 .fileRow b,
 .timelineRow b,
 .chatHead b,
-.handoffBubble b {
+.handoffBubble b,
+.agentCandidateRow b {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -670,6 +829,47 @@
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.agentReviewActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.agentReviewActions button {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--widget-muted) 24%, transparent);
+  border-radius: 999px;
+  color: var(--widget-muted);
+  background: transparent;
+}
+
+.agentReviewActions button[data-tone="approve"] {
+  border-color: color-mix(in srgb, #22C55E 42%, transparent);
+  color: #16833E;
+  background: color-mix(in srgb, #22C55E 10%, transparent);
+}
+
+.agentReviewActions button[data-tone="hold"] {
+  border-color: color-mix(in srgb, #F59E0B 36%, transparent);
+  color: #A15C00;
+  background: color-mix(in srgb, #F59E0B 10%, transparent);
+}
+
+.agentReviewActions button[data-tone="reject"] {
+  border-color: color-mix(in srgb, #EF4444 26%, transparent);
+  color: #9F2D2D;
+  background: color-mix(in srgb, #EF4444 7%, transparent);
+}
+
+.agentReviewActions button:hover {
+  transform: translateY(-1px);
 }
 
 /* 자료 행의 미니 accent 타일 */
@@ -1533,6 +1733,126 @@
   font-variant-numeric: tabular-nums;
 }
 
+.agentAskPanel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.agentAskPanel > .agentThread {
+  flex: 1 1 auto;
+  max-height: none;
+}
+
+.agentAskPanel > .agentInput {
+  margin-top: auto;
+}
+
+.agentInput {
+  border-color: color-mix(in srgb, var(--widget-hairline) 78%, transparent);
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.agentInput input::placeholder {
+  color: color-mix(in srgb, var(--widget-muted) 72%, transparent);
+}
+
+.agentInput button:not(.composerSave) {
+  color: color-mix(in srgb, var(--acc-ink) 78%, var(--widget-muted));
+  background: color-mix(in srgb, var(--acc) 9%, transparent);
+}
+
+.agentTabPanel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.agentTabPanel > .rowList {
+  flex: 1 1 auto;
+  align-content: start;
+  grid-auto-rows: 56px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.agentTabPanel > .emptyState {
+  flex: 0 0 auto;
+}
+
+.agentTabPanel > .rowList::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.agentCandidatePanel {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.agentCandidatePanel > .rowList {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.agentCandidatePanel::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.agentCandidateSection {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agentCandidateSection .rowList {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.agentSectionHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 2px 6px;
+  color: var(--widget-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.agentSectionHead span {
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentSectionHead b {
+  display: inline-grid;
+  min-width: 26px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .agentInlineRow {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
@@ -1665,9 +1985,17 @@
   gap: 3px;
 }
 
+.resourceControlGroup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: max-content;
+  gap: 5px;
+}
+
 .resourceActions button {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   padding: 0;
 }
 
@@ -2868,6 +3196,7 @@
 :global([data-theme="dark"]) .chatPeople,
 :global([data-theme="dark"]) .voiceStrip,
 :global([data-theme="dark"]) .reactionDock,
+:global([data-theme="dark"]) .agentCandidateRow,
 :global([data-theme="dark"]) .agentInlineRow,
 :global([data-theme="dark"]) .message,
 :global([data-theme="dark"]) .input,
@@ -2908,6 +3237,7 @@
 :global([data-theme="dark"]) .alertRow:hover,
 :global([data-theme="dark"]) .timelineRow:hover,
 :global([data-theme="dark"]) .memoRow:hover,
+:global([data-theme="dark"]) .agentCandidateRow:hover,
 :global([data-theme="dark"]) .agentInlineRow:hover {
   border-color: color-mix(in srgb, var(--acc) 28%, transparent);
   background: color-mix(in srgb, var(--acc) 10%, rgba(18, 26, 40, 0.6));

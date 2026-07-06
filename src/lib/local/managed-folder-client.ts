@@ -7,6 +7,7 @@ import type {
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { localFileAnalysisApi } from "@/features/managed-folder/api/localFileAnalysisApi";
 import { managedFolderApi } from "@/features/managed-folder/api/managedFolderApi";
+import { notifyDataChanged } from "@/lib/data-changed";
 import {
   blocked,
   failed,
@@ -772,6 +773,11 @@ function notifyPersonalResourcesChanged(result: PersonalLocalFileEventsSyncResul
     result.analysisSkippedCount > 0;
   if (!changedOrAttempted) {
     return;
+  }
+
+  notifyDataChanged("resource");
+  if (result.analysisRequestedCount > 0 || result.analysisFailedCount > 0) {
+    notifyDataChanged("agent");
   }
 
   window.dispatchEvent(

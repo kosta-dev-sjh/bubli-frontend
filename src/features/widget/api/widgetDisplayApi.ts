@@ -6,6 +6,8 @@ import type { TimeLogResponse } from "@/types/api/timer";
 import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
 
 const WIDGET_MEMO_PAGE_SIZE = 100;
+const WIDGET_RESOURCE_PAGE_SIZE = 100;
+const WIDGET_SCHEDULE_PAGE_SIZE = 100;
 
 export type WidgetTaskStatus = "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE" | "BLOCKED";
 export type WidgetResourceKind = "FILE" | "MEMO";
@@ -243,11 +245,60 @@ export const widgetDisplayApi = {
     return widgetDisplayRequest<PageResponse<WidgetScheduleResponse>>(`/api/schedules?${params.toString()}`);
   },
 
-  listResources(roomId?: string | null, size = 6) {
+  async listAllSchedules(roomId?: string | null, size = WIDGET_SCHEDULE_PAGE_SIZE) {
+    const { from, to } = widgetScheduleWindow();
+    const items: WidgetScheduleResponse[] = [];
+    let page = 0;
+    let lastPage: PageResponse<WidgetScheduleResponse> | null = null;
+
+    do {
+      const params = new URLSearchParams({
+        from,
+        page: String(page),
+        size: String(size),
+        to,
+      });
+      if (roomId) params.set("roomId", roomId);
+
+      lastPage = await widgetDisplayRequest<PageResponse<WidgetScheduleResponse>>(`/api/schedules?${params.toString()}`);
+      items.push(...lastPage.items);
+      page += 1;
+    } while (lastPage.hasNext);
+
+    return {
+      ...(lastPage ?? { hasNext: false, page: 0, size, totalPages: 0 }),
+      hasNext: false,
+      items,
+      page: 0,
+      size: items.length,
+    } satisfies PageResponse<WidgetScheduleResponse>;
+  },
+
+  listResources(roomId?: string | null, size = 6, page = 0) {
     if (roomId) {
-      return widgetDisplayRequest<PageResponse<WidgetResourceResponse>>(`/api/project-rooms/${roomId}/resources?page=0&size=${size}`);
+      return widgetDisplayRequest<PageResponse<WidgetResourceResponse>>(`/api/project-rooms/${roomId}/resources?page=${page}&size=${size}`);
     }
-    return widgetDisplayRequest<PageResponse<WidgetResourceResponse>>(`/api/resources?scope=personal&page=0&size=${size}`);
+    return widgetDisplayRequest<PageResponse<WidgetResourceResponse>>(`/api/resources?scope=personal&page=${page}&size=${size}`);
+  },
+
+  async listAllResources(roomId?: string | null, size = WIDGET_RESOURCE_PAGE_SIZE) {
+    const items: WidgetResourceResponse[] = [];
+    let page = 0;
+    let lastPage: PageResponse<WidgetResourceResponse> | null = null;
+
+    do {
+      lastPage = await widgetDisplayApi.listResources(roomId, size, page);
+      items.push(...lastPage.items);
+      page += 1;
+    } while (lastPage.hasNext);
+
+    return {
+      ...(lastPage ?? { hasNext: false, page: 0, size, totalPages: 0 }),
+      hasNext: false,
+      items,
+      page: 0,
+      size: items.length,
+    } satisfies PageResponse<WidgetResourceResponse>;
   },
 
   analyzeResource(resourceId: string) {
