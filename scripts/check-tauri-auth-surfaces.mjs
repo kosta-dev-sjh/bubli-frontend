@@ -1095,7 +1095,7 @@ assertContains(
 );
 assertContains(
   appShell,
-  /AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession, restoreStoredAuthSessionFromTauri[\s\S]*async function restoreInitialWorkspaceSession\(\)[\s\S]*const storedSession = getStoredAuthSession\(\);[\s\S]*if \(storedSession\) \{[\s\S]*return storedSession;[\s\S]*restoreStoredAuthSessionFromTauri\(\)/,
+  /AUTH_SESSION_CHANGE_EVENT,[\s\S]*?getStoredAuthSession,[\s\S]*?restoreStoredAuthSessionFromTauri[\s\S]*async function restoreInitialWorkspaceSession\(\)[\s\S]*const storedSession = getStoredAuthSession\(\);[\s\S]*if \(storedSession\) \{[\s\S]*return storedSession;[\s\S]*restoreStoredAuthSessionFromTauri\(\)/,
   "AppShell must use the local auth session fast path before waiting on the Tauri mirror.",
 );
 assertContains(
