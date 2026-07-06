@@ -55,7 +55,6 @@ const ko = {
   "layout.voiceCall.hint": "보이스 통화를 시작했어요",
   "layout.voiceCall.accept": "수락",
   "layout.voiceCall.connecting": "연결 중",
-  "layout.voiceCall.later": "이따 참여",
   "layout.voiceCall.decline": "거절",
 
   // 새 메시지 미리보기 토스트
@@ -152,7 +151,6 @@ const en: Record<Key, string> = {
   "layout.voiceCall.hint": "started a voice call",
   "layout.voiceCall.accept": "Accept",
   "layout.voiceCall.connecting": "Connecting",
-  "layout.voiceCall.later": "Join later",
   "layout.voiceCall.decline": "Decline",
 
   "layout.messageToast.dismiss": "Dismiss",
@@ -244,7 +242,6 @@ const ja: Record<Key, string> = {
   "layout.voiceCall.hint": "ボイス通話を開始しました",
   "layout.voiceCall.accept": "応答",
   "layout.voiceCall.connecting": "接続中",
-  "layout.voiceCall.later": "後で参加",
   "layout.voiceCall.decline": "拒否",
 
   "layout.messageToast.dismiss": "閉じる",

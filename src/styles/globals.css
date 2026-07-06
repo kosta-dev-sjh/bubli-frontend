@@ -22546,7 +22546,6 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
 }
 
 .voice-call-invite__accept,
-.voice-call-invite__later,
 .voice-call-invite__decline {
   width: 100%;
   min-height: 44px;
@@ -22573,14 +22572,12 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   transform: translateY(-1px);
 }
 
-.voice-call-invite__later,
 .voice-call-invite__decline {
   border: 1px solid rgba(190, 213, 230, 0.72);
   background: rgba(255, 255, 255, 0.7);
   color: var(--ink-soft);
 }
 
-.voice-call-invite__later:hover,
 .voice-call-invite__decline:hover {
   transform: translateY(-1px);
   background: rgba(255, 255, 255, 0.92);

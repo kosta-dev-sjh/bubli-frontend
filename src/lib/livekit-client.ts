@@ -1,5 +1,5 @@
 import { Room, RoomEvent, Track } from "livekit-client";
-import type { RemoteTrack } from "livekit-client";
+import type { Participant, RemoteTrack } from "livekit-client";
 
 import type { VoiceTokenResponse } from "@/types/api/voice";
 
@@ -37,6 +37,29 @@ function detachAllRemoteAudio(room: Room) {
   });
 }
 
+// "말하는 중" 표시 — LiveKit 토큰 발급 시 identity를 userId로 설정하므로(백엔드 JWT subject=userId),
+// participant.identity를 그대로 우리 쪽 userId로 사용할 수 있다. 로컬/원격 참여자 모두 이 한 곳에서 처리된다.
+type SpeakingListener = (speakingUserIds: ReadonlySet<string>) => void;
+const speakingListeners = new Set<SpeakingListener>();
+let currentSpeakingUserIds = new Set<string>();
+
+function notifySpeakingListeners() {
+  speakingListeners.forEach((listener) => listener(currentSpeakingUserIds));
+}
+
+function handleActiveSpeakersChanged(speakers: Participant[]) {
+  currentSpeakingUserIds = new Set(speakers.map((participant) => participant.identity));
+  notifySpeakingListeners();
+}
+
+export function onActiveSpeakersChanged(listener: SpeakingListener): () => void {
+  speakingListeners.add(listener);
+  listener(currentSpeakingUserIds);
+  return () => {
+    speakingListeners.delete(listener);
+  };
+}
+
 export async function connectLiveKitRoom(voiceRoomId: string, token: VoiceTokenResponse): Promise<Room> {
   if (activeRoom && activeVoiceRoomId === voiceRoomId) {
     return activeRoom;
@@ -49,6 +72,7 @@ export async function connectLiveKitRoom(voiceRoomId: string, token: VoiceTokenR
   room.on(RoomEvent.TrackUnsubscribed, (track) => {
     track.detach().forEach((element) => element.remove());
   });
+  room.on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakersChanged);
 
   activeRoom = room;
   activeVoiceRoomId = voiceRoomId;
@@ -81,4 +105,6 @@ export async function disconnectLiveKitRoom(): Promise<void> {
     detachAllRemoteAudio(room);
     await room.disconnect();
   }
+  currentSpeakingUserIds = new Set();
+  notifySpeakingListeners();
 }
