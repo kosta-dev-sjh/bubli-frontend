@@ -25,6 +25,7 @@ import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, readUserUpdatedDetail, useDataRefresh, USER_UPDATED_EVENT } from "@/lib/data-changed";
+import { playNotificationSound } from "@/lib/sound/notification-sound";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
@@ -658,6 +659,18 @@ export function AppShell({ children }: AppShellProps) {
     if (getActiveProjectRoomId() === selectedRoom.id && getActiveProjectRoomLabel() === selectedRoom.name) return;
     setActiveProjectRoomId(selectedRoom.id, selectedRoom.name);
   }, [selectedRoom, state.kind]);
+
+  // 새 알림(미읽음 증가) 도착 → 버블 알림음(뽑!).
+  // 첫 준비(baseline)에는 울리지 않는다 — 기존 미읽음 로드로 인한 오탐을 막는다.
+  const prevUnreadNotificationCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (state.kind !== "ready") return;
+    const prev = prevUnreadNotificationCountRef.current;
+    prevUnreadNotificationCountRef.current = unreadNotificationCount;
+    if (prev !== null && unreadNotificationCount > prev) {
+      playNotificationSound();
+    }
+  }, [unreadNotificationCount, state.kind]);
 
   const topbarProject = useMemo(() => {
     if (state.kind === "loading") {

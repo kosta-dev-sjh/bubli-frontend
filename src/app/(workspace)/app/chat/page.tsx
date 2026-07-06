@@ -46,6 +46,7 @@ import {
   setLiveKitMicEnabled,
 } from "@/lib/livekit-client";
 import { voiceStore } from "@/lib/voice-store";
+import { playNotificationSound } from "@/lib/sound/notification-sound";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -1078,6 +1079,11 @@ function ChatPageContent() {
       notifyDataChanged("chat");
       // 남이 보낸(그리고 내 WS 에코) 이모지 전용 메시지 → 이모지 퐁퐁.
       maybeSplashEmojiMessage(message);
+
+      // 남이 보낸 메시지·에이전트 응답 수신 → 버블 알림음(뽑!). 내 메시지 WS 에코는 제외.
+      if (message.sender.id !== currentUserRef.current?.id) {
+        playNotificationSound();
+      }
 
       // 에이전트 응답이 도착하면 "Bubli가 입력 중…"을 내린다.
       if (message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT") {
