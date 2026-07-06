@@ -174,8 +174,15 @@ type CalendarSpanBar = {
   startCol: number;
 };
 
-function computeRowSpanBars(rowDays: Date[], events: CalendarDisplayEvent[]): { bars: CalendarSpanBar[]; laneCount: number } {
-  if (rowDays.length === 0) return { bars: [], laneCount: 0 };
+// 한 주 행에 보여줄 최대 이벤트 줄 수(관통 막대 + 시간 칩 공용). 넘치면 "+N"으로 접어 셀 높이를 고정한다.
+const CALENDAR_MAX_ROW_LANES = 3;
+
+function computeRowSpanBars(
+  rowDays: Date[],
+  events: CalendarDisplayEvent[],
+  maxLanes: number,
+): { bars: CalendarSpanBar[]; hiddenByCol: number[]; laneCount: number } {
+  if (rowDays.length === 0) return { bars: [], hiddenByCol: [], laneCount: 0 };
   const rowStart = startOfDay(rowDays[0]);
   const rowEnd = startOfDay(rowDays[rowDays.length - 1]);
   const lastCol = rowDays.length - 1;
@@ -193,14 +200,14 @@ function computeRowSpanBars(rowDays: Date[], events: CalendarDisplayEvent[]): { 
     });
 
   const laneLastCol: number[] = [];
-  const bars: CalendarSpanBar[] = [];
+  const allBars: CalendarSpanBar[] = [];
   for (const { event, start, end } of spanning) {
     const startCol = Math.max(0, dayIndexFrom(rowStart, start));
     const endCol = Math.min(lastCol, dayIndexFrom(rowStart, end));
     let lane = 0;
     while (lane < laneLastCol.length && laneLastCol[lane] >= startCol) lane += 1;
     laneLastCol[lane] = endCol;
-    bars.push({
+    allBars.push({
       endCol,
       event,
       key: event.key,
@@ -210,7 +217,18 @@ function computeRowSpanBars(rowDays: Date[], events: CalendarDisplayEvent[]): { 
       startCol,
     });
   }
-  return { bars, laneCount: laneLastCol.length };
+
+  // 레인은 maxLanes까지만 그린다. 넘치는 막대는 지나가는 날짜 칸마다 "+N"으로 접어 셀 높이를 고정한다.
+  const hiddenByCol = new Array<number>(rowDays.length).fill(0);
+  const bars: CalendarSpanBar[] = [];
+  for (const bar of allBars) {
+    if (bar.lane < maxLanes) {
+      bars.push(bar);
+      continue;
+    }
+    for (let col = bar.startCol; col <= bar.endCol; col += 1) hiddenByCol[col] += 1;
+  }
+  return { bars, hiddenByCol, laneCount: Math.min(laneLastCol.length, maxLanes) };
 }
 
 function startOfMonth(date: Date) {
@@ -672,12 +690,12 @@ function CalendarPageContent() {
   const visibleCalendarDays = viewMode === "week" ? weekDays : calendarDays;
   // 달력을 주(7일) 단위 행으로 묶고, 각 행의 멀티데이/종일 이벤트를 관통 막대 레인으로 배치한다(#1).
   const calendarRows = useMemo(() => {
-    const rows: Array<{ bars: CalendarSpanBar[]; days: Date[]; key: string; laneCount: number }> = [];
+    const rows: Array<{ bars: CalendarSpanBar[]; days: Date[]; hiddenByCol: number[]; key: string; laneCount: number }> = [];
     for (let index = 0; index < visibleCalendarDays.length; index += 7) {
       const days = visibleCalendarDays.slice(index, index + 7);
       if (days.length === 0) continue;
-      const { bars, laneCount } = computeRowSpanBars(days, visibleEvents);
-      rows.push({ bars, days, key: toDateValue(days[0]), laneCount });
+      const { bars, hiddenByCol, laneCount } = computeRowSpanBars(days, visibleEvents, CALENDAR_MAX_ROW_LANES);
+      rows.push({ bars, days, hiddenByCol, key: toDateValue(days[0]), laneCount });
     }
     return rows;
   }, [visibleCalendarDays, visibleEvents]);
@@ -1233,7 +1251,7 @@ function CalendarPageContent() {
                       </div>
                     ) : null}
                     <div className={styles.weekCells}>
-                      {row.days.map((date) => {
+                      {row.days.map((date, colIndex) => {
                         const dateValue = toDateValue(date);
                         const outside = viewMode === "month" && date.getMonth() !== currentMonth.getMonth();
                         const cellPad = { paddingTop: `calc(${row.laneCount} * var(--span-bar-lane, 20px) + var(--span-bar-gap, 4px))` };
@@ -1251,6 +1269,11 @@ function CalendarPageContent() {
                           .filter((event) => !event.allDay && !eventDayBounds(event).isMultiDay && eventCoversDate(event, date))
                           .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
                         const count = timedEvents.length;
+                        // 관통 막대가 쓴 레인만큼 시간 칩 자리를 줄인다. 막대+칩 합쳐 CALENDAR_MAX_ROW_LANES줄로 고정하고, 넘치면 "+N".
+                        const timedSlots = Math.max(0, CALENDAR_MAX_ROW_LANES - row.laneCount);
+                        const hiddenBars = row.hiddenByCol[colIndex] ?? 0;
+                        const shownTimed = timedEvents.slice(0, timedSlots);
+                        const overflowCount = hiddenBars + (count - shownTimed.length);
                         const roomEventCount = roomEvents.filter((event) => sameDate(new Date(event.occurredAt), date)).length;
                         const selected = dateValue === selectedDate;
                         const today = sameDate(date, now);
@@ -1265,11 +1288,11 @@ function CalendarPageContent() {
                           .join(" ");
 
                         return (
-                          <button aria-pressed={selected} className={className} key={dateValue} onClick={(clickEvent) => selectCalendarDate(date, count > 0, clickEvent.currentTarget.getBoundingClientRect())} style={cellPad} type="button">
+                          <button aria-pressed={selected} className={className} key={dateValue} onClick={(clickEvent) => selectCalendarDate(date, count > 0 || hiddenBars > 0, clickEvent.currentTarget.getBoundingClientRect())} style={cellPad} type="button">
                             <span className={styles.cellDate}>{date.getDate()}</span>
-                            {count > 0 ? (
+                            {shownTimed.length > 0 || overflowCount > 0 ? (
                               <ul aria-label={t("calendar.grid.dayEventsAria", { day: date.getDate() })} className={styles.cellEvents}>
-                                {timedEvents.slice(0, 3).map((event) => {
+                                {shownTimed.map((event) => {
                                   const source = event.sourceKey === "room" ? "room" : event.sourceKey === "personal" ? "personal" : "external";
                                   return (
                                     <li
@@ -1286,7 +1309,7 @@ function CalendarPageContent() {
                                     </li>
                                   );
                                 })}
-                                {count > 3 ? <li className={styles.eventMore}>{t("calendar.grid.moreCount", { count: count - 3 })}</li> : null}
+                                {overflowCount > 0 ? <li className={styles.eventMore}>{t("calendar.grid.moreCount", { count: overflowCount })}</li> : null}
                               </ul>
                             ) : null}
                             {roomEventCount > 0 ? (
